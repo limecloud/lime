@@ -247,6 +247,9 @@ interface WorkspaceConversationSceneProps extends WorkspaceMainAreaProps {
   onAddPathReferences?: ComponentProps<
     typeof EmptyState
   >["onAddPathReferences"];
+  onImportPathReferenceAsKnowledge?: ComponentProps<
+    typeof EmptyState
+  >["onImportPathReferenceAsKnowledge"];
   onRemovePathReference?: ComponentProps<
     typeof EmptyState
   >["onRemovePathReference"];
@@ -378,6 +381,22 @@ interface WorkspaceConversationSceneProps extends WorkspaceMainAreaProps {
   runtimeToolAvailability?: ComponentProps<
     typeof EmptyState
   >["runtimeToolAvailability"];
+  knowledgePackSelection?: ComponentProps<
+    typeof EmptyState
+  >["knowledgePackSelection"];
+  knowledgePackOptions?: ComponentProps<typeof EmptyState>["knowledgePackOptions"];
+  onToggleKnowledgePack?: ComponentProps<
+    typeof EmptyState
+  >["onToggleKnowledgePack"];
+  onSelectKnowledgePack?: ComponentProps<
+    typeof EmptyState
+  >["onSelectKnowledgePack"];
+  onStartKnowledgeOrganize?: ComponentProps<
+    typeof EmptyState
+  >["onStartKnowledgeOrganize"];
+  onManageKnowledgePacks?: ComponentProps<
+    typeof EmptyState
+  >["onManageKnowledgePacks"];
   runtimeTaskCard?: ComponentProps<typeof EmptyState>["runtimeTaskCard"];
   onOpenMemoryWorkbench?: ComponentProps<
     typeof EmptyState
@@ -437,6 +456,7 @@ export function WorkspaceConversationScene({
   defaultCuratedTaskReferenceEntries,
   pathReferences,
   onAddPathReferences,
+  onImportPathReferenceAsKnowledge,
   onRemovePathReference,
   onClearPathReferences,
   fileManagerOpen,
@@ -518,6 +538,12 @@ export function WorkspaceConversationScene({
   onDismissWorkspaceHint,
   onOpenSettings,
   runtimeToolAvailability,
+  knowledgePackSelection,
+  knowledgePackOptions,
+  onToggleKnowledgePack,
+  onSelectKnowledgePack,
+  onStartKnowledgeOrganize,
+  onManageKnowledgePacks,
   runtimeTaskCard,
   onOpenMemoryWorkbench,
   onOpenChannels,
@@ -616,6 +642,12 @@ export function WorkspaceConversationScene({
     projectId,
     sessionId,
     runtimeToolAvailability,
+    knowledgePackSelection,
+    knowledgePackOptions,
+    onToggleKnowledgePack,
+    onSelectKnowledgePack,
+    onStartKnowledgeOrganize,
+    onManageKnowledgePacks,
     runtimeTaskCard,
     onOpenMemoryWorkbench,
     onOpenChannels,
@@ -626,6 +658,7 @@ export function WorkspaceConversationScene({
     defaultCuratedTaskReferenceEntries,
     pathReferences,
     onAddPathReferences,
+    onImportPathReferenceAsKnowledge,
     onRemovePathReference,
     onClearPathReferences,
     fileManagerOpen,

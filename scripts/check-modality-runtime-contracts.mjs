@@ -10,6 +10,12 @@ const CAPABILITY_MATRIX_PATH =
 const ARTIFACT_GRAPH_PATH = "src/lib/governance/modalityArtifactGraph.json";
 const EXECUTION_PROFILE_PATH =
   "src/lib/governance/modalityExecutionProfiles.json";
+const TASK_INDEX_PRESENTATION_PATH =
+  "src/lib/agentRuntime/modalityTaskIndexPresentation.ts";
+const HARNESS_TASK_INDEX_SECTION_PATH =
+  "src/components/agent/chat/components/HarnessTaskIndexSection.tsx";
+const HARNESS_STATUS_PANEL_PATH =
+  "src/components/agent/chat/components/HarnessStatusPanel.tsx";
 const REQUIRED_DOCS = [
   "docs/roadmap/warp/runtime-fact-map.md",
   "docs/roadmap/warp/contract-schema.md",
@@ -19,6 +25,11 @@ const REQUIRED_DOCS = [
   "docs/roadmap/warp/entry-binding-inventory.md",
   "docs/roadmap/warp/task-index-inventory.md",
   "docs/roadmap/warp/evolution-guide.md",
+];
+const REQUIRED_TASK_INDEX_PRESENTATION_EXPORTS = [
+  "buildModalityTaskIndexFacets",
+  "buildModalityTaskIndexRows",
+  "filterModalityTaskIndexRows",
 ];
 
 const LIFECYCLES = new Set(["current", "compat", "deprecated", "dead"]);
@@ -132,6 +143,30 @@ const REQUIRED_ARTIFACT_INDEX_FIELDS = new Set([
   "created_at",
   "updated_at",
 ]);
+const MEDIA_TASK_ARTIFACT_KINDS_REQUIRING_PHASE8_FIELDS = new Set([
+  "image_task",
+  "image_output",
+  "audio_task",
+  "audio_output",
+  "transcript",
+]);
+const REQUIRED_MEDIA_TASK_PHASE8_INDEX_FIELDS = new Set([
+  "entry_key",
+  "thread_id",
+  "turn_id",
+  "content_id",
+  "modality",
+  "skill_id",
+  "model_id",
+  "cost_state",
+  "limit_state",
+  "estimated_cost_class",
+  "limit_event_kind",
+  "quota_low",
+  "executor_kind",
+  "executor_binding_key",
+  "limecore_policy_snapshot_status",
+]);
 const ENTRY_KINDS = new Set([
   "command",
   "button_action",
@@ -158,7 +193,11 @@ const PHASE7_REQUIRED_ENTRY_BINDINGS = new Map([
 
 function collectUniqueObjects(errors, collection, keyName, label) {
   const result = new Map();
-  pushIf(errors, !isNonEmptyArray(collection), `${label} must be a non-empty array`);
+  pushIf(
+    errors,
+    !isNonEmptyArray(collection),
+    `${label} must be a non-empty array`,
+  );
   if (!Array.isArray(collection)) {
     return result;
   }
@@ -179,7 +218,11 @@ function collectUniqueObjects(errors, collection, keyName, label) {
     if (!isNonEmptyString(key)) {
       return;
     }
-    pushIf(errors, result.has(key), `${prefix}.${keyName} is duplicated: ${key}`);
+    pushIf(
+      errors,
+      result.has(key),
+      `${prefix}.${keyName} is duplicated: ${key}`,
+    );
     result.set(key, item);
   });
 
@@ -209,7 +252,13 @@ function pushIf(errors, condition, message) {
   }
 }
 
-function validateEnumArray(errors, contractKey, fieldName, values, allowedValues) {
+function validateEnumArray(
+  errors,
+  contractKey,
+  fieldName,
+  values,
+  allowedValues,
+) {
   pushIf(
     errors,
     !isNonEmptyArray(values),
@@ -228,9 +277,17 @@ function validateEnumArray(errors, contractKey, fieldName, values, allowedValues
   }
 }
 
-function validateStringArray(errors, contractKey, fieldName, values, options = {}) {
+function validateStringArray(
+  errors,
+  contractKey,
+  fieldName,
+  values,
+  options = {},
+) {
   const { allowEmpty = false } = options;
-  const invalidArray = allowEmpty ? !Array.isArray(values) : !isNonEmptyArray(values);
+  const invalidArray = allowEmpty
+    ? !Array.isArray(values)
+    : !isNonEmptyArray(values);
   pushIf(
     errors,
     invalidArray,
@@ -435,7 +492,10 @@ function validatePhase7EntryBindingCoverage(errors, registry) {
     }
   }
 
-  for (const [contractKey, requiredEntryKeys] of PHASE7_REQUIRED_ENTRY_BINDINGS) {
+  for (const [
+    contractKey,
+    requiredEntryKeys,
+  ] of PHASE7_REQUIRED_ENTRY_BINDINGS) {
     const contract = registry.contracts.find(
       (candidate) =>
         isPlainObject(candidate) && candidate.contract_key === contractKey,
@@ -544,13 +604,9 @@ function validateCapabilityMatrix(matrix) {
       role.capability_keys,
       new Set(capabilityMap.keys()),
     );
-    validateStringArray(
-      errors,
-      slot,
-      "fallback_slots",
-      role.fallback_slots,
-      { allowEmpty: true },
-    );
+    validateStringArray(errors, slot, "fallback_slots", role.fallback_slots, {
+      allowEmpty: true,
+    });
     if (Array.isArray(role.fallback_slots)) {
       for (const fallbackSlot of role.fallback_slots) {
         pushIf(
@@ -683,6 +739,15 @@ function validateArtifactGraph(graph) {
           `artifact ${kind}.task_index_fields must include ${requiredField}`,
         );
       }
+      if (MEDIA_TASK_ARTIFACT_KINDS_REQUIRING_PHASE8_FIELDS.has(kind)) {
+        for (const requiredField of REQUIRED_MEDIA_TASK_PHASE8_INDEX_FIELDS) {
+          pushIf(
+            errors,
+            !indexFields.has(requiredField),
+            `artifact ${kind}.task_index_fields must include ${requiredField} for Phase 8 media task index projection`,
+          );
+        }
+      }
     }
   }
 
@@ -709,7 +774,9 @@ function validateContractArtifactGraph(errors, contract, artifactGraphRefs) {
   for (const artifactKind of contract.artifact_kinds) {
     const artifact = artifactGraphRefs.artifactMap.get(artifactKind);
     if (!artifact) {
-      errors.push(`${contractKey}.artifact_kinds references artifact not defined in graph: ${artifactKind}`);
+      errors.push(
+        `${contractKey}.artifact_kinds references artifact not defined in graph: ${artifactKind}`,
+      );
       continue;
     }
 
@@ -742,7 +809,10 @@ function resolveExecutorAdapterKey(executor) {
   if (!isPlainObject(executor)) {
     return null;
   }
-  if (!isNonEmptyString(executor.executor_kind) || !isNonEmptyString(executor.binding_key)) {
+  if (
+    !isNonEmptyString(executor.executor_kind) ||
+    !isNonEmptyString(executor.binding_key)
+  ) {
     return null;
   }
   return `${executor.executor_kind}:${executor.binding_key}`;
@@ -760,7 +830,11 @@ function validateSubset(errors, label, actualValues, requiredValues) {
 }
 
 function validateArtifactPolicy(errors, label, policy, artifactGraphRefs) {
-  pushIf(errors, !isPlainObject(policy), `${label}.artifact_policy must be an object`);
+  pushIf(
+    errors,
+    !isPlainObject(policy),
+    `${label}.artifact_policy must be an object`,
+  );
   if (!isPlainObject(policy)) {
     return;
   }
@@ -794,7 +868,12 @@ function validateArtifactPolicy(errors, label, policy, artifactGraphRefs) {
   );
 }
 
-function validateExecutionProfiles(registry, profiles, matrixRefs, artifactGraphRefs) {
+function validateExecutionProfiles(
+  registry,
+  profiles,
+  matrixRefs,
+  artifactGraphRefs,
+) {
   const errors = [];
   pushIf(errors, profiles.version !== 1, "executionProfiles.version must be 1");
   pushIf(
@@ -946,7 +1025,12 @@ function validateExecutionProfiles(registry, profiles, matrixRefs, artifactGraph
       profile.executor_adapter_keys,
       new Set(adapterMap.keys()),
     );
-    validateArtifactPolicy(errors, profileKey, profile.artifact_policy, artifactGraphRefs);
+    validateArtifactPolicy(
+      errors,
+      profileKey,
+      profile.artifact_policy,
+      artifactGraphRefs,
+    );
     validateEnumArray(
       errors,
       profileKey,
@@ -972,7 +1056,12 @@ function validateExecutionProfiles(registry, profiles, matrixRefs, artifactGraph
       profile.evidence_events,
       EVIDENCE_EVENTS,
     );
-    validateStringArray(errors, profileKey, "audit_fields", profile.audit_fields);
+    validateStringArray(
+      errors,
+      profileKey,
+      "audit_fields",
+      profile.audit_fields,
+    );
     pushIf(
       errors,
       !isNonEmptyString(profile.notes),
@@ -1094,9 +1183,21 @@ function validateExecutionProfiles(registry, profiles, matrixRefs, artifactGraph
 function validateContractRegistry(registry, matrixRefs, artifactGraphRefs) {
   const errors = [];
   pushIf(errors, registry.version !== 1, "registry.version must be 1");
-  pushIf(errors, registry.status !== "current", "registry.status must be current");
-  pushIf(errors, !isNonEmptyString(registry.owner), "registry.owner must be set");
-  pushIf(errors, !isNonEmptyArray(registry.contracts), "registry.contracts must be a non-empty array");
+  pushIf(
+    errors,
+    registry.status !== "current",
+    "registry.status must be current",
+  );
+  pushIf(
+    errors,
+    !isNonEmptyString(registry.owner),
+    "registry.owner must be set",
+  );
+  pushIf(
+    errors,
+    !isNonEmptyArray(registry.contracts),
+    "registry.contracts must be a non-empty array",
+  );
   if (!Array.isArray(registry.contracts)) {
     return errors;
   }
@@ -1116,7 +1217,8 @@ function validateContractRegistry(registry, matrixRefs, artifactGraphRefs) {
     );
     pushIf(
       errors,
-      isNonEmptyString(contract.contract_key) && looksLikeEntryKey(contract.contract_key),
+      isNonEmptyString(contract.contract_key) &&
+        looksLikeEntryKey(contract.contract_key),
       `${contractKey}.contract_key must be a bottom-layer key, not an entry key`,
     );
     pushIf(
@@ -1136,8 +1238,18 @@ function validateContractRegistry(registry, matrixRefs, artifactGraphRefs) {
       !MODALITIES.has(contract.modality),
       `${contractKey}.modality is unknown: ${String(contract.modality)}`,
     );
-    validateStringArray(errors, contractKey, "runtime_identity", contract.runtime_identity);
-    validateStringArray(errors, contractKey, "input_context_kinds", contract.input_context_kinds);
+    validateStringArray(
+      errors,
+      contractKey,
+      "runtime_identity",
+      contract.runtime_identity,
+    );
+    validateStringArray(
+      errors,
+      contractKey,
+      "input_context_kinds",
+      contract.input_context_kinds,
+    );
     validateEnumArray(
       errors,
       contractKey,
@@ -1145,8 +1257,18 @@ function validateContractRegistry(registry, matrixRefs, artifactGraphRefs) {
       contract.required_capabilities,
       matrixRefs.capabilityKeys,
     );
-    validateEnumArray(errors, contractKey, "permission_profile_keys", contract.permission_profile_keys, PERMISSIONS);
-    pushIf(errors, !isNonEmptyString(contract.routing_slot), `${contractKey}.routing_slot must be set`);
+    validateEnumArray(
+      errors,
+      contractKey,
+      "permission_profile_keys",
+      contract.permission_profile_keys,
+      PERMISSIONS,
+    );
+    pushIf(
+      errors,
+      !isNonEmptyString(contract.routing_slot),
+      `${contractKey}.routing_slot must be set`,
+    );
     pushIf(
       errors,
       isNonEmptyString(contract.routing_slot) &&
@@ -1154,19 +1276,72 @@ function validateContractRegistry(registry, matrixRefs, artifactGraphRefs) {
       `${contractKey}.routing_slot is not defined in capability matrix: ${String(contract.routing_slot)}`,
     );
     validateExecutor(errors, contract);
-    validateStringArray(errors, contractKey, "truth_source", contract.truth_source);
-    validateEnumArray(errors, contractKey, "artifact_kinds", contract.artifact_kinds, ARTIFACT_KINDS);
-    validateEnumArray(errors, contractKey, "viewer_surface", contract.viewer_surface, VIEWER_SURFACES);
-    validateEnumArray(errors, contractKey, "evidence_events", contract.evidence_events, EVIDENCE_EVENTS);
-    validateEnumArray(errors, contractKey, "limecore_policy_refs", contract.limecore_policy_refs, LIMECORE_POLICY_REFS);
-    validateStringArray(errors, contractKey, "fallback_policy", contract.fallback_policy);
+    validateStringArray(
+      errors,
+      contractKey,
+      "truth_source",
+      contract.truth_source,
+    );
+    validateEnumArray(
+      errors,
+      contractKey,
+      "artifact_kinds",
+      contract.artifact_kinds,
+      ARTIFACT_KINDS,
+    );
+    validateEnumArray(
+      errors,
+      contractKey,
+      "viewer_surface",
+      contract.viewer_surface,
+      VIEWER_SURFACES,
+    );
+    validateEnumArray(
+      errors,
+      contractKey,
+      "evidence_events",
+      contract.evidence_events,
+      EVIDENCE_EVENTS,
+    );
+    validateEnumArray(
+      errors,
+      contractKey,
+      "limecore_policy_refs",
+      contract.limecore_policy_refs,
+      LIMECORE_POLICY_REFS,
+    );
+    validateStringArray(
+      errors,
+      contractKey,
+      "fallback_policy",
+      contract.fallback_policy,
+    );
 
-    pushIf(errors, !isPlainObject(contract.detour_policy), `${contractKey}.detour_policy must be an object`);
+    pushIf(
+      errors,
+      !isPlainObject(contract.detour_policy),
+      `${contractKey}.detour_policy must be an object`,
+    );
     if (isPlainObject(contract.detour_policy)) {
-      validateStringArray(errors, contractKey, "detour_policy.allowed", contract.detour_policy.allowed, { allowEmpty: true });
-      validateStringArray(errors, contractKey, "detour_policy.denied", contract.detour_policy.denied);
+      validateStringArray(
+        errors,
+        contractKey,
+        "detour_policy.allowed",
+        contract.detour_policy.allowed,
+        { allowEmpty: true },
+      );
+      validateStringArray(
+        errors,
+        contractKey,
+        "detour_policy.denied",
+        contract.detour_policy.denied,
+      );
     }
-    pushIf(errors, !isNonEmptyString(contract.owner_surface), `${contractKey}.owner_surface must be set`);
+    pushIf(
+      errors,
+      !isNonEmptyString(contract.owner_surface),
+      `${contractKey}.owner_surface must be set`,
+    );
     validateEntryBindings(errors, contract);
     validateContractArtifactGraph(errors, contract, artifactGraphRefs);
   }
@@ -1187,7 +1362,86 @@ function validateRequiredDocs() {
   });
 }
 
-function renderSuccess(registry, matrix, graph, contractReport, profileReport) {
+function readRequiredTextFile(errors, filePath) {
+  const absolutePath = path.resolve(process.cwd(), filePath);
+  if (!fs.existsSync(absolutePath)) {
+    errors.push(`required task index source file is missing: ${filePath}`);
+    return "";
+  }
+  return fs.readFileSync(absolutePath, "utf8");
+}
+
+function validateTaskIndexPresentationGuard() {
+  const errors = [];
+  const presentationSource = readRequiredTextFile(
+    errors,
+    TASK_INDEX_PRESENTATION_PATH,
+  );
+  const sectionSource = readRequiredTextFile(
+    errors,
+    HARNESS_TASK_INDEX_SECTION_PATH,
+  );
+  const panelSource = readRequiredTextFile(errors, HARNESS_STATUS_PANEL_PATH);
+
+  for (const exportName of REQUIRED_TASK_INDEX_PRESENTATION_EXPORTS) {
+    pushIf(
+      errors,
+      !presentationSource.includes(`export function ${exportName}`),
+      `${TASK_INDEX_PRESENTATION_PATH} must export ${exportName} as the Phase 8 taskIndex query fact source`,
+    );
+    pushIf(
+      errors,
+      !sectionSource.includes(exportName),
+      `${HARNESS_TASK_INDEX_SECTION_PATH} must consume ${exportName} instead of rebuilding taskIndex UI state`,
+    );
+  }
+
+  pushIf(
+    errors,
+    !sectionSource.includes(
+      'from "@/lib/agentRuntime/modalityTaskIndexPresentation"',
+    ),
+    `${HARNESS_TASK_INDEX_SECTION_PATH} must import the shared taskIndex presentation helpers`,
+  );
+  pushIf(
+    errors,
+    !sectionSource.includes("任务中心过滤列表"),
+    `${HARNESS_TASK_INDEX_SECTION_PATH} must keep the task center filter surface attached to shared taskIndex rows`,
+  );
+  pushIf(
+    errors,
+    !panelSource.includes(
+      'import { HarnessTaskIndexSection } from "./HarnessTaskIndexSection";',
+    ) || !panelSource.includes("<HarnessTaskIndexSection"),
+    `${HARNESS_STATUS_PANEL_PATH} must delegate the taskIndex surface to HarnessTaskIndexSection`,
+  );
+
+  const forbiddenPanelSnippets = [
+    "buildModalityTaskIndexRows",
+    "filterModalityTaskIndexRows",
+    "function TaskIndexItemCard",
+    "function TaskIndexFilterSelect",
+    "function TaskIndexSummarySection",
+  ];
+  for (const snippet of forbiddenPanelSnippets) {
+    pushIf(
+      errors,
+      panelSource.includes(snippet),
+      `${HARNESS_STATUS_PANEL_PATH} must not inline taskIndex query/list UI (${snippet}); use ${HARNESS_TASK_INDEX_SECTION_PATH}`,
+    );
+  }
+
+  return { errors };
+}
+
+function renderSuccess(
+  registry,
+  matrix,
+  graph,
+  contractReport,
+  profileReport,
+  taskIndexPresentationReport,
+) {
   const currentCount = registry.contracts.filter(
     (contract) => contract.lifecycle === "current",
   ).length;
@@ -1200,6 +1454,10 @@ function renderSuccess(registry, matrix, graph, contractReport, profileReport) {
     `  artifact kinds: ${graph.artifact_kinds.length}`,
     `  entry bindings: ${contractReport.entryBindingReport.entryBindingCount}`,
     `  task index core fields: ${REQUIRED_ARTIFACT_INDEX_FIELDS.size}`,
+    `  media phase8 index fields: ${REQUIRED_MEDIA_TASK_PHASE8_INDEX_FIELDS.size}`,
+    `  task index presentation guard: ${
+      taskIndexPresentationReport.errors.length === 0 ? "current" : "failed"
+    }`,
     `  execution profiles: ${profileReport.profileCount}`,
     `  executor adapters: ${profileReport.adapterCount}`,
     `  registry: ${CONTRACT_PATH}`,
@@ -1227,12 +1485,14 @@ function main() {
     matrixReport,
     graphReport,
   );
+  const taskIndexPresentationReport = validateTaskIndexPresentationGuard();
   const errors = [
     ...validateRequiredDocs(),
     ...matrixReport.errors,
     ...graphReport.errors,
     ...contractReport.errors,
     ...profileReport.errors,
+    ...taskIndexPresentationReport.errors,
   ];
 
   if (errors.length > 0) {
@@ -1243,7 +1503,16 @@ function main() {
     process.exit(1);
   }
 
-  console.log(renderSuccess(registry, matrix, graph, contractReport, profileReport));
+  console.log(
+    renderSuccess(
+      registry,
+      matrix,
+      graph,
+      contractReport,
+      profileReport,
+      taskIndexPresentationReport,
+    ),
+  );
 }
 
 main();

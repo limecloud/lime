@@ -76,6 +76,14 @@ function createListing(path: string): DirectoryListing {
         modifiedAt: Date.now(),
         mimeType: "text/plain",
       },
+      {
+        name: "contract.pdf",
+        path: "/Users/demo/contract.pdf",
+        isDir: false,
+        size: 2048,
+        modifiedAt: Date.now(),
+        mimeType: "application/pdf",
+      },
     ],
     error: null,
   };
@@ -86,18 +94,23 @@ async function renderFileManagerSidebar(props?: {
   onAddPathReferences?: React.ComponentProps<
     typeof FileManagerSidebar
   >["onAddPathReferences"];
+  onImportAsKnowledge?: React.ComponentProps<
+    typeof FileManagerSidebar
+  >["onImportAsKnowledge"];
 }) {
   const container = document.createElement("div");
   document.body.appendChild(container);
   const root = createRoot(container);
   const onClose = props?.onClose ?? vi.fn();
   const onAddPathReferences = props?.onAddPathReferences ?? vi.fn();
+  const onImportAsKnowledge = props?.onImportAsKnowledge;
 
   await act(async () => {
     root.render(
       <FileManagerSidebar
         onClose={onClose}
         onAddPathReferences={onAddPathReferences}
+        onImportAsKnowledge={onImportAsKnowledge}
       />,
     );
     await Promise.resolve();
@@ -250,6 +263,19 @@ describe("FileManagerSidebar", () => {
     ]);
   });
 
+  it("顶部位置说明不应直接暴露本机完整路径", async () => {
+    const { container } = await renderFileManagerSidebar();
+
+    expect(container.textContent).toContain("个人");
+    expect(container.textContent).toContain("本地位置");
+    expect(container.textContent).not.toContain("/Users/demo");
+
+    const locationHint = Array.from(container.querySelectorAll("p")).find(
+      (element) => element.textContent?.includes("本地位置"),
+    );
+    expect(locationHint?.getAttribute("title")).toBe("当前文件夹");
+  });
+
   it("应支持关闭侧栏", async () => {
     const onClose = vi.fn();
     const { container } = await renderFileManagerSidebar({ onClose });
@@ -265,6 +291,158 @@ describe("FileManagerSidebar", () => {
     });
 
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("右键文本文件应可直接设为项目资料", async () => {
+    const onImportAsKnowledge = vi.fn();
+    const { container } = await renderFileManagerSidebar({
+      onImportAsKnowledge,
+    });
+
+    const fileEntry = Array.from(
+      container.querySelectorAll('[data-testid="file-manager-entry"]'),
+    ).find((entry) => entry.textContent?.includes("brief.txt"));
+
+    await act(async () => {
+      fileEntry?.dispatchEvent(
+        new MouseEvent("contextmenu", {
+          bubbles: true,
+          cancelable: true,
+          clientX: 48,
+          clientY: 56,
+        }),
+      );
+      await Promise.resolve();
+    });
+
+    const menu = document.querySelector(
+      '[data-testid="file-manager-context-menu"]',
+    );
+    expect(menu?.textContent).toContain("设为项目资料");
+
+    const importAction = Array.from(
+      menu?.querySelectorAll("button") ?? [],
+    ).find((button) => button.textContent?.includes("设为项目资料"));
+    expect(importAction).toBeTruthy();
+
+    await act(async () => {
+      importAction?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(onImportAsKnowledge).toHaveBeenCalledWith(
+      expect.objectContaining({
+        path: "/Users/demo/brief.txt",
+        name: "brief.txt",
+        isDir: false,
+        mimeType: "text/plain",
+        source: "file_manager",
+      }),
+    );
+  });
+
+  it("普通点击文本文件应先加入对话，避免直接打开系统应用", async () => {
+    const onAddPathReferences = vi.fn();
+    const onImportAsKnowledge = vi.fn();
+    const { container } = await renderFileManagerSidebar({
+      onAddPathReferences,
+      onImportAsKnowledge,
+    });
+
+    const fileEntry = Array.from(
+      container.querySelectorAll('[data-testid="file-manager-entry"]'),
+    ).find((entry) => entry.textContent?.includes("brief.txt"));
+    expect(fileEntry?.textContent).toContain("加入对话");
+    expect(fileEntry?.textContent).toContain("设为资料");
+
+    await act(async () => {
+      fileEntry?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(onAddPathReferences).toHaveBeenCalledWith([
+      expect.objectContaining({
+        path: "/Users/demo/brief.txt",
+        name: "brief.txt",
+        isDir: false,
+        source: "file_manager",
+      }),
+    ]);
+    expect(openPathWithDefaultApp).not.toHaveBeenCalled();
+  });
+
+  it("文件列表里的设为资料按钮应直接进入资料整理", async () => {
+    const onImportAsKnowledge = vi.fn();
+    const { container } = await renderFileManagerSidebar({
+      onImportAsKnowledge,
+    });
+
+    const fileEntry = Array.from(
+      container.querySelectorAll('[data-testid="file-manager-entry"]'),
+    ).find((entry) => entry.textContent?.includes("brief.txt"));
+    const importButton = Array.from(
+      fileEntry?.querySelectorAll("button") ?? [],
+    ).find((button) => button.textContent?.includes("设为资料"));
+
+    await act(async () => {
+      importButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(onImportAsKnowledge).toHaveBeenCalledWith(
+      expect.objectContaining({
+        path: "/Users/demo/brief.txt",
+        name: "brief.txt",
+        isDir: false,
+        mimeType: "text/plain",
+        source: "file_manager",
+      }),
+    );
+  });
+
+  it("右键非文本文件不应误导为可直接整理资料", async () => {
+    const onImportAsKnowledge = vi.fn();
+    const { container } = await renderFileManagerSidebar({
+      onImportAsKnowledge,
+    });
+
+    const fileEntry = Array.from(
+      container.querySelectorAll('[data-testid="file-manager-entry"]'),
+    ).find((entry) => entry.textContent?.includes("contract.pdf"));
+
+    await act(async () => {
+      fileEntry?.dispatchEvent(
+        new MouseEvent("contextmenu", {
+          bubbles: true,
+          cancelable: true,
+          clientX: 48,
+          clientY: 56,
+        }),
+      );
+      await Promise.resolve();
+    });
+
+    const menu = document.querySelector(
+      '[data-testid="file-manager-context-menu"]',
+    );
+    expect(menu?.textContent).toContain("暂不支持整理为资料");
+    expect(menu?.textContent).not.toContain("设为项目资料");
+
+    const importAction = Array.from(
+      menu?.querySelectorAll("button") ?? [],
+    ).find((button) => button.textContent?.includes("暂不支持整理为资料"));
+    expect(importAction).toBeTruthy();
+    expect((importAction as HTMLButtonElement | undefined)?.disabled).toBe(
+      true,
+    );
+    expect(importAction?.getAttribute("title")).toContain("转成 Markdown");
+
+    await act(async () => {
+      importAction?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(onImportAsKnowledge).not.toHaveBeenCalled();
   });
 
   it("应用程序位置应渲染原生应用图标，侧栏保持窄轨", async () => {

@@ -1,8 +1,8 @@
 use chrono::Utc;
 use lime_agent::AgentEvent as RuntimeAgentEvent;
 use lime_core::database::dao::agent_timeline::{
-    AgentThreadItem, AgentThreadItemPayload, AgentThreadItemStatus, AgentThreadTurn,
-    AgentThreadTurnStatus, AgentTimelineDao,
+    AgentRequestQuestion, AgentThreadItem, AgentThreadItemPayload, AgentThreadItemStatus,
+    AgentThreadTurn, AgentThreadTurnStatus, AgentTimelineDao,
 };
 use lime_core::database::{lock_db, DbConnection};
 use serde_json::Value;
@@ -233,6 +233,30 @@ impl AgentTimelineRecorder {
         }
 
         Ok(())
+    }
+
+    pub fn record_request_user_input(
+        &mut self,
+        app: &AppHandle,
+        event_name: &str,
+        request_id: String,
+        action_type: String,
+        prompt: Option<String>,
+        questions: Option<Vec<AgentRequestQuestion>>,
+    ) -> Result<(), String> {
+        let item = self.build_item(
+            request_id.clone(),
+            AgentThreadItemStatus::InProgress,
+            None,
+            AgentThreadItemPayload::RequestUserInput {
+                request_id,
+                action_type,
+                prompt,
+                questions,
+                response: None,
+            },
+        );
+        self.persist_and_emit_item(app, event_name, item)
     }
 
     pub fn complete_turn_success(&mut self) -> Result<Vec<RuntimeAgentEvent>, String> {

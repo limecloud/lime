@@ -74,6 +74,10 @@ import {
   resolveInputCapabilityDispatch,
   type InputCapabilitySelection,
 } from "../skill-selection/inputCapabilitySelection";
+import type {
+  InputbarKnowledgePackOption,
+  InputbarKnowledgePackSelection,
+} from "./Inputbar/types";
 import {
   listSlashEntryUsage,
   subscribeSlashEntryUsageChanged,
@@ -397,9 +401,22 @@ interface EmptyStateProps extends SkillSelectionSourceProps {
   defaultCuratedTaskReferenceMemoryIds?: string[];
   /** 当前结果模板默认带入的参考对象 */
   defaultCuratedTaskReferenceEntries?: CuratedTaskReferenceEntry[];
+  /** 当前项目资料选择态 */
+  knowledgePackSelection?: InputbarKnowledgePackSelection | null;
+  /** 当前项目可选资料 */
+  knowledgePackOptions?: InputbarKnowledgePackOption[];
+  /** 启用 / 关闭当前项目资料 */
+  onToggleKnowledgePack?: (enabled: boolean) => void;
+  /** 切换当前项目资料 */
+  onSelectKnowledgePack?: (packName: string) => void;
+  /** 从当前输入或会话沉淀项目资料 */
+  onStartKnowledgeOrganize?: () => void;
+  /** 打开项目资料管理 */
+  onManageKnowledgePacks?: () => void;
   /** 输入框已添加的本地文件/文件夹引用 */
   pathReferences?: MessagePathReference[];
   onAddPathReferences?: (references: MessagePathReference[]) => void;
+  onImportPathReferenceAsKnowledge?: (reference: MessagePathReference) => void;
   onRemovePathReference?: (id: string) => void;
   onClearPathReferences?: () => void;
   fileManagerOpen?: boolean;
@@ -494,8 +511,15 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   creationReplaySurface = null,
   defaultCuratedTaskReferenceMemoryIds,
   defaultCuratedTaskReferenceEntries,
+  knowledgePackSelection = null,
+  knowledgePackOptions = [],
+  onToggleKnowledgePack,
+  onSelectKnowledgePack,
+  onStartKnowledgeOrganize,
+  onManageKnowledgePacks,
   pathReferences = [],
   onAddPathReferences,
+  onImportPathReferenceAsKnowledge,
   onRemovePathReference,
   onClearPathReferences,
   fileManagerOpen = false,
@@ -504,6 +528,8 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   const pageContainerRef = useRef<HTMLDivElement | null>(null);
   const [activeCapability, setActiveCapability] =
     useState<InputCapabilitySelection | null>(null);
+  const [knowledgeHubOpenRequestKey, setKnowledgeHubOpenRequestKey] =
+    useState(0);
   const activeCuratedTaskCapability =
     activeCapability?.kind === "curated_task" ? activeCapability : null;
   const activeCuratedTask = activeCuratedTaskCapability?.task ?? null;
@@ -537,6 +563,10 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     activeCapability?.kind === "installed_skill"
       ? activeCapability.skill
       : null;
+  const activeBuiltinCommandKey =
+    activeCapability?.kind === "builtin_command"
+      ? activeCapability.command.key
+      : null;
   const clearSelectedSkill = useCallback(() => {
     setActiveCapability(null);
   }, []);
@@ -547,10 +577,48 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
         onSelectServiceSkill?.(capability.skill);
         return;
       }
+      if (capability.kind === "builtin_command") {
+        if (capability.command.key === "knowledge_pack") {
+          if (!knowledgePackSelection && !onStartKnowledgeOrganize) {
+            onManageKnowledgePacks?.();
+          } else {
+            setKnowledgeHubOpenRequestKey((current) => current + 1);
+          }
+          setActiveCapability(null);
+          return;
+        }
+
+        if (capability.command.key === "knowledge_settle") {
+          onStartKnowledgeOrganize?.();
+          setActiveCapability(null);
+          return;
+        }
+      }
       setActiveCapability(capability);
     },
-    [onSelectServiceSkill],
+    [
+      knowledgePackSelection,
+      onManageKnowledgePacks,
+      onSelectServiceSkill,
+      onStartKnowledgeOrganize,
+    ],
   );
+  useEffect(() => {
+    if (activeBuiltinCommandKey !== "knowledge_pack") {
+      return;
+    }
+    setActiveCapability(null);
+    if (!knowledgePackSelection && !onStartKnowledgeOrganize) {
+      onManageKnowledgePacks?.();
+      return;
+    }
+    setKnowledgeHubOpenRequestKey((current) => current + 1);
+  }, [
+    activeBuiltinCommandKey,
+    knowledgePackSelection,
+    onManageKnowledgePacks,
+    onStartKnowledgeOrganize,
+  ]);
   const skillSelection = buildSkillSelectionProps({
     skills,
     serviceSkills,
@@ -814,10 +882,23 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
       activeCapability,
       inputOverride,
     );
-    const requestMetadata = buildPathReferenceRequestMetadata(
+    const baseRequestMetadata = buildPathReferenceRequestMetadata(
       capabilityDispatch.requestMetadata,
       pathReferences,
     );
+    const requestMetadata =
+      knowledgePackSelection?.enabled &&
+      knowledgePackSelection.packName.trim() &&
+      knowledgePackSelection.workingDir.trim()
+        ? {
+            ...(baseRequestMetadata || {}),
+            knowledge_pack: {
+              pack_name: knowledgePackSelection.packName.trim(),
+              working_dir: knowledgePackSelection.workingDir.trim(),
+              source: "inputbar",
+            },
+          }
+        : baseRequestMetadata;
     const effectiveInput = inputOverride.trim()
       ? inputOverride
       : hasPathReferences
@@ -1298,6 +1379,15 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
         }
         return;
       }
+      if (chip.launchKind === "open_knowledge_hub") {
+        setGuideHelpActive(false);
+        if (!knowledgePackSelection && !onStartKnowledgeOrganize) {
+          onManageKnowledgePacks?.();
+        } else {
+          setKnowledgeHubOpenRequestKey((current) => current + 1);
+        }
+        return;
+      }
 
       const targetItem = chip.targetItemId
         ? homeSkillItems.find((item) => item.id === chip.targetItemId)
@@ -1335,7 +1425,10 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
       effectiveDefaultCuratedTaskReferenceMemoryIds,
       handleSelectHomeSkillItem,
       homeSkillItems,
+      knowledgePackSelection,
+      onManageKnowledgePacks,
       onOpenSceneAppsDirectory,
+      onStartKnowledgeOrganize,
       setInput,
     ],
   );
@@ -1461,6 +1554,13 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
         defaultCuratedTaskReferenceEntries={
           effectiveDefaultCuratedTaskReferenceEntries
         }
+        knowledgePackSelection={knowledgePackSelection}
+        knowledgePackOptions={knowledgePackOptions}
+        knowledgeHubOpenRequestKey={knowledgeHubOpenRequestKey}
+        onToggleKnowledgePack={onToggleKnowledgePack}
+        onSelectKnowledgePack={onSelectKnowledgePack}
+        onStartKnowledgeOrganize={onStartKnowledgeOrganize}
+        onManageKnowledgePacks={onManageKnowledgePacks}
         showCreationModeSelector={showCreationModeSelector}
         creationMode={creationMode}
         onCreationModeChange={onCreationModeChange}
@@ -1482,6 +1582,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
         onDrop={handleDrop}
         onRemoveImage={handleRemoveImage}
         pathReferences={pathReferences}
+        onImportPathReferenceAsKnowledge={onImportPathReferenceAsKnowledge}
         onRemovePathReference={onRemovePathReference}
         fileManagerOpen={fileManagerOpen}
         onToggleFileManager={onToggleFileManager}

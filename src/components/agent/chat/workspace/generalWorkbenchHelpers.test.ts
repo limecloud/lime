@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
+import { createInitialDesignCanvasState } from "@/lib/workspace/workbenchCanvas";
 import type { Message } from "../types";
 import {
   applyBackendGeneralWorkbenchDocumentState,
   buildGeneralWorkbenchWorkflowSteps,
+  isCanvasStateEmpty,
   readPersistedGeneralWorkbenchDocument,
+  serializeCanvasStateForSync,
 } from "./generalWorkbenchHelpers";
 
 describe("generalWorkbenchHelpers", () => {
@@ -235,5 +238,22 @@ describe("generalWorkbenchHelpers", () => {
       "artifact-document:auto-report:v1": "merged",
       "artifact-document:auto-report:v2": "pending",
     });
+  });
+
+  it("design canvas 同步应序列化 LayeredDesignDocument JSON", () => {
+    const state = createInitialDesignCanvasState({
+      id: "design-sync",
+      title: "工作区图层设计",
+      canvas: { width: 1080, height: 1440 },
+      layers: [],
+      assets: [],
+      createdAt: "2026-05-05T00:00:00.000Z",
+    });
+
+    expect(isCanvasStateEmpty(state)).toBe(true);
+    const serialized = serializeCanvasStateForSync(state);
+    expect(serialized).toContain('"id": "design-sync"');
+    expect(serialized).toContain('"title": "工作区图层设计"');
+    expect(serialized).toContain('"schemaVersion"');
   });
 });

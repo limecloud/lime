@@ -74,6 +74,14 @@
     "list_media_task_artifacts",
     "cancel_media_task_artifact"
   ],
+  "capabilityDraftCommands": [
+    "capability_draft_create",
+    "capability_draft_list",
+    "capability_draft_get",
+    "capability_draft_verify",
+    "capability_draft_register",
+    "capability_draft_list_registered_skills"
+  ],
   "desktopCompanionCommands": [
     "companion_get_pet_status",
     "companion_launch_pet",

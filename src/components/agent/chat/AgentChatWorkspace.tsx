@@ -632,6 +632,17 @@ function normalizeVideoResolution(value?: string): "480p" | "720p" | "1080p" {
   }
 }
 
+function isUsableKnowledgeSourceText(value: string): boolean {
+  const normalized = value.trim().replace(/\s+/g, " ");
+  if (normalized.length < 24) {
+    return false;
+  }
+
+  return !/请先.*(提供|补充).*(资料|素材|原文)|还没有.*(资料|素材|原文)|不能编造|无法.*沉淀/.test(
+    normalized,
+  );
+}
+
 export type {
   AgentChatWorkspaceProps,
   WorkflowProgressSnapshot,
@@ -664,6 +675,7 @@ export function AgentChatWorkspace({
   entryBannerMessage,
   initialPendingServiceSkillLaunch,
   initialInputCapability,
+  initialKnowledgePackSelection,
   initialProjectFileOpenTarget,
   onInitialUserPromptConsumed,
   newChatAt,
@@ -7478,6 +7490,7 @@ export function AgentChatWorkspace({
     onSelectServiceSkill:
       workspaceServiceSkillEntryActions.handleServiceSkillSelect,
     initialInputCapability: effectiveInitialInputCapability,
+    initialKnowledgePackSelection,
     setChatToolPreferences,
     handleNavigateToSkillSettings,
     handleRefreshSkills,
@@ -7531,6 +7544,28 @@ export function AgentChatWorkspace({
       : undefined,
     inputCompletionEnabled,
   });
+  const importTextAsKnowledge = inputbarScene.onImportTextAsKnowledge;
+  const handleSaveMessageAsKnowledge = useCallback(
+    (source: { messageId: string; content: string }) => {
+      const sourceText = source.content.trim();
+      if (!sourceText) {
+        toast.error("这条结果暂时没有可沉淀的内容");
+        return;
+      }
+      if (!isUsableKnowledgeSourceText(sourceText)) {
+        toast.info("这条结果还不是可复用资料，请先补充原始内容后再沉淀。");
+        return;
+      }
+
+      importTextAsKnowledge({
+        sourceName: `agent-output-${source.messageId}.md`,
+        sourceText,
+        description: teamSessionRuntime.currentSessionTitle || "对话结果资料",
+        packType: "custom",
+      });
+    },
+    [importTextAsKnowledge, teamSessionRuntime.currentSessionTitle],
+  );
 
   const canvasScene = useWorkspaceCanvasSceneRuntime({
     shouldBootstrapCanvasOnEntry,
@@ -7924,6 +7959,8 @@ export function AgentChatWorkspace({
     defaultCuratedTaskReferenceEntries,
     pathReferences,
     onAddPathReferences: handleAddPathReferences,
+    onImportPathReferenceAsKnowledge:
+      inputbarScene.onImportPathReferenceAsKnowledge,
     onRemovePathReference: handleRemovePathReference,
     onClearPathReferences: handleClearPathReferences,
     fileManagerOpen: fileManagerAvailable && fileManagerSidebarOpen,
@@ -8048,6 +8085,7 @@ export function AgentChatWorkspace({
     handleOpenMessagePreview,
     handleSaveMessageAsSkill,
     handleSaveMessageAsInspiration,
+    handleSaveMessageAsKnowledge,
     handleOpenSubagentSession,
     handlePermissionResponse,
     pendingPromotedA2UIActionRequest,
@@ -8080,6 +8118,7 @@ export function AgentChatWorkspace({
       <FileManagerSidebar
         onClose={() => handleSetFileManagerSidebarOpen(false)}
         onAddPathReferences={handleAddPathReferences}
+        onImportAsKnowledge={inputbarScene.onImportPathReferenceAsKnowledge}
       />
     ) : null;
 

@@ -747,10 +747,24 @@ fn latest_pending_tool_confirmation_request(
     })
 }
 
+fn latest_pending_permission_confirmation_request(
+    pending_requests: &[AgentRuntimeRequestView],
+) -> Option<&AgentRuntimeRequestView> {
+    pending_requests.iter().find(|request| {
+        request.status == "pending" && is_runtime_permission_confirmation_request_id(&request.id)
+    })
+}
+
 struct RuntimePermissionConfirmationProjection {
     status: &'static str,
     request_id: String,
     source: &'static str,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum RuntimeConfirmationItemKind {
+    ToolApproval,
+    RuntimePermission,
 }
 
 fn approval_response_confirmed(response: &serde_json::Value) -> Option<bool> {
@@ -768,28 +782,47 @@ fn latest_resolved_tool_confirmation_item(
     detail: &SessionDetail,
 ) -> Option<RuntimePermissionConfirmationProjection> {
     detail.items.iter().rev().find_map(|item| {
-        let lime_core::database::dao::agent_timeline::AgentThreadItemPayload::ApprovalRequest {
-            request_id,
-            action_type,
-            response,
-            ..
-        } = &item.payload
-        else {
-            return None;
+        let (request_id, response, kind) = match &item.payload {
+            lime_core::database::dao::agent_timeline::AgentThreadItemPayload::ApprovalRequest {
+                request_id,
+                action_type,
+                response,
+                ..
+            } if is_tool_confirmation_request(action_type) => {
+                (request_id, response, RuntimeConfirmationItemKind::ToolApproval)
+            }
+            lime_core::database::dao::agent_timeline::AgentThreadItemPayload::RequestUserInput {
+                request_id,
+                response,
+                ..
+            } if is_runtime_permission_confirmation_request_id(request_id) => {
+                (
+                    request_id,
+                    response,
+                    RuntimeConfirmationItemKind::RuntimePermission,
+                )
+            }
+            _ => return None,
         };
-        if !is_tool_confirmation_request(action_type) {
-            return None;
-        }
 
-        let confirmed = response.as_ref().and_then(approval_response_confirmed);
+        let confirmed = match kind {
+            RuntimeConfirmationItemKind::ToolApproval => {
+                response.as_ref().and_then(approval_response_confirmed)
+            }
+            RuntimeConfirmationItemKind::RuntimePermission => {
+                runtime_permission_confirmation_response_confirmed(response.as_ref())
+            }
+        };
         match item.status {
             lime_core::database::dao::agent_timeline::AgentThreadItemStatus::Completed => {
+                let status = match confirmed {
+                    Some(false) => "denied",
+                    Some(true) => "resolved",
+                    None if kind == RuntimeConfirmationItemKind::RuntimePermission => "requested",
+                    None => "resolved",
+                };
                 Some(RuntimePermissionConfirmationProjection {
-                    status: if confirmed == Some(false) {
-                        "denied"
-                    } else {
-                        "resolved"
-                    },
+                    status,
                     request_id: request_id.clone(),
                     source: "runtime_action_required",
                 })
@@ -823,16 +856,18 @@ fn apply_pending_confirmation_to_permission_state(
         if !permission_state
             .notes
             .iter()
-            .any(|note| note == "真实工具确认请求已完成")
+            .any(|note| note == "真实权限确认请求已完成")
         {
             permission_state
                 .notes
-                .push("真实工具确认请求已完成".to_string());
+                .push("真实权限确认请求已完成".to_string());
         }
         return Some(permission_state);
     }
 
-    let Some(request) = latest_pending_tool_confirmation_request(pending_requests) else {
+    let Some(request) = latest_pending_permission_confirmation_request(pending_requests)
+        .or_else(|| latest_pending_tool_confirmation_request(pending_requests))
+    else {
         return Some(permission_state);
     };
 
@@ -842,11 +877,11 @@ fn apply_pending_confirmation_to_permission_state(
     if !permission_state
         .notes
         .iter()
-        .any(|note| note == "真实工具确认请求已进入 action_required 队列")
+        .any(|note| note == "真实权限确认请求已进入 action_required 队列")
     {
         permission_state
             .notes
-            .push("真实工具确认请求已进入 action_required 队列".to_string());
+            .push("真实权限确认请求已进入 action_required 队列".to_string());
     }
 
     Some(permission_state)
@@ -3403,6 +3438,57 @@ mod tests {
                 .and_then(serde_json::Value::as_str),
             Some("runtime_action_required")
         );
+    }
+
+    #[test]
+    fn permission_state_should_project_pending_runtime_permission_confirmation_request() {
+        let permission_state = lime_agent::SessionExecutionRuntimePermissionState {
+            status: "requires_confirmation".to_string(),
+            required_profile_keys: vec!["read_files".to_string()],
+            ask_profile_keys: vec!["read_files".to_string()],
+            blocking_profile_keys: Vec::new(),
+            decision_source: "modality_execution_profile".to_string(),
+            decision_scope: "declared_profile".to_string(),
+            confirmation_status: Some("not_requested".to_string()),
+            confirmation_request_id: None,
+            confirmation_source: Some("declared_profile_only".to_string()),
+            notes: Vec::new(),
+        };
+        let pending_requests = vec![AgentRuntimeRequestView {
+            id: "runtime_permission_confirmation:turn-1".to_string(),
+            thread_id: "thread-1".to_string(),
+            turn_id: Some("turn-1".to_string()),
+            item_id: Some("runtime_permission_confirmation:turn-1".to_string()),
+            request_type: "elicitation".to_string(),
+            status: "pending".to_string(),
+            title: Some("确认运行时权限".to_string()),
+            payload: None,
+            decision: None,
+            scope: None,
+            created_at: Some(seconds_ago(3)),
+            resolved_at: None,
+        }];
+
+        let projected = apply_pending_confirmation_to_permission_state(
+            Some(permission_state),
+            &pending_requests,
+            None,
+        )
+        .expect("应保留 permission_state");
+
+        assert_eq!(projected.confirmation_status.as_deref(), Some("requested"));
+        assert_eq!(
+            projected.confirmation_request_id.as_deref(),
+            Some("runtime_permission_confirmation:turn-1")
+        );
+        assert_eq!(
+            projected.confirmation_source.as_deref(),
+            Some("runtime_action_required")
+        );
+        assert!(projected
+            .notes
+            .iter()
+            .any(|note| note == "真实权限确认请求已进入 action_required 队列"));
     }
 
     #[test]

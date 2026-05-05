@@ -12,21 +12,38 @@ import type {
   QueuedTurnSnapshot,
 } from "@/lib/api/agentRuntime";
 import { logAgentDebug } from "@/lib/agentDebug";
-import { activityLogger } from "@/lib/workspace/workbenchRuntime";
 import type { ActionRequired, Message } from "../types";
-import { mapProviderName } from "./agentChatCoreUtils";
 import { handleTurnStreamEvent } from "./agentStreamRuntimeHandler";
+import {
+  AGENT_STREAM_FIRST_EVENT_TIMEOUT_MESSAGE,
+  AGENT_STREAM_INACTIVITY_TIMEOUT_MESSAGE,
+  buildAgentStreamFirstEventDeferredWarning,
+  buildAgentStreamFirstEventSilentRecoveryWarning,
+  buildAgentStreamInactivitySilentRecoveryWarning,
+  resolveAgentStreamFirstEventTimeoutAction,
+  resolveAgentStreamInactivityTimeoutAction,
+} from "./agentStreamInactivityController";
+import {
+  buildAgentStreamFirstEventContext,
+  buildAgentStreamFirstEventDeferredContext,
+  buildAgentStreamListenerBoundContext,
+  extractAgentStreamRuntimeEventType,
+  shouldDeferAgentStreamFirstEventTimeout,
+  shouldIgnoreAgentStreamInactivityResult,
+  shouldScheduleAgentStreamInactivityWatchdog,
+} from "./agentStreamListenerReadinessController";
+import { startAgentStreamRequest } from "./agentStreamRequestStartController";
+import {
+  rememberAgentStreamUnknownEventWarning,
+  resolveAgentStreamUnknownEventPlan,
+} from "./agentStreamUnknownEventController";
 import type { AgentRuntimeAdapter } from "./agentRuntimeAdapter";
 import type { StreamRequestState } from "./agentStreamSubmissionLifecycle";
 import { recordAgentStreamPerformanceMetric } from "./agentStreamPerformanceMetrics";
 
 type MessageParts = NonNullable<Message["contentParts"]>;
 const STREAM_FIRST_EVENT_TIMEOUT_MS = 12_000;
-const STREAM_FIRST_EVENT_TIMEOUT_MESSAGE =
-  "执行已中断：运行时未返回任何进度事件，请重试。";
 const STREAM_INACTIVITY_TIMEOUT_MS = 120_000; // 2 分钟，兼容推理模型长时间思考
-const STREAM_INACTIVITY_TIMEOUT_MESSAGE =
-  "执行已中断：运行时长时间没有返回新进度，请重试。";
 
 interface StreamObserver {
   onTextDelta?: (delta: string, accumulated: string) => void;
@@ -103,15 +120,6 @@ interface RegisterAgentStreamTurnEventBindingOptions {
   setIsSending: Dispatch<SetStateAction<boolean>>;
 }
 
-function extractRuntimeEventType(payload: unknown): string | null {
-  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
-    return null;
-  }
-
-  const type = (payload as { type?: unknown }).type;
-  return typeof type === "string" && type.trim() ? type : null;
-}
-
 export async function registerAgentStreamTurnEventBinding(
   options: RegisterAgentStreamTurnEventBindingOptions,
 ) {
@@ -155,41 +163,19 @@ export async function registerAgentStreamTurnEventBinding(
     setIsSending,
   } = options;
 
-  requestState.requestStartedAt = Date.now();
-  recordAgentStreamPerformanceMetric(
-    "agentStream.request.start",
-    requestState.performanceTrace,
-    {
-      contentLength: content.trim().length,
-      eventName,
-      expectingQueue,
-      model: effectiveModel,
-      provider: effectiveProviderType,
-      sessionId: activeSessionId,
-      skipUserMessage,
-      systemPromptLength: systemPrompt?.length ?? 0,
-      systemPromptPreview: systemPrompt?.slice(0, 48) ?? null,
-    },
-  );
-  requestState.requestLogId = activityLogger.log({
-    eventType: "chat_request_start",
-    status: "pending",
-    title: skipUserMessage ? "系统引导请求" : "发送请求",
-    description: `模型: ${effectiveModel} · 策略: ${effectiveExecutionStrategy}`,
-    workspaceId: resolvedWorkspaceId,
-    sessionId: activeSessionId,
-    source: "aster-chat",
-    metadata: {
-      provider: mapProviderName(effectiveProviderType),
-      model: effectiveModel,
-      executionStrategy: effectiveExecutionStrategy,
-      contentLength: content.trim().length,
-      skipUserMessage,
-      systemPromptLength: systemPrompt?.length ?? 0,
-      autoContinueEnabled: autoContinue?.enabled ?? false,
-      autoContinue: autoContinue?.enabled ? autoContinue : undefined,
-      queuedSubmission: expectingQueue,
-    },
+  startAgentStreamRequest({
+    activeSessionId,
+    autoContinue,
+    content,
+    effectiveExecutionStrategy,
+    effectiveModel,
+    effectiveProviderType,
+    eventName,
+    expectingQueue,
+    requestState,
+    resolvedWorkspaceId,
+    skipUserMessage,
+    systemPrompt,
   });
 
   let firstEventReceived = false;
@@ -206,30 +192,21 @@ export async function registerAgentStreamTurnEventBinding(
 
     firstEventReceived = true;
     requestState.firstEventReceivedAt = params.eventReceivedAt;
+    const firstEventContext = buildAgentStreamFirstEventContext({
+      activeSessionId,
+      eventName,
+      eventReceivedAt: params.eventReceivedAt,
+      eventType: params.eventType,
+      recognized: params.recognized,
+      requestStartedAt: requestState.requestStartedAt,
+      submissionDispatchedAt: requestState.submissionDispatchedAt,
+    });
     recordAgentStreamPerformanceMetric(
       "agentStream.firstEvent",
       requestState.performanceTrace,
-      {
-        elapsedMs: params.eventReceivedAt - requestState.requestStartedAt,
-        eventName,
-        eventType: params.eventType,
-        recognized: params.recognized,
-        sessionId: activeSessionId,
-        submissionDispatchedDeltaMs: requestState.submissionDispatchedAt
-          ? params.eventReceivedAt - requestState.submissionDispatchedAt
-          : null,
-      },
+      firstEventContext,
     );
-    logAgentDebug("AgentStream", "firstEvent", {
-      elapsedMs: params.eventReceivedAt - requestState.requestStartedAt,
-      eventName,
-      eventType: params.eventType,
-      recognized: params.recognized,
-      sessionId: activeSessionId,
-      submissionDispatchedDeltaMs: requestState.submissionDispatchedAt
-        ? params.eventReceivedAt - requestState.submissionDispatchedAt
-        : null,
-    });
+    logAgentDebug("AgentStream", "firstEvent", firstEventContext);
     clearFirstEventWatchdog();
   };
   let inactivityWatchdogId: ReturnType<typeof setTimeout> | null = null;
@@ -241,26 +218,28 @@ export async function registerAgentStreamTurnEventBinding(
   };
   function deferFirstEventTimeoutAfterSubmission() {
     if (
-      firstEventReceived ||
-      requestState.requestFinished ||
-      !requestState.submissionDispatchedAt
+      !shouldDeferAgentStreamFirstEventTimeout({
+        firstEventReceived,
+        requestFinished: requestState.requestFinished,
+        submissionDispatchedAt: requestState.submissionDispatchedAt,
+      })
     ) {
       return false;
     }
 
     firstEventReceived = true;
     lastEventReceivedAt = Date.now();
+    const deferredContext = buildAgentStreamFirstEventDeferredContext({
+      activeSessionId,
+      deferredAt: lastEventReceivedAt,
+      eventName,
+      requestStartedAt: requestState.requestStartedAt,
+      submissionDispatchedAt: requestState.submissionDispatchedAt,
+    });
     recordAgentStreamPerformanceMetric(
       "agentStream.firstEventDeferred",
       requestState.performanceTrace,
-      {
-        elapsedMs: lastEventReceivedAt - requestState.requestStartedAt,
-        eventName,
-        sessionId: activeSessionId,
-        submissionDispatchedDeltaMs: requestState.submissionDispatchedAt
-          ? lastEventReceivedAt - requestState.submissionDispatchedAt
-          : null,
-      },
+      deferredContext,
     );
     callbacks.activateStream(activeSessionId, effectiveWaitingRuntimeStatus);
     scheduleInactivityWatchdog();
@@ -275,24 +254,37 @@ export async function registerAgentStreamTurnEventBinding(
       }
       void (async () => {
         const recovered = await tryRecoverSilentTurn();
-        if (firstEventReceived || requestState.requestFinished) {
-          return;
+        const timeoutAction = resolveAgentStreamFirstEventTimeoutAction({
+          canDeferAfterSubmission: shouldDeferAgentStreamFirstEventTimeout({
+            firstEventReceived,
+            requestFinished: requestState.requestFinished,
+            submissionDispatchedAt: requestState.submissionDispatchedAt,
+          }),
+          firstEventReceived,
+          recovered,
+          requestFinished: requestState.requestFinished,
+        });
+        switch (timeoutAction) {
+          case "ignore":
+            return;
+          case "recover":
+            console.warn(
+              buildAgentStreamFirstEventSilentRecoveryWarning({ eventName }),
+            );
+            finalizeSilentTurnRecovery();
+            return;
+          case "defer":
+            if (deferFirstEventTimeoutAfterSubmission()) {
+              console.warn(
+                buildAgentStreamFirstEventDeferredWarning({ eventName }),
+              );
+            }
+            return;
+          case "fail":
+            firstEventReceived = true;
+            dispatchSyntheticError(AGENT_STREAM_FIRST_EVENT_TIMEOUT_MESSAGE);
+            return;
         }
-        if (recovered) {
-          console.warn(
-            `[AsterChat] 首个运行时事件静默，已降级切换为会话快照同步: ${eventName}`,
-          );
-          finalizeSilentTurnRecovery();
-          return;
-        }
-        if (deferFirstEventTimeoutAfterSubmission()) {
-          console.warn(
-            `[AsterChat] 首个运行时事件暂未到达，已基于提交派发继续等待后续进度: ${eventName}`,
-          );
-          return;
-        }
-        firstEventReceived = true;
-        dispatchSyntheticError(STREAM_FIRST_EVENT_TIMEOUT_MESSAGE);
       })();
     }, STREAM_FIRST_EVENT_TIMEOUT_MS);
 
@@ -378,9 +370,11 @@ export async function registerAgentStreamTurnEventBinding(
   const scheduleInactivityWatchdog = () => {
     clearInactivityWatchdog();
     if (
-      !firstEventReceived ||
-      requestState.requestFinished ||
-      !callbacks.isStreamActivated()
+      !shouldScheduleAgentStreamInactivityWatchdog({
+        firstEventReceived,
+        requestFinished: requestState.requestFinished,
+        streamActivated: callbacks.isStreamActivated(),
+      })
     ) {
       return;
     }
@@ -393,21 +387,28 @@ export async function registerAgentStreamTurnEventBinding(
       const timeoutStartedAt = Date.now();
       void (async () => {
         const recovered = await tryRecoverSilentTurn();
-        if (
-          requestState.requestFinished ||
-          !callbacks.isStreamActivated() ||
-          lastEventReceivedAt > timeoutStartedAt
-        ) {
-          return;
+        const timeoutAction = resolveAgentStreamInactivityTimeoutAction({
+          recovered,
+          shouldIgnore: shouldIgnoreAgentStreamInactivityResult({
+            lastEventReceivedAt,
+            requestFinished: requestState.requestFinished,
+            streamActivated: callbacks.isStreamActivated(),
+            timeoutStartedAt,
+          }),
+        });
+        switch (timeoutAction) {
+          case "ignore":
+            return;
+          case "recover":
+            console.warn(
+              buildAgentStreamInactivitySilentRecoveryWarning({ eventName }),
+            );
+            finalizeSilentTurnRecovery();
+            return;
+          case "fail":
+            dispatchSyntheticError(AGENT_STREAM_INACTIVITY_TIMEOUT_MESSAGE);
+            return;
         }
-        if (recovered) {
-          console.warn(
-            `[AsterChat] 运行时事件静默，已降级切换为会话快照同步: ${eventName}`,
-          );
-          finalizeSilentTurnRecovery();
-          return;
-        }
-        dispatchSyntheticError(STREAM_INACTIVITY_TIMEOUT_MESSAGE);
       })();
     }, STREAM_INACTIVITY_TIMEOUT_MS);
   };
@@ -417,15 +418,20 @@ export async function registerAgentStreamTurnEventBinding(
     (event: { payload: unknown }) => {
       const eventReceivedAt = Date.now();
       const data = parseAgentEvent(event.payload);
-      const eventType = extractRuntimeEventType(event.payload);
+      const eventType = extractAgentStreamRuntimeEventType(event.payload);
       if (!data) {
-        if (!eventType) {
+        const unknownEventPlan = resolveAgentStreamUnknownEventPlan({
+          eventName,
+          eventType,
+          warnedEventTypes: warnedUnknownEventTypes,
+        });
+        if (!unknownEventPlan) {
           return;
         }
         if (!firstEventReceived) {
           markFirstEventReceived({
             eventReceivedAt,
-            eventType,
+            eventType: unknownEventPlan.eventType,
             recognized: false,
           });
         }
@@ -434,11 +440,15 @@ export async function registerAgentStreamTurnEventBinding(
           activeSessionId,
           effectiveWaitingRuntimeStatus,
         );
-        if (!warnedUnknownEventTypes.has(eventType)) {
-          warnedUnknownEventTypes.add(eventType);
-          console.warn(
-            `[AsterChat] 收到未识别的运行时事件，已保留流活跃态: ${eventName} · ${eventType}`,
-          );
+        if (
+          unknownEventPlan.shouldWarn &&
+          unknownEventPlan.warningMessage &&
+          rememberAgentStreamUnknownEventWarning({
+            eventType: unknownEventPlan.eventType,
+            warnedEventTypes: warnedUnknownEventTypes,
+          })
+        ) {
+          console.warn(unknownEventPlan.warningMessage);
         }
         scheduleInactivityWatchdog();
         return;
@@ -504,22 +514,19 @@ export async function registerAgentStreamTurnEventBinding(
   );
 
   requestState.listenerBoundAt = Date.now();
+  const listenerBoundContext = buildAgentStreamListenerBoundContext({
+    activeSessionId,
+    eventName,
+    expectingQueue,
+    listenerBoundAt: requestState.listenerBoundAt,
+    requestStartedAt: requestState.requestStartedAt,
+  });
   recordAgentStreamPerformanceMetric(
     "agentStream.listenerBound",
     requestState.performanceTrace,
-    {
-      elapsedMs: requestState.listenerBoundAt - requestState.requestStartedAt,
-      eventName,
-      expectingQueue,
-      sessionId: activeSessionId,
-    },
+    listenerBoundContext,
   );
-  logAgentDebug("AgentStream", "listenerBound", {
-    elapsedMs: requestState.listenerBoundAt - requestState.requestStartedAt,
-    eventName,
-    expectingQueue,
-    sessionId: activeSessionId,
-  });
+  logAgentDebug("AgentStream", "listenerBound", listenerBoundContext);
 
   return () => {
     clearFirstEventWatchdog();

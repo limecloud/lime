@@ -149,7 +149,7 @@ function findButtonByText(text: string): HTMLButtonElement | null {
 }
 
 async function flushUntilTextAppears(text: string): Promise<void> {
-  for (let index = 0; index < 20; index += 1) {
+  for (let index = 0; index < 80; index += 1) {
     if (document.body.textContent?.includes(text)) {
       return;
     }
@@ -972,6 +972,62 @@ describe("HarnessStatusPanel", () => {
         modality_runtime_contracts: {
           snapshot_count: 2,
           snapshot_index: {
+            task_index: {
+              snapshot_count: 2,
+              thread_ids: ["thread-evidence-1", "thread-evidence-2"],
+              turn_ids: ["turn-evidence-1", "turn-evidence-2"],
+              content_ids: ["content-browser-1", "content-search-1"],
+              entry_keys: ["at_browser_agent_command", "at_search_command"],
+              modalities: ["browser", "web_research"],
+              skill_ids: ["browser_assist", "research"],
+              model_ids: ["gpt-5.2-browser", "gpt-5.2"],
+              executor_kinds: ["browser_action", "search_query"],
+              executor_binding_keys: ["lime_browser_mcp", "web_search"],
+              cost_states: ["estimated", "metered"],
+              limit_states: ["within_limit", "quota_low"],
+              estimated_cost_classes: ["low", "medium"],
+              limit_event_kinds: ["quota_low"],
+              quota_low_count: 1,
+              items: [
+                {
+                  artifact_path:
+                    "runtime_timeline/browser-tool-1/mcp__lime-browser__navigate",
+                  contract_key: "browser_control",
+                  thread_id: "thread-evidence-1",
+                  turn_id: "turn-evidence-1",
+                  content_id: "content-browser-1",
+                  entry_key: "at_browser_agent_command",
+                  modality: "browser",
+                  skill_id: "browser_assist",
+                  model_id: "gpt-5.2-browser",
+                  executor_kind: "browser_action",
+                  executor_binding_key: "lime_browser_mcp",
+                  cost_state: "estimated",
+                  limit_state: "within_limit",
+                  estimated_cost_class: "low",
+                  limit_event_kind: "quota_low",
+                  quota_low: true,
+                },
+                {
+                  artifact_path: "runtime_timeline/search-tool-1/search_query",
+                  contract_key: "web_research",
+                  thread_id: "thread-evidence-2",
+                  turn_id: "turn-evidence-2",
+                  content_id: "content-search-1",
+                  entry_key: "at_search_command",
+                  modality: "web_research",
+                  skill_id: "research",
+                  model_id: "gpt-5.2",
+                  executor_kind: "search_query",
+                  executor_binding_key: "web_search",
+                  cost_state: "metered",
+                  limit_state: "quota_low",
+                  estimated_cost_class: "medium",
+                  limit_event_kind: "quota_low",
+                  quota_low: true,
+                },
+              ],
+            },
             browser_action_index: {
               action_count: 2,
               session_count: 1,
@@ -1121,6 +1177,12 @@ describe("HarnessStatusPanel", () => {
     expect(document.body.textContent).toContain("browser_snapshot");
     expect(document.body.textContent).toContain("get_page_info");
     expect(document.body.textContent).toContain("observation / screenshot");
+    expect(document.body.textContent).toContain("多模态任务索引");
+    expect(document.body.textContent).toContain("任务中心过滤列表");
+    expect(document.body.textContent).toContain("thread-evidence-1");
+    expect(document.body.textContent).toContain("content-browser-1");
+    expect(document.body.textContent).toContain("lime_browser_mcp");
+    expect(document.body.textContent).toContain("within_limit");
     expect(document.body.textContent).toContain("LimeCore 策略缺口");
     expect(document.body.textContent).toContain("model_catalog");
     expect(document.body.textContent).toContain("provider_offer");
@@ -1816,7 +1878,7 @@ describe("HarnessStatusPanel", () => {
     );
     expect(acceptedOption?.disabled).toBe(true);
     expect(reviewDialog?.textContent).toContain(
-      "权限确认已拒绝时不能保存“接受”",
+      "权限确认未解决时不能保存“接受”",
     );
     expect(saveButton?.disabled).toBe(true);
 
@@ -1858,7 +1920,9 @@ describe("HarnessStatusPanel", () => {
       notes: "拒绝状态来自真实权限确认。",
     });
     expect(document.body.textContent).toContain("当前人工审核结论");
-    expect(document.body.textContent).toContain("权限确认已拒绝，拒绝本次交付。");
+    expect(document.body.textContent).toContain(
+      "权限确认已拒绝，拒绝本次交付。",
+    );
     expect(document.body.textContent).toContain("Lime Maintainer");
     expect(document.body.textContent).toContain("处理 approval-denied-dialog");
     expect(mockToast.success).toHaveBeenCalledWith("已保存人工审核结果");

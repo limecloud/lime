@@ -362,6 +362,7 @@ export class ArtifactParser {
       browser_assist: "Browser Assist",
       "canvas:document": "Document",
       "canvas:video": "Video",
+      "canvas:design": "Layered Design",
     };
 
     return typeNames[type] || "Artifact";

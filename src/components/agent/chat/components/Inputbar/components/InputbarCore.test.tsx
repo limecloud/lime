@@ -218,7 +218,8 @@ describe("InputbarCore", () => {
     });
 
     expect(container.textContent).toContain("Downloads");
-    expect(container.textContent).toContain("/Users/demo/Downloads");
+    expect(container.textContent).toContain("本地文件夹");
+    expect(container.textContent).not.toContain("/Users/demo/Downloads");
     expect(
       container.querySelector('[data-testid="inputbar-path-reference-chip"]'),
     ).toBeTruthy();
@@ -236,6 +237,55 @@ describe("InputbarCore", () => {
     expect(onRemovePathReference).toHaveBeenCalledWith(
       "dir:/Users/demo/Downloads",
     );
+  });
+
+  it("文本路径引用应提供设为项目资料动作", async () => {
+    const onImportPathReferenceAsKnowledge = vi.fn();
+    const reference = {
+      id: "file:/Users/demo/brief.txt",
+      path: "/Users/demo/brief.txt",
+      name: "brief.txt",
+      isDir: false,
+      mimeType: "text/plain",
+      source: "file_manager" as const,
+    };
+    const container = await renderInputbarCore({
+      pathReferences: [reference],
+      onImportPathReferenceAsKnowledge,
+    });
+
+    const importButton = container.querySelector(
+      'button[aria-label="设为项目资料 brief.txt"]',
+    ) as HTMLButtonElement | null;
+    expect(importButton).toBeTruthy();
+
+    await act(async () => {
+      importButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(onImportPathReferenceAsKnowledge).toHaveBeenCalledWith(reference);
+  });
+
+  it("非文本路径引用不应展示设为项目资料动作", async () => {
+    const onImportPathReferenceAsKnowledge = vi.fn();
+    const reference = {
+      id: "file:/Users/demo/contract.pdf",
+      path: "/Users/demo/contract.pdf",
+      name: "contract.pdf",
+      isDir: false,
+      mimeType: "application/pdf",
+      source: "file_manager" as const,
+    };
+    const container = await renderInputbarCore({
+      pathReferences: [reference],
+      onImportPathReferenceAsKnowledge,
+    });
+
+    expect(
+      container.querySelector('button[aria-label="设为项目资料 contract.pdf"]'),
+    ).toBeNull();
+    expect(container.textContent).toContain("contract.pdf");
   });
 
   it("从输入框正文区域拖放时应由容器优先接收 drop", async () => {

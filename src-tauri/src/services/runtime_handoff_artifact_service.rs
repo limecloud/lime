@@ -815,10 +815,26 @@ fn build_resume_order() -> Vec<&'static str> {
 fn build_review_actions(thread_read: &AgentRuntimeThreadReadModel) -> Vec<String> {
     let mut actions = Vec::new();
 
+    if let Some(message) = user_locked_capability_blocks_delivery(thread_read) {
+        actions.push(format!(
+            "{message}，不能把当前交接作为成功交付证据；请切换到满足 routingSlot 的模型或取消显式模型锁定后再恢复。"
+        ));
+    }
+
     if let Some(permission_state) = thread_read.permission_state.as_ref() {
-        if permission_state.confirmation_status.as_deref() == Some("denied") {
+        if permission_confirmation_blocks_delivery(permission_state) {
+            let status = permission_state
+                .confirmation_status
+                .as_deref()
+                .unwrap_or("未记录 confirmationStatus");
+            let prefix = if status == "denied" {
+                "权限确认已被拒绝"
+            } else {
+                "权限确认尚未解决"
+            };
             actions.push(format!(
-                "权限确认已被拒绝，不能把当前交接作为成功交付证据：request_id={}，source={}。",
+                "{prefix}，不能把当前交接作为成功交付证据：status={}，request_id={}，source={}。",
+                status,
                 permission_confirmation_request_id(permission_state),
                 permission_confirmation_source(permission_state)
             ));
@@ -863,10 +879,24 @@ fn build_review_actions(thread_read: &AgentRuntimeThreadReadModel) -> Vec<String
 fn build_blocking_lines(thread_read: &AgentRuntimeThreadReadModel) -> Vec<String> {
     let mut lines = Vec::new();
 
+    if let Some(message) = user_locked_capability_blocks_delivery(thread_read) {
+        lines.push(format!("{message}。"));
+    }
+
     if let Some(permission_state) = thread_read.permission_state.as_ref() {
-        if permission_state.confirmation_status.as_deref() == Some("denied") {
+        if permission_confirmation_blocks_delivery(permission_state) {
+            let status = permission_state
+                .confirmation_status
+                .as_deref()
+                .unwrap_or("未记录 confirmationStatus");
+            let prefix = if status == "denied" {
+                "权限确认已被拒绝"
+            } else {
+                "权限确认尚未解决"
+            };
             lines.push(format!(
-                "权限确认已被拒绝：request_id={}，source={}。",
+                "{prefix}：status={}，request_id={}，source={}。",
+                status,
                 permission_confirmation_request_id(permission_state),
                 permission_confirmation_source(permission_state)
             ));
@@ -896,6 +926,23 @@ fn build_blocking_lines(thread_read: &AgentRuntimeThreadReadModel) -> Vec<String
     lines
 }
 
+fn user_locked_capability_blocks_delivery(
+    thread_read: &AgentRuntimeThreadReadModel,
+) -> Option<String> {
+    let limit_state = thread_read.limit_state.as_ref()?;
+    if limit_state.status != "user_locked_capability_gap" {
+        return None;
+    }
+    let capability_gap = limit_state
+        .capability_gap
+        .as_deref()
+        .or(thread_read.capability_gap.as_deref())
+        .unwrap_or("未记录 capabilityGap");
+    Some(format!(
+        "显式用户模型锁定不满足当前 execution profile：capabilityGap={capability_gap}"
+    ))
+}
+
 fn format_permission_confirmation_line(
     permission_state: &lime_agent::SessionExecutionRuntimePermissionState,
 ) -> Option<String> {
@@ -911,10 +958,22 @@ fn format_permission_confirmation_line(
             "权限确认：已通过（request_id={request_id}, source={source}）。"
         )),
         "requested" => Some(format!(
-            "权限确认：等待处理（request_id={request_id}, source={source}）。"
+            "权限确认：等待处理（request_id={request_id}, source={source}），当前交接不能作为成功交付证据。"
         )),
-        "not_requested" => Some("权限确认：声明态权限尚未发起真实审批请求。".to_string()),
+        "not_requested" => Some(
+            "权限确认：声明态权限尚未发起真实审批请求，当前交接不能作为成功交付证据。".to_string(),
+        ),
         other => Some(format!("权限确认：{other}（source={source}）。")),
+    }
+}
+
+fn permission_confirmation_blocks_delivery(
+    permission_state: &lime_agent::SessionExecutionRuntimePermissionState,
+) -> bool {
+    match permission_state.confirmation_status.as_deref() {
+        Some("resolved") => false,
+        Some("denied" | "requested" | "not_requested") => true,
+        _ => permission_state.status == "requires_confirmation",
     }
 }
 
@@ -1307,6 +1366,13 @@ mod tests {
         confirmation_status: &str,
         request_id: &str,
     ) {
+        let confirmation_request_id =
+            (!request_id.trim().is_empty()).then(|| request_id.to_string());
+        let confirmation_source = if confirmation_status == "not_requested" {
+            "declared_profile_only"
+        } else {
+            "runtime_action_required"
+        };
         thread_read.permission_state = Some(lime_agent::SessionExecutionRuntimePermissionState {
             status: "requires_confirmation".to_string(),
             required_profile_keys: vec!["browser_control".to_string()],
@@ -1315,8 +1381,8 @@ mod tests {
             decision_source: "runtime_task_profile".to_string(),
             decision_scope: "declared_profile_only".to_string(),
             confirmation_status: Some(confirmation_status.to_string()),
-            confirmation_request_id: Some(request_id.to_string()),
-            confirmation_source: Some("runtime_action_required".to_string()),
+            confirmation_request_id,
+            confirmation_source: Some(confirmation_source.to_string()),
             notes: Vec::new(),
         });
     }
@@ -1409,6 +1475,79 @@ mod tests {
         assert!(review.contains("approval-denied"));
         assert!(progress.contains("\"permissionState\""));
         assert!(progress.contains("\"confirmationStatus\": \"denied\""));
+    }
+
+    #[test]
+    fn should_surface_not_requested_permission_confirmation_as_handoff_blocking() {
+        let temp_dir = TempDir::new().expect("temp dir");
+        let detail = build_detail();
+        let mut thread_read = build_thread_read();
+        set_permission_confirmation(&mut thread_read, "not_requested", "");
+
+        export_runtime_handoff_bundle(&detail, &thread_read, temp_dir.path()).expect("export");
+
+        let plan = fs::read_to_string(
+            temp_dir
+                .path()
+                .join(".lime/harness/sessions/session-1/plan.md"),
+        )
+        .expect("plan");
+        let handoff = fs::read_to_string(
+            temp_dir
+                .path()
+                .join(".lime/harness/sessions/session-1/handoff.md"),
+        )
+        .expect("handoff");
+
+        assert!(plan.contains("权限确认尚未解决"));
+        assert!(plan.contains("not_requested"));
+        assert!(handoff.contains("尚未发起真实审批请求"));
+        assert!(handoff.contains("不能作为成功交付证据"));
+    }
+
+    #[test]
+    fn should_surface_user_locked_capability_gap_as_handoff_blocking() {
+        let temp_dir = TempDir::new().expect("temp dir");
+        let detail = build_detail();
+        let mut thread_read = build_thread_read();
+        thread_read.permission_state = None;
+        thread_read.capability_gap = Some("browser_reasoning_candidate_missing".to_string());
+        thread_read.limit_state = Some(lime_agent::SessionExecutionRuntimeLimitState {
+            status: "user_locked_capability_gap".to_string(),
+            single_candidate_only: true,
+            provider_locked: false,
+            settings_locked: true,
+            oem_locked: false,
+            candidate_count: 1,
+            capability_gap: Some("browser_reasoning_candidate_missing".to_string()),
+            notes: vec!["显式模型锁定不满足 browser_reasoning routingSlot".to_string()],
+        });
+
+        export_runtime_handoff_bundle(&detail, &thread_read, temp_dir.path()).expect("export");
+
+        let plan = fs::read_to_string(
+            temp_dir
+                .path()
+                .join(".lime/harness/sessions/session-1/plan.md"),
+        )
+        .expect("plan");
+        let handoff = fs::read_to_string(
+            temp_dir
+                .path()
+                .join(".lime/harness/sessions/session-1/handoff.md"),
+        )
+        .expect("handoff");
+        let review = fs::read_to_string(
+            temp_dir
+                .path()
+                .join(".lime/harness/sessions/session-1/review-summary.md"),
+        )
+        .expect("review");
+
+        assert!(plan.contains("显式用户模型锁定"));
+        assert!(plan.contains("browser_reasoning_candidate_missing"));
+        assert!(handoff.contains("切换到满足 routingSlot 的模型"));
+        assert!(review.contains("不能把当前交接作为成功交付证据"));
     }
 
     #[test]

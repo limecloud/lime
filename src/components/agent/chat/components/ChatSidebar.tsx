@@ -798,7 +798,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
         items: [
           {
             id: "knowledge",
-            label: "知识库",
+            label: "项目资料",
             icon: BookOpen,
             onClick: onOpenKnowledgePage,
           },

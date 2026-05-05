@@ -61,6 +61,9 @@ pub struct RuntimeReviewDecisionTemplateExportResult {
     pub queued_turn_count: usize,
     pub default_decision_status: String,
     pub verification_summary: Option<Value>,
+    pub limit_status: String,
+    pub capability_gap: String,
+    pub user_locked_capability_summary: String,
     pub permission_status: String,
     pub permission_confirmation_status: String,
     pub permission_confirmation_request_id: String,
@@ -122,6 +125,12 @@ struct ReviewDecisionContext {
     verification_summary: Option<Value>,
     verification_failure_outcomes: Vec<String>,
     verification_recovered_outcomes: Vec<String>,
+    #[serde(default)]
+    limit_status: String,
+    #[serde(default)]
+    capability_gap: String,
+    #[serde(default)]
+    user_locked_capability_summary: String,
     #[serde(default)]
     permission_status: String,
     #[serde(default)]
@@ -267,6 +276,12 @@ fn sync_runtime_review_decision(
         queued_turn_count: analysis.queued_turn_count,
         default_decision_status: DEFAULT_DECISION_STATUS.to_string(),
         verification_summary: document.review_context.verification_summary.clone(),
+        limit_status: document.review_context.limit_status.clone(),
+        capability_gap: document.review_context.capability_gap.clone(),
+        user_locked_capability_summary: document
+            .review_context
+            .user_locked_capability_summary
+            .clone(),
         permission_status: document.review_context.permission_status.clone(),
         permission_confirmation_status: document
             .review_context
@@ -343,6 +358,11 @@ fn build_review_decision_document(
             verification_summary: verification_context.summary.clone(),
             verification_failure_outcomes: verification_context.failure_outcomes.clone(),
             verification_recovered_outcomes: verification_context.recovered_outcomes.clone(),
+            limit_status: verification_context.limit_status.clone(),
+            capability_gap: verification_context.capability_gap.clone(),
+            user_locked_capability_summary: verification_context
+                .user_locked_capability_summary
+                .clone(),
             permission_status: verification_context.permission_status.clone(),
             permission_confirmation_status: verification_context
                 .permission_confirmation_status
@@ -404,6 +424,12 @@ fn build_review_decision_markdown(document: &ReviewDecisionDocument) -> String {
         &document.review_context.permission_confirmation_summary,
         "未导出",
     );
+    let limit_status = empty_fallback(&document.review_context.limit_status, "未导出");
+    let capability_gap = empty_fallback(&document.review_context.capability_gap, "无");
+    let user_locked_capability = empty_fallback(
+        &document.review_context.user_locked_capability_summary,
+        "未触发",
+    );
     let decision_status_options = document
         .decision_status_options
         .iter()
@@ -431,11 +457,14 @@ fn build_review_decision_markdown(document: &ReviewDecisionDocument) -> String {
 - thread_id：`{thread_id}`\n\
 - 线程状态：`{thread_status}`\n\
 - 最新 Turn：`{latest_turn_status}`\n\
-- 待处理请求：`{pending_request_count}`\n\
-- 排队任务：`{queued_turn_count}`\n\
-- 权限状态：`{permission_status}`\n\
-- 权限确认：{permission_confirmation}\n\
-- analysis 目录：`{analysis_relative_root}`\n\
+	- 待处理请求：`{pending_request_count}`\n\
+	- 排队任务：`{queued_turn_count}`\n\
+	- 额度状态：`{limit_status}`\n\
+	- 能力缺口：`{capability_gap}`\n\
+	- 模型锁定能力缺口：{user_locked_capability}\n\
+	- 权限状态：`{permission_status}`\n\
+	- 权限确认：{permission_confirmation}\n\
+	- analysis 目录：`{analysis_relative_root}`\n\
 - handoff 目录：`{handoff_bundle_relative_root}`\n\
 - evidence 目录：`{evidence_pack_relative_root}`\n\
 - replay 目录：`{replay_case_relative_root}`\n\n\
@@ -486,6 +515,9 @@ fn build_review_decision_markdown(document: &ReviewDecisionDocument) -> String {
             .unwrap_or("unknown"),
         pending_request_count = document.review_context.pending_request_count,
         queued_turn_count = document.review_context.queued_turn_count,
+        limit_status = limit_status,
+        capability_gap = capability_gap,
+        user_locked_capability = user_locked_capability,
         permission_status = permission_status,
         permission_confirmation = permission_confirmation,
         analysis_relative_root = document.review_context.analysis_relative_root,
@@ -539,19 +571,105 @@ fn build_review_checklist(verification_context: &ReviewDecisionVerificationConte
         "把最终决定记录为 accepted / deferred / rejected / needs_more_evidence 之一。".to_string(),
     ];
 
-    match verification_context.permission_confirmation_status.as_str() {
-        "denied" => checklist.insert(
-            0,
-            "真实权限确认已被拒绝，不应把本次 review decision 标记为 accepted，除非已有新的真实授权证据。"
-                .to_string(),
-        ),
-        "resolved" => checklist.push(
-            "确认 review 决策不会把已通过的真实权限确认当作待处理阻塞。".to_string(),
-        ),
-        _ => {}
+    if let Some(message) = permission_confirmation_acceptance_block_message(verification_context) {
+        checklist.insert(0, message);
+    } else if verification_context.permission_confirmation_status == "resolved" {
+        checklist.push("确认 review 决策不会把已通过的真实权限确认当作待处理阻塞。".to_string());
+    }
+
+    if let Some(message) = user_locked_capability_acceptance_block_message(verification_context) {
+        checklist.insert(0, message);
     }
 
     checklist
+}
+
+fn user_locked_capability_acceptance_block_message(
+    verification_context: &ReviewDecisionVerificationContext,
+) -> Option<String> {
+    if verification_context.limit_status != "user_locked_capability_gap" {
+        return None;
+    }
+    Some(format!(
+        "显式用户模型锁定不满足当前 execution profile（capabilityGap={}），不应把本次 review decision 标记为 accepted，除非已切换到满足 routingSlot 的模型或取消显式模型锁定并重新导出证据。",
+        empty_fallback(
+            &verification_context.capability_gap,
+            "未记录 capabilityGap"
+        )
+    ))
+}
+
+fn permission_confirmation_acceptance_block_message(
+    verification_context: &ReviewDecisionVerificationContext,
+) -> Option<String> {
+    match verification_context.permission_confirmation_status.as_str() {
+        "denied" => Some(
+            "真实权限确认已被拒绝，不应把本次 review decision 标记为 accepted，除非已有新的真实授权证据。"
+                .to_string(),
+        ),
+        "requested" => Some(
+            "真实权限确认仍在等待处理，不应把本次 review decision 标记为 accepted，除非该确认已变为 resolved。"
+                .to_string(),
+        ),
+        "not_requested" => Some(
+            "声明态权限尚未发起真实审批请求，不应把本次 review decision 标记为 accepted，除非已接入真实授权证据。"
+                .to_string(),
+        ),
+        status
+            if verification_context.permission_status == "requires_confirmation"
+                && status != "resolved" =>
+        {
+            Some(
+                "运行时权限确认尚未解决，不应把本次 review decision 标记为 accepted，除非已有真实授权证据。"
+                    .to_string(),
+            )
+        }
+        _ => None,
+    }
+}
+
+fn permission_confirmation_acceptance_error(
+    verification_context: &ReviewDecisionVerificationContext,
+) -> Option<String> {
+    match verification_context.permission_confirmation_status.as_str() {
+        "denied" => Some(
+            "真实权限确认已被拒绝，不能把本次 review decision 保存为 accepted；请先处理真实权限确认，或改为 rejected / deferred / needs_more_evidence。"
+                .to_string(),
+        ),
+        "requested" => Some(
+            "真实权限确认仍在等待处理，不能把本次 review decision 保存为 accepted；请先等待确认 resolved，或改为 rejected / deferred / needs_more_evidence。"
+                .to_string(),
+        ),
+        "not_requested" => Some(
+            "声明态权限尚未发起真实审批请求，不能把本次 review decision 保存为 accepted；请先接入真实授权证据，或改为 rejected / deferred / needs_more_evidence。"
+                .to_string(),
+        ),
+        status
+            if verification_context.permission_status == "requires_confirmation"
+                && status != "resolved" =>
+        {
+            Some(
+                "运行时权限确认尚未解决，不能把本次 review decision 保存为 accepted；请先处理真实权限确认，或改为 rejected / deferred / needs_more_evidence。"
+                    .to_string(),
+            )
+        }
+        _ => None,
+    }
+}
+
+fn user_locked_capability_acceptance_error(
+    verification_context: &ReviewDecisionVerificationContext,
+) -> Option<String> {
+    if verification_context.limit_status != "user_locked_capability_gap" {
+        return None;
+    }
+    Some(format!(
+        "显式用户模型锁定不满足当前 execution profile（capabilityGap={}），不能把本次 review decision 保存为 accepted；请切换到满足 routingSlot 的模型或取消显式模型锁定并重新导出证据，或改为 rejected / deferred / needs_more_evidence。",
+        empty_fallback(
+            &verification_context.capability_gap,
+            "未记录 capabilityGap"
+        )
+    ))
 }
 
 #[derive(Debug, Clone, Default)]
@@ -559,6 +677,9 @@ struct ReviewDecisionVerificationContext {
     summary: Option<Value>,
     failure_outcomes: Vec<String>,
     recovered_outcomes: Vec<String>,
+    limit_status: String,
+    capability_gap: String,
+    user_locked_capability_summary: String,
     permission_status: String,
     permission_confirmation_status: String,
     permission_confirmation_request_id: String,
@@ -629,6 +750,11 @@ fn load_analysis_verification_context(
             .pointer("/observability/verificationRecoveredOutcomes")
             .map(value_string_list)
             .unwrap_or_default(),
+        limit_status: value_string(payload.pointer("/summary/limitStatus")),
+        capability_gap: value_string(payload.pointer("/summary/capabilityGap")),
+        user_locked_capability_summary: value_string(
+            payload.pointer("/summary/userLockedCapabilitySummary"),
+        ),
         permission_status: value_string(payload.pointer("/summary/permissionStatus")),
         permission_confirmation_status: value_string(
             payload.pointer("/summary/permissionConfirmationStatus"),
@@ -748,13 +874,13 @@ fn validate_review_decision_write(
     verification_context: &ReviewDecisionVerificationContext,
     decision: &RuntimeReviewDecisionContent,
 ) -> Result<(), String> {
-    if verification_context.permission_confirmation_status == "denied"
-        && decision.decision_status == "accepted"
-    {
-        return Err(
-            "真实权限确认已被拒绝，不能把本次 review decision 保存为 accepted；请先处理真实权限确认，或改为 rejected / deferred / needs_more_evidence。"
-                .to_string(),
-        );
+    if decision.decision_status == "accepted" {
+        if let Some(error) = user_locked_capability_acceptance_error(verification_context) {
+            return Err(error);
+        }
+        if let Some(error) = permission_confirmation_acceptance_error(verification_context) {
+            return Err(error);
+        }
     }
 
     Ok(())
@@ -825,14 +951,25 @@ fn build_review_decision_suggested_actions(
 ) -> ReviewDecisionSuggestedActions {
     let mut suggested_actions = ReviewDecisionSuggestedActions::default();
 
-    if verification_context.permission_confirmation_status == "denied" {
+    if permission_confirmation_acceptance_block_message(verification_context).is_some() {
         push_unique_string(
             &mut suggested_actions.followup_actions,
-            "先处理被拒绝的权限确认或重新发起用户授权，不要基于当前交接直接判定成功交付。",
+            "先处理未解决的权限确认或重新发起用户授权，不要基于当前交接直接判定成功交付。",
         );
         push_unique_string(
             &mut suggested_actions.regression_requirements,
-            "重新导出 evidence pack / handoff / review decision，并确认 permissionConfirmationStatus 不再是 denied。",
+            "重新导出 evidence pack / handoff / review decision，并确认 permissionConfirmationStatus 已变为 resolved 或不再阻断 accepted。",
+        );
+    }
+
+    if user_locked_capability_acceptance_block_message(verification_context).is_some() {
+        push_unique_string(
+            &mut suggested_actions.followup_actions,
+            "切换到满足 routingSlot 的模型或取消显式模型锁定，再重跑 turn；不要基于当前模型锁定能力缺口交接直接判定成功交付。",
+        );
+        push_unique_string(
+            &mut suggested_actions.regression_requirements,
+            "重新导出 evidence pack / replay case / handoff / analysis / review decision，并确认 limitStatus 不再是 user_locked_capability_gap。",
         );
     }
 
@@ -1356,6 +1493,13 @@ mod tests {
         confirmation_status: &str,
         request_id: &str,
     ) {
+        let confirmation_request_id =
+            (!request_id.trim().is_empty()).then(|| request_id.to_string());
+        let confirmation_source = if confirmation_status == "not_requested" {
+            "declared_profile_only"
+        } else {
+            "runtime_action_required"
+        };
         thread_read.permission_state = Some(lime_agent::SessionExecutionRuntimePermissionState {
             status: "requires_confirmation".to_string(),
             required_profile_keys: vec!["browser_control".to_string()],
@@ -1364,9 +1508,23 @@ mod tests {
             decision_source: "runtime_task_profile".to_string(),
             decision_scope: "declared_profile_only".to_string(),
             confirmation_status: Some(confirmation_status.to_string()),
-            confirmation_request_id: Some(request_id.to_string()),
-            confirmation_source: Some("runtime_action_required".to_string()),
+            confirmation_request_id,
+            confirmation_source: Some(confirmation_source.to_string()),
             notes: Vec::new(),
+        });
+    }
+
+    fn set_user_locked_capability_gap(thread_read: &mut AgentRuntimeThreadReadModel) {
+        thread_read.capability_gap = Some("browser_reasoning_candidate_missing".to_string());
+        thread_read.limit_state = Some(lime_agent::SessionExecutionRuntimeLimitState {
+            status: "user_locked_capability_gap".to_string(),
+            single_candidate_only: true,
+            provider_locked: false,
+            settings_locked: true,
+            oem_locked: false,
+            candidate_count: 1,
+            capability_gap: Some("browser_reasoning_candidate_missing".to_string()),
+            notes: vec!["显式模型锁定不满足 browser_reasoning routingSlot".to_string()],
         });
     }
 
@@ -1637,12 +1795,56 @@ mod tests {
             .decision
             .followup_actions
             .iter()
-            .any(|item| item.contains("先处理被拒绝的权限确认")));
+            .any(|item| item.contains("先处理未解决的权限确认")));
         assert!(result
             .decision
             .regression_requirements
             .iter()
-            .any(|item| item.contains("permissionConfirmationStatus 不再是 denied")));
+            .any(|item| item.contains("permissionConfirmationStatus 已变为 resolved")));
+    }
+
+    #[test]
+    fn should_surface_user_locked_capability_gap_in_review_decision() {
+        let temp_dir = TempDir::new().expect("temp dir");
+        let detail = build_detail();
+        let mut thread_read = build_thread_read();
+        set_user_locked_capability_gap(&mut thread_read);
+
+        let result =
+            export_runtime_review_decision_template(&detail, &thread_read, temp_dir.path())
+                .expect("export");
+
+        let markdown_path = temp_dir
+            .path()
+            .join(".lime/harness/sessions/session-1/review/review-decision.md");
+        let json_path = temp_dir
+            .path()
+            .join(".lime/harness/sessions/session-1/review/review-decision.json");
+
+        let markdown = fs::read_to_string(markdown_path).expect("markdown");
+        let json = fs::read_to_string(json_path).expect("json");
+
+        assert!(markdown.contains("显式用户模型锁定"));
+        assert!(markdown.contains("browser_reasoning_candidate_missing"));
+        assert!(markdown.contains("不应把本次 review decision 标记为 accepted"));
+        assert!(json.contains("\"limitStatus\": \"user_locked_capability_gap\""));
+        assert!(json.contains("\"capabilityGap\": \"browser_reasoning_candidate_missing\""));
+        assert_eq!(result.limit_status, "user_locked_capability_gap");
+        assert_eq!(result.capability_gap, "browser_reasoning_candidate_missing");
+        assert!(result
+            .review_checklist
+            .iter()
+            .any(|item| item.contains("显式用户模型锁定")));
+        assert!(result
+            .decision
+            .followup_actions
+            .iter()
+            .any(|item| item.contains("切换到满足 routingSlot 的模型")));
+        assert!(result
+            .decision
+            .regression_requirements
+            .iter()
+            .any(|item| item.contains("limitStatus 不再是 user_locked_capability_gap")));
     }
 
     #[test]
@@ -1699,6 +1901,112 @@ mod tests {
         assert_eq!(saved.decision.decision_status, "rejected");
         assert_eq!(saved.permission_confirmation_status, "denied");
         assert_eq!(saved.permission_confirmation_request_id, "approval-denied");
+    }
+
+    #[test]
+    fn should_reject_accepted_review_decision_when_user_locked_capability_gap() {
+        let temp_dir = TempDir::new().expect("temp dir");
+        let detail = build_detail();
+        let mut thread_read = build_thread_read();
+        set_user_locked_capability_gap(&mut thread_read);
+
+        export_runtime_review_decision_template(&detail, &thread_read, temp_dir.path())
+            .expect("export");
+
+        let error = save_runtime_review_decision(
+            &detail,
+            &thread_read,
+            temp_dir.path(),
+            RuntimeReviewDecisionContent {
+                decision_status: "accepted".to_string(),
+                decision_summary: "错误接受模型锁定能力缺口。".to_string(),
+                chosen_fix_strategy: "直接接受。".to_string(),
+                risk_level: "low".to_string(),
+                risk_tags: vec!["model-routing".to_string()],
+                human_reviewer: "Lime Maintainer".to_string(),
+                reviewed_at: None,
+                followup_actions: Vec::new(),
+                regression_requirements: Vec::new(),
+                notes: String::new(),
+            },
+        )
+        .expect_err("user locked capability gap must block accepted decision");
+
+        assert!(error.contains("显式用户模型锁定"));
+        assert!(error.contains("不能把本次 review decision 保存为 accepted"));
+    }
+
+    #[test]
+    fn should_reject_accepted_review_decision_when_permission_confirmation_not_requested() {
+        let temp_dir = TempDir::new().expect("temp dir");
+        let detail = build_detail();
+        let mut thread_read = build_thread_read();
+        set_permission_confirmation(&mut thread_read, "not_requested", "");
+
+        let exported =
+            export_runtime_review_decision_template(&detail, &thread_read, temp_dir.path())
+                .expect("export");
+
+        assert_eq!(exported.permission_confirmation_status, "not_requested");
+        assert!(exported
+            .review_checklist
+            .iter()
+            .any(|item| item.contains("尚未发起真实审批请求")));
+
+        let error = save_runtime_review_decision(
+            &detail,
+            &thread_read,
+            temp_dir.path(),
+            RuntimeReviewDecisionContent {
+                decision_status: "accepted".to_string(),
+                decision_summary: "错误接受未确认权限。".to_string(),
+                chosen_fix_strategy: "直接接受。".to_string(),
+                risk_level: "low".to_string(),
+                risk_tags: vec!["permission".to_string()],
+                human_reviewer: "Lime Maintainer".to_string(),
+                reviewed_at: None,
+                followup_actions: Vec::new(),
+                regression_requirements: Vec::new(),
+                notes: String::new(),
+            },
+        )
+        .expect_err("not_requested permission confirmation must block accepted decision");
+
+        assert!(error.contains("尚未发起真实审批请求"));
+        assert!(error.contains("不能把本次 review decision 保存为 accepted"));
+    }
+
+    #[test]
+    fn should_reject_accepted_review_decision_when_permission_confirmation_requested() {
+        let temp_dir = TempDir::new().expect("temp dir");
+        let detail = build_detail();
+        let mut thread_read = build_thread_read();
+        set_permission_confirmation(&mut thread_read, "requested", "approval-pending");
+
+        export_runtime_review_decision_template(&detail, &thread_read, temp_dir.path())
+            .expect("export");
+
+        let error = save_runtime_review_decision(
+            &detail,
+            &thread_read,
+            temp_dir.path(),
+            RuntimeReviewDecisionContent {
+                decision_status: "accepted".to_string(),
+                decision_summary: "错误接受等待处理的权限确认。".to_string(),
+                chosen_fix_strategy: "直接接受。".to_string(),
+                risk_level: "low".to_string(),
+                risk_tags: vec!["permission".to_string()],
+                human_reviewer: "Lime Maintainer".to_string(),
+                reviewed_at: None,
+                followup_actions: Vec::new(),
+                regression_requirements: Vec::new(),
+                notes: String::new(),
+            },
+        )
+        .expect_err("requested permission confirmation must block accepted decision");
+
+        assert!(error.contains("仍在等待处理"));
+        assert!(error.contains("不能把本次 review decision 保存为 accepted"));
     }
 
     #[test]

@@ -435,6 +435,9 @@ export interface AgentRuntimeStatusMetadata {
   confirmation_request_id?: string;
   confirmation_source?: string;
   declared_only?: boolean;
+  turn_gating?: boolean;
+  limit_status?: string;
+  capability_gap?: string;
 }
 
 export interface AgentRuntimeStatusPayload {
@@ -1006,6 +1009,18 @@ export function parseAgentEvent(data: unknown): AgentEvent | null {
                 declared_only:
                   typeof metadata.declared_only === "boolean"
                     ? metadata.declared_only
+                    : undefined,
+                turn_gating:
+                  typeof metadata.turn_gating === "boolean"
+                    ? metadata.turn_gating
+                    : undefined,
+                limit_status:
+                  typeof metadata.limit_status === "string"
+                    ? metadata.limit_status
+                    : undefined,
+                capability_gap:
+                  typeof metadata.capability_gap === "string"
+                    ? metadata.capability_gap
                     : undefined,
               }
             : undefined,

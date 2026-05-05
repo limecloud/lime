@@ -1,7 +1,7 @@
 import type { KnowledgePackFileEntry } from "@/lib/api/knowledge";
 import {
   buildEntryDisplayLabel,
-  formatCount,
+  getKnowledgeEntryPreview,
 } from "../domain/knowledgeVisibility";
 
 export function FileEntryList({
@@ -27,26 +27,27 @@ export function FileEntryList({
             {emptyLabel}
           </div>
         ) : (
-          entries.map((entry) => (
-            <article
-              key={entry.relativePath}
-              className="px-4 py-3 transition hover:bg-slate-50"
-            >
-              <div className="flex items-center justify-between gap-3">
-                <div className="min-w-0 truncate text-xs font-semibold text-slate-800">
-                  {buildEntryDisplayLabel(title, entry)}
+          entries.map((entry) => {
+            const preview = getKnowledgeEntryPreview(title, entry);
+            return (
+              <article
+                key={entry.relativePath}
+                className="px-4 py-3 transition hover:bg-slate-50"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0 truncate text-xs font-semibold text-slate-800">
+                    {buildEntryDisplayLabel(title, entry)}
+                  </div>
+                  <div className="shrink-0 text-xs text-slate-400">已整理</div>
                 </div>
-                <div className="shrink-0 text-xs text-slate-400">
-                  {formatCount(entry.bytes, "字节")}
-                </div>
-              </div>
-              {entry.preview ? (
-                <p className="mt-2 line-clamp-2 text-xs leading-5 text-slate-500">
-                  {entry.preview}
-                </p>
-              ) : null}
-            </article>
-          ))
+                {preview ? (
+                  <p className="mt-2 line-clamp-2 whitespace-pre-wrap text-xs leading-5 text-slate-500">
+                    {preview}
+                  </p>
+                ) : null}
+              </article>
+            );
+          })
         )}
       </div>
     </section>

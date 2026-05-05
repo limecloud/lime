@@ -9,6 +9,7 @@ pub mod browser_connector_cmd;
 pub mod browser_environment_cmd;
 pub mod browser_profile_cmd;
 pub mod browser_runtime_cmd;
+pub mod capability_draft_cmd;
 pub mod companion_cmd;
 pub mod config_cmd;
 pub mod connect_cmd;

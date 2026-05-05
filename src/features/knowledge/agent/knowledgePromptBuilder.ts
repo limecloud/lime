@@ -18,17 +18,15 @@ export function buildKnowledgeBuilderPrompt(params: {
   packType?: string;
   description?: string;
 }) {
+  const displayName = params.description?.trim() || "项目资料";
   const lines = [
-    "请整理这个资料包，生成可审阅的项目资料草稿。",
+    "请整理这份项目资料，生成一份可检查确认的资料草稿。",
     "",
-    `资料包：${params.packName}`,
+    `资料名称：${displayName}`,
   ];
 
   if (params.packType?.trim()) {
-    lines.push(`类型：${params.packType.trim()}`);
-  }
-  if (params.description?.trim()) {
-    lines.push(`说明：${params.description.trim()}`);
+    lines.push(`资料类型：${params.packType.trim()}`);
   }
 
   lines.push(

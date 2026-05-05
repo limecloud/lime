@@ -51,6 +51,14 @@ export const HOME_STARTER_CHIPS: HomeStarterChip[] = [
     testId: "entry-recommended-social-post-starter",
   },
   {
+    id: "starter-knowledge-import",
+    label: "添加资料",
+    launchKind: "open_knowledge_hub",
+    category: "other",
+    iconToken: "knowledge",
+    testId: "entry-home-knowledge-import",
+  },
+  {
     id: "starter-ppt",
     label: "PPT",
     launchKind: "prefill_prompt",
@@ -134,6 +142,14 @@ export const HOME_INPUT_SUGGESTIONS: HomeInputSuggestion[] = [
     testId: "home-input-suggestion-meeting-notes",
   },
   {
+    id: "suggestion-knowledge-import",
+    label: "帮我整理项目资料",
+    prompt:
+      "帮我把接下来这份资料整理成项目资料，保留确定事实，标出待确认信息，并告诉我后续怎么在生成内容时使用。",
+    order: 8,
+    testId: "home-input-suggestion-knowledge-import",
+  },
+  {
     id: "suggestion-research-report",
     label: "帮我写一份调研报告",
     prompt:
@@ -194,6 +210,15 @@ export const HOME_GUIDE_CARDS: HomeGuideCard[] = [
       "请告诉我 Lime 的技能怎么安装和使用。我想知道如何把一个高频创作流程沉淀为可复用 skill。",
     groupKey: "guide_help",
     testId: "home-guide-install-skill",
+  },
+  {
+    id: "guide-knowledge",
+    title: "项目资料怎么添加和使用？",
+    summary: "从文件、输入框资料图标或对话结果沉淀资料。",
+    prompt:
+      "请告诉我 Lime 的项目资料怎么添加、确认和使用。我想知道如何从文件管理器、输入框资料图标和对话结果里完成资料沉淀与后续生成。",
+    groupKey: "guide_help",
+    testId: "home-guide-knowledge",
   },
   {
     id: "guide-voice-input",

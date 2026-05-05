@@ -1230,6 +1230,78 @@ impl RuntimeTurnPreparedExecution {
         )
         .await?;
 
+        if let Some(permission_state) = extract_runtime_resolution_payload::<
+            lime_agent::SessionExecutionRuntimePermissionState,
+        >(request_metadata, "permission_state")
+        {
+            if permission_state_requires_turn_gating(&permission_state) {
+                maybe_emit_runtime_permission_confirmation_request(
+                    app,
+                    request,
+                    workspace_root,
+                    self.thread_id(),
+                    self.turn_id(),
+                    &self.runtime_turn_execution_context.timeline_recorder,
+                    &permission_state,
+                );
+                let error = format_permission_turn_gating_error(&permission_state);
+                complete_runtime_status_projection(
+                    agent,
+                    app,
+                    &request.event_name,
+                    &self.runtime_turn_execution_context.timeline_recorder,
+                    workspace_root,
+                    &self
+                        .runtime_turn_execution_context
+                        .runtime_status_session_config,
+                )
+                .await;
+                fail_runtime_turn_before_model_execution(
+                    app,
+                    &request.event_name,
+                    &self.runtime_turn_execution_context.timeline_recorder,
+                    &error,
+                );
+                return Err(error);
+            }
+        }
+        if let Some(limit_state) = extract_runtime_resolution_payload::<
+            lime_agent::SessionExecutionRuntimeLimitState,
+        >(request_metadata, "limit_state")
+        {
+            if limit_state_requires_user_lock_capability_gating(&limit_state) {
+                let routing_decision = extract_runtime_resolution_payload::<
+                    lime_agent::SessionExecutionRuntimeRoutingDecision,
+                >(request_metadata, "routing_decision");
+                let task_profile = extract_runtime_resolution_payload::<
+                    lime_agent::SessionExecutionRuntimeTaskProfile,
+                >(request_metadata, "task_profile");
+                let error = format_user_lock_capability_gating_error(
+                    &limit_state,
+                    routing_decision.as_ref(),
+                    task_profile.as_ref(),
+                );
+                complete_runtime_status_projection(
+                    agent,
+                    app,
+                    &request.event_name,
+                    &self.runtime_turn_execution_context.timeline_recorder,
+                    workspace_root,
+                    &self
+                        .runtime_turn_execution_context
+                        .runtime_status_session_config,
+                )
+                .await;
+                fail_runtime_turn_before_model_execution(
+                    app,
+                    &request.event_name,
+                    &self.runtime_turn_execution_context.timeline_recorder,
+                    &error,
+                );
+                return Err(error);
+            }
+        }
+
         self.runtime_turn_execution_context
             .execute_and_finalize(
                 tracker,
@@ -2625,6 +2697,13 @@ async fn prepare_runtime_turn_ingress_context(
         provider_resolution.oem_policy.as_ref(),
         &provider_resolution.runtime_summary,
     );
+    let permission_confirmation_session_id = request.session_id.clone();
+    merge_runtime_permission_confirmation_from_session(
+        db,
+        &permission_confirmation_session_id,
+        request,
+    )
+    .await;
     if let Some(resolved_provider_config) = provider_resolution.provider_config {
         request.provider_config = Some(resolved_provider_config);
     }
@@ -3557,6 +3636,160 @@ fn merge_runtime_request_resolution_metadata(
     Some(serde_json::Value::Object(root))
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct RuntimePermissionConfirmationProjection {
+    status: &'static str,
+    request_id: String,
+    source: &'static str,
+    note: &'static str,
+}
+
+fn latest_runtime_permission_confirmation_projection(
+    detail: &SessionDetail,
+) -> Option<RuntimePermissionConfirmationProjection> {
+    detail.items.iter().rev().find_map(|item| {
+        let lime_core::database::dao::agent_timeline::AgentThreadItemPayload::RequestUserInput {
+            request_id,
+            response,
+            ..
+        } = &item.payload
+        else {
+            return None;
+        };
+        if !is_runtime_permission_confirmation_request_id(request_id) {
+            return None;
+        }
+
+        match item.status {
+            lime_core::database::dao::agent_timeline::AgentThreadItemStatus::InProgress => {
+                Some(RuntimePermissionConfirmationProjection {
+                    status: "requested",
+                    request_id: request_id.clone(),
+                    source: "runtime_action_required",
+                    note: "真实权限确认请求正在等待用户处理",
+                })
+            }
+            lime_core::database::dao::agent_timeline::AgentThreadItemStatus::Completed => {
+                let confirmed =
+                    runtime_permission_confirmation_response_confirmed(response.as_ref());
+                let (status, note) = match confirmed {
+                    Some(false) => ("denied", "真实权限确认请求已拒绝"),
+                    Some(true) => ("resolved", "真实权限确认请求已完成"),
+                    None => ("requested", "真实权限确认请求缺少响应，继续等待用户处理"),
+                };
+                Some(RuntimePermissionConfirmationProjection {
+                    status,
+                    request_id: request_id.clone(),
+                    source: "runtime_action_required",
+                    note,
+                })
+            }
+            lime_core::database::dao::agent_timeline::AgentThreadItemStatus::Failed => {
+                Some(RuntimePermissionConfirmationProjection {
+                    status: "denied",
+                    request_id: request_id.clone(),
+                    source: "runtime_action_required",
+                    note: "真实权限确认请求已失败或拒绝",
+                })
+            }
+        }
+    })
+}
+
+fn append_permission_confirmation_note(
+    permission_object: &mut serde_json::Map<String, serde_json::Value>,
+    note: &str,
+) {
+    let notes_entry = permission_object
+        .entry("notes".to_string())
+        .or_insert_with(|| serde_json::Value::Array(Vec::new()));
+    if !notes_entry.is_array() {
+        *notes_entry = serde_json::Value::Array(Vec::new());
+    }
+    let Some(notes) = notes_entry.as_array_mut() else {
+        return;
+    };
+    if notes.iter().any(|value| value.as_str() == Some(note)) {
+        return;
+    }
+    notes.push(serde_json::Value::String(note.to_string()));
+}
+
+fn apply_runtime_permission_confirmation_projection_to_metadata(
+    metadata: &mut Option<serde_json::Value>,
+    projection: &RuntimePermissionConfirmationProjection,
+) -> bool {
+    let Some(root) = metadata.as_mut().and_then(serde_json::Value::as_object_mut) else {
+        return false;
+    };
+    let Some(runtime_object) = root
+        .get_mut(LIME_RUNTIME_METADATA_KEY)
+        .and_then(serde_json::Value::as_object_mut)
+    else {
+        return false;
+    };
+    let Some(permission_object) = runtime_object
+        .get_mut("permission_state")
+        .and_then(serde_json::Value::as_object_mut)
+    else {
+        return false;
+    };
+    if permission_object
+        .get("status")
+        .and_then(serde_json::Value::as_str)
+        != Some("requires_confirmation")
+    {
+        return false;
+    }
+
+    permission_object.insert(
+        "confirmationStatus".to_string(),
+        serde_json::Value::String(projection.status.to_string()),
+    );
+    permission_object.insert(
+        "confirmationRequestId".to_string(),
+        serde_json::Value::String(projection.request_id.clone()),
+    );
+    permission_object.insert(
+        "confirmationSource".to_string(),
+        serde_json::Value::String(projection.source.to_string()),
+    );
+    append_permission_confirmation_note(permission_object, projection.note);
+    true
+}
+
+async fn merge_runtime_permission_confirmation_from_session(
+    db: &DbConnection,
+    session_id: &str,
+    request: &mut AsterChatRequest,
+) {
+    let detail = match AsterAgentWrapper::get_runtime_session_detail(db, session_id).await {
+        Ok(detail) => detail,
+        Err(error) => {
+            tracing::warn!(
+                "[AsterAgent] 读取权限确认状态失败，已保持本轮声明态权限摘要: session_id={}, error={}",
+                session_id,
+                error
+            );
+            return;
+        }
+    };
+    let Some(projection) = latest_runtime_permission_confirmation_projection(&detail) else {
+        return;
+    };
+    if apply_runtime_permission_confirmation_projection_to_metadata(
+        &mut request.metadata,
+        &projection,
+    ) {
+        tracing::info!(
+            "[AsterAgent] 已合并真实权限确认状态: session_id={}, request_id={}, status={}",
+            session_id,
+            projection.request_id,
+            projection.status
+        );
+    }
+}
+
 fn extract_runtime_resolution_payload<T: serde::de::DeserializeOwned>(
     request_metadata: Option<&serde_json::Value>,
     key: &str,
@@ -3614,8 +3847,13 @@ fn collect_runtime_request_resolution_side_events(
             });
 
             if limit_state.capability_gap.is_some() {
-                events.push(RuntimeAgentEvent::SingleCandidateCapabilityGap { limit_state });
+                events.push(RuntimeAgentEvent::SingleCandidateCapabilityGap {
+                    limit_state: limit_state.clone(),
+                });
             }
+        }
+        if let Some(status) = build_runtime_user_lock_capability_status_from_state(&limit_state) {
+            events.push(RuntimeAgentEvent::RuntimeStatus { status });
         }
     }
 
@@ -3643,6 +3881,255 @@ fn collect_runtime_request_resolution_side_events(
     }
 
     events
+}
+
+fn permission_state_requires_turn_gating(
+    permission_state: &lime_agent::SessionExecutionRuntimePermissionState,
+) -> bool {
+    permission_state.status == "requires_confirmation"
+        && permission_state.confirmation_status.as_deref() != Some("resolved")
+}
+
+fn limit_state_requires_user_lock_capability_gating(
+    limit_state: &lime_agent::SessionExecutionRuntimeLimitState,
+) -> bool {
+    limit_state.status == "user_locked_capability_gap" && limit_state.capability_gap.is_some()
+}
+
+fn format_user_lock_capability_gating_error(
+    limit_state: &lime_agent::SessionExecutionRuntimeLimitState,
+    routing_decision: Option<&lime_agent::SessionExecutionRuntimeRoutingDecision>,
+    task_profile: Option<&lime_agent::SessionExecutionRuntimeTaskProfile>,
+) -> String {
+    let gap = limit_state
+        .capability_gap
+        .as_deref()
+        .unwrap_or("unknown_capability_gap");
+    let model = routing_decision
+        .and_then(|decision| decision.selected_model.as_deref())
+        .unwrap_or("未记录 selectedModel");
+    let requested_model = routing_decision
+        .and_then(|decision| decision.requested_model.as_deref())
+        .unwrap_or(model);
+    let routing_slot = task_profile
+        .and_then(|profile| profile.routing_slot.as_deref())
+        .unwrap_or("未记录 routingSlot");
+    format!(
+        "显式用户模型锁定不满足当前执行画像，已在模型执行前阻断：requestedModel={requested_model}，selectedModel={model}，routingSlot={routing_slot}，capabilityGap={gap}。请切换到满足该 routing slot 的模型，或移除本轮显式模型锁定后重试。"
+    )
+}
+
+fn build_runtime_user_lock_capability_status_from_state(
+    limit_state: &lime_agent::SessionExecutionRuntimeLimitState,
+) -> Option<AgentRuntimeStatus> {
+    if !limit_state_requires_user_lock_capability_gating(limit_state) {
+        return None;
+    }
+
+    let gap = limit_state
+        .capability_gap
+        .as_deref()
+        .unwrap_or("unknown_capability_gap");
+    let mut metadata = std::collections::HashMap::new();
+    metadata.insert(
+        "limit_status".to_string(),
+        serde_json::Value::String(limit_state.status.clone()),
+    );
+    metadata.insert(
+        "capability_gap".to_string(),
+        serde_json::Value::String(gap.to_string()),
+    );
+    metadata.insert("turn_gating".to_string(), serde_json::Value::Bool(true));
+    Some(AgentRuntimeStatus {
+        phase: "routing".to_string(),
+        title: "显式模型锁定能力不匹配".to_string(),
+        detail: format!("当前用户锁定模型缺少执行画像要求的能力：{gap}；本轮会在模型执行前阻断。"),
+        checkpoints: vec![
+            "能力缺口来自 routing slot 与模型目录匹配结果".to_string(),
+            "显式用户锁定不会被自动重选覆盖".to_string(),
+            "请切换模型或取消本轮显式模型锁定后重试".to_string(),
+        ],
+        metadata: Some(metadata),
+    })
+}
+
+fn should_create_runtime_permission_confirmation_request(
+    permission_state: &lime_agent::SessionExecutionRuntimePermissionState,
+) -> bool {
+    permission_state.status == "requires_confirmation"
+        && matches!(
+            permission_state.confirmation_status.as_deref(),
+            None | Some("not_requested")
+        )
+        && permission_state.confirmation_request_id.is_none()
+}
+
+fn runtime_permission_confirmation_request_id(turn_id: &str) -> String {
+    format!("{RUNTIME_PERMISSION_CONFIRMATION_REQUEST_PREFIX}{turn_id}")
+}
+
+fn runtime_permission_ask_profile_label(
+    permission_state: &lime_agent::SessionExecutionRuntimePermissionState,
+) -> String {
+    if permission_state.ask_profile_keys.is_empty() {
+        return "未记录 askProfileKeys".to_string();
+    }
+
+    permission_state.ask_profile_keys.join(", ")
+}
+
+fn format_permission_turn_gating_error(
+    permission_state: &lime_agent::SessionExecutionRuntimePermissionState,
+) -> String {
+    let confirmation_status = permission_state
+        .confirmation_status
+        .as_deref()
+        .unwrap_or("未记录 confirmationStatus");
+    let ask_profile_keys = runtime_permission_ask_profile_label(permission_state);
+
+    format!(
+        "运行时权限声明需要真实确认，当前 turn 已在模型执行前阻断：confirmationStatus={confirmation_status}，askProfileKeys={ask_profile_keys}。本阻断不创建 ApprovalRequest；请先接入真实权限确认或移除对应执行需求。"
+    )
+}
+
+fn build_runtime_permission_confirmation_prompt(
+    permission_state: &lime_agent::SessionExecutionRuntimePermissionState,
+) -> String {
+    format!(
+        "当前执行需要确认运行时权限：{}。确认后才允许继续模型执行；拒绝会保持阻断。",
+        runtime_permission_ask_profile_label(permission_state)
+    )
+}
+
+fn build_runtime_permission_confirmation_questions(
+    permission_state: &lime_agent::SessionExecutionRuntimePermissionState,
+) -> Vec<lime_core::database::dao::agent_timeline::AgentRequestQuestion> {
+    vec![
+        lime_core::database::dao::agent_timeline::AgentRequestQuestion {
+            header: Some("运行时权限确认".to_string()),
+            question: build_runtime_permission_confirmation_prompt(permission_state),
+            options: Some(vec![
+                lime_core::database::dao::agent_timeline::AgentRequestOption {
+                    label: "允许本次执行".to_string(),
+                    description: Some("写入 resolved，下一次恢复执行可通过权限门禁。".to_string()),
+                },
+                lime_core::database::dao::agent_timeline::AgentRequestOption {
+                    label: "拒绝".to_string(),
+                    description: Some("写入 denied，本次执行需求继续阻断。".to_string()),
+                },
+            ]),
+            multi_select: Some(false),
+        },
+    ]
+}
+
+fn build_runtime_permission_confirmation_schema(
+    questions: &[lime_core::database::dao::agent_timeline::AgentRequestQuestion],
+) -> serde_json::Value {
+    serde_json::json!({
+        "type": "object",
+        "properties": {
+            "answer": {
+                "type": "string",
+                "enum": ["允许本次执行", "拒绝"]
+            }
+        },
+        "required": ["answer"],
+        "x-lime-ask-user-questions": questions,
+    })
+}
+
+fn maybe_emit_runtime_permission_confirmation_request(
+    app: &AppHandle,
+    request: &AsterChatRequest,
+    workspace_root: &str,
+    thread_id: &str,
+    turn_id: &str,
+    timeline_recorder: &Arc<Mutex<AgentTimelineRecorder>>,
+    permission_state: &lime_agent::SessionExecutionRuntimePermissionState,
+) {
+    if !should_create_runtime_permission_confirmation_request(permission_state) {
+        return;
+    }
+
+    let request_id = runtime_permission_confirmation_request_id(turn_id);
+    let prompt = build_runtime_permission_confirmation_prompt(permission_state);
+    let questions = build_runtime_permission_confirmation_questions(permission_state);
+    {
+        let mut recorder = match timeline_recorder.lock() {
+            Ok(guard) => guard,
+            Err(error) => error.into_inner(),
+        };
+        if let Err(error) = recorder.record_request_user_input(
+            app,
+            &request.event_name,
+            request_id.clone(),
+            "elicitation".to_string(),
+            Some(prompt.clone()),
+            Some(questions.clone()),
+        ) {
+            tracing::warn!(
+                "[AsterAgent] 记录权限确认请求失败（已降级只发送 action_required）: {}",
+                error
+            );
+        }
+    }
+
+    emit_runtime_side_event(
+        app,
+        &request.event_name,
+        timeline_recorder,
+        workspace_root,
+        RuntimeAgentEvent::ActionRequired {
+            request_id,
+            action_type: "elicitation".to_string(),
+            data: serde_json::json!({
+                "request_id": runtime_permission_confirmation_request_id(turn_id),
+                "action_type": "elicitation",
+                "prompt": prompt,
+                "questions": questions,
+                "requested_schema": build_runtime_permission_confirmation_schema(&questions),
+                "permission_state": permission_state,
+                "source": "runtime_permission_confirmation",
+            }),
+            scope: Some(lime_agent::AgentActionRequiredScope {
+                session_id: Some(request.session_id.clone()),
+                thread_id: Some(thread_id.to_string()),
+                turn_id: Some(turn_id.to_string()),
+            }),
+        },
+    );
+}
+
+fn fail_runtime_turn_before_model_execution(
+    app: &AppHandle,
+    event_name: &str,
+    timeline_recorder: &Arc<Mutex<AgentTimelineRecorder>>,
+    message: &str,
+) {
+    let terminal_events = {
+        let mut recorder = match timeline_recorder.lock() {
+            Ok(guard) => guard,
+            Err(error) => error.into_inner(),
+        };
+        recorder.fail_turn(message)
+    };
+    if let Err(error) = &terminal_events {
+        tracing::warn!(
+            "[AsterAgent] 记录运行时执行前阻断 turn 时间线失败（已降级继续）: {}",
+            error
+        );
+    }
+    if let Ok(events) = terminal_events {
+        emit_runtime_events(app, event_name, events);
+    }
+
+    let error_event = RuntimeAgentEvent::Error {
+        message: message.to_string(),
+    };
+    if let Err(error) = app.emit(event_name, &error_event) {
+        tracing::error!("[AsterAgent] 发送运行时执行前阻断错误事件失败: {}", error);
+    }
 }
 
 fn build_runtime_permission_review_status_from_state(
@@ -3698,21 +4185,52 @@ fn build_runtime_permission_review_status_from_state(
             serde_json::Value::String(confirmation_source.clone()),
         );
     }
-    metadata.insert("declared_only".to_string(), serde_json::Value::Bool(true));
+    let declared_only = permission_state.confirmation_request_id.is_none()
+        && permission_state.confirmation_source.as_deref() != Some("runtime_action_required");
+    metadata.insert(
+        "declared_only".to_string(),
+        serde_json::Value::Bool(declared_only),
+    );
+    let turn_gating = permission_state_requires_turn_gating(permission_state);
+    metadata.insert(
+        "turn_gating".to_string(),
+        serde_json::Value::Bool(turn_gating),
+    );
 
     let ask_count = permission_state.ask_profile_keys.len();
     let required_count = permission_state.required_profile_keys.len();
+    let confirmation_status = permission_state
+        .confirmation_status
+        .as_deref()
+        .unwrap_or("未记录 confirmationStatus");
+    let detail = if turn_gating {
+        format!(
+            "当前执行画像声明了 {required_count} 项权限，其中 {ask_count} 项需要确认；confirmationStatus={confirmation_status} 尚未 resolved，本轮会在模型执行前阻断。"
+        )
+    } else {
+        format!(
+            "当前执行画像声明了 {required_count} 项权限，其中 {ask_count} 项需要确认；confirmationStatus=resolved，允许继续模型执行。"
+        )
+    };
+    let checkpoints = if turn_gating {
+        vec![
+            "权限需求来自 modality execution profile".to_string(),
+            "未解决权限确认会在 prelude 后、模型执行前阻断本轮 turn".to_string(),
+            "本事件不代表 ApprovalRequest 已创建；只有 confirmationStatus=resolved 才允许继续"
+                .to_string(),
+        ]
+    } else {
+        vec![
+            "权限需求来自 modality execution profile".to_string(),
+            "已记录 resolved 权限确认，本轮允许继续执行".to_string(),
+            "本事件仍只投影确认状态，不伪造新的 ApprovalRequest".to_string(),
+        ]
+    };
     Some(AgentRuntimeStatus {
         phase: "permission_review".to_string(),
         title: "运行时权限需要确认".to_string(),
-        detail: format!(
-            "当前执行画像声明了 {required_count} 项权限，其中 {ask_count} 项需要确认；本事件只暴露声明态，不会替代真实授权。"
-        ),
-        checkpoints: vec![
-            "权限需求来自 modality execution profile".to_string(),
-            "当前不会因为声明态权限摘要阻断本轮执行".to_string(),
-            "真实确认与阻断仍由后续权限系统接管".to_string(),
-        ],
+        detail,
+        checkpoints,
         metadata: Some(metadata),
     })
 }
@@ -8093,11 +8611,262 @@ mod tests {
         );
         assert_eq!(
             status
+                .pointer("/metadata/turn_gating")
+                .and_then(Value::as_bool),
+            Some(true)
+        );
+        assert_eq!(
+            status
                 .pointer("/metadata/ask_profile_keys")
                 .and_then(Value::as_array)
                 .map(Vec::len),
             Some(2)
         );
+        assert!(status
+            .get("detail")
+            .and_then(Value::as_str)
+            .is_some_and(|detail| detail.contains("模型执行前阻断")));
+    }
+
+    #[test]
+    fn permission_turn_gating_should_block_not_requested_confirmation() {
+        let permission_state: lime_agent::SessionExecutionRuntimePermissionState =
+            serde_json::from_value(json!({
+                "status": "requires_confirmation",
+                "requiredProfileKeys": ["read_files"],
+                "askProfileKeys": ["read_files"],
+                "blockingProfileKeys": [],
+                "decisionSource": "modality_execution_profile",
+                "decisionScope": "declared_profile",
+                "confirmationStatus": "not_requested",
+                "confirmationSource": "declared_profile_only"
+            }))
+            .expect("应能解析 permission state");
+
+        assert!(permission_state_requires_turn_gating(&permission_state));
+        let error = format_permission_turn_gating_error(&permission_state);
+        assert!(error.contains("confirmationStatus=not_requested"));
+        assert!(error.contains("askProfileKeys=read_files"));
+        assert!(error.contains("不创建 ApprovalRequest"));
+    }
+
+    #[test]
+    fn permission_turn_gating_should_block_missing_confirmation_status() {
+        let permission_state: lime_agent::SessionExecutionRuntimePermissionState =
+            serde_json::from_value(json!({
+                "status": "requires_confirmation",
+                "requiredProfileKeys": ["write_artifacts"],
+                "askProfileKeys": ["write_artifacts"],
+                "blockingProfileKeys": [],
+                "decisionSource": "modality_execution_profile",
+                "decisionScope": "declared_profile"
+            }))
+            .expect("应能解析 permission state");
+
+        assert!(permission_state_requires_turn_gating(&permission_state));
+        assert!(format_permission_turn_gating_error(&permission_state)
+            .contains("未记录 confirmationStatus"));
+    }
+
+    #[test]
+    fn permission_turn_gating_should_allow_resolved_confirmation() {
+        let permission_state: lime_agent::SessionExecutionRuntimePermissionState =
+            serde_json::from_value(json!({
+                "status": "requires_confirmation",
+                "requiredProfileKeys": ["read_files"],
+                "askProfileKeys": ["read_files"],
+                "blockingProfileKeys": [],
+                "decisionSource": "modality_execution_profile",
+                "decisionScope": "runtime_action_required",
+                "confirmationStatus": "resolved",
+                "confirmationRequestId": "approval-1",
+                "confirmationSource": "runtime_action_required"
+            }))
+            .expect("应能解析 permission state");
+
+        assert!(!permission_state_requires_turn_gating(&permission_state));
+        let status = build_runtime_permission_review_status_from_state(&permission_state)
+            .expect("应生成状态");
+        assert_eq!(
+            status
+                .metadata
+                .as_ref()
+                .and_then(|metadata| metadata.get("declared_only"))
+                .and_then(Value::as_bool),
+            Some(false)
+        );
+        assert_eq!(
+            status
+                .metadata
+                .as_ref()
+                .and_then(|metadata| metadata.get("turn_gating"))
+                .and_then(Value::as_bool),
+            Some(false)
+        );
+        assert!(status.detail.contains("允许继续模型执行"));
+    }
+
+    #[test]
+    fn user_lock_capability_gap_should_block_before_model_execution() {
+        let limit_state = lime_agent::SessionExecutionRuntimeLimitState {
+            status: "user_locked_capability_gap".to_string(),
+            single_candidate_only: true,
+            provider_locked: true,
+            settings_locked: false,
+            oem_locked: false,
+            candidate_count: 1,
+            capability_gap: Some("browser_reasoning_candidate_missing".to_string()),
+            notes: Vec::new(),
+        };
+        let routing_decision = lime_agent::SessionExecutionRuntimeRoutingDecision {
+            routing_mode: "single_candidate".to_string(),
+            decision_source: "request_override".to_string(),
+            decision_reason: "用户显式选择模型".to_string(),
+            selected_provider: Some("openai".to_string()),
+            selected_model: Some("gpt-5.4-mini".to_string()),
+            requested_provider: Some("openai".to_string()),
+            requested_model: Some("gpt-5.4-mini".to_string()),
+            candidate_count: 1,
+            estimated_cost_class: Some("low".to_string()),
+            capability_gap: Some("browser_reasoning_candidate_missing".to_string()),
+            fallback_chain: Vec::new(),
+            settings_source: None,
+            service_model_slot: None,
+        };
+        let task_profile = lime_agent::SessionExecutionRuntimeTaskProfile {
+            kind: "browser_control".to_string(),
+            source: "browser_assist".to_string(),
+            traits: Vec::new(),
+            modality_contract_key: Some("browser_control".to_string()),
+            routing_slot: Some("browser_reasoning_model".to_string()),
+            execution_profile_key: Some("browser_control_profile".to_string()),
+            executor_adapter_key: Some("browser:browser_assist".to_string()),
+            executor_kind: Some("browser".to_string()),
+            executor_binding_key: Some("browser_assist".to_string()),
+            permission_profile_keys: Vec::new(),
+            user_lock_policy: Some("honor_explicit_model_lock_with_capability_check".to_string()),
+            service_model_slot: None,
+            scene_kind: None,
+            scene_skill_id: None,
+            entry_source: None,
+        };
+
+        assert!(limit_state_requires_user_lock_capability_gating(
+            &limit_state
+        ));
+        let error = format_user_lock_capability_gating_error(
+            &limit_state,
+            Some(&routing_decision),
+            Some(&task_profile),
+        );
+        assert!(error.contains("模型执行前阻断"));
+        assert!(error.contains("routingSlot=browser_reasoning_model"));
+        assert!(error.contains("capabilityGap=browser_reasoning_candidate_missing"));
+        let status = build_runtime_user_lock_capability_status_from_state(&limit_state)
+            .expect("应生成 user lock capability status");
+        assert_eq!(status.phase, "routing");
+        assert_eq!(
+            status
+                .metadata
+                .as_ref()
+                .and_then(|metadata| metadata.get("turn_gating"))
+                .and_then(Value::as_bool),
+            Some(true)
+        );
+    }
+
+    #[test]
+    fn permission_confirmation_projection_should_mark_runtime_metadata_resolved() {
+        let mut metadata = Some(json!({
+            "lime_runtime": {
+                "permission_state": {
+                    "status": "requires_confirmation",
+                    "requiredProfileKeys": ["read_files"],
+                    "askProfileKeys": ["read_files"],
+                    "blockingProfileKeys": [],
+                    "decisionSource": "modality_execution_profile",
+                    "decisionScope": "declared_profile",
+                    "confirmationStatus": "not_requested",
+                    "confirmationSource": "declared_profile_only"
+                }
+            }
+        }));
+
+        let applied = apply_runtime_permission_confirmation_projection_to_metadata(
+            &mut metadata,
+            &RuntimePermissionConfirmationProjection {
+                status: "resolved",
+                request_id: "runtime_permission_confirmation:turn-1".to_string(),
+                source: "runtime_action_required",
+                note: "真实权限确认请求已完成",
+            },
+        );
+
+        assert!(applied);
+        let permission_state = extract_runtime_resolution_payload::<
+            lime_agent::SessionExecutionRuntimePermissionState,
+        >(metadata.as_ref(), "permission_state")
+        .expect("应能读取更新后的 permission_state");
+        assert_eq!(
+            permission_state.confirmation_status.as_deref(),
+            Some("resolved")
+        );
+        assert_eq!(
+            permission_state.confirmation_request_id.as_deref(),
+            Some("runtime_permission_confirmation:turn-1")
+        );
+        assert!(!permission_state_requires_turn_gating(&permission_state));
+    }
+
+    #[test]
+    fn permission_confirmation_response_should_treat_reject_answer_as_denied() {
+        let response = json!({
+            "confirmed": true,
+            "response": "{\"answer\":\"拒绝\"}",
+            "userData": { "answer": "拒绝" },
+            "source": "runtime_permission_confirmation"
+        });
+
+        assert_eq!(
+            runtime_permission_confirmation_response_confirmed(Some(&response)),
+            Some(false)
+        );
+    }
+
+    #[test]
+    fn permission_confirmation_request_should_only_create_for_not_requested() {
+        let not_requested: lime_agent::SessionExecutionRuntimePermissionState =
+            serde_json::from_value(json!({
+                "status": "requires_confirmation",
+                "requiredProfileKeys": ["read_files"],
+                "askProfileKeys": ["read_files"],
+                "blockingProfileKeys": [],
+                "decisionSource": "modality_execution_profile",
+                "decisionScope": "declared_profile",
+                "confirmationStatus": "not_requested",
+                "confirmationSource": "declared_profile_only"
+            }))
+            .expect("应能解析 permission state");
+        let requested: lime_agent::SessionExecutionRuntimePermissionState =
+            serde_json::from_value(json!({
+                "status": "requires_confirmation",
+                "requiredProfileKeys": ["read_files"],
+                "askProfileKeys": ["read_files"],
+                "blockingProfileKeys": [],
+                "decisionSource": "modality_execution_profile",
+                "decisionScope": "declared_profile",
+                "confirmationStatus": "requested",
+                "confirmationRequestId": "runtime_permission_confirmation:turn-1",
+                "confirmationSource": "runtime_action_required"
+            }))
+            .expect("应能解析 permission state");
+
+        assert!(should_create_runtime_permission_confirmation_request(
+            &not_requested
+        ));
+        assert!(!should_create_runtime_permission_confirmation_request(
+            &requested
+        ));
     }
 
     #[test]

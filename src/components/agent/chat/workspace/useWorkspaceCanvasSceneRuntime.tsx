@@ -691,6 +691,7 @@ function useWorkspaceCanvasPreviewRuntime({
             onSelectionTextChange: canvasFactory.onSelectionTextChange,
             projectId: canvasFactory.projectId,
             contentId: canvasFactory.contentId,
+            projectRootPath: defaultPreview.workspaceRoot,
             autoImageTopic: canvasFactory.autoImageTopic,
             autoContinueProviderType: canvasFactory.autoContinueProviderType,
             onAutoContinueProviderTypeChange:
@@ -735,6 +736,7 @@ function useWorkspaceCanvasPreviewRuntime({
       canvasFactory.preferContentReviewInRightRail,
       canvasFactory.projectId,
       canvasFactory.resolvedCanvasState,
+      defaultPreview.workspaceRoot,
     ],
   );
 

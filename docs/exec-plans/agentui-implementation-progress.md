@@ -2402,3 +2402,1732 @@ GUI / E2E 状态：
 
 1. 继续 Phase 2：抽 `sessionSwitchErrorController`，把 session not found、preserve current snapshot、toast/error metric 等错误恢复判断从 `useAgentSession` 中移出。
 2. 或抽 `sessionHistoryPaginationController`，把完整历史分页窗口计算、stale guard 与 merge 计划从主 hook 中移出。
+
+### 2026-05-05：P3 第十四刀，Session switch error controller
+
+已完成：
+
+- 新增 `src/components/agent/chat/hooks/sessionSwitchErrorController.ts`：
+  - `buildSessionSwitchErrorLogContext`
+  - `buildSessionSwitchErrorToastMessage`
+  - `resolveSessionSwitchErrorAction`
+- `useAgentSession.ts` 中 `handleSwitchTopicError` 的错误恢复分支改为委托 controller：
+  - session not found：清空当前快照、刷新 topics、不弹 toast。
+  - 普通错误：默认清空当前快照并弹 toast。
+  - `preserveCurrentSnapshot`：保留当前快照，只弹 toast。
+- 新增 `sessionSwitchErrorController.test.ts`，覆盖 session not found、普通错误、保留快照错误和非 `Error` 文案。
+
+主线收益：
+
+- Phase 2 继续瘦 `useAgentSession`：旧会话切换失败的恢复策略不再散落在 hook 主体里。
+- `preserveCurrentSnapshot` 的行为有单测保护，避免 deferred hydration 失败时误清空当前缓存快照，造成旧会话 UI 闪空或用户误以为卡死。
+- session not found 的清理与 topics 刷新路径可单测，后续排查旧会话恢复失败时能直接定位到错误 controller。
+
+已验证：
+
+```bash
+npm exec -- vitest run "src/components/agent/chat/hooks/sessionSwitchErrorController.test.ts" "src/components/agent/chat/hooks/sessionPostFinalizePersistenceController.test.ts" "src/components/agent/chat/hooks/sessionMetadataSyncScheduler.test.ts" "src/components/agent/chat/hooks/sessionMetadataSyncController.test.ts" "src/components/agent/chat/hooks/sessionFinalizeController.test.ts" "src/components/agent/chat/hooks/sessionSwitchSnapshotController.test.ts" "src/components/agent/chat/hooks/sessionHydrationRetryController.test.ts" "src/components/agent/chat/hooks/sessionDetailFetchController.test.ts" "src/components/agent/chat/hooks/sessionHydrationController.test.ts"
+npm exec -- vitest run "src/components/agent/chat/hooks/useAsterAgentChat.test.tsx" -t "模型|权限|执行策略|metadata|stale 快照|预取|workspace|跨工作区|错误|not found|not found" --hookTimeout 180000 --testTimeout 120000
+```
+
+结果：
+
+- Switch error / post-finalize / scheduler / finalize / metadata / snapshot / retry / fetch / hydration controller：通过，`40` 个测试通过。
+- `useAsterAgentChat` 模型、权限、metadata、stale 快照、预取、workspace、错误定向：通过，`30` 个测试通过。
+
+GUI / E2E 状态：
+
+- 本刀暂未复跑 `verify:gui-smoke`，原因同前：当前 smoke 会切到独立 Rust target 全量重编，容易造成 CPU 和鼠标繁忙；本刀是纯前端 controller 抽取，先用定向行为测试收口。
+- Playwright MCP 仍等待 profile 释放；不使用 isolated profile 绕过仓库规则。
+
+下一刀：
+
+1. 继续 Phase 2：抽 `sessionHistoryPaginationController`，把完整历史分页窗口计算、分页 options、stale guard、merge 计划从 `useAgentSession` 主体中移出。
+2. 恢复 GUI 环境后按 `conversation-projection-acceptance.md` 采集旧会话 A/B 打开、切换与首字指标。
+
+### 2026-05-05：P3 第十五刀，Session history pagination controller
+
+已完成：
+
+- 新增 `src/components/agent/chat/hooks/sessionHistoryPaginationController.ts`：
+  - `normalizePositiveInteger`
+  - `normalizeNonNegativeInteger`
+  - `resolveDetailHistoryLoadedMessages`
+  - `resolveSessionHistoryWindowFromDetail`
+  - `buildSessionHistoryPageRequestPlan`
+  - `buildSessionHistoryPageResultPlan`
+- `useAgentSession.ts` 中 `resolveSessionHistoryWindow` 与 `loadFullSessionHistory` 的分页窗口计算改为委托 controller：
+  - 首次 detail 截断窗口计算。
+  - “加载更早历史”的 `historyLimit / historyOffset / historyBeforeMessageId` 请求参数。
+  - loading window 状态。
+  - 分页返回后的 `loadedMessages / totalMessages / cursor` 下一轮窗口。
+- 新增 `sessionHistoryPaginationController.test.ts`，覆盖整数归一化、detail loaded count、截断窗口、重复 loading 防护、分页请求计划与分页结果计划。
+
+主线收益：
+
+- Phase 2 继续瘦 `useAgentSession`：完整历史分页不再在主 hook 内手写多段窗口计算。
+- P2 “`loadFullSessionHistory` 用全量拉取改分页”的主线现在有独立 controller 和回归保护，避免后续误退回无分页或重复触发。
+- 旧会话打开慢的排查边界更清晰：首帧 detail hydrate、分页请求参数、分页 merge 可以分别测，不再必须挂载完整 workspace 才能验证窗口算法。
+
+已验证：
+
+```bash
+npm exec -- vitest run "src/components/agent/chat/hooks/sessionHistoryPaginationController.test.ts" "src/components/agent/chat/hooks/sessionSwitchErrorController.test.ts" "src/components/agent/chat/hooks/sessionPostFinalizePersistenceController.test.ts" "src/components/agent/chat/hooks/sessionMetadataSyncScheduler.test.ts" "src/components/agent/chat/hooks/sessionMetadataSyncController.test.ts" "src/components/agent/chat/hooks/sessionFinalizeController.test.ts" "src/components/agent/chat/hooks/sessionSwitchSnapshotController.test.ts" "src/components/agent/chat/hooks/sessionHydrationRetryController.test.ts" "src/components/agent/chat/hooks/sessionDetailFetchController.test.ts" "src/components/agent/chat/hooks/sessionHydrationController.test.ts"
+npm exec -- vitest run "src/components/agent/chat/hooks/useAsterAgentChat.test.tsx" -t "加载更早历史" --hookTimeout 180000 --testTimeout 120000
+npx eslint "src/components/agent/chat/hooks/sessionHistoryPaginationController.ts" "src/components/agent/chat/hooks/sessionHistoryPaginationController.test.ts" "src/components/agent/chat/hooks/sessionSwitchErrorController.ts" "src/components/agent/chat/hooks/sessionSwitchErrorController.test.ts" "src/components/agent/chat/hooks/useAgentSession.ts" --max-warnings 0
+npm run typecheck -- --pretty false
+```
+
+结果：
+
+- History pagination / switch error / post-finalize / scheduler / finalize / metadata / snapshot / retry / fetch / hydration controller：通过，`46` 个测试通过。
+- `useAsterAgentChat` 完整历史分页定向：通过，`1` 个测试通过。
+- ESLint touched files：通过。
+- TypeScript `tsc --noEmit --pretty false`：通过。
+
+GUI / E2E 状态：
+
+- 本刀未复跑 `verify:gui-smoke`，原因同前：当前 smoke 会切到独立 Rust target 全量重编，容易造成 CPU 和鼠标繁忙；本刀是纯前端 controller 抽取，先用定向行为测试收口。
+- Playwright MCP 仍等待 profile 释放；不使用 isolated profile 绕过仓库规则。
+
+下一刀：
+
+1. 继续 Phase 2：抽 `sessionHistoryMergeController`，把完整历史分页返回后的 messages / turns / items merge 计划从 `loadFullSessionHistory` 中移出。
+2. 或进入 Phase 3：抽 `streamSubmissionController`，把首字链路的 ensure / listener / submit 分段进一步收口。
+
+### 2026-05-05：P3 第十六刀，Session history merge controller
+
+已完成：
+
+- 新增 `src/components/agent/chat/hooks/sessionHistoryMergeController.ts`：
+  - `buildSessionHistoryMergePlan`
+- `useAgentSession.ts` 中 `loadFullSessionHistory` 的分页返回 merge 改为委托 controller：
+  - detail messages -> UI messages hydrate。
+  - incoming messages 与本地 messages 合并。
+  - detail turns 与本地 turns 合并。
+  - detail items 经过 legacy normalization、merge、conversation filter。
+  - 根据合并后的 turns 恢复 `currentTurnId`。
+- 新增 `sessionHistoryMergeController.test.ts`，覆盖分页 detail 的 messages / turns / threadItems 合并，以及无 incoming turns 时保留当前 turnId。
+
+主线收益：
+
+- Phase 2 中 `loadFullSessionHistory` 的分页请求、分页窗口、分页 merge 已拆成独立 controller；完整历史加载不再把请求参数、窗口状态、消息合并全部堆在 hook 主体中。
+- P2 的“Cursor 分页 + 防止全量拉取”现在有分页窗口和 merge 两层单测保护，后续若旧会话加载仍慢，可以明确区分慢在 runtime page fetch、hydrate/merge，还是 MessageList render。
+- `threadItems` 的 legacy normalization 和 conversation filter 被收进 merge controller，减少后续修分页时漏掉工具过程过滤的风险。
+
+已验证：
+
+```bash
+npm exec -- vitest run "src/components/agent/chat/hooks/sessionHistoryMergeController.test.ts" "src/components/agent/chat/hooks/sessionHistoryPaginationController.test.ts" "src/components/agent/chat/hooks/sessionSwitchErrorController.test.ts" "src/components/agent/chat/hooks/sessionPostFinalizePersistenceController.test.ts" "src/components/agent/chat/hooks/sessionMetadataSyncScheduler.test.ts" "src/components/agent/chat/hooks/sessionMetadataSyncController.test.ts" "src/components/agent/chat/hooks/sessionFinalizeController.test.ts" "src/components/agent/chat/hooks/sessionSwitchSnapshotController.test.ts" "src/components/agent/chat/hooks/sessionHydrationRetryController.test.ts" "src/components/agent/chat/hooks/sessionDetailFetchController.test.ts" "src/components/agent/chat/hooks/sessionHydrationController.test.ts"
+npm exec -- vitest run "src/components/agent/chat/hooks/useAsterAgentChat.test.tsx" -t "加载更早历史" --hookTimeout 180000 --testTimeout 120000
+npx eslint "src/components/agent/chat/hooks/sessionHistoryMergeController.ts" "src/components/agent/chat/hooks/sessionHistoryMergeController.test.ts" "src/components/agent/chat/hooks/sessionHistoryPaginationController.ts" "src/components/agent/chat/hooks/sessionHistoryPaginationController.test.ts" "src/components/agent/chat/hooks/sessionSwitchErrorController.ts" "src/components/agent/chat/hooks/sessionSwitchErrorController.test.ts" "src/components/agent/chat/hooks/useAgentSession.ts" --max-warnings 0
+npm run typecheck -- --pretty false
+```
+
+结果：
+
+- History merge / pagination / switch error / post-finalize / scheduler / finalize / metadata / snapshot / retry / fetch / hydration controller：通过，`48` 个测试通过。
+- `useAsterAgentChat` 完整历史分页定向：通过，`1` 个测试通过。
+- ESLint touched files：通过。
+- TypeScript `tsc --noEmit --pretty false`：通过。
+
+GUI / E2E 状态：
+
+- 本刀未复跑 `verify:gui-smoke`，原因同前：当前 smoke 会切到独立 Rust target 全量重编，容易造成 CPU 和鼠标繁忙；本刀是纯前端 controller 抽取，先用定向行为测试收口。
+- Playwright MCP 仍等待 profile 释放；不使用 isolated profile 绕过仓库规则。
+
+下一刀：
+
+1. 进入 Phase 3：抽 `streamSubmissionController`，把首页/对话发送首字链路的 ensure session、listener readiness、submit invoke 分段继续收口。
+2. 恢复 GUI 环境后按 `conversation-projection-acceptance.md` 采集旧会话 A/B 打开、切换与首字指标。
+
+### 2026-05-05：P3 第十七刀，Agent stream submission controller
+
+已完成：
+
+- 新增 `src/components/agent/chat/hooks/agentStreamSubmissionController.ts`：
+  - `resolveAgentStreamSubmitErrorMessage`
+  - `buildAgentStreamSubmitDispatchedContext`
+  - `buildAgentStreamSubmitAcceptedContext`
+  - `buildAgentStreamSubmitFailedContext`
+  - `buildAgentStreamSubmitFailedLogContext`
+- `agentStreamSubmitExecution.ts` 中 submit dispatched / accepted / failed 的 metric/log context 改为委托 controller：
+  - listener bound 到 submit dispatched 的 delta。
+  - request start 到 dispatched / accepted / failed 的 elapsed。
+  - submit invoke 耗时。
+  - metric error message 与 debug 原始 error 分离。
+- 新增 `agentStreamSubmissionController.test.ts`，覆盖 dispatched、accepted、failed metric context 与 failed debug context。
+
+主线收益：
+
+- Phase 3 开始把首字链路拆成可测试边界：提交阶段耗时不再内联在 `executeAgentStreamSubmit` 主体里。
+- `executeAgentStreamSubmit` 继续保持 current runtime 协议，只串接 ensure session、listener binding 和 runtime `submitOp`；submit 分段指标由 controller 统一生成，方便后续 E2E 对比 `ensureSession / listenerBound / submitDispatched / submitAccepted / firstEvent / firstText`。
+- failed metric 与 debug log 的 error 形态被单测固定，避免为了日志可读性破坏 performance summary 的 JSON 友好字段。
+
+已验证：
+
+```bash
+npm exec -- vitest run "src/components/agent/chat/hooks/agentStreamSubmissionController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitExecution.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitContext.test.ts" "src/components/agent/chat/hooks/agentStreamTurnEventBinding.test.ts"
+npm exec -- vitest run "src/components/agent/chat/hooks/sessionHistoryMergeController.test.ts" "src/components/agent/chat/hooks/sessionHistoryPaginationController.test.ts" "src/components/agent/chat/hooks/sessionSwitchErrorController.test.ts" "src/components/agent/chat/hooks/sessionPostFinalizePersistenceController.test.ts" "src/components/agent/chat/hooks/sessionMetadataSyncScheduler.test.ts" "src/components/agent/chat/hooks/sessionMetadataSyncController.test.ts" "src/components/agent/chat/hooks/sessionFinalizeController.test.ts" "src/components/agent/chat/hooks/sessionSwitchSnapshotController.test.ts" "src/components/agent/chat/hooks/sessionHydrationRetryController.test.ts" "src/components/agent/chat/hooks/sessionDetailFetchController.test.ts" "src/components/agent/chat/hooks/sessionHydrationController.test.ts"
+npx eslint "src/components/agent/chat/hooks/agentStreamSubmissionController.ts" "src/components/agent/chat/hooks/agentStreamSubmissionController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitExecution.ts" "src/components/agent/chat/hooks/sessionHistoryMergeController.ts" "src/components/agent/chat/hooks/sessionHistoryMergeController.test.ts" "src/components/agent/chat/hooks/useAgentSession.ts" --max-warnings 0
+npm run typecheck -- --pretty false
+```
+
+结果：
+
+- Agent stream submission / submit execution / submit context / turn event binding：通过，`13` 个测试通过。
+- Session controller 回归：通过，`48` 个测试通过。
+- ESLint touched files：通过。
+- TypeScript `tsc --noEmit --pretty false`：通过。
+
+GUI / E2E 状态：
+
+- 本刀未复跑 `verify:gui-smoke`，原因同前：当前 smoke 会切到独立 Rust target 全量重编，容易造成 CPU 和鼠标繁忙；本刀是纯前端 controller 抽取，先用定向行为测试收口。
+- Playwright MCP 仍等待 profile 释放；不使用 isolated profile 绕过仓库规则。
+
+下一刀：
+
+1. 继续 Phase 3：抽 `agentStreamSubmitOpController`，把 runtime `submitOp` 的参数组装从 `agentStreamSubmitExecution` 中移出。
+2. 或抽 `agentStreamListenerReadinessController`，把 listener bound / first event timeout / silent recovery guard 继续拆成可测试 controller。
+
+### 2026-05-05：P3 第十八刀，Agent stream submit op controller
+
+已完成：
+
+- 新增 `src/components/agent/chat/hooks/agentStreamSubmitOpController.ts`：
+  - `buildAgentStreamSubmitOp`
+- `agentStreamSubmitExecution.ts` 中 runtime `submitOp` payload 组装改为委托 controller：
+  - `activeSessionId -> sessionId`。
+  - `submitWorkspaceId -> workspaceId`。
+  - `requestTurnId -> turnId`。
+  - 统一固定 `queueIfBusy: true`，避免 stream submit 主链到处重复声明 busy queue 语义。
+- 新增 `agentStreamSubmitOpController.test.ts`，覆盖首页首发快路径 payload 与底层 `buildUserInputSubmitOp` payload 等价性。
+
+主线收益：
+
+- Phase 3 继续瘦 `executeAgentStreamSubmit`：执行函数现在更接近 `ensure session -> bind listener -> dispatch submit -> record result`，不再同时承担 runtime payload 拼装职责。
+- 首页输入回车后的首字链路更容易分段排查：后续若 `submitInvokeMs` 异常，可直接区分是 submit lifecycle、payload compaction 还是 runtime bridge 慢。
+- `queueIfBusy` 的当前 stream 语义进入单测保护，避免后续修队列/首字时误把 busy 会话变成阻塞式提交。
+
+已验证：
+
+```bash
+npm exec -- vitest run "src/components/agent/chat/hooks/agentStreamSubmitOpController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitExecution.test.ts" "src/components/agent/chat/utils/buildUserInputSubmitOp.test.ts"
+npx eslint "src/components/agent/chat/hooks/agentStreamSubmitOpController.ts" "src/components/agent/chat/hooks/agentStreamSubmitOpController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitExecution.ts" --max-warnings 0
+npm run typecheck -- --pretty false
+git diff --check -- "src/components/agent/chat/hooks/agentStreamSubmitOpController.ts" "src/components/agent/chat/hooks/agentStreamSubmitOpController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitExecution.ts"
+```
+
+结果：
+
+- Agent stream submit op / submit execution / user input builder：通过，`7` 个测试通过。
+- ESLint touched files：通过。
+- TypeScript `tsc --noEmit --pretty false`：通过。
+- Diff whitespace check：通过。
+
+GUI / E2E 状态：
+
+- 本刀未复跑 `verify:gui-smoke`。本刀是纯前端 controller 抽取，不改 UI 壳、Bridge、Tauri command 或 runtime event protocol；同时继续避免触发会污染 CPU / 鼠标繁忙现象判断的独立 Rust rebuild。
+- 真实 Playwright E2E 仍按既有规则等待稳定 Lime 页签 / DevBridge 环境，不使用 isolated profile 绕过仓库约束。
+
+下一刀：
+
+1. 继续 Phase 3：抽 `agentStreamListenerReadinessController`，把 listener bound、first event guard、silent recovery 前置条件继续从 submit execution / turn event binding 中拆出。
+2. 或抽 `agentStreamSubmitLifecycleController`，把 dispatched / accepted / failed 记录与 runtime submit invoke 包装成一个可测 lifecycle plan，为 TTFT 阶段日志做更细分的单元边界。
+
+### 2026-05-05：P3 第十九刀，Agent stream listener readiness controller
+
+已完成：
+
+- 新增 `src/components/agent/chat/hooks/agentStreamListenerReadinessController.ts`：
+  - `extractAgentStreamRuntimeEventType`
+  - `buildAgentStreamListenerBoundContext`
+  - `buildAgentStreamFirstEventContext`
+  - `buildAgentStreamFirstEventDeferredContext`
+  - `shouldDeferAgentStreamFirstEventTimeout`
+  - `shouldScheduleAgentStreamInactivityWatchdog`
+  - `shouldIgnoreAgentStreamInactivityResult`
+- `agentStreamTurnEventBinding.ts` 中 listener / first event / inactivity guard 改为委托 controller：
+  - listener bound metric/log context。
+  - recognized / unknown first event metric/log context。
+  - submit 已派发但首包暂未到达时的 deferred context。
+  - inactivity watchdog 是否调度、过期结果是否丢弃的判断。
+- 新增 `agentStreamListenerReadinessController.test.ts`，覆盖 runtime event type 提取、listener bound context、first event context、first event deferred context、first event timeout defer guard、inactivity watchdog guard。
+
+主线收益：
+
+- Phase 3 的 TTFT readiness 分段进入独立单测边界；首字慢现在能更清楚区分 listener 未绑定、submit 已派发但 runtime 无首包、首包后长时间静默等阶段。
+- `agentStreamTurnEventBinding` 继续瘦身，事件绑定主函数不再内联所有 metric context 与 watchdog guard 判断。
+- 未识别但结构合法 runtime event 的首包活跃态继续被测试保护，避免后续 runtime projection/bootstrap 事件导致 UI 误失败。
+
+已验证：
+
+```bash
+npm exec -- vitest run "src/components/agent/chat/hooks/agentStreamListenerReadinessController.test.ts" "src/components/agent/chat/hooks/agentStreamTurnEventBinding.test.ts"
+npm exec -- vitest run "src/components/agent/chat/hooks/agentStreamListenerReadinessController.test.ts" "src/components/agent/chat/hooks/agentStreamTurnEventBinding.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitExecution.test.ts" "src/components/agent/chat/hooks/agentStreamSubmissionController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitOpController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitContext.test.ts"
+npx eslint "src/components/agent/chat/hooks/agentStreamListenerReadinessController.ts" "src/components/agent/chat/hooks/agentStreamListenerReadinessController.test.ts" "src/components/agent/chat/hooks/agentStreamTurnEventBinding.ts" --max-warnings 0
+npm run typecheck -- --pretty false
+git diff --check -- "src/components/agent/chat/hooks/agentStreamListenerReadinessController.ts" "src/components/agent/chat/hooks/agentStreamListenerReadinessController.test.ts" "src/components/agent/chat/hooks/agentStreamTurnEventBinding.ts" "docs/roadmap/agentui/conversation-projection-implementation-plan.md" "docs/exec-plans/agentui-implementation-progress.md"
+```
+
+结果：
+
+- Listener readiness controller / turn event binding：通过，`11` 个测试通过。
+- Agent stream readiness / submit / context 回归：通过，`20` 个测试通过。
+- ESLint touched files：通过。
+- TypeScript `tsc --noEmit --pretty false`：通过。
+- Diff whitespace check：通过。
+
+GUI / E2E 状态：
+
+- 本刀暂未复跑 `verify:gui-smoke`。本刀仍是纯前端 stream controller 抽取，不改 Tauri command、Bridge、runtime event protocol 或用户可见 UI；继续避免因独立 Rust rebuild 干扰 CPU / 鼠标繁忙问题判断。
+
+下一刀：
+
+1. 继续 Phase 3：抽 `agentStreamSubmitLifecycleController`，把 submit dispatched / accepted / failed metric 记录与 runtime `submitOp` invoke 包装成可测生命周期边界。
+2. 或抽 `agentStreamRequestStartController`，把 request start metric 与 activity log payload 从 `agentStreamTurnEventBinding` 中移出，进一步降低事件绑定主函数职责。
+
+### 2026-05-05：P3 第二十刀，Agent stream submit lifecycle controller
+
+已完成：
+
+- 新增 `src/components/agent/chat/hooks/agentStreamSubmitLifecycleController.ts`：
+  - `runAgentStreamSubmitLifecycle`
+- `agentStreamSubmitExecution.ts` 中 submit dispatched / accepted / failed 的记录和 `runtime.submitOp` invoke 包装改为委托 controller：
+  - submit dispatched 时写入 `requestState.submissionDispatchedAt`。
+  - submit accepted 时记录 `submitInvokeMs`。
+  - submit failed 时 metric 记录可 JSON 化错误文案，debug log 保留原始 error，并继续抛出原始错误。
+- 新增 `agentStreamSubmitLifecycleController.test.ts`，覆盖成功和失败两条生命周期，固定 metric/log 顺序与 requestState 更新时间。
+
+主线收益：
+
+- Phase 3 的 submit invoke 生命周期进入独立单测边界，`executeAgentStreamSubmit` 进一步收敛为 ensure session、bind listener、构造 submit op、交给 lifecycle 执行。
+- 首页输入回车后若首字慢，可以更明确地区分：listener bound 慢、submit invoke 慢、runtime 首包慢，还是后续 render 慢。
+- submit 失败链路保留原始错误抛出，不改变现有错误传播语义，同时确保性能 metric 的 error 字段继续适合汇总分析。
+
+已验证：
+
+```bash
+npm exec -- vitest run "src/components/agent/chat/hooks/agentStreamSubmitLifecycleController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmissionController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitExecution.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitOpController.test.ts"
+npm exec -- vitest run "src/components/agent/chat/hooks/agentStreamSubmitLifecycleController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmissionController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitExecution.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitOpController.test.ts" "src/components/agent/chat/hooks/agentStreamListenerReadinessController.test.ts" "src/components/agent/chat/hooks/agentStreamTurnEventBinding.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitContext.test.ts"
+npx eslint "src/components/agent/chat/hooks/agentStreamSubmitLifecycleController.ts" "src/components/agent/chat/hooks/agentStreamSubmitLifecycleController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitExecution.ts" "src/components/agent/chat/hooks/agentStreamSubmissionController.ts" "src/components/agent/chat/hooks/agentStreamSubmitOpController.ts" --max-warnings 0
+npm run typecheck -- --pretty false
+git diff --check -- "src/components/agent/chat/hooks/agentStreamSubmitLifecycleController.ts" "src/components/agent/chat/hooks/agentStreamSubmitLifecycleController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitExecution.ts" "docs/roadmap/agentui/conversation-projection-implementation-plan.md" "docs/exec-plans/agentui-implementation-progress.md"
+```
+
+结果：
+
+- Submit lifecycle / submission context / submit execution / submit op：通过，`9` 个测试通过。
+- Agent stream Phase 3 定向回归：通过，`22` 个测试通过。
+- ESLint touched files：通过。
+- TypeScript `tsc --noEmit --pretty false`：通过。
+- Diff whitespace check：通过。
+
+GUI / E2E 状态：
+
+- 本刀暂未复跑 `verify:gui-smoke`。本刀仍是纯前端 stream controller 抽取，不改 Tauri command、Bridge、runtime event protocol 或用户可见 UI；继续避免因独立 Rust rebuild 干扰 CPU / 鼠标繁忙问题判断。
+
+下一刀：
+
+1. 继续 Phase 3：抽 `agentStreamRequestStartController`，把 request start metric 与 activity log payload 从 `agentStreamTurnEventBinding` 中移出。
+2. 或抽更细的 `agentStreamUnknownEventController`，把未知 runtime event 活跃态、告警去重与 watchdog 调度从事件绑定主函数中移出。
+
+### 2026-05-05：P3 第二十一刀，Agent stream request start controller
+
+已完成：
+
+- 新增 `src/components/agent/chat/hooks/agentStreamRequestStartController.ts`：
+  - `buildAgentStreamRequestStartMetricContext`
+  - `buildAgentStreamRequestStartActivityLog`
+  - `startAgentStreamRequest`
+- `agentStreamTurnEventBinding.ts` 中 request start 阶段改为委托 controller：
+  - 统一写入 `requestState.requestStartedAt`。
+  - 统一记录 `agentStream.request.start` metric。
+  - 统一创建 activity log，并写回 `requestState.requestLogId`。
+- 新增 `agentStreamRequestStartController.test.ts`，覆盖 metric context、activity log payload、requestState 写入和 metric/activity 依赖调用。
+
+主线收益：
+
+- Phase 3 的首字链路起点进入独立单测边界；request start、listener bound、submit lifecycle、first event readiness 已分别有 controller。
+- `agentStreamTurnEventBinding` 不再直接拼 activity log payload，后续排查首页输入回车慢时可以稳定比较 request start 到 listener / submit / first event 的阶段日志。
+- activity log 的 provider 映射、队列标记、auto continue 元数据继续保持原语义，并由单测固定。
+
+已验证：
+
+```bash
+npm exec -- vitest run "src/components/agent/chat/hooks/agentStreamRequestStartController.test.ts" "src/components/agent/chat/hooks/agentStreamTurnEventBinding.test.ts"
+npm exec -- vitest run "src/components/agent/chat/hooks/agentStreamRequestStartController.test.ts" "src/components/agent/chat/hooks/agentStreamTurnEventBinding.test.ts" "src/components/agent/chat/hooks/agentStreamListenerReadinessController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitLifecycleController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmissionController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitExecution.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitOpController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitContext.test.ts"
+npx eslint "src/components/agent/chat/hooks/agentStreamRequestStartController.ts" "src/components/agent/chat/hooks/agentStreamRequestStartController.test.ts" "src/components/agent/chat/hooks/agentStreamTurnEventBinding.ts" "src/components/agent/chat/hooks/agentStreamSubmitLifecycleController.ts" "src/components/agent/chat/hooks/agentStreamSubmitExecution.ts" --max-warnings 0
+npm run typecheck -- --pretty false
+git diff --check -- "src/components/agent/chat/hooks/agentStreamRequestStartController.ts" "src/components/agent/chat/hooks/agentStreamRequestStartController.test.ts" "src/components/agent/chat/hooks/agentStreamTurnEventBinding.ts" "docs/roadmap/agentui/conversation-projection-implementation-plan.md" "docs/exec-plans/agentui-implementation-progress.md"
+```
+
+结果：
+
+- Request start controller / turn event binding：通过，`9` 个测试通过。
+- Agent stream Phase 3 定向回归：通过，`25` 个测试通过。
+- ESLint touched files：通过。
+- TypeScript `tsc --noEmit --pretty false`：通过。
+- Diff whitespace check：通过。
+
+GUI / E2E 状态：
+
+- 本刀暂未复跑 `verify:gui-smoke`。本刀仍是纯前端 stream controller 抽取，不改 Tauri command、Bridge、runtime event protocol 或用户可见 UI；继续避免因独立 Rust rebuild 干扰 CPU / 鼠标繁忙问题判断。
+
+下一刀：
+
+1. 继续 Phase 3：抽 `agentStreamUnknownEventController`，把未知 runtime event 活跃态、告警去重与首包标记策略移出。
+2. 或抽 `agentStreamInactivityController`，把首包超时、silent recovery、inactivity timeout 的调度与恢复策略进一步收口。
+
+### 2026-05-05：P3 第二十二刀，Agent stream unknown event controller
+
+已完成：
+
+- 新增 `src/components/agent/chat/hooks/agentStreamUnknownEventController.ts`：
+  - `buildAgentStreamUnknownEventWarningMessage`
+  - `resolveAgentStreamUnknownEventPlan`
+  - `rememberAgentStreamUnknownEventWarning`
+- `agentStreamTurnEventBinding.ts` 中未知 runtime event 分支改为委托 controller：
+  - 无结构化 `type` 时继续忽略。
+  - 有 `type` 但 `parseAgentEvent` 不识别时继续标记首包、激活流、调度 inactivity watchdog。
+  - 告警文案与去重状态由 controller 统一生成与记录。
+- 新增 `agentStreamUnknownEventController.test.ts`，覆盖告警文案、空 event type、首次未知事件计划、重复未知事件去重与告警状态记录。
+
+主线收益：
+
+- Phase 3 继续瘦 `agentStreamTurnEventBinding`：未知 runtime event 的活跃态保留策略不再内联在事件绑定主函数中。
+- runtime projection/bootstrap 这类未来扩展事件即使暂未被 parser 识别，也能继续保留首包活跃态，避免 UI 误判首包超时失败。
+- 告警去重进入单测保护，避免 provider 高频心跳或 runtime projection 事件刷屏并干扰首字慢日志分析。
+
+已验证：
+
+```bash
+npm exec -- vitest run "src/components/agent/chat/hooks/agentStreamUnknownEventController.test.ts" "src/components/agent/chat/hooks/agentStreamTurnEventBinding.test.ts"
+npm exec -- vitest run "src/components/agent/chat/hooks/agentStreamUnknownEventController.test.ts" "src/components/agent/chat/hooks/agentStreamTurnEventBinding.test.ts" "src/components/agent/chat/hooks/agentStreamRequestStartController.test.ts" "src/components/agent/chat/hooks/agentStreamListenerReadinessController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitLifecycleController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmissionController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitExecution.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitOpController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitContext.test.ts"
+npx eslint "src/components/agent/chat/hooks/agentStreamUnknownEventController.ts" "src/components/agent/chat/hooks/agentStreamUnknownEventController.test.ts" "src/components/agent/chat/hooks/agentStreamTurnEventBinding.ts" "src/components/agent/chat/hooks/agentStreamRequestStartController.ts" "src/components/agent/chat/hooks/agentStreamListenerReadinessController.ts" --max-warnings 0
+npm run typecheck -- --pretty false
+git diff --check -- "src/components/agent/chat/hooks/agentStreamUnknownEventController.ts" "src/components/agent/chat/hooks/agentStreamUnknownEventController.test.ts" "src/components/agent/chat/hooks/agentStreamTurnEventBinding.ts" "docs/roadmap/agentui/conversation-projection-implementation-plan.md" "docs/exec-plans/agentui-implementation-progress.md"
+```
+
+结果：
+
+- Unknown event controller / turn event binding：通过，`10` 个测试通过。
+- Agent stream Phase 3 定向回归：通过，`29` 个测试通过。
+- ESLint touched files：通过。
+- TypeScript `tsc --noEmit --pretty false`：通过。
+- Diff whitespace check：通过。
+
+GUI / E2E 状态：
+
+- 本刀暂未复跑 `verify:gui-smoke`。本刀仍是纯前端 stream controller 抽取，不改 Tauri command、Bridge、runtime event protocol 或用户可见 UI；继续避免因独立 Rust rebuild 干扰 CPU / 鼠标繁忙问题判断。
+
+下一刀：
+
+1. 继续 Phase 3：抽 `agentStreamInactivityController`，把首包超时、silent recovery、inactivity timeout 的调度与恢复策略进一步收口。
+2. 完成 Phase 3 controller 主链后，回到真实 E2E 指标采集，验证首页输入回车到 first status / first text 的阶段耗时。
+
+### 2026-05-05：P3 第二十三刀，Agent stream inactivity controller
+
+已完成：
+
+- 新增 `src/components/agent/chat/hooks/agentStreamInactivityController.ts`：
+  - `AGENT_STREAM_FIRST_EVENT_TIMEOUT_MESSAGE`
+  - `AGENT_STREAM_INACTIVITY_TIMEOUT_MESSAGE`
+  - `buildAgentStreamFirstEventSilentRecoveryWarning`
+  - `buildAgentStreamFirstEventDeferredWarning`
+  - `buildAgentStreamInactivitySilentRecoveryWarning`
+  - `resolveAgentStreamFirstEventTimeoutAction`
+  - `resolveAgentStreamInactivityTimeoutAction`
+- `agentStreamTurnEventBinding.ts` 中首包超时和 inactivity timeout 恢复策略改为委托 controller：
+  - 首包超时后按 `ignore / recover / defer / fail` 执行动作。
+  - inactivity timeout 后按 `ignore / recover / fail` 执行动作。
+  - silent recovery 与 deferred warning 文案统一从 controller 生成。
+  - 用户可见失败文案统一从 controller 常量读取。
+- 新增 `agentStreamInactivityController.test.ts`，覆盖用户文案、warning 文案、首包超时动作决策与 inactivity timeout 动作决策。
+
+主线收益：
+
+- Phase 3 的首字慢异常恢复链路进一步可测试：首包无事件、后台已恢复、提交已派发但首包暂未到达、首包后长时间静默都进入明确 action plan。
+- `agentStreamTurnEventBinding` 不再内联 silent recovery / timeout 文案与动作优先级，后续调整 TTFT 阈值或恢复策略时风险更小。
+- 首包 deferred 与 inactivity synthetic error 的用户文案保持原语义，避免本轮结构拆分改变用户可见行为。
+
+已验证：
+
+```bash
+npm exec -- vitest run "src/components/agent/chat/hooks/agentStreamInactivityController.test.ts" "src/components/agent/chat/hooks/agentStreamTurnEventBinding.test.ts"
+npm exec -- vitest run "src/components/agent/chat/hooks/agentStreamInactivityController.test.ts" "src/components/agent/chat/hooks/agentStreamTurnEventBinding.test.ts" "src/components/agent/chat/hooks/agentStreamUnknownEventController.test.ts" "src/components/agent/chat/hooks/agentStreamRequestStartController.test.ts" "src/components/agent/chat/hooks/agentStreamListenerReadinessController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitLifecycleController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmissionController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitExecution.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitOpController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitContext.test.ts"
+npx eslint "src/components/agent/chat/hooks/agentStreamInactivityController.ts" "src/components/agent/chat/hooks/agentStreamInactivityController.test.ts" "src/components/agent/chat/hooks/agentStreamTurnEventBinding.ts" "src/components/agent/chat/hooks/agentStreamUnknownEventController.ts" "src/components/agent/chat/hooks/agentStreamListenerReadinessController.ts" --max-warnings 0
+npm run typecheck -- --pretty false
+git diff --check -- "src/components/agent/chat/hooks/agentStreamInactivityController.ts" "src/components/agent/chat/hooks/agentStreamInactivityController.test.ts" "src/components/agent/chat/hooks/agentStreamTurnEventBinding.ts" "docs/roadmap/agentui/conversation-projection-implementation-plan.md" "docs/exec-plans/agentui-implementation-progress.md"
+```
+
+结果：
+
+- Inactivity controller / turn event binding：通过，`10` 个测试通过。
+- Agent stream Phase 3 定向回归：通过，`33` 个测试通过。
+- ESLint touched files：通过。
+- TypeScript `tsc --noEmit --pretty false`：通过。
+- Diff whitespace check：通过。
+
+GUI / E2E 状态：
+
+- 本刀暂未复跑 `verify:gui-smoke`。本刀仍是纯前端 stream controller 抽取，不改 Tauri command、Bridge、runtime event protocol 或用户可见 UI；继续避免因独立 Rust rebuild 干扰 CPU / 鼠标繁忙问题判断。
+
+下一刀：
+
+1. Phase 3 controller 主链完成后，回到真实 E2E 指标采集，验证首页输入回车到 first status / first text 的阶段耗时。
+2. 若 E2E 仍显示首字慢在事件处理后段，再进入 `streamEventReducer` 拆分；若慢在 render，再进入 Phase 4 render projection。
+
+### 2026-05-05：P3 E2E 指标采集准备与阻塞记录
+
+已完成：
+
+- 确认现有前端壳与 DevBridge 已就绪，未启动新的 GUI / Rust 进程：
+
+```bash
+curl -fsS "http://127.0.0.1:1420/"
+npm run bridge:health -- --timeout-ms 120000
+```
+
+结果：
+
+- 前端 `http://127.0.0.1:1420/` 可访问。
+- DevBridge `http://127.0.0.1:3030/health` 就绪，`status=ok`，健康检查耗时 `33ms`。
+
+阻塞：
+
+- Playwright MCP 当前无法接管浏览器，报错为 profile 已被 `/Users/coso/Library/Caches/ms-playwright/mcp-chrome-348597d` 占用；按仓库规则未使用 `--isolated` 绕过。
+- 已检查 Chrome 现有页签，存在 `http://127.0.0.1:1420/` 的 `Lime` 页签。
+- AppleScript 可读取 Chrome 页签 URL / title，但 Chrome 未开启“允许 Apple 事件中的 JavaScript”，无法执行 `window.__LIME_AGENTUI_PERF__?.summary()` 采集页面指标。
+- 未结束或清理现有 MCP / Chrome 进程，避免破坏用户或其他 agent 的浏览器会话。
+
+下一次续测条件：
+
+1. 关闭占用 `mcp-chrome-348597d` 的旧 Playwright MCP 会话，或由用户确认允许清理这些 MCP 进程。
+2. 或在现有 Chrome 中开启 `查看 -> 开发者 -> 允许 Apple 事件中的 JavaScript`，允许只读执行 `window.__LIME_AGENTUI_PERF__?.summary()`。
+3. 恢复后按 `docs/roadmap/agentui/conversation-projection-acceptance.md` 采集：首页短 prompt -> conversation shell -> first runtime status -> first text delta/paint。
+
+### 2026-05-05：P3 第二十四刀，Agent stream runtime metrics controller
+
+已完成：
+
+- 新增 `src/components/agent/chat/hooks/agentStreamRuntimeMetricsController.ts`：
+  - `shouldRecordAgentStreamFirstRuntimeStatus`
+  - `shouldRecordAgentStreamFirstTextDelta`
+  - `buildAgentStreamFirstRuntimeStatusMetricContext`
+  - `buildAgentStreamFirstTextDeltaMetricContext`
+- `agentStreamRuntimeHandler.ts` 中 first runtime status / first text delta 指标记录改为委托 controller：
+  - first runtime status 的 elapsed、first event delta、phase、title、session 统一生成。
+  - first text delta 的 delta chars、elapsed、first event delta、first runtime status delta、session 统一生成。
+  - 一次性记录判断进入单测，避免重复 text delta 或重复 runtime status 污染 TTFT 指标。
+- 新增 `agentStreamRuntimeMetricsController.test.ts`，覆盖 first status/text delta 是否记录、指标上下文和缺失前置阶段时的 null delta。
+
+主线收益：
+
+- Phase 3 的首字链路后段继续可测试：`request start -> listener -> submit -> first event -> first runtime status -> first text delta` 的指标上下文已基本从主函数中拆出。
+- 后续 E2E 恢复后，`window.__LIME_AGENTUI_PERF__` 的阶段指标更容易对应到 controller 单测，便于判断慢点在 runtime bridge、provider 首包、事件处理还是 render。
+- `agentStreamRuntimeHandler` 开始为 `streamEventReducer` 拆分做前置减法，先抽指标与判断，不一次性重写大 switch，降低回归风险。
+
+已验证：
+
+```bash
+npm exec -- vitest run "src/components/agent/chat/hooks/agentStreamRuntimeMetricsController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.test.ts"
+npm exec -- vitest run "src/components/agent/chat/hooks/agentStreamRuntimeMetricsController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.test.ts" "src/components/agent/chat/hooks/agentStreamInactivityController.test.ts" "src/components/agent/chat/hooks/agentStreamTurnEventBinding.test.ts" "src/components/agent/chat/hooks/agentStreamUnknownEventController.test.ts" "src/components/agent/chat/hooks/agentStreamRequestStartController.test.ts" "src/components/agent/chat/hooks/agentStreamListenerReadinessController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitLifecycleController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmissionController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitExecution.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitOpController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitContext.test.ts"
+npx eslint "src/components/agent/chat/hooks/agentStreamRuntimeMetricsController.ts" "src/components/agent/chat/hooks/agentStreamRuntimeMetricsController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.ts" "src/components/agent/chat/hooks/agentStreamInactivityController.ts" "src/components/agent/chat/hooks/agentStreamTurnEventBinding.ts" --max-warnings 0
+npm run typecheck -- --pretty false
+git diff --check -- "src/components/agent/chat/hooks/agentStreamRuntimeMetricsController.ts" "src/components/agent/chat/hooks/agentStreamRuntimeMetricsController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.ts" "docs/roadmap/agentui/conversation-projection-implementation-plan.md" "docs/exec-plans/agentui-implementation-progress.md"
+```
+
+结果：
+
+- Runtime metrics controller / runtime handler：通过，`15` 个测试通过。
+- Agent stream Phase 3 定向回归：通过，`48` 个测试通过。
+- ESLint touched files：通过。
+- TypeScript `tsc --noEmit --pretty false`：通过。
+- Diff whitespace check：通过。
+
+GUI / E2E 状态：
+
+- 本刀仍未做真实页面交互。阻塞同前：Playwright MCP profile 被占用，且 Chrome 未开启 AppleScript JS 执行能力。
+- 前端与 DevBridge 健康态已在上一条记录确认；未启动新的 GUI / Rust 进程。
+
+下一刀：
+
+1. 恢复 E2E 后采集 `firstRuntimeStatus / firstTextDelta / firstTextPaint` 指标，确认慢点是否仍在事件处理后段。
+2. 若仍无法恢复 E2E，就继续小步拆 `agentStreamRuntimeHandler` 中 text delta flush / runtime status apply 的 reducer 边界。
+
+### 2026-05-05：P3 第二十五刀，Agent stream runtime status controller
+
+已完成：
+
+- 新增 `src/components/agent/chat/hooks/agentStreamRuntimeStatusController.ts`：
+  - `buildAgentStreamNormalizedRuntimeStatus`
+  - `buildAgentStreamRuntimeStatusApplyPlan`
+  - `selectAgentStreamRuntimeSummaryItem`
+  - `buildAgentStreamRuntimeSummaryItemUpdate`
+- `agentStreamRuntimeHandler.ts` 中 `runtime_status` apply 逻辑改为委托 controller：
+  - runtime status title 归一化。
+  - runtime summary 文案生成。
+  - pending summary item 优先选择。
+  - pending item 存在但不是 `turn_summary` 时保持原行为，不回退其他 summary。
+  - 无 pending item 时选择同 session 最新 in-progress summary。
+- 新增 `agentStreamRuntimeStatusController.test.ts`，覆盖 status apply plan、pending summary 优先级、pending 非 summary 不回退、fallback 最新 summary 与 summary item 更新。
+
+主线收益：
+
+- Phase 3 继续为 `streamEventReducer` 拆分做前置减法：`runtime_status` 的状态归一化与 thread summary 更新策略不再内联在 `agentStreamRuntimeHandler` 大 switch 中。
+- 首字前状态展示路径更可测，后续 E2E 若显示 first runtime status 已到但 UI 状态慢，可直接定位到 status apply / render，而不是混在事件处理主函数里。
+- 保留 pending 非 summary 不回退的旧行为，避免结构拆分顺手改变 runtime summary 选择语义。
+
+已验证：
+
+```bash
+npm exec -- vitest run "src/components/agent/chat/hooks/agentStreamRuntimeStatusController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.test.ts"
+npm exec -- vitest run "src/components/agent/chat/hooks/agentStreamRuntimeStatusController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeMetricsController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.test.ts" "src/components/agent/chat/hooks/agentStreamInactivityController.test.ts" "src/components/agent/chat/hooks/agentStreamTurnEventBinding.test.ts" "src/components/agent/chat/hooks/agentStreamUnknownEventController.test.ts" "src/components/agent/chat/hooks/agentStreamRequestStartController.test.ts" "src/components/agent/chat/hooks/agentStreamListenerReadinessController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitLifecycleController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmissionController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitExecution.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitOpController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitContext.test.ts"
+npx eslint "src/components/agent/chat/hooks/agentStreamRuntimeStatusController.ts" "src/components/agent/chat/hooks/agentStreamRuntimeStatusController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.ts" "src/components/agent/chat/hooks/agentStreamRuntimeMetricsController.ts" "src/components/agent/chat/hooks/agentStreamInactivityController.ts" --max-warnings 0
+npm run typecheck -- --pretty false
+git diff --check -- "src/components/agent/chat/hooks/agentStreamRuntimeStatusController.ts" "src/components/agent/chat/hooks/agentStreamRuntimeStatusController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.ts" "docs/roadmap/agentui/conversation-projection-implementation-plan.md" "docs/exec-plans/agentui-implementation-progress.md"
+```
+
+结果：
+
+- Runtime status controller / runtime handler：通过，`16` 个测试通过。
+- Agent stream Phase 3 定向回归：通过，`53` 个测试通过。
+- ESLint touched files：通过。
+- TypeScript `tsc --noEmit --pretty false`：通过。
+- Diff whitespace check：通过。
+
+GUI / E2E 状态：
+
+- 本刀仍未做真实页面交互。阻塞同前：Playwright MCP profile 被占用，且 Chrome 未开启 AppleScript JS 执行能力。
+- 未启动新的 GUI / Rust 进程，不干扰用户当前浏览器会话。
+
+下一刀：
+
+1. 恢复 E2E 后采集 `firstRuntimeStatus / firstTextDelta / firstTextPaint` 指标，确认首字慢是否仍在事件处理后段。
+2. 若 E2E 仍无法恢复，继续拆 `agentStreamRuntimeHandler` 中 text delta flush 或 final_done reconcile 的 reducer 边界。
+
+### 2026-05-05：P3 第二十六刀，Agent stream text delta controller
+
+已完成：
+
+- 新增 `src/components/agent/chat/hooks/agentStreamTextDeltaController.ts`：
+  - `buildAgentStreamTextDeltaApplyPlan`
+- `agentStreamRuntimeHandler.ts` 中 `text_delta` apply 前半段改为委托 controller：
+  - text delta buffer 计数。
+  - 首个 text delta 的时间戳和 metric context。
+  - accumulated content 的 overlap append 计划。
+  - observer 仍收到原始 delta 和合并后的 accumulated content。
+  - typewriter sound 与 text render flush 调度保持原位置，不改变渲染节流行为。
+- 新增 `agentStreamTextDeltaController.test.ts`，覆盖首个 text delta 指标、非首个 delta 不重复记录、overlap detection 防重复吐字。
+
+主线收益：
+
+- Phase 3 继续为 `streamEventReducer` 拆分做前置减法：`text_delta` 的 buffer / first delta metric / overlap append 逻辑不再内联在 runtime handler 大 switch 中。
+- 重复吐字问题的关键防线进入独立 controller 单测，后续调整流式 flush 或 final_done reconcile 时更不容易破坏。
+- 首字链路的 first text delta metric 与实际 accumulated content 更新绑定在同一个 apply plan，便于后续 E2E 对齐 `firstTextDelta` 与 `firstTextPaint`。
+
+已验证：
+
+```bash
+npm exec -- vitest run "src/components/agent/chat/hooks/agentStreamTextDeltaController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.test.ts"
+npm exec -- vitest run "src/components/agent/chat/hooks/agentStreamTextDeltaController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeStatusController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeMetricsController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.test.ts" "src/components/agent/chat/hooks/agentStreamInactivityController.test.ts" "src/components/agent/chat/hooks/agentStreamTurnEventBinding.test.ts" "src/components/agent/chat/hooks/agentStreamUnknownEventController.test.ts" "src/components/agent/chat/hooks/agentStreamRequestStartController.test.ts" "src/components/agent/chat/hooks/agentStreamListenerReadinessController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitLifecycleController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmissionController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitExecution.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitOpController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitContext.test.ts"
+npx eslint "src/components/agent/chat/hooks/agentStreamTextDeltaController.ts" "src/components/agent/chat/hooks/agentStreamTextDeltaController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.ts" "src/components/agent/chat/hooks/agentStreamRuntimeStatusController.ts" "src/components/agent/chat/hooks/agentStreamRuntimeMetricsController.ts" --max-warnings 0
+npm run typecheck -- --pretty false
+git diff --check -- "src/components/agent/chat/hooks/agentStreamTextDeltaController.ts" "src/components/agent/chat/hooks/agentStreamTextDeltaController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.ts" "docs/roadmap/agentui/conversation-projection-implementation-plan.md" "docs/exec-plans/agentui-implementation-progress.md"
+```
+
+结果：
+
+- Text delta controller / runtime handler：通过，`14` 个测试通过。
+- Agent stream Phase 3 定向回归：通过，`56` 个测试通过。
+- ESLint touched files：通过。
+- TypeScript `tsc --noEmit --pretty false`：通过。
+- Diff whitespace check：通过。
+
+GUI / E2E 状态：
+
+- 本刀仍未做真实页面交互。阻塞同前：Playwright MCP profile 被占用，且 Chrome 未开启 AppleScript JS 执行能力。
+- 未启动新的 GUI / Rust 进程，不干扰用户当前浏览器会话。
+
+下一刀：
+
+1. 恢复 E2E 后采集 `firstTextDelta / firstTextPaint` 指标，确认首字慢是否仍在 text render flush。
+2. 若 E2E 仍无法恢复，继续拆 text render flush 或 final_done reconcile 的 reducer 边界。
+
+### 2026-05-05：P3 第二十七刀，Agent stream text render flush controller
+
+已完成：
+
+- 新增 `src/components/agent/chat/hooks/agentStreamTextRenderFlushController.ts`：
+  - `resolveAgentStreamPendingRenderedTextDelta`
+  - `shouldFlushAgentStreamVisibleFirstText`
+  - `shouldScheduleAgentStreamTextRenderTimer`
+  - `buildAgentStreamTextRenderFlushPlan`
+  - `buildAgentStreamFirstTextPaintContext`
+- `agentStreamRuntimeHandler.ts` 中 `flushPendingTextRender / scheduleTextRenderFlush` 改为委托 controller：
+  - 首个可见文本继续立即 flush，不等待 32ms timer。
+  - 后续 text render flush 继续保持 `TEXT_DELTA_RENDER_FLUSH_MS=32` 节流。
+  - first text render flush、first text paint、backlog、flush count、debug dedupe key 由 plan 统一计算。
+  - `requestState.renderedContent / textDeltaFlushCount / lastTextRenderFlushAt / maxTextDeltaBacklogChars / firstTextPaintScheduled` 仍在 handler 中作为副作用写回。
+- 新增 `agentStreamTextRenderFlushController.test.ts`，覆盖待渲染 delta 解析、首字立即 flush 判定、timer 调度、首个 render flush plan、非首 flush 不重复 first metric、first paint metric context。
+
+主线收益：
+
+- Phase 3 继续为 `streamEventReducer` 拆分做前置减法：文本可见渲染 flush 的决策、指标和日志上下文不再内联在 `agentStreamRuntimeHandler` 大函数中。
+- 首字链路后半段现在可单独测试：`firstTextDelta -> firstTextRenderFlush -> firstTextPaint` 的延迟可以从 controller plan 与 E2E 指标对齐分析。
+- 保留“首个可见文本立即 flush、后续 32ms 节流”的当前性能语义，不引入 UI 协议变化或新队列。
+
+已验证：
+
+```bash
+npm exec -- vitest run "src/components/agent/chat/hooks/agentStreamTextRenderFlushController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.test.ts"
+npm exec -- vitest run "src/components/agent/chat/hooks/agentStreamTextRenderFlushController.test.ts" "src/components/agent/chat/hooks/agentStreamTextDeltaController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeStatusController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeMetricsController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.test.ts" "src/components/agent/chat/hooks/agentStreamInactivityController.test.ts" "src/components/agent/chat/hooks/agentStreamTurnEventBinding.test.ts" "src/components/agent/chat/hooks/agentStreamUnknownEventController.test.ts" "src/components/agent/chat/hooks/agentStreamRequestStartController.test.ts" "src/components/agent/chat/hooks/agentStreamListenerReadinessController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitLifecycleController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmissionController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitExecution.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitOpController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitContext.test.ts"
+npx eslint "src/components/agent/chat/hooks/agentStreamTextRenderFlushController.ts" "src/components/agent/chat/hooks/agentStreamTextRenderFlushController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.ts" "src/components/agent/chat/hooks/agentStreamTextDeltaController.ts" "src/components/agent/chat/hooks/agentStreamRuntimeStatusController.ts" --max-warnings 0
+npm run typecheck -- --pretty false
+```
+
+结果：
+
+- Text render flush controller / runtime handler：通过，`16` 个测试通过。
+- Agent stream Phase 3 定向回归：通过，`61` 个测试通过。
+- ESLint touched files：通过。
+- TypeScript `tsc --noEmit --pretty false`：通过。
+
+GUI / E2E 状态：
+
+- 本刀未做真实页面交互。它是纯前端 stream controller 抽取，不改 Tauri command、Bridge、runtime event protocol 或用户可见 UI。
+- 仍避免启动新的 GUI / Rust 进程，防止干扰用户正在观察的 CPU / 鼠标繁忙问题。
+
+下一刀：
+
+1. 先补本刀 `git diff --check` 后收口；随后恢复 E2E 后采集 `firstTextDelta / firstTextRenderFlush / firstTextPaint / textDeltaFlushCount / maxTextDeltaBacklogChars`。
+2. 若 E2E 仍显示慢在事件处理后段，继续拆 `final_done` reconcile / completion reducer；若慢在 render，则进入 Phase 4 render projection 或 Markdown hydrate 分批。
+
+### 2026-05-05：P3 第二十八刀，Agent stream completion controller
+
+已完成：
+
+- 新增 `src/components/agent/chat/hooks/agentStreamCompletionController.ts`：
+  - `isAgentStreamEmptyFinalReplyError`
+  - `shouldFailAgentStreamMissingFinalReply`
+  - `resolveAgentStreamGracefulCompletionContent`
+  - `reconcileAgentStreamFinalContentParts`
+  - 空最终回复错误文案常量。
+- `agentStreamRuntimeHandler.ts` 中 `final_done` 与 empty-final-error 降级分支改为委托 completion controller：
+  - 空最终回复失败判定不再在 `final_done` 分支内联计算。
+  - graceful completion 内容继续先剥离 assistant protocol residue，再按原逻辑回退 raw / fallback。
+  - 最终 `contentParts` reconcile 继续保留过程 part、按 `surfaceThinkingDeltas` 过滤 thinking，并在最终文本变化时重建 text part。
+- 新增 `agentStreamCompletionController.test.ts`，覆盖 empty-final-error 识别、空回复失败判定、meaningful completion signal 降级、协议残留 fallback、最终 contentParts reconcile 与 thinking 过滤。
+
+主线收益：
+
+- Phase 3 继续收窄 `agentStreamRuntimeHandler` 大 switch：完成态的纯判断和最终消息内容计划已进入独立 controller，后续再拆副作用 action 时不需要同时搬协议残留和 contentParts 细节。
+- 重复吐字 / 排版问题的完成态防线更清晰：`text_delta` 负责 overlap append，`text render flush` 负责可见增量，`completion` 负责最终文本与 contentParts 对齐。
+- 保留现有行为，不改变 runtime event protocol、toast 文案或用户可见 UI。
+
+已验证：
+
+```bash
+npm exec -- vitest run "src/components/agent/chat/hooks/agentStreamCompletionController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.test.ts"
+npm exec -- vitest run "src/components/agent/chat/hooks/agentStreamCompletionController.test.ts" "src/components/agent/chat/hooks/agentStreamTextRenderFlushController.test.ts" "src/components/agent/chat/hooks/agentStreamTextDeltaController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeStatusController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeMetricsController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.test.ts" "src/components/agent/chat/hooks/agentStreamInactivityController.test.ts" "src/components/agent/chat/hooks/agentStreamTurnEventBinding.test.ts" "src/components/agent/chat/hooks/agentStreamUnknownEventController.test.ts" "src/components/agent/chat/hooks/agentStreamRequestStartController.test.ts" "src/components/agent/chat/hooks/agentStreamListenerReadinessController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitLifecycleController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmissionController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitExecution.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitOpController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitContext.test.ts"
+npx eslint "src/components/agent/chat/hooks/agentStreamCompletionController.ts" "src/components/agent/chat/hooks/agentStreamCompletionController.test.ts" "src/components/agent/chat/hooks/agentStreamTextRenderFlushController.ts" "src/components/agent/chat/hooks/agentStreamTextRenderFlushController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.ts" --max-warnings 0
+npm run typecheck -- --pretty false
+```
+
+结果：
+
+- Completion controller / runtime handler：通过，`16` 个测试通过。
+- Agent stream Phase 3 定向回归：通过，`66` 个测试通过。
+- ESLint touched files：通过。
+- TypeScript `tsc --noEmit --pretty false`：通过。
+
+GUI / E2E 状态：
+
+- 本刀未做真实页面交互。它仍是纯前端 stream controller 抽取，不改 Tauri command、Bridge、runtime event protocol 或用户可见 UI。
+- 未启动新的 GUI / Rust 进程，避免干扰用户当前 CPU / 鼠标繁忙观察。
+
+下一刀：
+
+1. 补本刀 `git diff --check` 后，优先恢复 E2E 指标采集，确认首页 Enter 到 `firstRuntimeStatus / firstTextDelta / firstTextPaint` 的真实分段。
+2. 若仍无法 E2E，就把 completion/error 的副作用路径包装成更薄的 reducer action，或开始拆 `agentStreamRuntimeHandler` 的 tool event apply 边界。
+
+### 2026-05-05：P3 第二十九刀，Agent stream tool completion signal controller
+
+已完成：
+
+- 新增 `src/components/agent/chat/hooks/agentStreamToolCompletionSignalController.ts`：
+  - `hasMeaningfulAgentStreamToolCompletionSignal`
+  - 内部统一把 normalized tool result 转为 record。
+  - 复用站点保存信号、图片任务预览、通用任务预览与 artifact 预览作为 meaningful completion signal 判断来源。
+- `agentStreamRuntimeHandler.ts` 的 `tool_end` 分支改为委托 tool completion signal controller：
+  - handler 不再直接依赖 `siteToolResultSummary` 与 `taskPreviewFromToolResult` 的多种预览构造函数。
+  - 仍只在 tool result 真实可展示/可恢复时设置 `requestState.hasMeaningfulCompletionSignal`。
+- 新增 `agentStreamToolCompletionSignalController.test.ts`，覆盖站点保存 metadata、图片任务 metadata 与普通空结果。
+
+主线收益：
+
+- Phase 3 继续压缩 `agentStreamRuntimeHandler` 的横向依赖：tool result 是否能支撑“无最终文本但过程有产物”的完成语义进入独立 controller。
+- completion controller 与 tool completion signal controller 分工更清楚：前者处理最终内容/协议残留，后者处理工具产物是否构成可降级完成信号。
+- 后续排查“模型未输出最终答复但 UI 是否应显示失败”时，可以单测 tool result 信号，不需要跑完整 stream handler。
+
+已验证：
+
+```bash
+npm exec -- vitest run "src/components/agent/chat/hooks/agentStreamToolCompletionSignalController.test.ts" "src/components/agent/chat/hooks/agentStreamCompletionController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.test.ts"
+npm exec -- vitest run "src/components/agent/chat/hooks/agentStreamToolCompletionSignalController.test.ts" "src/components/agent/chat/hooks/agentStreamCompletionController.test.ts" "src/components/agent/chat/hooks/agentStreamTextRenderFlushController.test.ts" "src/components/agent/chat/hooks/agentStreamTextDeltaController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeStatusController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeMetricsController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.test.ts" "src/components/agent/chat/hooks/agentStreamInactivityController.test.ts" "src/components/agent/chat/hooks/agentStreamTurnEventBinding.test.ts" "src/components/agent/chat/hooks/agentStreamUnknownEventController.test.ts" "src/components/agent/chat/hooks/agentStreamRequestStartController.test.ts" "src/components/agent/chat/hooks/agentStreamListenerReadinessController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitLifecycleController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmissionController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitExecution.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitOpController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitContext.test.ts"
+npx eslint "src/components/agent/chat/hooks/agentStreamToolCompletionSignalController.ts" "src/components/agent/chat/hooks/agentStreamToolCompletionSignalController.test.ts" "src/components/agent/chat/hooks/agentStreamCompletionController.ts" "src/components/agent/chat/hooks/agentStreamCompletionController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.ts" --max-warnings 0
+npm run typecheck -- --pretty false
+npm run bridge:health -- --timeout-ms 120000
+```
+
+结果：
+
+- Tool completion signal / completion / runtime handler：通过，`19` 个测试通过。
+- Agent stream Phase 3 定向回归：通过，`69` 个测试通过。
+- ESLint touched files：通过。
+- TypeScript `tsc --noEmit --pretty false`：通过。
+- DevBridge health：通过，`77ms` 就绪。
+
+GUI / E2E 状态：
+
+- 已尝试进入 Playwright MCP 续测，但当前 MCP Chrome profile 仍被占用：`Browser is already in use for /Users/coso/Library/Caches/ms-playwright/mcp-chrome-348597d, use --isolated to run multiple instances of the same browser`。
+- 按 `docs/aiprompts/playwright-e2e.md` 约束，本轮没有使用 `--isolated`，也没有 kill/清理现有 Chrome 或 MCP 进程。
+
+下一刀：
+
+1. 等 Playwright MCP profile 可复用后，优先采集首页 Enter 到 `firstRuntimeStatus / firstTextDelta / firstTextPaint` 的真实分段。
+2. 如果仍无法 E2E，继续把 `agentStreamRuntimeHandler` 的 error/final completion 副作用或 tool event apply 拆成更小 action plan。
+
+### 2026-05-05：P3 第三十刀，Agent stream error controller
+
+已完成：
+
+- 进入 Playwright MCP 前先执行 `npm run bridge:health -- --timeout-ms 120000`，DevBridge `111ms` 就绪。
+- 再次尝试复用 Playwright MCP 当前浏览器会话，仍被 MCP Chrome profile lock 阻塞：`Browser is already in use for /Users/coso/Library/Caches/ms-playwright/mcp-chrome-348597d, use --isolated to run multiple instances of the same browser`。
+- 按续遵守 `docs/aiprompts/playwright-e2e.md`：没有使用 `--isolated`，没有 kill/清理现有 Chrome 或 MCP 进程。
+- 新增 `src/components/agent/chat/hooks/agentStreamErrorController.ts`：
+  - `buildAgentStreamErrorToastPlan`
+  - `buildAgentStreamFailedAssistantMessagePatch`
+- `agentStreamRuntimeHandler.ts` 的 missing final failure 与普通 error 分支改为委托 error controller：
+  - rate limit / 429 toast level 与文案不再在 handler 内联判断。
+  - 失败 assistant 消息的 `content / runtimeStatus / isThinking / usage` patch 不再在 handler 重复组装。
+  - `markFailedTimelineState` 仍保留在 handler 内，继续负责 thread turn / item 的副作用写回。
+- 新增 `agentStreamErrorController.test.ts`，覆盖 rate limit warning、普通 error toast、保留局部输出的失败消息 patch、无局部输出时回退 previous content 与 usage 带回。
+
+主线收益：
+
+- Phase 3 继续压缩 `agentStreamRuntimeHandler` 的 error 分支：展示决策和失败消息 patch 进入纯 controller，handler 只保留必要副作用顺序。
+- 首字/流式链路出错时更容易定位：runtime event、completion fallback、tool completion signal、error presentation 已分别可单测。
+- 保留现有 UI 文案与失败状态语义，不改变 runtime event protocol、Tauri command 或 Bridge。
+
+已验证：
+
+```bash
+npm run bridge:health -- --timeout-ms 120000
+npm exec -- vitest run "src/components/agent/chat/hooks/agentStreamErrorController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.test.ts"
+npm exec -- vitest run "src/components/agent/chat/hooks/agentStreamErrorController.test.ts" "src/components/agent/chat/hooks/agentStreamToolCompletionSignalController.test.ts" "src/components/agent/chat/hooks/agentStreamCompletionController.test.ts" "src/components/agent/chat/hooks/agentStreamTextRenderFlushController.test.ts" "src/components/agent/chat/hooks/agentStreamTextDeltaController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeStatusController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeMetricsController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.test.ts" "src/components/agent/chat/hooks/agentStreamInactivityController.test.ts" "src/components/agent/chat/hooks/agentStreamTurnEventBinding.test.ts" "src/components/agent/chat/hooks/agentStreamUnknownEventController.test.ts" "src/components/agent/chat/hooks/agentStreamRequestStartController.test.ts" "src/components/agent/chat/hooks/agentStreamListenerReadinessController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitLifecycleController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmissionController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitExecution.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitOpController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitContext.test.ts"
+npx eslint "src/components/agent/chat/hooks/agentStreamErrorController.ts" "src/components/agent/chat/hooks/agentStreamErrorController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.ts" --max-warnings 0
+npm run typecheck -- --pretty false
+```
+
+结果：
+
+- Error controller / runtime handler：通过，`15` 个测试通过。
+- Agent stream Phase 3 定向回归：通过，`73` 个测试通过。
+- ESLint touched files：通过。
+- TypeScript `tsc --noEmit --pretty false`：通过。
+- DevBridge health：通过，`111ms` 就绪。
+
+GUI / E2E 状态：
+
+- 真实页面交互仍未完成，停留在 MCP profile lock 阶段；当前没有可报告的页面 URL / 控制台 error 增量 / 首页 Enter 指标。
+- 本刀是纯前端 stream controller 抽取，不改 GUI 壳、Tauri command、Bridge、mock 或用户可见 UI；因此未启动 `verify:gui-smoke`，避免 Rust rebuild 干扰 CPU / 鼠标繁忙观察。
+
+下一刀：
+
+1. 等 Playwright MCP profile 可复用后，优先恢复 E2E 采集首页 Enter 到 `firstRuntimeStatus / firstTextDelta / firstTextPaint` 的真实分段。
+2. 若 E2E 继续不可用，继续拆 `agentStreamRuntimeHandler` 中 warning / queued draft / thread item 高频事件的纯 action plan，而不是扩大到 GUI 重构。
+
+### 2026-05-05：P3 第三十一刀，Agent stream warning controller
+
+已完成：
+
+- 新增 `src/components/agent/chat/hooks/agentStreamWarningController.ts`：
+  - `buildAgentStreamWarningPlan`
+  - 统一 workspace auto-created warning 忽略、warning key 生成、已提示去重、shouldToast 判断与 toast level/message plan。
+- `agentStreamRuntimeHandler.ts` 的 `warning` 分支改为委托 warning controller：
+  - handler 不再直接依赖 `WORKSPACE_PATH_AUTO_CREATED_WARNING_CODE` 与 `resolveRuntimeWarningToastPresentation`。
+  - handler 只保留 `warnedKeysRef` 写入与 `toast.info/error/warning` 副作用。
+  - 保留现有语义：不需要 toast 的 warning 仍会标记 warned，避免后续重复处理。
+- 新增 `agentStreamWarningController.test.ts`，覆盖 workspace auto-created 忽略、重复 warning 不 toast、普通 warning toast plan、不 toast warning 仍标记 warned。
+
+主线收益：
+
+- Phase 3 继续压缩 `agentStreamRuntimeHandler` 的低频分支：warning 事件的忽略/去重/展示决策进入纯 controller。
+- 当前 stream handler 中首字、运行态、文本增量、渲染 flush、完成态、tool completion signal、error、warning 都已有独立可测边界。
+- 保留现有 UI 文案与 warning 去重语义，不改变 runtime event protocol、Tauri command 或 Bridge。
+
+已验证：
+
+```bash
+npm exec -- vitest run "src/components/agent/chat/hooks/agentStreamWarningController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.test.ts"
+npm exec -- vitest run "src/components/agent/chat/hooks/agentStreamWarningController.test.ts" "src/components/agent/chat/hooks/agentStreamErrorController.test.ts" "src/components/agent/chat/hooks/agentStreamToolCompletionSignalController.test.ts" "src/components/agent/chat/hooks/agentStreamCompletionController.test.ts" "src/components/agent/chat/hooks/agentStreamTextRenderFlushController.test.ts" "src/components/agent/chat/hooks/agentStreamTextDeltaController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeStatusController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeMetricsController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.test.ts" "src/components/agent/chat/hooks/agentStreamInactivityController.test.ts" "src/components/agent/chat/hooks/agentStreamTurnEventBinding.test.ts" "src/components/agent/chat/hooks/agentStreamUnknownEventController.test.ts" "src/components/agent/chat/hooks/agentStreamRequestStartController.test.ts" "src/components/agent/chat/hooks/agentStreamListenerReadinessController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitLifecycleController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmissionController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitExecution.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitOpController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitContext.test.ts"
+npx eslint "src/components/agent/chat/hooks/agentStreamWarningController.ts" "src/components/agent/chat/hooks/agentStreamWarningController.test.ts" "src/components/agent/chat/hooks/agentStreamErrorController.ts" "src/components/agent/chat/hooks/agentStreamErrorController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.ts" --max-warnings 0
+npm run typecheck -- --pretty false
+```
+
+结果：
+
+- Warning controller / runtime handler：通过，`15` 个测试通过。
+- Agent stream Phase 3 定向回归：通过，`77` 个测试通过。
+- ESLint touched files：通过。
+- TypeScript `tsc --noEmit --pretty false`：通过。
+
+GUI / E2E 状态：
+
+- 本刀未重新进入 Playwright；上一刀已经确认 MCP profile lock 阻塞仍在。
+- 本刀是纯前端 stream controller 抽取，不改 GUI 壳、Tauri command、Bridge、mock 或用户可见 UI；继续不启动 `verify:gui-smoke`，避免 Rust rebuild 干扰用户观察 CPU / 鼠标繁忙。
+
+下一刀：
+
+1. Playwright MCP 可复用后，优先恢复 E2E 指标采集。
+2. 若继续做代码小刀，优先拆 queued draft / thread item 高频事件的 action plan，或开始把 `handleToolStartEvent / handleToolEndEvent` 周边状态写回收敛成更薄边界。
+
+### 2026-05-05：P3 最终收口，stream controller 阶段验证边界
+
+收口结论：
+
+- 本阶段 Phase 3 代码侧已完成一组可测 controller 拆分：submit、listener readiness、request start、unknown event、inactivity、runtime metrics、runtime status、text delta、text render flush、completion、tool completion signal、error、warning。
+- `agentStreamRuntimeHandler.ts` 仍保留必要 UI / thread / toast 副作用顺序，但首字链路、重复吐字防线、完成态降级、错误与 warning 展示决策都已从大 switch 中移出。
+- 最后一次尝试 Playwright MCP 仍失败于 profile lock：`Browser is already in use for /Users/coso/Library/Caches/ms-playwright/mcp-chrome-348597d, use --isolated to run multiple instances of the same browser`。
+- 按续遵守 GUI 续测约束：没有使用 `--isolated`，没有 kill / 清理用户当前 Chrome 或 MCP 进程。
+
+最终验证：
+
+```bash
+npm exec -- vitest run "src/components/agent/chat/hooks/agentStreamWarningController.test.ts" "src/components/agent/chat/hooks/agentStreamErrorController.test.ts" "src/components/agent/chat/hooks/agentStreamToolCompletionSignalController.test.ts" "src/components/agent/chat/hooks/agentStreamCompletionController.test.ts" "src/components/agent/chat/hooks/agentStreamTextRenderFlushController.test.ts" "src/components/agent/chat/hooks/agentStreamTextDeltaController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeStatusController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeMetricsController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.test.ts" "src/components/agent/chat/hooks/agentStreamInactivityController.test.ts" "src/components/agent/chat/hooks/agentStreamTurnEventBinding.test.ts" "src/components/agent/chat/hooks/agentStreamUnknownEventController.test.ts" "src/components/agent/chat/hooks/agentStreamRequestStartController.test.ts" "src/components/agent/chat/hooks/agentStreamListenerReadinessController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitLifecycleController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmissionController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitExecution.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitOpController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitContext.test.ts"
+```
+
+结果：
+
+- Agent stream Phase 3 定向回归最终复跑：通过，`19` 个测试文件、`77` 个测试通过。
+- 本阶段最近一次静态验证已通过：ESLint touched files、TypeScript `tsc --noEmit --pretty false`、`git diff --check`。
+
+未完成边界：
+
+- 真实 GUI / Playwright E2E 仍未完成；缺少首页 Enter 到 `firstRuntimeStatus / firstTextDelta / firstTextPaint` 的最终实测数据。
+- 因此本阶段只能判定“stream controller 代码拆分与定向回归完成”，不能判定“GUI 体感性能已最终交付”。
+
+下一步最短路径：
+
+1. 释放或复用 Playwright MCP profile 后，立即采集首页 Enter / 旧会话打开的真实性能 summary。
+2. 若 `firstTextPaint` 已快但仍卡，转向 render / Markdown hydrate；若 `firstTextDelta` 慢，转 provider / runtime；若 `submitAccepted` 前慢，回查 session ensure / listener bind。
+
+### 2026-05-05：P3 第三十二刀，Agent stream queue controller
+
+已完成：
+
+- 新增 `src/components/agent/chat/hooks/agentStreamQueueController.ts`：
+  - `buildAgentStreamQueuedDraftMessagePatch`
+  - `shouldWatchAgentStreamQueuedDraftCleanup`
+  - `shouldWatchAgentStreamQueuedDraftCleanupForCleared`
+- `agentStreamRuntimeHandler.ts` 的 queued draft / queue removed / queue cleared 分支改为委托 queue controller：
+  - queued draft 的 `isThinking=false` 与 queued runtime status patch 不再在 handler 内联组装。
+  - queue removed / cleared 后是否继续观察当前 queued draft 的判断不再散落在 switch case 中。
+  - handler 仍保留 `requestState.queuedTurnId`、queued turn store、draft cleanup timer 等副作用顺序。
+- 新增 `agentStreamQueueController.test.ts`，覆盖 queued message text 优先、content fallback、单个 removed 与 cleared 覆盖当前 draft 的判断。
+
+主线收益：
+
+- Phase 3 继续压缩 `agentStreamRuntimeHandler` 的 queue 分支：排队态展示与 cleanup watch 判定进入纯 controller。
+- 首页 Enter / 多 tab / busy 会话场景依赖 `queueIfBusy` 与 queued draft 展示；该语义现在有独立单测保护，后续排查“新建/旧会话切换后无法继续输入”时更好定位。
+- 保留现有 queue 行为，不改变 runtime event protocol、Tauri command、Bridge 或用户可见文案。
+
+已验证：
+
+```bash
+npm exec -- vitest run "src/components/agent/chat/hooks/agentStreamQueueController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.test.ts"
+npm exec -- vitest run "src/components/agent/chat/hooks/agentStreamQueueController.test.ts" "src/components/agent/chat/hooks/agentStreamWarningController.test.ts" "src/components/agent/chat/hooks/agentStreamErrorController.test.ts" "src/components/agent/chat/hooks/agentStreamToolCompletionSignalController.test.ts" "src/components/agent/chat/hooks/agentStreamCompletionController.test.ts" "src/components/agent/chat/hooks/agentStreamTextRenderFlushController.test.ts" "src/components/agent/chat/hooks/agentStreamTextDeltaController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeStatusController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeMetricsController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.test.ts" "src/components/agent/chat/hooks/agentStreamInactivityController.test.ts" "src/components/agent/chat/hooks/agentStreamTurnEventBinding.test.ts" "src/components/agent/chat/hooks/agentStreamUnknownEventController.test.ts" "src/components/agent/chat/hooks/agentStreamRequestStartController.test.ts" "src/components/agent/chat/hooks/agentStreamListenerReadinessController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitLifecycleController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmissionController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitExecution.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitOpController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitContext.test.ts"
+npx eslint "src/components/agent/chat/hooks/agentStreamQueueController.ts" "src/components/agent/chat/hooks/agentStreamQueueController.test.ts" "src/components/agent/chat/hooks/agentStreamWarningController.ts" "src/components/agent/chat/hooks/agentStreamWarningController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.ts" --max-warnings 0
+npm run typecheck -- --pretty false
+```
+
+结果：
+
+- Queue controller / runtime handler：通过，`15` 个测试通过。
+- Agent stream Phase 3 定向回归：通过，`20` 个测试文件、`81` 个测试通过。
+- ESLint touched files：通过。
+- TypeScript `tsc --noEmit --pretty false`：通过。
+
+GUI / E2E 状态：
+
+- 本刀未进入 Playwright；此前已经确认 MCP profile lock 阻塞仍在。
+- 本刀仍是纯前端 stream controller 抽取，不改 GUI 壳、Tauri command、Bridge、mock 或用户可见 UI；继续不启动 `verify:gui-smoke`，避免 Rust rebuild 干扰用户观察 CPU / 鼠标繁忙。
+
+下一刀：
+
+1. Playwright MCP 可复用后，优先恢复真实 E2E 指标采集。
+2. 如果继续代码拆分，下一刀只看 thread item 高频事件的 action plan，不再扩大到无关 UI 重构。
+
+### 2026-05-05：P3 第三十三刀，Agent stream thread item controller
+
+已完成：
+
+- 新增 `src/components/agent/chat/hooks/agentStreamThreadItemController.ts`：
+  - `shouldDeferAgentStreamThreadItemUpdate`
+  - `buildAgentStreamTurnStartedPendingItemUpdate`
+- `agentStreamRuntimeHandler.ts` 的 `turn_started` 与 `item_updated` 分支改为委托 thread item controller：
+  - in-progress `reasoning / agent_message` 高频更新延后判断不再内联在 handler。
+  - `turn_started` 时 pending item 绑定真实 `thread_id / turn_id / updated_at` 的 patch 不再内联组装。
+  - handler 仍保留 `setThreadItems`、remove/upsert 顺序与其它 runtime 副作用。
+- 新增 `agentStreamThreadItemController.test.ts`，覆盖 reasoning / agent_message 延后、非文本/已完成 item 不延后、pending item 绑定真实 turn、无 pending item 返回空。
+
+主线收益：
+
+- Phase 3 继续压缩 `agentStreamRuntimeHandler` 的 thread item 分支：高频更新策略与 turn_started pending patch 进入纯 controller。
+- 旧会话恢复与流式过程中 thread item 数量大时，最容易产生同步计算和状态写入压力；这条延后策略现在有独立单测保护。
+- 保留现有行为，不改变 runtime event protocol、Tauri command、Bridge 或用户可见 UI。
+
+已验证：
+
+```bash
+npm exec -- vitest run "src/components/agent/chat/hooks/agentStreamThreadItemController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.test.ts"
+npm exec -- vitest run "src/components/agent/chat/hooks/agentStreamThreadItemController.test.ts" "src/components/agent/chat/hooks/agentStreamQueueController.test.ts" "src/components/agent/chat/hooks/agentStreamWarningController.test.ts" "src/components/agent/chat/hooks/agentStreamErrorController.test.ts" "src/components/agent/chat/hooks/agentStreamToolCompletionSignalController.test.ts" "src/components/agent/chat/hooks/agentStreamCompletionController.test.ts" "src/components/agent/chat/hooks/agentStreamTextRenderFlushController.test.ts" "src/components/agent/chat/hooks/agentStreamTextDeltaController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeStatusController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeMetricsController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.test.ts" "src/components/agent/chat/hooks/agentStreamInactivityController.test.ts" "src/components/agent/chat/hooks/agentStreamTurnEventBinding.test.ts" "src/components/agent/chat/hooks/agentStreamUnknownEventController.test.ts" "src/components/agent/chat/hooks/agentStreamRequestStartController.test.ts" "src/components/agent/chat/hooks/agentStreamListenerReadinessController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitLifecycleController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmissionController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitExecution.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitOpController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitContext.test.ts"
+npx eslint "src/components/agent/chat/hooks/agentStreamThreadItemController.ts" "src/components/agent/chat/hooks/agentStreamThreadItemController.test.ts" "src/components/agent/chat/hooks/agentStreamQueueController.ts" "src/components/agent/chat/hooks/agentStreamQueueController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.ts" --max-warnings 0
+npm run typecheck -- --pretty false
+```
+
+结果：
+
+- Thread item controller / runtime handler：通过，`15` 个测试通过。
+- Agent stream Phase 3 定向回归：通过，`21` 个测试文件、`85` 个测试通过。
+- ESLint touched files：通过。
+- TypeScript `tsc --noEmit --pretty false`：通过。
+
+GUI / E2E 状态：
+
+- 本刀未进入 Playwright；此前已经确认 MCP profile lock 阻塞仍在。
+- 本刀仍是纯前端 stream controller 抽取，不改 GUI 壳、Tauri command、Bridge、mock 或用户可见 UI；继续不启动 `verify:gui-smoke`，避免 Rust rebuild 干扰用户观察 CPU / 鼠标繁忙。
+
+下一刀：
+
+1. Playwright MCP 可复用后，优先恢复真实 E2E 指标采集。
+2. 如果继续代码拆分，只看 tool / artifact / action event apply 的薄 action plan，避免偏离主线。
+
+### 2026-05-05：P3 第三十四刀，Agent stream tool event controller
+
+已完成：
+
+- 新增 `src/components/agent/chat/hooks/agentStreamToolEventController.ts`：
+  - `buildAgentStreamToolEndPreApplyPlan`
+  - 统一 `tool_end` 前置的 `normalizeIncomingToolResult`、`toolNameByToolId` lookup 与 meaningful completion signal 判断。
+- `agentStreamRuntimeHandler.ts` 的 `tool_end` 分支改为委托 tool event controller：
+  - handler 不再直接依赖 `normalizeIncomingToolResult` 与 `hasMeaningfulAgentStreamToolCompletionSignal`。
+  - handler 仍只在 plan 标记 `hasMeaningfulCompletionSignal` 时写回 `requestState.hasMeaningfulCompletionSignal`。
+  - `handleToolEndEvent` 的原始副作用路径保持不变，避免改变工具结果展示、文件写入和消息更新顺序。
+- 新增 `agentStreamToolEventController.test.ts`，覆盖 tool name lookup、Lime metadata block 归一化、图片任务 meaningful completion 与普通 result 不标记。
+
+主线收益：
+
+- Phase 3 继续压缩 `agentStreamRuntimeHandler` 的 tool_end 分支：工具完成前置判断进入纯 controller。
+- “有工具产物但模型未输出最终文本”这条降级完成语义现在由 tool completion signal 与 tool event pre-apply plan 共同保护。
+- 保留现有行为，不改变 runtime event protocol、Tauri command、Bridge、文件写入或用户可见 UI。
+
+已验证：
+
+```bash
+npm exec -- vitest run "src/components/agent/chat/hooks/agentStreamToolEventController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.test.ts"
+npm exec -- vitest run "src/components/agent/chat/hooks/agentStreamToolEventController.test.ts" "src/components/agent/chat/hooks/agentStreamThreadItemController.test.ts" "src/components/agent/chat/hooks/agentStreamQueueController.test.ts" "src/components/agent/chat/hooks/agentStreamWarningController.test.ts" "src/components/agent/chat/hooks/agentStreamErrorController.test.ts" "src/components/agent/chat/hooks/agentStreamToolCompletionSignalController.test.ts" "src/components/agent/chat/hooks/agentStreamCompletionController.test.ts" "src/components/agent/chat/hooks/agentStreamTextRenderFlushController.test.ts" "src/components/agent/chat/hooks/agentStreamTextDeltaController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeStatusController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeMetricsController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.test.ts" "src/components/agent/chat/hooks/agentStreamInactivityController.test.ts" "src/components/agent/chat/hooks/agentStreamTurnEventBinding.test.ts" "src/components/agent/chat/hooks/agentStreamUnknownEventController.test.ts" "src/components/agent/chat/hooks/agentStreamRequestStartController.test.ts" "src/components/agent/chat/hooks/agentStreamListenerReadinessController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitLifecycleController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmissionController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitExecution.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitOpController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitContext.test.ts"
+npx eslint "src/components/agent/chat/hooks/agentStreamToolEventController.ts" "src/components/agent/chat/hooks/agentStreamToolEventController.test.ts" "src/components/agent/chat/hooks/agentStreamThreadItemController.ts" "src/components/agent/chat/hooks/agentStreamThreadItemController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.ts" --max-warnings 0
+npm run typecheck -- --pretty false
+```
+
+结果：
+
+- Tool event controller / runtime handler：通过，`14` 个测试通过。
+- Agent stream Phase 3 定向回归：通过，`22` 个测试文件、`88` 个测试通过。
+- ESLint touched files：通过。
+- TypeScript `tsc --noEmit --pretty false`：通过。
+
+GUI / E2E 状态：
+
+- 本刀未进入 Playwright；此前已经确认 MCP profile lock 阻塞仍在。
+- 本刀仍是纯前端 stream controller 抽取，不改 GUI 壳、Tauri command、Bridge、mock 或用户可见 UI；继续不启动 `verify:gui-smoke`，避免 Rust rebuild 干扰用户观察 CPU / 鼠标繁忙。
+
+下一刀：
+
+1. Playwright MCP 可复用后，优先恢复真实 E2E 指标采集。
+2. 如果继续代码拆分，只看 artifact / action event apply 的薄 action plan，避免偏离主线。
+
+### 2026-05-05：P3 第三十五刀，Agent stream artifact/action controller
+
+已完成：
+
+- 新增 `src/components/agent/chat/hooks/agentStreamArtifactActionController.ts`：
+  - `buildAgentStreamArtifactSnapshotPreApplyPlan`
+  - `buildAgentStreamActionRequiredPreApplyPlan`
+- `agentStreamRuntimeHandler.ts` 的 `artifact_snapshot / action_required` 分支改为委托 artifact/action controller：
+  - `artifact_snapshot` 前置的 activate stream、清 optimistic item、meaningful completion signal 标记进入 plan。
+  - `action_required` 前置的 activate stream、清 optimistic item 进入 plan。
+  - `handleArtifactSnapshotEvent / handleActionRequiredEvent` 的原始副作用路径保持不变。
+- 新增 `agentStreamArtifactActionController.test.ts`，覆盖 artifact snapshot 前置计划、空 artifact 仍保持完成信号语义、action required 前置计划。
+
+主线收益：
+
+- Phase 3 继续压缩 `agentStreamRuntimeHandler` 的 artifact/action 分支：事件前置副作用决策进入纯 controller。
+- artifact snapshot 仍作为 meaningful completion signal，保护“有产物但模型未输出最终文本”的降级完成语义。
+- 保留现有行为，不改变 runtime event protocol、Tauri command、Bridge、文件写入、权限确认或用户可见 UI。
+
+已验证：
+
+```bash
+npm exec -- vitest run "src/components/agent/chat/hooks/agentStreamArtifactActionController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.test.ts"
+npm exec -- vitest run "src/components/agent/chat/hooks/agentStreamArtifactActionController.test.ts" "src/components/agent/chat/hooks/agentStreamToolEventController.test.ts" "src/components/agent/chat/hooks/agentStreamThreadItemController.test.ts" "src/components/agent/chat/hooks/agentStreamQueueController.test.ts" "src/components/agent/chat/hooks/agentStreamWarningController.test.ts" "src/components/agent/chat/hooks/agentStreamErrorController.test.ts" "src/components/agent/chat/hooks/agentStreamToolCompletionSignalController.test.ts" "src/components/agent/chat/hooks/agentStreamCompletionController.test.ts" "src/components/agent/chat/hooks/agentStreamTextRenderFlushController.test.ts" "src/components/agent/chat/hooks/agentStreamTextDeltaController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeStatusController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeMetricsController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.test.ts" "src/components/agent/chat/hooks/agentStreamInactivityController.test.ts" "src/components/agent/chat/hooks/agentStreamTurnEventBinding.test.ts" "src/components/agent/chat/hooks/agentStreamUnknownEventController.test.ts" "src/components/agent/chat/hooks/agentStreamRequestStartController.test.ts" "src/components/agent/chat/hooks/agentStreamListenerReadinessController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitLifecycleController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmissionController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitExecution.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitOpController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitContext.test.ts"
+npx eslint "src/components/agent/chat/hooks/agentStreamArtifactActionController.ts" "src/components/agent/chat/hooks/agentStreamArtifactActionController.test.ts" "src/components/agent/chat/hooks/agentStreamToolEventController.ts" "src/components/agent/chat/hooks/agentStreamToolEventController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.ts" --max-warnings 0
+npm run typecheck -- --pretty false
+```
+
+结果：
+
+- Artifact/action controller / runtime handler：通过，`14` 个测试通过。
+- Agent stream Phase 3 定向回归：通过，`23` 个测试文件、`91` 个测试通过。
+- ESLint touched files：通过。
+- TypeScript `tsc --noEmit --pretty false`：通过。
+
+GUI / E2E 状态：
+
+- 本刀未进入 Playwright；此前已经确认 MCP profile lock 阻塞仍在。
+- 本刀仍是纯前端 stream controller 抽取，不改 GUI 壳、Tauri command、Bridge、mock 或用户可见 UI；继续不启动 `verify:gui-smoke`，避免 Rust rebuild 干扰用户观察 CPU / 鼠标繁忙。
+
+下一刀：
+
+1. Playwright MCP 可复用后，优先恢复真实 E2E 指标采集。
+2. 如果继续代码拆分，只看 context trace / turn context / model change event apply 的薄 action plan，避免偏离主线。
+
+### 2026-05-05：P3 第三十六刀，Agent stream runtime context controller
+
+已完成：
+
+- 新增 `src/components/agent/chat/hooks/agentStreamRuntimeContextController.ts`：
+  - `buildAgentStreamContextTracePreApplyPlan`
+  - `buildAgentStreamTurnContextPreApplyPlan`
+  - `buildAgentStreamModelChangePreApplyPlan`
+  - `applyAgentStreamTurnContextExecutionRuntime`
+  - `applyAgentStreamModelChangeExecutionRuntime`
+- `agentStreamRuntimeHandler.ts` 的 `context_trace / turn_context / model_change` 分支改为委托 runtime context controller：
+  - `context_trace` 前置 activate stream / clear optimistic item 进入 plan。
+  - `turn_context / model_change` 前置 activate stream 进入 plan。
+  - execution runtime apply 通过 controller wrapper 进入 handler，原有 apply 语义不变。
+  - `handleContextTraceEvent` 与 `setExecutionRuntime` 副作用顺序保持不变。
+- 新增 `agentStreamRuntimeContextController.test.ts`，覆盖 context trace latest stage、turn context runtime apply、model change runtime apply 与当前 turn 状态保留。
+
+主线收益：
+
+- Phase 3 继续压缩 `agentStreamRuntimeHandler` 的 context/runtime 分支：上下文轨迹与 execution runtime 更新前置决策进入纯 controller。
+- 首字链路中 `turn_context / model_change` 到达后，runtime 恢复状态仍受现有 utility 保护，同时可通过 controller 单测定位。
+- 保留现有行为，不改变 runtime event protocol、Tauri command、Bridge、execution runtime 结构或用户可见 UI。
+
+已验证：
+
+```bash
+npm exec -- vitest run "src/components/agent/chat/hooks/agentStreamRuntimeContextController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.test.ts"
+npm exec -- vitest run "src/components/agent/chat/hooks/agentStreamRuntimeContextController.test.ts" "src/components/agent/chat/hooks/agentStreamArtifactActionController.test.ts" "src/components/agent/chat/hooks/agentStreamToolEventController.test.ts" "src/components/agent/chat/hooks/agentStreamThreadItemController.test.ts" "src/components/agent/chat/hooks/agentStreamQueueController.test.ts" "src/components/agent/chat/hooks/agentStreamWarningController.test.ts" "src/components/agent/chat/hooks/agentStreamErrorController.test.ts" "src/components/agent/chat/hooks/agentStreamToolCompletionSignalController.test.ts" "src/components/agent/chat/hooks/agentStreamCompletionController.test.ts" "src/components/agent/chat/hooks/agentStreamTextRenderFlushController.test.ts" "src/components/agent/chat/hooks/agentStreamTextDeltaController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeStatusController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeMetricsController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.test.ts" "src/components/agent/chat/hooks/agentStreamInactivityController.test.ts" "src/components/agent/chat/hooks/agentStreamTurnEventBinding.test.ts" "src/components/agent/chat/hooks/agentStreamUnknownEventController.test.ts" "src/components/agent/chat/hooks/agentStreamRequestStartController.test.ts" "src/components/agent/chat/hooks/agentStreamListenerReadinessController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitLifecycleController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmissionController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitExecution.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitOpController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitContext.test.ts"
+npx eslint "src/components/agent/chat/hooks/agentStreamRuntimeContextController.ts" "src/components/agent/chat/hooks/agentStreamRuntimeContextController.test.ts" "src/components/agent/chat/hooks/agentStreamArtifactActionController.ts" "src/components/agent/chat/hooks/agentStreamArtifactActionController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.ts" --max-warnings 0
+npm run typecheck -- --pretty false
+```
+
+结果：
+
+- Runtime context controller / runtime handler：通过，`14` 个测试通过。
+- Agent stream Phase 3 定向回归：通过，`24` 个测试文件、`94` 个测试通过。
+- ESLint touched files：通过。
+- TypeScript `tsc --noEmit --pretty false`：通过。
+
+GUI / E2E 状态：
+
+- 本刀未进入 Playwright；此前已经确认 MCP profile lock 阻塞仍在。
+- 本刀仍是纯前端 stream controller 抽取，不改 GUI 壳、Tauri command、Bridge、mock 或用户可见 UI；继续不启动 `verify:gui-smoke`，避免 Rust rebuild 干扰用户观察 CPU / 鼠标繁忙。
+
+下一刀：
+
+1. Playwright MCP 可复用后，优先恢复真实 E2E 指标采集。
+2. 如果继续代码拆分，只看 thinking delta 或 final side-effect action 的薄 action plan，避免偏离主线。
+
+### 2026-05-05：P3 第三十七刀，Agent stream thinking delta controller
+
+已完成：
+
+- 新增 `src/components/agent/chat/hooks/agentStreamThinkingDeltaController.ts`：
+  - `buildAgentStreamThinkingDeltaPreApplyPlan`
+  - `buildAgentStreamThinkingDeltaMessagePatch`
+- `agentStreamRuntimeHandler.ts` 的 `thinking_delta` 分支改为委托 thinking delta controller：
+  - 前置 activate stream 与 `surfaceThinkingDeltas` guard 进入 plan。
+  - thinkingContent 的 overlap append 与 contentParts thinking append 进入消息 patch。
+  - handler 仍保留 `setMessages` 副作用与 assistant message id 过滤顺序。
+- 新增 `agentStreamThinkingDeltaController.test.ts`，覆盖 surface guard、overlap append、contentParts 追加和无 contentParts 时的默认追加。
+
+主线收益：
+
+- Phase 3 继续压缩 `agentStreamRuntimeHandler` 的 thinking 分支：思考流的显示开关与消息 patch 进入纯 controller。
+- 重复吐字防线从 text delta 扩展到 thinking delta，thinkingContent 的 overlap append 现在有独立单测保护。
+- 保留现有行为，不改变 runtime event protocol、Tauri command、Bridge、thinking 展示开关或用户可见 UI。
+
+已验证：
+
+```bash
+npm exec -- vitest run "src/components/agent/chat/hooks/agentStreamThinkingDeltaController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.test.ts"
+npm exec -- vitest run "src/components/agent/chat/hooks/agentStreamThinkingDeltaController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeContextController.test.ts" "src/components/agent/chat/hooks/agentStreamArtifactActionController.test.ts" "src/components/agent/chat/hooks/agentStreamToolEventController.test.ts" "src/components/agent/chat/hooks/agentStreamThreadItemController.test.ts" "src/components/agent/chat/hooks/agentStreamQueueController.test.ts" "src/components/agent/chat/hooks/agentStreamWarningController.test.ts" "src/components/agent/chat/hooks/agentStreamErrorController.test.ts" "src/components/agent/chat/hooks/agentStreamToolCompletionSignalController.test.ts" "src/components/agent/chat/hooks/agentStreamCompletionController.test.ts" "src/components/agent/chat/hooks/agentStreamTextRenderFlushController.test.ts" "src/components/agent/chat/hooks/agentStreamTextDeltaController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeStatusController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeMetricsController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.test.ts" "src/components/agent/chat/hooks/agentStreamInactivityController.test.ts" "src/components/agent/chat/hooks/agentStreamTurnEventBinding.test.ts" "src/components/agent/chat/hooks/agentStreamUnknownEventController.test.ts" "src/components/agent/chat/hooks/agentStreamRequestStartController.test.ts" "src/components/agent/chat/hooks/agentStreamListenerReadinessController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitLifecycleController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmissionController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitExecution.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitOpController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitContext.test.ts"
+npx eslint "src/components/agent/chat/hooks/agentStreamThinkingDeltaController.ts" "src/components/agent/chat/hooks/agentStreamThinkingDeltaController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeContextController.ts" "src/components/agent/chat/hooks/agentStreamRuntimeContextController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.ts" --max-warnings 0
+npm run typecheck -- --pretty false
+```
+
+结果：
+
+- Thinking delta controller / runtime handler：通过，`14` 个测试通过。
+- Agent stream Phase 3 定向回归：通过，`25` 个测试文件、`97` 个测试通过。
+- ESLint touched files：通过。
+- TypeScript `tsc --noEmit --pretty false`：通过。
+
+GUI / E2E 状态：
+
+- 本刀未进入 Playwright；此前已经确认 MCP profile lock 阻塞仍在。
+- 本刀仍是纯前端 stream controller 抽取，不改 GUI 壳、Tauri command、Bridge、mock 或用户可见 UI；继续不启动 `verify:gui-smoke`，避免 Rust rebuild 干扰用户观察 CPU / 鼠标繁忙。
+
+下一刀：
+
+1. Playwright MCP 可复用后，优先恢复真实 E2E 指标采集。
+2. 如果继续代码拆分，只看 final side-effect action 的薄 action plan，避免偏离主线。
+
+### 2026-05-05：P3 第三十八刀，Agent stream completion assistant patch 收口
+
+已完成：
+
+- 扩展 `src/components/agent/chat/hooks/agentStreamCompletionController.ts`：
+  - 新增 `buildAgentStreamCompletedAssistantMessagePatch`，统一完成态 assistant 消息的 `content / contentParts / usage / runtimeStatus / isThinking` patch。
+  - 复用 `reconcileAgentStreamFinalContentParts`，保持协议残留清理、thinking part 过滤与最终 text part 重建语义不变。
+- `agentStreamRuntimeHandler.ts` 的 `final_done` 与 empty-final graceful completion 分支改为委托 completion controller 生成 assistant message patch：
+  - handler 仍只保留队列清理、request log、observer complete、listener dispose 等副作用编排。
+  - 完成态消息 patch 不再在 handler 内联拼装，降低流式完成分支与重复吐字 / 排版回归的耦合。
+- `agentStreamCompletionController.test.ts` 新增完成态 assistant patch 回归，覆盖 usage 带回和最终文本重建。
+- 验证门禁顺手收口 `src/lib/activeContentTarget.ts` 的输入类型：
+  - `setActiveContentTarget` 允许接收任意 canvas type 字符串，再通过既有 `normalizeThemeCanvasType` 收敛到 `document / video / null`。
+  - 这只解除 `DesignCanvasState.type === "design"` 对 workspace typecheck 的阻塞，不扩大 active content target 的 current 事实源范围。
+
+主线收益：
+
+- Phase 3 继续压缩 `agentStreamRuntimeHandler` 的完成分支：完成态 assistant 消息归一进入纯 controller，后续排查 final_done 只需区分“消息 patch”与“副作用编排”。
+- 重复吐字 / 输出排版的最终态防线继续集中在 completion controller 单测中，避免 final_done 二次 append 或 thinking part 意外混入正文。
+- 保留现有行为，不改变 runtime event protocol、Tauri command、Bridge、mock、active target 持久化格式或用户可见 UI。
+
+已验证：
+
+```bash
+npm exec -- vitest run "src/components/agent/chat/hooks/agentStreamThinkingDeltaController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeContextController.test.ts" "src/components/agent/chat/hooks/agentStreamArtifactActionController.test.ts" "src/components/agent/chat/hooks/agentStreamToolEventController.test.ts" "src/components/agent/chat/hooks/agentStreamThreadItemController.test.ts" "src/components/agent/chat/hooks/agentStreamQueueController.test.ts" "src/components/agent/chat/hooks/agentStreamWarningController.test.ts" "src/components/agent/chat/hooks/agentStreamErrorController.test.ts" "src/components/agent/chat/hooks/agentStreamToolCompletionSignalController.test.ts" "src/components/agent/chat/hooks/agentStreamCompletionController.test.ts" "src/components/agent/chat/hooks/agentStreamTextRenderFlushController.test.ts" "src/components/agent/chat/hooks/agentStreamTextDeltaController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeStatusController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeMetricsController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.test.ts" "src/components/agent/chat/hooks/agentStreamInactivityController.test.ts" "src/components/agent/chat/hooks/agentStreamTurnEventBinding.test.ts" "src/components/agent/chat/hooks/agentStreamUnknownEventController.test.ts" "src/components/agent/chat/hooks/agentStreamRequestStartController.test.ts" "src/components/agent/chat/hooks/agentStreamListenerReadinessController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitLifecycleController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmissionController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitExecution.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitOpController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitContext.test.ts"
+npx eslint "src/lib/activeContentTarget.ts" "src/components/agent/chat/hooks/agentStreamCompletionController.ts" "src/components/agent/chat/hooks/agentStreamCompletionController.test.ts" "src/components/agent/chat/hooks/agentStreamThinkingDeltaController.ts" "src/components/agent/chat/hooks/agentStreamThinkingDeltaController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.ts" --max-warnings 0
+npm run typecheck -- --pretty false
+```
+
+结果：
+
+- Agent stream Phase 3 定向回归：通过，`25` 个测试文件、`98` 个测试通过。
+- ESLint touched files：通过。
+- TypeScript `tsc --noEmit --pretty false`：通过。
+
+GUI / E2E 状态：
+
+- 本刀未进入 Playwright；此前已经确认 MCP profile lock 阻塞仍在，且不能使用 `--isolated` 或 kill 用户 Chrome/MCP。
+- 本刀仍是纯前端 stream controller 与类型门禁收口，不改 GUI 壳、Tauri command、Bridge、mock 或用户可见 UI；继续不启动 `verify:gui-smoke`，避免 Rust rebuild 干扰用户观察 CPU / 鼠标繁忙。
+
+下一刀：
+
+1. Playwright MCP 可复用后，优先恢复首页首发、旧会话打开、首 token 的真实性能采集。
+2. 如果继续代码拆分，只看 `final_done` 日志 / 队列清理 / listener dispose 的 side-effect plan；若 E2E 指标显示慢在 render，则转回 Phase 4 render projection。
+
+### 2026-05-05：P3 第三十九刀，Agent stream final side-effect plan 收口
+
+已完成：
+
+- 继续扩展 `src/components/agent/chat/hooks/agentStreamCompletionController.ts`：
+  - 新增 `buildAgentStreamFinalDonePlan`，统一 `final_done` 的空最终回复失败判断、最终内容解析、queued turn 清理 ID 与 request log payload。
+  - 新增 `buildAgentStreamEmptyFinalErrorPlan`，统一 empty-final error 在“无真实产物信号 -> 失败”和“已有真实产物信号 -> 软完成”之间的决策。
+- `agentStreamRuntimeHandler.ts` 的完成分支继续变薄：
+  - `final_done` 不再内联判断 `shouldFailAgentStreamMissingFinalReply`，只消费 completion plan 后执行副作用。
+  - empty-final error 不再内联 queued turn / request log / graceful content 组装，软完成与失败分叉由 controller 决定。
+- `agentStreamCompletionController.test.ts` 新增 side-effect plan 回归，覆盖：
+  - `final_done` 协议残留清理后的完成计划。
+  - 缺少最终回复的失败计划和 usage 保留。
+  - empty-final error 在无产物信号与有产物信号两种情况下的分叉。
+
+主线收益：
+
+- Phase 3 的 `final_done` 链路进一步拆成“纯决策 plan + handler 副作用执行”，首字 / 流式完成慢点排查时可以把 completion 语义与 React state / listener cleanup 分开看。
+- “空 final_done / 工具有产物但无最终文本 / 协议残留清理”继续收敛到同一个 current controller，避免重复吐字、排版错乱或空回复误报在 handler 中回流。
+- 保留现有行为，不改变 runtime event protocol、Tauri command、Bridge、mock、GUI 壳或用户可见 UI。
+
+已验证：
+
+```bash
+npm exec -- vitest run "src/components/agent/chat/hooks/agentStreamCompletionController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.test.ts"
+npm exec -- vitest run "src/components/agent/chat/hooks/agentStreamThinkingDeltaController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeContextController.test.ts" "src/components/agent/chat/hooks/agentStreamArtifactActionController.test.ts" "src/components/agent/chat/hooks/agentStreamToolEventController.test.ts" "src/components/agent/chat/hooks/agentStreamThreadItemController.test.ts" "src/components/agent/chat/hooks/agentStreamQueueController.test.ts" "src/components/agent/chat/hooks/agentStreamWarningController.test.ts" "src/components/agent/chat/hooks/agentStreamErrorController.test.ts" "src/components/agent/chat/hooks/agentStreamToolCompletionSignalController.test.ts" "src/components/agent/chat/hooks/agentStreamCompletionController.test.ts" "src/components/agent/chat/hooks/agentStreamTextRenderFlushController.test.ts" "src/components/agent/chat/hooks/agentStreamTextDeltaController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeStatusController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeMetricsController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.test.ts" "src/components/agent/chat/hooks/agentStreamInactivityController.test.ts" "src/components/agent/chat/hooks/agentStreamTurnEventBinding.test.ts" "src/components/agent/chat/hooks/agentStreamUnknownEventController.test.ts" "src/components/agent/chat/hooks/agentStreamRequestStartController.test.ts" "src/components/agent/chat/hooks/agentStreamListenerReadinessController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitLifecycleController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmissionController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitExecution.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitOpController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitContext.test.ts"
+npx eslint "src/lib/activeContentTarget.ts" "src/components/agent/chat/hooks/agentStreamCompletionController.ts" "src/components/agent/chat/hooks/agentStreamCompletionController.test.ts" "src/components/agent/chat/hooks/agentStreamThinkingDeltaController.ts" "src/components/agent/chat/hooks/agentStreamThinkingDeltaController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.ts" --max-warnings 0
+npm run typecheck -- --pretty false
+```
+
+结果：
+
+- Completion controller / runtime handler：通过，`2` 个测试文件、`20` 个测试通过。
+- Agent stream Phase 3 定向回归：通过，`25` 个测试文件、`101` 个测试通过。
+- ESLint touched files：通过。
+- TypeScript `tsc --noEmit --pretty false`：通过。
+
+GUI / E2E 状态：
+
+- 本刀未进入 Playwright；此前已经确认 MCP profile lock 阻塞仍在，且不能使用 `--isolated` 或 kill 用户 Chrome/MCP。
+- 本刀仍是纯前端 stream controller 收口，不改 GUI 壳、Tauri command、Bridge、mock 或用户可见 UI；继续不启动 `verify:gui-smoke`，避免 Rust rebuild 干扰用户观察 CPU / 鼠标繁忙。
+
+下一刀：
+
+1. Playwright MCP 可复用后，优先恢复首页首发、旧会话打开、首 token 的真实性能采集。
+2. 如果继续代码拆分，只看 `error` 分支失败完成 side-effect plan；若 E2E 指标显示慢在 render，则转回 Phase 4 render projection。
+
+### 2026-05-05：P3 第四十刀，Agent stream error failure side-effect plan 收口
+
+已完成：
+
+- 继续扩展 `src/components/agent/chat/hooks/agentStreamErrorController.ts`：
+  - 新增 `buildAgentStreamErrorFailurePlan`，统一普通 runtime error 的错误文案、queued turn 清理 ID、request log payload 与 toast plan。
+  - 复用既有 `buildAgentStreamErrorToastPlan`，保持 rate limit -> warning toast、普通错误 -> runtime error toast 的展示语义不变。
+- `agentStreamRuntimeHandler.ts` 的普通 `error` 分支继续变薄：
+  - handler 不再内联 `queuedTurnId ? [queuedTurnId] : []`、`chat_request_error` payload 或 toast plan 组装。
+  - handler 只消费 error failure plan 后执行 timeline 标失败、队列清理、request log、observer、toast、assistant message patch 与 listener dispose。
+- `agentStreamErrorController.test.ts` 新增失败 side-effect plan 回归，覆盖普通错误和 rate limit toast 降级。
+
+主线收益：
+
+- Phase 3 的普通错误链路继续收敛到 current controller：error 分支的“失败语义决策”和 handler 的“副作用执行”分离，后续排查首 token / 流式中断时更容易定位慢点或错态来源。
+- `agentStreamRuntimeHandler` 中普通 error 分支不再重复拼 queued turn、request log 与 toast，减少后续修空 final / rate limit / provider error 时互相踩语义的风险。
+- 保留现有行为，不改变 runtime event protocol、Tauri command、Bridge、mock、GUI 壳或用户可见 UI。
+
+已验证：
+
+```bash
+npm exec -- vitest run "src/components/agent/chat/hooks/agentStreamErrorController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.test.ts"
+npm exec -- vitest run "src/components/agent/chat/hooks/agentStreamThinkingDeltaController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeContextController.test.ts" "src/components/agent/chat/hooks/agentStreamArtifactActionController.test.ts" "src/components/agent/chat/hooks/agentStreamToolEventController.test.ts" "src/components/agent/chat/hooks/agentStreamThreadItemController.test.ts" "src/components/agent/chat/hooks/agentStreamQueueController.test.ts" "src/components/agent/chat/hooks/agentStreamWarningController.test.ts" "src/components/agent/chat/hooks/agentStreamErrorController.test.ts" "src/components/agent/chat/hooks/agentStreamToolCompletionSignalController.test.ts" "src/components/agent/chat/hooks/agentStreamCompletionController.test.ts" "src/components/agent/chat/hooks/agentStreamTextRenderFlushController.test.ts" "src/components/agent/chat/hooks/agentStreamTextDeltaController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeStatusController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeMetricsController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.test.ts" "src/components/agent/chat/hooks/agentStreamInactivityController.test.ts" "src/components/agent/chat/hooks/agentStreamTurnEventBinding.test.ts" "src/components/agent/chat/hooks/agentStreamUnknownEventController.test.ts" "src/components/agent/chat/hooks/agentStreamRequestStartController.test.ts" "src/components/agent/chat/hooks/agentStreamListenerReadinessController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitLifecycleController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmissionController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitExecution.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitOpController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitContext.test.ts"
+npx eslint "src/lib/activeContentTarget.ts" "src/components/agent/chat/hooks/agentStreamErrorController.ts" "src/components/agent/chat/hooks/agentStreamErrorController.test.ts" "src/components/agent/chat/hooks/agentStreamCompletionController.ts" "src/components/agent/chat/hooks/agentStreamCompletionController.test.ts" "src/components/agent/chat/hooks/agentStreamThinkingDeltaController.ts" "src/components/agent/chat/hooks/agentStreamThinkingDeltaController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.ts" --max-warnings 0
+npm run typecheck -- --pretty false
+git diff --check -- "src/lib/activeContentTarget.ts" "src/components/agent/chat/hooks/agentStreamErrorController.ts" "src/components/agent/chat/hooks/agentStreamErrorController.test.ts" "src/components/agent/chat/hooks/agentStreamCompletionController.ts" "src/components/agent/chat/hooks/agentStreamCompletionController.test.ts" "src/components/agent/chat/hooks/agentStreamThinkingDeltaController.ts" "src/components/agent/chat/hooks/agentStreamThinkingDeltaController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.ts" "docs/roadmap/agentui/conversation-projection-implementation-plan.md" "docs/exec-plans/agentui-implementation-progress.md"
+```
+
+结果：
+
+- Error controller / runtime handler：通过，`2` 个测试文件、`17` 个测试通过。
+- Agent stream Phase 3 定向回归：通过，`25` 个测试文件、`103` 个测试通过。
+- ESLint touched files：通过。
+- TypeScript `tsc --noEmit --pretty false`：通过。
+- Diff whitespace check：通过。
+
+GUI / E2E 状态：
+
+- 本刀未进入 Playwright；此前已经确认 MCP profile lock 阻塞仍在，且不能使用 `--isolated` 或 kill 用户 Chrome/MCP。
+- 本刀仍是纯前端 stream controller 收口，不改 GUI 壳、Tauri command、Bridge、mock 或用户可见 UI；继续不启动 `verify:gui-smoke`，避免 Rust rebuild 干扰用户观察 CPU / 鼠标繁忙。
+
+下一刀：
+
+1. Playwright MCP 可复用后，优先恢复首页首发、旧会话打开、首 token 的真实性能采集。
+2. 如果继续代码拆分，只看 `warning` toast 执行 plan 或 `markFailedTimelineState` 的 timeline failure plan；若 E2E 指标显示慢在 render，则转回 Phase 4 render projection。
+
+### 2026-05-05：P3 第四十一刀，Agent stream failed timeline plan 收口
+
+已完成：
+
+- 继续扩展 `src/components/agent/chat/hooks/agentStreamErrorController.ts`：
+  - 新增 `selectAgentStreamFailedTimelineTurn`，统一 pending turn 优先、当前会话最后一个 running turn 回退的选择策略。
+  - 新增 `buildAgentStreamFailedTimelineTurnUpdate`，统一 running turn 失败态 patch。
+  - 新增 `buildAgentStreamFailedTimelineItemUpdate`，统一 pending `turn_summary` 失败态 patch 和失败 runtime summary 文案。
+- `agentStreamRuntimeHandler.ts` 的 `markFailedTimelineState` 继续变薄：
+  - handler 不再内联查找 running turn。
+  - handler 不再内联构造 failed runtime status summary。
+  - handler 只负责把 controller 产出的 turn / item update 写回 `upsertThreadTurnState` / `upsertThreadItemState`。
+- `agentStreamErrorController.test.ts` 新增 failed timeline plan 回归，覆盖：
+  - pending turn 优先。
+  - pending turn 缺失时回退当前 session 最后一个 running turn。
+  - `turn_summary` 失败 patch 保留已有 `completed_at`。
+  - pending item 缺失或不是 `turn_summary` 时跳过更新。
+
+主线收益：
+
+- Phase 3 的错误 timeline 更新继续收敛到 current error controller，stream handler 不再同时承担失败语义、timeline 查找与状态 patch 组装。
+- 后续排查“流式错误后 timeline 卡在 running / summary 文案不一致 / 错 turn 被标失败”时，可以直接测 controller，不必挂载完整 workspace。
+- 保留现有行为，不改变 runtime event protocol、Tauri command、Bridge、mock、GUI 壳或用户可见 UI。
+
+已验证：
+
+```bash
+npm exec -- vitest run "src/components/agent/chat/hooks/agentStreamErrorController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.test.ts"
+npm exec -- vitest run "src/components/agent/chat/hooks/agentStreamThinkingDeltaController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeContextController.test.ts" "src/components/agent/chat/hooks/agentStreamArtifactActionController.test.ts" "src/components/agent/chat/hooks/agentStreamToolEventController.test.ts" "src/components/agent/chat/hooks/agentStreamThreadItemController.test.ts" "src/components/agent/chat/hooks/agentStreamQueueController.test.ts" "src/components/agent/chat/hooks/agentStreamWarningController.test.ts" "src/components/agent/chat/hooks/agentStreamErrorController.test.ts" "src/components/agent/chat/hooks/agentStreamToolCompletionSignalController.test.ts" "src/components/agent/chat/hooks/agentStreamCompletionController.test.ts" "src/components/agent/chat/hooks/agentStreamTextRenderFlushController.test.ts" "src/components/agent/chat/hooks/agentStreamTextDeltaController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeStatusController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeMetricsController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.test.ts" "src/components/agent/chat/hooks/agentStreamInactivityController.test.ts" "src/components/agent/chat/hooks/agentStreamTurnEventBinding.test.ts" "src/components/agent/chat/hooks/agentStreamUnknownEventController.test.ts" "src/components/agent/chat/hooks/agentStreamRequestStartController.test.ts" "src/components/agent/chat/hooks/agentStreamListenerReadinessController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitLifecycleController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmissionController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitExecution.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitOpController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitContext.test.ts"
+npx eslint "src/lib/activeContentTarget.ts" "src/components/agent/chat/hooks/agentStreamErrorController.ts" "src/components/agent/chat/hooks/agentStreamErrorController.test.ts" "src/components/agent/chat/hooks/agentStreamCompletionController.ts" "src/components/agent/chat/hooks/agentStreamCompletionController.test.ts" "src/components/agent/chat/hooks/agentStreamThinkingDeltaController.ts" "src/components/agent/chat/hooks/agentStreamThinkingDeltaController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.ts" --max-warnings 0
+npm run typecheck -- --pretty false
+git diff --check -- "src/lib/activeContentTarget.ts" "src/components/agent/chat/hooks/agentStreamErrorController.ts" "src/components/agent/chat/hooks/agentStreamErrorController.test.ts" "src/components/agent/chat/hooks/agentStreamCompletionController.ts" "src/components/agent/chat/hooks/agentStreamCompletionController.test.ts" "src/components/agent/chat/hooks/agentStreamThinkingDeltaController.ts" "src/components/agent/chat/hooks/agentStreamThinkingDeltaController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.ts" "docs/roadmap/agentui/conversation-projection-implementation-plan.md" "docs/exec-plans/agentui-implementation-progress.md"
+```
+
+结果：
+
+- Error controller / runtime handler：通过，`2` 个测试文件、`21` 个测试通过。
+- Agent stream Phase 3 定向回归：通过，`25` 个测试文件、`107` 个测试通过。
+- ESLint touched files：通过。
+- TypeScript `tsc --noEmit --pretty false`：通过。
+- Diff whitespace check：通过。
+
+GUI / E2E 状态：
+
+- 本刀未进入 Playwright；此前已经确认 MCP profile lock 阻塞仍在，且不能使用 `--isolated` 或 kill 用户 Chrome/MCP。
+- 本刀仍是纯前端 stream controller 收口，不改 GUI 壳、Tauri command、Bridge、mock 或用户可见 UI；继续不启动 `verify:gui-smoke`，避免 Rust rebuild 干扰用户观察 CPU / 鼠标繁忙。
+
+下一刀：
+
+1. Playwright MCP 可复用后，优先恢复首页首发、旧会话打开、首 token 的真实性能采集。
+2. 如果继续代码拆分，只看 `warning` toast 执行 plan；若 E2E 指标显示慢在 render，则转回 Phase 4 render projection。
+
+### 2026-05-05：P3 第四十二刀，Agent stream warning toast action 收口
+
+已完成：
+
+- 继续扩展 `src/components/agent/chat/hooks/agentStreamWarningController.ts`：
+  - 新增 `buildAgentStreamWarningToastAction`，把 warning plan 的 toast payload 归一为可执行 action。
+  - 新增 `applyAgentStreamWarningToastAction`，统一 `info / warning / error` dispatcher 调用。
+- `agentStreamRuntimeHandler.ts` 的 `warning` 分支继续变薄：
+  - handler 不再内联 `switch (warningPlan.toast.level)`。
+  - handler 只负责 warned key 标记，然后把 toast action 交给 warning controller 执行。
+- `agentStreamWarningController.test.ts` 新增 warning toast action 回归，覆盖 action 构造、null toast 跳过、不同 level 调用对应 dispatcher。
+
+主线收益：
+
+- Phase 3 的 warning 展示行为继续收敛到 current warning controller，handler 不再承担 toast level 分发细节。
+- 后续排查 warning 重复提示、误提示或提示等级不一致时，可以直接测 warning controller，不必进入完整 stream runtime handler。
+- 保留现有行为，不改变 runtime event protocol、Tauri command、Bridge、mock、GUI 壳或用户可见 UI。
+
+已验证：
+
+```bash
+npm exec -- vitest run "src/components/agent/chat/hooks/agentStreamWarningController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.test.ts"
+npm exec -- vitest run "src/components/agent/chat/hooks/agentStreamThinkingDeltaController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeContextController.test.ts" "src/components/agent/chat/hooks/agentStreamArtifactActionController.test.ts" "src/components/agent/chat/hooks/agentStreamToolEventController.test.ts" "src/components/agent/chat/hooks/agentStreamThreadItemController.test.ts" "src/components/agent/chat/hooks/agentStreamQueueController.test.ts" "src/components/agent/chat/hooks/agentStreamWarningController.test.ts" "src/components/agent/chat/hooks/agentStreamErrorController.test.ts" "src/components/agent/chat/hooks/agentStreamToolCompletionSignalController.test.ts" "src/components/agent/chat/hooks/agentStreamCompletionController.test.ts" "src/components/agent/chat/hooks/agentStreamTextRenderFlushController.test.ts" "src/components/agent/chat/hooks/agentStreamTextDeltaController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeStatusController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeMetricsController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.test.ts" "src/components/agent/chat/hooks/agentStreamInactivityController.test.ts" "src/components/agent/chat/hooks/agentStreamTurnEventBinding.test.ts" "src/components/agent/chat/hooks/agentStreamUnknownEventController.test.ts" "src/components/agent/chat/hooks/agentStreamRequestStartController.test.ts" "src/components/agent/chat/hooks/agentStreamListenerReadinessController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitLifecycleController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmissionController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitExecution.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitOpController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitContext.test.ts"
+npx eslint "src/lib/activeContentTarget.ts" "src/components/agent/chat/hooks/agentStreamWarningController.ts" "src/components/agent/chat/hooks/agentStreamWarningController.test.ts" "src/components/agent/chat/hooks/agentStreamErrorController.ts" "src/components/agent/chat/hooks/agentStreamErrorController.test.ts" "src/components/agent/chat/hooks/agentStreamCompletionController.ts" "src/components/agent/chat/hooks/agentStreamCompletionController.test.ts" "src/components/agent/chat/hooks/agentStreamThinkingDeltaController.ts" "src/components/agent/chat/hooks/agentStreamThinkingDeltaController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.ts" "src/components/agent/chat/workspace/knowledge/useWorkspaceKnowledgeRuntime.ts" "src/features/knowledge/KnowledgePage.tsx" --max-warnings 0
+npm run typecheck -- --pretty false
+git diff --check -- "src/lib/activeContentTarget.ts" "src/components/agent/chat/hooks/agentStreamWarningController.ts" "src/components/agent/chat/hooks/agentStreamWarningController.test.ts" "src/components/agent/chat/hooks/agentStreamErrorController.ts" "src/components/agent/chat/hooks/agentStreamErrorController.test.ts" "src/components/agent/chat/hooks/agentStreamCompletionController.ts" "src/components/agent/chat/hooks/agentStreamCompletionController.test.ts" "src/components/agent/chat/hooks/agentStreamThinkingDeltaController.ts" "src/components/agent/chat/hooks/agentStreamThinkingDeltaController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.ts" "src/components/agent/chat/workspace/knowledge/useWorkspaceKnowledgeRuntime.ts" "src/features/knowledge/KnowledgePage.tsx" "docs/roadmap/agentui/conversation-projection-implementation-plan.md" "docs/exec-plans/agentui-implementation-progress.md"
+```
+
+结果：
+
+- Warning controller / runtime handler：通过，`2` 个测试文件、`17` 个测试通过。
+- Agent stream Phase 3 定向回归：通过，`25` 个测试文件、`109` 个测试通过。
+- ESLint touched files：通过。
+- TypeScript `tsc --noEmit --pretty false`：通过。
+- Diff whitespace check：通过。
+
+附带门禁修复：
+
+- `src/components/agent/chat/workspace/knowledge/useWorkspaceKnowledgeRuntime.ts`：为 `knowledgePackOptions` 显式标注 `InputbarKnowledgePackOption[]`，避免 initial selection fallback 的可选 `status` 被数组推断收窄成必填 string。
+- `src/features/knowledge/KnowledgePage.tsx`：移除过期 `getPackTypeLabel` import，保持当前 `getUserFacingPackTypeLabel` 展示路径。
+
+GUI / E2E 状态：
+
+- 本刀未进入 Playwright；此前已经确认 MCP profile lock 阻塞仍在，且不能使用 `--isolated` 或 kill 用户 Chrome/MCP。
+- 本刀仍是纯前端 stream controller 收口，不改 GUI 壳、Tauri command、Bridge、mock 或用户可见 UI；继续不启动 `verify:gui-smoke`，避免 Rust rebuild 干扰用户观察 CPU / 鼠标繁忙。
+
+下一刀：
+
+1. Playwright MCP 可复用后，优先恢复首页首发、旧会话打开、首 token 的真实性能采集。
+2. 如果继续代码拆分，先盘点 `agentStreamRuntimeHandler` 剩余内部 helper，优先只拆仍影响首字 / 流式错态排查的 current controller plan。
+
+### 2026-05-05：P3 第四十三刀，Agent stream error toast action 收口
+
+已完成：
+
+- 继续扩展 `src/components/agent/chat/hooks/agentStreamErrorController.ts`：
+  - 新增 `applyAgentStreamErrorToastPlan`，统一普通 runtime error 的 `warning / error` toast dispatcher 调用。
+- `agentStreamRuntimeHandler.ts` 的普通 `error` 分支继续变薄：
+  - handler 不再内联 `if (toastPlan.level === "warning")` 判断。
+  - handler 只消费 `errorFailurePlan.toast` 并交给 error controller 执行。
+- `agentStreamErrorController.test.ts` 新增 error toast dispatcher 回归，覆盖 rate limit warning 与普通 error 两条分发路径。
+
+主线收益：
+
+- Phase 3 的普通 runtime error 展示行为继续收敛到 current error controller，handler 不再承担 toast level 分发细节。
+- 后续排查 provider error、rate limit、空 final error 的展示差异时，可以直接测 error / completion controller，而不是进入完整 stream handler。
+- 保留现有行为，不改变 runtime event protocol、Tauri command、Bridge、mock、GUI 壳或用户可见 UI。
+
+已验证：
+
+```bash
+npm exec -- vitest run "src/components/agent/chat/hooks/agentStreamErrorController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.test.ts"
+npm exec -- vitest run "src/components/agent/chat/hooks/agentStreamThinkingDeltaController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeContextController.test.ts" "src/components/agent/chat/hooks/agentStreamArtifactActionController.test.ts" "src/components/agent/chat/hooks/agentStreamToolEventController.test.ts" "src/components/agent/chat/hooks/agentStreamThreadItemController.test.ts" "src/components/agent/chat/hooks/agentStreamQueueController.test.ts" "src/components/agent/chat/hooks/agentStreamWarningController.test.ts" "src/components/agent/chat/hooks/agentStreamErrorController.test.ts" "src/components/agent/chat/hooks/agentStreamToolCompletionSignalController.test.ts" "src/components/agent/chat/hooks/agentStreamCompletionController.test.ts" "src/components/agent/chat/hooks/agentStreamTextRenderFlushController.test.ts" "src/components/agent/chat/hooks/agentStreamTextDeltaController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeStatusController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeMetricsController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.test.ts" "src/components/agent/chat/hooks/agentStreamInactivityController.test.ts" "src/components/agent/chat/hooks/agentStreamTurnEventBinding.test.ts" "src/components/agent/chat/hooks/agentStreamUnknownEventController.test.ts" "src/components/agent/chat/hooks/agentStreamRequestStartController.test.ts" "src/components/agent/chat/hooks/agentStreamListenerReadinessController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitLifecycleController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmissionController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitExecution.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitOpController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitContext.test.ts"
+npx eslint "src/lib/activeContentTarget.ts" "src/components/agent/chat/hooks/agentStreamWarningController.ts" "src/components/agent/chat/hooks/agentStreamWarningController.test.ts" "src/components/agent/chat/hooks/agentStreamErrorController.ts" "src/components/agent/chat/hooks/agentStreamErrorController.test.ts" "src/components/agent/chat/hooks/agentStreamCompletionController.ts" "src/components/agent/chat/hooks/agentStreamCompletionController.test.ts" "src/components/agent/chat/hooks/agentStreamThinkingDeltaController.ts" "src/components/agent/chat/hooks/agentStreamThinkingDeltaController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.ts" "src/components/agent/chat/workspace/knowledge/useWorkspaceKnowledgeRuntime.ts" "src/features/knowledge/KnowledgePage.tsx" --max-warnings 0
+npm run typecheck -- --pretty false
+git diff --check -- "src/lib/activeContentTarget.ts" "src/components/agent/chat/hooks/agentStreamWarningController.ts" "src/components/agent/chat/hooks/agentStreamWarningController.test.ts" "src/components/agent/chat/hooks/agentStreamErrorController.ts" "src/components/agent/chat/hooks/agentStreamErrorController.test.ts" "src/components/agent/chat/hooks/agentStreamCompletionController.ts" "src/components/agent/chat/hooks/agentStreamCompletionController.test.ts" "src/components/agent/chat/hooks/agentStreamThinkingDeltaController.ts" "src/components/agent/chat/hooks/agentStreamThinkingDeltaController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.ts" "src/components/agent/chat/workspace/knowledge/useWorkspaceKnowledgeRuntime.ts" "src/features/knowledge/KnowledgePage.tsx" "docs/roadmap/agentui/conversation-projection-implementation-plan.md" "docs/exec-plans/agentui-implementation-progress.md"
+```
+
+结果：
+
+- Error controller / runtime handler：通过，`2` 个测试文件、`22` 个测试通过。
+- Agent stream Phase 3 定向回归：通过，`25` 个测试文件、`110` 个测试通过。
+- ESLint touched files：通过。
+- TypeScript `tsc --noEmit --pretty false`：通过。
+- Diff whitespace check：通过。
+
+GUI / E2E 状态：
+
+- 本刀未进入 Playwright；此前已经确认 MCP profile lock 阻塞仍在，且不能使用 `--isolated` 或 kill 用户 Chrome/MCP。
+- 本刀仍是纯前端 stream controller 收口，不改 GUI 壳、Tauri command、Bridge、mock 或用户可见 UI；继续不启动 `verify:gui-smoke`，避免 Rust rebuild 干扰用户观察 CPU / 鼠标繁忙。
+
+下一刀：
+
+1. Playwright MCP 可复用后，优先恢复首页首发、旧会话打开、首 token 的真实性能采集。
+2. 如果继续代码拆分，先盘点 `agentStreamRuntimeHandler` 剩余内部 helper，优先只拆仍影响首字 / 流式错态排查的 current controller plan。
+
+### 2026-05-05：P3 第四十四刀，Agent stream missing final failure plan 收口
+
+已完成：
+
+- 继续扩展 `src/components/agent/chat/hooks/agentStreamCompletionController.ts`：
+  - 导出 `AgentStreamMissingFinalReplyPlan`。
+  - 新增 `buildAgentStreamMissingFinalReplyFailurePlan`，统一 missing final reply failure 的 `errorMessage / queuedTurnIds / requestLogPayload / toastMessage / usage`。
+  - `buildAgentStreamFinalDonePlan` 与 `buildAgentStreamEmptyFinalErrorPlan` 的失败分支改为复用 missing final failure plan。
+- `agentStreamRuntimeHandler.ts` 的 `finalizeMissingFinalReplyFailure` 继续变薄：
+  - 不再内联 `queuedTurnId ? [queuedTurnId] : []`。
+  - 不再内联 `chat_request_error` payload。
+  - 不再直接引用空最终回复 toast 常量，只消费 completion controller 产出的 toast message。
+- `agentStreamCompletionController.test.ts` 新增 missing final failure plan 回归，覆盖 queued turn 清理、request log payload、toast message 与 usage 保留。
+
+主线收益：
+
+- Phase 3 的空最终回复失败路径继续收敛到 current completion controller；`final_done` 与 empty-final error 的失败副作用参数现在走同一个计划。
+- 后续排查“模型无最终文本 / 工具有产物但无 summary / 空 final 误报失败”时，可以直接测 completion controller，不必进入完整 stream handler。
+- 保留现有行为，不改变 runtime event protocol、Tauri command、Bridge、mock、GUI 壳或用户可见 UI。
+
+已验证：
+
+```bash
+npm exec -- vitest run "src/components/agent/chat/hooks/agentStreamCompletionController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.test.ts"
+npm exec -- vitest run "src/components/agent/chat/hooks/agentStreamThinkingDeltaController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeContextController.test.ts" "src/components/agent/chat/hooks/agentStreamArtifactActionController.test.ts" "src/components/agent/chat/hooks/agentStreamToolEventController.test.ts" "src/components/agent/chat/hooks/agentStreamThreadItemController.test.ts" "src/components/agent/chat/hooks/agentStreamQueueController.test.ts" "src/components/agent/chat/hooks/agentStreamWarningController.test.ts" "src/components/agent/chat/hooks/agentStreamErrorController.test.ts" "src/components/agent/chat/hooks/agentStreamToolCompletionSignalController.test.ts" "src/components/agent/chat/hooks/agentStreamCompletionController.test.ts" "src/components/agent/chat/hooks/agentStreamTextRenderFlushController.test.ts" "src/components/agent/chat/hooks/agentStreamTextDeltaController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeStatusController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeMetricsController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.test.ts" "src/components/agent/chat/hooks/agentStreamInactivityController.test.ts" "src/components/agent/chat/hooks/agentStreamTurnEventBinding.test.ts" "src/components/agent/chat/hooks/agentStreamUnknownEventController.test.ts" "src/components/agent/chat/hooks/agentStreamRequestStartController.test.ts" "src/components/agent/chat/hooks/agentStreamListenerReadinessController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitLifecycleController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmissionController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitExecution.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitOpController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitContext.test.ts"
+npx eslint "src/lib/activeContentTarget.ts" "src/components/agent/chat/hooks/agentStreamWarningController.ts" "src/components/agent/chat/hooks/agentStreamWarningController.test.ts" "src/components/agent/chat/hooks/agentStreamErrorController.ts" "src/components/agent/chat/hooks/agentStreamErrorController.test.ts" "src/components/agent/chat/hooks/agentStreamCompletionController.ts" "src/components/agent/chat/hooks/agentStreamCompletionController.test.ts" "src/components/agent/chat/hooks/agentStreamThinkingDeltaController.ts" "src/components/agent/chat/hooks/agentStreamThinkingDeltaController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.ts" "src/components/agent/chat/workspace/knowledge/useWorkspaceKnowledgeRuntime.ts" "src/features/knowledge/KnowledgePage.tsx" --max-warnings 0
+npm run typecheck -- --pretty false
+git diff --check -- "src/lib/activeContentTarget.ts" "src/components/agent/chat/hooks/agentStreamWarningController.ts" "src/components/agent/chat/hooks/agentStreamWarningController.test.ts" "src/components/agent/chat/hooks/agentStreamErrorController.ts" "src/components/agent/chat/hooks/agentStreamErrorController.test.ts" "src/components/agent/chat/hooks/agentStreamCompletionController.ts" "src/components/agent/chat/hooks/agentStreamCompletionController.test.ts" "src/components/agent/chat/hooks/agentStreamThinkingDeltaController.ts" "src/components/agent/chat/hooks/agentStreamThinkingDeltaController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.ts" "src/components/agent/chat/workspace/knowledge/useWorkspaceKnowledgeRuntime.ts" "src/features/knowledge/KnowledgePage.tsx" "docs/roadmap/agentui/conversation-projection-implementation-plan.md" "docs/exec-plans/agentui-implementation-progress.md"
+```
+
+结果：
+
+- Completion controller / runtime handler：通过，`2` 个测试文件、`21` 个测试通过。
+- Agent stream Phase 3 定向回归：通过，`25` 个测试文件、`111` 个测试通过。
+- ESLint touched files：通过。
+- TypeScript `tsc --noEmit --pretty false`：通过。
+- Diff whitespace check：通过。
+
+GUI / E2E 状态：
+
+- 本刀未进入 Playwright；此前已经确认 MCP profile lock 阻塞仍在，且不能使用 `--isolated` 或 kill 用户 Chrome/MCP。
+- 本刀仍是纯前端 stream controller 收口，不改 GUI 壳、Tauri command、Bridge、mock 或用户可见 UI；继续不启动 `verify:gui-smoke`，避免 Rust rebuild 干扰用户观察 CPU / 鼠标繁忙。
+
+下一刀：
+
+1. Playwright MCP 可复用后，优先恢复首页首发、旧会话打开、首 token 的真实性能采集。
+2. 如果继续代码拆分，优先盘点 `markQueuedDraftState` 是否还能以 queued draft controller plan 形式收口。
+
+### 2026-05-05：P3 第四十五刀，Agent stream queued draft state plan 收口
+
+已完成：
+
+- 继续扩展 `src/components/agent/chat/hooks/agentStreamQueueController.ts`：
+  - 新增 `buildAgentStreamQueuedDraftStatePlan`，统一 queued draft 进入排队态时的 message patch、active stream 清理、optimistic item / turn 清理与 sending 状态计划。
+  - 继续复用 `buildAgentStreamQueuedDraftMessagePatch` 生成排队 runtime status。
+- `agentStreamRuntimeHandler.ts` 的 `markQueuedDraftState` 继续变薄：
+  - handler 不再内联 queued draft 的 `clearActiveStreamIfMatch / clearOptimisticItem / clearOptimisticTurn / setIsSending(false)` 决策。
+  - handler 只消费 queue controller 产出的状态计划并执行副作用。
+- `agentStreamQueueController.test.ts` 新增 queued draft state plan 回归，覆盖 message patch 和四个状态副作用开关。
+
+主线收益：
+
+- Phase 3 的排队态转换继续收敛到 current queue controller；首页首发或旧会话中遇到 busy queue 时，queued draft 状态语义可独立测试。
+- 后续排查“点击发送后卡在 loading / optimistic 消息残留 / queued draft 没有变为排队态”时，可以直接测 queue controller，不必进入完整 stream handler。
+- 保留现有行为，不改变 runtime event protocol、Tauri command、Bridge、mock、GUI 壳或用户可见 UI。
+
+已验证：
+
+```bash
+npm exec -- vitest run "src/components/agent/chat/hooks/agentStreamQueueController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.test.ts"
+npm exec -- vitest run "src/components/agent/chat/hooks/agentStreamThinkingDeltaController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeContextController.test.ts" "src/components/agent/chat/hooks/agentStreamArtifactActionController.test.ts" "src/components/agent/chat/hooks/agentStreamToolEventController.test.ts" "src/components/agent/chat/hooks/agentStreamThreadItemController.test.ts" "src/components/agent/chat/hooks/agentStreamQueueController.test.ts" "src/components/agent/chat/hooks/agentStreamWarningController.test.ts" "src/components/agent/chat/hooks/agentStreamErrorController.test.ts" "src/components/agent/chat/hooks/agentStreamToolCompletionSignalController.test.ts" "src/components/agent/chat/hooks/agentStreamCompletionController.test.ts" "src/components/agent/chat/hooks/agentStreamTextRenderFlushController.test.ts" "src/components/agent/chat/hooks/agentStreamTextDeltaController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeStatusController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeMetricsController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.test.ts" "src/components/agent/chat/hooks/agentStreamInactivityController.test.ts" "src/components/agent/chat/hooks/agentStreamTurnEventBinding.test.ts" "src/components/agent/chat/hooks/agentStreamUnknownEventController.test.ts" "src/components/agent/chat/hooks/agentStreamRequestStartController.test.ts" "src/components/agent/chat/hooks/agentStreamListenerReadinessController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitLifecycleController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmissionController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitExecution.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitOpController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitContext.test.ts"
+npx eslint "src/lib/activeContentTarget.ts" "src/components/agent/chat/hooks/agentStreamQueueController.ts" "src/components/agent/chat/hooks/agentStreamQueueController.test.ts" "src/components/agent/chat/hooks/agentStreamWarningController.ts" "src/components/agent/chat/hooks/agentStreamWarningController.test.ts" "src/components/agent/chat/hooks/agentStreamErrorController.ts" "src/components/agent/chat/hooks/agentStreamErrorController.test.ts" "src/components/agent/chat/hooks/agentStreamCompletionController.ts" "src/components/agent/chat/hooks/agentStreamCompletionController.test.ts" "src/components/agent/chat/hooks/agentStreamThinkingDeltaController.ts" "src/components/agent/chat/hooks/agentStreamThinkingDeltaController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.ts" "src/components/agent/chat/workspace/knowledge/useWorkspaceKnowledgeRuntime.ts" "src/features/knowledge/KnowledgePage.tsx" --max-warnings 0
+npm run typecheck -- --pretty false
+git diff --check -- "src/lib/activeContentTarget.ts" "src/components/agent/chat/hooks/agentStreamQueueController.ts" "src/components/agent/chat/hooks/agentStreamQueueController.test.ts" "src/components/agent/chat/hooks/agentStreamWarningController.ts" "src/components/agent/chat/hooks/agentStreamWarningController.test.ts" "src/components/agent/chat/hooks/agentStreamErrorController.ts" "src/components/agent/chat/hooks/agentStreamErrorController.test.ts" "src/components/agent/chat/hooks/agentStreamCompletionController.ts" "src/components/agent/chat/hooks/agentStreamCompletionController.test.ts" "src/components/agent/chat/hooks/agentStreamThinkingDeltaController.ts" "src/components/agent/chat/hooks/agentStreamThinkingDeltaController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.ts" "src/components/agent/chat/workspace/knowledge/useWorkspaceKnowledgeRuntime.ts" "src/features/knowledge/KnowledgePage.tsx" "docs/roadmap/agentui/conversation-projection-implementation-plan.md" "docs/exec-plans/agentui-implementation-progress.md"
+```
+
+结果：
+
+- Queue controller / runtime handler：通过，`2` 个测试文件、`16` 个测试通过。
+- Agent stream Phase 3 定向回归：通过，`25` 个测试文件、`112` 个测试通过。
+- ESLint touched files：通过。
+- TypeScript `tsc --noEmit --pretty false`：通过。
+- Diff whitespace check：通过。
+
+GUI / E2E 状态：
+
+- 本刀未进入 Playwright；此前已经确认 MCP profile lock 阻塞仍在，且不能使用 `--isolated` 或 kill 用户 Chrome/MCP。
+- 本刀仍是纯前端 stream controller 收口，不改 GUI 壳、Tauri command、Bridge、mock 或用户可见 UI；继续不启动 `verify:gui-smoke`，避免 Rust rebuild 干扰用户观察 CPU / 鼠标繁忙。
+
+下一刀：
+
+1. Playwright MCP 可复用后，优先恢复首页首发、旧会话打开、首 token 的真实性能采集。
+2. 如果继续代码拆分，优先盘点 `finishRequestLog` 或 timer cleanup helper 是否还有可测 controller plan。
+
+### 2026-05-05：P3 第四十六刀，Agent stream request log finish plan 收口
+
+已完成：
+
+- 新增 `src/components/agent/chat/hooks/agentStreamRequestLogController.ts`：
+  - 新增 `buildAgentStreamRequestLogFinishPlan`，统一 request log finish 的重复完成 guard、`duration` 计算与 `activityLogger.updateLog` payload 组装。
+  - 明确 `shouldUpdate / nextRequestFinished / logId / updatePayload`，让 request log 完成语义可单测。
+- `agentStreamRuntimeHandler.ts` 的 `finishRequestLog` 继续变薄：
+  - handler 不再内联 `requestLogId`、`requestFinished` 与 `Date.now() - requestStartedAt` 决策。
+  - handler 只消费 request log controller 产出的计划，并执行 `activityLogger.updateLog` 副作用。
+- 新增 `agentStreamRequestLogController.test.ts`，覆盖无 log id、已完成去重、success duration、error payload 四类分支。
+
+主线收益：
+
+- Phase 3 的 request log 完成链路继续收敛到 current controller；首字/流式排查时能把“完成态记录是否重复更新”和 runtime event 处理分开测。
+- 后续排查 request log duration 异常、重复完成、错误完成状态不一致时，可以直接测 request log controller，不必进入完整 stream handler。
+- 保留现有行为，不改变 runtime event protocol、Tauri command、Bridge、mock、GUI 壳或用户可见 UI。
+
+已验证：
+
+```bash
+npm exec -- vitest run "src/components/agent/chat/hooks/agentStreamRequestLogController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.test.ts"
+npm exec -- vitest run "src/components/agent/chat/hooks/agentStreamRequestLogController.test.ts" "src/components/agent/chat/hooks/agentStreamThinkingDeltaController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeContextController.test.ts" "src/components/agent/chat/hooks/agentStreamArtifactActionController.test.ts" "src/components/agent/chat/hooks/agentStreamToolEventController.test.ts" "src/components/agent/chat/hooks/agentStreamThreadItemController.test.ts" "src/components/agent/chat/hooks/agentStreamQueueController.test.ts" "src/components/agent/chat/hooks/agentStreamWarningController.test.ts" "src/components/agent/chat/hooks/agentStreamErrorController.test.ts" "src/components/agent/chat/hooks/agentStreamToolCompletionSignalController.test.ts" "src/components/agent/chat/hooks/agentStreamCompletionController.test.ts" "src/components/agent/chat/hooks/agentStreamTextRenderFlushController.test.ts" "src/components/agent/chat/hooks/agentStreamTextDeltaController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeStatusController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeMetricsController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.test.ts" "src/components/agent/chat/hooks/agentStreamInactivityController.test.ts" "src/components/agent/chat/hooks/agentStreamTurnEventBinding.test.ts" "src/components/agent/chat/hooks/agentStreamUnknownEventController.test.ts" "src/components/agent/chat/hooks/agentStreamRequestStartController.test.ts" "src/components/agent/chat/hooks/agentStreamListenerReadinessController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitLifecycleController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmissionController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitExecution.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitOpController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitContext.test.ts"
+npx eslint "src/components/agent/chat/hooks/agentStreamRequestLogController.ts" "src/components/agent/chat/hooks/agentStreamRequestLogController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.ts" --max-warnings 0
+npm exec -- tsc --noEmit --pretty false --skipLibCheck --target ES2020 --module ESNext --moduleResolution bundler --jsx react-jsx --lib DOM,ES2020 "src/components/agent/chat/hooks/agentStreamRequestLogController.ts" "src/components/agent/chat/hooks/agentStreamRequestLogController.test.ts"
+git diff --check -- "src/components/agent/chat/hooks/agentStreamRequestLogController.ts" "src/components/agent/chat/hooks/agentStreamRequestLogController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.ts" "docs/roadmap/agentui/conversation-projection-implementation-plan.md"
+```
+
+结果：
+
+- Request log controller / runtime handler：通过，`2` 个测试文件、`15` 个测试通过。
+- Agent stream Phase 3 定向回归：通过，`26` 个测试文件、`116` 个测试通过。
+- ESLint touched files：通过。
+- Targeted TypeScript check：通过。
+- Diff whitespace check：通过。
+
+未完成验证：
+
+- 全量 `npm run typecheck -- --pretty false` 本轮运行超过 `10` 分钟仍无输出；为避免继续占用本机 CPU，已终止本轮自行启动的 `tsc` 进程。上一刀全量 typecheck 有通过记录，本刀额外补了 touched file 的 targeted TypeScript check。
+- 本刀未进入 Playwright；仍按既有规则不使用 `--isolated`，也不 kill 用户 Chrome/MCP。当前改动是纯前端 stream controller 收口，不改 GUI 壳、Tauri command、Bridge、mock 或用户可见 UI。
+
+下一刀：
+
+1. Playwright MCP 可复用后，优先恢复首页首发、旧会话打开、首 token 的真实性能采集。
+2. 如果继续代码拆分，只看 timer cleanup helper；不要再扩大到无关 GUI / Bridge 面。
+
+### 2026-05-05：P3 第四十七刀，Agent stream timer schedule plan 收口
+
+已完成：
+
+- 新增 `src/components/agent/chat/hooks/agentStreamTimerController.ts`：
+  - 新增 `buildAgentStreamTimerClearPlan`，统一 timer clear 的状态计划。
+  - 新增 `buildAgentStreamTextRenderTimerSchedulePlan`，统一首个可见文本立即 flush、已有 pending timer 跳过、后续 32ms 低频 flush 的调度决策。
+  - 新增 `buildAgentStreamQueuedDraftCleanupTimerSchedulePlan` 与 `buildAgentStreamQueuedDraftCleanupTimerFirePlan`，统一 queued draft cleanup 的旧 timer 清理、1800ms grace 调度与触发时 cleanup guard。
+- `agentStreamRuntimeHandler.ts` 的 timer helper 继续变薄：
+  - `clearQueuedDraftCleanupTimer` / `clearPendingTextRenderTimer` 不再内联是否清理的判断。
+  - `scheduleTextRenderFlush` 不再内联首个可见文本 flush 与 pending timer guard。
+  - `scheduleQueuedDraftCleanup` 不再内联 queued draft cleanup 的 schedule/fire guard。
+- 新增 `agentStreamTimerController.test.ts`，覆盖 timer clear、text render flush_now/skip/schedule、queued cleanup schedule/fire 分支。
+
+主线收益：
+
+- Phase 3 的 text render timer 与 queued draft cleanup timer 决策继续收敛到 current controller；首字慢或 queued draft 卡住时可以直接区分“调度策略”与 handler 副作用执行。
+- 后续排查“首字为什么等 32ms / 为什么排队草稿 1800ms 后消失或残留”时，可以直接测 timer controller，不必进入完整 stream handler。
+- 保留现有行为，不改变 runtime event protocol、Tauri command、Bridge、mock、GUI 壳或用户可见 UI。
+
+待验证：
+
+- 先跑 timer controller / runtime handler 定向回归。
+- 再跑 Phase 3 stream controller 定向回归、ESLint、targeted TypeScript check 与 diff whitespace check。
+
+验证结果：
+
+```bash
+npm exec -- vitest run "src/components/agent/chat/hooks/agentStreamTimerController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.test.ts"
+npm exec -- vitest run "src/components/agent/chat/hooks/agentStreamTimerController.test.ts" "src/components/agent/chat/hooks/agentStreamRequestLogController.test.ts" "src/components/agent/chat/hooks/agentStreamThinkingDeltaController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeContextController.test.ts" "src/components/agent/chat/hooks/agentStreamArtifactActionController.test.ts" "src/components/agent/chat/hooks/agentStreamToolEventController.test.ts" "src/components/agent/chat/hooks/agentStreamThreadItemController.test.ts" "src/components/agent/chat/hooks/agentStreamQueueController.test.ts" "src/components/agent/chat/hooks/agentStreamWarningController.test.ts" "src/components/agent/chat/hooks/agentStreamErrorController.test.ts" "src/components/agent/chat/hooks/agentStreamToolCompletionSignalController.test.ts" "src/components/agent/chat/hooks/agentStreamCompletionController.test.ts" "src/components/agent/chat/hooks/agentStreamTextRenderFlushController.test.ts" "src/components/agent/chat/hooks/agentStreamTextDeltaController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeStatusController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeMetricsController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.test.ts" "src/components/agent/chat/hooks/agentStreamInactivityController.test.ts" "src/components/agent/chat/hooks/agentStreamTurnEventBinding.test.ts" "src/components/agent/chat/hooks/agentStreamUnknownEventController.test.ts" "src/components/agent/chat/hooks/agentStreamRequestStartController.test.ts" "src/components/agent/chat/hooks/agentStreamListenerReadinessController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitLifecycleController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmissionController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitExecution.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitOpController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitContext.test.ts"
+npx eslint "src/components/agent/chat/hooks/agentStreamTimerController.ts" "src/components/agent/chat/hooks/agentStreamTimerController.test.ts" "src/components/agent/chat/hooks/agentStreamRequestLogController.ts" "src/components/agent/chat/hooks/agentStreamRequestLogController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.ts" --max-warnings 0
+npm exec -- tsc --noEmit --pretty false --skipLibCheck --target ES2020 --module ESNext --moduleResolution bundler --jsx react-jsx --lib DOM,ES2020 "src/components/agent/chat/hooks/agentStreamTimerController.ts" "src/components/agent/chat/hooks/agentStreamTimerController.test.ts" "src/components/agent/chat/hooks/agentStreamRequestLogController.ts" "src/components/agent/chat/hooks/agentStreamRequestLogController.test.ts"
+git diff --check -- "src/components/agent/chat/hooks/agentStreamTimerController.ts" "src/components/agent/chat/hooks/agentStreamTimerController.test.ts" "src/components/agent/chat/hooks/agentStreamRequestLogController.ts" "src/components/agent/chat/hooks/agentStreamRequestLogController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.ts" "docs/roadmap/agentui/conversation-projection-implementation-plan.md" "docs/exec-plans/agentui-implementation-progress.md"
+```
+
+结果：
+
+- Timer controller / runtime handler：通过，`2` 个测试文件、`17` 个测试通过。
+- Agent stream Phase 3 定向回归：通过，`27` 个测试文件、`122` 个测试通过。
+- ESLint touched files：通过。
+- Targeted TypeScript check：通过。
+- Diff whitespace check：通过。
+
+未完成验证：
+
+- 本刀仍未进入 Playwright；这是纯前端 stream controller 收口，不改变 GUI 可见行为，也不碰 Tauri command / Bridge / mock。
+- 全量 `npm run typecheck` 上一刀已记录超时风险；本刀继续使用 touched file targeted TypeScript check，避免再次长时间占用 CPU。
+
+下一刀：
+
+1. 优先恢复 Playwright MCP 真实性能采集，覆盖首页首发、旧会话打开和首 token 分段。
+2. 若仍需要代码收口，只看 missing final / failed timeline helper 的执行层；不继续扩散到无关 Workspace 或 Bridge 面。
+
+### 2026-05-05：P3 第四十八刀，Missing final / failed timeline 执行层计划收口
+
+已完成：
+
+- 继续扩展 `src/components/agent/chat/hooks/agentStreamCompletionController.ts`：
+  - 新增 `buildAgentStreamMissingFinalReplyFailureSideEffectPlan`，统一 missing final failure 的 pending text timer 清理、failed timeline 标记、queued turn 清理、request log、observer error、toast、active stream 与 listener dispose 执行计划。
+- 继续扩展 `src/components/agent/chat/hooks/agentStreamErrorController.ts`：
+  - 新增 `buildAgentStreamFailedTimelineStatePlan`，统一 failed timeline 更新所需的 session、pending turn/item、error 与 failedAt 参数。
+- `agentStreamRuntimeHandler.ts` 的失败路径 helper 继续变薄：
+  - `finalizeMissingFinalReplyFailure` 不再直接读取 failure plan 的全部字段来拼执行语义，而是消费 completion controller 产出的 side-effect plan。
+  - `markFailedTimelineState` 不再内联 failed timeline 参数组装，而是消费 error controller 产出的 state plan。
+- 补充 controller 单测：
+  - `agentStreamCompletionController.test.ts` 覆盖 missing final failure side-effect plan。
+  - `agentStreamErrorController.test.ts` 覆盖 failed timeline state plan。
+
+主线收益：
+
+- Phase 3 的失败完成路径继续收敛到 current controller；空 final、普通 error、timeline failed state 的执行参数不再散落在 runtime handler 内。
+- 后续排查“空 final 误报失败 / failed timeline 未落态 / request log 和 toast 不一致”时，可以直接测 completion/error controller，不必进入完整 stream handler。
+- 保留现有行为，不改变 runtime event protocol、Tauri command、Bridge、mock、GUI 壳或用户可见 UI。
+
+待验证：
+
+- 先跑 completion/error controller 与 runtime handler 定向回归。
+- 再跑 Phase 3 stream controller 定向回归、ESLint、targeted TypeScript check 与 diff whitespace check。
+
+验证结果：
+
+```bash
+npm exec -- vitest run "src/components/agent/chat/hooks/agentStreamCompletionController.test.ts" "src/components/agent/chat/hooks/agentStreamErrorController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.test.ts"
+npm exec -- vitest run "src/components/agent/chat/hooks/agentStreamTimerController.test.ts" "src/components/agent/chat/hooks/agentStreamRequestLogController.test.ts" "src/components/agent/chat/hooks/agentStreamThinkingDeltaController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeContextController.test.ts" "src/components/agent/chat/hooks/agentStreamArtifactActionController.test.ts" "src/components/agent/chat/hooks/agentStreamToolEventController.test.ts" "src/components/agent/chat/hooks/agentStreamThreadItemController.test.ts" "src/components/agent/chat/hooks/agentStreamQueueController.test.ts" "src/components/agent/chat/hooks/agentStreamWarningController.test.ts" "src/components/agent/chat/hooks/agentStreamErrorController.test.ts" "src/components/agent/chat/hooks/agentStreamToolCompletionSignalController.test.ts" "src/components/agent/chat/hooks/agentStreamCompletionController.test.ts" "src/components/agent/chat/hooks/agentStreamTextRenderFlushController.test.ts" "src/components/agent/chat/hooks/agentStreamTextDeltaController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeStatusController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeMetricsController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.test.ts" "src/components/agent/chat/hooks/agentStreamInactivityController.test.ts" "src/components/agent/chat/hooks/agentStreamTurnEventBinding.test.ts" "src/components/agent/chat/hooks/agentStreamUnknownEventController.test.ts" "src/components/agent/chat/hooks/agentStreamRequestStartController.test.ts" "src/components/agent/chat/hooks/agentStreamListenerReadinessController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitLifecycleController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmissionController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitExecution.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitOpController.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitContext.test.ts"
+npx eslint "src/components/agent/chat/hooks/agentStreamCompletionController.ts" "src/components/agent/chat/hooks/agentStreamCompletionController.test.ts" "src/components/agent/chat/hooks/agentStreamErrorController.ts" "src/components/agent/chat/hooks/agentStreamErrorController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.ts" "src/components/agent/chat/hooks/agentStreamTimerController.ts" "src/components/agent/chat/hooks/agentStreamTimerController.test.ts" "src/components/agent/chat/hooks/agentStreamRequestLogController.ts" "src/components/agent/chat/hooks/agentStreamRequestLogController.test.ts" --max-warnings 0
+npm exec -- tsc --project "/tmp/lime-agentstream-targeted-tsconfig.json"
+git diff --check -- "src/components/agent/chat/hooks/agentStreamCompletionController.ts" "src/components/agent/chat/hooks/agentStreamCompletionController.test.ts" "src/components/agent/chat/hooks/agentStreamErrorController.ts" "src/components/agent/chat/hooks/agentStreamErrorController.test.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.ts" "src/components/agent/chat/hooks/agentStreamTimerController.ts" "src/components/agent/chat/hooks/agentStreamTimerController.test.ts" "src/components/agent/chat/hooks/agentStreamRequestLogController.ts" "src/components/agent/chat/hooks/agentStreamRequestLogController.test.ts" "docs/roadmap/agentui/conversation-projection-implementation-plan.md" "docs/exec-plans/agentui-implementation-progress.md"
+```
+
+结果：
+
+- Completion / error controller / runtime handler：通过，`3` 个测试文件、`34` 个测试通过。
+- Agent stream Phase 3 定向回归：通过，`27` 个测试文件、`124` 个测试通过。
+- ESLint touched files：通过。
+- Targeted TypeScript check：通过；使用 `/tmp/lime-agentstream-targeted-tsconfig.json` 继承仓库 `tsconfig.json` 并额外包含 `src/vite-env.d.ts`，避免 CLI 单文件检查丢失 `@/*` 与 `ImportMeta.env` 类型。
+- Diff whitespace check：通过。
+
+未完成验证：
+
+- 本刀未进入 Playwright；这是纯前端 stream controller 收口，不改变 GUI 可见行为，也不碰 Tauri command / Bridge / mock。
+- 全量 `npm run typecheck` 本轮未重跑；上一刀已记录长时间无输出风险，本刀用贴边界 targeted TypeScript check 验证 touched controller。
+
+下一刀：
+
+1. 优先恢复 Playwright MCP 真实性能采集，覆盖首页首发、旧会话打开和首 token 分段。
+2. 若继续代码收口，先盘点 `agentStreamRuntimeHandler.ts` 剩余 helper 是否真的阻塞 Phase 3；否则进入 E2E 或 Phase 4 render projection 验收。

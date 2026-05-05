@@ -89,6 +89,11 @@ import {
 } from "@/components/agent/chat/skill-selection/slashEntryUsage";
 import { buildServiceSkillLaunchPrefillSummary } from "@/components/agent/chat/service-skills/serviceSkillLaunchPrefill";
 import { resolveSceneAppsPageEntryParams } from "@/lib/sceneapp";
+import { getProject } from "@/lib/api/project";
+import {
+  CapabilityDraftPanel,
+  WorkspaceRegisteredSkillsPanel,
+} from "@/features/capability-drafts";
 
 interface SkillsWorkspacePageProps {
   onNavigate: (page: Page, params?: PageParams) => void;
@@ -267,6 +272,14 @@ export function SkillsWorkspacePage({
   const [consumedScaffoldRequestKey, setConsumedScaffoldRequestKey] = useState<
     number | null
   >(null);
+  const [capabilityDraftWorkspaceRoot, setCapabilityDraftWorkspaceRoot] =
+    useState<string | null>(null);
+  const [capabilityDraftProjectLoading, setCapabilityDraftProjectLoading] =
+    useState(false);
+  const [capabilityDraftProjectError, setCapabilityDraftProjectError] =
+    useState<string | null>(null);
+  const [registeredSkillsRefreshSignal, setRegisteredSkillsRefreshSignal] =
+    useState(0);
   const lastHandledScaffoldRequestKeyRef = useRef<number | null>(null);
 
   const installedLocalSkills = useMemo(() => {
@@ -311,6 +324,8 @@ export function SkillsWorkspacePage({
     [selectedGroupKey, skillGroups],
   );
   const creationProjectId = pageParams?.creationProjectId?.trim() || undefined;
+  const highlightedCapabilityDraftId =
+    pageParams?.highlightCapabilityDraftId?.trim() || undefined;
   const scaffoldCreationReplay = useMemo(() => {
     if (!pageParams?.initialScaffoldDraft) {
       return undefined;
@@ -361,6 +376,49 @@ export function SkillsWorkspacePage({
     lastHandledScaffoldRequestKeyRef.current = requestKey;
     setAdvancedManagerOpen(true);
   }, [pageParams?.initialScaffoldDraft, pageParams?.initialScaffoldRequestKey]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!creationProjectId) {
+      setCapabilityDraftWorkspaceRoot(null);
+      setCapabilityDraftProjectError(null);
+      setCapabilityDraftProjectLoading(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setCapabilityDraftProjectLoading(true);
+    setCapabilityDraftProjectError(null);
+    void getProject(creationProjectId)
+      .then((project) => {
+        if (cancelled) {
+          return;
+        }
+        const rootPath = project?.rootPath?.trim() || null;
+        setCapabilityDraftWorkspaceRoot(rootPath);
+        setCapabilityDraftProjectError(
+          rootPath ? null : "当前项目没有可用的本地目录",
+        );
+      })
+      .catch((error) => {
+        if (cancelled) {
+          return;
+        }
+        setCapabilityDraftWorkspaceRoot(null);
+        setCapabilityDraftProjectError(String(error));
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setCapabilityDraftProjectLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [creationProjectId]);
 
   const handleBringScaffoldToCreation = useCallback(
     (draft: SkillScaffoldDraft) => {
@@ -1498,6 +1556,23 @@ export function SkillsWorkspacePage({
                   </div>
                 )}
               </section>
+
+              <CapabilityDraftPanel
+                workspaceRoot={capabilityDraftWorkspaceRoot}
+                projectPending={capabilityDraftProjectLoading}
+                projectError={capabilityDraftProjectError}
+                highlightedDraftId={highlightedCapabilityDraftId}
+                onRegisteredSkillsChanged={() =>
+                  setRegisteredSkillsRefreshSignal((previous) => previous + 1)
+                }
+              />
+
+              <WorkspaceRegisteredSkillsPanel
+                workspaceRoot={capabilityDraftWorkspaceRoot}
+                projectPending={capabilityDraftProjectLoading}
+                projectError={capabilityDraftProjectError}
+                refreshSignal={registeredSkillsRefreshSignal}
+              />
 
               <section
                 className="rounded-[28px] border border-slate-200/80 bg-slate-50 p-5 shadow-sm shadow-slate-950/5"

@@ -59,6 +59,7 @@ struct ResolvedRuntimeProviderSelection {
     estimated_cost_class: Option<String>,
     pricing: Option<ModelPricing>,
     capability_gap: Option<String>,
+    capability_gap_source: Option<String>,
     fallback_chain: Vec<String>,
 }
 
@@ -2399,6 +2400,20 @@ fn build_limit_state(
     }
 }
 
+fn runtime_limit_status_for_selection(
+    selection: &ResolvedRuntimeProviderSelection,
+) -> &'static str {
+    if selection.capability_gap.is_some()
+        && selection.capability_gap_source.as_deref() == Some("explicit_model_lock")
+    {
+        "user_locked_capability_gap"
+    } else if selection.candidate_count <= 1 {
+        "single_candidate_only"
+    } else {
+        "normal"
+    }
+}
+
 fn build_cost_state(
     selection: Option<&ResolvedRuntimeProviderSelection>,
     fallback_cost_class: Option<String>,
@@ -2472,7 +2487,7 @@ fn build_permission_state(
         notes.push("当前 task profile 未声明 permissionProfileKeys。".to_string());
     } else {
         notes.push(
-            "permissionProfileKeys 已进入运行时判定摘要；本阶段只记录声明，不执行真实授权或阻断。"
+            "permissionProfileKeys 已进入运行时判定摘要；需确认权限会在模型执行前阻断，直到真实确认 resolved。"
                 .to_string(),
         );
     }
@@ -2929,18 +2944,24 @@ async fn build_runtime_request_provider_config_from_preference(
     let locked_model_capability_gap = resolved_model_capability_gap
         .clone()
         .filter(|_| honor_explicit_model_lock);
-    let capability_gap = if vision_gap {
-        Some("vision_candidate_missing".to_string())
+    let (capability_gap, capability_gap_source) = if vision_gap {
+        (
+            Some("vision_candidate_missing".to_string()),
+            Some("vision_input".to_string()),
+        )
     } else if reasoning_gap {
-        Some("reasoning_candidate_missing".to_string())
-    } else if locked_model_capability_gap.is_some() {
-        locked_model_capability_gap
-    } else if resolved_model_capability_gap.is_some() {
-        resolved_model_capability_gap
-    } else if runtime_capability_gap.is_some() {
-        runtime_capability_gap
+        (
+            Some("reasoning_candidate_missing".to_string()),
+            Some("reasoning_input".to_string()),
+        )
+    } else if let Some(gap) = locked_model_capability_gap {
+        (Some(gap), Some("explicit_model_lock".to_string()))
+    } else if let Some(gap) = resolved_model_capability_gap {
+        (Some(gap), Some("resolved_model".to_string()))
+    } else if let Some(gap) = runtime_capability_gap {
+        (Some(gap), Some("candidate_catalog".to_string()))
     } else {
-        None
+        (None, None)
     };
 
     Ok(ResolvedRuntimeProviderSelection {
@@ -2951,6 +2972,7 @@ async fn build_runtime_request_provider_config_from_preference(
         estimated_cost_class,
         pricing: model_meta.and_then(|model| model.pricing.clone()),
         capability_gap,
+        capability_gap_source,
         fallback_chain,
         provider_config: ConfigureProviderRequest {
             provider_id: Some(context.provider_selector.clone()),
@@ -3189,17 +3211,22 @@ pub(super) async fn resolve_runtime_request_provider_resolution(
         )
         .await?;
         let limit_state = build_limit_state(
-            if selection.candidate_count <= 1 {
-                "single_candidate_only"
-            } else {
-                "normal"
-            },
+            runtime_limit_status_for_selection(&selection),
             selection.candidate_count,
             true,
             false,
             oem_locked,
             selection.capability_gap.clone(),
-            vec!["当前回合显式指定了 provider/model 偏好。".to_string()],
+            {
+                let mut notes = vec!["当前回合显式指定了 provider/model 偏好。".to_string()];
+                if selection.capability_gap_source.as_deref() == Some("explicit_model_lock") {
+                    notes.push(
+                            "显式用户模型锁定不满足当前 execution profile 的 routing slot，模型执行前必须阻断。"
+                                .to_string(),
+                        );
+                }
+                notes
+            },
         );
         let routing_decision = build_routing_decision(
             &task_profile,
@@ -3262,11 +3289,7 @@ pub(super) async fn resolve_runtime_request_provider_resolution(
                     scene_preference.allow_fallback
                 );
                 let limit_state = build_limit_state(
-                    if selection.candidate_count <= 1 {
-                        "single_candidate_only"
-                    } else {
-                        "normal"
-                    },
+                    runtime_limit_status_for_selection(&selection),
                     selection.candidate_count,
                     true,
                     true,
@@ -3349,11 +3372,7 @@ pub(super) async fn resolve_runtime_request_provider_resolution(
                     notes.push(note);
                 }
                 let limit_state = build_limit_state(
-                    if selection.candidate_count <= 1 {
-                        "single_candidate_only"
-                    } else {
-                        "normal"
-                    },
+                    runtime_limit_status_for_selection(&selection),
                     selection.candidate_count,
                     true,
                     true,
@@ -3472,11 +3491,7 @@ pub(super) async fn resolve_runtime_request_provider_resolution(
         notes.push(note.clone());
     }
     let limit_state = build_limit_state(
-        if selection.candidate_count <= 1 {
-            "single_candidate_only"
-        } else {
-            "normal"
-        },
+        runtime_limit_status_for_selection(&selection),
         selection.candidate_count,
         true,
         false,
@@ -4045,6 +4060,36 @@ mod tests {
         assert_eq!(
             runtime_model_capability_gap_for_catalog(&models, &requirements).as_deref(),
             Some("browser_reasoning_candidate_missing")
+        );
+    }
+
+    #[test]
+    fn user_locked_capability_gap_should_use_blocking_limit_status() {
+        let selection = ResolvedRuntimeProviderSelection {
+            provider_config: ConfigureProviderRequest {
+                provider_id: Some("openai".to_string()),
+                provider_name: "openai".to_string(),
+                model_name: "gpt-5.4-mini".to_string(),
+                api_key: None,
+                base_url: None,
+                model_capabilities: None,
+                tool_call_strategy: None,
+                toolshim_model: None,
+            },
+            provider_selector: "openai".to_string(),
+            requested_model: "gpt-5.4-mini".to_string(),
+            resolved_model: "gpt-5.4-mini".to_string(),
+            candidate_count: 1,
+            estimated_cost_class: Some("low".to_string()),
+            pricing: None,
+            capability_gap: Some("browser_reasoning_candidate_missing".to_string()),
+            capability_gap_source: Some("explicit_model_lock".to_string()),
+            fallback_chain: Vec::new(),
+        };
+
+        assert_eq!(
+            runtime_limit_status_for_selection(&selection),
+            "user_locked_capability_gap"
         );
     }
 
@@ -4696,6 +4741,7 @@ mod tests {
                 currency: "USD".to_string(),
             }),
             capability_gap: None,
+            capability_gap_source: None,
             fallback_chain: Vec::new(),
         };
 

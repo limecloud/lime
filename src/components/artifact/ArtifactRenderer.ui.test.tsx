@@ -115,6 +115,51 @@ describe("ArtifactRenderer 空内容态", () => {
     expect(container.textContent).toContain("workspace/index.ts");
   });
 
+  it("canvas:design 应直接委托到图层设计画布，不依赖轻量渲染器注册", async () => {
+    const container = renderArtifact(
+      createArtifact({
+        type: "canvas:design",
+        title: "design.json",
+        status: "complete",
+        content: JSON.stringify({
+          id: "design-artifact-ui",
+          title: "Artifact 图层海报",
+          canvas: { width: 1080, height: 1440 },
+          layers: [
+            {
+              id: "headline",
+              name: "标题层",
+              type: "text",
+              text: "可编辑标题",
+              x: 120,
+              y: 120,
+              width: 840,
+              height: 120,
+              zIndex: 4,
+            },
+          ],
+          assets: [],
+          editHistory: [],
+          createdAt: "2026-05-05T00:00:00.000Z",
+          updatedAt: "2026-05-05T00:00:00.000Z",
+        }),
+        meta: {
+          filePath: "workspace/design.json",
+          filename: "design.json",
+        },
+      }),
+    );
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain("图层设计 Canvas");
+    expect(container.textContent).toContain("LayeredDesignDocument");
+    expect(container.textContent).toContain("Artifact 图层海报");
+    expect(container.textContent).toContain("标题层");
+  });
+
   it("失败且没有内容时应展示错误解释态", () => {
     const container = renderArtifact(
       createArtifact({

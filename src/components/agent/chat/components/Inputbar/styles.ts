@@ -840,3 +840,30 @@ export const PathReferenceRemoveButton = styled.button`
     transform: translateY(-1px);
   }
 `;
+
+export const PathReferenceKnowledgeButton = styled.button`
+  display: inline-flex;
+  height: 24px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border: 1px solid rgba(14, 165, 233, 0.24);
+  border-radius: 999px;
+  background: rgba(240, 249, 255, 0.92);
+  padding: 0 8px;
+  color: #0369a1;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    background 0.16s ease,
+    color 0.16s ease,
+    transform 0.16s ease;
+
+  &:hover {
+    background: rgba(224, 242, 254, 0.96);
+    color: #075985;
+    transform: translateY(-1px);
+  }
+`;

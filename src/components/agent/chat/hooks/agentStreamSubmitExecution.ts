@@ -16,14 +16,11 @@ import type { AgentAccessMode } from "./agentChatStorage";
 import type { StreamRequestState } from "./agentStreamSubmissionLifecycle";
 import type { ActionRequired, Message, MessageImage } from "../types";
 import type { ChatToolPreferences } from "../utils/chatToolPreferences";
-import { logAgentDebug } from "@/lib/agentDebug";
-import { buildUserInputSubmitOp } from "../utils/buildUserInputSubmitOp";
+import { runAgentStreamSubmitLifecycle } from "./agentStreamSubmitLifecycleController";
+import { buildAgentStreamSubmitOp } from "./agentStreamSubmitOpController";
 import { resolveAgentStreamSubmitContext } from "./agentStreamSubmitContext";
 import { registerAgentStreamTurnEventBinding } from "./agentStreamTurnEventBinding";
-import {
-  extractAgentUiPerformanceTraceMetadata,
-  recordAgentStreamPerformanceMetric,
-} from "./agentStreamPerformanceMetrics";
+import { extractAgentUiPerformanceTraceMetadata } from "./agentStreamPerformanceMetrics";
 
 type MessageParts = NonNullable<Message["contentParts"]>;
 
@@ -253,109 +250,38 @@ export async function executeAgentStreamSubmit(
 
   callbacks.registerListener(unlisten);
 
-  requestState.submissionDispatchedAt = Date.now();
-  recordAgentStreamPerformanceMetric(
-    "agentStream.submitDispatched",
-    performanceTrace,
-    {
-      elapsedMs:
-        requestState.submissionDispatchedAt - requestState.requestStartedAt,
-      eventName,
-      expectingQueue,
-      listenerBoundDeltaMs: requestState.listenerBoundAt
-        ? requestState.submissionDispatchedAt - requestState.listenerBoundAt
-        : null,
-      model: effectiveModel,
-      provider: effectiveProviderType,
-      sessionId: activeSessionId,
-    },
-  );
-  logAgentDebug("AgentStream", "submitDispatched", {
-    elapsedMs:
-      requestState.submissionDispatchedAt - requestState.requestStartedAt,
+  await runAgentStreamSubmitLifecycle({
+    activeSessionId,
+    effectiveModel,
+    effectiveProviderType,
     eventName,
     expectingQueue,
-    listenerBoundDeltaMs: requestState.listenerBoundAt
-      ? requestState.submissionDispatchedAt - requestState.listenerBoundAt
-      : null,
-    sessionId: activeSessionId,
+    requestState,
+    submit: () =>
+      runtime.submitOp(
+        buildAgentStreamSubmitOp({
+          content,
+          images,
+          activeSessionId,
+          eventName,
+          submitWorkspaceId,
+          requestTurnId,
+          systemPrompt,
+          skipPreSubmitResume,
+          requestMetadata,
+          executionRuntime,
+          syncedRecentPreferences,
+          syncedSessionModelPreference,
+          syncedExecutionStrategy,
+          effectiveExecutionStrategy,
+          effectiveAccessMode,
+          effectiveProviderType,
+          effectiveModel,
+          modelOverride,
+          webSearch,
+          thinking,
+          autoContinue,
+        }),
+      ),
   });
-
-  try {
-    await runtime.submitOp(
-      buildUserInputSubmitOp({
-        content,
-        images,
-        sessionId: activeSessionId,
-        eventName,
-        workspaceId: submitWorkspaceId,
-        turnId: requestTurnId,
-        systemPrompt,
-        queueIfBusy: true,
-        skipPreSubmitResume,
-        requestMetadata,
-        executionRuntime,
-        syncedRecentPreferences,
-        syncedSessionModelPreference,
-        syncedExecutionStrategy,
-        effectiveExecutionStrategy,
-        effectiveAccessMode,
-        effectiveProviderType,
-        effectiveModel,
-        modelOverride,
-        webSearch,
-        thinking,
-        autoContinue,
-      }),
-    );
-    recordAgentStreamPerformanceMetric(
-      "agentStream.submitAccepted",
-      performanceTrace,
-      {
-        elapsedMs: Date.now() - requestState.requestStartedAt,
-        eventName,
-        sessionId: activeSessionId,
-        submitInvokeMs: requestState.submissionDispatchedAt
-          ? Date.now() - requestState.submissionDispatchedAt
-          : null,
-      },
-    );
-    logAgentDebug("AgentStream", "submitAccepted", {
-      elapsedMs: Date.now() - requestState.requestStartedAt,
-      eventName,
-      sessionId: activeSessionId,
-      submitInvokeMs: requestState.submissionDispatchedAt
-        ? Date.now() - requestState.submissionDispatchedAt
-        : null,
-    });
-  } catch (error) {
-    recordAgentStreamPerformanceMetric(
-      "agentStream.submitFailed",
-      performanceTrace,
-      {
-        elapsedMs: Date.now() - requestState.requestStartedAt,
-        error: error instanceof Error ? error.message : String(error),
-        eventName,
-        sessionId: activeSessionId,
-        submitInvokeMs: requestState.submissionDispatchedAt
-          ? Date.now() - requestState.submissionDispatchedAt
-          : null,
-      },
-    );
-    logAgentDebug(
-      "AgentStream",
-      "submitFailed",
-      {
-        elapsedMs: Date.now() - requestState.requestStartedAt,
-        error,
-        eventName,
-        sessionId: activeSessionId,
-        submitInvokeMs: requestState.submissionDispatchedAt
-          ? Date.now() - requestState.submissionDispatchedAt
-          : null,
-      },
-      { level: "error" },
-    );
-    throw error;
-  }
 }

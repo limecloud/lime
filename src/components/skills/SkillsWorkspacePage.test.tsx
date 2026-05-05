@@ -26,6 +26,9 @@ const mockRefreshLocalSkills = vi.fn();
 const mockAdvancedSkillsPage = vi.fn();
 const mockToastSuccess = vi.fn();
 const mockToastError = vi.fn();
+const mockGetProject = vi.fn();
+const mockListCapabilityDrafts = vi.fn();
+const mockListRegisteredSkills = vi.fn();
 
 function createDefaultLocalSkills(): Skill[] {
   return [
@@ -222,6 +225,20 @@ vi.mock("@/lib/api/unifiedMemory", () => ({
   listUnifiedMemories: mockListUnifiedMemories,
 }));
 
+vi.mock("@/lib/api/project", () => ({
+  getProject: (...args: unknown[]) => mockGetProject(...args),
+}));
+
+vi.mock("@/lib/api/capabilityDrafts", () => ({
+  capabilityDraftsApi: {
+    list: (...args: unknown[]) => mockListCapabilityDrafts(...args),
+    verify: vi.fn(),
+    register: vi.fn(),
+    listRegisteredSkills: (...args: unknown[]) =>
+      mockListRegisteredSkills(...args),
+  },
+}));
+
 vi.mock("./SkillsPage", () => ({
   SkillsPage: (props: Record<string, unknown>) => {
     mockAdvancedSkillsPage(props);
@@ -343,6 +360,12 @@ describe("SkillsWorkspacePage", () => {
     mockAdvancedSkillsPage.mockReset();
     mockToastSuccess.mockReset();
     mockToastError.mockReset();
+    mockGetProject.mockReset();
+    mockGetProject.mockReturnValue(new Promise(() => {}));
+    mockListCapabilityDrafts.mockReset();
+    mockListCapabilityDrafts.mockResolvedValue([]);
+    mockListRegisteredSkills.mockReset();
+    mockListRegisteredSkills.mockResolvedValue([]);
     mockListUnifiedMemories.mockResolvedValue([]);
     window.localStorage.clear();
   });
@@ -479,6 +502,143 @@ describe("SkillsWorkspacePage", () => {
     expect(banner?.className).toContain("var(--lime-info-soft)");
     expect(banner?.textContent).toContain("完整做法都在这里");
     expect(banner?.textContent).toContain("查看全部做法");
+  });
+
+  it("应在我的方法工作台保留未验证能力草案隔离区", async () => {
+    mockGetProject.mockResolvedValueOnce({
+      id: "project-review",
+      name: "复盘项目",
+      workspaceType: "general",
+      rootPath: "/tmp/lime/project-review",
+      isDefault: false,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      isFavorite: false,
+      isArchived: false,
+      tags: [],
+    });
+    mockListCapabilityDrafts.mockResolvedValueOnce([
+      {
+        draftId: "capdraft-1",
+        name: "竞品监控草案",
+        description: "每天汇总竞品价格和上新变化。",
+        userGoal: "持续监控竞品爆款并产出待复核清单。",
+        sourceKind: "manual",
+        sourceRefs: ["docs/research/creaoai"],
+        permissionSummary: ["Level 0 只读发现"],
+        generatedFiles: [
+          { relativePath: "SKILL.md", byteLength: 32, sha256: "abc" },
+        ],
+        verificationStatus: "unverified",
+        createdAt: "2026-05-05T00:00:00.000Z",
+        updatedAt: "2026-05-05T00:00:00.000Z",
+        draftRoot:
+          "/tmp/lime/project-review/.lime/capability-drafts/capdraft-1",
+        manifestPath:
+          "/tmp/lime/project-review/.lime/capability-drafts/capdraft-1/manifest.json",
+      },
+    ]);
+
+    const { container } = renderPage({
+      creationProjectId: "project-review",
+      highlightCapabilityDraftId: "capdraft-1",
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(mockGetProject).toHaveBeenCalledWith("project-review");
+    expect(mockListCapabilityDrafts).toHaveBeenCalledWith({
+      workspaceRoot: "/tmp/lime/project-review",
+    });
+    expect(container.textContent).toContain("能力草案");
+    expect(container.textContent).toContain("竞品监控草案");
+    expect(container.textContent).toContain("未验证");
+    expect(container.textContent).toContain("当前没有运行、注册或自动化入口");
+    const forbiddenActionButton = Array.from(
+      container.querySelectorAll("button"),
+    ).find((button) => button.textContent?.includes("注册成方法"));
+    expect(forbiddenActionButton).toBeUndefined();
+    expect(container.textContent).not.toContain("立即运行");
+  });
+
+  it("应在我的方法工作台展示 Workspace 已注册能力，但不接默认运行入口", async () => {
+    mockGetProject.mockResolvedValueOnce({
+      id: "project-review",
+      name: "复盘项目",
+      workspaceType: "general",
+      rootPath: "/tmp/lime/project-review",
+      isDefault: false,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      isFavorite: false,
+      isArchived: false,
+      tags: [],
+    });
+    mockListCapabilityDrafts.mockResolvedValueOnce([]);
+    mockListRegisteredSkills.mockResolvedValueOnce([
+      {
+        key: "workspace:capability-report",
+        name: "只读 CLI 报告",
+        description: "把本地只读 CLI 输出整理成 Markdown 报告。",
+        directory: "capability-report",
+        registeredSkillDirectory:
+          "/tmp/lime/project-review/.agents/skills/capability-report",
+        registration: {
+          registrationId: "capreg-1",
+          registeredAt: "2026-05-05T01:10:00.000Z",
+          skillDirectory: "capability-report",
+          registeredSkillDirectory:
+            "/tmp/lime/project-review/.agents/skills/capability-report",
+          sourceDraftId: "capdraft-1",
+          sourceVerificationReportId: "capver-1",
+          generatedFileCount: 4,
+          permissionSummary: ["Level 0 只读发现", "允许执行本地 CLI"],
+        },
+        permissionSummary: ["Level 0 只读发现", "允许执行本地 CLI"],
+        metadata: {},
+        allowedTools: [],
+        resourceSummary: {
+          hasScripts: true,
+          hasReferences: false,
+          hasAssets: false,
+        },
+        standardCompliance: {
+          isStandard: true,
+          validationErrors: [],
+          deprecatedFields: [],
+        },
+        launchEnabled: false,
+        runtimeGate:
+          "已注册为 Workspace 本地 Skill 包；进入运行前还需要 P3B runtime binding 与 tool_runtime 授权。",
+      },
+    ]);
+
+    const { container } = renderPage({
+      creationProjectId: "project-review",
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(mockListRegisteredSkills).toHaveBeenCalledWith({
+      workspaceRoot: "/tmp/lime/project-review",
+    });
+    expect(container.textContent).toContain("Workspace 已注册能力");
+    expect(container.textContent).toContain("只读 CLI 报告");
+    expect(container.textContent).toContain("待 runtime gate");
+    expect(container.textContent).toContain("capdraft-1 / capver-1");
+    expect(container.textContent).toContain("tool_runtime 授权");
+    const registeredPanel = container.querySelector(
+      '[data-testid="workspace-registered-skills-panel"]',
+    );
+    expect(registeredPanel?.textContent).not.toContain("立即运行");
+    expect(registeredPanel?.textContent).not.toContain("创建自动化");
+    expect(registeredPanel?.textContent).not.toContain("继续这套方法");
   });
 
   it("最近保存到灵感库的成果信号应影响技能页的结果模板推荐", () => {

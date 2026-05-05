@@ -153,6 +153,17 @@ function serializeInitialInputCapabilityKey(params: AgentPageParams): string {
   return `${route.kind}:${routeKey}:${params.initialInputCapability?.requestKey ?? 0}`;
 }
 
+function serializeInitialKnowledgePackSelectionKey(
+  params: AgentPageParams,
+): string {
+  const selection = params.initialKnowledgePackSelection;
+  if (!selection) {
+    return "::0";
+  }
+
+  return `${selection.enabled ? "1" : "0"}:${selection.workingDir}:${selection.packName}`;
+}
+
 interface AppPageContentProps {
   currentPage: Page;
   pageParams: PageParams;
@@ -260,7 +271,7 @@ export function AppPageContent({
     const content = (
       <div style={columnPageStyle}>
         <AgentChatPage
-          key={`${agentPageParams.projectId || ""}:${agentPageParams.contentId || ""}:${agentPageParams.theme || ""}:${agentPageParams.lockTheme ? "1" : "0"}:${agentPageParams.agentEntry || "claw"}:${agentPageParams.immersiveHome ? "immersive" : "standard"}:${agentPageParams.newChatAt ?? 0}:${agentPageParams.initialPendingServiceSkillLaunch?.skillId || ""}:${agentPageParams.initialPendingServiceSkillLaunch?.requestKey ?? 0}:${serializeInitialInputCapabilityKey(agentPageParams)}:${agentPageParams.initialProjectFileOpenTarget?.relativePath || ""}:${agentPageParams.initialProjectFileOpenTarget?.requestKey ?? 0}`}
+          key={`${agentPageParams.projectId || ""}:${agentPageParams.contentId || ""}:${agentPageParams.theme || ""}:${agentPageParams.lockTheme ? "1" : "0"}:${agentPageParams.agentEntry || "claw"}:${agentPageParams.immersiveHome ? "immersive" : "standard"}:${agentPageParams.newChatAt ?? 0}:${agentPageParams.initialPendingServiceSkillLaunch?.skillId || ""}:${agentPageParams.initialPendingServiceSkillLaunch?.requestKey ?? 0}:${serializeInitialInputCapabilityKey(agentPageParams)}:${serializeInitialKnowledgePackSelectionKey(agentPageParams)}:${agentPageParams.initialProjectFileOpenTarget?.relativePath || ""}:${agentPageParams.initialProjectFileOpenTarget?.requestKey ?? 0}`}
           onNavigate={onNavigate}
           projectId={agentPageParams.projectId}
           contentId={agentPageParams.contentId}
@@ -284,6 +295,9 @@ export function AppPageContent({
             agentPageParams.initialPendingServiceSkillLaunch
           }
           initialInputCapability={agentPageParams.initialInputCapability}
+          initialKnowledgePackSelection={
+            agentPageParams.initialKnowledgePackSelection
+          }
           initialProjectFileOpenTarget={
             agentPageParams.initialProjectFileOpenTarget
           }

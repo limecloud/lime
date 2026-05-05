@@ -1,108 +1,82 @@
-## Lime v1.27.0
+## Lime v1.28.0
 
 发布日期：`2026-05-05`
 
 ### 发布概览
 
-- 本次发布目标 tag 为 `v1.27.0`，重点把 Agent Knowledge 从方案文档推进到 current 主链，同时继续收紧 Agent runtime、Skill 工具门禁、模型解析和 GUI 入口的一致性。
-- 版本文件、Tauri 配置、headless 配置、CLI wrapper、release updater 测试样例与发布说明已同步到 `1.27.0`。
-- 该版本继续坚持“一个事实源”：知识包、运行时上下文、命令契约、mock、GUI 页面和输入区发送 metadata 都收敛到同一条可验证链路。
-- 本次重新覆盖 `v1.27.0` tag 前，补入会话恢复、消息投影、Harness 审核导出、Knowledge GUI 冒烟和 release build 稳定性修复。
+- 本次发布目标 tag 为 `v1.28.0`，重点把 Capability Draft / Skill Forge 从草案创建推进到验证、注册闭环，同时继续推进 AI 图层化设计、Knowledge 主链和 Harness 证据治理。
+- 版本事实源已同步到 `1.28.0`：`package.json`、`package-lock.json`、`src-tauri/Cargo.toml`、`src-tauri/Cargo.lock`、`src-tauri/tauri.conf.json`、`src-tauri/tauri.conf.headless.json` 与 release updater 测试样例保持一致。
+- 该版本继续坚持“一个事实源”：能力草案、知识包、运行时权限确认、Evidence Pack、Artifact/Canvas 与 GUI review surface 都优先回到 current 主链，不新增平行执行入口。
 
 ### 用户可见更新
 
-#### 1. Agent Knowledge 知识库主链
+#### 1. Capability Draft / Skill Forge 闭环
 
-- 新增 `知识库` 页面入口，支持查看知识包目录、知识包详情、来源导入、编译、默认包设置和运行时 context 预览。
-- 新增 Markdown-first 知识包标准目录：`.lime/knowledge/packs/<pack-name>/KNOWLEDGE.md`、`sources/`、`wiki/`、`compiled/`、`runs/`。
-- 新增知识包导入、编译、列表、详情、默认包和运行时上下文解析能力；GUI 与聊天发送链路都消费同一组 `knowledge_*` 命令。
-- 聊天输入区新增轻量知识包选择菜单：可读取当前工作区知识包，默认选中项目默认包，也可手动切换具体知识包后发送。
-- Agent runtime 新增 `KnowledgePack` prompt stage：从请求 metadata 解析知识包选择，调用 Knowledge Context Resolver，并以 fenced context 注入模型。
-- 带知识包 metadata 的请求会强制进入 full runtime，避免 fast route 跳过知识上下文。
-- 新增内置 `knowledge_builder` Skill，帮助把来源资料整理为 `KNOWLEDGE.md`、`wiki/`、`compiled/brief.md` 和 `runs/` 草稿。
-- 知识库页面提供 `Builder 生成` 入口，可把项目根目录、pack name、pack 类型和 builder metadata 带入 Agent 执行。
+- 新增 workspace-local Capability Draft 创建、列表、详情、验证与注册链路，草案事实源落在 `.lime/capability-drafts/`。
+- Skills 工作台新增草案 review surface，可展示目标、权限摘要、文件清单、验证报告和注册结果。
+- Verification gate 覆盖结构、contract、权限声明、危险 token、fixture 存在性等静态检查；失败会写入可追踪报告。
+- Registration gate 仅允许 `verified_pending_registration` 草案注册到当前 workspace 的 `.agents/skills/<skill_directory>/`，并记录来源与验证报告。
+- 已注册草案仍不会自动运行、不会进入默认 tool surface、不会接 automation，避免把“文件注册”误当成“已授权执行”。
 
-#### 2. Agent runtime、模型解析与工具门禁
+#### 2. AI 图层化设计主链
 
-- 运行时模型解析继续向后端事实源收敛，增强默认 provider、模型候选、辅助模型和请求级模型能力解析。
-- Skill 工具门禁增强：模型首刀 Skill、服务技能、浏览器工具、知识包上下文和 detour tool 抑制逻辑更明确，减少任务跑偏到工具目录发现或本地文件误读。
-- Agent turn 输入、队列、session runtime 和 stream submit 链路补齐 request metadata、workspace context、team/runtime state 的传递与测试。
-- `fastResponseModel` 与 full runtime 判定补齐知识包、媒体任务、显式 Skill 和运行时需求判断，避免该走主链的任务被短路。
+- 新增 `LayeredDesignDocument` 最小协议，把图片生成从“单张扁平 PNG”推进到可编辑图层工程。
+- 新增 `DesignCanvas` 最小可见 UI 与 `canvas:design` Artifact 接入口，图层文档可进入 Workspace Canvas。
+- 新增本地 Layer Planner seed、Artifact bridge、图片层生成请求 seam 和 image task artifact 写回路径。
+- 支持从 edit history 刷新图片任务结果，并把成功产物写回目标图层。
+- 增加主流图片模型族能力约束与透明图层策略，作为后续 provider adapter 的 contract 基础。
 
-#### 3. 工作区、任务轻卡与图片任务恢复
+#### 3. Agent UI、Harness 与证据治理
 
-- 图片任务 viewer 和 workspace 预览继续向统一 media task artifact 事实源收敛，补齐完成态、失败态、工作台展示和恢复路径。
-- Inputbar、workspace send actions、message preview 和 task policy evaluation 增强多模态任务 metadata 传递，减少显式动作与纯文本命令之间的协议漂移。
-- Agent UI 性能指标继续补充旧会话打开、消息列表首帧和 runtime session 读取的采集点与回归。
+- Agent stream、session history、runtime context、request log、tool event、completion、error 和 inactivity 等控制器继续拆分成可测边界。
+- Harness 状态面板、Review Decision 与 Evidence Pack 继续收敛权限确认状态，区分 `not_requested`、`requested`、`resolved` 与 `denied`。
+- Evidence Pack / Replay / Review 对 denied 或未解决权限确认保持阻断语义，避免把未经真实确认的运行标记为成功交付。
+- Agent task index、timeline、artifact action 与 message projection 回归继续补强，降低长会话恢复和工作台投影漂移。
 
-#### 4. 导航、侧栏与本地化
+#### 4. Knowledge 与工作区入口
 
-- 侧栏、任务中心资料分组和页面内容区新增知识库入口，并补齐路由、页面类型和导航测试。
-- 中英文 patch 增加知识库相关文案，翻译覆盖测试同步更新。
-- 旧的 Agent Knowledge 探索文档收敛到 `docs/roadmap/knowledge/prd.md` 与执行计划，不再保留平行旧文档入口。
-
-#### 5. 会话恢复、消息投影与性能稳定性
-
-- 新增会话详情拉取、hydration、retry、metadata sync、finalize、post-finalize persistence 和切换快照控制器，把 `useAgentSession` 中的会话恢复逻辑拆成可测边界，降低切换历史会话时的竞态风险。
-- 新增 conversation projection store、历史消息 hydration、消息渲染窗口、timeline render 和 thread timeline window 投影，减少长历史消息列表渲染和恢复路径漂移。
-- 旧会话切换失败时增加可重试/可跳过分类， transient 失败不再直接破坏当前快照；不可恢复错误仍按原错误路径处理。
-- MessageList 和 Agent UI 性能指标补齐旧历史内容扫描、markdown 延迟渲染、线程 item 扫描和首帧 paint 的采集与回归。
-- 语音设置页滚动聚焦修复 release build 测试环境下的 `scrollIntoView` mock 污染，移除 release 环境缺失的 `@testing-library/react` 测试依赖。
-
-#### 6. Harness 导出、审核与权限确认状态
-
-- Evidence Pack、Handoff bundle、Analysis handoff、Replay case 和 Review decision 统一导出 `permissionState`，能区分 `not_requested`、`requested`、`resolved` 和 `denied`。
-- Review decision GUI、前端 API、Rust save API 和浏览器 mock 增加 denied 权限确认保护，阻止把带拒绝权限确认的运行误保存为 `accepted`。
-- Harness 状态面板和人工审核弹窗补齐权限确认状态、verification outcomes、copy prompt 和保存路径回归。
-- `agent_runtime_*` 网关、runtime thread read 和 mock 读取面继续保持同一 facts source，避免 Evidence / Replay / Review 各自解释权限状态。
-
-#### 7. Release build 与本地开发 fallback
-
-- `scripts/lib/harness-eval-history-record.test.ts` 改为异步执行外部命令，避免 Vitest worker 在 release 校验中触发 `onTaskUpdate` timeout。
-- 本地浏览器开发模式下 Provider 读取失败时继续提供 Lime Hub mock，并用显式 `hasTauriRuntimeMarkers=false` 测试保护该 fallback。
-- `knowledge-gui-smoke` 更新为覆盖知识库入口、Agent 知识包上下文跳转和导入视图组织入口，纳入 GUI smoke 主链。
-- Warp modality runtime contract 守卫补齐 entry binding inventory 与 task index inventory 文档锚点，`npm run test:contracts` 继续覆盖治理文档缺失。
+- Knowledge 页面、导入入口、知识包选择和 workspace knowledge runtime 继续补稳定回归。
+- Knowledge GUI smoke 主链保持覆盖知识库入口、Agent 知识上下文跳转和导入视图组织入口。
+- 知识包、Skill、Memory、Inspiration 与 capability draft 的边界继续在路线图和执行计划中沉淀为 repo 内 artifact。
 
 ### 开发者与治理更新
 
 #### 1. 命令边界与 mock 同步
 
-- 新增 `lime-knowledge` Rust crate，Tauri command 只做薄适配，知识包文件事实源集中在后端 crate。
-- 新增前端网关 `src/lib/api/knowledge.ts` 与 feature 边界 `src/features/knowledge`，页面和 Hook 不直接散落裸 `invoke`。
-- 同步 `tauri::generate_handler!` 注册、`agentCommandCatalog`、`mockPriorityCommands` 和浏览器默认 mock，知识包命令纳入契约检查。
-- `npm run test:contracts` 覆盖新增知识包命令的前端调用、Rust 注册、治理目录册与 mock 边界。
+- 新增并同步 `capability_draft_create/list/get/verify/register` 命令族：前端 API、Rust command、DevBridge dispatcher、治理目录册、`mockPriorityCommands` 与默认 mock 保持一致。
+- `npm run test:contracts` 的命令契约仍覆盖新增命令族，避免前端、Rust 注册和浏览器 mock 漂移。
+- Release updater manifest 测试样例已更新到 `v1.28.0` 的 macOS asset 命名。
 
-#### 2. 文档与路线图
+#### 2. 路线图与执行计划
 
-- 新增 `docs/roadmap/knowledge/prd.md`，明确 KnowledgePack / Skill / Memory / Inspiration 边界和 P0/P1/P2 目标。
-- 新增 `docs/exec-plans/agent-knowledge-implementation-plan.md`，记录 Phase 1 current 主链、验证记录与后续切片。
-- Warp 和多模态运行合同文档补齐 Knowledge Context Resolver、runtime prompt stage 和执行 profile 说明。
-- 新增 AgentUI conversation projection 架构、fact map、实现计划与验收文档，把消息投影和会话恢复性能治理落到 repo 内 versioned artifact。
-- 新增 Warp entry binding inventory 与 task index inventory，明确 `@` / button / scene 入口只能绑定底层 runtime contract，任务索引不能反向依赖 UI 临时状态。
+- 新增 CreoAI / Capability Authoring、Verification、Registration 执行计划，明确“生成能力”和“执行能力”分层。
+- 新增 AI 图层化设计路线图与实现计划，固定 `LayeredDesignDocument` 是设计工程事实源。
+- 新增 Managed Objective 相关路线图，把跨 turn 目标推进控制层限定为 current runtime 的消费方，而不是新 runtime。
+- Warp / 多模态 runtime contract 文档继续补齐 task index、entry binding 与执行 profile 锚点。
 
 ### 已知说明
 
-- 首版 Knowledge 仍坚持 Markdown-first，不做向量库、知识图谱、企业权限或知识包市场。
-- `knowledge_builder` 当前生成草稿，不会自动覆盖用户已确认的知识资产；用户仍需人工确认关键事实。
-- 知识包章节级 token 成本提示、细粒度章节选择和更完整 provenance / citation anchors 留在后续切片。
+- Capability Draft 当前只交付到 workspace-local 文件注册，不代表已经进入运行时 tool surface；P3B / P4 仍需补 catalog discovery、runtime binding、授权执行和 evidence 审计。
+- AI 图层化设计当前以协议、Canvas 入口和 image task artifact 写回为主，不直接新增 provider adapter、不声明完整 PSD / mask / inpaint 能力。
+- 标准 `cargo test --manifest-path "src-tauri/Cargo.toml"` 仍依赖 `local-sensevoice` 下的 `sherpa-onnx` 静态库归档；本轮冷环境中该归档下载 / 复用不稳定，发布前需在已准备 archive 的稳定 Rust target 中补跑一次完整 Rust 测试。
 
 ### 校验状态
 
-- 本次重新覆盖 `v1.27.0` tag 前已完成：
-  - `npm run build`
+- 本次版本准备已完成：
+  - `npm run verify:app-version`
+  - `cargo fmt --manifest-path "src-tauri/Cargo.toml" --all`
+  - `SHERPA_ONNX_ARCHIVE_DIR="<local-archive-dir>" CARGO_TARGET_DIR="/tmp/lime-release-verify-target" cargo clippy --manifest-path "src-tauri/Cargo.toml" --all-targets --all-features`
   - `npm run lint`
   - `npm test`
-  - `npm run test:contracts`
-  - `npm run verify:gui-smoke`
-  - `cargo fmt --manifest-path "src-tauri/Cargo.toml" --all`
-  - `CARGO_TARGET_DIR="/tmp/lime-release-verify-target" cargo clippy --manifest-path "src-tauri/Cargo.toml" --all-targets --all-features`
-  - `cargo test --manifest-path "src-tauri/Cargo.toml"`
-  - `git diff --check`
+  - `CARGO_HOME="/tmp/lime-cargo-home" CARGO_INCREMENTAL=0 CARGO_TARGET_DIR="/tmp/lime-release-verify-target" cargo test --manifest-path "src-tauri/Cargo.toml" --no-default-features services::runtime_evidence_pack_service::tests::should_export_runtime_evidence_pack_to_workspace --lib`
 - 结果说明：
-  - 前端全量 Vitest smart suite 46 批通过。
-  - Rust 单测与集成测试通过；真实联网 web search 测试保持 ignored，需要 `LIME_REAL_API_TEST=1` 时单独执行。
-  - GUI smoke 已复用 headless Tauri 环境完成 DevBridge、workspace ready、browser runtime、site adapters、service skill entry、runtime tool surface 和 Knowledge GUI 主路径验证。
+  - 版本一致性检查通过：`1.28.0`。
+  - Rust fmt 通过。
+  - Rust clippy 全目标全特性通过；首次冷跑曾因 `sherpa-onnx-sys` 下载 GitHub release 归档 TLS 中断失败，改用本地 archive 后通过。
+  - 前端 lint 通过；本轮顺手移除了 Review Decision 弹窗中未使用的 `permissionConfirmationDenied` 变量。
+  - 前端 Vitest smart suite 49 批通过。
+  - 标准 Rust `cargo test` 未完成：一次冷 target 触发 incremental dep-graph 临时文件移动错误；后续重跑受 `sherpa-onnx` archive 缺失 / 下载过慢影响。已修复并定向验证 Evidence Pack 权限确认 fixture，发布前仍需补完整 `cargo test --manifest-path "src-tauri/Cargo.toml"`。
 
 ---
 
-**完整变更**: `v1.26.0` -> `v1.27.0`
+**完整变更**: `v1.27.0` -> `v1.28.0`

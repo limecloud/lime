@@ -79,7 +79,7 @@ export const MAIN_SIDEBAR_NAV_ITEMS: SidebarNavItemDefinition[] = [
   },
   {
     id: "knowledge",
-    label: "知识库",
+    label: "项目资料",
     icon: BookOpen,
     page: "knowledge",
     isActive: (currentPage) => currentPage === "knowledge",

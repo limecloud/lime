@@ -29,14 +29,17 @@ import {
   type KnowledgePackStatus,
   type KnowledgePackSummary,
 } from "@/lib/api/knowledge";
-import { getProject, getProjectByRootPath } from "@/lib/api/project";
+import {
+  getDefaultProject,
+  getProject,
+  getProjectByRootPath,
+} from "@/lib/api/project";
 import type { KnowledgePageParams, Page, PageParams } from "@/types/page";
 import { cn } from "@/lib/utils";
 import {
   DETAIL_TABS,
   PACK_TYPES,
   VIEW_TABS,
-  getPackTypeLabel,
   resolveStatusLabel,
   type DetailTab,
   type KnowledgeView,
@@ -45,7 +48,9 @@ import {
   buildPackMetrics,
   getErrorMessage,
   getPackTitle,
+  getUserFacingPackTypeLabel,
   normalizePackNameInput,
+  sanitizeKnowledgePreview,
 } from "./domain/knowledgeVisibility";
 import { buildKnowledgeBuilderPrompt } from "./agent/knowledgePromptBuilder";
 import {
@@ -66,7 +71,8 @@ interface KnowledgePageProps {
 type AsyncStatus = "idle" | "loading" | "ready" | "error";
 
 const WORKING_DIR_STORAGE_KEY = "lime.knowledge.working-dir";
-const DEFAULT_PACK_NAME = "founder-personal-ip";
+const LAST_PROJECT_ID_STORAGE_KEY = "agent_last_project_id";
+const DEFAULT_PACK_NAME = "project-material";
 const DEFAULT_SOURCE_FILE_NAME = "source.md";
 
 function readStoredWorkingDir(): string {
@@ -89,10 +95,49 @@ function persistWorkingDir(value: string): void {
   }
 }
 
+function isLikelyTransientWorkingDir(value: string): boolean {
+  const normalized = value.trim().replace(/\\/g, "/").toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+
+  return (
+    normalized.includes("/tmp/") ||
+    normalized.includes("/var/folders/") ||
+    normalized.includes("lime-knowledge-smoke") ||
+    normalized.includes("lime-knowledge-")
+  );
+}
+
+function readReusableStoredWorkingDir(): string {
+  const storedWorkingDir = readStoredWorkingDir();
+  return isLikelyTransientWorkingDir(storedWorkingDir) ? "" : storedWorkingDir;
+}
+
+function readLastProjectId(): string {
+  if (typeof window === "undefined") {
+    return "";
+  }
+
+  const rawValue = window.localStorage
+    .getItem(LAST_PROJECT_ID_STORAGE_KEY)
+    ?.trim();
+  if (!rawValue) {
+    return "";
+  }
+
+  try {
+    const parsed = JSON.parse(rawValue) as unknown;
+    return typeof parsed === "string" ? parsed.trim() : "";
+  } catch {
+    return rawValue;
+  }
+}
+
 export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
   const initialWorkingDir = pageParams?.workingDir?.trim() ?? "";
   const initialStoredWorkingDir =
-    initialWorkingDir || readStoredWorkingDir();
+    initialWorkingDir || readReusableStoredWorkingDir();
   const [workingDirInput, setWorkingDirInput] = useState(() =>
     initialStoredWorkingDir,
   );
@@ -120,9 +165,8 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
   const [packNameInput, setPackNameInput] = useState(
     pageParams?.selectedPackName?.trim() || DEFAULT_PACK_NAME,
   );
-  const [packDescription, setPackDescription] =
-    useState("创始人个人 IP 知识库");
-  const [packType, setPackType] = useState("personal-ip");
+  const [packDescription, setPackDescription] = useState("项目资料");
+  const [packType, setPackType] = useState("brand-product");
   const sourceFileName = DEFAULT_SOURCE_FILE_NAME;
   const [sourceText, setSourceText] = useState("");
 
@@ -192,6 +236,41 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
     setWorkingDirInput(normalizedFromParams);
     setWorkingDir(normalizedFromParams);
     persistWorkingDir(normalizedFromParams);
+  }, [pageParams?.workingDir, workingDir]);
+
+  useEffect(() => {
+    if (workingDir || pageParams?.workingDir?.trim()) {
+      return;
+    }
+
+    let cancelled = false;
+    const lastProjectId = readLastProjectId();
+    const projectPromise = lastProjectId
+      ? getProject(lastProjectId)
+          .catch(() => null)
+          .then((project) => project ?? getDefaultProject())
+      : getDefaultProject();
+
+    void projectPromise
+      .then((project) => {
+        const nextWorkingDir = project?.rootPath.trim() ?? "";
+        if (cancelled || !project || !nextWorkingDir) {
+          return;
+        }
+
+        setSelectedProjectId(project.id);
+        setSelectedProjectName(project.name);
+        setWorkingDirInput(nextWorkingDir);
+        setWorkingDir(nextWorkingDir);
+        persistWorkingDir(nextWorkingDir);
+      })
+      .catch(() => {
+        // 没有默认项目时保持空态，让用户通过项目选择器进入。
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [pageParams?.workingDir, workingDir]);
 
   useEffect(() => {
@@ -489,7 +568,7 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
     const normalizedPackName =
       selectedPackName || normalizePackNameInput(packNameInput);
     if (!workingDir || !normalizedPackName) {
-      setNotice("请先选择项目和资料包标识");
+      setNotice("请先选择项目和资料名称");
       return;
     }
 
@@ -524,6 +603,21 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
     workingDir,
   ]);
 
+  const handleOpenAgentKnowledgeHub = useCallback(() => {
+    onNavigate?.("agent", {
+      agentEntry: "claw",
+      projectId: selectedProjectId ?? undefined,
+      initialInputCapability: {
+        capabilityRoute: {
+          kind: "builtin_command",
+          commandKey: "knowledge_pack",
+          commandPrefix: "@资料",
+        },
+        requestKey: Date.now(),
+      },
+    });
+  }, [onNavigate, selectedProjectId]);
+
   const handleSendWithKnowledge = useCallback((packNameOverride?: string) => {
     const packName =
       packNameOverride?.trim() ||
@@ -549,6 +643,13 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
       projectId: selectedProjectId ?? undefined,
       initialUserPrompt: "请基于当前项目资料生成内容",
       initialRequestMetadata: requestMetadata,
+      initialKnowledgePackSelection: {
+        enabled: true,
+        packName,
+        workingDir,
+        label: packForRequest ? getPackTitle(packForRequest) : packName,
+        status: packForRequest?.metadata.status,
+      },
       autoRunInitialPromptOnMount: false,
     });
   }, [
@@ -579,35 +680,35 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
           <div className="min-w-0">
             <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
               <Database className="h-3.5 w-3.5" />
-              资料管理
+              管理与确认
             </div>
             <h1 className="mt-3 text-2xl font-semibold text-slate-950">
-              项目资料管理
+              项目资料
             </h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-              日常整理和使用资料请回到 Agent 输入框；这里用于检查、确认、设为默认和归档项目资料。
+              日常添加和使用请回到 Agent 输入框；这里只处理检查、确认、设为默认和归档。
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
-              onClick={() => setActiveView("import")}
+              onClick={handleOpenAgentKnowledgeHub}
               className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm shadow-slate-950/5 transition hover:border-slate-300 hover:bg-slate-50"
             >
-              <Upload className="h-4 w-4" />
-              补充导入
-            </button>
-            <button
-              type="button"
-              onClick={() => handleSendWithKnowledge()}
-              disabled={!selectedPackReady}
-              title={selectedPackReady ? undefined : "先确认一份资料后再用于生成"}
-              className="inline-flex h-10 items-center gap-2 rounded-2xl border border-slate-900 bg-slate-900 px-4 text-sm font-semibold text-white shadow-sm shadow-slate-950/10 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-            >
               <MessageSquareText className="h-4 w-4" />
-              用于生成
+              回到 Agent 添加
             </button>
+            {selectedPackReady ? (
+              <button
+                type="button"
+                onClick={() => handleSendWithKnowledge()}
+                className="inline-flex h-10 items-center gap-2 rounded-2xl border border-slate-900 bg-slate-900 px-4 text-sm font-semibold text-white shadow-sm shadow-slate-950/10 transition hover:bg-slate-800"
+              >
+                <MessageSquareText className="h-4 w-4" />
+                用于生成
+              </button>
+            ) : null}
           </div>
         </header>
 
@@ -620,7 +721,7 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <h2 className="text-sm font-semibold text-slate-950">
-                    当前项目资料库
+                    当前项目
                   </h2>
                   {selectedProjectName ? (
                     <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
@@ -738,7 +839,8 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
                           <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
                         </div>
                         <p className="mt-2 line-clamp-2 text-xs leading-5 text-amber-800">
-                          {pack.preview || "请检查后确认。"}
+                          {sanitizeKnowledgePreview(pack.preview) ||
+                            "请检查后确认。"}
                         </p>
                       </button>
                     ))}
@@ -762,8 +864,70 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
                 </div>
                 <div className="mt-4 grid gap-3 lg:grid-cols-2">
                   {packs.length === 0 && catalogStatus !== "loading" ? (
-                    <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-500">
-                      还没有项目资料。回到 Agent 输入框，点击“添加项目资料”开始。
+                    <div className="lg:col-span-2 rounded-[22px] border border-dashed border-slate-200 bg-slate-50 p-4">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <h3 className="text-sm font-semibold text-slate-950">
+                            还没有项目资料
+                          </h3>
+                          <p className="mt-1 text-sm leading-6 text-slate-500">
+                            项目资料从日常工作里沉淀：先把内容交给当前 Agent，整理确认后再用于生成。
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={handleOpenAgentKnowledgeHub}
+                            className="inline-flex h-9 items-center justify-center gap-2 rounded-2xl border border-slate-900 bg-slate-900 px-3 text-xs font-semibold text-white transition hover:bg-slate-800"
+                          >
+                            <MessageSquareText className="h-3.5 w-3.5" />
+                            回到 Agent 添加
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setActiveView("import")}
+                            className="inline-flex h-9 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                          >
+                            <Upload className="h-3.5 w-3.5" />
+                            补充导入
+                          </button>
+                        </div>
+                      </div>
+                      <div className="mt-4 grid gap-2 md:grid-cols-3">
+                        {[
+                          [
+                            "从输入框添加",
+                            "粘贴资料或写清目标，点击输入框下方的项目资料图标整理。",
+                            MessageSquareText,
+                          ],
+                          [
+                            "从文件管理器添加",
+                            "在文件管理器选择文本或 Markdown 文件，直接设为项目资料。",
+                            FolderOpen,
+                          ],
+                          [
+                            "从结果继续沉淀",
+                            "Agent 输出里出现可复用事实时，点击“沉淀为项目资料”。",
+                            ClipboardCheck,
+                          ],
+                        ].map(([title, description, GuideIcon]) => {
+                          const Icon = GuideIcon as typeof MessageSquareText;
+                          return (
+                            <div
+                              key={title as string}
+                              className="rounded-2xl border border-slate-200 bg-white px-3 py-3"
+                            >
+                              <div className="flex items-center gap-2 text-xs font-semibold text-slate-900">
+                                <Icon className="h-3.5 w-3.5 text-emerald-600" />
+                                {title as string}
+                              </div>
+                              <p className="mt-2 text-xs leading-5 text-slate-500">
+                                {description as string}
+                              </p>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   ) : (
                     packs.map((pack) => (
@@ -794,7 +958,7 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
                 </p>
                 <button
                   type="button"
-                  onClick={() => onNavigate?.("agent")}
+                  onClick={handleOpenAgentKnowledgeHub}
                   className="mt-3 inline-flex h-10 w-full items-center justify-center gap-2 rounded-2xl border border-slate-900 bg-slate-900 px-3 text-sm font-semibold text-white transition hover:bg-slate-800"
                 >
                   <MessageSquareText className="h-4 w-4" />
@@ -1034,7 +1198,7 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
                       </h3>
                     </div>
                     <p className="mt-2 text-sm leading-6 text-amber-800">
-                      请先检查内容缺口、风险提醒和引用摘要；确认后才会成为可默认使用的资料包。
+                      请先检查内容缺口、风险提醒和引用摘要；确认后才会成为可默认使用的项目资料。
                     </p>
                   </section>
                 </aside>
@@ -1086,7 +1250,7 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
                         {getPackTitle(selectedPack)}
                       </h2>
                       <p className="mt-2 text-xs text-slate-500">
-                        {getPackTypeLabel(selectedPack.metadata.type)}
+                        {getUserFacingPackTypeLabel(selectedPack.metadata.type)}
                       </p>
                     </div>
                     <div className="flex flex-wrap gap-2">
@@ -1192,7 +1356,8 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
                           适用场景
                         </h3>
                         <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-600">
-                          {selectedPack.guide || "等待整理适用场景。"}
+                          {sanitizeKnowledgePreview(selectedPack.guide) ||
+                            "等待整理适用场景。"}
                         </p>
                       </section>
                       <section className="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
@@ -1210,7 +1375,8 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
                                   引用摘要
                                 </div>
                                 <p className="mt-2 line-clamp-2 text-xs leading-5 text-slate-500">
-                                  {entry.preview || "引用摘要"}
+                                  {sanitizeKnowledgePreview(entry.preview) ||
+                                    "引用摘要已生成，可在 Agent 生成时作为参考。"}
                                 </p>
                               </div>
                             ))

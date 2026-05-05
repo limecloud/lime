@@ -1,10 +1,8 @@
 import { ChevronDown, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { formatPathPreview } from "../domain/knowledgeVisibility";
 
 export function KnowledgeTroubleshootingPanel({
   open,
-  workingDir,
   workingDirInput,
   onToggle,
   onWorkingDirInputChange,
@@ -26,10 +24,10 @@ export function KnowledgeTroubleshootingPanel({
       >
         <span className="min-w-0">
           <span className="block text-xs font-semibold text-slate-700">
-            排障设置
+            项目识别异常？
           </span>
           <span className="mt-1 block truncate text-xs text-slate-500">
-            无法识别当前项目时，再手动指定项目目录：{formatPathPreview(workingDir)}
+            仅在资料没有保存到当前项目时使用修复选项
           </span>
         </span>
         <ChevronDown
@@ -44,7 +42,7 @@ export function KnowledgeTroubleshootingPanel({
           <input
             value={workingDirInput}
             onChange={(event) => onWorkingDirInputChange(event.target.value)}
-            placeholder="仅排障时填写，例如 /Users/me/project"
+            placeholder="粘贴项目文件夹位置"
             className="h-10 rounded-2xl border border-slate-200 bg-white px-3 font-mono text-sm text-slate-800 outline-none transition focus:border-emerald-300 focus:ring-2 focus:ring-emerald-100"
           />
           <button

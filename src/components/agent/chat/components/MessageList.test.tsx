@@ -4236,6 +4236,37 @@ describe("MessageList", () => {
     });
   });
 
+  it("助手结果应支持沉淀为项目资料", () => {
+    const onSaveMessageAsKnowledge = vi.fn();
+    const now = new Date();
+    const messages: Message[] = [
+      {
+        id: "msg-assistant-save-knowledge",
+        role: "assistant",
+        content:
+          "这是一段足够长的项目事实说明，用来验证助手消息上会出现沉淀为项目资料的入口。",
+        timestamp: now,
+      },
+    ];
+
+    const container = render(messages, { onSaveMessageAsKnowledge });
+    const saveButton = container.querySelector(
+      'button[aria-label="沉淀为项目资料"]',
+    );
+
+    expect(saveButton).not.toBeNull();
+
+    act(() => {
+      saveButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(onSaveMessageAsKnowledge).toHaveBeenCalledWith({
+      messageId: "msg-assistant-save-knowledge",
+      content:
+        "这是一段足够长的项目事实说明，用来验证助手消息上会出现沉淀为项目资料的入口。",
+    });
+  });
+
   it("聊天主列与助手消息气泡应保持更宽的桌面阅读宽度", () => {
     const now = new Date();
     const messages: Message[] = [

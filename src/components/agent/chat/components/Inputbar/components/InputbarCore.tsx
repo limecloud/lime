@@ -25,6 +25,7 @@ import {
   PathReferenceChip,
   PathReferenceContainer,
   PathReferenceIcon,
+  PathReferenceKnowledgeButton,
   PathReferenceName,
   PathReferencePath,
   PathReferenceRemoveButton,
@@ -44,6 +45,7 @@ import {
   X,
 } from "lucide-react";
 import { BaseComposer } from "@/components/input-kit";
+import { isKnowledgeTextSourceCandidate } from "@/features/knowledge/import/knowledgeSourceSupport";
 import type { MessageImage, MessagePathReference } from "../../../types";
 import type { QueuedTurnSnapshot } from "@/lib/api/agentRuntime";
 import { QueuedTurnsPanel } from "./QueuedTurnsPanel";
@@ -96,6 +98,7 @@ interface InputbarCoreProps {
   pendingImages?: MessageImage[];
   onRemoveImage?: (index: number) => void;
   pathReferences?: MessagePathReference[];
+  onImportPathReferenceAsKnowledge?: (reference: MessagePathReference) => void;
   onRemovePathReference?: (id: string) => void;
   onPaste?: (e: React.ClipboardEvent) => void;
   onDragOver?: (e: React.DragEvent) => void;
@@ -146,6 +149,7 @@ export const InputbarCore: React.FC<InputbarCoreProps> = ({
   pendingImages = [],
   onRemoveImage,
   pathReferences = [],
+  onImportPathReferenceAsKnowledge,
   onRemovePathReference,
   onPaste,
   onDragOver,
@@ -341,6 +345,24 @@ export const InputbarCore: React.FC<InputbarCoreProps> = ({
     },
     [onRemovePathReference],
   );
+  const handleImportPathReferenceMouseDown = useCallback(
+    (event: React.MouseEvent<HTMLButtonElement>) => {
+      event.preventDefault();
+      event.stopPropagation();
+    },
+    [],
+  );
+  const handleImportPathReferenceClick = useCallback(
+    (
+      event: React.MouseEvent<HTMLButtonElement>,
+      reference: MessagePathReference,
+    ) => {
+      event.preventDefault();
+      event.stopPropagation();
+      onImportPathReferenceAsKnowledge?.(reference);
+    },
+    [onImportPathReferenceAsKnowledge],
+  );
 
   const handleToggleTextareaExpanded = useCallback(() => {
     setIsTextareaExpanded((previous) => !previous);
@@ -434,7 +456,7 @@ export const InputbarCore: React.FC<InputbarCoreProps> = ({
                     return (
                       <PathReferenceChip
                         key={reference.id}
-                        title={reference.path}
+                        title={reference.name}
                         data-testid="inputbar-path-reference-chip"
                       >
                         <PathReferenceIcon $isDir={reference.isDir}>
@@ -445,9 +467,23 @@ export const InputbarCore: React.FC<InputbarCoreProps> = ({
                             {reference.name}
                           </PathReferenceName>
                           <PathReferencePath>
-                            {reference.path}
+                            {reference.isDir ? "本地文件夹" : "本地文件"}
                           </PathReferencePath>
                         </PathReferenceText>
+                        {onImportPathReferenceAsKnowledge &&
+                        isKnowledgeTextSourceCandidate(reference) ? (
+                          <PathReferenceKnowledgeButton
+                            type="button"
+                            aria-label={`设为项目资料 ${reference.name}`}
+                            onMouseDown={handleImportPathReferenceMouseDown}
+                            onClick={(event) =>
+                              handleImportPathReferenceClick(event, reference)
+                            }
+                          >
+                            <FileText size={12} aria-hidden />
+                            设为资料
+                          </PathReferenceKnowledgeButton>
+                        ) : null}
                         <PathReferenceRemoveButton
                           type="button"
                           aria-label={`移除路径 ${reference.name}`}

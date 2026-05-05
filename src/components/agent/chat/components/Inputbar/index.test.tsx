@@ -700,6 +700,132 @@ describe("Inputbar", () => {
     expect(onSelectServiceSkill).toHaveBeenCalledWith(serviceSkills[0]);
   });
 
+  it("@资料兼容入口应打开资料中枢而不是直接启用资料或创建新的 Agent", async () => {
+    const onToggleKnowledgePack = vi.fn();
+    const { container } = renderInputbar({
+      knowledgePackSelection: {
+        enabled: false,
+        packName: "brand-guide",
+        workingDir: "/workspace/demo",
+        label: "品牌资料",
+        status: "ready",
+      },
+      onToggleKnowledgePack,
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const latestCall =
+      mockCharacterMention.mock.calls[
+        mockCharacterMention.mock.calls.length - 1
+      ]?.[0];
+    expect(latestCall?.onSelectInputCapability).toBeTypeOf("function");
+
+    await act(async () => {
+      latestCall?.onSelectInputCapability?.({
+        kind: "builtin_command",
+        command: {
+          key: "knowledge_pack",
+          label: "资料",
+          mentionLabel: "资料",
+          commandPrefix: "@资料",
+          description: "使用项目资料",
+          aliases: [],
+        },
+      });
+      await Promise.resolve();
+    });
+
+    expect(onToggleKnowledgePack).not.toHaveBeenCalled();
+    expect(
+      container.querySelector('[data-testid="inputbar-knowledge-hub"]')
+        ?.textContent,
+    ).toContain("使用这份资料");
+
+    const useKnowledgeButton = Array.from(
+      container.querySelectorAll("button"),
+    ).find((button) => button.textContent?.includes("使用这份资料"));
+
+    act(() => {
+      useKnowledgeButton?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
+    });
+
+    expect(onToggleKnowledgePack).toHaveBeenCalledWith(true);
+  });
+
+  it("@沉淀资料应复用输入框资料整理动作", async () => {
+    const onStartKnowledgeOrganize = vi.fn();
+    renderInputbar({
+      onStartKnowledgeOrganize,
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const latestCall =
+      mockCharacterMention.mock.calls[
+        mockCharacterMention.mock.calls.length - 1
+      ]?.[0];
+
+    await act(async () => {
+      latestCall?.onSelectInputCapability?.({
+        kind: "builtin_command",
+        command: {
+          key: "knowledge_settle",
+          label: "沉淀资料",
+          mentionLabel: "沉淀资料",
+          commandPrefix: "@沉淀资料",
+          description: "沉淀项目资料",
+          aliases: [],
+        },
+      });
+      await Promise.resolve();
+    });
+
+    expect(onStartKnowledgeOrganize).toHaveBeenCalledTimes(1);
+  });
+
+  it("初始路由带 @资料 时应兼容打开资料中枢而不是渲染命令 badge", async () => {
+    const onToggleKnowledgePack = vi.fn();
+    const { container } = renderInputbar({
+      knowledgePackSelection: {
+        enabled: false,
+        packName: "brand-guide",
+        workingDir: "/workspace/demo",
+        label: "品牌资料",
+        status: "ready",
+      },
+      onToggleKnowledgePack,
+      initialInputCapability: {
+        capabilityRoute: {
+          kind: "builtin_command",
+          commandKey: "knowledge_pack",
+          commandPrefix: "@资料",
+        },
+        requestKey: 20260505,
+      },
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(
+      container.querySelector('[data-testid="top-extra"]')?.textContent,
+    ).not.toContain("资料");
+    expect(
+      container.querySelector('[data-testid="inputbar-knowledge-hub"]')
+        ?.textContent,
+    ).toContain("使用这份资料");
+    expect(onToggleKnowledgePack).not.toHaveBeenCalled();
+  });
+
   it("先选内建命令再选技能时，应以后一次 capability 为准发送", async () => {
     const onSend = vi.fn();
     const skill = {
@@ -2559,6 +2685,41 @@ describe("Inputbar", () => {
     expect(container.textContent).not.toContain("知识包");
   });
 
+  it("待确认资料即使残留启用状态也不应显示为正在使用", async () => {
+    const { container } = renderInputbar({
+      knowledgePackSelection: {
+        enabled: true,
+        packName: "draft-without-source",
+        workingDir: "/tmp/lime-project",
+        label: "待确认资料",
+        status: "needs-review",
+      },
+      onManageKnowledgePacks: vi.fn(),
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const toggle = container.querySelector(
+      '[data-testid="inputbar-knowledge-pack-toggle"]',
+    ) as HTMLButtonElement | null;
+    expect(toggle?.textContent).toContain("项目资料：未使用");
+    expect(toggle?.textContent).not.toContain("正在使用");
+
+    act(() => {
+      toggle?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    const hub = container.querySelector(
+      '[data-testid="inputbar-knowledge-hub"]',
+    );
+    expect(hub?.textContent).toContain("待确认资料 待确认");
+    expect(hub?.textContent).toContain("去确认资料");
+    expect(hub?.textContent).not.toContain("管理资料");
+    expect(hub?.textContent).not.toContain("关闭资料");
+  });
+
   it("没有项目资料时应能从输入框触发资料整理入口", async () => {
     const onStartKnowledgeOrganize = vi.fn();
     const { container } = renderInputbar({
@@ -2573,25 +2734,58 @@ describe("Inputbar", () => {
       '[data-testid="inputbar-knowledge-organize"]',
     ) as HTMLButtonElement | null;
     expect(organizeButton).toBeTruthy();
-    expect(organizeButton?.textContent).toContain("添加项目资料");
+    expect(organizeButton?.textContent).toContain("项目资料");
 
     act(() => {
       organizeButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
 
     const organizeCard = container.querySelector(
-      '[data-testid="inputbar-knowledge-organize-card"]',
+      '[data-testid="inputbar-knowledge-hub"]',
     );
-    expect(organizeCard?.textContent).toContain("发送给 Agent 整理");
+    expect(organizeCard?.textContent).toContain("添加项目资料");
+    expect(organizeCard?.textContent).toContain("开始添加资料");
 
-    const organizeAction = Array.from(container.querySelectorAll("button")).find(
-      (button) => button.textContent?.includes("发送给 Agent 整理"),
-    );
+    const organizeAction = Array.from(
+      container.querySelectorAll("button"),
+    ).find((button) => button.textContent?.includes("开始添加资料"));
     act(() => {
       organizeAction?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
 
     expect(onStartKnowledgeOrganize).toHaveBeenCalledTimes(1);
+  });
+
+  it("没有项目资料时不应把普通用户带到管理动作", async () => {
+    const onManageKnowledgePacks = vi.fn();
+    const { container } = renderInputbar({
+      onManageKnowledgePacks,
+      onStartKnowledgeOrganize: vi.fn(),
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(
+      container.querySelector(
+        '[data-testid="inputbar-knowledge-pack-menu-toggle"]',
+      ),
+    ).toBeNull();
+
+    const organizeButton = container.querySelector(
+      '[data-testid="inputbar-knowledge-organize"]',
+    ) as HTMLButtonElement | null;
+
+    act(() => {
+      organizeButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    const hub = container.querySelector(
+      '[data-testid="inputbar-knowledge-hub"]',
+    );
+    expect(hub?.textContent).toContain("开始添加资料");
+    expect(hub?.textContent).not.toContain("管理资料");
   });
 
   it("可从输入区菜单切换具体项目资料并用选中资料发送", async () => {
@@ -2618,7 +2812,7 @@ describe("Inputbar", () => {
         {
           packName: "org-knowhow-demo",
           label: "组织经验资料",
-          status: "needs-review",
+          status: "ready",
         },
       ],
       onSelectKnowledgePack,
@@ -2659,7 +2853,7 @@ describe("Inputbar", () => {
         packName: "org-knowhow-demo",
         workingDir: "/tmp/lime-project",
         label: "组织经验资料",
-        status: "needs-review",
+        status: "ready",
       },
     });
 
@@ -2692,6 +2886,108 @@ describe("Inputbar", () => {
         },
       }),
     );
+  });
+
+  it("已有可用资料时仍应提供添加新资料入口", async () => {
+    const onStartKnowledgeOrganize = vi.fn();
+    const { container } = renderInputbar({
+      knowledgePackSelection: {
+        enabled: false,
+        packName: "brand-product-demo",
+        workingDir: "/tmp/lime-project",
+        label: "品牌产品资料",
+        status: "ready",
+      },
+      onStartKnowledgeOrganize,
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const menuButton = container.querySelector(
+      '[data-testid="inputbar-knowledge-pack-menu-toggle"]',
+    ) as HTMLButtonElement | null;
+    act(() => {
+      menuButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    const addButton = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent?.includes("添加新资料"),
+    );
+    expect(addButton).toBeTruthy();
+
+    act(() => {
+      addButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(onStartKnowledgeOrganize).toHaveBeenCalledTimes(1);
+  });
+
+  it("资料中枢只把已确认资料作为可用选项，待确认资料回到管理页处理", async () => {
+    const onManageKnowledgePacks = vi.fn();
+    const { container } = renderInputbar({
+      knowledgePackSelection: {
+        enabled: true,
+        packName: "brand-product-demo",
+        workingDir: "/tmp/lime-project",
+        label: "品牌产品资料",
+        status: "ready",
+      },
+      knowledgePackOptions: [
+        {
+          packName: "brand-product-demo",
+          label: "品牌产品资料",
+          status: "ready",
+          defaultForWorkspace: true,
+        },
+        {
+          packName: "no-source-draft",
+          label: "看起来你还没有提供原始素材",
+          status: "needs-review",
+        },
+      ],
+      onManageKnowledgePacks,
+      onStartKnowledgeOrganize: vi.fn(),
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const menuButton = container.querySelector(
+      '[data-testid="inputbar-knowledge-pack-menu-toggle"]',
+    ) as HTMLButtonElement | null;
+
+    act(() => {
+      menuButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    const hub = container.querySelector(
+      '[data-testid="inputbar-knowledge-hub"]',
+    );
+    expect(hub?.textContent).toContain("品牌产品资料");
+    expect(hub?.textContent).toContain(
+      "还有 1 份资料待确认，确认后才会出现在可用列表里。",
+    );
+    expect(hub?.textContent).toContain("补充资料");
+    expect(hub?.textContent).toContain("检查资料");
+    expect(hub?.textContent).not.toContain("看起来你还没有提供原始素材");
+    expect(
+      container.querySelector(
+        '[data-testid="inputbar-knowledge-pack-option-no-source-draft"]',
+      ),
+    ).toBeNull();
+
+    const manageButton = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent?.includes("检查资料"),
+    );
+
+    act(() => {
+      manageButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(onManageKnowledgePacks).toHaveBeenCalledTimes(1);
   });
 
   it("仅在 Team mode 开启时显示 TeamSelector", async () => {

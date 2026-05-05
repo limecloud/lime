@@ -30,6 +30,11 @@
 - Lime 多模态运行合同实施计划：`docs/exec-plans/multimodal-runtime-contract-plan.md`
 - 云端套餐与支付边界收口计划：`docs/exec-plans/cloud-commerce-user-center-boundary.md`
 - `@` 命令本地执行纠偏计划：`docs/exec-plans/at-command-local-execution-alignment-plan.md`
+- AI 图层化设计实现计划：`docs/exec-plans/ai-layered-design-implementation-plan.md`
+- CreoAI Capability Authoring P1A 执行计划：`docs/exec-plans/creaoai-capability-authoring-p1a-plan.md`
+- CreoAI Capability Verification P1B 执行计划：`docs/exec-plans/creaoai-capability-verification-p1b-plan.md`
+- CreoAI Capability Registration P3 执行计划：`docs/exec-plans/creaoai-capability-registration-p3-plan.md`
+- CreoAI Capability Discovery P3B 执行计划：`docs/exec-plans/creaoai-capability-discovery-p3b-plan.md`
 - LimeNext 总实施计划（`legacy current reference`，当前主规划已切到 `docs/roadmap/limenextv2/README.md`）：`docs/exec-plans/limenext-plan.md`
 - LimeNext 推进日志：`docs/exec-plans/limenext-progress.md`
 - 技术债追踪：`docs/exec-plans/tech-debt-tracker.md`

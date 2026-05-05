@@ -62,6 +62,14 @@ export interface AgentInitialInputCapabilityParams {
   requestKey?: number;
 }
 
+export interface AgentInitialKnowledgePackSelectionParams {
+  enabled: boolean;
+  packName: string;
+  workingDir: string;
+  label?: string;
+  status?: string;
+}
+
 /**
  * Agent 页面参数
  * 用于从项目入口跳转到创作界面时传递项目上下文
@@ -107,6 +115,8 @@ export interface AgentPageParams {
   initialPendingServiceSkillLaunch?: AgentPendingServiceSkillLaunchParams;
   /** 进入 Agent 后优先恢复一条输入能力路由 */
   initialInputCapability?: AgentInitialInputCapabilityParams;
+  /** 从资料管理进入 Agent 时预启用的项目资料 */
+  initialKnowledgePackSelection?: AgentInitialKnowledgePackSelectionParams;
   /** 进入 Agent 后自动打开项目内某个文件 */
   initialProjectFileOpenTarget?: AgentProjectFileOpenTarget;
   /** 首页点击触发的新会话标记（时间戳） */
@@ -163,6 +173,7 @@ export interface SkillsPageParams {
   initialScaffoldDraft?: SkillScaffoldDraft;
   initialScaffoldRequestKey?: number;
   creationProjectId?: string;
+  highlightCapabilityDraftId?: string;
 }
 
 export interface KnowledgePageParams {

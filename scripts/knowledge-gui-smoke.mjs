@@ -49,6 +49,18 @@ const SECONDARY_PACK = {
   ].join("\n"),
 };
 
+const AGENT_RESULT_MESSAGE = {
+  id: "smoke-agent-result-knowledge",
+  title: "对话结果资料",
+  content: [
+    "# 对话结果资料",
+    "",
+    "- 事实：该结果来自当前 Agent 对话，用于验证生成结果可以沉淀成项目资料。",
+    "- 适用场景：用户拿到一段可复用结论后，可以一键保存，随后在项目资料管理页检查确认。",
+    "- 风险提示：沉淀后仍需人工确认，避免把临时分析当成长期事实。",
+  ].join("\n"),
+};
+
 function printHelp() {
   console.log(`
 Lime Knowledge GUI Smoke
@@ -299,6 +311,34 @@ async function clickPageControl(page, { text, ariaLabel, index = 0 }) {
   }
 }
 
+async function seedAgentResultForKnowledgeCapture(page, options) {
+  await page.evaluate(
+    ({ projectId, message }) => {
+      const now = new Date().toISOString();
+      sessionStorage.setItem(
+        `aster_messages_${projectId}`,
+        JSON.stringify([
+          {
+            id: message.id,
+            role: "assistant",
+            content: message.content,
+            timestamp: now,
+          },
+        ]),
+      );
+      sessionStorage.removeItem(`aster_curr_sessionId_${projectId}`);
+      sessionStorage.removeItem(`aster_last_sessionId_${projectId}`);
+      sessionStorage.removeItem(`aster_thread_turns_${projectId}`);
+      sessionStorage.removeItem(`aster_thread_items_${projectId}`);
+      sessionStorage.removeItem(`aster_curr_turnId_${projectId}`);
+    },
+    {
+      projectId: options.projectId,
+      message: AGENT_RESULT_MESSAGE,
+    },
+  );
+}
+
 async function createSmokeProject(options) {
   const projectName = `Knowledge GUI Smoke ${process.pid}`;
   const project = await invoke(options, "workspace_create", {
@@ -314,6 +354,13 @@ async function createSmokeProject(options) {
   }
   options.projectId = projectId;
   options.projectName = String(project?.name || projectName);
+  const projectRootPath = String(
+    project?.rootPath || project?.root_path || "",
+  ).trim();
+  if (projectRootPath) {
+    options.workingDir = projectRootPath;
+    fs.mkdirSync(options.workingDir, { recursive: true });
+  }
 }
 
 async function cleanupSmokeProject(options) {
@@ -394,14 +441,14 @@ async function runPlaywrightGuiFlow(options) {
     await waitForPageText(page, "首页加载", ["青柠一下，灵感即来"], options.timeoutMs);
 
     logStage("open-knowledge-page");
-    await clickPageControl(page, { ariaLabel: "知识库" });
+    await clickPageControl(page, { ariaLabel: "项目资料" });
 
     logStage("wait-knowledge-overview");
     await waitForPageText(
       page,
       "知识库总览加载",
       [
-        "项目资料管理",
+        "项目资料",
         "日常使用入口",
         "回到 Agent",
         "全部资料",
@@ -424,7 +471,10 @@ async function runPlaywrightGuiFlow(options) {
       await waitForPageText(
         page,
         "Agent 页面加载",
-        ["项目资料：未使用", "请基于当前项目资料生成内容"],
+        [
+          `正在使用：${DEFAULT_PACK.title}`,
+          "请基于当前项目资料生成内容",
+        ],
         options.timeoutMs,
       );
     } catch (error) {
@@ -438,8 +488,51 @@ async function runPlaywrightGuiFlow(options) {
       throw error;
     }
 
+    logStage("return-knowledge-before-agent-result");
+    await clickPageControl(page, { ariaLabel: "项目资料" });
+
+    logStage("prepare-agent-result");
+    await seedAgentResultForKnowledgeCapture(page, options);
+    await clickPageControl(page, { text: "用于生成" });
+
+    logStage("wait-agent-result");
+    await waitForPageText(
+      page,
+      "Agent 结果样本加载",
+      [
+        `正在使用：${DEFAULT_PACK.title}`,
+        "沉淀为项目资料",
+        "事实：该结果来自当前 Agent 对话",
+      ],
+      options.timeoutMs,
+    );
+
+    logStage("capture-agent-result");
+    await clickPageControl(page, { ariaLabel: "沉淀为项目资料" });
+
+    logStage("wait-agent-result-captured");
+    await waitForPageText(
+      page,
+      "Agent 结果沉淀完成",
+      ["项目资料已整理", AGENT_RESULT_MESSAGE.title],
+      options.timeoutMs,
+    );
+
     logStage("return-knowledge-page");
-    await clickPageControl(page, { ariaLabel: "知识库" });
+    await clickPageControl(page, { ariaLabel: "项目资料" });
+
+    logStage("wait-captured-agent-result");
+    await waitForPageText(
+      page,
+      "沉淀资料进入管理页",
+      [
+        "项目资料",
+        "全部资料",
+        AGENT_RESULT_MESSAGE.title,
+        "继续确认",
+      ],
+      options.timeoutMs,
+    );
 
     logStage("open-import-view");
     await clickPageControl(page, { text: "补充导入" });
@@ -518,11 +611,11 @@ async function main() {
     await waitForHealth(options);
     await sleep(POST_HEALTH_SETTLE_MS);
 
-    logStage("seed-knowledge-packs");
-    await seedKnowledgePacks(options);
-
     logStage("create-smoke-project");
     await createSmokeProject(options);
+
+    logStage("seed-knowledge-packs");
+    await seedKnowledgePacks(options);
 
     await runPlaywrightGuiFlow(options);
     console.log("[smoke:knowledge-gui] 通过");

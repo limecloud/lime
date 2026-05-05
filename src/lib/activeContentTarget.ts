@@ -49,7 +49,7 @@ export const getActiveContentTarget = (): ActiveContentTarget | null => {
 export const setActiveContentTarget = (
   projectId?: string | null,
   contentId?: string | null,
-  canvasType?: ActiveCanvasType,
+  canvasType?: string | null,
 ) => {
   if (!hasWindow()) return;
   const payload: ActiveContentTarget = {

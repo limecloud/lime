@@ -111,6 +111,9 @@ struct AnalysisContextSummary {
     decision_reason: String,
     estimated_cost_class: String,
     fallback_chain: Vec<String>,
+    capability_gap: String,
+    limit_status: String,
+    user_locked_capability_summary: String,
     permission_status: String,
     permission_confirmation_status: String,
     permission_confirmation_request_id: String,
@@ -341,6 +344,53 @@ pub fn export_runtime_analysis_handoff(
         &permission_confirmation_request_id,
         &permission_confirmation_source,
     );
+    let capability_gap = value_string(
+        input_payload
+            .pointer("/runtimeContext/runtimeFacts/capabilityGap")
+            .unwrap_or(&Value::Null),
+    )
+    .or_else(|| {
+        value_string(
+            input_payload
+                .pointer("/runtimeContext/runtimeFacts/limitState/capabilityGap")
+                .unwrap_or(&Value::Null),
+        )
+    })
+    .or_else(|| normalize_optional_text(thread_read.capability_gap.clone()))
+    .or_else(|| {
+        thread_read
+            .limit_state
+            .as_ref()
+            .and_then(|value| normalize_optional_text(value.capability_gap.clone()))
+    })
+    .unwrap_or_default();
+    let limit_status = value_string(
+        input_payload
+            .pointer("/runtimeContext/runtimeFacts/limitState/status")
+            .unwrap_or(&Value::Null),
+    )
+    .or_else(|| {
+        value_string(
+            input_payload
+                .pointer("/runtimeContext/runtimeFacts/runtimeSummary/limitStatus")
+                .unwrap_or(&Value::Null),
+        )
+    })
+    .or_else(|| {
+        thread_read
+            .limit_state
+            .as_ref()
+            .and_then(|value| normalize_optional_text(Some(value.status.clone())))
+    })
+    .or_else(|| {
+        thread_read
+            .runtime_summary
+            .as_ref()
+            .and_then(|value| value_string(value.get("limitStatus").unwrap_or(&Value::Null)))
+    })
+    .unwrap_or_default();
+    let user_locked_capability_summary =
+        format_user_locked_capability_summary(&limit_status, &capability_gap);
 
     let replay_refs = replay_case
         .artifacts
@@ -461,6 +511,9 @@ pub fn export_runtime_analysis_handoff(
                 .pointer("/runtimeContext/runtimeFacts/fallbackChain")
                 .unwrap_or(&Value::Null),
         ),
+        capability_gap,
+        limit_status,
+        user_locked_capability_summary,
         permission_status,
         permission_confirmation_status,
         permission_confirmation_request_id,
@@ -675,6 +728,10 @@ fn build_analysis_brief(
             "- 权限确认：{}",
             empty_fallback(&summary.permission_confirmation_summary, "未导出")
         ),
+        format!(
+            "- 模型锁定能力缺口：{}",
+            empty_fallback(&summary.user_locked_capability_summary, "未触发")
+        ),
         String::new(),
         "## 证据关联与可观测覆盖".to_string(),
         String::new(),
@@ -820,6 +877,10 @@ fn build_copy_prompt(
             "- 权限确认：{}",
             empty_fallback(&summary.permission_confirmation_summary, "未导出")
         ),
+        format!(
+            "- 模型锁定能力缺口：{}",
+            empty_fallback(&summary.user_locked_capability_summary, "未触发")
+        ),
         format!("- Handoff 根目录：`{}`", to_portable_path(&handoff_bundle.bundle_absolute_root)),
         format!("- Evidence 根目录：`{}`", to_portable_path(&evidence_pack.pack_absolute_root)),
         format!("- Replay 根目录：`{}`", to_portable_path(&replay_case.replay_absolute_root)),
@@ -887,14 +948,22 @@ fn build_human_review_checklist(
         "确认回归建议是否能沉淀为 replay / eval / smoke，而不是停留在口头建议。".to_string(),
     ];
 
-    if summary.permission_confirmation_status == "denied" {
+    if permission_confirmation_blocks_delivery(summary) {
         checklist.insert(
             0,
-            "当前真实权限确认已被拒绝，不应把 handoff / evidence / replay 当成成功交付通过证据。"
+            "当前权限确认尚未解决，不应把 handoff / evidence / replay 当成成功交付通过证据。"
                 .to_string(),
         );
     } else if summary.permission_confirmation_status == "resolved" {
         checklist.push("确认外部 AI 没有把已通过的真实权限确认误判成仍需人工确认。".to_string());
+    }
+
+    if user_locked_capability_blocks_delivery(summary) {
+        checklist.insert(
+            0,
+            "显式用户模型锁定不满足当前 execution profile，不应把 handoff / evidence / replay 当成成功交付通过证据。"
+                .to_string(),
+        );
     }
 
     let requires_human_review = expected_payload
@@ -922,6 +991,29 @@ fn build_human_review_checklist(
     checklist
 }
 
+fn permission_confirmation_blocks_delivery(summary: &AnalysisContextSummary) -> bool {
+    match summary.permission_confirmation_status.as_str() {
+        "resolved" => false,
+        "denied" | "requested" | "not_requested" => true,
+        status => summary.permission_status == "requires_confirmation" && status != "resolved",
+    }
+}
+
+fn user_locked_capability_blocks_delivery(summary: &AnalysisContextSummary) -> bool {
+    summary.limit_status == "user_locked_capability_gap"
+}
+
+fn format_user_locked_capability_summary(limit_status: &str, capability_gap: &str) -> String {
+    if limit_status != "user_locked_capability_gap" {
+        return String::new();
+    }
+
+    format!(
+        "显式用户模型锁定不满足当前 execution profile（capabilityGap={}），不能作为成功交付证据。",
+        empty_fallback(capability_gap, "未记录 capabilityGap")
+    )
+}
+
 fn format_permission_confirmation_summary(status: &str, request_id: &str, source: &str) -> String {
     let request_id = empty_fallback(request_id, "未记录 confirmationRequestId");
     let source = empty_fallback(source, "未记录 confirmationSource");
@@ -931,8 +1023,10 @@ fn format_permission_confirmation_summary(status: &str, request_id: &str, source
             format!("已拒绝（request_id={request_id}, source={source}），不能作为成功交付证据。")
         }
         "resolved" => format!("已通过（request_id={request_id}, source={source}）。"),
-        "requested" => format!("等待处理（request_id={request_id}, source={source}）。"),
-        "not_requested" => "声明态权限尚未发起真实审批请求。".to_string(),
+        "requested" => {
+            format!("等待处理（request_id={request_id}, source={source}），不能作为成功交付证据。")
+        }
+        "not_requested" => "声明态权限尚未发起真实审批请求，不能作为成功交付证据。".to_string(),
         "" => String::new(),
         other => format!("{other}（source={source}）。"),
     }
@@ -1549,6 +1643,13 @@ mod tests {
         confirmation_status: &str,
         request_id: &str,
     ) {
+        let confirmation_request_id =
+            (!request_id.trim().is_empty()).then(|| request_id.to_string());
+        let confirmation_source = if confirmation_status == "not_requested" {
+            "declared_profile_only"
+        } else {
+            "runtime_action_required"
+        };
         thread_read.permission_state = Some(lime_agent::SessionExecutionRuntimePermissionState {
             status: "requires_confirmation".to_string(),
             required_profile_keys: vec!["browser_control".to_string()],
@@ -1557,8 +1658,8 @@ mod tests {
             decision_source: "runtime_task_profile".to_string(),
             decision_scope: "declared_profile_only".to_string(),
             confirmation_status: Some(confirmation_status.to_string()),
-            confirmation_request_id: Some(request_id.to_string()),
-            confirmation_source: Some("runtime_action_required".to_string()),
+            confirmation_request_id,
+            confirmation_source: Some(confirmation_source.to_string()),
             notes: Vec::new(),
         });
     }
@@ -1798,6 +1899,86 @@ mod tests {
         assert!(context.contains("\"permissionConfirmationStatus\": \"denied\""));
         assert!(context.contains("\"permissionConfirmationRequestId\": \"approval-denied\""));
         assert!(context.contains("\"permissionState\""));
+    }
+
+    #[test]
+    fn should_surface_not_requested_permission_confirmation_as_analysis_blocking() {
+        let temp_dir = TempDir::new().expect("temp dir");
+        let detail = build_detail();
+        let mut thread_read = build_thread_read();
+        set_permission_confirmation(&mut thread_read, "not_requested", "");
+        write_request_telemetry_fixture(temp_dir.path());
+
+        let result = export_runtime_analysis_handoff(&detail, &thread_read, temp_dir.path())
+            .expect("export");
+
+        assert!(result.copy_prompt.contains("尚未发起真实审批请求"));
+        assert!(result.copy_prompt.contains("不能作为成功交付证据"));
+
+        let brief = fs::read_to_string(
+            temp_dir
+                .path()
+                .join(".lime/harness/sessions/session-1/analysis/analysis-brief.md"),
+        )
+        .expect("brief");
+        let context = fs::read_to_string(
+            temp_dir
+                .path()
+                .join(".lime/harness/sessions/session-1/analysis/analysis-context.json"),
+        )
+        .expect("context");
+
+        assert!(brief.contains("尚未发起真实审批请求"));
+        assert!(brief.contains("不能作为成功交付证据"));
+        assert!(context.contains("\"permissionConfirmationStatus\": \"not_requested\""));
+        assert!(context.contains("当前权限确认尚未解决"));
+    }
+
+    #[test]
+    fn should_surface_user_locked_capability_gap_in_analysis_handoff() {
+        let temp_dir = TempDir::new().expect("temp dir");
+        let detail = build_detail();
+        let mut thread_read = build_thread_read();
+        thread_read.permission_state = None;
+        thread_read.capability_gap = Some("browser_reasoning_candidate_missing".to_string());
+        thread_read.limit_state = Some(lime_agent::SessionExecutionRuntimeLimitState {
+            status: "user_locked_capability_gap".to_string(),
+            single_candidate_only: true,
+            provider_locked: false,
+            settings_locked: true,
+            oem_locked: false,
+            candidate_count: 1,
+            capability_gap: Some("browser_reasoning_candidate_missing".to_string()),
+            notes: vec!["显式模型锁定不满足 browser_reasoning routingSlot".to_string()],
+        });
+        write_request_telemetry_fixture(temp_dir.path());
+
+        let result = export_runtime_analysis_handoff(&detail, &thread_read, temp_dir.path())
+            .expect("export");
+
+        assert!(result.copy_prompt.contains("模型锁定能力缺口"));
+        assert!(result
+            .copy_prompt
+            .contains("browser_reasoning_candidate_missing"));
+
+        let brief = fs::read_to_string(
+            temp_dir
+                .path()
+                .join(".lime/harness/sessions/session-1/analysis/analysis-brief.md"),
+        )
+        .expect("brief");
+        let context = fs::read_to_string(
+            temp_dir
+                .path()
+                .join(".lime/harness/sessions/session-1/analysis/analysis-context.json"),
+        )
+        .expect("context");
+
+        assert!(brief.contains("显式用户模型锁定"));
+        assert!(brief.contains("不能作为成功交付证据"));
+        assert!(context.contains("\"limitStatus\": \"user_locked_capability_gap\""));
+        assert!(context.contains("\"capabilityGap\": \"browser_reasoning_candidate_missing\""));
+        assert!(context.contains("显式用户模型锁定不满足当前 execution profile"));
     }
 
     #[test]

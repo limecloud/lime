@@ -9,7 +9,10 @@ import {
 import { Info } from "lucide-react";
 import styled from "styled-components";
 import type { Character } from "@/lib/api/memory";
-import type { AgentInitialInputCapabilityParams } from "@/types/page";
+import type {
+  AgentInitialInputCapabilityParams,
+  AgentInitialKnowledgePackSelectionParams,
+} from "@/types/page";
 import { Inputbar } from "../components/Inputbar";
 import { TeamWorkspaceDock } from "../components/TeamWorkspaceDock";
 import { useWorkspaceNavigationActions } from "./useWorkspaceNavigationActions";
@@ -505,6 +508,7 @@ interface UseWorkspaceInputbarSceneRuntimeParams {
   skillsLoading: InputbarParams["isSkillsLoading"];
   onSelectServiceSkill: InputbarParams["onSelectServiceSkill"];
   initialInputCapability?: AgentInitialInputCapabilityParams;
+  initialKnowledgePackSelection?: AgentInitialKnowledgePackSelectionParams;
   setChatToolPreferences: Dispatch<SetStateAction<ChatToolPreferences>>;
   handleNavigateToSkillSettings: InputbarParams["onNavigateToSettings"];
   handleRefreshSkills: InputbarParams["onRefreshSkills"];
@@ -623,6 +627,7 @@ export function useWorkspaceInputbarSceneRuntime({
   skillsLoading,
   onSelectServiceSkill,
   initialInputCapability,
+  initialKnowledgePackSelection,
   setChatToolPreferences,
   handleNavigateToSkillSettings,
   handleRefreshSkills,
@@ -679,6 +684,7 @@ export function useWorkspaceInputbarSceneRuntime({
     executionStrategy,
     handleSend,
     onOpenKnowledgeManagement: navigationActions.handleOpenKnowledgeManagement,
+    initialKnowledgePackSelection,
   });
   const resolvedChatToolPreferences =
     chatToolPreferences ?? DEFAULT_CHAT_TOOL_PREFERENCES;
@@ -709,7 +715,7 @@ export function useWorkspaceInputbarSceneRuntime({
     resolvedTurns[resolvedTurns.length - 1]?.prompt_text?.trim() ||
     "";
 
-  return useWorkspaceInputbarScenePresentationRuntime({
+  const presentationRuntime = useWorkspaceInputbarScenePresentationRuntime({
     setMentionedCharacters,
     taskFiles,
     taskFilesExpanded,
@@ -805,6 +811,8 @@ export function useWorkspaceInputbarSceneRuntime({
         defaultCuratedTaskReferenceEntries,
         pathReferences,
         onAddPathReferences,
+        onImportPathReferenceAsKnowledge:
+          knowledgeRuntime.onImportPathReferenceAsKnowledge,
         onRemovePathReference,
         onClearPathReferences,
         fileManagerOpen,
@@ -888,4 +896,17 @@ export function useWorkspaceInputbarSceneRuntime({
       },
     },
   });
+
+  return {
+    ...presentationRuntime,
+    knowledgePackSelection: knowledgeRuntime.knowledgePackSelection,
+    knowledgePackOptions: knowledgeRuntime.knowledgePackOptions,
+    onToggleKnowledgePack: knowledgeRuntime.onToggleKnowledgePack,
+    onSelectKnowledgePack: knowledgeRuntime.onSelectKnowledgePack,
+    onStartKnowledgeOrganize: knowledgeRuntime.onStartKnowledgeOrganize,
+    onManageKnowledgePacks: knowledgeRuntime.onManageKnowledgePacks,
+    onImportPathReferenceAsKnowledge:
+      knowledgeRuntime.onImportPathReferenceAsKnowledge,
+    onImportTextAsKnowledge: knowledgeRuntime.onImportTextAsKnowledge,
+  };
 }

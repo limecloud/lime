@@ -54,6 +54,20 @@
 6. **证据链是主链的下游消费，不是旁路真相**
    `thread_read / evidence / replay / review` 只能复用主回合产生的 runtime facts，不能反向定义 Query Loop 真相。
 
+### Managed Objective / `/goal` 类能力边界
+
+[Codex `/goal`](../research/codex-goal/README.md) 证明了 “persistent objective -> idle continuation turn” 可以由 runtime 管理，但 Lime 不能因此新增第二条 Query Loop。
+
+如果后续实现 `Managed Objective`：
+
+1. continuation turn 仍必须通过 `agent_runtime_submit_turn` 或 runtime queue 进入本主链。
+2. durable 后台目标仍必须挂到 `automation job`，不能自建 scheduler。
+3. 完成审计必须消费 `artifact / evidence / thread_read`，不能只靠模型自报完成。
+4. `auto_continue` 仍只表示当前已有文稿续写的 prompt augmentation，不等同于 persistent objective。
+5. 如果用户有 queued input、pending elicitation、pause、budget limit 或 blocked 状态，不能自动续跑下一轮。
+
+详细路线图见 `docs/roadmap/managed-objective/README.md`。这里的固定边界只负责说明：任何 continuation turn 都必须回到 Query Loop 主链。
+
 ## 代码入口地图
 
 ### 1. 提交入口

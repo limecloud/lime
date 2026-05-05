@@ -91,6 +91,8 @@
 
 如果本轮涉及 `create_skill_scaffold_for_app`、`SkillsPage / SkillScaffoldDialog`，或“聊天结果 -> Skill 脚手架”沉淀闭环，还要同步检查前端网关、Rust 模板、DevBridge 分发与默认 mock 是否仍保持同一条主链；若新增了结构化骨架字段，至少要确认 `何时使用 / 输入 / 执行步骤 / 输出 / 失败回退` 能真实落进生成后的 `SKILL.md`。
 
+如果本轮涉及 `capability_draft_create/list/get/verify/register/list_registered_skills`，还要同步检查 `src/lib/api/capabilityDrafts.ts`、`capability_draft_cmd`、`capability_draft_service`、DevBridge dispatcher、治理目录册、`mockPriorityCommands` 与 `defaultMocks`；注册命令只能证明 workspace-local Agent Skill 包已落盘，registered discovery 只能证明当前 workspace 可发现带 provenance 的 Skill 包，不能把“已注册 / 已发现”当成“已进入 tool surface / 可自动运行”。最低校验至少包含 Rust capability draft 定向测试、前端 API / UI 回归、`npm run test:contracts`；若 Skills 工作台可见行为变化，再补 `npm run verify:gui-smoke`。
+
 如果本轮涉及记忆主链，还要同步检查 `src/lib/api/memoryRuntime.ts`、`src-tauri/src/commands/memory_management_cmd.rs`、`runner.rs`、DevBridge dispatcher 与默认 mock 是否仍保持同一条 current surface；`rules / working / durable / team / compaction` 的产品分层可以在页面上拆开，但底层命令边界仍必须继续收敛到 `memory_runtime_*` 与 `unified_memory_*`。
 
 ### 3. 用户可见 UI 改动必须补稳定回归
@@ -248,6 +250,7 @@ CI 里的 `.github/workflows/quality.yml` 结果摘要现在也会透出 `bridge
 - 修改 `safeInvoke` / `invoke`
 - 修改 `execute_skill`、`list_executable_skills`、`get_skill_detail` 或它们在 DevBridge / mock 中的分流
 - 修改 `create_skill_scaffold_for_app`、技能草稿透传字段，或“聊天结果 -> Skill 脚手架”主链
+- 修改 `capability_draft_*` 生成、验证或注册命令，或 Skills 工作台的 Capability Draft 隔离区
 - 修改 `src/lib/api/document-export.ts`、`save_exported_document`，或把新的 GUI 导出入口接到本地文件保存主链
 - 修改 `agent_runtime_submit_turn.turn_config.approval_policy / sandbox_policy`
 - 修改 `agent_runtime_submit_turn.turn_config.provider_config.model_capabilities / tool_call_strategy / toolshim_model`

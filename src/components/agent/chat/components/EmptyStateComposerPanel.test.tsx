@@ -360,6 +360,79 @@ describe("EmptyStateComposerPanel", () => {
     expect(onToggleFileManager).toHaveBeenCalledTimes(1);
   });
 
+  it("首页空态输入区应把项目资料作为底栏主入口", () => {
+    const container = renderPanel({
+      knowledgePackSelection: {
+        enabled: false,
+        packName: "team-notes",
+        workingDir: "workspace-root",
+        label: "团队资料",
+        status: "ready",
+      },
+      knowledgePackOptions: [
+        {
+          packName: "team-notes",
+          label: "团队资料",
+          status: "ready",
+          defaultForWorkspace: true,
+        },
+      ],
+      onToggleKnowledgePack: vi.fn(),
+      onSelectKnowledgePack: vi.fn(),
+      onStartKnowledgeOrganize: vi.fn(),
+      onManageKnowledgePacks: vi.fn(),
+    });
+
+    const toggleButton = container.querySelector(
+      '[data-testid="inputbar-knowledge-pack-toggle"]',
+    ) as HTMLButtonElement | null;
+
+    expect(toggleButton).toBeTruthy();
+    expect(toggleButton?.textContent).toContain("项目资料：未使用");
+
+    act(() => {
+      toggleButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(
+      container.querySelector('[data-testid="inputbar-knowledge-hub"]'),
+    ).toBeTruthy();
+    expect(container.textContent).toContain("可使用：团队资料");
+  });
+
+  it("@资料兼容触发时不应渲染普通命令标签", () => {
+    const container = renderPanel({
+      activeCapability: {
+        kind: "builtin_command",
+        command: {
+          key: "knowledge_pack",
+          label: "资料",
+          mentionLabel: "资料",
+          commandPrefix: "@资料",
+          description: "打开项目资料。",
+          aliases: [],
+        },
+      },
+      knowledgePackSelection: {
+        enabled: false,
+        packName: "team-notes",
+        workingDir: "workspace-root",
+        label: "团队资料",
+        status: "ready",
+      },
+      onToggleKnowledgePack: vi.fn(),
+      onStartKnowledgeOrganize: vi.fn(),
+      onManageKnowledgePacks: vi.fn(),
+    });
+
+    expect(
+      container.querySelector('[data-testid="inputbar-builtin-command-badge"]'),
+    ).toBeNull();
+    expect(
+      container.querySelector('[data-testid="inputbar-knowledge-pack-toggle"]'),
+    ).toBeTruthy();
+  });
+
   it("首页空态输入区应展示本地路径 chip 并支持移除", () => {
     const onRemovePathReference = vi.fn();
     const container = renderPanel({
@@ -381,6 +454,7 @@ describe("EmptyStateComposerPanel", () => {
       container.querySelector('[data-testid="inputbar-path-reference-chip"]')
         ?.textContent,
     ).toContain("Downloads");
+    expect(container.textContent).not.toContain("/Users/lime/Downloads");
 
     const removeButton = container.querySelector(
       'button[aria-label="移除路径 Downloads"]',
@@ -393,6 +467,38 @@ describe("EmptyStateComposerPanel", () => {
     expect(onRemovePathReference).toHaveBeenCalledWith(
       "dir:/Users/lime/Downloads",
     );
+  });
+
+  it("首页空态输入区的文本文件 chip 应支持设为项目资料", () => {
+    const onImportPathReferenceAsKnowledge = vi.fn();
+    const reference = {
+      id: "file:/Users/lime/brief.md",
+      path: "/Users/lime/brief.md",
+      name: "brief.md",
+      isDir: false,
+      size: 128,
+      mimeType: "text/markdown",
+      source: "file_manager" as const,
+    };
+    const container = renderPanel({
+      pathReferences: [reference],
+      onImportPathReferenceAsKnowledge,
+    });
+
+    expect(container.textContent).toContain("brief.md");
+    expect(container.textContent).toContain("本地文件");
+    expect(container.textContent).not.toContain("/Users/lime/brief.md");
+
+    const importButton = container.querySelector(
+      'button[aria-label="设为项目资料 brief.md"]',
+    ) as HTMLButtonElement | null;
+    expect(importButton).toBeTruthy();
+
+    act(() => {
+      importButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(onImportPathReferenceAsKnowledge).toHaveBeenCalledWith(reference);
   });
 
   it("输入为空时展示 Tab 起手建议，按 Tab 后填入当前建议", async () => {

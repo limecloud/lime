@@ -1,7 +1,10 @@
 import { BookOpen, MessageSquareText, ShieldCheck } from "lucide-react";
 import type { KnowledgePackSummary } from "@/lib/api/knowledge";
 import { StatusPill } from "./StatusPill";
-import { getPackTitle } from "../domain/knowledgeVisibility";
+import {
+  getPackTitle,
+  sanitizeKnowledgePreview,
+} from "../domain/knowledgeVisibility";
 
 export function KnowledgePackCard({
   pack,
@@ -35,14 +38,17 @@ export function KnowledgePackCard({
             ) : null}
           </div>
           <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-600">
-            {pack.preview || "等待整理适用场景、事实和边界。"}
+            {sanitizeKnowledgePreview(pack.preview) ||
+              "等待整理适用场景、事实和边界。"}
           </p>
         </div>
       </div>
       <div className="mt-4 flex flex-wrap gap-2">
         <button
           type="button"
-          onClick={() => (isReady ? onUse(pack.metadata.name) : onOpen(pack.metadata.name))}
+          onClick={() =>
+            isReady ? onUse(pack.metadata.name) : onOpen(pack.metadata.name)
+          }
           className="inline-flex h-9 items-center gap-2 rounded-2xl border border-slate-900 bg-slate-900 px-3 text-sm font-semibold text-white transition hover:bg-slate-800"
         >
           <MessageSquareText className="h-4 w-4" />

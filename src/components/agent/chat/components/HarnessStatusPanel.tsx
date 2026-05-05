@@ -122,6 +122,7 @@ import type { TeamRoleDefinition } from "../utils/teamDefinitions";
 import type { TeamMemorySnapshot } from "@/lib/teamMemorySync";
 import { AgentThreadReliabilityPanel } from "./AgentThreadReliabilityPanel";
 import { HarnessVerificationSummarySection } from "./HarnessVerificationSummarySection";
+import { HarnessTaskIndexSection } from "./HarnessTaskIndexSection";
 import { RuntimeReviewDecisionDialog } from "./RuntimeReviewDecisionDialog";
 
 interface HarnessEnvironmentSummary {
@@ -3992,6 +3993,18 @@ export function HarnessStatusPanel({
                                 );
                               })()
                             : null}
+
+                          {evidencePack.observability_summary
+                            ?.modality_runtime_contracts?.snapshot_index
+                            ?.task_index ? (
+                            <HarnessTaskIndexSection
+                              index={
+                                evidencePack.observability_summary
+                                  .modality_runtime_contracts.snapshot_index
+                                  .task_index
+                              }
+                            />
+                          ) : null}
 
                           {evidencePack.observability_summary
                             ?.modality_runtime_contracts?.snapshot_index

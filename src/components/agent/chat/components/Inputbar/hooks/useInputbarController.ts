@@ -87,6 +87,8 @@ interface UseInputbarControllerParams {
   workflowRunState?: "idle" | "auto_running" | "await_user_decision";
   onEnableSuggestedTeam?: (suggestedPresetId?: string) => void;
   knowledgePackSelection?: InputbarKnowledgePackSelection | null;
+  onStartKnowledgeOrganize?: () => void;
+  onManageKnowledgePacks?: () => void;
   projectId?: string | null;
   sessionId?: string | null;
   pathReferences?: MessagePathReference[];
@@ -116,6 +118,8 @@ export function useInputbarController({
   workflowRunState,
   onEnableSuggestedTeam,
   knowledgePackSelection,
+  onStartKnowledgeOrganize,
+  onManageKnowledgePacks,
   projectId = null,
   sessionId = null,
   pathReferences = [],
@@ -132,6 +136,8 @@ export function useInputbarController({
 }: UseInputbarControllerParams & SkillSelectionSourceProps) {
   const [activeCapability, setActiveCapability] =
     useState<InputCapabilitySelection | null>(null);
+  const [knowledgeHubOpenRequestKey, setKnowledgeHubOpenRequestKey] =
+    useState(0);
   const [editingCuratedTaskCapability, setEditingCuratedTaskCapability] =
     useState<Extract<
       InputCapabilitySelection,
@@ -211,6 +217,23 @@ export function useInputbarController({
     activeCapability?.kind === "curated_task"
       ? activeCapability.referenceEntries
       : undefined;
+
+  useEffect(() => {
+    if (activeBuiltinCommand?.key !== "knowledge_pack") {
+      return;
+    }
+    setActiveCapability(null);
+    if (!knowledgePackSelection && !onStartKnowledgeOrganize) {
+      onManageKnowledgePacks?.();
+      return;
+    }
+    setKnowledgeHubOpenRequestKey((current) => current + 1);
+  }, [
+    activeBuiltinCommand?.key,
+    knowledgePackSelection,
+    onManageKnowledgePacks,
+    onStartKnowledgeOrganize,
+  ]);
   const initialInputCapabilitySignature = useMemo(() => {
     const route = initialInputCapability?.capabilityRoute;
     if (!route) {
@@ -576,6 +599,23 @@ export function useInputbarController({
       handleSelectServiceSkill(capability.skill);
       return;
     }
+    if (capability.kind === "builtin_command") {
+      if (capability.command.key === "knowledge_pack") {
+        if (!knowledgePackSelection && !onStartKnowledgeOrganize) {
+          onManageKnowledgePacks?.();
+        } else {
+          setKnowledgeHubOpenRequestKey((current) => current + 1);
+        }
+        setActiveCapability(null);
+        return;
+      }
+
+      if (capability.command.key === "knowledge_settle") {
+        onStartKnowledgeOrganize?.();
+        setActiveCapability(null);
+        return;
+      }
+    }
     setActiveCapability(capability);
   };
   const skillSelection = buildSkillSelectionProps({
@@ -625,5 +665,6 @@ export function useInputbarController({
     skillSelection,
     handleSelectInputCapability,
     activeCapability,
+    knowledgeHubOpenRequestKey,
   };
 }

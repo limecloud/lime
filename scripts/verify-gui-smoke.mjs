@@ -1424,6 +1424,27 @@ async function main() {
       options.timeoutMs + 30_000,
     );
 
+    runCommand(
+      npmCommand,
+      [
+        "run",
+        "smoke:design-canvas",
+        "--",
+        "--app-url",
+        options.appUrl,
+        "--health-url",
+        options.healthUrl,
+        "--invoke-url",
+        options.invokeUrl,
+        "--timeout-ms",
+        String(options.timeoutMs),
+        "--interval-ms",
+        String(options.intervalMs),
+      ],
+      "smoke:design-canvas",
+      options.timeoutMs + 30_000,
+    );
+
     await cleanupStaleGuiSmokeChromeProfiles(options, {
       label: "收尾清理本轮 smoke Chrome profiles",
       required: true,

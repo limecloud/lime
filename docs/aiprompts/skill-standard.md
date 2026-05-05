@@ -118,6 +118,20 @@ Lime 在工程上必须明确接受这一点：
 1. `SKILL.md` 不是 Lime 的最终产品对象。
 2. `ServiceSkill` / `Scene` 也不是新的包格式标准。
 3. `ServiceSkill` / `Scene` 是 Lime 在 Agent Skills 之上的产品投影层。
+4. CreoAI / Capability Draft 注册只负责把已验证草案复制成 workspace-local Agent Skill 包；它不等同于运行时绑定，也不能绕过 Query Loop 与 `tool_runtime` 直接执行。
+
+因此，generated skill 的最小安全顺序固定为：
+
+```text
+Capability Draft
+  -> verification gate
+  -> workspace-local Agent Skill package
+  -> registered discovery / catalog projection
+  -> runtime binding
+  -> artifact / evidence
+```
+
+其中前三步只建立包和来源事实；`registered discovery` 只证明当前 workspace 里有带 provenance 的标准 Skill 包，仍不等于可运行。只有进入 runtime binding 和 `tool_runtime` 授权后，才回答“是否可被本轮 Agent 看到和调用”。
 
 ## 设计原则补充
 
@@ -259,6 +273,12 @@ Lime 的技能标准必须分成五层：
 - current 客户端主链必须先把它正规化为 `agent_turn / service_scene` 语义，再继续进入工作区执行
 
 运行时层回答的是“怎么执行”，不是“对用户如何命名”。
+
+补充边界：
+
+- [Codex `/goal`](../research/codex-goal/README.md) 这类 persistent objective 只回答“目标是否继续推进”，不回答“skill 绑定到哪个执行器”。
+- 未来如果出现 `Managed Objective`，它只能引用 `agent_turn / browser_assist / automation_job / native_skill` 这些绑定，不能新增 `goal_runtime` 作为 skill executor binding。
+- `Pipeline` 是 skill 内部组织模式，`Managed Objective` 是跨 turn 的目标控制层；不要把二者写成同一个字段或同一个 runtime。
 
 ### 5. 分发层
 

@@ -36,7 +36,6 @@ import {
 } from "./agentProjectStorage";
 import {
   hydrateSessionDetailMessages,
-  mergeHydratedMessagesWithLocalState,
   normalizeHistoryMessages,
   shouldCompactCompletedSessionHistory,
 } from "./agentChatHistory";
@@ -60,8 +59,6 @@ import type { AgentRuntimeAdapter } from "./agentRuntimeAdapter";
 import { isAuxiliaryAgentSessionId } from "@/lib/api/agentRuntime/sessionIdentity";
 import {
   filterConversationThreadItems,
-  mergeThreadItems,
-  mergeThreadTurns,
 } from "../utils/threadTimelineView";
 import { shouldResumeTaskSession } from "../utils/taskCenterTabs";
 import {
@@ -117,11 +114,19 @@ import {
   isCurrentSessionHydrationRequest,
 } from "./sessionHydrationController";
 import {
+  buildSessionHistoryPageRequestPlan,
+  buildSessionHistoryPageResultPlan,
+  resolveSessionHistoryWindowFromDetail,
+  type SessionHistoryWindowState,
+} from "./sessionHistoryPaginationController";
+import { buildSessionHistoryMergePlan } from "./sessionHistoryMergeController";
+import {
   createSessionDetailPrefetchRegistry,
   loadSessionDetailWithPrefetch,
   type SessionDetailFetchEvent,
 } from "./sessionDetailFetchController";
 import { resolveDeferredSessionHydrationErrorAction } from "./sessionHydrationRetryController";
+import { resolveSessionSwitchErrorAction } from "./sessionSwitchErrorController";
 
 const INITIAL_TOPICS_IDLE_TIMEOUT_MS = 1_500;
 const INITIAL_TOPICS_SESSION_REQUEST_LIMIT = 21;
@@ -198,52 +203,7 @@ function upsertTopicFromSessionDetail(
   });
 }
 
-export interface AgentSessionHistoryWindow {
-  loadedMessages: number;
-  totalMessages: number;
-  historyBeforeMessageId?: number | null;
-  historyStartIndex?: number | null;
-  isLoadingFull: boolean;
-  error: string | null;
-}
-
-function normalizePositiveInteger(value: unknown): number | null {
-  return typeof value === "number" && Number.isFinite(value) && value > 0
-    ? Math.trunc(value)
-    : null;
-}
-
-function normalizeNonNegativeInteger(value: unknown): number | null {
-  return typeof value === "number" && Number.isFinite(value) && value >= 0
-    ? Math.trunc(value)
-    : null;
-}
-
-function resolveDetailHistoryLoadedMessages(
-  detail: Awaited<ReturnType<AgentRuntimeAdapter["getSession"]>>,
-): number {
-  const totalMessages =
-    normalizeNonNegativeInteger(detail.messages_count) ??
-    detail.messages.length;
-  const cursorStartIndex = normalizeNonNegativeInteger(
-    detail.history_cursor?.start_index,
-  );
-  if (cursorStartIndex !== null) {
-    return Math.min(
-      totalMessages,
-      Math.max(detail.messages.length, totalMessages - cursorStartIndex),
-    );
-  }
-  const historyLimit =
-    normalizeNonNegativeInteger(detail.history_limit) ?? null;
-  const historyOffset = normalizeNonNegativeInteger(detail.history_offset) ?? 0;
-
-  if (historyLimit === null) {
-    return detail.messages.length;
-  }
-
-  return Math.min(totalMessages, historyOffset + historyLimit);
-}
+export type AgentSessionHistoryWindow = SessionHistoryWindowState;
 
 function takeTail<T>(items: T[], limit: number): T[] {
   if (items.length <= limit) {
@@ -671,35 +631,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
     (
       detail: Awaited<ReturnType<AgentRuntimeAdapter["getSession"]>>,
     ): AgentSessionHistoryWindow | null => {
-      if (detail.history_truncated !== true) {
-        return null;
-      }
-
-      const loadedMessages = resolveDetailHistoryLoadedMessages(detail);
-      const totalMessages = Math.max(
-        loadedMessages,
-        typeof detail.messages_count === "number" &&
-          Number.isFinite(detail.messages_count)
-          ? Math.trunc(detail.messages_count)
-          : loadedMessages,
-      );
-
-      if (totalMessages <= loadedMessages) {
-        return null;
-      }
-
-      return {
-        loadedMessages,
-        totalMessages,
-        historyBeforeMessageId: normalizePositiveInteger(
-          detail.history_cursor?.oldest_message_id,
-        ),
-        historyStartIndex: normalizeNonNegativeInteger(
-          detail.history_cursor?.start_index,
-        ),
-        isLoadingFull: false,
-        error: null,
-      };
+      return resolveSessionHistoryWindowFromDetail(detail);
     },
     [],
   );
@@ -1996,42 +1928,38 @@ export function useAgentSession(options: UseAgentSessionOptions) {
       topicId: string,
       options?: { preserveCurrentSnapshot?: boolean },
     ) => {
+      const errorAction = resolveSessionSwitchErrorAction({
+        error,
+        preserveCurrentSnapshot: options?.preserveCurrentSnapshot,
+        topicId,
+        workspaceId,
+      });
+
       console.error("[AsterChat] 切换话题失败:", error);
       console.error("[AsterChat] 错误详情:", JSON.stringify(error, null, 2));
       logAgentDebug(
         "useAgentSession",
         "switchTopic.error",
-        {
-          error,
-          topicId,
-          workspaceId,
-        },
+        errorAction.logContext,
         { level: "error" },
       );
 
-      if (isAsterSessionNotFoundError(error)) {
+      if (errorAction.clearCurrentSnapshot) {
         applySessionSnapshot(createEmptyAgentSessionSnapshot());
         setSessionHistoryWindow(null);
         persistSessionRestoreCandidate(null);
         hydratedSessionRef.current = null;
-        void loadTopics();
-        setIsAutoRestoringSession(false);
-        setIsSessionHydrating(false);
-        return;
       }
 
-      if (!options?.preserveCurrentSnapshot) {
-        applySessionSnapshot(createEmptyAgentSessionSnapshot());
-        setSessionHistoryWindow(null);
-        persistSessionRestoreCandidate(null);
-        hydratedSessionRef.current = null;
+      if (errorAction.reloadTopics) {
+        void loadTopics();
       }
 
       setIsAutoRestoringSession(false);
       setIsSessionHydrating(false);
-      toast.error(
-        `加载对话历史失败: ${error instanceof Error ? error.message : String(error)}`,
-      );
+      if (errorAction.showToast && errorAction.toastMessage) {
+        toast.error(errorAction.toastMessage);
+      }
     },
     [
       applySessionSnapshot,
@@ -2379,59 +2307,33 @@ export function useAgentSession(options: UseAgentSessionOptions) {
     }
 
     const currentHistoryWindow = sessionHistoryWindowRef.current;
-    if (currentHistoryWindow?.isLoadingFull) {
-      return false;
-    }
-    const loadedMessagesCount =
-      currentHistoryWindow?.loadedMessages ?? messagesRef.current.length;
-    const totalMessagesCount =
-      currentHistoryWindow?.totalMessages ?? loadedMessagesCount;
-    const nextHistoryOffset = loadedMessagesCount;
-    const historyBeforeMessageId =
-      normalizePositiveInteger(currentHistoryWindow?.historyBeforeMessageId) ??
-      null;
-    const nextHistoryLimit =
-      totalMessagesCount > loadedMessagesCount
-        ? Math.min(
-            SESSION_HISTORY_LOAD_PAGE_SIZE,
-            totalMessagesCount - loadedMessagesCount,
-          )
-        : SESSION_HISTORY_LOAD_PAGE_SIZE;
-
-    if (nextHistoryLimit <= 0) {
+    const requestPlan = buildSessionHistoryPageRequestPlan({
+      currentHistoryWindow,
+      currentMessagesCount: messagesRef.current.length,
+      pageSize: SESSION_HISTORY_LOAD_PAGE_SIZE,
+    });
+    if (!requestPlan) {
       return false;
     }
 
     const switchRequestVersion = sessionSwitchRequestVersionRef.current;
     const startedAt = Date.now();
-    setSessionHistoryWindow((current) =>
-      current
-        ? { ...current, isLoadingFull: true, error: null }
-        : {
-            loadedMessages: loadedMessagesCount,
-            totalMessages: totalMessagesCount,
-            historyBeforeMessageId,
-            historyStartIndex: currentHistoryWindow?.historyStartIndex ?? null,
-            isLoadingFull: true,
-            error: null,
-          },
-    );
+    setSessionHistoryWindow(requestPlan.loadingWindow);
     logAgentDebug("useAgentSession", "loadFullHistory.start", {
-      historyBeforeMessageId,
-      loadedMessagesCount,
-      nextHistoryLimit,
-      nextHistoryOffset,
+      historyBeforeMessageId: requestPlan.historyBeforeMessageId,
+      loadedMessagesCount: requestPlan.loadedMessagesCount,
+      nextHistoryLimit: requestPlan.nextHistoryLimit,
+      nextHistoryOffset: requestPlan.nextHistoryOffset,
       sessionId: targetSessionId,
-      totalMessagesCount,
+      totalMessagesCount: requestPlan.totalMessagesCount,
       workspaceId,
     });
 
     try {
-      const detail = await runtime.getSession(targetSessionId, {
-        historyLimit: nextHistoryLimit,
-        historyOffset: nextHistoryOffset,
-        ...(historyBeforeMessageId !== null ? { historyBeforeMessageId } : {}),
-      });
+      const detail = await runtime.getSession(
+        targetSessionId,
+        requestPlan.requestOptions,
+      );
       if (
         !isCurrentSessionHydrationRequest({
           currentRequestVersion: sessionSwitchRequestVersionRef.current,
@@ -2443,70 +2345,29 @@ export function useAgentSession(options: UseAgentSessionOptions) {
         return false;
       }
 
-      const incomingMessages = hydrateSessionDetailMessages(
+      const mergePlan = buildSessionHistoryMergePlan({
+        currentMessages: messagesRef.current,
+        currentThreadItems: threadItemsRef.current,
+        currentThreadTurns: threadTurnsRef.current,
+        currentTurnId,
         detail,
-        targetSessionId,
-        {
-          compactCompletedHistory: shouldCompactCompletedSessionHistory(detail),
-        },
-      );
-      const mergedMessages = mergeHydratedMessagesWithLocalState(
-        messagesRef.current,
-        incomingMessages,
-      );
-      const mergedThreadTurns = mergeThreadTurns(
-        threadTurnsRef.current,
-        detail.turns || [],
-      );
-      const mergedThreadItems = filterConversationThreadItems(
-        mergeThreadItems(
-          threadItemsRef.current,
-          normalizeLegacyThreadItems(detail.items || []),
-        ),
-      );
-      const detailLoadedMessages = resolveDetailHistoryLoadedMessages(detail);
-      const detailTotalMessages =
-        typeof detail.messages_count === "number" &&
-        Number.isFinite(detail.messages_count)
-          ? Math.trunc(detail.messages_count)
-          : totalMessagesCount;
-      const nextLoadedMessages = Math.min(
-        detailTotalMessages,
-        Math.max(detailLoadedMessages, nextHistoryOffset + nextHistoryLimit),
-      );
-      const resolvedTotalMessages = Math.max(
-        nextLoadedMessages,
-        detailTotalMessages,
-      );
-      const nextHistoryBeforeMessageId = normalizePositiveInteger(
-        detail.history_cursor?.oldest_message_id,
-      );
-      const nextHistoryStartIndex = normalizeNonNegativeInteger(
-        detail.history_cursor?.start_index,
-      );
-      const nextHistoryWindow =
-        resolvedTotalMessages > nextLoadedMessages
-          ? {
-              loadedMessages: nextLoadedMessages,
-              totalMessages: resolvedTotalMessages,
-              historyBeforeMessageId:
-                nextHistoryBeforeMessageId ?? historyBeforeMessageId,
-              historyStartIndex: nextHistoryStartIndex,
-              isLoadingFull: false,
-              error: null,
-            }
-          : null;
+        sessionId: targetSessionId,
+      });
+      const resultPlan = buildSessionHistoryPageResultPlan({
+        detail,
+        historyBeforeMessageId: requestPlan.historyBeforeMessageId,
+        nextHistoryLimit: requestPlan.nextHistoryLimit,
+        nextHistoryOffset: requestPlan.nextHistoryOffset,
+        totalMessagesCount: requestPlan.totalMessagesCount,
+      });
 
       startTransition(() => {
         applySessionSnapshot({
           sessionId: targetSessionId,
-          messages: mergedMessages,
-          threadTurns: mergedThreadTurns,
-          threadItems: mergedThreadItems,
-          currentTurnId:
-            mergedThreadTurns.length > 0
-              ? mergedThreadTurns[mergedThreadTurns.length - 1]?.id || null
-              : currentTurnId,
+          messages: mergePlan.mergedMessages,
+          threadTurns: mergePlan.mergedThreadTurns,
+          threadItems: mergePlan.mergedThreadItems,
+          currentTurnId: mergePlan.currentTurnId,
           queuedTurns,
           threadRead,
           executionRuntime: executionRuntimeRef.current,
@@ -2515,7 +2376,7 @@ export function useAgentSession(options: UseAgentSessionOptions) {
           subagentParentContext,
         });
       });
-      setSessionHistoryWindow(nextHistoryWindow);
+      setSessionHistoryWindow(resultPlan.nextHistoryWindow);
       setTopics((prev) =>
         upsertTopicFromSessionDetail(
           prev,
@@ -2529,16 +2390,16 @@ export function useAgentSession(options: UseAgentSessionOptions) {
       );
       logAgentDebug("useAgentSession", "loadFullHistory.success", {
         durationMs: Date.now() - startedAt,
-        historyBeforeMessageId,
+        historyBeforeMessageId: requestPlan.historyBeforeMessageId,
         historyTruncated: detail.history_truncated === true,
-        historyOffset: detail.history_offset ?? nextHistoryOffset,
-        incomingMessagesCount: incomingMessages.length,
-        loadedMessagesCount: nextLoadedMessages,
-        messagesCount: mergedMessages.length,
-        nextHistoryLimit,
-        nextHistoryOffset,
+        historyOffset: detail.history_offset ?? requestPlan.nextHistoryOffset,
+        incomingMessagesCount: mergePlan.incomingMessages.length,
+        loadedMessagesCount: resultPlan.nextLoadedMessages,
+        messagesCount: mergePlan.mergedMessages.length,
+        nextHistoryLimit: requestPlan.nextHistoryLimit,
+        nextHistoryOffset: requestPlan.nextHistoryOffset,
         sessionId: targetSessionId,
-        totalMessagesCount: resolvedTotalMessages,
+        totalMessagesCount: resultPlan.resolvedTotalMessages,
         workspaceId,
       });
       return true;
@@ -2562,9 +2423,9 @@ export function useAgentSession(options: UseAgentSessionOptions) {
         {
           durationMs: Date.now() - startedAt,
           error,
-          historyBeforeMessageId,
-          nextHistoryLimit,
-          nextHistoryOffset,
+          historyBeforeMessageId: requestPlan.historyBeforeMessageId,
+          nextHistoryLimit: requestPlan.nextHistoryLimit,
+          nextHistoryOffset: requestPlan.nextHistoryOffset,
           sessionId: targetSessionId,
           workspaceId,
         },

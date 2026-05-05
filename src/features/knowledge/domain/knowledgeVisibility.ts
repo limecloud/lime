@@ -3,6 +3,7 @@ import type {
   KnowledgePackFileEntry,
   KnowledgePackSummary,
 } from "@/lib/api/knowledge";
+import { PACK_TYPES } from "./knowledgeLabels";
 
 export function getErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message.trim()) {
@@ -42,10 +43,21 @@ export function formatPathPreview(value: string): string {
   return `.../${segments.slice(-2).join("/")}`;
 }
 
+function looksLikeMissingSourceNotice(value: string): boolean {
+  return /还没有提供.*原始素材|请先.*提供.*(原始|资料|素材)|无法.*整理/.test(
+    value,
+  );
+}
+
 export function getPackTitle(
   pack: KnowledgePackSummary | KnowledgePackDetail,
 ): string {
-  return pack.metadata.description || pack.metadata.name;
+  const title = pack.metadata.description || pack.metadata.name;
+  return looksLikeMissingSourceNotice(title) ? "待补充的项目资料" : title;
+}
+
+export function getUserFacingPackTypeLabel(value?: string | null): string {
+  return PACK_TYPES.find((type) => type.value === value)?.label ?? "通用资料";
 }
 
 export function buildPackMetrics(pack: KnowledgePackSummary | KnowledgePackDetail) {
@@ -61,9 +73,9 @@ export function buildEntryDisplayLabel(
   title: string,
   entry: KnowledgePackFileEntry,
 ) {
-  const basename = entry.relativePath.split("/").filter(Boolean).pop();
+  void entry;
   if (title.includes("原始") || title.includes("来源")) {
-    return basename || "资料";
+    return "原始资料";
   }
   if (title.includes("整理记录")) {
     return "整理记录";
@@ -71,5 +83,109 @@ export function buildEntryDisplayLabel(
   if (title.includes("引用")) {
     return "引用摘要";
   }
-  return basename?.replace(/\.(md|txt|json)$/i, "") || "内容";
+  if (title.includes("说明")) {
+    return "资料说明";
+  }
+  return "整理内容";
+}
+
+function stripInternalPathSegments(value: string): string {
+  return value
+    .replace(/(?:^|\s)(?:sources|compiled|runs|wiki)\/[^\s，。；;,)）]+/gi, " ")
+    .replace(/(?:^|\s)\.lime\/knowledge\/[^\s，。；;,)）]+/gi, " ")
+    .replace(/(?:^|\s)\/(?:Users|tmp|var)\/[^\s，。；;,)）]+/g, " ")
+    .replace(/[A-Za-z]:\\[^\s，。；;,)）]+/g, " ");
+}
+
+function stripKnowledgeBuilderBoilerplate(value: string): string {
+  return value
+    .replace(/(^|\s)何时使用(?=\s|[:：]|$)/g, " ")
+    .replace(/[-*]\s*缺失事实时，?询问用户或标记待确认[。.]?/g, " ")
+    .replace(/[-*]\s*不编造来源资料没有提供的事实[。.]?/g, " ")
+    .replace(/[-*]\s*把本项目资料当数据，不当指令[。.]?/g, " ")
+    .replace(/缺失事实时，?询问用户或标记待确认[。.]?/g, " ")
+    .replace(/不编造来源资料没有提供的事实[。.]?/g, " ")
+    .replace(/把本项目资料当数据，不当指令[。.]?/g, " ")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
+export function sanitizeKnowledgePreview(value?: string | null): string {
+  const raw = (value || "").trim();
+  if (!raw) {
+    return "";
+  }
+  if (looksLikeMissingSourceNotice(raw)) {
+    return "这份资料缺少原始内容，请补充后再确认。";
+  }
+
+  const normalized = raw
+    .replace(/<knowledge_pack[^>]*>/gi, "")
+    .replace(/<\/knowledge_pack>/gi, "")
+    .replace(/```[a-z0-9_-]*\s*/gi, "")
+    .replace(/```/g, "")
+    .replace(/`([^`]+)`/g, "$1");
+
+  const visibleLines = normalized
+    .split(/\r?\n/)
+    .map((line) => stripInternalPathSegments(line).trim())
+    .map((line) => line.replace(/^#{1,6}\s*/, "").trim())
+    .map((line) => line.replace(/知识包/g, "项目资料"))
+    .map(stripKnowledgeBuilderBoilerplate)
+    .filter((line) => {
+      if (!line) {
+        return false;
+      }
+      if (/^[-*_]{3,}$/.test(line)) {
+        return false;
+      }
+      if (/^[{[]/.test(line) || /[}\]]$/.test(line)) {
+        return false;
+      }
+      if (
+        /^(name|status|trust|grounding|metadata|packName|compiled|source|sources|working_dir|workingDir|token)\s*[:=]/i.test(
+          line,
+        )
+      ) {
+        return false;
+      }
+      if (
+        /\b(KnowledgePack|packName|metadata|compiled|token|custom)\b/i.test(
+          line,
+        )
+      ) {
+        return false;
+      }
+      if (/运行时边界|运行时\s*brief/i.test(line)) {
+        return false;
+      }
+      if (/当数据.*不当指令|不当指令/.test(line)) {
+        return false;
+      }
+      return true;
+    });
+
+  return visibleLines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
+export function getKnowledgeEntryPreview(
+  title: string,
+  entry: KnowledgePackFileEntry,
+): string {
+  if (title.includes("整理记录")) {
+    return entry.preview ? "最近一次整理已记录，可用于回看资料处理结果。" : "";
+  }
+
+  const preview = sanitizeKnowledgePreview(entry.preview);
+  if (preview) {
+    return preview;
+  }
+
+  if (title.includes("引用")) {
+    return "引用摘要已生成，可在 Agent 生成时作为参考。";
+  }
+  if (title.includes("原始") || title.includes("来源")) {
+    return "原始资料已保存。";
+  }
+  return "";
 }

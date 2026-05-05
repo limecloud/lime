@@ -361,6 +361,9 @@ function main() {
   const runtimeGatewayCommands = new Set(
     agentCommandCatalog.runtimeGatewayCommands ?? [],
   );
+  const capabilityDraftCommands = new Set(
+    agentCommandCatalog.capabilityDraftCommands ?? [],
+  );
 
   const deferredCommands = new Set(knownDeferredRegistrationReasons.keys());
 
@@ -386,6 +389,12 @@ function main() {
   );
   const runtimeGatewayMissingRegistrations = new Set(
     [...runtimeGatewayCommands].filter(
+      (command) =>
+        !registeredCommands.has(command) && !deferredCommands.has(command),
+    ),
+  );
+  const capabilityDraftMissingRegistrations = new Set(
+    [...capabilityDraftCommands].filter(
       (command) =>
         !registeredCommands.has(command) && !deferredCommands.has(command),
     ),
@@ -453,6 +462,14 @@ function main() {
     printCommandGroup(
       "runtime gateway 命令缺少 Rust 注册",
       runtimeGatewayMissingRegistrations,
+    );
+  }
+
+  if (capabilityDraftMissingRegistrations.size > 0) {
+    hasError = true;
+    printCommandGroup(
+      "capability draft 命令缺少 Rust 注册",
+      capabilityDraftMissingRegistrations,
     );
   }
 

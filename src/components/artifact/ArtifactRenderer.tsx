@@ -700,18 +700,6 @@ export const ArtifactRenderer: React.FC<ArtifactRendererComponentProps> = memo(
       );
     }
 
-    // 未注册的类型，使用回退渲染器
-    if (!entry) {
-      return (
-        <div className={cn("relative h-full", className)}>
-          <FallbackRenderer artifact={debouncedArtifact} tone={tone} />
-          {(isStreaming || isCompleting) && (
-            <StreamingIndicator isCompleting={isCompleting} />
-          )}
-        </div>
-      );
-    }
-
     // Canvas 类型委托给 Canvas 系统
     // @requirements 12.1
     if (artifactRegistry.isCanvasType(artifact.type)) {
@@ -722,6 +710,18 @@ export const ArtifactRenderer: React.FC<ArtifactRendererComponentProps> = memo(
             isStreaming={isStreaming}
             onContentChange={onContentChange}
           />
+          {(isStreaming || isCompleting) && (
+            <StreamingIndicator isCompleting={isCompleting} />
+          )}
+        </div>
+      );
+    }
+
+    // 未注册的类型，使用回退渲染器
+    if (!entry) {
+      return (
+        <div className={cn("relative h-full", className)}>
+          <FallbackRenderer artifact={debouncedArtifact} tone={tone} />
           {(isStreaming || isCompleting) && (
             <StreamingIndicator isCompleting={isCompleting} />
           )}

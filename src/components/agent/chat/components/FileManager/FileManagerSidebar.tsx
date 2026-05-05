@@ -33,6 +33,7 @@ import {
   type FileEntry,
   type FileManagerLocation,
 } from "@/lib/api/fileBrowser";
+import { getKnowledgeUnsupportedSourceMessage } from "@/features/knowledge/import/knowledgeSourceSupport";
 import {
   openPathWithDefaultApp,
   revealPathInFinder,
@@ -57,6 +58,7 @@ type ViewMode = "list" | "grid";
 interface FileManagerSidebarProps {
   onClose: () => void;
   onAddPathReferences: (references: MessagePathReference[]) => void;
+  onImportAsKnowledge?: (reference: MessagePathReference) => void;
 }
 
 interface ContextMenuState {
@@ -69,6 +71,14 @@ interface EntryGroup {
   key: string;
   label: string;
   entries: FileEntry[];
+}
+
+interface ContextMenuAction {
+  action: string;
+  label: string;
+  icon: LucideIcon;
+  disabled?: boolean;
+  title?: string;
 }
 
 function asPinnedLocation(value: unknown): FileManagerLocation | null {
@@ -248,9 +258,41 @@ async function copyText(value: string, successMessage: string): Promise<void> {
   }
 }
 
+function buildContextMenuActions(
+  entry: FileEntry,
+  knowledgeImportEnabled: boolean,
+): ContextMenuAction[] {
+  const actions: ContextMenuAction[] = [
+    { action: "open", label: "打开", icon: ExternalLink },
+    { action: "reveal", label: "在系统文件管理器中显示", icon: Folder },
+    { action: "add", label: "添加到对话", icon: PlusCircle },
+  ];
+
+  if (knowledgeImportEnabled && !entry.isDir) {
+    const unsupportedMessage = getKnowledgeUnsupportedSourceMessage(entry);
+    actions.push({
+      action: "import-knowledge",
+      label: unsupportedMessage ? "暂不支持整理为资料" : "设为项目资料",
+      icon: FileText,
+      disabled: Boolean(unsupportedMessage),
+      title: unsupportedMessage || "整理后可在当前项目里复用。",
+    });
+  }
+
+  actions.push(
+    { action: "copy-path", label: "复制路径", icon: Copy },
+    { action: "copy-name", label: "复制文件名", icon: FileText },
+    { action: "pin", label: "固定到侧栏", icon: Pin },
+    { action: "refresh", label: "刷新", icon: RefreshCw },
+  );
+
+  return actions;
+}
+
 export const FileManagerSidebar: React.FC<FileManagerSidebarProps> = ({
   onClose,
   onAddPathReferences,
+  onImportAsKnowledge,
 }) => {
   const [locations, setLocations] = useState<FileManagerLocation[]>([]);
   const [pinnedLocations, setPinnedLocations] = useState<FileManagerLocation[]>(
@@ -496,6 +538,35 @@ export const FileManagerSidebar: React.FC<FileManagerSidebarProps> = ({
     [onAddPathReferences],
   );
 
+  const handleEntryPrimaryAction = useCallback(
+    (entry: FileEntry) => {
+      const isApplication = isApplicationEntry(entry, activeLocationKind);
+      if (entry.isDir || isApplication) {
+        handleOpenEntry(entry);
+        return;
+      }
+
+      handleAddEntry(entry);
+    },
+    [activeLocationKind, handleAddEntry, handleOpenEntry],
+  );
+
+  const handleImportEntryAsKnowledge = useCallback(
+    (entry: FileEntry) => {
+      const unsupportedMessage = getKnowledgeUnsupportedSourceMessage(entry);
+      if (unsupportedMessage) {
+        toast.info(unsupportedMessage);
+        return;
+      }
+      const reference = createReferenceFromEntry(entry);
+      if (!reference) {
+        return;
+      }
+      onImportAsKnowledge?.(reference);
+    },
+    [onImportAsKnowledge],
+  );
+
   const handlePinEntry = useCallback((entry: FileEntry) => {
     if (!entry.isDir) {
       toast.info("只有文件夹可以固定到侧栏");
@@ -541,6 +612,9 @@ export const FileManagerSidebar: React.FC<FileManagerSidebarProps> = ({
         case "add":
           handleAddEntry(entry);
           break;
+        case "import-knowledge":
+          handleImportEntryAsKnowledge(entry);
+          break;
         case "pin":
           handlePinEntry(entry);
           break;
@@ -549,7 +623,13 @@ export const FileManagerSidebar: React.FC<FileManagerSidebarProps> = ({
           break;
       }
     },
-    [handleAddEntry, handleOpenEntry, handlePinEntry, loadActiveDirectory],
+    [
+      handleAddEntry,
+      handleImportEntryAsKnowledge,
+      handleOpenEntry,
+      handlePinEntry,
+      loadActiveDirectory,
+    ],
   );
 
   const handleDragStart = useCallback(
@@ -583,17 +663,35 @@ export const FileManagerSidebar: React.FC<FileManagerSidebarProps> = ({
         ? "folder"
         : "file";
     const hasNativeIcon = Boolean(entry.iconDataUrl);
+    const knowledgeUnsupportedMessage =
+      !entry.isDir && onImportAsKnowledge
+        ? getKnowledgeUnsupportedSourceMessage(entry)
+        : "";
+    const canImportAsKnowledge = Boolean(
+      onImportAsKnowledge && !entry.isDir && !knowledgeUnsupportedMessage,
+    );
+    const handleEntryKeyDown = (event: React.KeyboardEvent) => {
+      if (event.key !== "Enter" && event.key !== " ") {
+        return;
+      }
+      event.preventDefault();
+      handleEntryPrimaryAction(entry);
+    };
+
     return (
-      <button
+      <div
         key={entry.path}
-        type="button"
+        role="button"
+        tabIndex={0}
         draggable
         data-testid="file-manager-entry"
         data-entry-kind={
           isApplication ? "application" : entry.isDir ? "directory" : "file"
         }
         data-file-path={entry.path}
-        onClick={() => handleOpenEntry(entry)}
+        aria-label={entry.name}
+        onClick={() => handleEntryPrimaryAction(entry)}
+        onKeyDown={handleEntryKeyDown}
         onDragStart={(event) => handleDragStart(event, entry)}
         onDragEnd={handleDragEnd}
         onContextMenu={(event) => {
@@ -606,7 +704,13 @@ export const FileManagerSidebar: React.FC<FileManagerSidebarProps> = ({
             ? "flex min-h-[104px] flex-col items-center justify-center gap-2 px-3 py-3 text-center"
             : "flex items-center gap-3 px-3 py-2.5",
         )}
-        title={entry.path}
+        title={
+          entry.isDir
+            ? "打开文件夹"
+            : isApplication
+              ? "打开应用"
+              : "单击加入对话，可右键查看更多操作"
+        }
       >
         <span
           data-testid="file-manager-entry-icon"
@@ -653,7 +757,33 @@ export const FileManagerSidebar: React.FC<FileManagerSidebarProps> = ({
                   .join(" · ")}
           </span>
         </span>
-      </button>
+        {!entry.isDir && !isApplication && viewMode === "list" ? (
+          <span className="flex shrink-0 items-center gap-1 opacity-100 transition group-hover:opacity-100">
+            <button
+              type="button"
+              className="rounded-full border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-600 transition hover:border-amber-200 hover:bg-amber-50 hover:text-amber-800"
+              onClick={(event) => {
+                event.stopPropagation();
+                handleAddEntry(entry);
+              }}
+            >
+              加入对话
+            </button>
+            {canImportAsKnowledge ? (
+              <button
+                type="button"
+                className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-700 transition hover:border-emerald-300 hover:bg-emerald-100"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  handleImportEntryAsKnowledge(entry);
+                }}
+              >
+                设为资料
+              </button>
+            ) : null}
+          </span>
+        ) : null}
+      </div>
     );
   };
 
@@ -704,9 +834,9 @@ export const FileManagerSidebar: React.FC<FileManagerSidebarProps> = ({
             </div>
             <p
               className="mt-0.5 truncate text-[11px] text-slate-500"
-              title={activePath}
+              title={activePath ? "当前文件夹" : undefined}
             >
-              {activePath || "正在准备文件位置"}
+              {activePath ? "本地位置" : "正在准备文件位置"}
             </p>
           </div>
           <div className="flex items-center gap-1">
@@ -796,27 +926,28 @@ export const FileManagerSidebar: React.FC<FileManagerSidebarProps> = ({
           style={{ left: contextMenu.x, top: contextMenu.y }}
           onMouseDown={(event) => event.stopPropagation()}
         >
-          {[
-            ["open", "打开", ExternalLink],
-            ["reveal", "在系统文件管理器中显示", Folder],
-            ["add", "添加到对话", PlusCircle],
-            ["copy-path", "复制路径", Copy],
-            ["copy-name", "复制文件名", FileText],
-            ["pin", "固定到侧栏", Pin],
-            ["refresh", "刷新", RefreshCw],
-          ].map(([action, label, Icon]) => {
-            const MenuIcon = Icon as LucideIcon;
+          {buildContextMenuActions(
+            contextMenu.entry,
+            Boolean(onImportAsKnowledge),
+          ).map(({ action, label, icon: MenuIcon, disabled, title }) => {
             return (
               <button
-                key={action as string}
+                key={action}
                 type="button"
-                className="flex w-full items-center gap-2 rounded-[12px] px-3 py-2 text-left transition hover:bg-amber-50 hover:text-amber-800"
+                disabled={disabled}
+                title={title}
+                className={cn(
+                  "flex w-full items-center gap-2 rounded-[12px] px-3 py-2 text-left transition",
+                  disabled
+                    ? "cursor-not-allowed text-slate-400"
+                    : "hover:bg-amber-50 hover:text-amber-800",
+                )}
                 onClick={() =>
-                  handleContextAction(action as string, contextMenu.entry)
+                  !disabled && handleContextAction(action, contextMenu.entry)
                 }
               >
                 <MenuIcon className="h-4 w-4" />
-                <span>{label as string}</span>
+                <span>{label}</span>
               </button>
             );
           })}

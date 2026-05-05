@@ -302,6 +302,7 @@ const VALID_EXTENSIONS: Record<ArtifactType, string[]> = {
   browser_assist: ["txt"],
   "canvas:document": ["md"],
   "canvas:video": ["txt"],
+  "canvas:design": ["json"],
 };
 
 /** 语言到扩展名的映射 */

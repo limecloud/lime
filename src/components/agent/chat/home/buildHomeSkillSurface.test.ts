@@ -79,6 +79,7 @@ describe("buildHomeSkillSurface", () => {
     expect(labels).toEqual([
       "引导帮助",
       "写作",
+      "添加资料",
       "PPT",
       "调研报告",
       "需求分析",

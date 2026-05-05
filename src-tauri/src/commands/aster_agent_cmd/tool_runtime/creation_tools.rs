@@ -20,6 +20,8 @@ use lime_media_runtime::{
 use serde::{de, Deserialize, Deserializer};
 
 const PROJECT_ID_ENV_KEYS: &[&str] = &["LIME_PROJECT_ID", "PROXYCAST_PROJECT_ID"];
+const THREAD_ID_ENV_KEYS: &[&str] = &["LIME_THREAD_ID", "PROXYCAST_THREAD_ID"];
+const TURN_ID_ENV_KEYS: &[&str] = &["LIME_TURN_ID", "PROXYCAST_TURN_ID"];
 const CONTENT_ID_ENV_KEYS: &[&str] = &["LIME_CONTENT_ID", "PROXYCAST_CONTENT_ID"];
 const IMAGE_TASK_DEFAULT_ENTRY_SOURCE: &str = "at_image_command";
 const AUDIO_TASK_DEFAULT_ENTRY_SOURCE: &str = "at_voice_command";
@@ -566,6 +568,10 @@ struct ImageTaskInput {
     model: Option<String>,
     #[serde(default, alias = "session_id")]
     session_id: Option<String>,
+    #[serde(default, alias = "thread_id")]
+    thread_id: Option<String>,
+    #[serde(default, alias = "turn_id")]
+    turn_id: Option<String>,
     #[serde(default, alias = "project_id")]
     project_id: Option<String>,
     #[serde(default, alias = "content_id")]
@@ -631,6 +637,10 @@ struct AudioTaskInput {
     model: Option<String>,
     #[serde(default, alias = "session_id")]
     session_id: Option<String>,
+    #[serde(default, alias = "thread_id")]
+    thread_id: Option<String>,
+    #[serde(default, alias = "turn_id")]
+    turn_id: Option<String>,
     #[serde(default, alias = "project_id")]
     project_id: Option<String>,
     #[serde(default, alias = "content_id")]
@@ -680,6 +690,10 @@ struct TranscriptionTaskInput {
     model: Option<String>,
     #[serde(default)]
     session_id: Option<String>,
+    #[serde(default)]
+    thread_id: Option<String>,
+    #[serde(default)]
+    turn_id: Option<String>,
     #[serde(default)]
     project_id: Option<String>,
     #[serde(default)]
@@ -855,6 +869,22 @@ fn image_task_input_schema() -> serde_json::Value {
     insert_property(
         "session_id",
         serde_json::json!({ "type": "string", "description": "会话 ID（snake_case 兼容，可选）。" }),
+    );
+    insert_property(
+        "threadId",
+        serde_json::json!({ "type": "string", "description": "线程 ID（可选）。" }),
+    );
+    insert_property(
+        "thread_id",
+        serde_json::json!({ "type": "string", "description": "线程 ID（snake_case 兼容，可选）。" }),
+    );
+    insert_property(
+        "turnId",
+        serde_json::json!({ "type": "string", "description": "回合 ID（可选）。" }),
+    );
+    insert_property(
+        "turn_id",
+        serde_json::json!({ "type": "string", "description": "回合 ID（snake_case 兼容，可选）。" }),
     );
     insert_property(
         "projectId",
@@ -1054,6 +1084,8 @@ fn build_image_generation_task_request(
         provider_id,
         model,
         session_id,
+        thread_id,
+        turn_id,
         project_id,
         content_id,
         entry_source,
@@ -1082,6 +1114,8 @@ fn build_image_generation_task_request(
             Some(value.to_string())
         }
     });
+    let thread_id = resolve_context_environment_id(context, thread_id, THREAD_ID_ENV_KEYS);
+    let turn_id = resolve_context_environment_id(context, turn_id, TURN_ID_ENV_KEYS);
     let project_id = project_id.or_else(|| {
         PROJECT_ID_ENV_KEYS.iter().find_map(|key| {
             context
@@ -1128,6 +1162,8 @@ fn build_image_generation_task_request(
         provider_id,
         model,
         session_id,
+        thread_id,
+        turn_id,
         project_id,
         content_id,
         entry_source,
@@ -1237,6 +1273,10 @@ fn audio_task_input_schema() -> serde_json::Value {
             "model": { "type": "string", "description": "模型名（可选）。" },
             "sessionId": { "type": "string", "description": "会话 ID（可选）。" },
             "session_id": { "type": "string", "description": "会话 ID（snake_case 兼容，可选）。" },
+            "threadId": { "type": "string", "description": "线程 ID（可选）。" },
+            "thread_id": { "type": "string", "description": "线程 ID（snake_case 兼容，可选）。" },
+            "turnId": { "type": "string", "description": "回合 ID（可选）。" },
+            "turn_id": { "type": "string", "description": "回合 ID（snake_case 兼容，可选）。" },
             "projectId": { "type": "string", "description": "项目 ID（可选）。" },
             "project_id": { "type": "string", "description": "项目 ID（snake_case 兼容，可选）。" },
             "contentId": { "type": "string", "description": "内容 ID（可选）。" },
@@ -1313,6 +1353,8 @@ fn build_audio_generation_task_request(
         provider_id: input.provider_id,
         model: input.model,
         session_id: resolve_context_session_id(context, input.session_id),
+        thread_id: resolve_context_environment_id(context, input.thread_id, THREAD_ID_ENV_KEYS),
+        turn_id: resolve_context_environment_id(context, input.turn_id, TURN_ID_ENV_KEYS),
         project_id: resolve_context_environment_id(context, input.project_id, PROJECT_ID_ENV_KEYS),
         content_id: resolve_context_environment_id(context, input.content_id, CONTENT_ID_ENV_KEYS),
         entry_source: input
@@ -1428,6 +1470,8 @@ impl Tool for LimeCreateTranscriptionTaskTool {
                 "providerId": { "type": "string", "description": "Provider 标识（可选）。" },
                 "model": { "type": "string", "description": "模型名（可选）。" },
                 "sessionId": { "type": "string", "description": "会话 ID（可选）。" },
+                "threadId": { "type": "string", "description": "线程 ID（可选）。" },
+                "turnId": { "type": "string", "description": "回合 ID（可选）。" },
                 "projectId": { "type": "string", "description": "项目 ID（可选）。" },
                 "contentId": { "type": "string", "description": "内容 ID（可选）。" },
                 "entrySource": { "type": "string", "description": "入口来源（可选）。" },
@@ -1480,6 +1524,8 @@ impl Tool for LimeCreateTranscriptionTaskTool {
                 provider_id: input.provider_id,
                 model: input.model,
                 session_id: input.session_id,
+                thread_id: input.thread_id,
+                turn_id: input.turn_id,
                 project_id: input.project_id,
                 content_id: input.content_id,
                 entry_source: input.entry_source,
@@ -1961,6 +2007,14 @@ mod tests {
                     "LIME_CONTENT_ID".to_string(),
                     "content-image-compat-1".to_string(),
                 ),
+                (
+                    "LIME_THREAD_ID".to_string(),
+                    "thread-image-compat-1".to_string(),
+                ),
+                (
+                    "LIME_TURN_ID".to_string(),
+                    "turn-image-compat-1".to_string(),
+                ),
             ]));
         let request = build_image_generation_task_request(
             &context,
@@ -1986,6 +2040,8 @@ mod tests {
                 provider_id: Some("fal".to_string()),
                 model: Some("fal-ai/nano-banana-pro".to_string()),
                 session_id: None,
+                thread_id: None,
+                turn_id: None,
                 project_id: None,
                 content_id: None,
                 entry_source: None,
@@ -2016,6 +2072,8 @@ mod tests {
             request.session_id.as_deref(),
             Some("session-image-compat-1")
         );
+        assert_eq!(request.thread_id.as_deref(), Some("thread-image-compat-1"));
+        assert_eq!(request.turn_id.as_deref(), Some("turn-image-compat-1"));
         assert_eq!(
             request.project_id.as_deref(),
             Some("project-image-compat-1")
@@ -2133,6 +2191,8 @@ mod tests {
             .with_environment(std::collections::HashMap::from([
                 ("LIME_PROJECT_ID".to_string(), "project-audio-1".to_string()),
                 ("LIME_CONTENT_ID".to_string(), "content-audio-1".to_string()),
+                ("LIME_THREAD_ID".to_string(), "thread-audio-1".to_string()),
+                ("LIME_TURN_ID".to_string(), "turn-audio-1".to_string()),
             ]));
         let request = build_audio_generation_task_request(
             &context,
@@ -2149,6 +2209,8 @@ mod tests {
                 provider_id: Some("limecore".to_string()),
                 model: Some("voice-pro".to_string()),
                 session_id: None,
+                thread_id: None,
+                turn_id: None,
                 project_id: None,
                 content_id: None,
                 entry_source: None,
@@ -2167,6 +2229,8 @@ mod tests {
             temp_dir.path().to_string_lossy().to_string()
         );
         assert_eq!(request.session_id.as_deref(), Some("session-audio-1"));
+        assert_eq!(request.thread_id.as_deref(), Some("thread-audio-1"));
+        assert_eq!(request.turn_id.as_deref(), Some("turn-audio-1"));
         assert_eq!(request.project_id.as_deref(), Some("project-audio-1"));
         assert_eq!(request.content_id.as_deref(), Some("content-audio-1"));
         assert_eq!(request.entry_source.as_deref(), Some("at_voice_command"));

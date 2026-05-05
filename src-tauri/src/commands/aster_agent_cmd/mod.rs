@@ -143,6 +143,78 @@ const WORKSPACE_SANDBOX_NOTIFY_ENV_KEYS: &[&str] = &[
     "PROXYCAST_WORKSPACE_SANDBOX_NOTIFY_ON_FALLBACK",
 ];
 const WORKSPACE_SANDBOX_FALLBACK_WARNING_CODE: &str = "workspace_sandbox_fallback";
+pub(crate) const RUNTIME_PERMISSION_CONFIRMATION_REQUEST_PREFIX: &str =
+    "runtime_permission_confirmation:";
+
+pub(crate) fn is_runtime_permission_confirmation_request_id(request_id: &str) -> bool {
+    request_id
+        .trim()
+        .starts_with(RUNTIME_PERMISSION_CONFIRMATION_REQUEST_PREFIX)
+}
+
+fn runtime_permission_confirmation_text_is_denial(value: &str) -> bool {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return false;
+    }
+    let normalized = trimmed.to_ascii_lowercase();
+    matches!(
+        normalized.as_str(),
+        "deny" | "denied" | "reject" | "rejected" | "no" | "false"
+    ) || trimmed.contains("拒绝")
+        || trimmed.contains("不允许")
+}
+
+fn runtime_permission_confirmation_value_is_denial(value: &serde_json::Value) -> bool {
+    match value {
+        serde_json::Value::Bool(value) => !*value,
+        serde_json::Value::String(value) => {
+            if runtime_permission_confirmation_text_is_denial(value) {
+                return true;
+            }
+            serde_json::from_str::<serde_json::Value>(value)
+                .ok()
+                .is_some_and(|parsed| runtime_permission_confirmation_value_is_denial(&parsed))
+        }
+        serde_json::Value::Array(values) => values
+            .iter()
+            .any(runtime_permission_confirmation_value_is_denial),
+        serde_json::Value::Object(object) => object
+            .get("answer")
+            .or_else(|| object.get("decision"))
+            .or_else(|| object.get("confirmed"))
+            .or_else(|| object.get("approved"))
+            .is_some_and(runtime_permission_confirmation_value_is_denial),
+        _ => false,
+    }
+}
+
+pub(crate) fn runtime_permission_confirmation_response_confirmed(
+    response: Option<&serde_json::Value>,
+) -> Option<bool> {
+    let response = response?;
+    match response {
+        serde_json::Value::Bool(value) => Some(*value),
+        serde_json::Value::Object(object) => {
+            let explicit = object
+                .get("confirmed")
+                .and_then(serde_json::Value::as_bool)
+                .or_else(|| object.get("approved").and_then(serde_json::Value::as_bool));
+            if explicit == Some(false) {
+                return Some(false);
+            }
+            let answer_denied = object
+                .get("userData")
+                .or_else(|| object.get("response"))
+                .is_some_and(runtime_permission_confirmation_value_is_denial);
+            if answer_denied {
+                return Some(false);
+            }
+            explicit
+        }
+        _ => None,
+    }
+}
 const WORKSPACE_PATH_AUTO_CREATED_WARNING_CODE: &str = "workspace_path_auto_created";
 const DEFAULT_TEAM_MAX_ACTIVE_SUBAGENTS: usize = 8;
 const SOCIAL_IMAGE_DEFAULT_MODEL: &str = "gemini-3-pro-image-preview";

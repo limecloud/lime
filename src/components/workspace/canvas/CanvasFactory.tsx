@@ -15,6 +15,8 @@ import type {
 } from "@/components/workspace/document/types";
 import { VideoCanvas } from "@/components/workspace/video/VideoCanvas";
 import type { VideoCanvasState } from "@/components/workspace/video/types";
+import { DesignCanvas } from "@/components/workspace/design/DesignCanvas";
+import type { DesignCanvasState } from "@/components/workspace/design/types";
 import { getCanvasTypeForTheme, type CanvasStateUnion } from "./canvasUtils";
 
 /**
@@ -39,6 +41,8 @@ interface CanvasFactoryProps {
   projectId?: string | null;
   /** 当前文稿 ID（用于跨页面插图） */
   contentId?: string | null;
+  /** 当前项目根目录（用于图层设计图片任务） */
+  projectRootPath?: string | null;
   /** 自动配图主题关键词 */
   autoImageTopic?: string;
   /** 自动续写同步的 Provider */
@@ -88,6 +92,7 @@ export const CanvasFactory: React.FC<CanvasFactoryProps> = memo(
     onSelectionTextChange,
     projectId,
     contentId,
+    projectRootPath,
     autoImageTopic,
     autoContinueProviderType,
     onAutoContinueProviderTypeChange,
@@ -153,6 +158,20 @@ export const CanvasFactory: React.FC<CanvasFactoryProps> = memo(
           onStateChange={onStateChange as (s: VideoCanvasState) => void}
           onBackHome={resolvedBackHome}
           onClose={onClose}
+          projectId={projectId}
+          contentId={contentId}
+        />
+      );
+    }
+
+    if (canvasType === "design" && state.type === "design") {
+      return (
+        <DesignCanvas
+          state={state}
+          onStateChange={onStateChange as (s: DesignCanvasState) => void}
+          onBackHome={resolvedBackHome}
+          onClose={onClose}
+          projectRootPath={projectRootPath}
           projectId={projectId}
           contentId={contentId}
         />

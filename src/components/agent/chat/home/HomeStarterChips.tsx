@@ -1,6 +1,6 @@
 import type { HomeStarterChip } from "./homeSurfaceTypes";
 import styled from "styled-components";
-import { Lightbulb, Settings } from "lucide-react";
+import { BookOpen, Lightbulb, Settings } from "lucide-react";
 
 const StarterRow = styled.div`
   display: flex;
@@ -84,6 +84,13 @@ function renderStarterIcon(chip: HomeStarterChip) {
     return (
       <StarterIcon aria-hidden>
         <Settings strokeWidth={1.9} />
+      </StarterIcon>
+    );
+  }
+  if (chip.launchKind === "open_knowledge_hub" || token === "knowledge") {
+    return (
+      <StarterIcon aria-hidden>
+        <BookOpen strokeWidth={1.9} />
       </StarterIcon>
     );
   }

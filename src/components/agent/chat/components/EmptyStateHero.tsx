@@ -29,47 +29,38 @@ const cardReveal = keyframes`
   }
 `;
 
-const sloganSweep = keyframes`
+const sloganShine = keyframes`
   0% {
-    transform: translateX(-155%) skewX(-18deg);
-    opacity: 0;
+    background-position: 250% center, 250% center, 0% 50%;
   }
-  12% {
-    opacity: 0.55;
+  45% {
+    background-position: -50% center, -50% center, 100% 50%;
   }
-  28% {
-    opacity: 1;
+  50% {
+    background-position: -50% center, -50% center, 100% 50%;
   }
-  62% {
-    opacity: 0.95;
+  95% {
+    background-position: 250% center, 250% center, 0% 50%;
   }
   100% {
-    transform: translateX(155%) skewX(-18deg);
-    opacity: 0;
+    background-position: 250% center, 250% center, 0% 50%;
   }
 `;
 
-const sloganPulse = keyframes`
+const dotPulse = keyframes`
   0%, 100% {
-    opacity: 0.88;
-    transform: scale(0.998);
+    transform: scale(0.95);
+    opacity: 0.7;
+    filter: brightness(1);
   }
   50% {
+    transform: scale(1.15);
     opacity: 1;
-    transform: scale(1.006);
+    filter: brightness(1.2);
   }
 `;
 
-const sloganHaloPulse = keyframes`
-  0%, 100% {
-    transform: scale(0.96);
-    opacity: 0.72;
-  }
-  50% {
-    transform: scale(1.04);
-    opacity: 1;
-  }
-`;
+
 
 const HeroSection = styled.section`
   position: relative;
@@ -160,37 +151,8 @@ const LeadTextGroup = styled.div`
 const SloganWrap = styled.div`
   position: relative;
   width: fit-content;
-  isolation: isolate;
-  margin-bottom: 0.02rem;
-`;
-
-const SloganGlow = styled.div`
-  position: absolute;
-  inset: 52% -6% -4% -6%;
-  border-radius: 999px;
-  background:
-    radial-gradient(
-      circle,
-      var(--lime-home-glow-primary, rgba(132, 204, 22, 0.08)) 0%,
-      var(--lime-home-glow-secondary, rgba(186, 230, 253, 0.16)) 22%,
-      transparent 58%
-    ),
-    var(--lime-home-beam-gradient);
-  filter: blur(14px);
-  opacity: 0.82;
-  animation: ${sloganHaloPulse} 3.8s ease-in-out infinite;
-  pointer-events: none;
-`;
-
-const SloganBeam = styled.div`
-  position: absolute;
-  inset: 8% 0 2%;
-  border-radius: 999px;
-  background: var(--lime-home-beam-gradient);
-  mix-blend-mode: screen;
-  filter: blur(2px);
-  animation: ${sloganSweep} 2.9s linear infinite;
-  pointer-events: none;
+  margin-bottom: 0.4rem;
+  overflow: visible;
 `;
 
 const SloganLine = styled.p`
@@ -199,42 +161,58 @@ const SloganLine = styled.p`
   display: inline-flex;
   width: fit-content;
   align-items: center;
-  gap: 1.05rem;
-  isolation: isolate;
+  gap: 0.8rem;
 
-  background: var(--lime-home-title-gradient);
-  background-size: 220% auto;
+  background: 
+    /* Layer 1: Prismatic Holographic Sweep */
+    linear-gradient(
+      110deg,
+      transparent 35%,
+      rgba(255, 255, 255, 0) 42%,
+      rgba(255, 255, 255, 0.4) 47%,
+      var(--lime-brand, rgba(134, 239, 172, 0.8)) 49%, 
+      rgba(255, 255, 255, 1) 50%, 
+      rgba(56, 189, 248, 0.8) 51%, 
+      rgba(255, 255, 255, 0.4) 53%,
+      rgba(255, 255, 255, 0) 58%,
+      transparent 65%
+    ),
+    /* Layer 2: Crystal Facet Intersection */
+    linear-gradient(
+      70deg,
+      transparent 40%,
+      rgba(255, 255, 255, 0) 46%,
+      rgba(255, 255, 255, 0.4) 49%,
+      rgba(255, 255, 255, 0.9) 50%,
+      rgba(255, 255, 255, 0.4) 51%,
+      rgba(255, 255, 255, 0) 54%,
+      transparent 60%
+    ),
+    /* Layer 3: Base Text Gradient */
+    var(--lime-home-title-gradient);
+  background-size: 250% 100%, 250% 100%, 400% auto;
+  background-repeat: no-repeat;
+  -webkit-background-clip: text, text, text;
+  background-clip: text, text, text;
   color: transparent;
-  -webkit-background-clip: text;
-  background-clip: text;
-  animation: ${sloganPulse} 3.8s ease-in-out infinite;
 
-  font-size: clamp(54px, 6vw, 92px);
-  line-height: 0.92;
-  font-weight: 800;
-  letter-spacing: -0.05em;
+  font-size: clamp(36px, 4vw, 52px);
+  line-height: 1.15;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+
   text-shadow: var(--lime-home-title-shadow);
+  animation: ${sloganShine} 10s ease-in-out infinite;
 
   &::before {
     content: "";
-    width: 1.05rem;
-    height: 1.05rem;
+    width: 12px;
+    height: 12px;
     flex-shrink: 0;
     border-radius: 9999px;
     background: var(--lime-home-dot-gradient);
     box-shadow: var(--lime-home-dot-shadow);
-  }
-
-  &::after {
-    content: "";
-    position: absolute;
-    inset: auto 10% -10% 10%;
-    height: 12px;
-    border-radius: 999px;
-    background: var(--lime-home-beam-gradient);
-    filter: blur(8px);
-    opacity: 0.62;
-    z-index: -1;
+    animation: ${dotPulse} 4s ease-in-out infinite;
   }
 `;
 
@@ -432,8 +410,6 @@ export function EmptyStateHero({
                 <LeadTextGroup>
                   {slogan ? (
                     <SloganWrap>
-                      <SloganGlow />
-                      <SloganBeam />
                       <SloganLine>{slogan}</SloganLine>
                     </SloganWrap>
                   ) : null}

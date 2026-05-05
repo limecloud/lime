@@ -634,6 +634,49 @@ export interface AgentRuntimeEvidenceBrowserActionIndex {
   items: AgentRuntimeEvidenceBrowserActionItem[];
 }
 
+export interface AgentRuntimeEvidenceTaskIndexItem {
+  artifact_path?: string;
+  task_id?: string;
+  task_type?: string;
+  contract_key?: string;
+  source?: string;
+  thread_id?: string;
+  turn_id?: string;
+  content_id?: string;
+  entry_key?: string;
+  entry_source?: string;
+  modality?: string;
+  skill_id?: string;
+  model_id?: string;
+  executor_kind?: string;
+  executor_binding_key?: string;
+  cost_state?: string;
+  limit_state?: string;
+  estimated_cost_class?: string;
+  limit_event_kind?: string;
+  quota_low?: boolean;
+  routing_outcome?: string;
+}
+
+export interface AgentRuntimeEvidenceTaskIndex {
+  snapshot_count: number;
+  thread_ids: string[];
+  turn_ids: string[];
+  content_ids: string[];
+  entry_keys: string[];
+  modalities: string[];
+  skill_ids: string[];
+  model_ids: string[];
+  executor_kinds: string[];
+  executor_binding_keys: string[];
+  cost_states: string[];
+  limit_states: string[];
+  estimated_cost_classes: string[];
+  limit_event_kinds: string[];
+  quota_low_count: number;
+  items: AgentRuntimeEvidenceTaskIndexItem[];
+}
+
 export interface AgentRuntimeEvidenceDecisionCount extends AgentRuntimeEvidenceCountEntry {
   decision: string;
 }
@@ -701,6 +744,7 @@ export interface AgentRuntimeEvidenceLimeCorePolicyIndex {
 }
 
 export interface AgentRuntimeEvidenceSnapshotIndex {
+  task_index?: AgentRuntimeEvidenceTaskIndex;
   browser_action_index?: AgentRuntimeEvidenceBrowserActionIndex;
   limecore_policy_index?: AgentRuntimeEvidenceLimeCorePolicyIndex;
 }
@@ -1222,6 +1266,8 @@ export interface CreateImageGenerationTaskArtifactRequest {
   providerId?: string;
   model?: string;
   sessionId?: string;
+  threadId?: string;
+  turnId?: string;
   projectId?: string;
   contentId?: string;
   entrySource?: string;
@@ -1260,6 +1306,8 @@ export interface CreateAudioGenerationTaskArtifactRequest {
   providerId?: string;
   model?: string;
   sessionId?: string;
+  threadId?: string;
+  turnId?: string;
   projectId?: string;
   contentId?: string;
   entrySource?: string;
@@ -1350,6 +1398,18 @@ export interface MediaTaskModalityRuntimeContractIndexEntry {
   task_type: string;
   normalized_status: string;
   contract_key?: string | null;
+  entry_key?: string | null;
+  thread_id?: string | null;
+  turn_id?: string | null;
+  content_id?: string | null;
+  modality?: string | null;
+  skill_id?: string | null;
+  model_id?: string | null;
+  cost_state?: string | null;
+  limit_state?: string | null;
+  estimated_cost_class?: string | null;
+  limit_event_kind?: string | null;
+  quota_low?: boolean | null;
   routing_slot?: string | null;
   provider_id?: string | null;
   model?: string | null;
@@ -1425,8 +1485,22 @@ export interface MediaTaskLimeCorePolicyEvaluationStatusCount {
 export interface MediaTaskModalityRuntimeContractIndex {
   snapshot_count: number;
   contract_keys: string[];
+  entry_keys?: string[];
+  thread_ids?: string[];
+  turn_ids?: string[];
+  content_ids?: string[];
+  modalities?: string[];
+  skill_ids?: string[];
+  model_ids?: string[];
+  cost_states?: string[];
+  limit_states?: string[];
+  estimated_cost_classes?: string[];
+  limit_event_kinds?: string[];
+  quota_low_count?: number;
   execution_profile_keys: string[];
   executor_adapter_keys: string[];
+  executor_kinds?: string[];
+  executor_binding_keys?: string[];
   limecore_policy_refs: string[];
   limecore_policy_snapshot_count: number;
   limecore_policy_snapshot_statuses: MediaTaskLimeCorePolicySnapshotStatusCount[];

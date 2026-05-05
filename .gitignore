@@ -59,11 +59,20 @@ docs/roadmap/*
 !docs/roadmap/memory/*.md
 !docs/roadmap/knowledge/
 !docs/roadmap/knowledge/prd.md
+!docs/roadmap/creaoai/
+!docs/roadmap/creaoai/*.md
+!docs/roadmap/managed-objective/
+!docs/roadmap/managed-objective/*.md
+!docs/roadmap/ai-layered-design/
+!docs/roadmap/ai-layered-design/*.md
 docs/gongzonghao/
 docs/bussniss/
 docs/oem/
 docs/tech/
 docs/knowledge
+!docs/knowledge/
+docs/knowledge/*
+!docs/knowledge/README.md
 # docs/research/
 
 # Issues tracking (internal use only)

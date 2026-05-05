@@ -120,6 +120,7 @@ interface InputbarProps extends SkillSelectionSourceProps {
   sessionId?: string | null;
   pathReferences?: MessagePathReference[];
   onAddPathReferences?: (references: MessagePathReference[]) => void;
+  onImportPathReferenceAsKnowledge?: (reference: MessagePathReference) => void;
   onRemovePathReference?: (id: string) => void;
   onClearPathReferences?: () => void;
   fileManagerOpen?: boolean;
@@ -189,6 +190,7 @@ export const Inputbar: React.FC<InputbarProps> = ({
   sessionId = null,
   pathReferences = [],
   onAddPathReferences,
+  onImportPathReferenceAsKnowledge,
   onRemovePathReference,
   onClearPathReferences,
   fileManagerOpen = false,
@@ -231,6 +233,7 @@ export const Inputbar: React.FC<InputbarProps> = ({
     skillSelection,
     handleSelectInputCapability,
     activeCapability,
+    knowledgeHubOpenRequestKey,
   } = useInputbarController({
     input,
     setInput,
@@ -252,6 +255,8 @@ export const Inputbar: React.FC<InputbarProps> = ({
     workflowSteps,
     workflowRunState,
     knowledgePackSelection,
+    onStartKnowledgeOrganize,
+    onManageKnowledgePacks,
     onEnableSuggestedTeam,
     projectId,
     sessionId,
@@ -330,6 +335,7 @@ export const Inputbar: React.FC<InputbarProps> = ({
         selectedTeam={selectedTeam}
         knowledgePackSelection={knowledgePackSelection}
         knowledgePackOptions={knowledgePackOptions}
+        knowledgeHubOpenRequestKey={knowledgeHubOpenRequestKey}
         onToggleKnowledgePack={onToggleKnowledgePack}
         onSelectKnowledgePack={onSelectKnowledgePack}
         onStartKnowledgeOrganize={onStartKnowledgeOrganize}
@@ -344,6 +350,7 @@ export const Inputbar: React.FC<InputbarProps> = ({
         pendingImages={pendingImages}
         onRemoveImage={handleRemoveImage}
         pathReferences={pathReferences}
+        onImportPathReferenceAsKnowledge={onImportPathReferenceAsKnowledge}
         onRemovePathReference={onRemovePathReference}
         fileManagerOpen={fileManagerOpen}
         onToggleFileManager={onToggleFileManager}

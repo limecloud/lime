@@ -432,7 +432,7 @@ fn build_input_json(
             "recentTimeline": recent_timeline,
             "lastOutcome": &thread_read.last_outcome,
             "incidents": &thread_read.incidents,
-            "runtimeFacts": build_replay_runtime_facts(thread_read),
+            "runtimeFacts": build_replay_runtime_facts(thread_read, modality_runtime_contracts),
             "modalityRuntimeContracts": modality_runtime_contracts,
         },
         "observability": observability_summary,
@@ -604,7 +604,10 @@ fn build_evidence_links_json(
         .map_err(|error| format!("序列化 evidence-links.json 失败: {error}"))
 }
 
-fn build_replay_runtime_facts(thread_read: &AgentRuntimeThreadReadModel) -> Value {
+fn build_replay_runtime_facts(
+    thread_read: &AgentRuntimeThreadReadModel,
+    modality_runtime_contracts: &Value,
+) -> Value {
     json!({
         "taskKind": thread_read.task_kind,
         "serviceModelSlot": thread_read.service_model_slot,
@@ -621,8 +624,51 @@ fn build_replay_runtime_facts(thread_read: &AgentRuntimeThreadReadModel) -> Valu
         "runtimeSummary": thread_read.runtime_summary,
         "permissionState": thread_read.permission_state,
         "oemPolicy": thread_read.oem_policy,
-        "auxiliaryTaskRuntime": thread_read.auxiliary_task_runtime
+        "auxiliaryTaskRuntime": thread_read.auxiliary_task_runtime,
+        "modalityTaskIndex": build_replay_modality_task_index_facts(modality_runtime_contracts)
     })
+}
+
+fn build_replay_modality_task_index_facts(modality_runtime_contracts: &Value) -> Value {
+    if let Some(index) = modality_contract_task_index(modality_runtime_contracts) {
+        json!({
+            "snapshotCount": modality_contract_task_index_snapshot_count(modality_runtime_contracts),
+            "threadIds": modality_contract_task_index_strings(index, "threadIds", "thread_ids", "threadId", "thread_id"),
+            "turnIds": modality_contract_task_index_strings(index, "turnIds", "turn_ids", "turnId", "turn_id"),
+            "contentIds": modality_contract_task_index_strings(index, "contentIds", "content_ids", "contentId", "content_id"),
+            "entryKeys": modality_contract_task_index_strings(index, "entryKeys", "entry_keys", "entryKey", "entry_key"),
+            "modalities": modality_contract_task_index_strings(index, "modalities", "modalities", "modality", "modality"),
+            "skillIds": modality_contract_task_index_strings(index, "skillIds", "skill_ids", "skillId", "skill_id"),
+            "modelIds": modality_contract_task_index_strings(index, "modelIds", "model_ids", "modelId", "model_id"),
+            "executorKinds": modality_contract_task_index_strings(index, "executorKinds", "executor_kinds", "executorKind", "executor_kind"),
+            "executorBindingKeys": modality_contract_task_index_strings(index, "executorBindingKeys", "executor_binding_keys", "executorBindingKey", "executor_binding_key"),
+            "costStates": modality_contract_task_index_strings(index, "costStates", "cost_states", "costState", "cost_state"),
+            "limitStates": modality_contract_task_index_strings(index, "limitStates", "limit_states", "limitState", "limit_state"),
+            "estimatedCostClasses": modality_contract_task_index_strings(index, "estimatedCostClasses", "estimated_cost_classes", "estimatedCostClass", "estimated_cost_class"),
+            "limitEventKinds": modality_contract_task_index_strings(index, "limitEventKinds", "limit_event_kinds", "limitEventKind", "limit_event_kind"),
+            "quotaLowCount": modality_contract_task_index_quota_low_count(index),
+            "itemCount": modality_contract_task_index_item_count(index)
+        })
+    } else {
+        json!({
+            "snapshotCount": 0,
+            "threadIds": [],
+            "turnIds": [],
+            "contentIds": [],
+            "entryKeys": [],
+            "modalities": [],
+            "skillIds": [],
+            "modelIds": [],
+            "executorKinds": [],
+            "executorBindingKeys": [],
+            "costStates": [],
+            "limitStates": [],
+            "estimatedCostClasses": [],
+            "limitEventKinds": [],
+            "quotaLowCount": 0,
+            "itemCount": 0
+        })
+    }
 }
 
 fn build_success_criteria(
@@ -704,6 +750,31 @@ fn build_success_criteria(
                 "回放必须保留 executor adapter 绑定：{}，不能退回自由工具选择或旧 CLI 旁路。",
                 format_text_list(&executor_adapter_keys, "未记录 executor adapter")
             ));
+        }
+        if modality_contract_has_task_index(modality_runtime_contracts) {
+            criteria.push(format!(
+                "回放必须保留 Evidence `snapshotIndex.taskIndex`，继续暴露身份锚点 thread/turn/content/entry：{}。",
+                format_text_list(
+                    &modality_contract_task_index_identity_anchors(modality_runtime_contracts),
+                    "未记录 task index identity"
+                )
+            ));
+            let executor_dimensions =
+                modality_contract_task_index_executor_dimensions(modality_runtime_contracts);
+            if !executor_dimensions.is_empty() {
+                criteria.push(format!(
+                    "回放必须保留 task index executor 维度：{}，不能退回无绑定的自由工具选择。",
+                    format_text_list(&executor_dimensions, "未记录 executor 维度")
+                ));
+            }
+            let cost_limit_dimensions =
+                modality_contract_task_index_cost_limit_dimensions(modality_runtime_contracts);
+            if !cost_limit_dimensions.is_empty() {
+                criteria.push(format!(
+                    "回放必须保留 task index cost/limit 摘要：{}；除非有真实 runtime 摘要更新，否则不能伪造成本或限额状态。",
+                    format_text_list(&cost_limit_dimensions, "未记录 cost/limit 摘要")
+                ));
+            }
         }
         let limecore_policy_refs =
             modality_contract_limecore_policy_refs(modality_runtime_contracts);
@@ -849,6 +920,19 @@ fn build_blocking_checks(
         }
     }
 
+    if let Some(limit_state) = thread_read.limit_state.as_ref() {
+        if limit_state.status == "user_locked_capability_gap" {
+            let capability_gap = limit_state
+                .capability_gap
+                .as_deref()
+                .or(thread_read.capability_gap.as_deref())
+                .unwrap_or("未记录 capabilityGap");
+            checks.push(format!(
+                "显式用户模型锁定不满足当前 execution profile：{capability_gap}；除非 replay 切换到满足 routingSlot 的模型或取消显式模型锁定，否则不能判 PASS。"
+            ));
+        }
+    }
+
     if modality_contract_has_routing_block(modality_runtime_contracts) {
         checks.push(format!(
             "多模态运行合同存在路由阻塞：{}；除非重放已换到满足合同的模型并成功产出，否则不能判 PASS。",
@@ -857,6 +941,14 @@ fn build_blocking_checks(
                 "未记录 failureCode"
             )
         ));
+    }
+    if modality_contract_snapshot_count(modality_runtime_contracts) > 0
+        && !modality_contract_has_task_index(modality_runtime_contracts)
+    {
+        checks.push(
+            "多模态运行合同缺少 Evidence `snapshotIndex.taskIndex`；除非 replay 重新导出同一 task index，否则不能证明身份锚点、executor 与 cost/limit 摘要仍可查询。"
+                .to_string(),
+        );
     }
     if modality_contract_has_browser_control(modality_runtime_contracts)
         && !modality_contract_has_browser_action_trace(modality_runtime_contracts)
@@ -998,6 +1090,36 @@ fn build_modality_contract_checks(modality_runtime_contracts: &Value) -> Vec<Str
             "确认 replay 保留 executor adapter：{}，用于解释真实执行器绑定、产物输出与失败映射。",
             format_text_list(&executor_adapter_keys, "未记录 executor adapter")
         ));
+    }
+    if modality_contract_has_task_index(modality_runtime_contracts) {
+        checks.push(
+            "确认 replay 保留 `snapshotIndex.taskIndex`，用于按 thread / turn / content / entry / modality / executor / cost / limit 复盘任务。"
+                .to_string(),
+        );
+        let identity_anchors =
+            modality_contract_task_index_identity_anchors(modality_runtime_contracts);
+        if !identity_anchors.is_empty() {
+            checks.push(format!(
+                "确认 task index 身份锚点仍可回溯：{}。",
+                format_text_list(&identity_anchors, "未记录 task index identity")
+            ));
+        }
+        let executor_dimensions =
+            modality_contract_task_index_executor_dimensions(modality_runtime_contracts);
+        if !executor_dimensions.is_empty() {
+            checks.push(format!(
+                "确认 task index executor 维度没有漂移：{}。",
+                format_text_list(&executor_dimensions, "未记录 executor 维度")
+            ));
+        }
+        let cost_limit_dimensions =
+            modality_contract_task_index_cost_limit_dimensions(modality_runtime_contracts);
+        if !cost_limit_dimensions.is_empty() {
+            checks.push(format!(
+                "确认 task index cost/limit 摘要仍来自 runtime facts：{}。",
+                format_text_list(&cost_limit_dimensions, "未记录 cost/limit 摘要")
+            ));
+        }
     }
     if modality_contract_has_limecore_policy_index(modality_runtime_contracts) {
         checks.push(
@@ -1217,6 +1339,17 @@ fn infer_replay_suite_tags(
         if modality_contract_has_limecore_policy_index(modality_runtime_contracts) {
             push_unique_text_tag(&mut tags, "limecore-policy");
         }
+        if modality_contract_has_task_index(modality_runtime_contracts) {
+            push_unique_text_tag(&mut tags, "modality-task-index");
+        }
+        if !modality_contract_task_index_identity_anchors(modality_runtime_contracts).is_empty() {
+            push_unique_text_tag(&mut tags, "modality-task-identity");
+        }
+        if !modality_contract_task_index_cost_limit_dimensions(modality_runtime_contracts)
+            .is_empty()
+        {
+            push_unique_text_tag(&mut tags, "modality-task-cost-limit");
+        }
         if !modality_contract_limecore_policy_missing_inputs(modality_runtime_contracts).is_empty()
         {
             push_unique_text_tag(&mut tags, "limecore-policy-gap");
@@ -1355,6 +1488,11 @@ fn infer_replay_failure_modes(
     if modality_contract_has_routing_block(modality_runtime_contracts) {
         push_unique_text_tag(&mut failure_modes, "modality_contract_routing_blocked");
     }
+    if modality_contract_snapshot_count(modality_runtime_contracts) > 0
+        && !modality_contract_has_task_index(modality_runtime_contracts)
+    {
+        push_unique_text_tag(&mut failure_modes, "modality_task_index_missing");
+    }
     if !modality_contract_limecore_policy_missing_inputs(modality_runtime_contracts).is_empty() {
         push_unique_text_tag(&mut failure_modes, "limecore_policy_missing_inputs");
     }
@@ -1492,6 +1630,219 @@ fn modality_contract_executor_adapter_keys(modality_runtime_contracts: &Value) -
         "/snapshot_index/executor_adapter_keys",
         &mut values,
     );
+    values
+}
+
+fn modality_contract_task_index(modality_runtime_contracts: &Value) -> Option<&Value> {
+    modality_runtime_contracts
+        .pointer("/snapshotIndex/taskIndex")
+        .or_else(|| modality_runtime_contracts.pointer("/snapshot_index/task_index"))
+}
+
+fn modality_contract_has_task_index(modality_runtime_contracts: &Value) -> bool {
+    modality_contract_task_index_snapshot_count(modality_runtime_contracts) > 0
+        || modality_contract_task_index(modality_runtime_contracts)
+            .is_some_and(|index| modality_contract_task_index_item_count(index) > 0)
+}
+
+fn modality_contract_task_index_snapshot_count(modality_runtime_contracts: &Value) -> usize {
+    modality_contract_task_index(modality_runtime_contracts)
+        .and_then(|index| {
+            index
+                .get("snapshotCount")
+                .or_else(|| index.get("snapshot_count"))
+        })
+        .and_then(Value::as_u64)
+        .map(|count| count as usize)
+        .unwrap_or_else(|| {
+            modality_contract_task_index(modality_runtime_contracts)
+                .map(modality_contract_task_index_item_count)
+                .unwrap_or_default()
+        })
+}
+
+fn modality_contract_task_index_item_count(index: &Value) -> usize {
+    index
+        .get("items")
+        .and_then(Value::as_array)
+        .map(Vec::len)
+        .unwrap_or_default()
+}
+
+fn modality_contract_task_index_quota_low_count(index: &Value) -> usize {
+    index
+        .get("quotaLowCount")
+        .or_else(|| index.get("quota_low_count"))
+        .and_then(Value::as_u64)
+        .map(|count| count as usize)
+        .unwrap_or_else(|| {
+            index
+                .get("items")
+                .and_then(Value::as_array)
+                .map(|items| {
+                    items
+                        .iter()
+                        .filter(|item| {
+                            item.get("quotaLow")
+                                .or_else(|| item.get("quota_low"))
+                                .and_then(Value::as_bool)
+                                == Some(true)
+                        })
+                        .count()
+                })
+                .unwrap_or_default()
+        })
+}
+
+fn modality_contract_task_index_strings(
+    index: &Value,
+    array_camel_key: &str,
+    array_snake_key: &str,
+    item_camel_key: &str,
+    item_snake_key: &str,
+) -> Vec<String> {
+    let mut values = Vec::new();
+    collect_unique_string_array_fields(index, &[array_camel_key, array_snake_key], &mut values);
+    for item in index
+        .get("items")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+    {
+        collect_unique_string_fields(item, &[item_camel_key, item_snake_key], &mut values);
+    }
+    values
+}
+
+fn modality_contract_task_index_identity_anchors(
+    modality_runtime_contracts: &Value,
+) -> Vec<String> {
+    let Some(index) = modality_contract_task_index(modality_runtime_contracts) else {
+        return Vec::new();
+    };
+
+    let mut values = modality_contract_task_index_strings(
+        index,
+        "threadIds",
+        "thread_ids",
+        "threadId",
+        "thread_id",
+    );
+    for value in
+        modality_contract_task_index_strings(index, "turnIds", "turn_ids", "turnId", "turn_id")
+    {
+        push_unique_owned_tag(&mut values, value);
+    }
+    for value in modality_contract_task_index_strings(
+        index,
+        "contentIds",
+        "content_ids",
+        "contentId",
+        "content_id",
+    ) {
+        push_unique_owned_tag(&mut values, value);
+    }
+    for value in modality_contract_task_index_strings(
+        index,
+        "entryKeys",
+        "entry_keys",
+        "entryKey",
+        "entry_key",
+    ) {
+        push_unique_owned_tag(&mut values, value);
+    }
+    values
+}
+
+fn modality_contract_task_index_executor_dimensions(
+    modality_runtime_contracts: &Value,
+) -> Vec<String> {
+    let Some(index) = modality_contract_task_index(modality_runtime_contracts) else {
+        return Vec::new();
+    };
+
+    let mut values = modality_contract_task_index_strings(
+        index,
+        "modalities",
+        "modalities",
+        "modality",
+        "modality",
+    );
+    for value in
+        modality_contract_task_index_strings(index, "skillIds", "skill_ids", "skillId", "skill_id")
+    {
+        push_unique_owned_tag(&mut values, value);
+    }
+    for value in
+        modality_contract_task_index_strings(index, "modelIds", "model_ids", "modelId", "model_id")
+    {
+        push_unique_owned_tag(&mut values, value);
+    }
+    for value in modality_contract_task_index_strings(
+        index,
+        "executorKinds",
+        "executor_kinds",
+        "executorKind",
+        "executor_kind",
+    ) {
+        push_unique_owned_tag(&mut values, value);
+    }
+    for value in modality_contract_task_index_strings(
+        index,
+        "executorBindingKeys",
+        "executor_binding_keys",
+        "executorBindingKey",
+        "executor_binding_key",
+    ) {
+        push_unique_owned_tag(&mut values, value);
+    }
+    values
+}
+
+fn modality_contract_task_index_cost_limit_dimensions(
+    modality_runtime_contracts: &Value,
+) -> Vec<String> {
+    let Some(index) = modality_contract_task_index(modality_runtime_contracts) else {
+        return Vec::new();
+    };
+
+    let mut values = modality_contract_task_index_strings(
+        index,
+        "costStates",
+        "cost_states",
+        "costState",
+        "cost_state",
+    );
+    for value in modality_contract_task_index_strings(
+        index,
+        "limitStates",
+        "limit_states",
+        "limitState",
+        "limit_state",
+    ) {
+        push_unique_owned_tag(&mut values, value);
+    }
+    for value in modality_contract_task_index_strings(
+        index,
+        "estimatedCostClasses",
+        "estimated_cost_classes",
+        "estimatedCostClass",
+        "estimated_cost_class",
+    ) {
+        push_unique_owned_tag(&mut values, value);
+    }
+    for value in modality_contract_task_index_strings(
+        index,
+        "limitEventKinds",
+        "limit_event_kinds",
+        "limitEventKind",
+        "limit_event_kind",
+    ) {
+        push_unique_owned_tag(&mut values, value);
+    }
+    if modality_contract_task_index_quota_low_count(index) > 0 {
+        push_unique_text_tag(&mut values, "quota_low");
+    }
     values
 }
 
@@ -2749,6 +3100,25 @@ mod tests {
     }
 
     #[test]
+    fn replay_blocking_checks_should_treat_not_requested_permission_confirmation_as_blocking() {
+        let mut thread_read = build_thread_read();
+        thread_read.pending_requests.clear();
+        thread_read.queued_turns.clear();
+        thread_read.diagnostics = None;
+
+        let checks = build_blocking_checks(&thread_read, &[], &json!({}));
+
+        assert!(checks
+            .iter()
+            .any(|check| check.contains("运行时权限声明仍需确认")));
+        assert!(checks.iter().any(|check| check.contains("read_files")));
+        assert!(checks.iter().any(|check| check.contains("write_artifacts")));
+        assert!(!checks
+            .iter()
+            .any(|check| check.contains("运行时权限确认已被拒绝")));
+    }
+
+    #[test]
     fn replay_blocking_checks_should_not_block_resolved_permission_confirmation() {
         let mut thread_read = build_thread_read();
         thread_read.pending_requests.clear();
@@ -2771,6 +3141,36 @@ mod tests {
         assert!(!checks
             .iter()
             .any(|check| check.contains("运行时权限确认已被拒绝")));
+    }
+
+    #[test]
+    fn replay_blocking_checks_should_treat_user_locked_capability_gap_as_blocking() {
+        let mut thread_read = build_thread_read();
+        thread_read.pending_requests.clear();
+        thread_read.queued_turns.clear();
+        thread_read.diagnostics = None;
+        thread_read.permission_state = None;
+        thread_read.capability_gap = Some("browser_reasoning_candidate_missing".to_string());
+        thread_read.limit_state = Some(lime_agent::SessionExecutionRuntimeLimitState {
+            status: "user_locked_capability_gap".to_string(),
+            single_candidate_only: true,
+            provider_locked: false,
+            settings_locked: true,
+            oem_locked: false,
+            candidate_count: 1,
+            capability_gap: Some("browser_reasoning_candidate_missing".to_string()),
+            notes: vec!["显式模型锁定不满足 browser_reasoning routingSlot".to_string()],
+        });
+
+        let checks = build_blocking_checks(&thread_read, &[], &json!({}));
+
+        assert!(checks
+            .iter()
+            .any(|check| check.contains("显式用户模型锁定")));
+        assert!(checks
+            .iter()
+            .any(|check| check.contains("browser_reasoning_candidate_missing")));
+        assert!(checks.iter().any(|check| check.contains("不能判 PASS")));
     }
 
     fn write_failed_image_contract_task_fixture(root: &Path, relative_path: &str) {
@@ -3174,6 +3574,19 @@ mod tests {
                     "tool_family": "browser",
                     "modality_contract_key": BROWSER_CONTROL_CONTRACT_KEY,
                     "modality": "browser",
+                    "skill_id": "browser_assist",
+                    "content_id": "content-browser-1",
+                    "model_id": "gpt-5.2-browser",
+                    "cost_state": {
+                        "status": "estimated",
+                        "estimatedCostClass": "low"
+                    },
+                    "limit_state": {
+                        "status": "within_limit"
+                    },
+                    "limit_event": {
+                        "eventKind": "quota_low"
+                    },
                     "required_capabilities": [
                         "text_generation",
                         "browser_reasoning",
@@ -3257,6 +3670,50 @@ mod tests {
                 .and_then(Value::as_str),
             Some("browser-session-1")
         );
+        assert_eq!(
+            input
+                .pointer(
+                    "/runtimeContext/modalityRuntimeContracts/snapshotIndex/taskIndex/threadIds/0"
+                )
+                .and_then(Value::as_str),
+            Some("thread-1")
+        );
+        assert_eq!(
+            input
+                .pointer(
+                    "/runtimeContext/modalityRuntimeContracts/snapshotIndex/taskIndex/contentIds/0"
+                )
+                .and_then(Value::as_str),
+            Some("content-browser-1")
+        );
+        assert_eq!(
+            input
+                .pointer(
+                    "/runtimeContext/modalityRuntimeContracts/snapshotIndex/taskIndex/entryKeys/0"
+                )
+                .and_then(Value::as_str),
+            Some("at_browser_command")
+        );
+        assert_eq!(
+            input
+                .pointer(
+                    "/runtimeContext/modalityRuntimeContracts/snapshotIndex/taskIndex/costStates/0"
+                )
+                .and_then(Value::as_str),
+            Some("estimated")
+        );
+        assert_eq!(
+            input
+                .pointer("/runtimeContext/runtimeFacts/modalityTaskIndex/executorBindingKeys/0")
+                .and_then(Value::as_str),
+            Some("lime_browser_mcp")
+        );
+        assert_eq!(
+            input
+                .pointer("/runtimeContext/runtimeFacts/modalityTaskIndex/quotaLowCount")
+                .and_then(Value::as_u64),
+            Some(1)
+        );
         let suite_tags = input
             .pointer("/classification/suiteTags")
             .and_then(Value::as_array)
@@ -3267,6 +3724,9 @@ mod tests {
             "browser-assist",
             "browser-action-trace",
             "browser-action-index",
+            "modality-task-index",
+            "modality-task-identity",
+            "modality-task-cost-limit",
         ] {
             assert!(suite_tags
                 .iter()
@@ -3279,12 +3739,18 @@ mod tests {
         assert!(expected.contains("WebSearch"));
         assert!(expected.contains("browser_action_trace"));
         assert!(expected.contains("browserActionIndex"));
+        assert!(expected.contains("snapshotIndex.taskIndex"));
+        assert!(expected.contains("thread-1"));
+        assert!(expected.contains("estimated"));
         assert!(expected.contains("\"requiresHumanReview\": false"));
 
         let grader = fs::read_to_string(grader_path).expect("grader");
         assert!(grader.contains("多模态运行合同检查"));
         assert!(grader.contains("browser_action_requested"));
         assert!(grader.contains("browserActionIndex"));
+        assert!(grader.contains("snapshotIndex.taskIndex"));
+        assert!(grader.contains("at_browser_command"));
+        assert!(grader.contains("within_limit"));
         assert!(grader.contains("WebSearch"));
 
         let links =
@@ -3301,6 +3767,12 @@ mod tests {
                 .pointer("/modalityRuntimeContracts/snapshotIndex/browserActionIndex/lastUrl")
                 .and_then(Value::as_str),
             Some("https://example.com/")
+        );
+        assert_eq!(
+            links
+                .pointer("/modalityRuntimeContracts/snapshotIndex/taskIndex/modelIds/0")
+                .and_then(Value::as_str),
+            Some("gpt-5.2-browser")
         );
     }
 

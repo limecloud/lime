@@ -4,6 +4,7 @@ import type { StepStatus } from "@/lib/workspace/workbenchContract";
 import type { Page, PageParams } from "@/types/page";
 import type {
   AgentInitialInputCapabilityParams,
+  AgentInitialKnowledgePackSelectionParams,
   AgentPendingServiceSkillLaunchParams,
   AgentProjectFileOpenTarget,
   AgentSiteSkillLaunchParams,
@@ -57,5 +58,6 @@ export interface AgentChatWorkspaceProps {
   initialSiteSkillLaunch?: AgentSiteSkillLaunchParams;
   initialPendingServiceSkillLaunch?: AgentPendingServiceSkillLaunchParams;
   initialInputCapability?: AgentInitialInputCapabilityParams;
+  initialKnowledgePackSelection?: AgentInitialKnowledgePackSelectionParams;
   initialProjectFileOpenTarget?: AgentProjectFileOpenTarget;
 }

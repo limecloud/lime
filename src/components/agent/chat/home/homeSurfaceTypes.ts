@@ -21,6 +21,7 @@ export type HomeSkillLaunchKind =
   | "scene_app"
   | "skill_catalog_scene"
   | "prefill_prompt"
+  | "open_knowledge_hub"
   | "toggle_guide"
   | "open_drawer"
   | "open_manager"

@@ -151,7 +151,7 @@ describe("ChatSidebar", () => {
     expect(container.textContent).toContain("我的方法");
     expect(container.textContent).toContain("资料");
     expect(container.textContent).toContain("灵感库");
-    expect(container.textContent).toContain("知识库");
+    expect(container.textContent).toContain("项目资料");
     expect(searchInput).toBeTruthy();
     expect(
       container.querySelector('button[aria-label="新建对话"]'),
@@ -194,7 +194,7 @@ describe("ChatSidebar", () => {
     act(() => {
       (
         Array.from(container.querySelectorAll("button")).find((button) =>
-          button.textContent?.includes("知识库"),
+          button.textContent?.includes("项目资料"),
         ) as HTMLButtonElement | undefined
       )?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });

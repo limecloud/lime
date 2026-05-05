@@ -29,7 +29,7 @@ use crate::services::runtime_file_checkpoint_service::list_file_checkpoints;
 use crate::services::workspace_health_service::ensure_workspace_ready_with_auto_relocate;
 use crate::workspace::WorkspaceManager;
 use chrono::Utc;
-use lime_core::database::dao::agent_timeline::AgentThreadItemPayload;
+use lime_core::database::dao::agent_timeline::{AgentThreadItem, AgentThreadItemPayload};
 use lime_infra::telemetry::RequestLog;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
@@ -777,6 +777,26 @@ fn build_modality_runtime_contracts_observability_summary_json(
     summary: &RuntimeModalityContractSnapshotSummary,
 ) -> Value {
     let snapshot_index = build_modality_runtime_contract_snapshot_index(&summary.snapshots);
+    let task_index = snapshot_index.get("taskIndex").cloned().unwrap_or_else(|| {
+        json!({
+            "snapshotCount": 0,
+            "threadIds": [],
+            "turnIds": [],
+            "contentIds": [],
+            "entryKeys": [],
+            "modalities": [],
+            "skillIds": [],
+            "modelIds": [],
+            "executorKinds": [],
+            "executorBindingKeys": [],
+            "costStates": [],
+            "limitStates": [],
+            "estimatedCostClasses": [],
+            "limitEventKinds": [],
+            "quotaLowCount": 0,
+            "items": []
+        })
+    });
     let browser_action_index = snapshot_index
         .get("browserActionIndex")
         .cloned()
@@ -814,6 +834,7 @@ fn build_modality_runtime_contracts_observability_summary_json(
     json!({
         "snapshotCount": summary.snapshots.len(),
         "snapshotIndex": {
+            "taskIndex": task_index,
             "browserActionIndex": browser_action_index,
             "limecorePolicyIndex": limecore_policy_index
         }
@@ -838,6 +859,21 @@ fn build_modality_runtime_contract_snapshot_index(snapshots: &[Value]) -> Value 
     let mut expected_routing_slots = BTreeSet::new();
     let mut execution_profile_keys = BTreeSet::new();
     let mut executor_adapter_keys = BTreeSet::new();
+    let mut task_thread_ids = BTreeSet::new();
+    let mut task_turn_ids = BTreeSet::new();
+    let mut task_content_ids = BTreeSet::new();
+    let mut task_entry_keys = BTreeSet::new();
+    let mut task_modalities = BTreeSet::new();
+    let mut task_skill_ids = BTreeSet::new();
+    let mut task_model_ids = BTreeSet::new();
+    let mut task_executor_kinds = BTreeSet::new();
+    let mut task_executor_binding_keys = BTreeSet::new();
+    let mut task_cost_states = BTreeSet::new();
+    let mut task_limit_states = BTreeSet::new();
+    let mut task_estimated_cost_classes = BTreeSet::new();
+    let mut task_limit_event_kinds = BTreeSet::new();
+    let mut task_quota_low_count = 0usize;
+    let mut task_index_items = Vec::new();
     let mut limecore_policy_refs = BTreeSet::new();
     let mut limecore_policy_missing_inputs = BTreeSet::new();
     let mut limecore_policy_pending_hit_refs = BTreeSet::new();
@@ -871,6 +907,22 @@ fn build_modality_runtime_contract_snapshot_index(snapshots: &[Value]) -> Value 
         let expected_routing_slot = snapshot_string(snapshot, "expectedRoutingSlot");
         let execution_profile_key = snapshot_string(snapshot, "executionProfileKey");
         let executor_adapter_key = snapshot_string(snapshot, "executorAdapterKey");
+        let thread_id = snapshot_string(snapshot, "threadId");
+        let turn_id = snapshot_string(snapshot, "turnId");
+        let content_id = snapshot_string(snapshot, "contentId");
+        let entry_key = snapshot_string(snapshot, "entryKey")
+            .or_else(|| snapshot_string(snapshot, "entrySource"));
+        let modality = snapshot_string(snapshot, "modality");
+        let skill_id = snapshot_string(snapshot, "skillId");
+        let model_id =
+            snapshot_string(snapshot, "modelId").or_else(|| snapshot_string(snapshot, "model"));
+        let executor_kind = snapshot_string(snapshot, "executorKind");
+        let executor_binding_key = snapshot_string(snapshot, "executorBindingKey");
+        let cost_state = snapshot_string(snapshot, "costState");
+        let limit_state = snapshot_string(snapshot, "limitState");
+        let estimated_cost_class = snapshot_string(snapshot, "estimatedCostClass");
+        let limit_event_kind = snapshot_string(snapshot, "limitEventKind");
+        let quota_low = snapshot.get("quotaLow").and_then(Value::as_bool);
         let snapshot_limecore_policy_refs =
             read_json_string_array(snapshot, &[&["limecorePolicyRefs"][..]]);
         let limecore_policy_snapshot = snapshot
@@ -897,6 +949,71 @@ fn build_modality_runtime_contract_snapshot_index(snapshots: &[Value]) -> Value 
         if let Some(executor_adapter_key) = executor_adapter_key.as_deref() {
             executor_adapter_keys.insert(executor_adapter_key.to_string());
         }
+        if let Some(value) = thread_id.as_deref() {
+            task_thread_ids.insert(value.to_string());
+        }
+        if let Some(value) = turn_id.as_deref() {
+            task_turn_ids.insert(value.to_string());
+        }
+        if let Some(value) = content_id.as_deref() {
+            task_content_ids.insert(value.to_string());
+        }
+        if let Some(value) = entry_key.as_deref() {
+            task_entry_keys.insert(value.to_string());
+        }
+        if let Some(value) = modality.as_deref() {
+            task_modalities.insert(value.to_string());
+        }
+        if let Some(value) = skill_id.as_deref() {
+            task_skill_ids.insert(value.to_string());
+        }
+        if let Some(value) = model_id.as_deref() {
+            task_model_ids.insert(value.to_string());
+        }
+        if let Some(value) = executor_kind.as_deref() {
+            task_executor_kinds.insert(value.to_string());
+        }
+        if let Some(value) = executor_binding_key.as_deref() {
+            task_executor_binding_keys.insert(value.to_string());
+        }
+        if let Some(value) = cost_state.as_deref() {
+            task_cost_states.insert(value.to_string());
+        }
+        if let Some(value) = limit_state.as_deref() {
+            task_limit_states.insert(value.to_string());
+        }
+        if let Some(value) = estimated_cost_class.as_deref() {
+            task_estimated_cost_classes.insert(value.to_string());
+        }
+        if let Some(value) = limit_event_kind.as_deref() {
+            task_limit_event_kinds.insert(value.to_string());
+        }
+        if quota_low == Some(true) {
+            task_quota_low_count += 1;
+        }
+        task_index_items.push(json!({
+            "artifactPath": snapshot.get("artifactPath").cloned().unwrap_or(Value::Null),
+            "taskId": snapshot.get("taskId").cloned().unwrap_or(Value::Null),
+            "taskType": snapshot.get("taskType").cloned().unwrap_or(Value::Null),
+            "contractKey": contract_key.clone(),
+            "source": source.clone(),
+            "threadId": thread_id,
+            "turnId": turn_id,
+            "contentId": content_id,
+            "entryKey": entry_key,
+            "entrySource": snapshot.get("entrySource").cloned().unwrap_or(Value::Null),
+            "modality": modality,
+            "skillId": skill_id,
+            "modelId": model_id,
+            "executorKind": executor_kind,
+            "executorBindingKey": executor_binding_key,
+            "costState": cost_state,
+            "limitState": limit_state,
+            "estimatedCostClass": estimated_cost_class,
+            "limitEventKind": limit_event_kind,
+            "quotaLow": quota_low,
+            "routingOutcome": snapshot.get("routingOutcome").cloned().unwrap_or(Value::Null),
+        }));
         for policy_ref in &snapshot_limecore_policy_refs {
             limecore_policy_refs.insert(policy_ref.to_string());
         }
@@ -1196,6 +1313,24 @@ fn build_modality_runtime_contract_snapshot_index(snapshots: &[Value]) -> Value 
         "expectedRoutingSlots": expected_routing_slots.into_iter().collect::<Vec<_>>(),
         "executionProfileKeys": execution_profile_keys.into_iter().collect::<Vec<_>>(),
         "executorAdapterKeys": executor_adapter_keys.into_iter().collect::<Vec<_>>(),
+        "taskIndex": {
+            "snapshotCount": task_index_items.len(),
+            "threadIds": task_thread_ids.into_iter().collect::<Vec<_>>(),
+            "turnIds": task_turn_ids.into_iter().collect::<Vec<_>>(),
+            "contentIds": task_content_ids.into_iter().collect::<Vec<_>>(),
+            "entryKeys": task_entry_keys.into_iter().collect::<Vec<_>>(),
+            "modalities": task_modalities.into_iter().collect::<Vec<_>>(),
+            "skillIds": task_skill_ids.into_iter().collect::<Vec<_>>(),
+            "modelIds": task_model_ids.into_iter().collect::<Vec<_>>(),
+            "executorKinds": task_executor_kinds.into_iter().collect::<Vec<_>>(),
+            "executorBindingKeys": task_executor_binding_keys.into_iter().collect::<Vec<_>>(),
+            "costStates": task_cost_states.into_iter().collect::<Vec<_>>(),
+            "limitStates": task_limit_states.into_iter().collect::<Vec<_>>(),
+            "estimatedCostClasses": task_estimated_cost_classes.into_iter().collect::<Vec<_>>(),
+            "limitEventKinds": task_limit_event_kinds.into_iter().collect::<Vec<_>>(),
+            "quotaLowCount": task_quota_low_count,
+            "items": task_index_items,
+        },
         "limecorePolicyRefs": limecore_policy_ref_keys.clone(),
         "limecorePolicyIndex": {
             "snapshotCount": limecore_policy_items.len(),
@@ -1391,6 +1526,9 @@ fn build_known_gaps(
     if let Some(gap) = permission_confirmation_known_gap(thread_read) {
         gaps.push(gap);
     }
+    if let Some(gap) = user_locked_capability_known_gap(thread_read) {
+        gaps.push(gap);
+    }
 
     if recent_artifacts.is_empty() {
         gaps.push("当前未检测到最近产物路径，Artifact 证据为空。".to_string());
@@ -1400,10 +1538,26 @@ fn build_known_gaps(
     gaps
 }
 
+fn user_locked_capability_known_gap(thread_read: &AgentRuntimeThreadReadModel) -> Option<String> {
+    let limit_state = thread_read.limit_state.as_ref()?;
+    if limit_state.status != "user_locked_capability_gap" {
+        return None;
+    }
+    let capability_gap = limit_state
+        .capability_gap
+        .as_deref()
+        .or(thread_read.capability_gap.as_deref())
+        .unwrap_or("未记录 capabilityGap");
+    Some(format!(
+        "显式用户模型锁定不满足当前 execution profile，当前证据包不能作为成功交付证据：capabilityGap={}。",
+        capability_gap
+    ))
+}
+
 fn permission_confirmation_known_gap(thread_read: &AgentRuntimeThreadReadModel) -> Option<String> {
     let permission_state = thread_read.permission_state.as_ref()?;
     if permission_state.confirmation_status.as_deref() != Some("denied") {
-        return None;
+        return unresolved_permission_confirmation_blocking_detail(permission_state);
     }
 
     Some(format!(
@@ -1417,6 +1571,55 @@ fn permission_confirmation_known_gap(thread_read: &AgentRuntimeThreadReadModel) 
             .as_deref()
             .unwrap_or("未记录 confirmationSource")
     ))
+}
+
+fn unresolved_permission_confirmation_blocking_detail(
+    permission_state: &lime_agent::SessionExecutionRuntimePermissionState,
+) -> Option<String> {
+    let confirmation_status = permission_state.confirmation_status.as_deref();
+    if permission_state.status != "requires_confirmation"
+        || matches!(confirmation_status, Some("resolved" | "denied"))
+    {
+        return None;
+    }
+
+    let ask_profile_keys =
+        format_permission_profile_keys(&permission_state.ask_profile_keys, "未记录 askProfileKeys");
+    let confirmation_source = permission_state
+        .confirmation_source
+        .as_deref()
+        .unwrap_or("未记录 confirmationSource");
+    let confirmation_request_id = permission_state
+        .confirmation_request_id
+        .as_deref()
+        .unwrap_or("未记录 confirmationRequestId");
+
+    Some(match confirmation_status {
+        Some("not_requested") => format!(
+            "声明态权限需要真实确认但尚未发起 ApprovalRequest，当前证据包不能作为成功交付证据：askProfileKeys={}，source={}。",
+            ask_profile_keys, confirmation_source
+        ),
+        Some("requested") => format!(
+            "真实权限确认正在等待处理，当前证据包不能作为成功交付证据：askProfileKeys={}，request_id={}，source={}。",
+            ask_profile_keys, confirmation_request_id, confirmation_source
+        ),
+        Some(other) => format!(
+            "运行时权限确认状态尚未解决，当前证据包不能作为成功交付证据：confirmationStatus={}，askProfileKeys={}，source={}。",
+            other, ask_profile_keys, confirmation_source
+        ),
+        None => format!(
+            "运行时权限声明仍需确认但缺少 confirmationStatus，当前证据包不能作为成功交付证据：askProfileKeys={}，source={}。",
+            ask_profile_keys, confirmation_source
+        ),
+    })
+}
+
+fn format_permission_profile_keys(values: &[String], fallback: &str) -> String {
+    if values.is_empty() {
+        fallback.to_string()
+    } else {
+        values.join(", ")
+    }
 }
 
 fn collect_latest_turn_summary(detail: &SessionDetail) -> Option<String> {
@@ -1637,6 +1840,15 @@ fn permission_state_signal_coverage(
             detail: format!(
                 "thread_read 已导出 permission_state，但真实权限确认已被拒绝：request_id={confirmation_request_id}, source={confirmation_source}。"
             ),
+        };
+    }
+
+    if let Some(detail) = unresolved_permission_confirmation_blocking_detail(permission_state) {
+        return RuntimeEvidenceSignalCoverageEntry {
+            signal: "permissionState",
+            status: "blocked",
+            source: "thread_read.permission_state",
+            detail: format!("thread_read 已导出 permission_state，但{detail}"),
         };
     }
 
@@ -2043,7 +2255,10 @@ fn collect_modality_runtime_contract_snapshots(
                 )
             })
         };
-        let Some(snapshot) = snapshot else { continue };
+        let Some(mut snapshot) = snapshot else {
+            continue;
+        };
+        enrich_modality_runtime_contract_snapshot_with_thread_item(&mut snapshot, item);
         summary.applicable_count += 1;
         summary.snapshots.push(snapshot);
         if summary.snapshots.len() >= MAX_RECENT_ARTIFACTS {
@@ -2052,6 +2267,25 @@ fn collect_modality_runtime_contract_snapshots(
     }
 
     summary
+}
+
+fn enrich_modality_runtime_contract_snapshot_with_thread_item(
+    snapshot: &mut Value,
+    item: &AgentThreadItem,
+) {
+    let Some(object) = snapshot.as_object_mut() else {
+        return;
+    };
+
+    if object.get("threadId").map_or(true, Value::is_null) {
+        object.insert(
+            "threadId".to_string(),
+            Value::String(item.thread_id.clone()),
+        );
+    }
+    if object.get("turnId").map_or(true, Value::is_null) {
+        object.insert("turnId".to_string(), Value::String(item.turn_id.clone()));
+    }
 }
 
 fn collect_artifact_validator_summary(
@@ -3528,6 +3762,36 @@ fn extract_modality_runtime_contract_snapshot(
         extract_runtime_contract_limecore_policy_refs(document, contract_key.as_str());
     let limecore_policy_snapshot =
         extract_runtime_contract_limecore_policy_snapshot(document, &limecore_policy_refs);
+    let entry_source = read_modality_contract_entry_source(document);
+    let entry_key = read_modality_contract_entry_key(document).or_else(|| entry_source.clone());
+    let modality = read_json_string(
+        document,
+        &[
+            &["modality"][..],
+            &["payload", "modality"][..],
+            &["record", "payload", "modality"][..],
+            &["runtime_contract", "modality"][..],
+            &["runtimeContract", "modality"][..],
+            &["payload", "runtime_contract", "modality"][..],
+            &["payload", "runtimeContract", "modality"][..],
+            &["record", "payload", "runtime_contract", "modality"][..],
+            &["record", "payload", "runtimeContract", "modality"][..],
+        ],
+    );
+    let model = read_modality_contract_model(document);
+    let model_id = read_modality_contract_model_id(document).or_else(|| model.clone());
+    let executor_kind = extract_runtime_contract_executor_kind(document);
+    let executor_binding_key = extract_runtime_contract_executor_binding_key(document);
+    let skill_id =
+        read_modality_contract_skill_id(document).or_else(|| match executor_kind.as_deref() {
+            Some("skill") | Some("service_skill") => executor_binding_key.clone(),
+            _ => None,
+        });
+    let cost_state = read_modality_contract_cost_state(document);
+    let estimated_cost_class = read_modality_contract_estimated_cost_class(document);
+    let limit_state = read_modality_contract_limit_state(document);
+    let limit_event_kind = read_modality_contract_limit_event_kind(document);
+    let quota_low = read_modality_contract_quota_low(document, limit_event_kind.as_deref());
 
     Some(json!({
         "artifactPath": artifact_path,
@@ -3558,6 +3822,9 @@ fn extract_modality_runtime_contract_snapshot(
             ],
         ),
         "taskType": task_type,
+        "threadId": read_modality_contract_thread_id(document),
+        "turnId": read_modality_contract_turn_id(document),
+        "contentId": read_modality_contract_content_id(document),
         "status": read_json_string(
             document,
             &[
@@ -3585,25 +3852,18 @@ fn extract_modality_runtime_contract_snapshot(
         } else {
             None
         },
-        "entrySource": read_json_string(
-            document,
-            &[
-                &["entry_source"][..],
-                &["entrySource"][..],
-                &["payload", "entry_source"][..],
-                &["payload", "entrySource"][..],
-                &["record", "payload", "entry_source"][..],
-                &["record", "payload", "entrySource"][..],
-            ],
-        ),
-        "modality": read_json_string(
-            document,
-            &[
-                &["modality"][..],
-                &["payload", "modality"][..],
-                &["record", "payload", "modality"][..],
-            ],
-        ),
+        "entryKey": entry_key,
+        "entrySource": entry_source,
+        "modality": modality,
+        "skillId": skill_id,
+        "modelId": model_id,
+        "executorKind": executor_kind,
+        "executorBindingKey": executor_binding_key,
+        "costState": cost_state,
+        "limitState": limit_state,
+        "estimatedCostClass": estimated_cost_class,
+        "limitEventKind": limit_event_kind,
+        "quotaLow": quota_low,
         "requiredCapabilities": read_json_string_array(
             document,
             &[
@@ -3647,20 +3907,7 @@ fn extract_modality_runtime_contract_snapshot(
                 &["record", "payload", "preferredProviderId"][..],
             ],
         ),
-        "model": read_json_string(
-            document,
-            &[
-                &["model"][..],
-                &["preferred_model_id"][..],
-                &["preferredModelId"][..],
-                &["payload", "model"][..],
-                &["payload", "preferred_model_id"][..],
-                &["payload", "preferredModelId"][..],
-                &["record", "payload", "model"][..],
-                &["record", "payload", "preferred_model_id"][..],
-                &["record", "payload", "preferredModelId"][..],
-            ],
-        ),
+        "model": model,
         "modelCapabilityAssessment": find_json_value_at_paths(
             document,
             &[
@@ -3701,6 +3948,356 @@ fn extract_modality_runtime_contract_snapshot(
         )
         .cloned()
     }))
+}
+
+fn read_modality_contract_thread_id(document: &Value) -> Option<String> {
+    read_json_string(
+        document,
+        &[
+            &["thread_id"][..],
+            &["threadId"][..],
+            &["payload", "thread_id"][..],
+            &["payload", "threadId"][..],
+            &["record", "payload", "thread_id"][..],
+            &["record", "payload", "threadId"][..],
+            &["runtime_summary", "thread_id"][..],
+            &["runtimeSummary", "threadId"][..],
+            &["request_metadata", "harness", "thread_id"][..],
+            &["requestMetadata", "harness", "threadId"][..],
+        ],
+    )
+}
+
+fn read_modality_contract_turn_id(document: &Value) -> Option<String> {
+    read_json_string(
+        document,
+        &[
+            &["turn_id"][..],
+            &["turnId"][..],
+            &["payload", "turn_id"][..],
+            &["payload", "turnId"][..],
+            &["record", "payload", "turn_id"][..],
+            &["record", "payload", "turnId"][..],
+            &["runtime_summary", "turn_id"][..],
+            &["runtimeSummary", "turnId"][..],
+            &["request_metadata", "harness", "turn_id"][..],
+            &["requestMetadata", "harness", "turnId"][..],
+        ],
+    )
+}
+
+fn read_modality_contract_content_id(document: &Value) -> Option<String> {
+    read_json_string(
+        document,
+        &[
+            &["content_id"][..],
+            &["contentId"][..],
+            &["payload", "content_id"][..],
+            &["payload", "contentId"][..],
+            &["record", "payload", "content_id"][..],
+            &["record", "payload", "contentId"][..],
+            &["runtime_summary", "content_id"][..],
+            &["runtimeSummary", "contentId"][..],
+            &["request_metadata", "harness", "content_id"][..],
+            &["requestMetadata", "harness", "contentId"][..],
+        ],
+    )
+}
+
+fn read_modality_contract_entry_source(document: &Value) -> Option<String> {
+    read_json_string(
+        document,
+        &[
+            &["entry_source"][..],
+            &["entrySource"][..],
+            &["payload", "entry_source"][..],
+            &["payload", "entrySource"][..],
+            &["record", "payload", "entry_source"][..],
+            &["record", "payload", "entrySource"][..],
+            &["request_metadata", "harness", "entry_source"][..],
+            &["requestMetadata", "harness", "entrySource"][..],
+        ],
+    )
+}
+
+fn read_modality_contract_entry_key(document: &Value) -> Option<String> {
+    read_json_string(
+        document,
+        &[
+            &["entry_key"][..],
+            &["entryKey"][..],
+            &["payload", "entry_key"][..],
+            &["payload", "entryKey"][..],
+            &["record", "payload", "entry_key"][..],
+            &["record", "payload", "entryKey"][..],
+            &["request_metadata", "harness", "entry_key"][..],
+            &["requestMetadata", "harness", "entryKey"][..],
+        ],
+    )
+}
+
+fn read_modality_contract_skill_id(document: &Value) -> Option<String> {
+    read_json_string(
+        document,
+        &[
+            &["skill_id"][..],
+            &["skillId"][..],
+            &["service_skill_id"][..],
+            &["serviceSkillId"][..],
+            &["payload", "skill_id"][..],
+            &["payload", "skillId"][..],
+            &["payload", "service_skill_id"][..],
+            &["payload", "serviceSkillId"][..],
+            &["record", "payload", "skill_id"][..],
+            &["record", "payload", "skillId"][..],
+            &["record", "payload", "service_skill_id"][..],
+            &["record", "payload", "serviceSkillId"][..],
+        ],
+    )
+}
+
+fn read_modality_contract_model(document: &Value) -> Option<String> {
+    read_json_string(
+        document,
+        &[
+            &["model"][..],
+            &["preferred_model_id"][..],
+            &["preferredModelId"][..],
+            &["payload", "model"][..],
+            &["payload", "preferred_model_id"][..],
+            &["payload", "preferredModelId"][..],
+            &["record", "payload", "model"][..],
+            &["record", "payload", "preferred_model_id"][..],
+            &["record", "payload", "preferredModelId"][..],
+        ],
+    )
+}
+
+fn read_modality_contract_model_id(document: &Value) -> Option<String> {
+    read_json_string(
+        document,
+        &[
+            &["model_id"][..],
+            &["modelId"][..],
+            &["payload", "model_id"][..],
+            &["payload", "modelId"][..],
+            &["record", "payload", "model_id"][..],
+            &["record", "payload", "modelId"][..],
+        ],
+    )
+}
+
+fn extract_runtime_contract_executor_kind(document: &Value) -> Option<String> {
+    read_json_string(
+        document,
+        &[
+            &["executor_kind"][..],
+            &["executorKind"][..],
+            &["payload", "executor_kind"][..],
+            &["payload", "executorKind"][..],
+            &["record", "payload", "executor_kind"][..],
+            &["record", "payload", "executorKind"][..],
+            &["runtime_contract", "executor_binding", "executor_kind"][..],
+            &["runtimeContract", "executorBinding", "executorKind"][..],
+            &[
+                "payload",
+                "runtime_contract",
+                "executor_binding",
+                "executor_kind",
+            ][..],
+            &[
+                "payload",
+                "runtimeContract",
+                "executorBinding",
+                "executorKind",
+            ][..],
+            &[
+                "record",
+                "payload",
+                "runtime_contract",
+                "executor_binding",
+                "executor_kind",
+            ][..],
+            &[
+                "record",
+                "payload",
+                "runtimeContract",
+                "executorBinding",
+                "executorKind",
+            ][..],
+        ],
+    )
+}
+
+fn extract_runtime_contract_executor_binding_key(document: &Value) -> Option<String> {
+    read_json_string(
+        document,
+        &[
+            &["executor_binding_key"][..],
+            &["executorBindingKey"][..],
+            &["payload", "executor_binding_key"][..],
+            &["payload", "executorBindingKey"][..],
+            &["record", "payload", "executor_binding_key"][..],
+            &["record", "payload", "executorBindingKey"][..],
+            &["runtime_contract", "executor_binding", "binding_key"][..],
+            &["runtimeContract", "executorBinding", "bindingKey"][..],
+            &[
+                "payload",
+                "runtime_contract",
+                "executor_binding",
+                "binding_key",
+            ][..],
+            &[
+                "payload",
+                "runtimeContract",
+                "executorBinding",
+                "bindingKey",
+            ][..],
+            &[
+                "record",
+                "payload",
+                "runtime_contract",
+                "executor_binding",
+                "binding_key",
+            ][..],
+            &[
+                "record",
+                "payload",
+                "runtimeContract",
+                "executorBinding",
+                "bindingKey",
+            ][..],
+        ],
+    )
+}
+
+fn read_modality_contract_cost_state(document: &Value) -> Option<String> {
+    read_json_string(
+        document,
+        &[
+            &["cost_state", "status"][..],
+            &["costState", "status"][..],
+            &["payload", "cost_state", "status"][..],
+            &["payload", "costState", "status"][..],
+            &["record", "payload", "cost_state", "status"][..],
+            &["record", "payload", "costState", "status"][..],
+            &["task_profile", "cost_state", "status"][..],
+            &["taskProfile", "costState", "status"][..],
+            &["payload", "task_profile", "cost_state", "status"][..],
+            &["payload", "taskProfile", "costState", "status"][..],
+            &["runtime_summary", "costStatus"][..],
+            &["runtimeSummary", "costStatus"][..],
+            &["cost_state"][..],
+            &["costState"][..],
+            &["payload", "cost_state"][..],
+            &["payload", "costState"][..],
+            &["record", "payload", "cost_state"][..],
+            &["record", "payload", "costState"][..],
+        ],
+    )
+}
+
+fn read_modality_contract_estimated_cost_class(document: &Value) -> Option<String> {
+    read_json_string(
+        document,
+        &[
+            &["cost_state", "estimatedCostClass"][..],
+            &["cost_state", "estimated_cost_class"][..],
+            &["costState", "estimatedCostClass"][..],
+            &["payload", "cost_state", "estimatedCostClass"][..],
+            &["payload", "costState", "estimatedCostClass"][..],
+            &["record", "payload", "cost_state", "estimatedCostClass"][..],
+            &["record", "payload", "costState", "estimatedCostClass"][..],
+            &["task_profile", "cost_state", "estimatedCostClass"][..],
+            &["taskProfile", "costState", "estimatedCostClass"][..],
+            &[
+                "payload",
+                "task_profile",
+                "cost_state",
+                "estimatedCostClass",
+            ][..],
+            &["payload", "taskProfile", "costState", "estimatedCostClass"][..],
+            &["runtime_summary", "estimatedCostClass"][..],
+            &["runtime_summary", "estimated_cost_class"][..],
+            &["runtimeSummary", "estimatedCostClass"][..],
+            &["estimated_cost_class"][..],
+            &["estimatedCostClass"][..],
+        ],
+    )
+}
+
+fn read_modality_contract_limit_state(document: &Value) -> Option<String> {
+    read_json_string(
+        document,
+        &[
+            &["limit_state", "status"][..],
+            &["limitState", "status"][..],
+            &["payload", "limit_state", "status"][..],
+            &["payload", "limitState", "status"][..],
+            &["record", "payload", "limit_state", "status"][..],
+            &["record", "payload", "limitState", "status"][..],
+            &["task_profile", "limit_state", "status"][..],
+            &["taskProfile", "limitState", "status"][..],
+            &["payload", "task_profile", "limit_state", "status"][..],
+            &["payload", "taskProfile", "limitState", "status"][..],
+            &["runtime_summary", "limitStatus"][..],
+            &["runtimeSummary", "limitStatus"][..],
+            &["limit_state"][..],
+            &["limitState"][..],
+            &["payload", "limit_state"][..],
+            &["payload", "limitState"][..],
+            &["record", "payload", "limit_state"][..],
+            &["record", "payload", "limitState"][..],
+        ],
+    )
+}
+
+fn read_modality_contract_limit_event_kind(document: &Value) -> Option<String> {
+    read_json_string(
+        document,
+        &[
+            &["limit_event", "eventKind"][..],
+            &["limit_event", "event_kind"][..],
+            &["limitEvent", "eventKind"][..],
+            &["limit_state", "limit_event", "eventKind"][..],
+            &["limitState", "limitEvent", "eventKind"][..],
+            &["payload", "limit_event", "eventKind"][..],
+            &["payload", "limitEvent", "eventKind"][..],
+            &["payload", "limit_state", "limit_event", "eventKind"][..],
+            &["payload", "limitState", "limitEvent", "eventKind"][..],
+            &["record", "payload", "limit_event", "eventKind"][..],
+            &["record", "payload", "limitEvent", "eventKind"][..],
+            &["runtime_summary", "limitEventKind"][..],
+            &["runtime_summary", "limit_event_kind"][..],
+            &["runtimeSummary", "limitEventKind"][..],
+        ],
+    )
+}
+
+fn read_modality_contract_quota_low(
+    document: &Value,
+    limit_event_kind: Option<&str>,
+) -> Option<bool> {
+    read_json_bool(
+        document,
+        &[
+            &["limit_event", "quotaLow"][..],
+            &["limit_event", "quota_low"][..],
+            &["limitEvent", "quotaLow"][..],
+            &["payload", "limit_event", "quotaLow"][..],
+            &["payload", "limitEvent", "quotaLow"][..],
+            &["record", "payload", "limit_event", "quotaLow"][..],
+            &["record", "payload", "limitEvent", "quotaLow"][..],
+            &["runtime_summary", "quotaLow"][..],
+            &["runtime_summary", "quota_low"][..],
+            &["runtimeSummary", "quotaLow"][..],
+        ],
+    )
+    .or_else(|| {
+        limit_event_kind
+            .map(|value| value.trim() == "quota_low")
+            .filter(|value| *value)
+    })
 }
 
 fn default_limecore_policy_refs_for_contract(contract_key: &str) -> &'static [&'static str] {
@@ -5083,6 +5680,39 @@ mod tests {
     }
 
     #[test]
+    fn permission_state_signal_coverage_should_surface_not_requested_confirmation_as_blocked() {
+        let thread_read = build_thread_read();
+
+        let coverage = permission_state_signal_coverage(&thread_read);
+
+        assert_eq!(coverage.signal, "permissionState");
+        assert_eq!(coverage.status, "blocked");
+        assert!(coverage.detail.contains("尚未发起 ApprovalRequest"));
+        assert!(coverage.detail.contains("read_files"));
+        assert!(coverage.detail.contains("write_artifacts"));
+    }
+
+    #[test]
+    fn permission_state_signal_coverage_should_surface_requested_confirmation_as_blocked() {
+        let mut thread_read = build_thread_read();
+        let mut permission_state = thread_read
+            .permission_state
+            .clone()
+            .expect("permission state");
+        permission_state.confirmation_status = Some("requested".to_string());
+        permission_state.confirmation_request_id = Some("approval-pending".to_string());
+        permission_state.confirmation_source = Some("runtime_action_required".to_string());
+        thread_read.permission_state = Some(permission_state);
+
+        let coverage = permission_state_signal_coverage(&thread_read);
+
+        assert_eq!(coverage.signal, "permissionState");
+        assert_eq!(coverage.status, "blocked");
+        assert!(coverage.detail.contains("真实权限确认正在等待处理"));
+        assert!(coverage.detail.contains("approval-pending"));
+    }
+
+    #[test]
     fn known_gaps_should_surface_denied_permission_confirmation() {
         let mut thread_read = build_thread_read();
         let mut permission_state = thread_read
@@ -5098,6 +5728,42 @@ mod tests {
 
         assert!(gaps.iter().any(|gap| gap.contains("approval-denied")));
         assert!(gaps.iter().any(|gap| gap.contains("权限确认已被拒绝")));
+    }
+
+    #[test]
+    fn known_gaps_should_surface_not_requested_permission_confirmation() {
+        let thread_read = build_thread_read();
+
+        let gaps = build_known_gaps(&[], &[], &thread_read);
+
+        assert!(gaps
+            .iter()
+            .any(|gap| gap.contains("尚未发起 ApprovalRequest")));
+        assert!(gaps.iter().any(|gap| gap.contains("read_files")));
+    }
+
+    #[test]
+    fn known_gaps_should_surface_user_locked_capability_gap() {
+        let mut thread_read = build_thread_read();
+        thread_read.permission_state = None;
+        thread_read.capability_gap = Some("browser_reasoning_candidate_missing".to_string());
+        thread_read.limit_state = Some(lime_agent::SessionExecutionRuntimeLimitState {
+            status: "user_locked_capability_gap".to_string(),
+            single_candidate_only: true,
+            provider_locked: false,
+            settings_locked: true,
+            oem_locked: false,
+            candidate_count: 1,
+            capability_gap: Some("browser_reasoning_candidate_missing".to_string()),
+            notes: vec!["显式模型锁定不满足 browser_reasoning routingSlot".to_string()],
+        });
+
+        let gaps = build_known_gaps(&[], &[], &thread_read);
+
+        assert!(gaps.iter().any(|gap| gap.contains("显式用户模型锁定")));
+        assert!(gaps
+            .iter()
+            .any(|gap| gap.contains("browser_reasoning_candidate_missing")));
     }
 
     #[test]
@@ -5571,7 +6237,12 @@ mod tests {
     fn should_export_runtime_evidence_pack_to_workspace() {
         let temp_dir = TempDir::new().expect("temp dir");
         let detail = build_detail();
-        let thread_read = build_thread_read();
+        let mut thread_read = build_thread_read();
+        if let Some(permission_state) = thread_read.permission_state.as_mut() {
+            permission_state.confirmation_status = Some("resolved".to_string());
+            permission_state.confirmation_request_id = Some("approval-resolved".to_string());
+            permission_state.confirmation_source = Some("runtime_action_required".to_string());
+        }
         write_request_telemetry_fixture(temp_dir.path());
 
         let result =
@@ -6300,6 +6971,18 @@ mod tests {
                     "tool_family": "browser",
                     "modality_contract_key": BROWSER_CONTROL_CONTRACT_KEY,
                     "modality": "browser",
+                    "content_id": "content-browser-1",
+                    "model_id": "gpt-5.2-browser",
+                    "cost_state": {
+                        "status": "estimated",
+                        "estimatedCostClass": "low"
+                    },
+                    "limit_state": {
+                        "status": "within_limit"
+                    },
+                    "limit_event": {
+                        "eventKind": "quota_low"
+                    },
                     "required_capabilities": [
                         "text_generation",
                         "browser_reasoning",
@@ -6404,6 +7087,126 @@ mod tests {
         );
         assert_eq!(
             runtime
+                .pointer("/modalityRuntimeContracts/snapshots/0/threadId")
+                .and_then(Value::as_str),
+            Some("thread-1")
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshots/0/turnId")
+                .and_then(Value::as_str),
+            Some("turn-1")
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshots/0/contentId")
+                .and_then(Value::as_str),
+            Some("content-browser-1")
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshots/0/entryKey")
+                .and_then(Value::as_str),
+            Some("at_browser_command")
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshots/0/modelId")
+                .and_then(Value::as_str),
+            Some("gpt-5.2-browser")
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshots/0/executorKind")
+                .and_then(Value::as_str),
+            Some("browser_action")
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshots/0/executorBindingKey")
+                .and_then(Value::as_str),
+            Some("lime_browser_mcp")
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshots/0/costState")
+                .and_then(Value::as_str),
+            Some("estimated")
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshots/0/limitState")
+                .and_then(Value::as_str),
+            Some("within_limit")
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshots/0/estimatedCostClass")
+                .and_then(Value::as_str),
+            Some("low")
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshots/0/limitEventKind")
+                .and_then(Value::as_str),
+            Some("quota_low")
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshots/0/quotaLow")
+                .and_then(Value::as_bool),
+            Some(true)
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshotIndex/taskIndex/threadIds/0")
+                .and_then(Value::as_str),
+            Some("thread-1")
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshotIndex/taskIndex/contentIds/0")
+                .and_then(Value::as_str),
+            Some("content-browser-1")
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshotIndex/taskIndex/entryKeys/0")
+                .and_then(Value::as_str),
+            Some("at_browser_command")
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshotIndex/taskIndex/modelIds/0")
+                .and_then(Value::as_str),
+            Some("gpt-5.2-browser")
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshotIndex/taskIndex/executorKinds/0")
+                .and_then(Value::as_str),
+            Some("browser_action")
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshotIndex/taskIndex/costStates/0")
+                .and_then(Value::as_str),
+            Some("estimated")
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshotIndex/taskIndex/limitStates/0")
+                .and_then(Value::as_str),
+            Some("within_limit")
+        );
+        assert_eq!(
+            runtime
+                .pointer("/modalityRuntimeContracts/snapshotIndex/taskIndex/quotaLowCount")
+                .and_then(Value::as_u64),
+            Some(1)
+        );
+        assert_eq!(
+            runtime
                 .pointer("/modalityRuntimeContracts/snapshotIndex/browserActionIndex/actionCount")
                 .and_then(Value::as_u64),
             Some(1)
@@ -6427,6 +7230,13 @@ mod tests {
                 )
                 .and_then(Value::as_str),
             Some("navigate")
+        );
+        assert_eq!(
+            result
+                .observability_summary
+                .pointer("/modalityRuntimeContracts/snapshotIndex/taskIndex/threadIds/0")
+                .and_then(Value::as_str),
+            Some("thread-1")
         );
         assert_eq!(
             result

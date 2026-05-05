@@ -11,16 +11,21 @@ import {
 } from "@/components/workspace/document/types";
 import { createInitialVideoState } from "@/components/workspace/video/types";
 import type { VideoCanvasState } from "@/components/workspace/video/types";
+import type { DesignCanvasState } from "@/components/workspace/design/types";
+import { createInitialDesignCanvasState } from "@/components/workspace/design/types";
 
 /**
  * 画布状态联合类型
  */
-export type CanvasStateUnion = DocumentCanvasState | VideoCanvasState;
+export type CanvasStateUnion =
+  | DocumentCanvasState
+  | VideoCanvasState
+  | DesignCanvasState;
 
 /**
  * 画布类型
  */
-export type CanvasType = "document" | "video";
+export type CanvasType = "document" | "video" | "design";
 
 /**
  * 主题到画布类型的映射
@@ -62,7 +67,12 @@ export function createInitialCanvasState(
       return createInitialDocumentState(content || "");
     case "video":
       return createInitialVideoState(content);
+    case "design":
+      return createInitialDesignCanvasState();
     default:
       return null;
   }
 }
+
+export { createInitialDesignCanvasState };
+export type { DesignCanvasState };

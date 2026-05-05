@@ -492,7 +492,7 @@ describe("AppSidebar", () => {
     expect(container.textContent).not.toContain("生成");
     expect(container.textContent).toContain("我的方法");
     expect(container.textContent).toContain("灵感库");
-    expect(container.textContent).toContain("知识库");
+    expect(container.textContent).toContain("项目资料");
     expect(container.textContent).not.toContain("设置");
     expect(container.textContent).not.toContain("持续流程");
     expect(container.textContent).not.toContain("消息渠道");
@@ -502,7 +502,6 @@ describe("AppSidebar", () => {
     expect(container.textContent).not.toContain("支撑");
     expect(container.textContent).not.toContain("技能");
     expect(container.textContent).not.toContain("能力");
-    expect(container.textContent).not.toContain("资料");
     expect(container.textContent).not.toContain("系统");
 
     const mainNavButtons = Array.from(
@@ -516,7 +515,7 @@ describe("AppSidebar", () => {
       "新建任务",
       "我的方法",
       "灵感库",
-      "知识库",
+      "项目资料",
     ]);
     expect(
       container.querySelector('[data-testid="app-sidebar-footer-nav"]'),

@@ -549,12 +549,16 @@ describe("EmptyState", () => {
     ).toBeTruthy();
     expect(container.textContent).toContain("引导帮助");
     expect(container.textContent).toContain("写作");
+    expect(container.textContent).toContain("添加资料");
     expect(container.textContent).toContain("PPT");
     expect(container.textContent).toContain("调研报告");
     expect(container.textContent).toContain("更多做法");
     expect(
       container.querySelector('[data-testid="home-guide-cards"]'),
     ).toBeNull();
+    expect(
+      container.querySelector('[data-testid="entry-home-knowledge-import"]'),
+    ).toBeTruthy();
     const scrollCue = container.querySelector(
       '[data-testid="home-scroll-cue"]',
     );
@@ -576,6 +580,62 @@ describe("EmptyState", () => {
     expect(
       container.querySelector('[data-testid^="entry-continuation-"]'),
     ).toBeNull();
+  });
+
+  it("首页添加资料入口应打开输入框资料中枢，而不是预填一段说明", async () => {
+    const setInput = vi.fn();
+    const onToggleKnowledgePack = vi.fn<(enabled: boolean) => void>();
+    const container = renderEmptyState({
+      setInput,
+      knowledgePackSelection: {
+        enabled: false,
+        packName: "team-notes",
+        workingDir: "workspace-root",
+        label: "团队资料",
+        status: "ready",
+      },
+      knowledgePackOptions: [
+        {
+          packName: "team-notes",
+          label: "团队资料",
+          status: "ready",
+          defaultForWorkspace: true,
+        },
+      ],
+      onToggleKnowledgePack,
+      onSelectKnowledgePack: vi.fn(),
+      onStartKnowledgeOrganize: vi.fn(),
+      onManageKnowledgePacks: vi.fn(),
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const starter = container.querySelector(
+      '[data-testid="entry-home-knowledge-import"]',
+    ) as HTMLButtonElement | null;
+    expect(starter?.textContent).toContain("添加资料");
+
+    act(() => {
+      starter?.click();
+    });
+
+    expect(setInput).not.toHaveBeenCalled();
+    expect(
+      container.querySelector('[data-testid="inputbar-knowledge-hub"]'),
+    ).toBeTruthy();
+    expect(container.textContent).toContain("可使用：团队资料");
+
+    const useKnowledgeButton = Array.from(
+      container.querySelectorAll("button"),
+    ).find((button) => button.textContent?.includes("使用这份资料"));
+
+    act(() => {
+      useKnowledgeButton?.click();
+    });
+
+    expect(onToggleKnowledgePack).toHaveBeenCalledWith(true);
   });
 
   it("点击引导帮助后进入可关闭的帮助模式，关闭后恢复默认起手入口", async () => {
@@ -603,6 +663,7 @@ describe("EmptyState", () => {
     expect(
       container.querySelector('[data-testid="home-guide-cards"]'),
     ).toBeTruthy();
+    expect(container.textContent).toContain("项目资料怎么添加和使用？");
     expect(
       container.querySelector('[data-testid="home-starter-chips"]'),
     ).toBeNull();
@@ -1742,6 +1803,133 @@ describe("EmptyState", () => {
           commandPrefix: "@配图",
         },
         displayContent: "帮我整理这篇文章的配图方向",
+      },
+    );
+  });
+
+  it("首页选择 @资料 兼容入口时应打开资料中枢而不是普通命令标签", async () => {
+    const onToggleKnowledgePack = vi.fn<(enabled: boolean) => void>();
+    const onStartKnowledgeOrganize = vi.fn();
+    const command = {
+      key: "knowledge_pack",
+      label: "资料",
+      mentionLabel: "资料",
+      commandPrefix: "@资料",
+      description: "查看、添加、选择或使用当前项目资料。",
+      aliases: [],
+    };
+    const container = renderEmptyState({
+      input: "按项目资料写一版介绍",
+      knowledgePackSelection: {
+        enabled: false,
+        packName: "team-notes",
+        workingDir: "workspace-root",
+        label: "团队资料",
+        status: "ready",
+      },
+      knowledgePackOptions: [
+        {
+          packName: "team-notes",
+          label: "团队资料",
+          status: "ready",
+          defaultForWorkspace: true,
+        },
+      ],
+      onToggleKnowledgePack,
+      onSelectKnowledgePack: vi.fn(),
+      onStartKnowledgeOrganize,
+      onManageKnowledgePacks: vi.fn(),
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const latestCall =
+      mockCharacterMention.mock.calls[
+        mockCharacterMention.mock.calls.length - 1
+      ][0];
+
+    await act(async () => {
+      latestCall.onSelectInputCapability?.({
+        kind: "builtin_command",
+        command,
+      });
+      await Promise.resolve();
+    });
+
+    expect(
+      container.querySelector('[data-testid="inputbar-builtin-command-badge"]'),
+    ).toBeNull();
+    expect(
+      container.querySelector('[data-testid="inputbar-knowledge-hub"]'),
+    ).toBeTruthy();
+    expect(container.textContent).toContain("可使用：团队资料");
+    expect(container.textContent).toContain("使用这份资料");
+
+    const useKnowledgeButton = Array.from(
+      container.querySelectorAll("button"),
+    ).find((button) => button.textContent?.includes("使用这份资料"));
+
+    act(() => {
+      useKnowledgeButton?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
+    });
+
+    expect(onToggleKnowledgePack).toHaveBeenCalledWith(true);
+    expect(onStartKnowledgeOrganize).not.toHaveBeenCalled();
+  });
+
+  it("首页启用项目资料后发送应携带资料引用 metadata", async () => {
+    const onSend = vi.fn();
+    const container = renderEmptyState({
+      input: "按项目资料写一版介绍",
+      onSend,
+      knowledgePackSelection: {
+        enabled: true,
+        packName: "team-notes",
+        workingDir: "workspace-root",
+        label: "团队资料",
+        status: "ready",
+      },
+      knowledgePackOptions: [
+        {
+          packName: "team-notes",
+          label: "团队资料",
+          status: "ready",
+          defaultForWorkspace: true,
+        },
+      ],
+      onToggleKnowledgePack: vi.fn(),
+      onSelectKnowledgePack: vi.fn(),
+      onStartKnowledgeOrganize: vi.fn(),
+      onManageKnowledgePacks: vi.fn(),
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const sendButton = container.querySelector(
+      'button[aria-label="发送"]',
+    ) as HTMLButtonElement | null;
+    expect(sendButton).toBeTruthy();
+
+    act(() => {
+      sendButton?.click();
+    });
+
+    expect(onSend).toHaveBeenCalledWith(
+      "按项目资料写一版介绍",
+      "react",
+      undefined,
+      {
+        requestMetadata: {
+          knowledge_pack: {
+            pack_name: "team-notes",
+            working_dir: "workspace-root",
+            source: "inputbar",
+          },
+        },
       },
     );
   });

@@ -173,6 +173,11 @@ interface MessageListProps {
     messageId: string;
     content: string;
   }) => void;
+  /** 将助手结果沉淀为项目资料 */
+  onSaveMessageAsKnowledge?: (source: {
+    messageId: string;
+    content: string;
+  }) => void;
   /** 打开子代理会话 */
   onOpenSubagentSession?: (sessionId: string) => void;
   /** 权限确认响应回调 */
@@ -778,6 +783,7 @@ const MessageListInner: React.FC<MessageListProps> = ({
   onOpenMessagePreview,
   onSaveMessageAsSkill,
   onSaveMessageAsInspiration,
+  onSaveMessageAsKnowledge,
   onOpenSubagentSession,
   onPermissionResponse,
   collapseCodeBlocks,
@@ -1333,7 +1339,8 @@ const MessageListInner: React.FC<MessageListProps> = ({
           messages: renderedMessages,
           state: historicalMessageHydrationState,
           isHistoricalTimelineReady,
-          hydrationIndexByMessageId: historicalMarkdownHydrationIndexByMessageId,
+          hydrationIndexByMessageId:
+            historicalMarkdownHydrationIndexByMessageId,
           hydratedHistoricalMarkdownCount,
         }),
       ),
@@ -1860,10 +1867,18 @@ const MessageListInner: React.FC<MessageListProps> = ({
       actionContent &&
       actionContent.length >= 24,
     );
+    const canSaveMessageAsKnowledge = Boolean(
+      onSaveMessageAsKnowledge &&
+      msg.role === "assistant" &&
+      !msg.isThinking &&
+      actionContent &&
+      actionContent.length >= 24,
+    );
     const showMessageActions =
       (msg.role === "user" && (canQuoteMessage || canCopyMessage)) ||
       canSaveMessageAsSkill ||
-      canSaveMessageAsInspiration;
+      canSaveMessageAsInspiration ||
+      canSaveMessageAsKnowledge;
     const messageSavedSiteContentTarget =
       msg.role === "assistant"
         ? resolveLatestProjectFileSavedSiteContentTargetFromMessage(msg)
@@ -2348,6 +2363,23 @@ const MessageListInner: React.FC<MessageListProps> = ({
                       title="保存到灵感库"
                     >
                       <BookmarkPlus size={12} />
+                    </Button>
+                  ) : null}
+                  {canSaveMessageAsKnowledge ? (
+                    <Button
+                      variant="ghost"
+                      className="relative z-10 h-8 w-auto gap-1.5 rounded-full border border-sky-200/90 bg-sky-50/92 px-2.5 text-xs font-semibold text-sky-700 shadow-sm shadow-sky-950/5 hover:bg-sky-100 hover:text-sky-800"
+                      onClick={() =>
+                        onSaveMessageAsKnowledge?.({
+                          messageId: msg.id,
+                          content: actionContent,
+                        })
+                      }
+                      aria-label="沉淀为项目资料"
+                      title="沉淀为项目资料"
+                    >
+                      <FileText size={12} />
+                      <span>沉淀为项目资料</span>
                     </Button>
                   ) : null}
                 </MessageActions>

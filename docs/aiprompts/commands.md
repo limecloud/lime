@@ -129,6 +129,20 @@
   - `fallbackStrategy`
 - 聊天结果沉淀为技能时，只能继续扩这组说明型字段，不要再平行发明第二套“技能草稿协议”
 
+CreoAI Capability Draft 命令链也必须停留在独立的生成 / 验证 / 注册边界：
+
+- 前端统一经由 `src/lib/api/capabilityDrafts.ts` 承接：
+  - `capability_draft_create`
+  - `capability_draft_list`
+  - `capability_draft_get`
+  - `capability_draft_verify`
+  - `capability_draft_register`
+- `capability_draft_list_registered_skills`
+- `capability_draft_create/list/get/verify/register/list_registered_skills` 只服务 `Capability Draft -> Workspace-local Skill package -> registered discovery` 的事实链，不是 runtime 执行入口
+- `capability_draft_register` 只允许把 `verified_pending_registration` 草案复制到当前 `workspaceRoot/.agents/skills`，并记录来源、verification report 与权限摘要；它不得调用 Skill reload、不得修改 seeded skill、不得把能力直接放进默认 tool surface
+- `capability_draft_list_registered_skills` 只能显式按 `workspaceRoot` 读取当前项目 `.agents/skills` 中带 `.lime/registration.json` 的 P3A 注册能力；它只做 catalog discovery / provenance projection，不得把能力合并进默认已安装方法列表、不得触发 runtime binding、不得展示运行或自动化入口
+- 注册后的执行仍必须回到 `agent_runtime_submit_turn -> Query Loop -> tool_runtime -> artifact/evidence` 主链，不能在 Capability Draft 命令里新增平行运行、调度或外部写协议
+
 当前 `/scene-key` 的发送主链也已经固定：
 
 - 发送前由 `src/components/agent/chat/workspace/useWorkspaceSendActions.ts` 统一拦截 slash 场景

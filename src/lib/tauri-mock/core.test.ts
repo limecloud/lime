@@ -669,6 +669,44 @@ describe("tauri-mock/core invoke", () => {
     );
   });
 
+  it("review decision mock 应阻止未解决权限确认保存为 accepted", async () => {
+    await expect(
+      invokeMockOnly("agent_runtime_save_review_decision", {
+        request: {
+          session_id: "mock-session",
+          decision_status: "accepted",
+          decision_summary: "错误接受尚未发起审批的权限确认。",
+          risk_level: "low",
+          permission_status: "requires_confirmation",
+          permission_confirmation_status: "not_requested",
+          permission_confirmation_source: "declared_profile_only",
+        },
+      }),
+    ).rejects.toThrow("权限确认尚未解决");
+
+    await expect(
+      invokeMockOnly("agent_runtime_save_review_decision", {
+        request: {
+          session_id: "mock-session",
+          decision_status: "rejected",
+          decision_summary: "权限确认未解决，拒绝本次交付。",
+          risk_level: "high",
+          permission_status: "requires_confirmation",
+          permission_confirmation_status: "not_requested",
+          permission_confirmation_source: "declared_profile_only",
+        },
+      }),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        permission_confirmation_status: "not_requested",
+        permission_confirmation_source: "declared_profile_only",
+        decision: expect.objectContaining({
+          decision_status: "rejected",
+        }),
+      }),
+    );
+  });
+
   it("工具库存 fallback mock 应按 workbench + browser surface 补齐当前工具面", async () => {
     mocks.invokeViaHttp.mockRejectedValueOnce(new Error("Failed to fetch"));
     const consoleWarnSpy = vi
@@ -761,6 +799,13 @@ describe("tauri-mock/core invoke", () => {
           request: {
             projectRootPath: "/mock/workspace",
             taskFamily: "image",
+            threadId: "thread-image-mock-1",
+            turnId: "turn-image-mock-1",
+            contentId: "content-image-mock-1",
+            model: "gpt-image-1",
+            costState: { status: "estimated", estimatedCostClass: "low" },
+            limitState: { status: "within_limit" },
+            limitEvent: { eventKind: "quota_low" },
           },
         }),
       ).resolves.toEqual(
@@ -770,8 +815,22 @@ describe("tauri-mock/core invoke", () => {
           modality_runtime_contracts: expect.objectContaining({
             snapshot_count: 1,
             contract_keys: ["image_generation"],
+            entry_keys: ["at_image_command"],
+            thread_ids: ["thread-image-mock-1"],
+            turn_ids: ["turn-image-mock-1"],
+            content_ids: ["content-image-mock-1"],
+            modalities: ["image"],
+            skill_ids: ["image_generate"],
+            model_ids: ["gpt-image-1"],
+            cost_states: ["estimated"],
+            limit_states: ["within_limit"],
+            estimated_cost_classes: ["low"],
+            limit_event_kinds: ["quota_low"],
+            quota_low_count: 1,
             execution_profile_keys: ["image_generation_profile"],
             executor_adapter_keys: ["skill:image_generate"],
+            executor_kinds: ["skill"],
+            executor_binding_keys: ["image_generate"],
             limecore_policy_refs: [
               "model_catalog",
               "provider_offer",
@@ -798,6 +857,18 @@ describe("tauri-mock/core invoke", () => {
             limecore_policy_value_hit_count: 0,
             snapshots: expect.arrayContaining([
               expect.objectContaining({
+                entry_key: "at_image_command",
+                thread_id: "thread-image-mock-1",
+                turn_id: "turn-image-mock-1",
+                content_id: "content-image-mock-1",
+                modality: "image",
+                skill_id: "image_generate",
+                model_id: "gpt-image-1",
+                cost_state: "estimated",
+                limit_state: "within_limit",
+                estimated_cost_class: "low",
+                limit_event_kind: "quota_low",
+                quota_low: true,
                 executor_kind: "skill",
                 executor_binding_key: "image_generate",
                 limecore_policy_refs: [

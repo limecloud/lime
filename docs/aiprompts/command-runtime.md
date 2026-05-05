@@ -54,6 +54,11 @@ Lime 的命令体系固定按以下关系理解：
 6. UI 的正式消费对象是统一 `CommandRunSnapshot`  
    聊天区轻卡和右侧 viewer 不应直接绑定底层 task、run 或原始响应结构。
 
+补充边界：
+
+- [Codex `/goal`](../research/codex-goal/README.md) 是 persistent objective / continuation loop 参考，不是 Lime 产品型 `/` 场景命令模板。
+- 如果后续 Lime 出现目标推进入口，它也必须触发现有 `ServiceSkill / automation job / agent turn` 主链，而不是在 slash 层新增一套 goal 执行壳。
+
 ## 创作主线护栏
 
 当前 Lime 的命令运行时默认服务“创作生产与交付”主线。

@@ -8,8 +8,10 @@ export { CanvasFactory } from "@/components/workspace/canvas/CanvasFactory";
 
 export {
   createInitialCanvasState,
+  createInitialDesignCanvasState,
   type CanvasStateUnion,
   type CanvasType,
+  type DesignCanvasState,
 } from "@/components/workspace/canvas/canvasUtils";
 
 export { createInitialDocumentState } from "@/components/workspace/document/types";
@@ -49,3 +51,10 @@ export {
   createInitialVideoState,
   type VideoCanvasState,
 } from "@/components/workspace/video/types";
+
+export { DesignCanvas } from "@/components/workspace/design/DesignCanvas";
+
+export {
+  createDesignCanvasStateFromContent,
+  type DesignCanvasProps,
+} from "@/components/workspace/design/types";

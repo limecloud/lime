@@ -1058,6 +1058,8 @@ export function isCanvasStateEmpty(state: CanvasStateUnion | null): boolean {
       return !state.content || state.content.trim() === "";
     case "video":
       return !state.prompt || state.prompt.trim() === "";
+    case "design":
+      return state.document.layers.length === 0;
     default:
       return true;
   }
@@ -1069,6 +1071,8 @@ export function serializeCanvasStateForSync(state: CanvasStateUnion): string {
       return state.content || "";
     case "video":
       return state.prompt || "";
+    case "design":
+      return JSON.stringify(state.document, null, 2);
     default:
       return JSON.stringify(state);
   }

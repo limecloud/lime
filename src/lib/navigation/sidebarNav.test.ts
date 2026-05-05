@@ -11,7 +11,7 @@ describe("sidebarNav", () => {
       "新建任务",
       "我的方法",
       "灵感库",
-      "知识库",
+      "项目资料",
     ]);
 
     expect(FOOTER_SIDEBAR_NAV_ITEMS.map((item) => item.label)).toEqual([

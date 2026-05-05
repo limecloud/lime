@@ -173,6 +173,22 @@ interface BuildWorkspaceEmptyStatePropsParams {
   runtimeToolAvailability?: ComponentProps<
     typeof EmptyState
   >["runtimeToolAvailability"];
+  knowledgePackSelection?: ComponentProps<
+    typeof EmptyState
+  >["knowledgePackSelection"];
+  knowledgePackOptions?: ComponentProps<typeof EmptyState>["knowledgePackOptions"];
+  onToggleKnowledgePack?: ComponentProps<
+    typeof EmptyState
+  >["onToggleKnowledgePack"];
+  onSelectKnowledgePack?: ComponentProps<
+    typeof EmptyState
+  >["onSelectKnowledgePack"];
+  onStartKnowledgeOrganize?: ComponentProps<
+    typeof EmptyState
+  >["onStartKnowledgeOrganize"];
+  onManageKnowledgePacks?: ComponentProps<
+    typeof EmptyState
+  >["onManageKnowledgePacks"];
   runtimeTaskCard?: ComponentProps<typeof EmptyState>["runtimeTaskCard"];
   onOpenMemoryWorkbench?: ComponentProps<
     typeof EmptyState
@@ -191,6 +207,9 @@ interface BuildWorkspaceEmptyStatePropsParams {
   onAddPathReferences?: ComponentProps<
     typeof EmptyState
   >["onAddPathReferences"];
+  onImportPathReferenceAsKnowledge?: ComponentProps<
+    typeof EmptyState
+  >["onImportPathReferenceAsKnowledge"];
   onRemovePathReference?: ComponentProps<
     typeof EmptyState
   >["onRemovePathReference"];
@@ -256,6 +275,12 @@ export function buildWorkspaceEmptyStateProps({
   projectId,
   sessionId,
   runtimeToolAvailability,
+  knowledgePackSelection,
+  knowledgePackOptions,
+  onToggleKnowledgePack,
+  onSelectKnowledgePack,
+  onStartKnowledgeOrganize,
+  onManageKnowledgePacks,
   runtimeTaskCard,
   onOpenMemoryWorkbench,
   onOpenChannels,
@@ -266,6 +291,7 @@ export function buildWorkspaceEmptyStateProps({
   defaultCuratedTaskReferenceEntries,
   pathReferences,
   onAddPathReferences,
+  onImportPathReferenceAsKnowledge,
   onRemovePathReference,
   onClearPathReferences,
   fileManagerOpen,
@@ -334,6 +360,12 @@ export function buildWorkspaceEmptyStateProps({
     projectId,
     sessionId,
     runtimeToolAvailability,
+    knowledgePackSelection,
+    knowledgePackOptions,
+    onToggleKnowledgePack,
+    onSelectKnowledgePack,
+    onStartKnowledgeOrganize,
+    onManageKnowledgePacks,
     runtimeTaskCard,
     onOpenMemoryWorkbench,
     onOpenChannels,
@@ -344,6 +376,7 @@ export function buildWorkspaceEmptyStateProps({
     defaultCuratedTaskReferenceEntries,
     pathReferences,
     onAddPathReferences,
+    onImportPathReferenceAsKnowledge,
     onRemovePathReference,
     onClearPathReferences,
     fileManagerOpen,

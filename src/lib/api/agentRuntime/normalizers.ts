@@ -15,6 +15,8 @@ import type {
   AgentRuntimeEvidenceLimeCorePolicyValueHit,
   AgentRuntimeEvidencePack,
   AgentRuntimeEvidenceStatusCount,
+  AgentRuntimeEvidenceTaskIndex,
+  AgentRuntimeEvidenceTaskIndexItem,
   AgentRuntimeHandoffArtifact,
   AgentRuntimeHandoffBundle,
   AgentRuntimeAnalysisArtifact,
@@ -364,6 +366,141 @@ function normalizeBrowserActionIndex(
   return index;
 }
 
+function normalizeTaskIndexItem(
+  value: unknown,
+): AgentRuntimeEvidenceTaskIndexItem | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const item: AgentRuntimeEvidenceTaskIndexItem = {
+    artifact_path: readOptionalStringField(
+      value,
+      "artifactPath",
+      "artifact_path",
+    ),
+    task_id: readOptionalStringField(value, "taskId", "task_id"),
+    task_type: readOptionalStringField(value, "taskType", "task_type"),
+    contract_key: readOptionalStringField(value, "contractKey", "contract_key"),
+    source: readOptionalStringField(value, "source"),
+    thread_id: readOptionalStringField(value, "threadId", "thread_id"),
+    turn_id: readOptionalStringField(value, "turnId", "turn_id"),
+    content_id: readOptionalStringField(value, "contentId", "content_id"),
+    entry_key: readOptionalStringField(value, "entryKey", "entry_key"),
+    entry_source: readOptionalStringField(value, "entrySource", "entry_source"),
+    modality: readOptionalStringField(value, "modality"),
+    skill_id: readOptionalStringField(value, "skillId", "skill_id"),
+    model_id: readOptionalStringField(value, "modelId", "model_id"),
+    executor_kind: readOptionalStringField(
+      value,
+      "executorKind",
+      "executor_kind",
+    ),
+    executor_binding_key: readOptionalStringField(
+      value,
+      "executorBindingKey",
+      "executor_binding_key",
+    ),
+    cost_state: readOptionalStringField(value, "costState", "cost_state"),
+    limit_state: readOptionalStringField(value, "limitState", "limit_state"),
+    estimated_cost_class: readOptionalStringField(
+      value,
+      "estimatedCostClass",
+      "estimated_cost_class",
+    ),
+    limit_event_kind: readOptionalStringField(
+      value,
+      "limitEventKind",
+      "limit_event_kind",
+    ),
+    quota_low: readOptionalBooleanField(value, "quotaLow", "quota_low"),
+    routing_outcome: readOptionalStringField(
+      value,
+      "routingOutcome",
+      "routing_outcome",
+    ),
+  };
+
+  const hasReadableField = Object.values(item).some(
+    (field) => field !== undefined && field !== "",
+  );
+
+  return hasReadableField ? item : null;
+}
+
+function normalizeTaskIndex(
+  value: unknown,
+): AgentRuntimeEvidenceTaskIndex | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const rawItems = readArrayField(value, "items");
+  const index: AgentRuntimeEvidenceTaskIndex = {
+    snapshot_count: readNumberField(value, "snapshotCount", "snapshot_count"),
+    thread_ids: readStringListField(value, "threadIds", "thread_ids"),
+    turn_ids: readStringListField(value, "turnIds", "turn_ids"),
+    content_ids: readStringListField(value, "contentIds", "content_ids"),
+    entry_keys: readStringListField(value, "entryKeys", "entry_keys"),
+    modalities: readStringListField(value, "modalities"),
+    skill_ids: readStringListField(value, "skillIds", "skill_ids"),
+    model_ids: readStringListField(value, "modelIds", "model_ids"),
+    executor_kinds: readStringListField(
+      value,
+      "executorKinds",
+      "executor_kinds",
+    ),
+    executor_binding_keys: readStringListField(
+      value,
+      "executorBindingKeys",
+      "executor_binding_keys",
+    ),
+    cost_states: readStringListField(value, "costStates", "cost_states"),
+    limit_states: readStringListField(value, "limitStates", "limit_states"),
+    estimated_cost_classes: readStringListField(
+      value,
+      "estimatedCostClasses",
+      "estimated_cost_classes",
+    ),
+    limit_event_kinds: readStringListField(
+      value,
+      "limitEventKinds",
+      "limit_event_kinds",
+    ),
+    quota_low_count: readNumberField(
+      value,
+      "quotaLowCount",
+      "quota_low_count",
+    ),
+    items: rawItems
+      .map((entry: unknown) => normalizeTaskIndexItem(entry))
+      .filter(Boolean) as AgentRuntimeEvidenceTaskIndexItem[],
+  };
+
+  if (
+    index.snapshot_count === 0 &&
+    index.thread_ids.length === 0 &&
+    index.turn_ids.length === 0 &&
+    index.content_ids.length === 0 &&
+    index.entry_keys.length === 0 &&
+    index.modalities.length === 0 &&
+    index.skill_ids.length === 0 &&
+    index.model_ids.length === 0 &&
+    index.executor_kinds.length === 0 &&
+    index.executor_binding_keys.length === 0 &&
+    index.cost_states.length === 0 &&
+    index.limit_states.length === 0 &&
+    index.estimated_cost_classes.length === 0 &&
+    index.limit_event_kinds.length === 0 &&
+    index.quota_low_count === 0 &&
+    index.items.length === 0
+  ) {
+    return undefined;
+  }
+
+  return index;
+}
+
 function normalizeLimeCorePolicyItem(
   value: unknown,
 ): AgentRuntimeEvidenceLimeCorePolicyItem | null {
@@ -633,6 +770,11 @@ function normalizeEvidenceModalityRuntimeContracts(value: unknown) {
     "snapshotIndex",
     "snapshot_index",
   );
+  const taskIndex = normalizeTaskIndex(
+    snapshotIndexRecord
+      ? readRecordField(snapshotIndexRecord, "taskIndex", "task_index")
+      : undefined,
+  );
   const browserActionIndex = normalizeBrowserActionIndex(
     snapshotIndexRecord
       ? readRecordField(
@@ -657,12 +799,18 @@ function normalizeEvidenceModalityRuntimeContracts(value: unknown) {
     "snapshot_count",
   );
 
-  if (snapshotCount === 0 && !browserActionIndex && !limeCorePolicyIndex) {
+  if (
+    snapshotCount === 0 &&
+    !taskIndex &&
+    !browserActionIndex &&
+    !limeCorePolicyIndex
+  ) {
     return undefined;
   }
   const snapshotIndex =
-    browserActionIndex || limeCorePolicyIndex
+    taskIndex || browserActionIndex || limeCorePolicyIndex
       ? {
+          ...(taskIndex ? { task_index: taskIndex } : {}),
           ...(browserActionIndex
             ? { browser_action_index: browserActionIndex }
             : {}),

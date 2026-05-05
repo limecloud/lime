@@ -21,6 +21,7 @@ import { BuiltinCommandBadge } from "./Inputbar/components/BuiltinCommandBadge";
 import { InputbarAccessModeSelect } from "./Inputbar/components/InputbarAccessModeSelect";
 import { InputbarCore } from "./Inputbar/components/InputbarCore";
 import { InputbarExecutionStrategySelect } from "./Inputbar/components/InputbarExecutionStrategySelect";
+import { InputbarKnowledgeControl } from "./Inputbar/knowledge/InputbarKnowledgeControl";
 import { InputbarModelExtra } from "./Inputbar/components/InputbarModelExtra";
 import { RuntimeSceneBadge } from "./Inputbar/components/RuntimeSceneBadge";
 import { CuratedTaskBadge } from "../skill-selection/CuratedTaskBadge";
@@ -59,6 +60,10 @@ import type { CuratedTaskReferenceEntry } from "../utils/curatedTaskReferenceSel
 import type { CreationReplaySurfaceModel } from "../utils/creationReplaySurface";
 import type { HomeInputSuggestion } from "../home/homeSurfaceTypes";
 import { getProviderLabel } from "@/lib/constants/providerMappings";
+import type {
+  InputbarKnowledgePackOption,
+  InputbarKnowledgePackSelection,
+} from "./Inputbar/types";
 
 interface EmptyStateComposerPanelProps {
   input: string;
@@ -91,6 +96,13 @@ interface EmptyStateComposerPanelProps {
   sessionId?: string | null;
   defaultCuratedTaskReferenceMemoryIds?: string[];
   defaultCuratedTaskReferenceEntries?: CuratedTaskReferenceEntry[];
+  knowledgePackSelection?: InputbarKnowledgePackSelection | null;
+  knowledgePackOptions?: InputbarKnowledgePackOption[];
+  knowledgeHubOpenRequestKey?: number;
+  onToggleKnowledgePack?: (enabled: boolean) => void;
+  onSelectKnowledgePack?: (packName: string) => void;
+  onStartKnowledgeOrganize?: () => void;
+  onManageKnowledgePacks?: () => void;
   showCreationModeSelector: boolean;
   creationMode: CreationMode;
   onCreationModeChange?: (mode: CreationMode) => void;
@@ -112,6 +124,7 @@ interface EmptyStateComposerPanelProps {
   onDrop?: (event: React.DragEvent) => void;
   onRemoveImage?: (index: number) => void;
   pathReferences?: MessagePathReference[];
+  onImportPathReferenceAsKnowledge?: (reference: MessagePathReference) => void;
   onRemovePathReference?: (id: string) => void;
   fileManagerOpen?: boolean;
   onToggleFileManager?: () => void;
@@ -200,6 +213,13 @@ export function EmptyStateComposerPanel({
   sessionId = null,
   defaultCuratedTaskReferenceMemoryIds = [],
   defaultCuratedTaskReferenceEntries = [],
+  knowledgePackSelection = null,
+  knowledgePackOptions = [],
+  knowledgeHubOpenRequestKey,
+  onToggleKnowledgePack,
+  onSelectKnowledgePack,
+  onStartKnowledgeOrganize,
+  onManageKnowledgePacks,
   showCreationModeSelector,
   creationMode,
   onCreationModeChange,
@@ -221,6 +241,7 @@ export function EmptyStateComposerPanel({
   onDrop,
   onRemoveImage,
   pathReferences = [],
+  onImportPathReferenceAsKnowledge,
   onRemovePathReference,
   fileManagerOpen = false,
   onToggleFileManager,
@@ -240,7 +261,9 @@ export function EmptyStateComposerPanel({
   >(null);
   const [showAdvancedControls, setShowAdvancedControls] = useState(false);
   const activeBuiltinCommand =
-    activeCapability?.kind === "builtin_command"
+    activeCapability?.kind === "builtin_command" &&
+    activeCapability.command.key !== "knowledge_pack" &&
+    activeCapability.command.key !== "knowledge_settle"
       ? activeCapability.command
       : null;
   const activeRuntimeScene =
@@ -467,10 +490,24 @@ export function EmptyStateComposerPanel({
   const currentModelSummary = hasConfiguredModel
     ? `${getProviderLabel(trimmedProviderType)} / ${trimmedModel}`
     : null;
+  const knowledgePackControl =
+    knowledgePackSelection || onStartKnowledgeOrganize ? (
+      <InputbarKnowledgeControl
+        knowledgePackSelection={knowledgePackSelection}
+        knowledgePackOptions={knowledgePackOptions}
+        inputText={draftInput}
+        openKnowledgeHubRequestKey={knowledgeHubOpenRequestKey}
+        onToggleKnowledgePack={onToggleKnowledgePack}
+        onSelectKnowledgePack={onSelectKnowledgePack}
+        onStartKnowledgeOrganize={onStartKnowledgeOrganize}
+        onManageKnowledgePacks={onManageKnowledgePacks}
+      />
+    ) : null;
   const hasHighlightedAdvancedPreference =
     thinkingEnabled ||
     webSearchEnabled ||
     subagentEnabled ||
+    knowledgePackSelection?.enabled ||
     executionStrategy === "code_orchestrated" ||
     accessMode === "read-only" ||
     accessMode === "full-access";
@@ -482,31 +519,37 @@ export function EmptyStateComposerPanel({
     Boolean(setAccessMode) ||
     shouldShowThemeSpecificExtra ||
     Boolean(onToggleFileManager);
-  const leftExtra = shouldShowAdvancedToggle ? (
+  const shouldShowLeftExtra =
+    Boolean(knowledgePackControl) || shouldShowAdvancedToggle;
+  const leftExtra = shouldShowLeftExtra ? (
     <>
-      <MetaToggleButton
-        type="button"
-        $checked={showAdvancedControls || hasHighlightedAdvancedPreference}
-        aria-label={showAdvancedControls ? "收起高级设置" : "展开高级设置"}
-        aria-expanded={showAdvancedControls}
-        data-testid="empty-state-advanced-toggle"
-        title={showAdvancedControls ? "收起高级设置" : "展开高级设置"}
-        onClick={() => setShowAdvancedControls((previous) => !previous)}
-      >
-        <MetaToggleCheck
+      {knowledgePackControl}
+
+      {shouldShowAdvancedToggle ? (
+        <MetaToggleButton
+          type="button"
           $checked={showAdvancedControls || hasHighlightedAdvancedPreference}
-          aria-hidden
-        />
-        <MetaToggleGlyph aria-hidden>
-          <Settings2 strokeWidth={1.8} />
-        </MetaToggleGlyph>
-        <MetaToggleLabel>高级设置</MetaToggleLabel>
-        {showAdvancedControls ? (
-          <ChevronUp className="h-3.5 w-3.5" aria-hidden />
-        ) : (
-          <ChevronDown className="h-3.5 w-3.5" aria-hidden />
-        )}
-      </MetaToggleButton>
+          aria-label={showAdvancedControls ? "收起高级设置" : "展开高级设置"}
+          aria-expanded={showAdvancedControls}
+          data-testid="empty-state-advanced-toggle"
+          title={showAdvancedControls ? "收起高级设置" : "展开高级设置"}
+          onClick={() => setShowAdvancedControls((previous) => !previous)}
+        >
+          <MetaToggleCheck
+            $checked={showAdvancedControls || hasHighlightedAdvancedPreference}
+            aria-hidden
+          />
+          <MetaToggleGlyph aria-hidden>
+            <Settings2 strokeWidth={1.8} />
+          </MetaToggleGlyph>
+          <MetaToggleLabel>高级设置</MetaToggleLabel>
+          {showAdvancedControls ? (
+            <ChevronUp className="h-3.5 w-3.5" aria-hidden />
+          ) : (
+            <ChevronDown className="h-3.5 w-3.5" aria-hidden />
+          )}
+        </MetaToggleButton>
+      ) : null}
 
       {guideHelpActive ? (
         <GuideHelpToolbarBadge
@@ -690,6 +733,7 @@ export function EmptyStateComposerPanel({
         topExtra={topExtra}
         leftExtra={leftExtra}
         pathReferences={pathReferences}
+        onImportPathReferenceAsKnowledge={onImportPathReferenceAsKnowledge}
         onRemovePathReference={onRemovePathReference}
         showMetaTools={showAdvancedControls}
         inputSuggestion={activeInputSuggestion}

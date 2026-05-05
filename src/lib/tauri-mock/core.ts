@@ -333,6 +333,17 @@ function buildMockMediaTaskOutput(
     request.runtimeContract ??
     request.runtime_contract ??
     protocol.runtimeContract;
+  const costState = request.costState ?? request.cost_state ?? null;
+  const limitState = request.limitState ?? request.limit_state ?? null;
+  const limitEvent = request.limitEvent ?? request.limit_event ?? null;
+  const runtimeSummary =
+    request.runtimeSummary ?? request.runtime_summary ?? null;
+  const taskProfile = request.taskProfile ?? request.task_profile ?? null;
+  const sessionId = request.sessionId ?? request.session_id ?? null;
+  const threadId = request.threadId ?? request.thread_id ?? null;
+  const turnId = request.turnId ?? request.turn_id ?? null;
+  const projectId = request.projectId ?? request.project_id ?? null;
+  const contentId = request.contentId ?? request.content_id ?? null;
   const payload =
     protocol.taskType === "transcription_generate"
       ? {
@@ -347,6 +358,11 @@ function buildMockMediaTaskOutput(
           timestamps: request.timestamps ?? null,
           provider_id: request.providerId ?? request.provider_id ?? null,
           model: request.model ?? null,
+          session_id: sessionId,
+          thread_id: threadId,
+          turn_id: turnId,
+          project_id: projectId,
+          content_id: contentId,
           entry_source:
             request.entrySource ??
             request.entry_source ??
@@ -393,6 +409,11 @@ function buildMockMediaTaskOutput(
               request.targetLanguage ?? request.target_language ?? null,
             provider_id: request.providerId ?? request.provider_id ?? null,
             model: request.model ?? null,
+            session_id: sessionId,
+            thread_id: threadId,
+            turn_id: turnId,
+            project_id: projectId,
+            content_id: contentId,
             entry_source:
               request.entrySource ?? request.entry_source ?? "at_voice_command",
             modality_contract_key:
@@ -426,6 +447,13 @@ function buildMockMediaTaskOutput(
             count: request.count ?? 1,
             provider_id: request.providerId ?? request.provider_id ?? null,
             model: request.model ?? null,
+            session_id: sessionId,
+            thread_id: threadId,
+            turn_id: turnId,
+            project_id: projectId,
+            content_id: contentId,
+            entry_source:
+              request.entrySource ?? request.entry_source ?? "at_image_command",
             modality_contract_key:
               request.modalityContractKey ??
               request.modality_contract_key ??
@@ -445,6 +473,17 @@ function buildMockMediaTaskOutput(
               request.model_capability_assessment ??
               null,
           };
+  for (const [key, value] of Object.entries({
+    cost_state: costState,
+    limit_state: limitState,
+    limit_event: limitEvent,
+    runtime_summary: runtimeSummary,
+    task_profile: taskProfile,
+  })) {
+    if (value !== null && value !== undefined) {
+      (payload as Record<string, unknown>)[key] = value;
+    }
+  }
   const record = {
     task_id: taskId,
     task_type: protocol.taskType,
@@ -3274,7 +3313,47 @@ type MockReviewDecisionRequest = {
   regression_requirements?: string[];
   regressionRequirements?: string[];
   notes?: string;
+  permission_status?: string;
+  permissionStatus?: string;
+  permission_confirmation_status?: string;
+  permissionConfirmationStatus?: string;
+  permission_confirmation_request_id?: string;
+  permissionConfirmationRequestId?: string;
+  permission_confirmation_source?: string;
+  permissionConfirmationSource?: string;
+  permission_confirmation_summary?: string;
+  permissionConfirmationSummary?: string;
 };
+
+function blocksAcceptedReviewDecisionInMock(
+  permissionStatus: string,
+  confirmationStatus: string,
+): boolean {
+  return (
+    confirmationStatus === "denied" ||
+    (permissionStatus === "requires_confirmation" &&
+      confirmationStatus !== "resolved")
+  );
+}
+
+function buildMockPermissionConfirmationSummary(
+  status: string,
+  requestId: string,
+  source: string,
+): string {
+  switch (status) {
+    case "denied":
+      return `已拒绝（request_id=${requestId}, source=${source}），不能作为成功交付证据。`;
+    case "requested":
+      return `等待处理（request_id=${requestId}, source=${source}），不能作为成功交付证据。`;
+    case "not_requested":
+      return "声明态权限尚未发起真实审批请求，不能作为成功交付证据。";
+    case "resolved":
+      return `已通过（request_id=${requestId}, source=${source}）。`;
+    default:
+      return status ? `${status}（source=${source}）。` : "";
+  }
+}
 
 const MOCK_PARAMETER_RESTRICTED_TOOL_NAMES = new Set([
   "Bash",
@@ -4312,6 +4391,404 @@ function toMockKnowledgeSummary(pack: MockKnowledgePack) {
   };
 }
 
+const mockCapabilityDraftStores = new Map<string, any[]>();
+
+function readMockCapabilityDraftRequest(args?: Record<string, unknown>) {
+  return (args?.request as Record<string, unknown> | undefined) ?? args ?? {};
+}
+
+function normalizeMockCapabilityWorkspaceRoot(value: unknown): string {
+  return typeof value === "string" && value.trim()
+    ? value.trim()
+    : "/mock/workspace/default";
+}
+
+function getMockCapabilityDraftStore(workspaceRoot: string): any[] {
+  const normalizedRoot = normalizeMockCapabilityWorkspaceRoot(workspaceRoot);
+  if (!mockCapabilityDraftStores.has(normalizedRoot)) {
+    mockCapabilityDraftStores.set(normalizedRoot, []);
+  }
+  return mockCapabilityDraftStores.get(normalizedRoot)!;
+}
+
+function createMockCapabilityDraft(args?: Record<string, unknown>) {
+  const request = readMockCapabilityDraftRequest(args);
+  const workspaceRoot = normalizeMockCapabilityWorkspaceRoot(
+    request.workspaceRoot ?? request.workspace_root,
+  );
+  const generatedFiles = Array.isArray(request.generatedFiles)
+    ? request.generatedFiles
+    : Array.isArray(request.generated_files)
+      ? request.generated_files
+      : [];
+  const timestamp = new Date().toISOString();
+  const draftId = `capdraft-mock-${Date.now()}`;
+  const draftRoot = `${workspaceRoot}/.lime/capability-drafts/${draftId}`;
+  const fileContents: Record<string, string> = {};
+  const normalizedGeneratedFiles = generatedFiles
+    .filter((file): file is Record<string, unknown> =>
+      Boolean(file && typeof file === "object"),
+    )
+    .map((file) => {
+      const relativePath =
+        typeof file.relativePath === "string"
+          ? file.relativePath
+          : typeof file.relative_path === "string"
+            ? file.relative_path
+            : "SKILL.md";
+      const content = typeof file.content === "string" ? file.content : "";
+      fileContents[relativePath] = content;
+      return {
+        relativePath,
+        byteLength: new TextEncoder().encode(content).length,
+        sha256: "mock-sha256",
+      };
+    });
+  const draft = {
+    draftId,
+    name:
+      typeof request.name === "string" && request.name.trim()
+        ? request.name.trim()
+        : "未验证能力草案",
+    description:
+      typeof request.description === "string" && request.description.trim()
+        ? request.description.trim()
+        : "Mock 环境下的 Capability Draft。",
+    userGoal:
+      typeof request.userGoal === "string"
+        ? request.userGoal
+        : typeof request.user_goal === "string"
+          ? request.user_goal
+          : "先生成未验证草案，等待人工复核。",
+    sourceKind:
+      typeof request.sourceKind === "string"
+        ? request.sourceKind
+        : typeof request.source_kind === "string"
+          ? request.source_kind
+          : "manual",
+    sourceRefs: Array.isArray(request.sourceRefs)
+      ? request.sourceRefs
+      : Array.isArray(request.source_refs)
+        ? request.source_refs
+        : [],
+    permissionSummary: Array.isArray(request.permissionSummary)
+      ? request.permissionSummary
+      : Array.isArray(request.permission_summary)
+        ? request.permission_summary
+        : [],
+    generatedFiles: normalizedGeneratedFiles,
+    verificationStatus: "unverified",
+    lastVerification: null,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    draftRoot,
+    manifestPath: `${draftRoot}/manifest.json`,
+    __fileContents: fileContents,
+  };
+  getMockCapabilityDraftStore(workspaceRoot).unshift(draft);
+  return draft;
+}
+
+function listMockCapabilityDrafts(args?: Record<string, unknown>) {
+  const request = readMockCapabilityDraftRequest(args);
+  const workspaceRoot = normalizeMockCapabilityWorkspaceRoot(
+    request.workspaceRoot ?? request.workspace_root,
+  );
+  return [...getMockCapabilityDraftStore(workspaceRoot)];
+}
+
+function getMockCapabilityDraft(args?: Record<string, unknown>) {
+  const request = readMockCapabilityDraftRequest(args);
+  const workspaceRoot = normalizeMockCapabilityWorkspaceRoot(
+    request.workspaceRoot ?? request.workspace_root,
+  );
+  const draftId =
+    typeof request.draftId === "string"
+      ? request.draftId
+      : typeof request.draft_id === "string"
+        ? request.draft_id
+        : "";
+  return (
+    getMockCapabilityDraftStore(workspaceRoot).find(
+      (draft) => draft.draftId === draftId,
+    ) ?? null
+  );
+}
+
+function buildMockCapabilityVerificationCheck(
+  id: string,
+  label: string,
+  passed: boolean,
+  message: string,
+  suggestions: string[] = [],
+) {
+  return {
+    id,
+    label,
+    status: passed ? "passed" : "failed",
+    message,
+    suggestions,
+    canAgentRepair: !passed,
+  };
+}
+
+function verifyMockCapabilityDraft(args?: Record<string, unknown>) {
+  const request = readMockCapabilityDraftRequest(args);
+  const workspaceRoot = normalizeMockCapabilityWorkspaceRoot(
+    request.workspaceRoot ?? request.workspace_root,
+  );
+  const draftId =
+    typeof request.draftId === "string"
+      ? request.draftId
+      : typeof request.draft_id === "string"
+        ? request.draft_id
+        : "";
+  const draft = getMockCapabilityDraftStore(workspaceRoot).find(
+    (item) => item.draftId === draftId,
+  );
+  if (!draft) {
+    throw new Error(`Capability Draft 不存在: ${draftId}`);
+  }
+
+  const paths: string[] = Array.isArray(draft.generatedFiles)
+    ? draft.generatedFiles.map((file: { relativePath?: string }) =>
+        String(file.relativePath ?? ""),
+      )
+    : [];
+  const contents = Object.values(
+    (draft.__fileContents ?? {}) as Record<string, string>,
+  )
+    .join("\n")
+    .toLowerCase();
+  const hasSkill = paths.includes("SKILL.md");
+  const hasInputContract = paths.some((path) =>
+    /(^|\/)(contract|contracts)\/input\.schema\.(json|ya?ml)$/.test(path),
+  );
+  const hasOutputContract = paths.some((path) =>
+    /(^|\/)(contract|contracts)\/output\.schema\.(json|ya?ml)$/.test(path),
+  );
+  const hasPermissionSummary =
+    Array.isArray(draft.permissionSummary) &&
+    draft.permissionSummary.length > 0;
+  const hasFixture = paths.some(
+    (path) => path.startsWith("tests/") || path.startsWith("examples/"),
+  );
+  const hasRisk = [
+    "rm -rf",
+    "npm install",
+    "pip install",
+    'method: "post"',
+    "method: 'post'",
+    "axios.post",
+    "payment",
+    "charge",
+    "create_order",
+    "publish_listing",
+  ].some((token) => contents.includes(token));
+
+  const checks = [
+    buildMockCapabilityVerificationCheck(
+      "package_structure",
+      "包结构",
+      hasSkill,
+      hasSkill ? "Mock 文件清单包含 SKILL.md。" : "文件清单缺少 SKILL.md。",
+      ["补齐 SKILL.md。"],
+    ),
+    buildMockCapabilityVerificationCheck(
+      "input_contract",
+      "输入 contract",
+      hasInputContract,
+      hasInputContract ? "已找到输入 contract。" : "缺少输入 contract。",
+      ["新增 contract/input.schema.json。"],
+    ),
+    buildMockCapabilityVerificationCheck(
+      "output_contract",
+      "输出 contract",
+      hasOutputContract,
+      hasOutputContract ? "已找到输出 contract。" : "缺少输出 contract。",
+      ["新增 contract/output.schema.json。"],
+    ),
+    buildMockCapabilityVerificationCheck(
+      "permission_declaration",
+      "权限声明",
+      hasPermissionSummary,
+      hasPermissionSummary ? "已声明权限摘要。" : "缺少权限摘要。",
+      ["补充 permissionSummary。"],
+    ),
+    buildMockCapabilityVerificationCheck(
+      "static_risk_scan",
+      "静态风险扫描",
+      !hasRisk,
+      hasRisk
+        ? "Mock 静态扫描发现高风险 token。"
+        : "Mock 静态扫描未发现高风险 token。",
+      ["移除高风险动作，或留到后续人工确认 gate。"],
+    ),
+    buildMockCapabilityVerificationCheck(
+      "fixture_presence",
+      "fixture / example",
+      hasFixture,
+      hasFixture
+        ? "已找到 tests/ 或 examples/。"
+        : "缺少 tests/ 或 examples/。",
+      ["新增 examples/input.sample.json 或 tests/fixture.test.*。"],
+    ),
+  ];
+  const failedCheckCount = checks.filter(
+    (check) => check.status === "failed",
+  ).length;
+  const timestamp = new Date().toISOString();
+  const summary = {
+    reportId: `capver-mock-${Date.now()}`,
+    status: failedCheckCount === 0 ? "passed" : "failed",
+    summary:
+      failedCheckCount === 0
+        ? "最小 verification gate 通过，等待后续注册阶段。"
+        : `最小 verification gate 未通过，${failedCheckCount} 项检查失败。`,
+    checkedAt: timestamp,
+    failedCheckCount,
+  };
+  draft.verificationStatus =
+    failedCheckCount === 0
+      ? "verified_pending_registration"
+      : "verification_failed";
+  draft.lastVerification = summary;
+  draft.updatedAt = timestamp;
+
+  return {
+    draft,
+    report: {
+      ...summary,
+      draftId,
+      checks,
+    },
+  };
+}
+
+function registerMockCapabilityDraft(args?: Record<string, unknown>) {
+  const request = readMockCapabilityDraftRequest(args);
+  const workspaceRoot = normalizeMockCapabilityWorkspaceRoot(
+    request.workspaceRoot ?? request.workspace_root,
+  );
+  const draftId =
+    typeof request.draftId === "string"
+      ? request.draftId
+      : typeof request.draft_id === "string"
+        ? request.draft_id
+        : "";
+  const draft = getMockCapabilityDraftStore(workspaceRoot).find(
+    (item) => item.draftId === draftId,
+  );
+  if (!draft) {
+    throw new Error(`Capability Draft 不存在: ${draftId}`);
+  }
+  if (draft.verificationStatus !== "verified_pending_registration") {
+    throw new Error(
+      `Capability Draft 当前状态为 ${draft.verificationStatus}，只有 verified_pending_registration 可以注册`,
+    );
+  }
+
+  const normalizedDraftSuffix = draftId
+    .replace(/^capdraft-/, "")
+    .replace(/[^a-zA-Z0-9]/g, "")
+    .slice(0, 12);
+  const skillDirectory = `capability-${normalizedDraftSuffix || "mock"}`;
+  const timestamp = new Date().toISOString();
+  const registration = {
+    registrationId: `capreg-mock-${Date.now()}`,
+    registeredAt: timestamp,
+    skillDirectory,
+    registeredSkillDirectory: `${workspaceRoot}/.agents/skills/${skillDirectory}`,
+    sourceDraftId: draftId,
+    sourceVerificationReportId:
+      typeof draft.lastVerification?.reportId === "string"
+        ? draft.lastVerification.reportId
+        : null,
+    generatedFileCount: Array.isArray(draft.generatedFiles)
+      ? draft.generatedFiles.length
+      : 0,
+    permissionSummary: Array.isArray(draft.permissionSummary)
+      ? draft.permissionSummary
+      : [],
+  };
+
+  draft.verificationStatus = "registered";
+  draft.lastRegistration = registration;
+  draft.updatedAt = timestamp;
+
+  return {
+    draft,
+    registration,
+  };
+}
+
+function listMockCapabilityRegisteredSkills(args?: Record<string, unknown>) {
+  const request = readMockCapabilityDraftRequest(args);
+  const workspaceRoot = normalizeMockCapabilityWorkspaceRoot(
+    request.workspaceRoot ?? request.workspace_root,
+  );
+
+  return getMockCapabilityDraftStore(workspaceRoot)
+    .filter(
+      (draft) =>
+        draft.verificationStatus === "registered" && draft.lastRegistration,
+    )
+    .map((draft) => {
+      const registration = draft.lastRegistration as Record<string, unknown>;
+      const directory =
+        typeof registration.skillDirectory === "string"
+          ? registration.skillDirectory
+          : typeof registration.skill_directory === "string"
+            ? registration.skill_directory
+            : draft.draftId;
+      const registeredSkillDirectory =
+        typeof registration.registeredSkillDirectory === "string"
+          ? registration.registeredSkillDirectory
+          : typeof registration.registered_skill_directory === "string"
+            ? registration.registered_skill_directory
+            : `${workspaceRoot}/.agents/skills/${directory}`;
+
+      return {
+        key: `workspace:${directory}`,
+        name: draft.name,
+        description: draft.description,
+        directory,
+        registeredSkillDirectory,
+        registration,
+        permissionSummary: Array.isArray(draft.permissionSummary)
+          ? draft.permissionSummary
+          : [],
+        metadata: {},
+        allowedTools: [],
+        resourceSummary: {
+          hasScripts: Array.isArray(draft.generatedFiles)
+            ? draft.generatedFiles.some((file: { relativePath?: string }) =>
+                String(file.relativePath ?? "").startsWith("scripts/"),
+              )
+            : false,
+          hasReferences: Array.isArray(draft.generatedFiles)
+            ? draft.generatedFiles.some((file: { relativePath?: string }) =>
+                String(file.relativePath ?? "").startsWith("references/"),
+              )
+            : false,
+          hasAssets: Array.isArray(draft.generatedFiles)
+            ? draft.generatedFiles.some((file: { relativePath?: string }) =>
+                String(file.relativePath ?? "").startsWith("assets/"),
+              )
+            : false,
+        },
+        standardCompliance: {
+          isStandard: true,
+          validationErrors: [],
+          deprecatedFields: [],
+        },
+        launchEnabled: false,
+        runtimeGate:
+          "已注册为 Workspace 本地 Skill 包；进入运行前还需要 P3B runtime binding 与 tool_runtime 授权。",
+      };
+    });
+}
+
 // 默认 mock 数据
 const defaultMocks: Record<string, any> = {
   companion_get_pet_status: () => ({
@@ -4513,6 +4990,18 @@ const defaultMocks: Record<string, any> = {
       clearedDefault: status === "archived" && pack.defaultForWorkspace,
     };
   },
+  capability_draft_create: (args?: Record<string, unknown>) =>
+    createMockCapabilityDraft(args),
+  capability_draft_list: (args?: Record<string, unknown>) =>
+    listMockCapabilityDrafts(args),
+  capability_draft_get: (args?: Record<string, unknown>) =>
+    getMockCapabilityDraft(args),
+  capability_draft_verify: (args?: Record<string, unknown>) =>
+    verifyMockCapabilityDraft(args),
+  capability_draft_register: (args?: Record<string, unknown>) =>
+    registerMockCapabilityDraft(args),
+  capability_draft_list_registered_skills: (args?: Record<string, unknown>) =>
+    listMockCapabilityRegisteredSkills(args),
   knowledge_resolve_context: (args?: Record<string, unknown>) => {
     const request = readMockKnowledgeRequest(args);
     const workingDir = normalizeMockKnowledgeWorkingDir(request.workingDir);
@@ -6053,9 +6542,46 @@ const defaultMocks: Record<string, any> = {
   }) => {
     const decisionStatus =
       request?.decision_status || request?.decisionStatus || "pending_review";
-    if (decisionStatus === "accepted") {
+    const permissionStatus =
+      request?.permission_status ||
+      request?.permissionStatus ||
+      "requires_confirmation";
+    const permissionConfirmationStatus =
+      request?.permission_confirmation_status ||
+      request?.permissionConfirmationStatus ||
+      "denied";
+    const permissionConfirmationRequestId =
+      request?.permission_confirmation_request_id ||
+      request?.permissionConfirmationRequestId ||
+      (permissionConfirmationStatus === "not_requested"
+        ? ""
+        : "mock-approval-denied");
+    const permissionConfirmationSource =
+      request?.permission_confirmation_source ||
+      request?.permissionConfirmationSource ||
+      (permissionConfirmationStatus === "not_requested"
+        ? "declared_profile_only"
+        : "runtime_action_required");
+    const permissionConfirmationSummary =
+      request?.permission_confirmation_summary ||
+      request?.permissionConfirmationSummary ||
+      buildMockPermissionConfirmationSummary(
+        permissionConfirmationStatus,
+        permissionConfirmationRequestId || "未记录 confirmationRequestId",
+        permissionConfirmationSource,
+      );
+
+    if (
+      decisionStatus === "accepted" &&
+      blocksAcceptedReviewDecisionInMock(
+        permissionStatus,
+        permissionConfirmationStatus,
+      )
+    ) {
       throw new Error(
-        "真实权限确认已被拒绝，不能把本次 review decision 保存为 accepted；请先处理真实权限确认，或改为 rejected / deferred / needs_more_evidence。",
+        permissionConfirmationStatus === "denied"
+          ? "真实权限确认已被拒绝，不能把本次 review decision 保存为 accepted；请先处理真实权限确认，或改为 rejected / deferred / needs_more_evidence。"
+          : "权限确认尚未解决，不能把本次 review decision 保存为 accepted；请先处理真实权限确认，或改为 rejected / deferred / needs_more_evidence。",
       );
     }
 
@@ -6080,12 +6606,11 @@ const defaultMocks: Record<string, any> = {
       pending_request_count: 1,
       queued_turn_count: 0,
       default_decision_status: "pending_review",
-      permission_status: "requires_confirmation",
-      permission_confirmation_status: "denied",
-      permission_confirmation_request_id: "mock-approval-denied",
-      permission_confirmation_source: "runtime_action_required",
-      permission_confirmation_summary:
-        "已拒绝（request_id=mock-approval-denied, source=runtime_action_required），不能作为成功交付证据。",
+      permission_status: permissionStatus,
+      permission_confirmation_status: permissionConfirmationStatus,
+      permission_confirmation_request_id: permissionConfirmationRequestId,
+      permission_confirmation_source: permissionConfirmationSource,
+      permission_confirmation_summary: permissionConfirmationSummary,
       verification_summary: {
         artifact_validator: {
           applicable: true,
@@ -6110,9 +6635,7 @@ const defaultMocks: Record<string, any> = {
         risk_tags: request?.risk_tags || request?.riskTags || [],
         human_reviewer: request?.human_reviewer || request?.humanReviewer || "",
         reviewed_at:
-          request?.reviewed_at ||
-          request?.reviewedAt ||
-          "2026-03-27T00:07:00Z",
+          request?.reviewed_at || request?.reviewedAt || "2026-03-27T00:07:00Z",
         followup_actions:
           request?.followup_actions || request?.followupActions || [],
         regression_requirements:
@@ -6455,6 +6978,117 @@ const defaultMocks: Record<string, any> = {
         | Record<string, any>
         | null
         | undefined;
+      const readPayloadString = (...values: unknown[]) => {
+        const value = values.find(
+          (candidate) =>
+            typeof candidate === "string" && candidate.trim().length > 0,
+        );
+        return typeof value === "string" ? value.trim() : null;
+      };
+      const taskProfile = (payload?.task_profile ?? payload?.taskProfile) as
+        | Record<string, any>
+        | null
+        | undefined;
+      const runtimeSummary = (payload?.runtime_summary ??
+        payload?.runtimeSummary) as Record<string, any> | null | undefined;
+      const costStatePayload = (payload?.cost_state ??
+        payload?.costState ??
+        taskProfile?.cost_state ??
+        taskProfile?.costState) as
+        | Record<string, any>
+        | string
+        | null
+        | undefined;
+      const limitStatePayload = (payload?.limit_state ??
+        payload?.limitState ??
+        taskProfile?.limit_state ??
+        taskProfile?.limitState) as
+        | Record<string, any>
+        | string
+        | null
+        | undefined;
+      const limitEventPayload = (payload?.limit_event ??
+        payload?.limitEvent ??
+        (typeof limitStatePayload === "object"
+          ? (limitStatePayload?.limit_event ??
+            limitStatePayload?.limitEvent ??
+            limitStatePayload?.event)
+          : null)) as Record<string, any> | null | undefined;
+      const entryKey = readPayloadString(
+        payload?.entry_key,
+        payload?.entryKey,
+        payload?.entry_source,
+        payload?.entrySource,
+      );
+      const threadId = readPayloadString(payload?.thread_id, payload?.threadId);
+      const turnId = readPayloadString(payload?.turn_id, payload?.turnId);
+      const contentId = readPayloadString(
+        payload?.content_id,
+        payload?.contentId,
+      );
+      const modality = readPayloadString(payload?.modality);
+      const modelId = readPayloadString(
+        payload?.model_id,
+        payload?.modelId,
+        payload?.model,
+      );
+      const costState = readPayloadString(
+        typeof costStatePayload === "string" ? costStatePayload : null,
+        typeof costStatePayload === "object" ? costStatePayload?.status : null,
+        typeof costStatePayload === "object" ? costStatePayload?.state : null,
+        runtimeSummary?.cost_status,
+        runtimeSummary?.costStatus,
+      );
+      const estimatedCostClass = readPayloadString(
+        typeof costStatePayload === "object"
+          ? costStatePayload?.estimated_cost_class
+          : null,
+        typeof costStatePayload === "object"
+          ? costStatePayload?.estimatedCostClass
+          : null,
+        typeof costStatePayload === "object"
+          ? costStatePayload?.cost_class
+          : null,
+        typeof costStatePayload === "object"
+          ? costStatePayload?.costClass
+          : null,
+        runtimeSummary?.estimated_cost_class,
+        runtimeSummary?.estimatedCostClass,
+      );
+      const limitState = readPayloadString(
+        typeof limitStatePayload === "string" ? limitStatePayload : null,
+        typeof limitStatePayload === "object"
+          ? limitStatePayload?.status
+          : null,
+        typeof limitStatePayload === "object" ? limitStatePayload?.state : null,
+        typeof limitStatePayload === "object"
+          ? limitStatePayload?.limit_status
+          : null,
+        typeof limitStatePayload === "object"
+          ? limitStatePayload?.limitStatus
+          : null,
+        runtimeSummary?.limit_status,
+        runtimeSummary?.limitStatus,
+      );
+      const limitEventKind = readPayloadString(
+        limitEventPayload?.event_kind,
+        limitEventPayload?.eventKind,
+        limitEventPayload?.kind,
+        runtimeSummary?.limit_event_kind,
+        runtimeSummary?.limitEventKind,
+      );
+      const quotaLow =
+        typeof limitEventPayload?.quota_low === "boolean"
+          ? limitEventPayload.quota_low
+          : typeof limitEventPayload?.quotaLow === "boolean"
+            ? limitEventPayload.quotaLow
+            : typeof runtimeSummary?.quota_low === "boolean"
+              ? runtimeSummary.quota_low
+              : typeof runtimeSummary?.quotaLow === "boolean"
+                ? runtimeSummary.quotaLow
+                : limitEventKind === "quota_low"
+                  ? true
+                  : null;
       const runtimeContract = (payload?.runtime_contract ??
         payload?.runtimeContract) as Record<string, any> | null | undefined;
       const executionProfile = (runtimeContract?.execution_profile ??
@@ -6472,6 +7106,28 @@ const defaultMocks: Record<string, any> = {
         | Record<string, any>
         | null
         | undefined;
+      const executorKind = readPayloadString(
+        payload?.executor_kind,
+        payload?.executorKind,
+        executorBinding?.executor_kind,
+        executorBinding?.executorKind,
+      );
+      const executorBindingKey = readPayloadString(
+        payload?.executor_binding_key,
+        payload?.executorBindingKey,
+        executorBinding?.binding_key,
+        executorBinding?.bindingKey,
+      );
+      const skillId =
+        readPayloadString(
+          payload?.skill_id,
+          payload?.skillId,
+          payload?.service_skill_id,
+          payload?.serviceSkillId,
+        ) ??
+        (executorKind === "skill" || executorKind === "service_skill"
+          ? executorBindingKey
+          : null);
       const limecorePolicySnapshot =
         (runtimeContract?.limecore_policy_snapshot ??
           runtimeContract?.limecorePolicySnapshot) as
@@ -6571,6 +7227,18 @@ const defaultMocks: Record<string, any> = {
         task_type: item.task_type,
         normalized_status: item.normalized_status,
         contract_key: payload?.modality_contract_key ?? null,
+        entry_key: entryKey,
+        thread_id: threadId,
+        turn_id: turnId,
+        content_id: contentId,
+        modality,
+        skill_id: skillId,
+        model_id: modelId,
+        cost_state: costState,
+        limit_state: limitState,
+        estimated_cost_class: estimatedCostClass,
+        limit_event_kind: limitEventKind,
+        quota_low: quotaLow,
         routing_slot: payload?.routing_slot ?? null,
         provider_id: payload?.provider_id ?? null,
         model: payload?.model ?? null,
@@ -6586,18 +7254,8 @@ const defaultMocks: Record<string, any> = {
           executorAdapter?.adapter_key ??
           executorAdapter?.adapterKey ??
           null,
-        executor_kind:
-          payload?.executor_kind ??
-          payload?.executorKind ??
-          executorBinding?.executor_kind ??
-          executorBinding?.executorKind ??
-          null,
-        executor_binding_key:
-          payload?.executor_binding_key ??
-          payload?.executorBindingKey ??
-          executorBinding?.binding_key ??
-          executorBinding?.bindingKey ??
-          null,
+        executor_kind: executorKind,
+        executor_binding_key: executorBindingKey,
         limecore_policy_refs: limecorePolicyRefs,
         limecore_policy_snapshot_status:
           limecorePolicySnapshot?.status ??
@@ -6782,6 +7440,45 @@ const defaultMocks: Record<string, any> = {
             snapshots.map((item) => item.contract_key).filter(Boolean),
           ),
         ],
+        entry_keys: [
+          ...new Set(snapshots.map((item) => item.entry_key).filter(Boolean)),
+        ],
+        thread_ids: [
+          ...new Set(snapshots.map((item) => item.thread_id).filter(Boolean)),
+        ],
+        turn_ids: [
+          ...new Set(snapshots.map((item) => item.turn_id).filter(Boolean)),
+        ],
+        content_ids: [
+          ...new Set(snapshots.map((item) => item.content_id).filter(Boolean)),
+        ],
+        modalities: [
+          ...new Set(snapshots.map((item) => item.modality).filter(Boolean)),
+        ],
+        skill_ids: [
+          ...new Set(snapshots.map((item) => item.skill_id).filter(Boolean)),
+        ],
+        model_ids: [
+          ...new Set(snapshots.map((item) => item.model_id).filter(Boolean)),
+        ],
+        cost_states: [
+          ...new Set(snapshots.map((item) => item.cost_state).filter(Boolean)),
+        ],
+        limit_states: [
+          ...new Set(snapshots.map((item) => item.limit_state).filter(Boolean)),
+        ],
+        estimated_cost_classes: [
+          ...new Set(
+            snapshots.map((item) => item.estimated_cost_class).filter(Boolean),
+          ),
+        ],
+        limit_event_kinds: [
+          ...new Set(
+            snapshots.map((item) => item.limit_event_kind).filter(Boolean),
+          ),
+        ],
+        quota_low_count: snapshots.filter((item) => item.quota_low === true)
+          .length,
         execution_profile_keys: [
           ...new Set(
             snapshots.map((item) => item.execution_profile_key).filter(Boolean),
@@ -6790,6 +7487,16 @@ const defaultMocks: Record<string, any> = {
         executor_adapter_keys: [
           ...new Set(
             snapshots.map((item) => item.executor_adapter_key).filter(Boolean),
+          ),
+        ],
+        executor_kinds: [
+          ...new Set(
+            snapshots.map((item) => item.executor_kind).filter(Boolean),
+          ),
+        ],
+        executor_binding_keys: [
+          ...new Set(
+            snapshots.map((item) => item.executor_binding_key).filter(Boolean),
           ),
         ],
         limecore_policy_refs: [
@@ -8195,6 +8902,7 @@ export function clearMocks() {
   mockCommands.clear();
   mockSceneAppContextStore.clear();
   mockKnowledgeStores.clear();
+  mockCapabilityDraftStores.clear();
 }
 
 /**

@@ -96,7 +96,7 @@ export const MessageWrapper = styled.div<{
   &:hover .message-actions,
   &:focus-within .message-actions {
     opacity: 1;
-    max-height: 40px;
+    max-height: 48px;
     margin-top: 8px;
     transform: translateY(0);
     pointer-events: auto;
@@ -150,12 +150,14 @@ export const MessageActions = styled.div`
   display: flex;
   gap: 4px;
   align-self: flex-end;
-  max-height: 0;
-  overflow: hidden;
-  opacity: 0;
-  pointer-events: none;
-  margin-top: 0;
-  transform: translateY(-4px);
+  position: relative;
+  z-index: 5;
+  max-height: 48px;
+  overflow: visible;
+  opacity: 1;
+  pointer-events: auto;
+  margin-top: 8px;
+  transform: translateY(0);
   transition:
     opacity 0.18s ease,
     max-height 0.18s ease,

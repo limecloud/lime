@@ -43,6 +43,12 @@
 
 **后续新增状态、历史或遥测能力时，只允许接到 `SessionDetail -> AgentRuntimeThreadReadModel -> RequestLog -> export/history` 这组 current 边界；不允许再造并列状态真相。**
 
+补充边界：
+
+[Codex `/goal`](../research/codex-goal/README.md) 这类目标续跑模式如果在 Lime 演进为 `Managed Objective`，其状态投影也必须消费 `SessionDetail / AgentRuntimeThreadReadModel / evidence pack`。不得让 objective UI、automation job、review/handoff 各自重建“目标是否完成”的第二套真相。
+
+详细路线图见 `docs/roadmap/managed-objective/README.md`。本文件只定义状态与历史事实源边界：objective projection 是下游投影，不是 session / thread 的第二套真相。
+
 ## 代码入口地图
 
 ### 1. 持久会话与历史事实源

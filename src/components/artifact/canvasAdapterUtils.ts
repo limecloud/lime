@@ -19,6 +19,7 @@ import type {
 } from "@/lib/workspace/workbenchCanvas";
 import {
   createInitialDocumentState,
+  createDesignCanvasStateFromContent,
   createInitialVideoState,
 } from "@/lib/workspace/workbenchCanvas";
 
@@ -46,14 +47,15 @@ export interface CanvasMetadata {
 
 /**
  * Artifact Canvas 类型到 Canvas 系统类型的映射
- * 旧类型仅在这里做一次归一化，不再作为主链合法类型继续传播。
+ * 旧专用 Canvas 类型不再归一到现役类型，避免继续扩展旧主题面。
  */
 export const ARTIFACT_TO_CANVAS_TYPE: Record<
-  Extract<ArtifactType, "canvas:document" | "canvas:video">,
+  Extract<ArtifactType, "canvas:document" | "canvas:video" | "canvas:design">,
   CanvasType
 > = {
   "canvas:document": "document",
   "canvas:video": "video",
+  "canvas:design": "design",
 };
 
 /**
@@ -62,6 +64,7 @@ export const ARTIFACT_TO_CANVAS_TYPE: Record<
 export const CANVAS_TYPE_LABELS: Record<CanvasType, string> = {
   document: "文档",
   video: "视频",
+  design: "图层设计",
 };
 
 /**
@@ -70,6 +73,7 @@ export const CANVAS_TYPE_LABELS: Record<CanvasType, string> = {
 export const CANVAS_TYPE_ICONS: Record<CanvasType, string> = {
   document: "📄",
   video: "🎞️",
+  design: "🧩",
 };
 
 // ============================================================================
@@ -91,7 +95,8 @@ export function getCanvasTypeFromArtifact(
       : artifactType;
   if (
     normalizedType !== "canvas:document" &&
-    normalizedType !== "canvas:video"
+    normalizedType !== "canvas:video" &&
+    normalizedType !== "canvas:design"
   ) {
     return null;
   }
@@ -143,6 +148,8 @@ export function createCanvasStateFromArtifact(
     }
     case "video":
       return createInitialVideoState(content);
+    case "design":
+      return createDesignCanvasStateFromContent(content);
     default:
       return null;
   }
@@ -160,6 +167,8 @@ export function extractContentFromCanvasState(state: CanvasStateUnion): string {
       return (state as DocumentCanvasState).content;
     case "video":
       return state.prompt;
+    case "design":
+      return JSON.stringify(state.document, null, 2);
     default:
       return "";
   }
@@ -179,6 +188,11 @@ export function extractCanvasMetadata(state: CanvasStateUnion): CanvasMetadata {
   switch (state.type) {
     case "document":
       metadata.platform = (state as DocumentCanvasState).platform;
+      break;
+    case "design":
+      metadata.platform = "layered-design";
+      metadata.schemaVersion = state.document.schemaVersion;
+      metadata.designId = state.document.id;
       break;
   }
 

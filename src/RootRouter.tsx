@@ -3,7 +3,7 @@
  * @description 根路由组件 - 根据 URL 路径渲染对应的组件
  */
 
-import { useEffect } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import App from "./App";
 import { SmartInputPage } from "./pages/smart-input";
 import { UpdateNotificationPage } from "./pages/update-notification";
@@ -15,6 +15,12 @@ import { AppCrashBoundary } from "./components/layout/AppCrashBoundary";
 import { finalizeModuleImportAutoReload } from "./components/layout/CrashRecoveryPanel.helpers";
 import { getRuntimeAppVersion } from "./lib/appVersion";
 import { startOemCloudStartupLoginIfRequired } from "./lib/oemCloudStartupLogin";
+
+const DesignCanvasSmokePage = lazy(() =>
+  import("./pages/design-canvas-smoke").then((module) => ({
+    default: module.DesignCanvasSmokePage,
+  })),
+);
 
 /**
  * 根据 URL 路径渲染对应的组件
@@ -97,6 +103,17 @@ export function RootRouter() {
     return (
       <AppCrashBoundary>
         <BrowserConnectorGuideWindow />
+        <Toaster />
+      </AppCrashBoundary>
+    );
+  }
+
+  if (pathname === "/design-canvas-smoke" && import.meta.env.DEV) {
+    return (
+      <AppCrashBoundary>
+        <Suspense fallback={null}>
+          <DesignCanvasSmokePage />
+        </Suspense>
         <Toaster />
       </AppCrashBoundary>
     );

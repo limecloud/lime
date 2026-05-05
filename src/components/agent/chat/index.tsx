@@ -35,6 +35,7 @@ export function AgentChatPage(props: AgentChatWorkspaceProps) {
     initialPendingServiceSkillLaunch,
     initialProjectFileOpenTarget,
     initialSiteSkillLaunch,
+    initialKnowledgePackSelection,
     initialUserImages,
     initialUserPrompt,
     openBrowserAssistOnMount = false,
@@ -56,6 +57,7 @@ export function AgentChatPage(props: AgentChatWorkspaceProps) {
     Boolean(initialUserImages?.length) ||
     Boolean(initialSiteSkillLaunch) ||
     Boolean(initialPendingServiceSkillLaunch?.skillId?.trim()) ||
+    Boolean(initialKnowledgePackSelection?.packName?.trim()) ||
     Boolean(initialInputCapability?.capabilityRoute) ||
     Boolean(initialProjectFileOpenTarget?.relativePath?.trim()) ||
     openBrowserAssistOnMount;

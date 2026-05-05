@@ -667,6 +667,7 @@ function getMimeType(type: Artifact["type"]): string {
     react: "text/javascript",
     "canvas:document": "text/markdown",
     "canvas:video": "text/plain",
+    "canvas:design": "application/json",
   };
 
   return mimeTypes[type] || "text/plain";

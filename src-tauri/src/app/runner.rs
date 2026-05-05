@@ -1126,6 +1126,13 @@ pub fn run() {
             commands::skill_cmd::create_skill_scaffold_for_app,
             commands::skill_cmd::import_local_skill_for_app,
             commands::skill_cmd::inspect_remote_skill,
+            // Capability Draft commands
+            commands::capability_draft_cmd::capability_draft_create,
+            commands::capability_draft_cmd::capability_draft_list,
+            commands::capability_draft_cmd::capability_draft_get,
+            commands::capability_draft_cmd::capability_draft_verify,
+            commands::capability_draft_cmd::capability_draft_register,
+            commands::capability_draft_cmd::capability_draft_list_registered_skills,
             // Skill Execution commands
             commands::skill_exec_cmd::execute_skill,
             commands::skill_exec_cmd::list_executable_skills,

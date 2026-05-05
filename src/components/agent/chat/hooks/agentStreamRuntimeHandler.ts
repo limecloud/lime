@@ -13,12 +13,8 @@ import type {
 import { activityLogger } from "@/lib/workspace/workbenchRuntime";
 import { logAgentDebug } from "@/lib/agentDebug";
 import type { ActionRequired, Message } from "../types";
-import {
-  appendTextToParts,
-  appendTextWithOverlapDetection,
-} from "./agentChatHistory";
+import { appendTextToParts } from "./agentChatHistory";
 import { updateMessageArtifactsStatus } from "../utils/messageArtifacts";
-import { WORKSPACE_PATH_AUTO_CREATED_WARNING_CODE } from "./agentChatCoreUtils";
 import {
   removeThreadItemState,
   removeThreadTurnState,
@@ -34,33 +30,78 @@ import {
 } from "./agentStreamEventProcessor";
 import type { AgentRuntimeAdapter } from "./agentRuntimeAdapter";
 import {
-  buildFailedAgentMessageContent,
-  buildFailedAgentRuntimeStatus,
-  formatAgentRuntimeStatusSummary,
-} from "../utils/agentRuntimeStatus";
-import { resolveAgentRuntimeErrorPresentation } from "../utils/agentRuntimeErrorPresentation";
-import { normalizeLegacyRuntimeStatusTitle } from "@/lib/api/agentTextNormalization";
-import { resolveRuntimeWarningToastPresentation } from "./runtimeWarningPresentation";
-import { buildQueuedRuntimeStatus } from "./agentStreamSubmitDraft";
+  buildAgentStreamCompletedAssistantMessagePatch,
+  buildAgentStreamEmptyFinalErrorPlan,
+  buildAgentStreamFinalDonePlan,
+  buildAgentStreamMissingFinalReplyFailureSideEffectPlan,
+  type AgentStreamMissingFinalReplyPlan,
+  isAgentStreamEmptyFinalReplyError,
+} from "./agentStreamCompletionController";
 import {
-  applyModelChangeExecutionRuntime,
-  applyTurnContextExecutionRuntime,
-} from "../utils/sessionExecutionRuntime";
-import {
-  containsAssistantProtocolResidue,
-  stripAssistantProtocolResidue,
-} from "../utils/protocolResidue";
-import { normalizeIncomingToolResult } from "./agentChatToolResult";
-import { hasMeaningfulSiteToolResultSignal } from "../utils/siteToolResultSummary";
-import {
-  buildImageTaskPreviewFromToolResult,
-  buildTaskPreviewFromToolResult,
-  buildToolResultArtifactFromToolResult,
-} from "../utils/taskPreviewFromToolResult";
+  applyAgentStreamErrorToastPlan,
+  buildAgentStreamErrorFailurePlan,
+  buildAgentStreamFailedAssistantMessagePatch,
+  buildAgentStreamFailedTimelineStatePlan,
+  buildAgentStreamFailedTimelineItemUpdate,
+  buildAgentStreamFailedTimelineTurnUpdate,
+} from "./agentStreamErrorController";
 import {
   recordAgentStreamPerformanceMetric,
   type AgentUiPerformanceTraceMetadata,
 } from "./agentStreamPerformanceMetrics";
+import {
+  buildAgentStreamRequestLogFinishPlan,
+  type AgentStreamRequestLogFinishPayload,
+} from "./agentStreamRequestLogController";
+import {
+  buildAgentStreamFirstRuntimeStatusMetricContext,
+  shouldRecordAgentStreamFirstRuntimeStatus,
+} from "./agentStreamRuntimeMetricsController";
+import {
+  buildAgentStreamRuntimeStatusApplyPlan,
+  buildAgentStreamRuntimeSummaryItemUpdate,
+} from "./agentStreamRuntimeStatusController";
+import { buildAgentStreamTextDeltaApplyPlan } from "./agentStreamTextDeltaController";
+import {
+  buildAgentStreamFirstTextPaintContext,
+  buildAgentStreamTextRenderFlushPlan,
+} from "./agentStreamTextRenderFlushController";
+import {
+  buildAgentStreamQueuedDraftCleanupTimerFirePlan,
+  buildAgentStreamQueuedDraftCleanupTimerSchedulePlan,
+  buildAgentStreamTextRenderTimerSchedulePlan,
+  buildAgentStreamTimerClearPlan,
+} from "./agentStreamTimerController";
+import {
+  applyAgentStreamWarningToastAction,
+  buildAgentStreamWarningPlan,
+  buildAgentStreamWarningToastAction,
+} from "./agentStreamWarningController";
+import {
+  buildAgentStreamQueuedDraftStatePlan,
+  shouldWatchAgentStreamQueuedDraftCleanup,
+  shouldWatchAgentStreamQueuedDraftCleanupForCleared,
+} from "./agentStreamQueueController";
+import {
+  buildAgentStreamTurnStartedPendingItemUpdate,
+  shouldDeferAgentStreamThreadItemUpdate,
+} from "./agentStreamThreadItemController";
+import { buildAgentStreamToolEndPreApplyPlan } from "./agentStreamToolEventController";
+import {
+  buildAgentStreamActionRequiredPreApplyPlan,
+  buildAgentStreamArtifactSnapshotPreApplyPlan,
+} from "./agentStreamArtifactActionController";
+import {
+  applyAgentStreamModelChangeExecutionRuntime,
+  applyAgentStreamTurnContextExecutionRuntime,
+  buildAgentStreamContextTracePreApplyPlan,
+  buildAgentStreamModelChangePreApplyPlan,
+  buildAgentStreamTurnContextPreApplyPlan,
+} from "./agentStreamRuntimeContextController";
+import {
+  buildAgentStreamThinkingDeltaMessagePatch,
+  buildAgentStreamThinkingDeltaPreApplyPlan,
+} from "./agentStreamThinkingDeltaController";
 
 type MessageParts = NonNullable<Message["contentParts"]>;
 
@@ -94,13 +135,6 @@ interface StreamRequestState {
   renderedContent?: string;
   performanceTrace?: AgentUiPerformanceTraceMetadata | null;
 }
-
-const EMPTY_FINAL_REPLY_ERROR_HINT = "模型未输出最终答复";
-const EMPTY_FINAL_REPLY_ERROR_MESSAGE = "模型未输出最终答复，请重试";
-const EMPTY_FINAL_REPLY_FALLBACK_CONTENT =
-  "本轮执行已完成，详细过程与产物已保留在当前对话中。";
-const QUEUED_DRAFT_CLEANUP_GRACE_MS = 1800;
-const TEXT_DELTA_RENDER_FLUSH_MS = 32;
 
 interface StreamLifecycleCallbacks {
   activateStream: () => void;
@@ -159,110 +193,25 @@ interface HandleTurnStreamEventOptions {
 
 function finishRequestLog(
   requestState: StreamRequestState,
-  payload: {
-    eventType: "chat_request_complete" | "chat_request_error";
-    status: "success" | "error";
-    description?: string;
-    error?: string;
-  },
+  payload: AgentStreamRequestLogFinishPayload,
 ) {
-  if (!requestState.requestLogId || requestState.requestFinished) {
+  const requestLogPlan = buildAgentStreamRequestLogFinishPlan({
+    requestLogId: requestState.requestLogId,
+    requestFinished: requestState.requestFinished,
+    requestStartedAt: requestState.requestStartedAt,
+    finishedAt: Date.now(),
+    payload,
+  });
+  if (
+    !requestLogPlan.shouldUpdate ||
+    !requestLogPlan.logId ||
+    !requestLogPlan.updatePayload
+  ) {
     return;
   }
 
-  requestState.requestFinished = true;
-  activityLogger.updateLog(requestState.requestLogId, {
-    eventType: payload.eventType,
-    status: payload.status,
-    duration: Date.now() - requestState.requestStartedAt,
-    description: payload.description,
-    error: payload.error,
-  });
-}
-
-function shouldDeferHighFrequencyThreadItemUpdate(
-  item: AgentThreadItem,
-): boolean {
-  return (
-    item.status === "in_progress" &&
-    (item.type === "reasoning" || item.type === "agent_message")
-  );
-}
-
-function reconcileFinalContentParts(params: {
-  parts: Message["contentParts"];
-  finalContent: string;
-  rawContent: string;
-  surfaceThinkingDeltas: boolean;
-}): Message["contentParts"] {
-  if (!params.parts?.length) {
-    return params.parts;
-  }
-
-  const visibleParts = params.surfaceThinkingDeltas
-    ? params.parts
-    : params.parts.filter((part) => part.type !== "thinking");
-  if (visibleParts.length === 0) {
-    return undefined;
-  }
-
-  const textContent = visibleParts
-    .filter((part) => part.type === "text")
-    .map((part) => part.text)
-    .join("");
-  const finalTextChanged =
-    params.finalContent !== params.rawContent ||
-    (textContent.length > 0 && textContent !== params.finalContent);
-
-  if (!finalTextChanged) {
-    return visibleParts;
-  }
-
-  const processParts = visibleParts.filter((part) => part.type !== "text");
-  if (processParts.length === 0) {
-    return params.finalContent
-      ? [{ type: "text", text: params.finalContent }]
-      : undefined;
-  }
-
-  return params.finalContent
-    ? [...processParts, { type: "text", text: params.finalContent }]
-    : processParts;
-}
-
-function hasMeaningfulCompletionSignalFromToolResult(params: {
-  toolId: string;
-  toolName: string;
-  normalizedResult:
-    | {
-        metadata?: unknown;
-      }
-    | undefined;
-}): boolean {
-  const resultRecord =
-    params.normalizedResult &&
-    typeof params.normalizedResult === "object" &&
-    !Array.isArray(params.normalizedResult)
-      ? (params.normalizedResult as Record<string, unknown>)
-      : undefined;
-
-  if (hasMeaningfulSiteToolResultSignal(resultRecord?.metadata)) {
-    return true;
-  }
-
-  const previewParams = {
-    toolId: params.toolId,
-    toolName: params.toolName,
-    toolArguments: undefined,
-    toolResult: resultRecord,
-    fallbackPrompt: "",
-  };
-
-  return Boolean(
-    buildImageTaskPreviewFromToolResult(previewParams) ||
-    buildTaskPreviewFromToolResult(previewParams) ||
-    buildToolResultArtifactFromToolResult(previewParams),
-  );
+  requestState.requestFinished = requestLogPlan.nextRequestFinished;
+  activityLogger.updateLog(requestLogPlan.logId, requestLogPlan.updatePayload);
 }
 
 export function handleTurnStreamEvent({
@@ -311,94 +260,76 @@ export function handleTurnStreamEvent({
   } = callbacks;
 
   const clearQueuedDraftCleanupTimer = () => {
-    if (requestState.queuedDraftCleanupTimerId) {
+    const clearPlan = buildAgentStreamTimerClearPlan({
+      hasTimer: Boolean(requestState.queuedDraftCleanupTimerId),
+    });
+    if (clearPlan.shouldClearTimer && requestState.queuedDraftCleanupTimerId) {
       clearTimeout(requestState.queuedDraftCleanupTimerId);
-      requestState.queuedDraftCleanupTimerId = null;
     }
+    requestState.queuedDraftCleanupTimerId = clearPlan.nextTimerId;
   };
 
   const clearPendingTextRenderTimer = () => {
-    if (requestState.pendingTextRenderTimerId) {
+    const clearPlan = buildAgentStreamTimerClearPlan({
+      hasTimer: Boolean(requestState.pendingTextRenderTimerId),
+    });
+    if (clearPlan.shouldClearTimer && requestState.pendingTextRenderTimerId) {
       clearTimeout(requestState.pendingTextRenderTimerId);
-      requestState.pendingTextRenderTimerId = null;
     }
-  };
-
-  const resolvePendingRenderedTextDelta = (
-    renderedContent: string,
-    accumulatedContent: string,
-  ): string => {
-    if (!renderedContent) {
-      return accumulatedContent;
-    }
-    if (accumulatedContent.startsWith(renderedContent)) {
-      return accumulatedContent.slice(renderedContent.length);
-    }
-    return accumulatedContent;
+    requestState.pendingTextRenderTimerId = clearPlan.nextTimerId;
   };
 
   const flushPendingTextRender = () => {
     clearPendingTextRenderTimer();
     const renderedContent = requestState.renderedContent || "";
     const nextContent = requestState.accumulatedContent;
-    if (nextContent === renderedContent) {
+    const flushStartedAt = Date.now();
+    const flushPlan = buildAgentStreamTextRenderFlushPlan({
+      activeSessionId,
+      eventName,
+      firstTextDeltaAt: requestState.firstTextDeltaAt,
+      firstTextPaintAt: requestState.firstTextPaintAt,
+      firstTextPaintScheduled: requestState.firstTextPaintScheduled,
+      firstTextRenderFlushAt: requestState.firstTextRenderFlushAt,
+      flushStartedAt,
+      maxTextDeltaBacklogChars: requestState.maxTextDeltaBacklogChars,
+      nextContent,
+      renderedContent,
+      requestStartedAt: requestState.requestStartedAt,
+      textDeltaFlushCount: requestState.textDeltaFlushCount,
+    });
+    if (!flushPlan) {
       return;
     }
 
-    const flushStartedAt = Date.now();
-    const textDelta = resolvePendingRenderedTextDelta(
-      renderedContent,
-      nextContent,
-    );
-    requestState.renderedContent = nextContent;
-    requestState.textDeltaFlushCount =
-      (requestState.textDeltaFlushCount ?? 0) + 1;
-    requestState.lastTextRenderFlushAt = flushStartedAt;
-    if (!requestState.firstTextRenderFlushAt) {
-      requestState.firstTextRenderFlushAt = flushStartedAt;
+    requestState.renderedContent = flushPlan.nextRenderedContent;
+    requestState.textDeltaFlushCount = flushPlan.nextTextDeltaFlushCount;
+    requestState.lastTextRenderFlushAt =
+      flushPlan.nextLastTextRenderFlushAt;
+    requestState.maxTextDeltaBacklogChars =
+      flushPlan.nextMaxTextDeltaBacklogChars;
+    if (
+      flushPlan.firstTextRenderFlushAt &&
+      flushPlan.firstTextRenderFlushContext
+    ) {
+      requestState.firstTextRenderFlushAt =
+        flushPlan.firstTextRenderFlushAt;
       recordAgentStreamPerformanceMetric(
         "agentStream.firstTextRenderFlush",
         requestState.performanceTrace,
-        {
-          elapsedMs: flushStartedAt - requestState.requestStartedAt,
-          eventName,
-          firstTextDeltaDeltaMs: requestState.firstTextDeltaAt
-            ? flushStartedAt - requestState.firstTextDeltaAt
-            : null,
-          sessionId: activeSessionId,
-        },
+        flushPlan.firstTextRenderFlushContext,
       );
     }
-    const shouldScheduleFirstTextPaint =
-      !requestState.firstTextPaintAt &&
-      !requestState.firstTextPaintScheduled &&
-      nextContent.trim().length > 0;
-    if (shouldScheduleFirstTextPaint) {
+    if (flushPlan.shouldScheduleFirstTextPaint) {
       requestState.firstTextPaintScheduled = true;
     }
-    const backlogChars = Math.max(
-      0,
-      nextContent.length - renderedContent.length,
-    );
-    requestState.maxTextDeltaBacklogChars = Math.max(
-      requestState.maxTextDeltaBacklogChars ?? 0,
-      backlogChars,
-    );
-    if (backlogChars >= 80 || (requestState.textDeltaFlushCount ?? 0) === 1) {
+    if (flushPlan.shouldLogFlush) {
       logAgentDebug(
         "AgentStream",
         "textRenderFlush",
+        flushPlan.flushLogContext,
         {
-          accumulatedChars: nextContent.length,
-          backlogChars,
-          elapsedMs: flushStartedAt - requestState.requestStartedAt,
-          eventName,
-          flushCount: requestState.textDeltaFlushCount,
-          maxBacklogChars: requestState.maxTextDeltaBacklogChars ?? 0,
-          sessionId: activeSessionId,
-        },
-        {
-          dedupeKey: `AgentStream:textRenderFlush:${eventName}:${requestState.textDeltaFlushCount}`,
+          dedupeKey: flushPlan.flushLogDedupeKey,
           throttleMs: 250,
         },
       );
@@ -410,46 +341,38 @@ export function handleTurnStreamEvent({
               ...msg,
               content: nextContent,
               thinkingContent: undefined,
-              contentParts: textDelta
+              contentParts: flushPlan.textDelta
                 ? appendTextToParts(
                     surfaceThinkingDeltas
                       ? msg.contentParts || []
                       : (msg.contentParts || []).filter(
                           (part) => part.type !== "thinking",
                         ),
-                    textDelta,
+                    flushPlan.textDelta,
                   )
                 : msg.contentParts,
             }
           : msg,
       ),
     );
-    if (shouldScheduleFirstTextPaint) {
+    if (flushPlan.shouldScheduleFirstTextPaint) {
       const recordFirstTextPaint = () => {
         const paintedAt = Date.now();
         requestState.firstTextPaintAt = paintedAt;
+        const paintContext = buildAgentStreamFirstTextPaintContext({
+          activeSessionId,
+          eventName,
+          firstTextDeltaAt: requestState.firstTextDeltaAt,
+          flushStartedAt,
+          paintedAt,
+          requestStartedAt: requestState.requestStartedAt,
+        });
         recordAgentStreamPerformanceMetric(
           "agentStream.firstTextPaint",
           requestState.performanceTrace,
-          {
-            elapsedMs: paintedAt - requestState.requestStartedAt,
-            eventName,
-            firstTextDeltaDeltaMs: requestState.firstTextDeltaAt
-              ? paintedAt - requestState.firstTextDeltaAt
-              : null,
-            renderFlushDeltaMs: paintedAt - flushStartedAt,
-            sessionId: activeSessionId,
-          },
+          paintContext,
         );
-        logAgentDebug("AgentStream", "firstTextPaint", {
-          elapsedMs: paintedAt - requestState.requestStartedAt,
-          eventName,
-          firstTextDeltaDeltaMs: requestState.firstTextDeltaAt
-            ? paintedAt - requestState.firstTextDeltaAt
-            : null,
-          renderFlushDeltaMs: paintedAt - flushStartedAt,
-          sessionId: activeSessionId,
-        });
+        logAgentDebug("AgentStream", "firstTextPaint", paintContext);
       };
 
       if (
@@ -467,151 +390,159 @@ export function handleTurnStreamEvent({
 
   const scheduleTextRenderFlush = () => {
     const renderedContent = requestState.renderedContent || "";
-    const hasVisibleFirstText =
-      !renderedContent && requestState.accumulatedContent.trim().length > 0;
-    if (hasVisibleFirstText) {
+    const schedulePlan = buildAgentStreamTextRenderTimerSchedulePlan({
+      accumulatedContent: requestState.accumulatedContent,
+      hasPendingTimer: Boolean(requestState.pendingTextRenderTimerId),
+      renderedContent,
+    });
+    if (schedulePlan.action === "flush_now") {
       flushPendingTextRender();
       return;
     }
 
-    if (requestState.pendingTextRenderTimerId) {
+    if (schedulePlan.action !== "schedule_timer" || !schedulePlan.delayMs) {
       return;
     }
     requestState.pendingTextRenderTimerId = setTimeout(() => {
       requestState.pendingTextRenderTimerId = null;
       flushPendingTextRender();
-    }, TEXT_DELTA_RENDER_FLUSH_MS);
+    }, schedulePlan.delayMs);
   };
 
   const scheduleQueuedDraftCleanup = (shouldWatchCurrentRequest: boolean) => {
-    clearQueuedDraftCleanupTimer();
-    if (!shouldWatchCurrentRequest || isStreamActivated()) {
+    const cleanupSchedulePlan =
+      buildAgentStreamQueuedDraftCleanupTimerSchedulePlan({
+        shouldWatchCurrentRequest,
+        streamActivated: isStreamActivated(),
+      });
+    if (cleanupSchedulePlan.shouldClearExistingTimer) {
+      clearQueuedDraftCleanupTimer();
+    }
+    if (
+      !cleanupSchedulePlan.shouldScheduleTimer ||
+      !cleanupSchedulePlan.delayMs
+    ) {
       return;
     }
 
     requestState.queuedDraftCleanupTimerId = setTimeout(() => {
       requestState.queuedDraftCleanupTimerId = null;
-      if (requestState.requestFinished || isStreamActivated()) {
+      const cleanupFirePlan =
+        buildAgentStreamQueuedDraftCleanupTimerFirePlan({
+          requestFinished: requestState.requestFinished,
+          streamActivated: isStreamActivated(),
+        });
+      if (!cleanupFirePlan.shouldCleanup) {
         return;
       }
       disposeListener();
       removeQueuedDraftMessages();
-    }, QUEUED_DRAFT_CLEANUP_GRACE_MS);
+    }, cleanupSchedulePlan.delayMs);
   };
 
   const markFailedTimelineState = (errorMessage: string) => {
-    const failedAt = new Date().toISOString();
-    const failedRuntimeStatus = buildFailedAgentRuntimeStatus(errorMessage);
+    const failedTimelinePlan = buildAgentStreamFailedTimelineStatePlan({
+      activeSessionId,
+      errorMessage,
+      failedAt: new Date().toISOString(),
+      pendingItemKey,
+      pendingTurnKey,
+    });
 
     setThreadTurns((prev) => {
-      const runningTurn =
-        prev.find((turn) => turn.id === pendingTurnKey) ||
-        [...prev]
-          .reverse()
-          .find(
-            (turn) =>
-              turn.thread_id === activeSessionId && turn.status === "running",
-          );
-
-      if (!runningTurn) {
+      const failedTurn = buildAgentStreamFailedTimelineTurnUpdate({
+        activeSessionId: failedTimelinePlan.activeSessionId,
+        errorMessage: failedTimelinePlan.errorMessage,
+        failedAt: failedTimelinePlan.failedAt,
+        pendingTurnKey: failedTimelinePlan.pendingTurnKey,
+        turns: prev,
+      });
+      if (!failedTurn) {
         return prev;
       }
 
-      return upsertThreadTurnState(prev, {
-        ...runningTurn,
-        status: "failed",
-        error_message: errorMessage,
-        completed_at: runningTurn.completed_at || failedAt,
-        updated_at: failedAt,
-      });
+      return upsertThreadTurnState(prev, failedTurn);
     });
 
     setThreadItems((prev) => {
-      const pendingItem = prev.find((item) => item.id === pendingItemKey);
-      if (!pendingItem || pendingItem.type !== "turn_summary") {
+      const failedItem = buildAgentStreamFailedTimelineItemUpdate({
+        errorMessage: failedTimelinePlan.errorMessage,
+        failedAt: failedTimelinePlan.failedAt,
+        items: prev,
+        pendingItemKey: failedTimelinePlan.pendingItemKey,
+      });
+      if (!failedItem) {
         return prev;
       }
 
-      return upsertThreadItemState(prev, {
-        ...pendingItem,
-        status: "failed",
-        completed_at: pendingItem.completed_at || failedAt,
-        updated_at: failedAt,
-        text: formatAgentRuntimeStatusSummary(failedRuntimeStatus),
-      });
+      return upsertThreadItemState(prev, failedItem);
     });
-  };
-
-  const resolveGracefulCompletionContent = () => {
-    const rawFinalContent = requestState.accumulatedContent.trim();
-    const cleanedFinalContent = stripAssistantProtocolResidue(
-      requestState.accumulatedContent,
-    );
-    return (
-      cleanedFinalContent ||
-      (!containsAssistantProtocolResidue(requestState.accumulatedContent)
-        ? rawFinalContent
-        : "") ||
-      EMPTY_FINAL_REPLY_FALLBACK_CONTENT
-    );
   };
 
   const finalizeMissingFinalReplyFailure = (
-    errorMessage: string,
-    usage?: Message["usage"],
+    failurePlan: AgentStreamMissingFinalReplyPlan,
   ) => {
-    clearPendingTextRenderTimer();
-    markFailedTimelineState(errorMessage);
-    removeQueuedTurnState(
-      requestState.queuedTurnId ? [requestState.queuedTurnId] : [],
-    );
-    finishRequestLog(requestState, {
-      eventType: "chat_request_error",
-      status: "error",
-      error: errorMessage,
-    });
-    observer?.onError?.(errorMessage);
-    const failedRuntimeStatus = buildFailedAgentRuntimeStatus(errorMessage);
-    toast.error(EMPTY_FINAL_REPLY_ERROR_MESSAGE);
+    const sideEffectPlan =
+      buildAgentStreamMissingFinalReplyFailureSideEffectPlan(failurePlan);
+    if (sideEffectPlan.shouldClearPendingTextRenderTimer) {
+      clearPendingTextRenderTimer();
+    }
+    if (sideEffectPlan.shouldMarkFailedTimeline) {
+      markFailedTimelineState(sideEffectPlan.errorMessage);
+    }
+    removeQueuedTurnState(sideEffectPlan.queuedTurnIds);
+    finishRequestLog(requestState, sideEffectPlan.requestLogPayload);
+    observer?.onError?.(sideEffectPlan.observerErrorMessage);
+    toast.error(sideEffectPlan.toastMessage);
     setMessages((prev) =>
       prev.map((msg) =>
         msg.id === assistantMsgId
           ? {
               ...updateMessageArtifactsStatus(msg, "error"),
-              isThinking: false,
-              content: buildFailedAgentMessageContent(
-                errorMessage,
-                requestState.accumulatedContent || msg.content,
-              ),
-              runtimeStatus: failedRuntimeStatus,
-              usage: usage ?? msg.usage,
+              ...buildAgentStreamFailedAssistantMessagePatch({
+                errorMessage: sideEffectPlan.errorMessage,
+                accumulatedContent: requestState.accumulatedContent,
+                previousContent: msg.content,
+                usage: sideEffectPlan.usage ?? msg.usage,
+              }),
             }
           : msg,
       ),
     );
-    clearActiveStreamIfMatch(eventName);
-    disposeListener();
+    if (sideEffectPlan.shouldClearActiveStream) {
+      clearActiveStreamIfMatch(eventName);
+    }
+    if (sideEffectPlan.shouldDisposeListener) {
+      disposeListener();
+    }
   };
 
   const markQueuedDraftState = (queuedMessageText?: string | null) => {
-    clearActiveStreamIfMatch(eventName);
-    clearOptimisticItem();
-    clearOptimisticTurn();
-    setIsSending(false);
-
-    const queuedRuntimeStatus = buildQueuedRuntimeStatus(
-      effectiveExecutionStrategy,
-      queuedMessageText?.trim() || content,
+    const queuedDraftPlan = buildAgentStreamQueuedDraftStatePlan({
+      contentFallback: content,
+      executionStrategy: effectiveExecutionStrategy,
+      queuedMessageText,
       webSearch,
-    );
+    });
+    if (queuedDraftPlan.shouldClearActiveStream) {
+      clearActiveStreamIfMatch(eventName);
+    }
+    if (queuedDraftPlan.shouldClearOptimisticItem) {
+      clearOptimisticItem();
+    }
+    if (queuedDraftPlan.shouldClearOptimisticTurn) {
+      clearOptimisticTurn();
+    }
+    if (queuedDraftPlan.shouldSetSendingFalse) {
+      setIsSending(false);
+    }
 
     setMessages((prev) =>
       prev.map((msg) =>
         msg.id === assistantMsgId
           ? {
               ...msg,
-              isThinking: false,
-              runtimeStatus: queuedRuntimeStatus,
+              ...queuedDraftPlan.messagePatch,
             }
           : msg,
       ),
@@ -636,8 +567,10 @@ export function handleTurnStreamEvent({
     case "queue_removed":
       removeQueuedTurnState([data.queued_turn_id]);
       scheduleQueuedDraftCleanup(
-        !requestState.queuedTurnId ||
-          requestState.queuedTurnId === data.queued_turn_id,
+        shouldWatchAgentStreamQueuedDraftCleanup({
+          affectedQueuedTurnId: data.queued_turn_id,
+          currentQueuedTurnId: requestState.queuedTurnId,
+        }),
       );
       break;
 
@@ -651,8 +584,10 @@ export function handleTurnStreamEvent({
     case "queue_cleared":
       removeQueuedTurnState(data.queued_turn_ids);
       scheduleQueuedDraftCleanup(
-        !requestState.queuedTurnId ||
-          data.queued_turn_ids.includes(requestState.queuedTurnId),
+        shouldWatchAgentStreamQueuedDraftCleanupForCleared({
+          clearedQueuedTurnIds: data.queued_turn_ids,
+          currentQueuedTurnId: requestState.queuedTurnId,
+        }),
       );
       break;
 
@@ -668,21 +603,18 @@ export function handleTurnStreamEvent({
       );
       setThreadItems((prev) => {
         const pendingItem = prev.find((item) => item.id === pendingItemKey);
-        if (!pendingItem) {
+        const updatedPendingItem =
+          buildAgentStreamTurnStartedPendingItemUpdate({
+            pendingItem,
+            turn: data.turn,
+          });
+        if (!updatedPendingItem) {
           return prev;
         }
 
         return upsertThreadItemState(
           removeThreadItemState(prev, pendingItemKey),
-          {
-            ...pendingItem,
-            thread_id: data.turn.thread_id,
-            turn_id: data.turn.id,
-            updated_at:
-              data.turn.updated_at ||
-              data.turn.started_at ||
-              pendingItem.updated_at,
-          },
+          updatedPendingItem,
         );
       });
       break;
@@ -700,7 +632,7 @@ export function handleTurnStreamEvent({
 
     case "item_updated":
       activateStream();
-      if (shouldDeferHighFrequencyThreadItemUpdate(data.item)) {
+      if (shouldDeferAgentStreamThreadItemUpdate(data.item)) {
         break;
       }
       setThreadItems((prev) =>
@@ -728,75 +660,57 @@ export function handleTurnStreamEvent({
     case "runtime_status":
       activateStream();
       {
-        if (!requestState.firstRuntimeStatusAt) {
+        if (
+          shouldRecordAgentStreamFirstRuntimeStatus({
+            firstRuntimeStatusAt: requestState.firstRuntimeStatusAt,
+          })
+        ) {
           requestState.firstRuntimeStatusAt = Date.now();
+          const firstRuntimeStatusContext =
+            buildAgentStreamFirstRuntimeStatusMetricContext({
+              activeSessionId,
+              eventName,
+              firstEventReceivedAt: requestState.firstEventReceivedAt,
+              firstRuntimeStatusAt: requestState.firstRuntimeStatusAt,
+              requestStartedAt: requestState.requestStartedAt,
+              statusPhase: data.status.phase,
+              statusTitle: data.status.title,
+            });
           recordAgentStreamPerformanceMetric(
             "agentStream.firstRuntimeStatus",
             requestState.performanceTrace,
-            {
-              elapsedMs:
-                requestState.firstRuntimeStatusAt -
-                requestState.requestStartedAt,
-              eventName,
-              firstEventDeltaMs: requestState.firstEventReceivedAt
-                ? requestState.firstRuntimeStatusAt -
-                  requestState.firstEventReceivedAt
-                : null,
-              phase: data.status.phase,
-              sessionId: activeSessionId,
-              title: data.status.title,
-            },
+            firstRuntimeStatusContext,
           );
-          logAgentDebug("AgentStream", "firstRuntimeStatus", {
-            elapsedMs:
-              requestState.firstRuntimeStatusAt - requestState.requestStartedAt,
-            eventName,
-            firstEventDeltaMs: requestState.firstEventReceivedAt
-              ? requestState.firstRuntimeStatusAt -
-                requestState.firstEventReceivedAt
-              : null,
-            phase: data.status.phase,
-            sessionId: activeSessionId,
-            title: data.status.title,
-          });
+          logAgentDebug(
+            "AgentStream",
+            "firstRuntimeStatus",
+            firstRuntimeStatusContext,
+          );
         }
-        const normalizedStatus = {
-          ...data.status,
-          title: normalizeLegacyRuntimeStatusTitle(data.status.title),
-        };
-        const nextSummaryText =
-          formatAgentRuntimeStatusSummary(normalizedStatus);
-        const updatedAt = new Date().toISOString();
+        const runtimeStatusPlan = buildAgentStreamRuntimeStatusApplyPlan({
+          status: data.status,
+          updatedAt: new Date().toISOString(),
+        });
         setThreadItems((prev) => {
-          const runtimeSummaryItem =
-            prev.find((item) => item.id === pendingItemKey) ||
-            [...prev]
-              .reverse()
-              .find(
-                (item) =>
-                  item.thread_id === activeSessionId &&
-                  item.type === "turn_summary" &&
-                  item.status === "in_progress",
-              );
-          if (
-            !runtimeSummaryItem ||
-            runtimeSummaryItem.type !== "turn_summary"
-          ) {
+          const runtimeSummaryItem = buildAgentStreamRuntimeSummaryItemUpdate({
+            activeSessionId,
+            items: prev,
+            pendingItemKey,
+            summaryText: runtimeStatusPlan.summaryText,
+            updatedAt: runtimeStatusPlan.updatedAt,
+          });
+          if (!runtimeSummaryItem) {
             return prev;
           }
 
-          return upsertThreadItemState(prev, {
-            ...runtimeSummaryItem,
-            text: nextSummaryText,
-            updated_at: updatedAt,
-          });
+          return upsertThreadItemState(prev, runtimeSummaryItem);
         });
         setMessages((prev) =>
           prev.map((msg) =>
             msg.id === assistantMsgId
               ? {
                   ...msg,
-                  runtimeStatus: normalizedStatus,
+                  runtimeStatus: runtimeStatusPlan.normalizedStatus,
                 }
               : msg,
           ),
@@ -805,88 +719,91 @@ export function handleTurnStreamEvent({
       break;
 
     case "turn_context":
-      activateStream();
+      if (buildAgentStreamTurnContextPreApplyPlan(data).shouldActivateStream) {
+        activateStream();
+      }
       setExecutionRuntime((current) =>
-        applyTurnContextExecutionRuntime(current, data),
+        applyAgentStreamTurnContextExecutionRuntime(current, data),
       );
       break;
 
     case "model_change":
-      activateStream();
+      if (buildAgentStreamModelChangePreApplyPlan(data).shouldActivateStream) {
+        activateStream();
+      }
       setExecutionRuntime((current) =>
-        applyModelChangeExecutionRuntime(current, data),
+        applyAgentStreamModelChangeExecutionRuntime(current, data),
       );
       break;
 
     case "thinking_delta":
-      activateStream();
-      if (!surfaceThinkingDeltas) {
-        break;
+      {
+        const thinkingPlan = buildAgentStreamThinkingDeltaPreApplyPlan({
+          surfaceThinkingDeltas,
+        });
+        if (thinkingPlan.shouldActivateStream) {
+          activateStream();
+        }
+        if (!thinkingPlan.shouldApplyThinkingDelta) {
+          break;
+        }
       }
       setMessages((prev) =>
-        prev.map((msg) =>
-          msg.id === assistantMsgId
-            ? {
-                ...msg,
-                isThinking: true,
-                thinkingContent: appendTextWithOverlapDetection(
-                  msg.thinkingContent || "",
-                  data.text,
-                ),
-                contentParts: appendThinkingToParts(
-                  msg.contentParts || [],
-                  data.text,
-                ),
-              }
-            : msg,
-        ),
+        prev.map((msg) => {
+          if (msg.id !== assistantMsgId) {
+            return msg;
+          }
+
+          return {
+            ...msg,
+            ...buildAgentStreamThinkingDeltaMessagePatch({
+              appendThinkingToParts,
+              contentParts: msg.contentParts,
+              textDelta: data.text,
+              thinkingContent: msg.thinkingContent,
+            }),
+          };
+        }),
       );
       break;
 
     case "text_delta":
       activateStream();
       clearOptimisticItem();
-      requestState.textDeltaBufferedCount =
-        (requestState.textDeltaBufferedCount ?? 0) + 1;
-      if (!requestState.firstTextDeltaAt) {
-        requestState.firstTextDeltaAt = Date.now();
-        recordAgentStreamPerformanceMetric(
-          "agentStream.firstTextDelta",
-          requestState.performanceTrace,
-          {
-            deltaChars: data.text.length,
-            elapsedMs:
-              requestState.firstTextDeltaAt - requestState.requestStartedAt,
-            eventName,
-            firstEventDeltaMs: requestState.firstEventReceivedAt
-              ? requestState.firstTextDeltaAt -
-                requestState.firstEventReceivedAt
-              : null,
-            firstRuntimeStatusDeltaMs: requestState.firstRuntimeStatusAt
-              ? requestState.firstTextDeltaAt -
-                requestState.firstRuntimeStatusAt
-              : null,
-            sessionId: activeSessionId,
-          },
-        );
-        logAgentDebug("AgentStream", "firstTextDelta", {
-          deltaChars: data.text.length,
-          elapsedMs:
-            requestState.firstTextDeltaAt - requestState.requestStartedAt,
+      {
+        const textDeltaPlan = buildAgentStreamTextDeltaApplyPlan({
+          activeSessionId,
+          accumulatedContent: requestState.accumulatedContent,
+          deltaText: data.text,
           eventName,
-          firstEventDeltaMs: requestState.firstEventReceivedAt
-            ? requestState.firstTextDeltaAt - requestState.firstEventReceivedAt
-            : null,
-          firstRuntimeStatusDeltaMs: requestState.firstRuntimeStatusAt
-            ? requestState.firstTextDeltaAt - requestState.firstRuntimeStatusAt
-            : null,
-          sessionId: activeSessionId,
+          firstEventReceivedAt: requestState.firstEventReceivedAt,
+          firstRuntimeStatusAt: requestState.firstRuntimeStatusAt,
+          firstTextDeltaAt: requestState.firstTextDeltaAt,
+          now: Date.now(),
+          requestStartedAt: requestState.requestStartedAt,
+          textDeltaBufferedCount: requestState.textDeltaBufferedCount,
         });
+        requestState.textDeltaBufferedCount =
+          textDeltaPlan.nextBufferedCount;
+        if (
+          textDeltaPlan.firstTextDeltaAt &&
+          textDeltaPlan.firstTextDeltaContext
+        ) {
+          requestState.firstTextDeltaAt = textDeltaPlan.firstTextDeltaAt;
+          recordAgentStreamPerformanceMetric(
+            "agentStream.firstTextDelta",
+            requestState.performanceTrace,
+            textDeltaPlan.firstTextDeltaContext,
+          );
+          logAgentDebug(
+            "AgentStream",
+            "firstTextDelta",
+            textDeltaPlan.firstTextDeltaContext,
+          );
+        }
+        requestState.accumulatedContent =
+          textDeltaPlan.nextAccumulatedContent;
       }
-      requestState.accumulatedContent = appendTextWithOverlapDetection(
-        requestState.accumulatedContent,
-        data.text,
-      );
       observer?.onTextDelta?.(data.text, requestState.accumulatedContent);
       playTypewriterSound();
       scheduleTextRenderFlush();
@@ -914,15 +831,12 @@ export function handleTurnStreamEvent({
       activateStream();
       clearOptimisticItem();
       {
-        const normalizedResult = normalizeIncomingToolResult(data.result);
-        const toolName = toolNameByToolId.get(data.tool_id) || "";
-        if (
-          hasMeaningfulCompletionSignalFromToolResult({
-            toolId: data.tool_id,
-            toolName,
-            normalizedResult,
-          })
-        ) {
+        const toolEndPlan = buildAgentStreamToolEndPreApplyPlan({
+          result: data.result,
+          toolId: data.tool_id,
+          toolNameByToolId,
+        });
+        if (toolEndPlan.hasMeaningfulCompletionSignal) {
           requestState.hasMeaningfulCompletionSignal = true;
         }
       }
@@ -940,9 +854,20 @@ export function handleTurnStreamEvent({
       break;
 
     case "artifact_snapshot":
-      activateStream();
-      clearOptimisticItem();
-      requestState.hasMeaningfulCompletionSignal = true;
+      {
+        const artifactPlan = buildAgentStreamArtifactSnapshotPreApplyPlan({
+          artifact: data.artifact,
+        });
+        if (artifactPlan.shouldActivateStream) {
+          activateStream();
+        }
+        if (artifactPlan.shouldClearOptimisticItem) {
+          clearOptimisticItem();
+        }
+        if (artifactPlan.shouldMarkMeaningfulCompletionSignal) {
+          requestState.hasMeaningfulCompletionSignal = true;
+        }
+      }
       handleArtifactSnapshotEvent({
         data,
         onWriteFile,
@@ -954,8 +879,15 @@ export function handleTurnStreamEvent({
       break;
 
     case "action_required":
-      activateStream();
-      clearOptimisticItem();
+      {
+        const actionPlan = buildAgentStreamActionRequiredPreApplyPlan(data);
+        if (actionPlan.shouldActivateStream) {
+          activateStream();
+        }
+        if (actionPlan.shouldClearOptimisticItem) {
+          clearOptimisticItem();
+        }
+      }
       handleActionRequiredEvent({
         data,
         actionLoggedKeys,
@@ -970,8 +902,16 @@ export function handleTurnStreamEvent({
       break;
 
     case "context_trace":
-      activateStream();
-      clearOptimisticItem();
+      {
+        const contextTracePlan =
+          buildAgentStreamContextTracePreApplyPlan(data);
+        if (contextTracePlan.shouldActivateStream) {
+          activateStream();
+        }
+        if (contextTracePlan.shouldClearOptimisticItem) {
+          clearOptimisticItem();
+        }
+      }
       handleContextTraceEvent({
         data,
         assistantMsgId,
@@ -986,31 +926,22 @@ export function handleTurnStreamEvent({
       flushPendingTextRender();
       clearOptimisticItem();
       clearOptimisticTurn();
-      const rawFinalContent = requestState.accumulatedContent.trim();
-      const cleanedFinalContent = stripAssistantProtocolResidue(
-        requestState.accumulatedContent,
-      );
-      const missingFinalReply =
-        !cleanedFinalContent &&
-        (containsAssistantProtocolResidue(requestState.accumulatedContent) ||
-          !rawFinalContent);
-      if (missingFinalReply && !requestState.hasMeaningfulCompletionSignal) {
-        finalizeMissingFinalReplyFailure(
-          EMPTY_FINAL_REPLY_ERROR_MESSAGE,
-          data.usage,
-        );
+      const finalDonePlan = buildAgentStreamFinalDonePlan({
+        accumulatedContent: requestState.accumulatedContent,
+        hasMeaningfulCompletionSignal:
+          requestState.hasMeaningfulCompletionSignal,
+        queuedTurnId: requestState.queuedTurnId,
+        toolCallCount: toolLogIdByToolId.size,
+        usage: data.usage,
+      });
+      if (finalDonePlan.type === "missing_final_reply_failure") {
+        finalizeMissingFinalReplyFailure(finalDonePlan);
         break;
       }
 
-      removeQueuedTurnState(
-        requestState.queuedTurnId ? [requestState.queuedTurnId] : [],
-      );
-      finishRequestLog(requestState, {
-        eventType: "chat_request_complete",
-        status: "success",
-        description: `请求完成，工具调用 ${toolLogIdByToolId.size} 次`,
-      });
-      const finalContent = resolveGracefulCompletionContent();
+      removeQueuedTurnState(finalDonePlan.queuedTurnIds);
+      finishRequestLog(requestState, finalDonePlan.requestLogPayload);
+      const finalContent = finalDonePlan.finalContent;
       observer?.onComplete?.(finalContent);
       setMessages((prev) =>
         prev.map((msg) => {
@@ -1020,16 +951,13 @@ export function handleTurnStreamEvent({
 
           return {
             ...updateMessageArtifactsStatus(msg, "complete"),
-            isThinking: false,
-            content: finalContent,
-            contentParts: reconcileFinalContentParts({
+            ...buildAgentStreamCompletedAssistantMessagePatch({
               parts: msg.contentParts,
               finalContent,
               rawContent: requestState.accumulatedContent,
               surfaceThinkingDeltas,
+              usage: data.usage ?? msg.usage,
             }),
-            runtimeStatus: undefined,
-            usage: data.usage ?? msg.usage,
           };
         }),
       );
@@ -1041,37 +969,35 @@ export function handleTurnStreamEvent({
     case "error": {
       clearQueuedDraftCleanupTimer();
       flushPendingTextRender();
-      if (data.message.includes(EMPTY_FINAL_REPLY_ERROR_HINT)) {
+      if (isAgentStreamEmptyFinalReplyError(data.message)) {
         clearOptimisticItem();
         clearOptimisticTurn();
-        if (!requestState.hasMeaningfulCompletionSignal) {
-          finalizeMissingFinalReplyFailure(data.message);
+        const emptyFinalErrorPlan = buildAgentStreamEmptyFinalErrorPlan({
+          errorMessage: data.message,
+          accumulatedContent: requestState.accumulatedContent,
+          hasMeaningfulCompletionSignal:
+            requestState.hasMeaningfulCompletionSignal,
+          queuedTurnId: requestState.queuedTurnId,
+        });
+        if (emptyFinalErrorPlan.type === "missing_final_reply_failure") {
+          finalizeMissingFinalReplyFailure(emptyFinalErrorPlan);
           break;
         }
-        removeQueuedTurnState(
-          requestState.queuedTurnId ? [requestState.queuedTurnId] : [],
-        );
-        finishRequestLog(requestState, {
-          eventType: "chat_request_complete",
-          status: "success",
-          description: "请求完成，模型未补充最终总结，已降级保留当前过程结果",
-        });
-        const gracefulContent = resolveGracefulCompletionContent();
+        removeQueuedTurnState(emptyFinalErrorPlan.queuedTurnIds);
+        finishRequestLog(requestState, emptyFinalErrorPlan.requestLogPayload);
+        const gracefulContent = emptyFinalErrorPlan.finalContent;
         observer?.onComplete?.(gracefulContent);
         setMessages((prev) =>
           prev.map((msg) =>
             msg.id === assistantMsgId
               ? {
                   ...updateMessageArtifactsStatus(msg, "complete"),
-                  isThinking: false,
-                  content: gracefulContent,
-                  contentParts: reconcileFinalContentParts({
+                  ...buildAgentStreamCompletedAssistantMessagePatch({
                     parts: msg.contentParts,
                     finalContent: gracefulContent,
                     rawContent: requestState.accumulatedContent,
                     surfaceThinkingDeltas,
                   }),
-                  runtimeStatus: undefined,
                 }
               : msg,
           ),
@@ -1081,38 +1007,25 @@ export function handleTurnStreamEvent({
         break;
       }
 
-      markFailedTimelineState(data.message);
-      removeQueuedTurnState(
-        requestState.queuedTurnId ? [requestState.queuedTurnId] : [],
-      );
-      finishRequestLog(requestState, {
-        eventType: "chat_request_error",
-        status: "error",
-        error: data.message,
+      const errorFailurePlan = buildAgentStreamErrorFailurePlan({
+        errorMessage: data.message,
+        queuedTurnId: requestState.queuedTurnId,
       });
-      observer?.onError?.(data.message);
-      const failedRuntimeStatus = buildFailedAgentRuntimeStatus(data.message);
-      if (
-        data.message.includes("429") ||
-        data.message.toLowerCase().includes("rate limit")
-      ) {
-        toast.warning("请求过于频繁，请稍后重试");
-      } else {
-        toast.error(
-          resolveAgentRuntimeErrorPresentation(data.message).toastMessage,
-        );
-      }
+      markFailedTimelineState(errorFailurePlan.errorMessage);
+      removeQueuedTurnState(errorFailurePlan.queuedTurnIds);
+      finishRequestLog(requestState, errorFailurePlan.requestLogPayload);
+      observer?.onError?.(errorFailurePlan.errorMessage);
+      applyAgentStreamErrorToastPlan(errorFailurePlan.toast, toast);
       setMessages((prev) =>
         prev.map((msg) =>
           msg.id === assistantMsgId
             ? {
                 ...updateMessageArtifactsStatus(msg, "error"),
-                isThinking: false,
-                content: buildFailedAgentMessageContent(
-                  data.message,
-                  requestState.accumulatedContent || msg.content,
-                ),
-                runtimeStatus: failedRuntimeStatus,
+                ...buildAgentStreamFailedAssistantMessagePatch({
+                  errorMessage: errorFailurePlan.errorMessage,
+                  accumulatedContent: requestState.accumulatedContent,
+                  previousContent: msg.content,
+                }),
               }
             : msg,
         ),
@@ -1123,32 +1036,20 @@ export function handleTurnStreamEvent({
     }
 
     case "warning": {
-      if (data.code === WORKSPACE_PATH_AUTO_CREATED_WARNING_CODE) {
-        break;
-      }
       const warningKey = `${activeSessionId}:${data.code || data.message}`;
-      if (!warnedKeysRef.current.has(warningKey)) {
-        warnedKeysRef.current.add(warningKey);
-        const presentation = resolveRuntimeWarningToastPresentation({
-          code: data.code,
-          message: data.message,
-        });
-        if (!presentation.shouldToast) {
-          break;
-        }
-        switch (presentation.level) {
-          case "info":
-            toast.info(presentation.message);
-            break;
-          case "error":
-            toast.error(presentation.message);
-            break;
-          case "warning":
-          default:
-            toast.warning(presentation.message);
-            break;
-        }
+      const warningPlan = buildAgentStreamWarningPlan({
+        activeSessionId,
+        alreadyWarned: warnedKeysRef.current.has(warningKey),
+        code: data.code,
+        message: data.message,
+      });
+      if (warningPlan.shouldMarkWarned && warningPlan.warningKey) {
+        warnedKeysRef.current.add(warningPlan.warningKey);
       }
+      applyAgentStreamWarningToastAction(
+        buildAgentStreamWarningToastAction(warningPlan.toast),
+        toast,
+      );
       break;
     }
 

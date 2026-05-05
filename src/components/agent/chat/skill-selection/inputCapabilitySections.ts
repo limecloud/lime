@@ -242,6 +242,8 @@ const INPUT_COMMAND_GROUP_BY_KEY: Record<
   site_search: "search_read",
   read_pdf: "search_read",
   file_read_runtime: "search_read",
+  knowledge_pack: "search_read",
+  knowledge_settle: "search_read",
   summary: "search_read",
   translation: "search_read",
   analysis: "search_read",

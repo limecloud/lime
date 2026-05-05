@@ -1,10 +1,5 @@
 import React, { useState } from "react";
-import {
-  ChevronDown,
-  ChevronUp,
-  FolderOpen,
-  Settings2,
-} from "lucide-react";
+import { ChevronDown, ChevronUp, FolderOpen, Settings2 } from "lucide-react";
 import type { ChatInputAdapter } from "@/components/input-kit/adapters/types";
 import type { Character } from "@/lib/api/memory";
 import type {
@@ -78,6 +73,7 @@ interface InputbarComposerSectionProps {
   selectedTeam?: TeamDefinition | null;
   knowledgePackSelection?: InputbarKnowledgePackSelection | null;
   knowledgePackOptions?: InputbarKnowledgePackOption[];
+  knowledgeHubOpenRequestKey?: number;
   onToggleKnowledgePack?: (enabled: boolean) => void;
   onSelectKnowledgePack?: (packName: string) => void;
   onStartKnowledgeOrganize?: () => void;
@@ -92,6 +88,7 @@ interface InputbarComposerSectionProps {
   pendingImages: MessageImage[];
   onRemoveImage: (index: number) => void;
   pathReferences?: MessagePathReference[];
+  onImportPathReferenceAsKnowledge?: (reference: MessagePathReference) => void;
   onRemovePathReference?: (id: string) => void;
   fileManagerOpen?: boolean;
   onToggleFileManager?: () => void;
@@ -142,6 +139,7 @@ export const InputbarComposerSection: React.FC<
   selectedTeam,
   knowledgePackSelection,
   knowledgePackOptions = [],
+  knowledgeHubOpenRequestKey,
   onToggleKnowledgePack,
   onSelectKnowledgePack,
   onStartKnowledgeOrganize,
@@ -156,6 +154,7 @@ export const InputbarComposerSection: React.FC<
   pendingImages,
   onRemoveImage,
   pathReferences = [],
+  onImportPathReferenceAsKnowledge,
   onRemovePathReference,
   fileManagerOpen = false,
   onToggleFileManager,
@@ -235,6 +234,8 @@ export const InputbarComposerSection: React.FC<
       <InputbarKnowledgeControl
         knowledgePackSelection={knowledgePackSelection}
         knowledgePackOptions={knowledgePackOptions}
+        inputText={input}
+        openKnowledgeHubRequestKey={knowledgeHubOpenRequestKey}
         onToggleKnowledgePack={onToggleKnowledgePack}
         onSelectKnowledgePack={onSelectKnowledgePack}
         onStartKnowledgeOrganize={onStartKnowledgeOrganize}
@@ -442,6 +443,7 @@ export const InputbarComposerSection: React.FC<
         pendingImages={currentPendingImages}
         onRemoveImage={onRemoveImage}
         pathReferences={pathReferences}
+        onImportPathReferenceAsKnowledge={onImportPathReferenceAsKnowledge}
         onRemovePathReference={onRemovePathReference}
         onPaste={onPaste}
         isFullscreen={isFullscreen}

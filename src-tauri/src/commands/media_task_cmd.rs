@@ -123,6 +123,10 @@ pub struct CreateImageGenerationTaskArtifactRequest {
     pub model: Option<String>,
     #[serde(default)]
     pub session_id: Option<String>,
+    #[serde(default, alias = "thread_id")]
+    pub thread_id: Option<String>,
+    #[serde(default, alias = "turn_id")]
+    pub turn_id: Option<String>,
     #[serde(default)]
     pub project_id: Option<String>,
     #[serde(default)]
@@ -187,6 +191,10 @@ pub struct CreateAudioGenerationTaskArtifactRequest {
     pub model: Option<String>,
     #[serde(default, alias = "session_id")]
     pub session_id: Option<String>,
+    #[serde(default, alias = "thread_id")]
+    pub thread_id: Option<String>,
+    #[serde(default, alias = "turn_id")]
+    pub turn_id: Option<String>,
     #[serde(default, alias = "project_id")]
     pub project_id: Option<String>,
     #[serde(default, alias = "content_id")]
@@ -237,6 +245,10 @@ pub struct CreateTranscriptionTaskArtifactRequest {
     pub model: Option<String>,
     #[serde(default, alias = "session_id")]
     pub session_id: Option<String>,
+    #[serde(default, alias = "thread_id")]
+    pub thread_id: Option<String>,
+    #[serde(default, alias = "turn_id")]
+    pub turn_id: Option<String>,
     #[serde(default, alias = "project_id")]
     pub project_id: Option<String>,
     #[serde(default, alias = "content_id")]
@@ -319,6 +331,18 @@ pub struct MediaTaskModalityRuntimeContractIndexEntry {
     pub task_type: String,
     pub normalized_status: String,
     pub contract_key: Option<String>,
+    pub entry_key: Option<String>,
+    pub thread_id: Option<String>,
+    pub turn_id: Option<String>,
+    pub content_id: Option<String>,
+    pub modality: Option<String>,
+    pub skill_id: Option<String>,
+    pub model_id: Option<String>,
+    pub cost_state: Option<String>,
+    pub limit_state: Option<String>,
+    pub estimated_cost_class: Option<String>,
+    pub limit_event_kind: Option<String>,
+    pub quota_low: Option<bool>,
     pub routing_slot: Option<String>,
     pub provider_id: Option<String>,
     pub model: Option<String>,
@@ -400,8 +424,22 @@ pub struct MediaTaskLimeCorePolicyEvaluationStatusCount {
 pub struct MediaTaskModalityRuntimeContractIndex {
     pub snapshot_count: usize,
     pub contract_keys: Vec<String>,
+    pub entry_keys: Vec<String>,
+    pub thread_ids: Vec<String>,
+    pub turn_ids: Vec<String>,
+    pub content_ids: Vec<String>,
+    pub modalities: Vec<String>,
+    pub skill_ids: Vec<String>,
+    pub model_ids: Vec<String>,
+    pub cost_states: Vec<String>,
+    pub limit_states: Vec<String>,
+    pub estimated_cost_classes: Vec<String>,
+    pub limit_event_kinds: Vec<String>,
+    pub quota_low_count: usize,
     pub execution_profile_keys: Vec<String>,
     pub executor_adapter_keys: Vec<String>,
+    pub executor_kinds: Vec<String>,
+    pub executor_binding_keys: Vec<String>,
     pub limecore_policy_refs: Vec<String>,
     pub limecore_policy_snapshot_count: usize,
     pub limecore_policy_snapshot_statuses: Vec<MediaTaskLimeCorePolicySnapshotStatusCount>,
@@ -698,6 +736,8 @@ fn build_image_task_idempotency_key(
     let storyboard_slots_payload = build_storyboard_slots_payload(storyboard_slots);
     let fingerprint = json!({
         "session_id": normalize_optional_string(request.session_id.clone()),
+        "thread_id": normalize_optional_string(request.thread_id.clone()),
+        "turn_id": normalize_optional_string(request.turn_id.clone()),
         "project_id": normalize_optional_string(request.project_id.clone()),
         "content_id": normalize_optional_string(request.content_id.clone()),
         "entry_source": normalize_optional_string(request.entry_source.clone()),
@@ -734,6 +774,8 @@ fn build_audio_task_idempotency_key(
 ) -> Result<String, String> {
     let fingerprint = json!({
         "session_id": normalize_optional_string(request.session_id.clone()),
+        "thread_id": normalize_optional_string(request.thread_id.clone()),
+        "turn_id": normalize_optional_string(request.turn_id.clone()),
         "project_id": normalize_optional_string(request.project_id.clone()),
         "content_id": normalize_optional_string(request.content_id.clone()),
         "entry_source": normalize_optional_string(request.entry_source.clone()),
@@ -763,6 +805,8 @@ fn build_transcription_task_idempotency_key(
 ) -> Result<String, String> {
     let fingerprint = json!({
         "session_id": normalize_optional_string(request.session_id.clone()),
+        "thread_id": normalize_optional_string(request.thread_id.clone()),
+        "turn_id": normalize_optional_string(request.turn_id.clone()),
         "project_id": normalize_optional_string(request.project_id.clone()),
         "content_id": normalize_optional_string(request.content_id.clone()),
         "entry_source": normalize_optional_string(request.entry_source.clone()),
@@ -1484,6 +1528,46 @@ fn media_task_contract_key(output: &MediaTaskOutput) -> Option<String> {
         .map(ToString::to_string)
 }
 
+fn media_task_entry_key(output: &MediaTaskOutput) -> Option<String> {
+    read_image_task_payload_string(
+        &output.record.payload,
+        &["entry_key", "entryKey", "entry_source", "entrySource"],
+    )
+    .map(ToString::to_string)
+}
+
+fn media_task_thread_id(output: &MediaTaskOutput) -> Option<String> {
+    read_image_task_payload_string(&output.record.payload, &["thread_id", "threadId"])
+        .map(ToString::to_string)
+}
+
+fn media_task_turn_id(output: &MediaTaskOutput) -> Option<String> {
+    read_image_task_payload_string(&output.record.payload, &["turn_id", "turnId"])
+        .map(ToString::to_string)
+}
+
+fn media_task_content_id(output: &MediaTaskOutput) -> Option<String> {
+    read_image_task_payload_string(&output.record.payload, &["content_id", "contentId"])
+        .map(ToString::to_string)
+}
+
+fn media_task_modality(output: &MediaTaskOutput) -> Option<String> {
+    read_image_task_payload_string(&output.record.payload, &["modality"])
+        .or_else(|| {
+            media_task_runtime_contract(output)
+                .and_then(|value| value.get("modality"))
+                .and_then(serde_json::Value::as_str)
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+        })
+        .map(ToString::to_string)
+}
+
+fn media_task_model_id(output: &MediaTaskOutput) -> Option<String> {
+    read_image_task_payload_string(&output.record.payload, &["model_id", "modelId", "model"])
+        .map(ToString::to_string)
+}
+
 fn media_task_runtime_contract(output: &MediaTaskOutput) -> Option<&serde_json::Value> {
     output
         .record
@@ -1590,6 +1674,166 @@ fn media_task_executor_binding_key(output: &MediaTaskOutput) -> Option<String> {
             .filter(|value| !value.is_empty())
     })
     .map(ToString::to_string)
+}
+
+fn media_task_skill_id(
+    output: &MediaTaskOutput,
+    executor_kind: Option<&str>,
+    executor_binding_key: Option<&str>,
+) -> Option<String> {
+    read_image_task_payload_string(
+        &output.record.payload,
+        &["skill_id", "skillId", "service_skill_id", "serviceSkillId"],
+    )
+    .map(ToString::to_string)
+    .or_else(|| match executor_kind {
+        Some("skill") | Some("service_skill") => executor_binding_key.map(ToString::to_string),
+        _ => None,
+    })
+}
+
+fn read_json_string_from_keys<'a>(value: &'a serde_json::Value, keys: &[&str]) -> Option<&'a str> {
+    keys.iter()
+        .filter_map(|key| value.get(*key))
+        .find_map(serde_json::Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+}
+
+fn read_json_object_from_keys<'a>(
+    value: &'a serde_json::Value,
+    keys: &[&str],
+) -> Option<&'a serde_json::Value> {
+    keys.iter()
+        .filter_map(|key| value.get(*key))
+        .find(|value| value.is_object())
+}
+
+fn read_json_bool_from_keys(value: &serde_json::Value, keys: &[&str]) -> Option<bool> {
+    keys.iter()
+        .filter_map(|key| value.get(*key))
+        .find_map(serde_json::Value::as_bool)
+}
+
+fn media_task_runtime_summary(output: &MediaTaskOutput) -> Option<&serde_json::Value> {
+    read_json_object_from_keys(
+        &output.record.payload,
+        &["runtime_summary", "runtimeSummary"],
+    )
+}
+
+fn media_task_task_profile(output: &MediaTaskOutput) -> Option<&serde_json::Value> {
+    read_json_object_from_keys(&output.record.payload, &["task_profile", "taskProfile"])
+}
+
+fn media_task_cost_state_object(output: &MediaTaskOutput) -> Option<&serde_json::Value> {
+    read_json_object_from_keys(&output.record.payload, &["cost_state", "costState"]).or_else(|| {
+        media_task_task_profile(output)
+            .and_then(|profile| read_json_object_from_keys(profile, &["cost_state", "costState"]))
+    })
+}
+
+fn media_task_limit_state_object(output: &MediaTaskOutput) -> Option<&serde_json::Value> {
+    read_json_object_from_keys(&output.record.payload, &["limit_state", "limitState"]).or_else(
+        || {
+            media_task_task_profile(output).and_then(|profile| {
+                read_json_object_from_keys(profile, &["limit_state", "limitState"])
+            })
+        },
+    )
+}
+
+fn media_task_limit_event_object(output: &MediaTaskOutput) -> Option<&serde_json::Value> {
+    read_json_object_from_keys(&output.record.payload, &["limit_event", "limitEvent"]).or_else(
+        || {
+            media_task_limit_state_object(output).and_then(|limit_state| {
+                read_json_object_from_keys(limit_state, &["limit_event", "limitEvent", "event"])
+            })
+        },
+    )
+}
+
+fn media_task_cost_state(output: &MediaTaskOutput) -> Option<String> {
+    read_image_task_payload_string(&output.record.payload, &["cost_state", "costState"])
+        .map(ToString::to_string)
+        .or_else(|| {
+            media_task_cost_state_object(output)
+                .and_then(|cost_state| read_json_string_from_keys(cost_state, &["status", "state"]))
+                .or_else(|| {
+                    media_task_runtime_summary(output).and_then(|summary| {
+                        read_json_string_from_keys(summary, &["cost_status", "costStatus"])
+                    })
+                })
+                .map(ToString::to_string)
+        })
+}
+
+fn media_task_estimated_cost_class(output: &MediaTaskOutput) -> Option<String> {
+    media_task_cost_state_object(output)
+        .and_then(|cost_state| {
+            read_json_string_from_keys(
+                cost_state,
+                &[
+                    "estimated_cost_class",
+                    "estimatedCostClass",
+                    "cost_class",
+                    "costClass",
+                ],
+            )
+        })
+        .or_else(|| {
+            media_task_runtime_summary(output).and_then(|summary| {
+                read_json_string_from_keys(summary, &["estimated_cost_class", "estimatedCostClass"])
+            })
+        })
+        .map(ToString::to_string)
+}
+
+fn media_task_limit_state(output: &MediaTaskOutput) -> Option<String> {
+    read_image_task_payload_string(&output.record.payload, &["limit_state", "limitState"])
+        .map(ToString::to_string)
+        .or_else(|| {
+            media_task_limit_state_object(output)
+                .and_then(|limit_state| {
+                    read_json_string_from_keys(
+                        limit_state,
+                        &["status", "state", "limit_status", "limitStatus"],
+                    )
+                })
+                .or_else(|| {
+                    media_task_runtime_summary(output).and_then(|summary| {
+                        read_json_string_from_keys(summary, &["limit_status", "limitStatus"])
+                    })
+                })
+                .map(ToString::to_string)
+        })
+}
+
+fn media_task_limit_event_kind(output: &MediaTaskOutput) -> Option<String> {
+    media_task_limit_event_object(output)
+        .and_then(|limit_event| {
+            read_json_string_from_keys(limit_event, &["event_kind", "eventKind", "kind"])
+        })
+        .or_else(|| {
+            media_task_runtime_summary(output).and_then(|summary| {
+                read_json_string_from_keys(summary, &["limit_event_kind", "limitEventKind"])
+            })
+        })
+        .map(ToString::to_string)
+}
+
+fn media_task_quota_low(output: &MediaTaskOutput, limit_event_kind: Option<&str>) -> Option<bool> {
+    media_task_limit_event_object(output)
+        .and_then(|limit_event| read_json_bool_from_keys(limit_event, &["quota_low", "quotaLow"]))
+        .or_else(|| {
+            media_task_runtime_summary(output)
+                .and_then(|summary| read_json_bool_from_keys(summary, &["quota_low", "quotaLow"]))
+        })
+        .or_else(|| {
+            limit_event_kind
+                .map(|kind| kind.trim() == "quota_low")
+                .filter(|value| *value)
+        })
 }
 
 fn read_payload_string_array_from_keys(payload: &serde_json::Value, keys: &[&str]) -> Vec<String> {
@@ -2242,8 +2486,22 @@ fn build_modality_runtime_contract_index(
     tasks: &[MediaTaskOutput],
 ) -> MediaTaskModalityRuntimeContractIndex {
     let mut contract_keys = Vec::new();
+    let mut entry_keys = Vec::new();
+    let mut thread_ids = Vec::new();
+    let mut turn_ids = Vec::new();
+    let mut content_ids = Vec::new();
+    let mut modalities = Vec::new();
+    let mut skill_ids = Vec::new();
+    let mut model_ids = Vec::new();
+    let mut cost_states = Vec::new();
+    let mut limit_states = Vec::new();
+    let mut estimated_cost_classes = Vec::new();
+    let mut limit_event_kinds = Vec::new();
+    let mut quota_low_count = 0usize;
     let mut execution_profile_keys = Vec::new();
     let mut executor_adapter_keys = Vec::new();
+    let mut executor_kinds = Vec::new();
+    let mut executor_binding_keys = Vec::new();
     let mut limecore_policy_refs = Vec::new();
     let mut limecore_policy_snapshot_count = 0;
     let mut limecore_policy_snapshot_statuses = Vec::new();
@@ -2277,10 +2535,40 @@ fn build_modality_runtime_contract_index(
         }
 
         push_unique_string(&mut contract_keys, contract_key.clone());
+        let entry_key = media_task_entry_key(output);
+        push_unique_string(&mut entry_keys, entry_key.clone());
+        let thread_id = media_task_thread_id(output);
+        let turn_id = media_task_turn_id(output);
+        let content_id = media_task_content_id(output);
+        push_unique_string(&mut thread_ids, thread_id.clone());
+        push_unique_string(&mut turn_ids, turn_id.clone());
+        push_unique_string(&mut content_ids, content_id.clone());
+        let modality = media_task_modality(output);
+        let model_id = media_task_model_id(output);
+        push_unique_string(&mut modalities, modality.clone());
+        push_unique_string(&mut model_ids, model_id.clone());
         let execution_profile_key = media_task_execution_profile_key(output);
         let executor_adapter_key = media_task_executor_adapter_key(output);
         let executor_kind = media_task_executor_kind(output);
         let executor_binding_key = media_task_executor_binding_key(output);
+        let skill_id = media_task_skill_id(
+            output,
+            executor_kind.as_deref(),
+            executor_binding_key.as_deref(),
+        );
+        push_unique_string(&mut skill_ids, skill_id.clone());
+        let cost_state = media_task_cost_state(output);
+        let estimated_cost_class = media_task_estimated_cost_class(output);
+        let limit_state = media_task_limit_state(output);
+        let limit_event_kind = media_task_limit_event_kind(output);
+        let quota_low = media_task_quota_low(output, limit_event_kind.as_deref());
+        push_unique_string(&mut cost_states, cost_state.clone());
+        push_unique_string(&mut estimated_cost_classes, estimated_cost_class.clone());
+        push_unique_string(&mut limit_states, limit_state.clone());
+        push_unique_string(&mut limit_event_kinds, limit_event_kind.clone());
+        if quota_low == Some(true) {
+            quota_low_count += 1;
+        }
         let task_limecore_policy_refs = media_task_limecore_policy_refs(output);
         let limecore_policy_snapshot_status =
             media_task_limecore_policy_snapshot_status(output, &task_limecore_policy_refs);
@@ -2345,6 +2633,8 @@ fn build_modality_runtime_contract_index(
             media_task_limecore_policy_value_hit_count(output);
         push_unique_string(&mut execution_profile_keys, execution_profile_key.clone());
         push_unique_string(&mut executor_adapter_keys, executor_adapter_key.clone());
+        push_unique_string(&mut executor_kinds, executor_kind.clone());
+        push_unique_string(&mut executor_binding_keys, executor_binding_key.clone());
         push_unique_string_values(&mut limecore_policy_refs, task_limecore_policy_refs.clone());
         push_unique_string_values(
             &mut limecore_policy_unresolved_refs,
@@ -2450,6 +2740,18 @@ fn build_modality_runtime_contract_index(
             task_type: output.task_type.clone(),
             normalized_status: output.normalized_status.clone(),
             contract_key,
+            entry_key,
+            thread_id,
+            turn_id,
+            content_id,
+            modality,
+            skill_id,
+            model_id,
+            cost_state,
+            limit_state,
+            estimated_cost_class,
+            limit_event_kind,
+            quota_low,
             routing_slot: read_image_task_payload_string(payload, &["routing_slot"])
                 .map(ToString::to_string),
             provider_id: read_image_task_payload_string(payload, &["provider_id", "providerId"])
@@ -2526,8 +2828,22 @@ fn build_modality_runtime_contract_index(
     MediaTaskModalityRuntimeContractIndex {
         snapshot_count: snapshots.len(),
         contract_keys,
+        entry_keys,
+        thread_ids,
+        turn_ids,
+        content_ids,
+        modalities,
+        skill_ids,
+        model_ids,
+        cost_states,
+        limit_states,
+        estimated_cost_classes,
+        limit_event_kinds,
+        quota_low_count,
         execution_profile_keys,
         executor_adapter_keys,
+        executor_kinds,
+        executor_binding_keys,
         limecore_policy_refs,
         limecore_policy_snapshot_count,
         limecore_policy_snapshot_statuses,
@@ -4283,6 +4599,8 @@ pub(crate) fn create_image_generation_task_artifact_inner(
     let raw_text = normalize_optional_string(request.raw_text.clone());
     let layout_hint = normalize_optional_string(request.layout_hint.clone());
     let session_id = normalize_optional_string(request.session_id.clone());
+    let thread_id = normalize_optional_string(request.thread_id.clone());
+    let turn_id = normalize_optional_string(request.turn_id.clone());
     let project_id = normalize_optional_string(request.project_id.clone());
     let content_id = normalize_optional_string(request.content_id.clone());
     let entry_source = normalize_optional_string(request.entry_source.clone());
@@ -4342,6 +4660,8 @@ pub(crate) fn create_image_generation_task_artifact_inner(
             "count": count,
             "usage": usage,
             "session_id": session_id,
+            "thread_id": thread_id,
+            "turn_id": turn_id,
             "project_id": project_id,
             "content_id": content_id,
             "entry_source": entry_source,
@@ -4397,6 +4717,8 @@ pub(crate) fn create_audio_generation_task_artifact_inner(
         &audio_preference_defaults,
     );
     let session_id = normalize_optional_string(request.session_id.clone());
+    let thread_id = normalize_optional_string(request.thread_id.clone());
+    let turn_id = normalize_optional_string(request.turn_id.clone());
     let project_id = normalize_optional_string(request.project_id.clone());
     let content_id = normalize_optional_string(request.content_id.clone());
     let entry_source = normalize_optional_string(request.entry_source.clone())
@@ -4446,6 +4768,8 @@ pub(crate) fn create_audio_generation_task_artifact_inner(
             "provider_id": provider_id,
             "model": model,
             "session_id": session_id,
+            "thread_id": thread_id,
+            "turn_id": turn_id,
             "project_id": project_id,
             "content_id": content_id,
             "entry_source": entry_source,
@@ -4558,6 +4882,8 @@ pub(crate) fn create_transcription_task_artifact_inner(
     let provider_id = normalize_optional_string(request.provider_id.clone());
     let model = normalize_optional_string(request.model.clone());
     let session_id = normalize_optional_string(request.session_id.clone());
+    let thread_id = normalize_optional_string(request.thread_id.clone());
+    let turn_id = normalize_optional_string(request.turn_id.clone());
     let project_id = normalize_optional_string(request.project_id.clone());
     let content_id = normalize_optional_string(request.content_id.clone());
     let entry_source = normalize_optional_string(request.entry_source.clone())
@@ -4616,6 +4942,8 @@ pub(crate) fn create_transcription_task_artifact_inner(
             "provider_id": provider_id,
             "model": model,
             "session_id": session_id,
+            "thread_id": thread_id,
+            "turn_id": turn_id,
             "project_id": project_id,
             "content_id": content_id,
             "entry_source": entry_source,
@@ -4910,6 +5238,8 @@ mod tests {
             provider_id: Some("fal".to_string()),
             model: model.map(ToString::to_string),
             session_id: Some("session-image-contract-1".to_string()),
+            thread_id: Some("thread-image-contract-1".to_string()),
+            turn_id: Some("turn-image-contract-1".to_string()),
             project_id: Some("project-image-contract-1".to_string()),
             content_id: Some("content-image-contract-1".to_string()),
             entry_source: Some("at_image_command".to_string()),
@@ -4950,9 +5280,73 @@ mod tests {
                     "capability": "image_generation"
                 }
             })]);
+        created.record.payload["cost_state"] = json!({
+            "status": "estimated",
+            "estimatedCostClass": "low"
+        });
+        created.record.payload["limit_state"] = json!({
+            "status": "within_limit"
+        });
+        created.record.payload["limit_event"] = json!({
+            "eventKind": "quota_low"
+        });
 
         let index = build_modality_runtime_contract_index(&[created]);
 
+        assert_eq!(index.entry_keys, vec!["at_image_command".to_string()]);
+        assert_eq!(
+            index.thread_ids,
+            vec!["thread-image-contract-1".to_string()]
+        );
+        assert_eq!(index.turn_ids, vec!["turn-image-contract-1".to_string()]);
+        assert_eq!(
+            index.content_ids,
+            vec!["content-image-contract-1".to_string()]
+        );
+        assert_eq!(index.modalities, vec!["image".to_string()]);
+        assert_eq!(index.skill_ids, vec!["image_generate".to_string()]);
+        assert_eq!(index.model_ids, vec!["gpt-image-1".to_string()]);
+        assert_eq!(index.cost_states, vec!["estimated".to_string()]);
+        assert_eq!(index.limit_states, vec!["within_limit".to_string()]);
+        assert_eq!(index.estimated_cost_classes, vec!["low".to_string()]);
+        assert_eq!(index.limit_event_kinds, vec!["quota_low".to_string()]);
+        assert_eq!(index.quota_low_count, 1);
+        assert_eq!(
+            index.snapshots[0].entry_key.as_deref(),
+            Some("at_image_command")
+        );
+        assert_eq!(
+            index.snapshots[0].thread_id.as_deref(),
+            Some("thread-image-contract-1")
+        );
+        assert_eq!(
+            index.snapshots[0].turn_id.as_deref(),
+            Some("turn-image-contract-1")
+        );
+        assert_eq!(
+            index.snapshots[0].content_id.as_deref(),
+            Some("content-image-contract-1")
+        );
+        assert_eq!(index.snapshots[0].modality.as_deref(), Some("image"));
+        assert_eq!(
+            index.snapshots[0].skill_id.as_deref(),
+            Some("image_generate")
+        );
+        assert_eq!(index.snapshots[0].model_id.as_deref(), Some("gpt-image-1"));
+        assert_eq!(index.snapshots[0].cost_state.as_deref(), Some("estimated"));
+        assert_eq!(
+            index.snapshots[0].limit_state.as_deref(),
+            Some("within_limit")
+        );
+        assert_eq!(
+            index.snapshots[0].estimated_cost_class.as_deref(),
+            Some("low")
+        );
+        assert_eq!(
+            index.snapshots[0].limit_event_kind.as_deref(),
+            Some("quota_low")
+        );
+        assert_eq!(index.snapshots[0].quota_low, Some(true));
         assert_eq!(index.limecore_policy_value_hit_count, 1);
         assert_eq!(
             index.limecore_policy_evaluation_statuses[0].status,
@@ -5125,6 +5519,8 @@ mod tests {
             provider_id: Some("fal".to_string()),
             model: Some("fal-ai/nano-banana".to_string()),
             session_id: Some("session-1".to_string()),
+            thread_id: None,
+            turn_id: None,
             project_id: Some("project-1".to_string()),
             content_id: Some("content-1".to_string()),
             entry_source: Some("at_image_command".to_string()),
@@ -5187,6 +5583,8 @@ mod tests {
                 provider_id: Some("fal".to_string()),
                 model: Some("fal-ai/nano-banana".to_string()),
                 session_id: Some("session-1".to_string()),
+                thread_id: None,
+                turn_id: None,
                 project_id: Some("project-1".to_string()),
                 content_id: Some("content-1".to_string()),
                 entry_source: Some("at_image_command".to_string()),
@@ -5333,6 +5731,8 @@ mod tests {
             provider_id: Some("limecore".to_string()),
             model: Some("voice-pro".to_string()),
             session_id: Some("session-voice-1".to_string()),
+            thread_id: None,
+            turn_id: None,
             project_id: Some("project-voice-1".to_string()),
             content_id: Some("content-voice-1".to_string()),
             entry_source: None,
@@ -5362,6 +5762,8 @@ mod tests {
                 provider_id: Some("limecore".to_string()),
                 model: Some("voice-pro".to_string()),
                 session_id: Some("session-voice-1".to_string()),
+                thread_id: None,
+                turn_id: None,
                 project_id: Some("project-voice-1".to_string()),
                 content_id: Some("content-voice-1".to_string()),
                 entry_source: None,
@@ -5634,6 +6036,8 @@ mod tests {
                 provider_id: Some("limecore".to_string()),
                 model: Some("voice-pro".to_string()),
                 session_id: None,
+                thread_id: None,
+                turn_id: None,
                 project_id: None,
                 content_id: None,
                 entry_source: None,
@@ -5679,6 +6083,8 @@ mod tests {
                 provider_id: Some("limecore".to_string()),
                 model: Some("asr-pro".to_string()),
                 session_id: Some("session-transcription-1".to_string()),
+                thread_id: None,
+                turn_id: None,
                 project_id: Some("project-transcription-1".to_string()),
                 content_id: Some("content-transcription-1".to_string()),
                 entry_source: None,
@@ -5706,6 +6112,8 @@ mod tests {
                 provider_id: Some("limecore".to_string()),
                 model: Some("asr-pro".to_string()),
                 session_id: Some("session-transcription-1".to_string()),
+                thread_id: None,
+                turn_id: None,
                 project_id: Some("project-transcription-1".to_string()),
                 content_id: Some("content-transcription-1".to_string()),
                 entry_source: None,
@@ -5920,6 +6328,8 @@ mod tests {
                 provider_id: Some("limecore".to_string()),
                 model: Some("asr-pro".to_string()),
                 session_id: None,
+                thread_id: None,
+                turn_id: None,
                 project_id: None,
                 content_id: None,
                 entry_source: None,
@@ -5967,6 +6377,8 @@ mod tests {
                 provider_id: Some("openai-asr".to_string()),
                 model: Some("whisper-1".to_string()),
                 session_id: Some("session-transcription-worker-1".to_string()),
+                thread_id: None,
+                turn_id: None,
                 project_id: Some("project-transcription-worker-1".to_string()),
                 content_id: Some("content-transcription-worker-1".to_string()),
                 entry_source: None,
@@ -6116,6 +6528,8 @@ mod tests {
                 provider_id: Some("openai-asr".to_string()),
                 model: Some("whisper-1".to_string()),
                 session_id: Some("session-transcription-worker-success".to_string()),
+                thread_id: None,
+                turn_id: None,
                 project_id: Some("project-transcription-worker-success".to_string()),
                 content_id: Some("content-transcription-worker-success".to_string()),
                 entry_source: None,
@@ -6236,6 +6650,8 @@ mod tests {
                 provider_id: Some("limecore".to_string()),
                 model: Some("voice-pro".to_string()),
                 session_id: Some("session-voice-complete".to_string()),
+                thread_id: None,
+                turn_id: None,
                 project_id: Some("project-voice-complete".to_string()),
                 content_id: Some("content-voice-complete".to_string()),
                 entry_source: None,
@@ -6373,6 +6789,8 @@ mod tests {
                 provider_id: Some("limecore".to_string()),
                 model: Some("voice-pro".to_string()),
                 session_id: Some("session-audio-worker-1".to_string()),
+                thread_id: None,
+                turn_id: None,
                 project_id: Some("project-audio-worker-1".to_string()),
                 content_id: Some("content-audio-worker-1".to_string()),
                 entry_source: None,
@@ -6554,6 +6972,8 @@ mod tests {
                 provider_id: Some("openai-tts".to_string()),
                 model: Some("gpt-4o-mini-tts".to_string()),
                 session_id: Some("session-audio-worker-success".to_string()),
+                thread_id: None,
+                turn_id: None,
                 project_id: Some("project-audio-worker-success".to_string()),
                 content_id: Some("content-audio-worker-success".to_string()),
                 entry_source: None,
@@ -6986,6 +7406,8 @@ mod tests {
                 provider_id: Some("fal".to_string()),
                 model: Some("fal-ai/flux-pro".to_string()),
                 session_id: Some("session-2".to_string()),
+                thread_id: Some("thread-2".to_string()),
+                turn_id: Some("turn-2".to_string()),
                 project_id: Some("project-2".to_string()),
                 content_id: Some("content-2".to_string()),
                 entry_source: Some("at_image_command".to_string()),
@@ -7031,12 +7453,48 @@ mod tests {
             vec![IMAGE_GENERATION_CONTRACT_KEY.to_string()]
         );
         assert_eq!(
+            listed.modality_runtime_contracts.entry_keys,
+            vec!["at_image_command".to_string()]
+        );
+        assert_eq!(
+            listed.modality_runtime_contracts.thread_ids,
+            vec!["thread-2".to_string()]
+        );
+        assert_eq!(
+            listed.modality_runtime_contracts.turn_ids,
+            vec!["turn-2".to_string()]
+        );
+        assert_eq!(
+            listed.modality_runtime_contracts.content_ids,
+            vec!["content-2".to_string()]
+        );
+        assert_eq!(
+            listed.modality_runtime_contracts.modalities,
+            vec!["image".to_string()]
+        );
+        assert_eq!(
+            listed.modality_runtime_contracts.skill_ids,
+            vec!["image_generate".to_string()]
+        );
+        assert_eq!(
+            listed.modality_runtime_contracts.model_ids,
+            vec!["fal-ai/flux-pro".to_string()]
+        );
+        assert_eq!(
             listed.modality_runtime_contracts.execution_profile_keys,
             vec![IMAGE_GENERATION_EXECUTION_PROFILE_KEY.to_string()]
         );
         assert_eq!(
             listed.modality_runtime_contracts.executor_adapter_keys,
             vec![IMAGE_GENERATION_EXECUTOR_ADAPTER_KEY.to_string()]
+        );
+        assert_eq!(
+            listed.modality_runtime_contracts.executor_kinds,
+            vec!["skill".to_string()]
+        );
+        assert_eq!(
+            listed.modality_runtime_contracts.executor_binding_keys,
+            vec![IMAGE_GENERATION_EXECUTOR_BINDING_KEY.to_string()]
         );
         assert_eq!(
             listed.modality_runtime_contracts.limecore_policy_refs,
@@ -7090,6 +7548,48 @@ mod tests {
                 .routing_outcome
                 .as_str(),
             "accepted"
+        );
+        assert_eq!(
+            listed.modality_runtime_contracts.snapshots[0]
+                .entry_key
+                .as_deref(),
+            Some("at_image_command")
+        );
+        assert_eq!(
+            listed.modality_runtime_contracts.snapshots[0]
+                .thread_id
+                .as_deref(),
+            Some("thread-2")
+        );
+        assert_eq!(
+            listed.modality_runtime_contracts.snapshots[0]
+                .turn_id
+                .as_deref(),
+            Some("turn-2")
+        );
+        assert_eq!(
+            listed.modality_runtime_contracts.snapshots[0]
+                .content_id
+                .as_deref(),
+            Some("content-2")
+        );
+        assert_eq!(
+            listed.modality_runtime_contracts.snapshots[0]
+                .modality
+                .as_deref(),
+            Some("image")
+        );
+        assert_eq!(
+            listed.modality_runtime_contracts.snapshots[0]
+                .skill_id
+                .as_deref(),
+            Some("image_generate")
+        );
+        assert_eq!(
+            listed.modality_runtime_contracts.snapshots[0]
+                .model_id
+                .as_deref(),
+            Some("fal-ai/flux-pro")
         );
         assert_eq!(
             listed.modality_runtime_contracts.snapshots[0]
@@ -7281,6 +7781,8 @@ mod tests {
                 provider_id: Some("fal".to_string()),
                 model: Some("fal-ai/nano-banana".to_string()),
                 session_id: Some("session-1".to_string()),
+                thread_id: None,
+                turn_id: None,
                 project_id: Some("project-1".to_string()),
                 content_id: Some("content-1".to_string()),
                 entry_source: Some("at_image_command".to_string()),
@@ -7325,6 +7827,8 @@ mod tests {
                 provider_id: Some("fal".to_string()),
                 model: Some("fal-ai/nano-banana".to_string()),
                 session_id: Some("session-1".to_string()),
+                thread_id: None,
+                turn_id: None,
                 project_id: Some("project-1".to_string()),
                 content_id: Some("content-1".to_string()),
                 entry_source: Some("at_image_command".to_string()),
@@ -7372,6 +7876,8 @@ mod tests {
                 provider_id: Some("fal".to_string()),
                 model: Some("fal-ai/nano-banana-pro".to_string()),
                 session_id: Some("session-image-worker-1".to_string()),
+                thread_id: None,
+                turn_id: None,
                 project_id: Some("project-image-worker-1".to_string()),
                 content_id: Some("content-image-worker-1".to_string()),
                 entry_source: Some("at_image_command".to_string()),
@@ -7572,6 +8078,8 @@ mod tests {
                 provider_id: Some("fal".to_string()),
                 model: Some("fal-ai/nano-banana-pro".to_string()),
                 session_id: Some("session-image-worker-2".to_string()),
+                thread_id: None,
+                turn_id: None,
                 project_id: Some("project-image-worker-2".to_string()),
                 content_id: Some("content-image-worker-2".to_string()),
                 entry_source: Some("at_image_command".to_string()),

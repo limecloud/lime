@@ -65,6 +65,8 @@
 - **改 system prompt / subagent prompt / plan prompt / prompt_context / augmentation 顺序**：先读 `prompt-foundation.md`，再回看 `query-loop.md`
 - **改 turn 提交 / prompt 组包 / queue / compaction / evidence 主链**：先读 `query-loop.md`
 - **改 subagent / automation / execution tracker / scheduler taxonomy**：先读 `task-agent-taxonomy.md`
+- **讨论 `/goal`、Managed Objective 或跨 turn 目标续跑**：先读 `task-agent-taxonomy.md` 与 `query-loop.md`，再读 `../research/codex-goal/README.md` 与 `../roadmap/managed-objective/README.md`
+- **讨论 Coding Agent、Skill Forge 或能力生成 draft**：先读 `query-loop.md` 与 `skill-standard.md`，再读 `../research/pi-mono-coding-agent/README.md` 与 `../roadmap/creaoai/coding-agent-layer.md`
 - **改 channels / browser connector / DevBridge / OpenClaw remote runtime**：先读 `remote-runtime.md`
 - **改记忆来源链 / working memory / durable memory / Team Memory / compaction**：先读 `memory-compaction.md`
 - **改 FileArtifact / artifact sidecar / versions / file checkpoint / evidence 中的文件快照**：先读 `persistence-map.md`

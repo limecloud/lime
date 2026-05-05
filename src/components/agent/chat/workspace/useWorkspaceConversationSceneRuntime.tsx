@@ -45,6 +45,12 @@ type InputbarScene = Pick<
   | "generalWorkbenchDialog"
   | "teamWorkbenchSurfaceProps"
   | "runtimeToolAvailability"
+  | "knowledgePackSelection"
+  | "knowledgePackOptions"
+  | "onToggleKnowledgePack"
+  | "onSelectKnowledgePack"
+  | "onStartKnowledgeOrganize"
+  | "onManageKnowledgePacks"
 >;
 type CanvasScene = Pick<
   ReturnType<typeof useWorkspaceCanvasSceneRuntime>,
@@ -303,6 +309,7 @@ interface UseWorkspaceConversationSceneRuntimeParams {
   defaultCuratedTaskReferenceEntries?: ConversationScenePresentationParams["scene"]["defaultCuratedTaskReferenceEntries"];
   pathReferences?: ConversationScenePresentationParams["scene"]["pathReferences"];
   onAddPathReferences?: ConversationScenePresentationParams["scene"]["onAddPathReferences"];
+  onImportPathReferenceAsKnowledge?: ConversationScenePresentationParams["scene"]["onImportPathReferenceAsKnowledge"];
   onRemovePathReference?: ConversationScenePresentationParams["scene"]["onRemovePathReference"];
   onClearPathReferences?: ConversationScenePresentationParams["scene"]["onClearPathReferences"];
   fileManagerOpen?: ConversationScenePresentationParams["scene"]["fileManagerOpen"];
@@ -426,6 +433,7 @@ interface UseWorkspaceConversationSceneRuntimeParams {
   handleOpenMessagePreview?: ConversationScenePresentationParams["messageList"]["onOpenMessagePreview"];
   handleSaveMessageAsSkill?: ConversationScenePresentationParams["messageList"]["onSaveMessageAsSkill"];
   handleSaveMessageAsInspiration?: ConversationScenePresentationParams["messageList"]["onSaveMessageAsInspiration"];
+  handleSaveMessageAsKnowledge?: ConversationScenePresentationParams["messageList"]["onSaveMessageAsKnowledge"];
   handleOpenSubagentSession: ConversationScenePresentationParams["messageList"]["onOpenSubagentSession"];
   handlePermissionResponse: ConversationScenePresentationParams["messageList"]["onPermissionResponse"];
   pendingPromotedA2UIActionRequest: unknown;
@@ -464,6 +472,7 @@ export function useWorkspaceConversationSceneRuntime({
   defaultCuratedTaskReferenceEntries,
   pathReferences,
   onAddPathReferences,
+  onImportPathReferenceAsKnowledge,
   onRemovePathReference,
   onClearPathReferences,
   fileManagerOpen,
@@ -581,6 +590,7 @@ export function useWorkspaceConversationSceneRuntime({
   handleOpenMessagePreview,
   handleSaveMessageAsSkill,
   handleSaveMessageAsInspiration,
+  handleSaveMessageAsKnowledge,
   handleOpenSubagentSession,
   handlePermissionResponse,
   pendingPromotedA2UIActionRequest,
@@ -1014,6 +1024,7 @@ export function useWorkspaceConversationSceneRuntime({
       defaultCuratedTaskReferenceEntries,
       pathReferences,
       onAddPathReferences,
+      onImportPathReferenceAsKnowledge,
       onRemovePathReference,
       onClearPathReferences,
       fileManagerOpen,
@@ -1110,6 +1121,12 @@ export function useWorkspaceConversationSceneRuntime({
         ? navigationActions.handleOpenAppearanceSettings
         : undefined,
       runtimeToolAvailability: inputbarScene.runtimeToolAvailability,
+      knowledgePackSelection: inputbarScene.knowledgePackSelection,
+      knowledgePackOptions: inputbarScene.knowledgePackOptions,
+      onToggleKnowledgePack: inputbarScene.onToggleKnowledgePack,
+      onSelectKnowledgePack: inputbarScene.onSelectKnowledgePack,
+      onStartKnowledgeOrganize: inputbarScene.onStartKnowledgeOrganize,
+      onManageKnowledgePacks: inputbarScene.onManageKnowledgePacks,
       runtimeTaskCard,
       taskCenterTabsNode,
       onOpenMemoryWorkbench: () =>
@@ -1216,6 +1233,7 @@ export function useWorkspaceConversationSceneRuntime({
       onOpenMessagePreview: handleOpenMessagePreview,
       onSaveMessageAsSkill: handleSaveMessageAsSkill,
       onSaveMessageAsInspiration: handleSaveMessageAsInspiration,
+      onSaveMessageAsKnowledge: handleSaveMessageAsKnowledge,
       onOpenSubagentSession: handleOpenSubagentSession,
       onPermissionResponse: handlePermissionResponse,
       promoteActionRequestsToA2UI: Boolean(pendingPromotedA2UIActionRequest),

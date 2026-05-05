@@ -108,6 +108,21 @@ function formatPermissionConfirmationStatusLabel(status?: string): string {
   }
 }
 
+function blocksAcceptedReviewDecision(
+  permissionStatus?: string,
+  confirmationStatus?: string,
+): boolean {
+  const normalizedPermissionStatus = permissionStatus?.trim();
+  const normalizedConfirmationStatus = confirmationStatus?.trim();
+  if (normalizedConfirmationStatus === "denied") {
+    return true;
+  }
+  return (
+    normalizedPermissionStatus === "requires_confirmation" &&
+    normalizedConfirmationStatus !== "resolved"
+  );
+}
+
 function createFormState(
   template: AgentRuntimeReviewDecisionTemplate,
 ): ReviewDecisionFormState {
@@ -170,20 +185,24 @@ export function RuntimeReviewDecisionDialog({
     : DEFAULT_RISK_LEVEL_OPTIONS;
   const permissionConfirmationStatus =
     template?.permission_confirmation_status?.trim();
+  const permissionStatus = template?.permission_status?.trim();
   const permissionConfirmationSummary =
     template?.permission_confirmation_summary ||
     template?.permission_confirmation_request_id ||
     "未导出权限确认摘要";
-  const permissionConfirmationDenied =
-    permissionConfirmationStatus === "denied";
-  const acceptanceBlockedByDeniedPermission =
-    permissionConfirmationDenied && formState?.decision_status === "accepted";
+  const permissionConfirmationBlocksAccepted = blocksAcceptedReviewDecision(
+    permissionStatus,
+    permissionConfirmationStatus,
+  );
+  const acceptanceBlockedByPermissionConfirmation =
+    permissionConfirmationBlocksAccepted &&
+    formState?.decision_status === "accepted";
 
   const handleSave = async () => {
     if (!template || !formState) {
       return;
     }
-    if (acceptanceBlockedByDeniedPermission) {
+    if (acceptanceBlockedByPermissionConfirmation) {
       return;
     }
 
@@ -234,7 +253,7 @@ export function RuntimeReviewDecisionDialog({
             {permissionConfirmationStatus ? (
               <div
                 className={`rounded-lg border px-4 py-3 text-sm ${
-                  permissionConfirmationDenied
+                  permissionConfirmationBlocksAccepted
                     ? "border-rose-200 bg-rose-50 text-rose-950"
                     : "border-slate-200 bg-slate-50 text-slate-800"
                 }`}
@@ -243,7 +262,7 @@ export function RuntimeReviewDecisionDialog({
                   <span className="text-xs font-semibold">权限确认</span>
                   <span
                     className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${
-                      permissionConfirmationDenied
+                      permissionConfirmationBlocksAccepted
                         ? "border-rose-200 bg-white text-rose-700"
                         : "border-slate-200 bg-white text-slate-700"
                     }`}
@@ -261,7 +280,7 @@ export function RuntimeReviewDecisionDialog({
                     request_id={template.permission_confirmation_request_id}
                   </p>
                 ) : null}
-                {permissionConfirmationDenied ? (
+                {permissionConfirmationBlocksAccepted ? (
                   <p className="mt-2 text-xs font-medium">
                     当前 review decision 不能作为成功交付证据，请先处理真实权限确认。
                   </p>
@@ -299,16 +318,17 @@ export function RuntimeReviewDecisionDialog({
                       key={status}
                       value={status}
                       disabled={
-                        permissionConfirmationDenied && status === "accepted"
+                        permissionConfirmationBlocksAccepted &&
+                        status === "accepted"
                       }
                     >
                       {formatStatusLabel(status)}
                     </option>
                   ))}
                 </select>
-                {permissionConfirmationDenied ? (
+                {permissionConfirmationBlocksAccepted ? (
                   <p className="text-xs leading-5 text-rose-700">
-                    权限确认已拒绝时不能保存“接受”，请选择拒绝、延后或需要更多证据。
+                    权限确认未解决时不能保存“接受”，请选择拒绝、延后或需要更多证据。
                   </p>
                 ) : null}
               </div>
@@ -548,7 +568,7 @@ export function RuntimeReviewDecisionDialog({
               !template ||
               !formState ||
               saving ||
-              acceptanceBlockedByDeniedPermission
+              acceptanceBlockedByPermissionConfirmation
             }
           >
             {saving ? "保存中..." : "保存审核结果"}

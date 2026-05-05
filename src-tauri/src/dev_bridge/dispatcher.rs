@@ -6,6 +6,7 @@ mod agent_sessions;
 mod app_runtime;
 mod automation;
 mod browser;
+mod capability_drafts;
 mod channels;
 mod companion;
 mod content;
@@ -186,6 +187,10 @@ pub async fn handle_command(
     }
 
     if let Some(result) = skills::try_handle(state, cmd, args.as_ref()).await? {
+        return Ok(result);
+    }
+
+    if let Some(result) = capability_drafts::try_handle(cmd, args.as_ref())? {
         return Ok(result);
     }
 

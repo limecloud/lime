@@ -265,6 +265,7 @@ describe("agentProtocol", () => {
             confirmation_status: "not_requested",
             confirmation_source: "declared_profile_only",
             declared_only: true,
+            turn_gating: true,
           },
         },
       }),
@@ -299,6 +300,9 @@ describe("agentProtocol", () => {
           confirmation_request_id: undefined,
           confirmation_source: "declared_profile_only",
           declared_only: true,
+          turn_gating: true,
+          limit_status: undefined,
+          capability_gap: undefined,
         },
       },
     });
