@@ -16,6 +16,8 @@ const REQUIRED_DOCS = [
   "docs/roadmap/warp/capability-matrix.md",
   "docs/roadmap/warp/execution-profile.md",
   "docs/roadmap/warp/artifact-graph.md",
+  "docs/roadmap/warp/entry-binding-inventory.md",
+  "docs/roadmap/warp/task-index-inventory.md",
   "docs/roadmap/warp/evolution-guide.md",
 ];
 
@@ -127,6 +129,8 @@ const REQUIRED_ARTIFACT_INDEX_FIELDS = new Set([
   "contract_key",
   "artifact_kind",
   "status",
+  "created_at",
+  "updated_at",
 ]);
 const ENTRY_KINDS = new Set([
   "command",
@@ -141,6 +145,15 @@ const FORBIDDEN_ENTRY_FIELDS = new Set([
   "evidence_events",
   "executor_binding",
   "routing_slot",
+]);
+const PHASE7_REQUIRED_ENTRY_BINDINGS = new Map([
+  ["image_generation", ["at_image_command"]],
+  ["browser_control", ["at_browser_command"]],
+  ["pdf_extract", ["at_pdf_read_command"]],
+  ["voice_generation", ["at_voice_command"]],
+  ["audio_transcription", ["at_transcription_command"]],
+  ["web_research", ["at_search_command"]],
+  ["text_transform", ["at_summary_command"]],
 ]);
 
 function collectUniqueObjects(errors, collection, keyName, label) {
@@ -353,6 +366,108 @@ function validateEntryBindings(errors, contract) {
   });
 }
 
+function validatePhase7EntryBindingCoverage(errors, registry) {
+  if (!Array.isArray(registry.contracts)) {
+    return { entryBindingCount: 0 };
+  }
+
+  let entryBindingCount = 0;
+  const globalEntryKeys = new Map();
+
+  for (const contract of registry.contracts) {
+    if (!isPlainObject(contract)) {
+      continue;
+    }
+
+    const contractKey = contract.contract_key;
+    const entries = Array.isArray(contract.bound_entries)
+      ? contract.bound_entries.filter(isPlainObject)
+      : [];
+    const entryKeysForContract = new Set(
+      entries
+        .map((entry) => entry.entry_key)
+        .filter((entryKey) => isNonEmptyString(entryKey)),
+    );
+    entryBindingCount += entries.length;
+
+    if (contract.lifecycle === "current") {
+      pushIf(
+        errors,
+        entries.length === 0,
+        `current contract ${contractKey}.bound_entries must include at least one Phase 7 entry binding`,
+      );
+    }
+
+    for (const entry of entries) {
+      const entryKey = entry.entry_key;
+      const prefix = `${contractKey}.bound_entries.${entryKey || "<missing>"}`;
+      if (!isNonEmptyString(entryKey)) {
+        continue;
+      }
+
+      pushIf(
+        errors,
+        globalEntryKeys.has(entryKey),
+        `${prefix} duplicates entry_key already owned by ${globalEntryKeys.get(entryKey)}`,
+      );
+      globalEntryKeys.set(entryKey, contractKey);
+
+      if (isNonEmptyString(entry.entry_source)) {
+        pushIf(
+          errors,
+          !entryKeysForContract.has(entry.entry_source),
+          `${prefix}.entry_source must reference an entry_key on the same contract, not ${entry.entry_source}`,
+        );
+      }
+
+      if (entry.entry_kind === "scene") {
+        const policyRefs = new Set(
+          Array.isArray(contract.limecore_policy_refs)
+            ? contract.limecore_policy_refs
+            : [],
+        );
+        pushIf(
+          errors,
+          !policyRefs.has("client_scenes") && !policyRefs.has("scene_policy"),
+          `${prefix} is a scene entry but contract.limecore_policy_refs does not include client_scenes or scene_policy`,
+        );
+      }
+    }
+  }
+
+  for (const [contractKey, requiredEntryKeys] of PHASE7_REQUIRED_ENTRY_BINDINGS) {
+    const contract = registry.contracts.find(
+      (candidate) =>
+        isPlainObject(candidate) && candidate.contract_key === contractKey,
+    );
+    pushIf(
+      errors,
+      !contract,
+      `Phase 7 required contract is missing: ${contractKey}`,
+    );
+    if (!contract) {
+      continue;
+    }
+
+    const entryKeys = new Set(
+      Array.isArray(contract.bound_entries)
+        ? contract.bound_entries
+            .map((entry) => entry?.entry_key)
+            .filter((entryKey) => isNonEmptyString(entryKey))
+        : [],
+    );
+    for (const requiredEntryKey of requiredEntryKeys) {
+      pushIf(
+        errors,
+        !entryKeys.has(requiredEntryKey),
+        `Phase 7 required entry binding ${contractKey}.${requiredEntryKey} is missing`,
+      );
+    }
+  }
+
+  return { entryBindingCount };
+}
+
 function validateCapabilityMatrix(matrix) {
   const errors = [];
   pushIf(errors, matrix.version !== 1, "capabilityMatrix.version must be 1");
@@ -525,6 +640,20 @@ function validateArtifactGraph(graph) {
       "task_index_fields",
       artifact.task_index_fields,
     );
+    if (Array.isArray(artifact.task_index_fields)) {
+      const seenIndexFields = new Set();
+      artifact.task_index_fields.forEach((fieldName, index) => {
+        if (!isNonEmptyString(fieldName)) {
+          return;
+        }
+        pushIf(
+          errors,
+          seenIndexFields.has(fieldName),
+          `artifact ${kind}.task_index_fields[${index}] is duplicated: ${fieldName}`,
+        );
+        seenIndexFields.add(fieldName);
+      });
+    }
     validateStringArray(
       errors,
       kind,
@@ -1042,7 +1171,10 @@ function validateContractRegistry(registry, matrixRefs, artifactGraphRefs) {
     validateContractArtifactGraph(errors, contract, artifactGraphRefs);
   }
 
-  return errors;
+  return {
+    errors,
+    entryBindingReport: validatePhase7EntryBindingCoverage(errors, registry),
+  };
 }
 
 function validateRequiredDocs() {
@@ -1055,7 +1187,7 @@ function validateRequiredDocs() {
   });
 }
 
-function renderSuccess(registry, matrix, graph, profileReport) {
+function renderSuccess(registry, matrix, graph, contractReport, profileReport) {
   const currentCount = registry.contracts.filter(
     (contract) => contract.lifecycle === "current",
   ).length;
@@ -1066,6 +1198,8 @@ function renderSuccess(registry, matrix, graph, profileReport) {
     `  capabilities: ${matrix.capabilities.length}`,
     `  model roles: ${matrix.model_roles.length}`,
     `  artifact kinds: ${graph.artifact_kinds.length}`,
+    `  entry bindings: ${contractReport.entryBindingReport.entryBindingCount}`,
+    `  task index core fields: ${REQUIRED_ARTIFACT_INDEX_FIELDS.size}`,
     `  execution profiles: ${profileReport.profileCount}`,
     `  executor adapters: ${profileReport.adapterCount}`,
     `  registry: ${CONTRACT_PATH}`,
@@ -1088,11 +1222,16 @@ function main() {
     matrixReport,
     graphReport,
   );
+  const contractReport = validateContractRegistry(
+    registry,
+    matrixReport,
+    graphReport,
+  );
   const errors = [
     ...validateRequiredDocs(),
     ...matrixReport.errors,
     ...graphReport.errors,
-    ...validateContractRegistry(registry, matrixReport, graphReport),
+    ...contractReport.errors,
     ...profileReport.errors,
   ];
 
@@ -1104,7 +1243,7 @@ function main() {
     process.exit(1);
   }
 
-  console.log(renderSuccess(registry, matrix, graph, profileReport));
+  console.log(renderSuccess(registry, matrix, graph, contractReport, profileReport));
 }
 
 main();

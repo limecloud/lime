@@ -75,11 +75,6 @@ import type {
   AgentRuntimeThreadReadModel,
   QueuedTurnSnapshot,
 } from "@/lib/api/agentRuntime";
-import {
-  buildMessageTurnTimeline,
-  type MessageTurnTimeline,
-} from "../utils/threadTimelineView";
-import { buildMessageTurnGroups } from "../utils/messageTurnGrouping";
 import { resolveLatestProjectFileSavedSiteContentTargetFromMessage } from "../utils/latestSavedSiteContentTarget";
 import {
   resolveSiteSavedContentTargetDisplayName,
@@ -88,6 +83,33 @@ import {
 import { type ArtifactTimelineOpenTarget } from "../utils/artifactTimelineNavigation";
 import { isPureRuntimePeerMessageText } from "../utils/runtimePeerMessageDisplay";
 import { LIME_BRAND_LOGO_SRC, LIME_BRAND_NAME } from "@/lib/branding";
+import {
+  buildConversationMessageRenderWindowProjection,
+  filterVisibleConversationMessages,
+  resolveConversationMessageRenderWindowSettings,
+  resolveInitialConversationRenderedMessageCount,
+  shouldUseConversationProgressiveRender,
+} from "../projection/messageRenderWindowProjection";
+import {
+  filterConversationThreadItemsForRenderedTurns,
+  resolveConversationRenderedTurnIdSet,
+  resolveConversationRenderedTurns,
+} from "../projection/threadTimelineWindowProjection";
+import {
+  buildCurrentTurnTimelineProjection,
+  buildMessageGroupsProjection,
+  buildMessageRenderGroupsProjection,
+  buildTimelineByMessageIdProjection,
+  resolveLastAssistantMessage,
+} from "../projection/messageTimelineRenderProjection";
+import {
+  buildHistoricalMarkdownHydrationIndexByMessageId,
+  buildHistoricalMarkdownHydrationTargets,
+  countDeferredHistoricalContentParts,
+  countDeferredHistoricalMarkdown,
+  hasStructuredHistoricalContentHint,
+  shouldDeferHistoricalAssistantMessageDetails as shouldDeferHistoricalAssistantMessageDetailsProjection,
+} from "../projection/historicalMessageHydrationProjection";
 
 interface MessageListProps {
   sessionId?: string | null;
@@ -205,11 +227,24 @@ const MESSAGE_LIST_COMPACT_HISTORICAL_ASSISTANT_THRESHOLD = 900;
 const MESSAGE_LIST_COMPACT_HISTORICAL_ASSISTANT_PREVIEW_CHARS = 900;
 const MESSAGE_LIST_LONG_HISTORICAL_MESSAGE_THRESHOLD = 24_000;
 const MESSAGE_LIST_LONG_HISTORICAL_MESSAGE_PREVIEW_CHARS = 2_000;
-const MESSAGE_LIST_STRUCTURED_HISTORY_CONTENT_RE =
-  /<a2ui|```\s*a2ui|<write_file|<document/i;
 const MESSAGE_LIST_RESTORED_MARKDOWN_HYDRATION_INITIAL_COUNT = 2;
 const MESSAGE_LIST_RESTORED_MARKDOWN_HYDRATION_BATCH_SIZE = 2;
 const MESSAGE_LIST_RESTORED_MARKDOWN_HYDRATION_DELAY_MS = 140;
+const MESSAGE_LIST_RENDER_WINDOW_SETTINGS = {
+  regular: {
+    progressiveRenderThreshold: MESSAGE_LIST_PROGRESSIVE_RENDER_THRESHOLD,
+    initialRenderCount: MESSAGE_LIST_INITIAL_RENDER_COUNT,
+    renderBatchSize: MESSAGE_LIST_RENDER_BATCH_SIZE,
+    minimumDelayMs: MESSAGE_LIST_PROGRESSIVE_RENDER_MINIMUM_DELAY_MS,
+  },
+  restored: {
+    progressiveRenderThreshold:
+      MESSAGE_LIST_RESTORED_PROGRESSIVE_RENDER_THRESHOLD,
+    initialRenderCount: MESSAGE_LIST_RESTORED_INITIAL_RENDER_COUNT,
+    renderBatchSize: MESSAGE_LIST_RESTORED_RENDER_BATCH_SIZE,
+    minimumDelayMs: MESSAGE_LIST_RESTORED_PROGRESSIVE_RENDER_MINIMUM_DELAY_MS,
+  },
+} as const;
 
 function buildHistoricalMessagePreview(
   content: string,
@@ -228,10 +263,6 @@ function buildLongHistoricalMessagePreview(content: string): string {
     content,
     MESSAGE_LIST_LONG_HISTORICAL_MESSAGE_PREVIEW_CHARS,
   );
-}
-
-function hasStructuredHistoricalContentHint(content: string): boolean {
-  return MESSAGE_LIST_STRUCTURED_HISTORY_CONTENT_RE.test(content);
 }
 
 function formatContentLength(value: number): string {
@@ -781,12 +812,7 @@ const MessageListInner: React.FC<MessageListProps> = ({
     useState<Set<string>>(() => new Set());
 
   const visibleMessages = useMemo(
-    () =>
-      messages.filter((msg) => {
-        if (msg.role !== "user") return true;
-        if (msg.content.trim().length > 0) return true;
-        return Array.isArray(msg.images) && msg.images.length > 0;
-      }),
+    () => filterVisibleConversationMessages(messages),
     [messages],
   );
   const visibleMessageFirstId = visibleMessages[0]?.id ?? null;
@@ -819,29 +845,33 @@ const MessageListInner: React.FC<MessageListProps> = ({
       },
     );
   }, [isRestoredHistoryWindow, visibleMessageFirstId, visibleMessageLastId]);
-  const progressiveRenderThreshold = isRestoredHistoryWindow
-    ? MESSAGE_LIST_RESTORED_PROGRESSIVE_RENDER_THRESHOLD
-    : MESSAGE_LIST_PROGRESSIVE_RENDER_THRESHOLD;
-  const progressiveInitialRenderCount = isRestoredHistoryWindow
-    ? MESSAGE_LIST_RESTORED_INITIAL_RENDER_COUNT
-    : MESSAGE_LIST_INITIAL_RENDER_COUNT;
-  const progressiveRenderBatchSize = isRestoredHistoryWindow
-    ? MESSAGE_LIST_RESTORED_RENDER_BATCH_SIZE
-    : MESSAGE_LIST_RENDER_BATCH_SIZE;
-  const progressiveRenderMinimumDelayMs = isRestoredHistoryWindow
-    ? MESSAGE_LIST_RESTORED_PROGRESSIVE_RENDER_MINIMUM_DELAY_MS
-    : MESSAGE_LIST_PROGRESSIVE_RENDER_MINIMUM_DELAY_MS;
-  const shouldUseProgressiveRender =
-    !isSending && visibleMessages.length > progressiveRenderThreshold;
+  const messageRenderWindowSettings =
+    resolveConversationMessageRenderWindowSettings(
+      MESSAGE_LIST_RENDER_WINDOW_SETTINGS,
+      isRestoredHistoryWindow,
+    );
+  const progressiveInitialRenderCount =
+    messageRenderWindowSettings.initialRenderCount;
+  const progressiveRenderBatchSize =
+    messageRenderWindowSettings.renderBatchSize;
+  const progressiveRenderMinimumDelayMs =
+    messageRenderWindowSettings.minimumDelayMs;
+  const shouldUseProgressiveRender = shouldUseConversationProgressiveRender({
+    isSending,
+    visibleMessageCount: visibleMessages.length,
+    settings: messageRenderWindowSettings,
+  });
   const visibleMessageWindowRef = useRef<{
     firstId: string | null;
     lastId: string | null;
     length: number;
   } | null>(null);
   const [renderedMessageCount, setRenderedMessageCount] = useState(() =>
-    shouldUseProgressiveRender
-      ? Math.min(visibleMessages.length, progressiveInitialRenderCount)
-      : visibleMessages.length,
+    resolveInitialConversationRenderedMessageCount({
+      isSending,
+      visibleMessageCount: visibleMessages.length,
+      settings: messageRenderWindowSettings,
+    }),
   );
 
   useEffect(() => {
@@ -889,11 +919,26 @@ const MessageListInner: React.FC<MessageListProps> = ({
     visibleMessages.length,
   ]);
 
-  const hiddenHistoryCount = shouldUseProgressiveRender
-    ? Math.max(0, visibleMessages.length - renderedMessageCount)
-    : 0;
+  const messageRenderWindow = useMemo(
+    () =>
+      buildConversationMessageRenderWindowProjection({
+        visibleMessages,
+        renderedMessageCount,
+        isSending,
+        isRestoredHistoryWindow,
+        settings: messageRenderWindowSettings,
+      }),
+    [
+      isRestoredHistoryWindow,
+      isSending,
+      messageRenderWindowSettings,
+      renderedMessageCount,
+      visibleMessages,
+    ],
+  );
+  const hiddenHistoryCount = messageRenderWindow.hiddenHistoryCount;
   const shouldAutoHydrateHiddenHistory =
-    shouldUseProgressiveRender && !isRestoredHistoryWindow;
+    messageRenderWindow.shouldAutoHydrateHiddenHistory;
 
   useEffect(() => {
     if (
@@ -927,13 +972,7 @@ const MessageListInner: React.FC<MessageListProps> = ({
     visibleMessages.length,
   ]);
 
-  const renderedMessages = useMemo(
-    () =>
-      hiddenHistoryCount > 0
-        ? visibleMessages.slice(-renderedMessageCount)
-        : visibleMessages,
-    [hiddenHistoryCount, renderedMessageCount, visibleMessages],
-  );
+  const renderedMessages = messageRenderWindow.renderedMessages;
   const renderedAssistantMessageCount = useMemo(
     () =>
       renderedMessages.reduce(
@@ -942,41 +981,31 @@ const MessageListInner: React.FC<MessageListProps> = ({
       ),
     [renderedMessages],
   );
-  const restoredTurnWindowSize = Math.max(1, renderedAssistantMessageCount + 1);
   const renderedTurns = useMemo(() => {
-    const shouldWindowTurns = hiddenHistoryCount > 0 || isRestoredHistoryWindow;
-    if (!shouldWindowTurns) {
-      return turns;
-    }
-
-    const turnWindowSize = isRestoredHistoryWindow
-      ? restoredTurnWindowSize
-      : Math.max(renderedMessageCount, progressiveInitialRenderCount);
-    const tailTurns =
-      turnWindowSize > 0
-        ? turns.slice(-Math.min(turns.length, turnWindowSize))
-        : [];
-    if (!currentTurnId || tailTurns.some((turn) => turn.id === currentTurnId)) {
-      return tailTurns;
-    }
-
-    const selectedTurnIds = new Set(tailTurns.map((turn) => turn.id));
-    selectedTurnIds.add(currentTurnId);
-    return turns.filter((turn) => selectedTurnIds.has(turn.id));
+    return resolveConversationRenderedTurns({
+      turns,
+      currentTurnId,
+      hiddenHistoryCount,
+      isRestoredHistoryWindow,
+      renderedAssistantMessageCount,
+      renderedMessageCount,
+      progressiveInitialRenderCount,
+    });
   }, [
     currentTurnId,
     hiddenHistoryCount,
     isRestoredHistoryWindow,
     progressiveInitialRenderCount,
+    renderedAssistantMessageCount,
     renderedMessageCount,
-    restoredTurnWindowSize,
     turns,
   ]);
   const renderedTurnIdSet = useMemo(() => {
-    if (hiddenHistoryCount <= 0 && !isRestoredHistoryWindow) {
-      return null;
-    }
-    return new Set(renderedTurns.map((turn) => turn.id));
+    return resolveConversationRenderedTurnIdSet({
+      renderedTurns,
+      hiddenHistoryCount,
+      isRestoredHistoryWindow,
+    });
   }, [hiddenHistoryCount, isRestoredHistoryWindow, renderedTurns]);
   const activeCurrentTurn = useMemo(() => {
     if (!currentTurnId) {
@@ -1060,42 +1089,26 @@ const MessageListInner: React.FC<MessageListProps> = ({
       shouldDeferRestoredThreadItemsUntilExpand);
   const renderedThreadItemsMeasurement = useMemo(
     () =>
-      measureMessageListComputation(() => {
-        if (shouldDeferThreadItemsScan) {
-          return [];
-        }
-
-        if (!renderedTurnIdSet) {
-          return threadItems;
-        }
-        if (renderedTurnIdSet.size === 0) {
-          return [];
-        }
-
-        const scopedItems: AgentThreadItem[] = [];
-        for (const item of threadItems) {
-          if (renderedTurnIdSet.has(item.turn_id)) {
-            scopedItems.push(item);
-          }
-        }
-        return scopedItems;
-      }),
+      measureMessageListComputation(() =>
+        filterConversationThreadItemsForRenderedTurns({
+          threadItems,
+          renderedTurnIdSet,
+          shouldDeferThreadItemsScan,
+        }),
+      ),
     [renderedTurnIdSet, shouldDeferThreadItemsScan, threadItems],
   );
   const renderedThreadItems = renderedThreadItemsMeasurement.value;
   const timelineByMessageIdMeasurement = useMemo(
     () =>
-      measureMessageListComputation(() => {
-        if (!canBuildHistoricalTimeline) {
-          return new Map<string, MessageTurnTimeline>();
-        }
-
-        return buildMessageTurnTimeline(
+      measureMessageListComputation(() =>
+        buildTimelineByMessageIdProjection({
+          canBuildHistoricalTimeline,
           renderedMessages,
           renderedTurns,
           renderedThreadItems,
-        );
-      }),
+        }),
+      ),
     [
       canBuildHistoricalTimeline,
       renderedMessages,
@@ -1104,15 +1117,10 @@ const MessageListInner: React.FC<MessageListProps> = ({
     ],
   );
   const timelineByMessageId = timelineByMessageIdMeasurement.value;
-  const lastAssistantMessage = useMemo(() => {
-    for (let index = renderedMessages.length - 1; index >= 0; index -= 1) {
-      const message = renderedMessages[index];
-      if (message?.role === "assistant") {
-        return message;
-      }
-    }
-    return null;
-  }, [renderedMessages]);
+  const lastAssistantMessage = useMemo(
+    () => resolveLastAssistantMessage(renderedMessages),
+    [renderedMessages],
+  );
   const lastAssistantMessageId = lastAssistantMessage?.id ?? null;
   const shouldInspectPromptCacheNotice = useMemo(
     () =>
@@ -1168,25 +1176,13 @@ const MessageListInner: React.FC<MessageListProps> = ({
     threadRead,
   ]);
   const currentTurnTimeline = useMemo(() => {
-    if (!activeCurrentTurnId || !activeCurrentTurn || !lastAssistantMessageId) {
-      return null;
-    }
-
-    let mappedMessageId: string | null = null;
-    for (const entry of timelineByMessageId.values()) {
-      if (entry.turn.id === activeCurrentTurnId) {
-        mappedMessageId = entry.messageId;
-        break;
-      }
-    }
-
-    return {
-      messageId: mappedMessageId || lastAssistantMessageId,
-      turn: activeCurrentTurn,
-      items: renderedThreadItems.filter(
-        (item) => item.turn_id === activeCurrentTurnId,
-      ),
-    };
+    return buildCurrentTurnTimelineProjection({
+      activeCurrentTurnId,
+      activeCurrentTurn,
+      lastAssistantMessageId,
+      timelineByMessageId,
+      renderedThreadItems,
+    });
   }, [
     activeCurrentTurn,
     activeCurrentTurnId,
@@ -1197,7 +1193,7 @@ const MessageListInner: React.FC<MessageListProps> = ({
   const messageGroupsMeasurement = useMemo(
     () =>
       measureMessageListComputation(() =>
-        buildMessageTurnGroups(renderedMessages),
+        buildMessageGroupsProjection(renderedMessages),
       ),
     [renderedMessages],
   );
@@ -1205,33 +1201,11 @@ const MessageListInner: React.FC<MessageListProps> = ({
   const renderGroupsMeasurement = useMemo(
     () =>
       measureMessageListComputation(() =>
-        messageGroups.map((group) => {
-          const lastAssistantId =
-            group.assistantMessages[group.assistantMessages.length - 1]?.id ??
-            null;
-          let mappedTimeline: MessageTurnTimeline | null = null;
-          for (const message of group.assistantMessages) {
-            mappedTimeline = timelineByMessageId.get(message.id) ?? null;
-            if (mappedTimeline) {
-              break;
-            }
-          }
-          const isCurrentTurnGroup =
-            Boolean(lastAssistantId) &&
-            currentTurnTimeline?.messageId === lastAssistantId;
-          const isActiveGroup =
-            Boolean(lastAssistantId) &&
-            lastAssistantId === lastAssistantMessageId;
-          const timeline = isCurrentTurnGroup
-            ? currentTurnTimeline
-            : mappedTimeline;
-
-          return {
-            ...group,
-            lastAssistantId,
-            timeline,
-            isActiveGroup,
-          };
+        buildMessageRenderGroupsProjection({
+          messageGroups,
+          timelineByMessageId,
+          currentTurnTimeline,
+          lastAssistantMessageId,
         }),
       ),
     [
@@ -1242,17 +1216,13 @@ const MessageListInner: React.FC<MessageListProps> = ({
     ],
   );
   const renderGroups = renderGroupsMeasurement.value;
-  const isHistoricalAssistantMessageHydrationCandidate = useCallback(
-    (message: Message): boolean =>
-      isRestoredHistoryWindow &&
-      !focusedTimelineItemId &&
-      !isSending &&
-      !activeCurrentTurnId &&
-      message.role === "assistant" &&
-      !message.isThinking &&
-      !message.thinkingContent &&
-      (message.toolCalls?.length ?? 0) === 0 &&
-      (message.actionRequests?.length ?? 0) === 0,
+  const historicalMessageHydrationState = useMemo(
+    () => ({
+      activeCurrentTurnId,
+      focusedTimelineItemId,
+      isRestoredHistoryWindow,
+      isSending,
+    }),
     [
       activeCurrentTurnId,
       focusedTimelineItemId,
@@ -1262,29 +1232,13 @@ const MessageListInner: React.FC<MessageListProps> = ({
   );
   const historicalMarkdownHydrationTargetsMeasurement = useMemo(
     () =>
-      measureMessageListComputation(() => {
-        if (!isRestoredHistoryWindow) {
-          return [];
-        }
-
-        const targetIds: string[] = [];
-        for (const message of renderedMessages) {
-          const content = message.content.trim();
-          if (
-            content &&
-            !hasStructuredHistoricalContentHint(content) &&
-            isHistoricalAssistantMessageHydrationCandidate(message)
-          ) {
-            targetIds.push(message.id);
-          }
-        }
-        return targetIds;
-      }),
-    [
-      isHistoricalAssistantMessageHydrationCandidate,
-      isRestoredHistoryWindow,
-      renderedMessages,
-    ],
+      measureMessageListComputation(() =>
+        buildHistoricalMarkdownHydrationTargets({
+          messages: renderedMessages,
+          state: historicalMessageHydrationState,
+        }),
+      ),
+    [historicalMessageHydrationState, renderedMessages],
   );
   const historicalMarkdownHydrationTargets =
     historicalMarkdownHydrationTargetsMeasurement.value;
@@ -1349,71 +1303,55 @@ const MessageListInner: React.FC<MessageListProps> = ({
     isHistoricalTimelineReady,
     isRestoredHistoryWindow,
   ]);
-  const historicalMarkdownHydrationIndexByMessageId = useMemo(() => {
-    const indexed = new Map<string, number>();
-    historicalMarkdownHydrationTargets.forEach((messageId, index) => {
-      indexed.set(messageId, index);
-    });
-    return indexed;
-  }, [historicalMarkdownHydrationTargets]);
-  const isHistoricalMarkdownHydrated = useCallback(
-    (message: Message): boolean => {
-      const hydrationIndex = historicalMarkdownHydrationIndexByMessageId.get(
-        message.id,
-      );
-      return (
-        hydrationIndex === undefined ||
-        hydrationIndex < hydratedHistoricalMarkdownCount
-      );
-    },
-    [
-      hydratedHistoricalMarkdownCount,
-      historicalMarkdownHydrationIndexByMessageId,
-    ],
+  const historicalMarkdownHydrationIndexByMessageId = useMemo(
+    () =>
+      buildHistoricalMarkdownHydrationIndexByMessageId(
+        historicalMarkdownHydrationTargets,
+      ),
+    [historicalMarkdownHydrationTargets],
   );
   const shouldDeferHistoricalAssistantMessageDetails = useCallback(
     (message: Message): boolean =>
-      isHistoricalAssistantMessageHydrationCandidate(message) &&
-      (!isHistoricalTimelineReady || !isHistoricalMarkdownHydrated(message)),
+      shouldDeferHistoricalAssistantMessageDetailsProjection({
+        message,
+        state: historicalMessageHydrationState,
+        isHistoricalTimelineReady,
+        hydrationIndexByMessageId: historicalMarkdownHydrationIndexByMessageId,
+        hydratedHistoricalMarkdownCount,
+      }),
     [
-      isHistoricalAssistantMessageHydrationCandidate,
-      isHistoricalMarkdownHydrated,
+      hydratedHistoricalMarkdownCount,
+      historicalMarkdownHydrationIndexByMessageId,
+      historicalMessageHydrationState,
       isHistoricalTimelineReady,
     ],
   );
   const historicalContentPartsDeferredMeasurement = useMemo(
     () =>
-      measureMessageListComputation(() => {
-        if (!isRestoredHistoryWindow) {
-          return 0;
-        }
-
-        let count = 0;
-        for (const message of renderedMessages) {
-          if (
-            (message.contentParts?.length ?? 0) > 0 &&
-            shouldDeferHistoricalAssistantMessageDetails(message)
-          ) {
-            count += 1;
-          }
-        }
-        return count;
-      }),
+      measureMessageListComputation(() =>
+        countDeferredHistoricalContentParts({
+          messages: renderedMessages,
+          state: historicalMessageHydrationState,
+          isHistoricalTimelineReady,
+          hydrationIndexByMessageId: historicalMarkdownHydrationIndexByMessageId,
+          hydratedHistoricalMarkdownCount,
+        }),
+      ),
     [
-      isRestoredHistoryWindow,
+      hydratedHistoricalMarkdownCount,
+      historicalMarkdownHydrationIndexByMessageId,
+      historicalMessageHydrationState,
+      isHistoricalTimelineReady,
       renderedMessages,
-      shouldDeferHistoricalAssistantMessageDetails,
     ],
   );
   const historicalContentPartsDeferredCount =
     historicalContentPartsDeferredMeasurement.value;
-  const historicalMarkdownDeferredCount = isRestoredHistoryWindow
-    ? Math.max(
-        0,
-        historicalMarkdownHydrationTargets.length -
-          hydratedHistoricalMarkdownCount,
-      )
-    : 0;
+  const historicalMarkdownDeferredCount = countDeferredHistoricalMarkdown({
+    isRestoredHistoryWindow,
+    targetCount: historicalMarkdownHydrationTargets.length,
+    hydratedHistoricalMarkdownCount,
+  });
   const messageListMeasuredComputeMs =
     renderedThreadItemsMeasurement.durationMs +
     timelineByMessageIdMeasurement.durationMs +
@@ -1975,7 +1913,6 @@ const MessageListInner: React.FC<MessageListProps> = ({
       !conversationToolCalls?.length &&
       !((msg.actionRequests || []).length > 0) &&
       !primaryTimeline &&
-      !trailingTimeline &&
       !((msg.images || []).length > 0) &&
       visibleAssistantArtifacts.length === 0 &&
       !shouldRenderMessageCanvasShortcut &&
@@ -2320,7 +2257,9 @@ const MessageListInner: React.FC<MessageListProps> = ({
               {msg.role === "assistant" &&
                 renderArtifactCards(visibleAssistantArtifacts)}
 
-              {msg.role === "assistant" && trailingTimeline ? (
+              {msg.role === "assistant" &&
+              trailingTimeline &&
+              !shouldRenderFirstTokenPlaceholder ? (
                 <AgentThreadTimeline
                   turn={trailingTimeline.turn}
                   items={trailingTimeline.items}

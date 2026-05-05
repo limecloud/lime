@@ -174,7 +174,9 @@ Lime 的 artifact graph 不应只有 `document` / `file`。
 2. `src/lib/governance/modalityCapabilityMatrix.json`
 3. `src/lib/governance/modalityArtifactGraph.json`
 4. `src/lib/governance/modalityExecutionProfiles.json`
-5. `src/lib/governance/modalityExecutionProfiles.ts`
+5. `docs/roadmap/warp/entry-binding-inventory.md`
+6. `docs/roadmap/warp/task-index-inventory.md`
+7. `src/lib/governance/modalityExecutionProfiles.ts`
 6. `scripts/check-modality-runtime-contracts.mjs`
 7. `npm run governance:modality-contracts`
 

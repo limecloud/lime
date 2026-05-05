@@ -4,6 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
+import { chromium } from "playwright";
 
 const DEFAULTS = {
   appUrl: "http://127.0.0.1:1420/",
@@ -16,13 +17,9 @@ const DEFAULTS = {
 const INVOKE_TIMEOUT_CEILING_MS = 180_000;
 const INVOKE_RETRY_COUNT = 10;
 const INVOKE_RETRY_DELAY_MS = 1_000;
-const BROWSER_ACTION_RETRY_COUNT = 6;
-const BROWSER_ACTION_RETRY_DELAY_MS = 1_000;
 const DEFAULT_ACTION_TIMEOUT_MS = 45_000;
 const POST_HEALTH_SETTLE_MS = 1_000;
-const POST_LAUNCH_SETTLE_MS = 1_500;
 const ONBOARDING_VERSION = "1.1.0";
-const SMOKE_PROFILE_KEY = "smoke-knowledge-gui";
 
 const DEFAULT_PACK = {
   name: "smoke-default",
@@ -58,7 +55,7 @@ Lime Knowledge GUI Smoke
 
 用途:
   通过真实 Lime 页面验证项目资料管理页、全部资料列表、
-  用于生成视图与手动导入入口。
+  用于生成视图与补充导入入口。
 
 用法:
   npm run smoke:knowledge-gui
@@ -130,12 +127,6 @@ function parseArgs(argv) {
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function assert(condition, message) {
-  if (!condition) {
-    throw new Error(message);
-  }
 }
 
 function logStage(label) {
@@ -225,200 +216,253 @@ async function waitForHealth(options) {
   );
 }
 
-async function closeSmokeProfileSession(options, profileKey, label) {
+async function waitForPageText(page, label, needles, timeoutMs) {
   try {
-    await invoke(options, "close_chrome_profile_session", {
-      profile_key: profileKey,
+    await page.waitForFunction(
+      (expectedNeedles) => {
+        const text = document.body?.innerText || "";
+        const fieldText = Array.from(
+          document.querySelectorAll("textarea, input"),
+        )
+          .map((element) =>
+            element instanceof HTMLTextAreaElement ||
+            element instanceof HTMLInputElement
+              ? element.value
+              : "",
+          )
+          .join("\n");
+        const searchableText = `${text}\n${fieldText}`;
+        return expectedNeedles.every((needle) => searchableText.includes(needle));
+      },
+      needles,
+      { timeout: timeoutMs },
+    );
+  } catch (error) {
+    const text = await page.locator("body").innerText().catch(() => "");
+    const fieldText = await page
+      .locator("textarea, input")
+      .evaluateAll((elements) =>
+        elements
+          .map((element) =>
+            element instanceof HTMLTextAreaElement ||
+            element instanceof HTMLInputElement
+              ? element.value
+              : "",
+          )
+          .filter(Boolean)
+          .join("\n"),
+      )
+      .catch(() => "");
+    const searchableText = `${text}\n${fieldText}`;
+    const missing = needles.filter((needle) => !searchableText.includes(needle));
+    throw new Error(
+      `[smoke:knowledge-gui] ${label} 等待失败，缺少 ${JSON.stringify(
+        missing,
+      )}，页面文本预览: ${searchableText.slice(0, 2_000)}`,
+      { cause: error },
+    );
+  }
+}
+
+async function clickPageControl(page, { text, ariaLabel, index = 0 }) {
+  const locator = ariaLabel
+    ? page.getByRole("button", { name: ariaLabel }).nth(index)
+    : page
+        .locator("button, [role='button'], a")
+        .filter({ hasText: text })
+        .nth(index);
+
+  try {
+    await locator.click({ timeout: DEFAULT_ACTION_TIMEOUT_MS });
+  } catch (error) {
+    const buttons = await page
+      .locator("button, [role='button'], a")
+      .evaluateAll((items) =>
+        items.slice(0, 80).map((item) => ({
+          text: (item.textContent || "").trim().replace(/\s+/g, " "),
+          aria: item.getAttribute("aria-label"),
+          title: item.getAttribute("title"),
+          disabled:
+            item instanceof HTMLButtonElement ? item.disabled : undefined,
+        })),
+      )
+      .catch(() => []);
+    throw new Error(
+      `[smoke:knowledge-gui] 点击控件失败 ${JSON.stringify({
+        text,
+        ariaLabel,
+        index,
+        buttons,
+      })}`,
+      { cause: error },
+    );
+  }
+}
+
+async function createSmokeProject(options) {
+  const projectName = `Knowledge GUI Smoke ${process.pid}`;
+  const project = await invoke(options, "workspace_create", {
+    request: {
+      name: projectName,
+      rootPath: options.workingDir,
+      workspaceType: "temporary",
+    },
+  });
+  const projectId = String(project?.id || "").trim();
+  if (!projectId) {
+    throw new Error("[smoke:knowledge-gui] workspace_create 未返回项目 ID");
+  }
+  options.projectId = projectId;
+  options.projectName = String(project?.name || projectName);
+}
+
+async function cleanupSmokeProject(options) {
+  if (!options.projectId) {
+    return;
+  }
+
+  try {
+    await invoke(options, "workspace_delete", {
+      id: options.projectId,
+      deleteDirectory: false,
     });
   } catch (error) {
     console.warn(
-      `[smoke:knowledge-gui] ${label}: ${
+      `[smoke:knowledge-gui] 清理临时项目失败: ${
         error instanceof Error ? error.message : String(error)
       }`,
     );
   }
 }
 
-function isRetryableBrowserActionFailure(detail) {
-  return (
-    typeof detail === "string" &&
-    (detail.includes("CDP 调试端口不可用") ||
-      detail.includes("没有可用的 Chrome 会话"))
+async function runPlaywrightGuiFlow(options) {
+  const userDataDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), `lime-knowledge-gui-playwright-${process.pid}-`),
   );
-}
+  const launchOptions = {
+    headless: true,
+    viewport: { width: 1440, height: 960 },
+  };
+  let context = null;
 
-async function runBrowserAction(options, profileKey, action, args = {}, label = action) {
-  for (let attempt = 1; attempt <= BROWSER_ACTION_RETRY_COUNT; attempt += 1) {
-    const result = await invoke(options, "browser_execute_action", {
-      request: {
-        profile_key: profileKey,
-        backend: "cdp_direct",
-        action,
-        args,
-        timeout_ms: DEFAULT_ACTION_TIMEOUT_MS,
-      },
+  try {
+    context = await chromium.launchPersistentContext(userDataDir, {
+      ...launchOptions,
+      channel: "chrome",
     });
-
-    if (result?.success === true) {
-      return result;
-    }
-
-    const detail = String(result?.error || JSON.stringify(result ?? null));
-    if (
-      isRetryableBrowserActionFailure(detail) &&
-      attempt < BROWSER_ACTION_RETRY_COUNT
-    ) {
-      console.warn(
-        `[smoke:knowledge-gui] browser_execute_action(${label}) 第 ${attempt} 次失败，${BROWSER_ACTION_RETRY_DELAY_MS}ms 后重试: ${detail}`,
-      );
-      await sleep(BROWSER_ACTION_RETRY_DELAY_MS);
-      continue;
-    }
-
-    throw new Error(
-      `[smoke:knowledge-gui] browser_execute_action(${label}) 失败: ${detail}`,
+  } catch (chromeError) {
+    console.warn(
+      `[smoke:knowledge-gui] Chrome channel 启动失败，尝试 Playwright 自带 Chromium: ${
+        chromeError instanceof Error ? chromeError.message : String(chromeError)
+      }`,
     );
+    context = await chromium.launchPersistentContext(userDataDir, launchOptions);
   }
 
-  throw new Error(
-    `[smoke:knowledge-gui] browser_execute_action(${label}) 失败: unknown error`,
-  );
-}
+  const page = context.pages()[0] ?? (await context.newPage());
+  const consoleErrors = [];
 
-function extractJavascriptValue(actionResult) {
-  return (
-    actionResult?.data?.result ??
-    actionResult?.data?.value ??
-    actionResult?.data?.result?.result ??
-    actionResult?.data?.result?.value ??
-    actionResult?.data?.result ??
-    null
-  );
-}
-
-async function runJavascript(options, profileKey, expression, label = "javascript") {
-  const result = await runBrowserAction(
-    options,
-    profileKey,
-    "javascript",
-    {
-      expression,
-      return_by_value: true,
-    },
-    `javascript:${label}`,
-  );
-  return extractJavascriptValue(result);
-}
-
-async function waitForCheck(options, label, check) {
-  const startedAt = Date.now();
-  let lastValue = null;
-
-  while (Date.now() - startedAt < options.timeoutMs) {
-    lastValue = await check();
-    if (lastValue?.ok) {
-      return lastValue.value;
+  page.on("console", (message) => {
+    if (message.type() === "error") {
+      consoleErrors.push(message.text());
     }
-    await sleep(options.intervalMs);
-  }
+  });
+  page.on("pageerror", (error) => {
+    consoleErrors.push(error.stack || error.message);
+  });
 
-  throw new Error(
-    `[smoke:knowledge-gui] 等待 ${label} 超时，最后结果: ${JSON.stringify(
-      lastValue?.value ?? null,
-    )}`,
-  );
-}
+  try {
+    logStage("open-playwright-page");
+    await page.goto(options.appUrl, { waitUntil: "domcontentloaded" });
+    await page.evaluate(
+      ({ workingDir, onboardingVersion, projectId }) => {
+        localStorage.setItem("lime_onboarding_complete", "true");
+        localStorage.setItem("lime_onboarding_version", onboardingVersion);
+        localStorage.setItem("lime_user_profile", "developer");
+        localStorage.setItem("lime.knowledge.working-dir", workingDir);
+        localStorage.setItem("agent_last_project_id", JSON.stringify(projectId));
+      },
+      {
+        workingDir: options.workingDir,
+        onboardingVersion: ONBOARDING_VERSION,
+        projectId: options.projectId,
+      },
+    );
+    await page.reload({ waitUntil: "domcontentloaded" });
 
-function buildPageStorageReadyScript(appUrl) {
-  return `(() => {
+    logStage("wait-home");
+    await waitForPageText(page, "首页加载", ["青柠一下，灵感即来"], options.timeoutMs);
+
+    logStage("open-knowledge-page");
+    await clickPageControl(page, { ariaLabel: "知识库" });
+
+    logStage("wait-knowledge-overview");
+    await waitForPageText(
+      page,
+      "知识库总览加载",
+      [
+        "项目资料管理",
+        "日常使用入口",
+        "回到 Agent",
+        "全部资料",
+        "全部项目资料",
+        "已添加资料",
+        "已整理草稿",
+        "已确认可用",
+        DEFAULT_PACK.title,
+        SECONDARY_PACK.title,
+        options.projectName,
+      ],
+      options.timeoutMs,
+    );
+
+    logStage("open-agent-with-knowledge");
+    await clickPageControl(page, { text: "用于生成" });
+
+    logStage("wait-agent");
     try {
-      const href = window.location.href;
-      const readyState = document.readyState;
-      void window.localStorage;
-      return {
-        ok: href.startsWith(${JSON.stringify(appUrl)}) && readyState !== "loading",
-        href,
-        readyState,
-        title: document.title,
-      };
+      await waitForPageText(
+        page,
+        "Agent 页面加载",
+        ["项目资料：未使用", "请基于当前项目资料生成内容"],
+        options.timeoutMs,
+      );
     } catch (error) {
-      return {
-        ok: false,
-        href: window.location.href,
-        readyState: document.readyState,
-        title: document.title,
-        error: error instanceof Error ? error.message : String(error),
-      };
+      if (consoleErrors.length > 0) {
+        throw new Error(
+          `${
+            error instanceof Error ? error.message : String(error)
+          }；console error: ${JSON.stringify(consoleErrors.slice(0, 5))}`,
+        );
+      }
+      throw error;
     }
-  })()`;
-}
 
-function buildBootstrapStorageScript(workingDir) {
-  return `(() => {
-    localStorage.setItem("lime_onboarding_complete", "true");
-    localStorage.setItem("lime_onboarding_version", ${JSON.stringify(ONBOARDING_VERSION)});
-    localStorage.setItem("lime_user_profile", "developer");
-    localStorage.setItem("lime.knowledge.working-dir", ${JSON.stringify(workingDir)});
-    return true;
-  })()`;
-}
+    logStage("return-knowledge-page");
+    await clickPageControl(page, { ariaLabel: "知识库" });
 
-function buildTextCheckScript(needles) {
-  return `(() => {
-    const text = document.body ? document.body.innerText : "";
-    const needles = ${JSON.stringify(needles)};
-    return {
-      ok: needles.every((needle) => text.includes(needle)),
-      missing: needles.filter((needle) => !text.includes(needle)),
-      text,
-    };
-  })()`;
-}
+    logStage("open-import-view");
+    await clickPageControl(page, { text: "补充导入" });
 
-function buildClickButtonScript({ text, ariaLabel, index = 0 }) {
-  return `(() => {
-    const candidates = Array.from(document.querySelectorAll("button, [role='button'], a"));
-    const matches = candidates.filter((element) => {
-      const label = (element.getAttribute("aria-label") || "").trim();
-      const title = (element.getAttribute("title") || "").trim();
-      const content = (element.textContent || "").trim().replace(/\\s+/g, " ");
-      const textMatched = ${JSON.stringify(text ?? "")}
-        ? content === ${JSON.stringify(text ?? "")} || content.includes(${JSON.stringify(text ?? "")})
-        : false;
-      const ariaMatched = ${JSON.stringify(ariaLabel ?? "")}
-        ? label === ${JSON.stringify(ariaLabel ?? "")} || title === ${JSON.stringify(ariaLabel ?? "")}
-        : false;
-      return textMatched || ariaMatched;
-    });
-    const target = matches[${Number(index)}] || null;
-    if (!target) {
-      return {
-        ok: false,
-        reason: "missing-button",
-        buttons: candidates.slice(0, 80).map((button) => ({
-          text: (button.textContent || "").trim().replace(/\\s+/g, " "),
-          aria: button.getAttribute("aria-label"),
-          title: button.getAttribute("title"),
-        })),
-      };
+    logStage("wait-organize-entry");
+    await waitForPageText(
+      page,
+      "资料整理入口加载",
+      ["自动整理", "整理资料", "引用摘要", "人工确认"],
+      options.timeoutMs,
+    );
+
+    if (consoleErrors.length > 0) {
+      throw new Error(
+        `[smoke:knowledge-gui] 页面存在 ${consoleErrors.length} 条 console error: ${JSON.stringify(
+          consoleErrors.slice(0, 5),
+        )}`,
+      );
     }
-    if (target instanceof HTMLButtonElement && target.disabled) {
-      return {
-        ok: false,
-        reason: "button-disabled",
-        text: target.textContent,
-        aria: target.getAttribute("aria-label"),
-      };
-    }
-    target.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true, view: window }));
-    target.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, cancelable: true, view: window }));
-    target.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
-    return {
-      ok: true,
-      text: (target.textContent || "").trim(),
-      aria: target.getAttribute("aria-label"),
-    };
-  })()`;
+  } finally {
+    await context.close().catch(() => undefined);
+    fs.rmSync(userDataDir, { recursive: true, force: true });
+  }
 }
 
 async function seedPack(options, pack) {
@@ -469,215 +513,22 @@ async function main() {
     path.join(os.tmpdir(), `lime-knowledge-gui-smoke-${process.pid}-`),
   );
 
-  logStage("wait-health");
-  await waitForHealth(options);
-  await sleep(POST_HEALTH_SETTLE_MS);
-
-  logStage("seed-knowledge-packs");
-  await seedKnowledgePacks(options);
-
-  const profileKey = SMOKE_PROFILE_KEY;
-  let sessionId = null;
-
   try {
-    logStage("cleanup-old-profile");
-    await closeSmokeProfileSession(
-      options,
-      profileKey,
-      "预清理旧 smoke profile 失败",
-    );
+    logStage("wait-health");
+    await waitForHealth(options);
+    await sleep(POST_HEALTH_SETTLE_MS);
 
-    logStage("launch-browser-session");
-    const launchResponse = await invoke(options, "launch_browser_session", {
-      request: {
-        profile_key: profileKey,
-        url: options.appUrl,
-        headless: true,
-        open_window: false,
-        stream_mode: "events",
-      },
-    });
+    logStage("seed-knowledge-packs");
+    await seedKnowledgePacks(options);
 
-    sessionId = launchResponse?.session?.session_id ?? null;
-    assert(
-      typeof sessionId === "string" && sessionId.trim(),
-      "launch_browser_session 未返回 session.session_id",
-    );
-    await sleep(POST_LAUNCH_SETTLE_MS);
+    logStage("create-smoke-project");
+    await createSmokeProject(options);
 
-    logStage("wait-page-storage-ready");
-    await waitForCheck(options, "Lime 首页 origin 可访问", async () => {
-      const value = await runJavascript(
-        options,
-        profileKey,
-        buildPageStorageReadyScript(options.appUrl),
-        "wait-page-storage-ready",
-      );
-      return {
-        ok: value?.ok === true,
-        value,
-      };
-    });
-
-    logStage("bootstrap-storage");
-    await runJavascript(
-      options,
-      profileKey,
-      buildBootstrapStorageScript(options.workingDir),
-      "bootstrap-storage",
-    );
-
-    logStage("refresh-page");
-    await runBrowserAction(options, profileKey, "refresh_page");
-
-    logStage("wait-home");
-    await waitForCheck(options, "首页加载", async () => {
-      const value = await runJavascript(
-        options,
-        profileKey,
-        buildTextCheckScript(["青柠一下，灵感即来"]),
-        "wait-home",
-      );
-      return {
-        ok: value?.ok === true,
-        value,
-      };
-    });
-
-    logStage("open-knowledge-page");
-    const navigation = await runJavascript(
-      options,
-      profileKey,
-      buildClickButtonScript({ ariaLabel: "知识库" }),
-      "open-knowledge-page",
-    );
-    assert(
-      navigation?.ok === true,
-      `打开知识库入口失败: ${JSON.stringify(navigation ?? null)}`,
-    );
-
-    logStage("wait-knowledge-overview");
-    await waitForCheck(options, "知识库总览加载", async () => {
-      const value = await runJavascript(
-        options,
-        profileKey,
-        buildTextCheckScript([
-          "项目资料管理",
-          "日常使用入口",
-          "回到 Agent",
-          "全部资料",
-          "全部项目资料",
-          "等你确认的资料",
-          DEFAULT_PACK.title,
-          SECONDARY_PACK.title,
-        ]),
-        "wait-knowledge-overview",
-      );
-      return {
-        ok: value?.ok === true,
-        value,
-      };
-    });
-
-    logStage("open-agent-with-knowledge");
-    const usePack = await runJavascript(
-      options,
-      profileKey,
-      buildClickButtonScript({ text: "用于生成" }),
-      "open-agent-with-knowledge",
-    );
-    assert(
-      usePack?.ok === true,
-      `使用资料回到 Agent 失败: ${JSON.stringify(usePack ?? null)}`,
-    );
-
-    logStage("wait-agent");
-    await waitForCheck(options, "Agent 页面加载", async () => {
-      const value = await runJavascript(
-        options,
-        profileKey,
-        buildTextCheckScript([
-          "青柠一下，灵感即来",
-          "请基于当前项目资料生成内容",
-        ]),
-        "wait-agent",
-      );
-      return {
-        ok: value?.ok === true,
-        value,
-      };
-    });
-
-    logStage("return-knowledge-page");
-    const backToKnowledge = await runJavascript(
-      options,
-      profileKey,
-      buildClickButtonScript({ ariaLabel: "知识库" }),
-      "return-knowledge-page",
-    );
-    assert(
-      backToKnowledge?.ok === true,
-      `返回资料管理页失败: ${JSON.stringify(backToKnowledge ?? null)}`,
-    );
-
-    logStage("open-import-view");
-    const importView = await runJavascript(
-      options,
-      profileKey,
-      buildClickButtonScript({ text: "导入资料" }),
-      "open-import-view",
-    );
-    assert(
-      importView?.ok === true,
-      `打开资料导入视图失败: ${JSON.stringify(importView ?? null)}`,
-    );
-
-    logStage("wait-organize-entry");
-    await waitForCheck(options, "资料整理入口加载", async () => {
-      const value = await runJavascript(
-        options,
-        profileKey,
-        buildTextCheckScript([
-          "自动整理",
-          "整理资料",
-          "预览摘要",
-          "人工确认",
-        ]),
-        "wait-organize-entry",
-      );
-      return {
-        ok: value?.ok === true,
-        value,
-      };
-    });
-
-    console.log(
-      `[smoke:knowledge-gui] 通过 session=${sessionId} profile=${profileKey} workingDir=${options.workingDir}`,
-    );
+    await runPlaywrightGuiFlow(options);
+    console.log("[smoke:knowledge-gui] 通过");
   } finally {
-    if (sessionId) {
-      logStage("close-cdp-session");
-      try {
-        await invoke(options, "close_cdp_session", {
-          request: {
-            session_id: sessionId,
-          },
-        });
-      } catch (error) {
-        console.warn(
-          `[smoke:knowledge-gui] 清理浏览器会话失败: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
-        );
-      }
-    }
-
-    logStage("close-profile-session");
-    await closeSmokeProfileSession(
-      options,
-      profileKey,
-      "关闭 smoke profile 失败",
-    );
+    await cleanupSmokeProject(options);
+    fs.rmSync(options.workingDir, { recursive: true, force: true });
   }
 }
 

@@ -1,7 +1,7 @@
 # AgentUI 实施进度
 
 > 状态：进行中
-> 更新时间：2026-04-30
+> 更新时间：2026-05-05
 > 路线图：`docs/roadmap/agentui/lime-agentui-implementation-roadmap.md`
 
 ## 主目标
@@ -10,7 +10,19 @@
 
 ## 当前阶段
 
-P1：Tab 与 Task Capsule，先落旧会话切换期间的轻量投影。
+P1：Tab 与 Task Capsule 已完成多轮性能止血；结构主线进入 P3 的前置闭环，先做对话事实源盘点与最小 Projection Store，不再继续把状态堆进 `AgentChatWorkspace` / `useAgentSession` / `MessageList`。
+
+当前结构收敛口径：
+
+```text
+Warp runtime fact sources
+  -> Conversation Projection Store
+  -> Session / Stream / Queue / Render controllers
+  -> selectors
+  -> UI
+```
+
+`Conversation Projection Store` 是 UI projection，不是 runtime fact source；Warp 仍是 `ModalityRuntimeContract`、`Execution Profile`、`Artifact Graph`、`Evidence / Replay / Task Index` 的事实源。
 
 ## 本轮执行准则更新：旧 UI 顺路清理
 
@@ -1740,3 +1752,606 @@ npm run verify:gui-smoke
 1. 若要继续压缩真实首字，需要转向后端 runtime/provider：记录 submitOp 到 provider request、provider first byte、provider first text delta 的服务端分段。
 2. 前端侧可继续做感知优化：把 `firstEventToFirstTextDeltaMs > 1000` 时的运行态文案改成更明确的“模型正在生成首字”，但不要伪造模型文本。
 3. 若同一页面连续打开多个标签后仍卡顿，下一刀回到 tab/sidebar keep-alive DOM 裁剪与历史标签卸载策略。
+
+### 2026-05-05：P3 前置，AgentUI 对话投影计划落库
+
+已完成：
+
+- 新增 [conversation-projection-architecture.md](../roadmap/agentui/conversation-projection-architecture.md)，声明对话层只做 UI projection，不新增 runtime / artifact / evidence 事实源。
+- 新增 [conversation-projection-implementation-plan.md](../roadmap/agentui/conversation-projection-implementation-plan.md)，把后续结构瘦身拆成：
+  - Phase 0：对话事实源盘点
+  - Phase 1：Projection Store 边界
+  - Phase 2：Session lifecycle / hydration 拆分
+  - Phase 3：Stream submission / queue / event reducer 拆分
+  - Phase 4：Message render projection
+  - Phase 5：Workspace shell 瘦身
+  - Phase 6：性能与治理守卫
+- 新增 [conversation-projection-acceptance.md](../roadmap/agentui/conversation-projection-acceptance.md)，固定首页输入、新建对话、打开两个历史会话、大历史 MessageList、流式输出、Artifact 恢复的验收场景。
+- 更新 [AgentUI README](../roadmap/agentui/README.md) 和 [AgentUI 实施路线图](../roadmap/agentui/lime-agentui-implementation-roadmap.md)，把 projection plan 纳入 current planning source。
+
+主线收益：
+
+- 后续不再以“继续拆大文件”作为默认目标，而是按 `fact source -> projection store -> controllers -> selectors -> UI` 收敛。
+- P0/P1 已做的性能采集可以继续用于 Phase 2 / Phase 4 验收，避免架构瘦身和性能排查脱节。
+- 与 `docs/roadmap/warp` 对齐，避免 AgentUI 再长出第二套 runtime / artifact / evidence 事实源。
+
+下一刀：
+
+1. 执行 Phase 0，对 `sessionId/threadId/turnId/taskId`、`messages/threadItems/threadTurns`、`thread_read`、`queuedTurns/pendingActions`、`artifact_snapshot`、`sessionHistoryWindow`、stream trace、MessageList render window 建 fact map。
+2. 从低风险 slice 开始 Phase 1，优先选择 `stream diagnostics` 或 `message render window` 接入最小 Projection Store。
+3. 补 selector 测试，证明无关切片更新不会触发 MessageList / Workspace 重渲染。
+
+### 2026-05-05：P3 第一刀，Phase 0 fact map 与最小 Projection Store
+
+已完成：
+
+- 新增 [conversation-projection-fact-map.md](../roadmap/agentui/conversation-projection-fact-map.md)，把对话状态按 runtime identity、session/history、messages/thread projection、stream/queue/actions、artifact/evidence 分组，标明 owner、writer、readers、persistence、runtime fact source、projection-only 与 `current` 分类。
+- 新增 `src/components/agent/chat/projection/conversationProjectionStore.ts`：
+  - 定义 `Conversation Projection Store` 的最小 state shape。
+  - 先落 `diagnostics.streamDiagnostics` slice。
+  - 保留 `session / stream / queue / render` slice 占位，但只保存版本，不写 runtime 事实。
+  - 提供 `selectConversationStreamDiagnostics` 与 `selectLatestConversationStreamDiagnostic` selector。
+- `recordAgentStreamPerformanceMetric` 同步写入原有 `agentUiPerformanceMetrics` 与新的 projection store。
+- 新增 projection store 与 stream diagnostics 回归，证明 diagnostics 更新不会改变其它 slice 引用。
+
+已验证：
+
+```bash
+npm exec -- vitest run "src/components/agent/chat/projection/conversationProjectionStore.test.ts" "src/components/agent/chat/hooks/agentStreamPerformanceMetrics.test.ts" "src/components/agent/chat/hooks/agentStreamSubmitDraft.test.ts"
+npx eslint "src/components/agent/chat/projection/conversationProjectionStore.ts" "src/components/agent/chat/projection/conversationProjectionStore.test.ts" "src/components/agent/chat/hooks/agentStreamPerformanceMetrics.ts" "src/components/agent/chat/hooks/agentStreamPerformanceMetrics.test.ts" --max-warnings 0
+git diff --check -- "docs/roadmap/agentui/conversation-projection-fact-map.md" "docs/roadmap/agentui/conversation-projection-implementation-plan.md" "docs/roadmap/agentui/README.md" "docs/exec-plans/agentui-implementation-progress.md" "src/components/agent/chat/projection/conversationProjectionStore.ts" "src/components/agent/chat/projection/conversationProjectionStore.test.ts" "src/components/agent/chat/hooks/agentStreamPerformanceMetrics.ts" "src/components/agent/chat/hooks/agentStreamPerformanceMetrics.test.ts"
+rg "conversation-projection-fact-map|conversationProjectionStore|recordConversationStreamDiagnostic|selectLatestConversationStreamDiagnostic" "docs" "src/components/agent/chat"
+```
+
+结果：
+
+- Projection Store / stream diagnostics 定向回归：通过，`9` 个测试通过。
+- ESLint touched files：通过。
+- diff 空白检查：通过。
+- 引用检查：通过。
+
+暂未完成验证：
+
+- TypeScript 全量 `npm run typecheck -- --pretty false` 本轮运行超过约 1 分钟仍无输出；为避免继续占用本机 CPU，已停止本轮发起的 `tsc --noEmit --pretty false` 进程。新增代码为窄边界 TS 文件，已由定向 vitest 与 ESLint 覆盖；下一轮接入 `messageRenderWindow` 前补跑统一 typecheck。
+
+主线收益：
+
+- Phase 0 不再只是计划，已有可维护的 fact map。
+- Phase 1 有了第一个低风险 current slice，后续可按同一模式迁 `messageRenderWindow`。
+- 当前实现只新增 UI projection，不新增 Tauri command、不改 runtime event、不改 artifact/evidence 事实源。
+
+下一刀：
+
+1. 用现有 E2E 性能指标确认 MessageList 是否仍是热点。
+2. 若热点成立，接入 Phase 4 的最小 `messageRenderWindow` selector，而不是继续让 `MessageList` 内部同步推导窗口。
+3. 若热点转向后端首字，则先补 runtime/provider 服务端分段，不扩大前端 projection。
+
+### 2026-05-05：P3 第二刀，MessageList render window 投影外移
+
+已完成：
+
+- 新增 `src/components/agent/chat/projection/messageRenderWindowProjection.ts`：
+  - `filterVisibleConversationMessages`
+  - `resolveConversationMessageRenderWindowSettings`
+  - `resolveInitialConversationRenderedMessageCount`
+  - `buildConversationMessageRenderWindowProjection`
+- `MessageList.tsx` 改为消费 `messageRenderWindowProjection` 输出的：
+  - `visibleMessages`
+  - `renderedMessages`
+  - `hiddenHistoryCount`
+  - `shouldAutoHydrateHiddenHistory`
+  - 渐进渲染阈值、首帧数量、批量数量与 idle delay
+- 新增 `messageRenderWindowProjection.test.ts` 覆盖：
+  - 空白 user 消息过滤
+  - 普通会话尾部窗口
+  - 旧会话更小首帧与禁止自动补齐
+  - 发送中不裁剪
+
+主线收益：
+
+- `MessageList` 不再直接散落“可见消息过滤 + 渐进渲染窗口 + 旧会话隐藏历史”推导，后续可以继续把 `renderedTurns / renderedThreadItems / timelineByMessageId` 外移。
+- 这是 Phase 4 的最小入口，不改变 runtime event、session detail、artifact/evidence 事实源，也不引入第二套 message 数据源。
+
+已验证：
+
+```bash
+npm exec -- vitest run "src/components/agent/chat/projection/messageRenderWindowProjection.test.ts" "src/components/agent/chat/projection/conversationProjectionStore.test.ts" "src/components/agent/chat/hooks/agentStreamPerformanceMetrics.test.ts" "src/components/agent/chat/components/MessageList.test.tsx" -t "messageRenderWindowProjection|conversationProjectionStore|agentStreamPerformanceMetrics|旧会话首帧|已分页旧会话|历史"
+npx eslint "src/components/agent/chat/projection/conversationProjectionStore.ts" "src/components/agent/chat/projection/conversationProjectionStore.test.ts" "src/components/agent/chat/projection/messageRenderWindowProjection.ts" "src/components/agent/chat/projection/messageRenderWindowProjection.test.ts" "src/components/agent/chat/hooks/agentStreamPerformanceMetrics.ts" "src/components/agent/chat/hooks/agentStreamPerformanceMetrics.test.ts" "src/components/agent/chat/components/MessageList.tsx" --max-warnings 0
+git diff --check -- "src/components/agent/chat/projection" "src/components/agent/chat/hooks/agentStreamPerformanceMetrics.ts" "src/components/agent/chat/hooks/agentStreamPerformanceMetrics.test.ts" "src/components/agent/chat/components/MessageList.tsx" "docs/roadmap/agentui" "docs/exec-plans/agentui-implementation-progress.md"
+```
+
+结果：
+
+- Projection / MessageList 定向回归：通过，`19` 个测试通过。
+- ESLint touched files：通过。
+- diff 空白检查：通过。
+- 完整 MessageList 回归：通过，`97` 个测试通过。
+- TypeScript `tsc --noEmit --pretty false`：通过。
+
+下一刀：
+
+1. 补跑完整 `MessageList.test.tsx` 与 TypeScript。
+2. 如果通过，继续把 `renderedTurns / renderedThreadItems` 提取为 `threadTimelineWindowProjection`，并用 `messageListThreadItemsScanMs` / `messageListTimelineBuildMs` 判断收益。
+3. 如果 TypeScript 或完整 MessageList 回归暴露旧行为差异，先修 projection selector，不继续扩展。
+
+### 2026-05-05：P3 第三刀，Thread timeline window 投影外移
+
+已完成：
+
+- 新增 `src/components/agent/chat/projection/threadTimelineWindowProjection.ts`：
+  - `resolveConversationRenderedTurns`
+  - `resolveConversationRenderedTurnIdSet`
+  - `filterConversationThreadItemsForRenderedTurns`
+  - `buildConversationThreadTimelineWindowProjection`
+- `MessageList.tsx` 改为从 projection 层获取：
+  - `renderedTurns`
+  - `renderedTurnIdSet`
+  - `renderedThreadItems`
+- 新增 `threadTimelineWindowProjection.test.ts` 覆盖：
+  - 无隐藏历史时保留全部 turns / threadItems
+  - 旧会话按可见 assistant 数裁剪尾部 turns
+  - 当前 turn 不在尾部窗口时额外保留
+  - 按 rendered turn 精确裁剪 threadItems
+  - 延迟扫描时返回空 threadItems
+
+主线收益：
+
+- `MessageList` 的旧会话历史窗口逻辑进一步收敛到 projection 层。
+- 后续可以继续把 `timelineByMessageId / messageGroups / renderGroups` 外移，并用现有 `messageListTimelineBuildMs / messageListRenderGroupsMs` 指标判断是否值得 worker 化。
+
+已验证：
+
+```bash
+npm exec -- vitest run "src/components/agent/chat/projection/threadTimelineWindowProjection.test.ts" "src/components/agent/chat/projection/messageRenderWindowProjection.test.ts" "src/components/agent/chat/components/MessageList.test.tsx"
+npx eslint "src/components/agent/chat/projection/threadTimelineWindowProjection.ts" "src/components/agent/chat/projection/threadTimelineWindowProjection.test.ts" "src/components/agent/chat/projection/messageRenderWindowProjection.ts" "src/components/agent/chat/projection/messageRenderWindowProjection.test.ts" "src/components/agent/chat/components/MessageList.tsx" --max-warnings 0
+git diff --check -- "src/components/agent/chat/projection" "src/components/agent/chat/components/MessageList.tsx"
+```
+
+结果：
+
+- Thread / Message render projection + MessageList 回归：通过，`102` 个测试通过。
+- ESLint touched files：通过。
+- diff 空白检查：通过。
+
+下一刀：
+
+1. 补跑 TypeScript。
+2. 继续外移 `timelineByMessageId / messageGroups / renderGroups` 为 `messageTimelineRenderProjection`。
+3. 再评估是否需要把 `buildMessageTurnTimeline` 移入 idle / worker。
+
+### 2026-05-05：P3 第四刀，Message timeline render 投影外移
+
+已完成：
+
+- 新增 `src/components/agent/chat/projection/messageTimelineRenderProjection.ts`：
+  - `buildTimelineByMessageIdProjection`
+  - `resolveLastAssistantMessage`
+  - `buildCurrentTurnTimelineProjection`
+  - `buildMessageGroupsProjection`
+  - `buildMessageRenderGroupsProjection`
+- `MessageList.tsx` 改为从 projection 层获取：
+  - `timelineByMessageId`
+  - `lastAssistantMessage`
+  - `currentTurnTimeline`
+  - `messageGroups`
+  - `renderGroups`
+- 保留原有 `measureMessageListComputation` 分段，`messageListTimelineBuildMs / messageListRenderGroupsMs` 等指标仍可用于判断下一刀是否需要 worker 化。
+
+主线收益：
+
+- `MessageList` 中“数据投影”和“React 渲染”边界更清晰。
+- Phase 4 的主要同步投影已形成独立纯函数层，后续性能优化可以优先移动 projection，而不是继续在组件内部堆判断。
+
+已验证：
+
+```bash
+npm exec -- vitest run "src/components/agent/chat/projection/messageTimelineRenderProjection.test.ts" "src/components/agent/chat/projection/threadTimelineWindowProjection.test.ts" "src/components/agent/chat/components/MessageList.test.tsx"
+npx eslint "src/components/agent/chat/projection/messageTimelineRenderProjection.ts" "src/components/agent/chat/projection/messageTimelineRenderProjection.test.ts" "src/components/agent/chat/projection/threadTimelineWindowProjection.ts" "src/components/agent/chat/projection/threadTimelineWindowProjection.test.ts" "src/components/agent/chat/components/MessageList.tsx" --max-warnings 0
+git diff --check -- "src/components/agent/chat/projection" "src/components/agent/chat/components/MessageList.tsx"
+```
+
+结果：
+
+- Message timeline projection / thread window projection / MessageList 回归：通过，`102` 个测试通过。
+- ESLint touched files：通过。
+- diff 空白检查：通过。
+- TypeScript `tsc --noEmit --pretty false`：通过。
+
+暂未完成验证：
+
+- Playwright MCP 当前无法进入复用页签：MCP Chrome profile 被占用，工具提示需 `--isolated`，但仓库规则禁止为本地续测新开 isolated profile。
+- `npm run verify:gui-smoke` 已尝试；第一次被既有脏改阻塞，随后阻塞文件已恢复到可编译状态并通过 TypeScript。第二次 smoke 触发独立 Cargo target 全量重编，约 `8` 分钟推进到 `836/1098` 后进程退出并停止 headless Tauri，未得到最终 GUI smoke 结论；已确认未留下本轮 `verify-gui-smoke` / 临时 target 编译进程。
+
+下一刀：
+
+1. DevBridge / headless Tauri 稳定后，先复跑 `npm run verify:gui-smoke`。
+2. 再做真实 E2E，读取 `messageListTimelineBuildMs / messageListRenderGroupsMs / longTaskMaxMs`，决定是否 worker 化。
+
+### 2026-05-05：P3 第五刀，历史消息 hydration 投影外移
+
+已完成：
+
+- 新增 `src/components/agent/chat/projection/historicalMessageHydrationProjection.ts`：
+  - `hasStructuredHistoricalContentHint`
+  - `isHistoricalAssistantMessageHydrationCandidate`
+  - `buildHistoricalMarkdownHydrationTargets`
+  - `buildHistoricalMarkdownHydrationIndexByMessageId`
+  - `shouldDeferHistoricalAssistantMessageDetails`
+  - `countDeferredHistoricalContentParts`
+  - `countDeferredHistoricalMarkdown`
+- `MessageList.tsx` 改为从 projection 层获取旧会话历史 markdown hydration 目标、hydration index、消息细节延迟判断、延迟 contentParts 计数和延迟 markdown 数量。
+- 新增 `historicalMessageHydrationProjection.test.ts`，覆盖结构化历史内容识别、旧会话 assistant hydration 候选、目标筛选、hydration 计数和延迟统计。
+
+主线收益：
+
+- Phase 4 中仍留在 `MessageList` 内的历史消息 hydration 扫描被移到纯 projection，后续如果 E2E 证明 `messageListHistoricalMarkdownTargetScanMs` 或 `messageListHistoricalContentPartsScanMs` 仍高，可以直接对 projection 做 idle / worker 化。
+- `MessageList` 继续向“只编排状态与渲染”收敛，不新增 runtime、artifact 或 evidence 事实源。
+- 结构化历史内容识别成为可单测 selector，不再散落在组件内部。
+
+已验证：
+
+```bash
+npm exec -- vitest run "src/components/agent/chat/projection/historicalMessageHydrationProjection.test.ts" "src/components/agent/chat/projection/messageTimelineRenderProjection.test.ts" "src/components/agent/chat/components/MessageList.test.tsx"
+npx eslint "src/components/agent/chat/projection/historicalMessageHydrationProjection.ts" "src/components/agent/chat/projection/historicalMessageHydrationProjection.test.ts" "src/components/agent/chat/components/MessageList.tsx" --max-warnings 0
+git diff --check -- "src/components/agent/chat/projection/historicalMessageHydrationProjection.ts" "src/components/agent/chat/projection/historicalMessageHydrationProjection.test.ts" "src/components/agent/chat/components/MessageList.tsx"
+npm run typecheck -- --pretty false
+```
+
+结果：
+
+- Historical hydration projection / Message timeline projection / MessageList 回归：通过，`102` 个测试通过。
+- ESLint touched files：通过。
+- diff 空白检查：通过。
+- TypeScript `tsc --noEmit --pretty false`：通过。
+
+GUI / E2E 状态：
+
+- `npm run verify:gui-smoke` 已尝试，但脚本检测到 sqlite 构建缓存损坏并切换到新的独立 Cargo target `/var/folders/.../lime-gui-smoke-target-rebuild-1777945025159-2866`，开始 `1098` 个 crate 的全量重编；为避免继续造成 CPU/鼠标繁忙，已在约 `113/1098` 时停止本轮 smoke。
+- 停止 headless Tauri 后，`npm run bridge:health -- --timeout-ms 30000` 返回 `3030` 未就绪；当前仍不把 GUI smoke 记为通过。
+- Playwright MCP 仍因既有 Chrome profile 占用无法进入复用页签，工具提示要求 `--isolated`，但仓库规则禁止本地续测使用 isolated profile，因此本轮未绕规则新开浏览器。
+
+下一刀：
+
+1. 等 DevBridge / Playwright profile 恢复后，先按验收路径采集 `messageListHistoricalMarkdownTargetScanMs / messageListHistoricalContentPartsScanMs / messageListTimelineBuildMs / messageListRenderGroupsMs / longTaskMaxMs`。
+2. 如果历史 hydration 或 timeline projection 仍是热点，再把对应 projection 放到 idle / worker；否则不要盲目 worker 化。
+3. 若继续结构主线，进入 Phase 2，把 `useAgentSession` 的 lifecycle / hydration controller 拆成可单测模块，减少旧会话恢复链路继续堆在 hook 内。
+
+### 2026-05-05：P3 第六刀，Session hydration controller 最小化
+
+已完成：
+
+- 新增 `src/components/agent/chat/hooks/sessionHydrationController.ts`：
+  - `SESSION_DETAIL_HISTORY_LIMIT`
+  - `normalizeSessionDetailHistoryLimit`
+  - `buildSessionDetailHydrationOptions`
+  - `buildSessionDetailPrefetchKey`
+  - `buildSessionDetailPrefetchSignature`
+  - `isCurrentSessionHydrationRequest`
+- `useAgentSession.ts` 中旧会话详情、prefetch、静默 turn 恢复、missing-from-topics 校验的 `runtime.getSession` 统一通过 `buildSessionDetailHydrationOptions()` 构造请求参数。
+- `useAgentSession.ts` 中 switch finalize、deferred hydrate catch、metadata sync、load full history、silent recovery、missing session verify 的 stale/session guard 改为 `isCurrentSessionHydrationRequest()`。
+- 新增 `sessionHydrationController.test.ts`，固定 `historyLimit: 40`、`resumeSessionStartHooks` 合并、prefetch key/signature 和过期 hydrate 丢弃逻辑。
+
+主线收益：
+
+- Phase 2 开始从 `useAgentSession` 抽出可单测 controller，先把最容易回归成“无 limit getSession / 过期结果覆盖当前 tab”的逻辑收敛到单一入口。
+- 不改变 runtime 协议、不新增 Tauri command、不改变对外 hook shape；本刀只降低旧会话恢复链路的重复与排查成本。
+- 后续拆 `sessionLifecycleController / topicListController` 时，可以继续复用同一 stale guard，而不是在 hook 内复制判断。
+
+已验证：
+
+```bash
+npm exec -- vitest run "src/components/agent/chat/hooks/sessionHydrationController.test.ts" "src/components/agent/chat/projection/historicalMessageHydrationProjection.test.ts" "src/components/agent/chat/components/MessageList.test.tsx"
+npx eslint "src/components/agent/chat/hooks/sessionHydrationController.ts" "src/components/agent/chat/hooks/sessionHydrationController.test.ts" "src/components/agent/chat/hooks/useAgentSession.ts" --max-warnings 0
+npm run typecheck -- --pretty false
+git diff --check -- "src/components/agent/chat/hooks/sessionHydrationController.ts" "src/components/agent/chat/hooks/sessionHydrationController.test.ts" "src/components/agent/chat/hooks/useAgentSession.ts" "src/components/agent/chat/components/MessageList.tsx" "src/components/agent/chat/projection" "docs/roadmap/agentui/conversation-projection-implementation-plan.md" "docs/exec-plans/agentui-implementation-progress.md"
+```
+
+结果：
+
+- Session hydration controller / historical hydration projection / MessageList 回归：通过，`102` 个测试通过。
+- ESLint touched files：通过。
+- TypeScript `tsc --noEmit --pretty false`：通过。
+- diff 空白检查：通过。
+
+GUI / E2E 状态：
+
+- 本刀未复跑 `verify:gui-smoke`，原因仍是上一轮已确认 smoke 会因 sqlite 构建缓存损坏切到独立 Cargo target 并触发全量重编，容易复现用户反馈的 CPU/鼠标繁忙。
+- Playwright MCP 仍需等待既有 profile 释放；不使用 isolated profile 绕过仓库规则。
+
+下一刀：
+
+1. 继续 Phase 2：抽 `sessionDetailFetchController`，把 `loadRuntimeSessionDetail` 的 prefetch 命中、fetch start/success/error metrics 和 retry 决策从 hook 中移出。
+2. 或等待 GUI 环境恢复后，先采集旧会话 A/B 打开和切换指标，再决定是否优先 worker 化 MessageList projection。
+
+### 2026-05-05：P3 第七刀，Session detail fetch controller
+
+已完成：
+
+- 新增 `src/components/agent/chat/hooks/sessionDetailFetchController.ts`：
+  - `createSessionDetailPrefetchRegistry`
+  - `loadSessionDetailWithPrefetch`
+  - `SessionDetailFetchEvent`
+  - `SessionDetailFetchMode`
+- `useAgentSession.ts` 中 `loadRuntimeSessionDetail` 改为委托 `loadSessionDetailWithPrefetch`：
+  - 保留 `session.switch.fetchDetail.start / prefetch / success / error` 性能指标。
+  - 保留 `switchTopic.fetchDetail.*` AgentDebug 日志。
+  - prefetch 命中、prefetch fallback、resume 跳过 prefetch、registry 只删除当前 promise 进入 controller 单测。
+- `sessionDetailPrefetchRegistry` 从裸 `Map` 改为 controller registry，避免 future prefetch 清理误删较新 promise。
+
+主线收益：
+
+- Phase 2 继续把 `useAgentSession` 从“状态 + 请求 + metrics + retry + registry”巨石里拆开；本刀先收敛 detail fetch 和 prefetch 复用，不改变 UI 行为。
+- 旧会话打开时最关键的 detail fetch 分段现在有单独 controller 测试，后续要做取消、优先级或批量请求时不用再直接改 hook 主体。
+- 继续保持 `historyLimit: 40` 由 `sessionHydrationController` 单一入口提供，避免 prefetch / switch / recovery 重新分叉。
+
+已验证：
+
+```bash
+npm exec -- vitest run "src/components/agent/chat/hooks/sessionDetailFetchController.test.ts" "src/components/agent/chat/hooks/sessionHydrationController.test.ts" "src/components/agent/chat/projection/historicalMessageHydrationProjection.test.ts"
+npm exec -- vitest run "src/components/agent/chat/hooks/useAsterAgentChat.test.tsx" -t "预取|stale 快照" --hookTimeout 180000 --testTimeout 120000
+npx eslint "src/components/agent/chat/hooks/sessionDetailFetchController.ts" "src/components/agent/chat/hooks/sessionDetailFetchController.test.ts" "src/components/agent/chat/hooks/sessionHydrationController.ts" "src/components/agent/chat/hooks/sessionHydrationController.test.ts" "src/components/agent/chat/hooks/useAgentSession.ts" --max-warnings 0
+npm run typecheck -- --pretty false
+git diff --check -- "src/components/agent/chat/hooks/sessionDetailFetchController.ts" "src/components/agent/chat/hooks/sessionDetailFetchController.test.ts" "src/components/agent/chat/hooks/sessionHydrationController.ts" "src/components/agent/chat/hooks/sessionHydrationController.test.ts" "src/components/agent/chat/hooks/useAgentSession.ts" "docs/roadmap/agentui/conversation-projection-implementation-plan.md" "docs/exec-plans/agentui-implementation-progress.md"
+```
+
+结果：
+
+- Fetch / hydration controller / historical hydration projection：通过，`13` 个测试通过。
+- `useAsterAgentChat` 旧会话预取和 stale 快照定向：通过，`3` 个测试通过。
+- ESLint touched files：通过。
+- TypeScript `tsc --noEmit --pretty false`：通过。
+- diff 空白检查：通过。
+
+GUI / E2E 状态：
+
+- 本刀仍未复跑 `verify:gui-smoke`，理由同上一刀：当前 smoke 会触发独立 Rust target 全量重编，容易造成 CPU 和鼠标繁忙；本刀是纯前端 controller 抽取，先用 hook / controller 单测覆盖行为。
+- Playwright MCP 仍等待 profile 释放；不使用 isolated profile 绕过仓库规则。
+
+下一刀：
+
+1. 继续 Phase 2：抽 `sessionHydrationRetryController`，把 deferred hydrate retry / transient skip / error fallback 从 `switchTopic` 内联函数里移出。
+2. 或恢复 GUI 环境后先做旧会话 A/B 打开与切换采样，确认是否还需要优先处理 MessageList worker 化。
+
+### 2026-05-05：P3 第八刀，Deferred hydration retry controller
+
+已完成：
+
+- 新增 `src/components/agent/chat/hooks/sessionHydrationRetryController.ts`：
+  - `resolveDeferredSessionHydrationErrorAction`
+  - `DeferredSessionHydrationErrorAction`
+  - `DeferredSessionHydrationRetryContext`
+  - `DeferredSessionHydrationSkipContext`
+- `useAgentSession.ts` 中 deferred cached topic hydrate 的 catch 分支改为委托 retry controller：
+  - retryable transient 且未达上限：返回 `retry`，继续写 `session.switch.fetchDetail.retryScheduled` 并调度 idle retry。
+  - transient 且不再重试：返回 `skip`，保留缓存快照并写 `session.switch.fetchDetail.retrySkipped`。
+  - fatal unknown：返回 `fail`，继续走 `handleSwitchTopicError(..., preserveCurrentSnapshot: true)`。
+- 新增 `sessionHydrationRetryController.test.ts`，覆盖 bridge health retry、connection retry 达上限跳过、timeout 直接跳过、unknown fatal fallback。
+
+主线收益：
+
+- Phase 2 继续把 `switchTopic` 的旧会话恢复分支从“请求 + stale guard + retry 分类 + metrics + 调度”拆开；本刀只抽 retry 决策，不改变调度行为。
+- deferred hydrate 的错误处理有纯函数测试，后续如果要调整 retry 次数、退避策略或按错误类型降级，不需要在 `useAgentSession` 巨石里改条件。
+- 继续保护旧会话打开体验：短暂 bridge / network 问题只保留 cached snapshot，不把用户已经看到的旧会话清空。
+
+已验证：
+
+```bash
+npm exec -- vitest run "src/components/agent/chat/hooks/sessionHydrationRetryController.test.ts" "src/components/agent/chat/hooks/sessionDetailFetchController.test.ts" "src/components/agent/chat/hooks/sessionHydrationController.test.ts"
+npm exec -- vitest run "src/components/agent/chat/hooks/useAsterAgentChat.test.tsx" -t "stale 快照|预取" --hookTimeout 180000 --testTimeout 120000
+npx eslint "src/components/agent/chat/hooks/sessionHydrationRetryController.ts" "src/components/agent/chat/hooks/sessionHydrationRetryController.test.ts" "src/components/agent/chat/hooks/sessionDetailFetchController.ts" "src/components/agent/chat/hooks/sessionDetailFetchController.test.ts" "src/components/agent/chat/hooks/useAgentSession.ts" --max-warnings 0
+npm run typecheck -- --pretty false
+git diff --check -- "src/components/agent/chat/hooks/sessionHydrationRetryController.ts" "src/components/agent/chat/hooks/sessionHydrationRetryController.test.ts" "src/components/agent/chat/hooks/sessionDetailFetchController.ts" "src/components/agent/chat/hooks/sessionDetailFetchController.test.ts" "src/components/agent/chat/hooks/sessionHydrationController.ts" "src/components/agent/chat/hooks/sessionHydrationController.test.ts" "src/components/agent/chat/hooks/useAgentSession.ts" "docs/roadmap/agentui/conversation-projection-implementation-plan.md" "docs/exec-plans/agentui-implementation-progress.md"
+```
+
+结果：
+
+- Retry / fetch / hydration controller：通过，`12` 个测试通过。
+- `useAsterAgentChat` 旧会话预取和 stale 快照定向：通过，`3` 个测试通过。
+- ESLint touched files：通过。
+- TypeScript `tsc --noEmit --pretty false`：通过。
+- diff 空白检查：通过。
+
+GUI / E2E 状态：
+
+- 本刀未复跑 `verify:gui-smoke`，原因同前：当前 smoke 会切到独立 Rust target 全量重编，容易造成 CPU 和鼠标繁忙；本刀是纯前端 controller 抽取，先用定向行为测试收口。
+- Playwright MCP 仍等待 profile 释放；不使用 isolated profile 绕过仓库规则。
+
+下一刀：
+
+1. 继续 Phase 2：抽 `sessionSwitchSnapshotController`，把 cached snapshot apply、pending shell、localSnapshotOverride 判断从 `switchTopic` 主体中移出。
+2. 或恢复 GUI 环境后先采集旧会话 A/B 打开和切换指标，决定是否进入 MessageList projection idle / worker 化。
+
+### 2026-05-05：P3 第九刀，Session switch snapshot controller
+
+已完成：
+
+- 新增 `src/components/agent/chat/hooks/sessionSwitchSnapshotController.ts`：
+  - `shouldLoadCachedTopicSnapshot`
+  - `shouldApplyCachedTopicSnapshot`
+  - `shouldRefreshCachedSnapshotImmediately`
+  - `shouldApplyPendingSessionShell`
+  - `buildSessionSwitchStartMetricContext`
+  - `buildSessionSwitchDeferHydrationMetricContext`
+  - `buildPendingSessionShellMetricContext`
+  - `buildSessionSwitchLocalSnapshotOverride`
+- `useAgentSession.ts` 中 `switchTopic` 的 cached snapshot 加载/应用、stale/running 立即刷新、defer metric、pending shell metric、`localSnapshotOverride` 引用判定改为委托 controller。
+- 新增 `sessionSwitchSnapshotController.test.ts`，覆盖当前会话不重复加载 snapshot、stale/running/waiting 立即刷新、无 snapshot 时应用 pending shell、指标上下文和 local snapshot 引用匹配。
+
+主线收益：
+
+- Phase 2 继续瘦 `switchTopic`：snapshot 相关判断不再与 detail fetch、retry、metadata sync 混在同一个长函数里。
+- `localSnapshotOverride` 的引用匹配规则有单测保护，避免后续改动误把 stale cached snapshot 与当前 UI 状态错配，导致旧会话恢复覆盖当前 tab。
+- pending shell 的触发条件可单测，继续保护“打开无缓存旧会话先显示壳，不等 getSession 完成”的体验。
+
+已验证：
+
+```bash
+npm exec -- vitest run "src/components/agent/chat/hooks/sessionSwitchSnapshotController.test.ts" "src/components/agent/chat/hooks/sessionHydrationRetryController.test.ts" "src/components/agent/chat/hooks/sessionDetailFetchController.test.ts" "src/components/agent/chat/hooks/sessionHydrationController.test.ts"
+npm exec -- vitest run "src/components/agent/chat/hooks/useAsterAgentChat.test.tsx" -t "stale 快照|预取|pendingShell|pending shell|空白" --hookTimeout 180000 --testTimeout 120000
+npx eslint "src/components/agent/chat/hooks/sessionSwitchSnapshotController.ts" "src/components/agent/chat/hooks/sessionSwitchSnapshotController.test.ts" "src/components/agent/chat/hooks/sessionHydrationRetryController.ts" "src/components/agent/chat/hooks/sessionDetailFetchController.ts" "src/components/agent/chat/hooks/sessionHydrationController.ts" "src/components/agent/chat/hooks/useAgentSession.ts" --max-warnings 0
+npm run typecheck -- --pretty false
+git diff --check -- "src/components/agent/chat/hooks/sessionSwitchSnapshotController.ts" "src/components/agent/chat/hooks/sessionSwitchSnapshotController.test.ts" "src/components/agent/chat/hooks/sessionHydrationRetryController.ts" "src/components/agent/chat/hooks/sessionHydrationRetryController.test.ts" "src/components/agent/chat/hooks/sessionDetailFetchController.ts" "src/components/agent/chat/hooks/sessionDetailFetchController.test.ts" "src/components/agent/chat/hooks/sessionHydrationController.ts" "src/components/agent/chat/hooks/sessionHydrationController.test.ts" "src/components/agent/chat/hooks/useAgentSession.ts" "docs/roadmap/agentui/conversation-projection-implementation-plan.md" "docs/exec-plans/agentui-implementation-progress.md"
+```
+
+结果：
+
+- Snapshot / retry / fetch / hydration controller：通过，`17` 个测试通过。
+- `useAsterAgentChat` 旧会话预取、stale 快照和相关空白消息定向：通过，`7` 个测试通过。
+- ESLint touched files：通过。
+- TypeScript `tsc --noEmit --pretty false`：通过。
+- diff 空白检查：通过。
+
+GUI / E2E 状态：
+
+- 本刀未复跑 `verify:gui-smoke`，原因同前：当前 smoke 会切到独立 Rust target 全量重编，容易造成 CPU 和鼠标繁忙；本刀是纯前端 controller 抽取，先用定向行为测试收口。
+- Playwright MCP 仍等待 profile 释放；不使用 isolated profile 绕过仓库规则。
+
+下一刀：
+
+1. 继续 Phase 2：抽 `sessionMetadataSyncController`，把 finalize 后的 accessMode / provider / executionStrategy fallback patch 与低优先级 sync 决策从 `finalizeResolvedTopicDetail` 中移出。
+2. 或恢复 GUI 环境后先采集旧会话 A/B 打开和切换指标，决定是否进入 MessageList projection idle / worker 化。
+
+### 2026-05-05：P3 第十刀，Session metadata sync controller
+
+已完成：
+
+- 新增 `src/components/agent/chat/hooks/sessionMetadataSyncController.ts`：
+  - `buildSessionMetadataSyncPlan`
+  - `buildSessionSwitchSuccessMetricContext`
+  - `resolveSessionExecutionStrategySource`
+  - `executeSessionMetadataSync`
+- `useAgentSession.ts` 中 `finalizeResolvedTopicDetail` 的 metadata fallback 决策改为委托 controller：
+  - accessMode 来源解析与是否本地持久化。
+  - provider/model fallback patch。
+  - executionStrategy fallback patch。
+  - switch success metric 的 source 字段。
+  - 优先 `updateSessionMetadata`，缺少批量命令时回退到 `setSessionAccessMode / setSessionProviderSelection / setSessionExecutionStrategy`。
+- 新增 `sessionMetadataSyncController.test.ts`，覆盖 runtime source 不回填、session storage fallback patch、workspace default patch、metric context、批量 sync、分散 sync fallback。
+
+主线收益：
+
+- Phase 2 继续瘦 `finalizeResolvedTopicDetail`：会话详情应用、成功指标、metadata fallback、低优先级 sync 不再全部堆在一个长函数里。
+- P1 里提出的“三个迁移回填 invoke 合并或去重”现在有了明确 controller 边界；当前仍优先使用已有 `updateSessionMetadata` 批量命令，fallback 分散命令只在批量命令不存在时使用。
+- 模型、权限、执行策略恢复来源有单测保护，降低旧会话切换后选择器错恢复的风险。
+
+已验证：
+
+```bash
+npm exec -- vitest run "src/components/agent/chat/hooks/sessionMetadataSyncController.test.ts" "src/components/agent/chat/hooks/sessionSwitchSnapshotController.test.ts" "src/components/agent/chat/hooks/sessionHydrationRetryController.test.ts" "src/components/agent/chat/hooks/sessionDetailFetchController.test.ts" "src/components/agent/chat/hooks/sessionHydrationController.test.ts"
+npm exec -- vitest run "src/components/agent/chat/hooks/useAsterAgentChat.test.tsx" -t "模型|权限|执行策略|metadata|stale 快照|预取" --hookTimeout 180000 --testTimeout 120000
+npx eslint "src/components/agent/chat/hooks/sessionMetadataSyncController.ts" "src/components/agent/chat/hooks/sessionMetadataSyncController.test.ts" "src/components/agent/chat/hooks/sessionSwitchSnapshotController.ts" "src/components/agent/chat/hooks/sessionHydrationRetryController.ts" "src/components/agent/chat/hooks/sessionDetailFetchController.ts" "src/components/agent/chat/hooks/sessionHydrationController.ts" "src/components/agent/chat/hooks/useAgentSession.ts" --max-warnings 0
+npm run typecheck -- --pretty false
+git diff --check -- "src/components/agent/chat/hooks/sessionMetadataSyncController.ts" "src/components/agent/chat/hooks/sessionMetadataSyncController.test.ts" "src/components/agent/chat/hooks/sessionSwitchSnapshotController.ts" "src/components/agent/chat/hooks/sessionSwitchSnapshotController.test.ts" "src/components/agent/chat/hooks/sessionHydrationRetryController.ts" "src/components/agent/chat/hooks/sessionHydrationRetryController.test.ts" "src/components/agent/chat/hooks/sessionDetailFetchController.ts" "src/components/agent/chat/hooks/sessionDetailFetchController.test.ts" "src/components/agent/chat/hooks/sessionHydrationController.ts" "src/components/agent/chat/hooks/sessionHydrationController.test.ts" "src/components/agent/chat/hooks/useAgentSession.ts" "docs/roadmap/agentui/conversation-projection-implementation-plan.md" "docs/exec-plans/agentui-implementation-progress.md"
+```
+
+结果：
+
+- Metadata / snapshot / retry / fetch / hydration controller：通过，`23` 个测试通过。
+- `useAsterAgentChat` 模型、权限、metadata、stale 快照、预取定向：通过，`25` 个测试通过。
+- ESLint touched files：通过。
+- TypeScript `tsc --noEmit --pretty false`：通过。
+- diff 空白检查：通过。
+
+GUI / E2E 状态：
+
+- 本刀未复跑 `verify:gui-smoke`，原因同前：当前 smoke 会切到独立 Rust target 全量重编，容易造成 CPU 和鼠标繁忙；本刀是纯前端 controller 抽取，先用定向行为测试收口。
+- Playwright MCP 仍等待 profile 释放；不使用 isolated profile 绕过仓库规则。
+
+下一刀：
+
+1. 继续 Phase 2：抽 `sessionFinalizeController`，把 workspace mismatch、runtime/topic/shadow source 汇总和 apply detail plan 从 `finalizeResolvedTopicDetail` 中继续移出。
+2. 或恢复 GUI 环境后先采集旧会话 A/B 打开和切换指标，决定是否进入 MessageList projection idle / worker 化。
+
+### 2026-05-05：P3 第十一刀，Session finalize controller
+
+已完成：
+
+- 新增 `src/components/agent/chat/hooks/sessionFinalizeController.ts`：
+  - `resolveSessionKnownWorkspaceId`
+  - `isCrossWorkspaceSessionDetail`
+  - `buildCrossWorkspaceSessionRestoreContext`
+  - `buildSessionWorkspaceRestorePlan`
+  - `resolveShadowSessionExecutionStrategyFallback`
+  - `resolveSessionExecutionStrategyOverride`
+- `useAgentSession.ts` 中 `finalizeResolvedTopicDetail` 的跨 workspace restore guard、runtime/topic/shadow workspace 汇总、shadow execution strategy fallback 与最终 `executionStrategyOverride` 改为委托 controller。
+- 新增 `sessionFinalizeController.test.ts`，覆盖 workspace 优先级、跨 workspace 拒绝条件、拒绝日志上下文、shadow execution strategy fallback 与最终执行策略优先级。
+
+主线收益：
+
+- Phase 2 继续瘦 `finalizeResolvedTopicDetail`：会话详情应用前的 restore guard 与执行策略恢复规则不再和 UI state apply、metadata sync、topic upsert 混在一起。
+- 旧会话恢复的 workspace 保护有单测覆盖，降低多 tab / 多 workspace 切换时旧会话错误覆盖当前工作区的风险。
+- 执行策略恢复的 `runtime -> topic -> shadow -> react` 优先级有独立测试，后续排查首字慢或策略错恢复时可以直接定位到 finalize controller。
+
+已验证：
+
+```bash
+npm exec -- vitest run "src/components/agent/chat/hooks/sessionFinalizeController.test.ts" "src/components/agent/chat/hooks/sessionMetadataSyncController.test.ts" "src/components/agent/chat/hooks/sessionSwitchSnapshotController.test.ts" "src/components/agent/chat/hooks/sessionHydrationRetryController.test.ts" "src/components/agent/chat/hooks/sessionDetailFetchController.test.ts" "src/components/agent/chat/hooks/sessionHydrationController.test.ts"
+npm exec -- vitest run "src/components/agent/chat/hooks/useAsterAgentChat.test.tsx" -t "模型|权限|执行策略|metadata|stale 快照|预取|workspace|跨工作区" --hookTimeout 180000 --testTimeout 120000
+npx eslint "src/components/agent/chat/hooks/sessionFinalizeController.ts" "src/components/agent/chat/hooks/sessionFinalizeController.test.ts" "src/components/agent/chat/hooks/sessionMetadataSyncController.ts" "src/components/agent/chat/hooks/sessionSwitchSnapshotController.ts" "src/components/agent/chat/hooks/sessionHydrationRetryController.ts" "src/components/agent/chat/hooks/sessionDetailFetchController.ts" "src/components/agent/chat/hooks/sessionHydrationController.ts" "src/components/agent/chat/hooks/useAgentSession.ts" --max-warnings 0
+npm run typecheck -- --pretty false
+```
+
+结果：
+
+- Finalize / metadata / snapshot / retry / fetch / hydration controller：通过，`28` 个测试通过。
+- `useAsterAgentChat` 模型、权限、metadata、stale 快照、预取、workspace 定向：通过，`29` 个测试通过。
+- ESLint touched files：通过。
+- TypeScript `tsc --noEmit --pretty false`：通过。
+
+GUI / E2E 状态：
+
+- 本刀未复跑 `verify:gui-smoke`，原因同前：当前 smoke 会切到独立 Rust target 全量重编，容易造成 CPU 和鼠标繁忙；本刀是纯前端 controller 抽取，先用定向行为测试收口。
+- Playwright MCP 仍等待 profile 释放；不使用 isolated profile 绕过仓库规则。
+
+下一刀：
+
+1. 继续 Phase 2：抽 `sessionPostFinalizePersistenceController` 或 `sessionFinalizeMetadataScheduler`，把 workspace 保存、topic workspace upsert、provider preference apply、metadata idle scheduler 从 `finalizeResolvedTopicDetail` 主体继续移出。
+2. 恢复 GUI 环境后按 `conversation-projection-acceptance.md` 采集旧会话 A/B 打开、切换与首字指标，决定是否进入 MessageList idle / worker 化。
+
+### 2026-05-05：P3 第十二刀，Session metadata sync scheduler
+
+已完成：
+
+- 新增 `src/components/agent/chat/hooks/sessionMetadataSyncScheduler.ts`：
+  - `buildSessionMetadataSyncBrowserSkipEvent`
+  - `buildSessionMetadataSyncStaleSkipEvent`
+  - `scheduleSessionMetadataSync`
+- `useAgentSession.ts` 中 `finalizeResolvedTopicDetail` 的 metadata idle 调度改为委托 scheduler：
+  - 浏览器桥接下跳过低优先级 runtime invoke。
+  - 调度前取消上一条 pending metadata sync。
+  - idle 执行时统一 stale request/session guard。
+  - 成功后回写 provider preference / execution strategy 同步标记。
+  - 失败时保留现有 warn 行为。
+- 新增 `sessionMetadataSyncScheduler.test.ts`，覆盖无 patch 不调度、无 invoke 跳过、取消旧调度、按 idle 参数调度、stale 跳过与失败回调。
+
+主线收益：
+
+- Phase 2 继续瘦 `finalizeResolvedTopicDetail`：metadata patch 的“是否调度、何时调度、如何判过期、如何执行”不再内联在会话详情应用主链里。
+- P1 的“三个回填 invoke 占用 invoke 通道”现在被明确约束在低优先级 scheduler 边界内；后续如果继续合并、降频或批处理，只需要改 scheduler/controller，不再穿透 hook 主体。
+- 旧会话切换时 metadata sync 的 stale guard 有单测保护，避免 A/B 历史会话快速切换后旧调度写回当前会话。
+
+已验证：
+
+```bash
+npm exec -- vitest run "src/components/agent/chat/hooks/sessionMetadataSyncScheduler.test.ts" "src/components/agent/chat/hooks/sessionMetadataSyncController.test.ts" "src/components/agent/chat/hooks/sessionFinalizeController.test.ts" "src/components/agent/chat/hooks/sessionSwitchSnapshotController.test.ts" "src/components/agent/chat/hooks/sessionHydrationRetryController.test.ts" "src/components/agent/chat/hooks/sessionDetailFetchController.test.ts" "src/components/agent/chat/hooks/sessionHydrationController.test.ts"
+npm exec -- vitest run "src/components/agent/chat/hooks/useAsterAgentChat.test.tsx" -t "模型|权限|执行策略|metadata|stale 快照|预取|workspace|跨工作区" --hookTimeout 180000 --testTimeout 120000
+npx eslint "src/components/agent/chat/hooks/sessionMetadataSyncScheduler.ts" "src/components/agent/chat/hooks/sessionMetadataSyncScheduler.test.ts" "src/components/agent/chat/hooks/sessionMetadataSyncController.ts" "src/components/agent/chat/hooks/sessionFinalizeController.ts" "src/components/agent/chat/hooks/sessionSwitchSnapshotController.ts" "src/components/agent/chat/hooks/sessionHydrationRetryController.ts" "src/components/agent/chat/hooks/sessionDetailFetchController.ts" "src/components/agent/chat/hooks/sessionHydrationController.ts" "src/components/agent/chat/hooks/useAgentSession.ts" --max-warnings 0
+npm run typecheck -- --pretty false
+```
+
+结果：
+
+- Scheduler / finalize / metadata / snapshot / retry / fetch / hydration controller：通过，`33` 个测试通过。
+- `useAsterAgentChat` 模型、权限、metadata、stale 快照、预取、workspace 定向：通过，`29` 个测试通过。
+- ESLint touched files：通过。
+- TypeScript `tsc --noEmit --pretty false`：通过。
+
+GUI / E2E 状态：
+
+- 本刀未复跑 `verify:gui-smoke`，原因同前：当前 smoke 会切到独立 Rust target 全量重编，容易造成 CPU 和鼠标繁忙；本刀是纯前端 scheduler/controller 抽取，先用定向行为测试收口。
+- Playwright MCP 仍等待 profile 释放；不使用 isolated profile 绕过仓库规则。
+
+下一刀：
+
+1. 继续 Phase 2：抽 `sessionPostFinalizePersistenceController`，把 workspace 保存、topic workspace upsert、provider preference apply 从 `finalizeResolvedTopicDetail` 主体继续移出。
+2. 恢复 GUI 环境后按 `conversation-projection-acceptance.md` 采集旧会话 A/B 打开、切换与首字指标，决定是否进入 MessageList idle / worker 化。

@@ -1,8 +1,6 @@
 import {
   useCallback,
-  useEffect,
   useMemo,
-  useState,
   type ComponentProps,
   type Dispatch,
   type ReactNode,
@@ -32,10 +30,7 @@ import { GeneralWorkbenchDialogSection } from "./WorkspaceHarnessDialogs";
 import type { TeamWorkbenchSurfaceProps } from "./chatSurfaceProps";
 import type { GeneralWorkbenchEntryPromptState } from "./workspaceSendHelpers";
 import type { CuratedTaskReferenceEntry } from "../utils/curatedTaskReferenceSelection";
-import {
-  listKnowledgePacks,
-  type KnowledgePackSummary,
-} from "@/lib/api/knowledge";
+import { useWorkspaceKnowledgeRuntime } from "./knowledge/useWorkspaceKnowledgeRuntime";
 
 interface GeneralWorkbenchEntryPromptAccessoryProps {
   prompt: GeneralWorkbenchEntryPromptState;
@@ -129,40 +124,6 @@ const GeneralWorkbenchEntryPromptButton = styled.button<{
         : "linear-gradient(180deg, rgba(37,99,235,0.98) 0%, rgba(29,78,216,0.98) 100%)"};
   }
 `;
-
-const KNOWLEDGE_BUILDER_SKILL_NAME = "knowledge_builder";
-
-function normalizeKnowledgeDraftName(value: string): string {
-  return (
-    value
-      .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9-]+/g, "-")
-      .replace(/-{2,}/g, "-")
-      .replace(/^-+|-+$/g, "")
-      .slice(0, 64) || "project-material"
-  );
-}
-
-function buildKnowledgeOrganizePrompt(sourceText: string): string {
-  const trimmed = sourceText.trim();
-  const lines = [
-    "请把这些内容整理成当前项目可复用的项目资料。",
-    "",
-    "整理目标：",
-    "1. 提炼已确认事实、适用场景、表达风格和不能编造的边界。",
-    "2. 标出缺失信息、冲突内容和需要人工确认的风险提醒。",
-    "3. 生成一份可供我检查确认的项目资料草稿。",
-  ];
-
-  if (trimmed) {
-    lines.push("", "待整理资料：", trimmed);
-  } else {
-    lines.push("", "我接下来会补充资料，请先告诉我需要提供哪些内容。");
-  }
-
-  return lines.join("\n");
-}
 
 function renderGeneralWorkbenchEntryPromptAccessory({
   prompt,
@@ -528,7 +489,9 @@ interface UseWorkspaceInputbarSceneRuntimeParams {
   activeTheme: InputbarParams["activeTheme"];
   navigationActions: Pick<
     NavigationActions,
-    "handleManageProviders" | "handleOpenRuntimeMemoryWorkbench"
+    | "handleManageProviders"
+    | "handleOpenRuntimeMemoryWorkbench"
+    | "handleOpenKnowledgeManagement"
   >;
   selectedTeam: InputbarParams["selectedTeam"];
   handleSelectTeam: InputbarParams["onSelectTeam"];
@@ -708,153 +671,17 @@ export function useWorkspaceInputbarSceneRuntime({
   inputCompletionEnabled = true,
 }: UseWorkspaceInputbarSceneRuntimeParams) {
   const resolvedQueuedTurns = useMemo(() => queuedTurns ?? [], [queuedTurns]);
-  const [knowledgePacks, setKnowledgePacks] = useState<KnowledgePackSummary[]>(
-    [],
-  );
-  const [selectedKnowledgePackName, setSelectedKnowledgePackName] = useState<
-    string | null
-  >(null);
-  const [knowledgePackEnabled, setKnowledgePackEnabled] = useState(false);
-  const resolvedChatToolPreferences =
-    chatToolPreferences ?? DEFAULT_CHAT_TOOL_PREFERENCES;
-  useEffect(() => {
-    const workingDir = projectRootPath?.trim();
-    if (!workingDir) {
-      setKnowledgePacks([]);
-      setSelectedKnowledgePackName(null);
-      setKnowledgePackEnabled(false);
-      return;
-    }
-
-    let cancelled = false;
-    listKnowledgePacks({ workingDir, includeArchived: false })
-      .then((response) => {
-        if (cancelled) {
-          return;
-        }
-        const nextDefaultPack =
-          response.packs.find((pack) => pack.defaultForWorkspace) ??
-          response.packs[0] ??
-          null;
-        setKnowledgePacks(response.packs);
-        setSelectedKnowledgePackName((current) => {
-          if (
-            current &&
-            response.packs.some((pack) => pack.metadata.name === current)
-          ) {
-            return current;
-          }
-
-          return nextDefaultPack?.metadata.name ?? null;
-        });
-        setKnowledgePackEnabled(false);
-      })
-      .catch((error) => {
-        if (cancelled) {
-          return;
-        }
-        console.warn("[AgentChatPage] 读取默认知识包失败:", error);
-        setKnowledgePacks([]);
-        setSelectedKnowledgePackName(null);
-        setKnowledgePackEnabled(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [projectRootPath]);
-  const selectedKnowledgePack = useMemo(() => {
-    if (knowledgePacks.length === 0) {
-      return null;
-    }
-
-    return (
-      knowledgePacks.find(
-        (pack) => pack.metadata.name === selectedKnowledgePackName,
-      ) ??
-      knowledgePacks.find((pack) => pack.defaultForWorkspace) ??
-      knowledgePacks[0] ??
-      null
-    );
-  }, [knowledgePacks, selectedKnowledgePackName]);
-  const inputbarKnowledgePackOptions = useMemo(
-    () =>
-      knowledgePacks.map((pack) => ({
-        packName: pack.metadata.name,
-        label: pack.metadata.description || pack.metadata.name,
-        status: pack.metadata.status,
-        defaultForWorkspace: pack.defaultForWorkspace,
-      })),
-    [knowledgePacks],
-  );
-  const inputbarKnowledgePackSelection = useMemo(
-    () =>
-      selectedKnowledgePack && projectRootPath
-        ? {
-            enabled: knowledgePackEnabled,
-            packName: selectedKnowledgePack.metadata.name,
-            workingDir: projectRootPath,
-            label:
-              selectedKnowledgePack.metadata.description ||
-              selectedKnowledgePack.metadata.name,
-            status: selectedKnowledgePack.metadata.status,
-          }
-        : null,
-    [selectedKnowledgePack, knowledgePackEnabled, projectRootPath],
-  );
-  const handleSelectKnowledgePack = useCallback((packName: string) => {
-    setSelectedKnowledgePackName(packName);
-  }, []);
-  const handleStartKnowledgeOrganize = useCallback(() => {
-    const workingDir = projectRootPath?.trim();
-    if (!workingDir) {
-      setInput("请先选择一个项目，然后我会把资料整理成当前项目可复用的项目资料。");
-      return;
-    }
-
-    const trimmedInput = input.trim();
-    const packName = normalizeKnowledgeDraftName(
-      selectedKnowledgePack?.metadata.name ||
-        selectedKnowledgePack?.metadata.description ||
-        currentSessionTitle ||
-        "project-material",
-    );
-    const prompt = buildKnowledgeOrganizePrompt(trimmedInput);
-    const requestMetadata = {
-      knowledge_builder: {
-        skill_name: KNOWLEDGE_BUILDER_SKILL_NAME,
-        pack_name: packName,
-        working_dir: workingDir,
-        source: "inputbar",
-      },
-    };
-
-    if (!trimmedInput) {
-      setInput(prompt);
-      return;
-    }
-
-    void handleSend(
-      undefined,
-      false,
-      false,
-      prompt,
-      executionStrategy || "react",
-      undefined,
-      {
-        requestMetadata,
-        displayContent: prompt,
-      },
-    );
-  }, [
+  const knowledgeRuntime = useWorkspaceKnowledgeRuntime({
+    projectRootPath,
     currentSessionTitle,
+    input,
+    setInput,
     executionStrategy,
     handleSend,
-    input,
-    projectRootPath,
-    selectedKnowledgePack,
-    setInput,
-  ]);
+    onOpenKnowledgeManagement: navigationActions.handleOpenKnowledgeManagement,
+  });
+  const resolvedChatToolPreferences =
+    chatToolPreferences ?? DEFAULT_CHAT_TOOL_PREFERENCES;
   const runtimeToolAvailability = useMemo(
     () => deriveRuntimeToolAvailability(toolInventory),
     [toolInventory],
@@ -930,11 +757,12 @@ export function useWorkspaceInputbarSceneRuntime({
         onSend: handleSend,
         onStop: handleStopSending,
         isLoading: isSending || resolvedQueuedTurns.length > 0,
-        knowledgePackSelection: inputbarKnowledgePackSelection,
-        knowledgePackOptions: inputbarKnowledgePackOptions,
-        onToggleKnowledgePack: setKnowledgePackEnabled,
-        onSelectKnowledgePack: handleSelectKnowledgePack,
-        onStartKnowledgeOrganize: handleStartKnowledgeOrganize,
+        knowledgePackSelection: knowledgeRuntime.knowledgePackSelection,
+        knowledgePackOptions: knowledgeRuntime.knowledgePackOptions,
+        onToggleKnowledgePack: knowledgeRuntime.onToggleKnowledgePack,
+        onSelectKnowledgePack: knowledgeRuntime.onSelectKnowledgePack,
+        onStartKnowledgeOrganize: knowledgeRuntime.onStartKnowledgeOrganize,
+        onManageKnowledgePacks: knowledgeRuntime.onManageKnowledgePacks,
         providerType,
         setProviderType,
         model,

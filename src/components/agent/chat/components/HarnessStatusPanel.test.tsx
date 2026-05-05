@@ -1395,6 +1395,12 @@ describe("HarnessStatusPanel", () => {
       pending_request_count: 1,
       queued_turn_count: 0,
       default_decision_status: "pending_review",
+      permission_status: "requires_confirmation",
+      permission_confirmation_status: "denied",
+      permission_confirmation_request_id: "approval-denied",
+      permission_confirmation_source: "runtime_action_required",
+      permission_confirmation_summary:
+        "已拒绝（request_id=approval-denied, source=runtime_action_required），不能作为成功交付证据。",
       verification_summary: {
         artifact_validator: {
           applicable: true,
@@ -1500,6 +1506,10 @@ describe("HarnessStatusPanel", () => {
     );
     expect(document.body.textContent).toContain("人工审核记录");
     expect(document.body.textContent).toContain("待人工审核");
+    expect(document.body.textContent).toContain("权限确认");
+    expect(document.body.textContent).toContain("权限确认已拒绝");
+    expect(document.body.textContent).toContain("approval-denied");
+    expect(document.body.textContent).toContain("不能作为成功交付证据");
     expect(document.body.textContent).toContain(
       ".lime/harness/sessions/session-review-1/review/review-decision.md",
     );
@@ -1549,6 +1559,12 @@ describe("HarnessStatusPanel", () => {
       pending_request_count: 1,
       queued_turn_count: 0,
       default_decision_status: "pending_review",
+      permission_status: "requires_confirmation",
+      permission_confirmation_status: "denied",
+      permission_confirmation_request_id: "approval-denied-dialog",
+      permission_confirmation_source: "runtime_action_required",
+      permission_confirmation_summary:
+        "已拒绝（request_id=approval-denied-dialog），不能作为成功交付证据。",
       verification_summary: {
         artifact_validator: {
           applicable: true,
@@ -1631,6 +1647,12 @@ describe("HarnessStatusPanel", () => {
       pending_request_count: 1,
       queued_turn_count: 0,
       default_decision_status: "pending_review",
+      permission_status: "requires_confirmation",
+      permission_confirmation_status: "denied",
+      permission_confirmation_request_id: "approval-denied-dialog",
+      permission_confirmation_source: "runtime_action_required",
+      permission_confirmation_summary:
+        "已拒绝（request_id=approval-denied-dialog），不能作为成功交付证据。",
       verification_summary: {
         artifact_validator: {
           applicable: true,
@@ -1646,16 +1668,16 @@ describe("HarnessStatusPanel", () => {
         ],
       },
       decision: {
-        decision_status: "accepted",
-        decision_summary: "确认最小修复可以接受。",
-        chosen_fix_strategy: "先补 runtime save，再补 UI 回归。",
+        decision_status: "rejected",
+        decision_summary: "权限确认已拒绝，拒绝本次交付。",
+        chosen_fix_strategy: "先处理真实权限确认，再复验。",
         risk_level: "medium",
-        risk_tags: ["runtime", "ui"],
+        risk_tags: ["runtime", "permission"],
         human_reviewer: "Lime Maintainer",
         reviewed_at: "2026-03-27T10:32:00.000Z",
-        followup_actions: ["补充 HarnessStatusPanel 测试"],
-        regression_requirements: ["npm run test:contracts", "Rust 定向测试"],
-        notes: "保持 review decision 主链单一。",
+        followup_actions: ["处理 approval-denied-dialog"],
+        regression_requirements: ["npm run test:contracts", "人工审核回归"],
+        notes: "拒绝状态来自真实权限确认。",
       },
       decision_status_options: [
         "accepted",
@@ -1721,6 +1743,10 @@ describe("HarnessStatusPanel", () => {
     expect(reviewDialog?.textContent).toContain(
       "Artifact 校验存在 1 条未恢复 issue。",
     );
+    expect(reviewDialog?.textContent).toContain("权限确认");
+    expect(reviewDialog?.textContent).toContain("已拒绝");
+    expect(reviewDialog?.textContent).toContain("approval-denied-dialog");
+    expect(reviewDialog?.textContent).toContain("不能作为成功交付证据");
 
     const statusSelect = document.body.querySelector(
       'select[aria-label="决策状态"]',
@@ -1761,30 +1787,53 @@ describe("HarnessStatusPanel", () => {
         setInputValue(reviewerInput, "Lime Maintainer");
       }
       if (riskTagsInput) {
-        setInputValue(riskTagsInput, "runtime, ui");
+        setInputValue(riskTagsInput, "runtime, permission");
       }
       if (summaryTextarea) {
-        setInputValue(summaryTextarea, "确认最小修复可以接受。");
+        setInputValue(summaryTextarea, "权限确认已拒绝，拒绝本次交付。");
       }
       if (strategyTextarea) {
-        setInputValue(strategyTextarea, "先补 runtime save，再补 UI 回归。");
+        setInputValue(strategyTextarea, "先处理真实权限确认，再复验。");
       }
       if (regressionsTextarea) {
         setInputValue(
           regressionsTextarea,
-          "npm run test:contracts\nRust 定向测试",
+          "npm run test:contracts\n人工审核回归",
         );
       }
       if (followupsTextarea) {
-        setInputValue(followupsTextarea, "补充 HarnessStatusPanel 测试");
+        setInputValue(followupsTextarea, "处理 approval-denied-dialog");
       }
       if (notesTextarea) {
-        setInputValue(notesTextarea, "保持 review decision 主链单一。");
+        setInputValue(notesTextarea, "拒绝状态来自真实权限确认。");
       }
       await Promise.resolve();
     });
 
     const saveButton = findButtonByText("保存审核结果");
+    const acceptedOption = Array.from(statusSelect?.options ?? []).find(
+      (option) => option.value === "accepted",
+    );
+    expect(acceptedOption?.disabled).toBe(true);
+    expect(reviewDialog?.textContent).toContain(
+      "权限确认已拒绝时不能保存“接受”",
+    );
+    expect(saveButton?.disabled).toBe(true);
+
+    await act(async () => {
+      saveButton?.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(saveAgentRuntimeReviewDecisionMock).not.toHaveBeenCalled();
+
+    await act(async () => {
+      if (statusSelect) {
+        setInputValue(statusSelect, "rejected");
+      }
+      await Promise.resolve();
+    });
+    expect(saveButton?.disabled).toBe(false);
 
     await act(async () => {
       saveButton?.click();
@@ -1797,21 +1846,21 @@ describe("HarnessStatusPanel", () => {
     );
     expect(saveAgentRuntimeReviewDecisionMock).toHaveBeenCalledWith({
       session_id: "session-review-2",
-      decision_status: "accepted",
-      decision_summary: "确认最小修复可以接受。",
-      chosen_fix_strategy: "先补 runtime save，再补 UI 回归。",
+      decision_status: "rejected",
+      decision_summary: "权限确认已拒绝，拒绝本次交付。",
+      chosen_fix_strategy: "先处理真实权限确认，再复验。",
       risk_level: "medium",
-      risk_tags: ["runtime", "ui"],
+      risk_tags: ["runtime", "permission"],
       human_reviewer: "Lime Maintainer",
       reviewed_at: undefined,
-      followup_actions: ["补充 HarnessStatusPanel 测试"],
-      regression_requirements: ["npm run test:contracts", "Rust 定向测试"],
-      notes: "保持 review decision 主链单一。",
+      followup_actions: ["处理 approval-denied-dialog"],
+      regression_requirements: ["npm run test:contracts", "人工审核回归"],
+      notes: "拒绝状态来自真实权限确认。",
     });
     expect(document.body.textContent).toContain("当前人工审核结论");
-    expect(document.body.textContent).toContain("确认最小修复可以接受。");
+    expect(document.body.textContent).toContain("权限确认已拒绝，拒绝本次交付。");
     expect(document.body.textContent).toContain("Lime Maintainer");
-    expect(document.body.textContent).toContain("补充 HarnessStatusPanel 测试");
+    expect(document.body.textContent).toContain("处理 approval-denied-dialog");
     expect(mockToast.success).toHaveBeenCalledWith("已保存人工审核结果");
   });
 

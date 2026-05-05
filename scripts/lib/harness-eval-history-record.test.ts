@@ -17,19 +17,6 @@ function createTempRoot() {
   return tempRoot;
 }
 
-function runNodeScript(scriptRelativePath: string, args: string[]) {
-  const output = execFileSync(
-    process.execPath,
-    [path.join(repoRoot, scriptRelativePath), ...args],
-    {
-      cwd: repoRoot,
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "pipe"],
-    },
-  );
-  return JSON.parse(output);
-}
-
 function runNodeScriptAsync(scriptRelativePath: string, args: string[]) {
   return new Promise<unknown>((resolve, reject) => {
     execFile(
@@ -195,19 +182,19 @@ describe("harness-eval-history-record", () => {
     });
   });
 
-  it("默认入口应产出完整 harness artifact 套件", () => {
+  it("默认入口应产出完整 harness artifact 套件", async () => {
     const tempRoot = createTempRoot();
     const historyDir = path.join(tempRoot, ".lime", "harness", "history");
     const workspaceRoot = path.join(tempRoot, "workspace");
 
-    const result = runNodeScript("scripts/harness-eval-history-record.mjs", [
+    const result = (await runNodeScriptAsync("scripts/harness-eval-history-record.mjs", [
       "--format",
       "json",
       "--history-dir",
       historyDir,
       "--workspace-root",
       workspaceRoot,
-    ]);
+    ])) as Record<string, any>;
 
     const reportsRoot = path.join(tempRoot, ".lime", "harness", "reports");
     const summaryJsonPath = path.join(reportsRoot, "harness-eval-summary.json");
@@ -289,7 +276,7 @@ describe("harness-eval-history-record", () => {
     ).not.toThrow();
   }, 60_000);
 
-  it("应记录本地 summary 历史，并生成非 seed 的 trend / cleanup", () => {
+  it("应记录本地 summary 历史，并生成非 seed 的 trend / cleanup", async () => {
     const tempRoot = createTempRoot();
     const historyDir = path.join(tempRoot, ".lime", "harness", "history");
     const workspaceRoot = path.join(tempRoot, "workspace");
@@ -315,7 +302,7 @@ describe("harness-eval-history-record", () => {
       "harness-dashboard.html",
     );
 
-    const firstResult = runNodeScript("scripts/harness-eval-history-record.mjs", [
+    const firstResult = (await runNodeScriptAsync("scripts/harness-eval-history-record.mjs", [
       "--format",
       "json",
       "--history-dir",
@@ -330,9 +317,9 @@ describe("harness-eval-history-record", () => {
       dashboardHtmlPath,
       "--output-json",
       path.join(tempRoot, "first.json"),
-    ]);
+    ])) as Record<string, any>;
 
-    const secondResult = runNodeScript(
+    const secondResult = (await runNodeScriptAsync(
       "scripts/harness-eval-history-record.mjs",
       [
         "--format",
@@ -350,7 +337,7 @@ describe("harness-eval-history-record", () => {
         "--output-json",
         path.join(tempRoot, "second.json"),
       ],
-    );
+    )) as Record<string, any>;
 
     expect(firstResult.historyCount).toBe(1);
     expect(firstResult.trend.sampleCount).toBe(1);

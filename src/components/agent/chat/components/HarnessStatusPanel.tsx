@@ -705,6 +705,21 @@ function formatReviewDecisionRiskLevelLabel(riskLevel?: string): string {
   }
 }
 
+function formatPermissionConfirmationStatusLabel(status?: string): string {
+  switch (status?.trim()) {
+    case "denied":
+      return "已拒绝";
+    case "resolved":
+      return "已通过";
+    case "requested":
+      return "等待确认";
+    case "not_requested":
+      return "未发起";
+    default:
+      return status?.trim() || "未导出";
+  }
+}
+
 function slugifyHarnessCase(value: string): string {
   const normalized = value
     .trim()
@@ -4733,7 +4748,7 @@ export function HarnessStatusPanel({
 
                       {reviewDecisionTemplate ? (
                         <div className="mt-3 space-y-3">
-                          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+                          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-6">
                             <InventoryStatCard
                               title="当前状态"
                               value={formatReviewDecisionStatusLabel(
@@ -4765,6 +4780,17 @@ export function HarnessStatusPanel({
                               }
                             />
                             <InventoryStatCard
+                              title="权限确认"
+                              value={formatPermissionConfirmationStatusLabel(
+                                reviewDecisionTemplate.permission_confirmation_status,
+                              )}
+                              hint={
+                                reviewDecisionTemplate.permission_confirmation_summary ||
+                                reviewDecisionTemplate.permission_confirmation_request_id ||
+                                "未导出权限确认摘要"
+                              }
+                            />
+                            <InventoryStatCard
                               title="分析文件"
                               value={`${reviewDecisionTemplate.analysis_artifacts.length}`}
                               hint="沿用 analysis handoff 主链"
@@ -4788,6 +4814,20 @@ export function HarnessStatusPanel({
                               review decision。
                             </div>
                           </div>
+
+                          {reviewDecisionTemplate.permission_confirmation_status?.trim() ===
+                          "denied" ? (
+                            <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-3">
+                              <div className="flex items-center gap-2 text-sm font-medium text-destructive">
+                                <AlertCircle className="h-4 w-4" />
+                                <span>权限确认已拒绝</span>
+                              </div>
+                              <div className="mt-2 text-xs leading-5 text-destructive/90">
+                                {reviewDecisionTemplate.permission_confirmation_summary ||
+                                  "当前 review decision 不能作为成功交付证据，请先处理真实权限确认。"}
+                              </div>
+                            </div>
+                          ) : null}
 
                           {reviewDecisionTemplate.verification_summary ? (
                             <HarnessVerificationSummarySection

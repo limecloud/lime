@@ -228,7 +228,7 @@ pub fn export_runtime_evidence_pack(
         &modality_runtime_contracts,
         &verification,
     );
-    let known_gaps = build_known_gaps(&recent_artifacts, &signal_coverage);
+    let known_gaps = build_known_gaps(&recent_artifacts, &signal_coverage, thread_read);
     let observability_summary = build_runtime_observability_summary_json(
         detail,
         thread_read,
@@ -384,7 +384,7 @@ pub(crate) fn build_runtime_evidence_sceneapp_snapshot(
         &modality_runtime_contracts,
         &verification,
     );
-    let known_gaps = build_known_gaps(&recent_artifacts, &signal_coverage);
+    let known_gaps = build_known_gaps(&recent_artifacts, &signal_coverage, thread_read);
 
     RuntimeEvidenceSceneAppSnapshot {
         recent_artifact_paths: recent_artifacts
@@ -528,6 +528,11 @@ fn build_summary_markdown(
         markdown,
         "- 当前证据缺口：{}",
         format_observability_gap_list(observability_summary)
+    );
+    let _ = writeln!(
+        markdown,
+        "- 当前阻断信号：{}",
+        format_observability_signal_list(observability_summary, "blocked")
     );
     let _ = writeln!(markdown);
     let _ = writeln!(markdown, "## 建议读取顺序");
@@ -1375,6 +1380,7 @@ fn extract_transcript_snapshot(document: &Value) -> Option<Value> {
 fn build_known_gaps(
     recent_artifacts: &[RuntimeRecentArtifact],
     signal_coverage: &[RuntimeEvidenceSignalCoverageEntry],
+    thread_read: &AgentRuntimeThreadReadModel,
 ) -> Vec<String> {
     let mut gaps = signal_coverage
         .iter()
@@ -1382,12 +1388,35 @@ fn build_known_gaps(
         .map(|entry| entry.detail.clone())
         .collect::<Vec<_>>();
 
+    if let Some(gap) = permission_confirmation_known_gap(thread_read) {
+        gaps.push(gap);
+    }
+
     if recent_artifacts.is_empty() {
         gaps.push("当前未检测到最近产物路径，Artifact 证据为空。".to_string());
     }
 
     gaps.dedup();
     gaps
+}
+
+fn permission_confirmation_known_gap(thread_read: &AgentRuntimeThreadReadModel) -> Option<String> {
+    let permission_state = thread_read.permission_state.as_ref()?;
+    if permission_state.confirmation_status.as_deref() != Some("denied") {
+        return None;
+    }
+
+    Some(format!(
+        "运行时权限确认已被拒绝，当前证据包不能作为成功交付证据：request_id={}，source={}。",
+        permission_state
+            .confirmation_request_id
+            .as_deref()
+            .unwrap_or("未记录 confirmationRequestId"),
+        permission_state
+            .confirmation_source
+            .as_deref()
+            .unwrap_or("未记录 confirmationSource")
+    ))
 }
 
 fn collect_latest_turn_summary(detail: &SessionDetail) -> Option<String> {
@@ -1578,6 +1607,63 @@ fn build_thread_runtime_facts_json(thread_read: &AgentRuntimeThreadReadModel) ->
     })
 }
 
+fn permission_state_signal_coverage(
+    thread_read: &AgentRuntimeThreadReadModel,
+) -> RuntimeEvidenceSignalCoverageEntry {
+    let Some(permission_state) = thread_read.permission_state.as_ref() else {
+        return RuntimeEvidenceSignalCoverageEntry {
+            signal: "permissionState",
+            status: "missing",
+            source: "thread_read.permission_state",
+            detail: "thread_read 缺少 permission_state。".to_string(),
+        };
+    };
+
+    let confirmation_status = permission_state.confirmation_status.as_deref();
+    let confirmation_request_id = permission_state
+        .confirmation_request_id
+        .as_deref()
+        .unwrap_or("未记录 confirmationRequestId");
+    let confirmation_source = permission_state
+        .confirmation_source
+        .as_deref()
+        .unwrap_or("未记录 confirmationSource");
+
+    if confirmation_status == Some("denied") {
+        return RuntimeEvidenceSignalCoverageEntry {
+            signal: "permissionState",
+            status: "blocked",
+            source: "thread_read.permission_state",
+            detail: format!(
+                "thread_read 已导出 permission_state，但真实权限确认已被拒绝：request_id={confirmation_request_id}, source={confirmation_source}。"
+            ),
+        };
+    }
+
+    let detail = match confirmation_status {
+        Some("resolved") => format!(
+            "thread_read 已导出 permission_state，真实权限确认已通过：request_id={confirmation_request_id}, source={confirmation_source}。"
+        ),
+        Some("requested") => format!(
+            "thread_read 已导出 permission_state，真实权限确认正在等待处理：request_id={confirmation_request_id}, source={confirmation_source}。"
+        ),
+        Some("not_requested") => {
+            "thread_read 已导出 permission_state，声明态权限尚未发起真实审批请求。".to_string()
+        }
+        Some(other) => format!(
+            "thread_read 已导出 permission_state，confirmationStatus={other}, source={confirmation_source}。"
+        ),
+        None => "thread_read 已导出 permission_state。".to_string(),
+    };
+
+    RuntimeEvidenceSignalCoverageEntry {
+        signal: "permissionState",
+        status: "exported",
+        source: "thread_read.permission_state",
+        detail,
+    }
+}
+
 fn build_runtime_fact_signal_coverage(
     thread_read: &AgentRuntimeThreadReadModel,
 ) -> Vec<RuntimeEvidenceSignalCoverageEntry> {
@@ -1646,20 +1732,7 @@ fn build_runtime_fact_signal_coverage(
                 "thread_read 缺少 runtime_summary。".to_string()
             },
         },
-        RuntimeEvidenceSignalCoverageEntry {
-            signal: "permissionState",
-            status: if thread_read.permission_state.is_some() {
-                "exported"
-            } else {
-                "missing"
-            },
-            source: "thread_read.permission_state",
-            detail: if thread_read.permission_state.is_some() {
-                "thread_read 已导出 permission_state。".to_string()
-            } else {
-                "thread_read 缺少 permission_state。".to_string()
-            },
-        },
+        permission_state_signal_coverage(thread_read),
         RuntimeEvidenceSignalCoverageEntry {
             signal: "auxiliaryTaskRuntime",
             status: if thread_read
@@ -4967,6 +5040,82 @@ mod tests {
             ),
         )
         .expect("write unmatched request log");
+    }
+
+    #[test]
+    fn permission_state_signal_coverage_should_surface_denied_confirmation_as_blocked() {
+        let mut thread_read = build_thread_read();
+        let mut permission_state = thread_read
+            .permission_state
+            .clone()
+            .expect("permission state");
+        permission_state.confirmation_status = Some("denied".to_string());
+        permission_state.confirmation_request_id = Some("approval-denied".to_string());
+        permission_state.confirmation_source = Some("runtime_action_required".to_string());
+        thread_read.permission_state = Some(permission_state);
+
+        let coverage = permission_state_signal_coverage(&thread_read);
+
+        assert_eq!(coverage.signal, "permissionState");
+        assert_eq!(coverage.status, "blocked");
+        assert!(coverage.detail.contains("approval-denied"));
+        assert!(coverage.detail.contains("真实权限确认已被拒绝"));
+    }
+
+    #[test]
+    fn permission_state_signal_coverage_should_surface_resolved_confirmation_as_exported() {
+        let mut thread_read = build_thread_read();
+        let mut permission_state = thread_read
+            .permission_state
+            .clone()
+            .expect("permission state");
+        permission_state.confirmation_status = Some("resolved".to_string());
+        permission_state.confirmation_request_id = Some("approval-resolved".to_string());
+        permission_state.confirmation_source = Some("runtime_action_required".to_string());
+        thread_read.permission_state = Some(permission_state);
+
+        let coverage = permission_state_signal_coverage(&thread_read);
+
+        assert_eq!(coverage.signal, "permissionState");
+        assert_eq!(coverage.status, "exported");
+        assert!(coverage.detail.contains("approval-resolved"));
+        assert!(coverage.detail.contains("真实权限确认已通过"));
+    }
+
+    #[test]
+    fn known_gaps_should_surface_denied_permission_confirmation() {
+        let mut thread_read = build_thread_read();
+        let mut permission_state = thread_read
+            .permission_state
+            .clone()
+            .expect("permission state");
+        permission_state.confirmation_status = Some("denied".to_string());
+        permission_state.confirmation_request_id = Some("approval-denied".to_string());
+        permission_state.confirmation_source = Some("runtime_action_required".to_string());
+        thread_read.permission_state = Some(permission_state);
+
+        let gaps = build_known_gaps(&[], &[], &thread_read);
+
+        assert!(gaps.iter().any(|gap| gap.contains("approval-denied")));
+        assert!(gaps.iter().any(|gap| gap.contains("权限确认已被拒绝")));
+    }
+
+    #[test]
+    fn known_gaps_should_not_surface_resolved_permission_confirmation() {
+        let mut thread_read = build_thread_read();
+        let mut permission_state = thread_read
+            .permission_state
+            .clone()
+            .expect("permission state");
+        permission_state.confirmation_status = Some("resolved".to_string());
+        permission_state.confirmation_request_id = Some("approval-resolved".to_string());
+        permission_state.confirmation_source = Some("runtime_action_required".to_string());
+        thread_read.permission_state = Some(permission_state);
+
+        let gaps = build_known_gaps(&[], &[], &thread_read);
+
+        assert!(!gaps.iter().any(|gap| gap.contains("approval-resolved")));
+        assert!(!gaps.iter().any(|gap| gap.contains("权限确认已被拒绝")));
     }
 
     fn write_image_task_fixture(root: &Path, relative_path: &str) {

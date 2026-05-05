@@ -909,6 +909,11 @@ export interface AgentRuntimeReviewDecisionTemplate {
   queued_turn_count: number;
   default_decision_status: string;
   verification_summary?: AgentRuntimeEvidenceVerificationSummary;
+  permission_status?: string;
+  permission_confirmation_status?: string;
+  permission_confirmation_request_id?: string;
+  permission_confirmation_source?: string;
+  permission_confirmation_summary?: string;
   decision: AgentRuntimeReviewDecision;
   decision_status_options: AgentRuntimeReviewDecisionStatus[];
   risk_level_options: AgentRuntimeReviewDecisionRiskLevel[];

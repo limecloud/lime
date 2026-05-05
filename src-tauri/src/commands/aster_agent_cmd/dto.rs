@@ -739,6 +739,167 @@ fn extract_runtime_summary(
     }))
 }
 
+fn latest_pending_tool_confirmation_request(
+    pending_requests: &[AgentRuntimeRequestView],
+) -> Option<&AgentRuntimeRequestView> {
+    pending_requests.iter().find(|request| {
+        request.status == "pending" && is_tool_confirmation_request(&request.request_type)
+    })
+}
+
+struct RuntimePermissionConfirmationProjection {
+    status: &'static str,
+    request_id: String,
+    source: &'static str,
+}
+
+fn approval_response_confirmed(response: &serde_json::Value) -> Option<bool> {
+    match response {
+        serde_json::Value::Bool(value) => Some(*value),
+        serde_json::Value::Object(object) => object
+            .get("confirmed")
+            .and_then(serde_json::Value::as_bool)
+            .or_else(|| object.get("approved").and_then(serde_json::Value::as_bool)),
+        _ => None,
+    }
+}
+
+fn latest_resolved_tool_confirmation_item(
+    detail: &SessionDetail,
+) -> Option<RuntimePermissionConfirmationProjection> {
+    detail.items.iter().rev().find_map(|item| {
+        let lime_core::database::dao::agent_timeline::AgentThreadItemPayload::ApprovalRequest {
+            request_id,
+            action_type,
+            response,
+            ..
+        } = &item.payload
+        else {
+            return None;
+        };
+        if !is_tool_confirmation_request(action_type) {
+            return None;
+        }
+
+        let confirmed = response.as_ref().and_then(approval_response_confirmed);
+        match item.status {
+            lime_core::database::dao::agent_timeline::AgentThreadItemStatus::Completed => {
+                Some(RuntimePermissionConfirmationProjection {
+                    status: if confirmed == Some(false) {
+                        "denied"
+                    } else {
+                        "resolved"
+                    },
+                    request_id: request_id.clone(),
+                    source: "runtime_action_required",
+                })
+            }
+            lime_core::database::dao::agent_timeline::AgentThreadItemStatus::Failed => {
+                Some(RuntimePermissionConfirmationProjection {
+                    status: "denied",
+                    request_id: request_id.clone(),
+                    source: "runtime_action_required",
+                })
+            }
+            _ => None,
+        }
+    })
+}
+
+fn apply_pending_confirmation_to_permission_state(
+    permission_state: Option<lime_agent::SessionExecutionRuntimePermissionState>,
+    pending_requests: &[AgentRuntimeRequestView],
+    resolved_confirmation: Option<RuntimePermissionConfirmationProjection>,
+) -> Option<lime_agent::SessionExecutionRuntimePermissionState> {
+    let mut permission_state = permission_state?;
+    if permission_state.status != "requires_confirmation" {
+        return Some(permission_state);
+    }
+
+    if let Some(projection) = resolved_confirmation {
+        permission_state.confirmation_status = Some(projection.status.to_string());
+        permission_state.confirmation_request_id = Some(projection.request_id);
+        permission_state.confirmation_source = Some(projection.source.to_string());
+        if !permission_state
+            .notes
+            .iter()
+            .any(|note| note == "真实工具确认请求已完成")
+        {
+            permission_state
+                .notes
+                .push("真实工具确认请求已完成".to_string());
+        }
+        return Some(permission_state);
+    }
+
+    let Some(request) = latest_pending_tool_confirmation_request(pending_requests) else {
+        return Some(permission_state);
+    };
+
+    permission_state.confirmation_status = Some("requested".to_string());
+    permission_state.confirmation_request_id = Some(request.id.clone());
+    permission_state.confirmation_source = Some("runtime_action_required".to_string());
+    if !permission_state
+        .notes
+        .iter()
+        .any(|note| note == "真实工具确认请求已进入 action_required 队列")
+    {
+        permission_state
+            .notes
+            .push("真实工具确认请求已进入 action_required 队列".to_string());
+    }
+
+    Some(permission_state)
+}
+
+fn merge_permission_state_confirmation_into_runtime_summary(
+    runtime_summary: Option<serde_json::Value>,
+    permission_state: Option<&lime_agent::SessionExecutionRuntimePermissionState>,
+) -> Option<serde_json::Value> {
+    let Some(permission_state) = permission_state else {
+        return runtime_summary;
+    };
+
+    let mut summary = runtime_summary.unwrap_or_else(|| serde_json::json!({}));
+    let object = match summary.as_object_mut() {
+        Some(object) => object,
+        None => return Some(summary),
+    };
+
+    object.insert(
+        "permissionStatus".to_string(),
+        serde_json::Value::String(permission_state.status.clone()),
+    );
+    object.insert(
+        "permissionAskCount".to_string(),
+        serde_json::json!(permission_state.ask_profile_keys.len() as u32),
+    );
+    object.insert(
+        "permissionBlockingCount".to_string(),
+        serde_json::json!(permission_state.blocking_profile_keys.len() as u32),
+    );
+    if let Some(confirmation_status) = permission_state.confirmation_status.as_ref() {
+        object.insert(
+            "permissionConfirmationStatus".to_string(),
+            serde_json::Value::String(confirmation_status.clone()),
+        );
+    }
+    if let Some(confirmation_request_id) = permission_state.confirmation_request_id.as_ref() {
+        object.insert(
+            "permissionConfirmationRequestId".to_string(),
+            serde_json::Value::String(confirmation_request_id.clone()),
+        );
+    }
+    if let Some(confirmation_source) = permission_state.confirmation_source.as_ref() {
+        object.insert(
+            "permissionConfirmationSource".to_string(),
+            serde_json::Value::String(confirmation_source.clone()),
+        );
+    }
+
+    Some(summary)
+}
+
 fn read_policy_json_path<'a>(
     value: &'a serde_json::Value,
     path: &[&str],
@@ -1384,6 +1545,12 @@ impl AgentRuntimeThreadReadModel {
             .execution_runtime
             .as_ref()
             .and_then(|runtime| runtime.permission_state.clone());
+        let resolved_confirmation = latest_resolved_tool_confirmation_item(detail);
+        let permission_state = apply_pending_confirmation_to_permission_state(
+            permission_state,
+            &pending_requests,
+            resolved_confirmation,
+        );
         let limit_event = detail
             .execution_runtime
             .as_ref()
@@ -1398,6 +1565,10 @@ impl AgentRuntimeThreadReadModel {
             runtime_summary,
             "modalityRuntime",
             extract_modality_runtime_thread_summary(detail),
+        );
+        let runtime_summary = merge_permission_state_confirmation_into_runtime_summary(
+            runtime_summary,
+            permission_state.as_ref(),
         );
         let auxiliary_task_runtime = extract_auxiliary_runtime_snapshots(detail);
         let auxiliary_task_kind = read_auxiliary_runtime_string(
@@ -3108,6 +3279,229 @@ mod tests {
                 "openai:gpt-5.4".to_string(),
                 "openai:gpt-5.4-mini".to_string()
             ])
+        );
+    }
+
+    #[test]
+    fn thread_read_should_project_pending_tool_approval_into_permission_confirmation_state() {
+        let mut detail = build_session_detail(
+            vec![AgentThreadTurn {
+                id: "turn-approval".to_string(),
+                thread_id: "thread-1".to_string(),
+                prompt_text: "需要写入文件".to_string(),
+                status: AgentThreadTurnStatus::Running,
+                started_at: seconds_ago(30),
+                completed_at: None,
+                error_message: None,
+                created_at: seconds_ago(30),
+                updated_at: seconds_ago(5),
+            }],
+            vec![AgentThreadItem {
+                id: "item-approval".to_string(),
+                thread_id: "thread-1".to_string(),
+                turn_id: "turn-approval".to_string(),
+                sequence: 1,
+                status: AgentThreadItemStatus::InProgress,
+                started_at: seconds_ago(20),
+                completed_at: None,
+                updated_at: seconds_ago(20),
+                payload: AgentThreadItemPayload::ApprovalRequest {
+                    request_id: "approval-1".to_string(),
+                    action_type: "tool_confirmation".to_string(),
+                    prompt: Some("请确认是否允许写入文件".to_string()),
+                    tool_name: Some("write_file".to_string()),
+                    arguments: Some(serde_json::json!({ "path": "README.md" })),
+                    response: None,
+                },
+            }],
+        );
+        detail.execution_runtime = Some(lime_agent::SessionExecutionRuntime {
+            session_id: "session-1".to_string(),
+            provider_selector: None,
+            provider_name: None,
+            model_name: None,
+            execution_strategy: None,
+            output_schema_runtime: None,
+            source: lime_agent::SessionExecutionRuntimeSource::RuntimeSnapshot,
+            mode: None,
+            latest_turn_id: Some("turn-approval".to_string()),
+            latest_turn_status: Some("running".to_string()),
+            recent_access_mode: None,
+            recent_preferences: None,
+            recent_team_selection: None,
+            recent_theme: None,
+            recent_session_mode: None,
+            recent_gate_key: None,
+            recent_run_title: None,
+            recent_content_id: None,
+            task_profile: None,
+            routing_decision: None,
+            limit_state: None,
+            cost_state: None,
+            permission_state: Some(lime_agent::SessionExecutionRuntimePermissionState {
+                status: "requires_confirmation".to_string(),
+                required_profile_keys: vec!["write_artifacts".to_string()],
+                ask_profile_keys: vec!["write_artifacts".to_string()],
+                blocking_profile_keys: Vec::new(),
+                decision_source: "modality_execution_profile".to_string(),
+                decision_scope: "declared_profile".to_string(),
+                confirmation_status: Some("not_requested".to_string()),
+                confirmation_request_id: None,
+                confirmation_source: Some("declared_profile_only".to_string()),
+                notes: Vec::new(),
+            }),
+            limit_event: None,
+            oem_policy: None,
+            runtime_summary: None,
+        });
+
+        let thread_read = AgentRuntimeThreadReadModel::from_session_detail(&detail, &[]);
+
+        assert_eq!(thread_read.pending_requests.len(), 1);
+        assert_eq!(
+            thread_read
+                .permission_state
+                .as_ref()
+                .and_then(|value| value.confirmation_status.as_deref()),
+            Some("requested")
+        );
+        assert_eq!(
+            thread_read
+                .permission_state
+                .as_ref()
+                .and_then(|value| value.confirmation_request_id.as_deref()),
+            Some("approval-1")
+        );
+        assert_eq!(
+            thread_read
+                .permission_state
+                .as_ref()
+                .and_then(|value| value.confirmation_source.as_deref()),
+            Some("runtime_action_required")
+        );
+        assert_eq!(
+            thread_read
+                .runtime_summary
+                .as_ref()
+                .and_then(|value| value.get("permissionConfirmationStatus"))
+                .and_then(serde_json::Value::as_str),
+            Some("requested")
+        );
+        assert_eq!(
+            thread_read
+                .runtime_summary
+                .as_ref()
+                .and_then(|value| value.get("permissionConfirmationRequestId"))
+                .and_then(serde_json::Value::as_str),
+            Some("approval-1")
+        );
+        assert_eq!(
+            thread_read
+                .runtime_summary
+                .as_ref()
+                .and_then(|value| value.get("permissionConfirmationSource"))
+                .and_then(serde_json::Value::as_str),
+            Some("runtime_action_required")
+        );
+    }
+
+    #[test]
+    fn thread_read_should_project_resolved_tool_approval_into_permission_confirmation_state() {
+        let mut detail = build_session_detail(
+            vec![AgentThreadTurn {
+                id: "turn-approval".to_string(),
+                thread_id: "thread-1".to_string(),
+                prompt_text: "需要写入文件".to_string(),
+                status: AgentThreadTurnStatus::Completed,
+                started_at: seconds_ago(30),
+                completed_at: Some(seconds_ago(10)),
+                error_message: None,
+                created_at: seconds_ago(30),
+                updated_at: seconds_ago(10),
+            }],
+            vec![AgentThreadItem {
+                id: "item-approval".to_string(),
+                thread_id: "thread-1".to_string(),
+                turn_id: "turn-approval".to_string(),
+                sequence: 1,
+                status: AgentThreadItemStatus::Completed,
+                started_at: seconds_ago(20),
+                completed_at: Some(seconds_ago(15)),
+                updated_at: seconds_ago(15),
+                payload: AgentThreadItemPayload::ApprovalRequest {
+                    request_id: "approval-2".to_string(),
+                    action_type: "tool_confirmation".to_string(),
+                    prompt: Some("请确认是否允许写入文件".to_string()),
+                    tool_name: Some("write_file".to_string()),
+                    arguments: Some(serde_json::json!({ "path": "README.md" })),
+                    response: Some(serde_json::json!({ "confirmed": false })),
+                },
+            }],
+        );
+        detail.execution_runtime = Some(lime_agent::SessionExecutionRuntime {
+            session_id: "session-1".to_string(),
+            provider_selector: None,
+            provider_name: None,
+            model_name: None,
+            execution_strategy: None,
+            output_schema_runtime: None,
+            source: lime_agent::SessionExecutionRuntimeSource::RuntimeSnapshot,
+            mode: None,
+            latest_turn_id: Some("turn-approval".to_string()),
+            latest_turn_status: Some("completed".to_string()),
+            recent_access_mode: None,
+            recent_preferences: None,
+            recent_team_selection: None,
+            recent_theme: None,
+            recent_session_mode: None,
+            recent_gate_key: None,
+            recent_run_title: None,
+            recent_content_id: None,
+            task_profile: None,
+            routing_decision: None,
+            limit_state: None,
+            cost_state: None,
+            permission_state: Some(lime_agent::SessionExecutionRuntimePermissionState {
+                status: "requires_confirmation".to_string(),
+                required_profile_keys: vec!["write_artifacts".to_string()],
+                ask_profile_keys: vec!["write_artifacts".to_string()],
+                blocking_profile_keys: Vec::new(),
+                decision_source: "modality_execution_profile".to_string(),
+                decision_scope: "declared_profile".to_string(),
+                confirmation_status: Some("requested".to_string()),
+                confirmation_request_id: Some("approval-2".to_string()),
+                confirmation_source: Some("runtime_action_required".to_string()),
+                notes: Vec::new(),
+            }),
+            limit_event: None,
+            oem_policy: None,
+            runtime_summary: None,
+        });
+
+        let thread_read = AgentRuntimeThreadReadModel::from_session_detail(&detail, &[]);
+
+        assert!(thread_read.pending_requests.is_empty());
+        assert_eq!(
+            thread_read
+                .permission_state
+                .as_ref()
+                .and_then(|value| value.confirmation_status.as_deref()),
+            Some("denied")
+        );
+        assert_eq!(
+            thread_read
+                .permission_state
+                .as_ref()
+                .and_then(|value| value.confirmation_request_id.as_deref()),
+            Some("approval-2")
+        );
+        assert_eq!(
+            thread_read
+                .runtime_summary
+                .as_ref()
+                .and_then(|value| value.get("permissionConfirmationStatus"))
+                .and_then(serde_json::Value::as_str),
+            Some("denied")
         );
     }
 

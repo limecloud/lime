@@ -1,7 +1,7 @@
 # Lime AgentUI 实施路线图
 
 > 状态：实施路线图
-> 更新时间：2026-04-30
+> 更新时间：2026-05-05
 > 目标：把 AgentUI 架构落成可分批交付的工程任务，优先解决旧会话恢复慢、首字慢、tab 卡顿、流式重复吐字和过程信息噪声。
 
 ## 1. 阶段目标
@@ -12,6 +12,24 @@
 | P1 | 建立 task capsule 与 tab 管理 | 多会话、多后台任务不拖慢主页面 |
 | P2 | 强化 artifact/workbench/evidence 分层 | 最终产物和证据离开正文，进入可编辑/可审计工作台 |
 | P3 | 抽象 AgentUI 子系统 | `AgentChatWorkspace` 从巨石入口变成稳定 shell |
+
+结构收敛从 2026-05-05 起按 [conversation-projection-implementation-plan.md](conversation-projection-implementation-plan.md) 继续推进。它是本路线图的 P3 子计划，但 Phase 0 / Phase 1 可以提前穿插执行，因为事实源盘点和最小 Projection Store 会直接降低 P0/P1 性能问题的排查成本。
+
+固定收敛方向：
+
+```text
+Warp runtime fact sources
+  -> Conversation Projection Store
+  -> Session / Stream / Queue / Render controllers
+  -> selectors
+  -> Conversation / Process / Task / Artifact / Evidence UI
+```
+
+约束：
+
+1. `Conversation Projection Store` 只保存 UI projection，不成为 runtime、artifact、evidence 的新事实源。
+2. `AgentChatWorkspace`、`useAgentSession`、`MessageList` 的拆分必须回挂到 projection plan 的 phase 和验收标准。
+3. Pi / ClaudeCode / Warp 只提供边界参考；Lime 不引入 Pi JSONL/RPC 或第二套 event bus。
 
 ## 2. P0：体验止血
 
@@ -211,6 +229,18 @@
 - evidence/review 路径和状态来自后端返回，不由前端猜。
 
 ## 5. P3：结构收敛
+
+P3 不从“拆文件”开始，而是先把状态 owner、projection store、controller、selector、UI 边界理清楚。实际执行顺序以 [conversation-projection-implementation-plan.md](conversation-projection-implementation-plan.md) 为准：
+
+```text
+Phase 0: 对话事实源盘点
+Phase 1: Projection Store 边界
+Phase 2: Session lifecycle / hydration 拆分
+Phase 3: Stream submission / queue / event reducer 拆分
+Phase 4: Message render projection
+Phase 5: Workspace shell 瘦身
+Phase 6: 性能与治理守卫
+```
 
 ### 5.1 拆分 AgentChatWorkspace
 

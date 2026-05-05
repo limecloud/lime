@@ -9,6 +9,10 @@ vi.mock("@/lib/dev-bridge", () => ({
   safeInvoke: vi.fn(),
 }));
 
+vi.mock("@/lib/tauri-runtime", () => ({
+  hasTauriRuntimeMarkers: vi.fn(() => false),
+}));
+
 describe("apiKeyProvider API", () => {
   beforeEach(() => {
     vi.clearAllMocks();

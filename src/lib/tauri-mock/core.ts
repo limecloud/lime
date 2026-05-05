@@ -5964,6 +5964,12 @@ const defaultMocks: Record<string, any> = {
     pending_request_count: 1,
     queued_turn_count: 0,
     default_decision_status: "pending_review",
+    permission_status: "requires_confirmation",
+    permission_confirmation_status: "denied",
+    permission_confirmation_request_id: "mock-approval-denied",
+    permission_confirmation_source: "runtime_action_required",
+    permission_confirmation_summary:
+      "已拒绝（request_id=mock-approval-denied, source=runtime_action_required），不能作为成功交付证据。",
     verification_summary: {
       artifact_validator: {
         applicable: true,
@@ -6044,104 +6050,122 @@ const defaultMocks: Record<string, any> = {
     request,
   }: {
     request?: MockReviewDecisionRequest;
-  }) => ({
-    session_id: request?.session_id || request?.sessionId || "mock-session",
-    thread_id: "mock-thread",
-    workspace_root: "/mock/workspace",
-    review_relative_root: ".lime/harness/sessions/mock-session/review",
-    review_absolute_root:
-      "/mock/workspace/.lime/harness/sessions/mock-session/review",
-    analysis_relative_root: ".lime/harness/sessions/mock-session/analysis",
-    analysis_absolute_root:
-      "/mock/workspace/.lime/harness/sessions/mock-session/analysis",
-    handoff_bundle_relative_root: ".lime/harness/sessions/mock-session",
-    evidence_pack_relative_root: ".lime/harness/sessions/mock-session/evidence",
-    replay_case_relative_root: ".lime/harness/sessions/mock-session/replay",
-    exported_at: "2026-03-27T00:07:00Z",
-    title: "记录外部分析后的人工审核结论",
-    thread_status: "waiting_request",
-    latest_turn_status: "action_required",
-    pending_request_count: 1,
-    queued_turn_count: 0,
-    default_decision_status: "pending_review",
-    verification_summary: {
-      artifact_validator: {
-        applicable: true,
-        record_count: 1,
-        issue_count: 1,
-        repaired_count: 0,
-        fallback_used_count: 0,
-        outcome: "blocking_failure",
+  }) => {
+    const decisionStatus =
+      request?.decision_status || request?.decisionStatus || "pending_review";
+    if (decisionStatus === "accepted") {
+      throw new Error(
+        "真实权限确认已被拒绝，不能把本次 review decision 保存为 accepted；请先处理真实权限确认，或改为 rejected / deferred / needs_more_evidence。",
+      );
+    }
+
+    return {
+      session_id: request?.session_id || request?.sessionId || "mock-session",
+      thread_id: "mock-thread",
+      workspace_root: "/mock/workspace",
+      review_relative_root: ".lime/harness/sessions/mock-session/review",
+      review_absolute_root:
+        "/mock/workspace/.lime/harness/sessions/mock-session/review",
+      analysis_relative_root: ".lime/harness/sessions/mock-session/analysis",
+      analysis_absolute_root:
+        "/mock/workspace/.lime/harness/sessions/mock-session/analysis",
+      handoff_bundle_relative_root: ".lime/harness/sessions/mock-session",
+      evidence_pack_relative_root:
+        ".lime/harness/sessions/mock-session/evidence",
+      replay_case_relative_root: ".lime/harness/sessions/mock-session/replay",
+      exported_at: "2026-03-27T00:07:00Z",
+      title: "记录外部分析后的人工审核结论",
+      thread_status: "waiting_request",
+      latest_turn_status: "action_required",
+      pending_request_count: 1,
+      queued_turn_count: 0,
+      default_decision_status: "pending_review",
+      permission_status: "requires_confirmation",
+      permission_confirmation_status: "denied",
+      permission_confirmation_request_id: "mock-approval-denied",
+      permission_confirmation_source: "runtime_action_required",
+      permission_confirmation_summary:
+        "已拒绝（request_id=mock-approval-denied, source=runtime_action_required），不能作为成功交付证据。",
+      verification_summary: {
+        artifact_validator: {
+          applicable: true,
+          record_count: 1,
+          issue_count: 1,
+          repaired_count: 0,
+          fallback_used_count: 0,
+          outcome: "blocking_failure",
+        },
+        focus_verification_failure_outcomes: [
+          "Artifact 校验存在 1 条未恢复 issue。",
+        ],
+        focus_verification_recovered_outcomes: [],
       },
-      focus_verification_failure_outcomes: [
-        "Artifact 校验存在 1 条未恢复 issue。",
+      decision: {
+        decision_status: decisionStatus,
+        decision_summary:
+          request?.decision_summary || request?.decisionSummary || "",
+        chosen_fix_strategy:
+          request?.chosen_fix_strategy || request?.chosenFixStrategy || "",
+        risk_level: request?.risk_level || request?.riskLevel || "unknown",
+        risk_tags: request?.risk_tags || request?.riskTags || [],
+        human_reviewer: request?.human_reviewer || request?.humanReviewer || "",
+        reviewed_at:
+          request?.reviewed_at ||
+          request?.reviewedAt ||
+          "2026-03-27T00:07:00Z",
+        followup_actions:
+          request?.followup_actions || request?.followupActions || [],
+        regression_requirements:
+          request?.regression_requirements ||
+          request?.regressionRequirements ||
+          [],
+        notes: request?.notes || "",
+      },
+      decision_status_options: [
+        "accepted",
+        "deferred",
+        "rejected",
+        "needs_more_evidence",
+        "pending_review",
       ],
-      focus_verification_recovered_outcomes: [],
-    },
-    decision: {
-      decision_status:
-        request?.decision_status || request?.decisionStatus || "pending_review",
-      decision_summary:
-        request?.decision_summary || request?.decisionSummary || "",
-      chosen_fix_strategy:
-        request?.chosen_fix_strategy || request?.chosenFixStrategy || "",
-      risk_level: request?.risk_level || request?.riskLevel || "unknown",
-      risk_tags: request?.risk_tags || request?.riskTags || [],
-      human_reviewer: request?.human_reviewer || request?.humanReviewer || "",
-      reviewed_at:
-        request?.reviewed_at || request?.reviewedAt || "2026-03-27T00:07:00Z",
-      followup_actions:
-        request?.followup_actions || request?.followupActions || [],
-      regression_requirements:
-        request?.regression_requirements ||
-        request?.regressionRequirements ||
-        [],
-      notes: request?.notes || "",
-    },
-    decision_status_options: [
-      "accepted",
-      "deferred",
-      "rejected",
-      "needs_more_evidence",
-      "pending_review",
-    ],
-    risk_level_options: ["low", "medium", "high", "unknown"],
-    review_checklist: [
-      "先阅读 analysis-brief.md 与 analysis-context.json。",
-      "确认最终决策由人工审核者填写。",
-    ],
-    analysis_artifacts: [
-      {
-        kind: "analysis_brief",
-        title: "外部分析简报",
-        relative_path:
-          ".lime/harness/sessions/mock-session/analysis/analysis-brief.md",
-        absolute_path:
-          "/mock/workspace/.lime/harness/sessions/mock-session/analysis/analysis-brief.md",
-        bytes: 512,
-      },
-    ],
-    artifacts: [
-      {
-        kind: "review_decision_markdown",
-        title: "人工审核记录",
-        relative_path:
-          ".lime/harness/sessions/mock-session/review/review-decision.md",
-        absolute_path:
-          "/mock/workspace/.lime/harness/sessions/mock-session/review/review-decision.md",
-        bytes: 512,
-      },
-      {
-        kind: "review_decision_json",
-        title: "人工审核记录 JSON",
-        relative_path:
-          ".lime/harness/sessions/mock-session/review/review-decision.json",
-        absolute_path:
-          "/mock/workspace/.lime/harness/sessions/mock-session/review/review-decision.json",
-        bytes: 768,
-      },
-    ],
-  }),
+      risk_level_options: ["low", "medium", "high", "unknown"],
+      review_checklist: [
+        "先阅读 analysis-brief.md 与 analysis-context.json。",
+        "确认最终决策由人工审核者填写。",
+      ],
+      analysis_artifacts: [
+        {
+          kind: "analysis_brief",
+          title: "外部分析简报",
+          relative_path:
+            ".lime/harness/sessions/mock-session/analysis/analysis-brief.md",
+          absolute_path:
+            "/mock/workspace/.lime/harness/sessions/mock-session/analysis/analysis-brief.md",
+          bytes: 512,
+        },
+      ],
+      artifacts: [
+        {
+          kind: "review_decision_markdown",
+          title: "人工审核记录",
+          relative_path:
+            ".lime/harness/sessions/mock-session/review/review-decision.md",
+          absolute_path:
+            "/mock/workspace/.lime/harness/sessions/mock-session/review/review-decision.md",
+          bytes: 512,
+        },
+        {
+          kind: "review_decision_json",
+          title: "人工审核记录 JSON",
+          relative_path:
+            ".lime/harness/sessions/mock-session/review/review-decision.json",
+          absolute_path:
+            "/mock/workspace/.lime/harness/sessions/mock-session/review/review-decision.json",
+          bytes: 768,
+        },
+      ],
+    };
+  },
   agent_runtime_export_handoff_bundle: () => ({
     sessionId: "mock-session",
     threadId: "mock-thread",

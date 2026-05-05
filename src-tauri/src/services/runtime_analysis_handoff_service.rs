@@ -111,6 +111,11 @@ struct AnalysisContextSummary {
     decision_reason: String,
     estimated_cost_class: String,
     fallback_chain: Vec<String>,
+    permission_status: String,
+    permission_confirmation_status: String,
+    permission_confirmation_request_id: String,
+    permission_confirmation_source: String,
+    permission_confirmation_summary: String,
     failure_modes: Vec<String>,
     suite_tags: Vec<String>,
     pending_request_count: usize,
@@ -283,6 +288,59 @@ pub fn export_runtime_analysis_handoff(
             .and_then(|value| normalize_optional_text(value.primary_blocking_summary.clone()))
     })
     .unwrap_or_default();
+    let permission_status = value_string(
+        input_payload
+            .pointer("/runtimeContext/runtimeFacts/permissionState/status")
+            .unwrap_or(&Value::Null),
+    )
+    .or_else(|| {
+        thread_read
+            .permission_state
+            .as_ref()
+            .map(|value| value.status.clone())
+    })
+    .unwrap_or_default();
+    let permission_confirmation_status = value_string(
+        input_payload
+            .pointer("/runtimeContext/runtimeFacts/permissionState/confirmationStatus")
+            .unwrap_or(&Value::Null),
+    )
+    .or_else(|| {
+        thread_read
+            .permission_state
+            .as_ref()
+            .and_then(|value| normalize_optional_text(value.confirmation_status.clone()))
+    })
+    .unwrap_or_default();
+    let permission_confirmation_request_id = value_string(
+        input_payload
+            .pointer("/runtimeContext/runtimeFacts/permissionState/confirmationRequestId")
+            .unwrap_or(&Value::Null),
+    )
+    .or_else(|| {
+        thread_read
+            .permission_state
+            .as_ref()
+            .and_then(|value| normalize_optional_text(value.confirmation_request_id.clone()))
+    })
+    .unwrap_or_default();
+    let permission_confirmation_source = value_string(
+        input_payload
+            .pointer("/runtimeContext/runtimeFacts/permissionState/confirmationSource")
+            .unwrap_or(&Value::Null),
+    )
+    .or_else(|| {
+        thread_read
+            .permission_state
+            .as_ref()
+            .and_then(|value| normalize_optional_text(value.confirmation_source.clone()))
+    })
+    .unwrap_or_default();
+    let permission_confirmation_summary = format_permission_confirmation_summary(
+        &permission_confirmation_status,
+        &permission_confirmation_request_id,
+        &permission_confirmation_source,
+    );
 
     let replay_refs = replay_case
         .artifacts
@@ -403,6 +461,11 @@ pub fn export_runtime_analysis_handoff(
                 .pointer("/runtimeContext/runtimeFacts/fallbackChain")
                 .unwrap_or(&Value::Null),
         ),
+        permission_status,
+        permission_confirmation_status,
+        permission_confirmation_request_id,
+        permission_confirmation_source,
+        permission_confirmation_summary,
         failure_modes: failure_modes.clone(),
         suite_tags: suite_tags.clone(),
         pending_request_count: thread_read.pending_requests.len(),
@@ -411,7 +474,7 @@ pub fn export_runtime_analysis_handoff(
 
     let reading_order = build_reading_order();
     let review_checklist =
-        build_human_review_checklist(&input_payload, &expected_payload, &failure_modes);
+        build_human_review_checklist(&input_payload, &expected_payload, &failure_modes, &summary);
     let external_contract = build_external_analysis_contract();
 
     let analysis_context = AnalysisContextDocument {
@@ -604,6 +667,14 @@ fn build_analysis_brief(
         ),
         format!("- pending request：{}", summary.pending_request_count),
         format!("- queued turn：{}", summary.queued_turn_count),
+        format!(
+            "- 权限状态：{}",
+            empty_fallback(&summary.permission_status, "未导出")
+        ),
+        format!(
+            "- 权限确认：{}",
+            empty_fallback(&summary.permission_confirmation_summary, "未导出")
+        ),
         String::new(),
         "## 证据关联与可观测覆盖".to_string(),
         String::new(),
@@ -745,6 +816,10 @@ fn build_copy_prompt(
                 format!(" · {}", summary.primary_blocking_summary)
             }
         ),
+        format!(
+            "- 权限确认：{}",
+            empty_fallback(&summary.permission_confirmation_summary, "未导出")
+        ),
         format!("- Handoff 根目录：`{}`", to_portable_path(&handoff_bundle.bundle_absolute_root)),
         format!("- Evidence 根目录：`{}`", to_portable_path(&evidence_pack.pack_absolute_root)),
         format!("- Replay 根目录：`{}`", to_portable_path(&replay_case.replay_absolute_root)),
@@ -804,12 +879,23 @@ fn build_human_review_checklist(
     input_payload: &Value,
     expected_payload: &Value,
     failure_modes: &[String],
+    summary: &AnalysisContextSummary,
 ) -> Vec<String> {
     let mut checklist = vec![
         "确认外部 AI 是否引用了现有证据，而不是凭空推断。".to_string(),
         "确认修复建议是否直接服务当前失败模式，而不是顺手扩大范围。".to_string(),
         "确认回归建议是否能沉淀为 replay / eval / smoke，而不是停留在口头建议。".to_string(),
     ];
+
+    if summary.permission_confirmation_status == "denied" {
+        checklist.insert(
+            0,
+            "当前真实权限确认已被拒绝，不应把 handoff / evidence / replay 当成成功交付通过证据。"
+                .to_string(),
+        );
+    } else if summary.permission_confirmation_status == "resolved" {
+        checklist.push("确认外部 AI 没有把已通过的真实权限确认误判成仍需人工确认。".to_string());
+    }
 
     let requires_human_review = expected_payload
         .pointer("/graderSuggestion/requiresHumanReview")
@@ -834,6 +920,22 @@ fn build_human_review_checklist(
     }
 
     checklist
+}
+
+fn format_permission_confirmation_summary(status: &str, request_id: &str, source: &str) -> String {
+    let request_id = empty_fallback(request_id, "未记录 confirmationRequestId");
+    let source = empty_fallback(source, "未记录 confirmationSource");
+
+    match status {
+        "denied" => {
+            format!("已拒绝（request_id={request_id}, source={source}），不能作为成功交付证据。")
+        }
+        "resolved" => format!("已通过（request_id={request_id}, source={source}）。"),
+        "requested" => format!("等待处理（request_id={request_id}, source={source}）。"),
+        "not_requested" => "声明态权限尚未发起真实审批请求。".to_string(),
+        "" => String::new(),
+        other => format!("{other}（source={source}）。"),
+    }
 }
 
 fn handoff_artifact_kind_key(kind: &RuntimeHandoffArtifactKind) -> &'static str {
@@ -1442,6 +1544,25 @@ mod tests {
         }
     }
 
+    fn set_permission_confirmation(
+        thread_read: &mut AgentRuntimeThreadReadModel,
+        confirmation_status: &str,
+        request_id: &str,
+    ) {
+        thread_read.permission_state = Some(lime_agent::SessionExecutionRuntimePermissionState {
+            status: "requires_confirmation".to_string(),
+            required_profile_keys: vec!["browser_control".to_string()],
+            ask_profile_keys: vec!["browser_control".to_string()],
+            blocking_profile_keys: Vec::new(),
+            decision_source: "runtime_task_profile".to_string(),
+            decision_scope: "declared_profile_only".to_string(),
+            confirmation_status: Some(confirmation_status.to_string()),
+            confirmation_request_id: Some(request_id.to_string()),
+            confirmation_source: Some("runtime_action_required".to_string()),
+            notes: Vec::new(),
+        });
+    }
+
     fn write_request_telemetry_fixture(root: &Path) {
         let request_logs_dir = root.join("request_logs");
         fs::create_dir_all(&request_logs_dir).expect("create request logs dir");
@@ -1642,5 +1763,69 @@ mod tests {
         assert!(context.contains("\"verificationSummary\": {"));
         assert!(context.contains("\"verificationRecoveredOutcomes\": ["));
         assert!(context.contains("\"outcome\": \"recovered\""));
+    }
+
+    #[test]
+    fn should_surface_denied_permission_confirmation_in_analysis_handoff() {
+        let temp_dir = TempDir::new().expect("temp dir");
+        let detail = build_detail();
+        let mut thread_read = build_thread_read();
+        set_permission_confirmation(&mut thread_read, "denied", "approval-denied");
+        write_request_telemetry_fixture(temp_dir.path());
+
+        let result = export_runtime_analysis_handoff(&detail, &thread_read, temp_dir.path())
+            .expect("export");
+
+        assert!(result.copy_prompt.contains("权限确认：已拒绝"));
+        assert!(result.copy_prompt.contains("approval-denied"));
+
+        let brief = fs::read_to_string(
+            temp_dir
+                .path()
+                .join(".lime/harness/sessions/session-1/analysis/analysis-brief.md"),
+        )
+        .expect("brief");
+        let context = fs::read_to_string(
+            temp_dir
+                .path()
+                .join(".lime/harness/sessions/session-1/analysis/analysis-context.json"),
+        )
+        .expect("context");
+
+        assert!(brief.contains("权限确认：已拒绝"));
+        assert!(brief.contains("approval-denied"));
+        assert!(brief.contains("不能作为成功交付证据"));
+        assert!(context.contains("\"permissionConfirmationStatus\": \"denied\""));
+        assert!(context.contains("\"permissionConfirmationRequestId\": \"approval-denied\""));
+        assert!(context.contains("\"permissionState\""));
+    }
+
+    #[test]
+    fn should_surface_resolved_permission_confirmation_in_analysis_handoff() {
+        let temp_dir = TempDir::new().expect("temp dir");
+        let detail = build_detail();
+        let mut thread_read = build_thread_read();
+        set_permission_confirmation(&mut thread_read, "resolved", "approval-resolved");
+        write_request_telemetry_fixture(temp_dir.path());
+
+        export_runtime_analysis_handoff(&detail, &thread_read, temp_dir.path()).expect("export");
+
+        let brief = fs::read_to_string(
+            temp_dir
+                .path()
+                .join(".lime/harness/sessions/session-1/analysis/analysis-brief.md"),
+        )
+        .expect("brief");
+        let context = fs::read_to_string(
+            temp_dir
+                .path()
+                .join(".lime/harness/sessions/session-1/analysis/analysis-context.json"),
+        )
+        .expect("context");
+
+        assert!(brief.contains("权限确认：已通过"));
+        assert!(brief.contains("approval-resolved"));
+        assert!(context.contains("\"permissionConfirmationStatus\": \"resolved\""));
+        assert!(context.contains("没有把已通过的真实权限确认误判成仍需人工确认"));
     }
 }

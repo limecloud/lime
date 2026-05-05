@@ -2554,8 +2554,8 @@ describe("Inputbar", () => {
       '[data-testid="inputbar-knowledge-pack-toggle"]',
     ) as HTMLButtonElement | null;
     expect(toggle).toBeTruthy();
-    expect(toggle?.textContent).toContain("项目资料");
-    expect(toggle?.getAttribute("title")).toContain("使用项目资料");
+    expect(toggle?.textContent).toContain("项目资料：未使用");
+    expect(toggle?.getAttribute("title")).toContain("项目资料当前未使用");
     expect(container.textContent).not.toContain("知识包");
   });
 
@@ -2573,10 +2573,22 @@ describe("Inputbar", () => {
       '[data-testid="inputbar-knowledge-organize"]',
     ) as HTMLButtonElement | null;
     expect(organizeButton).toBeTruthy();
-    expect(organizeButton?.textContent).toContain("整理成项目资料");
+    expect(organizeButton?.textContent).toContain("添加项目资料");
 
     act(() => {
       organizeButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    const organizeCard = container.querySelector(
+      '[data-testid="inputbar-knowledge-organize-card"]',
+    );
+    expect(organizeCard?.textContent).toContain("发送给 Agent 整理");
+
+    const organizeAction = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent?.includes("发送给 Agent 整理"),
+    );
+    act(() => {
+      organizeAction?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
 
     expect(onStartKnowledgeOrganize).toHaveBeenCalledTimes(1);

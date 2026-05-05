@@ -1,7 +1,7 @@
 # Lime AgentUI 路线图文档
 
 > 状态：路线图与架构设计
-> 更新时间：2026-04-30
+> 更新时间：2026-05-05
 > 范围：Lime 对话工作区下一阶段 AgentUI，包括 UI 架构、代码层级、事件流程、时序图、后端协作与落地顺序。
 
 ## 目标
@@ -26,6 +26,10 @@ AgentUI 不是再做一个聊天页面，而是把 Lime 已有的 runtime、time
 | [lime-agentui-sequence-diagrams.md](lime-agentui-sequence-diagrams.md) | 端到端时序图，适合实现和排查首字慢、恢复慢、流式错乱。 |
 | [lime-agentui-backend-coordination.md](lime-agentui-backend-coordination.md) | 后端配合代码架构，定义 UI 需要后端继续补齐的投影、分页、指标与批量接口。 |
 | [lime-agentui-implementation-roadmap.md](lime-agentui-implementation-roadmap.md) | P0/P1/P2/P3 落地顺序、验收标准和验证命令。 |
+| [conversation-projection-architecture.md](conversation-projection-architecture.md) | Warp 对齐的对话投影架构，声明 AgentUI 只做 UI projection，不新增 runtime fact source。 |
+| [conversation-projection-fact-map.md](conversation-projection-fact-map.md) | 对话状态事实源地图，标明 owner、writer、readers、persistence、runtime fact source 与 projection-only 边界。 |
+| [conversation-projection-implementation-plan.md](conversation-projection-implementation-plan.md) | 对话主链瘦身的分阶段实施计划，顺序为事实源盘点、Projection Store、controller、selector、UI。 |
+| [conversation-projection-acceptance.md](conversation-projection-acceptance.md) | 对话投影改造的固定验收场景、性能指标、Playwright 续测口径和完成判定。 |
 
 ## 当前结论
 
@@ -37,6 +41,18 @@ Agent runtime event
   -> frontend state
   -> Conversation / Process / Task / Artifact / Evidence UI
 ```
+
+对话层结构瘦身进一步固定为 Warp 对齐的 projection 子计划：
+
+```text
+Warp runtime fact sources
+  -> Conversation Projection Store
+  -> controllers
+  -> selectors
+  -> UI
+```
+
+其中 Warp 继续拥有 `Agent runtime identity`、`ModalityRuntimeContract`、`Execution Profile`、`Artifact Graph`、`Evidence / Replay / Task Index` 等事实源；AgentUI 只消费这些事实源生成对话 UI 需要的轻量投影。
 
 下一阶段 UI 的关键词不是“更像某个竞品”，而是：
 

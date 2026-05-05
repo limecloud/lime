@@ -821,7 +821,18 @@ fn build_blocking_checks(
     }
 
     if let Some(permission_state) = thread_read.permission_state.as_ref() {
-        if permission_state.status == "requires_confirmation" {
+        let confirmation_status = permission_state.confirmation_status.as_deref();
+        if confirmation_status == Some("denied") {
+            checks.push(format!(
+                "运行时权限确认已被拒绝：{}；除非 replay 改写任务目标或重新获得真实授权，否则不能判 PASS。",
+                permission_state
+                    .confirmation_request_id
+                    .as_deref()
+                    .unwrap_or("未记录 confirmationRequestId")
+            ));
+        } else if permission_state.status == "requires_confirmation"
+            && confirmation_status != Some("resolved")
+        {
             checks.push(format!(
                 "运行时权限声明仍需确认：{}；除非 replay 已接入真实授权或用户确认证据，否则不能宣称这些权限已获批。",
                 format_text_list(&permission_state.ask_profile_keys, "未记录 askProfileKeys")
@@ -2709,6 +2720,57 @@ mod tests {
                 retryable: true,
             }),
         }
+    }
+
+    #[test]
+    fn replay_blocking_checks_should_treat_denied_permission_confirmation_as_blocking() {
+        let mut thread_read = build_thread_read();
+        thread_read.pending_requests.clear();
+        thread_read.queued_turns.clear();
+        thread_read.diagnostics = None;
+        let mut permission_state = thread_read
+            .permission_state
+            .clone()
+            .expect("permission state");
+        permission_state.confirmation_status = Some("denied".to_string());
+        permission_state.confirmation_request_id = Some("approval-denied".to_string());
+        permission_state.confirmation_source = Some("runtime_action_required".to_string());
+        thread_read.permission_state = Some(permission_state);
+
+        let checks = build_blocking_checks(&thread_read, &[], &json!({}));
+
+        assert!(checks
+            .iter()
+            .any(|check| check.contains("运行时权限确认已被拒绝")));
+        assert!(checks.iter().any(|check| check.contains("approval-denied")));
+        assert!(!checks
+            .iter()
+            .any(|check| check.contains("运行时权限声明仍需确认")));
+    }
+
+    #[test]
+    fn replay_blocking_checks_should_not_block_resolved_permission_confirmation() {
+        let mut thread_read = build_thread_read();
+        thread_read.pending_requests.clear();
+        thread_read.queued_turns.clear();
+        thread_read.diagnostics = None;
+        let mut permission_state = thread_read
+            .permission_state
+            .clone()
+            .expect("permission state");
+        permission_state.confirmation_status = Some("resolved".to_string());
+        permission_state.confirmation_request_id = Some("approval-resolved".to_string());
+        permission_state.confirmation_source = Some("runtime_action_required".to_string());
+        thread_read.permission_state = Some(permission_state);
+
+        let checks = build_blocking_checks(&thread_read, &[], &json!({}));
+
+        assert!(!checks
+            .iter()
+            .any(|check| check.contains("运行时权限声明仍需确认")));
+        assert!(!checks
+            .iter()
+            .any(|check| check.contains("运行时权限确认已被拒绝")));
     }
 
     fn write_failed_image_contract_task_fixture(root: &Path, relative_path: &str) {

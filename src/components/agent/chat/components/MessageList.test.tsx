@@ -3901,6 +3901,64 @@ describe("MessageList", () => {
     expect(container.textContent).toContain("正在打开 GitHub");
   });
 
+  it("首字前已有运行中 turn_summary 时仍应优先展示轻量等待占位", () => {
+    const now = new Date();
+    const messages: Message[] = [
+      {
+        id: "msg-assistant-first-token-with-summary",
+        role: "assistant",
+        content: "",
+        timestamp: now,
+        isThinking: true,
+        runtimeStatus: {
+          phase: "preparing",
+          title: "已接收请求，正在准备执行",
+          detail:
+            "系统正在初始化本轮执行环境并整理上下文，稍后会继续返回更详细进度。",
+          checkpoints: ["请求已接收"],
+        },
+      },
+    ];
+
+    const container = render(messages, {
+      currentTurnId: "turn-first-token-with-summary",
+      turns: [
+        {
+          id: "turn-first-token-with-summary",
+          thread_id: "thread-1",
+          prompt_text: "你好",
+          status: "running",
+          started_at: "2026-03-30T10:20:00Z",
+          created_at: "2026-03-30T10:20:00Z",
+          updated_at: "2026-03-30T10:20:05Z",
+        },
+      ],
+      threadItems: [
+        {
+          id: "summary-first-token-1",
+          thread_id: "thread-1",
+          turn_id: "turn-first-token-with-summary",
+          sequence: 1,
+          status: "in_progress",
+          started_at: "2026-03-30T10:20:00Z",
+          updated_at: "2026-03-30T10:20:05Z",
+          type: "turn_summary",
+          text: "已接收请求，正在准备执行",
+        },
+      ],
+    });
+
+    expect(
+      container.querySelector(
+        '[data-testid="assistant-first-token-placeholder"]',
+      ),
+    ).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="agent-thread-timeline:trailing"]'),
+    ).toBeNull();
+    expect(container.textContent).toContain("已接收请求，正在准备执行");
+  });
+
   it("本地工具批次的阶段结论不应再进入主消息流时间线", () => {
     const now = new Date();
     const messages: Message[] = [

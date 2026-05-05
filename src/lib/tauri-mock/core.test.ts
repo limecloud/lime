@@ -638,6 +638,37 @@ describe("tauri-mock/core invoke", () => {
     }
   });
 
+  it("review decision mock 应阻止 denied 权限确认保存为 accepted", async () => {
+    await expect(
+      invokeMockOnly("agent_runtime_save_review_decision", {
+        request: {
+          session_id: "mock-session",
+          decision_status: "accepted",
+          decision_summary: "错误接受被拒绝的权限确认。",
+          risk_level: "low",
+        },
+      }),
+    ).rejects.toThrow("真实权限确认已被拒绝");
+
+    await expect(
+      invokeMockOnly("agent_runtime_save_review_decision", {
+        request: {
+          session_id: "mock-session",
+          decision_status: "rejected",
+          decision_summary: "权限确认已拒绝，拒绝本次交付。",
+          risk_level: "high",
+        },
+      }),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        permission_confirmation_status: "denied",
+        decision: expect.objectContaining({
+          decision_status: "rejected",
+        }),
+      }),
+    );
+  });
+
   it("工具库存 fallback mock 应按 workbench + browser surface 补齐当前工具面", async () => {
     mocks.invokeViaHttp.mockRejectedValueOnce(new Error("Failed to fetch"));
     const consoleWarnSpy = vi

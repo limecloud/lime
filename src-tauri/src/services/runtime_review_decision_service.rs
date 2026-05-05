@@ -61,6 +61,11 @@ pub struct RuntimeReviewDecisionTemplateExportResult {
     pub queued_turn_count: usize,
     pub default_decision_status: String,
     pub verification_summary: Option<Value>,
+    pub permission_status: String,
+    pub permission_confirmation_status: String,
+    pub permission_confirmation_request_id: String,
+    pub permission_confirmation_source: String,
+    pub permission_confirmation_summary: String,
     pub decision: RuntimeReviewDecisionContent,
     pub decision_status_options: Vec<String>,
     pub risk_level_options: Vec<String>,
@@ -117,6 +122,16 @@ struct ReviewDecisionContext {
     verification_summary: Option<Value>,
     verification_failure_outcomes: Vec<String>,
     verification_recovered_outcomes: Vec<String>,
+    #[serde(default)]
+    permission_status: String,
+    #[serde(default)]
+    permission_confirmation_status: String,
+    #[serde(default)]
+    permission_confirmation_request_id: String,
+    #[serde(default)]
+    permission_confirmation_source: String,
+    #[serde(default)]
+    permission_confirmation_summary: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -192,8 +207,8 @@ fn sync_runtime_review_decision(
         )
     })?;
 
-    let review_checklist = build_review_checklist();
     let verification_context = load_analysis_verification_context(&analysis)?;
+    let review_checklist = build_review_checklist(&verification_context);
     let existing_decision = load_existing_review_decision_document(&review_absolute_root)?
         .map(|document| document.decision);
     let mut document = build_review_decision_document(
@@ -202,10 +217,15 @@ fn sync_runtime_review_decision(
         &review_checklist,
         &verification_context,
     );
+    let has_decision_override = decision_override.is_some();
     let decision = decision_override
         .or(existing_decision)
         .unwrap_or_else(|| document.decision.clone());
-    document.decision = normalize_review_decision_content(decision, &exported_at);
+    let decision = normalize_review_decision_content(decision, &exported_at);
+    if has_decision_override {
+        validate_review_decision_write(&verification_context, &decision)?;
+    }
+    document.decision = decision;
     let markdown = build_review_decision_markdown(&document);
     let json = serde_json::to_string_pretty(&document)
         .map_err(|error| format!("序列化 review decision json 失败: {error}"))?;
@@ -247,6 +267,23 @@ fn sync_runtime_review_decision(
         queued_turn_count: analysis.queued_turn_count,
         default_decision_status: DEFAULT_DECISION_STATUS.to_string(),
         verification_summary: document.review_context.verification_summary.clone(),
+        permission_status: document.review_context.permission_status.clone(),
+        permission_confirmation_status: document
+            .review_context
+            .permission_confirmation_status
+            .clone(),
+        permission_confirmation_request_id: document
+            .review_context
+            .permission_confirmation_request_id
+            .clone(),
+        permission_confirmation_source: document
+            .review_context
+            .permission_confirmation_source
+            .clone(),
+        permission_confirmation_summary: document
+            .review_context
+            .permission_confirmation_summary
+            .clone(),
         decision: document.decision,
         decision_status_options: document.decision_status_options,
         risk_level_options: document.risk_level_options,
@@ -306,6 +343,19 @@ fn build_review_decision_document(
             verification_summary: verification_context.summary.clone(),
             verification_failure_outcomes: verification_context.failure_outcomes.clone(),
             verification_recovered_outcomes: verification_context.recovered_outcomes.clone(),
+            permission_status: verification_context.permission_status.clone(),
+            permission_confirmation_status: verification_context
+                .permission_confirmation_status
+                .clone(),
+            permission_confirmation_request_id: verification_context
+                .permission_confirmation_request_id
+                .clone(),
+            permission_confirmation_source: verification_context
+                .permission_confirmation_source
+                .clone(),
+            permission_confirmation_summary: verification_context
+                .permission_confirmation_summary
+                .clone(),
         },
         decision: RuntimeReviewDecisionContent {
             decision_status: DEFAULT_DECISION_STATUS.to_string(),
@@ -349,6 +399,11 @@ fn build_review_decision_markdown(document: &ReviewDecisionDocument) -> String {
         &document.review_context.verification_recovered_outcomes,
         "- 无",
     );
+    let permission_status = empty_fallback(&document.review_context.permission_status, "未导出");
+    let permission_confirmation = empty_fallback(
+        &document.review_context.permission_confirmation_summary,
+        "未导出",
+    );
     let decision_status_options = document
         .decision_status_options
         .iter()
@@ -378,6 +433,8 @@ fn build_review_decision_markdown(document: &ReviewDecisionDocument) -> String {
 - 最新 Turn：`{latest_turn_status}`\n\
 - 待处理请求：`{pending_request_count}`\n\
 - 排队任务：`{queued_turn_count}`\n\
+- 权限状态：`{permission_status}`\n\
+- 权限确认：{permission_confirmation}\n\
 - analysis 目录：`{analysis_relative_root}`\n\
 - handoff 目录：`{handoff_bundle_relative_root}`\n\
 - evidence 目录：`{evidence_pack_relative_root}`\n\
@@ -429,6 +486,8 @@ fn build_review_decision_markdown(document: &ReviewDecisionDocument) -> String {
             .unwrap_or("unknown"),
         pending_request_count = document.review_context.pending_request_count,
         queued_turn_count = document.review_context.queued_turn_count,
+        permission_status = permission_status,
+        permission_confirmation = permission_confirmation,
         analysis_relative_root = document.review_context.analysis_relative_root,
         handoff_bundle_relative_root = document.review_context.handoff_bundle_relative_root,
         evidence_pack_relative_root = document.review_context.evidence_pack_relative_root,
@@ -468,8 +527,8 @@ fn build_review_decision_markdown(document: &ReviewDecisionDocument) -> String {
     )
 }
 
-fn build_review_checklist() -> Vec<String> {
-    vec![
+fn build_review_checklist(verification_context: &ReviewDecisionVerificationContext) -> Vec<String> {
+    let mut checklist = vec![
         "先阅读 analysis-brief.md 与 analysis-context.json，再决定是否进入修复。".to_string(),
         "确认根因判断引用的是现有证据，而不是外部 AI 的猜测扩写。".to_string(),
         "优先核对 verification failure / recovered outcomes，再决定是接受、延后还是补充证据。"
@@ -478,7 +537,21 @@ fn build_review_checklist() -> Vec<String> {
             .to_string(),
         "明确最小回归集合，包括 contract、GUI smoke、Replay 或其它定向验证。".to_string(),
         "把最终决定记录为 accepted / deferred / rejected / needs_more_evidence 之一。".to_string(),
-    ]
+    ];
+
+    match verification_context.permission_confirmation_status.as_str() {
+        "denied" => checklist.insert(
+            0,
+            "真实权限确认已被拒绝，不应把本次 review decision 标记为 accepted，除非已有新的真实授权证据。"
+                .to_string(),
+        ),
+        "resolved" => checklist.push(
+            "确认 review 决策不会把已通过的真实权限确认当作待处理阻塞。".to_string(),
+        ),
+        _ => {}
+    }
+
+    checklist
 }
 
 #[derive(Debug, Clone, Default)]
@@ -486,6 +559,11 @@ struct ReviewDecisionVerificationContext {
     summary: Option<Value>,
     failure_outcomes: Vec<String>,
     recovered_outcomes: Vec<String>,
+    permission_status: String,
+    permission_confirmation_status: String,
+    permission_confirmation_request_id: String,
+    permission_confirmation_source: String,
+    permission_confirmation_summary: String,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -551,6 +629,19 @@ fn load_analysis_verification_context(
             .pointer("/observability/verificationRecoveredOutcomes")
             .map(value_string_list)
             .unwrap_or_default(),
+        permission_status: value_string(payload.pointer("/summary/permissionStatus")),
+        permission_confirmation_status: value_string(
+            payload.pointer("/summary/permissionConfirmationStatus"),
+        ),
+        permission_confirmation_request_id: value_string(
+            payload.pointer("/summary/permissionConfirmationRequestId"),
+        ),
+        permission_confirmation_source: value_string(
+            payload.pointer("/summary/permissionConfirmationSource"),
+        ),
+        permission_confirmation_summary: value_string(
+            payload.pointer("/summary/permissionConfirmationSummary"),
+        ),
     })
 }
 
@@ -653,6 +744,22 @@ fn normalize_review_decision_content(
     }
 }
 
+fn validate_review_decision_write(
+    verification_context: &ReviewDecisionVerificationContext,
+    decision: &RuntimeReviewDecisionContent,
+) -> Result<(), String> {
+    if verification_context.permission_confirmation_status == "denied"
+        && decision.decision_status == "accepted"
+    {
+        return Err(
+            "真实权限确认已被拒绝，不能把本次 review decision 保存为 accepted；请先处理真实权限确认，或改为 rejected / deferred / needs_more_evidence。"
+                .to_string(),
+        );
+    }
+
+    Ok(())
+}
+
 fn build_decision_status_options() -> Vec<String> {
     vec![
         "accepted".to_string(),
@@ -717,6 +824,17 @@ fn build_review_decision_suggested_actions(
     verification_context: &ReviewDecisionVerificationContext,
 ) -> ReviewDecisionSuggestedActions {
     let mut suggested_actions = ReviewDecisionSuggestedActions::default();
+
+    if verification_context.permission_confirmation_status == "denied" {
+        push_unique_string(
+            &mut suggested_actions.followup_actions,
+            "先处理被拒绝的权限确认或重新发起用户授权，不要基于当前交接直接判定成功交付。",
+        );
+        push_unique_string(
+            &mut suggested_actions.regression_requirements,
+            "重新导出 evidence pack / handoff / review decision，并确认 permissionConfirmationStatus 不再是 denied。",
+        );
+    }
 
     if let Some(summary) = verification_context.summary.as_ref() {
         if let Some(artifact_validator) =
@@ -855,6 +973,15 @@ fn build_review_decision_suggested_actions(
 fn push_review_verification_eval_commands(target: &mut Vec<String>) {
     push_unique_string(target, REVIEW_VERIFICATION_COMMAND_EVAL);
     push_unique_string(target, REVIEW_VERIFICATION_COMMAND_TREND);
+}
+
+fn value_string(value: Option<&Value>) -> String {
+    value
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string)
+        .unwrap_or_default()
 }
 
 fn value_string_list(value: &Value) -> Vec<String> {
@@ -1224,6 +1351,25 @@ mod tests {
         }
     }
 
+    fn set_permission_confirmation(
+        thread_read: &mut AgentRuntimeThreadReadModel,
+        confirmation_status: &str,
+        request_id: &str,
+    ) {
+        thread_read.permission_state = Some(lime_agent::SessionExecutionRuntimePermissionState {
+            status: "requires_confirmation".to_string(),
+            required_profile_keys: vec!["browser_control".to_string()],
+            ask_profile_keys: vec!["browser_control".to_string()],
+            blocking_profile_keys: Vec::new(),
+            decision_source: "runtime_task_profile".to_string(),
+            decision_scope: "declared_profile_only".to_string(),
+            confirmation_status: Some(confirmation_status.to_string()),
+            confirmation_request_id: Some(request_id.to_string()),
+            confirmation_source: Some("runtime_action_required".to_string()),
+            notes: Vec::new(),
+        });
+    }
+
     fn seed_recovered_verification(detail: &mut SessionDetail, root: &std::path::Path) {
         let artifact_relative_path = ".lime/artifacts/thread-1/report.artifact.json";
         let artifact_absolute_path =
@@ -1451,6 +1597,148 @@ mod tests {
         assert!(json.contains("\"verificationSummary\": null"));
         assert!(json.contains("\"verificationFailureOutcomes\": []"));
         assert!(json.contains("\"verificationRecoveredOutcomes\": []"));
+        assert_eq!(result.permission_confirmation_status, "");
+    }
+
+    #[test]
+    fn should_surface_denied_permission_confirmation_in_review_decision() {
+        let temp_dir = TempDir::new().expect("temp dir");
+        let detail = build_detail();
+        let mut thread_read = build_thread_read();
+        set_permission_confirmation(&mut thread_read, "denied", "approval-denied");
+
+        let result =
+            export_runtime_review_decision_template(&detail, &thread_read, temp_dir.path())
+                .expect("export");
+
+        let markdown_path = temp_dir
+            .path()
+            .join(".lime/harness/sessions/session-1/review/review-decision.md");
+        let json_path = temp_dir
+            .path()
+            .join(".lime/harness/sessions/session-1/review/review-decision.json");
+
+        let markdown = fs::read_to_string(markdown_path).expect("markdown");
+        let json = fs::read_to_string(json_path).expect("json");
+
+        assert!(markdown.contains("权限确认：已拒绝"));
+        assert!(markdown.contains("approval-denied"));
+        assert!(markdown.contains("不应把本次 review decision 标记为 accepted"));
+        assert!(json.contains("\"permissionConfirmationStatus\": \"denied\""));
+        assert!(json.contains("\"permissionConfirmationRequestId\": \"approval-denied\""));
+        assert_eq!(result.permission_status, "requires_confirmation");
+        assert_eq!(result.permission_confirmation_status, "denied");
+        assert_eq!(result.permission_confirmation_request_id, "approval-denied");
+        assert!(result
+            .review_checklist
+            .iter()
+            .any(|item| item.contains("真实权限确认已被拒绝")));
+        assert!(result
+            .decision
+            .followup_actions
+            .iter()
+            .any(|item| item.contains("先处理被拒绝的权限确认")));
+        assert!(result
+            .decision
+            .regression_requirements
+            .iter()
+            .any(|item| item.contains("permissionConfirmationStatus 不再是 denied")));
+    }
+
+    #[test]
+    fn should_reject_accepted_review_decision_when_permission_confirmation_denied() {
+        let temp_dir = TempDir::new().expect("temp dir");
+        let detail = build_detail();
+        let mut thread_read = build_thread_read();
+        set_permission_confirmation(&mut thread_read, "denied", "approval-denied");
+
+        export_runtime_review_decision_template(&detail, &thread_read, temp_dir.path())
+            .expect("export");
+
+        let error = save_runtime_review_decision(
+            &detail,
+            &thread_read,
+            temp_dir.path(),
+            RuntimeReviewDecisionContent {
+                decision_status: "accepted".to_string(),
+                decision_summary: "确认交付。".to_string(),
+                chosen_fix_strategy: "直接接受。".to_string(),
+                risk_level: "low".to_string(),
+                risk_tags: vec!["permission".to_string()],
+                human_reviewer: "Lime Maintainer".to_string(),
+                reviewed_at: None,
+                followup_actions: Vec::new(),
+                regression_requirements: Vec::new(),
+                notes: String::new(),
+            },
+        )
+        .expect_err("denied permission confirmation must block accepted decision");
+
+        assert!(error.contains("真实权限确认已被拒绝"));
+        assert!(error.contains("不能把本次 review decision 保存为 accepted"));
+
+        let saved = save_runtime_review_decision(
+            &detail,
+            &thread_read,
+            temp_dir.path(),
+            RuntimeReviewDecisionContent {
+                decision_status: "rejected".to_string(),
+                decision_summary: "权限确认已拒绝，拒绝本次交付。".to_string(),
+                chosen_fix_strategy: "先处理真实权限确认。".to_string(),
+                risk_level: "high".to_string(),
+                risk_tags: vec!["permission".to_string()],
+                human_reviewer: "Lime Maintainer".to_string(),
+                reviewed_at: None,
+                followup_actions: vec!["重新发起用户授权".to_string()],
+                regression_requirements: vec!["重新导出 review decision".to_string()],
+                notes: "拒绝来自真实权限确认。".to_string(),
+            },
+        )
+        .expect("rejected decision remains allowed");
+
+        assert_eq!(saved.decision.decision_status, "rejected");
+        assert_eq!(saved.permission_confirmation_status, "denied");
+        assert_eq!(saved.permission_confirmation_request_id, "approval-denied");
+    }
+
+    #[test]
+    fn should_surface_resolved_permission_confirmation_in_review_decision() {
+        let temp_dir = TempDir::new().expect("temp dir");
+        let detail = build_detail();
+        let mut thread_read = build_thread_read();
+        set_permission_confirmation(&mut thread_read, "resolved", "approval-resolved");
+
+        let result =
+            export_runtime_review_decision_template(&detail, &thread_read, temp_dir.path())
+                .expect("export");
+
+        let markdown_path = temp_dir
+            .path()
+            .join(".lime/harness/sessions/session-1/review/review-decision.md");
+        let json_path = temp_dir
+            .path()
+            .join(".lime/harness/sessions/session-1/review/review-decision.json");
+
+        let markdown = fs::read_to_string(markdown_path).expect("markdown");
+        let json = fs::read_to_string(json_path).expect("json");
+
+        assert!(markdown.contains("权限确认：已通过"));
+        assert!(markdown.contains("approval-resolved"));
+        assert!(json.contains("\"permissionConfirmationStatus\": \"resolved\""));
+        assert_eq!(result.permission_confirmation_status, "resolved");
+        assert_eq!(
+            result.permission_confirmation_request_id,
+            "approval-resolved"
+        );
+        assert!(result
+            .review_checklist
+            .iter()
+            .any(|item| item.contains("不会把已通过的真实权限确认当作待处理阻塞")));
+        assert!(!result
+            .decision
+            .followup_actions
+            .iter()
+            .any(|item| item.contains("被拒绝的权限确认")));
     }
 
     #[test]

@@ -737,6 +737,18 @@ fn build_runtime_fact_lines(thread_read: &AgentRuntimeThreadReadModel) -> Vec<St
             lines.push(format!("运行时摘要 / 成本：{value}"));
         }
     }
+    if let Some(permission_state) = thread_read.permission_state.as_ref() {
+        lines.push(format!(
+            "权限状态：{}（required {} / ask {} / blocking {}）",
+            permission_state.status,
+            permission_state.required_profile_keys.len(),
+            permission_state.ask_profile_keys.len(),
+            permission_state.blocking_profile_keys.len()
+        ));
+        if let Some(line) = format_permission_confirmation_line(permission_state) {
+            lines.push(line);
+        }
+    }
     if let Some(oem_policy) = thread_read.oem_policy.as_ref() {
         if let Some(value) = oem_policy
             .get("quotaStatus")
@@ -786,6 +798,7 @@ fn build_runtime_facts_json(thread_read: &AgentRuntimeThreadReadModel) -> serde_
         "costState": thread_read.cost_state,
         "limitEvent": thread_read.limit_event,
         "runtimeSummary": thread_read.runtime_summary,
+        "permissionState": thread_read.permission_state,
         "oemPolicy": thread_read.oem_policy,
         "auxiliaryTaskRuntime": thread_read.auxiliary_task_runtime
     })
@@ -801,6 +814,16 @@ fn build_resume_order() -> Vec<&'static str> {
 
 fn build_review_actions(thread_read: &AgentRuntimeThreadReadModel) -> Vec<String> {
     let mut actions = Vec::new();
+
+    if let Some(permission_state) = thread_read.permission_state.as_ref() {
+        if permission_state.confirmation_status.as_deref() == Some("denied") {
+            actions.push(format!(
+                "权限确认已被拒绝，不能把当前交接作为成功交付证据：request_id={}，source={}。",
+                permission_confirmation_request_id(permission_state),
+                permission_confirmation_source(permission_state)
+            ));
+        }
+    }
 
     if !thread_read.pending_requests.is_empty() {
         actions.push(format!(
@@ -840,6 +863,16 @@ fn build_review_actions(thread_read: &AgentRuntimeThreadReadModel) -> Vec<String
 fn build_blocking_lines(thread_read: &AgentRuntimeThreadReadModel) -> Vec<String> {
     let mut lines = Vec::new();
 
+    if let Some(permission_state) = thread_read.permission_state.as_ref() {
+        if permission_state.confirmation_status.as_deref() == Some("denied") {
+            lines.push(format!(
+                "权限确认已被拒绝：request_id={}，source={}。",
+                permission_confirmation_request_id(permission_state),
+                permission_confirmation_source(permission_state)
+            ));
+        }
+    }
+
     if let Some(diagnostics) = thread_read.diagnostics.as_ref() {
         if let Some(summary) = diagnostics.primary_blocking_summary.as_ref() {
             lines.push(summary.clone());
@@ -861,6 +894,46 @@ fn build_blocking_lines(thread_read: &AgentRuntimeThreadReadModel) -> Vec<String
     }
 
     lines
+}
+
+fn format_permission_confirmation_line(
+    permission_state: &lime_agent::SessionExecutionRuntimePermissionState,
+) -> Option<String> {
+    let confirmation_status = permission_state.confirmation_status.as_deref()?;
+    let request_id = permission_confirmation_request_id(permission_state);
+    let source = permission_confirmation_source(permission_state);
+
+    match confirmation_status {
+        "denied" => Some(format!(
+            "权限确认：已拒绝（request_id={request_id}, source={source}），当前交接不能作为成功交付证据。"
+        )),
+        "resolved" => Some(format!(
+            "权限确认：已通过（request_id={request_id}, source={source}）。"
+        )),
+        "requested" => Some(format!(
+            "权限确认：等待处理（request_id={request_id}, source={source}）。"
+        )),
+        "not_requested" => Some("权限确认：声明态权限尚未发起真实审批请求。".to_string()),
+        other => Some(format!("权限确认：{other}（source={source}）。")),
+    }
+}
+
+fn permission_confirmation_request_id(
+    permission_state: &lime_agent::SessionExecutionRuntimePermissionState,
+) -> &str {
+    permission_state
+        .confirmation_request_id
+        .as_deref()
+        .unwrap_or("未记录 confirmationRequestId")
+}
+
+fn permission_confirmation_source(
+    permission_state: &lime_agent::SessionExecutionRuntimePermissionState,
+) -> &str {
+    permission_state
+        .confirmation_source
+        .as_deref()
+        .unwrap_or("未记录 confirmationSource")
 }
 
 fn collect_plan_lines(detail: &SessionDetail) -> Vec<String> {
@@ -1229,6 +1302,25 @@ mod tests {
         }
     }
 
+    fn set_permission_confirmation(
+        thread_read: &mut AgentRuntimeThreadReadModel,
+        confirmation_status: &str,
+        request_id: &str,
+    ) {
+        thread_read.permission_state = Some(lime_agent::SessionExecutionRuntimePermissionState {
+            status: "requires_confirmation".to_string(),
+            required_profile_keys: vec!["browser_control".to_string()],
+            ask_profile_keys: vec!["browser_control".to_string()],
+            blocking_profile_keys: Vec::new(),
+            decision_source: "runtime_task_profile".to_string(),
+            decision_scope: "declared_profile_only".to_string(),
+            confirmation_status: Some(confirmation_status.to_string()),
+            confirmation_request_id: Some(request_id.to_string()),
+            confirmation_source: Some("runtime_action_required".to_string()),
+            notes: Vec::new(),
+        });
+    }
+
     #[test]
     fn should_export_runtime_handoff_bundle_to_workspace() {
         let temp_dir = TempDir::new().expect("temp dir");
@@ -1275,5 +1367,58 @@ mod tests {
         let progress = fs::read_to_string(progress_path).expect("progress");
         assert!(progress.contains("\"sessionId\": \"session-1\""));
         assert!(progress.contains("\"pendingRequestCount\": 1"));
+    }
+
+    #[test]
+    fn should_surface_denied_permission_confirmation_in_handoff_bundle() {
+        let temp_dir = TempDir::new().expect("temp dir");
+        let detail = build_detail();
+        let mut thread_read = build_thread_read();
+        set_permission_confirmation(&mut thread_read, "denied", "approval-denied");
+
+        export_runtime_handoff_bundle(&detail, &thread_read, temp_dir.path()).expect("export");
+
+        let plan = fs::read_to_string(
+            temp_dir
+                .path()
+                .join(".lime/harness/sessions/session-1/plan.md"),
+        )
+        .expect("plan");
+        let handoff = fs::read_to_string(
+            temp_dir
+                .path()
+                .join(".lime/harness/sessions/session-1/handoff.md"),
+        )
+        .expect("handoff");
+        let review = fs::read_to_string(
+            temp_dir
+                .path()
+                .join(".lime/harness/sessions/session-1/review-summary.md"),
+        )
+        .expect("review");
+        let progress = fs::read_to_string(
+            temp_dir
+                .path()
+                .join(".lime/harness/sessions/session-1/progress.json"),
+        )
+        .expect("progress");
+
+        assert!(plan.contains("权限确认已被拒绝"));
+        assert!(handoff.contains("权限确认：已拒绝"));
+        assert!(review.contains("权限确认已被拒绝"));
+        assert!(review.contains("approval-denied"));
+        assert!(progress.contains("\"permissionState\""));
+        assert!(progress.contains("\"confirmationStatus\": \"denied\""));
+    }
+
+    #[test]
+    fn runtime_fact_lines_should_surface_resolved_permission_confirmation() {
+        let mut thread_read = build_thread_read();
+        set_permission_confirmation(&mut thread_read, "resolved", "approval-resolved");
+
+        let lines = build_runtime_fact_lines(&thread_read);
+
+        assert!(lines.iter().any(|line| line.contains("权限确认：已通过")));
+        assert!(lines.iter().any(|line| line.contains("approval-resolved")));
     }
 }

@@ -453,11 +453,32 @@ export function VoiceSettings() {
       return;
     }
 
-    window.requestAnimationFrame(() => {
+    const focusVoiceModelSection = () => {
       const target = document.getElementById(VOICE_MODEL_SETTINGS_SECTION_ID);
-      target?.scrollIntoView?.({ block: "start", behavior: "smooth" });
-      target?.focus?.({ preventScroll: true });
-    });
+      if (!target) {
+        return false;
+      }
+      target.scrollIntoView?.({ block: "start", behavior: "smooth" });
+      target.focus?.({ preventScroll: true });
+      return true;
+    };
+
+    if (focusVoiceModelSection()) {
+      return;
+    }
+
+    let attempts = 0;
+    const retryFocusVoiceModelSection = () => {
+      if (focusVoiceModelSection()) {
+        return;
+      }
+      if (attempts < 5) {
+        attempts += 1;
+        window.setTimeout(retryFocusVoiceModelSection, 0);
+      }
+    };
+
+    window.requestAnimationFrame(retryFocusVoiceModelSection);
   }, [loading]);
 
   const showMessage = useCallback((type: "success" | "error", text: string) => {

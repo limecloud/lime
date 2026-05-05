@@ -3803,6 +3803,54 @@ describe("useAsterAgentChat slash skill 执行链路", () => {
     }
   });
 
+  it("新建任务返回前不应等待本地持久化回填", async () => {
+    const workspaceId = "ws-create-fresh-fast-return";
+    const createdSessionId = "session-fresh-fast-return";
+    const scheduledTasks: Array<() => void> = [];
+    mockCreateAgentRuntimeSession.mockResolvedValue(createdSessionId);
+    mockScheduleMinimumDelayIdleTask.mockImplementation((task: () => void) => {
+      scheduledTasks.push(task);
+      return () => undefined;
+    });
+
+    const harness = mountHook(workspaceId);
+
+    try {
+      await flushEffects();
+
+      await act(async () => {
+        const newSessionId = await harness
+          .getValue()
+          .createFreshSession("新对话");
+        expect(newSessionId).toBe(createdSessionId);
+      });
+
+      expect(harness.getValue().sessionId).toBe(createdSessionId);
+      expect(sessionStorage.getItem(`aster_messages_${workspaceId}`)).toBe(
+        null,
+      );
+      expect(
+        localStorage.getItem(
+          `agent_topic_model_pref_${workspaceId}_${createdSessionId}`,
+        ),
+      ).toBe(null);
+      expect(scheduledTasks).toHaveLength(1);
+
+      act(() => {
+        scheduledTasks[0]?.();
+      });
+
+      expect(sessionStorage.getItem(`aster_messages_${workspaceId}`)).toBe("[]");
+      expect(
+        localStorage.getItem(
+          `agent_topic_model_pref_${workspaceId}_${createdSessionId}`,
+        ),
+      ).not.toBe(null);
+    } finally {
+      harness.unmount();
+    }
+  });
+
   it("新建任务失败后应释放创建锁，允许恢复桥接后再次新建", async () => {
     const workspaceId = "ws-create-fresh-retry-after-bridge-error";
     const recoveredSessionId = "session-after-create-retry";

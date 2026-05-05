@@ -7,6 +7,23 @@ use aster::hooks::{SessionEndReason, SessionSource};
 use aster::session::load_shared_session_runtime_snapshot;
 use lime_core::database::dao::agent::SessionArchiveFilter;
 
+fn persist_default_session_access_mode_in_background(session_id: String) {
+    tauri::async_runtime::spawn(async move {
+        if let Err(error) = AsterAgentWrapper::persist_session_recent_access_mode(
+            &session_id,
+            lime_agent::SessionExecutionRuntimeAccessMode::default_for_session(),
+        )
+        .await
+        {
+            tracing::warn!(
+                "[AsterAgent] 后台持久化默认会话权限失败: session_id={}, error={}",
+                session_id,
+                error
+            );
+        }
+    });
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct SessionProviderRoutingState {
     provider_selector: String,
@@ -268,11 +285,7 @@ async fn create_runtime_session_internal_impl(
         ),
     )?;
 
-    AsterAgentWrapper::persist_session_recent_access_mode(
-        &session_id,
-        lime_agent::SessionExecutionRuntimeAccessMode::default_for_session(),
-    )
-    .await?;
+    persist_default_session_access_mode_in_background(session_id.clone());
 
     if !run_start_hooks {
         tracing::info!(

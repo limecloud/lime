@@ -1325,6 +1325,12 @@ describe("Agent API 治理护栏", () => {
       pendingRequestCount: 1,
       queuedTurnCount: 0,
       defaultDecisionStatus: "pending_review",
+      permissionStatus: "requires_confirmation",
+      permissionConfirmationStatus: "denied",
+      permissionConfirmationRequestId: "approval-denied",
+      permissionConfirmationSource: "runtime_action_required",
+      permissionConfirmationSummary:
+        "已拒绝（request_id=approval-denied, source=runtime_action_required），不能作为成功交付证据。",
       verificationSummary: {
         artifactValidator: {
           applicable: true,
@@ -1397,6 +1403,12 @@ describe("Agent API 治理护栏", () => {
     ).resolves.toMatchObject({
       session_id: "session-runtime-4b",
       default_decision_status: "pending_review",
+      permission_status: "requires_confirmation",
+      permission_confirmation_status: "denied",
+      permission_confirmation_request_id: "approval-denied",
+      permission_confirmation_source: "runtime_action_required",
+      permission_confirmation_summary:
+        "已拒绝（request_id=approval-denied, source=runtime_action_required），不能作为成功交付证据。",
       verification_summary: expect.objectContaining({
         artifact_validator: expect.objectContaining({
           outcome: "blocking_failure",
@@ -1472,6 +1484,12 @@ describe("Agent API 治理护栏", () => {
       pendingRequestCount: 1,
       queuedTurnCount: 0,
       defaultDecisionStatus: "pending_review",
+      permission_status: "requires_confirmation",
+      permission_confirmation_status: "resolved",
+      permission_confirmation_request_id: "approval-resolved",
+      permission_confirmation_source: "runtime_action_required",
+      permission_confirmation_summary:
+        "已通过（request_id=approval-resolved, source=runtime_action_required）。",
       verificationSummary: {
         artifactValidator: {
           applicable: true,
@@ -1547,6 +1565,10 @@ describe("Agent API 治理护栏", () => {
       }),
     ).resolves.toMatchObject({
       session_id: "session-runtime-4c",
+      permission_status: "requires_confirmation",
+      permission_confirmation_status: "resolved",
+      permission_confirmation_request_id: "approval-resolved",
+      permission_confirmation_source: "runtime_action_required",
       verification_summary: expect.objectContaining({
         artifact_validator: expect.objectContaining({
           outcome: "recovered",
@@ -1581,6 +1603,40 @@ describe("Agent API 治理护栏", () => {
           regression_requirements: ["npm run test:contracts"],
           notes: "保持 review decision 主链单一。",
         },
+      },
+    );
+  });
+
+  it("saveAgentRuntimeReviewDecision 应透传 denied 权限确认阻止 accepted 的后端错误", async () => {
+    mockSafeInvoke.mockRejectedValueOnce(
+      new Error(
+        "真实权限确认已被拒绝，不能把本次 review decision 保存为 accepted；请先处理真实权限确认，或改为 rejected / deferred / needs_more_evidence。",
+      ),
+    );
+
+    await expect(
+      saveAgentRuntimeReviewDecision({
+        session_id: "session-runtime-4d",
+        decision_status: "accepted",
+        decision_summary: "错误接受被拒绝的权限确认。",
+        chosen_fix_strategy: "直接接受。",
+        risk_level: "low",
+        risk_tags: ["permission"],
+        human_reviewer: "Lime Maintainer",
+        reviewed_at: undefined,
+        followup_actions: [],
+        regression_requirements: [],
+        notes: "",
+      }),
+    ).rejects.toThrow("真实权限确认已被拒绝");
+
+    expect(mockSafeInvoke).toHaveBeenCalledWith(
+      "agent_runtime_save_review_decision",
+      {
+        request: expect.objectContaining({
+          session_id: "session-runtime-4d",
+          decision_status: "accepted",
+        }),
       },
     );
   });

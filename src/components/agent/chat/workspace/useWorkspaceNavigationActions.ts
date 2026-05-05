@@ -112,6 +112,20 @@ export function useWorkspaceNavigationActions({
     [onNavigate],
   );
 
+  const handleOpenKnowledgeManagement = useCallback(
+    (workingDir?: string | null) => {
+      onNavigate?.(
+        "knowledge",
+        workingDir?.trim()
+          ? {
+              workingDir: workingDir.trim(),
+            }
+          : undefined,
+      );
+    },
+    [onNavigate],
+  );
+
   const handleOpenChannels = useCallback(() => {
     onNavigate?.("channels");
   }, [onNavigate]);
@@ -151,6 +165,7 @@ export function useWorkspaceNavigationActions({
     handleManageProviders,
     handleOpenChannels,
     handleOpenChromeRelay,
+    handleOpenKnowledgeManagement,
     handleOpenOpenClaw,
     handleOpenRuntimeMemoryWorkbench,
     handleOpenAppearanceSettings,

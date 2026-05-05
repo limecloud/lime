@@ -1397,6 +1397,31 @@ export function normalizeReviewDecisionTemplate(
     verification_summary: normalizeEvidenceVerificationSummary(
       record.verificationSummary ?? record.verification_summary,
     ),
+    permission_status: readOptionalStringField(
+      record,
+      "permissionStatus",
+      "permission_status",
+    ),
+    permission_confirmation_status: readOptionalStringField(
+      record,
+      "permissionConfirmationStatus",
+      "permission_confirmation_status",
+    ),
+    permission_confirmation_request_id: readOptionalStringField(
+      record,
+      "permissionConfirmationRequestId",
+      "permission_confirmation_request_id",
+    ),
+    permission_confirmation_source: readOptionalStringField(
+      record,
+      "permissionConfirmationSource",
+      "permission_confirmation_source",
+    ),
+    permission_confirmation_summary: readOptionalStringField(
+      record,
+      "permissionConfirmationSummary",
+      "permission_confirmation_summary",
+    ),
     decision: normalizeReviewDecision(record.decision),
     decision_status_options: readStringListField(
       record,

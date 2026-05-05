@@ -1,6 +1,5 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   persistVoiceModelSettingsFocusRequest,
@@ -236,6 +235,10 @@ const originalScrollIntoViewDescriptor = Object.getOwnPropertyDescriptor(
   Element.prototype,
   "scrollIntoView",
 );
+const originalHtmlScrollIntoViewDescriptor = Object.getOwnPropertyDescriptor(
+  HTMLElement.prototype,
+  "scrollIntoView",
+);
 
 function renderComponent(): HTMLDivElement {
   const container = document.createElement("div");
@@ -254,6 +257,17 @@ async function flushEffects(times = 4) {
       await Promise.resolve();
     }
   });
+}
+
+async function waitForScrollIntoView() {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    await flushEffects(2);
+    if (scrollIntoViewMock.mock.calls.length > 0) {
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+  throw new Error("等待语音模型区块滚动聚焦超时");
 }
 
 function createDeferred<T>() {
@@ -319,6 +333,11 @@ beforeEach(() => {
   scrollIntoViewMock.mockClear();
   emitVoiceModelProgress = null;
   Object.defineProperty(Element.prototype, "scrollIntoView", {
+    configurable: true,
+    writable: true,
+    value: scrollIntoViewMock,
+  });
+  Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
     configurable: true,
     writable: true,
     value: scrollIntoViewMock,
@@ -470,6 +489,15 @@ afterEach(() => {
   } else {
     delete (Element.prototype as Partial<Element>).scrollIntoView;
   }
+  if (originalHtmlScrollIntoViewDescriptor) {
+    Object.defineProperty(
+      HTMLElement.prototype,
+      "scrollIntoView",
+      originalHtmlScrollIntoViewDescriptor,
+    );
+  } else {
+    delete (HTMLElement.prototype as Partial<HTMLElement>).scrollIntoView;
+  }
   vi.unstubAllGlobals();
 });
 
@@ -546,11 +574,10 @@ describe("VoiceSettings", () => {
       `#${VOICE_MODEL_SETTINGS_SECTION_ID}`,
     );
     expect(voiceModelSection).toBeInstanceOf(HTMLElement);
-    await waitFor(() => {
-      expect(scrollIntoViewMock).toHaveBeenCalledWith({
-        block: "start",
-        behavior: "smooth",
-      });
+    await waitForScrollIntoView();
+    expect(scrollIntoViewMock).toHaveBeenCalledWith({
+      block: "start",
+      behavior: "smooth",
     });
     expect(
       window.sessionStorage.getItem(VOICE_MODEL_SETTINGS_FOCUS_STORAGE_KEY),

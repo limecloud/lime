@@ -6900,7 +6900,6 @@ export function AgentChatWorkspace({
       shouldUseCompactGeneralWorkbench ||
       !initialDispatchKey ||
       contentId ||
-      !sessionId ||
       messages.length > 0 ||
       isSending
     ) {
@@ -6908,6 +6907,16 @@ export function AgentChatWorkspace({
     }
 
     if (consumedInitialPromptRef.current === initialDispatchKey) {
+      return;
+    }
+
+    if (!autoRunInitialPromptOnMount) {
+      hasTriggeredGuide.current = true;
+      setInput((previous) => previous.trim() || pendingInitialPrompt);
+      return;
+    }
+
+    if (!sessionId) {
       return;
     }
 
@@ -6942,6 +6951,7 @@ export function AgentChatWorkspace({
       disposed = true;
     };
   }, [
+    autoRunInitialPromptOnMount,
     contentId,
     handleSend,
     initialAutoSendRequestMetadata,
@@ -6952,6 +6962,7 @@ export function AgentChatWorkspace({
     messages.length,
     onInitialUserPromptConsumed,
     sessionId,
+    setInput,
     shouldUseCompactGeneralWorkbench,
     effectiveChatToolPreferences.thinking,
     effectiveChatToolPreferences.webSearch,

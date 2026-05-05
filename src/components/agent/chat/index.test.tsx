@@ -4975,6 +4975,23 @@ describe("AgentChatPage 自动引导", { timeout: 20_000 }, () => {
     expect(sharedTriggerAIGuideMock).not.toHaveBeenCalled();
   });
 
+  it("无文稿入口存在 initialUserPrompt 时也应预填而不是默认自动发送", async () => {
+    const initialUserPrompt = "请基于当前项目资料生成内容";
+
+    renderPage({
+      projectId: "project-knowledge-prefill",
+      initialUserPrompt,
+    });
+    await flushEffects(12);
+
+    expect(sharedSendMessageMock).not.toHaveBeenCalled();
+    const latestInputbarProps = mockInputbar.mock.calls.at(-1)?.[0] as
+      | { input?: string }
+      | undefined;
+    expect(latestInputbarProps?.input || "").toBe(initialUserPrompt);
+    expect(sharedTriggerAIGuideMock).not.toHaveBeenCalled();
+  });
+
   it("初始创作意图点击重新开始后应清空输入并消费待执行意图", async () => {
     mockIsSpecializedWorkbenchTheme.mockReturnValue(true);
     mockUseThemeContextWorkspace.mockReturnValue(
