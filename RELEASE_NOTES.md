@@ -44,6 +44,11 @@
 - CreoAI research / roadmap 文档更新编码代理层、工具编排、原型与架构拆解，保持 repo 内 artifact 作为唯一记录系统。
 - Warp 多模态 runtime contract 文档继续同步 runtime profile、permission state 与 evidence/replay 阻断事实。
 
+#### 3. Release 管线
+
+- 修复 release 构建中的 Vite manual chunk 旧入口引用，`useAgentChatUnified` 现在回到现役 hooks barrel 入口，并移除已不存在的 `immer` 显式 chunk 入口。
+- 根包显式声明 GUI smoke 所需的 `playwright` 依赖，并同步 npm / pnpm 锁文件，避免 CI 干净安装后知识库 GUI 冒烟脚本缺包。
+
 ### 已知说明
 
 - Workspace skill binding readiness 仍不等于自动注入 tool surface；只有显式 runtime enable 且通过 allowlist 的 binding 才能进入当前 session 的 SkillTool gate。

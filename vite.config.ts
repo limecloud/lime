@@ -137,7 +137,7 @@ export default defineConfig(({ mode }) => {
             ],
             // 将 agent hooks 单独打包
             'agent-hooks': [
-              './src/components/agent/chat/hooks/useAgentChatUnified.ts',
+              './src/components/agent/chat/hooks/index.ts',
               './src/components/agent/chat/hooks/useAgentSession.ts',
               './src/components/agent/chat/hooks/useAsterAgentChat.ts',
             ],
@@ -149,7 +149,7 @@ export default defineConfig(({ mode }) => {
             // 将大型第三方库单独打包
             'vendor-react': ['react', 'react-dom', 'react-router-dom'],
             'vendor-ui': ['@radix-ui/react-dialog', '@radix-ui/react-dropdown-menu', '@radix-ui/react-select'],
-            'vendor-utils': ['jotai', 'zustand', 'immer'],
+            'vendor-utils': ['jotai', 'zustand'],
           },
         },
       },
