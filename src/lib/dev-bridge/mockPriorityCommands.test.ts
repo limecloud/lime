@@ -30,6 +30,15 @@ describe("mockPriorityCommands", () => {
     expect(shouldPreferMockInBrowser("close_webview_panel")).toBe(true);
   });
 
+  it("图层设计工程目录命令在浏览器模式优先走 mock", () => {
+    expect(
+      shouldPreferMockInBrowser("save_layered_design_project_export"),
+    ).toBe(true);
+    expect(
+      shouldPreferMockInBrowser("read_layered_design_project_export"),
+    ).toBe(true);
+  });
+
   it("模型与运行时真相命令在浏览器模式下禁止静默退回 mock", () => {
     expect(shouldDisallowMockFallbackInBrowser("aster_agent_init")).toBe(true);
     expect(shouldDisallowMockFallbackInBrowser("agent_generate_title")).toBe(

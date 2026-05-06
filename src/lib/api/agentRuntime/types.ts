@@ -804,6 +804,25 @@ export interface AgentRuntimeEvidenceObservabilitySummary {
   modality_runtime_contracts?: AgentRuntimeEvidenceModalityRuntimeContracts;
 }
 
+export interface AgentRuntimeCompletionAuditRequiredEvidence {
+  automation_owner: boolean;
+  workspace_skill_tool_call: boolean;
+  artifact_or_timeline: boolean;
+}
+
+export interface AgentRuntimeCompletionAuditSummary {
+  source: string;
+  decision: string;
+  owner_run_count: number;
+  successful_owner_run_count: number;
+  workspace_skill_tool_call_count: number;
+  artifact_count: number;
+  owner_audit_statuses: string[];
+  required_evidence: AgentRuntimeCompletionAuditRequiredEvidence;
+  blocking_reasons: string[];
+  notes: string[];
+}
+
 export interface AgentRuntimeEvidencePack {
   session_id: string;
   thread_id: string;
@@ -821,6 +840,7 @@ export interface AgentRuntimeEvidencePack {
   recent_artifact_count: number;
   known_gaps: string[];
   observability_summary?: AgentRuntimeEvidenceObservabilitySummary;
+  completion_audit_summary?: AgentRuntimeCompletionAuditSummary;
   artifacts: AgentRuntimeEvidenceArtifact[];
 }
 
@@ -953,6 +973,9 @@ export interface AgentRuntimeReviewDecisionTemplate {
   queued_turn_count: number;
   default_decision_status: string;
   verification_summary?: AgentRuntimeEvidenceVerificationSummary;
+  limit_status?: string;
+  capability_gap?: string;
+  user_locked_capability_summary?: string;
   permission_status?: string;
   permission_confirmation_status?: string;
   permission_confirmation_request_id?: string;
@@ -1598,9 +1621,101 @@ export interface AgentRuntimeToolInventoryRequest {
   metadata?: Record<string, unknown>;
 }
 
+export interface AgentRuntimeListWorkspaceSkillBindingsRequest {
+  workspaceRoot: string;
+  caller?: string;
+  workbench?: boolean;
+  browserAssist?: boolean;
+}
+
 export interface AgentRuntimeToolInventorySurface {
   workbench: boolean;
   browser_assist: boolean;
+}
+
+export interface AgentRuntimeWorkspaceSkillBindingRequest {
+  workspace_root: string;
+  caller: string;
+  surface: AgentRuntimeToolInventorySurface;
+}
+
+export type AgentRuntimeWorkspaceSkillBindingStatus =
+  | "ready_for_manual_enable"
+  | "blocked";
+
+export interface AgentRuntimeSkillBindingRegistration {
+  registrationId?: string;
+  registration_id?: string;
+  registeredAt?: string;
+  registered_at?: string;
+  skillDirectory?: string;
+  skill_directory?: string;
+  registeredSkillDirectory?: string;
+  registered_skill_directory?: string;
+  sourceDraftId?: string;
+  source_draft_id?: string;
+  sourceVerificationReportId?: string | null;
+  source_verification_report_id?: string | null;
+  generatedFileCount?: number;
+  generated_file_count?: number;
+  permissionSummary?: string[];
+  permission_summary?: string[];
+}
+
+export interface AgentRuntimeSkillBindingResourceSummary {
+  hasScripts?: boolean;
+  has_scripts?: boolean;
+  hasReferences?: boolean;
+  has_references?: boolean;
+  hasAssets?: boolean;
+  has_assets?: boolean;
+}
+
+export interface AgentRuntimeSkillBindingStandardCompliance {
+  isStandard?: boolean;
+  is_standard?: boolean;
+  validationErrors?: string[];
+  validation_errors?: string[];
+  deprecatedFields?: string[];
+  deprecated_fields?: string[];
+}
+
+export interface AgentRuntimeWorkspaceSkillBinding {
+  key: string;
+  name: string;
+  description: string;
+  directory: string;
+  registered_skill_directory: string;
+  registration: AgentRuntimeSkillBindingRegistration;
+  permission_summary: string[];
+  metadata: Record<string, string>;
+  allowed_tools: string[];
+  resource_summary: AgentRuntimeSkillBindingResourceSummary;
+  standard_compliance: AgentRuntimeSkillBindingStandardCompliance;
+  runtime_binding_target: string;
+  binding_status: AgentRuntimeWorkspaceSkillBindingStatus;
+  binding_status_reason: string;
+  next_gate: string;
+  query_loop_visible: boolean;
+  tool_runtime_visible: boolean;
+  launch_enabled: boolean;
+  runtime_gate: string;
+}
+
+export interface AgentRuntimeWorkspaceSkillBindingCounts {
+  registered_total: number;
+  ready_for_manual_enable_total: number;
+  blocked_total: number;
+  query_loop_visible_total: number;
+  tool_runtime_visible_total: number;
+  launch_enabled_total: number;
+}
+
+export interface AgentRuntimeWorkspaceSkillBindings {
+  request: AgentRuntimeWorkspaceSkillBindingRequest;
+  warnings: string[];
+  counts: AgentRuntimeWorkspaceSkillBindingCounts;
+  bindings: AgentRuntimeWorkspaceSkillBinding[];
 }
 
 export interface AgentRuntimeToolInventoryCatalogEntry {

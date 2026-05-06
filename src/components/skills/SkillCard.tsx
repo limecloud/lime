@@ -16,7 +16,6 @@
 import {
   Download,
   Trash2,
-  ExternalLink,
   Loader2,
   Play,
   FileText,
@@ -127,52 +126,36 @@ export function canManageSkillInstallation(skill: Skill): boolean {
   return skill.sourceKind !== "builtin" && skill.catalogSource !== "project";
 }
 
-/**
- * 来源标签配置
- */
-const sourceConfig: Record<
-  SkillSource,
-  { label: string; className: string; surfaceClassName: string }
-> = {
-  builtin: {
-    label: "内置",
-    className: "bg-orange-100 text-orange-800",
-    surfaceClassName: "from-orange-200/70 via-orange-50 to-white",
-  },
-  project: {
-    label: "项目",
-    className: "bg-stone-100 text-stone-800",
-    surfaceClassName: "from-stone-200/70 via-stone-50 to-white",
-  },
-  official: {
-    label: "官方",
-    className: "bg-green-100 text-green-800",
-    surfaceClassName: "from-emerald-200/70 via-emerald-50 to-white",
-  },
-  community: {
-    label: "社区",
-    className: "bg-sky-100 text-sky-800",
-    surfaceClassName: "from-sky-200/70 via-sky-50 to-white",
-  },
-  local: {
-    label: "本地",
-    className: "bg-slate-100 text-slate-800",
-    surfaceClassName: "from-slate-200/70 via-slate-50 to-white",
-  },
-};
+const sourceConfig: Record<SkillSource, { label: string; className: string }> =
+  {
+    builtin: {
+      label: "内置",
+      className: "bg-orange-100 text-orange-800",
+    },
+    project: {
+      label: "项目",
+      className: "bg-stone-100 text-stone-800",
+    },
+    official: {
+      label: "官方",
+      className: "bg-green-100 text-green-800",
+    },
+    community: {
+      label: "社区",
+      className: "bg-sky-100 text-sky-800",
+    },
+    local: {
+      label: "本地",
+      className: "bg-slate-100 text-slate-800",
+    },
+  };
 
-/**
- * 来源标签组件
- *
- * @param source - Skill 来源类型
- * @returns 带颜色的来源标签
- */
 function SourceBadge({ source }: { source: SkillSource }) {
   const { label, className } = sourceConfig[source];
 
   return (
     <span
-      className={`inline-flex items-center rounded-full border border-border/60 px-2.5 py-1 text-xs font-medium shadow-sm ${className}`}
+      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${className}`}
     >
       {label}
     </span>
@@ -184,8 +167,8 @@ function StandardBadge({ skill }: { skill: Skill }) {
   if (!compliance) {
     return null;
   }
-  const deprecatedFields = compliance.deprecatedFields ?? [];
 
+  const deprecatedFields = compliance.deprecatedFields ?? [];
   if (!compliance.isStandard) {
     return (
       <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">
@@ -209,51 +192,6 @@ function StandardBadge({ skill }: { skill: Skill }) {
       <CheckCircle2 className="h-3 w-3" />
       标准
     </span>
-  );
-}
-
-function getCategoryLabel(skill: Skill): string | null {
-  const category = skill.metadata?.lime_category;
-  if (!category) {
-    return null;
-  }
-
-  const labels: Record<string, string> = {
-    media: "媒体",
-    research: "调研",
-    writing: "写作",
-    social: "内容",
-  };
-  return labels[category] ?? category;
-}
-
-function ResourceBadges({ skill }: { skill: Skill }) {
-  const summary = skill.resourceSummary;
-  if (!summary) {
-    return null;
-  }
-
-  const resources = [
-    summary.hasScripts ? "scripts" : null,
-    summary.hasReferences ? "references" : null,
-    summary.hasAssets ? "assets" : null,
-  ].filter(Boolean);
-
-  if (resources.length === 0) {
-    return null;
-  }
-
-  return (
-    <>
-      {resources.map((resource) => (
-        <span
-          key={resource}
-          className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700"
-        >
-          {resource}
-        </span>
-      ))}
-    </>
   );
 }
 
@@ -299,12 +237,6 @@ export function SkillCard({
     }
   };
 
-  const openGithub = () => {
-    if (skill.readmeUrl) {
-      window.open(skill.readmeUrl, "_blank");
-    }
-  };
-
   /**
    * 处理执行按钮点击
    * 仅已安装的 Skill 可以执行
@@ -324,102 +256,58 @@ export function SkillCard({
   const source = getSkillSource(skill);
   const showViewContent = Boolean(onViewContent && canInspectSkill(skill));
   const inspectActionLabel = getInspectActionLabel(skill);
-  const categoryLabel = getCategoryLabel(skill);
-  const validationErrors = skill.standardCompliance?.validationErrors ?? [];
-  const deprecatedFields = skill.standardCompliance?.deprecatedFields ?? [];
-  const hasResourceBadges = Boolean(
-    skill.resourceSummary?.hasScripts ||
-    skill.resourceSummary?.hasReferences ||
-    skill.resourceSummary?.hasAssets,
-  );
-  const validationSummary =
-    validationErrors[0] ??
-    (deprecatedFields.length
-      ? `兼容字段：${deprecatedFields.join(", ")}`
-      : null);
-  const sourceStyle = sourceConfig[source];
-  const actionButtonBaseClassName =
-    "inline-flex h-11 items-center justify-center gap-2 rounded-xl px-3 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 disabled:cursor-not-allowed disabled:opacity-50";
 
   return (
-    <article className="group relative flex h-full flex-col overflow-hidden rounded-[22px] border border-slate-200/80 bg-white shadow-sm shadow-slate-950/5 transition duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-lg">
-      <div
-        className={`absolute inset-x-0 top-0 h-24 bg-gradient-to-br ${sourceStyle.surfaceClassName} opacity-80`}
-      />
-      <div className="relative flex h-full flex-col p-4">
+    <article className="group relative flex h-full flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm transition hover:border-slate-300 hover:shadow-md">
+      <div className="flex h-full flex-col p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <SourceBadge source={source} />
-              <StandardBadge skill={skill} />
-              {categoryLabel && (
-                <span className="inline-flex items-center rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-xs font-medium text-violet-700">
-                  {categoryLabel}
-                </span>
-              )}
-            </div>
-
-            <h3 className="mt-3 text-base font-semibold leading-6 text-slate-900">
+            <h3 className="text-sm font-medium text-slate-900 line-clamp-1">
               {skill.name}
             </h3>
-
-            {skill.repoOwner && skill.repoName && (
-              <p className="mt-1 text-xs text-slate-500">
-                {skill.repoOwner}/{skill.repoName}
-              </p>
-            )}
+            <p className="mt-1 text-xs text-slate-500 line-clamp-2">
+              {skill.description || "暂无描述"}
+            </p>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              <SourceBadge source={source} />
+              <StandardBadge skill={skill} />
+            </div>
           </div>
 
           {skill.installed && (
-            <span className="inline-flex shrink-0 items-center rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700 shadow-sm">
-              {source === "project" ? "项目可用" : "已安装"}
+            <span className="inline-flex shrink-0 items-center rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+              已安装
             </span>
           )}
         </div>
 
-        <p className="mt-4 min-h-[72px] text-sm leading-6 text-slate-600 line-clamp-3">
-          {skill.description || "暂无描述"}
-        </p>
-
-        {hasResourceBadges && (
-          <div className="mt-4 flex flex-wrap gap-2">
-            <ResourceBadges skill={skill} />
-          </div>
-        )}
-
-        {validationSummary && (
-          <div className="mt-4 rounded-2xl border border-dashed border-amber-300 bg-amber-50/90 px-3 py-2.5 text-xs leading-5 text-amber-700">
-            {validationSummary}
-          </div>
-        )}
-
-        <div className="mt-auto pt-4">
-          <div className="flex flex-wrap gap-2 border-t border-slate-200/70 pt-4">
+        <div className="mt-auto pt-3">
+          <div className="flex gap-2">
             {canManageInstallation && (
               <button
                 onClick={handleAction}
                 disabled={installing}
-                className={`min-w-[120px] flex-1 ${actionButtonBaseClassName} ${
+                className={`flex-1 inline-flex h-8 items-center justify-center gap-1.5 rounded-md px-3 text-xs font-medium transition ${
                   skill.installed
-                    ? "border border-rose-200 bg-rose-50 text-rose-700 hover:border-rose-300 hover:bg-rose-100"
-                    : "border border-emerald-200 bg-[linear-gradient(135deg,#0ea5e9_0%,#14b8a6_52%,#10b981_100%)] text-white shadow-sm shadow-emerald-950/15 hover:opacity-95"
+                    ? "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                    : "bg-emerald-600 text-white hover:bg-emerald-700"
                 } disabled:opacity-50 disabled:cursor-not-allowed`}
               >
                 {installing ? (
                   <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    {skill.installed ? "卸载中..." : "安装中..."}
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    {skill.installed ? "卸载中" : "安装中"}
                   </>
                 ) : (
                   <>
                     {skill.installed ? (
                       <>
-                        <Trash2 className="h-4 w-4" />
+                        <Trash2 className="h-3 w-3" />
                         卸载
                       </>
                     ) : (
                       <>
-                        <Download className="h-4 w-4" />
+                        <Download className="h-3 w-3" />
                         安装
                       </>
                     )}
@@ -428,39 +316,26 @@ export function SkillCard({
               </button>
             )}
 
-            {/* 执行按钮 - 仅已安装的 Skill 显示 */}
             {skill.installed && onExecute && (
               <button
                 onClick={handleExecute}
                 disabled={installing}
-                className={`${actionButtonBaseClassName} min-w-[100px] flex-1 border border-sky-200 bg-sky-50 text-sky-700 hover:border-sky-300 hover:bg-sky-100 dark:hover:bg-sky-950/30`}
-                title="执行此 Skill"
+                className="flex-1 inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
               >
-                <Play className="h-4 w-4" />
+                <Play className="h-3 w-3" />
                 执行
               </button>
             )}
 
-            {/* 检查详情按钮 - 本地可查看内容，远程可安装前预检 */}
             {showViewContent && (
               <button
                 onClick={handleViewContent}
                 disabled={installing}
-                className={`${actionButtonBaseClassName} min-w-[100px] flex-1 border border-amber-200 bg-amber-50 text-amber-700 hover:border-amber-300 hover:bg-amber-100 dark:hover:bg-amber-950/30`}
+                className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                 title={inspectActionLabel}
               >
-                <FileText className="h-4 w-4" />
+                <FileText className="h-3 w-3" />
                 {inspectActionLabel}
-              </button>
-            )}
-
-            {skill.readmeUrl && (
-              <button
-                onClick={openGithub}
-                className={`${actionButtonBaseClassName} w-11 shrink-0 border border-slate-200 bg-white px-0 text-slate-600 hover:border-slate-300 hover:bg-slate-50`}
-                title="在 GitHub 上查看"
-              >
-                <ExternalLink className="h-4 w-4" />
               </button>
             )}
           </div>

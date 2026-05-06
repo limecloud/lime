@@ -7,6 +7,8 @@ import type {
   AgentRuntimeEvidenceBackendCount,
   AgentRuntimeEvidenceBrowserActionItem,
   AgentRuntimeEvidenceBrowserActionIndex,
+  AgentRuntimeCompletionAuditRequiredEvidence,
+  AgentRuntimeCompletionAuditSummary,
   AgentRuntimeEvidenceDecisionCount,
   AgentRuntimeEvidenceLimeCorePolicyEvaluation,
   AgentRuntimeEvidenceLimeCorePolicyIndex,
@@ -1112,6 +1114,68 @@ function normalizeReviewDecisionArtifact(
   };
 }
 
+function normalizeCompletionAuditRequiredEvidence(
+  value: unknown,
+): AgentRuntimeCompletionAuditRequiredEvidence {
+  const record = isRecord(value) ? value : {};
+  return {
+    automation_owner:
+      readOptionalBooleanField(record, "automationOwner", "automation_owner") ??
+      false,
+    workspace_skill_tool_call:
+      readOptionalBooleanField(
+        record,
+        "workspaceSkillToolCall",
+        "workspace_skill_tool_call",
+      ) ?? false,
+    artifact_or_timeline:
+      readOptionalBooleanField(
+        record,
+        "artifactOrTimeline",
+        "artifact_or_timeline",
+      ) ?? false,
+  };
+}
+
+function normalizeCompletionAuditSummary(
+  value: unknown,
+): AgentRuntimeCompletionAuditSummary | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  return {
+    source: readStringField(value, "source"),
+    decision: readStringField(value, "decision"),
+    owner_run_count: readNumberField(value, "ownerRunCount", "owner_run_count"),
+    successful_owner_run_count: readNumberField(
+      value,
+      "successfulOwnerRunCount",
+      "successful_owner_run_count",
+    ),
+    workspace_skill_tool_call_count: readNumberField(
+      value,
+      "workspaceSkillToolCallCount",
+      "workspace_skill_tool_call_count",
+    ),
+    artifact_count: readNumberField(value, "artifactCount", "artifact_count"),
+    owner_audit_statuses: readStringListField(
+      value,
+      "ownerAuditStatuses",
+      "owner_audit_statuses",
+    ),
+    required_evidence: normalizeCompletionAuditRequiredEvidence(
+      value.requiredEvidence ?? value.required_evidence,
+    ),
+    blocking_reasons: readStringListField(
+      value,
+      "blockingReasons",
+      "blocking_reasons",
+    ),
+    notes: readStringListField(value, "notes"),
+  };
+}
+
 function normalizeReviewDecisionStatus(
   value: string,
 ): AgentRuntimeReviewDecisionStatus {
@@ -1387,6 +1451,9 @@ export function normalizeEvidencePack(
     observability_summary: normalizeEvidenceObservabilitySummary(
       record.observabilitySummary ?? record.observability_summary,
     ),
+    completion_audit_summary: normalizeCompletionAuditSummary(
+      record.completionAuditSummary ?? record.completion_audit_summary,
+    ),
     artifacts: rawArtifacts
       .map((artifact) => normalizeEvidenceArtifact(artifact))
       .filter(Boolean) as AgentRuntimeEvidenceArtifact[],
@@ -1544,6 +1611,21 @@ export function normalizeReviewDecisionTemplate(
     ),
     verification_summary: normalizeEvidenceVerificationSummary(
       record.verificationSummary ?? record.verification_summary,
+    ),
+    limit_status: readOptionalStringField(
+      record,
+      "limitStatus",
+      "limit_status",
+    ),
+    capability_gap: readOptionalStringField(
+      record,
+      "capabilityGap",
+      "capability_gap",
+    ),
+    user_locked_capability_summary: readOptionalStringField(
+      record,
+      "userLockedCapabilitySummary",
+      "user_locked_capability_summary",
     ),
     permission_status: readOptionalStringField(
       record,

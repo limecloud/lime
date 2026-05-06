@@ -4,8 +4,10 @@ import {
   type AgentRuntimeCommandInvoke,
 } from "./transport";
 import type {
+  AgentRuntimeListWorkspaceSkillBindingsRequest,
   AgentRuntimeToolInventory,
   AgentRuntimeToolInventoryRequest,
+  AgentRuntimeWorkspaceSkillBindings,
 } from "./types";
 
 export interface AgentRuntimeInventoryClientDeps {
@@ -24,9 +26,20 @@ export function createInventoryClient({
     );
   }
 
+  async function listWorkspaceSkillBindings(
+    request: AgentRuntimeListWorkspaceSkillBindingsRequest,
+  ): Promise<AgentRuntimeWorkspaceSkillBindings> {
+    return await invokeCommand<AgentRuntimeWorkspaceSkillBindings>(
+      AGENT_RUNTIME_COMMANDS.listWorkspaceSkillBindings,
+      { request },
+    );
+  }
+
   return {
     getAgentRuntimeToolInventory,
+    listWorkspaceSkillBindings,
   };
 }
 
-export const { getAgentRuntimeToolInventory } = createInventoryClient();
+export const { getAgentRuntimeToolInventory, listWorkspaceSkillBindings } =
+  createInventoryClient();

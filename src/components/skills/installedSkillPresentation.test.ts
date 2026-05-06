@@ -45,12 +45,12 @@ describe("installedSkillPresentation", () => {
     const skill = createSkill();
 
     expect(buildInstalledSkillCapabilityDescription(skill)).toBe(
-      "本地补充技能 · 需要：对话里继续补充目标与约束 · 交付：带着该方法进入生成",
+      "本地补充技能 · 需要：对话里继续补充目标与约束 · 交付：带着该 Skill 进入生成",
     );
     expect(
       buildInstalledSkillCapabilityDescription(skill, {
         includePromise: false,
       }),
-    ).toBe("需要：对话里继续补充目标与约束 · 交付：带着该方法进入生成");
+    ).toBe("需要：对话里继续补充目标与约束 · 交付：带着该 Skill 进入生成");
   });
 });

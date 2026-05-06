@@ -10,6 +10,10 @@ import type {
   ImageLayerInput,
   LayerEditActor,
   LayerEditRecord,
+  LayeredDesignExtraction,
+  LayeredDesignExtractionCandidate,
+  LayeredDesignExtractionCandidateInput,
+  LayeredDesignExtractionInput,
   LayerTransformPatch,
   LayeredDesignDocument,
   LayeredDesignDocumentInput,
@@ -68,6 +72,8 @@ const normalizeOpacity = (value: unknown, fallback: number): number => {
 };
 
 const nowIso = (): string => new Date().toISOString();
+const DEFAULT_EXTRACTION_BACKGROUND_LAYER_ID = "extraction-background-image";
+const DEFAULT_EXTRACTION_SELECTION_THRESHOLD = 0.6;
 
 function normalizeBaseLayer(
   layer: DesignLayerInput,
@@ -152,11 +158,120 @@ function normalizeDesignLayer(
   }
 }
 
+function normalizeConfidence(value: unknown, fallback: number): number {
+  const numeric = normalizeNumber(value, fallback);
+  const normalized =
+    numeric > 1 && numeric <= 100 ? numeric / 100 : numeric;
+  return Math.min(1, Math.max(0, normalized));
+}
+
+function normalizeExtractionThreshold(value: unknown): number {
+  return normalizeConfidence(value, DEFAULT_EXTRACTION_SELECTION_THRESHOLD);
+}
+
+function readExtractionLayerAssetIds(
+  layer: DesignLayerInput | DesignLayer,
+): string[] {
+  if (layer.type !== "image" && layer.type !== "effect") {
+    return [];
+  }
+
+  return [layer.assetId, layer.maskAssetId]
+    .filter((assetId): assetId is string => typeof assetId === "string")
+    .filter((assetId, index, all) => all.indexOf(assetId) === index);
+}
+
+function normalizeExtractionCandidate(
+  candidate: LayeredDesignExtractionCandidateInput,
+  threshold: number,
+): LayeredDesignExtractionCandidate {
+  const confidence = normalizeConfidence(candidate.confidence, 0);
+  const layer = normalizeDesignLayer(
+    {
+      ...candidate.layer,
+      source: "extracted",
+    },
+    candidate.layer.zIndex ?? 0,
+  );
+  const assetIds = [
+    ...(candidate.assetIds ?? []),
+    ...readExtractionLayerAssetIds(layer),
+    ...(candidate.assets ?? []).map((asset) => asset.id),
+  ].filter(
+    (assetId, index, all): assetId is string =>
+      typeof assetId === "string" &&
+      assetId.trim().length > 0 &&
+      all.indexOf(assetId) === index,
+  );
+  const issues = [
+    ...(candidate.issues ?? []),
+    ...(confidence < threshold ? ["low_confidence" as const] : []),
+  ].filter((issue, index, all) => all.indexOf(issue) === index);
+
+  return {
+    id: candidate.id,
+    role: candidate.role,
+    confidence,
+    selected: candidate.selected ?? confidence >= threshold,
+    layer,
+    assetIds,
+    ...(issues.length > 0 ? { issues } : {}),
+  };
+}
+
+function normalizeLayeredDesignExtraction(
+  extraction: LayeredDesignExtractionInput | undefined,
+): LayeredDesignExtraction | undefined {
+  if (!extraction) {
+    return undefined;
+  }
+
+  const threshold = normalizeExtractionThreshold(
+    extraction.candidateSelectionThreshold,
+  );
+  const cleanPlateAssetId =
+    extraction.cleanPlate?.assetId ?? extraction.cleanPlate?.asset?.id;
+  const cleanPlateStatus =
+    extraction.cleanPlate?.status ??
+    (cleanPlateAssetId ? "succeeded" : "not_requested");
+
+  return {
+    sourceAssetId: extraction.sourceAssetId,
+    backgroundLayerId:
+      extraction.backgroundLayerId?.trim() ||
+      DEFAULT_EXTRACTION_BACKGROUND_LAYER_ID,
+    candidateSelectionThreshold: threshold,
+    cleanPlate: {
+      status: cleanPlateStatus,
+      ...(cleanPlateAssetId ? { assetId: cleanPlateAssetId } : {}),
+      ...(extraction.cleanPlate?.message
+        ? { message: extraction.cleanPlate.message }
+        : {}),
+    },
+    candidates: (extraction.candidates ?? []).map((candidate) =>
+      normalizeExtractionCandidate(candidate, threshold),
+    ),
+  };
+}
+
 function copyGeneratedAsset(asset: GeneratedDesignAsset): GeneratedDesignAsset {
   return {
     ...asset,
     ...(asset.params ? { params: { ...asset.params } } : {}),
   };
+}
+
+function collectExtractionGeneratedAssets(
+  extraction: LayeredDesignExtractionInput | undefined,
+): GeneratedDesignAsset[] {
+  if (!extraction) {
+    return [];
+  }
+
+  return [
+    ...(extraction.cleanPlate?.asset ? [extraction.cleanPlate.asset] : []),
+    ...(extraction.candidates ?? []).flatMap((candidate) => candidate.assets ?? []),
+  ].map(copyGeneratedAsset);
 }
 
 function normalizePreviewProjection(
@@ -194,6 +309,27 @@ function copyEditRecord(record: LayerEditRecord): LayerEditRecord {
     ...(record.transformAfter
       ? { transformAfter: { ...record.transformAfter } }
       : {}),
+  };
+}
+
+function copyLayeredDesignExtraction(
+  extraction: LayeredDesignExtraction | undefined,
+): LayeredDesignExtraction | undefined {
+  if (!extraction) {
+    return undefined;
+  }
+
+  return {
+    sourceAssetId: extraction.sourceAssetId,
+    backgroundLayerId: extraction.backgroundLayerId,
+    candidateSelectionThreshold: extraction.candidateSelectionThreshold,
+    cleanPlate: { ...extraction.cleanPlate },
+    candidates: extraction.candidates.map((candidate) => ({
+      ...candidate,
+      layer: normalizeDesignLayer(candidate.layer, candidate.layer.zIndex),
+      assetIds: [...candidate.assetIds],
+      ...(candidate.issues ? { issues: [...candidate.issues] } : {}),
+    })),
   };
 }
 
@@ -270,6 +406,11 @@ export function normalizeLayeredDesignDocument(
       normalizeDesignLayer(layer, index),
     ),
   );
+  const assets = [...(document.assets ?? []), ...collectExtractionGeneratedAssets(document.extraction)].reduce<GeneratedDesignAsset[]>(
+    (allAssets, asset) => upsertGeneratedAsset(allAssets, asset),
+    [],
+  );
+  const extraction = normalizeLayeredDesignExtraction(document.extraction);
 
   return {
     schemaVersion: LAYERED_DESIGN_DOCUMENT_SCHEMA_VERSION,
@@ -278,7 +419,8 @@ export function normalizeLayeredDesignDocument(
     status: document.status ?? "draft",
     canvas: { ...document.canvas },
     layers,
-    assets: (document.assets ?? []).map(copyGeneratedAsset),
+    assets,
+    ...(extraction ? { extraction: copyLayeredDesignExtraction(extraction) } : {}),
     ...(document.preview
       ? { preview: normalizePreviewProjection(document.preview) }
       : {}),
@@ -294,8 +436,12 @@ export function createLayeredDesignDocument(
   return normalizeLayeredDesignDocument(params);
 }
 
+export function createDesignLayer(params: DesignLayerInput): DesignLayer {
+  return normalizeDesignLayer(params, params.zIndex ?? 0);
+}
+
 export function createImageLayer(params: ImageLayerInput): ImageLayer {
-  const layer = normalizeDesignLayer(params, params.zIndex ?? 0);
+  const layer = createDesignLayer(params);
   if (!isImageDesignLayer(layer)) {
     throw new Error("createImageLayer 只能创建 image/effect 图层");
   }
@@ -304,7 +450,7 @@ export function createImageLayer(params: ImageLayerInput): ImageLayer {
 }
 
 export function createTextLayer(params: TextLayerInput): TextLayer {
-  const layer = normalizeDesignLayer(params, params.zIndex ?? 0);
+  const layer = createDesignLayer(params);
   if (layer.type !== "text") {
     throw new Error("createTextLayer 只能创建 text 图层");
   }
@@ -313,7 +459,7 @@ export function createTextLayer(params: TextLayerInput): TextLayer {
 }
 
 export function createShapeLayer(params: ShapeLayerInput): ShapeLayer {
-  const layer = normalizeDesignLayer(params, params.zIndex ?? 0);
+  const layer = createDesignLayer(params);
   if (layer.type !== "shape") {
     throw new Error("createShapeLayer 只能创建 shape 图层");
   }

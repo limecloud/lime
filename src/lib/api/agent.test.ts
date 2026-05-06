@@ -932,6 +932,22 @@ describe("Agent API 治理护栏", () => {
       knownGaps: [
         "当前环境未找到可读取的 request telemetry 日志目录，Evidence Pack 无法导出会话级请求遥测。",
       ],
+      completionAuditSummary: {
+        source: "runtime_evidence_pack_completion_audit",
+        decision: "completed",
+        ownerRunCount: 1,
+        successfulOwnerRunCount: 1,
+        workspaceSkillToolCallCount: 1,
+        artifactCount: 2,
+        ownerAuditStatuses: ["audit_input_ready"],
+        requiredEvidence: {
+          automationOwner: true,
+          workspaceSkillToolCall: true,
+          artifactOrTimeline: true,
+        },
+        blockingReasons: [],
+        notes: ["证据齐全。"],
+      },
       observabilitySummary: {
         schemaVersion: "v1",
         knownGaps: [
@@ -1302,6 +1318,19 @@ describe("Agent API 治理护栏", () => {
           }),
         }),
       }),
+      completion_audit_summary: expect.objectContaining({
+        decision: "completed",
+        owner_run_count: 1,
+        successful_owner_run_count: 1,
+        workspace_skill_tool_call_count: 1,
+        artifact_count: 2,
+        owner_audit_statuses: ["audit_input_ready"],
+        required_evidence: expect.objectContaining({
+          automation_owner: true,
+          workspace_skill_tool_call: true,
+          artifact_or_timeline: true,
+        }),
+      }),
       artifacts: [
         expect.objectContaining({
           kind: "summary",
@@ -1401,6 +1430,10 @@ describe("Agent API 治理护栏", () => {
       pendingRequestCount: 1,
       queuedTurnCount: 0,
       defaultDecisionStatus: "pending_review",
+      limitStatus: "user_locked_capability_gap",
+      capabilityGap: "browser_reasoning_candidate_missing",
+      userLockedCapabilitySummary:
+        "显式用户模型锁定不满足当前 execution profile（capabilityGap=browser_reasoning_candidate_missing），不能作为成功交付证据。",
       permissionStatus: "requires_confirmation",
       permissionConfirmationStatus: "denied",
       permissionConfirmationRequestId: "approval-denied",
@@ -1479,6 +1512,10 @@ describe("Agent API 治理护栏", () => {
     ).resolves.toMatchObject({
       session_id: "session-runtime-4b",
       default_decision_status: "pending_review",
+      limit_status: "user_locked_capability_gap",
+      capability_gap: "browser_reasoning_candidate_missing",
+      user_locked_capability_summary:
+        "显式用户模型锁定不满足当前 execution profile（capabilityGap=browser_reasoning_candidate_missing），不能作为成功交付证据。",
       permission_status: "requires_confirmation",
       permission_confirmation_status: "denied",
       permission_confirmation_request_id: "approval-denied",
@@ -1560,6 +1597,9 @@ describe("Agent API 治理护栏", () => {
       pendingRequestCount: 1,
       queuedTurnCount: 0,
       defaultDecisionStatus: "pending_review",
+      limit_status: "normal",
+      capability_gap: "",
+      user_locked_capability_summary: "",
       permission_status: "requires_confirmation",
       permission_confirmation_status: "resolved",
       permission_confirmation_request_id: "approval-resolved",
@@ -1642,6 +1682,7 @@ describe("Agent API 治理护栏", () => {
     ).resolves.toMatchObject({
       session_id: "session-runtime-4c",
       permission_status: "requires_confirmation",
+      limit_status: "normal",
       permission_confirmation_status: "resolved",
       permission_confirmation_request_id: "approval-resolved",
       permission_confirmation_source: "runtime_action_required",
@@ -1711,6 +1752,40 @@ describe("Agent API 治理护栏", () => {
       {
         request: expect.objectContaining({
           session_id: "session-runtime-4d",
+          decision_status: "accepted",
+        }),
+      },
+    );
+  });
+
+  it("saveAgentRuntimeReviewDecision 应透传用户锁定能力缺口阻止 accepted 的后端错误", async () => {
+    mockSafeInvoke.mockRejectedValueOnce(
+      new Error(
+        "显式用户模型锁定不满足当前 execution profile（capabilityGap=browser_reasoning_candidate_missing），不能把本次 review decision 保存为 accepted；请切换到满足 routingSlot 的模型或取消显式模型锁定并重新导出证据，或改为 rejected / deferred / needs_more_evidence。",
+      ),
+    );
+
+    await expect(
+      saveAgentRuntimeReviewDecision({
+        session_id: "session-runtime-4e",
+        decision_status: "accepted",
+        decision_summary: "错误接受模型锁定能力缺口。",
+        chosen_fix_strategy: "直接接受。",
+        risk_level: "low",
+        risk_tags: ["model-routing"],
+        human_reviewer: "Lime Maintainer",
+        reviewed_at: undefined,
+        followup_actions: [],
+        regression_requirements: [],
+        notes: "",
+      }),
+    ).rejects.toThrow("显式用户模型锁定");
+
+    expect(mockSafeInvoke).toHaveBeenCalledWith(
+      "agent_runtime_save_review_decision",
+      {
+        request: expect.objectContaining({
+          session_id: "session-runtime-4e",
           decision_status: "accepted",
         }),
       },

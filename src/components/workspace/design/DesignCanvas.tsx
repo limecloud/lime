@@ -1,31 +1,47 @@
-import React, { memo, useMemo, useState } from "react";
+import React, { memo, useMemo, useRef, useState } from "react";
 import styled from "styled-components";
 import {
   applyLayeredDesignImageTaskOutput,
+  createLayeredDesignArtifactFromFlatImage,
   createLayeredDesignAssetGenerationPlan,
   createLayeredDesignExportBundle,
+  createLayeredDesignProjectExportFiles,
+  createLayeredDesignExportZipFile,
+  createLayeredDesignFlatImageHeuristicSeed,
   createLayeredDesignImageTaskArtifacts,
   createLayeredDesignPreviewSvgDataUrl,
   createSingleLayerAssetGenerationRequest,
   isImageDesignLayer,
   listPendingLayeredDesignImageTasks,
+  normalizeLayeredDesignDocument,
   recordLayeredDesignImageTaskSubmissions,
   refreshLayeredDesignImageTaskResults,
   sortDesignLayers,
   updateLayerLock,
+  updateLayeredDesignExtractionSelection,
   updateLayerTransform,
   updateLayerVisibility,
 } from "@/lib/layered-design";
+import {
+  readLayeredDesignProjectExport,
+  saveLayeredDesignProjectExport,
+} from "@/lib/api/layeredDesignProject";
 import type {
   DesignLayer,
   GeneratedDesignAsset,
   GroupLayer,
   ImageLayer,
-  LayeredDesignExportFile,
+  LayeredDesignExtractionCandidateInput,
+  LayeredDesignExtractionCleanPlateInput,
+  LayeredDesignExportZipFile,
   ShapeLayer,
   TextLayer,
 } from "@/lib/layered-design";
-import type { DesignCanvasProps, DesignCanvasState } from "./types";
+import {
+  createDesignCanvasStateFromContent,
+  type DesignCanvasProps,
+  type DesignCanvasState,
+} from "./types";
 
 const Shell = styled.div`
   display: grid;
@@ -364,6 +380,35 @@ const Hint = styled.p`
   line-height: 1.55;
 `;
 
+const CandidateList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+`;
+
+const CandidateButton = styled.button<{ $selected: boolean }>`
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  gap: 4px;
+  border: 1px solid
+    ${({ $selected }) =>
+      $selected ? "hsl(var(--foreground))" : "hsl(var(--border))"};
+  border-radius: 14px;
+  background: ${({ $selected }) =>
+    $selected ? "hsl(var(--accent))" : "hsl(var(--background))"};
+  color: hsl(var(--foreground));
+  cursor: pointer;
+  padding: 10px;
+  text-align: left;
+`;
+
+const CandidateMeta = styled.span`
+  color: hsl(var(--muted-foreground));
+  font-size: 11px;
+  line-height: 1.45;
+`;
+
 const GenerationNotice = styled.div<{
   $tone: "info" | "success" | "warning" | "error";
 }>`
@@ -499,8 +544,10 @@ function clickDownloadAnchor(anchor: HTMLAnchorElement) {
   anchor.remove();
 }
 
-function downloadTextFile(file: LayeredDesignExportFile) {
-  const blob = new Blob([file.content], { type: file.mimeType });
+function downloadBinaryFile(file: LayeredDesignExportZipFile) {
+  const content = new ArrayBuffer(file.content.byteLength);
+  new Uint8Array(content).set(file.content);
+  const blob = new Blob([content], { type: file.mimeType });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
 
@@ -508,14 +555,6 @@ function downloadTextFile(file: LayeredDesignExportFile) {
   anchor.download = file.downloadName;
   clickDownloadAnchor(anchor);
   URL.revokeObjectURL(url);
-}
-
-function downloadDataUrlFile(filename: string, dataUrl: string) {
-  const anchor = document.createElement("a");
-
-  anchor.href = dataUrl;
-  anchor.download = filename;
-  clickDownloadAnchor(anchor);
 }
 
 async function renderSvgDataUrlToPngDataUrl(
@@ -543,6 +582,52 @@ async function renderSvgDataUrlToPngDataUrl(
   return canvas.toDataURL("image/png");
 }
 
+async function readFileAsDataUrl(file: File): Promise<string> {
+  const reader = new FileReader();
+
+  return await new Promise<string>((resolve, reject) => {
+    reader.onload = (event) => {
+      const result = event.target?.result;
+      if (typeof result !== "string" || !result.startsWith("data:image/")) {
+        reject(new Error("读取图片失败：未获得有效 data URL"));
+        return;
+      }
+
+      resolve(result);
+    };
+    reader.onerror = () => {
+      reject(reader.error ?? new Error("读取图片失败"));
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+async function readImageDimensions(
+  dataUrl: string,
+): Promise<{ width: number; height: number }> {
+  const image = new window.Image();
+
+  return await new Promise<{ width: number; height: number }>(
+    (resolve, reject) => {
+      image.onload = () => {
+        const width = image.naturalWidth || image.width;
+        const height = image.naturalHeight || image.height;
+        if (!Number.isFinite(width) || !Number.isFinite(height)) {
+          reject(new Error("读取图片尺寸失败"));
+          return;
+        }
+
+        resolve({
+          width: Math.max(1, Math.round(width)),
+          height: Math.max(1, Math.round(height)),
+        });
+      };
+      image.onerror = () => reject(new Error("读取图片尺寸失败"));
+      image.src = dataUrl;
+    },
+  );
+}
+
 export const DesignCanvas: React.FC<DesignCanvasProps> = memo(
   ({
     state,
@@ -554,6 +639,8 @@ export const DesignCanvas: React.FC<DesignCanvasProps> = memo(
     contentId,
     createImageTaskArtifact,
     getImageTaskArtifact,
+    readProjectExport = readLayeredDesignProjectExport,
+    saveProjectExport = saveLayeredDesignProjectExport,
   }) => {
     const document = state.document;
     const [generationBusyTarget, setGenerationBusyTarget] = useState<
@@ -564,6 +651,8 @@ export const DesignCanvas: React.FC<DesignCanvasProps> = memo(
       message: string;
     } | null>(null);
     const [exportBusy, setExportBusy] = useState(false);
+    const [restoreBusy, setRestoreBusy] = useState(false);
+    const flatImageInputRef = useRef<HTMLInputElement | null>(null);
     const visibleLayers = useMemo(
       () => sortDesignLayers(document.layers).filter((layer) => layer.visible),
       [document.layers],
@@ -576,6 +665,7 @@ export const DesignCanvas: React.FC<DesignCanvasProps> = memo(
       document.layers.find((layer) => layer.id === state.selectedLayerId) ??
       panelLayers[0] ??
       null;
+    const extraction = document.extraction ?? null;
     const selectedAsset = selectedLayer
       ? findLayerAsset(selectedLayer, document.assets)
       : null;
@@ -830,30 +920,47 @@ export const DesignCanvas: React.FC<DesignCanvasProps> = memo(
       setExportBusy(true);
       setGenerationStatus({
         tone: "info",
-        message: "正在导出 design.json、assets manifest 和当前预览 PNG...",
+        message: normalizedProjectRootPath
+          ? "正在保存 design.json、psd-like-manifest.json、assets/ 和 preview.* 到项目工程目录..."
+          : "未绑定工作区，正在打包 design.json、psd-like-manifest.json、assets/ 和 preview.* ZIP 工程包...",
       });
 
       try {
         const bundle = createLayeredDesignExportBundle(document);
         const svgDataUrl = createLayeredDesignPreviewSvgDataUrl(document);
-
-        downloadTextFile(bundle.designFile);
-        downloadTextFile(bundle.manifestFile);
-        downloadTextFile(bundle.previewSvgFile);
-        for (const assetFile of bundle.assetFiles) {
-          downloadDataUrlFile(assetFile.downloadName, assetFile.src);
-        }
-
         const pngDataUrl = await renderSvgDataUrlToPngDataUrl(
           svgDataUrl,
           document.canvas.width,
           document.canvas.height,
         );
-        downloadDataUrlFile(bundle.previewPngFile.downloadName, pngDataUrl);
+
+        if (normalizedProjectRootPath) {
+          const output = await saveProjectExport({
+            projectRootPath: normalizedProjectRootPath,
+            documentId: document.id,
+            title: document.title,
+            directoryName: `${document.id}.layered-design`,
+            files: createLayeredDesignProjectExportFiles(bundle, {
+              previewPngDataUrl: pngDataUrl,
+            }),
+          });
+
+          setGenerationStatus({
+            tone: "success",
+            message: `已保存图层设计工程：${output.exportDirectoryRelativePath}（${output.fileCount} 个文件，${output.assetCount} 个 assets）。`,
+          });
+          return;
+        }
+
+        const zipFile = createLayeredDesignExportZipFile(bundle, {
+          previewPngDataUrl: pngDataUrl,
+        });
+
+        downloadBinaryFile(zipFile);
 
         setGenerationStatus({
           tone: "success",
-          message: `已导出 design.json、export manifest、preview.png，并下载 ${bundle.assetFiles.length} 个内嵌 assets；远程 assets 保留引用。`,
+          message: `已下载 ZIP 工程包：包含 design.json、export-manifest.json、psd-like-manifest.json、preview.svg、preview.png 和 ${bundle.assetFiles.length} 个内嵌 assets；远程 assets 保留引用。`,
         });
       } catch (error) {
         setGenerationStatus({
@@ -863,6 +970,162 @@ export const DesignCanvas: React.FC<DesignCanvasProps> = memo(
         });
       } finally {
         setExportBusy(false);
+      }
+    };
+
+    const openLatestProjectExport = async () => {
+      const workspaceRoot = normalizedProjectRootPath;
+      if (!workspaceRoot) {
+        setGenerationStatus({
+          tone: "warning",
+          message: "绑定工作区后才能打开已保存的图层设计工程。",
+        });
+        return;
+      }
+
+      setRestoreBusy(true);
+      setGenerationStatus({
+        tone: "info",
+        message: "正在从项目目录读取最近保存的图层设计工程...",
+      });
+
+      try {
+        const output = await readProjectExport({
+          projectRootPath: workspaceRoot,
+        });
+        const restoredDocument = normalizeLayeredDesignDocument(
+          JSON.parse(output.designJson),
+        );
+        const restoredLayers = sortDesignLayers(restoredDocument.layers);
+
+        emitState({
+          ...state,
+          document: restoredDocument,
+          selectedLayerId:
+            restoredLayers[restoredLayers.length - 1]?.id ??
+            restoredLayers[0]?.id,
+        });
+        setGenerationStatus({
+          tone: "success",
+          message: `已打开图层设计工程：${output.exportDirectoryRelativePath}（${output.fileCount} 个文件，${output.assetCount} 个 assets）。`,
+        });
+      } catch (error) {
+        setGenerationStatus({
+          tone: "error",
+          message:
+            error instanceof Error ? error.message : "打开图层设计工程失败。",
+        });
+      } finally {
+        setRestoreBusy(false);
+      }
+    };
+
+    const openFlatImagePicker = () => {
+      flatImageInputRef.current?.click();
+    };
+
+    const toggleExtractionCandidate = (candidateId: string) => {
+      if (!extraction) {
+        return;
+      }
+
+      const selectedCandidateIds = extraction.candidates
+        .filter((candidate) =>
+          candidate.id === candidateId
+            ? !candidate.selected
+            : candidate.selected,
+        )
+        .map((candidate) => candidate.id);
+
+      emitDocument(
+        updateLayeredDesignExtractionSelection(document, {
+          selectedCandidateIds,
+        }),
+      );
+    };
+
+    const importFlatImage = async (
+      event: React.ChangeEvent<HTMLInputElement>,
+    ) => {
+      const file = event.target.files?.[0];
+      event.target.value = "";
+
+      if (!file) {
+        return;
+      }
+
+      if (!file.type.startsWith("image/")) {
+        setGenerationStatus({
+          tone: "warning",
+          message: "请选择 PNG、JPEG、WEBP、GIF 等图片文件。",
+        });
+        return;
+      }
+
+      setGenerationStatus({
+        tone: "info",
+        message: "正在载入扁平图并创建可编辑 draft...",
+      });
+
+      try {
+        const importedAt = new Date().toISOString();
+        const dataUrl = await readFileAsDataUrl(file);
+        const { width, height } = await readImageDimensions(dataUrl);
+        let candidates: LayeredDesignExtractionCandidateInput[] | undefined;
+        let cleanPlate: LayeredDesignExtractionCleanPlateInput | undefined;
+        let importedMessage =
+          "已载入扁平图 draft；当前先以原图背景进入编辑，后续可继续补候选层与 clean plate。";
+
+        try {
+          const heuristicSeed = await createLayeredDesignFlatImageHeuristicSeed({
+            image: {
+              src: dataUrl,
+              width,
+              height,
+              mimeType: file.type,
+            },
+            createdAt: importedAt,
+          });
+          candidates = heuristicSeed.candidates;
+          cleanPlate = heuristicSeed.cleanPlate;
+          const autoSelectedCount = candidates.filter((candidate) => {
+            const confidence =
+              typeof candidate.confidence === "number"
+                ? candidate.confidence
+                : 0;
+            return candidate.selected ?? confidence >= 0.6;
+          }).length;
+          importedMessage = `已载入扁平图 draft，并生成 ${autoSelectedCount}/${candidates.length} 个本地 heuristic 候选层；当前仍未执行 clean plate。`;
+        } catch {
+          importedMessage =
+            "已载入扁平图 draft；本地 heuristic seed 不可用，当前先以原图背景进入编辑。";
+        }
+
+        const artifact = createLayeredDesignArtifactFromFlatImage({
+          image: {
+            src: dataUrl,
+            width,
+            height,
+            fileName: file.name,
+            mimeType: file.type,
+          },
+          ...(candidates ? { candidates } : {}),
+          ...(cleanPlate ? { cleanPlate } : {}),
+          documentCreatedAt: importedAt,
+        });
+        const nextState = createDesignCanvasStateFromContent(artifact.content);
+
+        emitState(nextState);
+        setGenerationStatus({
+          tone: "success",
+          message: importedMessage,
+        });
+      } catch (error) {
+        setGenerationStatus({
+          tone: "error",
+          message:
+            error instanceof Error ? error.message : "载入扁平图 draft 失败。",
+        });
       }
     };
 
@@ -897,6 +1160,16 @@ export const DesignCanvas: React.FC<DesignCanvasProps> = memo(
         </Rail>
 
         <StageColumn>
+          <input
+            ref={flatImageInputRef}
+            data-testid="design-canvas-flat-image-input"
+            type="file"
+            accept="image/*"
+            hidden
+            onChange={(event) => {
+              void importFlatImage(event);
+            }}
+          />
           <Toolbar>
             <ToolbarTitle>
               <ToolbarHeading>{document.title}</ToolbarHeading>
@@ -907,6 +1180,9 @@ export const DesignCanvas: React.FC<DesignCanvasProps> = memo(
               </ToolbarMeta>
             </ToolbarTitle>
             <ToolbarActions>
+              <Button type="button" onClick={openFlatImagePicker}>
+                上传扁平图
+              </Button>
               <Button
                 type="button"
                 $primary
@@ -950,6 +1226,18 @@ export const DesignCanvas: React.FC<DesignCanvasProps> = memo(
                 disabled={exportBusy}
               >
                 {exportBusy ? "导出中..." : "导出设计工程"}
+              </Button>
+              <Button
+                type="button"
+                onClick={() => void openLatestProjectExport()}
+                disabled={!normalizedProjectRootPath || restoreBusy}
+                title={
+                  normalizedProjectRootPath
+                    ? "从项目工程目录打开最近保存的图层设计"
+                    : "绑定工作区后可打开已保存工程"
+                }
+              >
+                {restoreBusy ? "打开中..." : "打开最近工程"}
               </Button>
               <Button type="button" onClick={() => (onBackHome ?? onClose)?.()}>
                 返回
@@ -1105,6 +1393,53 @@ export const DesignCanvas: React.FC<DesignCanvasProps> = memo(
                       {selectedLayer.locked ? "解锁" : "锁定"}
                     </Button>
                   </ActionGrid>
+                </PropertyCard>
+
+                <PropertyCard>
+                  <PropertyTitle>拆层候选</PropertyTitle>
+                  {extraction ? (
+                    <>
+                      <Hint>
+                        当前来源：扁平图拆层 draft；已选
+                        {
+                          extraction.candidates.filter((candidate) =>
+                            candidate.selected,
+                          ).length
+                        }
+                        /{extraction.candidates.length} 个候选层。clean plate：
+                        {extraction.cleanPlate.status}
+                        {extraction.cleanPlate.message
+                          ? `（${extraction.cleanPlate.message}）`
+                          : "。"}
+                      </Hint>
+                      <CandidateList>
+                        {extraction.candidates.map((candidate) => (
+                          <CandidateButton
+                            key={candidate.id}
+                            type="button"
+                            $selected={candidate.selected}
+                            onClick={() =>
+                              toggleExtractionCandidate(candidate.id)
+                            }
+                          >
+                            <LayerName>
+                              {candidate.selected ? "☑ " : "☐ "}
+                              {candidate.layer.name}
+                            </LayerName>
+                            <CandidateMeta>
+                              {candidate.role} / 置信度{" "}
+                              {Math.round(candidate.confidence * 100)}%
+                              {candidate.issues?.includes("low_confidence")
+                                ? " / 低置信度"
+                                : ""}
+                            </CandidateMeta>
+                          </CandidateButton>
+                        ))}
+                      </CandidateList>
+                    </>
+                  ) : (
+                    <Hint>当前文档还没有扁平图拆层候选。</Hint>
+                  )}
                 </PropertyCard>
 
                 <PropertyCard>

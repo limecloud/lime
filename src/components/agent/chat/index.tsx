@@ -4,6 +4,7 @@ import {
   loadAgentChatWorkspaceModule,
   preloadAgentChatWorkspaceModule,
 } from "./agentChatWorkspaceLoader";
+import { startupTracker } from "@/lib/diagnostics/startupPerformance";
 
 const WORKSPACE_LOADING_FALLBACK = (
   <div className="flex h-full min-h-[320px] items-center justify-center text-sm text-slate-500">
@@ -13,9 +14,12 @@ const WORKSPACE_LOADING_FALLBACK = (
 
 const LazyAgentChatWorkspace = lazy(async () => {
   const t0 = performance.now();
+  startupTracker.mark("AgentChatWorkspace: module load start");
   const module = await loadAgentChatWorkspaceModule();
+  const duration = performance.now() - t0;
+  startupTracker.mark(`AgentChatWorkspace: module loaded (${duration.toFixed(0)}ms)`);
   console.info(
-    `[PERF] AgentChatWorkspace module loaded: ${(performance.now() - t0).toFixed(0)}ms`,
+    `[PERF] AgentChatWorkspace module loaded: ${duration.toFixed(0)}ms`,
   );
   return { default: module.AgentChatWorkspace };
 });

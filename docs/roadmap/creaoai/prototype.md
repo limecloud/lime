@@ -1,8 +1,8 @@
-# CreoAI 启发下的 Skill Forge 产品原型图
+# CREAO 启发下的 Skill Forge / Agent Envelope 产品原型图
 
 > 状态：proposal  
-> 更新时间：2026-05-05  
-> 目标：把 Skill Forge / generated capability / verification gate / workspace-local skill 的用户可见面画成低保真原型，避免路线图只停留在架构文字。
+> 更新时间：2026-05-06
+> 目标：把 Skill Forge / generated capability / verification gate / workspace-local skill / Agent envelope 的用户可见面画成低保真原型，避免路线图只停留在架构文字。
 
 依赖文档：
 
@@ -10,21 +10,24 @@
 - [./implementation-plan.md](./implementation-plan.md)
 - [./diagrams.md](./diagrams.md)
 - [../managed-objective/prototype.md](../managed-objective/prototype.md)
+- [../../research/creaoai/agent-product-model.md](../../research/creaoai/agent-product-model.md)
 
 ## 1. 原型原则
 
-Skill Forge 的产品面要回答四个问题：
+Skill Forge 的产品面要回答五个问题：
 
 1. agent 正在生成什么能力。
 2. 这个能力来自哪个 CLI / API / docs / website。
 3. 验证是否通过，权限是否安全。
-4. 通过后如何进入 workspace-local skill，并被 Managed Objective 长期运行。
+4. 通过后如何进入 workspace-local skill，并被 Managed Objective 可调度运行。
+5. 成功运行后如何建议“继续这套方法 / 转成 Agent”。
 
 固定边界：
 
 1. Draft 未验证前不能进入默认 tool surface。
 2. UI 只能展示 draft / verification / registration 状态，不直接执行生成脚本。
-3. 长期运行入口必须跳到 automation job / Managed Objective，不在 Skill Forge 内自建 runner。
+3. 可调度运行入口必须跳到 automation job / Managed Objective，不在 Skill Forge 内自建 runner。
+4. Agent envelope 只是 Workspace 产品面，不新增 runtime、scheduler 或 evidence。
 
 ## 2. Skill Forge 对话原型
 
@@ -125,11 +128,31 @@ Skill Forge 的产品面要回答四个问题：
 │ 最近运行：2026-05-05 09:02 · success                         │
 │ 产物：reports/2026-05-05.md                                  │
 │                                                              │
-│ [手动运行] [创建定时任务] [查看 evidence] [重新验证]          │
+│ [授权运行] [创建定时任务] [查看 evidence] [重新验证]          │
 └──────────────────────────────────────────────────────────────┘
 ```
 
-## 6. 创建 Managed Job 原型
+成功运行后的固化提示：
+
+```text
+┌──────────────────────────────────────────────────────────────┐
+│ Run Result · trend-report                                     │
+├──────────────────────────────────────────────────────────────┤
+│ 状态：success                                                 │
+│ 产物：reports/2026-05-05.md                                   │
+│ 证据：verification + runtime invocation + artifact write       │
+│                                                              │
+│ 这次任务可以复用为 Agent：                                    │
+│ - Skill: trend-report                                         │
+│ - Memory: 用户偏好 / 失败处理 / 报告格式                       │
+│ - Schedule: 每天 09:00                                        │
+│ - Permission: local read / CLI execute / workspace write       │
+│                                                              │
+│ [继续这套方法] [转成 Agent 草案] [仅保留本次结果]              │
+└──────────────────────────────────────────────────────────────┘
+```
+
+## 6. 创建 Managed Job / Agent Envelope 原型
 
 ```text
 ┌──────────────────────────────────────────────────────────────┐
@@ -149,16 +172,17 @@ Skill Forge 的产品面要回答四个问题：
 │ [✓] 缺配置进入 needs_input                                   │
 │ [✓] 高风险动作需要确认                                      │
 │                                                              │
-│ [创建 job 和 objective]                                      │
+│ [创建 job、objective 和 Agent 草案]                           │
 └──────────────────────────────────────────────────────────────┘
 ```
 
 固定判断：
 
 1. Skill Forge 只负责把能力推进到 verified skill。
-2. 长期任务由 automation job 承载。
+2. 可调度任务由 automation job 承载。
 3. 是否继续由 Managed Objective 判断。
-4. evidence pack 负责运行事实。
+4. Agent envelope 只展示 skill、memory、widget、schedule、permission、evidence 的组合。
+5. evidence pack 负责运行事实。
 
 ## 7. 端到端用户流原型
 
@@ -176,7 +200,7 @@ Skill Forge 的产品面要回答四个问题：
 这条用户流对应路线图主链：
 
 ```text
-Skill Forge -> Draft -> Verification Gate -> Workspace-local Skill -> Automation Job -> Managed Objective -> Query Loop -> Artifact / Evidence
+Skill Forge -> Draft -> Verification Gate -> Workspace-local Skill -> Automation Job -> Managed Objective -> Query Loop -> Artifact / Evidence -> Agent Envelope
 ```
 
 ## 8. 移动端压缩原型
@@ -189,7 +213,7 @@ Skill Forge -> Draft -> Verification Gate -> Workspace-local Skill -> Automation
 │ last: success 09:02        │
 │ artifact: 2026-05-05.md    │
 │                            │
-│ [运行] [定时] [证据]        │
+│ [授权] [定时] [证据] [Agent] │
 └────────────────────────────┘
 ```
 

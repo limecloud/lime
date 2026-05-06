@@ -388,7 +388,7 @@ describe("EmptyStateComposerPanel", () => {
     ) as HTMLButtonElement | null;
 
     expect(toggleButton).toBeTruthy();
-    expect(toggleButton?.textContent).toContain("项目资料：未使用");
+    expect(toggleButton?.textContent).toContain("资料可用");
 
     act(() => {
       toggleButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
@@ -397,7 +397,7 @@ describe("EmptyStateComposerPanel", () => {
     expect(
       container.querySelector('[data-testid="inputbar-knowledge-hub"]'),
     ).toBeTruthy();
-    expect(container.textContent).toContain("可使用：团队资料");
+    expect(container.textContent).toContain("选择项目资料");
   });
 
   it("@资料兼容触发时不应渲染普通命令标签", () => {

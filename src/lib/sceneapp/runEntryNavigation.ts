@@ -100,10 +100,10 @@ export function buildServiceSceneResumePrompt(params: {
     .join("；");
 
   if (slotSummary) {
-    return `请继续执行做法「${params.title}」。做法参数：${slotSummary}。`;
+    return `请继续执行 Skill「${params.title}」。Skill 参数：${slotSummary}。`;
   }
 
-  return `请继续执行做法「${params.title}」，并按最近一次场景执行上下文继续。`;
+  return `请继续执行 Skill「${params.title}」，并按最近一次场景执行上下文继续。`;
 }
 
 export function buildNativeSkillResumeRequestMetadata(params: {
@@ -183,7 +183,7 @@ export function resolveSceneAppRunEntryNavigationTarget(
     return null;
   }
 
-  const sourceLabel = params.sourceLabel.trim() || "整套做法";
+  const sourceLabel = params.sourceLabel.trim() || "Skill";
 
   if (params.action.kind === "open_automation_job") {
     const targetParams: AutomationPageParams = {
@@ -242,7 +242,7 @@ export function resolveSceneAppRunEntryNavigationTarget(
       projectId: params.action.serviceSceneRuntimeRef.projectId ?? undefined,
       contentId: params.action.serviceSceneRuntimeRef.contentId ?? undefined,
       initialUserPrompt: buildServiceSceneResumePrompt({
-        title: params.sceneTitle?.trim() || "这套做法",
+        title: params.sceneTitle?.trim() || "这个 Skill",
         runtimeRef: params.action.serviceSceneRuntimeRef,
       }),
       initialAutoSendRequestMetadata: buildServiceSceneResumeRequestMetadata({

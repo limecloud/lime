@@ -280,7 +280,7 @@ describe("sceneapp launch facade", () => {
           themeOverride: "general",
           lockTheme: true,
           prompt:
-            "请执行做法「X 文章转存」。目标链接：https://x.com/openai/article/123；目标语言：中文。",
+            "请执行 Skill「X 文章转存」。目标链接：https://x.com/openai/article/123；目标语言：中文。",
           initialAutoSendRequestMetadata: expect.objectContaining({
             harness: expect.objectContaining({
               service_skill_launch: expect.objectContaining({

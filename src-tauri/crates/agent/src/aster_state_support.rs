@@ -10,10 +10,31 @@ use aster::tools::ToolRegistrationConfig;
 use lime_core::app_paths;
 use lime_core::database::{lock_db, DbConnection};
 use lime_services::project_context_builder::ProjectContextBuilder;
+use std::path::Path;
 
 /// 重新加载 Lime Skills
 pub fn reload_lime_skills() {
     load_lime_skills();
+}
+
+/// 为当前 runtime turn 显式加载 workspace-local Skills。
+///
+/// 该入口只服务已通过 runtime enable gate 的 Workspace Skill；调用权限仍由
+/// `LimeSkillTool` 的 session allowlist 裁剪，避免注册后自动进入默认工具面。
+pub fn load_workspace_lime_skills(workspace_root: impl AsRef<Path>) -> Result<Vec<String>, String> {
+    let workspace_root = workspace_root.as_ref();
+    if !workspace_root.is_absolute() {
+        return Err(format!(
+            "workspace root 必须是绝对路径: {}",
+            workspace_root.display()
+        ));
+    }
+
+    let skills_dir = workspace_root.join(".agents").join("skills");
+    Ok(register_lime_skills_from_dir(
+        &skills_dir,
+        SkillSource::Project,
+    ))
 }
 
 /// 创建 Lime 专属的 Agent 身份配置
@@ -46,28 +67,39 @@ fn load_lime_skills() {
         }
     };
 
-    let skills = load_skills_from_directory(&skills_dir, SkillSource::User);
-    let skill_count = skills.len();
+    let skill_count = register_lime_skills_from_dir(&skills_dir, SkillSource::User).len();
 
     if skill_count == 0 {
         tracing::info!("[AsterAgent] Lime Skills 目录为空，无 Skills 可加载");
-        return;
+    } else {
+        tracing::info!(
+            "[AsterAgent] 成功加载 {} 个 Lime Skills 到 global_registry",
+            skill_count
+        );
+    }
+}
+
+fn register_lime_skills_from_dir(skills_dir: &Path, source: SkillSource) -> Vec<String> {
+    let skills = load_skills_from_directory(skills_dir, source);
+    let skill_count = skills.len();
+
+    if skill_count == 0 {
+        return Vec::new();
     }
 
+    let mut registered_names = Vec::with_capacity(skill_count);
     let registry = global_registry();
     if let Ok(mut registry_guard) = registry.write() {
         for skill in skills {
             let skill_name = skill.skill_name.clone();
             registry_guard.register(skill);
             tracing::debug!("[AsterAgent] 已注册 Skill: {}", skill_name);
+            registered_names.push(skill_name);
         }
-        tracing::info!(
-            "[AsterAgent] 成功加载 {} 个 Lime Skills 到 global_registry",
-            skill_count
-        );
     } else {
         tracing::error!("[AsterAgent] 无法获取 global_registry 写锁，Skills 加载失败");
     }
+    registered_names
 }
 
 /// 构建带项目上下文的 System Prompt

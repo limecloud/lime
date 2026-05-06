@@ -93,6 +93,7 @@ import { recordAgentUiPerformanceMetric } from "@/lib/agentUiPerformanceMetrics"
 import { setActiveContentTarget } from "@/lib/activeContentTarget";
 import { recordWorkspaceRepair } from "@/lib/workspaceHealthTelemetry";
 import { mergeAgentUiPerformanceTraceMetadata } from "./hooks/agentStreamPerformanceMetrics";
+import { startupTracker } from "@/lib/diagnostics/startupPerformance";
 import { useImageGen } from "@/components/image-gen/useImageGen";
 import { resolveMediaGenerationPreference } from "@/lib/mediaGeneration";
 import { scheduleMinimumDelayIdleTask } from "@/lib/utils/scheduleMinimumDelayIdleTask";
@@ -1299,18 +1300,29 @@ export function AgentChatWorkspace({
     let cancelled = false;
     const startedAt = Date.now();
 
+    startupTracker.mark(
+      "AgentChatWorkspace: homeDefaultWorkspace resolve start",
+    );
     logAgentDebug("AgentChatPage", "homeDefaultWorkspace.resolve.start", {
       agentEntry,
     });
 
     void (async () => {
       try {
+        startupTracker.mark(
+          "AgentChatWorkspace: calling getOrCreateDefaultProject",
+        );
         const defaultProject = await getOrCreateDefaultProject();
+        startupTracker.mark(
+          "AgentChatWorkspace: getOrCreateDefaultProject returned",
+        );
+
         if (cancelled) {
           return;
         }
 
         if (!defaultProject?.id) {
+          startupTracker.mark("AgentChatWorkspace: no default project");
           logAgentDebug(
             "AgentChatPage",
             "homeDefaultWorkspace.resolve.empty",
@@ -1324,6 +1336,9 @@ export function AgentChatWorkspace({
 
         applyProjectSelection(defaultProject.id);
         setProject(defaultProject);
+        startupTracker.mark(
+          `AgentChatWorkspace: homeDefaultWorkspace resolved (${Date.now() - startedAt}ms)`,
+        );
         logAgentDebug("AgentChatPage", "homeDefaultWorkspace.resolve.success", {
           durationMs: Date.now() - startedAt,
           projectId: defaultProject.id,
@@ -1333,6 +1348,9 @@ export function AgentChatWorkspace({
           return;
         }
 
+        startupTracker.mark(
+          `AgentChatWorkspace: homeDefaultWorkspace error (${Date.now() - startedAt}ms)`,
+        );
         console.warn("[AgentChatPage] 准备默认工作区失败:", error);
         logAgentDebug(
           "AgentChatPage",
@@ -1701,7 +1719,7 @@ export function AgentChatWorkspace({
   }, [_onNavigate]);
   const handleOpenSceneAppsDirectory = useCallback(() => {
     if (!_onNavigate) {
-      toast.error("当前入口暂不支持跳转到全部做法");
+      toast.error("当前入口暂不支持跳转到全部 Skills");
       return;
     }
 
@@ -1720,7 +1738,7 @@ export function AgentChatWorkspace({
   }, [_onNavigate, input, projectId]);
   const handleResumeRecentSceneApp = useCallback(() => {
     if (!_onNavigate) {
-      toast.error("当前入口暂不支持跳转到全部做法");
+      toast.error("当前入口暂不支持跳转到全部 Skills");
       return;
     }
 

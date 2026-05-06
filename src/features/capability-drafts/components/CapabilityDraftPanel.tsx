@@ -229,7 +229,7 @@ export function CapabilityDraftPanel({
           </div>
           <p className="text-[11px] leading-5 text-slate-500">
             Coding Agent
-            产出的做法先停在这里；未验证前不会注册成方法，也不会自动运行。
+            产出的 Skill 草案先停在这里；未验证前不会注册，也不会自动运行。
           </p>
         </div>
         {normalizedWorkspaceRoot ? (

@@ -500,7 +500,7 @@ function buildMentionRegistryBanner(params: {
   const footnotes: string[] = [];
 
   if (params.hasServiceSkills) {
-    footnotes.push("场景做法留在后面补位。");
+    footnotes.push("场景 Skills 留在后面补位。");
   }
 
   if (params.hasInstalledSkills || params.hasAvailableSkills) {
@@ -515,10 +515,10 @@ function buildMentionRegistryBanner(params: {
     badge: "统一调用注册表",
     title: params.hasRecent
       ? "继续最近调用，或切到其他执行器"
-      : "先调命令，再补做法",
+      : "先调命令，再补 Skill",
     summary: truncateSectionBannerText(
       params.hasRecent
-        ? "上面保留刚调过的命令或做法，下面按搜索、生成、发布和浏览器编排收口当前可调用能力，都会继续写回当前生成线程。"
+        ? "上面保留刚调过的命令或 Skill，下面按搜索、生成、发布和浏览器编排收口当前可调用能力，都会继续写回当前生成线程。"
         : "这里先按搜索、生成、发布和浏览器编排收口 @命令，所有动作都会继续写回当前生成线程。",
     ),
     ...(footnotes.length > 0
@@ -898,7 +898,7 @@ function buildMentionCapabilitySections(
   if (visibleFeaturedServiceSkills.length > 0) {
     sections.push({
       key: "featured-service-skills",
-      heading: "场景做法",
+      heading: "场景 Skills",
       items: visibleFeaturedServiceSkills.map((skill) => ({
         key: `featured-${skill.id}`,
         kind: "service_skill" as const,
@@ -930,7 +930,7 @@ function buildMentionCapabilitySections(
   if (params.installedSkills.length > 0) {
     sections.push({
       key: "installed-skills",
-      heading: "我的方法",
+      heading: "Skills",
       items: params.installedSkills.map((skill) => ({
         key: skill.directory,
         kind: "installed_skill" as const,
@@ -946,7 +946,7 @@ function buildMentionCapabilitySections(
   if (params.availableSkills.length > 0) {
     sections.push({
       key: "available-skills",
-      heading: "更多做法",
+      heading: "更多 Skills",
       items: params.availableSkills.map((skill) => ({
         key: skill.directory,
         kind: "available_skill" as const,
@@ -1400,7 +1400,7 @@ function buildSlashCapabilitySections(
     visibleInstalledSkills.length > 0
       ? {
           key: "installed-skills",
-          heading: isEmptyQuery ? "已经沉淀的方法" : "我的方法",
+          heading: isEmptyQuery ? "已经沉淀的 Skills" : "Skills",
           items: visibleInstalledSkills.map((skill) => ({
             key: skill.directory,
             kind: "installed_skill" as const,
@@ -1420,7 +1420,7 @@ function buildSlashCapabilitySections(
   if (visibleRecentContinuationEntries.length > 0) {
     sections.push({
       key: "recent-slash-continuations",
-      heading: isEmptyQuery ? "继续上次做法" : "最近使用",
+      heading: isEmptyQuery ? "继续上次 Skill" : "最近使用",
       items: buildRecentSlashCapabilityItems(visibleRecentContinuationEntries),
     });
   }
@@ -1478,7 +1478,7 @@ function buildSlashCapabilitySections(
   if (params.availableSkills.length > 0) {
     sections.push({
       key: "available-skills",
-      heading: "更多做法",
+      heading: "更多 Skills",
       items: params.availableSkills.map((skill) => ({
         key: skill.directory,
         kind: "available_skill" as const,

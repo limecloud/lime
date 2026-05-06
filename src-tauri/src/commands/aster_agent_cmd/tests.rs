@@ -580,11 +580,13 @@ mod tests {
             }),
         };
 
-        assert!(LimeBrowserMcpTool::validate_browser_control_runtime_preflight(
-            Some(&session_hint),
-            "navigate",
-        )
-        .is_ok());
+        assert!(
+            LimeBrowserMcpTool::validate_browser_control_runtime_preflight(
+                Some(&session_hint),
+                "navigate",
+            )
+            .is_ok()
+        );
     }
 
     #[test]
@@ -6751,6 +6753,7 @@ mod tests {
                 "TurnPromptAugmentationStageKind::TypesettingSkillLaunch",
                 "TurnPromptAugmentationStageKind::WebpageSkillLaunch",
                 "TurnPromptAugmentationStageKind::ServiceSkillLaunch",
+                "TurnPromptAugmentationStageKind::WorkspaceSkillBindings",
                 "TurnPromptAugmentationStageKind::Elicitation",
                 "TurnPromptAugmentationStageKind::TeamPreference",
                 "TurnPromptAugmentationStageKind::AutoContinue",

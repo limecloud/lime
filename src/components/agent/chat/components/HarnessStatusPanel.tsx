@@ -498,6 +498,21 @@ function formatEvidenceArtifactKindLabel(
   }
 }
 
+function formatCompletionAuditDecisionLabel(decision?: string | null): string {
+  switch (decision?.trim()) {
+    case "completed":
+      return "completed · 证据完成";
+    case "blocked":
+      return "blocked · 运行阻断";
+    case "needs_input":
+      return "needs_input · 等待输入";
+    case "verifying":
+      return "verifying · 等待审计";
+    default:
+      return decision?.trim() || "unknown";
+  }
+}
+
 function formatBrowserActionArtifactKindLabel(kind?: string): string {
   switch (kind?.trim()) {
     case "browser_session":
@@ -716,6 +731,17 @@ function formatPermissionConfirmationStatusLabel(status?: string): string {
       return "等待确认";
     case "not_requested":
       return "未发起";
+    default:
+      return status?.trim() || "未导出";
+  }
+}
+
+function formatReviewLimitStatusLabel(status?: string): string {
+  switch (status?.trim()) {
+    case "user_locked_capability_gap":
+      return "模型锁定缺口";
+    case "normal":
+      return "正常";
     default:
       return status?.trim() || "未导出";
   }
@@ -3949,6 +3975,74 @@ export function HarnessStatusPanel({
                             );
                           })()}
 
+                          {evidencePack.completion_audit_summary ? (
+                            <div className="rounded-xl border border-border bg-background p-3">
+                              <div className="flex flex-wrap items-start justify-between gap-3">
+                                <div>
+                                  <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                                    <ShieldAlert className="h-4 w-4 text-emerald-600" />
+                                    <span>Completion Audit</span>
+                                  </div>
+                                  <div className="mt-1 text-xs leading-5 text-muted-foreground">
+                                    基于 automation owner、Workspace Skill
+                                    ToolCall 与 artifact / timeline
+                                    evidence 的完成判定，不读取模型自报。
+                                  </div>
+                                </div>
+                                <Badge variant="outline">
+                                  {formatCompletionAuditDecisionLabel(
+                                    evidencePack.completion_audit_summary
+                                      .decision,
+                                  )}
+                                </Badge>
+                              </div>
+                              <div className="mt-3 grid gap-2 text-xs text-muted-foreground sm:grid-cols-2 xl:grid-cols-4">
+                                <div>
+                                  Owner success：
+                                  <span className="ml-1 font-mono text-foreground">
+                                    {
+                                      evidencePack.completion_audit_summary
+                                        .successful_owner_run_count
+                                    }
+                                    /
+                                    {
+                                      evidencePack.completion_audit_summary
+                                        .owner_run_count
+                                    }
+                                  </span>
+                                </div>
+                                <div>
+                                  Skill ToolCall：
+                                  <span className="ml-1 font-mono text-foreground">
+                                    {
+                                      evidencePack.completion_audit_summary
+                                        .workspace_skill_tool_call_count
+                                    }
+                                  </span>
+                                </div>
+                                <div>
+                                  Artifact evidence：
+                                  <span className="ml-1 font-mono text-foreground">
+                                    {
+                                      evidencePack.completion_audit_summary
+                                        .artifact_count
+                                    }
+                                  </span>
+                                </div>
+                                <div>
+                                  Blocking：
+                                  <span className="ml-1 text-foreground">
+                                    {evidencePack.completion_audit_summary
+                                      .blocking_reasons.length > 0
+                                      ? evidencePack.completion_audit_summary
+                                          .blocking_reasons.join("、")
+                                      : "无"}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          ) : null}
+
                           <div className="rounded-xl border border-border bg-background p-3">
                             <div className="flex items-center gap-2 text-sm font-medium text-foreground">
                               <FolderOpen className="h-4 w-4 text-muted-foreground" />
@@ -4804,6 +4898,17 @@ export function HarnessStatusPanel({
                               }
                             />
                             <InventoryStatCard
+                              title="模型锁定"
+                              value={formatReviewLimitStatusLabel(
+                                reviewDecisionTemplate.limit_status,
+                              )}
+                              hint={
+                                reviewDecisionTemplate.user_locked_capability_summary ||
+                                reviewDecisionTemplate.capability_gap ||
+                                "未导出模型锁定能力缺口"
+                              }
+                            />
+                            <InventoryStatCard
                               title="分析文件"
                               value={`${reviewDecisionTemplate.analysis_artifacts.length}`}
                               hint="沿用 analysis handoff 主链"
@@ -4839,6 +4944,26 @@ export function HarnessStatusPanel({
                                 {reviewDecisionTemplate.permission_confirmation_summary ||
                                   "当前 review decision 不能作为成功交付证据，请先处理真实权限确认。"}
                               </div>
+                            </div>
+                          ) : null}
+
+                          {reviewDecisionTemplate.limit_status?.trim() ===
+                          "user_locked_capability_gap" ? (
+                            <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-3">
+                              <div className="flex items-center gap-2 text-sm font-medium text-destructive">
+                                <AlertCircle className="h-4 w-4" />
+                                <span>模型锁定能力缺口</span>
+                              </div>
+                              <div className="mt-2 text-xs leading-5 text-destructive/90">
+                                {reviewDecisionTemplate.user_locked_capability_summary ||
+                                  "当前显式用户模型锁定不满足 execution profile，不能作为成功交付证据。"}
+                              </div>
+                              {reviewDecisionTemplate.capability_gap ? (
+                                <div className="mt-1 font-mono text-[11px] text-destructive/80">
+                                  capabilityGap=
+                                  {reviewDecisionTemplate.capability_gap}
+                                </div>
+                              ) : null}
                             </div>
                           ) : null}
 

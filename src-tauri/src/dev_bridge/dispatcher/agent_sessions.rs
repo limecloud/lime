@@ -69,6 +69,7 @@ pub(super) async fn try_handle(
             | "agent_runtime_get_file_checkpoint"
             | "agent_runtime_diff_file_checkpoint"
             | "agent_runtime_get_tool_inventory"
+            | "agent_runtime_list_workspace_skill_bindings"
             | "agent_runtime_replay_request"
             | "agent_runtime_update_session"
             | "agent_runtime_delete_session"
@@ -437,6 +438,18 @@ pub(super) async fn try_handle(
                     api_key_provider_service,
                     config_manager,
                     mcp_manager,
+                    request,
+                )
+                .await?,
+            )?
+        }
+        "agent_runtime_list_workspace_skill_bindings" => {
+            let request = parse_request::<
+                crate::commands::aster_agent_cmd::AgentRuntimeListWorkspaceSkillBindingsRequest,
+            >(args)?;
+
+            serde_json::to_value(
+                crate::commands::aster_agent_cmd::agent_runtime_list_workspace_skill_bindings(
                     request,
                 )
                 .await?,

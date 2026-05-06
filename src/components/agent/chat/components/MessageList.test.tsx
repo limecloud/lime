@@ -3168,6 +3168,128 @@ describe("MessageList", () => {
     );
   });
 
+  it("当前完成回合缺少持久化 reasoning 时应临时保留本地思考过程", () => {
+    const now = new Date();
+    const messages: Message[] = [
+      {
+        id: "msg-user-thinking-fallback",
+        role: "user",
+        content: "先分析再回答",
+        timestamp: now,
+      },
+      {
+        id: "msg-assistant-thinking-fallback",
+        role: "assistant",
+        content: "最终说明",
+        timestamp: now,
+        thinkingContent: "先分析意图。",
+        contentParts: [
+          {
+            type: "thinking",
+            text: "先分析意图。",
+          },
+          {
+            type: "text",
+            text: "最终说明",
+          },
+        ],
+      },
+    ];
+
+    render(messages, {
+      currentTurnId: "turn-thinking-fallback",
+      turns: [
+        {
+          id: "turn-thinking-fallback",
+          thread_id: "thread-1",
+          prompt_text: "先分析再回答",
+          status: "completed",
+          started_at: "2026-03-28T12:00:00Z",
+          completed_at: "2026-03-28T12:00:02Z",
+          created_at: "2026-03-28T12:00:00Z",
+          updated_at: "2026-03-28T12:00:02Z",
+        },
+      ],
+      threadItems: [],
+    });
+
+    expect(mockStreamingRenderer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        thinkingContent: "先分析意图。",
+        contentParts: [
+          { type: "thinking", text: "先分析意图。" },
+          { type: "text", text: "最终说明" },
+        ],
+      }),
+    );
+  });
+
+  it("持久化 reasoning 已接管时不应重复传递本地思考过程", () => {
+    const now = new Date();
+    const messages: Message[] = [
+      {
+        id: "msg-user-thinking-persisted",
+        role: "user",
+        content: "先分析再回答",
+        timestamp: now,
+      },
+      {
+        id: "msg-assistant-thinking-persisted",
+        role: "assistant",
+        content: "最终说明",
+        timestamp: now,
+        thinkingContent: "先分析意图。",
+        contentParts: [
+          {
+            type: "thinking",
+            text: "先分析意图。",
+          },
+          {
+            type: "text",
+            text: "最终说明",
+          },
+        ],
+      },
+    ];
+
+    render(messages, {
+      currentTurnId: "turn-thinking-persisted",
+      turns: [
+        {
+          id: "turn-thinking-persisted",
+          thread_id: "thread-1",
+          prompt_text: "先分析再回答",
+          status: "completed",
+          started_at: "2026-03-28T12:00:00Z",
+          completed_at: "2026-03-28T12:00:02Z",
+          created_at: "2026-03-28T12:00:00Z",
+          updated_at: "2026-03-28T12:00:02Z",
+        },
+      ],
+      threadItems: [
+        {
+          id: "reasoning-thinking-persisted",
+          thread_id: "thread-1",
+          turn_id: "turn-thinking-persisted",
+          sequence: 1,
+          status: "completed",
+          started_at: "2026-03-28T12:00:00Z",
+          completed_at: "2026-03-28T12:00:01Z",
+          updated_at: "2026-03-28T12:00:01Z",
+          type: "reasoning",
+          text: "先分析意图。",
+        },
+      ],
+    });
+
+    expect(mockStreamingRenderer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        thinkingContent: undefined,
+        contentParts: [{ type: "text", text: "最终说明" }],
+      }),
+    );
+  });
+
   it("流式 assistant 消息仍应向正文传递当前过程状态", () => {
     const now = new Date();
     const messages: Message[] = [

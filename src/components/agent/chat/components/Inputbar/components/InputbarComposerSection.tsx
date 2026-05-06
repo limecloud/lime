@@ -263,6 +263,32 @@ export const InputbarComposerSection: React.FC<
     <>
       {knowledgePackControl}
 
+      {!showAdvancedControls && currentModelSummary ? (
+        <Badge
+          variant="outline"
+          className="h-8 max-w-[240px] items-center overflow-hidden rounded-full border-slate-200/80 bg-white/90 px-3 text-xs font-medium text-slate-600"
+          title={`当前模型：${currentModelSummary}`}
+        >
+          <span className="mr-1 text-slate-500">模型</span>
+          <span className="truncate">{trimmedModel}</span>
+        </Badge>
+      ) : null}
+
+      {!showAdvancedControls &&
+      shouldShowModelControls &&
+      !hasConfiguredModel ? (
+        <InputbarModelExtra
+          isFullscreen={isFullscreen}
+          providerType={resolvedProviderType}
+          setProviderType={resolvedSetProviderType}
+          model={resolvedModel}
+          setModel={resolvedSetModel}
+          activeTheme={activeTheme}
+          onManageProviders={onManageProviders}
+          executionRuntime={executionRuntime}
+        />
+      ) : null}
+
       {shouldShowAdvancedToggle ? (
         <MetaToggleButton
           type="button"
@@ -287,32 +313,6 @@ export const InputbarComposerSection: React.FC<
             <ChevronDown className="h-3.5 w-3.5" aria-hidden />
           )}
         </MetaToggleButton>
-      ) : null}
-
-      {!showAdvancedControls && currentModelSummary ? (
-        <Badge
-          variant="outline"
-          className="h-8 max-w-[240px] items-center overflow-hidden rounded-full border-slate-200/80 bg-white/90 px-3 text-xs font-medium text-slate-600"
-          title={`当前模型：${currentModelSummary}`}
-        >
-          <span className="mr-1 text-slate-500">当前模型</span>
-          <span className="truncate">{trimmedModel}</span>
-        </Badge>
-      ) : null}
-
-      {!showAdvancedControls &&
-      shouldShowModelControls &&
-      !hasConfiguredModel ? (
-        <InputbarModelExtra
-          isFullscreen={isFullscreen}
-          providerType={resolvedProviderType}
-          setProviderType={resolvedSetProviderType}
-          model={resolvedModel}
-          setModel={resolvedSetModel}
-          activeTheme={activeTheme}
-          onManageProviders={onManageProviders}
-          executionRuntime={executionRuntime}
-        />
       ) : null}
 
       {onToggleFileManager ? (

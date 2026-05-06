@@ -1,5 +1,13 @@
 import type { Artifact, ArtifactMeta } from "@/lib/artifact/types";
 import { normalizeLayeredDesignDocument } from "./document";
+import {
+  createLayeredDesignExtractionDocument,
+  type CreateLayeredDesignExtractionDocumentParams,
+} from "./extraction";
+import {
+  createLayeredDesignFlatImageDraftDocument,
+  type CreateLayeredDesignFlatImageDraftDocumentParams,
+} from "./flatImage";
 import { createLayeredDesignSeedDocument } from "./planner";
 import type {
   LayeredDesignDocument,
@@ -8,7 +16,8 @@ import type {
 
 export type LayeredDesignArtifactSource =
   | "layered-design-document"
-  | "layered-design-seed";
+  | "layered-design-seed"
+  | "layered-design-extraction";
 
 export interface CreateLayeredDesignArtifactOptions {
   artifactId?: string;
@@ -22,6 +31,18 @@ export interface CreateLayeredDesignArtifactFromPromptOptions
   extends Omit<CreateLayeredDesignArtifactOptions, "source"> {
   id?: string;
   title?: string;
+  documentCreatedAt?: string;
+}
+
+export interface CreateLayeredDesignArtifactFromExtractionOptions
+  extends Omit<CreateLayeredDesignArtifactOptions, "source">,
+    CreateLayeredDesignExtractionDocumentParams {
+  documentCreatedAt?: string;
+}
+
+export interface CreateLayeredDesignArtifactFromFlatImageOptions
+  extends Omit<CreateLayeredDesignArtifactOptions, "source">,
+    CreateLayeredDesignFlatImageDraftDocumentParams {
   documentCreatedAt?: string;
 }
 
@@ -97,5 +118,35 @@ export function createLayeredDesignArtifactFromPrompt(
   return createLayeredDesignArtifact(document, {
     ...artifactOptions,
     source: "layered-design-seed",
+  });
+}
+
+export function createLayeredDesignArtifactFromExtraction(
+  options: CreateLayeredDesignArtifactFromExtractionOptions,
+): Artifact {
+  const { documentCreatedAt, ...documentOptions } = options;
+  const document = createLayeredDesignExtractionDocument({
+    ...documentOptions,
+    createdAt: documentCreatedAt ?? documentOptions.createdAt,
+  });
+
+  return createLayeredDesignArtifact(document, {
+    ...options,
+    source: "layered-design-extraction",
+  });
+}
+
+export function createLayeredDesignArtifactFromFlatImage(
+  options: CreateLayeredDesignArtifactFromFlatImageOptions,
+): Artifact {
+  const { documentCreatedAt, ...documentOptions } = options;
+  const document = createLayeredDesignFlatImageDraftDocument({
+    ...documentOptions,
+    createdAt: documentCreatedAt ?? documentOptions.createdAt,
+  });
+
+  return createLayeredDesignArtifact(document, {
+    ...options,
+    source: "layered-design-extraction",
   });
 }

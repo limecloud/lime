@@ -284,6 +284,7 @@ async function runPageFlow(options, smokeUrl) {
     await waitForText(page, "刷新入口", "刷新生成结果");
     await waitForText(page, "单层重生成入口", "重生成当前层");
     await waitForText(page, "导出入口", "导出设计工程");
+    await waitForText(page, "工程恢复入口", "打开最近工程");
 
     logStage("interact-layer");
     await page.getByRole("button", { name: "选择图层 主标题" }).click({

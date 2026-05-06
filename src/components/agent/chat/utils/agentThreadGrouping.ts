@@ -10,6 +10,7 @@ import { resolveUserFacingToolDisplayLabel } from "./toolDisplayInfo";
 import { isInternalRoutingTurnSummaryText } from "./turnSummaryPresentation";
 import { summarizeThreadProcessBatch } from "./toolBatchGrouping";
 import { resolveAgentThreadToolProcessPreview } from "./toolProcessSummary";
+import { normalizeProcessDisplayText } from "./processDisplayText";
 
 export type AgentThreadGroupKind =
   | "process"
@@ -117,7 +118,7 @@ function extractThinkingPreviewLine(
   }
 
   if (!STRUCTURED_CONTENT_HINT_RE.test(normalized)) {
-    return firstMeaningfulLine(normalized);
+    return firstMeaningfulLine(normalizeProcessDisplayText(normalized));
   }
 
   const parsed = parseAIResponse(normalized, false);
@@ -138,7 +139,7 @@ function extractThinkingPreviewLine(
     }
   }
 
-  return firstMeaningfulLine(normalized);
+  return firstMeaningfulLine(normalizeProcessDisplayText(normalized));
 }
 
 function shortenText(

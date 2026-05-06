@@ -105,5 +105,5 @@ export function buildSkillScaffoldReplayText(
     96,
   );
 
-  return primaryGoal || `继续复用“${name}”这套做法`;
+  return primaryGoal || `继续复用“${name}”这个 Skill`;
 }

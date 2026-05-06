@@ -35,6 +35,11 @@
 - CreoAI Capability Verification P1B 执行计划：`docs/exec-plans/creaoai-capability-verification-p1b-plan.md`
 - CreoAI Capability Registration P3 执行计划：`docs/exec-plans/creaoai-capability-registration-p3-plan.md`
 - CreoAI Capability Discovery P3B 执行计划：`docs/exec-plans/creaoai-capability-discovery-p3b-plan.md`
+- CreoAI Runtime Binding P3C 执行计划：`docs/exec-plans/creaoai-runtime-binding-p3c-plan.md`
+- CreoAI Query Loop Metadata P3D 执行计划：`docs/exec-plans/creaoai-query-loop-metadata-p3d-plan.md`
+- CREAO Tool Runtime Authorization P3E 执行计划：`docs/exec-plans/creaoai-tool-runtime-authorization-p3e-plan.md`
+- CREAO Managed Execution / Agent Envelope P4 执行计划：`docs/exec-plans/creaoai-managed-agent-envelope-p4-plan.md`
+- CREAO Roadmap P0-P4 完成审计：`docs/exec-plans/creaoai-completion-audit.md`
 - LimeNext 总实施计划（`legacy current reference`，当前主规划已切到 `docs/roadmap/limenextv2/README.md`）：`docs/exec-plans/limenext-plan.md`
 - LimeNext 推进日志：`docs/exec-plans/limenext-progress.md`
 - 技术债追踪：`docs/exec-plans/tech-debt-tracker.md`

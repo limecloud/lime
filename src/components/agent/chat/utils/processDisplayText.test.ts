@@ -43,6 +43,12 @@ describe("normalizeProcessDisplayText", () => {
     );
   });
 
+  it("应压平较短的碎片化流式思考文本", () => {
+    const input = ["The", "", "I", "", "Now"].join("\n");
+
+    expect(normalizeProcessDisplayText(input)).toBe("The I Now");
+  });
+
   it("应保留正常 markdown 列表的换行结构", () => {
     const input = ["先确认当前状态", "- 再检查目录", "- 最后补回退说明"].join(
       "\n",

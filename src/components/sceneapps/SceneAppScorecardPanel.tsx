@@ -49,9 +49,9 @@ export function SceneAppScorecardPanel({
     <section className="rounded-[28px] border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-950/5">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <div className="text-sm font-semibold text-slate-900">做法表现</div>
+          <div className="text-sm font-semibold text-slate-900">Skill 表现</div>
           <p className="mt-1 text-sm leading-6 text-slate-500">
-            用统一标准判断这套做法值不值得继续放大、先修哪里，还是先停下来。
+            用统一标准判断这个 Skill 值不值得继续放大、先修哪里，还是先停下来。
           </p>
         </div>
         {scorecardView?.aggregate?.actionLabel || scorecardView?.actionLabel ? (

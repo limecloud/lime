@@ -458,3 +458,23 @@ npm run verify:gui-smoke
 - 产品证据：`smoke:knowledge-gui` 阶段顺序包含 `open-agent-with-knowledge -> wait-agent -> prepare-agent-result -> wait-agent-result -> capture-agent-result -> wait-agent-result-captured -> wait-captured-agent-result -> open-import-view`，确认从“使用资料”到“结果沉淀”再回“管理确认”的闭环顺序。
 - 验证通过：`node --check "scripts/knowledge-gui-smoke.mjs"`；`npm run smoke:knowledge-gui -- --app-url "http://127.0.0.1:1420/" --health-url "http://127.0.0.1:3030/health" --invoke-url "http://127.0.0.1:3030/invoke" --timeout-ms 240000 --interval-ms 1000`；`npm run typecheck`；`npm run test:contracts`；`npm run verify:gui-smoke`。
 - 当前剩余风险：Agent 结果样本由 E2E 脚本注入历史消息以避开真实模型配置依赖；点击、导入、编译和管理页展示均走真实 GUI / DevBridge。后续如要覆盖真实模型生成，只应作为模型配置可用时的增强验收，不再阻塞当前项目资料产品闭环。
+
+## 2026-05-06 产品 E2E 验收最终复跑
+
+- 页面 / URL：`http://127.0.0.1:1420/`；使用隔离 `CARGO_TARGET_DIR="/tmp/lime-knowledge-headless-target"` 启动 headless Tauri，并复用已有 Vite 前端。
+- 用户闭环判定：已完成首页 `添加资料` 打开资料中枢、File Manager `brief.md -> 设为项目资料`、项目资料页 `用于生成` 回现有 Agent、Agent 结果 `沉淀为项目资料`、回管理页继续确认的完整闭环；本轮达到产品 E2E 可交付门槛。
+- 本轮发现：File Manager 行本身是可点击区域，自动化按文本找 `设为资料` 时命中了包含同名文案的文件行，实际触发的是“加入对话”，属于 `测试缺口` 与 `点击命中风险`，不是资料导入后端失败。
+- 本轮修复：File Manager 行内 `设为资料` 增加稳定可访问名 `设为项目资料 <文件名>`；`scripts/knowledge-gui-smoke.mjs` 改为在 File Manager 作用域内点击该可访问名，并等待真实 `knowledge_list_packs` 出现由文件导入生成的资料。
+- 验证通过：`node --check "scripts/knowledge-gui-smoke.mjs"`；`npm test -- "src/components/agent/chat/components/FileManager/FileManagerSidebar.test.tsx"`；`npm run bridge:health -- --timeout-ms 10000`；`npm run smoke:knowledge-gui -- --app-url "http://127.0.0.1:1420/" --health-url "http://127.0.0.1:3030/health" --invoke-url "http://127.0.0.1:3030/invoke" --timeout-ms 240000 --interval-ms 1000`；`npm run typecheck`；`npm run test:contracts`；`npm run verify:gui-smoke -- --reuse-running`。
+- 质量收口：`npm run verify:gui-smoke -- --reuse-running` 覆盖 workspace-ready、browser-runtime、site-adapters、Agent service skill entry、runtime tool surface/page、knowledge GUI 与 design canvas，全部通过。
+
+## 2026-05-06 输入框资料入口排版收口与启动修复
+
+- 页面 / URL：`http://127.0.0.1:1420/`；本轮聚焦输入框底栏和项目资料浮层，不把 `项目资料` 收进 `高级设置`，因为它是本次生成的上下文来源，不是配置项。
+- 本轮 UI 收口：底栏顺序调整为 `资料 / 模型 / 高级设置 / 文件管理器`；模型 badge 文案从 `当前模型` 收敛为 `模型`；资料状态收敛为 `资料可用 / 资料待确认 / 添加资料 / 资料：<名称>`，减少普通用户看到的长解释和重复按钮。
+- 浮层收口：项目资料主按钮合并下拉入口，取消单独小箭头按钮；浮层改成上下文选择器语气，保留 `添加新资料 / 检查资料 / 使用这份资料`，不再呈现为设置面板。
+- 启动阻塞修复：`tauri:dev:headless` 失败的直接原因依次为 1420 被 `vite preview` 占用、`SkillsPage.tsx` 出现中文弯引号导致 Vite optimize 失败、`MemoryPage.tsx` 存在未闭合 JSX 标签导致 typecheck 失败、隔离 Cargo target 一度写入失败提示磁盘不足；本轮只做语法级最小修复，并恢复 1420 / 3030 可用。
+- 运行态处理：磁盘空间恢复后仍优先避免再次触发 Cargo 大编译，改用 `npm run dev:web-bridge` 启动 1420，再直接运行既有 `src-tauri/target/debug/lime` 恢复 DevBridge；当前验证时 1420 / 3030 均已监听。
+- E2E 结果：`smoke:knowledge-gui` 已复走首页添加资料、File Manager 设为项目资料、项目资料页用于生成回现有 Agent、Agent 结果沉淀为项目资料、回管理页继续确认的完整闭环。
+- 验证通过：`node --check "scripts/knowledge-gui-smoke.mjs" && node --check "scripts/agent-service-skill-entry-smoke.mjs"`；`npm test -- "src/components/agent/chat/components/Inputbar/index.test.tsx" "src/components/agent/chat/components/Inputbar/knowledge/knowledgeHubState.test.ts" "src/components/agent/chat/components/EmptyStateComposerPanel.test.tsx"`；`npm run bridge:health -- --timeout-ms 30000`；`npm run smoke:knowledge-gui -- --app-url "http://127.0.0.1:1420/" --health-url "http://127.0.0.1:3030/health" --invoke-url "http://127.0.0.1:3030/invoke" --timeout-ms 240000 --interval-ms 1000`；`npm run typecheck`。
+- 验证说明：本轮未重新跑完整 `npm run verify:gui-smoke -- --reuse-running`，因为上一轮被中断后留下的 browser-runtime smoke、1420 preview 占用和 Cargo target 空间问题需要先处理；本轮用知识库专项 GUI smoke 证明项目资料主链已恢复。

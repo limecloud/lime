@@ -129,7 +129,7 @@ function buildSkillScaffoldSummary(
     return `输入约束：${inputs.join("；")}`;
   }
 
-  return "当前生成会继续沿用这份做法草稿的目标与边界。";
+  return "当前生成会继续沿用这份 Skill 草稿的目标与边界。";
 }
 
 export function buildCreationReplaySurfaceModel(
@@ -166,15 +166,15 @@ export function buildCreationReplaySurfaceModel(
   }
 
   const title =
-    normalizeOptionalText(creationReplay.data.name) || "当前做法草稿";
+    normalizeOptionalText(creationReplay.data.name) || "当前 Skill 草稿";
 
   return {
     kind: creationReplay.kind,
-    eyebrow: "当前带入做法草稿",
-    badgeLabel: "做法草稿",
+    eyebrow: "当前带入 Skill 草稿",
+    badgeLabel: "Skill 草稿",
     title,
     summary: buildSkillScaffoldSummary(creationReplay),
-    hint: "这轮会先沿着这份做法草稿继续生成，跑顺后可回到我的方法继续整理。",
+    hint: "这轮会先沿着这份 Skill 草稿继续生成，跑顺后可回到 Skills 继续整理。",
     defaultReferenceMemoryIds: [],
     defaultReferenceEntries: [],
   };

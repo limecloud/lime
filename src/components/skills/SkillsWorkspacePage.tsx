@@ -81,6 +81,7 @@ import {
   subscribeCuratedTaskRecommendationSignalsChanged,
 } from "@/components/agent/chat/utils/curatedTaskRecommendationSignals";
 import { buildReviewFeedbackProjection } from "@/components/agent/chat/utils/reviewFeedbackProjection";
+import { buildWorkspaceSkillRuntimeEnableHarnessMetadata } from "@/components/agent/chat/utils/workspaceSkillBindingsMetadata";
 import {
   getSlashEntryUsageMap,
   getSlashEntryUsageRecordKey,
@@ -90,10 +91,19 @@ import {
 import { buildServiceSkillLaunchPrefillSummary } from "@/components/agent/chat/service-skills/serviceSkillLaunchPrefill";
 import { resolveSceneAppsPageEntryParams } from "@/lib/sceneapp";
 import { getProject } from "@/lib/api/project";
+import type { AgentRuntimeWorkspaceSkillBinding } from "@/lib/api/agentRuntime";
 import {
   CapabilityDraftPanel,
   WorkspaceRegisteredSkillsPanel,
 } from "@/features/capability-drafts";
+import { createAutomationJob } from "@/lib/api/automation";
+import type { Project } from "@/lib/api/project";
+import {
+  AutomationJobDialog,
+  type AutomationJobDialogInitialValues,
+  type AutomationJobDialogSubmit,
+} from "@/components/settings-v2/system/automation/AutomationJobDialog";
+import { buildWorkspaceSkillAgentAutomationInitialValues } from "@/features/capability-drafts/workspaceSkillAgentAutomationDraft";
 
 interface SkillsWorkspacePageProps {
   onNavigate: (page: Page, params?: PageParams) => void;
@@ -106,11 +116,6 @@ const TONE_BADGE_CLASSNAMES: Record<ServiceSkillTone, string> = {
   emerald: "border-emerald-200 bg-emerald-50 text-emerald-700",
   amber: "border-amber-200 bg-amber-50 text-amber-700",
 };
-
-const SKILLS_WORKSPACE_PRIMARY_BUTTON_CLASSNAME =
-  "rounded-2xl border border-emerald-200 bg-[image:var(--lime-primary-gradient)] px-4 text-white shadow-sm shadow-emerald-950/15 hover:opacity-95";
-const SKILLS_WORKSPACE_SECONDARY_BUTTON_CLASSNAME =
-  "rounded-2xl border-slate-200 bg-white text-slate-700 hover:bg-slate-100 hover:text-slate-900";
 
 function normalizeKeyword(value: string): string {
   return value.trim().toLowerCase();
@@ -152,6 +157,17 @@ function buildInstalledSkillRecentUsageDescription(
   return `上次目标：${summarizeRecentReplayText(normalizedReplayText)}`;
 }
 
+function buildWorkspaceRuntimeEnablePrompt(
+  binding: AgentRuntimeWorkspaceSkillBinding,
+): string {
+  const skillName = binding.name?.trim() || binding.directory;
+  return [
+    `请在本回合使用 Workspace 本地 Skill「${skillName}」（skill: project:${binding.directory}）。`,
+    "先读取这个 Skill 的说明与约束，再基于当前任务完成交付。",
+    "如果输入信息不足，请先提出最少必要问题；不要创建自动化、定时任务或 marketplace 发布。",
+  ].join("\n");
+}
+
 function buildSkillGroupStarterSummary(skills: ServiceSkillHomeItem[]): string {
   const starterTitles = skills.slice(0, 2).map((skill) => `「${skill.title}」`);
 
@@ -160,7 +176,7 @@ function buildSkillGroupStarterSummary(skills: ServiceSkillHomeItem[]): string {
   }
 
   return starterTitles.length < skills.length
-    ? `这一组里可以先从${starterTitles.join(" / ")}等做法开始。`
+    ? `这一组里可以先从${starterTitles.join(" / ")}等 Skill 开始。`
     : `这一组里可以先从${starterTitles.join(" / ")}开始。`;
 }
 
@@ -176,13 +192,6 @@ function resolveSkillCardStatusLabel(skill: ServiceSkillHomeItem): string {
     return skill.automationStatus.statusLabel;
   }
   return skill.runnerLabel;
-}
-
-function resolveSkillCardStatusDetail(skill: ServiceSkillHomeItem): string {
-  if (skill.automationStatus?.detail) {
-    return skill.automationStatus.detail;
-  }
-  return skill.runnerDescription;
 }
 
 function resolveSkillGroupKey(skill: ServiceSkillHomeItem): string {
@@ -225,13 +234,13 @@ export function SkillsWorkspacePage({
   pageParams,
 }: SkillsWorkspacePageProps) {
   const {
-    skills: serviceSkills,
-    groups: skillGroups,
+    skills: serviceSkills = [],
+    groups: skillGroups = [],
     error: serviceSkillsError,
     refresh: refreshServiceSkills,
   } = useServiceSkills();
   const {
-    skills: localSkills,
+    skills: localSkills = [],
     error: localSkillsError,
     refresh: refreshLocalSkills,
   } = useSkills("lime", { includeRepos: false });
@@ -274,12 +283,24 @@ export function SkillsWorkspacePage({
   >(null);
   const [capabilityDraftWorkspaceRoot, setCapabilityDraftWorkspaceRoot] =
     useState<string | null>(null);
+  const [capabilityDraftProject, setCapabilityDraftProject] =
+    useState<Project | null>(null);
   const [capabilityDraftProjectLoading, setCapabilityDraftProjectLoading] =
     useState(false);
   const [capabilityDraftProjectError, setCapabilityDraftProjectError] =
     useState<string | null>(null);
   const [registeredSkillsRefreshSignal, setRegisteredSkillsRefreshSignal] =
     useState(0);
+  const [
+    workspaceSkillAutomationDialogOpen,
+    setWorkspaceSkillAutomationDialogOpen,
+  ] = useState(false);
+  const [
+    workspaceSkillAutomationInitialValues,
+    setWorkspaceSkillAutomationInitialValues,
+  ] = useState<AutomationJobDialogInitialValues | null>(null);
+  const [workspaceSkillAutomationSaving, setWorkspaceSkillAutomationSaving] =
+    useState(false);
   const lastHandledScaffoldRequestKeyRef = useRef<number | null>(null);
 
   const installedLocalSkills = useMemo(() => {
@@ -382,6 +403,7 @@ export function SkillsWorkspacePage({
 
     if (!creationProjectId) {
       setCapabilityDraftWorkspaceRoot(null);
+      setCapabilityDraftProject(null);
       setCapabilityDraftProjectError(null);
       setCapabilityDraftProjectLoading(false);
       return () => {
@@ -397,6 +419,7 @@ export function SkillsWorkspacePage({
           return;
         }
         const rootPath = project?.rootPath?.trim() || null;
+        setCapabilityDraftProject(project ?? null);
         setCapabilityDraftWorkspaceRoot(rootPath);
         setCapabilityDraftProjectError(
           rootPath ? null : "当前项目没有可用的本地目录",
@@ -406,6 +429,7 @@ export function SkillsWorkspacePage({
         if (cancelled) {
           return;
         }
+        setCapabilityDraftProject(null);
         setCapabilityDraftWorkspaceRoot(null);
         setCapabilityDraftProjectError(String(error));
       })
@@ -636,9 +660,9 @@ export function SkillsWorkspacePage({
     setRefreshing(true);
     try {
       await Promise.allSettled([refreshServiceSkills(), refreshLocalSkills()]);
-      toast.success("做法已刷新");
+      toast.success("Skills 已刷新");
     } catch (error) {
-      toast.error(`刷新做法失败：${String(error)}`);
+      toast.error(`刷新 Skills 失败：${String(error)}`);
     } finally {
       setRefreshing(false);
     }
@@ -675,8 +699,8 @@ export function SkillsWorkspacePage({
               }
             : {}),
           entryBannerMessage: normalizedReplayText
-            ? `已带着方法“${skill.name}”和上次目标回到生成，接着把这轮做下去就行。`
-            : `已带着方法“${skill.name}”回到生成，接着把这轮做下去就行。`,
+            ? `已带着 Skill「${skill.name}」和上次目标回到生成，接着把这轮做下去就行。`
+            : `已带着 Skill「${skill.name}」回到生成，接着把这轮做下去就行。`,
         }),
         initialInputCapability: {
           capabilityRoute: {
@@ -689,6 +713,101 @@ export function SkillsWorkspacePage({
       });
     },
     [creationProjectId, onNavigate],
+  );
+
+  const handleWorkspaceRuntimeEnable = useCallback(
+    (binding: AgentRuntimeWorkspaceSkillBinding) => {
+      if (!capabilityDraftWorkspaceRoot) {
+        toast.error("当前项目没有可用的本地目录，无法启用 Workspace Skill。");
+        return;
+      }
+
+      const runtimeEnableMetadata =
+        buildWorkspaceSkillRuntimeEnableHarnessMetadata({
+          workspaceRoot: capabilityDraftWorkspaceRoot,
+          bindings: [binding],
+        });
+
+      if (!runtimeEnableMetadata) {
+        toast.error("该 Workspace Skill 尚未通过 runtime enable gate。");
+        return;
+      }
+
+      const skillName = binding.name?.trim() || binding.directory;
+      onNavigate(
+        "agent",
+        buildHomeAgentParams({
+          projectId: creationProjectId,
+          initialUserPrompt: buildWorkspaceRuntimeEnablePrompt(binding),
+          autoRunInitialPromptOnMount: true,
+          initialAutoSendRequestMetadata: {
+            harness: runtimeEnableMetadata,
+          },
+          entryBannerMessage: `已在本回合显式启用 Workspace Skill「${skillName}」；这只授权当前会话调用，不创建自动化。`,
+        }),
+      );
+    },
+    [capabilityDraftWorkspaceRoot, creationProjectId, onNavigate],
+  );
+
+  const handleWorkspaceManagedAutomationDraft = useCallback(
+    (binding: AgentRuntimeWorkspaceSkillBinding) => {
+      if (!creationProjectId || !capabilityDraftProject) {
+        toast.error("缺少项目工作区，无法创建 Managed Job 草案。");
+        return;
+      }
+      if (!capabilityDraftWorkspaceRoot) {
+        toast.error("当前项目没有可用的本地目录，无法创建 Managed Job 草案。");
+        return;
+      }
+
+      const initialValues = buildWorkspaceSkillAgentAutomationInitialValues({
+        binding,
+        workspaceRoot: capabilityDraftWorkspaceRoot,
+        workspaceId: creationProjectId,
+      });
+      if (!initialValues) {
+        toast.error("该 Workspace Skill 尚未满足 Managed Job 草案条件。");
+        return;
+      }
+
+      setWorkspaceSkillAutomationInitialValues(initialValues);
+      setWorkspaceSkillAutomationDialogOpen(true);
+    },
+    [capabilityDraftProject, capabilityDraftWorkspaceRoot, creationProjectId],
+  );
+
+  const handleWorkspaceSkillAutomationDialogOpenChange = useCallback(
+    (open: boolean) => {
+      setWorkspaceSkillAutomationDialogOpen(open);
+      if (!open) {
+        setWorkspaceSkillAutomationInitialValues(null);
+      }
+    },
+    [],
+  );
+
+  const handleWorkspaceSkillAutomationSubmit = useCallback(
+    async (payload: AutomationJobDialogSubmit) => {
+      if (payload.mode !== "create") {
+        throw new Error("当前入口只支持创建新的 Managed Job 草案");
+      }
+
+      setWorkspaceSkillAutomationSaving(true);
+      try {
+        const createdJob = await createAutomationJob(payload.request);
+        toast.success(`Managed Job 草案已创建：${createdJob.name}`);
+        setWorkspaceSkillAutomationDialogOpen(false);
+        setWorkspaceSkillAutomationInitialValues(null);
+      } catch (error) {
+        toast.error(
+          `创建 Managed Job 草案失败：${error instanceof Error ? error.message : String(error)}`,
+        );
+      } finally {
+        setWorkspaceSkillAutomationSaving(false);
+      }
+    },
+    [],
   );
 
   const handleOpenSceneAppsDirectory = useCallback(() => {
@@ -721,7 +840,7 @@ export function SkillsWorkspacePage({
       try {
         await refreshLocalSkills();
       } catch (error) {
-        toast.error(`刷新我的方法失败：${String(error)}`);
+        toast.error(`刷新 Skills 失败：${String(error)}`);
       }
 
       if (scaffoldReplayText) {
@@ -738,7 +857,7 @@ export function SkillsWorkspacePage({
       setConsumedScaffoldRequestKey(
         pageParams?.initialScaffoldRequestKey ?? null,
       );
-      toast.success(`已创建“${skill.name}”并收进我的方法`);
+      toast.success(`已创建“${skill.name}”并收进 Skills`);
     },
     [
       pageParams?.initialScaffoldDraft,
@@ -756,7 +875,7 @@ export function SkillsWorkspacePage({
       ? null
       : (pageParams?.initialScaffoldDraft ?? null);
   const activeScaffoldTitle = useMemo(
-    () => activeScaffoldDraft?.name?.trim() || "当前做法草稿",
+    () => activeScaffoldDraft?.name?.trim() || "当前 Skill 草稿",
     [activeScaffoldDraft],
   );
   const activeScaffoldReplayText = useMemo(
@@ -902,7 +1021,6 @@ export function SkillsWorkspacePage({
   const renderSkillCard = (skill: ServiceSkillHomeItem) => {
     const tone = resolveSkillCardTone(skill);
     const statusLabel = resolveSkillCardStatusLabel(skill);
-    const statusDetail = resolveSkillCardStatusDetail(skill);
     const promise = resolveServiceSkillEntryDescription(skill);
     const requiredInputs = summarizeServiceSkillRequiredInputs(skill);
     const outputDestination = getServiceSkillOutputDestination(skill);
@@ -910,12 +1028,20 @@ export function SkillsWorkspacePage({
     return (
       <article
         key={skill.id}
-        className="flex h-full flex-col rounded-[24px] border border-slate-200 bg-white px-4 py-4 shadow-sm shadow-slate-950/5 transition hover:border-slate-300 hover:shadow-md"
+        className="flex h-full flex-col rounded-xl border border-slate-200 bg-white px-3 py-3 shadow-sm transition hover:border-slate-300 hover:shadow-md"
       >
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h3 className="line-clamp-1 text-sm font-medium text-slate-900">
+              {skill.title}
+            </h3>
+            <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-600">
+              {skill.summary || promise}
+            </p>
+          </div>
           <span
             className={cn(
-              "rounded-full border px-2.5 py-1 text-[11px] font-medium",
+              "shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-medium",
               TONE_BADGE_CLASSNAMES[tone],
             )}
           >
@@ -923,44 +1049,23 @@ export function SkillsWorkspacePage({
           </span>
         </div>
 
-        <div className="mt-3 space-y-2.5">
-          <div>
-            <h3 className="text-base font-semibold text-slate-900">
-              {skill.title}
-            </h3>
-            <p className="mt-1 line-clamp-2 text-[12px] leading-5 text-slate-600">
-              {skill.summary || promise}
-            </p>
-          </div>
-
-          <div className="space-y-1 text-[11px] leading-5 text-slate-500">
-            <div>
-              <span className="font-medium text-slate-700">你先给：</span>
+        <div className="mt-auto flex items-center justify-between gap-3 pt-3">
+          <div className="min-w-0 text-[11px] leading-5 text-slate-500">
+            <span className="line-clamp-1">{skill.outputHint}</span>
+            <span className="sr-only">
               {requiredInputs}
-            </div>
-            <div>
-              <span className="font-medium text-slate-700">会拿到：</span>
-              {skill.outputHint}
-            </div>
-            <div>
-              <span className="font-medium text-slate-700">接下来：</span>
-              {statusDetail}
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-auto flex items-end justify-between gap-3 pt-4">
-          <div className="text-[11px] leading-5 text-slate-400">
-            {outputDestination}
+              {outputDestination}
+            </span>
           </div>
           <Button
             type="button"
             variant="outline"
-            className={SKILLS_WORKSPACE_SECONDARY_BUTTON_CLASSNAME}
+            size="sm"
+            className="h-8 rounded-lg border-slate-200 bg-white px-2.5 text-xs text-slate-700 hover:bg-slate-50"
             onClick={() => handleServiceSkillSelect(skill)}
           >
             {skill.actionLabel}
-            <ArrowRight className="ml-2 h-4 w-4" />
+            <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
           </Button>
         </div>
       </article>
@@ -970,152 +1075,111 @@ export function SkillsWorkspacePage({
   return (
     <>
       <div className="lime-workbench-theme-scope flex h-full min-h-0 flex-col overflow-hidden bg-[image:var(--lime-stage-surface)]">
-        <div className="mx-auto flex h-full w-full max-w-[1440px] flex-col gap-6 overflow-auto px-6 py-6">
-          <header className="rounded-[28px] border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-950/5">
-            <div className="flex flex-col gap-4">
-              <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-                <div className="min-w-0 space-y-2">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h1 className="text-3xl font-semibold tracking-tight text-slate-950">
-                      我的方法
-                    </h1>
-                    <WorkbenchInfoTip
-                      ariaLabel="方法主入口说明"
-                      content="先从结果起手，顺手的做法和自己沉淀下来的方法都在这里续上；点开后直接把这一步接下去。"
-                      tone="mint"
-                    />
-                  </div>
-                  <p className="max-w-3xl text-sm leading-6 text-slate-600">
-                    先拿一个结果起手；后面常用做法和自己沉淀的方法都在这里续上。
-                  </p>
-                </div>
-
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="rounded-xl border-slate-200 bg-white px-2.5 text-slate-700 hover:bg-slate-100 hover:text-slate-900"
-                    data-testid="skills-workspace-refresh-button"
-                    onClick={() => void handleRefreshAll()}
-                    disabled={refreshing}
-                  >
-                    <RefreshCw
-                      className={cn(
-                        "mr-1.5 h-3.5 w-3.5",
-                        refreshing && "animate-spin",
-                      )}
-                    />
-                    刷新
-                  </Button>
-                </div>
+        <div className="mx-auto flex h-full w-full max-w-[1440px] flex-col gap-4 overflow-auto px-6 py-6">
+          <header className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <h1 className="text-2xl font-semibold text-slate-900">
+                  Skills
+                </h1>
+                <p className="mt-1 text-sm text-slate-600">
+                  选择一个 Skill 开始创作
+                </p>
               </div>
 
-              <section
-                className="rounded-[24px] border border-sky-200/80 bg-[color:var(--lime-info-soft)] p-4 shadow-sm shadow-slate-950/5"
-                data-testid="skills-workspace-sceneapps-migration-banner"
-              >
-                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                  <div className="space-y-1.5">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="inline-flex items-center rounded-full border border-sky-200 bg-white px-2.5 py-1 text-[11px] font-medium text-sky-700">
-                        全部做法
-                      </span>
-                      <h2 className="text-base font-semibold text-slate-900">
-                        完整做法都在这里
-                      </h2>
-                    </div>
-                    <p className="text-sm leading-6 text-slate-600">
-                      想看完整做法，或继续某条做法时，直接从这里进入“查看全部做法”。
-                    </p>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className={SKILLS_WORKSPACE_SECONDARY_BUTTON_CLASSNAME}
-                    onClick={handleOpenSceneAppsDirectory}
-                  >
-                    查看全部做法
-                  </Button>
-                </div>
-              </section>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="rounded-lg border-slate-200 bg-white px-3 text-slate-700 hover:bg-slate-50"
+                  data-testid="skills-workspace-refresh-button"
+                  onClick={() => void handleRefreshAll()}
+                  disabled={refreshing}
+                >
+                  <RefreshCw
+                    className={cn(
+                      "mr-1.5 h-3.5 w-3.5",
+                      refreshing && "animate-spin",
+                    )}
+                  />
+                  刷新
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="rounded-lg border-slate-200 bg-white px-3 text-slate-700 hover:bg-slate-50"
+                  onClick={handleOpenSceneAppsDirectory}
+                >
+                  查看全部
+                </Button>
+              </div>
+            </div>
 
-              <div className="space-y-3">
-                <div className="space-y-3">
-                  <div className="flex flex-wrap items-center gap-2 text-sm font-medium text-slate-700">
-                    <span>搜做法</span>
-                    <WorkbenchInfoTip
-                      ariaLabel="做法搜索说明"
-                      content="先从这轮想拿的结果方向找起；没命中时，再接着你自己顺手的方法。"
-                      tone="slate"
-                    />
-                  </div>
-                  {activeScaffoldDraft ? (
-                    <div
-                      className="rounded-[20px] border border-slate-200 bg-slate-50 px-3.5 py-3"
-                      data-testid="skills-workspace-active-scaffold-banner"
-                    >
-                      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                        <div className="min-w-0 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
-                          <span className="rounded-full border border-sky-200 bg-white px-2.5 py-1 text-[11px] font-medium text-sky-700">
-                            这次续用
-                          </span>
-                          <span className="min-w-0 font-semibold text-slate-900">
-                            {activeScaffoldTitle}
-                          </span>
-                          {activeScaffoldSummary ? (
-                            <span className="max-w-xl truncate text-xs leading-5 text-slate-500">
-                              这次沿用：
-                              {summarizeRecentReplayText(activeScaffoldSummary)}
-                            </span>
-                          ) : null}
-                          {activeScaffoldReplayText ? (
-                            <span className="max-w-xl truncate text-xs leading-5 text-slate-500">
-                              上次目标：
-                              {summarizeRecentReplayText(
-                                activeScaffoldReplayText,
-                              )}
-                            </span>
-                          ) : null}
-                        </div>
-                        <div className="flex shrink-0 flex-wrap items-center gap-1.5">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="rounded-xl px-2.5 text-slate-600 hover:bg-white hover:text-slate-900"
-                            data-testid="skills-workspace-open-scaffold-manager"
-                            onClick={() => setAdvancedManagerOpen(true)}
-                          >
-                            继续补完
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="rounded-xl border-slate-200 bg-white px-2.5 text-slate-700 hover:bg-slate-100 hover:text-slate-900"
-                            data-testid="skills-workspace-bring-scaffold-to-agent"
-                            onClick={() =>
-                              handleBringScaffoldToCreation(activeScaffoldDraft)
-                            }
-                          >
-                            回到生成
-                            <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                      </div>
+            <div className="mt-4 space-y-3">
+              {activeScaffoldDraft ? (
+                <div
+                  className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5"
+                  data-testid="skills-workspace-active-scaffold-banner"
+                >
+                  <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                    <div className="min-w-0 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+                      <span className="rounded-full border border-sky-200 bg-white px-2 py-0.5 text-[11px] font-medium text-sky-700">
+                        这次续用
+                      </span>
+                      <span className="min-w-0 font-medium text-slate-900">
+                        {activeScaffoldTitle}
+                      </span>
+                      {activeScaffoldSummary ? (
+                        <span className="max-w-xl truncate text-xs leading-5 text-slate-500">
+                          这次沿用：
+                          {summarizeRecentReplayText(activeScaffoldSummary)}
+                        </span>
+                      ) : null}
+                      {activeScaffoldReplayText ? (
+                        <span className="max-w-xl truncate text-xs leading-5 text-slate-500">
+                          上次目标：
+                          {summarizeRecentReplayText(activeScaffoldReplayText)}
+                        </span>
+                      ) : null}
                     </div>
-                  ) : null}
-                  <div className="relative">
-                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                    <Input
-                      value={searchQuery}
-                      onChange={(event) => setSearchQuery(event.target.value)}
-                      placeholder="搜索想拿的结果、这一步或做法名"
-                      className="h-12 rounded-[22px] border-slate-200 bg-slate-50 pl-10"
-                    />
+                    <div className="flex shrink-0 flex-wrap items-center gap-1.5">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 rounded-lg px-2.5 text-slate-600 hover:bg-white hover:text-slate-900"
+                        data-testid="skills-workspace-open-scaffold-manager"
+                        onClick={() => setAdvancedManagerOpen(true)}
+                      >
+                        继续补完
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-8 rounded-lg border-slate-200 bg-white px-2.5 text-slate-700 hover:bg-slate-50 hover:text-slate-900"
+                        data-testid="skills-workspace-bring-scaffold-to-agent"
+                        onClick={() =>
+                          handleBringScaffoldToCreation(activeScaffoldDraft)
+                        }
+                      >
+                        回到生成
+                        <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+                      </Button>
+                    </div>
                   </div>
                 </div>
+              ) : null}
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <Input
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="搜索想拿的结果、这一步或 Skill 名"
+                  className="h-10 rounded-lg border-slate-200 bg-slate-50 pl-10"
+                />
               </div>
             </div>
           </header>
@@ -1123,48 +1187,41 @@ export function SkillsWorkspacePage({
           {(serviceSkillsError || localSkillsError) && (
             <div className="rounded-[24px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-700">
               {serviceSkillsError
-                ? `现成做法暂时没同步下来：${serviceSkillsError}`
+                ? `推荐 Skills 暂时没同步下来：${serviceSkillsError}`
                 : null}
               {serviceSkillsError && localSkillsError ? "；" : null}
               {localSkillsError
-                ? `已经沉淀的方法暂时没读到：${localSkillsError}`
+                ? `本地 Skills 暂时没读到：${localSkillsError}`
                 : null}
             </div>
           )}
 
-          <section className="grid gap-4 xl:grid-cols-[minmax(0,1.18fr)_minmax(320px,0.82fr)]">
+          <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
             <div className="space-y-4">
-              <section className="rounded-[30px] border border-slate-200/80 bg-white p-6 shadow-sm shadow-slate-950/5">
-                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4">
-                  <div className="space-y-2">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h2 className="text-2xl font-semibold tracking-tight text-slate-950">
-                        先拿结果
-                      </h2>
-                    </div>
-                    <p className="text-sm leading-6 text-slate-500">
-                      还没想好怎么做时，先拿一个结果起手；启动时再补最少信息。
-                    </p>
-                  </div>
+              <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <h2 className="text-base font-semibold text-slate-900">
+                    推荐
+                  </h2>
+                  <span className="text-xs text-slate-500">
+                    先选结果，再补信息
+                  </span>
                 </div>
 
                 {reviewRecommendationBanner ? (
                   <div
-                    className="mt-4 flex flex-wrap items-start gap-2 rounded-[20px] border border-slate-200 bg-slate-50 px-3.5 py-3"
+                    className="mt-3 flex flex-wrap items-start gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5"
                     data-testid="skills-workspace-review-feedback-banner"
                   >
-                    <span className="rounded-full border border-emerald-200 bg-white px-2.5 py-1 text-[11px] font-medium text-emerald-700">
-                      围绕最近判断
-                    </span>
                     <div className="min-w-0 flex-1 space-y-1">
-                      <div className="text-sm font-semibold text-slate-900">
+                      <div className="text-sm font-medium text-slate-900">
                         最近判断已更新：{reviewRecommendationBanner.title}
                       </div>
-                      <div className="text-sm leading-6 text-slate-600">
+                      <div className="line-clamp-2 text-xs leading-5 text-slate-600">
                         {reviewRecommendationBanner.summary}
                       </div>
                     </div>
-                    <div className="text-xs leading-5 text-sky-700">
+                    <div className="sr-only">
                       更适合继续：{reviewRecommendationBanner.nextSteps}
                     </div>
                     {reviewRecommendationBanner.actionLabel &&
@@ -1173,7 +1230,7 @@ export function SkillsWorkspacePage({
                         type="button"
                         variant="outline"
                         size="sm"
-                        className="h-8 rounded-full border-sky-200 bg-white px-3 text-xs font-medium text-slate-700 hover:border-sky-300 hover:bg-sky-50"
+                        className="h-8 rounded-lg border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 hover:bg-slate-50"
                         data-testid="skills-workspace-review-feedback-banner-action"
                         onClick={() => reviewRecommendationBanner.onAction?.()}
                       >
@@ -1184,7 +1241,7 @@ export function SkillsWorkspacePage({
                 ) : null}
 
                 {visibleFeaturedCuratedTaskTemplates.length > 0 ? (
-                  <div className="mt-5 grid gap-4 md:grid-cols-2">
+                  <div className="mt-3 grid gap-3 md:grid-cols-2">
                     {visibleFeaturedCuratedTaskTemplates.map(
                       (featured, index) => {
                         const template = featured.template;
@@ -1220,48 +1277,39 @@ export function SkillsWorkspacePage({
                           <article
                             key={template.id}
                             className={cn(
-                              "flex h-full flex-col rounded-[24px] border px-4 py-4 transition hover:border-slate-300 hover:shadow-sm hover:shadow-slate-950/5",
+                              "flex h-full flex-col rounded-xl border px-3 py-3 transition hover:border-slate-300 hover:shadow-sm",
                               isPrimaryRecommendation
-                                ? "border-emerald-200 bg-[image:var(--lime-home-card-surface-strong)] md:col-span-2"
+                                ? "border-emerald-200 bg-emerald-50/60"
                                 : "border-slate-200 bg-white",
                             )}
                           >
-                            <div className="flex flex-wrap items-center justify-between gap-2">
-                              {isPrimaryRecommendation ? (
-                                <span className="rounded-full border border-emerald-200 bg-white px-2.5 py-1 text-[11px] font-medium text-emerald-700">
-                                  优先起手
-                                </span>
-                              ) : (
-                                <span />
-                              )}
-                              <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-600">
-                                {template.outputHint}
-                              </span>
-                            </div>
-                            <div className="mt-3 space-y-2.5">
-                              <div className="space-y-1.5">
-                                <h3 className="text-base font-semibold text-slate-950">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <h3 className="line-clamp-1 text-sm font-medium text-slate-950">
                                   {template.title}
                                 </h3>
-                                <p className="text-sm leading-6 text-slate-600">
+                                <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-600">
                                   {template.summary}
                                 </p>
-                                {featured.reasonLabel ||
-                                compactReasonSummary ? (
-                                  <div className="text-[11px] leading-5 text-slate-500">
-                                    {[
-                                      featured.reasonLabel,
-                                      compactReasonSummary,
-                                    ]
-                                      .filter((segment): segment is string =>
-                                        Boolean(segment && segment.trim()),
-                                      )
-                                      .join(" · ")}
-                                  </div>
-                                ) : null}
                               </div>
+                              {isPrimaryRecommendation ? (
+                                <span className="shrink-0 rounded-full border border-emerald-200 bg-white px-2 py-0.5 text-[11px] font-medium text-emerald-700">
+                                  推荐
+                                </span>
+                              ) : null}
+                            </div>
+                            <div className="mt-2 space-y-2">
+                              {featured.reasonLabel || compactReasonSummary ? (
+                                <div className="line-clamp-1 text-[11px] leading-5 text-slate-500">
+                                  {[featured.reasonLabel, compactReasonSummary]
+                                    .filter((segment): segment is string =>
+                                      Boolean(segment && segment.trim()),
+                                    )
+                                    .join(" · ")}
+                                </div>
+                              ) : null}
                               {reviewPrefillHighlights.length > 0 ? (
-                                <div className="rounded-[18px] border border-emerald-200 bg-emerald-50/70 px-3 py-3 text-[11px] leading-5 text-emerald-800">
+                                <div className="rounded-lg border border-emerald-200 bg-white/80 px-2.5 py-2 text-[11px] leading-5 text-emerald-800">
                                   <div className="font-medium text-emerald-900">
                                     当前结果基线：
                                     {reviewPrefillSnapshot?.sourceTitle ||
@@ -1277,37 +1325,22 @@ export function SkillsWorkspacePage({
                                 </div>
                               ) : null}
                             </div>
-                            <div className="mt-4 space-y-1 text-[11px] leading-5 text-slate-500">
-                              <div>
-                                <span className="font-medium text-slate-700">
-                                  你先给：
+                            <div className="mt-auto flex items-center justify-between gap-3 pt-3">
+                              <div className="min-w-0 text-[11px] leading-5 text-slate-500">
+                                <div className="line-clamp-1">
+                                  {template.outputHint || outputSummary}
+                                </div>
+                                <span className="sr-only">
+                                  {requiredSummary}
+                                  {resultDestination}
+                                  {followUpSummary}
                                 </span>
-                                {requiredSummary}
-                              </div>
-                              <div>
-                                <span className="font-medium text-slate-700">
-                                  这一步先拿：
-                                </span>
-                                {outputSummary}
-                              </div>
-                            </div>
-                            <div className="mt-auto flex items-end justify-between gap-3 pt-4">
-                              <div className="space-y-1 text-[11px] leading-5 text-slate-500">
-                                <div>{resultDestination}</div>
-                                <div>接着可做：{followUpSummary}</div>
                               </div>
                               <Button
                                 type="button"
-                                variant={
-                                  isPrimaryRecommendation
-                                    ? undefined
-                                    : "outline"
-                                }
-                                className={
-                                  isPrimaryRecommendation
-                                    ? SKILLS_WORKSPACE_PRIMARY_BUTTON_CLASSNAME
-                                    : SKILLS_WORKSPACE_SECONDARY_BUTTON_CLASSNAME
-                                }
+                                variant="outline"
+                                size="sm"
+                                className="h-8 rounded-lg border-slate-200 bg-white px-2.5 text-xs text-slate-700 hover:bg-slate-50"
                                 onClick={() =>
                                   handleCuratedTaskTemplateLauncherRequest(
                                     template,
@@ -1315,7 +1348,7 @@ export function SkillsWorkspacePage({
                                 }
                               >
                                 进入生成
-                                <ArrowRight className="ml-2 h-4 w-4" />
+                                <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
                               </Button>
                             </div>
                           </article>
@@ -1324,7 +1357,7 @@ export function SkillsWorkspacePage({
                     )}
                   </div>
                 ) : (
-                  <div className="mt-5 rounded-[24px] border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-sm text-slate-500">
+                  <div className="mt-3 rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-sm text-slate-500">
                     当前搜索下暂无结果模板。可以先清掉关键词，或直接从下方换个方向继续找。
                   </div>
                 )}
@@ -1332,32 +1365,25 @@ export function SkillsWorkspacePage({
 
               {selectedGroup ? (
                 <>
-                  <section className="rounded-[24px] border border-slate-200/80 bg-slate-50 p-4 shadow-sm shadow-slate-950/5">
+                  <section className="rounded-xl border border-slate-200 bg-slate-50 p-3 shadow-sm">
                     <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                      <div className="space-y-2">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-500">
-                            正在看这一组
-                          </span>
-                          <h2 className="text-base font-semibold text-slate-900">
-                            {selectedGroup.title}
-                          </h2>
-                        </div>
-                        <p className="text-sm leading-6 text-slate-700">
-                          先从 {selectedGroup.title}{" "}
-                          里最接近的一条开始；不对再换方向。
+                      <div className="space-y-1">
+                        <h2 className="text-base font-semibold text-slate-900">
+                          {selectedGroup.title}
+                        </h2>
+                        <p className="text-xs leading-5 text-slate-600">
+                          选择这一组里的一个 Skill 继续
                         </p>
-                        <div className="space-y-1 text-sm leading-6 text-slate-500">
-                          <p>{selectedGroup.summary}</p>
-                          {selectedGroup.entryHint ? (
-                            <p>{selectedGroup.entryHint}</p>
-                          ) : null}
-                        </div>
+                        <span className="sr-only">
+                          {selectedGroup.summary}
+                          {selectedGroup.entryHint}
+                        </span>
                       </div>
                       <Button
                         type="button"
                         variant="outline"
-                        className={SKILLS_WORKSPACE_SECONDARY_BUTTON_CLASSNAME}
+                        size="sm"
+                        className="h-8 rounded-lg border-slate-200 bg-white px-2.5 text-xs text-slate-700 hover:bg-slate-50"
                         onClick={() => setSelectedGroupKey(null)}
                       >
                         换个方向
@@ -1366,13 +1392,13 @@ export function SkillsWorkspacePage({
                   </section>
 
                   {visibleGroupSkills.length > 0 ? (
-                    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                       {visibleGroupSkills.map(renderSkillCard)}
                     </div>
                   ) : (
-                    <div className="rounded-[28px] border border-dashed border-slate-300 bg-white px-6 py-12 text-center">
-                      <div className="text-base font-semibold text-slate-900">
-                        当前做法组下暂无匹配做法
+                    <div className="rounded-xl border border-dashed border-slate-300 bg-white px-6 py-12 text-center">
+                      <div className="text-sm font-semibold text-slate-900">
+                        当前分组下暂无匹配 Skill
                       </div>
                       <p className="mt-2 text-sm leading-6 text-slate-500">
                         可以调整搜索词，或先返回上一步换个方向继续找。
@@ -1381,27 +1407,25 @@ export function SkillsWorkspacePage({
                   )}
                 </>
               ) : visibleGroups.length > 0 ? (
-                <section className="rounded-[28px] border border-slate-200/80 bg-slate-50 p-5 shadow-sm shadow-slate-950/5">
-                  <div className="flex flex-col gap-3 border-b border-slate-200/80 pb-4">
+                <section className="rounded-xl border border-slate-200 bg-slate-50 p-4 shadow-sm">
+                  <div className="flex flex-col gap-3">
                     <div className="flex flex-wrap items-center gap-2">
-                      <h2 className="text-[15px] font-medium text-slate-700">
-                        换个方向
+                      <h2 className="text-base font-semibold text-slate-900">
+                        分类
                       </h2>
                       <Button
                         type="button"
                         variant="outline"
-                        className={SKILLS_WORKSPACE_SECONDARY_BUTTON_CLASSNAME}
+                        size="sm"
+                        className="h-8 rounded-lg border-slate-200 bg-white px-2.5 text-xs text-slate-700 hover:bg-slate-50"
                         onClick={handleOpenSceneAppsDirectory}
                       >
-                        查看全部做法
+                        查看全部
                       </Button>
                     </div>
-                    <p className="text-[11px] leading-5 text-slate-500">
-                      上面没命中时，再换个方向。
-                    </p>
                   </div>
 
-                  <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  <div className="mt-3 grid gap-3 md:grid-cols-2">
                     {visibleGroups.map((group) => {
                       const groupSkills =
                         recommendedSkillGroupMap.get(group.key) ?? [];
@@ -1410,48 +1434,40 @@ export function SkillsWorkspacePage({
                       return (
                         <article
                           key={group.key}
-                          className="flex h-full flex-col rounded-[22px] border border-slate-200 bg-white px-4 py-3.5 text-left transition hover:border-slate-300 hover:shadow-sm hover:shadow-slate-950/5"
+                          className="flex h-full flex-col rounded-xl border border-slate-200 bg-white px-3 py-3 text-left transition hover:border-slate-300 hover:shadow-sm"
                         >
-                          <div className="space-y-2.5">
+                          <div className="space-y-2">
                             <div>
-                              <h3 className="text-base font-semibold text-slate-900">
+                              <h3 className="text-sm font-medium text-slate-900">
                                 {group.title}
                               </h3>
                               <p className="mt-1 line-clamp-2 text-[12px] leading-5 text-slate-600">
                                 {group.summary}
                               </p>
                             </div>
-                            <div className="space-y-1 text-[11px] leading-5 text-slate-500">
+                            <div className="line-clamp-1 text-[11px] leading-5 text-slate-500">
                               <div>
                                 {hasRecommendedGroupSkills
                                   ? buildSkillGroupStarterSummary(groupSkills)
                                   : "先带着这次目标进去继续收窄。"}
                               </div>
-                              {group.themeTarget ? (
-                                <div>
-                                  <span className="font-medium text-slate-700">
-                                    适合：
-                                  </span>
-                                  {group.themeTarget}
-                                </div>
-                              ) : null}
-                              {group.entryHint ? (
-                                <div>{group.entryHint}</div>
-                              ) : null}
+                              <span className="sr-only">
+                                {group.themeTarget}
+                                {group.entryHint}
+                              </span>
                             </div>
                           </div>
 
-                          <div className="mt-auto flex justify-end pt-4">
+                          <div className="mt-auto flex justify-end pt-3">
                             <Button
                               type="button"
                               variant="outline"
-                              className={
-                                SKILLS_WORKSPACE_SECONDARY_BUTTON_CLASSNAME
-                              }
+                              size="sm"
+                              className="h-8 rounded-lg border-slate-200 bg-white px-2.5 text-xs text-slate-700 hover:bg-slate-50"
                               onClick={() => setSelectedGroupKey(group.key)}
                             >
                               进去看看
-                              <ArrowRight className="ml-2 h-4 w-4" />
+                              <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
                             </Button>
                           </div>
                         </article>
@@ -1460,40 +1476,26 @@ export function SkillsWorkspacePage({
                   </div>
                 </section>
               ) : (
-                <div className="rounded-[28px] border border-dashed border-slate-300 bg-white px-6 py-12 text-center">
-                  <div className="text-base font-semibold text-slate-900">
-                    当前搜索下暂无做法组
+                <div className="rounded-xl border border-dashed border-slate-300 bg-white px-6 py-12 text-center">
+                  <div className="text-sm font-semibold text-slate-900">
+                    当前搜索下暂无 Skill 分组
                   </div>
                   <p className="mt-2 text-sm leading-6 text-slate-500">
-                    可以尝试刷新，或换个结果方向、做法名继续找。
+                    可以尝试刷新，或换个结果方向、Skill 名继续找。
                   </p>
                 </div>
               )}
             </div>
 
-            <aside className="space-y-4">
+            <aside className="space-y-3">
               <section
-                className="rounded-[28px] border border-emerald-200/80 bg-[image:var(--lime-home-card-surface-strong)] p-5 shadow-sm shadow-emerald-950/5"
+                className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-4 shadow-sm"
                 data-testid="skills-workspace-sidebar-section-continuation"
               >
-                <div className="space-y-1.5">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="text-[15px] font-semibold text-emerald-800">
-                      继续上次做法
-                    </h2>
-                    <WorkbenchInfoTip
-                      ariaLabel="最近做法说明"
-                      content="最近顺手的做法会先留在这里，下次可以直接接着跑。"
-                      tone="slate"
-                    />
-                  </div>
-                  <p className="text-[11px] leading-5 text-emerald-700/80">
-                    优先接着已经跑过的方法，通常比重新挑一条更省重来成本。
-                  </p>
-                </div>
+                <h2 className="text-sm font-semibold text-emerald-900">最近</h2>
 
                 {visibleRecentPreview.length > 0 ? (
-                  <div className="mt-4 space-y-2.5">
+                  <div className="mt-3 space-y-2">
                     {visibleRecentPreview.map((skill) => {
                       const recentPrefill = resolveServiceSkillLaunchPrefill({
                         skill,
@@ -1510,106 +1512,98 @@ export function SkillsWorkspacePage({
                           key={skill.id}
                           type="button"
                           onClick={() => handleServiceSkillSelect(skill)}
-                          className="w-full rounded-[22px] border border-emerald-100 bg-white px-4 py-3.5 text-left transition hover:border-emerald-200 hover:bg-emerald-50/40"
+                          className="w-full rounded-lg border border-emerald-100 bg-white px-3 py-2.5 text-left transition hover:border-emerald-200 hover:bg-emerald-50/40"
                         >
-                          <div className="flex items-center justify-between gap-3">
-                            <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700">
-                              最近成功
-                            </span>
-                          </div>
-                          <div className="mt-2.5 text-sm font-semibold text-slate-900">
+                          <div className="line-clamp-1 text-sm font-medium text-slate-900">
                             {skill.title}
                           </div>
-                          <p className="mt-1 line-clamp-1 text-[12px] leading-5 text-slate-600">
+                          <p className="mt-1 line-clamp-1 text-xs leading-5 text-slate-600">
                             {skill.summary}
                           </p>
-                          <div className="mt-2.5 space-y-1 text-[11px] leading-5 text-slate-500">
-                            {recentPrefillSummary ? (
-                              <div>{recentPrefillSummary}</div>
-                            ) : null}
-                            <div>
-                              <span className="font-medium text-slate-700">
-                                你来给：
-                              </span>
+                          <div className="mt-1 text-[11px] leading-5 text-slate-500">
+                            <span className="line-clamp-1">
+                              {recentPrefillSummary || skill.outputHint}
+                            </span>
+                            <span className="sr-only">
                               {summarizeServiceSkillRequiredInputs(skill)}
-                            </div>
-                            <div>
-                              <span className="font-medium text-slate-700">
-                                会拿到：
-                              </span>
-                              {skill.outputHint}
-                            </div>
-                            <div>
-                              <span className="font-medium text-slate-700">
-                                结果去向：
-                              </span>
                               {getServiceSkillOutputDestination(skill)}
-                            </div>
+                            </span>
                           </div>
                         </button>
                       );
                     })}
                   </div>
                 ) : (
-                  <div className="mt-4 rounded-[24px] border border-dashed border-emerald-200 bg-white px-4 py-8 text-sm text-emerald-700/80">
-                    当前还没有可继续项。先从左侧拿一个结果或做法开始，后续会自动回到这里。
+                  <div className="mt-3 rounded-lg border border-dashed border-emerald-200 bg-white px-4 py-6 text-sm text-emerald-700/80">
+                    当前还没有可继续项。先从左侧拿一个结果或 Skill
+                    开始，后续会自动回到这里。
                   </div>
                 )}
               </section>
 
-              <CapabilityDraftPanel
-                workspaceRoot={capabilityDraftWorkspaceRoot}
-                projectPending={capabilityDraftProjectLoading}
-                projectError={capabilityDraftProjectError}
-                highlightedDraftId={highlightedCapabilityDraftId}
-                onRegisteredSkillsChanged={() =>
-                  setRegisteredSkillsRefreshSignal((previous) => previous + 1)
-                }
-              />
+              <details className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                <summary className="cursor-pointer list-none text-sm font-medium text-slate-800 [&::-webkit-details-marker]:hidden">
+                  能力草案
+                </summary>
+                <div className="mt-3">
+                  <CapabilityDraftPanel
+                    workspaceRoot={capabilityDraftWorkspaceRoot}
+                    projectPending={capabilityDraftProjectLoading}
+                    projectError={capabilityDraftProjectError}
+                    highlightedDraftId={highlightedCapabilityDraftId}
+                    onRegisteredSkillsChanged={() =>
+                      setRegisteredSkillsRefreshSignal(
+                        (previous) => previous + 1,
+                      )
+                    }
+                  />
+                </div>
+              </details>
 
-              <WorkspaceRegisteredSkillsPanel
-                workspaceRoot={capabilityDraftWorkspaceRoot}
-                projectPending={capabilityDraftProjectLoading}
-                projectError={capabilityDraftProjectError}
-                refreshSignal={registeredSkillsRefreshSignal}
-              />
+              <details className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                <summary className="cursor-pointer list-none text-sm font-medium text-slate-800 [&::-webkit-details-marker]:hidden">
+                  已注册能力
+                </summary>
+                <div className="mt-3">
+                  <WorkspaceRegisteredSkillsPanel
+                    workspaceRoot={capabilityDraftWorkspaceRoot}
+                    workspaceId={creationProjectId}
+                    projectPending={capabilityDraftProjectLoading}
+                    projectError={capabilityDraftProjectError}
+                    refreshSignal={registeredSkillsRefreshSignal}
+                    onEnableRuntime={handleWorkspaceRuntimeEnable}
+                    onCreateManagedAutomationDraft={
+                      handleWorkspaceManagedAutomationDraft
+                    }
+                  />
+                </div>
+              </details>
 
               <section
-                className="rounded-[28px] border border-slate-200/80 bg-slate-50 p-5 shadow-sm shadow-slate-950/5"
+                className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
                 data-testid="skills-workspace-sidebar-section-library"
               >
                 <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="space-y-1.5">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h2 className="text-[15px] font-medium text-slate-700">
-                        已经沉淀的方法
-                      </h2>
-                      <WorkbenchInfoTip
-                        ariaLabel="本地方法库说明"
-                        content="自己的固定做法都在这里；要补、改或收拾时再点调整。"
-                        tone="slate"
-                      />
-                    </div>
-                    <p className="text-[11px] leading-5 text-slate-500">
-                      上面没命中时，再从这里接着自己的方法往下走。
-                    </p>
-                  </div>
+                  <h2 className="text-sm font-semibold text-slate-900">
+                    本地 Skills
+                  </h2>
                   <Button
                     type="button"
                     variant="ghost"
-                    className="rounded-2xl px-3 text-slate-600 hover:bg-white hover:text-slate-900"
+                    size="sm"
+                    className="h-8 rounded-lg px-2.5 text-xs text-slate-600 hover:bg-slate-50 hover:text-slate-900"
                     onClick={() => setAdvancedManagerOpen(true)}
                   >
-                    <FolderOpen className="mr-2 h-4 w-4" />
+                    <FolderOpen className="mr-1.5 h-3.5 w-3.5" />
                     调整
                   </Button>
                 </div>
 
                 {visibleInstalledPreview.length > 0 ? (
-                  <div className="mt-4 space-y-2.5">
+                  <div className="mt-3 space-y-2">
                     {highlightedInstalledSkill ? (
                       <div
-                        className="rounded-[20px] border border-emerald-200 bg-white px-3.5 py-3 shadow-sm shadow-emerald-950/5"
+                        className="rounded-lg border border-emerald-200 bg-emerald-50/70 px-3 py-2.5 shadow-sm"
                         data-testid="skills-workspace-highlighted-skill-banner"
                       >
                         <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
@@ -1636,7 +1630,7 @@ export function SkillsWorkspacePage({
                               type="button"
                               variant="outline"
                               size="sm"
-                              className="rounded-xl border-slate-200 bg-white px-2.5 text-slate-700 hover:bg-slate-100 hover:text-slate-900"
+                              className="h-8 rounded-lg border-slate-200 bg-white px-2.5 text-xs text-slate-700 hover:bg-slate-50 hover:text-slate-900"
                               data-testid="skills-workspace-highlighted-skill-continue"
                               onClick={() =>
                                 handleInstalledSkillSelect(
@@ -1667,18 +1661,18 @@ export function SkillsWorkspacePage({
                         <article
                           key={skill.directory}
                           className={cn(
-                            "rounded-[22px] border bg-white px-4 py-3.5 transition",
+                            "rounded-lg border bg-white px-3 py-2.5 transition",
                             isHighlighted
-                              ? "border-emerald-300 bg-emerald-50/70 shadow-sm shadow-emerald-950/5"
+                              ? "border-emerald-300 bg-emerald-50/70 shadow-sm"
                               : "border-slate-200 hover:border-slate-300",
                           )}
                         >
                           <div className="flex items-center justify-between gap-3">
-                            <div className="text-sm font-semibold text-slate-900">
+                            <div className="line-clamp-1 text-sm font-medium text-slate-900">
                               {skill.name}
                             </div>
                             {isHighlighted ? (
-                              <span className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] font-medium text-sky-700">
+                              <span className="rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[11px] font-medium text-sky-700">
                                 刚沉淀
                               </span>
                             ) : null}
@@ -1686,34 +1680,28 @@ export function SkillsWorkspacePage({
                           <p className="mt-1 line-clamp-1 text-[12px] leading-5 text-slate-600">
                             {resolveInstalledSkillPromise(skill)}
                           </p>
-                          <div className="mt-2.5 space-y-1 text-[11px] leading-5 text-slate-500">
+                          <div className="mt-1.5 text-[11px] leading-5 text-slate-500">
                             {recentUsageDescription ? (
-                              <div>{recentUsageDescription}</div>
+                              <div className="line-clamp-1">
+                                {recentUsageDescription}
+                              </div>
                             ) : null}
-                            <div>
-                              <span className="font-medium text-slate-700">
-                                你来给：
-                              </span>
+                            <span className="sr-only">
                               {summarizeInstalledSkillRequiredInputs(skill)}
-                            </div>
-                            <div>
-                              <span className="font-medium text-slate-700">
-                                会拿到：
-                              </span>
                               {getInstalledSkillOutputHint(skill)}
-                            </div>
-                            <div>回到生成后会继续按这套方法往下做。</div>
+                              回到生成后会继续按这个 Skill 往下做。
+                            </span>
                           </div>
-                          <div className="mt-4 flex items-center justify-between gap-3">
-                            <div className="text-[11px] leading-5 text-slate-400">
-                              回到生成后会继续按这套方法往下做，跑顺后的结果也会再沉淀回来。
+                          <div className="mt-3 flex items-center justify-between gap-3">
+                            <div className="line-clamp-1 text-[11px] leading-5 text-slate-500">
+                              回到生成后会继续按这个 Skill
+                              往下做，跑顺后的结果也会再沉淀回来。
                             </div>
                             <Button
                               type="button"
                               variant="outline"
-                              className={
-                                SKILLS_WORKSPACE_SECONDARY_BUTTON_CLASSNAME
-                              }
+                              size="sm"
+                              className="h-8 shrink-0 rounded-lg border-slate-200 bg-white px-2.5 text-xs text-slate-700 hover:bg-slate-50"
                               onClick={() =>
                                 handleInstalledSkillSelect(
                                   skill,
@@ -1721,8 +1709,8 @@ export function SkillsWorkspacePage({
                                 )
                               }
                             >
-                              继续这套方法
-                              <ArrowRight className="ml-2 h-4 w-4" />
+                              继续这个 Skill
+                              <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
                             </Button>
                           </div>
                         </article>
@@ -1730,8 +1718,9 @@ export function SkillsWorkspacePage({
                     })}
                   </div>
                 ) : (
-                  <div className="mt-4 rounded-[24px] border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-sm text-slate-500">
-                    当前还没有自己的方法。先从一个现成做法开始，后续再沉淀到这里也很自然。
+                  <div className="mt-3 rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-sm text-slate-500">
+                    当前还没有本地 Skill。先从左侧 Skill
+                    开始，后续再沉淀到这里也很自然。
                   </div>
                 )}
               </section>
@@ -1745,10 +1734,10 @@ export function SkillsWorkspacePage({
           <div className="flex h-[calc(100vh-88px)] min-h-[680px] flex-col bg-white">
             <DialogHeader className="border-b border-slate-200 px-6 py-5">
               <div className="flex flex-wrap items-center gap-2">
-                <DialogTitle>调整我的方法</DialogTitle>
+                <DialogTitle>调整 Skills</DialogTitle>
                 <WorkbenchInfoTip
-                  ariaLabel="调整我的方法弹窗说明"
-                  content="需要补、改、删时在这里处理；平时还是先从结果和顺手做法开工。"
+                  ariaLabel="调整 Skills 弹窗说明"
+                  content="需要补、改、删时在这里处理；平时还是先从结果和顺手 Skill 开工。"
                   tone="mint"
                 />
               </div>
@@ -1777,6 +1766,16 @@ export function SkillsWorkspacePage({
         onOpenChange={handleCuratedTaskLauncherOpenChange}
         onApplyReviewSuggestion={handleApplyLauncherReviewSuggestion}
         onConfirm={handleCuratedTaskTemplateSelect}
+      />
+
+      <AutomationJobDialog
+        open={workspaceSkillAutomationDialogOpen}
+        mode="create"
+        workspaces={capabilityDraftProject ? [capabilityDraftProject] : []}
+        initialValues={workspaceSkillAutomationInitialValues}
+        saving={workspaceSkillAutomationSaving}
+        onOpenChange={handleWorkspaceSkillAutomationDialogOpenChange}
+        onSubmit={handleWorkspaceSkillAutomationSubmit}
       />
     </>
   );

@@ -218,6 +218,15 @@
       "docsSection": "agent-runtime.inventory"
     },
     {
+      "command": "agent_runtime_list_workspace_skill_bindings",
+      "domain": "inventory",
+      "requestType": "AgentRuntimeListWorkspaceSkillBindingsRequest",
+      "responseType": "AgentRuntimeWorkspaceSkillBindings",
+      "lifecycle": "current",
+      "mockStrategy": "mock-priority",
+      "docsSection": "agent-runtime.inventory"
+    },
+    {
       "command": "agent_runtime_spawn_subagent",
       "domain": "subagent",
       "requestType": "AgentRuntimeSpawnSubagentRequest",

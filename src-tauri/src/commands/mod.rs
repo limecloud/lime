@@ -27,6 +27,7 @@ pub mod image_search_cmd;
 pub mod image_upload_cmd;
 pub mod injection_cmd;
 pub mod knowledge_cmd;
+pub mod layered_design_cmd;
 pub mod machine_id_cmd;
 pub mod material_cmd;
 pub mod mcp_cmd;

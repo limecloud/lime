@@ -212,7 +212,7 @@ describe("SettingsHomePage", () => {
     const text = container.textContent ?? "";
 
     expect(text).toContain("当前入口");
-    expect(text).toContain("全部做法");
+    expect(text).toContain("全部 Skills");
     expect(text).toContain("持续流程");
     expect(text).toContain("消息渠道");
     expect(text).toContain("项目资料");
@@ -225,7 +225,7 @@ describe("SettingsHomePage", () => {
     ).find((item) => item.textContent?.includes("打开消息渠道"));
     const openSkillsButton = Array.from(
       container.querySelectorAll("button"),
-    ).find((item) => item.textContent?.includes("去我的方法"));
+    ).find((item) => item.textContent?.includes("去 Skills"));
     const openResourcesButton = Array.from(
       container.querySelectorAll("button"),
     ).find((item) => item.textContent?.includes("打开项目资料"));

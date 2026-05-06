@@ -4,13 +4,17 @@ import {
 } from "./document";
 import type {
   DesignLayer,
+  GeneratedDesignAssetKind,
   GeneratedDesignAsset,
   LayeredDesignDocument,
   ShapeLayer,
   TextLayer,
 } from "./types";
+import { createStoredZipArchive, type StoredZipEntry } from "./zip";
 
 export const LAYERED_DESIGN_EXPORT_SCHEMA_VERSION = "2026-05-05.export.p1";
+export const LAYERED_DESIGN_PSD_LIKE_EXPORT_SCHEMA_VERSION =
+  "2026-05-06.psd-like.p1";
 
 export interface LayeredDesignExportFile {
   filename: string;
@@ -50,23 +54,130 @@ export interface LayeredDesignExportManifest {
   title: string;
   exportedAt: string;
   designFile: string;
+  psdLikeManifestFile: string;
   previewSvgFile: string;
   previewPngFile: string;
   assets: LayeredDesignExportManifestAsset[];
 }
 
+export type LayeredDesignPsdLikeLayerRole =
+  | "raster_image"
+  | "editable_text"
+  | "vector_shape"
+  | "group"
+  | "missing_asset";
+
+export interface LayeredDesignPsdLikeAssetReference {
+  id: string;
+  kind?: GeneratedDesignAssetKind;
+  source: LayeredDesignExportManifestAsset["source"];
+  filename?: string;
+  originalSrc?: string;
+  width: number;
+  height: number;
+  hasAlpha: boolean;
+  provider?: string;
+  modelId?: string;
+}
+
+export interface LayeredDesignPsdLikeLayer {
+  id: string;
+  name: string;
+  type: DesignLayer["type"];
+  source: DesignLayer["source"];
+  role: LayeredDesignPsdLikeLayerRole;
+  visible: boolean;
+  locked: boolean;
+  blendMode: DesignLayer["blendMode"];
+  transform: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    rotation: number;
+    opacity: number;
+    zIndex: number;
+  };
+  asset?: LayeredDesignPsdLikeAssetReference;
+  text?: {
+    text: string;
+    fontFamily?: string;
+    fontSize: number;
+    color: string;
+    align: TextLayer["align"];
+    lineHeight?: number;
+    letterSpacing?: number;
+  };
+  shape?: {
+    shape: ShapeLayer["shape"];
+    fill?: string;
+    stroke?: string;
+    strokeWidth?: number;
+  };
+  children?: string[];
+}
+
+export interface LayeredDesignPsdLikeManifest {
+  schemaVersion: typeof LAYERED_DESIGN_PSD_LIKE_EXPORT_SCHEMA_VERSION;
+  projectionKind: "psd-like-layer-stack";
+  source: {
+    factSource: "LayeredDesignDocument";
+    documentSchemaVersion: LayeredDesignDocument["schemaVersion"];
+    documentId: string;
+    designFile: string;
+  };
+  exportedAt: string;
+  canvas: LayeredDesignDocument["canvas"];
+  preview: {
+    svgFile: string;
+    pngFile: string;
+  };
+  compatibility: {
+    truePsd: false;
+    layerOrder: "back_to_front";
+    editableText: true;
+    rasterImageLayers: true;
+    vectorShapeProjection: "basic_svg_shape_semantics";
+    groupHierarchy: "reference_only";
+  };
+  layers: LayeredDesignPsdLikeLayer[];
+}
+
 export interface LayeredDesignExportBundle {
   manifest: LayeredDesignExportManifest;
+  psdLikeManifest: LayeredDesignPsdLikeManifest;
   designFile: LayeredDesignExportFile;
   manifestFile: LayeredDesignExportFile;
+  psdLikeManifestFile: LayeredDesignExportFile;
   previewSvgFile: LayeredDesignExportFile;
   previewPngFile: Omit<LayeredDesignExportFile, "content">;
   assetFiles: LayeredDesignExportAssetFile[];
 }
 
+export interface LayeredDesignExportZipFile {
+  filename: string;
+  downloadName: string;
+  mimeType: "application/zip";
+  content: Uint8Array;
+}
+
+export type LayeredDesignProjectExportFileEncoding = "utf8" | "base64";
+
+export interface LayeredDesignProjectExportFile {
+  relativePath: string;
+  mimeType: string;
+  encoding: LayeredDesignProjectExportFileEncoding;
+  content: string;
+}
+
 export interface CreateLayeredDesignExportBundleOptions {
   exportedAt?: string;
   baseName?: string;
+}
+
+export interface CreateLayeredDesignExportZipFileOptions {
+  previewPngDataUrl: string;
+  downloadName?: string;
 }
 
 const MIME_EXTENSION_MAP: Record<string, string> = {
@@ -142,6 +253,80 @@ function resolveAssetMimeType(src: string): string {
 function resolveAssetExtension(src: string): string {
   const mimeType = resolveAssetMimeType(src);
   return MIME_EXTENSION_MAP[mimeType] ?? "png";
+}
+
+const textEncoder = new TextEncoder();
+
+function encodeUtf8(value: string): Uint8Array {
+  return textEncoder.encode(value);
+}
+
+function decodeBase64(value: string): Uint8Array {
+  const normalized = value.replace(/\s/g, "");
+  if (typeof atob === "function") {
+    const binary = atob(normalized);
+    const output = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index += 1) {
+      output[index] = binary.charCodeAt(index);
+    }
+    return output;
+  }
+
+  const bufferConstructor = (
+    globalThis as typeof globalThis & {
+      Buffer?: {
+        from(value: string, encoding: "base64"): Uint8Array;
+      };
+    }
+  ).Buffer;
+  if (bufferConstructor) {
+    return Uint8Array.from(bufferConstructor.from(normalized, "base64"));
+  }
+
+  throw new Error("当前环境不支持 base64 资产解码");
+}
+
+function encodeBase64(content: Uint8Array): string {
+  if (typeof btoa === "function") {
+    const chunkSize = 0x8000;
+    let binary = "";
+    for (let offset = 0; offset < content.byteLength; offset += chunkSize) {
+      binary += String.fromCharCode(
+        ...content.slice(offset, offset + chunkSize),
+      );
+    }
+    return btoa(binary);
+  }
+
+  const bufferConstructor = (
+    globalThis as typeof globalThis & {
+      Buffer?: {
+        from(value: Uint8Array): {
+          toString(encoding: "base64"): string;
+        };
+      };
+    }
+  ).Buffer;
+  if (bufferConstructor) {
+    return bufferConstructor.from(content).toString("base64");
+  }
+
+  throw new Error("当前环境不支持 base64 资产编码");
+}
+
+function decodeDataUrlToBytes(dataUrl: string): Uint8Array {
+  const commaIndex = dataUrl.indexOf(",");
+  if (!dataUrl.startsWith("data:") || commaIndex < 0) {
+    throw new Error("导出资产必须是 data URL");
+  }
+
+  const metadata = dataUrl.slice(5, commaIndex).toLowerCase();
+  const payload = dataUrl.slice(commaIndex + 1);
+  if (metadata.includes(";base64")) {
+    return decodeBase64(payload);
+  }
+
+  return encodeUtf8(decodeURIComponent(payload));
 }
 
 function getLayerCenter(layer: DesignLayer): { x: number; y: number } {
@@ -306,6 +491,144 @@ export function createLayeredDesignPreviewSvgDataUrl(
   )}`;
 }
 
+function createPsdLikeAssetReference(
+  assetId: string,
+  asset: GeneratedDesignAsset | undefined,
+  manifestAsset: LayeredDesignExportManifestAsset | undefined,
+  fallbackWidth: number,
+  fallbackHeight: number,
+): LayeredDesignPsdLikeAssetReference {
+  return {
+    id: assetId,
+    kind: asset?.kind,
+    source: manifestAsset?.source ?? "missing",
+    filename: manifestAsset?.filename,
+    originalSrc: manifestAsset?.originalSrc,
+    width: asset?.width ?? fallbackWidth,
+    height: asset?.height ?? fallbackHeight,
+    hasAlpha: asset?.hasAlpha ?? false,
+    provider: asset?.provider,
+    modelId: asset?.modelId,
+  };
+}
+
+function resolvePsdLikeLayerRole(
+  layer: DesignLayer,
+  asset?: GeneratedDesignAsset,
+): LayeredDesignPsdLikeLayerRole {
+  if (isImageDesignLayer(layer)) {
+    return asset ? "raster_image" : "missing_asset";
+  }
+  if (layer.type === "text") {
+    return "editable_text";
+  }
+  if (layer.type === "shape") {
+    return "vector_shape";
+  }
+  return "group";
+}
+
+export function createLayeredDesignPsdLikeManifest(
+  document: LayeredDesignDocument,
+  manifestAssets: LayeredDesignExportManifestAsset[],
+  options: {
+    exportedAt: string;
+    designFile: string;
+    previewSvgFile: string;
+    previewPngFile: string;
+  },
+): LayeredDesignPsdLikeManifest {
+  const manifestAssetById = new Map(
+    manifestAssets.map((asset) => [asset.id, asset]),
+  );
+
+  return {
+    schemaVersion: LAYERED_DESIGN_PSD_LIKE_EXPORT_SCHEMA_VERSION,
+    projectionKind: "psd-like-layer-stack",
+    source: {
+      factSource: "LayeredDesignDocument",
+      documentSchemaVersion: document.schemaVersion,
+      documentId: document.id,
+      designFile: options.designFile,
+    },
+    exportedAt: options.exportedAt,
+    canvas: { ...document.canvas },
+    preview: {
+      svgFile: options.previewSvgFile,
+      pngFile: options.previewPngFile,
+    },
+    compatibility: {
+      truePsd: false,
+      layerOrder: "back_to_front",
+      editableText: true,
+      rasterImageLayers: true,
+      vectorShapeProjection: "basic_svg_shape_semantics",
+      groupHierarchy: "reference_only",
+    },
+    layers: sortDesignLayers(document.layers).map((layer) => {
+      const asset =
+        isImageDesignLayer(layer) && layer.assetId
+          ? document.assets.find((item) => item.id === layer.assetId)
+          : undefined;
+
+      return {
+        id: layer.id,
+        name: layer.name,
+        type: layer.type,
+        source: layer.source,
+        role: resolvePsdLikeLayerRole(layer, asset),
+        visible: layer.visible,
+        locked: layer.locked,
+        blendMode: layer.blendMode ?? "normal",
+        transform: {
+          x: layer.x,
+          y: layer.y,
+          width: layer.width,
+          height: layer.height,
+          rotation: layer.rotation,
+          opacity: layer.opacity,
+          zIndex: layer.zIndex,
+        },
+        ...(isImageDesignLayer(layer)
+          ? {
+              asset: createPsdLikeAssetReference(
+                layer.assetId,
+                asset,
+                manifestAssetById.get(layer.assetId),
+                layer.width,
+                layer.height,
+              ),
+            }
+          : {}),
+        ...(layer.type === "text"
+          ? {
+              text: {
+                text: layer.text,
+                fontFamily: layer.fontFamily,
+                fontSize: layer.fontSize,
+                color: layer.color,
+                align: layer.align,
+                lineHeight: layer.lineHeight,
+                letterSpacing: layer.letterSpacing,
+              },
+            }
+          : {}),
+        ...(layer.type === "shape"
+          ? {
+              shape: {
+                shape: layer.shape,
+                fill: layer.fill,
+                stroke: layer.stroke,
+                strokeWidth: layer.strokeWidth,
+              },
+            }
+          : {}),
+        ...(layer.type === "group" ? { children: [...layer.children] } : {}),
+      };
+    }),
+  };
+}
+
 export function createLayeredDesignExportBundle(
   document: LayeredDesignDocument,
   options: CreateLayeredDesignExportBundleOptions = {},
@@ -314,6 +637,7 @@ export function createLayeredDesignExportBundle(
   const baseName = resolveExportBaseName(document, options.baseName);
   const designFilename = "design.json";
   const manifestFilename = "export-manifest.json";
+  const psdLikeManifestFilename = "psd-like-manifest.json";
   const previewSvgFilename = "preview.svg";
   const previewPngFilename = "preview.png";
   const exportedDocument: LayeredDesignDocument = {
@@ -342,35 +666,49 @@ export function createLayeredDesignExportBundle(
       };
     });
 
+  const manifestAssets = document.assets.map((asset) => {
+    const assetFile = assetFiles.find((item) => item.assetId === asset.id);
+    return {
+      id: asset.id,
+      kind: asset.kind,
+      source: asset.src ? (assetFile ? "file" : "reference") : "missing",
+      filename: assetFile?.filename,
+      originalSrc: asset.src && !assetFile?.embeddedDataUrl ? asset.src : undefined,
+      width: asset.width,
+      height: asset.height,
+      hasAlpha: asset.hasAlpha,
+      provider: asset.provider,
+      modelId: asset.modelId,
+    } satisfies LayeredDesignExportManifestAsset;
+  });
+
   const manifest: LayeredDesignExportManifest = {
     schemaVersion: LAYERED_DESIGN_EXPORT_SCHEMA_VERSION,
     documentId: document.id,
     title: document.title,
     exportedAt,
     designFile: designFilename,
+    psdLikeManifestFile: psdLikeManifestFilename,
     previewSvgFile: previewSvgFilename,
     previewPngFile: previewPngFilename,
-    assets: document.assets.map((asset) => {
-      const assetFile = assetFiles.find((item) => item.assetId === asset.id);
-      return {
-        id: asset.id,
-        kind: asset.kind,
-        source: asset.src ? (assetFile ? "file" : "reference") : "missing",
-        filename: assetFile?.filename,
-        originalSrc: asset.src && !assetFile?.embeddedDataUrl ? asset.src : undefined,
-        width: asset.width,
-        height: asset.height,
-        hasAlpha: asset.hasAlpha,
-        provider: asset.provider,
-        modelId: asset.modelId,
-      };
-    }),
+    assets: manifestAssets,
   };
+  const psdLikeManifest = createLayeredDesignPsdLikeManifest(
+    document,
+    manifestAssets,
+    {
+      exportedAt,
+      designFile: designFilename,
+      previewSvgFile: previewSvgFilename,
+      previewPngFile: previewPngFilename,
+    },
+  );
 
   const previewSvg = renderLayeredDesignDocumentToSvg(document);
 
   return {
     manifest,
+    psdLikeManifest,
     designFile: {
       filename: designFilename,
       downloadName: `${baseName}.design.json`,
@@ -382,6 +720,12 @@ export function createLayeredDesignExportBundle(
       downloadName: `${baseName}.export-manifest.json`,
       mimeType: "application/json",
       content: JSON.stringify(manifest, null, 2),
+    },
+    psdLikeManifestFile: {
+      filename: psdLikeManifestFilename,
+      downloadName: `${baseName}.psd-like-manifest.json`,
+      mimeType: "application/json",
+      content: JSON.stringify(psdLikeManifest, null, 2),
     },
     previewSvgFile: {
       filename: previewSvgFilename,
@@ -396,4 +740,110 @@ export function createLayeredDesignExportBundle(
     },
     assetFiles,
   };
+}
+
+function resolveZipDownloadName(
+  bundle: LayeredDesignExportBundle,
+  explicitDownloadName?: string,
+): string {
+  if (explicitDownloadName?.trim()) {
+    return explicitDownloadName.trim();
+  }
+
+  const designSuffix = ".design.json";
+  const designDownloadName = bundle.designFile.downloadName;
+  const baseName = designDownloadName.endsWith(designSuffix)
+    ? designDownloadName.slice(0, -designSuffix.length)
+    : sanitizeFilePart(
+        bundle.manifest.title,
+        sanitizeFilePart(bundle.manifest.documentId, "layered-design"),
+      );
+
+  return `${baseName}.layered-design.zip`;
+}
+
+export function createLayeredDesignExportZipFile(
+  bundle: LayeredDesignExportBundle,
+  options: CreateLayeredDesignExportZipFileOptions,
+): LayeredDesignExportZipFile {
+  const entries: StoredZipEntry[] = [
+    {
+      path: bundle.designFile.filename,
+      content: encodeUtf8(bundle.designFile.content),
+    },
+    {
+      path: bundle.manifestFile.filename,
+      content: encodeUtf8(bundle.manifestFile.content),
+    },
+    {
+      path: bundle.psdLikeManifestFile.filename,
+      content: encodeUtf8(bundle.psdLikeManifestFile.content),
+    },
+    {
+      path: bundle.previewSvgFile.filename,
+      content: encodeUtf8(bundle.previewSvgFile.content),
+    },
+    {
+      path: bundle.previewPngFile.filename,
+      content: decodeDataUrlToBytes(options.previewPngDataUrl),
+    },
+    ...bundle.assetFiles.map(
+      (assetFile): StoredZipEntry => ({
+        path: assetFile.filename,
+        content: decodeDataUrlToBytes(assetFile.src),
+      }),
+    ),
+  ];
+  const downloadName = resolveZipDownloadName(bundle, options.downloadName);
+
+  return {
+    filename: "layered-design-export.zip",
+    downloadName,
+    mimeType: "application/zip",
+    content: createStoredZipArchive(entries),
+  };
+}
+
+export function createLayeredDesignProjectExportFiles(
+  bundle: LayeredDesignExportBundle,
+  options: CreateLayeredDesignExportZipFileOptions,
+): LayeredDesignProjectExportFile[] {
+  return [
+    {
+      relativePath: "design.json",
+      mimeType: bundle.designFile.mimeType,
+      encoding: "utf8",
+      content: bundle.designFile.content,
+    },
+    {
+      relativePath: "export-manifest.json",
+      mimeType: bundle.manifestFile.mimeType,
+      encoding: "utf8",
+      content: bundle.manifestFile.content,
+    },
+    {
+      relativePath: "psd-like-manifest.json",
+      mimeType: bundle.psdLikeManifestFile.mimeType,
+      encoding: "utf8",
+      content: bundle.psdLikeManifestFile.content,
+    },
+    {
+      relativePath: "preview.svg",
+      mimeType: bundle.previewSvgFile.mimeType,
+      encoding: "utf8",
+      content: bundle.previewSvgFile.content,
+    },
+    {
+      relativePath: "preview.png",
+      mimeType: "image/png",
+      encoding: "base64",
+      content: encodeBase64(decodeDataUrlToBytes(options.previewPngDataUrl)),
+    },
+    ...bundle.assetFiles.map((file) => ({
+      relativePath: file.filename,
+      mimeType: file.mimeType,
+      encoding: "base64" as const,
+      content: encodeBase64(decodeDataUrlToBytes(file.src)),
+    })),
+  ];
 }

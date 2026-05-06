@@ -123,6 +123,10 @@ function blocksAcceptedReviewDecision(
   );
 }
 
+function userLockedCapabilityBlocksAccepted(limitStatus?: string): boolean {
+  return limitStatus?.trim() === "user_locked_capability_gap";
+}
+
 function createFormState(
   template: AgentRuntimeReviewDecisionTemplate,
 ): ReviewDecisionFormState {
@@ -190,6 +194,14 @@ export function RuntimeReviewDecisionDialog({
     template?.permission_confirmation_summary ||
     template?.permission_confirmation_request_id ||
     "未导出权限确认摘要";
+  const limitStatus = template?.limit_status?.trim();
+  const userLockedCapabilitySummary =
+    template?.user_locked_capability_summary ||
+    (template?.capability_gap
+      ? `显式用户模型锁定不满足当前 execution profile（capabilityGap=${template.capability_gap}），不能作为成功交付证据。`
+      : "未导出模型锁定能力缺口摘要");
+  const userLockedCapabilityBlocksReviewAccepted =
+    userLockedCapabilityBlocksAccepted(limitStatus);
   const permissionConfirmationBlocksAccepted = blocksAcceptedReviewDecision(
     permissionStatus,
     permissionConfirmationStatus,
@@ -197,12 +209,18 @@ export function RuntimeReviewDecisionDialog({
   const acceptanceBlockedByPermissionConfirmation =
     permissionConfirmationBlocksAccepted &&
     formState?.decision_status === "accepted";
+  const acceptanceBlockedByUserLockedCapability =
+    userLockedCapabilityBlocksReviewAccepted &&
+    formState?.decision_status === "accepted";
 
   const handleSave = async () => {
     if (!template || !formState) {
       return;
     }
-    if (acceptanceBlockedByPermissionConfirmation) {
+    if (
+      acceptanceBlockedByPermissionConfirmation ||
+      acceptanceBlockedByUserLockedCapability
+    ) {
       return;
     }
 
@@ -248,6 +266,30 @@ export function RuntimeReviewDecisionDialog({
               <HarnessVerificationSummarySection
                 summary={template.verification_summary}
               />
+            ) : null}
+
+            {userLockedCapabilityBlocksReviewAccepted ? (
+              <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-950">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-semibold">
+                    模型锁定能力缺口
+                  </span>
+                  <span className="rounded-full border border-rose-200 bg-white px-2 py-0.5 text-[11px] font-medium text-rose-700">
+                    user_locked_capability_gap
+                  </span>
+                </div>
+                <p className="mt-2 text-xs leading-5">
+                  {userLockedCapabilitySummary}
+                </p>
+                {template.capability_gap ? (
+                  <p className="mt-1 font-mono text-[11px] opacity-80">
+                    capabilityGap={template.capability_gap}
+                  </p>
+                ) : null}
+                <p className="mt-2 text-xs font-medium">
+                  请切换到满足 routingSlot 的模型或取消显式模型锁定后，再保存“接受”结论。
+                </p>
+              </div>
             ) : null}
 
             {permissionConfirmationStatus ? (
@@ -318,7 +360,8 @@ export function RuntimeReviewDecisionDialog({
                       key={status}
                       value={status}
                       disabled={
-                        permissionConfirmationBlocksAccepted &&
+                        (permissionConfirmationBlocksAccepted ||
+                          userLockedCapabilityBlocksReviewAccepted) &&
                         status === "accepted"
                       }
                     >
@@ -329,6 +372,11 @@ export function RuntimeReviewDecisionDialog({
                 {permissionConfirmationBlocksAccepted ? (
                   <p className="text-xs leading-5 text-rose-700">
                     权限确认未解决时不能保存“接受”，请选择拒绝、延后或需要更多证据。
+                  </p>
+                ) : null}
+                {userLockedCapabilityBlocksReviewAccepted ? (
+                  <p className="text-xs leading-5 text-rose-700">
+                    模型锁定能力缺口未解决时不能保存“接受”，请先切换模型、取消显式锁定，或选择拒绝、延后、需要更多证据。
                   </p>
                 ) : null}
               </div>
@@ -568,7 +616,8 @@ export function RuntimeReviewDecisionDialog({
               !template ||
               !formState ||
               saving ||
-              acceptanceBlockedByPermissionConfirmation
+              acceptanceBlockedByPermissionConfirmation ||
+              acceptanceBlockedByUserLockedCapability
             }
           >
             {saving ? "保存中..." : "保存审核结果"}

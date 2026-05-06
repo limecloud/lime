@@ -30,7 +30,7 @@ export function SceneAppRunList({
       <div>
         <div className="text-sm font-semibold text-slate-900">结果记录</div>
         <p className="mt-1 text-sm leading-6 text-slate-500">
-          同一套做法在不同项目和时间里的最近结果，会统一回到这里。
+          同一个 Skill 在不同项目和时间里的最近结果，会统一回到这里。
         </p>
       </div>
 

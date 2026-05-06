@@ -956,6 +956,7 @@ export function handleTurnStreamEvent({
               finalContent,
               rawContent: requestState.accumulatedContent,
               surfaceThinkingDeltas,
+              thinkingContent: msg.thinkingContent,
               usage: data.usage ?? msg.usage,
             }),
           };
@@ -997,6 +998,7 @@ export function handleTurnStreamEvent({
                     finalContent: gracefulContent,
                     rawContent: requestState.accumulatedContent,
                     surfaceThinkingDeltas,
+                    thinkingContent: msg.thinkingContent,
                   }),
                 }
               : msg,

@@ -1280,7 +1280,7 @@ export function useSceneAppsPageRuntime({
             failureSignal:
               selectedRunDetailView?.failureSignalLabel ??
               governanceView?.topFailureSignalLabel,
-            sourceLabel: "整套做法",
+            sourceLabel: "Skill",
           }),
           {
             closeDialog: false,
@@ -1544,25 +1544,25 @@ export function useSceneAppsPageRuntime({
 
   const launchDisabledReason = useMemo(() => {
     if (!selectedDescriptor) {
-      return "先选择一套做法";
+      return "先选择一个 Skill";
     }
     if (selectedEntryCard?.disabledReason) {
       return selectedEntryCard.disabledReason;
     }
     if (!launchSeed) {
-      return "这套做法需要在输入里包含明确的 URL";
+      return "这个 Skill 需要在输入里包含明确的 URL";
     }
     return undefined;
   }, [launchSeed, selectedDescriptor, selectedEntryCard?.disabledReason]);
   const saveContextBaselineDisabledReason = useMemo(() => {
     if (!selectedDescriptor) {
-      return "先选择一套做法";
+      return "先选择一个 Skill";
     }
     if (!selectedProjectId?.trim()) {
-      return "先绑定项目工作区，才能写入当前做法基线";
+      return "先绑定项目工作区，才能写入当前 Skill 基线";
     }
     if (!launchInput.trim() && selectedReferenceMemoryIds.length === 0) {
-      return "先带入灵感对象或启动输入，再写入当前做法基线";
+      return "先带入灵感对象或启动输入，再写入当前 Skill 基线";
     }
     return undefined;
   }, [
@@ -1579,11 +1579,11 @@ export function useSceneAppsPageRuntime({
       const businessLabel = descriptor
         ? getSceneAppPresentationCopy(descriptor).businessLabel
         : "最近访问";
-      const title = descriptor?.title ?? record.sceneappId ?? "未命名做法";
+      const title = descriptor?.title ?? record.sceneappId ?? "未命名 Skill";
       const summary =
         record.prefillIntent && record.prefillIntent.trim()
           ? truncateSingleLine(record.prefillIntent)
-          : (descriptor?.summary ?? "继续上一次做法上下文");
+          : (descriptor?.summary ?? "继续上一次 Skill 上下文");
 
       return {
         key: `${record.sceneappId}:${record.projectId ?? ""}`,
@@ -1677,12 +1677,12 @@ export function useSceneAppsPageRuntime({
 
   const handleLaunchSelected = useCallback(async () => {
     if (!selectedDescriptor) {
-      toast.error("请先选择一套做法");
+      toast.error("请先选择一个 Skill");
       return;
     }
 
     if (!launchSeed) {
-      toast.error("这套做法需要明确链接或启动输入，请先补齐后再继续");
+      toast.error("这个 Skill 需要明确链接或启动输入，请先补齐后再继续");
       return;
     }
 
@@ -1703,18 +1703,18 @@ export function useSceneAppsPageRuntime({
 
   const handleSaveContextBaseline = useCallback(async () => {
     if (!selectedDescriptor) {
-      toast.error("请先选择一套做法");
+      toast.error("请先选择一个 Skill");
       return;
     }
 
     const trimmedProjectId = selectedProjectId?.trim();
     if (!trimmedProjectId) {
-      toast.error("请先绑定项目工作区，再写入当前做法基线。");
+      toast.error("请先绑定项目工作区，再写入当前 Skill 基线。");
       return;
     }
 
     if (!launchInput.trim() && selectedReferenceMemoryIds.length === 0) {
-      toast.error("请先带入灵感对象或启动输入，再写入当前做法基线。");
+      toast.error("请先带入灵感对象或启动输入，再写入当前 Skill 基线。");
       return;
     }
 
@@ -1731,7 +1731,7 @@ export function useSceneAppsPageRuntime({
       });
       setSelectedPlanResult(savedPlanResult);
       setSelectedPlanError(null);
-      toast.success("已写入当前做法基线");
+      toast.success("已写入当前 Skill 基线");
     } catch (error) {
       toast.error(formatSceneAppErrorMessage(error));
     } finally {

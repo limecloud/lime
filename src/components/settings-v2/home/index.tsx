@@ -290,7 +290,7 @@ export function SettingsHomePage({
               当前入口
               <WorkbenchInfoTip
                 ariaLabel="当前入口说明"
-                content="前台只保留 current 做法；下面这些就是现在直接进入的主路径和辅助路径。"
+                content="前台只保留 current Skills；下面这些就是现在直接进入的主路径和辅助路径。"
                 tone="slate"
               />
             </div>
@@ -306,7 +306,7 @@ export function SettingsHomePage({
                 onClick={() => onNavigate("skills")}
                 className="inline-flex items-center rounded-2xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 hover:text-slate-900"
               >
-                去我的方法
+                去 Skills
               </button>
             ) : null}
             {onNavigate ? (
@@ -341,9 +341,11 @@ export function SettingsHomePage({
 
         <div className="mt-5 grid gap-3 xl:grid-cols-2">
           <article className="rounded-[22px] border border-slate-200 bg-white/90 p-4 shadow-sm shadow-slate-950/5">
-            <div className="text-sm font-semibold text-slate-900">全部做法</div>
+            <div className="text-sm font-semibold text-slate-900">
+              全部 Skills
+            </div>
             <p className="mt-2 text-sm leading-6 text-slate-600">
-              从“我的方法”里的“查看全部做法”进入，直接看完整做法。
+              从“Skills”里的“查看全部 Skills”进入，直接看完整流程。
             </p>
           </article>
 

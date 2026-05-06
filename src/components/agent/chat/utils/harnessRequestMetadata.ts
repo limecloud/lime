@@ -10,6 +10,12 @@ import {
   normalizeHarnessSessionMode,
   type HarnessSessionModeInput,
 } from "./harnessSessionMode";
+import type { AgentRuntimeWorkspaceSkillBinding } from "@/lib/api/agentRuntime";
+import {
+  buildWorkspaceSkillBindingsHarnessMetadata,
+  buildWorkspaceSkillRuntimeEnableHarnessMetadata,
+  type WorkspaceSkillRuntimeEnableInput,
+} from "./workspaceSkillBindingsMetadata";
 
 export interface HarnessOemRoutingRequestMetadata {
   tenant_id: string;
@@ -62,6 +68,8 @@ export interface BuildHarnessRequestMetadataOptions {
   selectedTeamSummary?: string | null;
   selectedTeamRoles?: TeamRoleDefinition[] | null;
   teamMemoryShadow?: TeamMemoryShadowRequestMetadata | null;
+  workspaceSkillBindings?: AgentRuntimeWorkspaceSkillBinding[] | null;
+  workspaceSkillRuntimeEnable?: WorkspaceSkillRuntimeEnableInput | null;
   oemRouting?: HarnessOemRoutingRequestMetadata | null;
   tenantFeatureFlags?: HarnessTenantFeatureFlagsRequestMetadata | null;
 }
@@ -152,6 +160,8 @@ export function buildHarnessRequestMetadata(
     selectedTeamSummary,
     selectedTeamRoles,
     teamMemoryShadow,
+    workspaceSkillBindings,
+    workspaceSkillRuntimeEnable,
     oemRouting,
     tenantFeatureFlags,
   } = options;
@@ -194,6 +204,12 @@ export function buildHarnessRequestMetadata(
           "both",
       }
     : existingBrowserAssist;
+  const workspaceSkillBindingsMetadata =
+    buildWorkspaceSkillBindingsHarnessMetadata(workspaceSkillBindings);
+  const workspaceSkillRuntimeEnableMetadata =
+    buildWorkspaceSkillRuntimeEnableHarnessMetadata(
+      workspaceSkillRuntimeEnable,
+    );
 
   const metadata: Record<string, unknown> = {
     ...(base || {}),
@@ -220,6 +236,14 @@ export function buildHarnessRequestMetadata(
     selected_team_summary: selectedTeamSummary || undefined,
     selected_team_roles: serializeTeamRoles(selectedTeamRoles),
     team_memory_shadow: teamMemoryShadow || undefined,
+    workspace_skill_bindings:
+      workspaceSkillBindingsMetadata?.workspace_skill_bindings ??
+      base?.workspace_skill_bindings ??
+      base?.workspaceSkillBindings,
+    workspace_skill_runtime_enable:
+      workspaceSkillRuntimeEnableMetadata?.workspace_skill_runtime_enable ??
+      base?.workspace_skill_runtime_enable ??
+      base?.workspaceSkillRuntimeEnable,
     oem_routing: oemRouting || undefined,
     tenant_feature_flags: tenantFeatureFlags || undefined,
     browser_requirement: browserRequirement || undefined,

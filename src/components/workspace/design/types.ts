@@ -13,6 +13,12 @@ import type {
   MediaTaskArtifactOutput,
   MediaTaskLookupRequest,
 } from "@/lib/api/mediaTasks";
+import type {
+  ReadLayeredDesignProjectExportOutput,
+  ReadLayeredDesignProjectExportRequest,
+  SaveLayeredDesignProjectExportOutput,
+  SaveLayeredDesignProjectExportRequest,
+} from "@/lib/api/layeredDesignProject";
 
 export interface DesignCanvasState {
   type: "design";
@@ -35,6 +41,12 @@ export interface DesignCanvasProps {
   getImageTaskArtifact?: (
     request: MediaTaskLookupRequest,
   ) => Promise<MediaTaskArtifactOutput>;
+  saveProjectExport?: (
+    request: SaveLayeredDesignProjectExportRequest,
+  ) => Promise<SaveLayeredDesignProjectExportOutput>;
+  readProjectExport?: (
+    request: ReadLayeredDesignProjectExportRequest,
+  ) => Promise<ReadLayeredDesignProjectExportOutput>;
 }
 
 function createBlankDesignDocument(): LayeredDesignDocument {

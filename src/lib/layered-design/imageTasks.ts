@@ -347,6 +347,8 @@ export function createGeneratedDesignAssetFromImageTaskOutput(
     return null;
   }
 
+  const postprocess = readRecord(firstImage?.postprocess);
+
   return {
     id: options.assetId ?? `${request.assetId}-generated-${output.task_id}`,
     kind: request.kind,
@@ -364,6 +366,7 @@ export function createGeneratedDesignAssetFromImageTaskOutput(
       documentId: request.documentId,
       layerId: request.layerId,
       originalAssetId: request.assetId,
+      ...(postprocess ? { postprocess } : {}),
     },
     createdAt:
       options.createdAt ??

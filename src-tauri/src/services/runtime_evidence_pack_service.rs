@@ -29,6 +29,7 @@ use crate::services::runtime_file_checkpoint_service::list_file_checkpoints;
 use crate::services::workspace_health_service::ensure_workspace_ready_with_auto_relocate;
 use crate::workspace::WorkspaceManager;
 use chrono::Utc;
+use lime_core::database::dao::agent_run::AgentRun;
 use lime_core::database::dao::agent_timeline::{AgentThreadItem, AgentThreadItemPayload};
 use lime_infra::telemetry::RequestLog;
 use serde::{Deserialize, Serialize};
@@ -88,6 +89,7 @@ pub struct RuntimeEvidencePackExportResult {
     pub recent_artifact_count: usize,
     pub known_gaps: Vec<String>,
     pub observability_summary: Value,
+    pub completion_audit_summary: Value,
     pub artifacts: Vec<RuntimeEvidenceArtifact>,
 }
 
@@ -178,6 +180,15 @@ pub fn export_runtime_evidence_pack(
     thread_read: &AgentRuntimeThreadReadModel,
     workspace_root: &Path,
 ) -> Result<RuntimeEvidencePackExportResult, String> {
+    export_runtime_evidence_pack_with_owner_runs(detail, thread_read, workspace_root, &[])
+}
+
+pub fn export_runtime_evidence_pack_with_owner_runs(
+    detail: &SessionDetail,
+    thread_read: &AgentRuntimeThreadReadModel,
+    workspace_root: &Path,
+    owner_runs: &[AgentRun],
+) -> Result<RuntimeEvidencePackExportResult, String> {
     let session_id = detail.id.trim();
     if session_id.is_empty() {
         return Err("session_id 不能为空，无法导出问题证据包".to_string());
@@ -254,6 +265,7 @@ pub fn export_runtime_evidence_pack(
                 &recent_artifact_paths,
                 latest_turn_summary.as_deref(),
                 &observability_summary,
+                owner_runs,
                 &known_gaps,
                 exported_at.as_str(),
             ),
@@ -273,6 +285,7 @@ pub fn export_runtime_evidence_pack(
                 &auxiliary_runtime,
                 &modality_runtime_contracts,
                 &observability_summary,
+                owner_runs,
                 &known_gaps,
                 exported_at.as_str(),
             )?,
@@ -301,6 +314,7 @@ pub fn export_runtime_evidence_pack(
                 &observability_summary,
                 &request_telemetry,
                 &verification,
+                owner_runs,
                 &known_gaps,
                 exported_at.as_str(),
             )?,
@@ -327,6 +341,11 @@ pub fn export_runtime_evidence_pack(
         recent_artifact_count: recent_artifact_paths.len(),
         known_gaps,
         observability_summary,
+        completion_audit_summary: build_completion_audit_summary_json(
+            owner_runs,
+            detail,
+            &recent_artifact_paths,
+        ),
         artifacts,
     })
 }
@@ -456,6 +475,7 @@ fn build_summary_markdown(
     recent_artifacts: &[String],
     latest_turn_summary: Option<&str>,
     observability_summary: &Value,
+    owner_runs: &[AgentRun],
     known_gaps: &[String],
     exported_at: &str,
 ) -> String {
@@ -535,6 +555,62 @@ fn build_summary_markdown(
         format_observability_signal_list(observability_summary, "blocked")
     );
     let _ = writeln!(markdown);
+    let completion_audit_summary =
+        build_completion_audit_summary_json(owner_runs, detail, recent_artifacts);
+    let completion_decision = completion_audit_summary
+        .get("decision")
+        .and_then(Value::as_str)
+        .unwrap_or("unknown");
+    let completion_blocking_reasons = completion_audit_summary
+        .get("blockingReasons")
+        .and_then(Value::as_array)
+        .map(|values| {
+            values
+                .iter()
+                .filter_map(Value::as_str)
+                .map(|value| format!("`{value}`"))
+                .collect::<Vec<_>>()
+                .join("、")
+        })
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| "无".to_string());
+    let _ = writeln!(markdown, "## Completion Audit");
+    let _ = writeln!(markdown);
+    let _ = writeln!(markdown, "- 判定：`{completion_decision}`");
+    let _ = writeln!(
+        markdown,
+        "- Automation owner：{} / {} success",
+        completion_audit_summary
+            .get("successfulOwnerRunCount")
+            .and_then(Value::as_u64)
+            .unwrap_or(0),
+        completion_audit_summary
+            .get("ownerRunCount")
+            .and_then(Value::as_u64)
+            .unwrap_or(0)
+    );
+    let _ = writeln!(
+        markdown,
+        "- Workspace Skill ToolCall evidence：{}",
+        completion_audit_summary
+            .get("workspaceSkillToolCallCount")
+            .and_then(Value::as_u64)
+            .unwrap_or(0)
+    );
+    let _ = writeln!(
+        markdown,
+        "- Artifact evidence：{}",
+        completion_audit_summary
+            .get("artifactCount")
+            .and_then(Value::as_u64)
+            .unwrap_or(0)
+    );
+    let _ = writeln!(markdown, "- 阻塞原因：{completion_blocking_reasons}");
+    let _ = writeln!(
+        markdown,
+        "- 审计原则：`success` run 只作为 audit input；`completed` 必须由 owner、ToolCall 与 artifact / timeline 证据共同判定。"
+    );
+    let _ = writeln!(markdown);
     let _ = writeln!(markdown, "## 建议读取顺序");
     let _ = writeln!(markdown);
     let _ = writeln!(markdown, "1. 先读 `summary.md`，确认会话状态和当前阻塞。");
@@ -569,6 +645,7 @@ fn build_runtime_json(
     auxiliary_runtime: &RuntimeAuxiliaryRuntimeSnapshotSummary,
     modality_runtime_contracts: &RuntimeModalityContractSnapshotSummary,
     observability_summary: &Value,
+    owner_runs: &[AgentRun],
     known_gaps: &[String],
     exported_at: &str,
 ) -> Result<String, String> {
@@ -652,6 +729,12 @@ fn build_runtime_json(
             })
         }).collect::<Vec<_>>(),
         "observabilitySummary": observability_summary,
+        "automationOwners": build_automation_owner_runs_json(owner_runs),
+        "completionAuditSummary": build_completion_audit_summary_json(
+            owner_runs,
+            detail,
+            recent_artifacts
+        ),
         "auxiliaryRuntimeSnapshots": build_auxiliary_runtime_snapshots_json(auxiliary_runtime),
         "modalityRuntimeContracts": build_modality_runtime_contracts_json(modality_runtime_contracts),
         "recentArtifacts": recent_artifacts,
@@ -680,7 +763,7 @@ fn build_timeline_json(detail: &SessionDetail, exported_at: &str) -> Result<Stri
         }).collect::<Vec<_>>(),
         "items": detail.items.iter().map(|item| {
             let (payload_kind, payload_summary) = summarize_item_payload(&item.payload);
-            json!({
+            let mut item_json = json!({
                 "id": item.id,
                 "turnId": item.turn_id,
                 "sequence": item.sequence,
@@ -688,12 +771,51 @@ fn build_timeline_json(detail: &SessionDetail, exported_at: &str) -> Result<Stri
                 "payloadKind": payload_kind,
                 "payloadSummary": payload_summary,
                 "updatedAt": item.updated_at
-            })
+            });
+            if let Some(workspace_skill_tool_call) =
+                build_workspace_skill_tool_call_timeline_json(&item.payload)
+            {
+                if let Some(object) = item_json.as_object_mut() {
+                    object.insert(
+                        "workspaceSkillToolCall".to_string(),
+                        workspace_skill_tool_call,
+                    );
+                }
+            }
+            item_json
         }).collect::<Vec<_>>()
     });
 
     serde_json::to_string_pretty(&payload)
         .map_err(|error| format!("序列化 timeline.json 失败: {error}"))
+}
+
+fn build_workspace_skill_tool_call_timeline_json(
+    payload: &AgentThreadItemPayload,
+) -> Option<Value> {
+    let AgentThreadItemPayload::ToolCall {
+        tool_name,
+        success,
+        metadata,
+        ..
+    } = payload
+    else {
+        return None;
+    };
+
+    let metadata = metadata.as_ref()?;
+    let workspace_skill_source = metadata.get("workspace_skill_source").cloned();
+    let workspace_skill_runtime_enable = metadata.get("workspace_skill_runtime_enable").cloned();
+    if workspace_skill_source.is_none() && workspace_skill_runtime_enable.is_none() {
+        return None;
+    }
+
+    Some(json!({
+        "toolName": tool_name,
+        "success": success,
+        "workspaceSkillSource": workspace_skill_source,
+        "workspaceSkillRuntimeEnable": workspace_skill_runtime_enable
+    }))
 }
 
 fn build_artifacts_json(
@@ -706,6 +828,7 @@ fn build_artifacts_json(
     observability_summary: &Value,
     request_telemetry: &RuntimeRequestTelemetrySummary,
     verification: &RuntimeEvidenceVerificationSummary,
+    owner_runs: &[AgentRun],
     known_gaps: &[String],
     exported_at: &str,
 ) -> Result<String, String> {
@@ -735,6 +858,12 @@ fn build_artifacts_json(
             "workspaceId": detail.workspace_id,
             "workingDir": detail.working_dir
         },
+        "automationOwners": build_automation_owner_runs_json(owner_runs),
+        "completionAuditSummary": build_completion_audit_summary_json(
+            owner_runs,
+            detail,
+            recent_artifacts
+        ),
         "knownGaps": known_gaps
     });
 
@@ -750,6 +879,243 @@ fn build_artifacts_json(
 
     serde_json::to_string_pretty(&payload)
         .map_err(|error| format!("序列化 artifacts.json 失败: {error}"))
+}
+
+fn parse_agent_run_metadata(run: &AgentRun) -> Option<Value> {
+    run.metadata
+        .as_deref()
+        .and_then(|metadata| serde_json::from_str::<Value>(metadata).ok())
+        .filter(Value::is_object)
+}
+
+fn build_automation_owner_runs_json(owner_runs: &[AgentRun]) -> Value {
+    let runs = owner_runs
+        .iter()
+        .filter(|run| run.source == "automation")
+        .map(|run| {
+            let metadata = parse_agent_run_metadata(run);
+            json!({
+                "runId": run.id,
+                "source": run.source,
+                "sourceRef": run.source_ref,
+                "sessionId": run.session_id,
+                "status": run.status.as_str(),
+                "startedAt": run.started_at,
+                "finishedAt": run.finished_at,
+                "durationMs": run.duration_ms,
+                "jobId": metadata
+                    .as_ref()
+                    .and_then(|value| value.get("job_id"))
+                    .cloned()
+                    .or_else(|| run.source_ref.as_ref().map(|value| json!(value))),
+                "jobName": metadata
+                    .as_ref()
+                    .and_then(|value| value.get("job_name"))
+                    .cloned(),
+                "agentEnvelope": metadata
+                    .as_ref()
+                    .and_then(|value| value.pointer("/harness/agent_envelope"))
+                    .cloned(),
+                "managedObjective": metadata
+                    .as_ref()
+                    .and_then(|value| value.pointer("/harness/managed_objective"))
+                    .cloned(),
+                "workspaceSkillRuntimeEnable": metadata
+                    .as_ref()
+                    .and_then(|value| value.pointer("/harness/workspace_skill_runtime_enable"))
+                    .cloned(),
+                "completionAudit": build_automation_owner_completion_audit_json(run, metadata.as_ref()),
+                "metadata": metadata,
+            })
+        })
+        .collect::<Vec<_>>();
+
+    json!({
+        "source": "agent_runs",
+        "ownerType": "automation_job",
+        "count": runs.len(),
+        "runs": runs,
+    })
+}
+
+fn build_automation_owner_completion_audit_json(run: &AgentRun, metadata: Option<&Value>) -> Value {
+    let agent_envelope = metadata
+        .and_then(|value| value.pointer("/harness/agent_envelope"))
+        .filter(|value| value.is_object());
+    let managed_objective = metadata
+        .and_then(|value| value.pointer("/harness/managed_objective"))
+        .filter(|value| value.is_object());
+    let workspace_skill_runtime_enable = metadata
+        .and_then(|value| value.pointer("/harness/workspace_skill_runtime_enable"))
+        .filter(|value| value.is_object());
+    let has_artifact_or_evidence_requirement = managed_objective
+        .and_then(|value| value.get("completion_audit"))
+        .and_then(Value::as_str)
+        .map(|value| value == "artifact_or_evidence_required")
+        .unwrap_or(false);
+
+    let mut missing_inputs = Vec::new();
+    if agent_envelope.is_none() {
+        missing_inputs.push("agent_envelope");
+    }
+    if managed_objective.is_none() {
+        missing_inputs.push("managed_objective");
+    }
+    if workspace_skill_runtime_enable.is_none() {
+        missing_inputs.push("workspace_skill_runtime_enable");
+    }
+    if !has_artifact_or_evidence_requirement {
+        missing_inputs.push("managed_objective.completion_audit");
+    }
+
+    let audit_status = if run.status.as_str() != "success" {
+        "blocked_by_run_status"
+    } else if missing_inputs.is_empty() {
+        "audit_input_ready"
+    } else {
+        "missing_inputs"
+    };
+
+    json!({
+        "source": "automation_owner_run",
+        "status": audit_status,
+        "runStatus": run.status.as_str(),
+        "completionDecision": "not_completed",
+        "requiresArtifactOrEvidence": has_artifact_or_evidence_requirement,
+        "missingInputs": missing_inputs,
+        "evidenceInputs": {
+            "agentEnvelope": agent_envelope.is_some(),
+            "managedObjective": managed_objective.is_some(),
+            "workspaceSkillRuntimeEnable": workspace_skill_runtime_enable.is_some(),
+        },
+        "note": "automation success 只提供 completion audit 输入；completed 必须由 artifact / timeline / evidence 审计产生。"
+    })
+}
+
+fn build_completion_audit_summary_json(
+    owner_runs: &[AgentRun],
+    detail: &SessionDetail,
+    recent_artifacts: &[String],
+) -> Value {
+    let automation_owner_runs = owner_runs
+        .iter()
+        .filter(|run| run.source == "automation")
+        .collect::<Vec<_>>();
+    let owner_run_count = automation_owner_runs.len();
+    let successful_owner_run_count = automation_owner_runs
+        .iter()
+        .filter(|run| run.status.as_str() == "success")
+        .count();
+    let workspace_skill_tool_call_count = detail
+        .items
+        .iter()
+        .filter(|item| is_successful_workspace_skill_tool_call(&item.payload))
+        .count();
+    let artifact_count = recent_artifacts.len();
+
+    let mut owner_audit_statuses = Vec::new();
+    let mut has_blocked_owner_run = false;
+    let mut has_missing_owner_inputs = false;
+    for run in &automation_owner_runs {
+        let metadata = parse_agent_run_metadata(run);
+        let audit = build_automation_owner_completion_audit_json(run, metadata.as_ref());
+        if let Some(status) = audit.get("status").and_then(Value::as_str) {
+            owner_audit_statuses.push(status.to_string());
+            has_blocked_owner_run |= status == "blocked_by_run_status";
+            has_missing_owner_inputs |= status == "missing_inputs";
+        }
+    }
+
+    let has_automation_owner = owner_run_count > 0;
+    let has_successful_owner = successful_owner_run_count > 0;
+    let has_workspace_skill_tool_call = workspace_skill_tool_call_count > 0;
+    let has_artifact_or_timeline = artifact_count > 0 || has_workspace_skill_tool_call;
+
+    let mut blocking_reasons = Vec::new();
+    if !has_automation_owner {
+        blocking_reasons.push("missing_automation_owner");
+    }
+    if has_automation_owner && !has_successful_owner {
+        blocking_reasons.push("missing_successful_automation_owner");
+    }
+    if has_blocked_owner_run {
+        blocking_reasons.push("blocked_by_automation_owner_run_status");
+    }
+    if has_missing_owner_inputs {
+        blocking_reasons.push("missing_automation_owner_audit_inputs");
+    }
+    if has_successful_owner && !has_workspace_skill_tool_call {
+        blocking_reasons.push("missing_workspace_skill_tool_call_evidence");
+    }
+    if has_successful_owner && !has_artifact_or_timeline {
+        blocking_reasons.push("missing_artifact_or_timeline_evidence");
+    }
+
+    let decision = if !has_automation_owner {
+        "needs_input"
+    } else if has_blocked_owner_run || (has_automation_owner && !has_successful_owner) {
+        "blocked"
+    } else if has_missing_owner_inputs {
+        "needs_input"
+    } else if has_successful_owner && has_workspace_skill_tool_call && has_artifact_or_timeline {
+        "completed"
+    } else {
+        "verifying"
+    };
+
+    let mut notes = vec![
+        "completed 只由 automation owner、workspace skill tool call、artifact/timeline 证据共同判定，不读取模型自报。"
+            .to_string(),
+    ];
+    if decision == "completed" {
+        notes.push(
+            "automation success 已被提升为 completion audit 输入，并由 evidence pack 完成审计。"
+                .to_string(),
+        );
+    } else {
+        notes.push(
+            "automation success 仍停留在 verifying / audit input，需补齐证据后才能 completed。"
+                .to_string(),
+        );
+    }
+
+    json!({
+        "source": "runtime_evidence_pack_completion_audit",
+        "decision": decision,
+        "ownerRunCount": owner_run_count,
+        "successfulOwnerRunCount": successful_owner_run_count,
+        "workspaceSkillToolCallCount": workspace_skill_tool_call_count,
+        "artifactCount": artifact_count,
+        "ownerAuditStatuses": owner_audit_statuses,
+        "requiredEvidence": {
+            "automationOwner": has_successful_owner,
+            "workspaceSkillToolCall": has_workspace_skill_tool_call,
+            "artifactOrTimeline": has_artifact_or_timeline,
+        },
+        "blockingReasons": blocking_reasons,
+        "notes": notes,
+    })
+}
+
+fn is_successful_workspace_skill_tool_call(payload: &AgentThreadItemPayload) -> bool {
+    let AgentThreadItemPayload::ToolCall {
+        success, metadata, ..
+    } = payload
+    else {
+        return false;
+    };
+
+    if *success != Some(true) {
+        return false;
+    }
+
+    metadata
+        .as_ref()
+        .map(|value| {
+            value.get("workspace_skill_source").is_some()
+                || value.get("workspace_skill_runtime_enable").is_some()
+        })
+        .unwrap_or(false)
 }
 
 fn build_auxiliary_runtime_snapshots_json(
@@ -5306,6 +5672,7 @@ mod tests {
         LIMECORE_POLICY_DECISION_REASON_POLICY_INPUTS_MISSING,
         LIMECORE_POLICY_DECISION_SOURCE_POLICY_INPUT_EVALUATOR,
     };
+    use lime_core::database::dao::agent_run::AgentRunStatus;
     use lime_core::database::dao::agent_timeline::{
         AgentThreadItem, AgentThreadItemPayload, AgentThreadItemStatus, AgentThreadTurn,
         AgentThreadTurnStatus,
@@ -5584,6 +5951,337 @@ mod tests {
                 retryable: true,
             }),
         }
+    }
+
+    fn build_completion_audit_owner_run(
+        status: AgentRunStatus,
+        metadata: Option<Value>,
+    ) -> AgentRun {
+        AgentRun {
+            id: "run-automation-1".to_string(),
+            source: "automation".to_string(),
+            source_ref: Some("job-1".to_string()),
+            session_id: Some("session-1".to_string()),
+            status,
+            started_at: "2026-05-06T10:00:00Z".to_string(),
+            finished_at: Some("2026-05-06T10:01:00Z".to_string()),
+            duration_ms: Some(60_000),
+            error_code: None,
+            error_message: None,
+            metadata: metadata.map(|value| value.to_string()),
+            created_at: "2026-05-06T10:00:00Z".to_string(),
+            updated_at: "2026-05-06T10:01:00Z".to_string(),
+        }
+    }
+
+    fn build_completion_audit_owner_metadata() -> Value {
+        json!({
+            "job_id": "job-1",
+            "job_name": "只读 CLI 报告｜Managed Agent 草案",
+            "harness": {
+                "agent_envelope": {
+                    "source": "creaoai_p4_agent_envelope",
+                    "skill": "project:capability-report",
+                    "source_draft_id": "capdraft-1",
+                    "source_verification_report_id": "capver-1"
+                },
+                "managed_objective": {
+                    "source": "creaoai_p4_managed_execution",
+                    "owner_type": "automation_job",
+                    "completion_audit": "artifact_or_evidence_required"
+                },
+                "workspace_skill_runtime_enable": {
+                    "source": "agent_envelope_scheduled_run",
+                    "approval": "manual",
+                    "workspace_root": "/tmp/work",
+                    "bindings": [
+                        {
+                            "directory": "capability-report",
+                            "skill": "project:capability-report",
+                            "source_draft_id": "capdraft-1",
+                            "source_verification_report_id": "capver-1"
+                        }
+                    ]
+                }
+            }
+        })
+    }
+
+    #[test]
+    fn timeline_should_preserve_workspace_skill_source_metadata_for_agent_envelope() {
+        let mut detail = build_detail();
+        detail.items.push(AgentThreadItem {
+            id: "workspace-skill-tool-1".to_string(),
+            thread_id: "thread-1".to_string(),
+            turn_id: "turn-1".to_string(),
+            sequence: 4,
+            status: AgentThreadItemStatus::Completed,
+            started_at: "2026-05-06T10:00:40Z".to_string(),
+            completed_at: Some("2026-05-06T10:00:41Z".to_string()),
+            updated_at: "2026-05-06T10:00:41Z".to_string(),
+            payload: AgentThreadItemPayload::ToolCall {
+                tool_name: "project:capability-report".to_string(),
+                arguments: Some(json!({
+                    "input": "daily report"
+                })),
+                output: Some("ok".to_string()),
+                success: Some(true),
+                error: None,
+                metadata: Some(json!({
+                    "tool_family": "skill",
+                    "skill_name": "project:capability-report",
+                    "workspace_skill_source": {
+                        "workspaceRoot": "/tmp/work",
+                        "source": "manual_session_enable",
+                        "approval": "manual",
+                        "authorizationScope": "session",
+                        "directory": "capability-report",
+                        "registeredSkillDirectory": "/tmp/work/.agents/skills/capability-report",
+                        "skillName": "project:capability-report",
+                        "sourceDraftId": "capdraft-1",
+                        "sourceVerificationReportId": "capver-1",
+                        "permissionSummary": ["Level 0 只读发现"]
+                    },
+                    "workspace_skill_runtime_enable": {
+                        "source": "manual_session_enable",
+                        "approval": "manual",
+                        "authorization_scope": "session",
+                        "workspace_root": "/tmp/work",
+                        "directory": "capability-report",
+                        "skill": "project:capability-report",
+                        "registered_skill_directory": "/tmp/work/.agents/skills/capability-report",
+                        "source_draft_id": "capdraft-1",
+                        "source_verification_report_id": "capver-1",
+                        "permission_summary": ["Level 0 只读发现"]
+                    }
+                })),
+            },
+        });
+
+        let timeline = build_timeline_json(&detail, "2026-05-06T10:01:00Z").expect("timeline json");
+        let value = serde_json::from_str::<Value>(&timeline).expect("parse timeline");
+        let tool_item = value["items"]
+            .as_array()
+            .and_then(|items| {
+                items.iter().find(|item| {
+                    item.get("id").and_then(Value::as_str) == Some("workspace-skill-tool-1")
+                })
+            })
+            .expect("workspace skill timeline item");
+
+        assert_eq!(
+            tool_item.pointer("/workspaceSkillToolCall/toolName"),
+            Some(&json!("project:capability-report"))
+        );
+        assert_eq!(
+            tool_item.pointer("/workspaceSkillToolCall/workspaceSkillSource/sourceDraftId"),
+            Some(&json!("capdraft-1"))
+        );
+        assert_eq!(
+            tool_item
+                .pointer("/workspaceSkillToolCall/workspaceSkillRuntimeEnable/source_draft_id"),
+            Some(&json!("capdraft-1"))
+        );
+        assert_eq!(
+            tool_item.pointer("/workspaceSkillToolCall/workspaceSkillSource/authorizationScope"),
+            Some(&json!("session"))
+        );
+    }
+
+    #[test]
+    fn evidence_pack_should_export_automation_owner_agent_envelope_metadata() {
+        let temp_dir = TempDir::new().expect("temp dir");
+        let mut detail = build_detail();
+        detail.items.push(AgentThreadItem {
+            id: "workspace-skill-tool-1".to_string(),
+            thread_id: "thread-1".to_string(),
+            turn_id: "turn-1".to_string(),
+            sequence: 4,
+            status: AgentThreadItemStatus::Completed,
+            started_at: "2026-05-06T10:00:40Z".to_string(),
+            completed_at: Some("2026-05-06T10:00:41Z".to_string()),
+            updated_at: "2026-05-06T10:00:41Z".to_string(),
+            payload: AgentThreadItemPayload::ToolCall {
+                tool_name: "project:capability-report".to_string(),
+                arguments: Some(json!({
+                    "input": "daily report"
+                })),
+                output: Some("ok".to_string()),
+                success: Some(true),
+                error: None,
+                metadata: Some(json!({
+                    "workspace_skill_source": {
+                        "workspaceRoot": "/tmp/work",
+                        "authorizationScope": "session",
+                        "sourceDraftId": "capdraft-1"
+                    },
+                    "workspace_skill_runtime_enable": {
+                        "source": "agent_envelope_scheduled_run",
+                        "skill": "project:capability-report",
+                        "source_draft_id": "capdraft-1"
+                    }
+                })),
+            },
+        });
+        let thread_read = build_thread_read();
+        let owner_runs = vec![build_completion_audit_owner_run(
+            AgentRunStatus::Success,
+            Some(build_completion_audit_owner_metadata()),
+        )];
+
+        let export_result = export_runtime_evidence_pack_with_owner_runs(
+            &detail,
+            &thread_read,
+            temp_dir.path(),
+            &owner_runs,
+        )
+        .expect("export");
+        assert_eq!(
+            export_result.completion_audit_summary.pointer("/decision"),
+            Some(&json!("completed"))
+        );
+
+        let runtime_path = temp_dir
+            .path()
+            .join(".lime/harness/sessions/session-1/evidence/runtime.json");
+        let runtime = fs::read_to_string(runtime_path).expect("runtime");
+        let runtime = serde_json::from_str::<Value>(&runtime).expect("runtime json");
+
+        assert_eq!(runtime.pointer("/automationOwners/count"), Some(&json!(1)));
+        assert_eq!(
+            runtime.pointer("/automationOwners/runs/0/sourceRef"),
+            Some(&json!("job-1"))
+        );
+        assert_eq!(
+            runtime.pointer("/automationOwners/runs/0/agentEnvelope/source_draft_id"),
+            Some(&json!("capdraft-1"))
+        );
+        assert_eq!(
+            runtime.pointer("/automationOwners/runs/0/managedObjective/owner_type"),
+            Some(&json!("automation_job"))
+        );
+        assert_eq!(
+            runtime
+                .pointer("/automationOwners/runs/0/workspaceSkillRuntimeEnable/bindings/0/skill"),
+            Some(&json!("project:capability-report"))
+        );
+        assert_eq!(
+            runtime.pointer("/automationOwners/runs/0/completionAudit/status"),
+            Some(&json!("audit_input_ready"))
+        );
+        assert_eq!(
+            runtime.pointer("/automationOwners/runs/0/completionAudit/completionDecision"),
+            Some(&json!("not_completed"))
+        );
+        assert_eq!(
+            runtime.pointer(
+                "/automationOwners/runs/0/completionAudit/evidenceInputs/workspaceSkillRuntimeEnable"
+            ),
+            Some(&json!(true))
+        );
+        assert_eq!(
+            runtime.pointer("/completionAuditSummary/decision"),
+            Some(&json!("completed"))
+        );
+        assert_eq!(
+            runtime.pointer("/completionAuditSummary/requiredEvidence/automationOwner"),
+            Some(&json!(true))
+        );
+        assert_eq!(
+            runtime.pointer("/completionAuditSummary/requiredEvidence/workspaceSkillToolCall"),
+            Some(&json!(true))
+        );
+        assert_eq!(
+            runtime.pointer("/completionAuditSummary/requiredEvidence/artifactOrTimeline"),
+            Some(&json!(true))
+        );
+
+        let artifacts_path = temp_dir
+            .path()
+            .join(".lime/harness/sessions/session-1/evidence/artifacts.json");
+        let artifacts = fs::read_to_string(artifacts_path).expect("artifacts");
+        let artifacts = serde_json::from_str::<Value>(&artifacts).expect("artifacts json");
+
+        assert_eq!(
+            artifacts.pointer("/completionAuditSummary/decision"),
+            Some(&json!("completed"))
+        );
+
+        let summary_path = temp_dir
+            .path()
+            .join(".lime/harness/sessions/session-1/evidence/summary.md");
+        let summary = fs::read_to_string(summary_path).expect("summary");
+        assert!(summary.contains("## Completion Audit"));
+        assert!(summary.contains("- 判定：`completed`"));
+        assert!(summary.contains("- Workspace Skill ToolCall evidence：1"));
+    }
+
+    #[test]
+    fn completion_audit_summary_should_classify_negative_paths() {
+        let detail = build_detail();
+        let recent_artifacts = vec![".lime/artifacts/thread-1/report.md".to_string()];
+
+        let missing_owner = build_completion_audit_summary_json(&[], &detail, &recent_artifacts);
+        assert_eq!(
+            missing_owner.pointer("/decision"),
+            Some(&json!("needs_input"))
+        );
+        assert!(missing_owner["blockingReasons"]
+            .as_array()
+            .expect("blocking reasons")
+            .contains(&json!("missing_automation_owner")));
+
+        let blocked_run = build_completion_audit_summary_json(
+            &[build_completion_audit_owner_run(
+                AgentRunStatus::Error,
+                Some(build_completion_audit_owner_metadata()),
+            )],
+            &detail,
+            &recent_artifacts,
+        );
+        assert_eq!(blocked_run.pointer("/decision"), Some(&json!("blocked")));
+        assert!(blocked_run["blockingReasons"]
+            .as_array()
+            .expect("blocking reasons")
+            .contains(&json!("blocked_by_automation_owner_run_status")));
+
+        let missing_inputs = build_completion_audit_summary_json(
+            &[build_completion_audit_owner_run(
+                AgentRunStatus::Success,
+                None,
+            )],
+            &detail,
+            &recent_artifacts,
+        );
+        assert_eq!(
+            missing_inputs.pointer("/decision"),
+            Some(&json!("needs_input"))
+        );
+        assert!(missing_inputs["blockingReasons"]
+            .as_array()
+            .expect("blocking reasons")
+            .contains(&json!("missing_automation_owner_audit_inputs")));
+
+        let missing_tool_evidence = build_completion_audit_summary_json(
+            &[build_completion_audit_owner_run(
+                AgentRunStatus::Success,
+                Some(build_completion_audit_owner_metadata()),
+            )],
+            &detail,
+            &recent_artifacts,
+        );
+        assert_eq!(
+            missing_tool_evidence.pointer("/decision"),
+            Some(&json!("verifying"))
+        );
+        assert_eq!(
+            missing_tool_evidence.pointer("/requiredEvidence/workspaceSkillToolCall"),
+            Some(&json!(false))
+        );
+        assert!(missing_tool_evidence["blockingReasons"]
+            .as_array()
+            .expect("blocking reasons")
+            .contains(&json!("missing_workspace_skill_tool_call_evidence")));
     }
 
     fn write_request_telemetry_fixture(root: &Path) {

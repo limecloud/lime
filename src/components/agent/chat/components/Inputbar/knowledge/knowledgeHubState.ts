@@ -83,9 +83,9 @@ export function resolveKnowledgeHubState({
 
   if (knowledgePackSelection && !selectedIsReady && canManageKnowledgePacks) {
     return {
-      title: `${currentLabel} 待确认`,
+      title: "资料待确认",
       description:
-        "这份资料还没有确认。先检查事实、适用场景和风险提示，确认后再用于生成。",
+        `「${currentLabel}」还没有确认。先检查事实、适用场景和风险提示，确认后再用于生成。`,
       primaryAction: "manage",
       primaryLabel: "去确认资料",
       readyCount,
@@ -107,11 +107,11 @@ export function resolveKnowledgeHubState({
 
   if (knowledgePackSelection) {
     return {
-      title: `可使用：${currentLabel}`,
+      title: "选择项目资料",
       description:
         pendingCount > 0
-          ? "已有项目资料可用于生成，也有资料需要确认。想新增资料时，先贴到输入框再整理；待确认内容请先检查。"
-          : "选择后，本次生成会按项目资料里的事实、语气和边界执行；也可以继续添加新资料。",
+          ? `当前可用：${currentLabel}。另有资料需要确认；待确认内容请先检查。`
+          : `当前可用：${currentLabel}。使用后，本次生成会参考其中的事实、语气和边界。`,
       primaryAction: "use",
       primaryLabel: "使用这份资料",
       readyCount,

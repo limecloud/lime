@@ -260,7 +260,7 @@ function inferFallbackCopy(
       actionLabel: "配置自动化",
       executionLabel: "持续运行",
       executionTone: "emerald",
-      fallbackPrompt: `请启动做法「${descriptor.title}」，并把结果持续回流到当前工作区。`,
+      fallbackPrompt: `请启动 Skill「${descriptor.title}」，并把结果持续回流到当前工作区。`,
     };
   }
 
@@ -271,7 +271,7 @@ function inferFallbackCopy(
       actionLabel: "进入生成",
       executionLabel: "浏览器上下文",
       executionTone: "amber",
-      fallbackPrompt: `请执行做法「${descriptor.title}」，并复用当前浏览器上下文完成任务。`,
+      fallbackPrompt: `请执行 Skill「${descriptor.title}」，并复用当前浏览器上下文完成任务。`,
     };
   }
 
@@ -282,7 +282,7 @@ function inferFallbackCopy(
       actionLabel: "进入生成",
       executionLabel: "当前会话继续",
       executionTone: "sky",
-      fallbackPrompt: `请执行做法「${descriptor.title}」，并把结果整理成完整交付。`,
+      fallbackPrompt: `请执行 Skill「${descriptor.title}」，并把结果整理成完整交付。`,
     };
   }
 
@@ -292,7 +292,7 @@ function inferFallbackCopy(
     actionLabel: "进入生成",
     executionLabel: "当前会话继续",
     executionTone: "slate",
-    fallbackPrompt: `请执行做法「${descriptor.title}」，并把结果回写到当前工作区。`,
+    fallbackPrompt: `请执行 Skill「${descriptor.title}」，并把结果回写到当前工作区。`,
   };
 }
 
@@ -376,7 +376,7 @@ export function getSceneAppRunInsight(params: {
   const sourceLabel = getSceneAppRunSourceLabel(run.source);
   const subject = params.descriptorTitle?.trim()
     ? `「${params.descriptorTitle.trim()}」`
-    : "这套做法";
+    : "这个 Skill";
   const artifactSummary =
     run.artifactCount > 0
       ? `已回流 ${run.artifactCount} 份结果`
@@ -387,7 +387,7 @@ export function getSceneAppRunInsight(params: {
       ? "优先检查调度频率、超时和交付设置是否匹配。"
       : run.source === "catalog_seed"
         ? "这条记录主要用来表达目录样板预期，可作为启动参考。"
-        : "如果这次试跑有效，下一步可以继续固化成更稳定的做法。";
+        : "如果这次试跑有效，下一步可以继续固化成更稳定的Skill。";
 
   switch (run.status) {
     case "queued":

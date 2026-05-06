@@ -26,6 +26,7 @@ interface MemoryCuratedTaskSuggestionPanelProps {
   emptyState: string;
   gridClassName?: string;
   panelTestId?: string;
+  variant?: "default" | "compact";
   contextCard?: {
     badgeLabel: string;
     title: string;
@@ -37,10 +38,12 @@ interface MemoryCuratedTaskSuggestionPanelProps {
 export function MemoryCuratedTaskSuggestionPanel(
   props: MemoryCuratedTaskSuggestionPanelProps,
 ) {
+  const compact = props.variant === "compact";
+
   return (
     <div className="space-y-4" data-testid={props.panelTestId}>
       {props.contextCard ? (
-        <article className="rounded-3xl border border-emerald-200 bg-emerald-50/70 p-4">
+        <article className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4">
           <div className="flex flex-wrap items-center gap-2">
             <Badge
               variant="outline"
@@ -53,7 +56,7 @@ export function MemoryCuratedTaskSuggestionPanel(
             </h3>
           </div>
           {props.contextCard.summary ? (
-            <p className="mt-2 text-sm leading-6 text-slate-600">
+            <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-600">
               {props.contextCard.summary}
             </p>
           ) : null}
@@ -61,7 +64,12 @@ export function MemoryCuratedTaskSuggestionPanel(
       ) : null}
 
       {props.tasks.length > 0 ? (
-        <div className={props.gridClassName ?? "grid gap-4 xl:grid-cols-3"}>
+        <div
+          className={
+            props.gridClassName ??
+            (compact ? "grid gap-3 xl:grid-cols-3" : "grid gap-4 xl:grid-cols-3")
+          }
+        >
           {props.tasks.map((featured) => {
             const task = featured.template;
             const launchPrefill = resolveCuratedTaskTemplateLaunchPrefill(task);
@@ -79,7 +87,10 @@ export function MemoryCuratedTaskSuggestionPanel(
                     ? `${props.panelTestId}-task-${task.id}`
                     : undefined
                 }
-                className="flex h-full flex-col rounded-3xl border border-slate-200 bg-slate-50/70 p-4"
+                className={cn(
+                  "flex h-full flex-col border border-slate-200 bg-slate-50/70",
+                  compact ? "rounded-2xl p-3.5" : "rounded-3xl p-4",
+                )}
               >
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge
@@ -98,23 +109,39 @@ export function MemoryCuratedTaskSuggestionPanel(
                   ) : null}
                 </div>
 
-                <div className="mt-3 space-y-2.5">
+                <div className={cn("space-y-2.5", compact ? "mt-2.5" : "mt-3")}>
                   <div>
                     <h3 className="text-base font-semibold text-slate-900">
                       {task.title}
                     </h3>
-                    <p className="mt-1 text-sm leading-6 text-slate-600">
+                    <p
+                      className={cn(
+                        "mt-1 text-sm text-slate-600",
+                        compact ? "line-clamp-2 leading-5" : "leading-6",
+                      )}
+                    >
                       {task.summary}
                     </p>
                   </div>
 
                   {featured.reasonSummary ? (
-                    <p className="text-[11px] leading-5 text-slate-500">
+                    <p
+                      className={cn(
+                        "text-[11px] text-slate-500",
+                        compact ? "line-clamp-2 leading-5" : "leading-5",
+                      )}
+                    >
                       {featured.reasonSummary}
                     </p>
                   ) : null}
 
-                  {recentUsageDescription ? (
+                  {compact ? (
+                    recentUsageDescription || props.referenceSummary ? (
+                      <p className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-[11px] leading-5 text-slate-500">
+                        {recentUsageDescription || props.referenceSummary}
+                      </p>
+                    ) : null
+                  ) : recentUsageDescription ? (
                     <p className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-[11px] leading-5 text-slate-500">
                       {recentUsageDescription}
                     </p>
@@ -124,29 +151,42 @@ export function MemoryCuratedTaskSuggestionPanel(
                     </p>
                   ) : null}
 
-                  <div className="space-y-1 text-[11px] leading-5 text-slate-500">
-                    <div>
-                      <span className="font-medium text-slate-700">
-                        你先给：
-                      </span>
-                      {summarizeCuratedTaskRequiredInputs(task)}
+                  {compact ? null : (
+                    <div className="space-y-1 text-[11px] leading-5 text-slate-500">
+                      <div>
+                        <span className="font-medium text-slate-700">
+                          你先给：
+                        </span>
+                        {summarizeCuratedTaskRequiredInputs(task)}
+                      </div>
+                      <div>
+                        <span className="font-medium text-slate-700">
+                          这一步先拿：
+                        </span>
+                        {summarizeCuratedTaskOutputContract(task)}
+                      </div>
                     </div>
-                    <div>
-                      <span className="font-medium text-slate-700">
-                        这一步先拿：
-                      </span>
-                      {summarizeCuratedTaskOutputContract(task)}
-                    </div>
-                  </div>
+                  )}
                 </div>
 
-                <div className="mt-auto flex items-end justify-between gap-3 pt-4">
-                  <div className="space-y-1 text-[11px] leading-5 text-slate-500">
-                    <div>{getCuratedTaskOutputDestination(task)}</div>
-                    <div>
-                      接着可做：{summarizeCuratedTaskFollowUpActions(task)}
+                <div
+                  className={cn(
+                    "mt-auto flex justify-between gap-3",
+                    compact ? "items-center pt-3" : "items-end pt-4",
+                  )}
+                >
+                  {compact ? (
+                    <div className="text-[11px] leading-5 text-slate-500">
+                      {summarizeCuratedTaskRequiredInputs(task)}
                     </div>
-                  </div>
+                  ) : (
+                    <div className="space-y-1 text-[11px] leading-5 text-slate-500">
+                      <div>{getCuratedTaskOutputDestination(task)}</div>
+                      <div>
+                        接着可做：{summarizeCuratedTaskFollowUpActions(task)}
+                      </div>
+                    </div>
+                  )}
                   <button
                     type="button"
                     className={cn(BUTTON_CLASS_NAME, EMERALD_BUTTON_CLASS_NAME)}

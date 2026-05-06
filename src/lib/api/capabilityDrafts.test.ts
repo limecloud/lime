@@ -364,7 +364,7 @@ describe("capabilityDraftsApi", () => {
           deprecated_fields: [],
         },
         launch_enabled: false,
-        runtime_gate: "进入运行前还需要 P3B runtime binding。",
+        runtime_gate: "进入运行前还需要 P3C runtime binding。",
       },
     ]);
 
@@ -397,7 +397,7 @@ describe("capabilityDraftsApi", () => {
           deprecatedFields: [],
         },
         launchEnabled: false,
-        runtimeGate: "进入运行前还需要 P3B runtime binding。",
+        runtimeGate: "进入运行前还需要 P3C runtime binding。",
       }),
     ]);
 

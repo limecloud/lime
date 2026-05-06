@@ -112,6 +112,53 @@ function uniqueItems(
   return result;
 }
 
+function sanitizeKeywordCandidate(value?: string | null): string | null {
+  const normalized = normalizeWhitespace(value).replace(
+    /^(?:fp|tag|label|title)[:：]\s*/i,
+    "",
+  );
+  if (!normalized) {
+    return null;
+  }
+
+  const lowerCase = normalized.toLowerCase();
+  if (
+    normalized.length > 24 ||
+    /[。！？]/.test(normalized) ||
+    /[/\\]/.test(normalized) ||
+    /permission denied|parameter restrictions|application support|projects\/default/.test(
+      lowerCase,
+    )
+  ) {
+    return null;
+  }
+
+  return truncate(normalized, 18);
+}
+
+function collectKeywordItems(
+  items: Array<string | null | undefined>,
+  maxItems: number,
+): string[] {
+  const result: string[] = [];
+  const seen = new Set<string>();
+
+  for (const item of items) {
+    const normalized = sanitizeKeywordCandidate(item);
+    const key = normalized?.toLowerCase();
+    if (!normalized || !key || seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    result.push(normalized);
+    if (result.length >= maxItems) {
+      break;
+    }
+  }
+
+  return result;
+}
+
 function extractAvoidKeywords(value: string): string[] {
   const result: string[] = [];
   const pattern =
@@ -146,7 +193,7 @@ export function buildInspirationProjectionEntries(
         categoryLabel: CATEGORY_LABELS[memory.category],
         projectionKind,
         projectionLabel: projectionMeta.label,
-        tags: uniqueItems(memory.tags, 6),
+        tags: collectKeywordItems(memory.tags, 4),
         updatedAt: memory.updated_at,
       };
     });
@@ -163,21 +210,21 @@ export function buildInspirationTasteSummary(
     (entry) => entry.projectionKind === "reference",
   );
 
-  const styleKeywords = uniqueItems(
+  const styleKeywords = collectKeywordItems(
     [
-      ...styleEntries.flatMap((entry) => entry.tags),
       ...styleEntries.map((entry) => entry.title),
-    ],
-    8,
-  );
-  const referenceKeywords = uniqueItems(
-    [
-      ...referenceEntries.flatMap((entry) => entry.tags),
-      ...referenceEntries.map((entry) => entry.title),
+      ...styleEntries.flatMap((entry) => entry.tags),
     ],
     6,
   );
-  const avoidKeywords = uniqueItems(
+  const referenceKeywords = collectKeywordItems(
+    [
+      ...referenceEntries.map((entry) => entry.title),
+      ...referenceEntries.flatMap((entry) => entry.tags),
+    ],
+    6,
+  );
+  const avoidKeywords = collectKeywordItems(
     styleEntries.flatMap((entry) =>
       extractAvoidKeywords(`${entry.summary}\n${entry.contentPreview}`),
     ),
@@ -186,8 +233,8 @@ export function buildInspirationTasteSummary(
 
   const summary =
     styleEntries.length > 0 || referenceEntries.length > 0
-      ? `当前已从 ${styleEntries.length} 条风格/偏好线索和 ${referenceEntries.length} 条参考素材里，整理出可复用的 taste 摘要。`
-      : "当前还没有足够的灵感条目可提炼风格层摘要。";
+      ? `已整理 ${styleEntries.length} 条风格线索和 ${referenceEntries.length} 条参考素材。`
+      : "当前还没有足够的灵感条目。";
 
   return {
     summary,

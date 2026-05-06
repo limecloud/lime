@@ -21,8 +21,8 @@ interface SceneAppsPageProps {
 const VIEW_OPTIONS = [
   {
     key: "catalog",
-    label: "全部做法",
-    summary: "先挑一套这轮最想拿结果的做法。",
+    label: "全部 Skills",
+    summary: "先挑一个这轮最想拿结果的 Skill。",
   },
   {
     key: "detail",
@@ -66,11 +66,11 @@ export function SceneAppsPage({
   const hasReferenceCarry = runtime.selectedReferenceMemoryIds.length > 0;
   const carrySummary = runtime.selectedDescriptor
     ? runtime.runListItems.length > 0
-      ? "这套做法已经接住当前上下文，这轮信息和最近结果都能直接续上。"
-      : "这套做法已经接住当前上下文，先补这轮信息，再跑出第一轮结果。"
+      ? "这个 Skill 已经接住当前上下文，这轮信息和最近结果都能直接续上。"
+      : "这个 Skill 已经接住当前上下文，先补这轮信息，再跑出第一轮结果。"
     : runtime.recentVisits.length > 0
-      ? "最近看过的做法也还在这里，选一套就能继续。"
-      : "先选一套能直接起手的做法，后面只围绕这轮信息和最近结果继续。";
+      ? "最近看过的 Skills 也还在这里，选一个就能继续。"
+      : "先选一个能直接起手的 Skill，后面只围绕这轮信息和最近结果继续。";
 
   return (
     <div className="lime-workbench-theme-scope flex-1 overflow-auto px-6 py-6">
@@ -87,11 +87,12 @@ export function SceneAppsPage({
                 <div className="relative inline-block">
                   <div className="pointer-events-none absolute inset-x-[-10%] top-1/2 h-14 -translate-y-1/2 rounded-full bg-[color:var(--lime-home-glow-primary)] blur-2xl" />
                   <h1 className="relative text-3xl font-semibold tracking-tight text-slate-900 drop-shadow-[0_1px_0_rgba(255,255,255,0.9),0_12px_26px_rgba(163,230,53,0.18)]">
-                    全部做法
+                    全部 Skills
                   </h1>
                 </div>
                 <p className="max-w-[900px] text-sm leading-7 text-slate-600 md:text-base">
-                  先挑一套能产出结果的做法，补这轮必要信息，再根据最近结果继续推进。
+                  先挑一个能产出结果的
+                  Skill，补这轮必要信息，再根据最近结果继续推进。
                 </p>
               </div>
 
@@ -119,7 +120,7 @@ export function SceneAppsPage({
                 <div className="flex flex-wrap items-center gap-2">
                   {runtime.selectedDescriptor ? (
                     <span className="rounded-full border border-white bg-white px-3 py-1 text-xs font-medium text-slate-700">
-                      这轮做法：{runtime.selectedDescriptor.title}
+                      这轮 Skill：{runtime.selectedDescriptor.title}
                     </span>
                   ) : null}
                   {hasReferenceCarry ? (
@@ -135,7 +136,7 @@ export function SceneAppsPage({
                   {!runtime.selectedDescriptor &&
                   runtime.recentVisits.length > 0 ? (
                     <span className="rounded-full border border-white bg-white px-3 py-1 text-xs font-medium text-slate-700">
-                      最近看过的做法可直接续上
+                      最近看过的 Skills 可直接续上
                     </span>
                   ) : null}
                 </div>
@@ -242,28 +243,28 @@ export function SceneAppsPage({
               eyebrow="这轮信息"
               title={
                 runtime.filteredDescriptors.length === 0
-                  ? "当前筛选后还没有可继续的整套做法"
-                  : "先从全部做法里选一套"
+                  ? "当前筛选后还没有可继续的 Skill"
+                  : "先从全部 Skills 里选一个"
               }
               description={
                 runtime.filteredDescriptors.length === 0
-                  ? "这轮信息页只承接已经选中的整套做法。当前搜索条件下没有匹配项，先回全部做法放宽筛选，再决定进入哪套做法。"
-                  : "这轮信息页会集中显示启动前确认项、结果约定、这轮带入对象和默认判断标准。先回全部做法选中一套，再继续补输入并进入生成。"
+                  ? "这轮信息页只承接已经选中的 Skill。当前搜索条件下没有匹配项，先回全部 Skills 放宽筛选，再决定进入哪个 Skill。"
+                  : "这轮信息页会集中显示启动前确认项、结果约定、这轮带入对象和默认判断标准。先回全部 Skills 选中一个，再继续补输入并进入生成。"
               }
               detail={
                 hasActiveCatalogFilters
-                  ? "可以直接清空当前搜索和筛选，重新回到全部做法。"
+                  ? "可以直接清空当前搜索和筛选，重新回到全部 Skills。"
                   : undefined
               }
               primaryAction={{
-                label: "回到全部做法",
+                label: "回到全部 Skills",
                 onClick: () => runtime.handleViewModeChange("catalog"),
                 testId: "sceneapps-empty-open-catalog",
               }}
               secondaryAction={
                 hasActiveCatalogFilters
                   ? {
-                      label: "清空筛选并返回全部做法",
+                      label: "清空筛选并返回全部 Skills",
                       onClick: runtime.handleResetCatalogFilters,
                       testId: "sceneapps-empty-reset-filters",
                     }
@@ -325,28 +326,28 @@ export function SceneAppsPage({
               eyebrow="最近结果"
               title={
                 runtime.filteredDescriptors.length === 0
-                  ? "当前筛选后还没有可查看结果的整套做法"
-                  : "先从全部做法里选一套"
+                  ? "当前筛选后还没有可查看结果的 Skill"
+                  : "先从全部 Skills 里选一个"
               }
               description={
                 runtime.filteredDescriptors.length === 0
-                  ? "最近结果页只处理已经选中的整套做法。当前搜索条件下没有匹配项，先回全部做法放宽筛选，再决定看哪套做法的结果和判断。"
-                  : "最近结果会集中展示最近一轮结果、证据材料和下一步判断。先回全部做法选一套，再继续查看结果。"
+                  ? "最近结果页只处理已经选中的 Skill。当前搜索条件下没有匹配项，先回全部 Skills 放宽筛选，再决定看哪个 Skill 的结果和判断。"
+                  : "最近结果会集中展示最近一轮结果、证据材料和下一步判断。先回全部 Skills 选一个，再继续查看结果。"
               }
               detail={
                 hasActiveCatalogFilters
-                  ? "如果是筛选过严导致没有匹配项，可以直接清空筛选后回到全部做法。"
+                  ? "如果是筛选过严导致没有匹配项，可以直接清空筛选后回到全部 Skills。"
                   : undefined
               }
               primaryAction={{
-                label: "回到全部做法",
+                label: "回到全部 Skills",
                 onClick: () => runtime.handleViewModeChange("catalog"),
                 testId: "sceneapps-governance-open-catalog",
               }}
               secondaryAction={
                 hasActiveCatalogFilters
                   ? {
-                      label: "清空筛选并返回全部做法",
+                      label: "清空筛选并返回全部 Skills",
                       onClick: runtime.handleResetCatalogFilters,
                       testId: "sceneapps-governance-reset-filters",
                     }
@@ -356,7 +357,7 @@ export function SceneAppsPage({
           ) : shouldShowGovernanceFirstRunEmpty ? (
             <SceneAppsPageEmptyState
               eyebrow="首轮结果前"
-              title="这套做法还没有首轮结果"
+              title="这个 Skill 还没有首轮结果"
               description="最近结果只有在至少完成一轮正式运行后，才会回流结果文件、证据和判断。当前更适合先去补这轮信息，跑出第一轮结果。"
               detail="首轮结果出来之后，再回到这里看结果记录、证据和下一步判断。"
               primaryAction={{
@@ -365,7 +366,7 @@ export function SceneAppsPage({
                 testId: "sceneapps-governance-open-detail",
               }}
               secondaryAction={{
-                label: "返回全部做法换一套",
+                label: "返回全部 Skills 换一个",
                 onClick: () => runtime.handleViewModeChange("catalog"),
                 testId: "sceneapps-governance-open-catalog",
               }}

@@ -51,12 +51,12 @@ export function buildSceneAppQuickReviewDecisionRequest(params: {
   sourceLabel?: string;
 }): AgentRuntimeSaveReviewDecisionRequest {
   const sceneLabel = params.sceneTitle?.trim()
-    ? `做法「${params.sceneTitle.trim()}」`
-    : "当前做法";
+    ? `Skill「${params.sceneTitle.trim()}」`
+    : "当前 Skill";
   const riskTags = params.failureSignal?.trim()
     ? [params.failureSignal.trim()]
     : [];
-  const sourceLabel = params.sourceLabel?.trim() || "整套做法";
+  const sourceLabel = params.sourceLabel?.trim() || "Skill";
 
   switch (params.action.key) {
     case "accepted":
@@ -72,7 +72,7 @@ export function buildSceneAppQuickReviewDecisionRequest(params: {
         followup_actions: ["继续复用当前结果链，补下一轮发布样本。"],
         regression_requirements:
           params.template.decision.regression_requirements,
-        notes: `来自${sourceLabel}轻量反馈入口。`,
+        notes: `来自 ${sourceLabel} 轻量反馈入口。`,
       };
     case "deferred":
       return {
@@ -84,10 +84,10 @@ export function buildSceneAppQuickReviewDecisionRequest(params: {
         risk_tags: riskTags,
         human_reviewer: params.template.decision.human_reviewer,
         reviewed_at: undefined,
-        followup_actions: ["补下一轮样本，再回到这套做法继续判断。"],
+        followup_actions: ["补下一轮样本，再回到这个 Skill 继续判断。"],
         regression_requirements:
           params.template.decision.regression_requirements,
-        notes: `来自${sourceLabel}轻量反馈入口。`,
+        notes: `来自 ${sourceLabel} 轻量反馈入口。`,
       };
     case "needs_more_evidence":
       return {
@@ -102,22 +102,22 @@ export function buildSceneAppQuickReviewDecisionRequest(params: {
         followup_actions: ["补会话证据", "补结果校验材料", "补人工复核记录"],
         regression_requirements:
           params.template.decision.regression_requirements,
-        notes: `来自${sourceLabel}轻量反馈入口。`,
+        notes: `来自 ${sourceLabel} 轻量反馈入口。`,
       };
     case "rejected":
       return {
         session_id: params.template.session_id,
         decision_status: "rejected",
         decision_summary: `${sceneLabel} 当前结果暂不建议继续复用。`,
-        chosen_fix_strategy: "先修主卡点，再重新启动这套做法。",
+        chosen_fix_strategy: "先修主卡点，再重新启动这个 Skill。",
         risk_level: "high",
         risk_tags: riskTags,
         human_reviewer: params.template.decision.human_reviewer,
         reviewed_at: undefined,
-        followup_actions: ["先修主要阻塞，再重新启动这套做法。"],
+        followup_actions: ["先修主要阻塞，再重新启动这个 Skill。"],
         regression_requirements:
           params.template.decision.regression_requirements,
-        notes: `来自${sourceLabel}轻量反馈入口。`,
+        notes: `来自 ${sourceLabel} 轻量反馈入口。`,
       };
     default:
       return {
@@ -132,7 +132,7 @@ export function buildSceneAppQuickReviewDecisionRequest(params: {
         followup_actions: [],
         regression_requirements:
           params.template.decision.regression_requirements,
-        notes: `来自${sourceLabel}轻量反馈入口。`,
+        notes: `来自 ${sourceLabel} 轻量反馈入口。`,
       };
   }
 }

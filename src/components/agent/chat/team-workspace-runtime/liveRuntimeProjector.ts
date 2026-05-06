@@ -19,6 +19,7 @@ import {
   buildRuntimeStatusPresentationText,
   isInternalRoutingRuntimeStatus,
 } from "../utils/turnSummaryPresentation";
+import { normalizeProcessDisplayText } from "../utils/processDisplayText";
 
 const LIVE_ACTIVITY_ENTRY_LIMIT = 3;
 const LIVE_ACTIVITY_DETAIL_MAX_LENGTH = 220;
@@ -162,7 +163,7 @@ function buildThinkingDraftEntry(sessionId: string, draft?: string) {
   return buildActivityEntry({
     id: `stream-thinking:${sessionId}`,
     title: "整理思路中",
-    detail: draft,
+    detail: normalizeProcessDisplayText(draft),
     statusLabel: "处理中",
     badgeClassName: IN_PROGRESS_BADGE_CLASS_NAME,
   });

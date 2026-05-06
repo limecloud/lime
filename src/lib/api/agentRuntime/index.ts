@@ -28,6 +28,7 @@ export {
 export {
   createInventoryClient,
   getAgentRuntimeToolInventory,
+  listWorkspaceSkillBindings,
 } from "./inventoryClient";
 export {
   cancelMediaTaskArtifact,

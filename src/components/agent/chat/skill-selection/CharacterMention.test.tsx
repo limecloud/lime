@@ -700,7 +700,7 @@ describe("CharacterMention", () => {
     await typeAtAndWait(textarea);
 
     expect(document.body.textContent).toContain("统一调用注册表");
-    expect(document.body.textContent).toContain("先调命令，再补做法");
+    expect(document.body.textContent).toContain("先调命令，再补 Skill");
     expect(document.body.textContent).toContain("生成 / 表达");
     expect(document.body.textContent).toContain("搜索 / 读取");
     expect(document.body.textContent).toContain("浏览器 / 编排");
@@ -794,7 +794,7 @@ describe("CharacterMention", () => {
 
     await typeAtAndWait(textarea);
 
-    expect(document.body.textContent).toContain("场景做法");
+    expect(document.body.textContent).toContain("场景 Skills");
     expect(document.body.textContent).toContain("每日趋势摘要");
     expect(document.body.textContent).toContain("GitHub 仓库雷达");
     expect(document.body.textContent).toContain("需要：当前无必填信息");
@@ -802,7 +802,7 @@ describe("CharacterMention", () => {
     expect(document.body.textContent).toContain("需要：仓库关键词");
     const bodyText = document.body.textContent ?? "";
     expect(bodyText.indexOf("搜索 / 读取")).toBeLessThan(
-      bodyText.indexOf("场景做法"),
+      bodyText.indexOf("场景 Skills"),
     );
   });
 
@@ -851,7 +851,7 @@ describe("CharacterMention", () => {
     await typeAtAndWait(textarea);
 
     expect(document.body.textContent).toContain("最近调用");
-    expect(document.body.textContent).toContain("场景做法");
+    expect(document.body.textContent).toContain("场景 Skills");
     expect(document.body.textContent).toContain(
       "上次填写：关注平台=X + TikTok；关键词=AI 内容创作",
     );
@@ -1126,12 +1126,12 @@ describe("CharacterMention", () => {
         createSkill("写作助手", "skill-writer", true, {
           description: "本地补充技能",
           metadata: {
-            lime_when_to_use: "当你需要复用本地写作方法时使用。",
+            lime_when_to_use: "当你需要复用本地写作 Skill 时使用。",
             lime_argument_hint: "主题、受众与语气要求",
           },
         }),
         createSkill("脚本助手", "skill-script", true, {
-          description: "另一条备用本地做法",
+          description: "另一条备用本地 Skill",
           metadata: {
             lime_when_to_use: "当你需要改写脚本结构时使用。",
             lime_argument_hint: "脚本目标与表达风格",
@@ -1143,13 +1143,13 @@ describe("CharacterMention", () => {
 
     await typeAtAndWait(textarea);
 
-    expect(document.body.textContent).toContain("我的方法");
+    expect(document.body.textContent).toContain("Skills");
     expect(document.body.textContent).toContain("写作助手");
     expect(document.body.textContent).toContain(
-      "当你需要复用本地写作方法时使用。",
+      "当你需要复用本地写作 Skill 时使用。",
     );
     expect(document.body.textContent).toContain("需要：主题、受众与语气要求");
-    expect(document.body.textContent).toContain("交付：带着该方法进入生成");
+    expect(document.body.textContent).toContain("交付：带着该 Skill 进入生成");
   });
 
   it("只有最近使用的服务技能时，不应同时出现空态文案", async () => {
@@ -1209,7 +1209,7 @@ describe("CharacterMention", () => {
     });
 
     expect(document.body.textContent).not.toContain("最近调用");
-    expect(document.body.textContent).not.toContain("场景做法");
+    expect(document.body.textContent).not.toContain("场景 Skills");
     expect(document.body.textContent).toContain("GitHub");
     expect(document.body.textContent).toContain("GitHub 仓库雷达");
   });
@@ -1665,7 +1665,7 @@ describe("CharacterMention", () => {
     expect(onChangeSpy).toHaveBeenCalledWith("/skill-a ");
   });
 
-  it("输入 / 时应优先显示先拿结果、已经沉淀的方法与工作台操作，而不是把全部命令摊平", async () => {
+  it("输入 / 时应优先显示先拿结果、已经沉淀的 Skills与工作台操作，而不是把全部命令摊平", async () => {
     const container = renderHarness({
       skills: [createSkill("本地做法A", "local-skill-a", true)],
     });
@@ -1685,16 +1685,16 @@ describe("CharacterMention", () => {
     expect(document.body.textContent).not.toContain(
       "压缩当前会话上下文并写入摘要",
     );
-    expect(document.body.textContent).toContain("已经沉淀的方法");
+    expect(document.body.textContent).toContain("已经沉淀的 Skills");
     expect(document.body.textContent).not.toContain("/review");
     expect(document.body.textContent).not.toContain("/help");
     expect(document.body.textContent).not.toContain("/quit");
 
     const bodyText = document.body.textContent ?? "";
     expect(bodyText.indexOf("先拿结果")).toBeLessThan(
-      bodyText.indexOf("已经沉淀的方法"),
+      bodyText.indexOf("已经沉淀的 Skills"),
     );
-    expect(bodyText.indexOf("已经沉淀的方法")).toBeLessThan(
+    expect(bodyText.indexOf("已经沉淀的 Skills")).toBeLessThan(
       bodyText.indexOf("工作台操作"),
     );
   });
@@ -2174,7 +2174,7 @@ describe("CharacterMention", () => {
     expect(document.body.textContent).toContain("/help");
   });
 
-  it("slash 空查询时应优先显示继续上次做法，且不在原分组重复", async () => {
+  it("slash 空查询时应优先显示继续上次 Skill，且不在原分组重复", async () => {
     act(() => {
       saveSkillCatalog(buildCatalogWithSceneEntry(), "bootstrap_sync");
       recordSlashEntryUsage({
@@ -2202,11 +2202,11 @@ describe("CharacterMention", () => {
 
     await typeSlashAndWait(textarea);
 
-    expect(document.body.textContent).toContain("继续上次做法");
+    expect(document.body.textContent).toContain("继续上次 Skill");
     expect(document.body.textContent).toContain("最近操作");
     expect(document.body.textContent).toContain("压缩上下文");
     expect(document.body.textContent).toContain(
-      "最近用过的工作台动作；如果是继续产出，优先看上面的做法。",
+      "最近用过的工作台动作；如果是继续产出，优先看上面的 Skill。",
     );
 
     const compactButtons = Array.from(
@@ -2236,7 +2236,7 @@ describe("CharacterMention", () => {
     expect(document.body.textContent).toContain("下一步：改成多平台版本");
   });
 
-  it("slash 面板中的已经沉淀的方法与继续上次做法应展示统一轻合同", async () => {
+  it("slash 面板中的已经沉淀的 Skills与继续上次 Skill应展示统一轻合同", async () => {
     act(() => {
       recordSlashEntryUsage({
         kind: "skill",
@@ -2250,7 +2250,7 @@ describe("CharacterMention", () => {
         createSkill("写作助手", "skill-writer", true, {
           description: "本地补充技能",
           metadata: {
-            lime_when_to_use: "当你需要复用本地写作方法时使用。",
+            lime_when_to_use: "当你需要复用本地写作 Skill 时使用。",
             lime_argument_hint: "主题、受众与语气要求",
           },
         }),
@@ -2268,30 +2268,30 @@ describe("CharacterMention", () => {
 
     await typeSlashAndWait(textarea);
 
-    expect(document.body.textContent).toContain("已经沉淀的方法");
-    expect(document.body.textContent).toContain("继续上次做法");
+    expect(document.body.textContent).toContain("已经沉淀的 Skills");
+    expect(document.body.textContent).toContain("继续上次 Skill");
     expect(document.body.textContent).toContain(
       "优先接着已经跑过的方法，通常比重新挑一条更省重来成本。",
     );
     expect(document.body.textContent).not.toContain("/skill-writer");
     expect(document.body.textContent).toContain(
-      "写作助手 · 当你需要复用本地写作方法时使用。",
+      "写作助手 · 当你需要复用本地写作 Skill 时使用。",
     );
     expect(document.body.textContent).toContain(
       "没命中上面的继续项时，再从这里换一条已经沉淀下来的方法。",
     );
     expect(document.body.textContent).toContain("脚本助手");
     expect(document.body.textContent).toContain("需要：主题、受众与语气要求");
-    expect(document.body.textContent).toContain("交付：带着该方法进入生成");
+    expect(document.body.textContent).toContain("交付：带着该 Skill 进入生成");
   });
 
-  it("slash 面板打开后新增本地 skill 使用记录时，应即时刷新继续上次做法分组", async () => {
+  it("slash 面板打开后新增本地 skill 使用记录时，应即时刷新继续上次 Skill分组", async () => {
     const container = renderHarness({
       skills: [
         createSkill("写作助手", "skill-writer", true, {
           description: "本地补充技能",
           metadata: {
-            lime_when_to_use: "当你需要复用本地写作方法时使用。",
+            lime_when_to_use: "当你需要复用本地写作 Skill 时使用。",
             lime_argument_hint: "主题、受众与语气要求",
           },
         }),
@@ -2301,7 +2301,7 @@ describe("CharacterMention", () => {
 
     await typeSlashAndWait(textarea);
 
-    expect(document.body.textContent).not.toContain("继续上次做法");
+    expect(document.body.textContent).not.toContain("继续上次 Skill");
 
     await act(async () => {
       recordSlashEntryUsage({
@@ -2312,7 +2312,7 @@ describe("CharacterMention", () => {
       await Promise.resolve();
     });
 
-    expect(document.body.textContent).toContain("继续上次做法");
+    expect(document.body.textContent).toContain("继续上次 Skill");
     expect(document.body.textContent).not.toContain("/skill-writer");
     expect(document.body.textContent).toContain("写作助手");
   });

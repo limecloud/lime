@@ -1350,12 +1350,12 @@ function buildSceneAppDeliveryNarrative(
 
   switch (descriptor.deliveryContract) {
     case "project_pack":
-      return `这套做法会把结果收口成一份可继续编辑的项目资料包，${partsSummary}。`;
+      return `这个 Skill 会把结果收口成一份可继续编辑的项目资料包，${partsSummary}。`;
     case "table_report":
-      return `这套做法会把结果稳定回流成结构化表格或摘要报告，${partsSummary}。`;
+      return `这个 Skill 会把结果稳定回流成结构化表格或摘要报告，${partsSummary}。`;
     case "artifact_bundle":
     default:
-      return `这套做法会把结果整理成统一结果包，${partsSummary}。`;
+      return `这个 Skill 会把结果整理成统一结果包，${partsSummary}。`;
   }
 }
 
@@ -1618,7 +1618,7 @@ export function buildSceneAppWorkbenchStatItems(
       key: "type-count",
       label: "运行形态",
       value: uniqueTypes,
-      description: "本地即时、浏览器、持续运行与多能力做法都在同一目录里。",
+      description: "本地即时、浏览器、持续运行与多能力 Skills 都在同一目录里。",
     },
     {
       key: "infra-count",
@@ -1809,7 +1809,7 @@ export function buildSceneAppDetailViewModel(params: {
     ),
     launchInputPlaceholder: copy.fallbackPrompt,
     launchSeedLabel:
-      launchSeed?.sourceLabel ?? "当前这套做法还需要更明确的启动信息",
+      launchSeed?.sourceLabel ?? "当前这个 Skill还需要更明确的启动信息",
     launchSeedPreview:
       launchSeed?.sourcePreview ?? "例如补一个 URL，或明确要追踪的主题与目标。",
     launchActionLabel: entryCard?.actionLabel ?? copy.actionLabel,
@@ -2339,7 +2339,7 @@ function buildSceneAppGovernanceDestinations(params: {
       key: "automation-job",
       label: "持续流程",
       description:
-        "这套做法已接到持续任务，可回到持续流程查看历史、频率和交付状态。",
+        "这个 Skill已接到持续任务，可回到持续流程查看历史、频率和交付状态。",
     });
   }
 
@@ -2375,7 +2375,7 @@ function buildSceneAppGovernanceStatusItems(params: {
         label: "结果记录",
         value: "待首轮样本",
         description:
-          "先跑出一轮结果，后续才能判断这套做法是否适合被生成页和看板继续消费。",
+          "先跑出一轮结果，后续才能判断这个 Skill是否适合被生成页和看板继续消费。",
         tone: "idle",
       },
       {
@@ -2391,7 +2391,7 @@ function buildSceneAppGovernanceStatusItems(params: {
         label: "结果校验",
         value: "待首轮样本",
         description:
-          "先让这套做法产出第一份结果，再判断交付件是否可直接进入后续发布。",
+          "先让这个 Skill产出第一份结果，再判断交付件是否可直接进入后续发布。",
         tone: "idle",
       },
     ];
@@ -2553,7 +2553,7 @@ export function buildSceneAppOperatingSummaryViewModel(params: {
       status: "idle",
       statusLabel: "等待首轮运行",
       summary:
-        "这套做法还没有首轮结果样本，当前适合先跑出一份正式结果和复核材料。",
+        "这个 Skill还没有首轮结果样本，当前适合先跑出一份正式结果和复核材料。",
       nextAction:
         "先试跑一轮，让结果、证据摘要和复核结论都落下来，再决定是否回到生成继续放大。",
       scorecardActionLabel,
@@ -2586,32 +2586,32 @@ export function buildSceneAppOperatingSummaryViewModel(params: {
   let status: SceneAppOperatingSummaryViewModel["status"] = "good";
   let statusLabel = "结果已可复用";
   let summary =
-    "这套做法最近一轮已经带齐结果、证据和结果记录，可以继续进入生成或后续跟进。";
+    "这个 Skill最近一轮已经带齐结果、证据和结果记录，可以继续进入生成或后续跟进。";
   let nextAction =
     scorecardActionLabel != null
       ? `${scorecardActionLabel}，并把这次结果材料继续沉淀为后续结果跟进与统计的基线。`
-      : "继续把这次结果材料沉淀为后续结果跟进、统计和做法筛选的基线。";
+      : "继续把这次结果材料沉淀为后续结果跟进、统计和Skill 筛选的基线。";
 
   if (scorecard?.recommendedAction === "retire") {
     status = "risk";
     statusLabel = "建议限制投入";
     summary =
-      "这套做法当前的经营信号更像是该限制投入，而不是继续扩大曝光或新增长尾入口。";
+      "这个 Skill当前的经营信号更像是该限制投入，而不是继续扩大曝光或新增长尾入口。";
     nextAction =
       "先补结果记录，把失败信号和复核结论带回结果判断，再决定是重做、降级还是退出主推目录。";
   } else if (hasBlockingIssues) {
     status = "risk";
     statusLabel = "先补复核与修复";
     summary = topFailureSignalLabel
-      ? `这套做法最近一轮还没形成可直接放大的结果闭环，当前主要卡在${topFailureSignalLabel}。`
-      : "这套做法最近一轮还没形成可直接放大的结果闭环，当前仍有复核或结果质量问题需要先处理。";
+      ? `这个 Skill最近一轮还没形成可直接放大的结果闭环，当前主要卡在${topFailureSignalLabel}。`
+      : "这个 Skill最近一轮还没形成可直接放大的结果闭环，当前仍有复核或结果质量问题需要先处理。";
     nextAction =
-      "优先补结果材料，补齐复核结论、结果校验问题或验证失败项，再决定是否继续放大这套做法。";
+      "优先补结果材料，补齐复核结论、结果校验问题或验证失败项，再决定是否继续放大这个 Skill。";
   } else if (governanceMaterialIncomplete) {
     status = "watch";
     statusLabel = "先补结果材料";
     summary =
-      "这套做法已有可继续判断的运行结果，但生成和后续跟进要用的结果材料还没完全齐，暂时不适合直接放大。";
+      "这个 Skill已有可继续判断的运行结果，但生成和后续跟进要用的结果材料还没完全齐，暂时不适合直接放大。";
     nextAction =
       "先补结果记录，把证据摘要、复核记录和结构化 JSON 一次补齐，再继续进入生成或统计面。";
   }
@@ -2655,7 +2655,7 @@ function buildSceneAppFallbackOperatingSummaryViewModel(params: {
     return {
       status: "risk",
       statusLabel: "建议限制投入",
-      summary: "当前经营信号更偏向限制投入，先不要继续扩大这套做法的曝光。",
+      summary: "当前经营信号更偏向限制投入，先不要继续扩大这个 Skill的曝光。",
       nextAction:
         "先把失败信号和复核结论沉淀成结构化材料，再决定是重做、降级还是退出主推。",
       scorecardActionLabel,

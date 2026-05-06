@@ -204,7 +204,7 @@ function resolveSceneAppNotes(result: SceneAppPlanResult): string[] {
     ...(result.projectPackPlan?.notes ?? []).map(normalizeSceneAppNote),
     ...result.plan.warnings.map(normalizeSceneAppNote),
     ...result.plan.adapterPlan.notes.map(normalizeSceneAppNote),
-    result.readiness.ready ? undefined : "当前做法仍有未满足的启动前置条件。",
+    result.readiness.ready ? undefined : "当前 Skill仍有未满足的启动前置条件。",
   ]);
 }
 
@@ -387,8 +387,8 @@ function buildWorkspacePrompt(result: SceneAppPlanResult): string {
 
   if (runtimeAction === "launch_browser_assist") {
     return summary
-      ? `请执行做法「${result.descriptor.title}」。${summary}。`
-      : `请执行做法「${result.descriptor.title}」，并复用当前浏览器上下文完成任务。`;
+      ? `请执行 Skill「${result.descriptor.title}」。${summary}。`
+      : `请执行 Skill「${result.descriptor.title}」，并复用当前浏览器上下文完成任务。`;
   }
 
   if (runtimeAction === "open_service_scene_session") {
@@ -397,8 +397,8 @@ function buildWorkspacePrompt(result: SceneAppPlanResult): string {
     }
 
     return summary
-      ? `请执行做法「${result.descriptor.title}」。${summary}。`
-      : `请执行做法「${result.descriptor.title}」，并按当前启动上下文继续在 Agent 工作区推进。`;
+      ? `请执行 Skill「${result.descriptor.title}」。${summary}。`
+      : `请执行 Skill「${result.descriptor.title}」，并按当前启动上下文继续在 Agent 工作区推进。`;
   }
 
   if (runtimeAction === "launch_native_skill") {
@@ -407,14 +407,14 @@ function buildWorkspacePrompt(result: SceneAppPlanResult): string {
     }
 
     return summary
-      ? `请执行做法「${result.descriptor.title}」。${summary}。`
-      : `请执行做法「${result.descriptor.title}」，并把结果回写到当前工作区。`;
+      ? `请执行 Skill「${result.descriptor.title}」。${summary}。`
+      : `请执行 Skill「${result.descriptor.title}」，并把结果回写到当前工作区。`;
   }
 
   return directInput
     ? directInput
     : (summary ??
-        `请继续执行做法「${result.descriptor.title}」，并遵循当前启动上下文。`);
+        `请继续执行 Skill「${result.descriptor.title}」，并遵循当前启动上下文。`);
 }
 
 function buildAutomationPrompt(result: SceneAppPlanResult): string {

@@ -188,15 +188,19 @@ export function buildAgentStreamCompletedAssistantMessagePatch(params: {
   parts: Message["contentParts"];
   rawContent: string;
   surfaceThinkingDeltas: boolean;
+  thinkingContent?: string;
   usage?: Message["usage"];
-}): Pick<
-  Message,
-  "content" | "contentParts" | "isThinking" | "runtimeStatus"
-> &
+}): Pick<Message, "content" | "contentParts" | "isThinking" | "runtimeStatus"> &
+  Partial<Pick<Message, "thinkingContent">> &
   Partial<Pick<Message, "usage">> {
+  const retainedThinkingContent = params.surfaceThinkingDeltas
+    ? params.thinkingContent?.trim() || undefined
+    : undefined;
+
   return {
     isThinking: false,
     content: params.finalContent,
+    thinkingContent: retainedThinkingContent,
     contentParts: reconcileAgentStreamFinalContentParts({
       parts: params.parts,
       finalContent: params.finalContent,

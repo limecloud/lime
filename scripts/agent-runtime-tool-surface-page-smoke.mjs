@@ -15,6 +15,7 @@ const INVOKE_RETRY_COUNT = 10;
 const INVOKE_RETRY_DELAY_MS = 1_000;
 const BROWSER_ACTION_RETRY_COUNT = 6;
 const BROWSER_ACTION_RETRY_DELAY_MS = 1_000;
+const BROWSER_SESSION_RECOVERY_LIMIT = 2;
 const POST_HEALTH_SETTLE_MS = 1_500;
 const POST_LAUNCH_SETTLE_MS = 1_500;
 const DEFAULT_ACTION_TIMEOUT_MS = 45_000;
@@ -551,11 +552,40 @@ function isRetryableBrowserActionFailure(detail) {
   return (
     typeof detail === "string" &&
     (detail.includes("CDP 调试端口不可用") ||
-      detail.includes("没有可用的 Chrome 会话"))
+      detail.includes("没有可用的 Chrome 会话") ||
+      detail.includes("未找到 profile_key="))
   );
 }
 
-async function runBrowserAction(options, profileKey, action, args = {}, label = action) {
+async function launchSmokeBrowserSession(options, profileKey) {
+  const launchResponse = await invoke(options, "launch_browser_session", {
+    request: {
+      profile_key: profileKey,
+      url: options.appUrl,
+      headless: true,
+      open_window: false,
+      // 真实 Lime 页面在 cdp_direct + frames/both 下会持续产出 frame 流，
+      // 这里会把后续 Runtime.evaluate 挤到超时；页面 smoke 只需要事件流即可。
+      stream_mode: "events",
+    },
+  });
+  const sessionId = launchResponse?.session?.session_id ?? null;
+  assert(
+    typeof sessionId === "string" && sessionId.trim(),
+    "launch_browser_session 未返回 session.session_id",
+  );
+  await sleep(POST_LAUNCH_SETTLE_MS);
+  return sessionId;
+}
+
+async function runBrowserAction(
+  options,
+  profileKey,
+  action,
+  args = {},
+  label = action,
+  recovery,
+) {
   for (let attempt = 1; attempt <= BROWSER_ACTION_RETRY_COUNT; attempt += 1) {
     const result = await invoke(options, "browser_execute_action", {
       request: {
@@ -576,6 +606,17 @@ async function runBrowserAction(options, profileKey, action, args = {}, label = 
       isRetryableBrowserActionFailure(detail) &&
       attempt < BROWSER_ACTION_RETRY_COUNT
     ) {
+      if (recovery && recovery.count < BROWSER_SESSION_RECOVERY_LIMIT) {
+        recovery.count += 1;
+        console.warn(
+          `[smoke:agent-runtime-tool-surface-page] browser_execute_action(${label}) 丢失托管 Chrome 会话，尝试第 ${recovery.count} 次重启: ${detail}`,
+        );
+        recovery.sessionId = await launchSmokeBrowserSession(
+          options,
+          profileKey,
+        );
+        continue;
+      }
       console.warn(
         `[smoke:agent-runtime-tool-surface-page] browser_execute_action(${label}) 第 ${attempt} 次失败，${BROWSER_ACTION_RETRY_DELAY_MS}ms 后重试: ${detail}`,
       );
@@ -593,7 +634,13 @@ async function runBrowserAction(options, profileKey, action, args = {}, label = 
   );
 }
 
-async function runJavascript(options, profileKey, expression, label = "javascript") {
+async function runJavascript(
+  options,
+  profileKey,
+  expression,
+  label = "javascript",
+  recovery,
+) {
   const result = await runBrowserAction(
     options,
     profileKey,
@@ -603,12 +650,20 @@ async function runJavascript(options, profileKey, expression, label = "javascrip
       return_by_value: true,
     },
     `javascript:${label}`,
+    recovery,
   );
   return extractJavascriptValue(result);
 }
 
-async function readPageMarkdown(options, profileKey) {
-  const result = await runBrowserAction(options, profileKey, "read_page");
+async function readPageMarkdown(options, profileKey, recovery) {
+  const result = await runBrowserAction(
+    options,
+    profileKey,
+    "read_page",
+    {},
+    "read_page",
+    recovery,
+  );
   return String(result?.data?.markdown || "");
 }
 
@@ -641,7 +696,10 @@ async function main() {
   await waitForHealth(options);
   await sleep(POST_HEALTH_SETTLE_MS);
   const profileKey = SMOKE_PROFILE_KEY;
-  let sessionId = null;
+  const browserRecovery = {
+    count: 0,
+    sessionId: null,
+  };
 
   try {
     logStage("cleanup-old-profile");
@@ -652,24 +710,10 @@ async function main() {
     );
 
     logStage("launch-browser-session");
-    const launchResponse = await invoke(options, "launch_browser_session", {
-      request: {
-        profile_key: profileKey,
-        url: options.appUrl,
-        headless: true,
-        open_window: false,
-        // 真实 Lime 页面在 cdp_direct + frames/both 下会持续产出 frame 流，
-        // 这里会把后续 Runtime.evaluate 挤到超时；页面 smoke 只需要事件流即可。
-        stream_mode: "events",
-      },
-    });
-
-    sessionId = launchResponse?.session?.session_id ?? null;
-    assert(
-      typeof sessionId === "string" && sessionId.trim(),
-      "launch_browser_session 未返回 session.session_id",
+    browserRecovery.sessionId = await launchSmokeBrowserSession(
+      options,
+      profileKey,
     );
-    await sleep(POST_LAUNCH_SETTLE_MS);
 
     logStage("wait-page-storage-ready");
     await waitForCheck(options, "Lime 首页 origin 可访问", async () => {
@@ -678,6 +722,7 @@ async function main() {
         profileKey,
         buildPageStorageReadyScript(options.appUrl),
         "wait-page-storage-ready",
+        browserRecovery,
       );
       return {
         ok: value?.ok === true,
@@ -691,9 +736,17 @@ async function main() {
       profileKey,
       buildHarnessBootstrapScript(),
       "bootstrap-harness-storage",
+      browserRecovery,
     );
     logStage("refresh-page");
-    await runBrowserAction(options, profileKey, "refresh_page");
+    await runBrowserAction(
+      options,
+      profileKey,
+      "refresh_page",
+      {},
+      "refresh_page",
+      browserRecovery,
+    );
 
     logStage("wait-empty-state");
     await waitForCheck(options, "首页空态加载", async () => {
@@ -702,6 +755,7 @@ async function main() {
         profileKey,
         'document.body ? document.body.innerText : ""',
         "wait-empty-state-text",
+        browserRecovery,
       );
       return {
         ok:
@@ -715,11 +769,12 @@ async function main() {
     logStage("fill-prompt");
     await waitForCheck(options, "首页输入框出现", async () => {
       const value = await runJavascript(
-        options,
-        profileKey,
-        buildComposerReadyScript(),
-        "wait-composer-ready",
-      );
+          options,
+          profileKey,
+          buildComposerReadyScript(),
+          "wait-composer-ready",
+          browserRecovery,
+        );
       return {
         ok: value?.ok === true,
         value,
@@ -735,6 +790,7 @@ async function main() {
           profileKey,
           buildFillPromptScript(PROMPT_TEXT),
           "fill-prompt",
+          browserRecovery,
         );
         return {
           ok: value?.ok === true,
@@ -754,6 +810,7 @@ async function main() {
         profileKey,
         buildSendReadyScript(),
         "wait-send-ready",
+        browserRecovery,
       );
       return {
         ok: value?.ok === true,
@@ -771,6 +828,7 @@ async function main() {
       profileKey,
       buildClickSendScript(),
       "click-send",
+      browserRecovery,
     );
     assert(
       submitted?.ok === true,
@@ -784,6 +842,7 @@ async function main() {
         profileKey,
         buildWorkbenchButtonCheckScript(),
         "wait-harness-button",
+        browserRecovery,
       );
       return {
         ok: value?.hasButton === true,
@@ -797,6 +856,7 @@ async function main() {
       profileKey,
       buildOpenWorkbenchScript(),
       "open-harness",
+      browserRecovery,
     );
     assert(
       openWorkbench?.ok === true,
@@ -813,6 +873,7 @@ async function main() {
           profileKey,
           buildRuntimeSummaryCheckScript(),
           "check-runtime-summary",
+          browserRecovery,
         );
         const hasAllRequired = REQUIRED_RUNTIME_SUMMARY_FLAGS.every(
           (key) => value?.[key] === true,
@@ -827,7 +888,11 @@ async function main() {
     );
 
     logStage("read-page-markdown");
-    const pageMarkdown = await readPageMarkdown(options, profileKey);
+    const pageMarkdown = await readPageMarkdown(
+      options,
+      profileKey,
+      browserRecovery,
+    );
     for (const warning of FORBIDDEN_PAGE_WARNINGS) {
       assert(
         !pageMarkdown.includes(warning),
@@ -836,18 +901,18 @@ async function main() {
     }
 
     console.log(
-      `[smoke:agent-runtime-tool-surface-page] 通过 session=${sessionId} profile=${profileKey}`,
+      `[smoke:agent-runtime-tool-surface-page] 通过 session=${browserRecovery.sessionId} profile=${profileKey}`,
     );
     console.log(
       `[smoke:agent-runtime-tool-surface-page] summary=${JSON.stringify(summaryFlags)}`,
     );
   } finally {
-    if (sessionId) {
+    if (browserRecovery.sessionId) {
       logStage("close-cdp-session");
       try {
         await invoke(options, "close_cdp_session", {
           request: {
-            session_id: sessionId,
+            session_id: browserRecovery.sessionId,
           },
         });
       } catch (error) {

@@ -23,7 +23,7 @@ export function EmptyStateSceneAppsPanel({
     <>
       {loading && items.length === 0 ? (
         <span className="text-[11px] leading-5 text-slate-400">
-          正在整理可直接续上的整套做法…
+          正在整理可直接续上的 Skills…
         </span>
       ) : hasLaunchableEntries ? (
         <div data-testid="sceneapps-home-directory" className="contents">
@@ -54,7 +54,7 @@ export function EmptyStateSceneAppsPanel({
         </div>
       ) : (
         <span className="text-[11px] leading-5 text-slate-400">
-          最近跑过的整套做法可以直接续上，不必重新装配。
+          最近跑过的 Skills 可以直接续上，不必重新装配。
         </span>
       )}
     </>

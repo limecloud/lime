@@ -1266,7 +1266,7 @@ fn build_workspace_registered_skill_record(
         standard_compliance: inspection.standard_compliance,
         registration,
         launch_enabled: false,
-        runtime_gate: "已注册为 Workspace 本地 Skill 包；进入运行前还需要 P3B runtime binding 与 tool_runtime 授权。"
+        runtime_gate: "已注册为 Workspace 本地 Skill 包；进入运行前还需要 P3C runtime binding 与 tool_runtime 授权。"
             .to_string(),
     })
 }

@@ -26,50 +26,19 @@ const KnowledgePackControlWrap = styled.div`
   position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
 
   ${MetaToggleLabel} {
-    max-width: 190px;
+    max-width: 168px;
     overflow: hidden;
     text-overflow: ellipsis;
   }
 `;
 
-const KnowledgePackMenuButton = styled.button`
-  display: inline-flex;
-  width: 32px;
-  height: 32px;
-  align-items: center;
-  justify-content: center;
-  border-radius: 12px;
-  border: 1px solid rgba(148, 163, 184, 0.24);
-  background: #ffffff;
-  color: hsl(var(--muted-foreground));
-  cursor: pointer;
-  transition:
-    border-color 0.18s ease,
-    background 0.18s ease,
-    color 0.18s ease,
-    transform 0.18s ease;
-
-  &:hover,
-  &:focus-visible {
-    border-color: rgba(16, 185, 129, 0.38);
-    background: var(--lime-surface-hover, #f4fdf4);
-    color: hsl(var(--foreground));
-  }
-
-  &:focus-visible {
-    outline: none;
-    box-shadow: 0 0 0 3px var(--lime-focus-ring, rgba(74, 222, 128, 0.24));
-  }
-`;
-
 const KnowledgePackMenu = styled.div`
   width: 100%;
-  max-height: 172px;
+  max-height: 168px;
   overflow: auto;
-  margin-top: 10px;
+  margin-top: 12px;
   padding: 6px;
   border-radius: 14px;
   border: 1px solid rgba(203, 213, 225, 0.9);
@@ -145,12 +114,12 @@ const KnowledgeHubCard = styled.div`
   left: 0;
   bottom: calc(100% + 8px);
   z-index: 120;
-  width: min(360px, calc(100vw - 48px));
-  padding: 12px;
-  border-radius: 16px;
-  border: 1px solid rgba(187, 247, 208, 0.95);
+  width: min(400px, calc(100vw - 48px));
+  padding: 14px;
+  border-radius: 18px;
+  border: 1px solid rgba(187, 247, 208, 0.9);
   background: #ffffff;
-  box-shadow: 0 18px 40px -28px rgba(15, 23, 42, 0.34);
+  box-shadow: 0 20px 42px -30px rgba(15, 23, 42, 0.38);
 `;
 
 const KnowledgeHubTitle = styled.div`
@@ -163,10 +132,10 @@ const KnowledgeHubTitle = styled.div`
 `;
 
 const KnowledgeHubDescription = styled.p`
-  margin: 8px 0 0;
+  margin: 7px 0 0;
   color: #475569;
   font-size: 12px;
-  line-height: 1.55;
+  line-height: 1.5;
 `;
 
 const KnowledgeHubActions = styled.div`
@@ -174,7 +143,7 @@ const KnowledgeHubActions = styled.div`
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 8px;
-  margin-top: 12px;
+  margin-top: 14px;
 `;
 
 const KnowledgeHubAction = styled.button<{ $primary?: boolean }>`
@@ -235,7 +204,6 @@ export function InputbarKnowledgeControl({
       ),
     [normalizedOptions],
   );
-  const hasKnowledgePackChoices = readyOptions.length > 1;
   const hiddenPendingCount = normalizedOptions.length - readyOptions.length;
   const currentKnowledgePackLabel =
     knowledgePackSelection?.label ||
@@ -265,12 +233,13 @@ export function InputbarKnowledgeControl({
   const secondaryOrganizeLabel = inputText.trim()
     ? "整理当前输入"
     : "添加新资料";
-  const shouldShowMenuButton = Boolean(
-    shouldShowKnowledgePackToggle ||
-      hasKnowledgePackChoices ||
-      readyOptions.length > 0 ||
-      hiddenPendingCount > 0,
-  );
+  const knowledgeToggleLabel = effectiveKnowledgeEnabled
+    ? `资料：${currentKnowledgePackLabel}`
+    : shouldShowKnowledgePackToggle
+      ? isReadyKnowledgePackStatus(knowledgePackSelection?.status)
+        ? "资料可用"
+        : "资料待确认"
+      : "添加资料";
 
   useEffect(() => {
     if (!openKnowledgeHubRequestKey) {
@@ -326,7 +295,7 @@ export function InputbarKnowledgeControl({
           effectiveKnowledgeEnabled
             ? `正在使用项目资料：${currentKnowledgePackLabel}`
             : shouldShowKnowledgePackToggle
-              ? `项目资料当前未使用：${currentKnowledgePackLabel}。点击查看、添加或使用。`
+              ? `已有可用项目资料：${currentKnowledgePackLabel}。点击选择、添加或使用。`
               : "查看、添加或使用项目资料"
         }
         data-testid={
@@ -343,26 +312,9 @@ export function InputbarKnowledgeControl({
         <MetaToggleGlyph aria-hidden>
           <BookOpen strokeWidth={1.8} />
         </MetaToggleGlyph>
-        <MetaToggleLabel>
-          {effectiveKnowledgeEnabled
-            ? `正在使用：${currentKnowledgePackLabel}`
-            : shouldShowKnowledgePackToggle
-              ? "项目资料：未使用"
-              : "项目资料"}
-        </MetaToggleLabel>
-        </MetaToggleButton>
-      {shouldShowMenuButton ? (
-        <KnowledgePackMenuButton
-          type="button"
-          aria-label="打开项目资料选项"
-          aria-expanded={showKnowledgeHub}
-          title="打开项目资料选项"
-          data-testid="inputbar-knowledge-pack-menu-toggle"
-          onClick={() => setShowKnowledgeHub((previous) => !previous)}
-        >
-          <ChevronDown className="h-3.5 w-3.5" aria-hidden />
-        </KnowledgePackMenuButton>
-      ) : null}
+        <MetaToggleLabel>{knowledgeToggleLabel}</MetaToggleLabel>
+        <ChevronDown className="h-3.5 w-3.5 shrink-0" aria-hidden />
+      </MetaToggleButton>
       {showKnowledgeHub ? (
         <KnowledgeHubCard data-testid="inputbar-knowledge-hub">
           <KnowledgeHubTitle>

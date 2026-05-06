@@ -1,7 +1,7 @@
-# CreoAI 的工具编码编排
+# CREAO 的工具编码编排
 
 > 状态：current research reference  
-> 更新时间：2026-05-05  
+> 更新时间：2026-05-06
 > 目标：拆清楚“Coding Agent 将 CLI / API / tools 编码编排”这件事，明确它对 Lime skills pipeline 的真正启发。
 
 ## 1. 先修正一个误区
@@ -12,7 +12,7 @@
 
 更准确的理解是：
 
-**Agent 会把外部 API、CLI、网页流程和已有 tools 编码成新的业务专用能力，然后再编排这些能力长期运行。**
+**Agent 会把外部 API、CLI、网页流程和已有 tools 编码成新的业务专用能力，然后再编排这些能力进入可持久、可调度、可 rerun 的运行闭环。**
 
 这不是工具调用能力的线性增强，而是角色变化：
 
@@ -83,7 +83,7 @@ Tool Maker Agent
 
 ## 3. 能力生成链路
 
-CreoAI 式工具编码编排可以抽象成下面这条链：
+CREAO 式工具编码编排可以抽象成下面这条链：
 
 ```text
 Capability Source
@@ -186,7 +186,27 @@ agent 生成的小型连接层，例如：
 
 **自动化越强，evidence 越不能是可选项。**
 
-## 4. 这和 MCP 的区别
+
+## 4. Skill 与 Agent 的边界
+
+访谈里 Peter 对 Skill 的定义更接近 Agent 的 runbook：Skill 让 Agent 知道如何执行，但 Agent 还需要 Memory、Widget、Schedule 等产品和运行层能力。
+
+因此 Tool-maker 链路只能产出 Agent 的一部分：
+
+```text
+Tool-maker Agent
+  -> 生成 Skill / Adapter / Contract / Test
+  -> 注册为 workspace-local capability
+  -> 再被 Agent envelope 绑定 memory / widget / schedule / permission / evidence
+```
+
+对 Lime 的固定边界：
+
+1. `Skill Forge` 负责生成与验证 runbook / adapter。
+2. `Agent envelope` 负责把成功任务变成可 rerun、可展示、可调度的工作单元。
+3. 两者都不能绕过 Query Loop、tool_runtime、automation job 和 evidence。
+
+## 5. 这和 MCP 的区别
 
 MCP 解决的是：
 
@@ -207,9 +227,9 @@ Tool-maker agent 解决的是：
 
 **MCP 是工具协议，Tool-maker 是工具生产系统。**
 
-## 5. 对 Lime skills pipeline 的启发
+## 6. 对 Lime skills pipeline 的启发
 
-CreoAI 的关键启发不是替代 skills pipeline，而是给它补上游：
+CREAO 的关键启发不是替代 skills pipeline，而是给它补上游：
 
 ```text
 用户目标
@@ -237,7 +257,7 @@ CreoAI 的关键启发不是替代 skills pipeline，而是给它补上游：
 3. 两者都必须回到 Query Loop、tool_runtime、automation job 和 evidence pack。
 4. 不允许把 goal loop 写成 generated capability 的执行 runtime，也不允许把 Skill Forge 写成目标状态机。
 
-## 6. 对 Lime 的禁止项
+## 7. 对 Lime 的禁止项
 
 以下做法会和现有路线冲突：
 
@@ -248,8 +268,9 @@ CreoAI 的关键启发不是替代 skills pipeline，而是给它补上游：
 5. 把 adapter 提升成前台产品入口，绕过 ServiceSkill。
 6. 把来源 API / CLI 的原始协议直接当作 Lime 标准。
 7. 把 persistent goal / Managed Objective 当成 generated tool registry 的替代品。
+8. 把 verified skill 直接宣称为完整 Agent，而不补 memory、widget、schedule、permission 和 evidence。
 
-## 7. 推荐产品命名
+## 8. 推荐产品命名
 
 研究层建议把这类能力暂称为：
 

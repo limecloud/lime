@@ -4,6 +4,20 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useWorkspaceConversationSceneRuntime } from "./useWorkspaceConversationSceneRuntime";
 
+vi.mock("react-syntax-highlighter", () => ({
+  Prism: ({ children }: { children?: unknown }) =>
+    React.createElement(
+      "pre",
+      { "data-testid": "syntax-highlighter-mock" },
+      String(children ?? ""),
+    ),
+}));
+
+vi.mock("react-syntax-highlighter/dist/esm/styles/prism", () => ({
+  oneLight: {},
+  oneDark: {},
+}));
+
 type HookProps = Parameters<typeof useWorkspaceConversationSceneRuntime>[0];
 
 const mountedRoots: Array<{ root: Root; container: HTMLDivElement }> = [];

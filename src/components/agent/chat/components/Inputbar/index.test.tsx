@@ -2465,7 +2465,7 @@ describe("Inputbar", () => {
       await Promise.resolve();
     });
 
-    expect(container.textContent).toContain("当前模型");
+    expect(container.textContent).toContain("模型");
     expect(container.textContent).toContain("gpt-5.4-mini");
     expect(container.textContent).not.toContain("最近执行模型");
     expect(
@@ -2680,8 +2680,8 @@ describe("Inputbar", () => {
       '[data-testid="inputbar-knowledge-pack-toggle"]',
     ) as HTMLButtonElement | null;
     expect(toggle).toBeTruthy();
-    expect(toggle?.textContent).toContain("项目资料：未使用");
-    expect(toggle?.getAttribute("title")).toContain("项目资料当前未使用");
+    expect(toggle?.textContent).toContain("资料可用");
+    expect(toggle?.getAttribute("title")).toContain("已有可用项目资料");
     expect(container.textContent).not.toContain("知识包");
   });
 
@@ -2704,7 +2704,7 @@ describe("Inputbar", () => {
     const toggle = container.querySelector(
       '[data-testid="inputbar-knowledge-pack-toggle"]',
     ) as HTMLButtonElement | null;
-    expect(toggle?.textContent).toContain("项目资料：未使用");
+    expect(toggle?.textContent).toContain("资料待确认");
     expect(toggle?.textContent).not.toContain("正在使用");
 
     act(() => {
@@ -2714,7 +2714,7 @@ describe("Inputbar", () => {
     const hub = container.querySelector(
       '[data-testid="inputbar-knowledge-hub"]',
     );
-    expect(hub?.textContent).toContain("待确认资料 待确认");
+    expect(hub?.textContent).toContain("资料待确认");
     expect(hub?.textContent).toContain("去确认资料");
     expect(hub?.textContent).not.toContain("管理资料");
     expect(hub?.textContent).not.toContain("关闭资料");
@@ -2734,7 +2734,7 @@ describe("Inputbar", () => {
       '[data-testid="inputbar-knowledge-organize"]',
     ) as HTMLButtonElement | null;
     expect(organizeButton).toBeTruthy();
-    expect(organizeButton?.textContent).toContain("项目资料");
+    expect(organizeButton?.textContent).toContain("添加资料");
 
     act(() => {
       organizeButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
@@ -2823,13 +2823,13 @@ describe("Inputbar", () => {
       await Promise.resolve();
     });
 
-    const menuButton = container.querySelector(
-      '[data-testid="inputbar-knowledge-pack-menu-toggle"]',
+    const knowledgeButton = container.querySelector(
+      '[data-testid="inputbar-knowledge-pack-toggle"]',
     ) as HTMLButtonElement | null;
-    expect(menuButton).toBeTruthy();
+    expect(knowledgeButton).toBeTruthy();
 
     act(() => {
-      menuButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      knowledgeButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
 
     const secondPackOption = container.querySelector(
@@ -2905,11 +2905,11 @@ describe("Inputbar", () => {
       await Promise.resolve();
     });
 
-    const menuButton = container.querySelector(
-      '[data-testid="inputbar-knowledge-pack-menu-toggle"]',
+    const knowledgeButton = container.querySelector(
+      '[data-testid="inputbar-knowledge-pack-toggle"]',
     ) as HTMLButtonElement | null;
     act(() => {
-      menuButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      knowledgeButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
 
     const addButton = Array.from(container.querySelectorAll("button")).find(
@@ -2955,12 +2955,12 @@ describe("Inputbar", () => {
       await Promise.resolve();
     });
 
-    const menuButton = container.querySelector(
-      '[data-testid="inputbar-knowledge-pack-menu-toggle"]',
+    const knowledgeButton = container.querySelector(
+      '[data-testid="inputbar-knowledge-pack-toggle"]',
     ) as HTMLButtonElement | null;
 
     act(() => {
-      menuButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      knowledgeButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
 
     const hub = container.querySelector(

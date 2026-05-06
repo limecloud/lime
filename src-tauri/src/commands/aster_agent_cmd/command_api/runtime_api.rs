@@ -1,12 +1,13 @@
 use super::*;
 use crate::commands::aster_agent_cmd::dto::AgentRuntimeSessionHistoryCursor;
+use crate::database::lock_db;
 use crate::sceneapp::application::SceneAppService;
 use crate::services::execution_tracker_service::ExecutionTracker;
 use crate::services::runtime_analysis_handoff_service::{
     export_runtime_analysis_handoff, RuntimeAnalysisHandoffExportResult,
 };
 use crate::services::runtime_evidence_pack_service::{
-    export_runtime_evidence_pack, resolve_runtime_export_workspace_root,
+    export_runtime_evidence_pack_with_owner_runs, resolve_runtime_export_workspace_root,
     RuntimeEvidencePackExportResult,
 };
 use crate::services::runtime_file_checkpoint_service::{
@@ -25,6 +26,7 @@ use crate::services::runtime_review_decision_service::{
 use crate::services::thread_reliability_projection_service::sync_thread_reliability_projection;
 use aster::hooks::SessionSource;
 use lime_core::database::dao::agent::AgentDao;
+use lime_core::database::dao::agent_run::AgentRunDao;
 use lime_core::database::dao::agent_timeline::{AgentThreadItemStatus, AgentThreadTurnStatus};
 use std::path::PathBuf;
 use std::time::Instant;
@@ -675,6 +677,7 @@ pub async fn agent_runtime_export_evidence_pack(
     automation_state: State<'_, AutomationServiceState>,
     session_id: String,
 ) -> Result<RuntimeEvidencePackExportResult, String> {
+    let db_handle = db.inner().clone();
     let runtime = build_runtime_command_context(
         app,
         state,
@@ -688,11 +691,17 @@ pub async fn agent_runtime_export_evidence_pack(
     tracing::info!("[AsterAgent] 导出 evidence pack: {}", session_id);
     let context =
         load_runtime_export_context(&runtime, &session_id, "导出 evidence pack 前").await?;
+    let owner_runs = {
+        let conn = lock_db(&db_handle)?;
+        AgentRunDao::list_runs_by_session(&conn, &session_id, 20)
+            .map_err(|error| format!("查询 evidence pack owner runs 失败: {error}"))?
+    };
 
-    export_runtime_evidence_pack(
+    export_runtime_evidence_pack_with_owner_runs(
         &context.detail,
         &context.thread_read,
         &context.workspace_root,
+        &owner_runs,
     )
 }
 
@@ -1016,6 +1025,14 @@ pub async fn agent_runtime_get_tool_inventory(
         visible_extension_tools,
         searchable_extension_tools,
     }))
+}
+
+/// 统一运行时：获取当前 workspace 的 generated skill runtime binding readiness。
+#[tauri::command]
+pub async fn agent_runtime_list_workspace_skill_bindings(
+    request: AgentRuntimeListWorkspaceSkillBindingsRequest,
+) -> Result<AgentRuntimeWorkspaceSkillBindings, String> {
+    crate::services::runtime_skill_binding_service::list_workspace_skill_bindings(request)
 }
 
 /// 统一运行时：移除单个排队 turn。

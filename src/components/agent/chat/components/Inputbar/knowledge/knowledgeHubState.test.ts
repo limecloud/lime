@@ -71,7 +71,7 @@ describe("resolveKnowledgeHubState", () => {
       canStartKnowledgeOrganize: true,
     });
 
-    expect(state.title).toBe("可使用：品牌资料");
+    expect(state.title).toBe("选择项目资料");
     expect(state.primaryAction).toBe("use");
     expect(state.primaryLabel).toBe("使用这份资料");
   });

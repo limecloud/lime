@@ -52,7 +52,7 @@ export function SceneAppDetailPanel({
   if (!detailView) {
     return (
       <section className="rounded-[28px] border border-dashed border-slate-200 bg-white p-6 text-sm leading-6 text-slate-500 shadow-sm shadow-slate-950/5">
-        先回到全部做法选一套做法，再来补参考、启动信息和结果落点。
+        先回到全部 Skills 选一个 Skill，再来补参考、启动信息和结果落点。
       </section>
     );
   }
@@ -100,7 +100,7 @@ export function SceneAppDetailPanel({
               {detailView.executionChainLabel}
             </div>
             <div>
-              <span className="font-medium text-slate-700">做法来源：</span>
+              <span className="font-medium text-slate-700">来源：</span>
               {detailView.sourcePackageId}
             </div>
             <div>
@@ -113,7 +113,7 @@ export function SceneAppDetailPanel({
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
           <div className="rounded-[24px] border border-slate-200 bg-white p-4">
             <div className="text-sm font-medium text-slate-900">
-              这套做法擅长
+              这个 Skill 擅长
             </div>
             <div className="mt-3 flex flex-wrap gap-2">
               {detailView.patternLabels.map((patternLabel) => (
@@ -133,7 +133,7 @@ export function SceneAppDetailPanel({
             </div>
             {detailView.launchRequirements.length === 0 ? (
               <p className="mt-3 text-sm leading-6 text-slate-500">
-                这套做法没有额外前置条件，可以直接进入生成。
+                这个 Skill 没有额外前置条件，可以直接进入生成。
               </p>
             ) : (
               <div className="mt-3 flex flex-col gap-2">
@@ -196,7 +196,7 @@ export function SceneAppDetailPanel({
               </div>
             ) : (
               <p className="mt-3 text-sm leading-6 text-slate-500">
-                当前这套做法还没有明确必含结果，后续需要继续补齐。
+                当前这个 Skill 还没有明确必含结果，后续需要继续补齐。
               </p>
             )}
           </div>
@@ -240,7 +240,7 @@ export function SceneAppDetailPanel({
               </div>
             ) : (
               <p className="mt-3 text-sm leading-6 text-slate-500">
-                当前这套做法还没有拆出明确步骤，先按当前默认路径继续推进。
+                当前这个 Skill 还没有拆出明确步骤，先按当前默认路径继续推进。
               </p>
             )}
           </div>
@@ -274,7 +274,8 @@ export function SceneAppDetailPanel({
               </div>
             ) : (
               <p className="mt-3 text-sm leading-6 text-slate-500">
-                当前这套做法还没有整理出显式判断指标，后续会继续按真实结果补齐。
+                当前这个 Skill
+                还没有整理出显式判断指标，后续会继续按真实结果补齐。
               </p>
             )}
             {detailView.scorecardFailureSignals.length ? (
@@ -385,7 +386,7 @@ export function SceneAppDetailPanel({
                 {detailView.contextPlan.skillRefs.length ? (
                   <div>
                     <div className="text-xs font-medium text-slate-500">
-                      已接入做法
+                      已接入 Skill
                     </div>
                     <div
                       data-testid="sceneapp-detail-context-skill-refs"
@@ -660,7 +661,8 @@ export function SceneAppDetailPanel({
                   </div>
                 ) : (
                   <p className="mt-3 text-sm leading-6 text-slate-500">
-                    当前这套做法还没有明确整套结果的必含部分，继续沿现有结果回流主链执行。
+                    当前这个 Skill
+                    还没有明确整套结果的必含部分，继续沿现有结果回流主链执行。
                   </p>
                 )}
                 {detailView.projectPackPlan.notes.length ? (
@@ -678,7 +680,7 @@ export function SceneAppDetailPanel({
               </>
             ) : (
               <p className="mt-3 text-sm leading-6 text-slate-500">
-                当前这套做法还没有明确结果去向，继续沿现有结果约定运行。
+                当前这个 Skill 还没有明确结果去向，继续沿现有结果约定运行。
               </p>
             )}
           </div>

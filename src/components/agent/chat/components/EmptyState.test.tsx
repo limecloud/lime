@@ -625,7 +625,7 @@ describe("EmptyState", () => {
     expect(
       container.querySelector('[data-testid="inputbar-knowledge-hub"]'),
     ).toBeTruthy();
-    expect(container.textContent).toContain("可使用：团队资料");
+    expect(container.textContent).toContain("团队资料");
 
     const useKnowledgeButton = Array.from(
       container.querySelectorAll("button"),
@@ -1863,7 +1863,7 @@ describe("EmptyState", () => {
     expect(
       container.querySelector('[data-testid="inputbar-knowledge-hub"]'),
     ).toBeTruthy();
-    expect(container.textContent).toContain("可使用：团队资料");
+    expect(container.textContent).toContain("团队资料");
     expect(container.textContent).toContain("使用这份资料");
 
     const useKnowledgeButton = Array.from(
@@ -2358,15 +2358,15 @@ describe("EmptyState", () => {
     expect(container.textContent).toContain("内容主稿生成");
   });
 
-  it("当前带入做法草稿时，首页应显影更明确的连续性横幅", async () => {
+  it("当前带入 Skill 草稿时，首页应显影更明确的连续性横幅", async () => {
     const container = renderEmptyState({
       creationReplaySurface: {
         kind: "skill_scaffold",
-        eyebrow: "当前带入做法草稿",
-        badgeLabel: "做法草稿",
+        eyebrow: "当前带入 Skill 草稿",
+        badgeLabel: "Skill 草稿",
         title: "账号复盘方法",
         summary: "把结果复盘成下一轮增长方案。",
-        hint: "这轮会先沿着这份做法草稿继续生成，跑顺后可回到我的方法继续整理。",
+        hint: "这轮会先沿着这份 Skill 草稿继续生成，跑顺后可回到 Skills 继续整理。",
         defaultReferenceMemoryIds: [],
         defaultReferenceEntries: [],
       },
@@ -2376,7 +2376,7 @@ describe("EmptyState", () => {
       await Promise.resolve();
     });
 
-    expect(container.textContent).toContain("做法草稿");
+    expect(container.textContent).toContain("Skill 草稿");
     expect(container.textContent).toContain("账号复盘方法");
     expect(container.textContent).not.toContain("沿着当前上下文继续");
     expect(container.textContent).not.toContain("先沿着当前做法开工");
@@ -3023,7 +3023,7 @@ describe("EmptyState", () => {
     });
 
     const browseButton = Array.from(container.querySelectorAll("button")).find(
-      (button) => button.textContent?.includes("查看全部做法"),
+      (button) => button.textContent?.includes("查看全部 Skills"),
     );
     expect(browseButton).toBeFalsy();
 

@@ -61,6 +61,8 @@ const AGENT_RESULT_MESSAGE = {
   ].join("\n"),
 };
 
+const FILE_MANAGER_SOURCE_TITLE = "brief";
+
 function printHelp() {
   console.log(`
 Lime Knowledge GUI Smoke
@@ -311,6 +313,80 @@ async function clickPageControl(page, { text, ariaLabel, index = 0 }) {
   }
 }
 
+async function clickScopedButton(page, { scope, text, ariaLabel, index = 0 }) {
+  const scoped = page.locator(scope);
+  const locator = ariaLabel
+    ? scoped.getByRole("button", { name: ariaLabel, exact: true }).nth(index)
+    : scoped
+        .locator("button, a")
+        .filter({ hasText: text })
+        .nth(index);
+
+  try {
+    await locator.click({ timeout: DEFAULT_ACTION_TIMEOUT_MS });
+  } catch (error) {
+    const buttons = await scoped
+      .locator("button, a")
+      .evaluateAll((items) =>
+        items.slice(0, 80).map((item) => ({
+          text: (item.textContent || "").trim().replace(/\s+/g, " "),
+          aria: item.getAttribute("aria-label"),
+          title: item.getAttribute("title"),
+          disabled:
+            item instanceof HTMLButtonElement ? item.disabled : undefined,
+        })),
+      )
+      .catch(() => []);
+    throw new Error(
+      `[smoke:knowledge-gui] 点击区域控件失败 ${JSON.stringify({
+        scope,
+        text,
+        ariaLabel,
+        index,
+        buttons,
+      })}`,
+      { cause: error },
+    );
+  }
+}
+
+async function waitForKnowledgePack(options, label, matcher) {
+  const startedAt = Date.now();
+  let lastError = null;
+
+  while (Date.now() - startedAt < options.timeoutMs) {
+    try {
+      const result = await invoke(options, "knowledge_list_packs", {
+        request: {
+          workingDir: options.workingDir,
+          includeArchived: true,
+        },
+      });
+      const packs = Array.isArray(result?.packs) ? result.packs : [];
+      const found = packs.find((pack) => {
+        const metadata = pack?.metadata || {};
+        return matcher({
+          name: String(metadata.name || ""),
+          description: String(metadata.description || ""),
+          status: String(metadata.status || ""),
+        });
+      });
+      if (found) {
+        return found;
+      }
+    } catch (error) {
+      lastError = error;
+    }
+    await sleep(options.intervalMs);
+  }
+
+  const detail =
+    lastError instanceof Error
+      ? lastError.message
+      : String(lastError || "未找到匹配资料");
+  throw new Error(`[smoke:knowledge-gui] 等待资料失败: ${label}。${detail}`);
+}
+
 async function seedAgentResultForKnowledgeCapture(page, options) {
   await page.evaluate(
     ({ projectId, message }) => {
@@ -440,6 +516,46 @@ async function runPlaywrightGuiFlow(options) {
     logStage("wait-home");
     await waitForPageText(page, "首页加载", ["青柠一下，灵感即来"], options.timeoutMs);
 
+    logStage("open-home-knowledge-hub");
+    await clickPageControl(page, { text: "添加资料" });
+
+    logStage("wait-home-knowledge-hub");
+    await waitForPageText(
+      page,
+      "首页资料入口加载",
+      ["添加新资料", "检查资料", "使用这份资料"],
+      options.timeoutMs,
+    );
+    await page.keyboard.press("Escape");
+
+    logStage("open-file-manager");
+    await clickPageControl(page, { ariaLabel: "打开左侧文件管理器" });
+
+    logStage("wait-file-manager");
+    await waitForPageText(
+      page,
+      "文件管理器加载",
+      ["brief.md", "加入对话", "设为资料", "本地位置"],
+      options.timeoutMs,
+    );
+
+    logStage("import-file-manager-source");
+    await clickScopedButton(page, {
+      scope: '[data-testid="file-manager-sidebar"]',
+      ariaLabel: "设为项目资料 brief.md",
+    });
+
+    logStage("wait-file-manager-source-imported");
+    await waitForKnowledgePack(
+      options,
+      "文件管理器资料导入完成",
+      (pack) =>
+        pack.description === FILE_MANAGER_SOURCE_TITLE ||
+        pack.name === FILE_MANAGER_SOURCE_TITLE,
+    );
+
+    await clickPageControl(page, { ariaLabel: "关闭文件管理器" });
+
     logStage("open-knowledge-page");
     await clickPageControl(page, { ariaLabel: "项目资料" });
 
@@ -458,6 +574,7 @@ async function runPlaywrightGuiFlow(options) {
         "已确认可用",
         DEFAULT_PACK.title,
         SECONDARY_PACK.title,
+        FILE_MANAGER_SOURCE_TITLE,
         options.projectName,
       ],
       options.timeoutMs,
@@ -472,7 +589,7 @@ async function runPlaywrightGuiFlow(options) {
         page,
         "Agent 页面加载",
         [
-          `正在使用：${DEFAULT_PACK.title}`,
+          `资料：${DEFAULT_PACK.title}`,
           "请基于当前项目资料生成内容",
         ],
         options.timeoutMs,
@@ -500,7 +617,7 @@ async function runPlaywrightGuiFlow(options) {
       page,
       "Agent 结果样本加载",
       [
-        `正在使用：${DEFAULT_PACK.title}`,
+        `资料：${DEFAULT_PACK.title}`,
         "沉淀为项目资料",
         "事实：该结果来自当前 Agent 对话",
       ],

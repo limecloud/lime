@@ -206,6 +206,37 @@ describe("layered-design image task adapter", () => {
     });
   });
 
+  it("应把 worker chroma-key 后处理状态保留到 GeneratedDesignAsset 参数", () => {
+    const document = createDocument();
+    const request = createLayeredDesignAssetGenerationPlan(document).find(
+      (item) => item.hasAlpha,
+    );
+    expect(request).toBeDefined();
+    const output = createTaskOutput("task-subject");
+    const result = output.record.result as {
+      images: Array<Record<string, unknown>>;
+    };
+    result.images[0].postprocess = {
+      strategy: "chroma_key_postprocess",
+      status: "succeeded",
+      chroma_key_color: "#00ff00",
+      source: "runtime_contract.layered_design.alpha",
+      removed_pixel_count: 128,
+    };
+
+    const asset = createGeneratedDesignAssetFromImageTaskOutput(
+      request!,
+      output,
+    );
+
+    expect(asset?.params?.postprocess).toMatchObject({
+      strategy: "chroma_key_postprocess",
+      status: "succeeded",
+      chroma_key_color: "#00ff00",
+      removed_pixel_count: 128,
+    });
+  });
+
   it("应把图片任务输出写回目标图层，并保持文字层可编辑", () => {
     const document = createDocument();
     const [request] = createLayeredDesignAssetGenerationPlan(document);

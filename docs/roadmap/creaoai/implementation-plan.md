@@ -1,8 +1,8 @@
-# CreoAI 启发下的 Lime 实施计划
+# CREAO 启发下的 Lime 实施计划
 
-> 状态：P3A 已落地；P3B discovery 正在推进；P4 继续按 proposal 推进  
-> 更新时间：2026-05-05  
-> 目标：把 Skill Forge / workspace-local generated skill 的落地拆成可执行阶段，确保实现不偏离 Lime current 主链。
+> 状态：P0-P4 最小闭环完成；P4 Managed execution / Agent envelope 已通过完成审计
+> 更新时间：2026-05-06
+> 目标：把 Skill Forge / workspace-local generated skill / Agent envelope 的落地拆成可执行阶段，确保实现不偏离 Lime current 主链。
 
 依赖文档：
 
@@ -12,17 +12,45 @@
 - [./diagrams.md](./diagrams.md)
 - [./prototype.md](./prototype.md)
 - [../managed-objective/README.md](../managed-objective/README.md)
+- [../../research/creaoai/pivot-and-org-harness.md](../../research/creaoai/pivot-and-org-harness.md)
+- [../../research/creaoai/agent-product-model.md](../../research/creaoai/agent-product-model.md)
+- [../../exec-plans/creaoai-completion-audit.md](../../exec-plans/creaoai-completion-audit.md)
 
 ## 0. 当前实现进度
 
-截至 2026-05-05，本计划已经完成到 **P3A：workspace-local file registration**，并开始推进 **P3B：workspace catalog discovery**：
+截至 2026-05-06，本计划已经完成 **P0-P4 最小闭环**，并通过 [P0-P4 completion audit](../../exec-plans/creaoai-completion-audit.md) 收口：
 
 1. P1A / P2 的最小文件事实源、静态 verification gate 和状态机已经落地。
 2. P3A 已新增 `capability_draft_register`：只允许 `verified_pending_registration`，注册前复核 manifest 文件完整性与 Agent Skills 标准。
 3. 注册结果只落到当前 workspace 的 `.agents/skills/<skill_directory>/`，并写入 draft 侧 `registration/latest.json` 与 registered skill 侧 `.lime/registration.json`。
-4. 前端 Skills 工作台已经展示注册按钮与注册摘要，但仍不展示运行、自动化或外部写入口。
-5. P3B 第一刀是 workspace-local registered skill discovery：显式传入 `workspaceRoot`，扫描当前项目 `.agents/skills`，只返回带 `.lime/registration.json` 的 P3A 注册能力。
-6. P3B 后续仍要解决 SkillService root、runtime session、Query Loop metadata 与 `tool_runtime` surface 的一致性。
+4. P3B 已新增 `capability_draft_list_registered_skills`：显式传入 `workspaceRoot`，扫描当前项目 `.agents/skills`，只返回带 `.lime/registration.json` 的 P3A 注册能力。
+5. 前端 Skills 工作台已经展示草案、验证、注册摘要和 Workspace 已注册能力面板；只对 P3C ready binding 展示“本回合启用”，不展示默认运行、自动化或外部写入口。
+6. P3C 第一刀已新增 `agent_runtime_list_workspace_skill_bindings`：只说明当前 registered skill 是否可进入后续 runtime binding，不触发 reload、不进入默认 tool surface。
+7. P3C 第一刀显式保持 `queryLoopVisible=false`、`toolRuntimeVisible=false`、`launchEnabled=false`。
+8. P3D 第一刀已把显式携带的 `workspace_skill_bindings` / `workspaceSkillBindings` metadata 投影进 full runtime system prompt，支持最多 5 个 binding、snake_case / camelCase、长文本裁剪和禁止执行语义。
+9. P3D 第一刀不打开 `allow_model_skills`，不注入 `SkillTool` registry，不改变默认 tool surface。
+10. P3E 第一刀新增 `workspace_skill_runtime_enable` metadata，后端校验当前 workspace、P3C ready binding 与 registration provenance 后，才在当前 session scope 内打开 `SkillTool` allowlist；前端只通过 `initialAutoSendRequestMetadata.harness` 注入，不写 `allow_model_skills`。
+11. P3E 调用证据最小来源链路已补：`SkillTool` ToolResult metadata 会写回 workspace skill source / runtime enable 信息；下一阶段仍要把这些 evidence 消费进长期 Managed Objective / Agent envelope 展示。
+12. P3E 定向验证已覆盖前端 enable metadata、命令契约、Rust runtime turn gate 与 Rust SkillTool allowlist/source metadata；P4 应继续复用现有 runtime / automation / evidence 主链。
+13. P4 第一刀已新增 Agent envelope 草案 presentation：Workspace 已注册能力面板可展示 runbook、permission、manual rerun schedule 与 evidence 状态，但不新增 runtime、scheduler 或长期授权。
+14. P4 evidence 第一刀已补 `timeline.json` source metadata 透传：ToolCall item 在存在 P3E metadata 时会保留 `workspaceSkillSource` / `workspaceSkillRuntimeEnable`，供后续 Agent envelope 和 evidence pack 展示消费。
+15. P4 第二刀已新增 Managed Job 草案入口：ready binding 可从 Workspace 已注册能力面板打开现有持续流程弹窗，生成默认暂停的 automation job 草案。
+16. Managed Job 草案的 payload 仍是 `agent_turn`，并通过 `request_metadata.harness.agent_envelope`、`managed_objective`、`workspace_skill_runtime_enable` 绑定来源、目标和 P3E session-scoped runtime enable。
+17. P4 evidence 第二刀已补 automation owner 导出：evidence pack 的 `runtime.json` / `artifacts.json` 会写入 `automationOwners`，用于审计 automation job、Agent envelope、Managed Objective 与 workspace skill runtime enable 的关系。
+18. Workspace 已注册能力面板已补 managed job 状态投影：从既有 automation jobs 读取 `agent_envelope` metadata，显示草案/启用状态、调度摘要、最近运行与错误摘要。
+19. Workspace 已注册能力面板已补暂停 / 恢复最小闭环：对匹配到的 Managed Job 直接复用 `updateAutomationJob` 修改 `enabled`，并用返回记录刷新状态投影。
+20. Managed Objective 最小状态 / audit 投影已补：状态区显示 `planned` / `paused` / `running` / `blocked` / `verifying`；`success` run 只进入 `verifying`，不直接 completed。
+21. Evidence pack 已补 completion audit input：`automationOwners.runs[].completionAudit` 检查 run status、Agent envelope、Managed Objective、workspace skill runtime enable 和 `completion_audit` 要求，并保持 `completionDecision=not_completed`。
+22. Evidence pack 已补 completion audit summary：`runtime.json` / `artifacts.json` 会基于 automation owner、workspace skill ToolCall source metadata 和 artifact / timeline 证据给出 `completed / blocked / needs_input / verifying`，避免把 automation success 或模型自报误判为完成；负向回归已覆盖缺 owner、run 失败、缺 audit input 与缺 ToolCall evidence。
+23. Evidence pack 已补 `summary.md` Completion Audit 摘要：人类先读入口可直接看到 decision、owner success count、ToolCall evidence count、artifact evidence count 与 blocking reasons。
+24. Evidence export 返回值、前端 API normalizer 与 Harness 面板已接入 `completionAuditSummary`：导出问题证据包后可直接在 UI 看到 evidence-based decision 与阻塞原因。
+25. Agent envelope presentation contract 已接入 completion audit gate：`completed` 且必要 evidence 齐全才进入 `evidence_ready`；非 completed audit 仍保持缺证据态，避免把 verifying 误报为可固化。
+26. Workspace 已注册能力面板已补 evidence-gated Agent envelope 入口边界：按 skill directory 注入 completion audit summary 后，只有 completed + 必要 evidence 齐全才启用“转成 Agent 草案”，并复用现有 Managed Job 草案创建链。
+27. Workspace 已注册能力面板已补最近运行审计入口：从匹配 Managed Job 调用既有 `get_automation_run_history` 与 `agent_runtime_export_evidence_pack`，把最近 automation run 的 evidence summary 回填到对应 skill 的 Agent envelope gate。
+28. Agent envelope 草案摘要已补完整组成：Runbook、Memory、Widget、Permission、Schedule、Evidence 均有 presentation 字段与 Workspace 展示，仍只作为产品组合面，不新增执行实体。
+29. Agent card 与 sharing 已收敛为派生展示：Agent card id 使用 `workspace-local/<skill-directory>`，事实源来自 registered skill、Managed Job 和 completion audit；sharing 先限定 workspace / team 范围，不做 public Marketplace。
+30. Workspace/team sharing discovery 已明确：团队成员通过同一 workspace root 的 registered skill discovery 发现 `.agents/skills/<skill-directory>`，并复用同一 Managed Job / evidence 事实源。
+31. Completion audit 已逐项映射 P0-P4 要求到代码、测试、命令验证与文档证据；Agent envelope gate 已收紧，单独 `evidencePackId` 不再进入 `evidence_ready`，必须由 completed completion audit 和三项 evidence 共同打开固化入口。
 
 ## 1. 实施总原则
 
@@ -43,6 +71,12 @@
 
 6. **先低风险闭环**
    - 首期只做只读 CLI / API / 文件输出，不做外部发布、下单、改价。
+
+7. **Skill 不等于完整 Agent**
+   - verified skill 只是 runbook / adapter；P4 才把 memory、widget、schedule、permission、evidence 组合成 Workspace 产品面的 Agent envelope。
+
+8. **Outcome 不等于 Evidence**
+   - evidence 证明生成、验证、注册、调用事实；telemetry / experiment 证明功能有没有改善用户结果，二者不能混成一个事实源。
 
 权限分级口径固定为：
 
@@ -70,12 +104,15 @@ Level 6: policy-approved scheduled external write
 2. 新增 `docs/roadmap/creaoai/` 路线图、实施计划和图纸。
 3. 在文档中固定：`Skill Forge` 是生成阶段，不是 runtime。
 4. 在文档中固定：`Generated Capability Draft` 不是长期主类型。
+5. 在文档中固定：`Agent envelope` 是 Workspace 产品组合面，不是执行实体。
+6. 在文档中固定：组织 harness 只回到 roadmap / exec-plan / telemetry / evidence 主链。
 
 完成标准：
 
 1. 文档能明确回答“是否和 skills pipeline 冲突”。
 2. 文档能明确禁止 generated tools 平行 runtime。
 3. 文档能给出 P1-P4 的实现顺序。
+4. 文档能解释 Skill / Agent / Managed Objective 的边界。
 
 ## 2.5 P0.5：实现前架构补强
 
@@ -105,7 +142,7 @@ Level 6: policy-approved scheduled external write
 
 ### 3.0 为什么 P1 必须先做 Coding Agent
 
-CreoAI 启发的核心不是已有工具多跑几轮，而是 Coding Agent 能把 CLI / API / docs / website 编译为可复用能力。
+CREAO 启发的核心不是已有工具多跑几轮，而是 Coding Agent 能把 CLI / API / docs / website 编译为可复用能力。
 
 因此 P1 的最小实现对象应是：
 
@@ -184,13 +221,13 @@ Draft 至少包含：
 
 P1 不做完整独立 Coding Agent。首期只做受控的 `Capability Authoring Agent`，工具面参考 [../../research/pi-mono-coding-agent/README.md](../../research/pi-mono-coding-agent/README.md) 的 read-only / coding tools 分级，但默认更保守：
 
-| 工具档位 | 首期用途 | 状态 |
-| --- | --- | --- |
-| `author_readonly` | 读取 source refs、CLI help、OpenAPI、workspace docs | 必须支持 |
-| `author_draft_write` | 写 draft root 内文件与 manifest | 必须支持 |
-| `author_dryrun` | 执行 fixture / dry-run self-check | 可以最小支持 |
-| `author_full_shell` | 任意 bash / install / 访问本机项目 | P1 禁止，后续需 sandbox + 升级授权 |
-| `author_external_write` | 发布、下单、改价、发消息 | P1 禁止，后续需人工确认或策略批准 |
+| 工具档位                | 首期用途                                            | 状态                               |
+| ----------------------- | --------------------------------------------------- | ---------------------------------- |
+| `author_readonly`       | 读取 source refs、CLI help、OpenAPI、workspace docs | 必须支持                           |
+| `author_draft_write`    | 写 draft root 内文件与 manifest                     | 必须支持                           |
+| `author_dryrun`         | 执行 fixture / dry-run self-check                   | 可以最小支持                       |
+| `author_full_shell`     | 任意 bash / install / 访问本机项目                  | P1 禁止，后续需 sandbox + 升级授权 |
+| `author_external_write` | 发布、下单、改价、发消息                            | P1 禁止，后续需人工确认或策略批准  |
 
 最小验收：
 
@@ -256,10 +293,28 @@ P1 不做完整独立 Coding Agent。首期只做受控的 `Capability Authoring
    - 记录来源、verification report、权限摘要和目标目录。
    - 不触发 Skill reload，不接运行，不接 automation。
 
-2. **P3B：workspace catalog discovery / runtime binding**
+2. **P3B：workspace registered discovery**
+   - 显式按 `workspaceRoot` 读取当前 workspace 的 `.agents/skills`。
+   - 只投影带 `.lime/registration.json` 的 P3A 注册能力。
+   - 返回 provenance、权限摘要、Agent Skills 标准检查与 `launchEnabled=false`。
+   - 不触发 reload，不合并默认已安装方法列表，不接运行和自动化。
+
+3. **P3C：workspace catalog binding / runtime binding**
    - 解决 workspace 选择、进程 cwd、SkillService root 与 runtime session 的一致性。
-   - 将 workspace-local skill 投影到 Skill Catalog / ServiceSkillCatalog。
-   - 通过 Query Loop 和 `tool_runtime` 决定工具可见性。
+   - 第一刀已落 `agent_runtime_list_workspace_skill_bindings` 只读 readiness projection，返回 binding status / next gate / runtime visibility。
+   - 暂不将 workspace-local skill 注入默认 Skill Catalog / ServiceSkillCatalog 或 SkillTool registry。
+
+4. **P3D：Query Loop metadata projection**
+   - 当前回合显式携带 `request_metadata.harness.workspace_skill_bindings` 时，`agent_runtime_submit_turn` 的 full runtime prompt 会注入候选能力上下文。
+   - 该上下文只用于规划、解释 next gate 和提醒用户补授权；不能被模型当作可调用工具。
+   - 前端提供 `workspaceSkillBindingsMetadata` builder，把 P3C binding 安全裁剪为 snake_case metadata fragment，且不写入 `allow_model_skills`。
+
+5. **P3E：tool_runtime authorization**
+   - 第一刀新增 `request_metadata.harness.workspace_skill_runtime_enable`，继续由 `agent_runtime_submit_turn` 承接，不新增平行命令。
+   - Rust gate 校验当前 workspace、P3C ready binding、registration provenance 与 `.agents/skills` 目录边界。
+   - Runtime 只在当前 session scope 内启用 `SkillTool`，并裁剪到 `project:<directory>` / `<directory>` allowlist。
+   - P3E metadata 不写 `allow_model_skills`；`workspace_skill_bindings` 仍保持只读候选语义。
+   - ToolResult metadata 写回 `workspace_skill_source` / `workspace_skill_runtime_enable`，让 P4 timeline、evidence pack 和 Agent envelope 能追踪 source draft、verification report、registered directory 与 session 授权范围。
 
 ### 5.1 注册位置
 
@@ -267,8 +322,9 @@ P1 不做完整独立 Coding Agent。首期只做受控的 `Capability Authoring
 
 1. workspace-local skill catalog。
 2. Skill Catalog / ServiceSkillCatalog 可发现对象。
-3. Query Loop 的 skill launch metadata。
-4. tool_runtime 可裁剪的 tool surface。
+3. Query Loop 的只读 skill binding metadata。
+4. `workspace_skill_runtime_enable` 的 session-scoped tool_runtime allowlist。
+5. tool_runtime 可裁剪的 tool surface 与后续 evidence。
 
 ### 5.2 注册规则
 
@@ -286,10 +342,15 @@ P1 不做完整独立 Coding Agent。首期只做受控的 `Capability Authoring
 
 完成标准：
 
-1. 注册后的 skill 能在后续对话中被发现。
-2. 注册后的 skill 能被当前 workspace 调用。
-3. 其他 workspace 不会默认获得该 skill。
-4. evidence pack 能看到注册来源和运行事实。
+1. P3B discovery 能在当前 workspace 只读发现已注册 skill。
+2. P3B discovery 结果包含注册来源、verification report、权限摘要和标准检查。
+3. P3B discovery 显式不可运行：`launchEnabled=false`，UI 不提供运行或自动化入口。
+4. P3C 后，注册后的 skill 能在 runtime binding readiness projection 中被当前 workspace 发现。
+5. P3D 后，显式 metadata 能被 Query Loop 读到，但仍不可直接调用。
+6. P3E 后，注册后的 skill 只有经过 session 显式 enable 和 `tool_runtime` 授权裁剪，才能被当前 workspace 调用。
+7. 其他 workspace 不会默认获得该 skill。
+8. evidence pack 能看到注册来源和运行事实。
+9. P3E ToolResult metadata 能看到 source draft、verification report、registered directory 与 session 授权范围。
 
 ## 6. P3.5：Managed Objective 边界
 
@@ -299,6 +360,8 @@ P1 不做完整独立 Coding Agent。首期只做受控的 `Capability Authoring
 
 - [../../research/codex-goal/README.md](../../research/codex-goal/README.md)
 - [../managed-objective/README.md](../managed-objective/README.md)
+- [../../research/creaoai/pivot-and-org-harness.md](../../research/creaoai/pivot-and-org-harness.md)
+- [../../research/creaoai/agent-product-model.md](../../research/creaoai/agent-product-model.md)
 - [./coding-agent-layer.md](./coding-agent-layer.md)
 - [./architecture-review.md](./architecture-review.md)
 
@@ -355,9 +418,9 @@ workspace-local skill
 4. 完成审计读取哪些 evidence / artifact。
 5. 哪些场景必须进入 `needs_input / blocked` 而不是继续自动跑。
 
-## 7. P4：Managed execution
+## 7. P4：Managed execution / Agent envelope
 
-目标：把 verified skill 绑定到长期任务。
+目标：把 verified skill 绑定到可调度任务，并在成功运行后形成可 rerun、可展示、可审计的 Agent envelope。
 
 ### 7.1 任务形态
 
@@ -374,10 +437,12 @@ workspace-local skill
 2. 自动付款、下单、改价。
 3. 跨 workspace 共享 generated skill。
 4. 未确认的外部写操作。
+5. 公开 Marketplace / Skill Store。
+6. 无限自主长跑任务。
 
 ### 7.2 状态要求
 
-长期任务至少使用以下状态：
+可调度任务至少使用以下状态：
 
 ```text
 planned
@@ -407,13 +472,16 @@ Workspace 应展示：
 5. 最近产物。
 6. evidence 入口。
 7. 暂停、恢复、重新验证操作。
+8. “继续这套方法 / 转成 Agent”的固化入口。
+9. Agent card 的 memory、widget、schedule、permission、evidence 摘要。
 
 完成标准：
 
 1. 定时任务能运行一个 verified read-only skill。
 2. app 重启后任务状态可恢复或明确标记阻塞。
 3. 失败时用户能看到失败步骤和下一步。
-4. evidence pack 能导出长期运行事实。
+4. evidence pack 能导出可调度运行事实。
+5. 成功运行后能生成 Agent envelope 草案，但不新增 runtime。
 
 ## 8. 最小验收场景
 
@@ -435,7 +503,8 @@ Workspace 应展示：
 6. 创建 scheduled managed job。
 7. 为该 job 绑定 Managed Objective，记录目标、成功标准和预算。
 8. 产出 Markdown artifact。
-9. evidence pack 可看到调用、产物、验证事实和 completion audit 输入。
+9. evidence pack 可看到调用、产物、验证事实、completion audit 输入和 evidence-based completion audit summary。
+10. 成功运行后，Workspace 可建议“继续这套方法 / 转成 Agent”，并生成 Agent envelope 草案。
 
 不要求：
 
@@ -463,16 +532,19 @@ Workspace 应展示：
 3. dry-run 失败阻断注册。
 4. dry-run 通过允许进入 pending registration。
 
-### 9.3 P3 registration
+### 9.3 P3 registration / discovery / binding
 
 最小验证：
 
-1. workspace-local catalog 只包含当前 workspace 注册项。
-2. Query Loop 能发现注册 skill。
-3. tool_runtime 仍能裁剪工具面。
-4. evidence pack 包含 skill source metadata。
+1. P3A 注册只写当前 workspace 的 `.agents/skills/<skill_directory>`。
+2. P3B discovery 只返回带 `.lime/registration.json` 的当前 workspace 注册项。
+3. P3B UI 不展示运行、自动化或继续执行入口。
+4. P3C runtime binding readiness 能发现注册 skill，并保留 `launchEnabled=false`。
+5. P3D Query Loop 只读 metadata 能说明候选 skill、状态和 next gate，但不会打开 `allow_model_skills`。
+6. P3E tool_runtime 仍能裁剪工具面。
+7. P3E evidence pack 包含 skill source metadata。
 
-### 9.4 P4 managed execution
+### 9.4 P4 managed execution / Agent envelope
 
 最小验证：
 
@@ -480,7 +552,9 @@ Workspace 应展示：
 2. 失败后 `needs_input / blocked` 行为测试。
 3. artifact 写入测试。
 4. evidence pack 导出测试。
-5. GUI 最小 smoke：创建、运行、查看证据。
+5. Agent envelope 组件测试：成功运行后显示固化入口，且不打开新的 runtime。
+6. completion audit summary 测试：只有 automation owner success、workspace skill ToolCall source metadata 与 artifact / timeline 证据齐全时才输出 `completed`。
+7. GUI 最小 smoke：创建、运行、查看证据。
 
 ## 10. 实现守卫
 
@@ -496,6 +570,9 @@ Workspace 应展示：
 8. 不允许 Managed Objective 成为 `agent turn / subagent turn / automation job` 之外的第四类执行实体。
 9. 不允许 generated capability 反向定义领域文档协议，例如 `LayeredDesignDocument`。
 10. 不允许把 AI 图层化设计的 Canvas / document / export 主链搬进 Skill Forge runtime。
+11. 不允许把 Agent envelope 实现成新 runtime、scheduler 或 evidence。
+12. 不允许把 public Marketplace 放在 workspace/team-scoped sharing 之前。
+13. 不允许为组织 harness 新增平行 AI PM、AB testing、telemetry 或 evidence 事实源。
 
 ## 11. 后续扩展顺序
 
@@ -508,7 +585,9 @@ Workspace 应展示：
 5. 人工确认后的外部写操作。
 6. 多 skill managed workflow。
 7. 领域型 adapter 生成，例如图片 provider adapter、PSD exporter、OCR / matting wrapper；这些只能作为 AI 图层化设计的辅助能力，不接管 `LayeredDesignDocument` 或 Canvas Editor。
+8. Agent envelope：把成功的 read-only skill run 固化为可 rerun Agent card。
+9. Team-scoped sharing：只在同一 workspace / team 权限边界内共享 agent、skill、context。
 
 一句话：
 
-**先证明“生成能力可以被治理”，再扩大“能力可以做什么”。**
+**先证明“生成能力可以被治理”，再证明“成功任务可以被固化为 Agent”，最后再扩大“能力可以做什么”。**

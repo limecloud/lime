@@ -521,7 +521,7 @@ function createPlanResult(
       viewerKind: "artifact_bundle",
       completionStrategy: "required_parts_complete",
       notes: [
-        "当前做法以结果包作为默认交付单位。",
+        "当前 Skill 以结果包作为默认交付单位。",
         "完整度将按 3 个必含部件判断。",
       ],
       ...(overrides.projectPackPlan ?? {}),
@@ -1381,7 +1381,7 @@ describe("SceneAppsPage", () => {
     window.localStorage.clear();
   });
 
-  it("全部做法页面应接入 Lime 工作台主题作用域", async () => {
+  it("全部 Skills 页面应接入 Lime 工作台主题作用域", async () => {
     const { container } = renderSceneAppsPage({
       pageParams: { view: "catalog" },
     });
@@ -1396,19 +1396,19 @@ describe("SceneAppsPage", () => {
     ).toContain("var(--lime-home-card-surface-strong)");
   });
 
-  it("应按分页方式拆开展示全部做法、补这轮信息与最近结果", async () => {
+  it("应按分页方式拆开展示全部 Skills、补这轮信息与最近结果", async () => {
     const { container } = renderSceneAppsPage();
     await flushEffects();
 
-    expect(container.textContent).toContain("全部做法");
+    expect(container.textContent).toContain("全部 Skills");
     expect(container.textContent).toContain("补这轮信息");
     expect(container.textContent).toContain("最近结果");
-    expect(container.textContent).toContain("这轮做法：短视频编排");
+    expect(container.textContent).toContain("这轮 Skill：短视频编排");
     expect(container.textContent).toContain(
-      "这套做法已经接住当前上下文，这轮信息和最近结果都能直接续上。",
+      "这个 Skill 已经接住当前上下文，这轮信息和最近结果都能直接续上。",
     );
     expect(container.textContent).not.toContain(
-      "全部做法 · 进入生成前的准备层",
+      "全部 Skills · 进入生成前的准备层",
     );
     expect(container.textContent).not.toContain("当前目录");
     expect(container.textContent).not.toContain("最近继续");
@@ -1830,7 +1830,7 @@ describe("SceneAppsPage", () => {
     expect(
       container.querySelector('[data-testid="sceneapps-empty-state"]')
         ?.textContent,
-    ).toContain("当前筛选后还没有可继续的整套做法");
+    ).toContain("当前筛选后还没有可继续的 Skill");
 
     const resetButton = container.querySelector(
       '[data-testid="sceneapps-empty-reset-filters"]',
@@ -1862,7 +1862,7 @@ describe("SceneAppsPage", () => {
     expect(
       container.querySelector('[data-testid="sceneapps-empty-state"]')
         ?.textContent,
-    ).toContain("这套做法还没有首轮结果");
+    ).toContain("这个 Skill 还没有首轮结果");
 
     const openDetailButton = container.querySelector(
       '[data-testid="sceneapps-governance-open-detail"]',
@@ -1985,7 +1985,7 @@ describe("SceneAppsPage", () => {
       await openSceneAppsView(container, "catalog");
 
       const searchInput = container.querySelector(
-        'input[placeholder="搜索做法标题或想要的结果"]',
+        'input[placeholder="搜索 Skill 标题或想要的结果"]',
       ) as HTMLInputElement | null;
 
       expect(searchInput).toBeTruthy();
@@ -2049,7 +2049,7 @@ describe("SceneAppsPage", () => {
 
     await openSceneAppsView(container, "catalog");
     const searchInput = container.querySelector(
-      'input[placeholder="搜索做法标题或想要的结果"]',
+      'input[placeholder="搜索 Skill 标题或想要的结果"]',
     ) as HTMLInputElement | null;
 
     await openSceneAppsView(container, "detail");
@@ -2081,7 +2081,7 @@ describe("SceneAppsPage", () => {
       expect(listSceneAppRecentVisits()).toEqual([]);
 
       const searchInput = container.querySelector(
-        'input[placeholder="搜索做法标题或想要的结果"]',
+        'input[placeholder="搜索 Skill 标题或想要的结果"]',
       ) as HTMLInputElement | null;
 
       expect(searchInput).toBeTruthy();
@@ -2245,7 +2245,7 @@ describe("SceneAppsPage", () => {
     );
   });
 
-  it("应允许显式写入当前做法基线并刷新详情页上下文经营信息", async () => {
+  it("应允许显式写入当前 Skill 基线并刷新详情页上下文经营信息", async () => {
     mockPlanSceneAppLaunch.mockResolvedValue(
       createPlanResult({
         descriptor: {
@@ -2288,7 +2288,7 @@ describe("SceneAppsPage", () => {
             toolRefs: [],
             referenceCount: 1,
             notes: [
-              "当前做法基线已写入项目级 Context Snapshot，后续 planning 会优先复用。",
+              "当前 Skill 基线已写入项目级 Context Snapshot，后续 planning 会优先复用。",
             ],
           },
           snapshot: {
@@ -2337,7 +2337,7 @@ describe("SceneAppsPage", () => {
     );
     expect(container.textContent).toContain("已用 4 次");
     expect(container.textContent).toContain(
-      "当前做法基线已写入项目级 Context Snapshot，后续 planning 会优先复用。",
+      "当前 Skill 基线已写入项目级 Context Snapshot，后续 planning 会优先复用。",
     );
   });
 
@@ -2816,7 +2816,7 @@ describe("SceneAppsPage", () => {
     });
   });
 
-  it("保存人工复核后应刷新当前做法 planning 基线", async () => {
+  it("保存人工复核后应刷新当前 Skill planning 基线", async () => {
     const { container } = renderSceneAppsPage();
     await flushEffects();
     await openSceneAppsView(container, "governance");
@@ -2911,7 +2911,7 @@ describe("SceneAppsPage", () => {
         decision_summary: expect.stringContaining("短视频编排"),
         chosen_fix_strategy: "沿当前参考、风格与这轮结果基线继续放量。",
         risk_level: "low",
-        notes: "来自整套做法轻量反馈入口。",
+        notes: "来自 Skill 轻量反馈入口。",
       }),
     );
     expect(mockPlanSceneAppLaunch).toHaveBeenCalledTimes(2);

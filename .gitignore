@@ -73,7 +73,7 @@ docs/knowledge
 !docs/knowledge/
 docs/knowledge/*
 !docs/knowledge/README.md
-# docs/research/
+docs/research/
 
 # Issues tracking (internal use only)
 .issues/

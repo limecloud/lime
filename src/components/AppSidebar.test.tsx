@@ -490,8 +490,8 @@ describe("AppSidebar", () => {
     expect(container.textContent).toContain("新建任务");
     expect(container.textContent).not.toContain("工作台");
     expect(container.textContent).not.toContain("生成");
-    expect(container.textContent).toContain("我的方法");
-    expect(container.textContent).toContain("灵感库");
+    expect(container.textContent).toContain("Skills");
+    expect(container.textContent).toContain("灵感");
     expect(container.textContent).toContain("项目资料");
     expect(container.textContent).not.toContain("设置");
     expect(container.textContent).not.toContain("持续流程");
@@ -513,8 +513,8 @@ describe("AppSidebar", () => {
 
     expect(mainNavButtons).toEqual([
       "新建任务",
-      "我的方法",
-      "灵感库",
+      "Skills",
+      "灵感",
       "项目资料",
     ]);
     expect(
@@ -2533,7 +2533,7 @@ describe("AppSidebar", () => {
     expect(container.querySelector('button[aria-label="创作场景"]')).toBeNull();
   });
 
-  it("点击当前已激活的我的方法入口时不应重复导航", async () => {
+  it("点击当前已激活的Skills入口时不应重复导航", async () => {
     const onNavigate = vi.fn();
     const container = mountSidebarContainer({
       currentPage: "skills",
@@ -2542,7 +2542,7 @@ describe("AppSidebar", () => {
     await flushEffects();
 
     const button = container.querySelector(
-      'button[aria-label="我的方法"]',
+      'button[aria-label="Skills"]',
     ) as HTMLButtonElement | null;
 
     expect(button).not.toBeNull();

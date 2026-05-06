@@ -84,7 +84,7 @@ vi.mock("@/lib/workspace/navigation", () => ({
 const mountedRoots: MountedRoot[] = [];
 
 function renderPage(options?: {
-  section?: "home" | "identity" | "rules" | "experience";
+  section?: "home" | "durable" | "identity" | "rules" | "experience";
   onNavigate?: (page: string, params?: unknown) => void;
   focusMemoryTitle?: string;
   focusMemoryCategory?:
@@ -313,69 +313,78 @@ describe("MemoryPage", () => {
     cleanupMountedRoots(mountedRoots);
   });
 
-  it("应展示灵感库与底层诊断分层结构", async () => {
+  it("应展示轻量灵感首屏，并默认隐藏底层诊断", async () => {
     renderPage();
     await flushPageEffects();
 
     expect(
       document.body.querySelector(".lime-workbench-theme-scope"),
     ).not.toBeNull();
+    expect(
+      document.body.querySelector('[data-testid="memory-section-tabs"]'),
+    ).not.toBeNull();
 
     const bodyText = document.body.textContent ?? "";
-    expect(bodyText).toContain("灵感库");
-    expect(bodyText).toContain("灵感总览");
-    expect(bodyText).toContain("底层来源");
-    expect(bodyText).toContain("会话工作记忆");
-    expect(bodyText).toContain("参考与风格");
-    expect(bodyText).toContain("团队影子");
-    expect(bodyText).toContain("压缩摘要");
-    expect(bodyText).toContain("底层记忆目录与作用域");
-    expect(bodyText).toContain("记忆目录（memdir）");
-    expect(bodyText).toContain("底层记忆守则");
+    expect(bodyText).toContain("收藏过的想法、参考和风格");
+    expect(bodyText).toContain("灵感概览");
+    expect(bodyText).toContain("先拿结果");
+    expect(bodyText).toContain("最近灵感");
+    expect(bodyText).toContain("风格摘要");
+    expect(bodyText).toContain("项目资料");
+    expect(bodyText).not.toContain("我的做法");
+    expect(bodyText).not.toContain("底层记忆目录与作用域");
+    expect(bodyText).not.toContain("底层记忆守则");
+    expect(bodyText).not.toContain("底层运行时层就绪度");
+    expect(bodyText).not.toContain("运行时诊断");
+    expect(bodyText).not.toContain("planning");
+    expect(bodyText).not.toContain("unified memory");
+    expect(bodyText).not.toContain("memdir");
     expect(bodyText).not.toContain("Claude Code");
   });
 
-  it("home 分区应展示灵感总览与风格层摘要", async () => {
+  it("home 分区应展示灵感概览与风格摘要", async () => {
     renderPage();
     await flushPageEffects();
 
     const bodyText = document.body.textContent ?? "";
-    expect(bodyText).toContain("灵感库总览");
-    expect(bodyText).toContain("围绕当前灵感，先拿结果");
-    expect(bodyText).toContain("可继续复用的灵感对象");
-    expect(bodyText).toContain("这次可带上的参考素材");
-    expect(bodyText).toContain("系统已提炼的创作倾向");
-    expect(bodyText).toContain("底层记忆只做事实源");
-    expect(bodyText).toContain("1 条灵感对象");
-    expect(bodyText).toContain("0 条参考素材");
-    expect(bodyText).toContain("4 个风格关键词");
-    expect(bodyText).toContain("1 条来源已接入");
+    expect(bodyText).toContain("灵感概览");
+    expect(bodyText).toContain("先拿结果");
+    expect(bodyText).toContain("最近灵感");
+    expect(bodyText).toContain("可继续用的想法");
+    expect(bodyText).toContain("可带上的素材");
+    expect(bodyText).toContain("稳定的表达偏好");
+    expect(bodyText).toContain("1 条");
+    expect(bodyText).toContain("0 条");
+    expect(bodyText).toContain("4 个");
     expect(bodyText).toContain("1 条参考对象");
     expect(bodyText).toContain("内容主稿生成");
-    expect(bodyText).toContain("风格层摘要");
+    expect(bodyText).toContain("风格摘要");
     expect(bodyText).toContain("夏日短视频语气");
+    expect(bodyText).not.toContain("底层记忆只做事实源");
   });
 
-  it("应在灵感库首屏显式提供项目资料辅助入口", async () => {
+  it("应在灵感首屏提供轻量项目资料入口", async () => {
     const onNavigate = vi.fn();
     renderPage({ onNavigate });
     await flushPageEffects();
 
-    const callout = document.body.querySelector(
-      '[data-testid="memory-project-resources-callout"]',
+    expect(
+      document.body.querySelector(
+        '[data-testid="memory-project-resources-callout"]',
+      ),
+    ).toBeNull();
+    const resourcesButton = document.body.querySelector(
+      '[data-testid="memory-project-resources-button"]',
     ) as HTMLElement | null;
-    expect(callout?.className).toContain("var(--lime-info-soft)");
+    expect(resourcesButton?.className).toContain("rounded-full");
 
     const bodyText = document.body.textContent ?? "";
-    expect(bodyText).toContain("项目资料作为辅助页保留在这里");
-    expect(bodyText).toContain(
-      "默认资料导航现在优先看灵感库；需要回看项目资料、导入内容和外部资料时，从这里打开项目资料。",
-    );
-    expect(bodyText).toContain("打开项目资料");
+    expect(bodyText).toContain("项目资料");
+    expect(bodyText).not.toContain("需要查看项目资料？");
 
     const openResourcesButton = Array.from(
       document.body.querySelectorAll("button"),
-    ).find((element) => element.textContent?.includes("打开项目资料"));
+    ).find((element) => element.textContent?.includes("项目资料"));
     expect(openResourcesButton).toBeTruthy();
 
     await act(async () => {
@@ -502,7 +511,11 @@ describe("MemoryPage", () => {
       },
     );
 
-    renderPage();
+    renderPage({
+      runtimeSessionId: "session-clear-history",
+      runtimeWorkingDir: "/tmp/workspace",
+      runtimeUserMessage: "待清空记录",
+    });
     await flushPageEffects();
 
     const launchButton = Array.from(
@@ -593,11 +606,15 @@ describe("MemoryPage", () => {
       },
     ]);
 
-    renderPage();
+    renderPage({
+      runtimeSessionId: "session-history-prev",
+      runtimeWorkingDir: "/tmp/workspace",
+      runtimeUserMessage: "继续输出第二版",
+    });
     await flushPageEffects();
 
     const bodyText = document.body.textContent ?? "";
-    expect(bodyText).toContain("围绕当前灵感，先拿结果");
+    expect(bodyText).toContain("先拿结果");
     expect(bodyText).toContain("当前续接成果");
     expect(bodyText).toContain("短视频编排 · 复核阻塞");
     expect(bodyText).toContain("复盘这个账号/项目");
@@ -699,7 +716,11 @@ describe("MemoryPage", () => {
         },
       ]);
 
-    renderPage();
+    renderPage({
+      runtimeSessionId: "session-stability",
+      runtimeWorkingDir: "/tmp/workspace",
+      runtimeUserMessage: "继续观察层稳定性第二轮",
+    });
     await flushPageEffects();
 
     expect(document.body.textContent ?? "").toContain("0 条参考素材");
@@ -802,9 +823,10 @@ describe("MemoryPage", () => {
     renderPage({ section: "identity", onNavigate });
     await flushPageEffects();
 
-    expect(document.body.textContent ?? "").toContain("灵感对象分层");
-    expect(document.body.textContent ?? "").toContain("灵感条目明细");
+    expect(document.body.textContent ?? "").toContain("灵感条目");
+    expect(document.body.textContent ?? "").toContain("左侧挑一条，右侧直接继续。");
     expect(document.body.textContent ?? "").toContain("夏日短视频语气");
+    expect(document.body.textContent ?? "").not.toContain("灵感对象分层");
 
     const button = Array.from(document.body.querySelectorAll("button")).find(
       (element) => element.textContent?.includes("带回创作输入"),
@@ -853,7 +875,7 @@ describe("MemoryPage", () => {
 
     const sceneButton = Array.from(
       document.body.querySelectorAll("button"),
-    ).find((element) => element.textContent?.includes("去全部做法"));
+    ).find((element) => element.textContent?.includes("去全部 Skills"));
     expect(sceneButton).toBeTruthy();
 
     await act(async () => {
@@ -1057,6 +1079,79 @@ describe("MemoryPage", () => {
     );
   });
 
+  it("durable 分区应支持左列切换条目并同步右侧详情", async () => {
+    mockGetUnifiedMemoryStats.mockResolvedValue({
+      total_entries: 2,
+      storage_used: 2048,
+      memory_count: 2,
+      categories: [
+        { category: "identity", count: 1 },
+        { category: "context", count: 1 },
+      ],
+    });
+    mockListUnifiedMemories.mockResolvedValue([
+      {
+        id: "memory-1",
+        session_id: "session-1",
+        memory_type: "conversation",
+        category: "identity",
+        title: "夏日短视频语气",
+        summary: "适合清爽、轻快、有镜头感的小红书口播开场。",
+        content:
+          "第一句先给画面感，再抛出反差点，整体节奏要短句、轻快、有停顿。",
+        updated_at: 1_712_345_678_900,
+        created_at: 1_712_300_000_000,
+        tags: ["小红书", "口播", "夏日氛围"],
+        metadata: {
+          source: "auto_extracted",
+        },
+      },
+      {
+        id: "memory-2",
+        session_id: "session-1",
+        memory_type: "conversation",
+        category: "context",
+        title: "对标样片：海边穿搭 15 秒版本",
+        summary: "节奏更快，前三秒先放成片，再补一句选题钩子。",
+        content: [
+          "先上结果镜头，再回到场景准备。",
+          "字幕尽量压到两行内。",
+          "最后一镜保留海边风声，别全程铺音乐。",
+        ].join("\n"),
+        updated_at: 1_712_345_779_000,
+        created_at: 1_712_300_100_000,
+        tags: ["海边", "穿搭", "15 秒"],
+        metadata: {
+          source: "manual",
+        },
+      },
+    ]);
+
+    renderPage({ section: "durable" });
+    await flushPageEffects();
+
+    expect(document.body.textContent ?? "").toContain("自动沉淀");
+    expect(document.body.textContent ?? "").not.toContain("手动整理");
+    expect(document.body.textContent ?? "").not.toContain(
+      "最后一镜保留海边风声，别全程铺音乐。",
+    );
+
+    const secondEntry = document.body.querySelector(
+      '[data-testid="memory-durable-entry-memory-2"]',
+    ) as HTMLButtonElement | null;
+    expect(secondEntry).toBeTruthy();
+
+    await act(async () => {
+      secondEntry?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(document.body.textContent ?? "").toContain("手动整理");
+    expect(document.body.textContent ?? "").toContain(
+      "最后一镜保留海边风声，别全程铺音乐。",
+    );
+  });
+
   it("应支持带着当前会话上下文打开运行时记忆命中预演", async () => {
     window.localStorage.setItem(
       "lime:team-memory:/tmp/workspace",
@@ -1113,7 +1208,7 @@ describe("MemoryPage", () => {
 
     const bodyText = document.body.textContent ?? "";
     expect(bodyText).toContain("当前运行时预演");
-    expect(bodyText).toContain("最近运行时命中");
+    expect(bodyText).toContain("最近命中记录");
     expect(bodyText).toContain("会话：session-runtime-1");
     expect(bodyText).toContain("工作区：/tmp/workspace");
     expect(bodyText).toContain("本回合记忆预取");
@@ -1249,7 +1344,7 @@ describe("MemoryPage", () => {
       document.body.querySelectorAll("button"),
     ).find(
       (element) =>
-        element.textContent?.includes("记忆来源") &&
+        element.textContent?.includes("底层来源") &&
         !element.textContent?.includes("看来源链"),
     );
     expect(rulesButton).toBeTruthy();
@@ -1344,7 +1439,11 @@ describe("MemoryPage", () => {
       },
     });
 
-    renderPage();
+    renderPage({
+      runtimeSessionId: "session-history-prev",
+      runtimeWorkingDir: "/tmp/workspace",
+      runtimeUserMessage: "继续输出第二版",
+    });
     await flushPageEffects();
 
     const bodyText = document.body.textContent ?? "";
@@ -1393,8 +1492,21 @@ describe("MemoryPage", () => {
         prompt: null,
       },
     });
+    mockPrefetchContextMemoryForTurn.mockResolvedValue({
+      session_id: "session-stability",
+      rules_source_paths: ["/tmp/workspace/.lime/AGENTS.md"],
+      working_memory_excerpt: null,
+      durable_memories: [],
+      team_memory_entries: [],
+      latest_compaction: null,
+      prompt: null,
+    });
 
-    renderPage();
+    renderPage({
+      runtimeSessionId: "session-stability",
+      runtimeWorkingDir: "/tmp/workspace",
+      runtimeUserMessage: "继续观察层稳定性第二轮",
+    });
     await flushPageEffects();
 
     const bodyText = document.body.textContent ?? "";
@@ -1475,7 +1587,7 @@ describe("MemoryPage", () => {
     expect(bodyText).not.toContain("其他工作区记录");
   });
 
-  it("应支持清空最近运行时命中历史", async () => {
+  it("应支持清空最近命中历史", async () => {
     recordRuntimeMemoryPrefetchHistory({
       sessionId: "session-clear-history",
       workingDir: "/tmp/workspace",
@@ -1493,10 +1605,12 @@ describe("MemoryPage", () => {
       },
     });
 
-    renderPage();
+    renderPage({
+      runtimeSessionId: "session-clear-history",
+      runtimeWorkingDir: "/tmp/workspace",
+      runtimeUserMessage: "待清空记录",
+    });
     await flushPageEffects();
-
-    expect(document.body.textContent ?? "").toContain("待清空记录");
 
     const clearButton = Array.from(
       document.body.querySelectorAll("button"),
@@ -1508,7 +1622,9 @@ describe("MemoryPage", () => {
       await Promise.resolve();
     });
 
-    expect(document.body.textContent ?? "").toContain(
+    const bodyText = document.body.textContent ?? "";
+    expect(bodyText).toContain("最近命中记录");
+    expect(bodyText).toContain(
       "当前还没有运行时命中历史。先在对话工作台触发几轮记忆预演，这里会自动沉淀最近记录。",
     );
   });

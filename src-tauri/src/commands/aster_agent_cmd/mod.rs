@@ -145,11 +145,19 @@ const WORKSPACE_SANDBOX_NOTIFY_ENV_KEYS: &[&str] = &[
 const WORKSPACE_SANDBOX_FALLBACK_WARNING_CODE: &str = "workspace_sandbox_fallback";
 pub(crate) const RUNTIME_PERMISSION_CONFIRMATION_REQUEST_PREFIX: &str =
     "runtime_permission_confirmation:";
+pub(crate) const RUNTIME_USER_LOCK_CAPABILITY_REQUEST_PREFIX: &str =
+    "runtime_user_lock_capability:";
 
 pub(crate) fn is_runtime_permission_confirmation_request_id(request_id: &str) -> bool {
     request_id
         .trim()
         .starts_with(RUNTIME_PERMISSION_CONFIRMATION_REQUEST_PREFIX)
+}
+
+pub(crate) fn is_runtime_user_lock_capability_request_id(request_id: &str) -> bool {
+    request_id
+        .trim()
+        .starts_with(RUNTIME_USER_LOCK_CAPABILITY_REQUEST_PREFIX)
 }
 
 fn runtime_permission_confirmation_text_is_denial(value: &str) -> bool {
@@ -366,6 +374,7 @@ mod typesetting_skill_launch;
 mod url_parse_skill_launch;
 mod video_skill_launch;
 mod webpage_skill_launch;
+mod workspace_skill_binding_prompt;
 #[cfg(test)]
 use self::subagent_runtime::{
     build_subagent_customization_state, build_subagent_customization_system_prompt,
@@ -379,6 +388,9 @@ use self::tool_runtime::{
 #[cfg(test)]
 include!("tests.rs");
 
+pub(crate) use crate::services::runtime_skill_binding_service::{
+    AgentRuntimeListWorkspaceSkillBindingsRequest, AgentRuntimeWorkspaceSkillBindings,
+};
 #[cfg(test)]
 pub(crate) use action_runtime::{
     build_action_resume_runtime_status, build_runtime_action_user_data,
@@ -416,12 +428,12 @@ pub(crate) use command_api::{
     agent_runtime_export_replay_case, agent_runtime_get_file_checkpoint, agent_runtime_get_session,
     agent_runtime_get_thread_read, agent_runtime_get_tool_inventory, agent_runtime_interrupt_turn,
     agent_runtime_list_file_checkpoints, agent_runtime_list_sessions,
-    agent_runtime_promote_queued_turn, agent_runtime_remove_queued_turn,
-    agent_runtime_replay_request, agent_runtime_resume_subagent, agent_runtime_resume_thread,
-    agent_runtime_save_review_decision, agent_runtime_send_subagent_input,
-    agent_runtime_spawn_subagent, agent_runtime_submit_turn, agent_runtime_update_session,
-    agent_runtime_wait_subagents, aster_agent_configure_provider, aster_agent_init,
-    aster_agent_reset, aster_agent_status,
+    agent_runtime_list_workspace_skill_bindings, agent_runtime_promote_queued_turn,
+    agent_runtime_remove_queued_turn, agent_runtime_replay_request, agent_runtime_resume_subagent,
+    agent_runtime_resume_thread, agent_runtime_save_review_decision,
+    agent_runtime_send_subagent_input, agent_runtime_spawn_subagent, agent_runtime_submit_turn,
+    agent_runtime_update_session, agent_runtime_wait_subagents, aster_agent_configure_provider,
+    aster_agent_init, aster_agent_reset, aster_agent_status,
 };
 pub(crate) use cover_skill_launch::{
     append_cover_skill_launch_session_permissions, merge_system_prompt_with_cover_skill_launch,
@@ -612,6 +624,7 @@ pub(crate) use webpage_skill_launch::{
     prepare_webpage_skill_launch_request_metadata,
     prune_webpage_skill_launch_detour_tools_from_registry,
 };
+pub(crate) use workspace_skill_binding_prompt::merge_system_prompt_with_workspace_skill_bindings;
 
 pub(crate) struct RuntimeCommandContext {
     app_handle: AppHandle,

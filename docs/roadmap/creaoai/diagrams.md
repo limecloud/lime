@@ -1,8 +1,8 @@
-# CreoAI 启发下的 Lime 架构图与流程图
+# CREAO 启发下的 Lime 架构图与流程图
 
 > 状态：proposal  
-> 更新时间：2026-05-05  
-> 作用：把 Skill Forge、generated capability、skills pipeline、runtime execution 和 evidence 闭环画成可复查图纸。
+> 更新时间：2026-05-06
+> 作用：把 Skill Forge、generated capability、skills pipeline、runtime execution、Agent envelope、组织 harness 和 evidence 闭环画成可复查图纸。
 
 配套原型：
 
@@ -22,6 +22,8 @@ flowchart TB
     Registry --> Objective[Managed Objective<br/>目标 / 成功标准 / 续跑策略]
     Objective --> Runtime[Autonomous Execution<br/>Query Loop / tool_runtime / automation / subagent]
     Runtime --> Workspace[Workspace / Agent App Surface<br/>artifact / task / memory / evidence]
+    Workspace --> AgentEnvelope[Agent Envelope<br/>Skill / Memory / Widget / Schedule / Permission / Evidence]
+    AgentEnvelope --> User
     Workspace --> User
     Workspace --> Forge
 ```
@@ -32,6 +34,7 @@ flowchart TB
 2. `Generated Capability Draft` 验证前不能进入默认工具面。
 3. `Managed Objective` 只做目标推进控制，不是第四类 runtime。
 4. 真实执行必须回到 Lime current runtime。
+5. Agent Envelope 是 Workspace 产品面，不是 runtime。
 
 ## 1.1 Coding Agent 内部循环图
 
@@ -185,11 +188,11 @@ sequenceDiagram
     end
 ```
 
-## 5. 长期任务执行闭环
+## 5. 可调度任务执行闭环
 
 ```mermaid
 flowchart TD
-    Start[Managed Skill Job] --> Objective[加载 Managed Objective<br/>目标 / 成功标准 / 预算]
+    Start[Managed Skill Job / Agent Run] --> Objective[加载 Managed Objective<br/>目标 / 成功标准 / 预算]
     Objective --> Load[加载 workspace-local skill]
     Load --> Policy[检查权限 / sandbox / budget]
     Policy --> Execute[tool_runtime 执行]
@@ -200,6 +203,7 @@ flowchart TD
     Artifact --> Evidence[更新 evidence pack]
     Evidence --> Audit{目标是否完成}
     Audit -- 已完成 --> Done[completed]
+    Done --> AgentEnvelope[建议固化 / 更新 Agent Envelope]
     Audit -- 未完成 --> Continue[下一轮 continuation turn]
     Continue --> Execute
 
@@ -216,7 +220,7 @@ flowchart TD
 
 固定判断：
 
-1. 长期任务必须能明确完成、阻塞或失败。
+1. 可调度任务必须能明确完成、阻塞或失败。
 2. 失败路径和成功路径都要进入 evidence。
 3. 需要用户输入时不能伪装成自动完成。
 4. continuation turn 只能由 Managed Objective 策略触发，并继续走 Query Loop。
@@ -230,12 +234,14 @@ flowchart TB
     Workspace --> Objectives[Managed Objectives]
     Workspace --> Artifacts[Artifacts]
     Workspace --> Evidence[Evidence]
+    Workspace --> AgentEnvelope[Agent Envelopes]
 
     Skills --> SkillCard[Skill Card<br/>来源 / 权限 / 验证 / 版本]
     Jobs --> JobCard[Job Card<br/>状态 / 下次运行 / 阻塞 / 操作]
     Objectives --> ObjectiveCard[Objective Card<br/>目标 / 成功标准 / audit 状态]
     Artifacts --> Output[Output Viewer<br/>报告 / 数据 / 草稿]
     Evidence --> Audit[Audit View<br/>调用 / 失败 / 确认 / 回放]
+    AgentEnvelope --> AgentCard[Agent Card<br/>memory / widget / schedule / permission / evidence]
 
     SkillCard --> Run[手动运行]
     SkillCard --> Schedule[创建定时任务]
@@ -243,16 +249,40 @@ flowchart TB
     JobCard --> Pause[暂停]
     JobCard --> Resume[恢复]
     JobCard --> Review
+    AgentCard --> Schedule
+    AgentCard --> Review
 ```
 
 固定判断：
 
 1. 用户必须能看见 agent 生成了什么能力。
 2. 用户必须能看见能力权限和验证状态。
-3. 用户必须能看见长期任务对应的目标和完成审计状态。
+3. 用户必须能看见可调度任务对应的目标和完成审计状态。
 4. 用户必须能从任务回到 evidence。
+5. 用户必须能看见成功任务如何被固化为 Agent，但 Agent Card 不能绕过 runtime。
 
-## 7. current / deprecated 边界图
+
+## 7. 组织 Harness 反馈图
+
+```mermaid
+flowchart LR
+    Signals[行业动态 / GitHub / 竞品 / 用户日志 / 业务指标] --> Intake[AI 候选需求生成]
+    Intake --> Planning[人类 planning 判断<br/>主线 / 品味 / 商业 / 风险]
+    Planning --> Build[AI 实现 / 修复 / 测试]
+    Build --> Release[发布 / 实验]
+    Release --> Outcome[Telemetry / AB / 用户反馈]
+    Outcome --> Roadmap[docs/roadmap / docs/exec-plans]
+    Outcome --> Evidence[evidence / artifact refs]
+    Roadmap --> Planning
+```
+
+固定判断：
+
+1. 组织 harness 是 roadmap 和反馈闭环，不是新的 runtime。
+2. telemetry / AB 证明 outcome，evidence 证明执行事实。
+3. planning 判断必须沉淀到 repo artifact，不只存在聊天上下文。
+
+## 8. current / deprecated 边界图
 
 ```mermaid
 flowchart LR
@@ -268,7 +298,7 @@ flowchart LR
     GoalPattern -.禁止照搬为第四 runtime.-> Deprecated
 ```
 
-## 8. 与 AI 图层化设计的消费关系图
+## 9. 与 AI 图层化设计的消费关系图
 
 ```mermaid
 flowchart LR
@@ -288,7 +318,7 @@ flowchart LR
 3. `LayeredDesignDocument`、Canvas Editor 和设计导出协议仍归 [../ai-layered-design/README.md](../ai-layered-design/README.md)。
 4. 不允许为了图层化设计新增平行 generated tools runtime。
 
-## 9. 后续补图原则
+## 10. 后续补图原则
 
 后续如果本路线图继续补图，遵守三条规则：
 

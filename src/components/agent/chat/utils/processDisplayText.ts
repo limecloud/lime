@@ -1,7 +1,7 @@
 const STRUCTURED_LINE_RE =
   /^\s{0,3}(?:#{1,6}\s+|[-*+]\s+|\d+\.\s+|>\s+|\|.*\||```|~~~)/m;
 
-const MIN_FRAGMENTED_LINE_COUNT = 5;
+const MIN_FRAGMENTED_LINE_COUNT = 3;
 const SHORT_FRAGMENT_LINE_LENGTH = 12;
 const AVERAGE_FRAGMENT_LINE_LENGTH = 10;
 

@@ -1,6 +1,6 @@
 # CreoAI Capability Discovery P3B 执行计划
 
-> 状态：进行中  
+> 状态：完成
 > 创建时间：2026-05-05  
 > 前置计划：`docs/exec-plans/creaoai-capability-registration-p3-plan.md`  
 > 路线图来源：`docs/roadmap/creaoai/implementation-plan.md`、`docs/aiprompts/skill-standard.md`、`docs/aiprompts/commands.md`  
@@ -78,34 +78,34 @@ app_paths::resolve_project_skills_dir()
 
 ### P3B-1：后端 discovery service
 
-- [ ] 新增 `ListWorkspaceRegisteredSkillsRequest`。
-- [ ] 新增 `WorkspaceRegisteredSkillRecord` DTO。
-- [ ] 新增 `list_workspace_registered_skills(...)` 服务函数。
-- [ ] 只扫描 `<workspaceRoot>/.agents/skills`。
-- [ ] 只返回包含 `.lime/registration.json` 的标准 Skill 包。
-- [ ] 补 Rust 单测：空目录、无 registration 忽略、注册后可发现、相对 workspaceRoot 拒绝、symlink 逃逸拒绝。
+- [x] 新增 `ListWorkspaceRegisteredSkillsRequest`。
+- [x] 新增 `WorkspaceRegisteredSkillRecord` DTO。
+- [x] 新增 `list_workspace_registered_skills(...)` 服务函数。
+- [x] 只扫描 `<workspaceRoot>/.agents/skills`。
+- [x] 只返回包含 `.lime/registration.json` 的标准 Skill 包。
+- [x] 补 Rust 单测：空目录、无 registration 忽略、注册后可发现、相对 workspaceRoot 拒绝、symlink 逃逸拒绝。
 
 ### P3B-2：命令边界
 
-- [ ] 新增 Tauri command `capability_draft_list_registered_skills`。
-- [ ] 同步 `runner.rs`、DevBridge dispatcher。
-- [ ] 同步 `agentCommandCatalog`、`mockPriorityCommands`、`defaultMocks`。
-- [ ] 运行 `npm run test:contracts`。
+- [x] 新增 Tauri command `capability_draft_list_registered_skills`。
+- [x] 同步 `runner.rs`、DevBridge dispatcher。
+- [x] 同步 `agentCommandCatalog`、`mockPriorityCommands`、`defaultMocks`。
+- [x] 运行 `npm run test:contracts`。
 
 ### P3B-3：前端 API / UI
 
-- [ ] 扩展 `capabilityDraftsApi.listRegisteredSkills(...)` 与 normalization。
-- [ ] 新增 Workspace 已注册能力只读面板。
-- [ ] Skills 工作台在 Capability Draft 隔离区附近展示已注册能力。
-- [ ] 注册成功后刷新已注册能力面板。
-- [ ] 补 API、组件、Skills 工作台回归测试。
+- [x] 扩展 `capabilityDraftsApi.listRegisteredSkills(...)` 与 normalization。
+- [x] 新增 Workspace 已注册能力只读面板。
+- [x] Skills 工作台在 Capability Draft 隔离区附近展示已注册能力。
+- [x] 注册成功后刷新已注册能力面板。
+- [x] 补 API、组件、Skills 工作台回归测试。
 
 ### P3B-4：试跑与验收
 
-- [ ] 用 DevBridge 走 `create -> verify -> register -> list_registered_skills`。
-- [ ] 确认返回 provenance、标准合规与 `launchEnabled=false`。
-- [ ] 确认 UI 展示“已注册但待运行接入”，没有运行或自动化按钮。
-- [ ] 根据 GUI 工作台改动补 `npm run verify:gui-smoke`。
+- [x] 用 DevBridge 走 `create -> verify -> register -> list_registered_skills`。
+- [x] 确认返回 provenance、标准合规与 `launchEnabled=false`。
+- [x] 确认 UI 展示“已注册但待运行接入”，没有运行或自动化按钮。
+- [x] 根据 GUI 工作台改动补 `npm run verify:gui-smoke`。
 
 ## 验收标准
 
@@ -123,3 +123,40 @@ app_paths::resolve_project_skills_dir()
 
 - 已创建 P3B 执行计划，确认第一刀只补 workspace-local registered skill discovery。
 - 已确认 P3B 不复用 `get_local_skills_for_app` 的 cwd 语义，也不把 generated skill 直接混进默认已安装方法列表。
+
+### 2026-05-06
+
+- 已完成后端 `list_workspace_registered_skills(...)`、Tauri command、DevBridge dispatcher、前端 API 网关、默认 mock、治理目录册与 Skills 工作台只读面板。
+- 已把 discovery 语义固定为 `workspaceRoot -> .agents/skills -> .lime/registration.json provenance -> read-only projection`，结果显式返回 `launchEnabled=false` 与 runtime gate 文案。
+- Rust 默认 feature 定向测试曾因 `local-sensevoice / sherpa-onnx-sys` 冷编译阻塞中止；已改用无语音特性的定向命令补齐：
+  - `CARGO_TARGET_DIR="src-tauri/target-codex-p3-novoice" cargo test --manifest-path "src-tauri/Cargo.toml" --no-default-features capability_draft`
+  - 结果：`16` 个 capability draft 测试通过，`1203` 个测试按过滤器跳过。
+- 前端定向回归通过：
+  - `npm test -- "src/lib/api/capabilityDrafts.test.ts" "src/features/capability-drafts/domain/capabilityDraftPresentation.test.ts" "src/features/capability-drafts/components/CapabilityDraftPanel.test.tsx" "src/features/capability-drafts/components/WorkspaceRegisteredSkillsPanel.test.tsx" "src/components/skills/SkillsWorkspacePage.test.tsx"`
+  - 结果：`5` 个文件、`48` 个测试通过。
+- 命令契约通过：
+  - `npm run test:contracts`
+  - 结果：command contracts、harness contracts、modality runtime contracts 与 cleanup report contract 均通过。
+- DevBridge 真实链路通过：
+  - `capability_draft_create -> capability_draft_verify -> capability_draft_register -> capability_draft_list_registered_skills`
+  - 临时 workspace：`/tmp/lime-creaoai-p3b-smoke.3KFuJW`
+  - 结果：发现 `capability-213ea44ef8d9`，`launchEnabled=false`，runtime gate 文案存在。
+- GUI smoke 通过：
+  - `npm run verify:gui-smoke -- --reuse-running --timeout-ms 300000`
+  - 覆盖 DevBridge health、workspace ready、browser runtime、site adapters、service skill entry、runtime tool surface、Knowledge GUI 与 Design Canvas smoke。
+
+## P3B 收口结论
+
+P3B registered discovery 已达到本计划可交付门槛：P3A 注册后的 workspace-local Skill 包可以被当前 workspace 明确发现、审计来源、展示权限与标准检查，但仍不会进入默认 tool surface，也不会暴露运行、自动化或继续执行入口。
+
+下一阶段应单独开计划推进 runtime binding：
+
+```text
+registered discovery
+  -> workspace-scoped catalog binding
+  -> Query Loop metadata
+  -> tool_runtime 授权裁剪
+  -> artifact / evidence 调用记录
+```
+
+在这条后续链路完成前，`registered` 与 `discovered` 只能表示“可审计存在”，不能表示“可自动运行”。

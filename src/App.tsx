@@ -14,6 +14,8 @@ import { withI18nPatch } from "./i18n/withI18nPatch";
 import { AppPageContent } from "./components/AppPageContent";
 import { SplashScreen } from "./components/SplashScreen";
 import { AppSidebar } from "./components/AppSidebar";
+import { startupTracker } from "./lib/diagnostics/startupPerformance";
+import { preloadDefaultProject } from "./lib/api/project";
 import {
   ProjectType,
   createProject,
@@ -147,6 +149,8 @@ const pageLoadingFallback = (
 );
 
 function AppContent() {
+  startupTracker.mark("AppContent: render start");
+
   const hasTauriDesktopRuntime = hasTauriInvokeCapability();
   const reserveMacWindowControls = shouldReserveMacWindowControls();
   const [showSplash, setShowSplash] = useState(true);
@@ -330,7 +334,11 @@ function AppContent() {
   });
 
   const handleSplashComplete = useCallback(() => {
+    startupTracker.mark("SplashScreen: complete");
     setShowSplash(false);
+
+    // Splash 完成后立即预加载默认项目
+    preloadDefaultProject();
   }, []);
 
   const handleOnboardingComplete = useCallback(() => {
@@ -345,20 +353,25 @@ function AppContent() {
   );
 
   if (showSplash) {
+    startupTracker.mark("AppContent: showing splash");
     return <SplashScreen onComplete={handleSplashComplete} />;
   }
 
   if (needsOnboarding === null) {
+    startupTracker.mark("AppContent: checking onboarding");
     return null;
   }
 
   if (needsOnboarding) {
+    startupTracker.mark("AppContent: showing onboarding");
     return (
       <Suspense fallback={null}>
         <OnboardingWizard onComplete={handleOnboardingComplete} />
       </Suspense>
     );
   }
+
+  startupTracker.mark("AppContent: rendering main app");
 
   return (
     <SoundProvider>

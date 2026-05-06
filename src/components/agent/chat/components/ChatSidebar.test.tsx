@@ -148,9 +148,9 @@ describe("ChatSidebar", () => {
     expect(container.textContent).toContain("任务");
     expect(container.textContent).toContain("新建任务");
     expect(container.textContent).toContain("能力");
-    expect(container.textContent).toContain("我的方法");
+    expect(container.textContent).toContain("Skills");
     expect(container.textContent).toContain("资料");
-    expect(container.textContent).toContain("灵感库");
+    expect(container.textContent).toContain("灵感");
     expect(container.textContent).toContain("项目资料");
     expect(searchInput).toBeTruthy();
     expect(
@@ -187,7 +187,7 @@ describe("ChatSidebar", () => {
     act(() => {
       (
         Array.from(container.querySelectorAll("button")).find((button) =>
-          button.textContent?.includes("我的方法"),
+          button.textContent?.includes("Skills"),
         ) as HTMLButtonElement | undefined
       )?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
@@ -201,7 +201,7 @@ describe("ChatSidebar", () => {
     act(() => {
       (
         Array.from(container.querySelectorAll("button")).find((button) =>
-          button.textContent?.includes("灵感库"),
+          button.textContent?.includes("灵感"),
         ) as HTMLButtonElement | undefined
       )?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });

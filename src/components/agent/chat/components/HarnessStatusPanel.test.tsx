@@ -1,12 +1,16 @@
 import { act, type ComponentProps } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { AgentRuntimeToolInventory } from "@/lib/api/agentRuntime";
+import type {
+  AgentRuntimeReviewDecisionTemplate,
+  AgentRuntimeToolInventory,
+} from "@/lib/api/agentRuntime";
 import {
   areLightweightRenderersRegistered,
   registerLightweightRenderers,
 } from "@/components/artifact/renderers";
 import { HarnessStatusPanel } from "./HarnessStatusPanel";
+import { RuntimeReviewDecisionDialog } from "./RuntimeReviewDecisionDialog";
 import type { HarnessSessionState } from "../utils/harnessState";
 
 const {
@@ -52,6 +56,16 @@ vi.mock("@/lib/api/agentRuntime", async () => {
 
 vi.mock("sonner", () => ({
   toast: mockToast,
+}));
+
+vi.mock("react-syntax-highlighter", () => ({
+  Prism: ({ children }: { children?: unknown }) => (
+    <pre data-testid="syntax-highlighter-mock">{String(children ?? "")}</pre>
+  ),
+}));
+
+vi.mock("react-syntax-highlighter/dist/esm/styles/prism", () => ({
+  oneLight: {},
 }));
 
 vi.mock("@/lib/api/memoryRuntime", () => ({
@@ -926,6 +940,22 @@ describe("HarnessStatusPanel", () => {
       known_gaps: [
         "当前 Evidence Pack 尚未纳入 GUI smoke / browser 验证结果。",
       ],
+      completion_audit_summary: {
+        source: "runtime_evidence_pack_completion_audit",
+        decision: "completed",
+        owner_run_count: 1,
+        successful_owner_run_count: 1,
+        workspace_skill_tool_call_count: 1,
+        artifact_count: 2,
+        owner_audit_statuses: ["audit_input_ready"],
+        required_evidence: {
+          automation_owner: true,
+          workspace_skill_tool_call: true,
+          artifact_or_timeline: true,
+        },
+        blocking_reasons: [],
+        notes: ["证据齐全。"],
+      },
       observability_summary: {
         schema_version: "v1",
         known_gaps: [
@@ -1168,6 +1198,10 @@ describe("HarnessStatusPanel", () => {
       "session-evidence-1",
     );
     expect(document.body.textContent).toContain("问题证据包");
+    expect(document.body.textContent).toContain("Completion Audit");
+    expect(document.body.textContent).toContain("completed · 证据完成");
+    expect(document.body.textContent).toContain("Owner success");
+    expect(document.body.textContent).toContain("Skill ToolCall");
     expect(document.body.textContent).toContain("验证结果");
     expect(document.body.textContent).toContain("阻塞失败");
     expect(document.body.textContent).toContain("验证失败焦点");
@@ -1457,6 +1491,10 @@ describe("HarnessStatusPanel", () => {
       pending_request_count: 1,
       queued_turn_count: 0,
       default_decision_status: "pending_review",
+      limit_status: "user_locked_capability_gap",
+      capability_gap: "browser_reasoning_candidate_missing",
+      user_locked_capability_summary:
+        "显式用户模型锁定不满足当前 execution profile（capabilityGap=browser_reasoning_candidate_missing），不能作为成功交付证据。",
       permission_status: "requires_confirmation",
       permission_confirmation_status: "denied",
       permission_confirmation_request_id: "approval-denied",
@@ -1570,6 +1608,10 @@ describe("HarnessStatusPanel", () => {
     expect(document.body.textContent).toContain("待人工审核");
     expect(document.body.textContent).toContain("权限确认");
     expect(document.body.textContent).toContain("权限确认已拒绝");
+    expect(document.body.textContent).toContain("模型锁定能力缺口");
+    expect(document.body.textContent).toContain(
+      "browser_reasoning_candidate_missing",
+    );
     expect(document.body.textContent).toContain("approval-denied");
     expect(document.body.textContent).toContain("不能作为成功交付证据");
     expect(document.body.textContent).toContain(
@@ -1926,6 +1968,123 @@ describe("HarnessStatusPanel", () => {
     expect(document.body.textContent).toContain("Lime Maintainer");
     expect(document.body.textContent).toContain("处理 approval-denied-dialog");
     expect(mockToast.success).toHaveBeenCalledWith("已保存人工审核结果");
+  });
+
+  it("人工审核弹窗应阻止模型锁定能力缺口保存为接受", async () => {
+    const onSave = vi.fn();
+    const template: AgentRuntimeReviewDecisionTemplate = {
+      session_id: "session-review-user-lock",
+      thread_id: "thread-review-user-lock",
+      workspace_id: "workspace-review-user-lock",
+      workspace_root: "/tmp/workspace-review-user-lock",
+      review_relative_root:
+        ".lime/harness/sessions/session-review-user-lock/review",
+      review_absolute_root:
+        "/tmp/workspace-review-user-lock/.lime/harness/sessions/session-review-user-lock/review",
+      analysis_relative_root:
+        ".lime/harness/sessions/session-review-user-lock/analysis",
+      analysis_absolute_root:
+        "/tmp/workspace-review-user-lock/.lime/harness/sessions/session-review-user-lock/analysis",
+      handoff_bundle_relative_root:
+        ".lime/harness/sessions/session-review-user-lock",
+      evidence_pack_relative_root:
+        ".lime/harness/sessions/session-review-user-lock/evidence",
+      replay_case_relative_root:
+        ".lime/harness/sessions/session-review-user-lock/replay",
+      exported_at: "2026-05-06T10:00:00.000Z",
+      title: "模型锁定能力缺口审核",
+      thread_status: "failed",
+      latest_turn_status: "failed",
+      pending_request_count: 0,
+      queued_turn_count: 0,
+      default_decision_status: "pending_review",
+      limit_status: "user_locked_capability_gap",
+      capability_gap: "browser_reasoning_candidate_missing",
+      user_locked_capability_summary:
+        "显式用户模型锁定不满足当前 execution profile（capabilityGap=browser_reasoning_candidate_missing），不能作为成功交付证据。",
+      permission_status: "not_required",
+      permission_confirmation_status: "resolved",
+      permission_confirmation_request_id: "approval-resolved",
+      permission_confirmation_source: "runtime_action_required",
+      permission_confirmation_summary:
+        "已通过（request_id=approval-resolved, source=runtime_action_required）。",
+      decision: {
+        decision_status: "pending_review",
+        decision_summary: "",
+        chosen_fix_strategy: "",
+        risk_level: "unknown",
+        risk_tags: [],
+        human_reviewer: "",
+        reviewed_at: undefined,
+        followup_actions: [],
+        regression_requirements: [],
+        notes: "",
+      },
+      decision_status_options: [
+        "accepted",
+        "deferred",
+        "rejected",
+        "needs_more_evidence",
+        "pending_review",
+      ],
+      risk_level_options: ["low", "medium", "high", "unknown"],
+      review_checklist: ["确认模型锁定缺口已解除后再接受。"],
+      analysis_artifacts: [],
+      artifacts: [],
+    };
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    mountedRoots.push({ container, root });
+
+    await act(async () => {
+      root.render(
+        <RuntimeReviewDecisionDialog
+          open
+          template={template}
+          saving={false}
+          onOpenChange={vi.fn()}
+          onSave={onSave}
+        />,
+      );
+      await Promise.resolve();
+    });
+
+    const dialog = document.body.querySelector(
+      '[role="dialog"]',
+    ) as HTMLDivElement | null;
+    expect(dialog?.textContent).toContain("模型锁定能力缺口");
+    expect(dialog?.textContent).toContain(
+      "browser_reasoning_candidate_missing",
+    );
+    expect(dialog?.textContent).toContain("不能作为成功交付证据");
+
+    const statusSelect = document.body.querySelector(
+      'select[aria-label="决策状态"]',
+    ) as HTMLSelectElement | null;
+    const acceptedOption = Array.from(statusSelect?.options ?? []).find(
+      (option) => option.value === "accepted",
+    );
+    expect(acceptedOption?.disabled).toBe(true);
+
+    await act(async () => {
+      if (statusSelect) {
+        setInputValue(statusSelect, "accepted");
+      }
+      await Promise.resolve();
+    });
+
+    const saveButton = findButtonByText("保存审核结果");
+    expect(dialog?.textContent).toContain(
+      "模型锁定能力缺口未解决时不能保存“接受”",
+    );
+    expect(saveButton?.disabled).toBe(true);
+
+    await act(async () => {
+      saveButton?.click();
+      await Promise.resolve();
+    });
+    expect(onSave).not.toHaveBeenCalled();
   });
 
   it("一键复制给 AI 在未导出时应先自动导出再复制 copy_prompt", async () => {

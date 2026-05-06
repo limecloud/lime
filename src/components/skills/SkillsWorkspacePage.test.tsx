@@ -29,6 +29,10 @@ const mockToastError = vi.fn();
 const mockGetProject = vi.fn();
 const mockListCapabilityDrafts = vi.fn();
 const mockListRegisteredSkills = vi.fn();
+const mockListWorkspaceSkillBindings = vi.fn();
+const mockGetAutomationJobs = vi.fn();
+const mockCreateAutomationJob = vi.fn();
+const mockUpdateAutomationJob = vi.fn();
 
 function createDefaultLocalSkills(): Skill[] {
   return [
@@ -41,7 +45,7 @@ function createDefaultLocalSkills(): Skill[] {
       sourceKind: "other",
       catalogSource: "user",
       metadata: {
-        lime_when_to_use: "当你需要复用本地写作方法时使用。",
+        lime_when_to_use: "当你需要复用本地写作 Skill 时使用。",
         lime_argument_hint: "主题、受众与语气要求",
       },
     },
@@ -239,6 +243,17 @@ vi.mock("@/lib/api/capabilityDrafts", () => ({
   },
 }));
 
+vi.mock("@/lib/api/agentRuntime", () => ({
+  listWorkspaceSkillBindings: (...args: unknown[]) =>
+    mockListWorkspaceSkillBindings(...args),
+}));
+
+vi.mock("@/lib/api/automation", () => ({
+  getAutomationJobs: (...args: unknown[]) => mockGetAutomationJobs(...args),
+  createAutomationJob: (...args: unknown[]) => mockCreateAutomationJob(...args),
+  updateAutomationJob: (...args: unknown[]) => mockUpdateAutomationJob(...args),
+}));
+
 vi.mock("./SkillsPage", () => ({
   SkillsPage: (props: Record<string, unknown>) => {
     mockAdvancedSkillsPage(props);
@@ -320,27 +335,6 @@ function updateFieldValue(
   element.dispatchEvent(new Event("change", { bubbles: true }));
 }
 
-async function hoverTip(ariaLabel: string) {
-  const trigger = document.body.querySelector(
-    `button[aria-label='${ariaLabel}']`,
-  );
-  expect(trigger).toBeInstanceOf(HTMLButtonElement);
-
-  await act(async () => {
-    trigger?.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
-    await Promise.resolve();
-  });
-
-  return trigger as HTMLButtonElement;
-}
-
-async function leaveTip(trigger: HTMLButtonElement | null) {
-  await act(async () => {
-    trigger?.dispatchEvent(new MouseEvent("mouseout", { bubbles: true }));
-    await Promise.resolve();
-  });
-}
-
 describe("SkillsWorkspacePage", () => {
   beforeEach(() => {
     (
@@ -366,6 +360,35 @@ describe("SkillsWorkspacePage", () => {
     mockListCapabilityDrafts.mockResolvedValue([]);
     mockListRegisteredSkills.mockReset();
     mockListRegisteredSkills.mockResolvedValue([]);
+    mockListWorkspaceSkillBindings.mockReset();
+    mockListWorkspaceSkillBindings.mockResolvedValue({
+      request: {
+        workspace_root: "/tmp/lime/project-review",
+        caller: "assistant",
+        surface: {
+          workbench: true,
+          browser_assist: false,
+        },
+      },
+      warnings: [],
+      counts: {
+        registered_total: 0,
+        ready_for_manual_enable_total: 0,
+        blocked_total: 0,
+        query_loop_visible_total: 0,
+        tool_runtime_visible_total: 0,
+        launch_enabled_total: 0,
+      },
+      bindings: [],
+    });
+    mockGetAutomationJobs.mockReset();
+    mockGetAutomationJobs.mockResolvedValue([]);
+    mockCreateAutomationJob.mockReset();
+    mockCreateAutomationJob.mockResolvedValue({
+      id: "job-1",
+      name: "Managed Job 草案",
+    });
+    mockUpdateAutomationJob.mockReset();
     mockListUnifiedMemories.mockResolvedValue([]);
     window.localStorage.clear();
   });
@@ -384,33 +407,19 @@ describe("SkillsWorkspacePage", () => {
     vi.clearAllMocks();
   });
 
-  it("应默认渲染轻量方向入口，并把右侧桥接区收成继续上次做法与已经沉淀的方法", () => {
+  it("应默认渲染轻量 Skills 入口，并把右侧桥接区收成最近与本地 Skills", () => {
     const { container } = renderPage();
 
-    expect(container.textContent).toContain("我的方法");
-    expect(container.textContent).toContain("先拿结果");
-    expect(container.textContent).toContain(
-      "先拿一个结果起手；后面常用做法和自己沉淀的方法都在这里续上。",
-    );
-    expect(container.textContent).toContain("搜做法");
-    expect(container.textContent).toContain("换个方向");
-    expect(container.textContent).toContain("查看全部做法");
-    expect(container.textContent).toContain("继续上次做法");
-    expect(container.textContent).toContain("已经沉淀的方法");
-    expect(container.textContent).toContain("上面没命中时，再换个方向。");
-    expect(container.textContent).toContain(
-      "优先接着已经跑过的方法，通常比重新挑一条更省重来成本。",
-    );
-    expect(container.textContent).toContain(
-      "上面没命中时，再从这里接着自己的方法往下走。",
-    );
+    expect(container.textContent).toContain("Skills");
+    expect(container.textContent).toContain("选择一个 Skill 开始创作");
+    expect(container.textContent).toContain("推荐");
+    expect(container.textContent).toContain("先选结果，再补信息");
+    expect(container.textContent).toContain("查看全部");
+    expect(container.textContent).toContain("最近");
+    expect(container.textContent).toContain("本地 Skills");
     expect(container.textContent).toContain("每日趋势摘要");
     expect(container.textContent).toContain("脚本转口播/字幕稿");
     expect(container.textContent).toContain("复盘这个账号/项目");
-    expect(container.textContent).toContain("你先给");
-    expect(container.textContent).toContain("会拿到");
-    expect(container.textContent).toContain("这一步先拿");
-    expect(container.textContent).toContain("接着可做");
     expect(container.textContent).toContain(
       "这一组里可以先从「GitHub 仓库检索」开始。",
     );
@@ -419,12 +428,12 @@ describe("SkillsWorkspacePage", () => {
     );
     expect(container.textContent).toContain("进去看看");
     expect(container.textContent).toContain("主题或赛道、希望关注的平台/地域");
-    expect(container.textContent).toContain("趋势摘要、3 个优先选题");
+    expect(container.textContent).toContain("趋势摘要 + 选题方向");
     expect(container.textContent).toContain(
       "趋势摘要会先写回当前内容，方便继续展开选题和主稿。",
     );
     expect(container.textContent).toContain(
-      "接着可做：继续展开其中一个选题、生成首条内容主稿",
+      "继续展开其中一个选题、生成首条内容主稿",
     );
     expect(container.textContent).not.toContain(
       "这里放跑通过的做法；不确定时先回首页拿结果。",
@@ -435,20 +444,27 @@ describe("SkillsWorkspacePage", () => {
     expect(container.textContent).not.toContain("项目内整理");
     expect(container.textContent).not.toContain("租户技能目录");
     expect(container.textContent).not.toContain("本地 Seeded 目录");
+    expect(container.textContent).not.toContain("我的方法");
+    expect(container.textContent).not.toContain("搜做法");
+    expect(container.textContent).not.toContain("查看全部做法");
+    expect(container.textContent).not.toContain("继续上次做法");
+    expect(container.textContent).not.toContain("已经沉淀的方法");
     expect(container.textContent).toContain("GitHub");
     expect(container.textContent).toContain("写作助手");
-    expect(container.textContent).toContain("你来给：当前无必填信息");
-    expect(container.textContent).toContain("会拿到：研究摘要");
+    expect(container.textContent).toContain("当前无必填信息");
+    expect(container.textContent).toContain("研究摘要");
     expect(container.textContent).toContain("结果会回到生成，方便接着改。");
-    expect(container.textContent).toContain("当你需要复用本地写作方法时使用。");
+    expect(container.textContent).toContain(
+      "当你需要复用本地写作 Skill 时使用。",
+    );
     expect(container.textContent).toContain("主题、受众与语气要求");
     expect(container.textContent).toContain(
-      "回到生成后会继续按这套方法往下做。",
+      "回到生成后会继续按这个 Skill 往下做。",
     );
     expect(container.textContent).toContain(
-      "回到生成后会继续按这套方法往下做，跑顺后的结果也会再沉淀回来。",
+      "回到生成后会继续按这个 Skill 往下做，跑顺后的结果也会再沉淀回来。",
     );
-    expect(container.textContent).toContain("继续这套方法");
+    expect(container.textContent).toContain("继续这个 Skill");
     expect(container.textContent).not.toContain("方法入口：/local:writer");
     expect(container.textContent).not.toContain("已安装");
     expect(container.textContent).not.toContain(
@@ -456,19 +472,17 @@ describe("SkillsWorkspacePage", () => {
     );
 
     const bodyText = container.textContent ?? "";
-    expect(bodyText.indexOf("先拿结果")).toBeLessThan(
-      bodyText.indexOf("继续上次做法"),
-    );
-    expect(bodyText.indexOf("继续上次做法")).toBeLessThan(
-      bodyText.indexOf("已经沉淀的方法"),
+    expect(bodyText.indexOf("推荐")).toBeLessThan(bodyText.indexOf("最近"));
+    expect(bodyText.indexOf("最近")).toBeLessThan(
+      bodyText.indexOf("本地 Skills"),
     );
   });
 
-  it("查看全部做法应带着当前搜索进入 sceneapps 目录", () => {
+  it("查看全部应带着当前搜索进入 sceneapps 目录", () => {
     const { container, onNavigate } = renderPage();
 
     const searchInput = container.querySelector(
-      'input[placeholder="搜索想拿的结果、这一步或做法名"]',
+      'input[placeholder="搜索想拿的结果、这一步或 Skill 名"]',
     ) as HTMLInputElement | null;
     act(() => {
       updateFieldValue(searchInput, "GitHub");
@@ -476,7 +490,7 @@ describe("SkillsWorkspacePage", () => {
 
     const openDirectoryButton = Array.from(
       container.querySelectorAll("button"),
-    ).find((button) => button.textContent?.includes("查看全部做法"));
+    ).find((button) => button.textContent?.includes("查看全部"));
     expect(openDirectoryButton).toBeTruthy();
 
     act(() => {
@@ -489,7 +503,7 @@ describe("SkillsWorkspacePage", () => {
     });
   });
 
-  it("应在我的方法首屏显式展示创作场景迁移入口", () => {
+  it("应把创作场景入口收成页头的查看全部按钮", () => {
     const { container } = renderPage();
 
     expect(container.querySelector(".lime-workbench-theme-scope")).toBeTruthy();
@@ -498,13 +512,15 @@ describe("SkillsWorkspacePage", () => {
       '[data-testid="skills-workspace-sceneapps-migration-banner"]',
     ) as HTMLDivElement | null;
 
-    expect(banner).toBeTruthy();
-    expect(banner?.className).toContain("var(--lime-info-soft)");
-    expect(banner?.textContent).toContain("完整做法都在这里");
-    expect(banner?.textContent).toContain("查看全部做法");
+    expect(banner).toBeNull();
+    expect(
+      Array.from(container.querySelectorAll("button")).some((button) =>
+        button.textContent?.includes("查看全部"),
+      ),
+    ).toBe(true);
   });
 
-  it("应在我的方法工作台保留未验证能力草案隔离区", async () => {
+  it("应在 Skills 工作台保留未验证能力草案隔离区", async () => {
     mockGetProject.mockResolvedValueOnce({
       id: "project-review",
       name: "复盘项目",
@@ -564,7 +580,7 @@ describe("SkillsWorkspacePage", () => {
     expect(container.textContent).not.toContain("立即运行");
   });
 
-  it("应在我的方法工作台展示 Workspace 已注册能力，但不接默认运行入口", async () => {
+  it("应在 Skills 工作台展示 Workspace 已注册能力，并只提供本回合显式启用入口", async () => {
     mockGetProject.mockResolvedValueOnce({
       id: "project-review",
       name: "复盘项目",
@@ -612,11 +628,76 @@ describe("SkillsWorkspacePage", () => {
         },
         launchEnabled: false,
         runtimeGate:
-          "已注册为 Workspace 本地 Skill 包；进入运行前还需要 P3B runtime binding 与 tool_runtime 授权。",
+          "已注册为 Workspace 本地 Skill 包；进入运行前还需要 P3C runtime binding 与 tool_runtime 授权。",
       },
     ]);
+    mockListWorkspaceSkillBindings.mockResolvedValueOnce({
+      request: {
+        workspace_root: "/tmp/lime/project-review",
+        caller: "assistant",
+        surface: {
+          workbench: true,
+          browser_assist: false,
+        },
+      },
+      warnings: [
+        "P3C 当前只返回 runtime binding readiness；不会 reload Skill，也不会注入默认 tool surface。",
+      ],
+      counts: {
+        registered_total: 1,
+        ready_for_manual_enable_total: 1,
+        blocked_total: 0,
+        query_loop_visible_total: 0,
+        tool_runtime_visible_total: 0,
+        launch_enabled_total: 0,
+      },
+      bindings: [
+        {
+          key: "workspace_skill:capability-report",
+          name: "只读 CLI 报告",
+          description: "把本地只读 CLI 输出整理成 Markdown 报告。",
+          directory: "capability-report",
+          registered_skill_directory:
+            "/tmp/lime/project-review/.agents/skills/capability-report",
+          registration: {
+            registration_id: "capreg-1",
+            registered_at: "2026-05-05T01:10:00.000Z",
+            skill_directory: "capability-report",
+            registered_skill_directory:
+              "/tmp/lime/project-review/.agents/skills/capability-report",
+            source_draft_id: "capdraft-1",
+            source_verification_report_id: "capver-1",
+            generated_file_count: 4,
+            permission_summary: ["Level 0 只读发现", "允许执行本地 CLI"],
+          },
+          permission_summary: ["Level 0 只读发现", "允许执行本地 CLI"],
+          metadata: {},
+          allowed_tools: [],
+          resource_summary: {
+            has_scripts: true,
+            has_references: false,
+            has_assets: false,
+          },
+          standard_compliance: {
+            is_standard: true,
+            validation_errors: [],
+            deprecated_fields: [],
+          },
+          runtime_binding_target: "workspace_skill",
+          binding_status: "ready_for_manual_enable",
+          binding_status_reason:
+            "已具备后续 workspace catalog binding 候选资格；当前仍未注入 Query Loop 或 tool_runtime。",
+          next_gate: "manual_runtime_enable",
+          query_loop_visible: false,
+          tool_runtime_visible: false,
+          launch_enabled: false,
+          runtime_gate:
+            "等待 P3C 后续把该 workspace skill 显式绑定到 Query Loop metadata 与 tool_runtime 授权裁剪。",
+        },
+      ],
+    });
 
-    const { container } = renderPage({
+    const { container, onNavigate } = renderPage({
       creationProjectId: "project-review",
     });
 
@@ -628,17 +709,73 @@ describe("SkillsWorkspacePage", () => {
     expect(mockListRegisteredSkills).toHaveBeenCalledWith({
       workspaceRoot: "/tmp/lime/project-review",
     });
+    expect(mockListWorkspaceSkillBindings).toHaveBeenCalledWith({
+      workspaceRoot: "/tmp/lime/project-review",
+      caller: "assistant",
+      workbench: true,
+    });
     expect(container.textContent).toContain("Workspace 已注册能力");
     expect(container.textContent).toContain("只读 CLI 报告");
-    expect(container.textContent).toContain("待 runtime gate");
+    expect(container.textContent).toContain("P3C binding 候选");
     expect(container.textContent).toContain("capdraft-1 / capver-1");
-    expect(container.textContent).toContain("tool_runtime 授权");
+    expect(container.textContent).toContain(
+      "当前仍未注入 Query Loop 或 tool_runtime",
+    );
+    expect(container.textContent).toContain("manual_runtime_enable");
     const registeredPanel = container.querySelector(
       '[data-testid="workspace-registered-skills-panel"]',
     );
     expect(registeredPanel?.textContent).not.toContain("立即运行");
-    expect(registeredPanel?.textContent).not.toContain("创建自动化");
-    expect(registeredPanel?.textContent).not.toContain("继续这套方法");
+    expect(registeredPanel?.textContent).toContain("本回合启用");
+    expect(registeredPanel?.textContent).toContain("不创建自动化");
+    expect(registeredPanel?.textContent).not.toContain("继续这个 Skill");
+
+    const enableButton = registeredPanel?.querySelector(
+      '[data-testid="workspace-registered-skill-enable-runtime"]',
+    );
+    expect(enableButton).toBeTruthy();
+
+    await act(async () => {
+      enableButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(onNavigate).toHaveBeenCalledWith(
+      "agent",
+      expect.objectContaining({
+        projectId: "project-review",
+        autoRunInitialPromptOnMount: true,
+        initialUserPrompt: expect.stringContaining(
+          "skill: project:capability-report",
+        ),
+        entryBannerMessage:
+          expect.stringContaining("只授权当前会话调用，不创建自动化"),
+        initialAutoSendRequestMetadata: {
+          harness: {
+            workspace_skill_runtime_enable: {
+              source: "manual_session_enable",
+              approval: "manual",
+              workspace_root: "/tmp/lime/project-review",
+              bindings: [
+                expect.objectContaining({
+                  directory: "capability-report",
+                  skill: "project:capability-report",
+                  source_draft_id: "capdraft-1",
+                  source_verification_report_id: "capver-1",
+                }),
+              ],
+            },
+          },
+        },
+      }),
+    );
+    const payload = getLatestNavigationPayload(onNavigate);
+    const harness = (
+      payload?.initialAutoSendRequestMetadata as
+        | { harness?: Record<string, unknown> }
+        | undefined
+    )?.harness;
+    expect(harness).not.toHaveProperty("allow_model_skills");
   });
 
   it("最近保存到灵感库的成果信号应影响技能页的结果模板推荐", () => {
@@ -679,7 +816,7 @@ describe("SkillsWorkspacePage", () => {
     expect(container.textContent).toContain("围绕最近成果");
   });
 
-  it("最近人工判断信号应在方法页先拿结果区域显影判断横幅", async () => {
+  it("最近人工判断信号应在 Skills 推荐区域显影判断横幅", async () => {
     recordCuratedTaskRecommendationSignalFromReviewDecision(
       {
         session_id: "session-review-needs-evidence",
@@ -735,7 +872,7 @@ describe("SkillsWorkspacePage", () => {
     expect(document.body.textContent).toContain("复盘这个账号/项目");
   });
 
-  it("我的方法页的 launcher 在当前模板不是复盘首选时，应可直接切到推荐模板", async () => {
+  it("Skills 页的 launcher 在当前模板不是复盘首选时，应可直接切到推荐模板", async () => {
     recordCuratedTaskRecommendationSignalFromReviewDecision(
       {
         session_id: "session-review-switch-launcher",
@@ -915,7 +1052,7 @@ describe("SkillsWorkspacePage", () => {
     expect(container.textContent).toContain("上次目标：继续优化这套写作方法");
   });
 
-  it("页面打开后新增本地方法 recent usage 时应即时刷新已经沉淀的方法", async () => {
+  it("页面打开后新增本地 Skill recent usage 时应即时刷新本地 Skills", async () => {
     const { container } = renderPage();
 
     expect(container.textContent).not.toContain(
@@ -935,7 +1072,7 @@ describe("SkillsWorkspacePage", () => {
     expect(container.textContent).toContain("上次目标：继续优化这套写作方法");
   });
 
-  it("推荐技能组卡片不应重复展示已进入继续上次做法的技能", () => {
+  it("推荐技能组卡片不应重复展示已进入最近区的技能", () => {
     const { container } = renderPage();
 
     const generalCard = Array.from(container.querySelectorAll("article")).find(
@@ -948,7 +1085,7 @@ describe("SkillsWorkspacePage", () => {
     expect(generalCard?.textContent).not.toContain("深度研究");
   });
 
-  it("应把主入口说明和搜索说明收进 tips", async () => {
+  it("应移除主入口和搜索区的长说明 tips", () => {
     renderPage();
 
     expect(getBodyText()).not.toContain(
@@ -957,18 +1094,8 @@ describe("SkillsWorkspacePage", () => {
     expect(getBodyText()).not.toContain(
       "先从这轮想拿的结果方向找起；没命中时，再接着你自己顺手的方法。",
     );
-
-    const entryTip = await hoverTip("方法主入口说明");
-    expect(getBodyText()).toContain(
-      "先从结果起手，顺手的做法和自己沉淀下来的方法都在这里续上；点开后直接把这一步接下去。",
-    );
-    await leaveTip(entryTip);
-
-    const searchTip = await hoverTip("做法搜索说明");
-    expect(getBodyText()).toContain(
-      "先从这轮想拿的结果方向找起；没命中时，再接着你自己顺手的方法。",
-    );
-    await leaveTip(searchTip);
+    expect(getBodyText()).not.toContain("方法主入口说明");
+    expect(getBodyText()).not.toContain("做法搜索说明");
   });
 
   it("点击技能组后应进入组内技能列表并跳转到 Agent 对话承接", () => {
@@ -984,11 +1111,9 @@ describe("SkillsWorkspacePage", () => {
     });
 
     expect(container.textContent).toContain("GitHub 仓库检索");
-    expect(container.textContent).toContain("你先给：检索主题");
-    expect(container.textContent).toContain("会拿到：仓库列表");
-    expect(container.textContent).toContain(
-      "接下来：会接着当前浏览器里已经打开的页面把这一步做完，并把结果带回生成。",
-    );
+    expect(container.textContent).toContain("检索主题");
+    expect(container.textContent).toContain("仓库列表");
+    expect(container.textContent).toContain("接着浏览器继续");
     expect(container.textContent).toContain(
       "结果会先回到当前内容里，方便接着往下改。",
     );
@@ -1373,10 +1498,7 @@ describe("SkillsWorkspacePage", () => {
       groupButton?.click();
     });
 
-    expect(container.textContent).toContain("正在看这一组");
-    expect(container.textContent).toContain(
-      "先从 GitHub 里最接近的一条开始；不对再换方向。",
-    );
+    expect(container.textContent).toContain("选择这一组里的一个 Skill 继续");
     expect(container.textContent).toContain(
       "围绕仓库与 Issue 的只读研究技能。",
     );
@@ -1420,14 +1542,14 @@ describe("SkillsWorkspacePage", () => {
     expect(mockRefreshLocalSkills).toHaveBeenCalledTimes(1);
   });
 
-  it("点击已经沉淀的方法中的已安装技能时，应带着初始输入能力和当前项目进入生成", () => {
+  it("点击本地 Skills 中的已安装技能时，应带着初始输入能力和当前项目进入生成", () => {
     const { container, onNavigate } = renderPage({
       creationProjectId: "project-review",
     });
 
     const launchButton = Array.from(container.querySelectorAll("button")).find(
       (button) =>
-        button.textContent?.includes("继续这套方法") &&
+        button.textContent?.includes("继续这个 Skill") &&
         button.closest("article")?.textContent?.includes("写作助手"),
     );
     expect(launchButton).toBeTruthy();
@@ -1443,7 +1565,7 @@ describe("SkillsWorkspacePage", () => {
         agentEntry: "new-task",
         theme: "general",
         entryBannerMessage:
-          "已带着方法“写作助手”回到生成，接着把这轮做下去就行。",
+          "已带着 Skill「写作助手」回到生成，接着把这轮做下去就行。",
         initialInputCapability: {
           capabilityRoute: {
             kind: "installed_skill",
@@ -1456,7 +1578,7 @@ describe("SkillsWorkspacePage", () => {
     );
   });
 
-  it("已经沉淀的方法卡片若已有上次目标，进入生成时应一并恢复这条目标", () => {
+  it("本地 Skills 卡片若已有上次目标，进入生成时应一并恢复这条目标", () => {
     recordSlashEntryUsage({
       kind: "skill",
       entryId: "local:writer",
@@ -1468,7 +1590,7 @@ describe("SkillsWorkspacePage", () => {
 
     const launchButton = Array.from(container.querySelectorAll("button")).find(
       (button) =>
-        button.textContent?.includes("继续这套方法") &&
+        button.textContent?.includes("继续这个 Skill") &&
         button.closest("article")?.textContent?.includes("写作助手"),
     );
     expect(launchButton).toBeTruthy();
@@ -1484,7 +1606,7 @@ describe("SkillsWorkspacePage", () => {
         theme: "general",
         initialUserPrompt: "继续优化这套写作方法",
         entryBannerMessage:
-          "已带着方法“写作助手”和上次目标回到生成，接着把这轮做下去就行。",
+          "已带着 Skill「写作助手」和上次目标回到生成，接着把这轮做下去就行。",
         initialInputCapability: {
           capabilityRoute: {
             kind: "installed_skill",
@@ -1501,13 +1623,15 @@ describe("SkillsWorkspacePage", () => {
     const { container } = renderPage();
 
     expect(container.textContent).toContain("写作助手");
-    expect(container.textContent).toContain("当你需要复用本地写作方法时使用。");
-    expect(container.textContent).toContain("你来给：主题、受众与语气要求");
-    expect(container.textContent).toContain("会拿到：带着该方法进入生成");
     expect(container.textContent).toContain(
-      "回到生成后会继续按这套方法往下做。",
+      "当你需要复用本地写作 Skill 时使用。",
     );
-    expect(container.textContent).toContain("继续这套方法");
+    expect(container.textContent).toContain("主题、受众与语气要求");
+    expect(container.textContent).toContain("带着该 Skill 进入生成");
+    expect(container.textContent).toContain(
+      "回到生成后会继续按这个 Skill 往下做。",
+    );
+    expect(container.textContent).toContain("继续这个 Skill");
 
     const manageButton = Array.from(container.querySelectorAll("button")).find(
       (button) => button.textContent?.includes("调整"),
@@ -1563,7 +1687,7 @@ describe("SkillsWorkspacePage", () => {
     expect(container.textContent).not.toContain("项目内整理");
   });
 
-  it("技能草稿创建成功后应回到已经沉淀的方法并提供轻量续接", async () => {
+  it("技能草稿创建成功后应回到本地 Skills 并提供轻量续接", async () => {
     const { container, onNavigate } = renderPage({
       initialScaffoldDraft: {
         target: "project",
@@ -1618,7 +1742,7 @@ describe("SkillsWorkspacePage", () => {
 
     expect(mockRefreshLocalSkills).toHaveBeenCalledTimes(1);
     expect(mockToastSuccess).toHaveBeenCalledWith(
-      "已创建“结果沉淀技能”并收进我的方法",
+      "已创建“结果沉淀技能”并收进 Skills",
     );
     expect(container.textContent).toContain("结果沉淀技能");
     expect(container.textContent).toContain("刚沉淀");
@@ -1678,7 +1802,7 @@ describe("SkillsWorkspacePage", () => {
         theme: "general",
         initialUserPrompt: "一段结果摘要",
         entryBannerMessage:
-          "已带着方法“结果沉淀技能”和上次目标回到生成，接着把这轮做下去就行。",
+          "已带着 Skill「结果沉淀技能」和上次目标回到生成，接着把这轮做下去就行。",
         initialInputCapability: {
           capabilityRoute: {
             kind: "installed_skill",

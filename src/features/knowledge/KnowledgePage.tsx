@@ -5,7 +5,6 @@ import {
   BookOpen,
   Check,
   ClipboardCheck,
-  Database,
   FileText,
   FolderOpen,
   ListChecks,
@@ -678,15 +677,11 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
       <div className="mx-auto flex min-h-full w-full max-w-[1440px] flex-col gap-5 px-6 py-5">
         <header className="flex flex-wrap items-end justify-between gap-4">
           <div className="min-w-0">
-            <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
-              <Database className="h-3.5 w-3.5" />
-              管理与确认
-            </div>
-            <h1 className="mt-3 text-2xl font-semibold text-slate-950">
+            <h1 className="text-2xl font-semibold text-slate-950">
               项目资料
             </h1>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-              日常添加和使用请回到 Agent 输入框；这里只处理检查、确认、设为默认和归档。
+            <p className="mt-2 text-sm text-slate-600">
+              管理项目相关的资料和文档
             </p>
           </div>
 
@@ -694,7 +689,7 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
             <button
               type="button"
               onClick={handleOpenAgentKnowledgeHub}
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm shadow-slate-950/5 transition hover:border-slate-300 hover:bg-slate-50"
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50"
             >
               <MessageSquareText className="h-4 w-4" />
               回到 Agent 添加
@@ -703,7 +698,7 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
               <button
                 type="button"
                 onClick={() => handleSendWithKnowledge()}
-                className="inline-flex h-10 items-center gap-2 rounded-2xl border border-slate-900 bg-slate-900 px-4 text-sm font-semibold text-white shadow-sm shadow-slate-950/10 transition hover:bg-slate-800"
+                className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white shadow-sm transition hover:bg-slate-800"
               >
                 <MessageSquareText className="h-4 w-4" />
                 用于生成
@@ -712,30 +707,28 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
           </div>
         </header>
 
-        <section className="rounded-[24px] border border-slate-200 bg-white px-4 py-4 shadow-sm shadow-slate-950/5">
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center">
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[16px] border border-emerald-200 bg-emerald-50 text-emerald-700">
+        <section className="rounded-xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700">
                 <FolderOpen className="h-4 w-4" />
               </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="text-sm font-semibold text-slate-950">
-                    当前项目
-                  </h2>
+              <div>
+                <h2 className="text-sm font-medium text-slate-900">
+                  当前项目
                   {selectedProjectName ? (
-                    <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                    <span className="ml-2 text-emerald-600">
                       {selectedProjectName}
                     </span>
                   ) : null}
-                </div>
-                <p className="mt-1 text-sm leading-6 text-slate-500">
-                  资料会保存到当前项目，之后生成内容时可直接引用。
+                </h2>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  资料会保存到当前项目
                 </p>
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-2">
               <ProjectSelector
                 value={selectedProjectId}
                 onChange={handleProjectChange}
@@ -750,10 +743,10 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
               <button
                 type="button"
                 onClick={() => setActiveView("import")}
-                className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-slate-900 bg-slate-900 px-4 text-sm font-semibold text-white transition hover:bg-slate-800"
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800"
               >
                 <Upload className="h-4 w-4" />
-                补充导入
+                导入
               </button>
             </div>
           </div>
@@ -774,24 +767,24 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
           ) : null}
         </section>
 
-        <nav className="grid gap-2 rounded-[24px] border border-slate-200 bg-white p-2 shadow-sm shadow-slate-950/5 md:grid-cols-4">
+        <nav className="grid gap-2 rounded-xl border border-slate-200 bg-white p-2 shadow-sm md:grid-cols-4">
           {VIEW_TABS.map((tab) => (
             <button
               key={tab.id}
               type="button"
               onClick={() => setActiveView(tab.id)}
               className={cn(
-                "rounded-[18px] px-3 py-3 text-left transition",
+                "rounded-lg px-3 py-2.5 text-left transition",
                 activeView === tab.id
-                  ? "bg-slate-900 text-white shadow-sm shadow-slate-950/10"
-                  : "text-slate-600 hover:bg-slate-50 hover:text-slate-950",
+                  ? "bg-slate-900 text-white shadow-sm"
+                  : "text-slate-600 hover:bg-slate-50 hover:text-slate-900",
               )}
             >
-              <div className="text-sm font-semibold">{tab.label}</div>
+              <div className="text-sm font-medium">{tab.label}</div>
               <div
                 className={cn(
-                  "mt-1 text-xs",
-                  activeView === tab.id ? "text-slate-200" : "text-slate-400",
+                  "mt-0.5 text-xs",
+                  activeView === tab.id ? "text-slate-300" : "text-slate-500",
                 )}
               >
                 {tab.description}

@@ -98,10 +98,10 @@ function buildWorkflowStages(
           props.activeView === "detail"
             ? props.launchReady
               ? "项目与输入已经具备，可以直接启动，也可以继续校正结果交付约定与组合步骤。"
-              : "继续补齐项目工作区或启动输入，让这套做法进入可启动状态。"
+              : "继续补齐项目工作区或启动输入，让这个 Skill 进入可启动状态。"
             : props.launchReady
-              ? "这套做法已经具备首轮启动条件，可以直接进入详情页发起结果链。"
-              : "这套做法还没补齐启动条件，先去详情页完善项目、输入或链接。",
+              ? "这个 Skill 已经具备首轮启动条件，可以直接进入详情页发起结果链。"
+              : "这个 Skill 还没补齐启动条件，先去详情页完善项目、输入或链接。",
         actionLabel: props.activeView === "detail" ? "继续补启动" : "进入详情",
         tone:
           props.activeView === "detail"
@@ -117,8 +117,9 @@ function buildWorkflowStages(
         key: "governance",
         stepLabel: "Step 3",
         title: "最近结果",
-        statusLabel: "先选做法",
-        summary: "最近结果只处理已经选中的做法，先回全部做法确定要看哪套做法。",
+        statusLabel: "先选 Skill",
+        summary:
+          "最近结果只处理已经选中的 Skill，先回全部 Skills 确定要看哪个 Skill。",
         actionLabel: "先去目录",
         tone: "slate",
         onAction: props.onOpenCatalog,
@@ -135,7 +136,7 @@ function buildWorkflowStages(
           summary:
             props.activeView === "governance"
               ? "最近结果、证据材料和下一步判断都集中在这里，可以继续查看结果或准备后续动作。"
-              : "这套做法已经有运行样本，可以直接进入结果页看结果、证据和复核判断。",
+              : "这个 Skill 已经有运行样本，可以直接进入结果页看结果、证据和复核判断。",
           actionLabel:
             props.activeView === "governance" ? "继续看结果" : "进入结果页",
           tone: props.activeView === "governance" ? "sky" : "emerald",
@@ -147,7 +148,7 @@ function buildWorkflowStages(
           title: "看结果",
           statusLabel: "等待首轮样本",
           summary:
-            "这套做法还没有首轮运行样本，当前不适合直接判断，先去详情页跑出第一轮结果链。",
+            "这个 Skill 还没有首轮运行样本，当前不适合直接判断，先去详情页跑出第一轮结果链。",
           actionLabel: "先去详情启动",
           tone: "amber",
           onAction: props.onOpenDetail,
@@ -167,7 +168,7 @@ export function SceneAppsWorkflowRail(props: SceneAppsWorkflowRailProps) {
             WORKFLOW PATH
           </div>
           <div className="mt-1 text-sm font-semibold text-slate-900">
-            按选做法、启动、看结果三步推进
+            按选 Skill、启动、看结果三步推进
           </div>
           <p className="mt-1 text-sm leading-6 text-slate-500">
             不用自己猜下一步在哪一页。每一步都给出当前状态和下一条最短路径。

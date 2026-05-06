@@ -171,7 +171,7 @@ export const CharacterMentionPanel: React.FC<CharacterMentionPanelProps> = ({
   const resolveSectionHelperText = (sectionKey: string): string | null => {
     if (isEmptyMentionQuery) {
       if (sectionKey === "recent-mention") {
-        return "优先继续刚调过的命令或做法，仍然回到当前生成线程。";
+        return "优先继续刚调过的命令或 Skill，仍然回到当前生成线程。";
       }
 
       if (sectionKey === "featured-service-skills") {
@@ -183,7 +183,7 @@ export const CharacterMentionPanel: React.FC<CharacterMentionPanelProps> = ({
       }
 
       if (sectionKey === "available-skills") {
-        return "还没沉淀成固定入口的做法放在这里，优先级低于上面的命令和已沉淀方法。";
+        return "还没沉淀成固定入口的 Skill 放在这里，优先级低于上面的命令和已沉淀方法。";
       }
 
       if (sectionKey === "characters") {
@@ -200,7 +200,7 @@ export const CharacterMentionPanel: React.FC<CharacterMentionPanelProps> = ({
     }
 
     if (sectionKey === "recent-slash-operations") {
-      return "最近用过的工作台动作；如果是继续产出，优先看上面的做法。";
+      return "最近用过的工作台动作；如果是继续产出，优先看上面的 Skill。";
     }
 
     if (sectionKey === "recent-slash-continuations") {
@@ -284,8 +284,8 @@ export const CharacterMentionPanel: React.FC<CharacterMentionPanelProps> = ({
       <CommandInput
         placeholder={
           mode === "slash"
-            ? "搜索结果模板、做法或操作..."
-            : "搜索 @命令、做法或协作角色..."
+            ? "搜索结果模板、Skill 或操作..."
+            : "搜索 @命令、Skill 或协作角色..."
         }
         value={mentionQuery}
         onValueChange={onQueryChange}
@@ -295,8 +295,8 @@ export const CharacterMentionPanel: React.FC<CharacterMentionPanelProps> = ({
           <div className="px-3 py-6 text-center text-sm text-muted-foreground">
             <div>
               {mode === "slash"
-                ? "暂无可用结果模板、做法或操作"
-                : "暂无可用 @命令、做法或协作角色"}
+                ? "暂无可用结果模板、Skill 或操作"
+                : "暂无可用 @命令、Skill 或协作角色"}
             </div>
             {onNavigateToSettings ? (
               <button

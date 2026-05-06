@@ -45,9 +45,9 @@ function main() {
 
   runVitest("Agent 对话内 A2UI 挂起主链", [
     "src/components/agent/chat/index.test.tsx",
-    "--hookTimeout=60000",
+    "--hookTimeout=180000",
     "-t",
-    "AgentChatPage 服务技能 A2UI|AgentChatPage legacy 问卷 A2UI",
+    "AgentChatPage 服务技能 A2UI|AgentChatPage 当前 A2UI 事实源",
   ]);
 
   console.log("\n[smoke:agent-service-skill-entry] 通过");

@@ -30,6 +30,7 @@
     "agent_runtime_save_review_decision",
     "agent_runtime_export_replay_case",
     "agent_runtime_get_tool_inventory",
+    "agent_runtime_list_workspace_skill_bindings",
     "agent_runtime_spawn_subagent",
     "agent_runtime_send_subagent_input",
     "agent_runtime_wait_subagents",
@@ -121,7 +122,9 @@
     "rename_file",
     "get_file_name",
     "reveal_in_finder",
-    "open_with_default_app"
+    "open_with_default_app",
+    "save_layered_design_project_export",
+    "read_layered_design_project_export"
   ],
   "deprecatedCommandReplacements": {
     "get_agent_process_status": "agent_get_process_status",

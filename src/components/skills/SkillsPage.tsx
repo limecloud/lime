@@ -7,7 +7,6 @@ import {
 } from "react";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import {
-  CheckCircle2,
   ChevronDown,
   Cloud,
   FolderOpen,
@@ -18,6 +17,7 @@ import {
   Settings,
 } from "lucide-react";
 import { useSkills } from "@/hooks/useSkills";
+import { WorkbenchInfoTip } from "@/components/media/WorkbenchInfoTip";
 import { SkillCard } from "./SkillCard";
 import { RepoManagerPanel } from "./RepoManagerPanel";
 import { SkillExecutionDialog } from "./SkillExecutionDialog";
@@ -27,7 +27,6 @@ import {
   filterSkillsByQueryAndStatus,
   groupSkillsBySourceKind,
 } from "./skillsUtils";
-import { WorkbenchInfoTip } from "@/components/media/WorkbenchInfoTip";
 import {
   skillsApi,
   type AppType,
@@ -60,30 +59,18 @@ const primaryActionButtonClassName = `${actionButtonClassName} border border-eme
 const sectionStyleMap = {
   builtin: {
     icon: Package,
-    displayTitle: "内置技能",
-    summaryClassName:
-      "bg-[linear-gradient(135deg,rgba(255,247,237,0.9),rgba(255,255,255,0.98))]",
-    iconClassName: "border-orange-200 bg-orange-100/80 text-orange-700",
-    countClassName: "bg-orange-100 text-orange-700",
-    hint: "随应用提供，默认可用",
+    displayTitle: "内置",
+    iconClassName: "bg-orange-50 text-orange-600 border border-orange-200",
   },
   local: {
     icon: FolderOpen,
-    displayTitle: "本地技能",
-    summaryClassName:
-      "bg-[linear-gradient(135deg,rgba(241,245,249,0.92),rgba(255,255,255,0.98))]",
-    iconClassName: "border-slate-200 bg-slate-100/90 text-slate-700",
-    countClassName: "bg-slate-100 text-slate-700",
-    hint: "项目与本地技能可直接查看",
+    displayTitle: "本地",
+    iconClassName: "bg-slate-50 text-slate-600 border border-slate-200",
   },
   remote: {
     icon: Cloud,
-    displayTitle: "远程技能",
-    summaryClassName:
-      "bg-[linear-gradient(135deg,rgba(236,253,245,0.9),rgba(255,255,255,0.98))]",
-    iconClassName: "border-emerald-200 bg-emerald-100/80 text-emerald-700",
-    countClassName: "bg-emerald-100 text-emerald-700",
-    hint: "缓存展示，支持安装前预检",
+    displayTitle: "远程",
+    iconClassName: "bg-emerald-50 text-emerald-600 border border-emerald-200",
   },
 } as const;
 
@@ -350,37 +337,6 @@ export const SkillsPage = forwardRef<SkillsPageRef, SkillsPageProps>(
 
     const installedCount = skills.filter((s) => s.installed).length;
     const uninstalledCount = skills.length - installedCount;
-    const visibleCount = filteredSkills.length;
-    const stats = [
-      {
-        label: "总技能",
-        value: skills.length,
-        hint: "当前工作台可见",
-        icon: Package,
-        iconClassName: "bg-sky-100 text-sky-700",
-      },
-      {
-        label: "可用技能",
-        value: installedCount,
-        hint: "已安装、内置、本地",
-        icon: CheckCircle2,
-        iconClassName: "bg-emerald-100 text-emerald-700",
-      },
-      {
-        label: "待安装",
-        value: uninstalledCount,
-        hint: "远程候选技能",
-        icon: Cloud,
-        iconClassName: "bg-sky-100 text-sky-700",
-      },
-      {
-        label: "已启用仓库",
-        value: repos.filter((repo) => repo.enabled).length,
-        hint: "远程同步来源",
-        icon: Settings,
-        iconClassName: "bg-amber-100 text-amber-700",
-      },
-    ] as const;
     const filterOptions = [
       { key: "all", label: "全部", count: skills.length },
       { key: "installed", label: "已安装", count: installedCount },
@@ -388,157 +344,81 @@ export const SkillsPage = forwardRef<SkillsPageRef, SkillsPageProps>(
     ] as const;
 
     return (
-      <div className="space-y-8 pb-4">
-        <section className="relative overflow-hidden rounded-[28px] border border-emerald-200/70 bg-[linear-gradient(135deg,rgba(243,250,247,0.96)_0%,rgba(248,250,252,0.98)_34%,rgba(255,255,255,0.98)_62%,rgba(241,247,255,0.96)_100%)] shadow-sm shadow-slate-950/5">
-          <div className="pointer-events-none absolute -left-16 top-[-72px] h-52 w-52 rounded-full bg-emerald-200/30 blur-3xl" />
-          <div className="pointer-events-none absolute right-[-72px] top-[-48px] h-56 w-56 rounded-full bg-sky-200/28 blur-3xl" />
-          <div className="pointer-events-none absolute bottom-[-88px] left-1/3 h-48 w-48 rounded-full bg-teal-100/24 blur-3xl" />
-          <div className="relative flex flex-col gap-6 p-6 lg:p-7">
-            <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-              <div className="max-w-3xl space-y-3">
-                <div className="space-y-2">
-                  <span className="inline-flex items-center rounded-full border border-emerald-200 bg-white/80 px-3 py-1 text-xs font-semibold tracking-[0.16em] text-emerald-700 shadow-sm">
-                    SKILLS WORKSPACE
-                  </span>
-                  {!hideHeader ? (
-                    <div className="space-y-2">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="text-base font-semibold text-slate-900">
-                          在一个工作台里管理内置、本地与远程 Skill
-                        </p>
-                        <WorkbenchInfoTip
-                          ariaLabel="技能工作台说明"
-                          content={
-                            <div className="space-y-1">
-                              <p>
-                                统一查看安装状态、仓库来源与可读内容，减少在不同入口之间来回切换。
-                              </p>
-                              <p>
-                                内置 Skill 默认可用；本地 Skill
-                                支持直接查看；远程 Skill 通过缓存展示。
-                              </p>
-                            </div>
-                          }
-                          tone="mint"
-                        />
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-base font-semibold text-slate-900">
-                        高级技能管理
-                      </p>
-                      <WorkbenchInfoTip
-                        ariaLabel="高级技能管理说明"
-                        content="为当前应用编排可用技能、仓库来源与安装状态。"
-                        tone="mint"
-                      />
-                    </div>
-                  )}
+      <div className="space-y-6 pb-4">
+        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            {!hideHeader && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <h1 className="text-2xl font-semibold text-slate-900">
+                    Skills
+                  </h1>
+                  <WorkbenchInfoTip
+                    ariaLabel="技能工作台说明"
+                    tone="sky"
+                    content={
+                      <span>
+                        统一查看安装状态、仓库来源与可读内容，减少在不同入口之间来回切换。
+                      </span>
+                    }
+                  />
+                  <WorkbenchInfoTip
+                    ariaLabel="技能使用规则"
+                    tone="mint"
+                    content={
+                      <span>
+                        Built-in Skills
+                        为应用内置技能，默认可用且不可卸载。本地与远程技能可按来源安装、检查或导入。
+                      </span>
+                    }
+                  />
                 </div>
+                <p className="text-sm text-slate-600">
+                  管理和使用 AI 技能扩展
+                </p>
               </div>
+            )}
 
-              <div className="flex flex-wrap gap-3 lg:justify-end">
-                <button
-                  onClick={refresh}
-                  disabled={loading}
-                  className={secondaryActionButtonClassName}
-                >
-                  <RefreshCw
-                    className={`h-4 w-4 ${loading ? "animate-spin" : ""}`}
-                  />
-                  刷新
-                </button>
-                <button
-                  onClick={() => void handleImportLocalSkill()}
-                  disabled={loading || importingLocalSkill}
-                  className={secondaryActionButtonClassName}
-                >
-                  <FolderOpen
-                    className={`h-4 w-4 ${importingLocalSkill ? "animate-pulse" : ""}`}
-                  />
-                  {importingLocalSkill ? "导入中..." : "导入 Skill"}
-                </button>
-                <button
-                  onClick={() => {
-                    setScaffoldDialogDraft(null);
-                    setScaffoldDialogOpen(true);
-                  }}
-                  className={primaryActionButtonClassName}
-                >
-                  <Plus className="h-4 w-4" />
-                  新建 Skill
-                </button>
-                <button
-                  onClick={() => setRepoManagerOpen(true)}
-                  className={secondaryActionButtonClassName}
-                >
-                  <Settings className="h-4 w-4" />
-                  仓库管理
-                </button>
-              </div>
-            </div>
-
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-              {stats.map((stat) => {
-                const StatIcon = stat.icon;
-                return (
-                  <div
-                    key={stat.label}
-                    className="rounded-[22px] border border-white/90 bg-white/88 p-5 shadow-sm backdrop-blur"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div
-                        className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${stat.iconClassName}`}
-                      >
-                        <StatIcon className="h-5 w-5" />
-                      </div>
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className="text-sm font-semibold text-slate-800 whitespace-nowrap">
-                            {stat.label}
-                          </p>
-                          <WorkbenchInfoTip
-                            ariaLabel={`${stat.label}说明`}
-                            content={stat.hint}
-                            tone="mint"
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    <p className="mt-5 text-3xl font-semibold tracking-tight text-slate-900">
-                      {stat.value}
-                    </p>
-                  </div>
-                );
-              })}
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
-              <WorkbenchInfoTip
-                ariaLabel="技能使用规则"
-                label="使用规则"
-                variant="pill"
-                tone="mint"
-                content={
-                  <ul className="list-disc pl-4">
-                    <li>
-                      Built-in Skills 为应用内置技能，默认可用且不可卸载。
-                    </li>
-                    <li>Local Skills 直接从本地目录加载，不依赖远程仓库。</li>
-                    <li>
-                      Remote Skills 使用缓存展示，点击“刷新”才同步远程仓库。
-                    </li>
-                  </ul>
-                }
-              />
-              {remoteLoading && (
-                <span className="inline-flex items-center gap-2 rounded-full bg-emerald-100 px-3 py-1 text-emerald-700 shadow-sm">
-                  <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                  正在同步远程仓库缓存
-                </span>
-              )}
+            <div className="flex flex-wrap gap-3">
+              <button
+                onClick={() => void refresh()}
+                disabled={loading || remoteLoading}
+                className={secondaryActionButtonClassName}
+              >
+                <RefreshCw
+                  className={`h-4 w-4 ${
+                    loading || remoteLoading ? "animate-spin" : ""
+                  }`}
+                />
+                刷新
+              </button>
+              <button
+                onClick={() => {
+                  setScaffoldDialogDraft(null);
+                  setScaffoldDialogOpen(true);
+                }}
+                className={primaryActionButtonClassName}
+              >
+                <Plus className="h-4 w-4" />
+                新建 Skill
+              </button>
+              <button
+                onClick={() => void handleImportLocalSkill()}
+                disabled={loading || importingLocalSkill}
+                className={secondaryActionButtonClassName}
+              >
+                <FolderOpen
+                  className={`h-4 w-4 ${importingLocalSkill ? "animate-pulse" : ""}`}
+                />
+                {importingLocalSkill ? "导入中..." : "导入 Skill"}
+              </button>
+              <button
+                onClick={() => setRepoManagerOpen(true)}
+                className={secondaryActionButtonClassName}
+              >
+                <Settings className="h-4 w-4" />
+                仓库
+              </button>
             </div>
           </div>
         </section>
@@ -549,20 +429,20 @@ export const SkillsPage = forwardRef<SkillsPageRef, SkillsPageProps>(
           </div>
         )}
 
-        <section className="rounded-[24px] border border-slate-200/80 bg-white/90 p-4 shadow-sm shadow-slate-950/5 backdrop-blur">
-          <div className="flex flex-col gap-4 xl:flex-row xl:items-center">
+        <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <label className="relative flex-1">
-              <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
-                placeholder="搜索技能名称、描述或仓库..."
+                placeholder="搜索 Skills..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50/80 pl-11 pr-4 text-sm text-slate-700 outline-none transition focus:border-emerald-300 focus:bg-white focus:ring-4 focus:ring-emerald-100"
+                className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-10 pr-4 text-sm text-slate-700 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
               />
             </label>
 
-            <div className="flex flex-wrap gap-2">
+            <div className="flex gap-2">
               {filterOptions.map((option) => {
                 const active = filterStatus === option.key;
                 return (
@@ -573,18 +453,16 @@ export const SkillsPage = forwardRef<SkillsPageRef, SkillsPageProps>(
                         option.key as "all" | "installed" | "uninstalled",
                       )
                     }
-                    className={`inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-medium transition ${
+                    className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition ${
                       active
-                        ? "border border-emerald-200 bg-[linear-gradient(135deg,rgba(240,253,250,0.98)_0%,rgba(236,253,245,0.96)_52%,rgba(224,242,254,0.95)_100%)] text-slate-800 shadow-sm shadow-emerald-950/10"
-                        : "border border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
+                        ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                        : "bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100"
                     }`}
                   >
                     <span>{option.label}</span>
                     <span
-                      className={`rounded-full px-2 py-0.5 text-xs ${
-                        active
-                          ? "border border-emerald-200 bg-white/90 text-emerald-700"
-                          : "bg-slate-100 text-slate-500"
+                      className={`text-xs ${
+                        active ? "text-emerald-600" : "text-slate-500"
                       }`}
                     >
                       {option.count}
@@ -593,20 +471,6 @@ export const SkillsPage = forwardRef<SkillsPageRef, SkillsPageProps>(
                 );
               })}
             </div>
-          </div>
-
-          <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-slate-500">
-            <span className="rounded-full bg-slate-100 px-3 py-1">
-              当前显示 {visibleCount} / {skills.length}
-            </span>
-            <span className="rounded-full bg-slate-100 px-3 py-1">
-              {isFiltering ? "筛选已生效" : "浏览全部技能"}
-            </span>
-            {searchQuery.trim() && (
-              <span className="rounded-full bg-emerald-100 px-3 py-1 text-emerald-700">
-                关键词: {searchQuery.trim()}
-              </span>
-            )}
           </div>
         </section>
 
@@ -621,7 +485,7 @@ export const SkillsPage = forwardRef<SkillsPageRef, SkillsPageProps>(
             </p>
           </div>
         ) : (
-          <div className="space-y-5">
+          <div className="space-y-4">
             {skillSections.map((section) => {
               const isSectionLoading =
                 section.key === "remote" ? remoteLoading || loading : loading;
@@ -631,67 +495,52 @@ export const SkillsPage = forwardRef<SkillsPageRef, SkillsPageProps>(
                 <details
                   key={section.key}
                   open={section.key !== "builtin"}
-                  className="group overflow-hidden rounded-[26px] border border-slate-200/80 bg-white/95 shadow-sm shadow-slate-950/5"
+                  className="group overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
                 >
                   <summary
-                    className={`list-none cursor-pointer px-5 py-5 transition [&::-webkit-details-marker]:hidden ${sectionStyle.summaryClassName}`}
+                    className="list-none cursor-pointer px-4 py-3 hover:bg-slate-50 transition [&::-webkit-details-marker]:hidden"
                   >
-                    <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                      <div className="flex items-start gap-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
                         <div
-                          className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border ${sectionStyle.iconClassName}`}
+                          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${sectionStyle.iconClassName}`}
                         >
-                          <SectionIcon className="h-5 w-5" />
+                          <SectionIcon className="h-4 w-4" />
                         </div>
-                        <div className="space-y-2">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="text-lg font-semibold tracking-tight text-slate-900">
-                              {sectionStyle.displayTitle}
+                        <div className="space-y-0.5">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium text-slate-900">
+                              {section.title}
                             </span>
-                            <span
-                              className={`rounded-full px-2.5 py-1 text-xs font-semibold ${sectionStyle.countClassName}`}
-                            >
-                              {section.skills.length} 个
+                            <span className="text-xs text-slate-500">
+                              {section.skills.length}
                             </span>
                             {isSectionLoading && (
-                              <span className="inline-flex items-center gap-2 rounded-full bg-white/80 px-2.5 py-1 text-xs text-slate-600 shadow-sm">
-                                <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                                同步中
-                              </span>
+                              <RefreshCw className="h-3.5 w-3.5 animate-spin text-slate-400" />
                             )}
-                            <WorkbenchInfoTip
-                              ariaLabel={`${sectionStyle.displayTitle}说明`}
-                              content={
-                                <div className="space-y-1">
-                                  <p>{section.description}</p>
-                                  <p>{sectionStyle.hint}</p>
-                                </div>
-                              }
-                              tone="slate"
-                            />
                           </div>
-                          <div className="text-[11px] font-semibold tracking-[0.22em] text-slate-400">
-                            {section.title}
-                          </div>
+                          <p className="text-xs text-slate-500">
+                            {section.description}
+                          </p>
+                          <span className="sr-only">
+                            {sectionStyle.displayTitle}
+                          </span>
                         </div>
                       </div>
-
-                      <div className="flex items-center gap-2 text-sm text-slate-500">
-                        <ChevronDown className="h-4 w-4 transition-transform duration-200 group-open:rotate-180" />
-                      </div>
+                      <ChevronDown className="h-4 w-4 text-slate-400 transition-transform duration-200 group-open:rotate-180" />
                     </div>
                   </summary>
-                  <div className="border-t border-slate-200/70 px-5 pb-5 pt-5">
+                  <div className="border-t border-slate-100 px-4 pb-4 pt-4">
                     {section.skills.length === 0 ? (
-                      <div className="rounded-[22px] border border-dashed border-slate-300 bg-slate-50/80 px-5 py-6 text-sm text-slate-500">
+                      <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
                         {isSectionLoading
                           ? "正在加载..."
                           : section.key === "remote"
                             ? '暂无远程缓存，点击"刷新"同步已启用仓库。'
-                            : "暂无技能。"}
+                            : "暂无 Skills"}
                       </div>
                     ) : (
-                      <div className="grid auto-rows-fr grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                         {section.skills.map((skill) => (
                           <SkillCard
                             key={skill.key}

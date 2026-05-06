@@ -1,14 +1,15 @@
 # Coding Agent / Skill Forge 层设计
 
 > 状态：proposal  
-> 更新时间：2026-05-05  
-> 目标：把 CreoAI 启发中最关键的 “Coding Agent 现场写代码、调 CLI / API、生成 adapter 和测试” 单独定义清楚，避免路线图退化成只有 Managed Objective 的目标续跑器。
+> 更新时间：2026-05-06
+> 目标：把 CREAO 启发中最关键的 “Coding Agent 现场写代码、调 CLI / API、生成 adapter 和测试” 单独定义清楚，避免路线图退化成只有 Managed Objective 的目标续跑器。
 
 依赖文档：
 
 - [./README.md](./README.md)
 - [./implementation-plan.md](./implementation-plan.md)
 - [./diagrams.md](./diagrams.md)
+- [../../research/creaoai/agent-product-model.md](../../research/creaoai/agent-product-model.md)
 - [../../research/creaoai/architecture-breakdown.md](../../research/creaoai/architecture-breakdown.md)
 - [../../research/pi-mono-coding-agent/README.md](../../research/pi-mono-coding-agent/README.md)
 - [../../aiprompts/skill-standard.md](../../aiprompts/skill-standard.md)
@@ -16,7 +17,7 @@
 
 ## 1. 为什么必须单独成层
 
-你指出的问题是对的：如果只有 `Managed Objective`，Lime 得到的是一个“目标续跑控制层”；但 CreoAI 案例最关键的不是续跑本身，而是：
+你指出的问题是对的：如果只有 `Managed Objective`，Lime 得到的是一个“目标续跑控制层”；但 CREAO 案例最关键的不是续跑本身，而是：
 
 ```text
 Coding Agent 根据业务目标
@@ -27,13 +28,16 @@ Coding Agent 根据业务目标
   -> 注册为可复用能力
 ```
 
-所以 Lime 的完整方案必须有两条互相衔接、但不能混成一条的链：
+所以 Lime 的完整方案必须有三条互相衔接、但不能混成一条的链：
 
 1. **Coding Agent / Skill Forge 链**
    - 负责生产能力。
 
 2. **Managed Objective 链**
    - 负责围绕目标持续使用能力。
+
+3. **Agent Envelope 产品链**
+   - 负责把成功任务包装成带 memory、widget、schedule、permission、evidence 的可 rerun 工作单元。
 
 一句话：
 
@@ -55,7 +59,7 @@ Coding Agent 根据业务目标
 
 固定边界：
 
-**Coding Agent 是 build-time capability author，不是 long-running task runner。**
+**Coding Agent 是 build-time capability author，不是可调度任务 runner。**
 
 ## 3. 权限宗旨：受控执行，不是低能力
 
@@ -66,9 +70,9 @@ Coding Agent 根据业务目标
 为什么要这样做：
 
 1. 通用 coding agent 面向开发者，风险主要是“改坏代码”。
-2. Lime 的 generated capability 未来会进入 skill catalog、automation job 和 evidence 主链，风险会扩展到账号、API、业务数据、外部发布、花钱、删除和长期重复执行。
+2. Lime 的 generated capability 未来会进入 skill catalog、automation job 和 evidence 主链，风险会扩展到账号、API、业务数据、外部发布、花钱、删除和可调度重复执行。
 3. 如果未验证 draft 能直接跑，错误会从“一次 agent turn”放大为“长期业务自动化事故”。
-4. 因此 Coding Agent 可以大胆生成能力，但系统必须管住它真实执行什么、写到哪里、能否注册、能否长期运行。
+4. 因此 Coding Agent 可以大胆生成能力，但系统必须管住它真实执行什么、写到哪里、能否注册、能否授权调用、能否被固化为 Agent。
 
 固定长期原则：
 
@@ -240,7 +244,8 @@ Coding Agent / Skill Forge
   -> 注册为可发现能力
   -> 用户创建 automation job
   -> Managed Objective 绑定 job / session
-  -> Query Loop 长期执行并 evidence audit
+  -> Query Loop 可调度执行并 evidence audit
+  -> 成功任务可生成 Agent envelope
 ```
 
 固定判断：
@@ -254,7 +259,7 @@ Coding Agent / Skill Forge
 禁止混淆：
 
 1. 不让 Managed Objective 生成 adapter。
-2. 不让 Coding Agent 直接长期运行 job。
+2. 不让 Coding Agent 直接运行 job 或创建 Agent envelope。
 3. 不让 verification gate 变成 scheduler。
 4. 不让 draft 逃过注册直接进入 objective。
 
@@ -297,7 +302,7 @@ Coding Agent / Skill Forge
 
 ## 9. 首期实现切片建议
 
-如果现在要开始实现 CreoAI 方向，第一刀不应该是自动续跑，而应该是：
+如果现在要开始实现 CREAO 方向，第一刀不应该是自动续跑，而应该是：
 
 **P1A：Coding Agent 生成 workspace-local skill draft 的最小闭环。**
 
@@ -312,7 +317,7 @@ Coding Agent / Skill Forge
 不做：
 
 1. 不注册 skill。
-2. 不执行长期任务。
+2. 不执行可调度任务。
 3. 不自动续跑。
 4. 不做外部写操作。
 
@@ -332,6 +337,7 @@ Coding Agent / Skill Forge
 3. Agent Skill Bundle / Adapter Spec 作为生成目标。
 4. Verification Gate 作为注册门禁。
 5. Workspace-local skill catalog 作为注册投影。
+6. Agent envelope 作为 Workspace 产品组合面，消费 verified skill、memory、schedule、permission 和 evidence。
 
 ### deprecated
 
@@ -360,4 +366,4 @@ Coding Agent / Skill Forge
 
 一句话：
 
-**先让 Coding Agent 会安全地产生能力，再让系统安全地运行能力。**
+**先让 Coding Agent 会安全地产生能力，再让系统通过 tool_runtime 安全地运行能力，最后把成功任务固化为可 rerun Agent。**

@@ -303,7 +303,7 @@ describe("GitHub release asset staging", () => {
       "arm-sig",
     );
     writeFile(
-      path.join(assetsDir, "aarch64-apple-darwin", "Lime_1.28.0_aarch64.dmg"),
+      path.join(assetsDir, "aarch64-apple-darwin", "Lime_1.29.0_aarch64.dmg"),
     );
     writeFile(path.join(assetsDir, "x86_64-apple-darwin", "Lime.app.tar.gz"));
     writeFile(
@@ -311,7 +311,7 @@ describe("GitHub release asset staging", () => {
       "x64-sig",
     );
     writeFile(
-      path.join(assetsDir, "x86_64-apple-darwin", "Lime_1.28.0_x64.dmg"),
+      path.join(assetsDir, "x86_64-apple-darwin", "Lime_1.29.0_x64.dmg"),
     );
     writeFile(latestPath, "{}");
 
@@ -319,29 +319,29 @@ describe("GitHub release asset staging", () => {
       assetsDir,
       extraAssets: [latestPath],
       outDir,
-      version: "v1.28.0",
+      version: "v1.29.0",
     });
 
     expect(copied.map((item) => item.name).sort()).toEqual(
       [
-        "Lime_1.28.0_aarch64.app.tar.gz",
-        "Lime_1.28.0_aarch64.app.tar.gz.sig",
-        "Lime_1.28.0_aarch64.dmg",
-        "Lime_1.28.0_x64.app.tar.gz",
-        "Lime_1.28.0_x64.app.tar.gz.sig",
-        "Lime_1.28.0_x64.dmg",
+        "Lime_1.29.0_aarch64.app.tar.gz",
+        "Lime_1.29.0_aarch64.app.tar.gz.sig",
+        "Lime_1.29.0_aarch64.dmg",
+        "Lime_1.29.0_x64.app.tar.gz",
+        "Lime_1.29.0_x64.app.tar.gz.sig",
+        "Lime_1.29.0_x64.dmg",
         "latest.json",
       ].sort(),
     );
     expect(
       fs.readFileSync(
-        path.join(outDir, "Lime_1.28.0_aarch64.app.tar.gz.sig"),
+        path.join(outDir, "Lime_1.29.0_aarch64.app.tar.gz.sig"),
         "utf8",
       ),
     ).toBe("arm-sig");
     expect(
       fs.readFileSync(
-        path.join(outDir, "Lime_1.28.0_x64.app.tar.gz.sig"),
+        path.join(outDir, "Lime_1.29.0_x64.app.tar.gz.sig"),
         "utf8",
       ),
     ).toBe("x64-sig");

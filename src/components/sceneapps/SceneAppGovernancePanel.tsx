@@ -72,7 +72,7 @@ export function SceneAppGovernancePanel({
   if (!hasSelectedSceneApp) {
     return (
       <section className="rounded-[28px] border border-dashed border-slate-200 bg-white p-5 text-sm leading-6 text-slate-500 shadow-sm shadow-slate-950/5">
-        先选一套做法，结果页才会带出最近结果、证据和下一步判断。
+        先选一个 Skill，结果页才会带出最近结果、证据和下一步判断。
       </section>
     );
   }

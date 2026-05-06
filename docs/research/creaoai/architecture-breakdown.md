@@ -1,17 +1,17 @@
-# CreaoAI 三层架构拆解
+# CREAO 三层架构拆解
 
 > 状态：current research reference  
-> 更新时间：2026-05-05  
-> 目标：把视频转述中的三层架构拆成稳定系统层次，避免误读成“电商自动化 demo”或“预设 API 编排器”。
+> 更新时间：2026-05-06
+> 目标：把 Founder Park 访谈中的 CREAO 三层架构拆成稳定系统层次，并补齐组织 harness、Agent 产品模型、sandbox、memory 与 outcome feedback 的横切面。
 
 ## 1. 先给结论
 
-视频里真正值得关注的不是某个电商流程，而是这条产品结构：
+访谈里真正值得关注的不是某个电商流程，而是这条产品结构：
 
 ```text
 用户讲清楚目标
   -> Coding Agent 把目标编码成工具和流程
-  -> Autonomous Execution 让流程长期运行
+  -> Autonomous Execution 让流程可持久、可调度、可 rerun
   -> Workspace 沉淀记忆、产物、配置和证据
 ```
 
@@ -22,6 +22,10 @@
 3. **Workspace / Agent App Surface**
 
 这三层不是页面 IA，而是 agent 产品的系统骨架。
+
+补充判断：
+
+**三层骨架之外，还有两个横切面不能漏：组织开发 harness 与运行稳定性 harness。前者决定 pivot 速度，后者决定 agent 可复现交付。**
 
 ## 2. 第一层：Coding Agent / Agent Builder
 
@@ -61,7 +65,7 @@
 
 1. 定时、手动、webhook 或事件触发。
 2. 任务排队、恢复、重试和降级。
-3. 用户关掉浏览器或重启后继续执行。
+3. 用户关掉浏览器或重启后仍可恢复、阻塞或 rerun。
 4. 管理权限、预算、沙箱和人工确认。
 5. 执行 CLI、API、浏览器、MCP、脚本和 workspace 工具。
 6. 在失败时请求输入或进入阻塞态。
@@ -85,7 +89,7 @@ planned -> running -> verifying -> completed
 
 固定判断：
 
-**这一层的价值是把一次 agent turn 变成可持续推进的业务任务。**
+**这一层的价值是把一次 agent turn 变成可持久化、可调度、可恢复、可 rerun 的业务任务；不是追求无限自主长跑。**
 
 ### 3.1 Codex `/goal` 在这一层的位置
 
@@ -98,7 +102,7 @@ persistent thread goal（同一会话线程上的持久目标状态）
   -> budget / pause / resume / complete
 ```
 
-它能解释“如何把一轮 agent turn 续成多轮目标推进”，但不能代表完整 CreoAI 三层架构：
+它能解释“如何把一轮 agent turn 续成多轮目标推进”，但不能代表完整 CREAO 三层架构：
 
 1. 它不负责生成 Skill / Adapter / Contract / Test。
 2. 它不负责 workspace-local skill catalog。
@@ -121,8 +125,21 @@ persistent thread goal（同一会话线程上的持久目标状态）
 4. 展示任务中心、阻塞点、产物、执行历史。
 5. 沉淀运行结果、反馈、记忆和复盘。
 6. 暴露 evidence、review、replay 和人工确认入口。
+7. 支撑成功任务转成可 rerun agent，并展示 memory、widget、schedule、permission。
 
 没有 workspace，agent 每次都是临时工；有了 workspace，agent 才像一个持续工作的业务员工。
+
+访谈中的 Agent 产品面不等同于 Skill：
+
+```text
+Skill / Runbook
+  + Memory
+  + Widget
+  + Schedule
+  + Permission
+  + Evidence
+  -> Agent
+```
 
 固定判断：
 
@@ -136,34 +153,78 @@ persistent thread goal（同一会话线程上的持久目标状态）
   -> 生成 Skill / Adapter / Script / Contract / Test
   -> Runtime 验证、注册、调度、执行
   -> Workspace 保存配置、任务、产物、证据
+  -> 成功任务被建议固化为 Agent
   -> 用户复盘并调整目标
   -> Coding Agent 继续改进能力
 ```
 
 这个闭环解释了为什么用户会感知到：
 
-**“我关掉浏览器，它还在干活。”**
+**“我关掉浏览器，它还能恢复、阻塞、rerun，并把结果和证据留在 workspace。”**
 
 关键不是后台线程一直在跑，而是系统同时具备：
 
 1. 可复用能力。
-2. 长期执行纪律。
+2. 可持久化、可恢复、可 rerun 的执行纪律。
 3. 可追踪证据。
 4. 可持续改进的 workspace 记忆。
+5. 主动把成功任务固化成 Agent 的产品面。
 
-## 6. 对 Lime 的映射
 
-| CreoAI 层级 | Lime 中应收敛到的主链 | 不应新增的旁路 |
+## 6. 横切面一：组织开发 Harness
+
+CREAO 访谈中，“Harness”不只指用户任务运行环境，也指公司自身的开发反馈系统。可以抽象为：
+
+```text
+行业动态 / GitHub / 竞品 / 用户日志 / 业务指标
+  -> AI 生成候选需求
+  -> 人类架构师判断主线、品味、商业价值和风险
+  -> AI 实现、测试、部署
+  -> AB testing / telemetry 验证
+  -> 反馈回流为下一轮 context
+```
+
+这解释了访谈中“产品不是护城河，组织效率和 pivot 速度才是”的判断。
+
+对 Lime 的边界：
+
+1. 可以学习“需求发现、实现、验证、反馈”的闭环。
+2. 不能新增平行 AI PM / AB / telemetry 事实源。
+3. 组织层结果必须回到 `docs/roadmap/`、`docs/exec-plans/`、artifact、telemetry 和 evidence。
+
+## 7. 横切面二：Sandbox / Memory / Outcome Feedback
+
+CREAO 访谈把稳定性放在模型智商之前，关键原因是普通商业化任务多为短暂、高频、重复的知识工作。
+
+运行稳定性至少包括：
+
+1. **独立 sandbox**：每个请求隔离环境，避免 agent 间依赖和工具包互相污染。
+2. **启动与恢复性能**：sandbox 启动、任务恢复、阻塞提示不能让用户感知为“卡死”。
+3. **三层 memory**：thread 内压缩、跨 thread 长期记忆、新 thread 相关记忆注入。
+4. **Outcome feedback**：evidence 证明“做了什么”，telemetry / experiment 证明“有没有用”。
+
+对 Lime 的边界：
+
+1. 桌面 GUI 是 current 产品面，不因 CREAO 云端叙事被替换。
+2. 高隔离执行可逐步接 remote runtime / sandbox profile。
+3. Memory 必须收敛到 Lime 的 compaction、state-history-telemetry 和 workspace context 主链。
+4. Outcome telemetry 不应伪装成 evidence；两者相互引用但事实源不同。
+
+## 8. 对 Lime 的映射
+
+| CREAO 层级 / 横切面 | Lime 中应收敛到的主链 | 不应新增的旁路 |
 | --- | --- | --- |
 | Coding Agent / Agent Builder | Skill Forge、Agent Skill Bundle、Adapter Spec、ServiceSkill 投影 | 平行 generated tool 类型 |
 | Autonomous Execution | Query Loop、runtime_queue、tool_runtime、automation job、subagent | 独立 scheduler / workflow runtime |
-| Workspace / Agent App Surface | Workspace、Skill Catalog、Artifact、Task Center、Evidence Pack | 单场景自建状态与证据系统 |
+| Workspace / Agent App Surface | Workspace、Skill Catalog、Artifact、Task Center、Evidence Pack、Agent Card | 单场景自建状态与证据系统 |
+| Org Harness | roadmap、exec-plan、telemetry summary、artifact、evidence | 平行 AI PM / AB / telemetry 系统 |
+| Sandbox / Memory / Outcome | tool_runtime、remote runtime、memory compaction、state-history-telemetry | 本地 GUI 旁路执行器或第二套记忆事实源 |
 
 一句话：
 
-**Lime 不需要复制一个 CreoAI，而是把这三层折回现有 skills pipeline 与 Harness Engine。**
+**Lime 不需要复制一个 CREAO，而是把这三层折回现有 skills pipeline 与 Harness Engine。**
 
-## 7. 关键风险
+## 9. 关键风险
 
 1. **无约束代码生成**
    - agent 写出的 adapter 如果直接执行，会放大安全和质量风险。
@@ -176,3 +237,9 @@ persistent thread goal（同一会话线程上的持久目标状态）
 
 4. **垂类 demo 误导**
    - 电商案例不应决定 Lime 的产品边界；它只是一个验证三层架构的样例。
+
+5. **Skill / Agent 混淆**
+   - 如果把 verified skill 直接当完整 Agent，后续会漏掉 memory、widget、schedule、permission 和 rerun 面。
+
+6. **Evidence / Outcome 混淆**
+   - evidence 证明执行事实，不能替代 AB、telemetry 或用户价值验证。

@@ -203,6 +203,21 @@ describe("agentThreadGrouping", () => {
     ]);
   });
 
+  it("reasoning 预览应压平碎片化过程文本", () => {
+    const items: AgentThreadItem[] = [
+      {
+        ...createBaseItem("reasoning-1", 1),
+        type: "reasoning",
+        text: ["The", "", "I", "", "Now"].join("\n"),
+      },
+    ];
+
+    const model = buildAgentThreadDisplayModel(items);
+
+    expect(model.summaryText).toBe("The I Now");
+    expect(model.orderedBlocks[0]?.previewLines).toEqual(["The I Now"]);
+  });
+
   it("结构化问答摘要不应回退为原始 a2ui 代码块", () => {
     const items: AgentThreadItem[] = [
       {

@@ -341,9 +341,60 @@ export async function setDefaultProject(id: string): Promise<void> {
 }
 
 /** 获取或创建默认项目 */
+// 默认项目缓存
+let defaultProjectCache: {
+  value: Project | null;
+  expiresAt: number;
+  promise: Promise<Project> | null;
+} = {
+  value: null,
+  expiresAt: 0,
+  promise: null,
+};
+
+const DEFAULT_PROJECT_CACHE_TTL_MS = 5_000; // 5秒缓存
+
 export async function getOrCreateDefaultProject(): Promise<Project> {
-  const project = await safeInvoke<RawProject>("get_or_create_default_project");
-  return normalizeProject(project);
+  // 检查缓存
+  if (defaultProjectCache.value && defaultProjectCache.expiresAt > Date.now()) {
+    return defaultProjectCache.value;
+  }
+
+  // 检查是否有进行中的请求
+  if (defaultProjectCache.promise) {
+    return defaultProjectCache.promise;
+  }
+
+  // 创建新请求
+  const promise = safeInvoke<RawProject>("get_or_create_default_project")
+    .then((project) => {
+      const normalized = normalizeProject(project);
+      // 更新缓存
+      defaultProjectCache = {
+        value: normalized,
+        expiresAt: Date.now() + DEFAULT_PROJECT_CACHE_TTL_MS,
+        promise: null,
+      };
+      return normalized;
+    })
+    .catch((error) => {
+      // 清除失败的 promise
+      defaultProjectCache.promise = null;
+      throw error;
+    });
+
+  defaultProjectCache.promise = promise;
+  return promise;
+}
+
+/**
+ * 预加载默认项目
+ * 在应用启动时调用,避免首次访问时的延迟
+ */
+export function preloadDefaultProject(): void {
+  void getOrCreateDefaultProject().catch(() => {
+    // 静默失败,不影响应用启动
+  });
 }
 
 /** 通过根路径获取项目 */

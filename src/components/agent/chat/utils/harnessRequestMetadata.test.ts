@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { AgentRuntimeWorkspaceSkillBinding } from "@/lib/api/agentRuntime";
 
 import {
   buildHarnessRequestMetadata,
@@ -264,6 +265,99 @@ describe("harnessRequestMetadata", () => {
         },
       ],
     });
+  });
+
+  it("应按 P3D contract 透传 workspace skill binding 候选且不打开模型技能", () => {
+    const metadata = buildHarnessRequestMetadata({
+      theme: "general",
+      preferences: {
+        webSearch: false,
+        thinking: true,
+        task: true,
+        subagent: false,
+      },
+      sessionMode: "default",
+      workspaceSkillBindings: [
+        {
+          directory: "capability-report",
+          name: "只读 CLI 报告",
+          description: "把只读 CLI 输出整理成 Markdown 报告。",
+          binding_status: "ready_for_manual_enable",
+          next_gate: "manual_runtime_enable",
+          query_loop_visible: false,
+          tool_runtime_visible: false,
+          launch_enabled: false,
+          permission_summary: ["Level 0 只读发现"],
+          registration: {
+            source_draft_id: "capdraft-1",
+            source_verification_report_id: "capver-1",
+          },
+        } as AgentRuntimeWorkspaceSkillBinding,
+      ],
+    });
+
+    expect(metadata.workspace_skill_bindings).toEqual({
+      source: "p3c_runtime_binding",
+      bindings: [
+        expect.objectContaining({
+          directory: "capability-report",
+          binding_status: "ready_for_manual_enable",
+          launch_enabled: false,
+          source_draft_id: "capdraft-1",
+        }),
+      ],
+    });
+    expect(metadata.allow_model_skills).toBeUndefined();
+  });
+
+  it("应按 P3E contract 透传显式 workspace skill runtime enable 且不写 allow_model_skills", () => {
+    const metadata = buildHarnessRequestMetadata({
+      theme: "general",
+      preferences: {
+        webSearch: false,
+        thinking: true,
+        task: true,
+        subagent: false,
+      },
+      sessionMode: "default",
+      workspaceSkillRuntimeEnable: {
+        workspaceRoot: "/tmp/work",
+        bindings: [
+          {
+            directory: "capability-report",
+            name: "只读 CLI 报告",
+            description: "把只读 CLI 输出整理成 Markdown 报告。",
+            registered_skill_directory:
+              "/tmp/work/.agents/skills/capability-report",
+            binding_status: "ready_for_manual_enable",
+            next_gate: "manual_runtime_enable",
+            query_loop_visible: false,
+            tool_runtime_visible: false,
+            launch_enabled: false,
+            permission_summary: ["Level 0 只读发现"],
+            registration: {
+              source_draft_id: "capdraft-1",
+              source_verification_report_id: "capver-1",
+            },
+          } as AgentRuntimeWorkspaceSkillBinding,
+        ],
+      },
+    });
+
+    expect(metadata.workspace_skill_runtime_enable).toEqual({
+      source: "manual_session_enable",
+      approval: "manual",
+      workspace_root: "/tmp/work",
+      bindings: [
+        expect.objectContaining({
+          directory: "capability-report",
+          skill: "project:capability-report",
+          source_draft_id: "capdraft-1",
+          source_verification_report_id: "capver-1",
+        }),
+      ],
+    });
+    expect(metadata.allow_model_skills).toBeUndefined();
   });
 
   it("不应再写入旧 turn_team compat 字段", () => {

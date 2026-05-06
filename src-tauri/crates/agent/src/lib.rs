@@ -54,8 +54,8 @@ pub use ask_bridge::{create_ask_callback, extract_response as extract_ask_respon
 pub use aster_runtime_support::{initialize_aster_runtime, restore_aster_runtime_queued_turns};
 pub use aster_state::{AsterAgentState, ProviderConfig, QueuedTurnTask, RuntimeInterruptMarker};
 pub use aster_state_support::{
-    build_project_system_prompt, create_lime_identity, create_lime_tool_config, message_helpers,
-    reload_lime_skills, SessionConfigBuilder,
+    build_project_system_prompt, create_lime_identity, create_lime_tool_config,
+    load_workspace_lime_skills, message_helpers, reload_lime_skills, SessionConfigBuilder,
 };
 pub use credential_bridge::{
     create_aster_provider, AsterProviderConfig, CredentialBridge, CredentialBridgeError,

@@ -99,10 +99,10 @@ function buildSceneAppLaunchFailureMessage(params: {
   >;
 }): string {
   if (params.reason === "missing_project") {
-    return `做法「${params.title}」需要项目工作区，请先选择项目后再启动。`;
+    return `Skill「${params.title}」需要项目工作区，请先选择项目后再启动。`;
   }
 
-  return `做法「${params.title}」缺少可执行内容，请先补齐输入或参数。`;
+  return `Skill「${params.title}」缺少可执行内容，请先补齐输入或参数。`;
 }
 
 export function resolveSceneAppLaunchAction(
@@ -164,7 +164,7 @@ export async function executeSceneAppLaunchAction(
         kind: "workspace_entry",
         executionDraft: resolvedAction.executionDraft,
         reason: "missing_navigate",
-        message: "当前入口暂不支持切换到做法工作区，请从桌面主界面重试。",
+        message: "当前入口暂不支持切换到 Skills 工作区，请从桌面主界面重试。",
       };
     }
 

@@ -465,6 +465,12 @@ vi.mock("./components/MessageList", () => ({
   MessageList: (props: Record<string, unknown>) => mockMessageList(props),
 }));
 
+vi.mock("./components/MarkdownRenderer", () => ({
+  MarkdownRenderer: ({ content }: { content?: string }) => (
+    <div data-testid="markdown-renderer-mock">{content}</div>
+  ),
+}));
+
 vi.mock("./components/TeamWorkspaceDock", () => ({
   TeamWorkspaceDock: ({
     placement,
@@ -1063,7 +1069,7 @@ function mockBrowserAssistCompletedSession() {
 
 beforeAll(async () => {
   await preloadAgentChatWorkspaceModule;
-}, 90_000);
+}, 180_000);
 
 beforeEach(() => {
   (

@@ -111,8 +111,54 @@ describe("agentStreamCompletionController", () => {
       isThinking: false,
       content: "最终",
       contentParts: [{ type: "text", text: "最终" }],
+      thinkingContent: undefined,
       runtimeStatus: undefined,
       usage,
+    });
+  });
+
+  it("完成态应在持久化 reasoning 接管前保留本地思考兜底", () => {
+    expect(
+      buildAgentStreamCompletedAssistantMessagePatch({
+        parts: [
+          { type: "thinking", text: "先分析意图。" },
+          { type: "text", text: "最终" },
+        ],
+        finalContent: "最终",
+        rawContent: "最终",
+        surfaceThinkingDeltas: true,
+        thinkingContent: " 先分析意图。 ",
+      }),
+    ).toEqual({
+      isThinking: false,
+      content: "最终",
+      contentParts: [
+        { type: "thinking", text: "先分析意图。" },
+        { type: "text", text: "最终" },
+      ],
+      thinkingContent: "先分析意图。",
+      runtimeStatus: undefined,
+    });
+  });
+
+  it("关闭思考展示时完成态不应保留本地思考兜底", () => {
+    expect(
+      buildAgentStreamCompletedAssistantMessagePatch({
+        parts: [
+          { type: "thinking", text: "先分析意图。" },
+          { type: "text", text: "最终" },
+        ],
+        finalContent: "最终",
+        rawContent: "最终",
+        surfaceThinkingDeltas: false,
+        thinkingContent: "先分析意图。",
+      }),
+    ).toEqual({
+      isThinking: false,
+      content: "最终",
+      contentParts: [{ type: "text", text: "最终" }],
+      thinkingContent: undefined,
+      runtimeStatus: undefined,
     });
   });
 

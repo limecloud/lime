@@ -7,7 +7,7 @@
 use aster::tools::{PermissionCheckResult, SkillTool, Tool, ToolContext, ToolError, ToolResult};
 use async_trait::async_trait;
 use serde_json::{json, Map, Value};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Mutex, OnceLock};
 
 const MODALITY_RUNTIME_CONTRACTS_JSON: &str =
@@ -33,8 +33,28 @@ const LIMECORE_POLICY_DECISION_REASON_POLICY_INPUTS_MISSING: &str =
 const LIMECORE_POLICY_INPUT_STATUS_DECLARED_ONLY: &str = "declared_only";
 const LIMECORE_POLICY_INPUT_VALUE_SOURCE_LIMECORE_PENDING: &str = "limecore_pending";
 
-fn session_access_store() -> &'static Mutex<HashMap<String, bool>> {
-    static STORE: OnceLock<Mutex<HashMap<String, bool>>> = OnceLock::new();
+#[derive(Debug, Clone, Default)]
+struct SkillToolSessionAccess {
+    enabled: bool,
+    allowed_skills: Option<HashSet<String>>,
+    skill_sources: HashMap<String, SkillToolSessionSkillSource>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SkillToolSessionSkillSource {
+    pub workspace_root: String,
+    pub source: String,
+    pub approval: String,
+    pub directory: String,
+    pub registered_skill_directory: String,
+    pub skill_name: String,
+    pub source_draft_id: String,
+    pub source_verification_report_id: String,
+    pub permission_summary: Vec<String>,
+}
+
+fn session_access_store() -> &'static Mutex<HashMap<String, SkillToolSessionAccess>> {
+    static STORE: OnceLock<Mutex<HashMap<String, SkillToolSessionAccess>>> = OnceLock::new();
     STORE.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
@@ -49,7 +69,79 @@ pub fn set_skill_tool_session_access(session_id: &str, enabled: bool) {
         Ok(guard) => guard,
         Err(error) => error.into_inner(),
     };
-    guard.insert(session_id.to_string(), enabled);
+    guard.insert(
+        session_id.to_string(),
+        SkillToolSessionAccess {
+            enabled,
+            allowed_skills: None,
+            skill_sources: HashMap::new(),
+        },
+    );
+}
+
+pub fn set_skill_tool_session_allowed_skills<I, S>(session_id: &str, allowed_skills: I)
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<str>,
+{
+    let session_id = session_id.trim();
+    if session_id.is_empty() {
+        return;
+    }
+
+    let allowed = allowed_skills
+        .into_iter()
+        .flat_map(|skill| skill_name_gate_aliases(skill.as_ref()))
+        .collect::<HashSet<_>>();
+    let store = session_access_store();
+    let mut guard = match store.lock() {
+        Ok(guard) => guard,
+        Err(error) => error.into_inner(),
+    };
+    guard.insert(
+        session_id.to_string(),
+        SkillToolSessionAccess {
+            enabled: !allowed.is_empty(),
+            allowed_skills: Some(allowed),
+            skill_sources: HashMap::new(),
+        },
+    );
+}
+
+pub fn set_skill_tool_session_allowed_skill_sources<I>(session_id: &str, sources: I)
+where
+    I: IntoIterator<Item = SkillToolSessionSkillSource>,
+{
+    let session_id = session_id.trim();
+    if session_id.is_empty() {
+        return;
+    }
+
+    let mut allowed = HashSet::new();
+    let mut skill_sources = HashMap::new();
+    for source in sources {
+        for alias in skill_name_gate_aliases(&source.skill_name)
+            .into_iter()
+            .chain(skill_name_gate_aliases(&source.directory).into_iter())
+        {
+            allowed.insert(alias.clone());
+            skill_sources.insert(alias, source.clone());
+        }
+    }
+
+    let store = session_access_store();
+    let mut guard = match store.lock() {
+        Ok(guard) => guard,
+        Err(error) => error.into_inner(),
+    };
+    guard.insert(
+        session_id.to_string(),
+        SkillToolSessionAccess {
+            enabled: !allowed.is_empty(),
+            allowed_skills: Some(allowed),
+            skill_sources,
+        },
+    );
 }
 
 pub fn clear_skill_tool_session_access(session_id: &str) {
@@ -77,11 +169,92 @@ fn is_skill_tool_enabled_for_session(session_id: &str) -> bool {
         Ok(guard) => guard,
         Err(error) => error.into_inner(),
     };
-    guard.get(session_id).copied().unwrap_or(false)
+    guard
+        .get(session_id)
+        .map(|access| access.enabled)
+        .unwrap_or(false)
 }
 
 fn skill_tool_disabled_message() -> &'static str {
     "当前会话未启用技能自动调用。请改用显式 /skill-name 指令，或切换到需要技能编排的工作流。"
+}
+
+fn skill_name_gate_aliases(skill_name: &str) -> Vec<String> {
+    let full = skill_name
+        .trim()
+        .trim_start_matches('/')
+        .to_ascii_lowercase();
+    if full.is_empty() {
+        return Vec::new();
+    }
+
+    let short = full
+        .rsplit(':')
+        .next()
+        .unwrap_or(full.as_str())
+        .trim()
+        .to_string();
+    if short.is_empty() || short == full {
+        vec![full]
+    } else {
+        vec![full, short]
+    }
+}
+
+fn is_skill_allowed_for_session(session_id: &str, skill_name: &str) -> bool {
+    let session_id = session_id.trim();
+    if session_id.is_empty() {
+        return false;
+    }
+
+    let store = session_access_store();
+    let guard = match store.lock() {
+        Ok(guard) => guard,
+        Err(error) => error.into_inner(),
+    };
+    let Some(access) = guard.get(session_id) else {
+        return false;
+    };
+    if !access.enabled {
+        return false;
+    }
+
+    let Some(allowed_skills) = access.allowed_skills.as_ref() else {
+        return true;
+    };
+    skill_name_gate_aliases(skill_name)
+        .iter()
+        .any(|alias| allowed_skills.contains(alias))
+}
+
+fn workspace_skill_source_for_session_skill(
+    session_id: &str,
+    skill_name: &str,
+) -> Option<SkillToolSessionSkillSource> {
+    let session_id = session_id.trim();
+    if session_id.is_empty() {
+        return None;
+    }
+
+    let store = session_access_store();
+    let guard = match store.lock() {
+        Ok(guard) => guard,
+        Err(error) => error.into_inner(),
+    };
+    let access = guard.get(session_id)?;
+    if !access.enabled {
+        return None;
+    }
+    skill_name_gate_aliases(skill_name)
+        .iter()
+        .find_map(|alias| access.skill_sources.get(alias).cloned())
+}
+
+fn skill_tool_not_allowed_message(skill_name: &str) -> String {
+    format!(
+        "当前会话未授权执行 Skill({})；请先通过 workspace skill runtime enable gate 显式启用该能力。",
+        skill_name.trim()
+    )
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -663,6 +836,54 @@ fn attach_skill_runtime_contract_metadata(
     tool_result
 }
 
+fn workspace_skill_source_metadata_value(source: &SkillToolSessionSkillSource) -> Value {
+    json!({
+        "workspaceRoot": source.workspace_root.as_str(),
+        "source": source.source.as_str(),
+        "approval": source.approval.as_str(),
+        "authorizationScope": "session",
+        "directory": source.directory.as_str(),
+        "registeredSkillDirectory": source.registered_skill_directory.as_str(),
+        "skillName": source.skill_name.as_str(),
+        "sourceDraftId": source.source_draft_id.as_str(),
+        "sourceVerificationReportId": source.source_verification_report_id.as_str(),
+        "permissionSummary": &source.permission_summary,
+    })
+}
+
+fn attach_workspace_skill_source_metadata(
+    mut tool_result: ToolResult,
+    source: Option<&SkillToolSessionSkillSource>,
+) -> ToolResult {
+    let Some(source) = source else {
+        return tool_result;
+    };
+
+    tool_result = tool_result
+        .with_metadata("tool_family", json!("skill"))
+        .with_metadata("skill_name", json!(source.skill_name.as_str()))
+        .with_metadata(
+            "workspace_skill_source",
+            workspace_skill_source_metadata_value(source),
+        )
+        .with_metadata(
+            "workspace_skill_runtime_enable",
+            json!({
+                "source": source.source.as_str(),
+                "approval": source.approval.as_str(),
+                "authorization_scope": "session",
+                "workspace_root": source.workspace_root.as_str(),
+                "directory": source.directory.as_str(),
+                "skill": source.skill_name.as_str(),
+                "registered_skill_directory": source.registered_skill_directory.as_str(),
+                "source_draft_id": source.source_draft_id.as_str(),
+                "source_verification_report_id": source.source_verification_report_id.as_str(),
+                "permission_summary": &source.permission_summary,
+            }),
+        );
+    tool_result
+}
+
 pub struct LimeSkillTool {
     inner: SkillTool,
 }
@@ -699,19 +920,39 @@ impl Tool for LimeSkillTool {
         if !is_skill_tool_enabled_for_session(&context.session_id) {
             return Err(ToolError::execution_failed(skill_tool_disabled_message()));
         }
+        if let Some(skill_name) = params.get("skill").and_then(Value::as_str) {
+            if !is_skill_allowed_for_session(&context.session_id, skill_name) {
+                return Err(ToolError::execution_failed(skill_tool_not_allowed_message(
+                    skill_name,
+                )));
+            }
+        }
 
+        let workspace_skill_source =
+            params
+                .get("skill")
+                .and_then(Value::as_str)
+                .and_then(|skill_name| {
+                    workspace_skill_source_for_session_skill(&context.session_id, skill_name)
+                });
         let runtime_contract_metadata = match build_skill_runtime_contract_metadata(&params) {
             Ok(metadata) => metadata,
-            Err(tool_result) => return Ok(tool_result),
+            Err(tool_result) => {
+                return Ok(attach_workspace_skill_source_metadata(
+                    tool_result,
+                    workspace_skill_source.as_ref(),
+                ))
+            }
         };
         self.inner
             .execute(params, context)
             .await
             .map(|tool_result| {
-                attach_skill_runtime_contract_metadata(
+                let tool_result = attach_skill_runtime_contract_metadata(
                     tool_result,
                     runtime_contract_metadata.as_ref(),
-                )
+                );
+                attach_workspace_skill_source_metadata(tool_result, workspace_skill_source.as_ref())
             })
     }
 
@@ -722,6 +963,11 @@ impl Tool for LimeSkillTool {
     ) -> PermissionCheckResult {
         if !is_skill_tool_enabled_for_session(&context.session_id) {
             return PermissionCheckResult::deny(skill_tool_disabled_message());
+        }
+        if let Some(skill_name) = params.get("skill").and_then(Value::as_str) {
+            if !is_skill_allowed_for_session(&context.session_id, skill_name) {
+                return PermissionCheckResult::deny(skill_tool_not_allowed_message(skill_name));
+            }
         }
 
         self.inner.check_permissions(params, context).await
@@ -773,6 +1019,90 @@ mod tests {
         clear_skill_tool_session_access(session_id);
 
         assert_eq!(result.behavior, PermissionBehavior::Allow);
+    }
+
+    #[tokio::test]
+    async fn allowlisted_session_should_allow_only_selected_skill() {
+        let session_id = "skill-allowlisted-session";
+        set_skill_tool_session_allowed_skills(session_id, ["project:capability-report"]);
+
+        let tool = LimeSkillTool::new();
+        let allowed = tool
+            .check_permissions(
+                &serde_json::json!({ "skill": "project:capability-report" }),
+                &create_context(session_id),
+            )
+            .await;
+        let denied = tool
+            .check_permissions(
+                &serde_json::json!({ "skill": "project:other-skill" }),
+                &create_context(session_id),
+            )
+            .await;
+
+        clear_skill_tool_session_access(session_id);
+
+        assert_eq!(allowed.behavior, PermissionBehavior::Allow);
+        assert_eq!(denied.behavior, PermissionBehavior::Deny);
+        assert!(denied
+            .message
+            .as_deref()
+            .unwrap_or_default()
+            .contains("未授权执行 Skill"));
+    }
+
+    #[tokio::test]
+    async fn allowlisted_session_should_preserve_workspace_skill_source_metadata() {
+        let session_id = "skill-source-session";
+        let source = SkillToolSessionSkillSource {
+            workspace_root: "/tmp/workspace".to_string(),
+            source: "manual_session_enable".to_string(),
+            approval: "manual".to_string(),
+            directory: "capability-report".to_string(),
+            registered_skill_directory: "/tmp/workspace/.agents/skills/capability-report"
+                .to_string(),
+            skill_name: "project:capability-report".to_string(),
+            source_draft_id: "capdraft-1".to_string(),
+            source_verification_report_id: "capver-1".to_string(),
+            permission_summary: vec!["Level 0 只读发现".to_string()],
+        };
+        set_skill_tool_session_allowed_skill_sources(session_id, [source.clone()]);
+
+        let tool = LimeSkillTool::new();
+        let allowed = tool
+            .check_permissions(
+                &serde_json::json!({ "skill": "capability-report" }),
+                &create_context(session_id),
+            )
+            .await;
+        let restored =
+            workspace_skill_source_for_session_skill(session_id, "project:capability-report")
+                .expect("source should be available for allowlisted skill");
+        let tool_result =
+            attach_workspace_skill_source_metadata(ToolResult::success("ok"), Some(&restored));
+
+        clear_skill_tool_session_access(session_id);
+
+        assert_eq!(allowed.behavior, PermissionBehavior::Allow);
+        assert_eq!(restored, source);
+        assert_eq!(
+            tool_result.metadata.get("tool_family"),
+            Some(&json!("skill"))
+        );
+        assert_eq!(
+            tool_result
+                .metadata
+                .get("workspace_skill_source")
+                .and_then(|value| value.get("sourceDraftId")),
+            Some(&json!("capdraft-1"))
+        );
+        assert_eq!(
+            tool_result
+                .metadata
+                .get("workspace_skill_runtime_enable")
+                .and_then(|value| value.get("source_verification_report_id")),
+            Some(&json!("capver-1"))
+        );
     }
 
     #[tokio::test]

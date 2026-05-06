@@ -74,7 +74,7 @@ export function SceneAppRunDetailPanel({
   if (!hasSelectedSceneApp) {
     return (
       <section className="rounded-[28px] border border-dashed border-slate-200 bg-white p-5 text-sm leading-6 text-slate-500 shadow-sm shadow-slate-950/5">
-        先选一套做法，这里才会带出最近一轮结果。
+        先选一个 Skill，这里才会带出最近一轮结果。
       </section>
     );
   }

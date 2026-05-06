@@ -1039,6 +1039,8 @@ struct RuntimeTurnSubmitBootstrap {
     provider_continuation_capability: ProviderContinuationCapability,
     tracker: ExecutionTracker,
     model_skill_tool_enabled: bool,
+    model_skill_tool_allowed_skill_sources:
+        Option<Vec<lime_agent::tools::SkillToolSessionSkillSource>>,
 }
 
 struct RuntimeTurnPromptStrategy {
@@ -1276,6 +1278,17 @@ impl RuntimeTurnPreparedExecution {
                 let task_profile = extract_runtime_resolution_payload::<
                     lime_agent::SessionExecutionRuntimeTaskProfile,
                 >(request_metadata, "task_profile");
+                maybe_emit_runtime_user_lock_capability_request(
+                    app,
+                    request,
+                    workspace_root,
+                    self.thread_id(),
+                    self.turn_id(),
+                    &self.runtime_turn_execution_context.timeline_recorder,
+                    &limit_state,
+                    routing_decision.as_ref(),
+                    task_profile.as_ref(),
+                );
                 let error = format_user_lock_capability_gating_error(
                     &limit_state,
                     routing_decision.as_ref(),
@@ -1330,6 +1343,14 @@ impl RuntimeTurnPreparedExecution {
 impl RuntimeTurnSubmitPreparation {
     fn model_skill_tool_enabled(&self) -> bool {
         self.submit_bootstrap.model_skill_tool_enabled
+    }
+
+    fn model_skill_tool_allowed_skill_sources(
+        &self,
+    ) -> Option<Vec<lime_agent::tools::SkillToolSessionSkillSource>> {
+        self.submit_bootstrap
+            .model_skill_tool_allowed_skill_sources
+            .clone()
     }
 }
 
@@ -1474,9 +1495,45 @@ async fn prepare_runtime_turn_submit_bootstrap(
         }
     }
 
+    let workspace_skill_runtime_enable =
+        crate::services::runtime_skill_binding_service::resolve_workspace_skill_runtime_enable(
+            request_metadata.as_ref(),
+            workspace_root,
+        )?;
+    let model_skill_tool_allowed_skill_sources =
+        workspace_skill_runtime_enable.as_ref().map(|projection| {
+            projection
+                .bindings
+                .iter()
+                .map(|binding| lime_agent::tools::SkillToolSessionSkillSource {
+                    workspace_root: projection.workspace_root.clone(),
+                    source: projection.source.clone(),
+                    approval: projection.approval.clone(),
+                    directory: binding.directory.clone(),
+                    registered_skill_directory: binding.registered_skill_directory.clone(),
+                    skill_name: binding.skill_name.clone(),
+                    source_draft_id: binding.source_draft_id.clone(),
+                    source_verification_report_id: binding.source_verification_report_id.clone(),
+                    permission_summary: binding.permission_summary.clone(),
+                })
+                .collect::<Vec<_>>()
+        });
+    if let Some(projection) = workspace_skill_runtime_enable.as_ref() {
+        let loaded_skill_names = lime_agent::load_workspace_lime_skills(workspace_root)?;
+        tracing::info!(
+            "[AsterAgent] workspace skill runtime enable 已启用: workspace_root={}, bindings={}, allowed_skills={}, loaded_skills={}",
+            projection.workspace_root,
+            projection.bindings.len(),
+            projection.allowed_skill_names.join(","),
+            loaded_skill_names.join(",")
+        );
+    }
+
     Ok(RuntimeTurnSubmitBootstrap {
         model_skill_tool_enabled: matches!(execution_profile, TurnExecutionProfile::FullRuntime)
-            && should_enable_model_skill_tool(request_metadata.as_ref()),
+            && (should_enable_model_skill_tool(request_metadata.as_ref())
+                || workspace_skill_runtime_enable.is_some()),
+        model_skill_tool_allowed_skill_sources,
         request_metadata,
         runtime_memory_config: runtime_config.memory.clone(),
         provider_continuation_capability,
@@ -2507,10 +2564,13 @@ async fn execute_runtime_turn_with_session_scope(
     submit_preparation: RuntimeTurnSubmitPreparation,
 ) -> Result<(), String> {
     let model_skill_tool_enabled = submit_preparation.model_skill_tool_enabled();
+    let model_skill_tool_allowed_skill_sources =
+        submit_preparation.model_skill_tool_allowed_skill_sources();
     with_runtime_turn_session_scope(
         state,
         session_id,
         model_skill_tool_enabled,
+        model_skill_tool_allowed_skill_sources,
         move |cancel_token| async move {
             execute_runtime_turn_submit(
                 app,
@@ -2665,6 +2725,13 @@ async fn prepare_runtime_turn_ingress_context(
         .is_none()
         || extract_harness_string(request.metadata.as_ref(), &["content_id", "contentId"])
             .is_none();
+    let user_lock_recovery_session_id = request.session_id.clone();
+    merge_runtime_user_lock_capability_recovery_from_session(
+        db,
+        &user_lock_recovery_session_id,
+        request,
+    )
+    .await;
     let provider_resolution_future =
         resolve_runtime_request_provider_resolution(app, db, api_key_provider_service, request);
     let session_recent_harness_context_future = async {
@@ -3245,6 +3312,13 @@ fn build_full_runtime_system_prompt(
     );
     prompt = apply_turn_metadata_prompt_stage(
         turn_input_builder,
+        TurnPromptAugmentationStageKind::WorkspaceSkillBindings,
+        prompt,
+        request_metadata,
+        merge_system_prompt_with_workspace_skill_bindings,
+    );
+    prompt = apply_turn_metadata_prompt_stage(
+        turn_input_builder,
         TurnPromptAugmentationStageKind::Elicitation,
         prompt,
         request_metadata,
@@ -3303,7 +3377,7 @@ fn has_root_object_key(request_metadata: Option<&serde_json::Value>, key: &str) 
 fn request_metadata_contains_full_runtime_context(
     request_metadata: Option<&serde_json::Value>,
 ) -> bool {
-    const FULL_RUNTIME_HARNESS_OBJECT_KEYS: [(&str, &str); 18] = [
+    const FULL_RUNTIME_HARNESS_OBJECT_KEYS: [(&str, &str); 20] = [
         ("image_skill_launch", "imageSkillLaunch"),
         ("service_skill_launch", "serviceSkillLaunch"),
         ("service_scene_launch", "serviceSceneLaunch"),
@@ -3321,6 +3395,11 @@ fn request_metadata_contains_full_runtime_context(
         ("summary_skill_launch", "summarySkillLaunch"),
         ("translation_skill_launch", "translationSkillLaunch"),
         ("analysis_skill_launch", "analysisSkillLaunch"),
+        ("workspace_skill_bindings", "workspaceSkillBindings"),
+        (
+            "workspace_skill_runtime_enable",
+            "workspaceSkillRuntimeEnable",
+        ),
         ("team_memory_shadow", "teamMemoryShadow"),
     ];
     const FULL_RUNTIME_HARNESS_OBJECT_KEYS_EXTRA: [(&str, &str); 4] = [
@@ -3790,6 +3869,304 @@ async fn merge_runtime_permission_confirmation_from_session(
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct RuntimeUserLockCapabilityProjection {
+    status: &'static str,
+    request_id: String,
+    source: &'static str,
+    note: &'static str,
+}
+
+fn runtime_user_lock_capability_text_is_denial(value: &str) -> bool {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return false;
+    }
+    let normalized = trimmed.to_ascii_lowercase();
+    matches!(
+        normalized.as_str(),
+        "deny" | "denied" | "reject" | "rejected" | "no" | "false"
+    ) || trimmed.contains("拒绝")
+        || trimmed.contains("不允许")
+        || trimmed.contains("保持锁定")
+        || trimmed.contains("停止")
+}
+
+fn runtime_user_lock_capability_value_is_denial(value: &serde_json::Value) -> bool {
+    match value {
+        serde_json::Value::Bool(value) => !*value,
+        serde_json::Value::String(value) => {
+            if runtime_user_lock_capability_text_is_denial(value) {
+                return true;
+            }
+            serde_json::from_str::<serde_json::Value>(value)
+                .ok()
+                .is_some_and(|parsed| runtime_user_lock_capability_value_is_denial(&parsed))
+        }
+        serde_json::Value::Array(values) => values
+            .iter()
+            .any(runtime_user_lock_capability_value_is_denial),
+        serde_json::Value::Object(object) => object
+            .get("answer")
+            .or_else(|| object.get("decision"))
+            .or_else(|| object.get("confirmed"))
+            .or_else(|| object.get("approved"))
+            .is_some_and(runtime_user_lock_capability_value_is_denial),
+        _ => false,
+    }
+}
+
+fn runtime_user_lock_capability_response_confirmed(
+    response: Option<&serde_json::Value>,
+) -> Option<bool> {
+    let response = response?;
+    match response {
+        serde_json::Value::Bool(value) => Some(*value),
+        serde_json::Value::Object(object) => {
+            let explicit = object
+                .get("confirmed")
+                .and_then(serde_json::Value::as_bool)
+                .or_else(|| object.get("approved").and_then(serde_json::Value::as_bool));
+            if explicit == Some(false) {
+                return Some(false);
+            }
+            let answer_denied = object
+                .get("userData")
+                .or_else(|| object.get("response"))
+                .is_some_and(runtime_user_lock_capability_value_is_denial);
+            if answer_denied {
+                return Some(false);
+            }
+            explicit
+        }
+        _ => None,
+    }
+}
+
+fn latest_runtime_user_lock_capability_projection(
+    detail: &SessionDetail,
+) -> Option<RuntimeUserLockCapabilityProjection> {
+    detail.items.iter().rev().find_map(|item| {
+        let lime_core::database::dao::agent_timeline::AgentThreadItemPayload::RequestUserInput {
+            request_id,
+            response,
+            ..
+        } = &item.payload
+        else {
+            return None;
+        };
+        if !is_runtime_user_lock_capability_request_id(request_id) {
+            return None;
+        }
+
+        match item.status {
+            lime_core::database::dao::agent_timeline::AgentThreadItemStatus::InProgress => {
+                Some(RuntimeUserLockCapabilityProjection {
+                    status: "requested",
+                    request_id: request_id.clone(),
+                    source: "runtime_action_required",
+                    note: "模型锁定能力确认请求正在等待用户处理",
+                })
+            }
+            lime_core::database::dao::agent_timeline::AgentThreadItemStatus::Completed => {
+                let confirmed = runtime_user_lock_capability_response_confirmed(response.as_ref());
+                let (status, note) = match confirmed {
+                    Some(false) => ("denied", "用户选择保持显式模型锁定，继续阻断"),
+                    Some(true) => ("resolved", "用户允许取消本轮显式模型锁定并重新走模型解析"),
+                    None => (
+                        "requested",
+                        "模型锁定能力确认请求缺少响应，继续等待用户处理",
+                    ),
+                };
+                Some(RuntimeUserLockCapabilityProjection {
+                    status,
+                    request_id: request_id.clone(),
+                    source: "runtime_action_required",
+                    note,
+                })
+            }
+            lime_core::database::dao::agent_timeline::AgentThreadItemStatus::Failed => {
+                Some(RuntimeUserLockCapabilityProjection {
+                    status: "denied",
+                    request_id: request_id.clone(),
+                    source: "runtime_action_required",
+                    note: "模型锁定能力确认请求已失败，继续阻断",
+                })
+            }
+        }
+    })
+}
+
+fn ensure_lime_runtime_metadata_object(
+    metadata: &mut Option<serde_json::Value>,
+) -> &mut serde_json::Map<String, serde_json::Value> {
+    let root = metadata.get_or_insert_with(|| serde_json::Value::Object(serde_json::Map::new()));
+    if !root.is_object() {
+        *root = serde_json::Value::Object(serde_json::Map::new());
+    }
+    let root_object = root
+        .as_object_mut()
+        .expect("runtime request metadata should be an object");
+    let runtime_entry = root_object
+        .entry(LIME_RUNTIME_METADATA_KEY.to_string())
+        .or_insert_with(|| serde_json::Value::Object(serde_json::Map::new()));
+    if !runtime_entry.is_object() {
+        *runtime_entry = serde_json::Value::Object(serde_json::Map::new());
+    }
+    runtime_entry
+        .as_object_mut()
+        .expect("lime_runtime metadata should be an object")
+}
+
+fn runtime_user_lock_capability_projection_matches_request(
+    request: &AsterChatRequest,
+    projection: &RuntimeUserLockCapabilityProjection,
+) -> bool {
+    if let Some(turn_id) = request.turn_id.as_deref() {
+        if runtime_user_lock_capability_request_id(turn_id) == projection.request_id {
+            return true;
+        }
+    }
+
+    extract_runtime_user_lock_capability_recovery_request_id(request.metadata.as_ref()).as_deref()
+        == Some(projection.request_id.as_str())
+}
+
+fn extract_runtime_user_lock_capability_recovery_request_id(
+    request_metadata: Option<&serde_json::Value>,
+) -> Option<String> {
+    let root = request_metadata?.as_object()?;
+    let runtime = root.get(LIME_RUNTIME_METADATA_KEY)?.as_object()?;
+    let recovery = runtime
+        .get("user_lock_capability_recovery")
+        .or_else(|| runtime.get("userLockCapabilityRecovery"))?
+        .as_object()?;
+    recovery
+        .get("requestId")
+        .or_else(|| recovery.get("request_id"))
+        .and_then(serde_json::Value::as_str)
+        .map(str::to_string)
+}
+
+fn runtime_user_lock_capability_recovery_status_for_request(
+    request_metadata: Option<&serde_json::Value>,
+    request_id: &str,
+) -> Option<String> {
+    let root = request_metadata?.as_object()?;
+    let runtime = root.get(LIME_RUNTIME_METADATA_KEY)?.as_object()?;
+    let recovery = runtime
+        .get("user_lock_capability_recovery")
+        .or_else(|| runtime.get("userLockCapabilityRecovery"))?
+        .as_object()?;
+    let recovery_request_id = recovery
+        .get("requestId")
+        .or_else(|| recovery.get("request_id"))
+        .and_then(serde_json::Value::as_str)?;
+    if recovery_request_id != request_id {
+        return None;
+    }
+    recovery
+        .get("status")
+        .and_then(serde_json::Value::as_str)
+        .map(str::to_string)
+}
+
+fn apply_runtime_user_lock_capability_projection_to_request(
+    request: &mut AsterChatRequest,
+    projection: &RuntimeUserLockCapabilityProjection,
+) -> bool {
+    if !runtime_user_lock_capability_projection_matches_request(request, projection) {
+        return false;
+    }
+
+    let original_provider_preference = request.provider_preference.clone();
+    let original_model_preference = request.model_preference.clone();
+    let should_release_lock = projection.status == "resolved"
+        && (original_provider_preference.is_some() || original_model_preference.is_some());
+    if projection.status == "resolved" {
+        request.provider_preference = None;
+        request.model_preference = None;
+    }
+
+    let mut recovery = serde_json::Map::new();
+    recovery.insert(
+        "status".to_string(),
+        serde_json::Value::String(projection.status.to_string()),
+    );
+    recovery.insert(
+        "requestId".to_string(),
+        serde_json::Value::String(projection.request_id.clone()),
+    );
+    recovery.insert(
+        "source".to_string(),
+        serde_json::Value::String(projection.source.to_string()),
+    );
+    recovery.insert(
+        "action".to_string(),
+        serde_json::Value::String(if projection.status == "resolved" {
+            "release_explicit_model_lock".to_string()
+        } else {
+            "keep_explicit_model_lock".to_string()
+        }),
+    );
+    recovery.insert(
+        "note".to_string(),
+        serde_json::Value::String(projection.note.to_string()),
+    );
+    recovery.insert(
+        "releasedExplicitModelLock".to_string(),
+        serde_json::Value::Bool(should_release_lock),
+    );
+    if let Some(provider) = original_provider_preference {
+        recovery.insert(
+            "originalProviderPreference".to_string(),
+            serde_json::Value::String(provider),
+        );
+    }
+    if let Some(model) = original_model_preference {
+        recovery.insert(
+            "originalModelPreference".to_string(),
+            serde_json::Value::String(model),
+        );
+    }
+
+    let runtime_object = ensure_lime_runtime_metadata_object(&mut request.metadata);
+    runtime_object.insert(
+        "user_lock_capability_recovery".to_string(),
+        serde_json::Value::Object(recovery),
+    );
+    true
+}
+
+async fn merge_runtime_user_lock_capability_recovery_from_session(
+    db: &DbConnection,
+    session_id: &str,
+    request: &mut AsterChatRequest,
+) {
+    let detail = match AsterAgentWrapper::get_runtime_session_detail(db, session_id).await {
+        Ok(detail) => detail,
+        Err(error) => {
+            tracing::warn!(
+                "[AsterAgent] 读取模型锁定能力恢复状态失败，已保持本轮显式模型偏好: session_id={}, error={}",
+                session_id,
+                error
+            );
+            return;
+        }
+    };
+    let Some(projection) = latest_runtime_user_lock_capability_projection(&detail) else {
+        return;
+    };
+    if apply_runtime_user_lock_capability_projection_to_request(request, &projection) {
+        tracing::info!(
+            "[AsterAgent] 已合并模型锁定能力恢复状态: session_id={}, request_id={}, status={}",
+            session_id,
+            projection.request_id,
+            projection.status
+        );
+    }
+}
+
 fn extract_runtime_resolution_payload<T: serde::de::DeserializeOwned>(
     request_metadata: Option<&serde_json::Value>,
     key: &str,
@@ -3951,6 +4328,173 @@ fn build_runtime_user_lock_capability_status_from_state(
         ],
         metadata: Some(metadata),
     })
+}
+
+fn should_create_runtime_user_lock_capability_request(
+    limit_state: &lime_agent::SessionExecutionRuntimeLimitState,
+    request_metadata: Option<&serde_json::Value>,
+    turn_id: &str,
+) -> bool {
+    if !limit_state_requires_user_lock_capability_gating(limit_state) {
+        return false;
+    }
+
+    let request_id = runtime_user_lock_capability_request_id(turn_id);
+    !matches!(
+        runtime_user_lock_capability_recovery_status_for_request(request_metadata, &request_id,)
+            .as_deref(),
+        Some("requested" | "denied" | "resolved")
+    )
+}
+
+fn runtime_user_lock_capability_request_id(turn_id: &str) -> String {
+    format!("{RUNTIME_USER_LOCK_CAPABILITY_REQUEST_PREFIX}{turn_id}")
+}
+
+fn runtime_user_lock_capability_gap_label(
+    limit_state: &lime_agent::SessionExecutionRuntimeLimitState,
+) -> String {
+    limit_state
+        .capability_gap
+        .as_deref()
+        .unwrap_or("unknown_capability_gap")
+        .to_string()
+}
+
+fn build_runtime_user_lock_capability_prompt(
+    limit_state: &lime_agent::SessionExecutionRuntimeLimitState,
+    routing_decision: Option<&lime_agent::SessionExecutionRuntimeRoutingDecision>,
+    task_profile: Option<&lime_agent::SessionExecutionRuntimeTaskProfile>,
+) -> String {
+    let gap = runtime_user_lock_capability_gap_label(limit_state);
+    let requested_model = routing_decision
+        .and_then(|decision| decision.requested_model.as_deref())
+        .or_else(|| routing_decision.and_then(|decision| decision.selected_model.as_deref()))
+        .unwrap_or("未记录 requestedModel");
+    let routing_slot = task_profile
+        .and_then(|profile| profile.routing_slot.as_deref())
+        .unwrap_or("未记录 routingSlot");
+    format!(
+        "当前显式锁定模型 {requested_model} 不满足执行画像 {routing_slot} 的能力要求：{gap}。允许取消本轮显式模型锁定后，下一次恢复会重新走模型解析；保持锁定则继续阻断。"
+    )
+}
+
+fn build_runtime_user_lock_capability_questions(
+    limit_state: &lime_agent::SessionExecutionRuntimeLimitState,
+    routing_decision: Option<&lime_agent::SessionExecutionRuntimeRoutingDecision>,
+    task_profile: Option<&lime_agent::SessionExecutionRuntimeTaskProfile>,
+) -> Vec<lime_core::database::dao::agent_timeline::AgentRequestQuestion> {
+    vec![lime_core::database::dao::agent_timeline::AgentRequestQuestion {
+        header: Some("模型锁定能力确认".to_string()),
+        question: build_runtime_user_lock_capability_prompt(
+            limit_state,
+            routing_decision,
+            task_profile,
+        ),
+        options: Some(vec![
+            lime_core::database::dao::agent_timeline::AgentRequestOption {
+                label: "取消本轮显式模型锁定并重试".to_string(),
+                description: Some(
+                    "写入 resolved；下一次同 turn 恢复会释放 provider/model 显式偏好并重新解析模型。"
+                        .to_string(),
+                ),
+            },
+            lime_core::database::dao::agent_timeline::AgentRequestOption {
+                label: "保持锁定并停止".to_string(),
+                description: Some("写入 denied；显式模型锁定能力缺口继续阻断。".to_string()),
+            },
+        ]),
+        multi_select: Some(false),
+    }]
+}
+
+fn build_runtime_user_lock_capability_schema(
+    questions: &[lime_core::database::dao::agent_timeline::AgentRequestQuestion],
+) -> serde_json::Value {
+    serde_json::json!({
+        "type": "object",
+        "properties": {
+            "answer": {
+                "type": "string",
+                "enum": ["取消本轮显式模型锁定并重试", "保持锁定并停止"]
+            }
+        },
+        "required": ["answer"],
+        "x-lime-ask-user-questions": questions,
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn maybe_emit_runtime_user_lock_capability_request(
+    app: &AppHandle,
+    request: &AsterChatRequest,
+    workspace_root: &str,
+    thread_id: &str,
+    turn_id: &str,
+    timeline_recorder: &Arc<Mutex<AgentTimelineRecorder>>,
+    limit_state: &lime_agent::SessionExecutionRuntimeLimitState,
+    routing_decision: Option<&lime_agent::SessionExecutionRuntimeRoutingDecision>,
+    task_profile: Option<&lime_agent::SessionExecutionRuntimeTaskProfile>,
+) {
+    if !should_create_runtime_user_lock_capability_request(
+        limit_state,
+        request.metadata.as_ref(),
+        turn_id,
+    ) {
+        return;
+    }
+
+    let request_id = runtime_user_lock_capability_request_id(turn_id);
+    let prompt =
+        build_runtime_user_lock_capability_prompt(limit_state, routing_decision, task_profile);
+    let questions =
+        build_runtime_user_lock_capability_questions(limit_state, routing_decision, task_profile);
+    {
+        let mut recorder = match timeline_recorder.lock() {
+            Ok(guard) => guard,
+            Err(error) => error.into_inner(),
+        };
+        if let Err(error) = recorder.record_request_user_input(
+            app,
+            &request.event_name,
+            request_id.clone(),
+            "elicitation".to_string(),
+            Some(prompt.clone()),
+            Some(questions.clone()),
+        ) {
+            tracing::warn!(
+                "[AsterAgent] 记录模型锁定能力确认请求失败（已降级只发送 action_required）: {}",
+                error
+            );
+        }
+    }
+
+    emit_runtime_side_event(
+        app,
+        &request.event_name,
+        timeline_recorder,
+        workspace_root,
+        RuntimeAgentEvent::ActionRequired {
+            request_id,
+            action_type: "elicitation".to_string(),
+            data: serde_json::json!({
+                "request_id": runtime_user_lock_capability_request_id(turn_id),
+                "action_type": "elicitation",
+                "prompt": prompt,
+                "questions": questions,
+                "requested_schema": build_runtime_user_lock_capability_schema(&questions),
+                "limit_state": limit_state,
+                "routing_decision": routing_decision,
+                "task_profile": task_profile,
+                "source": "runtime_user_lock_capability_confirmation",
+            }),
+            scope: Some(lime_agent::AgentActionRequiredScope {
+                session_id: Some(request.session_id.clone()),
+                thread_id: Some(thread_id.to_string()),
+                turn_id: Some(turn_id.to_string()),
+            }),
+        },
+    );
 }
 
 fn should_create_runtime_permission_confirmation_request(
@@ -5069,6 +5613,7 @@ async fn with_runtime_turn_session_scope<F, Fut>(
     state: &AsterAgentState,
     session_id: &str,
     skill_tool_access_enabled: bool,
+    skill_tool_allowed_skill_sources: Option<Vec<lime_agent::tools::SkillToolSessionSkillSource>>,
     run: F,
 ) -> Result<(), String>
 where
@@ -5076,7 +5621,14 @@ where
     Fut: std::future::Future<Output = Result<(), String>>,
 {
     let cancel_token = state.create_cancel_token(session_id).await;
-    lime_agent::tools::set_skill_tool_session_access(session_id, skill_tool_access_enabled);
+    if let Some(allowed_skill_sources) = skill_tool_allowed_skill_sources {
+        lime_agent::tools::set_skill_tool_session_allowed_skill_sources(
+            session_id,
+            allowed_skill_sources,
+        );
+    } else {
+        lime_agent::tools::set_skill_tool_session_access(session_id, skill_tool_access_enabled);
+    }
 
     let result = run(cancel_token).await;
 
@@ -7033,6 +7585,63 @@ mod tests {
         )));
     }
 
+    #[test]
+    fn workspace_skill_bindings_metadata_should_force_full_runtime_context_without_enabling_skills()
+    {
+        let metadata = json!({
+            "harness": {
+                "theme": "general",
+                "session_mode": "default",
+                "workspace_skill_bindings": {
+                    "source": "p3c_runtime_binding",
+                    "bindings": [{
+                        "directory": "capability-report",
+                        "name": "只读 CLI 报告",
+                        "binding_status": "ready_for_manual_enable",
+                        "next_gate": "manual_runtime_enable",
+                        "query_loop_visible": false,
+                        "tool_runtime_visible": false,
+                        "launch_enabled": false
+                    }]
+                }
+            }
+        });
+
+        assert!(request_metadata_contains_full_runtime_context(Some(
+            &metadata
+        )));
+        assert!(!should_enable_model_skill_tool(Some(&metadata)));
+    }
+
+    #[test]
+    fn workspace_skill_runtime_enable_metadata_should_force_full_runtime_context() {
+        let metadata = json!({
+            "harness": {
+                "theme": "general",
+                "session_mode": "default",
+                "workspace_skill_runtime_enable": {
+                    "source": "manual_session_enable",
+                    "approval": "manual",
+                    "bindings": [{
+                        "directory": "capability-report",
+                        "skill": "project:capability-report"
+                    }]
+                }
+            }
+        });
+        let request = build_runtime_turn_test_request("继续这套方法", Some(metadata.clone()));
+        let policy = lime_agent::resolve_request_tool_policy(Some(false), false);
+
+        assert!(request_metadata_contains_full_runtime_context(Some(
+            &metadata
+        )));
+        assert_eq!(
+            resolve_turn_execution_profile(&request, RuntimeChatMode::General, &policy, false,),
+            TurnExecutionProfile::FullRuntime
+        );
+        assert!(!should_enable_model_skill_tool(Some(&metadata)));
+    }
+
     #[tokio::test]
     async fn enforce_runtime_turn_user_prompt_submit_hooks_should_allow_without_project_hooks() {
         let temp_dir = tempfile::TempDir::new().expect("create temp dir");
@@ -8772,6 +9381,136 @@ mod tests {
                 .and_then(|metadata| metadata.get("turn_gating"))
                 .and_then(Value::as_bool),
             Some(true)
+        );
+    }
+
+    #[test]
+    fn user_lock_capability_request_should_create_for_gap_once_per_turn() {
+        let limit_state = lime_agent::SessionExecutionRuntimeLimitState {
+            status: "user_locked_capability_gap".to_string(),
+            single_candidate_only: true,
+            provider_locked: true,
+            settings_locked: false,
+            oem_locked: false,
+            candidate_count: 1,
+            capability_gap: Some("browser_reasoning_candidate_missing".to_string()),
+            notes: Vec::new(),
+        };
+        assert!(should_create_runtime_user_lock_capability_request(
+            &limit_state,
+            None,
+            "turn-1"
+        ));
+
+        let requested_metadata = json!({
+            "lime_runtime": {
+                "user_lock_capability_recovery": {
+                    "status": "requested",
+                    "requestId": "runtime_user_lock_capability:turn-1",
+                    "source": "runtime_action_required"
+                }
+            }
+        });
+        assert!(!should_create_runtime_user_lock_capability_request(
+            &limit_state,
+            Some(&requested_metadata),
+            "turn-1"
+        ));
+
+        let normal_limit_state = lime_agent::SessionExecutionRuntimeLimitState {
+            status: "single_candidate_only".to_string(),
+            capability_gap: None,
+            ..limit_state
+        };
+        assert!(!should_create_runtime_user_lock_capability_request(
+            &normal_limit_state,
+            None,
+            "turn-1"
+        ));
+    }
+
+    #[test]
+    fn user_lock_capability_projection_should_release_request_model_preference() {
+        let mut request = build_runtime_turn_test_request("重试浏览器任务", Some(json!({})));
+        request.turn_id = Some("turn-1".to_string());
+        request.provider_preference = Some("openai".to_string());
+        request.model_preference = Some("gpt-5.4-mini".to_string());
+
+        let applied = apply_runtime_user_lock_capability_projection_to_request(
+            &mut request,
+            &RuntimeUserLockCapabilityProjection {
+                status: "resolved",
+                request_id: "runtime_user_lock_capability:turn-1".to_string(),
+                source: "runtime_action_required",
+                note: "用户允许取消本轮显式模型锁定并重新走模型解析",
+            },
+        );
+
+        assert!(applied);
+        assert!(request.provider_preference.is_none());
+        assert!(request.model_preference.is_none());
+        let recovery = request
+            .metadata
+            .as_ref()
+            .and_then(|metadata| metadata.get("lime_runtime"))
+            .and_then(|runtime| runtime.get("user_lock_capability_recovery"))
+            .expect("应写入 user lock recovery 元数据");
+        assert_eq!(
+            recovery.get("status").and_then(Value::as_str),
+            Some("resolved")
+        );
+        assert_eq!(
+            recovery.get("action").and_then(Value::as_str),
+            Some("release_explicit_model_lock")
+        );
+        assert_eq!(
+            recovery
+                .get("originalModelPreference")
+                .and_then(Value::as_str),
+            Some("gpt-5.4-mini")
+        );
+        assert_eq!(
+            recovery
+                .get("releasedExplicitModelLock")
+                .and_then(Value::as_bool),
+            Some(true)
+        );
+    }
+
+    #[test]
+    fn user_lock_capability_projection_should_not_release_other_turn() {
+        let mut request = build_runtime_turn_test_request("新的显式模型请求", Some(json!({})));
+        request.turn_id = Some("turn-2".to_string());
+        request.provider_preference = Some("openai".to_string());
+        request.model_preference = Some("gpt-5.4-mini".to_string());
+
+        let applied = apply_runtime_user_lock_capability_projection_to_request(
+            &mut request,
+            &RuntimeUserLockCapabilityProjection {
+                status: "resolved",
+                request_id: "runtime_user_lock_capability:turn-1".to_string(),
+                source: "runtime_action_required",
+                note: "用户允许取消本轮显式模型锁定并重新走模型解析",
+            },
+        );
+
+        assert!(!applied);
+        assert_eq!(request.provider_preference.as_deref(), Some("openai"));
+        assert_eq!(request.model_preference.as_deref(), Some("gpt-5.4-mini"));
+    }
+
+    #[test]
+    fn user_lock_capability_response_should_treat_keep_locked_answer_as_denied() {
+        let response = json!({
+            "confirmed": true,
+            "response": "{\"answer\":\"保持锁定并停止\"}",
+            "userData": { "answer": "保持锁定并停止" },
+            "source": "runtime_user_lock_capability_confirmation"
+        });
+
+        assert_eq!(
+            runtime_user_lock_capability_response_confirmed(Some(&response)),
+            Some(false)
         );
     }
 

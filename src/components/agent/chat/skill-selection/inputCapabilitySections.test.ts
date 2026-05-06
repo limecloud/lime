@@ -350,7 +350,7 @@ describe("buildInputCapabilitySections", () => {
     ).toBeUndefined();
   });
 
-  it("@ 空查询应先突出命令分组，再用场景做法补位", () => {
+  it("@ 空查询应先突出命令分组，再用场景 Skills补位", () => {
     const sections = buildInputCapabilitySections({
       ...buildEmptyParams(),
       mode: "mention",
@@ -406,20 +406,20 @@ describe("buildInputCapabilitySections", () => {
 
     const headings = sections.map((section) => section.heading);
     expect(headings).toContain("搜索 / 读取");
-    expect(headings).toContain("场景做法");
-    expect(headings).toContain("我的方法");
-    expect(headings).toContain("更多做法");
+    expect(headings).toContain("场景 Skills");
+    expect(headings).toContain("Skills");
+    expect(headings).toContain("更多 Skills");
     expect(headings).toContain("协作角色");
     expect(headings.indexOf("搜索 / 读取")).toBeLessThan(
-      headings.indexOf("场景做法"),
+      headings.indexOf("场景 Skills"),
     );
-    expect(headings.indexOf("场景做法")).toBeLessThan(
-      headings.indexOf("我的方法"),
+    expect(headings.indexOf("场景 Skills")).toBeLessThan(
+      headings.indexOf("Skills"),
     );
-    expect(headings.indexOf("我的方法")).toBeLessThan(
-      headings.indexOf("更多做法"),
+    expect(headings.indexOf("Skills")).toBeLessThan(
+      headings.indexOf("更多 Skills"),
     );
-    expect(headings.indexOf("更多做法")).toBeLessThan(
+    expect(headings.indexOf("更多 Skills")).toBeLessThan(
       headings.indexOf("协作角色"),
     );
 
@@ -427,6 +427,6 @@ describe("buildInputCapabilitySections", () => {
       (section) => section.key === "builtin-commands:search-read",
     );
     expect(commandSection?.banner?.badge).toBe("统一调用注册表");
-    expect(commandSection?.banner?.title).toBe("先调命令，再补做法");
+    expect(commandSection?.banner?.title).toBe("先调命令，再补 Skill");
   });
 });

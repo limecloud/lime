@@ -161,7 +161,7 @@ export function useWorkspaceSceneAppEntryActions({
     async (sceneappId: string) => {
       const descriptor = descriptorMap.get(sceneappId);
       if (!descriptor) {
-        toast.error("当前全部做法页尚未就绪，请稍后重试");
+        toast.error("当前全部 Skills 页尚未就绪，请稍后重试");
         return;
       }
 

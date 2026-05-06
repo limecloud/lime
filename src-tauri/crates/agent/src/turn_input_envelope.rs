@@ -96,6 +96,7 @@ pub enum TurnPromptAugmentationStageKind {
     TypesettingSkillLaunch,
     WebpageSkillLaunch,
     ServiceSkillLaunch,
+    WorkspaceSkillBindings,
     ServiceSkillLaunchPreload,
     Elicitation,
     TeamPreference,

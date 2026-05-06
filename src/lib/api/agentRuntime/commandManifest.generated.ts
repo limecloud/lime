@@ -27,6 +27,7 @@ export const AGENT_RUNTIME_COMMANDS = {
   saveReviewDecision: "agent_runtime_save_review_decision",
   exportReplayCase: "agent_runtime_export_replay_case",
   getToolInventory: "agent_runtime_get_tool_inventory",
+  listWorkspaceSkillBindings: "agent_runtime_list_workspace_skill_bindings",
   spawnSubagent: "agent_runtime_spawn_subagent",
   sendSubagentInput: "agent_runtime_send_subagent_input",
   waitSubagents: "agent_runtime_wait_subagents",
@@ -294,6 +295,16 @@ export const AGENT_RUNTIME_COMMAND_DESCRIPTORS = [
     docsSection: "agent-runtime.inventory",
   },
   {
+    key: "listWorkspaceSkillBindings",
+    command: AGENT_RUNTIME_COMMANDS.listWorkspaceSkillBindings,
+    domain: "inventory",
+    requestType: "AgentRuntimeListWorkspaceSkillBindingsRequest",
+    responseType: "AgentRuntimeWorkspaceSkillBindings",
+    lifecycle: "current",
+    mockStrategy: "mock-priority",
+    docsSection: "agent-runtime.inventory",
+  },
+  {
     key: "spawnSubagent",
     command: AGENT_RUNTIME_COMMANDS.spawnSubagent,
     domain: "subagent",
@@ -370,6 +381,7 @@ export const AGENT_RUNTIME_COMMAND_NAMES = [
   AGENT_RUNTIME_COMMANDS.saveReviewDecision,
   AGENT_RUNTIME_COMMANDS.exportReplayCase,
   AGENT_RUNTIME_COMMANDS.getToolInventory,
+  AGENT_RUNTIME_COMMANDS.listWorkspaceSkillBindings,
   AGENT_RUNTIME_COMMANDS.spawnSubagent,
   AGENT_RUNTIME_COMMANDS.sendSubagentInput,
   AGENT_RUNTIME_COMMANDS.waitSubagents,
@@ -409,6 +421,7 @@ export const AGENT_RUNTIME_COMMANDS_BY_DOMAIN = {
   ],
   "inventory": [
     AGENT_RUNTIME_COMMANDS.getToolInventory,
+    AGENT_RUNTIME_COMMANDS.listWorkspaceSkillBindings,
   ],
   "subagent": [
     AGENT_RUNTIME_COMMANDS.spawnSubagent,

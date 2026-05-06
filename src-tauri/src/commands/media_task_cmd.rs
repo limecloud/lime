@@ -9,7 +9,7 @@ use lime_media_runtime::{
 };
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
-use serde_json::json;
+use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use std::collections::HashSet;
 use std::fs;
@@ -720,6 +720,25 @@ fn normalize_positive_count(value: Option<u32>) -> Result<u32, String> {
         return Err("count 必须大于 0".to_string());
     }
     Ok(count.min(MAX_IMAGE_TASK_COUNT))
+}
+
+fn merge_image_generation_runtime_contract(request_contract: Option<Value>) -> Value {
+    let mut contract = image_generation_runtime_contract();
+    let Some(Value::Object(request_fields)) = request_contract else {
+        return contract;
+    };
+    let Some(contract_fields) = contract.as_object_mut() else {
+        return contract;
+    };
+
+    for (key, value) in request_fields {
+        if key == "contract_key" {
+            continue;
+        }
+        contract_fields.insert(key, value);
+    }
+
+    contract
 }
 
 fn build_image_task_idempotency_key(
@@ -4619,6 +4638,8 @@ pub(crate) fn create_image_generation_task_artifact_inner(
     let required_capabilities =
         normalize_image_generation_required_capabilities(request.required_capabilities.clone())?;
     let routing_slot = normalize_image_generation_routing_slot(request.routing_slot.clone())?;
+    let runtime_contract =
+        merge_image_generation_runtime_contract(request.runtime_contract.clone());
     let requested_target = normalize_optional_string(request.requested_target.clone());
     let slot_id = normalize_optional_string(request.slot_id.clone());
     let anchor_hint = normalize_optional_string(request.anchor_hint.clone());
@@ -4669,7 +4690,7 @@ pub(crate) fn create_image_generation_task_artifact_inner(
             "modality": modality,
             "required_capabilities": required_capabilities,
             "routing_slot": routing_slot,
-            "runtime_contract": image_generation_runtime_contract(),
+            "runtime_contract": runtime_contract,
             "requested_target": requested_target,
             "slot_id": slot_id.clone(),
             "anchor_hint": anchor_hint,
@@ -5711,6 +5732,54 @@ mod tests {
         assert_eq!(
             first.record.relationships.slot_id.as_deref(),
             Some("document-slot-1")
+        );
+    }
+
+    #[test]
+    fn create_image_generation_task_artifact_inner_should_preserve_layered_design_runtime_contract()
+    {
+        let temp_dir = tempfile::tempdir().expect("create temp dir");
+        let mut request =
+            minimal_image_generation_request(temp_dir.path().to_string_lossy().to_string(), None);
+        request.entry_source = Some("layered_design_canvas".to_string());
+        request.runtime_contract = Some(json!({
+            "contract_key": "image_generation",
+            "layered_design": {
+                "document_id": "design-1",
+                "layer_id": "subject",
+                "asset_id": "asset-subject",
+                "alpha": {
+                    "requested": true,
+                    "strategy": "chroma_key_postprocess",
+                    "chromaKeyColor": "#00ff00",
+                    "postprocessRequired": true
+                }
+            }
+        }));
+
+        let output =
+            create_image_generation_task_artifact_inner(request).expect("create image artifact");
+        let runtime_contract = output
+            .record
+            .payload
+            .get("runtime_contract")
+            .expect("runtime contract");
+
+        assert_eq!(
+            runtime_contract.get("contract_key"),
+            Some(&json!("image_generation"))
+        );
+        assert_eq!(
+            runtime_contract.pointer("/executor_binding/binding_key"),
+            Some(&json!("image_generate"))
+        );
+        assert_eq!(
+            runtime_contract.pointer("/layered_design/layer_id"),
+            Some(&json!("subject"))
+        );
+        assert_eq!(
+            runtime_contract.pointer("/layered_design/alpha/strategy"),
+            Some(&json!("chroma_key_postprocess"))
         );
     }
 

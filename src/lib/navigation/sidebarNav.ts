@@ -63,7 +63,7 @@ export const MAIN_SIDEBAR_NAV_ITEMS: SidebarNavItemDefinition[] = [
   },
   {
     id: "skills",
-    label: "我的方法",
+    label: "Skills",
     icon: Sparkles,
     page: "skills",
     isActive: (currentPage) => currentPage === "skills",
@@ -71,7 +71,7 @@ export const MAIN_SIDEBAR_NAV_ITEMS: SidebarNavItemDefinition[] = [
   },
   {
     id: "memory",
-    label: "灵感库",
+    label: "灵感",
     icon: BrainCircuit,
     page: "memory",
     isActive: (currentPage) => currentPage === "memory",

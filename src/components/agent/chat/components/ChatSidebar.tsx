@@ -786,7 +786,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
         items: [
           {
             id: "skills",
-            label: "我的方法",
+            label: "Skills",
             icon: Sparkles,
             onClick: onOpenSkillsPage,
           },

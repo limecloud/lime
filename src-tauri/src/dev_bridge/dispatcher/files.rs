@@ -1,8 +1,13 @@
-use super::{args_or_default, get_string_arg};
+use super::{args_or_default, get_string_arg, parse_nested_arg};
 use crate::dev_bridge::DevBridgeState;
 use serde_json::Value as JsonValue;
+use std::io;
 
 type DynError = Box<dyn std::error::Error>;
+
+fn to_dyn_error(message: String) -> DynError {
+    io::Error::other(message).into()
+}
 
 fn read_optional_usize_arg(
     args: &JsonValue,
@@ -60,6 +65,29 @@ pub(super) async fn try_handle(
             serde_json::json!(storage
                 .resolve_file_path(&session_id, &file_name)
                 .map_err(|error| format!("解析会话文件路径失败: {error}"))?)
+        }
+        "save_layered_design_project_export" => {
+            let args = args_or_default(args);
+            let request: crate::commands::layered_design_cmd::SaveLayeredDesignProjectExportRequest =
+                parse_nested_arg(&args, "request")?;
+            serde_json::to_value(
+                crate::commands::layered_design_cmd::save_layered_design_project_export_inner(
+                    request,
+                )
+                .await
+                .map_err(to_dyn_error)?,
+            )?
+        }
+        "read_layered_design_project_export" => {
+            let args = args_or_default(args);
+            let request: crate::commands::layered_design_cmd::ReadLayeredDesignProjectExportRequest =
+                parse_nested_arg(&args, "request")?;
+            serde_json::to_value(
+                crate::commands::layered_design_cmd::read_layered_design_project_export_inner(
+                    request,
+                )
+                .map_err(to_dyn_error)?,
+            )?
         }
         _ => return Ok(None),
     };

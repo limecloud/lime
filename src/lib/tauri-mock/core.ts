@@ -3313,6 +3313,12 @@ type MockReviewDecisionRequest = {
   regression_requirements?: string[];
   regressionRequirements?: string[];
   notes?: string;
+  limit_status?: string;
+  limitStatus?: string;
+  capability_gap?: string;
+  capabilityGap?: string;
+  user_locked_capability_summary?: string;
+  userLockedCapabilitySummary?: string;
   permission_status?: string;
   permissionStatus?: string;
   permission_confirmation_status?: string;
@@ -3328,12 +3334,24 @@ type MockReviewDecisionRequest = {
 function blocksAcceptedReviewDecisionInMock(
   permissionStatus: string,
   confirmationStatus: string,
+  limitStatus = "",
 ): boolean {
   return (
+    limitStatus === "user_locked_capability_gap" ||
     confirmationStatus === "denied" ||
     (permissionStatus === "requires_confirmation" &&
       confirmationStatus !== "resolved")
   );
+}
+
+function buildMockUserLockedCapabilitySummary(
+  limitStatus: string,
+  capabilityGap: string,
+): string {
+  if (limitStatus !== "user_locked_capability_gap") {
+    return "";
+  }
+  return `显式用户模型锁定不满足当前 execution profile（capabilityGap=${capabilityGap || "未记录 capabilityGap"}），不能作为成功交付证据。`;
 }
 
 function buildMockPermissionConfirmationSummary(
@@ -4784,9 +4802,129 @@ function listMockCapabilityRegisteredSkills(args?: Record<string, unknown>) {
         },
         launchEnabled: false,
         runtimeGate:
-          "已注册为 Workspace 本地 Skill 包；进入运行前还需要 P3B runtime binding 与 tool_runtime 授权。",
+          "已注册为 Workspace 本地 Skill 包；进入运行前还需要 P3C runtime binding 与 tool_runtime 授权。",
       };
     });
+}
+
+function buildMockAgentRuntimeWorkspaceSkillBindings(
+  args?: Record<string, unknown>,
+) {
+  const request = readMockCapabilityDraftRequest(args);
+  const workspaceRoot = normalizeMockCapabilityWorkspaceRoot(
+    request.workspaceRoot ?? request.workspace_root,
+  );
+  const caller =
+    typeof request.caller === "string" && request.caller.trim()
+      ? request.caller.trim()
+      : "assistant";
+  const registeredSkills = listMockCapabilityRegisteredSkills(args);
+  const bindings = registeredSkills.map((skill: Record<string, any>) => {
+    const registration = skill.registration ?? {};
+    return {
+      key: `workspace_skill:${skill.directory}`,
+      name: typeof skill.name === "string" ? skill.name : skill.directory,
+      description:
+        typeof skill.description === "string" ? skill.description : "",
+      directory: skill.directory,
+      registered_skill_directory:
+        skill.registeredSkillDirectory ??
+        skill.registered_skill_directory ??
+        "",
+      registration: {
+        registration_id:
+          registration.registrationId ?? registration.registration_id ?? "",
+        registered_at:
+          registration.registeredAt ?? registration.registered_at ?? "",
+        skill_directory:
+          registration.skillDirectory ?? registration.skill_directory ?? "",
+        registered_skill_directory:
+          registration.registeredSkillDirectory ??
+          registration.registered_skill_directory ??
+          "",
+        source_draft_id:
+          registration.sourceDraftId ?? registration.source_draft_id ?? "",
+        source_verification_report_id:
+          registration.sourceVerificationReportId ??
+          registration.source_verification_report_id ??
+          null,
+        generated_file_count:
+          registration.generatedFileCount ??
+          registration.generated_file_count ??
+          0,
+        permission_summary:
+          registration.permissionSummary ??
+          registration.permission_summary ??
+          [],
+      },
+      permission_summary:
+        skill.permissionSummary ?? skill.permission_summary ?? [],
+      metadata: skill.metadata ?? {},
+      allowed_tools: skill.allowedTools ?? skill.allowed_tools ?? [],
+      resource_summary: {
+        has_scripts: Boolean(
+          skill.resourceSummary?.hasScripts ??
+          skill.resource_summary?.has_scripts,
+        ),
+        has_references: Boolean(
+          skill.resourceSummary?.hasReferences ??
+          skill.resource_summary?.has_references,
+        ),
+        has_assets: Boolean(
+          skill.resourceSummary?.hasAssets ??
+          skill.resource_summary?.has_assets,
+        ),
+      },
+      standard_compliance: {
+        is_standard: Boolean(
+          skill.standardCompliance?.isStandard ??
+          skill.standard_compliance?.is_standard,
+        ),
+        validation_errors:
+          skill.standardCompliance?.validationErrors ??
+          skill.standard_compliance?.validation_errors ??
+          [],
+        deprecated_fields:
+          skill.standardCompliance?.deprecatedFields ??
+          skill.standard_compliance?.deprecated_fields ??
+          [],
+      },
+      runtime_binding_target: "workspace_skill",
+      binding_status: "ready_for_manual_enable",
+      binding_status_reason:
+        "Mock：已具备后续 workspace catalog binding 候选资格；当前仍未注入 Query Loop 或 tool_runtime。",
+      next_gate: "manual_runtime_enable",
+      query_loop_visible: false,
+      tool_runtime_visible: false,
+      launch_enabled: false,
+      runtime_gate:
+        "等待 P3C 后续把该 workspace skill 显式绑定到 Query Loop metadata 与 tool_runtime 授权裁剪。",
+    };
+  });
+
+  return {
+    request: {
+      workspace_root: workspaceRoot,
+      caller,
+      surface: {
+        workbench: request.workbench === true,
+        browser_assist:
+          request.browserAssist === true || request.browser_assist === true,
+      },
+    },
+    warnings: [
+      "Mock：P3C 当前只返回 runtime binding readiness；不会 reload Skill，也不会注入默认 tool surface。",
+    ],
+    counts: {
+      registered_total: bindings.length,
+      ready_for_manual_enable_total: bindings.length,
+      blocked_total: 0,
+      query_loop_visible_total: 0,
+      tool_runtime_visible_total: 0,
+      launch_enabled_total: 0,
+    },
+    bindings,
+  };
 }
 
 // 默认 mock 数据
@@ -5002,6 +5140,9 @@ const defaultMocks: Record<string, any> = {
     registerMockCapabilityDraft(args),
   capability_draft_list_registered_skills: (args?: Record<string, unknown>) =>
     listMockCapabilityRegisteredSkills(args),
+  agent_runtime_list_workspace_skill_bindings: (
+    args?: Record<string, unknown>,
+  ) => buildMockAgentRuntimeWorkspaceSkillBindings(args),
   knowledge_resolve_context: (args?: Record<string, unknown>) => {
     const request = readMockKnowledgeRequest(args);
     const workingDir = normalizeMockKnowledgeWorkingDir(request.workingDir);
@@ -6453,6 +6594,9 @@ const defaultMocks: Record<string, any> = {
     pending_request_count: 1,
     queued_turn_count: 0,
     default_decision_status: "pending_review",
+    limit_status: "normal",
+    capability_gap: "",
+    user_locked_capability_summary: "",
     permission_status: "requires_confirmation",
     permission_confirmation_status: "denied",
     permission_confirmation_request_id: "mock-approval-denied",
@@ -6570,18 +6714,29 @@ const defaultMocks: Record<string, any> = {
         permissionConfirmationRequestId || "未记录 confirmationRequestId",
         permissionConfirmationSource,
       );
+    const limitStatus =
+      request?.limit_status || request?.limitStatus || "normal";
+    const capabilityGap =
+      request?.capability_gap || request?.capabilityGap || "";
+    const userLockedCapabilitySummary =
+      request?.user_locked_capability_summary ||
+      request?.userLockedCapabilitySummary ||
+      buildMockUserLockedCapabilitySummary(limitStatus, capabilityGap);
 
     if (
       decisionStatus === "accepted" &&
       blocksAcceptedReviewDecisionInMock(
         permissionStatus,
         permissionConfirmationStatus,
+        limitStatus,
       )
     ) {
       throw new Error(
-        permissionConfirmationStatus === "denied"
-          ? "真实权限确认已被拒绝，不能把本次 review decision 保存为 accepted；请先处理真实权限确认，或改为 rejected / deferred / needs_more_evidence。"
-          : "权限确认尚未解决，不能把本次 review decision 保存为 accepted；请先处理真实权限确认，或改为 rejected / deferred / needs_more_evidence。",
+        limitStatus === "user_locked_capability_gap"
+          ? "显式用户模型锁定不满足当前 execution profile，不能把本次 review decision 保存为 accepted；请切换到满足 routingSlot 的模型或取消显式模型锁定并重新导出证据，或改为 rejected / deferred / needs_more_evidence。"
+          : permissionConfirmationStatus === "denied"
+            ? "真实权限确认已被拒绝，不能把本次 review decision 保存为 accepted；请先处理真实权限确认，或改为 rejected / deferred / needs_more_evidence。"
+            : "权限确认尚未解决，不能把本次 review decision 保存为 accepted；请先处理真实权限确认，或改为 rejected / deferred / needs_more_evidence。",
       );
     }
 
@@ -6606,6 +6761,9 @@ const defaultMocks: Record<string, any> = {
       pending_request_count: 1,
       queued_turn_count: 0,
       default_decision_status: "pending_review",
+      limit_status: limitStatus,
+      capability_gap: capabilityGap,
+      user_locked_capability_summary: userLockedCapabilitySummary,
       permission_status: permissionStatus,
       permission_confirmation_status: permissionConfirmationStatus,
       permission_confirmation_request_id: permissionConfirmationRequestId,
@@ -7922,6 +8080,100 @@ const defaultMocks: Record<string, any> = {
     `/mock/sessions/${args?.sessionId ?? "mock-session"}/${args?.fileName ?? "mock.txt"}`,
   session_files_delete_file: () => undefined,
   save_exported_document: () => undefined,
+  save_layered_design_project_export: (args: any) => {
+    const request = args?.request ?? args ?? {};
+    const projectRootPath = request?.projectRootPath ?? "/mock/workspace";
+    const directoryName =
+      request?.directoryName ?? `${request?.documentId ?? "mock-design"}.layered-design`;
+    const exportDirectoryRelativePath = `.lime/layered-designs/${directoryName}`;
+    const exportDirectoryPath = `${projectRootPath}/${exportDirectoryRelativePath}`;
+    const files = Array.isArray(request?.files) ? request.files : [];
+    const embeddedAssetCount = files.filter((file: any) =>
+      String(file?.relativePath ?? "").startsWith("assets/"),
+    ).length;
+    const cachedRemoteAssetCount = (() => {
+      const manifestFile = files.find(
+        (file: any) => String(file?.relativePath ?? "") === "export-manifest.json",
+      );
+      if (
+        !manifestFile ||
+        typeof manifestFile?.content !== "string" ||
+        !["utf8", "utf-8"].includes(
+          String(manifestFile?.encoding ?? "").toLowerCase(),
+        )
+      ) {
+        return 0;
+      }
+
+      try {
+        const manifest = JSON.parse(manifestFile.content);
+        const assets = Array.isArray(manifest?.assets) ? manifest.assets : [];
+        return assets.filter((asset: any) => {
+          const source = String(asset?.source ?? "").trim();
+          const originalSrc = String(asset?.originalSrc ?? "").trim();
+          return (
+            source === "reference" &&
+            (originalSrc.startsWith("http://") ||
+              originalSrc.startsWith("https://"))
+          );
+        }).length;
+      } catch {
+        return 0;
+      }
+    })();
+
+    return {
+      projectRootPath,
+      exportDirectoryPath,
+      exportDirectoryRelativePath,
+      designPath: `${exportDirectoryPath}/design.json`,
+      manifestPath: `${exportDirectoryPath}/export-manifest.json`,
+      previewPngPath: `${exportDirectoryPath}/preview.png`,
+      assetCount: embeddedAssetCount + cachedRemoteAssetCount,
+      fileCount: files.length + cachedRemoteAssetCount,
+      bytesWritten: files.reduce(
+        (sum: number, file: any) => sum + String(file?.content ?? "").length,
+        0,
+      ) + cachedRemoteAssetCount * 1024,
+    };
+  },
+  read_layered_design_project_export: (args: any) => {
+    const request = args?.request ?? args ?? {};
+    const projectRootPath = request?.projectRootPath ?? "/mock/workspace";
+    const exportDirectoryRelativePath =
+      request?.exportDirectoryRelativePath ??
+      ".lime/layered-designs/mock-design.layered-design";
+    const exportDirectoryPath = `${projectRootPath}/${exportDirectoryRelativePath}`;
+
+    return {
+      projectRootPath,
+      exportDirectoryPath,
+      exportDirectoryRelativePath,
+      designPath: `${exportDirectoryPath}/design.json`,
+      designJson: JSON.stringify({
+        schemaVersion: "2026-05-05.p1",
+        id: "mock-design",
+        title: "Mock 图层设计",
+        status: "draft",
+        canvas: {
+          width: 1080,
+          height: 1440,
+          backgroundColor: "#ffffff",
+        },
+        layers: [],
+        assets: [],
+        editHistory: [],
+        createdAt: new Date(0).toISOString(),
+        updatedAt: new Date(0).toISOString(),
+      }),
+      manifestPath: `${exportDirectoryPath}/export-manifest.json`,
+      manifestJson: "{\"assets\":[]}",
+      previewPngPath: `${exportDirectoryPath}/preview.png`,
+      assetCount: 0,
+      fileCount: 4,
+      updatedAtMs: 0,
+    };
+  },
 
   // 模型相关
   get_model_registry: () => [],

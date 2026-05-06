@@ -3,9 +3,11 @@ use std::path::{Component, Path, PathBuf};
 use std::str::FromStr;
 use std::time::Duration;
 
+use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine as _};
 use chrono::Utc;
+use image::{codecs::png::PngEncoder, ColorType, ImageEncoder, ImageFormat};
 use serde::{Deserialize, Deserializer, Serialize};
-use serde_json::{json, Value};
+use serde_json::{json, Map, Value};
 use thiserror::Error;
 use tokio::task::JoinSet;
 use uuid::Uuid;
@@ -15,6 +17,9 @@ pub const IMAGE_TASK_RUNNER_WORKER_ID: &str = "lime-image-api-worker";
 pub const IMAGE_TASK_RUNNER_TIMEOUT_SECS: u64 = 300;
 pub const IMAGE_TASK_MAX_PARALLEL_REQUESTS: usize = 3;
 const STORYBOARD_3X3_LAYOUT_HINT: &str = "storyboard_3x3";
+const PNG_DATA_URL_MIME: &str = "image/png";
+const CHROMA_KEY_DISTANCE_THRESHOLD: i16 = 32;
+const IMAGE_TASK_POSTPROCESS_MAX_IMAGE_BYTES: u64 = 20 * 1024 * 1024;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ImageGenerationRunnerConfig {
@@ -40,7 +45,71 @@ struct PreparedImageTaskInput {
     style: Option<String>,
     provider_id: Option<String>,
     layout_hint: Option<String>,
+    postprocess_plan: Option<PreparedImageTaskPostprocessPlan>,
     request_slots: Vec<PreparedImageTaskSlot>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct PreparedImageTaskPostprocessPlan {
+    strategy: String,
+    chroma_key_color: String,
+    document_id: Option<String>,
+    layer_id: Option<String>,
+    asset_id: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ImagePostprocessOutcome {
+    status: &'static str,
+    reason: Option<String>,
+    output_url: Option<String>,
+    removed_pixel_count: Option<u64>,
+    total_pixel_count: Option<u64>,
+    output_mime: Option<&'static str>,
+    input_source: Option<&'static str>,
+}
+
+impl ImagePostprocessOutcome {
+    fn succeeded(
+        output_url: String,
+        removed_pixel_count: u64,
+        total_pixel_count: u64,
+        input_source: &'static str,
+    ) -> Self {
+        Self {
+            status: "succeeded",
+            reason: None,
+            output_url: Some(output_url),
+            removed_pixel_count: Some(removed_pixel_count),
+            total_pixel_count: Some(total_pixel_count),
+            output_mime: Some(PNG_DATA_URL_MIME),
+            input_source: Some(input_source),
+        }
+    }
+
+    fn skipped(reason: impl Into<String>) -> Self {
+        Self {
+            status: "skipped_unsupported_source",
+            reason: Some(reason.into()),
+            output_url: None,
+            removed_pixel_count: None,
+            total_pixel_count: None,
+            output_mime: None,
+            input_source: None,
+        }
+    }
+
+    fn failed(reason: impl Into<String>) -> Self {
+        Self {
+            status: "failed",
+            reason: Some(reason.into()),
+            output_url: None,
+            removed_pixel_count: None,
+            total_pixel_count: None,
+            output_mime: None,
+            input_source: None,
+        }
+    }
 }
 
 pub fn normalize_image_generation_service_host(host: &str) -> String {
@@ -1069,6 +1138,67 @@ fn read_payload_positive_u32(payload: &Value, keys: &[&str]) -> Option<u32> {
     })
 }
 
+fn read_object_field<'a>(value: &'a Value, keys: &[&str]) -> Option<&'a Value> {
+    keys.iter().find_map(|key| value.get(*key))
+}
+
+fn read_nested_string(value: &Value, keys: &[&str]) -> Option<String> {
+    keys.iter().find_map(|key| {
+        value
+            .get(*key)
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|item| !item.is_empty())
+            .map(ToOwned::to_owned)
+    })
+}
+
+fn read_nested_bool(value: &Value, keys: &[&str]) -> Option<bool> {
+    keys.iter()
+        .find_map(|key| value.get(*key).and_then(Value::as_bool))
+}
+
+fn read_layered_design_chroma_key_postprocess_plan(
+    payload: &Value,
+) -> Option<PreparedImageTaskPostprocessPlan> {
+    let runtime_contract = read_object_field(payload, &["runtime_contract", "runtimeContract"])?;
+    let layered_design = read_object_field(runtime_contract, &["layered_design", "layeredDesign"])?;
+    let alpha = read_object_field(layered_design, &["alpha"])?;
+    let strategy = read_nested_string(alpha, &["strategy"])?;
+    if strategy != "chroma_key_postprocess" {
+        return None;
+    }
+
+    let postprocess_required =
+        read_nested_bool(alpha, &["postprocess_required", "postprocessRequired"]).unwrap_or(true);
+    if !postprocess_required {
+        return None;
+    }
+
+    Some(PreparedImageTaskPostprocessPlan {
+        strategy,
+        chroma_key_color: read_nested_string(alpha, &["chroma_key_color", "chromaKeyColor"])
+            .unwrap_or_else(|| "#00ff00".to_string()),
+        document_id: read_nested_string(layered_design, &["document_id", "documentId"]),
+        layer_id: read_nested_string(layered_design, &["layer_id", "layerId"]),
+        asset_id: read_nested_string(layered_design, &["asset_id", "assetId"]),
+    })
+}
+
+fn apply_image_postprocess_prompt_hint(
+    prompt: &str,
+    plan: Option<&PreparedImageTaskPostprocessPlan>,
+) -> String {
+    let Some(plan) = plan else {
+        return prompt.to_string();
+    };
+
+    format!(
+        "{prompt}\n\nLayered design alpha requirement: create the foreground subject on a flat chroma-key background ({}) so Lime can remove that key color after generation; avoid using that key color inside the subject.",
+        plan.chroma_key_color
+    )
+}
+
 fn read_positive_u32_from_value(value: &Value) -> Option<u32> {
     if let Some(number) = value.as_u64() {
         return u32::try_from(number).ok().filter(|item| *item > 0);
@@ -1290,7 +1420,16 @@ fn prepare_image_task_input(task: &MediaTaskOutput) -> Result<PreparedImageTaskI
         .max(explicit_slots.len() as u32)
         .max(max_slot_index)
         .max(1);
-    let request_slots = build_request_slots(&prompt, count, layout_hint.as_deref(), explicit_slots);
+    let postprocess_plan = read_layered_design_chroma_key_postprocess_plan(payload);
+    let request_slots: Vec<PreparedImageTaskSlot> =
+        build_request_slots(&prompt, count, layout_hint.as_deref(), explicit_slots)
+            .into_iter()
+            .map(|mut slot| {
+                slot.prompt =
+                    apply_image_postprocess_prompt_hint(&slot.prompt, postprocess_plan.as_ref());
+                slot
+            })
+            .collect();
 
     Ok(PreparedImageTaskInput {
         prompt,
@@ -1300,6 +1439,7 @@ fn prepare_image_task_input(task: &MediaTaskOutput) -> Result<PreparedImageTaskI
         style: read_payload_string(payload, &["style"]),
         provider_id: read_payload_string(payload, &["provider_id", "providerId"]),
         layout_hint,
+        postprocess_plan,
         request_slots,
     })
 }
@@ -1495,6 +1635,184 @@ async fn request_single_image_generation(
     Ok((image, response_body))
 }
 
+fn parse_hex_rgb(value: &str) -> Option<[u8; 3]> {
+    let hex = value.trim().trim_start_matches('#');
+    if hex.len() == 3 {
+        let mut color = [0u8; 3];
+        for (index, item) in hex.as_bytes().iter().enumerate() {
+            let digit = (*item as char).to_digit(16)? as u8;
+            color[index] = digit * 17;
+        }
+        return Some(color);
+    }
+
+    if hex.len() != 6 {
+        return None;
+    }
+
+    Some([
+        u8::from_str_radix(&hex[0..2], 16).ok()?,
+        u8::from_str_radix(&hex[2..4], 16).ok()?,
+        u8::from_str_radix(&hex[4..6], 16).ok()?,
+    ])
+}
+
+fn decode_png_data_url_bytes(image_url: &str) -> Result<Option<Vec<u8>>, String> {
+    let trimmed = image_url.trim();
+    let Some((header, payload)) = trimmed.split_once(',') else {
+        return Ok(None);
+    };
+    let header = header.trim().to_ascii_lowercase();
+    if !header.starts_with("data:") {
+        return Ok(None);
+    }
+    if !header.starts_with("data:image/png")
+        || !header.split(';').any(|part| part.trim() == "base64")
+    {
+        return Ok(None);
+    }
+
+    BASE64_STANDARD
+        .decode(payload.trim())
+        .map(Some)
+        .map_err(|error| format!("无法解码 PNG data URL: {error}"))
+}
+
+fn encode_png_data_url(bytes: &[u8]) -> String {
+    format!(
+        "data:{PNG_DATA_URL_MIME};base64,{}",
+        BASE64_STANDARD.encode(bytes)
+    )
+}
+
+fn apply_chroma_key_postprocess_to_png_bytes(
+    source_bytes: &[u8],
+    plan: &PreparedImageTaskPostprocessPlan,
+    input_source: &'static str,
+) -> ImagePostprocessOutcome {
+    let Some(chroma_key) = parse_hex_rgb(&plan.chroma_key_color) else {
+        return ImagePostprocessOutcome::failed(format!(
+            "无效 chroma-key 颜色: {}",
+            plan.chroma_key_color
+        ));
+    };
+
+    let decoded = match image::load_from_memory_with_format(source_bytes, ImageFormat::Png) {
+        Ok(decoded) => decoded,
+        Err(error) => {
+            return ImagePostprocessOutcome::failed(format!("无法读取 PNG 像素: {error}"));
+        }
+    };
+
+    let mut rgba = decoded.to_rgba8();
+    let (width, height) = rgba.dimensions();
+    let threshold_squared =
+        i32::from(CHROMA_KEY_DISTANCE_THRESHOLD) * i32::from(CHROMA_KEY_DISTANCE_THRESHOLD);
+    let mut removed_pixel_count = 0u64;
+    for pixel in rgba.pixels_mut() {
+        let red_delta = i16::from(pixel[0]) - i16::from(chroma_key[0]);
+        let green_delta = i16::from(pixel[1]) - i16::from(chroma_key[1]);
+        let blue_delta = i16::from(pixel[2]) - i16::from(chroma_key[2]);
+        let distance_squared = i32::from(red_delta) * i32::from(red_delta)
+            + i32::from(green_delta) * i32::from(green_delta)
+            + i32::from(blue_delta) * i32::from(blue_delta);
+        if distance_squared <= threshold_squared {
+            pixel[3] = 0;
+            removed_pixel_count += 1;
+        }
+    }
+
+    let mut output_bytes = Vec::new();
+    let encoder = PngEncoder::new(&mut output_bytes);
+    if let Err(error) = encoder.write_image(rgba.as_raw(), width, height, ColorType::Rgba8.into()) {
+        return ImagePostprocessOutcome::failed(format!("无法写出透明 PNG: {error}"));
+    }
+
+    ImagePostprocessOutcome::succeeded(
+        encode_png_data_url(&output_bytes),
+        removed_pixel_count,
+        u64::from(width) * u64::from(height),
+        input_source,
+    )
+}
+
+#[cfg(test)]
+fn apply_chroma_key_postprocess_to_data_url(
+    image_url: &str,
+    plan: &PreparedImageTaskPostprocessPlan,
+) -> ImagePostprocessOutcome {
+    match decode_png_data_url_bytes(image_url) {
+        Ok(Some(bytes)) => apply_chroma_key_postprocess_to_png_bytes(&bytes, plan, "data_url"),
+        Ok(None) => ImagePostprocessOutcome::skipped("当前源图不是 PNG data URL"),
+        Err(message) => ImagePostprocessOutcome::failed(message),
+    }
+}
+
+async fn download_remote_image_bytes_for_postprocess(
+    client: &reqwest::Client,
+    image_url: &str,
+) -> Result<Vec<u8>, ImagePostprocessOutcome> {
+    let parsed_url = reqwest::Url::parse(image_url)
+        .map_err(|_| ImagePostprocessOutcome::skipped("当前源图不是可下载的 http/https URL"))?;
+    if !matches!(parsed_url.scheme(), "http" | "https") {
+        return Err(ImagePostprocessOutcome::skipped(
+            "当前仅支持 http/https 远程图片后处理",
+        ));
+    }
+
+    let response =
+        client.get(parsed_url).send().await.map_err(|error| {
+            ImagePostprocessOutcome::failed(format!("下载远程图片失败: {error}"))
+        })?;
+    let status = response.status();
+    if !status.is_success() {
+        return Err(ImagePostprocessOutcome::failed(format!(
+            "下载远程图片返回非成功状态: {status}"
+        )));
+    }
+    if response
+        .content_length()
+        .is_some_and(|length| length > IMAGE_TASK_POSTPROCESS_MAX_IMAGE_BYTES)
+    {
+        return Err(ImagePostprocessOutcome::failed(format!(
+            "远程图片超过后处理大小上限: {} bytes",
+            IMAGE_TASK_POSTPROCESS_MAX_IMAGE_BYTES
+        )));
+    }
+
+    let bytes = response
+        .bytes()
+        .await
+        .map_err(|error| ImagePostprocessOutcome::failed(format!("读取远程图片失败: {error}")))?;
+    if bytes.len() as u64 > IMAGE_TASK_POSTPROCESS_MAX_IMAGE_BYTES {
+        return Err(ImagePostprocessOutcome::failed(format!(
+            "远程图片超过后处理大小上限: {} bytes",
+            IMAGE_TASK_POSTPROCESS_MAX_IMAGE_BYTES
+        )));
+    }
+
+    Ok(bytes.to_vec())
+}
+
+async fn apply_chroma_key_postprocess_to_image_url(
+    client: &reqwest::Client,
+    image_url: &str,
+    plan: &PreparedImageTaskPostprocessPlan,
+) -> ImagePostprocessOutcome {
+    match decode_png_data_url_bytes(image_url) {
+        Ok(Some(bytes)) => {
+            return apply_chroma_key_postprocess_to_png_bytes(&bytes, plan, "data_url");
+        }
+        Err(message) => return ImagePostprocessOutcome::failed(message),
+        Ok(None) => {}
+    }
+
+    match download_remote_image_bytes_for_postprocess(client, image_url).await {
+        Ok(bytes) => apply_chroma_key_postprocess_to_png_bytes(&bytes, plan, "remote_url"),
+        Err(outcome) => outcome,
+    }
+}
+
 fn build_image_task_result_value(
     prepared_input: &PreparedImageTaskInput,
     requested_count: u32,
@@ -1519,6 +1837,10 @@ fn build_image_task_result_value(
         "response": responses.first().cloned(),
         "responses": responses,
         "failures": failures,
+        "postprocess": prepared_input
+            .postprocess_plan
+            .as_ref()
+            .map(|plan| build_image_result_postprocess_value(plan, requested_count, images)),
         "storyboard_slots": prepared_input
             .request_slots
             .iter()
@@ -1535,6 +1857,124 @@ fn build_image_task_result_value(
     })
 }
 
+fn build_image_postprocess_record(
+    plan: &PreparedImageTaskPostprocessPlan,
+    status: &str,
+) -> Map<String, Value> {
+    let mut record = Map::new();
+    record.insert("strategy".to_string(), json!(plan.strategy));
+    record.insert("status".to_string(), json!(status));
+    record.insert("chroma_key_color".to_string(), json!(plan.chroma_key_color));
+    record.insert("postprocess_required".to_string(), json!(true));
+    record.insert(
+        "source".to_string(),
+        json!("runtime_contract.layered_design.alpha"),
+    );
+    record.insert("document_id".to_string(), json!(plan.document_id));
+    record.insert("layer_id".to_string(), json!(plan.layer_id));
+    record.insert("asset_id".to_string(), json!(plan.asset_id));
+    record
+}
+
+fn build_image_postprocess_value(
+    plan: &PreparedImageTaskPostprocessPlan,
+    outcome: Option<&ImagePostprocessOutcome>,
+) -> Value {
+    let mut record = build_image_postprocess_record(
+        plan,
+        outcome
+            .map(|item| item.status)
+            .unwrap_or("pending_chroma_key_processor"),
+    );
+    if let Some(outcome) = outcome {
+        if let Some(reason) = outcome.reason.as_ref() {
+            record.insert("reason".to_string(), json!(reason));
+        }
+        if let Some(removed_pixel_count) = outcome.removed_pixel_count {
+            record.insert(
+                "removed_pixel_count".to_string(),
+                json!(removed_pixel_count),
+            );
+        }
+        if let Some(total_pixel_count) = outcome.total_pixel_count {
+            record.insert("total_pixel_count".to_string(), json!(total_pixel_count));
+        }
+        if let Some(output_mime) = outcome.output_mime {
+            record.insert("output_mime".to_string(), json!(output_mime));
+            record.insert(
+                "transparent".to_string(),
+                json!(outcome.status == "succeeded"),
+            );
+        }
+        if let Some(input_source) = outcome.input_source {
+            record.insert("input_source".to_string(), json!(input_source));
+        }
+    }
+    Value::Object(record)
+}
+
+fn read_postprocess_u64(record: &Map<String, Value>, key: &str) -> u64 {
+    record.get(key).and_then(Value::as_u64).unwrap_or_default()
+}
+
+fn build_image_result_postprocess_value(
+    plan: &PreparedImageTaskPostprocessPlan,
+    requested_count: u32,
+    images: &[Value],
+) -> Value {
+    let mut succeeded_count = 0u64;
+    let mut skipped_count = 0u64;
+    let mut failed_count = 0u64;
+    let mut removed_pixel_count = 0u64;
+    let mut total_pixel_count = 0u64;
+
+    for postprocess in images
+        .iter()
+        .filter_map(|image| image.get("postprocess").and_then(Value::as_object))
+    {
+        match postprocess.get("status").and_then(Value::as_str) {
+            Some("succeeded") => succeeded_count += 1,
+            Some("skipped_unsupported_source") => skipped_count += 1,
+            Some("failed") => failed_count += 1,
+            _ => {}
+        }
+        removed_pixel_count += read_postprocess_u64(postprocess, "removed_pixel_count");
+        total_pixel_count += read_postprocess_u64(postprocess, "total_pixel_count");
+    }
+
+    let processed_count = succeeded_count + skipped_count + failed_count;
+    let status = if processed_count == 0 {
+        "pending_chroma_key_processor"
+    } else if failed_count > 0 && succeeded_count == 0 && skipped_count == 0 {
+        "failed"
+    } else if failed_count > 0 {
+        "completed_with_postprocess_warnings"
+    } else if skipped_count > 0 && succeeded_count == 0 {
+        "skipped_unsupported_source"
+    } else if skipped_count > 0 {
+        "completed_with_skips"
+    } else {
+        "succeeded"
+    };
+
+    let mut record = build_image_postprocess_record(plan, status);
+    record.insert("requested_count".to_string(), json!(requested_count));
+    record.insert("processed_count".to_string(), json!(processed_count));
+    record.insert("succeeded_count".to_string(), json!(succeeded_count));
+    record.insert("skipped_count".to_string(), json!(skipped_count));
+    record.insert("failed_count".to_string(), json!(failed_count));
+    if removed_pixel_count > 0 || total_pixel_count > 0 {
+        record.insert(
+            "removed_pixel_count".to_string(),
+            json!(removed_pixel_count),
+        );
+        record.insert("total_pixel_count".to_string(), json!(total_pixel_count));
+        record.insert("output_mime".to_string(), json!(PNG_DATA_URL_MIME));
+        record.insert("transparent".to_string(), json!(succeeded_count > 0));
+    }
+    Value::Object(record)
+}
+
 fn build_running_image_task_message(
     requested_count: usize,
     success_count: usize,
@@ -1547,7 +1987,55 @@ fn build_running_image_task_message(
     format!("图片生成中，已返回 {success_count}/{requested_count} 张，另有 {failed_count} 张失败。")
 }
 
-fn decorate_generated_image_with_slot(image: Value, slot: &PreparedImageTaskSlot) -> Value {
+#[cfg(test)]
+fn infer_sync_image_postprocess_outcome(
+    image: &Value,
+    plan: &PreparedImageTaskPostprocessPlan,
+) -> ImagePostprocessOutcome {
+    image
+        .get("url")
+        .and_then(Value::as_str)
+        .map(|image_url| apply_chroma_key_postprocess_to_data_url(image_url, plan))
+        .unwrap_or_else(|| ImagePostprocessOutcome::failed("图片结果缺少 url，无法后处理"))
+}
+
+async fn infer_image_postprocess_outcome(
+    client: &reqwest::Client,
+    image: &Value,
+    plan: &PreparedImageTaskPostprocessPlan,
+) -> ImagePostprocessOutcome {
+    let Some(image_url) = image.get("url").and_then(Value::as_str) else {
+        return ImagePostprocessOutcome::failed("图片结果缺少 url，无法后处理");
+    };
+
+    apply_chroma_key_postprocess_to_image_url(client, image_url, plan).await
+}
+
+#[cfg(test)]
+fn decorate_generated_image_with_slot(
+    image: Value,
+    slot: &PreparedImageTaskSlot,
+    postprocess_plan: Option<&PreparedImageTaskPostprocessPlan>,
+) -> Value {
+    let postprocess_outcome = postprocess_plan.map(|plan| match &image {
+        Value::Object(_) => infer_sync_image_postprocess_outcome(&image, plan),
+        _ => ImagePostprocessOutcome::failed("图片结果不是对象，无法读取 url 后处理"),
+    });
+
+    decorate_generated_image_with_slot_with_postprocess_outcome(
+        image,
+        slot,
+        postprocess_plan,
+        postprocess_outcome.as_ref(),
+    )
+}
+
+fn decorate_generated_image_with_slot_with_postprocess_outcome(
+    image: Value,
+    slot: &PreparedImageTaskSlot,
+    postprocess_plan: Option<&PreparedImageTaskPostprocessPlan>,
+    postprocess_outcome: Option<&ImagePostprocessOutcome>,
+) -> Value {
     match image {
         Value::Object(mut record) => {
             record.insert("slot_index".to_string(), json!(slot.slot_index));
@@ -1559,16 +2047,31 @@ fn decorate_generated_image_with_slot(image: Value, slot: &PreparedImageTaskSlot
             if let Some(shot_type) = slot.shot_type.as_ref() {
                 record.insert("shot_type".to_string(), json!(shot_type));
             }
+            if let Some(plan) = postprocess_plan {
+                if let Some(output_url) =
+                    postprocess_outcome.and_then(|outcome| outcome.output_url.as_ref())
+                {
+                    record.insert("url".to_string(), json!(output_url));
+                }
+                record.insert(
+                    "postprocess".to_string(),
+                    build_image_postprocess_value(plan, postprocess_outcome),
+                );
+            }
             Value::Object(record)
         }
-        other => json!({
-            "slot_index": slot.slot_index,
-            "slot_id": slot.slot_id,
-            "slot_label": slot.label,
-            "slot_prompt": slot.prompt,
-            "shot_type": slot.shot_type,
-            "image": other,
-        }),
+        other => {
+            json!({
+                "slot_index": slot.slot_index,
+                "slot_id": slot.slot_id,
+                "slot_label": slot.label,
+                "slot_prompt": slot.prompt,
+                "shot_type": slot.shot_type,
+                "postprocess": postprocess_plan
+                    .map(|plan| build_image_postprocess_value(plan, postprocess_outcome)),
+                "image": other,
+            })
+        }
     }
 }
 
@@ -1871,8 +2374,19 @@ where
             let slot_position = request_slot.slot_index.saturating_sub(1) as usize;
             match result {
                 Ok((image, response_body)) => {
+                    let postprocess_outcome =
+                        if let Some(plan) = prepared_input.postprocess_plan.as_ref() {
+                            Some(infer_image_postprocess_outcome(&client, &image, plan).await)
+                        } else {
+                            None
+                        };
                     images[slot_position] =
-                        Some(decorate_generated_image_with_slot(image, &request_slot));
+                        Some(decorate_generated_image_with_slot_with_postprocess_outcome(
+                            image,
+                            &request_slot,
+                            prepared_input.postprocess_plan.as_ref(),
+                            postprocess_outcome.as_ref(),
+                        ));
                     responses[slot_position] =
                         Some(decorate_response_with_slot(response_body, &request_slot));
                     slot_statuses[slot_position] = "complete".to_string();
@@ -2791,10 +3305,57 @@ mod tests {
     use axum::{
         extract::Json,
         http::{HeaderMap, StatusCode},
-        routing::post,
+        routing::{get, post},
         Router,
     };
     use tokio::net::TcpListener;
+
+    fn build_test_png_bytes(width: u32, height: u32, pixels: &[[u8; 4]]) -> Vec<u8> {
+        let raw = pixels
+            .iter()
+            .flat_map(|pixel| pixel.iter().copied())
+            .collect::<Vec<_>>();
+        let mut output_bytes = Vec::new();
+        PngEncoder::new(&mut output_bytes)
+            .write_image(&raw, width, height, ColorType::Rgba8.into())
+            .expect("write test png");
+        output_bytes
+    }
+
+    fn build_test_png_data_url(width: u32, height: u32, pixels: &[[u8; 4]]) -> String {
+        let output_bytes = build_test_png_bytes(width, height, pixels);
+        encode_png_data_url(&output_bytes)
+    }
+
+    fn read_test_png_alpha(data_url: &str, x: u32, y: u32) -> u8 {
+        let bytes = decode_png_data_url_bytes(data_url)
+            .expect("decode data url")
+            .expect("png bytes");
+        image::load_from_memory_with_format(&bytes, ImageFormat::Png)
+            .expect("decode png")
+            .to_rgba8()
+            .get_pixel(x, y)[3]
+    }
+
+    fn test_chroma_key_plan() -> PreparedImageTaskPostprocessPlan {
+        PreparedImageTaskPostprocessPlan {
+            strategy: "chroma_key_postprocess".to_string(),
+            chroma_key_color: "#00ff00".to_string(),
+            document_id: Some("design-1".to_string()),
+            layer_id: Some("subject".to_string()),
+            asset_id: Some("asset-subject".to_string()),
+        }
+    }
+
+    fn test_image_slot() -> PreparedImageTaskSlot {
+        PreparedImageTaskSlot {
+            slot_index: 1,
+            slot_id: "image-slot-1".to_string(),
+            label: None,
+            prompt: "生成透明角色层".to_string(),
+            shot_type: None,
+        }
+    }
 
     #[test]
     fn write_media_task_artifact_uses_default_task_root() {
@@ -2861,6 +3422,229 @@ mod tests {
         assert_eq!(output.normalized_status, "queued");
         assert_eq!(output.record.attempts.len(), 1);
         assert!(output.record.current_attempt_id.is_some());
+    }
+
+    #[test]
+    fn prepare_image_task_input_should_consume_layered_design_chroma_key_postprocess_contract() {
+        let temp_dir = tempfile::tempdir().expect("create temp dir");
+        let output = write_media_task_artifact(
+            temp_dir.path(),
+            MediaTaskType::ImageGenerate,
+            Some("透明角色层".to_string()),
+            serde_json::json!({
+                "prompt": "生成透明角色层",
+                "runtime_contract": {
+                    "contract_key": "image_generation",
+                    "layered_design": {
+                        "document_id": "design-1",
+                        "layer_id": "subject",
+                        "asset_id": "asset-subject",
+                        "alpha": {
+                            "requested": true,
+                            "strategy": "chroma_key_postprocess",
+                            "chromaKeyColor": "#00ff00",
+                            "postprocessRequired": true
+                        }
+                    }
+                }
+            }),
+            None,
+            None,
+            None,
+        )
+        .expect("write media task");
+
+        let prepared = prepare_image_task_input(&output).expect("prepare image task");
+        let postprocess_plan = prepared
+            .postprocess_plan
+            .as_ref()
+            .expect("postprocess plan");
+
+        assert_eq!(postprocess_plan.strategy, "chroma_key_postprocess");
+        assert_eq!(postprocess_plan.chroma_key_color, "#00ff00");
+        assert_eq!(postprocess_plan.layer_id.as_deref(), Some("subject"));
+        assert!(prepared.request_slots[0]
+            .prompt
+            .contains("flat chroma-key background (#00ff00)"));
+
+        let source_url = build_test_png_data_url(2, 1, &[[0, 255, 0, 255], [255, 0, 0, 255]]);
+        let decorated = decorate_generated_image_with_slot(
+            serde_json::json!({ "url": source_url }),
+            &prepared.request_slots[0],
+            prepared.postprocess_plan.as_ref(),
+        );
+        assert_eq!(
+            decorated.pointer("/postprocess/status"),
+            Some(&serde_json::json!("succeeded"))
+        );
+        assert_eq!(
+            decorated.pointer("/postprocess/removed_pixel_count"),
+            Some(&serde_json::json!(1))
+        );
+        let output_url = decorated
+            .pointer("/url")
+            .and_then(Value::as_str)
+            .expect("decorated image url");
+        assert_eq!(read_test_png_alpha(output_url, 0, 0), 0);
+        assert_eq!(read_test_png_alpha(output_url, 1, 0), 255);
+
+        let result = build_image_task_result_value(&prepared, 1, &[decorated], &[], &[]);
+        assert_eq!(
+            result.pointer("/postprocess/strategy"),
+            Some(&serde_json::json!("chroma_key_postprocess"))
+        );
+        assert_eq!(
+            result.pointer("/postprocess/status"),
+            Some(&serde_json::json!("succeeded"))
+        );
+    }
+
+    #[test]
+    fn chroma_key_postprocess_should_skip_remote_image_url_without_failing_task() {
+        let plan = test_chroma_key_plan();
+        let source_url = "https://example.test/generated.png";
+        let decorated = decorate_generated_image_with_slot(
+            serde_json::json!({ "url": source_url }),
+            &test_image_slot(),
+            Some(&plan),
+        );
+
+        assert_eq!(
+            decorated.pointer("/url"),
+            Some(&serde_json::json!(source_url))
+        );
+        assert_eq!(
+            decorated.pointer("/postprocess/status"),
+            Some(&serde_json::json!("skipped_unsupported_source"))
+        );
+        assert!(decorated.pointer("/postprocess/reason").is_some());
+    }
+
+    #[tokio::test]
+    async fn execute_image_generation_task_should_postprocess_remote_chroma_key_url() {
+        let temp_dir = tempfile::tempdir().expect("create temp dir");
+        let created = write_task_artifact(
+            temp_dir.path(),
+            TaskType::ImageGenerate,
+            Some("透明角色层".to_string()),
+            json!({
+                "prompt": "生成透明角色层",
+                "count": 1,
+                "runtime_contract": {
+                    "contract_key": "image_generation",
+                    "layered_design": {
+                        "document_id": "design-remote",
+                        "layer_id": "subject",
+                        "asset_id": "asset-subject",
+                        "alpha": {
+                            "requested": true,
+                            "strategy": "chroma_key_postprocess",
+                            "chroma_key_color": "#00ff00",
+                            "postprocess_required": true
+                        }
+                    }
+                }
+            }),
+            TaskWriteOptions::default(),
+        )
+        .expect("create task");
+
+        let png_bytes = Arc::new(build_test_png_bytes(
+            2,
+            1,
+            &[[0, 255, 0, 255], [255, 0, 0, 255]],
+        ));
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind image api");
+        let address = listener.local_addr().expect("resolve address");
+        let generated_image_url = format!("http://{address}/generated.png");
+        let response_image_url = generated_image_url.clone();
+        let png_bytes_for_server = Arc::clone(&png_bytes);
+        let server = tokio::spawn(async move {
+            let app = Router::new()
+                .route(
+                    "/v1/images/generations",
+                    post(move |Json(_body): Json<Value>| {
+                        let response_image_url = response_image_url.clone();
+                        async move {
+                            (
+                                StatusCode::OK,
+                                Json(json!({
+                                    "created": 1_717_200_000i64,
+                                    "data": [
+                                        {
+                                            "url": response_image_url,
+                                            "revised_prompt": "透明角色层"
+                                        }
+                                    ]
+                                })),
+                            )
+                        }
+                    }),
+                )
+                .route(
+                    "/generated.png",
+                    get(move || {
+                        let png_bytes = Arc::clone(&png_bytes_for_server);
+                        async move {
+                            (
+                                StatusCode::OK,
+                                [("content-type", PNG_DATA_URL_MIME)],
+                                png_bytes.as_ref().clone(),
+                            )
+                        }
+                    }),
+                );
+            axum::serve(listener, app).await.expect("serve image api");
+        });
+
+        let result = execute_image_generation_task(
+            temp_dir.path(),
+            &created.task_id,
+            &ImageGenerationRunnerConfig {
+                endpoint: format!("http://{address}/v1/images/generations"),
+                api_key: "test-key".to_string(),
+            },
+        )
+        .await
+        .expect("execute image task");
+
+        let image = result
+            .record
+            .result
+            .as_ref()
+            .and_then(|value| value.get("images"))
+            .and_then(Value::as_array)
+            .and_then(|images| images.first())
+            .expect("generated image");
+        let output_url = image
+            .get("url")
+            .and_then(Value::as_str)
+            .expect("output url");
+
+        assert_ne!(output_url, generated_image_url);
+        assert!(output_url.starts_with("data:image/png;base64,"));
+        assert_eq!(read_test_png_alpha(output_url, 0, 0), 0);
+        assert_eq!(read_test_png_alpha(output_url, 1, 0), 255);
+        assert_eq!(
+            image.pointer("/postprocess/status"),
+            Some(&serde_json::json!("succeeded"))
+        );
+        assert_eq!(
+            image.pointer("/postprocess/input_source"),
+            Some(&serde_json::json!("remote_url"))
+        );
+        assert_eq!(
+            result
+                .record
+                .result
+                .as_ref()
+                .and_then(|value| value.pointer("/postprocess/succeeded_count")),
+            Some(&serde_json::json!(1))
+        );
+
+        server.abort();
     }
 
     #[test]

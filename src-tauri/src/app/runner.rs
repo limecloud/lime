@@ -1310,6 +1310,7 @@ pub fn run() {
             commands::aster_agent_cmd::command_api::runtime_api::agent_runtime_save_review_decision,
             commands::aster_agent_cmd::command_api::runtime_api::agent_runtime_export_replay_case,
             commands::aster_agent_cmd::command_api::runtime_api::agent_runtime_get_tool_inventory,
+            commands::aster_agent_cmd::command_api::runtime_api::agent_runtime_list_workspace_skill_bindings,
             commands::aster_agent_cmd::command_api::subagent_api::agent_runtime_spawn_subagent,
             commands::aster_agent_cmd::command_api::subagent_api::agent_runtime_send_subagent_input,
             commands::aster_agent_cmd::command_api::subagent_api::agent_runtime_wait_subagents,
@@ -1478,6 +1479,8 @@ pub fn run() {
             commands::document_import_cmd::import_document,
             commands::document_import_cmd::import_document_to_session,
             commands::document_import_cmd::save_exported_document,
+            commands::layered_design_cmd::read_layered_design_project_export,
+            commands::layered_design_cmd::save_layered_design_project_export,
             // Workspace commands
             commands::workspace_cmd::workspace_create,
             commands::workspace_cmd::workspace_list,

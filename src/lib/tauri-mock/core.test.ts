@@ -79,6 +79,97 @@ describe("tauri-mock/core invoke", () => {
     expect(mocks.invokeViaHttp).not.toHaveBeenCalled();
   });
 
+  it("图层设计工程目录 mock 应支持保存与读取闭环", async () => {
+    await expect(
+      invokeMockOnly("save_layered_design_project_export", {
+        request: {
+          projectRootPath: "/mock/workspace",
+          documentId: "mock-design",
+          title: "Mock 图层设计",
+          files: [
+            {
+              relativePath: "design.json",
+              mimeType: "application/json",
+              encoding: "utf8",
+              content: "{}",
+            },
+            {
+              relativePath: "assets/asset-subject.png",
+              mimeType: "image/png",
+              encoding: "base64",
+              content: "YXNzZXQ=",
+            },
+          ],
+        },
+      }),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        exportDirectoryRelativePath:
+          ".lime/layered-designs/mock-design.layered-design",
+        fileCount: 2,
+        assetCount: 1,
+      }),
+    );
+
+    await expect(
+      invokeMockOnly("read_layered_design_project_export", {
+        request: {
+          projectRootPath: "/mock/workspace",
+        },
+      }),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        exportDirectoryRelativePath:
+          ".lime/layered-designs/mock-design.layered-design",
+        designJson: expect.stringContaining("\"schemaVersion\""),
+        fileCount: 4,
+        assetCount: 0,
+      }),
+    );
+
+    expect(mocks.invokeViaHttp).not.toHaveBeenCalled();
+  });
+
+  it("图层设计工程目录 mock 应把远程引用资产计入缓存后的文件数", async () => {
+    await expect(
+      invokeMockOnly("save_layered_design_project_export", {
+        request: {
+          projectRootPath: "/mock/workspace",
+          documentId: "mock-remote-design",
+          title: "Mock 远程图层设计",
+          files: [
+            {
+              relativePath: "design.json",
+              mimeType: "application/json",
+              encoding: "utf8",
+              content: "{\"assets\":[{\"id\":\"remote-asset\",\"src\":\"https://example.com/hero.png\"}]}",
+            },
+            {
+              relativePath: "export-manifest.json",
+              mimeType: "application/json",
+              encoding: "utf8",
+              content:
+                "{\"assets\":[{\"id\":\"remote-asset\",\"source\":\"reference\",\"originalSrc\":\"https://example.com/hero.png\"}]}",
+            },
+            {
+              relativePath: "preview.png",
+              mimeType: "image/png",
+              encoding: "base64",
+              content: "cHJldmlldy1wbmc=",
+            },
+          ],
+        },
+      }),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        exportDirectoryRelativePath:
+          ".lime/layered-designs/mock-remote-design.layered-design",
+        fileCount: 4,
+        assetCount: 1,
+      }),
+    );
+  });
+
   it("知识库 mock 应保持导入后的列表与详情一致", async () => {
     vi.mocked(shouldPreferMockInBrowser).mockReturnValue(true);
 
@@ -700,6 +791,49 @@ describe("tauri-mock/core invoke", () => {
       expect.objectContaining({
         permission_confirmation_status: "not_requested",
         permission_confirmation_source: "declared_profile_only",
+        decision: expect.objectContaining({
+          decision_status: "rejected",
+        }),
+      }),
+    );
+  });
+
+  it("review decision mock 应阻止用户锁定能力缺口保存为 accepted", async () => {
+    await expect(
+      invokeMockOnly("agent_runtime_save_review_decision", {
+        request: {
+          session_id: "mock-session",
+          decision_status: "accepted",
+          decision_summary: "错误接受模型锁定能力缺口。",
+          risk_level: "low",
+          limit_status: "user_locked_capability_gap",
+          capability_gap: "browser_reasoning_candidate_missing",
+          permission_status: "not_required",
+          permission_confirmation_status: "resolved",
+        },
+      }),
+    ).rejects.toThrow("显式用户模型锁定");
+
+    await expect(
+      invokeMockOnly("agent_runtime_save_review_decision", {
+        request: {
+          session_id: "mock-session",
+          decision_status: "rejected",
+          decision_summary: "模型锁定能力缺口未解决，拒绝本次交付。",
+          risk_level: "high",
+          limit_status: "user_locked_capability_gap",
+          capability_gap: "browser_reasoning_candidate_missing",
+          permission_status: "not_required",
+          permission_confirmation_status: "resolved",
+        },
+      }),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        limit_status: "user_locked_capability_gap",
+        capability_gap: "browser_reasoning_candidate_missing",
+        user_locked_capability_summary: expect.stringContaining(
+          "显式用户模型锁定不满足当前 execution profile",
+        ),
         decision: expect.objectContaining({
           decision_status: "rejected",
         }),

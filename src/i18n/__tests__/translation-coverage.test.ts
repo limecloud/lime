@@ -74,12 +74,11 @@ describe("Translation Coverage", () => {
     it("should have translations for main navigation", () => {
       const navItems = [
         "新建任务",
-        "我的方法",
-        "创作场景",
+        "Skills",
+        "灵感",
+        "项目资料",
         "持续流程",
         "消息渠道",
-        "灵感库",
-        "知识库",
         "插件中心",
         "OpenClaw",
         "桌宠",

@@ -212,7 +212,7 @@ describe("sceneAppLaunch", () => {
         runtimeAction: "launch_native_skill",
       }),
       reason: "missing_project",
-      message: "做法「本地分析场景」需要项目工作区，请先选择项目后再启动。",
+      message: "Skill「本地分析场景」需要项目工作区，请先选择项目后再启动。",
     });
   });
 
@@ -541,7 +541,7 @@ describe("sceneAppLaunch", () => {
         runtimeAction: "open_service_scene_session",
       }),
       reason: "missing_navigate",
-      message: "当前入口暂不支持切换到做法工作区，请从桌面主界面重试。",
+      message: "当前入口暂不支持切换到 Skills 工作区，请从桌面主界面重试。",
     });
   });
 });

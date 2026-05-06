@@ -85,6 +85,7 @@ export interface GroupLayer extends BaseDesignLayer {
 export type DesignLayer = ImageLayer | TextLayer | ShapeLayer | GroupLayer;
 
 export type GeneratedDesignAssetKind =
+  | "source_image"
   | "background"
   | "subject"
   | "effect"
@@ -109,6 +110,44 @@ export interface GeneratedDesignAsset {
   createdAt: string;
 }
 
+export type LayeredDesignExtractionCandidateRole =
+  | "subject"
+  | "logo"
+  | "effect"
+  | "text"
+  | "background_fragment";
+
+export type LayeredDesignExtractionCandidateIssue = "low_confidence";
+
+export type LayeredDesignExtractionCleanPlateStatus =
+  | "not_requested"
+  | "succeeded"
+  | "failed";
+
+export interface LayeredDesignExtractionCleanPlate {
+  status: LayeredDesignExtractionCleanPlateStatus;
+  assetId?: string;
+  message?: string;
+}
+
+export interface LayeredDesignExtractionCandidate {
+  id: string;
+  role: LayeredDesignExtractionCandidateRole;
+  confidence: number;
+  selected: boolean;
+  layer: DesignLayer;
+  assetIds: string[];
+  issues?: LayeredDesignExtractionCandidateIssue[];
+}
+
+export interface LayeredDesignExtraction {
+  sourceAssetId: string;
+  backgroundLayerId: string;
+  candidateSelectionThreshold: number;
+  cleanPlate: LayeredDesignExtractionCleanPlate;
+  candidates: LayeredDesignExtractionCandidate[];
+}
+
 export interface DesignPreviewProjection {
   assetId: string;
   src: string;
@@ -123,6 +162,7 @@ export type LayerEditActor = "user" | "assistant" | "system";
 export type LayerEditRecordType =
   | "created"
   | "normalized"
+  | "candidate_selection_updated"
   | "asset_generation_requested"
   | "asset_replaced"
   | "transform_updated"
@@ -157,6 +197,7 @@ export interface LayeredDesignDocument {
   canvas: DesignCanvas;
   layers: DesignLayer[];
   assets: GeneratedDesignAsset[];
+  extraction?: LayeredDesignExtraction;
   preview?: DesignPreviewProjection;
   editHistory: LayerEditRecord[];
   createdAt: string;
@@ -217,6 +258,32 @@ export type DesignLayerInput =
   | ShapeLayerInput
   | GroupLayerInput;
 
+export interface LayeredDesignExtractionCleanPlateInput {
+  status?: LayeredDesignExtractionCleanPlateStatus;
+  assetId?: string;
+  asset?: GeneratedDesignAsset;
+  message?: string;
+}
+
+export interface LayeredDesignExtractionCandidateInput {
+  id: string;
+  role: LayeredDesignExtractionCandidateRole;
+  confidence?: number;
+  selected?: boolean;
+  layer: DesignLayerInput | DesignLayer;
+  assetIds?: string[];
+  assets?: GeneratedDesignAsset[];
+  issues?: LayeredDesignExtractionCandidateIssue[];
+}
+
+export interface LayeredDesignExtractionInput {
+  sourceAssetId: string;
+  backgroundLayerId?: string;
+  candidateSelectionThreshold?: number;
+  cleanPlate?: LayeredDesignExtractionCleanPlateInput;
+  candidates?: LayeredDesignExtractionCandidateInput[];
+}
+
 export interface LayeredDesignDocumentInput {
   schemaVersion?: typeof LAYERED_DESIGN_DOCUMENT_SCHEMA_VERSION;
   id: string;
@@ -225,6 +292,7 @@ export interface LayeredDesignDocumentInput {
   canvas: DesignCanvas;
   layers?: DesignLayerInput[];
   assets?: GeneratedDesignAsset[];
+  extraction?: LayeredDesignExtractionInput;
   preview?: Omit<DesignPreviewProjection, "stale"> &
     Partial<Pick<DesignPreviewProjection, "stale">>;
   editHistory?: LayerEditRecord[];

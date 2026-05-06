@@ -2,7 +2,7 @@
  * 初次安装引导 - 状态管理 Hook
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 import {
   STORAGE_KEYS,
   ONBOARDING_VERSION,
@@ -32,14 +32,15 @@ function resolveNeedsOnboardingState(): boolean {
  * 管理首次启动检测和引导完成状态
  */
 export function useOnboardingState() {
-  // null 表示正在检测中
-  const [needsOnboarding, setNeedsOnboarding] = useState<boolean | null>(() =>
-    resolveNeedsOnboardingState(),
-  );
-
-  useEffect(() => {
-    setNeedsOnboarding(resolveNeedsOnboardingState());
-  }, []);
+  // 直接在初始化时同步读取,避免二次检查导致的延迟
+  const [needsOnboarding, setNeedsOnboarding] = useState<boolean | null>(() => {
+    // 在 SSR 环境下返回 null,等待客户端 hydration
+    if (typeof window === "undefined") {
+      return null;
+    }
+    // 客户端环境直接返回结果,不需要 useEffect 二次检查
+    return resolveNeedsOnboardingState();
+  });
 
   /**
    * 完成引导

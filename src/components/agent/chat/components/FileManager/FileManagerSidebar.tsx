@@ -772,6 +772,7 @@ export const FileManagerSidebar: React.FC<FileManagerSidebarProps> = ({
             {canImportAsKnowledge ? (
               <button
                 type="button"
+                aria-label={`设为项目资料 ${entry.name}`}
                 className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-700 transition hover:border-emerald-300 hover:bg-emerald-100"
                 onClick={(event) => {
                   event.stopPropagation();

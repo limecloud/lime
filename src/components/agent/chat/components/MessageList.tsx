@@ -605,6 +605,31 @@ function shouldRenderConversationTimelineItem(
   );
 }
 
+function hasTimelineProcessItems(items?: AgentThreadItem[]): boolean {
+  return Boolean(
+    items?.some(
+      (item) =>
+        item.type === "plan" ||
+        item.type === "reasoning" ||
+        item.type === "tool_call" ||
+        item.type === "command_execution" ||
+        item.type === "web_search" ||
+        item.type === "context_compaction",
+    ),
+  );
+}
+
+function hasInlineThinkingContent(message: Message): boolean {
+  return (
+    Boolean(message.thinkingContent?.trim()) ||
+    Boolean(
+      message.contentParts?.some(
+        (part) => part.type === "thinking" && part.text.trim().length > 0,
+      ),
+    )
+  );
+}
+
 interface InlineProcessCoverage {
   hasInlineProcessEntries: boolean;
   thinking: boolean;
@@ -1485,7 +1510,12 @@ const MessageListInner: React.FC<MessageListProps> = ({
     visibleMessages.length,
   ]);
   const shouldKeepInlineProcessForActiveAssistant = useCallback(
-    (message: Message, isConversationTailAssistant: boolean): boolean => {
+    (
+      message: Message,
+      isConversationTailAssistant: boolean,
+      hasProcessTimelineItems: boolean,
+      hasCurrentTurnContext: boolean,
+    ): boolean => {
       if (message.role !== "assistant") {
         return false;
       }
@@ -1496,6 +1526,14 @@ const MessageListInner: React.FC<MessageListProps> = ({
 
       if (!isConversationTailAssistant) {
         return false;
+      }
+
+      if (
+        hasCurrentTurnContext &&
+        !hasProcessTimelineItems &&
+        hasInlineThinkingContent(message)
+      ) {
+        return true;
       }
 
       const hasRunningToolCall =
@@ -1660,21 +1698,15 @@ const MessageListInner: React.FC<MessageListProps> = ({
         : isConversationTailAssistant
           ? group.timeline
           : null;
-    const hasProcessTimelineItems = Boolean(
-      timeline?.items.some(
-        (item) =>
-          item.type === "reasoning" ||
-          item.type === "tool_call" ||
-          item.type === "command_execution" ||
-          item.type === "web_search",
-      ),
-    );
+    const hasProcessTimelineItems = hasTimelineProcessItems(timeline?.items);
     const includeInlineProcessFlow =
       !shouldDeferMessageDetails &&
       msg.role === "assistant" &&
       shouldKeepInlineProcessForActiveAssistant(
         msg,
         isConversationTailAssistant,
+        hasProcessTimelineItems,
+        Boolean(currentTurnId),
       );
     const conversationContentParts =
       msg.role === "assistant"

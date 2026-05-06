@@ -12,7 +12,7 @@ const TYPE_FILTER_OPTIONS: Array<{
   value: SceneAppTypeFilter;
   label: string;
 }> = [
-  { value: "all", label: "全部做法" },
+  { value: "all", label: "全部 Skills" },
   { value: "hybrid", label: "整套组合" },
   { value: "browser_grounded", label: "边看边做" },
   { value: "local_durable", label: "持续跟进" },
@@ -116,10 +116,10 @@ export function SceneAppsCatalogPanel({
           <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
             <div className="space-y-2">
               <div className="text-sm font-semibold text-slate-900">
-                先从全部做法里挑一套
+                先挑一个 Skill
               </div>
               <p className="text-sm leading-6 text-slate-500">
-                可以按想拿到的结果、推进方式和做法特征缩小范围，不用先理解内部能力栈。
+                可以按想拿到的结果、推进方式和特征缩小范围，不用先理解内部能力栈。
               </p>
             </div>
             {hasActiveFilters ? (
@@ -140,13 +140,13 @@ export function SceneAppsCatalogPanel({
           <div className="grid gap-4 xl:grid-cols-[minmax(0,360px)_minmax(0,1fr)]">
             <div className="space-y-2">
               <div className="text-[11px] font-semibold tracking-[0.08em] text-slate-400">
-                搜索做法
+                搜索 Skill
               </div>
               <div className="relative w-full">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <Input
                   value={searchQuery}
-                  placeholder="搜索做法标题或想要的结果"
+                  placeholder="搜索 Skill 标题或想要的结果"
                   className="h-11 rounded-[22px] border-slate-200 bg-slate-50 pl-9"
                   onChange={(event) => onSearchQueryChange(event.target.value)}
                 />
@@ -172,7 +172,7 @@ export function SceneAppsCatalogPanel({
 
               <div className="space-y-2">
                 <div className="text-[11px] font-semibold tracking-[0.08em] text-slate-400">
-                  按做法特征筛
+                  按特征筛
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {PATTERN_FILTER_OPTIONS.map((option) => (
@@ -230,7 +230,8 @@ export function SceneAppsCatalogPanel({
 
       {items.length === 0 ? (
         <div className="text-sm leading-7 text-slate-500">
-          当前筛选条件下还没有匹配的整套做法。可以先清空关键词，或放宽筛选条件继续找。
+          当前筛选条件下还没有匹配的
+          Skill。可以先清空关键词，或放宽筛选条件继续找。
         </div>
       ) : (
         <div className="grid gap-3 xl:grid-cols-2">
