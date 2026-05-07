@@ -104,6 +104,23 @@ function readRecordField(
   return isRecord(value) ? value : undefined;
 }
 
+function readNumberMapField(
+  record: Record<string, unknown>,
+  camelKey: string,
+  snakeKey?: string,
+): Record<string, number> {
+  const value = readRecordField(record, camelKey, snakeKey);
+  if (!value) {
+    return {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(value).filter(
+      (entry): entry is [string, number] => typeof entry[1] === "number",
+    ),
+  );
+}
+
 function readArrayField(
   record: Record<string, unknown>,
   camelKey: string,
@@ -1134,6 +1151,12 @@ function normalizeCompletionAuditRequiredEvidence(
         "artifactOrTimeline",
         "artifact_or_timeline",
       ) ?? false,
+    controlled_get_evidence:
+      readOptionalBooleanField(
+        record,
+        "controlledGetEvidence",
+        "controlled_get_evidence",
+      ) ?? false,
   };
 }
 
@@ -1159,6 +1182,37 @@ function normalizeCompletionAuditSummary(
       "workspace_skill_tool_call_count",
     ),
     artifact_count: readNumberField(value, "artifactCount", "artifact_count"),
+    controlled_get_evidence_artifact_count: readNumberField(
+      value,
+      "controlledGetEvidenceArtifactCount",
+      "controlled_get_evidence_artifact_count",
+    ),
+    controlled_get_evidence_executed_count: readNumberField(
+      value,
+      "controlledGetEvidenceExecutedCount",
+      "controlled_get_evidence_executed_count",
+    ),
+    controlled_get_evidence_scanned_artifact_count: readNumberField(
+      value,
+      "controlledGetEvidenceScannedArtifactCount",
+      "controlled_get_evidence_scanned_artifact_count",
+    ),
+    controlled_get_evidence_skipped_unsafe_artifact_count: readNumberField(
+      value,
+      "controlledGetEvidenceSkippedUnsafeArtifactCount",
+      "controlled_get_evidence_skipped_unsafe_artifact_count",
+    ),
+    controlled_get_evidence_status_counts: readNumberMapField(
+      value,
+      "controlledGetEvidenceStatusCounts",
+      "controlled_get_evidence_status_counts",
+    ),
+    controlled_get_evidence_required:
+      readOptionalBooleanField(
+        value,
+        "controlledGetEvidenceRequired",
+        "controlled_get_evidence_required",
+      ) ?? false,
     owner_audit_statuses: readStringListField(
       value,
       "ownerAuditStatuses",

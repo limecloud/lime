@@ -80,6 +80,35 @@ describe("tauri-mock/core invoke", () => {
   });
 
   it("图层设计工程目录 mock 应支持保存与读取闭环", async () => {
+    const designJson = JSON.stringify({
+      schemaVersion: "2026-05-05.p1",
+      id: "mock-design",
+      title: "Mock 图层设计",
+      status: "draft",
+      canvas: {
+        width: 1080,
+        height: 1440,
+        backgroundColor: "#ffffff",
+      },
+      layers: [
+        {
+          id: "layer-title",
+          name: "主标题",
+          type: "text",
+          visible: true,
+          locked: false,
+          opacity: 1,
+          zIndex: 1,
+          transform: { x: 120, y: 160, width: 360, height: 96, rotation: 0 },
+          content: { text: "Smoke 标题" },
+        },
+      ],
+      assets: [],
+      editHistory: [],
+      createdAt: new Date(0).toISOString(),
+      updatedAt: new Date(0).toISOString(),
+    });
+
     await expect(
       invokeMockOnly("save_layered_design_project_export", {
         request: {
@@ -91,7 +120,7 @@ describe("tauri-mock/core invoke", () => {
               relativePath: "design.json",
               mimeType: "application/json",
               encoding: "utf8",
-              content: "{}",
+              content: designJson,
             },
             {
               relativePath: "assets/asset-subject.png",
@@ -121,9 +150,30 @@ describe("tauri-mock/core invoke", () => {
       expect.objectContaining({
         exportDirectoryRelativePath:
           ".lime/layered-designs/mock-design.layered-design",
-        designJson: expect.stringContaining("\"schemaVersion\""),
-        fileCount: 4,
-        assetCount: 0,
+        designJson: expect.stringContaining("\"layer-title\""),
+        fileCount: 2,
+        assetCount: 1,
+      }),
+    );
+
+    expect(mocks.invokeViaHttp).not.toHaveBeenCalled();
+  });
+
+  it("图层设计 OCR mock 应保持可回退但不伪造文字", async () => {
+    await expect(
+      invokeMockOnly("recognize_layered_design_text", {
+        request: {
+          imageSrc: "data:image/png;base64,ZmFrZQ==",
+          width: 320,
+          height: 120,
+          candidateId: "headline-candidate",
+        },
+      }),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        supported: false,
+        engine: "mock-native-ocr",
+        blocks: [],
       }),
     );
 
@@ -170,6 +220,631 @@ describe("tauri-mock/core invoke", () => {
     );
   });
 
+  it("Capability Draft mock 应对齐只读 HTTP gate 与 dry-run evidence", async () => {
+    const generatedFiles = [
+      {
+        relativePath: "SKILL.md",
+        content:
+          "# 只读 HTTP API 每日报告\n\n只读 HTTP API 访问；不保存 token，不写外部系统。",
+      },
+      {
+        relativePath: "contract/input.schema.json",
+        content: JSON.stringify({
+          type: "object",
+          required: ["endpoint"],
+          properties: {
+            endpoint: { type: "string", format: "uri" },
+            fixture_path: { type: "string" },
+          },
+        }),
+      },
+      {
+        relativePath: "contract/output.schema.json",
+        content: JSON.stringify({
+          type: "object",
+          required: ["markdown_report"],
+          properties: { markdown_report: { type: "string" } },
+        }),
+      },
+      {
+        relativePath: "examples/input.sample.json",
+        content: JSON.stringify({
+          endpoint: "https://api.example.test/metrics",
+          fixture_path: "tests/fixture.json",
+        }),
+      },
+      {
+        relativePath: "tests/fixture.json",
+        content: JSON.stringify({
+          metrics: [{ label: "workflow", value: 42 }],
+        }),
+      },
+      {
+        relativePath: "tests/expected-output.json",
+        content: JSON.stringify({
+          markdown_report: "# 趋势摘要\n\n- workflow: 42",
+        }),
+      },
+      {
+        relativePath: "policy/readonly-http-session.json",
+        content: JSON.stringify({
+          mode: "session_required",
+          access: "read-only",
+          allowed_methods: ["GET"],
+          credential_policy: "no_generated_credentials",
+          credential_source: "user_session_config",
+          credential_reference: {
+            scope: "session",
+            source: "user_session_config",
+            required: false,
+            reference_id: "readonly_api_session",
+          },
+          execution_preflight: {
+            mode: "approval_request",
+            endpoint_source: "runtime_input",
+            method: "GET",
+            credential_reference_id: "readonly_api_session",
+            evidence_schema: [
+              "request_url_hash",
+              "request_method",
+              "response_status",
+              "response_sha256",
+              "executed_at",
+            ],
+          },
+          evidence: ["request_url_hash", "response_status", "response_sha256"],
+        }),
+      },
+      {
+        relativePath: "scripts/dry-run.mjs",
+        content: [
+          "import fs from 'node:fs';",
+          "const input = JSON.parse(fs.readFileSync('examples/input.sample.json', 'utf8'));",
+          "const fixture = JSON.parse(fs.readFileSync(input.fixture_path, 'utf8'));",
+          "const expected = JSON.parse(fs.readFileSync('tests/expected-output.json', 'utf8'));",
+          "console.log(JSON.stringify(expected));",
+          "void fixture;",
+        ].join("\n"),
+      },
+    ];
+
+    const positiveDraft = await invokeMockOnly<Record<string, unknown>>(
+      "capability_draft_create",
+      {
+        request: {
+          workspaceRoot: "/tmp/lime-p6-mock",
+          name: "只读 HTTP API 每日报告",
+          description: "把公开只读 HTTP API 响应整理成 Markdown 趋势摘要。",
+          userGoal: "每天读取公开只读 API 或 fixture，生成 Markdown 摘要。",
+          sourceKind: "api",
+          permissionSummary: [
+            "Level 0 只读发现",
+            "允许只读 HTTP API GET 请求，不做外部写操作",
+          ],
+          generatedFiles,
+        },
+      },
+    );
+
+    const positiveVerification = await invokeMockOnly<any>(
+      "capability_draft_verify",
+      {
+        request: {
+          workspaceRoot: "/tmp/lime-p6-mock",
+          draftId: positiveDraft.draftId,
+        },
+      },
+    );
+    expect(positiveVerification.draft.verificationStatus).toBe(
+      "verified_pending_registration",
+    );
+    const executeCheck = positiveVerification.report.checks.find(
+      (check: { id?: string }) =>
+        check.id === "readonly_http_fixture_dry_run_execute",
+    );
+    expect(executeCheck).toEqual(
+      expect.objectContaining({
+        status: "passed",
+        evidence: expect.arrayContaining([
+          { key: "scriptPath", value: "scripts/dry-run.mjs" },
+          { key: "expectedOutputPath", value: "tests/expected-output.json" },
+        ]),
+      }),
+    );
+    const preflightCheck = positiveVerification.report.checks.find(
+      (check: { id?: string }) =>
+        check.id === "readonly_http_execution_preflight",
+    );
+    expect(preflightCheck).toEqual(
+      expect.objectContaining({
+        status: "passed",
+        evidence: expect.arrayContaining([
+          { key: "preflightMode", value: "approval_request" },
+          { key: "endpointSource", value: "runtime_input" },
+          { key: "method", value: "GET" },
+          {
+            key: "credentialReferenceId",
+            value: "readonly_api_session",
+          },
+          {
+            key: "evidenceSchema",
+            value:
+              "request_url_hash,request_method,response_status,response_sha256,executed_at",
+          },
+        ]),
+      }),
+    );
+    const positiveRegistration = await invokeMockOnly<any>(
+      "capability_draft_register",
+      {
+        request: {
+          workspaceRoot: "/tmp/lime-p6-mock",
+          draftId: positiveDraft.draftId,
+        },
+      },
+    );
+    expect(positiveRegistration.registration.approvalRequests).toEqual([
+      expect.objectContaining({
+        approvalId: expect.stringContaining(":readonly-http-session"),
+        status: "pending",
+        sourceCheckId: "readonly_http_execution_preflight",
+        endpointSource: "runtime_input",
+        method: "GET",
+        credentialReferenceId: "readonly_api_session",
+        evidenceSchema: [
+          "request_url_hash",
+          "request_method",
+          "response_status",
+          "response_sha256",
+          "executed_at",
+        ],
+        policyPath: "policy/readonly-http-session.json",
+        consumptionGate: expect.objectContaining({
+          status: "awaiting_session_approval",
+          requiredInputs: [
+            "session_user_approval",
+            "runtime_endpoint_input",
+            "credential_reference:readonly_api_session",
+            "evidence_capture",
+          ],
+          runtimeExecutionEnabled: false,
+          credentialStorageEnabled: false,
+        }),
+        credentialResolver: expect.objectContaining({
+          status: "awaiting_session_credential",
+          referenceId: "readonly_api_session",
+          scope: "session",
+          source: "user_session_config",
+          secretMaterialStatus: "not_requested",
+          tokenPersisted: false,
+          runtimeInjectionEnabled: false,
+        }),
+        consumptionInputSchema: expect.objectContaining({
+          schemaId: "readonly_http_session_approval_v1",
+          version: 1,
+          uiSubmissionEnabled: false,
+          runtimeExecutionEnabled: false,
+          fields: expect.arrayContaining([
+            expect.objectContaining({
+              key: "runtime_endpoint_input",
+              kind: "url",
+              required: true,
+              secret: false,
+            }),
+            expect.objectContaining({
+              key: "credential_reference_confirmation",
+              kind: "credential_reference",
+              source: "user_session_config",
+              secret: false,
+            }),
+          ]),
+        }),
+        sessionInputIntake: expect.objectContaining({
+          status: "awaiting_session_inputs",
+          schemaId: "readonly_http_session_approval_v1",
+          scope: "session",
+          requiredFieldKeys: [
+            "session_user_approval",
+            "runtime_endpoint_input",
+            "credential_reference_confirmation",
+            "evidence_capture_consent",
+          ],
+          missingFieldKeys: [
+            "session_user_approval",
+            "runtime_endpoint_input",
+            "credential_reference_confirmation",
+            "evidence_capture_consent",
+          ],
+          collectedFieldKeys: [],
+          credentialReferenceId: "readonly_api_session",
+          endpointInputPersisted: false,
+          secretMaterialStatus: "not_collected",
+          tokenPersisted: false,
+          uiSubmissionEnabled: false,
+          runtimeExecutionEnabled: false,
+        }),
+        sessionInputSubmissionContract: expect.objectContaining({
+          status: "submission_contract_declared",
+          scope: "session",
+          mode: "one_time_session_submission",
+          acceptedFieldKeys: [
+            "session_user_approval",
+            "runtime_endpoint_input",
+            "credential_reference_confirmation",
+            "evidence_capture_consent",
+          ],
+          valueRetention: "none",
+          endpointInputPersisted: false,
+          secretMaterialAccepted: false,
+          tokenPersisted: false,
+          evidenceCaptureRequired: true,
+          submissionHandlerEnabled: true,
+          uiSubmissionEnabled: false,
+          runtimeExecutionEnabled: false,
+          validationRules: expect.arrayContaining([
+            expect.objectContaining({
+              fieldKey: "runtime_endpoint_input",
+              kind: "url",
+              required: true,
+              secretAllowed: false,
+            }),
+            expect.objectContaining({
+              fieldKey: "credential_reference_confirmation",
+              kind: "credential_reference",
+              source: "user_session_config",
+              secretAllowed: false,
+            }),
+          ]),
+        }),
+      }),
+    ]);
+    const registeredSkills = await invokeMockOnly<any>(
+      "capability_draft_list_registered_skills",
+      {
+        request: {
+          workspaceRoot: "/tmp/lime-p6-mock",
+        },
+      },
+    );
+    expect(registeredSkills[0].registration.approvalRequests).toEqual(
+      positiveRegistration.registration.approvalRequests,
+    );
+    const approvalSubmission = await invokeMockOnly<any>(
+      "capability_draft_submit_approval_session_inputs",
+      {
+        request: {
+          workspaceRoot: "/tmp/lime-p6-mock",
+          approvalId:
+            positiveRegistration.registration.approvalRequests[0].approvalId,
+          sessionId: "session-readonly-http",
+          inputs: {
+            session_user_approval: true,
+            runtime_endpoint_input: "https://api.example.test/metrics",
+            credential_reference_confirmation: "readonly_api_session",
+            evidence_capture_consent: true,
+          },
+        },
+      },
+    );
+    expect(approvalSubmission).toEqual(
+      expect.objectContaining({
+        status: "validated_pending_runtime_gate",
+        scope: "session",
+        acceptedFieldKeys: [
+          "session_user_approval",
+          "runtime_endpoint_input",
+          "credential_reference_confirmation",
+          "evidence_capture_consent",
+        ],
+        missingFieldKeys: [],
+        rejectedFieldKeys: [],
+        endpointInputPersisted: false,
+        secretMaterialAccepted: false,
+        tokenPersisted: false,
+        credentialResolved: false,
+        runtimeExecutionEnabled: false,
+        nextGate: "readonly_http_controlled_get_preflight",
+        controlledGetPreflight: expect.objectContaining({
+          status: "ready_for_controlled_get_preflight",
+          gateId: "readonly_http_controlled_get_preflight",
+          method: "GET",
+          methodAllowed: true,
+          endpointSource: "runtime_input",
+          endpointValidated: true,
+          endpointValueReturned: false,
+          credentialReferenceId: "readonly_api_session",
+          credentialResolutionRequired: true,
+          credentialResolved: false,
+          requestExecutionEnabled: false,
+          runtimeExecutionEnabled: false,
+          evidenceSchema: [
+            "request_url_hash",
+            "request_method",
+            "response_status",
+            "response_sha256",
+            "executed_at",
+          ],
+        }),
+        dryPreflightPlan: expect.objectContaining({
+          status: "planned_without_execution",
+          gateId: "readonly_http_controlled_get_preflight",
+          requestUrlHash: expect.stringMatching(/^mock-sha256-/),
+          requestUrlHashAlgorithm: "sha256",
+          endpointValueReturned: false,
+          endpointInputPersisted: false,
+          credentialReferenceId: "readonly_api_session",
+          credentialResolutionStage: "not_started",
+          credentialResolved: false,
+          networkRequestSent: false,
+          responseCaptured: false,
+          requestExecutionEnabled: false,
+          runtimeExecutionEnabled: false,
+          valueRetention: "hash_only",
+          plannedEvidenceKeys: [
+            "request_url_hash",
+            "request_method",
+            "response_status",
+            "response_sha256",
+            "executed_at",
+          ],
+        }),
+      }),
+    );
+    const controlledGetExecution = await invokeMockOnly<any>(
+      "capability_draft_execute_controlled_get",
+      {
+        request: {
+          workspaceRoot: "/tmp/lime-p6-mock",
+          approvalId:
+            positiveRegistration.registration.approvalRequests[0].approvalId,
+          sessionId: "session-readonly-http",
+          inputs: {
+            session_user_approval: true,
+            runtime_endpoint_input: "https://api.example.test/metrics",
+            credential_reference_confirmation: "readonly_api_session",
+            evidence_capture_consent: true,
+          },
+        },
+      },
+    );
+    expect(controlledGetExecution).toEqual(
+      expect.objectContaining({
+        status: "executed",
+        gateId: "readonly_http_controlled_get_execution",
+        method: "GET",
+        methodAllowed: true,
+        requestUrlHash: expect.stringMatching(/^mock-sha256-/),
+        responseStatus: 200,
+        responseSha256: expect.stringMatching(/^mock-sha256-/),
+        networkRequestSent: true,
+        responseCaptured: true,
+        endpointValueReturned: false,
+        endpointInputPersisted: false,
+        credentialReferenceId: "readonly_api_session",
+        credentialResolved: false,
+        tokenPersisted: false,
+        requestExecutionEnabled: true,
+        runtimeExecutionEnabled: false,
+        valueRetention: "ephemeral_response_preview",
+        sessionInputStatus: "validated_pending_runtime_gate",
+        evidence: expect.arrayContaining([
+          { key: "response_status", value: "200" },
+        ]),
+        evidenceArtifact: expect.objectContaining({
+          persisted: true,
+          containsEndpointValue: false,
+          containsTokenValue: false,
+          containsResponsePreview: false,
+        }),
+      }),
+    );
+
+    const missingSessionPolicyDraft = await invokeMockOnly<Record<string, unknown>>(
+      "capability_draft_create",
+      {
+        request: {
+          workspaceRoot: "/tmp/lime-p6-mock",
+          name: "缺授权策略只读 HTTP API 草案",
+          description: "缺少 session authorization policy。",
+          userGoal: "读取公开 API。",
+          sourceKind: "api",
+          permissionSummary: [
+            "Level 0 只读发现",
+            "允许只读 HTTP API GET 请求，不做外部写操作",
+          ],
+          generatedFiles: generatedFiles.filter(
+            (file) => file.relativePath !== "policy/readonly-http-session.json",
+          ),
+        },
+      },
+    );
+    const missingSessionPolicyVerification = await invokeMockOnly<any>(
+      "capability_draft_verify",
+      {
+        request: {
+          workspaceRoot: "/tmp/lime-p6-mock",
+          draftId: missingSessionPolicyDraft.draftId,
+        },
+      },
+    );
+    const sessionAuthorizationCheck =
+      missingSessionPolicyVerification.report.checks.find(
+        (check: { id?: string }) =>
+          check.id === "readonly_http_session_authorization",
+      );
+    expect(missingSessionPolicyVerification.draft.verificationStatus).toBe(
+      "verification_failed",
+    );
+    expect(sessionAuthorizationCheck).toEqual(
+      expect.objectContaining({
+        status: "failed",
+        message: expect.stringContaining("authorization"),
+      }),
+    );
+
+    const missingCredentialReferenceDraft = await invokeMockOnly<Record<string, unknown>>(
+      "capability_draft_create",
+      {
+        request: {
+          workspaceRoot: "/tmp/lime-p6-mock",
+          name: "缺凭证引用只读 HTTP API 草案",
+          description: "缺少 credential_reference。",
+          userGoal: "读取公开 API。",
+          sourceKind: "api",
+          permissionSummary: [
+            "Level 0 只读发现",
+            "允许只读 HTTP API GET 请求，不做外部写操作",
+          ],
+          generatedFiles: generatedFiles.map((file) =>
+            file.relativePath === "policy/readonly-http-session.json"
+              ? {
+                  ...file,
+                  content: JSON.stringify({
+                    mode: "session_required",
+                    access: "read-only",
+                    allowed_methods: ["GET"],
+                    credential_policy: "no_generated_credentials",
+                    credential_source: "user_session_config",
+                    evidence: [
+                      "request_url_hash",
+                      "response_status",
+                      "response_sha256",
+                    ],
+                  }),
+                }
+              : file,
+          ),
+        },
+      },
+    );
+    const missingCredentialReferenceVerification = await invokeMockOnly<any>(
+      "capability_draft_verify",
+      {
+        request: {
+          workspaceRoot: "/tmp/lime-p6-mock",
+          draftId: missingCredentialReferenceDraft.draftId,
+        },
+      },
+    );
+    const credentialReferenceCheck =
+      missingCredentialReferenceVerification.report.checks.find(
+        (check: { id?: string }) =>
+          check.id === "readonly_http_credential_reference",
+      );
+    expect(missingCredentialReferenceVerification.draft.verificationStatus).toBe(
+      "verification_failed",
+    );
+    expect(credentialReferenceCheck).toEqual(
+      expect.objectContaining({
+        status: "failed",
+        message: expect.stringContaining("credential_reference"),
+      }),
+    );
+
+    const missingPreflightDraft = await invokeMockOnly<Record<string, unknown>>(
+      "capability_draft_create",
+      {
+        request: {
+          workspaceRoot: "/tmp/lime-p6-mock",
+          name: "缺执行前检查只读 HTTP API 草案",
+          description: "缺少 execution_preflight。",
+          userGoal: "读取公开 API。",
+          sourceKind: "api",
+          permissionSummary: [
+            "Level 0 只读发现",
+            "允许只读 HTTP API GET 请求，不做外部写操作",
+          ],
+          generatedFiles: generatedFiles.map((file) =>
+            file.relativePath === "policy/readonly-http-session.json"
+              ? {
+                  ...file,
+                  content: JSON.stringify({
+                    mode: "session_required",
+                    access: "read-only",
+                    allowed_methods: ["GET"],
+                    credential_policy: "no_generated_credentials",
+                    credential_source: "user_session_config",
+                    credential_reference: {
+                      scope: "session",
+                      source: "user_session_config",
+                      required: false,
+                      reference_id: "readonly_api_session",
+                    },
+                    evidence: [
+                      "request_url_hash",
+                      "response_status",
+                      "response_sha256",
+                    ],
+                  }),
+                }
+              : file,
+          ),
+        },
+      },
+    );
+    const missingPreflightVerification = await invokeMockOnly<any>(
+      "capability_draft_verify",
+      {
+        request: {
+          workspaceRoot: "/tmp/lime-p6-mock",
+          draftId: missingPreflightDraft.draftId,
+        },
+      },
+    );
+    const executionPreflightCheck =
+      missingPreflightVerification.report.checks.find(
+        (check: { id?: string }) =>
+          check.id === "readonly_http_execution_preflight",
+      );
+    expect(missingPreflightVerification.draft.verificationStatus).toBe(
+      "verification_failed",
+    );
+    expect(executionPreflightCheck).toEqual(
+      expect.objectContaining({
+        status: "failed",
+        message: expect.stringContaining("execution_preflight"),
+      }),
+    );
+
+    const negativeDraft = await invokeMockOnly<Record<string, unknown>>(
+      "capability_draft_create",
+      {
+        request: {
+          workspaceRoot: "/tmp/lime-p6-mock",
+          name: "缺权限只读 HTTP API 草案",
+          description: "缺少网络只读权限声明。",
+          userGoal: "读取公开 API。",
+          sourceKind: "api",
+          permissionSummary: ["Level 0 只读发现"],
+          generatedFiles,
+        },
+      },
+    );
+    const negativeVerification = await invokeMockOnly<any>(
+      "capability_draft_verify",
+      {
+        request: {
+          workspaceRoot: "/tmp/lime-p6-mock",
+          draftId: negativeDraft.draftId,
+        },
+      },
+    );
+    const riskCheck = negativeVerification.report.checks.find(
+      (check: { id?: string }) => check.id === "static_risk_scan",
+    );
+    expect(negativeVerification.draft.verificationStatus).toBe(
+      "verification_failed",
+    );
+    expect(riskCheck).toEqual(
+      expect.objectContaining({
+        status: "failed",
+        message: expect.stringContaining("网络只读权限"),
+      }),
+    );
+
+    expect(mocks.invokeViaHttp).not.toHaveBeenCalled();
+  });
+
   it("知识库 mock 应保持导入后的列表与详情一致", async () => {
     vi.mocked(shouldPreferMockInBrowser).mockReturnValue(true);
 
@@ -203,6 +878,10 @@ describe("tauri-mock/core invoke", () => {
             name: "brand-product-demo",
             description: "品牌产品知识包",
             status: "needs-review",
+            type: "brand-product",
+            metadata: expect.objectContaining({
+              limeTemplate: "brand-product",
+            }),
           }),
         }),
       }),
@@ -267,6 +946,41 @@ describe("tauri-mock/core invoke", () => {
             trust: "user-confirmed",
           }),
         }),
+      }),
+    );
+
+    await expect(
+      invoke("knowledge_resolve_context", {
+        request: {
+          workingDir: "/tmp/lime-knowledge-e2e",
+          name: "brand-product-demo",
+          task: "写产品介绍",
+          writeRun: true,
+        },
+      }),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        packName: "brand-product-demo",
+        selectedFiles: ["compiled/brief.md"],
+        sourceAnchors: ["sources/source.md"],
+        warnings: [],
+        runId: expect.stringContaining("context-"),
+        runPath: expect.stringContaining("/runs/context-"),
+      }),
+    );
+
+    await expect(
+      invoke("knowledge_validate_context_run", {
+        request: {
+          workingDir: "/tmp/lime-knowledge-e2e",
+          name: "brand-product-demo",
+          runPath: "runs/context-mock.json",
+        },
+      }),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        valid: true,
+        runId: "context-mock",
       }),
     );
 

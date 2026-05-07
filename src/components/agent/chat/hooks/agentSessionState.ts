@@ -190,19 +190,20 @@ export function buildHydratedAgentSessionSnapshot(
     localSnapshotOverride?.threadTurns ?? currentThreadTurns;
   const effectiveCurrentThreadItems =
     localSnapshotOverride?.threadItems ?? currentThreadItems;
+  const shouldPreserveExistingTimeline =
+    effectiveCurrentSessionId === topicId ||
+    (effectiveCurrentSessionId === null &&
+      syncSessionId &&
+      (effectiveCurrentMessages.length > 0 ||
+        effectiveCurrentThreadTurns.length > 0 ||
+        effectiveCurrentThreadItems.length > 0));
   const hydratedMessages = hydrateSessionDetailMessages(detail, topicId, {
     compactCompletedHistory: shouldCompactCompletedSessionHistory(detail),
+    includeTimelineFallback:
+      !shouldPreserveExistingTimeline || effectiveCurrentMessages.length === 0,
   });
   const incomingTurns = detail.turns || [];
   const incomingItems = normalizeLegacyThreadItems(detail.items || []);
-  const hasRecoverableLocalSessionCache =
-    effectiveCurrentSessionId === null &&
-    syncSessionId &&
-    (effectiveCurrentMessages.length > 0 ||
-      effectiveCurrentThreadTurns.length > 0 ||
-      effectiveCurrentThreadItems.length > 0);
-  const shouldPreserveExistingTimeline =
-    effectiveCurrentSessionId === topicId || hasRecoverableLocalSessionCache;
   const shouldPreserveExecutionRuntimeOnMissingDetail =
     shouldPreserveExistingTimeline;
   const nextExecutionRuntime = createExecutionRuntimeFromSessionDetail(detail);
@@ -216,23 +217,27 @@ export function buildHydratedAgentSessionSnapshot(
       : null);
   const nextThreadTurns = shouldPreserveExistingTimeline
     ? mergeThreadTurns(effectiveCurrentThreadTurns, incomingTurns)
-    : incomingTurns;
+    : mergeThreadTurns(incomingTurns);
   const nextThreadItems = shouldPreserveExistingTimeline
     ? filterConversationThreadItems(
         mergeThreadItems(effectiveCurrentThreadItems, incomingItems),
       )
     : filterConversationThreadItems(incomingItems);
+  const nextMessages =
+    shouldPreserveExistingTimeline && hydratedMessages.length === 0
+      ? effectiveCurrentMessages
+      : shouldPreserveExistingTimeline
+        ? mergeHydratedMessagesWithLocalState(
+            effectiveCurrentMessages,
+            hydratedMessages,
+          )
+        : hydratedMessages;
 
   return {
     executionStrategy: normalizeExecutionStrategy(nextExecutionStrategy),
     snapshot: {
       sessionId: syncSessionId ? topicId : currentSessionId,
-      messages: shouldPreserveExistingTimeline
-        ? mergeHydratedMessagesWithLocalState(
-            effectiveCurrentMessages,
-            hydratedMessages,
-          )
-        : hydratedMessages,
+      messages: nextMessages,
       threadTurns: nextThreadTurns,
       threadItems: nextThreadItems,
       currentTurnId:

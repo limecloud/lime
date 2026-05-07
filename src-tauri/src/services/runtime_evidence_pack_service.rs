@@ -34,6 +34,7 @@ use lime_core::database::dao::agent_timeline::{AgentThreadItem, AgentThreadItemP
 use lime_infra::telemetry::RequestLog;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
+use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::fmt::Write as _;
 use std::fs;
@@ -41,11 +42,15 @@ use std::path::{Path, PathBuf};
 
 const SESSION_RELATIVE_ROOT: &str = ".lime/harness/sessions";
 const EVIDENCE_DIR_NAME: &str = "evidence";
+const CAPABILITY_DRAFTS_RELATIVE_ROOT: &str = ".lime/capability-drafts";
+const CONTROLLED_GET_EVIDENCE_DIR_NAME: &str = "controlled-get-evidence";
+const CONTROLLED_GET_EVIDENCE_ARTIFACT_KIND: &str = "capability_draft_controlled_get_evidence";
 const SUMMARY_FILE_NAME: &str = "summary.md";
 const RUNTIME_FILE_NAME: &str = "runtime.json";
 const TIMELINE_FILE_NAME: &str = "timeline.json";
 const ARTIFACTS_FILE_NAME: &str = "artifacts.json";
 const MAX_RECENT_ARTIFACTS: usize = 12;
+const MAX_CONTROLLED_GET_EVIDENCE_ARTIFACTS: usize = 8;
 const MAX_PREVIEW_CHARS: usize = 200;
 const MAX_BROWSER_EVIDENCE_ITEMS: usize = 6;
 const MAX_BROWSER_ACTION_OBSERVABILITY_ITEMS: usize = 5;
@@ -167,6 +172,13 @@ struct RuntimeModalityContractSnapshotSummary {
     snapshots: Vec<Value>,
 }
 
+#[derive(Debug, Clone, Default, PartialEq)]
+struct RuntimeCapabilityDraftControlledGetEvidenceSummary {
+    scanned_artifact_count: usize,
+    skipped_unsafe_artifact_count: usize,
+    artifacts: Vec<Value>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct RuntimeEvidenceSignalCoverageEntry {
     signal: &'static str,
@@ -222,6 +234,8 @@ pub fn export_runtime_evidence_pack_with_owner_runs(
     let file_checkpoints = list_file_checkpoints(detail);
     let latest_turn_summary = collect_latest_turn_summary(detail);
     let request_telemetry = collect_request_telemetry(detail, workspace_root.as_path());
+    let controlled_get_evidence =
+        collect_capability_draft_controlled_get_evidence(workspace_root.as_path(), session_id);
     let verification =
         collect_runtime_verification(detail, Some(workspace_root.as_path()), &recent_artifacts);
     let auxiliary_runtime =
@@ -265,6 +279,7 @@ pub fn export_runtime_evidence_pack_with_owner_runs(
                 &recent_artifact_paths,
                 latest_turn_summary.as_deref(),
                 &observability_summary,
+                &controlled_get_evidence,
                 owner_runs,
                 &known_gaps,
                 exported_at.as_str(),
@@ -285,6 +300,7 @@ pub fn export_runtime_evidence_pack_with_owner_runs(
                 &auxiliary_runtime,
                 &modality_runtime_contracts,
                 &observability_summary,
+                &controlled_get_evidence,
                 owner_runs,
                 &known_gaps,
                 exported_at.as_str(),
@@ -312,6 +328,7 @@ pub fn export_runtime_evidence_pack_with_owner_runs(
                 &auxiliary_runtime,
                 &modality_runtime_contracts,
                 &observability_summary,
+                &controlled_get_evidence,
                 &request_telemetry,
                 &verification,
                 owner_runs,
@@ -345,6 +362,7 @@ pub fn export_runtime_evidence_pack_with_owner_runs(
             owner_runs,
             detail,
             &recent_artifact_paths,
+            &controlled_get_evidence,
         ),
         artifacts,
     })
@@ -475,6 +493,7 @@ fn build_summary_markdown(
     recent_artifacts: &[String],
     latest_turn_summary: Option<&str>,
     observability_summary: &Value,
+    controlled_get_evidence: &RuntimeCapabilityDraftControlledGetEvidenceSummary,
     owner_runs: &[AgentRun],
     known_gaps: &[String],
     exported_at: &str,
@@ -512,6 +531,11 @@ fn build_summary_markdown(
     let _ = writeln!(markdown, "- Turns：{}", detail.turns.len());
     let _ = writeln!(markdown, "- Timeline items：{}", detail.items.len());
     let _ = writeln!(markdown, "- 最近产物：{}", recent_artifacts.len());
+    let _ = writeln!(
+        markdown,
+        "- 受控 GET evidence：{}",
+        controlled_get_evidence.artifacts.len()
+    );
     if let Some(blocking_summary) = thread_read
         .diagnostics
         .as_ref()
@@ -555,8 +579,12 @@ fn build_summary_markdown(
         format_observability_signal_list(observability_summary, "blocked")
     );
     let _ = writeln!(markdown);
-    let completion_audit_summary =
-        build_completion_audit_summary_json(owner_runs, detail, recent_artifacts);
+    let completion_audit_summary = build_completion_audit_summary_json(
+        owner_runs,
+        detail,
+        recent_artifacts,
+        controlled_get_evidence,
+    );
     let completion_decision = completion_audit_summary
         .get("decision")
         .and_then(Value::as_str)
@@ -605,6 +633,25 @@ fn build_summary_markdown(
             .and_then(Value::as_u64)
             .unwrap_or(0)
     );
+    let _ = writeln!(
+        markdown,
+        "- 受控 GET evidence：{} / {} executed",
+        completion_audit_summary
+            .get("controlledGetEvidenceExecutedCount")
+            .and_then(Value::as_u64)
+            .unwrap_or(0),
+        completion_audit_summary
+            .get("controlledGetEvidenceArtifactCount")
+            .and_then(Value::as_u64)
+            .unwrap_or(0)
+    );
+    if !controlled_get_evidence.artifacts.is_empty() {
+        let _ = writeln!(
+            markdown,
+            "- 受控 GET evidence artifact：{}",
+            controlled_get_evidence.artifacts.len()
+        );
+    }
     let _ = writeln!(markdown, "- 阻塞原因：{completion_blocking_reasons}");
     let _ = writeln!(
         markdown,
@@ -645,6 +692,7 @@ fn build_runtime_json(
     auxiliary_runtime: &RuntimeAuxiliaryRuntimeSnapshotSummary,
     modality_runtime_contracts: &RuntimeModalityContractSnapshotSummary,
     observability_summary: &Value,
+    controlled_get_evidence: &RuntimeCapabilityDraftControlledGetEvidenceSummary,
     owner_runs: &[AgentRun],
     known_gaps: &[String],
     exported_at: &str,
@@ -729,11 +777,15 @@ fn build_runtime_json(
             })
         }).collect::<Vec<_>>(),
         "observabilitySummary": observability_summary,
+        "capabilityDraftControlledGetEvidence": build_capability_draft_controlled_get_evidence_json(
+            controlled_get_evidence
+        ),
         "automationOwners": build_automation_owner_runs_json(owner_runs),
         "completionAuditSummary": build_completion_audit_summary_json(
             owner_runs,
             detail,
-            recent_artifacts
+            recent_artifacts,
+            controlled_get_evidence
         ),
         "auxiliaryRuntimeSnapshots": build_auxiliary_runtime_snapshots_json(auxiliary_runtime),
         "modalityRuntimeContracts": build_modality_runtime_contracts_json(modality_runtime_contracts),
@@ -826,6 +878,7 @@ fn build_artifacts_json(
     auxiliary_runtime: &RuntimeAuxiliaryRuntimeSnapshotSummary,
     modality_runtime_contracts: &RuntimeModalityContractSnapshotSummary,
     observability_summary: &Value,
+    controlled_get_evidence: &RuntimeCapabilityDraftControlledGetEvidenceSummary,
     request_telemetry: &RuntimeRequestTelemetrySummary,
     verification: &RuntimeEvidenceVerificationSummary,
     owner_runs: &[AgentRun],
@@ -842,6 +895,9 @@ fn build_artifacts_json(
         "auxiliaryRuntimeSnapshots": build_auxiliary_runtime_snapshots_json(auxiliary_runtime),
         "modalityRuntimeContracts": build_modality_runtime_contracts_json(modality_runtime_contracts),
         "observabilitySummary": observability_summary,
+        "capabilityDraftControlledGetEvidence": build_capability_draft_controlled_get_evidence_json(
+            controlled_get_evidence
+        ),
         "threadRuntimeFacts": build_thread_runtime_facts_json(thread_read),
         "requests": {
             "pending": thread_read.pending_requests.iter().map(|item| {
@@ -862,7 +918,8 @@ fn build_artifacts_json(
         "completionAuditSummary": build_completion_audit_summary_json(
             owner_runs,
             detail,
-            recent_artifacts
+            recent_artifacts,
+            controlled_get_evidence
         ),
         "knownGaps": known_gaps
     });
@@ -996,6 +1053,7 @@ fn build_completion_audit_summary_json(
     owner_runs: &[AgentRun],
     detail: &SessionDetail,
     recent_artifacts: &[String],
+    controlled_get_evidence: &RuntimeCapabilityDraftControlledGetEvidenceSummary,
 ) -> Value {
     let automation_owner_runs = owner_runs
         .iter()
@@ -1012,10 +1070,19 @@ fn build_completion_audit_summary_json(
         .filter(|item| is_successful_workspace_skill_tool_call(&item.payload))
         .count();
     let artifact_count = recent_artifacts.len();
+    let controlled_get_evidence_artifact_count = controlled_get_evidence.artifacts.len();
+    let controlled_get_evidence_executed_count = controlled_get_evidence
+        .artifacts
+        .iter()
+        .filter(|artifact| is_executed_controlled_get_evidence_summary_artifact(artifact))
+        .count();
+    let controlled_get_evidence_status_counts =
+        build_controlled_get_evidence_status_counts(controlled_get_evidence);
 
     let mut owner_audit_statuses = Vec::new();
     let mut has_blocked_owner_run = false;
     let mut has_missing_owner_inputs = false;
+    let mut has_controlled_get_evidence_requirement = false;
     for run in &automation_owner_runs {
         let metadata = parse_agent_run_metadata(run);
         let audit = build_automation_owner_completion_audit_json(run, metadata.as_ref());
@@ -1024,12 +1091,15 @@ fn build_completion_audit_summary_json(
             has_blocked_owner_run |= status == "blocked_by_run_status";
             has_missing_owner_inputs |= status == "missing_inputs";
         }
+        has_controlled_get_evidence_requirement |=
+            requires_controlled_get_evidence(metadata.as_ref());
     }
 
     let has_automation_owner = owner_run_count > 0;
     let has_successful_owner = successful_owner_run_count > 0;
     let has_workspace_skill_tool_call = workspace_skill_tool_call_count > 0;
     let has_artifact_or_timeline = artifact_count > 0 || has_workspace_skill_tool_call;
+    let has_controlled_get_evidence = controlled_get_evidence_executed_count > 0;
 
     let mut blocking_reasons = Vec::new();
     if !has_automation_owner {
@@ -1050,6 +1120,12 @@ fn build_completion_audit_summary_json(
     if has_successful_owner && !has_artifact_or_timeline {
         blocking_reasons.push("missing_artifact_or_timeline_evidence");
     }
+    if has_successful_owner
+        && has_controlled_get_evidence_requirement
+        && !has_controlled_get_evidence
+    {
+        blocking_reasons.push("missing_controlled_get_evidence");
+    }
 
     let decision = if !has_automation_owner {
         "needs_input"
@@ -1057,7 +1133,11 @@ fn build_completion_audit_summary_json(
         "blocked"
     } else if has_missing_owner_inputs {
         "needs_input"
-    } else if has_successful_owner && has_workspace_skill_tool_call && has_artifact_or_timeline {
+    } else if has_successful_owner
+        && has_workspace_skill_tool_call
+        && has_artifact_or_timeline
+        && (!has_controlled_get_evidence_requirement || has_controlled_get_evidence)
+    {
         "completed"
     } else {
         "verifying"
@@ -1078,6 +1158,21 @@ fn build_completion_audit_summary_json(
                 .to_string(),
         );
     }
+    if has_controlled_get_evidence {
+        notes.push(
+            "受控 GET evidence 已纳入 completion audit 可见输入，但不能单独触发 completed。"
+                .to_string(),
+        );
+    } else if has_controlled_get_evidence_requirement {
+        notes.push(
+            "当前目标要求受控 GET evidence；缺少 executed evidence 时不能 completed。".to_string(),
+        );
+    } else {
+        notes.push(
+            "当前没有可计入审计输入的 executed 受控 GET evidence；该信号暂不作为通用 completed 阻断项。"
+                .to_string(),
+        );
+    }
 
     json!({
         "source": "runtime_evidence_pack_completion_audit",
@@ -1086,15 +1181,104 @@ fn build_completion_audit_summary_json(
         "successfulOwnerRunCount": successful_owner_run_count,
         "workspaceSkillToolCallCount": workspace_skill_tool_call_count,
         "artifactCount": artifact_count,
+        "controlledGetEvidenceArtifactCount": controlled_get_evidence_artifact_count,
+        "controlledGetEvidenceExecutedCount": controlled_get_evidence_executed_count,
+        "controlledGetEvidenceScannedArtifactCount": controlled_get_evidence.scanned_artifact_count,
+        "controlledGetEvidenceSkippedUnsafeArtifactCount": controlled_get_evidence.skipped_unsafe_artifact_count,
+        "controlledGetEvidenceStatusCounts": controlled_get_evidence_status_counts,
+        "controlledGetEvidenceRequired": has_controlled_get_evidence_requirement,
         "ownerAuditStatuses": owner_audit_statuses,
         "requiredEvidence": {
             "automationOwner": has_successful_owner,
             "workspaceSkillToolCall": has_workspace_skill_tool_call,
             "artifactOrTimeline": has_artifact_or_timeline,
+            "controlledGetEvidence": has_controlled_get_evidence,
         },
         "blockingReasons": blocking_reasons,
         "notes": notes,
     })
+}
+
+fn requires_controlled_get_evidence(metadata: Option<&Value>) -> bool {
+    let Some(metadata) = metadata else {
+        return false;
+    };
+    let Some(managed_objective) = metadata
+        .pointer("/harness/managed_objective")
+        .filter(|value| value.is_object())
+    else {
+        return false;
+    };
+
+    let completion_policy = managed_objective
+        .get("completion_evidence_policy")
+        .filter(|value| value.is_object());
+    let explicit_policy_required = completion_policy
+        .and_then(|value| value.get("controlled_get_evidence_required"))
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let objective_required = managed_objective
+        .get("controlled_get_evidence_required")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let external_evidence_required = managed_objective
+        .get("required_external_evidence")
+        .and_then(Value::as_array)
+        .map(|values| {
+            values
+                .iter()
+                .filter_map(Value::as_str)
+                .any(is_controlled_get_evidence_requirement)
+        })
+        .unwrap_or(false);
+
+    explicit_policy_required || objective_required || external_evidence_required
+}
+
+fn is_controlled_get_evidence_requirement(value: &str) -> bool {
+    matches!(
+        value.trim(),
+        "controlled_get"
+            | "controlled_get_evidence"
+            | "capability_draft_controlled_get_evidence"
+            | "readonly_http_controlled_get_execution"
+    )
+}
+
+fn is_executed_controlled_get_evidence_summary_artifact(artifact: &Value) -> bool {
+    artifact.get("status").and_then(Value::as_str) == Some("executed")
+        && artifact
+            .get("networkRequestSent")
+            .and_then(Value::as_bool)
+            .unwrap_or(false)
+        && artifact
+            .get("responseCaptured")
+            .and_then(Value::as_bool)
+            .unwrap_or(false)
+        && artifact
+            .get("requestUrlHash")
+            .and_then(Value::as_str)
+            .filter(|value| !value.trim().is_empty())
+            .is_some()
+        && artifact
+            .get("responseSha256")
+            .and_then(Value::as_str)
+            .filter(|value| !value.trim().is_empty())
+            .is_some()
+}
+
+fn build_controlled_get_evidence_status_counts(
+    summary: &RuntimeCapabilityDraftControlledGetEvidenceSummary,
+) -> BTreeMap<String, usize> {
+    let mut status_counts = BTreeMap::<String, usize>::new();
+    for artifact in &summary.artifacts {
+        let status = artifact
+            .get("status")
+            .and_then(Value::as_str)
+            .unwrap_or("unknown");
+        *status_counts.entry(status.to_string()).or_insert(0) += 1;
+    }
+    status_counts
 }
 
 fn is_successful_workspace_skill_tool_call(payload: &AgentThreadItemPayload) -> bool {
@@ -2025,6 +2209,192 @@ fn collect_recent_artifacts(detail: &SessionDetail) -> Vec<RuntimeRecentArtifact
     }
 
     artifacts
+}
+
+fn collect_capability_draft_controlled_get_evidence(
+    workspace_root: &Path,
+    session_id: &str,
+) -> RuntimeCapabilityDraftControlledGetEvidenceSummary {
+    let evidence_dir = workspace_root
+        .join(CAPABILITY_DRAFTS_RELATIVE_ROOT.replace('/', std::path::MAIN_SEPARATOR_STR))
+        .join(CONTROLLED_GET_EVIDENCE_DIR_NAME);
+    let mut summary = RuntimeCapabilityDraftControlledGetEvidenceSummary::default();
+    let Ok(entries) = fs::read_dir(evidence_dir.as_path()) else {
+        return summary;
+    };
+
+    let mut artifacts = Vec::new();
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().and_then(|value| value.to_str()) != Some("json") {
+            continue;
+        }
+
+        let Ok(raw) = fs::read_to_string(path.as_path()) else {
+            continue;
+        };
+        let Ok(document) = serde_json::from_str::<Value>(raw.as_str()) else {
+            continue;
+        };
+        if document.get("artifactKind").and_then(Value::as_str)
+            != Some(CONTROLLED_GET_EVIDENCE_ARTIFACT_KIND)
+        {
+            continue;
+        }
+        if document.get("sessionId").and_then(Value::as_str) != Some(session_id) {
+            continue;
+        }
+
+        summary.scanned_artifact_count += 1;
+        if !is_safe_controlled_get_evidence_artifact(&document) {
+            summary.skipped_unsafe_artifact_count += 1;
+            continue;
+        }
+
+        let file_name = path
+            .file_name()
+            .and_then(|value| value.to_str())
+            .unwrap_or("unknown.json");
+        let relative_path = format!(
+            "{CAPABILITY_DRAFTS_RELATIVE_ROOT}/{CONTROLLED_GET_EVIDENCE_DIR_NAME}/{file_name}"
+        );
+        let sort_key = document
+            .get("executedAt")
+            .and_then(Value::as_str)
+            .unwrap_or(file_name)
+            .to_string();
+        artifacts.push((
+            sort_key,
+            build_controlled_get_evidence_artifact_summary(
+                &document,
+                relative_path,
+                raw.as_bytes(),
+            ),
+        ));
+    }
+
+    artifacts.sort_by(|left, right| right.0.cmp(&left.0));
+    summary.artifacts = artifacts
+        .into_iter()
+        .map(|(_, artifact)| artifact)
+        .take(MAX_CONTROLLED_GET_EVIDENCE_ARTIFACTS)
+        .collect();
+    summary
+}
+
+fn is_safe_controlled_get_evidence_artifact(document: &Value) -> bool {
+    document.get("valueRetention").and_then(Value::as_str) == Some("hash_and_metadata_only")
+        && document
+            .get("containsEndpointValue")
+            .and_then(Value::as_bool)
+            == Some(false)
+        && document.get("containsTokenValue").and_then(Value::as_bool) == Some(false)
+        && document
+            .get("containsResponsePreview")
+            .and_then(Value::as_bool)
+            == Some(false)
+        && document
+            .get("endpointValueReturned")
+            .and_then(Value::as_bool)
+            == Some(false)
+        && document
+            .get("endpointInputPersisted")
+            .and_then(Value::as_bool)
+            == Some(false)
+        && document.get("tokenPersisted").and_then(Value::as_bool) == Some(false)
+}
+
+fn build_controlled_get_evidence_artifact_summary(
+    document: &Value,
+    relative_path: String,
+    raw: &[u8],
+) -> Value {
+    json!({
+        "artifactId": document.get("artifactId").and_then(Value::as_str),
+        "artifactKind": CONTROLLED_GET_EVIDENCE_ARTIFACT_KIND,
+        "relativePath": relative_path,
+        "contentSha256": sha256_bytes_hex(raw),
+        "approvalId": document.get("approvalId").and_then(Value::as_str),
+        "sessionId": document.get("sessionId").and_then(Value::as_str),
+        "status": document.get("status").and_then(Value::as_str),
+        "scope": document.get("scope").and_then(Value::as_str),
+        "gateId": document.get("gateId").and_then(Value::as_str),
+        "method": document.get("method").and_then(Value::as_str),
+        "requestUrlHash": document.get("requestUrlHash").and_then(Value::as_str),
+        "requestUrlHashAlgorithm": document
+            .get("requestUrlHashAlgorithm")
+            .and_then(Value::as_str),
+        "responseStatus": document.get("responseStatus").cloned().unwrap_or(Value::Null),
+        "responseSha256": document.get("responseSha256").and_then(Value::as_str),
+        "responseBytes": document.get("responseBytes").cloned().unwrap_or(Value::Null),
+        "responsePreviewTruncated": document
+            .get("responsePreviewTruncated")
+            .and_then(Value::as_bool)
+            .unwrap_or(false),
+        "executedAt": document.get("executedAt").and_then(Value::as_str),
+        "networkRequestSent": document
+            .get("networkRequestSent")
+            .and_then(Value::as_bool)
+            .unwrap_or(false),
+        "responseCaptured": document
+            .get("responseCaptured")
+            .and_then(Value::as_bool)
+            .unwrap_or(false),
+        "credentialReferenceId": document
+            .get("credentialReferenceId")
+            .and_then(Value::as_str),
+        "valueRetention": "hash_and_metadata_only",
+        "safety": {
+            "containsEndpointValue": false,
+            "containsTokenValue": false,
+            "containsResponsePreview": false,
+            "endpointValueReturned": false,
+            "endpointInputPersisted": false,
+            "tokenPersisted": false,
+            "runtimeExecutionEnabled": false
+        },
+        "evidenceKeys": collect_controlled_get_evidence_keys(document),
+    })
+}
+
+fn collect_controlled_get_evidence_keys(document: &Value) -> Vec<String> {
+    document
+        .get("evidence")
+        .and_then(Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|item| item.get("key").and_then(Value::as_str))
+                .map(ToString::to_string)
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn build_capability_draft_controlled_get_evidence_json(
+    summary: &RuntimeCapabilityDraftControlledGetEvidenceSummary,
+) -> Value {
+    json!({
+        "source": CONTROLLED_GET_EVIDENCE_ARTIFACT_KIND,
+        "artifactRoot": format!(
+            "{CAPABILITY_DRAFTS_RELATIVE_ROOT}/{CONTROLLED_GET_EVIDENCE_DIR_NAME}"
+        ),
+        "valueRetention": "hash_and_metadata_only",
+        "scannedArtifactCount": summary.scanned_artifact_count,
+        "artifactCount": summary.artifacts.len(),
+        "skippedUnsafeArtifactCount": summary.skipped_unsafe_artifact_count,
+        "statusCounts": build_controlled_get_evidence_status_counts(summary),
+        "artifacts": summary.artifacts.clone(),
+        "notes": [
+            "该摘要只消费当前 session 的受控 GET evidence artifact。",
+            "摘要只保留 hash / status / response metadata / evidence keys，不复制 endpoint、token 或 response preview。"
+        ]
+    })
+}
+
+fn sha256_bytes_hex(bytes: &[u8]) -> String {
+    let digest = Sha256::digest(bytes);
+    format!("{digest:x}")
 }
 
 fn collect_request_telemetry(
@@ -5980,13 +6350,13 @@ mod tests {
             "job_name": "只读 CLI 报告｜Managed Agent 草案",
             "harness": {
                 "agent_envelope": {
-                    "source": "creaoai_p4_agent_envelope",
+                    "source": "skill_forge_p4_agent_envelope",
                     "skill": "project:capability-report",
                     "source_draft_id": "capdraft-1",
                     "source_verification_report_id": "capver-1"
                 },
                 "managed_objective": {
-                    "source": "creaoai_p4_managed_execution",
+                    "source": "skill_forge_p4_managed_execution",
                     "owner_type": "automation_job",
                     "completion_audit": "artifact_or_evidence_required"
                 },
@@ -6005,6 +6375,71 @@ mod tests {
                 }
             }
         })
+    }
+
+    fn build_completion_audit_owner_metadata_requiring_controlled_get() -> Value {
+        let mut metadata = build_completion_audit_owner_metadata();
+        if let Some(managed_objective) = metadata.pointer_mut("/harness/managed_objective") {
+            managed_objective["completion_evidence_policy"] = json!({
+                "controlled_get_evidence_required": true,
+                "controlled_get_evidence_source": "capability_draft_controlled_get_evidence"
+            });
+            managed_objective["required_external_evidence"] = json!(["controlled_get_evidence"]);
+        }
+        metadata
+    }
+
+    fn write_controlled_get_evidence_fixture(workspace_root: &Path, session_id: &str) {
+        let evidence_dir = workspace_root
+            .join(".lime")
+            .join("capability-drafts")
+            .join("controlled-get-evidence");
+        fs::create_dir_all(evidence_dir.as_path()).expect("create controlled get evidence dir");
+        let artifact_id = format!("controlled-get-fixture-{session_id}");
+        let artifact = json!({
+            "artifactId": artifact_id,
+            "artifactKind": "capability_draft_controlled_get_evidence",
+            "schemaVersion": 1,
+            "approvalId": "approval-readonly-api",
+            "sessionId": session_id,
+            "status": "executed",
+            "scope": "session",
+            "gateId": "readonly_http_controlled_get_execution",
+            "method": "GET",
+            "methodAllowed": true,
+            "requestUrlHash": "request-url-hash-fixture",
+            "requestUrlHashAlgorithm": "sha256",
+            "responseStatus": 200,
+            "responseSha256": "response-sha256-fixture",
+            "responseBytes": 17,
+            "responsePreviewTruncated": false,
+            "executedAt": "2026-05-07T10:00:00Z",
+            "networkRequestSent": true,
+            "responseCaptured": true,
+            "endpointValueReturned": false,
+            "endpointInputPersisted": false,
+            "credentialReferenceId": "readonly_api_session",
+            "credentialResolved": false,
+            "tokenPersisted": false,
+            "runtimeExecutionEnabled": false,
+            "valueRetention": "hash_and_metadata_only",
+            "containsEndpointValue": false,
+            "containsTokenValue": false,
+            "containsResponsePreview": false,
+            "endpointValue": "https://api.example.com/secret",
+            "tokenValue": "secret-token",
+            "responsePreview": "{\"ok\":true}",
+            "evidence": [
+                {"key": "request_url_hash", "value": "request-url-hash-fixture"},
+                {"key": "response_sha256", "value": "response-sha256-fixture"},
+                {"key": "response_preview_sha256", "value": "preview-sha256-fixture"}
+            ]
+        });
+        fs::write(
+            evidence_dir.join(format!("controlled-get-fixture-{session_id}.json")),
+            serde_json::to_string_pretty(&artifact).expect("serialize controlled get artifact"),
+        )
+        .expect("write controlled get artifact");
     }
 
     #[test]
@@ -6195,6 +6630,10 @@ mod tests {
             runtime.pointer("/completionAuditSummary/requiredEvidence/artifactOrTimeline"),
             Some(&json!(true))
         );
+        assert_eq!(
+            runtime.pointer("/completionAuditSummary/requiredEvidence/controlledGetEvidence"),
+            Some(&json!(false))
+        );
 
         let artifacts_path = temp_dir
             .path()
@@ -6217,11 +6656,311 @@ mod tests {
     }
 
     #[test]
+    fn evidence_pack_should_project_controlled_get_evidence_without_sensitive_values() {
+        let temp_dir = TempDir::new().expect("temp dir");
+        let detail = build_detail();
+        let mut thread_read = build_thread_read();
+        if let Some(permission_state) = thread_read.permission_state.as_mut() {
+            permission_state.confirmation_status = Some("resolved".to_string());
+            permission_state.confirmation_request_id = Some("approval-resolved".to_string());
+        }
+        write_controlled_get_evidence_fixture(temp_dir.path(), "session-1");
+        write_controlled_get_evidence_fixture(temp_dir.path(), "other-session");
+
+        export_runtime_evidence_pack(&detail, &thread_read, temp_dir.path()).expect("export");
+
+        let runtime_path = temp_dir
+            .path()
+            .join(".lime/harness/sessions/session-1/evidence/runtime.json");
+        let runtime_raw = fs::read_to_string(runtime_path).expect("runtime");
+        assert!(!runtime_raw.contains("https://api.example.com/secret"));
+        assert!(!runtime_raw.contains("secret-token"));
+        assert!(!runtime_raw.contains("{\\\"ok\\\":true}"));
+        let runtime = serde_json::from_str::<Value>(&runtime_raw).expect("runtime json");
+        assert_eq!(
+            runtime.pointer("/capabilityDraftControlledGetEvidence/artifactCount"),
+            Some(&json!(1))
+        );
+        assert_eq!(
+            runtime.pointer("/capabilityDraftControlledGetEvidence/artifacts/0/requestUrlHash"),
+            Some(&json!("request-url-hash-fixture"))
+        );
+        assert_eq!(
+            runtime.pointer(
+                "/capabilityDraftControlledGetEvidence/artifacts/0/safety/containsEndpointValue"
+            ),
+            Some(&json!(false))
+        );
+        assert_eq!(
+            runtime.pointer("/completionAuditSummary/requiredEvidence/controlledGetEvidence"),
+            Some(&json!(true))
+        );
+        assert_eq!(
+            runtime.pointer("/completionAuditSummary/controlledGetEvidenceExecutedCount"),
+            Some(&json!(1))
+        );
+
+        let artifacts_path = temp_dir
+            .path()
+            .join(".lime/harness/sessions/session-1/evidence/artifacts.json");
+        let artifacts = fs::read_to_string(artifacts_path).expect("artifacts");
+        assert!(artifacts.contains("\"capabilityDraftControlledGetEvidence\""));
+        assert!(artifacts.contains("\"response_preview_sha256\""));
+        assert!(!artifacts.contains("https://api.example.com/secret"));
+        assert!(!artifacts.contains("secret-token"));
+        assert!(!artifacts.contains("{\\\"ok\\\":true}"));
+
+        let summary_path = temp_dir
+            .path()
+            .join(".lime/harness/sessions/session-1/evidence/summary.md");
+        let summary = fs::read_to_string(summary_path).expect("summary");
+        assert!(summary.contains("- 受控 GET evidence：1"));
+        assert!(summary.contains("- 受控 GET evidence artifact：1"));
+    }
+
+    #[test]
+    fn evidence_pack_should_complete_readonly_http_policy_only_with_controlled_get_evidence() {
+        let mut detail = build_detail();
+        add_successful_workspace_skill_tool_call(&mut detail);
+        let thread_read = build_thread_read();
+        let owner_runs = vec![build_completion_audit_owner_run(
+            AgentRunStatus::Success,
+            Some(build_completion_audit_owner_metadata_requiring_controlled_get()),
+        )];
+
+        let missing_evidence_dir = TempDir::new().expect("missing evidence temp dir");
+        let missing_result = export_runtime_evidence_pack_with_owner_runs(
+            &detail,
+            &thread_read,
+            missing_evidence_dir.path(),
+            &owner_runs,
+        )
+        .expect("export without controlled get evidence");
+        assert_eq!(
+            missing_result.completion_audit_summary.pointer("/decision"),
+            Some(&json!("verifying"))
+        );
+        assert_eq!(
+            missing_result
+                .completion_audit_summary
+                .pointer("/controlledGetEvidenceRequired"),
+            Some(&json!(true))
+        );
+        assert!(missing_result
+            .completion_audit_summary
+            .pointer("/blockingReasons")
+            .and_then(Value::as_array)
+            .expect("blocking reasons")
+            .contains(&json!("missing_controlled_get_evidence")));
+
+        let completed_dir = TempDir::new().expect("completed evidence temp dir");
+        write_controlled_get_evidence_fixture(completed_dir.path(), "session-1");
+        let completed_result = export_runtime_evidence_pack_with_owner_runs(
+            &detail,
+            &thread_read,
+            completed_dir.path(),
+            &owner_runs,
+        )
+        .expect("export with controlled get evidence");
+        assert_eq!(
+            completed_result
+                .completion_audit_summary
+                .pointer("/decision"),
+            Some(&json!("completed"))
+        );
+        assert_eq!(
+            completed_result
+                .completion_audit_summary
+                .pointer("/requiredEvidence/controlledGetEvidence"),
+            Some(&json!(true))
+        );
+
+        let runtime_path = completed_dir
+            .path()
+            .join(".lime/harness/sessions/session-1/evidence/runtime.json");
+        let runtime_raw = fs::read_to_string(runtime_path).expect("runtime");
+        assert!(!runtime_raw.contains("https://api.example.com/secret"));
+        assert!(!runtime_raw.contains("secret-token"));
+        assert!(!runtime_raw.contains("{\\\"ok\\\":true}"));
+        let runtime = serde_json::from_str::<Value>(&runtime_raw).expect("runtime json");
+        assert_eq!(
+            runtime.pointer("/completionAuditSummary/decision"),
+            Some(&json!("completed"))
+        );
+        assert_eq!(
+            runtime.pointer("/completionAuditSummary/controlledGetEvidenceRequired"),
+            Some(&json!(true))
+        );
+        assert_eq!(
+            runtime.pointer("/completionAuditSummary/controlledGetEvidenceExecutedCount"),
+            Some(&json!(1))
+        );
+        assert_eq!(
+            runtime.pointer("/capabilityDraftControlledGetEvidence/artifactCount"),
+            Some(&json!(1))
+        );
+
+        let summary_path = completed_dir
+            .path()
+            .join(".lime/harness/sessions/session-1/evidence/summary.md");
+        let summary = fs::read_to_string(summary_path).expect("summary");
+        assert!(summary.contains("- 判定：`completed`"));
+        assert!(summary.contains("- 受控 GET evidence：1 / 1 executed"));
+    }
+
+    #[test]
+    fn skill_forge_p5_readonly_report_artifact_should_complete_agent_envelope_audit() {
+        let temp_dir = TempDir::new().expect("temp dir");
+        let mut detail = build_detail();
+        detail.name = "P5 只读 CLI 每日报告".to_string();
+        if let AgentThreadItemPayload::FileArtifact { path, metadata, .. } =
+            &mut detail.items[1].payload
+        {
+            *path = ".lime/artifacts/thread-1/daily-readonly-cli-report.md".to_string();
+            *metadata = Some(json!({
+                "source": "skill_forge_p5_prompt_to_artifact_smoke",
+                "artifactKind": "markdown_report",
+                "permissionLevel": "read_only",
+                "title": "只读 CLI 每日报告"
+            }));
+        }
+        detail.items.push(AgentThreadItem {
+            id: "workspace-skill-tool-p5".to_string(),
+            thread_id: "thread-1".to_string(),
+            turn_id: "turn-1".to_string(),
+            sequence: 4,
+            status: AgentThreadItemStatus::Completed,
+            started_at: "2026-05-06T10:00:40Z".to_string(),
+            completed_at: Some("2026-05-06T10:00:41Z".to_string()),
+            updated_at: "2026-05-06T10:00:41Z".to_string(),
+            payload: AgentThreadItemPayload::ToolCall {
+                tool_name: "project:capability-report".to_string(),
+                arguments: Some(json!({
+                    "topic": "AI Agent adoption",
+                    "fixture_path": "tests/fixture.json"
+                })),
+                output: Some("已生成 Markdown 趋势摘要。".to_string()),
+                success: Some(true),
+                error: None,
+                metadata: Some(json!({
+                    "workspace_skill_source": {
+                        "workspaceRoot": "/tmp/work",
+                        "authorizationScope": "session",
+                        "directory": "capability-report",
+                        "registeredSkillDirectory": "/tmp/work/.agents/skills/capability-report",
+                        "skillName": "project:capability-report",
+                        "sourceDraftId": "capdraft-1",
+                        "sourceVerificationReportId": "capver-1",
+                        "permissionSummary": ["Level 0 只读发现"]
+                    },
+                    "workspace_skill_runtime_enable": {
+                        "source": "agent_envelope_scheduled_run",
+                        "approval": "manual",
+                        "authorization_scope": "session",
+                        "workspace_root": "/tmp/work",
+                        "directory": "capability-report",
+                        "skill": "project:capability-report",
+                        "registered_skill_directory": "/tmp/work/.agents/skills/capability-report",
+                        "source_draft_id": "capdraft-1",
+                        "source_verification_report_id": "capver-1",
+                        "permission_summary": ["Level 0 只读发现"]
+                    }
+                })),
+            },
+        });
+        let owner_runs = vec![build_completion_audit_owner_run(
+            AgentRunStatus::Success,
+            Some(build_completion_audit_owner_metadata()),
+        )];
+
+        let export_result = export_runtime_evidence_pack_with_owner_runs(
+            &detail,
+            &build_thread_read(),
+            temp_dir.path(),
+            &owner_runs,
+        )
+        .expect("export");
+
+        assert_eq!(
+            export_result.completion_audit_summary.pointer("/decision"),
+            Some(&json!("completed"))
+        );
+        assert_eq!(
+            export_result
+                .completion_audit_summary
+                .pointer("/requiredEvidence/automationOwner"),
+            Some(&json!(true))
+        );
+        assert_eq!(
+            export_result
+                .completion_audit_summary
+                .pointer("/requiredEvidence/workspaceSkillToolCall"),
+            Some(&json!(true))
+        );
+        assert_eq!(
+            export_result
+                .completion_audit_summary
+                .pointer("/requiredEvidence/artifactOrTimeline"),
+            Some(&json!(true))
+        );
+
+        let artifacts_path = temp_dir
+            .path()
+            .join(".lime/harness/sessions/session-1/evidence/artifacts.json");
+        let artifacts = fs::read_to_string(artifacts_path).expect("artifacts");
+        let artifacts = serde_json::from_str::<Value>(&artifacts).expect("artifacts json");
+        assert_eq!(
+            artifacts.pointer("/recentArtifacts/0"),
+            Some(&json!(
+                ".lime/artifacts/thread-1/daily-readonly-cli-report.md"
+            ))
+        );
+
+        let runtime_path = temp_dir
+            .path()
+            .join(".lime/harness/sessions/session-1/evidence/runtime.json");
+        let runtime = fs::read_to_string(runtime_path).expect("runtime");
+        let runtime = serde_json::from_str::<Value>(&runtime).expect("runtime json");
+        assert_eq!(
+            runtime.pointer("/automationOwners/runs/0/completionAudit/status"),
+            Some(&json!("audit_input_ready"))
+        );
+        assert_eq!(
+            runtime.pointer("/completionAuditSummary/decision"),
+            Some(&json!("completed"))
+        );
+
+        let timeline_path = temp_dir
+            .path()
+            .join(".lime/harness/sessions/session-1/evidence/timeline.json");
+        let timeline = fs::read_to_string(timeline_path).expect("timeline");
+        let timeline = serde_json::from_str::<Value>(&timeline).expect("timeline json");
+        let tool_item = timeline["items"]
+            .as_array()
+            .and_then(|items| {
+                items.iter().find(|item| {
+                    item.get("id").and_then(Value::as_str) == Some("workspace-skill-tool-p5")
+                })
+            })
+            .expect("workspace skill timeline item");
+        assert_eq!(
+            tool_item.pointer("/workspaceSkillToolCall/workspaceSkillSource/sourceDraftId"),
+            Some(&json!("capdraft-1"))
+        );
+    }
+
+    #[test]
     fn completion_audit_summary_should_classify_negative_paths() {
         let detail = build_detail();
         let recent_artifacts = vec![".lime/artifacts/thread-1/report.md".to_string()];
+        let controlled_get_evidence = RuntimeCapabilityDraftControlledGetEvidenceSummary::default();
 
-        let missing_owner = build_completion_audit_summary_json(&[], &detail, &recent_artifacts);
+        let missing_owner = build_completion_audit_summary_json(
+            &[],
+            &detail,
+            &recent_artifacts,
+            &controlled_get_evidence,
+        );
         assert_eq!(
             missing_owner.pointer("/decision"),
             Some(&json!("needs_input"))
@@ -6238,6 +6977,7 @@ mod tests {
             )],
             &detail,
             &recent_artifacts,
+            &controlled_get_evidence,
         );
         assert_eq!(blocked_run.pointer("/decision"), Some(&json!("blocked")));
         assert!(blocked_run["blockingReasons"]
@@ -6252,6 +6992,7 @@ mod tests {
             )],
             &detail,
             &recent_artifacts,
+            &controlled_get_evidence,
         );
         assert_eq!(
             missing_inputs.pointer("/decision"),
@@ -6269,6 +7010,7 @@ mod tests {
             )],
             &detail,
             &recent_artifacts,
+            &controlled_get_evidence,
         );
         assert_eq!(
             missing_tool_evidence.pointer("/decision"),
@@ -6282,6 +7024,170 @@ mod tests {
             .as_array()
             .expect("blocking reasons")
             .contains(&json!("missing_workspace_skill_tool_call_evidence")));
+    }
+
+    fn build_executed_controlled_get_evidence_summary_fixture(
+    ) -> RuntimeCapabilityDraftControlledGetEvidenceSummary {
+        RuntimeCapabilityDraftControlledGetEvidenceSummary {
+            scanned_artifact_count: 1,
+            skipped_unsafe_artifact_count: 0,
+            artifacts: vec![json!({
+                "artifactId": "controlled-get-fixture-session-1",
+                "artifactKind": "capability_draft_controlled_get_evidence",
+                "relativePath": ".lime/capability-drafts/controlled-get-evidence/controlled-get-fixture-session-1.json",
+                "contentSha256": "content-sha256-fixture",
+                "status": "executed",
+                "requestUrlHash": "request-url-hash-fixture",
+                "responseSha256": "response-sha256-fixture",
+                "networkRequestSent": true,
+                "responseCaptured": true,
+                "endpointValue": "https://api.example.com/secret",
+                "tokenValue": "secret-token",
+                "responsePreview": "{\"ok\":true}"
+            })],
+        }
+    }
+
+    fn add_successful_workspace_skill_tool_call(detail: &mut SessionDetail) {
+        detail.items.push(AgentThreadItem {
+            id: "workspace-skill-tool-controlled-get".to_string(),
+            thread_id: "thread-1".to_string(),
+            turn_id: "turn-1".to_string(),
+            sequence: 4,
+            status: AgentThreadItemStatus::Completed,
+            started_at: "2026-05-06T10:00:40Z".to_string(),
+            completed_at: Some("2026-05-06T10:00:41Z".to_string()),
+            updated_at: "2026-05-06T10:00:41Z".to_string(),
+            payload: AgentThreadItemPayload::ToolCall {
+                tool_name: "project:capability-report".to_string(),
+                arguments: Some(json!({
+                    "input": "readonly api report"
+                })),
+                output: Some("ok".to_string()),
+                success: Some(true),
+                error: None,
+                metadata: Some(json!({
+                    "workspace_skill_source": {
+                        "sourceDraftId": "capdraft-1",
+                        "sourceVerificationReportId": "capver-1"
+                    },
+                    "workspace_skill_runtime_enable": {
+                        "source": "agent_envelope_scheduled_run",
+                        "skill": "project:capability-report"
+                    }
+                })),
+            },
+        });
+    }
+
+    #[test]
+    fn completion_audit_should_track_controlled_get_evidence_without_completing_alone() {
+        let mut detail = build_detail();
+        detail.items.retain(|item| {
+            !matches!(item.payload, AgentThreadItemPayload::FileArtifact { .. })
+                && !matches!(item.payload, AgentThreadItemPayload::ToolCall { .. })
+        });
+        let recent_artifacts = Vec::<String>::new();
+        let controlled_get_evidence = build_executed_controlled_get_evidence_summary_fixture();
+
+        let summary = build_completion_audit_summary_json(
+            &[build_completion_audit_owner_run(
+                AgentRunStatus::Success,
+                Some(build_completion_audit_owner_metadata()),
+            )],
+            &detail,
+            &recent_artifacts,
+            &controlled_get_evidence,
+        );
+
+        assert_eq!(summary.pointer("/decision"), Some(&json!("verifying")));
+        assert_eq!(
+            summary.pointer("/controlledGetEvidenceArtifactCount"),
+            Some(&json!(1))
+        );
+        assert_eq!(
+            summary.pointer("/controlledGetEvidenceExecutedCount"),
+            Some(&json!(1))
+        );
+        assert_eq!(
+            summary.pointer("/controlledGetEvidenceStatusCounts/executed"),
+            Some(&json!(1))
+        );
+        assert_eq!(
+            summary.pointer("/requiredEvidence/controlledGetEvidence"),
+            Some(&json!(true))
+        );
+        assert_eq!(
+            summary.pointer("/requiredEvidence/workspaceSkillToolCall"),
+            Some(&json!(false))
+        );
+        assert!(summary["blockingReasons"]
+            .as_array()
+            .expect("blocking reasons")
+            .contains(&json!("missing_workspace_skill_tool_call_evidence")));
+
+        let serialized =
+            serde_json::to_string(&summary).expect("serialize completion audit summary");
+        assert!(!serialized.contains("https://api.example.com/secret"));
+        assert!(!serialized.contains("secret-token"));
+        assert!(!serialized.contains("{\"ok\":true}"));
+    }
+
+    #[test]
+    fn completion_audit_should_require_controlled_get_evidence_when_owner_declares_policy() {
+        let mut detail = build_detail();
+        add_successful_workspace_skill_tool_call(&mut detail);
+        let recent_artifacts = vec![".lime/artifacts/thread-1/report.md".to_string()];
+
+        let missing_controlled_get = build_completion_audit_summary_json(
+            &[build_completion_audit_owner_run(
+                AgentRunStatus::Success,
+                Some(build_completion_audit_owner_metadata_requiring_controlled_get()),
+            )],
+            &detail,
+            &recent_artifacts,
+            &RuntimeCapabilityDraftControlledGetEvidenceSummary::default(),
+        );
+
+        assert_eq!(
+            missing_controlled_get.pointer("/decision"),
+            Some(&json!("verifying"))
+        );
+        assert_eq!(
+            missing_controlled_get.pointer("/controlledGetEvidenceRequired"),
+            Some(&json!(true))
+        );
+        assert_eq!(
+            missing_controlled_get.pointer("/requiredEvidence/controlledGetEvidence"),
+            Some(&json!(false))
+        );
+        assert!(missing_controlled_get["blockingReasons"]
+            .as_array()
+            .expect("blocking reasons")
+            .contains(&json!("missing_controlled_get_evidence")));
+
+        let with_controlled_get = build_completion_audit_summary_json(
+            &[build_completion_audit_owner_run(
+                AgentRunStatus::Success,
+                Some(build_completion_audit_owner_metadata_requiring_controlled_get()),
+            )],
+            &detail,
+            &recent_artifacts,
+            &build_executed_controlled_get_evidence_summary_fixture(),
+        );
+
+        assert_eq!(
+            with_controlled_get.pointer("/decision"),
+            Some(&json!("completed"))
+        );
+        assert_eq!(
+            with_controlled_get.pointer("/controlledGetEvidenceRequired"),
+            Some(&json!(true))
+        );
+        assert_eq!(
+            with_controlled_get.pointer("/requiredEvidence/controlledGetEvidence"),
+            Some(&json!(true))
+        );
     }
 
     fn write_request_telemetry_fixture(root: &Path) {

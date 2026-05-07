@@ -35,10 +35,17 @@ export function SceneAppProjectPackRuntimePanel({
   usesFallbackRun = false,
   onDeliveryArtifactAction,
 }: SceneAppProjectPackRuntimePanelProps) {
+  const viewerLabel =
+    runDetailView?.deliveryViewerLabel ??
+    runDetailView?.packViewerLabel ??
+    "沿当前结果文件打开";
+  const finishedLabel =
+    runDetailView?.finishedAtLabel || runDetailView?.startedAtLabel || null;
+
   return (
     <section
       className={cn(
-        "rounded-[24px] border border-slate-200 bg-white p-4",
+        "rounded-[20px] border border-slate-200 bg-white p-3.5",
         className,
       )}
       data-testid={`${testIdPrefix}-runtime-pack`}
@@ -46,7 +53,7 @@ export function SceneAppProjectPackRuntimePanel({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="text-sm font-medium text-slate-900">{title}</div>
-          <p className="mt-1 text-sm leading-6 text-slate-500">{description}</p>
+          <p className="mt-1 text-xs leading-5 text-slate-500">{description}</p>
         </div>
         {runDetailView ? (
           <div className="flex flex-wrap items-center gap-2">
@@ -86,28 +93,24 @@ export function SceneAppProjectPackRuntimePanel({
             </div>
           ) : null}
 
-          <div className="mt-4 grid gap-2 text-sm text-slate-700 md:grid-cols-2">
-            <div>
-              <span className="font-medium text-slate-900">结果来源：</span>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-700">
               {runDetailView.sourceLabel}
-            </div>
-            <div>
-              <span className="font-medium text-slate-900">完成情况：</span>
+            </span>
+            <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-700">
               {runDetailView.deliveryCompletionLabel}
-            </div>
-            <div>
-              <span className="font-medium text-slate-900">打开方式：</span>
-              {runDetailView.deliveryViewerLabel ??
-                runDetailView.packViewerLabel ??
-                "沿当前结果文件打开"}
-            </div>
-            <div>
-              <span className="font-medium text-slate-900">完成时间：</span>
-              {runDetailView.finishedAtLabel || runDetailView.startedAtLabel}
-            </div>
+            </span>
+            <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-700">
+              {viewerLabel}
+            </span>
+            {finishedLabel ? (
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-700">
+                {finishedLabel}
+              </span>
+            ) : null}
           </div>
 
-          <p className="mt-3 text-sm leading-6 text-slate-600">
+          <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-600">
             {runDetailView.summary}
           </p>
 
@@ -120,18 +123,18 @@ export function SceneAppProjectPackRuntimePanel({
           ) : null}
 
           {runDetailView.deliveryArtifactEntries.length ? (
-            <div className="mt-4 grid gap-3 md:grid-cols-2">
+            <div className="mt-3 grid gap-2 md:grid-cols-2">
               {runDetailView.deliveryArtifactEntries.map((entry) => (
                 <button
                   key={entry.key}
                   type="button"
                   data-testid={`${testIdPrefix}-artifact-entry-${entry.key}`}
-                  className="rounded-[18px] border border-slate-200 bg-slate-50 p-3 text-left transition-colors hover:border-slate-300 hover:bg-white"
+                  className="rounded-[16px] border border-slate-200 bg-slate-50 p-2.5 text-left transition-colors hover:border-slate-300 hover:bg-white"
                   disabled={!onDeliveryArtifactAction}
                   onClick={() => onDeliveryArtifactAction?.(entry)}
                 >
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-sm font-medium text-slate-900">
+                  <div className="flex items-start justify-between gap-3">
+                    <span className="min-w-0 text-sm font-medium text-slate-900">
                       {entry.label}
                     </span>
                     {entry.isPrimary ? (
@@ -140,11 +143,14 @@ export function SceneAppProjectPackRuntimePanel({
                       </span>
                     ) : null}
                   </div>
-                  <div className="mt-1 text-xs text-slate-500">
+                  <div className="mt-1 line-clamp-1 text-xs text-slate-500">
                     {entry.pathLabel}
                   </div>
-                  <div className="mt-2 text-xs leading-5 text-slate-500">
+                  <div className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">
                     {entry.helperText}
+                  </div>
+                  <div className="mt-2 text-[11px] font-medium text-slate-700">
+                    点击打开
                   </div>
                 </button>
               ))}

@@ -65,4 +65,27 @@ describe("agentStreamTextDeltaController", () => {
       }).nextAccumulatedContent,
     ).toBe("你好，世界");
   });
+
+  it("delta 被快照 replay 去重时首字指标仍应记录原始 delta 长度", () => {
+    expect(
+      buildAgentStreamTextDeltaApplyPlan({
+        activeSessionId: "session-a",
+        accumulatedContent: "快照正文",
+        deltaText: "",
+        eventName: "event-a",
+        firstTextDeltaAt: null,
+        metricDeltaText: "快照",
+        now: 320,
+        requestStartedAt: 100,
+        textDeltaBufferedCount: 0,
+      }),
+    ).toMatchObject({
+      firstTextDeltaAt: 320,
+      firstTextDeltaContext: expect.objectContaining({
+        deltaChars: 2,
+      }),
+      nextAccumulatedContent: "快照正文",
+      nextBufferedCount: 1,
+    });
+  });
 });

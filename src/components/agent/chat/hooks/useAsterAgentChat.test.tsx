@@ -186,6 +186,8 @@ function mountHook(
     ) => ChatToolPreferences | null;
     initialTopicsLoadMode?: "immediate" | "deferred";
     initialTopicsDeferredDelayMs?: number;
+    initialRuntimeWarmupLoadMode?: "immediate" | "deferred";
+    initialRuntimeWarmupDeferredDelayMs?: number;
   } = {},
 ): HookHarness {
   const container = document.createElement("div");
@@ -204,6 +206,10 @@ function mountHook(
         currentOptions.getSyncedSessionRecentPreferences,
       initialTopicsLoadMode: currentOptions.initialTopicsLoadMode,
       initialTopicsDeferredDelayMs: currentOptions.initialTopicsDeferredDelayMs,
+      initialRuntimeWarmupLoadMode:
+        currentOptions.initialRuntimeWarmupLoadMode,
+      initialRuntimeWarmupDeferredDelayMs:
+        currentOptions.initialRuntimeWarmupDeferredDelayMs,
     });
     return null;
   }
@@ -520,6 +526,32 @@ describe("useAsterAgentChat 首页新会话", () => {
 
     expect(mockInitAsterAgent).not.toHaveBeenCalled();
     expect(mockScheduleMinimumDelayIdleTask).toHaveBeenCalled();
+
+    await act(async () => {
+      scheduledTasks.forEach((task) => task());
+      await Promise.resolve();
+    });
+
+    expect(mockInitAsterAgent).toHaveBeenCalledTimes(1);
+  });
+
+  it("最近对话可立即加载时仍可单独延后 Agent 预热", async () => {
+    const scheduledTasks: Array<() => void> = [];
+    mockScheduleMinimumDelayIdleTask.mockImplementation((task: () => void) => {
+      scheduledTasks.push(task);
+      return () => undefined;
+    });
+
+    mountHook("ws-test", {
+      initialTopicsLoadMode: "immediate",
+      initialRuntimeWarmupLoadMode: "deferred",
+      initialRuntimeWarmupDeferredDelayMs: 45_000,
+    });
+    await flushEffects();
+
+    expect(mockListAgentRuntimeSessions).toHaveBeenCalledTimes(1);
+    expect(mockInitAsterAgent).not.toHaveBeenCalled();
+    expect(mockScheduleMinimumDelayIdleTask).toHaveBeenCalledTimes(1);
 
     await act(async () => {
       scheduledTasks.forEach((task) => task());
@@ -4251,6 +4283,82 @@ describe("useAsterAgentChat action_required 渲染链路", () => {
           turnId: "turn-action-required-scope",
         },
       });
+    } finally {
+      harness.unmount();
+    }
+  });
+
+  it("runtime 权限确认在 stream 结束后提交时仍应透传来源 event_name", async () => {
+    const workspaceId = "ws-runtime-permission-event-name";
+    seedSession(workspaceId, "session-runtime-permission-event-name");
+    const harness = mountHook(workspaceId);
+    const stream = captureTurnStream();
+
+    try {
+      await flushEffects();
+
+      await act(async () => {
+        await harness
+          .getValue()
+          .sendMessage("请继续", [], false, false, false, "react");
+      });
+
+      act(() => {
+        stream.emit({
+          type: "action_required",
+          request_id: "runtime_permission_confirmation:turn-1",
+          action_type: "elicitation",
+          prompt: "当前执行需要确认运行时权限：web_search。",
+          scope: {
+            session_id: "session-runtime-permission-event-name",
+            thread_id: "thread-runtime-permission-event-name",
+            turn_id: "turn-runtime-permission-event-name",
+          },
+          questions: [
+            {
+              header: "运行时权限确认",
+              question: "当前执行需要确认运行时权限：web_search。",
+              options: ["允许本次执行", "拒绝"],
+            },
+          ],
+        });
+      });
+
+      const sourceEventName = stream.getEventName();
+
+      act(() => {
+        stream.emit({
+          type: "error",
+          message:
+            "运行时权限声明需要真实确认，当前 turn 已在模型执行前等待用户确认：confirmationStatus=not_requested，askProfileKeys=web_search。已创建真实权限确认请求；请确认后重试或恢复本轮执行。",
+        });
+      });
+
+      await flushEffects();
+
+      await act(async () => {
+        await harness.getValue().confirmAction({
+          requestId: "runtime_permission_confirmation:turn-1",
+          confirmed: true,
+          actionType: "elicitation",
+          response: '{"answer":"允许本次执行"}',
+        });
+      });
+
+      expect(mockRespondAgentRuntimeAction).toHaveBeenCalledWith(
+        expect.objectContaining({
+          session_id: "session-runtime-permission-event-name",
+          request_id: "runtime_permission_confirmation:turn-1",
+          action_type: "elicitation",
+          confirmed: true,
+          event_name: sourceEventName,
+          action_scope: {
+            session_id: "session-runtime-permission-event-name",
+            thread_id: "thread-runtime-permission-event-name",
+            turn_id: "turn-runtime-permission-event-name",
+          },
+        }),
+      );
     } finally {
       harness.unmount();
     }

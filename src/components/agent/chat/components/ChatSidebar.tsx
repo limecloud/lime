@@ -34,6 +34,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { logAgentDebug } from "@/lib/agentDebug";
+import { recordAgentUiPerformanceMetric } from "@/lib/agentUiPerformanceMetrics";
 import type {
   AsterSubagentParentContext,
   AsterSubagentSessionInfo,
@@ -60,6 +62,7 @@ const CHAT_SIDEBAR_PRIMARY_ACTION_BUTTON_CLASSNAME =
 
 const CHAT_SIDEBAR_ACTIVE_FILTER_CLASSNAME =
   "border-emerald-200 bg-[linear-gradient(135deg,rgba(240,253,250,0.98)_0%,rgba(236,253,245,0.96)_52%,rgba(224,242,254,0.95)_100%)] text-slate-800 shadow-sm shadow-emerald-950/10 dark:border-white dark:bg-white dark:text-slate-900";
+const RECENT_CONVERSATION_RENDER_LOG_THRESHOLD_MS = 8;
 
 const STATUS_META: Record<
   TaskStatus,
@@ -575,7 +578,8 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
   );
 
   const taskItems = useMemo(() => {
-    return topics.map((topic) => {
+    const startedAt = Date.now();
+    const items = topics.map((topic) => {
       const { status, statusReason } = resolveTaskStatus({
         topic,
         currentTopicId,
@@ -615,7 +619,44 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
         hasUnread: topic.hasUnread,
       } satisfies TaskCardViewModel;
     });
+    const durationMs = Date.now() - startedAt;
+    if (
+      contextVariant === "task-center" ||
+      durationMs >= RECENT_CONVERSATION_RENDER_LOG_THRESHOLD_MS
+    ) {
+      const statusCounts = items.reduce<Record<string, number>>(
+        (counts, item) => {
+          counts[item.status] = (counts[item.status] ?? 0) + 1;
+          return counts;
+        },
+        {},
+      );
+      const metricContext = {
+        currentTopicId: currentTopicId ?? null,
+        durationMs,
+        isTaskCenter: contextVariant === "task-center",
+        itemsCount: items.length,
+        pinnedCount: items.filter((item) => item.isPinned).length,
+        statusCounts: JSON.stringify(statusCounts),
+        topicsCount: topics.length,
+      };
+      recordAgentUiPerformanceMetric(
+        "sidebar.recentConversations.taskItemsComputed",
+        metricContext,
+      );
+      logAgentDebug(
+        "ChatSidebar",
+        "recentConversations.taskItemsComputed",
+        metricContext,
+        {
+          dedupeKey: `recentConversations.taskItemsComputed:${contextVariant}:${topics.length}:${currentTopicId ?? "none"}`,
+          throttleMs: 1000,
+        },
+      );
+    }
+    return items;
   }, [
+    contextVariant,
     currentTaskPreview,
     currentTopicId,
     currentMessages,
@@ -701,8 +742,9 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
   );
 
   const filteredTaskItems = useMemo(() => {
+    const startedAt = Date.now();
     const keyword = searchKeyword.trim().toLowerCase();
-    return taskItems.filter((item) => {
+    const items = taskItems.filter((item) => {
       if (
         statusFilter === "active" &&
         item.status !== "running" &&
@@ -719,12 +761,75 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
         .toLowerCase()
         .includes(keyword);
     });
-  }, [searchKeyword, statusFilter, taskItems]);
+    const durationMs = Date.now() - startedAt;
+    if (
+      contextVariant === "task-center" ||
+      durationMs >= RECENT_CONVERSATION_RENDER_LOG_THRESHOLD_MS
+    ) {
+      const metricContext = {
+        durationMs,
+        filteredCount: items.length,
+        hasKeyword: keyword.length > 0,
+        sourceCount: taskItems.length,
+        statusFilter,
+      };
+      recordAgentUiPerformanceMetric(
+        "sidebar.recentConversations.filtered",
+        metricContext,
+      );
+      logAgentDebug(
+        "ChatSidebar",
+        "recentConversations.filtered",
+        metricContext,
+        {
+          dedupeKey: `recentConversations.filtered:${contextVariant}:${taskItems.length}:${items.length}:${statusFilter}:${keyword.length > 0}`,
+          throttleMs: 1000,
+        },
+      );
+    }
+    return items;
+  }, [contextVariant, searchKeyword, statusFilter, taskItems]);
 
-  const sections = useMemo(
-    () => buildTaskSections(filteredTaskItems, contextVariant),
-    [contextVariant, filteredTaskItems],
-  );
+  const sections = useMemo(() => {
+    const startedAt = Date.now();
+    const nextSections = buildTaskSections(filteredTaskItems, contextVariant);
+    const durationMs = Date.now() - startedAt;
+    if (
+      contextVariant === "task-center" ||
+      durationMs >= RECENT_CONVERSATION_RENDER_LOG_THRESHOLD_MS
+    ) {
+      const metricContext = {
+        durationMs,
+        filteredCount: filteredTaskItems.length,
+        olderCount:
+          nextSections.find((section) => section.key === "older")?.items
+            .length ?? 0,
+        recentCount:
+          nextSections.find((section) => section.key === "recent")?.items
+            .length ?? 0,
+        runningCount:
+          nextSections.find((section) => section.key === "running")?.items
+            .length ?? 0,
+        waitingCount:
+          nextSections.find((section) => section.key === "waiting")?.items
+            .length ?? 0,
+      };
+      recordAgentUiPerformanceMetric(
+        "sidebar.recentConversations.sectionsBuilt",
+        metricContext,
+      );
+      logAgentDebug(
+        "ChatSidebar",
+        "recentConversations.sectionsBuilt",
+        metricContext,
+        {
+          dedupeKey: `recentConversations.sectionsBuilt:${contextVariant}:${filteredTaskItems.length}`,
+          throttleMs: 1000,
+        },
+      );
+    }
+    return nextSections;
+  }, [contextVariant, filteredTaskItems]);
   const isTaskCenter = contextVariant === "task-center";
   const hasAnyTasks = topics.length > 0;
   const hasFilteredResults = filteredTaskItems.length > 0;

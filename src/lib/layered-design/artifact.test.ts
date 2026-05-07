@@ -199,6 +199,19 @@ describe("layered-design artifact bridge", () => {
         fileName: "teaser-poster.png",
         mimeType: "image/png",
       },
+      analysis: {
+        analyzer: {
+          kind: "local_heuristic",
+          label: "本地 heuristic analyzer",
+        },
+        outputs: {
+          candidateRaster: false,
+          candidateMask: false,
+          cleanPlate: false,
+          ocrText: false,
+        },
+        generatedAt: DOCUMENT_CREATED_AT,
+      },
       artifactId: "artifact-flat-image-design",
       timestamp: ARTIFACT_CREATED_AT,
       documentCreatedAt: DOCUMENT_CREATED_AT,
@@ -223,5 +236,17 @@ describe("layered-design artifact bridge", () => {
     expect(state.document.extraction?.sourceAssetId).toBe(
       "teaser-poster-source-image",
     );
+    expect(state.document.extraction?.analysis).toMatchObject({
+      analyzer: {
+        kind: "local_heuristic",
+        label: "本地 heuristic analyzer",
+      },
+      outputs: {
+        candidateRaster: false,
+        candidateMask: false,
+        cleanPlate: false,
+        ocrText: false,
+      },
+    });
   });
 });

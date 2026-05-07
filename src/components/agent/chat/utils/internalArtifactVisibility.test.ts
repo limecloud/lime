@@ -50,4 +50,22 @@ describe("isHiddenInternalArtifactPath", () => {
       isHiddenConversationArtifactPath("exports/x-article/google/index.md"),
     ).toBe(false);
   });
+
+  it("聊天区应隐藏辅助运行时投影工件", () => {
+    expect(
+      isHiddenConversationArtifactPath(
+        ".lime/harness/sessions/session-1/auxiliary-runtime/title-generation-aux-1.json",
+      ),
+    ).toBe(true);
+    expect(
+      isHiddenConversationArtifactPath(
+        "/workspace/demo/.lime/harness/sessions/session-1/auxiliary-runtime/title-generation-aux-1.json",
+      ),
+    ).toBe(true);
+    expect(
+      isHiddenConversationArtifactPath(
+        ".lime/harness/sessions/session-1/evidence/runtime.json",
+      ),
+    ).toBe(false);
+  });
 });

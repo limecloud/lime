@@ -79,4 +79,21 @@ describe("chatLayoutVisibility", () => {
       }),
     ).toBe(true);
   });
+
+  it("任务中心切换历史会话的恢复阶段不应显示最近对话空态", () => {
+    expect(
+      shouldShowChatLayout({
+        agentEntry: "claw",
+        preferEmptyStateForFreshTaskCenterTab: true,
+        hasDisplayMessages: false,
+        hasPendingA2UIForm: false,
+        isThemeWorkbench: false,
+        hasUnconsumedInitialDispatch: false,
+        isPreparingSend: false,
+        isSending: false,
+        isSessionHydrating: true,
+        queuedTurnCount: 0,
+      }),
+    ).toBe(true);
+  });
 });

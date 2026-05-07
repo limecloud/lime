@@ -11,7 +11,7 @@
 - [../../aiprompts/task-agent-taxonomy.md](../../aiprompts/task-agent-taxonomy.md)
 - [../../aiprompts/state-history-telemetry.md](../../aiprompts/state-history-telemetry.md)
 - [../../aiprompts/harness-engine-governance.md](../../aiprompts/harness-engine-governance.md)
-- [../creaoai/README.md](../creaoai/README.md)
+- [../skill-forge/README.md](../skill-forge/README.md)
 
 配套文档：
 
@@ -36,7 +36,7 @@
 
 这些能力分别已有自己的 current 主链。`Managed Objective` 只能消费它们，不能替代它们。
 
-这也是为什么实现 CreoAI 方向时，不能只实现 Managed Objective：Coding Agent / Skill Forge 仍然必须作为上游能力生成层单独落地，详见 [../creaoai/coding-agent-layer.md](../creaoai/coding-agent-layer.md)。
+这也是为什么实现 Skill Forge 方向时，不能只实现 Managed Objective：Coding Agent / Skill Forge 仍然必须作为上游能力生成层单独落地，详见 [../skill-forge/coding-agent-layer.md](../skill-forge/coding-agent-layer.md)。
 
 ## 2. 先给结论
 
@@ -147,9 +147,9 @@ persistent thread goal（同一会话线程上的持久目标状态）
 
 因此本路线图只借鉴 runtime pattern，不复制 command surface。
 
-## 6. 与 CreoAI / Skill Forge 的关系
+## 6. 与 Skill Forge / Skill Forge 的关系
 
-CreoAI 路线图关注：
+Skill Forge 路线图关注：
 
 ```text
 能力生成 -> Skill / Adapter 编译 -> verification gate -> 注册 -> 执行

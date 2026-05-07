@@ -1,12 +1,15 @@
-//! 图层化设计工程导出命令。
+//! 图层化设计工程导出与扁平图分析命令。
 //!
-//! 该命令只负责把 `LayeredDesignDocument` 的导出投影写入项目目录，
+//! 该模块只负责把 `LayeredDesignDocument` 的导出投影写入项目目录，
+//! 或把扁平图分析结果投影回 `LayeredDesignDocument.extraction`，
 //! 不定义新的设计事实源。
 
 use base64::{engine::general_purpose::STANDARD, Engine as _};
+use image::{DynamicImage, ImageFormat, Rgba, RgbaImage};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
+use std::io::Cursor;
 use std::path::{Component, Path, PathBuf};
 use std::time::Duration;
 use url::Url;
@@ -15,6 +18,7 @@ const LAYERED_DESIGN_EXPORT_ROOT: &str = ".lime/layered-designs";
 const MAX_LAYERED_DESIGN_EXPORT_FILES: usize = 512;
 const MAX_REMOTE_LAYERED_DESIGN_ASSET_BYTES: usize = 20 * 1024 * 1024;
 const REMOTE_LAYERED_DESIGN_ASSET_TIMEOUT_SECS: u64 = 20;
+const MAX_LAYERED_DESIGN_OCR_IMAGE_BYTES: usize = 20 * 1024 * 1024;
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -45,6 +49,36 @@ pub struct ReadLayeredDesignProjectExportRequest {
     pub export_directory_relative_path: Option<String>,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RecognizeLayeredDesignTextRequest {
+    pub image_src: String,
+    pub width: u32,
+    pub height: u32,
+    #[serde(default)]
+    pub candidate_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AnalyzeLayeredDesignFlatImageRequest {
+    pub image: AnalyzeLayeredDesignFlatImageInput,
+    #[serde(default)]
+    pub created_at: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AnalyzeLayeredDesignFlatImageInput {
+    pub src: String,
+    pub width: u32,
+    pub height: u32,
+    #[serde(default)]
+    pub mime_type: Option<String>,
+    #[serde(default)]
+    pub has_alpha: Option<bool>,
+}
+
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct SaveLayeredDesignProjectExportOutput {
@@ -73,6 +107,122 @@ pub struct ReadLayeredDesignProjectExportOutput {
     pub asset_count: usize,
     pub file_count: usize,
     pub updated_at_ms: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct LayeredDesignTextBoundingBox {
+    pub x: f64,
+    pub y: f64,
+    pub width: f64,
+    pub height: f64,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct LayeredDesignRecognizedTextBlock {
+    pub text: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bounding_box: Option<LayeredDesignTextBoundingBox>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub confidence: Option<f32>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct RecognizeLayeredDesignTextOutput {
+    pub supported: bool,
+    pub engine: String,
+    pub blocks: Vec<LayeredDesignRecognizedTextBlock>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct AnalyzeLayeredDesignFlatImageOutput {
+    pub supported: bool,
+    pub engine: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub result: Option<LayeredDesignStructuredAnalyzerResult>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct LayeredDesignStructuredAnalyzerResult {
+    pub analyzer: LayeredDesignStructuredAnalyzerInfo,
+    pub generated_at: String,
+    pub candidates: Vec<LayeredDesignStructuredCandidate>,
+    pub clean_plate: LayeredDesignStructuredCleanPlate,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct LayeredDesignStructuredAnalyzerInfo {
+    pub kind: String,
+    pub label: String,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct LayeredDesignStructuredCandidate {
+    pub id: String,
+    #[serde(rename = "type")]
+    pub candidate_type: String,
+    pub role: String,
+    pub name: String,
+    pub confidence: f32,
+    pub rect: LayeredDesignTextBoundingBox,
+    pub z_index: i32,
+    pub image: LayeredDesignStructuredAsset,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mask: Option<LayeredDesignStructuredAsset>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct LayeredDesignStructuredAsset {
+    pub id: String,
+    pub kind: String,
+    pub src: String,
+    pub width: u32,
+    pub height: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub has_alpha: Option<bool>,
+    pub created_at: String,
+    pub params: Value,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct LayeredDesignStructuredCleanPlate {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub asset: Option<LayeredDesignStructuredAsset>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+struct NativeAnalyzerCandidateSpec {
+    id: &'static str,
+    name: &'static str,
+    role: &'static str,
+    kind: &'static str,
+    rect: NativeAnalyzerRect,
+    confidence: f32,
+    z_index: i32,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct NativeAnalyzerRect {
+    x: u32,
+    y: u32,
+    width: u32,
+    height: u32,
 }
 
 #[derive(Debug, Clone)]
@@ -212,6 +362,270 @@ fn require_absolute_project_root(project_root_path: &str) -> Result<PathBuf, Str
         return Err("projectRootPath 必须是绝对路径".to_string());
     }
     Ok(project_root)
+}
+
+fn decode_layered_design_ocr_image_data_url(image_src: &str) -> Result<Option<Vec<u8>>, String> {
+    let Some(rest) = image_src.trim().strip_prefix("data:") else {
+        return Ok(None);
+    };
+    let Some((header, encoded)) = rest.split_once(',') else {
+        return Err("OCR 图片 data URL 格式无效".to_string());
+    };
+    let mut header_parts = header.split(';');
+    let mime_type = header_parts.next().unwrap_or_default();
+    let is_base64 = header_parts.any(|part| part.eq_ignore_ascii_case("base64"));
+
+    if !mime_type.to_ascii_lowercase().starts_with("image/") {
+        return Ok(None);
+    }
+    if !is_base64 {
+        return Err("OCR 图片 data URL 必须使用 base64 编码".to_string());
+    }
+    if encoded.len() > MAX_LAYERED_DESIGN_OCR_IMAGE_BYTES * 2 {
+        return Err("OCR 图片 data URL 超过大小上限".to_string());
+    }
+
+    let bytes = STANDARD
+        .decode(encoded.trim())
+        .map_err(|error| format!("OCR 图片 base64 无效: {error}"))?;
+    if bytes.len() > MAX_LAYERED_DESIGN_OCR_IMAGE_BYTES {
+        return Err("OCR 图片超过大小上限".to_string());
+    }
+
+    Ok(Some(bytes))
+}
+
+fn decode_layered_design_analyzer_png_data_url(image_src: &str) -> Result<Option<Vec<u8>>, String> {
+    let Some(rest) = image_src.trim().strip_prefix("data:") else {
+        return Ok(None);
+    };
+    let Some((header, encoded)) = rest.split_once(',') else {
+        return Err("Analyzer 图片 data URL 格式无效".to_string());
+    };
+    let mut header_parts = header.split(';');
+    let mime_type = header_parts.next().unwrap_or_default().to_ascii_lowercase();
+    let is_base64 = header_parts.any(|part| part.eq_ignore_ascii_case("base64"));
+
+    if mime_type != "image/png" {
+        return Ok(None);
+    }
+    if !is_base64 {
+        return Err("Analyzer 图片 data URL 必须使用 base64 编码".to_string());
+    }
+    if encoded.len() > MAX_LAYERED_DESIGN_OCR_IMAGE_BYTES * 2 {
+        return Err("Analyzer 图片 data URL 超过大小上限".to_string());
+    }
+
+    let bytes = STANDARD
+        .decode(encoded.trim())
+        .map_err(|error| format!("Analyzer 图片 base64 无效: {error}"))?;
+    if bytes.len() > MAX_LAYERED_DESIGN_OCR_IMAGE_BYTES {
+        return Err("Analyzer 图片超过大小上限".to_string());
+    }
+
+    Ok(Some(bytes))
+}
+
+fn native_analyzer_unsupported_output(
+    message: impl Into<String>,
+) -> AnalyzeLayeredDesignFlatImageOutput {
+    AnalyzeLayeredDesignFlatImageOutput {
+        supported: false,
+        engine: "native_heuristic_analyzer".to_string(),
+        result: None,
+        message: Some(message.into()),
+    }
+}
+
+fn clamp_u32(value: u32, min: u32, max: u32) -> u32 {
+    value.max(min).min(max)
+}
+
+fn native_analyzer_crop_rect(
+    image_width: u32,
+    image_height: u32,
+    left_ratio: f32,
+    top_ratio: f32,
+    width_ratio: f32,
+    height_ratio: f32,
+) -> NativeAnalyzerRect {
+    let width = clamp_u32(
+        (image_width as f32 * width_ratio).round() as u32,
+        72_u32.min(image_width),
+        image_width,
+    );
+    let height = clamp_u32(
+        (image_height as f32 * height_ratio).round() as u32,
+        72_u32.min(image_height),
+        image_height,
+    );
+    let x = clamp_u32(
+        (image_width as f32 * left_ratio).round() as u32,
+        0,
+        image_width.saturating_sub(width),
+    );
+    let y = clamp_u32(
+        (image_height as f32 * top_ratio).round() as u32,
+        0,
+        image_height.saturating_sub(height),
+    );
+
+    NativeAnalyzerRect {
+        x,
+        y,
+        width,
+        height,
+    }
+}
+
+fn build_native_analyzer_candidate_specs(
+    image_width: u32,
+    image_height: u32,
+) -> Vec<NativeAnalyzerCandidateSpec> {
+    vec![
+        NativeAnalyzerCandidateSpec {
+            id: "subject",
+            name: "主体候选",
+            role: "subject",
+            kind: "subject",
+            rect: native_analyzer_crop_rect(image_width, image_height, 0.16, 0.16, 0.68, 0.7),
+            confidence: 0.74,
+            z_index: 20,
+        },
+        NativeAnalyzerCandidateSpec {
+            id: "headline",
+            name: "标题文字候选",
+            role: "text",
+            kind: "text_raster",
+            rect: native_analyzer_crop_rect(image_width, image_height, 0.12, 0.06, 0.76, 0.18),
+            confidence: 0.62,
+            z_index: 40,
+        },
+        NativeAnalyzerCandidateSpec {
+            id: "logo",
+            name: "Logo 候选",
+            role: "logo",
+            kind: "logo",
+            rect: native_analyzer_crop_rect(image_width, image_height, 0.06, 0.06, 0.28, 0.16),
+            confidence: 0.48,
+            z_index: 48,
+        },
+        NativeAnalyzerCandidateSpec {
+            id: "fragment",
+            name: "边角碎片",
+            role: "background_fragment",
+            kind: "effect",
+            rect: native_analyzer_crop_rect(image_width, image_height, 0.72, 0.72, 0.22, 0.22),
+            confidence: 0.22,
+            z_index: 56,
+        },
+    ]
+}
+
+fn is_inside_native_analyzer_ellipse(x: u32, y: u32, width: u32, height: u32) -> bool {
+    let center_x = width as f32 / 2.0;
+    let center_y = height as f32 / 2.0;
+    let radius_x = (width as f32 * 0.42).max(1.0);
+    let radius_y = (height as f32 * 0.46).max(1.0);
+    let dx = (x as f32 + 0.5 - center_x) / radius_x;
+    let dy = (y as f32 + 0.5 - center_y) / radius_y;
+    dx * dx + dy * dy <= 1.0
+}
+
+fn encode_rgba_png_data_url(image: &RgbaImage) -> Result<String, String> {
+    let mut output = Vec::new();
+    let dynamic = DynamicImage::ImageRgba8(image.clone());
+    dynamic
+        .write_to(&mut Cursor::new(&mut output), ImageFormat::Png)
+        .map_err(|error| format!("编码 analyzer PNG 失败: {error}"))?;
+    Ok(format!("data:image/png;base64,{}", STANDARD.encode(output)))
+}
+
+fn crop_native_analyzer_image(source: &RgbaImage, rect: NativeAnalyzerRect) -> RgbaImage {
+    image::imageops::crop_imm(source, rect.x, rect.y, rect.width, rect.height).to_image()
+}
+
+fn create_native_analyzer_mask(rect: NativeAnalyzerRect) -> RgbaImage {
+    let mut mask = RgbaImage::from_pixel(rect.width, rect.height, Rgba([0, 0, 0, 255]));
+    for y in 0..rect.height {
+        for x in 0..rect.width {
+            if is_inside_native_analyzer_ellipse(x, y, rect.width, rect.height) {
+                mask.put_pixel(x, y, Rgba([255, 255, 255, 255]));
+            }
+        }
+    }
+    mask
+}
+
+fn apply_native_analyzer_mask(crop: &RgbaImage, rect: NativeAnalyzerRect) -> RgbaImage {
+    let mut output = crop.clone();
+    for y in 0..rect.height {
+        for x in 0..rect.width {
+            if !is_inside_native_analyzer_ellipse(x, y, rect.width, rect.height) {
+                let pixel = output.get_pixel_mut(x, y);
+                pixel.0[3] = 0;
+            }
+        }
+    }
+    output
+}
+
+fn average_native_analyzer_corner_color(source: &RgbaImage) -> Rgba<u8> {
+    let width = source.width().saturating_sub(1);
+    let height = source.height().saturating_sub(1);
+    let samples = [
+        source.get_pixel(0, 0),
+        source.get_pixel(width, 0),
+        source.get_pixel(0, height),
+        source.get_pixel(width, height),
+    ];
+    let channel = |index: usize| -> u8 {
+        (samples
+            .iter()
+            .map(|pixel| u32::from(pixel.0[index]))
+            .sum::<u32>()
+            / samples.len() as u32)
+            .min(255) as u8
+    };
+
+    Rgba([channel(0), channel(1), channel(2), 250])
+}
+
+fn create_native_analyzer_clean_plate(source: &RgbaImage, rect: NativeAnalyzerRect) -> RgbaImage {
+    let mut output = source.clone();
+    let fill = average_native_analyzer_corner_color(source);
+    for y in 0..rect.height {
+        for x in 0..rect.width {
+            if is_inside_native_analyzer_ellipse(x, y, rect.width, rect.height) {
+                let target_x = rect.x + x;
+                let target_y = rect.y + y;
+                if target_x < output.width() && target_y < output.height() {
+                    output.put_pixel(target_x, target_y, fill);
+                }
+            }
+        }
+    }
+    output
+}
+
+fn native_analyzer_rect_value(rect: NativeAnalyzerRect) -> Value {
+    serde_json::json!({
+        "x": rect.x,
+        "y": rect.y,
+        "width": rect.width,
+        "height": rect.height,
+    })
+}
+
+fn unsupported_layered_design_text_ocr_output(
+    message: impl Into<String>,
+) -> RecognizeLayeredDesignTextOutput {
+    RecognizeLayeredDesignTextOutput {
+        supported: false,
+        engine: "native_ocr_unavailable".to_string(),
+        blocks: Vec::new(),
+        message: Some(message.into()),
+    }
 }
 
 fn ensure_layered_design_export_relative_dir(relative_path: PathBuf) -> Result<PathBuf, String> {
@@ -839,6 +1253,346 @@ pub(crate) fn read_layered_design_project_export_inner(
     })
 }
 
+pub(crate) fn recognize_layered_design_text_inner(
+    request: RecognizeLayeredDesignTextRequest,
+) -> Result<RecognizeLayeredDesignTextOutput, String> {
+    if request.width == 0 || request.height == 0 {
+        return Err("OCR 图片宽高必须大于 0".to_string());
+    }
+    let _candidate_id = request.candidate_id.as_deref();
+
+    let Some(bytes) = decode_layered_design_ocr_image_data_url(&request.image_src)? else {
+        return Ok(unsupported_layered_design_text_ocr_output(
+            "当前 native OCR 只接收 data:image/*;base64 图片来源",
+        ));
+    };
+
+    recognize_layered_design_text_from_image_bytes(&bytes, request.width, request.height)
+}
+
+#[cfg(target_os = "macos")]
+#[link(name = "Vision", kind = "framework")]
+unsafe extern "C" {}
+
+#[cfg(target_os = "macos")]
+#[allow(deprecated)]
+fn recognize_layered_design_text_from_image_bytes(
+    bytes: &[u8],
+    width: u32,
+    height: u32,
+) -> Result<RecognizeLayeredDesignTextOutput, String> {
+    use cocoa::base::{id, nil, BOOL, YES};
+    use cocoa::foundation::{NSAutoreleasePool, NSRect, NSUInteger};
+    use objc::runtime::Class;
+    use objc::{class, msg_send, sel, sel_impl};
+    use std::ffi::{c_void, CStr};
+    use std::os::raw::c_char;
+
+    unsafe fn nsstring_to_string(value: id) -> Option<String> {
+        if value == nil {
+            return None;
+        }
+        let c_string: *const c_char = msg_send![value, UTF8String];
+        if c_string.is_null() {
+            return None;
+        }
+        Some(CStr::from_ptr(c_string).to_string_lossy().into_owned())
+    }
+
+    unsafe fn nserror_to_string(error: id) -> Option<String> {
+        if error == nil {
+            return None;
+        }
+        let description: id = msg_send![error, localizedDescription];
+        nsstring_to_string(description)
+    }
+
+    fn convert_vision_bounding_box(
+        bounding_box: NSRect,
+        image_width: u32,
+        image_height: u32,
+    ) -> LayeredDesignTextBoundingBox {
+        let width = f64::from(image_width);
+        let height = f64::from(image_height);
+        let box_width = (bounding_box.size.width as f64 * width).max(1.0);
+        let box_height = (bounding_box.size.height as f64 * height).max(1.0);
+        let x = (bounding_box.origin.x as f64 * width).clamp(0.0, width);
+        let y = ((1.0 - bounding_box.origin.y as f64 - bounding_box.size.height as f64) * height)
+            .clamp(0.0, height);
+
+        LayeredDesignTextBoundingBox {
+            x,
+            y,
+            width: box_width.min((width - x).max(1.0)),
+            height: box_height.min((height - y).max(1.0)),
+        }
+    }
+
+    unsafe {
+        let pool = NSAutoreleasePool::new(nil);
+        let data: id = msg_send![
+            class!(NSData),
+            dataWithBytes: bytes.as_ptr() as *const c_void
+            length: bytes.len() as NSUInteger
+        ];
+        if data == nil {
+            pool.drain();
+            return Err("创建 OCR 图片数据失败".to_string());
+        }
+
+        let Some(request_class) = Class::get("VNRecognizeTextRequest") else {
+            pool.drain();
+            return Ok(unsupported_layered_design_text_ocr_output(
+                "当前 macOS 版本不支持 Vision OCR",
+            ));
+        };
+        let Some(handler_class) = Class::get("VNImageRequestHandler") else {
+            pool.drain();
+            return Ok(unsupported_layered_design_text_ocr_output(
+                "当前 macOS 版本不支持 Vision OCR 图片处理器",
+            ));
+        };
+
+        let request: id = msg_send![request_class, alloc];
+        let request: id = msg_send![request, init];
+        if request == nil {
+            pool.drain();
+            return Err("创建 Vision OCR 请求失败".to_string());
+        }
+
+        let accurate_level = 1usize;
+        let _: () = msg_send![request, setRecognitionLevel: accurate_level];
+        let _: () = msg_send![request, setUsesLanguageCorrection: YES];
+
+        let options: id = msg_send![class!(NSDictionary), dictionary];
+        let handler: id = msg_send![handler_class, alloc];
+        let handler: id = msg_send![handler, initWithData: data options: options];
+        if handler == nil {
+            pool.drain();
+            return Err("创建 Vision OCR 图片处理器失败".to_string());
+        }
+
+        let requests: id = msg_send![class!(NSArray), arrayWithObject: request];
+        let mut error: id = nil;
+        let ok: BOOL = msg_send![handler, performRequests: requests error: &mut error];
+        if ok != YES {
+            let message =
+                nserror_to_string(error).unwrap_or_else(|| "Vision OCR 执行失败".to_string());
+            pool.drain();
+            return Err(message);
+        }
+
+        let observations: id = msg_send![request, results];
+        let count: NSUInteger = if observations == nil {
+            0
+        } else {
+            msg_send![observations, count]
+        };
+        let mut blocks = Vec::new();
+        for index in 0..count {
+            let observation: id = msg_send![observations, objectAtIndex: index];
+            if observation == nil {
+                continue;
+            }
+            let candidates: id = msg_send![observation, topCandidates: 1usize];
+            if candidates == nil {
+                continue;
+            }
+            let text_candidate: id = msg_send![candidates, firstObject];
+            if text_candidate == nil {
+                continue;
+            }
+            let text_value: id = msg_send![text_candidate, string];
+            let Some(text) = nsstring_to_string(text_value).map(|value| value.trim().to_string())
+            else {
+                continue;
+            };
+            if text.is_empty() {
+                continue;
+            }
+
+            let bounding_box: NSRect = msg_send![observation, boundingBox];
+            let confidence: f32 = msg_send![text_candidate, confidence];
+            blocks.push(LayeredDesignRecognizedTextBlock {
+                text,
+                bounding_box: Some(convert_vision_bounding_box(bounding_box, width, height)),
+                confidence: confidence.is_finite().then_some(confidence),
+            });
+        }
+
+        pool.drain();
+        Ok(RecognizeLayeredDesignTextOutput {
+            supported: true,
+            engine: "macos_vision".to_string(),
+            blocks,
+            message: None,
+        })
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn recognize_layered_design_text_from_image_bytes(
+    _bytes: &[u8],
+    _width: u32,
+    _height: u32,
+) -> Result<RecognizeLayeredDesignTextOutput, String> {
+    Ok(unsupported_layered_design_text_ocr_output(
+        "当前平台尚未接入 native OCR 引擎",
+    ))
+}
+
+pub(crate) fn analyze_layered_design_flat_image_inner(
+    request: AnalyzeLayeredDesignFlatImageRequest,
+) -> Result<AnalyzeLayeredDesignFlatImageOutput, String> {
+    if request.image.width == 0 || request.image.height == 0 {
+        return Err("Analyzer 图片宽高必须大于 0".to_string());
+    }
+    if request
+        .image
+        .mime_type
+        .as_deref()
+        .map(|mime| !mime.eq_ignore_ascii_case("image/png"))
+        .unwrap_or(false)
+    {
+        return Ok(native_analyzer_unsupported_output(
+            "当前 native analyzer 首刀只支持 image/png",
+        ));
+    }
+
+    let Some(bytes) = decode_layered_design_analyzer_png_data_url(&request.image.src)? else {
+        return Ok(native_analyzer_unsupported_output(
+            "当前 native analyzer 只接收 data:image/png;base64 图片来源",
+        ));
+    };
+    let source = image::load_from_memory_with_format(&bytes, ImageFormat::Png)
+        .map_err(|error| format!("解析 analyzer PNG 失败: {error}"))?
+        .to_rgba8();
+    let image_width = source.width().max(1);
+    let image_height = source.height().max(1);
+    let generated_at = request
+        .created_at
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| chrono::Utc::now().to_rfc3339());
+    let specs = build_native_analyzer_candidate_specs(image_width, image_height);
+    let subject_id = specs
+        .iter()
+        .find(|spec| spec.role == "subject")
+        .map(|spec| spec.id);
+    let mut subject_rect = None;
+    let mut candidates = Vec::new();
+
+    for spec in specs {
+        let is_subject = Some(spec.id) == subject_id;
+        if is_subject {
+            subject_rect = Some(spec.rect);
+        }
+
+        let crop = crop_native_analyzer_image(&source, spec.rect);
+        let image_rgba = if is_subject {
+            apply_native_analyzer_mask(&crop, spec.rect)
+        } else {
+            crop
+        };
+        let image_src = encode_rgba_png_data_url(&image_rgba)?;
+        let mask = if is_subject {
+            let mask = create_native_analyzer_mask(spec.rect);
+            Some(LayeredDesignStructuredAsset {
+                id: format!("{}-mask", spec.id),
+                kind: "mask".to_string(),
+                src: encode_rgba_png_data_url(&mask)?,
+                width: spec.rect.width,
+                height: spec.rect.height,
+                has_alpha: Some(false),
+                created_at: generated_at.clone(),
+                params: serde_json::json!({
+                    "seed": "native_heuristic_subject_mask",
+                }),
+            })
+        } else {
+            None
+        };
+
+        candidates.push(LayeredDesignStructuredCandidate {
+            id: format!("{}-candidate", spec.id),
+            candidate_type: "image".to_string(),
+            role: spec.role.to_string(),
+            name: spec.name.to_string(),
+            confidence: spec.confidence,
+            rect: LayeredDesignTextBoundingBox {
+                x: f64::from(spec.rect.x),
+                y: f64::from(spec.rect.y),
+                width: f64::from(spec.rect.width),
+                height: f64::from(spec.rect.height),
+            },
+            z_index: spec.z_index,
+            image: LayeredDesignStructuredAsset {
+                id: format!("{}-asset", spec.id),
+                kind: spec.kind.to_string(),
+                src: image_src,
+                width: spec.rect.width,
+                height: spec.rect.height,
+                has_alpha: Some(is_subject || request.image.has_alpha.unwrap_or(false)),
+                created_at: generated_at.clone(),
+                params: serde_json::json!({
+                    "seed": if is_subject {
+                        "native_heuristic_subject_masked"
+                    } else {
+                        "native_heuristic_crop"
+                    },
+                    "inputMimeType": request.image.mime_type.as_deref().unwrap_or("image/png"),
+                    "outputMimeType": "image/png",
+                    "sourceRect": native_analyzer_rect_value(spec.rect),
+                }),
+            },
+            mask,
+        });
+    }
+
+    let clean_plate = if let Some(rect) = subject_rect {
+        let clean_plate = create_native_analyzer_clean_plate(&source, rect);
+        LayeredDesignStructuredCleanPlate {
+            status: None,
+            asset: Some(LayeredDesignStructuredAsset {
+                id: "native-heuristic-clean-plate-asset".to_string(),
+                kind: "clean_plate".to_string(),
+                src: encode_rgba_png_data_url(&clean_plate)?,
+                width: image_width,
+                height: image_height,
+                has_alpha: Some(false),
+                created_at: generated_at.clone(),
+                params: serde_json::json!({
+                    "seed": "native_heuristic_clean_plate",
+                }),
+            }),
+            message: Some(
+                "当前 clean plate 来自 Tauri native heuristic 近似修补；进入编辑后仍需人工核对主体移动边缘。"
+                    .to_string(),
+            ),
+        }
+    } else {
+        LayeredDesignStructuredCleanPlate {
+            status: Some("not_requested".to_string()),
+            asset: None,
+            message: Some("Tauri native heuristic 未找到主体候选。".to_string()),
+        }
+    };
+
+    Ok(AnalyzeLayeredDesignFlatImageOutput {
+        supported: true,
+        engine: "native_heuristic_analyzer".to_string(),
+        result: Some(LayeredDesignStructuredAnalyzerResult {
+            analyzer: LayeredDesignStructuredAnalyzerInfo {
+                kind: "local_heuristic".to_string(),
+                label: "Tauri native heuristic analyzer".to_string(),
+            },
+            generated_at,
+            candidates,
+            clean_plate,
+        }),
+        message: None,
+    })
+}
+
 #[tauri::command]
 pub async fn save_layered_design_project_export(
     request: SaveLayeredDesignProjectExportRequest,
@@ -851,6 +1605,20 @@ pub fn read_layered_design_project_export(
     request: ReadLayeredDesignProjectExportRequest,
 ) -> Result<ReadLayeredDesignProjectExportOutput, String> {
     read_layered_design_project_export_inner(request)
+}
+
+#[tauri::command]
+pub fn recognize_layered_design_text(
+    request: RecognizeLayeredDesignTextRequest,
+) -> Result<RecognizeLayeredDesignTextOutput, String> {
+    recognize_layered_design_text_inner(request)
+}
+
+#[tauri::command]
+pub fn analyze_layered_design_flat_image(
+    request: AnalyzeLayeredDesignFlatImageRequest,
+) -> Result<AnalyzeLayeredDesignFlatImageOutput, String> {
+    analyze_layered_design_flat_image_inner(request)
 }
 
 #[cfg(test)]
@@ -878,6 +1646,115 @@ mod tests {
             encoding: encoding.to_string(),
             content: content.to_string(),
         }
+    }
+
+    fn test_png_data_url(width: u32, height: u32) -> String {
+        let mut image = RgbaImage::new(width, height);
+        for y in 0..height {
+            for x in 0..width {
+                image.put_pixel(
+                    x,
+                    y,
+                    Rgba([((x * 23) % 255) as u8, ((y * 29) % 255) as u8, 180, 255]),
+                );
+            }
+        }
+        encode_rgba_png_data_url(&image).expect("test PNG should encode")
+    }
+
+    #[test]
+    fn recognize_layered_design_text_should_skip_unsupported_source() {
+        let output = recognize_layered_design_text_inner(RecognizeLayeredDesignTextRequest {
+            image_src: "https://example.com/headline.png".to_string(),
+            width: 320,
+            height: 120,
+            candidate_id: Some("headline-candidate".to_string()),
+        })
+        .expect("recognize text");
+
+        assert!(!output.supported);
+        assert_eq!(output.engine, "native_ocr_unavailable");
+        assert!(output.blocks.is_empty());
+        assert!(output
+            .message
+            .as_deref()
+            .unwrap_or_default()
+            .contains("data:image"));
+    }
+
+    #[test]
+    fn recognize_layered_design_text_should_reject_empty_dimensions() {
+        let error = recognize_layered_design_text_inner(RecognizeLayeredDesignTextRequest {
+            image_src: "data:image/png;base64,ZmFrZQ==".to_string(),
+            width: 0,
+            height: 120,
+            candidate_id: None,
+        })
+        .expect_err("empty dimensions should fail");
+
+        assert!(error.contains("宽高"));
+    }
+
+    #[test]
+    fn analyze_layered_design_flat_image_should_return_structured_native_result() {
+        let output =
+            analyze_layered_design_flat_image_inner(AnalyzeLayeredDesignFlatImageRequest {
+                image: AnalyzeLayeredDesignFlatImageInput {
+                    src: test_png_data_url(64, 96),
+                    width: 64,
+                    height: 96,
+                    mime_type: Some("image/png".to_string()),
+                    has_alpha: Some(false),
+                },
+                created_at: Some("2026-05-07T00:00:00.000Z".to_string()),
+            })
+            .expect("analyze flat image");
+
+        assert!(output.supported);
+        assert_eq!(output.engine, "native_heuristic_analyzer");
+        let result = output.result.expect("structured result");
+        assert_eq!(result.analyzer.label, "Tauri native heuristic analyzer");
+        assert_eq!(result.generated_at, "2026-05-07T00:00:00.000Z");
+        assert_eq!(result.candidates.len(), 4);
+        let subject = result
+            .candidates
+            .iter()
+            .find(|candidate| candidate.id == "subject-candidate")
+            .expect("subject candidate");
+        assert_eq!(subject.role, "subject");
+        assert!(subject.image.src.starts_with("data:image/png;base64,"));
+        assert!(subject.mask.is_some());
+        assert!(result
+            .clean_plate
+            .asset
+            .as_ref()
+            .expect("clean plate")
+            .src
+            .starts_with("data:image/png;base64,"));
+    }
+
+    #[test]
+    fn analyze_layered_design_flat_image_should_skip_unsupported_source() {
+        let output =
+            analyze_layered_design_flat_image_inner(AnalyzeLayeredDesignFlatImageRequest {
+                image: AnalyzeLayeredDesignFlatImageInput {
+                    src: "https://example.com/flat.png".to_string(),
+                    width: 64,
+                    height: 96,
+                    mime_type: Some("image/png".to_string()),
+                    has_alpha: None,
+                },
+                created_at: None,
+            })
+            .expect("unsupported source should not fail command");
+
+        assert!(!output.supported);
+        assert!(output.result.is_none());
+        assert!(output
+            .message
+            .as_deref()
+            .unwrap_or_default()
+            .contains("data:image/png"));
     }
 
     fn minimal_request(project_root_path: String) -> SaveLayeredDesignProjectExportRequest {

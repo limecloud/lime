@@ -21,6 +21,7 @@ export function buildAgentStreamTextDeltaApplyPlan(params: {
   firstTextDeltaAt?: number | null;
   now: number;
   requestStartedAt: number;
+  metricDeltaText?: string;
   textDeltaBufferedCount?: number | null;
 }): AgentStreamTextDeltaApplyPlan {
   const shouldRecordFirstTextDelta = shouldRecordAgentStreamFirstTextDelta({
@@ -33,7 +34,7 @@ export function buildAgentStreamTextDeltaApplyPlan(params: {
     firstTextDeltaContext: firstTextDeltaAt
       ? buildAgentStreamFirstTextDeltaMetricContext({
           activeSessionId: params.activeSessionId,
-          deltaText: params.deltaText,
+          deltaText: params.metricDeltaText ?? params.deltaText,
           eventName: params.eventName,
           firstEventReceivedAt: params.firstEventReceivedAt,
           firstRuntimeStatusAt: params.firstRuntimeStatusAt,

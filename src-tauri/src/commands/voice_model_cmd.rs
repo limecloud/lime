@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::env;
 use std::fs;
+use std::net::IpAddr;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::{command, AppHandle, Emitter, Runtime};
@@ -481,7 +482,11 @@ async fn fetch_configured_voice_model_catalog(
         return Ok(None);
     };
 
-    let client = reqwest::Client::builder()
+    let mut client_builder = reqwest::Client::builder();
+    if is_loopback_voice_model_catalog_url(&catalog_url) {
+        client_builder = client_builder.no_proxy();
+    }
+    let client = client_builder
         .build()
         .map_err(|error| format!("创建 HTTP 客户端失败: {error}"))?;
     let payload = client
@@ -510,6 +515,22 @@ fn parse_limecore_voice_model_catalog(
     let response = serde_json::from_value::<LimecoreVoiceModelCatalogResponse>(payload)
         .map_err(|error| format!("后端语音模型目录格式非法: {error}"))?;
     map_limecore_voice_model_catalog(response)
+}
+
+fn is_loopback_voice_model_catalog_url(catalog_url: &str) -> bool {
+    let Ok(url) = reqwest::Url::parse(catalog_url) else {
+        return false;
+    };
+
+    let Some(host) = url.host_str() else {
+        return false;
+    };
+
+    host.eq_ignore_ascii_case("localhost")
+        || host
+            .parse::<IpAddr>()
+            .map(|addr| addr.is_loopback())
+            .unwrap_or(false)
 }
 
 fn map_limecore_voice_model_catalog(

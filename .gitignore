@@ -36,6 +36,7 @@ docs/prd/*
 !docs/prd/tools/*.md
 
 # Internal roadmap&gongzonghao (private)
+docs/exec-plans/
 docs/roadmap/*
 !docs/roadmap/lime-service-skill-cloud-config-prd.md
 !docs/roadmap/task/
@@ -59,8 +60,8 @@ docs/roadmap/*
 !docs/roadmap/memory/*.md
 !docs/roadmap/knowledge/
 !docs/roadmap/knowledge/prd.md
-!docs/roadmap/creaoai/
-!docs/roadmap/creaoai/*.md
+!docs/roadmap/skill-forge/
+!docs/roadmap/skill-forge/*.md
 !docs/roadmap/managed-objective/
 !docs/roadmap/managed-objective/*.md
 !docs/roadmap/ai-layered-design/
@@ -73,7 +74,13 @@ docs/knowledge
 !docs/knowledge/
 docs/knowledge/*
 !docs/knowledge/README.md
-docs/research/
+!docs/knowledge/skills/
+!docs/knowledge/skills/**
+docs/knowledge/skills/.DS_Store
+docs/knowledge/skills/**/.DS_Store
+docs/research/*
+!docs/research/skill-forge/
+!docs/research/skill-forge/*.md
 
 # Issues tracking (internal use only)
 .issues/

@@ -5,6 +5,7 @@ import {
 import type {
   GeneratedDesignAsset,
   LayeredDesignDocument,
+  LayeredDesignExtractionAnalysisInput,
   LayeredDesignExtractionCandidateInput,
   LayeredDesignExtractionCleanPlateInput,
 } from "./types";
@@ -24,6 +25,7 @@ export interface CreateLayeredDesignFlatImageDraftDocumentParams {
   id?: string;
   title?: string;
   image: LayeredDesignFlatImageSource;
+  analysis?: LayeredDesignExtractionAnalysisInput;
   candidates?: LayeredDesignExtractionCandidateInput[];
   cleanPlate?: LayeredDesignExtractionCleanPlateInput;
   candidateSelectionThreshold?: number;
@@ -134,6 +136,7 @@ function createExtractionParams(
       height: normalizePositiveInteger(params.image.height, 1),
     },
     sourceAsset,
+    analysis: params.analysis,
     candidates: params.candidates,
     cleanPlate: params.cleanPlate,
     candidateSelectionThreshold: params.candidateSelectionThreshold,

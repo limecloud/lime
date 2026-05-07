@@ -789,6 +789,7 @@ const MessageListInner: React.FC<MessageListProps> = ({
   currentTurnId = null,
   threadRead = null,
   pendingActions = [],
+  submittedActionsInFlight = [],
   queuedTurns = [],
   childSubagentSessions = [],
   sessionHistoryWindow = null,
@@ -1189,6 +1190,7 @@ const MessageListInner: React.FC<MessageListProps> = ({
       currentTurnId: activeCurrentTurnId,
       threadRead,
       pendingActions,
+      submittedActionsInFlight,
       queuedTurns,
       childSubagentSessions,
       isSending,
@@ -1199,6 +1201,7 @@ const MessageListInner: React.FC<MessageListProps> = ({
     isSending,
     lastAssistantMessageId,
     pendingActions,
+    submittedActionsInFlight,
     queuedTurns,
     renderedMessages,
     renderedThreadItems,
@@ -1514,7 +1517,7 @@ const MessageListInner: React.FC<MessageListProps> = ({
       message: Message,
       isConversationTailAssistant: boolean,
       hasProcessTimelineItems: boolean,
-      hasCurrentTurnContext: boolean,
+      hasTurnContext: boolean,
     ): boolean => {
       if (message.role !== "assistant") {
         return false;
@@ -1529,7 +1532,7 @@ const MessageListInner: React.FC<MessageListProps> = ({
       }
 
       if (
-        hasCurrentTurnContext &&
+        hasTurnContext &&
         !hasProcessTimelineItems &&
         hasInlineThinkingContent(message)
       ) {
@@ -1706,7 +1709,7 @@ const MessageListInner: React.FC<MessageListProps> = ({
         msg,
         isConversationTailAssistant,
         hasProcessTimelineItems,
-        Boolean(currentTurnId),
+        Boolean(timeline),
       );
     const conversationContentParts =
       msg.role === "assistant"

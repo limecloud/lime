@@ -55,6 +55,8 @@ export interface UseAsterAgentChatOptions {
   disableSessionRestore?: boolean;
   initialTopicsLoadMode?: "immediate" | "deferred";
   initialTopicsDeferredDelayMs?: number;
+  initialRuntimeWarmupLoadMode?: "immediate" | "deferred";
+  initialRuntimeWarmupDeferredDelayMs?: number;
   getSyncedSessionRecentPreferences?: (
     sessionId: string,
   ) => ChatToolPreferences | null;

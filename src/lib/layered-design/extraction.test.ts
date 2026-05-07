@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { normalizeLayeredDesignDocument } from "./document";
 import {
+  confirmLayeredDesignExtraction,
   createLayeredDesignExtractionDocument,
+  reanalyzeLayeredDesignExtraction,
   updateLayeredDesignExtractionSelection,
 } from "./extraction";
 import type { GeneratedDesignAsset, LayeredDesignDocument } from "./types";
@@ -41,6 +43,19 @@ function createExtractionDocument(): LayeredDesignDocument {
       height: 1440,
       hasAlpha: false,
     }),
+    analysis: {
+      analyzer: {
+        kind: "local_heuristic",
+        label: "测试 analyzer",
+      },
+      outputs: {
+        candidateRaster: true,
+        candidateMask: true,
+        cleanPlate: true,
+        ocrText: false,
+      },
+      generatedAt: CREATED_AT,
+    },
     cleanPlate: {
       asset: createAsset("clean-plate", {
         kind: "clean_plate",
@@ -175,6 +190,18 @@ describe("LayeredDesign extraction draft", () => {
       status: "succeeded",
       assetId: "clean-plate",
     });
+    expect(document.extraction?.review).toMatchObject({
+      status: "pending",
+    });
+    expect(document.extraction?.analysis).toMatchObject({
+      analyzer: {
+        label: "测试 analyzer",
+      },
+      outputs: {
+        candidateMask: true,
+        cleanPlate: true,
+      },
+    });
     expect(document.layers.map((layer) => layer.id)).toEqual([
       "extraction-background-image",
       "subject-layer",
@@ -227,6 +254,99 @@ describe("LayeredDesign extraction draft", () => {
     expect(updated.editHistory.at(-1)).toMatchObject({
       id: "edit-select-candidates",
       type: "candidate_selection_updated",
+    });
+  });
+
+  it("确认拆层候选后应进入 confirmed review 状态，并记录确认历史", () => {
+    const document = createExtractionDocument();
+    const confirmed = confirmLayeredDesignExtraction(document, {
+      editId: "edit-confirm-candidates",
+      editedAt: UPDATED_AT,
+    });
+
+    expect(confirmed.extraction?.review).toMatchObject({
+      status: "confirmed",
+      confirmedAt: UPDATED_AT,
+    });
+    expect(confirmed.editHistory.at(-1)).toMatchObject({
+      id: "edit-confirm-candidates",
+      type: "candidate_selection_confirmed",
+    });
+  });
+
+  it("重新拆层后应重置为 pending review，并写回新的候选层结果", () => {
+    const confirmed = confirmLayeredDesignExtraction(createExtractionDocument(), {
+      editedAt: UPDATED_AT,
+    });
+    const reanalyzed = reanalyzeLayeredDesignExtraction(confirmed, {
+      editedAt: "2026-05-06T02:00:00.000Z",
+      analysis: {
+        analyzer: {
+          kind: "local_heuristic",
+          label: "测试 analyzer",
+        },
+        outputs: {
+          candidateRaster: true,
+          candidateMask: true,
+          cleanPlate: false,
+          ocrText: false,
+        },
+        generatedAt: "2026-05-06T02:00:00.000Z",
+      },
+      candidates: [
+        {
+          id: "logo-candidate",
+          role: "logo",
+          confidence: 0.83,
+          layer: {
+            id: "logo-layer",
+            name: "艺术 Logo",
+            type: "image",
+            assetId: "logo-asset-v2",
+            x: 80,
+            y: 92,
+            width: 400,
+            height: 172,
+            zIndex: 44,
+            alphaMode: "embedded",
+          },
+          assets: [
+            createAsset("logo-asset-v2", {
+              kind: "logo",
+              width: 400,
+              height: 172,
+            }),
+          ],
+        },
+      ],
+      cleanPlate: {
+        status: "failed",
+        message: "重新拆层未生成 clean plate。",
+      },
+    });
+
+    expect(reanalyzed.extraction?.review).toMatchObject({
+      status: "pending",
+    });
+    expect(reanalyzed.extraction?.analysis).toMatchObject({
+      analyzer: {
+        label: "测试 analyzer",
+      },
+      outputs: {
+        candidateMask: true,
+        cleanPlate: false,
+      },
+    });
+    expect(reanalyzed.extraction?.cleanPlate).toMatchObject({
+      status: "failed",
+      message: "重新拆层未生成 clean plate。",
+    });
+    expect(reanalyzed.layers.map((layer) => layer.id)).toEqual([
+      "extraction-background-image",
+      "logo-layer",
+    ]);
+    expect(reanalyzed.editHistory.at(-1)).toMatchObject({
+      type: "extraction_reanalyzed",
     });
   });
 

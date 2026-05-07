@@ -350,6 +350,13 @@ async function clickScopedButton(page, { scope, text, ariaLabel, index = 0 }) {
   }
 }
 
+async function openKnowledgePageFromMainNav(page) {
+  await clickScopedButton(page, {
+    scope: '[data-testid="app-sidebar-main-nav"]',
+    ariaLabel: "项目资料",
+  });
+}
+
 async function waitForKnowledgePack(options, label, matcher) {
   const startedAt = Date.now();
   let lastError = null;
@@ -557,7 +564,7 @@ async function runPlaywrightGuiFlow(options) {
     await clickPageControl(page, { ariaLabel: "关闭文件管理器" });
 
     logStage("open-knowledge-page");
-    await clickPageControl(page, { ariaLabel: "项目资料" });
+    await openKnowledgePageFromMainNav(page);
 
     logStage("wait-knowledge-overview");
     await waitForPageText(
@@ -606,7 +613,7 @@ async function runPlaywrightGuiFlow(options) {
     }
 
     logStage("return-knowledge-before-agent-result");
-    await clickPageControl(page, { ariaLabel: "项目资料" });
+    await openKnowledgePageFromMainNav(page);
 
     logStage("prepare-agent-result");
     await seedAgentResultForKnowledgeCapture(page, options);
@@ -636,7 +643,7 @@ async function runPlaywrightGuiFlow(options) {
     );
 
     logStage("return-knowledge-page");
-    await clickPageControl(page, { ariaLabel: "项目资料" });
+    await openKnowledgePageFromMainNav(page);
 
     logStage("wait-captured-agent-result");
     await waitForPageText(

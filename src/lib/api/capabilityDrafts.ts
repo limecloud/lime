@@ -81,6 +81,12 @@ export interface CapabilityDraftVerificationCheck {
   message: string;
   suggestions: string[];
   canAgentRepair: boolean;
+  evidence: CapabilityDraftVerificationEvidence[];
+}
+
+export interface CapabilityDraftVerificationEvidence {
+  key: string;
+  value: string;
 }
 
 export interface CapabilityDraftVerificationSummary {
@@ -115,6 +121,269 @@ export interface CapabilityDraftRegistrationSummary {
   sourceVerificationReportId?: string | null;
   generatedFileCount: number;
   permissionSummary: string[];
+  verificationGates?: CapabilityDraftRegistrationVerificationGate[];
+  approvalRequests?: CapabilityDraftRegistrationApprovalRequest[];
+}
+
+export interface CapabilityDraftRegistrationVerificationGate {
+  checkId: string;
+  label: string;
+  evidence: CapabilityDraftVerificationEvidence[];
+}
+
+export interface CapabilityDraftRegistrationApprovalRequest {
+  approvalId: string;
+  status: "pending";
+  sourceCheckId: string;
+  skillDirectory: string;
+  endpointSource: string;
+  method: string;
+  credentialReferenceId: string;
+  evidenceSchema: string[];
+  policyPath: string;
+  createdAt: string;
+  consumptionGate: CapabilityDraftApprovalConsumptionGate;
+  credentialResolver: CapabilityDraftRegistrationCredentialResolver;
+  consumptionInputSchema: CapabilityDraftApprovalConsumptionInputSchema;
+  sessionInputIntake: CapabilityDraftApprovalConsumptionSessionIntake;
+  sessionInputSubmissionContract: CapabilityDraftApprovalSessionSubmissionContract;
+}
+
+export interface CapabilityDraftApprovalConsumptionGate {
+  status: "awaiting_session_approval";
+  requiredInputs: string[];
+  runtimeExecutionEnabled: boolean;
+  credentialStorageEnabled: boolean;
+  blockedReason: string;
+  nextAction: string;
+}
+
+export interface CapabilityDraftRegistrationCredentialResolver {
+  status: "awaiting_session_credential";
+  referenceId: string;
+  scope: string;
+  source: string;
+  secretMaterialStatus: string;
+  tokenPersisted: boolean;
+  runtimeInjectionEnabled: boolean;
+  blockedReason: string;
+  nextAction: string;
+}
+
+export interface CapabilityDraftApprovalConsumptionInputSchema {
+  schemaId: string;
+  version: number;
+  fields: CapabilityDraftApprovalConsumptionInputField[];
+  uiSubmissionEnabled: boolean;
+  runtimeExecutionEnabled: boolean;
+  blockedReason: string;
+}
+
+export interface CapabilityDraftApprovalConsumptionInputField {
+  key: string;
+  label: string;
+  kind: string;
+  required: boolean;
+  source: string;
+  secret: boolean;
+  description: string;
+}
+
+export interface CapabilityDraftApprovalConsumptionSessionIntake {
+  status: "awaiting_session_inputs";
+  schemaId: string;
+  scope: string;
+  requiredFieldKeys: string[];
+  missingFieldKeys: string[];
+  collectedFieldKeys: string[];
+  credentialReferenceId: string;
+  endpointInputPersisted: boolean;
+  secretMaterialStatus: string;
+  tokenPersisted: boolean;
+  uiSubmissionEnabled: boolean;
+  runtimeExecutionEnabled: boolean;
+  blockedReason: string;
+  nextAction: string;
+}
+
+export interface CapabilityDraftApprovalSessionSubmissionContract {
+  status: "submission_contract_declared";
+  scope: string;
+  mode: string;
+  acceptedFieldKeys: string[];
+  validationRules: CapabilityDraftApprovalSessionSubmissionValidationRule[];
+  valueRetention: string;
+  endpointInputPersisted: boolean;
+  secretMaterialAccepted: boolean;
+  tokenPersisted: boolean;
+  evidenceCaptureRequired: boolean;
+  submissionHandlerEnabled: boolean;
+  uiSubmissionEnabled: boolean;
+  runtimeExecutionEnabled: boolean;
+  blockedReason: string;
+  nextAction: string;
+}
+
+export interface CapabilityDraftApprovalSessionSubmissionValidationRule {
+  fieldKey: string;
+  kind: string;
+  required: boolean;
+  source: string;
+  secretAllowed: boolean;
+  rule: string;
+}
+
+export type CapabilityDraftApprovalSessionSubmissionValidationStatus =
+  | "validated_pending_runtime_gate"
+  | "rejected";
+
+export interface SubmitCapabilityDraftApprovalSessionInputsRequest
+  extends Record<string, unknown> {
+  workspaceRoot: string;
+  approvalId: string;
+  sessionId?: string;
+  inputs: Record<string, unknown>;
+}
+
+export interface CapabilityDraftApprovalSessionSubmissionFieldResult {
+  fieldKey: string;
+  accepted: boolean;
+  code: string;
+  message: string;
+}
+
+export type CapabilityDraftReadonlyHttpControlledGetPreflightStatus =
+  | "ready_for_controlled_get_preflight"
+  | "blocked_by_session_input";
+
+export interface CapabilityDraftReadonlyHttpControlledGetPreflight {
+  status: CapabilityDraftReadonlyHttpControlledGetPreflightStatus;
+  gateId: string;
+  approvalId: string;
+  method: string;
+  methodAllowed: boolean;
+  endpointSource: string;
+  endpointValidated: boolean;
+  endpointValueReturned: boolean;
+  credentialReferenceId: string;
+  credentialResolutionRequired: boolean;
+  credentialResolved: boolean;
+  evidenceSchema: string[];
+  policyPath: string;
+  requestExecutionEnabled: boolean;
+  runtimeExecutionEnabled: boolean;
+  blockedReason: string;
+  nextAction: string;
+}
+
+export type CapabilityDraftReadonlyHttpDryPreflightPlanStatus =
+  | "planned_without_execution"
+  | "blocked_by_session_input";
+
+export interface CapabilityDraftReadonlyHttpDryPreflightPlan {
+  status: CapabilityDraftReadonlyHttpDryPreflightPlanStatus;
+  planId: string;
+  gateId: string;
+  approvalId: string;
+  method: string;
+  methodAllowed: boolean;
+  requestUrlHash?: string | null;
+  requestUrlHashAlgorithm: string;
+  endpointValueReturned: boolean;
+  endpointInputPersisted: boolean;
+  credentialReferenceId: string;
+  credentialResolutionStage: string;
+  credentialResolved: boolean;
+  evidenceSchema: string[];
+  plannedEvidenceKeys: string[];
+  policyPath: string;
+  networkRequestSent: boolean;
+  responseCaptured: boolean;
+  requestExecutionEnabled: boolean;
+  runtimeExecutionEnabled: boolean;
+  valueRetention: string;
+  blockedReason: string;
+  nextAction: string;
+}
+
+export interface SubmitCapabilityDraftApprovalSessionInputsResult {
+  approvalId: string;
+  sessionId?: string | null;
+  status: CapabilityDraftApprovalSessionSubmissionValidationStatus;
+  scope: string;
+  acceptedFieldKeys: string[];
+  missingFieldKeys: string[];
+  rejectedFieldKeys: string[];
+  fieldResults: CapabilityDraftApprovalSessionSubmissionFieldResult[];
+  endpointInputPersisted: boolean;
+  secretMaterialAccepted: boolean;
+  tokenPersisted: boolean;
+  credentialResolved: boolean;
+  valueRetention: string;
+  evidenceCaptureRequired: boolean;
+  runtimeExecutionEnabled: boolean;
+  nextGate: string;
+  controlledGetPreflight: CapabilityDraftReadonlyHttpControlledGetPreflight;
+  dryPreflightPlan: CapabilityDraftReadonlyHttpDryPreflightPlan;
+  blockedReason: string;
+}
+
+export interface ExecuteCapabilityDraftControlledGetRequest
+  extends Record<string, unknown> {
+  workspaceRoot: string;
+  approvalId: string;
+  sessionId?: string;
+  inputs: Record<string, unknown>;
+}
+
+export type CapabilityDraftControlledGetExecutionStatus =
+  | "executed"
+  | "blocked"
+  | "request_failed";
+
+export interface ExecuteCapabilityDraftControlledGetResult {
+  approvalId: string;
+  sessionId?: string | null;
+  status: CapabilityDraftControlledGetExecutionStatus;
+  scope: string;
+  gateId: string;
+  method: string;
+  methodAllowed: boolean;
+  requestUrlHash?: string | null;
+  requestUrlHashAlgorithm: string;
+  responseStatus?: number | null;
+  responseSha256?: string | null;
+  responseBytes: number;
+  responsePreview?: string | null;
+  responsePreviewTruncated: boolean;
+  executedAt?: string | null;
+  networkRequestSent: boolean;
+  responseCaptured: boolean;
+  endpointValueReturned: boolean;
+  endpointInputPersisted: boolean;
+  credentialReferenceId: string;
+  credentialResolved: boolean;
+  tokenPersisted: boolean;
+  requestExecutionEnabled: boolean;
+  runtimeExecutionEnabled: boolean;
+  valueRetention: string;
+  sessionInputStatus: CapabilityDraftApprovalSessionSubmissionValidationStatus;
+  fieldResults: CapabilityDraftApprovalSessionSubmissionFieldResult[];
+  evidence: CapabilityDraftVerificationEvidence[];
+  evidenceArtifact?: CapabilityDraftControlledGetEvidenceArtifact | null;
+  blockedReason: string;
+  nextAction: string;
+}
+
+export interface CapabilityDraftControlledGetEvidenceArtifact {
+  artifactId: string;
+  relativePath: string;
+  absolutePath: string;
+  contentSha256: string;
+  persisted: boolean;
+  containsEndpointValue: boolean;
+  containsTokenValue: boolean;
+  containsResponsePreview: boolean;
 }
 
 export interface RegisterCapabilityDraftResult {
@@ -186,7 +455,11 @@ type RawCapabilityDraftVerificationSummary =
 type RawCapabilityDraftVerificationCheck =
   Partial<CapabilityDraftVerificationCheck> & {
     can_agent_repair?: boolean;
+    evidence?: RawCapabilityDraftVerificationEvidence[];
   };
+
+type RawCapabilityDraftVerificationEvidence =
+  Partial<CapabilityDraftVerificationEvidence>;
 
 type RawCapabilityDraftVerificationReport =
   Partial<CapabilityDraftVerificationReport> &
@@ -210,12 +483,218 @@ type RawCapabilityDraftRegistrationSummary =
     source_verification_report_id?: string | null;
     generated_file_count?: number;
     permission_summary?: string[];
+    verification_gates?: RawCapabilityDraftRegistrationVerificationGate[];
+    approval_requests?: RawCapabilityDraftRegistrationApprovalRequest[];
+  };
+
+type RawCapabilityDraftRegistrationVerificationGate =
+  Partial<CapabilityDraftRegistrationVerificationGate> & {
+    check_id?: string;
+    evidence?: RawCapabilityDraftVerificationEvidence[];
+  };
+
+type RawCapabilityDraftRegistrationApprovalRequest =
+  Partial<CapabilityDraftRegistrationApprovalRequest> & {
+    approval_id?: string;
+    source_check_id?: string;
+    skill_directory?: string;
+    endpoint_source?: string;
+    credential_reference_id?: string;
+    evidence_schema?: string[];
+    policy_path?: string;
+    created_at?: string;
+    consumption_gate?: RawCapabilityDraftApprovalConsumptionGate;
+    credential_resolver?: RawCapabilityDraftRegistrationCredentialResolver;
+    consumption_input_schema?: RawCapabilityDraftApprovalConsumptionInputSchema;
+    session_input_intake?: RawCapabilityDraftApprovalConsumptionSessionIntake;
+    session_input_submission_contract?: RawCapabilityDraftApprovalSessionSubmissionContract;
+  };
+
+type RawCapabilityDraftApprovalConsumptionGate =
+  Partial<CapabilityDraftApprovalConsumptionGate> & {
+    required_inputs?: string[];
+    runtime_execution_enabled?: boolean;
+    credential_storage_enabled?: boolean;
+    blocked_reason?: string;
+    next_action?: string;
+  };
+
+type RawCapabilityDraftApprovalConsumptionInputSchema =
+  Partial<CapabilityDraftApprovalConsumptionInputSchema> & {
+    schema_id?: string;
+    ui_submission_enabled?: boolean;
+    runtime_execution_enabled?: boolean;
+    blocked_reason?: string;
+    fields?: RawCapabilityDraftApprovalConsumptionInputField[];
+  };
+
+type RawCapabilityDraftApprovalConsumptionInputField =
+  Partial<CapabilityDraftApprovalConsumptionInputField>;
+
+type RawCapabilityDraftApprovalConsumptionSessionIntake =
+  Partial<CapabilityDraftApprovalConsumptionSessionIntake> & {
+    schema_id?: string;
+    required_field_keys?: string[];
+    missing_field_keys?: string[];
+    collected_field_keys?: string[];
+    credential_reference_id?: string;
+    endpoint_input_persisted?: boolean;
+    secret_material_status?: string;
+    token_persisted?: boolean;
+    ui_submission_enabled?: boolean;
+    runtime_execution_enabled?: boolean;
+    blocked_reason?: string;
+    next_action?: string;
+  };
+
+type RawCapabilityDraftApprovalSessionSubmissionContract =
+  Partial<CapabilityDraftApprovalSessionSubmissionContract> & {
+    accepted_field_keys?: string[];
+    validation_rules?: RawCapabilityDraftApprovalSessionSubmissionValidationRule[];
+    value_retention?: string;
+    endpoint_input_persisted?: boolean;
+    secret_material_accepted?: boolean;
+    token_persisted?: boolean;
+    evidence_capture_required?: boolean;
+    submission_handler_enabled?: boolean;
+    ui_submission_enabled?: boolean;
+    runtime_execution_enabled?: boolean;
+    blocked_reason?: string;
+    next_action?: string;
+  };
+
+type RawCapabilityDraftApprovalSessionSubmissionValidationRule =
+  Partial<CapabilityDraftApprovalSessionSubmissionValidationRule> & {
+    field_key?: string;
+    secret_allowed?: boolean;
+  };
+
+type RawCapabilityDraftApprovalSessionSubmissionFieldResult =
+  Partial<CapabilityDraftApprovalSessionSubmissionFieldResult> & {
+    field_key?: string;
+  };
+
+type RawCapabilityDraftReadonlyHttpControlledGetPreflight =
+  Partial<CapabilityDraftReadonlyHttpControlledGetPreflight> & {
+    gate_id?: string;
+    method_allowed?: boolean;
+    endpoint_source?: string;
+    endpoint_validated?: boolean;
+    endpoint_value_returned?: boolean;
+    credential_reference_id?: string;
+    credential_resolution_required?: boolean;
+    credential_resolved?: boolean;
+    evidence_schema?: string[];
+    policy_path?: string;
+    request_execution_enabled?: boolean;
+    runtime_execution_enabled?: boolean;
+    blocked_reason?: string;
+    next_action?: string;
+  };
+
+type RawCapabilityDraftReadonlyHttpDryPreflightPlan =
+  Partial<CapabilityDraftReadonlyHttpDryPreflightPlan> & {
+    plan_id?: string;
+    gate_id?: string;
+    approval_id?: string;
+    method_allowed?: boolean;
+    request_url_hash?: string | null;
+    request_url_hash_algorithm?: string;
+    endpoint_value_returned?: boolean;
+    endpoint_input_persisted?: boolean;
+    credential_reference_id?: string;
+    credential_resolution_stage?: string;
+    credential_resolved?: boolean;
+    evidence_schema?: string[];
+    planned_evidence_keys?: string[];
+    policy_path?: string;
+    network_request_sent?: boolean;
+    response_captured?: boolean;
+    request_execution_enabled?: boolean;
+    runtime_execution_enabled?: boolean;
+    value_retention?: string;
+    blocked_reason?: string;
+    next_action?: string;
+  };
+
+type RawCapabilityDraftRegistrationCredentialResolver =
+  Partial<CapabilityDraftRegistrationCredentialResolver> & {
+    reference_id?: string;
+    secret_material_status?: string;
+    token_persisted?: boolean;
+    runtime_injection_enabled?: boolean;
+    blocked_reason?: string;
+    next_action?: string;
   };
 
 type RawRegisterCapabilityDraftResult = {
   draft?: RawCapabilityDraftRecord;
   registration?: RawCapabilityDraftRegistrationSummary;
 };
+
+type RawSubmitCapabilityDraftApprovalSessionInputsResult =
+  Partial<SubmitCapabilityDraftApprovalSessionInputsResult> & {
+    approval_id?: string;
+    session_id?: string | null;
+    accepted_field_keys?: string[];
+    missing_field_keys?: string[];
+    rejected_field_keys?: string[];
+    field_results?: RawCapabilityDraftApprovalSessionSubmissionFieldResult[];
+    endpoint_input_persisted?: boolean;
+    secret_material_accepted?: boolean;
+    token_persisted?: boolean;
+    credential_resolved?: boolean;
+    value_retention?: string;
+    evidence_capture_required?: boolean;
+    runtime_execution_enabled?: boolean;
+    next_gate?: string;
+    controlled_get_preflight?: RawCapabilityDraftReadonlyHttpControlledGetPreflight;
+    dry_preflight_plan?: RawCapabilityDraftReadonlyHttpDryPreflightPlan;
+    blocked_reason?: string;
+  };
+
+type RawExecuteCapabilityDraftControlledGetResult =
+  Partial<ExecuteCapabilityDraftControlledGetResult> & {
+    approval_id?: string;
+    session_id?: string | null;
+    gate_id?: string;
+    method_allowed?: boolean;
+    request_url_hash?: string | null;
+    request_url_hash_algorithm?: string;
+    response_status?: number | null;
+    response_sha256?: string | null;
+    response_bytes?: number;
+    response_preview?: string | null;
+    response_preview_truncated?: boolean;
+    executed_at?: string | null;
+    network_request_sent?: boolean;
+    response_captured?: boolean;
+    endpoint_value_returned?: boolean;
+    endpoint_input_persisted?: boolean;
+    credential_reference_id?: string;
+    credential_resolved?: boolean;
+    token_persisted?: boolean;
+    request_execution_enabled?: boolean;
+    runtime_execution_enabled?: boolean;
+    value_retention?: string;
+    session_input_status?: CapabilityDraftApprovalSessionSubmissionValidationStatus;
+    field_results?: RawCapabilityDraftApprovalSessionSubmissionFieldResult[];
+    evidence?: RawCapabilityDraftVerificationEvidence[];
+    evidence_artifact?: RawCapabilityDraftControlledGetEvidenceArtifact | null;
+    blocked_reason?: string;
+    next_action?: string;
+  };
+
+type RawCapabilityDraftControlledGetEvidenceArtifact =
+  Partial<CapabilityDraftControlledGetEvidenceArtifact> & {
+    artifact_id?: string;
+    relative_path?: string;
+    absolute_path?: string;
+    content_sha256?: string;
+    contains_endpoint_value?: boolean;
+    contains_token_value?: boolean;
+    contains_response_preview?: boolean;
+  };
 
 type RawSkillResourceSummary = Partial<SkillResourceSummary> & {
   has_scripts?: boolean;
@@ -248,6 +727,34 @@ function readString(value: Record<string, unknown>, ...keys: string[]): string {
     }
   }
   return "";
+}
+
+function readBoolean(
+  value: Record<string, unknown>,
+  defaultValue: boolean,
+  ...keys: string[]
+): boolean {
+  for (const key of keys) {
+    const candidate = value[key];
+    if (typeof candidate === "boolean") {
+      return candidate;
+    }
+  }
+  return defaultValue;
+}
+
+function readNumber(
+  value: Record<string, unknown>,
+  defaultValue: number,
+  ...keys: string[]
+): number {
+  for (const key of keys) {
+    const candidate = value[key];
+    if (typeof candidate === "number" && Number.isFinite(candidate)) {
+      return candidate;
+    }
+  }
+  return defaultValue;
 }
 
 function normalizeStringArray(value: unknown): string[] {
@@ -345,9 +852,840 @@ function normalizeVerificationChecks(
             : typeof item.can_agent_repair === "boolean"
               ? item.can_agent_repair
               : item.status !== "passed",
+        evidence: normalizeVerificationEvidence(item.evidence),
       };
     })
     .filter((item) => item.id.length > 0);
+}
+
+function normalizeVerificationEvidence(
+  value: unknown,
+): CapabilityDraftVerificationEvidence[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .filter((item): item is RawCapabilityDraftVerificationEvidence =>
+      Boolean(item && typeof item === "object"),
+    )
+    .map((item): CapabilityDraftVerificationEvidence => {
+      const record = item as Record<string, unknown>;
+      return {
+        key: readString(record, "key"),
+        value: readString(record, "value"),
+      };
+    })
+    .filter((item) => item.key.length > 0);
+}
+
+function normalizeRegistrationVerificationGates(
+  value: unknown,
+): CapabilityDraftRegistrationVerificationGate[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .filter((item): item is RawCapabilityDraftRegistrationVerificationGate =>
+      Boolean(item && typeof item === "object"),
+    )
+    .map((item): CapabilityDraftRegistrationVerificationGate => {
+      const record = item as Record<string, unknown>;
+      return {
+        checkId: readString(record, "checkId", "check_id"),
+        label: readString(record, "label"),
+        evidence: normalizeVerificationEvidence(item.evidence),
+      };
+    })
+    .filter((item) => item.checkId.length > 0);
+}
+
+function normalizeApprovalConsumptionGate(
+  value: unknown,
+): CapabilityDraftApprovalConsumptionGate {
+  const record: RawCapabilityDraftApprovalConsumptionGate &
+    Record<string, unknown> =
+    value && typeof value === "object"
+      ? (value as RawCapabilityDraftApprovalConsumptionGate &
+          Record<string, unknown>)
+      : {};
+  return {
+    status: "awaiting_session_approval",
+    requiredInputs: normalizeStringArray(
+      record.requiredInputs ?? record.required_inputs,
+    ),
+    runtimeExecutionEnabled: readBoolean(
+      record,
+      false,
+      "runtimeExecutionEnabled",
+      "runtime_execution_enabled",
+    ),
+    credentialStorageEnabled: readBoolean(
+      record,
+      false,
+      "credentialStorageEnabled",
+      "credential_storage_enabled",
+    ),
+    blockedReason: readString(record, "blockedReason", "blocked_reason"),
+    nextAction: readString(record, "nextAction", "next_action"),
+  };
+}
+
+function normalizeCredentialResolver(
+  value: unknown,
+): CapabilityDraftRegistrationCredentialResolver {
+  const record: RawCapabilityDraftRegistrationCredentialResolver &
+    Record<string, unknown> =
+    value && typeof value === "object"
+      ? (value as RawCapabilityDraftRegistrationCredentialResolver &
+          Record<string, unknown>)
+      : {};
+  return {
+    status: "awaiting_session_credential",
+    referenceId: readString(record, "referenceId", "reference_id"),
+    scope: readString(record, "scope"),
+    source: readString(record, "source"),
+    secretMaterialStatus: readString(
+      record,
+      "secretMaterialStatus",
+      "secret_material_status",
+    ),
+    tokenPersisted: readBoolean(
+      record,
+      false,
+      "tokenPersisted",
+      "token_persisted",
+    ),
+    runtimeInjectionEnabled: readBoolean(
+      record,
+      false,
+      "runtimeInjectionEnabled",
+      "runtime_injection_enabled",
+    ),
+    blockedReason: readString(record, "blockedReason", "blocked_reason"),
+    nextAction: readString(record, "nextAction", "next_action"),
+  };
+}
+
+function normalizeConsumptionInputFields(
+  value: unknown,
+): CapabilityDraftApprovalConsumptionInputField[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .filter((item): item is RawCapabilityDraftApprovalConsumptionInputField =>
+      Boolean(item && typeof item === "object"),
+    )
+    .map((item): CapabilityDraftApprovalConsumptionInputField => {
+      const record = item as Record<string, unknown>;
+      return {
+        key: readString(record, "key"),
+        label: readString(record, "label"),
+        kind: readString(record, "kind"),
+        required: readBoolean(record, false, "required"),
+        source: readString(record, "source"),
+        secret: readBoolean(record, false, "secret"),
+        description: readString(record, "description"),
+      };
+    })
+    .filter((item) => item.key.length > 0);
+}
+
+function normalizeConsumptionInputSchema(
+  value: unknown,
+): CapabilityDraftApprovalConsumptionInputSchema {
+  const record: RawCapabilityDraftApprovalConsumptionInputSchema &
+    Record<string, unknown> =
+    value && typeof value === "object"
+      ? (value as RawCapabilityDraftApprovalConsumptionInputSchema &
+          Record<string, unknown>)
+      : {};
+  return {
+    schemaId: readString(record, "schemaId", "schema_id"),
+    version: typeof record.version === "number" ? record.version : 0,
+    fields: normalizeConsumptionInputFields(record.fields),
+    uiSubmissionEnabled: readBoolean(
+      record,
+      false,
+      "uiSubmissionEnabled",
+      "ui_submission_enabled",
+    ),
+    runtimeExecutionEnabled: readBoolean(
+      record,
+      false,
+      "runtimeExecutionEnabled",
+      "runtime_execution_enabled",
+    ),
+    blockedReason: readString(record, "blockedReason", "blocked_reason"),
+  };
+}
+
+function normalizeSessionInputIntake(
+  value: unknown,
+): CapabilityDraftApprovalConsumptionSessionIntake {
+  const record: RawCapabilityDraftApprovalConsumptionSessionIntake &
+    Record<string, unknown> =
+    value && typeof value === "object"
+      ? (value as RawCapabilityDraftApprovalConsumptionSessionIntake &
+          Record<string, unknown>)
+      : {};
+  return {
+    status: "awaiting_session_inputs",
+    schemaId: readString(record, "schemaId", "schema_id"),
+    scope: readString(record, "scope"),
+    requiredFieldKeys: normalizeStringArray(
+      record.requiredFieldKeys ?? record.required_field_keys,
+    ),
+    missingFieldKeys: normalizeStringArray(
+      record.missingFieldKeys ?? record.missing_field_keys,
+    ),
+    collectedFieldKeys: normalizeStringArray(
+      record.collectedFieldKeys ?? record.collected_field_keys,
+    ),
+    credentialReferenceId: readString(
+      record,
+      "credentialReferenceId",
+      "credential_reference_id",
+    ),
+    endpointInputPersisted: readBoolean(
+      record,
+      false,
+      "endpointInputPersisted",
+      "endpoint_input_persisted",
+    ),
+    secretMaterialStatus: readString(
+      record,
+      "secretMaterialStatus",
+      "secret_material_status",
+    ),
+    tokenPersisted: readBoolean(
+      record,
+      false,
+      "tokenPersisted",
+      "token_persisted",
+    ),
+    uiSubmissionEnabled: readBoolean(
+      record,
+      false,
+      "uiSubmissionEnabled",
+      "ui_submission_enabled",
+    ),
+    runtimeExecutionEnabled: readBoolean(
+      record,
+      false,
+      "runtimeExecutionEnabled",
+      "runtime_execution_enabled",
+    ),
+    blockedReason: readString(record, "blockedReason", "blocked_reason"),
+    nextAction: readString(record, "nextAction", "next_action"),
+  };
+}
+
+function normalizeSessionSubmissionValidationRules(
+  value: unknown,
+): CapabilityDraftApprovalSessionSubmissionValidationRule[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .filter(
+      (
+        item,
+      ): item is RawCapabilityDraftApprovalSessionSubmissionValidationRule =>
+        Boolean(item && typeof item === "object"),
+    )
+    .map((item): CapabilityDraftApprovalSessionSubmissionValidationRule => {
+      const record = item as Record<string, unknown>;
+      return {
+        fieldKey: readString(record, "fieldKey", "field_key"),
+        kind: readString(record, "kind"),
+        required: readBoolean(record, false, "required"),
+        source: readString(record, "source"),
+        secretAllowed: readBoolean(
+          record,
+          false,
+          "secretAllowed",
+          "secret_allowed",
+        ),
+        rule: readString(record, "rule"),
+      };
+    })
+    .filter((item) => item.fieldKey.length > 0);
+}
+
+function normalizeSessionSubmissionContract(
+  value: unknown,
+): CapabilityDraftApprovalSessionSubmissionContract {
+  const record: RawCapabilityDraftApprovalSessionSubmissionContract &
+    Record<string, unknown> =
+    value && typeof value === "object"
+      ? (value as RawCapabilityDraftApprovalSessionSubmissionContract &
+          Record<string, unknown>)
+      : {};
+  return {
+    status: "submission_contract_declared",
+    scope: readString(record, "scope"),
+    mode: readString(record, "mode"),
+    acceptedFieldKeys: normalizeStringArray(
+      record.acceptedFieldKeys ?? record.accepted_field_keys,
+    ),
+    validationRules: normalizeSessionSubmissionValidationRules(
+      record.validationRules ?? record.validation_rules,
+    ),
+    valueRetention: readString(record, "valueRetention", "value_retention"),
+    endpointInputPersisted: readBoolean(
+      record,
+      false,
+      "endpointInputPersisted",
+      "endpoint_input_persisted",
+    ),
+    secretMaterialAccepted: readBoolean(
+      record,
+      false,
+      "secretMaterialAccepted",
+      "secret_material_accepted",
+    ),
+    tokenPersisted: readBoolean(
+      record,
+      false,
+      "tokenPersisted",
+      "token_persisted",
+    ),
+    evidenceCaptureRequired: readBoolean(
+      record,
+      false,
+      "evidenceCaptureRequired",
+      "evidence_capture_required",
+    ),
+    submissionHandlerEnabled: readBoolean(
+      record,
+      false,
+      "submissionHandlerEnabled",
+      "submission_handler_enabled",
+    ),
+    uiSubmissionEnabled: readBoolean(
+      record,
+      false,
+      "uiSubmissionEnabled",
+      "ui_submission_enabled",
+    ),
+    runtimeExecutionEnabled: readBoolean(
+      record,
+      false,
+      "runtimeExecutionEnabled",
+      "runtime_execution_enabled",
+    ),
+    blockedReason: readString(record, "blockedReason", "blocked_reason"),
+    nextAction: readString(record, "nextAction", "next_action"),
+  };
+}
+
+function normalizeSessionSubmissionFieldResults(
+  value: unknown,
+): CapabilityDraftApprovalSessionSubmissionFieldResult[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .filter(
+      (
+        item,
+      ): item is RawCapabilityDraftApprovalSessionSubmissionFieldResult =>
+        Boolean(item && typeof item === "object"),
+    )
+    .map((item): CapabilityDraftApprovalSessionSubmissionFieldResult => {
+      const record = item as Record<string, unknown>;
+      return {
+        fieldKey: readString(record, "fieldKey", "field_key"),
+        accepted: readBoolean(record, false, "accepted"),
+        code: readString(record, "code"),
+        message: readString(record, "message"),
+      };
+    })
+    .filter((item) => item.fieldKey.length > 0);
+}
+
+function normalizeControlledGetPreflight(
+  value: unknown,
+): CapabilityDraftReadonlyHttpControlledGetPreflight {
+  const record: RawCapabilityDraftReadonlyHttpControlledGetPreflight &
+    Record<string, unknown> =
+    value && typeof value === "object"
+      ? (value as RawCapabilityDraftReadonlyHttpControlledGetPreflight &
+          Record<string, unknown>)
+      : {};
+  const status = readString(
+    record,
+    "status",
+  ) as CapabilityDraftReadonlyHttpControlledGetPreflightStatus;
+  return {
+    status:
+      status === "ready_for_controlled_get_preflight"
+        ? status
+        : "blocked_by_session_input",
+    gateId: readString(record, "gateId", "gate_id"),
+    approvalId: readString(record, "approvalId", "approval_id"),
+    method: readString(record, "method"),
+    methodAllowed: readBoolean(record, false, "methodAllowed", "method_allowed"),
+    endpointSource: readString(record, "endpointSource", "endpoint_source"),
+    endpointValidated: readBoolean(
+      record,
+      false,
+      "endpointValidated",
+      "endpoint_validated",
+    ),
+    endpointValueReturned: readBoolean(
+      record,
+      false,
+      "endpointValueReturned",
+      "endpoint_value_returned",
+    ),
+    credentialReferenceId: readString(
+      record,
+      "credentialReferenceId",
+      "credential_reference_id",
+    ),
+    credentialResolutionRequired: readBoolean(
+      record,
+      false,
+      "credentialResolutionRequired",
+      "credential_resolution_required",
+    ),
+    credentialResolved: readBoolean(
+      record,
+      false,
+      "credentialResolved",
+      "credential_resolved",
+    ),
+    evidenceSchema: normalizeStringArray(
+      record.evidenceSchema ?? record.evidence_schema,
+    ),
+    policyPath: readString(record, "policyPath", "policy_path"),
+    requestExecutionEnabled: readBoolean(
+      record,
+      false,
+      "requestExecutionEnabled",
+      "request_execution_enabled",
+    ),
+    runtimeExecutionEnabled: readBoolean(
+      record,
+      false,
+      "runtimeExecutionEnabled",
+      "runtime_execution_enabled",
+    ),
+    blockedReason: readString(record, "blockedReason", "blocked_reason"),
+    nextAction: readString(record, "nextAction", "next_action"),
+  };
+}
+
+function normalizeDryPreflightPlan(
+  value: unknown,
+): CapabilityDraftReadonlyHttpDryPreflightPlan {
+  const record: RawCapabilityDraftReadonlyHttpDryPreflightPlan &
+    Record<string, unknown> =
+    value && typeof value === "object"
+      ? (value as RawCapabilityDraftReadonlyHttpDryPreflightPlan &
+          Record<string, unknown>)
+      : {};
+  const status = readString(
+    record,
+    "status",
+  ) as CapabilityDraftReadonlyHttpDryPreflightPlanStatus;
+  return {
+    status:
+      status === "planned_without_execution"
+        ? status
+        : "blocked_by_session_input",
+    planId: readString(record, "planId", "plan_id"),
+    gateId: readString(record, "gateId", "gate_id"),
+    approvalId: readString(record, "approvalId", "approval_id"),
+    method: readString(record, "method"),
+    methodAllowed: readBoolean(record, false, "methodAllowed", "method_allowed"),
+    requestUrlHash:
+      typeof record.requestUrlHash === "string"
+        ? record.requestUrlHash
+        : typeof record.request_url_hash === "string"
+          ? record.request_url_hash
+          : null,
+    requestUrlHashAlgorithm: readString(
+      record,
+      "requestUrlHashAlgorithm",
+      "request_url_hash_algorithm",
+    ),
+    endpointValueReturned: readBoolean(
+      record,
+      false,
+      "endpointValueReturned",
+      "endpoint_value_returned",
+    ),
+    endpointInputPersisted: readBoolean(
+      record,
+      false,
+      "endpointInputPersisted",
+      "endpoint_input_persisted",
+    ),
+    credentialReferenceId: readString(
+      record,
+      "credentialReferenceId",
+      "credential_reference_id",
+    ),
+    credentialResolutionStage: readString(
+      record,
+      "credentialResolutionStage",
+      "credential_resolution_stage",
+    ),
+    credentialResolved: readBoolean(
+      record,
+      false,
+      "credentialResolved",
+      "credential_resolved",
+    ),
+    evidenceSchema: normalizeStringArray(
+      record.evidenceSchema ?? record.evidence_schema,
+    ),
+    plannedEvidenceKeys: normalizeStringArray(
+      record.plannedEvidenceKeys ?? record.planned_evidence_keys,
+    ),
+    policyPath: readString(record, "policyPath", "policy_path"),
+    networkRequestSent: readBoolean(
+      record,
+      false,
+      "networkRequestSent",
+      "network_request_sent",
+    ),
+    responseCaptured: readBoolean(
+      record,
+      false,
+      "responseCaptured",
+      "response_captured",
+    ),
+    requestExecutionEnabled: readBoolean(
+      record,
+      false,
+      "requestExecutionEnabled",
+      "request_execution_enabled",
+    ),
+    runtimeExecutionEnabled: readBoolean(
+      record,
+      false,
+      "runtimeExecutionEnabled",
+      "runtime_execution_enabled",
+    ),
+    valueRetention: readString(record, "valueRetention", "value_retention"),
+    blockedReason: readString(record, "blockedReason", "blocked_reason"),
+    nextAction: readString(record, "nextAction", "next_action"),
+  };
+}
+
+function normalizeApprovalSessionSubmissionResult(
+  raw: RawSubmitCapabilityDraftApprovalSessionInputsResult,
+): SubmitCapabilityDraftApprovalSessionInputsResult {
+  const record = raw as RawSubmitCapabilityDraftApprovalSessionInputsResult &
+    Record<string, unknown>;
+  const status = readString(
+    record,
+    "status",
+  ) as CapabilityDraftApprovalSessionSubmissionValidationStatus;
+  return {
+    approvalId: readString(record, "approvalId", "approval_id"),
+    sessionId:
+      typeof record.sessionId === "string"
+        ? record.sessionId
+        : typeof record.session_id === "string"
+          ? record.session_id
+          : null,
+    status:
+      status === "validated_pending_runtime_gate" ? status : "rejected",
+    scope: readString(record, "scope"),
+    acceptedFieldKeys: normalizeStringArray(
+      record.acceptedFieldKeys ?? record.accepted_field_keys,
+    ),
+    missingFieldKeys: normalizeStringArray(
+      record.missingFieldKeys ?? record.missing_field_keys,
+    ),
+    rejectedFieldKeys: normalizeStringArray(
+      record.rejectedFieldKeys ?? record.rejected_field_keys,
+    ),
+    fieldResults: normalizeSessionSubmissionFieldResults(
+      record.fieldResults ?? record.field_results,
+    ),
+    endpointInputPersisted: readBoolean(
+      record,
+      false,
+      "endpointInputPersisted",
+      "endpoint_input_persisted",
+    ),
+    secretMaterialAccepted: readBoolean(
+      record,
+      false,
+      "secretMaterialAccepted",
+      "secret_material_accepted",
+    ),
+    tokenPersisted: readBoolean(
+      record,
+      false,
+      "tokenPersisted",
+      "token_persisted",
+    ),
+    credentialResolved: readBoolean(
+      record,
+      false,
+      "credentialResolved",
+      "credential_resolved",
+    ),
+    valueRetention: readString(record, "valueRetention", "value_retention"),
+    evidenceCaptureRequired: readBoolean(
+      record,
+      false,
+      "evidenceCaptureRequired",
+      "evidence_capture_required",
+    ),
+    runtimeExecutionEnabled: readBoolean(
+      record,
+      false,
+      "runtimeExecutionEnabled",
+      "runtime_execution_enabled",
+    ),
+    nextGate: readString(record, "nextGate", "next_gate"),
+    controlledGetPreflight: normalizeControlledGetPreflight(
+      record.controlledGetPreflight ?? record.controlled_get_preflight,
+    ),
+    dryPreflightPlan: normalizeDryPreflightPlan(
+      record.dryPreflightPlan ?? record.dry_preflight_plan,
+    ),
+    blockedReason: readString(record, "blockedReason", "blocked_reason"),
+  };
+}
+
+function normalizeControlledGetEvidenceArtifact(
+  value: unknown,
+): CapabilityDraftControlledGetEvidenceArtifact | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+  const record = value as RawCapabilityDraftControlledGetEvidenceArtifact &
+    Record<string, unknown>;
+  const artifactId = readString(record, "artifactId", "artifact_id");
+  if (!artifactId) {
+    return null;
+  }
+  return {
+    artifactId,
+    relativePath: readString(record, "relativePath", "relative_path"),
+    absolutePath: readString(record, "absolutePath", "absolute_path"),
+    contentSha256: readString(record, "contentSha256", "content_sha256"),
+    persisted: readBoolean(record, false, "persisted"),
+    containsEndpointValue: readBoolean(
+      record,
+      false,
+      "containsEndpointValue",
+      "contains_endpoint_value",
+    ),
+    containsTokenValue: readBoolean(
+      record,
+      false,
+      "containsTokenValue",
+      "contains_token_value",
+    ),
+    containsResponsePreview: readBoolean(
+      record,
+      false,
+      "containsResponsePreview",
+      "contains_response_preview",
+    ),
+  };
+}
+
+function normalizeControlledGetExecutionResult(
+  raw: RawExecuteCapabilityDraftControlledGetResult,
+): ExecuteCapabilityDraftControlledGetResult {
+  const record = raw as RawExecuteCapabilityDraftControlledGetResult &
+    Record<string, unknown>;
+  const status = readString(
+    record,
+    "status",
+  ) as CapabilityDraftControlledGetExecutionStatus;
+  const sessionInputStatus = readString(
+    record,
+    "sessionInputStatus",
+    "session_input_status",
+  ) as CapabilityDraftApprovalSessionSubmissionValidationStatus;
+  return {
+    approvalId: readString(record, "approvalId", "approval_id"),
+    sessionId:
+      typeof record.sessionId === "string"
+        ? record.sessionId
+        : typeof record.session_id === "string"
+          ? record.session_id
+          : null,
+    status:
+      status === "executed" || status === "request_failed"
+        ? status
+        : "blocked",
+    scope: readString(record, "scope"),
+    gateId: readString(record, "gateId", "gate_id"),
+    method: readString(record, "method"),
+    methodAllowed: readBoolean(record, false, "methodAllowed", "method_allowed"),
+    requestUrlHash:
+      typeof record.requestUrlHash === "string"
+        ? record.requestUrlHash
+        : typeof record.request_url_hash === "string"
+          ? record.request_url_hash
+          : null,
+    requestUrlHashAlgorithm: readString(
+      record,
+      "requestUrlHashAlgorithm",
+      "request_url_hash_algorithm",
+    ),
+    responseStatus:
+      typeof record.responseStatus === "number"
+        ? record.responseStatus
+        : typeof record.response_status === "number"
+          ? record.response_status
+          : null,
+    responseSha256:
+      typeof record.responseSha256 === "string"
+        ? record.responseSha256
+        : typeof record.response_sha256 === "string"
+          ? record.response_sha256
+          : null,
+    responseBytes: readNumber(record, 0, "responseBytes", "response_bytes"),
+    responsePreview:
+      typeof record.responsePreview === "string"
+        ? record.responsePreview
+        : typeof record.response_preview === "string"
+          ? record.response_preview
+          : null,
+    responsePreviewTruncated: readBoolean(
+      record,
+      false,
+      "responsePreviewTruncated",
+      "response_preview_truncated",
+    ),
+    executedAt:
+      typeof record.executedAt === "string"
+        ? record.executedAt
+        : typeof record.executed_at === "string"
+          ? record.executed_at
+          : null,
+    networkRequestSent: readBoolean(
+      record,
+      false,
+      "networkRequestSent",
+      "network_request_sent",
+    ),
+    responseCaptured: readBoolean(
+      record,
+      false,
+      "responseCaptured",
+      "response_captured",
+    ),
+    endpointValueReturned: readBoolean(
+      record,
+      false,
+      "endpointValueReturned",
+      "endpoint_value_returned",
+    ),
+    endpointInputPersisted: readBoolean(
+      record,
+      false,
+      "endpointInputPersisted",
+      "endpoint_input_persisted",
+    ),
+    credentialReferenceId: readString(
+      record,
+      "credentialReferenceId",
+      "credential_reference_id",
+    ),
+    credentialResolved: readBoolean(
+      record,
+      false,
+      "credentialResolved",
+      "credential_resolved",
+    ),
+    tokenPersisted: readBoolean(record, false, "tokenPersisted", "token_persisted"),
+    requestExecutionEnabled: readBoolean(
+      record,
+      false,
+      "requestExecutionEnabled",
+      "request_execution_enabled",
+    ),
+    runtimeExecutionEnabled: readBoolean(
+      record,
+      false,
+      "runtimeExecutionEnabled",
+      "runtime_execution_enabled",
+    ),
+    valueRetention: readString(record, "valueRetention", "value_retention"),
+    sessionInputStatus:
+      sessionInputStatus === "validated_pending_runtime_gate"
+        ? sessionInputStatus
+        : "rejected",
+    fieldResults: normalizeSessionSubmissionFieldResults(
+      record.fieldResults ?? record.field_results,
+    ),
+    evidence: normalizeVerificationEvidence(record.evidence),
+    evidenceArtifact: normalizeControlledGetEvidenceArtifact(
+      record.evidenceArtifact ?? record.evidence_artifact,
+    ),
+    blockedReason: readString(record, "blockedReason", "blocked_reason"),
+    nextAction: readString(record, "nextAction", "next_action"),
+  };
+}
+
+function normalizeRegistrationApprovalRequests(
+  value: unknown,
+): CapabilityDraftRegistrationApprovalRequest[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .filter((item): item is RawCapabilityDraftRegistrationApprovalRequest =>
+      Boolean(item && typeof item === "object"),
+    )
+    .map((item): CapabilityDraftRegistrationApprovalRequest => {
+      const record = item as Record<string, unknown>;
+      return {
+        approvalId: readString(record, "approvalId", "approval_id"),
+        status: "pending",
+        sourceCheckId: readString(record, "sourceCheckId", "source_check_id"),
+        skillDirectory: readString(record, "skillDirectory", "skill_directory"),
+        endpointSource: readString(record, "endpointSource", "endpoint_source"),
+        method: readString(record, "method"),
+        credentialReferenceId: readString(
+          record,
+          "credentialReferenceId",
+          "credential_reference_id",
+        ),
+        evidenceSchema: normalizeStringArray(
+          item.evidenceSchema ?? item.evidence_schema,
+        ),
+        policyPath: readString(record, "policyPath", "policy_path"),
+        createdAt: readString(record, "createdAt", "created_at"),
+        consumptionGate: normalizeApprovalConsumptionGate(
+          item.consumptionGate ?? item.consumption_gate,
+        ),
+        credentialResolver: normalizeCredentialResolver(
+          item.credentialResolver ?? item.credential_resolver,
+        ),
+        consumptionInputSchema: normalizeConsumptionInputSchema(
+          item.consumptionInputSchema ?? item.consumption_input_schema,
+        ),
+        sessionInputIntake: normalizeSessionInputIntake(
+          item.sessionInputIntake ?? item.session_input_intake,
+        ),
+        sessionInputSubmissionContract: normalizeSessionSubmissionContract(
+          item.sessionInputSubmissionContract ??
+            item.session_input_submission_contract,
+        ),
+      };
+    })
+    .filter(
+      (item) =>
+        item.approvalId.length > 0 &&
+        item.sourceCheckId.length > 0 &&
+        item.method.length > 0,
+    );
 }
 
 function normalizeVerificationReport(
@@ -399,6 +1737,12 @@ function normalizeRegistrationSummary(
           : 0,
     permissionSummary: normalizeStringArray(
       raw.permissionSummary ?? raw.permission_summary,
+    ),
+    verificationGates: normalizeRegistrationVerificationGates(
+      raw.verificationGates ?? raw.verification_gates,
+    ),
+    approvalRequests: normalizeRegistrationApprovalRequests(
+      raw.approvalRequests ?? raw.approval_requests,
     ),
   };
 }
@@ -467,6 +1811,7 @@ function normalizeWorkspaceRegisteredSkill(
       sourceVerificationReportId: null,
       generatedFileCount: 0,
       permissionSummary: [],
+      verificationGates: [],
     },
     permissionSummary: normalizeStringArray(
       raw.permissionSummary ?? raw.permission_summary,
@@ -585,6 +1930,7 @@ export const capabilityDraftsApi = {
         sourceVerificationReportId: null,
         generatedFileCount: 0,
         permissionSummary: [],
+        verificationGates: [],
       },
     };
   },
@@ -601,6 +1947,27 @@ export const capabilityDraftsApi = {
     }
     return skills.map(normalizeWorkspaceRegisteredSkill);
   },
+
+  async submitApprovalSessionInputs(
+    request: SubmitCapabilityDraftApprovalSessionInputsRequest,
+  ): Promise<SubmitCapabilityDraftApprovalSessionInputsResult> {
+    const result =
+      await safeInvoke<RawSubmitCapabilityDraftApprovalSessionInputsResult>(
+        "capability_draft_submit_approval_session_inputs",
+        { request },
+      );
+    return normalizeApprovalSessionSubmissionResult(result ?? {});
+  },
+
+  async executeControlledGet(
+    request: ExecuteCapabilityDraftControlledGetRequest,
+  ): Promise<ExecuteCapabilityDraftControlledGetResult> {
+    const result = await safeInvoke<RawExecuteCapabilityDraftControlledGetResult>(
+      "capability_draft_execute_controlled_get",
+      { request },
+    );
+    return normalizeControlledGetExecutionResult(result ?? {});
+  },
 };
 
 export const __capabilityDraftsApiTestUtils = {
@@ -609,4 +1976,7 @@ export const __capabilityDraftsApiTestUtils = {
   normalizeVerificationReport,
   normalizeRegistrationSummary,
   normalizeWorkspaceRegisteredSkill,
+  normalizeApprovalSessionSubmissionResult,
+  normalizeControlledGetEvidenceArtifact,
+  normalizeControlledGetExecutionResult,
 };

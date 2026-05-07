@@ -17,6 +17,10 @@ import { VideoCanvas } from "@/components/workspace/video/VideoCanvas";
 import type { VideoCanvasState } from "@/components/workspace/video/types";
 import { DesignCanvas } from "@/components/workspace/design/DesignCanvas";
 import type { DesignCanvasState } from "@/components/workspace/design/types";
+import type {
+  AnalyzeLayeredDesignFlatImage,
+  LayeredDesignAnalyzerModelSlotConfigInput,
+} from "@/lib/layered-design";
 import { getCanvasTypeForTheme, type CanvasStateUnion } from "./canvasUtils";
 
 /**
@@ -43,6 +47,10 @@ interface CanvasFactoryProps {
   contentId?: string | null;
   /** 当前项目根目录（用于图层设计图片任务） */
   projectRootPath?: string | null;
+  /** 图层设计扁平图 analyzer 注入（DEV smoke / 测试使用） */
+  designAnalyzeFlatImage?: AnalyzeLayeredDesignFlatImage;
+  /** 图层设计 analyzer model slot config（DEV smoke / 测试导出审计使用） */
+  designAnalyzerModelSlotConfigs?: readonly LayeredDesignAnalyzerModelSlotConfigInput[];
   /** 自动配图主题关键词 */
   autoImageTopic?: string;
   /** 自动续写同步的 Provider */
@@ -93,6 +101,8 @@ export const CanvasFactory: React.FC<CanvasFactoryProps> = memo(
     projectId,
     contentId,
     projectRootPath,
+    designAnalyzeFlatImage,
+    designAnalyzerModelSlotConfigs,
     autoImageTopic,
     autoContinueProviderType,
     onAutoContinueProviderTypeChange,
@@ -174,6 +184,8 @@ export const CanvasFactory: React.FC<CanvasFactoryProps> = memo(
           projectRootPath={projectRootPath}
           projectId={projectId}
           contentId={contentId}
+          analyzeFlatImage={designAnalyzeFlatImage}
+          analyzerModelSlotConfigs={designAnalyzerModelSlotConfigs}
         />
       );
     }

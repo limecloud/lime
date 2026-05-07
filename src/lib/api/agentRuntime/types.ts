@@ -808,6 +808,7 @@ export interface AgentRuntimeCompletionAuditRequiredEvidence {
   automation_owner: boolean;
   workspace_skill_tool_call: boolean;
   artifact_or_timeline: boolean;
+  controlled_get_evidence?: boolean;
 }
 
 export interface AgentRuntimeCompletionAuditSummary {
@@ -817,6 +818,12 @@ export interface AgentRuntimeCompletionAuditSummary {
   successful_owner_run_count: number;
   workspace_skill_tool_call_count: number;
   artifact_count: number;
+  controlled_get_evidence_artifact_count?: number;
+  controlled_get_evidence_executed_count?: number;
+  controlled_get_evidence_scanned_artifact_count?: number;
+  controlled_get_evidence_skipped_unsafe_artifact_count?: number;
+  controlled_get_evidence_status_counts?: Record<string, number>;
+  controlled_get_evidence_required?: boolean;
   owner_audit_statuses: string[];
   required_evidence: AgentRuntimeCompletionAuditRequiredEvidence;
   blocking_reasons: string[];

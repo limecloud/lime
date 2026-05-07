@@ -1793,6 +1793,103 @@ describe("MessageList", () => {
     expect(container.textContent).not.toContain("<empty-assistant>");
   });
 
+  it("运行时权限确认提交后不应在消息尾部残留失败状态", () => {
+    const now = new Date("2026-05-06T10:00:00.000Z");
+    const internalError =
+      "运行时权限声明需要真实确认，当前 turn 已在模型执行前等待用户确认：confirmationStatus=confirmed，askProfileKeys=web_search。已创建真实权限确认请求；请确认后重试或恢复本轮执行。";
+    const messages: Message[] = [
+      {
+        id: "msg-user-runtime-permission",
+        role: "user",
+        content: "@搜索 OpenAI 最新模型公告",
+        timestamp: now,
+      },
+      {
+        id: "msg-assistant-runtime-permission",
+        role: "assistant",
+        content: "",
+        timestamp: new Date(now.getTime() + 1000),
+        actionRequests: [
+          {
+            requestId: "runtime_permission_confirmation:turn-runtime-permission",
+            actionType: "elicitation",
+            prompt:
+              "当前执行需要确认运行时权限：web_search。确认后才允许继续模型执行；拒绝会保持阻断。",
+            status: "submitted",
+            submittedUserData: { answer: "允许本次执行" },
+          },
+        ],
+      },
+    ];
+
+    const container = render(messages, {
+      currentTurnId: "turn-runtime-permission",
+      turns: [
+        {
+          id: "turn-runtime-permission",
+          thread_id: "thread-1",
+          prompt_text: "@搜索 OpenAI 最新模型公告",
+          status: "failed",
+          error_message: internalError,
+          started_at: "2026-05-06T10:00:00Z",
+          completed_at: "2026-05-06T10:00:01Z",
+          created_at: "2026-05-06T10:00:00Z",
+          updated_at: "2026-05-06T10:00:01Z",
+        },
+      ],
+      threadItems: [
+        {
+          id: "permission-request-submitted",
+          thread_id: "thread-1",
+          turn_id: "turn-runtime-permission",
+          sequence: 1,
+          status: "completed",
+          started_at: "2026-05-06T10:00:00Z",
+          completed_at: "2026-05-06T10:00:00Z",
+          updated_at: "2026-05-06T10:00:00Z",
+          type: "request_user_input",
+          request_id: "runtime_permission_confirmation:turn-runtime-permission",
+          action_type: "elicitation",
+          prompt:
+            "当前执行需要确认运行时权限：web_search。确认后才允许继续模型执行；拒绝会保持阻断。",
+          response: { answer: "允许本次执行" },
+        },
+        {
+          id: "permission-error-submitted",
+          thread_id: "thread-1",
+          turn_id: "turn-runtime-permission",
+          sequence: 2,
+          status: "failed",
+          started_at: "2026-05-06T10:00:01Z",
+          completed_at: "2026-05-06T10:00:01Z",
+          updated_at: "2026-05-06T10:00:01Z",
+          type: "error",
+          message: internalError,
+        },
+      ],
+      pendingActions: [
+        {
+          requestId: "runtime_permission_confirmation:turn-runtime-permission",
+          actionType: "elicitation",
+          prompt:
+            "当前执行需要确认运行时权限：web_search。确认后才允许继续模型执行；拒绝会保持阻断。",
+          status: "submitted",
+          submittedUserData: { answer: "允许本次执行" },
+        },
+      ],
+    });
+
+    expect(
+      container.querySelector('[data-testid="assistant-message-meta-footer"]'),
+    ).toBeNull();
+    expect(
+      container.querySelector('[data-testid="inputbar-runtime-status-line"]'),
+    ).toBeNull();
+    expect(container.textContent).not.toContain("失败");
+    expect(container.textContent).not.toContain("confirmationStatus");
+    expect(container.textContent).not.toContain("askProfileKeys");
+  });
+
   it("assistant 首条流式内容只有协议残留时，不应渲染空白气泡", () => {
     const now = new Date();
     const messages: Message[] = [
@@ -3219,6 +3316,62 @@ describe("MessageList", () => {
         contentParts: [
           { type: "thinking", text: "先分析意图。" },
           { type: "text", text: "最终说明" },
+        ],
+      }),
+    );
+  });
+
+  it("当前尾部 assistant 已完成但 reasoning 尚未持久化时也应继续显示思考内容", () => {
+    const now = new Date();
+    const messages: Message[] = [
+      {
+        id: "msg-user-tail-thinking-fallback",
+        role: "user",
+        content: "帮我分析一下",
+        timestamp: now,
+      },
+      {
+        id: "msg-assistant-tail-thinking-fallback",
+        role: "assistant",
+        content: "这是最终回答。",
+        timestamp: now,
+        thinkingContent: "先列提纲，再组织答案。",
+        contentParts: [
+          {
+            type: "thinking",
+            text: "先列提纲，再组织答案。",
+          },
+          {
+            type: "text",
+            text: "这是最终回答。",
+          },
+        ],
+      },
+    ];
+
+    render(messages, {
+      currentTurnId: null,
+      turns: [
+        {
+          id: "turn-tail-thinking-fallback",
+          thread_id: "thread-1",
+          prompt_text: "帮我分析一下",
+          status: "completed",
+          started_at: "2026-03-28T12:00:00Z",
+          completed_at: "2026-03-28T12:00:02Z",
+          created_at: "2026-03-28T12:00:00Z",
+          updated_at: "2026-03-28T12:00:02Z",
+        },
+      ],
+      threadItems: [],
+    });
+
+    expect(mockStreamingRenderer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        thinkingContent: "先列提纲，再组织答案。",
+        contentParts: [
+          { type: "thinking", text: "先列提纲，再组织答案。" },
+          { type: "text", text: "这是最终回答。" },
         ],
       }),
     );

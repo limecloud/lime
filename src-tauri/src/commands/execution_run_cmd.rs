@@ -187,14 +187,14 @@ fn infer_gate_key_from_stage(stage: &str) -> Option<String> {
     }
 }
 
-fn derive_run_title(run: &AgentRun) -> String {
-    let parsed_metadata = run
-        .metadata
-        .as_ref()
-        .and_then(|raw| serde_json::from_str::<Value>(raw).ok());
+fn parse_run_metadata(run: &AgentRun) -> Option<Value> {
+    run.metadata
+        .as_deref()
+        .and_then(|raw| serde_json::from_str(raw).ok())
+}
 
-    let metadata_title = parsed_metadata
-        .as_ref()
+fn derive_run_title(run: &AgentRun, metadata: Option<&Value>) -> String {
+    let metadata_title = metadata
         .and_then(|value| {
             metadata_string(
                 value,
@@ -206,8 +206,7 @@ fn derive_run_title(run: &AgentRun) -> String {
         return title;
     }
 
-    let skill_title = parsed_metadata
-        .as_ref()
+    let skill_title = metadata
         .and_then(|value| value.get("skill_name"))
         .and_then(Value::as_str)
         .map(str::trim)
@@ -217,8 +216,7 @@ fn derive_run_title(run: &AgentRun) -> String {
         return title;
     }
 
-    let task_title = parsed_metadata
-        .as_ref()
+    let task_title = metadata
         .and_then(|value| value.get("task_name"))
         .and_then(Value::as_str)
         .map(str::trim)
@@ -245,14 +243,8 @@ fn derive_run_title(run: &AgentRun) -> String {
     }
 }
 
-fn derive_run_gate_key(run: &AgentRun, title: &str) -> String {
-    let parsed_metadata = run
-        .metadata
-        .as_ref()
-        .and_then(|raw| serde_json::from_str::<Value>(raw).ok());
-
-    if let Some(value) = parsed_metadata
-        .as_ref()
+fn derive_run_gate_key(run: &AgentRun, metadata: Option<&Value>, title: &str) -> String {
+    if let Some(value) = metadata
         .and_then(|value| value.get("gate_key"))
         .and_then(Value::as_str)
         .and_then(normalize_gate_key)
@@ -260,18 +252,14 @@ fn derive_run_gate_key(run: &AgentRun, title: &str) -> String {
         return value;
     }
 
-    if let Some(value) = parsed_metadata
-        .as_ref()
+    if let Some(value) = metadata
         .and_then(|value| metadata_string(value, &["stage"]))
         .and_then(infer_gate_key_from_stage)
     {
         return value;
     }
 
-    let metadata_probe = parsed_metadata
-        .as_ref()
-        .map(|value| value.to_string())
-        .unwrap_or_default();
+    let metadata_probe = metadata.map(|value| value.to_string()).unwrap_or_default();
     let source_ref_probe = run.source_ref.clone().unwrap_or_default();
     let probe = format!(
         "{} {} {} {}",
@@ -289,14 +277,8 @@ fn derive_current_gate_key(queue_items: &[GeneralWorkbenchRunTodoItem]) -> Strin
         .unwrap_or_else(|| "idle".to_string())
 }
 
-fn derive_run_execution_id(run: &AgentRun) -> Option<String> {
-    let parsed_metadata = run
-        .metadata
-        .as_ref()
-        .and_then(|raw| serde_json::from_str::<Value>(raw).ok());
-
-    parsed_metadata
-        .as_ref()
+fn derive_run_execution_id(metadata: Option<&Value>) -> Option<String> {
+    metadata
         .and_then(|value| {
             metadata_string(
                 value,
@@ -311,26 +293,22 @@ fn derive_run_execution_id(run: &AgentRun) -> Option<String> {
         .map(str::to_string)
 }
 
-fn derive_run_artifact_paths(run: &AgentRun) -> Vec<String> {
-    let parsed_metadata = run
-        .metadata
-        .as_ref()
-        .and_then(|raw| serde_json::from_str::<Value>(raw).ok());
-
-    parsed_metadata
-        .as_ref()
+fn derive_run_artifact_paths(metadata: Option<&Value>) -> Vec<String> {
+    metadata
         .map(extract_artifact_protocol_paths_from_value)
         .unwrap_or_default()
 }
 
 fn build_terminal_item(run: &AgentRun) -> GeneralWorkbenchRunTerminalItem {
-    let title = derive_run_title(run);
-    let gate_key = derive_run_gate_key(run, title.as_str());
+    let metadata = parse_run_metadata(run);
+    let metadata_ref = metadata.as_ref();
+    let title = derive_run_title(run, metadata_ref);
+    let gate_key = derive_run_gate_key(run, metadata_ref, title.as_str());
     GeneralWorkbenchRunTerminalItem {
         run_id: run.id.clone(),
-        execution_id: derive_run_execution_id(run),
+        execution_id: derive_run_execution_id(metadata_ref),
         session_id: run.session_id.clone(),
-        artifact_paths: derive_run_artifact_paths(run),
+        artifact_paths: derive_run_artifact_paths(metadata_ref),
         title,
         gate_key,
         status: run.status.clone(),
@@ -339,25 +317,6 @@ fn build_terminal_item(run: &AgentRun) -> GeneralWorkbenchRunTerminalItem {
         started_at: run.started_at.clone(),
         finished_at: run.finished_at.clone(),
     }
-}
-
-fn derive_recent_terminal_items(
-    runs: &[AgentRun],
-    limit: usize,
-) -> Vec<GeneralWorkbenchRunTerminalItem> {
-    runs.iter()
-        .filter(|run| {
-            matches!(
-                run.status,
-                AgentRunStatus::Success
-                    | AgentRunStatus::Error
-                    | AgentRunStatus::Canceled
-                    | AgentRunStatus::Timeout
-            )
-        })
-        .take(limit)
-        .map(build_terminal_item)
-        .collect()
 }
 
 #[tauri::command]
@@ -373,26 +332,28 @@ pub async fn execution_run_get_general_workbench_state(
 
     let safe_limit = limit.unwrap_or(3).clamp(1, 10);
     let tracker = ExecutionTracker::new(db.inner().clone());
-    let mut runs = tracker.list_runs_by_session(trimmed_session_id, safe_limit * 5)?;
+    let mut active_runs =
+        tracker.list_active_runs_by_session(trimmed_session_id, safe_limit * 2)?;
     let now = Utc::now();
-    let stale_run_ids = collect_stale_run_ids(runs.as_slice(), now);
+    let stale_run_ids = collect_stale_run_ids(active_runs.as_slice(), now);
     if !stale_run_ids.is_empty() {
         mark_stale_runs_as_timeout(db.inner(), stale_run_ids.as_slice(), &now.to_rfc3339())?;
-        runs = tracker.list_runs_by_session(trimmed_session_id, safe_limit * 5)?;
+        active_runs = tracker.list_active_runs_by_session(trimmed_session_id, safe_limit * 2)?;
     }
 
-    let queue_items: Vec<GeneralWorkbenchRunTodoItem> = runs
+    let queue_items: Vec<GeneralWorkbenchRunTodoItem> = active_runs
         .iter()
-        .filter(|run| matches!(run.status, AgentRunStatus::Running | AgentRunStatus::Queued))
         .take(safe_limit)
         .map(|run| {
-            let title = derive_run_title(run);
-            let gate_key = derive_run_gate_key(run, title.as_str());
+            let metadata = parse_run_metadata(run);
+            let metadata_ref = metadata.as_ref();
+            let title = derive_run_title(run, metadata_ref);
+            let gate_key = derive_run_gate_key(run, metadata_ref, title.as_str());
             GeneralWorkbenchRunTodoItem {
                 run_id: run.id.clone(),
-                execution_id: derive_run_execution_id(run),
+                execution_id: derive_run_execution_id(metadata_ref),
                 session_id: run.session_id.clone(),
-                artifact_paths: derive_run_artifact_paths(run),
+                artifact_paths: derive_run_artifact_paths(metadata_ref),
                 title,
                 gate_key,
                 status: run.status.clone(),
@@ -410,7 +371,9 @@ pub async fn execution_run_get_general_workbench_state(
     };
     let current_gate_key = derive_current_gate_key(queue_items.as_slice());
 
-    let recent_terminals = derive_recent_terminal_items(runs.as_slice(), safe_limit);
+    let terminal_runs = tracker.list_terminal_runs_by_session(trimmed_session_id, safe_limit, 0)?;
+    let recent_terminals: Vec<GeneralWorkbenchRunTerminalItem> =
+        terminal_runs.iter().map(build_terminal_item).collect();
     let latest_terminal = recent_terminals.first().cloned();
 
     Ok(GeneralWorkbenchRunState {
@@ -440,8 +403,8 @@ pub async fn execution_run_list_general_workbench_history(
     let tracker = ExecutionTracker::new(db.inner().clone());
 
     let now = Utc::now();
-    let runs_for_timeout = tracker.list_runs_by_session(trimmed_session_id, safe_limit * 5)?;
-    let stale_run_ids = collect_stale_run_ids(runs_for_timeout.as_slice(), now);
+    let active_runs = tracker.list_active_runs_by_session(trimmed_session_id, safe_limit)?;
+    let stale_run_ids = collect_stale_run_ids(active_runs.as_slice(), now);
     if !stale_run_ids.is_empty() {
         mark_stale_runs_as_timeout(db.inner(), stale_run_ids.as_slice(), &now.to_rfc3339())?;
     }
@@ -493,14 +456,16 @@ mod tests {
         let run = sample_run_with_metadata(Some(serde_json::json!({
             "gate_key": "publish_confirm"
         })));
-        let gate_key = derive_run_gate_key(&run, "任意标题");
+        let metadata = parse_run_metadata(&run);
+        let gate_key = derive_run_gate_key(&run, metadata.as_ref(), "任意标题");
         assert_eq!(gate_key, "publish_confirm");
     }
 
     #[test]
     fn derive_run_gate_key_should_fallback_to_probe_inference() {
         let run = sample_run_with_metadata(None);
-        let gate_key = derive_run_gate_key(&run, "执行选题调研");
+        let metadata = parse_run_metadata(&run);
+        let gate_key = derive_run_gate_key(&run, metadata.as_ref(), "执行选题调研");
         assert_eq!(gate_key, "topic_select");
     }
 
@@ -580,8 +545,9 @@ mod tests {
             "execution_id": "exec-12345",
             "version_id": "version-legacy",
         })));
+        let metadata = parse_run_metadata(&run);
         assert_eq!(
-            derive_run_execution_id(&run),
+            derive_run_execution_id(metadata.as_ref()),
             Some("exec-12345".to_string())
         );
     }
@@ -595,9 +561,10 @@ mod tests {
                 "content-posts/demo.cover.json"
             ],
         })));
+        let metadata = parse_run_metadata(&run);
 
         assert_eq!(
-            derive_run_artifact_paths(&run),
+            derive_run_artifact_paths(metadata.as_ref()),
             vec![
                 "content-posts/demo.md".to_string(),
                 "content-posts/demo.cover.json".to_string(),
@@ -611,8 +578,12 @@ mod tests {
             "harness_theme": "general",
             "stage": "publish_prep"
         })));
+        let metadata = parse_run_metadata(&run);
 
-        assert_eq!(derive_run_gate_key(&run, "社媒发布包"), "publish_confirm");
+        assert_eq!(
+            derive_run_gate_key(&run, metadata.as_ref(), "社媒发布包"),
+            "publish_confirm"
+        );
     }
 
     #[test]
@@ -621,8 +592,9 @@ mod tests {
             "harness_theme": "general",
             "version_label": "社媒初稿"
         })));
+        let metadata = parse_run_metadata(&run);
 
-        assert_eq!(derive_run_title(&run), "社媒初稿");
+        assert_eq!(derive_run_title(&run, metadata.as_ref()), "社媒初稿");
     }
 
     #[test]
@@ -630,9 +602,10 @@ mod tests {
         let run = sample_run_with_metadata(Some(serde_json::json!({
             "source_file_name": "content-posts/demo.md"
         })));
+        let metadata = parse_run_metadata(&run);
 
         assert_eq!(
-            derive_run_artifact_paths(&run),
+            derive_run_artifact_paths(metadata.as_ref()),
             vec!["content-posts/demo.md".to_string()]
         );
     }
@@ -647,48 +620,15 @@ mod tests {
                 "absolute_path": " /tmp\\content-posts\\final.md "
             }
         })));
+        let metadata = parse_run_metadata(&run);
 
         assert_eq!(
-            derive_run_artifact_paths(&run),
+            derive_run_artifact_paths(metadata.as_ref()),
             vec![
                 "content-posts/nested.md".to_string(),
                 "/tmp/content-posts/final.md".to_string(),
             ]
         );
-    }
-
-    #[test]
-    fn derive_recent_terminal_items_should_keep_multiple_terminal_runs() {
-        let mut latest_error_run = sample_run_with_metadata(Some(serde_json::json!({
-            "run_title": "最新失败运行"
-        })));
-        latest_error_run.id = "run-error".to_string();
-        latest_error_run.status = AgentRunStatus::Error;
-        latest_error_run.started_at = "2026-03-06T05:00:00Z".to_string();
-        latest_error_run.finished_at = Some("2026-03-06T05:02:00Z".to_string());
-
-        let mut running_run = sample_run_with_metadata(Some(serde_json::json!({
-            "run_title": "运行中"
-        })));
-        running_run.id = "run-running".to_string();
-        running_run.status = AgentRunStatus::Running;
-        running_run.started_at = "2026-03-06T04:30:00Z".to_string();
-        running_run.finished_at = None;
-
-        let mut previous_success_run = sample_run_with_metadata(Some(serde_json::json!({
-            "run_title": "上一轮成功运行"
-        })));
-        previous_success_run.id = "run-success".to_string();
-        previous_success_run.status = AgentRunStatus::Success;
-        previous_success_run.started_at = "2026-03-06T04:00:00Z".to_string();
-        previous_success_run.finished_at = Some("2026-03-06T04:08:00Z".to_string());
-
-        let recent_terminals =
-            derive_recent_terminal_items(&[latest_error_run, running_run, previous_success_run], 3);
-
-        assert_eq!(recent_terminals.len(), 2);
-        assert_eq!(recent_terminals[0].run_id, "run-error");
-        assert_eq!(recent_terminals[1].run_id, "run-success");
     }
 
     #[test]

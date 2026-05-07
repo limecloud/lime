@@ -699,6 +699,73 @@ describe("agentSessionState", () => {
     );
   });
 
+  it("应从历史恢复快照中过滤辅助标题 turn，保留真实用户 turn 作为当前回合", () => {
+    const detail = {
+      id: "topic-with-auxiliary-turn",
+      created_at: 1700000000,
+      updated_at: 1700000001,
+      messages: [],
+      turns: [
+        createTurn({
+          id: "turn-user-search",
+          thread_id: "topic-with-auxiliary-turn",
+          prompt_text: "@搜索 OpenAI 最新模型公告",
+          status: "failed",
+          error_message:
+            "运行时权限声明需要真实确认，当前 turn 已在模型执行前等待用户确认：confirmationStatus=not_requested，askProfileKeys=web_search。已创建真实权限确认请求；请确认后重试或恢复本轮执行。",
+          started_at: "2026-05-06T19:29:06.522Z",
+          completed_at: "2026-05-06T19:29:06.862Z",
+          created_at: "2026-05-06T19:29:06.522Z",
+          updated_at: "2026-05-06T19:29:06.862Z",
+        }),
+        createTurn({
+          id: "auxiliary-runtime-projection-title",
+          thread_id: "topic-with-auxiliary-turn",
+          prompt_text: "辅助标题生成 · 我来帮你搜索 OpenAI 最新模型...",
+          status: "completed",
+          started_at: "2026-05-06T19:29:55.849Z",
+          completed_at: "2026-05-06T19:29:55.896Z",
+          created_at: "2026-05-06T19:29:55.849Z",
+          updated_at: "2026-05-06T19:29:55.896Z",
+        }),
+      ],
+      items: [
+        createItem({
+          id: "auxiliary-runtime-artifact",
+          thread_id: "topic-with-auxiliary-turn",
+          turn_id: "auxiliary-runtime-projection-title",
+          type: "file_artifact",
+          path: ".lime/harness/sessions/topic-with-auxiliary-turn/auxiliary-runtime/title.json",
+          source: "auxiliary_runtime_projection",
+          metadata: {
+            artifactType: "auxiliary_runtime_projection",
+          },
+        } as Partial<AgentThreadItem>),
+      ],
+    } satisfies AsterSessionDetail;
+
+    const result = buildHydratedAgentSessionSnapshot({
+      topicId: "topic-with-auxiliary-turn",
+      detail,
+      currentSessionId: null,
+      currentMessages: [],
+      currentThreadTurns: [],
+      currentThreadItems: [],
+      currentExecutionRuntime: null,
+      currentExecutionStrategy: "react",
+      topics: [],
+      syncSessionId: true,
+    });
+
+    expect(result.snapshot.messages).toHaveLength(1);
+    expect(result.snapshot.messages[0]?.content).toBe(
+      "@搜索 OpenAI 最新模型公告",
+    );
+    expect(result.snapshot.threadTurns).toHaveLength(1);
+    expect(result.snapshot.currentTurnId).toBe("turn-user-search");
+    expect(result.snapshot.threadItems).toEqual([]);
+  });
+
   it("应按本地时间线活动判断是否需要校验丢失会话", () => {
     expect(
       hasSessionHydrationActivity({

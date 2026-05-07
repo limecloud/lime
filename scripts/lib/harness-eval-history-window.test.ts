@@ -1,7 +1,8 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { execFileSync } from "node:child_process";
+import process from "node:process";
+import { execFile } from "node:child_process";
 import { afterEach, describe, expect, it } from "vitest";
 
 const repoRoot = process.cwd();
@@ -29,8 +30,10 @@ function writeText(filePath: string, value: string) {
   fs.writeFileSync(filePath, value, "utf8");
 }
 
-function sleepMs(durationMs: number) {
-  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, durationMs);
+function delayMs(durationMs: number) {
+  return new Promise<void>((resolve) => {
+    setTimeout(resolve, durationMs);
+  });
 }
 
 function createHarnessManifest(caseDir: string) {
@@ -137,16 +140,24 @@ function createReplayFixture(tempRoot: string) {
 }
 
 function runNodeScript(scriptRelativePath: string, args: string[]) {
-  const output = execFileSync(
-    process.execPath,
-    [path.join(repoRoot, scriptRelativePath), ...args],
-    {
-      cwd: repoRoot,
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "pipe"],
-    },
-  );
-  return JSON.parse(output);
+  return new Promise<any>((resolve, reject) => {
+    execFile(
+      process.execPath,
+      [path.join(repoRoot, scriptRelativePath), ...args],
+      {
+        cwd: repoRoot,
+        encoding: "utf8",
+      },
+      (error, stdout) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+
+        resolve(JSON.parse(stdout));
+      },
+    );
+  });
 }
 
 afterEach(() => {
@@ -159,7 +170,7 @@ afterEach(() => {
 });
 
 describe("Harness eval history window", () => {
-  it("history-record 应记录并裁剪历史窗口，trend 应复用该目录", () => {
+  it("history-record 应记录并裁剪历史窗口，trend 应复用该目录", async () => {
     const tempRoot = createTempRoot();
     const caseDir = createReplayFixture(tempRoot);
     const manifestPath = path.join(tempRoot, "manifest.json");
@@ -167,7 +178,7 @@ describe("Harness eval history window", () => {
 
     writeJson(manifestPath, createHarnessManifest(caseDir));
 
-    runNodeScript("scripts/harness-eval-history-record.mjs", [
+    await runNodeScript("scripts/harness-eval-history-record.mjs", [
       "--format",
       "json",
       "--manifest",
@@ -177,8 +188,8 @@ describe("Harness eval history window", () => {
       "--retain",
       "2",
     ]);
-    sleepMs(10);
-    runNodeScript("scripts/harness-eval-history-record.mjs", [
+    await delayMs(10);
+    await runNodeScript("scripts/harness-eval-history-record.mjs", [
       "--format",
       "json",
       "--manifest",
@@ -188,8 +199,8 @@ describe("Harness eval history window", () => {
       "--retain",
       "2",
     ]);
-    sleepMs(10);
-    runNodeScript("scripts/harness-eval-history-record.mjs", [
+    await delayMs(10);
+    await runNodeScript("scripts/harness-eval-history-record.mjs", [
       "--format",
       "json",
       "--manifest",
@@ -206,7 +217,7 @@ describe("Harness eval history window", () => {
       .sort();
     expect(historyFiles).toHaveLength(2);
 
-    const report = runNodeScript("scripts/harness-eval-trend-report.mjs", [
+    const report = await runNodeScript("scripts/harness-eval-trend-report.mjs", [
       "--format",
       "json",
       "--manifest",

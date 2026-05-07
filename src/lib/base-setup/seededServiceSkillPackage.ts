@@ -789,6 +789,13 @@ const SEEDED_LOCAL_CUSTOM_SERVICE_SKILL_PACKAGE: BaseSetupPackage = {
       pathOrUri: "seeded://local-custom/x-article-export",
       kind: "local_bundle",
     },
+    {
+      id: "personal-ip-knowledge-builder-bundle",
+      source: "local",
+      pathOrUri: "repo://docs/knowledge/skills/personal-ip-knowledge-builder",
+      kind: "skill_bundle",
+      versionConstraint: ">=1.0.0",
+    },
   ],
   catalogProjections: [
     {
@@ -867,6 +874,65 @@ const SEEDED_LOCAL_CUSTOM_SERVICE_SKILL_PACKAGE: BaseSetupPackage = {
       themeTarget: "general",
       version: SEEDED_SERVICE_SKILL_CATALOG_VERSION,
     },
+    {
+      id: "personal-ip-knowledge-builder",
+      targetCatalog: "service_skill_catalog",
+      entryKey: "personal-ip-knowledge-builder",
+      skillKey: "personal-ip-knowledge-builder",
+      skillType: "service",
+      title: "个人 IP 知识库生成器",
+      summary:
+        "把访谈稿、聊天记录、简历、公开内容和案例整理成 Agent Knowledge v0.6 document-first 个人人设包。",
+      entryHint:
+        "由项目资料整理流程自动调用；普通用户仍看到“个人 IP”资料模板。",
+      aliases: ["个人IP知识库", "个人 IP", "人设包", "persona builder"],
+      category: "项目资料",
+      outputHint: "document-first 个人 IP 知识库",
+      triggerHints: [
+        "用户选择个人 IP 资料模板并导入访谈或历史内容时使用。",
+        "需要重新维护 personal-profile / persona pack 时使用。",
+      ],
+      bundleRefId: "personal-ip-knowledge-builder-bundle",
+      slotProfileRef: "personal-ip-knowledge-builder-slots",
+      bindingProfileRef: "native-skill-knowledge-builder",
+      artifactProfileRef: "knowledge-builder-document-first-artifact",
+      scorecardProfileRef: "seeded-service-skill-scorecard",
+      policyProfileRef: "seeded-workspace-only",
+      readinessRequirements: {
+        requiresModel: true,
+        requiresProject: true,
+      },
+      usageGuidelines: [
+        "章节模板、访谈问题和质量检查表以 Builder Skill 的 references/ 为事实源。",
+        "运行时只消费生成后的 KnowledgePack，不执行 Builder Skill。",
+      ],
+      setupRequirements: [
+        "需要已选择可用模型。",
+        "需要当前项目内已有 sources/ 来源资料或用户粘贴的访谈内容。",
+      ],
+      examples: [
+        "把 1 小时访谈稿整理成创始人个人 IP 知识库。",
+        "基于历史文章和聊天记录补齐一个专家 persona pack。",
+      ],
+      skillBundleMetadata: {
+        Lime_knowledge_builder: "true",
+        Lime_knowledge_pack_type: "personal-profile",
+        Lime_knowledge_template: "personal-ip",
+        Lime_knowledge_family: "persona",
+        Lime_agent_knowledge_profile: "document-first",
+        Lime_agent_knowledge_runtime_mode: "persona",
+        Lime_skill_bundle_path:
+          "docs/knowledge/skills/personal-ip-knowledge-builder",
+        Lime_skill_bundle_version: "1.0.0",
+      },
+      skillBundleResourceSummary: {
+        hasScripts: true,
+        hasReferences: true,
+        hasAssets: true,
+      },
+      themeTarget: "general",
+      version: SEEDED_SERVICE_SKILL_CATALOG_VERSION,
+    },
   ],
   slotProfiles: [
     {
@@ -891,11 +957,21 @@ const SEEDED_LOCAL_CUSTOM_SERVICE_SKILL_PACKAGE: BaseSetupPackage = {
         },
       ],
     },
+    {
+      id: "personal-ip-knowledge-builder-slots",
+      slots: [],
+    },
   ],
   bindingProfiles: [
     {
       id: "browser-assist-instant",
       bindingFamily: "browser_assist",
+      runnerType: "instant",
+      executionLocation: "client_default",
+    },
+    {
+      id: "native-skill-knowledge-builder",
+      bindingFamily: "native_skill",
       runnerType: "instant",
       executionLocation: "client_default",
     },
@@ -908,6 +984,15 @@ const SEEDED_LOCAL_CUSTOM_SERVICE_SKILL_PACKAGE: BaseSetupPackage = {
       viewerKind: "artifact_bundle",
       outputDestination:
         "结果会写入当前项目目录下的导出文件夹，并在工作区生成一个结果入口文档。",
+    },
+    {
+      id: "knowledge-builder-document-first-artifact",
+      deliveryContract: "project_pack",
+      requiredParts: ["KNOWLEDGE.md", "documents"],
+      viewerKind: "document",
+      defaultArtifactKind: "brief",
+      outputDestination:
+        "结果写入当前项目的 Agent Knowledge document-first 资料包。",
     },
   ],
   scorecardProfiles: [
@@ -928,6 +1013,7 @@ const SEEDED_LOCAL_CUSTOM_SERVICE_SKILL_PACKAGE: BaseSetupPackage = {
     minAppVersion: "1.11.0",
     requiredKernelCapabilities: [
       "browser_assist",
+      "native_skill",
       "artifact_viewer",
       "workspace_storage",
     ],

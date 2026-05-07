@@ -89,6 +89,26 @@ pub(super) async fn try_handle(
                 .map_err(to_dyn_error)?,
             )?
         }
+        "recognize_layered_design_text" => {
+            let args = args_or_default(args);
+            let request: crate::commands::layered_design_cmd::RecognizeLayeredDesignTextRequest =
+                parse_nested_arg(&args, "request")?;
+            serde_json::to_value(
+                crate::commands::layered_design_cmd::recognize_layered_design_text_inner(request)
+                    .map_err(to_dyn_error)?,
+            )?
+        }
+        "analyze_layered_design_flat_image" => {
+            let args = args_or_default(args);
+            let request: crate::commands::layered_design_cmd::AnalyzeLayeredDesignFlatImageRequest =
+                parse_nested_arg(&args, "request")?;
+            serde_json::to_value(
+                crate::commands::layered_design_cmd::analyze_layered_design_flat_image_inner(
+                    request,
+                )
+                .map_err(to_dyn_error)?,
+            )?
+        }
         _ => return Ok(None),
     };
 

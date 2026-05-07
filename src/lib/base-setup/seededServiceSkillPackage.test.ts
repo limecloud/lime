@@ -38,7 +38,25 @@ describe("seededServiceSkillPackage", () => {
 
     expect(pkg.id).toBe("lime-seeded-local-custom-service-skills");
     expect(pkg.version).toBe(SEEDED_SERVICE_SKILL_CATALOG_VERSION);
-    expect(pkg.catalogProjections).toHaveLength(1);
+    expect(pkg.catalogProjections).toHaveLength(2);
+    expect(pkg.catalogProjections).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "x-article-export",
+          targetCatalog: "service_skill_catalog",
+          bindingProfileRef: "browser-assist-instant",
+        }),
+        expect.objectContaining({
+          id: "personal-ip-knowledge-builder",
+          targetCatalog: "service_skill_catalog",
+          bindingProfileRef: "native-skill-knowledge-builder",
+          skillBundleMetadata: expect.objectContaining({
+            Lime_knowledge_pack_type: "personal-profile",
+            Lime_agent_knowledge_runtime_mode: "persona",
+          }),
+        }),
+      ]),
+    );
     expect(pkg.catalogProjections[0]).toEqual(
       expect.objectContaining({
         id: "x-article-export",
@@ -93,7 +111,7 @@ describe("seededServiceSkillPackage", () => {
 
     expect(catalog.tenantId).toBe(SEEDED_SERVICE_SKILL_CATALOG_TENANT_ID);
     expect(catalog.version).toBe(SEEDED_SERVICE_SKILL_CATALOG_VERSION);
-    expect(catalog.items).toHaveLength(1);
+    expect(catalog.items).toHaveLength(2);
     expect(catalog.items[0]).toEqual(
       expect.objectContaining({
         id: "x-article-export",
@@ -113,6 +131,29 @@ describe("seededServiceSkillPackage", () => {
           }),
         }),
       }),
+    );
+    expect(catalog.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "personal-ip-knowledge-builder",
+          source: "local_custom",
+          defaultExecutorBinding: "native_skill",
+          skillBundle: expect.objectContaining({
+            name: "personal-ip-knowledge-builder",
+            resourceSummary: {
+              hasScripts: true,
+              hasReferences: true,
+              hasAssets: true,
+            },
+            metadata: expect.objectContaining({
+              Lime_knowledge_builder: "true",
+              Lime_knowledge_pack_type: "personal-profile",
+              Lime_knowledge_template: "personal-ip",
+              Lime_knowledge_family: "persona",
+            }),
+          }),
+        }),
+      ]),
     );
   });
 });

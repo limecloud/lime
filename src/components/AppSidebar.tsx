@@ -88,6 +88,7 @@ import { hasTauriInvokeCapability } from "@/lib/tauri-runtime";
 import { LIME_BRAND_LOGO_SRC, LIME_BRAND_NAME } from "@/lib/branding";
 import { scheduleMinimumDelayIdleTask } from "@/lib/utils/scheduleMinimumDelayIdleTask";
 import { recordAgentUiPerformanceMetric } from "@/lib/agentUiPerformanceMetrics";
+import { logAgentDebug } from "@/lib/agentDebug";
 import { AppSidebarConversationShelf } from "@/components/app-sidebar/AppSidebarConversationShelf";
 import {
   formatSidebarSessionMeta,
@@ -176,7 +177,7 @@ const SIDEBAR_ARCHIVED_SESSION_PAGE_SIZE = 8;
 const SIDEBAR_SEARCH_RESULT_LIMIT = 8;
 const SIDEBAR_SESSION_ENTRY_REFRESH_DEFER_MS = 30_000;
 const SIDEBAR_SESSION_LOAD_RESTART_DEFER_MS = 160;
-const SIDEBAR_NEW_TASK_HOME_SESSION_LOAD_DEFER_MS = 18_000;
+const SIDEBAR_NEW_TASK_HOME_SESSION_LOAD_DEFER_MS = 0;
 const SIDEBAR_CONVERSATION_NAVIGATION_DEFER_MS =
   SIDEBAR_SESSION_ENTRY_REFRESH_DEFER_MS;
 const SIDEBAR_SEARCH_HOVER_PREFETCH_DELAY_MS = 900;
@@ -3105,21 +3106,63 @@ export function AppSidebar({
     setSidebarSessionsLoading(
       (current) => current || sidebarSessionsRef.current.length === 0,
     );
+    const startedAt = Date.now();
+    logAgentDebug("AppSidebar", "recentConversations.load.start", {
+      limit: recentSessionRequestLimit,
+      workspaceId: currentProjectId ?? "",
+    });
     try {
       const sessions = await listAgentRuntimeSessions({
         limit: recentSessionRequestLimit,
         workspaceId: currentProjectId ?? "",
       });
+      const listDurationMs = Date.now() - startedAt;
+      const sortStartedAt = Date.now();
       const sortedSessions = sortSidebarSessions(sessions);
+      const sortDurationMs = Date.now() - sortStartedAt;
       const { hasMore } = splitSidebarSessionResult({
         sessions: sortedSessions,
         visibleCount: recentSessionsVisibleCount,
         pageSize: SIDEBAR_RECENT_SESSION_PAGE_SIZE,
       });
+      const metricContext = {
+        hasMore,
+        limit: recentSessionRequestLimit,
+        listDurationMs,
+        sessionsCount: sessions.length,
+        sortDurationMs,
+        totalDurationMs: Date.now() - startedAt,
+        visibleCount: recentSessionsVisibleCount,
+        workspaceId: currentProjectId ?? "",
+      };
+      recordAgentUiPerformanceMetric(
+        "appSidebar.recentConversations.loadBreakdown",
+        metricContext,
+      );
+      logAgentDebug(
+        "AppSidebar",
+        "recentConversations.load.success",
+        metricContext,
+        {
+          dedupeKey: `appSidebar.recentConversations.load.success:${currentProjectId ?? ""}:${recentSessionRequestLimit}`,
+          throttleMs: 1000,
+        },
+      );
       setSidebarSessions(sortedSessions);
       setSidebarSessionsHasMore(hasMore);
     } catch (error) {
       console.error("加载导航任务列表失败:", error);
+      logAgentDebug(
+        "AppSidebar",
+        "recentConversations.load.error",
+        {
+          durationMs: Date.now() - startedAt,
+          error,
+          limit: recentSessionRequestLimit,
+          workspaceId: currentProjectId ?? "",
+        },
+        { level: "error" },
+      );
       setSidebarSessions([]);
       setSidebarSessionsHasMore(false);
     } finally {

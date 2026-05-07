@@ -7,6 +7,7 @@ import type {
   ServiceSkillReadinessRequirements,
   ServiceSkillRunnerType,
   ServiceSkillSceneBinding,
+  ServiceSkillBundleResourceSummary,
   ServiceSkillSiteCapabilityBinding,
   ServiceSkillSlotDefinition,
   ServiceSkillSource,
@@ -254,6 +255,8 @@ export interface BaseSetupCatalogProjection {
   commandBinding?: BaseSetupCommandBinding;
   commandRenderContract?: BaseSetupRenderContract;
   version?: string;
+  skillBundleMetadata?: Record<string, string>;
+  skillBundleResourceSummary?: Partial<ServiceSkillBundleResourceSummary>;
 }
 
 export interface BaseSetupCompatibility {

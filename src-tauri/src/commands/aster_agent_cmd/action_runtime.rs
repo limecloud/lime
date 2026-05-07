@@ -142,20 +142,20 @@ fn build_user_lock_capability_response(
     })
 }
 
-fn complete_runtime_permission_confirmation_request(
+fn complete_runtime_request_user_input_item(
     app: &AppHandle,
     event_name: Option<&str>,
     db: &DbConnection,
-    request: &AgentRuntimeRespondActionRequest,
+    request_id: &str,
+    response: serde_json::Value,
+    request_kind_label: &str,
+    validate_request_id: impl FnOnce(&str) -> Result<(), String>,
 ) -> Result<(), String> {
     let mut item = {
         let conn = lime_core::database::lock_db(db)?;
-        lime_core::database::dao::agent_timeline::AgentTimelineDao::get_item(
-            &conn,
-            &request.request_id,
-        )
-        .map_err(|error| format!("读取权限确认请求失败: {error}"))?
-        .ok_or_else(|| format!("权限确认请求不存在: {}", request.request_id))?
+        lime_core::database::dao::agent_timeline::AgentTimelineDao::get_item(&conn, request_id)
+            .map_err(|error| format!("读取{request_kind_label}失败: {error}"))?
+            .ok_or_else(|| format!("{request_kind_label}不存在: {request_id}"))?
     };
 
     let lime_core::database::dao::agent_timeline::AgentThreadItemPayload::RequestUserInput {
@@ -166,11 +166,12 @@ fn complete_runtime_permission_confirmation_request(
         ..
     } = item.payload
     else {
-        return Err("权限确认请求不是 RequestUserInput，拒绝写回".to_string());
+        return Err(format!(
+            "{request_kind_label}不是 RequestUserInput，拒绝写回"
+        ));
     };
-    if !is_runtime_permission_confirmation_request_id(&request_id) {
-        return Err("请求 ID 不是运行时权限确认请求，拒绝写回".to_string());
-    }
+
+    validate_request_id(&request_id)?;
 
     let now = chrono::Utc::now().to_rfc3339();
     item.status = lime_core::database::dao::agent_timeline::AgentThreadItemStatus::Completed;
@@ -182,13 +183,13 @@ fn complete_runtime_permission_confirmation_request(
             action_type,
             prompt,
             questions,
-            response: Some(build_permission_confirmation_response(request)),
+            response: Some(response),
         };
 
     {
         let conn = lime_core::database::lock_db(db)?;
         lime_core::database::dao::agent_timeline::AgentTimelineDao::upsert_item(&conn, &item)
-            .map_err(|error| format!("写回权限确认请求失败: {error}"))?;
+            .map_err(|error| format!("写回{request_kind_label}失败: {error}"))?;
     }
 
     if let Some(event_name) = event_name.filter(|value| !value.trim().is_empty()) {
@@ -197,7 +198,8 @@ fn complete_runtime_permission_confirmation_request(
             &RuntimeAgentEvent::ItemCompleted { item: item.clone() },
         ) {
             tracing::warn!(
-                "[AsterAgent] 发送权限确认完成事件失败: event_name={}, error={}",
+                "[AsterAgent] 发送{}完成事件失败: event_name={}, error={}",
+                request_kind_label,
                 event_name,
                 error
             );
@@ -208,70 +210,74 @@ fn complete_runtime_permission_confirmation_request(
     Ok(())
 }
 
+fn complete_runtime_permission_confirmation_request(
+    app: &AppHandle,
+    event_name: Option<&str>,
+    db: &DbConnection,
+    request: &AgentRuntimeRespondActionRequest,
+) -> Result<(), String> {
+    complete_runtime_request_user_input_item(
+        app,
+        event_name,
+        db,
+        &request.request_id,
+        build_permission_confirmation_response(request),
+        "权限确认请求",
+        |request_id| {
+            if is_runtime_permission_confirmation_request_id(request_id) {
+                Ok(())
+            } else {
+                Err("请求 ID 不是运行时权限确认请求，拒绝写回".to_string())
+            }
+        },
+    )
+}
+
 fn complete_runtime_user_lock_capability_request(
     app: &AppHandle,
     event_name: Option<&str>,
     db: &DbConnection,
     request: &AgentRuntimeRespondActionRequest,
 ) -> Result<(), String> {
-    let mut item = {
-        let conn = lime_core::database::lock_db(db)?;
-        lime_core::database::dao::agent_timeline::AgentTimelineDao::get_item(
-            &conn,
-            &request.request_id,
-        )
-        .map_err(|error| format!("读取模型锁定能力确认请求失败: {error}"))?
-        .ok_or_else(|| format!("模型锁定能力确认请求不存在: {}", request.request_id))?
-    };
+    complete_runtime_request_user_input_item(
+        app,
+        event_name,
+        db,
+        &request.request_id,
+        build_user_lock_capability_response(request),
+        "模型锁定能力确认请求",
+        |request_id| {
+            if is_runtime_user_lock_capability_request_id(request_id) {
+                Ok(())
+            } else {
+                Err("请求 ID 不是运行时模型锁定能力确认请求，拒绝写回".to_string())
+            }
+        },
+    )
+}
 
-    let lime_core::database::dao::agent_timeline::AgentThreadItemPayload::RequestUserInput {
-        request_id,
-        action_type,
-        prompt,
-        questions,
-        ..
-    } = item.payload
-    else {
-        return Err("模型锁定能力确认请求不是 RequestUserInput，拒绝写回".to_string());
-    };
-    if !is_runtime_user_lock_capability_request_id(&request_id) {
-        return Err("请求 ID 不是运行时模型锁定能力确认请求，拒绝写回".to_string());
-    }
-
-    let now = chrono::Utc::now().to_rfc3339();
-    item.status = lime_core::database::dao::agent_timeline::AgentThreadItemStatus::Completed;
-    item.completed_at = Some(now.clone());
-    item.updated_at = now;
-    item.payload =
-        lime_core::database::dao::agent_timeline::AgentThreadItemPayload::RequestUserInput {
-            request_id,
-            action_type,
-            prompt,
-            questions,
-            response: Some(build_user_lock_capability_response(request)),
-        };
-
-    {
-        let conn = lime_core::database::lock_db(db)?;
-        lime_core::database::dao::agent_timeline::AgentTimelineDao::upsert_item(&conn, &item)
-            .map_err(|error| format!("写回模型锁定能力确认请求失败: {error}"))?;
-    }
-
-    if let Some(event_name) = event_name.filter(|value| !value.trim().is_empty()) {
-        if let Err(error) = app.emit(
-            event_name,
-            &RuntimeAgentEvent::ItemCompleted { item: item.clone() },
-        ) {
-            tracing::warn!(
-                "[AsterAgent] 发送模型锁定能力确认完成事件失败: event_name={}, error={}",
-                event_name,
-                error
-            );
-        }
-        emit_action_resume_runtime_status(app, event_name);
-    }
-
-    Ok(())
+fn complete_runtime_ask_or_elicitation_request(
+    app: &AppHandle,
+    event_name: Option<&str>,
+    db: &DbConnection,
+    request: &AgentRuntimeRespondActionRequest,
+    submitted_user_data: serde_json::Value,
+) -> Result<(), String> {
+    complete_runtime_request_user_input_item(
+        app,
+        event_name,
+        db,
+        &request.request_id,
+        serde_json::json!({
+            "confirmed": request.confirmed,
+            "response": request.response,
+            "userData": submitted_user_data,
+            "metadata": request.metadata,
+            "source": "runtime_request_user_input",
+        }),
+        "补充信息请求",
+        |_| Ok(()),
+    )
 }
 
 async fn load_runtime_workspace_settings_or_default(
@@ -428,6 +434,7 @@ pub async fn agent_runtime_respond_action(
             let user_data = build_runtime_action_user_data(&request);
             let action_scope = build_runtime_action_scope(&request);
             let resume_event_name = normalize_optional_text(request.event_name.clone());
+            let submitted_user_data = user_data.clone();
             submit_runtime_elicitation_response_internal(
                 state.inner(),
                 db.inner(),
@@ -439,12 +446,15 @@ pub async fn agent_runtime_respond_action(
                     action_scope,
                 },
             )
-            .await
-            .map(|_| {
-                if let Some(event_name) = resume_event_name.as_deref() {
-                    emit_action_resume_runtime_status(&app, event_name);
-                }
-            })
+            .await?;
+
+            complete_runtime_ask_or_elicitation_request(
+                &app,
+                resume_event_name.as_deref(),
+                db.inner(),
+                &request,
+                submitted_user_data,
+            )
         }
     }
 }

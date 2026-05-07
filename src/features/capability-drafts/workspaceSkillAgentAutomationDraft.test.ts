@@ -64,7 +64,7 @@ describe("workspaceSkillAgentAutomationDraft", () => {
     expect(initialValues?.agent_request_metadata).toMatchObject({
       harness: {
         agent_envelope: {
-          source: "creaoai_p4_agent_envelope",
+          source: "skill_forge_p4_agent_envelope",
           state: "automation_draft",
           skill: "project:capability-report",
           source_draft_id: "capdraft-1",
@@ -72,7 +72,7 @@ describe("workspaceSkillAgentAutomationDraft", () => {
           authorization_scope: "scheduled_run_session",
         },
         managed_objective: {
-          source: "creaoai_p4_managed_execution",
+          source: "skill_forge_p4_managed_execution",
           owner_type: "automation_job",
           state: "planned",
           completion_audit: "artifact_or_evidence_required",
@@ -113,6 +113,37 @@ describe("workspaceSkillAgentAutomationDraft", () => {
         workspaceRoot: "/tmp/work",
       }),
     ).toBeNull();
+  });
+
+  it("Read-Only HTTP API 草案应在 Managed Objective 中声明受控 GET evidence 要求", () => {
+    const metadata = buildWorkspaceSkillAgentAutomationRequestMetadata({
+      binding: createBinding(),
+      workspaceRoot: "/tmp/work",
+      options: {
+        requiresControlledGetEvidence: true,
+      },
+    });
+
+    expect(metadata).toMatchObject({
+      harness: {
+        managed_objective: {
+          completion_audit: "artifact_or_evidence_required",
+          required_external_evidence: ["controlled_get_evidence"],
+          completion_evidence_policy: {
+            controlled_get_evidence_required: true,
+            controlled_get_evidence_source:
+              "capability_draft_controlled_get_evidence",
+          },
+        },
+      },
+    });
+    expect(
+      (
+        metadata?.harness as {
+          managed_objective?: { success_criteria?: string[] };
+        }
+      ).managed_objective?.success_criteria,
+    ).toContain("Read-Only HTTP API 任务必须包含 executed 受控 GET evidence");
   });
 
   it("应识别 workspace skill 对应的 Managed Job 并生成状态摘要", () => {

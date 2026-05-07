@@ -190,7 +190,7 @@ flowchart TD
 2. 模型总结只解释 evidence，不替代 evidence。
 3. audit result 是 objective state 的输入，不是 evidence pack 的替代品。
 
-## 7. 与 CreoAI / Skill Forge 的关系图
+## 7. 与 Skill Forge / Skill Forge 的关系图
 
 ```mermaid
 flowchart TB

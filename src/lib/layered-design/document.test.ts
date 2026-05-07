@@ -7,6 +7,7 @@ import {
   normalizeLayeredDesignDocument,
   replaceImageLayerAsset,
   updateLayerTransform,
+  updateTextLayerProperties,
 } from "./document";
 import type {
   DesignLayer,
@@ -127,6 +128,91 @@ describe("LayeredDesignDocument", () => {
     expect(textLayer.fontSize).toBe(24);
     expect(textLayer.color).toBe("#111111");
     expect(textLayer.align).toBe("left");
+  });
+
+  it("编辑 TextLayer 内容应回写文档、候选层和编辑历史", () => {
+    const title = createTextLayer({
+      id: "title",
+      name: "标题",
+      type: "text",
+      text: "原始标题",
+      x: 80,
+      y: 96,
+      width: 720,
+      height: 120,
+      fontSize: 48,
+      color: "#111111",
+      align: "left",
+      zIndex: 4,
+      source: "extracted",
+    });
+    const document = createLayeredDesignDocument({
+      id: "design-text-edit",
+      title: "文字编辑",
+      canvas: { width: 1080, height: 1440 },
+      layers: [title],
+      extraction: {
+        sourceAssetId: "asset-source",
+        backgroundLayerId: "background",
+        candidates: [
+          {
+            id: "ocr-title",
+            role: "text",
+            confidence: 0.91,
+            selected: true,
+            layer: title,
+          },
+        ],
+      },
+      preview: {
+        assetId: "asset-preview",
+        src: "/preview.png",
+        width: 1080,
+        height: 1440,
+        updatedAt: CREATED_AT,
+        stale: false,
+      },
+      createdAt: CREATED_AT,
+    });
+
+    const updated = updateTextLayerProperties(document, {
+      layerId: "title",
+      text: "可编辑标题",
+      fontSize: 64,
+      color: "#f97316",
+      align: "center",
+      editId: "edit-title-text",
+      editedAt: UPDATED_AT,
+    });
+
+    expect(updated.layers[0]).toMatchObject({
+      id: "title",
+      type: "text",
+      text: "可编辑标题",
+      fontSize: 64,
+      color: "#f97316",
+      align: "center",
+    });
+    expect(updated.extraction?.candidates[0]?.layer).toMatchObject({
+      id: "title",
+      type: "text",
+      text: "可编辑标题",
+      fontSize: 64,
+    });
+    expect(updated.preview).toMatchObject({ stale: true });
+    expect(updated.editHistory.at(-1)).toMatchObject({
+      id: "edit-title-text",
+      type: "text_updated",
+      layerId: "title",
+      previousText: "原始标题",
+      nextText: "可编辑标题",
+      previousFontSize: 48,
+      nextFontSize: 64,
+      previousColor: "#111111",
+      nextColor: "#f97316",
+      previousAlign: "left",
+      nextAlign: "center",
+    });
   });
 
   it("单层替换 asset 时不应改变 layer id、transform、zIndex 和锁定态", () => {

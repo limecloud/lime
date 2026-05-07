@@ -12,6 +12,7 @@ import type {
   LayerEditRecord,
   LayeredDesignDocument,
   LayeredDesignDocumentInput,
+  LayeredDesignExtractionAnalysisInput,
   LayeredDesignExtraction,
   LayeredDesignExtractionCandidate,
   LayeredDesignExtractionCandidateInput,
@@ -24,6 +25,7 @@ export interface CreateLayeredDesignExtractionDocumentParams {
   title: string;
   canvas: LayeredDesignDocument["canvas"];
   sourceAsset: GeneratedDesignAsset;
+  analysis?: LayeredDesignExtractionAnalysisInput;
   candidates?: LayeredDesignExtractionCandidateInput[];
   cleanPlate?: LayeredDesignExtractionCleanPlateInput;
   candidateSelectionThreshold?: number;
@@ -34,6 +36,23 @@ export interface CreateLayeredDesignExtractionDocumentParams {
 
 export interface UpdateLayeredDesignExtractionSelectionParams {
   selectedCandidateIds: string[];
+  editId?: string;
+  editedAt?: string;
+  actor?: LayerEditActor;
+  summary?: string;
+}
+
+export interface ConfirmLayeredDesignExtractionParams {
+  editId?: string;
+  editedAt?: string;
+  actor?: LayerEditActor;
+  summary?: string;
+}
+
+export interface ReanalyzeLayeredDesignExtractionParams {
+  analysis?: LayeredDesignExtractionAnalysisInput;
+  candidates?: LayeredDesignExtractionCandidateInput[];
+  cleanPlate?: LayeredDesignExtractionCleanPlateInput;
   editId?: string;
   editedAt?: string;
   actor?: LayerEditActor;
@@ -67,6 +86,18 @@ function copyExtractionCandidate(
     layer: createDesignLayer(candidate.layer),
     assetIds: [...candidate.assetIds],
     ...(candidate.issues ? { issues: [...candidate.issues] } : {}),
+  };
+}
+
+function copyEditRecord(record: LayerEditRecord): LayerEditRecord {
+  return {
+    ...record,
+    ...(record.transformBefore
+      ? { transformBefore: { ...record.transformBefore } }
+      : {}),
+    ...(record.transformAfter
+      ? { transformAfter: { ...record.transformAfter } }
+      : {}),
   };
 }
 
@@ -219,6 +250,10 @@ export function createLayeredDesignExtractionDocument(
       sourceAssetId: sourceAsset.id,
       backgroundLayerId: params.backgroundLayerId,
       candidateSelectionThreshold: params.candidateSelectionThreshold,
+      review: {
+        status: "pending",
+      },
+      ...(params.analysis ? { analysis: params.analysis } : {}),
       cleanPlate: {
         status: cleanPlateStatus,
         ...(cleanPlateAsset ? { asset: cleanPlateAsset } : {}),
@@ -262,6 +297,9 @@ export function updateLayeredDesignExtractionSelection(
     ...document,
     extraction: {
       ...document.extraction,
+      review: {
+        ...document.extraction.review,
+      },
       cleanPlate: { ...document.extraction.cleanPlate },
       candidates: document.extraction.candidates.map((candidate) =>
         copyExtractionCandidate({
@@ -293,6 +331,113 @@ export function updateLayeredDesignExtractionSelection(
         }
       : undefined,
     editHistory: [...nextDocument.editHistory, editRecord],
+    updatedAt: editedAt,
+  };
+}
+
+export function confirmLayeredDesignExtraction(
+  documentInput: LayeredDesignDocumentInput | LayeredDesignDocument,
+  params: ConfirmLayeredDesignExtractionParams = {},
+): LayeredDesignDocument {
+  const document = normalizeLayeredDesignDocument(documentInput);
+  if (!document.extraction) {
+    throw new Error("文档不存在扁平图拆层上下文");
+  }
+
+  if (document.extraction.review.status === "confirmed") {
+    return document;
+  }
+
+  const editedAt = params.editedAt ?? nowIso();
+  const selectedCount = document.extraction.candidates.filter(
+    (candidate) => candidate.selected,
+  ).length;
+  const nextDocument = syncExtractionLayers({
+    ...document,
+    extraction: {
+      ...document.extraction,
+      review: {
+        status: "confirmed",
+        confirmedAt: editedAt,
+      },
+      cleanPlate: { ...document.extraction.cleanPlate },
+      candidates: document.extraction.candidates.map(copyExtractionCandidate),
+    },
+  });
+  const editRecord: LayerEditRecord = {
+    id: params.editId ?? `candidate-selection-confirmed-${document.editHistory.length + 1}`,
+    type: "candidate_selection_confirmed",
+    actor: params.actor ?? "user",
+    summary:
+      params.summary ??
+      `确认拆层候选并进入图层编辑：${selectedCount}/${document.extraction.candidates.length} 个候选层已保留。`,
+    createdAt: editedAt,
+  };
+
+  return {
+    ...nextDocument,
+    editHistory: [...nextDocument.editHistory, editRecord],
+    updatedAt: editedAt,
+  };
+}
+
+export function reanalyzeLayeredDesignExtraction(
+  documentInput: LayeredDesignDocumentInput | LayeredDesignDocument,
+  params: ReanalyzeLayeredDesignExtractionParams = {},
+): LayeredDesignDocument {
+  const document = normalizeLayeredDesignDocument(documentInput);
+  if (!document.extraction) {
+    throw new Error("文档不存在扁平图拆层上下文");
+  }
+
+  const sourceAsset = document.assets.find(
+    (asset) => asset.id === document.extraction?.sourceAssetId,
+  );
+  if (!sourceAsset) {
+    throw new Error("文档缺少扁平图来源资产，无法重新拆层");
+  }
+
+  const editedAt = params.editedAt ?? nowIso();
+  const refreshed = createLayeredDesignExtractionDocument({
+    id: document.id,
+    title: document.title,
+    canvas: { ...document.canvas },
+    sourceAsset,
+    analysis: params.analysis,
+    candidates: params.candidates,
+    cleanPlate: params.cleanPlate,
+    candidateSelectionThreshold: document.extraction.candidateSelectionThreshold,
+    backgroundLayerId: document.extraction.backgroundLayerId,
+    createdAt: document.createdAt,
+    updatedAt: editedAt,
+  });
+  const selectedCount =
+    refreshed.extraction?.candidates.filter((candidate) => candidate.selected)
+      .length ?? 0;
+  const candidateCount = refreshed.extraction?.candidates.length ?? 0;
+  const cleanPlateStatus =
+    refreshed.extraction?.cleanPlate.status ?? "not_requested";
+  const editRecord: LayerEditRecord = {
+    id: params.editId ?? `extraction-reanalyzed-${document.editHistory.length + 1}`,
+    type: "extraction_reanalyzed",
+    actor: params.actor ?? "user",
+    summary:
+      params.summary ??
+      `重新拆层完成：候选层 ${candidateCount} 个，默认保留 ${selectedCount} 个，clean plate 状态：${cleanPlateStatus}。`,
+    createdAt: editedAt,
+  };
+
+  return {
+    ...refreshed,
+    status: document.status === "exported" ? "draft" : document.status,
+    preview: document.preview
+      ? {
+          ...document.preview,
+          stale: true,
+        }
+      : undefined,
+    editHistory: [...document.editHistory.map(copyEditRecord), editRecord],
+    createdAt: document.createdAt,
     updatedAt: editedAt,
   };
 }

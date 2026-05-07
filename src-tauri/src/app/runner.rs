@@ -1133,6 +1133,8 @@ pub fn run() {
             commands::capability_draft_cmd::capability_draft_verify,
             commands::capability_draft_cmd::capability_draft_register,
             commands::capability_draft_cmd::capability_draft_list_registered_skills,
+            commands::capability_draft_cmd::capability_draft_submit_approval_session_inputs,
+            commands::capability_draft_cmd::capability_draft_execute_controlled_get,
             // Skill Execution commands
             commands::skill_exec_cmd::execute_skill,
             commands::skill_exec_cmd::list_executable_skills,
@@ -1160,6 +1162,7 @@ pub fn run() {
             commands::knowledge_cmd::knowledge_set_default_pack,
             commands::knowledge_cmd::knowledge_update_pack_status,
             commands::knowledge_cmd::knowledge_resolve_context,
+            commands::knowledge_cmd::knowledge_validate_context_run,
             // Ecommerce Review Reply commands
             commands::ecommerce_review_reply_cmd::execute_ecommerce_review_reply,
             commands::browser_runtime_cmd::open_browser_runtime_debugger_window,
@@ -1479,7 +1482,9 @@ pub fn run() {
             commands::document_import_cmd::import_document,
             commands::document_import_cmd::import_document_to_session,
             commands::document_import_cmd::save_exported_document,
+            commands::layered_design_cmd::analyze_layered_design_flat_image,
             commands::layered_design_cmd::read_layered_design_project_export,
+            commands::layered_design_cmd::recognize_layered_design_text,
             commands::layered_design_cmd::save_layered_design_project_export,
             // Workspace commands
             commands::workspace_cmd::workspace_create,

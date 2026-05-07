@@ -347,9 +347,16 @@ pub async fn agent_runtime_get_session(
 
         let dto_started_at = Instant::now();
         let loaded_messages_count = detail.messages.len();
-        let messages_count =
-            lime_agent::count_session_messages_sync(runtime.db(), &session_id)
-                .unwrap_or(loaded_messages_count);
+        let is_first_history_page = normalized_history_offset == 0
+            && normalized_history_before_message_id.is_none();
+        let messages_count = if is_first_history_page {
+            Some(
+                lime_agent::count_session_messages_sync(runtime.db(), &session_id)
+                    .unwrap_or(loaded_messages_count),
+            )
+        } else {
+            None
+        };
         let mut response = AgentRuntimeSessionDetail::from_session_detail_with_thread_read(
             detail,
             queued_turns,

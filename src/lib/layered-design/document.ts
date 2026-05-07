@@ -10,10 +10,13 @@ import type {
   ImageLayerInput,
   LayerEditActor,
   LayerEditRecord,
+  LayeredDesignExtractionAnalysis,
+  LayeredDesignExtractionAnalysisInput,
   LayeredDesignExtraction,
   LayeredDesignExtractionCandidate,
   LayeredDesignExtractionCandidateInput,
   LayeredDesignExtractionInput,
+  LayeredDesignExtractionReview,
   LayerTransformPatch,
   LayeredDesignDocument,
   LayeredDesignDocumentInput,
@@ -60,6 +63,18 @@ export interface UpdateLayerLockParams {
   summary?: string;
 }
 
+export interface UpdateTextLayerPropertiesParams {
+  layerId: string;
+  text?: string;
+  fontSize?: number;
+  color?: string;
+  align?: TextLayer["align"];
+  editId?: string;
+  editedAt?: string;
+  actor?: LayerEditActor;
+  summary?: string;
+}
+
 const isFiniteNumber = (value: unknown): value is number =>
   typeof value === "number" && Number.isFinite(value);
 
@@ -70,6 +85,14 @@ const normalizeOpacity = (value: unknown, fallback: number): number => {
   const normalized = normalizeNumber(value, fallback);
   return Math.min(1, Math.max(0, normalized));
 };
+
+function normalizeTextLayerFontSize(value: unknown, fallback: number): number {
+  return Math.min(512, Math.max(1, normalizeNumber(value, fallback)));
+}
+
+function isTextLayerAlign(value: unknown): value is TextLayer["align"] {
+  return value === "left" || value === "center" || value === "right";
+}
 
 const nowIso = (): string => new Date().toISOString();
 const DEFAULT_EXTRACTION_BACKGROUND_LAYER_ID = "extraction-background-image";
@@ -95,10 +118,17 @@ function normalizeBaseLayer(
   };
 
   if (layer.blendMode) {
-    return { ...base, blendMode: layer.blendMode };
+    return {
+      ...base,
+      blendMode: layer.blendMode,
+      ...(layer.params ? { params: { ...layer.params } } : {}),
+    };
   }
 
-  return base;
+  return {
+    ...base,
+    ...(layer.params ? { params: { ...layer.params } } : {}),
+  };
 }
 
 function normalizeDesignLayer(
@@ -125,7 +155,7 @@ function normalizeDesignLayer(
         ...base,
         type: "text",
         text: layer.text,
-        fontSize: normalizeNumber(layer.fontSize, 24),
+        fontSize: normalizeTextLayerFontSize(layer.fontSize, 24),
         color: layer.color ?? "#111111",
         align: layer.align ?? "left",
         ...(layer.fontFamily !== undefined
@@ -234,6 +264,13 @@ function normalizeLayeredDesignExtraction(
   const cleanPlateStatus =
     extraction.cleanPlate?.status ??
     (cleanPlateAssetId ? "succeeded" : "not_requested");
+  const normalizedAnalysis = normalizeExtractionAnalysis(extraction.analysis);
+  const reviewStatus =
+    extraction.review?.status ??
+    (typeof extraction.review?.confirmedAt === "string" &&
+    extraction.review.confirmedAt.trim().length > 0
+      ? "confirmed"
+      : "pending");
 
   return {
     sourceAssetId: extraction.sourceAssetId,
@@ -241,6 +278,14 @@ function normalizeLayeredDesignExtraction(
       extraction.backgroundLayerId?.trim() ||
       DEFAULT_EXTRACTION_BACKGROUND_LAYER_ID,
     candidateSelectionThreshold: threshold,
+    review: {
+      status: reviewStatus,
+      ...(typeof extraction.review?.confirmedAt === "string" &&
+      extraction.review.confirmedAt.trim().length > 0
+        ? { confirmedAt: extraction.review.confirmedAt }
+        : {}),
+    },
+    ...(normalizedAnalysis ? { analysis: normalizedAnalysis } : {}),
     cleanPlate: {
       status: cleanPlateStatus,
       ...(cleanPlateAssetId ? { assetId: cleanPlateAssetId } : {}),
@@ -251,6 +296,53 @@ function normalizeLayeredDesignExtraction(
     candidates: (extraction.candidates ?? []).map((candidate) =>
       normalizeExtractionCandidate(candidate, threshold),
     ),
+  };
+}
+
+function normalizeExtractionAnalysis(
+  analysis: LayeredDesignExtractionAnalysisInput | undefined,
+): LayeredDesignExtractionAnalysis | undefined {
+  if (!analysis) {
+    return undefined;
+  }
+
+  const label = analysis.analyzer.label?.trim();
+  if (!label) {
+    return undefined;
+  }
+
+  return {
+    analyzer: {
+      kind: analysis.analyzer.kind ?? "unknown",
+      label,
+    },
+    outputs: {
+      candidateRaster: analysis.outputs?.candidateRaster ?? false,
+      candidateMask: analysis.outputs?.candidateMask ?? false,
+      cleanPlate: analysis.outputs?.cleanPlate ?? false,
+      ocrText: analysis.outputs?.ocrText ?? false,
+    },
+    ...(analysis.providerCapabilities &&
+    analysis.providerCapabilities.length > 0
+      ? {
+          providerCapabilities: analysis.providerCapabilities.map(
+            (capability) => ({
+              ...capability,
+              supports: { ...capability.supports },
+              ...(capability.limits
+                ? { limits: { ...capability.limits } }
+                : {}),
+              ...(capability.quality
+                ? { quality: { ...capability.quality } }
+                : {}),
+            }),
+          ),
+        }
+      : {}),
+    ...(typeof analysis.generatedAt === "string" &&
+    analysis.generatedAt.trim().length > 0
+      ? { generatedAt: analysis.generatedAt }
+      : {}),
   };
 }
 
@@ -323,6 +415,10 @@ function copyLayeredDesignExtraction(
     sourceAssetId: extraction.sourceAssetId,
     backgroundLayerId: extraction.backgroundLayerId,
     candidateSelectionThreshold: extraction.candidateSelectionThreshold,
+    review: copyLayeredDesignExtractionReview(extraction.review),
+    ...(extraction.analysis
+      ? { analysis: copyLayeredDesignExtractionAnalysis(extraction.analysis) }
+      : {}),
     cleanPlate: { ...extraction.cleanPlate },
     candidates: extraction.candidates.map((candidate) => ({
       ...candidate,
@@ -330,6 +426,49 @@ function copyLayeredDesignExtraction(
       assetIds: [...candidate.assetIds],
       ...(candidate.issues ? { issues: [...candidate.issues] } : {}),
     })),
+  };
+}
+
+function copyLayeredDesignExtractionReview(
+  review: LayeredDesignExtractionReview,
+): LayeredDesignExtractionReview {
+  return {
+    status: review.status,
+    ...(review.confirmedAt ? { confirmedAt: review.confirmedAt } : {}),
+  };
+}
+
+function copyLayeredDesignExtractionAnalysis(
+  analysis: LayeredDesignExtractionAnalysis,
+): LayeredDesignExtractionAnalysis {
+  return {
+    analyzer: {
+      kind: analysis.analyzer.kind,
+      label: analysis.analyzer.label,
+    },
+    outputs: {
+      candidateRaster: analysis.outputs.candidateRaster,
+      candidateMask: analysis.outputs.candidateMask,
+      cleanPlate: analysis.outputs.cleanPlate,
+      ocrText: analysis.outputs.ocrText,
+    },
+    ...(analysis.providerCapabilities && analysis.providerCapabilities.length > 0
+      ? {
+          providerCapabilities: analysis.providerCapabilities.map(
+            (capability) => ({
+              ...capability,
+              supports: { ...capability.supports },
+              ...(capability.limits
+                ? { limits: { ...capability.limits } }
+                : {}),
+              ...(capability.quality
+                ? { quality: { ...capability.quality } }
+                : {}),
+            }),
+          ),
+        }
+      : {}),
+    ...(analysis.generatedAt ? { generatedAt: analysis.generatedAt } : {}),
   };
 }
 
@@ -378,6 +517,36 @@ function resolveLayerOrThrow(
   }
 
   return layer;
+}
+
+function updateExtractionTextCandidateLayer(
+  extraction: LayeredDesignExtraction | undefined,
+  textLayer: TextLayer,
+): LayeredDesignExtraction | undefined {
+  const copiedExtraction = copyLayeredDesignExtraction(extraction);
+  if (!copiedExtraction) {
+    return undefined;
+  }
+
+  return {
+    ...copiedExtraction,
+    candidates: copiedExtraction.candidates.map((candidate) => {
+      if (candidate.layer.id !== textLayer.id || candidate.layer.type !== "text") {
+        return candidate;
+      }
+
+      return {
+        ...candidate,
+        layer: {
+          ...candidate.layer,
+          text: textLayer.text,
+          fontSize: textLayer.fontSize,
+          color: textLayer.color,
+          align: textLayer.align,
+        },
+      };
+    }),
+  };
 }
 
 export function isImageDesignLayer(
@@ -503,6 +672,81 @@ export function replaceImageLayerAsset(
     ...document,
     layers: sortDesignLayers(layers),
     assets: upsertGeneratedAsset(document.assets, params.asset),
+    preview: markPreviewStale(document.preview),
+    editHistory: [...document.editHistory.map(copyEditRecord), editRecord],
+    updatedAt: editedAt,
+  };
+}
+
+export function updateTextLayerProperties(
+  document: LayeredDesignDocument,
+  params: UpdateTextLayerPropertiesParams,
+): LayeredDesignDocument {
+  const targetLayer = resolveLayerOrThrow(document, params.layerId);
+  if (targetLayer.type !== "text") {
+    throw new Error(`图层不支持编辑文字内容：${params.layerId}`);
+  }
+
+  const nextLayer: TextLayer = {
+    ...targetLayer,
+    text: params.text ?? targetLayer.text,
+    fontSize:
+      params.fontSize !== undefined
+        ? normalizeTextLayerFontSize(params.fontSize, targetLayer.fontSize)
+        : targetLayer.fontSize,
+    color:
+      typeof params.color === "string" && params.color.trim().length > 0
+        ? params.color
+        : targetLayer.color,
+    align: isTextLayerAlign(params.align) ? params.align : targetLayer.align,
+  };
+  const changed =
+    nextLayer.text !== targetLayer.text ||
+    nextLayer.fontSize !== targetLayer.fontSize ||
+    nextLayer.color !== targetLayer.color ||
+    nextLayer.align !== targetLayer.align;
+
+  if (!changed) {
+    return document;
+  }
+
+  const editedAt = params.editedAt ?? nowIso();
+  const editRecord: LayerEditRecord = {
+    id: params.editId ?? createEditId(document, "text_updated"),
+    type: "text_updated",
+    layerId: targetLayer.id,
+    actor: params.actor ?? "user",
+    previousText: targetLayer.text,
+    nextText: nextLayer.text,
+    previousFontSize: targetLayer.fontSize,
+    nextFontSize: nextLayer.fontSize,
+    previousColor: targetLayer.color,
+    nextColor: nextLayer.color,
+    previousAlign: targetLayer.align,
+    nextAlign: nextLayer.align,
+    createdAt: editedAt,
+    ...(params.summary ? { summary: params.summary } : {}),
+  };
+
+  const layers = document.layers.map((layer): DesignLayer => {
+    if (layer.id !== targetLayer.id) {
+      return layer;
+    }
+
+    return nextLayer;
+  });
+
+  return {
+    ...document,
+    layers: sortDesignLayers(layers),
+    ...(document.extraction
+      ? {
+          extraction: updateExtractionTextCandidateLayer(
+            document.extraction,
+            nextLayer,
+          )!,
+        }
+      : {}),
     preview: markPreviewStale(document.preview),
     editHistory: [...document.editHistory.map(copyEditRecord), editRecord],
     updatedAt: editedAt,

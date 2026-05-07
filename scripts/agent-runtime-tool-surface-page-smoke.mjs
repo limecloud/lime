@@ -1,6 +1,10 @@
 #!/usr/bin/env node
 
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import process from "node:process";
+import { chromium } from "playwright";
 
 const DEFAULTS = {
   appUrl: "http://127.0.0.1:1420/",
@@ -10,18 +14,9 @@ const DEFAULTS = {
   intervalMs: 1_000,
 };
 
-const INVOKE_TIMEOUT_CEILING_MS = 180_000;
-const INVOKE_RETRY_COUNT = 10;
-const INVOKE_RETRY_DELAY_MS = 1_000;
-const BROWSER_ACTION_RETRY_COUNT = 6;
-const BROWSER_ACTION_RETRY_DELAY_MS = 1_000;
-const BROWSER_SESSION_RECOVERY_LIMIT = 2;
 const POST_HEALTH_SETTLE_MS = 1_500;
-const POST_LAUNCH_SETTLE_MS = 1_500;
-const DEFAULT_ACTION_TIMEOUT_MS = 45_000;
 const ONBOARDING_VERSION = "1.1.0";
 const PROMPT_TEXT = "请回复一句：smoke harness";
-const SMOKE_PROFILE_KEY = "smoke-agent-runtime-tool-surface-page";
 const WORKSPACE_HARNESS_DEBUG_OVERRIDE_KEY =
   "lime:debug:workspace-harness-enabled:v1";
 const RUNTIME_TOOL_AVAILABILITY_OVERRIDE = {
@@ -140,80 +135,6 @@ function assert(condition, message) {
 
 function logStage(label) {
   console.log(`[smoke:agent-runtime-tool-surface-page] stage=${label}`);
-}
-
-function deepClone(value) {
-  return JSON.parse(JSON.stringify(value));
-}
-
-function isTransientInvokeError(error) {
-  return (
-    error?.name === "TimeoutError" ||
-    (error instanceof TypeError && error.message === "fetch failed")
-  );
-}
-
-async function invoke(options, cmd, args) {
-  const invokeTimeoutMs = Math.min(options.timeoutMs, INVOKE_TIMEOUT_CEILING_MS);
-  const requestInit = {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({ cmd, args }),
-    signal: AbortSignal.timeout(invokeTimeoutMs),
-  };
-
-  for (let attempt = 1; attempt <= INVOKE_RETRY_COUNT; attempt += 1) {
-    try {
-      const response = await fetch(options.invokeUrl, requestInit);
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      const payload = await response.json();
-      if (payload?.error) {
-        throw new Error(String(payload.error));
-      }
-
-      return payload?.result;
-    } catch (error) {
-      const detail = error instanceof Error ? error.message : String(error);
-      if (!isTransientInvokeError(error) || attempt >= INVOKE_RETRY_COUNT) {
-        if (error?.name === "TimeoutError") {
-          throw new Error(
-            `[smoke:agent-runtime-tool-surface-page] ${cmd} 超时，${invokeTimeoutMs}ms 内未收到 DevBridge 响应`,
-          );
-        }
-        throw new Error(
-          `[smoke:agent-runtime-tool-surface-page] ${cmd} 请求失败: ${detail}`,
-        );
-      }
-      console.warn(
-        `[smoke:agent-runtime-tool-surface-page] ${cmd} 第 ${attempt} 次请求失败，${INVOKE_RETRY_DELAY_MS}ms 后重试: ${detail}`,
-      );
-      await sleep(INVOKE_RETRY_DELAY_MS);
-    }
-  }
-
-  throw new Error(
-    `[smoke:agent-runtime-tool-surface-page] ${cmd} 请求失败: unknown error`,
-  );
-}
-
-async function closeSmokeProfileSession(options, profileKey, label) {
-  try {
-    await invoke(options, "close_chrome_profile_session", {
-      profile_key: profileKey,
-    });
-  } catch (error) {
-    console.warn(
-      `[smoke:agent-runtime-tool-surface-page] ${label}: ${
-        error instanceof Error ? error.message : String(error)
-      }`,
-    );
-  }
 }
 
 async function waitForHealth(options) {
@@ -537,136 +458,6 @@ function buildRuntimeSummaryCheckScript() {
   })()`;
 }
 
-function extractJavascriptValue(actionResult) {
-  return (
-    actionResult?.data?.result ??
-    actionResult?.data?.value ??
-    actionResult?.data?.result?.result ??
-    actionResult?.data?.result?.value ??
-    actionResult?.data?.result ??
-    null
-  );
-}
-
-function isRetryableBrowserActionFailure(detail) {
-  return (
-    typeof detail === "string" &&
-    (detail.includes("CDP 调试端口不可用") ||
-      detail.includes("没有可用的 Chrome 会话") ||
-      detail.includes("未找到 profile_key="))
-  );
-}
-
-async function launchSmokeBrowserSession(options, profileKey) {
-  const launchResponse = await invoke(options, "launch_browser_session", {
-    request: {
-      profile_key: profileKey,
-      url: options.appUrl,
-      headless: true,
-      open_window: false,
-      // 真实 Lime 页面在 cdp_direct + frames/both 下会持续产出 frame 流，
-      // 这里会把后续 Runtime.evaluate 挤到超时；页面 smoke 只需要事件流即可。
-      stream_mode: "events",
-    },
-  });
-  const sessionId = launchResponse?.session?.session_id ?? null;
-  assert(
-    typeof sessionId === "string" && sessionId.trim(),
-    "launch_browser_session 未返回 session.session_id",
-  );
-  await sleep(POST_LAUNCH_SETTLE_MS);
-  return sessionId;
-}
-
-async function runBrowserAction(
-  options,
-  profileKey,
-  action,
-  args = {},
-  label = action,
-  recovery,
-) {
-  for (let attempt = 1; attempt <= BROWSER_ACTION_RETRY_COUNT; attempt += 1) {
-    const result = await invoke(options, "browser_execute_action", {
-      request: {
-        profile_key: profileKey,
-        backend: "cdp_direct",
-        action,
-        args,
-        timeout_ms: DEFAULT_ACTION_TIMEOUT_MS,
-      },
-    });
-
-    if (result?.success === true) {
-      return result;
-    }
-
-    const detail = String(result?.error || JSON.stringify(result ?? null));
-    if (
-      isRetryableBrowserActionFailure(detail) &&
-      attempt < BROWSER_ACTION_RETRY_COUNT
-    ) {
-      if (recovery && recovery.count < BROWSER_SESSION_RECOVERY_LIMIT) {
-        recovery.count += 1;
-        console.warn(
-          `[smoke:agent-runtime-tool-surface-page] browser_execute_action(${label}) 丢失托管 Chrome 会话，尝试第 ${recovery.count} 次重启: ${detail}`,
-        );
-        recovery.sessionId = await launchSmokeBrowserSession(
-          options,
-          profileKey,
-        );
-        continue;
-      }
-      console.warn(
-        `[smoke:agent-runtime-tool-surface-page] browser_execute_action(${label}) 第 ${attempt} 次失败，${BROWSER_ACTION_RETRY_DELAY_MS}ms 后重试: ${detail}`,
-      );
-      await sleep(BROWSER_ACTION_RETRY_DELAY_MS);
-      continue;
-    }
-
-    throw new Error(
-      `[smoke:agent-runtime-tool-surface-page] browser_execute_action(${label}) 失败: ${detail}`,
-    );
-  }
-
-  throw new Error(
-    `[smoke:agent-runtime-tool-surface-page] browser_execute_action(${label}) 失败: unknown error`,
-  );
-}
-
-async function runJavascript(
-  options,
-  profileKey,
-  expression,
-  label = "javascript",
-  recovery,
-) {
-  const result = await runBrowserAction(
-    options,
-    profileKey,
-    "javascript",
-    {
-      expression,
-      return_by_value: true,
-    },
-    `javascript:${label}`,
-    recovery,
-  );
-  return extractJavascriptValue(result);
-}
-
-async function readPageMarkdown(options, profileKey, recovery) {
-  const result = await runBrowserAction(
-    options,
-    profileKey,
-    "read_page",
-    {},
-    "read_page",
-    recovery,
-  );
-  return String(result?.data?.markdown || "");
-}
-
 async function waitForCheck(options, label, check) {
   const startedAt = Date.now();
   let lastValue = null;
@@ -686,6 +477,46 @@ async function waitForCheck(options, label, check) {
   );
 }
 
+async function launchPlaywrightContext(userDataDir) {
+  const launchOptions = {
+    headless: true,
+    viewport: { width: 1440, height: 960 },
+  };
+
+  try {
+    return await chromium.launchPersistentContext(userDataDir, {
+      ...launchOptions,
+      channel: "chrome",
+    });
+  } catch (chromeError) {
+    console.warn(
+      `[smoke:agent-runtime-tool-surface-page] Chrome channel 启动失败，尝试 Playwright 自带 Chromium: ${
+        chromeError instanceof Error ? chromeError.message : String(chromeError)
+      }`,
+    );
+    return chromium.launchPersistentContext(userDataDir, launchOptions);
+  }
+}
+
+async function evaluateScript(page, expression) {
+  return page.evaluate(expression);
+}
+
+async function readPageText(page) {
+  return page.evaluate(() => {
+    const text = document.body?.innerText || "";
+    const fieldText = Array.from(document.querySelectorAll("textarea, input"))
+      .map((element) =>
+        element instanceof HTMLTextAreaElement ||
+        element instanceof HTMLInputElement
+          ? element.value
+          : "",
+      )
+      .join("\n");
+    return `${text}\n${fieldText}`;
+  });
+}
+
 async function main() {
   if (typeof fetch !== "function") {
     throw new Error("当前 Node 运行时不支持 fetch，请使用 Node 18+");
@@ -695,34 +526,22 @@ async function main() {
   logStage("wait-health");
   await waitForHealth(options);
   await sleep(POST_HEALTH_SETTLE_MS);
-  const profileKey = SMOKE_PROFILE_KEY;
-  const browserRecovery = {
-    count: 0,
-    sessionId: null,
-  };
+  const userDataDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), `lime-runtime-tool-surface-page-${process.pid}-`),
+  );
+  let context = null;
 
   try {
-    logStage("cleanup-old-profile");
-    await closeSmokeProfileSession(
-      options,
-      profileKey,
-      "预清理旧 smoke profile 失败",
-    );
-
-    logStage("launch-browser-session");
-    browserRecovery.sessionId = await launchSmokeBrowserSession(
-      options,
-      profileKey,
-    );
+    logStage("launch-playwright-page");
+    context = await launchPlaywrightContext(userDataDir);
+    const page = context.pages()[0] ?? (await context.newPage());
+    await page.goto(options.appUrl, { waitUntil: "domcontentloaded" });
 
     logStage("wait-page-storage-ready");
     await waitForCheck(options, "Lime 首页 origin 可访问", async () => {
-      const value = await runJavascript(
-        options,
-        profileKey,
+      const value = await evaluateScript(
+        page,
         buildPageStorageReadyScript(options.appUrl),
-        "wait-page-storage-ready",
-        browserRecovery,
       );
       return {
         ok: value?.ok === true,
@@ -731,31 +550,15 @@ async function main() {
     });
 
     logStage("bootstrap-harness-storage");
-    await runJavascript(
-      options,
-      profileKey,
-      buildHarnessBootstrapScript(),
-      "bootstrap-harness-storage",
-      browserRecovery,
-    );
+    await evaluateScript(page, buildHarnessBootstrapScript());
     logStage("refresh-page");
-    await runBrowserAction(
-      options,
-      profileKey,
-      "refresh_page",
-      {},
-      "refresh_page",
-      browserRecovery,
-    );
+    await page.reload({ waitUntil: "domcontentloaded" });
 
     logStage("wait-empty-state");
     await waitForCheck(options, "首页空态加载", async () => {
-      const text = await runJavascript(
-        options,
-        profileKey,
+      const text = await evaluateScript(
+        page,
         'document.body ? document.body.innerText : ""',
-        "wait-empty-state-text",
-        browserRecovery,
       );
       return {
         ok:
@@ -768,13 +571,7 @@ async function main() {
 
     logStage("fill-prompt");
     await waitForCheck(options, "首页输入框出现", async () => {
-      const value = await runJavascript(
-          options,
-          profileKey,
-          buildComposerReadyScript(),
-          "wait-composer-ready",
-          browserRecovery,
-        );
+      const value = await evaluateScript(page, buildComposerReadyScript());
       return {
         ok: value?.ok === true,
         value,
@@ -785,12 +582,9 @@ async function main() {
       options,
       "首页输入框可写入",
       async () => {
-        const value = await runJavascript(
-          options,
-          profileKey,
+        const value = await evaluateScript(
+          page,
           buildFillPromptScript(PROMPT_TEXT),
-          "fill-prompt",
-          browserRecovery,
         );
         return {
           ok: value?.ok === true,
@@ -805,13 +599,7 @@ async function main() {
 
     logStage("wait-send-ready");
     const sendReady = await waitForCheck(options, "发送按钮可用", async () => {
-      const value = await runJavascript(
-        options,
-        profileKey,
-        buildSendReadyScript(),
-        "wait-send-ready",
-        browserRecovery,
-      );
+      const value = await evaluateScript(page, buildSendReadyScript());
       return {
         ok: value?.ok === true,
         value,
@@ -823,13 +611,7 @@ async function main() {
     );
 
     logStage("click-send");
-    const submitted = await runJavascript(
-      options,
-      profileKey,
-      buildClickSendScript(),
-      "click-send",
-      browserRecovery,
-    );
+    const submitted = await evaluateScript(page, buildClickSendScript());
     assert(
       submitted?.ok === true,
       `提交输入失败: ${JSON.stringify(submitted ?? null)}`,
@@ -837,12 +619,9 @@ async function main() {
 
     logStage("wait-harness-button");
     await waitForCheck(options, "Harness 按钮出现", async () => {
-      const value = await runJavascript(
-        options,
-        profileKey,
+      const value = await evaluateScript(
+        page,
         buildWorkbenchButtonCheckScript(),
-        "wait-harness-button",
-        browserRecovery,
       );
       return {
         ok: value?.hasButton === true,
@@ -851,13 +630,7 @@ async function main() {
     });
 
     logStage("open-harness");
-    const openWorkbench = await runJavascript(
-      options,
-      profileKey,
-      buildOpenWorkbenchScript(),
-      "open-harness",
-      browserRecovery,
-    );
+    const openWorkbench = await evaluateScript(page, buildOpenWorkbenchScript());
     assert(
       openWorkbench?.ok === true,
       `打开 Harness 失败: ${JSON.stringify(openWorkbench ?? null)}`,
@@ -868,12 +641,9 @@ async function main() {
       options,
       "Runtime 能力摘要出现",
       async () => {
-        const value = await runJavascript(
-          options,
-          profileKey,
+        const value = await evaluateScript(
+          page,
           buildRuntimeSummaryCheckScript(),
-          "check-runtime-summary",
-          browserRecovery,
         );
         const hasAllRequired = REQUIRED_RUNTIME_SUMMARY_FLAGS.every(
           (key) => value?.[key] === true,
@@ -887,49 +657,22 @@ async function main() {
       },
     );
 
-    logStage("read-page-markdown");
-    const pageMarkdown = await readPageMarkdown(
-      options,
-      profileKey,
-      browserRecovery,
-    );
+    logStage("read-page-text");
+    const pageText = await readPageText(page);
     for (const warning of FORBIDDEN_PAGE_WARNINGS) {
       assert(
-        !pageMarkdown.includes(warning),
+        !pageText.includes(warning),
         `真实页面仍出现不应存在的页级告警: ${warning}`,
       );
     }
 
-    console.log(
-      `[smoke:agent-runtime-tool-surface-page] 通过 session=${browserRecovery.sessionId} profile=${profileKey}`,
-    );
+    console.log("[smoke:agent-runtime-tool-surface-page] 通过");
     console.log(
       `[smoke:agent-runtime-tool-surface-page] summary=${JSON.stringify(summaryFlags)}`,
     );
   } finally {
-    if (browserRecovery.sessionId) {
-      logStage("close-cdp-session");
-      try {
-        await invoke(options, "close_cdp_session", {
-          request: {
-            session_id: browserRecovery.sessionId,
-          },
-        });
-      } catch (error) {
-        console.warn(
-          `[smoke:agent-runtime-tool-surface-page] 清理浏览器会话失败: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
-        );
-      }
-    }
-
-    logStage("close-profile-session");
-    await closeSmokeProfileSession(
-      options,
-      profileKey,
-      "关闭 smoke profile 失败",
-    );
+    await context?.close().catch(() => undefined);
+    fs.rmSync(userDataDir, { recursive: true, force: true });
   }
 }
 

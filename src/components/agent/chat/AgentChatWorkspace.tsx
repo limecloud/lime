@@ -349,7 +349,8 @@ import {
 
 const GENERAL_BROWSER_ASSIST_PROFILE_KEY = "general_browser_assist";
 const BLANK_HOME_DEFERRED_LOAD_MS = 18_000;
-const SESSION_ENTRY_TOPIC_DEFERRED_LOAD_MS = 45_000;
+const RECENT_CONVERSATIONS_IDLE_DEFERRED_LOAD_MS = 0;
+const SESSION_ENTRY_RUNTIME_WARMUP_DEFERRED_LOAD_MS = 45_000;
 const SESSION_ENTRY_AUXILIARY_DEFERRED_LOAD_MS = 45_000;
 const SESSION_RECENT_METADATA_BACKGROUND_SYNC_DELAY_MS = 12_000;
 const SESSION_RECENT_METADATA_NAVIGATION_DEFER_MS = 45_000;
@@ -1037,15 +1038,21 @@ export function AgentChatWorkspace({
     shouldPreserveBlankHomeSurface ||
     shouldPrioritizeInitialSessionEntry ||
     shouldPrioritizeInitialPromptEntry;
+  const shouldDeferInitialRuntimeWarmup = shouldDeferInitialTopicsLoad;
   const deferredWorkspaceAuxiliaryLoadMs = shouldPreserveBlankHomeSurface
     ? BLANK_HOME_DEFERRED_LOAD_MS
     : shouldPrioritizeInitialSessionEntry || shouldPrioritizeInitialPromptEntry
       ? SESSION_ENTRY_AUXILIARY_DEFERRED_LOAD_MS
       : undefined;
   const deferredInitialTopicsLoadMs = shouldPreserveBlankHomeSurface
+    ? RECENT_CONVERSATIONS_IDLE_DEFERRED_LOAD_MS
+    : shouldPrioritizeInitialSessionEntry || shouldPrioritizeInitialPromptEntry
+      ? RECENT_CONVERSATIONS_IDLE_DEFERRED_LOAD_MS
+      : undefined;
+  const deferredInitialRuntimeWarmupMs = shouldPreserveBlankHomeSurface
     ? BLANK_HOME_DEFERRED_LOAD_MS
     : shouldPrioritizeInitialSessionEntry || shouldPrioritizeInitialPromptEntry
-      ? SESSION_ENTRY_TOPIC_DEFERRED_LOAD_MS
+      ? SESSION_ENTRY_RUNTIME_WARMUP_DEFERRED_LOAD_MS
       : undefined;
   const [isInitialContentLoading, setIsInitialContentLoading] = useState(
     shouldBootstrapCanvasOnEntry,
@@ -2315,6 +2322,12 @@ export function AgentChatWorkspace({
       : "immediate",
     initialTopicsDeferredDelayMs: shouldDeferInitialTopicsLoad
       ? deferredInitialTopicsLoadMs
+      : undefined,
+    initialRuntimeWarmupLoadMode: shouldDeferInitialRuntimeWarmup
+      ? "deferred"
+      : "immediate",
+    initialRuntimeWarmupDeferredDelayMs: shouldDeferInitialRuntimeWarmup
+      ? deferredInitialRuntimeWarmupMs
       : undefined,
     getSyncedSessionRecentPreferences,
   });

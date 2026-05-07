@@ -187,6 +187,19 @@ describe("LayeredDesign flat image draft", () => {
         fileName: "heuristic-flat.png",
         mimeType: "image/png",
       },
+      analysis: {
+        analyzer: {
+          kind: "local_heuristic",
+          label: "本地 heuristic analyzer",
+        },
+        outputs: {
+          candidateRaster: true,
+          candidateMask: false,
+          cleanPlate: false,
+          ocrText: false,
+        },
+        generatedAt: CREATED_AT,
+      },
       candidates: seed.candidates,
       cleanPlate: seed.cleanPlate,
       createdAt: CREATED_AT,
@@ -195,6 +208,7 @@ describe("LayeredDesign flat image draft", () => {
     expect(seed.candidates.map((candidate) => candidate.id)).toEqual([
       "subject-candidate",
       "headline-candidate",
+      "body-text-candidate",
       "logo-candidate",
       "fragment-candidate",
     ]);
@@ -202,10 +216,23 @@ describe("LayeredDesign flat image draft", () => {
       "extraction-background-image",
       "subject-layer",
       "headline-layer",
+      "body-text-layer",
     ]);
     expect(draftDocument.extraction?.cleanPlate).toMatchObject({
       status: "not_requested",
       message: "当前候选来自本地 heuristic 裁片；尚未执行 clean plate。",
+    });
+    expect(draftDocument.extraction?.analysis).toMatchObject({
+      analyzer: {
+        kind: "local_heuristic",
+        label: "本地 heuristic analyzer",
+      },
+      outputs: {
+        candidateRaster: true,
+        candidateMask: false,
+        cleanPlate: false,
+        ocrText: false,
+      },
     });
     expect(
       draftDocument.extraction?.candidates.find(
@@ -225,6 +252,16 @@ describe("LayeredDesign flat image draft", () => {
       selected: true,
       layer: {
         name: "标题文字候选",
+      },
+    });
+    expect(
+      draftDocument.extraction?.candidates.find(
+        (candidate) => candidate.id === "body-text-candidate",
+      ),
+    ).toMatchObject({
+      selected: true,
+      layer: {
+        name: "正文/按钮文字候选",
       },
     });
     expect(

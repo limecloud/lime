@@ -10,6 +10,7 @@ import type {
   QuestionOption,
 } from "../types";
 import { governActionRequest } from "./actionRequestGovernance";
+import { isRuntimeActionConfirmationRequestId } from "./runtimeActionConfirmation";
 
 type SchemaProperty = Record<string, unknown>;
 type ActionRequestFieldEntry = {
@@ -366,6 +367,10 @@ export function isActionRequestA2UICompatible(
   request: ActionRequired | null | undefined,
 ): request is ActionRequired {
   if (!request) {
+    return false;
+  }
+
+  if (isRuntimeActionConfirmationRequestId(request.requestId)) {
     return false;
   }
 

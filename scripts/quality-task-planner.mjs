@@ -63,6 +63,7 @@ const HARNESS_CLEANUP_CONTRACT_FILES = new Set([
 
 const INTEGRITY_FILES = new Set([
   "package.json",
+  "packages/lime-cli-npm/package.json",
   "src-tauri/Cargo.toml",
   "src-tauri/tauri.conf.json",
   "src-tauri/tauri.conf.headless.json",

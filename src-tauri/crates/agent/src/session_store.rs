@@ -1537,9 +1537,13 @@ pub async fn get_runtime_session_detail_with_history_page(
         && before_message_id.is_none()
         && should_load_runtime_overlay(&detail, history_limit);
 
-    let session_started_at = Instant::now();
-    let session = if load_runtime_overlay {
-        match read_session(session_id, false, "读取运行态 session 失败").await {
+    let overlay_started_at = Instant::now();
+    let (session, runtime_snapshot) = if load_runtime_overlay {
+        let (session_result, snapshot_result) = tokio::join!(
+            read_session(session_id, false, "读取运行态 session 失败"),
+            load_aster_runtime_snapshot(session_id),
+        );
+        let session = match session_result {
             Ok(session) => Some(session),
             Err(error) => {
                 tracing::warn!(
@@ -1549,15 +1553,8 @@ pub async fn get_runtime_session_detail_with_history_page(
                 );
                 None
             }
-        }
-    } else {
-        None
-    };
-    let session_ms = session_started_at.elapsed().as_millis();
-
-    let runtime_snapshot_started_at = Instant::now();
-    let runtime_snapshot = if load_runtime_overlay {
-        match load_aster_runtime_snapshot(session_id).await {
+        };
+        let snapshot = match snapshot_result {
             Ok(snapshot) => Some(snapshot),
             Err(error) => {
                 tracing::warn!(
@@ -1567,11 +1564,12 @@ pub async fn get_runtime_session_detail_with_history_page(
                 );
                 None
             }
-        }
+        };
+        (session, snapshot)
     } else {
-        None
+        (None, None)
     };
-    let runtime_snapshot_ms = runtime_snapshot_started_at.elapsed().as_millis();
+    let overlay_ms = overlay_started_at.elapsed().as_millis();
 
     let usage_fallback_started_at = Instant::now();
     if let Some(session) = session.as_ref() {
@@ -1672,12 +1670,11 @@ pub async fn get_runtime_session_detail_with_history_page(
     let total_ms = started_at.elapsed().as_millis();
 
     tracing::info!(
-        "[SessionStore] get_runtime_session_detail 完成: session_id={}, total_ms={}, detail_ms={}, read_runtime_session_ms={}, runtime_snapshot_ms={}, usage_fallback_ms={}, execution_runtime_ms={}, apply_snapshot_ms={}, child_subagents_ms={}, parent_context_ms={}, history_limit={:?}, history_offset={}, before_message_id={:?}, runtime_overlay_loaded={}, subagent_runtime_context_loaded={}, messages_count={}, turns_count={}, items_count={}, child_subagents_count={}, has_parent_context={}",
+        "[SessionStore] get_runtime_session_detail 完成: session_id={}, total_ms={}, detail_ms={}, overlay_ms={}, usage_fallback_ms={}, execution_runtime_ms={}, apply_snapshot_ms={}, child_subagents_ms={}, parent_context_ms={}, history_limit={:?}, history_offset={}, before_message_id={:?}, runtime_overlay_loaded={}, subagent_runtime_context_loaded={}, messages_count={}, turns_count={}, items_count={}, child_subagents_count={}, has_parent_context={}",
         session_id,
         total_ms,
         detail_ms,
-        session_ms,
-        runtime_snapshot_ms,
+        overlay_ms,
         usage_fallback_ms,
         execution_runtime_ms,
         apply_snapshot_ms,

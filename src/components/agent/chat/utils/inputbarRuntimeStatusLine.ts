@@ -16,6 +16,14 @@ import {
   type AgentTaskRuntimeSubtaskStats,
 } from "./agentTaskRuntime";
 import {
+  isPendingRuntimeActionConfirmation,
+  isPendingRuntimeActionConfirmationThreadItem,
+  isRuntimeActionConfirmationRequestId,
+  isRuntimePermissionConfirmationWaitMessage,
+  isSubmittedRuntimeActionConfirmation,
+  isSubmittedRuntimeActionConfirmationThreadItem,
+} from "./runtimeActionConfirmation";
+import {
   summarizeThreadProcessBatch,
   type ToolBatchSummaryDescriptor,
 } from "./toolBatchGrouping";
@@ -41,9 +49,33 @@ interface BuildInputbarRuntimeStatusLineModelParams {
   currentTurnId?: string | null;
   threadRead?: AgentRuntimeThreadReadModel | null;
   pendingActions?: ActionRequired[];
+  submittedActionsInFlight?: ActionRequired[];
   queuedTurns?: QueuedTurnSnapshot[];
   childSubagentSessions?: AsterSubagentSessionInfo[];
   isSending?: boolean;
+}
+
+function resolveVisiblePendingRequestCount(
+  threadRead: AgentRuntimeThreadReadModel | null | undefined,
+  submittedActionsInFlight: ActionRequired[],
+): number {
+  const submittedRequestIds = new Set(
+    submittedActionsInFlight.map((item) => item.requestId),
+  );
+  let count = 0;
+  for (const request of threadRead?.pending_requests ?? []) {
+    if (submittedRequestIds.has(request.id)) {
+      continue;
+    }
+    count += 1;
+  }
+  return count;
+}
+
+function resolveVisiblePendingActions(
+  pendingActions: ActionRequired[],
+): ActionRequired[] {
+  return pendingActions.filter((action) => action.status !== "submitted");
 }
 
 function resolveLatestTurn(
@@ -59,6 +91,17 @@ function resolveLatestTurn(
   return turns[turns.length - 1] || null;
 }
 
+function resolveLatestTurnItems(
+  latestTurn: AgentThreadTurn | null,
+  threadItems: AgentThreadItem[],
+): AgentThreadItem[] {
+  if (!latestTurn) {
+    return [];
+  }
+
+  return threadItems.filter((item) => item.turn_id === latestTurn.id);
+}
+
 function resolveLatestAssistantMessage(messages: Message[]): Message | null {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index];
@@ -71,16 +114,58 @@ function resolveLatestAssistantMessage(messages: Message[]): Message | null {
 
 function resolveFallbackStatus(params: {
   latestTurn: AgentThreadTurn | null;
+  latestTurnItems: AgentThreadItem[];
   threadRead?: AgentRuntimeThreadReadModel | null;
   pendingActions: ActionRequired[];
+  submittedActionsInFlight: ActionRequired[];
   queuedTurnCount: number;
   isSending: boolean;
 }): AgentTaskRuntimeStatus | null {
-  const { latestTurn, threadRead, pendingActions, queuedTurnCount, isSending } =
-    params;
+  const {
+    latestTurn,
+    latestTurnItems,
+    threadRead,
+    pendingActions,
+    submittedActionsInFlight,
+    queuedTurnCount,
+    isSending,
+  } = params;
+  const visiblePendingActions = resolveVisiblePendingActions(pendingActions);
+  const visiblePendingRequestCount = resolveVisiblePendingRequestCount(
+    threadRead,
+    submittedActionsInFlight,
+  );
 
-  if (pendingActions.length > 0 || threadRead?.status === "waiting_request") {
+  if (visiblePendingActions.length > 0 || visiblePendingRequestCount > 0) {
     return "waiting_input";
+  }
+
+  if (
+    latestTurn?.status === "failed" &&
+    isRuntimePermissionConfirmationWaitMessage(latestTurn.error_message)
+  ) {
+    const hasSubmittedRuntimeConfirmation =
+      pendingActions.some(isSubmittedRuntimeActionConfirmation) ||
+      submittedActionsInFlight.some(isSubmittedRuntimeActionConfirmation) ||
+      latestTurnItems.some(isSubmittedRuntimeActionConfirmationThreadItem);
+
+    if (hasSubmittedRuntimeConfirmation) {
+      return null;
+    }
+
+    const submittedRequestIds = new Set(
+      submittedActionsInFlight.map((item) => item.requestId),
+    );
+    const hasPendingRuntimeConfirmation =
+      pendingActions.some(isPendingRuntimeActionConfirmation) ||
+      latestTurnItems.some(isPendingRuntimeActionConfirmationThreadItem) ||
+      (threadRead?.pending_requests ?? []).some(
+        (request) =>
+          !submittedRequestIds.has(request.id) &&
+          isRuntimeActionConfirmationRequestId(request.id),
+      );
+
+    return hasPendingRuntimeConfirmation ? "waiting_input" : null;
   }
 
   if (threadRead?.status === "queued" || queuedTurnCount > 0) {
@@ -201,17 +286,31 @@ function resolveFallbackDetail(params: {
   latestTurn: AgentThreadTurn | null;
   latestAssistant: Message | null;
   pendingActions: ActionRequired[];
+  submittedActionsInFlight: ActionRequired[];
   threadRead?: AgentRuntimeThreadReadModel | null;
 }): string | null {
-  const { status, latestTurn, latestAssistant, pendingActions, threadRead } =
-    params;
+  const {
+    status,
+    latestTurn,
+    latestAssistant,
+    pendingActions,
+    submittedActionsInFlight,
+    threadRead,
+  } = params;
 
   if (status === "waiting_input") {
+    const visiblePendingActions = resolveVisiblePendingActions(pendingActions);
+    const submittedRequestIds = new Set(
+      submittedActionsInFlight.map((item) => item.requestId),
+    );
+    const visiblePendingRequest = (threadRead?.pending_requests ?? []).find(
+      (request) => !submittedRequestIds.has(request.id),
+    );
     return (
       threadRead?.diagnostics?.primary_blocking_summary ||
-      threadRead?.pending_requests?.[0]?.title ||
-      pendingActions[0]?.prompt ||
-      pendingActions[0]?.questions?.[0]?.question ||
+      visiblePendingRequest?.title ||
+      visiblePendingActions[0]?.prompt ||
+      visiblePendingActions[0]?.questions?.[0]?.question ||
       null
     );
   }
@@ -238,11 +337,13 @@ export function buildInputbarRuntimeStatusLineModel({
   currentTurnId = null,
   threadRead = null,
   pendingActions = [],
+  submittedActionsInFlight = [],
   queuedTurns = [],
   childSubagentSessions = [],
   isSending = false,
 }: BuildInputbarRuntimeStatusLineModelParams): InputbarRuntimeStatusLineModel | null {
   const latestTurn = resolveLatestTurn(turns, currentTurnId);
+  const latestTurnItems = resolveLatestTurnItems(latestTurn, threadItems);
   const latestAssistant = resolveLatestAssistantMessage(messages);
   const fallbackBatchDescriptor = resolveLatestTurnBatchDescriptor(
     latestTurn,
@@ -265,6 +366,7 @@ export function buildInputbarRuntimeStatusLineModel({
     currentTurnId,
     threadRead,
     pendingActions,
+    submittedActionsInFlight,
     queuedTurns,
     childSubagentSessions,
     isSending,
@@ -291,8 +393,10 @@ export function buildInputbarRuntimeStatusLineModel({
 
   const status = resolveFallbackStatus({
     latestTurn,
+    latestTurnItems,
     threadRead,
     pendingActions,
+    submittedActionsInFlight,
     queuedTurnCount: queuedTurns.length,
     isSending,
   });
@@ -317,12 +421,17 @@ export function buildInputbarRuntimeStatusLineModel({
       latestTurn,
       latestAssistant,
       pendingActions,
+      submittedActionsInFlight,
       threadRead,
     }),
     batchDescriptor: fallbackBatchDescriptor,
     queuedTurnCount: queuedTurns.length,
     pendingRequestCount:
-      pendingActions.length || threadRead?.pending_requests?.length || 0,
+      resolveVisiblePendingActions(pendingActions).length ||
+      resolveVisiblePendingRequestCount(
+        threadRead,
+        submittedActionsInFlight,
+      ),
     subtaskStats: resolveSubtaskStats(childSubagentSessions),
     usage,
     startedAt,

@@ -71,7 +71,7 @@ function FilterPill(props: {
     <button
       type="button"
       className={cn(
-        "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+        "rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
         props.active
           ? "border-emerald-200 bg-[image:var(--lime-home-card-surface-strong)] text-slate-800 shadow-sm shadow-emerald-950/10"
           : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900",
@@ -102,6 +102,8 @@ export function SceneAppsCatalogPanel({
     searchQuery.trim().length > 0 ||
     typeFilter !== "all" ||
     patternFilter !== "all";
+  const toolbarLabelClassName =
+    "shrink-0 text-[11px] font-semibold tracking-[0.06em] text-slate-400";
   const STATUS_CLASSNAMES = {
     idle: "border-slate-200 bg-slate-50 text-slate-700",
     good: "border-emerald-200 bg-emerald-50 text-emerald-700",
@@ -111,21 +113,23 @@ export function SceneAppsCatalogPanel({
 
   return (
     <section data-testid="sceneapps-catalog-directory" className="space-y-4">
-      <div className="rounded-[28px] border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-950/5">
-        <div className="flex flex-col gap-4">
-          <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-            <div className="space-y-2">
-              <div className="text-sm font-semibold text-slate-900">
-                先挑一个 Skill
-              </div>
-              <p className="text-sm leading-6 text-slate-500">
-                可以按想拿到的结果、推进方式和特征缩小范围，不用先理解内部能力栈。
-              </p>
+      <div className="rounded-[20px] border border-slate-200/80 bg-white p-3.5 shadow-sm shadow-slate-950/5">
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
+            <div className="relative min-w-0 flex-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Input
+                value={searchQuery}
+                placeholder="搜索 Skill 标题或想要的结果"
+                className="h-10 rounded-full border-slate-200 bg-slate-50 pl-9"
+                onChange={(event) => onSearchQueryChange(event.target.value)}
+              />
             </div>
+
             {hasActiveFilters ? (
               <button
                 type="button"
-                className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:border-slate-300 hover:text-slate-900"
+                className="shrink-0 rounded-full border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-600 transition-colors hover:border-slate-300 hover:text-slate-900"
                 onClick={() => {
                   onSearchQueryChange("");
                   onTypeFilterChange("all");
@@ -137,84 +141,61 @@ export function SceneAppsCatalogPanel({
             ) : null}
           </div>
 
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,360px)_minmax(0,1fr)]">
-            <div className="space-y-2">
-              <div className="text-[11px] font-semibold tracking-[0.08em] text-slate-400">
-                搜索 Skill
-              </div>
-              <div className="relative w-full">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <Input
-                  value={searchQuery}
-                  placeholder="搜索 Skill 标题或想要的结果"
-                  className="h-11 rounded-[22px] border-slate-200 bg-slate-50 pl-9"
-                  onChange={(event) => onSearchQueryChange(event.target.value)}
-                />
+          <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-2 lg:flex-row lg:items-start">
+              <span className={toolbarLabelClassName}>推进方式</span>
+              <div className="flex flex-1 flex-wrap gap-2">
+                {TYPE_FILTER_OPTIONS.map((option) => (
+                  <FilterPill
+                    key={option.value}
+                    active={typeFilter === option.value}
+                    label={option.label}
+                    onClick={() => onTypeFilterChange(option.value)}
+                  />
+                ))}
               </div>
             </div>
 
-            <div className="flex flex-1 flex-col gap-3">
-              <div className="space-y-2">
-                <div className="text-[11px] font-semibold tracking-[0.08em] text-slate-400">
-                  按推进方式筛
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {TYPE_FILTER_OPTIONS.map((option) => (
-                    <FilterPill
-                      key={option.value}
-                      active={typeFilter === option.value}
-                      label={option.label}
-                      onClick={() => onTypeFilterChange(option.value)}
-                    />
-                  ))}
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <div className="text-[11px] font-semibold tracking-[0.08em] text-slate-400">
-                  按特征筛
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {PATTERN_FILTER_OPTIONS.map((option) => (
-                    <FilterPill
-                      key={option.value}
-                      active={patternFilter === option.value}
-                      label={option.label}
-                      onClick={() => onPatternFilterChange(option.value)}
-                    />
-                  ))}
-                </div>
+            <div className="flex flex-col gap-2 lg:flex-row lg:items-start">
+              <span className={toolbarLabelClassName}>特征</span>
+              <div className="flex flex-1 flex-wrap gap-2">
+                {PATTERN_FILTER_OPTIONS.map((option) => (
+                  <FilterPill
+                    key={option.value}
+                    active={patternFilter === option.value}
+                    label={option.label}
+                    onClick={() => onPatternFilterChange(option.value)}
+                  />
+                ))}
               </div>
             </div>
+
+            {recentItems.length > 0 ? (
+              <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
+                <span className={toolbarLabelClassName}>最近看过</span>
+                <div className="flex flex-1 flex-wrap gap-2">
+                  {recentItems.slice(0, 4).map((item, index) => (
+                    <button
+                      key={item.key}
+                      type="button"
+                      data-testid={
+                        index === 0
+                          ? "sceneapp-recent-latest-title"
+                          : `sceneapp-recent-item-${item.key}`
+                      }
+                      className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 transition-colors hover:border-slate-300 hover:text-slate-950"
+                      title={`${item.hint} · ${formatVisitedAt(item.visitedAt)}`}
+                      onClick={() => onResumeRecentVisit(item.params)}
+                    >
+                      {item.title}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </div>
         </div>
       </div>
-
-      {recentItems.length > 0 ? (
-        <div className="text-sm leading-7 text-slate-500">
-          最近看过：
-          {recentItems.slice(0, 4).map((item, index) => (
-            <span key={item.key}>
-              <button
-                type="button"
-                data-testid={
-                  index === 0
-                    ? "sceneapp-recent-latest-title"
-                    : `sceneapp-recent-item-${item.key}`
-                }
-                className="ml-2 font-medium text-slate-700 transition-colors hover:text-slate-950"
-                title={`${item.hint} · ${formatVisitedAt(item.visitedAt)}`}
-                onClick={() => onResumeRecentVisit(item.params)}
-              >
-                {item.title}
-              </button>
-              {index < Math.min(recentItems.length, 4) - 1 ? (
-                <span className="mx-2 text-slate-300">/</span>
-              ) : null}
-            </span>
-          ))}
-        </div>
-      ) : null}
 
       {runtimeLoading ? (
         <div className="rounded-[20px] border border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
@@ -240,13 +221,27 @@ export function SceneAppsCatalogPanel({
             const aggregate = item.scorecardAggregate ?? null;
             const aggregateSummary =
               aggregate?.summary ?? item.operatingSummary;
-            const aggregateNextAction = aggregate?.nextAction;
+            const secondarySummary =
+              aggregateSummary.trim().length > 0 &&
+              aggregateSummary.trim() !== item.summary.trim()
+                ? aggregateSummary
+                : null;
+            const primaryActionLabel =
+              aggregate?.actionLabel ?? item.scorecardActionLabel ?? item.actionLabel;
+            const topFailureSignalLabel =
+              aggregate?.topFailureSignalLabel ?? item.topFailureSignalLabel ?? null;
+            const primaryDestinationLabel =
+              aggregate?.destinations?.[0]?.label ?? null;
+            const metaHint =
+              item.patternSummary === item.outputHint
+                ? item.patternSummary
+                : `${item.patternSummary} · ${item.outputHint}`;
 
             return (
               <div
                 key={item.id}
                 className={cn(
-                  "rounded-[24px] border p-4 transition-colors",
+                  "rounded-[20px] border p-3 transition-colors",
                   isSelected
                     ? "border-emerald-200 bg-[image:var(--lime-home-card-surface-strong)] text-slate-800 shadow-sm shadow-emerald-950/10"
                     : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50",
@@ -259,11 +254,11 @@ export function SceneAppsCatalogPanel({
                   onClick={() => onSelectSceneApp(item.id)}
                 >
                   <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="space-y-2">
+                    <div className="min-w-0 space-y-1.5">
                       <div className="flex flex-wrap items-center gap-2">
                         <div
                           className={cn(
-                            "text-base font-semibold",
+                            "line-clamp-1 text-base font-semibold",
                             "text-slate-950",
                           )}
                         >
@@ -277,17 +272,16 @@ export function SceneAppsCatalogPanel({
                       </div>
                       <div
                         className={cn(
-                          "text-xs font-medium",
+                          "line-clamp-1 text-xs font-medium",
                           isSelected ? "text-slate-600" : "text-slate-500",
                         )}
                       >
-                        {item.businessLabel} · {item.typeLabel} ·{" "}
-                        {item.deliveryContractLabel}
+                        {item.businessLabel} · {item.deliveryContractLabel}
                       </div>
                     </div>
 
                     <div className="flex flex-wrap items-center justify-end gap-2">
-                      {aggregate?.actionLabel || item.scorecardActionLabel ? (
+                      {primaryActionLabel ? (
                         <span
                           className={cn(
                             "rounded-full border px-2.5 py-1 text-[11px] font-medium",
@@ -296,7 +290,7 @@ export function SceneAppsCatalogPanel({
                               : "border-slate-200 bg-slate-50 text-slate-700",
                           )}
                         >
-                          {aggregate?.actionLabel ?? item.scorecardActionLabel}
+                          {primaryActionLabel}
                         </span>
                       ) : null}
                       <span
@@ -314,54 +308,21 @@ export function SceneAppsCatalogPanel({
 
                   <div
                     className={cn(
-                      "mt-3 text-sm leading-6",
-                      isSelected ? "text-slate-700" : "text-slate-700",
+                      "mt-2 line-clamp-2 text-sm leading-6 text-slate-700",
                     )}
                   >
                     {item.summary}
                   </div>
-                  <div
-                    className={cn(
-                      "mt-2 text-sm leading-6",
-                      isSelected ? "text-slate-600" : "text-slate-600",
-                    )}
-                  >
-                    {aggregateSummary}
-                  </div>
-                  {aggregateNextAction ? (
-                    <div
-                      className={cn(
-                        "mt-2 text-sm leading-6",
-                        isSelected ? "text-slate-500" : "text-slate-500",
-                      )}
-                    >
-                      {aggregateNextAction}
+
+                  {secondarySummary ? (
+                    <div className="mt-1 line-clamp-1 text-xs leading-5 text-slate-500">
+                      {secondarySummary}
                     </div>
                   ) : null}
 
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <span
-                      className={cn(
-                        "rounded-full border px-2.5 py-1 text-[11px] font-medium",
-                        isSelected
-                          ? "border-slate-200 bg-white text-slate-700"
-                          : "border-slate-200 bg-white text-slate-700",
-                      )}
-                    >
-                      {item.patternSummary}
-                    </span>
-                    <span
-                      className={cn(
-                        "rounded-full border px-2.5 py-1 text-[11px] font-medium",
-                        isSelected
-                          ? "border-slate-200 bg-white text-slate-700"
-                          : "border-slate-200 bg-white text-slate-700",
-                      )}
-                    >
-                      {item.infraSummary}
-                    </span>
-                    {aggregate?.topFailureSignalLabel ||
-                    item.topFailureSignalLabel ? (
+                  <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
+                    <span className="line-clamp-1">{metaHint}</span>
+                    {topFailureSignalLabel ? (
                       <span
                         className={cn(
                           "rounded-full border px-2.5 py-1 text-[11px] font-medium",
@@ -370,35 +331,33 @@ export function SceneAppsCatalogPanel({
                             : "border-amber-200 bg-amber-50 text-amber-700",
                         )}
                       >
-                        {aggregate?.topFailureSignalLabel ??
-                          item.topFailureSignalLabel}
+                        {topFailureSignalLabel}
                       </span>
                     ) : null}
-                    {aggregate?.destinations?.map((destination) => (
-                      <span
-                        key={`${item.id}-${destination.key}`}
-                        className={cn(
-                          "rounded-full border px-2.5 py-1 text-[11px] font-medium",
-                          isSelected
-                            ? "border-slate-200 bg-white text-slate-700"
-                            : "border-slate-200 bg-white text-slate-700",
-                        )}
-                      >
-                        {destination.label}
-                      </span>
-                    ))}
                   </div>
 
-                  <div
-                    className={cn(
-                      "mt-3 flex flex-wrap items-center gap-3 text-xs",
-                      isSelected ? "text-slate-500" : "text-slate-500",
-                    )}
-                  >
-                    <span>{item.outputHint}</span>
-                    {item.latestRunLabel ? (
-                      <span>{item.latestRunLabel}</span>
-                    ) : null}
+                  <div className="mt-2 flex items-end justify-between gap-3 text-xs text-slate-500">
+                    <div className="min-w-0 space-y-0.5">
+                      {item.latestRunLabel ? (
+                        <div className="line-clamp-1 text-[11px] leading-5">
+                          {item.latestRunLabel}
+                        </div>
+                      ) : null}
+                      <div className="line-clamp-1 text-[11px] leading-5">
+                        {item.infraSummary}
+                      </div>
+                    </div>
+
+                    <div className="flex shrink-0 items-center gap-2">
+                      {primaryDestinationLabel ? (
+                        <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-700">
+                          {primaryDestinationLabel}
+                        </span>
+                      ) : null}
+                      <span className="font-medium text-slate-700">
+                        点击进入
+                      </span>
+                    </div>
                   </div>
                 </button>
               </div>

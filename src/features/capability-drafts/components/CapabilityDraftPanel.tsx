@@ -3,6 +3,9 @@ import { CheckCircle2, RefreshCw } from "lucide-react";
 import {
   capabilityDraftsApi,
   type CapabilityDraftRecord,
+  type CapabilityDraftVerificationCheck,
+  type CapabilityDraftVerificationEvidence,
+  type CapabilityDraftVerificationReport,
 } from "@/lib/api/capabilityDrafts";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -34,6 +37,22 @@ const STATUS_TONE_CLASSNAMES = {
   slate: "border-slate-200 bg-slate-50 text-slate-600",
 };
 
+const EVIDENCE_LABELS: Record<string, string> = {
+  actualSha256: "实际 Hash",
+  credentialReferenceId: "凭证引用",
+  durationMs: "耗时",
+  endpointSource: "Endpoint",
+  evidenceSchema: "证据 Schema",
+  expectedOutputPath: "期望输出",
+  expectedSha256: "期望 Hash",
+  exitStatus: "退出状态",
+  method: "方法",
+  policyPath: "Policy",
+  preflightMode: "Preflight",
+  scriptPath: "脚本",
+  stdoutPreview: "stdout",
+};
+
 function sortDraftsForDisplay(
   drafts: CapabilityDraftRecord[],
   highlightedDraftId?: string | null,
@@ -49,6 +68,30 @@ function sortDraftsForDisplay(
     }
     return right.updatedAt.localeCompare(left.updatedAt);
   });
+}
+
+function getEvidenceChecks(
+  report?: CapabilityDraftVerificationReport,
+): CapabilityDraftVerificationCheck[] {
+  if (!report) {
+    return [];
+  }
+  return report.checks.filter((check) => check.evidence.length > 0);
+}
+
+function formatEvidenceKey(key: string): string {
+  return EVIDENCE_LABELS[key] ?? key;
+}
+
+function formatEvidenceValue(evidence: CapabilityDraftVerificationEvidence) {
+  const value = evidence.value.trim();
+  if (evidence.key === "durationMs" && value && !value.endsWith("ms")) {
+    return `${value}ms`;
+  }
+  if (evidence.key.toLowerCase().includes("sha256") && value.length > 16) {
+    return `${value.slice(0, 16)}...`;
+  }
+  return value.replace(/\s+/g, " ");
 }
 
 export function CapabilityDraftPanel({
@@ -72,6 +115,8 @@ export function CapabilityDraftPanel({
   const [registrationMessage, setRegistrationMessage] = useState<string | null>(
     null,
   );
+  const [verificationReportsByDraftId, setVerificationReportsByDraftId] =
+    useState<Record<string, CapabilityDraftVerificationReport>>({});
   const normalizedWorkspaceRoot = workspaceRoot?.trim() || null;
 
   const loadDrafts = useCallback(async () => {
@@ -162,6 +207,10 @@ export function CapabilityDraftPanel({
             item.draftId === result.draft.draftId ? result.draft : item,
           ),
         );
+        setVerificationReportsByDraftId((current) => ({
+          ...current,
+          [result.draft.draftId]: result.report,
+        }));
         setVerificationMessage(
           `${result.report.summary} ${summarizeCapabilityDraftFailedChecks(
             result.report,
@@ -278,6 +327,9 @@ export function CapabilityDraftPanel({
             const canVerify = canVerifyCapabilityDraft(draft);
             const isVerifying = verifyingDraftId === draft.draftId;
             const isRegistering = registeringDraftId === draft.draftId;
+            const evidenceChecks = getEvidenceChecks(
+              verificationReportsByDraftId[draft.draftId],
+            );
 
             return (
               <article
@@ -341,6 +393,42 @@ export function CapabilityDraftPanel({
                       : null}
                   </div>
                 </div>
+                {evidenceChecks.length > 0 ? (
+                  <div className="mt-3 rounded-[18px] border border-sky-100 bg-sky-50 px-3 py-2.5">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-[11px] font-semibold text-slate-800">
+                        验证证据
+                      </span>
+                      <span className="text-[10px] leading-4 text-sky-700">
+                        本次 verification report
+                      </span>
+                    </div>
+                    <div className="mt-2 space-y-2">
+                      {evidenceChecks.slice(0, 2).map((check) => (
+                        <div key={check.id} className="space-y-1.5">
+                          <div className="text-[11px] leading-5 text-slate-600">
+                            {check.label || check.id}
+                          </div>
+                          <div className="grid gap-1.5 sm:grid-cols-2">
+                            {check.evidence.slice(0, 6).map((evidence) => (
+                              <div
+                                key={`${check.id}:${evidence.key}`}
+                                className="rounded-xl border border-sky-100 bg-white px-2.5 py-1.5"
+                              >
+                                <div className="text-[10px] leading-4 text-slate-400">
+                                  {formatEvidenceKey(evidence.key)}
+                                </div>
+                                <div className="truncate font-mono text-[10px] leading-4 text-slate-700">
+                                  {formatEvidenceValue(evidence)}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
                 {canVerify || canRegister ? (
                   <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-200/80 pt-3">
                     <p className="text-[11px] leading-5 text-slate-500">

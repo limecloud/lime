@@ -102,6 +102,22 @@ import {
   buildAgentStreamThinkingDeltaMessagePatch,
   buildAgentStreamThinkingDeltaPreApplyPlan,
 } from "./agentStreamThinkingDeltaController";
+import { isRuntimePermissionConfirmationWaitMessage } from "../utils/runtimeActionConfirmation";
+
+function extractVisibleTextFromAgentMessage(
+  message: AgentEvent extends never ? never : {
+    content?: Array<{ type?: string; text?: string }>;
+  },
+): string {
+  const parts = Array.isArray(message.content) ? message.content : [];
+  return parts
+    .filter(
+      (part): part is { type: "text"; text: string } =>
+        part?.type === "text" && typeof part.text === "string",
+    )
+    .map((part) => part.text)
+    .join("");
+}
 
 type MessageParts = NonNullable<Message["contentParts"]>;
 
@@ -132,8 +148,46 @@ interface StreamRequestState {
   requestFinished: boolean;
   queuedDraftCleanupTimerId?: ReturnType<typeof setTimeout> | null;
   pendingTextRenderTimerId?: ReturnType<typeof setTimeout> | null;
+  prefilledMessageSnapshotReplayOffset?: number;
+  prefilledMessageSnapshotText?: string | null;
   renderedContent?: string;
   performanceTrace?: AgentUiPerformanceTraceMetadata | null;
+}
+
+function resolveVisibleTextDeltaAfterSnapshotPrefill(params: {
+  deltaText: string;
+  prefilledSnapshotText?: string | null;
+  replayOffset?: number | null;
+}): {
+  nextReplayOffset: number | null;
+  textDelta: string;
+} {
+  const snapshotText = params.prefilledSnapshotText || "";
+  if (!snapshotText) {
+    return { nextReplayOffset: null, textDelta: params.deltaText };
+  }
+
+  const replayOffset = Math.max(0, params.replayOffset ?? 0);
+  const replayRemainder = snapshotText.slice(replayOffset);
+  if (!params.deltaText) {
+    return { nextReplayOffset: replayOffset, textDelta: "" };
+  }
+
+  if (replayRemainder.startsWith(params.deltaText)) {
+    return {
+      nextReplayOffset: replayOffset + params.deltaText.length,
+      textDelta: "",
+    };
+  }
+
+  if (params.deltaText.startsWith(replayRemainder)) {
+    return {
+      nextReplayOffset: null,
+      textDelta: params.deltaText.slice(replayRemainder.length),
+    };
+  }
+
+  return { nextReplayOffset: null, textDelta: params.deltaText };
 }
 
 interface StreamLifecycleCallbacks {
@@ -340,7 +394,9 @@ export function handleTurnStreamEvent({
           ? {
               ...msg,
               content: nextContent,
-              thinkingContent: undefined,
+              thinkingContent: surfaceThinkingDeltas
+                ? msg.thinkingContent
+                : undefined,
               contentParts: flushPlan.textDelta
                 ? appendTextToParts(
                     surfaceThinkingDeltas
@@ -553,6 +609,43 @@ export function handleTurnStreamEvent({
     case "message":
       // 后端会先发送完整 message 快照，再发送细粒度 delta；这里仅确认流已进入已知事件路径，避免误报未知事件。
       activateStream();
+      {
+        const snapshotText = extractVisibleTextFromAgentMessage(data.message);
+        const shouldPrefillVisibleText =
+          data.message.role === "assistant" &&
+          !requestState.renderedContent &&
+          !requestState.accumulatedContent &&
+          snapshotText.trim().length > 0;
+        if (!shouldPrefillVisibleText) {
+          break;
+        }
+
+        requestState.accumulatedContent = snapshotText;
+        requestState.renderedContent = snapshotText;
+        requestState.prefilledMessageSnapshotReplayOffset = 0;
+        requestState.prefilledMessageSnapshotText = snapshotText;
+        if (!requestState.firstTextRenderFlushAt) {
+          requestState.firstTextRenderFlushAt = Date.now();
+        }
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === assistantMsgId
+              ? {
+                  ...msg,
+                  content: snapshotText,
+                  contentParts: appendTextToParts(
+                    surfaceThinkingDeltas
+                      ? msg.contentParts || []
+                      : (msg.contentParts || []).filter(
+                          (part) => part.type !== "thinking",
+                        ),
+                    snapshotText,
+                  ),
+                }
+              : msg,
+          ),
+        );
+      }
       break;
 
     case "thread_started":
@@ -767,22 +860,37 @@ export function handleTurnStreamEvent({
       );
       break;
 
-    case "text_delta":
+    case "text_delta": {
       activateStream();
       clearOptimisticItem();
+      let visibleTextDelta = data.text;
       {
+        const visibleDelta = resolveVisibleTextDeltaAfterSnapshotPrefill({
+          deltaText: data.text,
+          prefilledSnapshotText: requestState.prefilledMessageSnapshotText,
+          replayOffset: requestState.prefilledMessageSnapshotReplayOffset,
+        });
+        visibleTextDelta = visibleDelta.textDelta;
         const textDeltaPlan = buildAgentStreamTextDeltaApplyPlan({
           activeSessionId,
           accumulatedContent: requestState.accumulatedContent,
-          deltaText: data.text,
+          deltaText: visibleDelta.textDelta,
           eventName,
           firstEventReceivedAt: requestState.firstEventReceivedAt,
           firstRuntimeStatusAt: requestState.firstRuntimeStatusAt,
           firstTextDeltaAt: requestState.firstTextDeltaAt,
+          metricDeltaText: data.text,
           now: Date.now(),
           requestStartedAt: requestState.requestStartedAt,
           textDeltaBufferedCount: requestState.textDeltaBufferedCount,
         });
+        if (visibleDelta.nextReplayOffset === null) {
+          requestState.prefilledMessageSnapshotReplayOffset = undefined;
+          requestState.prefilledMessageSnapshotText = null;
+        } else {
+          requestState.prefilledMessageSnapshotReplayOffset =
+            visibleDelta.nextReplayOffset;
+        }
         requestState.textDeltaBufferedCount =
           textDeltaPlan.nextBufferedCount;
         if (
@@ -804,10 +912,16 @@ export function handleTurnStreamEvent({
         requestState.accumulatedContent =
           textDeltaPlan.nextAccumulatedContent;
       }
-      observer?.onTextDelta?.(data.text, requestState.accumulatedContent);
-      playTypewriterSound();
+      if (visibleTextDelta) {
+        observer?.onTextDelta?.(
+          visibleTextDelta,
+          requestState.accumulatedContent,
+        );
+        playTypewriterSound();
+      }
       scheduleTextRenderFlush();
       break;
+    }
 
     case "tool_start":
       activateStream();
@@ -890,6 +1004,7 @@ export function handleTurnStreamEvent({
       }
       handleActionRequiredEvent({
         data,
+        eventName,
         actionLoggedKeys,
         effectiveExecutionStrategy,
         runtime,
@@ -970,6 +1085,28 @@ export function handleTurnStreamEvent({
     case "error": {
       clearQueuedDraftCleanupTimer();
       flushPendingTextRender();
+      if (isRuntimePermissionConfirmationWaitMessage(data.message)) {
+        clearOptimisticItem();
+        finishRequestLog(requestState, {
+          eventType: "chat_request_complete",
+          status: "success",
+          description: "等待用户确认运行时权限",
+        });
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === assistantMsgId
+              ? {
+                  ...updateMessageArtifactsStatus(msg, "complete"),
+                  isThinking: false,
+                }
+              : msg,
+          ),
+        );
+        setIsSending(false);
+        clearActiveStreamIfMatch(eventName);
+        disposeListener();
+        break;
+      }
       if (isAgentStreamEmptyFinalReplyError(data.message)) {
         clearOptimisticItem();
         clearOptimisticTurn();

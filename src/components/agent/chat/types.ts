@@ -283,6 +283,8 @@ export interface ActionRequired {
   requestedSchema?: any;
   /** 运行时作用域（用于与 ask / elicitation 原始请求精确匹配） */
   scope?: ActionRequiredScope;
+  /** 来源运行时事件名（用于提交确认后恢复当前执行流） */
+  eventName?: string;
   /** 前端交互状态（用于保留已提交的 ask/elicitation 面板） */
   status?: "pending" | "queued" | "submitted";
   /** 是否为前端根据 Ask 工具调用生成的临时请求（尚未拿到真实 requestId） */

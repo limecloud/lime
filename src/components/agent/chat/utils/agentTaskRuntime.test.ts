@@ -237,4 +237,210 @@ describe("agentTaskRuntime", () => {
 
     expect(model).toBeNull();
   });
+
+  it("submittedActionsInFlight 命中同一请求时不应继续判定为 waiting_input", () => {
+    const model = buildAgentTaskRuntimeCardModel({
+      messages: [
+        {
+          id: "msg-user-1",
+          role: "user",
+          content: "继续完善文案",
+          timestamp: new Date("2026-05-06T10:00:00.000Z"),
+        },
+        {
+          id: "msg-assistant-1",
+          role: "assistant",
+          content: "",
+          timestamp: new Date("2026-05-06T10:00:01.000Z"),
+          runtimeStatus: {
+            phase: "routing",
+            title: "已提交补充信息，继续执行中",
+            detail: "补充信息已回填到当前执行链路，正在恢复后续步骤。",
+          },
+        },
+      ],
+      turns: [
+        {
+          id: "turn-1",
+          thread_id: "thread-1",
+          prompt_text: "继续完善文案",
+          status: "running",
+          started_at: "2026-05-06T10:00:00Z",
+          created_at: "2026-05-06T10:00:00Z",
+          updated_at: "2026-05-06T10:00:03Z",
+        },
+      ],
+      currentTurnId: "turn-1",
+      threadRead: {
+        thread_id: "thread-1",
+        status: "waiting_request",
+        pending_requests: [
+          {
+            id: "req-1",
+            thread_id: "thread-1",
+            request_type: "ask_user",
+            status: "pending",
+            title: "请补充品牌语气",
+          },
+        ],
+        diagnostics: {
+          warning_count: 0,
+          context_compaction_count: 0,
+          failed_tool_call_count: 0,
+          failed_command_count: 0,
+          pending_request_count: 1,
+          primary_blocking_summary: "等待你补充品牌语气",
+        },
+      },
+      submittedActionsInFlight: [
+        {
+          requestId: "req-1",
+          actionType: "ask_user",
+          status: "submitted",
+          prompt: "请补充品牌语气",
+        },
+      ],
+    });
+
+    expect(model?.status).toBe("running");
+    expect(model?.phase).toBe("reasoning");
+    expect(model?.pendingRequestCount).toBe(0);
+    expect(model?.detail).toContain("恢复后续步骤");
+    expect(model?.supportingLines).not.toContain("等待你补充品牌语气");
+  });
+
+  it("运行时权限确认等待不应投影为普通失败任务", () => {
+    const internalError =
+      "运行时权限声明需要真实确认，当前 turn 已在模型执行前等待用户确认：confirmationStatus=not_requested，askProfileKeys=web_search。已创建真实权限确认请求；请确认后重试或恢复本轮执行。";
+    const model = buildAgentTaskRuntimeCardModel({
+      messages: [
+        {
+          id: "msg-user-runtime-permission",
+          role: "user",
+          content: "@搜索 OpenAI 最新模型公告",
+          timestamp: new Date("2026-05-06T10:00:00.000Z"),
+        },
+      ],
+      turns: [
+        {
+          id: "turn-runtime-permission",
+          thread_id: "thread-1",
+          prompt_text: "@搜索 OpenAI 最新模型公告",
+          status: "failed",
+          error_message: internalError,
+          started_at: "2026-05-06T10:00:00Z",
+          completed_at: "2026-05-06T10:00:01Z",
+          created_at: "2026-05-06T10:00:00Z",
+          updated_at: "2026-05-06T10:00:01Z",
+        },
+      ],
+      currentTurnId: "turn-runtime-permission",
+      threadItems: [
+        {
+          id: "permission-request-1",
+          thread_id: "thread-1",
+          turn_id: "turn-runtime-permission",
+          sequence: 1,
+          status: "in_progress",
+          started_at: "2026-05-06T10:00:00Z",
+          updated_at: "2026-05-06T10:00:00Z",
+          type: "request_user_input",
+          request_id: "runtime_permission_confirmation:turn-runtime-permission",
+          action_type: "elicitation",
+          prompt:
+            "当前执行需要确认运行时权限：web_search。确认后才允许继续模型执行；拒绝会保持阻断。",
+        },
+        {
+          id: "permission-error-1",
+          thread_id: "thread-1",
+          turn_id: "turn-runtime-permission",
+          sequence: 2,
+          status: "failed",
+          started_at: "2026-05-06T10:00:01Z",
+          completed_at: "2026-05-06T10:00:01Z",
+          updated_at: "2026-05-06T10:00:01Z",
+          type: "error",
+          message: internalError,
+        },
+      ],
+    });
+
+    expect(model?.status).toBe("waiting_input");
+    expect(model?.phase).toBe("waiting_input");
+    expect(model?.detail).toContain("当前执行需要确认运行时权限");
+    expect(model?.detail || "").not.toContain("confirmationStatus");
+    expect(model?.detail || "").not.toContain("askProfileKeys");
+  });
+
+  it("运行时权限确认提交后不应保留失败任务卡", () => {
+    const internalError =
+      "运行时权限声明需要真实确认，当前 turn 已在模型执行前等待用户确认：confirmationStatus=confirmed，askProfileKeys=web_search。已创建真实权限确认请求；请确认后重试或恢复本轮执行。";
+    const model = buildAgentTaskRuntimeCardModel({
+      messages: [
+        {
+          id: "msg-user-runtime-permission-submitted",
+          role: "user",
+          content: "@搜索 OpenAI 最新模型公告",
+          timestamp: new Date("2026-05-06T10:00:00.000Z"),
+        },
+      ],
+      turns: [
+        {
+          id: "turn-runtime-permission-submitted",
+          thread_id: "thread-1",
+          prompt_text: "@搜索 OpenAI 最新模型公告",
+          status: "failed",
+          error_message: internalError,
+          started_at: "2026-05-06T10:00:00Z",
+          completed_at: "2026-05-06T10:00:01Z",
+          created_at: "2026-05-06T10:00:00Z",
+          updated_at: "2026-05-06T10:00:01Z",
+        },
+      ],
+      currentTurnId: "turn-runtime-permission-submitted",
+      threadItems: [
+        {
+          id: "permission-request-submitted",
+          thread_id: "thread-1",
+          turn_id: "turn-runtime-permission-submitted",
+          sequence: 1,
+          status: "completed",
+          started_at: "2026-05-06T10:00:00Z",
+          completed_at: "2026-05-06T10:00:00Z",
+          updated_at: "2026-05-06T10:00:00Z",
+          type: "request_user_input",
+          request_id: "runtime_permission_confirmation:turn-runtime-permission-submitted",
+          action_type: "elicitation",
+          prompt:
+            "当前执行需要确认运行时权限：web_search。确认后才允许继续模型执行；拒绝会保持阻断。",
+          response: { answer: "允许本次执行" },
+        },
+        {
+          id: "permission-error-submitted",
+          thread_id: "thread-1",
+          turn_id: "turn-runtime-permission-submitted",
+          sequence: 2,
+          status: "failed",
+          started_at: "2026-05-06T10:00:01Z",
+          completed_at: "2026-05-06T10:00:01Z",
+          updated_at: "2026-05-06T10:00:01Z",
+          type: "error",
+          message: internalError,
+        },
+      ],
+      pendingActions: [
+        {
+          requestId:
+            "runtime_permission_confirmation:turn-runtime-permission-submitted",
+          actionType: "elicitation",
+          prompt:
+            "当前执行需要确认运行时权限：web_search。确认后才允许继续模型执行；拒绝会保持阻断。",
+          status: "submitted",
+          submittedUserData: { answer: "允许本次执行" },
+        },
+      ],
+    });
+
+    expect(model).toBeNull();
+  });
 });

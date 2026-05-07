@@ -297,4 +297,22 @@ describe("actionRequestA2UI", () => {
       ]),
     });
   });
+
+  it("运行时权限确认应保留为可点击确认卡，不提升为输入区 A2UI", () => {
+    const request: ActionRequired = {
+      requestId: "runtime_permission_confirmation:turn-1",
+      actionType: "elicitation",
+      prompt: "当前执行需要确认运行时权限：web_search。",
+      questions: [
+        {
+          question: "当前执行需要确认运行时权限：web_search。",
+          options: [{ label: "允许本次执行" }, { label: "拒绝" }],
+        },
+      ],
+      status: "pending",
+    };
+
+    expect(isActionRequestA2UICompatible(request)).toBe(false);
+    expect(buildActionRequestA2UI(request)).toBeNull();
+  });
 });

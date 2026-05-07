@@ -43,13 +43,37 @@
 执行时额外遵守：
 
 1. 校验前先确认本轮改动对应路线图哪一项
-2. 如果本轮改动只是清理 dead surface、补 README 或局部整理，但没有直接推进主链，不能把“校验通过”当作完成目标
-3. 汇报时必须同时给出：
+2. 选择下一刀前先按“对整体目标完成度的增量”排序，优先补直接影响可用闭环的主缺口；协议 polish、错误分类、额外 seam、边缘校验、文案润色、内部抽象等梢枝末节，只有在阻塞主路径、会造成假入口/假配置，或用户明确要求时才做
+3. 如果本轮改动只是清理 dead surface、补 README、局部整理或低杠杆细节，但没有直接推进主链，不能把“校验通过”当作完成目标
+4. 汇报时必须同时给出：
    - 本轮改动对应的路线图节点
    - 本轮校验覆盖了哪条主线风险
    - 当前距离该路线图阶段完成还差什么
-4. 用户问“完成了么”时，先回答主线目标是否已经达到可交付门槛；额外校验、顺手清理、可选优化单独列出，不要反向覆盖主线结论
-5. 校验的上限是证明当前主线可交付；一旦已经覆盖本轮真实风险，就不要因为还有更重的检查可跑而无限追加验证
+5. 用户问“完成了么”时，先回答主线目标是否已经达到可交付门槛；额外校验、顺手清理、可选优化必须单独列出，不要反向覆盖主线结论
+6. 校验的上限是证明当前主线可交付；一旦已经覆盖本轮真实风险，就不要因为还有更重的检查可跑而无限追加验证
+
+## 开发任务收口反馈
+
+非纯问答的开发任务结束时，最终回复必须给出面向开发主线的完成度反馈，而不只是列文件和测试。
+
+默认包含：
+
+1. `本轮完成度：X%`，并用一句话说明百分比依据
+2. 本轮目标是否完成，以及落在哪条 current 主链
+3. 实际完成了什么，哪些事实源或边界已同步
+4. 实际执行了哪些验证；未执行的高风险验证要说明原因
+5. 还剩什么未完成或仍不应宣称完成
+6. 下一刀最该做什么
+
+如果任务绑定路线图、执行计划、多阶段迁移或用户连续要求“继续主线”，还必须额外给出完成度判断：
+
+- 区分 `本轮完成度` 和 `整体目标完成度`
+- 整体百分比必须说明口径，例如工程闭环、MVP、完整产品目标
+- 如果无法精确量化，给区间或估算值，但必须说明依据，不能省略百分比
+- 剩余项按影响主线交付的优先级排序，避免把可选优化和主线缺口混在一起
+- 简单单文件修复可以压缩成 2-3 句；不要为了格式而写长报告
+
+该反馈只适用于开发任务；普通解释、检索、问答或无需改仓库的讨论不强制输出完成度百分比。只要发生代码、配置、脚本、测试或工程文档修改，就视为开发任务，最终回复必须给本轮完成度百分比。
 
 ## 执行硬规则
 
@@ -91,13 +115,13 @@
 
 如果本轮涉及 `create_skill_scaffold_for_app`、`SkillsPage / SkillScaffoldDialog`，或“聊天结果 -> Skill 脚手架”沉淀闭环，还要同步检查前端网关、Rust 模板、DevBridge 分发与默认 mock 是否仍保持同一条主链；若新增了结构化骨架字段，至少要确认 `何时使用 / 输入 / 执行步骤 / 输出 / 失败回退` 能真实落进生成后的 `SKILL.md`。
 
-如果本轮涉及 `capability_draft_create/list/get/verify/register/list_registered_skills`，还要同步检查 `src/lib/api/capabilityDrafts.ts`、`capability_draft_cmd`、`capability_draft_service`、DevBridge dispatcher、治理目录册、`mockPriorityCommands` 与 `defaultMocks`；注册命令只能证明 workspace-local Agent Skill 包已落盘，registered discovery 只能证明当前 workspace 可发现带 provenance 的 Skill 包，不能把“已注册 / 已发现”当成“已进入 tool surface / 可自动运行”。最低校验至少包含 Rust capability draft 定向测试、前端 API / UI 回归、`npm run test:contracts`；若 Skills 工作台可见行为变化，再补 `npm run verify:gui-smoke`。
+如果本轮涉及 `capability_draft_create/list/get/verify/register/list_registered_skills/submit_approval_session_inputs/execute_controlled_get`，还要同步检查 `src/lib/api/capabilityDrafts.ts`、`capability_draft_cmd`、`capability_draft_service`、DevBridge dispatcher、治理目录册、`mockPriorityCommands` 与 `defaultMocks`；注册命令只能证明 workspace-local Agent Skill 包已落盘，registered discovery 只能证明当前 workspace 可发现带 provenance 的 Skill 包，session 输入命令只能证明一次性授权输入有效，受控 GET 命令只能返回当前命令 evidence，正向 / `request_failed` 只能落非敏感 evidence artifact，不能保存 endpoint/token/response preview，不能把“已注册 / 已发现 / 已校验 / 已执行一次 GET”当成“已进入 tool surface / 可自动运行”。最低校验至少包含 Rust capability draft 定向测试、前端 API / UI 回归、`npm run test:contracts`；若 Skills 工作台可见行为变化，再补 `npm run verify:gui-smoke`。
 
 如果本轮涉及 `agent_runtime_list_workspace_skill_bindings`，还要同步检查 `src/lib/api/agentRuntime/inventoryClient.ts`、`src/lib/governance/agentRuntimeCommandSchema.json`、generated runtime command manifest、Rust `aster_agent_cmd` 注册、DevBridge dispatcher、治理目录册、`mockPriorityCommands` 与 `defaultMocks`；该命令只表示 P3B registered skill 的 runtime binding readiness projection，不能把 `ready_for_manual_enable` 当成“已注入 Query Loop / 已进入 SkillTool / 可自动执行”。最低校验至少包含 Rust runtime binding 定向测试、前端 API / UI 回归、`npm run generate:agent-runtime-clients` 或 `npm run check:agent-runtime-clients`、`npm run test:contracts`；若 Skills 工作台可见行为变化，再补 `npm run verify:gui-smoke`。
 
 如果本轮涉及 `request_metadata.harness.workspace_skill_bindings` / `workspaceSkillBindings` 的 Query Loop metadata 投影，还要同步检查 `src-tauri/src/commands/aster_agent_cmd/workspace_skill_binding_prompt.rs`、`src-tauri/crates/agent/src/turn_input_envelope.rs` 的 prompt stage contract、`src/components/agent/chat/utils/workspaceSkillBindingsMetadata.ts` 与 `buildHarnessRequestMetadata` 的裁剪边界；该 metadata 只表示 P3C readiness 的只读规划上下文，不能自动打开 `allow_model_skills`、不能注入 `SkillTool` registry、不能改变默认 tool surface。最低校验至少包含 Rust prompt 投影定向测试、前端 metadata builder 单测和 `npm run typecheck`；若同时改了 runtime command schema 或 command manifest，再补 `npm run test:contracts`。
 
-如果本轮涉及 `request_metadata.harness.workspace_skill_runtime_enable` / `workspaceSkillRuntimeEnable` 的 CREAO P3E runtime enable，还要同步检查 `src-tauri/src/services/runtime_skill_binding_service.rs`、`src-tauri/src/commands/aster_agent_cmd/runtime_turn.rs`、`src-tauri/src/commands/aster_agent_cmd/workspace_skill_binding_prompt.rs`、`src-tauri/crates/agent/src/tools/skill_tool_gate.rs`、`src/components/agent/chat/utils/workspaceSkillBindingsMetadata.ts` 与 `buildHarnessRequestMetadata`；该 metadata 只能在当前 session scope 内显式启用 P3C ready binding，并把 `SkillTool` 裁剪到 allowlist，不能复活 marketplace、scheduler 或绕过 `agent_runtime_submit_turn` 的平行执行命令。最低校验至少包含 Rust runtime binding / SkillTool gate 定向测试、Rust prompt 投影定向测试、前端 metadata builder 单测和 `npm run test:contracts`。
+如果本轮涉及 `request_metadata.harness.workspace_skill_runtime_enable` / `workspaceSkillRuntimeEnable` 的 Skill Forge P3E runtime enable，还要同步检查 `src-tauri/src/services/runtime_skill_binding_service.rs`、`src-tauri/src/commands/aster_agent_cmd/runtime_turn.rs`、`src-tauri/src/commands/aster_agent_cmd/workspace_skill_binding_prompt.rs`、`src-tauri/crates/agent/src/tools/skill_tool_gate.rs`、`src/components/agent/chat/utils/workspaceSkillBindingsMetadata.ts` 与 `buildHarnessRequestMetadata`；该 metadata 只能在当前 session scope 内显式启用 P3C ready binding，并把 `SkillTool` 裁剪到 allowlist，不能复活 marketplace、scheduler 或绕过 `agent_runtime_submit_turn` 的平行执行命令。最低校验至少包含 Rust runtime binding / SkillTool gate 定向测试、Rust prompt 投影定向测试、前端 metadata builder 单测和 `npm run test:contracts`。
 
 如果本轮涉及记忆主链，还要同步检查 `src/lib/api/memoryRuntime.ts`、`src-tauri/src/commands/memory_management_cmd.rs`、`runner.rs`、DevBridge dispatcher 与默认 mock 是否仍保持同一条 current surface；`rules / working / durable / team / compaction` 的产品分层可以在页面上拆开，但底层命令边界仍必须继续收敛到 `memory_runtime_*` 与 `unified_memory_*`。
 

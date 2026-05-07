@@ -121,8 +121,29 @@ vi.mock("./ToolCallDisplay", () => ({
 }));
 
 vi.mock("./DecisionPanel", () => ({
-  DecisionPanel: ({ request }: { request: { prompt?: string } }) => (
-    <div data-testid="decision-panel">{request.prompt || "decision"}</div>
+  DecisionPanel: ({
+    request,
+  }: {
+    request: {
+      prompt?: string;
+      questions?: Array<{
+        header?: string;
+        question?: string;
+        options?: Array<{ label: string }>;
+      }>;
+    };
+  }) => (
+    <div data-testid="decision-panel">
+      {request.prompt || "decision"}
+      {request.questions?.map((question) => (
+        <div key={question.header || question.question}>
+          {question.header}
+          {question.options?.map((option) => (
+            <span key={option.label}>{option.label}</span>
+          ))}
+        </div>
+      ))}
+    </div>
   ),
 }));
 
@@ -751,6 +772,103 @@ describe("AgentThreadTimeline", () => {
     expect(container.textContent).not.toContain("已中断");
   });
 
+  it("运行时权限确认等待不应渲染为失败或暴露内部字段", () => {
+    const internalError =
+      "运行时权限声明需要真实确认，当前 turn 已在模型执行前等待用户确认：confirmationStatus=not_requested，askProfileKeys=web_search, write_artifacts。已创建真实权限确认请求；请确认后重试或恢复本轮执行。";
+    const items: AgentThreadItem[] = [
+      {
+        ...createBaseItem("permission-request-1", 1),
+        status: "in_progress",
+        completed_at: undefined,
+        type: "request_user_input",
+        request_id: "runtime_permission_confirmation:turn-1",
+        action_type: "elicitation",
+        prompt:
+          "当前执行需要确认运行时权限：web_search, write_artifacts。确认后才允许继续模型执行；拒绝会保持阻断。",
+        questions: [
+          {
+            header: "运行时权限确认",
+            question:
+              "当前执行需要确认运行时权限：web_search, write_artifacts。确认后才允许继续模型执行；拒绝会保持阻断。",
+            options: [{ label: "允许本次执行" }, { label: "拒绝" }],
+          },
+        ],
+      },
+      {
+        ...createBaseItem("permission-error-1", 2),
+        type: "error",
+        message: internalError,
+      },
+    ];
+
+    const container = renderTimeline(items, {
+      turn: {
+        status: "failed",
+        error_message: internalError,
+      },
+    });
+
+    expect(
+      container.querySelector('[data-testid="agent-thread-inline-status"]')
+        ?.textContent,
+    ).toContain("待处理");
+    expect(container.textContent).toContain("当前执行需要确认运行时权限");
+    expect(container.textContent).toContain("运行时权限确认");
+    expect(container.textContent).not.toContain("碰到错误");
+    expect(container.textContent).not.toContain("失败");
+    expect(container.textContent).not.toContain("confirmationStatus");
+    expect(container.textContent).not.toContain("askProfileKeys");
+  });
+
+  it("运行时权限确认提交后仍不应重新暴露内部等待错误", () => {
+    const internalError =
+      "运行时权限声明需要真实确认，当前 turn 已在模型执行前等待用户确认：confirmationStatus=confirmed，askProfileKeys=web_search。已创建真实权限确认请求；请确认后重试或恢复本轮执行。";
+    const items: AgentThreadItem[] = [
+      {
+        ...createBaseItem("permission-request-1", 1),
+        type: "request_user_input",
+        request_id: "runtime_permission_confirmation:turn-1",
+        action_type: "elicitation",
+        status: "completed",
+        prompt:
+          "当前执行需要确认运行时权限：web_search。确认后才允许继续模型执行；拒绝会保持阻断。",
+        response: { answer: "允许本次执行" },
+      },
+      {
+        ...createBaseItem("permission-error-1", 2),
+        type: "error",
+        message: internalError,
+      },
+    ];
+
+    const container = renderTimeline(items, {
+      turn: {
+        status: "failed",
+        error_message: internalError,
+      },
+      actionRequests: [
+        {
+          requestId: "runtime_permission_confirmation:turn-1",
+          actionType: "elicitation",
+          prompt:
+            "当前执行需要确认运行时权限：web_search。确认后才允许继续模型执行；拒绝会保持阻断。",
+          status: "submitted",
+          submittedUserData: { answer: "允许本次执行" },
+        },
+      ],
+    });
+
+    expect(
+      container.querySelector('[data-testid="agent-thread-inline-status"]')
+        ?.textContent,
+    ).toContain("已确认");
+    expect(container.textContent).toContain("继续处理当前任务");
+    expect(container.textContent).not.toContain("碰到错误");
+    expect(container.textContent).not.toContain("失败");
+    expect(container.textContent).not.toContain("confirmationStatus");
+    expect(container.textContent).not.toContain("askProfileKeys");
+  });
+
   it("普通 aborted 回合应显示已暂停提示", () => {
     const items: AgentThreadItem[] = [
       {
@@ -850,7 +968,7 @@ describe("AgentThreadTimeline", () => {
     expect(container.textContent).not.toContain("```a2ui");
   });
 
-  it("已完成 reasoning 中的 A2UI 代码块展开后应显示结构化预览", () => {
+  it("已完成 reasoning 中的 A2UI 代码块应直接显示结构化预览", () => {
     parseAIResponseMock.mockReturnValue(createStructuredA2UIParseResult());
 
     const items: AgentThreadItem[] = [
@@ -867,21 +985,6 @@ describe("AgentThreadTimeline", () => {
       },
     });
 
-    const block = container.querySelector<HTMLDetailsElement>(
-      '[data-testid="agent-thread-block:1:process"]',
-    );
-    const summary = block?.querySelector("summary");
-
-    expect(block?.open).toBe(false);
-    expect(
-      container.querySelector('[data-testid="timeline-a2ui-card"]'),
-    ).toBeNull();
-
-    act(() => {
-      summary?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    });
-
-    expect(block?.open).toBe(true);
     expect(
       container.querySelector('[data-testid="timeline-a2ui-card"]'),
     ).not.toBeNull();
@@ -917,7 +1020,7 @@ describe("AgentThreadTimeline", () => {
     );
   });
 
-  it("已完成的思考应默认折叠，只保留摘要行", () => {
+  it("已完成的单条思考应默认保留完整正文", () => {
     const reasoningText =
       "先核对执行链路，再立即恢复当前运行。\n随后补齐自动续提。";
     const items: AgentThreadItem[] = [
@@ -934,23 +1037,14 @@ describe("AgentThreadTimeline", () => {
       },
     });
 
-    const block = container.querySelector<HTMLDetailsElement>(
-      '[data-testid="agent-thread-block:1:process"]',
-    );
-    const summary = block?.querySelector("summary");
-
-    expect(block?.open).toBe(false);
-    expect(summary?.textContent).toContain("已完成思考");
-    expect(summary?.textContent).toContain(
+    expect(
+      container.querySelector(
+        '[data-testid="agent-thread-block:1:process:details"]',
+      ),
+    ).toBeNull();
+    expect(container.textContent).toContain(
       "先核对执行链路，再立即恢复当前运行。",
     );
-    expect(container.textContent).not.toContain("随后补齐自动续提。");
-
-    act(() => {
-      summary?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    });
-
-    expect(block?.open).toBe(true);
     expect(container.textContent).toContain("随后补齐自动续提。");
   });
 
@@ -1016,13 +1110,6 @@ describe("AgentThreadTimeline", () => {
       },
     });
 
-    const summary = container.querySelector("summary");
-    expect(summary?.textContent).toContain("先判断任务类型");
-
-    act(() => {
-      summary?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    });
-
     expect(container.textContent).toContain("先判断任务类型");
     expect(container.textContent).toContain("再决定是否联网");
   });
@@ -1041,19 +1128,6 @@ describe("AgentThreadTimeline", () => {
       turn: {
         status: "completed",
       },
-    });
-
-    const block = container.querySelector<HTMLDetailsElement>(
-      '[data-testid="agent-thread-block:1:process"]',
-    );
-    const summary = block?.querySelector("summary");
-
-    expect(summary?.textContent).toContain("先判断任务类型");
-    expect(summary?.textContent).not.toContain("这里是更完整的正文。");
-    expect(container.textContent).not.toContain("这里是更完整的正文。");
-
-    act(() => {
-      summary?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
 
     expect(container.textContent).toContain("先判断任务类型");

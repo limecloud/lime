@@ -116,12 +116,32 @@ function normalizeInspection(inspection: SkillInspection): SkillInspection {
   };
 }
 
+function normalizeSkills(value: Skill[] | null | undefined): Skill[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.map(normalizeSkill);
+}
+
+function normalizeSkillRepos(
+  value: SkillRepo[] | null | undefined,
+): SkillRepo[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function normalizeStringList(value: string[] | null | undefined): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [];
+}
+
 export const skillsApi = {
   async getLocal(app: AppType = "lime"): Promise<Skill[]> {
     const skills = await safeInvoke<Skill[]>("get_local_skills_for_app", {
       app,
     });
-    return skills.map(normalizeSkill);
+    return normalizeSkills(skills);
   },
 
   async getAll(
@@ -132,7 +152,7 @@ export const skillsApi = {
       app,
       refresh_remote: options?.refreshRemote ?? false,
     });
-    return skills.map(normalizeSkill);
+    return normalizeSkills(skills);
   },
 
   async install(directory: string, app: AppType = "lime"): Promise<boolean> {
@@ -144,7 +164,8 @@ export const skillsApi = {
   },
 
   async getRepos(): Promise<SkillRepo[]> {
-    return safeInvoke("get_skill_repos");
+    const repos = await safeInvoke<SkillRepo[]>("get_skill_repos");
+    return normalizeSkillRepos(repos);
   },
 
   async addRepo(repo: SkillRepo): Promise<boolean> {
@@ -168,7 +189,8 @@ export const skillsApi = {
    * @returns 已安装的 Skill 目录名列表
    */
   async getInstalledLimeSkills(): Promise<string[]> {
-    return safeInvoke("get_installed_lime_skills");
+    const directories = await safeInvoke<string[]>("get_installed_lime_skills");
+    return normalizeStringList(directories);
   },
 
   /**
