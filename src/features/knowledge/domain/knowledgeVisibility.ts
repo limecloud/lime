@@ -57,7 +57,15 @@ export function getPackTitle(
 }
 
 export function getUserFacingPackTypeLabel(value?: string | null): string {
-  return PACK_TYPES.find((type) => type.value === value)?.label ?? "通用资料";
+  const normalized =
+    value === "personal-profile"
+      ? "personal-ip"
+      : value === "custom:lime-growth-strategy"
+        ? "growth-strategy"
+        : value;
+  return (
+    PACK_TYPES.find((type) => type.value === normalized)?.label ?? "通用资料"
+  );
 }
 
 export function buildPackMetrics(pack: KnowledgePackSummary | KnowledgePackDetail) {

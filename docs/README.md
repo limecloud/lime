@@ -6,6 +6,7 @@
 
 - 普通创作者：`content/` 当前处于 LimeNext V2 重建期，只保留少量进阶页与法律说明
 - 开发者与维护者：阅读 `aiprompts/`、`develop/`、`tech/`、`tests/` 等工程文档
+- 仓库级 Agent 协作方式与硬约束：以根目录 `../AGENTS.md` 为入口
 
 文档站基于 Nuxt Content 构建。
 
@@ -46,15 +47,15 @@
 - `develop/scheduler-task-governance-p1.md`：调度任务治理 P1（连续失败、自动停用、冷却恢复）
 - `aiprompts/skill-standard.md`：Skills 包标准、运行时投影与 current/compat 边界总文档
 - `roadmap/lime-skills-standardization-roadmap.md`：Skills 标准化 supporting 收口计划，主要保留迁移边界与剩余差距
-- `research/creaoai/README.md`：CreoAI / Tool-Maker Agent 研究入口，拆解能力生成、验证、注册与长期运行业务的外部范式
+- `research/skill-forge/README.md`：Skill Forge / Tool-Maker Agent 研究入口，拆解能力生成、验证、注册与长期运行业务的外部范式
 - `research/pi-mono-coding-agent/README.md`：pi-mono Coding Agent 本地调研，提炼 `AgentSession` 分层、工具 allowlist、可插拔工具后端、事件与测试 harness 对 Lime Capability Authoring Agent 的参考边界
 - `research/codex-goal/README.md`：Codex `/goal` 研究入口，独立记录 persistent objective / idle continuation turn / completion audit 模式
 - `research/codex-goal/diagrams.md`：Codex `/goal` Thread Goal Loop 图纸，包含架构图、流程图、时序图、状态机和最小心智原型
 - `research/ribbi/README.md`：Ribbi 研究总入口，作为后续 LimeNext V2 的外部对照事实源
 - `research/ai-layered-design/README.md`：AI 图层化设计研究入口，拆解 Lovart 类可编辑图层、分割、抠图、背景修补与 Canvas 工程范式
-- `roadmap/creaoai/README.md`：CreoAI 启发下的 Skill Forge / workspace-local generated skill 路线图
-- `roadmap/creaoai/prototype.md`：Skill Forge / generated capability / verification gate / workspace-local skill 的产品原型图
-- `roadmap/creaoai/architecture-review.md`：CreoAI / Coding Agent 方案实现前 review gate，列出 draft store、verification、registration、evidence、安全边界缺口
+- `roadmap/skill-forge/README.md`：外部 Agent 访谈启发下的 Skill Forge / workspace-local generated skill 路线图
+- `roadmap/skill-forge/prototype.md`：Skill Forge / generated capability / verification gate / workspace-local skill 的产品原型图
+- `roadmap/skill-forge/architecture-review.md`：Skill Forge / Coding Agent 方案实现前 review gate，列出 draft store、verification、registration、evidence、安全边界缺口
 - `roadmap/managed-objective/README.md`：Managed Objective 路线图，把 thread goal loop 启发收敛为 Lime 的跨 turn 目标推进控制层
 - `roadmap/managed-objective/prototype.md`：Managed Objective 在 Workspace、Task Center、Audit Drawer 和创建流程中的产品原型图
 - `roadmap/ai-layered-design/README.md`：AI 图层化设计路线图，把图片生成升级为可编辑的多图层设计工程输出

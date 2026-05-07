@@ -137,6 +137,136 @@ describe("agentChatHistory", () => {
     ]);
   });
 
+  it("后端 detail.messages 为空但 timeline 有用户与助手消息时应恢复对话", () => {
+    const detail: AsterSessionDetail = {
+      id: "session-timeline-only",
+      created_at: 1,
+      updated_at: 2,
+      messages: [],
+      turns: [
+        {
+          id: "turn-timeline-only",
+          thread_id: "session-timeline-only",
+          prompt_text: "我来帮你搜索 OpenAI 最新模型",
+          status: "completed",
+          started_at: "2026-05-06T10:00:00.000Z",
+          completed_at: "2026-05-06T10:00:03.000Z",
+          created_at: "2026-05-06T10:00:00.000Z",
+          updated_at: "2026-05-06T10:00:03.000Z",
+        },
+      ],
+      items: [
+        {
+          id: "item-user",
+          thread_id: "session-timeline-only",
+          turn_id: "turn-timeline-only",
+          sequence: 1,
+          type: "user_message",
+          content: "我来帮你搜索 OpenAI 最新模型",
+          status: "completed",
+          started_at: "2026-05-06T10:00:00.000Z",
+          completed_at: "2026-05-06T10:00:00.000Z",
+          updated_at: "2026-05-06T10:00:00.000Z",
+        } as never,
+        {
+          id: "item-assistant",
+          thread_id: "session-timeline-only",
+          turn_id: "turn-timeline-only",
+          sequence: 2,
+          type: "agent_message",
+          text: "已找到最新模型信息。",
+          status: "completed",
+          started_at: "2026-05-06T10:00:02.000Z",
+          completed_at: "2026-05-06T10:00:03.000Z",
+          updated_at: "2026-05-06T10:00:03.000Z",
+        } as never,
+      ],
+    };
+
+    const messages = hydrateSessionDetailMessages(
+      detail,
+      "session-timeline-only",
+    );
+
+    expect(messages).toHaveLength(2);
+    expect(messages[0]).toMatchObject({
+      id: "session-timeline-only-timeline-item-user",
+      role: "user",
+      content: "我来帮你搜索 OpenAI 最新模型",
+    });
+    expect(messages[1]).toMatchObject({
+      id: "session-timeline-only-timeline-item-assistant",
+      role: "assistant",
+      content: "已找到最新模型信息。",
+      contentParts: [
+        {
+          type: "text",
+          text: "已找到最新模型信息。",
+        },
+      ],
+    });
+  });
+
+  it("后端 detail.messages 和 timeline 消息都为空时应从真实 turn 恢复用户请求", () => {
+    const detail: AsterSessionDetail = {
+      id: "session-turn-only",
+      created_at: 1,
+      updated_at: 2,
+      messages: [],
+      turns: [
+        {
+          id: "turn-search",
+          thread_id: "session-turn-only",
+          prompt_text: "@搜索 OpenAI 最新模型公告，给我 3 条要点，并附来源。",
+          status: "failed",
+          error_message:
+            "运行时权限声明需要真实确认，当前 turn 已在模型执行前等待用户确认：confirmationStatus=not_requested，askProfileKeys=web_search。已创建真实权限确认请求；请确认后重试或恢复本轮执行。",
+          started_at: "2026-05-06T19:29:06.522Z",
+          completed_at: "2026-05-06T19:29:06.862Z",
+          created_at: "2026-05-06T19:29:06.522Z",
+          updated_at: "2026-05-06T19:29:06.862Z",
+        },
+        {
+          id: "auxiliary-runtime-projection-title",
+          thread_id: "session-turn-only",
+          prompt_text: "辅助标题生成 · 我来帮你搜索 OpenAI 最新模型...",
+          status: "completed",
+          started_at: "2026-05-06T19:29:55.849Z",
+          completed_at: "2026-05-06T19:29:55.896Z",
+          created_at: "2026-05-06T19:29:55.849Z",
+          updated_at: "2026-05-06T19:29:55.896Z",
+        },
+      ],
+      items: [
+        {
+          id: "permission-error",
+          thread_id: "session-turn-only",
+          turn_id: "turn-search",
+          sequence: 3,
+          status: "failed",
+          type: "error",
+          message:
+            "运行时权限声明需要真实确认，当前 turn 已在模型执行前等待用户确认：confirmationStatus=not_requested，askProfileKeys=web_search。已创建真实权限确认请求；请确认后重试或恢复本轮执行。",
+          started_at: "2026-05-06T19:29:06.862Z",
+          completed_at: "2026-05-06T19:29:06.862Z",
+          updated_at: "2026-05-06T19:29:06.862Z",
+        },
+      ],
+    };
+
+    const messages = hydrateSessionDetailMessages(detail, "session-turn-only");
+
+    expect(messages).toHaveLength(1);
+    expect(messages[0]).toMatchObject({
+      id: "session-turn-only-turn-turn-search-prompt",
+      role: "user",
+      content: "@搜索 OpenAI 最新模型公告，给我 3 条要点，并附来源。",
+    });
+    expect(messages[0]?.content).not.toContain("confirmationStatus");
+    expect(messages[0]?.content).not.toContain("askProfileKeys");
+    expect(messages[0]?.content).not.toContain("辅助标题生成");
+  });
+
   it("已完成旧会话压缩水合时应跳过工具过程，仅保留可见正文", () => {
     const detail: AsterSessionDetail = {
       id: "session-compact-history",
@@ -482,6 +612,48 @@ describe("agentChatHistory", () => {
       cached_input_tokens: 36976,
       cache_creation_input_tokens: 0,
     });
+  });
+
+  it("相邻 assistant 都带 thinking 时不应盲合并，避免跨轮思考串味", () => {
+    const detail: AsterSessionDetail = {
+      id: "session-adjacent-thinking",
+      created_at: 1,
+      updated_at: 2,
+      messages: [
+        {
+          role: "user",
+          timestamp: 1710000300,
+          content: [{ type: "text", text: "整理会议纪要" } as never],
+        },
+        {
+          role: "assistant",
+          timestamp: 1710000301,
+          content: [
+            { type: "thinking", text: "先整理会议纪要。" } as never,
+            { type: "output_text", text: "会议纪要已整理。" } as never,
+          ],
+        },
+        {
+          role: "assistant",
+          timestamp: 1710000302,
+          content: [
+            { type: "thinking", text: "只计算 2+2。" } as never,
+            { type: "output_text", text: "2+2 等于 4。" } as never,
+          ],
+        },
+      ],
+    };
+
+    const messages = hydrateSessionDetailMessages(
+      detail,
+      "session-adjacent-thinking",
+    );
+
+    expect(messages).toHaveLength(3);
+    expect(messages[1]?.thinkingContent).toBe("先整理会议纪要。");
+    expect(messages[1]?.content).toBe("会议纪要已整理。");
+    expect(messages[2]?.thinkingContent).toBe("只计算 2+2。");
+    expect(messages[2]?.content).toBe("2+2 等于 4。");
   });
 
   it("应从历史 tool_response 恢复图片任务预览，并保留同一任务的连续 assistant 轨迹", () => {
@@ -858,6 +1030,68 @@ describe("agentChatHistory", () => {
       id: "tool-site-1",
       status: "completed",
     });
+  });
+
+  it("hydrate 宽松匹配不应把本地 thinking 兜底到远端纯正文 assistant", () => {
+    const localMessages = [
+      {
+        id: "local-user-thinking",
+        role: "user" as const,
+        content: "整理会议纪要",
+        timestamp: new Date("2026-05-06T10:00:00.000Z"),
+      },
+      {
+        id: "local-assistant-thinking",
+        role: "assistant" as const,
+        content: "已完成。",
+        timestamp: new Date("2026-05-06T10:00:02.000Z"),
+        thinkingContent: "上一轮会议纪要思考。",
+        contentParts: [
+          {
+            type: "thinking" as const,
+            text: "上一轮会议纪要思考。",
+          },
+          {
+            type: "text" as const,
+            text: "已完成。",
+          },
+        ],
+      },
+    ];
+    const hydratedMessages = [
+      {
+        id: "history-user-thinking",
+        role: "user" as const,
+        content: "另一个问题",
+        timestamp: new Date("2026-05-06T10:00:03.000Z"),
+      },
+      {
+        id: "history-assistant-thinking",
+        role: "assistant" as const,
+        content: "已完成。",
+        timestamp: new Date("2026-05-06T10:00:04.000Z"),
+        contentParts: [
+          {
+            type: "text" as const,
+            text: "已完成。",
+          },
+        ],
+      },
+    ];
+
+    const mergedMessages = mergeHydratedMessagesWithLocalState(
+      localMessages,
+      hydratedMessages,
+    );
+
+    expect(mergedMessages).toHaveLength(2);
+    expect(mergedMessages[1]?.thinkingContent).toBeUndefined();
+    expect(mergedMessages[1]?.contentParts).toEqual([
+      {
+        type: "text",
+        text: "已完成。",
+      },
+    ]);
   });
 
   it("同会话 hydrate 时远端暂未返回最新 assistant 消息也应保留本地尾部过程", () => {

@@ -10,6 +10,7 @@ import type {
   AgentThreadItem,
   AgentThreadTurn,
 } from "../types";
+import { isRuntimePermissionConfirmationWaitMessage } from "./runtimeActionConfirmation";
 
 export type ThreadReliabilityTone =
   | "running"
@@ -382,6 +383,16 @@ function deriveOutcomeFromTurn(
   }
 
   if (latestTurn.status === "failed") {
+    if (isRuntimePermissionConfirmationWaitMessage(latestTurn.error_message)) {
+      return {
+        label: "等待处理",
+        summary: "当前回合正在等待运行时权限确认",
+        retryable: true,
+        endedAtLabel: formatTimeLabel(latestTurn.completed_at),
+        tone: "waiting",
+      };
+    }
+
     return {
       label: "执行失败",
       summary:
@@ -439,6 +450,39 @@ function describeIncidentDetails(details: unknown): string | null {
     }
   }
   return null;
+}
+
+function isRuntimePermissionConfirmationWaitDetails(details: unknown): boolean {
+  if (typeof details === "string") {
+    return isRuntimePermissionConfirmationWaitMessage(details);
+  }
+  if (!details || typeof details !== "object") {
+    return false;
+  }
+
+  const record = details as Record<string, unknown>;
+  const message = record.message;
+  if (
+    typeof message === "string" &&
+    isRuntimePermissionConfirmationWaitMessage(message)
+  ) {
+    return true;
+  }
+
+  try {
+    return isRuntimePermissionConfirmationWaitMessage(JSON.stringify(details));
+  } catch {
+    return false;
+  }
+}
+
+function isRuntimePermissionConfirmationWaitIncident(
+  incident: AgentRuntimeIncidentView,
+): boolean {
+  return (
+    isRuntimePermissionConfirmationWaitMessage(incident.title) ||
+    isRuntimePermissionConfirmationWaitDetails(incident.details)
+  );
 }
 
 export function resolveIncidentToneFromSeverity(
@@ -532,6 +576,10 @@ function deriveFallbackIncidents(
   }
 
   if (latestTurn?.status === "failed") {
+    if (isRuntimePermissionConfirmationWaitMessage(latestTurn.error_message)) {
+      return [];
+    }
+
     return [
       {
         id: `turn-failed-${latestTurn.id}`,
@@ -548,11 +596,14 @@ function deriveFallbackIncidents(
   const issueItem = [...threadItems]
     .reverse()
     .find((item): item is RuntimeIssueThreadItem => {
+      if (item.type !== "error" && item.type !== "warning") {
+        return false;
+      }
+      if (isRuntimePermissionConfirmationWaitMessage(item.message)) {
+        return false;
+      }
       if (item.type === "error") {
         return true;
-      }
-      if (item.type !== "warning") {
-        return false;
       }
       const code = normalizeText(item.code);
       return !code || !NON_BLOCKING_RUNTIME_WARNING_CODES.has(code);
@@ -602,6 +653,9 @@ function normalizeIncidents(
   const activeIncidents = (threadRead?.incidents ?? []).filter((incident) => {
     const normalizedStatus = (incident.status || "").toLowerCase();
     if (normalizedStatus.includes("clear") || incident.cleared_at) {
+      return false;
+    }
+    if (isRuntimePermissionConfirmationWaitIncident(incident)) {
       return false;
     }
     if (submittedRequestIds.has(incident.id.replace(/^incident-/, ""))) {
@@ -713,6 +767,13 @@ function deriveStatusFromRuntime(params: {
     return { label: "已完成", tone: "completed" };
   }
   if (params.latestTurn?.status === "failed") {
+    if (
+      isRuntimePermissionConfirmationWaitMessage(
+        params.latestTurn.error_message,
+      )
+    ) {
+      return { label: "等待处理", tone: "waiting" };
+    }
     return { label: "执行失败", tone: "failed" };
   }
   if (params.latestTurn?.status === "aborted") {

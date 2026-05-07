@@ -5,7 +5,7 @@ import type {
   LayeredDesignExtractionCandidateRole,
 } from "./types";
 
-interface CropRect {
+export interface LayeredDesignFlatImageHeuristicCropRect {
   x: number;
   y: number;
   width: number;
@@ -30,12 +30,12 @@ export interface LayeredDesignFlatImageHeuristicSeed {
   cleanPlate: LayeredDesignExtractionCleanPlateInput;
 }
 
-interface HeuristicCandidateSpec {
+export interface LayeredDesignFlatImageHeuristicCandidateSpec {
   id: string;
   name: string;
   role: LayeredDesignExtractionCandidateRole;
   kind: GeneratedDesignAssetKind;
-  rect: CropRect;
+  rect: LayeredDesignFlatImageHeuristicCropRect;
   confidence: number;
   zIndex: number;
 }
@@ -61,7 +61,7 @@ function createCropRect(
   topRatio: number,
   widthRatio: number,
   heightRatio: number,
-): CropRect {
+): LayeredDesignFlatImageHeuristicCropRect {
   const width = clamp(
     Math.round(imageWidth * widthRatio),
     Math.min(72, imageWidth),
@@ -78,10 +78,10 @@ function createCropRect(
   return { x, y, width, height };
 }
 
-function buildHeuristicCandidateSpecs(
+export function buildLayeredDesignFlatImageHeuristicCandidateSpecs(
   imageWidth: number,
   imageHeight: number,
-): HeuristicCandidateSpec[] {
+): LayeredDesignFlatImageHeuristicCandidateSpec[] {
   return [
     {
       id: "subject",
@@ -100,6 +100,15 @@ function buildHeuristicCandidateSpecs(
       rect: createCropRect(imageWidth, imageHeight, 0.12, 0.06, 0.76, 0.18),
       confidence: 0.62,
       zIndex: 40,
+    },
+    {
+      id: "body-text",
+      name: "正文/按钮文字候选",
+      role: "text",
+      kind: "text_raster",
+      rect: createCropRect(imageWidth, imageHeight, 0.18, 0.76, 0.64, 0.14),
+      confidence: 0.6,
+      zIndex: 42,
     },
     {
       id: "logo",
@@ -132,7 +141,10 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   });
 }
 
-function cropImageToPngDataUrl(image: HTMLImageElement, rect: CropRect): string {
+function cropImageToPngDataUrl(
+  image: HTMLImageElement,
+  rect: LayeredDesignFlatImageHeuristicCropRect,
+): string {
   const canvas = document.createElement("canvas");
   canvas.width = rect.width;
   canvas.height = rect.height;
@@ -170,7 +182,10 @@ export async function createLayeredDesignFlatImageHeuristicSeed(
     1,
   );
   const createdAt = params.createdAt ?? nowIso();
-  const specs = buildHeuristicCandidateSpecs(imageWidth, imageHeight);
+  const specs = buildLayeredDesignFlatImageHeuristicCandidateSpecs(
+    imageWidth,
+    imageHeight,
+  );
 
   return {
     candidates: specs.map((spec) => {

@@ -83,6 +83,7 @@ describe("capabilityDraftPresentation", () => {
             message: "缺少输入 contract。",
             suggestions: [],
             canAgentRepair: true,
+            evidence: [],
           },
           {
             id: "output_contract",
@@ -91,6 +92,7 @@ describe("capabilityDraftPresentation", () => {
             message: "缺少输出 contract。",
             suggestions: [],
             canAgentRepair: true,
+            evidence: [],
           },
         ],
       }),

@@ -1,5 +1,7 @@
 import type {
   AgentContextTraceStep as ContextTraceStep,
+  AgentThreadItem,
+  AgentThreadTurn,
   AgentTokenUsage,
 } from "@/lib/api/agentProtocol";
 import type {
@@ -408,6 +410,111 @@ export const shouldCompactCompletedSessionHistory = (
 
 interface HydrateSessionDetailMessagesOptions {
   compactCompletedHistory?: boolean;
+  includeTimelineFallback?: boolean;
+}
+
+function buildMessageFromThreadItem(
+  item: AgentThreadItem,
+  topicId: string,
+): Message | null {
+  if (item.type !== "user_message" && item.type !== "agent_message") {
+    return null;
+  }
+
+  const content =
+    item.type === "user_message" ? item.content.trim() : item.text.trim();
+  const role = item.type === "user_message" ? "user" : "assistant";
+  const sanitizedContent = sanitizeMessageTextForDisplay(content, {
+    role,
+    hasImages: false,
+  });
+  if (!sanitizedContent) {
+    return null;
+  }
+
+  const timestamp = new Date(item.completed_at || item.updated_at);
+  return {
+    id: `${topicId}-timeline-${item.id}`,
+    role,
+    content: sanitizedContent,
+    contentParts:
+      role === "assistant"
+        ? [
+            {
+              type: "text",
+              text: sanitizedContent,
+            },
+          ]
+        : undefined,
+    timestamp: Number.isNaN(timestamp.getTime()) ? new Date(0) : timestamp,
+  };
+}
+
+function hydrateSessionDetailMessagesFromThreadItems(
+  detail: AsterSessionDetail,
+  topicId: string,
+): Message[] {
+  const messages = (detail.items || [])
+    .map((item) => buildMessageFromThreadItem(item, topicId))
+    .filter((message): message is Message => message !== null);
+
+  return mergeAdjacentAssistantMessages(
+    dedupeAdjacentHistoryMessages(messages),
+  );
+}
+
+const AUXILIARY_HISTORY_TURN_ID_PREFIX = "auxiliary-runtime-projection-";
+
+function isAuxiliaryHistoryTurn(turn: AgentThreadTurn) {
+  const normalizedId = turn.id.trim().toLowerCase();
+  if (normalizedId.startsWith(AUXILIARY_HISTORY_TURN_ID_PREFIX)) {
+    return true;
+  }
+
+  const normalizedPrompt = turn.prompt_text.trim();
+  return (
+    normalizedPrompt.startsWith("辅助标题生成") ||
+    normalizedPrompt.startsWith("辅助人设生成")
+  );
+}
+
+function parseHistoryTimestamp(value?: string | null): Date {
+  if (typeof value === "string" && value.trim()) {
+    const date = new Date(value);
+    if (!Number.isNaN(date.getTime())) {
+      return date;
+    }
+  }
+  return new Date(0);
+}
+
+function hydrateSessionDetailMessagesFromTurns(
+  detail: AsterSessionDetail,
+  topicId: string,
+): Message[] {
+  const messages = (detail.turns || [])
+    .filter((turn) => !isAuxiliaryHistoryTurn(turn))
+    .map((turn): Message | null => {
+      const content = sanitizeMessageTextForDisplay(turn.prompt_text, {
+        role: "user",
+        hasImages: false,
+      });
+      if (!content) {
+        return null;
+      }
+
+      return {
+        id: `${topicId}-turn-${turn.id}-prompt`,
+        role: "user",
+        content,
+        timestamp: parseHistoryTimestamp(
+          turn.started_at || turn.created_at || turn.updated_at,
+        ),
+      };
+    })
+    .filter((message): message is Message => message !== null);
+
+  return dedupeAdjacentHistoryMessages(messages);
 }
 
 function normalizePreviewSignatureValue(value: unknown): string {
@@ -567,8 +674,7 @@ export const mergeAdjacentAssistantMessages = (
     const previous = merged[merged.length - 1];
     if (
       !previous ||
-      previous.role !== "assistant" ||
-      current.role !== "assistant"
+      !shouldMergeAdjacentAssistantMessages(previous, current)
     ) {
       merged.push(current);
       continue;
@@ -674,6 +780,91 @@ const normalizeSignatureText = (text: string): string =>
 
 const hasMessageImages = (message: Message): boolean =>
   Array.isArray(message.images) && message.images.length > 0;
+
+function hasAssistantThinkingContent(message: Message): boolean {
+  return (
+    Boolean(message.thinkingContent?.trim()) ||
+    (message.contentParts || []).some(
+      (part) => part.type === "thinking" && part.text.trim().length > 0,
+    )
+  );
+}
+
+function collectMessageToolIds(message: Message): Set<string> {
+  const ids = new Set<string>();
+  for (const toolCall of message.toolCalls || []) {
+    if (toolCall.id) {
+      ids.add(toolCall.id);
+    }
+  }
+  for (const part of message.contentParts || []) {
+    if (part.type === "tool_use" && part.toolCall.id) {
+      ids.add(part.toolCall.id);
+    }
+  }
+  return ids;
+}
+
+function hasSharedValue(left: Set<string>, right: Set<string>): boolean {
+  for (const value of left) {
+    if (right.has(value)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function hasSharedProcessIdentity(previous: Message, current: Message): boolean {
+  if (
+    previous.imageWorkbenchPreview?.taskId &&
+    previous.imageWorkbenchPreview.taskId === current.imageWorkbenchPreview?.taskId
+  ) {
+    return true;
+  }
+  if (
+    previous.taskPreview?.taskId &&
+    previous.taskPreview.taskId === current.taskPreview?.taskId
+  ) {
+    return true;
+  }
+
+  const previousToolIds = collectMessageToolIds(previous);
+  const currentToolIds = collectMessageToolIds(current);
+  if (hasSharedValue(previousToolIds, currentToolIds)) {
+    return true;
+  }
+
+  const previousActionIds = new Set(
+    (previous.actionRequests || []).map((request) => request.requestId),
+  );
+  const currentActionIds = new Set(
+    (current.actionRequests || []).map((request) => request.requestId),
+  );
+  return hasSharedValue(previousActionIds, currentActionIds);
+}
+
+function shouldMergeAdjacentAssistantMessages(
+  previous: Message,
+  current: Message,
+): boolean {
+  if (previous.role !== "assistant" || current.role !== "assistant") {
+    return false;
+  }
+
+  if (hasSharedProcessIdentity(previous, current)) {
+    return true;
+  }
+
+  const previousHasThinking = hasAssistantThinkingContent(previous);
+  const currentHasThinking = hasAssistantThinkingContent(current);
+  if (!previousHasThinking && !currentHasThinking) {
+    return true;
+  }
+
+  const previousHasText = hasRenderableAssistantTextContent(previous);
+  const currentHasText = hasRenderableAssistantTextContent(current);
+  return previousHasThinking && !previousHasText && currentHasText;
+}
 
 const findMatchingLocalUserMessageIndex = (
   localUserMessages: Message[],
@@ -890,6 +1081,8 @@ export const mergeHydratedMessagesWithLocalState = (
 
       const shouldRetainLocalProcessState =
         !hasRenderableAssistantTextContent(message);
+      const shouldRetainLocalThinkingState =
+        shouldRetainLocalProcessState || Boolean(message.thinkingContent);
       const contentParts = shouldRetainLocalProcessState
         ? mergeHydratedContentParts(
             localAssistantMessage?.contentParts,
@@ -925,7 +1118,7 @@ export const mergeHydratedMessagesWithLocalState = (
       })();
       const thinkingContent =
         message.thinkingContent ??
-        (shouldRetainLocalProcessState
+        (shouldRetainLocalThinkingState
           ? localAssistantMessage?.thinkingContent
           : undefined) ??
         extractThinkingContentFromParts(contentParts);
@@ -1482,7 +1675,25 @@ export const hydrateSessionDetailMessages = (
       ];
     });
 
-  return mergeAdjacentAssistantMessages(
+  const hydratedMessages = mergeAdjacentAssistantMessages(
     dedupeAdjacentHistoryMessages(loadedMessages),
   );
+
+  if (hydratedMessages.length > 0 || detail.messages.length > 0) {
+    return hydratedMessages;
+  }
+
+  if (options.includeTimelineFallback !== false) {
+    const timelineMessages = hydrateSessionDetailMessagesFromThreadItems(
+      detail,
+      topicId,
+    );
+    if (timelineMessages.length > 0) {
+      return timelineMessages;
+    }
+
+    return hydrateSessionDetailMessagesFromTurns(detail, topicId);
+  }
+
+  return [];
 };

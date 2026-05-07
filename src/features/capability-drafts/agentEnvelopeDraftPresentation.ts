@@ -106,6 +106,9 @@ function resolveStage(
   if (isCompletionAuditReady(completionAuditSummary)) {
     return "evidence_ready";
   }
+  if (completionAuditSummary) {
+    return "source_metadata_ready";
+  }
   if (sourceMetadata || evidencePackId?.trim()) {
     return "source_metadata_ready";
   }
@@ -119,8 +122,18 @@ function isCompletionAuditReady(
     summary?.decision === "completed" &&
       summary.required_evidence.automation_owner &&
       summary.required_evidence.workspace_skill_tool_call &&
-      summary.required_evidence.artifact_or_timeline,
+      summary.required_evidence.artifact_or_timeline &&
+      isControlledGetEvidenceRequirementSatisfied(summary),
   );
+}
+
+function isControlledGetEvidenceRequirementSatisfied(
+  summary: AgentRuntimeCompletionAuditSummary,
+): boolean {
+  if (!summary.controlled_get_evidence_required) {
+    return true;
+  }
+  return summary.required_evidence.controlled_get_evidence === true;
 }
 
 function evidenceStatusForStage(
@@ -133,6 +146,38 @@ function evidenceStatusForStage(
     return "source_metadata_only";
   }
   return "missing";
+}
+
+function buildCompletionAuditEvidenceLabel(
+  summary: AgentRuntimeCompletionAuditSummary,
+): string {
+  const blockingReasons = summary.blocking_reasons.filter(Boolean);
+  const controlledGetExecuted =
+    summary.controlled_get_evidence_executed_count ?? 0;
+  const controlledGetArtifacts =
+    summary.controlled_get_evidence_artifact_count ?? 0;
+  const controlledGetRequired =
+    summary.controlled_get_evidence_required ?? false;
+  const controlledGetLabel =
+    controlledGetExecuted > 0 || controlledGetArtifacts > 0
+      ? `，受控 GET ${controlledGetExecuted}/${controlledGetArtifacts} executed`
+      : controlledGetRequired
+        ? "，受控 GET required 0/0 executed"
+        : "";
+  const blockingLabel =
+    blockingReasons.length > 0
+      ? `，阻塞：${blockingReasons.slice(0, 2).join(" / ")}`
+      : "";
+  const missingControlledGetRequirement =
+    !isControlledGetEvidenceRequirementSatisfied(summary);
+  const suffix =
+    missingControlledGetRequirement
+      ? "；缺受控 GET evidence，不能固化为 Agent"
+      : summary.decision === "completed"
+      ? ""
+      : "；未 completed，不能固化为 Agent";
+
+  return `Evidence：completion audit ${summary.decision}，owner ${summary.successful_owner_run_count}/${summary.owner_run_count}，ToolCall ${summary.workspace_skill_tool_call_count}，artifact ${summary.artifact_count}${controlledGetLabel}${blockingLabel}${suffix}。`;
 }
 
 export function buildAgentEnvelopeDraftPresentation({
@@ -190,23 +235,21 @@ export function buildAgentEnvelopeDraftPresentation({
     evidence_ready: "Evidence 已就绪",
   };
 
-  const blockingReasons =
-    completionAuditSummary?.blocking_reasons.filter(Boolean) ?? [];
   const pendingEvidencePackLabel =
     evidencePackId?.trim() && !completionAuditReady
       ? `Evidence：已关联 evidence pack ${evidencePackId.trim()}，但还缺 completed completion audit，不能固化为 Agent。`
       : null;
-  const completedEvidenceLabel = completionAuditSummary
-    ? `Evidence：completion audit ${completionAuditSummary.decision}，owner ${completionAuditSummary.successful_owner_run_count}/${completionAuditSummary.owner_run_count}，ToolCall ${completionAuditSummary.workspace_skill_tool_call_count}，artifact ${completionAuditSummary.artifact_count}${
-        blockingReasons.length > 0
-          ? `，阻塞：${blockingReasons.slice(0, 2).join(" / ")}`
-          : ""
-      }。`
-    : `Evidence：已关联 evidence pack${evidencePackId ? ` ${evidencePackId}` : ""}。`;
+  const completionAuditEvidenceLabel = completionAuditSummary
+    ? buildCompletionAuditEvidenceLabel(completionAuditSummary)
+    : null;
+  const completedEvidenceLabel =
+    completionAuditEvidenceLabel ??
+    `Evidence：已关联 evidence pack${evidencePackId ? ` ${evidencePackId}` : ""}。`;
 
   const evidenceLabelByStatus: Record<AgentEnvelopeDraftEvidenceStatus, string> = {
     missing: "Evidence：还没有成功运行证据；先通过本回合启用拿到一次结果。",
     source_metadata_only:
+      completionAuditEvidenceLabel ??
       pendingEvidencePackLabel ??
       "Evidence：已有 P3E source metadata，可追踪本次 session 授权来源。",
     evidence_pack_ready: completedEvidenceLabel,

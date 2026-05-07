@@ -3018,6 +3018,16 @@ fn extract_metadata_usize(
         .and_then(|value| usize::try_from(value).ok())
 }
 
+fn extract_metadata_bool(
+    object: &serde_json::Map<String, serde_json::Value>,
+    keys: &[&str],
+) -> bool {
+    keys.iter()
+        .filter_map(|key| object.get(*key))
+        .find_map(serde_json::Value::as_bool)
+        .unwrap_or(false)
+}
+
 fn resolve_requested_knowledge_context(
     request_metadata: Option<&serde_json::Value>,
     workspace_root: &str,
@@ -3052,6 +3062,10 @@ fn resolve_requested_knowledge_context(
         name,
         task,
         max_chars: extract_metadata_usize(knowledge_pack, &["max_chars", "maxChars"]),
+        activation: extract_metadata_string(knowledge_pack, &["activation"])
+            .or_else(|| Some("explicit".to_string())),
+        write_run: extract_metadata_bool(knowledge_pack, &["write_run", "writeRun"]),
+        run_reason: extract_metadata_string(knowledge_pack, &["run_reason", "runReason"]),
     })
     .map(Some)
 }
@@ -3084,7 +3098,15 @@ fn merge_system_prompt_with_knowledge_context(
         if resolution.warnings.is_empty() {
             "状态提示：无。".to_string()
         } else {
-            format!("状态提示：{}。", resolution.warnings.join("；"))
+            format!(
+                "状态提示：{}。",
+                resolution
+                    .warnings
+                    .iter()
+                    .map(|warning| warning.message.as_str())
+                    .collect::<Vec<_>>()
+                    .join("；")
+            )
         },
         resolution.fenced_context
     );
@@ -4532,7 +4554,7 @@ fn format_permission_turn_gating_error(
     let ask_profile_keys = runtime_permission_ask_profile_label(permission_state);
 
     format!(
-        "运行时权限声明需要真实确认，当前 turn 已在模型执行前阻断：confirmationStatus={confirmation_status}，askProfileKeys={ask_profile_keys}。本阻断不创建 ApprovalRequest；请先接入真实权限确认或移除对应执行需求。"
+        "运行时权限声明需要真实确认，当前 turn 已在模型执行前等待用户确认：confirmationStatus={confirmation_status}，askProfileKeys={ask_profile_keys}。已创建真实权限确认请求；请确认后重试或恢复本轮执行。"
     )
 }
 
@@ -9256,7 +9278,7 @@ mod tests {
         let error = format_permission_turn_gating_error(&permission_state);
         assert!(error.contains("confirmationStatus=not_requested"));
         assert!(error.contains("askProfileKeys=read_files"));
-        assert!(error.contains("不创建 ApprovalRequest"));
+        assert!(error.contains("已创建真实权限确认请求"));
     }
 
     #[test]

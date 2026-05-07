@@ -190,7 +190,7 @@ pub async fn handle_command(
         return Ok(result);
     }
 
-    if let Some(result) = capability_drafts::try_handle(cmd, args.as_ref())? {
+    if let Some(result) = capability_drafts::try_handle(cmd, args.as_ref()).await? {
         return Ok(result);
     }
 

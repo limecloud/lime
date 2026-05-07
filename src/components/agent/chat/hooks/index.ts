@@ -21,6 +21,8 @@ interface UseAgentChatUnifiedOptions {
   disableSessionRestore?: boolean;
   initialTopicsLoadMode?: "immediate" | "deferred";
   initialTopicsDeferredDelayMs?: number;
+  initialRuntimeWarmupLoadMode?: "immediate" | "deferred";
+  initialRuntimeWarmupDeferredDelayMs?: number;
   getSyncedSessionRecentPreferences?: (
     sessionId: string,
   ) => import("../utils/chatToolPreferences").ChatToolPreferences | null;

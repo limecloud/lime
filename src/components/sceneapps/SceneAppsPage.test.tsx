@@ -683,6 +683,21 @@ async function openSceneAppsView(
   await flushEffects();
 }
 
+async function openGovernancePanelContent(
+  container: HTMLDivElement,
+  panel: "governance" | "runDetail",
+) {
+  const button = container.querySelector(
+    `[data-testid="sceneapps-governance-panel-${panel}"]`,
+  ) as HTMLButtonElement | null;
+  expect(button).not.toBeNull();
+
+  act(() => {
+    button?.click();
+  });
+  await flushEffects();
+}
+
 function setTextboxValue(
   element: HTMLInputElement | HTMLTextAreaElement,
   value: string,
@@ -1396,27 +1411,34 @@ describe("SceneAppsPage", () => {
     ).toContain("var(--lime-home-card-surface-strong)");
   });
 
-  it("应按分页方式拆开展示全部 Skills、补这轮信息与最近结果", async () => {
+  it("应按分页方式拆开展示选 Skill、准备与结果", async () => {
     const { container } = renderSceneAppsPage();
     await flushEffects();
 
-    expect(container.textContent).toContain("全部 Skills");
-    expect(container.textContent).toContain("补这轮信息");
-    expect(container.textContent).toContain("最近结果");
-    expect(container.textContent).toContain("这轮 Skill：短视频编排");
-    expect(container.textContent).toContain(
-      "这个 Skill 已经接住当前上下文，这轮信息和最近结果都能直接续上。",
-    );
+    expect(container.textContent).toContain("选 Skill");
+    expect(container.textContent).toContain("准备");
+    expect(container.textContent).toContain("结果");
+    expect(container.textContent).toContain("当前：短视频编排");
+    expect(container.textContent).toContain("2 条结果");
     expect(container.textContent).not.toContain(
       "全部 Skills · 进入生成前的准备层",
     );
     expect(container.textContent).not.toContain("当前目录");
     expect(container.textContent).not.toContain("最近继续");
     expect(container.textContent).not.toContain("当前焦点");
+    expect(container.textContent).toContain("目标已写");
     expect(
       container.querySelector('[data-testid="sceneapp-detail-title"]')
         ?.textContent,
     ).toContain("短视频编排");
+    expect(
+      container.querySelector('[data-testid="sceneapp-detail-advanced-sections"]'),
+    ).not.toBeNull();
+    expect(
+      container.querySelector(
+        '[data-testid="sceneapp-scorecard-advanced-sections"]',
+      ),
+    ).not.toBeNull();
     expect(container.textContent).not.toContain("story-video-suite-run-1");
 
     await openSceneAppsView(container, "catalog");
@@ -1502,17 +1524,12 @@ describe("SceneAppsPage", () => {
       container.querySelector(
         '[data-testid="sceneapp-scorecard-aggregate-summary"]',
       )?.textContent,
-    ).toContain("先补结果材料");
+    ).toContain("建议继续优化");
     expect(
       container.querySelector(
-        '[data-testid="sceneapp-scorecard-aggregate-summary"]',
+        '[data-testid="sceneapp-scorecard-next-action"]',
       )?.textContent,
-    ).toContain("结果记录");
-    expect(
-      container.querySelector(
-        '[data-testid="sceneapp-scorecard-aggregate-summary"]',
-      )?.textContent,
-    ).toContain("复核阻塞");
+    ).toContain("先补结果记录");
     expect(
       container.querySelector(
         '[data-testid="sceneapp-scorecard-delivery-parts"]',
@@ -1572,6 +1589,47 @@ describe("SceneAppsPage", () => {
     expect(container.textContent).toContain("story-video-suite-run-1");
     expect(container.textContent).toContain("story-video-suite-run-2");
     expect(
+      container.querySelector(
+        '[data-testid="sceneapps-governance-panel-governance"]',
+      )?.className,
+    ).toContain("var(--lime-home-card-surface-strong)");
+    expect(
+      container.querySelector('[data-testid="sceneapp-run-detail-summary"]'),
+    ).toBeNull();
+    expect(
+      container.querySelector(
+        '[data-testid="sceneapp-governance-context-reference-count"]',
+      )?.textContent,
+    ).toContain("1 条");
+    expect(
+      container.querySelector(
+        '[data-testid="sceneapp-governance-context-reference-items"]',
+      )?.textContent,
+    ).toContain("已用 3 次");
+    expect(
+      container.querySelector(
+        '[data-testid="sceneapp-governance-context-taste-summary"]',
+      )?.textContent,
+    ).toContain("偏好快节奏");
+    expect(
+      container.querySelector(
+        '[data-testid="sceneapp-governance-context-feedback-summary"]',
+      )?.textContent,
+    ).toContain("复核阻塞");
+    expect(
+      container.querySelector(
+        '[data-testid="sceneapp-governance-context-feedback-signals"]',
+      )?.textContent,
+    ).toContain("结果结构校验问题");
+    expect(container.textContent).toContain("当前卡点：复核阻塞");
+    expect(
+      container.querySelector(
+        '[data-testid="sceneapp-governance-next-action"]',
+      )?.textContent,
+    ).toContain("先补结果记录");
+
+    await openGovernancePanelContent(container, "runDetail");
+    expect(
       container.querySelector('[data-testid="sceneapp-run-detail-summary"]')
         ?.textContent,
     ).toContain("短视频编排");
@@ -1614,32 +1672,6 @@ describe("SceneAppsPage", () => {
         '[data-testid="sceneapp-run-detail-context-feedback-signals"]',
       )?.textContent,
     ).toContain("结果结构校验问题");
-    expect(
-      container.querySelector(
-        '[data-testid="sceneapp-governance-context-reference-count"]',
-      )?.textContent,
-    ).toContain("1 条");
-    expect(
-      container.querySelector(
-        '[data-testid="sceneapp-governance-context-reference-items"]',
-      )?.textContent,
-    ).toContain("已用 3 次");
-    expect(
-      container.querySelector(
-        '[data-testid="sceneapp-governance-context-taste-summary"]',
-      )?.textContent,
-    ).toContain("偏好快节奏");
-    expect(
-      container.querySelector(
-        '[data-testid="sceneapp-governance-context-feedback-summary"]',
-      )?.textContent,
-    ).toContain("复核阻塞");
-    expect(
-      container.querySelector(
-        '[data-testid="sceneapp-governance-context-feedback-signals"]',
-      )?.textContent,
-    ).toContain("结果结构校验问题");
-    expect(container.textContent).toContain("现在最卡的一点：复核阻塞");
     expect(mockGetSceneAppRunSummary).toHaveBeenCalledWith(
       "story-video-suite-run-2",
     );
@@ -1656,8 +1688,7 @@ describe("SceneAppsPage", () => {
 
     expect(container.textContent).not.toContain("当前已带入");
     expect(container.textContent).toContain("已带 2 条灵感");
-    expect(container.textContent).toContain("已写启动意图");
-    expect(container.textContent).toContain("启动意图：");
+    expect(container.textContent).toContain("目标已写");
     expect(mockPlanSceneAppLaunch).toHaveBeenCalledWith(
       expect.objectContaining({
         sceneappId: "story-video-suite",
@@ -1697,12 +1728,11 @@ describe("SceneAppsPage", () => {
     expect(storyVideoCard?.textContent).toContain("先补结果材料");
     expect(storyVideoCard?.textContent).toContain("建议继续优化");
     expect(storyVideoCard?.textContent).toContain("复核阻塞");
-    expect(storyVideoCard?.textContent).toContain("再继续进入生成或统计面");
     expect(storyVideoCard?.textContent).toContain("最近结果：人工试跑");
     expect(storyVideoCard?.textContent).toContain(
       "结果材料还没完全齐，暂时不适合直接放大",
     );
-    expect(storyVideoCard?.textContent).toContain("先补结果记录");
+    expect(storyVideoCard?.textContent).toContain("点击进入");
   });
 
   it("生成准备与评分页应提供最近可消费结果入口", async () => {
@@ -1805,7 +1835,7 @@ describe("SceneAppsPage", () => {
       '[data-testid="sceneapps-open-governance"]',
     ) as HTMLButtonElement | null;
     expect(governanceButton).toBeTruthy();
-    expect(governanceButton?.textContent).toContain("先补这轮信息");
+    expect(governanceButton?.textContent).toContain("去准备");
 
     act(() => {
       governanceButton?.click();
@@ -1880,6 +1910,142 @@ describe("SceneAppsPage", () => {
     ).toContain("短视频编排");
   });
 
+  it("结果记录超过 6 条时应分页展示", async () => {
+    const defaultListRuns = mockListSceneAppRuns.getMockImplementation();
+    const paginatedRuns = [
+      {
+        runId: "story-video-suite-run-2",
+        sceneappId: "story-video-suite",
+        status: "running",
+        source: "chat",
+        sourceRef: "agent-runtime-submit-turn",
+        sessionId: "session-story-video-2",
+        startedAt: "2026-04-15T00:05:00.000Z",
+        finishedAt: null,
+        artifactCount: 1,
+        deliveryRequiredParts: [
+          "brief",
+          "storyboard",
+          "script",
+          "music_refs",
+          "video_draft",
+          "review_note",
+        ],
+        deliveryCompletedParts: [],
+        deliveryMissingParts: [],
+        deliveryCompletionRate: null,
+        deliveryPartCoverageKnown: false,
+        failureSignal: null,
+      },
+      {
+        runId: "story-video-suite-run-1",
+        sceneappId: "story-video-suite",
+        status: "success",
+        source: "automation",
+        sourceRef: "automation-job-story-video-1",
+        sessionId: "session-story-video-1",
+        startedAt: "2026-04-15T00:00:00.000Z",
+        finishedAt: "2026-04-15T00:03:00.000Z",
+        artifactCount: 5,
+        deliveryRequiredParts: [
+          "brief",
+          "storyboard",
+          "script",
+          "music_refs",
+          "video_draft",
+          "review_note",
+        ],
+        deliveryCompletedParts: ["brief", "storyboard"],
+        deliveryMissingParts: ["script", "music_refs", "video_draft"],
+        deliveryCompletionRate: 33.3,
+        deliveryPartCoverageKnown: true,
+        failureSignal: "review_blocked",
+      },
+      ...Array.from({ length: 6 }, (_, index) => {
+        const order = index + 3;
+        return {
+          runId: `story-video-suite-run-${order}`,
+          sceneappId: "story-video-suite",
+          status: index % 2 === 0 ? "success" : "running",
+          source: index % 2 === 0 ? "automation" : "chat",
+          sourceRef:
+            index % 2 === 0
+              ? `automation-job-story-video-${order}`
+              : "agent-runtime-submit-turn",
+          startedAt: `2026-04-14T0${index}:00:00.000Z`,
+          finishedAt:
+            index % 2 === 0 ? `2026-04-14T0${index}:03:00.000Z` : null,
+          artifactCount: index + 1,
+          deliveryRequiredParts: ["brief", "script"],
+          deliveryCompletedParts: index % 2 === 0 ? ["brief"] : [],
+          deliveryMissingParts: index % 2 === 0 ? ["script"] : [],
+          deliveryCompletionRate: index % 2 === 0 ? 50 : null,
+          deliveryPartCoverageKnown: index % 2 === 0,
+          failureSignal: index === 5 ? "review_blocked" : null,
+        };
+      }),
+    ];
+
+    mockListSceneAppRuns.mockImplementation(async (sceneappId?: string) => {
+      if (sceneappId === "story-video-suite") {
+        return paginatedRuns;
+      }
+      return defaultListRuns?.(sceneappId);
+    });
+
+    const { container } = renderSceneAppsPage({
+      pageParams: { view: "governance" },
+    });
+    await flushEffects();
+
+    expect(
+      container.querySelector(
+        '[data-testid="sceneapp-run-list-pagination-status"]',
+      )?.textContent,
+    ).toContain("第 1 / 2 页");
+    expect(
+      container.querySelector(
+        '[data-testid="sceneapp-run-item-story-video-suite-run-6"]',
+      ),
+    ).not.toBeNull();
+    expect(
+      container.querySelector(
+        '[data-testid="sceneapp-run-item-story-video-suite-run-7"]',
+      ),
+    ).toBeNull();
+
+    const nextPageButton = container.querySelector(
+      '[data-testid="sceneapp-run-list-next-page"]',
+    ) as HTMLButtonElement | null;
+    expect(nextPageButton?.disabled).toBe(false);
+
+    act(() => {
+      nextPageButton?.click();
+    });
+    await flushEffects();
+
+    expect(
+      container.querySelector(
+        '[data-testid="sceneapp-run-list-pagination-status"]',
+      )?.textContent,
+    ).toContain("第 2 / 2 页");
+    expect(
+      container.querySelector(
+        '[data-testid="sceneapp-run-item-story-video-suite-run-7"]',
+      ),
+    ).not.toBeNull();
+    expect(
+      container.querySelector(
+        '[data-testid="sceneapp-run-item-story-video-suite-run-8"]',
+      ),
+    ).not.toBeNull();
+    expect(
+      container.querySelector(
+        '[data-testid="sceneapp-run-item-story-video-suite-run-2"]',
+      ),
+    ).toBeNull();
+  });
+
   it("切换运行记录后应刷新右侧运行详情解释", async () => {
     const { container } = renderSceneAppsPage();
     await flushEffects();
@@ -1894,6 +2060,18 @@ describe("SceneAppsPage", () => {
       completedRunButton?.click();
     });
     await flushEffects();
+
+    expect(
+      container.querySelector('[data-testid="sceneapp-governance-summary"]')
+        ?.textContent,
+    ).toContain("复核阻塞");
+    expect(
+      container.querySelector(
+        '[data-testid="sceneapp-governance-advanced-sections"]',
+      ),
+    ).not.toBeNull();
+
+    await openGovernancePanelContent(container, "runDetail");
 
     expect(
       container.querySelector('[data-testid="sceneapp-run-detail-summary"]')
@@ -1916,9 +2094,15 @@ describe("SceneAppsPage", () => {
       "Artifact 校验存在 1 条未恢复 issues。",
     );
     expect(
-      container.querySelector('[data-testid="sceneapp-governance-summary"]')
-        ?.textContent,
-    ).toContain("复核阻塞");
+      container.querySelector(
+        '[data-testid="sceneapp-run-detail-evidence-sections"]',
+      ),
+    ).not.toBeNull();
+    expect(
+      container.querySelector(
+        '[data-testid="sceneapp-run-detail-contract-sections"]',
+      ),
+    ).not.toBeNull();
     expect(container.textContent).toContain("生成");
     expect(container.textContent).toContain("持续流程");
     expect(mockGetSceneAppRunSummary).toHaveBeenCalledWith(
@@ -2060,6 +2244,7 @@ describe("SceneAppsPage", () => {
     expect(searchInput?.value).toBe("趋势");
     expect(launchInput?.value).toBe("关注云厂商和 Agent 工作流变化");
     await openSceneAppsView(container, "governance");
+    await openGovernancePanelContent(container, "runDetail");
     expect(
       container.querySelector('[data-testid="sceneapp-run-detail-summary"]')
         ?.textContent,
@@ -2441,6 +2626,7 @@ describe("SceneAppsPage", () => {
       successRunItem?.click();
     });
     await flushEffects();
+    await openGovernancePanelContent(container, "runDetail");
 
     const entryActionButton = container.querySelector(
       '[data-testid="sceneapp-run-detail-entry-action"]',
@@ -2471,6 +2657,7 @@ describe("SceneAppsPage", () => {
       seededRunItem?.click();
     });
     await flushEffects();
+    await openGovernancePanelContent(container, "runDetail");
 
     const artifactEntryButton = container.querySelector(
       '[data-testid^="sceneapp-run-detail-artifact-entry-"]',
@@ -2507,6 +2694,7 @@ describe("SceneAppsPage", () => {
       seededRunItem?.click();
     });
     await flushEffects();
+    await openGovernancePanelContent(container, "runDetail");
 
     const governanceEntryButton = container.querySelector(
       '[data-testid^="sceneapp-run-detail-governance-entry-evidence_summary-"]',
@@ -2550,6 +2738,7 @@ describe("SceneAppsPage", () => {
       seededRunItem?.click();
     });
     await flushEffects();
+    await openGovernancePanelContent(container, "runDetail");
 
     const governanceActionButton = container.querySelector(
       '[data-testid="sceneapp-run-detail-governance-action-weekly-review-pack"]',
@@ -2676,6 +2865,8 @@ describe("SceneAppsPage", () => {
       )?.textContent,
     ).toContain("继续去「内容主稿生成」");
 
+    await openGovernancePanelContent(container, "runDetail");
+
     const runDetailBanner = container.querySelector(
       '[data-testid="sceneapp-run-detail-review-feedback-banner"]',
     );
@@ -2715,6 +2906,7 @@ describe("SceneAppsPage", () => {
       seededRunItem?.click();
     });
     await flushEffects();
+    await openGovernancePanelContent(container, "runDetail");
 
     const actionButton = container.querySelector(
       '[data-testid="sceneapp-run-detail-review-feedback-banner-action"]',
@@ -2762,6 +2954,7 @@ describe("SceneAppsPage", () => {
       seededRunItem?.click();
     });
     await flushEffects();
+    await openGovernancePanelContent(container, "runDetail");
 
     const saveButton = container.querySelector(
       '[data-testid="sceneapp-run-detail-save-as-inspiration"]',
@@ -2829,6 +3022,7 @@ describe("SceneAppsPage", () => {
     });
     await flushEffects();
     await flushEffects();
+    await openGovernancePanelContent(container, "runDetail");
 
     const reviewButton = container.querySelector(
       '[data-testid="sceneapp-run-detail-open-human-review"]',
@@ -2889,6 +3083,7 @@ describe("SceneAppsPage", () => {
     });
     await flushEffects();
     await flushEffects();
+    await openGovernancePanelContent(container, "runDetail");
 
     const quickReviewButton = container.querySelector(
       '[data-testid="sceneapp-run-detail-quick-review-accepted"]',
@@ -2931,6 +3126,7 @@ describe("SceneAppsPage", () => {
       runningRunItem?.click();
     });
     await flushEffects();
+    await openGovernancePanelContent(container, "runDetail");
 
     const entryActionButton = container.querySelector(
       '[data-testid="sceneapp-run-detail-entry-action"]',
@@ -2967,6 +3163,7 @@ describe("SceneAppsPage", () => {
       runItem?.click();
     });
     await flushEffects();
+    await openGovernancePanelContent(container, "runDetail");
 
     const entryActionButton = container.querySelector(
       '[data-testid="sceneapp-run-detail-entry-action"]',
@@ -3003,6 +3200,7 @@ describe("SceneAppsPage", () => {
       runItem?.click();
     });
     await flushEffects();
+    await openGovernancePanelContent(container, "runDetail");
 
     const entryActionButton = container.querySelector(
       '[data-testid="sceneapp-run-detail-entry-action"]',

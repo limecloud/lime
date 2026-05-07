@@ -162,11 +162,15 @@ describe("buildAgentEnvelopeDraftPresentation", () => {
         successful_owner_run_count: 1,
         workspace_skill_tool_call_count: 1,
         artifact_count: 2,
+        controlled_get_evidence_artifact_count: 1,
+        controlled_get_evidence_executed_count: 1,
+        controlled_get_evidence_required: true,
         owner_audit_statuses: ["audit_input_ready"],
         required_evidence: {
           automation_owner: true,
           workspace_skill_tool_call: true,
           artifact_or_timeline: true,
+          controlled_get_evidence: true,
         },
         blocking_reasons: [],
         notes: [],
@@ -177,6 +181,7 @@ describe("buildAgentEnvelopeDraftPresentation", () => {
     expect(presentation.evidenceStatus).toBe("evidence_pack_ready");
     expect(presentation.evidenceLabel).toContain("completion audit completed");
     expect(presentation.evidenceLabel).toContain("ToolCall 1");
+    expect(presentation.evidenceLabel).toContain("受控 GET 1/1 executed");
     expect(presentation.agentCardLabel).toContain(
       "workspace-local/capability-report",
     );
@@ -209,8 +214,89 @@ describe("buildAgentEnvelopeDraftPresentation", () => {
       },
     });
 
-    expect(presentation.stage).toBe("manual_enable_required");
-    expect(presentation.evidenceStatus).toBe("missing");
+    expect(presentation.stage).toBe("source_metadata_ready");
+    expect(presentation.evidenceStatus).toBe("source_metadata_only");
+    expect(presentation.evidenceLabel).toContain("completion audit verifying");
+    expect(presentation.evidenceLabel).toContain("未 completed");
+    expect(presentation.actionEnabled).toBe(false);
+  });
+
+  it("受控 GET evidence 只作为 Agent envelope 外部证据说明，不能单独打开固化入口", () => {
+    const presentation = buildAgentEnvelopeDraftPresentation({
+      skill: createSkill(),
+      binding: createBinding(),
+      completionAuditSummary: {
+        source: "runtime_evidence_pack_completion_audit",
+        decision: "verifying",
+        owner_run_count: 1,
+        successful_owner_run_count: 1,
+        workspace_skill_tool_call_count: 0,
+        artifact_count: 0,
+        controlled_get_evidence_artifact_count: 1,
+        controlled_get_evidence_executed_count: 1,
+        controlled_get_evidence_required: true,
+        controlled_get_evidence_status_counts: {
+          executed: 1,
+        },
+        owner_audit_statuses: ["audit_input_ready"],
+        required_evidence: {
+          automation_owner: true,
+          workspace_skill_tool_call: false,
+          artifact_or_timeline: false,
+          controlled_get_evidence: true,
+        },
+        blocking_reasons: [
+          "missing_workspace_skill_tool_call_evidence",
+          "missing_artifact_or_timeline_evidence",
+        ],
+        notes: [],
+      },
+    });
+
+    expect(presentation.stage).toBe("source_metadata_ready");
+    expect(presentation.evidenceStatus).toBe("source_metadata_only");
+    expect(presentation.evidenceLabel).toContain("受控 GET 1/1 executed");
+    expect(presentation.evidenceLabel).toContain(
+      "missing_workspace_skill_tool_call_evidence",
+    );
+    expect(presentation.evidenceLabel).toContain("未 completed");
+    expect(presentation.actionEnabled).toBe(false);
+  });
+
+  it("completion audit 声明必须受控 GET evidence 时，缺该 evidence 不能打开固化入口", () => {
+    const presentation = buildAgentEnvelopeDraftPresentation({
+      skill: createSkill(),
+      binding: createBinding(),
+      completionAuditSummary: {
+        source: "runtime_evidence_pack_completion_audit",
+        decision: "completed",
+        owner_run_count: 1,
+        successful_owner_run_count: 1,
+        workspace_skill_tool_call_count: 1,
+        artifact_count: 1,
+        controlled_get_evidence_artifact_count: 0,
+        controlled_get_evidence_executed_count: 0,
+        controlled_get_evidence_required: true,
+        owner_audit_statuses: ["audit_input_ready"],
+        required_evidence: {
+          automation_owner: true,
+          workspace_skill_tool_call: true,
+          artifact_or_timeline: true,
+          controlled_get_evidence: false,
+        },
+        blocking_reasons: ["missing_controlled_get_evidence"],
+        notes: [],
+      },
+    });
+
+    expect(presentation.stage).toBe("source_metadata_ready");
+    expect(presentation.evidenceStatus).toBe("source_metadata_only");
+    expect(presentation.evidenceLabel).toContain(
+      "受控 GET required 0/0 executed",
+    );
+    expect(presentation.evidenceLabel).toContain(
+      "缺受控 GET evidence，不能固化为 Agent",
+    );
     expect(presentation.actionEnabled).toBe(false);
   });
 });

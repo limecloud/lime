@@ -54,6 +54,7 @@
     "knowledge_set_default_pack",
     "knowledge_update_pack_status",
     "knowledge_resolve_context",
+    "knowledge_validate_context_run",
     "gateway_channel_status",
     "wechat_channel_list_accounts",
     "site_list_adapters",
@@ -81,7 +82,9 @@
     "capability_draft_get",
     "capability_draft_verify",
     "capability_draft_register",
-    "capability_draft_list_registered_skills"
+    "capability_draft_list_registered_skills",
+    "capability_draft_submit_approval_session_inputs",
+    "capability_draft_execute_controlled_get"
   ],
   "desktopCompanionCommands": [
     "companion_get_pet_status",
@@ -124,7 +127,9 @@
     "reveal_in_finder",
     "open_with_default_app",
     "save_layered_design_project_export",
-    "read_layered_design_project_export"
+    "read_layered_design_project_export",
+    "recognize_layered_design_text",
+    "analyze_layered_design_flat_image"
   ],
   "deprecatedCommandReplacements": {
     "get_agent_process_status": "agent_get_process_status",

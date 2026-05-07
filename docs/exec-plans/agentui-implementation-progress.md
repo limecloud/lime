@@ -4131,3 +4131,168 @@ git diff --check -- "src/components/agent/chat/hooks/agentStreamCompletionContro
 
 1. 优先恢复 Playwright MCP 真实性能采集，覆盖首页首发、旧会话打开和首 token 分段。
 2. 若继续代码收口，先盘点 `agentStreamRuntimeHandler.ts` 剩余 helper 是否真的阻塞 Phase 3；否则进入 E2E 或 Phase 4 render projection 验收。
+
+### 2026-05-06：P3 第四十九刀，Thinking 历史恢复与尾部展示污染清理
+
+已完成：
+
+- 对齐 `docs/roadmap/agentui` 的 P0/P1 验收口径，继续收紧 `thinking / text / tool / action` 分型边界：
+  - `MessageList` 在尾部 assistant 已完成、但 reasoning timeline 尚未持久化接管时，继续保留 inline thinking，避免最终答复出现后思考块消失。
+  - `agentChatHistory` 不再无条件合并相邻 assistant 历史消息；只保留无 thinking 的普通分段合并，或同一工具 / 同一任务 / 同一 action identity 的过程合并。
+  - 同会话 hydrate 时，远端纯正文 assistant 已回来后不再继承本地旧 `thinkingContent`；本地工具轨迹、artifact、task preview 仍可按既有规则合并回远端消息。
+- 补充回归测试：
+  - 相邻 assistant 都带 thinking 时不应盲合并，避免跨轮思考串味。
+  - hydrate 宽松匹配不应把本地 thinking 兜底到远端纯正文 assistant。
+  - 尾部已完成 assistant 在 reasoning 未持久化时仍传递 thinking 给 renderer。
+
+主线收益：
+
+- 直接命中 AgentUI 验收 `1.5 流式输出`：`thinking_delta` 不污染最终正文、历史恢复不把 completed thinking 重放到下一轮过程层。
+- 保留工具轨迹合并，避免为了清理 thinking 丢失 tool / artifact 的过程证据。
+- 这刀是 AgentUI projection 清理，不新增 runtime event、Tauri command、Bridge 或 mock 路径。
+
+已验证：
+
+```bash
+npx vitest run "src/components/agent/chat/hooks/agentChatHistory.test.ts"
+npx vitest run "src/components/agent/chat/components/MessageList.test.tsx" -t "当前完成回合缺少持久化 reasoning 时应临时保留本地思考过程|当前尾部 assistant 已完成但 reasoning 尚未持久化时也应继续显示思考内容|持久化 reasoning 已接管时不应重复传递本地思考过程|已完成工具调用应回到消息顶部执行轨迹展示，不再占用正文主视觉|当前回合仍在运行时，即使 assistant 非 streaming 占位也应继续透传工具调用"
+npx vitest run "src/components/agent/chat/hooks/agentStreamRuntimeHandler.test.ts"
+```
+
+结果：
+
+- `agentChatHistory.test.ts`：通过，`24` 个测试通过。
+- `MessageList.test.tsx` 定向：通过，`5` 个测试通过。
+- `agentStreamRuntimeHandler.test.ts`：通过，`12` 个测试通过。
+
+待验证：
+
+- Playwright 真实流式路径继续覆盖：thinking 完成后不消失、不串味。
+- Playwright 工具调用路径继续覆盖：权限确认 action_required 提交后应恢复执行，并显示 tool / web search 过程轨迹。
+
+### 2026-05-06：P3 第五十刀，首字快照预填与 replay 去重闭环
+
+已完成：
+
+- 继续按 `docs/roadmap/agentui/conversation-projection-acceptance.md` 的 `1.5 流式输出` 口径收紧 stream projection：
+  - `message` 快照事件包含 assistant 可见正文时，立即预填 `content / contentParts`，降低首字前空白体感。
+  - 后续 `text_delta` 若只是重放已预填快照，不再追加到正文、不再通知 stream observer，也不触发打字音。
+  - 若 `text_delta` 分片先完整 replay 快照、再继续输出新正文，只追加快照之外的新内容。
+  - 首个 `text_delta` 指标继续按原始 delta 记录，避免 replay 去重后把首字指标误记成 `0` 字符。
+- 保留第四十九刀的 thinking 修复：
+  - text flush 后继续保留并累积 `thinkingContent`。
+  - 已完成尾部 assistant 在 reasoning timeline 尚未持久化接管时，继续显示 inline thinking。
+  - hydrate 纯正文 assistant 不再继承本地旧 thinking，避免跨轮串味。
+
+主线收益：
+
+- 直接服务 AgentUI “首字快”和“流式稳”两条验收：首屏可先显示 runtime message 快照，同时 `text_delta` / `final_done` 不重复追加。
+- 不新增 runtime fact source；仍只消费 `AgentEvent`，在 frontend projection 内完成快照与 delta 的 reconcile。
+- 工具 / action 仍按现有 `tool_start / tool_end / action_required` 过程投影处理，不把工具日志或权限卡混进最终 Markdown 正文。
+
+已验证：
+
+```bash
+npx vitest run "src/components/agent/chat/hooks/agentStreamRuntimeHandler.test.ts" "src/components/agent/chat/hooks/agentStreamTextDeltaController.test.ts"
+npx vitest run "src/components/agent/chat/hooks/agentChatHistory.test.ts"
+npx vitest run "src/components/agent/chat/components/MessageList.test.tsx" -t "当前尾部 assistant 已完成但 reasoning 尚未持久化时也应继续显示思考内容|持久化 reasoning 已接管时不应重复传递本地思考过程|运行中的助手消息应显示 runtime 状态|工具调用|action"
+npm run test:contracts
+git diff --check -- "src/components/agent/chat/hooks/agentStreamRuntimeHandler.ts" "src/components/agent/chat/hooks/agentStreamRuntimeHandler.test.ts" "src/components/agent/chat/hooks/agentStreamTextDeltaController.ts" "src/components/agent/chat/hooks/agentStreamTextDeltaController.test.ts" "src/components/agent/chat/hooks/agentChatHistory.ts" "src/components/agent/chat/hooks/agentChatHistory.test.ts" "src/components/agent/chat/components/MessageList.tsx" "src/components/agent/chat/components/MessageList.test.tsx" "docs/exec-plans/agentui-implementation-progress.md"
+```
+
+结果：
+
+- Stream runtime / text delta controller：通过，`2` 个测试文件、`17` 个测试通过。
+- `agentChatHistory.test.ts`：通过，`24` 个测试通过。
+- `MessageList.test.tsx` 定向：通过，`7` 个测试通过，覆盖尾部 thinking 保留、持久化 reasoning 接管、工具 / action 相关展示。
+- `npm run test:contracts`：通过；前端命令、Rust 注册、mock priority、default mock、harness contract、modality contract 与 cleanup report contract 均通过。
+- Diff whitespace check：通过。
+
+Playwright / GUI 续测状态：
+
+- 当前页面：`http://127.0.0.1:1420/`，可加载并能定位到首页 textarea 与 `发送` 按钮。
+- DevBridge：`npm run bridge:health -- --timeout-ms 120000` 与后续 `--timeout-ms 30000` 均超时，`http://127.0.0.1:3030/health` 未监听；期间 `tauri:dev:headless` 与多条 Rust 编译 / check 链仍在运行。
+- 已尝试刷新页面建立干净基线；页面在 DevBridge 掉线窗口内出现 `workspace_get`、`agent_runtime_list_sessions`、`aster_agent_init` 的 bridge connection / cooldown 错误，因此本轮不把 GUI 流式和工具调用 E2E 判为通过。
+
+下一步：
+
+1. 等 `3030/health` 稳定返回 `ok` 后，复用当前 Lime 页签重跑两轮真实对话：
+   - 第一轮会议纪要 prompt，完成后确认 `已完成思考` / thinking block 仍可见。
+   - 第二轮 `2+2` prompt，确认 thinking 不含第一轮会议纪要内容，正文不混入 thinking。
+2. 再跑工具调用路径：发送 `@搜索 OpenAI 最新模型公告，给我 3 条要点，并附来源`，验证 `action_required` 权限确认、点击允许、`待补 1` 消失、tool / web search 轨迹恢复。
+3. 若 DevBridge 继续掉线，优先修 DevBridge 编译期间 3030 不稳定 / cooldown 恢复问题，再谈 AgentUI GUI 可交付。
+
+### 2026-05-07：P3 第五十一刀，runtime 权限确认 E2E 收口
+
+已完成：
+
+- 对齐 `docs/roadmap/agentui/conversation-projection-acceptance.md` 的 `1.5 流式输出` 与权限确认主链口径，收口 runtime permission wait 的用户态投影：
+  - `runtimeActionConfirmation.ts` 抽出 thread item 级 runtime confirmation 判断，避免 request id 判断散落在 Timeline、任务卡与尾部运行态里。
+  - `AgentThreadTimeline` 继续隐藏 runtime permission wait 内部 error，不再向普通用户暴露 `confirmationStatus` / `askProfileKeys`。
+  - `agentTaskRuntime` 与 `inputbarRuntimeStatusLine` 改为只统计可见 pending action；`submitted` 的 runtime confirmation 不再把消息尾部投影成 `失败 · 00:00` 或 `等待补充`。
+  - runtime permission wait 未提交时投影为用户态等待确认；提交后保留只读确认回显与继续执行提示，不再把内部等待错误当普通失败展示。
+- 补充回归测试：
+  - `AgentThreadTimeline.test.tsx` 覆盖 runtime permission wait 不暴露内部字段。
+  - `agentTaskRuntime.test.ts` 覆盖 runtime permission wait 未提交 / 已提交两种任务卡投影。
+  - `MessageList.test.tsx` 覆盖提交后消息尾部不残留失败状态。
+  - `useAsterAgentChat.test.tsx` 覆盖 stream 结束后提交 runtime permission confirmation 仍透传 `event_name`。
+
+主线收益：
+
+- 直接命中本轮用户反馈：思考 / 工具调用过程中出现权限确认时，确认卡不会在提交后消失成内部失败，也不会在消息尾部残留 `失败 · 00:00`。
+- 工具确认链路已从真实 DevBridge 页面验证到 `agent_runtime_respond_action`，且请求包含 `event_name` 与 `action_scope`，可以恢复当前执行流。
+- 普通用户页面不再暴露 `confirmationStatus`、`askProfileKeys`、`碰到错误`、`执行失败` 这些内部字段或调试词。
+
+已验证：
+
+```bash
+npx vitest run "src/components/agent/chat/utils/agentTaskRuntime.test.ts" "src/components/agent/chat/components/MessageList.test.tsx" "src/components/agent/chat/components/AgentThreadTimeline.test.tsx" "src/components/agent/chat/hooks/useAsterAgentChat.test.tsx"
+npx tsc --noEmit --pretty false --skipLibCheck
+npm run test:contracts
+npm run bridge:health -- --timeout-ms 20000
+npm run verify:gui-smoke -- --timeout-ms 240000
+```
+
+结果：
+
+- AgentUI 定向回归：通过，`4` 个测试文件、`292` 个测试通过。
+- TypeScript：通过。
+- Contracts：通过；命令契约、harness contract、modality contract 与 cleanup report contract 均通过。
+- DevBridge health：通过，`http://127.0.0.1:3030/health` 返回 `ok`。
+- GUI smoke：通过；覆盖 workspace-ready、browser-runtime、site-adapters、agent service skill entry、runtime tool surface page、knowledge GUI、design canvas。
+
+Playwright E2E 证据：
+
+- 证据目录：`tmp/e2e-agentui/`
+- fixed4 截图：
+  - `60-fixed4-before-send.png`
+  - `61-fixed4-filled.png`
+  - `62-fixed4-after-submit-first-status.png`
+  - `63-fixed4-confirmation-or-timeout.png`
+  - `64-fixed4-after-submit-answer.png`
+  - `65-fixed4-final-or-timeout.png`
+- fixed4 JSON：
+  - `agentui-tool-permission-e2e-summary-fixed4.json`
+  - `agentui-tool-permission-e2e-bridge-calls-fixed4.json`
+  - `agentui-tool-permission-e2e-console-fixed4.json`
+
+fixed4 结果摘要：
+
+- `firstStatusOk: true`
+- `confirmationOk: true`
+- `clickedAllow: true`
+- `clickedSubmit: true`
+- `createCalls: 1`
+- `submitCalls: 1`
+- `respondCalls: 1`
+- `respondActionHasEventName: true`
+- `consoleErrorCount: 0`
+- `leakedBeforeAllow: []`
+- `leakedAfterSubmit: []`
+- `leakedFinal: []`
+- `orphanFailureFinal: []`
+
+当前判定：
+
+- runtime 权限确认工具调用 E2E 已达到本轮可交付门槛。
+- 仍建议后续单独复测长流式 thinking 展开 / 收起体验，但这不阻塞本轮权限确认和工具调用链路交付。

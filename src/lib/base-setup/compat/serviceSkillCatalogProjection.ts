@@ -145,6 +145,13 @@ function buildBundleSummary(
       delete metadata[key];
     }
   }
+  if (projection.skillBundleMetadata) {
+    for (const [key, value] of Object.entries(projection.skillBundleMetadata)) {
+      if (value.trim()) {
+        metadata[key] = value;
+      }
+    }
+  }
 
   return {
     name: projection.skillKey ?? projection.entryKey ?? bundleRef.id,
@@ -152,9 +159,10 @@ function buildBundleSummary(
     compatibility: pkg.compatibility.minAppVersion,
     metadata,
     resourceSummary: {
-      hasScripts: false,
-      hasReferences: false,
-      hasAssets: false,
+      hasScripts: projection.skillBundleResourceSummary?.hasScripts ?? false,
+      hasReferences:
+        projection.skillBundleResourceSummary?.hasReferences ?? false,
+      hasAssets: projection.skillBundleResourceSummary?.hasAssets ?? false,
     },
     standardCompliance: {
       isStandard: true,

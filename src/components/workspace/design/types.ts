@@ -5,6 +5,8 @@ import {
   normalizeLayeredDesignDocument,
 } from "@/lib/layered-design";
 import type {
+  AnalyzeLayeredDesignFlatImage,
+  LayeredDesignAnalyzerModelSlotConfigInput,
   LayeredDesignDocument,
   LayeredDesignDocumentInput,
 } from "@/lib/layered-design";
@@ -47,6 +49,8 @@ export interface DesignCanvasProps {
   readProjectExport?: (
     request: ReadLayeredDesignProjectExportRequest,
   ) => Promise<ReadLayeredDesignProjectExportOutput>;
+  analyzeFlatImage?: AnalyzeLayeredDesignFlatImage;
+  analyzerModelSlotConfigs?: readonly LayeredDesignAnalyzerModelSlotConfigInput[];
 }
 
 function createBlankDesignDocument(): LayeredDesignDocument {

@@ -1703,11 +1703,15 @@ describe("AgentChatPage 任务中心初始会话标签", () => {
             workspaceId?: string;
             initialTopicsLoadMode?: string;
             initialTopicsDeferredDelayMs?: number;
+            initialRuntimeWarmupLoadMode?: string;
+            initialRuntimeWarmupDeferredDelayMs?: number;
           },
       )
       .find((options) => options.workspaceId === "workspace-test");
     expect(workspaceCall?.initialTopicsLoadMode).toBe("deferred");
-    expect(workspaceCall?.initialTopicsDeferredDelayMs).toBe(45_000);
+    expect(workspaceCall?.initialTopicsDeferredDelayMs).toBe(0);
+    expect(workspaceCall?.initialRuntimeWarmupLoadMode).toBe("deferred");
+    expect(workspaceCall?.initialRuntimeWarmupDeferredDelayMs).toBe(45_000);
     expect(mockSkillsGetLocal).not.toHaveBeenCalled();
     expect(mockGetProjectMemory).not.toHaveBeenCalled();
   });

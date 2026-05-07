@@ -19,11 +19,18 @@ const tauriHeadlessConfigPath = path.join(
   "tauri.conf.headless.json",
 );
 const packageJsonPath = path.join(repoRoot, "package.json");
+const cliNpmPackageJsonPath = path.join(
+  repoRoot,
+  "packages",
+  "lime-cli-npm",
+  "package.json",
+);
 
 const cargo = readCargoVersions(cargoTomlPath);
 const tauriConfig = readJson(tauriConfigPath);
 const tauriHeadlessConfig = readJson(tauriHeadlessConfigPath);
 const packageJson = readJson(packageJsonPath);
+const cliNpmPackageJson = readJson(cliNpmPackageJsonPath);
 
 const sourceVersion = cargo.workspaceVersion;
 const issues = [];
@@ -41,6 +48,12 @@ if (!cargo.packageVersionIsWorkspace && cargo.packageVersion !== sourceVersion) 
 if ((packageJson.version ?? null) !== sourceVersion) {
   issues.push(
     `package.json version (${packageJson.version ?? "missing"}) 与 workspace.version (${sourceVersion ?? "missing"}) 不一致`,
+  );
+}
+
+if ((cliNpmPackageJson.version ?? null) !== sourceVersion) {
+  issues.push(
+    `packages/lime-cli-npm/package.json version (${cliNpmPackageJson.version ?? "missing"}) 与 workspace.version (${sourceVersion ?? "missing"}) 不一致`,
   );
 }
 

@@ -94,6 +94,8 @@ export function useAsterAgentChat(options: UseAsterAgentChatRuntimeOptions) {
     disableSessionRestore = false,
     initialTopicsLoadMode = "immediate",
     initialTopicsDeferredDelayMs,
+    initialRuntimeWarmupLoadMode = initialTopicsLoadMode,
+    initialRuntimeWarmupDeferredDelayMs = initialTopicsDeferredDelayMs,
     getSyncedSessionRecentPreferences,
     runtimeAdapter,
     preserveRestoredMessages = false,
@@ -553,21 +555,21 @@ export function useAsterAgentChat(options: UseAsterAgentChatRuntimeOptions) {
       return;
     }
 
-    if (initialTopicsLoadMode === "deferred") {
+    if (initialRuntimeWarmupLoadMode === "deferred") {
       return scheduleMinimumDelayIdleTask(
         () => {
           void warmupRuntime().catch(() => undefined);
         },
         {
-          minimumDelayMs: initialTopicsDeferredDelayMs ?? 0,
+          minimumDelayMs: initialRuntimeWarmupDeferredDelayMs ?? 0,
         },
       );
     }
 
     void warmupRuntime().catch(() => undefined);
   }, [
-    initialTopicsDeferredDelayMs,
-    initialTopicsLoadMode,
+    initialRuntimeWarmupDeferredDelayMs,
+    initialRuntimeWarmupLoadMode,
     warmupRuntime,
     workspaceId,
   ]);

@@ -48,6 +48,7 @@ import {
   buildThreadReliabilityView,
   type ThreadReliabilityTone,
 } from "../utils/threadReliabilityView";
+import { isRuntimePermissionConfirmationWaitMessage } from "../utils/runtimeActionConfirmation";
 import { AgentIncidentPanel } from "./AgentIncidentPanel";
 import { AgentThreadFileCheckpointDialog } from "./AgentThreadFileCheckpointDialog";
 import { AgentThreadMemoryPrefetchPreview } from "./AgentThreadMemoryPrefetchPreview";
@@ -108,6 +109,19 @@ function serializeClipboardPayload(value: unknown): string {
 
 function normalizeDiagnosticText(value?: string | null): string {
   return typeof value === "string" ? value.trim().replace(/\s+/g, " ") : "";
+}
+
+function sanitizeReliabilityDiagnosticText(
+  value?: string | null,
+): string | null {
+  const normalized = normalizeDiagnosticText(value);
+  if (!normalized) {
+    return null;
+  }
+  if (isRuntimePermissionConfirmationWaitMessage(normalized)) {
+    return "当前回合正在等待运行时权限确认";
+  }
+  return normalized;
 }
 
 function truncateDiagnosticText(
@@ -799,7 +813,7 @@ function buildReliabilityDiagnosticText(params: {
       `- 最新回合停滞时长（秒）：${diagnostics.latest_turn_stalled_seconds ?? "无"}`,
     );
     sections.push(
-      `- 最新回合错误：${diagnostics.latest_turn_error_message || "无"}`,
+      `- 最新回合错误：${sanitizeReliabilityDiagnosticText(diagnostics.latest_turn_error_message) || "无"}`,
     );
     sections.push(`- 中断原因：${diagnostics.interrupt_reason || "未知"}`);
     sections.push(
@@ -827,7 +841,7 @@ function buildReliabilityDiagnosticText(params: {
       `- 主阻塞类型：${diagnostics.primary_blocking_kind || "未知"}`,
     );
     sections.push(
-      `- 主阻塞摘要：${diagnostics.primary_blocking_summary || "未知"}`,
+      `- 主阻塞摘要：${sanitizeReliabilityDiagnosticText(diagnostics.primary_blocking_summary) || "未知"}`,
     );
     sections.push(
       `- 最近 warning：${

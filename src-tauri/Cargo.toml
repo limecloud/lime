@@ -9,7 +9,7 @@ exclude = [
 resolver = "2"
 
 [workspace.package]
-version = "1.29.0"
+version = "1.30.0"
 edition = "2021"
 authors = ["coso"]
 repository = "https://github.com/aiclientproxy/lime"
@@ -198,7 +198,7 @@ version = "2.4"
 
 [package]
 name = "lime"
-version = "1.29.0"
+version = "1.30.0"
 description = "AI API Proxy Desktop App"
 authors = ["you"]
 edition = "2021"
@@ -307,6 +307,7 @@ notify.workspace = true
 parking_lot.workspace = true
 tiktoken-rs.workspace = true
 base64.workspace = true
+image = { version = "0.25.9", default-features = false, features = ["png"] }
 bytes.workspace = true
 rand.workspace = true
 sha2.workspace = true

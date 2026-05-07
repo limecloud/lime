@@ -19,6 +19,7 @@ const batchSize =
     : 16;
 const serialTestFiles = new Set([
   "scripts/lib/harness-eval-history-record.test.ts",
+  "scripts/lib/harness-eval-history-window.test.ts",
   "src/components/agent/chat/index.test.tsx",
   "src/components/agent/chat/hooks/useAsterAgentChat.test.tsx",
   "src/components/workspace/WorkbenchPage.test.tsx",
@@ -28,6 +29,21 @@ const serialTestFiles = new Set([
   "src/components/agent/chat/components/TeamWorkspaceBoard.test.tsx",
   "src/components/settings-v2/system/automation/index.test.tsx",
 ]);
+const ignoredTestPathSegments = [
+  "/node_modules/",
+  "/tmp/lime-pnpm-frozen-node_modules/",
+];
+
+function normalizeTestPath(file) {
+  return path.resolve(file).replaceAll("\\", "/");
+}
+
+function shouldIgnoreCollectedTestFile(file) {
+  const normalized = normalizeTestPath(file);
+  return ignoredTestPathSegments.some((segment) =>
+    normalized.includes(segment),
+  );
+}
 
 function runVitest(args, label) {
   if (label) {
@@ -83,7 +99,12 @@ function collectTestFiles() {
   const parsed = JSON.parse(result.stdout || "[]");
   return parsed
     .map((entry) => (typeof entry === "string" ? entry : entry?.file))
-    .filter((entry) => typeof entry === "string" && entry.length > 0);
+    .filter(
+      (entry) =>
+        typeof entry === "string" &&
+        entry.length > 0 &&
+        !shouldIgnoreCollectedTestFile(entry),
+    );
 }
 
 function chunkFiles(files, size) {

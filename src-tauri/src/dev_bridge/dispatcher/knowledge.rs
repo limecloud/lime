@@ -44,6 +44,11 @@ pub(super) async fn try_handle(
                 parse_nested_arg(&args, "request")?;
             serde_json::to_value(lime_knowledge::resolve_knowledge_context(request)?)?
         }
+        "knowledge_validate_context_run" => {
+            let request: lime_knowledge::KnowledgeValidateContextRunRequest =
+                parse_nested_arg(&args, "request")?;
+            serde_json::to_value(lime_knowledge::validate_knowledge_context_run(request)?)?
+        }
         _ => return Ok(None),
     };
 

@@ -4,6 +4,9 @@ const HIDDEN_CONVERSATION_WARNING_CODES = new Set([
   "artifact_document_repaired",
 ]);
 
+const HIDDEN_CONVERSATION_AUXILIARY_TURN_ID_PREFIX =
+  "auxiliary-runtime-projection-";
+
 export interface MessageTurnTimeline {
   messageId: string;
   turn: AgentThreadTurn;
@@ -38,7 +41,82 @@ function normalizeThreadWarningCode(value?: string | null): string | null {
   return normalized || null;
 }
 
+function normalizeThreadArtifactPath(value?: string | null): string {
+  return (value || "").trim().replace(/\\/g, "/").toLowerCase();
+}
+
+function readMetadataString(
+  metadata: unknown,
+  keys: readonly string[],
+): string | null {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+    return null;
+  }
+
+  const record = metadata as Record<string, unknown>;
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value !== "string") {
+      continue;
+    }
+
+    const normalized = value.trim().toLowerCase();
+    if (normalized) {
+      return normalized;
+    }
+  }
+
+  return null;
+}
+
+function shouldHideConversationThreadTurn(turn: AgentThreadTurn): boolean {
+  const normalizedId = turn.id.trim().toLowerCase();
+  if (normalizedId.startsWith(HIDDEN_CONVERSATION_AUXILIARY_TURN_ID_PREFIX)) {
+    return true;
+  }
+
+  const normalizedPrompt = turn.prompt_text.trim();
+  return (
+    normalizedPrompt.startsWith("辅助标题生成") ||
+    normalizedPrompt.startsWith("辅助人设生成")
+  );
+}
+
+function shouldHideAuxiliaryRuntimeProjectionItem(
+  item: AgentThreadItem,
+): boolean {
+  if (item.type !== "file_artifact") {
+    return false;
+  }
+
+  const normalizedPath = normalizeThreadArtifactPath(item.path);
+  const hasAuxiliaryRuntimePath =
+    normalizedPath.endsWith(".json") &&
+    normalizedPath.includes("/auxiliary-runtime/") &&
+    (normalizedPath.startsWith(".lime/harness/sessions/") ||
+      normalizedPath.includes("/.lime/harness/sessions/"));
+  if (hasAuxiliaryRuntimePath) {
+    return true;
+  }
+
+  const artifactType = readMetadataString(item.metadata, [
+    "artifactType",
+    "artifact_type",
+    "task_type",
+  ]);
+  if (artifactType === "auxiliary_runtime_projection") {
+    return true;
+  }
+
+  const source = readMetadataString(item.metadata, ["source"]);
+  return source?.startsWith("auxiliary.") ?? false;
+}
+
 function shouldHideConversationThreadItem(item: AgentThreadItem): boolean {
+  if (shouldHideAuxiliaryRuntimeProjectionItem(item)) {
+    return true;
+  }
+
   if (item.type !== "warning") {
     return false;
   }
@@ -71,9 +149,14 @@ export function sortThreadItems(items: AgentThreadItem[]): AgentThreadItem[] {
 }
 
 function resolveSortedThreadTurns(turns: AgentThreadTurn[]): AgentThreadTurn[] {
-  return isSortedBy(turns, compareThreadTurns)
-    ? turns
-    : [...turns].sort(compareThreadTurns);
+  const hasHiddenTurns = turns.some(shouldHideConversationThreadTurn);
+  const visibleTurns = hasHiddenTurns
+    ? turns.filter((turn) => !shouldHideConversationThreadTurn(turn))
+    : turns;
+
+  return isSortedBy(visibleTurns, compareThreadTurns)
+    ? visibleTurns
+    : [...visibleTurns].sort(compareThreadTurns);
 }
 
 function resolveTimelineThreadItems(
@@ -100,6 +183,10 @@ export function mergeThreadTurns(
     }
 
     for (const turn of turns) {
+      if (shouldHideConversationThreadTurn(turn)) {
+        continue;
+      }
+
       merged.set(turn.id, turn);
     }
   }

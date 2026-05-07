@@ -1,9 +1,9 @@
 # Agent Knowledge 实现执行计划
 
-> 状态：Phase 1 current 主链已接通，项目资料能力已回流到现有 Agent 输入框；首页添加、File Manager 添加、输入框使用、项目资料管理与 Agent 结果沉淀均已完成稳定 DevBridge 下的产品 E2E 验收
+> 状态：v1 项目资料主链已接通；v2 文档主线已升级为 Agent Knowledge v0.6.0 `document-first` + Skills-first，下一阶段进入 Builder Skill runtime binding 实施
 > 创建时间：2026-05-01  
-> 路线图来源：`docs/roadmap/knowledge/prd.md`  
-> 当前目标：完成 Markdown-first 项目资料的导入、整理、GUI 管理、Agent 输入框显式使用与运行时受保护上下文注入。
+> 路线图来源：`docs/roadmap/knowledge/prd-v2.md`（current），`docs/roadmap/knowledge/prd.md`（legacy current reference）
+> 当前目标：把现有项目资料主链升级为 `personal-ip-knowledge-builder -> Agent Knowledge v0.6.0 document-first KnowledgePack -> Resolver` 的端到端闭环，同时把旧 `knowledge_builder` 内置整理器收敛为 compat / deprecated。
 
 ## 主目标
 
@@ -16,13 +16,25 @@ src-tauri/crates/knowledge
   -> src/features/knowledge
   -> AgentChatWorkspace request metadata
   -> Runtime KnowledgePack prompt stage
-  -> src-tauri/resources/default-skills/knowledge_builder
+  -> SkillCatalog.entries(kind=skill)
+  -> docs/knowledge/skills/personal-ip-knowledge-builder
   -> mock / governance / contract validation
 ```
 
 固定事实源：
 
-**后续知识包能力只允许向 `lime-knowledge + knowledge_* + Knowledge Context Resolver` 收敛；`project_memory_get` 继续只做项目资料附属层，不接管知识包主链。**
+**后续知识包能力只允许向 `lime-knowledge + knowledge_* + Knowledge Context Resolver + SkillCatalog.entries(kind=skill)` 收敛；Agent Skills 负责生产和维护知识，Agent Knowledge v0.6.0 负责知识产物形态和安全进入上下文。`project_memory_get` 继续只做项目资料附属层，不接管知识包主链。**
+
+v2 current / compat 分类：
+
+| Surface | 分类 | 退出条件 / 说明 |
+| --- | --- | --- |
+| `docs/roadmap/knowledge/prd-v2.md` | current | Knowledge v2 唯一路线图事实源 |
+| `docs/roadmap/knowledge/prd-v2-diagrams.md` | current | v2 架构图、流程图、时序图和 UI 原型事实源 |
+| `/Users/coso/Documents/dev/ai/limecloud/agentknowledge` `v0.6.0` | current upstream | Agent Knowledge 标准事实源；GitHub Release 已发布，npm 发布待认证 |
+| `docs/knowledge/skills/personal-ip-knowledge-builder/` | current | P1 Builder Skill 事实源 |
+| `src-tauri/resources/default-skills/knowledge_builder` | deprecated | P1 runtime binding 接入后停止新增模板与章节逻辑，迁移为兼容委托或删除 |
+| `docs/roadmap/knowledge/prd.md` | compat / legacy reference | 只保留仍被 v2 明确继承的产品目标、状态和验收，不再承接新目录/命令/Builder 设计 |
 
 ## 范围
 
@@ -44,6 +56,14 @@ src-tauri/crates/knowledge
 2. 向量库、知识图谱、企业权限、知识包市场。
 3. 把知识包接入 Memory 或 durable memory。
 4. 把 Builder 输出直接写盘并自动覆盖用户已编辑知识资产。
+
+v2 追加范围（2026-05-08 起）：
+
+1. PRD / diagrams 事实源升级到 Agent Knowledge v0.6.0：`profile: document-first`、`runtime.mode: data | persona`、`metadata.producedBy`。
+2. `knowledge_compile_pack` 从内置 `knowledge_builder` 迁移为 Builder Skill 薄适配：选 Skill、进 runtime binding、写回 `documents/` 和 `runs/`。
+3. P1 只实施 `personal-ip-knowledge-builder`；品牌人设、产品事实、组织 Know-how、内容运营、私域运营、直播运营、活动运营和增长策略按 v2 Phase 2-4 进入。
+4. 运营类知识库不新增第三个 family，统一作为 `runtime.mode: data` 的 operations playbook pack。
+5. runtime 消费 KnowledgePack 时不得执行 Builder Skill；Skill provenance 只用于审计、重新整理默认建议和诊断。
 
 ## 执行记录
 
@@ -267,6 +287,14 @@ src-tauri/crates/knowledge
 - [x] 完成 Knowledge 前端 feature module 拆分：domain / agent / components / Inputbar knowledge / Workspace knowledge runtime。
 - [x] 在清理本地 DevBridge / CDP smoke 环境后，重跑 `smoke:knowledge-gui` 并补齐真实 seed -> 使用资料 -> 回到现有 Agent 预填生成意图闭环。
 - [x] 修复真实 E2E 暴露的用于生成未自动启用、项目上下文漂移、详情页内部信息泄露和消息沉淀按钮命中问题。
+- [x] 更新 v2 PRD，明确 Agent Skills 负责“怎么生产和维护知识”，Agent Knowledge v0.6.0 负责“知识产物长什么样、如何安全进入上下文”。
+- [x] 更新 v2 架构图 / 流程图 / 时序图 / UI 原型，加入 `document-first`、`runtime.mode`、`metadata.producedBy` 和运营类 Builder Skills。
+- [x] 将 v1 PRD 标记为 legacy current reference，避免继续按 v0.5 / `wiki/` / 内置整理器扩张。
+- [ ] 把 `docs/knowledge/skills/personal-ip-knowledge-builder/` 接入 seeded `SkillCatalog.entries(kind=skill)`，生成 `skillBundleRef`、version、digest、resource summary。
+- [ ] 定义并实现 `knowledge_compile_pack -> Runtime Binding -> KnowledgeBuilderSkillOutput` 最小链路，写回 `documents/`、`KNOWLEDGE.md.metadata.producedBy` 和 `runs/compile-*.json.builder_skill`。
+- [ ] 将旧 `src-tauri/resources/default-skills/knowledge_builder` 标成 compat / deprecated，停止新增模板逻辑，并制定删除或委托退出条件。
+- [ ] 补 v0.6 frontmatter / run schema / Resolver 选择测试：`profile=document-first`、`runtime.mode`、标准运营类 `type`、persona/data wrapper 顺序。
+- [ ] 用一份真实访谈稿评测 `personal-ip-knowledge-builder`：访谈稿 -> 成品 persona 文档 -> 切片 -> fenced 注入 -> Agent 输出。
 
 ## 验证记录
 
@@ -404,10 +432,24 @@ npm run verify:gui-smoke
 
 ## 后续切片
 
-1. 把 File Manager 文本文件识别从扩展名 / mimeType 扩展到 PDF / DOCX 的“先预览再整理”安全路径，但仍不向普通用户暴露内部转换细节。
-2. 继续收口普通用户语言：管理页只展示资料名称、状态、风险提醒、引用摘要和确认动作；内部文件名、Skill 名称、目录结构只保留在开发文档和测试 mock 中。
-3. 为运行时 Knowledge Context Resolver 增加更细的章节选择和成本控制，但只在开发者诊断或高级设置中展示，不进入普通用户默认路径。
-4. 为 `knowledge_builder` 增加示例输入 / 输出快照测试，锁定不同 `pack_type` 的生成结构。
+1. 接入 `personal-ip-knowledge-builder` 到 seeded `SkillCatalog.entries(kind=skill)`，把它从文档 Skill 变成 Lime 可发现、可绑定、可审计的 current Builder Skill。
+2. 实现 `knowledge_compile_pack` 的 Skills-first 薄适配，写入 Agent Knowledge v0.6.0 `document-first` pack，并记录 `metadata.producedBy` / `runs/compile-*.json.builder_skill`。
+3. 将旧 `knowledge_builder` 内置整理器降级为 deprecated surface：只允许兼容委托，不再新增模板、章节生成或运营类扩展。
+4. 为 Knowledge Context Resolver 补 v0.6 选择逻辑和诊断摘要：`profile`、`runtime.mode`、persona/data wrapper 顺序、运营类标准 `type`。
+5. 把 File Manager 文本文件识别从扩展名 / mimeType 扩展到 PDF / DOCX 的“先预览再整理”安全路径，但仍不向普通用户暴露内部转换细节。
+
+## 2026-05-06 Agent Knowledge v0.5 runtime 标准升级
+
+- 主线判断：上一版已完成“项目资料”产品闭环，本轮不新增入口，继续收敛到 `lime-knowledge + knowledge_* + Knowledge Context Resolver`。
+- Runtime 升级：`knowledge_resolve_context` 增加 `activation / writeRun / runReason`，返回 `selectedFiles / sourceAnchors / missing / runId / runPath`，并将 warnings 升级为 `{ severity, path?, message }`。
+- 诊断工件：Resolver 在 `writeRun=true` 时写入 `runs/context-*.json`，字段对齐 Agent Knowledge `context-resolution.schema.json` 的 `run_id / query / status / activated_packs / selected_files / source_anchors / token_estimate`。
+- 命令边界：新增 `knowledge_validate_context_run`，只校验 context run 诊断记录，不参与模型上下文组装；已同步 Rust command、runner 注册、DevBridge dispatcher、前端 API、治理 catalog 与 mock。
+- 类型标准化：导入时把 Lime 用户模板映射到标准 `type`，例如 `personal-ip -> personal-profile`；当时 `growth-strategy` 曾映射到 `custom:lime-growth-strategy`，v2 / Agent Knowledge v0.6.0 已改为标准 `growth-strategy`，原模板仍写入 `metadata.limeTemplate`；普通 UI 继续展示“个人 IP / 增长策略”等产品语言。
+- Skills 边界：Knowledge runtime 与 Skills runtime 可共享发现、激活、预算和信任机制，但激活语义保持独立；Skill 提供流程说明，Knowledge 只作为受保护事实数据注入。
+- 验证收口修复：稳定化 `DesignCanvas` 扁平图上传异步回归；收窄 `MessageList` inline thinking fallback 到真实 timeline；`run-vitest-smart` 过滤第三方依赖目录测试并将 history window 测试串行；`harness-eval-history-window` 改为异步子进程与非阻塞延迟；语音模型本地 catalog fixture 访问 loopback 时禁用代理，避免本机代理把 `localhost` 测试劫到 502。
+- GUI smoke 稳定化：`agent-runtime-tool-surface-page` 改用本地 Playwright 驱动真实 Lime 页面，不再用被测 `browser_execute_action` 自举驱动自身；`knowledge-gui-smoke` 的“项目资料”导航收窄到 `app-sidebar-main-nav`，避免误点输入框同名资料控件。
+- 最终验证通过：`npm test` 全量通过；`npm run test:contracts` 通过；`cargo test --manifest-path "src-tauri/Cargo.toml" --quiet` 通过；`npm run verify:gui-smoke` 通过，覆盖 `workspace-ready`、`browser-runtime`、`site-adapters`、`agent-service-skill-entry`、`agent-runtime-tool-surface`、`agent-runtime-tool-surface-page`、`knowledge-gui` 与 `design-canvas`。
+- 统一入口状态：`npm run verify:local` 早先已通过 app version、lint、typecheck、前端测试与 contracts，第一次在 Rust 阶段被本地 voice catalog 代理 502 卡住；修复后已用 Rust 全量测试和 GUI smoke 分别补齐风险门槛。本轮未再追加一次完整 `verify:local` 串行重跑，避免在已证明主线交付后重复消耗长时间门禁。
 
 ## 2026-05-05 产品 E2E 闭环续测
 
@@ -478,3 +520,27 @@ npm run verify:gui-smoke
 - E2E 结果：`smoke:knowledge-gui` 已复走首页添加资料、File Manager 设为项目资料、项目资料页用于生成回现有 Agent、Agent 结果沉淀为项目资料、回管理页继续确认的完整闭环。
 - 验证通过：`node --check "scripts/knowledge-gui-smoke.mjs" && node --check "scripts/agent-service-skill-entry-smoke.mjs"`；`npm test -- "src/components/agent/chat/components/Inputbar/index.test.tsx" "src/components/agent/chat/components/Inputbar/knowledge/knowledgeHubState.test.ts" "src/components/agent/chat/components/EmptyStateComposerPanel.test.tsx"`；`npm run bridge:health -- --timeout-ms 30000`；`npm run smoke:knowledge-gui -- --app-url "http://127.0.0.1:1420/" --health-url "http://127.0.0.1:3030/health" --invoke-url "http://127.0.0.1:3030/invoke" --timeout-ms 240000 --interval-ms 1000`；`npm run typecheck`。
 - 验证说明：本轮未重新跑完整 `npm run verify:gui-smoke -- --reuse-running`，因为上一轮被中断后留下的 browser-runtime smoke、1420 preview 占用和 Cargo target 空间问题需要先处理；本轮用知识库专项 GUI smoke 证明项目资料主链已恢复。
+
+## 2026-05-08 Agent Knowledge v0.6.0 / Skills-first 文档收口
+
+- 主线判断：Lime Knowledge v2 不再继续扩张 Lime 私有整理引擎；current 方向固定为 Agent Skills 负责生产维护知识，Agent Knowledge v0.6.0 负责知识产物形态、provenance、profile 与安全进入上下文。
+- 上游标准：`/Users/coso/Documents/dev/ai/limecloud/agentknowledge` 已发布 GitHub Release `v0.6.0`（tag `v0.6.0`，commit `164fa95`）；npm 发布仍阻塞在认证配置，`token` 模式需要 bypass-2FA token，`trusted` 模式需要先配置 npm Trusted Publishing。
+- PRD 更新：`docs/roadmap/knowledge/prd-v2.md` 已从 v0.5 兼容叙述升级为 v0.6 current 对齐，补齐 `profile: document-first`、`runtime.mode: data | persona`、`metadata.producedBy`、标准运营类 `type`、Builder Skill provenance 和 v0.6 §11 对齐策略。
+- 架构图更新：`docs/roadmap/knowledge/prd-v2-diagrams.md` 已补 `document-first`、`runtime.mode`、`metadata.producedBy`、运行时不执行 Builder Skill、运营类 playbook flow 与一致性检查。
+- v1 文档处置：`docs/roadmap/knowledge/prd.md` 已标记为 `legacy current reference`；目录结构、命令边界、Builder Skill 与 runtime profile 以后以 v2 为准。
+- current / compat 分类：`personal-ip-knowledge-builder` 是 P1 current Builder Skill；`knowledge_builder` 内置整理器进入 deprecated 候选，后续只能委托或迁移，不能继续新增模板逻辑。
+- 验证：已执行文档级 `rg` 检查，确认 v2 文档不再把 `documents/` 解释为 v0.5 `wiki/` 兼容形态，diagrams 无 `v0.5` / `limeBuilderSkill` 残留；本轮未跑代码测试，因为改动限于路线图、架构图和执行计划。
+- 下一刀：先做 seeded `SkillCatalog.entries(kind=skill)` 接入，再做 `knowledge_compile_pack -> Runtime Binding -> KnowledgeBuilderSkillOutput` 最小闭环，最后用真实访谈稿验证 personal IP persona pack 的端到端输出质量。
+
+## 2026-05-08 P1 seeded Builder Skill catalog 接入
+
+- 主线判断：本轮不新增 Tauri 命令，继续复用 `knowledge_*` current 主链；重点是让 `personal-ip-knowledge-builder` 进入 seeded `SkillCatalog.entries(kind=skill)`，并让现有 compile 结果先写入 Agent Knowledge v0.6.0 元数据，避免继续扩大 Lime 私有整理器概念。
+- SkillCatalog：已在 `src/lib/base-setup/seededServiceSkillPackage.ts` 增加 `personal-ip-knowledge-builder` local seeded bundle projection，路径指向 `docs/knowledge/skills/personal-ip-knowledge-builder`，执行绑定为 `native_skill`，并在 `skillBundle.metadata` 中声明 `Lime_knowledge_pack_type=personal-profile`、`Lime_knowledge_template=personal-ip`、`Lime_knowledge_family=persona`、`Lime_agent_knowledge_profile=document-first` 和 `Lime_agent_knowledge_runtime_mode=persona`。
+- 目录投影：已让 `SkillCatalogSkillEntry` 携带 `skillBundle` 摘要，并扩展 Base Setup projection 支持 `skillBundleMetadata` 与 `skillBundleResourceSummary`，让 Builder Skill 的 references / scripts / assets 能在 catalog 摘要层可见。
+- Knowledge v0.6 metadata：`lime-knowledge` 新 pack 默认写入 `profile=document-first`、`runtime.mode`、`metadata.primaryDocument`；`growth-strategy` 已改为 v0.6 标准 type，不再新写 `custom:lime-growth-strategy`。
+- Compile 兼容桥：现有 `knowledge_compile_pack` 仍未真正执行 Builder Skill，本轮只把结果写入 `documents/<pack>.md`，并用 `metadata.producedBy.kind=lime-compat-compiler` / `name=knowledge_builder` 真实标记兼容整理器 provenance；`runs/compile-*.json.builder_skill` 同步记录 deprecated 兼容来源。退出条件是下一刀接入 Runtime Binding 后改为真实 `agent-skill personal-ip-knowledge-builder`。
+- Runtime wrapper：`knowledge_resolve_context` fenced wrapper 已带 `mode=data|persona`，但 persona/data 多 pack 协同和 document split 仍未实现。
+- Builder Skill 源码兼容：已更新 `docs/knowledge/skills/personal-ip-knowledge-builder/SKILL.md` 与 `references/quality-checklist.md`，明确它只负责生产维护知识，Agent Knowledge 负责 `document-first` 产物与安全上下文；输出目标收敛到 `documents/<packName>.md`，不再默认产生独立目录。
+- 验证通过：`cargo fmt --manifest-path "src-tauri/Cargo.toml" --package lime-knowledge --check`；`cargo test --manifest-path "src-tauri/Cargo.toml" -p lime-knowledge`；`CARGO_TARGET_DIR="/tmp/lime-knowledge-target-20260508" cargo test --manifest-path "src-tauri/Cargo.toml" -p lime-knowledge`；`npm test -- "src/lib/base-setup/seededServiceSkillPackage.test.ts" "src/lib/api/skillCatalog.test.ts" "src/lib/api/knowledge.test.ts"`；`npm run typecheck`；`npm run test:contracts`；`npm run governance:legacy-report`；本轮触达文件 `git diff --check`。
+- 验证说明：普通 `cargo test` 初始曾等待共享 `src-tauri/target` artifact lock；同时用隔离 `CARGO_TARGET_DIR` 完成冷构建验证，随后共享 target lock 释放，普通定向测试也通过。未杀用户已有 dev / cargo 进程。
+- 下一刀：实现 `knowledge_compile_pack -> Runtime Binding -> personal-ip-knowledge-builder` 真调用；完成后把 `metadata.producedBy.kind` 从 `lime-compat-compiler` 切到 `agent-skill`，并把 `knowledge_builder` 明确下线为 deprecated/compat 委托。

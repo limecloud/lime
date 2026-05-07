@@ -14,7 +14,7 @@ import { shouldDisallowMockFallbackInBrowser } from "./mockPriorityCommands";
 const BRIDGE_URL = "http://127.0.0.1:3030/invoke";
 const BRIDGE_HEALTH_URL = "http://127.0.0.1:3030/health";
 const BRIDGE_EVENTS_URL = "http://127.0.0.1:3030/events";
-const DEV_BRIDGE_EVENT_CONNECT_TIMEOUT_MS = 1500;
+const DEV_BRIDGE_EVENT_CONNECT_TIMEOUT_MS = 10000;
 const DEV_BRIDGE_REQUEST_TIMEOUT_MS = 1800;
 const DEV_BRIDGE_TRUTH_COMMAND_TIMEOUT_MS = 5000;
 const DEV_BRIDGE_VOICE_MODEL_DOWNLOAD_TIMEOUT_MS = 30 * 60 * 1000;

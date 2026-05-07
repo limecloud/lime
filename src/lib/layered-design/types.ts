@@ -1,3 +1,5 @@
+import type { LayeredDesignAnalyzerProviderCapability } from "./providerCapabilities";
+
 export const LAYERED_DESIGN_DOCUMENT_SCHEMA_VERSION = "2026-05-05.p1";
 
 export type LayeredDesignDocumentStatus = "draft" | "ready" | "exported";
@@ -45,6 +47,7 @@ export interface BaseDesignLayer extends DesignLayerTransform {
   visible: boolean;
   locked: boolean;
   blendMode?: DesignBlendMode;
+  params?: Record<string, unknown>;
   source: DesignLayerSource;
 }
 
@@ -124,10 +127,40 @@ export type LayeredDesignExtractionCleanPlateStatus =
   | "succeeded"
   | "failed";
 
+export type LayeredDesignExtractionReviewStatus = "pending" | "confirmed";
+export type LayeredDesignExtractionAnalyzerKind =
+  | "local_heuristic"
+  | "structured_pipeline"
+  | "unknown";
+
+export interface LayeredDesignExtractionAnalyzerInfo {
+  kind: LayeredDesignExtractionAnalyzerKind;
+  label: string;
+}
+
+export interface LayeredDesignExtractionAnalysisOutputs {
+  candidateRaster: boolean;
+  candidateMask: boolean;
+  cleanPlate: boolean;
+  ocrText: boolean;
+}
+
+export interface LayeredDesignExtractionAnalysis {
+  analyzer: LayeredDesignExtractionAnalyzerInfo;
+  outputs: LayeredDesignExtractionAnalysisOutputs;
+  providerCapabilities?: LayeredDesignAnalyzerProviderCapability[];
+  generatedAt?: string;
+}
+
 export interface LayeredDesignExtractionCleanPlate {
   status: LayeredDesignExtractionCleanPlateStatus;
   assetId?: string;
   message?: string;
+}
+
+export interface LayeredDesignExtractionReview {
+  status: LayeredDesignExtractionReviewStatus;
+  confirmedAt?: string;
 }
 
 export interface LayeredDesignExtractionCandidate {
@@ -144,6 +177,8 @@ export interface LayeredDesignExtraction {
   sourceAssetId: string;
   backgroundLayerId: string;
   candidateSelectionThreshold: number;
+  review: LayeredDesignExtractionReview;
+  analysis?: LayeredDesignExtractionAnalysis;
   cleanPlate: LayeredDesignExtractionCleanPlate;
   candidates: LayeredDesignExtractionCandidate[];
 }
@@ -163,8 +198,11 @@ export type LayerEditRecordType =
   | "created"
   | "normalized"
   | "candidate_selection_updated"
+  | "candidate_selection_confirmed"
+  | "extraction_reanalyzed"
   | "asset_generation_requested"
   | "asset_replaced"
+  | "text_updated"
   | "transform_updated"
   | "visibility_updated"
   | "lock_updated";
@@ -181,6 +219,14 @@ export interface LayerEditRecord {
   nextVisible?: boolean;
   previousLocked?: boolean;
   nextLocked?: boolean;
+  previousText?: string;
+  nextText?: string;
+  previousFontSize?: number;
+  nextFontSize?: number;
+  previousColor?: string;
+  nextColor?: string;
+  previousAlign?: TextLayer["align"];
+  nextAlign?: TextLayer["align"];
   taskId?: string;
   taskPath?: string;
   taskStatus?: string;
@@ -217,6 +263,7 @@ export interface BaseDesignLayerInput {
   opacity?: number;
   zIndex?: number;
   blendMode?: DesignBlendMode;
+  params?: Record<string, unknown>;
   source?: DesignLayerSource;
 }
 
@@ -265,6 +312,30 @@ export interface LayeredDesignExtractionCleanPlateInput {
   message?: string;
 }
 
+export interface LayeredDesignExtractionReviewInput {
+  status?: LayeredDesignExtractionReviewStatus;
+  confirmedAt?: string;
+}
+
+export interface LayeredDesignExtractionAnalyzerInfoInput {
+  kind?: LayeredDesignExtractionAnalyzerKind;
+  label: string;
+}
+
+export interface LayeredDesignExtractionAnalysisOutputsInput {
+  candidateRaster?: boolean;
+  candidateMask?: boolean;
+  cleanPlate?: boolean;
+  ocrText?: boolean;
+}
+
+export interface LayeredDesignExtractionAnalysisInput {
+  analyzer: LayeredDesignExtractionAnalyzerInfoInput;
+  outputs?: LayeredDesignExtractionAnalysisOutputsInput;
+  providerCapabilities?: LayeredDesignAnalyzerProviderCapability[];
+  generatedAt?: string;
+}
+
 export interface LayeredDesignExtractionCandidateInput {
   id: string;
   role: LayeredDesignExtractionCandidateRole;
@@ -280,6 +351,8 @@ export interface LayeredDesignExtractionInput {
   sourceAssetId: string;
   backgroundLayerId?: string;
   candidateSelectionThreshold?: number;
+  review?: LayeredDesignExtractionReviewInput;
+  analysis?: LayeredDesignExtractionAnalysisInput;
   cleanPlate?: LayeredDesignExtractionCleanPlateInput;
   candidates?: LayeredDesignExtractionCandidateInput[];
 }

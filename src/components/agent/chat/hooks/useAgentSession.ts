@@ -577,20 +577,56 @@ export function useAgentSession(options: UseAgentSessionOptions) {
   }, []);
 
   const listWorkspaceTopics = useCallback(async () => {
+    const startedAt = Date.now();
     const sessions = await runtime.listSessions({
       workspaceId,
       limit: INITIAL_TOPICS_SESSION_REQUEST_LIMIT,
     });
+    const listDurationMs = Date.now() - startedAt;
+    const workspaceFilterStartedAt = Date.now();
     const workspaceSessions = filterSessionsByWorkspace(sessions);
+    const workspaceFilterDurationMs = Date.now() - workspaceFilterStartedAt;
+    const auxiliaryFilterStartedAt = Date.now();
     const visibleSessions = workspaceSessions.filter(
       (session) => !isAuxiliaryAgentSessionId(session.id),
+    );
+    const auxiliaryFilterDurationMs = Date.now() - auxiliaryFilterStartedAt;
+    const topicMapStartedAt = Date.now();
+    const topicList = visibleSessions.map(mapSessionToTopic);
+    const topicMapDurationMs = Date.now() - topicMapStartedAt;
+    const metricContext = {
+      auxiliaryFilterDurationMs,
+      hiddenAuxiliarySessionsCount:
+        workspaceSessions.length - visibleSessions.length,
+      limit: INITIAL_TOPICS_SESSION_REQUEST_LIMIT,
+      listDurationMs,
+      sessionsCount: sessions.length,
+      topicMapDurationMs,
+      topicsCount: topicList.length,
+      totalDurationMs: Date.now() - startedAt,
+      workspaceFilterDurationMs,
+      workspaceId,
+      workspaceSessionsCount: workspaceSessions.length,
+    };
+    recordAgentUiPerformanceMetric(
+      "sidebar.recentConversations.loadBreakdown",
+      metricContext,
+    );
+    logAgentDebug(
+      "useAgentSession",
+      "recentConversations.loadBreakdown",
+      metricContext,
+      {
+        dedupeKey: `recentConversations.loadBreakdown:${workspaceId ?? "none"}`,
+        throttleMs: 1000,
+      },
     );
 
     return {
       sessions,
       workspaceSessions,
       visibleSessions,
-      topicList: visibleSessions.map(mapSessionToTopic),
+      topicList,
     };
   }, [filterSessionsByWorkspace, runtime, workspaceId]);
 

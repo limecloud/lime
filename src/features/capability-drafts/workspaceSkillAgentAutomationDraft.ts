@@ -16,6 +16,10 @@ export interface WorkspaceSkillManagedAutomationPresentation {
   enabled?: boolean;
 }
 
+export interface WorkspaceSkillAgentAutomationDraftOptions {
+  requiresControlledGetEvidence?: boolean;
+}
+
 function normalizeText(value?: string | null): string {
   return typeof value === "string" ? value.trim() : "";
 }
@@ -76,6 +80,7 @@ export function canBuildWorkspaceSkillAgentAutomationDraft(
 export function buildWorkspaceSkillAgentAutomationRequestMetadata(input: {
   binding: AgentRuntimeWorkspaceSkillBinding;
   workspaceRoot: string;
+  options?: WorkspaceSkillAgentAutomationDraftOptions;
 }): Record<string, unknown> | null {
   const { binding } = input;
   const workspaceRoot = normalizeText(input.workspaceRoot);
@@ -88,6 +93,8 @@ export function buildWorkspaceSkillAgentAutomationRequestMetadata(input: {
   const permissionSummary = buildPermissionSummary(binding);
   const sourceDraftId = resolveSourceDraftId(binding);
   const sourceVerificationReportId = resolveSourceVerificationReportId(binding);
+  const requiresControlledGetEvidence =
+    input.options?.requiresControlledGetEvidence === true;
 
   return {
     harness: {
@@ -95,7 +102,7 @@ export function buildWorkspaceSkillAgentAutomationRequestMetadata(input: {
       session_mode: "general_workbench",
       run_title: displayName,
       agent_envelope: {
-        source: "creaoai_p4_agent_envelope",
+        source: "skill_forge_p4_agent_envelope",
         state: "automation_draft",
         skill: skillName,
         directory: binding.directory,
@@ -105,7 +112,7 @@ export function buildWorkspaceSkillAgentAutomationRequestMetadata(input: {
         authorization_scope: "scheduled_run_session",
       },
       managed_objective: {
-        source: "creaoai_p4_managed_execution",
+        source: "skill_forge_p4_managed_execution",
         owner_type: "automation_job",
         state: "planned",
         objective: `按计划运行 Workspace Skill「${displayName}」，交付可审计结果。`,
@@ -113,8 +120,21 @@ export function buildWorkspaceSkillAgentAutomationRequestMetadata(input: {
           "必须通过 agent_runtime_submit_turn 执行",
           "必须由 workspace_skill_runtime_enable 在本次运行 session 内显式授权",
           "完成状态必须依赖 artifact / timeline / evidence，而不是模型自报",
+          ...(requiresControlledGetEvidence
+            ? ["Read-Only HTTP API 任务必须包含 executed 受控 GET evidence"]
+            : []),
         ],
         completion_audit: "artifact_or_evidence_required",
+        ...(requiresControlledGetEvidence
+          ? {
+              required_external_evidence: ["controlled_get_evidence"],
+              completion_evidence_policy: {
+                controlled_get_evidence_required: true,
+                controlled_get_evidence_source:
+                  "capability_draft_controlled_get_evidence",
+              },
+            }
+          : {}),
       },
       workspace_skill_runtime_enable: {
         source: "agent_envelope_scheduled_run",
@@ -152,11 +172,13 @@ export function buildWorkspaceSkillAgentAutomationInitialValues(input: {
   binding: AgentRuntimeWorkspaceSkillBinding;
   workspaceRoot: string;
   workspaceId: string;
+  options?: WorkspaceSkillAgentAutomationDraftOptions;
 }): AutomationJobDialogInitialValues | null {
   const workspaceId = normalizeText(input.workspaceId);
   const requestMetadata = buildWorkspaceSkillAgentAutomationRequestMetadata({
     binding: input.binding,
     workspaceRoot: input.workspaceRoot,
+    options: input.options,
   });
   if (!workspaceId || !requestMetadata) {
     return null;
@@ -171,7 +193,7 @@ export function buildWorkspaceSkillAgentAutomationInitialValues(input: {
   return {
     name: `${displayName}｜Managed Agent 草案`,
     description: [
-      "来源：CREAO P4 Workspace Agent envelope 草案。",
+      "来源：P4 Workspace Agent envelope 草案。",
       `Skill：${buildSkillName(input.binding)}`,
       `Provenance：${sourceDraftId} / ${sourceVerificationReportId}`,
       "默认先暂停，确认调度与权限后再启用。",

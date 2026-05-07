@@ -224,6 +224,8 @@ export function useAgentTools(options: UseAgentToolsOptions) {
             currentStreamingSessionIdRef.current === activeSessionId
               ? currentStreamingEventNameRef.current
               : null;
+          const submissionEventName =
+            activeEventName || metadataAction?.eventName;
 
           await runtime.respondToAction({
             sessionId: activeSessionId,
@@ -233,7 +235,7 @@ export function useAgentTools(options: UseAgentToolsOptions) {
             response: response.response,
             userData,
             metadata: submissionContext?.requestMetadata,
-            eventName: activeEventName || undefined,
+            eventName: submissionEventName || undefined,
             actionScope: metadataAction?.scope,
           });
         } else {

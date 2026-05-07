@@ -8,6 +8,7 @@ import {
   resolveKnowledgeContext,
   setDefaultKnowledgePack,
   updateKnowledgePackStatus,
+  validateKnowledgeContextRun,
 } from "./knowledge";
 
 vi.mock("@/lib/dev-bridge", () => ({
@@ -36,8 +37,18 @@ describe("knowledge API", () => {
         fencedContext:
           '<knowledge_pack name="sample-product"></knowledge_pack>',
         selectedViews: [],
+        selectedFiles: [],
+        sourceAnchors: [],
         warnings: [],
+        missing: [],
         tokenEstimate: 1,
+      })
+      .mockResolvedValueOnce({
+        valid: true,
+        runId: "context-20260506T091000Z",
+        status: "passed",
+        errors: [],
+        warnings: [],
       });
 
     await expect(
@@ -84,12 +95,20 @@ describe("knowledge API", () => {
         workingDir: "/tmp/workspace",
         name: "sample-product",
         task: "写产品介绍",
+        writeRun: true,
       }),
     ).resolves.toEqual(
       expect.objectContaining({
         fencedContext: expect.stringContaining("<knowledge_pack"),
       }),
     );
+    await expect(
+      validateKnowledgeContextRun({
+        workingDir: "/tmp/workspace",
+        name: "sample-product",
+        runPath: "runs/context-20260506T091000Z.json",
+      }),
+    ).resolves.toEqual(expect.objectContaining({ valid: true }));
 
     expect(safeInvoke).toHaveBeenNthCalledWith(1, "knowledge_list_packs", {
       request: {
@@ -141,7 +160,19 @@ describe("knowledge API", () => {
         workingDir: "/tmp/workspace",
         name: "sample-product",
         task: "写产品介绍",
+        writeRun: true,
       },
     });
+    expect(safeInvoke).toHaveBeenNthCalledWith(
+      8,
+      "knowledge_validate_context_run",
+      {
+        request: {
+          workingDir: "/tmp/workspace",
+          name: "sample-product",
+          runPath: "runs/context-20260506T091000Z.json",
+        },
+      },
+    );
   });
 });

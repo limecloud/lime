@@ -311,7 +311,7 @@ pi-mono 的 extension 可以：
 | `CustomEntry` | timeline / artifact / evidence event |
 | `registerTool` | 只能在 verified registration 后映射到 Skill / ServiceSkill / tool_runtime |
 | `registerCommand` | Lime 不需要复制 terminal command system |
-| `registerProvider` | 与 CreoAI P1A 无关，不进入首期 |
+| `registerProvider` | 与 Skill Forge P1A 无关，不进入首期 |
 
 固定边界：
 
@@ -509,9 +509,9 @@ P1A 推荐先把 draft 作为 workspace-local 文件事实源：
 2. 若 Lime 现有 artifact store 已有更合适路径，应优先复用现有封装。
 3. 不要为了 P1A 新增全局数据库主事实源。
 
-## 13. 和 CreoAI / Managed Objective 的关系
+## 13. 和 Skill Forge / Managed Objective 的关系
 
-pi-mono 参考的是 CreoAI 三层里的第一层：
+pi-mono 参考的是 Skill Forge 三层里的第一层：
 
 ```text
 Coding Agent / Agent Builder

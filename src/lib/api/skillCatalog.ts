@@ -17,6 +17,7 @@ import {
   parseServiceSkillCatalog,
   type ServiceSkillCatalog,
   type ServiceSkillExecutorBinding,
+  type ServiceSkillBundleSummary,
   type ServiceSkillItem,
   type ServiceSkillSiteCapabilityBinding,
   type ServiceSkillSurfaceScope,
@@ -105,6 +106,7 @@ export interface SkillCatalogSkillEntry {
   homePresentation?: SkillCatalogHomePresentation;
   execution: SkillCatalogExecution;
   renderContract?: SkillCatalogRenderContract;
+  skillBundle?: ServiceSkillBundleSummary;
 }
 
 export interface SkillCatalogCommandEntry {
@@ -464,6 +466,9 @@ function buildSkillEntryFromCatalogItem(
     aliases: item.aliases,
     surfaceScopes: item.surfaceScopes,
     execution: cloneJsonValue(item.execution),
+    skillBundle: item.skillBundle
+      ? cloneJsonValue(item.skillBundle)
+      : undefined,
     renderContract:
       item.defaultArtifactKind === "table_report"
         ? {

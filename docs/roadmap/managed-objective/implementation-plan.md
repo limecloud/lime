@@ -45,7 +45,7 @@
 完成标准：
 
 1. 文档能解释 `/goal` 与 Managed Objective 的区别。
-2. 文档能解释 Managed Objective 与 CreoAI / Skill Forge 的区别。
+2. 文档能解释 Managed Objective 与 Skill Forge / Skill Forge 的区别。
 3. 文档明确 `goal_runtime / objective_evidence / objective_scheduler` 这些方向是 dead。
 
 ## 3. P1：Objective state scaffold

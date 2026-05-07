@@ -78,7 +78,15 @@ export function resolveStatusClassName(status: KnowledgePackStatus): string {
 }
 
 export function getPackTypeLabel(value?: string | null): string {
+  const normalized =
+    value === "personal-profile"
+      ? "personal-ip"
+      : value === "custom:lime-growth-strategy"
+        ? "growth-strategy"
+        : value;
   return (
-    PACK_TYPES.find((type) => type.value === value)?.label ?? value ?? "自定义"
+    PACK_TYPES.find((type) => type.value === normalized)?.label ??
+    normalized ??
+    "自定义"
   );
 }

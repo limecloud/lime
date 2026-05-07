@@ -6,12 +6,13 @@
 use lime_knowledge::{
     compile_knowledge_pack, get_knowledge_pack, import_knowledge_source, list_knowledge_packs,
     resolve_knowledge_context, set_default_knowledge_pack, update_knowledge_pack_status,
-    KnowledgeCompilePackRequest, KnowledgeCompilePackResponse, KnowledgeContextResolution,
-    KnowledgeGetPackRequest, KnowledgeImportSourceRequest, KnowledgeImportSourceResponse,
-    KnowledgeListPacksRequest, KnowledgeListPacksResponse, KnowledgePackDetail,
-    KnowledgeResolveContextRequest, KnowledgeSetDefaultPackRequest,
+    validate_knowledge_context_run, KnowledgeCompilePackRequest, KnowledgeCompilePackResponse,
+    KnowledgeContextResolution, KnowledgeGetPackRequest, KnowledgeImportSourceRequest,
+    KnowledgeImportSourceResponse, KnowledgeListPacksRequest, KnowledgeListPacksResponse,
+    KnowledgePackDetail, KnowledgeResolveContextRequest, KnowledgeSetDefaultPackRequest,
     KnowledgeSetDefaultPackResponse, KnowledgeUpdatePackStatusRequest,
-    KnowledgeUpdatePackStatusResponse,
+    KnowledgeUpdatePackStatusResponse, KnowledgeValidateContextRunRequest,
+    KnowledgeValidateContextRunResponse,
 };
 
 /// 导入知识包来源资料
@@ -68,4 +69,12 @@ pub async fn knowledge_resolve_context(
     request: KnowledgeResolveContextRequest,
 ) -> Result<KnowledgeContextResolution, String> {
     resolve_knowledge_context(request)
+}
+
+/// 校验 context-resolution run record
+#[tauri::command]
+pub async fn knowledge_validate_context_run(
+    request: KnowledgeValidateContextRunRequest,
+) -> Result<KnowledgeValidateContextRunResponse, String> {
+    validate_knowledge_context_run(request)
 }

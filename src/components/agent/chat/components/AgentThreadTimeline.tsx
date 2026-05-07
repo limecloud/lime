@@ -44,6 +44,13 @@ import {
   isInternalRoutingTurnSummaryText,
   normalizeTurnSummaryDisplayText,
 } from "../utils/turnSummaryPresentation";
+import {
+  isPendingRuntimeActionConfirmation,
+  isRuntimeActionConfirmationRequestId,
+  isRuntimeActionConfirmationThreadItem,
+  isRuntimePermissionConfirmationWaitMessage,
+  isSubmittedRuntimeActionConfirmation,
+} from "../utils/runtimeActionConfirmation";
 
 interface AgentThreadTimelineProps {
   turn: AgentThreadTurn;
@@ -1232,6 +1239,8 @@ function resolveProcessMixLabel(block: AgentThreadOrderedBlock): string | null {
 function resolveThreadInlineStatusHint(params: {
   turn: AgentThreadTurn;
   actionRequests?: ActionRequired[];
+  runtimeConfirmationPrompt?: string | null;
+  hasSubmittedRuntimeConfirmation?: boolean;
 }) {
   const pendingAction = findLatestPendingAction(params.actionRequests);
 
@@ -1243,6 +1252,32 @@ function resolveThreadInlineStatusHint(params: {
         pendingAction.prompt?.trim() ||
         "当前阶段在等待你确认，完成后会继续后续处理。",
     };
+  }
+
+  if (params.runtimeConfirmationPrompt?.trim()) {
+    return {
+      tone: "warning" as const,
+      label: "待处理",
+      detail: params.runtimeConfirmationPrompt.trim(),
+    };
+  }
+
+  if (params.turn.status === "failed") {
+    if (isRuntimePermissionConfirmationWaitMessage(params.turn.error_message)) {
+      if (params.hasSubmittedRuntimeConfirmation) {
+        return {
+          tone: "neutral" as const,
+          label: "已确认",
+          detail: "已收到运行时权限确认，正在继续处理当前任务。",
+        };
+      }
+
+      return {
+        tone: "warning" as const,
+        label: "待处理",
+        detail: "当前阶段在等待你确认运行时权限。",
+      };
+    }
   }
 
   if (params.turn.status === "aborted") {
@@ -1264,6 +1299,52 @@ function resolveThreadInlineStatusHint(params: {
   }
 
   return null;
+}
+
+function resolvePendingRuntimeConfirmationPrompt(params: {
+  items: AgentThreadItem[];
+  actionRequests?: ActionRequired[];
+}): string | null {
+  const actionRequests = params.actionRequests || [];
+  for (let index = actionRequests.length - 1; index >= 0; index -= 1) {
+    const actionRequest = actionRequests[index];
+    if (isPendingRuntimeActionConfirmation(actionRequest)) {
+      return actionRequest.prompt?.trim() || "当前阶段在等待你确认运行时权限。";
+    }
+  }
+
+  for (let index = params.items.length - 1; index >= 0; index -= 1) {
+    const item = params.items[index];
+    if (
+      isRuntimeActionConfirmationThreadItem(item) &&
+      item.status !== "completed"
+    ) {
+      return item.prompt?.trim() || "当前阶段在等待你确认运行时权限。";
+    }
+  }
+
+  return null;
+}
+
+function hasSubmittedRuntimeActionConfirmation(params: {
+  items: AgentThreadItem[];
+  actionRequests?: ActionRequired[];
+}): boolean {
+  if (
+    (params.actionRequests || []).some((actionRequest) =>
+      isSubmittedRuntimeActionConfirmation(actionRequest),
+    )
+  ) {
+    return true;
+  }
+
+  return params.items.some(
+    (item) =>
+      (item.type === "approval_request" ||
+        item.type === "request_user_input") &&
+      item.status === "completed" &&
+      isRuntimeActionConfirmationRequestId(item.request_id),
+  );
 }
 
 function ThreadInlineStatusHint({
@@ -1394,7 +1475,6 @@ function TimelineBlockCard({
     block.items.every((item) => item.type === "file_artifact");
   const shouldRenderSingleItemInline =
     block.items.length === 1 &&
-    !(isThinkingOnlyBlock && block.status === "completed") &&
     (!deferCompletedSingleDetails ||
       preferInlineDetails ||
       block.status !== "completed" ||
@@ -1637,12 +1717,24 @@ export const AgentThreadTimeline: React.FC<AgentThreadTimelineProps> = ({
   deferCompletedSingleDetails = false,
   collapseInactiveDetails = false,
 }) => {
+  const pendingRuntimeConfirmationPrompt = useMemo(
+    () => resolvePendingRuntimeConfirmationPrompt({ items, actionRequests }),
+    [actionRequests, items],
+  );
+  const hasSubmittedRuntimeConfirmation = useMemo(
+    () => hasSubmittedRuntimeActionConfirmation({ items, actionRequests }),
+    [actionRequests, items],
+  );
   const visibleItems = useMemo(
     () =>
       items.filter(
         (item) =>
           item.type !== "user_message" &&
           item.type !== "agent_message" &&
+          !(
+            item.type === "error" &&
+            isRuntimePermissionConfirmationWaitMessage(item.message)
+          ) &&
           !(
             item.type === "file_artifact" &&
             isHiddenConversationArtifactPath(item.path)
@@ -1672,6 +1764,8 @@ export const AgentThreadTimeline: React.FC<AgentThreadTimelineProps> = ({
   const inlineStatusHint = resolveThreadInlineStatusHint({
     turn,
     actionRequests,
+    runtimeConfirmationPrompt: pendingRuntimeConfirmationPrompt,
+    hasSubmittedRuntimeConfirmation,
   });
 
   if (visibleItems.length === 0) {

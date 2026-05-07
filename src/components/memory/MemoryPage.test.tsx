@@ -902,6 +902,21 @@ describe("MemoryPage", () => {
       value: scrollIntoViewMock,
     });
     mockListUnifiedMemories.mockResolvedValue([
+      ...Array.from({ length: 6 }, (_, index) => ({
+        id: `memory-seed-${index + 1}`,
+        session_id: "session-1",
+        memory_type: "conversation" as const,
+        category: "experience" as const,
+        title: `成果铺垫 ${index + 1}`,
+        summary: `这是第 ${index + 1} 条铺垫成果。`,
+        content: `铺垫内容 ${index + 1}`,
+        updated_at: 1_712_345_700_000 - index * 1_000,
+        created_at: 1_712_345_600_000 - index * 1_000,
+        tags: ["铺垫"],
+        metadata: {
+          source: "manual" as const,
+        },
+      })),
       {
         id: "memory-2",
         session_id: "session-1",
@@ -939,6 +954,7 @@ describe("MemoryPage", () => {
       expect(focusedEntry).toBeTruthy();
       expect(focusedEntry?.className).toContain("border-emerald-300");
       expect(focusedEntry?.textContent).toContain("当前续接");
+      expect(document.body.textContent ?? "").toContain("第 2 / 2 页");
       expect(scrollIntoViewMock).toHaveBeenCalledTimes(1);
     } finally {
       if (originalScrollIntoView) {
@@ -1150,6 +1166,96 @@ describe("MemoryPage", () => {
     expect(document.body.textContent ?? "").toContain(
       "最后一镜保留海边风声，别全程铺音乐。",
     );
+  });
+
+  it("durable 分区应支持分页浏览条目", async () => {
+    mockGetUnifiedMemoryStats.mockResolvedValue({
+      total_entries: 13,
+      storage_used: 4096,
+      memory_count: 13,
+      categories: [{ category: "context", count: 13 }],
+    });
+    mockListUnifiedMemories.mockResolvedValue(
+      Array.from({ length: 13 }, (_, index) => ({
+        id: `memory-page-${index + 1}`,
+        session_id: "session-1",
+        memory_type: "conversation" as const,
+        category: "context" as const,
+        title: `分页参考 ${index + 1}`,
+        summary: `第 ${index + 1} 条分页摘要`,
+        content: `第 ${index + 1} 条分页详情`,
+        updated_at: 1_712_345_900_000 - index * 1_000,
+        created_at: 1_712_345_800_000 - index * 1_000,
+        tags: [`tag-${index + 1}`],
+        metadata: {
+          source: "manual" as const,
+        },
+      })),
+    );
+
+    renderPage({ section: "durable" });
+    await flushPageEffects();
+
+    expect(document.body.textContent ?? "").toContain("第 1 / 3 页");
+    expect(document.body.textContent ?? "").toContain("当前显示 1-6 / 13 条");
+    expect(
+      document.body.querySelector('[data-testid="memory-durable-entry-memory-page-13"]'),
+    ).toBeNull();
+    const detailPanel = document.body.querySelector(
+      '[data-testid="memory-durable-detail-panel"]',
+    ) as HTMLElement | null;
+    expect(detailPanel?.className).toContain("sticky");
+
+    const lastButton = document.body.querySelector(
+      '[data-testid="memory-durable-pagination-last"]',
+    ) as HTMLButtonElement | null;
+    expect(lastButton).toBeTruthy();
+
+    await act(async () => {
+      lastButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(document.body.textContent ?? "").toContain("第 3 / 3 页");
+    expect(document.body.textContent ?? "").toContain("当前显示 13-13 / 13 条");
+    expect(
+      document.body.querySelector('[data-testid="memory-durable-entry-memory-page-13"]'),
+    ).toBeTruthy();
+    expect(document.body.textContent ?? "").toContain("第 13 条分页详情");
+
+    const firstButton = document.body.querySelector(
+      '[data-testid="memory-durable-pagination-first"]',
+    ) as HTMLButtonElement | null;
+    expect(firstButton).toBeTruthy();
+
+    await act(async () => {
+      firstButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(document.body.textContent ?? "").toContain("第 1 / 3 页");
+    expect(document.body.textContent ?? "").toContain("当前显示 1-6 / 13 条");
+    expect(
+      document.body.querySelector('[data-testid="memory-durable-entry-memory-page-13"]'),
+    ).toBeNull();
+
+    const secondPageButton = document.body.querySelector(
+      '[data-testid="memory-durable-pagination-page-2"]',
+    ) as HTMLButtonElement | null;
+    expect(secondPageButton).toBeTruthy();
+
+    await act(async () => {
+      secondPageButton?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
+      await Promise.resolve();
+    });
+
+    expect(document.body.textContent ?? "").toContain("第 2 / 3 页");
+    expect(document.body.textContent ?? "").toContain("当前显示 7-12 / 13 条");
+    expect(
+      document.body.querySelector('[data-testid="memory-durable-entry-memory-page-7"]'),
+    ).toBeTruthy();
   });
 
   it("应支持带着当前会话上下文打开运行时记忆命中预演", async () => {

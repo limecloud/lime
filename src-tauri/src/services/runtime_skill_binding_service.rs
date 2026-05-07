@@ -677,6 +677,8 @@ mod tests {
             source_verification_report_id: None,
             generated_file_count: 1,
             permission_summary: vec!["Level 0 只读发现".to_string()],
+            verification_gates: Vec::new(),
+            approval_requests: Vec::new(),
         };
         fs::write(
             skill_dir.join(".lime/registration.json"),
@@ -718,6 +720,8 @@ mod tests {
             source_verification_report_id: Some("capver-broken".to_string()),
             generated_file_count: 1,
             permission_summary: vec!["Level 0 只读发现".to_string()],
+            verification_gates: Vec::new(),
+            approval_requests: Vec::new(),
         };
         fs::write(
             skill_dir.join(".lime/registration.json"),

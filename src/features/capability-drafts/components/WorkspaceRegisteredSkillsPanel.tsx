@@ -2,6 +2,9 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { CheckCircle2, RefreshCw } from "lucide-react";
 import {
   capabilityDraftsApi,
+  type CapabilityDraftRegistrationApprovalRequest,
+  type CapabilityDraftRegistrationVerificationGate,
+  type CapabilityDraftVerificationEvidence,
   type WorkspaceRegisteredSkillRecord,
 } from "@/lib/api/capabilityDrafts";
 import {
@@ -23,6 +26,7 @@ import {
   buildWorkspaceSkillManagedAutomationPresentation,
   canBuildWorkspaceSkillAgentAutomationDraft,
   isWorkspaceSkillAgentAutomationJobForDirectory,
+  type WorkspaceSkillAgentAutomationDraftOptions,
 } from "../workspaceSkillAgentAutomationDraft";
 
 interface WorkspaceRegisteredSkillsPanelProps {
@@ -34,6 +38,7 @@ interface WorkspaceRegisteredSkillsPanelProps {
   onEnableRuntime?: (binding: AgentRuntimeWorkspaceSkillBinding) => void;
   onCreateManagedAutomationDraft?: (
     binding: AgentRuntimeWorkspaceSkillBinding,
+    options?: WorkspaceSkillAgentAutomationDraftOptions,
   ) => void;
   completionAuditSummariesByDirectory?: Record<
     string,
@@ -83,6 +88,83 @@ function summarizeBindingStatus(
     binding.binding_status_reason ||
     "已具备后续 runtime binding 候选资格，但当前仍未进入默认工具面。"
   );
+}
+
+const REGISTRATION_EVIDENCE_LABELS: Record<string, string> = {
+  credentialReferenceId: "凭证引用",
+  endpointSource: "Endpoint",
+  evidenceSchema: "证据 Schema",
+  method: "方法",
+  policyPath: "Policy",
+  preflightMode: "Preflight",
+};
+
+const READONLY_HTTP_PREFLIGHT_CHECK_ID = "readonly_http_execution_preflight";
+
+function skillRequiresControlledGetEvidence(
+  skill: WorkspaceRegisteredSkillRecord,
+): boolean {
+  return Boolean(
+    skill.registration.approvalRequests?.some(
+      (request) => request.sourceCheckId === READONLY_HTTP_PREFLIGHT_CHECK_ID,
+    ) ||
+      skill.registration.verificationGates?.some(
+        (gate) => gate.checkId === READONLY_HTTP_PREFLIGHT_CHECK_ID,
+      ),
+  );
+}
+
+function formatRegistrationEvidenceKey(key: string): string {
+  return REGISTRATION_EVIDENCE_LABELS[key] ?? key;
+}
+
+function formatRegistrationEvidenceValue(
+  evidence: CapabilityDraftVerificationEvidence,
+) {
+  return evidence.value.trim().replace(/\s+/g, " ");
+}
+
+function findRegistrationEvidenceValue(
+  gate: CapabilityDraftRegistrationVerificationGate,
+  key: string,
+) {
+  const evidence = gate.evidence.find((item) => item.key === key);
+  return evidence ? formatRegistrationEvidenceValue(evidence) : "未记录";
+}
+
+function buildReadonlyHttpApprovalPreview(
+  gate?: CapabilityDraftRegistrationVerificationGate,
+  approvalRequest?: CapabilityDraftRegistrationApprovalRequest,
+) {
+  if (!gate) {
+    return null;
+  }
+
+  return {
+    approvalId: approvalRequest?.approvalId ?? "未生成",
+    createdAt: approvalRequest?.createdAt ?? "未记录",
+    status: approvalRequest?.status ?? "preview_only",
+    credentialReferenceId:
+      approvalRequest?.credentialReferenceId ??
+      findRegistrationEvidenceValue(gate, "credentialReferenceId"),
+    endpointSource:
+      approvalRequest?.endpointSource ??
+      findRegistrationEvidenceValue(gate, "endpointSource"),
+    evidenceSchema:
+      approvalRequest?.evidenceSchema.join(",") ??
+      findRegistrationEvidenceValue(gate, "evidenceSchema"),
+    method:
+      approvalRequest?.method ?? findRegistrationEvidenceValue(gate, "method"),
+    policyPath:
+      approvalRequest?.policyPath ??
+      findRegistrationEvidenceValue(gate, "policyPath"),
+    consumptionGate: approvalRequest?.consumptionGate ?? null,
+    credentialResolver: approvalRequest?.credentialResolver ?? null,
+    consumptionInputSchema: approvalRequest?.consumptionInputSchema ?? null,
+    sessionInputIntake: approvalRequest?.sessionInputIntake ?? null,
+    sessionInputSubmissionContract:
+      approvalRequest?.sessionInputSubmissionContract ?? null,
+  };
 }
 
 function sortRegisteredSkills(
@@ -144,11 +226,15 @@ function WorkspaceRegisteredSkillCard({
   onEnableRuntime?: (binding: AgentRuntimeWorkspaceSkillBinding) => void;
   onCreateManagedAutomationDraft?: (
     binding: AgentRuntimeWorkspaceSkillBinding,
+    options?: WorkspaceSkillAgentAutomationDraftOptions,
   ) => void;
 }) {
   const bindingBlocked = binding?.binding_status === "blocked";
   const runtimeEnableReady =
     binding?.binding_status === "ready_for_manual_enable";
+  const automationDraftOptions = {
+    requiresControlledGetEvidence: skillRequiresControlledGetEvidence(skill),
+  };
   const envelopeDraft = buildAgentEnvelopeDraftPresentation({
     skill,
     binding,
@@ -167,6 +253,16 @@ function WorkspaceRegisteredSkillCard({
     managedAutomationJob?.id === managedAutomationUpdatingJobId;
   const completionAuditAuditing =
     completionAuditAuditingDirectory === skill.directory;
+  const preflightGate = skill.registration.verificationGates?.find(
+    (gate) => gate.checkId === READONLY_HTTP_PREFLIGHT_CHECK_ID,
+  );
+  const approvalRequest = skill.registration.approvalRequests?.find(
+    (request) => request.sourceCheckId === READONLY_HTTP_PREFLIGHT_CHECK_ID,
+  );
+  const approvalPreview = buildReadonlyHttpApprovalPreview(
+    preflightGate,
+    approvalRequest,
+  );
 
   return (
     <article className="rounded-[22px] border border-slate-200 bg-slate-50 px-4 py-3.5">
@@ -228,6 +324,352 @@ function WorkspaceRegisteredSkillCard({
             "manual_runtime_enable / Query Loop metadata / tool_runtime 授权裁剪"}
         </div>
       </div>
+      {preflightGate ? (
+        <div className="mt-3 rounded-2xl border border-sky-100 bg-white px-3 py-2.5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="text-[11px] font-semibold text-slate-800">
+              注册 provenance
+            </span>
+            <span className="text-[10px] leading-4 text-sky-700">
+              {preflightGate.label || preflightGate.checkId}
+            </span>
+          </div>
+          <div className="mt-2 grid gap-1.5 sm:grid-cols-2">
+            {preflightGate.evidence.slice(0, 6).map((evidence) => (
+              <div
+                key={`${preflightGate.checkId}:${evidence.key}`}
+                className="rounded-xl border border-sky-100 bg-sky-50 px-2.5 py-1.5"
+              >
+                <div className="text-[10px] leading-4 text-slate-400">
+                  {formatRegistrationEvidenceKey(evidence.key)}
+                </div>
+                <div className="truncate font-mono text-[10px] leading-4 text-slate-700">
+                  {formatRegistrationEvidenceValue(evidence)}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+      {approvalPreview ? (
+        <div className="mt-3 rounded-2xl border border-amber-100 bg-amber-50 px-3 py-2.5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="text-[11px] font-semibold text-amber-900">
+              Session approval request artifact
+            </span>
+            <span className="rounded-full border border-amber-200 bg-white px-2 py-0.5 text-[10px] font-medium text-amber-700">
+              {approvalPreview.status} / 未执行 / 未保存凭证
+            </span>
+          </div>
+          <p className="mt-1.5 text-[11px] leading-5 text-amber-800">
+            真实 API 执行前必须先消费这条授权请求 artifact；当前只持久化审计入口，
+            不保存 token，也不发请求。
+          </p>
+          {approvalPreview.consumptionGate ? (
+            <div className="mt-2 rounded-xl border border-amber-200 bg-white px-2.5 py-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-[10px] font-semibold text-amber-700">
+                  消费门禁
+                </span>
+                <span className="font-mono text-[10px] text-slate-700">
+                  {approvalPreview.consumptionGate.status}
+                </span>
+              </div>
+              <p className="mt-1 text-[10px] leading-4 text-amber-800">
+                {approvalPreview.consumptionGate.blockedReason}
+              </p>
+              <div className="mt-1.5 flex flex-wrap gap-1">
+                {approvalPreview.consumptionGate.requiredInputs.map((input) => (
+                  <span
+                    key={input}
+                    className="rounded-full border border-amber-100 bg-amber-50 px-2 py-0.5 font-mono text-[10px] text-amber-800"
+                  >
+                    {input}
+                  </span>
+                ))}
+              </div>
+              <div className="mt-1.5 text-[10px] leading-4 text-slate-600">
+                runtimeExecution=
+                {String(
+                  approvalPreview.consumptionGate.runtimeExecutionEnabled,
+                )}{" "}
+                / credentialStorage=
+                {String(
+                  approvalPreview.consumptionGate.credentialStorageEnabled,
+                )}
+              </div>
+            </div>
+          ) : null}
+          {approvalPreview.credentialResolver ? (
+            <div className="mt-2 rounded-xl border border-amber-200 bg-white px-2.5 py-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-[10px] font-semibold text-amber-700">
+                  Session credential resolver
+                </span>
+                <span className="font-mono text-[10px] text-slate-700">
+                  {approvalPreview.credentialResolver.status}
+                </span>
+              </div>
+              <p className="mt-1 text-[10px] leading-4 text-amber-800">
+                {approvalPreview.credentialResolver.blockedReason}
+              </p>
+              <div className="mt-1.5 grid gap-1 sm:grid-cols-2">
+                {[
+                  ["Reference", approvalPreview.credentialResolver.referenceId],
+                  ["Scope", approvalPreview.credentialResolver.scope],
+                  ["Source", approvalPreview.credentialResolver.source],
+                  [
+                    "Secret",
+                    approvalPreview.credentialResolver.secretMaterialStatus,
+                  ],
+                  [
+                    "tokenPersisted",
+                    String(approvalPreview.credentialResolver.tokenPersisted),
+                  ],
+                  [
+                    "runtimeInjection",
+                    String(
+                      approvalPreview.credentialResolver
+                        .runtimeInjectionEnabled,
+                    ),
+                  ],
+                ].map(([label, value]) => (
+                  <div
+                    key={label}
+                    className="rounded-lg border border-amber-100 bg-amber-50 px-2 py-1"
+                  >
+                    <span className="text-[10px] text-amber-600">
+                      {label}
+                    </span>
+                    <span className="ml-1 break-words font-mono text-[10px] text-slate-700">
+                      {value}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+          {approvalPreview.consumptionInputSchema ? (
+            <div className="mt-2 rounded-xl border border-amber-200 bg-white px-2.5 py-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-[10px] font-semibold text-amber-700">
+                  Approval consumption input schema
+                </span>
+                <span className="font-mono text-[10px] text-slate-700">
+                  {approvalPreview.consumptionInputSchema.schemaId}
+                </span>
+              </div>
+              <p className="mt-1 text-[10px] leading-4 text-amber-800">
+                {approvalPreview.consumptionInputSchema.blockedReason}
+              </p>
+              <div className="mt-1.5 text-[10px] leading-4 text-slate-600">
+                uiSubmission=
+                {String(
+                  approvalPreview.consumptionInputSchema.uiSubmissionEnabled,
+                )}{" "}
+                / runtimeExecution=
+                {String(
+                  approvalPreview.consumptionInputSchema
+                    .runtimeExecutionEnabled,
+                )}
+              </div>
+              <div className="mt-1.5 flex flex-wrap gap-1">
+                {approvalPreview.consumptionInputSchema.fields.map((field) => (
+                  <span
+                    key={field.key}
+                    className="rounded-full border border-amber-100 bg-amber-50 px-2 py-0.5 font-mono text-[10px] text-amber-800"
+                    title={field.description}
+                  >
+                    {field.key}:{field.kind}
+                    {field.required ? ":required" : ""}
+                    {field.secret ? ":secret" : ""}
+                  </span>
+                ))}
+              </div>
+            </div>
+          ) : null}
+          {approvalPreview.sessionInputIntake ? (
+            <div className="mt-2 rounded-xl border border-amber-200 bg-white px-2.5 py-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-[10px] font-semibold text-amber-700">
+                  Session input intake
+                </span>
+                <span className="font-mono text-[10px] text-slate-700">
+                  {approvalPreview.sessionInputIntake.status}
+                </span>
+              </div>
+              <p className="mt-1 text-[10px] leading-4 text-amber-800">
+                {approvalPreview.sessionInputIntake.blockedReason}
+              </p>
+              <div className="mt-1.5 grid gap-1 sm:grid-cols-2">
+                {[
+                  ["Schema", approvalPreview.sessionInputIntake.schemaId],
+                  ["Scope", approvalPreview.sessionInputIntake.scope],
+                  [
+                    "Credential",
+                    approvalPreview.sessionInputIntake.credentialReferenceId,
+                  ],
+                  [
+                    "Secret",
+                    approvalPreview.sessionInputIntake.secretMaterialStatus,
+                  ],
+                  [
+                    "endpointPersisted",
+                    String(
+                      approvalPreview.sessionInputIntake.endpointInputPersisted,
+                    ),
+                  ],
+                  [
+                    "tokenPersisted",
+                    String(approvalPreview.sessionInputIntake.tokenPersisted),
+                  ],
+                ].map(([label, value]) => (
+                  <div
+                    key={label}
+                    className="rounded-lg border border-amber-100 bg-amber-50 px-2 py-1"
+                  >
+                    <span className="text-[10px] text-amber-600">
+                      {label}
+                    </span>
+                    <span className="ml-1 break-words font-mono text-[10px] text-slate-700">
+                      {value}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-1.5 text-[10px] leading-4 text-slate-600">
+                uiSubmission=
+                {String(approvalPreview.sessionInputIntake.uiSubmissionEnabled)}{" "}
+                / runtimeExecution=
+                {String(
+                  approvalPreview.sessionInputIntake.runtimeExecutionEnabled,
+                )}
+              </div>
+              <div className="mt-1.5 flex flex-wrap gap-1">
+                {approvalPreview.sessionInputIntake.missingFieldKeys.map(
+                  (fieldKey) => (
+                    <span
+                      key={fieldKey}
+                      className="rounded-full border border-amber-100 bg-amber-50 px-2 py-0.5 font-mono text-[10px] text-amber-800"
+                    >
+                      missing:{fieldKey}
+                    </span>
+                  ),
+                )}
+              </div>
+            </div>
+          ) : null}
+          {approvalPreview.sessionInputSubmissionContract ? (
+            <div className="mt-2 rounded-xl border border-amber-200 bg-white px-2.5 py-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-[10px] font-semibold text-amber-700">
+                  Session submission contract
+                </span>
+                <span className="font-mono text-[10px] text-slate-700">
+                  {approvalPreview.sessionInputSubmissionContract.status}
+                </span>
+              </div>
+              <p className="mt-1 text-[10px] leading-4 text-amber-800">
+                {approvalPreview.sessionInputSubmissionContract.blockedReason}
+              </p>
+              <div className="mt-1.5 grid gap-1 sm:grid-cols-2">
+                {[
+                  [
+                    "Mode",
+                    approvalPreview.sessionInputSubmissionContract.mode,
+                  ],
+                  [
+                    "Retention",
+                    approvalPreview.sessionInputSubmissionContract
+                      .valueRetention,
+                  ],
+                  [
+                    "submitHandler",
+                    String(
+                      approvalPreview.sessionInputSubmissionContract
+                        .submissionHandlerEnabled,
+                    ),
+                  ],
+                  [
+                    "secretAccepted",
+                    String(
+                      approvalPreview.sessionInputSubmissionContract
+                        .secretMaterialAccepted,
+                    ),
+                  ],
+                  [
+                    "evidenceRequired",
+                    String(
+                      approvalPreview.sessionInputSubmissionContract
+                        .evidenceCaptureRequired,
+                    ),
+                  ],
+                  [
+                    "runtimeExecution",
+                    String(
+                      approvalPreview.sessionInputSubmissionContract
+                        .runtimeExecutionEnabled,
+                    ),
+                  ],
+                ].map(([label, value]) => (
+                  <div
+                    key={label}
+                    className="rounded-lg border border-amber-100 bg-amber-50 px-2 py-1"
+                  >
+                    <span className="text-[10px] text-amber-600">
+                      {label}
+                    </span>
+                    <span className="ml-1 break-words font-mono text-[10px] text-slate-700">
+                      {value}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-1.5 flex flex-wrap gap-1">
+                {approvalPreview.sessionInputSubmissionContract.validationRules.map(
+                  (rule) => (
+                    <span
+                      key={rule.fieldKey}
+                      className="rounded-full border border-amber-100 bg-amber-50 px-2 py-0.5 font-mono text-[10px] text-amber-800"
+                      title={rule.rule}
+                    >
+                      validate:{rule.fieldKey}:{rule.kind}
+                      {rule.required ? ":required" : ""}
+                    </span>
+                  ),
+                )}
+              </div>
+            </div>
+          ) : null}
+          <div className="mt-2 grid gap-1.5 sm:grid-cols-2">
+            {[
+              ["Approval ID", approvalPreview.approvalId],
+              ["状态", approvalPreview.status],
+              ["Endpoint", approvalPreview.endpointSource],
+              ["方法", approvalPreview.method],
+              ["凭证引用", approvalPreview.credentialReferenceId],
+              ["Policy", approvalPreview.policyPath],
+              ["创建时间", approvalPreview.createdAt],
+              ["证据 Schema", approvalPreview.evidenceSchema],
+            ].map(([label, value]) => (
+              <div
+                key={label}
+                className={cn(
+                  "rounded-xl border border-amber-100 bg-white px-2.5 py-1.5",
+                  label === "证据 Schema" && "sm:col-span-2",
+                )}
+              >
+                <div className="text-[10px] leading-4 text-amber-600">
+                  {label}
+                </div>
+                <div className="break-words font-mono text-[10px] leading-4 text-slate-700">
+                  {value}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
       <div className="mt-3 rounded-2xl border border-dashed border-cyan-200 bg-white px-3 py-2.5">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <span className="text-[11px] font-semibold text-cyan-800">
@@ -264,7 +706,7 @@ function WorkspaceRegisteredSkillCard({
           disabled={!canCreateAgentEnvelopeDraft}
           onClick={() => {
             if (binding && canCreateAgentEnvelopeDraft) {
-              onCreateManagedAutomationDraft?.(binding);
+              onCreateManagedAutomationDraft?.(binding, automationDraftOptions);
             }
           }}
           data-testid="workspace-registered-agent-envelope-action"
@@ -278,7 +720,9 @@ function WorkspaceRegisteredSkillCard({
             variant="outline"
             className="ml-2 mt-2 h-7 rounded-xl border-cyan-200 bg-cyan-50 px-2.5 text-[11px] text-cyan-800 hover:bg-cyan-100"
             disabled={!canCreateManagedAutomationDraft}
-            onClick={() => onCreateManagedAutomationDraft(binding)}
+            onClick={() =>
+              onCreateManagedAutomationDraft(binding, automationDraftOptions)
+            }
             data-testid="workspace-registered-agent-managed-automation"
           >
             创建 Managed Job 草案

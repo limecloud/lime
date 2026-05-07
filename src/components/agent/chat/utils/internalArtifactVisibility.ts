@@ -28,6 +28,16 @@ export function isHiddenConversationArtifactPath(
     return true;
   }
 
+  const isAuxiliaryRuntimeProjection =
+    normalizedPath.endsWith(".json") &&
+    normalizedPath.includes("/auxiliary-runtime/") &&
+    (normalizedPath.startsWith(".lime/harness/sessions/") ||
+      normalizedPath.includes("/.lime/harness/sessions/"));
+
+  if (isAuxiliaryRuntimeProjection) {
+    return true;
+  }
+
   const isInternalArtifactDocument =
     normalizedPath.endsWith(".artifact.json") &&
     (normalizedPath.startsWith(".lime/artifacts/") ||

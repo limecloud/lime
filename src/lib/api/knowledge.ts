@@ -13,6 +13,7 @@ export interface KnowledgePackMetadata {
   name: string;
   description: string;
   type: string;
+  profile?: "document-first" | "wiki-first" | "hybrid" | string | null;
   status: KnowledgePackStatus;
   version?: string | null;
   language?: string | null;
@@ -21,6 +22,22 @@ export interface KnowledgePackMetadata {
   scope?: string | null;
   trust?: string | null;
   grounding?: string | null;
+  runtime?: {
+    mode?: "data" | "persona" | string | null;
+    [key: string]: unknown;
+  } | null;
+  metadata?: {
+    limeTemplate?: string;
+    primaryDocument?: string;
+    producedBy?: {
+      kind?: string;
+      name?: string;
+      version?: string;
+      digest?: string;
+      [key: string]: unknown;
+    };
+    [key: string]: unknown;
+  } | null;
 }
 
 export interface KnowledgePackSummary {
@@ -30,6 +47,7 @@ export interface KnowledgePackSummary {
   defaultForWorkspace: boolean;
   updatedAt: number;
   sourceCount: number;
+  documentCount?: number;
   wikiCount: number;
   compiledCount: number;
   runCount: number;
@@ -47,6 +65,7 @@ export interface KnowledgePackFileEntry {
 
 export interface KnowledgePackDetail extends KnowledgePackSummary {
   guide: string;
+  documents?: KnowledgePackFileEntry[];
   sources: KnowledgePackFileEntry[];
   wiki: KnowledgePackFileEntry[];
   compiled: KnowledgePackFileEntry[];
@@ -109,6 +128,9 @@ export interface KnowledgeResolveContextRequest {
   name: string;
   task?: string;
   maxChars?: number;
+  activation?: "explicit" | "implicit" | "resolver-driven";
+  writeRun?: boolean;
+  runReason?: string;
 }
 
 export interface KnowledgeContextView {
@@ -118,14 +140,39 @@ export interface KnowledgeContextView {
   sourceAnchors: string[];
 }
 
+export interface KnowledgeContextWarning {
+  severity: "info" | "warning" | "error" | string;
+  path?: string | null;
+  message: string;
+}
+
 export interface KnowledgeContextResolution {
   packName: string;
   status: KnowledgePackStatus;
   grounding?: string | null;
   selectedViews: KnowledgeContextView[];
-  warnings: string[];
+  selectedFiles: string[];
+  sourceAnchors: string[];
+  warnings: KnowledgeContextWarning[];
+  missing: string[];
   tokenEstimate: number;
   fencedContext: string;
+  runId?: string | null;
+  runPath?: string | null;
+}
+
+export interface KnowledgeValidateContextRunRequest {
+  workingDir: string;
+  name: string;
+  runPath: string;
+}
+
+export interface KnowledgeValidateContextRunResponse {
+  valid: boolean;
+  runId?: string | null;
+  status?: string | null;
+  errors: string[];
+  warnings: string[];
 }
 
 export function listKnowledgePacks(
@@ -186,4 +233,10 @@ export function resolveKnowledgeContext(
   request: KnowledgeResolveContextRequest,
 ): Promise<KnowledgeContextResolution> {
   return safeInvoke("knowledge_resolve_context", { request });
+}
+
+export function validateKnowledgeContextRun(
+  request: KnowledgeValidateContextRunRequest,
+): Promise<KnowledgeValidateContextRunResponse> {
+  return safeInvoke("knowledge_validate_context_run", { request });
 }

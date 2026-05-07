@@ -306,6 +306,45 @@ impl AgentRunDao {
         iter.collect()
     }
 
+    pub fn list_active_runs_by_session(
+        conn: &Connection,
+        session_id: &str,
+        limit: usize,
+    ) -> Result<Vec<AgentRun>, rusqlite::Error> {
+        let mut stmt = conn.prepare(
+            "SELECT id, source, source_ref, session_id, status, started_at, finished_at, duration_ms,
+                    error_code, error_message, metadata, created_at, updated_at
+             FROM agent_runs
+             WHERE session_id = ?1
+               AND status IN ('queued', 'running')
+             ORDER BY started_at DESC
+             LIMIT ?2",
+        )?;
+
+        let iter = stmt.query_map(params![session_id, limit as i64], |row| {
+            let status_raw: String = row.get(4)?;
+            let status =
+                AgentRunStatus::try_from(status_raw.as_str()).unwrap_or(AgentRunStatus::Error);
+            Ok(AgentRun {
+                id: row.get(0)?,
+                source: row.get(1)?,
+                source_ref: row.get(2)?,
+                session_id: row.get(3)?,
+                status,
+                started_at: row.get(5)?,
+                finished_at: row.get(6)?,
+                duration_ms: row.get(7)?,
+                error_code: row.get(8)?,
+                error_message: row.get(9)?,
+                metadata: row.get(10)?,
+                created_at: row.get(11)?,
+                updated_at: row.get(12)?,
+            })
+        })?;
+
+        iter.collect()
+    }
+
     pub fn list_terminal_runs_by_session(
         conn: &Connection,
         session_id: &str,
@@ -506,6 +545,45 @@ mod tests {
             .expect("查询第二页终态记录失败");
         assert_eq!(second_page.len(), 1);
         assert_eq!(second_page[0].id, "run-success");
+    }
+
+    #[test]
+    fn list_active_runs_by_session_should_filter_active_status() {
+        let conn = setup_conn();
+
+        let mut run_queued = sample_run("run-queued", AgentRunStatus::Queued);
+        run_queued.session_id = Some("session-a".to_string());
+        run_queued.started_at = "2026-03-06T10:00:00Z".to_string();
+        run_queued.created_at = run_queued.started_at.clone();
+        run_queued.updated_at = run_queued.started_at.clone();
+        AgentRunDao::create_run(&conn, &run_queued).expect("写入 run-queued 失败");
+
+        let mut run_running = sample_run("run-running", AgentRunStatus::Running);
+        run_running.session_id = Some("session-a".to_string());
+        run_running.started_at = "2026-03-06T11:00:00Z".to_string();
+        run_running.created_at = run_running.started_at.clone();
+        run_running.updated_at = run_running.started_at.clone();
+        AgentRunDao::create_run(&conn, &run_running).expect("写入 run-running 失败");
+
+        let mut run_success = sample_run("run-success", AgentRunStatus::Success);
+        run_success.session_id = Some("session-a".to_string());
+        run_success.started_at = "2026-03-06T12:00:00Z".to_string();
+        run_success.created_at = run_success.started_at.clone();
+        run_success.updated_at = run_success.started_at.clone();
+        AgentRunDao::create_run(&conn, &run_success).expect("写入 run-success 失败");
+
+        let mut run_other_session = sample_run("run-other", AgentRunStatus::Running);
+        run_other_session.session_id = Some("session-b".to_string());
+        run_other_session.started_at = "2026-03-06T13:00:00Z".to_string();
+        run_other_session.created_at = run_other_session.started_at.clone();
+        run_other_session.updated_at = run_other_session.started_at.clone();
+        AgentRunDao::create_run(&conn, &run_other_session).expect("写入 run-other 失败");
+
+        let active = AgentRunDao::list_active_runs_by_session(&conn, "session-a", 10)
+            .expect("查询活跃 run 失败");
+        assert_eq!(active.len(), 2);
+        assert_eq!(active[0].id, "run-running");
+        assert_eq!(active[1].id, "run-queued");
     }
 
     #[test]

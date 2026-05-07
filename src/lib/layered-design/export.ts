@@ -2,11 +2,29 @@ import {
   isImageDesignLayer,
   sortDesignLayers,
 } from "./document";
+import {
+  evaluateLayeredDesignAnalyzerModelSlotConfigReadiness,
+  normalizeLayeredDesignAnalyzerModelSlotConfig,
+  type LayeredDesignAnalyzerModelSlotConfig,
+  type LayeredDesignAnalyzerModelSlotConfigInput,
+  type LayeredDesignAnalyzerModelSlotConfigReadiness,
+} from "./analyzerModelSlotConfig";
+import type {
+  LayeredDesignAnalyzerModelSlotExecutionEvidence,
+} from "./analyzerModelSlotRuntime";
+import {
+  createLayeredDesignAnalyzerProviderCapabilityGateRequirements,
+  evaluateLayeredDesignAnalyzerProviderCapabilityGate,
+  type LayeredDesignAnalyzerProviderCapability,
+  type LayeredDesignAnalyzerProviderCapabilityGateReport,
+} from "./providerCapabilities";
+import { createLayeredDesignTrialPsdFile } from "./psd";
 import type {
   DesignLayer,
   GeneratedDesignAssetKind,
   GeneratedDesignAsset,
   LayeredDesignDocument,
+  LayeredDesignExtractionAnalysis,
   ShapeLayer,
   TextLayer,
 } from "./types";
@@ -21,6 +39,13 @@ export interface LayeredDesignExportFile {
   downloadName: string;
   mimeType: string;
   content: string;
+}
+
+export interface LayeredDesignExportBinaryFile {
+  filename: string;
+  downloadName: string;
+  mimeType: string;
+  content: Uint8Array;
 }
 
 export interface LayeredDesignExportAssetFile {
@@ -55,9 +80,41 @@ export interface LayeredDesignExportManifest {
   exportedAt: string;
   designFile: string;
   psdLikeManifestFile: string;
+  trialPsdFile: string;
   previewSvgFile: string;
   previewPngFile: string;
+  analysis?: LayeredDesignExportAnalysisSummary;
+  evidence?: LayeredDesignExportEvidenceSummary;
+  analyzerModelSlots?: LayeredDesignExportAnalyzerModelSlotSummary[];
   assets: LayeredDesignExportManifestAsset[];
+}
+
+export interface LayeredDesignExportAnalysisSummary {
+  analyzer: LayeredDesignExtractionAnalysis["analyzer"];
+  outputs: LayeredDesignExtractionAnalysis["outputs"];
+  providerCapabilities?: LayeredDesignAnalyzerProviderCapability[];
+  capabilityGate?: LayeredDesignAnalyzerProviderCapabilityGateReport;
+}
+
+export interface LayeredDesignExportAnalyzerModelSlotSummary {
+  config: LayeredDesignAnalyzerModelSlotConfig;
+  readiness: LayeredDesignAnalyzerModelSlotConfigReadiness;
+}
+
+export interface LayeredDesignExportModelSlotExecutionSource {
+  kind: "asset" | "layer";
+  id: string;
+  assetKind?: GeneratedDesignAsset["kind"];
+  layerType?: DesignLayer["type"];
+}
+
+export interface LayeredDesignExportModelSlotExecutionSummary
+  extends LayeredDesignAnalyzerModelSlotExecutionEvidence {
+  sources: LayeredDesignExportModelSlotExecutionSource[];
+}
+
+export interface LayeredDesignExportEvidenceSummary {
+  modelSlotExecutions?: LayeredDesignExportModelSlotExecutionSummary[];
 }
 
 export type LayeredDesignPsdLikeLayerRole =
@@ -149,6 +206,7 @@ export interface LayeredDesignExportBundle {
   designFile: LayeredDesignExportFile;
   manifestFile: LayeredDesignExportFile;
   psdLikeManifestFile: LayeredDesignExportFile;
+  trialPsdFile: LayeredDesignExportBinaryFile;
   previewSvgFile: LayeredDesignExportFile;
   previewPngFile: Omit<LayeredDesignExportFile, "content">;
   assetFiles: LayeredDesignExportAssetFile[];
@@ -173,6 +231,7 @@ export interface LayeredDesignProjectExportFile {
 export interface CreateLayeredDesignExportBundleOptions {
   exportedAt?: string;
   baseName?: string;
+  analyzerModelSlotConfigs?: readonly LayeredDesignAnalyzerModelSlotConfigInput[];
 }
 
 export interface CreateLayeredDesignExportZipFileOptions {
@@ -629,6 +688,232 @@ export function createLayeredDesignPsdLikeManifest(
   };
 }
 
+function createExportAnalysisSummary(
+  document: LayeredDesignDocument,
+): LayeredDesignExportAnalysisSummary | undefined {
+  const analysis = document.extraction?.analysis;
+  if (!analysis) {
+    return undefined;
+  }
+
+  const providerCapabilities = analysis.providerCapabilities ?? [];
+  const requirements =
+    createLayeredDesignAnalyzerProviderCapabilityGateRequirements({
+      requireSubjectMatting: analysis.outputs.candidateMask,
+      requireCleanPlate: analysis.outputs.cleanPlate,
+      requireTextOcr: analysis.outputs.ocrText,
+    });
+  const capabilityGate =
+    providerCapabilities.length > 0 || requirements.length > 0
+      ? evaluateLayeredDesignAnalyzerProviderCapabilityGate(
+          providerCapabilities,
+          requirements,
+        )
+      : undefined;
+
+  return {
+    analyzer: { ...analysis.analyzer },
+    outputs: { ...analysis.outputs },
+    ...(providerCapabilities.length > 0
+      ? {
+          providerCapabilities: providerCapabilities.map((capability) => ({
+            ...capability,
+            supports: { ...capability.supports },
+            ...(capability.limits ? { limits: { ...capability.limits } } : {}),
+            ...(capability.quality
+              ? { quality: { ...capability.quality } }
+              : {}),
+          })),
+        }
+      : {}),
+    ...(capabilityGate ? { capabilityGate } : {}),
+  };
+}
+
+function createExportAnalyzerModelSlotSummaries(
+  configs: readonly LayeredDesignAnalyzerModelSlotConfigInput[] | undefined,
+): LayeredDesignExportAnalyzerModelSlotSummary[] | undefined {
+  if (!configs || configs.length === 0) {
+    return undefined;
+  }
+
+  return configs.map((input) => ({
+    config: normalizeLayeredDesignAnalyzerModelSlotConfig(input),
+    readiness: evaluateLayeredDesignAnalyzerModelSlotConfigReadiness(input),
+  }));
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function readOptionalString(
+  value: Record<string, unknown>,
+  key: string,
+): string | undefined {
+  const field = value[key];
+  return typeof field === "string" && field.trim().length > 0
+    ? field
+    : undefined;
+}
+
+function readNumber(
+  value: Record<string, unknown>,
+  key: string,
+): number | undefined {
+  const field = value[key];
+  return typeof field === "number" && Number.isFinite(field) ? field : undefined;
+}
+
+function readBoolean(
+  value: Record<string, unknown>,
+  key: string,
+): boolean | undefined {
+  const field = value[key];
+  return typeof field === "boolean" ? field : undefined;
+}
+
+function readModelSlotExecutionEvidence(
+  params: Record<string, unknown> | undefined,
+): LayeredDesignAnalyzerModelSlotExecutionEvidence | undefined {
+  const raw = params?.modelSlotExecution;
+  if (!isRecord(raw)) {
+    return undefined;
+  }
+
+  const slotId = readOptionalString(raw, "slotId");
+  const slotKind = readOptionalString(raw, "slotKind");
+  const providerLabel = readOptionalString(raw, "providerLabel");
+  const modelId = readOptionalString(raw, "modelId");
+  const execution = readOptionalString(raw, "execution");
+  const fallbackStrategy = readOptionalString(raw, "fallbackStrategy");
+  const status = readOptionalString(raw, "status");
+  const attempt = readNumber(raw, "attempt");
+  const maxAttempts = readNumber(raw, "maxAttempts");
+  const timeoutMs = readNumber(raw, "timeoutMs");
+  const fallbackUsed = readBoolean(raw, "fallbackUsed");
+
+  if (
+    !slotId ||
+    !slotKind ||
+    !providerLabel ||
+    !modelId ||
+    !execution ||
+    !fallbackStrategy ||
+    !status ||
+    attempt === undefined ||
+    maxAttempts === undefined ||
+    timeoutMs === undefined ||
+    fallbackUsed === undefined
+  ) {
+    return undefined;
+  }
+
+  return {
+    slotId,
+    slotKind:
+      slotKind as LayeredDesignAnalyzerModelSlotExecutionEvidence["slotKind"],
+    providerLabel,
+    modelId,
+    execution:
+      execution as LayeredDesignAnalyzerModelSlotExecutionEvidence["execution"],
+    attempt,
+    maxAttempts,
+    timeoutMs,
+    fallbackStrategy:
+      fallbackStrategy as LayeredDesignAnalyzerModelSlotExecutionEvidence["fallbackStrategy"],
+    fallbackUsed,
+    status:
+      status as LayeredDesignAnalyzerModelSlotExecutionEvidence["status"],
+    ...(readOptionalString(raw, "providerId")
+      ? { providerId: readOptionalString(raw, "providerId") }
+      : {}),
+    ...(readOptionalString(raw, "modelVersion")
+      ? { modelVersion: readOptionalString(raw, "modelVersion") }
+      : {}),
+  };
+}
+
+function createModelSlotExecutionKey(
+  evidence: LayeredDesignAnalyzerModelSlotExecutionEvidence,
+): string {
+  return JSON.stringify({
+    slotId: evidence.slotId,
+    slotKind: evidence.slotKind,
+    providerLabel: evidence.providerLabel,
+    modelId: evidence.modelId,
+    execution: evidence.execution,
+    attempt: evidence.attempt,
+    maxAttempts: evidence.maxAttempts,
+    timeoutMs: evidence.timeoutMs,
+    fallbackStrategy: evidence.fallbackStrategy,
+    fallbackUsed: evidence.fallbackUsed,
+    status: evidence.status,
+    providerId: evidence.providerId,
+    modelVersion: evidence.modelVersion,
+  });
+}
+
+function collectLayeredDesignModelSlotExecutions(
+  document: LayeredDesignDocument,
+): LayeredDesignExportModelSlotExecutionSummary[] {
+  const executions = new Map<
+    string,
+    LayeredDesignExportModelSlotExecutionSummary
+  >();
+  const addExecution = (
+    evidence: LayeredDesignAnalyzerModelSlotExecutionEvidence | undefined,
+    source: LayeredDesignExportModelSlotExecutionSource,
+  ) => {
+    if (!evidence) {
+      return;
+    }
+
+    const key = createModelSlotExecutionKey(evidence);
+    const existing = executions.get(key);
+    if (existing) {
+      existing.sources.push(source);
+      return;
+    }
+
+    executions.set(key, {
+      ...evidence,
+      sources: [source],
+    });
+  };
+
+  for (const asset of document.assets) {
+    addExecution(readModelSlotExecutionEvidence(asset.params), {
+      kind: "asset",
+      id: asset.id,
+      assetKind: asset.kind,
+    });
+  }
+
+  for (const layer of document.layers) {
+    addExecution(readModelSlotExecutionEvidence(layer.params), {
+      kind: "layer",
+      id: layer.id,
+      layerType: layer.type,
+    });
+  }
+
+  return Array.from(executions.values());
+}
+
+function createExportEvidenceSummary(
+  document: LayeredDesignDocument,
+): LayeredDesignExportEvidenceSummary | undefined {
+  const modelSlotExecutions = collectLayeredDesignModelSlotExecutions(document);
+  if (modelSlotExecutions.length === 0) {
+    return undefined;
+  }
+
+  return {
+    modelSlotExecutions,
+  };
+}
+
 export function createLayeredDesignExportBundle(
   document: LayeredDesignDocument,
   options: CreateLayeredDesignExportBundleOptions = {},
@@ -638,6 +923,7 @@ export function createLayeredDesignExportBundle(
   const designFilename = "design.json";
   const manifestFilename = "export-manifest.json";
   const psdLikeManifestFilename = "psd-like-manifest.json";
+  const trialPsdFilename = "trial.psd";
   const previewSvgFilename = "preview.svg";
   const previewPngFilename = "preview.png";
   const exportedDocument: LayeredDesignDocument = {
@@ -681,6 +967,11 @@ export function createLayeredDesignExportBundle(
       modelId: asset.modelId,
     } satisfies LayeredDesignExportManifestAsset;
   });
+  const analysisSummary = createExportAnalysisSummary(document);
+  const evidenceSummary = createExportEvidenceSummary(document);
+  const analyzerModelSlots = createExportAnalyzerModelSlotSummaries(
+    options.analyzerModelSlotConfigs,
+  );
 
   const manifest: LayeredDesignExportManifest = {
     schemaVersion: LAYERED_DESIGN_EXPORT_SCHEMA_VERSION,
@@ -689,8 +980,12 @@ export function createLayeredDesignExportBundle(
     exportedAt,
     designFile: designFilename,
     psdLikeManifestFile: psdLikeManifestFilename,
+    trialPsdFile: trialPsdFilename,
     previewSvgFile: previewSvgFilename,
     previewPngFile: previewPngFilename,
+    ...(analysisSummary ? { analysis: analysisSummary } : {}),
+    ...(evidenceSummary ? { evidence: evidenceSummary } : {}),
+    ...(analyzerModelSlots ? { analyzerModelSlots } : {}),
     assets: manifestAssets,
   };
   const psdLikeManifest = createLayeredDesignPsdLikeManifest(
@@ -705,6 +1000,7 @@ export function createLayeredDesignExportBundle(
   );
 
   const previewSvg = renderLayeredDesignDocumentToSvg(document);
+  const trialPsd = createLayeredDesignTrialPsdFile(document);
 
   return {
     manifest,
@@ -726,6 +1022,12 @@ export function createLayeredDesignExportBundle(
       downloadName: `${baseName}.psd-like-manifest.json`,
       mimeType: "application/json",
       content: JSON.stringify(psdLikeManifest, null, 2),
+    },
+    trialPsdFile: {
+      filename: trialPsdFilename,
+      downloadName: `${baseName}.trial.psd`,
+      mimeType: "image/vnd.adobe.photoshop",
+      content: trialPsd,
     },
     previewSvgFile: {
       filename: previewSvgFilename,
@@ -780,6 +1082,10 @@ export function createLayeredDesignExportZipFile(
       content: encodeUtf8(bundle.psdLikeManifestFile.content),
     },
     {
+      path: bundle.trialPsdFile.filename,
+      content: bundle.trialPsdFile.content,
+    },
+    {
       path: bundle.previewSvgFile.filename,
       content: encodeUtf8(bundle.previewSvgFile.content),
     },
@@ -826,6 +1132,12 @@ export function createLayeredDesignProjectExportFiles(
       mimeType: bundle.psdLikeManifestFile.mimeType,
       encoding: "utf8",
       content: bundle.psdLikeManifestFile.content,
+    },
+    {
+      relativePath: "trial.psd",
+      mimeType: bundle.trialPsdFile.mimeType,
+      encoding: "base64",
+      content: encodeBase64(bundle.trialPsdFile.content),
     },
     {
       relativePath: "preview.svg",

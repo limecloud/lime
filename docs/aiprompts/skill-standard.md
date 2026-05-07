@@ -118,7 +118,7 @@ Lime 在工程上必须明确接受这一点：
 1. `SKILL.md` 不是 Lime 的最终产品对象。
 2. `ServiceSkill` / `Scene` 也不是新的包格式标准。
 3. `ServiceSkill` / `Scene` 是 Lime 在 Agent Skills 之上的产品投影层。
-4. CreoAI / Capability Draft 注册只负责把已验证草案复制成 workspace-local Agent Skill 包；它不等同于运行时绑定，也不能绕过 Query Loop 与 `tool_runtime` 直接执行。
+4. Skill Forge / Capability Draft 注册只负责把已验证草案复制成 workspace-local Agent Skill 包；它不等同于运行时绑定，也不能绕过 Query Loop 与 `tool_runtime` 直接执行。
 
 因此，generated skill 的最小安全顺序固定为：
 

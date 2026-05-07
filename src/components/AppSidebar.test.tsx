@@ -393,7 +393,7 @@ describe("AppSidebar", () => {
     );
   });
 
-  it("新建任务首页应延后加载最近对话，避免首发抢占 bridge", async () => {
+  it("新建任务首页应短 idle 加载最近对话，避免列表首屏长时间为空", async () => {
     const scheduledTasks: Array<{
       task: () => void;
       options?: { minimumDelayMs?: number; idleTimeoutMs?: number };
@@ -417,12 +417,10 @@ describe("AppSidebar", () => {
     });
     await flushEffects(2);
 
-    expect(mockListAgentRuntimeSessions).not.toHaveBeenCalled();
-
     const deferredSessionLoad = scheduledTasks.find(
       (entry) =>
-        entry.options?.minimumDelayMs === 18_000 &&
-        entry.options?.idleTimeoutMs === 18_000,
+        entry.options?.minimumDelayMs === 0 &&
+        entry.options?.idleTimeoutMs === 0,
     );
     expect(deferredSessionLoad).toBeDefined();
 
@@ -1934,6 +1932,14 @@ describe("AppSidebar", () => {
       limit: 11,
       workspaceId: "project-1",
     });
+    expect(mockRecordAgentUiPerformanceMetric).toHaveBeenCalledWith(
+      "appSidebar.recentConversations.loadBreakdown",
+      expect.objectContaining({
+        limit: 11,
+        sessionsCount: 1,
+        workspaceId: "project-1",
+      }),
+    );
 
     const mainNav = container.querySelector(
       '[data-testid="app-sidebar-main-nav"]',

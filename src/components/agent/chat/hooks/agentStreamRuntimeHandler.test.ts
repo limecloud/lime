@@ -108,8 +108,22 @@ describe("agentStreamRuntimeHandler", () => {
     });
   });
 
-  it("收到完整 message 快照事件时只激活流，不重复写入文本", () => {
-    const setMessages = vi.fn();
+  it("收到完整 message 快照事件时应立即预填首屏文本", () => {
+    let messages: Message[] = [
+      {
+        id: "assistant-1",
+        role: "assistant",
+        content: "",
+        timestamp: new Date("2026-05-07T10:00:00.000Z"),
+        isThinking: true,
+        contentParts: [],
+      },
+    ];
+    const setMessages = vi.fn(
+      (value: Message[] | ((prev: Message[]) => Message[])) => {
+        messages = typeof value === "function" ? value(messages) : value;
+      },
+    );
     const activateStream = vi.fn();
 
     handleTurnStreamEvent({
@@ -172,7 +186,130 @@ describe("agentStreamRuntimeHandler", () => {
     });
 
     expect(activateStream).toHaveBeenCalledTimes(1);
-    expect(setMessages).not.toHaveBeenCalled();
+    expect(setMessages).toHaveBeenCalledTimes(1);
+    expect(messages[0]?.content).toBe("完整快照会由后续 text_delta 渲染。");
+    expect(messages[0]?.contentParts).toEqual([
+      {
+        type: "text",
+        text: "完整快照会由后续 text_delta 渲染。",
+      },
+    ]);
+  });
+
+  it("message 快照已预填正文时后续 text_delta 重放不应重复追加", () => {
+    vi.useFakeTimers();
+    let messages: Message[] = [
+      {
+        id: "assistant-1",
+        role: "assistant",
+        content: "",
+        timestamp: new Date("2026-05-07T10:00:00.000Z"),
+        isThinking: true,
+        contentParts: [],
+      },
+    ];
+    const requestState = {
+      accumulatedContent: "",
+      queuedTurnId: null,
+      requestLogId: null,
+      requestStartedAt: 0,
+      requestFinished: false,
+    };
+    const onTextDelta = vi.fn();
+    const playTypewriterSound = vi.fn();
+    const setMessages = vi.fn(
+      (value: Message[] | ((prev: Message[]) => Message[])) => {
+        messages = typeof value === "function" ? value(messages) : value;
+      },
+    );
+    const baseOptions = {
+      requestState,
+      callbacks: {
+        activateStream: vi.fn(),
+        isStreamActivated: () => true,
+        clearOptimisticItem: () => {},
+        clearOptimisticTurn: () => {},
+        disposeListener: () => {},
+        removeQueuedDraftMessages: () => {},
+        clearActiveStreamIfMatch: () => true,
+        upsertQueuedTurn: () => {},
+        removeQueuedTurnState: () => {},
+        playToolcallSound: () => {},
+        playTypewriterSound,
+        appendThinkingToParts: (parts: NonNullable<Message["contentParts"]>) =>
+          parts,
+      },
+      observer: {
+        onTextDelta,
+      },
+      eventName: "agent-runtime-message-replay-test",
+      pendingTurnKey: "pending-turn",
+      pendingItemKey: "pending-item",
+      assistantMsgId: "assistant-1",
+      activeSessionId: "session-1",
+      resolvedWorkspaceId: "workspace-1",
+      effectiveExecutionStrategy: "react" as const,
+      content: "生成验收矩阵",
+      runtime: {} as never,
+      warnedKeysRef: { current: new Set<string>() },
+      actionLoggedKeys: new Set<string>(),
+      toolLogIdByToolId: new Map<string, string>(),
+      toolStartedAtByToolId: new Map<string, number>(),
+      toolNameByToolId: new Map<string, string>(),
+      setMessages: setMessages as never,
+      setPendingActions: vi.fn() as never,
+      setThreadItems: vi.fn() as never,
+      setThreadTurns: vi.fn() as never,
+      setCurrentTurnId: vi.fn() as never,
+      setExecutionRuntime: vi.fn() as never,
+      setIsSending: vi.fn() as never,
+    };
+
+    handleTurnStreamEvent({
+      ...baseOptions,
+      data: {
+        type: "message",
+        message: {
+          id: "msg-runtime-1",
+          role: "assistant",
+          content: [{ type: "text", text: "先显示快照。" }],
+          timestamp: 1777284240,
+        },
+      } as AgentEvent,
+    });
+    handleTurnStreamEvent({
+      ...baseOptions,
+      data: { type: "text_delta", text: "先显示" } as AgentEvent,
+    });
+    handleTurnStreamEvent({
+      ...baseOptions,
+      data: { type: "text_delta", text: "快照。" } as AgentEvent,
+    });
+
+    expect(messages[0]?.content).toBe("先显示快照。");
+    expect(messages[0]?.contentParts).toEqual([
+      { type: "text", text: "先显示快照。" },
+    ]);
+    expect(onTextDelta).not.toHaveBeenCalled();
+    expect(playTypewriterSound).not.toHaveBeenCalled();
+
+    handleTurnStreamEvent({
+      ...baseOptions,
+      data: { type: "text_delta", text: "继续输出。" } as AgentEvent,
+    });
+
+    vi.advanceTimersByTime(32);
+
+    expect(messages[0]?.content).toBe("先显示快照。继续输出。");
+    expect(messages[0]?.contentParts).toEqual([
+      { type: "text", text: "先显示快照。继续输出。" },
+    ]);
+    expect(onTextDelta).toHaveBeenCalledTimes(1);
+    expect(onTextDelta).toHaveBeenCalledWith(
+      "继续输出。",
+      "先显示快照。继续输出。",
+    );
+    expect(playTypewriterSound).toHaveBeenCalledTimes(1);
   });
 
   it("thinking 关闭时不应把 reasoning_delta 渲染进助手正文", () => {
@@ -350,6 +487,101 @@ describe("agentStreamRuntimeHandler", () => {
     expect(setMessages).toHaveBeenCalledTimes(2);
     expect(messages[0]?.content).toBe("123");
     expect(messages[0]?.contentParts).toEqual([{ type: "text", text: "123" }]);
+  });
+
+  it("text flush 后仍应保留并继续累积 thinkingContent", () => {
+    vi.useFakeTimers();
+    let messages: Message[] = [
+      {
+        id: "assistant-1",
+        role: "assistant",
+        content: "",
+        timestamp: new Date("2026-05-06T10:00:00.000Z"),
+        isThinking: true,
+        thinkingContent: "",
+        contentParts: [],
+      },
+    ];
+    const requestState = {
+      accumulatedContent: "",
+      queuedTurnId: null,
+      requestLogId: null,
+      requestStartedAt: 0,
+      requestFinished: false,
+    };
+    const setMessages = vi.fn(
+      (value: Message[] | ((prev: Message[]) => Message[])) => {
+        messages = typeof value === "function" ? value(messages) : value;
+      },
+    );
+    const baseOptions = {
+      requestState,
+      callbacks: {
+        activateStream: vi.fn(),
+        isStreamActivated: () => true,
+        clearOptimisticItem: () => {},
+        clearOptimisticTurn: () => {},
+        disposeListener: () => {},
+        removeQueuedDraftMessages: () => {},
+        clearActiveStreamIfMatch: () => true,
+        upsertQueuedTurn: () => {},
+        removeQueuedTurnState: () => {},
+        playToolcallSound: () => {},
+        playTypewriterSound: () => {},
+        appendThinkingToParts: (
+          parts: NonNullable<Message["contentParts"]>,
+          textDelta: string,
+        ) => [...parts, { type: "thinking" as const, text: textDelta }],
+      },
+      eventName: "agent-runtime-thinking-retain-test",
+      pendingTurnKey: "pending-turn",
+      pendingItemKey: "pending-item",
+      assistantMsgId: "assistant-1",
+      activeSessionId: "session-1",
+      resolvedWorkspaceId: "workspace-1",
+      effectiveExecutionStrategy: "react" as const,
+      surfaceThinkingDeltas: true,
+      content: "继续写正文",
+      runtime: {} as never,
+      warnedKeysRef: { current: new Set<string>() },
+      actionLoggedKeys: new Set<string>(),
+      toolLogIdByToolId: new Map<string, string>(),
+      toolStartedAtByToolId: new Map<string, number>(),
+      toolNameByToolId: new Map<string, string>(),
+      setMessages: setMessages as never,
+      setPendingActions: vi.fn() as never,
+      setThreadItems: vi.fn() as never,
+      setThreadTurns: vi.fn() as never,
+      setCurrentTurnId: vi.fn() as never,
+      setExecutionRuntime: vi.fn() as never,
+      setIsSending: vi.fn() as never,
+    };
+
+    handleTurnStreamEvent({
+      ...baseOptions,
+      data: { type: "thinking_delta", text: "先想第一段。" } as AgentEvent,
+    });
+
+    expect(messages[0]?.thinkingContent).toBe("先想第一段。");
+
+    handleTurnStreamEvent({
+      ...baseOptions,
+      data: { type: "text_delta", text: "正文一" } as AgentEvent,
+    });
+
+    expect(messages[0]?.thinkingContent).toBe("先想第一段。");
+
+    vi.advanceTimersByTime(32);
+
+    expect(messages[0]?.content).toBe("正文一");
+    expect(messages[0]?.thinkingContent).toBe("先想第一段。");
+
+    handleTurnStreamEvent({
+      ...baseOptions,
+      data: { type: "thinking_delta", text: "再想第二段。" } as AgentEvent,
+    });
+
+    expect(messages[0]?.thinkingContent).toBe("先想第一段。再想第二段。");
   });
 
   it("高频 reasoning item_updated 事件不应持续刷新时间线状态", () => {
@@ -773,6 +1005,109 @@ describe("agentStreamRuntimeHandler", () => {
     expect(mockToast.error).not.toHaveBeenCalledWith(
       "模型未输出最终答复，请重试",
     );
+  });
+
+  it("运行时权限确认等待错误应保留确认卡，不渲染失败正文", () => {
+    const clearOptimisticItem = vi.fn();
+    const clearActiveStreamIfMatch = vi.fn(() => true);
+    const disposeListener = vi.fn();
+    const setIsSending = vi.fn();
+    let messages: Message[] = [
+      {
+        id: "assistant-permission-wait",
+        role: "assistant",
+        content: "",
+        timestamp: new Date("2026-05-07T10:00:00.000Z"),
+        isThinking: true,
+        actionRequests: [
+          {
+            requestId: "runtime_permission_confirmation:turn-1",
+            actionType: "elicitation",
+            prompt: "当前执行需要确认运行时权限：web_search。",
+            status: "pending",
+          },
+        ],
+        contentParts: [
+          {
+            type: "action_required",
+            actionRequired: {
+              requestId: "runtime_permission_confirmation:turn-1",
+              actionType: "elicitation",
+              prompt: "当前执行需要确认运行时权限：web_search。",
+              status: "pending",
+            },
+          },
+        ],
+      },
+    ];
+
+    const setMessages = vi.fn(
+      (value: Message[] | ((prev: Message[]) => Message[])) => {
+        messages = typeof value === "function" ? value(messages) : value;
+      },
+    );
+
+    handleTurnStreamEvent({
+      data: {
+        type: "error",
+        message:
+          "运行时权限声明需要真实确认，当前 turn 已在模型执行前等待用户确认：confirmationStatus=not_requested，askProfileKeys=web_search。已创建真实权限确认请求；请确认后重试或恢复本轮执行。",
+      } as AgentEvent,
+      requestState: {
+        accumulatedContent: "",
+        queuedTurnId: null,
+        requestLogId: null,
+        requestStartedAt: 0,
+        requestFinished: false,
+      },
+      callbacks: {
+        activateStream: () => {},
+        isStreamActivated: () => true,
+        clearOptimisticItem,
+        clearOptimisticTurn: () => {},
+        disposeListener,
+        removeQueuedDraftMessages: () => {},
+        clearActiveStreamIfMatch,
+        upsertQueuedTurn: () => {},
+        removeQueuedTurnState: () => {},
+        playToolcallSound: () => {},
+        playTypewriterSound: () => {},
+        appendThinkingToParts: (parts) => parts,
+      },
+      eventName: "agent-runtime-permission-wait",
+      pendingTurnKey: "pending-turn",
+      pendingItemKey: "pending-item",
+      assistantMsgId: "assistant-permission-wait",
+      activeSessionId: "session-1",
+      resolvedWorkspaceId: "workspace-1",
+      effectiveExecutionStrategy: "react",
+      content: "",
+      runtime: {} as never,
+      warnedKeysRef: { current: new Set<string>() },
+      actionLoggedKeys: new Set<string>(),
+      toolLogIdByToolId: new Map<string, string>(),
+      toolStartedAtByToolId: new Map<string, number>(),
+      toolNameByToolId: new Map<string, string>(),
+      setMessages: setMessages as never,
+      setPendingActions: vi.fn() as never,
+      setThreadItems: vi.fn() as never,
+      setThreadTurns: vi.fn() as never,
+      setCurrentTurnId: vi.fn() as never,
+      setExecutionRuntime: vi.fn() as never,
+      setIsSending: setIsSending as never,
+    });
+
+    expect(clearOptimisticItem).toHaveBeenCalledTimes(1);
+    expect(clearActiveStreamIfMatch).toHaveBeenCalledWith(
+      "agent-runtime-permission-wait",
+    );
+    expect(disposeListener).toHaveBeenCalledTimes(1);
+    expect(setIsSending).toHaveBeenCalledWith(false);
+    expect(messages[0]?.content).toBe("");
+    expect(messages[0]?.isThinking).toBe(false);
+    expect(messages[0]?.runtimeStatus).toBeUndefined();
+    expect(messages[0]?.actionRequests?.[0]?.status).toBe("pending");
+    expect(mockToast.error).not.toHaveBeenCalled();
   });
 
   it("收到 queue_removed 时不应立刻清空当前 assistant 草稿", () => {

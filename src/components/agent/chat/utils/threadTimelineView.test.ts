@@ -134,6 +134,112 @@ describe("threadTimelineView", () => {
     expect(items).toEqual([planItem]);
   });
 
+  it("应隐藏辅助运行时投影，避免挤占后续真实 reasoning", () => {
+    const messages: Message[] = [
+      {
+        id: "user-1",
+        role: "user",
+        content: "先回答一个问题",
+        timestamp: new Date("2026-05-06T10:00:00.000Z"),
+      },
+      {
+        id: "assistant-1",
+        role: "assistant",
+        content: "第一轮回答",
+        timestamp: new Date("2026-05-06T10:00:08.000Z"),
+      },
+      {
+        id: "user-2",
+        role: "user",
+        content: "请继续认真思考",
+        timestamp: new Date("2026-05-06T10:00:20.000Z"),
+      },
+      {
+        id: "assistant-2",
+        role: "assistant",
+        content: "第二轮回答",
+        timestamp: new Date("2026-05-06T10:00:25.000Z"),
+      },
+    ];
+    const turns: AgentThreadTurn[] = [
+      {
+        id: "turn-1",
+        thread_id: "thread-1",
+        prompt_text: "先回答一个问题",
+        status: "completed",
+        started_at: "2026-05-06T10:00:00.000Z",
+        completed_at: "2026-05-06T10:00:08.000Z",
+        created_at: "2026-05-06T10:00:00.000Z",
+        updated_at: "2026-05-06T10:00:08.000Z",
+      },
+      {
+        id: "auxiliary-runtime-projection-title-1",
+        thread_id: "thread-1",
+        prompt_text: "辅助标题生成 · 第一轮回答",
+        status: "completed",
+        started_at: "2026-05-06T10:00:09.000Z",
+        completed_at: "2026-05-06T10:00:10.000Z",
+        created_at: "2026-05-06T10:00:09.000Z",
+        updated_at: "2026-05-06T10:00:10.000Z",
+      },
+      {
+        id: "turn-2",
+        thread_id: "thread-1",
+        prompt_text: "请继续认真思考",
+        status: "completed",
+        started_at: "2026-05-06T10:00:20.000Z",
+        completed_at: "2026-05-06T10:00:25.000Z",
+        created_at: "2026-05-06T10:00:20.000Z",
+        updated_at: "2026-05-06T10:00:25.000Z",
+      },
+    ];
+    const auxiliaryArtifact: AgentThreadItem = {
+      id: "auxiliary-title-artifact",
+      thread_id: "thread-1",
+      turn_id: "auxiliary-runtime-projection-title-1",
+      sequence: 1,
+      status: "completed",
+      started_at: "2026-05-06T10:00:09.000Z",
+      completed_at: "2026-05-06T10:00:10.000Z",
+      updated_at: "2026-05-06T10:00:10.000Z",
+      type: "file_artifact",
+      path: ".lime/harness/sessions/session-1/auxiliary-runtime/title-generation-aux-1.json",
+      source: "auxiliary.title_generation_result",
+      metadata: {
+        task_type: "auxiliary_runtime_projection",
+        projection_kind: "title_generation",
+      },
+    };
+    const reasoningItem: AgentThreadItem = {
+      id: "reasoning-2",
+      thread_id: "thread-1",
+      turn_id: "turn-2",
+      sequence: 1,
+      status: "completed",
+      started_at: "2026-05-06T10:00:21.000Z",
+      completed_at: "2026-05-06T10:00:24.000Z",
+      updated_at: "2026-05-06T10:00:24.000Z",
+      type: "reasoning",
+      text: "第二轮真实思考过程",
+    };
+
+    const timeline = buildMessageTurnTimeline(messages, turns, [
+      auxiliaryArtifact,
+      reasoningItem,
+    ]);
+    const mergedItems = mergeThreadItems([auxiliaryArtifact, reasoningItem]);
+
+    expect(mergedItems).toEqual([reasoningItem]);
+    expect(timeline.has("assistant-1")).toBe(true);
+    expect(timeline.get("assistant-2")?.turn.id).toBe("turn-2");
+    expect(timeline.get("assistant-2")?.items).toEqual([reasoningItem]);
+    expect(
+      [...timeline.values()].some((entry) =>
+        entry.turn.id.startsWith("auxiliary-runtime-projection-"),
+      ),
+    ).toBe(false);
+  });
+
   it("应优先将 turn 关联到最接近完成时刻的 assistant 消息", () => {
     const messages: Message[] = [
       {

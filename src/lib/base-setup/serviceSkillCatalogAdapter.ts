@@ -82,6 +82,24 @@ function readStringArray(
   return strings.length === value.length ? strings : undefined;
 }
 
+function readStringRecord(
+  record: UnknownRecord,
+  ...keys: string[]
+): Record<string, string> | undefined {
+  const value = readValue(record, ...keys);
+  const source = asRecord(value);
+  if (!source) {
+    return undefined;
+  }
+  const output: Record<string, string> = {};
+  for (const [key, item] of Object.entries(source)) {
+    if (typeof item === "string") {
+      output[key] = item;
+    }
+  }
+  return Object.keys(output).length > 0 ? output : undefined;
+}
+
 function readArray(
   record: UnknownRecord,
   ...keys: string[]
@@ -589,6 +607,13 @@ function toCatalogProjection(
   const commandRenderContractRecord = asRecord(
     readValue(record, "commandRenderContract", "command_render_contract"),
   );
+  const skillBundleResourceSummaryRecord = asRecord(
+    readValue(
+      record,
+      "skillBundleResourceSummary",
+      "skill_bundle_resource_summary",
+    ),
+  );
 
   return {
     id,
@@ -701,6 +726,30 @@ function toCatalogProjection(
             commandRenderContractRecord,
             "supportsTimeline",
             "supports_timeline",
+          ),
+        }
+      : undefined,
+    skillBundleMetadata: readStringRecord(
+      record,
+      "skillBundleMetadata",
+      "skill_bundle_metadata",
+    ),
+    skillBundleResourceSummary: skillBundleResourceSummaryRecord
+      ? {
+          hasScripts: readBoolean(
+            skillBundleResourceSummaryRecord,
+            "hasScripts",
+            "has_scripts",
+          ),
+          hasReferences: readBoolean(
+            skillBundleResourceSummaryRecord,
+            "hasReferences",
+            "has_references",
+          ),
+          hasAssets: readBoolean(
+            skillBundleResourceSummaryRecord,
+            "hasAssets",
+            "has_assets",
           ),
         }
       : undefined,

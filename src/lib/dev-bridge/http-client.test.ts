@@ -631,6 +631,49 @@ describe("http-client", () => {
     taskUnlisten();
   });
 
+  it("事件流本地冷启动超过 1.5 秒但未超出桥接窗口时不应误判失败", async () => {
+    class MockEventSource {
+      static instances: MockEventSource[] = [];
+
+      onopen: (() => void) | null = null;
+      onerror: ((error: Event) => void) | null = null;
+      onmessage: ((event: MessageEvent) => void) | null = null;
+      readyState = 0;
+      readonly close = vi.fn(() => {
+        this.readyState = 2;
+      });
+
+      constructor(readonly url: string) {
+        MockEventSource.instances.push(this);
+      }
+
+      emitOpen() {
+        this.readyState = 1;
+        this.onopen?.();
+      }
+    }
+
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(new Response(null, { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal(
+      "EventSource",
+      MockEventSource as unknown as typeof EventSource,
+    );
+
+    const unlistenPromise = listenViaHttpEvent("aster_stream_test", vi.fn());
+    await vi.advanceTimersByTimeAsync(1_800);
+
+    expect(MockEventSource.instances).toHaveLength(1);
+    expect(MockEventSource.instances[0]?.close).not.toHaveBeenCalled();
+
+    MockEventSource.instances[0]?.emitOpen();
+    const unlisten = await unlistenPromise;
+
+    unlisten();
+  });
+
   it("事件流在已建立连接后断开时应关闭连接，避免浏览器自动重连风暴", async () => {
     class MockEventSource {
       static instances: MockEventSource[] = [];

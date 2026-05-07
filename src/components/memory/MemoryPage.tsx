@@ -361,6 +361,7 @@ const EMERALD_BADGE_CLASS_NAME =
 const SLATE_OUTLINE_BADGE_CLASS_NAME =
   "border-slate-200 bg-white text-slate-700";
 const SLATE_BADGE_CLASS_NAME = "border-slate-200 bg-slate-100 text-slate-700";
+const DURABLE_PAGE_SIZE = 6;
 
 function formatRelativeTime(timestamp: number | undefined): string {
   if (!timestamp) {
@@ -761,9 +762,11 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
   const [selectedDurableMemoryId, setSelectedDurableMemoryId] = useState<
     string | null
   >(null);
+  const [durablePage, setDurablePage] = useState(1);
   const [, setCuratedTaskRecommendationSignalsVersion] = useState(0);
   const durableEntryRefs = useRef<Record<string, HTMLElement | null>>({});
   const lastAutoFocusedDurableMemoryIdRef = useRef<string | null>(null);
+  const lastSyncedFocusedDurableMemoryIdRef = useRef<string | null>(null);
 
   const runtimeSessionId = pageParams?.runtimeSessionId?.trim() || "";
   const runtimeWorkingDir = pageParams?.runtimeWorkingDir?.trim() || "";
@@ -948,17 +951,85 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
   ]);
 
   useEffect(() => {
+    if (activeSection !== "durable") {
+      return;
+    }
+    setDurablePage(1);
+  }, [activeSection, durableFilter]);
+
+  const durablePageCount = useMemo(
+    () => Math.max(1, Math.ceil(filteredMemories.length / DURABLE_PAGE_SIZE)),
+    [filteredMemories.length],
+  );
+
+  useEffect(() => {
+    if (!focusedDurableMemory?.id) {
+      lastSyncedFocusedDurableMemoryIdRef.current = null;
+      return;
+    }
+
+    if (
+      lastSyncedFocusedDurableMemoryIdRef.current === focusedDurableMemory.id
+    ) {
+      return;
+    }
+
+    const focusedIndex = filteredMemories.findIndex(
+      (memory) => memory.id === focusedDurableMemory.id,
+    );
+    if (focusedIndex < 0) {
+      return;
+    }
+
+    lastSyncedFocusedDurableMemoryIdRef.current = focusedDurableMemory.id;
+    setDurablePage(Math.floor(focusedIndex / DURABLE_PAGE_SIZE) + 1);
+  }, [filteredMemories, focusedDurableMemory?.id]);
+
+  useEffect(() => {
+    setDurablePage((current) => {
+      const nextPage = Math.min(Math.max(current, 1), durablePageCount);
+      return nextPage === current ? current : nextPage;
+    });
+  }, [durablePageCount]);
+
+  const pagedFilteredMemories = useMemo(() => {
+    const startIndex = (durablePage - 1) * DURABLE_PAGE_SIZE;
+    return filteredMemories.slice(startIndex, startIndex + DURABLE_PAGE_SIZE);
+  }, [durablePage, filteredMemories]);
+  const durablePageStart = filteredMemories.length
+    ? (durablePage - 1) * DURABLE_PAGE_SIZE + 1
+    : 0;
+  const durablePageEnd = filteredMemories.length
+    ? Math.min(durablePage * DURABLE_PAGE_SIZE, filteredMemories.length)
+    : 0;
+  const durableVisiblePages = useMemo(() => {
+    if (durablePageCount <= 3) {
+      return Array.from({ length: durablePageCount }, (_, index) => index + 1);
+    }
+
+    const startPage = Math.max(
+      1,
+      Math.min(durablePage - 1, durablePageCount - 2),
+    );
+    return Array.from({ length: 3 }, (_, index) => startPage + index);
+  }, [durablePage, durablePageCount]);
+
+  const focusedDurableScrollKey = focusedDurableMemory
+    ? `${focusedDurableMemory.id}:${durablePage}`
+    : null;
+
+  useEffect(() => {
     const focusedMemoryId = focusedDurableMemory?.id ?? null;
-    if (!focusedMemoryId) {
+    if (!focusedMemoryId || !focusedDurableScrollKey) {
       lastAutoFocusedDurableMemoryIdRef.current = null;
       return;
     }
 
-    if (lastAutoFocusedDurableMemoryIdRef.current === focusedMemoryId) {
+    if (lastAutoFocusedDurableMemoryIdRef.current === focusedDurableScrollKey) {
       return;
     }
 
-    lastAutoFocusedDurableMemoryIdRef.current = focusedMemoryId;
+    lastAutoFocusedDurableMemoryIdRef.current = focusedDurableScrollKey;
     const target = durableEntryRefs.current[focusedMemoryId];
     if (target && typeof target.scrollIntoView === "function") {
       target.scrollIntoView({
@@ -966,7 +1037,7 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
         behavior: "smooth",
       });
     }
-  }, [focusedDurableMemory?.id]);
+  }, [focusedDurableMemory?.id, focusedDurableScrollKey]);
 
   const inspirationEntries = useMemo(
     () => buildInspirationProjectionEntries(unifiedMemories),
@@ -996,7 +1067,10 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
   }, [unifiedMemories]);
 
   useEffect(() => {
-    if (focusedDurableMemory?.id) {
+    if (
+      focusedDurableMemory?.id &&
+      pagedFilteredMemories.some((memory) => memory.id === focusedDurableMemory.id)
+    ) {
       setSelectedDurableMemoryId(focusedDurableMemory.id);
       return;
     }
@@ -1004,21 +1078,28 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
     setSelectedDurableMemoryId((current) => {
       if (
         current &&
-        filteredMemories.some((memory) => memory.id === current)
+        pagedFilteredMemories.some((memory) => memory.id === current)
       ) {
         return current;
       }
-      return filteredMemories[0]?.id ?? null;
+      return pagedFilteredMemories[0]?.id ?? null;
     });
-  }, [filteredMemories, focusedDurableMemory?.id]);
+  }, [focusedDurableMemory?.id, pagedFilteredMemories]);
 
   const selectedDurableMemory = useMemo(
     () =>
-      filteredMemories.find((memory) => memory.id === selectedDurableMemoryId) ??
-      focusedDurableMemory ??
-      filteredMemories[0] ??
+      pagedFilteredMemories.find(
+        (memory) => memory.id === selectedDurableMemoryId,
+      ) ??
+      (focusedDurableMemory &&
+      pagedFilteredMemories.some(
+        (memory) => memory.id === focusedDurableMemory.id,
+      )
+        ? focusedDurableMemory
+        : null) ??
+      pagedFilteredMemories[0] ??
       null,
-    [filteredMemories, focusedDurableMemory, selectedDurableMemoryId],
+    [pagedFilteredMemories, focusedDurableMemory, selectedDurableMemoryId],
   );
   const selectedDurableProjection = useMemo(
     () =>
@@ -1425,6 +1506,9 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
 
   const handleSelectDurableMemory = useCallback((memoryId: string) => {
     setSelectedDurableMemoryId(memoryId);
+  }, []);
+  const handleDurablePageChange = useCallback((nextPage: number) => {
+    setDurablePage(nextPage);
   }, []);
 
   const handleMemoryLauncherOpenChange = useCallback((open: boolean) => {
@@ -1957,8 +2041,8 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
                                     </p>
                                   </div>
 
-                                  <div className="mt-4 flex items-center justify-between gap-3">
-                                    <p className="text-xs leading-5 text-slate-500">
+                                  <div className="mt-4 flex flex-col items-start gap-3 md:flex-row md:items-end md:justify-between">
+                                    <p className="min-w-0 flex-1 text-xs leading-5 text-slate-500">
                                       {task.summary}
                                     </p>
                                     <button
@@ -1966,6 +2050,7 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
                                       className={cn(
                                         BUTTON_CLASS_NAME,
                                         EMERALD_BUTTON_CLASS_NAME,
+                                        "shrink-0 whitespace-nowrap self-start",
                                       )}
                                       onClick={() => setMemoryLauncherTask(task)}
                                     >
@@ -3187,7 +3272,17 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
                   {filteredMemories.length ? (
                     <div className="grid gap-4 xl:grid-cols-[minmax(0,0.92fr)_minmax(320px,0.88fr)]">
                       <div className="space-y-2">
-                        {filteredMemories.map((memory) => {
+                        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                          <p className="text-sm text-slate-600">
+                            当前显示 {durablePageStart}-{durablePageEnd} /{" "}
+                            {filteredMemories.length} 条
+                          </p>
+                          <p className="text-xs text-slate-400">
+                            一次看一页，右侧保持当前条目详情
+                          </p>
+                        </div>
+
+                        {pagedFilteredMemories.map((memory) => {
                           const isFocused = focusedDurableMemory?.id === memory.id;
                           const isSelected =
                             selectedDurableMemory?.id === memory.id;
@@ -3201,8 +3296,8 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
                               }}
                               data-memory-entry-id={memory.id}
                               data-testid={`memory-durable-entry-${memory.id}`}
-                              className={cn(
-                                "block w-full rounded-2xl border bg-white p-4 text-left transition hover:border-slate-300 hover:bg-slate-50",
+                            className={cn(
+                                "block w-full rounded-2xl border bg-white p-3.5 text-left transition hover:border-slate-300 hover:bg-slate-50",
                                 isFocused
                                   ? "border-emerald-300 bg-emerald-50/80 shadow-sm shadow-emerald-950/5"
                                   : isSelected
@@ -3211,7 +3306,7 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
                               )}
                               onClick={() => handleSelectDurableMemory(memory.id)}
                             >
-                              <div className="flex items-start justify-between gap-3">
+                              <div className="flex items-start justify-between gap-2.5">
                                 <div className="min-w-0 flex-1">
                                   <div className="flex flex-wrap items-center gap-2">
                                     <Badge
@@ -3233,10 +3328,10 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
                                       </Badge>
                                     ) : null}
                                   </div>
-                                  <h3 className="mt-2 truncate text-sm font-semibold text-slate-900">
+                                  <h3 className="mt-1.5 truncate text-sm font-semibold text-slate-900">
                                     {memory.title}
                                   </h3>
-                                  <p className="mt-1 line-clamp-1 text-sm text-slate-500">
+                                  <p className="mt-0.5 line-clamp-1 text-xs leading-5 text-slate-500">
                                     {memory.summary}
                                   </p>
                                 </div>
@@ -3244,18 +3339,105 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
                                   <p className="text-xs text-slate-400">
                                     {formatRelativeTime(memory.updated_at)}
                                   </p>
-                                  <span className="mt-2 inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500">
-                                    <ArrowRight className="h-3.5 w-3.5" />
+                                  <span className="mt-1.5 inline-flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500">
+                                    <ArrowRight className="h-3 w-3" />
                                   </span>
                                 </div>
                               </div>
                             </button>
                           );
                         })}
+
+                        {durablePageCount > 1 ? (
+                          <div
+                            className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3"
+                            data-testid="memory-durable-pagination"
+                          >
+                            <p className="text-sm text-slate-500">
+                              第 {durablePage} / {durablePageCount} 页
+                            </p>
+                            <div className="flex flex-wrap gap-2">
+                              <button
+                                type="button"
+                                className={cn(
+                                  BUTTON_CLASS_NAME,
+                                  "disabled:cursor-not-allowed disabled:opacity-45",
+                                )}
+                                data-testid="memory-durable-pagination-first"
+                                onClick={() => handleDurablePageChange(1)}
+                                disabled={durablePage <= 1}
+                              >
+                                首页
+                              </button>
+                              <button
+                                type="button"
+                                className={cn(
+                                  BUTTON_CLASS_NAME,
+                                  "disabled:cursor-not-allowed disabled:opacity-45",
+                                )}
+                                data-testid="memory-durable-pagination-prev"
+                                onClick={() =>
+                                  handleDurablePageChange(durablePage - 1)
+                                }
+                                disabled={durablePage <= 1}
+                              >
+                                上一页
+                              </button>
+                              {durableVisiblePages.map((pageNumber) => (
+                                <button
+                                  key={pageNumber}
+                                  type="button"
+                                  className={cn(
+                                    BUTTON_CLASS_NAME,
+                                    durablePage === pageNumber &&
+                                      ACTIVE_BUTTON_CLASS_NAME,
+                                  )}
+                                  data-testid={`memory-durable-pagination-page-${pageNumber}`}
+                                  onClick={() =>
+                                    handleDurablePageChange(pageNumber)
+                                  }
+                                >
+                                  {pageNumber}
+                                </button>
+                              ))}
+                              <button
+                                type="button"
+                                className={cn(
+                                  BUTTON_CLASS_NAME,
+                                  "disabled:cursor-not-allowed disabled:opacity-45",
+                                )}
+                                data-testid="memory-durable-pagination-next"
+                                onClick={() =>
+                                  handleDurablePageChange(durablePage + 1)
+                                }
+                                disabled={durablePage >= durablePageCount}
+                              >
+                                下一页
+                              </button>
+                              <button
+                                type="button"
+                                className={cn(
+                                  BUTTON_CLASS_NAME,
+                                  "disabled:cursor-not-allowed disabled:opacity-45",
+                                )}
+                                data-testid="memory-durable-pagination-last"
+                                onClick={() =>
+                                  handleDurablePageChange(durablePageCount)
+                                }
+                                disabled={durablePage >= durablePageCount}
+                              >
+                                末页
+                              </button>
+                            </div>
+                          </div>
+                        ) : null}
                       </div>
 
                       {selectedDurableMemory ? (
-                        <article className="rounded-3xl border border-slate-200 bg-slate-50 p-5 shadow-sm shadow-slate-950/5">
+                        <article
+                          className="rounded-3xl border border-slate-200 bg-slate-50 p-5 shadow-sm shadow-slate-950/5 xl:sticky xl:top-6 xl:self-start"
+                          data-testid="memory-durable-detail-panel"
+                        >
                           <div className="flex flex-wrap items-center gap-2">
                             <Badge
                               variant="outline"
@@ -3290,24 +3472,20 @@ export function MemoryPage({ onNavigate, pageParams }: MemoryPageProps) {
                             </p>
                           </div>
 
-                          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                            <div className="rounded-2xl border border-slate-200 bg-white p-3">
-                              <p className="text-xs font-medium text-slate-400">
-                                分类
-                              </p>
-                              <p className="mt-1 text-sm font-medium text-slate-900">
+                          <div className="mt-4 flex flex-wrap gap-2">
+                            <div className="rounded-full border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
+                              <span className="text-slate-400">分类</span>
+                              <span className="ml-2 font-medium text-slate-900">
                                 {CATEGORY_LABELS[selectedDurableMemory.category]}
-                              </p>
+                              </span>
                             </div>
-                            <div className="rounded-2xl border border-slate-200 bg-white p-3">
-                              <p className="text-xs font-medium text-slate-400">
-                                更新时间
-                              </p>
-                              <p className="mt-1 text-sm font-medium text-slate-900">
+                            <div className="rounded-full border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
+                              <span className="text-slate-400">更新时间</span>
+                              <span className="ml-2 font-medium text-slate-900">
                                 {formatRelativeTime(
                                   selectedDurableMemory.updated_at,
                                 )}
-                              </p>
+                              </span>
                             </div>
                           </div>
 

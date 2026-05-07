@@ -896,6 +896,7 @@ export function handleArtifactSnapshotEvent({
 
 export function handleActionRequiredEvent({
   data,
+  eventName,
   actionLoggedKeys,
   effectiveExecutionStrategy,
   runtime,
@@ -906,6 +907,7 @@ export function handleActionRequiredEvent({
   resolvedWorkspaceId,
 }: BaseProcessorContext & {
   data: AgentEventActionRequired;
+  eventName: string;
   actionLoggedKeys: Set<string>;
   effectiveExecutionStrategy: AsterExecutionStrategy;
   runtime: AgentRuntimeAdapter;
@@ -929,6 +931,7 @@ export function handleActionRequiredEvent({
           turnId: data.scope.turn_id,
         }
       : undefined,
+    eventName,
     isFallback: false,
   });
   const actionKey =

@@ -31,15 +31,23 @@
 - 云端套餐与支付边界收口计划：`docs/exec-plans/cloud-commerce-user-center-boundary.md`
 - `@` 命令本地执行纠偏计划：`docs/exec-plans/at-command-local-execution-alignment-plan.md`
 - AI 图层化设计实现计划：`docs/exec-plans/ai-layered-design-implementation-plan.md`
-- CreoAI Capability Authoring P1A 执行计划：`docs/exec-plans/creaoai-capability-authoring-p1a-plan.md`
-- CreoAI Capability Verification P1B 执行计划：`docs/exec-plans/creaoai-capability-verification-p1b-plan.md`
-- CreoAI Capability Registration P3 执行计划：`docs/exec-plans/creaoai-capability-registration-p3-plan.md`
-- CreoAI Capability Discovery P3B 执行计划：`docs/exec-plans/creaoai-capability-discovery-p3b-plan.md`
-- CreoAI Runtime Binding P3C 执行计划：`docs/exec-plans/creaoai-runtime-binding-p3c-plan.md`
-- CreoAI Query Loop Metadata P3D 执行计划：`docs/exec-plans/creaoai-query-loop-metadata-p3d-plan.md`
-- CREAO Tool Runtime Authorization P3E 执行计划：`docs/exec-plans/creaoai-tool-runtime-authorization-p3e-plan.md`
-- CREAO Managed Execution / Agent Envelope P4 执行计划：`docs/exec-plans/creaoai-managed-agent-envelope-p4-plan.md`
-- CREAO Roadmap P0-P4 完成审计：`docs/exec-plans/creaoai-completion-audit.md`
+- Skill Forge P1A Capability Authoring 执行计划：`docs/exec-plans/skill-forge-capability-authoring-p1a-plan.md`
+- Skill Forge P1B Capability Verification 执行计划：`docs/exec-plans/skill-forge-capability-verification-p1b-plan.md`
+- Skill Forge P3 Capability Registration 执行计划：`docs/exec-plans/skill-forge-capability-registration-p3-plan.md`
+- Skill Forge P3B Capability Discovery 执行计划：`docs/exec-plans/skill-forge-capability-discovery-p3b-plan.md`
+- Skill Forge P3C Runtime Binding 执行计划：`docs/exec-plans/skill-forge-runtime-binding-p3c-plan.md`
+- Skill Forge P3D Query Loop Metadata 执行计划：`docs/exec-plans/skill-forge-query-loop-metadata-p3d-plan.md`
+- Skill Forge P3E Tool Runtime Authorization 执行计划：`docs/exec-plans/skill-forge-tool-runtime-authorization-p3e-plan.md`
+- Skill Forge P4 Managed Execution / Agent Envelope 执行计划：`docs/exec-plans/skill-forge-managed-agent-envelope-p4-plan.md`
+- Skill Forge P0-P4 完成审计：`docs/exec-plans/skill-forge-completion-audit.md`
+- Skill Forge Prompt-to-Artifact P5 执行计划：`docs/exec-plans/skill-forge-prompt-to-artifact-p5-plan.md`
+- Skill Forge Prompt-to-Artifact P5 样例审计：`docs/exec-plans/skill-forge-prompt-to-artifact-p5-audit.md`
+- Skill Forge P6 Read-Only HTTP API 执行计划：`docs/exec-plans/skill-forge-readonly-http-api-p6-plan.md`
+- Skill Forge P6 Read-Only HTTP API 完成审计：`docs/exec-plans/skill-forge-readonly-http-api-p6-audit.md`
+- Skill Forge P7 Read-Only HTTP API 执行授权计划：`docs/exec-plans/skill-forge-readonly-http-api-p7-plan.md`
+- Skill Forge P8 Read-Only HTTP API 注册 provenance 计划：`docs/exec-plans/skill-forge-readonly-http-api-p8-plan.md`
+- Skill Forge P9 Read-Only HTTP API 授权 artifact 消费门禁计划：`docs/exec-plans/skill-forge-readonly-http-api-p9-plan.md`
+- Skill Forge P10 Read-Only HTTP API completion audit 消费计划：`docs/exec-plans/skill-forge-readonly-http-api-p10-plan.md`
 - LimeNext 总实施计划（`legacy current reference`，当前主规划已切到 `docs/roadmap/limenextv2/README.md`）：`docs/exec-plans/limenext-plan.md`
 - LimeNext 推进日志：`docs/exec-plans/limenext-progress.md`
 - 技术债追踪：`docs/exec-plans/tech-debt-tracker.md`

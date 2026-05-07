@@ -1,0 +1,504 @@
+import type { LayeredDesignFlatImageStructuredAnalyzerProviderInput } from "./analyzer";
+import type { LayeredDesignFlatImageHeuristicCropRect } from "./flatImageHeuristics";
+import type {
+  LayeredDesignWorkerHeuristicSubjectMaskRefiner,
+  LayeredDesignWorkerHeuristicSubjectMaskResult,
+} from "./structuredAnalyzerWorkerHeuristic";
+
+const OPAQUE_WHITE_PIXEL_PNG_DATA_URL =
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADUlEQVR42mP8z8BQDwAFgwJ/l8I4WQAAAABJRU5ErkJggg==";
+
+export interface LayeredDesignSubjectMattingCandidateInput {
+  id: string;
+  name: string;
+  rect: LayeredDesignFlatImageHeuristicCropRect;
+  confidence: number;
+  zIndex: number;
+  crop: {
+    src: string;
+    width: number;
+    height: number;
+    mimeType: "image/png";
+  };
+}
+
+export interface LayeredDesignSubjectMattingInput {
+  image: LayeredDesignFlatImageStructuredAnalyzerProviderInput["image"];
+  createdAt: string;
+  subject: LayeredDesignSubjectMattingCandidateInput;
+}
+
+export interface LayeredDesignSubjectMattingResult {
+  imageSrc: string;
+  maskSrc: string;
+  rect?: LayeredDesignFlatImageHeuristicCropRect;
+  confidence?: number;
+  hasAlpha?: boolean;
+  params?: Record<string, unknown>;
+}
+
+export interface LayeredDesignSubjectMattingProvider {
+  label: string;
+  matteSubject: (
+    input: LayeredDesignSubjectMattingInput,
+  ) => Promise<LayeredDesignSubjectMattingResult | null>;
+}
+
+export interface CreateLayeredDesignDeterministicSubjectMattingProviderOptions {
+  label?: string;
+  confidence?: number;
+  maskSrc?: string;
+}
+
+export interface LayeredDesignSubjectMattingPixelImage {
+  width: number;
+  height: number;
+  data: Uint8ClampedArray;
+}
+
+export interface LayeredDesignSubjectMattingRasterAdapter {
+  decodePngDataUrl: (
+    src: string,
+  ) => Promise<LayeredDesignSubjectMattingPixelImage>;
+  encodePngDataUrl: (
+    image: LayeredDesignSubjectMattingPixelImage,
+  ) => Promise<string>;
+}
+
+export interface CreateLayeredDesignSimpleSubjectMattingProviderOptions {
+  label?: string;
+  confidence?: number;
+  rasterAdapter?: LayeredDesignSubjectMattingRasterAdapter;
+}
+
+interface RgbColor {
+  red: number;
+  green: number;
+  blue: number;
+}
+
+function clampConfidence(value: number | undefined, fallback: number): number {
+  const candidate = Number.isFinite(value) ? value : fallback;
+  return Math.min(Math.max(candidate ?? 0, 0), 1);
+}
+
+function clampByte(value: number): number {
+  return Math.min(Math.max(Math.round(value), 0), 255);
+}
+
+function smoothstep(edge0: number, edge1: number, value: number): number {
+  if (edge0 === edge1) {
+    return value < edge0 ? 0 : 1;
+  }
+
+  const t = Math.min(Math.max((value - edge0) / (edge1 - edge0), 0), 1);
+  return t * t * (3 - 2 * t);
+}
+
+function createTransparentPixelImage(width: number, height: number) {
+  return {
+    width,
+    height,
+    data: new Uint8ClampedArray(width * height * 4),
+  };
+}
+
+function getPixelOffset(width: number, x: number, y: number): number {
+  return (y * width + x) * 4;
+}
+
+function sampleBorderBackgroundColor(
+  image: LayeredDesignSubjectMattingPixelImage,
+): RgbColor {
+  let red = 0;
+  let green = 0;
+  let blue = 0;
+  let count = 0;
+  const step = Math.max(1, Math.floor(Math.min(image.width, image.height) / 16));
+
+  for (let x = 0; x < image.width; x += step) {
+    for (const y of [0, image.height - 1]) {
+      const offset = getPixelOffset(image.width, x, y);
+      red += image.data[offset] ?? 0;
+      green += image.data[offset + 1] ?? 0;
+      blue += image.data[offset + 2] ?? 0;
+      count += 1;
+    }
+  }
+
+  for (let y = 0; y < image.height; y += step) {
+    for (const x of [0, image.width - 1]) {
+      const offset = getPixelOffset(image.width, x, y);
+      red += image.data[offset] ?? 0;
+      green += image.data[offset + 1] ?? 0;
+      blue += image.data[offset + 2] ?? 0;
+      count += 1;
+    }
+  }
+
+  return {
+    red: red / Math.max(1, count),
+    green: green / Math.max(1, count),
+    blue: blue / Math.max(1, count),
+  };
+}
+
+function computeEllipseAlpha(width: number, height: number, x: number, y: number) {
+  const rx = Math.max(1, width * 0.48);
+  const ry = Math.max(1, height * 0.5);
+  const dx = (x + 0.5 - width / 2) / rx;
+  const dy = (y + 0.5 - height / 2) / ry;
+  const radius = Math.sqrt(dx * dx + dy * dy);
+
+  return 1 - smoothstep(0.78, 1.04, radius);
+}
+
+function computeColorDistanceAlpha(
+  image: LayeredDesignSubjectMattingPixelImage,
+  background: RgbColor,
+  x: number,
+  y: number,
+): number {
+  const offset = getPixelOffset(image.width, x, y);
+  const red = image.data[offset] ?? 0;
+  const green = image.data[offset + 1] ?? 0;
+  const blue = image.data[offset + 2] ?? 0;
+  const distance = Math.sqrt(
+    (red - background.red) ** 2 +
+      (green - background.green) ** 2 +
+      (blue - background.blue) ** 2,
+  );
+
+  return smoothstep(42, 118, distance);
+}
+
+function sampleAlpha(
+  alpha: Uint8ClampedArray,
+  width: number,
+  height: number,
+  x: number,
+  y: number,
+): number {
+  if (x < 0 || y < 0 || x >= width || y >= height) {
+    return 0;
+  }
+
+  return alpha[y * width + x] ?? 0;
+}
+
+function refineSubjectAlphaMask(
+  alpha: Uint8ClampedArray,
+  width: number,
+  height: number,
+): Uint8ClampedArray {
+  const cleaned = new Uint8ClampedArray(alpha.length);
+  const refined = new Uint8ClampedArray(alpha.length);
+
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const index = y * width + x;
+      const current = alpha[index] ?? 0;
+      let strongNeighborCount = 0;
+      let neighborAlphaSum = 0;
+      let neighborCount = 0;
+
+      for (let dy = -1; dy <= 1; dy += 1) {
+        for (let dx = -1; dx <= 1; dx += 1) {
+          if (dx === 0 && dy === 0) {
+            continue;
+          }
+
+          const neighborAlpha = sampleAlpha(alpha, width, height, x + dx, y + dy);
+          neighborAlphaSum += neighborAlpha;
+          neighborCount += 1;
+          if (neighborAlpha >= 96) {
+            strongNeighborCount += 1;
+          }
+        }
+      }
+
+      if (current >= 64 && strongNeighborCount <= 1) {
+        cleaned[index] = 0;
+      } else if (current < 32 && strongNeighborCount >= 5) {
+        cleaned[index] = clampByte(neighborAlphaSum / Math.max(1, neighborCount));
+      } else {
+        cleaned[index] = current;
+      }
+    }
+  }
+
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const index = y * width + x;
+      const current = cleaned[index] ?? 0;
+      let minNeighborAlpha = current;
+      let maxNeighborAlpha = current;
+      let neighborAlphaSum = current;
+      let neighborCount = 1;
+
+      for (let dy = -1; dy <= 1; dy += 1) {
+        for (let dx = -1; dx <= 1; dx += 1) {
+          if (dx === 0 && dy === 0) {
+            continue;
+          }
+
+          const neighborAlpha = sampleAlpha(cleaned, width, height, x + dx, y + dy);
+          minNeighborAlpha = Math.min(minNeighborAlpha, neighborAlpha);
+          maxNeighborAlpha = Math.max(maxNeighborAlpha, neighborAlpha);
+          neighborAlphaSum += neighborAlpha;
+          neighborCount += 1;
+        }
+      }
+
+      const isEdge = minNeighborAlpha < 32 && maxNeighborAlpha > 160;
+      refined[index] = isEdge
+        ? clampByte(current * 0.62 + (neighborAlphaSum / neighborCount) * 0.38)
+        : current;
+    }
+  }
+
+  return refined;
+}
+
+export function applyLayeredDesignSimpleSubjectMattingToRgba(
+  image: LayeredDesignSubjectMattingPixelImage,
+): {
+  image: LayeredDesignSubjectMattingPixelImage;
+  mask: LayeredDesignSubjectMattingPixelImage;
+  foregroundPixelCount: number;
+} {
+  const width = Math.max(1, Math.round(image.width));
+  const height = Math.max(1, Math.round(image.height));
+  const source = image.data;
+  const matted = createTransparentPixelImage(width, height);
+  const mask = createTransparentPixelImage(width, height);
+  const background = sampleBorderBackgroundColor({ width, height, data: source });
+  const firstPassAlpha = new Uint8ClampedArray(width * height);
+  let foregroundPixelCount = 0;
+
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const colorAlpha = computeColorDistanceAlpha(
+        { width, height, data: source },
+        background,
+        x,
+        y,
+      );
+      const ellipseAlpha = computeEllipseAlpha(width, height, x, y);
+      const alpha = Math.max(colorAlpha, colorAlpha > 0.08 ? ellipseAlpha * 0.65 : 0);
+      const alphaByte = clampByte(alpha * ((source[getPixelOffset(width, x, y) + 3] ?? 255)));
+      firstPassAlpha[y * width + x] = alphaByte;
+      if (alphaByte >= 32) {
+        foregroundPixelCount += 1;
+      }
+    }
+  }
+
+  const shouldUseEllipseFallback = foregroundPixelCount < width * height * 0.05;
+  const refinedAlpha = shouldUseEllipseFallback
+    ? firstPassAlpha
+    : refineSubjectAlphaMask(firstPassAlpha, width, height);
+  let refinedForegroundPixelCount = 0;
+
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const sourceOffset = getPixelOffset(width, x, y);
+      const alphaByte = shouldUseEllipseFallback
+        ? clampByte(
+            computeEllipseAlpha(width, height, x, y) *
+              ((source[sourceOffset + 3] ?? 255)),
+          )
+        : (refinedAlpha[y * width + x] ?? 0);
+      const targetOffset = getPixelOffset(width, x, y);
+
+      matted.data[targetOffset] = source[sourceOffset] ?? 0;
+      matted.data[targetOffset + 1] = source[sourceOffset + 1] ?? 0;
+      matted.data[targetOffset + 2] = source[sourceOffset + 2] ?? 0;
+      matted.data[targetOffset + 3] = alphaByte;
+      mask.data[targetOffset] = alphaByte;
+      mask.data[targetOffset + 1] = alphaByte;
+      mask.data[targetOffset + 2] = alphaByte;
+      mask.data[targetOffset + 3] = 255;
+      if (alphaByte >= 32) {
+        refinedForegroundPixelCount += 1;
+      }
+    }
+  }
+
+  return {
+    image: matted,
+    mask,
+    foregroundPixelCount: shouldUseEllipseFallback
+      ? Math.round(width * height * 0.5)
+      : refinedForegroundPixelCount,
+  };
+}
+
+async function blobToDataUrl(blob: Blob): Promise<string> {
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + chunkSize));
+  }
+
+  return `data:${blob.type || "image/png"};base64,${btoa(binary)}`;
+}
+
+function createDefaultBrowserSubjectMattingRasterAdapter():
+  | LayeredDesignSubjectMattingRasterAdapter
+  | null {
+  if (
+    typeof OffscreenCanvas !== "function" ||
+    typeof createImageBitmap !== "function" ||
+    typeof fetch !== "function" ||
+    typeof btoa !== "function"
+  ) {
+    return null;
+  }
+
+  return {
+    decodePngDataUrl: async (src) => {
+      const response = await fetch(src);
+      if (!response.ok) {
+        throw new Error(`主体 matting 读取裁片失败：HTTP ${response.status}`);
+      }
+
+      const bitmap = await createImageBitmap(await response.blob());
+      const canvas = new OffscreenCanvas(
+        Math.max(1, bitmap.width),
+        Math.max(1, bitmap.height),
+      );
+      const context = canvas.getContext("2d");
+      if (!context) {
+        throw new Error("当前 Worker 环境不支持主体 matting 2D Canvas");
+      }
+
+      context.drawImage(bitmap, 0, 0);
+      bitmap.close?.();
+      const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+
+      return {
+        width: canvas.width,
+        height: canvas.height,
+        data: imageData.data,
+      };
+    },
+    encodePngDataUrl: async (image) => {
+      const rgba = new Uint8ClampedArray(image.data.length);
+      rgba.set(image.data);
+      const canvas = new OffscreenCanvas(
+        Math.max(1, image.width),
+        Math.max(1, image.height),
+      );
+      const context = canvas.getContext("2d");
+      if (!context) {
+        throw new Error("当前 Worker 环境不支持主体 matting PNG 编码");
+      }
+
+      context.putImageData(
+        new ImageData(rgba, image.width, image.height),
+        0,
+        0,
+      );
+      return await blobToDataUrl(await canvas.convertToBlob({ type: "image/png" }));
+    },
+  };
+}
+
+function normalizeSubjectMattingResult(
+  result: LayeredDesignSubjectMattingResult | null,
+): LayeredDesignWorkerHeuristicSubjectMaskResult | null {
+  const imageSrc = result?.imageSrc.trim();
+  const maskSrc = result?.maskSrc.trim();
+  if (!result || !imageSrc || !maskSrc) {
+    return null;
+  }
+
+  return {
+    imageSrc,
+    maskSrc,
+    ...(result.rect ? { rect: { ...result.rect } } : {}),
+    ...(typeof result.confidence === "number"
+      ? { confidence: result.confidence }
+      : {}),
+    ...(typeof result.hasAlpha === "boolean"
+      ? { hasAlpha: result.hasAlpha }
+      : {}),
+    ...(result.params ? { params: { ...result.params } } : {}),
+  };
+}
+
+export function createLayeredDesignDeterministicSubjectMattingProvider(
+  options: CreateLayeredDesignDeterministicSubjectMattingProviderOptions = {},
+): LayeredDesignSubjectMattingProvider {
+  const maskSrc = options.maskSrc?.trim() || OPAQUE_WHITE_PIXEL_PNG_DATA_URL;
+
+  return {
+    label: options.label ?? "Deterministic subject matting placeholder",
+    matteSubject: async (input) => ({
+      imageSrc: input.subject.crop.src,
+      maskSrc,
+      rect: { ...input.subject.rect },
+      confidence: clampConfidence(options.confidence, input.subject.confidence),
+      hasAlpha: true,
+    }),
+  };
+}
+
+export function createLayeredDesignSimpleSubjectMattingProvider(
+  options: CreateLayeredDesignSimpleSubjectMattingProviderOptions = {},
+): LayeredDesignSubjectMattingProvider {
+  const rasterAdapter =
+    options.rasterAdapter ?? createDefaultBrowserSubjectMattingRasterAdapter();
+
+  return {
+    label: options.label ?? "Simple browser subject matting provider",
+    matteSubject: async (input) => {
+      if (!rasterAdapter) {
+        throw new Error("当前环境不支持简单主体 matting");
+      }
+
+      const source = await rasterAdapter.decodePngDataUrl(input.subject.crop.src);
+      const result = applyLayeredDesignSimpleSubjectMattingToRgba(source);
+
+      return {
+        imageSrc: await rasterAdapter.encodePngDataUrl(result.image),
+        maskSrc: await rasterAdapter.encodePngDataUrl(result.mask),
+        rect: { ...input.subject.rect },
+        confidence: clampConfidence(options.confidence, 0.94),
+        hasAlpha: true,
+        params: {
+          seed: "simple_subject_matting_color_distance_v2",
+          foregroundPixelCount: result.foregroundPixelCount,
+          totalPixelCount: source.width * source.height,
+        },
+      };
+    },
+  };
+}
+
+export function createLayeredDesignSubjectMaskRefinerFromMattingProvider(
+  provider: LayeredDesignSubjectMattingProvider,
+): LayeredDesignWorkerHeuristicSubjectMaskRefiner {
+  return async (input) => {
+    try {
+      return normalizeSubjectMattingResult(
+        await provider.matteSubject({
+          image: input.image,
+          createdAt: input.createdAt,
+          subject: {
+            id: input.candidate.id,
+            name: input.candidate.name,
+            rect: { ...input.candidate.rect },
+            confidence: input.candidate.confidence,
+            zIndex: input.candidate.zIndex,
+            crop: { ...input.candidate.crop },
+          },
+        }),
+      );
+    } catch {
+      return null;
+    }
+  };
+}

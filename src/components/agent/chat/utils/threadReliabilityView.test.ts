@@ -265,4 +265,94 @@ describe("buildThreadReliabilityView", () => {
     expect(view.incidents).toEqual([]);
     expect(view.summary).not.toContain("警告");
   });
+
+  it("运行时权限确认等待不应投影为处理工作台异常或泄露内部字段", () => {
+    const internalMessage =
+      '运行时权限声明需要真实确认：已创建真实权限确认请求 {"confirmationStatus":"not_requested","askProfileKeys":["write"]}';
+    const view = buildThreadReliabilityView({
+      threadRead: {
+        thread_id: "thread-permission",
+        status: "running",
+        active_turn_id: "turn-permission",
+        pending_requests: [],
+        incidents: [
+          {
+            id: "incident-permission",
+            thread_id: "thread-permission",
+            turn_id: "turn-permission",
+            incident_type: "runtime_permission_wait",
+            severity: "high",
+            status: "active",
+            title: "运行时权限等待",
+            details: {
+              message: internalMessage,
+            },
+          },
+        ],
+      },
+      turns: [
+        {
+          id: "turn-permission",
+          thread_id: "thread-permission",
+          prompt_text: "写入文件",
+          status: "running",
+          created_at: "2026-03-23T09:59:00Z",
+          started_at: "2026-03-23T09:59:00Z",
+          updated_at: "2026-03-23T09:59:58Z",
+        },
+      ],
+      currentTurnId: "turn-permission",
+      threadItems: [
+        {
+          id: "item-permission-error",
+          thread_id: "thread-permission",
+          turn_id: "turn-permission",
+          sequence: 3,
+          status: "failed",
+          started_at: "2026-03-23T09:59:30Z",
+          completed_at: "2026-03-23T09:59:30Z",
+          updated_at: "2026-03-23T09:59:30Z",
+          type: "error",
+          message: internalMessage,
+        },
+      ],
+    });
+
+    expect(view.incidents).toEqual([]);
+    expect(view.activeIncidentCount).toBe(0);
+    expect(view.summary).not.toContain("时间线记录到异常项");
+    expect(view.summary).not.toContain("confirmationStatus");
+    expect(view.summary).not.toContain("askProfileKeys");
+  });
+
+  it("运行时权限确认等待的失败 turn 应展示为等待处理 outcome", () => {
+    const internalMessage =
+      "运行时权限声明需要真实确认，当前 turn 已在模型执行前等待用户确认：confirmationStatus=not_requested，askProfileKeys=web_search。已创建真实权限确认请求；请确认后重试或恢复本轮执行。";
+    const view = buildThreadReliabilityView({
+      turns: [
+        {
+          id: "turn-permission-failed",
+          thread_id: "thread-permission",
+          prompt_text: "@搜索 OpenAI 最新模型公告",
+          status: "failed",
+          error_message: internalMessage,
+          created_at: "2026-03-23T09:59:00Z",
+          started_at: "2026-03-23T09:59:00Z",
+          updated_at: "2026-03-23T09:59:30Z",
+          completed_at: "2026-03-23T09:59:30Z",
+        },
+      ],
+      currentTurnId: "turn-permission-failed",
+    });
+
+    expect(view.statusLabel).toBe("等待处理");
+    expect(view.outcome).toMatchObject({
+      label: "等待处理",
+      summary: "当前回合正在等待运行时权限确认",
+      tone: "waiting",
+    });
+    expect(view.summary).toBe("当前回合正在等待运行时权限确认");
+    expect(view.summary).not.toContain("confirmationStatus");
+    expect(view.summary).not.toContain("askProfileKeys");
+  });
 });

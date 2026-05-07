@@ -72,7 +72,7 @@ describe("CapabilityDraftPanel", () => {
         description: "每天汇总竞品价格和上新变化。",
         userGoal: "持续监控竞品爆款并产出待复核清单。",
         sourceKind: "manual",
-        sourceRefs: ["docs/research/creaoai"],
+        sourceRefs: ["docs/research/skill-forge"],
         permissionSummary: ["Level 0 只读发现"],
         generatedFiles: [
           { relativePath: "SKILL.md", byteLength: 32, sha256: "abc" },
@@ -180,12 +180,58 @@ describe("CapabilityDraftPanel", () => {
         failedCheckCount: 0,
         checks: [
           {
-            id: "package_structure",
-            label: "包结构",
+            id: "readonly_http_fixture_dry_run_execute",
+            label: "只读 HTTP fixture dry-run 执行",
             status: "passed",
             message: "通过",
             suggestions: [],
             canAgentRepair: false,
+            evidence: [
+              { key: "scriptPath", value: "scripts/dry-run.mjs" },
+              {
+                key: "expectedOutputPath",
+                value: "tests/expected-output.json",
+              },
+              { key: "durationMs", value: "42" },
+              {
+                key: "actualSha256",
+                value: "abc123def4567890abc123def4567890",
+              },
+              {
+                key: "expectedSha256",
+                value: "abc123def4567890abc123def4567890",
+              },
+              {
+                key: "stdoutPreview",
+                value: "{\"markdown_report\":\"# 趋势摘要\"}",
+              },
+            ],
+          },
+          {
+            id: "readonly_http_execution_preflight",
+            label: "只读 HTTP 执行 preflight",
+            status: "passed",
+            message: "已找到 execution_preflight。",
+            suggestions: [],
+            canAgentRepair: false,
+            evidence: [
+              { key: "preflightMode", value: "approval_request" },
+              { key: "endpointSource", value: "runtime_input" },
+              { key: "method", value: "GET" },
+              {
+                key: "credentialReferenceId",
+                value: "readonly_api_session",
+              },
+              {
+                key: "evidenceSchema",
+                value:
+                  "request_url_hash,request_method,response_status,response_sha256,executed_at",
+              },
+              {
+                key: "policyPath",
+                value: "policy/readonly-http-session.json",
+              },
+            ],
           },
         ],
       },
@@ -213,6 +259,22 @@ describe("CapabilityDraftPanel", () => {
     });
     expect(container.textContent).toContain("验证通过，待注册");
     expect(container.textContent).toContain("所有检查均已通过");
+    expect(container.textContent).toContain("验证证据");
+    expect(container.textContent).toContain("只读 HTTP fixture dry-run 执行");
+    expect(container.textContent).toContain("脚本");
+    expect(container.textContent).toContain("scripts/dry-run.mjs");
+    expect(container.textContent).toContain("期望输出");
+    expect(container.textContent).toContain("tests/expected-output.json");
+    expect(container.textContent).toContain("耗时");
+    expect(container.textContent).toContain("42ms");
+    expect(container.textContent).toContain("实际 Hash");
+    expect(container.textContent).toContain("abc123def4567890...");
+    expect(container.textContent).toContain("只读 HTTP 执行 preflight");
+    expect(container.textContent).toContain("凭证引用");
+    expect(container.textContent).toContain("readonly_api_session");
+    expect(container.textContent).toContain("方法");
+    expect(container.textContent).toContain("GET");
+    expect(container.textContent).toContain("证据 Schema");
     expect(container.textContent).toContain("注册只会复制为 Workspace 本地 Skill");
     const registerButton = Array.from(
       container.querySelectorAll("button"),
