@@ -1,0 +1,102 @@
+{
+  "schemaVersion": "layered-design-model-slot-benchmark-samples@1",
+  "purpose": "真实复杂图片 benchmark 输入模板；把 image.path 指向本目录 samples/ 下的真实图片，再填写 subjectRect / textRect。不要把 synthetic verifier 图当作真实样本。",
+  "minimumAcceptance": {
+    "sampleCount": 5,
+    "requiredKinds": ["subject_matting", "clean_plate", "text_ocr"],
+    "requiresHumanReview": true,
+    "requiresExportEvidenceAttachment": true
+  },
+  "samples": [
+    {
+      "id": "real-poster-multi-subject-001",
+      "label": "多主体 / 遮挡海报",
+      "riskTags": ["multi_subject", "occlusion", "busy_background"],
+      "image": {
+        "path": "samples/real-poster-multi-subject-001.png",
+        "width": 1080,
+        "height": 1440,
+        "mimeType": "image/png"
+      },
+      "subjectRect": { "x": 220, "y": 340, "width": 620, "height": 760 },
+      "textRect": { "x": 96, "y": 88, "width": 760, "height": 180 },
+      "review": {
+        "expectedSubject": "主体边缘应保留头发/衣物细节，遮挡处不应被错误切断。",
+        "expectedCleanPlate": "主体移除区域应与背景纹理连续，不应出现明显 halo 或复制块。",
+        "expectedOcr": "标题文字应完整识别，保留主要中文/英文字符。"
+      }
+    },
+    {
+      "id": "real-poster-transparent-object-002",
+      "label": "透明 / 反光物体海报",
+      "riskTags": ["transparent_object", "reflection", "fine_edges"],
+      "image": {
+        "path": "samples/real-poster-transparent-object-002.png",
+        "width": 1080,
+        "height": 1440,
+        "mimeType": "image/png"
+      },
+      "subjectRect": { "x": 260, "y": 300, "width": 560, "height": 780 },
+      "textRect": { "x": 120, "y": 96, "width": 720, "height": 160 },
+      "review": {
+        "expectedSubject": "透明/反光区域应保留半透明观感，不应被抠成实心块。",
+        "expectedCleanPlate": "背景补全不应破坏光影方向。",
+        "expectedOcr": "艺术字或价格信息应可读。"
+      }
+    },
+    {
+      "id": "real-poster-art-text-logo-003",
+      "label": "艺术字 / Logo / CTA 海报",
+      "riskTags": ["stylized_text", "logo", "cta", "mixed_language"],
+      "image": {
+        "path": "samples/real-poster-art-text-logo-003.png",
+        "width": 1080,
+        "height": 1440,
+        "mimeType": "image/png"
+      },
+      "subjectRect": { "x": 180, "y": 360, "width": 680, "height": 700 },
+      "textRect": { "x": 80, "y": 70, "width": 840, "height": 220 },
+      "review": {
+        "expectedSubject": "Logo 不应被误并入主体；主体 mask 不应吞掉 CTA 区域。",
+        "expectedCleanPlate": "Logo/CTA 周边背景补全后仍应可区分。",
+        "expectedOcr": "艺术字标题可允许少量误差，但核心词必须识别。"
+      }
+    },
+    {
+      "id": "real-poster-dark-neon-004",
+      "label": "深色霓虹 / 高对比海报",
+      "riskTags": ["dark_background", "neon", "high_contrast", "glow"],
+      "image": {
+        "path": "samples/real-poster-dark-neon-004.png",
+        "width": 1080,
+        "height": 1440,
+        "mimeType": "image/png"
+      },
+      "subjectRect": { "x": 240, "y": 280, "width": 600, "height": 860 },
+      "textRect": { "x": 100, "y": 80, "width": 800, "height": 180 },
+      "review": {
+        "expectedSubject": "霓虹边缘和光晕不应被硬切，主体暗部不应丢失。",
+        "expectedCleanPlate": "发光背景修补后不应出现断层。",
+        "expectedOcr": "高对比标题应能稳定识别。"
+      }
+    },
+    {
+      "id": "real-poster-dense-product-card-005",
+      "label": "密集商品卡 / 促销信息海报",
+      "riskTags": ["dense_layout", "product_card", "price_text", "small_logo"],
+      "image": {
+        "path": "samples/real-poster-dense-product-card-005.png",
+        "width": 1080,
+        "height": 1440,
+        "mimeType": "image/png"
+      },
+      "subjectRect": { "x": 430, "y": 300, "width": 460, "height": 640 },
+      "textRect": { "x": 80, "y": 80, "width": 720, "height": 260 },
+      "review": {
+        "expectedSubject": "商品主体应独立成层，不应混入价格/标签。",
+        "expectedCleanPlate": "商品移除后背景和卡片边界应连续。",
+        "expectedOcr": "价格、折扣和 CTA 至少应识别主要数字和核心词。"
+      }
+    }
+  ]
+}

@@ -42,6 +42,8 @@ export interface ReadLayeredDesignProjectExportOutput {
   designJson: string;
   manifestPath?: string;
   manifestJson?: string;
+  psdLikeManifestPath?: string;
+  psdLikeManifestJson?: string;
   previewPngPath?: string;
   assetCount: number;
   fileCount: number;

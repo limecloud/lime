@@ -485,6 +485,8 @@ fn canonicalize_image_task_alias_fields(record: &mut serde_json::Map<String, ser
         ("layoutHint", "layout_hint"),
         ("aspectRatio", "aspect_ratio"),
         ("providerId", "provider_id"),
+        ("executorMode", "executor_mode"),
+        ("outerModel", "outer_model"),
         ("sessionId", "session_id"),
         ("projectId", "project_id"),
         ("contentId", "content_id"),
@@ -566,6 +568,10 @@ struct ImageTaskInput {
     provider_id: Option<String>,
     #[serde(default)]
     model: Option<String>,
+    #[serde(default, alias = "executor_mode")]
+    executor_mode: Option<String>,
+    #[serde(default, alias = "outer_model")]
+    outer_model: Option<String>,
     #[serde(default, alias = "session_id")]
     session_id: Option<String>,
     #[serde(default, alias = "thread_id")]
@@ -863,6 +869,22 @@ fn image_task_input_schema() -> serde_json::Value {
         serde_json::json!({ "type": "string", "description": "首选模型（可选）。" }),
     );
     insert_property(
+        "executorMode",
+        serde_json::json!({ "type": "string", "description": "图片任务执行模式（可选）。" }),
+    );
+    insert_property(
+        "executor_mode",
+        serde_json::json!({ "type": "string", "description": "图片任务执行模式（snake_case 兼容，可选）。" }),
+    );
+    insert_property(
+        "outerModel",
+        serde_json::json!({ "type": "string", "description": "Responses 编排模型（可选）。" }),
+    );
+    insert_property(
+        "outer_model",
+        serde_json::json!({ "type": "string", "description": "Responses 编排模型（snake_case 兼容，可选）。" }),
+    );
+    insert_property(
         "sessionId",
         serde_json::json!({ "type": "string", "description": "会话 ID（可选）。" }),
     );
@@ -1083,6 +1105,8 @@ fn build_image_generation_task_request(
         usage,
         provider_id,
         model,
+        executor_mode,
+        outer_model,
         session_id,
         thread_id,
         turn_id,
@@ -1161,6 +1185,8 @@ fn build_image_generation_task_request(
         style,
         provider_id,
         model,
+        executor_mode,
+        outer_model,
         session_id,
         thread_id,
         turn_id,
@@ -2039,6 +2065,8 @@ mod tests {
                 usage: Some("document-inline".to_string()),
                 provider_id: Some("fal".to_string()),
                 model: Some("fal-ai/nano-banana-pro".to_string()),
+                executor_mode: None,
+                outer_model: None,
                 session_id: None,
                 thread_id: None,
                 turn_id: None,

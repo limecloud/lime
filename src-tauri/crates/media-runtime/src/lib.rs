@@ -20,6 +20,9 @@ const STORYBOARD_3X3_LAYOUT_HINT: &str = "storyboard_3x3";
 const PNG_DATA_URL_MIME: &str = "image/png";
 const CHROMA_KEY_DISTANCE_THRESHOLD: i16 = 32;
 const IMAGE_TASK_POSTPROCESS_MAX_IMAGE_BYTES: u64 = 20 * 1024 * 1024;
+const IMAGE_EXECUTOR_MODE_IMAGES_API: &str = "images_api";
+const IMAGE_EXECUTOR_MODE_RESPONSES_IMAGE_GENERATION: &str = "responses_image_generation";
+const DEFAULT_RESPONSES_IMAGE_GENERATION_OUTER_MODEL: &str = "gpt-5.5";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ImageGenerationRunnerConfig {
@@ -44,6 +47,8 @@ struct PreparedImageTaskInput {
     count: u32,
     style: Option<String>,
     provider_id: Option<String>,
+    executor_mode: String,
+    outer_model: Option<String>,
     layout_hint: Option<String>,
     postprocess_plan: Option<PreparedImageTaskPostprocessPlan>,
     request_slots: Vec<PreparedImageTaskSlot>,
@@ -1138,6 +1143,29 @@ fn read_payload_positive_u32(payload: &Value, keys: &[&str]) -> Option<u32> {
     })
 }
 
+fn normalize_image_generation_executor_mode(value: Option<String>) -> String {
+    match value
+        .as_deref()
+        .map(str::trim)
+        .filter(|item| !item.is_empty())
+        .map(|item| item.to_ascii_lowercase().replace('-', "_"))
+        .as_deref()
+    {
+        Some("responses")
+        | Some("responses_api")
+        | Some("response_api")
+        | Some("image_generation_tool")
+        | Some("responses_image_generation") => {
+            IMAGE_EXECUTOR_MODE_RESPONSES_IMAGE_GENERATION.to_string()
+        }
+        _ => IMAGE_EXECUTOR_MODE_IMAGES_API.to_string(),
+    }
+}
+
+fn is_responses_image_generation_executor(mode: &str) -> bool {
+    mode == IMAGE_EXECUTOR_MODE_RESPONSES_IMAGE_GENERATION
+}
+
 fn read_object_field<'a>(value: &'a Value, keys: &[&str]) -> Option<&'a Value> {
     keys.iter().find_map(|key| value.get(*key))
 }
@@ -1438,6 +1466,11 @@ fn prepare_image_task_input(task: &MediaTaskOutput) -> Result<PreparedImageTaskI
         count: request_slots.len() as u32,
         style: read_payload_string(payload, &["style"]),
         provider_id: read_payload_string(payload, &["provider_id", "providerId"]),
+        executor_mode: normalize_image_generation_executor_mode(read_payload_string(
+            payload,
+            &["executor_mode", "executorMode"],
+        )),
+        outer_model: read_payload_string(payload, &["outer_model", "outerModel"]),
         layout_hint,
         postprocess_plan,
         request_slots,
@@ -1479,6 +1512,174 @@ fn collect_generated_images(response_body: &Value) -> Vec<Value> {
                 .collect()
         })
         .unwrap_or_default()
+}
+
+fn build_responses_image_generation_tool(model: &str) -> Value {
+    let mut tool = Map::new();
+    tool.insert("type".to_string(), json!("image_generation"));
+    let trimmed_model = model.trim();
+    if !trimmed_model.is_empty() {
+        tool.insert("model".to_string(), json!(trimmed_model));
+    }
+    Value::Object(tool)
+}
+
+fn build_responses_image_generation_input(prompt: &str, use_input_list: bool) -> Value {
+    if use_input_list {
+        return json!([
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "input_text",
+                        "text": prompt,
+                    }
+                ],
+            }
+        ]);
+    }
+
+    json!(prompt)
+}
+
+fn build_responses_image_generation_request_body(
+    prepared_input: &PreparedImageTaskInput,
+    request_prompt: &str,
+    use_input_list: bool,
+) -> Value {
+    json!({
+        "model": prepared_input
+            .outer_model
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .unwrap_or(DEFAULT_RESPONSES_IMAGE_GENERATION_OUTER_MODEL),
+        "input": build_responses_image_generation_input(request_prompt, use_input_list),
+        "tools": [build_responses_image_generation_tool(&prepared_input.model)],
+        "stream": true,
+    })
+}
+
+fn build_responses_image_generation_endpoint(endpoint: &str) -> String {
+    let trimmed = endpoint.trim().trim_end_matches('/');
+    let (base, query) = trimmed
+        .split_once('?')
+        .map(|(left, right)| (left, Some(right)))
+        .unwrap_or((trimmed, None));
+    let responses_base = if base.ends_with("/v1/images/generations") {
+        format!(
+            "{}/v1/responses",
+            base.trim_end_matches("/v1/images/generations")
+        )
+    } else if base.ends_with("/images/generations") {
+        format!("{}/responses", base.trim_end_matches("/images/generations"))
+    } else if base.ends_with("/v1") {
+        format!("{base}/responses")
+    } else if base.ends_with("/responses") || base.ends_with("/v1/responses") {
+        base.to_string()
+    } else {
+        format!("{base}/responses")
+    };
+
+    match query {
+        Some(value) if !value.is_empty() => format!("{responses_base}?{value}"),
+        _ => responses_base,
+    }
+}
+
+fn should_retry_responses_image_generation_with_input_list(status: u16, body: &str) -> bool {
+    status == 400 && body.to_ascii_lowercase().contains("input must be a list")
+}
+
+fn parse_sse_event(raw_event: &str) -> Option<(String, String)> {
+    let mut event_name = String::new();
+    let mut data_lines = Vec::new();
+
+    for line in raw_event.lines() {
+        let trimmed = line.trim_end_matches('\r');
+        if let Some(rest) = trimmed.strip_prefix("event:") {
+            event_name = rest.trim().to_string();
+        } else if let Some(rest) = trimmed.strip_prefix("data:") {
+            data_lines.push(rest.trim_start().to_string());
+        }
+    }
+
+    if event_name.is_empty() || data_lines.is_empty() {
+        return None;
+    }
+
+    Some((event_name, data_lines.join("\n")))
+}
+
+fn extract_responses_image_generation_result(
+    response_body_raw: &str,
+) -> Result<(Value, Value), TaskErrorRecord> {
+    let mut event_count = 0u32;
+    let mut output_item_count = 0u32;
+
+    for raw_event in response_body_raw.split("\n\n") {
+        let Some((event_name, data_text)) = parse_sse_event(raw_event) else {
+            continue;
+        };
+        event_count += 1;
+        if data_text.trim() == "[DONE]" {
+            continue;
+        }
+        if event_name != "response.output_item.done" {
+            continue;
+        }
+
+        let parsed: Value = match serde_json::from_str(&data_text) {
+            Ok(value) => value,
+            Err(_) => continue,
+        };
+        let Some(item) = parsed.get("item").and_then(Value::as_object) else {
+            continue;
+        };
+        output_item_count += 1;
+        if item.get("type").and_then(Value::as_str) != Some("image_generation_call") {
+            continue;
+        }
+        let image_item_id = item
+            .get("id")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(ToOwned::to_owned);
+        let Some(result) = item
+            .get("result")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+        else {
+            continue;
+        };
+
+        return Ok((
+            json!({
+                "url": format!("data:image/png;base64,{result}"),
+                "revised_prompt": item
+                    .get("revised_prompt")
+                    .and_then(Value::as_str)
+                    .map(str::trim)
+                    .filter(|value| !value.is_empty()),
+                "source": IMAGE_EXECUTOR_MODE_RESPONSES_IMAGE_GENERATION,
+            }),
+            json!({
+                "executor_mode": IMAGE_EXECUTOR_MODE_RESPONSES_IMAGE_GENERATION,
+                "event_count": event_count,
+                "output_item_count": output_item_count,
+                "image_item_id": image_item_id,
+            }),
+        ));
+    }
+
+    Err(build_image_task_error(
+        "image_result_empty",
+        "Responses 图片生成已返回成功，但 SSE 流里没有 image_generation_call.result",
+        false,
+        "result",
+    ))
 }
 
 fn summarize_response_body(body: &str) -> String {
@@ -1633,6 +1834,135 @@ async fn request_single_image_generation(
     };
 
     Ok((image, response_body))
+}
+
+async fn send_responses_image_generation_request(
+    client: &reqwest::Client,
+    runner_config: &ImageGenerationRunnerConfig,
+    prepared_input: &PreparedImageTaskInput,
+    request_prompt: &str,
+    use_input_list: bool,
+) -> Result<(u16, String), TaskErrorRecord> {
+    let request_body = build_responses_image_generation_request_body(
+        prepared_input,
+        request_prompt,
+        use_input_list,
+    );
+    let endpoint = build_responses_image_generation_endpoint(&runner_config.endpoint);
+    let response = client
+        .post(&endpoint)
+        .header("Authorization", format!("Bearer {}", runner_config.api_key))
+        .header("Accept", "text/event-stream")
+        .json(&request_body)
+        .send()
+        .await
+        .map_err(|error| {
+            build_image_task_error(
+                "image_request_failed",
+                format!("调用 Responses 图片服务失败: {error}"),
+                true,
+                "request",
+            )
+        })?;
+
+    let status = response.status().as_u16();
+    let body = response.text().await.map_err(|error| {
+        build_image_task_error(
+            "image_response_read_failed",
+            format!("读取 Responses 图片服务响应失败: {error}"),
+            false,
+            "response",
+        )
+    })?;
+
+    Ok((status, body))
+}
+
+async fn request_single_responses_image_generation(
+    client: &reqwest::Client,
+    runner_config: &ImageGenerationRunnerConfig,
+    prepared_input: &PreparedImageTaskInput,
+    request_prompt: &str,
+) -> Result<(Value, Value), TaskErrorRecord> {
+    let (mut status, mut response_body_raw) = send_responses_image_generation_request(
+        client,
+        runner_config,
+        prepared_input,
+        request_prompt,
+        false,
+    )
+    .await?;
+
+    if should_retry_responses_image_generation_with_input_list(status, &response_body_raw) {
+        let retry = send_responses_image_generation_request(
+            client,
+            runner_config,
+            prepared_input,
+            request_prompt,
+            true,
+        )
+        .await?;
+        status = retry.0;
+        response_body_raw = retry.1;
+    }
+
+    if !(200..300).contains(&status) {
+        let error_body: Value = serde_json::from_str(&response_body_raw).unwrap_or_else(|_| {
+            json!({
+                "error": {
+                    "code": "responses_image_generation_failed",
+                    "message": summarize_response_body(&response_body_raw),
+                }
+            })
+        });
+        let error_code = error_body
+            .get("error")
+            .and_then(|value| value.get("code"))
+            .and_then(Value::as_str)
+            .filter(|value| !value.trim().is_empty())
+            .unwrap_or("responses_image_generation_failed");
+        let error_message = error_body
+            .get("error")
+            .and_then(|value| value.get("message"))
+            .and_then(Value::as_str)
+            .filter(|value| !value.trim().is_empty())
+            .unwrap_or("Responses 图片服务未返回可用结果");
+        return Err(build_image_task_error(
+            error_code,
+            error_message,
+            status >= 500 || status == 429,
+            "request",
+        ));
+    }
+
+    extract_responses_image_generation_result(&response_body_raw)
+}
+
+async fn request_single_image_generation_for_executor(
+    client: &reqwest::Client,
+    runner_config: &ImageGenerationRunnerConfig,
+    prepared_input: &PreparedImageTaskInput,
+    request_prompt: &str,
+    task_id: &str,
+) -> Result<(Value, Value), TaskErrorRecord> {
+    if is_responses_image_generation_executor(&prepared_input.executor_mode) {
+        return request_single_responses_image_generation(
+            client,
+            runner_config,
+            prepared_input,
+            request_prompt,
+        )
+        .await;
+    }
+
+    request_single_image_generation(
+        client,
+        runner_config,
+        prepared_input,
+        request_prompt,
+        task_id,
+    )
+    .await
 }
 
 fn parse_hex_rgb(value: &str) -> Option<[u8; 3]> {
@@ -1823,6 +2153,8 @@ fn build_image_task_result_value(
     json!({
         "prompt": prepared_input.prompt,
         "provider_id": prepared_input.provider_id,
+        "executor_mode": prepared_input.executor_mode,
+        "outer_model": prepared_input.outer_model,
         "model": if prepared_input.model.trim().is_empty() {
             None::<String>
         } else {
@@ -2294,7 +2626,7 @@ where
             join_set.spawn(async move {
                 (
                     request_slot.clone(),
-                    request_single_image_generation(
+                    request_single_image_generation_for_executor(
                         &client,
                         &runner_config,
                         &prepared_input,
@@ -4074,6 +4406,129 @@ mod tests {
         );
 
         server.abort();
+    }
+
+    #[tokio::test]
+    async fn execute_image_generation_task_should_support_responses_image_generation_executor() {
+        let temp_dir = tempfile::tempdir().expect("create temp dir");
+        let captured_body = Arc::new(Mutex::new(None::<Value>));
+        let created = write_task_artifact(
+            temp_dir.path(),
+            TaskType::ImageGenerate,
+            Some("图层主视觉".to_string()),
+            json!({
+                "prompt": "透明背景上的青柠产品主体",
+                "size": "1024x1024",
+                "count": 1,
+                "provider_id": "openai",
+                "model": "gpt-image-2",
+                "executor_mode": "responses_image_generation",
+                "outer_model": "gpt-5.5"
+            }),
+            TaskWriteOptions::default(),
+        )
+        .expect("create task");
+
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind responses api");
+        let address = listener.local_addr().expect("resolve address");
+        let captured_body_for_server = Arc::clone(&captured_body);
+        let server = tokio::spawn(async move {
+            let app = Router::new().route(
+                "/v1/responses",
+                post(move |Json(body): Json<Value>| {
+                    let captured_body = Arc::clone(&captured_body_for_server);
+                    async move {
+                        *captured_body.lock().expect("lock captured body") = Some(body);
+                        let body = concat!(
+                            "event: response.output_item.done\n",
+                            "data: {\"item\":{\"id\":\"ig_1\",\"type\":\"image_generation_call\",\"result\":\"ZmFrZS1yZXNwb25zZXMtaW1hZ2U=\",\"revised_prompt\":\"青柠产品主体\"}}\n\n",
+                            "event: response.completed\n",
+                            "data: {\"response\":{\"id\":\"resp_1\"}}\n\n"
+                        );
+                        (StatusCode::OK, [("content-type", "text/event-stream")], body)
+                    }
+                }),
+            );
+            axum::serve(listener, app)
+                .await
+                .expect("serve responses api");
+        });
+
+        let result = execute_image_generation_task(
+            temp_dir.path(),
+            &created.task_id,
+            &ImageGenerationRunnerConfig {
+                endpoint: format!("http://{address}/v1/images/generations"),
+                api_key: "test-key".to_string(),
+            },
+        )
+        .await
+        .expect("execute responses image task");
+
+        assert_eq!(result.normalized_status, "succeeded");
+        let result_value = result.record.result.as_ref().expect("result value");
+        assert_eq!(
+            result_value.get("executor_mode").and_then(Value::as_str),
+            Some(IMAGE_EXECUTOR_MODE_RESPONSES_IMAGE_GENERATION)
+        );
+        assert_eq!(
+            result_value
+                .get("images")
+                .and_then(Value::as_array)
+                .and_then(|images| images.first())
+                .and_then(|value| value.get("url"))
+                .and_then(Value::as_str),
+            Some("data:image/png;base64,ZmFrZS1yZXNwb25zZXMtaW1hZ2U=")
+        );
+        assert_eq!(
+            result_value
+                .get("responses")
+                .and_then(Value::as_array)
+                .and_then(|responses| responses.first())
+                .and_then(|response| response.get("image_item_id"))
+                .and_then(Value::as_str),
+            Some("ig_1")
+        );
+
+        let body = captured_body
+            .lock()
+            .expect("lock captured body")
+            .clone()
+            .expect("captured body");
+        assert_eq!(body.get("model").and_then(Value::as_str), Some("gpt-5.5"));
+        assert_eq!(body.get("stream").and_then(Value::as_bool), Some(true));
+        assert_eq!(
+            body.pointer("/tools/0/type").and_then(Value::as_str),
+            Some("image_generation")
+        );
+        assert_eq!(
+            body.pointer("/tools/0/model").and_then(Value::as_str),
+            Some("gpt-image-2")
+        );
+
+        server.abort();
+    }
+
+    #[test]
+    fn responses_image_generation_endpoint_should_reuse_images_api_base() {
+        assert_eq!(
+            build_responses_image_generation_endpoint(
+                "https://gateway.example.com/v1/images/generations"
+            ),
+            "https://gateway.example.com/v1/responses"
+        );
+        assert_eq!(
+            build_responses_image_generation_endpoint(
+                "https://gateway.example.com/proxy/images/generations?token=secret"
+            ),
+            "https://gateway.example.com/proxy/responses?token=secret"
+        );
+        assert_eq!(
+            build_responses_image_generation_endpoint("https://gateway.example.com/v1/responses"),
+            "https://gateway.example.com/v1/responses"
+        );
     }
 
     #[tokio::test]

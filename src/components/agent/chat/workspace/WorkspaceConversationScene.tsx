@@ -391,6 +391,9 @@ interface WorkspaceConversationSceneProps extends WorkspaceMainAreaProps {
   onSelectKnowledgePack?: ComponentProps<
     typeof EmptyState
   >["onSelectKnowledgePack"];
+  onToggleKnowledgeCompanionPack?: ComponentProps<
+    typeof EmptyState
+  >["onToggleKnowledgeCompanionPack"];
   onStartKnowledgeOrganize?: ComponentProps<
     typeof EmptyState
   >["onStartKnowledgeOrganize"];
@@ -542,6 +545,7 @@ export function WorkspaceConversationScene({
   knowledgePackOptions,
   onToggleKnowledgePack,
   onSelectKnowledgePack,
+  onToggleKnowledgeCompanionPack,
   onStartKnowledgeOrganize,
   onManageKnowledgePacks,
   runtimeTaskCard,
@@ -646,6 +650,7 @@ export function WorkspaceConversationScene({
     knowledgePackOptions,
     onToggleKnowledgePack,
     onSelectKnowledgePack,
+    onToggleKnowledgeCompanionPack,
     onStartKnowledgeOrganize,
     onManageKnowledgePacks,
     runtimeTaskCard,

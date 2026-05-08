@@ -150,7 +150,7 @@ describe("tauri-mock/core invoke", () => {
       expect.objectContaining({
         exportDirectoryRelativePath:
           ".lime/layered-designs/mock-design.layered-design",
-        designJson: expect.stringContaining("\"layer-title\""),
+        designJson: expect.stringContaining('"layer-title"'),
         fileCount: 2,
         assetCount: 1,
       }),
@@ -192,14 +192,22 @@ describe("tauri-mock/core invoke", () => {
               relativePath: "design.json",
               mimeType: "application/json",
               encoding: "utf8",
-              content: "{\"assets\":[{\"id\":\"remote-asset\",\"src\":\"https://example.com/hero.png\"}]}",
+              content:
+                '{"assets":[{"id":"remote-asset","src":"https://example.com/hero.png"}]}',
             },
             {
               relativePath: "export-manifest.json",
               mimeType: "application/json",
               encoding: "utf8",
               content:
-                "{\"assets\":[{\"id\":\"remote-asset\",\"source\":\"reference\",\"originalSrc\":\"https://example.com/hero.png\"}]}",
+                '{"assets":[{"id":"remote-asset","source":"reference","originalSrc":"https://example.com/hero.png"}]}',
+            },
+            {
+              relativePath: "psd-like-manifest.json",
+              mimeType: "application/json",
+              encoding: "utf8",
+              content:
+                '{"projectionKind":"psd-like-layer-stack","quality":{"extractionQuality":{"level":"review"}}}',
             },
             {
               relativePath: "preview.png",
@@ -214,8 +222,26 @@ describe("tauri-mock/core invoke", () => {
       expect.objectContaining({
         exportDirectoryRelativePath:
           ".lime/layered-designs/mock-remote-design.layered-design",
-        fileCount: 4,
+        fileCount: 5,
         assetCount: 1,
+      }),
+    );
+
+    await expect(
+      invokeMockOnly("read_layered_design_project_export", {
+        request: {
+          projectRootPath: "/mock/workspace",
+          exportDirectoryRelativePath:
+            ".lime/layered-designs/mock-remote-design.layered-design",
+        },
+      }),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        psdLikeManifestPath:
+          "/mock/workspace/.lime/layered-designs/mock-remote-design.layered-design/psd-like-manifest.json",
+        psdLikeManifestJson: expect.stringContaining(
+          '"projectionKind":"psd-like-layer-stack"',
+        ),
       }),
     );
   });
@@ -639,25 +665,24 @@ describe("tauri-mock/core invoke", () => {
       }),
     );
 
-    const missingSessionPolicyDraft = await invokeMockOnly<Record<string, unknown>>(
-      "capability_draft_create",
-      {
-        request: {
-          workspaceRoot: "/tmp/lime-p6-mock",
-          name: "缺授权策略只读 HTTP API 草案",
-          description: "缺少 session authorization policy。",
-          userGoal: "读取公开 API。",
-          sourceKind: "api",
-          permissionSummary: [
-            "Level 0 只读发现",
-            "允许只读 HTTP API GET 请求，不做外部写操作",
-          ],
-          generatedFiles: generatedFiles.filter(
-            (file) => file.relativePath !== "policy/readonly-http-session.json",
-          ),
-        },
+    const missingSessionPolicyDraft = await invokeMockOnly<
+      Record<string, unknown>
+    >("capability_draft_create", {
+      request: {
+        workspaceRoot: "/tmp/lime-p6-mock",
+        name: "缺授权策略只读 HTTP API 草案",
+        description: "缺少 session authorization policy。",
+        userGoal: "读取公开 API。",
+        sourceKind: "api",
+        permissionSummary: [
+          "Level 0 只读发现",
+          "允许只读 HTTP API GET 请求，不做外部写操作",
+        ],
+        generatedFiles: generatedFiles.filter(
+          (file) => file.relativePath !== "policy/readonly-http-session.json",
+        ),
       },
-    );
+    });
     const missingSessionPolicyVerification = await invokeMockOnly<any>(
       "capability_draft_verify",
       {
@@ -682,41 +707,40 @@ describe("tauri-mock/core invoke", () => {
       }),
     );
 
-    const missingCredentialReferenceDraft = await invokeMockOnly<Record<string, unknown>>(
-      "capability_draft_create",
-      {
-        request: {
-          workspaceRoot: "/tmp/lime-p6-mock",
-          name: "缺凭证引用只读 HTTP API 草案",
-          description: "缺少 credential_reference。",
-          userGoal: "读取公开 API。",
-          sourceKind: "api",
-          permissionSummary: [
-            "Level 0 只读发现",
-            "允许只读 HTTP API GET 请求，不做外部写操作",
-          ],
-          generatedFiles: generatedFiles.map((file) =>
-            file.relativePath === "policy/readonly-http-session.json"
-              ? {
-                  ...file,
-                  content: JSON.stringify({
-                    mode: "session_required",
-                    access: "read-only",
-                    allowed_methods: ["GET"],
-                    credential_policy: "no_generated_credentials",
-                    credential_source: "user_session_config",
-                    evidence: [
-                      "request_url_hash",
-                      "response_status",
-                      "response_sha256",
-                    ],
-                  }),
-                }
-              : file,
-          ),
-        },
+    const missingCredentialReferenceDraft = await invokeMockOnly<
+      Record<string, unknown>
+    >("capability_draft_create", {
+      request: {
+        workspaceRoot: "/tmp/lime-p6-mock",
+        name: "缺凭证引用只读 HTTP API 草案",
+        description: "缺少 credential_reference。",
+        userGoal: "读取公开 API。",
+        sourceKind: "api",
+        permissionSummary: [
+          "Level 0 只读发现",
+          "允许只读 HTTP API GET 请求，不做外部写操作",
+        ],
+        generatedFiles: generatedFiles.map((file) =>
+          file.relativePath === "policy/readonly-http-session.json"
+            ? {
+                ...file,
+                content: JSON.stringify({
+                  mode: "session_required",
+                  access: "read-only",
+                  allowed_methods: ["GET"],
+                  credential_policy: "no_generated_credentials",
+                  credential_source: "user_session_config",
+                  evidence: [
+                    "request_url_hash",
+                    "response_status",
+                    "response_sha256",
+                  ],
+                }),
+              }
+            : file,
+        ),
       },
-    );
+    });
     const missingCredentialReferenceVerification = await invokeMockOnly<any>(
       "capability_draft_verify",
       {
@@ -731,9 +755,9 @@ describe("tauri-mock/core invoke", () => {
         (check: { id?: string }) =>
           check.id === "readonly_http_credential_reference",
       );
-    expect(missingCredentialReferenceVerification.draft.verificationStatus).toBe(
-      "verification_failed",
-    );
+    expect(
+      missingCredentialReferenceVerification.draft.verificationStatus,
+    ).toBe("verification_failed");
     expect(credentialReferenceCheck).toEqual(
       expect.objectContaining({
         status: "failed",
@@ -961,7 +985,7 @@ describe("tauri-mock/core invoke", () => {
     ).resolves.toEqual(
       expect.objectContaining({
         packName: "brand-product-demo",
-        selectedFiles: ["compiled/brief.md"],
+        selectedFiles: ["compiled/splits/brand-product-demo/应用指南.md"],
         sourceAnchors: ["sources/source.md"],
         warnings: [],
         runId: expect.stringContaining("context-"),

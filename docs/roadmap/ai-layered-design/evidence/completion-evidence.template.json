@@ -1,0 +1,27 @@
+{
+  "schemaVersion": "layered-design-completion-evidence@1",
+  "createdAt": "2026-05-08T00:00:00.000Z",
+  "purpose": "完整类 Lovart 产品目标的最终外部事实索引。该文件不接受 synthetic verifier 或本地 fixture 作为 100% 完成证据。",
+  "benchmarkReportPath": "model-slot-benchmark.real.json",
+  "humanReviewReportPath": "real-samples.human-review.json",
+  "exportDirectoryPath": "exports/real-sample.layered-design",
+  "designToolEvidencePath": "design-tool-interoperability.json",
+  "gptImageLiveEvidencePath": "gpt-image-live.json",
+  "requirements": {
+    "minimumSamples": 5,
+    "minimumSampleScore": 8,
+    "minimumPassedTools": 1,
+    "requiredKinds": ["subject_matting", "clean_plate", "text_ocr"]
+  },
+  "expectedVerifierCommand": "node scripts/verify-layered-design-completion-evidence.mjs --evidence docs/roadmap/ai-layered-design/evidence/completion-evidence.json",
+  "completionGate": {
+    "status": "external_evidence_pending",
+    "missing": [
+      "real_model_slot_benchmark_report",
+      "accepted_human_review_report",
+      "export_manifest_with_sample_manifest_benchmark_evidence",
+      "external_design_tool_open_evidence",
+      "gpt_image_live_generation_writeback_evidence"
+    ]
+  }
+}

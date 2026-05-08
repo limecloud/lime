@@ -12,12 +12,14 @@ export function KnowledgePackCard({
   onOpen,
   onSetDefault,
   onUse,
+  companionLabels = [],
 }: {
   pack: KnowledgePackSummary;
   actionBusy: boolean;
   onOpen: (packName: string) => void;
   onSetDefault: (packName: string) => void;
   onUse: (packName: string) => void;
+  companionLabels?: string[];
 }) {
   const isReady = pack.metadata.status === "ready";
   const primaryLabel = isReady ? "用于生成" : "继续确认";
@@ -41,6 +43,11 @@ export function KnowledgePackCard({
             {sanitizeKnowledgePreview(pack.preview) ||
               "等待整理适用场景、事实和边界。"}
           </p>
+          {companionLabels.length > 0 ? (
+            <p className="mt-2 text-xs leading-5 text-emerald-700">
+              用于生成时会自动搭配人设资料：{companionLabels.join("、")}
+            </p>
+          ) : null}
         </div>
       </div>
       <div className="mt-4 flex flex-wrap gap-2">

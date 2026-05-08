@@ -1,0 +1,184 @@
+{
+  "schemaVersion": "layered-design-model-slot-benchmark-samples@1",
+  "purpose": "真实下载照片衍生的复杂海报 benchmark 样本；底图来自 picsum.photos 的公开随机摄影图，本脚本叠加真实海报文字、CTA 和图形元素，用于准生产 endpoint 验收。",
+  "minimumAcceptance": {
+    "sampleCount": 5,
+    "requiredKinds": [
+      "subject_matting",
+      "clean_plate",
+      "text_ocr"
+    ],
+    "requiresHumanReview": true,
+    "requiresExportEvidenceAttachment": true
+  },
+  "samples": [
+    {
+      "id": "real-poster-multi-subject-001",
+      "label": "多主体 / 遮挡活动海报",
+      "riskTags": [
+        "multi_subject",
+        "occlusion",
+        "busy_background"
+      ],
+      "image": {
+        "path": "samples/real-poster-multi-subject-001.png",
+        "width": 720,
+        "height": 960,
+        "mimeType": "image/png",
+        "sourceUrl": "https://picsum.photos/seed/lime-coffee-market/720/960"
+      },
+      "subjectRect": {
+        "x": 160,
+        "y": 310,
+        "width": 390,
+        "height": 430
+      },
+      "textRect": {
+        "x": 55,
+        "y": 60,
+        "width": 540,
+        "height": 150
+      },
+      "review": {
+        "expectedSubject": "主体和商品应独立于背景，边缘应保留基本轮廓。",
+        "expectedCleanPlate": "主体移除区域应被周边像素合理补齐，不应出现大面积破洞。",
+        "expectedOcr": "标题和促销 CTA 应识别出主要英文单词或数字。"
+      }
+    },
+    {
+      "id": "real-poster-transparent-object-002",
+      "label": "透明 / 反光物体海报",
+      "riskTags": [
+        "transparent_object",
+        "reflection",
+        "fine_edges"
+      ],
+      "image": {
+        "path": "samples/real-poster-transparent-object-002.png",
+        "width": 720,
+        "height": 960,
+        "mimeType": "image/png",
+        "sourceUrl": "https://picsum.photos/seed/lime-glass-product/720/960"
+      },
+      "subjectRect": {
+        "x": 190,
+        "y": 290,
+        "width": 330,
+        "height": 460
+      },
+      "textRect": {
+        "x": 50,
+        "y": 55,
+        "width": 560,
+        "height": 150
+      },
+      "review": {
+        "expectedSubject": "透明/反光区域应保留半透明观感，不应被抠成实心块。",
+        "expectedCleanPlate": "主体移除区域应被周边像素合理补齐，不应出现大面积破洞。",
+        "expectedOcr": "标题和促销 CTA 应识别出主要英文单词或数字。"
+      }
+    },
+    {
+      "id": "real-poster-art-text-logo-003",
+      "label": "艺术字 / Logo / CTA 海报",
+      "riskTags": [
+        "stylized_text",
+        "logo",
+        "cta",
+        "mixed_language"
+      ],
+      "image": {
+        "path": "samples/real-poster-art-text-logo-003.png",
+        "width": 720,
+        "height": 960,
+        "mimeType": "image/png",
+        "sourceUrl": "https://picsum.photos/seed/lime-art-logo-poster/720/960"
+      },
+      "subjectRect": {
+        "x": 140,
+        "y": 320,
+        "width": 430,
+        "height": 390
+      },
+      "textRect": {
+        "x": 45,
+        "y": 55,
+        "width": 580,
+        "height": 165
+      },
+      "review": {
+        "expectedSubject": "Logo/CTA 不应被误并入主体，核心词必须识别。",
+        "expectedCleanPlate": "主体移除区域应被周边像素合理补齐，不应出现大面积破洞。",
+        "expectedOcr": "标题和促销 CTA 应识别出主要英文单词或数字。"
+      }
+    },
+    {
+      "id": "real-poster-dark-neon-004",
+      "label": "深色霓虹 / 高对比海报",
+      "riskTags": [
+        "dark_background",
+        "neon",
+        "high_contrast",
+        "glow"
+      ],
+      "image": {
+        "path": "samples/real-poster-dark-neon-004.png",
+        "width": 720,
+        "height": 960,
+        "mimeType": "image/png",
+        "sourceUrl": "https://picsum.photos/seed/lime-neon-concert/720/960"
+      },
+      "subjectRect": {
+        "x": 165,
+        "y": 300,
+        "width": 390,
+        "height": 470
+      },
+      "textRect": {
+        "x": 60,
+        "y": 60,
+        "width": 520,
+        "height": 145
+      },
+      "review": {
+        "expectedSubject": "霓虹边缘和光晕不应硬切，高对比标题应稳定识别。",
+        "expectedCleanPlate": "主体移除区域应被周边像素合理补齐，不应出现大面积破洞。",
+        "expectedOcr": "标题和促销 CTA 应识别出主要英文单词或数字。"
+      }
+    },
+    {
+      "id": "real-poster-dense-product-card-005",
+      "label": "密集商品卡 / 促销信息海报",
+      "riskTags": [
+        "dense_layout",
+        "product_card",
+        "price_text",
+        "small_logo"
+      ],
+      "image": {
+        "path": "samples/real-poster-dense-product-card-005.png",
+        "width": 720,
+        "height": 960,
+        "mimeType": "image/png",
+        "sourceUrl": "https://picsum.photos/seed/lime-product-sale/720/960"
+      },
+      "subjectRect": {
+        "x": 240,
+        "y": 285,
+        "width": 290,
+        "height": 410
+      },
+      "textRect": {
+        "x": 45,
+        "y": 55,
+        "width": 560,
+        "height": 170
+      },
+      "review": {
+        "expectedSubject": "商品主体应独立成层，价格和 CTA 至少识别主要数字和核心词。",
+        "expectedCleanPlate": "主体移除区域应被周边像素合理补齐，不应出现大面积破洞。",
+        "expectedOcr": "标题和促销 CTA 应识别出主要英文单词或数字。"
+      }
+    }
+  ]
+}

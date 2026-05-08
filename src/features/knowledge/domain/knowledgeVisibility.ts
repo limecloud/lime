@@ -100,6 +100,7 @@ export function buildEntryDisplayLabel(
 function stripInternalPathSegments(value: string): string {
   return value
     .replace(/(?:^|\s)(?:sources|compiled|runs|wiki)\/[^\s，。；;,)）]+/gi, " ")
+    .replace(/["'`]?\.?(?:sources|compiled|runs|wiki)\/[^"'`\s，。；;,)）]+["'`]?/gi, " ")
     .replace(/(?:^|\s)\.lime\/knowledge\/[^\s，。；;,)）]+/gi, " ")
     .replace(/(?:^|\s)\/(?:Users|tmp|var)\/[^\s，。；;,)）]+/g, " ")
     .replace(/[A-Za-z]:\\[^\s，。；;,)）]+/g, " ");
@@ -150,15 +151,29 @@ export function sanitizeKnowledgePreview(value?: string | null): string {
       if (/^[{[]/.test(line) || /[}\]]$/.test(line)) {
         return false;
       }
+      if (/^[\s,[\]{}]+$/.test(line)) {
+        return false;
+      }
+      if (/"[\w.-]+"\s*:/.test(line)) {
+        return false;
+      }
       if (
-        /^(name|status|trust|grounding|metadata|packName|compiled|source|sources|working_dir|workingDir|token)\s*[:=]/i.test(
+        /^"?[a-z0-9_-]*"?\s*[:=]/i.test(line) &&
+        /\b(name|status|trust|grounding|metadata|packName|compiled|source|sources|working_dir|workingDir|token|sha256|id|bytes|updatedAt|generatedAt|charCount|tokenEstimate|sourceAnchors|runtimeMode|primaryDocument|sourceDocument|runtimeBinding|splits|relativePath)\b/i.test(
           line,
         )
       ) {
         return false;
       }
       if (
-        /\b(KnowledgePack|packName|metadata|compiled|token|custom)\b/i.test(
+        /\b(KnowledgePack|packName|metadata|compiled|token|custom|sha256|runtimeMode|primaryDocument|runtimeBinding)\b/i.test(
+          line,
+        )
+      ) {
+        return false;
+      }
+      if (
+        /Profile\s*[:：]|Runtime\s*mode\s*[:：]|生成方式\s*[:：]|knowledge_builder|compat\s*\/\s*deprecated|document-first/i.test(
           line,
         )
       ) {
@@ -168,6 +183,9 @@ export function sanitizeKnowledgePreview(value?: string | null): string {
         return false;
       }
       if (/当数据.*不当指令|不当指令/.test(line)) {
+        return false;
+      }
+      if (/Ran into this error|Request failed|Bad request|Please retry/i.test(line)) {
         return false;
       }
       return true;

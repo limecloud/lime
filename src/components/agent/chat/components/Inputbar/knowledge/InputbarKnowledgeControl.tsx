@@ -109,6 +109,14 @@ const KnowledgePackMenuBadge = styled.span`
   font-weight: 700;
 `;
 
+const KnowledgePackSectionTitle = styled.div`
+  margin: 12px 2px 0;
+  color: #0f766e;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+`;
+
 const KnowledgeHubCard = styled.div`
   position: absolute;
   left: 0;
@@ -173,6 +181,7 @@ export function InputbarKnowledgeControl({
   openKnowledgeHubRequestKey,
   onToggleKnowledgePack,
   onSelectKnowledgePack,
+  onToggleKnowledgeCompanionPack,
   onStartKnowledgeOrganize,
   onManageKnowledgePacks,
 }: {
@@ -182,6 +191,10 @@ export function InputbarKnowledgeControl({
   openKnowledgeHubRequestKey?: number;
   onToggleKnowledgePack?: (enabled: boolean) => void;
   onSelectKnowledgePack?: (packName: string) => void;
+  onToggleKnowledgeCompanionPack?: (
+    packName: string,
+    enabled: boolean,
+  ) => void;
   onStartKnowledgeOrganize?: () => void;
   onManageKnowledgePacks?: () => void;
 }) {
@@ -205,6 +218,27 @@ export function InputbarKnowledgeControl({
     [normalizedOptions],
   );
   const hiddenPendingCount = normalizedOptions.length - readyOptions.length;
+  const optionLabelByName = useMemo(() => {
+    const labels = new Map<string, string>();
+    for (const option of normalizedOptions) {
+      labels.set(option.packName, option.label || option.packName);
+    }
+    return labels;
+  }, [normalizedOptions]);
+  const companionPacks = knowledgePackSelection?.companionPacks ?? [];
+  const implicitCompanionLabels = companionPacks
+    .filter((pack) => pack.activation === "implicit")
+    .map((pack) => optionLabelByName.get(pack.name) || pack.name);
+  const explicitCompanionNames = new Set(
+    companionPacks
+      .filter((pack) => pack.activation === "explicit")
+      .map((pack) => pack.name),
+  );
+  const companionCandidates = readyOptions.filter(
+    (option) =>
+      option.runtimeMode === "data" &&
+      option.packName !== knowledgePackSelection?.packName,
+  );
   const currentKnowledgePackLabel =
     knowledgePackSelection?.label ||
     knowledgePackSelection?.packName ||
@@ -233,8 +267,9 @@ export function InputbarKnowledgeControl({
   const secondaryOrganizeLabel = inputText.trim()
     ? "整理当前输入"
     : "添加新资料";
+  const companionCount = companionPacks.length;
   const knowledgeToggleLabel = effectiveKnowledgeEnabled
-    ? `资料：${currentKnowledgePackLabel}`
+    ? `资料：${currentKnowledgePackLabel}${companionCount ? ` +${companionCount}` : ""}`
     : shouldShowKnowledgePackToggle
       ? isReadyKnowledgePackStatus(knowledgePackSelection?.status)
         ? "资料可用"
@@ -325,38 +360,88 @@ export function InputbarKnowledgeControl({
             {hubState.description}
           </KnowledgeHubDescription>
           {readyOptions.length > 0 ? (
-            <KnowledgePackMenu
-              role="menu"
-              data-testid="inputbar-knowledge-pack-menu"
-            >
-              {readyOptions.map((option) => {
-                const isSelected =
-                  option.packName === knowledgePackSelection?.packName;
-                const label = option.label || option.packName;
+            <>
+              <KnowledgePackSectionTitle>主资料</KnowledgePackSectionTitle>
+              <KnowledgePackMenu
+                role="menu"
+                data-testid="inputbar-knowledge-pack-menu"
+              >
+                {readyOptions.map((option) => {
+                  const isSelected =
+                    option.packName === knowledgePackSelection?.packName;
+                  const label = option.label || option.packName;
 
-                return (
-                  <KnowledgePackMenuItem
-                    key={option.packName}
-                    type="button"
-                    role="menuitemradio"
-                    aria-checked={isSelected}
-                    data-testid={`inputbar-knowledge-pack-option-${option.packName}`}
-                    $active={isSelected}
-                    onClick={() => handleSelectKnowledgePack(option)}
-                  >
-                    <KnowledgePackMenuItemTitle>
-                      <span>{label}</span>
-                      {option.defaultForWorkspace ? (
-                        <KnowledgePackMenuBadge>默认</KnowledgePackMenuBadge>
-                      ) : null}
-                    </KnowledgePackMenuItemTitle>
-                    <KnowledgePackMenuItemMeta>
-                      已确认，可用于生成
-                    </KnowledgePackMenuItemMeta>
-                  </KnowledgePackMenuItem>
-                );
-              })}
-            </KnowledgePackMenu>
+                  return (
+                    <KnowledgePackMenuItem
+                      key={option.packName}
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={isSelected}
+                      data-testid={`inputbar-knowledge-pack-option-${option.packName}`}
+                      $active={isSelected}
+                      onClick={() => handleSelectKnowledgePack(option)}
+                    >
+                      <KnowledgePackMenuItemTitle>
+                        <span>{label}</span>
+                        {option.defaultForWorkspace ? (
+                          <KnowledgePackMenuBadge>默认</KnowledgePackMenuBadge>
+                        ) : null}
+                      </KnowledgePackMenuItemTitle>
+                      <KnowledgePackMenuItemMeta>
+                        已确认，可用于生成
+                      </KnowledgePackMenuItemMeta>
+                    </KnowledgePackMenuItem>
+                  );
+                })}
+              </KnowledgePackMenu>
+            </>
+          ) : null}
+          {implicitCompanionLabels.length > 0 ? (
+            <KnowledgeHubDescription data-testid="inputbar-knowledge-implicit-companions">
+              已自动搭配人设资料：{implicitCompanionLabels.join("、")}。
+            </KnowledgeHubDescription>
+          ) : null}
+          {companionCandidates.length > 0 && onToggleKnowledgeCompanionPack ? (
+            <>
+              <KnowledgePackSectionTitle>
+                协同资料（可多选）
+              </KnowledgePackSectionTitle>
+              <KnowledgePackMenu data-testid="inputbar-knowledge-companion-menu">
+                {companionCandidates.map((option) => {
+                  const isSelected = explicitCompanionNames.has(
+                    option.packName,
+                  );
+                  const label = option.label || option.packName;
+
+                  return (
+                    <KnowledgePackMenuItem
+                      key={option.packName}
+                      type="button"
+                      role="menuitemcheckbox"
+                      aria-checked={isSelected}
+                      data-testid={`inputbar-knowledge-companion-option-${option.packName}`}
+                      $active={isSelected}
+                      onClick={() =>
+                        onToggleKnowledgeCompanionPack(
+                          option.packName,
+                          !isSelected,
+                        )
+                      }
+                    >
+                      <KnowledgePackMenuItemTitle>
+                        <span>{label}</span>
+                        <KnowledgePackMenuBadge>
+                          {isSelected ? "已协同" : "可协同"}
+                        </KnowledgePackMenuBadge>
+                      </KnowledgePackMenuItemTitle>
+                      <KnowledgePackMenuItemMeta>
+                        和主资料一起进入上下文，用于补充运营事实和执行边界
+                      </KnowledgePackMenuItemMeta>
+                    </KnowledgePackMenuItem>
+                  );
+                })}
+              </KnowledgePackMenu>
+            </>
           ) : null}
           {hiddenPendingCount > 0 ? (
             <KnowledgeHubDescription>

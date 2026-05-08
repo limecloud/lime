@@ -206,6 +206,10 @@ function createProjectExportReadOutput(
     manifestPath:
       "/workspace/.lime/layered-designs/restored-design.layered-design/export-manifest.json",
     manifestJson: "{\"assets\":[]}",
+    psdLikeManifestPath:
+      "/workspace/.lime/layered-designs/restored-design.layered-design/psd-like-manifest.json",
+    psdLikeManifestJson:
+      "{\"projectionKind\":\"psd-like-layer-stack\",\"layers\":[]}",
     previewPngPath:
       "/workspace/.lime/layered-designs/restored-design.layered-design/preview.png",
     fileCount: 5,
@@ -441,6 +445,8 @@ function createFlatImageDraftDocument(): LayeredDesignDocument {
             hasAlpha: true,
             createdAt: CREATED_AT,
             params: {
+              alphaHoleFilledPixelCount: 128,
+              totalPixelCount: 760 * 980,
               modelSlotExecution: SUBJECT_MODEL_SLOT_EXECUTION,
             },
           },
@@ -551,6 +557,8 @@ function createFlatImageDraftDocumentWithCleanPlate(): LayeredDesignDocument {
             hasAlpha: true,
             createdAt: CREATED_AT,
             params: {
+              alphaHoleFilledPixelCount: 128,
+              totalPixelCount: 760 * 980,
               modelSlotExecution: SUBJECT_MODEL_SLOT_EXECUTION,
             },
           },
@@ -571,6 +579,8 @@ function createFlatImageDraftDocumentWithCleanPlate(): LayeredDesignDocument {
           seed: "worker_heuristic_clean_plate_provider",
           provider: "测试 clean plate provider",
           model: "fixture-inpaint",
+          haloExpandedPixelCount: 18,
+          totalSubjectPixelCount: 9200,
           modelSlotExecution: CLEAN_PLATE_MODEL_SLOT_EXECUTION,
         },
       },
@@ -669,6 +679,225 @@ function createFlatImageDraftDocumentWithMaskAndTextCandidate(): LayeredDesignDo
     cleanPlate: {
       status: "not_requested",
       message: "当前 analyzer 未生成 clean plate。",
+    },
+    createdAt: CREATED_AT,
+  });
+}
+
+function createFlatImageDraftDocumentWithQualityMetadataRisk(): LayeredDesignDocument {
+  return createLayeredDesignFlatImageDraftDocument({
+    title: "带异常质量元数据的扁平海报",
+    image: {
+      src: "data:image/png;base64,cmlzay1mbGF0",
+      width: 1080,
+      height: 1440,
+      fileName: "risk-flat-poster.png",
+      mimeType: "image/png",
+    },
+    analysis: {
+      analyzer: {
+        kind: "structured_pipeline",
+        label: "质量风险 analyzer",
+      },
+      outputs: {
+        candidateRaster: true,
+        candidateMask: true,
+        cleanPlate: true,
+        ocrText: true,
+      },
+      generatedAt: CREATED_AT,
+    },
+    candidates: [
+      {
+        id: "subject-candidate",
+        role: "subject",
+        confidence: 0.94,
+        layer: {
+          id: "subject-layer",
+          name: "人物主体",
+          type: "image",
+          assetId: "subject-asset",
+          maskAssetId: "subject-mask",
+          x: 120,
+          y: 220,
+          width: 760,
+          height: 980,
+          zIndex: 20,
+          alphaMode: "mask",
+        },
+        assets: [
+          {
+            id: "subject-asset",
+            kind: "subject",
+            src: "data:image/png;base64,cmlzay1zdWJqZWN0",
+            width: 760,
+            height: 980,
+            hasAlpha: true,
+            createdAt: CREATED_AT,
+            params: {
+              foregroundPixelCount: 12,
+              detectedForegroundPixelCount: 0,
+              ellipseFallbackApplied: true,
+              totalPixelCount: 760 * 980,
+            },
+          },
+          {
+            id: "subject-mask",
+            kind: "mask",
+            src: "data:image/png;base64,cmlzay1tYXNr",
+            width: 760,
+            height: 980,
+            hasAlpha: false,
+            createdAt: CREATED_AT,
+          },
+        ],
+      },
+    ],
+    cleanPlate: {
+      status: "succeeded",
+      asset: {
+        id: "clean-plate-asset",
+        kind: "clean_plate",
+        src: "data:image/png;base64,cmlzay1jbGVhbg==",
+        width: 1080,
+        height: 1440,
+        hasAlpha: false,
+        createdAt: CREATED_AT,
+        params: {
+          provider: "风险 clean plate provider",
+          model: "risk-inpaint",
+          filledPixelCount: 0,
+          totalSubjectPixelCount: 9_200,
+          maskApplied: false,
+        },
+      },
+      message: "背景修补状态为 succeeded，但质量元数据异常。",
+    },
+    createdAt: CREATED_AT,
+  });
+}
+
+function createFlatImageDraftDocumentWithProductionModelSlotReady(): LayeredDesignDocument {
+  return createLayeredDesignFlatImageDraftDocument({
+    title: "生产级 model slot ready 扁平图",
+    image: {
+      src: "data:image/png;base64,cHJvZC1yZWFkeS1mbGF0",
+      width: 1080,
+      height: 1440,
+      fileName: "prod-ready-flat-poster.png",
+      mimeType: "image/png",
+    },
+    analysis: {
+      analyzer: {
+        kind: "structured_pipeline",
+        label: "生产 model slot analyzer",
+      },
+      outputs: {
+        candidateRaster: true,
+        candidateMask: true,
+        cleanPlate: true,
+        ocrText: true,
+      },
+      providerCapabilities: [
+        {
+          kind: "subject_matting",
+          label: "生产主体抠图 slot",
+          execution: "remote_model",
+          modelId: "prod-matting-v1",
+          supports: {
+            dataUrlPng: true,
+            alphaOutput: true,
+            maskOutput: true,
+          },
+          quality: {
+            productionReady: true,
+            requiresHumanReview: false,
+          },
+        },
+        {
+          kind: "clean_plate",
+          label: "生产 clean plate slot",
+          execution: "remote_model",
+          modelId: "prod-inpaint-v1",
+          supports: {
+            dataUrlPng: true,
+            maskInput: true,
+            cleanPlateOutput: true,
+          },
+          quality: {
+            productionReady: true,
+            requiresHumanReview: false,
+          },
+        },
+      ],
+      generatedAt: CREATED_AT,
+    },
+    candidates: [
+      {
+        id: "subject-candidate",
+        role: "subject",
+        confidence: 0.96,
+        layer: {
+          id: "subject-layer",
+          name: "人物主体",
+          type: "image",
+          assetId: "subject-asset",
+          maskAssetId: "subject-mask",
+          x: 120,
+          y: 220,
+          width: 760,
+          height: 980,
+          zIndex: 20,
+          alphaMode: "mask",
+        },
+        assets: [
+          {
+            id: "subject-asset",
+            kind: "subject",
+            src: "data:image/png;base64,cHJvZC1yZWFkeS1zdWJqZWN0",
+            width: 760,
+            height: 980,
+            hasAlpha: true,
+            createdAt: CREATED_AT,
+            params: {
+              foregroundPixelCount: 312_000,
+              detectedForegroundPixelCount: 312_000,
+              ellipseFallbackApplied: false,
+              totalPixelCount: 760 * 980,
+              modelSlotExecution: SUBJECT_MODEL_SLOT_EXECUTION,
+            },
+          },
+          {
+            id: "subject-mask",
+            kind: "mask",
+            src: "data:image/png;base64,cHJvZC1yZWFkeS1tYXNr",
+            width: 760,
+            height: 980,
+            hasAlpha: false,
+            createdAt: CREATED_AT,
+          },
+        ],
+      },
+    ],
+    cleanPlate: {
+      status: "succeeded",
+      asset: {
+        id: "clean-plate-asset",
+        kind: "clean_plate",
+        src: "data:image/png;base64,cHJvZC1yZWFkeS1jbGVhbg==",
+        width: 1080,
+        height: 1440,
+        hasAlpha: false,
+        createdAt: CREATED_AT,
+        params: {
+          filledPixelCount: 9_200,
+          totalSubjectPixelCount: 9_200,
+          haloExpandedPixelCount: 0,
+          maskApplied: true,
+          modelSlotExecution: CLEAN_PLATE_MODEL_SLOT_EXECUTION,
+        },
+      },
+      message: "生产级背景修补可用。",
     },
     createdAt: CREATED_AT,
   });
@@ -1154,6 +1383,39 @@ describe("DesignCanvas", () => {
     expect(document.body.textContent).not.toContain("仅保留原图");
   });
 
+  it("生产级 model slot 完整质量元数据应允许直接进入编辑", () => {
+    const mounted = renderDesignCanvas(
+      {
+        type: "design",
+        document: createFlatImageDraftDocumentWithProductionModelSlotReady(),
+        selectedLayerId: "subject-layer",
+        zoom: 0.72,
+      },
+      {},
+    );
+    const enterButton = Array.from(document.querySelectorAll("button")).find(
+      (button) => button.textContent?.includes("进入图层编辑"),
+    ) as HTMLButtonElement | undefined;
+
+    expect(document.body.textContent).toContain("生产 model slot analyzer");
+    expect(document.body.textContent).toContain("拆层质量：可进入编辑");
+    expect(document.body.textContent).toContain("100 分");
+    expect(document.body.textContent).not.toContain("model slot 缺少质量元数据");
+    expect(document.body.textContent).not.toContain(
+      "高风险拆层已阻止直接进入编辑",
+    );
+    expect(enterButton?.disabled).toBe(false);
+
+    clickButton("进入图层编辑");
+
+    expect(mounted.readState().document.extraction?.review.status).toBe(
+      "confirmed",
+    );
+    expect(mounted.readState().document.editHistory.at(-1)?.type).toBe(
+      "candidate_selection_confirmed",
+    );
+  });
+
   it("高风险拆层应阻止直接进入编辑，并保留安全出口", () => {
     const mounted = renderDesignCanvas(
       {
@@ -1181,6 +1443,43 @@ describe("DesignCanvas", () => {
     expect(enterButton?.disabled).toBe(true);
     expect(enterButton?.title).toContain("当前拆层质量为高风险");
     expect(sourceOnlyButton?.disabled).toBe(false);
+
+    clickButton("进入图层编辑");
+
+    expect(mounted.readState().document.extraction?.review.status).toBe(
+      "pending",
+    );
+    expect(mounted.readState().document.editHistory.at(-1)?.type).not.toBe(
+      "candidate_selection_confirmed",
+    );
+  });
+
+  it("拆层确认态应消费 mask 与 clean plate 质量元数据并阻止假成功", () => {
+    const mounted = renderDesignCanvas(
+      {
+        type: "design",
+        document: createFlatImageDraftDocumentWithQualityMetadataRisk(),
+        selectedLayerId: "subject-layer",
+        zoom: 0.72,
+      },
+      {},
+    );
+    const enterButton = Array.from(document.querySelectorAll("button")).find(
+      (button) => button.textContent?.includes("进入图层编辑"),
+    ) as HTMLButtonElement | undefined;
+
+    expect(document.body.textContent).toContain("拆层质量：高风险");
+    expect(document.body.textContent).toContain("主体 mask 覆盖异常");
+    expect(document.body.textContent).toContain("前景覆盖约 0%");
+    expect(document.body.textContent).toContain("主体 mask 使用兜底椭圆");
+    expect(document.body.textContent).toContain("检测前景覆盖约 0%");
+    expect(document.body.textContent).toContain("clean plate 修补覆盖不足");
+    expect(document.body.textContent).toContain("0/9200 个目标像素");
+    expect(document.body.textContent).toContain("clean plate 未使用主体 mask");
+    expect(document.body.textContent).toContain(
+      "高风险拆层已阻止直接进入编辑",
+    );
+    expect(enterButton?.disabled).toBe(true);
 
     clickButton("进入图层编辑");
 
@@ -1251,6 +1550,8 @@ describe("DesignCanvas", () => {
     expect(document.body.textContent).toContain("背景修补可用。");
     expect(document.body.textContent).toContain("拆层质量：需要人工复核");
     expect(document.body.textContent).toContain("能力来源需人工复核");
+    expect(document.body.textContent).toContain("主体 alpha 孔洞已修复");
+    expect(document.body.textContent).toContain("clean plate 边缘残影已修补");
     expect(document.body.textContent).toContain("背景修补可用于进入编辑");
     expect(document.body.textContent).toContain(
       "背景修补来源：测试 clean plate provider / fixture-inpaint",
@@ -1953,6 +2254,8 @@ describe("DesignCanvas", () => {
       projectRootPath: "/workspace",
       projectId: "project-1",
       contentId: "content-1",
+      imageGenerationProviderId: "openai",
+      imageGenerationModelId: "gpt-images-2",
       createImageTaskArtifact,
     });
 
@@ -1964,6 +2267,9 @@ describe("DesignCanvas", () => {
         entrySource: "layered_design_canvas",
         modalityContractKey: "image_generation",
         routingSlot: "image_generation_model",
+        providerId: "openai",
+        model: "gpt-images-2",
+        executorMode: "responses_image_generation",
         slotId: "subject",
         targetOutputId: "asset-subject",
         targetOutputRefId: "design-test:subject:asset-subject",

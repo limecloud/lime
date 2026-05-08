@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  attachLayeredDesignModelSlotBenchmarkEvidence,
   createImageLayer,
   createLayeredDesignDocument,
   createShapeLayer,
   createTextLayer,
   normalizeLayeredDesignDocument,
+  normalizeLayeredDesignModelSlotBenchmarkEvidence,
   replaceImageLayerAsset,
   updateLayerTransform,
   updateTextLayerProperties,
@@ -366,5 +368,116 @@ describe("LayeredDesignDocument", () => {
     expect(updated.layers.map((layer) => layer.id)).toEqual(["subject"]);
     expect(updated.layers[0].x).toBe(180);
     expect(updated.layers[0].zIndex).toBe(4);
+  });
+
+  it("应标准化并附着 model slot benchmark evidence 到 extraction analysis", () => {
+    const document = createLayeredDesignDocument({
+      id: "benchmark-document",
+      title: "Benchmark 文档",
+      canvas: { width: 1080, height: 1440 },
+      extraction: {
+        sourceAssetId: "flat-source",
+        analysis: {
+          analyzer: {
+            kind: "structured_pipeline",
+            label: "HTTP JSON model slot analyzer",
+          },
+          outputs: {
+            candidateRaster: true,
+            candidateMask: true,
+            cleanPlate: true,
+            ocrText: true,
+          },
+        },
+      },
+      assets: [
+        createAsset("flat-source", {
+          hasAlpha: false,
+        }),
+      ],
+      createdAt: CREATED_AT,
+    });
+    const rawEvidence = {
+      schemaVersion: "layered-design-model-slot-benchmark@1",
+      createdAt: "2026-05-08T02:29:44.340Z",
+      endpointUrl: "http://127.0.0.1:4455/model-slot",
+      benchmark: {
+        mode: "sample_manifest",
+        checkedSamples: ["real-poster-001"],
+        checkedKinds: ["subject_matting", "clean_plate", "text_ocr"],
+        checkedRequestCount: 3,
+        sampleManifestPath: "/tmp/real-samples.json",
+      },
+      completionGate: {
+        status: "sample_manifest_completed",
+        missing: [
+          "human_review_or_complex_sample_quality_evidence",
+          "export_manifest_evidence_attachment",
+        ],
+      },
+    };
+
+    const normalized =
+      normalizeLayeredDesignModelSlotBenchmarkEvidence(rawEvidence);
+    const updated = attachLayeredDesignModelSlotBenchmarkEvidence(document, {
+      evidence: rawEvidence,
+      editId: "attach-benchmark",
+      appliedAt: UPDATED_AT,
+    });
+
+    expect(normalized).toEqual(rawEvidence);
+    expect(updated.extraction?.analysis?.modelSlotBenchmark).toEqual(
+      rawEvidence,
+    );
+    expect(updated.editHistory.at(-1)).toMatchObject({
+      id: "attach-benchmark",
+      type: "extraction_reanalyzed",
+      actor: "system",
+      summary:
+        "附着 model slot benchmark evidence: sample_manifest_completed",
+      createdAt: UPDATED_AT,
+    });
+    expect(updated.updatedAt).toBe(UPDATED_AT);
+  });
+
+  it("无效 benchmark evidence 不应进入文档事实源", () => {
+    const invalidEvidence = {
+      schemaVersion: "layered-design-model-slot-benchmark@1",
+      createdAt: "2026-05-08T02:29:44.340Z",
+      benchmark: {
+        mode: "synthetic_verifier_profiles",
+        checkedSamples: ["coffee-pop-up"],
+        checkedKinds: ["subject_matting"],
+        checkedRequestCount: 1,
+      },
+      completionGate: {
+        status: "complete",
+        missing: [],
+      },
+    };
+    const document = createLayeredDesignDocument({
+      id: "benchmark-invalid",
+      title: "Benchmark 无效",
+      canvas: { width: 1080, height: 1440 },
+      extraction: {
+        sourceAssetId: "flat-source",
+        analysis: {
+          analyzer: {
+            kind: "structured_pipeline",
+            label: "HTTP JSON model slot analyzer",
+          },
+        },
+      },
+      createdAt: CREATED_AT,
+    });
+
+    expect(
+      normalizeLayeredDesignModelSlotBenchmarkEvidence(invalidEvidence),
+    ).toBeUndefined();
+    expect(() =>
+      attachLayeredDesignModelSlotBenchmarkEvidence(document, {
+        evidence: invalidEvidence,
+      }),
+    ).toThrow("无效 model slot benchmark evidence");
   });
 });

@@ -3,7 +3,7 @@ import { compileBaseSetupPackage } from "./compiler";
 import type { BaseSetupPackage } from "./types";
 
 export const SEEDED_SERVICE_SKILL_CATALOG_VERSION =
-  "client-seed-2026-04-15-local-custom-package";
+  "client-seed-2026-05-08-knowledge-v2-persona-builders";
 export const SEEDED_SERVICE_SKILL_CATALOG_SYNCED_AT =
   "2026-03-24T00:00:00.000Z";
 export const SEEDED_SERVICE_SKILL_CATALOG_TENANT_ID = "local-seeded";
@@ -69,6 +69,74 @@ const SEEDED_SERVICE_SKILL_PACKAGE: BaseSetupPackage = {
       source: "builtin",
       pathOrUri: "seeded://service-skills/account-performance-tracking",
       kind: "skill_bundle",
+    },
+    {
+      id: "personal-ip-knowledge-builder-bundle",
+      source: "builtin",
+      pathOrUri: "builtin://default-skills/personal-ip-knowledge-builder",
+      kind: "skill_bundle",
+      versionConstraint: ">=1.0.0",
+    },
+    {
+      id: "brand-persona-knowledge-builder-bundle",
+      source: "builtin",
+      pathOrUri: "builtin://default-skills/brand-persona-knowledge-builder",
+      kind: "skill_bundle",
+      versionConstraint: ">=1.0.0",
+    },
+    {
+      id: "content-operations-knowledge-builder-bundle",
+      source: "builtin",
+      pathOrUri:
+        "builtin://default-skills/content-operations-knowledge-builder",
+      kind: "skill_bundle",
+      versionConstraint: ">=1.0.0",
+    },
+    {
+      id: "private-domain-operations-knowledge-builder-bundle",
+      source: "builtin",
+      pathOrUri:
+        "builtin://default-skills/private-domain-operations-knowledge-builder",
+      kind: "skill_bundle",
+      versionConstraint: ">=1.0.0",
+    },
+    {
+      id: "live-commerce-operations-knowledge-builder-bundle",
+      source: "builtin",
+      pathOrUri:
+        "builtin://default-skills/live-commerce-operations-knowledge-builder",
+      kind: "skill_bundle",
+      versionConstraint: ">=1.0.0",
+    },
+    {
+      id: "campaign-operations-knowledge-builder-bundle",
+      source: "builtin",
+      pathOrUri:
+        "builtin://default-skills/campaign-operations-knowledge-builder",
+      kind: "skill_bundle",
+      versionConstraint: ">=1.0.0",
+    },
+    {
+      id: "brand-product-knowledge-builder-bundle",
+      source: "builtin",
+      pathOrUri: "builtin://default-skills/brand-product-knowledge-builder",
+      kind: "skill_bundle",
+      versionConstraint: ">=1.0.0",
+    },
+    {
+      id: "organization-knowhow-knowledge-builder-bundle",
+      source: "builtin",
+      pathOrUri:
+        "builtin://default-skills/organization-knowhow-knowledge-builder",
+      kind: "skill_bundle",
+      versionConstraint: ">=1.0.0",
+    },
+    {
+      id: "growth-strategy-knowledge-builder-bundle",
+      source: "builtin",
+      pathOrUri: "builtin://default-skills/growth-strategy-knowledge-builder",
+      kind: "skill_bundle",
+      versionConstraint: ">=1.0.0",
     },
   ],
   catalogProjections: [
@@ -367,6 +435,557 @@ const SEEDED_SERVICE_SKILL_PACKAGE: BaseSetupPackage = {
       themeTarget: "general",
       version: SEEDED_SERVICE_SKILL_CATALOG_VERSION,
     },
+    {
+      id: "personal-ip-knowledge-builder",
+      targetCatalog: "service_skill_catalog",
+      entryKey: "personal-ip-knowledge-builder",
+      skillKey: "personal-ip-knowledge-builder",
+      skillType: "service",
+      title: "个人 IP 知识库生成器",
+      summary:
+        "把访谈稿、聊天记录、简历、公开内容和案例整理成 Agent Knowledge v0.6 document-first 个人人设包。",
+      entryHint:
+        "由项目资料整理流程自动调用；普通用户仍看到“个人 IP”资料模板。",
+      aliases: ["个人IP知识库", "个人 IP", "人设包", "persona builder"],
+      category: "项目资料",
+      outputHint: "document-first 个人 IP 知识库",
+      triggerHints: [
+        "用户选择个人 IP 资料模板并导入访谈或历史内容时使用。",
+        "需要重新维护 personal-profile / persona pack 时使用。",
+      ],
+      bundleRefId: "personal-ip-knowledge-builder-bundle",
+      slotProfileRef: "personal-ip-knowledge-builder-slots",
+      bindingProfileRef: "native-skill-instant",
+      artifactProfileRef: "knowledge-builder-document-first-artifact",
+      scorecardProfileRef: "seeded-service-skill-scorecard",
+      policyProfileRef: "seeded-workspace-only",
+      readinessRequirements: {
+        requiresModel: true,
+        requiresProject: true,
+      },
+      usageGuidelines: [
+        "章节模板、访谈问题和质量检查表以 Builder Skill 的 references/ 为事实源。",
+        "运行时只消费生成后的 KnowledgePack，不执行 Builder Skill。",
+      ],
+      setupRequirements: [
+        "需要已选择可用模型。",
+        "需要当前项目内已有 sources/ 来源资料或用户粘贴的访谈内容。",
+      ],
+      examples: [
+        "把 1 小时访谈稿整理成创始人个人 IP 知识库。",
+        "基于历史文章和聊天记录补齐一个专家 persona pack。",
+      ],
+      skillBundleMetadata: {
+        Lime_knowledge_builder: "true",
+        Lime_knowledge_pack_type: "personal-profile",
+        Lime_knowledge_template: "personal-ip",
+        Lime_knowledge_family: "persona",
+        Lime_agent_knowledge_profile: "document-first",
+        Lime_agent_knowledge_runtime_mode: "persona",
+        Lime_skill_bundle_path:
+          "src-tauri/resources/default-skills/personal-ip-knowledge-builder",
+        Lime_skill_bundle_version: "1.0.0",
+      },
+      skillBundleResourceSummary: {
+        hasScripts: true,
+        hasReferences: true,
+        hasAssets: true,
+      },
+      themeTarget: "general",
+      version: SEEDED_SERVICE_SKILL_CATALOG_VERSION,
+    },
+    {
+      id: "brand-persona-knowledge-builder",
+      targetCatalog: "service_skill_catalog",
+      entryKey: "brand-persona-knowledge-builder",
+      skillKey: "brand-persona-knowledge-builder",
+      skillType: "service",
+      title: "品牌人设知识库生成器",
+      summary:
+        "把品牌定位、价值观、受众关系、语气风格、内容样例和表达禁区整理成 Agent Knowledge v0.6 document-first 品牌人设包。",
+      entryHint:
+        "由项目资料整理流程自动调用；普通用户仍看到“品牌人设”资料模板。",
+      aliases: [
+        "品牌人设知识库",
+        "品牌口吻",
+        "品牌 persona",
+        "brand persona builder",
+      ],
+      category: "项目资料",
+      outputHint: "document-first 品牌人设知识库",
+      triggerHints: [
+        "用户选择品牌人设资料模板并导入品牌手册、历史内容或客服话术时使用。",
+        "需要重新维护 brand-persona / persona pack 时使用。",
+      ],
+      bundleRefId: "brand-persona-knowledge-builder-bundle",
+      slotProfileRef: "brand-persona-knowledge-builder-slots",
+      bindingProfileRef: "native-skill-instant",
+      artifactProfileRef: "knowledge-builder-document-first-artifact",
+      scorecardProfileRef: "seeded-service-skill-scorecard",
+      policyProfileRef: "seeded-workspace-only",
+      readinessRequirements: {
+        requiresModel: true,
+        requiresProject: true,
+      },
+      usageGuidelines: [
+        "章节模板、访谈问题和质量检查表以 Builder Skill 的 references/ 为事实源。",
+        "运行时只消费生成后的 KnowledgePack，不执行 Builder Skill。",
+      ],
+      setupRequirements: [
+        "需要已选择可用模型。",
+        "需要当前项目内已有品牌来源资料或用户粘贴的品牌定位、内容样例和表达边界。",
+      ],
+      examples: [
+        "把品牌手册和历史文案整理成品牌人设知识库。",
+        "基于客服话术、公众号文章和危机案例补齐一个品牌 persona pack。",
+      ],
+      skillBundleMetadata: {
+        Lime_knowledge_builder: "true",
+        Lime_knowledge_pack_type: "brand-persona",
+        Lime_knowledge_template: "brand-persona",
+        Lime_knowledge_family: "persona",
+        Lime_agent_knowledge_profile: "document-first",
+        Lime_agent_knowledge_runtime_mode: "persona",
+        Lime_skill_bundle_path:
+          "src-tauri/resources/default-skills/brand-persona-knowledge-builder",
+        Lime_skill_bundle_version: "1.0.0",
+      },
+      skillBundleResourceSummary: {
+        hasScripts: false,
+        hasReferences: true,
+        hasAssets: false,
+      },
+      themeTarget: "general",
+      version: SEEDED_SERVICE_SKILL_CATALOG_VERSION,
+    },
+    {
+      id: "content-operations-knowledge-builder",
+      targetCatalog: "service_skill_catalog",
+      entryKey: "content-operations-knowledge-builder",
+      skillKey: "content-operations-knowledge-builder",
+      skillType: "service",
+      title: "内容运营知识库生成器",
+      summary:
+        "把选题、栏目、素材、发布节奏和复盘整理成 Agent Knowledge v0.6 document-first 运营资料包。",
+      entryHint: "由项目资料整理流程自动调用；普通用户看到“内容运营”资料模板。",
+      aliases: ["内容运营知识库", "选题库", "内容 SOP", "content ops builder"],
+      category: "项目资料",
+      outputHint: "document-first 内容运营知识库",
+      triggerHints: [
+        "用户选择内容运营资料模板并导入选题、排期、素材或复盘时使用。",
+        "需要维护 content-operations / data pack 时使用。",
+      ],
+      bundleRefId: "content-operations-knowledge-builder-bundle",
+      slotProfileRef: "operations-knowledge-builder-slots",
+      bindingProfileRef: "native-skill-instant",
+      artifactProfileRef: "knowledge-builder-document-first-artifact",
+      scorecardProfileRef: "seeded-service-skill-scorecard",
+      policyProfileRef: "seeded-workspace-only",
+      readinessRequirements: {
+        requiresModel: true,
+        requiresProject: true,
+      },
+      usageGuidelines: [
+        "模板和质量检查表以 Builder Skill 的 references/ 为事实源。",
+        "运行时只消费生成后的 KnowledgePack，可与 persona pack 协同进入上下文。",
+      ],
+      setupRequirements: [
+        "需要已选择可用模型。",
+        "需要当前项目内已有内容运营来源资料或用户粘贴的历史运营内容。",
+      ],
+      examples: [
+        "把这个季度选题表和复盘整理成内容运营知识库。",
+        "基于历史公众号和视频号运营资料沉淀一份可复用 SOP。",
+      ],
+      skillBundleMetadata: {
+        Lime_knowledge_builder: "true",
+        Lime_knowledge_pack_type: "content-operations",
+        Lime_knowledge_template: "content-operations",
+        Lime_knowledge_family: "data",
+        Lime_agent_knowledge_profile: "document-first",
+        Lime_agent_knowledge_runtime_mode: "data",
+        Lime_skill_bundle_path:
+          "src-tauri/resources/default-skills/content-operations-knowledge-builder",
+        Lime_skill_bundle_version: "1.0.0",
+      },
+      skillBundleResourceSummary: {
+        hasScripts: false,
+        hasReferences: true,
+        hasAssets: false,
+      },
+      themeTarget: "general",
+      version: SEEDED_SERVICE_SKILL_CATALOG_VERSION,
+    },
+    {
+      id: "private-domain-operations-knowledge-builder",
+      targetCatalog: "service_skill_catalog",
+      entryKey: "private-domain-operations-knowledge-builder",
+      skillKey: "private-domain-operations-knowledge-builder",
+      skillType: "service",
+      title: "私域运营知识库生成器",
+      summary:
+        "把社群 SOP、用户分层、触达节奏、转化话术和服务边界整理成 document-first 私域运营资料包。",
+      entryHint:
+        "由项目资料整理流程自动调用；普通用户看到“私域 / 社群运营”资料模板。",
+      aliases: ["私域知识库", "社群 SOP", "私域运营", "community ops builder"],
+      category: "项目资料",
+      outputHint: "document-first 私域运营知识库",
+      triggerHints: [
+        "用户选择私域 / 社群运营资料模板并导入 SOP、话术或活动资料时使用。",
+        "需要维护 private-domain-operations / data pack 时使用。",
+      ],
+      bundleRefId: "private-domain-operations-knowledge-builder-bundle",
+      slotProfileRef: "operations-knowledge-builder-slots",
+      bindingProfileRef: "native-skill-instant",
+      artifactProfileRef: "knowledge-builder-document-first-artifact",
+      scorecardProfileRef: "seeded-service-skill-scorecard",
+      policyProfileRef: "seeded-workspace-only",
+      readinessRequirements: {
+        requiresModel: true,
+        requiresProject: true,
+      },
+      usageGuidelines: [
+        "把社群节奏、分层标签、话术和人工升级条件沉淀到 references/ 模板结构里。",
+        "运行时只消费生成后的 KnowledgePack，可与 persona pack 协同进入上下文。",
+      ],
+      setupRequirements: [
+        "需要已选择可用模型。",
+        "需要私域、社群或客服来源资料。",
+      ],
+      examples: [
+        "把社群欢迎语、日常触达和转化 SOP 整理成私域运营知识库。",
+        "基于这批群聊运营复盘沉淀一份可复用社群话术边界。",
+      ],
+      skillBundleMetadata: {
+        Lime_knowledge_builder: "true",
+        Lime_knowledge_pack_type: "private-domain-operations",
+        Lime_knowledge_template: "private-domain-operations",
+        Lime_knowledge_family: "data",
+        Lime_agent_knowledge_profile: "document-first",
+        Lime_agent_knowledge_runtime_mode: "data",
+        Lime_skill_bundle_path:
+          "src-tauri/resources/default-skills/private-domain-operations-knowledge-builder",
+        Lime_skill_bundle_version: "1.0.0",
+      },
+      skillBundleResourceSummary: {
+        hasScripts: false,
+        hasReferences: true,
+        hasAssets: false,
+      },
+      themeTarget: "general",
+      version: SEEDED_SERVICE_SKILL_CATALOG_VERSION,
+    },
+    {
+      id: "live-commerce-operations-knowledge-builder",
+      targetCatalog: "service_skill_catalog",
+      entryKey: "live-commerce-operations-knowledge-builder",
+      skillKey: "live-commerce-operations-knowledge-builder",
+      skillType: "service",
+      title: "直播运营知识库生成器",
+      summary:
+        "把直播排期、货盘节奏、场控流程、互动话术和复盘指标整理成 document-first 直播运营资料包。",
+      entryHint: "由项目资料整理流程自动调用；普通用户看到“直播运营”资料模板。",
+      aliases: ["直播知识库", "直播 SOP", "带货运营", "live ops builder"],
+      category: "项目资料",
+      outputHint: "document-first 直播运营知识库",
+      triggerHints: [
+        "用户选择直播运营资料模板并导入排期、货盘、脚本或复盘时使用。",
+        "需要维护 live-commerce-operations / data pack 时使用。",
+      ],
+      bundleRefId: "live-commerce-operations-knowledge-builder-bundle",
+      slotProfileRef: "operations-knowledge-builder-slots",
+      bindingProfileRef: "native-skill-instant",
+      artifactProfileRef: "knowledge-builder-document-first-artifact",
+      scorecardProfileRef: "seeded-service-skill-scorecard",
+      policyProfileRef: "seeded-workspace-only",
+      readinessRequirements: {
+        requiresModel: true,
+        requiresProject: true,
+      },
+      usageGuidelines: [
+        "把场次目标、货盘、场控、话术、异常预案和复盘指标沉淀为 data pack。",
+        "运行时只消费生成后的 KnowledgePack，可与 persona pack 协同进入上下文。",
+      ],
+      setupRequirements: [
+        "需要已选择可用模型。",
+        "需要直播脚本、货盘或复盘来源资料。",
+      ],
+      examples: [
+        "把这几场直播脚本和复盘整理成直播运营知识库。",
+        "基于货盘和场控流程生成一份可复用直播 SOP。",
+      ],
+      skillBundleMetadata: {
+        Lime_knowledge_builder: "true",
+        Lime_knowledge_pack_type: "live-commerce-operations",
+        Lime_knowledge_template: "live-commerce-operations",
+        Lime_knowledge_family: "data",
+        Lime_agent_knowledge_profile: "document-first",
+        Lime_agent_knowledge_runtime_mode: "data",
+        Lime_skill_bundle_path:
+          "src-tauri/resources/default-skills/live-commerce-operations-knowledge-builder",
+        Lime_skill_bundle_version: "1.0.0",
+      },
+      skillBundleResourceSummary: {
+        hasScripts: false,
+        hasReferences: true,
+        hasAssets: false,
+      },
+      themeTarget: "general",
+      version: SEEDED_SERVICE_SKILL_CATALOG_VERSION,
+    },
+    {
+      id: "campaign-operations-knowledge-builder",
+      targetCatalog: "service_skill_catalog",
+      entryKey: "campaign-operations-knowledge-builder",
+      skillKey: "campaign-operations-knowledge-builder",
+      skillType: "service",
+      title: "活动运营知识库生成器",
+      summary:
+        "把活动目标、渠道分工、物料清单、执行节奏、风险预案和复盘整理成 document-first 活动运营资料包。",
+      entryHint:
+        "由项目资料整理流程自动调用；普通用户看到“活动 / Campaign”资料模板。",
+      aliases: [
+        "活动知识库",
+        "Campaign SOP",
+        "活动运营",
+        "campaign ops builder",
+      ],
+      category: "项目资料",
+      outputHint: "document-first 活动运营知识库",
+      triggerHints: [
+        "用户选择活动 / Campaign 资料模板并导入方案、物料或复盘时使用。",
+        "需要维护 campaign-operations / data pack 时使用。",
+      ],
+      bundleRefId: "campaign-operations-knowledge-builder-bundle",
+      slotProfileRef: "operations-knowledge-builder-slots",
+      bindingProfileRef: "native-skill-instant",
+      artifactProfileRef: "knowledge-builder-document-first-artifact",
+      scorecardProfileRef: "seeded-service-skill-scorecard",
+      policyProfileRef: "seeded-workspace-only",
+      readinessRequirements: {
+        requiresModel: true,
+        requiresProject: true,
+      },
+      usageGuidelines: [
+        "把活动目标、节奏、渠道、物料、风险和复盘沉淀为可协同 persona 的 data pack。",
+        "运行时只消费生成后的 KnowledgePack，不执行 Builder Skill。",
+      ],
+      setupRequirements: [
+        "需要已选择可用模型。",
+        "需要活动方案、物料或复盘来源资料。",
+      ],
+      examples: [
+        "把这次私域活动的方案、物料清单和复盘整理成活动运营知识库。",
+        "基于 Campaign 资料沉淀一份可复用活动 SOP。",
+      ],
+      skillBundleMetadata: {
+        Lime_knowledge_builder: "true",
+        Lime_knowledge_pack_type: "campaign-operations",
+        Lime_knowledge_template: "campaign-operations",
+        Lime_knowledge_family: "data",
+        Lime_agent_knowledge_profile: "document-first",
+        Lime_agent_knowledge_runtime_mode: "data",
+        Lime_skill_bundle_path:
+          "src-tauri/resources/default-skills/campaign-operations-knowledge-builder",
+        Lime_skill_bundle_version: "1.0.0",
+      },
+      skillBundleResourceSummary: {
+        hasScripts: false,
+        hasReferences: true,
+        hasAssets: false,
+      },
+      themeTarget: "general",
+      version: SEEDED_SERVICE_SKILL_CATALOG_VERSION,
+    },
+    {
+      id: "brand-product-knowledge-builder",
+      targetCatalog: "service_skill_catalog",
+      entryKey: "brand-product-knowledge-builder",
+      skillKey: "brand-product-knowledge-builder",
+      skillType: "service",
+      title: "品牌产品知识库生成器",
+      summary:
+        "把产品事实、规格、卖点证据、FAQ、价格权益和合规边界整理成 document-first 产品资料包。",
+      entryHint: "由项目资料整理流程自动调用；普通用户看到“品牌产品”资料模板。",
+      aliases: [
+        "产品知识库",
+        "产品 FAQ",
+        "产品资料包",
+        "brand product builder",
+      ],
+      category: "项目资料",
+      outputHint: "document-first 品牌产品知识库",
+      triggerHints: [
+        "用户选择品牌产品资料模板并导入手册、FAQ、价格或客服资料时使用。",
+        "需要维护 brand-product / data pack 时使用。",
+      ],
+      bundleRefId: "brand-product-knowledge-builder-bundle",
+      slotProfileRef: "operations-knowledge-builder-slots",
+      bindingProfileRef: "native-skill-instant",
+      artifactProfileRef: "knowledge-builder-document-first-artifact",
+      scorecardProfileRef: "seeded-service-skill-scorecard",
+      policyProfileRef: "seeded-workspace-only",
+      readinessRequirements: {
+        requiresModel: true,
+        requiresProject: true,
+      },
+      usageGuidelines: [
+        "把产品事实、卖点证据、FAQ、渠道表达和合规禁区沉淀为 data pack。",
+        "运行时只消费生成后的 KnowledgePack，可与 persona pack 协同进入上下文。",
+      ],
+      setupRequirements: [
+        "需要已选择可用模型。",
+        "需要产品手册、FAQ、价格权益或客服来源资料。",
+      ],
+      examples: [
+        "把产品手册、客服 FAQ 和价格表整理成品牌产品知识库。",
+        "基于产品资料沉淀一份可复用的直播和客服话术边界。",
+      ],
+      skillBundleMetadata: {
+        Lime_knowledge_builder: "true",
+        Lime_knowledge_pack_type: "brand-product",
+        Lime_knowledge_template: "brand-product",
+        Lime_knowledge_family: "data",
+        Lime_agent_knowledge_profile: "document-first",
+        Lime_agent_knowledge_runtime_mode: "data",
+        Lime_skill_bundle_path:
+          "src-tauri/resources/default-skills/brand-product-knowledge-builder",
+        Lime_skill_bundle_version: "1.0.0",
+      },
+      skillBundleResourceSummary: {
+        hasScripts: false,
+        hasReferences: true,
+        hasAssets: false,
+      },
+      themeTarget: "general",
+      version: SEEDED_SERVICE_SKILL_CATALOG_VERSION,
+    },
+    {
+      id: "organization-knowhow-knowledge-builder",
+      targetCatalog: "service_skill_catalog",
+      entryKey: "organization-knowhow-knowledge-builder",
+      skillKey: "organization-knowhow-knowledge-builder",
+      skillType: "service",
+      title: "组织经验知识库生成器",
+      summary:
+        "把团队 SOP、交付流程、角色职责、FAQ、决策边界和复盘整理成 document-first 组织经验资料包。",
+      entryHint: "由项目资料整理流程自动调用；普通用户看到“组织经验”资料模板。",
+      aliases: [
+        "组织知识库",
+        "团队 SOP",
+        "交付流程",
+        "organization knowhow builder",
+      ],
+      category: "项目资料",
+      outputHint: "document-first 组织经验知识库",
+      triggerHints: [
+        "用户选择组织经验资料模板并导入 SOP、复盘或交付资料时使用。",
+        "需要维护 organization-knowhow / data pack 时使用。",
+      ],
+      bundleRefId: "organization-knowhow-knowledge-builder-bundle",
+      slotProfileRef: "operations-knowledge-builder-slots",
+      bindingProfileRef: "native-skill-instant",
+      artifactProfileRef: "knowledge-builder-document-first-artifact",
+      scorecardProfileRef: "seeded-service-skill-scorecard",
+      policyProfileRef: "seeded-workspace-only",
+      readinessRequirements: {
+        requiresModel: true,
+        requiresProject: true,
+      },
+      usageGuidelines: [
+        "把角色职责、SOP、检查点、升级机制和复盘经验沉淀为 data pack。",
+        "运行时只消费生成后的 KnowledgePack，不执行 Builder Skill。",
+      ],
+      setupRequirements: [
+        "需要已选择可用模型。",
+        "需要团队 SOP、交付流程、复盘或 FAQ 来源资料。",
+      ],
+      examples: [
+        "把项目交付 SOP、会议纪要和复盘整理成组织经验知识库。",
+        "基于团队资料生成一份可复用的新成员 onboarding 知识库。",
+      ],
+      skillBundleMetadata: {
+        Lime_knowledge_builder: "true",
+        Lime_knowledge_pack_type: "organization-knowhow",
+        Lime_knowledge_template: "organization-knowhow",
+        Lime_knowledge_family: "data",
+        Lime_agent_knowledge_profile: "document-first",
+        Lime_agent_knowledge_runtime_mode: "data",
+        Lime_skill_bundle_path:
+          "src-tauri/resources/default-skills/organization-knowhow-knowledge-builder",
+        Lime_skill_bundle_version: "1.0.0",
+      },
+      skillBundleResourceSummary: {
+        hasScripts: false,
+        hasReferences: true,
+        hasAssets: false,
+      },
+      themeTarget: "general",
+      version: SEEDED_SERVICE_SKILL_CATALOG_VERSION,
+    },
+    {
+      id: "growth-strategy-knowledge-builder",
+      targetCatalog: "service_skill_catalog",
+      entryKey: "growth-strategy-knowledge-builder",
+      skillKey: "growth-strategy-knowledge-builder",
+      skillType: "service",
+      title: "增长策略知识库生成器",
+      summary:
+        "把增长目标、指标体系、渠道策略、实验计划、资源约束和复盘整理成 document-first 增长资料包。",
+      entryHint: "由项目资料整理流程自动调用；普通用户看到“增长策略”资料模板。",
+      aliases: [
+        "增长知识库",
+        "增长策略",
+        "实验复盘",
+        "growth strategy builder",
+      ],
+      category: "项目资料",
+      outputHint: "document-first 增长策略知识库",
+      triggerHints: [
+        "用户选择增长策略资料模板并导入增长计划、指标或复盘时使用。",
+        "需要维护 growth-strategy / data pack 时使用。",
+      ],
+      bundleRefId: "growth-strategy-knowledge-builder-bundle",
+      slotProfileRef: "operations-knowledge-builder-slots",
+      bindingProfileRef: "native-skill-instant",
+      artifactProfileRef: "knowledge-builder-document-first-artifact",
+      scorecardProfileRef: "seeded-service-skill-scorecard",
+      policyProfileRef: "seeded-workspace-only",
+      readinessRequirements: {
+        requiresModel: true,
+        requiresProject: true,
+      },
+      usageGuidelines: [
+        "把增长目标、指标口径、渠道策略、实验计划和停止条件沉淀为 data pack。",
+        "运行时只消费生成后的 KnowledgePack，可与 persona pack 协同进入上下文。",
+      ],
+      setupRequirements: [
+        "需要已选择可用模型。",
+        "需要增长计划、指标看板、渠道复盘或商业计划来源资料。",
+      ],
+      examples: [
+        "把季度增长计划、指标口径和渠道复盘整理成增长策略知识库。",
+        "基于实验记录沉淀一份可复用的增长实验与停止条件资料包。",
+      ],
+      skillBundleMetadata: {
+        Lime_knowledge_builder: "true",
+        Lime_knowledge_pack_type: "growth-strategy",
+        Lime_knowledge_template: "growth-strategy",
+        Lime_knowledge_family: "data",
+        Lime_agent_knowledge_profile: "document-first",
+        Lime_agent_knowledge_runtime_mode: "data",
+        Lime_skill_bundle_path:
+          "src-tauri/resources/default-skills/growth-strategy-knowledge-builder",
+        Lime_skill_bundle_version: "1.0.0",
+      },
+      skillBundleResourceSummary: {
+        hasScripts: false,
+        hasReferences: true,
+        hasAssets: false,
+      },
+      themeTarget: "general",
+      version: SEEDED_SERVICE_SKILL_CATALOG_VERSION,
+    },
   ],
   slotProfiles: [
     {
@@ -620,6 +1239,18 @@ const SEEDED_SERVICE_SKILL_PACKAGE: BaseSetupPackage = {
         },
       ],
     },
+    {
+      id: "personal-ip-knowledge-builder-slots",
+      slots: [],
+    },
+    {
+      id: "brand-persona-knowledge-builder-slots",
+      slots: [],
+    },
+    {
+      id: "operations-knowledge-builder-slots",
+      slots: [],
+    },
   ],
   bindingProfiles: [
     {
@@ -711,6 +1342,15 @@ const SEEDED_SERVICE_SKILL_PACKAGE: BaseSetupPackage = {
       outputDestination:
         "首轮策略会写回当前工作区；后续跟踪结果会持续回流到生成与项目内容。",
     },
+    {
+      id: "knowledge-builder-document-first-artifact",
+      deliveryContract: "project_pack",
+      requiredParts: ["KNOWLEDGE.md", "documents"],
+      viewerKind: "document",
+      defaultArtifactKind: "brief",
+      outputDestination:
+        "结果写入当前项目的 Agent Knowledge document-first 资料包。",
+    },
   ],
   scorecardProfiles: [
     {
@@ -762,6 +1402,12 @@ const SEEDED_SERVICE_SKILL_PACKAGE: BaseSetupPackage = {
       enabled: true,
       rolloutStage: "seeded",
     },
+    {
+      id: "seeded-workspace-only",
+      enabled: true,
+      surfaceScopes: ["workspace"],
+      rolloutStage: "seeded",
+    },
   ],
   compatibility: {
     minAppVersion: "1.11.0",
@@ -788,13 +1434,6 @@ const SEEDED_LOCAL_CUSTOM_SERVICE_SKILL_PACKAGE: BaseSetupPackage = {
       source: "local",
       pathOrUri: "seeded://local-custom/x-article-export",
       kind: "local_bundle",
-    },
-    {
-      id: "personal-ip-knowledge-builder-bundle",
-      source: "local",
-      pathOrUri: "repo://docs/knowledge/skills/personal-ip-knowledge-builder",
-      kind: "skill_bundle",
-      versionConstraint: ">=1.0.0",
     },
   ],
   catalogProjections: [
@@ -874,65 +1513,6 @@ const SEEDED_LOCAL_CUSTOM_SERVICE_SKILL_PACKAGE: BaseSetupPackage = {
       themeTarget: "general",
       version: SEEDED_SERVICE_SKILL_CATALOG_VERSION,
     },
-    {
-      id: "personal-ip-knowledge-builder",
-      targetCatalog: "service_skill_catalog",
-      entryKey: "personal-ip-knowledge-builder",
-      skillKey: "personal-ip-knowledge-builder",
-      skillType: "service",
-      title: "个人 IP 知识库生成器",
-      summary:
-        "把访谈稿、聊天记录、简历、公开内容和案例整理成 Agent Knowledge v0.6 document-first 个人人设包。",
-      entryHint:
-        "由项目资料整理流程自动调用；普通用户仍看到“个人 IP”资料模板。",
-      aliases: ["个人IP知识库", "个人 IP", "人设包", "persona builder"],
-      category: "项目资料",
-      outputHint: "document-first 个人 IP 知识库",
-      triggerHints: [
-        "用户选择个人 IP 资料模板并导入访谈或历史内容时使用。",
-        "需要重新维护 personal-profile / persona pack 时使用。",
-      ],
-      bundleRefId: "personal-ip-knowledge-builder-bundle",
-      slotProfileRef: "personal-ip-knowledge-builder-slots",
-      bindingProfileRef: "native-skill-knowledge-builder",
-      artifactProfileRef: "knowledge-builder-document-first-artifact",
-      scorecardProfileRef: "seeded-service-skill-scorecard",
-      policyProfileRef: "seeded-workspace-only",
-      readinessRequirements: {
-        requiresModel: true,
-        requiresProject: true,
-      },
-      usageGuidelines: [
-        "章节模板、访谈问题和质量检查表以 Builder Skill 的 references/ 为事实源。",
-        "运行时只消费生成后的 KnowledgePack，不执行 Builder Skill。",
-      ],
-      setupRequirements: [
-        "需要已选择可用模型。",
-        "需要当前项目内已有 sources/ 来源资料或用户粘贴的访谈内容。",
-      ],
-      examples: [
-        "把 1 小时访谈稿整理成创始人个人 IP 知识库。",
-        "基于历史文章和聊天记录补齐一个专家 persona pack。",
-      ],
-      skillBundleMetadata: {
-        Lime_knowledge_builder: "true",
-        Lime_knowledge_pack_type: "personal-profile",
-        Lime_knowledge_template: "personal-ip",
-        Lime_knowledge_family: "persona",
-        Lime_agent_knowledge_profile: "document-first",
-        Lime_agent_knowledge_runtime_mode: "persona",
-        Lime_skill_bundle_path:
-          "docs/knowledge/skills/personal-ip-knowledge-builder",
-        Lime_skill_bundle_version: "1.0.0",
-      },
-      skillBundleResourceSummary: {
-        hasScripts: true,
-        hasReferences: true,
-        hasAssets: true,
-      },
-      themeTarget: "general",
-      version: SEEDED_SERVICE_SKILL_CATALOG_VERSION,
-    },
   ],
   slotProfiles: [
     {
@@ -957,21 +1537,11 @@ const SEEDED_LOCAL_CUSTOM_SERVICE_SKILL_PACKAGE: BaseSetupPackage = {
         },
       ],
     },
-    {
-      id: "personal-ip-knowledge-builder-slots",
-      slots: [],
-    },
   ],
   bindingProfiles: [
     {
       id: "browser-assist-instant",
       bindingFamily: "browser_assist",
-      runnerType: "instant",
-      executionLocation: "client_default",
-    },
-    {
-      id: "native-skill-knowledge-builder",
-      bindingFamily: "native_skill",
       runnerType: "instant",
       executionLocation: "client_default",
     },
@@ -984,15 +1554,6 @@ const SEEDED_LOCAL_CUSTOM_SERVICE_SKILL_PACKAGE: BaseSetupPackage = {
       viewerKind: "artifact_bundle",
       outputDestination:
         "结果会写入当前项目目录下的导出文件夹，并在工作区生成一个结果入口文档。",
-    },
-    {
-      id: "knowledge-builder-document-first-artifact",
-      deliveryContract: "project_pack",
-      requiredParts: ["KNOWLEDGE.md", "documents"],
-      viewerKind: "document",
-      defaultArtifactKind: "brief",
-      outputDestination:
-        "结果写入当前项目的 Agent Knowledge document-first 资料包。",
     },
   ],
   scorecardProfiles: [

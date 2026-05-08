@@ -4,8 +4,22 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
+import { execFile, spawn } from "node:child_process";
+import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
 import zlib from "node:zlib";
 import { chromium } from "playwright";
+
+const execFileAsync = promisify(execFile);
+const HTTP_JSON_EXECUTOR_VERIFIER_PATH = fileURLToPath(
+  new URL(
+    "./verify-layered-design-model-slot-http-json-executor.mjs",
+    import.meta.url,
+  ),
+);
+const HTTP_JSON_EXECUTOR_FIXTURE_PATH = fileURLToPath(
+  new URL("./layered-design-model-slot-http-json-fixture.mjs", import.meta.url),
+);
 
 const DEFAULTS = {
   appUrl: "http://127.0.0.1:1420/",
@@ -28,18 +42,61 @@ const WORKER_OCR_PRIORITY_TEXT =
   "OCR priority: Smoke failing OCR provider -> Smoke empty OCR provider -> Smoke OCR priority browser Worker provider";
 const WORKER_CLEAN_PLATE_SOURCE =
   "背景修补来源：Simple browser clean plate provider / simple_neighbor_inpaint_v1";
+const WORKER_POSTPROCESS_ALPHA_HOLE_TEXT = "主体 alpha 孔洞已修复";
+const WORKER_POSTPROCESS_CLEAN_PLATE_HALO_TEXT =
+  "clean plate 边缘残影已修补";
+const NATIVE_SUBJECT_META = "subject / 置信度 74%";
+const NATIVE_HIGH_RISK_LEVEL_TEXT = "拆层质量：高风险";
+const NATIVE_ELLIPSE_FALLBACK_TEXT = "主体 mask 使用兜底椭圆";
+const NATIVE_HIGH_RISK_BLOCK_TEXT = "高风险拆层已阻止直接进入编辑";
 const WORKER_MODEL_SLOT_TEXT = "WORKER OCR TEXT";
 const WORKER_MODEL_SLOT_SUBJECT_META = "subject / 置信度 94%";
 const WORKER_MODEL_SLOT_CLEAN_PLATE_SOURCE =
   "背景修补来源：Simple browser clean plate provider / simple_neighbor_inpaint_v1";
 const WORKER_MODEL_SLOT_JSON_EXECUTOR_FIXTURE =
   "Analyzer model slots provider JSON executor fixture";
+const WORKER_MODEL_SLOT_HTTP_JSON_EXECUTOR_FIXTURE =
+  "Analyzer model slots HTTP JSON executor sidecar fixture";
 const WORKER_MODEL_SLOT_NATIVE_OCR_JSON_EXECUTOR_FIXTURE =
   "Analyzer model slots native OCR JSON executor fixture";
 const WORKER_MODEL_SLOT_NATIVE_OCR_PRIORITY =
   "OCR priority: Tauri native OCR -> Worker OCR provider via model slot JSON executor";
 const WORKER_MODEL_SLOT_EXPORT_RELATIVE_PATH =
   ".lime/layered-designs/design-canvas-smoke.layered-design";
+const EXTRACTION_QUALITY_EXPORT_RELATIVE_PATH =
+  ".lime/layered-designs/smoke-flat-image.layered-design";
+const WORKER_MODEL_SLOT_QUALITY_CONTRACT_EXPECTATIONS = {
+  subject_matting: {
+    slotId: "smoke-subject-matting-slot",
+    factSource: "LayeredDesignDocument.assets",
+    requiredResultFields: ["imageSrc", "maskSrc", "hasAlpha"],
+    requiredParamKeys: [
+      "foregroundPixelCount",
+      "detectedForegroundPixelCount",
+      "ellipseFallbackApplied",
+      "totalPixelCount",
+    ],
+    reviewFindingIds: ["subject_model_slot_quality_metadata_missing"],
+  },
+  clean_plate: {
+    slotId: "smoke-clean-plate-slot",
+    factSource: "LayeredDesignDocument.assets",
+    requiredResultFields: ["src"],
+    requiredParamKeys: [
+      "filledPixelCount",
+      "totalSubjectPixelCount",
+      "maskApplied",
+    ],
+    reviewFindingIds: ["clean_plate_model_slot_quality_metadata_missing"],
+  },
+  text_ocr: {
+    slotId: "smoke-ocr-slot",
+    factSource: "LayeredDesignDocument.extraction.candidates",
+    requiredResultFields: ["text", "boundingBox", "confidence"],
+    requiredParamKeys: [],
+    reviewFindingIds: [],
+  },
+};
 const ANALYZER_MODES = new Set([
   "default",
   "worker",
@@ -49,6 +106,7 @@ const ANALYZER_MODES = new Set([
   "worker-ocr-priority",
   "worker-clean-plate",
   "worker-model-slots",
+  "worker-model-slots-http-json",
   "worker-model-slots-native-ocr",
   "native",
 ]);
@@ -63,6 +121,8 @@ const ANALYZER_BADGE_TEXT = {
   "worker-ocr-priority": "Worker OCR priority analyzer 已启用",
   "worker-clean-plate": "Worker clean plate analyzer 已启用",
   "worker-model-slots": "Worker model slots analyzer 已启用",
+  "worker-model-slots-http-json":
+    "Worker model slots HTTP JSON analyzer 已启用",
   "worker-model-slots-native-ocr":
     "Worker model slots native OCR analyzer 已启用",
 };
@@ -77,6 +137,7 @@ const ANALYZER_RESULT_TEXT = {
   "worker-ocr-priority": "Worker local heuristic analyzer",
   "worker-clean-plate": "Worker local heuristic analyzer",
   "worker-model-slots": "Worker local heuristic analyzer",
+  "worker-model-slots-http-json": "Worker local heuristic analyzer",
   "worker-model-slots-native-ocr": "Worker local heuristic analyzer",
 };
 
@@ -85,11 +146,30 @@ const ANALYZER_EXTRA_CHECK = {
     subjectCandidateName: /[☑☐]\s*主体候选/,
     subjectMeta: WORKER_DEFAULT_SUBJECT_META,
     cleanPlateSource: WORKER_CLEAN_PLATE_SOURCE,
+    qualityTexts: [
+      WORKER_POSTPROCESS_ALPHA_HOLE_TEXT,
+      WORKER_POSTPROCESS_CLEAN_PLATE_HALO_TEXT,
+    ],
   },
   worker: {
     subjectCandidateName: /[☑☐]\s*主体候选/,
     subjectMeta: WORKER_DEFAULT_SUBJECT_META,
     cleanPlateSource: WORKER_CLEAN_PLATE_SOURCE,
+    qualityTexts: [
+      WORKER_POSTPROCESS_ALPHA_HOLE_TEXT,
+      WORKER_POSTPROCESS_CLEAN_PLATE_HALO_TEXT,
+    ],
+  },
+  native: {
+    subjectCandidateName: /[☑☐]\s*主体候选/,
+    subjectMeta: NATIVE_SUBJECT_META,
+    highRiskQualityTexts: [
+      NATIVE_HIGH_RISK_LEVEL_TEXT,
+      NATIVE_ELLIPSE_FALLBACK_TEXT,
+      "检测前景覆盖约 0%",
+      NATIVE_HIGH_RISK_BLOCK_TEXT,
+    ],
+    highRiskManifestFindingIds: ["subject_mask_ellipse_fallback"],
   },
   "worker-refined": {
     subjectCandidateName: /[☑☐]\s*主体候选/,
@@ -121,6 +201,25 @@ const ANALYZER_EXTRA_CHECK = {
     text: WORKER_MODEL_SLOT_TEXT,
     cleanPlateSource: WORKER_MODEL_SLOT_CLEAN_PLATE_SOURCE,
     capabilityText: "3 项 / 均生产可用",
+    modelSlotQualityContracts: true,
+    modelSlotQualityManifest: true,
+    modelSlotExecutionTexts: [
+      "模型执行",
+      "主体抠图：smoke-subject-matting-slot-v1 / attempt 1/1 / succeeded",
+      "背景修补：smoke-clean-plate-slot-v1 / attempt 1/1 / succeeded",
+      "OCR TextLayer：smoke-ocr-slot-v1 / attempt 1/1 / succeeded",
+    ],
+  },
+  "worker-model-slots-http-json": {
+    fixtureText: WORKER_MODEL_SLOT_HTTP_JSON_EXECUTOR_FIXTURE,
+    subjectCandidateName: /[☑☐]\s*主体候选/,
+    subjectMeta: WORKER_MODEL_SLOT_SUBJECT_META,
+    textCandidateName: /[☑☐]\s*标题文字候选/,
+    text: WORKER_MODEL_SLOT_TEXT,
+    cleanPlateSource: WORKER_MODEL_SLOT_CLEAN_PLATE_SOURCE,
+    capabilityText: "3 项 / 均生产可用",
+    modelSlotQualityContracts: false,
+    modelSlotQualityManifest: true,
     modelSlotExecutionTexts: [
       "模型执行",
       "主体抠图：smoke-subject-matting-slot-v1 / attempt 1/1 / succeeded",
@@ -137,6 +236,8 @@ const ANALYZER_EXTRA_CHECK = {
     text: WORKER_MODEL_SLOT_TEXT,
     cleanPlateSource: WORKER_MODEL_SLOT_CLEAN_PLATE_SOURCE,
     capabilityText: "3 项 / 均生产可用",
+    modelSlotQualityContracts: true,
+    modelSlotQualityManifest: true,
     modelSlotExecutionTexts: [
       "模型执行",
       "主体抠图：smoke-subject-matting-slot-v1 / attempt 1/1 / succeeded",
@@ -163,7 +264,7 @@ Lime Design Canvas Smoke
   --invoke-url <url>       DevBridge invoke 地址，默认 http://127.0.0.1:3030/invoke
   --timeout-ms <ms>        总超时，默认 180000
   --interval-ms <ms>       轮询间隔，默认 1000
-  --analyzer <mode>        analyzer 注入模式：default / worker / worker-refined / worker-matting / worker-ocr / worker-ocr-priority / worker-clean-plate / worker-model-slots / worker-model-slots-native-ocr / native，默认 default（产品默认 worker-first）
+  --analyzer <mode>        analyzer 注入模式：default / worker / worker-refined / worker-matting / worker-ocr / worker-ocr-priority / worker-clean-plate / worker-model-slots / worker-model-slots-http-json / worker-model-slots-native-ocr / native，默认 default（产品默认 worker-first）
   --project-roundtrip      上传拆层前验证 prompt seed 工程保存与重新打开（默认开启）
   --skip-project-roundtrip 跳过工程保存/重新打开，仅用于定位非持久化链路问题
   -h, --help               显示帮助
@@ -239,7 +340,7 @@ function parseArgs(argv) {
   }
   if (!ANALYZER_MODES.has(options.analyzer)) {
     throw new Error(
-      "--analyzer 必须是 worker、worker-refined、worker-matting、worker-ocr、worker-ocr-priority、worker-clean-plate、worker-model-slots、worker-model-slots-native-ocr、native 或 default",
+      "--analyzer 必须是 worker、worker-refined、worker-matting、worker-ocr、worker-ocr-priority、worker-clean-plate、worker-model-slots、worker-model-slots-http-json、worker-model-slots-native-ocr、native 或 default",
     );
   }
 
@@ -254,6 +355,156 @@ function assert(condition, message) {
   if (!condition) {
     throw new Error(message);
   }
+}
+
+function assertSameStringArray(actual, expected, message) {
+  assert(
+    Array.isArray(actual),
+    `${message}: actual is not an array (${JSON.stringify(actual)})`,
+  );
+  assert(
+    JSON.stringify(actual) === JSON.stringify(expected),
+    `${message}: expected ${JSON.stringify(expected)}, got ${JSON.stringify(
+      actual,
+    )}`,
+  );
+}
+
+async function startModelSlotHttpJsonExecutorSidecar() {
+  const child = spawn(process.execPath, [HTTP_JSON_EXECUTOR_FIXTURE_PATH], {
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  const stderrChunks = [];
+  let stdoutBuffer = "";
+
+  const ready = await new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      reject(
+        new Error(
+          `HTTP JSON fixture 启动超时: ${Buffer.concat(stderrChunks).toString(
+            "utf8",
+          )}`,
+        ),
+      );
+    }, ACTION_TIMEOUT_MS);
+
+    const cleanup = () => {
+      clearTimeout(timeout);
+      child.stdout.off("data", onStdout);
+      child.stderr.off("data", onStderr);
+      child.off("exit", onExit);
+      child.off("error", onError);
+    };
+    const resolveReady = (value) => {
+      cleanup();
+      resolve(value);
+    };
+    const rejectReady = (error) => {
+      cleanup();
+      reject(error);
+    };
+    const onStderr = (chunk) => {
+      stderrChunks.push(Buffer.from(chunk));
+    };
+    const onError = (error) => rejectReady(error);
+    const onExit = (code, signal) => {
+      rejectReady(
+        new Error(
+          `HTTP JSON fixture 提前退出 code=${code} signal=${signal} stderr=${Buffer.concat(
+            stderrChunks,
+          ).toString("utf8")}`,
+        ),
+      );
+    };
+    const onStdout = (chunk) => {
+      stdoutBuffer += chunk.toString("utf8");
+      let newlineIndex = stdoutBuffer.indexOf("\n");
+      while (newlineIndex >= 0) {
+        const line = stdoutBuffer.slice(0, newlineIndex).trim();
+        stdoutBuffer = stdoutBuffer.slice(newlineIndex + 1);
+        if (line) {
+          const payload = JSON.parse(line);
+          if (payload.type === "ready" && payload.endpointUrl) {
+            resolveReady(payload);
+            return;
+          }
+        }
+        newlineIndex = stdoutBuffer.indexOf("\n");
+      }
+    };
+
+    child.stdout.on("data", onStdout);
+    child.stderr.on("data", onStderr);
+    child.once("exit", onExit);
+    child.once("error", onError);
+  });
+
+  return {
+    url: ready.endpointUrl,
+    requestsUrl: ready.requestsUrl,
+    shutdownUrl: ready.shutdownUrl,
+    close: async () => {
+      if (ready.shutdownUrl) {
+        await fetch(ready.shutdownUrl, { method: "POST" }).catch(() => null);
+      }
+      await new Promise((resolve) => {
+        const timeout = setTimeout(() => {
+          child.kill("SIGTERM");
+          resolve();
+        }, 2_000);
+        child.once("exit", () => {
+          clearTimeout(timeout);
+          resolve();
+        });
+      });
+    },
+  };
+}
+
+async function verifyModelSlotHttpJsonExecutorSidecar(sidecar) {
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    [
+      HTTP_JSON_EXECUTOR_VERIFIER_PATH,
+      "--endpoint-url",
+      sidecar.url,
+      "--timeout-ms",
+      String(ACTION_TIMEOUT_MS),
+    ],
+    {
+      maxBuffer: 1024 * 1024,
+    },
+  );
+  const summary = JSON.parse(stdout);
+  const expectedProfiles = [
+    "coffee-pop-up",
+    "dark-game-poster",
+    "product-card",
+  ];
+  const expectedKinds = ["subject_matting", "clean_plate", "text_ocr"];
+  assert(
+    summary?.ok === true &&
+      Array.isArray(summary.checkedProfiles) &&
+      expectedProfiles.every((profile) =>
+        summary.checkedProfiles.includes(profile),
+      ) &&
+      Array.isArray(summary.checkedKinds) &&
+      expectedKinds.every((kind) => summary.checkedKinds.includes(kind)) &&
+      summary.checkedRequestCount >=
+        expectedProfiles.length * expectedKinds.length,
+    `HTTP JSON executor verifier summary 不完整: ${stdout}`,
+  );
+}
+
+async function readModelSlotHttpJsonExecutorSidecarRequests(sidecar) {
+  assert(sidecar.requestsUrl, "HTTP JSON fixture 缺少 requestsUrl");
+  const response = await fetch(sidecar.requestsUrl);
+  assert(
+    response.ok,
+    `HTTP JSON fixture requests 读取失败: ${response.status} ${response.statusText}`,
+  );
+  const payload = await response.json();
+  return Array.isArray(payload?.requests) ? payload.requests : [];
 }
 
 function crc32(buffer) {
@@ -295,17 +546,73 @@ function createSmokeFlatImagePngBuffer(width = 360, height = 560) {
 
     for (let x = 0; x < width; x += 1) {
       const offset = rowOffset + 1 + x * 4;
-      const inHeadline = y > height * 0.06 && y < height * 0.2;
+      const inHeadline = y > height * 0.06 && y < height * 0.14;
       const inSubject =
         x > width * 0.18 &&
         x < width * 0.82 &&
         y > height * 0.24 &&
         y < height * 0.82;
-      const inAccent = x > width * 0.68 && y > height * 0.7;
+      const inSubjectInteriorHole =
+        Math.abs(x - width * 0.5) <= 2 &&
+        Math.abs(y - height * 0.5) <= 2;
+      const inSubjectConnectedHalo =
+        x > width * 0.18 &&
+        x < width * 0.18 + 5 &&
+        y > height * 0.36 &&
+        y < height * 0.62;
+      const inSubjectHalo =
+        x > width * 0.18 - 2 &&
+        x < width * 0.82 + 2 &&
+        y > height * 0.24 - 2 &&
+        y < height * 0.82 + 2 &&
+        !inSubject;
+      const inAccent = x > width * 0.86 && y > height * 0.86;
+      const subjectRed = 130;
+      const subjectGreen = 150;
+      const subjectBlue = 170;
+      const haloRed = 205;
+      const haloGreen = 215;
+      const haloBlue = 215;
 
-      raw[offset] = inSubject ? 38 : inHeadline ? 18 : inAccent ? 245 : 238;
-      raw[offset + 1] = inSubject ? 86 : inHeadline ? 24 : inAccent ? 163 : 242;
-      raw[offset + 2] = inSubject ? 142 : inHeadline ? 42 : inAccent ? 72 : 234;
+      raw[offset] = inSubject
+        ? inSubjectInteriorHole
+          ? 238
+          : inSubjectConnectedHalo
+            ? haloRed
+            : subjectRed
+        : inSubjectHalo
+          ? haloRed
+          : inHeadline
+            ? 18
+            : inAccent
+              ? 245
+              : 238;
+      raw[offset + 1] = inSubject
+        ? inSubjectInteriorHole
+          ? 242
+          : inSubjectConnectedHalo
+            ? haloGreen
+            : subjectGreen
+        : inSubjectHalo
+          ? haloGreen
+          : inHeadline
+            ? 24
+            : inAccent
+              ? 163
+              : 242;
+      raw[offset + 2] = inSubject
+        ? inSubjectInteriorHole
+          ? 234
+          : inSubjectConnectedHalo
+            ? haloBlue
+            : subjectBlue
+        : inSubjectHalo
+          ? haloBlue
+          : inHeadline
+            ? 42
+            : inAccent
+              ? 72
+              : 234;
       raw[offset + 3] = 255;
     }
   }
@@ -418,25 +725,11 @@ async function resolveDefaultWorkspace(options) {
 async function assertWorkerModelSlotsManifest(page, workspace) {
   assert(workspace.rootPath, "worker-model-slots manifest 断言缺少 workspace rootPath");
 
-  const output = await page.evaluate(
-    async ({ projectRootPath, exportDirectoryRelativePath }) => {
-      const { readLayeredDesignProjectExport } = await import(
-        "/src/lib/api/layeredDesignProject.ts"
-      );
-      return readLayeredDesignProjectExport({
-        projectRootPath,
-        exportDirectoryRelativePath,
-      });
-    },
-    {
-      projectRootPath: workspace.rootPath,
-      exportDirectoryRelativePath: WORKER_MODEL_SLOT_EXPORT_RELATIVE_PATH,
-    },
+  const manifest = await readProjectExportManifest(
+    page,
+    workspace,
+    WORKER_MODEL_SLOT_EXPORT_RELATIVE_PATH,
   );
-  const manifestJson = pickStringField(output, "manifestJson", "manifest_json");
-  assert(manifestJson, "worker-model-slots 工程导出缺少 manifestJson");
-
-  const manifest = JSON.parse(manifestJson);
   const slots = Array.isArray(manifest?.analyzerModelSlots)
     ? manifest.analyzerModelSlots
     : [];
@@ -458,11 +751,429 @@ async function assertWorkerModelSlotsManifest(page, workspace) {
   );
 }
 
-function buildSmokeUrl(options, workspace) {
+async function assertWorkerModelSlotQualityContracts(page) {
+  const contracts = await page.evaluate(
+    () => globalThis.__limeDesignCanvasSmokeModelSlotQualityContracts ?? [],
+  );
+
+  assert(
+    Array.isArray(contracts),
+    `worker-model-slots qualityContract 记录不是数组: ${JSON.stringify(
+      contracts,
+    )}`,
+  );
+
+  for (const [kind, expected] of Object.entries(
+    WORKER_MODEL_SLOT_QUALITY_CONTRACT_EXPECTATIONS,
+  )) {
+    const contract = contracts.find(
+      (item) => item?.kind === kind && item?.slotId === expected.slotId,
+    );
+    assert(
+      contract,
+      `worker-model-slots 缺少 ${kind} qualityContract: ${JSON.stringify(
+        contracts,
+      )}`,
+    );
+    assert(
+      contract.factSource === expected.factSource,
+      `worker-model-slots ${kind} qualityContract factSource 不一致: ${JSON.stringify(
+        contract,
+      )}`,
+    );
+    assertSameStringArray(
+      contract.requiredResultFields,
+      expected.requiredResultFields,
+      `worker-model-slots ${kind} qualityContract result 字段`,
+    );
+    assertSameStringArray(
+      contract.requiredParamKeys,
+      expected.requiredParamKeys,
+      `worker-model-slots ${kind} qualityContract params 字段`,
+    );
+    assertSameStringArray(
+      contract.reviewFindingIds,
+      expected.reviewFindingIds,
+      `worker-model-slots ${kind} qualityContract review findings`,
+    );
+  }
+}
+
+function assertWorkerModelSlotHttpJsonSidecarRequests(requests) {
+  for (const [kind, expected] of Object.entries(
+    WORKER_MODEL_SLOT_QUALITY_CONTRACT_EXPECTATIONS,
+  )) {
+    const request = requests.find(
+      (item) => item?.kind === kind && item?.context?.slotId === expected.slotId,
+    );
+    assert(
+      request,
+      `worker-model-slots-http-json sidecar 缺少 ${kind} 请求: ${JSON.stringify(
+        requests,
+      )}`,
+    );
+    assert(
+      request.context.qualityContract?.factSource === expected.factSource,
+      `worker-model-slots-http-json ${kind} qualityContract factSource 不一致`,
+    );
+    assertSameStringArray(
+      request.context.qualityContract?.requiredResultFields,
+      expected.requiredResultFields,
+      `worker-model-slots-http-json ${kind} qualityContract result 字段`,
+    );
+    assertSameStringArray(
+      request.context.qualityContract?.requiredParamKeys,
+      expected.requiredParamKeys,
+      `worker-model-slots-http-json ${kind} qualityContract params 字段`,
+    );
+    assertSameStringArray(
+      request.context.qualityContract?.reviewFindingIds,
+      expected.reviewFindingIds,
+      `worker-model-slots-http-json ${kind} qualityContract review findings`,
+    );
+  }
+}
+
+async function readProjectExportOutput(
+  page,
+  workspace,
+  exportDirectoryRelativePath,
+) {
+  assert(workspace.rootPath, "工程导出读回断言缺少 workspace rootPath");
+
+  return await page.evaluate(
+    async ({ projectRootPath, exportDirectoryRelativePath }) => {
+      const { readLayeredDesignProjectExport } = await import(
+        "/src/lib/api/layeredDesignProject.ts"
+      );
+      return readLayeredDesignProjectExport({
+        projectRootPath,
+        exportDirectoryRelativePath,
+      });
+    },
+    {
+      projectRootPath: workspace.rootPath,
+      exportDirectoryRelativePath,
+    },
+  );
+}
+
+async function readProjectExportManifest(
+  page,
+  workspace,
+  exportDirectoryRelativePath,
+) {
+  const output = await readProjectExportOutput(
+    page,
+    workspace,
+    exportDirectoryRelativePath,
+  );
+  const manifestJson = pickStringField(output, "manifestJson", "manifest_json");
+  assert(
+    manifestJson,
+    `工程导出缺少 manifestJson: ${exportDirectoryRelativePath}`,
+  );
+
+  return JSON.parse(manifestJson);
+}
+
+async function assertExtractionQualityManifest(page, workspace) {
+  const output = await readProjectExportOutput(
+    page,
+    workspace,
+    EXTRACTION_QUALITY_EXPORT_RELATIVE_PATH,
+  );
+  const manifestJson = pickStringField(output, "manifestJson", "manifest_json");
+  assert(
+    manifestJson,
+    `工程导出缺少 manifestJson: ${EXTRACTION_QUALITY_EXPORT_RELATIVE_PATH}`,
+  );
+  const manifest = JSON.parse(manifestJson);
+  const quality = manifest?.analysis?.extractionQuality;
+  const findingIds = Array.isArray(quality?.findings)
+    ? quality.findings.map((finding) => String(finding?.id ?? ""))
+    : [];
+
+  assert(
+    quality?.level === "review",
+    `拆层导出 manifest 缺少 review 级质量评估: ${JSON.stringify(quality)}`,
+  );
+  assert(
+    findingIds.includes("subject_alpha_holes_repaired") &&
+      findingIds.includes("clean_plate_halo_repaired"),
+    `拆层导出 manifest 缺少后处理 finding: ${JSON.stringify(findingIds)}`,
+  );
+
+  const psdLikeManifestJson = pickStringField(
+    output,
+    "psdLikeManifestJson",
+    "psd_like_manifest_json",
+  );
+  assert(
+    psdLikeManifestJson,
+    `工程导出缺少 psdLikeManifestJson: ${EXTRACTION_QUALITY_EXPORT_RELATIVE_PATH}`,
+  );
+  const psdLikeManifest = JSON.parse(psdLikeManifestJson);
+  const psdLikeQuality = psdLikeManifest?.quality?.extractionQuality;
+  const psdLikeFindingIds = Array.isArray(psdLikeQuality?.findings)
+    ? psdLikeQuality.findings.map((finding) => String(finding?.id ?? ""))
+    : [];
+
+  assert(
+    psdLikeManifest?.quality?.source?.factSource ===
+      "LayeredDesignDocument.extraction" &&
+      psdLikeManifest?.quality?.source?.exportManifestFile ===
+        "export-manifest.json",
+    `PSD-like manifest 缺少质量事实源: ${JSON.stringify(
+      psdLikeManifest?.quality?.source,
+    )}`,
+  );
+  assert(
+    psdLikeQuality?.level === quality.level,
+    `PSD-like manifest 质量等级不一致: ${JSON.stringify(psdLikeQuality)}`,
+  );
+  assert(
+    psdLikeFindingIds.includes("subject_alpha_holes_repaired") &&
+      psdLikeFindingIds.includes("clean_plate_halo_repaired"),
+    `PSD-like manifest 缺少后处理 finding: ${JSON.stringify(
+      psdLikeFindingIds,
+    )}`,
+  );
+  assert(
+    JSON.stringify(psdLikeQuality) === JSON.stringify(quality),
+    "PSD-like manifest 与 export manifest 的 extractionQuality 不一致",
+  );
+}
+
+async function assertWorkerModelSlotsExtractionQualityManifest(page, workspace) {
+  const output = await readProjectExportOutput(
+    page,
+    workspace,
+    EXTRACTION_QUALITY_EXPORT_RELATIVE_PATH,
+  );
+  const designJson = pickStringField(output, "designJson", "design_json");
+  assert(
+    designJson,
+    `工程导出缺少 designJson: ${EXTRACTION_QUALITY_EXPORT_RELATIVE_PATH}`,
+  );
+  const design = JSON.parse(designJson);
+  const qualityValidationEvidence = [
+    ...(Array.isArray(design?.assets)
+      ? design.assets.map((asset) => ({
+          source: "asset",
+          id: asset?.id,
+          execution: asset?.params?.modelSlotExecution,
+          validation: asset?.params?.qualityContractValidation,
+        }))
+      : []),
+    ...(Array.isArray(design?.layers)
+      ? design.layers.map((layer) => ({
+          source: "layer",
+          id: layer?.id,
+          execution: layer?.params?.modelSlotExecution,
+          validation: layer?.params?.qualityContractValidation,
+        }))
+      : []),
+  ].filter((item) => item.validation);
+
+  for (const [kind, expected] of Object.entries(
+    WORKER_MODEL_SLOT_QUALITY_CONTRACT_EXPECTATIONS,
+  )) {
+    const evidence = qualityValidationEvidence.find(
+      (item) => item?.execution?.slotId === expected.slotId,
+    );
+    assert(
+      evidence?.validation?.status === "satisfied",
+      `worker-model-slots ${kind} qualityContractValidation 未满足: ${JSON.stringify(
+        qualityValidationEvidence,
+      )}`,
+    );
+    assertSameStringArray(
+      evidence.validation.missingResultFields,
+      [],
+      `worker-model-slots ${kind} qualityContractValidation missing result`,
+    );
+    assertSameStringArray(
+      evidence.validation.missingParamKeys,
+      [],
+      `worker-model-slots ${kind} qualityContractValidation missing params`,
+    );
+  }
+
+  const manifestJson = pickStringField(output, "manifestJson", "manifest_json");
+  assert(
+    manifestJson,
+    `工程导出缺少 manifestJson: ${EXTRACTION_QUALITY_EXPORT_RELATIVE_PATH}`,
+  );
+  const manifest = JSON.parse(manifestJson);
+  const quality = manifest?.analysis?.extractionQuality;
+  const findingIds = Array.isArray(quality?.findings)
+    ? quality.findings.map((finding) => String(finding?.id ?? ""))
+    : [];
+
+  assert(
+    quality?.level === "ready" || quality?.level === "review",
+    `worker-model-slots 拆层导出 manifest 缺少可编辑质量评估: ${JSON.stringify(
+      quality,
+    )}`,
+  );
+  assert(
+    !findingIds.includes("subject_model_slot_quality_metadata_missing") &&
+      !findingIds.includes("clean_plate_model_slot_quality_metadata_missing"),
+    `worker-model-slots 仍缺生产质量元数据: ${JSON.stringify(findingIds)}`,
+  );
+
+  const executions = Array.isArray(manifest?.evidence?.modelSlotExecutions)
+    ? manifest.evidence.modelSlotExecutions
+    : [];
+  const manifestQualityValidations = Array.isArray(
+    manifest?.evidence?.modelSlotQualityValidations,
+  )
+    ? manifest.evidence.modelSlotQualityValidations
+    : [];
+  for (const [kind, expected] of Object.entries(
+    WORKER_MODEL_SLOT_QUALITY_CONTRACT_EXPECTATIONS,
+  )) {
+    assert(
+      executions.some(
+        (execution) =>
+          execution?.slotId === expected.slotId &&
+          execution?.slotKind === kind &&
+          execution?.status === "succeeded",
+      ),
+      `worker-model-slots manifest 缺少 ${kind} succeeded 执行证据: ${JSON.stringify(
+        executions,
+      )}`,
+    );
+    const validation = manifestQualityValidations.find(
+      (item) => item?.slotId === expected.slotId && item?.slotKind === kind,
+    );
+    assert(
+      validation?.status === "satisfied",
+      `worker-model-slots manifest 缺少 ${kind} satisfied 质量契约验收: ${JSON.stringify(
+        manifestQualityValidations,
+      )}`,
+    );
+    assertSameStringArray(
+      validation.missingResultFields,
+      [],
+      `worker-model-slots manifest ${kind} missing result`,
+    );
+    assertSameStringArray(
+      validation.missingParamKeys,
+      [],
+      `worker-model-slots manifest ${kind} missing params`,
+    );
+  }
+
+  const psdLikeManifestJson = pickStringField(
+    output,
+    "psdLikeManifestJson",
+    "psd_like_manifest_json",
+  );
+  assert(
+    psdLikeManifestJson,
+    `工程导出缺少 psdLikeManifestJson: ${EXTRACTION_QUALITY_EXPORT_RELATIVE_PATH}`,
+  );
+  const psdLikeManifest = JSON.parse(psdLikeManifestJson);
+  const psdLikeQuality = psdLikeManifest?.quality?.extractionQuality;
+  assert(
+    JSON.stringify(psdLikeQuality) === JSON.stringify(quality),
+    "worker-model-slots PSD-like manifest 与 export manifest 的 extractionQuality 不一致",
+  );
+}
+
+async function assertHighRiskExtractionQualityManifest(
+  page,
+  workspace,
+  expectedFindingIds,
+) {
+  const output = await readProjectExportOutput(
+    page,
+    workspace,
+    EXTRACTION_QUALITY_EXPORT_RELATIVE_PATH,
+  );
+  const manifestJson = pickStringField(output, "manifestJson", "manifest_json");
+  assert(
+    manifestJson,
+    `工程导出缺少 manifestJson: ${EXTRACTION_QUALITY_EXPORT_RELATIVE_PATH}`,
+  );
+  const manifest = JSON.parse(manifestJson);
+  const quality = manifest?.analysis?.extractionQuality;
+  const findingIds = Array.isArray(quality?.findings)
+    ? quality.findings.map((finding) => String(finding?.id ?? ""))
+    : [];
+
+  assert(
+    quality?.level === "high_risk",
+    `拆层导出 manifest 缺少 high_risk 质量评估: ${JSON.stringify(quality)}`,
+  );
+  for (const expectedFindingId of expectedFindingIds) {
+    assert(
+      findingIds.includes(expectedFindingId),
+      `拆层导出 manifest 缺少 ${expectedFindingId}: ${JSON.stringify(
+        findingIds,
+      )}`,
+    );
+  }
+
+  const psdLikeManifestJson = pickStringField(
+    output,
+    "psdLikeManifestJson",
+    "psd_like_manifest_json",
+  );
+  assert(
+    psdLikeManifestJson,
+    `工程导出缺少 psdLikeManifestJson: ${EXTRACTION_QUALITY_EXPORT_RELATIVE_PATH}`,
+  );
+  const psdLikeManifest = JSON.parse(psdLikeManifestJson);
+  const psdLikeQuality = psdLikeManifest?.quality?.extractionQuality;
+  const psdLikeFindingIds = Array.isArray(psdLikeQuality?.findings)
+    ? psdLikeQuality.findings.map((finding) => String(finding?.id ?? ""))
+    : [];
+
+  assert(
+    psdLikeManifest?.quality?.source?.factSource ===
+      "LayeredDesignDocument.extraction" &&
+      psdLikeManifest?.quality?.source?.exportManifestFile ===
+        "export-manifest.json",
+    `PSD-like manifest 缺少质量事实源: ${JSON.stringify(
+      psdLikeManifest?.quality?.source,
+    )}`,
+  );
+  assert(
+    psdLikeQuality?.level === quality.level,
+    `PSD-like manifest 质量等级不一致: ${JSON.stringify(psdLikeQuality)}`,
+  );
+  for (const expectedFindingId of expectedFindingIds) {
+    assert(
+      psdLikeFindingIds.includes(expectedFindingId),
+      `PSD-like manifest 缺少 ${expectedFindingId}: ${JSON.stringify(
+        psdLikeFindingIds,
+      )}`,
+    );
+  }
+  assert(
+    JSON.stringify(psdLikeQuality) === JSON.stringify(quality),
+    "PSD-like manifest 与 export manifest 的 high_risk extractionQuality 不一致",
+  );
+}
+
+async function assertButtonDisabled(page, buttonName) {
+  const disabled = await page
+    .getByRole("button", { name: buttonName, exact: true })
+    .evaluate((button) => Boolean(button.disabled));
+  assert(disabled, `${buttonName} 按钮应处于禁用状态`);
+}
+
+function buildSmokeUrl(options, workspace, sidecar) {
   const url = new URL("/design-canvas-smoke", options.appUrl);
   url.searchParams.set("projectRootPath", workspace.rootPath);
   url.searchParams.set("projectId", workspace.projectId);
   url.searchParams.set("analyzer", options.analyzer);
+  if (sidecar?.url) {
+    url.searchParams.set("modelSlotEndpointUrl", sidecar.url);
+  }
   return url.toString();
 }
 
@@ -574,6 +1285,7 @@ async function runPageFlow(options, smokeUrl) {
       await waitForText(page, "工程目录保存路径", "design-canvas-smoke.layered-design");
       if (
         options.analyzer === "worker-model-slots" ||
+        options.analyzer === "worker-model-slots-http-json" ||
         options.analyzer === "worker-model-slots-native-ocr"
       ) {
         const smokeUrlObject = new URL(smokeUrl);
@@ -623,6 +1335,16 @@ async function runPageFlow(options, smokeUrl) {
           extraCheck.priorityText,
         );
       }
+      if (extraCheck.qualityTexts) {
+        for (const text of extraCheck.qualityTexts) {
+          await waitForText(page, "Worker 后处理质量元数据", text);
+        }
+      }
+      if (extraCheck.highRiskQualityTexts) {
+        for (const text of extraCheck.highRiskQualityTexts) {
+          await waitForText(page, "Native analyzer 高风险质量元数据", text);
+        }
+      }
       if (extraCheck.subjectCandidateName && extraCheck.subjectMeta) {
         await page
           .getByRole("button", { name: extraCheck.subjectCandidateName })
@@ -662,18 +1384,94 @@ async function runPageFlow(options, smokeUrl) {
           await waitForText(page, "Worker model slots 执行证据", text);
         }
       }
+      if (extraCheck.modelSlotQualityContracts) {
+        await assertWorkerModelSlotQualityContracts(page);
+      }
     }
     await waitForText(page, "拆层确认面板", "拆层确认");
     await waitForText(page, "进入编辑入口", "进入图层编辑");
     await waitForText(page, "候选图层", "候选图层");
 
-    await page.getByRole("button", { name: "进入图层编辑", exact: true }).click({
-      timeout: ACTION_TIMEOUT_MS,
-    });
+    if (extraCheck?.qualityTexts || extraCheck?.highRiskManifestFindingIds) {
+      await page.getByRole("button", { name: "恢复默认候选", exact: true }).click({
+        timeout: ACTION_TIMEOUT_MS,
+      });
+      await page
+        .getByRole("button", { name: /☑\s*主体候选/ })
+        .waitFor({ state: "visible", timeout: ACTION_TIMEOUT_MS });
+      if (extraCheck?.highRiskManifestFindingIds) {
+        await waitForText(
+          page,
+          "Native analyzer 高风险阻止状态",
+          NATIVE_HIGH_RISK_BLOCK_TEXT,
+        );
+      }
+    }
+
+    if (extraCheck?.highRiskManifestFindingIds) {
+      await assertButtonDisabled(page, "进入图层编辑");
+
+      if (options.projectRoundtrip) {
+        logStage("high-risk-extraction-quality-export-manifest");
+        await page.getByRole("button", { name: "导出设计工程", exact: true }).click({
+          timeout: ACTION_TIMEOUT_MS,
+        });
+        await waitForText(page, "高风险拆层工程目录保存结果", "已保存图层设计工程");
+        await waitForText(
+          page,
+          "高风险拆层工程目录保存路径",
+          "smoke-flat-image.layered-design",
+        );
+
+        const smokeUrlObject = new URL(smokeUrl);
+        await assertHighRiskExtractionQualityManifest(
+          page,
+          {
+            rootPath: smokeUrlObject.searchParams.get("projectRootPath") ?? "",
+          },
+          extraCheck.highRiskManifestFindingIds,
+        );
+      }
+
+      await page.getByRole("button", { name: "仅保留原图", exact: true }).click({
+        timeout: ACTION_TIMEOUT_MS,
+      });
+    } else {
+      await page.getByRole("button", { name: "进入图层编辑", exact: true }).click({
+        timeout: ACTION_TIMEOUT_MS,
+      });
+    }
     await page
       .getByRole("button", { name: "进入图层编辑", exact: true })
       .waitFor({ state: "hidden", timeout: ACTION_TIMEOUT_MS });
     await waitForText(page, "确认后属性面板", "位置与尺寸");
+
+    if (
+      options.projectRoundtrip &&
+      (extraCheck?.qualityTexts || extraCheck?.modelSlotQualityManifest)
+    ) {
+      logStage("extraction-quality-export-manifest");
+      await page.getByRole("button", { name: "导出设计工程", exact: true }).click({
+        timeout: ACTION_TIMEOUT_MS,
+      });
+      await waitForText(page, "拆层工程目录保存结果", "已保存图层设计工程");
+      await waitForText(
+        page,
+        "拆层工程目录保存路径",
+        "smoke-flat-image.layered-design",
+      );
+
+      const smokeUrlObject = new URL(smokeUrl);
+      const workspace = {
+        rootPath: smokeUrlObject.searchParams.get("projectRootPath") ?? "",
+      };
+      if (extraCheck?.qualityTexts) {
+        await assertExtractionQualityManifest(page, workspace);
+      }
+      if (extraCheck?.modelSlotQualityManifest) {
+        await assertWorkerModelSlotsExtractionQualityManifest(page, workspace);
+      }
+    }
 
     if (consoleErrors.length > 0) {
       throw new Error(
@@ -701,9 +1499,28 @@ async function main() {
 
   logStage("resolve-default-workspace");
   const workspace = await resolveDefaultWorkspace(options);
-  const smokeUrl = buildSmokeUrl(options, workspace);
+  const sidecar =
+    options.analyzer === "worker-model-slots-http-json"
+      ? await startModelSlotHttpJsonExecutorSidecar()
+      : null;
 
-  await runPageFlow(options, smokeUrl);
+  try {
+    if (sidecar) {
+      logStage("verify-http-json-sidecar-contract");
+      await verifyModelSlotHttpJsonExecutorSidecar(sidecar);
+    }
+    const smokeUrl = buildSmokeUrl(options, workspace, sidecar);
+
+    await runPageFlow(options, smokeUrl);
+    if (sidecar) {
+      const requests = await readModelSlotHttpJsonExecutorSidecarRequests(
+        sidecar,
+      );
+      assertWorkerModelSlotHttpJsonSidecarRequests(requests);
+    }
+  } finally {
+    await sidecar?.close();
+  }
 
   console.log(
     `[smoke:design-canvas] 通过 project=${workspace.projectId} root=${workspace.rootPath}`,

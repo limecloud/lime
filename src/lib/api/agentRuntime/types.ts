@@ -1295,6 +1295,8 @@ export interface CreateImageGenerationTaskArtifactRequest {
   style?: string;
   providerId?: string;
   model?: string;
+  executorMode?: "images_api" | "responses_image_generation";
+  outerModel?: string;
   sessionId?: string;
   threadId?: string;
   turnId?: string;

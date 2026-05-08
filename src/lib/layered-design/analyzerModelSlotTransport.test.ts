@@ -14,10 +14,40 @@ import {
   normalizeLayeredDesignAnalyzerModelSlotTransportError,
   type LayeredDesignAnalyzerModelSlotTransportJsonRequest,
   type LayeredDesignAnalyzerModelSlotTransportJsonResult,
+  type LayeredDesignAnalyzerModelSlotQualityContract,
   type LayeredDesignAnalyzerModelSlotTransport,
 } from "./analyzerModelSlotTransport";
 
 const CREATED_AT = "2026-05-07T00:00:00.000Z";
+const SUBJECT_QUALITY_CONTRACT: LayeredDesignAnalyzerModelSlotQualityContract = {
+  factSource: "LayeredDesignDocument.assets",
+  requiredResultFields: ["imageSrc", "maskSrc", "hasAlpha"],
+  requiredParamKeys: [
+    "foregroundPixelCount",
+    "detectedForegroundPixelCount",
+    "ellipseFallbackApplied",
+    "totalPixelCount",
+  ],
+  reviewFindingIds: ["subject_model_slot_quality_metadata_missing"],
+};
+const CLEAN_PLATE_QUALITY_CONTRACT: LayeredDesignAnalyzerModelSlotQualityContract =
+  {
+    factSource: "LayeredDesignDocument.assets",
+    requiredResultFields: ["src"],
+    requiredParamKeys: [
+      "filledPixelCount",
+      "totalSubjectPixelCount",
+      "maskApplied",
+    ],
+    reviewFindingIds: ["clean_plate_model_slot_quality_metadata_missing"],
+  };
+const TEXT_OCR_QUALITY_CONTRACT: LayeredDesignAnalyzerModelSlotQualityContract =
+  {
+    factSource: "LayeredDesignDocument.extraction.candidates",
+    requiredResultFields: ["text", "boundingBox", "confidence"],
+    requiredParamKeys: [],
+    reviewFindingIds: [],
+  };
 
 function createSubjectInput(): LayeredDesignSubjectMattingInput {
   return {
@@ -458,6 +488,16 @@ describe("layered-design analyzer model slot transport", () => {
         imageSrc: "data:image/png;base64,subject-json-alpha",
         maskSrc: "data:image/png;base64,subject-json-mask",
         params: {
+          qualityContractValidation: {
+            status: "missing_required_params",
+            missingResultFields: [],
+            missingParamKeys: [
+              "foregroundPixelCount",
+              "detectedForegroundPixelCount",
+              "ellipseFallbackApplied",
+              "totalPixelCount",
+            ],
+          },
           modelSlotExecution: {
             slotId: "subject-json",
             slotKind: "subject_matting",
@@ -476,6 +516,15 @@ describe("layered-design analyzer model slot transport", () => {
         src: "data:image/png;base64,json-inpaint-v1-clean",
         params: {
           modelId: "json-inpaint-v1",
+          qualityContractValidation: {
+            status: "missing_required_params",
+            missingResultFields: [],
+            missingParamKeys: [
+              "filledPixelCount",
+              "totalSubjectPixelCount",
+              "maskApplied",
+            ],
+          },
           modelSlotExecution: {
             slotId: "clean-json",
             slotKind: "clean_plate",
@@ -491,6 +540,11 @@ describe("layered-design analyzer model slot transport", () => {
       {
         text: "JSON OCR json-ocr-v1",
         params: {
+          qualityContractValidation: {
+            status: "satisfied",
+            missingResultFields: [],
+            missingParamKeys: [],
+          },
           modelSlotExecution: {
             slotId: "ocr-json",
             slotKind: "text_ocr",
@@ -516,6 +570,17 @@ describe("layered-design analyzer model slot transport", () => {
           maxAttempts: 1,
           timeoutMs: 12_000,
           fallbackStrategy: "return_null",
+          qualityContract: {
+            factSource: "LayeredDesignDocument.assets",
+            requiredResultFields: ["imageSrc", "maskSrc", "hasAlpha"],
+            requiredParamKeys: [
+              "foregroundPixelCount",
+              "detectedForegroundPixelCount",
+              "ellipseFallbackApplied",
+              "totalPixelCount",
+            ],
+            reviewFindingIds: ["subject_model_slot_quality_metadata_missing"],
+          },
           metadata: {
             slotId: "subject-json",
             slotKind: "subject_matting",
@@ -529,6 +594,18 @@ describe("layered-design analyzer model slot transport", () => {
           slotId: "clean-json",
           modelId: "json-inpaint-v1",
           providerId: "json-provider",
+          qualityContract: {
+            factSource: "LayeredDesignDocument.assets",
+            requiredResultFields: ["src"],
+            requiredParamKeys: [
+              "filledPixelCount",
+              "totalSubjectPixelCount",
+              "maskApplied",
+            ],
+            reviewFindingIds: [
+              "clean_plate_model_slot_quality_metadata_missing",
+            ],
+          },
         },
       },
       {
@@ -536,6 +613,12 @@ describe("layered-design analyzer model slot transport", () => {
         context: {
           slotId: "ocr-json",
           modelId: "json-ocr-v1",
+          qualityContract: {
+            factSource: "LayeredDesignDocument.extraction.candidates",
+            requiredResultFields: ["text", "boundingBox", "confidence"],
+            requiredParamKeys: [],
+            reviewFindingIds: [],
+          },
         },
       },
     ]);
@@ -629,6 +712,7 @@ describe("layered-design analyzer model slot transport", () => {
           timeoutMs: 45_000,
           fallbackStrategy: "return_null",
           metadata: {},
+          qualityContract: SUBJECT_QUALITY_CONTRACT,
         },
       }),
     ).resolves.toMatchObject({
@@ -653,6 +737,7 @@ describe("layered-design analyzer model slot transport", () => {
           timeoutMs: 45_000,
           fallbackStrategy: "return_null",
           metadata: {},
+          qualityContract: CLEAN_PLATE_QUALITY_CONTRACT,
         },
       }),
     ).resolves.toMatchObject({
@@ -680,6 +765,7 @@ describe("layered-design analyzer model slot transport", () => {
           timeoutMs: 45_000,
           fallbackStrategy: "return_null",
           metadata: {},
+          qualityContract: TEXT_OCR_QUALITY_CONTRACT,
         },
       }),
     ).resolves.toMatchObject({
@@ -714,6 +800,7 @@ describe("layered-design analyzer model slot transport", () => {
           timeoutMs: 45_000,
           fallbackStrategy: "return_null",
           metadata: {},
+          qualityContract: CLEAN_PLATE_QUALITY_CONTRACT,
         },
       }),
     ).rejects.toMatchObject({

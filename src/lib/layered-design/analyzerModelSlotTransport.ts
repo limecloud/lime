@@ -100,6 +100,30 @@ export type LayeredDesignAnalyzerModelSlotTransportJsonResult =
       result: LayeredDesignFlatImageOcrTextBlock[];
     };
 
+export interface LayeredDesignAnalyzerModelSlotQualityContract {
+  factSource:
+    | "LayeredDesignDocument.assets"
+    | "LayeredDesignDocument.extraction.candidates";
+  requiredResultFields: string[];
+  requiredParamKeys: string[];
+  reviewFindingIds: string[];
+}
+
+export type LayeredDesignAnalyzerModelSlotQualityContractValidationStatus =
+  | "satisfied"
+  | "missing_required_fields"
+  | "missing_required_params";
+
+export interface LayeredDesignAnalyzerModelSlotQualityContractValidation {
+  status: LayeredDesignAnalyzerModelSlotQualityContractValidationStatus;
+  factSource: LayeredDesignAnalyzerModelSlotQualityContract["factSource"];
+  requiredResultFields: string[];
+  requiredParamKeys: string[];
+  reviewFindingIds: string[];
+  missingResultFields: string[];
+  missingParamKeys: string[];
+}
+
 export interface LayeredDesignAnalyzerModelSlotTransportJsonRequestContext {
   slotId: string;
   slotKind: LayeredDesignAnalyzerModelSlotKind;
@@ -113,6 +137,7 @@ export interface LayeredDesignAnalyzerModelSlotTransportJsonRequestContext {
   providerId?: string;
   modelVersion?: string;
   metadata: Record<string, unknown>;
+  qualityContract: LayeredDesignAnalyzerModelSlotQualityContract;
 }
 
 export type LayeredDesignAnalyzerModelSlotTransportJsonRequest =
@@ -294,7 +319,122 @@ function createJsonRequestContextFromTransportRequest(
       ? { modelVersion: config.metadata.modelVersion }
       : {}),
     metadata: { ...request.context.metadata },
+    qualityContract: createJsonRequestQualityContract(config.kind),
   };
+}
+
+function createJsonRequestQualityContract(
+  kind: LayeredDesignAnalyzerModelSlotKind,
+): LayeredDesignAnalyzerModelSlotQualityContract {
+  switch (kind) {
+    case "subject_matting":
+      return {
+        factSource: "LayeredDesignDocument.assets",
+        requiredResultFields: ["imageSrc", "maskSrc", "hasAlpha"],
+        requiredParamKeys: [
+          "foregroundPixelCount",
+          "detectedForegroundPixelCount",
+          "ellipseFallbackApplied",
+          "totalPixelCount",
+        ],
+        reviewFindingIds: ["subject_model_slot_quality_metadata_missing"],
+      };
+    case "clean_plate":
+      return {
+        factSource: "LayeredDesignDocument.assets",
+        requiredResultFields: ["src"],
+        requiredParamKeys: [
+          "filledPixelCount",
+          "totalSubjectPixelCount",
+          "maskApplied",
+        ],
+        reviewFindingIds: ["clean_plate_model_slot_quality_metadata_missing"],
+      };
+    case "text_ocr":
+      return {
+        factSource: "LayeredDesignDocument.extraction.candidates",
+        requiredResultFields: ["text", "boundingBox", "confidence"],
+        requiredParamKeys: [],
+        reviewFindingIds: [],
+      };
+  }
+}
+
+function hasRequiredContractValue(
+  record: Record<string, unknown>,
+  key: string,
+): boolean {
+  return Object.prototype.hasOwnProperty.call(record, key) && record[key] != null;
+}
+
+function createQualityContractValidation(
+  output: Record<string, unknown>,
+  contract: LayeredDesignAnalyzerModelSlotQualityContract,
+): LayeredDesignAnalyzerModelSlotQualityContractValidation {
+  const params = isRecord(output.params) ? output.params : {};
+  const missingResultFields = contract.requiredResultFields.filter(
+    (key) => !hasRequiredContractValue(output, key),
+  );
+  const missingParamKeys = contract.requiredParamKeys.filter(
+    (key) => !hasRequiredContractValue(params, key),
+  );
+  const status =
+    missingResultFields.length > 0
+      ? "missing_required_fields"
+      : missingParamKeys.length > 0
+        ? "missing_required_params"
+        : "satisfied";
+
+  return {
+    status,
+    factSource: contract.factSource,
+    requiredResultFields: [...contract.requiredResultFields],
+    requiredParamKeys: [...contract.requiredParamKeys],
+    reviewFindingIds: [...contract.reviewFindingIds],
+    missingResultFields,
+    missingParamKeys,
+  };
+}
+
+function decorateJsonExecutorRecordWithQualityContractValidation<TOutput>(
+  output: TOutput,
+  contract: LayeredDesignAnalyzerModelSlotQualityContract,
+): TOutput {
+  if (!isRecord(output)) {
+    return output;
+  }
+
+  const params = isRecord(output.params) ? output.params : {};
+  return {
+    ...output,
+    params: {
+      ...params,
+      qualityContractValidation: createQualityContractValidation(
+        output,
+        contract,
+      ),
+    },
+  } as TOutput;
+}
+
+function decorateJsonExecutorOutputWithQualityContractValidation(
+  output: LayeredDesignAnalyzerModelSlotTransportHandlerOutput,
+  contract: LayeredDesignAnalyzerModelSlotQualityContract,
+): LayeredDesignAnalyzerModelSlotTransportHandlerOutput {
+  if (output === null || output === undefined) {
+    return output;
+  }
+
+  if (Array.isArray(output)) {
+    return output.map((item) =>
+      decorateJsonExecutorRecordWithQualityContractValidation(item, contract),
+    ) as LayeredDesignFlatImageOcrTextBlock[];
+  }
+
+  return decorateJsonExecutorRecordWithQualityContractValidation(
+    output,
+    contract,
+  );
 }
 
 function createJsonRequestFromTransportRequest(
@@ -327,6 +467,7 @@ function createJsonRequestFromTransportRequest(
 
 function normalizeJsonExecutorResult(
   request: LayeredDesignAnalyzerModelSlotTransportAnyRequest,
+  qualityContract: LayeredDesignAnalyzerModelSlotQualityContract,
   response: LayeredDesignAnalyzerModelSlotTransportJsonResult,
 ): LayeredDesignAnalyzerModelSlotTransportHandlerOutput {
   if (!isRecord(response) || typeof response.kind !== "string") {
@@ -347,11 +488,16 @@ function normalizeJsonExecutorResult(
     );
   }
 
-  return (
+  const result = (
     response as {
       result?: LayeredDesignAnalyzerModelSlotTransportHandlerOutput;
     }
   ).result as LayeredDesignAnalyzerModelSlotTransportHandlerOutput;
+
+  return decorateJsonExecutorOutputWithQualityContractValidation(
+    result,
+    qualityContract,
+  );
 }
 
 function normalizeSubjectMattingTransportOutput(
@@ -462,11 +608,14 @@ export function createLayeredDesignAnalyzerModelSlotTransportFromJsonExecutor(
 ): LayeredDesignAnalyzerModelSlotTransport {
   return createLayeredDesignAnalyzerModelSlotTransportFromHandler(
     async (request) => {
-      const response = await executor(
-        createJsonRequestFromTransportRequest(request),
-      );
+      const jsonRequest = createJsonRequestFromTransportRequest(request);
+      const response = await executor(jsonRequest);
 
-      return normalizeJsonExecutorResult(request, response);
+      return normalizeJsonExecutorResult(
+        request,
+        jsonRequest.context.qualityContract,
+        response,
+      );
     },
   );
 }

@@ -8150,6 +8150,7 @@ export function AgentChatWorkspace({
         onClose={() => handleSetFileManagerSidebarOpen(false)}
         onAddPathReferences={handleAddPathReferences}
         onImportAsKnowledge={inputbarScene.onImportPathReferenceAsKnowledge}
+        initialDirectory={project?.rootPath || null}
       />
     ) : null;
 

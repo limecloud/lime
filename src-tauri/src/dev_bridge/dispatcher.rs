@@ -122,7 +122,7 @@ pub async fn handle_command(
         return Ok(result);
     }
 
-    if let Some(result) = knowledge::try_handle(cmd, args.as_ref()).await? {
+    if let Some(result) = knowledge::try_handle(state, cmd, args.as_ref()).await? {
         return Ok(result);
     }
 
@@ -349,6 +349,41 @@ mod tests {
         assert_eq!(value["content"], "三国人物设定");
         assert_eq!(value["isBinary"], false);
         assert_eq!(value["path"], file_path.to_string_lossy().to_string());
+    }
+
+    #[tokio::test]
+    async fn file_browser_directory_commands_are_bridged() {
+        let state = make_test_state();
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("default-source.md");
+        fs::write(&file_path, "# Smoke 默认项目资料").unwrap();
+
+        let list_value = handle_command(
+            &state,
+            "list_dir",
+            Some(serde_json::json!({
+                "path": temp_dir.path().to_string_lossy().to_string(),
+            })),
+        )
+        .await
+        .unwrap();
+        let entries = list_value["entries"].as_array().unwrap();
+
+        assert!(entries
+            .iter()
+            .any(|entry| entry["name"] == "default-source.md"));
+        assert_eq!(list_value["error"], serde_json::Value::Null);
+
+        let file_name_value = handle_command(
+            &state,
+            "get_file_name",
+            Some(serde_json::json!({
+                "path": file_path.to_string_lossy().to_string(),
+            })),
+        )
+        .await
+        .unwrap();
+        assert_eq!(file_name_value, "default-source.md");
     }
 
     #[tokio::test]

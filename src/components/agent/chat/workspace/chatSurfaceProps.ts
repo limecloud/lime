@@ -183,6 +183,9 @@ interface BuildWorkspaceEmptyStatePropsParams {
   onSelectKnowledgePack?: ComponentProps<
     typeof EmptyState
   >["onSelectKnowledgePack"];
+  onToggleKnowledgeCompanionPack?: ComponentProps<
+    typeof EmptyState
+  >["onToggleKnowledgeCompanionPack"];
   onStartKnowledgeOrganize?: ComponentProps<
     typeof EmptyState
   >["onStartKnowledgeOrganize"];
@@ -279,6 +282,7 @@ export function buildWorkspaceEmptyStateProps({
   knowledgePackOptions,
   onToggleKnowledgePack,
   onSelectKnowledgePack,
+  onToggleKnowledgeCompanionPack,
   onStartKnowledgeOrganize,
   onManageKnowledgePacks,
   runtimeTaskCard,
@@ -364,6 +368,7 @@ export function buildWorkspaceEmptyStateProps({
     knowledgePackOptions,
     onToggleKnowledgePack,
     onSelectKnowledgePack,
+    onToggleKnowledgeCompanionPack,
     onStartKnowledgeOrganize,
     onManageKnowledgePacks,
     runtimeTaskCard,

@@ -70,6 +70,7 @@ import {
   readCustomPathReferencesFromDataTransfer,
   readSystemPathReferencesFromFiles,
 } from "../utils/pathReferences";
+import { buildKnowledgeRequestMetadata } from "@/features/knowledge/agent/knowledgeMetadata";
 import {
   resolveInputCapabilityDispatch,
   type InputCapabilitySelection,
@@ -409,6 +410,11 @@ interface EmptyStateProps extends SkillSelectionSourceProps {
   onToggleKnowledgePack?: (enabled: boolean) => void;
   /** 切换当前项目资料 */
   onSelectKnowledgePack?: (packName: string) => void;
+  /** 显式选择 / 取消一份协同资料 */
+  onToggleKnowledgeCompanionPack?: (
+    packName: string,
+    enabled: boolean,
+  ) => void;
   /** 从当前输入或会话沉淀项目资料 */
   onStartKnowledgeOrganize?: () => void;
   /** 打开项目资料管理 */
@@ -515,6 +521,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   knowledgePackOptions = [],
   onToggleKnowledgePack,
   onSelectKnowledgePack,
+  onToggleKnowledgeCompanionPack,
   onStartKnowledgeOrganize,
   onManageKnowledgePacks,
   pathReferences = [],
@@ -892,11 +899,12 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
       knowledgePackSelection.workingDir.trim()
         ? {
             ...(baseRequestMetadata || {}),
-            knowledge_pack: {
-              pack_name: knowledgePackSelection.packName.trim(),
-              working_dir: knowledgePackSelection.workingDir.trim(),
+            ...buildKnowledgeRequestMetadata({
+              workingDir: knowledgePackSelection.workingDir.trim(),
+              packName: knowledgePackSelection.packName.trim(),
+              packs: knowledgePackSelection.companionPacks,
               source: "inputbar",
-            },
+            }),
           }
         : baseRequestMetadata;
     const effectiveInput = inputOverride.trim()
@@ -1559,6 +1567,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
         knowledgeHubOpenRequestKey={knowledgeHubOpenRequestKey}
         onToggleKnowledgePack={onToggleKnowledgePack}
         onSelectKnowledgePack={onSelectKnowledgePack}
+        onToggleKnowledgeCompanionPack={onToggleKnowledgeCompanionPack}
         onStartKnowledgeOrganize={onStartKnowledgeOrganize}
         onManageKnowledgePacks={onManageKnowledgePacks}
         showCreationModeSelector={showCreationModeSelector}

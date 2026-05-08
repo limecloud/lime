@@ -1,0 +1,4 @@
+interface:
+  display_name: "品牌产品知识库生成器"
+  short_description: "把产品事实、卖点、FAQ和合规边界整理成可被Agent安全调用的资料库。"
+  default_prompt: "Use $brand-product-knowledge-builder to turn my product materials into a structured, maintainable brand-product knowledge pack."

@@ -2,18 +2,18 @@ import { Check, ClipboardCheck, FileText } from "lucide-react";
 
 const STATUS_STEPS = [
   {
-    label: "已添加资料",
-    description: "原始资料已进入当前项目",
+    label: "资料进入 Pack",
+    description: "原始材料已归入知识产物",
     icon: FileText,
   },
   {
-    label: "已整理草稿",
-    description: "Lime 提炼摘要、场景和风险",
+    label: "Builder 已整理",
+    description: "Skills 提炼场景、事实和边界",
     icon: ClipboardCheck,
   },
   {
-    label: "已确认可用",
-    description: "人工确认后再用于正式生成",
+    label: "可入上下文",
+    description: "确认后才能被 Agent 使用",
     icon: Check,
   },
 ];

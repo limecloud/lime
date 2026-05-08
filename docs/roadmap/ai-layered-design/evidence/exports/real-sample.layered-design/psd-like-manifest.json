@@ -1,0 +1,126 @@
+{
+  "schemaVersion": "2026-05-06.psd-like.p1",
+  "projectionKind": "psd-like-layer-stack",
+  "source": {
+    "factSource": "LayeredDesignDocument",
+    "documentSchemaVersion": "2026-05-05.p1",
+    "documentId": "real-sample-layered-design-acceptance",
+    "designFile": "design.json"
+  },
+  "exportedAt": "2026-05-08T00:20:00.000Z",
+  "canvas": {
+    "width": 720,
+    "height": 960
+  },
+  "preview": {
+    "svgFile": "preview.svg",
+    "pngFile": "preview.png"
+  },
+  "quality": {
+    "source": {
+      "factSource": "LayeredDesignDocument.extraction",
+      "exportManifestFile": "export-manifest.json"
+    },
+    "extractionQuality": {
+      "score": 100,
+      "level": "ready",
+      "label": "可进入编辑",
+      "summary": "已选择 2/2 个候选层，拆层结果基本可进入编辑。",
+      "selectedCandidateCount": 2,
+      "totalCandidateCount": 2,
+      "findings": []
+    }
+  },
+  "compatibility": {
+    "truePsd": false,
+    "layerOrder": "back_to_front",
+    "editableText": true,
+    "rasterImageLayers": true,
+    "vectorShapeProjection": "basic_svg_shape_semantics",
+    "groupHierarchy": "reference_only"
+  },
+  "layers": [
+    {
+      "id": "extraction-background-image",
+      "name": "背景 clean plate",
+      "type": "image",
+      "source": "extracted",
+      "role": "raster_image",
+      "visible": true,
+      "locked": false,
+      "blendMode": "normal",
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "width": 720,
+        "height": 960,
+        "rotation": 0,
+        "opacity": 1,
+        "zIndex": 0
+      },
+      "asset": {
+        "id": "real-poster-multi-subject-001-clean-plate",
+        "kind": "clean_plate",
+        "source": "file",
+        "filename": "assets/real-poster-multi-subject-001-clean-plate.png",
+        "width": 720,
+        "height": 960,
+        "hasAlpha": false
+      }
+    },
+    {
+      "id": "real-poster-multi-subject-001-subject-layer",
+      "name": "主体候选",
+      "type": "image",
+      "source": "extracted",
+      "role": "raster_image",
+      "visible": true,
+      "locked": false,
+      "blendMode": "normal",
+      "transform": {
+        "x": 160,
+        "y": 310,
+        "width": 390,
+        "height": 430,
+        "rotation": 0,
+        "opacity": 1,
+        "zIndex": 10
+      },
+      "asset": {
+        "id": "real-poster-multi-subject-001-subject",
+        "kind": "subject_cutout",
+        "source": "file",
+        "filename": "assets/real-poster-multi-subject-001-subject.png",
+        "width": 390,
+        "height": 430,
+        "hasAlpha": true
+      }
+    },
+    {
+      "id": "real-poster-multi-subject-001-title-layer",
+      "name": "主标题",
+      "type": "text",
+      "source": "extracted",
+      "role": "editable_text",
+      "visible": true,
+      "locked": false,
+      "blendMode": "normal",
+      "transform": {
+        "x": 55,
+        "y": 60,
+        "width": 540,
+        "height": 150,
+        "rotation": 0,
+        "opacity": 1,
+        "zIndex": 20
+      },
+      "text": {
+        "text": "SPRING COFFEE POP-UP 50% OFF",
+        "fontFamily": "Arial",
+        "fontSize": 42,
+        "color": "#0f172a",
+        "align": "left"
+      }
+    }
+  ]
+}

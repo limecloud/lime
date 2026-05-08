@@ -38,6 +38,10 @@ export type LayeredDesignAlphaStrategy =
   | "provider_pipeline"
   | "chroma_key_postprocess";
 
+export type LayeredDesignImageExecutorMode =
+  | "images_api"
+  | "responses_image_generation";
+
 export interface LayeredDesignImageModelCapability {
   family: LayeredDesignImageModelFamily;
   sizePolicy: LayeredDesignImageSizePolicy;
@@ -116,6 +120,26 @@ export function isGptImage2Model(model?: string): boolean {
     normalized.endsWith("/gpt-image-2") ||
     normalized.endsWith("/gpt-images-2")
   );
+}
+
+export function resolveLayeredDesignImageExecutorMode(params: {
+  model?: string | null;
+  providerId?: string | null;
+}): LayeredDesignImageExecutorMode {
+  const normalizedProvider = normalizeCapabilityToken(
+    params.providerId ?? undefined,
+  );
+
+  if (
+    isGptImage2Model(params.model ?? undefined) ||
+    normalizedProvider === "openai-response" ||
+    normalizedProvider === "openai-responses" ||
+    normalizedProvider.includes("responses")
+  ) {
+    return "responses_image_generation";
+  }
+
+  return "images_api";
 }
 
 export function resolveLayeredDesignImageModelCapability(

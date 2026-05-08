@@ -15,6 +15,7 @@
 ### 架构与治理
 
 - `overview.md` - 项目架构总览与模块分层
+- `agent-protocol-standards-map.md` - Agent 公共标准、Lime 开发协议、友链与未来拆分候选地图
 - `query-loop.md` - 运行时 Query Loop current 主链、提交入口与执行边界
 - `prompt-foundation.md` - 基础 Prompt current 主链、system prompt 组装顺序与 current/compat 分类
 - `task-agent-taxonomy.md` - Task / Agent / Coordinator current taxonomy、current/compat 分类与协调边界
@@ -61,6 +62,7 @@
 
 ## 常见入口建议
 
+- **判断某个 Agent 能力该留在 Lime 内部还是拆成公共标准**：先读 `agent-protocol-standards-map.md`
 - **改 UI / 页面结构**：先读 `design-language.md`，再看 `quality-workflow.md`
 - **改 system prompt / subagent prompt / plan prompt / prompt_context / augmentation 顺序**：先读 `prompt-foundation.md`，再回看 `query-loop.md`
 - **改 turn 提交 / prompt 组包 / queue / compaction / evidence 主链**：先读 `query-loop.md`

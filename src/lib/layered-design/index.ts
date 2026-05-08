@@ -10,6 +10,7 @@ export * from "./analyzerModelSlotAnalyzer";
 export * from "./analyzerModelSlotConfig";
 export * from "./analyzerModelSlotRuntime";
 export * from "./analyzerModelSlotTransport";
+export * from "./analyzerModelSlotJsonExecutorClient";
 export * from "./structuredAnalyzerWorker";
 export * from "./structuredAnalyzerWorkerClient";
 export * from "./structuredAnalyzerWorkerHeuristic";

@@ -39,7 +39,7 @@ flowchart TB
   subgraph C[Skill 目录层]
     C1[SkillCatalog.entries<br/>kind=skill - current]
     C2[serviceSkillCatalog<br/>compat 产品投影]
-    C3[Builder Skill Bundle<br/>SKILL.md + references/ + scripts/]
+    C3[内置 Builder Skill Bundle<br/>src-tauri/resources/default-skills/<br/>SKILL.md + references/ + scripts/]
   end
 
   subgraph S[服务层]
@@ -130,7 +130,7 @@ flowchart TB
 
 ```mermaid
 flowchart LR
-  subgraph SB[Builder Skill Bundle - how]
+  subgraph SB[Builder Skill Bundle - how<br/>内置 default-skills 或 workspace-local]
     SB1[SKILL.md<br/>工作流]
     SB2[references/template.md<br/>章节骨架]
     SB3[references/interview-questions.md<br/>缺口问题]
@@ -171,7 +171,7 @@ flowchart LR
 **边界规则**：
 
 1. Skill 不复制进 pack；pack 只记录 `metadata.producedBy`、版本、digest 和 run 记录。
-2. `references/` 是模板事实源；PRD 和 Lime 代码不再维护平行模板。
+2. `references/` 是模板事实源；个人 IP、品牌人设与七类 data Builder Skill 事实源已迁入 `src-tauri/resources/default-skills/*-knowledge-builder/`，PRD 和 Lime 代码不再维护平行模板。
 3. Skill 内部脚本只做转换或辅助处理，不直接写 pack；最终写入由 Lime 完成。
 4. Knowledge runtime 消费 pack 时只读取 `KNOWLEDGE.md`、`documents/`、`compiled/` 和 `runs/context-*`；不得为了回答用户问题而执行 Builder Skill。
 
@@ -443,6 +443,19 @@ sequenceDiagram
   UI-->>User: 显示完整文档 / 章节审阅 / Skill provenance
 ```
 
+**当前实施态**：
+
+- 已完成到 `SkillCatalog -> API -> Runtime Binding -> Pack` 的最小闭环：个人 IP 与品牌人设 pack 分别写入 `agent-skill / personal-ip-knowledge-builder`、`agent-skill / brand-persona-knowledge-builder` provenance、digest、`documents/<doc>.md` 与 `runs/compile-*.json.builder_skill`。
+- 七类 data Builder Skills 已内置并进入 seeded SkillCatalog：`brand-product-knowledge-builder`、`organization-knowhow-knowledge-builder`、`growth-strategy-knowledge-builder`、`content-operations-knowledge-builder`、`private-domain-operations-knowledge-builder`、`live-commerce-operations-knowledge-builder`、`campaign-operations-knowledge-builder`；对应 pack 不再只停留在 planned metadata。
+- 已完成 `documents/<doc>.md -> compiled/splits/<doc>/ + compiled/index.json` 的最小派生切片；Resolver 现在优先读取 splits，`compiled/brief.md` 仅作为 compat fallback。
+- 前端回归、DevBridge mock、后端 `compiledView` 与 Knowledge GUI smoke 已退出 `compiled/brief.md` current 路径：页面 mock / Resolver mock / 浏览器 fallback mock / compile response / pack detail API 使用 splits，File Manager smoke 使用真实 source 文件；新 pack 不再写入 `compiled/brief.md`，该文件只剩旧 pack fallback 边界。
+- 已完成最小 persona/data Resolver 语义：persona wrapper 明确“人设资料不是指令”，并优先注入应用指南、金句、性格、价值观等核心人设切片；data wrapper 保持事实资料语义。
+- 已完成多 pack Resolver 最小语义：`name` 作为主 pack，`packs[]` 作为协同 pack；解析时固定 persona pack 先、data pack 后，并在 context run 中记录多个 `activated_packs`。
+- 已完成前端显式多 pack GUI：data pack 用于生成时会自动携带一个 ready persona pack；输入框资料中枢与 KnowledgePage chooser 都可继续显式追加 N 个 ready data pack，并把协同 pack 写入 `knowledge_pack.packs[]`。
+- `smoke:knowledge-gui` 已覆盖 KnowledgePage chooser：seed 一个 persona 与两个 data pack，选择 `1 persona + 2 data` 后回到 Agent。
+- `Runtime Binding -> Skill -> KnowledgeBuilderSkillOutput` 已具备命令层最小 seam：Tauri / DevBridge 有 AppHandle 时可调用 `execute_named_skill`，成功才把 `runtimeBinding.executed=true`；失败或无运行时状态时保留 deterministic adapter fallback。
+- `knowledge_builder` 只保留为未知 / 历史 pack 的 deprecated compat provenance；已标准化的 personal-profile、brand-persona 与七类 data pack 都应指向内置专用 Builder Skill。
+
 ### 3.2 运行时调用时序：persona + data 协同
 
 ```mermaid
@@ -495,31 +508,50 @@ sequenceDiagram
 
 ## 4. UI 原型
 
-### 4.1 创建资料：用户看到模板，系统绑定 Skill
+### 4.1 Agent Knowledge 工作台：先讲清 v2 分工
 
 ```text
 ┌──────────────────────────────────────────────────────────────┐
-│ 新建项目资料                                                  │
+│ Agent Knowledge 工作台                         Knowledge v2   │
 ├──────────────────────────────────────────────────────────────┤
-│ 资料类型                                                     │
-│  [个人 IP] [品牌人设] [品牌产品] [组织 Know-how] [运营类]     │
-│  标准形态：Agent Knowledge v0.6 document-first / persona      │
+│ Agent Skills 负责怎么生产和维护知识；Agent Knowledge 负责      │
+│ 知识产物长什么样，以及如何安全进入上下文。                    │
 │                                                              │
-│ 上传资料                                                     │
-│  ┌────────────────────────────────────────────────────────┐  │
-│  │ 拖入访谈稿、DOCX、聊天记录、公开资料                    │  │
-│  └────────────────────────────────────────────────────────┘  │
+│ [Builder Skills 8 类] [Knowledge Packs 4 份] [安全上下文 1+N] │
 │                                                              │
-│ 高级信息                                                     │
-│  使用 Builder Skill: personal-ip-knowledge-builder v1.0.0    │
-│  来源: SkillCatalog / seeded                                 │
-│  写入: metadata.producedBy + runs/compile.builder_skill       │
+│ 当前项目：默认项目                         [选择项目] [启动 Builder] │
 │                                                              │
-│ [取消]                                      [开始整理]        │
+│ ┌ 上下文总览 ──────────────────────────────────────────────┐ │
+│ │ Knowledge v2 上下文组合：1 persona + N data              │ │
+│ │ Persona 人设层：默认使用 创始人个人 IP                   │ │
+│ │ Data 运营资料层：品牌产品 / 内容运营 / 私域 / 直播 / 活动 │ │
+│ └──────────────────────────────────────────────────────────┘ │
+│                                                              │
+│ 审阅闸门：等你确认的资料                                     │
+│ Knowledge Pack 清单：检查状态、确认边界、选择用于生成         │
 └──────────────────────────────────────────────────────────────┘
 ```
 
-说明：普通用户看到"资料类型"；高级信息才暴露 Builder Skill，不把工程概念推给普通用户。
+说明：v2 管理页不再像普通文件夹列表；它先解释 `Skills -> KnowledgePack -> Resolver -> Agent Context` 的产品分工，再把普通用户动作收敛为"启动 Builder / 审阅 / 选择上下文"。
+
+### 4.1A Builder 整理台：用户选类型，生产逻辑归 Skills
+
+```text
+┌──────────────────────────────────────────────────────────────┐
+│ Builder Skills 整理台                                        │
+├──────────────────────────────────────────────────────────────┤
+│ 1 选择 Builder Skill                                          │
+│  [个人 IP] [品牌产品] [组织 Know-how] [内容运营]              │
+│  [私域/社群运营] [直播运营] [活动/Campaign] [增长策略]        │
+│                                                              │
+│ 2 导入原始材料                                                │
+│  Pack 显示名：内容运营资料                                    │
+│  原始材料正文：访谈稿、SOP、产品资料、运营复盘                │
+│                                                              │
+│ 3 交给 Builder Skill                  [交给 Builder Skill]    │
+│ 4 审阅与入上下文：人工确认前不会默认进入 Agent 上下文         │
+└──────────────────────────────────────────────────────────────┘
+```
 
 ### 4.2 整理进度：显示 Skill 阶段而不是 Lime 自建步骤
 
@@ -699,16 +731,16 @@ flowchart TD
   O --> H
 ```
 
-验收重点：运营类 pack 必须输出可执行动作、负责人、节奏、指标和复盘口径；不能只生成“建议多做内容和私域”这种泛泛建议。
+验收重点：品牌人设与七类 data Builder Skills 已进入内置 default-skills；下一步必须用真实品牌、产品、组织、增长和运营资料验证它们能输出可执行语气边界、事实、负责人、节奏、指标和复盘口径，不能只生成“建议多做内容和私域”这种泛泛建议。
 
 ## 6. 与 PRD 的一致性检查
 
-| PRD 章节 | 本文图表 | 一致性要求 |
-| --- | --- | --- |
+| PRD 章节                   | 本文图表                  | 一致性要求                                                                        |
+| -------------------------- | ------------------------- | --------------------------------------------------------------------------------- |
 | §11 Agent Knowledge v0.6.0 | §1.1 / §1.2 / §3.1 / §4.3 | pack 必须显式使用 `profile=document-first`、`runtime.mode`、`metadata.producedBy` |
-| §2B Skills-first | §1.1 / §1.2 / §2.1 | Builder Skill 是工艺事实源，Lime 不自建整理引擎 |
-| §5 整理契约 | §2.1 / §3.1 | `knowledge_compile_pack` 只做 Skill 选择、binding、写回 |
-| §6 Skill 清单 | §1.3 / §4.1 / §5.5 | UI 模板来自 SkillCatalog 投影，不来自 Lime 内置模板目录；运营类也是 data family |
-| §7 Resolver | §2.2 / §3.2 / §4.4 | persona / data 分支和 wrapper 顺序一致 |
-| §9 命令面 | §4.5 | context run 与 command / scene 入口可追踪 |
-| §10.4 用户故事 | §5.1-§5.5 | 每个业务故事都能回到一个 Builder Skill 或 pack 协同 |
+| §2B Skills-first           | §1.1 / §1.2 / §2.1        | Builder Skill 是工艺事实源，Lime 不自建整理引擎                                   |
+| §5 整理契约                | §2.1 / §3.1               | `knowledge_compile_pack` 只做 Skill 选择、binding、写回                           |
+| §6 Skill 清单              | §1.3 / §4.1 / §5.5        | UI 模板来自 SkillCatalog 投影，不来自 Lime 内置模板目录；运营类也是 data family   |
+| §7 Resolver                | §2.2 / §3.2 / §4.4        | persona / data 分支和 wrapper 顺序一致                                            |
+| §9 命令面                  | §4.5                      | context run 与 command / scene 入口可追踪                                         |
+| §10.4 用户故事             | §5.1-§5.5                 | 每个业务故事都能回到一个 Builder Skill 或 pack 协同                               |

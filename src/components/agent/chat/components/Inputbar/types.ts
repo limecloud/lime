@@ -3,6 +3,7 @@ export interface InputbarKnowledgePackOption {
   label?: string;
   status?: string;
   defaultForWorkspace?: boolean;
+  runtimeMode?: "persona" | "data";
 }
 
 export interface InputbarKnowledgePackSelection {
@@ -11,4 +12,8 @@ export interface InputbarKnowledgePackSelection {
   workingDir: string;
   label?: string;
   status?: string;
+  companionPacks?: Array<{
+    name: string;
+    activation?: "explicit" | "implicit" | "resolver-driven";
+  }>;
 }

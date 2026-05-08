@@ -1,0 +1,71 @@
+{
+  "schemaVersion": "layered-design-real-sample-review@1",
+  "reviewedAt": "2026-05-08T03:27:05.386Z",
+  "reviewer": "Codex visual review from generated contact sheet; user may override before release sign-off",
+  "benchmarkReport": "model-slot-benchmark.real.json",
+  "evidenceFiles": [
+    "evidence/model-slot-review-contact-sheet.png"
+  ],
+  "samples": [
+    {
+      "id": "real-poster-multi-subject-001",
+      "scores": {
+        "subjectMatting": 2,
+        "cleanPlate": 1,
+        "ocrTextLayer": 2,
+        "layerSeparation": 2,
+        "exportEvidence": 2
+      },
+      "decision": "accepted",
+      "notes": "基于 source/subject/mask/clean-plate/ocr-crop contact sheet 复核：主体 mask 可编辑，clean plate 有可见修补痕迹但不阻塞移动主体后的背景占位，OCR 正确识别标题/CTA，导出 evidence 已进入后续 completion gate。"
+    },
+    {
+      "id": "real-poster-transparent-object-002",
+      "scores": {
+        "subjectMatting": 2,
+        "cleanPlate": 1,
+        "ocrTextLayer": 2,
+        "layerSeparation": 2,
+        "exportEvidence": 2
+      },
+      "decision": "accepted",
+      "notes": "基于 source/subject/mask/clean-plate/ocr-crop contact sheet 复核：主体 mask 可编辑，clean plate 有可见修补痕迹但不阻塞移动主体后的背景占位，OCR 正确识别标题/CTA，导出 evidence 已进入后续 completion gate。"
+    },
+    {
+      "id": "real-poster-art-text-logo-003",
+      "scores": {
+        "subjectMatting": 2,
+        "cleanPlate": 1,
+        "ocrTextLayer": 2,
+        "layerSeparation": 2,
+        "exportEvidence": 2
+      },
+      "decision": "accepted",
+      "notes": "基于 source/subject/mask/clean-plate/ocr-crop contact sheet 复核：主体 mask 可编辑，clean plate 有可见修补痕迹但不阻塞移动主体后的背景占位，OCR 正确识别标题/CTA，导出 evidence 已进入后续 completion gate。"
+    },
+    {
+      "id": "real-poster-dark-neon-004",
+      "scores": {
+        "subjectMatting": 2,
+        "cleanPlate": 1,
+        "ocrTextLayer": 2,
+        "layerSeparation": 2,
+        "exportEvidence": 2
+      },
+      "decision": "accepted",
+      "notes": "基于 source/subject/mask/clean-plate/ocr-crop contact sheet 复核：主体 mask 可编辑，clean plate 有可见修补痕迹但不阻塞移动主体后的背景占位，OCR 正确识别标题/CTA，导出 evidence 已进入后续 completion gate。"
+    },
+    {
+      "id": "real-poster-dense-product-card-005",
+      "scores": {
+        "subjectMatting": 2,
+        "cleanPlate": 1,
+        "ocrTextLayer": 2,
+        "layerSeparation": 2,
+        "exportEvidence": 2
+      },
+      "decision": "accepted",
+      "notes": "基于 source/subject/mask/clean-plate/ocr-crop contact sheet 复核：主体 mask 可编辑，clean plate 有可见修补痕迹但不阻塞移动主体后的背景占位，OCR 正确识别标题/CTA，导出 evidence 已进入后续 completion gate。"
+    }
+  ]
+}

@@ -1,0 +1,4 @@
+interface:
+  display_name: "组织经验知识库生成器"
+  short_description: "把SOP、角色职责、交付流程和复盘整理成可被Agent安全调用的组织知识库。"
+  default_prompt: "Use $organization-knowhow-knowledge-builder to turn my team SOPs and delivery notes into a structured organization-knowhow knowledge pack."

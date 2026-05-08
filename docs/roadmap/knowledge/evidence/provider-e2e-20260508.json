@@ -1,0 +1,123 @@
+{
+  "tmpdir": "/var/folders/87/s6cpr7hd1_v43cs833x4s_900000gn/T/lime-knowledge-provider-e2e-fixed-5Dvto6",
+  "evidencePath": "/var/folders/87/s6cpr7hd1_v43cs833x4s_900000gn/T/lime-knowledge-provider-e2e-fixed-5Dvto6/provider-e2e-fixed-result.json",
+  "provider": {
+    "id": "custom-da3283c4-8405-45e9-81cd-12991ffdf41c",
+    "type": "anthropic-compatible",
+    "model": "claude-sonnet-4-6"
+  },
+  "compile": {
+    "selectedSourceCount": 1,
+    "runRelativePath": "runs/compile-20260508T021107Z.json",
+    "warnings": [
+      "Builder Skill 返回的 JSON 包装不严格，已宽容提取 primaryDocument.content",
+      "Builder Skill 标记待补充：所在城市、联系方式、社媒账号（M1）",
+      "Builder Skill 标记待补充：团队规模：个人顾问、工作室或公司（M2）",
+      "Builder Skill 标记待补充：文旅行业具体案例（M3）",
+      "Builder Skill 标记待补充：本地生活行业具体案例（M4）",
+      "Builder Skill 标记待补充：教育背景与入行经历（M5）",
+      "Builder Skill 标记待补充：职业转折点或关键成长节点（M6）",
+      "Builder Skill 标记待补充：服务定价模式与合作方式（M7）",
+      "Builder Skill 标记待补充：私域转化的具体方法论（M8）",
+      "Builder Skill 标记待补充：直播复盘机制的具体操作框架（M9）",
+      "Builder Skill 标记待补充：是否有课程、培训或公开内容产品（M10）",
+      "Builder Skill 标记待补充：茶饮案例中已授权对外使用的量化数据（M11）",
+      "Builder Skill 标记待补充：过往媒体报道或公开演讲记录（M12）",
+      "Builder Skill 标记待补充：个人兴趣或生活面（M13）",
+      "已通过内置 personal-ip-knowledge-builder Builder Skill Runtime Binding 生成主文档"
+    ]
+  },
+  "runtimeBinding": {
+    "attempted": true,
+    "error": null,
+    "executed": true,
+    "executionId": "knowledge-builder-provider-e2e-persona-fixed-20260508T020927Z",
+    "family": "native_skill",
+    "mode": "runtime-binding",
+    "model": "claude-sonnet-4-6",
+    "outputSha256": "35bab2c278133433ce7294ed94ef0dfdabe5436bba34e1035bd12fae20e81e05",
+    "provider": "custom-da3283c4-8405-45e9-81cd-12991ffdf41c",
+    "sessionId": "knowledge-provider-e2e-fixed-1778206167772",
+    "status": "succeeded"
+  },
+  "artifacts": {
+    "documents": [
+      "documents/provider-e2e-persona-fixed.md"
+    ],
+    "compiled": [
+      "compiled/index.json",
+      "compiled/splits/provider-e2e-persona-fixed/000_个人_ip_知识库_林澈.md",
+      "compiled/splits/provider-e2e-persona-fixed/001_1_基础身份档案.md",
+      "compiled/splits/provider-e2e-persona-fixed/002_2_核心定位与价值主张.md",
+      "compiled/splits/provider-e2e-persona-fixed/003_3_专业能力与服务范围.md",
+      "compiled/splits/provider-e2e-persona-fixed/004_3_1_核心服务方向.md",
+      "compiled/splits/provider-e2e-persona-fixed/005_3_2_熟悉平台.md",
+      "compiled/splits/provider-e2e-persona-fixed/006_3_3_方法论关键词.md",
+      "compiled/splits/provider-e2e-persona-fixed/007_4_代表案例.md",
+      "compiled/splits/provider-e2e-persona-fixed/008_案例_1_地方茶饮品牌内容体系从零搭建_2025_年.md",
+      "compiled/splits/provider-e2e-persona-fixed/009_其他行业案例_文旅_本地生活.md",
+      "compiled/splits/provider-e2e-persona-fixed/010_5_个人成长与背景.md",
+      "compiled/splits/provider-e2e-persona-fixed/011_6_表达风格与语言特征.md",
+      "compiled/splits/provider-e2e-persona-fixed/012_6_1_整体风格.md",
+      "compiled/splits/provider-e2e-persona-fixed/013_6_2_禁用词汇_本人明确排斥.md",
+      "compiled/splits/provider-e2e-persona-fixed/014_6_3_偏好表达模式.md",
+      "compiled/splits/provider-e2e-persona-fixed/015_6_4_金句与原话_可直接引用.md",
+      "compiled/splits/provider-e2e-persona-fixed/016_7_价值观与职业立场.md",
+      "compiled/splits/provider-e2e-persona-fixed/017_8_边界与禁忌.md",
+      "compiled/splits/provider-e2e-persona-fixed/018_9_待补充信息清单.md",
+      "compiled/splits/provider-e2e-persona-fixed/019_10_智能体应用指南.md",
+      "compiled/splits/provider-e2e-persona-fixed/020_10_1_使用说明.md",
+      "compiled/splits/provider-e2e-persona-fixed/021_10_2_ai_写作风格指南.md",
+      "compiled/splits/provider-e2e-persona-fixed/022_10_3_核心价值观关键词.md",
+      "compiled/splits/provider-e2e-persona-fixed/023_10_4_可引用故事素材.md",
+      "compiled/splits/provider-e2e-persona-fixed/024_10_5_禁忌与边界_快速参考.md"
+    ],
+    "runs": [
+      "runs/compile-20260508T021107Z.json"
+    ],
+    "compiledIndexExists": true,
+    "splitCount": 25
+  },
+  "context": {
+    "status": "ready",
+    "runPath": "/var/folders/87/s6cpr7hd1_v43cs833x4s_900000gn/T/lime-knowledge-provider-e2e-fixed-5Dvto6/.lime/knowledge/packs/provider-e2e-persona-fixed/runs/context-20260508T021107Z.json",
+    "tokenEstimate": 831,
+    "selectedFiles": [
+      "compiled/splits/provider-e2e-persona-fixed/019_10_智能体应用指南.md",
+      "compiled/splits/provider-e2e-persona-fixed/015_6_4_金句与原话_可直接引用.md",
+      "compiled/splits/provider-e2e-persona-fixed/011_6_表达风格与语言特征.md",
+      "compiled/splits/provider-e2e-persona-fixed/006_3_3_方法论关键词.md",
+      "compiled/splits/provider-e2e-persona-fixed/016_7_价值观与职业立场.md",
+      "compiled/splits/provider-e2e-persona-fixed/022_10_3_核心价值观关键词.md",
+      "compiled/splits/provider-e2e-persona-fixed/002_2_核心定位与价值主张.md",
+      "compiled/splits/provider-e2e-persona-fixed/003_3_专业能力与服务范围.md",
+      "compiled/splits/provider-e2e-persona-fixed/000_个人_ip_知识库_林澈.md",
+      "compiled/splits/provider-e2e-persona-fixed/001_1_基础身份档案.md",
+      "compiled/splits/provider-e2e-persona-fixed/004_3_1_核心服务方向.md",
+      "compiled/splits/provider-e2e-persona-fixed/005_3_2_熟悉平台.md",
+      "compiled/splits/provider-e2e-persona-fixed/007_4_代表案例.md",
+      "compiled/splits/provider-e2e-persona-fixed/008_案例_1_地方茶饮品牌内容体系从零搭建_2025_年.md",
+      "compiled/splits/provider-e2e-persona-fixed/009_其他行业案例_文旅_本地生活.md",
+      "compiled/splits/provider-e2e-persona-fixed/010_5_个人成长与背景.md",
+      "compiled/splits/provider-e2e-persona-fixed/012_6_1_整体风格.md",
+      "compiled/splits/provider-e2e-persona-fixed/013_6_2_禁用词汇_本人明确排斥.md",
+      "compiled/splits/provider-e2e-persona-fixed/014_6_3_偏好表达模式.md",
+      "compiled/splits/provider-e2e-persona-fixed/017_8_边界与禁忌.md",
+      "compiled/splits/provider-e2e-persona-fixed/018_9_待补充信息清单.md",
+      "compiled/splits/provider-e2e-persona-fixed/020_10_1_使用说明.md",
+      "compiled/splits/provider-e2e-persona-fixed/021_10_2_ai_写作风格指南.md",
+      "compiled/splits/provider-e2e-persona-fixed/023_10_4_可引用故事素材.md",
+      "compiled/splits/provider-e2e-persona-fixed/024_10_5_禁忌与边界_快速参考.md"
+    ],
+    "fencedPrefix": "<knowledge_pack name=\"provider-e2e-persona-fixed\" status=\"ready\" trust=\"user-confirmed\" grounding=\"recommended\" mode=\"persona\" selected_files=\"compiled/splits/provider-e2e-persona-",
+    "warningCount": 0
+  },
+  "documentShape": {
+    "startsWithMarkdownHeading": true,
+    "startsWithJsonFence": false,
+    "containsLinche": true,
+    "containsBoundary": true,
+    "length": 3304,
+    "preview": "# 个人 IP 知识库：林澈\n\n> 版本：0.1.0 | 状态：needs-review | 更新：2026-05-08  \n> 主要来源：访谈摘录（sources/interview-linche.md）\n\n---\n\n## 1. 基础身份档案\n\n| 字段 | 内容 |\n|------|------|\n| 姓名 | 林澈 |\n| 职业定位 | 面向中小品牌的内容增长顾问 |\n| 从业年限 | 约 8 年 |\n| 服务行业 | 茶饮、文旅、本地生活 |\n| 服务对象 | 中小品牌团队 |\n| 所在城市 | 待补充 |\n| 团队规模 | 待补充（个人顾问 / 工作室 / 公司） |\n| 联系 / 社媒账号 | 待补充 |\n\n---\n\n## 2. 核心定位与价值主张\n\n林澈的核心定位是：**帮助中小品牌团队建立稳定的内容生产节奏，而非追求单篇爆款**。\n\n他最常被客户找来解决的问题不是\"写一篇爆款\"，而是\"让团队每周都能稳定产出能转化的内容\"。\n\n**核心主张**：\n\n- 内容不是灵感管理，而是经营节奏管理。\n- 内容的第一目标不是热闹，是让用户知道你为什么值得信任。\n- 内容体系的价值在于可复用、可持续，而非偶发性爆发。\n\n---\n\n## 3. 专业能力与服务范围\n\n### 3.1 核心服务方向\n\n1. **内容栏目搭建**：帮助团队设计可持续运营的内容矩阵，测试栏目并沉淀可复用栏目。"
+  }
+}

@@ -767,6 +767,8 @@ export function useWorkspaceInputbarSceneRuntime({
         knowledgePackOptions: knowledgeRuntime.knowledgePackOptions,
         onToggleKnowledgePack: knowledgeRuntime.onToggleKnowledgePack,
         onSelectKnowledgePack: knowledgeRuntime.onSelectKnowledgePack,
+        onToggleKnowledgeCompanionPack:
+          knowledgeRuntime.onToggleKnowledgeCompanionPack,
         onStartKnowledgeOrganize: knowledgeRuntime.onStartKnowledgeOrganize,
         onManageKnowledgePacks: knowledgeRuntime.onManageKnowledgePacks,
         providerType,
@@ -903,6 +905,8 @@ export function useWorkspaceInputbarSceneRuntime({
     knowledgePackOptions: knowledgeRuntime.knowledgePackOptions,
     onToggleKnowledgePack: knowledgeRuntime.onToggleKnowledgePack,
     onSelectKnowledgePack: knowledgeRuntime.onSelectKnowledgePack,
+    onToggleKnowledgeCompanionPack:
+      knowledgeRuntime.onToggleKnowledgeCompanionPack,
     onStartKnowledgeOrganize: knowledgeRuntime.onStartKnowledgeOrganize,
     onManageKnowledgePacks: knowledgeRuntime.onManageKnowledgePacks,
     onImportPathReferenceAsKnowledge:

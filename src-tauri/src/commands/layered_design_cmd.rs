@@ -103,6 +103,8 @@ pub struct ReadLayeredDesignProjectExportOutput {
     pub design_json: String,
     pub manifest_path: Option<String>,
     pub manifest_json: Option<String>,
+    pub psd_like_manifest_path: Option<String>,
+    pub psd_like_manifest_json: Option<String>,
     pub preview_png_path: Option<String>,
     pub asset_count: usize,
     pub file_count: usize,
@@ -223,6 +225,12 @@ struct NativeAnalyzerRect {
     y: u32,
     width: u32,
     height: u32,
+}
+
+#[derive(Debug, Clone)]
+struct NativeAnalyzerCleanPlateResult {
+    image: RgbaImage,
+    filled_pixel_count: u64,
 }
 
 #[derive(Debug, Clone)]
@@ -532,6 +540,22 @@ fn is_inside_native_analyzer_ellipse(x: u32, y: u32, width: u32, height: u32) ->
     dx * dx + dy * dy <= 1.0
 }
 
+fn native_analyzer_rect_pixel_count(rect: NativeAnalyzerRect) -> u64 {
+    u64::from(rect.width) * u64::from(rect.height)
+}
+
+fn count_native_analyzer_ellipse_pixels(rect: NativeAnalyzerRect) -> u64 {
+    let mut count = 0_u64;
+    for y in 0..rect.height {
+        for x in 0..rect.width {
+            if is_inside_native_analyzer_ellipse(x, y, rect.width, rect.height) {
+                count += 1;
+            }
+        }
+    }
+    count
+}
+
 fn encode_rgba_png_data_url(image: &RgbaImage) -> Result<String, String> {
     let mut output = Vec::new();
     let dynamic = DynamicImage::ImageRgba8(image.clone());
@@ -591,9 +615,13 @@ fn average_native_analyzer_corner_color(source: &RgbaImage) -> Rgba<u8> {
     Rgba([channel(0), channel(1), channel(2), 250])
 }
 
-fn create_native_analyzer_clean_plate(source: &RgbaImage, rect: NativeAnalyzerRect) -> RgbaImage {
+fn create_native_analyzer_clean_plate(
+    source: &RgbaImage,
+    rect: NativeAnalyzerRect,
+) -> NativeAnalyzerCleanPlateResult {
     let mut output = source.clone();
     let fill = average_native_analyzer_corner_color(source);
+    let mut filled_pixel_count = 0_u64;
     for y in 0..rect.height {
         for x in 0..rect.width {
             if is_inside_native_analyzer_ellipse(x, y, rect.width, rect.height) {
@@ -601,11 +629,15 @@ fn create_native_analyzer_clean_plate(source: &RgbaImage, rect: NativeAnalyzerRe
                 let target_y = rect.y + y;
                 if target_x < output.width() && target_y < output.height() {
                     output.put_pixel(target_x, target_y, fill);
+                    filled_pixel_count += 1;
                 }
             }
         }
     }
-    output
+    NativeAnalyzerCleanPlateResult {
+        image: output,
+        filled_pixel_count,
+    }
 }
 
 fn native_analyzer_rect_value(rect: NativeAnalyzerRect) -> Value {
@@ -1229,6 +1261,15 @@ pub(crate) fn read_layered_design_project_export_inner(
     } else {
         None
     };
+    let psd_like_manifest_path = export_dir.join("psd-like-manifest.json");
+    let psd_like_manifest_json = if psd_like_manifest_path.is_file() {
+        Some(
+            std::fs::read_to_string(&psd_like_manifest_path)
+                .map_err(|error| format!("读取 psd-like-manifest.json 失败: {error}"))?,
+        )
+    } else {
+        None
+    };
     let preview_png_path = export_dir.join("preview.png");
     let assets_dir = export_dir.join("assets");
     let hydrated_design_json =
@@ -1244,6 +1285,10 @@ pub(crate) fn read_layered_design_project_export_inner(
             .as_ref()
             .map(|_| path_to_string(&manifest_path)),
         manifest_json,
+        psd_like_manifest_path: psd_like_manifest_json
+            .as_ref()
+            .map(|_| path_to_string(&psd_like_manifest_path)),
+        psd_like_manifest_json,
         preview_png_path: preview_png_path
             .is_file()
             .then(|| path_to_string(&preview_png_path)),
@@ -1486,6 +1531,12 @@ pub(crate) fn analyze_layered_design_flat_image_inner(
         if is_subject {
             subject_rect = Some(spec.rect);
         }
+        let total_pixel_count = native_analyzer_rect_pixel_count(spec.rect);
+        let ellipse_pixel_count = if is_subject {
+            count_native_analyzer_ellipse_pixels(spec.rect)
+        } else {
+            0
+        };
 
         let crop = crop_native_analyzer_image(&source, spec.rect);
         let image_rgba = if is_subject {
@@ -1511,6 +1562,30 @@ pub(crate) fn analyze_layered_design_flat_image_inner(
         } else {
             None
         };
+        let mut image_params = serde_json::json!({
+            "seed": if is_subject {
+                "native_heuristic_subject_masked"
+            } else {
+                "native_heuristic_crop"
+            },
+            "inputMimeType": request.image.mime_type.as_deref().unwrap_or("image/png"),
+            "outputMimeType": "image/png",
+            "sourceRect": native_analyzer_rect_value(spec.rect),
+            "totalPixelCount": total_pixel_count,
+        });
+        if is_subject {
+            if let Some(params) = image_params.as_object_mut() {
+                params.insert(
+                    "foregroundPixelCount".to_string(),
+                    Value::from(ellipse_pixel_count),
+                );
+                params.insert(
+                    "detectedForegroundPixelCount".to_string(),
+                    Value::from(0_u64),
+                );
+                params.insert("ellipseFallbackApplied".to_string(), Value::from(true));
+            }
+        }
 
         candidates.push(LayeredDesignStructuredCandidate {
             id: format!("{}-candidate", spec.id),
@@ -1533,16 +1608,7 @@ pub(crate) fn analyze_layered_design_flat_image_inner(
                 height: spec.rect.height,
                 has_alpha: Some(is_subject || request.image.has_alpha.unwrap_or(false)),
                 created_at: generated_at.clone(),
-                params: serde_json::json!({
-                    "seed": if is_subject {
-                        "native_heuristic_subject_masked"
-                    } else {
-                        "native_heuristic_crop"
-                    },
-                    "inputMimeType": request.image.mime_type.as_deref().unwrap_or("image/png"),
-                    "outputMimeType": "image/png",
-                    "sourceRect": native_analyzer_rect_value(spec.rect),
-                }),
+                params: image_params,
             },
             mask,
         });
@@ -1550,18 +1616,24 @@ pub(crate) fn analyze_layered_design_flat_image_inner(
 
     let clean_plate = if let Some(rect) = subject_rect {
         let clean_plate = create_native_analyzer_clean_plate(&source, rect);
+        let total_subject_pixel_count = count_native_analyzer_ellipse_pixels(rect);
         LayeredDesignStructuredCleanPlate {
             status: None,
             asset: Some(LayeredDesignStructuredAsset {
                 id: "native-heuristic-clean-plate-asset".to_string(),
                 kind: "clean_plate".to_string(),
-                src: encode_rgba_png_data_url(&clean_plate)?,
+                src: encode_rgba_png_data_url(&clean_plate.image)?,
                 width: image_width,
                 height: image_height,
                 has_alpha: Some(false),
                 created_at: generated_at.clone(),
                 params: serde_json::json!({
                     "seed": "native_heuristic_clean_plate",
+                    "sourceRect": native_analyzer_rect_value(rect),
+                    "filledPixelCount": clean_plate.filled_pixel_count,
+                    "totalSubjectPixelCount": total_subject_pixel_count,
+                    "haloExpandedPixelCount": 0_u64,
+                    "maskApplied": true,
                 }),
             }),
             message: Some(
@@ -1724,6 +1796,58 @@ mod tests {
         assert_eq!(subject.role, "subject");
         assert!(subject.image.src.starts_with("data:image/png;base64,"));
         assert!(subject.mask.is_some());
+        assert_eq!(
+            subject
+                .image
+                .params
+                .get("ellipseFallbackApplied")
+                .and_then(Value::as_bool),
+            Some(true)
+        );
+        assert_eq!(
+            subject
+                .image
+                .params
+                .get("detectedForegroundPixelCount")
+                .and_then(Value::as_u64),
+            Some(0)
+        );
+        let foreground_pixel_count = subject
+            .image
+            .params
+            .get("foregroundPixelCount")
+            .and_then(Value::as_u64)
+            .expect("foreground pixel count");
+        let total_pixel_count = subject
+            .image
+            .params
+            .get("totalPixelCount")
+            .and_then(Value::as_u64)
+            .expect("total pixel count");
+        assert!(foreground_pixel_count > 0);
+        assert!(foreground_pixel_count < total_pixel_count);
+        let clean_plate_asset = result.clean_plate.asset.as_ref().expect("clean plate");
+        assert_eq!(
+            clean_plate_asset
+                .params
+                .get("maskApplied")
+                .and_then(Value::as_bool),
+            Some(true)
+        );
+        assert_eq!(
+            clean_plate_asset
+                .params
+                .get("filledPixelCount")
+                .and_then(Value::as_u64),
+            Some(foreground_pixel_count)
+        );
+        assert_eq!(
+            clean_plate_asset
+                .params
+                .get("totalSubjectPixelCount")
+                .and_then(Value::as_u64),
+            Some(foreground_pixel_count)
+        );
         assert!(result
             .clean_plate
             .asset
@@ -1997,6 +2121,16 @@ mod tests {
 
         assert!(output.design_json.contains("data:image/png;base64,"));
         assert!(!output.design_json.contains(&remote_asset_url));
+        assert!(output
+            .psd_like_manifest_json
+            .as_deref()
+            .unwrap_or_default()
+            .contains("\"source\": \"file\""));
+        assert!(output
+            .psd_like_manifest_json
+            .as_deref()
+            .unwrap_or_default()
+            .contains("\"filename\": \"assets/remote-asset.png\""));
         assert_eq!(output.asset_count, 1);
         assert_eq!(output.file_count, 6);
     }

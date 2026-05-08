@@ -57,6 +57,23 @@ function createListing(path: string): DirectoryListing {
       error: null,
     };
   }
+  if (path === "/workspace/project") {
+    return {
+      path,
+      parentPath: null,
+      entries: [
+        {
+          name: "source.md",
+          path: "/workspace/project/source.md",
+          isDir: false,
+          size: 256,
+          modifiedAt: Date.now(),
+          mimeType: "text/markdown",
+        },
+      ],
+      error: null,
+    };
+  }
   return {
     path,
     parentPath: path === "/Users/demo" ? null : "/Users/demo",
@@ -97,6 +114,9 @@ async function renderFileManagerSidebar(props?: {
   onImportAsKnowledge?: React.ComponentProps<
     typeof FileManagerSidebar
   >["onImportAsKnowledge"];
+  initialDirectory?: React.ComponentProps<
+    typeof FileManagerSidebar
+  >["initialDirectory"];
 }) {
   const container = document.createElement("div");
   document.body.appendChild(container);
@@ -111,6 +131,7 @@ async function renderFileManagerSidebar(props?: {
         onClose={onClose}
         onAddPathReferences={onAddPathReferences}
         onImportAsKnowledge={onImportAsKnowledge}
+        initialDirectory={props?.initialDirectory}
       />,
     );
     await Promise.resolve();
@@ -261,6 +282,22 @@ describe("FileManagerSidebar", () => {
         source: "file_manager",
       }),
     ]);
+  });
+
+  it("提供项目目录时应优先打开当前项目", async () => {
+    const { container } = await renderFileManagerSidebar({
+      initialDirectory: "/workspace/project",
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(listDirectory).toHaveBeenCalledWith("/workspace/project");
+    expect(container.textContent).toContain("当前项目");
+    expect(container.textContent).toContain("source.md");
   });
 
   it("顶部位置说明不应直接暴露本机完整路径", async () => {

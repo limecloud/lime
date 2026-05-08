@@ -25,8 +25,10 @@ import {
 import {
   createLayeredDesignImageRuntimeContract,
   normalizeLayeredDesignImageTaskSize,
+  resolveLayeredDesignImageExecutorMode,
   resolveLayeredDesignAlphaPolicy,
   type LayeredDesignAlphaPolicy,
+  type LayeredDesignImageExecutorMode,
   type LayeredDesignImageTaskSize,
 } from "./imageModelCapabilities";
 
@@ -34,6 +36,8 @@ export interface LayeredDesignImageTaskContext {
   projectRootPath: string;
   providerId?: string;
   model?: string;
+  executorMode?: LayeredDesignImageExecutorMode;
+  outerModel?: string;
   sessionId?: string;
   threadId?: string;
   turnId?: string;
@@ -168,6 +172,20 @@ function readTaskPayloadString(
   return readString(output.record.payload[key]);
 }
 
+function readTaskPayloadStringAny(
+  output: MediaTaskArtifactOutput,
+  keys: string[],
+): string | undefined {
+  return keys.map((key) => readTaskPayloadString(output, key)).find(Boolean);
+}
+
+function readTaskResultString(
+  output: MediaTaskArtifactOutput,
+  key: string,
+): string | undefined {
+  return readString(readRecord(output.record.result)?.[key]);
+}
+
 function readOptionalTaskRef(record: LayerEditRecord): string | undefined {
   return readString(record.taskPath) ?? readString(record.taskId);
 }
@@ -257,6 +275,12 @@ export function createLayeredDesignImageTaskRequest(
     model: context.model,
     providerId: context.providerId,
   });
+  const executorMode =
+    context.executorMode ??
+    resolveLayeredDesignImageExecutorMode({
+      model: context.model,
+      providerId: context.providerId,
+    });
   const alphaPolicy = resolveLayeredDesignAlphaPolicy({
     hasAlpha: generationRequest.hasAlpha,
     model: context.model,
@@ -282,6 +306,8 @@ export function createLayeredDesignImageTaskRequest(
     style: context.style,
     providerId: context.providerId,
     model: context.model,
+    executorMode,
+    outerModel: context.outerModel,
     sessionId: context.sessionId,
     threadId: context.threadId,
     turnId: context.turnId,
@@ -348,6 +374,13 @@ export function createGeneratedDesignAssetFromImageTaskOutput(
   }
 
   const postprocess = readRecord(firstImage?.postprocess);
+  const executorMode =
+    readTaskResultString(output, "executor_mode") ??
+    readTaskPayloadStringAny(output, ["executor_mode", "executorMode"]);
+  const outerModel =
+    readTaskResultString(output, "outer_model") ??
+    readTaskPayloadStringAny(output, ["outer_model", "outerModel"]);
+  const generatedImageSource = readString(firstImage?.source);
 
   return {
     id: options.assetId ?? `${request.assetId}-generated-${output.task_id}`,
@@ -366,6 +399,9 @@ export function createGeneratedDesignAssetFromImageTaskOutput(
       documentId: request.documentId,
       layerId: request.layerId,
       originalAssetId: request.assetId,
+      ...(executorMode ? { executorMode } : {}),
+      ...(outerModel ? { outerModel } : {}),
+      ...(generatedImageSource ? { generatedImageSource } : {}),
       ...(postprocess ? { postprocess } : {}),
     },
     createdAt:

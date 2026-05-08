@@ -74,10 +74,6 @@ docs/knowledge
 !docs/knowledge/
 docs/knowledge/*
 !docs/knowledge/README.md
-!docs/knowledge/skills/
-!docs/knowledge/skills/**
-docs/knowledge/skills/.DS_Store
-docs/knowledge/skills/**/.DS_Store
 docs/research/*
 !docs/research/skill-forge/
 !docs/research/skill-forge/*.md

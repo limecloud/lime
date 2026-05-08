@@ -121,6 +121,10 @@ pub struct CreateImageGenerationTaskArtifactRequest {
     pub provider_id: Option<String>,
     #[serde(default)]
     pub model: Option<String>,
+    #[serde(default, alias = "executor_mode")]
+    pub executor_mode: Option<String>,
+    #[serde(default, alias = "outer_model")]
+    pub outer_model: Option<String>,
     #[serde(default)]
     pub session_id: Option<String>,
     #[serde(default, alias = "thread_id")]
@@ -597,6 +601,52 @@ fn apply_image_generation_preference_defaults(
     (effective_provider_id, effective_model)
 }
 
+fn normalize_image_generation_executor_token(value: Option<&str>) -> Option<String> {
+    value
+        .map(str::trim)
+        .filter(|item| !item.is_empty())
+        .map(|item| item.to_ascii_lowercase().replace('-', "_"))
+}
+
+fn looks_like_gpt_image_2_model(model: Option<&str>) -> bool {
+    let Some(normalized) = normalize_image_generation_executor_token(model) else {
+        return false;
+    };
+
+    normalized == "gpt_image_2"
+        || normalized == "gpt_images_2"
+        || normalized.ends_with("/gpt_image_2")
+        || normalized.ends_with("/gpt_images_2")
+}
+
+fn should_use_responses_image_generation_executor(
+    provider_id: Option<&str>,
+    model: Option<&str>,
+) -> bool {
+    if looks_like_gpt_image_2_model(model) {
+        return true;
+    }
+
+    let Some(normalized_provider) = normalize_image_generation_executor_token(provider_id) else {
+        return false;
+    };
+
+    normalized_provider == "openai_response"
+        || normalized_provider == "openai_responses"
+        || normalized_provider.contains("responses")
+}
+
+fn infer_image_generation_executor_mode(
+    requested_executor_mode: Option<String>,
+    provider_id: Option<&str>,
+    model: Option<&str>,
+) -> Option<String> {
+    requested_executor_mode.or_else(|| {
+        should_use_responses_image_generation_executor(provider_id, model)
+            .then(|| "responses_image_generation".to_string())
+    })
+}
+
 fn apply_audio_generation_preference_defaults(
     provider_id: Option<String>,
     model: Option<String>,
@@ -751,6 +801,8 @@ fn build_image_task_idempotency_key(
     reference_images: &[String],
     storyboard_slots: &[ImageStoryboardSlotInput],
     target_output_ref_id: Option<&str>,
+    executor_mode: Option<&str>,
+    outer_model: Option<&str>,
 ) -> Result<String, String> {
     let storyboard_slots_payload = build_storyboard_slots_payload(storyboard_slots);
     let fingerprint = json!({
@@ -771,6 +823,8 @@ fn build_image_task_idempotency_key(
         "anchor_section_title": normalize_optional_string(request.anchor_section_title.clone()),
         "anchor_text": normalize_optional_string(request.anchor_text.clone()),
         "target_output_ref_id": target_output_ref_id,
+        "executor_mode": executor_mode,
+        "outer_model": outer_model,
         "reference_images": reference_images,
         "storyboard_slots": storyboard_slots_payload,
     });
@@ -4609,11 +4663,18 @@ pub(crate) fn create_image_generation_task_artifact_inner(
     let style = normalize_optional_string(request.style.clone());
     let requested_provider_id = normalize_optional_string(request.provider_id.clone());
     let requested_model = normalize_optional_string(request.model.clone());
+    let requested_executor_mode = normalize_optional_string(request.executor_mode.clone());
+    let outer_model = normalize_optional_string(request.outer_model.clone());
     let image_preference_defaults = load_image_generation_preference_defaults();
     let (provider_id, model) = apply_image_generation_preference_defaults(
         requested_provider_id,
         requested_model,
         &image_preference_defaults,
+    );
+    let executor_mode = infer_image_generation_executor_mode(
+        requested_executor_mode,
+        provider_id.as_deref(),
+        model.as_deref(),
     );
     let raw_text = normalize_optional_string(request.raw_text.clone());
     let layout_hint = normalize_optional_string(request.layout_hint.clone());
@@ -4662,6 +4723,8 @@ pub(crate) fn create_image_generation_task_artifact_inner(
         &normalized_reference_images,
         &normalized_storyboard_slots,
         target_output_ref_id.as_deref(),
+        executor_mode.as_deref(),
+        outer_model.as_deref(),
     )?;
 
     write_task_artifact(
@@ -4675,6 +4738,8 @@ pub(crate) fn create_image_generation_task_artifact_inner(
             "layout_hint": layout_hint,
             "provider_id": provider_id,
             "model": model,
+            "executor_mode": executor_mode,
+            "outer_model": outer_model,
             "style": style,
             "size": size,
             "aspect_ratio": aspect_ratio,
@@ -5258,6 +5323,8 @@ mod tests {
             style: None,
             provider_id: Some("fal".to_string()),
             model: model.map(ToString::to_string),
+            executor_mode: None,
+            outer_model: None,
             session_id: Some("session-image-contract-1".to_string()),
             thread_id: Some("thread-image-contract-1".to_string()),
             turn_id: Some("turn-image-contract-1".to_string()),
@@ -5279,6 +5346,28 @@ mod tests {
             reference_images: Vec::new(),
             storyboard_slots: Vec::new(),
         }
+    }
+
+    #[test]
+    fn image_generation_task_should_infer_responses_executor_for_gpt_images_2() {
+        let temp_dir = tempfile::tempdir().expect("create temp dir");
+        let mut request = minimal_image_generation_request(
+            temp_dir.path().to_string_lossy().to_string(),
+            Some("gpt-images-2"),
+        );
+        request.provider_id = Some("openai".to_string());
+
+        let created = create_image_generation_task_artifact_inner(request)
+            .expect("create gpt-images-2 image task");
+
+        assert_eq!(
+            created
+                .record
+                .payload
+                .get("executor_mode")
+                .and_then(Value::as_str),
+            Some("responses_image_generation")
+        );
     }
 
     #[test]
@@ -5539,6 +5628,8 @@ mod tests {
             style: Some("cinematic".to_string()),
             provider_id: Some("fal".to_string()),
             model: Some("fal-ai/nano-banana".to_string()),
+            executor_mode: None,
+            outer_model: None,
             session_id: Some("session-1".to_string()),
             thread_id: None,
             turn_id: None,
@@ -5603,6 +5694,8 @@ mod tests {
                 style: Some("cinematic".to_string()),
                 provider_id: Some("fal".to_string()),
                 model: Some("fal-ai/nano-banana".to_string()),
+                executor_mode: None,
+                outer_model: None,
                 session_id: Some("session-1".to_string()),
                 thread_id: None,
                 turn_id: None,
@@ -7474,6 +7567,8 @@ mod tests {
                 style: None,
                 provider_id: Some("fal".to_string()),
                 model: Some("fal-ai/flux-pro".to_string()),
+                executor_mode: None,
+                outer_model: None,
                 session_id: Some("session-2".to_string()),
                 thread_id: Some("thread-2".to_string()),
                 turn_id: Some("turn-2".to_string()),
@@ -7849,6 +7944,8 @@ mod tests {
                 style: None,
                 provider_id: Some("fal".to_string()),
                 model: Some("fal-ai/nano-banana".to_string()),
+                executor_mode: None,
+                outer_model: None,
                 session_id: Some("session-1".to_string()),
                 thread_id: None,
                 turn_id: None,
@@ -7895,6 +7992,8 @@ mod tests {
                 style: None,
                 provider_id: Some("fal".to_string()),
                 model: Some("fal-ai/nano-banana".to_string()),
+                executor_mode: None,
+                outer_model: None,
                 session_id: Some("session-1".to_string()),
                 thread_id: None,
                 turn_id: None,
@@ -7944,6 +8043,8 @@ mod tests {
                 style: Some("cinematic".to_string()),
                 provider_id: Some("fal".to_string()),
                 model: Some("fal-ai/nano-banana-pro".to_string()),
+                executor_mode: None,
+                outer_model: None,
                 session_id: Some("session-image-worker-1".to_string()),
                 thread_id: None,
                 turn_id: None,
@@ -8146,6 +8247,8 @@ mod tests {
                 style: None,
                 provider_id: Some("fal".to_string()),
                 model: Some("fal-ai/nano-banana-pro".to_string()),
+                executor_mode: None,
+                outer_model: None,
                 session_id: Some("session-image-worker-2".to_string()),
                 thread_id: None,
                 turn_id: None,

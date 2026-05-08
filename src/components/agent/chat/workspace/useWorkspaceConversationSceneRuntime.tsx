@@ -49,6 +49,7 @@ type InputbarScene = Pick<
   | "knowledgePackOptions"
   | "onToggleKnowledgePack"
   | "onSelectKnowledgePack"
+  | "onToggleKnowledgeCompanionPack"
   | "onStartKnowledgeOrganize"
   | "onManageKnowledgePacks"
 >;
@@ -1127,6 +1128,8 @@ export function useWorkspaceConversationSceneRuntime({
       knowledgePackOptions: inputbarScene.knowledgePackOptions,
       onToggleKnowledgePack: inputbarScene.onToggleKnowledgePack,
       onSelectKnowledgePack: inputbarScene.onSelectKnowledgePack,
+      onToggleKnowledgeCompanionPack:
+        inputbarScene.onToggleKnowledgeCompanionPack,
       onStartKnowledgeOrganize: inputbarScene.onStartKnowledgeOrganize,
       onManageKnowledgePacks: inputbarScene.onManageKnowledgePacks,
       runtimeTaskCard,

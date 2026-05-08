@@ -5065,7 +5065,7 @@ dependencies = [
 
 [[package]]
 name = "lime"
-version = "1.30.0"
+version = "1.31.0"
 dependencies = [
  "anyhow",
  "arboard",
@@ -5172,7 +5172,7 @@ dependencies = [
 
 [[package]]
 name = "lime-agent"
-version = "1.30.0"
+version = "1.31.0"
 dependencies = [
  "anyhow",
  "aster-core",
@@ -5201,7 +5201,7 @@ dependencies = [
 
 [[package]]
 name = "lime-browser-runtime"
-version = "1.30.0"
+version = "1.31.0"
 dependencies = [
  "chrono",
  "futures",
@@ -5218,7 +5218,7 @@ dependencies = [
 
 [[package]]
 name = "lime-cli"
-version = "1.30.0"
+version = "1.31.0"
 dependencies = [
  "clap",
  "lime-core",
@@ -5230,7 +5230,7 @@ dependencies = [
 
 [[package]]
 name = "lime-config"
-version = "1.30.0"
+version = "1.31.0"
 dependencies = [
  "async-trait",
  "lime-core",
@@ -5246,7 +5246,7 @@ dependencies = [
 
 [[package]]
 name = "lime-core"
-version = "1.30.0"
+version = "1.31.0"
 dependencies = [
  "aster-models",
  "async-trait",
@@ -5299,7 +5299,7 @@ dependencies = [
 
 [[package]]
 name = "lime-gateway"
-version = "1.30.0"
+version = "1.31.0"
 dependencies = [
  "aes",
  "axum 0.7.9",
@@ -5329,7 +5329,7 @@ dependencies = [
 
 [[package]]
 name = "lime-infra"
-version = "1.30.0"
+version = "1.31.0"
 dependencies = [
  "chrono",
  "dashmap 5.5.3",
@@ -5349,7 +5349,7 @@ dependencies = [
 
 [[package]]
 name = "lime-knowledge"
-version = "1.30.0"
+version = "1.31.0"
 dependencies = [
  "chrono",
  "hex",
@@ -5362,7 +5362,7 @@ dependencies = [
 
 [[package]]
 name = "lime-mcp"
-version = "1.30.0"
+version = "1.31.0"
 dependencies = [
  "async-trait",
  "dirs 5.0.1",
@@ -5378,7 +5378,7 @@ dependencies = [
 
 [[package]]
 name = "lime-media-runtime"
-version = "1.30.0"
+version = "1.31.0"
 dependencies = [
  "axum 0.7.9",
  "base64 0.22.1",
@@ -5411,7 +5411,7 @@ dependencies = [
 
 [[package]]
 name = "lime-processor"
-version = "1.30.0"
+version = "1.31.0"
 dependencies = [
  "async-trait",
  "lime-core",
@@ -5430,7 +5430,7 @@ dependencies = [
 
 [[package]]
 name = "lime-providers"
-version = "1.30.0"
+version = "1.31.0"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -5485,7 +5485,7 @@ dependencies = [
 
 [[package]]
 name = "lime-server"
-version = "1.30.0"
+version = "1.31.0"
 dependencies = [
  "aster-core",
  "async-stream",
@@ -5529,7 +5529,7 @@ dependencies = [
 
 [[package]]
 name = "lime-server-utils"
-version = "1.30.0"
+version = "1.31.0"
 dependencies = [
  "axum 0.7.9",
  "futures",
@@ -5544,7 +5544,7 @@ dependencies = [
 
 [[package]]
 name = "lime-services"
-version = "1.30.0"
+version = "1.31.0"
 dependencies = [
  "anyhow",
  "aster-core",
@@ -5589,7 +5589,7 @@ dependencies = [
 
 [[package]]
 name = "lime-skills"
-version = "1.30.0"
+version = "1.31.0"
 dependencies = [
  "async-trait",
  "dirs 5.0.1",
@@ -5607,7 +5607,7 @@ dependencies = [
 
 [[package]]
 name = "lime-websocket"
-version = "1.30.0"
+version = "1.31.0"
 dependencies = [
  "axum 0.7.9",
  "chrono",

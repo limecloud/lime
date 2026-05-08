@@ -748,6 +748,7 @@ async function createWorkerCleanPlateFromRefiner(params: {
   rasterizer: LayeredDesignWorkerHeuristicRasterizer;
   input: LayeredDesignFlatImageStructuredAnalyzerProviderInput;
   subjectSpec: LayeredDesignFlatImageHeuristicCandidateSpec | undefined;
+  subjectMaskSrc?: string;
 }): Promise<LayeredDesignWorkerHeuristicCleanPlateResult | null> {
   const { cleanPlateRefiner, rasterizer, input, subjectSpec } = params;
   if (!cleanPlateRefiner || !subjectSpec) {
@@ -756,14 +757,16 @@ async function createWorkerCleanPlateFromRefiner(params: {
 
   try {
     const cropSrc = await rasterizer.cropImageToPngDataUrl(subjectSpec.rect);
-    const maskSrc = await (
-      rasterizer.createRefinedSubjectMaskDataUrl ??
-      ((rect: LayeredDesignFlatImageHeuristicCropRect) =>
-        rasterizer.createEllipseMaskDataUrl({
-          width: rect.width,
-          height: rect.height,
-        }))
-    )(subjectSpec.rect);
+    const maskSrc =
+      params.subjectMaskSrc ??
+      (await (
+        rasterizer.createRefinedSubjectMaskDataUrl ??
+        ((rect: LayeredDesignFlatImageHeuristicCropRect) =>
+          rasterizer.createEllipseMaskDataUrl({
+            width: rect.width,
+            height: rect.height,
+          }))
+      )(subjectSpec.rect));
     const result = await cleanPlateRefiner({
       image: input.image,
       createdAt: input.createdAt,
@@ -1325,11 +1328,19 @@ export function createLayeredDesignWorkerHeuristicStructuredAnalyzerProvider(
           }),
         );
         const candidates = candidateGroups.flat();
+        const subjectImageCandidate = candidates.find(
+          (
+            candidate,
+          ): candidate is LayeredDesignFlatImageStructuredImageCandidate =>
+            candidate.type === "image" && candidate.role === "subject",
+        );
+        const subjectMaskSrc = subjectImageCandidate?.mask?.src;
         const refinedCleanPlate = await createWorkerCleanPlateFromRefiner({
           cleanPlateRefiner,
           rasterizer,
           input,
           subjectSpec,
+          subjectMaskSrc,
         });
         const fallbackCleanPlateAsset =
           !refinedCleanPlate &&

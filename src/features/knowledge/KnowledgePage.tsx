@@ -55,6 +55,9 @@ import { buildKnowledgeBuilderPrompt } from "./agent/knowledgePromptBuilder";
 import {
   buildKnowledgeBuilderMetadata,
   buildKnowledgeRequestMetadata,
+  resolveKnowledgePackRuntimeMode,
+  resolveKnowledgeRequestCompanionPacks,
+  type KnowledgeRequestCompanionPack,
 } from "./agent/knowledgeMetadata";
 import { FileEntryList } from "./components/FileEntryList";
 import { KnowledgePackCard } from "./components/KnowledgePackCard";
@@ -137,8 +140,8 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
   const initialWorkingDir = pageParams?.workingDir?.trim() ?? "";
   const initialStoredWorkingDir =
     initialWorkingDir || readReusableStoredWorkingDir();
-  const [workingDirInput, setWorkingDirInput] = useState(() =>
-    initialStoredWorkingDir,
+  const [workingDirInput, setWorkingDirInput] = useState(
+    () => initialStoredWorkingDir,
   );
   const [workingDir, setWorkingDir] = useState(() => initialStoredWorkingDir);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(
@@ -168,6 +171,13 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
   const [packType, setPackType] = useState("brand-product");
   const sourceFileName = DEFAULT_SOURCE_FILE_NAME;
   const [sourceText, setSourceText] = useState("");
+  const [knowledgeComposerOpen, setKnowledgeComposerOpen] = useState(false);
+  const [composerPersonaPackName, setComposerPersonaPackName] = useState<
+    string | null
+  >(null);
+  const [composerDataPackNames, setComposerDataPackNames] = useState<string[]>(
+    [],
+  );
 
   const selectedSummary = useMemo(
     () =>
@@ -185,6 +195,24 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
           pack.metadata.status !== "archived",
       ),
     [packs],
+  );
+  const readyPacks = useMemo(
+    () => packs.filter((pack) => pack.metadata.status === "ready"),
+    [packs],
+  );
+  const readyPersonaPacks = useMemo(
+    () =>
+      readyPacks.filter(
+        (pack) => resolveKnowledgePackRuntimeMode(pack) === "persona",
+      ),
+    [readyPacks],
+  );
+  const readyDataPacks = useMemo(
+    () =>
+      readyPacks.filter(
+        (pack) => resolveKnowledgePackRuntimeMode(pack) === "data",
+      ),
+    [readyPacks],
   );
   const refreshCatalog = useCallback(
     async (nextWorkingDir = workingDir) => {
@@ -457,7 +485,7 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
         setSelectedPackName(response.pack.metadata.name);
         setNotice(
           response.warnings.length > 0
-            ? `已整理，提示：${response.warnings.join("；")}`
+            ? "已整理，下一步请检查引用摘要、缺口和风险边界"
             : "引用摘要已生成，等待人工确认",
         );
         await refreshCatalog(workingDir);
@@ -581,6 +609,7 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
       workingDir,
       packName: normalizedPackName,
       source: "knowledge_page",
+      packType: selectedPack?.metadata.type ?? packType,
     });
 
     onNavigate?.("agent", {
@@ -617,26 +646,104 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
     });
   }, [onNavigate, selectedProjectId]);
 
-  const handleSendWithKnowledge = useCallback((packNameOverride?: string) => {
-    const packName =
-      packNameOverride?.trim() ||
-      selectedPackName ||
-      selectedSummary?.metadata.name ||
-      "";
-    if (!workingDir || !packName) {
-      setNotice("请先选择资料");
+  const handleOpenKnowledgeComposer = useCallback(
+    (packNameOverride?: string) => {
+      const packName =
+        packNameOverride?.trim() ||
+        selectedPackName ||
+        selectedSummary?.metadata.name ||
+        "";
+      if (!workingDir || !packName) {
+        setNotice("请先选择资料");
+        return;
+      }
+      const seedPack =
+        packs.find((pack) => pack.metadata.name === packName) ??
+        (selectedSummary?.metadata.name === packName ? selectedSummary : null);
+      const defaultPersonaPack =
+        readyPersonaPacks.find((pack) => pack.defaultForWorkspace) ??
+        readyPersonaPacks[0] ??
+        null;
+      const seedRuntimeMode = seedPack
+        ? resolveKnowledgePackRuntimeMode(seedPack)
+        : "data";
+
+      setComposerPersonaPackName(
+        seedRuntimeMode === "persona"
+          ? packName
+          : defaultPersonaPack?.metadata.name ?? null,
+      );
+      setComposerDataPackNames(seedRuntimeMode === "data" ? [packName] : []);
+      setKnowledgeComposerOpen(true);
+    },
+    [
+      packs,
+      readyPersonaPacks,
+      selectedPackName,
+      selectedSummary,
+      workingDir,
+    ],
+  );
+
+  const handleToggleComposerDataPack = useCallback((packName: string) => {
+    setComposerDataPackNames((current) =>
+      current.includes(packName)
+        ? current.filter((item) => item !== packName)
+        : [...current, packName],
+    );
+  }, []);
+
+  const handleConfirmKnowledgeComposer = useCallback(() => {
+    if (!workingDir) {
+      setNotice("请先选择项目");
       return;
     }
+
+    const selectedDataNames = composerDataPackNames.filter((packName) =>
+      readyDataPacks.some((pack) => pack.metadata.name === packName),
+    );
+    const selectedPersonaName =
+      composerPersonaPackName &&
+      readyPersonaPacks.some(
+        (pack) => pack.metadata.name === composerPersonaPackName,
+      )
+        ? composerPersonaPackName
+        : null;
+    const packName = selectedDataNames[0] ?? selectedPersonaName;
+
+    if (!packName) {
+      setNotice("请至少选择一份已确认资料");
+      return;
+    }
+
+    const companionPacks: KnowledgeRequestCompanionPack[] = [];
+    if (selectedPersonaName && selectedPersonaName !== packName) {
+      companionPacks.push({
+        name: selectedPersonaName,
+        activation: "explicit",
+      });
+    }
+    for (const dataPackName of selectedDataNames) {
+      if (dataPackName === packName) {
+        continue;
+      }
+      companionPacks.push({
+        name: dataPackName,
+        activation: "explicit",
+      });
+    }
+
     const packForRequest =
-      packs.find((pack) => pack.metadata.name === packName) ??
-      (selectedSummary?.metadata.name === packName ? selectedSummary : null);
+      packs.find((pack) => pack.metadata.name === packName) ?? null;
 
     const requestMetadata = buildKnowledgeRequestMetadata({
       workingDir,
       packName,
       pack: packForRequest,
+      packs: companionPacks,
     });
 
+    setKnowledgeComposerOpen(false);
     onNavigate?.("agent", {
       agentEntry: "claw",
       projectId: selectedProjectId ?? undefined,
@@ -648,17 +755,41 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
         workingDir,
         label: packForRequest ? getPackTitle(packForRequest) : packName,
         status: packForRequest?.metadata.status,
+        ...(companionPacks.length ? { companionPacks } : {}),
       },
       autoRunInitialPromptOnMount: false,
     });
   }, [
+    composerDataPackNames,
+    composerPersonaPackName,
     onNavigate,
     packs,
-    selectedPackName,
-    selectedSummary,
+    readyDataPacks,
+    readyPersonaPacks,
     selectedProjectId,
     workingDir,
   ]);
+
+  const getCompanionLabelsForPack = useCallback(
+    (packName: string) =>
+      resolveKnowledgeRequestCompanionPacks({
+        primaryPackName: packName,
+        packs,
+      }).map((companionPack) => {
+        const pack = packs.find(
+          (candidate) => candidate.metadata.name === companionPack.name,
+        );
+        return pack ? getPackTitle(pack) : companionPack.name;
+      }),
+    [packs],
+  );
+
+  const selectedPackCompanionLabels = useMemo(() => {
+    if (!selectedSummary) {
+      return [];
+    }
+    return getCompanionLabelsForPack(selectedSummary.metadata.name);
+  }, [getCompanionLabelsForPack, selectedSummary]);
 
   const packMetrics = selectedSummary ? buildPackMetrics(selectedSummary) : [];
   const actionBusy = Boolean(actionStatus);
@@ -672,83 +803,140 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
   const readyPackCount = packs.filter(
     (pack) => pack.metadata.status === "ready",
   ).length;
+  const defaultPersonaPack =
+    readyPersonaPacks.find((pack) => pack.defaultForWorkspace) ??
+    readyPersonaPacks[0] ??
+    null;
+  const defaultDataPack =
+    readyDataPacks.find((pack) => pack.defaultForWorkspace) ??
+    readyDataPacks[0] ??
+    null;
+  const composerSelectedCount =
+    (composerPersonaPackName ? 1 : 0) + composerDataPackNames.length;
   return (
     <main className="flex h-full min-h-0 flex-1 overflow-auto bg-[linear-gradient(180deg,#f8fafc_0%,#eef7f2_100%)]">
       <div className="mx-auto flex min-h-full w-full max-w-[1440px] flex-col gap-5 px-6 py-5">
-        <header className="flex flex-wrap items-end justify-between gap-4">
-          <div className="min-w-0">
-            <h1 className="text-2xl font-semibold text-slate-950">
-              项目资料
-            </h1>
-            <p className="mt-2 text-sm text-slate-600">
-              管理项目相关的资料和文档
-            </p>
-          </div>
+        <header className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm shadow-slate-950/5">
+          <div className="flex flex-wrap items-start justify-between gap-5">
+            <div className="min-w-0 max-w-3xl">
+              <span className="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                Knowledge v2 · Skills-first
+              </span>
+              <h1 className="mt-3 text-2xl font-semibold text-slate-950">
+                Agent Knowledge 工作台
+              </h1>
+              <p className="mt-2 text-sm leading-6 text-slate-600">
+                Agent Skills 负责怎么生产和维护知识；Agent Knowledge
+                负责知识产物长什么样，以及如何安全进入上下文。
+              </p>
+            </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={handleOpenAgentKnowledgeHub}
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50"
-            >
-              <MessageSquareText className="h-4 w-4" />
-              回到 Agent 添加
-            </button>
-            {selectedPackReady ? (
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
-                onClick={() => handleSendWithKnowledge()}
-                className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white shadow-sm transition hover:bg-slate-800"
+                onClick={handleOpenAgentKnowledgeHub}
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
               >
                 <MessageSquareText className="h-4 w-4" />
-                用于生成
+                回到 Agent 整理
               </button>
-            ) : null}
+              {selectedPackReady ? (
+                <button
+                  type="button"
+                  onClick={() => handleOpenKnowledgeComposer()}
+                  className="inline-flex h-10 items-center gap-2 rounded-2xl border border-slate-900 bg-slate-900 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
+                >
+                  <MessageSquareText className="h-4 w-4" />
+                  选择用于生成
+                </button>
+              ) : null}
+            </div>
           </div>
-        </header>
 
-        <section className="rounded-xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700">
-                <FolderOpen className="h-4 w-4" />
-              </div>
-              <div>
-                <h2 className="text-sm font-medium text-slate-900">
-                  当前项目
-                  {selectedProjectName ? (
-                    <span className="ml-2 text-emerald-600">
-                      {selectedProjectName}
-                    </span>
-                  ) : null}
-                </h2>
-                <p className="mt-0.5 text-xs text-slate-500">
-                  资料会保存到当前项目
-                </p>
-              </div>
+          <div className="mt-5 grid gap-3 xl:grid-cols-[minmax(0,1fr)_360px]">
+            <div className="grid gap-3 md:grid-cols-3">
+              {[
+                {
+                  title: "Builder Skills",
+                  description: "个人 IP、品牌产品、内容运营等 Skill 生产线",
+                  value: `${PACK_TYPES.length} 类`,
+                  icon: Sparkles,
+                },
+                {
+                  title: "Knowledge Packs",
+                  description: "沉淀后的知识产物，先审阅再启用",
+                  value: `${packs.length} 份`,
+                  icon: PackageCheck,
+                },
+                {
+                  title: "安全上下文",
+                  description: "按 1 persona + N data 组合进入 Agent",
+                  value: `${readyPersonaPacks.length} + ${readyDataPacks.length}`,
+                  icon: ShieldCheck,
+                },
+              ].map((item) => {
+                const Icon = item.icon;
+                return (
+                  <div
+                    key={item.title}
+                    className="rounded-[22px] border border-slate-200 bg-slate-50 px-4 py-4"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="text-xs font-semibold text-slate-500">
+                        {item.title}
+                      </div>
+                      <Icon className="h-4 w-4 text-emerald-600" />
+                    </div>
+                    <div className="mt-2 text-2xl font-semibold text-slate-950">
+                      {item.value}
+                    </div>
+                    <p className="mt-1 text-xs leading-5 text-slate-500">
+                      {item.description}
+                    </p>
+                  </div>
+                );
+              })}
             </div>
 
-            <div className="flex items-center gap-2">
-              <ProjectSelector
-                value={selectedProjectId}
-                onChange={handleProjectChange}
-                placeholder="选择项目"
-                dropdownSide="bottom"
-                dropdownAlign="end"
-                enableManagement
-                density="compact"
-                skipDefaultWorkspaceReadyCheck
-                autoSelectFallback={false}
-              />
-              <button
-                type="button"
-                onClick={() => setActiveView("import")}
-                className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white transition hover:bg-slate-800"
-              >
-                <Upload className="h-4 w-4" />
-                导入
-              </button>
-            </div>
+            <section className="rounded-[22px] border border-emerald-200 bg-emerald-50 px-4 py-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-sm font-semibold text-emerald-950">
+                    当前项目
+                    {selectedProjectName ? (
+                      <span className="ml-2 text-emerald-700">
+                        {selectedProjectName}
+                      </span>
+                    ) : null}
+                  </h2>
+                  <p className="mt-1 text-xs leading-5 text-emerald-800">
+                    资料会保存到当前项目，并作为该项目的默认知识上下文候选。
+                  </p>
+                </div>
+                <FolderOpen className="h-4 w-4 shrink-0 text-emerald-700" />
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <ProjectSelector
+                  value={selectedProjectId}
+                  onChange={handleProjectChange}
+                  placeholder="选择项目"
+                  dropdownSide="bottom"
+                  dropdownAlign="end"
+                  enableManagement
+                  density="compact"
+                  skipDefaultWorkspaceReadyCheck
+                  autoSelectFallback={false}
+                />
+                <button
+                  type="button"
+                  onClick={() => setActiveView("import")}
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-emerald-700 bg-emerald-700 px-4 text-sm font-semibold text-white transition hover:bg-emerald-600"
+                >
+                  <Upload className="h-4 w-4" />
+                  启动 Builder
+                </button>
+              </div>
+            </section>
           </div>
 
           <KnowledgeTroubleshootingPanel
@@ -765,9 +953,9 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
               {notice}
             </div>
           ) : null}
-        </section>
+        </header>
 
-        <nav className="grid gap-2 rounded-xl border border-slate-200 bg-white p-2 shadow-sm md:grid-cols-4">
+        <nav className="grid gap-2 rounded-[22px] border border-slate-200 bg-white p-2 shadow-sm md:grid-cols-3">
           {VIEW_TABS.map((tab) => (
             <button
               key={tab.id}
@@ -796,6 +984,73 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
         {activeView === "overview" ? (
           <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
             <div className="space-y-5">
+              <section className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm shadow-slate-950/5">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div>
+                    <p className="text-xs font-semibold text-emerald-700">
+                      Knowledge v2 上下文组合
+                    </p>
+                    <h2 className="mt-1 text-lg font-semibold text-slate-950">
+                      1 persona + N data
+                    </h2>
+                    <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+                      persona 决定表达语境，data 提供事实、SOP、运营节奏和边界；只有已确认资料才会进入
+                      Agent 上下文。
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      selectedPackReady
+                        ? handleOpenKnowledgeComposer()
+                        : handleOpenAgentKnowledgeHub()
+                    }
+                    className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-slate-900 bg-slate-900 px-4 text-sm font-semibold text-white transition hover:bg-slate-800"
+                  >
+                    <MessageSquareText className="h-4 w-4" />
+                    {selectedPackReady ? "选择本轮上下文" : "先去 Agent 整理"}
+                  </button>
+                </div>
+
+                <div className="mt-5 grid gap-3 lg:grid-cols-2">
+                  <div className="rounded-[22px] border border-emerald-200 bg-emerald-50 p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <h3 className="text-sm font-semibold text-emerald-950">
+                        Persona 人设层
+                      </h3>
+                      <span className="rounded-full border border-emerald-200 bg-white px-2.5 py-1 text-xs font-semibold text-emerald-700">
+                        {readyPersonaPacks.length} 份可用
+                      </span>
+                    </div>
+                    <p className="mt-2 text-sm leading-6 text-emerald-800">
+                      {defaultPersonaPack
+                        ? `默认使用：${getPackTitle(defaultPersonaPack)}`
+                        : "还没有已确认 persona；个人 IP 或品牌人设资料确认后会显示在这里。"}
+                    </p>
+                  </div>
+
+                  <div className="rounded-[22px] border border-sky-200 bg-sky-50 p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <h3 className="text-sm font-semibold text-sky-950">
+                        Data 运营资料层
+                      </h3>
+                      <span className="rounded-full border border-sky-200 bg-white px-2.5 py-1 text-xs font-semibold text-sky-700">
+                        {readyDataPacks.length} 份可用
+                      </span>
+                    </div>
+                    <p className="mt-2 text-sm leading-6 text-sky-800">
+                      {defaultDataPack
+                        ? `可叠加：${getPackTitle(defaultDataPack)}${
+                            readyDataPacks.length > 1
+                              ? ` 等 ${readyDataPacks.length} 份`
+                              : ""
+                          }`
+                        : "品牌产品、内容运营、私域、直播、活动和增长策略等资料确认后会进入 data 层。"}
+                    </p>
+                  </div>
+                </div>
+              </section>
+
               <KnowledgeStatusRail
                 sourceCount={sourceBackedPackCount}
                 compiledCount={compiledPackCount}
@@ -807,10 +1062,10 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
                       <h2 className="text-base font-semibold text-amber-950">
-                        等你确认的资料
+                        审阅闸门：等你确认的资料
                       </h2>
                       <p className="mt-1 text-sm text-amber-800">
-                        这些资料还不会默认用于正式生成，请先检查缺口和风险提醒。
+                        这些 Knowledge Pack 还不会进入 Agent 上下文，请先检查缺口和风险提醒。
                       </p>
                     </div>
                     <span className="rounded-full border border-amber-200 bg-white px-2.5 py-1 text-xs font-medium text-amber-700">
@@ -845,10 +1100,10 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <h2 className="text-base font-semibold text-slate-950">
-                      全部项目资料
+                      Knowledge Pack 清单
                     </h2>
                     <p className="mt-1 text-sm text-slate-500">
-                      在 Agent 输入框整理资料后，到这里检查、确认、设为默认或归档。
+                      这里不是文件夹管理器，而是知识产物目录：检查状态、确认边界、选择用于生成。
                     </p>
                   </div>
                   {catalogStatus === "loading" ? (
@@ -861,10 +1116,11 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div>
                           <h3 className="text-sm font-semibold text-slate-950">
-                            还没有项目资料
+                            还没有 Knowledge Pack
                           </h3>
                           <p className="mt-1 text-sm leading-6 text-slate-500">
-                            项目资料从日常工作里沉淀：先把内容交给当前 Agent，整理确认后再用于生成。
+                            先把访谈稿、SOP、产品资料或运营复盘交给 Builder
+                            Skill；生成的 Knowledge Pack 人工确认后再用于生成。
                           </p>
                         </div>
                         <div className="flex flex-wrap gap-2">
@@ -874,7 +1130,7 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
                             className="inline-flex h-9 items-center justify-center gap-2 rounded-2xl border border-slate-900 bg-slate-900 px-3 text-xs font-semibold text-white transition hover:bg-slate-800"
                           >
                             <MessageSquareText className="h-3.5 w-3.5" />
-                            回到 Agent 添加
+                            回到 Agent 整理
                           </button>
                           <button
                             type="button"
@@ -882,25 +1138,25 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
                             className="inline-flex h-9 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
                           >
                             <Upload className="h-3.5 w-3.5" />
-                            补充导入
+                            启动 Builder
                           </button>
                         </div>
                       </div>
                       <div className="mt-4 grid gap-2 md:grid-cols-3">
                         {[
                           [
-                            "从输入框添加",
-                            "粘贴资料或写清目标，点击输入框下方的项目资料图标整理。",
+                            "从 Agent 启动",
+                            "在输入框选择项目资料入口，让对应 Builder Skill 整理资料。",
                             MessageSquareText,
                           ],
                           [
-                            "从文件管理器添加",
-                            "在文件管理器选择文本或 Markdown 文件，直接设为项目资料。",
+                            "选择资料类型",
+                            "个人 IP、品牌产品、内容运营、私域、直播、活动和增长策略走不同 Skill。",
                             FolderOpen,
                           ],
                           [
-                            "从结果继续沉淀",
-                            "Agent 输出里出现可复用事实时，点击“沉淀为项目资料”。",
+                            "确认后入上下文",
+                            "只有人工确认的 Knowledge Pack 才能被 Resolver 选入上下文。",
                             ClipboardCheck,
                           ],
                         ].map(([title, description, GuideIcon]) => {
@@ -928,9 +1184,12 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
                         key={pack.metadata.name}
                         pack={pack}
                         actionBusy={actionBusy}
+                        companionLabels={getCompanionLabelsForPack(
+                          pack.metadata.name,
+                        )}
                         onOpen={(packName) => openPack(packName)}
                         onSetDefault={handleSetDefaultForPack}
-                        onUse={handleSendWithKnowledge}
+                        onUse={handleOpenKnowledgeComposer}
                       />
                     ))
                   )}
@@ -943,11 +1202,11 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
                 <div className="flex items-center gap-2">
                   <MessageSquareText className="h-4 w-4 text-emerald-600" />
                   <h2 className="text-sm font-semibold text-slate-950">
-                    日常使用入口
+                    Skills 生产线
                   </h2>
                 </div>
                 <p className="mt-2 text-sm leading-6 text-slate-600">
-                  资料整理、补充和生成使用都在 Agent 输入框完成；这里保留管理动作。
+                  资料整理和维护回到 Agent 执行；页面只负责查看产物、审阅状态和上下文启用。
                 </p>
                 <button
                   type="button"
@@ -955,7 +1214,7 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
                   className="mt-3 inline-flex h-10 w-full items-center justify-center gap-2 rounded-2xl border border-slate-900 bg-slate-900 px-3 text-sm font-semibold text-white transition hover:bg-slate-800"
                 >
                   <MessageSquareText className="h-4 w-4" />
-                  回到 Agent
+                  回到 Agent 整理
                 </button>
               </section>
 
@@ -963,11 +1222,11 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <h2 className="text-sm font-semibold text-slate-950">
-                      管理概览
+                      v2 闭环概览
                     </h2>
                     <p className="mt-1 text-xs text-slate-500">
                       {catalogStatus === "ready"
-                        ? `${packs.length} 份项目资料`
+                        ? `${packs.length} 份 Knowledge Pack`
                         : "读取中"}
                     </p>
                   </div>
@@ -975,17 +1234,29 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
                 </div>
                 <div className="mt-4 grid grid-cols-2 gap-2">
                   <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3">
-                    <div className="text-xs text-slate-500">待确认</div>
+                    <div className="text-xs text-slate-500">审阅中</div>
                     <div className="mt-1 text-lg font-semibold text-slate-900">
                       {pendingPacks.length}
                     </div>
                   </div>
                   <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3">
-                    <div className="text-xs text-slate-500">已确认</div>
+                    <div className="text-xs text-slate-500">可入上下文</div>
                     <div className="mt-1 text-lg font-semibold text-slate-900">
-                      {packs.filter((pack) => pack.metadata.status === "ready").length}
+                      {
+                        packs.filter((pack) => pack.metadata.status === "ready")
+                          .length
+                      }
                     </div>
                   </div>
+                </div>
+                <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3">
+                  <div className="text-xs font-semibold text-slate-700">
+                    运营类资料覆盖
+                  </div>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">
+                    内容运营、私域 / 社群运营、直播运营、活动 / Campaign、增长策略都按
+                    data pack 接入，不再只围绕个人 IP。
+                  </p>
                 </div>
               </section>
             </aside>
@@ -997,10 +1268,10 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
             <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-200 pb-5">
               <div>
                 <h2 className="text-xl font-semibold text-slate-950">
-                  补充导入资料
+                  Builder Skills 整理台
                 </h2>
                 <p className="mt-2 text-sm leading-6 text-slate-600">
-                  需要补充另一份资料时，可以在这里手动指定资料类型并导入。
+                  选择一类 Builder Skill，把原始材料整理成 Knowledge Pack；这里保留手动补充入口，但生产逻辑仍回到 Skills。
                 </p>
               </div>
               <button
@@ -1015,7 +1286,7 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
                 ) : (
                   <RefreshCw className="h-4 w-4" />
                 )}
-                导入并整理
+                导入并生成 Pack
               </button>
             </div>
 
@@ -1024,12 +1295,12 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
                 {[
                   [
                     "1",
-                    "选择资料类型",
-                    PACK_TYPES.map((type) => type.label).join(" · "),
+                    "选择 Builder Skill",
+                    "按资料类型选择对应生产线",
                   ],
-                  ["2", "粘贴资料", "访谈稿、产品资料、SOP 或 FAQ"],
-                  ["3", "自动整理", "提炼事实、场景和风险提醒"],
-                  ["4", "检查确认", "确认后才可默认用于生成"],
+                  ["2", "导入原始材料", "访谈稿、产品资料、SOP 或运营复盘"],
+                  ["3", "生成 Knowledge Pack", "提炼事实、场景、边界和引用摘要"],
+                  ["4", "审阅后入上下文", "确认后才能默认用于生成"],
                 ].map(([index, title, description]) => (
                   <div key={index} className="flex gap-3 pb-4 last:pb-0">
                     <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-emerald-200 bg-emerald-50 text-xs font-semibold text-emerald-700">
@@ -1051,7 +1322,7 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
                 <div className="space-y-5">
                   <section className="rounded-[22px] border border-slate-200 bg-white p-4">
                     <h3 className="text-sm font-semibold text-slate-950">
-                      1 选择资料类型
+                      1 选择 Builder Skill
                     </h3>
                     <div className="mt-3 grid gap-3 md:grid-cols-2">
                       {PACK_TYPES.map((type) => {
@@ -1087,10 +1358,10 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
 
                   <section className="rounded-[22px] border border-slate-200 bg-white p-4">
                     <h3 className="text-sm font-semibold text-slate-950">
-                      2 添加资料
+                      2 导入原始材料
                     </h3>
                     <label className="mt-3 grid gap-1.5 text-xs font-medium text-slate-600">
-                      资料名称
+                      Pack 显示名
                       <input
                         value={packDescription}
                         onChange={(event) => {
@@ -1103,7 +1374,7 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
                       />
                     </label>
                     <label className="mt-3 grid gap-1.5 text-xs font-medium text-slate-600">
-                      资料正文
+                      原始材料正文
                       <textarea
                         value={sourceText}
                         onChange={(event) => setSourceText(event.target.value)}
@@ -1122,7 +1393,7 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
                       ) : (
                         <FileText className="h-4 w-4" />
                       )}
-                      导入资料
+                      只导入材料
                     </button>
                   </section>
                 </div>
@@ -1132,11 +1403,11 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
                     <div className="flex items-center gap-2">
                       <Sparkles className="h-4 w-4 text-emerald-600" />
                       <h3 className="text-sm font-semibold text-slate-950">
-                        3 自动整理
+                        3 交给 Builder Skill
                       </h3>
                     </div>
                     <p className="mt-2 text-sm leading-6 text-slate-600">
-                      Lime 会把原始资料整理成可审阅摘要、适用场景、事实边界和待补充清单。
+                      Lime 会把当前材料交给对应 Builder Skill，产出可审阅摘要、适用场景、事实边界和待补充清单。
                     </p>
                     <button
                       type="button"
@@ -1144,7 +1415,7 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
                       className="mt-3 inline-flex h-10 w-full items-center justify-center gap-2 rounded-2xl border border-emerald-700 bg-emerald-700 px-3 text-sm font-semibold text-white transition hover:bg-emerald-600"
                     >
                       <Sparkles className="h-4 w-4" />
-                      整理资料
+                      交给 Builder Skill
                     </button>
                   </section>
 
@@ -1152,7 +1423,7 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
                     <div className="flex items-center gap-2">
                       <ListChecks className="h-4 w-4 text-sky-600" />
                       <h3 className="text-sm font-semibold text-slate-950">
-                        4 检查确认
+                        4 审阅与入上下文
                       </h3>
                     </div>
                     <div className="mt-3 grid grid-cols-2 gap-2">
@@ -1179,7 +1450,7 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
                       ))}
                     </div>
                     <p className="mt-3 text-xs leading-5 text-slate-500">
-                      整理后先检查摘要、缺口和风险提醒；人工确认前不会默认用于正式生成。
+                      先检查摘要、缺口和风险提醒；人工确认前不会默认进入 Agent 上下文。
                     </p>
                   </section>
 
@@ -1191,7 +1462,7 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
                       </h3>
                     </div>
                     <p className="mt-2 text-sm leading-6 text-amber-800">
-                      请先检查内容缺口、风险提醒和引用摘要；确认后才会成为可默认使用的项目资料。
+                      请先检查内容缺口、风险提醒和引用摘要；确认后才会成为可默认使用的 Knowledge Pack。
                     </p>
                   </section>
                 </aside>
@@ -1245,6 +1516,12 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
                       <p className="mt-2 text-xs text-slate-500">
                         {getUserFacingPackTypeLabel(selectedPack.metadata.type)}
                       </p>
+                      {selectedPackCompanionLabels.length > 0 ? (
+                        <p className="mt-2 rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs leading-5 text-emerald-800">
+                          用于生成时会自动搭配人设资料：
+                          {selectedPackCompanionLabels.join("、")}
+                        </p>
+                      ) : null}
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <button
@@ -1453,7 +1730,8 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
                           安全边界
                         </h3>
                         <p className="mt-3 text-sm leading-6 text-slate-600">
-                          来源资料只会作为参考内容使用。资料里出现的指令式文本不会覆盖 Lime 的系统规则。
+                          来源资料只会作为参考内容使用。资料里出现的指令式文本不会覆盖
+                          Lime 的系统规则。
                         </p>
                       </section>
                     </div>
@@ -1475,8 +1753,189 @@ export function KnowledgePage({ onNavigate, pageParams }: KnowledgePageProps) {
             )}
           </section>
         ) : null}
-
       </div>
+      {knowledgeComposerOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/25 px-4 py-6">
+          <section
+            className="max-h-[86vh] w-full max-w-3xl overflow-auto rounded-[28px] border border-slate-200 bg-white p-5 shadow-2xl shadow-slate-950/20"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="knowledge-composer-title"
+            data-testid="knowledge-composer-chooser"
+          >
+            <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-200 pb-4">
+              <div>
+                <p className="text-xs font-semibold text-emerald-700">
+                  1 persona + N data
+                </p>
+                <h2
+                  id="knowledge-composer-title"
+                  className="mt-1 text-xl font-semibold text-slate-950"
+                >
+                  选择本轮 Knowledge 上下文
+                </h2>
+                <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+                  人设资料决定表达语境，data 资料提供事实、SOP、运营节奏和边界。确认后会按
+                  persona 先、data 后进入 Resolver，再安全注入 Agent 上下文。
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setKnowledgeComposerOpen(false)}
+                className="inline-flex h-9 items-center rounded-2xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+              >
+                取消
+              </button>
+            </div>
+
+            <div className="mt-5 grid gap-5 lg:grid-cols-[280px_minmax(0,1fr)]">
+              <section className="rounded-[22px] border border-emerald-100 bg-emerald-50 p-4">
+                <h3 className="text-sm font-semibold text-emerald-950">
+                  Persona（最多 1 个）
+                </h3>
+                <p className="mt-2 text-xs leading-5 text-emerald-800">
+                  用来确定语气、口吻、价值观和不可越过的表达边界。
+                </p>
+                <div className="mt-4 grid gap-2">
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-checked={!composerPersonaPackName}
+                    onClick={() => setComposerPersonaPackName(null)}
+                    className={cn(
+                      "flex w-full items-center justify-between rounded-2xl border px-3 py-2 text-left text-sm transition",
+                      !composerPersonaPackName
+                        ? "border-emerald-300 bg-white text-emerald-900"
+                        : "border-emerald-100 bg-emerald-50 text-emerald-800 hover:bg-white",
+                    )}
+                  >
+                    <span>暂不搭配人设</span>
+                    {!composerPersonaPackName ? (
+                      <Check className="h-4 w-4" />
+                    ) : null}
+                  </button>
+                  {readyPersonaPacks.map((pack) => {
+                    const checked =
+                      composerPersonaPackName === pack.metadata.name;
+                    return (
+                      <button
+                        key={pack.metadata.name}
+                        type="button"
+                        role="radio"
+                        aria-checked={checked}
+                        data-testid={`knowledge-composer-persona-${pack.metadata.name}`}
+                        onClick={() =>
+                          setComposerPersonaPackName(pack.metadata.name)
+                        }
+                        className={cn(
+                          "flex w-full items-center justify-between gap-3 rounded-2xl border px-3 py-2 text-left text-sm transition",
+                          checked
+                            ? "border-emerald-300 bg-white text-emerald-950"
+                            : "border-emerald-100 bg-emerald-50 text-emerald-800 hover:bg-white",
+                        )}
+                      >
+                        <span className="min-w-0">
+                          <span className="block truncate font-semibold">
+                            {getPackTitle(pack)}
+                          </span>
+                          <span className="mt-0.5 block text-xs text-emerald-700">
+                            {getUserFacingPackTypeLabel(pack.metadata.type)}
+                          </span>
+                        </span>
+                        {checked ? <Check className="h-4 w-4" /> : null}
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+
+              <section className="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-950">
+                      Data（可多选）
+                    </h3>
+                    <p className="mt-2 text-xs leading-5 text-slate-600">
+                      多选产品事实、运营 playbook、SOP 或活动资料，作为本轮生成事实源。
+                    </p>
+                  </div>
+                  <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-600">
+                    已选 {composerDataPackNames.length}
+                  </span>
+                </div>
+                <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                  {readyDataPacks.length > 0 ? (
+                    readyDataPacks.map((pack) => {
+                      const checked = composerDataPackNames.includes(
+                        pack.metadata.name,
+                      );
+                      return (
+                        <button
+                          key={pack.metadata.name}
+                          type="button"
+                          role="checkbox"
+                          aria-checked={checked}
+                          data-testid={`knowledge-composer-data-${pack.metadata.name}`}
+                          onClick={() =>
+                            handleToggleComposerDataPack(pack.metadata.name)
+                          }
+                          className={cn(
+                            "min-w-0 rounded-2xl border px-3 py-3 text-left transition",
+                            checked
+                              ? "border-slate-900 bg-white shadow-sm shadow-slate-950/5"
+                              : "border-slate-200 bg-white text-slate-700 hover:border-slate-300",
+                          )}
+                        >
+                          <span className="flex items-center justify-between gap-2">
+                            <span className="truncate text-sm font-semibold text-slate-950">
+                              {getPackTitle(pack)}
+                            </span>
+                            {checked ? (
+                              <Check className="h-4 w-4 text-emerald-600" />
+                            ) : null}
+                          </span>
+                          <span className="mt-1 block text-xs text-slate-500">
+                            {getUserFacingPackTypeLabel(pack.metadata.type)}
+                          </span>
+                        </button>
+                      );
+                    })
+                  ) : (
+                    <p className="rounded-2xl border border-dashed border-slate-300 bg-white px-3 py-4 text-sm text-slate-500">
+                      还没有已确认的 data 资料。可以先只用 persona，或回到 Agent
+                      添加运营 / 产品资料。
+                    </p>
+                  )}
+                </div>
+              </section>
+            </div>
+
+            <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-4">
+              <p className="text-xs leading-5 text-slate-500">
+                当前选择 {composerSelectedCount} 份资料；确认后会回到 Agent
+                输入框，可继续编辑提示词。
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setKnowledgeComposerOpen(false)}
+                  className="inline-flex h-10 items-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                >
+                  取消
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmKnowledgeComposer}
+                  disabled={composerSelectedCount === 0}
+                  className="inline-flex h-10 items-center rounded-2xl border border-slate-900 bg-slate-900 px-4 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  确认启用
+                </button>
+              </div>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </main>
   );
 }

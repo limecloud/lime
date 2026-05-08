@@ -98,6 +98,13 @@ export interface KnowledgeImportSourceResponse {
   source: KnowledgePackFileEntry;
 }
 
+export interface KnowledgeBuilderRuntimeOptions {
+  enabled?: boolean;
+  providerOverride?: string;
+  modelOverride?: string;
+  sessionId?: string;
+}
+
 export interface KnowledgeCompilePackResponse {
   pack: KnowledgePackDetail;
   selectedSourceCount: number;
@@ -126,6 +133,10 @@ export interface KnowledgeUpdatePackStatusResponse {
 export interface KnowledgeResolveContextRequest {
   workingDir: string;
   name: string;
+  packs?: Array<{
+    name: string;
+    activation?: "explicit" | "implicit" | "resolver-driven";
+  }>;
   task?: string;
   maxChars?: number;
   activation?: "explicit" | "implicit" | "resolver-driven";
@@ -134,6 +145,7 @@ export interface KnowledgeResolveContextRequest {
 }
 
 export interface KnowledgeContextView {
+  packName?: string | null;
   relativePath: string;
   tokenEstimate: number;
   charCount: number;
@@ -202,11 +214,13 @@ export function importKnowledgeSource(
 export function compileKnowledgePack(
   workingDir: string,
   name: string,
+  builderRuntime?: KnowledgeBuilderRuntimeOptions,
 ): Promise<KnowledgeCompilePackResponse> {
   return safeInvoke("knowledge_compile_pack", {
     request: {
       workingDir,
       name,
+      ...(builderRuntime ? { builderRuntime } : {}),
     },
   });
 }

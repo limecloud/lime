@@ -23,8 +23,9 @@ metadata:
 - 当前已经进入 `@配图/@修图/@重绘 -> image_skill_launch -> Skill(image_generate)` 主链，不要先调用 `ToolSearch`、`WebSearch`、`Read`、`Glob`、`Grep` 去“找技能”或“确认工具”。
 - 不要搜索 “Skill image_generate”、“lime media image generate --json”、“lime_create_image_generation_task” 之类目录信息；当前上下文已经明确要求执行图片任务。
 - 提示词必须包含主体、场景、风格，不要空泛。
-- 若调用方在结构化上下文里提供了 `image_task`，必须优先复用其中的 `mode`、`reference_images`、`target_output_*`、`session_id`、`project_id`、`content_id`、`entry_source`、`requested_target` 等字段，不要擅自丢失。
+- 若调用方在结构化上下文里提供了 `image_task`，必须优先复用其中的 `mode`、`reference_images`、`target_output_*`、`session_id`、`project_id`、`content_id`、`entry_source`、`requested_target`、`executor_mode`、`outer_model` 等字段，不要擅自丢失。
 - 若上下文已提供 `provider_id` 或 `model`，提交任务时也要原样透传，不要降级成匿名默认值。
+- 若 `model` 是 `gpt-image-2` / `gpt-images-2`，优先提交 `executor_mode: responses_image_generation`；如上游需要外层模型，可同时透传 `outer_model`，不要改走自定义脚本或 markdown 假任务。
 - 若用户给了参考素材，需体现在参数中；若 `reference_images` 已经是文件路径、URL 或输入图片物化路径，直接原样透传。
 - 必须直接调用 `lime_create_image_generation_task` 创建真实图片任务。
 - 调用 `lime_create_image_generation_task` 时，必须直接传扁平任务对象参数；不要包成 `{"image_task": ...}`，更不要把整个任务对象再序列化成字符串。
@@ -36,7 +37,7 @@ metadata:
 - 不要通过 `Bash` 拼接 `lime media image generate --json`、`lime task create image --json` 或任何 `/tmp/lime_task_image_*.json` 临时任务文件。
 - `lime_create_image_generation_task` 返回后，应依赖同一份图片任务文件契约推进执行与结果回填；不要另起一套 markdown“提交成功”假产物。
 - 调用 `lime_create_image_generation_task` 时不要传 `outputPath`，不要把任务写成 markdown 文稿。
-- `payload` 中至少包含：`prompt`、`style`、`size`、`count`、`usage`；如有上下文，还应携带 `mode`、`provider_id`、`model`、`reference_images`、`storyboard_slots`、`target_output_id`、`target_output_ref_id`、`session_id`、`project_id`、`content_id`、`entry_source`、`requested_target`。
+- `payload` 中至少包含：`prompt`、`style`、`size`、`count`、`usage`；如有上下文，还应携带 `mode`、`provider_id`、`model`、`executor_mode`、`outer_model`、`reference_images`、`storyboard_slots`、`target_output_id`、`target_output_ref_id`、`session_id`、`project_id`、`content_id`、`entry_source`、`requested_target`。
 
 ## 输出格式（固定）
 

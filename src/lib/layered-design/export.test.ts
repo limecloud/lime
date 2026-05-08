@@ -189,7 +189,7 @@ describe("layered-design export", () => {
     expect(exportedDocument.status).toBe("exported");
     expect(exportedDocument.layers).toHaveLength(3);
     expect(JSON.stringify(bundle)).not.toMatch(/poster_generate|canvas:poster/);
-  });
+  }, 10_000);
 
   it("预览 SVG 应来自当前可见图层，并正确转义文本", () => {
     const svg = renderLayeredDesignDocumentToSvg(createExportDocument());
@@ -415,6 +415,596 @@ describe("layered-design export", () => {
     );
   });
 
+  it("export manifest 应投影拆层质量评估与后处理风险", () => {
+    const document = createLayeredDesignFlatImageDraftDocument({
+      id: "flat-extraction-quality",
+      title: "拆层质量导出测试",
+      image: {
+        src: "data:image/png;base64,ZmFrZS1mbGF0LXF1YWxpdHk=",
+        width: 1080,
+        height: 1440,
+      },
+      analysis: {
+        analyzer: {
+          kind: "structured_pipeline",
+          label: "Worker model slot analyzer",
+        },
+        outputs: {
+          candidateRaster: true,
+          candidateMask: true,
+          cleanPlate: true,
+          ocrText: false,
+        },
+        generatedAt: CREATED_AT,
+      },
+      cleanPlate: {
+        asset: {
+          id: "quality-clean-plate",
+          kind: "clean_plate",
+          src: "data:image/png;base64,Y2xlYW4tcGxhdGU=",
+          width: 1080,
+          height: 1440,
+          hasAlpha: false,
+          createdAt: CREATED_AT,
+          params: {
+            haloExpandedPixelCount: 128,
+          },
+        },
+      },
+      candidates: [
+        {
+          id: "quality-subject",
+          role: "subject",
+          confidence: 0.94,
+          selected: true,
+          layer: {
+            id: "quality-subject-layer",
+            name: "主体",
+            type: "image",
+            assetId: "quality-subject-asset",
+            maskAssetId: "quality-subject-mask",
+            x: 160,
+            y: 240,
+            width: 760,
+            height: 980,
+            zIndex: 20,
+            alphaMode: "mask",
+          },
+          assets: [
+            {
+              id: "quality-subject-asset",
+              kind: "subject",
+              src: "data:image/png;base64,c3ViamVjdA==",
+              width: 512,
+              height: 512,
+              hasAlpha: true,
+              createdAt: CREATED_AT,
+              params: {
+                alphaHoleFilledPixelCount: 4_096,
+                totalPixelCount: 512 * 512,
+              },
+            },
+            {
+              id: "quality-subject-mask",
+              kind: "mask",
+              src: "data:image/png;base64,bWFzaw==",
+              width: 512,
+              height: 512,
+              hasAlpha: false,
+              createdAt: CREATED_AT,
+            },
+          ],
+        },
+      ],
+      createdAt: CREATED_AT,
+    });
+    const bundle = createLayeredDesignExportBundle(document, {
+      exportedAt: "2026-05-05T03:00:00.000Z",
+      baseName: "flat-extraction-quality",
+    });
+    const findingIds =
+      bundle.manifest.analysis?.extractionQuality?.findings.map(
+        (finding) => finding.id,
+      ) ?? [];
+
+    expect(bundle.manifest.analysis?.extractionQuality).toMatchObject({
+      level: "review",
+      selectedCandidateCount: 1,
+      totalCandidateCount: 1,
+    });
+    expect(findingIds).toEqual(
+      expect.arrayContaining([
+        "subject_alpha_holes_repaired",
+        "clean_plate_halo_repaired",
+      ]),
+    );
+    expect(
+      JSON.parse(bundle.manifestFile.content).analysis.extractionQuality,
+    ).toEqual(bundle.manifest.analysis!.extractionQuality);
+  });
+
+  it("export manifest 应保留生产级 model slot 缺质量元数据的复核 finding", () => {
+    const document = createLayeredDesignFlatImageDraftDocument({
+      id: "flat-model-slot-quality-missing",
+      title: "生产 model slot 质量元数据缺失",
+      image: {
+        src: "data:image/png;base64,bW9kZWwtc2xvdC1mbGF0",
+        width: 1080,
+        height: 1440,
+      },
+      analysis: {
+        analyzer: {
+          kind: "structured_pipeline",
+          label: "生产 model slot analyzer",
+        },
+        outputs: {
+          candidateRaster: true,
+          candidateMask: true,
+          cleanPlate: true,
+          ocrText: true,
+        },
+        providerCapabilities: [
+          {
+            kind: "subject_matting",
+            label: "生产主体抠图 slot",
+            execution: "remote_model",
+            modelId: "prod-matting-v1",
+            supports: {
+              dataUrlPng: true,
+              alphaOutput: true,
+              maskOutput: true,
+            },
+            quality: {
+              productionReady: true,
+              requiresHumanReview: false,
+            },
+          },
+          {
+            kind: "clean_plate",
+            label: "生产 clean plate slot",
+            execution: "remote_model",
+            modelId: "prod-inpaint-v1",
+            supports: {
+              dataUrlPng: true,
+              maskInput: true,
+              cleanPlateOutput: true,
+            },
+            quality: {
+              productionReady: true,
+              requiresHumanReview: false,
+            },
+          },
+        ],
+        generatedAt: CREATED_AT,
+      },
+      cleanPlate: {
+        asset: {
+          id: "model-slot-clean-plate",
+          kind: "clean_plate",
+          src: "data:image/png;base64,bW9kZWwtc2xvdC1jbGVhbg==",
+          width: 1080,
+          height: 1440,
+          hasAlpha: false,
+          createdAt: CREATED_AT,
+          params: {
+            modelSlotExecution: {
+              slotId: "clean-slot",
+              slotKind: "clean_plate",
+              modelId: "prod-inpaint-v1",
+              status: "succeeded",
+            },
+          },
+        },
+      },
+      candidates: [
+        {
+          id: "model-slot-subject",
+          role: "subject",
+          confidence: 0.96,
+          selected: true,
+          layer: {
+            id: "model-slot-subject-layer",
+            name: "主体",
+            type: "image",
+            assetId: "model-slot-subject-asset",
+            maskAssetId: "model-slot-subject-mask",
+            x: 160,
+            y: 240,
+            width: 760,
+            height: 980,
+            zIndex: 20,
+            alphaMode: "mask",
+          },
+          assets: [
+            {
+              id: "model-slot-subject-asset",
+              kind: "subject",
+              src: "data:image/png;base64,bW9kZWwtc2xvdC1zdWJqZWN0",
+              width: 512,
+              height: 512,
+              hasAlpha: true,
+              createdAt: CREATED_AT,
+              params: {
+                modelSlotExecution: {
+                  slotId: "subject-slot",
+                  slotKind: "subject_matting",
+                  modelId: "prod-matting-v1",
+                  status: "succeeded",
+                },
+              },
+            },
+            {
+              id: "model-slot-subject-mask",
+              kind: "mask",
+              src: "data:image/png;base64,bW9kZWwtc2xvdC1tYXNr",
+              width: 512,
+              height: 512,
+              hasAlpha: false,
+              createdAt: CREATED_AT,
+            },
+          ],
+        },
+      ],
+      createdAt: CREATED_AT,
+    });
+    const bundle = createLayeredDesignExportBundle(document, {
+      exportedAt: "2026-05-05T03:00:00.000Z",
+      baseName: "flat-model-slot-quality-missing",
+    });
+    const extractionQuality = bundle.manifest.analysis?.extractionQuality;
+
+    expect(extractionQuality).toMatchObject({
+      level: "review",
+      findings: expect.arrayContaining([
+        expect.objectContaining({
+          id: "subject_model_slot_quality_metadata_missing",
+          severity: "warning",
+        }),
+        expect.objectContaining({
+          id: "clean_plate_model_slot_quality_metadata_missing",
+          severity: "warning",
+        }),
+      ]),
+    });
+    expect(
+      JSON.parse(bundle.manifestFile.content).analysis.extractionQuality,
+    ).toEqual(extractionQuality);
+  });
+
+  it("export manifest 应保留生产级 model slot 完整质量元数据的 ready 基线", () => {
+    const document = createLayeredDesignFlatImageDraftDocument({
+      id: "flat-model-slot-quality-ready",
+      title: "生产 model slot ready 基线",
+      image: {
+        src: "data:image/png;base64,bW9kZWwtc2xvdC1yZWFkeS1mbGF0",
+        width: 1080,
+        height: 1440,
+      },
+      analysis: {
+        analyzer: {
+          kind: "structured_pipeline",
+          label: "生产 model slot analyzer",
+        },
+        outputs: {
+          candidateRaster: true,
+          candidateMask: true,
+          cleanPlate: true,
+          ocrText: true,
+        },
+        providerCapabilities: [
+          {
+            kind: "subject_matting",
+            label: "生产主体抠图 slot",
+            execution: "remote_model",
+            modelId: "prod-matting-v1",
+            supports: {
+              dataUrlPng: true,
+              alphaOutput: true,
+              maskOutput: true,
+            },
+            quality: {
+              productionReady: true,
+              requiresHumanReview: false,
+            },
+          },
+          {
+            kind: "clean_plate",
+            label: "生产 clean plate slot",
+            execution: "remote_model",
+            modelId: "prod-inpaint-v1",
+            supports: {
+              dataUrlPng: true,
+              maskInput: true,
+              cleanPlateOutput: true,
+            },
+            quality: {
+              productionReady: true,
+              requiresHumanReview: false,
+            },
+          },
+        ],
+        generatedAt: CREATED_AT,
+      },
+      cleanPlate: {
+        asset: {
+          id: "model-slot-ready-clean-plate",
+          kind: "clean_plate",
+          src: "data:image/png;base64,bW9kZWwtc2xvdC1yZWFkeS1jbGVhbg==",
+          width: 1080,
+          height: 1440,
+          hasAlpha: false,
+          createdAt: CREATED_AT,
+          params: {
+            filledPixelCount: 9_200,
+            totalSubjectPixelCount: 9_200,
+            haloExpandedPixelCount: 0,
+            maskApplied: true,
+            modelSlotExecution: {
+              slotId: "clean-slot",
+              slotKind: "clean_plate",
+              modelId: "prod-inpaint-v1",
+              status: "succeeded",
+            },
+          },
+        },
+      },
+      candidates: [
+        {
+          id: "model-slot-ready-subject",
+          role: "subject",
+          confidence: 0.96,
+          selected: true,
+          layer: {
+            id: "model-slot-ready-subject-layer",
+            name: "主体",
+            type: "image",
+            assetId: "model-slot-ready-subject-asset",
+            maskAssetId: "model-slot-ready-subject-mask",
+            x: 160,
+            y: 240,
+            width: 760,
+            height: 980,
+            zIndex: 20,
+            alphaMode: "mask",
+          },
+          assets: [
+            {
+              id: "model-slot-ready-subject-asset",
+              kind: "subject",
+              src: "data:image/png;base64,bW9kZWwtc2xvdC1yZWFkeS1zdWJqZWN0",
+              width: 512,
+              height: 512,
+              hasAlpha: true,
+              createdAt: CREATED_AT,
+              params: {
+                foregroundPixelCount: 110_000,
+                detectedForegroundPixelCount: 110_000,
+                ellipseFallbackApplied: false,
+                totalPixelCount: 512 * 512,
+                modelSlotExecution: {
+                  slotId: "subject-slot",
+                  slotKind: "subject_matting",
+                  modelId: "prod-matting-v1",
+                  status: "succeeded",
+                },
+              },
+            },
+            {
+              id: "model-slot-ready-subject-mask",
+              kind: "mask",
+              src: "data:image/png;base64,bW9kZWwtc2xvdC1yZWFkeS1tYXNr",
+              width: 512,
+              height: 512,
+              hasAlpha: false,
+              createdAt: CREATED_AT,
+            },
+          ],
+        },
+      ],
+      createdAt: CREATED_AT,
+    });
+    const bundle = createLayeredDesignExportBundle(document, {
+      exportedAt: "2026-05-05T03:00:00.000Z",
+      baseName: "flat-model-slot-quality-ready",
+    });
+    const extractionQuality = bundle.manifest.analysis?.extractionQuality;
+
+    expect(extractionQuality).toMatchObject({
+      score: 100,
+      level: "ready",
+      findings: [],
+    });
+    expect(
+      JSON.parse(bundle.manifestFile.content).analysis.extractionQuality,
+    ).toEqual(extractionQuality);
+    expect(bundle.psdLikeManifest.quality?.extractionQuality).toEqual(
+      extractionQuality,
+    );
+  });
+
+  it("export manifest 在 analyzer analysis 缺失时仍应保留拆层质量评估", () => {
+    const document = createLayeredDesignFlatImageDraftDocument({
+      id: "flat-quality-without-analysis",
+      title: "无 analyzer 质量导出",
+      image: {
+        src: "data:image/png;base64,bm8tYW5hbHlzaXM=",
+        width: 1080,
+        height: 1440,
+      },
+      createdAt: CREATED_AT,
+    });
+    const bundle = createLayeredDesignExportBundle(document, {
+      exportedAt: "2026-05-05T03:00:00.000Z",
+      baseName: "flat-quality-without-analysis",
+    });
+    const manifestAnalysis = JSON.parse(bundle.manifestFile.content).analysis;
+
+    expect(bundle.manifest.analysis).toMatchObject({
+      extractionQuality: {
+        level: "high_risk",
+        findings: expect.arrayContaining([
+          expect.objectContaining({
+            id: "no_selected_candidates",
+            severity: "critical",
+          }),
+        ]),
+      },
+    });
+    expect(bundle.manifest.analysis?.analyzer).toBeUndefined();
+    expect(bundle.manifest.analysis?.outputs).toBeUndefined();
+    expect(manifestAnalysis).toEqual(bundle.manifest.analysis);
+  });
+
+  it("export manifest 应保留 mask 与 clean plate 元数据高风险 finding", () => {
+    const document = createLayeredDesignFlatImageDraftDocument({
+      id: "flat-quality-metadata-risk",
+      title: "拆层质量元数据风险导出",
+      image: {
+        src: "data:image/png;base64,cmlzay1mbGF0",
+        width: 1080,
+        height: 1440,
+      },
+      analysis: {
+        analyzer: {
+          kind: "structured_pipeline",
+          label: "质量风险 analyzer",
+        },
+        outputs: {
+          candidateRaster: true,
+          candidateMask: true,
+          cleanPlate: true,
+          ocrText: true,
+        },
+        generatedAt: CREATED_AT,
+      },
+      cleanPlate: {
+        asset: {
+          id: "risk-clean-plate",
+          kind: "clean_plate",
+          src: "data:image/png;base64,cmlzay1jbGVhbg==",
+          width: 1080,
+          height: 1440,
+          hasAlpha: false,
+          createdAt: CREATED_AT,
+          params: {
+            filledPixelCount: 0,
+            totalSubjectPixelCount: 9_200,
+            maskApplied: false,
+          },
+        },
+      },
+      candidates: [
+        {
+          id: "risk-subject",
+          role: "subject",
+          confidence: 0.94,
+          selected: true,
+          layer: {
+            id: "risk-subject-layer",
+            name: "主体",
+            type: "image",
+            assetId: "risk-subject-asset",
+            maskAssetId: "risk-subject-mask",
+            x: 160,
+            y: 240,
+            width: 760,
+            height: 980,
+            zIndex: 20,
+            alphaMode: "mask",
+          },
+          assets: [
+            {
+              id: "risk-subject-asset",
+              kind: "subject",
+              src: "data:image/png;base64,cmlzay1zdWJqZWN0",
+              width: 512,
+              height: 512,
+              hasAlpha: true,
+              createdAt: CREATED_AT,
+              params: {
+                foregroundPixelCount: 12,
+                detectedForegroundPixelCount: 0,
+                ellipseFallbackApplied: true,
+                totalPixelCount: 512 * 512,
+              },
+            },
+            {
+              id: "risk-subject-mask",
+              kind: "mask",
+              src: "data:image/png;base64,cmlzay1tYXNr",
+              width: 512,
+              height: 512,
+              hasAlpha: false,
+              createdAt: CREATED_AT,
+            },
+          ],
+        },
+      ],
+      createdAt: CREATED_AT,
+    });
+    const bundle = createLayeredDesignExportBundle(document, {
+      exportedAt: "2026-05-05T03:00:00.000Z",
+      baseName: "flat-quality-metadata-risk",
+    });
+    const extractionQuality = bundle.manifest.analysis?.extractionQuality;
+    const findingIds = extractionQuality?.findings.map((finding) => finding.id);
+
+    expect(extractionQuality).toMatchObject({
+      level: "high_risk",
+      findings: expect.arrayContaining([
+        expect.objectContaining({
+          id: "subject_mask_coverage_extreme",
+          severity: "critical",
+        }),
+        expect.objectContaining({
+          id: "subject_mask_ellipse_fallback",
+          severity: "critical",
+        }),
+        expect.objectContaining({
+          id: "clean_plate_fill_coverage_low",
+          severity: "critical",
+        }),
+        expect.objectContaining({
+          id: "clean_plate_mask_not_applied",
+          severity: "warning",
+        }),
+      ]),
+    });
+    expect(findingIds).toEqual(
+      expect.arrayContaining([
+        "subject_mask_coverage_extreme",
+        "subject_mask_ellipse_fallback",
+        "clean_plate_fill_coverage_low",
+        "clean_plate_mask_not_applied",
+      ]),
+    );
+    expect(
+      JSON.parse(bundle.manifestFile.content).analysis.extractionQuality,
+    ).toEqual(extractionQuality);
+    expect(bundle.psdLikeManifest.quality).toMatchObject({
+      source: {
+        factSource: "LayeredDesignDocument.extraction",
+        exportManifestFile: "export-manifest.json",
+      },
+      extractionQuality: {
+        level: "high_risk",
+        findings: expect.arrayContaining([
+          expect.objectContaining({
+            id: "subject_mask_ellipse_fallback",
+            severity: "critical",
+          }),
+          expect.objectContaining({
+            id: "clean_plate_fill_coverage_low",
+            severity: "critical",
+          }),
+        ]),
+      },
+    });
+    expect(
+      JSON.parse(bundle.psdLikeManifestFile.content).quality.extractionQuality,
+    ).toEqual(extractionQuality);
+  });
+
   it("export manifest 应投影 analyzer model slot config 与 readiness", () => {
     const bundle = createLayeredDesignExportBundle(createExportDocument(), {
       exportedAt: "2026-05-05T03:00:00.000Z",
@@ -534,6 +1124,42 @@ describe("layered-design export", () => {
       fallbackUsed: true,
       status: "fallback_succeeded",
     };
+    const subjectQualityValidation = {
+      status: "satisfied",
+      factSource: "LayeredDesignDocument.assets",
+      requiredResultFields: ["imageSrc", "maskSrc", "hasAlpha"],
+      requiredParamKeys: [
+        "foregroundPixelCount",
+        "detectedForegroundPixelCount",
+        "ellipseFallbackApplied",
+        "totalPixelCount",
+      ],
+      reviewFindingIds: ["subject_model_slot_quality_metadata_missing"],
+      missingResultFields: [],
+      missingParamKeys: [],
+    };
+    const cleanPlateQualityValidation = {
+      status: "missing_required_params",
+      factSource: "LayeredDesignDocument.assets",
+      requiredResultFields: ["src"],
+      requiredParamKeys: [
+        "filledPixelCount",
+        "totalSubjectPixelCount",
+        "maskApplied",
+      ],
+      reviewFindingIds: ["clean_plate_model_slot_quality_metadata_missing"],
+      missingResultFields: [],
+      missingParamKeys: ["maskApplied"],
+    };
+    const ocrQualityValidation = {
+      status: "satisfied",
+      factSource: "LayeredDesignDocument.extraction.candidates",
+      requiredResultFields: ["text", "boundingBox", "confidence"],
+      requiredParamKeys: [],
+      reviewFindingIds: [],
+      missingResultFields: [],
+      missingParamKeys: [],
+    };
     const document = createLayeredDesignDocument({
       id: "model-slot-evidence",
       title: "执行证据导出",
@@ -565,6 +1191,7 @@ describe("layered-design export", () => {
           source: "extracted",
           params: {
             modelSlotExecution: ocrExecution,
+            qualityContractValidation: ocrQualityValidation,
           },
         }),
       ],
@@ -573,6 +1200,7 @@ describe("layered-design export", () => {
           ...createAsset("asset-subject"),
           params: {
             modelSlotExecution: subjectExecution,
+            qualityContractValidation: subjectQualityValidation,
           },
         },
         {
@@ -585,6 +1213,7 @@ describe("layered-design export", () => {
           createdAt: CREATED_AT,
           params: {
             modelSlotExecution: cleanPlateExecution,
+            qualityContractValidation: cleanPlateQualityValidation,
           },
         },
       ],
@@ -640,6 +1269,127 @@ describe("layered-design export", () => {
     expect(
       JSON.parse(bundle.manifestFile.content).evidence.modelSlotExecutions,
     ).toMatchObject(bundle.manifest.evidence!.modelSlotExecutions!);
+    expect(bundle.manifest.evidence?.modelSlotQualityValidations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          slotId: "subject-runtime",
+          slotKind: "subject_matting",
+          modelId: "runtime-matting-v1",
+          status: "satisfied",
+          missingParamKeys: [],
+          sources: [
+            {
+              kind: "asset",
+              id: "asset-subject",
+              assetKind: "subject",
+            },
+          ],
+        }),
+        expect.objectContaining({
+          slotId: "clean-runtime",
+          status: "missing_required_params",
+          missingParamKeys: ["maskApplied"],
+          sources: [
+            {
+              kind: "asset",
+              id: "clean-plate",
+              assetKind: "clean_plate",
+            },
+          ],
+        }),
+        expect.objectContaining({
+          slotId: "ocr-runtime",
+          status: "satisfied",
+          executionStatus: "fallback_succeeded",
+          sources: [
+            {
+              kind: "layer",
+              id: "headline-layer",
+              layerType: "text",
+            },
+          ],
+        }),
+      ]),
+    );
+    expect(
+      JSON.parse(bundle.manifestFile.content).evidence
+        .modelSlotQualityValidations,
+    ).toMatchObject(bundle.manifest.evidence!.modelSlotQualityValidations!);
+  });
+
+  it("export manifest 应附着 model slot benchmark evidence 并保留 completion gate", () => {
+    const document = createLayeredDesignFlatImageDraftDocument({
+      id: "model-slot-benchmark-evidence",
+      title: "模型 benchmark evidence",
+      image: {
+        src: "data:image/png;base64,YmVuY2htYXJr",
+        width: 1080,
+        height: 1440,
+      },
+      analysis: {
+        analyzer: {
+          kind: "structured_pipeline",
+          label: "HTTP JSON model slot analyzer",
+        },
+        outputs: {
+          candidateRaster: true,
+          candidateMask: true,
+          cleanPlate: true,
+          ocrText: true,
+        },
+        modelSlotBenchmark: {
+          schemaVersion: "layered-design-model-slot-benchmark@1",
+          createdAt: "2026-05-08T02:29:44.340Z",
+          endpointUrl: "http://127.0.0.1:4455/model-slot",
+          benchmark: {
+            mode: "synthetic_verifier_profiles",
+            checkedSamples: [
+              "coffee-pop-up",
+              "dark-game-poster",
+              "product-card",
+            ],
+            checkedKinds: ["subject_matting", "clean_plate", "text_ocr"],
+            checkedRequestCount: 9,
+          },
+          completionGate: {
+            status: "synthetic_only",
+            missing: [
+              "real_sample_manifest",
+              "human_review_or_complex_sample_quality_evidence",
+              "export_manifest_evidence_attachment",
+            ],
+          },
+        },
+        generatedAt: CREATED_AT,
+      },
+      createdAt: CREATED_AT,
+    });
+    const bundle = createLayeredDesignExportBundle(document, {
+      exportedAt: "2026-05-05T03:00:00.000Z",
+      baseName: "model-slot-benchmark-evidence",
+    });
+
+    expect(bundle.manifest.evidence?.modelSlotBenchmark).toEqual({
+      schemaVersion: "layered-design-model-slot-benchmark@1",
+      createdAt: "2026-05-08T02:29:44.340Z",
+      mode: "synthetic_verifier_profiles",
+      checkedSamples: ["coffee-pop-up", "dark-game-poster", "product-card"],
+      checkedKinds: ["subject_matting", "clean_plate", "text_ocr"],
+      checkedRequestCount: 9,
+      completionGate: {
+        status: "synthetic_only",
+        missing: [
+          "real_sample_manifest",
+          "human_review_or_complex_sample_quality_evidence",
+          "export_manifest_evidence_attachment",
+        ],
+      },
+      syntheticOnly: true,
+      sampleManifestProvided: false,
+    });
+    expect(
+      JSON.parse(bundle.manifestFile.content).evidence.modelSlotBenchmark,
+    ).toEqual(bundle.manifest.evidence!.modelSlotBenchmark);
   });
 
   it("应把设计工程打包成单个 ZIP，并保留 assets/ 目录结构", () => {

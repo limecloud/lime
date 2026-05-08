@@ -3028,6 +3028,39 @@ fn extract_metadata_bool(
         .unwrap_or(false)
 }
 
+fn extract_metadata_knowledge_packs(
+    object: &serde_json::Map<String, serde_json::Value>,
+) -> Vec<lime_knowledge::KnowledgeResolveContextPackRequest> {
+    ["packs", "additionalPacks", "additional_packs"]
+        .iter()
+        .filter_map(|key| object.get(*key))
+        .find_map(serde_json::Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|item| {
+                    if let Some(name) = item
+                        .as_str()
+                        .map(str::trim)
+                        .filter(|value| !value.is_empty())
+                    {
+                        return Some(lime_knowledge::KnowledgeResolveContextPackRequest {
+                            name: name.to_string(),
+                            activation: None,
+                        });
+                    }
+                    let object = item.as_object()?;
+                    let name = extract_metadata_string(object, &["pack_name", "packName", "name"])?;
+                    Some(lime_knowledge::KnowledgeResolveContextPackRequest {
+                        name,
+                        activation: extract_metadata_string(object, &["activation"]),
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
 fn resolve_requested_knowledge_context(
     request_metadata: Option<&serde_json::Value>,
     workspace_root: &str,
@@ -3060,6 +3093,7 @@ fn resolve_requested_knowledge_context(
     lime_knowledge::resolve_knowledge_context(lime_knowledge::KnowledgeResolveContextRequest {
         working_dir,
         name,
+        packs: extract_metadata_knowledge_packs(knowledge_pack),
         task,
         max_chars: extract_metadata_usize(knowledge_pack, &["max_chars", "maxChars"]),
         activation: extract_metadata_string(knowledge_pack, &["activation"])

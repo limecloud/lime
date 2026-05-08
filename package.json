@@ -1,7 +1,7 @@
 {
   "name": "lime",
   "private": true,
-  "version": "1.30.0",
+  "version": "1.31.0",
   "type": "module",
   "engines": {
     "node": ">=22.0.0"
@@ -79,10 +79,13 @@
     "smoke:agent-runtime-tool-surface-page": "node scripts/agent-runtime-tool-surface-page-smoke.mjs",
     "smoke:agent-service-skill-entry": "node scripts/agent-service-skill-entry-smoke.mjs",
     "smoke:knowledge-gui": "node scripts/knowledge-gui-smoke.mjs",
+    "knowledge:legacy-fallback-report": "node scripts/knowledge-legacy-fallback-report.mjs",
     "smoke:design-canvas": "node scripts/design-canvas-smoke.mjs",
     "smoke:social-workbench": "node scripts/social-workbench-e2e-smoke.mjs",
     "dev:web-bridge": "node scripts/start-web-bridge-dev.mjs",
-    "governance:legacy-report": "node scripts/report-legacy-surfaces.mjs"
+    "governance:legacy-report": "node scripts/report-legacy-surfaces.mjs",
+    "knowledge:provider-e2e": "node scripts/knowledge-provider-e2e.mjs",
+    "knowledge:release-scope-report": "node scripts/knowledge-release-scope-report.mjs"
   },
   "dependencies": {
     "@babel/standalone": "^7.29.0",

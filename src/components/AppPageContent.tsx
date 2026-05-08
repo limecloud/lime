@@ -161,7 +161,24 @@ function serializeInitialKnowledgePackSelectionKey(
     return "::0";
   }
 
-  return `${selection.enabled ? "1" : "0"}:${selection.workingDir}:${selection.packName}`;
+  const companionKey = (selection.companionPacks ?? [])
+    .map((pack) => ({
+      name: pack.name.trim(),
+      activation: pack.activation ?? "",
+    }))
+    .filter((pack) => pack.name)
+    .sort((left, right) =>
+      `${left.name}:${left.activation}`.localeCompare(
+        `${right.name}:${right.activation}`,
+      ),
+    );
+
+  return JSON.stringify({
+    enabled: selection.enabled,
+    workingDir: selection.workingDir,
+    packName: selection.packName,
+    companionPacks: companionKey,
+  });
 }
 
 interface AppPageContentProps {

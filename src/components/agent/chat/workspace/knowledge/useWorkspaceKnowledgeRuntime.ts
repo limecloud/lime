@@ -14,7 +14,11 @@ import {
   buildKnowledgeOrganizePrompt,
   normalizeKnowledgeDraftName,
 } from "@/features/knowledge/agent/knowledgePromptBuilder";
-import { buildKnowledgeBuilderMetadata } from "@/features/knowledge/agent/knowledgeMetadata";
+import {
+  buildKnowledgeBuilderMetadata,
+  resolveKnowledgeRequestCompanionPacks,
+  resolveKnowledgePackRuntimeMode,
+} from "@/features/knowledge/agent/knowledgeMetadata";
 import type { AgentInitialKnowledgePackSelectionParams } from "@/types/page";
 import type {
   InputbarKnowledgePackOption,
@@ -43,7 +47,9 @@ export function chooseDefaultKnowledgePack(
   packs: KnowledgePackSummary[],
 ): KnowledgePackSummary | null {
   return (
-    packs.find((pack) => pack.defaultForWorkspace && isReadyKnowledgePack(pack)) ??
+    packs.find(
+      (pack) => pack.defaultForWorkspace && isReadyKnowledgePack(pack),
+    ) ??
     packs.find(isReadyKnowledgePack) ??
     packs.find((pack) => pack.defaultForWorkspace) ??
     packs[0] ??
@@ -67,6 +73,7 @@ interface UseWorkspaceKnowledgeRuntimeResult {
   knowledgePackOptions: InputbarKnowledgePackOption[];
   onToggleKnowledgePack: (enabled: boolean) => void;
   onSelectKnowledgePack: (packName: string) => void;
+  onToggleKnowledgeCompanionPack: (packName: string, enabled: boolean) => void;
   onStartKnowledgeOrganize: () => void;
   onManageKnowledgePacks?: () => void;
   onImportPathReferenceAsKnowledge: (reference: MessagePathReference) => void;
@@ -95,6 +102,15 @@ export function useWorkspaceKnowledgeRuntime({
     string | null
   >(null);
   const [knowledgePackEnabled, setKnowledgePackEnabled] = useState(false);
+  const [explicitCompanionPackNames, setExplicitCompanionPackNames] = useState<
+    string[]
+  >(
+    () =>
+      initialKnowledgePackSelection?.companionPacks
+        ?.filter((pack) => pack.activation === "explicit")
+        .map((pack) => pack.name.trim())
+        .filter(Boolean) ?? [],
+  );
   const initialSelectionPackName =
     initialKnowledgePackSelection?.packName.trim() ?? "";
   const initialSelectionWorkingDir =
@@ -103,12 +119,12 @@ export function useWorkspaceKnowledgeRuntime({
     projectRootPath?.trim() || initialSelectionWorkingDir;
   const initialSelectionMatchesWorkingDir = Boolean(
     initialSelectionWorkingDir &&
-      initialSelectionWorkingDir === effectiveProjectRootPath,
+    initialSelectionWorkingDir === effectiveProjectRootPath,
   );
   const shouldEnableInitialSelection = Boolean(
     initialKnowledgePackSelection?.enabled &&
-      initialSelectionPackName &&
-      initialSelectionMatchesWorkingDir,
+    initialSelectionPackName &&
+    initialSelectionMatchesWorkingDir,
   );
 
   const refreshKnowledgePacks = useCallback(
@@ -191,8 +207,7 @@ export function useWorkspaceKnowledgeRuntime({
     return (
       knowledgePacks.find(
         (pack) => pack.metadata.name === selectedKnowledgePackName,
-      ) ??
-      chooseDefaultKnowledgePack(knowledgePacks)
+      ) ?? chooseDefaultKnowledgePack(knowledgePacks)
     );
   }, [knowledgePacks, selectedKnowledgePackName]);
 
@@ -203,6 +218,7 @@ export function useWorkspaceKnowledgeRuntime({
         label: pack.metadata.description || pack.metadata.name,
         status: pack.metadata.status,
         defaultForWorkspace: pack.defaultForWorkspace,
+        runtimeMode: resolveKnowledgePackRuntimeMode(pack),
       }),
     );
 
@@ -227,6 +243,27 @@ export function useWorkspaceKnowledgeRuntime({
     knowledgePacks,
   ]);
 
+  useEffect(() => {
+    if (knowledgePacks.length === 0) {
+      return;
+    }
+
+    setExplicitCompanionPackNames((current) => {
+      const allowedNames = new Set(
+        knowledgePacks
+          .filter(
+            (pack) =>
+              pack.metadata.name !== selectedKnowledgePackName &&
+              isReadyKnowledgePack(pack) &&
+              resolveKnowledgePackRuntimeMode(pack) === "data",
+          )
+          .map((pack) => pack.metadata.name),
+      );
+      const next = current.filter((packName) => allowedNames.has(packName));
+      return next.length === current.length ? current : next;
+    });
+  }, [knowledgePacks, selectedKnowledgePackName]);
+
   const knowledgePackSelection = useMemo(() => {
     if (selectedKnowledgePack && effectiveProjectRootPath) {
       return {
@@ -237,6 +274,11 @@ export function useWorkspaceKnowledgeRuntime({
           selectedKnowledgePack.metadata.description ||
           selectedKnowledgePack.metadata.name,
         status: selectedKnowledgePack.metadata.status,
+        companionPacks: resolveKnowledgeRequestCompanionPacks({
+          primaryPackName: selectedKnowledgePack.metadata.name,
+          packs: knowledgePacks,
+          explicitPackNames: explicitCompanionPackNames,
+        }),
       };
     }
 
@@ -251,6 +293,7 @@ export function useWorkspaceKnowledgeRuntime({
         workingDir: effectiveProjectRootPath,
         label: initialKnowledgePackSelection?.label || initialSelectionPackName,
         status: initialKnowledgePackSelection?.status,
+        companionPacks: initialKnowledgePackSelection?.companionPacks,
       };
     }
 
@@ -260,7 +303,9 @@ export function useWorkspaceKnowledgeRuntime({
     initialKnowledgePackSelection,
     initialSelectionMatchesWorkingDir,
     initialSelectionPackName,
+    explicitCompanionPackNames,
     knowledgePackEnabled,
+    knowledgePacks,
     selectedKnowledgePack,
     shouldEnableInitialSelection,
   ]);
@@ -268,6 +313,25 @@ export function useWorkspaceKnowledgeRuntime({
   const handleSelectKnowledgePack = useCallback((packName: string) => {
     setSelectedKnowledgePackName(packName);
   }, []);
+
+  const handleToggleKnowledgeCompanionPack = useCallback(
+    (packName: string, enabled: boolean) => {
+      const normalizedPackName = packName.trim();
+      if (!normalizedPackName) {
+        return;
+      }
+      setExplicitCompanionPackNames((current) => {
+        const currentSet = new Set(current);
+        if (enabled) {
+          currentSet.add(normalizedPackName);
+        } else {
+          currentSet.delete(normalizedPackName);
+        }
+        return Array.from(currentSet);
+      });
+    },
+    [],
+  );
 
   const handleStartKnowledgeOrganize = useCallback(() => {
     const workingDir = effectiveProjectRootPath;
@@ -290,6 +354,7 @@ export function useWorkspaceKnowledgeRuntime({
       workingDir,
       packName,
       source: "inputbar",
+      packType: selectedKnowledgePack?.metadata.type,
     });
 
     if (!trimmedInput) {
@@ -355,7 +420,8 @@ export function useWorkspaceKnowledgeRuntime({
         );
         return;
       }
-      const unsupportedMessage = getKnowledgeUnsupportedSourceMessage(reference);
+      const unsupportedMessage =
+        getKnowledgeUnsupportedSourceMessage(reference);
       if (unsupportedMessage) {
         toast.info(unsupportedMessage);
         return;
@@ -430,6 +496,7 @@ export function useWorkspaceKnowledgeRuntime({
     knowledgePackOptions,
     onToggleKnowledgePack: setKnowledgePackEnabled,
     onSelectKnowledgePack: handleSelectKnowledgePack,
+    onToggleKnowledgeCompanionPack: handleToggleKnowledgeCompanionPack,
     onStartKnowledgeOrganize: handleStartKnowledgeOrganize,
     onManageKnowledgePacks: handleManageKnowledgePacks,
     onImportPathReferenceAsKnowledge: handleImportPathReferenceAsKnowledge,

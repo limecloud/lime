@@ -165,6 +165,12 @@ interface WorkspaceCanvasPreviewFactoryParams {
   >["onSelectionTextChange"];
   projectId: string | null;
   contentId: string | null;
+  imageGenerationProviderId: ComponentProps<
+    typeof CanvasFactory
+  >["imageGenerationProviderId"];
+  imageGenerationModelId: ComponentProps<
+    typeof CanvasFactory
+  >["imageGenerationModelId"];
   autoImageTopic?: string;
   autoContinueProviderType: ComponentProps<
     typeof CanvasFactory
@@ -692,6 +698,8 @@ function useWorkspaceCanvasPreviewRuntime({
             projectId: canvasFactory.projectId,
             contentId: canvasFactory.contentId,
             projectRootPath: defaultPreview.workspaceRoot,
+            imageGenerationProviderId: canvasFactory.imageGenerationProviderId,
+            imageGenerationModelId: canvasFactory.imageGenerationModelId,
             autoImageTopic: canvasFactory.autoImageTopic,
             autoContinueProviderType: canvasFactory.autoContinueProviderType,
             onAutoContinueProviderTypeChange:
@@ -720,6 +728,8 @@ function useWorkspaceCanvasPreviewRuntime({
       canvasFactory.autoImageTopic,
       canvasFactory.canvasRenderTheme,
       canvasFactory.contentId,
+      canvasFactory.imageGenerationModelId,
+      canvasFactory.imageGenerationProviderId,
       canvasFactory.isStreaming,
       canvasFactory.onAddImage,
       canvasFactory.onAutoContinueModelChange,
@@ -1319,6 +1329,9 @@ export function useWorkspaceCanvasSceneRuntime({
         onSelectionTextChange: handleCanvasSelectionTextChange,
         projectId,
         contentId,
+        imageGenerationProviderId:
+          imageWorkbenchGenerationRuntime.selectedProviderId,
+        imageGenerationModelId: imageWorkbenchGenerationRuntime.selectedModelId,
         autoImageTopic: projectName,
         autoContinueProviderType: providerType,
         onAutoContinueProviderTypeChange: setProviderType,

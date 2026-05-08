@@ -12,6 +12,13 @@ import {
 import type {
   LayeredDesignAnalyzerModelSlotExecutionEvidence,
 } from "./analyzerModelSlotRuntime";
+import type {
+  LayeredDesignAnalyzerModelSlotQualityContractValidation,
+} from "./analyzerModelSlotTransport";
+import {
+  evaluateLayeredDesignExtractionQuality,
+  type LayeredDesignExtractionQualityAssessment,
+} from "./extractionQuality";
 import {
   createLayeredDesignAnalyzerProviderCapabilityGateRequirements,
   evaluateLayeredDesignAnalyzerProviderCapabilityGate,
@@ -25,6 +32,7 @@ import type {
   GeneratedDesignAsset,
   LayeredDesignDocument,
   LayeredDesignExtractionAnalysis,
+  LayeredDesignModelSlotBenchmarkEvidence,
   ShapeLayer,
   TextLayer,
 } from "./types";
@@ -90,10 +98,11 @@ export interface LayeredDesignExportManifest {
 }
 
 export interface LayeredDesignExportAnalysisSummary {
-  analyzer: LayeredDesignExtractionAnalysis["analyzer"];
-  outputs: LayeredDesignExtractionAnalysis["outputs"];
+  analyzer?: LayeredDesignExtractionAnalysis["analyzer"];
+  outputs?: LayeredDesignExtractionAnalysis["outputs"];
   providerCapabilities?: LayeredDesignAnalyzerProviderCapability[];
   capabilityGate?: LayeredDesignAnalyzerProviderCapabilityGateReport;
+  extractionQuality?: LayeredDesignExtractionQualityAssessment;
 }
 
 export interface LayeredDesignExportAnalyzerModelSlotSummary {
@@ -113,8 +122,32 @@ export interface LayeredDesignExportModelSlotExecutionSummary
   sources: LayeredDesignExportModelSlotExecutionSource[];
 }
 
+export interface LayeredDesignExportModelSlotQualityValidationSummary
+  extends LayeredDesignAnalyzerModelSlotQualityContractValidation {
+  slotId: LayeredDesignAnalyzerModelSlotExecutionEvidence["slotId"];
+  slotKind: LayeredDesignAnalyzerModelSlotExecutionEvidence["slotKind"];
+  providerLabel: LayeredDesignAnalyzerModelSlotExecutionEvidence["providerLabel"];
+  modelId: LayeredDesignAnalyzerModelSlotExecutionEvidence["modelId"];
+  executionStatus: LayeredDesignAnalyzerModelSlotExecutionEvidence["status"];
+  sources: LayeredDesignExportModelSlotExecutionSource[];
+}
+
 export interface LayeredDesignExportEvidenceSummary {
   modelSlotExecutions?: LayeredDesignExportModelSlotExecutionSummary[];
+  modelSlotQualityValidations?: LayeredDesignExportModelSlotQualityValidationSummary[];
+  modelSlotBenchmark?: LayeredDesignExportModelSlotBenchmarkSummary;
+}
+
+export interface LayeredDesignExportModelSlotBenchmarkSummary {
+  schemaVersion: LayeredDesignModelSlotBenchmarkEvidence["schemaVersion"];
+  createdAt: string;
+  mode: LayeredDesignModelSlotBenchmarkEvidence["benchmark"]["mode"];
+  checkedSamples: string[];
+  checkedKinds: string[];
+  checkedRequestCount: number;
+  completionGate: LayeredDesignModelSlotBenchmarkEvidence["completionGate"];
+  syntheticOnly: boolean;
+  sampleManifestProvided: boolean;
 }
 
 export type LayeredDesignPsdLikeLayerRole =
@@ -188,6 +221,13 @@ export interface LayeredDesignPsdLikeManifest {
   preview: {
     svgFile: string;
     pngFile: string;
+  };
+  quality?: {
+    source: {
+      factSource: "LayeredDesignDocument.extraction";
+      exportManifestFile: string;
+    };
+    extractionQuality: LayeredDesignExtractionQualityAssessment;
   };
   compatibility: {
     truePsd: false;
@@ -593,8 +633,10 @@ export function createLayeredDesignPsdLikeManifest(
   options: {
     exportedAt: string;
     designFile: string;
+    exportManifestFile: string;
     previewSvgFile: string;
     previewPngFile: string;
+    analysisSummary?: LayeredDesignExportAnalysisSummary;
   },
 ): LayeredDesignPsdLikeManifest {
   const manifestAssetById = new Map(
@@ -616,6 +658,17 @@ export function createLayeredDesignPsdLikeManifest(
       svgFile: options.previewSvgFile,
       pngFile: options.previewPngFile,
     },
+    ...(options.analysisSummary?.extractionQuality
+      ? {
+          quality: {
+            source: {
+              factSource: "LayeredDesignDocument.extraction",
+              exportManifestFile: options.exportManifestFile,
+            },
+            extractionQuality: options.analysisSummary.extractionQuality,
+          },
+        }
+      : {}),
     compatibility: {
       truePsd: false,
       layerOrder: "back_to_front",
@@ -691,9 +744,15 @@ export function createLayeredDesignPsdLikeManifest(
 function createExportAnalysisSummary(
   document: LayeredDesignDocument,
 ): LayeredDesignExportAnalysisSummary | undefined {
-  const analysis = document.extraction?.analysis;
+  const extraction = document.extraction;
+  const analysis = extraction?.analysis;
+  const extractionQuality = extraction
+    ? evaluateLayeredDesignExtractionQuality(extraction, {
+        assets: document.assets,
+      })
+    : undefined;
   if (!analysis) {
-    return undefined;
+    return extractionQuality ? { extractionQuality } : undefined;
   }
 
   const providerCapabilities = analysis.providerCapabilities ?? [];
@@ -727,6 +786,7 @@ function createExportAnalysisSummary(
         }
       : {}),
     ...(capabilityGate ? { capabilityGate } : {}),
+    ...(extractionQuality ? { extractionQuality } : {}),
   };
 }
 
@@ -771,6 +831,20 @@ function readBoolean(
 ): boolean | undefined {
   const field = value[key];
   return typeof field === "boolean" ? field : undefined;
+}
+
+function readStringArray(
+  value: Record<string, unknown>,
+  key: string,
+): string[] | undefined {
+  const field = value[key];
+  if (!Array.isArray(field)) {
+    return undefined;
+  }
+
+  return field.every((item) => typeof item === "string")
+    ? [...field]
+    : undefined;
 }
 
 function readModelSlotExecutionEvidence(
@@ -831,6 +905,56 @@ function readModelSlotExecutionEvidence(
     ...(readOptionalString(raw, "modelVersion")
       ? { modelVersion: readOptionalString(raw, "modelVersion") }
       : {}),
+  };
+}
+
+function readModelSlotQualityValidation(
+  params: Record<string, unknown> | undefined,
+): LayeredDesignAnalyzerModelSlotQualityContractValidation | undefined {
+  const raw = params?.qualityContractValidation;
+  if (!isRecord(raw)) {
+    return undefined;
+  }
+
+  const status = readOptionalString(raw, "status");
+  const factSource = readOptionalString(raw, "factSource");
+  const requiredResultFields = readStringArray(raw, "requiredResultFields");
+  const requiredParamKeys = readStringArray(raw, "requiredParamKeys");
+  const reviewFindingIds = readStringArray(raw, "reviewFindingIds");
+  const missingResultFields = readStringArray(raw, "missingResultFields");
+  const missingParamKeys = readStringArray(raw, "missingParamKeys");
+
+  if (
+    status !== "satisfied" &&
+    status !== "missing_required_fields" &&
+    status !== "missing_required_params"
+  ) {
+    return undefined;
+  }
+  if (
+    factSource !== "LayeredDesignDocument.assets" &&
+    factSource !== "LayeredDesignDocument.extraction.candidates"
+  ) {
+    return undefined;
+  }
+  if (
+    !requiredResultFields ||
+    !requiredParamKeys ||
+    !reviewFindingIds ||
+    !missingResultFields ||
+    !missingParamKeys
+  ) {
+    return undefined;
+  }
+
+  return {
+    status,
+    factSource,
+    requiredResultFields,
+    requiredParamKeys,
+    reviewFindingIds,
+    missingResultFields,
+    missingParamKeys,
   };
 }
 
@@ -901,16 +1025,134 @@ function collectLayeredDesignModelSlotExecutions(
   return Array.from(executions.values());
 }
 
-function createExportEvidenceSummary(
+function createModelSlotQualityValidationKey(
+  evidence: LayeredDesignAnalyzerModelSlotExecutionEvidence,
+  validation: LayeredDesignAnalyzerModelSlotQualityContractValidation,
+): string {
+  return JSON.stringify({
+    execution: createModelSlotExecutionKey(evidence),
+    validation,
+  });
+}
+
+function collectLayeredDesignModelSlotQualityValidations(
   document: LayeredDesignDocument,
-): LayeredDesignExportEvidenceSummary | undefined {
-  const modelSlotExecutions = collectLayeredDesignModelSlotExecutions(document);
-  if (modelSlotExecutions.length === 0) {
+): LayeredDesignExportModelSlotQualityValidationSummary[] {
+  const validations = new Map<
+    string,
+    LayeredDesignExportModelSlotQualityValidationSummary
+  >();
+  const addValidation = (
+    evidence: LayeredDesignAnalyzerModelSlotExecutionEvidence | undefined,
+    validation: LayeredDesignAnalyzerModelSlotQualityContractValidation | undefined,
+    source: LayeredDesignExportModelSlotExecutionSource,
+  ) => {
+    if (!evidence || !validation) {
+      return;
+    }
+
+    const key = createModelSlotQualityValidationKey(evidence, validation);
+    const existing = validations.get(key);
+    if (existing) {
+      existing.sources.push(source);
+      return;
+    }
+
+    validations.set(key, {
+      slotId: evidence.slotId,
+      slotKind: evidence.slotKind,
+      providerLabel: evidence.providerLabel,
+      modelId: evidence.modelId,
+      executionStatus: evidence.status,
+      ...validation,
+      sources: [source],
+    });
+  };
+
+  for (const asset of document.assets) {
+    addValidation(
+      readModelSlotExecutionEvidence(asset.params),
+      readModelSlotQualityValidation(asset.params),
+      {
+        kind: "asset",
+        id: asset.id,
+        assetKind: asset.kind,
+      },
+    );
+  }
+
+  for (const layer of document.layers) {
+    addValidation(
+      readModelSlotExecutionEvidence(layer.params),
+      readModelSlotQualityValidation(layer.params),
+      {
+        kind: "layer",
+        id: layer.id,
+        layerType: layer.type,
+      },
+    );
+  }
+
+  return Array.from(validations.values());
+}
+
+function createModelSlotBenchmarkSummary(
+  document: LayeredDesignDocument,
+): LayeredDesignExportModelSlotBenchmarkSummary | undefined {
+  const benchmark = document.extraction?.analysis?.modelSlotBenchmark;
+  if (!benchmark) {
+    return undefined;
+  }
+  if (
+    benchmark.schemaVersion !== "layered-design-model-slot-benchmark@1" ||
+    !benchmark.createdAt ||
+    !benchmark.benchmark ||
+    !Array.isArray(benchmark.benchmark.checkedSamples) ||
+    !Array.isArray(benchmark.benchmark.checkedKinds) ||
+    !Number.isFinite(benchmark.benchmark.checkedRequestCount) ||
+    !benchmark.completionGate ||
+    !Array.isArray(benchmark.completionGate.missing)
+  ) {
     return undefined;
   }
 
   return {
-    modelSlotExecutions,
+    schemaVersion: benchmark.schemaVersion,
+    createdAt: benchmark.createdAt,
+    mode: benchmark.benchmark.mode,
+    checkedSamples: [...benchmark.benchmark.checkedSamples],
+    checkedKinds: [...benchmark.benchmark.checkedKinds],
+    checkedRequestCount: benchmark.benchmark.checkedRequestCount,
+    completionGate: {
+      status: benchmark.completionGate.status,
+      missing: [...benchmark.completionGate.missing],
+    },
+    syntheticOnly: benchmark.completionGate.status === "synthetic_only",
+    sampleManifestProvided: Boolean(benchmark.benchmark.sampleManifestPath),
+  };
+}
+
+function createExportEvidenceSummary(
+  document: LayeredDesignDocument,
+): LayeredDesignExportEvidenceSummary | undefined {
+  const modelSlotExecutions = collectLayeredDesignModelSlotExecutions(document);
+  const modelSlotQualityValidations =
+    collectLayeredDesignModelSlotQualityValidations(document);
+  const modelSlotBenchmark = createModelSlotBenchmarkSummary(document);
+  if (
+    modelSlotExecutions.length === 0 &&
+    modelSlotQualityValidations.length === 0 &&
+    !modelSlotBenchmark
+  ) {
+    return undefined;
+  }
+
+  return {
+    ...(modelSlotExecutions.length > 0 ? { modelSlotExecutions } : {}),
+    ...(modelSlotQualityValidations.length > 0
+      ? { modelSlotQualityValidations }
+      : {}),
+    ...(modelSlotBenchmark ? { modelSlotBenchmark } : {}),
   };
 }
 
@@ -994,8 +1236,10 @@ export function createLayeredDesignExportBundle(
     {
       exportedAt,
       designFile: designFilename,
+      exportManifestFile: manifestFilename,
       previewSvgFile: previewSvgFilename,
       previewPngFile: previewPngFilename,
+      analysisSummary,
     },
   );
 

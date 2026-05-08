@@ -198,6 +198,13 @@ describe("LayeredDesign structured analyzer adapter", () => {
               width: 760,
               height: 980,
               hasAlpha: true,
+              params: {
+                seed: "native_heuristic_subject_masked",
+                foregroundPixelCount: 312_000,
+                detectedForegroundPixelCount: 0,
+                ellipseFallbackApplied: true,
+                totalPixelCount: 760 * 980,
+              },
             },
             mask: {
               id: "subject-mask",
@@ -231,6 +238,12 @@ describe("LayeredDesign structured analyzer adapter", () => {
             width: 1080,
             height: 1440,
             hasAlpha: false,
+            params: {
+              seed: "native_heuristic_clean_plate",
+              filledPixelCount: 312_000,
+              totalSubjectPixelCount: 312_000,
+              maskApplied: true,
+            },
           },
           message: "背景已修补。",
         },
@@ -629,6 +642,13 @@ describe("LayeredDesign structured analyzer adapter", () => {
               width: 760,
               height: 980,
               hasAlpha: true,
+              params: {
+                seed: "native_heuristic_subject_masked",
+                foregroundPixelCount: 312_000,
+                detectedForegroundPixelCount: 0,
+                ellipseFallbackApplied: true,
+                totalPixelCount: 760 * 980,
+              },
             },
             mask: {
               id: "subject-mask",
@@ -662,6 +682,12 @@ describe("LayeredDesign structured analyzer adapter", () => {
             width: 1080,
             height: 1440,
             hasAlpha: false,
+            params: {
+              seed: "native_heuristic_clean_plate",
+              filledPixelCount: 312_000,
+              totalSubjectPixelCount: 312_000,
+              maskApplied: true,
+            },
           },
           message: "背景已修补。",
         },
@@ -695,6 +721,23 @@ describe("LayeredDesign structured analyzer adapter", () => {
       candidateMask: true,
       cleanPlate: true,
       ocrText: true,
+    });
+    expect(
+      document.assets.find((asset) => asset.id === "subject-rgba")?.params,
+    ).toMatchObject({
+      seed: "native_heuristic_subject_masked",
+      foregroundPixelCount: 312_000,
+      detectedForegroundPixelCount: 0,
+      ellipseFallbackApplied: true,
+      totalPixelCount: 760 * 980,
+    });
+    expect(
+      document.assets.find((asset) => asset.id === "clean-plate-asset")?.params,
+    ).toMatchObject({
+      seed: "native_heuristic_clean_plate",
+      filledPixelCount: 312_000,
+      totalSubjectPixelCount: 312_000,
+      maskApplied: true,
     });
     expect(
       document.extraction?.candidates.find(

@@ -84,7 +84,9 @@ describe("layered-design image task adapter", () => {
     const taskRequest = createLayeredDesignImageTaskRequest(document, request, {
       projectRootPath: "/workspace",
       providerId: "openai",
-      model: "gpt-image-2",
+      model: "gpt-images-2",
+      executorMode: "responses_image_generation",
+      outerModel: "gpt-5.5",
       sessionId: "session-1",
       threadId: "thread-1",
       turnId: "turn-1",
@@ -99,7 +101,9 @@ describe("layered-design image task adapter", () => {
       aspectRatio: "34:45",
       usage: "layered_design_asset",
       providerId: "openai",
-      model: "gpt-image-2",
+      model: "gpt-images-2",
+      executorMode: "responses_image_generation",
+      outerModel: "gpt-5.5",
       contentId: "record-store-opening",
       entrySource: "layered_design_canvas",
       modalityContractKey: "image_generation",
@@ -148,6 +152,23 @@ describe("layered-design image task adapter", () => {
     expect(taskRequest.layoutHint).toContain("taskSize=1088x1440");
     expect(JSON.stringify(taskRequest)).not.toContain("poster_generate");
     expect(JSON.stringify(taskRequest)).not.toContain("canvas:poster");
+  });
+
+  it("应按 gpt-images-2 自动复用 Responses image_generation 执行器", () => {
+    const document = createDocument();
+    const [request] = createLayeredDesignAssetGenerationPlan(document);
+
+    const taskRequest = createLayeredDesignImageTaskRequest(document, request, {
+      projectRootPath: "/workspace",
+      providerId: "openai",
+      model: "gpt-images-2",
+    });
+
+    expect(taskRequest).toMatchObject({
+      providerId: "openai",
+      model: "gpt-images-2",
+      executorMode: "responses_image_generation",
+    });
   });
 
   it("应批量提交现有 image task artifact，并保留每层请求对应关系", async () => {
@@ -204,6 +225,45 @@ describe("layered-design image task adapter", () => {
         originalAssetId: "record-store-opening-asset-background",
       },
     });
+  });
+
+  it("应把 Responses image_generation 执行元数据保留到生成资产参数", () => {
+    const document = createDocument();
+    const [request] = createLayeredDesignAssetGenerationPlan(document);
+    const output = createTaskOutput("task-responses");
+    output.record.payload = {
+      ...output.record.payload,
+      executor_mode: "responses_image_generation",
+      outer_model: "gpt-5.5",
+    };
+    output.record.result = {
+      ...(output.record.result as Record<string, unknown>),
+      executor_mode: "responses_image_generation",
+      outer_model: "gpt-5.5",
+      images: [
+        {
+          url: "data:image/png;base64,ZmFrZS1yZXNwb25zZXMtaW1hZ2U=",
+          revised_prompt: "复古唱片店背景层",
+          source: "responses_image_generation",
+        },
+      ],
+    };
+
+    const asset = createGeneratedDesignAssetFromImageTaskOutput(
+      request,
+      output,
+    );
+
+    expect(asset?.params).toMatchObject({
+      source: "image_generation_task",
+      taskId: "task-responses",
+      executorMode: "responses_image_generation",
+      outerModel: "gpt-5.5",
+      generatedImageSource: "responses_image_generation",
+    });
+    expect(asset?.src).toBe(
+      "data:image/png;base64,ZmFrZS1yZXNwb25zZXMtaW1hZ2U=",
+    );
   });
 
   it("应把 worker chroma-key 后处理状态保留到 GeneratedDesignAsset 参数", () => {

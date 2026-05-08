@@ -59,6 +59,7 @@ interface FileManagerSidebarProps {
   onClose: () => void;
   onAddPathReferences: (references: MessagePathReference[]) => void;
   onImportAsKnowledge?: (reference: MessagePathReference) => void;
+  initialDirectory?: string | null;
 }
 
 interface ContextMenuState {
@@ -293,7 +294,9 @@ export const FileManagerSidebar: React.FC<FileManagerSidebarProps> = ({
   onClose,
   onAddPathReferences,
   onImportAsKnowledge,
+  initialDirectory,
 }) => {
+  const normalizedInitialDirectory = initialDirectory?.trim() ?? "";
   const [locations, setLocations] = useState<FileManagerLocation[]>([]);
   const [pinnedLocations, setPinnedLocations] = useState<FileManagerLocation[]>(
     () => loadPinnedLocations(),
@@ -327,7 +330,14 @@ export const FileManagerSidebar: React.FC<FileManagerSidebarProps> = ({
           return;
         }
         setLocations(result);
-        const first = result[0] || initialPinnedLocationsRef.current[0];
+        const first = normalizedInitialDirectory
+          ? {
+              id: "project-root",
+              label: "当前项目",
+              path: normalizedInitialDirectory,
+              kind: "project",
+            }
+          : result[0] || initialPinnedLocationsRef.current[0];
         if (first) {
           setActivePath(first.path);
           setActiveLocationKind(first.kind);
@@ -345,7 +355,7 @@ export const FileManagerSidebar: React.FC<FileManagerSidebarProps> = ({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [normalizedInitialDirectory]);
 
   const loadActiveDirectory = useCallback(async () => {
     if (!activePath.trim()) {
@@ -484,6 +494,14 @@ export const FileManagerSidebar: React.FC<FileManagerSidebarProps> = ({
 
   const allLocations = useMemo(() => {
     const byPath = new Map<string, FileManagerLocation>();
+    if (normalizedInitialDirectory) {
+      byPath.set(normalizedInitialDirectory, {
+        id: "project-root",
+        label: "当前项目",
+        path: normalizedInitialDirectory,
+        kind: "project",
+      });
+    }
     for (const location of locations) {
       byPath.set(location.path, location);
     }
@@ -491,7 +509,7 @@ export const FileManagerSidebar: React.FC<FileManagerSidebarProps> = ({
       byPath.set(location.path, location);
     }
     return Array.from(byPath.values());
-  }, [locations, pinnedLocations]);
+  }, [locations, normalizedInitialDirectory, pinnedLocations]);
 
   const activeTitle = useMemo(() => {
     return (

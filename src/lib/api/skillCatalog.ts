@@ -14,6 +14,7 @@ import {
 } from "./oemCloudRuntime";
 import {
   getSeededServiceSkillCatalog,
+  isServiceSkillBundleSummary,
   parseServiceSkillCatalog,
   type ServiceSkillCatalog,
   type ServiceSkillExecutorBinding,
@@ -1147,6 +1148,9 @@ function parseSkillCatalogEntry(value: unknown): SkillCatalogEntry | null {
       surfaceScopes: normalizeSurfaceScopes(value.surfaceScopes),
       homePresentation,
       execution,
+      skillBundle: isServiceSkillBundleSummary(value.skillBundle)
+        ? cloneJsonValue(value.skillBundle)
+        : undefined,
       renderContract: parseRenderContract(value.renderContract),
     };
   }

@@ -142,6 +142,37 @@ describe("LayeredDesign clean plate provider seam", () => {
     expect(readPixel(result.image, 2, 2)).toEqual(readPixel(image, 2, 2));
   });
 
+  it("简单 clean plate 算法应扩展 mask 边缘清理主体残影", () => {
+    const background: [number, number, number, number] = [32, 120, 200, 255];
+    const halo: [number, number, number, number] = [220, 80, 30, 255];
+    const subject: [number, number, number, number] = [244, 40, 32, 255];
+    const image = createPixelImage(7, 7, (x, y) => {
+      if (x === 3 && y === 3) {
+        return subject;
+      }
+      if (x >= 2 && x <= 4 && y >= 2 && y <= 4) {
+        return halo;
+      }
+      return background;
+    });
+    const mask = createPixelImage(3, 3, (x, y) =>
+      x === 1 && y === 1 ? [255, 255, 255, 255] : [0, 0, 0, 255],
+    );
+
+    const result = applyLayeredDesignSimpleCleanPlateInpaintToRgba(
+      image,
+      { x: 2, y: 2, width: 3, height: 3 },
+      mask,
+    );
+    const haloPixel = readPixel(result.image, 2, 3);
+
+    expect(result.haloExpandedPixelCount).toBe(8);
+    expect(result.filledPixelCount).toBe(9);
+    expect(rgbDistance(haloPixel, background)).toBeLessThan(
+      rgbDistance(halo, background),
+    );
+  });
+
   it("简单 clean plate provider 应输出真实像素级修补结果与元数据", async () => {
     const source = createPixelImage(5, 5, (x, y) => {
       if (x >= 1 && x <= 3 && y >= 1 && y <= 3) {
@@ -200,15 +231,16 @@ describe("LayeredDesign clean plate provider seam", () => {
         provider: "Simple clean plate fixture",
         model: "simple_neighbor_inpaint_v1",
         algorithm: "coverage_aware_directional_inpaint",
-        algorithmVersion: 2,
-        filledPixelCount: 1,
-        totalSubjectPixelCount: 1,
+        algorithmVersion: 3,
+        filledPixelCount: 9,
+        totalSubjectPixelCount: 9,
+        haloExpandedPixelCount: 8,
         maskApplied: true,
       },
     });
     expect(encodedImage).not.toBeNull();
     expect(readPixel(encodedImage!, 2, 2)).not.toEqual([220, 40, 40, 255]);
-    expect(readPixel(encodedImage!, 1, 1)).toEqual([220, 40, 40, 255]);
+    expect(readPixel(encodedImage!, 1, 1)).not.toEqual([220, 40, 40, 255]);
   });
 
   it("应把 clean plate provider 包装成 Worker cleanPlateRefiner 并写回 current extraction", async () => {

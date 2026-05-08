@@ -145,10 +145,30 @@ export interface LayeredDesignExtractionAnalysisOutputs {
   ocrText: boolean;
 }
 
+export interface LayeredDesignModelSlotBenchmarkCompletionGate {
+  status: "synthetic_only" | "sample_manifest_completed";
+  missing: string[];
+}
+
+export interface LayeredDesignModelSlotBenchmarkEvidence {
+  schemaVersion: "layered-design-model-slot-benchmark@1";
+  createdAt: string;
+  endpointUrl?: string;
+  benchmark: {
+    mode: "synthetic_verifier_profiles" | "sample_manifest";
+    checkedSamples: string[];
+    checkedKinds: string[];
+    checkedRequestCount: number;
+    sampleManifestPath?: string;
+  };
+  completionGate: LayeredDesignModelSlotBenchmarkCompletionGate;
+}
+
 export interface LayeredDesignExtractionAnalysis {
   analyzer: LayeredDesignExtractionAnalyzerInfo;
   outputs: LayeredDesignExtractionAnalysisOutputs;
   providerCapabilities?: LayeredDesignAnalyzerProviderCapability[];
+  modelSlotBenchmark?: LayeredDesignModelSlotBenchmarkEvidence;
   generatedAt?: string;
 }
 
@@ -333,6 +353,7 @@ export interface LayeredDesignExtractionAnalysisInput {
   analyzer: LayeredDesignExtractionAnalyzerInfoInput;
   outputs?: LayeredDesignExtractionAnalysisOutputsInput;
   providerCapabilities?: LayeredDesignAnalyzerProviderCapability[];
+  modelSlotBenchmark?: LayeredDesignModelSlotBenchmarkEvidence;
   generatedAt?: string;
 }
 

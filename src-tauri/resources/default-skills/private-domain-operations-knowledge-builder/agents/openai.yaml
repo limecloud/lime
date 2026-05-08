@@ -1,0 +1,4 @@
+interface:
+  display_name: "私域运营知识库生成器"
+  short_description: "把社群 SOP、用户分层、触达节奏和话术边界整理成私域运营知识库。"
+  default_prompt: "请使用 $private-domain-operations-knowledge-builder 基于我提供的私域或社群运营资料，生成一份结构化、可维护的私域运营知识库。"

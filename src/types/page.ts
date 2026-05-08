@@ -68,6 +68,10 @@ export interface AgentInitialKnowledgePackSelectionParams {
   workingDir: string;
   label?: string;
   status?: string;
+  companionPacks?: Array<{
+    name: string;
+    activation?: "explicit" | "implicit" | "resolver-driven";
+  }>;
 }
 
 /**

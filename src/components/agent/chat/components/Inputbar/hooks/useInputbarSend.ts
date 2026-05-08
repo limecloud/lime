@@ -3,6 +3,7 @@ import type { AutoContinueRequestPayload } from "@/lib/api/agentRuntime";
 import type { MessageImage, MessagePathReference } from "../../../types";
 import type { HandleSendOptions } from "../../../hooks/handleSendTypes";
 import type { InputbarKnowledgePackSelection } from "../types";
+import { buildKnowledgeRequestMetadata } from "@/features/knowledge/agent/knowledgeMetadata";
 import { recordCuratedTaskTemplateUsage } from "../../../utils/curatedTaskTemplates";
 import { buildPathReferenceRequestMetadata } from "../../../utils/pathReferences";
 import {
@@ -78,11 +79,12 @@ export function useInputbarSend({
       knowledgePackSelection.workingDir.trim()
         ? {
             ...(baseRequestMetadata || {}),
-            knowledge_pack: {
-              pack_name: knowledgePackSelection.packName.trim(),
-              working_dir: knowledgePackSelection.workingDir.trim(),
+            ...buildKnowledgeRequestMetadata({
+              workingDir: knowledgePackSelection.workingDir.trim(),
+              packName: knowledgePackSelection.packName.trim(),
+              packs: knowledgePackSelection.companionPacks,
               source: "inputbar",
-            },
+            }),
           }
         : baseRequestMetadata;
     const hasPathReferences = pathReferences.length > 0;

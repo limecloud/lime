@@ -17,6 +17,7 @@ import type {
   LayeredDesignExtractionCandidateInput,
   LayeredDesignExtractionInput,
   LayeredDesignExtractionReview,
+  LayeredDesignModelSlotBenchmarkEvidence,
   LayerTransformPatch,
   LayeredDesignDocument,
   LayeredDesignDocumentInput,
@@ -75,6 +76,14 @@ export interface UpdateTextLayerPropertiesParams {
   summary?: string;
 }
 
+export interface AttachLayeredDesignModelSlotBenchmarkEvidenceParams {
+  evidence: unknown;
+  editId?: string;
+  appliedAt?: string;
+  actor?: LayerEditActor;
+  summary?: string;
+}
+
 const isFiniteNumber = (value: unknown): value is number =>
   typeof value === "number" && Number.isFinite(value);
 
@@ -92,6 +101,16 @@ function normalizeTextLayerFontSize(value: unknown, fallback: number): number {
 
 function isTextLayerAlign(value: unknown): value is TextLayer["align"] {
   return value === "left" || value === "center" || value === "right";
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function readStringArray(value: unknown): string[] | undefined {
+  return Array.isArray(value) && value.every((item) => typeof item === "string")
+    ? [...value]
+    : undefined;
 }
 
 const nowIso = (): string => new Date().toISOString();
@@ -339,10 +358,40 @@ function normalizeExtractionAnalysis(
           ),
         }
       : {}),
+    ...(analysis.modelSlotBenchmark
+      ? {
+          modelSlotBenchmark: copyLayeredDesignModelSlotBenchmarkEvidence(
+            analysis.modelSlotBenchmark,
+          ),
+        }
+      : {}),
     ...(typeof analysis.generatedAt === "string" &&
     analysis.generatedAt.trim().length > 0
       ? { generatedAt: analysis.generatedAt }
       : {}),
+  };
+}
+
+function copyLayeredDesignModelSlotBenchmarkEvidence(
+  evidence: LayeredDesignModelSlotBenchmarkEvidence,
+): LayeredDesignModelSlotBenchmarkEvidence {
+  return {
+    schemaVersion: evidence.schemaVersion,
+    createdAt: evidence.createdAt,
+    ...(evidence.endpointUrl ? { endpointUrl: evidence.endpointUrl } : {}),
+    benchmark: {
+      mode: evidence.benchmark.mode,
+      checkedSamples: [...evidence.benchmark.checkedSamples],
+      checkedKinds: [...evidence.benchmark.checkedKinds],
+      checkedRequestCount: evidence.benchmark.checkedRequestCount,
+      ...(evidence.benchmark.sampleManifestPath
+        ? { sampleManifestPath: evidence.benchmark.sampleManifestPath }
+        : {}),
+    },
+    completionGate: {
+      status: evidence.completionGate.status,
+      missing: [...evidence.completionGate.missing],
+    },
   };
 }
 
@@ -465,6 +514,13 @@ function copyLayeredDesignExtractionAnalysis(
                 ? { quality: { ...capability.quality } }
                 : {}),
             }),
+          ),
+        }
+      : {}),
+    ...(analysis.modelSlotBenchmark
+      ? {
+          modelSlotBenchmark: copyLayeredDesignModelSlotBenchmarkEvidence(
+            analysis.modelSlotBenchmark,
           ),
         }
       : {}),
@@ -634,6 +690,99 @@ export function createShapeLayer(params: ShapeLayerInput): ShapeLayer {
   }
 
   return layer;
+}
+
+export function normalizeLayeredDesignModelSlotBenchmarkEvidence(
+  value: unknown,
+): LayeredDesignModelSlotBenchmarkEvidence | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+  const benchmark = isRecord(value.benchmark) ? value.benchmark : undefined;
+  const completionGate = isRecord(value.completionGate)
+    ? value.completionGate
+    : undefined;
+  const checkedSamples = readStringArray(benchmark?.checkedSamples);
+  const checkedKinds = readStringArray(benchmark?.checkedKinds);
+  const missing = readStringArray(completionGate?.missing);
+  const mode = benchmark?.mode;
+  const status = completionGate?.status;
+  const checkedRequestCount = benchmark?.checkedRequestCount;
+
+  if (
+    value.schemaVersion !== "layered-design-model-slot-benchmark@1" ||
+    typeof value.createdAt !== "string" ||
+    !benchmark ||
+    (mode !== "synthetic_verifier_profiles" && mode !== "sample_manifest") ||
+    !checkedSamples ||
+    !checkedKinds ||
+    !isFiniteNumber(checkedRequestCount) ||
+    (status !== "synthetic_only" && status !== "sample_manifest_completed") ||
+    !missing
+  ) {
+    return undefined;
+  }
+
+  return {
+    schemaVersion: value.schemaVersion,
+    createdAt: value.createdAt,
+    ...(typeof value.endpointUrl === "string"
+      ? { endpointUrl: value.endpointUrl }
+      : {}),
+    benchmark: {
+      mode,
+      checkedSamples,
+      checkedKinds,
+      checkedRequestCount,
+      ...(typeof benchmark.sampleManifestPath === "string"
+        ? { sampleManifestPath: benchmark.sampleManifestPath }
+        : {}),
+    },
+    completionGate: {
+      status,
+      missing,
+    },
+  };
+}
+
+export function attachLayeredDesignModelSlotBenchmarkEvidence(
+  document: LayeredDesignDocument,
+  params: AttachLayeredDesignModelSlotBenchmarkEvidenceParams,
+): LayeredDesignDocument {
+  const evidence = normalizeLayeredDesignModelSlotBenchmarkEvidence(
+    params.evidence,
+  );
+  if (!evidence) {
+    throw new Error("无效 model slot benchmark evidence");
+  }
+  if (!document.extraction?.analysis) {
+    throw new Error("当前文档缺少 extraction analysis，无法附着 benchmark evidence");
+  }
+
+  const appliedAt = params.appliedAt ?? nowIso();
+  const editRecord: LayerEditRecord = {
+    id: params.editId ?? createEditId(document, "extraction_reanalyzed"),
+    type: "extraction_reanalyzed",
+    actor: params.actor ?? "system",
+    createdAt: appliedAt,
+    summary:
+      params.summary ??
+      `附着 model slot benchmark evidence: ${evidence.completionGate.status}`,
+  };
+  const extraction = copyLayeredDesignExtraction(document.extraction);
+
+  return {
+    ...document,
+    extraction: {
+      ...extraction!,
+      analysis: {
+        ...extraction!.analysis!,
+        modelSlotBenchmark: evidence,
+      },
+    },
+    editHistory: [...document.editHistory.map(copyEditRecord), editRecord],
+    updatedAt: appliedAt,
+  };
 }
 
 export function replaceImageLayerAsset(

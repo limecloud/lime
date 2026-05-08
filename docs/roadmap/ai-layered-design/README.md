@@ -18,6 +18,9 @@
 - [./sequences.md](./sequences.md)：原生分层生成、打开编辑、单层重生成、扁平图拆层、导出时序图
 - [./flowcharts.md](./flowcharts.md)：入口分流、Layer Planner、mask 质量、clean plate、Canvas 状态机、导出决策流程图
 - [./diagrams.md](./diagrams.md)：早期总览图纸，后续具体实现优先引用上述拆分图纸
+- [./model-slot-http-json-executor-contract.md](./model-slot-http-json-executor-contract.md)：真实 matting / inpaint / OCR 服务接入 standard JSON executor 的 HTTP contract、样例与验收命令
+- [./evidence/completion-evidence.template.json](./evidence/completion-evidence.template.json)：完整目标最终外部事实索引模板，汇总真实 benchmark、人工复核、导出包和外部设计工具打开证据
+- [./evidence/design-tool-interoperability.template.json](./evidence/design-tool-interoperability.template.json)：Photoshop / Photopea / Figma 等外部工具打开 `trial.psd` 后的结构化记录模板；Photopea 自动化入口见 `scripts/verify-layered-design-photopea-open.mjs`
 
 相关 Lime 事实源：
 

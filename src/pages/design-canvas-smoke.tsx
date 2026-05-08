@@ -8,7 +8,9 @@ import {
 } from "@/lib/workspace/workbenchCanvas";
 import {
   LAYERED_DESIGN_DEFAULT_MODEL_SLOT_TEXT_OCR_PRIORITY_LABEL,
-  createLayeredDesignFlatImageAnalyzerFromDefaultModelSlotProviders,
+  createLayeredDesignDefaultAnalyzerModelSlotJsonExecutor,
+  createLayeredDesignFlatImageAnalyzerFromModelSlotJsonExecutor,
+  createLayeredDesignFlatImageAnalyzerFromModelSlotHttpJsonExecutor,
   createLayeredDesignFlatImageAnalyzerFromStructuredProvider,
   createLayeredDesignArtifactFromPrompt,
   createLayeredDesignDeterministicSubjectMattingProvider,
@@ -26,6 +28,8 @@ import {
   installLayeredDesignStructuredAnalyzerWorkerRuntime,
   type LayeredDesignFlatImageStructuredAnalyzerProvider,
   type LayeredDesignAnalyzerModelSlotConfigInput,
+  type LayeredDesignAnalyzerModelSlotTransportJsonExecutor,
+  type LayeredDesignAnalyzerModelSlotTransportJsonRequest,
   type LayeredDesignStructuredAnalyzerWorkerMessageListener,
   type LayeredDesignStructuredAnalyzerWorkerRequest,
   type LayeredDesignStructuredAnalyzerWorkerResponse,
@@ -54,6 +58,8 @@ const WORKER_MODEL_SLOTS_FIXTURE_LABEL =
   "Analyzer model slots provider JSON executor fixture";
 const WORKER_MODEL_SLOTS_NATIVE_OCR_FIXTURE_LABEL =
   "Analyzer model slots native OCR JSON executor fixture";
+const WORKER_MODEL_SLOTS_HTTP_JSON_FIXTURE_LABEL =
+  "Analyzer model slots HTTP JSON executor sidecar fixture";
 const WORKER_MODEL_SLOT_OCR_TEXT = WORKER_OCR_TEXT;
 const WORKER_MODEL_SLOT_NATIVE_OCR_PRIORITY_LABEL =
   LAYERED_DESIGN_DEFAULT_MODEL_SLOT_TEXT_OCR_PRIORITY_LABEL;
@@ -96,6 +102,49 @@ const WORKER_MODEL_SLOT_CONFIGS: readonly LayeredDesignAnalyzerModelSlotConfigIn
       },
     },
   ];
+interface SmokeModelSlotQualityContractEvidence {
+  kind: LayeredDesignAnalyzerModelSlotTransportJsonRequest["kind"];
+  slotId: string;
+  factSource: string;
+  requiredResultFields: string[];
+  requiredParamKeys: string[];
+  reviewFindingIds: string[];
+}
+interface SmokeModelSlotQualityContractWindow {
+  __limeDesignCanvasSmokeModelSlotQualityContracts?: SmokeModelSlotQualityContractEvidence[];
+}
+const SMOKE_MODEL_SLOT_QUALITY_CONTRACT_EXPECTATIONS = {
+  subject_matting: {
+    factSource: "LayeredDesignDocument.assets",
+    requiredResultFields: ["imageSrc", "maskSrc", "hasAlpha"],
+    requiredParamKeys: [
+      "foregroundPixelCount",
+      "detectedForegroundPixelCount",
+      "ellipseFallbackApplied",
+      "totalPixelCount",
+    ],
+    reviewFindingIds: ["subject_model_slot_quality_metadata_missing"],
+  },
+  clean_plate: {
+    factSource: "LayeredDesignDocument.assets",
+    requiredResultFields: ["src"],
+    requiredParamKeys: [
+      "filledPixelCount",
+      "totalSubjectPixelCount",
+      "maskApplied",
+    ],
+    reviewFindingIds: ["clean_plate_model_slot_quality_metadata_missing"],
+  },
+  text_ocr: {
+    factSource: "LayeredDesignDocument.extraction.candidates",
+    requiredResultFields: ["text", "boundingBox", "confidence"],
+    requiredParamKeys: [],
+    reviewFindingIds: [],
+  },
+} satisfies Record<
+  LayeredDesignAnalyzerModelSlotTransportJsonRequest["kind"],
+  Omit<SmokeModelSlotQualityContractEvidence, "kind" | "slotId">
+>;
 type SmokeAnalyzerMode =
   | "default"
   | "native"
@@ -106,6 +155,7 @@ type SmokeAnalyzerMode =
   | "worker-ocr-priority"
   | "worker-clean-plate"
   | "worker-model-slots"
+  | "worker-model-slots-http-json"
   | "worker-model-slots-native-ocr";
 
 const analyzerBadgeLabels: Record<SmokeAnalyzerMode, string> = {
@@ -118,6 +168,8 @@ const analyzerBadgeLabels: Record<SmokeAnalyzerMode, string> = {
   "worker-ocr-priority": "Worker OCR priority analyzer 已启用",
   "worker-clean-plate": "Worker clean plate analyzer 已启用",
   "worker-model-slots": "Worker model slots analyzer 已启用",
+  "worker-model-slots-http-json":
+    "Worker model slots HTTP JSON analyzer 已启用",
   "worker-model-slots-native-ocr": "Worker model slots native OCR analyzer 已启用",
 };
 
@@ -156,6 +208,7 @@ function resolveAnalyzerMode(value: string | null): SmokeAnalyzerMode {
     value === "worker-ocr-priority" ||
     value === "worker-clean-plate" ||
     value === "worker-model-slots" ||
+    value === "worker-model-slots-http-json" ||
     value === "worker-model-slots-native-ocr"
   ) {
     return value;
@@ -221,6 +274,65 @@ class SmokeStructuredAnalyzerWorker {
       }
     });
   }
+}
+
+function assertSameStringList(
+  actual: readonly string[],
+  expected: readonly string[],
+  message: string,
+) {
+  if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+    throw new Error(
+      `${message}: expected ${JSON.stringify(expected)}, got ${JSON.stringify(
+        actual,
+      )}`,
+    );
+  }
+}
+
+function recordSmokeModelSlotQualityContract(
+  request: LayeredDesignAnalyzerModelSlotTransportJsonRequest,
+) {
+  const expected =
+    SMOKE_MODEL_SLOT_QUALITY_CONTRACT_EXPECTATIONS[request.kind];
+  const contract = request.context.qualityContract;
+
+  if (!contract || contract.factSource !== expected.factSource) {
+    throw new Error(
+      `Smoke model slot quality contract factSource mismatch: ${request.kind}`,
+    );
+  }
+  assertSameStringList(
+    contract.requiredResultFields,
+    expected.requiredResultFields,
+    `Smoke model slot quality contract result fields mismatch: ${request.kind}`,
+  );
+  assertSameStringList(
+    contract.requiredParamKeys,
+    expected.requiredParamKeys,
+    `Smoke model slot quality contract param keys mismatch: ${request.kind}`,
+  );
+  assertSameStringList(
+    contract.reviewFindingIds,
+    expected.reviewFindingIds,
+    `Smoke model slot quality contract finding ids mismatch: ${request.kind}`,
+  );
+
+  if (typeof window === "undefined") {
+    return;
+  }
+  const smokeWindow = window as Window & SmokeModelSlotQualityContractWindow;
+  const contracts =
+    smokeWindow.__limeDesignCanvasSmokeModelSlotQualityContracts ?? [];
+  contracts.push({
+    kind: request.kind,
+    slotId: request.context.slotId,
+    factSource: contract.factSource,
+    requiredResultFields: [...contract.requiredResultFields],
+    requiredParamKeys: [...contract.requiredParamKeys],
+    reviewFindingIds: [...contract.reviewFindingIds],
+  });
+  smokeWindow.__limeDesignCanvasSmokeModelSlotQualityContracts = contracts;
 }
 
 function createSmokeRefinedWorkerAnalyzer() {
@@ -346,16 +458,27 @@ function createSmokeCleanPlateWorkerAnalyzer() {
 }
 
 function createSmokeModelSlotsWorkerAnalyzer(useNativeOcr = false) {
-  return createLayeredDesignFlatImageAnalyzerFromDefaultModelSlotProviders(
+  const baseExecutor = createLayeredDesignDefaultAnalyzerModelSlotJsonExecutor({
+    modelSlotTextOcrProvider: useNativeOcr
+      ? undefined
+      : createLayeredDesignWorkerTextOcrProvider({
+          label: "Worker OCR provider via model slot JSON executor",
+          fallbackProvider: null,
+        }),
+  });
+  const executor: LayeredDesignAnalyzerModelSlotTransportJsonExecutor = async (
+    request,
+  ) => {
+    recordSmokeModelSlotQualityContract(request);
+
+    return baseExecutor(request);
+  };
+
+  return createLayeredDesignFlatImageAnalyzerFromModelSlotJsonExecutor(
     WORKER_MODEL_SLOT_CONFIGS,
+    executor,
     {
       fallbackAnalyzer: null,
-      modelSlotTextOcrProvider: useNativeOcr
-        ? undefined
-        : createLayeredDesignWorkerTextOcrProvider({
-            label: "Worker OCR provider via model slot JSON executor",
-            fallbackProvider: null,
-          }),
     },
   );
 }
@@ -434,6 +557,10 @@ const CanvasCard = styled.div`
 export function DesignCanvasSmokePage() {
   const projectRootPath = useMemo(() => readSearchParam("projectRootPath"), []);
   const projectId = useMemo(() => readSearchParam("projectId"), []);
+  const modelSlotEndpointUrl = useMemo(
+    () => readSearchParam("modelSlotEndpointUrl"),
+    [],
+  );
   const analyzerMode = useMemo(
     () => resolveAnalyzerMode(readSearchParam("analyzer")),
     [],
@@ -465,12 +592,28 @@ export function DesignCanvasSmokePage() {
     if (analyzerMode === "worker-model-slots") {
       return createSmokeModelSlotsWorkerAnalyzer();
     }
+    if (analyzerMode === "worker-model-slots-http-json") {
+      return modelSlotEndpointUrl
+        ? createLayeredDesignFlatImageAnalyzerFromModelSlotHttpJsonExecutor(
+            WORKER_MODEL_SLOT_CONFIGS,
+            {
+              endpointUrl: modelSlotEndpointUrl,
+              headers: {
+                "x-lime-smoke-analyzer": "worker-model-slots-http-json",
+              },
+            },
+            {
+              fallbackAnalyzer: null,
+            },
+          )
+        : undefined;
+    }
     if (analyzerMode === "worker-model-slots-native-ocr") {
       return createSmokeModelSlotsWorkerAnalyzer(true);
     }
 
     return undefined;
-  }, [analyzerMode]);
+  }, [analyzerMode, modelSlotEndpointUrl]);
   const [state, setState] = useState<CanvasStateUnion>(() =>
     createSmokeCanvasState(),
   );
@@ -521,6 +664,12 @@ export function DesignCanvasSmokePage() {
               {WORKER_MODEL_SLOTS_FIXTURE_LABEL} / {WORKER_MODEL_SLOT_OCR_TEXT}
             </Badge>
           ) : null}
+          {analyzerMode === "worker-model-slots-http-json" ? (
+            <Badge>
+              {WORKER_MODEL_SLOTS_HTTP_JSON_FIXTURE_LABEL} /{" "}
+              {WORKER_MODEL_SLOT_OCR_TEXT}
+            </Badge>
+          ) : null}
           {analyzerMode === "worker-model-slots-native-ocr" ? (
             <Badge>
               {WORKER_MODEL_SLOTS_NATIVE_OCR_FIXTURE_LABEL} /{" "}
@@ -545,6 +694,7 @@ export function DesignCanvasSmokePage() {
             designAnalyzeFlatImage={analyzeFlatImage}
             designAnalyzerModelSlotConfigs={
               analyzerMode === "worker-model-slots" ||
+              analyzerMode === "worker-model-slots-http-json" ||
               analyzerMode === "worker-model-slots-native-ocr"
                 ? WORKER_MODEL_SLOT_CONFIGS
                 : undefined

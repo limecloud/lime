@@ -1,4 +1,0 @@
-interface:
-  display_name: "个人IP知识库生成器"
-  short_description: "把访谈、资料和案例提炼成可被AI长期调用的个人IP知识库。"
-  default_prompt: "请基于我提供的资料，生成一份结构化、可长期调用的个人IP知识库。"

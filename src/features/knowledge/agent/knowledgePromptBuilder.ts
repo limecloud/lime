@@ -1,4 +1,6 @@
-export const KNOWLEDGE_BUILDER_SKILL_NAME = "knowledge_builder";
+export const PERSONAL_IP_KNOWLEDGE_BUILDER_SKILL_NAME =
+  "personal-ip-knowledge-builder";
+export const COMPAT_KNOWLEDGE_BUILDER_SKILL_NAME = "knowledge_builder";
 
 export function normalizeKnowledgeDraftName(value: string): string {
   return (

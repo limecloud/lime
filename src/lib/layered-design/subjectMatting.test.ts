@@ -50,6 +50,95 @@ function createSyntheticSubjectCropWithSpeckle(): LayeredDesignSubjectMattingPix
   return { width, height, data };
 }
 
+function createSyntheticSubjectCropWithDetachedPatch(): LayeredDesignSubjectMattingPixelImage {
+  const width = 9;
+  const height = 9;
+  const data = new Uint8ClampedArray(width * height * 4);
+
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const offset = (y * width + x) * 4;
+      const isSubject = x >= 3 && x <= 5 && y >= 3 && y <= 5;
+      const isDetachedPatch = x >= 1 && x <= 2 && y >= 1 && y <= 2;
+      data[offset] = isSubject || isDetachedPatch ? 28 : 232;
+      data[offset + 1] = isSubject || isDetachedPatch ? 76 : 236;
+      data[offset + 2] = isSubject || isDetachedPatch ? 136 : 232;
+      data[offset + 3] = 255;
+    }
+  }
+
+  return { width, height, data };
+}
+
+function createSyntheticSubjectCropWithInteriorHole(): LayeredDesignSubjectMattingPixelImage {
+  const width = 11;
+  const height = 11;
+  const data = new Uint8ClampedArray(width * height * 4);
+
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const offset = (y * width + x) * 4;
+      const isSubject = x >= 2 && x <= 8 && y >= 2 && y <= 8;
+      const isInteriorHole = x >= 4 && x <= 6 && y >= 4 && y <= 6;
+      data[offset] = isSubject && !isInteriorHole ? 28 : 232;
+      data[offset + 1] = isSubject && !isInteriorHole ? 76 : 236;
+      data[offset + 2] = isSubject && !isInteriorHole ? 136 : 232;
+      data[offset + 3] = 255;
+    }
+  }
+
+  return { width, height, data };
+}
+
+function createSyntheticSubjectCropWithSpillEdge(): LayeredDesignSubjectMattingPixelImage {
+  const width = 7;
+  const height = 7;
+  const data = new Uint8ClampedArray(width * height * 4);
+
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const offset = (y * width + x) * 4;
+      const isSubjectCore = x >= 2 && x <= 4 && y >= 2 && y <= 4;
+      const isSpillEdge = x >= 1 && x <= 5 && y >= 1 && y <= 5;
+      data[offset] = isSubjectCore ? 28 : isSpillEdge ? 188 : 232;
+      data[offset + 1] = isSubjectCore ? 76 : isSpillEdge ? 204 : 236;
+      data[offset + 2] = isSubjectCore ? 136 : isSpillEdge ? 216 : 232;
+      data[offset + 3] = 255;
+    }
+  }
+
+  return { width, height, data };
+}
+
+function createSyntheticFlatBackgroundCrop(): LayeredDesignSubjectMattingPixelImage {
+  const width = 9;
+  const height = 9;
+  const data = new Uint8ClampedArray(width * height * 4);
+
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const offset = (y * width + x) * 4;
+      data[offset] = 232;
+      data[offset + 1] = 236;
+      data[offset + 2] = 232;
+      data[offset + 3] = 255;
+    }
+  }
+
+  return { width, height, data };
+}
+
+function rgbDistance(
+  left: ReadonlyArray<number | undefined>,
+  right: ReadonlyArray<number | undefined>,
+): number {
+  return Math.hypot(
+    (left[0] ?? 0) - (right[0] ?? 0),
+    (left[1] ?? 0) - (right[1] ?? 0),
+    (left[2] ?? 0) - (right[2] ?? 0),
+  );
+}
+
 describe("LayeredDesign subject matting adapter", () => {
   it("应把 matting provider 包装成 Worker subjectMaskRefiner 并写回 current extraction", async () => {
     const matteSubject = vi.fn(async (input) => ({
@@ -281,6 +370,75 @@ describe("LayeredDesign subject matting adapter", () => {
     );
   });
 
+  it("simple matting 算法应移除远离主体的小型误检连通块", () => {
+    const result = applyLayeredDesignSimpleSubjectMattingToRgba(
+      createSyntheticSubjectCropWithDetachedPatch(),
+    );
+    const centerOffset = (4 * result.image.width + 4) * 4;
+    const detachedPatchOffset = (1 * result.image.width + 1) * 4;
+
+    expect(result.image.data[centerOffset + 3]).toBeGreaterThan(180);
+    expect(result.image.data[detachedPatchOffset + 3]).toBeLessThan(24);
+    expect(result.mask.data[detachedPatchOffset]).toBe(
+      result.image.data[detachedPatchOffset + 3],
+    );
+  });
+
+  it("simple matting 算法应填补主体内部透明孔洞", () => {
+    const result = applyLayeredDesignSimpleSubjectMattingToRgba(
+      createSyntheticSubjectCropWithInteriorHole(),
+    );
+    const centerHoleOffset = (5 * result.image.width + 5) * 4;
+    const cornerBackgroundOffset = 0;
+
+    expect(result.filledHolePixelCount).toBeGreaterThanOrEqual(5);
+    expect(result.image.data[centerHoleOffset + 3]).toBeGreaterThan(160);
+    expect(result.mask.data[centerHoleOffset]).toBe(
+      result.image.data[centerHoleOffset + 3],
+    );
+    expect(result.image.data[cornerBackgroundOffset + 3]).toBeLessThan(16);
+  });
+
+  it("simple matting 算法应压低半透明边缘的背景色污染", () => {
+    const source = createSyntheticSubjectCropWithSpillEdge();
+    const result = applyLayeredDesignSimpleSubjectMattingToRgba(source);
+    const spillOffset = (1 * result.image.width + 3) * 4;
+    const background = [232, 236, 232];
+    const sourceColor = [
+      source.data[spillOffset],
+      source.data[spillOffset + 1],
+      source.data[spillOffset + 2],
+    ];
+    const mattedColor = [
+      result.image.data[spillOffset],
+      result.image.data[spillOffset + 1],
+      result.image.data[spillOffset + 2],
+    ];
+
+    expect(result.image.data[spillOffset + 3]).toBeGreaterThan(32);
+    expect(result.image.data[spillOffset + 3]).toBeLessThan(250);
+    expect(result.image.data[spillOffset]).toBeLessThan(
+      (source.data[spillOffset] ?? 0) - 8,
+    );
+    expect(rgbDistance(mattedColor, background)).toBeGreaterThan(
+      rgbDistance(sourceColor, background) + 10,
+    );
+  });
+
+  it("simple matting 无法从背景色区分主体时应标记椭圆兜底", () => {
+    const result = applyLayeredDesignSimpleSubjectMattingToRgba(
+      createSyntheticFlatBackgroundCrop(),
+    );
+    const centerOffset = (4 * result.image.width + 4) * 4;
+    const cornerOffset = 0;
+
+    expect(result.ellipseFallbackApplied).toBe(true);
+    expect(result.detectedForegroundPixelCount).toBe(0);
+    expect(result.foregroundPixelCount).toBeGreaterThan(0);
+    expect(result.image.data[centerOffset + 3]).toBeGreaterThan(220);
+    expect(result.image.data[cornerOffset + 3]).toBeLessThan(80);
+  });
+
   it("simple matting provider 应输出真实 matted image 与 mask data URL", async () => {
     const encodedImages: LayeredDesignSubjectMattingPixelImage[] = [];
     const provider = createLayeredDesignSimpleSubjectMattingProvider({
@@ -335,8 +493,12 @@ describe("LayeredDesign subject matting adapter", () => {
       confidence: 0.9,
       hasAlpha: true,
       params: {
-        seed: "simple_subject_matting_color_distance_v2",
+        seed: "simple_subject_matting_color_distance_v6",
+        edgeColorSpillSuppressed: true,
+        alphaHoleFilledPixelCount: 0,
         foregroundPixelCount: expect.any(Number),
+        detectedForegroundPixelCount: expect.any(Number),
+        ellipseFallbackApplied: false,
         totalPixelCount: 25,
       },
     });

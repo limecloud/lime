@@ -1,0 +1,4 @@
+interface:
+  display_name: "增长策略知识库生成器"
+  short_description: "把增长目标、指标、渠道策略和实验复盘整理成可被Agent安全调用的资料库。"
+  default_prompt: "Use $growth-strategy-knowledge-builder to turn my growth plans, metrics, experiments, and retrospectives into a structured growth-strategy knowledge pack."

@@ -2661,6 +2661,206 @@ describe("Inputbar", () => {
     );
   });
 
+  it("启用运营资料后发送应携带隐式 persona 协同 pack", async () => {
+    const onSend = vi.fn().mockResolvedValue(true);
+    const { container } = renderInputbar({
+      input: "基于运营资料写一段社群预热文案",
+      onSend,
+      knowledgePackSelection: {
+        enabled: true,
+        packName: "content-calendar",
+        workingDir: "/tmp/lime-project",
+        label: "内容运营资料",
+        status: "ready",
+        companionPacks: [
+          {
+            name: "founder-persona",
+            activation: "implicit",
+          },
+        ],
+      },
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const sendButton = container.querySelector(
+      '[data-testid="send-btn"]',
+    ) as HTMLButtonElement | null;
+    expect(sendButton).toBeTruthy();
+
+    await act(async () => {
+      sendButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(onSend).toHaveBeenCalledWith(
+      undefined,
+      false,
+      false,
+      undefined,
+      "react",
+      undefined,
+      expect.objectContaining({
+        requestMetadata: {
+          knowledge_pack: {
+            pack_name: "content-calendar",
+            working_dir: "/tmp/lime-project",
+            source: "inputbar",
+            packs: [
+              {
+                name: "founder-persona",
+                activation: "implicit",
+              },
+            ],
+          },
+        },
+      }),
+    );
+  });
+
+  it("资料中枢应支持显式追加多份 data 协同资料", async () => {
+    const onSend = vi.fn().mockResolvedValue(true);
+    const onToggleKnowledgeCompanionPack = vi.fn();
+    const { container, rerender } = renderInputbar({
+      input: "基于运营资料生成本周计划",
+      onSend,
+      knowledgePackSelection: {
+        enabled: true,
+        packName: "content-calendar",
+        workingDir: "/tmp/lime-project",
+        label: "内容运营资料",
+        status: "ready",
+        companionPacks: [
+          {
+            name: "founder-persona",
+            activation: "implicit",
+          },
+        ],
+      },
+      knowledgePackOptions: [
+        {
+          packName: "content-calendar",
+          label: "内容运营资料",
+          status: "ready",
+          runtimeMode: "data",
+        },
+        {
+          packName: "founder-persona",
+          label: "创始人人设资料",
+          status: "ready",
+          defaultForWorkspace: true,
+          runtimeMode: "persona",
+        },
+        {
+          packName: "campaign-plan",
+          label: "618 活动资料",
+          status: "ready",
+          runtimeMode: "data",
+        },
+      ],
+      onToggleKnowledgeCompanionPack,
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const knowledgeButton = container.querySelector(
+      '[data-testid="inputbar-knowledge-pack-toggle"]',
+    ) as HTMLButtonElement | null;
+    expect(knowledgeButton?.textContent).toContain("资料：内容运营资料 +1");
+
+    act(() => {
+      knowledgeButton?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
+    });
+
+    const hub = container.querySelector(
+      '[data-testid="inputbar-knowledge-hub"]',
+    );
+    expect(hub?.textContent).toContain("已自动搭配人设资料：创始人人设资料");
+    expect(hub?.textContent).toContain("协同资料（可多选）");
+
+    const campaignOption = container.querySelector(
+      '[data-testid="inputbar-knowledge-companion-option-campaign-plan"]',
+    ) as HTMLButtonElement | null;
+    expect(campaignOption).toBeTruthy();
+
+    act(() => {
+      campaignOption?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
+    });
+
+    expect(onToggleKnowledgeCompanionPack).toHaveBeenCalledWith(
+      "campaign-plan",
+      true,
+    );
+
+    rerender({
+      knowledgePackSelection: {
+        enabled: true,
+        packName: "content-calendar",
+        workingDir: "/tmp/lime-project",
+        label: "内容运营资料",
+        status: "ready",
+        companionPacks: [
+          {
+            name: "founder-persona",
+            activation: "implicit",
+          },
+          {
+            name: "campaign-plan",
+            activation: "explicit",
+          },
+        ],
+      },
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const sendButton = container.querySelector(
+      '[data-testid="send-btn"]',
+    ) as HTMLButtonElement | null;
+    await act(async () => {
+      sendButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+
+    expect(onSend).toHaveBeenCalledWith(
+      undefined,
+      false,
+      false,
+      undefined,
+      "react",
+      undefined,
+      expect.objectContaining({
+        requestMetadata: {
+          knowledge_pack: {
+            pack_name: "content-calendar",
+            working_dir: "/tmp/lime-project",
+            source: "inputbar",
+            packs: [
+              {
+                name: "founder-persona",
+                activation: "implicit",
+              },
+              {
+                name: "campaign-plan",
+                activation: "explicit",
+              },
+            ],
+          },
+        },
+      }),
+    );
+  });
+
   it("项目资料控件应在输入框主路径常显并使用用户语言", async () => {
     const { container } = renderInputbar({
       knowledgePackSelection: {
@@ -2829,7 +3029,9 @@ describe("Inputbar", () => {
     expect(knowledgeButton).toBeTruthy();
 
     act(() => {
-      knowledgeButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      knowledgeButton?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
     });
 
     const secondPackOption = container.querySelector(
@@ -2909,7 +3111,9 @@ describe("Inputbar", () => {
       '[data-testid="inputbar-knowledge-pack-toggle"]',
     ) as HTMLButtonElement | null;
     act(() => {
-      knowledgeButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      knowledgeButton?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
     });
 
     const addButton = Array.from(container.querySelectorAll("button")).find(
@@ -2960,7 +3164,9 @@ describe("Inputbar", () => {
     ) as HTMLButtonElement | null;
 
     act(() => {
-      knowledgeButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      knowledgeButton?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
     });
 
     const hub = container.querySelector(

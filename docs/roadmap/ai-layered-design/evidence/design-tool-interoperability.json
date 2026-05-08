@@ -1,0 +1,74 @@
+{
+  "schemaVersion": "layered-design-design-tool-interoperability@1",
+  "createdAt": "2026-05-08T03:28:27.515Z",
+  "sourceExportDirectory": "/Users/coso/Documents/dev/ai/aiclientproxy/lime/docs/roadmap/ai-layered-design/evidence/exports/real-sample.layered-design",
+  "trialPsdPath": "/Users/coso/Documents/dev/ai/aiclientproxy/lime/docs/roadmap/ai-layered-design/evidence/exports/real-sample.layered-design/trial.psd",
+  "psdLikeManifestPath": "/Users/coso/Documents/dev/ai/aiclientproxy/lime/docs/roadmap/ai-layered-design/evidence/exports/real-sample.layered-design/psd-like-manifest.json",
+  "tools": [
+    {
+      "tool": "photopea",
+      "toolVersion": "photopea-web-live-api",
+      "openedAt": "2026-05-08T03:28:27.515Z",
+      "status": "passed",
+      "checks": {
+        "opensFile": true,
+        "layerListVisible": true,
+        "layerCountMatchesManifest": true,
+        "layerNamesMatchManifest": true,
+        "visibilityMatchesManifest": true,
+        "transparentPixelsVisible": true,
+        "textLayersIdentifiable": true
+      },
+      "evidenceFiles": [
+        "/Users/coso/Documents/dev/ai/aiclientproxy/lime/docs/roadmap/ai-layered-design/evidence/evidence/photopea-layer-panel.png"
+      ],
+      "observed": {
+        "layerCount": 3,
+        "layerNames": [
+          "主标题 · SPRING COFFEE POP-UP 50% OFF",
+          "主体候选",
+          "背景 clean plate"
+        ],
+        "layerPanelOrder": "top_to_bottom",
+        "layers": [
+          {
+            "name": "主标题 · SPRING COFFEE POP-UP 50% OFF",
+            "visible": true,
+            "opacity": 100,
+            "typename": "ArtLayer",
+            "bounds": [
+              55,
+              60,
+              595,
+              210
+            ]
+          },
+          {
+            "name": "主体候选",
+            "visible": true,
+            "opacity": 100,
+            "typename": "ArtLayer",
+            "bounds": [
+              160,
+              310,
+              550,
+              740
+            ]
+          },
+          {
+            "name": "背景 clean plate",
+            "visible": true,
+            "opacity": 100,
+            "typename": "ArtLayer",
+            "bounds": [
+              0,
+              0,
+              720,
+              960
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,4 @@
+interface:
+  display_name: "品牌人设知识库生成器"
+  short_description: "把品牌定位、语气、内容样例和表达禁区整理成可被Agent安全调用的人设库。"
+  default_prompt: "Use $brand-persona-knowledge-builder to turn my brand materials into a structured, maintainable brand persona knowledge pack."

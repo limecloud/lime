@@ -76,6 +76,10 @@ interface InputbarComposerSectionProps {
   knowledgeHubOpenRequestKey?: number;
   onToggleKnowledgePack?: (enabled: boolean) => void;
   onSelectKnowledgePack?: (packName: string) => void;
+  onToggleKnowledgeCompanionPack?: (
+    packName: string,
+    enabled: boolean,
+  ) => void;
   onStartKnowledgeOrganize?: () => void;
   onManageKnowledgePacks?: () => void;
   onSelectTeam?: (team: TeamDefinition | null) => void;
@@ -142,6 +146,7 @@ export const InputbarComposerSection: React.FC<
   knowledgeHubOpenRequestKey,
   onToggleKnowledgePack,
   onSelectKnowledgePack,
+  onToggleKnowledgeCompanionPack,
   onStartKnowledgeOrganize,
   onManageKnowledgePacks,
   onSelectTeam,
@@ -238,6 +243,7 @@ export const InputbarComposerSection: React.FC<
         openKnowledgeHubRequestKey={knowledgeHubOpenRequestKey}
         onToggleKnowledgePack={onToggleKnowledgePack}
         onSelectKnowledgePack={onSelectKnowledgePack}
+        onToggleKnowledgeCompanionPack={onToggleKnowledgeCompanionPack}
         onStartKnowledgeOrganize={onStartKnowledgeOrganize}
         onManageKnowledgePacks={onManageKnowledgePacks}
       />

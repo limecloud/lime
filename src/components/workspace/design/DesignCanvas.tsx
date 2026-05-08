@@ -1408,6 +1408,8 @@ export const DesignCanvas: React.FC<DesignCanvasProps> = memo(
     projectRootPath,
     projectId,
     contentId,
+    imageGenerationProviderId,
+    imageGenerationModelId,
     createImageTaskArtifact,
     getImageTaskArtifact,
     readProjectExport = readLayeredDesignProjectExport,
@@ -1489,7 +1491,9 @@ export const DesignCanvas: React.FC<DesignCanvasProps> = memo(
       ? extraction.candidates.filter((candidate) => candidate.selected).length
       : 0;
     const extractionQualityAssessment = extraction
-      ? evaluateLayeredDesignExtractionQuality(extraction)
+      ? evaluateLayeredDesignExtractionQuality(extraction, {
+          assets: document.assets,
+        })
       : null;
     const extractionQualityBlocksConfirm =
       extractionQualityAssessment?.level === "high_risk";
@@ -1660,6 +1664,8 @@ export const DesignCanvas: React.FC<DesignCanvasProps> = memo(
           document,
           requests,
           projectRootPath: workspaceRoot,
+          providerId: imageGenerationProviderId ?? undefined,
+          model: imageGenerationModelId ?? undefined,
           projectId: projectId ?? undefined,
           contentId: contentId ?? document.id,
           createTaskArtifact: createImageTaskArtifact,

@@ -44,6 +44,26 @@ export const PACK_TYPES = [
     description: "团队 SOP、交付方法、升级路径和不可回答边界。",
   },
   {
+    value: "content-operations",
+    label: "内容运营",
+    description: "选题日历、栏目节奏、素材复用和发布复盘。",
+  },
+  {
+    value: "private-domain-operations",
+    label: "私域 / 社群运营",
+    description: "社群 SOP、触达节奏、分层转化和话术边界。",
+  },
+  {
+    value: "live-commerce-operations",
+    label: "直播运营",
+    description: "直播排期、场控流程、互动话术和复盘指标。",
+  },
+  {
+    value: "campaign-operations",
+    label: "活动 / Campaign",
+    description: "活动节奏、渠道分工、物料清单和风险预案。",
+  },
+  {
     value: "growth-strategy",
     label: "增长策略",
     description: "渠道策略、投放假设、转化漏斗和复盘结论。",
@@ -55,9 +75,9 @@ export const VIEW_TABS: Array<{
   label: string;
   description: string;
 }> = [
-  { id: "overview", label: "全部资料", description: "管理和确认" },
-  { id: "import", label: "补充导入", description: "补充更多资料" },
-  { id: "detail", label: "资料详情", description: "内容和风险" },
+  { id: "overview", label: "上下文总览", description: "1 persona + N data" },
+  { id: "import", label: "Builder 整理", description: "用 Skills 生产资料" },
+  { id: "detail", label: "资料详情", description: "审阅与边界" },
 ];
 
 export const DETAIL_TABS: Array<{ id: DetailTab; label: string }> = [

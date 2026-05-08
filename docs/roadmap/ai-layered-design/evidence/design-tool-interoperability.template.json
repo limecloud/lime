@@ -1,0 +1,28 @@
+{
+  "schemaVersion": "layered-design-design-tool-interoperability@1",
+  "createdAt": "2026-05-08T00:00:00.000Z",
+  "sourceExportDirectory": "exports/real-sample.layered-design",
+  "trialPsdPath": "exports/real-sample.layered-design/trial.psd",
+  "expectedPhotopeaVerifierCommand": "node scripts/verify-layered-design-photopea-open.mjs --psd exports/real-sample.layered-design/trial.psd --psd-like-manifest exports/real-sample.layered-design/psd-like-manifest.json --output docs/roadmap/ai-layered-design/evidence/design-tool-interoperability.json",
+  "tools": [
+    {
+      "tool": "photopea",
+      "toolVersion": "填写实际版本或打开日期页面标识",
+      "openedAt": "2026-05-08T00:00:00.000Z",
+      "status": "pending",
+      "checks": {
+        "opensFile": false,
+        "layerListVisible": false,
+        "layerCountMatchesManifest": false,
+        "layerNamesMatchManifest": false,
+        "visibilityMatchesManifest": false,
+        "transparentPixelsVisible": false,
+        "textLayersIdentifiable": false
+      },
+      "evidenceFiles": [
+        "evidence/photopea-layer-panel.png"
+      ],
+      "notes": "用 Photoshop / Photopea / Figma 等外部设计工具打开 trial.psd 后填写。status 只有在所有 checks 为 true 且 evidenceFiles 指向真实截图/记录时才改为 passed。"
+    }
+  ]
+}

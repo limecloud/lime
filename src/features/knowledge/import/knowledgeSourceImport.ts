@@ -51,6 +51,18 @@ function inferPackType(title: string, sourceText: string): string {
   if (/个人\s*ip|personal\s*ip|人物|创始人/.test(haystack)) {
     return "personal-ip";
   }
+  if (/直播|带货|场控|连麦|主播/.test(haystack)) {
+    return "live-commerce-operations";
+  }
+  if (/私域|社群|社群运营|会员群|朋友圈|私聊|裂变/.test(haystack)) {
+    return "private-domain-operations";
+  }
+  if (/活动|campaign|大促|发布会|招商会|沙龙|会务/.test(haystack)) {
+    return "campaign-operations";
+  }
+  if (/内容运营|选题|内容日历|栏目|公众号|短视频|小红书/.test(haystack)) {
+    return "content-operations";
+  }
   if (/品牌|产品|卖点|价格|客服/.test(haystack)) {
     return "brand-product";
   }

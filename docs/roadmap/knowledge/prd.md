@@ -918,7 +918,7 @@ Builder Skill 不应包含：
 2. 敏感业务资料。
 3. 需要来源、状态、评审生命周期治理的具体知识资产。
 
-`docs/knowledge/skills/personal-ip-knowledge-builder/` 在 v2 中升级为 P1 current Builder Skill 事实源；`src-tauri/resources/default-skills/knowledge_builder/SKILL.md` 仅保留为 v1 历史实现 / compat 候选，不再承接新的章节模板或运营类扩展。
+`src-tauri/resources/default-skills/personal-ip-knowledge-builder/` 在 v2 中升级为 P1 current Builder Skill 事实源；`src-tauri/resources/default-skills/knowledge_builder/SKILL.md` 仅保留为 v1 历史实现 / compat 候选，不再承接新的章节模板或运营类扩展。
 
 runtime 关系：
 
@@ -942,7 +942,7 @@ runtime 关系：
 7. `KNOWLEDGE.md` 与 `sources/ -> wiki/ -> compiled/ -> runs/`。
 8. `Knowledge Context Resolver` 与 fenced knowledge context。
 9. `knowledge_*` 最小命令面，包括 `knowledge_resolve_context` 和 `knowledge_validate_context_run`。
-10. `docs/knowledge/skills/personal-ip-knowledge-builder/`（v2 P1 current Builder Skill）。
+10. `src-tauri/resources/default-skills/personal-ip-knowledge-builder/`（v2 P1 current Builder Skill）。
 11. `docs/roadmap/knowledge/prd-v2.md`、`docs/roadmap/knowledge/prd-v2-diagrams.md` 与 `docs/exec-plans/agent-knowledge-implementation-plan.md`。
 
 ### 17.2 `compat`
@@ -960,7 +960,7 @@ runtime 关系：
 退出条件：
 
 1. 新知识包实现落地后，旧文档只保留为 research / archive，README 中指向本 PRD。
-2. `personal-ip-knowledge-builder` 接入 seeded `SkillCatalog.entries(kind=skill)` 后，`knowledge_builder` 不再作为运行时 skill source。
+2. `knowledge_compile_pack` 真实委托 `personal-ip-knowledge-builder` runtime binding 后，`knowledge_builder` 不再作为运行时 skill source。
 3. 项目资料附属层与知识包主链在 UI 和命令上完全分离。
 
 ### 17.3 `deprecated`
@@ -1122,8 +1122,7 @@ Lime 旧方案参考：
 2. `docs/knowledge/markdown-first-knowledge-pack-plan.md`
 3. `docs/knowledge/lime-project-knowledge-base-solution.md`
 4. `docs/knowledge/agent-skills-and-knowledge-pack-boundary.md`
-5. `docs/knowledge/skills/personal-ip-knowledge-builder/`
-6. `docs/knowledge/个人IP知识库样例.md`
+5. `docs/knowledge/个人IP知识库样例.md`
 
 迁移原则：
 

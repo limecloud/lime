@@ -1,0 +1,122 @@
+{
+  "schemaVersion": "2026-05-05.export.p1",
+  "documentId": "real-sample-layered-design-acceptance",
+  "title": "真实样本图层化设计验收",
+  "exportedAt": "2026-05-08T00:20:00.000Z",
+  "designFile": "design.json",
+  "psdLikeManifestFile": "psd-like-manifest.json",
+  "trialPsdFile": "trial.psd",
+  "previewSvgFile": "preview.svg",
+  "previewPngFile": "preview.png",
+  "analysis": {
+    "analyzer": {
+      "kind": "structured_pipeline",
+      "label": "Local OpenCV + Apple Vision benchmark endpoint"
+    },
+    "outputs": {
+      "candidateRaster": true,
+      "candidateMask": true,
+      "cleanPlate": true,
+      "ocrText": true
+    },
+    "capabilityGate": {
+      "readyForProduction": false,
+      "checks": [
+        {
+          "requirementId": "subject_matting_alpha_mask",
+          "label": "主体 matting 需要透明主体和 mask 输出",
+          "kind": "subject_matting",
+          "status": "missing",
+          "warnings": [
+            "未找到 主体 matting provider capability"
+          ]
+        },
+        {
+          "requirementId": "clean_plate_masked_output",
+          "label": "clean plate 需要支持 mask 输入和背景修补输出",
+          "kind": "clean_plate",
+          "status": "missing",
+          "warnings": [
+            "未找到 clean plate provider capability"
+          ]
+        },
+        {
+          "requirementId": "text_ocr_geometry",
+          "label": "文字 OCR 需要返回可编辑文字几何",
+          "kind": "text_ocr",
+          "status": "missing",
+          "warnings": [
+            "未找到 文字 OCR provider capability"
+          ]
+        }
+      ]
+    },
+    "extractionQuality": {
+      "score": 100,
+      "level": "ready",
+      "label": "可进入编辑",
+      "summary": "已选择 2/2 个候选层，拆层结果基本可进入编辑。",
+      "selectedCandidateCount": 2,
+      "totalCandidateCount": 2,
+      "findings": []
+    }
+  },
+  "evidence": {
+    "modelSlotBenchmark": {
+      "schemaVersion": "layered-design-model-slot-benchmark@1",
+      "createdAt": "2026-05-08T03:25:57.778Z",
+      "mode": "sample_manifest",
+      "checkedSamples": [
+        "real-poster-multi-subject-001",
+        "real-poster-transparent-object-002",
+        "real-poster-art-text-logo-003",
+        "real-poster-dark-neon-004",
+        "real-poster-dense-product-card-005"
+      ],
+      "checkedKinds": [
+        "subject_matting",
+        "clean_plate",
+        "text_ocr"
+      ],
+      "checkedRequestCount": 15,
+      "completionGate": {
+        "status": "sample_manifest_completed",
+        "missing": [
+          "human_review_or_complex_sample_quality_evidence",
+          "export_manifest_evidence_attachment"
+        ]
+      },
+      "syntheticOnly": false,
+      "sampleManifestProvided": true
+    }
+  },
+  "assets": [
+    {
+      "id": "real-poster-multi-subject-001-source",
+      "kind": "source_image",
+      "source": "file",
+      "filename": "assets/real-poster-multi-subject-001-source.png",
+      "width": 720,
+      "height": 960,
+      "hasAlpha": false
+    },
+    {
+      "id": "real-poster-multi-subject-001-clean-plate",
+      "kind": "clean_plate",
+      "source": "file",
+      "filename": "assets/real-poster-multi-subject-001-clean-plate.png",
+      "width": 720,
+      "height": 960,
+      "hasAlpha": false
+    },
+    {
+      "id": "real-poster-multi-subject-001-subject",
+      "kind": "subject_cutout",
+      "source": "file",
+      "filename": "assets/real-poster-multi-subject-001-subject.png",
+      "width": 390,
+      "height": 430,
+      "hasAlpha": true
+    }
+  ]
+}

@@ -77,6 +77,19 @@ interface RgbColor {
   blue: number;
 }
 
+interface AlphaComponent {
+  pixels: number[];
+  area: number;
+  alphaSum: number;
+  centerX: number;
+  centerY: number;
+}
+
+interface SubjectAlphaRefinementResult {
+  alpha: Uint8ClampedArray;
+  filledHolePixelCount: number;
+}
+
 function clampConfidence(value: number | undefined, fallback: number): number {
   const candidate = Number.isFinite(value) ? value : fallback;
   return Math.min(Math.max(candidate ?? 0, 0), 1);
@@ -172,6 +185,33 @@ function computeColorDistanceAlpha(
   return smoothstep(42, 118, distance);
 }
 
+function suppressBackgroundColorSpill(
+  source: Uint8ClampedArray,
+  sourceOffset: number,
+  background: RgbColor,
+  alphaByte: number,
+): [number, number, number] {
+  const red = source[sourceOffset] ?? 0;
+  const green = source[sourceOffset + 1] ?? 0;
+  const blue = source[sourceOffset + 2] ?? 0;
+  if (alphaByte <= 8 || alphaByte >= 250) {
+    return [red, green, blue];
+  }
+
+  const alpha = Math.max(alphaByte / 255, 0.08);
+  const strength = Math.min(0.82, (1 - alpha) * 1.15);
+  const restoreForeground = (channel: number, backgroundChannel: number) => {
+    const unmixed = (channel - backgroundChannel * (1 - alpha)) / alpha;
+    return clampByte(channel * (1 - strength) + unmixed * strength);
+  };
+
+  return [
+    restoreForeground(red, background.red),
+    restoreForeground(green, background.green),
+    restoreForeground(blue, background.blue),
+  ];
+}
+
 function sampleAlpha(
   alpha: Uint8ClampedArray,
   width: number,
@@ -186,12 +226,222 @@ function sampleAlpha(
   return alpha[y * width + x] ?? 0;
 }
 
-function refineSubjectAlphaMask(
+function collectAlphaComponents(
+  alpha: Uint8ClampedArray,
+  width: number,
+  height: number,
+  threshold = 48,
+): AlphaComponent[] {
+  const visited = new Uint8Array(alpha.length);
+  const components: AlphaComponent[] = [];
+
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const startIndex = y * width + x;
+      if (visited[startIndex] || (alpha[startIndex] ?? 0) < threshold) {
+        continue;
+      }
+
+      const stack = [startIndex];
+      const pixels: number[] = [];
+      let alphaSum = 0;
+      let xSum = 0;
+      let ySum = 0;
+      visited[startIndex] = 1;
+
+      while (stack.length > 0) {
+        const index = stack.pop() ?? 0;
+        const pixelX = index % width;
+        const pixelY = Math.floor(index / width);
+        const currentAlpha = alpha[index] ?? 0;
+
+        pixels.push(index);
+        alphaSum += currentAlpha;
+        xSum += pixelX;
+        ySum += pixelY;
+
+        for (let dy = -1; dy <= 1; dy += 1) {
+          for (let dx = -1; dx <= 1; dx += 1) {
+            if (Math.abs(dx) + Math.abs(dy) !== 1) {
+              continue;
+            }
+
+            const nextX = pixelX + dx;
+            const nextY = pixelY + dy;
+            if (nextX < 0 || nextY < 0 || nextX >= width || nextY >= height) {
+              continue;
+            }
+
+            const nextIndex = nextY * width + nextX;
+            if (visited[nextIndex] || (alpha[nextIndex] ?? 0) < threshold) {
+              continue;
+            }
+
+            visited[nextIndex] = 1;
+            stack.push(nextIndex);
+          }
+        }
+      }
+
+      components.push({
+        pixels,
+        area: pixels.length,
+        alphaSum,
+        centerX: xSum / Math.max(1, pixels.length),
+        centerY: ySum / Math.max(1, pixels.length),
+      });
+    }
+  }
+
+  return components;
+}
+
+function scoreAlphaComponent(
+  component: AlphaComponent,
+  width: number,
+  height: number,
+): number {
+  const dx = component.centerX - (width - 1) / 2;
+  const dy = component.centerY - (height - 1) / 2;
+  const maxDistance = Math.max(1, Math.hypot(width / 2, height / 2));
+  const centerWeight = 1 + (1 - Math.min(Math.hypot(dx, dy) / maxDistance, 1)) * 0.35;
+
+  return component.alphaSum * centerWeight;
+}
+
+function keepDominantForegroundComponent(
   alpha: Uint8ClampedArray,
   width: number,
   height: number,
 ): Uint8ClampedArray {
+  const components = collectAlphaComponents(alpha, width, height);
+  if (components.length <= 1) {
+    return alpha;
+  }
+
+  const dominant = components.reduce((best, component) =>
+    scoreAlphaComponent(component, width, height) >
+    scoreAlphaComponent(best, width, height)
+      ? component
+      : best,
+  );
+  const minPreservedArea = Math.max(12, dominant.area * 0.42);
+  const componentByPixel = new Map<number, AlphaComponent>();
+
+  for (const component of components) {
+    for (const pixel of component.pixels) {
+      componentByPixel.set(pixel, component);
+    }
+  }
+
+  const isolated = new Uint8ClampedArray(alpha.length);
+  for (let index = 0; index < alpha.length; index += 1) {
+    const component = componentByPixel.get(index);
+    isolated[index] =
+      !component || component === dominant || component.area >= minPreservedArea
+        ? (alpha[index] ?? 0)
+        : 0;
+  }
+
+  return isolated;
+}
+
+function fillEnclosedAlphaHoles(
+  alpha: Uint8ClampedArray,
+  width: number,
+  height: number,
+): SubjectAlphaRefinementResult {
+  const visited = new Uint8Array(alpha.length);
+  const filled = new Uint8ClampedArray(alpha);
+  const maxHoleArea = Math.max(16, Math.floor(width * height * 0.18));
+  let filledHolePixelCount = 0;
+
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const startIndex = y * width + x;
+      if (visited[startIndex] || (alpha[startIndex] ?? 0) >= 32) {
+        continue;
+      }
+
+      const stack = [startIndex];
+      const pixels: number[] = [];
+      let touchesBorder = false;
+      let boundaryAlphaSum = 0;
+      let boundaryAlphaCount = 0;
+      visited[startIndex] = 1;
+
+      while (stack.length > 0) {
+        const index = stack.pop() ?? 0;
+        const pixelX = index % width;
+        const pixelY = Math.floor(index / width);
+        pixels.push(index);
+        touchesBorder =
+          touchesBorder ||
+          pixelX === 0 ||
+          pixelY === 0 ||
+          pixelX === width - 1 ||
+          pixelY === height - 1;
+
+        for (const [dx, dy] of [
+          [-1, 0],
+          [1, 0],
+          [0, -1],
+          [0, 1],
+        ] as const) {
+          const nextX = pixelX + dx;
+          const nextY = pixelY + dy;
+          if (nextX < 0 || nextY < 0 || nextX >= width || nextY >= height) {
+            continue;
+          }
+
+          const nextIndex = nextY * width + nextX;
+          const nextAlpha = alpha[nextIndex] ?? 0;
+          if (nextAlpha < 32) {
+            if (!visited[nextIndex]) {
+              visited[nextIndex] = 1;
+              stack.push(nextIndex);
+            }
+            continue;
+          }
+
+          if (nextAlpha >= 96) {
+            boundaryAlphaSum += nextAlpha;
+            boundaryAlphaCount += 1;
+          }
+        }
+      }
+
+      if (
+        touchesBorder ||
+        pixels.length > maxHoleArea ||
+        boundaryAlphaCount < Math.max(4, Math.ceil(pixels.length * 0.5))
+      ) {
+        continue;
+      }
+
+      const fillAlpha = clampByte(
+        (boundaryAlphaSum / Math.max(1, boundaryAlphaCount)) * 0.94,
+      );
+      for (const pixel of pixels) {
+        filled[pixel] = fillAlpha;
+      }
+      filledHolePixelCount += pixels.length;
+    }
+  }
+
+  return {
+    alpha: filled,
+    filledHolePixelCount,
+  };
+}
+
+function refineSubjectAlphaMask(
+  alpha: Uint8ClampedArray,
+  width: number,
+  height: number,
+): SubjectAlphaRefinementResult {
   const cleaned = new Uint8ClampedArray(alpha.length);
+  const dominant = new Uint8ClampedArray(alpha.length);
   const refined = new Uint8ClampedArray(alpha.length);
 
   for (let y = 0; y < height; y += 1) {
@@ -227,10 +477,14 @@ function refineSubjectAlphaMask(
     }
   }
 
+  dominant.set(keepDominantForegroundComponent(cleaned, width, height));
+  const holeFilled = fillEnclosedAlphaHoles(dominant, width, height);
+  const fillReadyAlpha = holeFilled.alpha;
+
   for (let y = 0; y < height; y += 1) {
     for (let x = 0; x < width; x += 1) {
       const index = y * width + x;
-      const current = cleaned[index] ?? 0;
+      const current = fillReadyAlpha[index] ?? 0;
       let minNeighborAlpha = current;
       let maxNeighborAlpha = current;
       let neighborAlphaSum = current;
@@ -242,7 +496,13 @@ function refineSubjectAlphaMask(
             continue;
           }
 
-          const neighborAlpha = sampleAlpha(cleaned, width, height, x + dx, y + dy);
+          const neighborAlpha = sampleAlpha(
+            fillReadyAlpha,
+            width,
+            height,
+            x + dx,
+            y + dy,
+          );
           minNeighborAlpha = Math.min(minNeighborAlpha, neighborAlpha);
           maxNeighborAlpha = Math.max(maxNeighborAlpha, neighborAlpha);
           neighborAlphaSum += neighborAlpha;
@@ -257,7 +517,10 @@ function refineSubjectAlphaMask(
     }
   }
 
-  return refined;
+  return {
+    alpha: refined,
+    filledHolePixelCount: holeFilled.filledHolePixelCount,
+  };
 }
 
 export function applyLayeredDesignSimpleSubjectMattingToRgba(
@@ -266,6 +529,9 @@ export function applyLayeredDesignSimpleSubjectMattingToRgba(
   image: LayeredDesignSubjectMattingPixelImage;
   mask: LayeredDesignSubjectMattingPixelImage;
   foregroundPixelCount: number;
+  detectedForegroundPixelCount: number;
+  ellipseFallbackApplied: boolean;
+  filledHolePixelCount: number;
 } {
   const width = Math.max(1, Math.round(image.width));
   const height = Math.max(1, Math.round(image.height));
@@ -274,7 +540,7 @@ export function applyLayeredDesignSimpleSubjectMattingToRgba(
   const mask = createTransparentPixelImage(width, height);
   const background = sampleBorderBackgroundColor({ width, height, data: source });
   const firstPassAlpha = new Uint8ClampedArray(width * height);
-  let foregroundPixelCount = 0;
+  let detectedForegroundPixelCount = 0;
 
   for (let y = 0; y < height; y += 1) {
     for (let x = 0; x < width; x += 1) {
@@ -285,19 +551,26 @@ export function applyLayeredDesignSimpleSubjectMattingToRgba(
         y,
       );
       const ellipseAlpha = computeEllipseAlpha(width, height, x, y);
-      const alpha = Math.max(colorAlpha, colorAlpha > 0.08 ? ellipseAlpha * 0.65 : 0);
-      const alphaByte = clampByte(alpha * ((source[getPixelOffset(width, x, y) + 3] ?? 255)));
+      const alpha = Math.max(
+        colorAlpha,
+        colorAlpha > 0.08 ? ellipseAlpha * 0.65 : 0,
+      );
+      const alphaByte = clampByte(
+        alpha * ((source[getPixelOffset(width, x, y) + 3] ?? 255)),
+      );
       firstPassAlpha[y * width + x] = alphaByte;
       if (alphaByte >= 32) {
-        foregroundPixelCount += 1;
+        detectedForegroundPixelCount += 1;
       }
     }
   }
 
-  const shouldUseEllipseFallback = foregroundPixelCount < width * height * 0.05;
-  const refinedAlpha = shouldUseEllipseFallback
-    ? firstPassAlpha
+  const shouldUseEllipseFallback =
+    detectedForegroundPixelCount < width * height * 0.05;
+  const refinement = shouldUseEllipseFallback
+    ? { alpha: firstPassAlpha, filledHolePixelCount: 0 }
     : refineSubjectAlphaMask(firstPassAlpha, width, height);
+  const refinedAlpha = refinement.alpha;
   let refinedForegroundPixelCount = 0;
 
   for (let y = 0; y < height; y += 1) {
@@ -310,10 +583,22 @@ export function applyLayeredDesignSimpleSubjectMattingToRgba(
           )
         : (refinedAlpha[y * width + x] ?? 0);
       const targetOffset = getPixelOffset(width, x, y);
+      const [red, green, blue] = shouldUseEllipseFallback
+        ? [
+            source[sourceOffset] ?? 0,
+            source[sourceOffset + 1] ?? 0,
+            source[sourceOffset + 2] ?? 0,
+          ]
+        : suppressBackgroundColorSpill(
+            source,
+            sourceOffset,
+            background,
+            alphaByte,
+          );
 
-      matted.data[targetOffset] = source[sourceOffset] ?? 0;
-      matted.data[targetOffset + 1] = source[sourceOffset + 1] ?? 0;
-      matted.data[targetOffset + 2] = source[sourceOffset + 2] ?? 0;
+      matted.data[targetOffset] = red;
+      matted.data[targetOffset + 1] = green;
+      matted.data[targetOffset + 2] = blue;
       matted.data[targetOffset + 3] = alphaByte;
       mask.data[targetOffset] = alphaByte;
       mask.data[targetOffset + 1] = alphaByte;
@@ -328,9 +613,10 @@ export function applyLayeredDesignSimpleSubjectMattingToRgba(
   return {
     image: matted,
     mask,
-    foregroundPixelCount: shouldUseEllipseFallback
-      ? Math.round(width * height * 0.5)
-      : refinedForegroundPixelCount,
+    foregroundPixelCount: refinedForegroundPixelCount,
+    detectedForegroundPixelCount,
+    ellipseFallbackApplied: shouldUseEllipseFallback,
+    filledHolePixelCount: refinement.filledHolePixelCount,
   };
 }
 
@@ -469,8 +755,12 @@ export function createLayeredDesignSimpleSubjectMattingProvider(
         confidence: clampConfidence(options.confidence, 0.94),
         hasAlpha: true,
         params: {
-          seed: "simple_subject_matting_color_distance_v2",
+          seed: "simple_subject_matting_color_distance_v6",
+          edgeColorSpillSuppressed: true,
+          alphaHoleFilledPixelCount: result.filledHolePixelCount,
           foregroundPixelCount: result.foregroundPixelCount,
+          detectedForegroundPixelCount: result.detectedForegroundPixelCount,
+          ellipseFallbackApplied: result.ellipseFallbackApplied,
           totalPixelCount: source.width * source.height,
         },
       };

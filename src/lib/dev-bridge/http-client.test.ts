@@ -475,6 +475,39 @@ describe("http-client", () => {
     });
   });
 
+  it("Knowledge Pack 整理命令应保留 Builder Skill 长请求窗口", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(null, { status: 200 }))
+      .mockImplementationOnce(createAbortablePendingFetch());
+    vi.stubGlobal("fetch", fetchMock);
+
+    let settled = false;
+    const invokePromise = invokeViaHttp("knowledge_compile_pack", {
+      request: {
+        workingDir: "/tmp/lime-knowledge-smoke",
+        name: "content-ops-acceptance",
+      },
+    }).then(
+      () => ({ ok: true as const }),
+      (error) => ({ ok: false as const, error }),
+    );
+    invokePromise.finally(() => {
+      settled = true;
+    });
+
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(settled).toBe(false);
+
+    await vi.advanceTimersByTimeAsync(120_000);
+    await expect(invokePromise).resolves.toMatchObject({
+      ok: false,
+      error: expect.objectContaining({
+        message: expect.stringContaining("timeout after 180000ms"),
+      }),
+    });
+  });
+
   it("语音模型下载命令应保留长下载窗口", async () => {
     const fetchMock = vi
       .fn<typeof fetch>()

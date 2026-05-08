@@ -3,6 +3,7 @@ import {
   createLayeredDesignImageRuntimeContract,
   isGptImage2Model,
   normalizeLayeredDesignImageTaskSize,
+  resolveLayeredDesignImageExecutorMode,
   resolveLayeredDesignAlphaPolicy,
 } from "./imageModelCapabilities";
 import type { LayeredDesignAssetGenerationRequest } from "./generation";
@@ -32,6 +33,27 @@ describe("layered-design image model capabilities", () => {
     expect(isGptImage2Model("gpt-images-2")).toBe(true);
     expect(isGptImage2Model("openai/gpt-images-2")).toBe(true);
     expect(isGptImage2Model("gpt-image-1")).toBe(false);
+  });
+
+  it("应为 GPT Image 2 / Responses Provider 选择 Responses image_generation 执行器", () => {
+    expect(
+      resolveLayeredDesignImageExecutorMode({
+        providerId: "openai",
+        model: "gpt-images-2",
+      }),
+    ).toBe("responses_image_generation");
+    expect(
+      resolveLayeredDesignImageExecutorMode({
+        providerId: "openai-response",
+        model: "custom-image-model",
+      }),
+    ).toBe("responses_image_generation");
+    expect(
+      resolveLayeredDesignImageExecutorMode({
+        providerId: "openai",
+        model: "dall-e-3",
+      }),
+    ).toBe("images_api");
   });
 
   it("应按 gpt-image-2 约束把图层尺寸归一到 16 倍数与合法像素范围", () => {

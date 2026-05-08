@@ -1,0 +1,196 @@
+{
+  "schemaVersion": "layered-design-model-slot-benchmark@1",
+  "createdAt": "2026-05-08T03:25:57.778Z",
+  "endpointUrl": "http://127.0.0.1:52081/model-slot",
+  "benchmark": {
+    "mode": "sample_manifest",
+    "sampleManifestPath": "/Users/coso/Documents/dev/ai/aiclientproxy/lime/docs/roadmap/ai-layered-design/evidence/real-samples.json",
+    "checkedSamples": [
+      "real-poster-multi-subject-001",
+      "real-poster-transparent-object-002",
+      "real-poster-art-text-logo-003",
+      "real-poster-dark-neon-004",
+      "real-poster-dense-product-card-005"
+    ],
+    "checkedKinds": [
+      "subject_matting",
+      "clean_plate",
+      "text_ocr"
+    ],
+    "checkedRequestCount": 15,
+    "results": [
+      {
+        "sampleId": "real-poster-multi-subject-001",
+        "kind": "subject_matting",
+        "slotId": "real-poster-multi-subject-001-subject_matting-slot",
+        "modelId": "benchmark-subject_matting-v1",
+        "validation": {
+          "status": "satisfied",
+          "missingResultFields": [],
+          "missingParamKeys": []
+        }
+      },
+      {
+        "sampleId": "real-poster-multi-subject-001",
+        "kind": "clean_plate",
+        "slotId": "real-poster-multi-subject-001-clean_plate-slot",
+        "modelId": "benchmark-clean_plate-v1",
+        "validation": {
+          "status": "satisfied",
+          "missingResultFields": [],
+          "missingParamKeys": []
+        }
+      },
+      {
+        "sampleId": "real-poster-multi-subject-001",
+        "kind": "text_ocr",
+        "slotId": "real-poster-multi-subject-001-text_ocr-slot",
+        "modelId": "benchmark-text_ocr-v1",
+        "validation": {
+          "status": "satisfied",
+          "missingResultFields": [],
+          "missingParamKeys": []
+        }
+      },
+      {
+        "sampleId": "real-poster-transparent-object-002",
+        "kind": "subject_matting",
+        "slotId": "real-poster-transparent-object-002-subject_matting-slot",
+        "modelId": "benchmark-subject_matting-v1",
+        "validation": {
+          "status": "satisfied",
+          "missingResultFields": [],
+          "missingParamKeys": []
+        }
+      },
+      {
+        "sampleId": "real-poster-transparent-object-002",
+        "kind": "clean_plate",
+        "slotId": "real-poster-transparent-object-002-clean_plate-slot",
+        "modelId": "benchmark-clean_plate-v1",
+        "validation": {
+          "status": "satisfied",
+          "missingResultFields": [],
+          "missingParamKeys": []
+        }
+      },
+      {
+        "sampleId": "real-poster-transparent-object-002",
+        "kind": "text_ocr",
+        "slotId": "real-poster-transparent-object-002-text_ocr-slot",
+        "modelId": "benchmark-text_ocr-v1",
+        "validation": {
+          "status": "satisfied",
+          "missingResultFields": [],
+          "missingParamKeys": []
+        }
+      },
+      {
+        "sampleId": "real-poster-art-text-logo-003",
+        "kind": "subject_matting",
+        "slotId": "real-poster-art-text-logo-003-subject_matting-slot",
+        "modelId": "benchmark-subject_matting-v1",
+        "validation": {
+          "status": "satisfied",
+          "missingResultFields": [],
+          "missingParamKeys": []
+        }
+      },
+      {
+        "sampleId": "real-poster-art-text-logo-003",
+        "kind": "clean_plate",
+        "slotId": "real-poster-art-text-logo-003-clean_plate-slot",
+        "modelId": "benchmark-clean_plate-v1",
+        "validation": {
+          "status": "satisfied",
+          "missingResultFields": [],
+          "missingParamKeys": []
+        }
+      },
+      {
+        "sampleId": "real-poster-art-text-logo-003",
+        "kind": "text_ocr",
+        "slotId": "real-poster-art-text-logo-003-text_ocr-slot",
+        "modelId": "benchmark-text_ocr-v1",
+        "validation": {
+          "status": "satisfied",
+          "missingResultFields": [],
+          "missingParamKeys": []
+        }
+      },
+      {
+        "sampleId": "real-poster-dark-neon-004",
+        "kind": "subject_matting",
+        "slotId": "real-poster-dark-neon-004-subject_matting-slot",
+        "modelId": "benchmark-subject_matting-v1",
+        "validation": {
+          "status": "satisfied",
+          "missingResultFields": [],
+          "missingParamKeys": []
+        }
+      },
+      {
+        "sampleId": "real-poster-dark-neon-004",
+        "kind": "clean_plate",
+        "slotId": "real-poster-dark-neon-004-clean_plate-slot",
+        "modelId": "benchmark-clean_plate-v1",
+        "validation": {
+          "status": "satisfied",
+          "missingResultFields": [],
+          "missingParamKeys": []
+        }
+      },
+      {
+        "sampleId": "real-poster-dark-neon-004",
+        "kind": "text_ocr",
+        "slotId": "real-poster-dark-neon-004-text_ocr-slot",
+        "modelId": "benchmark-text_ocr-v1",
+        "validation": {
+          "status": "satisfied",
+          "missingResultFields": [],
+          "missingParamKeys": []
+        }
+      },
+      {
+        "sampleId": "real-poster-dense-product-card-005",
+        "kind": "subject_matting",
+        "slotId": "real-poster-dense-product-card-005-subject_matting-slot",
+        "modelId": "benchmark-subject_matting-v1",
+        "validation": {
+          "status": "satisfied",
+          "missingResultFields": [],
+          "missingParamKeys": []
+        }
+      },
+      {
+        "sampleId": "real-poster-dense-product-card-005",
+        "kind": "clean_plate",
+        "slotId": "real-poster-dense-product-card-005-clean_plate-slot",
+        "modelId": "benchmark-clean_plate-v1",
+        "validation": {
+          "status": "satisfied",
+          "missingResultFields": [],
+          "missingParamKeys": []
+        }
+      },
+      {
+        "sampleId": "real-poster-dense-product-card-005",
+        "kind": "text_ocr",
+        "slotId": "real-poster-dense-product-card-005-text_ocr-slot",
+        "modelId": "benchmark-text_ocr-v1",
+        "validation": {
+          "status": "satisfied",
+          "missingResultFields": [],
+          "missingParamKeys": []
+        }
+      }
+    ]
+  },
+  "completionGate": {
+    "status": "sample_manifest_completed",
+    "missing": [
+      "human_review_or_complex_sample_quality_evidence",
+      "export_manifest_evidence_attachment"
+    ]
+  }
+}

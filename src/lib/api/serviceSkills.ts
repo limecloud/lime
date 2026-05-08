@@ -639,7 +639,7 @@ function isServiceSkillBundleStandardCompliance(
   );
 }
 
-function isServiceSkillBundleSummary(
+export function isServiceSkillBundleSummary(
   value: unknown,
 ): value is ServiceSkillBundleSummary {
   if (!value || typeof value !== "object") {

@@ -1,0 +1,1712 @@
+{
+  "summary": {
+    "knowledge": 75,
+    "nonKnowledge": 30,
+    "mixed": 0,
+    "unknown": 0
+  },
+  "entries": [
+    {
+      "status": "M ",
+      "path": ".gitignore",
+      "paths": [
+        ".gitignore"
+      ],
+      "category": "knowledge"
+    },
+    {
+      "status": " M",
+      "path": "README.md",
+      "paths": [
+        "README.md"
+      ],
+      "category": "knowledge"
+    },
+    {
+      "status": " M",
+      "path": "RELEASE_NOTES.md",
+      "paths": [
+        "RELEASE_NOTES.md"
+      ],
+      "category": "knowledge"
+    },
+    {
+      "status": " M",
+      "path": "docs/README.md",
+      "paths": [
+        "docs/README.md"
+      ],
+      "category": "knowledge"
+    },
+    {
+      "status": " M",
+      "path": "docs/aiprompts/commands.md",
+      "paths": [
+        "docs/aiprompts/commands.md"
+      ],
+      "category": "nonKnowledge"
+    },
+    {
+      "status": " M",
+      "path": "docs/roadmap/ai-layered-design/README.md",
+      "paths": [
+        "docs/roadmap/ai-layered-design/README.md"
+      ],
+      "category": "nonKnowledge"
+    },
+    {
+      "status": " M",
+      "path": "docs/roadmap/knowledge/prd-v2-diagrams.md",
+      "paths": [
+        "docs/roadmap/knowledge/prd-v2-diagrams.md"
+      ],
+      "category": "knowledge"
+    },
+    {
+      "status": "MM",
+      "path": "docs/roadmap/knowledge/prd-v2.md",
+      "paths": [
+        "docs/roadmap/knowledge/prd-v2.md"
+      ],
+      "category": "knowledge"
+    },
+    {
+      "status": "M ",
+      "path": "docs/roadmap/knowledge/prd.md",
+      "paths": [
+        "docs/roadmap/knowledge/prd.md"
+      ],
+      "category": "knowledge"
+    },
+    {
+      "status": " M",
+      "path": "package.json",
+      "paths": [
+        "package.json"
+      ],
+      "category": "knowledge"
+    },
+    {
+      "status": " M",
+      "path": "scripts/design-canvas-smoke.mjs",
+      "paths": [
+        "scripts/design-canvas-smoke.mjs"
+      ],
+      "category": "nonKnowledge"
+    },
+    {
+      "status": " M",
+      "path": "scripts/knowledge-gui-smoke.mjs",
+      "paths": [
+        "scripts/knowledge-gui-smoke.mjs"
+      ],
+      "category": "knowledge"
+    },
+    {
+      "status": "MM",
+      "path": "src-tauri/crates/core/src/models/mod.rs",
+      "paths": [
+        "src-tauri/crates/core/src/models/mod.rs"
+      ],
+      "category": "knowledge"
+    },
+    {
+      "status": "MM",
+      "path": "src-tauri/crates/core/src/models/skill_model.rs",
+      "paths": [
+        "src-tauri/crates/core/src/models/skill_model.rs"
+      ],
+      "category": "knowledge"
+    },
+    {
+      "status": " M",
+      "path": "src-tauri/crates/knowledge/src/lib.rs",
+      "paths": [
+        "src-tauri/crates/knowledge/src/lib.rs"
+      ],
+      "category": "knowledge"
+    },
+    {
+      "status": " M",
+      "path": "src-tauri/resources/default-skills/knowledge_builder/SKILL.md",
+      "paths": [
+        "src-tauri/resources/default-skills/knowledge_builder/SKILL.md"
+      ],
+      "category": "knowledge"
+    },
+    {
+      "status": "R ",
+      "path": "docs/knowledge/skills/personal-ip-knowledge-builder/SKILL.md -> src-tauri/resources/default-skills/personal-ip-knowledge-builder/SKILL.md",
+      "paths": [
+        "docs/knowledge/skills/personal-ip-knowledge-builder/SKILL.md",
+        "src-tauri/resources/default-skills/personal-ip-knowledge-builder/SKILL.md"
+      ],
+      "category": "knowledge"
+    },
+    {
+      "status": "RM",
+      "path": "docs/knowledge/skills/personal-ip-knowledge-builder/agents/openai.yaml -> src-tauri/resources/default-skills/personal-ip-knowledge-builder/agents/openai.yaml",
+      "paths": [
+        "docs/knowledge/skills/personal-ip-knowledge-builder/agents/openai.yaml",
+        "src-tauri/resources/default-skills/personal-ip-knowledge-builder/agents/openai.yaml"
+      ],
+      "category": "knowledge"
+    },
+    {
+      "status": "R ",
+      "path": "docs/knowledge/skills/personal-ip-knowledge-builder/assets/personal-ip-knowledge-skeleton.md -> src-tauri/resources/default-skills/personal-ip-knowledge-builder/assets/personal-ip-knowledge-skeleton.md",
+      "paths": [
+        "docs/knowledge/skills/personal-ip-knowledge-builder/assets/personal-ip-knowledge-skeleton.md",
+        "src-tauri/resources/default-skills/personal-ip-knowledge-builder/assets/personal-ip-knowledge-skeleton.md"
+      ],
+      "category": "knowledge"
+    },
+    {
+      "status": "R ",
+      "path": "docs/knowledge/skills/personal-ip-knowledge-builder/references/interview-questions.md -> src-tauri/resources/default-skills/personal-ip-knowledge-builder/references/interview-questions.md",
+      "paths": [
+        "docs/knowledge/skills/personal-ip-knowledge-builder/references/interview-questions.md",
+        "src-tauri/resources/default-skills/personal-ip-knowledge-builder/references/interview-questions.md"
+      ],
+      "category": "knowledge"
+    },
+    {
+      "status": "RM",
+      "path": "docs/knowledge/skills/personal-ip-knowledge-builder/references/personal-ip-template.md -> src-tauri/resources/default-skills/personal-ip-knowledge-builder/references/personal-ip-template.md",
+      "paths": [
+        "docs/knowledge/skills/personal-ip-knowledge-builder/references/personal-ip-template.md",
+        "src-tauri/resources/default-skills/personal-ip-knowledge-builder/references/personal-ip-template.md"
+      ],
+      "category": "knowledge"
+    },
+    {
+      "status": "R ",
+      "path": "docs/knowledge/skills/personal-ip-knowledge-builder/references/quality-checklist.md -> src-tauri/resources/default-skills/personal-ip-knowledge-builder/references/quality-checklist.md",
+      "paths": [
+        "docs/knowledge/skills/personal-ip-knowledge-builder/references/quality-checklist.md",
+        "src-tauri/resources/default-skills/personal-ip-knowledge-builder/references/quality-checklist.md"
+      ],
+      "category": "knowledge"
+    },
+    {
+      "status": "R ",
+      "path": "docs/knowledge/skills/personal-ip-knowledge-builder/scripts/docx_to_markdown.py -> src-tauri/resources/default-skills/personal-ip-knowledge-builder/scripts/docx_to_markdown.py",
+      "paths": [
+        "docs/knowledge/skills/personal-ip-knowledge-builder/scripts/docx_to_markdown.py",
+        "src-tauri/resources/default-skills/personal-ip-knowledge-builder/scripts/docx_to_markdown.py"
+      ],
+      "category": "knowledge"
+    },
+    {
+      "status": " M",
+      "path": "src-tauri/src/commands/aster_agent_cmd/runtime_turn.rs",
+      "paths": [
+        "src-tauri/src/commands/aster_agent_cmd/runtime_turn.rs"
+      ],
+      "category": "knowledge"
+    },
+    {
+      "status": " M",
+      "path": "src-tauri/src/commands/knowledge_cmd.rs",
+      "paths": [
+        "src-tauri/src/commands/knowledge_cmd.rs"
+      ],
+      "category": "knowledge"
+    },
+    {
+      "status": " M",
+      "path": "src-tauri/src/commands/layered_design_cmd.rs",
+      "paths": [
+        "src-tauri/src/commands/layered_design_cmd.rs"
+      ],
+      "category": "nonKnowledge"
+    },
+    {
+      "status": " M",
+      "path": "src-tauri/src/dev_bridge/dispatcher.rs",
+      "paths": [
+        "src-tauri/src/dev_bridge/dispatcher.rs"
+      ],
+      "category": "knowledge"
+    },
+    {
+      "status": " M",
+      "path": "src-tauri/src/dev_bridge/dispatcher/files.rs",
+      "paths": [
+        "src-tauri/src/dev_bridge/dispatcher/files.rs"
+      ],
+      "category": "knowledge"
+    },
+    {
+      "status": " M",
+      "path": "src-tauri/src/dev_bridge/dispatcher/knowledge.rs",
+      "paths": [
+        "src-tauri/src/dev_bridge/dispatcher/knowledge.rs"
+      ],
+      "category": "knowledge"
+    },
+    {
+      "status": "MM",
+      "path": "src-tauri/src/skills/default_skills.rs",
+      "paths": [
+        "src-tauri/src/skills/default_skills.rs"
+      ],
+      "category": "knowledge"
+    },
+    {
+      "status": " M",
+      "path": "src/components/agent/chat/AgentChatWorkspace.tsx",
+      "paths": [
+        "src/components/agent/chat/AgentChatWorkspace.tsx"
+      ],
+      "category": "knowledge"
+    },
+    {
+      "status": " M",
+      "path": "src/components/agent/chat/components/EmptyState.tsx",
+      "paths": [
+        "src/components/agent/chat/components/EmptyState.tsx"
+      ],
+      "category": "knowledge"
+    },
+    {
+      "status": " M",
+      "path": "src/components/agent/chat/components/EmptyStateComposerPanel.tsx",
+      "paths": [
+        "src/components/agent/chat/components/EmptyStateComposerPanel.tsx"
+      ],
+      "category": "knowledge"
+    },
+    {
+      "status": " M",
+      "path": "src/components/agent/chat/components/FileManager/FileManagerSidebar.test.tsx",
+      "paths": [
+        "src/components/agent/chat/components/FileManager/FileManagerSidebar.test.tsx"
+      ],
+      "category": "knowledge"
+    },
+    {
+      "status": " M",
+      "path": "src/components/agent/chat/components/FileManager/FileManagerSidebar.tsx",
+      "paths": [
+        "src/components/agent/chat/components/FileManager/FileManagerSidebar.tsx"
+      ],
+      "category": "knowledge"
+    },
+    {
+      "status": " M",
+      "path": "src/components/agent/chat/components/Inputbar/components/InputbarComposerSection.tsx",
+      "paths": [
+        "src/components/agent/chat/components/Inputbar/components/InputbarComposerSection.tsx"
+      ],
+      "category": "knowledge"
+    },
+    {
+      "status": " M",
+      "path": "src/components/agent/chat/components/Inputbar/hooks/useInputbarSend.ts",
+      "paths": [
+        "src/components/agent/chat/components/Inputbar/hooks/useInputbarSend.ts"
+      ],
+      "category": "knowledge"
+    },
+    {
+      "status": " M",
+      "path": "src/components/agent/chat/components/Inputbar/index.test.tsx",
+      "paths": [
+        "src/components/agent/chat/components/Inputbar/index.test.tsx"
+      ],
+      "category": "knowledge"
+    },
+    {
+      "status": " M",
+      "path": "src/components/agent/chat/components/Inputbar/index.tsx",
+      "paths": [
+        "src/components/agent/chat/components/Inputbar/index.tsx"
+      ],
+      "category": "knowledge"
+    },
+    {
+      "status": " M",
+      "path": "src/components/agent/chat/components/Inputbar/knowledge/InputbarKnowledgeControl.tsx",
+      "paths": [
+        "src/components/agent/chat/components/Inputbar/knowledge/InputbarKnowledgeControl.tsx"
+      ],
+      "category": "knowledge"
+    },
+    {
+      "status": " M",
+      "path": "src/components/agent/chat/components/Inputbar/types.ts",
+      "paths": [
+        "src/components/agent/chat/components/Inputbar/types.ts"
+      ],
+      "category": "knowledge"
+    },
+    {
+      "status": " M",
+      "path": "src/components/agent/chat/workspace/WorkspaceConversationScene.tsx",
+      "paths": [
+        "src/components/agent/chat/workspace/WorkspaceConversationScene.tsx"
+      ],
+      "category": "knowledge"
+    },
+    {
+      "status": " M",
+      "path": "src/components/agent/chat/workspace/chatSurfaceProps.ts",
+      "paths": [
+        "src/components/agent/chat/workspace/chatSurfaceProps.ts"
+      ],
+      "category": "knowledge"
+    },
+    {
+      "status": " M",
+      "path": "src/components/agent/chat/workspace/knowledge/useWorkspaceKnowledgeRuntime.ts",
+      "paths": [
+        "src/components/agent/chat/workspace/knowledge/useWorkspaceKnowledgeRuntime.ts"
+      ],
+      "category": "knowledge"
+    },
+    {
+      "status": " M",
+      "path": "src/components/agent/chat/workspace/useWorkspaceConversationSceneRuntime.tsx",
+      "paths": [
+        "src/components/agent/chat/workspace/useWorkspaceConversationSceneRuntime.tsx"
+      ],
+      "category": "knowledge"
+    },
+    {
+      "status": " M",
+      "path": "src/components/agent/chat/workspace/useWorkspaceInputbarSceneRuntime.tsx",
+      "paths": [
+        "src/components/agent/chat/workspace/useWorkspaceInputbarSceneRuntime.tsx"
+      ],
+      "category": "knowledge"
+    },
+    {
+      "status": " M",
+      "path": "src/components/workspace/design/DesignCanvas.test.tsx",
+      "paths": [
+        "src/components/workspace/design/DesignCanvas.test.tsx"
+      ],
+      "category": "nonKnowledge"
+    },
+    {
+      "status": " M",
+      "path": "src/components/workspace/design/DesignCanvas.tsx",
+      "paths": [
+        "src/components/workspace/design/DesignCanvas.tsx"
+      ],
+      "category": "nonKnowledge"
+    },
+    {
+      "status": " M",
+      "path": "src/features/knowledge/KnowledgePage.test.tsx",
+      "paths": [
+        "src/features/knowledge/KnowledgePage.test.tsx"
+      ],
+      "category": "knowledge"
+    },
+    {
+      "status": " M",
+      "path": "src/features/knowledge/KnowledgePage.tsx",
+      "paths": [
+        "src/features/knowledge/KnowledgePage.tsx"
+      ],
+      "category": "knowledge"
+    },
+    {
+      "status": " M",
+      "path": "src/features/knowledge/agent/knowledgeMetadata.ts",
+      "paths": [
+        "src/features/knowledge/agent/knowledgeMetadata.ts"
+      ],
+      "category": "knowledge"
+    },
+    {
+      "status": " M",
+      "path": "src/features/knowledge/agent/knowledgePromptBuilder.ts",
+      "paths": [
+        "src/features/knowledge/agent/knowledgePromptBuilder.ts"
+      ],
+      "category": "knowledge"
+    },
+    {
+      "status": " M",
+      "path": "src/features/knowledge/components/KnowledgePackCard.tsx",
+      "paths": [
+        "src/features/knowledge/components/KnowledgePackCard.tsx"
+      ],
+      "category": "knowledge"
+    },
+    {
+      "status": " M",
+      "path": "src/features/knowledge/domain/knowledgeLabels.ts",
+      "paths": [
+        "src/features/knowledge/domain/knowledgeLabels.ts"
+      ],
+      "category": "knowledge"
+    },
+    {
+      "status": " M",
+      "path": "src/features/knowledge/import/knowledgeSourceImport.test.ts",
+      "paths": [
+        "src/features/knowledge/import/knowledgeSourceImport.test.ts"
+      ],
+      "category": "knowledge"
+    },
+    {
+      "status": " M",
+      "path": "src/features/knowledge/import/knowledgeSourceImport.ts",
+      "paths": [
+        "src/features/knowledge/import/knowledgeSourceImport.ts"
+      ],
+      "category": "knowledge"
+    },
+    {
+      "status": " M",
+      "path": "src/lib/api/knowledge.ts",
+      "paths": [
+        "src/lib/api/knowledge.ts"
+      ],
+      "category": "knowledge"
+    },
+    {
+      "status": " M",
+      "path": "src/lib/api/layeredDesignProject.ts",
+      "paths": [
+        "src/lib/api/layeredDesignProject.ts"
+      ],
+      "category": "nonKnowledge"
+    },
+    {
+      "status": " M",
+      "path": "src/lib/api/serviceSkills.ts",
+      "paths": [
+        "src/lib/api/serviceSkills.ts"
+      ],
+      "category": "knowledge"
+    },
+    {
+      "status": "MM",
+      "path": "src/lib/api/skillCatalog.test.ts",
+      "paths": [
+        "src/lib/api/skillCatalog.test.ts"
+      ],
+      "category": "knowledge"
+    },
+    {
+      "status": " M",
+      "path": "src/lib/api/skillCatalog.ts",
+      "paths": [
+        "src/lib/api/skillCatalog.ts"
+      ],
+      "category": "knowledge"
+    },
+    {
+      "status": "MM",
+      "path": "src/lib/base-setup/seededServiceSkillPackage.test.ts",
+      "paths": [
+        "src/lib/base-setup/seededServiceSkillPackage.test.ts"
+      ],
+      "category": "knowledge"
+    },
+    {
+      "status": "MM",
+      "path": "src/lib/base-setup/seededServiceSkillPackage.ts",
+      "paths": [
+        "src/lib/base-setup/seededServiceSkillPackage.ts"
+      ],
+      "category": "knowledge"
+    },
+    {
+      "status": " M",
+      "path": "src/lib/dev-bridge/mockPriorityCommands.test.ts",
+      "paths": [
+        "src/lib/dev-bridge/mockPriorityCommands.test.ts"
+      ],
+      "category": "knowledge"
+    },
+    {
+      "status": " M",
+      "path": "src/lib/dev-bridge/mockPriorityCommands.ts",
+      "paths": [
+        "src/lib/dev-bridge/mockPriorityCommands.ts"
+      ],
+      "category": "knowledge"
+    },
+    {
+      "status": " M",
+      "path": "src/lib/layered-design/analyzer.test.ts",
+      "paths": [
+        "src/lib/layered-design/analyzer.test.ts"
+      ],
+      "category": "nonKnowledge"
+    },
+    {
+      "status": " M",
+      "path": "src/lib/layered-design/analyzerModelSlotTransport.test.ts",
+      "paths": [
+        "src/lib/layered-design/analyzerModelSlotTransport.test.ts"
+      ],
+      "category": "nonKnowledge"
+    },
+    {
+      "status": " M",
+      "path": "src/lib/layered-design/analyzerModelSlotTransport.ts",
+      "paths": [
+        "src/lib/layered-design/analyzerModelSlotTransport.ts"
+      ],
+      "category": "nonKnowledge"
+    },
+    {
+      "status": " M",
+      "path": "src/lib/layered-design/cleanPlate.test.ts",
+      "paths": [
+        "src/lib/layered-design/cleanPlate.test.ts"
+      ],
+      "category": "nonKnowledge"
+    },
+    {
+      "status": " M",
+      "path": "src/lib/layered-design/cleanPlate.ts",
+      "paths": [
+        "src/lib/layered-design/cleanPlate.ts"
+      ],
+      "category": "nonKnowledge"
+    },
+    {
+      "status": " M",
+      "path": "src/lib/layered-design/document.ts",
+      "paths": [
+        "src/lib/layered-design/document.ts"
+      ],
+      "category": "nonKnowledge"
+    },
+    {
+      "status": " M",
+      "path": "src/lib/layered-design/export.test.ts",
+      "paths": [
+        "src/lib/layered-design/export.test.ts"
+      ],
+      "category": "nonKnowledge"
+    },
+    {
+      "status": " M",
+      "path": "src/lib/layered-design/export.ts",
+      "paths": [
+        "src/lib/layered-design/export.ts"
+      ],
+      "category": "nonKnowledge"
+    },
+    {
+      "status": " M",
+      "path": "src/lib/layered-design/extractionQuality.test.ts",
+      "paths": [
+        "src/lib/layered-design/extractionQuality.test.ts"
+      ],
+      "category": "nonKnowledge"
+    },
+    {
+      "status": " M",
+      "path": "src/lib/layered-design/extractionQuality.ts",
+      "paths": [
+        "src/lib/layered-design/extractionQuality.ts"
+      ],
+      "category": "nonKnowledge"
+    },
+    {
+      "status": " M",
+      "path": "src/lib/layered-design/index.ts",
+      "paths": [
+        "src/lib/layered-design/index.ts"
+      ],
+      "category": "nonKnowledge"
+    },
+    {
+      "status": " M",
+      "path": "src/lib/layered-design/structuredAnalyzerWorkerHeuristic.test.ts",
+      "paths": [
+        "src/lib/layered-design/structuredAnalyzerWorkerHeuristic.test.ts"
+      ],
+      "category": "nonKnowledge"
+    },
+    {
+      "status": " M",
+      "path": "src/lib/layered-design/structuredAnalyzerWorkerHeuristic.ts",
+      "paths": [
+        "src/lib/layered-design/structuredAnalyzerWorkerHeuristic.ts"
+      ],
+      "category": "nonKnowledge"
+    },
+    {
+      "status": "MM",
+      "path": "src/lib/layered-design/subjectMatting.test.ts",
+      "paths": [
+        "src/lib/layered-design/subjectMatting.test.ts"
+      ],
+      "category": "nonKnowledge"
+    },
+    {
+      "status": "MM",
+      "path": "src/lib/layered-design/subjectMatting.ts",
+      "paths": [
+        "src/lib/layered-design/subjectMatting.ts"
+      ],
+      "category": "nonKnowledge"
+    },
+    {
+      "status": " M",
+      "path": "src/lib/layered-design/types.ts",
+      "paths": [
+        "src/lib/layered-design/types.ts"
+      ],
+      "category": "nonKnowledge"
+    },
+    {
+      "status": " M",
+      "path": "src/lib/tauri-mock/core.test.ts",
+      "paths": [
+        "src/lib/tauri-mock/core.test.ts"
+      ],
+      "category": "knowledge"
+    },
+    {
+      "status": " M",
+      "path": "src/lib/tauri-mock/core.ts",
+      "paths": [
+        "src/lib/tauri-mock/core.ts"
+      ],
+      "category": "knowledge"
+    },
+    {
+      "status": " M",
+      "path": "src/pages/design-canvas-smoke.tsx",
+      "paths": [
+        "src/pages/design-canvas-smoke.tsx"
+      ],
+      "category": "nonKnowledge"
+    },
+    {
+      "status": " M",
+      "path": "src/types/page.ts",
+      "paths": [
+        "src/types/page.ts"
+      ],
+      "category": "knowledge"
+    },
+    {
+      "status": "??",
+      "path": "docs/roadmap/ai-layered-design/model-slot-http-json-executor-contract.md",
+      "paths": [
+        "docs/roadmap/ai-layered-design/model-slot-http-json-executor-contract.md"
+      ],
+      "category": "nonKnowledge"
+    },
+    {
+      "status": "??",
+      "path": "docs/roadmap/knowledge/completion-audit-20260508.md",
+      "paths": [
+        "docs/roadmap/knowledge/completion-audit-20260508.md"
+      ],
+      "category": "knowledge"
+    },
+    {
+      "status": "??",
+      "path": "docs/roadmap/knowledge/evidence/",
+      "paths": [
+        "docs/roadmap/knowledge/evidence/"
+      ],
+      "category": "knowledge"
+    },
+    {
+      "status": "??",
+      "path": "scripts/benchmark-layered-design-model-slot-http-json-executor.mjs",
+      "paths": [
+        "scripts/benchmark-layered-design-model-slot-http-json-executor.mjs"
+      ],
+      "category": "nonKnowledge"
+    },
+    {
+      "status": "??",
+      "path": "scripts/knowledge-legacy-fallback-report.mjs",
+      "paths": [
+        "scripts/knowledge-legacy-fallback-report.mjs"
+      ],
+      "category": "knowledge"
+    },
+    {
+      "status": "??",
+      "path": "scripts/knowledge-provider-e2e.mjs",
+      "paths": [
+        "scripts/knowledge-provider-e2e.mjs"
+      ],
+      "category": "knowledge"
+    },
+    {
+      "status": "??",
+      "path": "scripts/knowledge-release-scope-report.mjs",
+      "paths": [
+        "scripts/knowledge-release-scope-report.mjs"
+      ],
+      "category": "knowledge"
+    },
+    {
+      "status": "??",
+      "path": "scripts/layered-design-model-slot-http-json-fixture.mjs",
+      "paths": [
+        "scripts/layered-design-model-slot-http-json-fixture.mjs"
+      ],
+      "category": "nonKnowledge"
+    },
+    {
+      "status": "??",
+      "path": "scripts/verify-layered-design-model-slot-http-json-executor.mjs",
+      "paths": [
+        "scripts/verify-layered-design-model-slot-http-json-executor.mjs"
+      ],
+      "category": "nonKnowledge"
+    },
+    {
+      "status": "??",
+      "path": "src-tauri/resources/default-skills/brand-persona-knowledge-builder/",
+      "paths": [
+        "src-tauri/resources/default-skills/brand-persona-knowledge-builder/"
+      ],
+      "category": "knowledge"
+    },
+    {
+      "status": "??",
+      "path": "src-tauri/resources/default-skills/brand-product-knowledge-builder/",
+      "paths": [
+        "src-tauri/resources/default-skills/brand-product-knowledge-builder/"
+      ],
+      "category": "knowledge"
+    },
+    {
+      "status": "??",
+      "path": "src-tauri/resources/default-skills/campaign-operations-knowledge-builder/",
+      "paths": [
+        "src-tauri/resources/default-skills/campaign-operations-knowledge-builder/"
+      ],
+      "category": "knowledge"
+    },
+    {
+      "status": "??",
+      "path": "src-tauri/resources/default-skills/content-operations-knowledge-builder/",
+      "paths": [
+        "src-tauri/resources/default-skills/content-operations-knowledge-builder/"
+      ],
+      "category": "knowledge"
+    },
+    {
+      "status": "??",
+      "path": "src-tauri/resources/default-skills/growth-strategy-knowledge-builder/",
+      "paths": [
+        "src-tauri/resources/default-skills/growth-strategy-knowledge-builder/"
+      ],
+      "category": "knowledge"
+    },
+    {
+      "status": "??",
+      "path": "src-tauri/resources/default-skills/live-commerce-operations-knowledge-builder/",
+      "paths": [
+        "src-tauri/resources/default-skills/live-commerce-operations-knowledge-builder/"
+      ],
+      "category": "knowledge"
+    },
+    {
+      "status": "??",
+      "path": "src-tauri/resources/default-skills/organization-knowhow-knowledge-builder/",
+      "paths": [
+        "src-tauri/resources/default-skills/organization-knowhow-knowledge-builder/"
+      ],
+      "category": "knowledge"
+    },
+    {
+      "status": "??",
+      "path": "src-tauri/resources/default-skills/private-domain-operations-knowledge-builder/",
+      "paths": [
+        "src-tauri/resources/default-skills/private-domain-operations-knowledge-builder/"
+      ],
+      "category": "knowledge"
+    },
+    {
+      "status": "??",
+      "path": "src/features/knowledge/agent/knowledgeMetadata.test.ts",
+      "paths": [
+        "src/features/knowledge/agent/knowledgeMetadata.test.ts"
+      ],
+      "category": "knowledge"
+    },
+    {
+      "status": "??",
+      "path": "src/lib/layered-design/analyzerModelSlotJsonExecutorClient.test.ts",
+      "paths": [
+        "src/lib/layered-design/analyzerModelSlotJsonExecutorClient.test.ts"
+      ],
+      "category": "nonKnowledge"
+    },
+    {
+      "status": "??",
+      "path": "src/lib/layered-design/analyzerModelSlotJsonExecutorClient.ts",
+      "paths": [
+        "src/lib/layered-design/analyzerModelSlotJsonExecutorClient.ts"
+      ],
+      "category": "nonKnowledge"
+    }
+  ],
+  "byCategory": {
+    "knowledge": [
+      {
+        "status": "M ",
+        "path": ".gitignore",
+        "paths": [
+          ".gitignore"
+        ],
+        "category": "knowledge"
+      },
+      {
+        "status": " M",
+        "path": "README.md",
+        "paths": [
+          "README.md"
+        ],
+        "category": "knowledge"
+      },
+      {
+        "status": " M",
+        "path": "RELEASE_NOTES.md",
+        "paths": [
+          "RELEASE_NOTES.md"
+        ],
+        "category": "knowledge"
+      },
+      {
+        "status": " M",
+        "path": "docs/README.md",
+        "paths": [
+          "docs/README.md"
+        ],
+        "category": "knowledge"
+      },
+      {
+        "status": " M",
+        "path": "docs/roadmap/knowledge/prd-v2-diagrams.md",
+        "paths": [
+          "docs/roadmap/knowledge/prd-v2-diagrams.md"
+        ],
+        "category": "knowledge"
+      },
+      {
+        "status": "MM",
+        "path": "docs/roadmap/knowledge/prd-v2.md",
+        "paths": [
+          "docs/roadmap/knowledge/prd-v2.md"
+        ],
+        "category": "knowledge"
+      },
+      {
+        "status": "M ",
+        "path": "docs/roadmap/knowledge/prd.md",
+        "paths": [
+          "docs/roadmap/knowledge/prd.md"
+        ],
+        "category": "knowledge"
+      },
+      {
+        "status": " M",
+        "path": "package.json",
+        "paths": [
+          "package.json"
+        ],
+        "category": "knowledge"
+      },
+      {
+        "status": " M",
+        "path": "scripts/knowledge-gui-smoke.mjs",
+        "paths": [
+          "scripts/knowledge-gui-smoke.mjs"
+        ],
+        "category": "knowledge"
+      },
+      {
+        "status": "MM",
+        "path": "src-tauri/crates/core/src/models/mod.rs",
+        "paths": [
+          "src-tauri/crates/core/src/models/mod.rs"
+        ],
+        "category": "knowledge"
+      },
+      {
+        "status": "MM",
+        "path": "src-tauri/crates/core/src/models/skill_model.rs",
+        "paths": [
+          "src-tauri/crates/core/src/models/skill_model.rs"
+        ],
+        "category": "knowledge"
+      },
+      {
+        "status": " M",
+        "path": "src-tauri/crates/knowledge/src/lib.rs",
+        "paths": [
+          "src-tauri/crates/knowledge/src/lib.rs"
+        ],
+        "category": "knowledge"
+      },
+      {
+        "status": " M",
+        "path": "src-tauri/resources/default-skills/knowledge_builder/SKILL.md",
+        "paths": [
+          "src-tauri/resources/default-skills/knowledge_builder/SKILL.md"
+        ],
+        "category": "knowledge"
+      },
+      {
+        "status": "R ",
+        "path": "docs/knowledge/skills/personal-ip-knowledge-builder/SKILL.md -> src-tauri/resources/default-skills/personal-ip-knowledge-builder/SKILL.md",
+        "paths": [
+          "docs/knowledge/skills/personal-ip-knowledge-builder/SKILL.md",
+          "src-tauri/resources/default-skills/personal-ip-knowledge-builder/SKILL.md"
+        ],
+        "category": "knowledge"
+      },
+      {
+        "status": "RM",
+        "path": "docs/knowledge/skills/personal-ip-knowledge-builder/agents/openai.yaml -> src-tauri/resources/default-skills/personal-ip-knowledge-builder/agents/openai.yaml",
+        "paths": [
+          "docs/knowledge/skills/personal-ip-knowledge-builder/agents/openai.yaml",
+          "src-tauri/resources/default-skills/personal-ip-knowledge-builder/agents/openai.yaml"
+        ],
+        "category": "knowledge"
+      },
+      {
+        "status": "R ",
+        "path": "docs/knowledge/skills/personal-ip-knowledge-builder/assets/personal-ip-knowledge-skeleton.md -> src-tauri/resources/default-skills/personal-ip-knowledge-builder/assets/personal-ip-knowledge-skeleton.md",
+        "paths": [
+          "docs/knowledge/skills/personal-ip-knowledge-builder/assets/personal-ip-knowledge-skeleton.md",
+          "src-tauri/resources/default-skills/personal-ip-knowledge-builder/assets/personal-ip-knowledge-skeleton.md"
+        ],
+        "category": "knowledge"
+      },
+      {
+        "status": "R ",
+        "path": "docs/knowledge/skills/personal-ip-knowledge-builder/references/interview-questions.md -> src-tauri/resources/default-skills/personal-ip-knowledge-builder/references/interview-questions.md",
+        "paths": [
+          "docs/knowledge/skills/personal-ip-knowledge-builder/references/interview-questions.md",
+          "src-tauri/resources/default-skills/personal-ip-knowledge-builder/references/interview-questions.md"
+        ],
+        "category": "knowledge"
+      },
+      {
+        "status": "RM",
+        "path": "docs/knowledge/skills/personal-ip-knowledge-builder/references/personal-ip-template.md -> src-tauri/resources/default-skills/personal-ip-knowledge-builder/references/personal-ip-template.md",
+        "paths": [
+          "docs/knowledge/skills/personal-ip-knowledge-builder/references/personal-ip-template.md",
+          "src-tauri/resources/default-skills/personal-ip-knowledge-builder/references/personal-ip-template.md"
+        ],
+        "category": "knowledge"
+      },
+      {
+        "status": "R ",
+        "path": "docs/knowledge/skills/personal-ip-knowledge-builder/references/quality-checklist.md -> src-tauri/resources/default-skills/personal-ip-knowledge-builder/references/quality-checklist.md",
+        "paths": [
+          "docs/knowledge/skills/personal-ip-knowledge-builder/references/quality-checklist.md",
+          "src-tauri/resources/default-skills/personal-ip-knowledge-builder/references/quality-checklist.md"
+        ],
+        "category": "knowledge"
+      },
+      {
+        "status": "R ",
+        "path": "docs/knowledge/skills/personal-ip-knowledge-builder/scripts/docx_to_markdown.py -> src-tauri/resources/default-skills/personal-ip-knowledge-builder/scripts/docx_to_markdown.py",
+        "paths": [
+          "docs/knowledge/skills/personal-ip-knowledge-builder/scripts/docx_to_markdown.py",
+          "src-tauri/resources/default-skills/personal-ip-knowledge-builder/scripts/docx_to_markdown.py"
+        ],
+        "category": "knowledge"
+      },
+      {
+        "status": " M",
+        "path": "src-tauri/src/commands/aster_agent_cmd/runtime_turn.rs",
+        "paths": [
+          "src-tauri/src/commands/aster_agent_cmd/runtime_turn.rs"
+        ],
+        "category": "knowledge"
+      },
+      {
+        "status": " M",
+        "path": "src-tauri/src/commands/knowledge_cmd.rs",
+        "paths": [
+          "src-tauri/src/commands/knowledge_cmd.rs"
+        ],
+        "category": "knowledge"
+      },
+      {
+        "status": " M",
+        "path": "src-tauri/src/dev_bridge/dispatcher.rs",
+        "paths": [
+          "src-tauri/src/dev_bridge/dispatcher.rs"
+        ],
+        "category": "knowledge"
+      },
+      {
+        "status": " M",
+        "path": "src-tauri/src/dev_bridge/dispatcher/files.rs",
+        "paths": [
+          "src-tauri/src/dev_bridge/dispatcher/files.rs"
+        ],
+        "category": "knowledge"
+      },
+      {
+        "status": " M",
+        "path": "src-tauri/src/dev_bridge/dispatcher/knowledge.rs",
+        "paths": [
+          "src-tauri/src/dev_bridge/dispatcher/knowledge.rs"
+        ],
+        "category": "knowledge"
+      },
+      {
+        "status": "MM",
+        "path": "src-tauri/src/skills/default_skills.rs",
+        "paths": [
+          "src-tauri/src/skills/default_skills.rs"
+        ],
+        "category": "knowledge"
+      },
+      {
+        "status": " M",
+        "path": "src/components/agent/chat/AgentChatWorkspace.tsx",
+        "paths": [
+          "src/components/agent/chat/AgentChatWorkspace.tsx"
+        ],
+        "category": "knowledge"
+      },
+      {
+        "status": " M",
+        "path": "src/components/agent/chat/components/EmptyState.tsx",
+        "paths": [
+          "src/components/agent/chat/components/EmptyState.tsx"
+        ],
+        "category": "knowledge"
+      },
+      {
+        "status": " M",
+        "path": "src/components/agent/chat/components/EmptyStateComposerPanel.tsx",
+        "paths": [
+          "src/components/agent/chat/components/EmptyStateComposerPanel.tsx"
+        ],
+        "category": "knowledge"
+      },
+      {
+        "status": " M",
+        "path": "src/components/agent/chat/components/FileManager/FileManagerSidebar.test.tsx",
+        "paths": [
+          "src/components/agent/chat/components/FileManager/FileManagerSidebar.test.tsx"
+        ],
+        "category": "knowledge"
+      },
+      {
+        "status": " M",
+        "path": "src/components/agent/chat/components/FileManager/FileManagerSidebar.tsx",
+        "paths": [
+          "src/components/agent/chat/components/FileManager/FileManagerSidebar.tsx"
+        ],
+        "category": "knowledge"
+      },
+      {
+        "status": " M",
+        "path": "src/components/agent/chat/components/Inputbar/components/InputbarComposerSection.tsx",
+        "paths": [
+          "src/components/agent/chat/components/Inputbar/components/InputbarComposerSection.tsx"
+        ],
+        "category": "knowledge"
+      },
+      {
+        "status": " M",
+        "path": "src/components/agent/chat/components/Inputbar/hooks/useInputbarSend.ts",
+        "paths": [
+          "src/components/agent/chat/components/Inputbar/hooks/useInputbarSend.ts"
+        ],
+        "category": "knowledge"
+      },
+      {
+        "status": " M",
+        "path": "src/components/agent/chat/components/Inputbar/index.test.tsx",
+        "paths": [
+          "src/components/agent/chat/components/Inputbar/index.test.tsx"
+        ],
+        "category": "knowledge"
+      },
+      {
+        "status": " M",
+        "path": "src/components/agent/chat/components/Inputbar/index.tsx",
+        "paths": [
+          "src/components/agent/chat/components/Inputbar/index.tsx"
+        ],
+        "category": "knowledge"
+      },
+      {
+        "status": " M",
+        "path": "src/components/agent/chat/components/Inputbar/knowledge/InputbarKnowledgeControl.tsx",
+        "paths": [
+          "src/components/agent/chat/components/Inputbar/knowledge/InputbarKnowledgeControl.tsx"
+        ],
+        "category": "knowledge"
+      },
+      {
+        "status": " M",
+        "path": "src/components/agent/chat/components/Inputbar/types.ts",
+        "paths": [
+          "src/components/agent/chat/components/Inputbar/types.ts"
+        ],
+        "category": "knowledge"
+      },
+      {
+        "status": " M",
+        "path": "src/components/agent/chat/workspace/WorkspaceConversationScene.tsx",
+        "paths": [
+          "src/components/agent/chat/workspace/WorkspaceConversationScene.tsx"
+        ],
+        "category": "knowledge"
+      },
+      {
+        "status": " M",
+        "path": "src/components/agent/chat/workspace/chatSurfaceProps.ts",
+        "paths": [
+          "src/components/agent/chat/workspace/chatSurfaceProps.ts"
+        ],
+        "category": "knowledge"
+      },
+      {
+        "status": " M",
+        "path": "src/components/agent/chat/workspace/knowledge/useWorkspaceKnowledgeRuntime.ts",
+        "paths": [
+          "src/components/agent/chat/workspace/knowledge/useWorkspaceKnowledgeRuntime.ts"
+        ],
+        "category": "knowledge"
+      },
+      {
+        "status": " M",
+        "path": "src/components/agent/chat/workspace/useWorkspaceConversationSceneRuntime.tsx",
+        "paths": [
+          "src/components/agent/chat/workspace/useWorkspaceConversationSceneRuntime.tsx"
+        ],
+        "category": "knowledge"
+      },
+      {
+        "status": " M",
+        "path": "src/components/agent/chat/workspace/useWorkspaceInputbarSceneRuntime.tsx",
+        "paths": [
+          "src/components/agent/chat/workspace/useWorkspaceInputbarSceneRuntime.tsx"
+        ],
+        "category": "knowledge"
+      },
+      {
+        "status": " M",
+        "path": "src/features/knowledge/KnowledgePage.test.tsx",
+        "paths": [
+          "src/features/knowledge/KnowledgePage.test.tsx"
+        ],
+        "category": "knowledge"
+      },
+      {
+        "status": " M",
+        "path": "src/features/knowledge/KnowledgePage.tsx",
+        "paths": [
+          "src/features/knowledge/KnowledgePage.tsx"
+        ],
+        "category": "knowledge"
+      },
+      {
+        "status": " M",
+        "path": "src/features/knowledge/agent/knowledgeMetadata.ts",
+        "paths": [
+          "src/features/knowledge/agent/knowledgeMetadata.ts"
+        ],
+        "category": "knowledge"
+      },
+      {
+        "status": " M",
+        "path": "src/features/knowledge/agent/knowledgePromptBuilder.ts",
+        "paths": [
+          "src/features/knowledge/agent/knowledgePromptBuilder.ts"
+        ],
+        "category": "knowledge"
+      },
+      {
+        "status": " M",
+        "path": "src/features/knowledge/components/KnowledgePackCard.tsx",
+        "paths": [
+          "src/features/knowledge/components/KnowledgePackCard.tsx"
+        ],
+        "category": "knowledge"
+      },
+      {
+        "status": " M",
+        "path": "src/features/knowledge/domain/knowledgeLabels.ts",
+        "paths": [
+          "src/features/knowledge/domain/knowledgeLabels.ts"
+        ],
+        "category": "knowledge"
+      },
+      {
+        "status": " M",
+        "path": "src/features/knowledge/import/knowledgeSourceImport.test.ts",
+        "paths": [
+          "src/features/knowledge/import/knowledgeSourceImport.test.ts"
+        ],
+        "category": "knowledge"
+      },
+      {
+        "status": " M",
+        "path": "src/features/knowledge/import/knowledgeSourceImport.ts",
+        "paths": [
+          "src/features/knowledge/import/knowledgeSourceImport.ts"
+        ],
+        "category": "knowledge"
+      },
+      {
+        "status": " M",
+        "path": "src/lib/api/knowledge.ts",
+        "paths": [
+          "src/lib/api/knowledge.ts"
+        ],
+        "category": "knowledge"
+      },
+      {
+        "status": " M",
+        "path": "src/lib/api/serviceSkills.ts",
+        "paths": [
+          "src/lib/api/serviceSkills.ts"
+        ],
+        "category": "knowledge"
+      },
+      {
+        "status": "MM",
+        "path": "src/lib/api/skillCatalog.test.ts",
+        "paths": [
+          "src/lib/api/skillCatalog.test.ts"
+        ],
+        "category": "knowledge"
+      },
+      {
+        "status": " M",
+        "path": "src/lib/api/skillCatalog.ts",
+        "paths": [
+          "src/lib/api/skillCatalog.ts"
+        ],
+        "category": "knowledge"
+      },
+      {
+        "status": "MM",
+        "path": "src/lib/base-setup/seededServiceSkillPackage.test.ts",
+        "paths": [
+          "src/lib/base-setup/seededServiceSkillPackage.test.ts"
+        ],
+        "category": "knowledge"
+      },
+      {
+        "status": "MM",
+        "path": "src/lib/base-setup/seededServiceSkillPackage.ts",
+        "paths": [
+          "src/lib/base-setup/seededServiceSkillPackage.ts"
+        ],
+        "category": "knowledge"
+      },
+      {
+        "status": " M",
+        "path": "src/lib/dev-bridge/mockPriorityCommands.test.ts",
+        "paths": [
+          "src/lib/dev-bridge/mockPriorityCommands.test.ts"
+        ],
+        "category": "knowledge"
+      },
+      {
+        "status": " M",
+        "path": "src/lib/dev-bridge/mockPriorityCommands.ts",
+        "paths": [
+          "src/lib/dev-bridge/mockPriorityCommands.ts"
+        ],
+        "category": "knowledge"
+      },
+      {
+        "status": " M",
+        "path": "src/lib/tauri-mock/core.test.ts",
+        "paths": [
+          "src/lib/tauri-mock/core.test.ts"
+        ],
+        "category": "knowledge"
+      },
+      {
+        "status": " M",
+        "path": "src/lib/tauri-mock/core.ts",
+        "paths": [
+          "src/lib/tauri-mock/core.ts"
+        ],
+        "category": "knowledge"
+      },
+      {
+        "status": " M",
+        "path": "src/types/page.ts",
+        "paths": [
+          "src/types/page.ts"
+        ],
+        "category": "knowledge"
+      },
+      {
+        "status": "??",
+        "path": "docs/roadmap/knowledge/completion-audit-20260508.md",
+        "paths": [
+          "docs/roadmap/knowledge/completion-audit-20260508.md"
+        ],
+        "category": "knowledge"
+      },
+      {
+        "status": "??",
+        "path": "docs/roadmap/knowledge/evidence/",
+        "paths": [
+          "docs/roadmap/knowledge/evidence/"
+        ],
+        "category": "knowledge"
+      },
+      {
+        "status": "??",
+        "path": "scripts/knowledge-legacy-fallback-report.mjs",
+        "paths": [
+          "scripts/knowledge-legacy-fallback-report.mjs"
+        ],
+        "category": "knowledge"
+      },
+      {
+        "status": "??",
+        "path": "scripts/knowledge-provider-e2e.mjs",
+        "paths": [
+          "scripts/knowledge-provider-e2e.mjs"
+        ],
+        "category": "knowledge"
+      },
+      {
+        "status": "??",
+        "path": "scripts/knowledge-release-scope-report.mjs",
+        "paths": [
+          "scripts/knowledge-release-scope-report.mjs"
+        ],
+        "category": "knowledge"
+      },
+      {
+        "status": "??",
+        "path": "src-tauri/resources/default-skills/brand-persona-knowledge-builder/",
+        "paths": [
+          "src-tauri/resources/default-skills/brand-persona-knowledge-builder/"
+        ],
+        "category": "knowledge"
+      },
+      {
+        "status": "??",
+        "path": "src-tauri/resources/default-skills/brand-product-knowledge-builder/",
+        "paths": [
+          "src-tauri/resources/default-skills/brand-product-knowledge-builder/"
+        ],
+        "category": "knowledge"
+      },
+      {
+        "status": "??",
+        "path": "src-tauri/resources/default-skills/campaign-operations-knowledge-builder/",
+        "paths": [
+          "src-tauri/resources/default-skills/campaign-operations-knowledge-builder/"
+        ],
+        "category": "knowledge"
+      },
+      {
+        "status": "??",
+        "path": "src-tauri/resources/default-skills/content-operations-knowledge-builder/",
+        "paths": [
+          "src-tauri/resources/default-skills/content-operations-knowledge-builder/"
+        ],
+        "category": "knowledge"
+      },
+      {
+        "status": "??",
+        "path": "src-tauri/resources/default-skills/growth-strategy-knowledge-builder/",
+        "paths": [
+          "src-tauri/resources/default-skills/growth-strategy-knowledge-builder/"
+        ],
+        "category": "knowledge"
+      },
+      {
+        "status": "??",
+        "path": "src-tauri/resources/default-skills/live-commerce-operations-knowledge-builder/",
+        "paths": [
+          "src-tauri/resources/default-skills/live-commerce-operations-knowledge-builder/"
+        ],
+        "category": "knowledge"
+      },
+      {
+        "status": "??",
+        "path": "src-tauri/resources/default-skills/organization-knowhow-knowledge-builder/",
+        "paths": [
+          "src-tauri/resources/default-skills/organization-knowhow-knowledge-builder/"
+        ],
+        "category": "knowledge"
+      },
+      {
+        "status": "??",
+        "path": "src-tauri/resources/default-skills/private-domain-operations-knowledge-builder/",
+        "paths": [
+          "src-tauri/resources/default-skills/private-domain-operations-knowledge-builder/"
+        ],
+        "category": "knowledge"
+      },
+      {
+        "status": "??",
+        "path": "src/features/knowledge/agent/knowledgeMetadata.test.ts",
+        "paths": [
+          "src/features/knowledge/agent/knowledgeMetadata.test.ts"
+        ],
+        "category": "knowledge"
+      }
+    ],
+    "nonKnowledge": [
+      {
+        "status": " M",
+        "path": "docs/aiprompts/commands.md",
+        "paths": [
+          "docs/aiprompts/commands.md"
+        ],
+        "category": "nonKnowledge"
+      },
+      {
+        "status": " M",
+        "path": "docs/roadmap/ai-layered-design/README.md",
+        "paths": [
+          "docs/roadmap/ai-layered-design/README.md"
+        ],
+        "category": "nonKnowledge"
+      },
+      {
+        "status": " M",
+        "path": "scripts/design-canvas-smoke.mjs",
+        "paths": [
+          "scripts/design-canvas-smoke.mjs"
+        ],
+        "category": "nonKnowledge"
+      },
+      {
+        "status": " M",
+        "path": "src-tauri/src/commands/layered_design_cmd.rs",
+        "paths": [
+          "src-tauri/src/commands/layered_design_cmd.rs"
+        ],
+        "category": "nonKnowledge"
+      },
+      {
+        "status": " M",
+        "path": "src/components/workspace/design/DesignCanvas.test.tsx",
+        "paths": [
+          "src/components/workspace/design/DesignCanvas.test.tsx"
+        ],
+        "category": "nonKnowledge"
+      },
+      {
+        "status": " M",
+        "path": "src/components/workspace/design/DesignCanvas.tsx",
+        "paths": [
+          "src/components/workspace/design/DesignCanvas.tsx"
+        ],
+        "category": "nonKnowledge"
+      },
+      {
+        "status": " M",
+        "path": "src/lib/api/layeredDesignProject.ts",
+        "paths": [
+          "src/lib/api/layeredDesignProject.ts"
+        ],
+        "category": "nonKnowledge"
+      },
+      {
+        "status": " M",
+        "path": "src/lib/layered-design/analyzer.test.ts",
+        "paths": [
+          "src/lib/layered-design/analyzer.test.ts"
+        ],
+        "category": "nonKnowledge"
+      },
+      {
+        "status": " M",
+        "path": "src/lib/layered-design/analyzerModelSlotTransport.test.ts",
+        "paths": [
+          "src/lib/layered-design/analyzerModelSlotTransport.test.ts"
+        ],
+        "category": "nonKnowledge"
+      },
+      {
+        "status": " M",
+        "path": "src/lib/layered-design/analyzerModelSlotTransport.ts",
+        "paths": [
+          "src/lib/layered-design/analyzerModelSlotTransport.ts"
+        ],
+        "category": "nonKnowledge"
+      },
+      {
+        "status": " M",
+        "path": "src/lib/layered-design/cleanPlate.test.ts",
+        "paths": [
+          "src/lib/layered-design/cleanPlate.test.ts"
+        ],
+        "category": "nonKnowledge"
+      },
+      {
+        "status": " M",
+        "path": "src/lib/layered-design/cleanPlate.ts",
+        "paths": [
+          "src/lib/layered-design/cleanPlate.ts"
+        ],
+        "category": "nonKnowledge"
+      },
+      {
+        "status": " M",
+        "path": "src/lib/layered-design/document.ts",
+        "paths": [
+          "src/lib/layered-design/document.ts"
+        ],
+        "category": "nonKnowledge"
+      },
+      {
+        "status": " M",
+        "path": "src/lib/layered-design/export.test.ts",
+        "paths": [
+          "src/lib/layered-design/export.test.ts"
+        ],
+        "category": "nonKnowledge"
+      },
+      {
+        "status": " M",
+        "path": "src/lib/layered-design/export.ts",
+        "paths": [
+          "src/lib/layered-design/export.ts"
+        ],
+        "category": "nonKnowledge"
+      },
+      {
+        "status": " M",
+        "path": "src/lib/layered-design/extractionQuality.test.ts",
+        "paths": [
+          "src/lib/layered-design/extractionQuality.test.ts"
+        ],
+        "category": "nonKnowledge"
+      },
+      {
+        "status": " M",
+        "path": "src/lib/layered-design/extractionQuality.ts",
+        "paths": [
+          "src/lib/layered-design/extractionQuality.ts"
+        ],
+        "category": "nonKnowledge"
+      },
+      {
+        "status": " M",
+        "path": "src/lib/layered-design/index.ts",
+        "paths": [
+          "src/lib/layered-design/index.ts"
+        ],
+        "category": "nonKnowledge"
+      },
+      {
+        "status": " M",
+        "path": "src/lib/layered-design/structuredAnalyzerWorkerHeuristic.test.ts",
+        "paths": [
+          "src/lib/layered-design/structuredAnalyzerWorkerHeuristic.test.ts"
+        ],
+        "category": "nonKnowledge"
+      },
+      {
+        "status": " M",
+        "path": "src/lib/layered-design/structuredAnalyzerWorkerHeuristic.ts",
+        "paths": [
+          "src/lib/layered-design/structuredAnalyzerWorkerHeuristic.ts"
+        ],
+        "category": "nonKnowledge"
+      },
+      {
+        "status": "MM",
+        "path": "src/lib/layered-design/subjectMatting.test.ts",
+        "paths": [
+          "src/lib/layered-design/subjectMatting.test.ts"
+        ],
+        "category": "nonKnowledge"
+      },
+      {
+        "status": "MM",
+        "path": "src/lib/layered-design/subjectMatting.ts",
+        "paths": [
+          "src/lib/layered-design/subjectMatting.ts"
+        ],
+        "category": "nonKnowledge"
+      },
+      {
+        "status": " M",
+        "path": "src/lib/layered-design/types.ts",
+        "paths": [
+          "src/lib/layered-design/types.ts"
+        ],
+        "category": "nonKnowledge"
+      },
+      {
+        "status": " M",
+        "path": "src/pages/design-canvas-smoke.tsx",
+        "paths": [
+          "src/pages/design-canvas-smoke.tsx"
+        ],
+        "category": "nonKnowledge"
+      },
+      {
+        "status": "??",
+        "path": "docs/roadmap/ai-layered-design/model-slot-http-json-executor-contract.md",
+        "paths": [
+          "docs/roadmap/ai-layered-design/model-slot-http-json-executor-contract.md"
+        ],
+        "category": "nonKnowledge"
+      },
+      {
+        "status": "??",
+        "path": "scripts/benchmark-layered-design-model-slot-http-json-executor.mjs",
+        "paths": [
+          "scripts/benchmark-layered-design-model-slot-http-json-executor.mjs"
+        ],
+        "category": "nonKnowledge"
+      },
+      {
+        "status": "??",
+        "path": "scripts/layered-design-model-slot-http-json-fixture.mjs",
+        "paths": [
+          "scripts/layered-design-model-slot-http-json-fixture.mjs"
+        ],
+        "category": "nonKnowledge"
+      },
+      {
+        "status": "??",
+        "path": "scripts/verify-layered-design-model-slot-http-json-executor.mjs",
+        "paths": [
+          "scripts/verify-layered-design-model-slot-http-json-executor.mjs"
+        ],
+        "category": "nonKnowledge"
+      },
+      {
+        "status": "??",
+        "path": "src/lib/layered-design/analyzerModelSlotJsonExecutorClient.test.ts",
+        "paths": [
+          "src/lib/layered-design/analyzerModelSlotJsonExecutorClient.test.ts"
+        ],
+        "category": "nonKnowledge"
+      },
+      {
+        "status": "??",
+        "path": "src/lib/layered-design/analyzerModelSlotJsonExecutorClient.ts",
+        "paths": [
+          "src/lib/layered-design/analyzerModelSlotJsonExecutorClient.ts"
+        ],
+        "category": "nonKnowledge"
+      }
+    ],
+    "mixed": [],
+    "unknown": []
+  }
+}

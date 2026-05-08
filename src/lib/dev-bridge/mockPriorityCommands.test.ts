@@ -17,6 +17,8 @@ describe("mockPriorityCommands", () => {
     expect(shouldPreferMockInBrowser("agent_runtime_get_tool_inventory")).toBe(
       false,
     );
+    expect(shouldPreferMockInBrowser("list_dir")).toBe(false);
+    expect(shouldPreferMockInBrowser("get_file_manager_locations")).toBe(false);
     expect(shouldPreferMockInBrowser("content_workflow_get_by_content")).toBe(
       false,
     );
@@ -113,6 +115,13 @@ describe("mockPriorityCommands", () => {
     expect(
       shouldDisallowMockFallbackInBrowser("session_files_resolve_file_path"),
     ).toBe(true);
+    expect(shouldDisallowMockFallbackInBrowser("list_dir")).toBe(true);
+    expect(
+      shouldDisallowMockFallbackInBrowser("get_file_manager_locations"),
+    ).toBe(true);
+    expect(shouldDisallowMockFallbackInBrowser("get_file_icon_data_url")).toBe(
+      true,
+    );
     expect(shouldDisallowMockFallbackInBrowser("upload_material")).toBe(true);
     expect(
       shouldDisallowMockFallbackInBrowser(

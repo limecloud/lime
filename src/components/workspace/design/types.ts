@@ -37,6 +37,8 @@ export interface DesignCanvasProps {
   projectRootPath?: string | null;
   projectId?: string | null;
   contentId?: string | null;
+  imageGenerationProviderId?: string | null;
+  imageGenerationModelId?: string | null;
   createImageTaskArtifact?: (
     request: CreateImageGenerationTaskArtifactRequest,
   ) => Promise<MediaTaskArtifactOutput>;

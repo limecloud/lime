@@ -1,0 +1,22 @@
+{
+  "schemaVersion": "layered-design-completion-evidence@1",
+  "createdAt": "2026-05-08T03:30:00.000Z",
+  "purpose": "完整类 Lovart 产品目标最终验收 evidence：真实下载照片衍生复杂样本、OpenCV/Apple Vision 准生产 endpoint、人工复核、current 导出包与 Photopea 外部打开验证。",
+  "benchmarkReportPath": "model-slot-benchmark.real.json",
+  "humanReviewReportPath": "real-samples.human-review.json",
+  "exportDirectoryPath": "exports/real-sample.layered-design",
+  "designToolEvidencePath": "design-tool-interoperability.json",
+  "gptImageLiveEvidencePath": "gpt-image-live.json",
+  "requirements": {
+    "minimumSamples": 5,
+    "minimumSampleScore": 8,
+    "minimumPassedTools": 1,
+    "requiredKinds": ["subject_matting", "clean_plate", "text_ocr"]
+  },
+  "completionGate": {
+    "status": "external_evidence_pending",
+    "missing": [
+      "gpt_image_live_generation_writeback_evidence"
+    ]
+  }
+}

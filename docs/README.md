@@ -56,6 +56,12 @@
 - `roadmap/skill-forge/README.md`：外部 Agent 访谈启发下的 Skill Forge / workspace-local generated skill 路线图
 - `roadmap/skill-forge/prototype.md`：Skill Forge / generated capability / verification gate / workspace-local skill 的产品原型图
 - `roadmap/skill-forge/architecture-review.md`：Skill Forge / Coding Agent 方案实现前 review gate，列出 draft store、verification、registration、evidence、安全边界缺口
+- `roadmap/knowledge/prd-v2.md`：Agent Knowledge v2 PRD，定义 Skills-first Builder Skill、document-first KnowledgePack、persona / data 双族与 Resolver 主链
+- `roadmap/knowledge/completion-audit-20260508.md`：Knowledge v2 完成度审计，按 prompt-to-artifact 映射真实 Provider E2E、legacy fallback、发布状态与剩余缺口
+- `roadmap/knowledge/evidence/provider-e2e-quality-review-20260508.md`：真实 Provider 短资料输出质量评测，对照个人 IP Builder Skill checklist 标记 PASS / PARTIAL
+- `../scripts/knowledge-provider-e2e.mjs`：真实 Provider E2E 可复用脚本，默认必须显式 `--allow-external-provider` 才会外发资料
+- `../scripts/knowledge-release-scope-report.mjs`：Knowledge-only 发布范围只读审计脚本，分类 dirty worktree 中的 Knowledge / non-Knowledge / unknown 路径
+- `roadmap/knowledge/prd-v2-diagrams.md`：Agent Knowledge v2 可视化设计，包含总体架构、核心流程、时序图、UI 原型和用户故事走查
 - `roadmap/managed-objective/README.md`：Managed Objective 路线图，把 thread goal loop 启发收敛为 Lime 的跨 turn 目标推进控制层
 - `roadmap/managed-objective/prototype.md`：Managed Objective 在 Workspace、Task Center、Audit Drawer 和创建流程中的产品原型图
 - `roadmap/ai-layered-design/README.md`：AI 图层化设计路线图，把图片生成升级为可编辑的多图层设计工程输出

@@ -68,8 +68,11 @@ export interface CreateLayeredDesignSimpleCleanPlateProviderOptions {
 const TRANSPARENT_PIXEL_CLEAN_PLATE_DATA_URL =
   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/l8I4WQAAAABJRU5ErkJggg==";
 const SIMPLE_CLEAN_PLATE_MODEL_ID = "simple_neighbor_inpaint_v1";
-const SIMPLE_CLEAN_PLATE_ALGORITHM_VERSION = 2;
+const SIMPLE_CLEAN_PLATE_ALGORITHM_VERSION = 3;
 const CLEAN_PLATE_MASK_FILL_THRESHOLD = 0.08;
+const CLEAN_PLATE_MASK_HALO_COVERAGE = 0.42;
+// 只扩展与主体颜色接近的边缘残影，避免 tight mask 周边真实背景被误修补。
+const CLEAN_PLATE_MASK_HALO_SUBJECT_RGB_DISTANCE_MAX = 132;
 
 type CleanPlatePixel = readonly [number, number, number, number];
 
@@ -91,6 +94,11 @@ interface CleanPlateTargetCoverageMap {
   width: number;
   height: number;
   values: Float32Array;
+}
+
+interface CleanPlatePreparedCoverage {
+  coverageMap: CleanPlateTargetCoverageMap;
+  haloExpandedPixelCount: number;
 }
 
 const CLEAN_PLATE_SAMPLE_DIRECTIONS = [
@@ -274,6 +282,78 @@ function createTargetCoverageMap(
     width,
     height,
     values,
+  };
+}
+
+function expandMaskHaloCoverage(
+  image: LayeredDesignCleanPlatePixelImage,
+  coverageMap: CleanPlateTargetCoverageMap,
+): CleanPlatePreparedCoverage {
+  const values = new Float32Array(coverageMap.values);
+  let haloExpandedPixelCount = 0;
+
+  for (let y = 0; y < coverageMap.height; y += 1) {
+    for (let x = 0; x < coverageMap.width; x += 1) {
+      const index = y * coverageMap.width + x;
+      if ((coverageMap.values[index] ?? 0) > CLEAN_PLATE_MASK_FILL_THRESHOLD) {
+        continue;
+      }
+
+      const pixel = readPixel(image, coverageMap.left + x, coverageMap.top + y);
+      let nearestSolidMaskDistance = Number.POSITIVE_INFINITY;
+      for (let dy = -1; dy <= 1; dy += 1) {
+        for (let dx = -1; dx <= 1; dx += 1) {
+          if (dx === 0 && dy === 0) {
+            continue;
+          }
+
+          const neighborX = x + dx;
+          const neighborY = y + dy;
+          if (
+            neighborX < 0 ||
+            neighborY < 0 ||
+            neighborX >= coverageMap.width ||
+            neighborY >= coverageMap.height
+          ) {
+            continue;
+          }
+
+          const neighbor =
+            coverageMap.values[neighborY * coverageMap.width + neighborX] ?? 0;
+          if (neighbor >= 0.5) {
+            nearestSolidMaskDistance = Math.min(
+              nearestSolidMaskDistance,
+              getRgbDistance(
+                pixel,
+                readPixel(
+                  image,
+                  coverageMap.left + neighborX,
+                  coverageMap.top + neighborY,
+                ),
+              ),
+            );
+          }
+        }
+      }
+
+      if (
+        nearestSolidMaskDistance >
+        CLEAN_PLATE_MASK_HALO_SUBJECT_RGB_DISTANCE_MAX
+      ) {
+        continue;
+      }
+
+      values[index] = CLEAN_PLATE_MASK_HALO_COVERAGE;
+      haloExpandedPixelCount += 1;
+    }
+  }
+
+  return {
+    coverageMap: {
+      ...coverageMap,
+      values,
+    },
+    haloExpandedPixelCount,
   };
 }
 
@@ -487,6 +567,7 @@ export function applyLayeredDesignSimpleCleanPlateInpaintToRgba(
   image: LayeredDesignCleanPlatePixelImage;
   filledPixelCount: number;
   totalSubjectPixelCount: number;
+  haloExpandedPixelCount: number;
 } {
   let output = clonePixelImage(image);
   const left = clampCoordinate(rect.x, 0, output.width - 1);
@@ -494,7 +575,10 @@ export function applyLayeredDesignSimpleCleanPlateInpaintToRgba(
   const right = clampCoordinate(rect.x + rect.width - 1, left, output.width - 1);
   const bottom = clampCoordinate(rect.y + rect.height - 1, top, output.height - 1);
   const bounds = { left, top, right, bottom };
-  const coverageMap = createTargetCoverageMap(mask, rect, bounds);
+  const baseCoverageMap = createTargetCoverageMap(mask, rect, bounds);
+  const { coverageMap, haloExpandedPixelCount } = mask
+    ? expandMaskHaloCoverage(image, baseCoverageMap)
+    : { coverageMap: baseCoverageMap, haloExpandedPixelCount: 0 };
   let filledPixelCount = 0;
   let totalSubjectPixelCount = 0;
 
@@ -546,6 +630,7 @@ export function applyLayeredDesignSimpleCleanPlateInpaintToRgba(
     image: output,
     filledPixelCount,
     totalSubjectPixelCount,
+    haloExpandedPixelCount,
   };
 }
 
@@ -695,6 +780,7 @@ export function createLayeredDesignSimpleCleanPlateProvider(
           sourceRect: { ...input.subject.rect },
           filledPixelCount: result.filledPixelCount,
           totalSubjectPixelCount: result.totalSubjectPixelCount,
+          haloExpandedPixelCount: result.haloExpandedPixelCount,
           maskApplied: Boolean(mask),
         },
       };

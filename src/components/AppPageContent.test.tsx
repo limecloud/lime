@@ -413,6 +413,76 @@ describe("AppPageContent", () => {
     expect(agentChatLifecycle.unmounts).toBe(1);
   });
 
+  it("agent 页面切换 Knowledge 协同资料时应重建 AgentChatPage 实例", async () => {
+    const rendered = renderContentWithNavigationState({
+      currentPage: "agent",
+      pageParams: {
+        agentEntry: "claw",
+        projectId: "project-knowledge",
+        initialKnowledgePackSelection: {
+          enabled: true,
+          packName: "content-calendar",
+          workingDir: "/tmp/lime-project",
+          label: "内容运营资料",
+          status: "ready",
+          companionPacks: [
+            {
+              name: "founder-persona",
+              activation: "implicit",
+            },
+          ],
+        },
+      } satisfies AgentPageParams,
+    });
+    await flushEffects();
+
+    expect(agentChatLifecycle.mounts).toBe(1);
+    expect(agentChatLifecycle.unmounts).toBe(0);
+
+    rendered.rerender({
+      currentPage: "agent",
+      pageParams: {
+        agentEntry: "claw",
+        projectId: "project-knowledge",
+        initialKnowledgePackSelection: {
+          enabled: true,
+          packName: "content-calendar",
+          workingDir: "/tmp/lime-project",
+          label: "内容运营资料",
+          status: "ready",
+          companionPacks: [
+            {
+              name: "founder-persona",
+              activation: "implicit",
+            },
+            {
+              name: "campaign-plan",
+              activation: "explicit",
+            },
+          ],
+        },
+      } satisfies AgentPageParams,
+    });
+    await flushEffects();
+
+    expect(agentChatLifecycle.mounts).toBe(2);
+    expect(agentChatLifecycle.unmounts).toBe(1);
+    expect(latestAgentChatProps.value).toMatchObject({
+      initialKnowledgePackSelection: {
+        companionPacks: [
+          {
+            name: "founder-persona",
+            activation: "implicit",
+          },
+          {
+            name: "campaign-plan",
+            activation: "explicit",
+          },
+        ],
+      },
+    });
+  });
+
   it("agent 页面切换结果模板 initialInputCapability 时也应重建 AgentChatPage 实例", async () => {
     const rendered = renderContentWithNavigationState({
       currentPage: "agent",

@@ -47,6 +47,10 @@ interface CanvasFactoryProps {
   contentId?: string | null;
   /** 当前项目根目录（用于图层设计图片任务） */
   projectRootPath?: string | null;
+  /** 图层设计图片任务优先使用的 Provider */
+  imageGenerationProviderId?: string | null;
+  /** 图层设计图片任务优先使用的模型 */
+  imageGenerationModelId?: string | null;
   /** 图层设计扁平图 analyzer 注入（DEV smoke / 测试使用） */
   designAnalyzeFlatImage?: AnalyzeLayeredDesignFlatImage;
   /** 图层设计 analyzer model slot config（DEV smoke / 测试导出审计使用） */
@@ -101,6 +105,8 @@ export const CanvasFactory: React.FC<CanvasFactoryProps> = memo(
     projectId,
     contentId,
     projectRootPath,
+    imageGenerationProviderId,
+    imageGenerationModelId,
     designAnalyzeFlatImage,
     designAnalyzerModelSlotConfigs,
     autoImageTopic,
@@ -184,6 +190,8 @@ export const CanvasFactory: React.FC<CanvasFactoryProps> = memo(
           projectRootPath={projectRootPath}
           projectId={projectId}
           contentId={contentId}
+          imageGenerationProviderId={imageGenerationProviderId}
+          imageGenerationModelId={imageGenerationModelId}
           analyzeFlatImage={designAnalyzeFlatImage}
           analyzerModelSlotConfigs={designAnalyzerModelSlotConfigs}
         />

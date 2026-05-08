@@ -6,6 +6,7 @@ import {
   listSkillCatalogCommandEntries,
   listSkillCatalogSceneEntries,
   listSkillCatalogSkillEntries,
+  parseSkillCatalog,
   saveSkillCatalog,
   type SkillCatalog,
 } from "./skillCatalog";
@@ -316,9 +317,7 @@ describe("skillCatalog", () => {
       }),
     );
     expect(
-      catalog.items.find(
-        (item) => item.id === "personal-ip-knowledge-builder",
-      ),
+      catalog.items.find((item) => item.id === "personal-ip-knowledge-builder"),
     ).toEqual(
       expect.objectContaining({
         defaultExecutorBinding: "native_skill",
@@ -326,6 +325,51 @@ describe("skillCatalog", () => {
           metadata: expect.objectContaining({
             Lime_knowledge_pack_type: "personal-profile",
             Lime_knowledge_family: "persona",
+          }),
+        }),
+      }),
+    );
+    expect(
+      catalog.items.find(
+        (item) => item.id === "brand-persona-knowledge-builder",
+      ),
+    ).toEqual(
+      expect.objectContaining({
+        defaultExecutorBinding: "native_skill",
+        skillBundle: expect.objectContaining({
+          metadata: expect.objectContaining({
+            Lime_knowledge_pack_type: "brand-persona",
+            Lime_knowledge_family: "persona",
+          }),
+        }),
+      }),
+    );
+    expect(
+      catalog.items.find(
+        (item) => item.id === "content-operations-knowledge-builder",
+      ),
+    ).toEqual(
+      expect.objectContaining({
+        defaultExecutorBinding: "native_skill",
+        skillBundle: expect.objectContaining({
+          metadata: expect.objectContaining({
+            Lime_knowledge_pack_type: "content-operations",
+            Lime_knowledge_family: "data",
+          }),
+        }),
+      }),
+    );
+    expect(
+      catalog.items.find(
+        (item) => item.id === "brand-product-knowledge-builder",
+      ),
+    ).toEqual(
+      expect.objectContaining({
+        defaultExecutorBinding: "native_skill",
+        skillBundle: expect.objectContaining({
+          metadata: expect.objectContaining({
+            Lime_knowledge_pack_type: "brand-product",
+            Lime_knowledge_family: "data",
           }),
         }),
       }),
@@ -348,6 +392,40 @@ describe("skillCatalog", () => {
         }),
       }),
     );
+    expect(
+      listSkillCatalogSkillEntries(catalog).find(
+        (entry) => entry.skillId === "brand-persona-knowledge-builder",
+      ),
+    ).toEqual(
+      expect.objectContaining({
+        kind: "skill",
+        execution: expect.objectContaining({
+          kind: "native_skill",
+        }),
+        skillBundle: expect.objectContaining({
+          resourceSummary: expect.objectContaining({
+            hasReferences: true,
+            hasScripts: false,
+          }),
+        }),
+      }),
+    );
+    const reparsedCatalog = parseSkillCatalog(catalog);
+    expect(
+      listSkillCatalogSkillEntries(reparsedCatalog!).find(
+        (entry) => entry.skillId === "personal-ip-knowledge-builder",
+      ),
+    ).toEqual(
+      expect.objectContaining({
+        skillBundle: expect.objectContaining({
+          name: "personal-ip-knowledge-builder",
+          resourceSummary: expect.objectContaining({
+            hasReferences: true,
+            hasScripts: true,
+          }),
+        }),
+      }),
+    );
   });
 
   it("读取旧版远端目录时应过滤 site_adapter 和 browser assist 项", async () => {
@@ -357,7 +435,6 @@ describe("skillCatalog", () => {
 
     expect(catalog.items.map((item) => item.id)).toEqual([
       "tenant-daily-briefing",
-      "personal-ip-knowledge-builder",
     ]);
     expect(catalog.groups.map((group) => group.key)).toEqual(["general"]);
 

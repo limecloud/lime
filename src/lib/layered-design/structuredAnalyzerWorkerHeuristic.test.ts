@@ -233,9 +233,16 @@ describe("LayeredDesign worker heuristic structured analyzer", () => {
       confidence: 0.89,
       hasAlpha: true,
     }));
+    const cleanPlateRefiner = vi.fn(async () => ({
+      src: "data:image/png;base64,clean-from-matted-mask",
+      params: {
+        haloExpandedPixelCount: 8,
+      },
+    }));
     const provider =
       createLayeredDesignWorkerHeuristicStructuredAnalyzerProvider({
         subjectMaskRefiner,
+        cleanPlateRefiner,
         rasterizerFactory: vi.fn(async () => ({
           cropImageToPngDataUrl,
           cropImageWithRefinedSubjectMaskToPngDataUrl,
@@ -283,10 +290,25 @@ describe("LayeredDesign worker heuristic structured analyzer", () => {
     );
     expect(cropImageWithRefinedSubjectMaskToPngDataUrl).not.toHaveBeenCalled();
     expect(createRefinedSubjectMaskDataUrl).not.toHaveBeenCalled();
+    expect(cleanPlateRefiner).toHaveBeenCalledWith(
+      expect.objectContaining({
+        subject: expect.objectContaining({
+          maskSrc: "data:image/png;base64,matted-mask",
+        }),
+      }),
+    );
     expect(result.analysis.outputs).toMatchObject({
       candidateRaster: true,
       candidateMask: true,
       cleanPlate: true,
+    });
+    expect(result.cleanPlate).toMatchObject({
+      asset: {
+        src: "data:image/png;base64,clean-from-matted-mask",
+        params: {
+          haloExpandedPixelCount: 8,
+        },
+      },
     });
     expect(result.candidates[0]).toMatchObject({
       confidence: 0.89,
