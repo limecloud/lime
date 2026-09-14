@@ -2110,6 +2110,8 @@
   "settings.mcpPage.preset.filesystem.description": "檔案系統存取",
   "settings.mcpPage.preset.context7.name": "Context7",
   "settings.mcpPage.preset.context7.description": "最新文件檢索",
+  "settings.mcpPage.preset.youcom.name": "You.com",
+  "settings.mcpPage.preset.youcom.description": "網頁搜尋與內容擷取",
   "settings.mcpPage.preset.github.name": "GitHub",
   "settings.mcpPage.preset.github.description": "GitHub API",
   "settings.mcpPage.preset.postgres.name": "PostgreSQL",
