@@ -6,8 +6,8 @@
 use std::borrow::Cow;
 use std::cell::{Cell, OnceCell, Ref, RefCell};
 use std::ops::Range;
+use std::sync::Arc;
 
-use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::style::Style;
@@ -16,13 +16,23 @@ use unicode_segmentation::UnicodeSegmentation;
 
 use crate::width::display_width;
 
+mod editing;
+mod elements;
 mod hyperlinks;
+mod input;
+use elements::TextElement;
+pub(crate) use elements::TextElementSnapshot;
 mod mouse;
 mod vim;
+mod vim_commands;
+mod vim_register;
+pub(crate) use vim_register::KillBufferSnapshot;
 mod vim_search;
 mod wrapping;
 
 use self::vim::VimPending;
+use self::vim_commands::VimCommandState;
+pub(crate) use self::vim_commands::VimPersistentState;
 
 const WORD_SEPARATORS: &str = "`~!@#$%^&*()-=+[{]}\\|;:'\",.<>/?";
 
@@ -69,15 +79,25 @@ fn editor_display_width(text: &str) -> usize {
 #[derive(Debug, Default)]
 pub(crate) struct TextArea {
     text: String,
+    elements: Vec<TextElement>,
+    next_element_id: u64,
     cursor: usize,
     kill_buffer: String,
+    kill_buffer_kind: vim_register::KillBufferKind,
     wrap_cache: RefCell<Option<WrapCache>>,
     preferred_col: Option<usize>,
     vim_enabled: bool,
     vim_mode: vim::VimMode,
     vim_pending: VimPending,
     vim_search: vim_search::VimSearch,
-    vim_replace_steps: Vec<vim::VimReplaceStep>,
+    vim_commands: VimCommandState,
+    editor_keymap: Arc<crate::keymap::EditorKeymap>,
+    editor_key_chord_matcher: crate::keymap::KeyChordMatcher,
+    vim_normal_keymap: Arc<crate::keymap::VimNormalKeymap>,
+    vim_operator_keymap: Arc<crate::keymap::VimOperatorKeymap>,
+    vim_text_object_keymap: Arc<crate::keymap::VimTextObjectKeymap>,
+    vim_search_keymap: Arc<crate::keymap::VimSearchKeymap>,
+    vim_key_chord_matcher: crate::keymap::KeyChordMatcher,
     rendered_area: Cell<Rect>,
     mouse_selection: Option<mouse::MouseSelection>,
     last_click: Option<(std::time::Instant, u16, u16, u8)>,
@@ -113,377 +133,6 @@ impl TextArea {
 
     pub(crate) fn is_empty(&self) -> bool {
         self.text.is_empty()
-    }
-
-    pub(crate) fn replace(&mut self, text: String) {
-        self.mouse_selection = None;
-        self.text = text;
-        self.cursor = self.text.len();
-        self.preferred_col = None;
-        self.vim_pending = VimPending::None;
-        self.vim_search.cancel();
-        self.vim_replace_steps.clear();
-        self.invalidate_wrap_cache();
-    }
-
-    pub(crate) fn set_text_clearing_elements(&mut self, text: &str) {
-        self.mouse_selection = None;
-        self.text = text.to_string();
-        self.cursor = self.nearest_char_boundary(self.cursor.min(self.text.len()));
-        self.preferred_col = None;
-        self.vim_pending = VimPending::None;
-        self.vim_search.cancel();
-        self.vim_replace_steps.clear();
-        self.invalidate_wrap_cache();
-    }
-
-    pub(crate) fn take(&mut self) -> String {
-        self.mouse_selection = None;
-        self.cursor = 0;
-        self.preferred_col = None;
-        self.vim_pending = VimPending::None;
-        self.vim_search.cancel();
-        self.vim_replace_steps.clear();
-        let text = std::mem::take(&mut self.text);
-        self.invalidate_wrap_cache();
-        text
-    }
-
-    pub(crate) fn insert(&mut self, value: &str) {
-        if !value.is_empty() {
-            self.delete_mouse_selection();
-        }
-        self.text.insert_str(self.cursor, value);
-        self.cursor += value.len();
-        self.preferred_col = None;
-        self.invalidate_wrap_cache();
-    }
-
-    pub(crate) fn insert_str(&mut self, value: &str) {
-        self.insert(value);
-    }
-
-    pub(crate) fn insert_str_at(&mut self, pos: usize, value: &str) {
-        self.mouse_selection = None;
-        let pos = self.nearest_char_boundary(pos.min(self.text.len()));
-        self.text.insert_str(pos, value);
-        if pos <= self.cursor {
-            self.cursor += value.len();
-        }
-        self.preferred_col = None;
-        self.invalidate_wrap_cache();
-    }
-
-    pub(crate) fn replace_range(&mut self, range: Range<usize>, value: &str) {
-        self.mouse_selection = None;
-        let start = self.nearest_char_boundary(range.start.min(self.text.len()));
-        let end = self.nearest_char_boundary(range.end.min(self.text.len()));
-        if start > end {
-            return;
-        }
-        self.text.replace_range(start..end, value);
-        self.cursor = if self.cursor < start {
-            self.cursor
-        } else if self.cursor <= end {
-            start + value.len()
-        } else {
-            self.cursor.saturating_sub(end - start) + value.len()
-        }
-        .min(self.text.len());
-        self.preferred_col = None;
-        self.invalidate_wrap_cache();
-    }
-
-    pub(crate) fn set_cursor(&mut self, pos: usize) {
-        self.mouse_selection = None;
-        self.cursor = self.nearest_char_boundary(pos.min(self.text.len()));
-        self.preferred_col = None;
-    }
-
-    pub(crate) fn move_left(&mut self) {
-        self.mouse_selection = None;
-        self.cursor = self.previous_grapheme_start();
-        self.preferred_col = None;
-    }
-
-    pub(crate) fn move_right(&mut self) {
-        self.mouse_selection = None;
-        self.cursor = self.next_grapheme_end();
-        self.preferred_col = None;
-    }
-
-    pub(crate) fn move_line_start(&mut self) {
-        self.mouse_selection = None;
-        self.cursor = self.line_start();
-        self.preferred_col = None;
-    }
-
-    pub(crate) fn move_line_end(&mut self) {
-        self.mouse_selection = None;
-        self.cursor = self.line_end();
-        self.preferred_col = None;
-    }
-
-    /// Move to the adjacent visual line while preserving the terminal column.
-    ///
-    /// When wrapping information is available, navigation follows the same visual rows rendered
-    /// by the textarea. Without a cache (for example before the first render), it falls back to
-    /// logical-line navigation. The target is always chosen on grapheme boundaries, so wide
-    /// characters and combining marks can never leave the cursor inside an UTF-8 sequence.
-    pub(crate) fn move_up(&mut self) {
-        self.mouse_selection = None;
-        if !self.move_visual_vertical(-1) {
-            self.move_insert_vertical(-1);
-        }
-    }
-
-    pub(crate) fn move_down(&mut self) {
-        self.mouse_selection = None;
-        if !self.move_visual_vertical(1) {
-            self.move_insert_vertical(1);
-        }
-    }
-
-    /// Returns whether history navigation may consume a vertical key at the current visual row.
-    ///
-    /// Once the textarea has been rendered, wrapped rows are the editor's navigation surface;
-    /// history is only eligible at the outermost row. Before the first render there is no width
-    /// to resolve, so callers retain the legacy boundary behavior.
-    pub(crate) fn is_vertical_boundary(&self, direction: i8) -> bool {
-        let cache_ref = self.wrap_cache.borrow();
-        let Some(cache) = cache_ref.as_ref() else {
-            return true;
-        };
-        let Some((row, _)) =
-            wrapping::cursor_position(&self.text, &cache.lines, cache.width, self.cursor)
-        else {
-            return true;
-        };
-        if direction < 0 {
-            row == 0
-        } else {
-            row + 1 >= cache.lines.len()
-        }
-    }
-
-    /// Move across wrapped rows when the current render width is known.
-    ///
-    /// The returned boolean distinguishes an unavailable cache from a real boundary move. A
-    /// boundary move still consumes the event and resets the saved column, matching Codex's
-    /// behavior when moving above the first or below the last visual row.
-    fn move_visual_vertical(&mut self, direction: i8) -> bool {
-        enum Target {
-            Line {
-                start: usize,
-                end: usize,
-                column: usize,
-            },
-            Boundary(usize),
-        }
-
-        let target = {
-            let cache_ref = self.wrap_cache.borrow();
-            let Some(cache) = cache_ref.as_ref() else {
-                return false;
-            };
-            let Some((row, current_column)) =
-                wrapping::cursor_position(&self.text, &cache.lines, cache.width, self.cursor)
-            else {
-                return false;
-            };
-            let column = self
-                .preferred_col
-                .unwrap_or(current_column)
-                .min(usize::from(cache.width.saturating_sub(1)));
-
-            if direction < 0 {
-                if let Some(previous) = row.checked_sub(1) {
-                    let current = &cache.lines[row];
-                    let previous = &cache.lines[previous];
-                    let start = previous.start;
-                    let mut end = previous.end.saturating_sub(1);
-                    if end == current.start {
-                        end = self.previous_grapheme_start_at(end).max(start);
-                    }
-                    Target::Line { start, end, column }
-                } else {
-                    Target::Boundary(0)
-                }
-            } else if let Some(next) = cache.lines.get(row + 1) {
-                let start = next.start;
-                let mut end = next.end.saturating_sub(1);
-                if cache
-                    .lines
-                    .get(row + 2)
-                    .is_some_and(|following| following.start == end)
-                {
-                    end = self.previous_grapheme_start_at(end).max(start);
-                }
-                Target::Line { start, end, column }
-            } else {
-                Target::Boundary(self.text.len())
-            }
-        };
-
-        match target {
-            Target::Line { start, end, column } => {
-                if self.preferred_col.is_none() {
-                    self.preferred_col = Some(column);
-                }
-                self.move_to_display_col_on_line(start, end, column);
-            }
-            Target::Boundary(cursor) => {
-                self.cursor = cursor;
-                self.preferred_col = None;
-            }
-        }
-        true
-    }
-
-    fn move_insert_vertical(&mut self, direction: i8) {
-        let current_start = self.line_start();
-        let current_column = self
-            .preferred_col
-            .unwrap_or_else(|| editor_display_width(&self.text[current_start..self.cursor]));
-        let target_start = if direction < 0 {
-            if current_start == 0 {
-                self.preferred_col = None;
-                return;
-            }
-            let previous_end = current_start - 1;
-            self.text[..previous_end]
-                .rfind('\n')
-                .map_or(0, |index| index + 1)
-        } else {
-            let current_end = self.line_end();
-            if current_end == self.text.len() {
-                self.preferred_col = None;
-                return;
-            }
-            current_end + 1
-        };
-        let target_end = self.text[target_start..]
-            .find('\n')
-            .map_or(self.text.len(), |offset| target_start + offset);
-        self.cursor = cursor_at_display_column(
-            &self.text[target_start..target_end],
-            target_start,
-            current_column,
-        );
-        if self.preferred_col.is_none() {
-            self.preferred_col = Some(current_column);
-        }
-    }
-
-    pub(crate) fn remove_previous_grapheme(&mut self) -> bool {
-        if self.delete_mouse_selection() {
-            return true;
-        }
-        if self.cursor == 0 {
-            return false;
-        }
-        let start = self.previous_grapheme_start();
-        self.text.replace_range(start..self.cursor, "");
-        self.cursor = start;
-        self.preferred_col = None;
-        self.invalidate_wrap_cache();
-        true
-    }
-
-    pub(crate) fn remove_next_grapheme(&mut self) -> bool {
-        if self.delete_mouse_selection() {
-            return true;
-        }
-        if self.cursor == self.text.len() {
-            return false;
-        }
-        let end = self.next_grapheme_end();
-        self.text.replace_range(self.cursor..end, "");
-        self.preferred_col = None;
-        self.invalidate_wrap_cache();
-        true
-    }
-
-    /// Apply the default Codex editor key semantics without submission policy.
-    ///
-    /// `ChatComposer` owns submit/queue/shortcut dispatch. This method is the shared low-level
-    /// editor boundary used by focused overlays and the disconnected composer path.
-    pub(crate) fn input(&mut self, event: KeyEvent) {
-        if !matches!(event.kind, KeyEventKind::Press | KeyEventKind::Repeat) {
-            return;
-        }
-
-        if self.vim_enabled && self.handle_vim_search_key(event) {
-            return;
-        }
-
-        if self.vim_enabled {
-            self.handle_vim_input(event);
-        } else {
-            self.input_insert_mode(event);
-        }
-    }
-
-    fn input_insert_mode(&mut self, event: KeyEvent) {
-        let control = event.modifiers.contains(KeyModifiers::CONTROL);
-        let alt = event.modifiers.contains(KeyModifiers::ALT);
-        if crate::key_hint::is_altgr(event.modifiers) {
-            if let KeyCode::Char(ch) = event.code {
-                self.insert_str(&ch.to_string());
-                return;
-            }
-        }
-        match event.code {
-            KeyCode::Char('\u{0001}') => self.move_line_start(),
-            KeyCode::Char('\u{0002}') => self.move_left(),
-            KeyCode::Char('\u{0005}') => self.move_line_end(),
-            KeyCode::Char('\u{0006}') => self.move_right(),
-            KeyCode::Char('\u{000a}' | '\u{000d}') => self.insert_str("\n"),
-            KeyCode::Char('\u{000e}') => self.move_down(),
-            KeyCode::Char('\u{0010}') => self.move_up(),
-            KeyCode::Char('\u{0008}') => {
-                self.remove_previous_grapheme();
-            }
-            KeyCode::Char('h') if control => {
-                self.remove_previous_grapheme();
-            }
-            KeyCode::Char('m') if control => self.insert_str("\n"),
-            KeyCode::Char('b') if control => self.move_left(),
-            KeyCode::Char('f') if control => self.move_right(),
-            KeyCode::Char('a') if control => self.move_line_start(),
-            KeyCode::Char('e') if control => self.move_line_end(),
-            KeyCode::Char('p') if control => self.move_up(),
-            KeyCode::Char('n') if control => self.move_down(),
-            KeyCode::Char('w') if control || alt => self.delete_backward_word(),
-            KeyCode::Char('d') if alt => self.delete_forward_word(),
-            KeyCode::Char('u') if control => self.kill_to_beginning_of_line(),
-            KeyCode::Char('k') if control => self.kill_to_end_of_line(),
-            KeyCode::Char('y') if control => self.yank(),
-            KeyCode::Backspace if control || alt => self.delete_backward_word(),
-            KeyCode::Delete if control || alt => self.delete_forward_word(),
-            KeyCode::Backspace => {
-                self.remove_previous_grapheme();
-            }
-            KeyCode::Delete => {
-                self.remove_next_grapheme();
-            }
-            KeyCode::Left => self.move_left(),
-            KeyCode::Right => self.move_right(),
-            KeyCode::Up => self.move_up(),
-            KeyCode::Down => self.move_down(),
-            KeyCode::Home => self.move_line_start(),
-            KeyCode::End => self.move_line_end(),
-            KeyCode::Enter if !control => self.insert_str("\n"),
-            KeyCode::Char(ch)
-                if !control
-                    && !alt
-                    && !ch.is_ascii_control()
-                    && (event.modifiers.is_empty() || event.modifiers == KeyModifiers::SHIFT) =>
-            {
-                self.insert_str(&ch.to_string());
-            }
-            _ => {}
-        }
     }
 
     pub(crate) fn delete_backward(&mut self, n: usize) {
@@ -593,11 +242,15 @@ impl TextArea {
                 pieces.next();
             }
         }
-        start
+        self.atomic_edit_range(start..self.cursor).start
     }
 
     pub(crate) fn end_of_next_word(&self) -> usize {
-        let suffix = &self.text[self.cursor..];
+        self.end_of_next_word_from(self.cursor)
+    }
+
+    pub(super) fn end_of_next_word_from(&self, cursor: usize) -> usize {
+        let suffix = &self.text[cursor..];
         let Some(first_non_ws) = suffix.find(|ch: char| !ch.is_whitespace()) else {
             return self.text.len();
         };
@@ -605,34 +258,39 @@ impl TextArea {
         let run = &run[..run.find(char::is_whitespace).unwrap_or(run.len())];
         let mut pieces = split_word_pieces(run).into_iter().peekable();
         let Some((start, piece)) = pieces.next() else {
-            return self.cursor + first_non_ws;
+            return cursor + first_non_ws;
         };
-        let word_start = self.cursor + first_non_ws + start;
+        let word_start = cursor + first_non_ws + start;
         let mut end = word_start + piece.len();
         if piece.chars().all(is_word_separator) {
             while let Some((idx, piece)) = pieces.peek() {
                 if !piece.chars().all(is_word_separator) {
                     break;
                 }
-                end = self.cursor + first_non_ws + *idx + piece.len();
+                end = cursor + first_non_ws + *idx + piece.len();
                 pieces.next();
             }
         }
-        end
+        self.atomic_edit_range(cursor..end).end
     }
 
     fn kill_range(&mut self, range: Range<usize>) {
         if let Some(selection) = self.mouse_selection_range() {
-            self.kill_buffer = self.text[selection.clone()].to_string();
+            self.store_kill_buffer(
+                self.text[selection.clone()].to_string(),
+                vim_register::KillBufferKind::Characterwise,
+            );
             self.replace_range(selection, "");
             return;
         }
-        let start = self.nearest_char_boundary(range.start.min(self.text.len()));
-        let end = self.nearest_char_boundary(range.end.min(self.text.len()));
+        let Range { start, end } = self.atomic_edit_range(range);
         if start >= end {
             return;
         }
-        self.kill_buffer = self.text[start..end].to_string();
+        self.store_kill_buffer(
+            self.text[start..end].to_string(),
+            vim_register::KillBufferKind::Characterwise,
+        );
         self.replace_range(start..end, "");
     }
 
@@ -750,6 +408,12 @@ impl TextArea {
                 text_for_display(visible),
                 Style::default(),
             );
+            self.render_elements(
+                area,
+                buf,
+                content_start..content_start + visible.len(),
+                area.y + row as u16,
+            );
             self.render_mouse_selection(area, buf, range, visible, area.y + row as u16);
         }
         if let Some(wrap_cache) = self.wrap_cache.borrow().as_ref() {
@@ -824,6 +488,7 @@ impl TextArea {
                 usize::from(area.width),
                 base_style,
             );
+            self.render_elements(area, buf, line_range.clone(), y);
             for (highlight_range, style) in highlights {
                 let overlap_start = highlight_range.start.max(line_range.start);
                 let overlap_end = highlight_range.end.min(line_range.end);
@@ -856,6 +521,13 @@ impl TextArea {
     }
 
     fn previous_grapheme_start_at(&self, cursor: usize) -> usize {
+        if let Some(element) = self
+            .elements
+            .iter()
+            .find(|element| element.range.end == cursor)
+        {
+            return element.range.start;
+        }
         self.text[..cursor]
             .grapheme_indices(true)
             .next_back()
@@ -868,12 +540,12 @@ impl TextArea {
         for (offset, grapheme) in self.text[line_start..line_end].grapheme_indices(true) {
             let width = editor_display_width(grapheme);
             if column.saturating_add(width) > target {
-                self.cursor = line_start + offset;
+                self.cursor = self.nearest_atomic_boundary(line_start + offset);
                 return;
             }
             column = column.saturating_add(width);
         }
-        self.cursor = line_end;
+        self.cursor = self.nearest_atomic_boundary(line_end);
     }
 
     fn next_grapheme_end(&self) -> usize {
@@ -881,6 +553,13 @@ impl TextArea {
     }
 
     fn next_grapheme_end_at(&self, cursor: usize) -> usize {
+        if let Some(element) = self
+            .elements
+            .iter()
+            .find(|element| element.range.start == cursor)
+        {
+            return element.range.end;
+        }
         self.text[cursor..]
             .graphemes(true)
             .next()
@@ -936,151 +615,4 @@ impl StatefulWidgetRef for &TextArea {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::{TextArea, TextAreaState};
-    use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
-    use ratatui::layout::Rect;
-    use ratatui::widgets::StatefulWidgetRef;
-
-    #[test]
-    fn unicode_cursor_and_grapheme_deletion_match_codex_textarea_semantics() {
-        let mut textarea = TextArea::default();
-        textarea.insert("a👩🏽‍💻界");
-        textarea.move_left();
-        assert!(textarea.remove_previous_grapheme());
-        assert_eq!(textarea.text(), "a界");
-        assert_eq!(textarea.cursor(), 1);
-    }
-
-    #[test]
-    fn line_navigation_stays_inside_the_current_logical_line() {
-        let mut textarea = TextArea::default();
-        textarea.insert("first\nsecond");
-        textarea.move_line_start();
-        assert_eq!(textarea.cursor(), 6);
-        textarea.move_line_end();
-        assert_eq!(textarea.cursor(), 12);
-    }
-
-    #[test]
-    fn codex_cursor_pos_api_keeps_cursor_visible_in_a_scrolled_viewport() {
-        let mut textarea = TextArea::new();
-        textarea.insert_str("abcdefghij");
-        textarea.set_cursor(textarea.text().len());
-
-        let area = Rect::new(2, 3, 4, 2);
-        let state = TextAreaState::default();
-        let (x, y) = textarea
-            .cursor_pos_with_state(area, state)
-            .expect("cursor position");
-
-        assert_eq!((x, y), (area.x + 2, area.y + 1));
-    }
-
-    #[test]
-    fn codex_buffer_replacement_preserves_cursor_only_at_valid_boundaries() {
-        let mut textarea = TextArea::new();
-        textarea.insert_str("ab");
-        textarea.set_cursor(1);
-        textarea.set_text_clearing_elements("cd");
-
-        assert_eq!(textarea.text(), "cd");
-        assert_eq!(textarea.cursor(), 1);
-    }
-
-    #[test]
-    fn stateful_render_clears_rows_outside_the_current_draft() {
-        let area = Rect::new(0, 0, 6, 2);
-        let mut textarea = TextArea::new();
-        textarea.insert_str("longer draft");
-        let mut buffer = ratatui::buffer::Buffer::empty(area);
-        let mut state = TextAreaState::default();
-        StatefulWidgetRef::render_ref(&&textarea, area, &mut buffer, &mut state);
-
-        textarea.set_text_clearing_elements("ok");
-        StatefulWidgetRef::render_ref(&&textarea, area, &mut buffer, &mut state);
-
-        assert_eq!(buffer[(0, 0)].symbol(), "o");
-        assert_eq!(buffer[(2, 0)].symbol(), " ");
-        assert_eq!(buffer[(0, 1)].symbol(), " ");
-    }
-
-    #[test]
-    fn codex_word_delete_and_line_kill_preserve_unicode_boundaries() {
-        let mut textarea = TextArea::new();
-        textarea.insert_str("alpha 你👍 beta");
-        textarea.set_cursor(textarea.text().len());
-        textarea.delete_backward_word();
-        assert_eq!(textarea.text(), "alpha 你👍 ");
-        textarea.yank();
-        assert_eq!(textarea.text(), "alpha 你👍 beta");
-
-        textarea.set_cursor(9);
-        textarea.kill_to_beginning_of_line();
-        assert_eq!(textarea.text(), "👍 beta");
-        textarea.yank();
-        assert_eq!(textarea.text(), "alpha 你👍 beta");
-    }
-
-    #[test]
-    fn codex_input_dispatches_emacs_style_editor_bindings() {
-        let mut textarea = TextArea::new();
-        textarea.input(KeyEvent::new(KeyCode::Char('a'), KeyModifiers::NONE));
-        textarea.input(KeyEvent::new(KeyCode::Char('b'), KeyModifiers::NONE));
-        textarea.input(KeyEvent::new(KeyCode::Char('c'), KeyModifiers::NONE));
-        textarea.input(KeyEvent::new(KeyCode::Char('b'), KeyModifiers::CONTROL));
-        textarea.input(KeyEvent::new(KeyCode::Char('k'), KeyModifiers::CONTROL));
-        assert_eq!(textarea.text(), "ab");
-        textarea.input(KeyEvent::new(KeyCode::Char('y'), KeyModifiers::CONTROL));
-        assert_eq!(textarea.text(), "abc");
-    }
-
-    #[test]
-    fn codex_control_h_deletes_and_control_m_inserts_newline() {
-        let mut textarea = TextArea::new();
-        textarea.insert_str("ab");
-        textarea.input(KeyEvent::new(KeyCode::Char('h'), KeyModifiers::CONTROL));
-        assert_eq!(textarea.text(), "a");
-        textarea.input(KeyEvent::new(KeyCode::Char('m'), KeyModifiers::CONTROL));
-        assert_eq!(textarea.text(), "a\n");
-    }
-
-    #[test]
-    fn c0_line_feed_and_emacs_vertical_motion_match_codex_textarea_semantics() {
-        let mut textarea = TextArea::new();
-        textarea.insert_str("ab\ncdef");
-        textarea.set_cursor(2);
-        textarea.input(KeyEvent::new(KeyCode::Char('\u{000a}'), KeyModifiers::NONE));
-        assert_eq!(textarea.text(), "ab\n\ncdef");
-
-        textarea.replace("ab\ncdef".to_string());
-        textarea.set_cursor(2);
-        textarea.input(KeyEvent::new(KeyCode::Char('n'), KeyModifiers::CONTROL));
-        assert_eq!(textarea.cursor(), 5);
-        textarea.input(KeyEvent::new(KeyCode::Char('p'), KeyModifiers::CONTROL));
-        assert_eq!(textarea.cursor(), 2);
-    }
-
-    #[test]
-    fn vertical_motion_preserves_display_column_for_wide_graphemes() {
-        let mut textarea = TextArea::new();
-        textarea.insert_str("界a\nxy");
-        textarea.set_cursor(3);
-        textarea.move_down();
-        assert_eq!(textarea.cursor(), 7);
-        textarea.move_up();
-        assert_eq!(textarea.cursor(), 3);
-    }
-
-    #[test]
-    fn codex_word_boundaries_handle_cjk_and_separator_runs() {
-        let mut textarea = TextArea::new();
-        textarea.insert_str("你好::world");
-        textarea.set_cursor(textarea.text().len());
-        assert_eq!(textarea.beginning_of_previous_word(), 8);
-        textarea.delete_backward_word();
-        assert_eq!(textarea.text(), "你好::");
-        textarea.set_cursor(0);
-        assert_eq!(textarea.end_of_next_word(), 3);
-    }
-}
+mod tests;

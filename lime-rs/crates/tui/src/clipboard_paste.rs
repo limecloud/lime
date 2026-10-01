@@ -158,6 +158,52 @@ pub(crate) fn normalize_pasted_search_query(pasted: &str) -> Option<String> {
     (!normalized.is_empty()).then_some(normalized)
 }
 
+/// Resolve a single pasted file URL, Windows/UNC path or shell-quoted local path.
+pub(crate) fn normalize_pasted_path(pasted: &str) -> Option<PathBuf> {
+    let pasted = pasted.trim();
+    let unquoted = pasted
+        .strip_prefix('"')
+        .and_then(|value| value.strip_suffix('"'))
+        .or_else(|| {
+            pasted
+                .strip_prefix('\'')
+                .and_then(|value| value.strip_suffix('\''))
+        })
+        .unwrap_or(pasted);
+    if let Ok(url) = url::Url::parse(unquoted) {
+        if url.scheme() == "file" {
+            return url.to_file_path().ok();
+        }
+    }
+    if let Some(path) = normalize_windows_path(unquoted) {
+        return Some(path);
+    }
+    let parts = shlex::split(pasted)?;
+    let [part] = parts.as_slice() else {
+        return None;
+    };
+    normalize_windows_path(part).or_else(|| Some(PathBuf::from(part)))
+}
+
+fn normalize_windows_path(input: &str) -> Option<PathBuf> {
+    let drive = input
+        .chars()
+        .next()
+        .is_some_and(|ch| ch.is_ascii_alphabetic())
+        && input.get(1..2) == Some(":")
+        && matches!(input.get(2..3), Some("\\" | "/"));
+    if !drive && !input.starts_with("\\\\") {
+        return None;
+    }
+    #[cfg(target_os = "linux")]
+    if is_wsl_session() {
+        if let Some(path) = windows_path_to_wsl(input) {
+            return Some(path);
+        }
+    }
+    Some(PathBuf::from(input))
+}
+
 impl std::fmt::Display for PasteImageError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -342,6 +388,31 @@ fn windows_path_to_wsl(path: &str) -> Option<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn pasted_paths_resolve_urls_quotes_and_shell_escapes_but_reject_multiple_tokens() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("图片 with spaces.png");
+        let literal = path.to_string_lossy();
+        for input in [
+            url::Url::from_file_path(&path).unwrap().to_string(),
+            format!("'{}'", literal),
+            format!("\"{}\"", literal),
+            literal.replace(' ', "\\ "),
+        ] {
+            assert_eq!(normalize_pasted_path(&input), Some(path.clone()), "{input}");
+        }
+        for input in ["", "one.png two.png", "'unterminated", "one.png\ntwo.png"] {
+            assert_eq!(normalize_pasted_path(input), None, "{input}");
+        }
+        #[cfg(not(target_os = "linux"))]
+        for input in [
+            r"C:\Users\Alice\image with spaces.png",
+            r"\\server\share\image.png",
+        ] {
+            assert_eq!(normalize_pasted_path(input), Some(PathBuf::from(input)));
+        }
+    }
 
     #[test]
     fn rgba_clipboard_pixels_encode_as_png() {

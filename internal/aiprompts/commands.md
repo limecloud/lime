@@ -67,23 +67,117 @@ force-refetch 语义，Codex 的远程 marketplace/账号管理与 `marketplace 
 
 CLI/TUI 可使用 Codex 形状的 `--remote <URL>` 连接 WebSocket App Server；Bearer token 只从 `--remote-auth-token-env <ENV_VAR>` 指定的环境变量读取。未提供 remote endpoint、环境变量缺失或 token 为空时，连接在 initialize 前失败；token 不写入配置 Debug 或 URL，remote URL 中的 userinfo/fragment 也会被拒绝；不安全的公网 `ws://` token 连接由 `app-server-client` fail closed。
 
+TUI `/model` 的模型和推理强度选择只消费同一次 `model/list` 的 supported/default effort。
+模型、普通 effort 和 More reasoning 子层在确认前不写设置；Esc 逐层返回并保留模型搜索/高亮，
+确认后经单次既有 `thread/settings/update` 同时写 model/provider/effort。v2
+`thread/read`、`thread/list` provider filter 和 `thread/resume` 统一从 canonical durable
+settings metadata 投影当前 provider；rollout 的创建字段保持不可变，不拿创建 provider 覆盖后续选择。
+账号额度告警、全局默认持久化和 Plan-only scope 不由 TUI 猜测或复制。
+
+TUI Alt+, / Alt+. 与 `/model` 共享同一 catalog reasoning options。模型/provider 必须唯一
+匹配；unset/unsupported 先定位 server default（default 不在列表则首项），普通档位保持
+advertised order，Max/Ultra 后置；边界不循环，Raise Ultra 只提示从 More reasoning 明确选择。
+modal/popup、未完成 startup 和 parent-owned thread 禁止穿透；当前服务端尚无独立 Plan-only
+effort override，因此 Plan 快捷键显式 fail closed，不把普通 durable settings 更新冒充该 scope。
+普通模式只经既有 thread/settings/update 修改当前 Thread，成功后再更新本地投影，不写全局默认。
+
 TUI 偏好只允许位于同一 Lime 用户配置的 `tui.right_click_paste` 与 `tui.keymap`，由启动期
 `config/read -> LocalSettings -> RuntimeKeymap` 解析为进程内不可变 snapshot；主 TUI 与独立 resume
 picker 都必须在进入 alternate screen 前完成读取。当前真实 consumer 只包括
 `tui.right_click_paste=auto|on|off`（右键 CLIPBOARD；中键 PRIMARY 仍要求本地 X11）以及
 `global.open_agents|open_transcript|find_transcript`、pager 的
 `scroll_up|scroll_down|page_up|page_down|half_page_up|half_page_down|jump_top|jump_bottom|close|close_transcript|find`
-以及 `agents.resume|search|new_task|rename|stop|toggle_grouping`。每个 action 接受单个按键字符串、
+以及 `agents.resume|search|new_task|rename|stop|toggle_grouping`。
+`list.move_up|move_down|move_left|move_right|page_up|page_down|jump_top|jump_bottom|accept|cancel`
+当前由 resume/fork、模型及两级推理强度 picker、`/subagents` 和 Agent Center 消费，
+其它 lists 尚未接入；默认 Ctrl+F/Ctrl+B 为 paging，
+旧 Ctrl+F filter / Ctrl+S status / Ctrl+R sort 已删除。picker 固定退出、详情/密度、焦点和
+搜索删除键不可被该 context 截获，冲突配置 fail closed；可打印导航仍优先进入搜索。
+模型与子 Agent 选择复用 `bottom_pane/list_selection_view.rs` 的无边框底部布局、
+换行 viewport 和真实按键 footer；`/subagents` 默认定位当前 Thread，显示 canonical
+路径/Thread ID/closed 状态点。它只返回线程选择，实际切换仍由 App Server thread/resume 承接。
+每个 action 接受单个按键字符串、
 有序 alternatives 数组、最多两段且以空格分隔的 chord，或空数组显式 unbind。未知
 context/action、非法键名、超过两段的 chord、同 context 冲突、single/chord prefix 冲突和会截获普通
-文本的 printable chord prefix 均 fail closed。dispatch 与 footer hint 必须消费同一 snapshot；不得为
-composer/editor/Vim 等尚未接线的 context 提前暴露配置，也不得新增 TUI 私有配置文件或环境变量配置面。
+文本的 printable chord prefix 均 fail closed；只有 Vim modal contexts 允许 printable prefix。
+dispatch 与 footer hint 必须消费同一 snapshot；不得为 composer 专用提交/队列等尚未接线的
+context 提前暴露配置，也不得新增 TUI 私有配置文件或环境变量配置面。
+
+`editor` 的 17 个 Codex 同义动作由 `TuiEditorKeymap -> RuntimeKeymap.editor ->
+TextArea::set_keymap_bindings/input_with_keymap` 消费，composer 普通/Insert/Replace 不再维护
+静态编辑键清单。alternatives、chord 和显式 unbind 复用同一 matcher；global 与 editor 同键
+或共享 chord prefix、host/composer 保留键冲突 fail closed。普通 Enter 仍是提交，editor
+insert_newline 只承接修改键/其它显式绑定；history Up/Down 仅在对应 editor 动作仍绑定时进入。
+pending chord 的完成/取消不穿透 App host/global；AltGr 字符不误触发 image paste。Vim Insert
+录制 resolved semantic edit，改绑不改变 `.` 重放；配置 snapshot 不进入 ComposerDraft。
+
+`vim_normal|vim_operator|vim_text_object|vim_search` 的 36/20/9/4 个 Codex 同义动作由
+`TuiVim*Keymap -> RuntimeKeymap.{vim_normal,vim_operator,vim_text_object,vim_search} ->
+TextArea::keymap_context -> VimKeymap::dispatch` 消费同一个 chord matcher。
+Normal/operator/text-object 不保留 raw-key fallback；find/replace 的 literal 字符捕获仍归
+TextArea。默认 `gg` 是两段 chord；显式 modal 绑定优先于同 context 默认，默认 search/modal
+向显式动作和实际 global 绑定让位，显式冲突与保留 host 键 fail closed。undo/redo、事务启动、
+Normal history movement 和 repeat 只消费 resolved action。`KillBufferKind` 区分 characterwise/
+linewise；行复制/删除/vertical operator 与 `p` 共用 textarea register owner，不从 newline 猜类型。
+App 同时将 snapshot 传给 composer 与 BottomPane；新请求和排队请求中的 user-input notes、
+MCP 文本字段及 Vim query editor 使用同一 editor owner，pending completion 不穿透提交/取消。
+旧 MCP Ctrl+J 换行 fallback 已删除，解绑不恢复硬编码入口。
+
+successful thread handoff 先从同一 paste-burst owner 物化 held typing，再保存 composer 的
+rich draft；目标恢复通过 `restore_thread_input_state` 重建编辑状态，注入当前 bindings。
+旧 undo/redo、command/search、pending chord 与 popup dismissal 不进入新 Thread，register
+通过 Codex 同名 `KillBufferSnapshot` take/restore 保持 session 语义。相同 Thread reconnect
+不重建编辑器，失败 resume 不改当前 draft。该状态只属于 TUI 内存投影，不能成为 GUI 的
+业务 read model、App Server 持久化字段或第二 backend。
+
+TUI successful thread handoff 同时移交 `ThreadInputState` 中的 rich draft 与 unresolved
+`BottomPaneInputState`。问答每题备注/选项/focus、审批选择和MCP表单保持原view，目标恢复
+消费快照并注入当前keymap；打开Agent Center不提前搬走输入。相同Thread的resolved、
+turn terminal、item started与ThreadClosed清理当前/休眠view，MCP只按其独立resolved或
+ThreadClosed清理。断线统一清旧connection交互和bounded replay，不丢主输入草稿。
+所有这些均为TUI内存投影，canonical queue、waiter、Thread/Turn/Item仍归共享App Server；
+不新增GUI私有策略、method/schema、配置或另一套后端。完整ChatWidget owner迁移仍partial。
+bounded ThreadEventStore 的 replay 只认同一张 exact request-id 未决表，不以 item/category
+索引推测请求是否仍待回答。resolved/outbound/eviction 都按原 response identity 清理；
+ItemStarted 同时匹配 turn/item，MCP 仍等待自身 resolved。无 native Op/FIFO 兼容适配。
 
 Agent Center 默认任务键位为 Codex current 的 `o/f/n/r/x/g`（resume/search/new/rename/stop/group），
 旧 Ctrl 组合不保留隐式兼容；`Ctrl+F/Ctrl+B` 归 list paging，metadata editing 不执行 printable
 task shortcuts。用户显式配置覆盖默认值；标签页/帮助不宣传已被 task binding 占用的入口。
+Agent Center task/list 共用同一 chord matcher，允许不同 action 共用 prefix；任务快捷键在任务列表优先，
+编辑/search/help 不触发 task action，确认与返回始终来自实际 list bindings，不保留 Enter/Esc/Ctrl+D 暗路。
 
 ## Codex 能力边界
+
+GUI/CLI/TUI 的 `turn/start|steer` 与 `thread/queue/add|update` 共用 canonical input 长度规则，
+所有 Text parts 按 Unicode scalar count 汇总，上限只来自 `agent-protocol::input` 的
+`MAX_USER_INPUT_TEXT_CHARS`（1 << 20）。超限返回 Codex structured INVALID_PARAMS，
+`data={input_error_code:"input_too_large",max_chars,actual_chars}`，不创建 Turn 或修改既有 queue。
+RuntimeCore admission 使用同一 validator；服务端不 trim GUI 文本、不拼接/重排输入部分。
+TUI `chat_composer/submission` 在展开 pending paste 后 trim/rebase，再执行同一长度校验；
+失败保留完整 rich draft，主 transcript 与嵌入式 notes footer 显示五语言错误，不新建业务
+method、Electron 命令、私有配置或 mock fallback。
+
+TUI canonical queue/edit 与传输失败恢复继续消费原 `UserInput`：TextElement 的 optional
+placeholder、Image/LocalImage 的各档 typed detail 必须保留。范围、顺序、UTF-8 边界和重叠
+检查不能因允许 None 而放松；未知 Mention 仍不开放编辑。`AttachmentState` 与本地 rich
+history 只持有完整 LocalImageAttachment/RemoteImageAttachment；url/path 投影只能用于
+展示、计数或显式 test fixture，不能用来重建生产输入。`runtime/input_submission` 统一
+start/steer/queue 的 acknowledgement 与完整恢复，服务端仍拥有 sidecar lowering、queue
+和 canonical Thread/Turn/Item；不新增 method/schema 或 GUI 私有策略。
+
+TUI prompt history 只通过现有 `promptHistory/read|append` 访问同一个 App Server history owner。
+append 请求为 `{threadId,text}`，entry 也投影 `threadId`；不得发送或接受旧 `sessionId`。
+内部 JSONL 保持 Codex 的 `session_id` 存储字段，但记录 canonical Thread ID；没有平行 history
+DB 或 IPC。selected skill path 由 composer `mention_codec` 编码到正文 link，并在 recall 恢复。
+普通图片/paste payload 仍是进程内 rich history，不把文本编码冒充完整附件持久化。
+TUI startup 只读取 log/count metadata；按需单条 probe 与 query-independent batch 都由
+`AppEvent::LookupMessageHistoryEntry/Batch -> app/message_history -> cloned RequestHandle`
+访问同一 `promptHistory/read`。public cursor 是 exclusive end offset，host 映射为同名
+`HistoryBatchCursor`，不直读 JSONL/byte cursor。limit 限制 offset 行窗口（最多 100），
+坏行不补满 valid count，允许 empty data + nextCursor；consumer 必须继续下一页。
+TUI 的 `on_*_response` 检查 thread/log/awaited cursor，并区分 pending、query miss、IO error；
+GUI gateway 继续使用原 method/schema，没有第二份 storage 或兼容公开字段。
 
 Codex 的 `requestAttestation` 只用于客户端声明接收 `attestation/generate`，由 Desktop Host 生成不透明 token，再转成上游 `x-oai-attestation`。Lime 当前没有真实 token producer，因此 initialize 收到 `capabilities.requestAttestation=true` 时必须 fail closed；不得静默忽略、生成假 token 或新增 `attestation/generate` 兼容入口。
 

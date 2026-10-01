@@ -18,6 +18,9 @@ const input = JSON.parse(readFileSync(0, "utf8"));
 const ledgerPath = process.argv[2];
 const session = input.request.session ?? {};
 const turn = input.request.turn ?? {};
+const questionCallId = "terminal-question-" + turn.turnId;
+const questionRequestId = "terminal-user-input-" + turn.turnId;
+const assistantItemId = "terminal-assistant-" + turn.turnId;
 const toolItem = (
   status,
   output,
@@ -69,6 +72,19 @@ const reasoningItem = (status) => ({
   },
   metadata: {},
 });
+const patchItem = (status) => ({
+  ...toolItem(status, undefined, { callId: "terminal-patch" }),
+  kind: "file",
+  payload: {
+    type: "file",
+    status: status === "completed" ? "applied" : "proposed",
+    changes: [{
+      path: "gate-diff.rs",
+      kind: { type: "update", move_path: null },
+      diff: "@@ -1 +1 @@\\n-PTY_DIFF_OLD " + "o".repeat(110) + " PTY_DIFF_OLD_TAIL\\n+PTY_DIFF_NEW " + "n".repeat(110) + " PTY_DIFF_NEW_TAIL",
+    }],
+  },
+});
 let events = [];
 if (input.kind === "turnStart") {
   if (${JSON.stringify(scenario)} === "approval") {
@@ -111,7 +127,7 @@ if (input.kind === "turnStart") {
         type: "item.started",
         payload: {
           item: toolItem("inProgress", undefined, {
-            callId: "terminal-question",
+            callId: questionCallId,
             name: "request_user_input",
           }),
         },
@@ -120,8 +136,8 @@ if (input.kind === "turnStart") {
         type: "action.required",
         payload: {
           actionType: "ask_user",
-          requestId: "terminal-user-input",
-          toolCallId: "terminal-question",
+          requestId: questionRequestId,
+          toolCallId: questionCallId,
           questions: [
             {
               id: "mode",
@@ -145,7 +161,7 @@ if (input.kind === "turnStart") {
       {
         type: "message.delta",
         payload: {
-          itemId: "terminal-assistant",
+          itemId: assistantItemId,
           text:
             ${JSON.stringify(scenario)} === "queue-edit"
               ? "QUEUE_EDIT_READY"
@@ -165,7 +181,7 @@ if (input.kind === "turnStart") {
       {
         type: "message.delta",
         payload: {
-          itemId: "terminal-assistant",
+          itemId: assistantItemId,
           role: "assistant",
           text: ${JSON.stringify(completedText)},
         },
@@ -191,13 +207,19 @@ if (input.kind === "turnStart") {
       { type: "turn.completed", payload: { status: "completed" } },
     ];
   }
+  if (${JSON.stringify(scenario)} === "diff-display") {
+    events.splice(1, 0,
+      { type: "item.started", payload: { item: patchItem("inProgress") } },
+      { type: "item.completed", payload: { item: patchItem("completed") } },
+    );
+  }
   events.unshift({ type: "turn.started", payload: {} });
 } else if (input.kind === "actionRespond") {
   const decision = input.request.decision ?? null;
   const canceled = decision === "cancel";
   const isAskUser = String(input.request.actionType ?? "").toLowerCase().includes("ask");
   const toolCallId = isAskUser
-    ? "terminal-question"
+    ? questionCallId
     : "terminal-command";
   events = [
     {
@@ -212,7 +234,7 @@ if (input.kind === "turnStart") {
         scope: input.request.actionScope ?? null,
       },
     },
-    { type: "message.delta", payload: { itemId: "terminal-assistant", text: ${JSON.stringify(completedText)} } },
+    { type: "message.delta", payload: { itemId: assistantItemId, text: ${JSON.stringify(completedText)} } },
     {
       type: "item.completed",
       payload: {
@@ -220,7 +242,7 @@ if (input.kind === "turnStart") {
           "completed",
           { text: "terminal-gate-b" },
           isAskUser
-            ? { callId: "terminal-question", name: "request_user_input" }
+            ? { callId: questionCallId, name: "request_user_input" }
             : undefined,
         ),
       },
@@ -234,6 +256,7 @@ appendFileSync(
   ledgerPath,
   JSON.stringify({
     kind: input.kind,
+    inputParts: input.request.input?.parts ?? [],
     inputText: (input.request.input?.parts ?? [])
       .map((part) => part?.Text?.text ?? "")
       .join(""),
@@ -241,6 +264,7 @@ appendFileSync(
     turnId: input.request.turn?.turnId ?? null,
     requestId: input.request.requestId ?? null,
     decision: input.request.decision ?? null,
+    userData: input.request.userData ?? null,
     runtimeOptions: input.request.runtimeOptions ?? null,
     scenario: ${JSON.stringify(scenario)},
     eventTypes: events.map((event) => event.type),

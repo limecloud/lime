@@ -18,7 +18,6 @@ impl ChatComposer {
     pub(crate) fn agents_navigation_available(&self) -> bool {
         self.agents_navigation_enabled
             && self.is_empty()
-            && !self.has_pending_images()
             && !self.popups.active()
             && self.history_search.is_none()
             && !self.vim_search_active()
@@ -63,7 +62,7 @@ mod tests {
         let mut composer = ChatComposer::default();
         composer.set_agents_navigation_enabled(true);
         composer.insert("/mo");
-        composer.sync_command_popup();
+        composer.sync_completion_popup();
         assert!(!composer.agents_navigation_available());
 
         composer.clear_for_ctrl_c();

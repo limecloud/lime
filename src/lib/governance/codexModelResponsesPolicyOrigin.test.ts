@@ -51,10 +51,7 @@ function requireMatch(source: string, pattern: RegExp, label: string): string {
 function extractTypeFieldNames(source: string, name: string): string[] {
   const body = requireMatch(
     source,
-    new RegExp(
-      `export interface ${name} \\{\\n(?<body>[\\s\\S]*?)\\n\\}`,
-      "u",
-    ),
+    new RegExp(`export interface ${name} \\{\\n(?<body>[\\s\\S]*?)\\n\\}`, "u"),
     name,
   );
   return [...body.matchAll(/^\s{2}([a-zA-Z_][a-zA-Z0-9_]*)\??:/gmu)].map(
@@ -128,16 +125,22 @@ describe("Codex model responses policy origin", () => {
     }
 
     expect(codexClientSource).toContain(
-      "add_responses_lite_header(&mut extra_headers, model_info.use_responses_lite)",
+      "add_responses_lite_header(&mut headers, use_responses_lite)",
     );
-    expect(codexClientSource).toContain(
-      "build_ws_client_metadata(responses_metadata, model_info.use_responses_lite)",
+    expect(codexClientSource).toMatch(
+      /build_responses_options\(\s*responses_metadata,\s*compression,\s*model_info\.use_responses_lite,\s*\)/u,
+    );
+    expect(codexClientSource).toMatch(
+      /fn add_responses_lite_header\(headers: &mut ApiHeaderMap, use_responses_lite: bool\)\s*\{\s*if use_responses_lite\s*\{\s*headers\.insert\(\s*X_OPENAI_INTERNAL_CODEX_RESPONSES_LITE_HEADER,/u,
+    );
+    expect(codexClientSource).toMatch(
+      /build_ws_client_metadata\(\s*responses_metadata,\s*include_internal,\s*model_info\.use_responses_lite,\s*\)/u,
     );
     expect(codexClientSource).toMatch(
       /context:\s*model_info\s*\.use_responses_lite\s*\.then_some\(ReasoningContext::AllTurns\)/u,
     );
     expect(codexClientSource).toContain(
-      "prompt.get_formatted_input_for_request(model_info.use_responses_lite)",
+      "prompt.get_formatted_input_for_request(model_info)",
     );
     expect(codexClientSource).toContain("if model_info.use_responses_lite");
     expect(codexClientSource).toContain(

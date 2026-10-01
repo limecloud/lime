@@ -55,6 +55,57 @@ fn shortcut_overlay_uses_runtime_bindings_and_omits_disabled_actions() {
 }
 
 #[test]
+fn editor_newline_help_renders_actual_binding_and_omits_unbound_action_in_all_locales() {
+    for locale in [
+        Locale::ZhCn,
+        Locale::ZhTw,
+        Locale::EnUs,
+        Locale::JaJp,
+        Locale::KoKr,
+    ] {
+        for value in [
+            serde_json::json!("f11"),
+            serde_json::json!("ctrl-q j"),
+            serde_json::json!([]),
+            serde_json::json!("enter"),
+        ] {
+            let mut app = help_app(locale);
+            let config: TuiKeymap =
+                serde_json::from_value(serde_json::json!({"editor":{"insert_newline":value}}))
+                    .unwrap();
+            app.set_runtime_keymap(RuntimeKeymap::from_config(&config).unwrap());
+            let mut terminal =
+                Terminal::new(TestBackend::new(160, desired_height(&app, 160))).unwrap();
+            terminal.draw(|f| render(f, f.area(), &app)).unwrap();
+            let text = buffer_text(&terminal);
+            let compact = |value: &str| {
+                value
+                    .chars()
+                    .filter(|ch| !ch.is_whitespace())
+                    .collect::<String>()
+            };
+            let bound = value.as_str().filter(|value| *value != "enter");
+            if let Some(bound) = bound {
+                assert!(
+                    text.contains(if bound == "f11" { "f11" } else { "ctrl+q j" }),
+                    "{locale:?}: {text}"
+                );
+                assert!(
+                    compact(&text).contains(&compact(locale.shortcut_label(Label::NewLine))),
+                    "{locale:?}: {text}"
+                );
+            } else {
+                assert!(
+                    !compact(&text).contains(&compact(locale.shortcut_label(Label::NewLine))),
+                    "unreachable newline hint: {locale:?}: {text}"
+                );
+            }
+            assert!(!text.contains("ctrl+j"), "old hardcoded hint: {text}");
+        }
+    }
+}
+
+#[test]
 fn shortcut_overlay_measurement_and_paint_share_localized_responsive_rows() {
     for locale in [
         Locale::ZhCn,

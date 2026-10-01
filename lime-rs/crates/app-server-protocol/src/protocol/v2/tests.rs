@@ -2628,7 +2628,7 @@ fn prompt_history_methods_round_trip_newest_first_contract() {
     let response = ClientResponsePayload::PromptHistoryAppend(PromptHistoryAppendResponse {
         entry: PromptHistoryEntry {
             offset: 0,
-            session_id: "thread-1".to_string(),
+            thread_id: "thread-1".to_string(),
             ts: 1,
             text: "hello".to_string(),
         },
@@ -2637,7 +2637,7 @@ fn prompt_history_methods_round_trip_newest_first_contract() {
     })
     .into_response(RequestId::Integer(7))
     .expect("encode response");
-    assert_eq!(response.result["entry"]["sessionId"], "thread-1");
+    assert_eq!(response.result["entry"]["threadId"], "thread-1");
 }
 
 #[test]

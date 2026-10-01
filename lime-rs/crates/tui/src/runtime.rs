@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use anyhow::{anyhow, bail, Context, Result};
 use app_server_client::{AppServerEvent, RemoteTransportConfig, StdioTransportConfig};
-use app_server_protocol::protocol::v2::{ServerNotification, ServerRequest, UserInput};
+use app_server_protocol::protocol::v2::{ServerNotification, ServerRequest};
 use futures::StreamExt;
 use serde::Serialize;
 
@@ -26,6 +26,8 @@ use crate::resume_picker::{
 use crate::settings::{parse_settings_command, SettingsCommand};
 use crate::tui::{Tui, TuiEvent};
 use crate::view;
+
+mod input_submission;
 
 #[derive(Debug, Clone)]
 pub struct TuiOptions {
@@ -147,6 +149,10 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
         }
     };
     let mut app = App::default();
+    let (app_event_tx, mut app_event_rx) = tokio::sync::mpsc::unbounded_channel();
+    let app_event_tx = crate::app_event_sender::AppEventSender::new(app_event_tx);
+    app.composer.set_app_event_tx(app_event_tx.clone());
+    let mut message_history = crate::app::message_history::MessageHistory::default();
     app.set_right_click_paste(local_settings.right_click_paste);
     app.set_runtime_keymap(local_settings.keymap);
     app.set_cwd(options.cwd.clone());
@@ -297,13 +303,13 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
 
             if app.external_editor_state() == ExternalEditorState::Requested {
                 app.set_external_editor_state(ExternalEditorState::Active);
-                let draft = app.composer.text().to_string();
+                let draft = app.composer.current_text_with_pending();
                 let edited = terminal
                     .with_restored(|| edit_draft(&draft, &options.cwd))
                     .await;
                 app.reset_external_editor_state();
                 match edited {
-                    Ok(Some(text)) => app.replace_composer(text),
+                    Ok(Some(text)) => app.apply_external_edit(text),
                     Ok(None) => app.projection.set_status("editor draft empty"),
                     Err(error) => app.projection.set_status(error.to_string()),
                 }
@@ -314,6 +320,15 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
             }
 
             tokio::select! {
+                app_event = app_event_rx.recv() => {
+                    if let Some(event) = app_event {
+                        message_history.handle_event(
+                            event, &mut app, session.as_ref().map(AppServerSession::request_handle),
+                            &app_event_tx,
+                        );
+                        frame_requester.schedule_frame();
+                    }
+                }
                 file_search_event = file_search_rx.recv() => {
                     if let Some(file_search_event) = file_search_event {
                         app.composer.on_file_search_result(
@@ -342,7 +357,7 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
                         PickerLoadEvent::Threads { token, result } => match result {
                             Ok(page) => {
                                 picker.apply_thread_page(token, page);
-                                if picker.threads.is_empty() && picker.has_more_pages() {
+                                if (picker.threads.is_empty() && picker.has_more_pages()) || picker.has_pending_page_down() {
                                     if let Some(sender) = resume_picker_load_tx.as_ref() {
                                         crate::resume_picker::spawn_thread_load(
                                             session
@@ -487,7 +502,7 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
                         EventDispatch::Unhandled(action) => action,
                     };
                     match action {
-                        AppAction::Submit(prompt) => {
+                        AppAction::Submit { text: prompt, text_elements } => {
                             if !app.can_accept_direct_input() {
                                 continue;
                             }
@@ -611,122 +626,22 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
                                 }
                                 continue;
                             }
-                            let images = app.take_pending_images();
-                            let remote_images = app.take_remote_image_urls();
-                            let turn_input = submission_input_with_skills(
-                                prompt.clone(),
-                                &images,
-                                &remote_images,
-                                app.composer.skills(),
-                            );
-                            if let Some(turn_id) = app.projection.active_turn_id().map(str::to_owned) {
-                                match session
-                                    .as_ref()
-                                    .expect("session available during TUI")
-                                    .steer_turn_input(&turn_id, turn_input.clone())
-                                    .await
-                                {
-                                    Ok(_) => {
-                                        app.projection.set_status("steering");
-                                        persist_prompt(
-                                            session.as_ref().expect("session available during TUI"),
-                                            &mut app,
-                                            prompt,
-                                        )
-                                        .await;
-                                    }
-                                    Err(steer_error) => match session
-                                        .as_ref()
-                                        .expect("session available during TUI")
-                                        .queue_input(turn_input)
-                                        .await
-                                    {
-                                    Ok(submission) => {
-                                        app.upsert_queued_submission(submission);
-                                        app.projection.set_status("queued");
-                                            persist_prompt(
-                                                session.as_ref().expect("session available during TUI"),
-                                                &mut app,
-                                                prompt,
-                                            )
-                                            .await;
-                                        }
-                                        Err(queue_error) => {
-                                            app.restore_submission_draft(
-                                                prompt.clone(),
-                                                images,
-                                                remote_images,
-                                            );
-                                            app.projection.set_status(format!(
-                                                "{steer_error}; queue failed: {queue_error}"
-                                            ));
-                                        }
-                                    },
-                                }
-                            } else {
-                                match session
-                                    .as_ref()
-                                    .expect("session available during TUI")
-                                    .start_turn_input(turn_input)
-                                    .await
-                                {
-                                    Ok(turn_id) => {
-                                        app.start_turn(turn_id);
-                                        persist_prompt(
-                                            session.as_ref().expect("session available during TUI"),
-                                            &mut app,
-                                            prompt,
-                                        )
-                                        .await;
-                                    }
-                                    Err(error) => {
-                                        app.restore_submission_draft(
-                                            prompt.clone(),
-                                            images,
-                                            remote_images,
-                                        );
-                                        app.projection.set_status(error.to_string());
-                                    }
-                                }
-                            }
+                            input_submission::handle_submission(
+                                &mut app,
+                                session.as_ref().expect("session available during TUI"),
+                                prompt,
+                                text_elements,
+                                false,
+                            ).await;
                         }
-                        AppAction::Queue(prompt) => {
-                            if !app.can_accept_direct_input() {
-                                continue;
-                            }
-                            let images = app.take_pending_images();
-                            let remote_images = app.take_remote_image_urls();
-                            let input = submission_input_with_skills(
-                                prompt.clone(),
-                                &images,
-                                &remote_images,
-                                app.composer.skills(),
-                            );
-                            match session
-                                .as_ref()
-                                .expect("session available during TUI")
-                                .queue_input(input)
-                                .await
-                            {
-                                Ok(submission) => {
-                                    app.upsert_queued_submission(submission);
-                                    app.projection.set_status("queued");
-                                    persist_prompt(
-                                        session.as_ref().expect("session available during TUI"),
-                                        &mut app,
-                                        prompt,
-                                    )
-                                    .await;
-                                }
-                                Err(error) => {
-                                    app.restore_submission_draft(
-                                        prompt.clone(),
-                                        images,
-                                        remote_images,
-                                    );
-                                    app.projection.set_status(error.to_string());
-                                }
-                            }
+                        AppAction::Queue { text: prompt, text_elements } => {
+                            input_submission::handle_submission(
+                                &mut app,
+                                session.as_ref().expect("session available during TUI"),
+                                prompt,
+                                text_elements,
+                                true,
+                            ).await;
                         }
                         AppAction::EditQueuedSubmission(submission) => {
                             match session
@@ -984,6 +899,7 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
                                 picker.set_transcript_keymap(
                                     app.runtime_keymap.transcript().clone(),
                                 );
+                                picker.set_list_keymap(app.runtime_keymap.list().clone());
                                 crate::resume_picker::spawn_thread_load(
                                     session
                                         .as_ref()
@@ -1307,66 +1223,6 @@ pub async fn run_resume(mut options: TuiOptions) -> Result<()> {
         options.resume_thread = Some(thread_id);
     }
     run_tui(options).await
-}
-
-async fn persist_prompt(session: &AppServerSession, app: &mut App, prompt: String) {
-    if prompt.trim().is_empty() {
-        return;
-    }
-    if let Err(error) = session.append_prompt_history(prompt).await {
-        app.projection
-            .set_status(format!("prompt history unavailable: {error}"));
-    }
-}
-
-#[cfg(test)]
-fn submission_input(
-    prompt: String,
-    images: &[PathBuf],
-    remote_images: &[String],
-) -> Vec<UserInput> {
-    submission_input_with_skills(prompt, images, remote_images, &[])
-}
-
-fn submission_input_with_skills(
-    prompt: String,
-    images: &[PathBuf],
-    remote_images: &[String],
-    skills: &[app_server_protocol::protocol::v2::SkillMetadata],
-) -> Vec<UserInput> {
-    let mut input = images
-        .iter()
-        .map(|path| UserInput::LocalImage {
-            detail: None,
-            path: path.to_string_lossy().into_owned(),
-        })
-        .collect::<Vec<_>>();
-    input.extend(remote_images.iter().map(|url| UserInput::Image {
-        detail: None,
-        url: url.clone(),
-    }));
-    let mut seen = std::collections::HashSet::new();
-    for token in prompt.split_whitespace() {
-        let Some(name) = token.strip_prefix('$') else {
-            continue;
-        };
-        let Some(skill) = skills.iter().find(|skill| skill.name == name) else {
-            continue;
-        };
-        if seen.insert(skill.name.clone()) {
-            input.push(UserInput::Skill {
-                name: skill.name.clone(),
-                path: skill.path.to_string_lossy().into_owned(),
-            });
-        }
-    }
-    if !prompt.is_empty() {
-        input.push(UserInput::Text {
-            text: prompt,
-            text_elements: Vec::new(),
-        });
-    }
-    input
 }
 
 fn queue_last_response_copy(
@@ -1910,92 +1766,6 @@ mod tests {
         }
         app.transcript_selection.note_resume_distance_from_bottom(4);
         app
-    }
-
-    #[test]
-    fn submission_input_keeps_codex_image_then_text_order() {
-        let input = submission_input(
-            "describe these".to_string(),
-            &[PathBuf::from("one.png"), PathBuf::from("two.png")],
-            &["https://example.test/remote.png".to_string()],
-        );
-
-        assert_eq!(
-            input,
-            vec![
-                UserInput::LocalImage {
-                    detail: None,
-                    path: "one.png".to_string(),
-                },
-                UserInput::LocalImage {
-                    detail: None,
-                    path: "two.png".to_string(),
-                },
-                UserInput::Image {
-                    detail: None,
-                    url: "https://example.test/remote.png".to_string(),
-                },
-                UserInput::Text {
-                    text: "describe these".to_string(),
-                    text_elements: Vec::new(),
-                },
-            ]
-        );
-        assert_eq!(
-            submission_input(String::new(), &[PathBuf::from("only.png")], &[]),
-            vec![UserInput::LocalImage {
-                detail: None,
-                path: "only.png".to_string(),
-            }]
-        );
-    }
-
-    #[test]
-    fn submission_input_keeps_remote_images_before_text() {
-        assert_eq!(
-            submission_input(
-                "describe".to_string(),
-                &[],
-                &["https://example.test/one.png".to_string()],
-            ),
-            vec![
-                UserInput::Image {
-                    detail: None,
-                    url: "https://example.test/one.png".to_string(),
-                },
-                UserInput::Text {
-                    text: "describe".to_string(),
-                    text_elements: Vec::new(),
-                },
-            ]
-        );
-    }
-
-    #[test]
-    fn submission_input_adds_loaded_skills_without_dropping_prompt_text() {
-        let skill = app_server_protocol::protocol::v2::SkillMetadata {
-            name: "review".to_string(),
-            description: "Review code".to_string(),
-            short_description: None,
-            interface: None,
-            dependencies: None,
-            path: PathBuf::from("/skills/review/SKILL.md"),
-            scope: app_server_protocol::protocol::v2::SkillScope::User,
-            enabled: true,
-        };
-        assert_eq!(
-            submission_input_with_skills("please use $review".to_string(), &[], &[], &[skill],),
-            vec![
-                UserInput::Skill {
-                    name: "review".to_string(),
-                    path: "/skills/review/SKILL.md".to_string(),
-                },
-                UserInput::Text {
-                    text: "please use $review".to_string(),
-                    text_elements: Vec::new(),
-                },
-            ]
-        );
     }
 
     #[test]

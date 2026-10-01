@@ -206,8 +206,10 @@ fn switching_threads_discards_the_detailed_bookmark() {
 
 #[test]
 fn transcript_surface_drops_primary_lease_when_selection_surface_closes() {
-    let mut app = App::default();
-    app.primary_clipboard_lease = Some(crate::clipboard_copy::ClipboardLease::test());
+    let mut app = App {
+        primary_clipboard_lease: Some(crate::clipboard_copy::ClipboardLease::test()),
+        ..App::default()
+    };
 
     app.dismiss_pager_overlay();
 

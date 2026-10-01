@@ -5,6 +5,44 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use super::ChatComposer;
 use crate::bottom_pane::InputResult;
 
+#[test]
+fn rapid_normal_mode_commands_are_not_reclassified_as_paste_bursts() {
+    let mut composer = vim_composer("alpha beta gamma");
+    let now = std::time::Instant::now();
+    for ch in "dw.".chars() {
+        composer.handle_key_event_at(KeyEvent::new(KeyCode::Char(ch), KeyModifiers::NONE), now);
+    }
+    assert_eq!(composer.text(), "gamma");
+    assert!(!composer.draft.paste_burst.is_active());
+    key(&mut composer, KeyCode::Char('u'), KeyModifiers::NONE);
+    assert_eq!(composer.text(), "beta gamma");
+    key(&mut composer, KeyCode::Char('u'), KeyModifiers::NONE);
+    assert_eq!(composer.text(), "alpha beta gamma");
+}
+
+#[test]
+fn unicode_paste_burst_reclassification_repeats_text_once_not_the_retracted_prefix() {
+    let mut composer = vim_composer("");
+    key(&mut composer, KeyCode::Char('i'), KeyModifiers::NONE);
+    let start = std::time::Instant::now();
+    for index in 0..17 {
+        composer.handle_key_event_at(
+            KeyEvent::new(KeyCode::Char('界'), KeyModifiers::NONE),
+            start + std::time::Duration::from_millis(index),
+        );
+    }
+    assert!(composer.draft.paste_burst.is_active());
+    composer.handle_paste_burst_flush(start + std::time::Duration::from_secs(1));
+    assert_eq!(composer.text(), "界".repeat(17));
+    key(&mut composer, KeyCode::Esc, KeyModifiers::NONE);
+    key(&mut composer, KeyCode::Char('.'), KeyModifiers::NONE);
+    assert_eq!(composer.text(), "界".repeat(34));
+    key(&mut composer, KeyCode::Char('u'), KeyModifiers::NONE);
+    assert_eq!(composer.text(), "界".repeat(17));
+    key(&mut composer, KeyCode::Char('u'), KeyModifiers::NONE);
+    assert!(composer.is_empty());
+}
+
 fn key(composer: &mut ChatComposer, code: KeyCode, modifiers: KeyModifiers) {
     let _ = composer.handle_key_event(KeyEvent::new(code, modifiers));
 }
@@ -50,11 +88,11 @@ fn attachment_edit_is_undoable_without_text_changes() {
     let mut composer = vim_composer("draft");
     let path = PathBuf::from("image.png");
     composer.attach_image(path.clone());
-    assert_eq!(composer.pending_images(), &[path]);
+    assert_eq!(composer.local_image_paths(), &[path]);
     key(&mut composer, KeyCode::Char('u'), KeyModifiers::NONE);
-    assert!(composer.pending_images().is_empty());
+    assert!(composer.local_image_paths().is_empty());
     key(&mut composer, KeyCode::Char('r'), KeyModifiers::CONTROL);
-    assert_eq!(composer.pending_images(), &[PathBuf::from("image.png")]);
+    assert_eq!(composer.local_image_paths(), &[PathBuf::from("image.png")]);
 }
 
 #[test]
@@ -86,13 +124,39 @@ fn query_paste_does_not_consume_draft_redo() {
 }
 
 #[test]
+fn cancelled_reverse_history_preview_restores_original_vim_undo_and_redo() {
+    for cancel in [KeyCode::Esc, KeyCode::Char('c')] {
+        let mut composer = vim_composer("abc");
+        key(&mut composer, KeyCode::Char('x'), KeyModifiers::NONE);
+        composer.set_cached_history(["historic prompt".into()]);
+        composer.begin_history_search();
+        composer.handle_paste("historic");
+        assert_eq!(composer.text(), "historic prompt");
+        key(
+            &mut composer,
+            cancel,
+            if cancel == KeyCode::Esc {
+                KeyModifiers::NONE
+            } else {
+                KeyModifiers::CONTROL
+            },
+        );
+        assert_eq!(composer.text(), "bc");
+        key(&mut composer, KeyCode::Char('u'), KeyModifiers::NONE);
+        assert_eq!(composer.text(), "abc");
+        key(&mut composer, KeyCode::Char('r'), KeyModifiers::CONTROL);
+        assert_eq!(composer.text(), "bc");
+    }
+}
+
+#[test]
 fn accepted_reverse_history_preview_starts_a_fresh_vim_edit_history() {
     let mut composer = vim_composer("abc");
     key(&mut composer, KeyCode::Char('x'), KeyModifiers::NONE);
     assert_eq!(composer.text(), "bc");
     key(&mut composer, KeyCode::Char('i'), KeyModifiers::NONE);
 
-    composer.load_history(["archived prompt".to_owned()]);
+    composer.set_cached_history(["archived prompt".to_owned()]);
     key(&mut composer, KeyCode::Char('r'), KeyModifiers::CONTROL);
     chars(&mut composer, "archive");
     assert_eq!(composer.text(), "archived prompt");

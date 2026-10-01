@@ -104,16 +104,17 @@ fn codex_agents_defaults_are_stable() {
 
 #[test]
 fn codex_editor_control_aliases_are_routed_to_textarea() {
+    let keymap = RuntimeKeymap::default();
     for character in [
         'a', 'b', 'e', 'f', 'h', 'j', 'k', 'm', 'n', 'p', 'u', 'w', 'y',
     ] {
-        assert!(is_editor_key_event(KeyEvent::new(
-            KeyCode::Char(character),
-            KeyModifiers::CONTROL,
-        )));
+        assert!(keymap.editor.owns_key(
+            &KeyChordMatcher::default(),
+            KeyEvent::new(KeyCode::Char(character), KeyModifiers::CONTROL,)
+        ));
     }
-    assert!(!is_editor_key_event(KeyEvent::new(
-        KeyCode::Char('c'),
-        KeyModifiers::CONTROL,
-    )));
+    assert!(!keymap.editor.owns_key(
+        &KeyChordMatcher::default(),
+        KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL,)
+    ));
 }

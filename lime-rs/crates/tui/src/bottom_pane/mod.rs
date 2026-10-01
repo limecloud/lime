@@ -2,8 +2,11 @@ mod action_required_title;
 mod approval_overlay;
 mod approval_render;
 mod chat_composer;
+mod chat_composer_history;
 pub(crate) mod command_popup;
 mod footer;
+mod input_state;
+pub(crate) mod list_selection_view;
 mod mcp_server_elicitation;
 pub(crate) mod paste_burst;
 pub(crate) mod pending_input_preview;
@@ -16,6 +19,16 @@ pub(crate) mod selection_row_layout;
 mod selection_tabs;
 pub(crate) mod shortcut_overlay;
 mod textarea;
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct MentionBinding {
+    /// Visible mention sigil (`$` or `@`).
+    pub(crate) sigil: char,
+    /// Token text without the leading sigil.
+    pub(crate) mention: String,
+    /// Canonical target, such as an absolute SKILL.md path.
+    pub(crate) path: String,
+}
 
 use std::collections::VecDeque;
 use std::time::{Duration, Instant};
@@ -34,15 +47,30 @@ use action_required_title::{
 };
 use approval_overlay::ApprovalOverlay;
 pub(crate) use chat_composer::{
-    ChatComposer, FileSearchPopupAction, FileSearchRequest, InputResult, SkillPopupAction,
+    ChatComposer, ComposerDraft, FileSearchPopupAction, FileSearchRequest, InputResult,
+    SkillPopupAction,
 };
 use mcp_server_elicitation::McpServerElicitationOverlay;
 use request_user_input::RequestUserInputOverlay;
 pub(crate) use textarea::{TextArea, TextAreaState};
 
 pub(crate) use footer::render_footer;
+pub(crate) use input_state::BottomPaneInputState;
 pub(crate) use render::{desired_height_with_locale_for_width, render_with_locale};
 pub(crate) use selection_tabs::render_filled_tab_bar;
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct LocalImageAttachment {
+    pub(crate) placeholder: String,
+    pub(crate) path: std::path::PathBuf,
+    pub(crate) detail: Option<agent_protocol::ImageDetail>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct RemoteImageAttachment {
+    pub(crate) url: String,
+    pub(crate) detail: Option<agent_protocol::ImageDetail>,
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum AppServerResponse {
@@ -111,6 +139,14 @@ enum PendingInteraction {
 }
 
 impl PendingInteraction {
+    fn set_keymap_bindings(&mut self, keymap: &crate::keymap::RuntimeKeymap) {
+        match self {
+            Self::UserInput(request) => request.composer.set_keymap_bindings(keymap),
+            Self::McpElicitation(request) => request.set_keymap_bindings(keymap),
+            Self::Approval(_) => {}
+        }
+    }
+
     fn from_server_request(request: ServerRequest) -> Result<Self, Box<ServerRequest>> {
         match request {
             request @ (ServerRequest::ItemCommandExecutionRequestApproval { .. }
@@ -181,9 +217,17 @@ impl PendingInteraction {
 #[derive(Debug, Default)]
 pub(crate) struct BottomPane {
     queue: VecDeque<PendingInteraction>,
+    keymap: crate::keymap::RuntimeKeymap,
 }
 
 impl BottomPane {
+    pub(crate) fn set_keymap_bindings(&mut self, keymap: &crate::keymap::RuntimeKeymap) {
+        self.keymap = keymap.clone();
+        for request in &mut self.queue {
+            request.set_keymap_bindings(keymap);
+        }
+    }
+
     pub(crate) fn approval_details_for_key(
         &self,
         key: KeyEvent,
@@ -203,8 +247,9 @@ impl BottomPane {
     }
 
     pub(crate) fn enqueue(&mut self, request: ServerRequest) -> Result<(), Box<ServerRequest>> {
-        self.queue
-            .push_back(PendingInteraction::from_server_request(request)?);
+        let mut interaction = PendingInteraction::from_server_request(request)?;
+        interaction.set_keymap_bindings(&self.keymap);
+        self.queue.push_back(interaction);
         Ok(())
     }
 
@@ -320,6 +365,9 @@ impl BottomPane {
         self.queue.front()?.next_frame_delay(now)
     }
 }
+
+#[cfg(test)]
+mod keymap_tests;
 
 #[cfg(test)]
 mod tests {

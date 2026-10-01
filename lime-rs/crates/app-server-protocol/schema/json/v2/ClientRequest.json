@@ -1539,16 +1539,16 @@
     },
     "PromptHistoryAppendParams": {
       "properties": {
-        "sessionId": {
+        "text": {
           "type": "string"
         },
-        "text": {
+        "threadId": {
           "type": "string"
         }
       },
       "required": [
-        "sessionId",
-        "text"
+        "text",
+        "threadId"
       ],
       "type": "object"
     },

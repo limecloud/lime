@@ -35,7 +35,7 @@ fn thread(id: &str, status: ThreadStatus, updated_at: i64) -> Thread {
     }
 }
 
-fn row(id: &str, group: AgentsOverviewGroup, current: bool) -> AgentsOverviewRow {
+pub(super) fn row(id: &str, group: AgentsOverviewGroup, current: bool) -> AgentsOverviewRow {
     AgentsOverviewRow {
         thread: thread(id, ThreadStatus::Idle, 1),
         group,
@@ -230,6 +230,7 @@ fn overview_chord_does_not_cross_paste_boundary() {
         vec![row("ready", AgentsOverviewGroup::Ready, true)],
         Some("ready"),
         keymap.agents().clone(),
+        keymap.list().clone(),
     );
 
     assert_eq!(
@@ -310,11 +311,11 @@ fn overview_rename_accepts_shifted_characters() {
     );
 }
 
-fn press(view: &mut AgentsOverviewView, code: KeyCode) -> AgentsOverviewAction {
+pub(super) fn press(view: &mut AgentsOverviewView, code: KeyCode) -> AgentsOverviewAction {
     view.handle_event(Event::Key(KeyEvent::new(code, KeyModifiers::NONE)))
 }
 
-fn screen(
+pub(super) fn screen(
     view: &AgentsOverviewView,
     width: u16,
     height: u16,
@@ -324,7 +325,7 @@ fn screen(
         .expect("terminal");
     terminal
         .draw(|frame| {
-            command_center::render::render_at(frame, frame.area(), view, locale, 1_000_000)
+            command_center::render::render_at(frame, frame.area(), view, locale, 1_000_000, None)
         })
         .expect("draw");
     let buffer = terminal.backend().buffer().clone();
@@ -611,6 +612,7 @@ fn live_center_configured_tab_binding_takes_precedence_over_status_filter() {
         vec![row("task", AgentsOverviewGroup::Ready, true)],
         None,
         runtime.agents().clone(),
+        runtime.list().clone(),
     );
     let (text, _) = screen(&view, 110, 18, crate::locale::Locale::EnUs);
     let tabs = text.lines().nth(1).unwrap();
@@ -639,6 +641,7 @@ fn live_center_search_help_and_footer_use_the_actual_configured_keys() {
         vec![row("find", AgentsOverviewGroup::Ready, true)],
         None,
         runtime.agents().clone(),
+        runtime.list().clone(),
     );
     let (text, _) = screen(&view, 100, 28, Locale::EnUs);
     assert!(

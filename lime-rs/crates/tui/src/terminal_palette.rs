@@ -7,7 +7,10 @@
 
 use ratatui::style::Color;
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+mod perceptual;
+pub(crate) use perceptual::perceptual_distance;
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub(crate) enum StdoutColorLevel {
     TrueColor,
     Ansi256,
@@ -91,7 +94,9 @@ fn best_color_for_color_level(target: (u8, u8, u8), level: StdoutColorLevel) -> 
     match level {
         StdoutColorLevel::TrueColor => rgb_color(target),
         StdoutColorLevel::Ansi256 => xterm_fixed_colors()
-            .min_by_key(|(_, color)| color_distance(*color, target))
+            .min_by(|(_, a), (_, b)| {
+                perceptual_distance(*a, target).total_cmp(&perceptual_distance(*b, target))
+            })
             .map_or_else(Color::default, |(index, _)| indexed_color(index)),
         StdoutColorLevel::Ansi16 | StdoutColorLevel::Unknown => Color::default(),
     }
@@ -267,14 +272,7 @@ mod imp {
     }
 }
 
-fn color_distance(left: (u8, u8, u8), right: (u8, u8, u8)) -> u32 {
-    let red = i32::from(left.0) - i32::from(right.0);
-    let green = i32::from(left.1) - i32::from(right.1);
-    let blue = i32::from(left.2) - i32::from(right.2);
-    (red * red + green * green + blue * blue) as u32
-}
-
-fn xterm_fixed_colors() -> impl Iterator<Item = (u8, (u8, u8, u8))> {
+pub(crate) fn xterm_fixed_colors() -> impl Iterator<Item = (u8, (u8, u8, u8))> {
     let cube = (0..216).map(|offset| {
         let red = offset / 36;
         let green = (offset / 6) % 6;

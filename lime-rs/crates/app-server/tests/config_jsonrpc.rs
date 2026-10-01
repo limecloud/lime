@@ -21,6 +21,20 @@ async fn config_control_plane_uses_the_single_desktop_yaml_layer() {
             "  keymap:\n",
             "    global:\n",
             "      find_transcript: ctrl-x f\n",
+            "    list:\n",
+            "      accept: f9\n",
+            "      cancel: esc\n",
+            "    editor:\n",
+            "      move_left: [F9, Control-Q h]\n",
+            "      delete_backward: []\n",
+            "    vim_normal:\n",
+            "      undo: [F12, z u]\n",
+            "    vim_operator:\n",
+            "      motion_word_forward: Control-Q w\n",
+            "    vim_text_object:\n",
+            "      parentheses: []\n",
+            "    vim_search:\n",
+            "      forward: z /\n",
         ),
     )
     .expect("write config");
@@ -50,6 +64,16 @@ async fn config_control_plane_uses_the_single_desktop_yaml_layer() {
         "ctrl-x f"
     );
     assert_eq!(
+        read["result"]["config"]["tui"]["keymap"]["list"]["accept"],
+        "f9"
+    );
+    assert_eq!(
+        read["result"]["config"]["tui"]["keymap"]["editor"],
+        json!({
+            "move_left": ["f9", "ctrl-q h"], "delete_backward": []
+        })
+    );
+    assert_eq!(
         read["result"]["layers"][0]["name"],
         json!({
             "type": "user",
@@ -72,6 +96,18 @@ async fn config_control_plane_uses_the_single_desktop_yaml_layer() {
                 "keyPath": "language",
                 "value": "en-US",
                 "mergeStrategy": "replace"
+            }, {
+                "keyPath": "tui.keymap.list.cancel",
+                "value": "ctrl-x q",
+                "mergeStrategy": "replace"
+            }, {
+                "keyPath": "tui.keymap.editor.kill_whole_line",
+                "value": "ctrl-q k",
+                "mergeStrategy": "replace"
+            }, {
+                "keyPath": "tui.keymap.vim_normal.redo",
+                "value": "z r",
+                "mergeStrategy": "replace"
             }],
             "expectedVersion": version,
             "reloadUserConfig": true
@@ -88,6 +124,19 @@ async fn config_control_plane_uses_the_single_desktop_yaml_layer() {
         .expect("next version")
         .to_string();
 
+    let vim_read = request(&server, 30, METHOD_CONFIG_READ, json!({})).await;
+    for (context, expected) in [
+        ("vim_normal", json!({"undo": ["f12", "z u"], "redo": "z r"})),
+        ("vim_operator", json!({"motion_word_forward": "ctrl-q w"})),
+        ("vim_text_object", json!({"parentheses": []})),
+        ("vim_search", json!({"forward": "z /"})),
+    ] {
+        assert_eq!(
+            vim_read["result"]["config"]["tui"]["keymap"][context],
+            expected
+        );
+    }
+
     let value_write = request(
         &server,
         4,
@@ -102,8 +151,27 @@ async fn config_control_plane_uses_the_single_desktop_yaml_layer() {
     .await;
     assert_eq!(value_write["result"]["status"], "ok");
     let persisted = ConfigManager::load(&config_path).expect("load persisted config");
+    assert_eq!(
+        serde_json::to_value(&persisted.config().tui.keymap.editor).unwrap(),
+        json!({
+            "move_left": ["f9", "ctrl-q h"], "delete_backward": [], "kill_whole_line": "ctrl-q k"
+        })
+    );
     assert_eq!(persisted.config().language, "en-US");
     assert!(persisted.config().minimize_to_tray);
+    assert_eq!(
+        persisted
+            .config()
+            .tui
+            .keymap
+            .list
+            .cancel
+            .as_ref()
+            .unwrap()
+            .specs()[0]
+            .as_str(),
+        "ctrl-x q"
+    );
     assert_eq!(
         persisted
             .config()
@@ -177,6 +245,46 @@ async fn config_control_plane_uses_the_single_desktop_yaml_layer() {
     )
     .await;
     assert_eq!(project_layer["error"]["code"], -32602);
+
+    for (id, key_path, value) in [
+        (9, "tui.keymap.editor.move_lft", json!("f10")),
+        (10, "tui.keymap.editor.move_left", json!("ctrl-q h j")),
+        (12, "tui.keymap.vim_normal.undoo", json!("f12")),
+        (
+            13,
+            "tui.keymap.vim_operator.motion_word_forward",
+            json!("g g g"),
+        ),
+        (14, "tui.keymap.vim_text_object.parenthesis", json!("f12")),
+        (15, "tui.keymap.vim_search.forward", json!("f25")),
+    ] {
+        let invalid = request_error(
+            &server,
+            id,
+            METHOD_CONFIG_VALUE_WRITE,
+            json!({
+                "keyPath": key_path, "value": value, "mergeStrategy": "replace"
+            }),
+        )
+        .await;
+        assert_eq!(
+            invalid["error"]["data"]["config_write_error_code"], "configValidationError",
+            "invalid TUI config: {invalid}"
+        );
+    }
+    let final_read = request(&server, 11, METHOD_CONFIG_READ, json!({})).await;
+    assert_eq!(
+        final_read["result"]["config"]["tui"]["keymap"]["editor"],
+        json!({
+            "move_left": ["f9", "ctrl-q h"], "delete_backward": [], "kill_whole_line": "ctrl-q k"
+        }),
+        "invalid writes must not mutate persisted editor config"
+    );
+    assert_eq!(
+        final_read["result"]["config"]["tui"]["keymap"]["vim_normal"],
+        json!({"undo": ["f12", "z u"], "redo": "z r"}),
+        "invalid Vim writes must not mutate persisted config"
+    );
 }
 
 async fn initialize(server: &AppServer) {

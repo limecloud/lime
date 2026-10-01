@@ -50,19 +50,26 @@ struct CenterLayout {
     gap: Rect,
     details: Rect,
     search: Rect,
+    notice: Rect,
     footer: Rect,
 }
 
 impl AgentsOverviewView {
-    fn center_layout(&self, area: Rect) -> CenterLayout {
+    fn center_layout(&self, area: Rect, has_notice: bool) -> CenterLayout {
         let footer_height = u16::from(area.height >= 2);
+        let notice_height = u16::from(has_notice && area.height >= 7);
         let header_height = if area.height >= 6 { 3 } else { 0 };
         let footer = row(area, area.height - footer_height, footer_height);
+        let notice = row(
+            area,
+            area.height - footer_height - notice_height,
+            notice_height,
+        );
         let header = row(area, 0, header_height);
         let body = row(
             area,
             header_height,
-            footer.y.saturating_sub(header.bottom()),
+            notice.y.saturating_sub(header.bottom()),
         )
         .inner(Margin::new(2, 0));
         let [list, gap, details] = if body.width >= 90 {
@@ -87,6 +94,7 @@ impl AgentsOverviewView {
             gap,
             details,
             search,
+            notice,
             footer,
         }
     }
@@ -110,7 +118,7 @@ impl AgentsOverviewView {
     }
 
     pub(crate) fn cursor_pos(&self, area: Rect, locale: Locale) -> Option<(u16, u16)> {
-        let layout = self.center_layout(area);
+        let layout = self.center_layout(area, false);
         if !self.editing_metadata() || layout.search.is_empty() {
             return None;
         }
@@ -126,12 +134,18 @@ impl AgentsOverviewView {
     }
 }
 
-pub(crate) fn render(frame: &mut Frame<'_>, area: Rect, view: &AgentsOverviewView, locale: Locale) {
+pub(crate) fn render(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    view: &AgentsOverviewView,
+    locale: Locale,
+    notice: Option<&str>,
+) {
     let reference = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|time| time.as_secs().min(i64::MAX as u64) as i64)
         .unwrap_or(0);
-    render_at(frame, area, view, locale, reference);
+    render_at(frame, area, view, locale, reference, notice);
 }
 
 pub(crate) fn render_at(
@@ -140,9 +154,11 @@ pub(crate) fn render_at(
     view: &AgentsOverviewView,
     locale: Locale,
     reference: i64,
+    notice: Option<&str>,
 ) {
     frame.render_widget(Clear, area);
-    let layout = view.center_layout(area);
+    let notice = notice.filter(|_| !view.editing_metadata() && !view.help);
+    let layout = view.center_layout(area, notice.is_some());
     let inset = |area: Rect| area.inner(Margin::new(2, 0));
     let grouping = match view.grouping {
         super::super::grouping::AgentsOverviewGrouping::Project => "Project",
@@ -220,10 +236,13 @@ pub(crate) fn render_at(
         );
     }
     line(
-        hint_line(&view.center_footer_hints(locale)),
+        view.center_footer_line(locale, inset(layout.footer).width),
         inset(layout.footer),
         buf,
     );
+    if let Some(notice) = notice {
+        line(notice.to_owned().dim(), inset(layout.notice), buf);
+    }
     if view.help {
         let body = inset(row(
             area,

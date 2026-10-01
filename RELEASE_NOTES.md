@@ -1,42 +1,35 @@
-## Lime v1.147.0
+## Lime v1.148.0
 
 ### 新功能
 
-- TUI 任务中心支持按项目或状态分组、状态筛选、搜索、分页加载，以及任务创建、重命名和切换。
-- 新增动态快捷键帮助与选择页签，统一任务中心、transcript、pager 和输入区的快捷键提示。
-- 模型选择器采用无边框布局，支持当前模型标记、翻页导航和窄屏换行。
-- 文件、Skill 和命令弹窗统一搜索匹配与选中项滚动，补齐 Unicode 高亮和长路径展示。
-- 审批面板支持通过 Ctrl-A 查看完整详情，在窄窗口保留可操作选项，关闭详情页后继续原审批。
-- MCP OAuth 登录支持 thread/login 关联通知；新增通过 App Server 执行的 `lime mcp logout`，按服务清理凭据并保持幂等。
-- CLI 补齐 sandbox、approval 和权限参数继承，并支持发现本地 Plugin marketplace 与查看可用插件。
+- TUI 输入与快捷键继续对齐 Codex：编辑器、Vim modal、搜索、历史、kill/yank register、列表分页和模型/推理强度选择统一消费可配置 keymap。
+- Thread resume 现在可以携带同一份 rich draft 与正在编辑的问答备注、审批选择和 MCP 表单，并在连接断开、恢复和终态通知时按 Thread 精确清理。
+- Prompt history 与 App Server 的公共 identity 统一使用 canonical Thread ID；TUI/CLI 继续复用同一 App Server JSON-RPC、RuntimeCore 和 Thread/Turn/Item 投影。
 
 ### 修复
 
-- 修复历史分页、终端重排与 thread 切换时的阅读位置、选择和状态恢复。
-- 修复多行 Markdown 引用粘贴、粘贴突发、输入区布局和窄屏状态页的显示边界。
-- 修复命令弹窗提前消费 Enter 导致缓冲字符残留草稿的问题，同时保留粘贴中的换行和 Tab。
-- 修复剪贴板迟到结果写入新草稿或旧会话的问题，明确远程终端与 X11 PRIMARY 的可用条件。
-- 移除 npm Trusted Publishing 流水线中的 token 注入，使用现有 OIDC 与 provenance 发布合同。
+- 修复结构化输入在 UTF-8 编辑、trim、queue edit、历史、重试和 external editor 之间丢失 `TextElement` placeholder、图片 detail、附件或 Skill identity 的问题。
+- 统一 start、steer、queue add/update 与 RuntimeCore 的输入长度校验和结构化错误，拒绝时保留完整 draft、附件、mention、cursor 与本地历史。
+- 修复 thread 切换、断线恢复、交互请求 resolved/terminal 通知、历史搜索和输入缓冲的状态串线；避免 foreign Thread 的请求写入当前 BottomPane。
+- 改进 diff、transcript、textarea、request-user-input 和 MCP elicitation 的布局、渲染与模块边界，覆盖窄终端、重排、焦点和终端恢复。
 
 ### 优化与重构
 
-- 将剪贴板读写迁入会话级后台 worker，增加超时、取消和迟到结果处理，减少桌面剪贴板服务阻塞终端输入的风险。
-- 收敛无边框会话标题、`/status`、footer、任务行和活动摘要的展示，保留 canonical 状态与完整原始值。
-- 拆分任务中心、状态格式化、剪贴板、选择样式和 transcript 阅读书签模块，继续复用唯一 App Server 主链。
+- 将 TUI 的 submission、thread input、message history、composer、textarea、Vim、model catalog、resume picker 和交互视图拆到单一职责 owner，继续沿用共享 App Server 主链。
+- 补充 canonical prompt history、typed input lowering、queue/turn projection、CLI stdio 与 TUI PTY 的 current fixture 和结构守卫。
+- 更新 TUI keymap、App Server 命令合同、架构说明、操作文档和 Codex 对齐执行记录。
 
 ### 测试与质量
 
-- 扩展 MCP OAuth protocol/schema/client、CLI 权限与插件、TUI 交互和剪贴板的回归覆盖。
-- 同步 CLI/TUI 真实 stdio/PTY Gate B、MCP fixture、结构 inventory 与 npm OIDC 发布守卫。
+- 扩展 App Server protocol/schema/client、输入限制、prompt history、TUI 交互、Vim、编辑器、历史恢复、queue edit、stdio 和 PTY Gate B 回归覆盖。
+- 发版验证以 `npm run verify:app-version`、`npm run typecheck`、受影响 Rust/协议测试和 GUI smoke 结果为准；完整 Rust CI、跨平台打包、签名、公证与 npm 分发由发布流水线继续验证。
 
 ### 文档
 
-- 更新 CLI 权限、插件管理、TUI keymap 配置、操作说明和 App Server 命令合同。
-- 更新 TUI/CLI Codex 对齐执行计划与结构记录。
+- 更新 `docs/ops.md`、App Server 架构与命令边界、TUI/CLI Codex 对齐计划及结构 inventory。
 
 ### 其他
 
-- Desktop 与 CLI/TUI 继续共享 App Server JSON-RPC、RuntimeCore 和 Thread/Turn/Item 持久化；未新增平行 runtime 或历史存储。
-- 本机验证结果记录在发布执行计划；平台产物、签名、公证与 npm 分发由 GitHub Actions 验证。
+- 本版本没有新增平行 runtime、历史存储或兼容后端；Desktop 与 CLI/TUI 继续共享 `Product Surface -> App Server JSON-RPC -> RuntimeCore -> Thread/Turn/Item` 主链。
 
-**完整变更**: `v1.146.0` -> `v1.147.0`
+**完整变更**: `v1.147.0` -> `v1.148.0`

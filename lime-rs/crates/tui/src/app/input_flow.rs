@@ -10,6 +10,20 @@ use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 
 impl App {
     pub(crate) fn handle_key_event(&mut self, key_event: KeyEvent) -> AppAction {
+        if crate::key_hint::is_altgr(key_event.modifiers)
+            && matches!(key_event.code, KeyCode::Char(_))
+        {
+            let action = self
+                .composer
+                .handle_key_event_at(key_event, std::time::Instant::now());
+            return self.map_composer_action(action);
+        }
+        if key_event.modifiers.contains(KeyModifiers::ALT)
+            && matches!(key_event.code, KeyCode::Char(',' | '.'))
+            && self.reasoning_shortcut_input_is_owned()
+        {
+            return AppAction::None;
+        }
         if key_event.kind == KeyEventKind::Press
             && key_event.code == KeyCode::Esc
             && key_event.modifiers.is_empty()
@@ -100,17 +114,13 @@ impl App {
                 modifiers,
                 kind: KeyEventKind::Press,
                 ..
-            } if modifiers.contains(KeyModifiers::ALT)
-                && self.composer.is_empty()
-                && !self.composer.has_pending_images() =>
-            {
-                self.queued_submissions
-                    .last()
-                    .filter(|submission| can_restore_submission(submission))
-                    .cloned()
-                    .map(AppAction::EditQueuedSubmission)
-                    .unwrap_or(AppAction::None)
-            }
+            } if modifiers.contains(KeyModifiers::ALT) && self.composer.is_empty() => self
+                .queued_submissions
+                .last()
+                .filter(|submission| can_restore_submission(submission))
+                .cloned()
+                .map(AppAction::EditQueuedSubmission)
+                .unwrap_or(AppAction::None),
             KeyEvent {
                 kind: KeyEventKind::Press,
                 ..
@@ -124,25 +134,6 @@ impl App {
                     if let Some(action) = self.run_local_command() {
                         return action;
                     }
-                }
-                if matches!(key_event.code, KeyCode::Enter | KeyCode::Tab)
-                    && !self.composer.vim_search_active()
-                    && self.composer.is_empty()
-                    && self.composer.has_pending_images()
-                {
-                    return if key_event.code == KeyCode::Tab {
-                        AppAction::Queue(String::new())
-                    } else {
-                        AppAction::Submit(String::new())
-                    };
-                }
-                if key_event.code == KeyCode::Backspace
-                    && !self.composer.vim_search_active()
-                    && self.composer.is_empty()
-                    && !self.composer.has_selected_remote_image()
-                    && self.composer.remove_last_pending_image()
-                {
-                    return AppAction::None;
                 }
                 let action = self
                     .composer

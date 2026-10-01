@@ -1,7 +1,7 @@
 //! The compact footer and help consume the same resolved task bindings as dispatch.
 
 use super::*;
-use crate::keymap::AgentsKeymapAction;
+use crate::keymap::{AgentsKeymapAction, ListAction};
 use crate::locale::Locale;
 use crate::style::{footer_hint_label_style, key_hint_style};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -23,81 +23,14 @@ pub(super) fn hint_line(items: &[(String, String)]) -> Line<'static> {
     Line::from(spans)
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::app::agents_overview_view::{AgentsOverviewAction, AgentsOverviewInputMode};
-    use crossterm::event::Event;
-
-    #[test]
-    fn footer_yields_to_task_keys_and_restores_cancel_while_editing() {
-        let mut config = lime_core::config::TuiKeymap::default();
-        let binding = |key: &str| {
-            lime_core::config::KeybindingsSpec::One(lime_core::config::KeybindingSpec(key.into()))
-        };
-        config.agents.new_task = Some(binding("up"));
-        config.agents.resume = Some(binding("esc"));
-        let runtime = crate::keymap::RuntimeKeymap::from_config(&config).unwrap();
-        let mut view =
-            AgentsOverviewView::new_with_keymap(Vec::new(), None, runtime.agents().clone());
-        let hints = view.center_footer_hints(Locale::EnUs);
-        assert!(hints
-            .iter()
-            .any(|(key, action)| key == "ctrl+p/↓" && action == "move"));
-        assert!(!hints.iter().any(|(_, action)| action == "back"));
-        assert_eq!(
-            view.handle_event(Event::Key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE))),
-            AgentsOverviewAction::OpenResumePicker
-        );
-        view.handle_event(Event::Key(KeyEvent::new(KeyCode::Up, KeyModifiers::NONE)));
-        assert_eq!(view.input_mode(), Some(AgentsOverviewInputMode::NewTask));
-        assert!(view
-            .center_footer_hints(Locale::EnUs)
-            .iter()
-            .any(|(key, action)| key == "esc" && action == "back"));
-        assert_eq!(
-            view.handle_event(Event::Key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE))),
-            AgentsOverviewAction::None
-        );
-        assert_eq!(view.input_mode(), None);
-    }
-}
-
 impl AgentsOverviewView {
-    fn list_hint(&self, code: KeyCode) -> Option<String> {
-        let candidates: &[(KeyCode, KeyModifiers, &str)] = match code {
-            KeyCode::Up => &[
-                (KeyCode::Up, KeyModifiers::NONE, "↑"),
-                (KeyCode::Char('p'), KeyModifiers::CONTROL, "ctrl+p"),
-                (KeyCode::Char('k'), KeyModifiers::CONTROL, "ctrl+k"),
-                (KeyCode::Char('k'), KeyModifiers::NONE, "k"),
-            ],
-            KeyCode::Down => &[
-                (KeyCode::Down, KeyModifiers::NONE, "↓"),
-                (KeyCode::Char('n'), KeyModifiers::CONTROL, "ctrl+n"),
-                (KeyCode::Char('j'), KeyModifiers::CONTROL, "ctrl+j"),
-                (KeyCode::Char('j'), KeyModifiers::NONE, "j"),
-            ],
-            KeyCode::PageUp => &[
-                (KeyCode::PageUp, KeyModifiers::NONE, "pgup"),
-                (KeyCode::Char('b'), KeyModifiers::CONTROL, "ctrl+b"),
-            ],
-            KeyCode::PageDown => &[
-                (KeyCode::PageDown, KeyModifiers::NONE, "pgdn"),
-                (KeyCode::Char('f'), KeyModifiers::CONTROL, "ctrl+f"),
-            ],
-            KeyCode::Enter => &[(KeyCode::Enter, KeyModifiers::NONE, "enter")],
-            KeyCode::Esc => &[(KeyCode::Esc, KeyModifiers::NONE, "esc")],
-            _ => return None,
-        };
-        candidates
-            .iter()
-            .find(|(code, modifiers, _)| {
-                !self
-                    .agents_keymap
-                    .reserves_key(KeyEvent::new(*code, *modifiers))
-            })
-            .map(|(_, _, label)| label.to_string())
+    fn list_hint(&self, action: ListAction) -> Option<String> {
+        if self.help || self.editing_metadata() {
+            self.list_keymap.primary_hint(action)
+        } else {
+            self.list_keymap
+                .primary_hint_without_tasks(action, &self.agents_keymap)
+        }
     }
 
     pub(super) fn center_filter_hint(&self) -> String {
@@ -127,11 +60,7 @@ impl AgentsOverviewView {
         {
             hints.push(("?".into(), label("help")));
         }
-        let cancel = if self.help || self.editing_metadata() {
-            Some("esc".into())
-        } else {
-            self.list_hint(KeyCode::Esc)
-        };
+        let cancel = self.list_hint(ListAction::Cancel);
         if let Some(cancel) = cancel {
             hints.push((cancel, label("back")));
         }
@@ -139,7 +68,7 @@ impl AgentsOverviewView {
             return hints;
         }
         if !self.editing_metadata() {
-            let navigation = [KeyCode::Up, KeyCode::Down]
+            let navigation = [ListAction::MoveUp, ListAction::MoveDown]
                 .into_iter()
                 .filter_map(|code| self.list_hint(code))
                 .collect::<Vec<_>>()
@@ -153,11 +82,7 @@ impl AgentsOverviewView {
             Some(super::super::AgentsOverviewInputMode::NewTask) => "confirm",
             None => "open",
         };
-        let accept = if self.editing_metadata() {
-            Some("enter".into())
-        } else {
-            self.list_hint(KeyCode::Enter)
-        };
+        let accept = self.list_hint(ListAction::Accept);
         if let Some(accept) = accept {
             hints.push((accept, label(action)));
         }
@@ -176,13 +101,17 @@ impl AgentsOverviewView {
             entries: Vec::new(),
         };
         for (code, action) in [
-            (KeyCode::Up, "Up"),
-            (KeyCode::Down, "Down"),
-            (KeyCode::Enter, "Open"),
-            (KeyCode::PageUp, "Page up"),
-            (KeyCode::PageDown, "Page down"),
+            (ListAction::MoveUp, "Up"),
+            (ListAction::MoveDown, "Down"),
+            (ListAction::Accept, "Open"),
+            (ListAction::PageUp, "Page up"),
+            (ListAction::PageDown, "Page down"),
         ] {
-            navigate.push(self.list_hint(code), locale.agent_center_label(action));
+            navigate.push(
+                self.list_keymap
+                    .primary_hint_without_tasks(code, &self.agents_keymap),
+                locale.agent_center_label(action),
+            );
         }
         navigate.push(Some("ctrl+c".into()), locale.agent_center_label("Quit"));
         let mut tasks = Group {
@@ -226,5 +155,36 @@ impl AgentsOverviewView {
             width,
         ));
         lines
+    }
+
+    pub(super) fn center_footer_line(&self, locale: Locale, width: u16) -> Line<'static> {
+        let hints = self.center_footer_hints(locale);
+        let keys = [
+            self.list_hint(ListAction::Cancel),
+            (!self.help)
+                .then(|| self.list_hint(ListAction::Accept))
+                .flatten(),
+        ]
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>();
+        let essential = keys
+            .iter()
+            .filter_map(|key| {
+                hints
+                    .iter()
+                    .find(|(candidate, _)| candidate == key)
+                    .cloned()
+            })
+            .collect::<Vec<_>>();
+        [
+            hint_line(&hints),
+            hint_line(&essential),
+            Line::from(keys.join(" · ")).dim(),
+        ]
+        .into_iter()
+        .chain(keys.into_iter().map(|key| Line::from(key).dim()))
+        .find(|line| line.width() <= usize::from(width))
+        .unwrap_or_default()
     }
 }

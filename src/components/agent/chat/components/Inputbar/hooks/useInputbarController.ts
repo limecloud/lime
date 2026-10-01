@@ -465,7 +465,7 @@ export function useInputbarController({
       if (sessionId && draft?.text.trim()) {
         void promptHistoryClientRef.current
           ?.appendPromptHistory({
-            sessionId,
+            threadId: sessionId,
             text: draft.text,
           })
           .catch(() => undefined);

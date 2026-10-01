@@ -46,11 +46,18 @@ fn item_window_start(state: &ScrollState, count: usize, visible: usize) -> usize
     }
 }
 
-fn wrapped_rows(rows: &[SelectionRow], width: u16) -> Vec<Vec<Line<'static>>> {
+fn wrapped_rows(
+    rows: &[SelectionRow],
+    width: u16,
+    layout: SelectionDescriptionLayout,
+) -> Vec<Vec<Line<'static>>> {
     let desc_col = description_column(rows, width);
     rows.iter()
         .map(|row| {
-            let line = build_full_line(row, desc_col, width, SelectionDescriptionLayout::Columns);
+            if layout.should_stack(width, desc_col) {
+                return super::selection_row_layout::wrap_stacked_row(row, width);
+            }
+            let line = build_full_line(row, desc_col, width, layout);
             let indent = if row.description.is_some() {
                 desc_col
             } else {
@@ -70,8 +77,17 @@ fn wrapped_rows(rows: &[SelectionRow], width: u16) -> Vec<Vec<Line<'static>>> {
 }
 
 pub(super) fn measure_rows_height(rows: &[SelectionRow], state: &ScrollState, width: u16) -> u16 {
+    measure_rows_height_with_layout(rows, state, width, SelectionDescriptionLayout::Columns)
+}
+
+pub(super) fn measure_rows_height_with_layout(
+    rows: &[SelectionRow],
+    state: &ScrollState,
+    width: u16,
+    layout: SelectionDescriptionLayout,
+) -> u16 {
     let start = item_window_start(state, rows.len(), MAX_POPUP_ROWS);
-    let height = wrapped_rows(rows, width)
+    let height = wrapped_rows(rows, width, layout)
         .iter()
         .skip(start)
         .take(MAX_POPUP_ROWS)
@@ -104,7 +120,23 @@ pub(super) fn render_rows(
     rows: &[SelectionRow],
     state: &ScrollState,
 ) {
-    let visual = wrapped_rows(rows, area.width);
+    render_rows_with_layout(
+        frame,
+        area,
+        rows,
+        state,
+        SelectionDescriptionLayout::Columns,
+    );
+}
+
+pub(super) fn render_rows_with_layout(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    rows: &[SelectionRow],
+    state: &ScrollState,
+    layout: SelectionDescriptionLayout,
+) {
+    let visual = wrapped_rows(rows, area.width, layout);
     let mut start = item_window_start(state, rows.len(), MAX_POPUP_ROWS);
     if let Some(selected) = state.selected_idx {
         // Wrapped descriptions may consume several terminal lines per item.

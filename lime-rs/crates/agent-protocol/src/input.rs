@@ -8,6 +8,16 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
+/// Conservative cap shared by every product surface, measured in Unicode characters.
+pub const MAX_USER_INPUT_TEXT_CHARS: usize = 1 << 20;
+
+pub fn validate_user_input_text_length(actual_chars: usize) -> Result<(), AgentInputError> {
+    if actual_chars > MAX_USER_INPUT_TEXT_CHARS {
+        return Err(AgentInputError::InputTooLarge { actual_chars });
+    }
+    Ok(())
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct ByteRange {
     /// Inclusive byte offset in the UTF-8 text buffer.
@@ -87,6 +97,13 @@ pub enum AgentInput {
 }
 
 impl AgentInput {
+    pub fn text_char_count(&self) -> usize {
+        match self {
+            Self::Text { text, .. } => text.chars().count(),
+            _ => 0,
+        }
+    }
+
     pub fn text(text: impl Into<String>) -> Self {
         Self::Text {
             text: text.into(),
@@ -117,6 +134,9 @@ impl AgentInput {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AgentInputError {
     EmptyField(&'static str),
+    InputTooLarge {
+        actual_chars: usize,
+    },
     InvalidTextElement {
         index: usize,
         start: usize,
@@ -129,6 +149,10 @@ impl fmt::Display for AgentInputError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::EmptyField(field) => write!(formatter, "{field} must not be empty"),
+            Self::InputTooLarge { .. } => write!(
+                formatter,
+                "Input exceeds the maximum length of {MAX_USER_INPUT_TEXT_CHARS} characters."
+            ),
             Self::InvalidTextElement {
                 index,
                 start,

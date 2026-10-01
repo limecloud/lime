@@ -38,13 +38,15 @@ impl super::ChatComposer {
         if key.kind != KeyEventKind::Press {
             return false;
         }
+        if self.key_chord_pending() {
+            return false;
+        }
         if self.shortcut_overlay_visible() && key.code == KeyCode::Esc && key.modifiers.is_empty() {
             return self.dismiss_shortcut_overlay();
         }
         if key.code == KeyCode::Char('?')
             && crate::key_hint::is_plain_text_key_event(key)
             && self.is_empty()
-            && !self.has_pending_images()
             && !self.popups.active()
             && !self.history_search_active()
             && !self.vim_search_active()

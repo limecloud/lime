@@ -8461,8 +8461,8 @@ export interface ProjectUpdateResponse {
 }
 
 export interface PromptHistoryAppendParams {
-  sessionId: string;
   text: string;
+  threadId: string;
 }
 
 export interface PromptHistoryAppendResponse {
@@ -8473,8 +8473,8 @@ export interface PromptHistoryAppendResponse {
 
 export interface PromptHistoryEntry {
   offset: number;
-  sessionId: string;
   text: string;
+  threadId: string;
   ts: number;
 }
 

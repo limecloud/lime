@@ -51,11 +51,155 @@ Future Cloud -> authenticated transport ----> LimeCore gateway
                                                 -> ThreadStore + Thread/Turn/Item projection
 ```
 
-`Product Surface`、`Host/Transport` 与业务 runtime 是三层边界。Desktop、TUI、CLI 可以拥有各自的窗口/终端生命周期、输入法、快捷键和展示投影，但不能拥有 provider loop、工具 registry、approval authority、Thread/Turn/Item 状态机或持久化副本。`app-server-protocol` 是跨 surface 合同，`app-server-client` 是 Rust surface 的连接/session owner；本地 stdio 是当前实现，未来 Cloud 通过同一 session facade 接入认证后的远端 transport。TUI 的 `resume` picker 与 Codex-shaped `Agents Overview` 只读取 App Server `thread/list`，选中后进入标准 `thread/resume`；Overview 的状态分组、子线程状态冒泡与刷新仅投影 canonical Thread/notification，不访问私有 daemon/state DB。Overview 的新任务、改名和停止操作分别 lowering 到现有 `thread/start` + `turn/start`、`thread/name/set` 与 `turn/interrupt`，不复制 Codex agents daemon；刷新请求使用单一 request identity，合并 pending 请求并重放刷新期间到达的最新 thread notification。TUI 在 `app/app_server_event_targets.rs` 复用 Codex 同名 `server_notification_thread_target`、`server_request_thread_id` 与 `ServerNotificationThreadTarget`：Thread-scoped notification 可以更新 Overview/导航，但只有当前 Thread 能写入当前 `ConversationProjection`；foreign Thread 的可交互 server request 进入对应 `ThreadEventStore` 的 bounded replay channel，`pending_interactive_replay` 只允许仍未解决的 request 在 `thread/resume` 后重放；Dynamic Tool 与 MCP elicitation 当前没有 TUI consumer，立即 fail closed，buffer 满时也直接 reject，不得落入当前 Thread 的 BottomPane。连接中断只由 TUI `app/reconnect.rs` session owner 做 bounded reconnect，并以原 Thread id hydrate canonical history，composer draft 保持在 surface 内存中，旧 connection 的 pending approval 丢弃且不得跨连接回放。TUI 的 `app/app_server_events.rs` 只负责 transport event 分流和 notification dispatch；`app/app_server_requests.rs` 负责 reverse server request routing 与 reject/queue 语义；`app/thread_events.rs` 负责 canonical Thread/Turn/Item notification projection 和 agent liveness；`app/pending_interactive_replay.rs` 负责 Codex 对齐的 pending request identity；`app/thread_settings.rs` 负责当前 thread 的 model/provider、effort、permission profile 与 collaboration mode read model；`app/event_dispatch.rs` 的 `App::handle_event` 负责 App Server-backed settings、协作模式、权限和 Agents Overview action。TUI 的 effort/permission 快捷键只 lowering 到 `thread/settings/update`；`/model` picker 只消费 typed `model/list` 的可见 catalog，并在选择后 lowering 到同一 settings method，不复制 Codex 配置或 provider catalog。
+`Product Surface`、`Host/Transport` 与业务 runtime 是三层边界。Desktop、TUI、CLI 可以拥有各自的窗口/终端生命周期、输入法、快捷键和展示投影，但不能拥有 provider loop、工具 registry、approval authority、Thread/Turn/Item 状态机或持久化副本。`app-server-protocol` 是跨 surface 合同，`app-server-client` 是 Rust surface 的连接/session owner；本地 stdio 是当前实现，未来 Cloud 通过同一 session facade 接入认证后的远端 transport。TUI 的 `resume` picker 与 Codex-shaped `Agents Overview` 只读取 App Server `thread/list`，选中后进入标准 `thread/resume`；Overview 的状态分组、子线程状态冒泡与刷新仅投影 canonical Thread/notification，不访问私有 daemon/state DB。Overview 的新任务、改名和停止操作分别 lowering 到现有 `thread/start` + `turn/start`、`thread/name/set` 与 `turn/interrupt`，不复制 Codex agents daemon；刷新请求使用单一 request identity，合并 pending 请求并重放刷新期间到达的最新 thread notification。TUI 在 `app/app_server_event_targets.rs` 复用 Codex 同名 `server_notification_thread_target`、`server_request_thread_id` 与 `ServerNotificationThreadTarget`：Thread-scoped notification 可以更新 Overview/导航，但只有当前 Thread 能写入当前 `ConversationProjection`；foreign Thread 的可交互 server request 进入对应 `ThreadEventStore` 的 bounded replay channel，`pending_interactive_replay` 只允许仍未解决的 request 在 `thread/resume` 后重放；Dynamic Tool 和不受支持的 MCP elicitation schema 没有 TUI consumer，立即 fail closed；受支持的 MCP form/approval 由 BottomPane 消费，buffer 满时也直接 reject，不得落入当前 Thread 的 BottomPane。连接中断只由 TUI `app/reconnect.rs` session owner 做 bounded reconnect，并以原 Thread id hydrate canonical history，composer draft 保持在 surface 内存中，旧 connection 的 pending approval 丢弃且不得跨连接回放。TUI 的 `app/app_server_events.rs` 只负责 transport event 分流和 notification dispatch；`app/app_server_requests.rs` 负责 reverse server request routing 与 reject/queue 语义；`app/thread_events.rs` 负责 canonical Thread/Turn/Item notification projection 和 agent liveness；`app/pending_interactive_replay.rs` 负责 Codex 对齐的 pending request identity；`app/thread_settings.rs` 负责当前 thread 的 model/provider、effort、permission profile 与 collaboration mode read model；`app/event_dispatch.rs` 的 `App::handle_event` 负责 App Server-backed settings、协作模式、权限和 Agents Overview action。TUI 的 effort/permission 快捷键只 lowering 到 `thread/settings/update`；`/model` picker 只消费 typed `model/list` 的可见 catalog，并在选择后 lowering 到同一 settings method，不复制 Codex 配置或 provider catalog。
 
 TUI 的终端输入与绘制调度 owner 对齐 Codex `tui`：`tui::EventBroker` 统一持有可暂停/恢复的 crossterm 输入源，`tui::TuiEventStream` 将 key、paste、resize、focus 和 draw 归一化后交给 runtime；`tui::FrameRequester` 与 `frame_rate_limiter` 合并异步重绘并限制频率。workspace 级 crossterm 固定使用 Codex 同源的 `openai-oss-forks/crossterm` revision `45fecb9508105988f42fe6ff0441783ed3717f92`，其 terminal readiness 和外部消费输入修复是 external editor 交接的唯一依赖事实源。`tui::Tui` 只负责 terminal mode 生命周期，并在外部编辑器或恢复流程中暂停 broker，确保 stdin 不被后台 reader 占用。该层不得承接 App Server 请求、Thread 状态或第二套业务事件总线。真实 TUI Gate B 使用 PTY 驱动键盘和 alternate screen，并按 Codex 测试依赖使用 `vt100::Parser` 还原关闭前的实际屏幕；不能用删除 ANSI 后的字节拼接冒充用户可见状态。
 
 终端历史回放继续以 Codex `insert_history` 为唯一算法基线：`tui::insert_history` 负责 scroll region、full-screen raw replay、软换行、OSC 8 和 viewport 上方 history rows；`HistoryTerminal` 只抽象终端写入与 viewport bookkeeping，具体宿主仍是 `tui::Tui`，测试宿主使用真实 `vt100::Parser`。`ViewportState` 只记录几何、cursor anchor、alternate-screen round trip 和 visible history rows，不复制 Thread/Turn/Item 或 history DB。任何需要恢复 transcript 的能力必须从 App Server canonical projection 生成 `Line`，再进入该 owner；不得在 TUI 另建 Codex `custom_terminal` 或持久化滚动缓冲。
+
+TUI 的唯一输入 owner 为 `bottom_pane::ChatComposer`：`TextArea` 只拥有文本、UTF-8 安全原子范围、
+游标/选区与 wrap/render cache；`chat_composer::pending_paste` 保存长粘贴原文，提交/排队前仅按
+已登记范围展开，不能全局替换同名文字。同名 `current_text_with_pending` 与
+`expand_pending_pastes(text, elements, pending_pastes)` 共用纯转换 owner，有序扫描元素并按
+placeholder FIFO 消费 payload；不留旧 `expanded_text*` API 或另一套展开器。
+`chat_composer/submission` 是唯一提交准备 owner，`prepare_submission_text ->
+expand_pending_pastes -> trim_text_elements -> validate_user_input_text_length` 先准备完整正文与
+byte ranges，成功后再消费 draft/mentions 并记录 rich history。拒绝不清空或重建编辑器，
+主 composer 显示 local Error transcript，notes overlay 在自身 footer 显示五语言错误。
+共享长度策略只归 `agent-protocol::input`：`MAX_USER_INPUT_TEXT_CHARS` 与 validator 被
+TUI、App Server public `turn/start|steer` / `thread/queue/add|update` 和 RuntimeCore admission
+消费；所有 Text parts 汇总 Unicode scalar count，媒体/Skill/Mention 不计正文长度。
+服务端错误使用 Codex structured INVALID_PARAMS/input_too_large，且不能替 GUI trim 文本、
+flatten rich input 或改附件 owner。start 在环境/设置副作用前拒绝，queue update 拒绝保持
+原 canonical entry。`processor/turn/input` 拥有 wire 错误映射，独立 `turn/tests` 保持实现文件
+小于 800 行；无第二 backend/私有限制配置/compat。root 确认此边界，2026-10-01。
+`ComposerDraft` 是历史搜索、未提交草稿与 Vim 撤销/重做
+共享的内存快照，包含文本、原子范围、pending paste、mention binding 和附件；offline editing 保留该 owner。
+编辑配置沿 `core::TuiEditorKeymap -> App Server config/read -> LocalSettings ->
+RuntimeKeymap.editor (Arc<EditorKeymap>) -> ChatComposer -> TextArea::set_keymap_bindings` 进入。
+`textarea/input::input_with_keymap` 解析唯一 matcher 的 resolved `EditorAction`，同一 semantic
+`VimAction` 承接普通/Insert/Replace 编辑与 repeat；不保留硬编码 editor-key detector。
+pending chord 由 TextArea 持有并先于 host/global 消费完成/取消，buffer replacement 与新 snapshot
+清 pending，不改文本、附件、kill buffer 或已录制 change。global/editor 同输入路径冲突和
+保留 host 键启动期 fail closed；普通 Enter 提交、附件选择和有绑定的历史 Up/Down 仍归 composer。
+架构确认：root，2026-10-01；客户端编辑边界收敛，App Server/canonical 业务主链不变。
+四个 `TuiVim*Keymap` schema 与 `RuntimeKeymap` Arc snapshot 分别承接 Normal、operator、
+text-object、search 的 69 个同义动作；`TextArea::keymap_context -> VimKeymap::dispatch`
+借用 snapshot，复用同一个 `KeyChordMatcher`，modal 输入 owner 只消费 resolved action。
+find/replace 捕获 literal，不维护第二份快捷键清单。composer undo/redo、编辑事务启动与
+Normal history movement 使用同一 action；buffer replacement/snapshot 更新清 pending。
+`textarea/vim_register` 持有 `KillBufferKind::{Characterwise,Linewise}`，linewise operator、
+yank 与 paste 共用同一 register，不把多行文本冒充 linewise。
+snapshot 传播为 `App::set_runtime_keymap -> ChatComposer + BottomPane -> queued/new
+RequestUserInput.composer | McpServerElicitation.text_area -> TextArea`；Vim query editor
+也消费相同 editor snapshot。pending completion/cancellation 先于 host/global/submit，idle
+Normal Esc 仍属于 host interrupt。MCP elicitation 拆成 control/render/schema/tests；渲染直接
+访问 render owner，不保留旧 reexport wrapper。责任开发者 root 确认此图，2026-10-01。
+线程切换由 `app/thread_input::ThreadInputState` 暂存同一个 `ComposerDraft` 和移交的
+`BottomPaneInputState`；成功 resume 后才捕获，目标恢复消费休眠快照，active editor/view
+继续唯一持有。Agent Center 打开时不提前捕获或搬走输入，不另存字符串镜像或 fallback。
+输入投影的生命周期为：
+
+```text
+App successful thread/resume
+  -> ThreadInputState { ComposerDraft, BottomPaneInputState }
+  -> target restore consumes snapshot -> active composer + interaction views
+canonical thread notification
+  -> matching active/dormant views -> resolved / turn terminal / item started / thread closed
+transport disconnected
+  -> invalidate all old-connection interactions + replay -> retain rich thread drafts
+```
+
+BottomPane 交互队列通过 take/restore 移动已有审批选择、问答/每题备注/focus、MCP field/cursor
+和计时状态，不按 request/text 重建已编辑 view；当前 keymap 重新注入所有恢复请求。
+生命周期 invalidation 只消费同 Thread 的 canonical notification，不回答 waiter、不合成
+Turn terminal。MCP elicitation 按独立 resolved/ThreadClosed 清理，不把 turn completion
+冒充其解决事件。foreign 新请求仍复用既有 bounded ThreadEventStore；断线时它和休眠 view
+都丢弃旧 connection request id，草稿保持。该 snapshot 不进入 GUI、schema 或持久化。
+`pending_interactive_replay` 的唯一未决事实是 `pending_requests_by_request_id`；snapshot/rebase
+按 exact request id 与 typed lifecycle identity 过滤，ItemStarted 同时匹配 turn/item。
+不保留 category HashSet、by-turn 镜像索引或无生产 consumer 的 pending 查询；Lime typed
+JSON-RPC response 已有精确 id，不复制 Codex native Op 的 FIFO/按 call-id 回答适配逻辑。
+已解决/淘汰的旧请求不能被同 item 的新请求复活，旧 buffered event 淘汰不清 replacement。
+架构图确认：root，2026-10-01；GUI/TUI共享业务主链和 canonical authority 不变，完整
+ChatWidget/BottomPane composer 所有权迁移继续 partial，不增加空壳或第二 backend。
+capture 前由同一 paste-burst owner 物化 held typing，不能丢失或在新 Thread 上迟到 flush。
+`ChatComposer::restore_thread_input_state` 创建 fresh `DraftState/TextArea`，恢复完整 rich draft
+与 cursor；bindings 从当前 RuntimeKeymap 重新注入，catalog/event sender/locale 等宿主配置
+仍归同一 composer shell。旧 undo/redo、录制/search、matcher、paste-burst、鼠标/viewport 缓存
+和 popup dismissal 不跨线程。`KillBufferSnapshot` 用同名 take/restore 移交 session register，
+既保留 linewise/characterwise，也不纳入 ComposerDraft 或 App Server 持久化；active editor
+是唯一 live owner。相同 Thread 的 reconnect 继续保留原编辑状态，不走该 successful handoff
+重建；失败 resume 不动现有状态。root 确认此边界，2026-10-01；完整 ChatWidget lifecycle 仍 partial。
+Agent Center 的 `AgentsOverviewState::view` 是唯一交互 owner，输入直接更新它，canonical
+notification/refresh 只投影同一 view；分页只同步标量。不存在锁内 view 镜像、可见 id 副本或
+无消费者的 daemon task 字段。Codex 的 `Arc<Mutex<ViewState>>` 有真实 SelectionView 消费者；
+Lime 当前直接渲染拥有的 view，因此不复制该共享宿主机制来伪装同构。
+本地图片由 `chat_composer::AttachmentState` 保存同一 `LocalImageAttachment` 的路径、占位符与
+typed `ImageDetail`，不再用重复的内部 AttachedImage 或 paths-only history 重建。远程图片由
+`RemoteImageAttachment { url, detail }` 保存完整 canonical 元数据；不存在按 URL 关联 detail
+的平行 map，相同 URL 的不同 detail 仍各自独立。图片在 `TextArea` 游标处插入原子
+`[Image #n]`；远程图片仍为独立可选择行，并占据编号前缀。删除与重编号仅作用于登记范围，
+不能按字符串猜测附件。external editor 使用展开原文，通过同名 `apply_external_edit` 重建已知
+附件关系，重复的普通占位符文本仍为 literal。`ChatComposerHistory` 是同名唯一 recall owner，
+`HistoryEntry` 保存本地元素范围、图片、pending paste 与选定 mention 路径；Ctrl-C、Up/Down 和 Ctrl-R 消费同一
+条目，其中 `local_images/remote_images` 保存完整 typed attachments，persistent history 仍由
+现有 App Server `promptHistory/*` 供给，不把完整图片冒充已持久化的 text-only prompt history。
+`TextArea` 登记范围和 `TextElementSnapshot` 保留原始 optional placeholder：canonical None
+在 UTF-8 编辑、trim、mixed-paste expansion、snapshot、undo、thread restore 中保持 None；
+本地生成的原子标签仍显式 Some。重编号只改注册范围，外部编辑器只重建已知附件，不把
+重复 literal 当附件。queue edit 在范围有效/不重叠时允许 None 和各档 detail，不恢复未知
+Mention 产品能力或跳过原子范围校验。
+`ChatComposerHistory::search/reset_search` 持有同名 `HistorySearchDirection/HistorySearchResult`、
+exact-text unique match cache 与 Older/Newer 遍历；`chat_composer/history_search.rs` 的
+`HistorySearchSession` 持有 query、original draft、original Vim history/persistent state、
+按需冻结的 fallback preview 与 preview status。`history_search_draft::edit_stored_draft`
+暂存可见 preview，在原草稿上处理后台文本/附件更新，再恢复 query/preview；cancel 保留更新，
+accept 丢弃。host 用 `draft_snapshot` 捕获 original，Vim 内部用 `snapshot_draft` 捕获可见编辑。
+边界保留当前预览，查询变更重新扫描，取消恢复原草稿/undo/redo/语义命令。启动只记录
+`set_history_metadata(thread_id, log_id, entry_count)`，不再截取一页或裁剪到 200 条。
+`ChatComposerHistory` 统一持有 `local_history/fetched_history/history_cursor`；正常 recall
+按需请求单条，搜索在 newest probe miss 后切换到 `search_batch` 的 query-independent 批量缓存。
+`app_event/AppEventSender` 传递同名 `LookupMessageHistoryEntry/Batch`，
+`app/message_history` 通过 cloned RequestHandle 异步访问既有 `promptHistory/read`，
+再由 `on_entry_response/on_batch_response/on_batch_error` 继续唯一状态机。线程/log/cursor
+不匹配的回包不得恢复预览；取消/编辑后的有效回包只填缓存。坏行记录为 `None` offset，
+batch 失败最多重试 2 次，`Unavailable` 与 `NoMatch` 分开，未连接 consumer 不无限 Pending。
+host lookup tasks 随 owner 释放中止，terminal event loop 不等待历史 IO。
+`textarea/vim_commands` 是 `VimCommandState/VimEdit/VimAction/VimEditTarget` 的唯一 owner，
+录制 resolved editor actions 和文本，完整 change 才成为 `last_change`；`.` 重放同一语义事务，
+不重放原始按键。`VimPersistentState` 交换 commands/last search，供搜索和 undo 同草稿恢复。
+Replace recovery 属于该状态，跳过附件，粘贴前缀回收和 Backspace 共用同一 recovery；普通 buffer
+replacement 清除命令，取消搜索则恢复完整录制状态。Normal 模式禁止 paste burst 抢占命令。
+小模块拆分为仓库行数约束差异，不建立第二个 state owner；完整 Vim keymap consumer 已接入，
+thread handoff 已清理 Vim edit lifetime 并传递 session register；replay-seeded history、完整
+thread-owned composer lifecycle 仍未完成。
+数据流为 `paste -> ChatComposer draft/TextArea -> Text + TextElement / remote images / local images
+-> App Server -> canonical Thread/Turn/Item`；App/Runtime 只 lowering 为现有结构化 `UserInput`，
+顺序为 remote images、local images、text、skills。传输失败与 queue edit 回到同一草稿 owner。
+`TextArea` 的单调元素 ID 是选定 mention 的身份，`DraftState::mention_bindings` 保存
+`ComposerMentionBinding`；`snapshot_mention_bindings` / `take_recent_submission_mention_bindings`
+以同名有序 `MentionBinding` 快照传递。选定技能先按 path 匹配 enabled catalog，再解析未绑定的
+typed/linked mention；catalog 更新不能把已选技能替换成同名另一条路径。路径消失时 fail closed。
+`app/input_submission` 与同名 `app/skills` 负责 lowering/解析，`runtime/input_submission`
+负责单一 start/steer/queue transport acknowledgement 与失败草稿恢复，不在巨型 host loop
+复制提交策略。三条失败路径复用同一完整 typed attachment/input，不清空 image detail；
+只有服务端 acknowledgement 成功才写 prompt history。canonical
+queue edit 使用 Skill path 恢复绑定并复用已有元素，不重复添加 token。`mention_codec` 把登记的
+技能元素编码为 path link，通过既有 `promptHistory/*` 持久化，读取时恢复同一文本和原子范围。
+prompt-history public append 与 entry 的 identity 统一为 `threadId`；TUI 不再保存仅为该调用
+存在的 session-id 镜像。v2 ingress 继续拒绝 `sessionId`，不添加 endpoint 例外；内部 Codex
+JSONL `session_id` 字段由同一 canonical Thread ID lowering，不新增存储或兼容公开字段。
+此处复用同名 Codex owner/方法；小模块拆分、canonical queue 和严格 literal 保留为 merge。
+不增加第二套 composer、history DB、协议、turn/queue authority 或持久化；app/plugin/task mentions、
+完整 ChatWidget 与 thread-owned BottomPane lifecycle 仍为 partial。本轮架构图确认：
+上面的 owner/data-flow 为 current，责任开发者 root，2026-10-01；无外部兼容或平行后端。
+
+终端 diff 由 `diff_render` 的唯一 parser/wrap owner 与 `diff_render/style` 的单次终端样式快照绘制，
+增删行底色、sign、gutter 与 syntax foreground 分别 lowering。`terminal_hyperlinks/paragraph`
+复用同一 wrap/scroll 几何先铺满可见行背景，再由 span 覆盖 gutter，OSC 8 仍独立装饰终端 cell；
+不得给正文补空格、复制 renderer 或把颜色布局写入 canonical projection。固定 ANSI syntax theme
+暂不承接 Codex 可配置 diff scope background；Windows Terminal promotion 尚未迁入。责任开发者 root，2026-10-01。
 
 TUI transcript presentation 继续按 Codex 的 `history_cell/` 与 `exec_cell/` 目录收敛：
 `history_cell::HistoryCell` 是单个 canonical `TranscriptEntry` 的终端 presentation owner，
@@ -332,7 +476,7 @@ outer JSON-RPC id 只负责 App Server 到客户端的响应关联，domain toke
 
 Composer 的唯一 Renderer 结构化输入 owner 是 `input-kit::ComposerController`。它持有 `ComposerDocument`（文本、光标/选择区、文本元素、mention、图片、路径引用和 pending paste）及可恢复 `ComposerDraftSnapshot`，通过 external-store subscription 提供给 Inputbar、首页和其他输入 surface；现有受控 text、图片和路径 hooks 只能作为 UI adapter 同步，不得发展成第二套 intent/queue owner。Controller 只产生 typed `ComposerIntent` / `ComposerSubmitResult`（`start`、`queue`、`steer`、`interrupt`、`command`、`edit`、`clear`），不保存 Thread/Turn/Queue 事实，也不依据本地 `isLoading` 猜测运行状态；workspace orchestrator 结合 canonical Thread/Turn read model 与 queueing preference 解析 `ComposerSubmitTarget`。`start`、`steer`、`interrupt` 进入 `turn/start|turn/steer|turn/interrupt`，`queue` 和 queued edit/delete/reorder/start 进入 Codex v2 `thread/queue/*` typed App Server 方法。Queue mutation 不直接改 Renderer queue 内容；`thread/queue/changed` 或 mutation 成功后的显式 refresh 只能触发 canonical queue 重读，Renderer 不得建立 queue snapshot、乐观删除或第二个 queue facade。Composer controller 当前统一 CRLF 和大粘贴 placeholder/提交前展开，并沿用 `BaseComposer` 的浏览器 IME 处理；Windows 非 bracketed paste burst 与 AltGr 原生 lowering 仍是平台 adapter 缺口。提交失败保留 draft，成功 receipt 仅在 revision 未变化时清理 pending state，避免旧异步回执覆盖新草稿。Architecture impact: major; owner/data flow and public action contract changed. Architecture diagram updated: this paragraph. Responsible developer confirmation: root, 2026-09-01.
 
-Composer 纯文本历史只允许沿 `Composer -> typed AppServerClient -> app_server_handle_json_lines -> App Server promptHistory/read|append -> RuntimeCore PromptHistoryStore` 流动；Electron 仅转发 JSON-RPC，Renderer 不得以 `localStorage`、SQLite 或旧 Desktop facade 建立第二事实源。`PromptHistoryStore` 使用受控数据根下的 append-only `prompt_history.jsonl`、文件锁和 4 MiB 保留上限，坏行跳过但保留 offset；macOS/Linux 的 `logId` 使用 inode，Windows 使用文件 creation time，用于分页 cursor 的快照一致性。读取返回 newest-first bounded pages，客户端在 Composer 内按 oldest-first 合并；异步读取完成时只合并服务端快照与本地新提交的边界重叠，不覆盖已产生的 draft/history。只追加成功提交的纯文本和 session identity；附件、路径引用、mention 与大粘贴原文保持会话内，不写入 JSONL。`promptHistory/read|append` 是稳定 v2 方法，不要求 `initialize.capabilities.experimentalApi`。Architecture impact: major; persistent history owner and cross-platform identity semantics fixed. Responsible developer confirmation: root, 2026-09-01.
+Composer 纯文本历史只允许沿 `Composer -> typed AppServerClient -> app_server_handle_json_lines -> App Server promptHistory/read|append -> RuntimeCore PromptHistoryStore` 流动；Electron 仅转发 JSON-RPC，Renderer 不得以 `localStorage`、SQLite 或旧 Desktop facade 建立第二事实源。`PromptHistoryStore` 使用受控数据根下的 append-only `prompt_history.jsonl`、文件锁和 4 MiB 保留上限，坏行跳过但保留 offset；macOS/Linux 的 `logId` 使用 inode，Windows 使用文件 creation time，用于分页 cursor 的快照一致性。读取返回 newest-first bounded pages，客户端在 Composer 内按 oldest-first 合并；异步读取完成时只合并服务端快照与本地新提交的边界重叠，不覆盖已产生的 draft/history。只追加成功提交的正文和 canonical Thread identity：公开 append 为 `{threadId,text}`，entry 返回 `threadId`，内部 JSONL 的 `session_id` 字段记录同一个 Thread ID。TUI 选定 Skill 元素可经 `mention_codec` 编码为 path link，再从同一 history owner 恢复；附件、普通路径引用与大粘贴 payload 仍为会话内 rich state，不把正文 codec 冒充完整附件持久化。`promptHistory/read|append` 是稳定 v2 方法，不要求 `initialize.capabilities.experimentalApi`。Architecture impact: major; persistent history owner and cross-platform identity semantics fixed. Responsible developer confirmation: root, 2026-09-01.
 
 World state 的 typed DTO owner 固定为 `agent-protocol::world_state::RuntimeWorldState`。当前链路为：
 

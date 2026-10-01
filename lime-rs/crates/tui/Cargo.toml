@@ -32,6 +32,7 @@ ratatui = { workspace = true, features = [
 pulldown-cmark.workspace = true
 serde.workspace = true
 serde_json = { workspace = true, features = ["preserve_order"] }
+shlex = "1"
 syntect = "5"
 tokio.workspace = true
 tokio-stream = { workspace = true, features = ["sync"] }
@@ -60,6 +61,7 @@ which.workspace = true
 
 [dev-dependencies]
 app-server-transport.workspace = true
+fs2.workspace = true
 portable-pty.workspace = true
 pretty_assertions.workspace = true
 tokio-tungstenite.workspace = true

@@ -53,6 +53,10 @@ pub(super) fn validate_user_input(input: &[AgentInput]) -> Result<(), String> {
     if input.is_empty() {
         return Err("turn input must not be empty".to_string());
     }
+    agent_protocol::input::validate_user_input_text_length(
+        input.iter().map(AgentInput::text_char_count).sum(),
+    )
+    .map_err(|error| error.to_string())?;
     for part in input {
         part.validate().map_err(|error| error.to_string())?;
     }
@@ -131,6 +135,27 @@ fn legacy_image_input(attachment: &AgentAttachment) -> Option<AgentInput> {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn runtime_admission_checks_aggregate_unicode_length_before_media_or_queue_work() {
+        let limit = agent_protocol::input::MAX_USER_INPUT_TEXT_CHARS;
+        let mut input = vec![
+            AgentInput::text("界".repeat(limit / 2)),
+            AgentInput::text("🙂".repeat(limit / 2)),
+            AgentInput::Mention {
+                name: "docs".into(),
+                path: "app://docs".into(),
+            },
+        ];
+        assert_eq!(validate_user_input(&input), Ok(()));
+        input.push(AgentInput::text("界"));
+        assert_eq!(
+            validate_user_input(&input),
+            Err(format!(
+                "Input exceeds the maximum length of {limit} characters."
+            ))
+        );
+    }
 
     #[test]
     fn legacy_input_is_converted_once_into_ordered_user_parts() {

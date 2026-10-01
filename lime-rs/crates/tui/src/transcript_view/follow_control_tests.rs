@@ -88,3 +88,31 @@ fn hidden_control_does_not_consume_clicks_and_drag_out_cancels() {
         None
     );
 }
+
+#[test]
+fn painted_control_uses_surface_accent_and_only_bolds_on_hover() {
+    for bg in [(0, 0, 0), (255, 255, 255), (130, 130, 130)] {
+        crate::terminal_palette::with_test_default_colors(
+            crate::terminal_probe::DefaultColors {
+                fg: (255, 255, 255),
+                bg,
+            },
+            || {
+                let control = TranscriptFollowControl::default();
+                let terminal = draw(&control, 80, false, false);
+                let area = control.area().unwrap();
+                let cell = &terminal.backend().buffer()[(area.x, area.y)];
+                assert_eq!(cell.fg, crate::style::user_message_accent_color());
+                assert_eq!(Some(cell.bg), crate::style::user_message_style().bg);
+                assert!(!cell
+                    .modifier
+                    .intersects(Modifier::BOLD | Modifier::REVERSED));
+
+                control.handle_mouse(mouse(MouseEventKind::Moved, area.x));
+                let terminal = draw(&control, 80, false, false);
+                let cell = &terminal.backend().buffer()[(area.x, area.y)];
+                assert!(cell.modifier.contains(Modifier::BOLD | Modifier::REVERSED));
+            },
+        );
+    }
+}

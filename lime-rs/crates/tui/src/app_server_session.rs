@@ -20,18 +20,18 @@ use app_server_protocol::protocol::v2::{
     ModelListResponse, PermissionProfileListParams, PermissionProfileListResponse,
     PromptHistoryAppendParams, PromptHistoryAppendResponse, PromptHistoryReadParams,
     PromptHistoryReadResponse, QueuedSubmission, ServerRequest, SkillsListParams,
-    SkillsListResponse, ThreadForkParams, ThreadForkResponse, ThreadListParams, ThreadListResponse,
-    ThreadQueueAddParams, ThreadQueueAddResponse, ThreadQueueDeleteParams,
-    ThreadQueueDeleteResponse, ThreadQueueListParams, ThreadQueueListResponse, ThreadReadParams,
-    ThreadReadResponse, ThreadResumeParams, ThreadResumeResponse, ThreadSetNameParams,
-    ThreadSetNameResponse, ThreadSettingsUpdateParams, ThreadSettingsUpdateResponse,
-    ThreadStartParams, ThreadStartResponse, ThreadStartSource, ThreadUnarchiveParams,
-    ThreadUnarchiveResponse, TurnInterruptParams, TurnInterruptResponse, TurnStartParams,
-    TurnStartResponse, TurnSteerParams, TurnSteerResponse, UserInput,
-    METHOD_COLLABORATION_MODE_LIST, METHOD_CONFIG_READ, METHOD_FUZZY_FILE_SEARCH,
-    METHOD_MCP_SERVER_STATUS_LIST, METHOD_PERMISSION_PROFILE_LIST, METHOD_PROMPT_HISTORY_APPEND,
-    METHOD_PROMPT_HISTORY_READ, METHOD_SKILLS_LIST, METHOD_THREAD_ARCHIVE, METHOD_THREAD_QUEUE_ADD,
-    METHOD_THREAD_QUEUE_DELETE, METHOD_THREAD_QUEUE_LIST, METHOD_THREAD_READ, METHOD_THREAD_RESUME,
+    SkillsListResponse, ThreadListParams, ThreadListResponse, ThreadQueueAddParams,
+    ThreadQueueAddResponse, ThreadQueueDeleteParams, ThreadQueueDeleteResponse,
+    ThreadQueueListParams, ThreadQueueListResponse, ThreadReadParams, ThreadReadResponse,
+    ThreadResumeParams, ThreadResumeResponse, ThreadSetNameParams, ThreadSetNameResponse,
+    ThreadSettingsUpdateParams, ThreadSettingsUpdateResponse, ThreadStartParams,
+    ThreadStartResponse, ThreadStartSource, ThreadUnarchiveParams, ThreadUnarchiveResponse,
+    TurnInterruptParams, TurnInterruptResponse, TurnStartParams, TurnStartResponse,
+    TurnSteerParams, TurnSteerResponse, UserInput, METHOD_COLLABORATION_MODE_LIST,
+    METHOD_CONFIG_READ, METHOD_FUZZY_FILE_SEARCH, METHOD_MCP_SERVER_STATUS_LIST,
+    METHOD_PERMISSION_PROFILE_LIST, METHOD_PROMPT_HISTORY_APPEND, METHOD_PROMPT_HISTORY_READ,
+    METHOD_SKILLS_LIST, METHOD_THREAD_ARCHIVE, METHOD_THREAD_QUEUE_ADD, METHOD_THREAD_QUEUE_DELETE,
+    METHOD_THREAD_QUEUE_LIST, METHOD_THREAD_READ, METHOD_THREAD_RESUME,
     METHOD_THREAD_SETTINGS_UPDATE, METHOD_THREAD_START, METHOD_TURN_INTERRUPT, METHOD_TURN_START,
     METHOD_TURN_STEER,
 };
@@ -95,7 +95,6 @@ pub(crate) struct AppServerSession {
     session: ClientSession,
     request_handle: RequestHandle,
     thread_id: Option<String>,
-    session_id: Option<String>,
     active_permission_profile: Option<String>,
     history_pagination: HashMap<String, history::ThreadHistoryPagination>,
 }
@@ -182,7 +181,6 @@ impl AppServerSession {
             request_handle: session.request_handle(),
             session,
             thread_id: None,
-            session_id: None,
             active_permission_profile: None,
             history_pagination: HashMap::new(),
         })
@@ -199,7 +197,6 @@ impl AppServerSession {
             request_handle: session.request_handle(),
             session,
             thread_id: None,
-            session_id: None,
             active_permission_profile: None,
             history_pagination: HashMap::new(),
         })
@@ -215,7 +212,6 @@ impl AppServerSession {
             .start_thread_with_session_start_source(cwd, model, model_provider, None)
             .await?;
         let thread_id = response.thread.id.clone();
-        self.session_id = Some(response.thread.session_id.clone());
         self.thread_id = Some(thread_id.clone());
         self.active_permission_profile = response
             .active_permission_profile
@@ -277,7 +273,6 @@ impl AppServerSession {
                 .thread;
         }
         self.thread_id = Some(response.thread.id.clone());
-        self.session_id = Some(response.thread.session_id.clone());
         self.active_permission_profile = response
             .active_permission_profile
             .as_ref()
@@ -411,30 +406,6 @@ impl AppServerSession {
             .context("failed to restore archived App Server thread")
     }
 
-    pub(crate) async fn fork_thread(
-        &self,
-        thread_id: impl Into<String>,
-        cwd: Option<PathBuf>,
-        model: Option<String>,
-        model_provider: Option<String>,
-    ) -> Result<ThreadForkResponse> {
-        let cwd = cwd.map(|path| path.to_string_lossy().into_owned());
-        self.request_handle
-            .request(
-                app_server_protocol::protocol::v2::METHOD_THREAD_FORK,
-                ThreadForkParams {
-                    thread_id: thread_id.into(),
-                    cwd: cwd.clone(),
-                    runtime_workspace_roots: cwd.map(|cwd| vec![cwd]),
-                    model,
-                    model_provider,
-                    ..ThreadForkParams::default()
-                },
-            )
-            .await
-            .context("failed to fork App Server thread")
-    }
-
     pub(crate) async fn list_models(&self, limit: u32) -> Result<ModelListResponse> {
         let mut cursor = None;
         let mut seen_cursors = HashSet::new();
@@ -556,12 +527,6 @@ impl AppServerSession {
         bail!("thread queue pagination exceeded 16 pages")
     }
 
-    pub(crate) fn session_id(&self) -> Result<&str> {
-        self.session_id
-            .as_deref()
-            .ok_or_else(|| anyhow!("App Server session has not been started"))
-    }
-
     pub(crate) async fn update_settings(
         &self,
         model: Option<String>,
@@ -634,11 +599,11 @@ impl AppServerSession {
         &self,
         text: String,
     ) -> Result<PromptHistoryAppendResponse> {
-        let session_id = self.session_id()?.to_string();
+        let thread_id = self.thread_id()?.to_string();
         self.request_handle
             .request(
                 METHOD_PROMPT_HISTORY_APPEND,
-                PromptHistoryAppendParams { session_id, text },
+                PromptHistoryAppendParams { thread_id, text },
             )
             .await
             .context("failed to append prompt history")

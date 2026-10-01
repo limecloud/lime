@@ -2,7 +2,7 @@
 
 use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
 
-use super::{ActivePopup, ChatComposer};
+use super::ChatComposer;
 use crate::clipboard_paste::ClipboardTextSource;
 use crate::tui::TuiEvent;
 
@@ -43,9 +43,7 @@ impl ChatComposer {
     pub(crate) fn clipboard_paste_request(&self, event: &TuiEvent) -> Option<ClipboardTextSource> {
         if self.history_search.is_some()
             || self.vim_search_active()
-            || self.command_popup_active()
-            || self.file_search_popup_active()
-            || self.skill_popup_active()
+            || self.completion_popup_active()
         {
             return None;
         }
@@ -70,9 +68,7 @@ impl ChatComposer {
     pub(crate) fn clipboard_paste_target(&self) -> Option<(String, usize)> {
         if self.history_search.is_some()
             || self.vim_search_active()
-            || self.command_popup_active()
-            || self.file_search_popup_active()
-            || self.skill_popup_active()
+            || self.completion_popup_active()
             || self.draft.textarea.selected_text().is_some()
         {
             return None;
@@ -89,8 +85,7 @@ impl ChatComposer {
         let handled = self.draft.textarea.handle_mouse(event, state);
         if handled {
             self.attachments.clear_remote_image_selection();
-            self.popups.active = ActivePopup::None;
-            self.file_search_request = None;
+            self.popups.clear();
             self.reset_history_navigation();
         }
         handled

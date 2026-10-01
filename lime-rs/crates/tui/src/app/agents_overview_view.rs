@@ -16,7 +16,7 @@ use app_server_protocol::protocol::v2::{Thread, ThreadActiveFlag, ThreadStatus};
 use std::cell::Cell;
 use std::path::PathBuf;
 
-use crate::keymap::{AgentsKeymap, KeyChordMatcher};
+use crate::keymap::{AgentsKeymap, KeyChordMatcher, ListKeymap};
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub(crate) enum AgentsOverviewGroup {
@@ -102,6 +102,7 @@ pub(crate) struct AgentsOverviewView {
     loading_more: bool,
     load_more_failed: bool,
     agents_keymap: AgentsKeymap,
+    list_keymap: ListKeymap,
     key_chord_matcher: KeyChordMatcher,
     // Rendering and paging share visual-row geometry, including group headings and gaps.
     scroll: Cell<usize>,
@@ -111,17 +112,24 @@ pub(crate) struct AgentsOverviewView {
 impl AgentsOverviewView {
     #[cfg(test)]
     pub(crate) fn new(rows: Vec<AgentsOverviewRow>, selected_thread_id: Option<&str>) -> Self {
-        Self::new_with_keymap(rows, selected_thread_id, AgentsKeymap::default())
+        Self::new_with_keymap(
+            rows,
+            selected_thread_id,
+            AgentsKeymap::default(),
+            ListKeymap::default(),
+        )
     }
 
     pub(crate) fn new_with_keymap(
         rows: Vec<AgentsOverviewRow>,
         selected_thread_id: Option<&str>,
         agents_keymap: AgentsKeymap,
+        list_keymap: ListKeymap,
     ) -> Self {
         let mut view = Self {
             rows,
             agents_keymap,
+            list_keymap,
             ..Self::default()
         };
         view.selected = selected_thread_id
@@ -175,11 +183,9 @@ impl AgentsOverviewView {
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn is_searching(&self) -> bool {
         self.searching
-    }
-    pub(crate) fn help_active(&self) -> bool {
-        self.help
     }
     pub(crate) fn search(&self) -> &str {
         &self.search
@@ -187,6 +193,7 @@ impl AgentsOverviewView {
     pub(crate) fn input(&self) -> &str {
         &self.input
     }
+    #[cfg(test)]
     pub(crate) fn input_mode(&self) -> Option<AgentsOverviewInputMode> {
         self.input_mode
     }

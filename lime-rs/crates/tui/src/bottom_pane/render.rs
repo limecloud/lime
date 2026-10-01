@@ -18,6 +18,9 @@ pub(crate) fn desired_height_with_locale_for_width(
     if matches!(pane.current(), Some(PendingInteraction::Approval(_))) {
         return super::approval_render::desired_height(pane, locale, width);
     }
+    if let Some(PendingInteraction::UserInput(request)) = pane.current() {
+        return request_user_input_render::desired_height(request, locale, width);
+    }
     // The interaction surface only has top/bottom borders, so its text width is the full
     // terminal width. Measuring with a narrower width would under-allocate the pane and clip
     // wrapped CJK/emoji content on narrow terminals.
@@ -40,6 +43,10 @@ pub(crate) fn render_with_locale(
         super::approval_render::render(frame, area, pane, locale);
         return;
     }
+    if let Some(PendingInteraction::UserInput(request)) = pane.current() {
+        request_user_input_render::render(frame, area, request, locale);
+        return;
+    }
     let block = Block::default()
         .borders(Borders::TOP | Borders::BOTTOM)
         .border_style(attention_style());
@@ -52,14 +59,8 @@ pub(crate) fn render_with_locale(
         area,
     );
 
-    match pane.current() {
-        Some(PendingInteraction::UserInput(request)) => {
-            request_user_input_render::set_cursor_position(frame, inner, request, &content);
-        }
-        Some(PendingInteraction::McpElicitation(request)) => {
-            mcp_server_elicitation::set_cursor_position(frame, inner, request, &content);
-        }
-        _ => {}
+    if let Some(PendingInteraction::McpElicitation(request)) = pane.current() {
+        mcp_server_elicitation::render::set_cursor_position(frame, inner, request, &content);
     }
 }
 
@@ -67,16 +68,15 @@ fn lines_with_locale(
     pane: &BottomPane,
     locale: Locale,
     width: usize,
-    now: Instant,
+    _now: Instant,
 ) -> Vec<Line<'static>> {
     let mut lines = match pane.current() {
-        Some(PendingInteraction::UserInput(request)) => {
-            request_user_input_render::lines_with_locale_with_width_at(request, locale, width, now)
-        }
         Some(PendingInteraction::McpElicitation(request)) => {
-            mcp_server_elicitation::lines_with_locale_with_width(request, locale, width)
+            mcp_server_elicitation::render::lines_with_locale_with_width(request, locale, width)
         }
-        Some(PendingInteraction::Approval(_)) | None => Vec::new(),
+        Some(PendingInteraction::Approval(_) | PendingInteraction::UserInput(_)) | None => {
+            Vec::new()
+        }
     };
     if let Some(title) = pane.action_required_title(locale) {
         lines.insert(0, Line::styled(title, crate::style::attention_style()));
@@ -87,7 +87,6 @@ fn lines_with_locale(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::bottom_pane::selection_row_layout::MAX_POPUP_ROWS;
     use app_server_protocol::protocol::v2::{
         ServerRequest, ToolRequestUserInputOption, ToolRequestUserInputParams,
         ToolRequestUserInputQuestion,
@@ -125,7 +124,7 @@ mod tests {
     }
 
     #[test]
-    fn long_request_input_keeps_the_selected_option_inside_the_eight_row_window() {
+    fn request_input_routes_to_the_unbordered_menu_renderer() {
         let mut pane = BottomPane::default();
         pane.enqueue(request_with_options(12))
             .expect("queue request user input");
@@ -133,18 +132,20 @@ mod tests {
             pane.handle_event(Event::Key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE)));
         }
 
-        let lines = lines_with_locale(&pane, Locale::EnUs, 80, Instant::now());
-        let option_lines = lines
+        let mut terminal =
+            ratatui::Terminal::new(ratatui::backend::TestBackend::new(80, 18)).unwrap();
+        terminal
+            .draw(|frame| render_with_locale(frame, frame.area(), &pane, Locale::EnUs))
+            .unwrap();
+        let text = terminal
+            .backend()
+            .buffer()
+            .content
             .iter()
-            .filter(|line| line.to_string().contains(". Choice "))
-            .collect::<Vec<_>>();
-        assert_eq!(option_lines.len(), MAX_POPUP_ROWS);
-        assert!(lines
-            .iter()
-            .any(|line| line.to_string().contains("› 12. Choice 11")));
-        assert!(!lines
-            .iter()
-            .any(|line| line.to_string().contains("1. Choice 0")));
+            .map(|cell| cell.symbol())
+            .collect::<String>();
+        assert!(text.contains("› 12. Choice 11"), "{text}");
+        assert!(!text.contains('─'), "{text}");
     }
 
     #[test]
@@ -153,16 +154,12 @@ mod tests {
         pane.enqueue(request_with_options(2))
             .expect("queue request user input");
         let width = 12u16;
-        let content = lines_with_locale(&pane, Locale::EnUs, usize::from(width), Instant::now());
-        let expected = Paragraph::new(content)
-            .wrap(Wrap { trim: false })
-            .line_count(width)
-            .saturating_add(2)
-            .clamp(5, 18);
-
+        let Some(PendingInteraction::UserInput(request)) = pane.current() else {
+            panic!("expected input request");
+        };
         assert_eq!(
             desired_height_with_locale_for_width(&pane, Locale::EnUs, width),
-            u16::try_from(expected).expect("height fits in u16")
+            request_user_input_render::desired_height(request, Locale::EnUs, width)
         );
     }
 }

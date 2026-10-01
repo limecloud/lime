@@ -6,7 +6,6 @@
 
 use std::borrow::Cow;
 
-use ratatui::layout::Rect;
 use ratatui::style::Stylize;
 use ratatui::text::{Line, Span};
 use unicode_segmentation::UnicodeSegmentation;
@@ -20,19 +19,6 @@ use crate::wrapping::{word_wrap_line, RtOptions};
 /// This is the same bounded viewport used by Codex's generic list picker. The
 /// selected row may move the window, but the popup itself stays anchored.
 pub(crate) const MAX_POPUP_ROWS: usize = 8;
-
-/// Center a popup while keeping its rectangle inside the available terminal area.
-pub(crate) fn centered_popup(area: Rect, width: u16, height: u16) -> Rect {
-    let width = width.min(area.width);
-    let height = height.min(area.height);
-    Rect::new(
-        area.x.saturating_add(area.width.saturating_sub(width) / 2),
-        area.y
-            .saturating_add(area.height.saturating_sub(height) / 2),
-        width,
-        height,
-    )
-}
 
 /// Return the item window that keeps `selected` visible in a bounded popup.
 pub(crate) fn visible_item_window(
@@ -297,13 +283,6 @@ pub(crate) fn wrap_row(
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn centered_popup_is_clamped_and_keeps_terminal_anchor() {
-        let area = Rect::new(4, 3, 20, 10);
-        assert_eq!(centered_popup(area, 12, 6), Rect::new(8, 5, 12, 6));
-        assert_eq!(centered_popup(area, 80, 80), area);
-    }
 
     #[test]
     fn visible_item_window_keeps_selection_inside_eight_row_viewport() {

@@ -2,6 +2,8 @@
 
 mod hints;
 mod input;
+#[cfg(test)]
+mod keymap_tests;
 mod navigation;
 pub(super) mod render;
 pub(super) mod rows;

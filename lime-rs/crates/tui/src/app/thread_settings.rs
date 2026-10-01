@@ -67,7 +67,9 @@ impl App {
         let models = self.model_catalog.try_list_models().unwrap_or_default();
         self.model_picker = Some(
             ModelPicker::new(models)
-                .with_current(self.model.as_deref(), self.model_provider.as_deref()),
+                .with_keymap(self.runtime_keymap.list().clone())
+                .with_current(self.model.as_deref(), self.model_provider.as_deref())
+                .with_current_effort(self.reasoning_effort.as_deref()),
         );
     }
 

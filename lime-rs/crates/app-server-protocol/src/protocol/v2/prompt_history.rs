@@ -2,12 +2,13 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// Persistent prompt history entry. Rich composer state is intentionally not
-/// persisted here; attachments and placeholders remain session-local.
+/// persisted here; attachments and placeholders remain session-local. Selected skill targets
+/// may be encoded as links in text, using the same history codec as the composer.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct PromptHistoryEntry {
     pub offset: u64,
-    pub session_id: String,
+    pub thread_id: String,
     pub ts: u64,
     pub text: String,
 }
@@ -35,7 +36,7 @@ pub struct PromptHistoryReadResponse {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct PromptHistoryAppendParams {
-    pub session_id: String,
+    pub thread_id: String,
     pub text: String,
 }
 

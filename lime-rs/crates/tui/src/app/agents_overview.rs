@@ -2,43 +2,21 @@
 
 use super::agents_overview_view::{AgentsOverviewGroup, AgentsOverviewRow, AgentsOverviewView};
 use crate::app_server_session::AppServerSession;
-use crate::keymap::AgentsKeymap;
+use crate::keymap::{AgentsKeymap, ListKeymap};
 use anyhow::{anyhow, Result};
 use app_server_protocol::protocol::v2::ServerNotification;
 use app_server_protocol::protocol::v2::{Thread, TurnStatus, UserInput};
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
-use tokio::task::AbortHandle;
-
-#[allow(dead_code)]
-pub(crate) const AGENTS_OVERVIEW_VIEW_ID: &str = "agents-overview";
 
 #[derive(Debug, Default)]
 pub(crate) struct AgentsOverviewState {
     pub(crate) threads: Vec<Thread>,
-    /// True after the first server-backed seed has completed.
-    pub(crate) initialized: bool,
-    /// Monotonic refresh identity. A response from an older request is ignored.
-    pub(crate) request_id: Option<u64>,
     /// A refresh requested while another refresh is in flight is coalesced.
     pub(crate) refresh_pending: bool,
-    /// Thread ids with metadata changes that should be refreshed on the next pass.
-    pub(crate) refresh_thread_ids: HashSet<String>,
-    /// Abort handle for a background refresh task, when one is installed by a host.
-    pub(crate) refresh_task: Option<AbortHandle>,
     /// Notifications received during a refresh, keyed by thread and replayed afterward.
     pub(crate) refresh_notifications: HashMap<String, Vec<ServerNotification>>,
-    /// Whether the overview is currently rendered as the primary full-screen surface.
-    pub(crate) rendered_full_screen: bool,
-    /// Canonical order of rows currently visible after filtering/grouping.
-    pub(crate) visible_thread_ids: Vec<String>,
-    /// Codex-compatible shared view state for hosts that render through a selection surface.
-    /// `view` remains the Lime terminal owner; this mirror lets adapters share the same shape
-    /// without introducing a second interaction model.
-    pub(crate) view_state: Arc<Mutex<super::agents_overview_view::AgentsOverviewView>>,
-    /// Drafts are retained per thread while the command center is open or a root is resumed.
-    pub(crate) input_states: HashMap<String, String>,
+    /// The sole live interaction state; derived rows are never mirrored into another view.
     pub(crate) view: AgentsOverviewView,
     pub(crate) refreshing: bool,
     pub(crate) refresh_generation: u64,
@@ -51,23 +29,24 @@ pub(crate) struct AgentsOverviewState {
 impl AgentsOverviewState {
     #[cfg(test)]
     pub(crate) fn new(primary_thread_id: Option<&str>) -> Self {
-        Self::new_with_keymap(primary_thread_id, AgentsKeymap::default())
+        Self::new_with_keymap(
+            primary_thread_id,
+            AgentsKeymap::default(),
+            ListKeymap::default(),
+        )
     }
 
-    pub(crate) fn new_with_keymap(primary_thread_id: Option<&str>, keymap: AgentsKeymap) -> Self {
-        let view = AgentsOverviewView::new_with_keymap(Vec::new(), primary_thread_id, keymap);
+    pub(crate) fn new_with_keymap(
+        primary_thread_id: Option<&str>,
+        keymap: AgentsKeymap,
+        list_keymap: ListKeymap,
+    ) -> Self {
+        let view =
+            AgentsOverviewView::new_with_keymap(Vec::new(), primary_thread_id, keymap, list_keymap);
         Self {
             threads: Vec::new(),
-            initialized: false,
-            request_id: None,
             refresh_pending: false,
-            refresh_thread_ids: HashSet::new(),
-            refresh_task: None,
             refresh_notifications: HashMap::new(),
-            rendered_full_screen: false,
-            visible_thread_ids: Vec::new(),
-            view_state: Arc::new(Mutex::new(view.clone())),
-            input_states: HashMap::new(),
             view,
             refreshing: false,
             refresh_generation: 0,
@@ -85,7 +64,6 @@ impl AgentsOverviewState {
         }
         self.refresh_generation = self.refresh_generation.wrapping_add(1);
         self.refreshing = true;
-        self.request_id = Some(self.refresh_generation);
         self.next_cursor = None;
         self.seen_cursors.clear();
         self.loading_more = false;
@@ -101,7 +79,7 @@ impl AgentsOverviewState {
         self.seen_cursors.insert(cursor.clone());
         self.loading_more = true;
         self.load_more_failed = false;
-        self.sync_view_state();
+        self.sync_pagination();
         Some(cursor)
     }
 
@@ -133,23 +111,15 @@ impl AgentsOverviewState {
         self.threads = by_id.into_values().collect();
         let rows = build_rows(&self.threads, primary_thread_id);
         self.view.update_rows(rows);
-        self.visible_thread_ids = self
-            .view
-            .visible_rows()
-            .into_iter()
-            .map(|row| row.thread.id.clone())
-            .collect();
         self.refreshing = false;
-        self.initialized = true;
-        self.request_id = None;
-        self.refresh_thread_ids.clear();
         self.next_cursor = next_cursor;
         self.seen_cursors.clear();
         self.loading_more = false;
         self.load_more_failed = false;
-        self.sync_view_state();
+        self.sync_pagination();
     }
 
+    #[cfg(test)]
     pub(crate) fn apply_refresh(
         &mut self,
         generation: u64,
@@ -193,46 +163,29 @@ impl AgentsOverviewState {
         self.load_more_failed = false;
         self.view
             .update_rows(build_rows(&self.threads, primary_thread_id));
-        self.visible_thread_ids = self
-            .view
-            .visible_rows()
-            .into_iter()
-            .map(|row| row.thread.id.clone())
-            .collect();
-        self.sync_view_state();
+        self.sync_pagination();
     }
 
     pub(crate) fn fail_load_more(&mut self) {
         self.loading_more = false;
         self.load_more_failed = true;
-        self.sync_view_state();
+        self.sync_pagination();
     }
 
     pub(crate) fn next_cursor_is_repeated(&self, cursor: Option<&str>) -> bool {
         cursor.is_some_and(|cursor| self.seen_cursors.contains(cursor))
     }
 
-    pub(crate) fn sync_view_state(&mut self) {
+    pub(crate) fn sync_pagination(&mut self) {
         self.view.set_pagination(
             self.next_cursor.is_some(),
             self.loading_more,
             self.load_more_failed,
         );
-        if let Ok(mut state) = self.view_state.lock() {
-            *state = self.view.clone();
-        }
     }
 
     pub(crate) fn take_refresh_pending(&mut self) -> bool {
         std::mem::take(&mut self.refresh_pending)
-    }
-}
-
-impl Drop for AgentsOverviewState {
-    fn drop(&mut self) {
-        if let Some(handle) = self.refresh_task.take() {
-            handle.abort();
-        }
     }
 }
 
@@ -291,73 +244,12 @@ pub(crate) fn agents_overview_group(
 impl super::App {
     pub(crate) fn open_agents_overview(&mut self) {
         let primary = self.primary_thread_id.as_deref();
-        let mut overview =
-            AgentsOverviewState::new_with_keymap(primary, self.runtime_keymap.agents().clone());
-        overview.rendered_full_screen = true;
-        self.agents_overview = Some(overview);
-        if !self.composer.text().trim_start().starts_with("/subagents") {
-            self.capture_current_thread_input();
-        }
-    }
-
-    #[allow(dead_code)]
-    pub(crate) fn apply_agents_overview_thread_refresh(
-        &mut self,
-        generation: u64,
-        result: Result<Vec<Thread>, String>,
-    ) -> bool {
-        let primary = self.primary_thread_id.clone();
-        let Some(overview) = self.agents_overview.as_mut() else {
-            return false;
-        };
-        match result {
-            Ok(threads) => overview.apply_refresh(generation, threads, primary.as_deref()),
-            Err(error) => {
-                overview.refreshing = false;
-                overview.request_id = None;
-                self.projection
-                    .set_status(format!("agents overview unavailable: {error}"));
-                false
-            }
-        }
-    }
-
-    #[allow(dead_code)]
-    pub(crate) fn select_agents_overview_thread(&self) -> Option<String> {
-        self.agents_overview
-            .as_ref()
-            .and_then(|overview| overview.view.selected_thread_id().map(str::to_owned))
-    }
-
-    #[allow(dead_code)]
-    pub(crate) fn agents_overview_view(
-        &self,
-        threads: Vec<Thread>,
-        selected_thread_id: Option<&str>,
-    ) -> AgentsOverviewView {
-        let rows = build_rows(&threads, self.primary_thread_id.as_deref());
-        AgentsOverviewView::new_with_keymap(
-            rows,
-            selected_thread_id,
+        let overview = AgentsOverviewState::new_with_keymap(
+            primary,
             self.runtime_keymap.agents().clone(),
-        )
-    }
-
-    #[allow(dead_code)]
-    pub(crate) fn repaint_agents_overview(&mut self) {
-        let primary = self.primary_thread_id.clone();
-        if let Some(overview) = self.agents_overview.as_mut() {
-            overview
-                .view
-                .update_rows(build_rows(&overview.threads, primary.as_deref()));
-            overview.visible_thread_ids = overview
-                .view
-                .visible_rows()
-                .into_iter()
-                .map(|row| row.thread.id.clone())
-                .collect();
-            overview.sync_view_state();
-        }
+            self.runtime_keymap.list().clone(),
+        );
+        self.agents_overview = Some(overview);
     }
 
     /// Start a background task through the current App Server session.

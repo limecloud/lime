@@ -12161,16 +12161,16 @@
         },
         "PromptHistoryAppendParams": {
           "properties": {
-            "sessionId": {
+            "text": {
               "type": "string"
             },
-            "text": {
+            "threadId": {
               "type": "string"
             }
           },
           "required": [
-            "sessionId",
-            "text"
+            "text",
+            "threadId"
           ],
           "type": "object"
         },
@@ -50125,16 +50125,16 @@
     "PromptHistoryAppendParams": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
-        "sessionId": {
+        "text": {
           "type": "string"
         },
-        "text": {
+        "threadId": {
           "type": "string"
         }
       },
       "required": [
-        "sessionId",
-        "text"
+        "text",
+        "threadId"
       ],
       "title": "PromptHistoryAppendParams",
       "type": "object"
@@ -50142,17 +50142,17 @@
     "PromptHistoryAppendResponse": {
       "$defs": {
         "PromptHistoryEntry": {
-          "description": "Persistent prompt history entry. Rich composer state is intentionally not\npersisted here; attachments and placeholders remain session-local.",
+          "description": "Persistent prompt history entry. Rich composer state is intentionally not\npersisted here; attachments and placeholders remain session-local. Selected skill targets\nmay be encoded as links in text, using the same history codec as the composer.",
           "properties": {
             "offset": {
               "format": "uint64",
               "minimum": 0,
               "type": "integer"
             },
-            "sessionId": {
+            "text": {
               "type": "string"
             },
-            "text": {
+            "threadId": {
               "type": "string"
             },
             "ts": {
@@ -50163,8 +50163,8 @@
           },
           "required": [
             "offset",
-            "sessionId",
             "text",
+            "threadId",
             "ts"
           ],
           "type": "object"
@@ -50194,17 +50194,17 @@
     },
     "PromptHistoryEntry": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "description": "Persistent prompt history entry. Rich composer state is intentionally not\npersisted here; attachments and placeholders remain session-local.",
+      "description": "Persistent prompt history entry. Rich composer state is intentionally not\npersisted here; attachments and placeholders remain session-local. Selected skill targets\nmay be encoded as links in text, using the same history codec as the composer.",
       "properties": {
         "offset": {
           "format": "uint64",
           "minimum": 0,
           "type": "integer"
         },
-        "sessionId": {
+        "text": {
           "type": "string"
         },
-        "text": {
+        "threadId": {
           "type": "string"
         },
         "ts": {
@@ -50215,8 +50215,8 @@
       },
       "required": [
         "offset",
-        "sessionId",
         "text",
+        "threadId",
         "ts"
       ],
       "title": "PromptHistoryEntry",
@@ -50252,17 +50252,17 @@
     "PromptHistoryReadResponse": {
       "$defs": {
         "PromptHistoryEntry": {
-          "description": "Persistent prompt history entry. Rich composer state is intentionally not\npersisted here; attachments and placeholders remain session-local.",
+          "description": "Persistent prompt history entry. Rich composer state is intentionally not\npersisted here; attachments and placeholders remain session-local. Selected skill targets\nmay be encoded as links in text, using the same history codec as the composer.",
           "properties": {
             "offset": {
               "format": "uint64",
               "minimum": 0,
               "type": "integer"
             },
-            "sessionId": {
+            "text": {
               "type": "string"
             },
-            "text": {
+            "threadId": {
               "type": "string"
             },
             "ts": {
@@ -50273,8 +50273,8 @@
           },
           "required": [
             "offset",
-            "sessionId",
             "text",
+            "threadId",
             "ts"
           ],
           "type": "object"

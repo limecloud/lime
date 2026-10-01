@@ -32,7 +32,7 @@ fn model_picker_is_borderless_bottom_anchored_and_highlights_current_provider_id
         "provider-b"
     );
     let text = screen(&picker, Locale::EnUs, 100, 24);
-    assert!(text.contains("Select model"), "{text}");
+    assert!(text.contains("Select Model and Effort"), "{text}");
     assert!(text.contains("› 2. shared (current)"), "{text}");
     assert!(text.contains("1. shared (default)"), "{text}");
     assert!(
@@ -121,7 +121,9 @@ fn model_picker_title_and_controls_cover_all_locales_and_tiny_areas() {
                 .collect::<String>()
         };
         assert!(compact(&text).contains(&compact(locale.model_picker_title())));
-        assert!(compact(&text).contains(&compact(locale.model_picker_footer())));
+        assert!(compact(&text).contains(&compact(
+            &locale.selection_picker_footer(Some("enter"), Some("esc"))
+        )));
         for (width, height) in [(1, 1), (2, 2), (8, 3), (12, 4)] {
             screen(&picker, locale, width, height);
         }
@@ -142,10 +144,7 @@ fn model_picker_page_navigation_clamps_and_empty_filter_cannot_submit() {
         )));
     }
     assert_eq!(picker.selected, 19);
-    picker.handle_event(Event::Key(KeyEvent::new(
-        KeyCode::Home,
-        KeyModifiers::CONTROL,
-    )));
+    picker.handle_event(Event::Key(KeyEvent::new(KeyCode::Home, KeyModifiers::NONE)));
     assert_eq!(picker.selected, 0);
     picker.handle_event(Event::Paste("not-in-catalog".into()));
     assert_eq!(

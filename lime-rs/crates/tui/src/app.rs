@@ -10,20 +10,24 @@ pub(crate) mod event_dispatch;
 pub(crate) mod history_pagination;
 pub(crate) mod history_ui;
 mod input_flow;
-mod input_submission;
+pub(crate) mod input_submission;
 mod interaction;
 mod interrupts;
 pub(crate) mod mcp_login;
+pub(crate) mod message_history;
 mod pending_interactive_replay;
+mod reasoning_shortcuts;
 pub(crate) mod reconnect;
 mod replay_filter;
 mod right_click_paste;
 mod session_lifecycle;
+mod skills;
 pub(crate) mod startup;
 #[allow(dead_code)]
 pub(crate) mod startup_prompts;
 mod thread_event_buffer;
 mod thread_events;
+mod thread_input;
 mod thread_settings;
 mod tool_lifecycle;
 pub(crate) mod transcript_export;
@@ -65,8 +69,14 @@ pub(crate) enum TranscriptSelectionTarget {
 #[derive(Debug, PartialEq)]
 pub(crate) enum AppAction {
     None,
-    Submit(String),
-    Queue(String),
+    Submit {
+        text: String,
+        text_elements: Vec<agent_protocol::TextElement>,
+    },
+    Queue {
+        text: String,
+        text_elements: Vec<agent_protocol::TextElement>,
+    },
     Interrupt,
     DecreaseEffort,
     IncreaseEffort,
@@ -182,7 +192,7 @@ pub(crate) struct App {
     pub(crate) right_click_paste: RightClickPaste,
     pending_clipboard_paste: Option<right_click_paste::PendingPaste>,
     pub(crate) queued_submissions: Vec<QueuedSubmission>,
-    pub(crate) thread_input_states: HashMap<String, String>,
+    thread_input_states: HashMap<String, thread_input::ThreadInputState>,
     /// Keeps terminal input behind a startup request that may open a protected interaction.
     ///
     /// The App Server stream can deliver an approval or user-input request immediately after the
@@ -196,6 +206,8 @@ pub(crate) struct App {
 
 impl App {
     pub(crate) fn set_runtime_keymap(&mut self, keymap: crate::keymap::RuntimeKeymap) {
+        self.composer.set_keymap_bindings(&keymap);
+        self.bottom_pane.set_keymap_bindings(&keymap);
         self.runtime_keymap = keymap;
         self.global_key_chord_matcher.reset();
     }
@@ -282,6 +294,7 @@ impl App {
 
     pub(crate) fn set_thread_id(&mut self, thread_id: String) {
         if self.thread_id.as_deref() != Some(thread_id.as_str()) {
+            self.composer.set_history_thread_id(&thread_id);
             self.reset_transcript_presentation();
             self.primary_clipboard_lease = None;
             self.queued_submissions.clear();
@@ -307,36 +320,9 @@ impl App {
         self.thread_id = Some(thread_id);
     }
 
-    pub(crate) fn capture_current_thread_input(&mut self) {
-        let Some(thread_id) = self.thread_id.clone() else {
-            return;
-        };
-        let draft = self.composer.text().to_string();
-        self.thread_input_states
-            .insert(thread_id.clone(), draft.clone());
-        if let Some(overview) = self.agents_overview.as_mut() {
-            overview.input_states.insert(thread_id, draft);
-        }
-    }
-
-    pub(crate) fn restore_thread_input(&mut self, thread_id: &str) {
-        let draft = self
-            .thread_input_states
-            .get(thread_id)
-            .cloned()
-            .or_else(|| {
-                self.agents_overview
-                    .as_ref()
-                    .and_then(|overview| overview.input_states.get(thread_id))
-                    .cloned()
-            })
-            .unwrap_or_default();
-        self.composer.replace(draft);
-        self.sync_command_popup();
-    }
-
     pub(crate) fn set_locale(&mut self, locale: Locale) {
         self.locale = locale;
+        self.composer.set_locale(locale);
     }
 
     /// Return the user-visible status while keeping active-turn and explicit command status ahead
@@ -399,9 +385,15 @@ impl App {
         true
     }
 
+    #[cfg(test)]
     pub(crate) fn replace_composer(&mut self, text: String) {
         self.composer.replace(text);
-        self.sync_command_popup();
+        self.sync_completion_popup();
+    }
+
+    pub(crate) fn apply_external_edit(&mut self, text: String) {
+        self.composer.apply_external_edit(text);
+        self.sync_completion_popup();
     }
 
     pub(crate) fn external_editor_state(&self) -> ExternalEditorState {
@@ -436,7 +428,7 @@ impl App {
         }
         let paste_burst_flushed = self.composer.handle_paste_burst_flush(now);
         if paste_burst_flushed {
-            self.sync_command_popup();
+            self.sync_completion_popup();
         }
         let paste_burst_needs_frame = self.composer.paste_burst_needs_frame();
         let selection_scrolled = if let Some(picker) = self.resume_picker.as_ref() {
@@ -508,15 +500,15 @@ impl App {
         let suffix = if command.requires_argument() { " " } else { "" };
         self.composer
             .replace(format!("/{}{suffix}", command.command()));
-        self.clear_command_popup();
+        self.clear_completion_popup();
     }
 
-    fn sync_command_popup(&mut self) {
-        self.composer.sync_command_popup();
+    fn sync_completion_popup(&mut self) {
+        self.composer.sync_completion_popup();
     }
 
-    fn clear_command_popup(&mut self) {
-        self.composer.clear_command_popup();
+    fn clear_completion_popup(&mut self) {
+        self.composer.clear_completion_popup();
     }
 
     fn run_local_command(&mut self) -> Option<AppAction> {
@@ -581,7 +573,7 @@ impl App {
             _ => return None,
         };
         self.composer.replace(String::new());
-        self.clear_command_popup();
+        self.clear_completion_popup();
         Some(action)
     }
 

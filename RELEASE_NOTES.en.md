@@ -1,44 +1,37 @@
-## Lime v1.147.0
+## Lime v1.148.0
 
 Simplified Chinese release notes are the primary version.
 
 ### New Features
 
-- The TUI task center now supports project/status grouping, status filters, search, pagination, task creation, renaming, and switching.
-- Added dynamic shortcut help and selection tabs, with consistent hints across the task center, transcript, pager, and composer.
-- Added a borderless model picker with current-model indicators, page navigation, and narrow-terminal wrapping.
-- Unified search matching and selected-row scrolling across file, Skill, and command popups, with Unicode highlighting and long-path presentation.
-- Approval panels offer full details through Ctrl-A, preserve actionable choices in narrow terminals, and return to the pending approval when details are closed.
-- MCP OAuth login notifications can identify the thread and login attempt. Added App Server-backed `lime mcp logout` with idempotent per-server credential removal.
-- Expanded CLI sandbox, approval, and permission argument inheritance, plus local Plugin marketplace discovery and available-plugin listing.
+- Continued Codex-aligned TUI input and keymaps: configurable editor and Vim modal actions, search, history, kill/yank registers, paginated lists, and model/reasoning pickers share one keymap snapshot.
+- Thread resume can carry the same rich draft together with edited question notes, approval choices, and MCP forms, then clean them up precisely on disconnect, recovery, and terminal Thread notifications.
+- Prompt history and App Server public identity now use the canonical Thread ID; TUI and CLI continue to share App Server JSON-RPC, RuntimeCore, and Thread/Turn/Item projections.
 
 ### Fixes
 
-- Fixed reading-position, selection, and state restoration across history pagination, terminal reflow, and thread switching.
-- Fixed multiline Markdown quote paste, paste bursts, composer layout, and narrow-terminal status rendering.
-- Fixed buffered characters reappearing in the draft after a command popup consumes Enter, while preserving newlines and tabs inside pasted text.
-- Prevented late clipboard results from updating a new draft or an old session, and clarified availability rules for remote terminals and X11 PRIMARY.
-- Removed token injection from npm Trusted Publishing while retaining the existing OIDC and provenance publishing contract.
+- Preserved `TextElement` placeholders, image detail, attachments, and Skill identity across UTF-8 editing, trimming, queue edits, history, retries, and external-editor flows.
+- Unified input-length validation and structured errors for start, steer, queue add/update, and RuntimeCore while retaining the complete draft, attachments, mentions, cursor, and local history on rejection.
+- Fixed state leakage across thread switching, reconnect, resolved/terminal interaction notifications, history search, and input buffering; foreign Thread requests no longer write into the active BottomPane.
+- Improved diff, transcript, textarea, request-user-input, and MCP elicitation layout and module boundaries for narrow terminals, reflow, focus, and terminal recovery.
 
 ### Improvements and Refactoring
 
-- Moved clipboard reads and writes to session-level background workers with timeouts, cancellation, and late-result handling to keep slow desktop clipboard services from blocking terminal input.
-- Consolidated borderless session headers, `/status`, footers, task rows, and activity summaries while retaining canonical state and complete raw values.
-- Split task-center, status-formatting, clipboard, selection-style, and transcript-reading bookmark modules while preserving the single App Server chain.
+- Split TUI submission, thread input, message history, composer, textarea, Vim, model catalog, resume picker, and interaction views into focused owners while retaining the shared App Server chain.
+- Added current fixtures and structure guards for canonical prompt history, typed input lowering, queue/turn projection, CLI stdio, and TUI PTY Gate B flows.
+- Updated TUI keymap, App Server command contracts, architecture guidance, operations documentation, and Codex-alignment execution records.
 
 ### Testing and Quality
 
-- Expanded regression coverage for MCP OAuth protocol/schema/client contracts, CLI permissions and plugins, TUI interactions, and clipboard behavior.
-- Updated real CLI/TUI stdio/PTY Gate B fixtures, MCP fixtures, structure inventory, and npm OIDC publishing guards.
+- Expanded regression coverage for App Server protocol/schema/client contracts, input limits, prompt history, TUI interactions, Vim, editor and history restoration, queue edits, stdio, and PTY Gate B.
+- Release validation is based on `npm run verify:app-version`, `npm run typecheck`, affected Rust/protocol tests, and GUI smoke results; full Rust CI, cross-platform packaging, signing, notarization, and npm distribution remain verified by the release pipeline.
 
 ### Documentation
 
-- Updated CLI permissions, plugin management, TUI keymap configuration, operations guidance, and App Server command contracts.
-- Updated the TUI/CLI Codex-alignment execution plan and structure records.
+- Updated `docs/ops.md`, App Server architecture and command boundaries, the TUI/CLI Codex-alignment plan, and structure inventory.
 
 ### Other
 
-- Desktop and CLI/TUI continue to share App Server JSON-RPC, RuntimeCore, and Thread/Turn/Item persistence without a parallel runtime or history store.
-- Local validation results are recorded in the release execution plan; GitHub Actions validates platform artifacts, signing, notarization, and npm distribution.
+- This release adds no parallel runtime, history store, or compatibility backend. Desktop and CLI/TUI continue to share the `Product Surface -> App Server JSON-RPC -> RuntimeCore -> Thread/Turn/Item` chain.
 
-**Full changes**: `v1.146.0` -> `v1.147.0`
+**Full changes**: `v1.147.0` -> `v1.148.0`

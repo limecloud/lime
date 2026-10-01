@@ -291,7 +291,7 @@ fn status_and_footer_geometry_remains_stable_across_supported_widths_and_locales
 fn history_search_footer_shows_localized_query_without_hiding_composer() {
     let mut app = App::default();
     app.set_locale(Locale::ZhCn);
-    app.composer.load_history(["git status".to_string()]);
+    app.composer.set_cached_history(["git status".to_string()]);
     app.composer.insert("git");
     dispatch_connected_input(
         &mut app,
@@ -325,7 +325,7 @@ fn history_search_footer_shows_localized_query_without_hiding_composer() {
 #[test]
 fn history_search_preview_highlights_matches_until_accepted() {
     let mut app = App::default();
-    app.composer.load_history(["Deploy Lime".to_string()]);
+    app.composer.set_cached_history(["Deploy Lime".to_string()]);
     dispatch_connected_input(
         &mut app,
         Event::Key(KeyEvent::new(KeyCode::Char('r'), KeyModifiers::CONTROL)),
@@ -379,7 +379,7 @@ fn history_search_preview_highlights_matches_until_accepted() {
 #[test]
 fn history_search_footer_cursor_tracks_query_and_clamps_to_narrow_width() {
     let mut app = App::default();
-    app.composer.load_history(["git status".to_string()]);
+    app.composer.set_cached_history(["git status".to_string()]);
     dispatch_connected_input(
         &mut app,
         Event::Key(KeyEvent::new(KeyCode::Char('r'), KeyModifiers::CONTROL)),

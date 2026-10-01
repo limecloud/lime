@@ -23,7 +23,7 @@ impl App {
                     .await;
             }
             AppServerEvent::Disconnected { .. } => {
-                self.bottom_pane.clear();
+                self.clear_connection_interactions();
                 self.model_picker = None;
                 self.dismiss_pager_overlay();
                 self.projection.set_status("reconnecting");

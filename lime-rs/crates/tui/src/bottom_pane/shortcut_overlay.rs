@@ -7,7 +7,7 @@ use ratatui::widgets::{Clear, Paragraph};
 use ratatui::Frame;
 
 use crate::app::App;
-use crate::keymap::{GlobalKeymapAction, PagerKeymapAction};
+use crate::keymap::{EditorAction, GlobalKeymapAction, PagerKeymapAction};
 use crate::line_truncation::truncate_line_with_ellipsis_if_overflow;
 use crate::locale::{Locale, ShortcutLabel as Label};
 use crate::shortcut_help::Group;
@@ -60,7 +60,16 @@ pub(crate) fn lines(app: &App, width: u16) -> Vec<Line<'static>> {
         ("/", Label::Commands),
         ("@", Label::MentionFiles),
         ("$", Label::Skills),
-        ("ctrl+j", Label::NewLine),
+    ] {
+        compose.push(Some(key.into()), label(kind));
+    }
+    compose.push(
+        app.runtime_keymap
+            .editor
+            .primary_hint(EditorAction::InsertNewline),
+        label(Label::NewLine),
+    );
+    for (key, kind) in [
         ("ctrl+v", Label::PasteImage),
         ("ctrl+g", Label::ExternalEditor),
         ("ctrl+r", Label::SearchHistory),

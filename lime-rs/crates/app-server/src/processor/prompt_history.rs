@@ -30,10 +30,10 @@ impl RequestProcessor {
     ) -> Result<RpcDispatch, JsonRpcError> {
         self.ensure_initialized()?;
         let params: PromptHistoryAppendParams = parse_params(params)?;
-        if params.session_id.trim().is_empty() {
+        if params.thread_id.trim().is_empty() {
             return Err(JsonRpcError::new(
                 error_codes::INVALID_PARAMS,
-                "promptHistory/append sessionId must not be empty",
+                "promptHistory/append threadId must not be empty",
             ));
         }
         if params.text.is_empty() {
@@ -44,7 +44,7 @@ impl RequestProcessor {
         }
         let store = self.prompt_history.clone();
         let response =
-            tokio::task::spawn_blocking(move || store.append(&params.session_id, &params.text))
+            tokio::task::spawn_blocking(move || store.append(&params.thread_id, &params.text))
                 .await
                 .map_err(|error| {
                     history_error(format!("prompt history append task failed: {error}"))

@@ -1,11 +1,891 @@
 # TUI/CLI 继续同步 Codex 执行计划
 
-状态：in-progress（本轮验证完成；总体对齐仍有明确 defer/partial）
-日期：2026-09-08
+状态：in-progress（当前切片已验证；总体对齐仍有明确 defer/partial）
+日期：2026-09-08（最新续跑 2026-10-01）
 参考实现：`/Users/coso/Documents/dev/rust/codex`
 当前基线：Rust commit `c248f6d48b`（参考目录当前 checkout）
 
+## 全维度对齐验收（2026-10-01）
+
+多端约束（用户再次确认）：Lime GUI/TUI 共用 App Server、runtime、持久化、工具和 canonical
+Thread/Turn/Item；“兼容 GUI/TUI”是共享底层同时支撑两种 Product Surface，不是恢复旧实现兼容层。
+Codex 对齐以公开 App Server/shared domain 与 TUI 源码为事实，未开源 Desktop 不推测实现。
+业务决策/权限/存储不得下沉到 TUI 私有后端；终端 keymap/composer/PTY 保持 surface owner，
+共享 protocol/schema/config 改动必须检查 GUI 消费链，不能以 TUI Gate B 冒充 GUI 验收。
+
+### 当前续跑：thread-owned interactive input（terminal acceptance；整体 partial）
+
+主目标继续为 GUI/TUI 共用业务底层的全维度 Codex 对齐。本刀审计发现 successful
+thread handoff 仅保存 ComposerDraft，随后 clear BottomPane，正在编辑的问答/备注、审批
+选择和 MCP 表单丢失；可见交互也未消费 serverRequest/resolved 与 turn terminal。
+对照公开 chatwidget/input_restore 的 ThreadInputState/questions 与 pending_interactive_replay，
+将已有交互 view 随 ThreadInputState 移交，不复制业务队列、waiter 或持久化。App 仍负责
+宿主/线程路由，BottomPane 管理交互 view；完整 ChatWidget/BottomPane composer owner
+迁移继续 partial，本刀不加空 ChatWidget/Deref/兼容壳。
+
+窄写集：app/thread_input + 独立 interaction tests、App 的状态类型/notification/断线/成功
+resume 接线、Agent Center 打开时不再提前捕获、bottom_pane/input_state + request identity、
+现有结构/真实stdio fixture与PTY门禁、architecture/commands/本计划。GUI/protocol/runtime/
+provider/Electron 只读，不新增 method/schema/config/依赖，不删除文件、不提交或建分支。
+退出条件：1) root/child rich draft 与交互 notes/selection/MCP field 无损且单一 live owner；2) resolved/terminal/item-start/ThreadClosed 精确清理当前及休眠 Thread，不影响其它请求；3) disconnect 清旧连接交互和 replay，不丢草稿，失败 resume 不消费；4) 定向/完整 crate、Clippy、结构守卫；5) production resume 的真实 stdio evidence 与既有
+PTY modal/键盘/terminal恢复、同 fresh binary CLI Gate B。仅完成代码不关闭条件5。
+责任 root，2026-10-01；主链保持 Product Surface -> App Server -> RuntimeCore -> canonical
+Thread/Turn/Item；本刀仅改变 TUI 内存输入投影生命周期，不宣称未开源 Desktop 已对齐。
+
+实现：ThreadInputState持有ComposerDraft与BottomPaneInputState；take/restore移动完整queue
+view，不flatten每题备注、选项、审批选择、MCP字段/游标或timer。当前bindings重新注入每个
+恢复editor；目标快照被消费，active/dormant只各有一个交互owner。Agent Center打开时撤掉
+旧的提前capture，成功resume才移交；failed resume不消费。canonical通知按Thread路由到
+当前或休眠view，resolved精确匹配id，turn terminal匹配turn，command/file ItemStarted
+匹配turn+item；MCP只按独立resolved或ThreadClosed清理。disconnect统一清所有旧连接
+views与replay channels，rich drafts保留。没有新增GUI/shared backend/schema/配置策略。
+
+首轮新library测试11 passed/1 failed为TestBackend宽字符continuation cell被字符串拼接成
+额外空格，已沿现有display_width跳过续格，保持Unicode文案/完整答案断言；两题提交按已有
+commit顺序，notes保留既有user_note编码。当前1.148.0定向thread_input15/15与完整TUI
+1445 library +18 integration +1 dependency guard通过，结构/PTY/inventory守卫57/57、
+contracts、legacy/scripts、ESLint、docs boundary通过。真实stdio fixture首次等待question
+超时，现补method序列和隔离fixture ledger诊断；Gate显式注入测试配置，不读真实用户配置。
+普通gated test early return不计真实证据，条件5未关闭，最终PTY/CLI验收进行中。
+TUI all-target Clippy --no-deps -D warnings通过。续跑诊断确认新stdio的第二轮夹具复用
+request/tool/assistant Item identity，导致 canonical multi-turn chain拒绝；现按原Turn派生
+独立identity，并补真正执行generated external backend的连续两轮相关性回归。休眠响应
+使用完整typed答案，不把空答案取消冒充成功完成。macOS直接诊断补齐当前target动态库
+路径，真实stdio两轮恢复/失败resume/休眠resolved/零额外child Turn通过；它沿用旧App
+Server binary，只是诊断证据，最终验收仍需fresh当前二进制。58结构/夹具守卫首轮通过。
+
+同链续跑写集新增pending_interactive_replay及独立tests（此前该文件干净）：旧category
+HashSet/by-turn indexes无法区分同item的多个request，snapshot可能复活已解决旧请求或
+丢失仍未解决请求；原位收敛为single pending_requests_by_request_id，精确id+typed identity
+作为唯一replay authority。ItemStarted同时匹配turn/item，旧event淘汰不清replacement，
+MCP仍独立resolved生命周期。751行owner拆为155行生产+414行独立tests，删除无生产
+consumer的pending查询和镜像索引，不新增compat或native Op适配。新增5条回归含真正
+ThreadEventStore rebase消费；定向/crate/Clippy/fresh Gate B待latest验证。Codex同名入口
+保留，单表为merge：Lime共享JSON-RPC有精确response id，不复制Codex native Op缺id时
+的FIFO索引策略。root确认输入投影与共享业务主链不变，2026-10-01。
+latest结构/夹具/PTY接线守卫59/59、ESLint、Prettier、docs boundary、diff check通过；
+inventory更新1408 src文件，仅用于发现差异。fresh build与replay定向被磁盘满中断：
+archive/query-cache/LLVM object输出均返回os error 28，非测试通过。当前Rust新回归、
+完整TUI/Clippy及fresh PTY/CLI不能沿用前序证据，条件2/4/5待latest；最低验收暂为
+2/5（40%，仅本切片，非总体对齐率）。旧binary真实stdio只作为诊断，不升级fresh证据。
+已确认cargo/rustc退出，Data卷检查时仅余356MiB（随后895MiB），incremental约45G、
+deps约58G。未删除缓存/源码/二进制、未终止未知进程；清增量缓存需用户明确确认，
+不扩大为全target删除或cargo clean。gate-b-final/replay-related日志保留真实失败。
+分类：typed view与single replay map为current；旧handoff清pane/提前capture/category
+镜像索引/无consumer查询为dead原位删除，独立tests为test-only，无新增compat/deprecated。
+SRP拆tests，DRY单表identity，KISS/YAGNI不复制native Op索引/查询、不加空壳。
+下一刀仍是完整composer ownership：App平行持有BottomPane+ChatComposer，40个TUI
+源码文件直用(app|self).composer；应真迁BottomPane输入/布局/render/恢复owner，再迁
+ChatWidget，不新增Deref/旧字段包装。GUI/shared protocol/runtime/provider/Electron本刀
+生产只读，GUI专用UX、平台/live与verify:local未验收。整体partial/in-progress，goal
+active，未标完成、未自行pause或blocked；先收口当前切片latest验收，再推进composer所有权。
+并行工作区版本从1.147.0更新至1.148.0，版本manifest不属本刀写集、未覆盖或回退；
+verify:app-version通过。前序1.147.0测试不能替代当前工作树，重新编译/验收后再回填。
+日志`/tmp/lime-thread-interaction-*`。Codex基线仍c248f6d48b，SHA-256：input_restore
+`cf5dabc591fe35780af1e08ce61289b8acf659275dc708af51f5edc696cb91a4`；pending_interactive_replay
+`0cb54e0297667ad298d8050c2173e8ab6e36ebfd6ee9997ddca40d6cf1494b41`；bottom_pane/mod
+`4698ca77d465b5b02736f43f3a35ac99749b94a796d325e19e2d2a6476d8937a`。
+ThreadInputState与canonical pending lifecycle为direct同义，移动现有typed views/精确item+turn
+和现有App owner接线为merge；完整ChatWidget/BottomPane composer所有权、协作scope完整
+恢复、history byte scan/replay seed、Agent Center异步刷新和其它mentions继续defer。
+
+2026-10-01续跑：Data卷可用空间已由外部状态变化恢复（观察到58GiB、随后106GiB），
+本进程未执行删除，未获得也未使用清理授权；磁盘满仅保留为历史失败，不再作为当前阻塞。
+接续原replay recovery session成功：pending_interactive_replay 13/13，当前library共1450条。
+随后启动完整TUI all-targets；检测到另一App Server public JSON-RPC测试进程持有artifact
+lock，保留并等待，不终止未知进程，不并行启动Clippy或fresh Gate构建。
+下一刀BottomPane composer owner涉及约40个源码/测试候选文件（包括需排除的嵌入式notes
+composer命中），已请求批量重构的明确确认；未确认前不执行该批修改，不删除文件。
+验证当前工作树不代表认领共享App Server/protocol/config/release/GUI改动。
+续跑结构/夹具/PTY接线/inventory守卫59/59与test:contracts通过；replay定向13/13是
+本轮新增精确identity回归的实际Rust证据，不将普通gated tests的early return算真实stdio。
+锁持有进程为外部App Server prompt_history_jsonrpc/user_input_limit_jsonrpc测试，其
+sherpa-onnx-sys原生库下载有实际.part文件增长；这是构建等待，不是本刀测试失败。
+外部下载完成并释放artifact lock后，完整TUI all-targets通过：1450 library、18 integration
+tests、1 dependency guard（普通运行未启用的PTY场景不计真实交互证据）；strict Clippy
+--all-targets --no-deps -D warnings与TUI fmt
+check通过。执行计划Prettier已修正。默认fresh smoke:tui-gate-b已启动，不设置二进制
+override、不放宽timeout、不将旧binary诊断或普通gated-test返回升级为真实证据。
+
+### 前序：lossless structured input restore（terminal acceptance completed；整体 partial）
+
+主目标和 GUI/TUI 共用业务底层约束不变。下一刀修复 TUI queue/edit/history/retry 将
+canonical TextElement.placeholder=None 改成 Some 与图片 detail 丢失的问题：终端可以生成
+自己的图片标签和 trim 文本，但不得无声覆盖 canonical 输入元数据。窄写集：textarea
+elements/snapshot/submission trim、composer attachments/draft/history/external edit、App input
+lowering、runtime submission dispatch 的提取、独立回归和现有 PTY/guard、架构与本计划。
+GUI/protocol/provider/Electron 只读，沿用已有 ImageDetail 字段，不新增 schema/method/config。
+runtime.rs 为 2257 行，必须把本切片提交/失败恢复路由提取到独立 runtime/input_submission
+owner，不在巨型 loop 增加业务逻辑；其余 host loop/clipboard/export 的后续拆分继续登记
+退出条件 <800 行，不用这次定向拆分宣称巨型 owner 已全清。
+退出条件：1) None/Some 元数据经 UTF-8 编辑、snapshot/undo/thread、trim 提交原样保留；2) remote/local detail 经 queue edit、history、retry、external edit 保留且附件原子删除不串位；3) 各层复用 canonical typed input，旧 paths-only/urls-only rich-history 投影原位替换；4) 定向/完整 TUI、strict owner Clippy 与结构守卫；5) freshly built binary 的真实 PTY/CLI
+和共享 read-model 断言。实现 1/2/3 已接线；最终退出条件仍待完整质量/真实终端验收，不以
+gated stdio 测试在普通单测中的 early return 当实际证据。总体 partial/in-progress，goal active。
+责任 root，2026-10-01；不使用子 Agent，不提交、推送、建分支或重置。
+
+实现：TextArea range/snapshot 保留 optional placeholder；mixed paste expansion 与 trim 不再
+将 None 填成字符串。AttachmentState 原位移除重复 AttachedImage，完整 local/remote
+attachment 同时进入 history、thread snapshot、Vim undo、external editor 与失败恢复。
+remote metadata 按对象顺序移动/删除，相同 URL 的不同 detail 不会串位。queue preview/edit
+撤旧 None/detail 禁用条件，同时保留边界/overlap/排序/Skill identity 检查，未知 Mention 仍
+fail closed。runtime/input_submission 将三条 transport 成功/失败路径统一为真实 owner，
+约100行；runtime.rs 2136行，剩余 host/clipboard/export/tests 待拆，不称巨型owner已清理。
+首轮完整库1432 passed/1 failed 正是旧 can_restore guard 仍禁用 typed metadata，已修生产
+guard 并补五语言 edit hint 与非法范围回归，未弱化输入/完整对象断言。
+定向 input_submission 10/10（其中新 real stdio target 普通运行未开启）与前序 structured
+input 3/3通过；新增mixed-paste、真实共享stdio fixture和最终完整验收进行中。
+新增真实stdio场景归既有 Gate queue-edit 驱动：canonical sidecar/detail/None queue
+-> TUI keyboard Tab -> 原 thread/queue/add -> 全对象echo；active steer+queue失败、显式queue
+失败与idle start失败均保留typed draft，等待真实turn terminal，再断言read model与零额外Turn。
+该场景不制造生产注入入口、不调用外网/provider、不改进程全局环境；所有数据/sidecar/ledger
+隔离在临时目录。元数据往返属于真实stdio证据，完整PTY另行证明terminal surface，不冒充
+GUI 或live provider。docs中的 owner/data-flow 已同步，root确认共享主链不变，2026-10-01。
+
+最终验收：完整 TUI 1435 library + 18 integration + 1 dependency guard、TUI all-target
+Clippy --no-deps -D warnings、55结构/PTY/inventory守卫、contracts、legacy/scripts、ESLint、
+docs boundary、fmt/diff check 均通过。普通单测内 gated stdio 的 early return 不计真实证据；
+Gate queue-edit 实际开启并强制检查 STDIO_TYPED_INPUT_OK marker，真实 canonical queue
+全对象往返与 queue/steer/start 三条拒绝恢复均通过。HTTP URL 首轮假定三个入口都拒绝不成立，
+改为非法 data URL 后真实复验；未改变 production HTTP 语义。
+完整11场景 PTY通过：thread `01a0f6f6-3c29-7001-8e49-b74c2c502ea8`、turn
+`turn_79de58aa112f46f294088ce098230112`；typed stdio thread
+`01a0f6f6-7c3c-7f00-bbd7-372254c8a170`、turn `turn_4bb841aac1a34dc494fc769c21d2aacd`、
+queue `446111df-fe39-4a76-bb7b-504a78cb090b`。相同fresh二进制CLI Gate B通过：thread
+`01a0f6fa-563d-7ab0-ada7-541974ad23ff`、turn `turn_a1b99aad62ab44d8a4b4506fbee3894d`，
+jsonl/stdin/error-exit/completion与终端恢复全部保持。日志 `/tmp/lime-lossless-input-*`。
+退出条件5/5（100%，仅切片最低验收）；整体 partial/in-progress，goal active。
+分类：typed input/history/restore与提交owner为current；重复AttachedImage、生产paths-only/
+urls-only重建、None/detail禁止编辑为dead/原位替换，无新增compat/deprecated。cfg(test)默认
+图片夹具不属生产兼容。SRP提取submission，DRY同一typed snapshot，KISS/YAGNI不扩协议。
+inventory 1404 src文件仅用于发现差异。GUI/protocol/provider/Electron本刀只读，沿用前序
+shared runtime Electron fixture和GUI smoke，不冒充本刀GUI专用UX证据。扩大protocol/
+App Server strict Clippy既有问题、verify:local、Windows/MSVC、WSL/X11、live provider未收口。
+基线 `c248f6d48b97eb4a2aa56147a0b11b7d763278b9`；Codex SHA-256：protocol/user_input
+`735e8f4f8c531dbd99d495cea5602d8f7f5f5cc77b309db9b7c6b75661e7a368`；chatwidget/input_submission
+`5d0485e9bd4f673425ea80d9735484fb3e194072cd02490d8951df03c1028888`；bottom_pane/textarea
+`28497a7a1dc24ed593b0de14da2b154086d150638a7b6d1805fb501cccdb4b50`。
+ImageDetail/optional element为direct协议语义；None无损、typed remote与独立submission为merge，
+不是逐字复制Codex TextArea。下一刀回到完整thread-owned lifecycle/routing；history replay seed/
+byte scan、Agent Center async refresh及app/plugin/task mentions继续defer。
+
+### 前序：submission preparation / shared input limit（terminal acceptance completed；整体 partial）
+
+主目标仍是 GUI/TUI 共享底层的全维度 Codex 对齐。用户再次强调多端共用，并非旧实现兼容。
+本切片对照公开 `chat_composer::prepare_submission_text/trim_text_elements` 与 App Server
+`validate_v2_input_limit/input_too_large_error`：终端先展开长粘贴，按 Unicode whitespace trim，
+以 UTF-8 bytes 重定位元素；共享服务端按所有 Text parts 的 Unicode scalar count 汇总校验，
+不 trim、不 flatten GUI 输入。阈值唯一归 `agent-protocol::input::MAX_USER_INPUT_TEXT_CHARS`
+（1 << 20），`validate_user_input_text_length` 被 TUI、turn/queue public ingress 和 RuntimeCore
+消费。媒体/Skill/Mention identity 不计入正文长度，仍保持原有校验与媒体 owner。
+
+窄写集：canonical input、App Server processor/turn/input 与 turn/queue 接线、runtime/turn_start、
+独立 public JSON-RPC fixture；TUI composer/submission、input routing、InputResult/App mapping、
+notes overlay 与五语言错误、独立回归、既有 PTY/结构守卫；architecture/commands/本计划。
+turn.rs 接近 800 行，同轮将 282 行 inline tests 迁到 turn/tests.rs，不保留测试 wrapper 或
+新增业务后端。前序脏改动延续；Codex/GUI/provider/Electron 只读，不新增 method、schema
+字段、依赖、配置或 mock fallback。未提交、推送、创建分支或重置。
+
+实现：旧 `take_submission` 原位替换为真实 `submission` owner，使用同义
+`prepare_submission_text/handle_submission/trim_text_elements`；验证成功前不消费 editor，
+拒绝保持 folded payload、元素 ID、cursor、attachments、mentions 和本地 history，无需重建
+editor 导致 undo 损失。成功后仅当前 owner 消费草稿并记录 rebased rich history。主 composer
+映射 Error transcript；嵌入式 notes 的错误在自身 footer 可见，不无声丢弃。
+public start 在环境/设置副作用前校验；steer/add/update 共用同一 structured INVALID_PARAMS：
+`data={input_error_code:"input_too_large",max_chars,actual_chars}`。RuntimeCore admission/queue
+消费相同阈值规则；不把历史 read 或合法附件转换变成新的限制入口。
+
+退出条件：1) 展开后 trim/rebase + Unicode boundary + 空输入及附件/mention/history；2) public start/steer/queue add/update 全对象错误、拒绝零 mutation、有效 GUI-shaped rich input
+原样进入 backend；3) 主/嵌入式五语言可见错误，完整 draft 保留且可编辑重试；4) crate/Clippy/结构与 contracts，shared runtime fixture + GUI smoke；5) 真实 PTY oversized reject / 原子删除 / padded draft canonical trim 和同 binary CLI Gate B。
+退出条件 1/2/3/4/5 已闭环，5/5（100%，仅该切片最低验收）；扩大 strict Clippy 与
+GUI 超长输入专用 UX 仍列为额外未收口项，不称全仓全绿。首轮 TUI 1423 passed / 1 failed
+是旧测试期待保留尾部空白，已按 Codex trim 语义更新；notes enum 接线缺口已补并复验。
+
+latest 证据：完整 TUI 1427 library + 18 integration + 1 dependency guard、canonical protocol
+43/43、RuntimeCore input admission 3/3、turn lowering 11/11、公共 queue 5/5、独立 input-limit
+JSON-RPC 1/1、52 结构/PTY/inventory 守卫、GUI inputbar/typed thread client 44/44、contracts、
+legacy/scripts/ESLint/diff check 通过。notes 首轮 snapshot 只画了不含 footer 的子组件，现已
+直接走主 view/BottomPane/footer 渲染，五语言可见错误通过，没有修改断言去接受不可见状态。
+shared runtime Electron fixture 聚合通过（liveProviderUsed=false），覆盖正常 GUI 输入、rich draft
+恢复、同 Turn steer、真实终态和 read model；它不证明 GUI 超长输入的专用 UX 已验收。
+TUI all-target Clippy --no-deps -D warnings 通过；独立 agent-protocol strict Clippy 发现既有
+message_content.rs large_enum_variant 与 thread.rs TurnQueueState derivable_impls，源码与 HEAD
+无本轮差异，未为了绿灯添加 allow 或改共享类型布局。该额外检查为未收口质量项，不称全绿。
+test:related 在 Vite 扫描 bare electron 时 EISDIR，随后按相同 consumer 精确执行两 target，
+44/44 通过；不修改 runner/依赖或无差别扩大前端全量。inventory 1401 文件只用于发现差异。
+日志 `/tmp/lime-input-preparation-*`；本轮避让 GUI/provider/Electron 源码和此前其它热区。
+
+最终终端验收：完整 11 场景真实 PTY 通过，thread
+`01a0f6d7-6f34-7092-ba1a-ca6ed5e20900`、turn `turn_f617b86b2f2243289caf1e1a2f90bd8d`，
+`submission-prepare=ok rejected-draft=ok` 与此前全部 draft/history/queue/agents/images/skills/
+keymap/focus/resize/reconnect 保持，terminal=restored。相同 freshly built binaries 的 CLI
+Gate B 通过，thread `01a0f6d8-8460-7ab3-9d19-8e0ec7cd32a7`、turn
+`turn_a254a93dff2f4993a68b07bd12f33d35`，`jsonl=ok stdin=ok error-exit=1 completion=zsh`。
+GUI smoke pass：`.lime/qc/project-gates/standalone-shell-01-20261001093424-88679/shell-01-electron-smoke/summary.json`，
+包含真实 Electron/App Server、重载、3 responsive viewport、memory settings；不证明 GUI
+超长错误 UX。扩大 App Server strict Clippy 报 124 个问题，多数为其它既有 owner；本轮
+turn.rs 两处 field-reassign 初始化已原位修复，不批量添加 allow。独立 protocol 两项既有
+lint 继续未收口；verify:local、Windows/MSVC、Linux WSL/X11、live provider 未执行。
+分类：shared policy / submission owner / public validation 为 current；旧 take_submission 和
+test-only lowering wrapper 为 dead / 原位替换，无新增 compat/deprecated 或第二 backend。
+SRP 拆分 turn tests 与 submission，DRY 共用字符 validator，KISS/YAGNI 不扩展协议或复制 GUI
+输入策略。整体 partial/in-progress，不将此切片 100% 当成总体进度。
+
+来源基线 `c248f6d48b97eb4a2aa56147a0b11b7d763278b9`；SHA-256：Codex chat_composer
+`3f9847e8188f57c0ad665b682f626c8ae9b9f1c5d1c03bf231b0d762f6645ef2`；protocol/user_input
+`735e8f4f8c531dbd99d495cea5602d8f7f5f5cc77b309db9b7c6b75661e7a368`；turn_processor
+`0a1058134accb3f9285aa940708e109704b582b8fc35d04f1dfb84e1231fc1e0`。
+trim/rebase/Unicode cap 与 structured error 为 direct，同一个 shared validator 和验证前不消费
+草稿为 merge；完整 slash/deferred goal/bang-shell、ChatWidget lifecycle、None placeholder /
+image detail lossless restore 仍 defer，不能由这一刀宣称完整 composer 对齐。
+架构确认：root，2026-10-01；共享 canonical policy + 多 surface consumer，业务主链不变。
+整体 partial/in-progress，goal active；平台/live provider/完整 GUI Gate B 尚无本轮验收。
+
+### 前序：thread composer edit lifetime（terminal acceptance completed；整体 partial）
+
+主目标保持共享底层与全维度 Codex 对齐。下一切片只重建 successful thread handoff 的
+editable state：旧 Thread undo/redo/command/search/paste-burst/matcher 不进入新 Thread；
+kill/yank 属 TUI session，通过 Codex 同名 `KillBufferSnapshot/take_kill_buffer_snapshot/
+restore_kill_buffer_snapshot` 移交，不写入 per-thread draft 或持久化。完整 App/ChatWidget/
+BottomPane lifecycle 仍 partial，不预建空壳。窄写集：textarea/vim_register + reexport、
+composer/draft、app/thread_input、独立测试、既有 PTY/guard 与本计划/architecture。
+Codex 仅读，前序工作延续，GUI/协议/runtime 不变。退出条件：1) successful handoff 重建
+editable state 且旧 undo/repeat/chord/search 不泄漏；2) linewise/characterwise register
+保持类型与文本并只有一个 live owner；3) rich draft、cursor、attachments/pending paste/mention
+仍完整恢复，bindings/catalog/event sender 等进程配置不丢；4) owner/crate/Clippy/结构守卫；5)真实 root/child PTY 与同一 binary CLI。责任 root，2026-10-01；业务 authority 仍归共享
+App Server/canonical Thread/Turn/Item，thread draft 仅是 TUI 内存投影。
+
+已实现：`textarea/vim_register` 的同名 snapshot take/restore 具有真实 fresh-editor consumer；
+`ChatComposer::restore_thread_input_state` 重建 DraftState/TextArea，不重建第二套 App/后端。
+现有 shell 保留 app event sender、locale、skills catalog 与 navigation 配置；当前 RuntimeKeymap
+重新注入新 editor，完整 rich draft/cursor 仍从同一内存 snapshot 恢复。register 不进入
+ComposerDraft，正常 reconnect 与 failed resume 不走该 owner。capture 前沿既有 paste owner
+物化 held typing，避免替换时丢失或在新线程迟到 flush；query/preview 不进入 original draft。
+root/child 定向 6/6、首轮完整库1418/1418、all-target 18 integration + 1 guard、owner Clippy
+及51结构守卫通过。新真实 agents-overview PTY 首轮通过，thread
+`01a0f6a3-af4f-78b1-887f-81f7d73eddac`、turn `turn_b1db9347f705442f86f04a8a697af390`：
+`thread-edit-lifetime=ok session-register=ok`，真实 `u/.` 不把 child undo/command 写入 root，
+`p` 保留跨线程 linewise register，原 folded draft/cursor 与 atomic paste 删除断言保留，
+pre-submit ledger 仍为唯一原始 turn。补 held ASCII capture 后定向7/7通过，latest全库/11场景/
+stdio复验进行中；未提前关闭退出条件5。
+来源基线仍 `c248f6d48b`；SHA-256：Codex session_lifecycle
+`dfffdff4d55f24724c108efb52a3198c30635b87c48d0f4bbdc6569e39d32437`；chatwidget/input_restore
+`cf5dabc591fe35780af1e08ce61289b8acf659275dc708af51f5edc696cb91a4`；textarea
+`28497a7a1dc24ed593b0de14da2b154086d150638a7b6d1805fb501cccdb4b50`。
+register API/文本与kind、fresh edit lifetime 为 direct 同义；当前 composer shell + rich snapshot、
+小模块和 capture时复用 paste owner 为 merge，完整 ThreadInputState/ChatWidget 仍 defer。
+
+最终验收：latest all-target TUI 1419 library + 18 integration + 1 dependency guard、owner
+Clippy `--no-deps -D warnings`、51结构/PTY/inventory guards、legacy/scripts、ESLint、docs
+boundary、fmt/diff check 全部通过。完整11场景真实 PTY 通过，thread
+`01a0f6a7-b7ae-7042-a190-f8b195e64856`、turn `turn_50f38942ce344d72951ec67b292fd71c`：
+`thread-edit-lifetime=ok session-register=ok`，此前所有 modal/editor/notes/history/queue/agents/
+images/skills/structured-history/focus/resize/reconnect 和 terminal=restored 保持。相同 freshly
+rebuilt binary 的 CLI Gate B 通过，thread `01a0f6a8-4ea5-7bf3-a50b-581a6c649a0b`、turn
+`turn_23b0297aec074166a4336454ed161b60`，`jsonl=ok stdin=ok error-exit=1 completion=zsh`。
+日志 `/tmp/lime-tui-thread-edit-*`；本切片无 protocol/schema/config/GUI 修改，沿用本轮 modal
+公共 config 与 contracts 已闭环的共享底层合同，不冒充 GUI 产品证据。库存1399 src文件只用于
+发现差异；draft324、thread tests157、PTY thread303、register含snapshot <160 行，无巨型owner。
+分类：fresh editor/register transfer/capture flush 与 rich draft 单一恢复入口为 current；旧
+successful handoff 直接复用编辑状态为 dead / 原位替换，未保留 compat/deprecated 或第二后端。
+SRP 保持 register/草稿/host 路由分层；DRY 复用 paste owner、同一 bindings/snapshot恢复；
+KISS/YAGNI 不复制完整 ChatWidget 或加入无消费 ThreadInputState字段。责任 root 再确认
+architecture 中传递图，2026-10-01。退出条件5/5（100%）；总体 partial/in-progress、goal active。
+verify:local/full GUI、Windows/MSVC、Linux WSL/X11、live provider 本轮未执行；共享后端保持
+GUI/TUI可消费，不表示这些平台/GUI已重新验收。未提交、推送、创建分支或重置。
+下一刀回到 submission preparation：展开 pending paste 后的 trim/rebase/字符限制、附件与
+mention完整对象及拒绝后的草稿恢复；审计 shared UserInput/App Server消费者，再在 current
+owner重建，不把 TUI-only提交策略下沉成另一套 GUI/runtime权威。完整 thread-owned
+ChatWidget/BottomPane routing、byte-anchored history scan/replay seed、Agent Center async refresh
+和已列产品范围 defer 继续未完成，不用本切片100%替代全目标完成度。
+
+### 当前续跑：Vim keymap contexts / BottomPane snapshot（terminal acceptance completed；整体 partial）
+
+主目标保持功能、UI/UX、命名、目录、owner、设计模式和测试组织全维度对齐。
+本切片承接已验收 editor owner，迁入 Codex 同义 `TuiVimNormalKeymap`、
+`TuiVimOperatorKeymap`、`TuiVimTextObjectKeymap`、`TuiVimSearchKeymap` 与运行时
+`KeymapContext/TextArea::keymap_context`。直接替换 modal raw-key matches、composer 的
+undo/redo 和事务启动硬编码，不保留双轨；linewise register/paste 与字段真实消费者同轮闭环。
+窄写集：core config/tui_keymap 及 Vim schema 子模块、TUI keymap 的 Vim owner、textarea
+modal routing/register/search、composer input/vim_history、App 与 BottomPane snapshot 接线，
+对应独立测试、既有 config_jsonrpc/PTY/结构守卫和 ops/commands/architecture/本计划。
+前序改动保持；Codex 仅读；不触碰 GUI/provider/runtime，不新增 method/依赖/私有配置。
+退出条件：1) 四个 Vim contexts 的字段均有真实消费者；2) alternatives/chord/unbind、
+大小写/shift、modal printable prefix、重绑/切换清 pending 和冲突拒绝；3) semantic replay、
+undo/redo、history 与 linewise register/paste 不依赖原始键；4) startup snapshot 传播到
+BottomPane 新建与排队文本输入且 pending completion 不穿透提交；5) 定向/crate/公共
+config JSON-RPC/真实 current PTY 与 stdio 证据。完整 thread-owned composer lifecycle、
+跨 thread Vim history lifetime 和 byte-anchored history scan 继续 defer。
+责任开发者 root，2026-10-01：canonical App Server 主链不变，仅收敛终端输入 owner。
+前序 related 最终结果已接收：CLI 8/8 + TUI 1402/1402、docs boundary/ESLint/diff check 通过。
+实施中发现 current `bottom_pane/mcp_server_elicitation.rs` 已达 1824 行，新增 snapshot 接线
+必须同轮拆成 control / render / schema / tests（退出条件各非生成文件 <800 行），不继续堆逻辑。
+首轮 modal keymap 50/50 通过；完整库 1409 passed/3 failed：idle Normal Esc 误截 host interrupt、
+selected remote-image Delete 未启动 undo 事务、默认 search backward 未向显式 global `?`
+让位。三项按 owner 修复，原断言保留；尚未宣称 terminal acceptance。
+
+最新实施与验证：四 contexts 的 69 个 action 均经 schema roundtrip 与实际 dispatch 测试；
+`vim/input` 唯一解析 modal action，`vim_register` 统一 linewise/characterwise，composer
+undo/redo 与事务启动删除 raw-key 检测。BottomPane 排队/新建 notes 与 MCP 文本字段接同一
+snapshot，query editor pending chord 优先于提交/取消。MCP control/render/schema/tests
+拆分后分别 546/360/371/570 行，无旧 render reexport。默认 Normal Home 不保留隐式 alias，
+既有 PTY 改用 Codex 的 `0` motion，语义断言不变。新增结构守卫覆盖上述 owner 与旧路删除。
+TUI 最新完整库 1414/1414、all-target 的 18 integration + 1 dependency guard、owner Clippy
+`--no-deps -D warnings`、core keymap 6/6、结构/PTY/inventory guards 51/51 已通过。
+公共 config JSON-RPC 从仓库既有受校验 V8 artifact resolver 进入真实定向 `cargo --test
+config_jsonrpc`，1/1 通过，未重复展开 58 targets；覆盖四 contexts 的 read、normalized
+alternatives/chord/unbind、batchWrite 和非法字段/键/三段 chord 写入拒绝且持久状态不变。
+contracts、legacy/scripts、ESLint、docs boundary、fmt 与 diff check 已通过；all-target 验证
+不包括受专用 entrypoint 驱动的真实 PTY（正在执行 complete/user-input），尚未标退出条件5完成。
+来源基线仍为 `c248f6d48b`；Codex SHA-256：keymap
+`af8edcd1afa0510da8ac596d4adfe082dabb9ac3d2dd2e9a5b97bed17dd3acd1`；config/tui_keymap
+`d37c9dc213f86fc938d68bf68860122e4e3194f589acce109f48cadde394a33e`；textarea
+`28497a7a1dc24ed593b0de14da2b154086d150638a7b6d1805fb501cccdb4b50`；vim_commands
+`217443ca1cd7df8993c4a7ec4fafa485e746d499b1e5cd6b5d768490d6879aec`。
+69 同名字段/action、KeymapContext、linewise register 为 direct 同义迁入；小模块、typed
+resolved action 与既有两段 matcher/host boundary 为 merge，不复制 Codex 巨型文件或空配置。
+库存更新为 1397 src 文件，仅用于差异发现；宏生成类型不由 regex inventory 完整提取，
+以编译/69 action dispatch 证明 consumer，不以文件/符号数计算完成率。
+分类：schema/modal dispatch/register/BottomPane snapshot 为 current；raw-key modal/search/
+undo detector、MCP Ctrl+J fallback 与旧大文件单 owner 为 dead / 原位替换，无 compat/deprecated。
+日志 `/tmp/lime-tui-modal-*`；verify:local/full GUI、Windows/MSVC、Linux WSL/X11、live provider
+未执行，不能借用前序证据宣称本切片终端通过或整体对齐100%。
+首轮真实 PTY complete 在 `Esc + 0` 连写时被终端解析为 Alt+0，仍处于 Insert，后续 `x`
+进入文本；按实际屏幕定位为测试键流问题。改为 standalone Esc 后等待 Normal 的真实
+render predicate，再发送可打印命令；不加固定 sleep、不改 timeout、不保留 Home alias。
+删除/unbind 断言比较完整输入行，避免 substring 掩盖多余字符，重跑中。
+
+最终验收：complete/user-input 定向 PTY 通过，thread
+`01a0f696-ff23-7d31-a079-3be2c06a8f94`、turn `turn_c34d73ec241c47f09552aae465a51f15`。
+随后保留完整行断言重跑全部 11 场景通过，thread
+`01a0f698-230d-7941-8953-c6666136bcfb`、turn `turn_94a88dcbf90d4a1089157f147ee14c64`：
+`vim-keymap=ok vim-linewise=ok vim-modal-chord=ok notes-keymap=ok`，既有 editor/history/
+persistent-history/Vim-repeat/search-state/paste-burst、queue/agents/thread-draft、images/skills/
+structured-history、sticky-prompt/main-find/focus/resize/reconnect 和 terminal=restored 保持。
+pre-submit ledger 继续证明 modal 编辑/chord 不创建 canonical Turn，notes 仍提交精确
+`Safe + user_note: PTY_NOTE_ANSWER`，不弱化答案或恢复断言。
+同一 freshly rebuilt `lime + app-server` 的 CLI Gate B 通过，thread
+`01a0f699-8a0d-7111-a0ac-07ba2a96be21`、turn `turn_38db06c9812f424ea9a1ff326e8e3751`，
+`jsonl=ok stdin=ok error-exit=1 completion=zsh`；不是旧 target、第二 backend 或 mock fallback。
+latest inventory/51 guards/docs boundary/diff check 通过；App Server build 中既有
+`lower_turn_start_params/lower_runtime_options` dead-code warning 不属于本轮终端 owner，
+未越过窄写集修改。该切片退出条件 5/5（100%），整体 partial/in-progress、goal active；
+verify:local/full GUI 和未运行平台继续明确未验证。无提交、推送、分支、重置。
+SRP 拆分 modal/register/MCP control/render/schema，DRY 复用 bindings/matcher/语义编辑，
+KISS/YAGNI 只暴露真实 69 action consumer；多端共享 App Server/config owner 不变。
+下一刀是 composer 在 thread 边界的重建/状态清理：Codex 新 widget 重置 undo/录制/search，
+通过 `KillBufferSnapshot/take_kill_buffer_snapshot/restore_kill_buffer_snapshot` 传递 session
+register。不能让旧 Thread 的 undo 写入新 Thread，不能把 register 放进 per-thread durable
+draft，也不能为了命名同构预建无真实消费者的 ChatWidget 空壳；完整 lifecycle 继续待实现。
+
+### 当前续跑：editor keymap owner（terminal acceptance completed；整体 partial）
+
+主目标仍是功能、UI/UX、命名、目录、owner、设计模式与测试全维度对齐。本轮先闭环
+Codex 同义 `TuiEditorKeymap/EditorKeymap`、`TextArea::set_keymap_bindings/input_with_keymap`，
+直接替换 insert-mode 硬编码分支与 composer 的静态 editor-key 检测，不留 alias。
+窄写集：core config/tui_keymap、TUI keymap/editor、textarea/input、composer/input、App snapshot
+接线及独立测试，public config_jsonrpc、既有 PTY/结构/inventory 守卫、ops/commands/architecture
+与本计划。前序脏改动延续；外部 Codex 只读；不触碰 GUI、provider 或其它 runtime 热区。
+唯一配置链仍是 core config -> App Server config/read -> LocalSettings -> RuntimeKeymap ->
+TextArea/composer；不新增 method、私有配置文件、环境变量或无消费者 Vim 字段。
+退出条件：1) 17 个 editor action 都由同一 snapshot 消费；2) alternatives/chord/unbind、
+跨 global/host 冲突 fail closed；3) Insert/Replace 共用 resolved semantic action，重放不依赖
+当前绑定；4) public config read/write + composer/textarea 回归；5) current binary 真实 PTY、
+stdio、alternate screen 与 terminal restore。完整 Vim contexts 下一切片继续，不冒充完成。
+责任开发者 root，2026-10-01：App Server/canonical 业务链不变，只收敛客户端编辑 owner。
+
+实现状态：17 个 editor action、alternatives/chord/unbind、global/host conflict、真实 App
+snapshot 接线与 Insert/Replace resolved semantic replay 已实现；textarea 输入拆到独立
+`textarea/input.rs`，主文件从接近 800 行缩回 604 行。旧 `is_editor_key_event` 与
+insert-mode raw key match、Replace 硬编码 Backspace 为 dead / 原位替换，无 alias。
+快捷帮助的 newline 改用同一 snapshot，解绑/仅普通 Enter 时不宣传不可执行换行；五语言
+使用既有 Label，不新增字符串镜像。Vim query editor 继承当前 snapshot，更新只换 bindings。
+当前尚未完成 BottomPane 其它文本编辑 overlays 的 snapshot 传播与完整 Vim contexts，保持 defer。
+首轮测试编译因迁出输入 imports 暴露 elements_tests 对父层偶然 import 的依赖，已改测试显式
+导入。library 首轮 1395 passed/3 新断言失败：Windows-only AltGr 的 macOS 错预期两项，
+Enter 已与 insert_newline 冲突却要求 reserved 诊断一项，已按平台及真实 conflict 修正。
+随后 TUI 1399 library + 18 integration + 1 dependency guard 通过；后续增加可见帮助/查询与
+pending Esc 测试，最终轮仍待验收。core tui_keymap 5/5、contracts/legacy/scripts 已通过。
+直接 cargo app-server 测试尝试下载 denoland v8 默认 archive 并 404；转仓库既有
+`test:rust:integration` wrapper 解析受校验的 Codex V8 artifacts，不修改依赖或系统环境。
+当时 public JSON-RPC / complete PTY / Clippy 仍在进行，未提前标为 terminal acceptance。
+
+来源基线保持 `c248f6d48b`；SHA-256：Codex `tui/src/keymap.rs`
+`af8edcd1afa0510da8ac596d4adfe082dabb9ac3d2dd2e9a5b97bed17dd3acd1`；
+`config/src/tui_keymap.rs`
+`d37c9dc213f86fc938d68bf68860122e4e3194f589acce109f48cadde394a33e`；
+`tui/src/bottom_pane/textarea.rs`
+`28497a7a1dc24ed593b0de14da2b154086d150638a7b6d1805fb501cccdb4b50`。
+类型/action 名、17 字段、默认绑定、Arc snapshot 与 input_with_keymap/resolved replay 为
+direct 同义对齐；Lime 独立小模块、既有两段 matcher、五语言与 retained host 路由为 merge。
+没有把大量未消费的 Codex global/chat/Vim 字段复制成空合同。
+
+后续验收中新增五语言 TestBackend 断言忽略了 CJK wide-cell 的空白占位，导致
+1401 passed/1 新测试失败；按既有测试的 compact 比较修正，不修改 renderer 或放宽语言覆盖。
+最终 TUI `1402` library + `18` integration + `1` dependency guard 已通过，latest owner
+all-target Clippy `--no-deps -D warnings` 通过；core keymap `5/5`、48/48 结构/PTY/库存守卫通过。
+public config/read/batchWrite/valueWrite 的 normalized editor shape、未知字段/非法 chord 拒绝与
+失败写入不改 persisted state 通过。仓库 integration wrapper 的 `--tests` 与指定 `--test`
+组合实际展开 App Server 全部 targets：最终 58 targets / 1948 tests 通过，无 ignored；
+今后定向复核先避免该 additive selection，不把无意扩大门禁当成主线新能力。
+PTY 首次在 build lock 等待时命中原 60s fixture timeout，未开始场景；不改超时，锁释放后
+重跑。第二轮 complete 的 editor 改绑/unbind/chord 全部走通，Agent thread draft 的原子
+paste Delete 断言失败，原因是新 fixture 的 delete_forward=[] 套到了所有场景；把该配置
+限定 complete，保留其它场景原配置和完整断言，Agent 定向 Gate B 随后通过：thread
+`01a0f64f-4705-77a0-a39f-3fd0e5b707b7`、turn `turn_a2031799bfd14592af66691c74c6bb74`。
+当时全 11 场景最新重跑仍在验收。current binary CLI Gate B 已通过：thread
+`01a0f64e-53d9-7311-8ae8-82b3b52eeb2e`、turn `turn_33401862551d4be090297f8bf2c95b7e`，
+`jsonl=ok stdin=ok error-exit=1 completion=zsh`。日志统一 `/tmp/lime-tui-editor-*`。
+`verify:local` smart 命中整个前序脏工作树，version/i18n/lint/变更文案 scan 已执行；在
+typecheck 阶段停止本轮编排（exit 143），避免下一步从第 1 批重跑已完成的前端 120/120。
+原 `.lime/test/vitest-smart-last-run.json` 保持 passed；不宣称这次 local/typecheck/full GUI
+门禁通过，不重启 runtime aggregate，不把 Windows-only AltGr 的 cfg 回归当 Windows 实跑。
+
+最终验收：完整 11 场景真实 PTY Gate B 通过，thread
+`01a0f650-78e9-7483-864b-e7b5a692039c`、turn `turn_79f84ce0e8da475981b5ac79b449f70c`；
+`editor-keymap=ok editor-unbind=ok editor-chord=ok`，已有 history/persistent-history、Vim
+repeat/search-state/paste-burst、queue、agents/thread-draft、sticky-prompt/main-find、images、
+skill/structured-history、focus/resize/reconnect 与 terminal=restored 全部保持。pre-submit ledger
+仍证明编辑/chord/搜索不会创建 canonical Turn。current CLI Gate B 使用同一 freshly rebuilt binary，
+不是旧 target 或 mock fallback。主 textarea 604 行，input 139 行，editor keymap 319 行，
+core schema 490 行；库存 Codex 1048 + Lime 339 = 1387 src 文件，不作为完成率。
+旧 input_replace_mode helper 与 Insert/Replace 重复分支一并删除；semantic DeleteBackward 的
+Replace recovery 保持单一 owner。分类：editor schema/snapshot/dispatch、resolved semantic
+input、实际帮助与真实消费者为 current；硬编码 detector/key match/Replace helper 为
+dead / 原位删除；无 compat、deprecated、品牌新命名或平行业务后端。
+本切片退出条件 5/5（100%）；整体继续 partial / in-progress，goal 保持 active。
+SRP 拆分编辑输入与渲染，DRY 合并 Insert/Replace 和 replay，KISS/YAGNI 只接真实 consumer。
+未重新闭环 verify:local/full GUI；Windows/MSVC、Linux WSL/X11 与 live provider 未运行。
+没有提交、推送、分支或重置。
+
+下一刀保持完整 Vim keymap owner：`RuntimeKeymap::{vim_normal,vim_operator,vim_text_object,
+vim_search}`、`TextArea::keymap_context` 与 Codex 同义 action routing；同时明确补 BottomPane
+其它文本编辑 surface 的 snapshot 传播。不能先暴露无消费字段，不能给 hardcoded key match
+新增平行 owner。linewise register/paste、完整 thread-owned ChatWidget/composer lifetime、
+byte-anchored history scan 与既有产品范围 defer 继续列为未完成，不能用本切片 100% 替代。
+
+### 当前续跑：semantic Vim commands / stored search draft（terminal acceptance completed；整体 partial）
+
+主目标保持功能、UI/UX、命名、目录、owner、设计模式与测试全维度对齐，不以文件数量冒充完成率。
+参照同一 Codex HEAD 的 `textarea/vim_commands.rs` 与 `chat_composer/history_search_draft.rs`：
+真实 `VimCommandState/VimEdit/VimAction/VimEditTarget/VimPersistentState` 承接命令录制、
+完整 change 的 `.` 重放与 last search；搜索保存 original 与 preview 的独立状态。
+窄写集：textarea/{vim,vim_commands,editing,vim_search}.rs、textarea.rs、composer 的
+history_search{,\_draft}、draft/input/vim_history 接线、独立测试、app/thread_input 的 snapshot
+消费者、app/input_submission 的异步恢复与 app/history_search 回归、现有 PTY/结构守卫/
+本计划与 architecture。前序脏改动原样延续，Codex 仅读。
+不新增协议、后端、GUI 业务或兼容 alias；不重启已通过的异步历史聚合。
+退出条件：1) 语义命令录制与完整 change 重放真实使用；2) 搜索前 Vim command/search 状态取消
+后保留且匹配接受隔离；3) 后台图片/文本编辑不改变 query/preview，取消保留、接受丢弃；4) thread snapshot 捕获 original 而非 preview；5) 定向/crate/Clippy/真实 PTY current stdio。
+完整 keymap owner、thread-owned ChatWidget lifecycle、byte-anchored scan 等既有 defer 不冒充完成。
+
+完整 Vim keymap 配置 consumer、linewise register/paste 与跨 thread Vim history lifetime 仍为
+明确 defer；本切片只证明 semantic complete-change、stored search draft 与真实消费者对齐。
+来源 SHA-256：`textarea/vim_commands.rs`
+`217443ca1cd7df8993c4a7ec4fafa485e746d499b1e5cd6b5d768490d6879aec`；
+`chat_composer/history_search_draft.rs`
+`4e2f5b1ee1eb3e03292fad646483b30f806d34eb672041ff0dc2f842017dcb80`；
+`chat_composer/vim_history.rs`
+`bced83c897f7c92c856815be809df0932d180da2150a2fd8a701840cb54c1074`。
+同义类型、owner、swap/record/start/finish/repeat 直接迁入；小模块、五语言、既有 host recovery
+与 ComposerDraft 数据形状为 merge，不另建对外 snapshot 协议。
+
+实现按 Codex 同名 owner 迁入语义事务，未保留 raw-key replay 或旧 Replace vector：
+`VimPending::ReplaceChar` -> `Replace`、`next_word_start` -> `beginning_of_next_word`、
+`word_end_cursor` -> `vim_word_end_cursor`，旧名字为 dead / 原位替换，无 alias。
+`vim_commands.rs` 迁入完整 command recording/repeat 与 Replace recovery；`vim.rs` 保留
+modal routing/operator/text-object，find/jump 实现迁回 Codex 的 command owner。2021 edition
+仅改写不支持的 let-chain 语法，不变更 workspace edition/依赖。Normal 模式禁止 paste burst；
+Replace/paste/Backspace 跳过并保留已注册 image/mention/paste elements，不以全量 element 快照
+恢复被错误覆盖的附件。旧三个覆盖附件预期测试重写为 current 保留语义，保留 path/range/
+mention identity/payload/undo/redo 断言。
+`edit_stored_draft` 交换完整 original/preview Vim state，并暂存 Lime history owner，防后台
+mutation 的 navigation reset 中断真实 lookup；query/fallback 与 original 独立，不复制业务存储。
+后台 attach/insert/恢复未确认提交均有真实消费者；thread capture 使用 original。架构确认：
+责任开发者 root，2026-10-01，现有 terminal -> App Server -> canonical 投影链不变。
+中间验证记录：初轮 bottom_pane 342 passed / 3 旧附件语义失败，重写后 library 1380/1380、
+related cli 8/8 + tui 1380/1380 通过（后续补 recovery/rapid-key 两项，最终轮待接收）。
+新命令最初编译暴露 private sibling methods 与 2024 let-chain，已收口到 owner 可见性与 2021
+语法；新增 TestBackend 使用既有 StatefulWidgetRef API，不补第二套 renderer。
+`test:related` 的 Vitest related loader 对 electron 目录报 EISDIR，未改无关 test runner，转精确
+`vitest run`。初轮 inventory guard 仍要求 snapshot_draft，已按 host 的 original draft_snapshot
+事实重写，并额外断言 stored original。
+真实 PTY 首轮 Vim 全流程走通后使旧历史场景缓存变热，旧 uncached Searching 等待失败；
+移动 Vim 场景到完整历史检查之后，保留未缓存慢读与边界断言。中间 test helper 调用了不存在的
+paste_burst_active，已改为现有 owner 的 is_active。后续 PTY 在首屏 shortcut close 原有竞态
+处失败：旧 footer marker 在 overlay 仍显示时已存在，已改为同时等待 footer 存在且 overlay
+消失，不添加 sleep、不扩大 timeout、不删原断言。全部失败日志保留于 /tmp/lime-tui-vim-commands-\*。
+
+随后按 current paste-burst consumer 补 Unicode reclassification 回归，真实复现 17 字可见输入
+经 `.` 变为 50 字（预期 34）：visible prefix 已撤回但 semantic command 仍录制该 prefix。
+`retract_paste_burst` 的普通插入分支改经同一 `DeleteBackward` semantic actions，禁止只撤回
+visible text。补 grapheme-boundary fail-closed；Replace recovery 分支仍复用同一事务。
+该修正为 Lime current consumer 的 merge 正确性修复，不修改 Codex 参考仓库。
+
+最终终端证据（2026-10-01）：TUI `1385` library + `18` integration + `1` dependency guard
+通过，latest all-target owner Clippy `--no-deps -D warnings`、workspace fmt --check、docs:boundary、
+diff check 与 `46/46` structure/inventory/PTY fixture guards 通过。治理 legacy/scripts 通过。
+完整 11 场景真实 PTY Gate B 通过：thread `01a0f620-47b1-7c50-b162-b7b6cbaa46cb`、turn
+`turn_eede251e1ccc42579d2ac83dea12b376`；`vim-repeat=ok vim-search-state=ok
+vim-paste-burst=ok`，history-search、persistent-history、queue-edit、agents-overview、thread-draft、
+sticky-prompt、main-find、images、skill-mentions、structured-history、focus、resize、reconnect
+与 `terminal=restored` 均保持。17 字 Unicode 输入的实际键流 `.` 后为 34 字，并能两次 undo
+回空；既有 pre-submit ledger 仍确保输入、搜索和 Vim 命令不会生成 canonical turn。
+同一 freshly built current binary 的 CLI Gate B 通过：thread
+`01a0f620-a1ef-78e3-9984-57ef07d8ff0d`、turn `turn_cf3785ee28984ad489bec88913f53133`，
+`jsonl=ok stdin=ok error-exit=1 completion=zsh`。日志统一 `/tmp/lime-tui-vim-commands-*`。
+来源 inventory 为 Codex `1048` + Lime `334` src 文件，仅表示覆盖，不表示完成率。
+本切片退出条件 `5/5（100%）`；总体仍 partial / in-progress，goal 保持 active。
+分类：semantic command/repeat/persistent state、stored draft、host recovery/handoff 为 current；
+旧 Replace vector/recovery helper/临时命名/重复 search end-cursor 为 dead / 原位删除；
+无 compat、deprecated、旧 alias 或新后端。SRP 把 command 与 query owner 分开，DRY 让键入、
+Replace、retraction/replay 共用语义动作，KISS/YAGNI 复用 canonical 主链而不扩协议。
+本轮未修改 App Server/IPC/GUI owner，不重复前序已通过的 runtime aggregate、contracts/GUI
+smoke 或全量前端；不把定向验证提升为完整 verify:local pass。Windows/MSVC、Linux WSL/X11、
+live provider 未运行，macOS PTY/current fixture 不冒充对应平台/live evidence。无提交/推送/建分支。
+
+下一刀：Codex `RuntimeKeymap::{editor,vim_normal,vim_operator,vim_text_object,vim_search}` 与
+`TextArea::set_keymap_bindings/keymap_context`。只读盘点已确认 Lime RuntimeKeymap 当前只有
+transcript/agents/list，core TuiKeymap 尚无 editor/Vim contexts；不能先加无 consumer 配置。
+按既有 core config -> App Server config read -> TUI runtime snapshot -> TextArea/composer 的
+唯一配置链同步字段、同义类型/目录、冲突验证、unbind 与 resolved-action replay，补 public
+config、键位定向回归和真实 PTY，不复用硬编码按键写第二套 keymap。linewise register/paste、
+跨 thread Vim history lifetime、byte-anchored scan 与完整 ChatWidget routing 仍明确 defer。
+
+### 当前续跑：asynchronous persistent history（terminal acceptance completed；整体 partial）
+
+上一 goal turn 判为 progress：迁移 history search owner/UI、修复真实 App 吞 Paste，
+完整 11 场景 PTY/CLI/core gates 通过；本轮不是重复验证，直接替换仅搜索已加载页的限制。
+唯一持久化 owner 仍为 App Server PromptHistoryStore；TUI history 只持有 metadata、
+query-independent cache、local rich entries、navigation/search pending state。
+来源 Codex `c248f6d48b`：`chat_composer_history{.rs,/search_batch.rs}`、`app_event{.rs,_sender.rs}`
+与其响应/批量错误/唯一结果测试。`search_batch.rs` SHA-256
+`58dec92445cd736fc458ea8015912e1f579c4551d8ce88c2a8760fdb246dca94`，
+`app_event.rs` `d14dc7bb2ae06212574442cdc5f9bf5341e7e00662aa90b644fc0297a2de63a9`，
+`app_event_sender.rs` `72bd0fdb019f2b53ed9919199b0ffeef28a3f9308aad8bee4feb1e9906b22eb4`。
+metadata/local_history/fetched_history/history_cursor、LookupMessageHistoryEntry/Batch、
+HistoryEntryResponse、Pending/Unavailable、on_entry_response/on_batch_response/on_batch_error
+为 direct 语义迁入；App Server cursor/read lowering、String identity、小模块拆分与五语言为 merge。
+不复制 Codex 私有 history 文件/byte cursor，不新增公开 method、平行存储或 compat 包装。
+
+窄写集：`tui/src/{app_event,app_event_sender}.rs`、`app/message_history*.rs`、
+`chat_composer_history{.rs,/**}`、`chat_composer/{history,history_search,draft}.rs` 与 sender 接线、
+`app/startup.rs`、`app_server_session` history read 边界、locale composer、既有 runtime 的 channel
+初始化/select 委托、独立回归、既有 PTY/guard/inventory、architecture/commands/本计划。
+`runtime.rs` 已超过 1000 行，本轮只加 channel/select 委托，不在该文件追加 lookup/cache/retry
+业务；新逻辑迁到 app/message_history，后续退出条件仍为拆出既有巨型 event loop/action dispatch。
+App Server store 追加 row-bounded paging 与 malformed row/cursor public 回归：防空/坏行让
+一次 read 穿透整个 offset 空间；schema/method 不变，GUI gateway 已检查支持 empty page + cursor。
+不修改其它 GUI/Electron/发布热区；既有脏目标均是前序本任务延续，Codex 只读。
+退出条件：1) 单 entry 探测后批量读取，能搜索超过 200 条的历史；2) query-independent cache、
+唯一结果/Newer/边界；3) stale thread/log/cursor 响应、取消/改 query/输入后迟到回包不覆盖草稿；4) bounded retry/Unavailable 不冒充 NoMatch，慢读不阻塞输入；5) 定向/crate/Clippy/public
+JSON-RPC 与真实 PTY/current stdio 证据。local 全量进程 `78941` 已在 59/120 失败：
+`src/lib/governance/codexModelResponsesPolicyOrigin.test.ts:130` 的外部 Codex client source-string
+断言不再匹配参考 HEAD，未命中 composer 写集。1–58 批通过，保留
+`.lime/test/vitest-smart-last-run.json` 续跑点，不重启全量或放宽断言。
+byte-anchored disk scan、replay-seeded history 与完整 thread routing 仍单列 defer。
+
+当前实现：metadata + local rich history + fetched offset cache 直接替换旧 entries/200 上限，
+`load_history/set_persistent_entries/navigation_index` 为 dead / 原位删除，无 compat alias。
+完整 cache setter 仅 `#[cfg(test)]`；同名 AppEvent/AppEventSender 接入真实 runtime select，
+request/reply/cache/retry 业务在 app/message_history 与 search_batch，不追加进 runtime 巨型逻辑。
+新增 EntryError 是 App Server IO 错误与 malformed row 的明确区分；五语言 Searching/
+Unavailable 可见反馈为 merge，不把失败映射成 NoMatch。App Server paging 按 offset 行窗口
+推进，GUI gateway 已补 empty page + nextCursor 行为回归。底层文件扫描仍由现有 store 完成，
+尚未迁 byte-anchored scan，不宣称磁盘读取成本已 O(batch)。
+真实 PTY complete fixture 种子为 360 条（含坏行、重复文本、最旧匹配）；额外使用 fs2
+跨平台文件锁阻塞真实 App Server read，验证等待时仍能编辑 query、Esc 取消与输入草稿。
+fs2 只新增为 TUI dev-dependency，复用 workspace 既有版本/锁文件，无新生产 IO 入口。
+架构 owner/数据流已同步 architecture.md 与 commands.md，责任开发者 root，2026-10-01。
+补充最小测试写集 `src/lib/governance/codexModelResponsesPolicyOrigin.test.ts`：本地门禁第 59
+批的旧 source-string 断言仍按历史签名读取 Codex。已只读核对 current `core/src/client.rs`：
+header forwarding 迁到 `ModelClientSession::build_responses_options`，WS metadata 增加
+include_internal 参数，formatter 改为接收完整 ModelInfo。直接重写 current 来源断言，
+同时断言 ModelInfo flag 传递和 helper 的 exact header 分支；不删 assertion、不新增 skip、
+不修改 Lime provider 或外部 Codex。不把格式/函数签名漂移误报成协议语义变化。
+`ThreadHistoryEntryResponse/on_history_lookup_response/on_history_entry_response/
+on_history_batch_response/on_history_batch_error/apply_history_batch_result` 已按同义直接迁名，
+不保留本轮临时 MessageHistoryResponse/handle_history_response 名字。
+当前定向 168 项、初轮 TUI 1363 library + 18 integration + 1 guard、47 项结构/fixture/gateway
+回归与 contracts 通过；公共 JSON-RPC 2/2、owner all-target Clippy `--no-deps -D warnings`
+通过（后续补了 empty terminal batch 与 cached-good-row 不被坏行覆盖两项，最终轮待接收）。
+统一 integration wrapper 的 `--tests` 再次扩大成全 App Server 58 targets 的无关链接；
+已停止本轮自启动的进程组 91158（exit 130）并保留日志，使用同一官方 resolver
+`resolveRustyV8CargoEnv` + `cargo test -j 2 -p app-server --test prompt_history_jsonrpc` 精确验证。
+第一次完整 PTY runner 含 52.51s test 编译，被既有 60s execFile 场景上限终止；没有放宽
+timeout/断言，等待热缓存后重跑，不将只有 binary startup 的记录记为 Gate B pass。
+裸 Cargo 依赖级 Clippy 命中未修改 agent-protocol 的 large_enum_variant/derivable_impls；
+裸 App Server test 绕过仓库 rusty-v8 artifact resolver 而下载 404，保留失败记录，并转统一
+test:rust wrapper/current Gate runner，不新增依赖抑制或改 vendor。
+
+最终终端证据（2026-10-01）：history 定向 `170/170`，TUI `1365` library + `18` integration
+
+- `1` dependency guard，current all-target owner Clippy `--no-deps -D warnings`，public
+  prompt_history_jsonrpc `2/2`，store `2/2`，`49/49` structure/fixture/gateway/origin guards、
+  contracts、定向 ESLint、governance legacy/scripts 与 diff check 通过。inventory 为 Codex
+  `1048` + Lime `331` src 文件（只表示扫描覆盖，不是完成率）。
+  真实完整 11 场景 PTY 最终通过：thread `01a0f5e6-742d-7a73-81c8-b585c1c8d7ff`、turn
+  `turn_2167c6837ade471b9f683113a1b11041`；`history-search=ok persistent-history=ok`，并保持
+  queue-edit、agents-overview、thread-draft、sticky-prompt、main-find、images、skill-mentions、
+  structured-history、focus-palette、resize-reflow、reconnect 和 terminal=restored。
+  热缓存 PTY 中间轮暴露原同步测试在旧预览仍可见时提前发送 Down；已明确先观察 Searching，
+  再等待 AtBoundary 恢复 accept 后继续键盘操作，与 Codex pending 不跳过扫描的语义一致。
+  无固定 sleep、测试合成终态、放宽 timeout 或降低断言。慢读文件锁和 360 条最旧匹配都经过
+  真实 PTY -> stdio -> App Server promptHistory/read；前置 ledger 断言仍保证搜索/accept 不提交 turn。
+  GUI smoke 重跑通过：`standalone-shell-01-20261001051325-50010`。前序
+  smoke:agent-runtime-current-fixture 的 Electron screenshot timeout 已在本轮隔离重跑通过：
+  unknown-item thread `01a0f5ed-2f2e-7b03-9242-bf727ab48688`，summary ok=true，
+  screenshotCapture.mode=full-page、fallbackUsed=false、fullPageError=null。保留前序失败日志；
+  没有把截图改为 optional、放宽时间或改 fixture assertion。聚合 session 16960 最终 exit 0，
+  `[smoke:agent-runtime-current-fixture] 通过`，所有 current Electron fixture 场景闭环。
+  同一 current binary 的 CLI Gate B 重跑通过：thread `01a0f5e9-616a-7fa3-8995-f5bd37af05d8`、
+  turn `turn_6ca89d633ac542849da0def7cef5522d`，`jsonl=ok stdin=ok error-exit=1 completion=zsh`。
+  本切片五项终端退出条件 `5/5（100%）`，整体不标记 complete。分类：metadata/cache/typed
+  events/App Server paging/唯一搜索 owner 为 current；旧 eager vector/200-limit/load_history 与
+  临时响应命名为 dead / 原位替换；无 compat/deprecated/alias。统一 request handle 与小模块
+  分工体现 SRP/DRY，复用已有协议/storage 而不预建第二后端体现 KISS/YAGNI。
+  前端全量已用 test:resume 从 59/120 继续至 120/120，session 17810 exit 0，state 的
+  status=passed、failed_batch=null、120 个 batch 均 passed，日志
+  `/tmp/lime-tui-async-history-frontend-resume.log`；未从第一批重启。第 59 批 current source
+  签名守卫已定向/续跑通过。正式 renderer/node typecheck、check:protocol-types、docs:boundary
+  final 链 exit 0，workspace fmt --check 与 diff --check 通过。本地聚合门禁尚未完整闭环，
+  不能把局部门禁提升为 verify:local pass；current runtime fixture 重跑 session 16960 已最终通过，
+  日志 `/tmp/lime-tui-async-history-runtime-fixture.log`，无待接续验证进程，不重复启动。
+
+下一刀：Codex `textarea/vim_commands.rs::VimPersistentState/swap_vim_persistent_state` 与
+`chat_composer/history_search_draft.rs::edit_stored_draft/draft_snapshot`。只读盘点已确认 Lime
+当前 replace/reset 会清 pending/search/replace steps，history session 只保存 VimHistory，
+尚无完整 command recording/repeat owner；必须先建立真实同义 owner/consumer，不能以保存
+少数字段的空 snapshot 冒充完整 Vim 对齐。byte-anchored disk scan、replay-seeded history 与
+ChatWidget/thread-owned lifecycle 仍单列 defer；继续沿本主线，不扩展 provider/GUI 业务写集。
+本轮仍未运行 Windows/MSVC、Linux WSL/X11 或 live provider；fs2 的跨平台实现不冒充
+对应平台的真实产品证据。没有提交、推送、建分支或重置。
+
+### 紧接续跑：history search owner / unique traversal（terminal acceptance completed；整体 partial）
+
+写集限定 `bottom_pane/chat_composer_history{.rs,/search*.rs}`、
+`chat_composer/{history,history_search,paste_input,input}.rs` 及状态类型接线、独立回归与本计划。
+来源同一 Codex HEAD：`chat_composer_history.rs` SHA-256
+`781e1409025bf0af4f75a011b3ff8cbff407b514e5579c074e9faaf07efe7e4f`，
+`chat_composer/history_search.rs` `63edae2331bc55ff0e466d6e4d47bf0938a644ff0d5e52e5b916aec5eacaa477`。
+`HistorySearchDirection/HistorySearchResult`、`search/reset_search`、unique match cache 与
+`HistorySearchSession/begin_history_search/update_history_search_query/apply_history_search_result`
+迁同义 direct；小文件拆分、五语言 footer 和已加载历史接线为 merge。删除数组查找旧函数，
+无 alias。异步 persistent batch/Pending/Unavailable 尚无本切片真实接线，继续 defer，
+不预建空分支；启动只读一页仍 defer。本切片同步 `app/startup.rs` 现有读取边界：
+明确请求服务端上限 100，newest-first page 正序化后交给 shell recall；不新建 history store。
+退出条件：唯一文本结果/大小写保留、Older/Newer cache/边界、query restart/空 query、
+rich preview/取消/接受及 crate/Clippy/真实 PTY。补 `reconnect.rs` 同一 cancel owner、
+原 Vim undo/redo history 交接、既有 complete PTY 与对应 runner/guard 接线；
+textarea Vim pending command/replace persistent state 和 background draft edits 仍 defer。
+保留前序脏改动，Codex 只读；不扩大协议/GUI写集。
+真实 PTY 首跑定位 App 搜索路由吞掉 Paste：composer 单测通过但查询粘贴没有到达 owner。
+窄写集追加 `app/interaction.rs` 的既有 history mode event 分支与独立
+`app/history_search_tests.rs`；明确转发 Paste 到同一 composer query，不绕过 App 入口。
+UI 同步同义 `history_search_footer_line/history_search_cursor_pos/display_query`：query 独立着色、
+Match 的 Enter accept/Esc cancel、NoMatch 的红色反馈、换行/Tab 可视标记与窄屏光标钳制。
+写集追加既有 footer/locale composer 与独立行为回归；五语言覆盖，不新增 GUI 视觉规则。
+
+最终终端证据（2026-10-01）：TUI `1347` library + `18` integration + `1` dependency guard、
+all-target Clippy `-D warnings`、workspace fmt/diff 与 `45/45` 定向 structure/fixture/contract guards
+通过；inventory 为 Codex `1048` + Lime `324` 个 src 文件（仅覆盖数量，不是完成率）。
+真实完整 `11` 场景 PTY 通过：thread `01a0f5b0-74ea-74c2-9e1a-8e37b3b39902`、turn
+`turn_11bb22e420c6462f9afcb0dfa3463378`，`history-search=ok skill-mentions=ok images=ok
+structured-history=ok`，并覆盖 queue-edit、agents-overview、thread-draft、sticky-prompt、
+main-find、focus、resize、reconnect 与 terminal restore。complete 场景从真实 App 入口验证
+Ctrl-R/Paste、duplicate boundary、cached Newer、Enter 只接受不提交；终端预览断言和
+ledger 无 turnStart 同时成立。第一次 PTY 定位吞 Paste 后已补 App event 回归；中间一次
+启动屏幕等待无输出失败，最终清空构建竞争后完整同一 binary 重跑通过，不删除失败记录。
+CLI Gate B 同时通过：thread `01a0f5b1-837c-7201-a35e-a385c1ed4eb3`、turn
+`turn_1a3c93f61a4e4d3496bec27c05a8984f`，`jsonl=ok stdin=ok error-exit=1 completion=zsh`。
+该 history owner/UI 切片五项终端退出条件 `5/5（100%）`；异步 batch、stale response、
+完整 Vim persistent state/background edits 为 explicit defer，不计算进本切片成功。
+分类：唯一 search/session/footer owner 为 current；旧 find_older/find_match/find_newer、
+start_history_search/select_history_match 与 cursor_position 名字为 dead / 原位删除，
+无 compat/deprecated/alias。Codex 同义接口直接迁名，小文件拆分和本仓库协议供给为 merge。
+架构 owner/数据流已同步 architecture.md，责任开发者 root，2026-10-01。
+
+### 前序续跑：structured skill mentions（terminal acceptance completed；产品门禁 partial）
+
+唯一 owner 为 `ChatComposer` draft 的元素 ID → `ComposerMentionBinding`，对外以
+`MentionBinding` 有序快照传递；submission lowering 在 `app/input_submission`，不再在
+超大 `runtime.rs` 堆业务。来源仍为 `c248f6d48b`；textarea ID/snapshot、selected mention、
+binding transfer 为 direct；canonical queue、五语言及本仓库小模块拆分为 merge。
+upstream `textarea.rs` SHA-256 `28497a7a1dc24ed593b0de14da2b154086d150638a7b6d1805fb501cccdb4b50`，
+`chat_composer/draft_state.rs` `4e5ec20000b59eb08cd64db634668147c9788faea5f098d1ee5b3a57a02051e1`，
+`mention_codec.rs` `5325566e53898c24724da15b1130ab5a593a53ab7a7dea43a4f6c61b6e7cdae3`，
+`chatwidget/input_submission.rs` `5d0485e9bd4f673425ea80d9735484fb3e194072cd02490d8951df03c1028888`，
+`chatwidget/skills.rs` `202dcb48337a6c2c8f0a2a7e3e4ca98b555001dbc1a4ad281a02f97b43795953`。
+
+窄写集：`tui/src/bottom_pane/{textarea*,chat_composer*,mod.rs}` 中 ID/mention 接线、
+`tui/src/mention_codec*`、`tui/src/app/{input_submission*,skills*}`、`lib.rs`、runtime 的既有
+submission/prompt-history 接线及迁出测试、现有 PTY skill 场景和结构守卫、architecture/本计划。
+已有脏改动属于前序本任务，保留；Codex 只读，避让 App Server、协议、GUI、Electron 和发布。
+退出条件：1) 原子选择/ID/重复名字/删除与 Vim undo；2) paste/external editor/draft/history
+绑定恢复；3) bound path 优先、catalog refresh fail closed、合法 typed/linked mention 保留；4) submit/queue/transport failure/canonical queue edit 保留绑定；5) crate/Clippy/guard 与真实
+PTY → stdio App Server → canonical cold read。没有对应 owner 的 app/plugin/task mention、
+image detail 与 None placeholder lossless 恢复仍 defer，不假装全量 mention 对齐。
+
+真实 PTY 追加冷读历史后发现 current blocker：`promptHistory/append` 声明/发送
+`sessionId`，而 v2 ingress 禁止该字段，实际返回 `v2 requests must use threadId`。
+本切片扩展窄写集为 protocol `v2/prompt_history.rs`、相应协议/公开 JSON-RPC 回归、
+App Server `processor/prompt_history.rs` 和 `runtime/prompt_history.rs` 的已有字段接线、
+TUI `app_server_session.rs`、schema fixtures/generated types、commands 与架构说明。
+公共请求/返回直接替换为 `threadId`，不添加 ingress 例外、alias 或新 method；JSONL
+内部仍使用 Codex 的 `session_id` 记录格式，但值由 canonical Thread ID 传入。
+Renderer 的 EmptyState / Inputbar 两处 append 直接迁为 `threadId: sessionId`；现有 GUI
+session 参数承接 canonical Thread ID（`agentRuntime/threadClient` 同一 lowering），不新建
+映射。read entry 只消费正文，fixture 同步 threadId；typed append client 消费生成 Params，无裸 IPC/
+mock append caller。两处大组件只改字段接线，不追加逻辑；Electron JSONL 转发、method/catalog
+名称与白名单不变，只读核验。新增窄写集为这两处 callback、promptHistory fixture 和边界守卫。
+大型 protocol tests 仅迁已有断言，不追加业务；新增 public integration 独立文件。
+扩展门禁：protocol crate、App Server prompt-history public JSON-RPC、generated drift、
+`test:contracts` 与同一 real PTY/cold-history evidence，未通过前不得标记本切片完成。
+
+协议修复后的最终结果：protocol `133` library + `1` schema fixture、prompt-history store
+`2/2`、公共 `prompt_history_jsonrpc` `1/1`、generated drift 与 `test:contracts` 通过。
+仓库 integration wrapper 带 `--tests`，实际扩大到 app-server 的 library/integration set，
+`58` 个 target 共 `1947` 项通过、忽略 `0`；这不是本切片新增的运行入口。
+真实全场景 PTY 的 skills 场景确认选定路径与
+`10..24` 元素抵达同一 canonical UserMessage，且真实 append 后冷读历史包含 `threadId`
+与路径 link；fixture 未补写历史伪造成功。前述 `5/5（100%）` terminal/core 退出条件闭环。
+Renderer 两处 append、typed fixture、schema/client 与边界守卫均已迁 `threadId`；旧公开
+sessionId 和 runtime 字符串猜测 skill 路径为 dead / 原位删除，无新兼容层。
+
+跨 surface 门禁：`verify:gui-smoke` 通过，run
+`standalone-shell-01-20261001040646-24401`；current fixture 原跑及复跑均在 unknown Item
+Electron 场景的 `screenshotCaptured` 失败，具体为 `page.screenshot` 15000ms timeout。
+GUI/read model 已观察到完成态，但截图缺失不能算该 fixture/Gate B 通过；未放宽断言。
+failure evidence：`.lime/qc/gui-evidence/claw-chat-current-fixture/claw-chat-current-fixture-unknown-item-regression-summary.json`。
+全仓 `tsc --noEmit` 退出 2，错误未命中本切片 EmptyState.tsx/useInputbarController.ts/
+promptHistory 文件；generated diff 仅两个 sessionId→threadId 字段，不借机改其它类型错误。
+不能据此声称全仓类型检查通过或所有外部错误均已证明为基线。`verify:local` 首跑在新
+边界守卫的 `process` no-undef 失败，已显式导入 `node:process`，定向 lint 与 gateway 测试
+复跑通过。官方 local 复跑的全 src lint、i18n/两处 GUI hardcoded scan 与正式
+renderer/node typecheck 均已通过；上述 raw `tsc --noEmit` 包括额外测试夹具，不能将两者
+混称同一门禁。local 现于前端 Vitest `3/120` 批次（执行 session `78941`，日志
+`/tmp/lime-tui-history-owner-local-final.log`）；后续先收该进程，失败/中断则按
+`.lime/test/vitest-smart-last-run.json` 使用 `test:resume`，不得重开全量。尚未运行至 local 的
+Rust/GUI 后置阶段，不能把整个 verify:local 写为 pass。Windows/MSVC、Linux WSL/X11、
+live provider 未运行；fixture 为 test-only。
+治理最终报告：零引用/分类漂移/边界违规均 `0`，scripts governance 通过。
+总体保持 partial/in-progress，下一刀为异步 persistent history bounded search，再
+submission trim/limits、完整 thread_routing/ChatWidget 与 Agent Center async refresh。
+
+用户明确：对齐覆盖功能、UI/UX、函数/类型命名、文件目录、职责边界、设计模式与测试组织。
+每个切片必须先读取 Codex 实现及测试，再记录 upstream → Lime current owner 与差异分类：
+`direct` 为语义一致的直接迁入；`merge` 为同一语义接入 Lime canonical 主链或五语言；
+`partial/defer` 必须列缺口、原因与退出条件。只统计同名符号/目录数量不能证明完成。
+
+| 维度           | 退出条件                                                                          |
+| -------------- | --------------------------------------------------------------------------------- |
+| 功能/状态机    | 同一 Thread/Turn/Item，关键状态转移、取消/恢复/异常行为与 upstream 对应           |
+| UI/UX          | 实际输入、布局、样式、快捷键、焦点、窄屏/换行有稳定 cell/真实 PTY 证据            |
+| 函数/类型命名  | 同义 current 符号直接迁名并迁消费者；无旧 alias/wrapper，同名不同义不伪装         |
+| 文件/目录      | 同职责优先同路径；因本仓库 800 行约束或 App Server 边界拆分时登记差异             |
+| 设计模式/owner | 唯一状态 owner、snapshot transfer、projection/render 分离，无平行后端或字符串镜像 |
+| 测试组织       | 独立转换单测、owner 集成、canonical fixture、真实 PTY 分层，不以静态守卫冒充行为  |
+
+本轮窄写集：`diff_render{.rs,/**}`、`entry.rs`（仅废弃 Patch 着色分支）、
+`runtime_pty_tests{.rs,/thread_input.rs}`、现有 Gate B runner/guard、结构 inventory 与本计划。
+Codex 只读；保留前序本任务脏改动，不碰 Electron、GUI、发布、MCP/协议/runtime 热区。
+`DiffRenderStyleContext` / `current_diff_render_style_context()` 直接迁同义符号，不加旧名兼容。
+`diff_render/style.rs` / 独立测试是 800 行约束下的目录差异；syntax-theme scopes 仍 partial。
+`ComposerDraft` 与 upstream 内部 snapshot 同义，保留；`thread_input.rs` 只承接草稿交接，
+不伪称已具 Codex `thread_routing.rs` 的 channel/event/operation routing 职责。
+
 ## 本轮 UI/UX 完全对标约束（2026-09-30，继续）
+
+### 当前续跑：inline local images / structured submission（2026-10-01）
+
+状态：本输入/历史切片 completed；目标仍为完整 CLI/TUI 全维度对齐，不将本切片当总目标。
+前一目标 turn 为 progress：已落地 diff/草稿/单一 view 并取得真实全场景 PTY；本轮重新核对
+工作树与 Codex checkout，下一刀直接替换上方 local-image rows 和 string-only submission。
+来源为当前 Codex `bottom_pane/chat_composer{.rs,/attachment_state.rs}`、`textarea.rs`、
+`bottom_pane/mod.rs`、`chatwidget/input_submission.rs` 与对应 inline tests。
+current owner 为 ChatComposer/AttachmentState/TextArea，App/Runtime 只 lowering 到现有
+`UserInput::Text { text, text_elements }` 和同一 App Server；不新增协议/持久化/平行 composer。
+写集：`bottom_pane/chat_composer{.rs,/{attachment_state,draft,input,layout,render,pending_paste}.rs}`、
+textarea elements、App input submission/action、runtime lowering、受影响回归、PTY fixture/guard、
+architecture/inventory/本计划。旧 accessor/独立本地附件 rows 直接迁移，不加 alias。
+退出条件：cursor inline atomic attachment、删除/remote-first 重编号不改 literal 同名文本、
+expand-paste 后 TextElement UTF-8 范围正确、submit/queue/failed transport/queued edit 保留附件、
+Unit/TestBackend + 真实 PTY/current stdio request capture。structured history/mention 仍须继续，
+不得仅靠图片 display 宣称全量 composer 对齐。
+
+同一续跑追加结构化 local history：对照 Codex `bottom_pane/chat_composer_history.rs`，
+以同名 `HistoryEntry` / `ChatComposerHistory` 替换 composer 内 `Vec<String>` 与散落导航状态。
+本地提交、Ctrl-C、Up/Down 和 Ctrl-R 必须保留元素、图片与 pending paste，persistent history
+仍消费现有 App Server `promptHistory/*`；不得新建日志/协议。mention codec、异步 batch search
+仍为 partial，后续迁入真实协议消费者。追加写集为同名 history owner、现有 history/search/
+completion 接线和行为回归；不把子集实现标成完整 upstream history 状态机。
+
+来源锚点（Codex `c248f6d48b`，路径相对 `codex-rs/tui/src/`）：
+
+| upstream path                                   | SHA-256                                                            | Lime current owner / 分类                                                             |
+| ----------------------------------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------- |
+| `bottom_pane/chat_composer/attachment_state.rs` | `bffdf490b368bb5d4d5f3ade87fa690d5de02554a80d066b3d7eba32e56f9330` | 同名 owner / merge（结构化恢复、增加编号时倒序迁名防碰撞）                            |
+| `bottom_pane/chat_composer/paste_input.rs`      | `a129a32117af4b2f330bf1848dec7dc4480b679d83f2f289e8df9c5394bdcfbf` | 同名 owner / merge（真实路径解码与既有 paste burst）                                  |
+| `bottom_pane/chat_composer_history.rs`          | `781e1409025bf0af4f75a011b3ff8cbff407b514e5579c074e9faaf07efe7e4f` | 同名 owner / merge（rich local 与现有 persistent text；async batch/mentions partial） |
+| `bottom_pane/textarea.rs`                       | `28497a7a1dc24ed593b0de14da2b154086d150638a7b6d1805fb501cccdb4b50` | `textarea/elements.rs` / merge（800 行约束，原子迁名与 canonical ranges）             |
+| `clipboard_paste.rs`                            | `e471c51dc13e93f353f216513725def37a4316838962b30e43c6dd3a143c770d` | 同名 owner / merge（共享既有 WSL helper，不重复路径实现）                             |
+| `chatwidget/input_submission.rs`                | `5d0485e9bd4f673425ea80d9735484fb3e194072cd02490d8951df03c1028888` | `app/input_submission.rs` / merge（canonical queue/stdio，非第二后端）                |
+| `bottom_pane/chat_composer.rs`                  | `3f9847e8188f57c0ad665b682f626c8ae9b9f1c5d1c03bf231b0d762f6645ef2` | `chat_composer/{draft,input,history,external_edit}.rs` / merge（800 行拆分）          |
+
+命名/目录与模式：`LocalImageAttachment`、`AttachedImage`、`AttachmentState`、`HistoryEntry`、
+`ChatComposerHistory`、`apply_external_edit`、`replace_element_payload` 和同名 attachment/history
+路径承接对应 upstream 职责；不新增旧 accessor alias。`InputResult::{Submitted,Queued}` 与
+`AppAction::{Submit,Queue}` 携带 TextElement，queue 的 runtime intent 仍由 canonical App Server
+决定，不照搬 upstream 内存 pending action 队列。旧 local-image rows、string-only submission、
+`take/restore_pending_images`、空 Backspace pop last image、旧 `Vec<String>` history 与附件不能
+Ctrl-C 取消的分支为 dead / 原位删除；不新增 compat/deprecated。
+
+本轮稳定验证覆盖 cursor inline、reordered delete、remote prefix 增删、9/10 编号长度变化、
+literal 同名文本、UTF-8 paste rebasing、Vim Replace/undo/redo、offline delete、remote-only 空态、
+failed transport restore、多 Text/skill prefix queue edit、external editor 和 structured recall。
+真实 images/large-paste PTY 已通过：thread `01a0f554-bb18-75f2-af79-89de0508c5f1`、turn
+`turn_5da7384bbf3d4d88bde3b66a5ab1a8e6`；images 证明实际第二张 PNG 字节抵达 runtime，
+冷读同一 Thread/Turn/UserMessage 的 `sidecar://` 图片引用与 `15..25` 元素范围。
+最终 current 工作树证据：TUI `1329` library + `18` integration + `1` dependency guard 通过；
+TUI all-target Clippy `-D warnings`、workspace Rust fmt check/diff 和结构/fixture guards 均通过。
+全 `10` 个真实 PTY 场景（含 images、large-paste）通过，thread
+`01a0f55c-a99a-7f33-b9ce-9b358dbf2549`、turn `turn_ba7ada908714424b84b7f51916fc2c8d`，
+同时覆盖 queue edit、Agent Center、跨线程草稿、sticky prompt、find、focus、resize、reconnect
+和终端恢复。Provider 为 test-only external fixture，不是 live provider 或 Electron/Windows 证据。
+治理报告：零引用候选 `0`、分类漂移 `0`、边界违规 `0`。没有协议/GUI bridge 改动，故不扩跑
+`test:contracts`/`verify:gui-smoke`；Windows/MSVC 与 Linux WSL/X11 未实际运行，继续 platform-defer。
+本切片退出条件 `5/5（100%）`；不改变总体 A3 partial 与完整对齐 in-progress 的判定。
+
+剩余差异：MentionBinding/mention codec、None placeholder 元素所有权、image detail 恢复、
+async bounded persistent search、submission trim/限制、完整 thread_routing/ChatWidget 与
+Agent Center async refresh。无 lossless owner 的 queue mention/detail 继续 fail closed，不显示
+虚假的可编辑入口。本轮 `shlex` 复用现有锁定版本，manifest/lock 一起同步。
+`runtime.rs` 与历史大测试仍为前序大文件：本轮仅迁已有 action/lowering 接线，不加新业务分支；
+退出条件为后续将 submission dispatch 和 scenario harness 拆到既有领域 owner。结构 guard
+测试接近 1000 行，后续分离 composer 与 transcript guards，不继续堆叠聚合文件。
+架构确认：`architecture.md` 已更新单一 structured input/history 数据流，责任开发者 root，
+2026-10-01。整体继续 in-progress，不将本切片完成率当整体完成率。
+
+紧接下一刀：将 Lime 自有 `expanded_text*` 名称和成员式展开逻辑直接替换为 Codex
+`current_text_with_pending` / `expand_pending_pastes(text, elements, pending_pastes)`。
+静态转换同一 owner 处理有序元素与 payload FIFO，外部编辑器、submission 与草稿测试迁消费者，
+不留旧名 alias；以重复 placeholder 的消费顺序、literal 不替换、UTF-8 rebasing 与真实
+images/large-paste PTY 验证。该命名/模式续跑 completed：`1331` library + `18` integration +
+`1` dependency guard、TUI all-target Clippy `-D warnings`、workspace fmt check/diff 和
+`44/44` TUI/CLI structure/fixture/binary guards 通过；inventory 为 Codex `1048` + Lime `315`
+个 src 文件，覆盖数量不是整体完成度。新 `current_text_with_pending`/纯展开接口及 FIFO
+算法均为 upstream 同义 direct；模块拆分与 Lime canonical 接线为 merge，没有旧名包装。
+最新真实 images/large-paste PTY：thread `01a0f564-6301-7f21-9079-6c3d226d86e2`、turn
+`turn_0663acbe10ff43bab0d4bedd888d9031`，`images=ok structured-history=ok`，另含 focus/
+resize/reconnect/terminal restore。真实 CLI Gate B 同时通过：thread
+`01a0f564-c04a-7d93-9ca5-4b27e05e8988`、turn `turn_bf43c3e454aa4edf945a9fee9d0aa239`，
+`jsonl=ok stdin=ok error-exit=1 completion=zsh`；同一 current stdio App Server，非 live provider。
+最终同一 current 二进制全 `10` 场景复跑通过：thread `01a0f565-8bab-7bd3-8e63-fbdc17c5c098`、
+turn `turn_f5939e8eaf744bca88954f9fe02efe3c`，`images=ok structured-history=ok`，以及 queue-edit、
+agents-overview、thread-draft、sticky-prompt、main-find、focus、resize、reconnect 和 terminal restore。
+输入/历史切片 `5/5（100%）`；命名/展开续跑的同义接口、无 alias 全消费者迁移、FIFO/
+literal/UTF-8 行为与真实 PTY 四项退出条件 `4/4（100%）`。
+整体仍 partial/in-progress，下一刀为 structured mention binding 和 persistent history search，
+再推进 thread_routing 与 Agent Center async refresh；不能用同名目录数替代完整功能/UX 验收。
 
 用户已明确：CLI/TUI UI/UX 完全对标 Codex；Lime 不合理的实现直接重构、清理，不保留双轨。
 验收基线是当前 checkout 的源文件及行为测试，不套用 Lime GUI 视觉语言，不以“近似布局”算完成。
@@ -24,20 +904,20 @@
 
 来源分类（迁移前登记，均来自 `c248f6d48b`）：
 
-| upstream path（`codex-rs/tui/src/`） | SHA-256 | Lime owner / 分类 |
-| --- | --- | --- |
-| `app/agent_center/mod.rs` | `a74d135dde5d46f6c3d310f8b0f69e0e7c72ccc96e9f5028439aa7e5e63e1c1f` | 同名 module / merge |
-| `app/agent_center/input.rs` | `1dac8d682dd52853fc509184a1948c6a5e76549b072fccf56ef603b14006d799` | 同名 module / merge |
-| `app/agent_center/navigation.rs` | `d8010d701e4ad94de361cd8f2efc4e3f4ef2376bd2978ec044110143effc39c3` | 同名 module / direct |
-| `app/agent_center/render.rs` | `11e7a550e1b45f918fefc9eb1d8937c6a2820f37025ff03bc3dca72b1e62d3bc` | 同名 module / merge（五语言） |
-| `app/agent_center/rows.rs` | `f7fb88ad2283f56bbb683bb64a938e6f5745ba8973d4fdb4b57ebcb1659a819e` | 同名 module / merge（canonical Thread） |
-| `app/agent_center/hints.rs` | `e3dccc50fb82f7435d52ff61faf5b211e4a67ee0287e3cd61e85e2505f99830b` | 同名 module / merge（真实已接线 action） |
-| `app/agents_overview_view.rs` | `028d06577818ce9eff54bb53d4ceedbc5a5e82d539456cb79575e518a37d9453` | 同名 view / merge（metadata target、详情层级） |
-| `app/agents_overview_grouping.rs` | `09aa241f2113c35595b8153ea58d85bc81d6f25e3413916b5db8b8c044356150` | 同名 module / merge；model 字段缺失则 defer |
-| `bottom_pane/selection_tabs.rs` | `d86fe96a64991911918cd80a0894e001970a41d2fc1928ade3e044444681ac6c` | 同名 module / direct（filled tab bar） |
-| `style/contrast.rs` | `ab52727328eb91923eb6970218d49b24e9b71450950f13875317d4aae3daf589` | `style/selection.rs` / merge（已知 palette fill 与保守 fallback；全局 contrast 仍 partial） |
-| `bottom_pane/picker_style.rs` | `cfb19e947a9b4ec51d5f7b59d7d37f8c1bbe95f6aa3770fe10034cb90c3b9704` | `style/selection.rs` / merge（active tab） |
-| `keymap.rs` | `af8edcd1afa0510da8ac596d4adfe082dabb9ac3d2dd2e9a5b97bed17dd3acd1` | TUI `keymap.rs` / merge（已接线 task 默认键位） |
+| upstream path（`codex-rs/tui/src/`） | SHA-256                                                            | Lime owner / 分类                                                                           |
+| ------------------------------------ | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------- |
+| `app/agent_center/mod.rs`            | `a74d135dde5d46f6c3d310f8b0f69e0e7c72ccc96e9f5028439aa7e5e63e1c1f` | 同名 module / merge                                                                         |
+| `app/agent_center/input.rs`          | `1dac8d682dd52853fc509184a1948c6a5e76549b072fccf56ef603b14006d799` | 同名 module / merge                                                                         |
+| `app/agent_center/navigation.rs`     | `d8010d701e4ad94de361cd8f2efc4e3f4ef2376bd2978ec044110143effc39c3` | 同名 module / direct                                                                        |
+| `app/agent_center/render.rs`         | `11e7a550e1b45f918fefc9eb1d8937c6a2820f37025ff03bc3dca72b1e62d3bc` | 同名 module / merge（五语言）                                                               |
+| `app/agent_center/rows.rs`           | `f7fb88ad2283f56bbb683bb64a938e6f5745ba8973d4fdb4b57ebcb1659a819e` | 同名 module / merge（canonical Thread）                                                     |
+| `app/agent_center/hints.rs`          | `e3dccc50fb82f7435d52ff61faf5b211e4a67ee0287e3cd61e85e2505f99830b` | 同名 module / merge（真实已接线 action）                                                    |
+| `app/agents_overview_view.rs`        | `028d06577818ce9eff54bb53d4ceedbc5a5e82d539456cb79575e518a37d9453` | 同名 view / merge（metadata target、详情层级）                                              |
+| `app/agents_overview_grouping.rs`    | `09aa241f2113c35595b8153ea58d85bc81d6f25e3413916b5db8b8c044356150` | 同名 module / merge；model 字段缺失则 defer                                                 |
+| `bottom_pane/selection_tabs.rs`      | `d86fe96a64991911918cd80a0894e001970a41d2fc1928ade3e044444681ac6c` | 同名 module / direct（filled tab bar）                                                      |
+| `style/contrast.rs`                  | `ab52727328eb91923eb6970218d49b24e9b71450950f13875317d4aae3daf589` | `style/selection.rs` / merge（已知 palette fill 与保守 fallback；全局 contrast 仍 partial） |
+| `bottom_pane/picker_style.rs`        | `cfb19e947a9b4ec51d5f7b59d7d37f8c1bbe95f6aa3770fe10034cb90c3b9704` | `style/selection.rs` / merge（active tab）                                                  |
+| `keymap.rs`                          | `af8edcd1afa0510da8ac596d4adfe082dabb9ac3d2dd2e9a5b97bed17dd3acd1` | TUI `keymap.rs` / merge（已接线 task 默认键位）                                             |
 
 补充来源：`shortcut_help.rs`（SHA-256
 `c8b2e88684a6e4bbe7b9cad262bb4cf5dada56c8136dc297f920618b1784c86b`）为本切片读取的
@@ -88,13 +968,13 @@ activity disclosure、picker/审批/提问的逐场景 UI/UX 验收，不能用�
 状态：本切片 completed；整体仍 in-progress / partial。唯一 current owner 为 TUI composer presentation，不改变 canonical runtime。
 来源仍为 `c248f6d48b97eb4a2aa56147a0b11b7d763278b9`：
 
-| upstream path（`codex-rs/tui/src/`） | SHA-256 | 分类 |
-| --- | --- | --- |
-| `bottom_pane/footer.rs` | `101110f738896098133ea1d7c951356a2c3d21584ace96f6e796cad7fa88da62` | merge（五语言、已接线 context） |
-| `bottom_pane/shortcut_overlay.rs` | `699e792f440308f758bfff89c455bd23fdfa65ae5e32e388358c8b59b4abdb40` | merge（只显示真实 action） |
-| `bottom_pane/chat_composer/footer_state.rs` | `c9874a5fee151511451af6a0cfb558a889260b7beacf96519169224cde0e2c76` | merge（唯一 composer state） |
-| `bottom_pane/composer_gap.rs` | `b8ac95d8d23554d5e4b5d6faf62e86d3d94b02fceb15df1f91ed799854b987c7` | read-only 对照，后续逐场景迁移 |
-| `chatwidget/settings.rs` | `e60f468c3f5d266bd0f9885a11174bf30be80f0ad04b0b1fa450d122b779d22f` | read-only mode indicator 生效条件 |
+| upstream path（`codex-rs/tui/src/`）        | SHA-256                                                            | 分类                              |
+| ------------------------------------------- | ------------------------------------------------------------------ | --------------------------------- |
+| `bottom_pane/footer.rs`                     | `101110f738896098133ea1d7c951356a2c3d21584ace96f6e796cad7fa88da62` | merge（五语言、已接线 context）   |
+| `bottom_pane/shortcut_overlay.rs`           | `699e792f440308f758bfff89c455bd23fdfa65ae5e32e388358c8b59b4abdb40` | merge（只显示真实 action）        |
+| `bottom_pane/chat_composer/footer_state.rs` | `c9874a5fee151511451af6a0cfb558a889260b7beacf96519169224cde0e2c76` | merge（唯一 composer state）      |
+| `bottom_pane/composer_gap.rs`               | `b8ac95d8d23554d5e4b5d6faf62e86d3d94b02fceb15df1f91ed799854b987c7` | read-only 对照，后续逐场景迁移    |
+| `chatwidget/settings.rs`                    | `e60f468c3f5d266bd0f9885a11174bf30be80f0ad04b0b1fa450d122b779d22f` | read-only mode indicator 生效条件 |
 
 窄写集：`bottom_pane/{footer,shortcut_overlay,shortcut_overlay_tests,mod}.rs`、
 `bottom_pane/chat_composer{.rs,/footer_state.rs,/footer_state_tests.rs}`、
@@ -173,13 +1053,13 @@ clipboard-gap owner 不变，无新增 compat/deprecated。无协议或 GUI 变�
 状态：in-progress。事实源仍为 current composer + App Server catalog/search，无业务后端变更。
 来源 commit `c248f6d48b97eb4a2aa56147a0b11b7d763278b9`：
 
-| upstream path（`codex-rs/tui/src/`） | SHA-256 | 分类 |
-| --- | --- | --- |
-| `bottom_pane/command_popup.rs` | `74ee51f219a9b9a8ef2c92ed2018e97d6cf801193522537faa449e40292ae1d0` | merge（真实 command catalog / 五语言） |
-| `bottom_pane/file_search_popup.rs` | `8d6bf186cc89fd36a6ea718dce39c930db1c55c6a4973d16fd98d29346c0d950` | merge（canonical search result identity） |
-| `bottom_pane/skill_popup.rs` | `1aaea0b777667241dee222faa75ef49517e73d96554b12d8ebb0185685ba7d7f` | merge（skills/list；未接线 App/Plugin mention 不伪造） |
-| `bottom_pane/picker_rows.rs` | `893e4a141b91f53c17d35d41c1b5cc4c9c73127e6a80a5506452d95731246e13` | merge（共享 single-line 行、上下溢出提示） |
-| `bottom_pane/scroll_state.rs` | `284500ee9149e2269a091b142b9c552f61ef84abf29273fcf7cd2bba4a184461` | merge（只迁有消费者的 navigation） |
+| upstream path（`codex-rs/tui/src/`） | SHA-256                                                            | 分类                                                   |
+| ------------------------------------ | ------------------------------------------------------------------ | ------------------------------------------------------ |
+| `bottom_pane/command_popup.rs`       | `74ee51f219a9b9a8ef2c92ed2018e97d6cf801193522537faa449e40292ae1d0` | merge（真实 command catalog / 五语言）                 |
+| `bottom_pane/file_search_popup.rs`   | `8d6bf186cc89fd36a6ea718dce39c930db1c55c6a4973d16fd98d29346c0d950` | merge（canonical search result identity）              |
+| `bottom_pane/skill_popup.rs`         | `1aaea0b777667241dee222faa75ef49517e73d96554b12d8ebb0185685ba7d7f` | merge（skills/list；未接线 App/Plugin mention 不伪造） |
+| `bottom_pane/picker_rows.rs`         | `893e4a141b91f53c17d35d41c1b5cc4c9c73127e6a80a5506452d95731246e13` | merge（共享 single-line 行、上下溢出提示）             |
+| `bottom_pane/scroll_state.rs`        | `284500ee9149e2269a091b142b9c552f61ef84abf29273fcf7cd2bba4a184461` | merge（只迁有消费者的 navigation）                     |
 
 另复用已登记 `selection_popup_common.rs`、`picker_style.rs` 的全行列宽/selection fill/visual rows
 算法；Unicode match indices 参考 `codex-rs/utils/fuzzy-match/src/lib.rs`。
@@ -211,7 +1091,7 @@ Provider 为显式 external fixture；非 live/GUI/Desktop/Windows/X11 证据。
 
 ### 继续：approval presentation / fullscreen details（2026-09-30）
 
-状态：in-progress。唯一 current owner 为 BottomPane 中现有 ApprovalOverlay；不改响应决策、
+状态：本切片 completed；整体仍 in-progress / partial。唯一 current owner 为 BottomPane 中现有 ApprovalOverlay；不改响应决策、
 权限范围或协议。当前缺陷是长 command/reason 的 header 会在固定 18 行 pane 中挤掉选中动作。
 source commit 仍为 `c248f6d48b`；`bottom_pane/approval_overlay.rs` SHA-256
 `feedfa0d4fa8df15355bd36e32e28f3d7086bdc7eb81cc357ae03ad19a4622f5`、
@@ -224,29 +1104,557 @@ upstream `Approval.open_fullscreen` 默认 Ctrl+A / Ctrl+Shift+A，App event dis
 `app/interaction.rs`（protected key 路由）、`locale/pickers.rs`、专用 view / PTY 回归与本计划。
 这些 approval render 目标文件无他人脏改动；避让 protocol/runtime/MCP/发布/Electron。
 
-- [ ] 审批无边框、共享 selection fill；长 header 不遮挡当前可操作选项。
-- [ ] header elision + 真实 Ctrl+A 全文查看；关闭详情不审批、不丢 request/selection/draft。
-- [ ] 五语言、长命令、窄/短终端、decision identity 和保护输入回归。
-- [ ] 定向/crate/Clippy/fmt、结构守卫、真实 PTY approval details open/close/approve。
+- [x] 审批无边框、共享 selection fill；长 header 不遮挡当前可操作选项。
+- [x] header elision + 真实 Ctrl+A 全文查看；关闭详情不审批、不丢 request/selection/draft。
+- [x] 五语言、长命令、窄/短终端、decision identity 和保护输入回归。
+- [x] 定向/crate/Clippy/fmt、结构守卫、真实 PTY approval details open/close/approve。
 
 没有 current file-change diff 的字段不伪造 patch diff；当前只展示已有 grant-root/reason，
 完整 patch-review 和 request-user-input surface 仍待后续逐合同收敛。
 
+审批最新定向 `18/18`、完整 TUI library `1183` + integration `18` + dependency `1` 通过。
+`app/event_dispatch.rs` 的只读 pager 接线 SHA-256
+`bad9e35ed2f4d758dac1524e940564e1e302c95f5688297aaa9a71868ce053e7`。
+真实 approval/failure 门禁通过，thread `01a0f2e2-c478-7083-a42c-f62fc7b78cab`、turn
+`turn_19a814aa384a4f77b7a9885a2bed6773`；全场景首次失败停在 failure 的未提交草稿，
+重跑定位为测试 typed bytes 被调度合并到 paste burst 的风险。PTY driver 在提交前发送真实
+Ctrl+E 清空 paste window 并等待完整可见 draft，不改生产粘贴保护，不以固定 sleep 修复。
+完整门禁后续通过，thread `01a0f2e6-b051-7932-87f7-ce0cb03817aa`、turn
+`turn_91ae388f914640048fd5adb19fec6f3a`。审批切片 `4/4（100%）`；旧 bordered approval
+分支原位删除，current 决策 owner 不变，没有 compat/deprecated 双轨；不是 GUI、live provider
+或 Windows 证据。
+
+### 继续：request-user-input menu / notes layout（2026-09-30）
+
+状态：本切片 completed；整体仍 in-progress / partial。唯一 current owner 仍为 BottomPane 的 RequestUserInputOverlay。
+来源 commit `c248f6d48b`，`bottom_pane/request_user_input/`：
+
+| upstream path     | SHA-256                                                            | 分类                                        |
+| ----------------- | ------------------------------------------------------------------ | ------------------------------------------- |
+| `render.rs`       | `686ee905a854d8aa94d530597cdd695c93821e104b557c6995c8bf13ea5dc4c1` | merge（无边框 surface / 当前 footer owner） |
+| `layout.rs`       | `9d9421974fdbaac4c7cbcead363deef458775da7b79ed542a3a64c3a62545900` | merge（question/options/notes 分区预算）    |
+| `mod.rs`          | `62e490a792a9b5c112e55db9148a0bbf71e188b57da65531797b25334c275870` | read-only（option rows / question / notes） |
+| `render_tests.rs` | `dbddd55329a52b09028f8b478f3e8882daf2f622c8e94ae82174db54fc039d3b` | merge（grapheme-safe truncation）           |
+
+窄写集：`bottom_pane/request_user_input/{mod,render,render_tests,layout,tests}.rs`、
+`bottom_pane/render.rs`（只迁移 UserInput 路由）、`selection_popup_common.rs`（共享 stack 布局参数）、
+`locale{.rs,/pickers.rs}`（删除重复 add-notes 文案，补五语言 progress）、现有 view/PTY 回归、结构 inventory/guard
+及本计划。只读 Codex；避让 MCP、协议/runtime、Electron 和发布。当前工作树已无未知脏改动。
+业务响应、question navigation、Other、notes、secret masking、auto-resolution 不改合同。
+
+- [x] 无边框 menu / progress / question / wrapped options，测量与绘制同源。
+- [x] 长题干/短屏优先保留选中动作与编辑区；废弃文本猜测 option 行和单行截断。
+- [x] 复用 TextArea 的渲染/滚动/cursor 与 secret mask，五语言与稳定回归。
+- [x] 定向/crate/Clippy/fmt、结构守卫与真实 PTY option/notes/submit 证据。
+
+本切片行为与真实 PTY 已通过，最后静态门禁复核中。current 为无边框的 request menu、
+分区 layout、共享 stacked/wrapped selection rows 和既有 TextArea viewport；旧文本猜测
+option 行、单行 ellipsis notes、手算 cursor、重复 add-notes 文案与 bordered UserInput
+分支均原位删除，没有新增 compat/deprecated。原 `mod.rs` 1227 行拆出原测试到 `tests.rs`，
+生产模块回到约 580 行，保留测试名与业务合同；新 render/layout/test 均小于 800 行。
+定向 request-user-input `34/34`、完整 TUI library `1193` + integration `18` + dependency `1`
+通过；结构/PTY guard `24/24`，workspace fmt/diff 通过。Clippy 首次发现只剩 MCP 的
+single-pattern match，已直接简化为 if-let，不改变 MCP 行为，复核中。
+真实完整 Gate B thread `01a0f2f5-6417-73a1-86ac-94e8ad76f53d`、turn
+`turn_830b83a29fa74a4999c5634f1849ec83`：Down 选择 Safe，Tab 添加长备注并滚动显示尾部，
+Esc 返回选择且无 actionRespond，再添加备注并 Enter；App Server backend 捕获的
+canonical answer 为 `{ mode: ["Safe", "user_note: PTY_NOTE_ANSWER"] }`。审批全文、queue-edit、
+Agent Center、sticky-prompt、find、focus、resize、reconnect 与 terminal restore 同时通过。
+external backend/ledger 仅 test-only，无协议/依赖/runtime/GUI 变更，不冒充 live/Desktop/Windows。
+最终 Clippy `--lib --no-deps -D warnings` 通过，本切片 `4/4（100%）`，整体不提升为完全对齐。
+
+### 继续：resume picker 可操作布局 / selected row（2026-09-30）
+
+状态：本切片 completed；整体仍 in-progress / partial。唯一 current owner 仍是 App Server thread/list、resume、archive 与 TUI picker。
+source commit `c248f6d48b`：`resume_picker.rs` SHA-256
+`c92d93de52b85a397bcf2b5dba3851ce336b7845303070123c378e7e33ab9ccd`，
+`resume_picker/layout.rs` SHA-256
+`fa5c14ca73b5cb2e6b827768055900cd01c7474252cbed48ccc8ebfce26d0ec0`。
+已读取上游 layout、comfortable/dense selected row、overflow 与 responsive footer 源码及相关 tests。
+merge：保留 canonical Thread 和 existing session host，不复制上游 local DB/history owner。
+窄写集：`resume_picker{.rs,/{render,layout,host,tests}.rs,/tests/**}`、picker 专用 PTY 回归、
+locale picker hints、既有 fixture/guard/inventory 及本计划；其它 runtime/protocol/发布保持只读。
+
+- [x] 先拆分 2567 行聚合文件的 host/render/test，不在超大文件继续堆产品逻辑。
+- [x] decorative chrome 优先收缩；短屏选中行保留，overflow 基于真实可见窗口。
+- [x] current filled selection / expanded marker、五语言响应式主操作提示。
+- [x] 定向/crate/Clippy/fmt/guard 与真实 PTY resume open/cancel；历史合同全量仍 partial。
+
+本切片 `4/4（100%）`。root 从 2567 行收敛到约 735 行，host/render/layout/tests 各小于
+800 行，测试名称保留；current thread/list/read/resume、archive owner 和 private state 不变。
+旧 cyan/❯ 选中分支、固定 chrome 挤掉 list、根据 selected index 猜 overflow、查询被 toolbar
+挤掉和裸英文 more 为 deleted / 原位替换。只定义但没有消费者的 standalone fork/resume
+launcher wrapper 和其唯一 `AppServerSession::fork_thread` helper 为 dead / deleted，清掉原
+正向结构断言并补负向回流守卫；运行中 `/fork` 使用原 runtime 的 request handle，不改协议。
+窄写集追加 `app_server_session.rs` 仅删除无消费者 helper/import；不改 App Server boundary。
+定向 resume `53/53` + 对应 integration `1`；完整 TUI library `1200` + integration `18` +
+dependency `1`、Clippy `--lib --no-deps -D warnings`、workspace fmt/diff 全通过。
+结构/PTY guards `25/25` 通过；治理报告边界违规 `0`、分类漂移 `0`、零引用候选 `0`。
+真实完整 Gate B thread `01a0f309-cabc-7770-a8f9-c8cc8bd48427`、turn
+`turn_8cf130bf6b28497e8b4b182bb69736c3`：从 completed canonical thread 打开真实 `/resume`，
+thread/list 行与 Enter/Esc 可见，Esc 返回同一 transcript，期间 turnStart 仍仅 `1`。
+全部原场景与 terminal restore 同时通过；仅 macOS stdio/PTY external test fixture。
+未跑 GUI/live/Windows/X11，因为本轮不触达这些产品/平台。架构确认 root，2026-09-30：
+仅拆分原终端 presentation/host，没有新 runtime、store、协议或持久化事实源。
+
+下一刀：resume paging 仍固定 10 项，toolbar focus / configured list keymap 尚未全量迁移。
+继续用上游实际 viewport 几何对齐 PageUp/PageDown；不能用本切片完成率替代整体 UI/UX 完成率。
+
+### 继续：resume viewport paging / pending target（2026-10-01）
+
+状态：本切片 completed；整体仍 in-progress / partial。同一 Codex hash，另读取 `update_viewport`、PageUp/PageDown handler、
+`complete_pending_page_down` 与 `page_navigation_uses_view_rows` 测试。
+窄写集为原 picker state/render/host、navigation/rendering tests 和现有 PTY driver；
+`runtime.rs` 只在 page-load notification 分支接入 picker 的 pending predicate，不往旧聚合
+runtime 添加分页业务逻辑。pending target 和几何仍归 picker，无协议/runtime 后端变化。
+
+- [x] PageUp/PageDown 使用实际 list height，resize 立即更新，未绘制时保持上游 10 行默认。
+- [x] PageDown 跨 App Server cursor 的 target 保留；逐页加载到目标或真实结束，不合成条目。
+- [x] 其它导航/query mutation 清除 pending target；过期 page 不改变选择。
+- [x] 定向/crate/Clippy/fmt/guard 与 PTY resize/page/close 验证；整体仍 partial。
+
+本切片 `4/4（100%）`；current picker 的 viewport / pending target 承接翻页，固定十项主路径
+原位替换，无 compat/deprecated。上游尚未绘制的 fallback 10 行不等于旧固定 paging 回流。
+新增跨 cursor、真实结束、过期 page、搜索取消 target、加载中重复 PageDown 和 resize
+几何回归；定向 resume `60/60` + integration `1`，完整 TUI library `1207` + integration `18`
+
+- dependency `1`、Clippy `--lib --no-deps -D warnings`、fmt/diff、结构/PTY `25/25` 通过。
+  真实完整 Gate B thread `01a0f315-adfd-7702-ae0c-ff29f3154e63`、turn
+  `turn_ca4e887d16854e9a9c59693a1b218c7d`：resume PTY 从 24 行缩到 8 行，选中行与 Enter/Esc
+  仍在可见区域，PageDown/PageUp 后恢复到 24 行并关闭，completed transcript 与 terminal
+  restore 保持正确。跨 cursor 的 target 为 owner 状态转换回归；本场景仅有一个真实 canonical
+  thread，不把 PTY 边界按键冒充多页真实历史分页 E2E。该多页合同仍需后续增加隔离 canonical
+  thread fixtures。无 GUI/live/Windows/X11 证据。
+
+### 继续：resume toolbar focus / arrow controls（2026-10-01）
+
+状态：本切片 completed；同一 source/hash，已读取 `ToolbarControl`、Tab/BackTab、左右键 dispatch、
+toolbar_for_width 和 default_filter_focus_arrows_reload_with_new_filter 测试。
+窄写集为 picker `{input,render}.rs`、state 仅字段/接线、专用 toolbar tests、locale picker hints、
+既有 PTY driver/guard/inventory 与本计划；只使用现有 ToggleFilter/Status/Sort App Server 主链。
+
+- [x] 拆出 input owner；Tab/BackTab 只改变焦点，左右键切换真实对应 control。
+- [x] focused control filled style，narrow fallback 优先保留焦点，不隐藏当前可操作项。
+- [x] 五语言与默认 filter/status/sort、Fork 隐藏 status 的稳定回归。
+- [x] 定向/crate/Clippy/fmt/guard 与真实 PTY toolbar 控制接线；配置化 list keymap 仍单独 partial。
+
+本切片 `4/4（100%）`。Tab / BackTab / Shift+Tab 原位替换无效导航；真实左右键仍使用既有
+ToggleFilter/Status/Sort consumer，无新 method/runtime/store/compat。无 cwd 候选时显示 All，
+且 Filter 箭头不产生无效 reload；极窄宽度仅剩 ellipsis 时仍保留 focused style 的非 DIM 对比。
+新增 7 项独立 toolbar 回归，定向 resume `67/67` + integration `1`，完整 TUI library `1214`
+
+- integration `18` + dependency `1`、Clippy、workspace fmt/diff、结构/PTY guards `25/25` 通过。
+  真实完整 Gate B thread `01a0f326-7cf1-7a40-93ba-b6904946ec7c`、turn
+  `turn_95875d869e3141d0b009ac81c692d4c7`：目录 All/Current、状态 Archived/Active、排序 Created/Updated
+  真实按键往返后 canonical row 恢复；resize/page/close 与全部原场景/终端恢复通过。
+  证据为 macOS PTY/stdio external test fixture，非 GUI/live/Windows/X11；整体保持 partial。
+
+### 继续：Model and Effort 嵌套选择（2026-10-01）
+
+状态：本切片 completed；整体仍 partial。current model/list catalog 和 thread/settings/update 是唯一事实源。
+同一 Codex source commit，`chatwidget/model_popups.rs` SHA-256
+`a45aa40bc68c81550d7ef4d792028c38851340e7bf20a16409d2c160d9781583`；已读取
+open_all_models_popup_with_view_id、open_reasoning_popup、advanced popup 与返回/高亮语义。
+窄写集：`model_picker{.rs,/{render,effort,effort_tests}.rs}`、`app/{thread_settings,event_dispatch}.rs`、
+五语言 picker labels、独立 picker/接线回归、PTY test/guard/inventory 与本计划。
+只消费 existing catalog 的 supported/default reasoning effort；不按 provider/model 名猜测能力、
+不复制账号 rate-limit/default-persistence/Plan scope 合同，不改 protocol/runtime/GUI。
+
+- [x] 选择模型先进入 effort 子菜单，Esc 回模型列表并保留 query/highlight；单项直接选择。
+- [x] current/default effort 定位，More reasoning 子层与五语言，无 hardcoded capability fallback。
+- [x] 确认后用单次现有 settings request 同时写 model/provider/effort，取消不写配置。
+- [x] 定向/full/Clippy/fmt/contract/guard 与真实 PTY/settings persistence 证据。
+
+真实 Gate B 暴露并修复的接线缺口：settings 已把新 provider 持久化到 canonical metadata，但
+v2 thread/read/list/resume 仍消费 immutable creation provider。追加窄写集
+`app-server/src/processor/thread/projection{.rs,/{thread,tests}.rs}` 和既有
+`tests/thread_control_jsonrpc.rs`。先从 1280 行 projection 拆出 thread projection，再让 read/list
+filter/resume 复用 current durable settings 的 provider 解析；没有修改 rollout schema/immutable fields、
+method/schema/持久化 owner。projection root 剩余大文件暂不加业务逻辑，退出条件为后续按 item/lowering
+拆分到 800 行以内，不能借这次 helper 拆分继续堆叠。新增 provider filter/origin fallback 纯回归，
+并增强 public JSON-RPC 冷恢复断言。架构确认 root，2026-10-01：仅修复既有 canonical metadata
+到 v2 read model 的权威字段选择，没有新 runtime/store/transport。
+
+最新完整真实 Gate B 通过：thread `01a0f346-8e45-7a11-a3ce-f66c78dd405f`、turn
+`turn_905e0e8634804e2b99e814a43f00bba3`；catalog、effort、More reasoning、Esc 层级返回、
+query/highlight 保留、High 最终确认与独立 stdio cold resume 均通过。原 canonical identity 和
+单次 turnStart 保持，终端恢复成功。projection 定向 `24/24`、最新 contracts 全通过；完整
+TUI `1222` library + `18` integration + `1` dependency、Clippy、workspace fmt/diff、结构/PTY
+guards `26/26` 全通过。Rust layer integration 入口实际选择 App Server 全部 tests（含 library
+与其它 integration），最终退出码 `0`，public settings 冷恢复回归随之通过。共享
+`smoke:agent-runtime-current-fixture` 亦通过，包含真实 Electron fixture；liveProviderUsed=false。
+该补充证明共享主链无回归，不代表 GUI 新增了嵌套模型选择器。切片 `4/4（100%）`；current
+为唯一 catalog options、picker 与 current settings projection；旧创建 provider 投影原位替换，
+无新增 compat/deprecated/store/transport，整体仍 partial。
+
+### 继续：reasoning shortcuts / catalog authority（2026-10-01）
+
+状态：本切片 completed；整体仍 partial。来源为同一 Codex HEAD 的 `chatwidget/reasoning_shortcuts.rs`，SHA-256
+`eeb8d6ca8ff30a7dbc0d8bd3b130c4254ea9275978d835b09e19552db556daf0`；完整读取输入保护、
+default/unsupported anchor、advertised order、advanced order、boundary 与 Ultra 显式选择语义及测试。
+窄写集：`tui/src/model_catalog{.rs,/reasoning{.rs,_tests.rs}}`、`model_picker/effort.rs`（共享
+catalog options）、`app/{reasoning_shortcuts,event_dispatch}.rs`、必要的 module 接线、
+`settings.rs`（删除固定 EFFORTS）、`app/input_flow.rs`（popup pass-through 保护）、五语言 reasoning labels、专用输入/dispatch/PTY 回归、
+现有 guard/inventory、commands 与本计划。不改协议、provider 能力、持久化 owner 或用户配置。
+
+- [x] 唯一 model/provider identity 解析与共享 advertised/default options；歧义/缺失 fail closed。
+- [x] 不循环的升降与 default anchor，Max/Ultra 后置，Raise Ultra 仅导航提示。
+- [x] popup/modal、startup、parent-owned 输入保护；成功前不改变本地设置，五语言反馈。
+- [x] 定向/full/Clippy/fmt/guard 与真实 PTY、stdio cold settings 验证。
+
+Plan-only override 与全局默认分离必须由 existing server contract 证明：当前 collaboration update
+同时写普通 durable reasoningEffort，不具备 Codex 独立 Plan override。该 scope 继续 contract-defer，
+本刀遇到 Plan fail closed 并给出可见说明，不能把全局/普通设置变更伪装成 Plan-only。
+普通快捷键只写当前 Thread settings，既不写全局 default，也不新增第二套配置状态。
+
+本切片 `4/4（100%）`，不含明确 deferred 的 Plan scope / configurable chat bindings。
+current 为 ModelCatalog 唯一 reasoning options/anchor 与 App shortcut owner；固定 EFFORTS/循环
+逻辑、picker 重复 options/advanced 排序已原位删除，无 compat/deprecated。新回归抓到 Slash
+popup pass-through 已在 input_flow 和 settings dispatch 两层保护；另统一修正失效 current
+effort 的 picker 默认定位。新增纯状态/owner/输入/五语言回归 `16` 项，reasoning 定向 `31/31`
+（最后 picker anchor 又新增 `1` 项）；最新完整 TUI `1238` library + `18` integration + `1`
+dependency、Clippy、workspace fmt/diff 与 guards `27/27` 全通过，inventory `1319` files。
+最新完整 Gate B thread `01a0f365-760f-7e60-851e-7a42f702f31e`、turn
+`turn_4718b3029b3e41e88ff07e5ecc82abb9`：High→Medium→Low、最低边界不循环、
+Low→Medium→High→Max、Raise Ultra 仅导航、status pager 拥有 Alt+,、回主面仍能正确降到 High，
+独立 cold resume 保持 model/provider/High 与 canonical identity。所有原场景与终端恢复通过。
+证据为 macOS PTY/stdio external test fixture，非 live/Windows/X11；共享 read model 的
+App Server 公共 settings 定向复核 `1/1` 亦通过。
+
+### 继续：resume configured list keymap / truthful hints（2026-10-01）
+
+状态：此切片完成（100%）；全局 list consumers 仍 partial。同一 Codex source/hash，已读取 `ListAction/ListKeymap`、默认 bindings、
+resume input priority/searchable plain text、pending page target 与配置化 footer/test。
+窄写集：core `config/{tui_keymap,mod}.rs`（唯一配置 serde schema）、TUI `keymap{.rs,/list.rs}`、
+resume `{input,render,host}.rs` 与 state 仅接线、runtime resume snapshot 接线、picker locale、
+local-settings/配置/导航/渲染回归、现有 PTY fixture/guard、运维/CLI 配置文档及 inventory。
+`list` 此切片的真实 consumer 仅 resume/fork picker；模型、Agent Center 和其它 selection surface
+尚未接入该 context，明确记录为下一刀，不宣传全局 lists 已完成。没有第二配置文件、环境配置面或协议。
+
+- [x] 十项 list action 从同一启动 config/read snapshot 解析，支持 alternatives/chord/unbind。
+- [x] 输入/search priority 与 pending-page lifecycle 同源；旧 Ctrl+F filter / Ctrl+S status / Ctrl+R sort 删除。
+- [x] footer 使用实际 bindings，不保留隐藏默认 fallback，五语言和窄屏关键动作可见。
+- [x] schema/owner/crate/contract/guard 与真实 PTY config/read→picker 键位证据。
+
+验证：resume `72`、keymap `17`、core config `4` 定向回归通过；公共 config/read + batchWrite
+持久化 integration 通过，contracts（含 `299` typed client checks）通过。
+与下一 Model consumer 合并后的 TUI library `1254/1254`、integration `18/18`、dependency `1/1`、
+Clippy `--lib --no-deps -D warnings`、fmt/diff 与结构/PTY guard `27/27` 通过。
+完整真实 PTY Gate B thread `01a0f38d-95d9-7330-a96d-960380743975`、turn
+`turn_8479d89d81ed4cdeb44e135f3151c1aa`，证明 isolated config/read→F9/chord/paging→
+canonical thread/resume 与 terminal restored；非 live provider，不证明 Windows/X11。
+首轮构建锁超时、后续旧 model Esc fixture 失败均已纠正，最终串行完整 Gate B exit 0。
+
+架构确认 root，2026-10-01：仅把 existing input/navigation 能力接到 current TuiConfig / RuntimeKeymap，
+业务仍经唯一 App Server canonical thread/list/resume/archive owner；无新 runtime/store/transport。
+
 事实缺口：模型分组/usage/live activity、worktree/new-task chooser 与 archive/hide/delete
 需继续按 current owner 核对接线，不以 provider 名称冒充模型，不提前渲染无 consumer 的动作。
+
+### 继续：Model/Effort configured list consumer（2026-10-01）
+
+状态：此切片完成（100%）；其它 selection surfaces 仍 partial。只读对照同一 Codex HEAD 的 `bottom_pane/list_selection_view.rs`
+`handle_key_event`、configured page/jump 回归和 `keymap.rs::ListKeymap`。
+窄写集：TUI `model_picker{.rs,/input.rs,/keymap_tests.rs,/render.rs}`、app picker snapshot
+接线、共用 ListKeymap searchable priority、动态五语言 footer、现有 PTY driver/guard、文档及 inventory。
+不新增业务方法或配置 context；同一 config/read snapshot 继续是唯一键位事实源。
+
+- [x] 模型搜索优先普通文本；effort 子层允许普通 j/k 导航，共用 chord/alternatives/unbind。
+- [x] 模型和两级 effort 的 accept/cancel/page/jump 与实际键位一致，无 Ctrl+D/Enter/Esc 暗路。
+- [x] 同源动态 footer 和窄屏回归，真实 PTY 使用 F9、Ctrl+X q 完成嵌套确认/返回。
+- [x] owner/crate/Clippy/fmt/guard、完整真实 PTY 和 canonical 冷恢复验证。
+
+验证：新增 six configured consumer 回归、ModelPicker 合计 `30/30`，完整测试与 Gate B
+同上。真实 Ctrl+D→More reasoning、F9 嵌套确认、返回 chord、High durable settings/cold resume
+通过；空结果移除硬编码 Esc 文案，8 列屏仍显示能容纳的实际 F9。旧 input/hints 原位替换，
+分类 `dead/deleted`；新 snapshot consumer 为 `current`，没有 compat/deprecated 双轨。
+
+架构确认 root，2026-10-01：只替换 input/hint consumer；Thread settings 经已有
+thread/settings/update 持久化，provider/model/catalog/runtime/store/transport owner 不变。
+Agent Center 与其它 selection surfaces 尚未迁移，不宣称全局 lists 已完成。
+
+### 继续：Agent Center configured list consumer（2026-10-01）
+
+状态：此切片完成（100%）；全局 list consumers 和 Agent Center 全量功能仍 partial。已读 Codex `app/agent_center/{input,hints}.rs`、
+`agents_overview_view.rs::handle_key_event` 及 fixed-shortcut/configured-hint tests。
+窄写集：TUI keymap agents/list dispatch、Agent Center state/input/hints 与 snapshot 接线、
+独立行为回归、现有 PTY driver/guard、文档和 inventory；不改 backend/schema/config context。
+真实 PTY 抓到 App-scoped refresh status 叠画在 center footer 的残影，写集扩至 view 的同一
+render 接线和 Center notice geometry：只有 Center 渲染 notice 与 controls，窄屏优先完整可操作键。
+扩大 `--all-targets --no-deps` Clippy 后，对前序 reasoning/clipboard 测试的 3 处表达式/initializer
+做机械修复，旧 hints inline test 迁入独立 keymap_tests；不新增测试侧 production API。
+
+- [x] 删除 Agent Center 硬编码列表导航/确认/返回，编辑与帮助均消费实际列表键位。
+- [x] 单一 chord owner 支持 task/list 共用 prefix，任务优先；搜索/rename/new 输入防穿透。
+- [x] footer/help 与可达键位同源，unbind/冲突/替代键和五语言稳定回归。
+- [x] crate/Clippy/fmt/guard 与真实 Agent Center PTY 新建、rename、search-resume 键位证据。
+
+验证：新增 `10` Agent Center regressions（含 task chord prefix 对 list single 的优先级、
+notice/controls 不叠画和 8～24 列 complete actionable key），旧 hints test 原位迁移；完整 TUI
+library `1264/1264`、integration `18/18`、dependency `1/1`、Clippy
+`--all-targets --no-deps -D warnings`、workspace fmt/diff 和结构/PTY guards `28/28` 通过。
+inventory `1326` files；治理报告边界违规/分类漂移/零引用候选均 `0`。
+完整 PTY Gate B thread `01a0f4a0-abcf-7273-b935-d49d6d7db43b`、turn
+`turn_d512e64ff2d04c9c9b3c3a7cb82bab51`，真实 F9 new/rename/search-resume、帮助页 chord 返回、
+Ctrl+D/Ctrl+U、同一 canonical history、alternate screen 与 terminal restore 全通过。
+首轮真实 PTY 的 footer overpaint 缺陷已修复，最终 exit 0；非 live provider，不证明 Windows。
+`current` 为共用 snapshot/单一 matcher/Center-owned presentation；旧硬编码导航和 task-only
+dispatch 为 `dead/deleted`，未新增 compat/deprecated。Notice 和窄屏 fitting 只治理当前 presentation，
+Codex account/usage、worktree/archive/delete/new-task handoff/full snapshots 仍单独 partial。
+
+架构确认 root，2026-10-01：只迁 terminal input/hint，canonical thread/list/start/name/set/
+turn/cancel/resume owner 不变；没有第二 thread store、runtime 或生产 mock fallback。
+
+### 继续：Subagents borderless selection / shared list presentation（2026-10-01）
+
+状态：此选择器切片完成（100%）；整体仍 partial。已读同一 Codex HEAD 的 `app/session_lifecycle.rs::agent_picker_selection_view_params`、
+`multi_agents.rs::agent_picker_status_dot_spans`、`bottom_pane/list_selection_view.rs` 和
+`app/tests/session_lifecycle_requests.rs` 的 bottom-popup snapshot。
+窄写集：共享 `bottom_pane/list_selection_view.rs` 纯布局、ModelPicker presentation 迁入共享 owner、
+AgentPicker input/render 与 current/path/thread-id 投影、snapshot 接线、五语言、专用回归和既有 PTY fixture。
+不改 thread lifecycle、catalog、permissions、store 或 transport，不建立第二子 Agent 后端。
+
+- [x] Subagents 去除居中边框；底部 current/path/Thread id/status dot 与 Codex snapshot 同义。
+- [x] 模型和子 Agent 复用唯一 visual-row/viewport/footer owner，page jump 与渲染共用实际行数。
+- [x] Subagents 接同一 configured list snapshot，移除 Ctrl+D/Enter/Esc 硬编码分支并补五语言。
+- [x] 定向/crate/Clippy/fmt/guard、真实 PTY open/cancel/current-root selection；多子 Agent handoff 单独追踪。
+
+分类：共享 `ListSelectionView`、当前线程定位和真实 list snapshot 为 current；
+旧 AgentPicker 居中边框/硬编码按键/在 composer 上叠画路径、无消费者的
+`centered_popup` helper 与其旧正向测试原位删除，无 compat/deprecated 双轨。
+模型及 Subagents 都由 screen_chunks 为 bottom input 分配实际高度，关闭后草稿/设置/线程保持。
+
+验证：AgentPicker 定向 `11/11`、ModelPicker 相关 `31/31`；全 TUI library `1269/1269`、
+integration `18/18`、dependency guard `1/1`、all-targets Clippy `-D warnings`、
+workspace fmt/diff 通过；structure+PTY guard `29/29`（inventory `1329` files）。
+真实 `smoke:tui-gate-b` 全场景通过，thread `01a0f4b1-fd71-7d43-9ac6-7ff963448ec6`、
+turn `turn_52db8b89eef84ff8ad98345899e07091`；Subagents open/配置分页/chord cancel/F9
+current-root accept 与 canonical transcript 恢复均通过，未新增 turn。其余 queue-edit、
+Agent Center、sticky-prompt、main-find、focus-palette、resize-reflow、reconnect、终端恢复通过。
+证据为 macOS 真实 PTY/stdio App Server + 显式 external test fixture，非 live provider/GUI/Windows/X11。
+本轮无协议/schema/GUI bridge 改动，不扩跑 contracts/GUI smoke；App Server 既有两项 warning 未改。
+
+架构确认 root，2026-10-01：仅把两个 terminal selector 的重复纯布局迁到 TUI bottom_pane owner，
+业务仍是 App Server thread/resume + canonical projection。真实多子 Agent liveness/backfill/replay/parent-owned
+handoff 合同不由本轮 root-only PTY 证据冒充完成。
+
+### 继续：composer owner 重构与旧控制流清理（2026-10-01）
+
+状态：此 owner/输入框切片完成（100%）；完整 composer 仍 partial。用户进一步明确旧 composer 必须重构/清理，不接受只改表面布局。
+盘点：`chat_composer.rs` 1735 行，生产主体超过 1000 行；当前实际消费者仍是
+App input -> ChatComposer -> TextArea，不能把唯一 current 输入 owner 整体判 dead。
+下一刀先按 draft/input/history/completion 边界拆分，清理跨 popup 的旧 slash-only 命名，
+文件/Skill completion 重复编辑流程，并把 pending file-search 生命周期收回唯一 popup owner。
+写集：`bottom_pane/chat_composer{.rs,/**}`，实际 App/view/footer 消费者的机械迁移，
+专用回归、structure inventory/guards 和本计划。避让 RuntimeCore、store、protocol、Electron、发布。
+不增加第二 composer、不保留旧包装入口。退出条件：聚合文件/各新 owner <800 行；
+输入/历史/附件/Vim/paste/三种 completion 行为回归、真实 PTY 和 terminal restore 全通过。
+架构确认 root：仅 terminal interaction owner 重构；canonical runtime/Thread/Turn/Item 不变。
+
+同切片追加真实输入框显示对齐，来源同一 Codex HEAD：
+`chat_composer/composer_layout.rs` SHA-256 `02b1bf1abfd51672e8290283625d4e974bf3eb5007a0f175c7b4c058eeb7a6b7`；
+`chat_composer.rs::render_with_options` SHA-256 `3f9847e8188f57c0ad665b682f626c8ae9b9f1c5d1c03bf231b0d762f6645ef2`。
+view 不再持有第二 renderer；`ChatComposer::render` 统一填充 user-message 底色、上下各一行、
+2 列 prompt gutter、1 列右边距、附件对齐/空行分隔、当前输入/选中图片的 cursor 语义。
+clipped 屏优先保留 editable row；本地图片暂仍是独立附件行，Codex inline atomic image/paste
+elements、完整 mentions/history payload 和 reasoning ignition 等继续 partial，不能用本轮几何验收冒充完成。
+
+- [x] composer 聚合/各 owner <800；清掉旧错误命名与无消费者入口。
+- [x] 文件/Skill completion 共用编辑 owner，pending search 清空后同 query 可重发，迟到结果不能串场。
+- [x] 输入框底色/上下/左右 inset、附件间隔、Unicode/cursor/窄屏与五语言稳定回归。
+- [x] crate/all-targets Clippy/fmt/guard 与真实 PTY 多行输入/三种 completion/选择器/terminal restore。
+
+分类：ChatComposer 仍是唯一 current terminal 输入状态；主聚合 `1735 -> 88` 行，
+draft/history/input/completion/render 各 `88–371` 行、原回归搬至 `tests.rs`（627 行）。
+旧错误命名、文件/Skill 重复编辑与 view 内输入 renderer、零消费者 cursor_position 原位删除，
+无 compat/deprecated 双轨。PopupState 唯一持有 file-search generation/pending query/catalog；
+cancel 后重新打开同 query 会重发且迟到响应不能串入新 surface。
+
+验证：TUI library `1279/1279`、integration `18/18`、dependency guard `1/1`、
+all-targets Clippy `-D warnings`、workspace fmt/diff、结构/PTY guards `30/30`；
+inventory `1338` files。真实全场景 `smoke:tui-gate-b` 通过，thread
+`01a0f4c3-3fa0-7930-a382-660e9d78cb0d`，turn `turn_f0b5ef986a124aa9a470f951eeddaf64`。
+首次 queue-edit helper 在旧 footer marker 已存在时提前断言 help 关闭；改为等待 footer 已恢复
+且 overlay 不存在的真实 screen predicate，复跑通过，不加 sleep。多行 Unicode bracketed paste/
+gutter/上下留白/Ctrl-C clear 不提交回合，三种 completion 与原所有场景/终端恢复通过。
+证据限 macOS PTY + stdio App Server + 显式 external fixture；不证明 live provider、GUI、Windows/X11。
+
+### 继续：显示强调色 / shared contrast（2026-10-01）
+
+状态：本切片 completed（100%），整体仍 partial。已读当前 Codex `style{.rs,/contrast.rs,/contrast_tests.rs}`、`color.rs`。
+下一刀替换旧 Cyan/light cyan RGB 和未经对比度筛选的 256 色文本匹配；selection、tab、
+key hints 和 shared accent 共用唯一 contrast owner，尊重 ANSI/unknown terminal 的默认前景。
+写集：TUI `style{.rs,/**}`、`terminal_palette.rs`（仅固定 palette lowering）、
+`terminal_palette/perceptual.rs`、`transcript_view/follow_control{.rs,_tests.rs}`、
+专用回归与 inventory/本计划。无协议、业务状态、GUI、runtime 或 store 改动。
+
+- [x] 强调色改为 Codex dark `(99,168,248)` / light `(28,100,200)`；共享 contrast owner
+      负责实际背景上的 4.5:1 文本对比度，ANSI16/unknown 保留 Reset。
+- [x] 256 色 palette 用 CIE76；文本遍历满足对比度的固定色再选 perceptual nearest，
+      不再最近色不足就直接黑白。唯一固定 palette catalog 不复制；512 项有界 cache
+      按 preferred/background/level 分键，避免逐帧重复扫描和主题变更串色。
+- [x] selection、active tab、key hint、secondary/footer 全部迁同一 owner，旧私有
+      `readable_foreground`/ratio/luminance 已移除，不保留 compat。
+- [x] follow control 接 shaded prompt 的实际 quantized 背景强调色；仅 hover 才 bold/reverse。
+      remote image Cyan 仍为 Codex current，未进行无差别换色；local inline images 尚未对齐。
+- [x] 定向、全量 TUI/Clippy、稳定渲染回归与真实 PTY Gate B 验收。
+
+源文件 SHA-256（同一 `c248f6d48b` 基线）：`style.rs`
+`ea425b86ed801ff73f3e6f3d1d3eb4f99b3820f9d8509f2d40da539021884f10`；
+`style/contrast.rs` `ab52727328eb91923eb6970218d49b24e9b71450950f13875317d4aae3daf589`；
+`color.rs` `fdb5acf38aff891574b59950f8ac78c6d41bd9b0a0c2f186ddf9f63169082412`。
+定向 style `16/16` 已通过；首次链接因缓存 `.rlib` 缺失失败，窄重建协议 crate 后通过。
+
+### 继续：长粘贴原子输入 / draft payload（2026-10-01）
+
+状态：本切片 completed（100%），整体仍 partial。范围为 TUI textarea `elements`/`editing`/render/Vim/mouse、composer
+paste/draft/submission/history/reconnect、locale 和 external editor 的 expanded draft 接线。
+当前 textarea 的 `set_text_clearing_elements` 是空语义旧入口；改为真实原子范围，编辑与恢复
+只消费同一 TextArea。原 1086 行 owner 先拆 editing 与 tests，不继续向巨型文件堆逻辑。
+该切片必须证明 `>1000` 字符粘贴折叠、重复长度唯一编号、UTF-8 安全原子移动/删除、render
+highlight、submit/queue 原文展开、Vim undo/redo/replace recovery、history/offline/editor 不丢 payload。
+不新增协议或持久化；本地图片 inline 和 canonical structured history 仍为后续 partial。
+
+来源：Codex `chat_composer/paste_input.rs` SHA-256
+`a129a32117af4b2f330bf1848dec7dc4480b679d83f2f289e8df9c5394bdcfbf`、`textarea.rs`
+`28497a7a1dc24ed593b0de14da2b154086d150638a7b6d1805fb501cccdb4b50`，均为 merge。
+
+- [x] 超过 1000 个 Unicode 字符折叠；同长度活跃 paste 唯一编号，CRLF/CR 归一化。
+- [x] TextArea 真正拥有原子范围，箭头/删除/范围替换/word kill/鼠标/Vim 编辑不能切碎。
+      render 复用实际 wrap 区域并保留背景；沿用 Codex Cyan placeholder，不机械改色。
+- [x] `ComposerDraft` 保留 pending paste 和有效元素；Vim undo/redo/Replace Backspace recovery、
+      history-search cancel、临时 Up/Down recall 和 offline 编辑走同一快照。
+- [x] 按登记范围一次性展开 submit/queue/Ctrl-C recall；literal 同名文字不扩展，
+      外部编辑器及 string-only thread handoff 用展开原文。后者不会丢内容，但折叠形态尚不保留。
+- [x] 粘贴到 history/Vim 搜索编辑 query，不生成输入占位符；paste-burst 不能回收已有元素尾部。
+- [x] 五语言与稳定可见 label 回归；旧 TextArea 从 1086 行降至 667，Vim 从 867 降至 791，
+      editing/elements/navigation 单一职责；无新增 compat/deprecated owner。
+- [x] 真实 `large-paste` Gate B 场景及全部原场景完成。
+
+当前验证：pending paste `9/9`、atomic elements `6/6`；TUI library `1304/1304`、integration
+`18/18`、dependency guard `1/1`；all-targets Clippy `-D warnings`、fmt/diff、结构/PTY guards
+`32/32` 通过。治理报告扫描成功，边界违规与分类漂移均为 0。inventory 暂为 `1350` files，
+最终源码哈希需在 Gate 后刷新。架构 owner/data flow 已更新，责任开发者 root，2026-10-01。
+默认 Gate B 构建遇本机 V8 `.a` 缓存缺失，未修改依赖/系统配置；复用晚于 App Server 源码的
+`target/debug/app-server`（2026-10-01 08:41:14），显式 `APP_SERVER_BIN`，只重建本轮 current CLI。
+真实全场景 Gate B 通过，thread `01a0f4ed-1038-78a3-8877-74b696da8114`、turn
+`turn_0d19a04e416649f9880d6de51d131d0a`；新增 `large-paste` 与 complete/approval/user-input/
+interrupt/failure/queue-edit/agents-overview、focus-palette/resize/reconnect、terminal restore 均通过。
+long paste 原文由 external fixture ledger 的 `inputText` 完整相等验证，真实 stdio/App Server
+canonical Thread/Turn/Item，不是 renderer mock。限 macOS + 非 live provider，不证明 GUI、Windows/X11。
+
+### 继续：diff shaded rows / syntax contrast（2026-10-01）
+
+状态：核心 shaded-row 切片 implemented / verified；全量 diff 仍 partial。已迁 Codex rich-color
+的 light/dark add/delete 行底色、行号区底色与实际背景上的 syntax foreground；旧 delete `DIM`
+已删除。原 1047 行文件的测试迁到 `diff_render/tests.rs`，样式落 `diff_render/style.rs`，
+同一 parser/wrap/render owner 不复制；当前 root/style/tests/style_tests 为 539/111/547/320 行。
+写集：TUI `diff_render{.rs,/**}`、shared `style.rs` 与专用回归、inventory/本计划。
+真实 cell 回归发现 Paragraph 不会把 Line 背景延伸到右侧留白，追加窄写集
+`terminal_hyperlinks/paragraph.rs`：同一 wrap/scroll 几何先铺行底色，再由 span 覆盖 gutter，
+不改正文、不补空格、不复制 renderer。PTY fixture 追加 canonical file item 的 diff-display 场景。
+当前固定 ANSI syntax theme 不具备可配置 diff scope background，保留明确 partial，不伪造迁入。
+
+来源 `codex-rs/tui/src/diff_render.rs` SHA-256
+`ab0ef70e507a0c61d7df264a087e83aa98c9cc9d7ad582c812477f701d6ab5c3`。
+`DiffRenderStyleContext` 与 `current_diff_render_style_context()` 按同义 snapshot 直接迁名，
+所有消费者已迁移，不加旧 `DiffStyleContext` alias。`entry::format_line` 的三条旧 Patch
+着色分支无真实消费者，原位删除；diff 只经 `diff_render`，先扣消息 prefix 宽度防二次折行。
+共享 `readable_color_on` 使用同一 palette 快照；syntax contrast 不复制算法、不逐 span 查询终端。
+Unit diff `42/42`、paragraph cell 回归 `2/2` 已通过，真实 diff-display thread
+`01a0f50c-903e-7cf1-a047-759d6f630956`、turn `turn_1f26b8f965fc42b3bb9487ddca17c155`
+证明 canonical file Item 的 sign/body/continuation/padding 实际底色且无 DIM。
+core 的单次 snapshot、rich fill/gutter、contrast lowering、single render path、Unit+PTY 五项
+退出条件完成 `5/5（100%）`；可配置 theme scopes 与 Windows Terminal promotion 仍 defer，
+不能据此宣称全量 diff 或整体 UI/UX 完成。
+
+### 继续：跨线程结构化输入草稿（2026-10-01）
+
+状态：核心草稿交接切片 implemented / verified。对齐 Codex
+`chatwidget/user_messages::ThreadComposerState` 的内存恢复语义，
+不扩展 App Server/persistent history 合同。写集：`app{.rs,/thread_input.rs,/agents_overview.rs,/session_lifecycle.rs}`、
+既有 `ComposerDraft` 可见性与跨线程回归、architecture/guards/inventory/本计划。
+`App::thread_input_states` 直接保存 composer 唯一快照；恢复后移除休眠副本，由 active composer
+继续持有；成功 `thread/resume` 后、hydrate 前统一捕获原线程，因此不依赖先打开 Agent Center。
+删除 Agent Center `input_states` 纯字符串镜像与 fallback；它没有独立生产消费者。
+退出条件：折叠粘贴、原子范围、cursor、local/remote 图片在 root/child 往返后完整相等，未知线程
+不会继承前一个线程的附件；真实 Agent Center open/cancel/resume 无额外 turn。inline local image
+与完整 structured submission/history/mention 仍是下一刀，不能用本切片替代。
+
+新增真实 PTY helper `runtime_pty_tests/thread_input.rs`；仅 fixture 配置 `open_agents: ctrl-n`，
+不改变生产默认。`agents-overview` 场景在折叠 Unicode root 草稿中 open/cancel，给 canonical
+root 改名、创建/改名/停止 background task、resume 后验证 unseen child 输入隔离，再带不同
+折叠草稿 root → child 往返，检查 suffix 中原光标、恢复后整块删除及无额外 turn。
+首轮成功 thread `01a0f517-9a92-7651-ae47-04d6d39979d1`、turn
+`turn_c2dd3596afe948d09dba21910c494c84`，focus/resize/reconnect/terminal restore 同时通过。
+PTY 不附图：local/remote attachment 由五语言完整 snapshot 单元回归证明，不能假装 PTY 覆盖。
+完整 snapshot 往返、unknown-thread 附件隔离、active snapshot 消费、成功 resume 统一捕获、
+真实 PTY/no-extra-turn 五项退出条件完成 `5/5（100%）`，仅代表内存草稿交接切片。
+
+### 继续：Agent Center 单一交互 owner（2026-10-01）
+
+状态：单一交互 owner 清理切片 completed；全量 Agent Center 仍 partial。
+来源同一 baseline 的 `app/agents_overview.rs`、`agents_overview_view.rs` 与
+`agents_overview_tests.rs`。分类 `merge`：Codex 的 `Arc<Mutex<ViewState>>` 有真实 SelectionView 共享读者；
+Lime 是直接拥有/绘制 view，没有该消费 topology，不留纯同名镜像来假装完成。
+窄写集追加 `app/{agents_overview,agents_overview_threads,agents_overview_tests,interaction}.rs`、
+architecture/结构 guard/本计划；不改协议、runtime、ThreadStore。
+
+- 删除 `view_state` 锁内 view 副本与 `visible_thread_ids` 派生副本，键盘热路径不再克隆完整 view。
+- 删除生产无读者的 initialized/request_id/rendered_full_screen/refresh_thread_ids，以及永不赋值的 refresh_task
+  和无作用 Drop；保留真实 `refresh_generation` + refreshing/pending 的单一请求状态机。
+- 删除无调用的 view id 常量和 6 个旧 App helper/wrapper；单一刷新入口继续读取 current `thread/list`。
+- `sync_pagination` 只同步唯一 view 的分页标量；metadata/search/notification 直接更新同一 owner。
+- 旧静态“暴露 Codex 字段”测试迁为请求合并行为；新增 query/selection + canonical rename +
+  loading/retry 的完整回归，结构 guard 防复制镜像/旧包装回流。
+
+退出条件：定向/全 crate、Clippy、结构 guard、真实 root/child 草稿与全场景 Gate B；架构
+责任开发者 root，2026-10-01。此切片不等于全量 daemon discovery/usage/worktree 功能已对齐。
+该五项退出条件完成 `5/5（100%）`。upstream `app/agents_overview.rs` SHA-256
+`0399a3ccfcac9f8ce8b215a45a0b540d5579540755ea18fbc81c8c1393f47810`，
+`app/agents_overview_tests.rs` SHA-256
+`f2c56a404a1bff3b392a681750a053edaa634af929144fc5965f1558a3019f53`；view 来源见前序登记。
+设计模式尚未完全同构：当前 refresh 仍由 handler await session，Codex 后台 refresh task 与
+事件回传/跨关闭保留尚未实现。不能靠保留无赋值的 AbortHandle 或重复 request 字段伪称完成；
+后续按真实异步 request owner 重建并补 refresh 中输入/关闭/重开证据。
+
+### 本轮最终验证与下一刀（2026-10-01）
+
+- current：同义 diff snapshot 命名、单一 diff renderer/Paragraph fill、完整 ComposerDraft 交接、
+  单一 Agent Center view；五语言草稿往返与稳定行为测试。上述三个限定切片分别为 `5/5（100%）`。
+- dead/deleted：三条旧 Patch 着色分支、Agent Center 锁内 view 与派生 id 镜像、五个无消费者
+  字段/无作用 Drop、6 个无调用 helper/wrapper、无调用 view-id 常量；无新增 compat/deprecated。
+- 最终当前源码 `cargo test --locked --manifest-path "lime-rs/Cargo.toml" -p tui -- --quiet`
+  通过：library `1313/1313` + integration `18/18` + dependency guard `1/1`。
+  all-targets Clippy `--no-deps -D warnings`、workspace fmt/diff 通过。
+- Vitest structure/PTY script guards `37/37` 通过，旧 `/agents` 纯文本开启守卫迁为真实
+  nonempty-draft `Ctrl-N` helper；不把 static guard 当行为证据。
+- 最新 `inventory:tui-structure` 为 `1357` source files（Codex 1048 + Lime 309），Lime source
+  tree SHA-256 `f19cee616369dbc379f66811c26e229eb5de8ef6626149016315a2231443a554`。
+  symbol 4346 只作为差异盘点，不参与完成度。治理报告：边界违规/分类漂移/零引用候选均 `0`。
+- 最终 **重新构建 current CLI** 后全 9 个 `smoke:tui-gate-b` 场景通过；thread
+  `01a0f522-df07-7270-a4a9-2db6e6620875`，turn `turn_abe8f1157acd4063bf252bbcfcd604e3`。
+  complete/approval/user-input/interrupt/failure/queue-edit/agents-overview/large-paste/diff-display，
+  root-child draft、focus-palette/resize-reflow/reconnect 与 terminal restore 均通过。
+  App Server 使用已构建 current binary；external fixture 是 test-only，非 production mock。
+- 证据限 macOS、真实 CLI/stdio/App Server/PTY/canonical Thread/Turn/Item；非 live provider、
+  Desktop/GUI、Windows 或 X11。无协议/GUI/依赖变更，因此本轮不扩跑 contracts/GUI smoke。
+- 整体仍 `partial / in-progress`，未做全量行为分母的整体百分比，不能用文件/符号比值凑完成率。
+  下一刀仍为 local image inline/attachment owner、structured submission/history/mention；
+  并继续 app thread_routing 的真实职责收敛与 Agent Center async refresh，而非仅改文件名。
 
 本轮继续同步（2026-09-30）：
 
 - [x] 对齐 Codex `abc8f0c9a1` 的终端调色板语义：Markdown 有序列表标记由默认/主题强调色
-  改为 `Color::LightBlue`，保留无序标记、块引用和代码块的既有样式；新增跨行 marker
-  样式回归。
+      改为 `Color::LightBlue`，保留无序标记、块引用和代码块的既有样式；新增跨行 marker
+      样式回归。
 - [x] 对齐 Codex `136391a23e` 的未发送输入保留边界：提交/排队请求在 transport 失败时
-  通过 `App::restore_submission_draft` 一次性恢复文本、本地图片和远程图片，不自动重试
-  不确定请求；新增完整草稿恢复回归。真实重连 Gate B 仍需覆盖“请求已被服务端接受但客户端
-  未收到响应”的 uncertain receipt 矩阵，当前保持 partial。
+      通过 `App::restore_submission_draft` 一次性恢复文本、本地图片和远程图片，不自动重试
+      不确定请求；新增完整草稿恢复回归。真实重连 Gate B 仍需覆盖“请求已被服务端接受但客户端
+      未收到响应”的 uncertain receipt 矩阵，当前保持 partial。
 - [x] 对齐 Codex `136391a23e`/`1cc7e23612` 的连接态文案边界：断线不再把 transport 错误
-  正文显示在 TUI，统一使用五语言 `reconnecting`、`reconnected`、`reconnect failed` 状态；
-  详细错误仅保留 debug 日志。
+      正文显示在 TUI，统一使用五语言 `reconnecting`、`reconnected`、`reconnect failed` 状态；
+      详细错误仅保留 debug 日志。
 
 本轮验证：TUI library `1098/1098`；`cargo fmt --all -- --check`；`git diff --check`；真实
 `npm run smoke:tui-gate-b` 通过（`queue-edit`、`agents-overview`、`sticky-prompt`、
@@ -264,14 +1672,14 @@ current owner。
 
 当前事实：
 
-| 维度 | Codex | Lime | 当前结论 |
-| --- | ---: | ---: | --- |
-| TUI Rust 文件 | 1048 | 227 | 目录体系仍未同构（本轮 inventory） |
-| TUI 类型/函数符号 | 15,341 | 3,961 | 结构差异大，须按 owner 分批收敛（本轮 inventory） |
-| TUI snapshot | 1,269 | 0 | 已建立逐项分类账本，未迁入快照文件 |
-| CLI Rust 文件 | 96 | 10 | current CLI 较薄，产品专属文件不机械复制 |
-| execpolicy 文件 | 17 | 17 | 已同构 |
-| CLI 测试 | 467 | - | 50 covered、89 partial、81 Cloud deferred、247 excluded |
+| 维度              |  Codex |  Lime | 当前结论                                                |
+| ----------------- | -----: | ----: | ------------------------------------------------------- |
+| TUI Rust 文件     |   1048 |   309 | 目录体系仍未同构（2026-10-01 inventory）                |
+| TUI 类型/函数符号 | 15,341 | 4,346 | 结构差异大，须按 owner 分批收敛（2026-10-01 inventory） |
+| TUI snapshot      |  1,269 |     0 | 已建立逐项分类账本，未迁入快照文件                      |
+| CLI Rust 文件     |     96 |    10 | current CLI 较薄，产品专属文件不机械复制                |
+| execpolicy 文件   |     17 |    17 | 已同构                                                  |
+| CLI 测试          |    467 |     - | 50 covered、89 partial、81 Cloud deferred、247 excluded |
 
 完成目标不是让文件数量形式上相等，而是：
 
@@ -331,11 +1739,11 @@ contract 写集、消费者、schema、锁文件和测试，不在 TUI 批次夹
 ### A0 迁移准备
 
 - [x] 为每个批次建立 `upstream-path -> lime-owner -> classification -> test` 映射，来源必须
-  是 Codex 当前 checkout，不得只依据文件名猜测。
+      是 Codex 当前 checkout，不得只依据文件名猜测。
 - [x] 复核 `tui-structure-inventory.json` 和 `tui-codex-snapshot-inventory.json` 的 hash、
-  source commit 与分类；新增 upstream 文件必须先分类再写代码。
+      source commit 与分类；新增 upstream 文件必须先分类再写代码。
 - [x] 维护唯一 owner 表，确认 `projection.rs`、`runtime.rs`、`view.rs` 等 Lime 聚合 owner
-  的拆分边界；不创建第二个 Thread/Turn/Item 模型。
+      的拆分边界；不创建第二个 Thread/Turn/Item 模型。
 
 ### A1 纯终端 direct owner
 
@@ -343,13 +1751,13 @@ contract 写集、消费者、schema、锁文件和测试，不在 TUI 批次夹
 `terminal_hyperlinks`、`terminal_palette`、`table_detect`、`wrapping`。
 
 - [x] 按 Codex 文件名补齐 `tui/src/render/` 的 `mod.rs`、`line_utils.rs`、`renderable.rs`、
-  `highlight.rs` 和 streaming highlight；把 Lime `highlight.rs`/`view.rs` 中对应纯算法迁入
-  唯一 owner。当前 `render/highlight.rs` 已承接固定 ANSI 主题的 Lime 算法，
-  `render/highlight_streaming.rs` 已复制 Codex 的增量状态机；未引入 Codex 私有主题配置。
+      `highlight.rs` 和 streaming highlight；把 Lime `highlight.rs`/`view.rs` 中对应纯算法迁入
+      唯一 owner。当前 `render/highlight.rs` 已承接固定 ANSI 主题的 Lime 算法，
+      `render/highlight_streaming.rs` 已复制 Codex 的增量状态机；未引入 Codex 私有主题配置。
 - [x] 按 Codex 真实测试名迁移 48 个 `direct` snapshot 场景，使用 `insta` 或等价
-  `TestBackend/Buffer` 断言；不引入 Codex runtime 状态。
+      `TestBackend/Buffer` 断言；不引入 Codex runtime 状态。
 - [ ] 对 `markdown_render`、`diff_render`、OSC 8 和宽字符边界补窄终端、UTF-8 grapheme、
-  表格、重排回归；`wrapping` 已完成 Codex range/projection 与 URL-aware 行为回归。
+      表格、重排回归；`wrapping` 已完成 Codex range/projection 与 URL-aware 行为回归。
 - [ ] 删除迁移后的 Lime-only 重复纯渲染函数，更新 inventory 并增加禁止重复 owner 的结构守卫。
 
 当前进度：`render`/`highlight`/`renderable`/增量高亮和 `insert_history` owner 已完成；
@@ -396,31 +1804,31 @@ TUI Clippy、结构 inventory 和 TUI Gate B 通过。
 `app/transcript_export.rs`、`pager_overlay/`。
 
 - [x] 建立 `history_cell` 的 canonical entry adapter，只消费 App Server `Thread/Turn/Item`
-  projection；按 Codex 文件拆分 approvals、exec、MCP、patches、plans、messages、notices、
-  session 和 request_user_input。
+      projection；按 Codex 文件拆分 approvals、exec、MCP、patches、plans、messages、notices、
+      session 和 request_user_input。
 - [x] 建立 `exec_cell/{mod,model,live_output,render}.rs`，把 command live output 与 Lime
-  `entry.rs` 的重复渲染收回同一 owner。
+      `entry.rs` 的重复渲染收回同一 owner。
 - [x] 将 `Ctrl+T` transcript overlay、resume transcript、pager 和 export 统一到
-  `history_cell`/`pager_overlay` 的渲染链；不创建 rollout/history DB。当前 `/export` 支持
-  剪贴板和显式路径 noclobber 写入，主 transcript、pager 与 resume preview 共享
-  `app/history_ui.rs` 的 canonical projection。
+      `history_cell`/`pager_overlay` 的渲染链；不创建 rollout/history DB。当前 `/export` 支持
+      剪贴板和显式路径 noclobber 写入，主 transcript、pager 与 resume preview 共享
+      `app/history_ui.rs` 的 canonical projection。
 - [x] 对齐 Codex `/export` 的 destination/selection popup 与 filename prompt：无参数命令先
-  进入复制到剪贴板/保存到文件选择，保存路径使用线程 ID 默认文件名并复用 canonical
-  transcript、clipboard 和 noclobber 写入；直接带路径的 `/export <path>` 继续走现有 current
-  写入路径。
+      进入复制到剪贴板/保存到文件选择，保存路径使用线程 ID 默认文件名并复用 canonical
+      transcript、clipboard 和 noclobber 写入；直接带路径的 `/export <path>` 继续走现有 current
+      写入路径。
 - [x] 建立 Codex-shaped `app/history_pagination.rs` 的 cursor/loading/去重状态，并接入
-  App Server `thread/items/list` contract；legacy thread 继续由 `thread/read` hydrate，
-  paginated thread 使用 `thread/resume(excludeTurns=true)` 后按 `nextCursor` 加载 older
-  items。TUI 不持有第二套 history store。
+      App Server `thread/items/list` contract；legacy thread 继续由 `thread/read` hydrate，
+      paginated thread 使用 `thread/resume(excludeTurns=true)` 后按 `nextCursor` 加载 older
+      items。TUI 不持有第二套 history store。
 - [x] 对齐 Codex `paginated_resume_backwards_cursors`：canonical ThreadStore 的 turn/item
-  page 始终从首行生成 inclusive `backwardsCursor`，metadata-only `thread/resume` 返回稳定
-  turn/item head cursor，重复 resume 保持相同 cursor，cursor 可重新读取最新 canonical
-  Turn/Item。TUI `advancing_cursor` 同步为 Codex 的重复 cursor 截止语义。
+      page 始终从首行生成 inclusive `backwardsCursor`，metadata-only `thread/resume` 返回稳定
+      turn/item head cursor，重复 resume 保持相同 cursor，cursor 可重新读取最新 canonical
+      Turn/Item。TUI `advancing_cursor` 同步为 Codex 的重复 cursor 截止语义。
 - [x] 对齐 transcript pager 的 bounded reflow：手动滚动在前置历史和终端宽度变化后保持
-  逻辑行锚点，底部 pinned 状态继续跟随最新尾部；实现位于 `pager_overlay.rs`，不引入
-  第二套 transcript/history store。
+      逻辑行锚点，底部 pinned 状态继续跟随最新尾部；实现位于 `pager_overlay.rs`，不引入
+      第二套 transcript/history store。
 - [ ] 迁移 `merge=702` 中与 history/transcript/pager 相关场景；跨 runtime 的 136 个
-  `contract` 场景必须绑定 App Server fixture 和 canonical identity。
+      `contract` 场景必须绑定 App Server fixture 和 canonical identity。
 
 当前剩余：分页 persisted-history hydration 的 TUI current loader 已落地并完成本地投影回归；
 older-page 的跨页 nested-review reconciliation 已接入已有 `thread/turns/list` contract，
@@ -469,19 +1877,19 @@ ThreadStore -> canonical Thread/Turn/Item projection` 单主链；Cloud 仍只�
 `keymap/`。
 
 - [ ] 逐文件对照 Codex `chatwidget/{constructor,input_flow,input_submission,interaction,
-  interrupts,tool_lifecycle,turn_lifecycle,streaming,transcript,settings}.rs`，把 Lime
-  `app`、`bottom_pane/chat_composer` 和 `projection` 中相应逻辑迁入 Codex-shaped owner。
+interrupts,tool_lifecycle,turn_lifecycle,streaming,transcript,settings}.rs`，把 Lime
+      `app`、`bottom_pane/chat_composer` 和 `projection` 中相应逻辑迁入 Codex-shaped owner。
 - [ ] 按 Codex 目录补齐 composer 的 `attachment_state`、`draft_state`、`history_search`、
-  `popup_state`、`slash_input`、`vim_history`、`vim_search`、`footer_state` 和测试；保留
-  Lime 的图片/队列 canonical contract，不复制 Codex 私有 provider/auth。当前
-  `attachment_state` 已覆盖本地图片、远程 `UserInput::Image`、上下选择、删除、统一编号、
-  提交、队列和无损队列编辑；其余 composer 子状态仍待拆分。未选中的远程图片不会被空
-  Backspace 隐式删除，必须先通过上下键选中后再删除。
+      `popup_state`、`slash_input`、`vim_history`、`vim_search`、`footer_state` 和测试；保留
+      Lime 的图片/队列 canonical contract，不复制 Codex 私有 provider/auth。当前
+      `attachment_state` 已覆盖本地图片、远程 `UserInput::Image`、上下选择、删除、统一编号、
+      提交、队列和无损队列编辑；其余 composer 子状态仍待拆分。未选中的远程图片不会被空
+      Backspace 隐式删除，必须先通过上下键选中后再删除。
 - [ ] 按 Codex `bottom_pane` 补齐 action banner、footer、selection、file search、skills、
-  hooks、MCP elicitation 和 unified exec 的可用子集；没有 App Server consumer 的动态工具
-  继续 reject/fail closed。
+      hooks、MCP elicitation 和 unified exec 的可用子集；没有 App Server consumer 的动态工具
+      继续 reject/fail closed。
 - [ ] 将 Lime `command_popup.rs`、`pending_input_preview.rs`、`status_indicator.rs`、
-  `settings.rs` 迁移到对应 Codex owner，迁移后删除重复聚合实现。
+      `settings.rs` 迁移到对应 Codex owner，迁移后删除重复聚合实现。
 
 本轮 A3 composer/TextArea 对齐切片（2026-09-13）已建立 `textarea/vim.rs` 作为 Lime TextArea
 唯一 Vim owner，并以 `vim_commands_tests.rs` 覆盖 Insert/Normal/Replace、grapheme 移动删除、
@@ -583,44 +1991,44 @@ agents-overview、focus-palette、resize-reflow、reconnect 和 terminal restore
 resize_reflow,thread_routing,thread_session_state,thread_title}.rs`、`tui/*`。
 
 - [x] 把 `viewport.rs` 接入 runtime resize/reflow 主路径，使用实际 TUI resize event 和
-  Ratatui viewport，覆盖宽度变化、底部对齐、composer 草稿、alternate-screen round trip
-  和重复缩放；Codex 的 tmux-specific smoke 在 Lime 中等价为 portable-pty `MasterPty::resize`。
+      Ratatui viewport，覆盖宽度变化、底部对齐、composer 草稿、alternate-screen round trip
+      和重复缩放；Codex 的 tmux-specific smoke 在 Lime 中等价为 portable-pty `MasterPty::resize`。
 - [ ] 迁移 Codex startup/session/working-directory 语义到 App Server contract；没有 Lime
-  current contract 的字段明确标为 `contract/defer`，不能在 TUI 本地合成。
-  当前 startup 初始化已迁入 `app/startup.rs::initialize_session`，统一承接
-  `thread/start`、`thread/resume`、canonical history hydrate、permission/collaboration
-  catalog、model catalog、skills/list、prompt history 与 queued submissions；启动保护 gate
-  的 Codex 同名 helper 已有 Lime 测试，并在首个无待处理请求的键盘/粘贴事件后释放 boundary，
-  避免后续普通会话请求继续被误标为 startup request。`app/startup_prompts.rs` 已承接 Codex 同名的
-  `SkillLoadWarningState`、`StartupTooltipOverride`、model migration/availability NUX 纯
-  逻辑，并由真实 `skills/list`、`model/list` JSON-RPC 启动请求消费。`cwd_prompt.rs` 已
-  承接 Codex 同名 `CwdPromptAction`、`CwdSelection`、`CwdPromptOutcome` 状态机。
-  完整 `working_directory`/`/cd` trust/config、fork/replace 和 resume-cwd persistence
-  继续按 contract/defer 处理。
-  当前已对齐可由 Lime canonical session 直接承接的 `/pwd` 与 Codex `/cwd` 别名，使用
-  `App.cwd -> ConversationProjection`，并补齐五语言文案和同名回归测试；Codex `/cd` 的
-  trust/config、后台 terminal、fork/replace 与 resume-cwd preference 仍为 `contract/defer`，
-  不在 TUI 本地伪造。
+      current contract 的字段明确标为 `contract/defer`，不能在 TUI 本地合成。
+      当前 startup 初始化已迁入 `app/startup.rs::initialize_session`，统一承接
+      `thread/start`、`thread/resume`、canonical history hydrate、permission/collaboration
+      catalog、model catalog、skills/list、prompt history 与 queued submissions；启动保护 gate
+      的 Codex 同名 helper 已有 Lime 测试，并在首个无待处理请求的键盘/粘贴事件后释放 boundary，
+      避免后续普通会话请求继续被误标为 startup request。`app/startup_prompts.rs` 已承接 Codex 同名的
+      `SkillLoadWarningState`、`StartupTooltipOverride`、model migration/availability NUX 纯
+      逻辑，并由真实 `skills/list`、`model/list` JSON-RPC 启动请求消费。`cwd_prompt.rs` 已
+      承接 Codex 同名 `CwdPromptAction`、`CwdSelection`、`CwdPromptOutcome` 状态机。
+      完整 `working_directory`/`/cd` trust/config、fork/replace 和 resume-cwd persistence
+      继续按 contract/defer 处理。
+      当前已对齐可由 Lime canonical session 直接承接的 `/pwd` 与 Codex `/cwd` 别名，使用
+      `App.cwd -> ConversationProjection`，并补齐五语言文案和同名回归测试；Codex `/cd` 的
+      trust/config、后台 terminal、fork/replace 与 resume-cwd preference 仍为 `contract/defer`，
+      不在 TUI 本地伪造。
 - [x] 补齐 `tests/suite/status_indicator.rs` 的 Lime 版本；它消费独立的
-  `ansi-escape::{ansi_escape, ansi_escape_line}` current owner。
+      `ansi-escape::{ansi_escape, ansi_escape_line}` current owner。
 - [x] 补齐 `tests/suite/reconnect.rs` 的 Lime 版本；测试通过真实 PTY 和 loopback
-  `RemoteTransport` 断线/重连，验证草稿保留、精确两次 `thread/resume`、恢复后的通知路由
-  和 alternate-screen 恢复。顶层 `tui/src/reconnect.rs` 仍只作为历史委托壳，待零消费者后
-  删除。
+      `RemoteTransport` 断线/重连，验证草稿保留、精确两次 `thread/resume`、恢复后的通知路由
+      和 alternate-screen 恢复。顶层 `tui/src/reconnect.rs` 仍只作为历史委托壳，待零消费者后
+      删除。
 - [x] 补齐 `tests/suite/resize_reflow.rs` 的 Lime 版本，保留 Codex 四个测试名并通过真实
-  PTY window-size signal、VT100 屏幕投影和终端退出恢复验证；Gate B 以单线程顺序执行，
-  不依赖 tmux、live provider 或 mock backend。
+      PTY window-size signal、VT100 屏幕投影和终端退出恢复验证；Gate B 以单线程顺序执行，
+      不依赖 tmux、live provider 或 mock backend。
 - [x] 补齐 `tests/suite/focus_palette.rs` 的 Lime 版本，并绑定真实 PTY、启动期 OSC 10/11
-  palette probe、FocusGained 输入恢复和 alternate-screen restore；Gate B 通过
-  `suite::focus_palette::focus_gained_with_unanswered_palette_queries_preserves_immediate_input`
-  执行，不使用 mock backend 或空 `#[ignore]`。
+      palette probe、FocusGained 输入恢复和 alternate-screen restore；Gate B 通过
+      `suite::focus_palette::focus_gained_with_unanswered_palette_queries_preserves_immediate_input`
+      执行，不使用 mock backend 或空 `#[ignore]`。
 - [x] 收口 startup protected-input handoff：首个无待处理启动请求的键盘/粘贴事件释放
-  `App` boundary；可见 BottomPane 请求仍优先接收解决键，后台线程请求继续只进入其线程
-  缓冲区。新增 `startup_boundary_ends_on_the_first_safe_user_input`、
-  `first_safe_user_input_releases_boundary_before_reaching_composer` 与
-  `startup_boundary_waits_for_visible_request_before_releasing` 回归测试。
+      `App` boundary；可见 BottomPane 请求仍优先接收解决键，后台线程请求继续只进入其线程
+      缓冲区。新增 `startup_boundary_ends_on_the_first_safe_user_input`、
+      `first_safe_user_input_releases_boundary_before_reaching_composer` 与
+      `startup_boundary_waits_for_visible_request_before_releasing` 回归测试。
 - [ ] 把 terminal lifecycle 继续固定在 `Tui`/`Terminal`/`EventBroker`/`FrameRequester`，
-  不恢复 `TerminalGuard` 或 runtime EOF 重启。
+      不恢复 `TerminalGuard` 或 runtime EOF 重启。
 
 退出条件：TUI resize/reflow、focus、reconnect 和 terminal restore 通过真实 PTY/VT100；
 旧 reconnect 壳和旧输入恢复路径不存在 current 引用。
@@ -628,21 +2036,21 @@ resize_reflow,thread_routing,thread_session_state,thread_title}.rs`、`tui/*`。
 ## 5. 阶段 B：TUI 测试体系同构
 
 - [x] 新增 Codex-shaped `lime-rs/crates/tui/tests/` 第一批：`all.rs`、`test_backend.rs`、
-  `manager_dependency_regression.rs`、`suite/mod.rs`、`suite/vt100_history.rs`、
-  `suite/vt100_live_commit.rs`、`suite/status_indicator.rs`。VT100 测试直接调用 Lime
-  current `insert_history_lines`/`RowBuilder`，status 测试消费新增的 Codex-shaped
-  `ansi-escape::{ansi_escape, ansi_escape_line}` owner；manager regression 扫描 Lime
-  `src`，不复制 Codex 私有 `custom_terminal` 或 manager/runtime 状态。
+      `manager_dependency_regression.rs`、`suite/mod.rs`、`suite/vt100_history.rs`、
+      `suite/vt100_live_commit.rs`、`suite/status_indicator.rs`。VT100 测试直接调用 Lime
+      current `insert_history_lines`/`RowBuilder`，status 测试消费新增的 Codex-shaped
+      `ansi-escape::{ansi_escape, ansi_escape_line}` owner；manager regression 扫描 Lime
+      `src`，不复制 Codex 私有 `custom_terminal` 或 manager/runtime 状态。
 - [x] 迁移 `suite/reconnect.rs`：使用 Lime 当前 `--remote` + `RemoteTransport` 的公开
-  App Server JSON-RPC WebSocket 合同，未复制 Codex 私有 daemon 控制 socket、auth、history
-  DB 或 runtime。`fixtures/oss-story.jsonl` 在 Codex 当前 `tui/tests` 没有 Rust consumer，
-  继续保持 `defer`，不得为填文件差异而引入未消费 fixture。
+      App Server JSON-RPC WebSocket 合同，未复制 Codex 私有 daemon 控制 socket、auth、history
+      DB 或 runtime。`fixtures/oss-story.jsonl` 在 Codex 当前 `tui/tests` 没有 Rust consumer，
+      继续保持 `defer`，不得为填文件差异而引入未消费 fixture。
 - [ ] 从 Codex 测试复制测试结构和测试名，仅替换 Lime App Server fixture、canonical
-  projection 和五语言文案；不得把 Codex 私有 backend/state DB 带入测试。
+      projection 和五语言文案；不得把 Codex 私有 backend/state DB 带入测试。
 - [ ] 引入 `insta`、`serial_test`、`assert_matches` 等依赖前先确认只用于 TUI test target，
-  同步 Cargo.lock 和最小结构守卫。
+      同步 Cargo.lock 和最小结构守卫。
 - [ ] 对 991 个 snapshot 保持逐项账本：`direct` 迁移、`merge` 合并、`contract` 绑定真实
-  protocol、`defer` 保留退出条件、`dead` 禁止复制。
+      protocol、`defer` 保留退出条件、`dead` 禁止复制。
 
 当前证据：Codex-shaped 集成目录已建立，VT100 history/live commit、status indicator、
 focus palette、resize/reflow 和 reconnect 共 15 个测试通过；TUI library 全量测试在本轮
@@ -659,40 +2067,40 @@ PTY Gate B 同时通过；账本无未分类条目，且测试失败不会回退
 ### C1 CLI current contract
 
 - [x] `permission options`：按 Codex `approve-for-me`、`not-so-yolo` 和 root/exec/resume
-  precedence 测试逐项决定是否能映射 Lime `permissionProfile/list` + `thread/settings/update` +
-  `turn/start`；不能
-  映射的别名不添加假兼容。
+      precedence 测试逐项决定是否能映射 Lime `permissionProfile/list` + `thread/settings/update` +
+      `turn/start`；不能
+      映射的别名不添加假兼容。
 - [ ] `plugin`：补 marketplace cache、repo-local marketplace、catalog refresh、JSON
-  output 和 enable/disable 边界；所有 mutation 继续走 `plugin/*` App Server owner。
+      output 和 enable/disable 边界；所有 mutation 继续走 `plugin/*` App Server owner。
   - [x] 本地 repo marketplace discovery、`--available`/JSON 投影和真实 CLI Gate B 已完成。
   - [ ] 远程 marketplace cache/refresh 与 mutation 继续按产品范围 deferred/excluded，不伪造
-    第二套 catalog 或 credential owner。
+        第二套 catalog 或 credential owner。
 - [x] `mcp`：补齐 `mcpServer/oauth/*` 的 logout current contract：协议/schema、Rust/TS
-  client、RuntimeCore、LocalAppDataSource、MCP OAuth store、CLI 和 OAuth fixture 均沿同一
-  App Server JSON-RPC 主链；CLI 不直接读 credential store。`logout` 仅接受
-  `streamable_http`，未知 server、stdio 和未注入 credential root 均 fail closed；重复 logout
-  返回 `removed=false`。
+      client、RuntimeCore、LocalAppDataSource、MCP OAuth store、CLI 和 OAuth fixture 均沿同一
+      App Server JSON-RPC 主链；CLI 不直接读 credential store。`logout` 仅接受
+      `streamable_http`，未知 server、stdio 和未注入 credential root 均 fail closed；重复 logout
+      返回 `removed=false`。
 - [ ] `mcp`：继续补 login/logout 的真实 stdio CLI Gate B、provider error/uncertain receipt
-  矩阵和 Codex client-registration/keyring 差异；没有当前 Lime owner 的能力继续 defer。
+      矩阵和 Codex client-registration/keyring 差异；没有当前 Lime owner 的能力继续 defer。
 - [ ] `queue`：补本地 queue 的完整命令/错误矩阵；远程 queue 只在 Cloud transport evidence
-  完成后启用，不添加本地 fallback。
+      完成后启用，不添加本地 fallback。
 - [ ] `app-server entrypoint`：复制 Codex 参数和错误测试到 Lime sibling App Server owner；
-  transport/daemon/proxy/capability 只在有 current handler 时暴露。
+      transport/daemon/proxy/capability 只在有 current handler 时暴露。
 - [ ] `sandbox`：补 sandbox-state replay、managed network、named profile 矩阵；缺少
-  App Server/tool-runtime owner 时保持 fail closed，不在 CLI 自建策略。
+      App Server/tool-runtime owner 时保持 fail closed，不在 CLI 自建策略。
 
 ### C2 CLI 结构与命名
 
 - [ ] 保持 `MultitoolCli`、`Subcommand`、`TuiCli`、`ExecCli`、`ResumeCommand`、
-  `McpCli`、`PluginCli`、`FeaturesCli`、`QueueCommand`、`DebugCommand`、
-  `SandboxSetupCommand`、`handle_exit_status` 等 Codex-shaped owner。
+      `McpCli`、`PluginCli`、`FeaturesCli`、`QueueCommand`、`DebugCommand`、
+      `SandboxSetupCommand`、`handle_exit_status` 等 Codex-shaped owner。
 - [x] 将 `packages/cli/bin/lime.js` 的 `codexPackageRoot`、`findCodexExecutable`、
-  `isPnpmOwnedCodexInstall` 和 `isVitePlusOwnedCodexInstall` 改为 Lime 语义，并同步
-  npm package test 和 structure inventory；launcher current owner 不再暴露 Codex 残留名称。
+      `isPnpmOwnedCodexInstall` 和 `isVitePlusOwnedCodexInstall` 改为 Lime 语义，并同步
+      npm package test 和 structure inventory；launcher current owner 不再暴露 Codex 残留名称。
 - [ ] 扩展 Linux ARM64/musl、Windows ARM64、Android 目标前必须先有可复现构建产物、
-  native payload、launcher smoke 和 CI evidence；没有产物的 optional package 不得发布。
+      native payload、launcher smoke 和 CI evidence；没有产物的 optional package 不得发布。
 - [ ] 保持 `init_firewall.sh`、`run_in_container.sh` 为 Codex Cloud/容器参考，不复制为
-  Lime 伪生产入口。
+      Lime 伪生产入口。
 
 ## 2026-09-11 CLI 工作目录参数命名收敛
 
@@ -735,25 +2143,25 @@ npm staging/launcher、JSON/JSONL/stdin/exit/signal/completion 和结构 invento
 仅在阶段 A-C 的本地 current contract 稳定后推进：
 
 - [ ] 完成 authenticated WebSocket transport 的 tenant identity、protocol version、TLS、
-  credential lifecycle 和 token redaction contract。
+      credential lifecycle 和 token redaction contract。
 - [ ] 补跨网络 disconnect/reconnect/resume、tenant isolation、rate limit、audit 和
-  credential leak negative tests；TUI/CLI 继续复用同一 session facade。
+      credential leak negative tests；TUI/CLI 继续复用同一 session facade。
 - [ ] 远程 queue、remote plugin catalog、Cloud managed permission profile、remote sandbox
-  和 exec-server 测试仍对应 CLI ledger 的 81 个 `cloud-deferred` 条目。
+      和 exec-server 测试仍对应 CLI ledger 的 81 个 `cloud-deferred` 条目。
 - [ ] 未取得 LimeCore 服务端合同、租户隔离证明和真实远端 Gate B 前，不接入默认 CLI/TUI、
-  Electron sidecar 或 npm production package，不创建假 Cloud endpoint。
+      Electron sidecar 或 npm production package，不创建假 Cloud endpoint。
 
 退出条件：安全评审、服务端合同、真实 authenticated remote Gate B 和审计 evidence 全部具备。
 
 ## 8. 治理与删除
 
 - [ ] 每个批次刷新 TUI/CLI structure、snapshot、test inventory，并把新增差异分类为
-  `current/compat/deprecated/dead`。
+      `current/compat/deprecated/dead`。
 - [ ] 零消费者后删除顶层 `tui/src/reconnect.rs`；旧路径只保留 retired guard/negative test。
 - [ ] 对 `lime-cli`、`terminal-ui`、`TerminalGuard`、`TuiTerminal`、旧 runtime、旧
-  crossterm registry、旧 launcher 命名增加结构负向测试。
+      crossterm registry、旧 launcher 命名增加结构负向测试。
 - [ ] 若发现跨命令组 legacy policy/mock residual，登记 `tech-debt-tracker.md` 的 `CCD-012`，
-  不在本计划中新增兼容层。
+      不在本计划中新增兼容层。
 
 ## 9. 验证门禁
 
@@ -1012,7 +2420,7 @@ reconnect、resize 和 working-directory 的可用 current 子集已具备真实
   伪造图片预览。
 - 本切片属于 `current`，没有新增 `compat` 或 `deprecated` surface。MCP 原始媒体/资源正文、
   相邻 `ComputerActivityCell` 聚合和更丰富的 file-activity detail 仍受 canonical producer/consumer
-字段限制，继续分类为 `contract/defer`；不得在 TUI 增加第二套 wire parser、history store 或
+  字段限制，继续分类为 `contract/defer`；不得在 TUI 增加第二套 wire parser、history store 或
   rollout DB。
 - 验证：`projection::tests` 23/23、`entry::tests` 6/6、
   `app::transcript_export::tests` 8/8；完整 TUI 为 library 672/672、integration 15/15、
@@ -1438,7 +2846,7 @@ reconnect、resize 和 working-directory 的可用 current 子集已具备真实
   `18/18`、`npm run test:contracts`、`npm run governance:scripts` 与 `git diff --check` 均通过。
   完整
   `smoke:tui-gate-b` 未在本切片重复执行；上一切片已有真实 PTY/alternate-screen/stdio
- App Server JSON-RPC 证据，后续若接入动态 timer/animation 必须补跑 Gate B。
+  App Server JSON-RPC 证据，后续若接入动态 timer/animation 必须补跑 Gate B。
 
 本轮 A3 footer 单行布局折叠收口（2026-09-14）：
 
@@ -1532,7 +2940,7 @@ reconnect、resize 和 working-directory 的可用 current 子集已具备真实
   `contract/defer`。没有新增协议字段、兼容包装、生产 mock 或第二套后端。
 - 验证：`cargo fmt --manifest-path lime-rs/Cargo.toml --all -- --check`、TUI library
   `818/818`、`cargo clippy --locked --manifest-path lime-rs/Cargo.toml -p tui --all-targets
-  --no-deps -- -D warnings`、`npm run inventory:tui-structure`（`873` 个文件）、
+--no-deps -- -D warnings`、`npm run inventory:tui-structure`（`873` 个文件）、
   `npm run test:contracts` 与 `git diff --check` 均通过。未重复运行真实 `smoke:tui-gate-b`
   或 `verify:gui-smoke`；本轮仅重命名/收敛现有输入 owner，之前 Gate B 证据仍有效。总体计划
   保持 `in-progress`，下一刀优先对照 `chatwidget/input_submission.rs` 与 `turn_lifecycle.rs`
@@ -1655,7 +3063,7 @@ reconnect、resize 和 working-directory 的可用 current 子集已具备真实
   `projection.rs` owner，分类为 `current`，Codex provider/private stream controller 仍为
   `partial/contract-defer`。
 - 验证：三项定向 projection 测试与 `cargo fmt --manifest-path lime-rs/Cargo.toml --all
-  -- --check`、目标文件 `git diff --check` 通过；完整 TUI all-targets 继续作为本刀收尾门槛。
+-- --check`、目标文件 `git diff --check` 通过；完整 TUI all-targets 继续作为本刀收尾门槛。
 
 本轮 A3 streaming 终态集合补充（2026-09-15）：
 
@@ -1671,7 +3079,7 @@ reconnect、resize 和 working-directory 的可用 current 子集已具备真实
   Codex 私有 stream controller、provider/private realtime 和完整 interrupt queue 仍为
   `partial/contract-defer`。
 - 验证：`projection::tests` 49/49、`cargo fmt --manifest-path lime-rs/Cargo.toml --all
-  -- --check`、目标文件 `git diff --check` 通过；完整 TUI all-targets 待本刀收尾执行。
+-- --check`、目标文件 `git diff --check` 通过；完整 TUI all-targets 待本刀收尾执行。
 
 本轮 A3 reasoning status projection 补充（2026-09-15）：
 
@@ -1685,7 +3093,7 @@ reconnect、resize 和 working-directory 的可用 current 子集已具备真实
 - 新增 `reasoning_summary_updates_running_status_with_latest_usable_line` 与
   `explicit_status_clears_reasoning_summary_header` 回归。
 - 验证：projection 定向测试 `52/52`、`cargo fmt --manifest-path lime-rs/Cargo.toml --all
-  -- --check`、TUI all-targets `clippy -D warnings`、目标文件 `git diff --check` 均通过。
+-- --check`、TUI all-targets `clippy -D warnings`、目标文件 `git diff --check` 均通过。
 
 本轮 S4 status/footer 窄屏矩阵收口（2026-09-15）：
 
@@ -1786,7 +3194,7 @@ reconnect、resize 和 working-directory 的可用 current 子集已具备真实
   本轮未触及 Electron/GUI bridge，未运行 `verify:gui-smoke`；workspace 全量 Clippy 仍可能受
   并行 `agent-protocol` lint 影响，不作为 TUI 写集阻塞。
 - 这一步继续推进 `TUI Host -> App Server JSON-RPC -> RuntimeCore -> canonical
-  Thread/Turn/Item projection` 主链的可操作交互；下一刀回到 S5 余项（MCP elicitation/统一
+Thread/Turn/Item projection` 主链的可操作交互；下一刀回到 S5 余项（MCP elicitation/统一
   selection footer）或 A2 history/transcript contract，不复制 Codex 私有 runtime/store。
 
 本轮 S5 approval/request_user_input 窄屏布局补充（2026-09-15）：
@@ -1794,7 +3202,7 @@ reconnect、resize 和 working-directory 的可用 current 子集已具备真实
 - approval 与 request_user_input 继续复用现有 BottomPane 和 App Server typed request，不新增
   协议、RuntimeCore 或 mock 状态。approval 选项统一编号和 `accent_style` 选中态，底部 footer
   固定保留 `Enter confirm · Esc cancel`；request_user_input footer 按宽度优先保留 `Enter
-  submit` 与 `Esc cancel`，次级选择/备注/问题导航提示仅在有空间时出现。
+submit` 与 `Esc cancel`，次级选择/备注/问题导航提示仅在有空间时出现。
 - 问题标题、说明和选项使用 grapheme-safe 宽度重排；request_user_input 选项窗口最多展示 8
   项并保证当前选择可见，编辑输入行保持单行截断，光标定位跟随重排后的实际输入行。
 - `view.rs` 新增五语言 × `40/80/120` 列审批/问答 TestBackend 回归，覆盖标题、选项、主
@@ -2334,18 +3742,18 @@ bridge，因此不运行 `npm run test:contracts` 或 `npm run verify:gui-smoke`
   高亮以及 hyperlink destination 不变。
 
 分类：最新命中方向与 grapheme 级高亮属于 `current` presentation；Codex source-backed
-  selection snapshot、异步 bounded scheduler 和跨 revision reading restore 仍为
-  `partial/contract-defer`。未新增协议、runtime、history store、compat/deprecated surface。
+selection snapshot、异步 bounded scheduler 和跨 revision reading restore 仍为
+`partial/contract-defer`。未新增协议、runtime、history store、compat/deprecated surface。
 
 验证：新增 pager 定向回归通过；TUI library `928/928`、integration `18/18`、manager
-  regression `1/1`、TUI `--all-targets --no-deps` Clippy `-D warnings`、workspace fmt、
-  `git diff --check` 均通过。Gate B 首次复跑遇到 PTY fixture 提前关闭且未出现 completion
-  标记，按同一入口重跑后通过：thread `01a0d134-28b0-7013-a48a-1ee1b3a97dbd`、turn
-  `turn_7dd02827c93a41489d45ada179ab8972`，事件链为
-  `turn.started,message.delta,item.started,item.completed,turn.completed`，并覆盖
-  `queue-edit/agents-overview/focus-palette/resize-reflow/reconnect/terminal=restored`。
-  首次失败属于真实 PTY 启动/退出竞态，第二次完整通过；App Server 的
-  `lower_turn_start_params`/`lower_runtime_options` warning 仍为既有 dead-code warning。
+regression `1/1`、TUI `--all-targets --no-deps` Clippy `-D warnings`、workspace fmt、
+`git diff --check` 均通过。Gate B 首次复跑遇到 PTY fixture 提前关闭且未出现 completion
+标记，按同一入口重跑后通过：thread `01a0d134-28b0-7013-a48a-1ee1b3a97dbd`、turn
+`turn_7dd02827c93a41489d45ada179ab8972`，事件链为
+`turn.started,message.delta,item.started,item.completed,turn.completed`，并覆盖
+`queue-edit/agents-overview/focus-palette/resize-reflow/reconnect/terminal=restored`。
+首次失败属于真实 PTY 启动/退出竞态，第二次完整通过；App Server 的
+`lower_turn_start_params`/`lower_runtime_options` warning 仍为既有 dead-code warning。
 本轮未触及 Electron/GUI bridge，因此不运行 `npm run test:contracts` 或
 `npm run verify:gui-smoke`。
 
@@ -2359,13 +3767,13 @@ bridge，因此不运行 `npm run test:contracts` 或 `npm run verify:gui-smoke`
   history retry 语义保持不变。
 
 验证：TUI library `929/929`、integration `18/18`、manager regression `1/1`、Clippy
-  `-D warnings`、workspace fmt、`git diff --check`、结构守卫 `16/16` 通过；真实 Gate B
-  通过：thread `01a0d13b-d20a-7703-bfac-e45b5ace6adb`、turn
-  `turn_bbb8a2b83d6e499f97a38eb4dad78eff`，事件链为
-  `turn.started,message.delta,item.started,item.completed,turn.completed`，并覆盖
-  `queue-edit/agents-overview/focus-palette/resize-reflow/reconnect/terminal=restored`。
-  未触及 Electron/GUI bridge，因此不运行 `npm run test:contracts` 或
-  `npm run verify:gui-smoke`。
+`-D warnings`、workspace fmt、`git diff --check`、结构守卫 `16/16` 通过；真实 Gate B
+通过：thread `01a0d13b-d20a-7703-bfac-e45b5ace6adb`、turn
+`turn_bbb8a2b83d6e499f97a38eb4dad78eff`，事件链为
+`turn.started,message.delta,item.started,item.completed,turn.completed`，并覆盖
+`queue-edit/agents-overview/focus-palette/resize-reflow/reconnect/terminal=restored`。
+未触及 Electron/GUI bridge，因此不运行 `npm run test:contracts` 或
+`npm run verify:gui-smoke`。
 
 本轮 A1 wrapped-row geometry 唯一 owner 收口（2026-09-24）：
 
@@ -2409,7 +3817,7 @@ regression、TUI `--all-targets --no-deps` Clippy `-D warnings`、workspace fmt�
 
 分类：transcript pager 的本地搜索编辑、命中高亮、循环导航与五语言 footer 属于 `current`；
 Codex source-backed transcript search 的 bounded scan、历史分页联动、selection/presentation
-  snapshot 恢复属于 `partial/contract-defer`。未新增 `compat` / `deprecated` / `dead` surface。
+snapshot 恢复属于 `partial/contract-defer`。未新增 `compat` / `deprecated` / `dead` surface。
 
 验证：pager 定向 `17/17`、TUI library `926/926`、integration `18/18`、manager regression
 `1/1`；`cargo clippy --locked --manifest-path lime-rs/Cargo.toml -p tui --all-targets
@@ -2437,16 +3845,16 @@ Codex source-backed transcript search 的 bounded scan、历史分页联动、se
   `partial/contract-defer`。
 
 分类：当前页搜索 + 既有 history pager 接线属于 `current`；Codex 私有 source-backed search
-  snapshot、异步 scheduler 与未映射 selection/export 继续 `partial/contract-defer`。未新增
-  `compat` / `deprecated` / `dead` surface。
+snapshot、异步 scheduler 与未映射 selection/export 继续 `partial/contract-defer`。未新增
+`compat` / `deprecated` / `dead` surface。
 
 验证：pager 定向回归 `18/18`；TUI library `927/927`、integration `18/18`、manager
-  regression `1/1`；TUI `--all-targets --no-deps` Clippy `-D warnings`、workspace fmt、
-  `git diff --check`、结构守卫 `16/16` 均通过。真实 `npm run smoke:tui-gate-b` 通过：thread
-  `01a0d127-f482-7be0-b2b5-865367715991`、turn `turn_f72f7ec5e2904ce382c5a06f9d8e764f`，
-  事件链为 `turn.started,message.delta,item.started,item.completed,turn.completed`，并继续
-  覆盖 `queue-edit/agents-overview/focus-palette/resize-reflow/reconnect/terminal=restored`。
-  Gate B 编译期间 `lower_turn_start_params`/`lower_runtime_options` 为既有 App Server
+regression `1/1`；TUI `--all-targets --no-deps` Clippy `-D warnings`、workspace fmt、
+`git diff --check`、结构守卫 `16/16` 均通过。真实 `npm run smoke:tui-gate-b` 通过：thread
+`01a0d127-f482-7be0-b2b5-865367715991`、turn `turn_f72f7ec5e2904ce382c5a06f9d8e764f`，
+事件链为 `turn.started,message.delta,item.started,item.completed,turn.completed`，并继续
+覆盖 `queue-edit/agents-overview/focus-palette/resize-reflow/reconnect/terminal=restored`。
+Gate B 编译期间 `lower_turn_start_params`/`lower_runtime_options` 为既有 App Server
 dead-code warning，非本切片引入。本轮仅触及 Rust TUI 与本地化，未触及 Electron/GUI
 bridge，因此不运行 `npm run test:contracts` 或 `npm run verify:gui-smoke`。
 
@@ -2758,7 +4166,7 @@ protocol/GUI bridge，因此不运行 `npm run test:contracts` 或 `npm run veri
 
 - 对照 Codex `exec_cell/model.rs`、`exec_cell/render.rs`、
   `history_cell/computer_activity.rs`、`chatwidget/{activity_groups,command_lifecycle,
-  tool_lifecycle}.rs` 与 `transcript_view/disclosure.rs`，Lime 不再从 command 文案或 MCP summary
+tool_lifecycle}.rs` 与 `transcript_view/disclosure.rs`，Lime 不再从 command 文案或 MCP summary
   猜测分组。TUI `ConversationProjection` 直接消费 canonical `CommandExecution.source`、
   `CommandExecution.commandActions` 与 `McpToolCall.server`：只有非 `UserShell` 且 actions 非空并全部属于
   Read/ListFiles/Search 的命令进入 exploration group；只有 `server=cua_repl` 的 MCP 调用进入
@@ -3117,7 +4525,7 @@ Electron 或 GUI bridge，因此不运行 `npm run test:contracts` 或 `npm run 
 - 分类：sticky prompt、canonical entry range mapping、turn-boundary suppression、selection header
   reservation 与 stable-prefix history prepend remap 均为 `current`；未新增 `compat`、`deprecated`
   或 `dead` surface。架构仍是 `CLI/TUI Host -> App Server JSON-RPC -> RuntimeCore -> canonical
-  Thread/Turn/Item -> terminal projection`，未改变 public boundary，因此不更新架构图。
+Thread/Turn/Item -> terminal projection`，未改变 public boundary，因此不更新架构图。
 - 聚合文件退出约束：`view.rs` 已超过 1000 行；本切片把 header 决策放在独立
   `transcript_view/prompt_header.rs`，`view.rs` 只保留 composition/viewport wiring。下次继续扩展
   `view.rs` 测试前，先把其 `#[cfg(test)]` 大模块迁至独立测试文件；禁止继续向生产 render 聚合新的
@@ -3213,7 +4621,7 @@ keymap/local-settings persistence 与 retained-cell bookmark 边界，或继续�
   `tui-gate-b-ySMydY` 保留；补齐 activity footer 后 complete-only 与完整矩阵均通过。
 - 分类：上述默认 bindings、dispatcher、pager 翻页语义、五语言 hint 与 PTY F3 evidence 均为
   `current`；未新增 `compat` 或 `deprecated`。旧 `Ctrl+F -> Find` 为 `dead / deleted /
-  forbidden-to-restore`，只允许出现在本计划历史说明或负向回归中。持久化 `tui.keymap`、两段 chord、
+forbidden-to-restore`，只允许出现在本计划历史说明或负向回归中。持久化 `tui.keymap`、两段 chord、
   explicit unbind、冲突校验、runtime snapshot 与 `local_settings` 仍为 `partial/contract-defer`；后续若
   实现必须完整同步 core config schema、App Server `config/read`、TUI startup consumer、文档与合同，
   不得使用环境变量或 TUI 私有配置文件建立第二套事实源。
@@ -3401,8 +4809,8 @@ reconnect 与 `terminal=restored`；编译仅出现既有 App Server
 `lower_turn_start_params` / `lower_runtime_options` dead-code warning。本轮未改 App Server
 protocol、配置 schema、Electron 或 GUI bridge，因此不运行 `npm run test:contracts` 或
 `npm run verify:gui-smoke`。本切片达到 Rust TUI composer/interaction 与真实 TUI Gate B
-  风险门槛；总体 Codex CLI/TUI 对齐仍为 `in-progress`，下一刀回到 A2 history/transcript
-  contract 或 A3 其余 composer/bottom-pane owner，不得宣称完整同步。
+风险门槛；总体 Codex CLI/TUI 对齐仍为 `in-progress`，下一刀回到 A2 history/transcript
+contract 或 A3 其余 composer/bottom-pane owner，不得宣称完整同步。
 
 本轮 C1 Codex-shaped permission options 切片（2026-09-29）：
 
@@ -3740,7 +5148,7 @@ App Server canonical contract 证明的 history/provider 或 composer/UI owner�
   后丢弃。新键盘/鼠标输入会取消 pending owner，避免 stale clipboard text 抢占用户新草稿；worker
   response 会主动请求下一帧，确保取消后仍能释放 busy 状态。
 - `Tui` 持有 session-lived `ClipboardWorker`，保留现有 `AppAction -> runtime ->
-  ChatComposer::handle_paste` 单一输入链。未新增 clipboard/history store 或生产 mock fallback。
+ChatComposer::handle_paste` 单一输入链。未新增 clipboard/history store 或生产 mock fallback。
   Codex 的 PRIMARY selection publication、copy lease 与读取 worker 的统一 owner 仍需后续切片，
   当前列为 `partial/contract-defer`。
 

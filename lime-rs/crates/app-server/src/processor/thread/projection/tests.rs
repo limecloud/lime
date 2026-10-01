@@ -804,7 +804,7 @@ fn approval_control_items_stay_out_of_codex_v2_thread_items() {
     assert!(projected.data.is_empty());
 }
 
-fn canonical_thread(archived: bool) -> canonical::Thread {
+pub(super) fn canonical_thread(archived: bool) -> canonical::Thread {
     canonical::Thread {
         session_id: canonical::SessionId::new("session-1"),
         thread_id: canonical::ThreadId::new("thread-1"),

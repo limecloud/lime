@@ -1,5 +1,7 @@
 mod agents;
+mod composer;
 mod pickers;
+mod reasoning;
 mod shortcuts;
 pub(crate) use shortcuts::ShortcutLabel;
 
@@ -2302,46 +2304,6 @@ impl Locale {
         }
     }
 
-    pub(crate) fn picker_empty(self) -> &'static str {
-        match self {
-            Self::ZhCn => "没有匹配的模型。按 Esc 取消",
-            Self::ZhTw => "沒有符合的模型。按 Esc 取消",
-            Self::EnUs => "No matching models. Esc cancel",
-            Self::JaJp => "一致するモデルがありません。Esc でキャンセル",
-            Self::KoKr => "일치하는 모델이 없습니다. Esc로 취소",
-        }
-    }
-
-    pub(crate) fn agent_picker_title(self) -> &'static str {
-        match self {
-            Self::ZhCn => "选择 Agent",
-            Self::ZhTw => "選擇 Agent",
-            Self::EnUs => "Choose an agent",
-            Self::JaJp => "Agent を選択",
-            Self::KoKr => "에이전트 선택",
-        }
-    }
-
-    pub(crate) fn agent_picker_empty(self) -> &'static str {
-        match self {
-            Self::ZhCn => "暂无可用的子 Agent。按 Esc 取消",
-            Self::ZhTw => "目前沒有可用的子 Agent。按 Esc 取消",
-            Self::EnUs => "No sub-agents available. Esc cancel",
-            Self::JaJp => "利用可能なサブ Agent がありません。Esc でキャンセル",
-            Self::KoKr => "사용 가능한 하위 에이전트가 없습니다. Esc로 취소",
-        }
-    }
-
-    pub(crate) fn agent_picker_footer(self) -> &'static str {
-        match self {
-            Self::ZhCn => "上下移动  Enter 查看  Esc 取消",
-            Self::ZhTw => "上下移動  Enter 檢視  Esc 取消",
-            Self::EnUs => "Up/Down move  Enter view  Esc cancel",
-            Self::JaJp => "上下移動  Enter 表示  Esc キャンセル",
-            Self::KoKr => "위/아래 이동  Enter 보기  Esc 취소",
-        }
-    }
-
     #[allow(dead_code)]
     pub(crate) fn resume_title(self) -> &'static str {
         match self {
@@ -2501,46 +2463,6 @@ impl Locale {
         }
     }
 
-    pub(crate) fn resume_enter_hint(self, fork: bool, archived: bool) -> &'static str {
-        match (self, fork, archived) {
-            (Self::ZhCn, _, true) => "Enter 恢复",
-            (Self::ZhCn, false, false) => "Enter 恢复",
-            (Self::ZhCn, true, false) => "Enter 分叉",
-            (Self::ZhTw, _, true) => "Enter 恢復",
-            (Self::ZhTw, false, false) => "Enter 恢復",
-            (Self::ZhTw, true, false) => "Enter 分支",
-            (Self::EnUs, _, true) => "Enter restore",
-            (Self::EnUs, false, false) => "Enter resume",
-            (Self::EnUs, true, false) => "Enter fork",
-            (Self::JaJp, _, true) => "Enter 再開",
-            (Self::JaJp, false, false) => "Enter 再開",
-            (Self::JaJp, true, false) => "Enter 分岐",
-            (Self::KoKr, _, true) => "Enter 복원",
-            (Self::KoKr, false, false) => "Enter 재개",
-            (Self::KoKr, true, false) => "Enter 분기",
-        }
-    }
-
-    pub(crate) fn resume_controls_hint(self) -> &'static str {
-        match self {
-            Self::ZhCn => {
-                "Esc 新建  Ctrl+C 退出  Ctrl+S 状态  Ctrl+F 目录  Ctrl+R 排序  Ctrl+O 密度"
-            }
-            Self::ZhTw => {
-                "Esc 新建  Ctrl+C 離開  Ctrl+S 狀態  Ctrl+F 目錄  Ctrl+R 排序  Ctrl+O 密度"
-            }
-            Self::EnUs => {
-                "Esc new  Ctrl+C quit  Ctrl+S status  Ctrl+F directory  Ctrl+R sort  Ctrl+O density"
-            }
-            Self::JaJp => {
-                "Esc 新規  Ctrl+C 終了  Ctrl+S 状態  Ctrl+F ディレクトリ  Ctrl+R 並び順  Ctrl+O 密度"
-            }
-            Self::KoKr => {
-                "Esc 새로 만들기  Ctrl+C 종료  Ctrl+S 상태  Ctrl+F 디렉터리  Ctrl+R 정렬  Ctrl+O 밀도"
-            }
-        }
-    }
-
     pub(crate) fn resume_expand_hint(self) -> &'static str {
         match self {
             Self::ZhCn => "Ctrl+E 展开记录",
@@ -2628,16 +2550,6 @@ impl Locale {
             Self::EnUs => "Other  Type a custom answer",
             Self::JaJp => "その他  カスタム回答を入力",
             Self::KoKr => "기타  사용자 지정 답변 입력",
-        }
-    }
-
-    pub(crate) fn add_notes(self) -> &'static str {
-        match self {
-            Self::ZhCn => "按 Tab 添加备注",
-            Self::ZhTw => "按 Tab 新增備註",
-            Self::EnUs => "Tab to add notes",
-            Self::JaJp => "Tab でメモを追加",
-            Self::KoKr => "Tab으로 메모 추가",
         }
     }
 
@@ -3470,10 +3382,10 @@ mod tests {
         ] {
             assert!(!locale.resume_picker_title(false).is_empty());
             assert!(!locale.resume_picker_title(true).is_empty());
-            assert!(!locale.resume_enter_hint(false, false).is_empty());
-            assert!(!locale.resume_enter_hint(true, false).is_empty());
-            assert!(!locale.resume_enter_hint(false, true).is_empty());
-            assert!(!locale.resume_controls_hint().is_empty());
+            assert!(!locale.resume_enter_hint("enter", false, false).is_empty());
+            assert!(!locale.resume_enter_hint("enter", true, false).is_empty());
+            assert!(!locale.resume_enter_hint("enter", false, true).is_empty());
+            assert!(!locale.resume_controls_hint("←/→").is_empty());
             assert!(!locale.resume_search_placeholder().is_empty());
             assert!(!locale.resume_loading().is_empty());
             assert!(!locale.resume_status_label(false).is_empty());

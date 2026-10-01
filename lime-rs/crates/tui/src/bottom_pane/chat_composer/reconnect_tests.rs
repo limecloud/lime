@@ -8,7 +8,7 @@ fn key(code: KeyCode) -> KeyEvent {
 #[test]
 fn disconnected_edit_preserves_draft_and_cancels_history_preview() {
     let mut composer = ChatComposer::default();
-    composer.load_history(["history preview".to_string()]);
+    composer.set_cached_history(["history preview".to_string()]);
     composer.insert("original draft");
     composer.handle_key_event(KeyEvent::new(KeyCode::Char('r'), KeyModifiers::CONTROL));
     composer.handle_key_event(key(KeyCode::Char('h')));

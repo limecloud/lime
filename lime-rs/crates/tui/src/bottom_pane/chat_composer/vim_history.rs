@@ -5,9 +5,10 @@
 
 use std::collections::VecDeque;
 
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use crate::keymap::{VimKeymapAction, VimNormalAction};
+use crossterm::event::KeyEvent;
 
-use super::{draft_state::ComposerDraft, ChatComposer};
+use super::{draft_state::ComposerDraft, ChatComposer, VimPersistentState};
 
 const MAX_VIM_UNDO_STEPS: usize = 64;
 const MAX_VIM_UNDO_BYTES: usize = 1024 * 1024;
@@ -50,23 +51,41 @@ impl ChatComposer {
     pub(super) fn begin_direct_vim_edit(&mut self) -> bool {
         if !self.draft.textarea.is_vim_enabled()
             || self.vim_search_active()
+            || self.draft.textarea.is_vim_operator_pending()
             || self.vim_history.pending.is_some()
         {
             return false;
         }
         self.begin_vim_edit_transaction();
-        self.vim_history.pending.is_some()
+        if self.vim_history.pending.is_none() {
+            return false;
+        }
+        let mut vim_state = VimPersistentState::default();
+        self.draft
+            .textarea
+            .swap_vim_persistent_state(&mut vim_state);
+        vim_state.commands.last_change.clear();
+        self.draft
+            .textarea
+            .swap_vim_persistent_state(&mut vim_state);
+        true
     }
 
     pub(super) fn begin_vim_key(&mut self, key: KeyEvent) {
-        if !self.draft.textarea.is_vim_enabled() || self.vim_search_active() {
+        if !self.draft.textarea.is_vim_enabled()
+            || self.vim_search_active()
+            || self.history_search_active()
+        {
             return;
         }
         if self.vim_history.pending.is_some() {
             return;
         }
 
-        if self.draft.textarea.is_vim_normal_mode() && !starts_vim_edit(key) {
+        if self.draft.textarea.is_vim_normal_mode()
+            && !self.draft.textarea.vim_key_starts_edit(key)
+            && !self.attachments.remote_image_edit_key(key)
+        {
             return;
         }
         self.begin_vim_edit_transaction();
@@ -97,16 +116,19 @@ impl ChatComposer {
 
     pub(super) fn handle_vim_history_key(&mut self, key: KeyEvent) -> bool {
         if !self.draft.textarea.is_vim_normal_mode()
-            || self.draft.textarea.is_vim_operator_pending()
             || self.vim_search_active()
+            || self.history_search_active()
         {
             return false;
         }
-        let undo = key.modifiers.is_empty() && key.code == KeyCode::Char('u');
-        let redo = key.modifiers == KeyModifiers::CONTROL && key.code == KeyCode::Char('r');
-        if !undo && !redo {
-            return false;
-        }
+        let action = self.draft.textarea.vim_action_for_key(key);
+        let redo = match action {
+            Some(VimKeymapAction::Normal(VimNormalAction::Undo)) => false,
+            Some(VimKeymapAction::Normal(VimNormalAction::Redo)) => true,
+            _ => return false,
+        };
+        // Consume the resolved action through the same matcher, including chord completion.
+        self.draft.textarea.input(key);
 
         let snapshot = if redo {
             self.vim_history.redo.pop_back()
@@ -120,35 +142,18 @@ impl ChatComposer {
             } else {
                 self.vim_history.redo.push_back(current);
             }
+            let mut vim_state = VimPersistentState::default();
+            self.draft
+                .textarea
+                .swap_vim_persistent_state(&mut vim_state);
             self.restore_draft(snapshot);
+            self.draft
+                .textarea
+                .swap_vim_persistent_state(&mut vim_state);
             self.vim_history.trim();
         }
         true
     }
-}
-
-fn starts_vim_edit(key: KeyEvent) -> bool {
-    if key
-        .modifiers
-        .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT)
-    {
-        return false;
-    }
-    !matches!(
-        key.code,
-        KeyCode::Char('/')
-            | KeyCode::Char('?')
-            | KeyCode::Char('n' | 'N')
-            | KeyCode::Char('h' | 'j' | 'k' | 'l' | 'w' | 'b' | 'e' | '0' | '$')
-            | KeyCode::Left
-            | KeyCode::Right
-            | KeyCode::Up
-            | KeyCode::Down
-            | KeyCode::Home
-            | KeyCode::End
-            | KeyCode::Esc
-            | KeyCode::Char('y')
-    )
 }
 
 #[cfg(test)]

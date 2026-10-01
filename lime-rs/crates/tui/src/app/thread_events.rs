@@ -202,6 +202,9 @@ impl App {
         self.track_agents_overview_notification(&notification);
         self.observe_notification(&notification);
         let target = server_notification_thread_target(&notification);
+        if let ServerNotificationThreadTarget::Thread(thread_id) = &target {
+            self.observe_thread_input_notification(thread_id, &notification);
+        }
         if matches!(
             target,
             ServerNotificationThreadTarget::Thread(ref thread_id)

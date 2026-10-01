@@ -8,7 +8,6 @@ use app_server_protocol::protocol::v2::{
 };
 
 impl App {
-    #[allow(dead_code)]
     pub(crate) fn track_agents_overview_notification(&mut self, notification: &ServerNotification) {
         let primary = self.primary_thread_id.clone();
         let Some(overview) = self.agents_overview.as_mut() else {
@@ -74,18 +73,16 @@ impl App {
             }
             _ => return,
         }
-        if let Some(thread_id) = thread_id {
-            overview.refresh_thread_ids.insert(thread_id.to_string());
-            if overview.refreshing || overview.loading_more {
-                let pending = overview
-                    .refresh_notifications
-                    .entry(thread_id.to_string())
-                    .or_default();
-                pending.retain(|previous| {
-                    std::mem::discriminant(previous) != std::mem::discriminant(notification)
-                });
-                pending.push(notification.clone());
-            }
+        if let Some(thread_id) = thread_id.filter(|_| overview.refreshing || overview.loading_more)
+        {
+            let pending = overview
+                .refresh_notifications
+                .entry(thread_id.to_string())
+                .or_default();
+            pending.retain(|previous| {
+                std::mem::discriminant(previous) != std::mem::discriminant(notification)
+            });
+            pending.push(notification.clone());
         }
         overview
             .view
@@ -93,29 +90,6 @@ impl App {
                 &overview.threads,
                 primary.as_deref(),
             ));
-        overview.visible_thread_ids = overview
-            .view
-            .visible_rows()
-            .into_iter()
-            .map(|row| row.thread.id.clone())
-            .collect();
-        overview.sync_view_state();
-    }
-
-    #[allow(dead_code)]
-    pub(crate) async fn refresh_changed_agents_overview_threads(
-        &mut self,
-        app_server: &AppServerSession,
-    ) -> Result<()> {
-        self.refresh_agents_overview_threads(app_server).await
-    }
-
-    #[allow(dead_code)]
-    pub(crate) async fn start_agents_overview_refresh(
-        &mut self,
-        app_server: &AppServerSession,
-    ) -> Result<()> {
-        self.refresh_agents_overview_threads(app_server).await
     }
 
     pub(crate) async fn refresh_agents_overview_threads(
@@ -125,15 +99,12 @@ impl App {
         let Some(overview) = self.agents_overview.as_mut() else {
             return Ok(());
         };
-        overview
-            .refresh_thread_ids
-            .extend(overview.threads.iter().map(|thread| thread.id.clone()));
         if overview.refreshing || overview.loading_more {
             overview.refresh_pending = true;
             return Ok(());
         }
         let generation = overview.begin_refresh();
-        overview.sync_view_state();
+        overview.sync_pagination();
         let result = async {
             let page = app_server
                 .thread_list(ThreadListParams {
@@ -187,8 +158,7 @@ impl App {
             Err(error) => {
                 if let Some(overview) = self.agents_overview.as_mut() {
                     overview.refreshing = false;
-                    overview.request_id = None;
-                    overview.sync_view_state();
+                    overview.sync_pagination();
                 }
                 self.projection
                     .set_status(format!("agents overview unavailable: {error}"));

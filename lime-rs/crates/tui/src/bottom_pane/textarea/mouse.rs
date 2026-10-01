@@ -38,7 +38,7 @@ impl TextArea {
     pub(crate) fn mouse_selection_range(&self) -> Option<Range<usize>> {
         let origin = &self.mouse_selection.as_ref()?.origin;
         let range = origin.start.min(self.cursor)..origin.end.max(self.cursor);
-        (!range.is_empty()).then_some(range)
+        (!range.is_empty()).then(|| self.atomic_edit_range(range))
     }
 
     pub(crate) fn selected_text(&self) -> Option<&str> {
@@ -112,10 +112,10 @@ impl TextArea {
         } else {
             return false;
         };
-        let range = selection.unit.range(&self.text, pos);
+        let range = self.atomic_edit_range(selection.unit.range(&self.text, pos));
         self.preferred_col = None;
         self.vim_pending = super::VimPending::None;
-        self.vim_replace_steps.clear();
+        self.clear_vim_replace_recovery();
         if down {
             selection.origin = range.clone();
         }

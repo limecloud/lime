@@ -1,7 +1,6 @@
-use ratatui::layout::{Constraint, Direction, Layout, Position, Rect};
-use ratatui::style::{Color, Modifier, Style};
+use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Clear, FrameExt as _, Paragraph};
+use ratatui::widgets::{Clear, Paragraph};
 use ratatui::Frame;
 
 use crate::app::App;
@@ -40,6 +39,7 @@ pub(crate) fn render(frame: &mut Frame<'_>, app: &App) {
     }
     let active_elapsed = app.active_turn_elapsed(Instant::now());
     let chunks = screen_chunks(area, app, active_elapsed);
+    let picker_active = app.model_picker.is_some() || app.agent_picker.is_some();
 
     render_transcript(frame, chunks.transcript, app);
     if !app.bottom_pane.is_active() {
@@ -63,15 +63,17 @@ pub(crate) fn render(frame: &mut Frame<'_>, app: &App) {
     } else {
         if let Some(picker) = app.model_picker.as_ref() {
             model_picker::render_with_locale(frame, chunks.input, picker, app.locale);
+        } else if let Some(picker) = app.agent_picker.as_ref() {
+            crate::app::agent_picker::render(frame, chunks.input, picker, app.locale);
         } else {
             if bottom_pane::shortcut_overlay::visible(app) {
                 bottom_pane::shortcut_overlay::render(frame, chunks.shortcuts, app);
             }
-            render_composer(frame, chunks.input, app);
+            app.composer.render(frame, chunks.input, app.locale);
         }
     }
     let follow_area = (!app.bottom_pane.is_active()
-        && !app.composer.command_popup_active()
+        && !app.composer.completion_popup_active()
         && !app.composer.file_search_popup_active()
         && !app.composer.skill_popup_active()
         && app.model_picker.is_none()
@@ -98,7 +100,7 @@ pub(crate) fn render(frame: &mut Frame<'_>, app: &App) {
         );
     }
     if app.bottom_pane.is_active()
-        || (app.model_picker.is_none()
+        || (!picker_active
             && !app.transcript_footer.render_status(
                 frame,
                 chunks.footer,
@@ -109,7 +111,7 @@ pub(crate) fn render(frame: &mut Frame<'_>, app: &App) {
     {
         bottom_pane::render_footer(frame, chunks.footer, app);
     }
-    if !app.bottom_pane.is_active() && app.model_picker.is_none() {
+    if !app.bottom_pane.is_active() && !picker_active {
         if let Some(popup) = app.composer.command_popup() {
             command_popup::render(frame, chunks.input, popup, app.locale);
         }
@@ -121,23 +123,15 @@ pub(crate) fn render(frame: &mut Frame<'_>, app: &App) {
         }
     }
     if let Some(overview) = app.agents_overview.as_ref() {
-        crate::app::agents_overview_view::render(frame, area, &overview.view, app.locale);
-        // The fullscreen Agent Center owns its footer while editing/searching. Outside those
-        // modes, keep the app-scoped action result visible in the footer without stealing the
-        // input prompt that the center is rendering.
-        if overview.view.input_mode().is_none()
-            && !overview.view.is_searching()
-            && !overview.view.help_active()
-        {
-            if let Some(status) = transient_status(app) {
-                render_transient_status(frame, chunks.footer, app.locale, &status);
-            }
-        }
-    }
-    if let Some(picker) = app.agent_picker.as_ref() {
-        if app.agents_overview.is_none() {
-            crate::app::agent_picker::render(frame, area, picker, app.locale);
-        }
+        // The fullscreen owner reserves notice and controls separately; do not overpaint hints.
+        let notice = transient_status(app).map(|status| app.locale.status(&status));
+        crate::app::agents_overview_view::render(
+            frame,
+            area,
+            &overview.view,
+            app.locale,
+            notice.as_deref(),
+        );
     }
 }
 
@@ -156,7 +150,8 @@ fn screen_chunks(
     app: &App,
     active_elapsed: Option<std::time::Duration>,
 ) -> ScreenChunks {
-    let status_height = if app.bottom_pane.is_active() || app.model_picker.is_some() {
+    let picker_active = app.model_picker.is_some() || app.agent_picker.is_some();
+    let status_height = if app.bottom_pane.is_active() || picker_active {
         0
     } else if let Some(elapsed) = active_elapsed {
         let inline_status = active_status_message(app);
@@ -172,7 +167,7 @@ fn screen_chunks(
     } else {
         0
     };
-    let preview_height = if app.bottom_pane.is_active() || app.model_picker.is_some() {
+    let preview_height = if app.bottom_pane.is_active() || picker_active {
         0
     } else {
         pending_input_preview::desired_height(&app.queued_submissions, area.width, app.locale)
@@ -184,11 +179,14 @@ fn screen_chunks(
     } else if let Some(picker) = app.model_picker.as_ref() {
         model_picker::desired_height(picker, app.locale, area.width)
             .min(area.height.saturating_sub(1))
+    } else if let Some(picker) = app.agent_picker.as_ref() {
+        crate::app::agent_picker::desired_height(picker, app.locale, area.width)
+            .min(area.height.saturating_sub(1))
     } else {
         let desired = app
             .composer
             .desired_height_for_width(area.width)
-            .clamp(2, 12);
+            .clamp(3, 12);
         desired.min(
             area.height
                 .saturating_sub(preview_height)
@@ -197,7 +195,7 @@ fn screen_chunks(
                 .max(1),
         )
     };
-    let footer_height = if app.model_picker.is_some() && !app.bottom_pane.is_active() {
+    let footer_height = if picker_active && !app.bottom_pane.is_active() {
         0
     } else if app.bottom_pane.is_active() {
         app.bottom_pane
@@ -404,87 +402,6 @@ fn transcript_scroll_offset(
     let max_scroll = rendered_line_count.saturating_sub(usize::from(area.height));
     let offset = max_scroll.saturating_sub(distance_from_bottom.min(max_scroll));
     u16::try_from(offset).unwrap_or(u16::MAX)
-}
-
-fn render_composer(frame: &mut Frame<'_>, area: Rect, app: &App) {
-    let remote_count = app.composer.remote_image_urls().len();
-    let mut image_lines = app.composer.remote_image_lines();
-    image_lines.extend(
-        app.composer
-            .pending_images()
-            .iter()
-            .enumerate()
-            .map(|(index, _)| {
-                Line::styled(
-                    format!("[Image #{}]", remote_count + index + 1),
-                    Style::default().fg(Color::Cyan),
-                )
-            }),
-    );
-    let layout = app.composer.layout(area);
-    if layout.inner.width == 0 || layout.inner.height == 0 {
-        return;
-    }
-
-    if !layout.attachments.is_empty() {
-        frame.render_widget(Paragraph::new(image_lines), layout.attachments);
-    }
-
-    let text_area = layout.textarea;
-    if text_area.is_empty() {
-        return;
-    }
-    let cursor = {
-        let mut state = app.composer.textarea_state_mut();
-        app.composer.textarea().remember_rendered_area(text_area);
-        let highlights = app
-            .composer
-            .history_search_highlight_ranges()
-            .into_iter()
-            .map(|range| {
-                (
-                    range,
-                    Style::default()
-                        .add_modifier(Modifier::REVERSED)
-                        .add_modifier(Modifier::BOLD),
-                )
-            })
-            .collect::<Vec<_>>();
-        let prompt_width = layout.inner.width.saturating_sub(text_area.width);
-        let prompt = Line::from(Span::styled("› ", crate::style::accent_style()));
-        frame.render_widget(
-            Paragraph::new(prompt),
-            Rect::new(layout.inner.x, text_area.y, prompt_width, 1),
-        );
-        if highlights.is_empty() {
-            if app.composer.is_empty() {
-                // Keep attachment rows visible above the input baseline. The prompt occupies its
-                // own gutter, while the placeholder is rendered inside the text area so both
-                // share the same input baseline.
-                let placeholder = Line::from(Span::styled(
-                    app.locale.composer_placeholder(),
-                    crate::style::muted_style(),
-                ));
-                frame.render_widget(Paragraph::new(placeholder), text_area);
-            } else {
-                frame.render_stateful_widget_ref(app.composer.textarea(), text_area, &mut *state);
-            }
-        } else {
-            app.composer.textarea().render_ref_styled_with_highlights(
-                text_area,
-                frame.buffer_mut(),
-                &mut state,
-                Style::default(),
-                &highlights,
-            );
-        }
-        app.composer
-            .textarea()
-            .cursor_pos_with_state(text_area, *state)
-    };
-    if let Some((x, y)) = cursor {
-        frame.set_cursor_position(Position::new(x, y));
-    }
 }
 
 #[cfg(test)]

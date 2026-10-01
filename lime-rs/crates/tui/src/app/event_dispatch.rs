@@ -8,7 +8,7 @@ use anyhow::Result;
 
 use super::*;
 use crate::app_server_session::AppServerSession;
-use crate::settings::{cycle_setting, EFFORTS};
+use crate::model_catalog::ReasoningShortcutDirection;
 
 pub(crate) struct EventContext<'a> {
     pub(crate) session: &'a mut AppServerSession,
@@ -35,11 +35,13 @@ impl App {
         match event {
             action @ (AppAction::DecreaseEffort | AppAction::IncreaseEffort) => {
                 let direction = if matches!(action, AppAction::DecreaseEffort) {
-                    -1
+                    ReasoningShortcutDirection::Lower
                 } else {
-                    1
+                    ReasoningShortcutDirection::Raise
                 };
-                let next = cycle_setting(&EFFORTS, context.effort.as_deref(), direction);
+                let Some(next) = self.prepare_reasoning_shortcut(direction) else {
+                    return Ok(EventDispatch::Handled);
+                };
                 match context
                     .session
                     .update_settings(None, None, Some(next.clone()), None)
@@ -53,7 +55,8 @@ impl App {
                             context.effort.clone(),
                             context.permissions.clone(),
                         );
-                        self.projection.set_status(format!("effort: {next}"));
+                        self.projection
+                            .set_status(self.locale.reasoning_updated_message(&next));
                     }
                     Err(error) => self.projection.set_status(error.to_string()),
                 }
@@ -98,7 +101,7 @@ impl App {
                     .update_settings(
                         Some(selection.model.clone()),
                         Some(selection.provider.clone()),
-                        None,
+                        selection.effort.clone(),
                         None,
                     )
                     .await
@@ -106,6 +109,9 @@ impl App {
                     Ok(()) => {
                         *context.model = Some(selection.model);
                         *context.model_provider = Some(selection.provider);
+                        if let Some(effort) = selection.effort {
+                            *context.effort = Some(effort);
+                        }
                         self.set_settings(
                             context.model.clone(),
                             context.model_provider.clone(),

@@ -396,6 +396,10 @@ async fn settings_update_runs_through_the_actor_and_persists_without_items() {
         Some(&json!("provider-b"))
     );
     assert_eq!(
+        read.pointer("/result/thread/modelProvider"),
+        Some(&json!("provider-b"))
+    );
+    assert_eq!(
         read.pointer("/result/thread/extra/workingDir"),
         Some(&json!("/tmp/thread-control-b"))
     );
@@ -409,13 +413,22 @@ async fn settings_update_runs_through_the_actor_and_persists_without_items() {
     );
     assert!(read.pointer("/result/thread/extra/serviceTier").is_none());
 
-    request(
+    let resumed = request(
         &restarted,
         6,
         METHOD_THREAD_RESUME,
         json!({"threadId": thread_id}),
     )
     .await;
+    assert_eq!(
+        resumed.pointer("/result/modelProvider"),
+        Some(&json!("provider-b"))
+    );
+    assert_eq!(resumed.pointer("/result/model"), Some(&json!("model-b")));
+    assert_eq!(
+        resumed.pointer("/result/reasoningEffort"),
+        Some(&json!("high"))
+    );
     request(
         &restarted,
         7,

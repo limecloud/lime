@@ -1,16 +1,20 @@
 //! Semantic styles shared by Lime TUI surfaces.
 
+mod contrast;
+#[cfg(test)]
+pub(crate) use contrast::ratio as text_contrast_ratio;
 mod selection;
 pub(crate) use selection::{active_tab_style, key_hint_style, selection_style};
 
 use ratatui::style::{Color, Style};
 
 use crate::terminal_palette::{
-    best_color_for_level, default_bg, default_fg, effective_stdout_color_level, rgb_color,
-    stdout_color_level, StdoutColorLevel,
+    best_color_for_level, color_rgb, default_bg, default_fg, effective_stdout_color_level,
+    rgb_color, stdout_color_level, DefaultColors, StdoutColorLevel,
 };
 
-const LIGHT_BG_ACCENT_RGB: (u8, u8, u8) = (0, 95, 135);
+const LIGHT_BG_ACCENT_RGB: (u8, u8, u8) = (28, 100, 200);
+const UI_ACCENT: (u8, u8, u8) = (99, 168, 248);
 const TABLE_SEPARATOR_FG_ALPHA: f32 = 0.20;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -71,7 +75,22 @@ pub(crate) fn table_separator_style() -> Style {
 }
 
 pub(crate) fn footer_hint_label_style() -> Style {
-    footer_hint_label_style_for(default_bg(), effective_stdout_color_level())
+    secondary_text_style_for(default_fg(), default_bg(), effective_stdout_color_level())
+}
+
+/// Attachment emphasis uses the actual filled input surface, including indexed-color reduction.
+pub(crate) fn user_message_accent_color() -> Color {
+    user_message_accent_color_for(default_bg(), effective_stdout_color_level())
+}
+
+fn user_message_accent_color_for(
+    background: Option<(u8, u8, u8)>,
+    level: StdoutColorLevel,
+) -> Color {
+    let preferred = accent_rgb(background);
+    let surface =
+        background.and_then(|bg| color_rgb(best_color_for_level(user_message_bg_rgb(bg), level)));
+    contrast::foreground(preferred, surface, level)
 }
 
 fn status_style_for(
@@ -79,29 +98,32 @@ fn status_style_for(
     terminal_bg: Option<(u8, u8, u8)>,
     color_level: StdoutColorLevel,
 ) -> Style {
-    let base = Style::default().bold();
-    if color_level == StdoutColorLevel::Unknown {
-        return base;
-    }
-
     let light = terminal_bg.is_some_and(is_light);
-    match tone {
-        StatusTone::Success => base.fg(Color::Green),
-        StatusTone::Failure => base.fg(Color::Red),
-        StatusTone::Attention if light || terminal_bg.is_none() => base,
-        StatusTone::Attention => base.fg(Color::Yellow),
-    }
+    let foreground = match (tone, color_level) {
+        (_, StdoutColorLevel::Unknown) => Color::Reset,
+        (StatusTone::Success, _) => Color::Green,
+        (StatusTone::Failure, _) => Color::Red,
+        (StatusTone::Attention, _) if light || terminal_bg.is_none() => Color::Reset,
+        (StatusTone::Attention, _) => Color::Yellow,
+    };
+    Style::default().fg(foreground).bold()
 }
 
 fn accent_style_for(terminal_bg: Option<(u8, u8, u8)>, color_level: StdoutColorLevel) -> Style {
-    let base = Style::default().bold();
-    if color_level == StdoutColorLevel::Unknown {
-        return base;
-    }
+    Style::default()
+        .fg(contrast::foreground(
+            accent_rgb(terminal_bg),
+            terminal_bg,
+            color_level,
+        ))
+        .bold()
+}
+
+fn accent_rgb(terminal_bg: Option<(u8, u8, u8)>) -> (u8, u8, u8) {
     if terminal_bg.is_some_and(is_light) {
-        base.fg(best_color_for_level(LIGHT_BG_ACCENT_RGB, color_level))
+        LIGHT_BG_ACCENT_RGB
     } else {
-        base.fg(Color::Cyan)
+        UI_ACCENT
     }
 }
 
@@ -142,15 +164,19 @@ fn table_separator_style_for(
     }
 }
 
-fn footer_hint_label_style_for(
+fn secondary_text_style_for(
+    terminal_fg: Option<(u8, u8, u8)>,
     terminal_bg: Option<(u8, u8, u8)>,
     color_level: StdoutColorLevel,
 ) -> Style {
-    if color_level != StdoutColorLevel::Unknown && terminal_bg.is_some_and(is_light) {
-        Style::default().fg(Color::DarkGray)
-    } else {
-        muted_style()
-    }
+    let preferred = terminal_fg
+        .zip(terminal_bg)
+        .map(|(fg, bg)| blend(fg, bg, 0.6));
+    // Without a background sample keep the measured foreground, never invent a terminal palette.
+    let foreground = preferred.or(terminal_fg).map_or(Color::Reset, |fg| {
+        contrast::foreground(fg, terminal_bg, color_level)
+    });
+    Style::default().fg(foreground).not_dim().not_bold()
 }
 
 fn user_message_bg_rgb(background: (u8, u8, u8)) -> (u8, u8, u8) {
@@ -162,7 +188,31 @@ fn user_message_bg_rgb(background: (u8, u8, u8)) -> (u8, u8, u8) {
     blend(foreground, background, alpha)
 }
 
-fn is_light((red, green, blue): (u8, u8, u8)) -> bool {
+/// Resolve known text colors against the painted surface using one terminal snapshot.
+/// ANSI colors remain terminal-owned; their configured RGB values are not guessed.
+pub(crate) fn readable_color_on(
+    preferred: Color,
+    background: Option<Color>,
+    colors: Option<DefaultColors>,
+    level: StdoutColorLevel,
+) -> Color {
+    let preferred = match preferred {
+        Color::Reset => colors.map(|colors| colors.fg),
+        color => match color_rgb(color) {
+            Some(rgb) => Some(rgb),
+            None => return color,
+        },
+    };
+    let background = match background {
+        None | Some(Color::Reset) => colors.map(|colors| colors.bg),
+        Some(color) => color_rgb(color),
+    };
+    preferred.map_or(Color::Reset, |rgb| {
+        contrast::foreground(rgb, background, level)
+    })
+}
+
+pub(crate) fn is_light((red, green, blue): (u8, u8, u8)) -> bool {
     let luminance = 0.299 * f32::from(red) + 0.587 * f32::from(green) + 0.114 * f32::from(blue);
     luminance > 128.0
 }
@@ -205,7 +255,7 @@ mod tests {
                 StdoutColorLevel::TrueColor,
             )
             .fg,
-            None,
+            Some(Color::Reset),
         );
         for tone in [
             StatusTone::Success,
@@ -213,7 +263,7 @@ mod tests {
             StatusTone::Failure,
         ] {
             let style = status_style_for(tone, Some((0, 0, 0)), StdoutColorLevel::Unknown);
-            assert_eq!(style.fg, None);
+            assert_eq!(style.fg, Some(Color::Reset));
             assert!(style.add_modifier.contains(Modifier::BOLD));
         }
     }
@@ -222,15 +272,19 @@ mod tests {
     fn accent_is_palette_aware_and_has_a_no_color_fallback() {
         assert_eq!(
             accent_style_for(Some((0, 0, 0)), StdoutColorLevel::Ansi16).fg,
-            Some(Color::Cyan),
+            Some(Color::Reset),
         );
         assert!(matches!(
             accent_style_for(Some((255, 255, 255)), StdoutColorLevel::TrueColor).fg,
-            Some(Color::Rgb(0, 95, 135)),
+            Some(Color::Rgb(28, 100, 200)),
         ));
         assert_eq!(
             accent_style_for(Some((0, 0, 0)), StdoutColorLevel::Unknown).fg,
-            None,
+            Some(Color::Reset),
+        );
+        assert_eq!(
+            accent_style_for(Some((0, 0, 0)), StdoutColorLevel::TrueColor).fg,
+            Some(Color::Rgb(99, 168, 248)),
         );
     }
 
@@ -273,13 +327,21 @@ mod tests {
     #[test]
     fn footer_styles_keep_labels_quiet_on_all_palettes() {
         assert_eq!(
-            footer_hint_label_style_for(Some((255, 255, 255)), StdoutColorLevel::TrueColor,).fg,
-            Some(Color::DarkGray),
+            secondary_text_style_for(
+                Some((0, 0, 0)),
+                Some((255, 255, 255)),
+                StdoutColorLevel::TrueColor,
+            )
+            .fg,
+            Some(Color::Rgb(101, 101, 101)),
         );
-        assert!(
-            footer_hint_label_style_for(Some((0, 0, 0)), StdoutColorLevel::Unknown)
+        for level in [StdoutColorLevel::Ansi16, StdoutColorLevel::Unknown] {
+            let style = secondary_text_style_for(Some((255, 255, 255)), Some((0, 0, 0)), level);
+            assert_eq!(style.fg, Some(Color::Reset));
+            assert!(!style
                 .add_modifier
-                .contains(Modifier::DIM),
-        );
+                .intersects(Modifier::DIM | Modifier::BOLD));
+            assert!(style.sub_modifier.contains(Modifier::DIM | Modifier::BOLD));
+        }
     }
 }

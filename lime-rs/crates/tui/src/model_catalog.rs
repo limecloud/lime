@@ -3,6 +3,12 @@
 use app_server_protocol::protocol::v2::{CollaborationModeMask, Model};
 use std::convert::Infallible;
 
+mod reasoning;
+pub(crate) use reasoning::{
+    is_advanced_reasoning, reasoning_anchor, reasoning_options, ReasoningShortcutDirection,
+    ReasoningStep,
+};
+
 /// A snapshot of the model picker inputs returned by App Server.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub(crate) struct ModelCatalog {
@@ -32,12 +38,12 @@ impl ModelCatalog {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use app_server_protocol::protocol::v2::InputModality;
     use app_server_protocol::CapabilitySnapshot;
 
-    fn model(id: &str, provider: &str, is_default: bool) -> Model {
+    pub(crate) fn model(id: &str, provider: &str, is_default: bool) -> Model {
         Model {
             id: id.to_string(),
             provider_id: provider.to_string(),

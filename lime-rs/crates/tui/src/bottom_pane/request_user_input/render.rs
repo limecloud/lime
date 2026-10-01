@@ -1,217 +1,257 @@
-use ratatui::layout::{Position, Rect};
+use ratatui::layout::Rect;
 use ratatui::style::Color;
-use ratatui::style::{Modifier, Style};
+use ratatui::style::Style;
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Paragraph, Wrap};
+use ratatui::widgets::{Clear, Paragraph};
 use ratatui::Frame;
 use std::time::Instant;
 use unicode_segmentation::UnicodeSegmentation;
 
-use crate::bottom_pane::selection_row_layout::{visible_item_window, MAX_POPUP_ROWS};
+use crate::bottom_pane::scroll_state::ScrollState;
+use crate::bottom_pane::selection_popup_common::{
+    measure_rows_height_with_layout, render_rows_with_layout,
+};
+use crate::bottom_pane::selection_row_layout::{
+    line_to_owned, SelectionDescriptionLayout, SelectionRow,
+};
 use crate::line_truncation::line_width;
 use crate::locale::Locale;
 use crate::style::{accent_style, muted_style};
 use crate::width::display_width;
 use crate::wrapping::{word_wrap_line, RtOptions};
 
+use super::layout::{layout_sections, menu_surface_inset, LayoutSections};
 use super::RequestUserInputOverlay;
 
-#[allow(dead_code)]
-pub(in crate::bottom_pane) fn lines_with_locale_with_width(
-    request: &RequestUserInputOverlay,
-    locale: Locale,
-    width: usize,
-) -> Vec<Line<'static>> {
-    lines_with_locale_with_width_at(request, locale, width, Instant::now())
-}
-
-pub(in crate::bottom_pane) fn lines_with_locale_with_width_at(
-    request: &RequestUserInputOverlay,
-    locale: Locale,
-    width: usize,
-    now: Instant,
-) -> Vec<Line<'static>> {
-    let lines = lines_with_locale_unbounded(request, locale, now);
-    if width == usize::MAX {
-        lines
-    } else {
-        wrap_request_lines(lines, width.max(1), request.editing)
-    }
-}
-
-fn own_line(line: Line<'_>) -> Line<'static> {
-    let style = line.style;
-    let spans = line
-        .spans
-        .into_iter()
-        .map(|span| Span::styled(span.content.into_owned(), span.style))
-        .collect::<Vec<_>>();
-    Line::from(spans).style(style)
-}
-
-/// Wrap prompt/option/footer lines while keeping the editable value on one predictable row.
-///
-/// The bottom pane's height is derived from this same projection, so a long Chinese or
-/// Japanese label cannot push the footer (and therefore the cancel action) out of view.
-fn wrap_request_lines(
-    lines: Vec<Line<'static>>,
-    width: usize,
-    editing: bool,
-) -> Vec<Line<'static>> {
-    let input_index = editing.then(|| lines.len().saturating_sub(1));
-    let mut wrapped = Vec::new();
-    for (index, line) in lines.into_iter().enumerate() {
-        if Some(index) == input_index {
-            wrapped.push(truncate_line_word_boundary_with_ellipsis(line, width));
-            continue;
-        }
-        // Keep each option on one row so a long description cannot consume the vertical
-        // budget and hide the selected action. The label remains visible; only the secondary
-        // description is ellipsized at narrow widths.
-        if is_option_line(&line) {
-            wrapped.push(truncate_line_word_boundary_with_ellipsis(line, width));
-            continue;
-        }
-        let options = RtOptions::new(width).break_words(true);
-        wrapped.extend(word_wrap_line(&line, options).into_iter().map(own_line));
-    }
-    wrapped
-}
-
-fn is_option_line(line: &Line<'_>) -> bool {
-    let text = line.to_string();
-    let text = text.trim_start_matches(['›', ' ']);
-    text.as_bytes().first().is_some_and(u8::is_ascii_digit) && text.contains(". ")
-}
-
-fn lines_with_locale_unbounded(
-    request: &RequestUserInputOverlay,
-    locale: Locale,
-    now: Instant,
-) -> Vec<Line<'static>> {
-    let Some(question) = request.params.questions.get(request.question_index) else {
-        return vec![Line::from(locale.no_questions())];
+const OPTIONS_LAYOUT: SelectionDescriptionLayout =
+    SelectionDescriptionLayout::StackBelowWhenNarrow {
+        min_description_width: 24,
     };
-    let mut lines = Vec::new();
-    if let Some(countdown) = request.auto_resolution_countdown_text(now, locale) {
-        lines.push(Line::styled(countdown, Style::default().fg(Color::Red)));
+
+fn option_rows(request: &RequestUserInputOverlay, locale: Locale) -> Vec<SelectionRow> {
+    let mut rows = request
+        .current_options()
+        .unwrap_or_default()
+        .iter()
+        .enumerate()
+        .map(|(index, option)| {
+            SelectionRow::new(
+                option.label.clone(),
+                (!option.description.is_empty()).then(|| option.description.clone()),
+                vec![format!(
+                    "{}{}. ",
+                    if index == request.selected {
+                        "› "
+                    } else {
+                        "  "
+                    },
+                    index + 1
+                )
+                .into()],
+            )
+        })
+        .collect::<Vec<_>>();
+    if request.other_option_enabled() {
+        let index = rows.len();
+        rows.push(SelectionRow::new(
+            locale.other_option(),
+            None,
+            vec![format!(
+                "{}{}. ",
+                if index == request.selected {
+                    "› "
+                } else {
+                    "  "
+                },
+                index + 1
+            )
+            .into()],
+        ));
     }
-    lines.extend([
-        Line::styled(
-            format!(
-                "{} ({}/{})",
-                question.header,
-                request.question_index + 1,
-                request.params.questions.len()
-            ),
-            Style::default().add_modifier(Modifier::BOLD),
-        ),
-        Line::from(question.question.clone()),
-    ]);
-    if let Some(options) = question
-        .options
-        .as_ref()
-        .filter(|options| !options.is_empty())
-    {
-        let total = options.len() + usize::from(question.is_other);
-        let (start, end) = visible_item_window(request.selected, total, MAX_POPUP_ROWS);
-        for index in start..end {
-            if let Some(option) = options.get(index) {
-                lines.push(option_line(
-                    !request.editing && index == request.selected,
-                    format!("{}. {}  {}", index + 1, option.label, option.description),
-                ));
-            } else if question.is_other && index == options.len() {
-                lines.push(option_line(
-                    !request.editing && request.selected == options.len(),
-                    format!("{}. {}", options.len() + 1, locale.other_option()),
-                ));
-            }
-        }
-    }
-    if request.editing {
-        let value = if question.is_secret {
-            "*".repeat(request.composer.text().chars().count())
-        } else {
-            request.composer.text().to_string()
-        };
-        lines.push(Line::from(vec![
-            Span::styled("› ", accent_style()),
-            Span::raw(value),
-        ]));
-    } else if question.options.is_some() {
-        lines.push(Line::styled(locale.add_notes(), muted_style()));
-    }
-    lines
+    rows
 }
 
-pub(in crate::bottom_pane) fn set_cursor_position(
-    frame: &mut Frame<'_>,
-    inner: Rect,
+fn options_state(request: &RequestUserInputOverlay) -> ScrollState {
+    ScrollState {
+        selected_idx: Some(request.selected),
+        scroll_top: 0,
+    }
+}
+
+fn question_lines(
     request: &RequestUserInputOverlay,
-    content: &[Line<'static>],
+    locale: Locale,
+    width: u16,
+) -> Vec<Line<'static>> {
+    let text = request
+        .params
+        .questions
+        .get(request.question_index)
+        .map_or_else(
+            || locale.no_questions().to_string(),
+            |question| question.question.clone(),
+        );
+    word_wrap_line(
+        &Line::from(text),
+        RtOptions::new(usize::from(width.max(1))).break_words(true),
+    )
+    .into_iter()
+    .map(line_to_owned)
+    .collect()
+}
+
+fn notes_input_area(area: Rect) -> Rect {
+    let prefix = 2.min(area.width.saturating_sub(1));
+    Rect::new(
+        area.x + prefix,
+        area.y,
+        area.width.saturating_sub(prefix),
+        area.height,
+    )
+}
+
+fn notes_height(request: &RequestUserInputOverlay, width: u16) -> u16 {
+    if !request.editing {
+        return 0;
+    }
+    request
+        .composer
+        .desired_height(notes_input_area(Rect::new(0, 0, width, 1)).width.max(1))
+        .clamp(1, 6)
+}
+
+fn sections(request: &RequestUserInputOverlay, locale: Locale, area: Rect) -> LayoutSections {
+    let rows = option_rows(request, locale);
+    let options_height = if rows.is_empty() {
+        0
+    } else {
+        measure_rows_height_with_layout(&rows, &options_state(request), area.width, OPTIONS_LAYOUT)
+    };
+    layout_sections(
+        area,
+        u16::try_from(question_lines(request, locale, area.width).len()).unwrap_or(u16::MAX),
+        options_height,
+        notes_height(request, area.width),
+    )
+}
+
+pub(in crate::bottom_pane) fn desired_height(
+    request: &RequestUserInputOverlay,
+    locale: Locale,
+    width: u16,
+) -> u16 {
+    let inner = menu_surface_inset(Rect::new(0, 0, width, u16::MAX));
+    let rows = option_rows(request, locale);
+    let options_height = if rows.is_empty() {
+        0
+    } else {
+        measure_rows_height_with_layout(&rows, &options_state(request), inner.width, OPTIONS_LAYOUT)
+    };
+    u16::try_from(question_lines(request, locale, inner.width).len())
+        .unwrap_or(u16::MAX)
+        .saturating_add(options_height)
+        .saturating_add(notes_height(request, inner.width))
+        .saturating_add(4)
+        .clamp(8, 18)
+}
+
+pub(in crate::bottom_pane) fn render(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    request: &RequestUserInputOverlay,
+    locale: Locale,
 ) {
-    if !request.editing || inner.width == 0 || inner.height == 0 {
+    render_ui_at(frame, area, request, locale, Instant::now());
+}
+
+fn render_ui_at(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    request: &RequestUserInputOverlay,
+    locale: Locale,
+    now: Instant,
+) {
+    if area.is_empty() {
         return;
     }
-    let value = &request.composer.text()[..request.composer.cursor()];
-    let is_secret = request
-        .params
-        .questions
-        .get(request.question_index)
-        .is_some_and(|question| question.is_secret);
-    let display_value = if is_secret {
-        "*".repeat(value.chars().count())
-    } else {
-        value.to_string()
-    };
-    let input_prefix = format!("› {display_value}");
-    let input_rows_before_cursor = Paragraph::new(Line::from(input_prefix))
-        .wrap(Wrap { trim: false })
-        .line_count(inner.width.max(1));
-    let input_line_index = content.len().saturating_sub(1);
-    let preceding_rows = Paragraph::new(content[..input_line_index].to_vec())
-        .wrap(Wrap { trim: false })
-        .line_count(inner.width.max(1));
-    let value_width = request
-        .params
-        .questions
-        .get(request.question_index)
-        .filter(|question| question.is_secret)
-        .map_or_else(|| display_width(value), |_| value.chars().count());
-    let current_line = value.rsplit('\n').next().unwrap_or(value);
-    let current_line_width = if is_secret {
-        current_line.chars().count()
-    } else {
-        display_width(current_line)
-    };
-    let prefix_width = usize::from(!value.contains('\n')) * 2;
-    let x = u16::try_from(if value.contains('\n') {
-        current_line_width
-    } else {
-        value_width
-    })
-    .unwrap_or(u16::MAX)
-    .saturating_add(prefix_width as u16)
-    .min(inner.width.saturating_sub(1));
-    let input_row = preceding_rows.saturating_add(input_rows_before_cursor.saturating_sub(1));
-    let y = u16::try_from(input_row)
-        .unwrap_or(u16::MAX)
-        .min(inner.height.saturating_sub(1));
-    frame.set_cursor_position(Position::new(
-        inner.x.saturating_add(x),
-        inner.y.saturating_add(y),
-    ));
+    frame.render_widget(Clear, area);
+    let inner = menu_surface_inset(area);
+    if inner.is_empty() {
+        return;
+    }
+    let sections = sections(request, locale, inner);
+    let mut progress = vec![Span::styled(
+        locale
+            .request_question_progress(request.question_index + 1, request.params.questions.len()),
+        muted_style(),
+    )];
+    if let Some(countdown) = request.auto_resolution_countdown_text(now, locale) {
+        progress.extend([
+            Span::raw(" · "),
+            Span::styled(countdown, Style::default().fg(Color::Red)),
+        ]);
+    }
+    frame.render_widget(
+        Paragraph::new(truncate_line_word_boundary_with_ellipsis(
+            Line::from(progress),
+            usize::from(inner.width),
+        )),
+        sections.progress_area,
+    );
+    let mut lines = question_lines(request, locale, inner.width);
+    if lines.len() > usize::from(sections.question_area.height) && sections.question_area.height > 0
+    {
+        lines.truncate(usize::from(sections.question_area.height));
+        if let Some(last) = lines.last_mut() {
+            *last = truncate_line_word_boundary_with_ellipsis(
+                Line::from(format!("{} …", last)),
+                usize::from(inner.width),
+            );
+        }
+    }
+    frame.render_widget(
+        Paragraph::new(lines).style(accent_style()),
+        sections.question_area,
+    );
+    render_rows_with_layout(
+        frame,
+        sections.options_area,
+        &option_rows(request, locale),
+        &options_state(request),
+        OPTIONS_LAYOUT,
+    );
+    if request.editing && !sections.notes_area.is_empty() {
+        render_notes_input(frame, sections.notes_area, request);
+    }
 }
 
-fn option_line(selected: bool, label: String) -> Line<'static> {
-    let prefix = if selected { "› " } else { "  " };
-    let style = if selected {
-        accent_style()
+fn render_notes_input(frame: &mut Frame<'_>, area: Rect, request: &RequestUserInputOverlay) {
+    let input = notes_input_area(area);
+    frame.render_widget(
+        Paragraph::new("› ").style(accent_style()),
+        Rect::new(area.x, area.y, area.width.min(2), 1),
+    );
+    let textarea = request.composer.textarea();
+    let mut state = request.composer.textarea_state_mut();
+    if request
+        .params
+        .questions
+        .get(request.question_index)
+        .is_some_and(|question| question.is_secret)
+    {
+        textarea.render_ref_masked(input, frame.buffer_mut(), &mut state, '*');
     } else {
-        Style::default()
-    };
-    Line::styled(format!("{prefix}{label}"), style)
+        textarea.render_ref_styled_with_highlights(
+            input,
+            frame.buffer_mut(),
+            &mut state,
+            Style::default(),
+            &[],
+        );
+    }
+    if let Some(position) = textarea.cursor_pos_with_state(input, *state) {
+        frame.set_cursor_position(position);
+    }
 }
 
 /// Truncate a styled line at a grapheme-safe word boundary and append an ellipsis.

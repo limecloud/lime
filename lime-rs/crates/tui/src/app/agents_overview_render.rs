@@ -129,7 +129,7 @@ mod tests {
         for (width, height) in [(120, 30), (24, 10), (16, 8)] {
             let mut terminal = Terminal::new(TestBackend::new(width, height)).expect("terminal");
             terminal
-                .draw(|frame| render(frame, frame.area(), &view, Locale::EnUs))
+                .draw(|frame| render(frame, frame.area(), &view, Locale::EnUs, None))
                 .expect("draw");
         }
     }
@@ -153,7 +153,7 @@ mod tests {
         }
         let mut terminal = Terminal::new(TestBackend::new(24, 10)).expect("terminal");
         terminal
-            .draw(|frame| render(frame, frame.area(), &view, Locale::ZhCn))
+            .draw(|frame| render(frame, frame.area(), &view, Locale::ZhCn, None))
             .expect("draw");
         let text = terminal
             .backend()
@@ -177,7 +177,7 @@ mod tests {
         let view = AgentsOverviewView::new(vec![current], Some("current"));
         let mut terminal = Terminal::new(TestBackend::new(80, 16)).expect("terminal");
         terminal
-            .draw(|frame| render(frame, frame.area(), &view, Locale::EnUs))
+            .draw(|frame| render(frame, frame.area(), &view, Locale::EnUs, None))
             .expect("draw");
         let text = terminal
             .backend()
@@ -204,7 +204,7 @@ mod tests {
         view.set_pagination(true, false, false);
         let mut terminal = Terminal::new(TestBackend::new(80, 16)).expect("terminal");
         terminal
-            .draw(|frame| render(frame, frame.area(), &view, Locale::EnUs))
+            .draw(|frame| render(frame, frame.area(), &view, Locale::EnUs, None))
             .expect("draw");
         let text = terminal
             .backend()
@@ -217,7 +217,7 @@ mod tests {
 
         view.set_pagination(true, false, true);
         terminal
-            .draw(|frame| render(frame, frame.area(), &view, Locale::EnUs))
+            .draw(|frame| render(frame, frame.area(), &view, Locale::EnUs, None))
             .expect("draw");
         let text = terminal
             .backend()

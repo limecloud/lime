@@ -40,6 +40,17 @@ tui:
       find: [f3, /]
     agents:
       resume: []
+    editor:
+      kill_whole_line: ctrl-q k
+      move_word_left: [alt-b, alt-left, ctrl-left, f10]
+    vim_normal:
+      undo: [u, 'z u']
+    vim_operator:
+      motion_word_forward: [w, 'z w']
+    vim_text_object:
+      word: [w, f12]
+    vim_search:
+      forward: ['/', 'z /']
 ```
 
 每个 action 可使用单个按键、按优先级排列的数组、最多两段且以空格分隔的 chord，或用空数组
@@ -49,6 +60,31 @@ tui:
 - `pager`：`scroll_up`、`scroll_down`、`page_up`、`page_down`、`half_page_up`、
   `half_page_down`、`jump_top`、`jump_bottom`、`close`、`close_transcript`、`find`
 - `agents`：`resume`、`search`、`new_task`、`rename`、`stop`、`toggle_grouping`
+- `list`：`move_up`、`move_down`、`move_left`、`move_right`、`page_up`、`page_down`、
+  `jump_top`、`jump_bottom`、`accept`、`cancel`；当前 resume/fork、模型/推理强度 picker 和 Agent Center 消费，其它选择器尚未接入。
+- `editor`：`insert_newline`、`move_left`、`move_right`、`move_up`、`move_down`、
+  `move_word_left`、`move_word_right`、`move_line_start`、`move_line_end`、`delete_backward`、
+  `delete_forward`、`delete_backward_word`、`delete_forward_word`、`kill_line_start`、
+  `kill_whole_line`、`kill_line_end`、`yank`；composer 的普通/Insert/Replace、Vim query、
+  request-user-input notes 和 MCP 文本字段共用同一 snapshot。
+- `vim_normal`、`vim_operator`、`vim_text_object`、`vim_search`：分别提供 36、20、9、4 个
+  Codex 同义动作；完整字段见 `lime-rs/crates/core/src/config/tui_keymap/vim.rs`。
+  Normal 默认 `gg/G` 跳首/末行，`Y` 或 `yy` 按行复制，`p` 按 register 类型粘贴；
+  自定义动作与 undo/redo/`.`、搜索、历史导航使用同一语义分发，不回退旧键位。
+
+编辑默认键位按 Codex：Alt+B/F 移动单词、Ctrl+D/Delete 删除后一个字符、Ctrl+H/Backspace
+删除前一个字符；`kill_whole_line` 默认无绑定。普通 Enter 由 composer 提交，Shift/Alt+Enter
+和 Ctrl+J/M 由 `insert_newline` 插入换行，解绑不会回退硬编码换行。默认 Up/Down 在满足历史
+导航条件时调用同一 recall owner；解绑也会关闭该入口。pending editor chord 的完成/取消键
+归编辑 owner，不会提交、终止任务或触发全局快捷键。Vim `.` 录制语义动作，不随重新改绑改变。
+editor 与 global 共用输入路径，绑定或 chord prefix 冲突会拒绝启动；例如 global.open_agents
+使用 Ctrl+N 时需将 editor.move_down 显式改为 `down`，不能保留同键双重动作。
+
+会话列表默认 `PageDown/Ctrl+F`、`PageUp/Ctrl+B` 按可见行翻页，左右键或 `Ctrl+H/Ctrl+L`
+切换 Tab 当前聚焦的筛选/状态/排序；旧 `Ctrl+F` 筛选、`Ctrl+S` 状态、`Ctrl+R` 排序不保留。
+可打印导航键优先进入搜索，配置 chord 的完成键仍由 chord 消费。确认/取消提示只展示实际绑定，
+显式 unbind 不恢复 Enter/Esc。`Ctrl+C` 关闭、`Ctrl+O/T/E` 详情与密度、Tab/Shift+Tab 焦点和
+Backspace 搜索删除仍由 picker 持有，冲突的 list 配置会 fail closed；没有暗中不生效的键位。
 
 Agent Center 当前默认键位与 Codex 一致：`o` 恢复、`f` 搜索、`n` 新建、`r` 改名、`x` 停止、
 `g` 切换分组；`Tab/Shift+Tab` 切换状态标签，`PageDown/Ctrl+F`、`PageUp/Ctrl+B` 按可见行
@@ -57,7 +93,11 @@ Agent Center 当前默认键位与 Codex 一致：`o` 恢复、`f` 搜索、`n` 
 
 修饰键使用 `ctrl-`、`alt-`、`shift-`；支持 ASCII 字符、`f1` 至 `f24` 及常见命名键。
 未知字段、非法键名、过长 chord、同 context 重复绑定、single/chord prefix 冲突和普通可打印字符
-chord prefix 都会被拒绝。composer/editor/Vim 尚未接入该配置面。
+chord prefix 都会被拒绝；只有 Vim modal contexts 允许可打印 prefix（如 `g g`、`z u`），
+不会截获普通/Insert/Replace 文本。宿主/提交/队列/历史搜索等固定键冲突会拒绝；显式 modal
+绑定覆盖该 context 的默认绑定，默认 search/modal 向显式动作和实际 global 绑定让位，
+显式跨 context 冲突仍拒绝。pending chord 完成/取消优先于提交和全局快捷键；更新 snapshot
+及替换 buffer 清 pending。composer 专用提交/队列配置尚未接入，不暴露无消费者字段。
 
 ## 数据与日志位置
 

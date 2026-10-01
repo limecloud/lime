@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import { deepStrictEqual } from "node:assert";
 import { execFile } from "node:child_process";
 import {
   access,
@@ -32,6 +33,17 @@ const defaultCliBinaryPath = path.join(
   cliBinaryName,
 );
 const prompt = "tui gate b prompt";
+const largePastePrompt = `PTY_LARGE_PASTE_BODY\n${"界🙂".repeat(501)}\nPTY_LARGE_PASTE_END`;
+const imagePrompt = "PTY_IMAGE_EDIT [Image #1] literal [Image #2]";
+const skillPrompt = "PTY_SKILL $gate-skill-09";
+const scenarioPrompt = (scenario) =>
+  scenario === "large-paste"
+    ? largePastePrompt
+    : scenario === "images"
+      ? imagePrompt
+      : scenario === "skills"
+        ? skillPrompt
+        : prompt;
 const queuePrompt = "queued follow-up for editing";
 const completedText = "TUI_GATE_B_COMPLETED";
 const reasoningText = "TUI_GATE_B_REASONING_DETAIL";
@@ -46,7 +58,7 @@ const scrollableCompletedText = [
 ].join("\n");
 const scenarios = (
   process.env.LIME_TUI_GATE_B_SCENARIOS ||
-  "complete,approval,user-input,interrupt,failure,queue-edit,agents-overview"
+  "complete,approval,user-input,interrupt,failure,queue-edit,agents-overview,large-paste,diff-display,images,skills"
 )
   .split(",")
   .map((scenario) => scenario.trim())
@@ -71,34 +83,69 @@ async function main() {
     const backendPath = path.join(tempDir, "tui-backend.mjs");
     const ledgerPath = path.join(tempDir, "tui-backend.jsonl");
     const permissionConfigPath = path.join(tempDir, "permission-profile.yaml");
+    const editorConfigPath = path.join(tempDir, "editor-keymap.yaml");
+    const configLines = [
+      "default_permissions: named-fixture",
+      "permissions:",
+      "  named-fixture:",
+      "    extends: ':workspace'",
+      "    description: TUI Gate B named permission profile",
+      "tui:",
+      "  keymap:",
+      "    global:",
+      "      find_transcript: ctrl-x f",
+      "      open_agents: ctrl-n",
+      "    list:",
+      "      accept: f9",
+      "      cancel: ctrl-x q",
+      "      page_down: [page-down, ctrl-d]",
+      "      page_up: [page-up, ctrl-u]",
+      "    editor:",
+      "      move_down: down",
+      "      move_word_left: [alt-b, alt-left, ctrl-left, f10]",
+      "      insert_newline: [ctrl-j, ctrl-m, enter, shift-enter, alt-enter, f11]",
+      "      kill_whole_line: ctrl-q k",
+      "",
+    ];
+    await writeFile(permissionConfigPath, configLines.join("\n"));
     await writeFile(
-      permissionConfigPath,
+      editorConfigPath,
       [
-        "default_permissions: named-fixture",
-        "permissions:",
-        "  named-fixture:",
-        "    extends: ':workspace'",
-        "    description: TUI Gate B named permission profile",
-        "tui:",
-        "  keymap:",
-        "    global:",
-        "      find_transcript: ctrl-x f",
+        ...configLines.slice(0, -1),
+        "      delete_forward: []",
+        "    vim_normal:",
+        "      start_delete_operator: [d, 'z d']",
+        "      delete_char: f12",
+        "      undo: [u, 'z u']",
+        "      redo: [ctrl-r, 'z r']",
+        "      repeat_last_change: ['.', 'z .']",
+        "    vim_operator:",
+        "      motion_word_forward: [w, 'z w']",
+        "    vim_text_object:",
+        "      word: [w, f12]",
+        "    vim_search:",
+        "      forward: ['/', 'z /']",
         "",
       ].join("\n"),
     );
     const scenarioDirs = new Map();
+    let typedInputEvidence = null;
+    let threadInputEvidence = null;
     for (const scenario of scenarios) {
       const scenarioDir = path.join(tempDir, scenario);
       await mkdir(scenarioDir, { recursive: true });
       scenarioDirs.set(scenario, scenarioDir);
-      if (scenario === "complete") {
+      if (scenario === "complete" || scenario === "skills") {
         const suggestionDir = path.join(
           scenarioDir,
           "long_directory_for_filename_identity_".repeat(3),
         );
         await mkdir(suggestionDir, { recursive: true });
         for (const name of ["parser_alpha.rs", "parser_beta.rs"]) {
-          await writeFile(path.join(suggestionDir, name), "// PTY search fixture\n");
+          await writeFile(
+            path.join(suggestionDir, name),
+            "// PTY search fixture\n",
+          );
         }
         for (let index = 0; index < 10; index += 1) {
           const name = `gate-skill-${String(index).padStart(2, "0")}`;
@@ -118,6 +165,34 @@ async function main() {
         scenario,
       });
 
+      const testOptions = {
+        cwd: rootDir,
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          LIME_TEST_TUI_GATE_B: "1",
+          LIME_TEST_TERMINAL_SCENARIO: scenario,
+          LIME_TEST_CLI_BIN: cliBinaryPath,
+          LIME_TEST_APP_SERVER_BIN: appServerBinaryPath,
+          LIME_TEST_TERMINAL_BACKEND: backendPath,
+          LIME_TEST_TERMINAL_LEDGER: ledgerPath,
+          LIME_TEST_TERMINAL_CWD: scenarioDir,
+          LIME_TEST_NODE_BIN: process.execPath,
+          LIME_TEST_TERMINAL_PROMPT: scenarioPrompt(scenario),
+          LIME_TEST_TERMINAL_QUEUE_PROMPT: queuePrompt,
+          LIME_TEST_TERMINAL_COMPLETED_TEXT: completedText,
+          LIME_TEST_TERMINAL_REASONING_TEXT: reasoningText,
+          LIME_TEST_TERMINAL_RAW_TEXT: rawText,
+          LIME_CONFIG_PATH:
+            scenario === "complete" ? editorConfigPath : permissionConfigPath,
+          LIME_TEST_PERMISSION_CONFIG:
+            scenario === "complete" ? editorConfigPath : permissionConfigPath,
+          LIME_TEST_PERMISSION_PROFILE: "named-fixture",
+        },
+        maxBuffer: 2 * 1024 * 1024,
+        timeout: 60_000,
+        windowsHide: true,
+      };
       await execFileAsync(
         process.env.CARGO || "cargo",
         [
@@ -131,32 +206,59 @@ async function main() {
           "--exact",
           "--nocapture",
         ],
-        {
-          cwd: rootDir,
-          encoding: "utf8",
-          env: {
-            ...process.env,
-            LIME_TEST_TUI_GATE_B: "1",
-            LIME_TEST_TERMINAL_SCENARIO: scenario,
-            LIME_TEST_CLI_BIN: cliBinaryPath,
-            LIME_TEST_APP_SERVER_BIN: appServerBinaryPath,
-            LIME_TEST_TERMINAL_BACKEND: backendPath,
-            LIME_TEST_TERMINAL_LEDGER: ledgerPath,
-            LIME_TEST_TERMINAL_CWD: scenarioDir,
-            LIME_TEST_NODE_BIN: process.execPath,
-            LIME_TEST_TERMINAL_PROMPT: prompt,
-            LIME_TEST_TERMINAL_QUEUE_PROMPT: queuePrompt,
-            LIME_TEST_TERMINAL_COMPLETED_TEXT: completedText,
-            LIME_TEST_TERMINAL_REASONING_TEXT: reasoningText,
-            LIME_TEST_TERMINAL_RAW_TEXT: rawText,
-            LIME_TEST_PERMISSION_CONFIG: permissionConfigPath,
-            LIME_TEST_PERMISSION_PROFILE: "named-fixture",
-          },
-          maxBuffer: 2 * 1024 * 1024,
-          timeout: 60_000,
-          windowsHide: true,
-        },
+
+        testOptions,
       );
+      if (scenario === "queue-edit") {
+        const evidence = await execFileAsync(
+          process.env.CARGO || "cargo",
+          [
+            "test",
+            "--manifest-path",
+            path.join(rootDir, "lime-rs", "Cargo.toml"),
+            "-p",
+            "tui",
+            "runtime::input_submission::tests::real_stdio_queue_and_rejected_submission_preserve_typed_metadata",
+            "--",
+            "--exact",
+            "--nocapture",
+          ],
+          testOptions,
+        );
+        typedInputEvidence = evidence.stdout.match(
+          /STDIO_TYPED_INPUT_OK thread=(\S+) turn=(\S+) queue=(\S+) failures=queue,steer,start/u,
+        );
+        if (!typedInputEvidence) {
+          throw new Error(
+            "typed input stdio fixture did not execute its full canonical assertions",
+          );
+        }
+      }
+      if (scenario === "user-input") {
+        const evidence = await execFileAsync(
+          process.env.CARGO || "cargo",
+          [
+            "test",
+            "--manifest-path",
+            path.join(rootDir, "lime-rs", "Cargo.toml"),
+            "-p",
+            "tui",
+            "app::session_lifecycle::tests::real_stdio_thread_handoff_preserves_pending_input",
+            "--",
+            "--exact",
+            "--nocapture",
+          ],
+          testOptions,
+        );
+        threadInputEvidence = evidence.stdout.match(
+          /STDIO_THREAD_INPUT_OK root=(\S+) child=(\S+) turns=(\S+),(\S+) responses=2/u,
+        );
+        if (!threadInputEvidence) {
+          throw new Error(
+            "thread input stdio fixture did not execute its full resume and lifecycle assertions",
+          );
+        }
+      }
     }
 
     const focusScenarioDir = path.join(tempDir, "focus-palette");
@@ -279,17 +381,18 @@ async function main() {
 
     const ledger = await readJsonLines(ledgerPath);
     const turnStarts = scenarios.map((scenario) => {
+      const expectedPrompt = scenarioPrompt(scenario);
       const entry = ledger.find(
         (candidate) =>
           candidate?.kind === "turnStart" &&
           candidate.scenario === scenario &&
-          candidate.inputText === prompt,
+          candidate.inputText === expectedPrompt,
       );
       if (!entry)
         throw new Error(
           `external backend did not record TUI turnStart for ${scenario}`,
         );
-      assertEqual(entry.inputText, prompt, `${scenario} backend input`);
+      assertEqual(entry.inputText, expectedPrompt, `${scenario} backend input`);
       assertNonEmptyString(entry.threadId, `${scenario} canonical thread id`);
       assertNonEmptyString(entry.turnId, `${scenario} canonical turn id`);
       return entry;
@@ -303,12 +406,54 @@ async function main() {
       failure: "turn.started,runtime.error,turn.failed",
       "queue-edit": "turn.started,message.delta",
       "agents-overview": "turn.started,message.delta",
+      "large-paste":
+        "turn.started,message.delta,item.started,item.completed,item.started,item.completed,turn.completed",
+      "diff-display":
+        "turn.started,message.delta,item.started,item.completed,item.started,item.completed,item.started,item.completed,turn.completed",
+      images:
+        "turn.started,message.delta,item.started,item.completed,item.started,item.completed,turn.completed",
+      skills:
+        "turn.started,message.delta,item.started,item.completed,item.started,item.completed,turn.completed",
     };
     for (const [index, scenario] of scenarios.entries()) {
       assertEqual(
         turnStarts[index].eventTypes.join(","),
         expectedSequences[scenario],
         `${scenario} runtime event sequence`,
+      );
+    }
+    if (scenarios.includes("images")) {
+      const imageStart = turnStarts.find(
+        (entry) => entry.scenario === "images",
+      );
+      const [image, text] = imageStart.inputParts;
+      assertEqual(
+        imageStart.inputParts.length,
+        2,
+        "one retained image and structured text",
+      );
+      assertEqual(
+        image.Image?.media_type,
+        "image/png",
+        "decoded image media type",
+      );
+      assertNonEmptyString(
+        image.Image?.uri,
+        "persisted image sidecar identity",
+      );
+      if (!image.Image?.provider_data?.startsWith("data:image/png;base64,"))
+        throw new Error("image bytes did not reach current runtime lowering");
+      deepStrictEqual(
+        text,
+        {
+          Text: {
+            text: imagePrompt,
+            text_elements: [
+              { byteRange: { start: 15, end: 25 }, placeholder: "[Image #1]" },
+            ],
+          },
+        },
+        "image TextElement survives stdio/runtime request lowering",
       );
     }
     if (scenarios.includes("approval")) {
@@ -333,6 +478,11 @@ async function main() {
         throw new Error(
           "request_user_input response did not reach App Server backend",
         );
+      deepStrictEqual(
+        userInputResponse.userData,
+        { mode: ["Safe", "user_note: PTY_NOTE_ANSWER"] },
+        "selected option and notes preserve the canonical question answer",
+      );
     }
     if (scenarios.includes("interrupt")) {
       const interruptResponse = ledger.find(
@@ -414,6 +564,14 @@ async function main() {
           "agents overview stop did not reach the same App Server thread and turn",
         );
       }
+      const overviewStarts = turnStarts.filter(
+        (entry) => entry.scenario === "agents-overview",
+      );
+      assertEqual(
+        overviewStarts.length,
+        1,
+        "root/child draft handoff does not submit extra turns",
+      );
     }
     const turnStart = turnStarts.find(Boolean);
 
@@ -425,10 +583,40 @@ async function main() {
         `thread=${turnStart.threadId}`,
         `turn=${turnStart.turnId}`,
         `events=${turnStart.eventTypes.join(",")}`,
+        threadInputEvidence
+          ? `thread-input-stdio=ok input-root=${threadInputEvidence[1]} input-child=${threadInputEvidence[2]} input-turns=${threadInputEvidence[3]},${threadInputEvidence[4]}`
+          : null,
+        typedInputEvidence
+          ? `typed-input-stdio=ok typed-thread=${typedInputEvidence[1]} typed-turn=${typedInputEvidence[2]} typed-queue=${typedInputEvidence[3]}`
+          : null,
         scenarios.includes("queue-edit") ? "queue-edit=ok" : null,
         scenarios.includes("agents-overview") ? "agents-overview=ok" : null,
+        scenarios.includes("agents-overview") ? "thread-draft=ok" : null,
+        scenarios.includes("agents-overview")
+          ? "thread-edit-lifetime=ok session-register=ok"
+          : null,
         scenarios.includes("complete") ? "sticky-prompt=ok" : null,
         scenarios.includes("complete") ? "main-find=ok" : null,
+        scenarios.includes("complete") ? "history-search=ok" : null,
+        scenarios.includes("complete") ? "persistent-history=ok" : null,
+        scenarios.includes("complete")
+          ? "vim-repeat=ok vim-search-state=ok vim-paste-burst=ok"
+          : null,
+        scenarios.includes("complete")
+          ? "editor-keymap=ok editor-unbind=ok editor-chord=ok"
+          : null,
+        scenarios.includes("complete")
+          ? "vim-keymap=ok vim-linewise=ok vim-modal-chord=ok"
+          : null,
+        scenarios.includes("user-input") ? "notes-keymap=ok" : null,
+        scenarios.includes("images") ? "images=ok" : null,
+        scenarios.includes("skills") ? "skill-mentions=ok" : null,
+        scenarios.includes("images") && scenarios.includes("large-paste")
+          ? "structured-history=ok"
+          : null,
+        scenarios.includes("large-paste")
+          ? "submission-prepare=ok rejected-draft=ok"
+          : null,
         "focus-palette=ok",
         "resize-reflow=ok",
         "reconnect=ok",

@@ -22,11 +22,12 @@ fn wrapped_transcript_scroll_uses_visual_rows() {
 fn transcript_page_size_tracks_resize() {
     let mut app = App::default();
 
-    assert_eq!(transcript_page_size(80, 10, &app), 6);
-    assert_eq!(transcript_page_size(80, 6, &app), 2);
+    assert_eq!(transcript_page_size(80, 10, &app), 5);
+    assert_eq!(transcript_page_size(80, 6, &app), 1);
     app.attach_image(std::path::PathBuf::from("/tmp/one.png"));
     app.attach_image(std::path::PathBuf::from("/tmp/two.png"));
-    assert_eq!(transcript_page_size(80, 10, &app), 4);
+    // Inline image elements use the editor's existing row, not separate attachment rows.
+    assert_eq!(transcript_page_size(80, 10, &app), 5);
 }
 
 #[test]
@@ -153,7 +154,7 @@ fn transcript_follow_control_adapts_to_width_and_yields_to_composer_popup() {
         &mut app,
         Event::Key(KeyEvent::new(KeyCode::Char('/'), KeyModifiers::NONE)),
     );
-    assert!(app.composer.command_popup_active());
+    assert!(app.composer.completion_popup_active());
     terminal
         .draw(|frame| render(frame, &app))
         .expect("popup draw");
@@ -492,7 +493,8 @@ fn sticky_prompt_header_yields_at_turn_boundary_until_the_viewport_moves() {
     ] {
         apply_completed_message(&mut app, turn_id, item);
     }
-    let mut terminal = Terminal::new(TestBackend::new(40, 10)).expect("terminal");
+    // Keep this boundary scenario's transcript viewport stable with the padded composer.
+    let mut terminal = Terminal::new(TestBackend::new(40, 11)).expect("terminal");
 
     terminal.draw(|frame| render(frame, &app)).expect("draw");
     let first = buffer_text(&terminal);

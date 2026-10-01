@@ -44,19 +44,11 @@ pub(crate) fn render_footer(frame: &mut Frame<'_>, area: Rect, app: &App) {
         return;
     }
     let vim_indicator = app.composer.vim_mode_indicator_span();
-    if let Some(query) = app.composer.history_search_query() {
-        render_line(
-            frame,
-            area,
-            Line::from(Span::styled(
-                format!("{}{}", app.locale.history_search_label(), query),
-                footer_hint_label_style(),
-            )),
-            vim_indicator,
-        );
+    if let Some(line) = app.composer.history_search_footer_line() {
+        render_line(frame, area, line, vim_indicator);
         if let Some((x, y)) = app
             .composer
-            .history_search_cursor_position(area, app.locale.history_search_label())
+            .history_search_cursor_pos(area, app.locale.history_search_label())
         {
             frame.set_cursor_position(Position::new(x, y));
         }
@@ -77,7 +69,7 @@ pub(crate) fn render_footer(frame: &mut Frame<'_>, area: Rect, app: &App) {
     }
     let props = FooterProps {
         locale: app.locale,
-        has_draft: app.composer.footer_has_draft() || app.composer.has_pending_images(),
+        has_draft: app.composer.footer_has_draft(),
         is_task_running: app.projection.active_turn_id().is_some(),
         plan_mode: should_show_plan_mode_hint(app),
         active_agent_label: app
@@ -248,7 +240,7 @@ fn should_show_plan_mode_hint(app: &App) -> bool {
         && app.pager_overlay.is_none()
         && !app.composer.history_search_active()
         && !app.composer.vim_search_active()
-        && !app.composer.command_popup_active()
+        && !app.composer.completion_popup_active()
         && !app.composer.file_search_popup_active()
         && !app.composer.skill_popup_active()
 }
@@ -408,7 +400,7 @@ mod tests {
     fn renders_localized_history_search_query() {
         let mut app = App::default();
         app.set_locale(Locale::ZhCn);
-        app.composer.load_history(["git status".to_string()]);
+        app.composer.set_cached_history(["git status".to_string()]);
         app.composer.insert("git");
         app.composer
             .handle_key_event(KeyEvent::new(KeyCode::Char('r'), KeyModifiers::CONTROL));
@@ -491,7 +483,7 @@ mod tests {
             },
         });
         app.composer.insert("/model");
-        app.composer.sync_command_popup();
+        app.composer.sync_completion_popup();
 
         let text = rendered_text_at_width(&app, 100);
         assert!(!text.contains("Plan mode"), "{text}");

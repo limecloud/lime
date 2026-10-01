@@ -53,7 +53,7 @@ impl App {
             || self.transcript_selection.is_active()
             || self.composer.history_search_active()
             || self.composer.vim_search_active()
-            || self.composer.command_popup_active()
+            || self.composer.completion_popup_active()
             || self.composer.file_search_popup_active()
             || self.composer.skill_popup_active()
         {
@@ -104,7 +104,7 @@ impl App {
         match result {
             Ok(text) if !text.is_empty() => {
                 self.composer.handle_paste(&normalize_clipboard_text(text));
-                self.composer.sync_command_popup();
+                self.composer.sync_completion_popup();
             }
             Ok(_) => {}
             Err(error) => self.projection.set_status(

@@ -9,7 +9,7 @@ use crate::app_server_session::{AppServerSession, ThreadSettingsPatch};
 use crate::resume_picker::SessionSelection;
 use crate::runtime::TuiOptions;
 use anyhow::Result;
-use app_server_protocol::protocol::v2::SkillsListResponse;
+use app_server_protocol::protocol::v2::{PromptHistoryReadResponse, SkillsListResponse};
 
 #[derive(Debug)]
 pub(crate) struct StartupSessionState {
@@ -40,6 +40,16 @@ pub(crate) fn apply_skills_list_response(app: &mut App, response: SkillsListResp
     app.composer.set_skills(skills);
     let newly_active = app.skill_load_warnings.newly_active_errors(&errors);
     startup_prompts::emit_skill_load_warnings(app, &newly_active);
+}
+
+/// Startup records the snapshot metadata, not a bounded eager-loaded history vector.
+fn apply_prompt_history_response(app: &mut App, response: PromptHistoryReadResponse) {
+    if let (Some(thread_id), Ok(entry_count)) =
+        (&app.thread_id, usize::try_from(response.entry_count))
+    {
+        app.composer
+            .set_history_metadata(thread_id.clone(), response.log_id, entry_count);
+    }
 }
 
 /// Establish the canonical thread/session state before entering the interactive event loop.
@@ -153,10 +163,8 @@ pub(crate) async fn initialize_session(
         effort.clone(),
         permissions.clone(),
     );
-    match session.read_prompt_history(200).await {
-        Ok(history) => app
-            .composer
-            .load_history(history.data.into_iter().map(|entry| entry.text)),
+    match session.read_prompt_history(1).await {
+        Ok(history) => apply_prompt_history_response(app, history),
         Err(error) => app
             .projection
             .set_status(format!("prompt history unavailable: {error}")),
@@ -262,6 +270,52 @@ mod tests {
             false,
             Some("thread-1")
         ));
+    }
+
+    #[test]
+    fn prompt_history_page_recall_starts_at_newest_and_traverses_toward_older() {
+        use app_server_protocol::protocol::v2::PromptHistoryEntry;
+        use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+
+        let mut app = App::default();
+        app.set_thread_id("thread".into());
+        apply_prompt_history_response(
+            &mut app,
+            PromptHistoryReadResponse {
+                log_id: "log".into(),
+                entry_count: 2,
+                data: ["newest", "oldest"]
+                    .into_iter()
+                    .enumerate()
+                    .map(|(index, text)| PromptHistoryEntry {
+                        offset: (1 - index) as u64,
+                        thread_id: "thread".into(),
+                        ts: 1,
+                        text: text.into(),
+                    })
+                    .collect(),
+                next_cursor: None,
+            },
+        );
+        for (offset, text) in [(1, "newest"), (0, "oldest")] {
+            app.composer.on_history_lookup_response(
+                "thread",
+                crate::app_event::HistoryLookupResponse::Entry {
+                    log_id: "log".into(),
+                    offset,
+                    entry: Some(text.into()),
+                },
+            );
+        }
+        app.composer
+            .handle_key_event(KeyEvent::new(KeyCode::Up, KeyModifiers::NONE));
+        assert_eq!(app.composer.text(), "newest");
+        app.composer
+            .handle_key_event(KeyEvent::new(KeyCode::Up, KeyModifiers::NONE));
+        assert_eq!(app.composer.text(), "oldest");
+        app.composer
+            .handle_key_event(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE));
+        assert_eq!(app.composer.text(), "newest");
     }
 
     #[test]

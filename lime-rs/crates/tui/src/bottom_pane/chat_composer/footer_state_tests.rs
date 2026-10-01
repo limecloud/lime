@@ -61,7 +61,7 @@ fn overlay_does_not_capture_attachments_vim_search_or_release() {
     assert!(!composer.shortcut_overlay_visible());
     composer.attach_image(std::path::PathBuf::from("/tmp/image.png"));
     composer.handle_key_event(key(KeyCode::Char('?')));
-    assert_eq!(composer.text(), "?");
+    assert_eq!(composer.text(), "[Image #1]?");
     assert!(!composer.shortcut_overlay_visible());
 
     let mut composer = ChatComposer::default();
@@ -76,9 +76,9 @@ fn typing_from_overlay_resumes_editor_and_popup_owner() {
     let mut composer = ChatComposer::default();
     composer.handle_key_event(key(KeyCode::Char('?')));
     composer.handle_key_event(key(KeyCode::Char('/')));
-    composer.sync_command_popup();
+    composer.sync_completion_popup();
     assert_eq!(composer.text(), "/");
-    assert!(composer.command_popup_active());
+    assert!(composer.completion_popup_active());
     assert!(!composer.shortcut_overlay_visible());
 }
 

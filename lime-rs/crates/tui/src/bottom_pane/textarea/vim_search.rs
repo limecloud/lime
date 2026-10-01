@@ -3,13 +3,12 @@
 use super::super::TextArea;
 use super::vim::{VimMode, VimOperator, VimPending};
 use crate::vim_search::{matching_ranges, SearchDirection, SearchQuery};
-use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
-use unicode_segmentation::UnicodeSegmentation;
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 #[derive(Debug, Default)]
 pub(super) struct VimSearch {
     input: Option<Box<SearchInput>>,
-    last: SearchQuery,
+    pub(super) last: SearchQuery,
 }
 
 #[derive(Debug)]
@@ -25,6 +24,12 @@ impl VimSearch {
 }
 
 impl TextArea {
+    pub(super) fn set_vim_search_editor_keymap(&mut self, keymap: &crate::keymap::RuntimeKeymap) {
+        if let Some(input) = self.vim_search.input.as_deref_mut() {
+            input.editor.set_keymap_bindings(keymap);
+        }
+    }
+
     pub(crate) fn vim_search_query(&self) -> Option<(&str, SearchDirection)> {
         self.vim_search
             .input
@@ -41,29 +46,20 @@ impl TextArea {
     }
 
     pub(crate) fn wants_vim_search_key(&self, event: KeyEvent) -> bool {
-        self.vim_search.input.is_some() || self.search_command(event).is_some()
-    }
-
-    fn search_command(&self, event: KeyEvent) -> Option<SearchCommand> {
-        if !self.vim_enabled
-            || self.vim_mode != VimMode::Normal
-            || !matches!(event.kind, KeyEventKind::Press | KeyEventKind::Repeat)
-            || event.modifiers != KeyModifiers::NONE
-            || matches!(self.vim_pending, VimPending::ReplaceChar)
-        {
-            return None;
-        }
-        match event.code {
-            KeyCode::Char('/') => Some(SearchCommand::Start(SearchDirection::Forward)),
-            KeyCode::Char('?') => Some(SearchCommand::Start(SearchDirection::Backward)),
-            KeyCode::Char('n') => Some(SearchCommand::Next),
-            KeyCode::Char('N') => Some(SearchCommand::Previous),
-            _ => None,
-        }
+        self.vim_search.input.is_some()
+            || matches!(
+                self.vim_action_for_key(event),
+                Some(crate::keymap::VimKeymapAction::Search(_))
+            )
     }
 
     pub(super) fn handle_vim_search_key(&mut self, event: KeyEvent) -> bool {
         if let Some(mut input) = self.vim_search.input.take() {
+            if input.editor.editor_key_chord_pending() {
+                input.editor.input(event);
+                self.vim_search.input = Some(input);
+                return true;
+            }
             if event.code == KeyCode::Esc
                 || (event.code == KeyCode::Char('c') && event.modifiers == KeyModifiers::CONTROL)
             {
@@ -98,28 +94,33 @@ impl TextArea {
             return true;
         }
 
-        let Some(command) = self.search_command(event) else {
-            return false;
-        };
-        match command {
-            SearchCommand::Start(direction) => {
-                self.vim_search.input = Some(Box::new(SearchInput {
-                    editor: TextArea::new(),
-                    direction,
-                }));
+        false
+    }
+
+    pub(super) fn apply_vim_search_action(&mut self, action: crate::keymap::VimSearchAction) {
+        use crate::keymap::VimSearchAction;
+        match action {
+            VimSearchAction::Forward | VimSearchAction::Backward => {
+                let direction = if action == VimSearchAction::Forward {
+                    SearchDirection::Forward
+                } else {
+                    SearchDirection::Backward
+                };
+                let mut editor = TextArea::new();
+                editor.editor_keymap = std::sync::Arc::clone(&self.editor_keymap);
+                self.vim_search.input = Some(Box::new(SearchInput { editor, direction }));
             }
-            SearchCommand::Next | SearchCommand::Previous => {
+            VimSearchAction::Next | VimSearchAction::Previous => {
                 if self.vim_search.last.text.is_empty() {
-                    return true;
+                    return;
                 }
                 let mut query = self.vim_search.last.clone();
-                if matches!(command, SearchCommand::Previous) {
+                if action == VimSearchAction::Previous {
                     query.direction = query.direction.reversed();
                 }
                 self.apply_search_with_pending(query);
             }
         }
-        true
     }
 
     fn apply_search_with_pending(&mut self, query: SearchQuery) {
@@ -128,13 +129,29 @@ impl TextArea {
             VimPending::Operator(operator) => Some(operator),
             _ => None,
         };
-        self.apply_vim_search(&query, operator);
+        use super::vim_commands::{VimAction, VimEditTarget};
+        match operator {
+            Some(VimOperator::Delete) => {
+                self.start_vim_edit(VimAction::Delete(VimEditTarget::Search(query)));
+            }
+            Some(VimOperator::Change) => {
+                self.start_vim_edit(VimAction::Change(VimEditTarget::Search(query)));
+            }
+            _ => {
+                self.apply_vim_search(&query, operator);
+            }
+        }
     }
 
-    fn apply_vim_search(&mut self, query: &SearchQuery, operator: Option<VimOperator>) -> bool {
+    pub(super) fn apply_vim_search(
+        &mut self,
+        query: &SearchQuery,
+        operator: Option<VimOperator>,
+    ) -> bool {
         let origin = self.cursor;
         let target = matching_ranges(&self.text, &query.text)
             .map(|range| range.start)
+            .filter(|&position| self.is_vim_command_target(position))
             .min_by_key(|&position| match query.direction {
                 SearchDirection::Forward => (position <= origin, position),
                 SearchDirection::Backward => (position >= origin, usize::MAX - position),
@@ -153,35 +170,11 @@ impl TextArea {
                     self.kill_range(range);
                     self.vim_mode = VimMode::Insert;
                 }
-                VimOperator::Yank => {
-                    self.kill_buffer = self.text[range].to_string();
-                }
+                VimOperator::Yank => self.yank_range(range),
             }
         } else {
-            self.cursor = target.min(self.vim_normal_end_cursor_for_search());
+            self.set_cursor(target);
         }
         true
     }
-
-    fn vim_normal_end_cursor_for_search(&self) -> usize {
-        if self.text.is_empty() {
-            return 0;
-        }
-        self.text
-            .grapheme_indices(true)
-            .next_back()
-            .map(|(index, _)| index)
-            .unwrap_or(0)
-    }
 }
-
-#[derive(Clone, Copy, Debug)]
-enum SearchCommand {
-    Start(SearchDirection),
-    Next,
-    Previous,
-}
-
-#[cfg(test)]
-#[path = "vim_search_tests.rs"]
-mod tests;

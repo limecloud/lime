@@ -5,6 +5,212 @@ fn key(code: KeyCode) -> KeyEvent {
     KeyEvent::new(code, KeyModifiers::NONE)
 }
 
+fn keys(area: &mut TextArea, text: &str) {
+    for ch in text.chars() {
+        area.input(key(KeyCode::Char(ch)));
+    }
+}
+
+#[test]
+fn normal_end_and_character_find_use_atomic_element_boundaries() {
+    let mut area = textarea("");
+    area.insert_element("[Image #1]");
+    keys(&mut area, "A");
+    area.input(key(KeyCode::Esc));
+    assert_eq!(
+        area.cursor(),
+        0,
+        "normal cursor lands on the attachment, not after its label"
+    );
+    keys(&mut area, "l");
+    assert_eq!(area.cursor(), 0);
+
+    let mut area = textarea("A");
+    area.insert_element("[Image #1]");
+    area.insert_str("Z");
+    area.set_cursor(0);
+    keys(&mut area, "f[");
+    assert_eq!(
+        area.cursor(),
+        0,
+        "find cannot target a character inside an attachment"
+    );
+    keys(&mut area, "tZ");
+    assert_eq!(
+        area.cursor(),
+        1,
+        "till stops at the preceding atomic attachment's start"
+    );
+    assert_eq!(area.text(), "A[Image #1]Z");
+}
+
+#[test]
+fn word_end_motion_never_splits_unicode_graphemes() {
+    let mut area = textarea("界👩🏽‍💻 next");
+    area.set_cursor(0);
+    keys(&mut area, "e");
+    assert!(area.text().is_char_boundary(area.cursor()));
+    assert!(area.is_vim_command_target(area.cursor()));
+    keys(&mut area, "de");
+    assert!(area.text().is_char_boundary(area.cursor()));
+}
+
+#[test]
+fn repeat_replays_semantic_delete_replace_and_complete_change() {
+    let mut area = textarea("alpha beta gamma");
+    area.set_cursor(0);
+    keys(&mut area, "dw.");
+    assert_eq!(area.text(), "gamma");
+
+    let mut area = textarea("abc");
+    area.set_cursor(0);
+    keys(&mut area, "rXl.");
+    assert_eq!(area.text(), "XXc");
+
+    let mut area = textarea("one two three");
+    area.set_cursor(0);
+    keys(&mut area, "cwX");
+    area.input(key(KeyCode::Esc));
+    keys(&mut area, "w.");
+    assert_eq!(area.text(), "X X three");
+    assert!(area.is_vim_normal_mode());
+}
+
+#[test]
+fn repeat_records_pasted_insertions_movement_and_effective_deletion() {
+    let mut area = textarea("");
+    keys(&mut area, "i");
+    area.insert_str("foo");
+    area.input(key(KeyCode::Esc));
+    keys(&mut area, ".");
+    assert_eq!(area.text(), "fofooo");
+
+    let mut area = textarea("abc");
+    area.set_cursor(0);
+    keys(&mut area, "ix");
+    area.input(key(KeyCode::Left));
+    keys(&mut area, "y");
+    area.input(key(KeyCode::Esc));
+    keys(&mut area, ".");
+    assert_eq!(area.text(), "yxyxabc");
+
+    let mut area = textarea("abcd");
+    area.set_cursor(3);
+    keys(&mut area, "i");
+    area.input(key(KeyCode::Backspace));
+    area.input(key(KeyCode::Esc));
+    keys(&mut area, "l.");
+    assert_eq!(area.text(), "ad");
+}
+
+#[test]
+fn repeat_omits_ineffective_deletions_and_aborts_failed_motion() {
+    let mut area = textarea("one two");
+    area.set_cursor(0);
+    keys(&mut area, "i");
+    area.input(key(KeyCode::Backspace));
+    keys(&mut area, "X");
+    area.input(key(KeyCode::Esc));
+    keys(&mut area, "w.");
+    assert_eq!(area.text(), "Xone Xtwo");
+
+    let mut area = textarea("one\ntwo\nthree");
+    area.set_cursor(0);
+    keys(&mut area, "cjfoo");
+    area.input(key(KeyCode::Esc));
+    keys(&mut area, "j");
+    let before = (area.text().to_string(), area.cursor());
+    keys(&mut area, ".");
+    assert_eq!((area.text(), area.cursor()), (before.0.as_str(), before.1));
+    assert!(area.is_vim_normal_mode());
+}
+
+#[test]
+fn dot_replays_find_text_object_and_buffer_jump_targets() {
+    let mut area = textarea("one:two:three");
+    area.set_cursor(0);
+    keys(&mut area, "df:.");
+    assert_eq!(area.text(), "three");
+
+    let mut area = textarea("(one) (two)");
+    area.set_cursor(1);
+    keys(&mut area, "ci(X");
+    area.input(key(KeyCode::Esc));
+    area.set_cursor(6);
+    keys(&mut area, ".");
+    assert_eq!(area.text(), "(X) (X)");
+
+    let mut area = textarea("one\ntwo\nthree");
+    area.set_cursor(4);
+    keys(&mut area, "cGlast");
+    area.input(key(KeyCode::Esc));
+    area.set_cursor(0);
+    keys(&mut area, ".");
+    assert_eq!(area.text(), "last");
+}
+
+#[test]
+fn replace_paste_skips_atomic_attachment_and_backspace_retraces_original_cursor() {
+    let mut area = textarea("");
+    area.insert_element("[Image #1]");
+    area.insert_str("界👩🏽‍💻tail");
+    area.set_cursor(0);
+    keys(&mut area, "R");
+    area.insert_str("XY");
+    assert_eq!(area.text(), "[Image #1]XYtail");
+    area.input(key(KeyCode::Backspace));
+    area.input(key(KeyCode::Backspace));
+    assert_eq!(area.text(), "[Image #1]界👩🏽‍💻tail");
+    assert_eq!(area.cursor(), 0);
+    assert_eq!(
+        area.text_elements(),
+        vec![agent_protocol::TextElement::new(
+            0..10,
+            Some("[Image #1]".into())
+        )]
+    );
+}
+
+#[test]
+fn buffer_replacement_discards_pending_and_completed_repeat() {
+    let mut area = textarea("draft");
+    area.set_cursor(0);
+    keys(&mut area, "rX");
+    assert!(area.vim_repeat_actions().is_some());
+    area.set_text_clearing_elements("fresh");
+    assert!(area.vim_repeat_actions().is_none());
+    keys(&mut area, "iY");
+    area.set_text_clearing_elements("replacement");
+    area.input(key(KeyCode::Esc));
+    keys(&mut area, ".");
+    assert_eq!(area.text(), "replacement");
+}
+
+#[test]
+fn dot_replay_renders_the_complete_change_on_narrow_unicode_surface() {
+    use ratatui::{backend::TestBackend, layout::Rect, Terminal};
+    let mut area = textarea("one two 界");
+    area.set_cursor(0);
+    keys(&mut area, "cwX");
+    area.input(key(KeyCode::Esc));
+    keys(&mut area, "w.");
+    let mut terminal = Terminal::new(TestBackend::new(12, 2)).unwrap();
+    let mut state = super::super::TextAreaState::default();
+    terminal
+        .draw(|frame| {
+            ratatui::widgets::StatefulWidgetRef::render_ref(
+                &&area,
+                Rect::new(0, 0, 12, 2),
+                frame.buffer_mut(),
+                &mut state,
+            )
+        })
+        .unwrap();
+    let buffer = terminal.backend().buffer();
+    let row = (0..12).map(|x| buffer[(x, 0)].symbol()).collect::<String>();
+    assert_eq!(row, "X X 界       ");
+}
+
 fn textarea(text: &str) -> TextArea {
     let mut area = TextArea::new();
     area.insert_str(text);

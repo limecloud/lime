@@ -13,8 +13,10 @@ use safe_display::{
 
 mod mcp;
 mod safe_display;
+mod thread;
 
 use mcp::{project_mcp_app_context, project_mcp_status, project_mcp_tool_result};
+use thread::{current_model_provider, project_thread};
 
 pub(super) fn lower_thread_read_params(
     params: &v2::ThreadReadParams,
@@ -248,66 +250,6 @@ where
     T: serde::de::DeserializeOwned,
 {
     serde_json::from_value(payload.get(key)?.clone()).ok()
-}
-
-fn project_thread(thread: canonical::Thread) -> Result<v2::Thread, JsonRpcError> {
-    let can_accept_direct_input = thread.parent_thread_id.is_none();
-    let metadata = thread.metadata.clone();
-    let cwd = metadata_string(&metadata, &["workingDir", "working_dir", "cwd"]).unwrap_or_default();
-    let source = project_session_source(
-        metadata_string(&metadata, &["source", "sourceKind", "source_kind"])
-            .as_deref()
-            .unwrap_or("appServer"),
-    );
-    let git_info = project_git_info(&metadata);
-    let history_mode = match metadata_string(&metadata, &["historyMode", "history_mode"]).as_deref()
-    {
-        Some("paginated") => v2::ThreadHistoryMode::Paginated,
-        _ => v2::ThreadHistoryMode::Legacy,
-    };
-    let extra = (!metadata.is_null()).then_some(metadata.clone());
-
-    Ok(v2::Thread {
-        id: thread.thread_id.as_str().to_string(),
-        extra,
-        session_id: thread.session_id.as_str().to_string(),
-        forked_from_id: thread
-            .forked_from_id
-            .map(|value| value.as_str().to_string()),
-        parent_thread_id: thread
-            .parent_thread_id
-            .map(|value| value.as_str().to_string()),
-        preview: thread.preview,
-        ephemeral: metadata_bool(&thread.metadata, &["ephemeral"]).unwrap_or(false),
-        section: project_thread_section(&thread.metadata),
-        section_entered_at: metadata_i64(&thread.metadata, &["sectionEnteredAt"])
-            .map(millis_to_seconds),
-        project_id: metadata_string(&metadata, &["projectId", "project_id"]),
-        history_mode,
-        model_provider: thread.model_provider,
-        created_at: millis_to_seconds(thread.created_at_ms),
-        updated_at: millis_to_seconds(thread.updated_at_ms),
-        recency_at: thread.recency_at_ms.map(millis_to_seconds),
-        status: project_thread_status(thread.status),
-        path: metadata_string(&thread.metadata, &["path", "rolloutPath", "rollout_path"])
-            .map(PathBuf::from),
-        cwd: PathBuf::from(cwd),
-        cli_version: metadata_string(&thread.metadata, &["cliVersion", "cli_version"])
-            .unwrap_or_else(|| env!("CARGO_PKG_VERSION").to_string()),
-        source,
-        can_accept_direct_input: Some(can_accept_direct_input),
-        thread_source: metadata_string(&thread.metadata, &["threadSource", "thread_source"])
-            .map(Into::into),
-        agent_nickname: thread.agent_nickname,
-        agent_role: thread.agent_role,
-        git_info,
-        name: thread.name,
-        turns: thread
-            .turns
-            .into_iter()
-            .map(project_turn)
-            .collect::<Result<Vec<_>, _>>()?,
-    })
 }
 
 fn project_turn(turn: canonical::Turn) -> Result<v2::Turn, JsonRpcError> {
@@ -690,7 +632,7 @@ fn thread_matches_list_filters(thread: &canonical::Thread, params: &v2::ThreadLi
     if params.model_providers.as_ref().is_some_and(|providers| {
         !providers
             .iter()
-            .any(|provider| provider == &thread.model_provider)
+            .any(|provider| provider == current_model_provider(thread))
     }) {
         return false;
     }

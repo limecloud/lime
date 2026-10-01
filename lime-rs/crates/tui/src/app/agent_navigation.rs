@@ -235,20 +235,12 @@ impl AgentNavigationState {
         )
     }
 
-    pub(crate) fn picker_subtitle() -> String {
-        format!(
-            "Select an agent to watch. Alt+{} previous, Alt+{} next.",
-            key_label(previous_agent_shortcut()),
-            key_label(next_agent_shortcut())
+    pub(crate) fn picker_subtitle(locale: crate::locale::Locale) -> String {
+        use crossterm::event::KeyModifiers;
+        locale.agent_picker_subtitle(
+            &crate::keymap::shortcut_label(previous_agent_shortcut(), KeyModifiers::ALT),
+            &crate::keymap::shortcut_label(next_agent_shortcut(), KeyModifiers::ALT),
         )
-    }
-}
-
-fn key_label(key: crossterm::event::KeyCode) -> &'static str {
-    match key {
-        crossterm::event::KeyCode::Left => "Left",
-        crossterm::event::KeyCode::Right => "Right",
-        _ => "key",
     }
 }
 
@@ -337,8 +329,8 @@ mod tests {
 
     #[test]
     fn picker_subtitle_mentions_codex_shortcuts() {
-        let subtitle = AgentNavigationState::picker_subtitle();
-        assert!(subtitle.contains("Alt+Left"));
-        assert!(subtitle.contains("Alt+Right"));
+        let subtitle = AgentNavigationState::picker_subtitle(crate::locale::Locale::EnUs);
+        assert!(subtitle.contains("⌥← previous"));
+        assert!(subtitle.contains("⌥→ next"));
     }
 }

@@ -99,12 +99,12 @@ impl App {
                 }
                 TuiEvent::Key(key) => {
                     self.composer.handle_disconnected_key(key);
-                    self.clear_command_popup();
+                    self.clear_completion_popup();
                     AppAction::None
                 }
                 TuiEvent::Paste(text) => {
                     self.composer.handle_paste(&normalize_paste(text));
-                    self.clear_command_popup();
+                    self.clear_completion_popup();
                     AppAction::None
                 }
                 TuiEvent::Mouse(_) => {
@@ -277,13 +277,6 @@ impl App {
 
         if let Some(overview) = self.agents_overview.as_mut() {
             let action = overview.view.handle_event(event);
-            overview.visible_thread_ids = overview
-                .view
-                .visible_rows()
-                .into_iter()
-                .map(|row| row.thread.id.clone())
-                .collect();
-            overview.sync_view_state();
             return match action {
                 AgentsOverviewAction::Select => {
                     let thread_id = overview.view.selected_thread_id().map(str::to_owned);
@@ -356,7 +349,7 @@ impl App {
         if main_selection_wants_event
             && !self.composer.file_search_popup_active()
             && !self.composer.skill_popup_active()
-            && !self.composer.command_popup_active()
+            && !self.composer.completion_popup_active()
             && !self.composer.history_search_active()
         {
             let had_selection = self.transcript_selection.is_active();
@@ -448,7 +441,7 @@ impl App {
             }
         }
 
-        if self.composer.command_popup_active() {
+        if self.composer.completion_popup_active() {
             if let Event::Key(key) = &event {
                 if self.composer.prepare_popup_key_event(*key, Instant::now()) {
                     return self.map_composer_action(crate::bottom_pane::InputResult::Changed);
@@ -482,7 +475,7 @@ impl App {
             }
         }
 
-        if self.composer.command_popup_active() {
+        if self.composer.completion_popup_active() {
             let action = self.composer.handle_command_popup_event(&event);
             match action {
                 CommandPopupAction::Pass => {}
@@ -494,7 +487,7 @@ impl App {
                 }
                 CommandPopupAction::Execute(command) => {
                     self.composer.replace(format!("/{}", command.command()));
-                    self.clear_command_popup();
+                    self.clear_completion_popup();
                     if let Some(action) = self.run_local_command() {
                         return action;
                     }
@@ -510,15 +503,22 @@ impl App {
         }
 
         if self.composer.history_search_active() {
-            if let Event::Key(key) = event {
-                let action = self.composer.handle_key_event_at(key, Instant::now());
-                return self.map_composer_action(action);
+            match event {
+                Event::Key(key) => {
+                    let action = self.composer.handle_key_event_at(key, Instant::now());
+                    return self.map_composer_action(action);
+                }
+                Event::Paste(text) => self.composer.handle_paste(&text),
+                _ => {}
             }
             return AppAction::None;
         }
 
         if let Event::Key(key) = event {
-            if self.composer.should_handle_vim_insert_escape(key) {
+            if self.composer.should_handle_vim_insert_escape(key)
+                || self.composer.key_chord_pending()
+                || self.composer.vim_key_event_is_owned(key)
+            {
                 let action = self.composer.handle_key_event_at(key, Instant::now());
                 return self.map_composer_action(action);
             }
@@ -556,13 +556,17 @@ impl App {
             Event::Key(key) => self.handle_key_event(key),
             Event::Paste(text) => {
                 self.composer.handle_paste(&text);
-                self.sync_command_popup();
+                self.sync_completion_popup();
                 AppAction::None
             }
             _ => AppAction::None,
         }
     }
 }
+
+#[cfg(test)]
+#[path = "history_search_tests.rs"]
+mod history_search_tests;
 
 #[cfg(test)]
 mod tests {

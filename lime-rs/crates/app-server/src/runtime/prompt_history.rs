@@ -72,23 +72,19 @@ impl PromptHistoryStore {
             .unwrap_or(MAX_READ_LIMIT)
             .clamp(1, MAX_READ_LIMIT);
         let mut data = Vec::with_capacity(limit);
-        for index in (0..end).rev() {
+        let start = end.saturating_sub(limit);
+        for index in (start..end).rev() {
             let Some(entry) = rows[index].clone() else {
                 continue;
             };
             data.push(PromptHistoryEntry {
                 offset: index as u64,
-                session_id: entry.session_id,
+                thread_id: entry.session_id,
                 ts: entry.ts,
                 text: entry.text,
             });
-            if data.len() == limit {
-                break;
-            }
         }
-        let next_cursor = data
-            .last()
-            .and_then(|entry| (entry.offset > 0).then(|| entry.offset.to_string()));
+        let next_cursor = (start > 0).then(|| start.to_string());
         Ok(PromptHistoryReadResponse {
             log_id: log_id_string,
             entry_count: rows.len() as u64,
@@ -99,7 +95,7 @@ impl PromptHistoryStore {
 
     pub(crate) fn append(
         &self,
-        session_id: &str,
+        thread_id: &str,
         text: &str,
     ) -> std::io::Result<PromptHistoryAppendResponse> {
         if text.is_empty() {
@@ -125,7 +121,7 @@ impl PromptHistoryStore {
             .map_err(|error| std::io::Error::other(format!("system clock before epoch: {error}")))?
             .as_secs();
         let stored = StoredPromptHistoryEntry {
-            session_id: session_id.to_string(),
+            session_id: thread_id.to_string(),
             ts,
             text: text.to_string(),
         };
@@ -140,7 +136,7 @@ impl PromptHistoryStore {
         file.unlock()?;
         let entry = PromptHistoryEntry {
             offset: entry_count.saturating_sub(1),
-            session_id: stored.session_id,
+            thread_id: stored.session_id,
             ts: stored.ts,
             text: stored.text,
         };

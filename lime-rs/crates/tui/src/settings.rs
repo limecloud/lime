@@ -2,7 +2,6 @@ use anyhow::{anyhow, Result};
 
 use crate::slash_command::{command_from_prompt, SlashCommand};
 
-pub(crate) const EFFORTS: [&str; 3] = ["low", "medium", "high"];
 pub(crate) const PERMISSION_PROFILES: [&str; 3] =
     [":read-only", ":workspace", ":danger-full-access"];
 
@@ -85,9 +84,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn shortcuts_cycle_codex_order_and_recover_unknown_values() {
-        assert_eq!(cycle_setting(&EFFORTS, Some("medium"), 1), "high");
-        assert_eq!(cycle_setting(&EFFORTS, Some("low"), -1), "high");
+    fn permission_shortcuts_cycle_profiles_and_recover_unknown_values() {
+        assert_eq!(
+            cycle_setting(&PERMISSION_PROFILES, Some(":read-only"), -1),
+            ":danger-full-access"
+        );
         assert_eq!(
             cycle_setting(&PERMISSION_PROFILES, Some("unknown"), 1),
             ":workspace"

@@ -38,7 +38,7 @@ impl App {
             })
         };
         let snapshot = self.take_thread_event_snapshot(&resumed_thread_id, true);
-        self.bottom_pane.clear();
+        self.capture_current_thread_input();
         self.hydrate_thread(response.thread);
         self.set_thread_id(resumed_thread_id.clone());
         match initial_page {
@@ -72,11 +72,17 @@ impl App {
 
     pub(super) fn open_agent_picker(&mut self) {
         let picker =
-            AgentPicker::from_navigation(&self.agent_navigation, self.primary_thread_id.as_deref());
+            AgentPicker::from_navigation(&self.agent_navigation, self.primary_thread_id.as_deref())
+                .with_current(self.thread_id.as_deref())
+                .with_keymap(self.runtime_keymap.list().clone());
         if picker.is_empty() {
-            self.projection.set_status("no sub-agents available");
+            self.projection.set_status(self.locale.agent_picker_empty());
         } else {
             self.agent_picker = Some(picker);
         }
     }
 }
+
+#[cfg(test)]
+#[path = "session_lifecycle_tests.rs"]
+mod tests;

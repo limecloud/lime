@@ -65,7 +65,6 @@ fn agents_overview_refresh_ignores_stale_generation() {
     let mut state = AgentsOverviewState::new(None);
     let first = state.begin_refresh();
     state.refreshing = false;
-    state.request_id = None;
     let second = state.begin_refresh();
     assert!(!state.apply_refresh(first, Vec::new(), None));
     assert!(state.apply_refresh(second, Vec::new(), None));
@@ -86,12 +85,9 @@ fn agents_overview_refresh_retains_locally_observed_threads() {
 }
 
 #[test]
-fn agents_overview_refresh_coalesces_requests_and_exposes_codex_state_fields() {
+fn agents_overview_refresh_coalesces_requests_under_one_generation() {
     let mut state = AgentsOverviewState::new(None);
-    assert!(!state.initialized);
-    assert!(state.request_id.is_none());
     let first = state.begin_refresh();
-    assert_eq!(state.request_id, Some(first));
     assert!(state.refreshing);
     let second = state.begin_refresh();
     assert!(state.refresh_pending);
@@ -172,16 +168,17 @@ fn agents_overview_buffers_latest_notification_during_refresh() {
 
     let overview = app.agents_overview.as_ref().expect("overview state");
     assert_eq!(overview.refresh_notifications["background"].len(), 1);
-    assert_eq!(overview.visible_thread_ids, vec!["background"]);
     assert_eq!(
         overview
-            .view_state
-            .lock()
-            .expect("view state")
-            .visible_rows()[0]
-            .thread
-            .name
-            .as_deref(),
+            .view
+            .visible_rows()
+            .iter()
+            .map(|row| row.thread.id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["background"],
+    );
+    assert_eq!(
+        overview.view.visible_rows()[0].thread.name.as_deref(),
         Some("renamed-again")
     );
 }
@@ -211,4 +208,53 @@ fn background_thread_notifications_do_not_mutate_the_current_projection() {
         },
     ));
     assert_eq!(app.projection.final_answer(), "current answer");
+}
+
+#[test]
+fn agents_overview_filter_and_pagination_share_the_live_view_after_notifications() {
+    use crate::tui::TuiEvent;
+    use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+
+    let mut app = super::super::App::default();
+    let mut state = AgentsOverviewState::new(None);
+    let generation = state.begin_refresh();
+    state.apply_refresh_page(
+        generation,
+        vec![
+            thread("root", None, ThreadStatus::Idle),
+            thread("background", None, ThreadStatus::Idle),
+        ],
+        Some("next-page".into()),
+        None,
+    );
+    app.agents_overview = Some(state);
+    app.handle_tui_event(
+        TuiEvent::Key(KeyEvent::new(KeyCode::Char('f'), KeyModifiers::NONE)),
+        true,
+    );
+    app.handle_tui_event(TuiEvent::Paste("background".into()), true);
+    let state = app.agents_overview.as_ref().unwrap();
+    assert_eq!(state.view.search(), "background");
+    assert_eq!(state.view.selected_thread_id(), Some("background"));
+
+    app.track_agents_overview_notification(&ServerNotification::ThreadNameUpdated(
+        ThreadNameUpdatedNotification {
+            thread_id: "background".into(),
+            thread_name: Some("background updated".into()),
+        },
+    ));
+    let state = app.agents_overview.as_mut().unwrap();
+    assert_eq!(state.view.search(), "background");
+    assert_eq!(state.view.selected_thread_id(), Some("background"));
+    assert_eq!(
+        state.view.visible_rows()[0].thread.name.as_deref(),
+        Some("background updated")
+    );
+    assert_eq!(state.begin_load_more().as_deref(), Some("next-page"));
+    assert!(state.view.loading_more());
+    state.fail_load_more();
+    assert_eq!(state.view.search(), "background");
+    assert_eq!(state.view.selected_thread_id(), Some("background"));
+    assert!(state.view.load_more_failed());
+    assert!(!state.view.loading_more());
 }

@@ -1,5 +1,7 @@
 use super::*;
 use crate::bottom_pane::command_popup::CommandPopup;
+use crate::bottom_pane::{LocalImageAttachment, RemoteImageAttachment};
+use agent_protocol::TextElement;
 use app_server_protocol::protocol::v2::{
     CommandExecutionApprovalDecision, CommandExecutionRequestApprovalParams, McpServerStartupState,
     McpServerStatusDetail, McpServerStatusUpdatedNotification, ServerNotification, ServerRequest,
@@ -670,7 +672,13 @@ fn tab_queues_a_follow_up_without_submitting_the_active_turn() {
         Event::Key(KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE)),
     );
 
-    assert_eq!(action, AppAction::Queue("follow up".to_string()));
+    assert_eq!(
+        action,
+        AppAction::Queue {
+            text: "follow up".to_string(),
+            text_elements: Vec::new()
+        }
+    );
     assert!(app.composer.is_empty());
 }
 
@@ -739,7 +747,7 @@ fn ctrl_c_clears_active_turn_draft_without_interrupting() {
 }
 
 #[test]
-fn ctrl_c_preserves_attachment_draft_until_image_history_is_supported() {
+fn ctrl_c_cancels_attachment_draft_without_interrupt_and_recalls_complete_history() {
     let mut app = App::default();
     app.composer.insert("draft");
     app.attach_image(std::path::PathBuf::from("/tmp/draft.png"));
@@ -749,10 +757,20 @@ fn ctrl_c_preserves_attachment_draft_until_image_history_is_supported() {
             &mut app,
             Event::Key(KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL,)),
         ),
-        AppAction::Interrupt
+        AppAction::None
     );
-    assert_eq!(app.composer.text(), "draft");
+    assert!(app.composer.is_empty());
+    assert!(!app.composer.has_pending_images());
+    dispatch_connected_input(
+        &mut app,
+        Event::Key(KeyEvent::new(KeyCode::Up, KeyModifiers::NONE)),
+    );
+    assert_eq!(app.composer.text(), "draft[Image #1]");
     assert!(app.composer.has_pending_images());
+    assert_eq!(
+        app.composer.textarea().text_elements(),
+        vec![TextElement::new(5..15, Some("[Image #1]".into()))]
+    );
 }
 
 #[test]
@@ -946,7 +964,8 @@ fn an_open_popup_owns_escape_before_active_turn_interruption() {
 #[test]
 fn history_search_owns_escape_before_active_turn_interruption() {
     let mut app = App::default();
-    app.composer.load_history(["previous prompt".to_string()]);
+    app.composer
+        .set_cached_history(["previous prompt".to_string()]);
     app.composer.insert("previous");
     app.start_turn("turn-1".to_string());
 
@@ -1107,7 +1126,8 @@ fn vim_search_owns_escape_and_paste_before_popup_or_active_turn() {
 #[test]
 fn vim_normal_up_and_down_do_not_replace_the_draft_with_history() {
     let mut app = App::default();
-    app.composer.load_history(["previous prompt".to_string()]);
+    app.composer
+        .set_cached_history(["previous prompt".to_string()]);
     app.composer.insert("current draft");
     app.composer.set_vim_enabled(true);
 
@@ -1218,7 +1238,10 @@ fn slash_popup_filters_and_executes_immediate_commands() {
             &mut app,
             Event::Key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE,))
         ),
-        AppAction::Submit("/model".to_string())
+        AppAction::Submit {
+            text: "/model".to_string(),
+            text_elements: Vec::new()
+        }
     );
     assert!(app.composer.command_popup().is_none());
     assert!(app.composer.is_empty());
@@ -1268,7 +1291,10 @@ fn status_command_opens_an_ephemeral_pager_and_consumes_input_until_closed() {
             &mut app,
             Event::Key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE,))
         ),
-        AppAction::Submit("real prompt".to_string())
+        AppAction::Submit {
+            text: "real prompt".to_string(),
+            text_elements: Vec::new()
+        }
     );
     app.set_thread_id("thread-1".to_string());
     app.set_settings(
@@ -1386,26 +1412,53 @@ fn image_shortcut_attaches_and_allows_image_only_submission() {
             &mut app,
             Event::Key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE,))
         ),
-        AppAction::Submit(String::new())
+        AppAction::Submit {
+            text: "[Image #1]".to_string(),
+            text_elements: vec![TextElement::new(0..10, Some("[Image #1]".to_string()))],
+        }
     );
     assert_eq!(
-        app.take_pending_images(),
-        vec![PathBuf::from("/tmp/input.png")]
+        app.take_recent_submission_images_with_placeholders(),
+        vec![LocalImageAttachment {
+            placeholder: "[Image #1]".to_string(),
+            path: PathBuf::from("/tmp/input.png"),
+            detail: None,
+        }]
     );
 }
 
 #[test]
-fn failed_image_submission_can_restore_pending_attachments() {
+fn failed_image_submission_restores_inline_elements_and_attachments() {
     let mut app = App::default();
     app.attach_image(PathBuf::from("/tmp/one.png"));
     app.attach_image(PathBuf::from("/tmp/two.png"));
 
-    let images = app.take_pending_images();
+    let AppAction::Submit {
+        text,
+        text_elements,
+    } = dispatch_connected_input(
+        &mut app,
+        Event::Key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE)),
+    )
+    else {
+        panic!("expected image submission");
+    };
+    let images = app.take_recent_submission_images_with_placeholders();
     assert!(!app.composer.has_pending_images());
-    app.restore_pending_images(images);
+    app.restore_submission_draft(
+        text.clone(),
+        text_elements.clone(),
+        images.clone(),
+        Vec::new(),
+        Vec::new(),
+    );
+
+    assert_eq!(app.composer.text(), "[Image #1][Image #2]");
+    assert_eq!(app.composer.local_images(), images);
+    assert_eq!(app.composer.textarea().text_elements(), text_elements);
 
     assert_eq!(
-        app.composer.pending_images(),
+        app.composer.local_image_paths(),
         &[PathBuf::from("/tmp/one.png"), PathBuf::from("/tmp/two.png")]
     );
 }
@@ -1467,9 +1520,13 @@ fn alt_up_requests_server_delete_before_restoring_the_last_queued_input() {
 
     assert!(app.restore_queued_submission_for_edit(submission));
     assert!(app.queued_submissions.is_empty());
-    assert_eq!(app.composer.text(), "revise this follow-up");
+    assert_eq!(app.composer.text(), "[Image #1] revise this follow-up");
     assert_eq!(
-        app.composer.pending_images(),
+        app.composer.textarea().text_elements(),
+        vec![TextElement::new(0..10, Some("[Image #1]".to_string()))]
+    );
+    assert_eq!(
+        app.composer.local_image_paths(),
         &[PathBuf::from("/tmp/queued.png")]
     );
 }
@@ -1531,7 +1588,8 @@ fn alt_up_offers_lossless_remote_image_queue_edit() {
         app.composer.remote_image_urls(),
         &["https://example.test/input.png"]
     );
-    assert!(app.composer.is_empty());
+    assert!(!app.composer.is_empty());
+    assert!(app.composer.textarea().is_empty());
 
     app.set_queued_submissions(vec![QueuedSubmission {
         id: "queue-text".to_string(),
@@ -1627,14 +1685,27 @@ fn disconnected_paste_and_ctrl_c_are_handled_at_the_app_boundary() {
 fn failed_submission_restores_the_complete_local_draft() {
     let mut app = App::default();
     app.restore_submission_draft(
-        "retry after reconnect".to_string(),
-        vec![std::path::PathBuf::from("/tmp/retry.png")],
-        vec!["https://example.test/retry.png".to_string()],
+        "retry [Image #2] after reconnect".to_string(),
+        vec![TextElement::new(6..16, Some("[Image #2]".to_string()))],
+        vec![LocalImageAttachment {
+            placeholder: "[Image #2]".to_string(),
+            path: PathBuf::from("/tmp/retry.png"),
+            detail: None,
+        }],
+        vec![RemoteImageAttachment {
+            url: "https://example.test/retry.png".to_string(),
+            detail: None,
+        }],
+        Vec::new(),
     );
 
-    assert_eq!(app.composer.text(), "retry after reconnect");
+    assert_eq!(app.composer.text(), "retry [Image #2] after reconnect");
     assert_eq!(
-        app.composer.pending_images(),
+        app.composer.textarea().text_elements(),
+        vec![TextElement::new(6..16, Some("[Image #2]".to_string()))]
+    );
+    assert_eq!(
+        app.composer.local_image_paths(),
         &[std::path::PathBuf::from("/tmp/retry.png")]
     );
     assert_eq!(
@@ -1736,9 +1807,11 @@ fn composer_mouse_paste_requests_clipboard_surface_without_selection() {
             }),
         );
         let expected =
-            crate::clipboard_paste::right_click_paste_allowed(app.right_click_paste, source)
-                .then_some(AppAction::PasteClipboardText(source))
-                .unwrap_or(AppAction::None);
+            if crate::clipboard_paste::right_click_paste_allowed(app.right_click_paste, source) {
+                AppAction::PasteClipboardText(source)
+            } else {
+                AppAction::None
+            };
         assert_eq!(action, expected);
     }
 }

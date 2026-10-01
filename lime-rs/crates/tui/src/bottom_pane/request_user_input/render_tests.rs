@@ -1,9 +1,296 @@
 use super::truncate_line_word_boundary_with_ellipsis;
+use super::*;
+use app_server_protocol::protocol::v2::{
+    ToolRequestUserInputOption, ToolRequestUserInputParams, ToolRequestUserInputQuestion,
+};
+use app_server_protocol::RequestId;
+use ratatui::backend::TestBackend;
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::style::Stylize;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Paragraph, Widget};
+use ratatui::Terminal;
+
+fn request(count: usize) -> RequestUserInputOverlay {
+    RequestUserInputOverlay::new(
+        RequestId::Integer(81),
+        ToolRequestUserInputParams {
+            thread_id: "thread-input".into(),
+            turn_id: "turn-input".into(),
+            item_id: "item-input".into(),
+            is_blocking: true,
+            auto_resolution_ms: None,
+            questions: vec![ToolRequestUserInputQuestion {
+                id: "mode".into(),
+                header: "Mode".into(),
+                question: "Choose the next step".into(),
+                is_secret: false,
+                is_other: false,
+                options: (count > 0).then(|| {
+                    (0..count)
+                        .map(|index| ToolRequestUserInputOption {
+                            label: format!("Choice {index}"),
+                            description: "Review the current changes carefully".into(),
+                        })
+                        .collect()
+                }),
+            }],
+        },
+    )
+}
+
+#[test]
+fn oversized_notes_remain_editable_and_show_localized_rejection_in_the_visible_footer() {
+    let mut request = request(0);
+    let actual_chars = agent_protocol::input::MAX_USER_INPUT_TEXT_CHARS + 1;
+    request.composer.handle_paste(&"界".repeat(actual_chars));
+    let draft = request.composer.snapshot_draft();
+    assert!(request
+        .handle_key_event(crossterm::event::KeyEvent::new(
+            crossterm::event::KeyCode::Enter,
+            crossterm::event::KeyModifiers::NONE
+        ))
+        .is_none());
+    assert_eq!(request.composer.snapshot_draft(), draft);
+    let mut app = crate::app::App::default();
+    app.bottom_pane
+        .queue
+        .push_back(crate::bottom_pane::PendingInteraction::UserInput(request));
+    for locale in [
+        Locale::ZhCn,
+        Locale::ZhTw,
+        Locale::EnUs,
+        Locale::JaJp,
+        Locale::KoKr,
+    ] {
+        app.locale = locale;
+        let mut terminal = Terminal::new(TestBackend::new(150, 24)).unwrap();
+        terminal
+            .draw(|frame| crate::view::render(frame, &app))
+            .unwrap();
+        let text = screen(&terminal);
+        assert!(
+            text.contains(&locale.user_input_too_large_message(actual_chars)),
+            "locale={locale:?}: {text}"
+        );
+    }
+    app.bottom_pane
+        .handle_key_event(crossterm::event::KeyEvent::new(
+            crossterm::event::KeyCode::Backspace,
+            crossterm::event::KeyModifiers::NONE,
+        ));
+    let Some(crate::bottom_pane::PendingInteraction::UserInput(request)) =
+        app.bottom_pane.queue.front()
+    else {
+        panic!("oversized notes must remain pending");
+    };
+    assert!(request.submission_error.is_none());
+}
+
+fn draw(
+    request: &RequestUserInputOverlay,
+    locale: Locale,
+    width: u16,
+    height: u16,
+) -> Terminal<TestBackend> {
+    let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+    terminal
+        .draw(|frame| render(frame, frame.area(), request, locale))
+        .unwrap();
+    terminal
+}
+
+fn screen(terminal: &Terminal<TestBackend>) -> String {
+    let buffer = terminal.backend().buffer();
+    (0..buffer.area.height)
+        .map(|y| {
+            let mut x = 0;
+            let mut line = String::new();
+            while x < buffer.area.width {
+                let symbol = buffer[(x, y)].symbol();
+                line.push_str(symbol);
+                x += display_width(symbol).max(1) as u16;
+            }
+            line
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+#[test]
+fn wrapped_options_preserve_secondary_text_and_fill_selection() {
+    let mut request = request(1);
+    request.params.questions[0].options.as_mut().unwrap()[0].description =
+        "Review a long description before choosing the final END_OF_DESCRIPTION".into();
+    let terminal = draw(&request, Locale::EnUs, 45, 18);
+    let text = screen(&terminal);
+    assert!(text.contains("END_OF_DESCRIPTION"), "{text}");
+    assert!(text.contains("› 1. Choice 0"), "{text}");
+    assert!(!text.contains('─'));
+    let buffer = terminal.backend().buffer();
+    let selected = buffer
+        .content
+        .iter()
+        .position(|cell| cell.symbol() == "›")
+        .unwrap();
+    let row = selected / 45;
+    assert_eq!(
+        buffer[(40, row as u16)].bg,
+        crate::style::selection_style().bg.unwrap()
+    );
+}
+
+#[test]
+fn narrow_options_stack_without_losing_the_label() {
+    let mut request = request(1);
+    let option = &mut request.params.questions[0].options.as_mut().unwrap()[0];
+    option.label = "Long option LABEL_END".into();
+    option.description = "Description DESCRIPTION_END".into();
+    let terminal = draw(&request, Locale::EnUs, 24, 18);
+    let text = screen(&terminal);
+    assert!(text.contains("LABEL_END"), "{text}");
+    assert!(text.contains("DESCRIPTION_END"), "{text}");
+}
+
+#[test]
+fn long_questions_yield_space_to_the_last_selected_option() {
+    let mut request = request(12);
+    request.params.questions[0].question = "Long question with many wrapped words. ".repeat(100);
+    request.selected = 11;
+    for height in [1, 2, 4, 8, 18] {
+        let terminal = draw(&request, Locale::EnUs, 40, height);
+        let text = screen(&terminal);
+        assert!(text.contains("› 12. Choice 11"), "height={height}: {text}");
+    }
+}
+
+#[test]
+fn long_freeform_question_never_hides_the_notes_cursor() {
+    let mut request = request(0);
+    request.params.questions[0].question = "Very long question. ".repeat(100);
+    request.composer.replace("notes at cursor".into());
+    for height in [1, 2, 4, 8] {
+        let mut terminal = draw(&request, Locale::EnUs, 40, height);
+        let text = screen(&terminal);
+        assert!(text.contains("notes at cursor"), "height={height}: {text}");
+        let cursor = terminal.get_cursor_position().unwrap();
+        assert!(cursor.y < height && cursor.x < 40, "{cursor:?}");
+    }
+}
+
+#[test]
+fn notes_scroll_to_the_cursor_instead_of_ellipsizing_the_draft() {
+    let mut request = request(0);
+    request
+        .composer
+        .replace(format!("{}VISIBLE_TAIL", "prefix ".repeat(100)));
+    let mut terminal = draw(&request, Locale::EnUs, 30, 8);
+    let text = screen(&terminal);
+    assert!(text.contains("VISIBLE_TAIL"), "{text}");
+    let cursor = terminal.get_cursor_position().unwrap();
+    assert!(cursor.y < 8 && cursor.x < 30);
+    request
+        .composer
+        .handle_key_event(crossterm::event::KeyEvent::new(
+            crossterm::event::KeyCode::Home,
+            crossterm::event::KeyModifiers::CONTROL,
+        ));
+    let terminal = draw(&request, Locale::EnUs, 30, 8);
+    assert!(screen(&terminal).contains("prefix"));
+}
+
+#[test]
+fn secret_multiline_unicode_uses_the_same_masked_viewport_and_cursor() {
+    let mut request = request(0);
+    request.params.questions[0].is_secret = true;
+    request
+        .composer
+        .replace("secret秘密🙂\nsecond secret".into());
+    let mut terminal = draw(&request, Locale::EnUs, 30, 10);
+    let text = screen(&terminal);
+    assert!(
+        !text.contains("secret") && !text.contains("秘密") && !text.contains('🙂'),
+        "{text}"
+    );
+    assert!(text.contains("*************"), "{text}");
+    let cursor = terminal.get_cursor_position().unwrap();
+    let inner = menu_surface_inset(Rect::new(0, 0, 30, 10));
+    let input = notes_input_area(sections(&request, Locale::EnUs, inner).notes_area);
+    assert_eq!(
+        (cursor.x, cursor.y),
+        request
+            .composer
+            .textarea()
+            .cursor_pos_with_state(input, *request.composer.textarea_state_mut())
+            .unwrap()
+    );
+}
+
+#[test]
+fn notes_focus_keeps_options_actionable_and_shows_the_editor() {
+    let mut request = request(12);
+    request.selected = 11;
+    request.editing = true;
+    request.composer.replace("edited note".into());
+    request.params.questions[0].question = "Long question. ".repeat(100);
+    let terminal = draw(&request, Locale::EnUs, 40, 8);
+    let text = screen(&terminal);
+    assert!(
+        text.contains("› 12. Choice 11") && text.contains("edited note"),
+        "{text}"
+    );
+}
+
+#[test]
+fn progress_and_other_labels_cover_every_product_locale() {
+    let mut request = request(1);
+    request.params.questions[0].is_other = true;
+    for locale in [
+        Locale::ZhCn,
+        Locale::ZhTw,
+        Locale::EnUs,
+        Locale::JaJp,
+        Locale::KoKr,
+    ] {
+        let terminal = draw(&request, locale, 80, 12);
+        let text = screen(&terminal);
+        assert!(
+            text.contains(&locale.request_question_progress(1, 1)),
+            "{locale:?}: {text}"
+        );
+        assert!(text.contains(locale.other_option()), "{locale:?}: {text}");
+    }
+}
+
+#[test]
+fn countdown_is_visible_and_red_after_the_hidden_grace() {
+    let mut request = request(1);
+    request.params.is_blocking = false;
+    let now = request.request_started_at + std::time::Duration::from_secs(80);
+    let mut terminal = Terminal::new(TestBackend::new(80, 12)).unwrap();
+    terminal
+        .draw(|frame| render_ui_at(frame, frame.area(), &request, Locale::EnUs, now))
+        .unwrap();
+    let text = screen(&terminal);
+    assert!(text.contains("40s"), "{text}");
+    assert!(terminal
+        .backend()
+        .buffer()
+        .content
+        .iter()
+        .any(|cell| cell.fg == Color::Red && cell.symbol() == "4"));
+}
+
+#[test]
+fn zero_and_tiny_surfaces_do_not_underflow() {
+    let request = request(1);
+    for width in 0..5 {
+        for height in 0..5 {
+            let _ = draw(&request, Locale::JaJp, width, height);
+        }
+    }
+}
 
 #[test]
 fn halfwidth_sound_marks_are_truncated_at_a_grapheme_boundary() {

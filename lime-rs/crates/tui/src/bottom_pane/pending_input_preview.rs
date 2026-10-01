@@ -74,17 +74,33 @@ fn preview_lines(
 }
 
 pub(crate) fn can_restore_submission(submission: &QueuedSubmission) -> bool {
-    let mut text_count = 0usize;
     !submission.input.is_empty()
         && submission.input.iter().all(|input| match input {
-            UserInput::Text { text_elements, .. } => {
-                text_count += 1;
-                text_count <= 1 && text_elements.is_empty()
+            UserInput::Text {
+                text,
+                text_elements,
+            } => {
+                // TextArea owns validated atomic ranges; selected skills additionally restore
+                // their path through MentionBinding. An absent placeholder uses the valid range.
+                text_elements.iter().all(|element| {
+                    let range = element.byte_range;
+                    range.start < range.end
+                        && text.get(range.start..range.end).is_some_and(|value| {
+                            element
+                                .placeholder
+                                .as_deref()
+                                .is_none_or(|placeholder| placeholder == value)
+                        })
+                }) && text_elements
+                    .windows(2)
+                    .all(|pair| pair[0].byte_range.end <= pair[1].byte_range.start)
             }
-            UserInput::LocalImage { detail, .. } | UserInput::Image { detail, .. } => {
-                detail.is_none()
+            UserInput::LocalImage { .. } | UserInput::Image { .. } => true,
+            UserInput::Skill { name, path } => {
+                !name.is_empty()
+                    && name.bytes().all(crate::mention_codec::is_mention_name_char)
+                    && !path.is_empty()
             }
-            UserInput::Skill { .. } => true,
             UserInput::Mention { .. } => false,
         })
 }
@@ -280,7 +296,18 @@ mod tests {
         assert!(can_restore_submission(&local));
         assert!(can_restore_submission(&remote));
         assert!(can_restore_submission(&skill));
-        assert!(!can_restore_submission(&structured));
+        assert!(can_restore_submission(&structured));
+        let invalid = submission(
+            "invalid",
+            vec![UserInput::Text {
+                text: "界[Image #1]".into(),
+                text_elements: vec![agent_protocol::TextElement::new(
+                    1..13,
+                    Some("[Image #1]".into()),
+                )],
+            }],
+        );
+        assert!(!can_restore_submission(&invalid));
         assert!(preview_lines(&[remote], 80, Locale::EnUs)
             .iter()
             .map(line_text)
@@ -312,6 +339,69 @@ mod tests {
             let text = lines.iter().map(line_text).collect::<Vec<_>>().join("\n");
             assert!(text.contains(queued), "{locale:?}: {text}");
             assert!(text.contains(image), "{locale:?}: {text}");
+        }
+    }
+
+    #[test]
+    fn typed_metadata_enables_edit_hint_but_invalid_ranges_remain_fail_closed() {
+        use agent_protocol::{ImageDetail, TextElement};
+        for detail in [
+            None,
+            Some(ImageDetail::Auto),
+            Some(ImageDetail::Low),
+            Some(ImageDetail::High),
+            Some(ImageDetail::Original),
+        ] {
+            let queued = submission(
+                "typed",
+                vec![
+                    UserInput::Image {
+                        url: "data:image/png;base64,AA==".into(),
+                        detail,
+                    },
+                    UserInput::LocalImage {
+                        path: "one.png".into(),
+                        detail,
+                    },
+                    UserInput::Text {
+                        text: "界[token]".into(),
+                        text_elements: vec![TextElement::new(3..10, None)],
+                    },
+                ],
+            );
+            assert!(can_restore_submission(&queued));
+            for locale in [
+                Locale::ZhCn,
+                Locale::ZhTw,
+                Locale::EnUs,
+                Locale::JaJp,
+                Locale::KoKr,
+            ] {
+                assert!(
+                    preview_lines(std::slice::from_ref(&queued), 80, locale)
+                        .iter()
+                        .map(line_text)
+                        .collect::<String>()
+                        .contains(locale.edit_queued_input_hint()),
+                    "{locale:?} / {detail:?}"
+                );
+            }
+        }
+        for elements in [
+            vec![TextElement::new(1..10, None)],
+            vec![TextElement::new(3..11, None)],
+            vec![TextElement::new(3..3, None)],
+            vec![TextElement::new(3..10, Some("different".into()))],
+            vec![TextElement::new(3..7, None), TextElement::new(6..10, None)],
+            vec![TextElement::new(7..10, None), TextElement::new(3..7, None)],
+        ] {
+            assert!(!can_restore_submission(&submission(
+                "invalid",
+                vec![UserInput::Text {
+                    text: "界[token]".into(),
+                    text_elements: elements
+                }]
+            )));
         }
     }
 }

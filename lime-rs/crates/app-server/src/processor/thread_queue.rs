@@ -178,6 +178,7 @@ fn invalid_request(message: impl Into<String>) -> JsonRpcError {
 }
 
 fn lower_user_input(items: Vec<UserInput>) -> Result<Vec<AgentInput>, JsonRpcError> {
+    super::turn::validate_v2_input_limit(&items)?;
     items
         .into_iter()
         .map(|item| match item {

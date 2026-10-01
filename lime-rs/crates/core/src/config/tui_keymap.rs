@@ -7,6 +7,11 @@ use serde::de::Error as SerdeError;
 use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::BTreeMap;
 
+mod vim;
+pub use vim::{
+    TuiVimNormalKeymap, TuiVimOperatorKeymap, TuiVimSearchKeymap, TuiVimTextObjectKeymap,
+};
+
 /// 可移植 TUI 配置支持的最高功能键。
 pub const MAX_FUNCTION_KEY: u8 = 24;
 
@@ -125,6 +130,84 @@ impl TuiAgentsKeymap {
     }
 }
 
+/// 当前 resume/fork picker 消费的列表导航与确认/取消配置。
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Default)]
+#[serde(default, deny_unknown_fields)]
+pub struct TuiListKeymap {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub move_up: Option<KeybindingsSpec>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub move_down: Option<KeybindingsSpec>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub move_left: Option<KeybindingsSpec>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub move_right: Option<KeybindingsSpec>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub page_up: Option<KeybindingsSpec>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub page_down: Option<KeybindingsSpec>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub jump_top: Option<KeybindingsSpec>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub jump_bottom: Option<KeybindingsSpec>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub accept: Option<KeybindingsSpec>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cancel: Option<KeybindingsSpec>,
+}
+
+impl TuiListKeymap {
+    fn is_default(&self) -> bool {
+        self == &Self::default()
+    }
+}
+
+/// Composer 与文本输入组件共用的编辑键位；语义与 Codex `TuiEditorKeymap` 一致。
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Default)]
+#[serde(default, deny_unknown_fields)]
+pub struct TuiEditorKeymap {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub insert_newline: Option<KeybindingsSpec>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub move_left: Option<KeybindingsSpec>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub move_right: Option<KeybindingsSpec>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub move_up: Option<KeybindingsSpec>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub move_down: Option<KeybindingsSpec>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub move_word_left: Option<KeybindingsSpec>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub move_word_right: Option<KeybindingsSpec>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub move_line_start: Option<KeybindingsSpec>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub move_line_end: Option<KeybindingsSpec>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub delete_backward: Option<KeybindingsSpec>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub delete_forward: Option<KeybindingsSpec>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub delete_backward_word: Option<KeybindingsSpec>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub delete_forward_word: Option<KeybindingsSpec>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub kill_line_start: Option<KeybindingsSpec>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub kill_whole_line: Option<KeybindingsSpec>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub kill_line_end: Option<KeybindingsSpec>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub yank: Option<KeybindingsSpec>,
+}
+
+impl TuiEditorKeymap {
+    fn is_default(&self) -> bool {
+        self == &Self::default()
+    }
+}
+
 /// `tui.keymap` 的持久化形状；运行时必须先解析为不可变 snapshot。
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Default)]
 #[serde(default, deny_unknown_fields)]
@@ -135,6 +218,18 @@ pub struct TuiKeymap {
     pub pager: TuiPagerKeymap,
     #[serde(skip_serializing_if = "TuiAgentsKeymap::is_default")]
     pub agents: TuiAgentsKeymap,
+    #[serde(skip_serializing_if = "TuiListKeymap::is_default")]
+    pub list: TuiListKeymap,
+    #[serde(skip_serializing_if = "TuiEditorKeymap::is_default")]
+    pub editor: TuiEditorKeymap,
+    #[serde(skip_serializing_if = "TuiVimNormalKeymap::is_default")]
+    pub vim_normal: TuiVimNormalKeymap,
+    #[serde(skip_serializing_if = "TuiVimOperatorKeymap::is_default")]
+    pub vim_operator: TuiVimOperatorKeymap,
+    #[serde(skip_serializing_if = "TuiVimTextObjectKeymap::is_default")]
+    pub vim_text_object: TuiVimTextObjectKeymap,
+    #[serde(skip_serializing_if = "TuiVimSearchKeymap::is_default")]
+    pub vim_search: TuiVimSearchKeymap,
 }
 
 impl TuiKeymap {
@@ -283,6 +378,7 @@ fn normalize_key_name(key: &str, original: &str) -> Result<String, String> {
             | "backspace"
             | "esc"
             | "delete"
+            | "insert"
             | "up"
             | "down"
             | "left"
@@ -352,10 +448,57 @@ mod tests {
     }
 
     #[test]
+    fn list_keymap_round_trips_configured_chords_alternatives_and_unbinds() {
+        let config: TuiConfig = serde_yaml::from_str("keymap:\n  list:\n    accept: F9\n    cancel: Control-X q\n    page_down: [PageDown, ctrl-d]\n    move_up: []\n").unwrap();
+        assert_eq!(
+            config.keymap.list.accept.as_ref().unwrap().specs()[0].as_str(),
+            "f9"
+        );
+        assert_eq!(
+            config.keymap.list.cancel.as_ref().unwrap().specs()[0].as_str(),
+            "ctrl-x q"
+        );
+        assert_eq!(
+            config.keymap.list.move_up,
+            Some(KeybindingsSpec::Many(Vec::new()))
+        );
+        let serialized = serde_json::to_value(&config).unwrap();
+        assert_eq!(
+            serialized["keymap"]["list"]["page_down"],
+            serde_json::json!(["page-down", "ctrl-d"])
+        );
+        assert_eq!(
+            serde_json::from_value::<TuiConfig>(serialized).unwrap(),
+            config
+        );
+        assert!(serde_yaml::from_str::<TuiConfig>("keymap:\n  list:\n    acept: f9\n").is_err());
+    }
+
+    #[test]
     fn default_tui_config_serializes_without_empty_keymap_noise() {
         assert_eq!(
             serde_yaml::to_string(&TuiConfig::default()).expect("serialize default TUI config"),
             "{}\n"
         );
+    }
+
+    #[test]
+    fn editor_keymap_roundtrips_normalized_alternatives_chords_and_unbind() {
+        let config: TuiConfig = serde_yaml::from_str("keymap:\n  editor:\n    move_left: [F9, Control-Q h]\n    delete_backward: []\n    kill_whole_line: ctrl-shift-u\n").unwrap();
+        let value = serde_json::to_value(&config).unwrap();
+        assert_eq!(
+            value["keymap"]["editor"],
+            serde_json::json!({
+                "move_left": ["f9", "ctrl-q h"], "delete_backward": [], "kill_whole_line": "ctrl-shift-u"
+            })
+        );
+        assert_eq!(serde_json::from_value::<TuiConfig>(value).unwrap(), config);
+        assert!(
+            serde_yaml::from_str::<TuiConfig>("keymap:\n  editor:\n    move_lft: f9\n").is_err()
+        );
+        assert!(serde_yaml::from_str::<TuiConfig>(
+            "keymap:\n  editor:\n    move_left: ctrl-q h j\n"
+        )
+        .is_err());
     }
 }

@@ -1,6 +1,6 @@
 //! Codex selection fills retain readable contrast and conservative ANSI fallbacks.
 
-use super::{blend, is_light};
+use super::{blend, contrast::foreground, contrast::ratio, is_light};
 use crate::terminal_palette::{
     best_color_for_level, color_rgb, default_bg, default_fg, effective_stdout_color_level,
     StdoutColorLevel,
@@ -11,7 +11,10 @@ pub(crate) fn selection_style() -> Style {
     selection_style_for(default_bg(), effective_stdout_color_level())
 }
 
-fn selection_style_for(background: Option<(u8, u8, u8)>, level: StdoutColorLevel) -> Style {
+pub(super) fn selection_style_for(
+    background: Option<(u8, u8, u8)>,
+    level: StdoutColorLevel,
+) -> Style {
     let fallback = Style::default()
         .fg(Color::Reset)
         .bg(Color::Reset)
@@ -27,19 +30,20 @@ fn selection_style_for(background: Option<(u8, u8, u8)>, level: StdoutColorLevel
         ((99, 168, 248), (164, 205, 251))
     };
     let mut fill = best_color_for_level(preferred, level);
-    let Some(fill_rgb) = color_rgb(fill) else {
+    let Some(mut fill_rgb) = color_rgb(fill) else {
         return fallback;
     };
     if ratio(fill_rgb, background) < 1.25 {
         let alternate = best_color_for_level(alternate, level);
-        if color_rgb(alternate)
-            .is_some_and(|rgb| ratio(rgb, background) > ratio(fill_rgb, background))
+        if let Some(alternate_rgb) =
+            color_rgb(alternate).filter(|rgb| ratio(*rgb, background) > ratio(fill_rgb, background))
         {
             fill = alternate;
+            fill_rgb = alternate_rgb;
         }
     }
     Style::default()
-        .fg(best_color_for_level((0, 0, 46), level))
+        .fg(foreground((0, 0, 46), Some(fill_rgb), level))
         .bg(fill)
         .bold()
         .not_dim()
@@ -68,7 +72,7 @@ pub(crate) fn active_tab_style() -> Style {
     let Some(rgb) = color_rgb(fill) else {
         return fallback;
     };
-    let fg = default_fg().map_or(Color::Reset, |fg| readable_foreground(fg, rgb, level));
+    let fg = default_fg().map_or(Color::Reset, |fg| foreground(fg, Some(rgb), level));
     Style::default()
         .fg(fg)
         .bg(fill)
@@ -83,59 +87,8 @@ pub(crate) fn key_hint_style() -> Style {
         _ => fg,
     });
     let level = effective_stdout_color_level();
-    let foreground = preferred.map_or(Color::Reset, |fg| {
-        default_bg().map_or_else(
-            || best_color_for_level(fg, level),
-            |bg| readable_foreground(fg, bg, level),
-        )
-    });
+    let foreground = preferred.map_or(Color::Reset, |fg| foreground(fg, default_bg(), level));
     Style::default().fg(foreground).bold().not_dim()
-}
-
-fn readable_foreground(
-    preferred: (u8, u8, u8),
-    background: (u8, u8, u8),
-    level: StdoutColorLevel,
-) -> Color {
-    let endpoint = if ratio((0, 0, 0), background) >= ratio((255, 255, 255), background) {
-        (0, 0, 0)
-    } else {
-        (255, 255, 255)
-    };
-    let candidate = if ratio(preferred, background) >= 4.5 {
-        preferred
-    } else {
-        (1..=255)
-            .map(|step| blend(endpoint, preferred, step as f32 / 255.0))
-            .find(|color| ratio(*color, background) >= 4.5)
-            .unwrap_or(endpoint)
-    };
-    let color = best_color_for_level(candidate, level);
-    if level == StdoutColorLevel::Ansi256
-        && color_rgb(color).is_some_and(|rgb| ratio(rgb, background) < 4.5)
-    {
-        best_color_for_level(endpoint, level)
-    } else {
-        color
-    }
-}
-
-fn ratio(a: (u8, u8, u8), b: (u8, u8, u8)) -> f64 {
-    let a = luminance(a);
-    let b = luminance(b);
-    (a.max(b) + 0.05) / (a.min(b) + 0.05)
-}
-
-fn luminance(rgb: (u8, u8, u8)) -> f64 {
-    let [r, g, b] = [rgb.0, rgb.1, rgb.2].map(|channel| {
-        let value = f64::from(channel) / 255.0;
-        if value <= 0.04045 {
-            value / 12.92
-        } else {
-            ((value + 0.055) / 1.055).powf(2.4)
-        }
-    });
-    0.2126 * r + 0.7152 * g + 0.0722 * b
 }
 
 #[cfg(test)]
@@ -182,7 +135,7 @@ mod tests {
         assert_eq!(color_rgb(style.fg.unwrap()), Some((0, 0, 46)));
         assert_eq!(color_rgb(style.bg.unwrap()), Some((220, 220, 220)));
         for level in [StdoutColorLevel::TrueColor, StdoutColorLevel::Ansi256] {
-            let foreground = readable_foreground((76, 76, 76), (76, 76, 76), level);
+            let foreground = foreground((76, 76, 76), Some((76, 76, 76)), level);
             assert!(ratio(color_rgb(foreground).unwrap(), (76, 76, 76)) >= 4.5);
         }
     }

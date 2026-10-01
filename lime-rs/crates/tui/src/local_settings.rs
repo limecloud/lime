@@ -98,4 +98,53 @@ mod tests {
         .expect("valid local settings");
         assert_eq!(settings.right_click_paste, RightClickPaste::Off);
     }
+
+    #[test]
+    fn config_read_value_resolves_editor_bindings_and_rejects_global_shadowing() {
+        let settings = LocalSettings::from_config_value(&json!({
+            "tui":{"keymap":{"editor":{"insert_newline":"f11", "delete_forward":[]}}}
+        }))
+        .unwrap();
+        let mut composer = crate::bottom_pane::ChatComposer::default();
+        composer.set_keymap_bindings(&settings.keymap);
+        composer.insert("abc");
+        composer.handle_key_event(KeyEvent::new(KeyCode::F(11), KeyModifiers::NONE));
+        composer.handle_key_event(KeyEvent::new(KeyCode::Delete, KeyModifiers::NONE));
+        assert_eq!(composer.text(), "abc\n");
+        let error = LocalSettings::from_config_value(&json!({
+            "tui":{"keymap":{"global":{"open_agents":"ctrl-n"}}}
+        }))
+        .unwrap_err();
+        assert!(format!("{error:#}").contains("editor.move_down"));
+    }
+
+    #[test]
+    fn config_read_value_resolves_list_bindings_and_hints_from_one_snapshot() {
+        let settings = LocalSettings::from_config_value(
+            &json!({"tui":{"keymap":{"list":{"accept":"f9", "cancel":"ctrl-x q"}}}}),
+        )
+        .unwrap();
+        let list = settings.keymap.list();
+        assert_eq!(
+            list.primary_hint(crate::keymap::ListAction::Accept)
+                .as_deref(),
+            Some("f9")
+        );
+        assert_eq!(
+            list.dispatch(
+                &mut KeyChordMatcher::default(),
+                KeyEvent::new(KeyCode::F(9), KeyModifiers::NONE),
+                true
+            ),
+            KeymapMatch::Completed(crate::keymap::ListAction::Accept)
+        );
+        assert_eq!(
+            list.dispatch(
+                &mut KeyChordMatcher::default(),
+                KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE),
+                true
+            ),
+            KeymapMatch::PassThrough
+        );
+    }
 }

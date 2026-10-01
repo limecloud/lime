@@ -46,10 +46,14 @@ pub(crate) fn hyperlink_lines_with_locale(
             width.map(|width| width.saturating_sub(UnicodeWidthStr::width(prefix)).max(1)),
         )),
         EntryKind::Patch => Some(
-            diff_render::render(&entry.text, width, cwd)
-                .into_iter()
-                .map(HyperlinkLine::new)
-                .collect(),
+            diff_render::render(
+                &entry.text,
+                width.map(|width| width.saturating_sub(UnicodeWidthStr::width(prefix))),
+                cwd,
+            )
+            .into_iter()
+            .map(HyperlinkLine::new)
+            .collect(),
         ),
         _ => None,
     };
@@ -252,9 +256,6 @@ fn format_line(
     text: &str,
 ) -> Line<'static> {
     let text_style = match kind {
-        EntryKind::Patch if text.starts_with('+') => Style::default().fg(Color::Green),
-        EntryKind::Patch if text.starts_with('-') => Style::default().fg(Color::Red),
-        EntryKind::Patch if text.starts_with("@@") => Style::default().fg(Color::Cyan),
         EntryKind::Plan if text.starts_with("[x]") => {
             muted_style().add_modifier(Modifier::CROSSED_OUT)
         }

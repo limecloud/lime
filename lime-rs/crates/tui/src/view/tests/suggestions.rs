@@ -7,7 +7,7 @@ use app_server_protocol::protocol::v2::{
 fn visible_file_selection_inserts_original_path_and_preserves_draft_suffix() {
     let mut app = App::default();
     app.composer.insert("Before @parser");
-    app.composer.sync_command_popup();
+    app.composer.sync_completion_popup();
     let request = app.composer.take_file_search_request().unwrap();
     let paths = [
         "long_directory_that_does_not_fit_in_a_narrow_terminal/parser_alpha.rs",
@@ -68,7 +68,7 @@ fn visible_scrolled_skill_inserts_canonical_name_and_cancel_preserves_token() {
             .collect(),
     );
     app.composer.insert("Review $skill-");
-    app.composer.sync_command_popup();
+    app.composer.sync_completion_popup();
     dispatch_connected_input(
         &mut app,
         Event::Key(KeyEvent::new(KeyCode::Up, KeyModifiers::NONE)),
@@ -83,7 +83,7 @@ fn visible_scrolled_skill_inserts_canonical_name_and_cancel_preserves_token() {
     assert_eq!(app.composer.text(), "Review $skill-09 ");
     assert!(!app.composer.skill_popup_active());
     app.composer.insert("$skill-");
-    app.composer.sync_command_popup();
+    app.composer.sync_completion_popup();
     assert!(app.composer.skill_popup_active());
     let draft = app.composer.text().to_string();
     dispatch_connected_input(

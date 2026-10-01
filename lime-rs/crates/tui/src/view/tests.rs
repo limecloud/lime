@@ -11,6 +11,8 @@ use app_server_protocol::protocol::v2::{
 use app_server_protocol::RequestId;
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
 use ratatui::backend::TestBackend;
+use ratatui::layout::Position;
+use ratatui::style::Modifier;
 use ratatui::widgets::Wrap;
 use ratatui::Terminal;
 

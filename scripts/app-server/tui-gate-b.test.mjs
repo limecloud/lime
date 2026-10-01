@@ -20,19 +20,63 @@ const terminalFixtureSource = readFileSync(
   "utf8",
 );
 const suggestionTestSource = readFileSync(
-  path.resolve(process.cwd(), "lime-rs/crates/tui/src/runtime_pty_tests/suggestions.rs"),
+  path.resolve(
+    process.cwd(),
+    "lime-rs/crates/tui/src/runtime_pty_tests/suggestions.rs",
+  ),
   "utf8",
 );
 const approvalTestSource = readFileSync(
-  path.resolve(process.cwd(), "lime-rs/crates/tui/src/runtime_pty_tests/approval.rs"),
+  path.resolve(
+    process.cwd(),
+    "lime-rs/crates/tui/src/runtime_pty_tests/approval.rs",
+  ),
+  "utf8",
+);
+const requestInputTestSource = readFileSync(
+  path.resolve(
+    process.cwd(),
+    "lime-rs/crates/tui/src/runtime_pty_tests/request_user_input.rs",
+  ),
+  "utf8",
+);
+const resumeTestSource = readFileSync(
+  path.resolve(
+    process.cwd(),
+    "lime-rs/crates/tui/src/runtime_pty_tests/resume_picker.rs",
+  ),
+  "utf8",
+);
+const modelPickerTestSource = readFileSync(
+  path.resolve(
+    process.cwd(),
+    "lime-rs/crates/tui/src/runtime_pty_tests/model_picker.rs",
+  ),
+  "utf8",
+);
+const reasoningShortcutTestSource = readFileSync(
+  path.resolve(
+    process.cwd(),
+    "lime-rs/crates/tui/src/runtime_pty_tests/reasoning_shortcuts.rs",
+  ),
+  "utf8",
+);
+const reasoningDispatchSource = readFileSync(
+  path.resolve(process.cwd(), "lime-rs/crates/tui/src/app/event_dispatch.rs"),
   "utf8",
 );
 const focusTestSource = readFileSync(
-  path.resolve(process.cwd(), "lime-rs/crates/tui/tests/suite/focus_palette.rs"),
+  path.resolve(
+    process.cwd(),
+    "lime-rs/crates/tui/tests/suite/focus_palette.rs",
+  ),
   "utf8",
 );
 const resizeTestSource = readFileSync(
-  path.resolve(process.cwd(), "lime-rs/crates/tui/tests/suite/resize_reflow.rs"),
+  path.resolve(
+    process.cwd(),
+    "lime-rs/crates/tui/tests/suite/resize_reflow.rs",
+  ),
   "utf8",
 );
 const reconnectTestSource = readFileSync(
@@ -41,20 +85,414 @@ const reconnectTestSource = readFileSync(
 );
 
 describe("TUI Gate B", () => {
+  it("requires executed thread-input resume evidence rather than a skipped or empty target", () => {
+    const source = readFileSync(
+      path.resolve(
+        process.cwd(),
+        "lime-rs/crates/tui/src/app/session_lifecycle_tests.rs",
+      ),
+      "utf8",
+    );
+    expect(source).toContain("LIME_TEST_TUI_GATE_B");
+    expect(source).toContain("resume_target_session(");
+    expect(source).toContain("handle_app_server_event(session, event)");
+    expect(source).toContain("each canonical request is answered exactly once");
+    expect(source).toContain("child_read.turns.is_empty()");
+    expect(gateSource).toContain(
+      "app::session_lifecycle::tests::real_stdio_thread_handoff_preserves_pending_input",
+    );
+    expect(gateSource).toContain("STDIO_THREAD_INPUT_OK root=");
+    expect(gateSource).toContain("if (!threadInputEvidence)");
+    expect(gateSource).toContain("thread-input-stdio=ok");
+  });
+  it("requires executed typed-input stdio evidence instead of a skipped or empty test target", () => {
+    const source = readFileSync(
+      path.resolve(
+        process.cwd(),
+        "lime-rs/crates/tui/src/runtime/input_submission_tests.rs",
+      ),
+      "utf8",
+    );
+    for (const marker of [
+      "canonical queue -> TUI edit -> real queue/add is lossless",
+      "failed submit must preserve typed metadata",
+      "three rejected submissions must not create another canonical turn",
+      "STDIO_TYPED_INPUT_OK",
+    ]) {
+      expect(source).toContain(marker);
+    }
+    expect(source).toContain(".thread_read(thread.id.clone(), true)");
+    expect(source).toContain("Some(ImageDetail::Original)");
+    expect(source).toContain("TextElement::new(3..10, None)");
+    expect(source).not.toContain("thread::sleep");
+    expect(gateSource).toContain(
+      "typed input stdio fixture did not execute its full canonical assertions",
+    );
+    expect(gateSource).toContain("typed-input-stdio=ok");
+  });
+  it("rejects oversized expanded paste without a turn and permits an atomic corrected retry", () => {
+    const source = readFileSync(
+      path.resolve(
+        process.cwd(),
+        "lime-rs/crates/tui/src/runtime_pty_tests/pending_paste.rs",
+      ),
+      "utf8",
+    );
+    for (const marker of [
+      "MAX_USER_INPUT_TEXT_CHARS + 1",
+      "length rejection is visible and retains the original folded draft",
+      "rejected draft must never reach canonical turn/start",
+      "rejected paste can be atomically deleted for a corrected retry",
+      "structured history restores folded payload before canonical submit",
+    ]) {
+      expect(source).toContain(marker);
+    }
+    expect(source).toContain('format!("\\u{3000}\\n{prompt}\\t \\n")');
+    expect(source).not.toContain("thread::sleep");
+    expect(gateSource).toContain("submission-prepare=ok rejected-draft=ok");
+  });
+  it("drives configured Vim actions, search and linewise registers through the real PTY", () => {
+    const source = readFileSync(
+      path.resolve(
+        process.cwd(),
+        "lime-rs/crates/tui/src/runtime_pty_tests/vim_keymap.rs",
+      ),
+      "utf8",
+    );
+    const composer = readFileSync(
+      path.resolve(
+        process.cwd(),
+        "lime-rs/crates/tui/src/runtime_pty_tests/composer.rs",
+      ),
+      "utf8",
+    );
+    expect(composer).toContain("vim_keymap::exercise_modal_keymap");
+    for (const symbol of [
+      "rebound F12 deletes but old x is explicitly unbound",
+      "rebound text object uses operator context not Normal F12",
+      "configured search moved to the real word before deletion",
+      "linewise register pastes below the current logical line",
+      "modal chord cancellation does not submit and rebound undo remains one edit",
+      "configured Vim flow leaves no canonical turn or residual draft",
+    ]) {
+      expect(source).toContain(symbol);
+    }
+    for (const context of [
+      "vim_normal:",
+      "vim_operator:",
+      "vim_text_object:",
+      "vim_search:",
+    ]) {
+      expect(gateSource).toContain(context);
+    }
+    expect(source).not.toContain("thread::sleep");
+    expect(gateSource).toContain(
+      "vim-keymap=ok vim-linewise=ok vim-modal-chord=ok",
+    );
+  });
+  it("exercises editor config, unbind and chord on the real terminal without submitting a turn", () => {
+    const source = readFileSync(
+      path.resolve(
+        process.cwd(),
+        "lime-rs/crates/tui/src/runtime_pty_tests/composer.rs",
+      ),
+      "utf8",
+    );
+    for (const symbol of [
+      "exercise_editor_keymap",
+      "explicit delete unbind preserve draft",
+      "editor chord kills only the resolved logical line",
+      "editor chord cancellation does not submit",
+      "configured editor flow leaves no canonical turn",
+    ]) {
+      expect(source).toContain(symbol);
+    }
+    expect(gateSource).toContain('"      delete_forward: []"');
+    expect(gateSource).toContain('"      move_down: down"');
+    expect(gateSource).toContain(
+      'scenario === "complete" ? editorConfigPath : permissionConfigPath',
+    );
+    expect(gateSource).toContain(
+      "editor-keymap=ok editor-unbind=ok editor-chord=ok",
+    );
+  });
+  it("replays semantic Vim changes and restores command state through real history search", () => {
+    const source = readFileSync(
+      path.resolve(
+        process.cwd(),
+        "lime-rs/crates/tui/src/runtime_pty_tests/composer.rs",
+      ),
+      "utf8",
+    );
+    expect(source).toContain("exercise_vim_command_state");
+    expect(source).toContain("semantic dot replays the complete change");
+    expect(source).toContain(
+      "search cancellation restores the original Vim draft",
+    );
+    expect(source).toContain(
+      "local Vim command leaves no turn or residual draft",
+    );
+    expect(source).toContain(
+      "dot repeats reclassified Unicode text without its withdrawn prefix",
+    );
+    expect(source).toContain('entry["kind"] == "turnStart"');
+    expect(source).not.toContain("thread::sleep");
+    expect(gateSource).toContain("vim-repeat=ok vim-search-state=ok");
+    expect(gateSource).toContain("vim-paste-burst=ok");
+  });
+  it("selects, deletes, recalls and submits bound skills through PTY and cold read", () => {
+    const source = readFileSync(
+      path.resolve(
+        process.cwd(),
+        "lime-rs/crates/tui/src/runtime_pty_tests/skills.rs",
+      ),
+      "utf8",
+    );
+    expect(ptyTestSource).toContain("skills::prepare_submission");
+    expect(ptyTestSource).toContain("skills::assert_canonical_input");
+    expect(source).toContain("wait_for_cursor_position");
+    expect(source).toContain(
+      "selected skill path and TextElement reach real runtime",
+    );
+    expect(source).toContain(
+      "same canonical user item retains selected skill path",
+    );
+    expect(source).toContain("session.thread_read(thread_id, true)");
+    expect(source).not.toContain("thread::sleep");
+    expect(gateSource).toContain("skill-mentions=ok");
+  });
+  it("submits real image bytes and structured history through PTY and cold canonical projection", () => {
+    const source = readFileSync(
+      path.resolve(
+        process.cwd(),
+        "lime-rs/crates/tui/src/runtime_pty_tests/images.rs",
+      ),
+      "utf8",
+    );
+    expect(ptyTestSource).toContain("images::prepare_submission");
+    expect(ptyTestSource).toContain("images::assert_canonical_input");
+    expect(source).toContain(
+      "recall complete image entry through real Up history",
+    );
+    expect(source).toContain(
+      "only the retained second image's actual bytes reach runtime lowering",
+    );
+    expect(source).toMatch(/session\s*\.thread_read\(thread_id, true\)/u);
+    expect(source).toContain("TextElement::new(15..25");
+    expect(source).not.toContain("thread::sleep");
+    expect(terminalFixtureSource).toContain(
+      "inputParts: input.request.input?.parts",
+    );
+    expect(gateSource).toContain("images=ok");
+    expect(gateSource).toContain("structured-history=ok");
+  });
+  it("retains folded drafts and cursors across real root/background-thread handoff", () => {
+    const source = readFileSync(
+      path.resolve(
+        process.cwd(),
+        "lime-rs/crates/tui/src/runtime_pty_tests/thread_input.rs",
+      ),
+      "utf8",
+    );
+    expect(ptyTestSource).toContain("thread_input::prepare_root");
+    expect(ptyTestSource).toContain("thread_input::exercise_round_trip");
+    expect(gateSource).toContain('"      open_agents: ctrl-n"');
+    expect(source).toContain("wait_for_cursor_position");
+    expect(source).toContain(
+      "unseen background thread starts with an isolated empty draft",
+    );
+    expect(source).toContain("restored atomic paste deletes as one element");
+    expect(source).toContain(
+      "draft open/cancel/root-child handoff must not submit an extra canonical turn",
+    );
+    expect(source).toContain(
+      "session linewise register survives thread editor replacement without foreign undo",
+    );
+    expect(source).toContain(
+      "thread lifetime fixture restores nonmodal exit boundary",
+    );
+    expect(source).not.toContain("thread::sleep");
+  });
+  it("paints canonical file-item diff rows and continuation padding in the actual PTY", () => {
+    const source = readFileSync(
+      path.resolve(
+        process.cwd(),
+        "lime-rs/crates/tui/src/runtime_pty_tests/diff_display.rs",
+      ),
+      "utf8",
+    );
+    expect(ptyTestSource).toContain("diff_display::assert_painted_patch");
+    expect(terminalFixtureSource).toContain('kind: "file"');
+    expect(terminalFixtureSource).toContain('patchItem("completed")');
+    expect(source).toContain("cell.bgcolor()");
+    expect(source).toContain("!cell.dim()");
+    expect(source).toContain("PTY_DIFF_NEW_TAIL");
+    expect(source).not.toContain("thread::sleep");
+  });
+  it("edits the actual padded multiline composer before any canonical turn starts", () => {
+    const source = readFileSync(
+      path.resolve(
+        process.cwd(),
+        "lime-rs/crates/tui/src/runtime_pty_tests/composer.rs",
+      ),
+      "utf8",
+    );
+    expect(ptyTestSource).toContain("composer::exercise_multiline_surface");
+    expect(source).toContain("composer placeholder has top and bottom padding");
+    expect(source).toContain(
+      "multiline composer preserves gutter and blank bottom row",
+    );
+    expect(source).toContain(
+      "multiline paste/clear/history search must not start a canonical turn",
+    );
+    expect(source).toContain(
+      "duplicate history boundary keeps the unique preview",
+    );
+    expect(source).toContain("search Enter accepts without submitting");
+    expect(source).not.toContain("thread::sleep");
+  });
+  it("selects the canonical current root from borderless subagents using configured controls", () => {
+    const source = readFileSync(
+      path.resolve(
+        process.cwd(),
+        "lime-rs/crates/tui/src/runtime_pty_tests/agent_picker.rs",
+      ),
+      "utf8",
+    );
+    expect(ptyTestSource).toContain(
+      "agent_picker::exercise_open_cancel_and_current_root",
+    );
+    expect(source).toContain("› 1. • Main [default] (current)");
+    expect(source).toContain("f9 select · ctrl+x q back");
+    expect(source).toContain("screen.contains(&thread_id)");
+    expect(source).toContain(
+      "subagents open/cancel/current root must not submit a canonical turn",
+    );
+    expect(source).not.toContain("thread::sleep");
+  });
+  it("uses the configured list snapshot throughout Agent Center metadata and history handoff", () => {
+    expect(ptyTestSource).toContain(
+      '"configured list chord closes Agent Center help"',
+    );
+    expect(ptyTestSource).toContain('"configured F9 submits overview task"');
+    expect(ptyTestSource).toContain(
+      '"configured F9 submits background task name"',
+    );
+    expect(ptyTestSource).toContain(
+      '"configured F9 resumes searched background thread"',
+    );
+  });
+  it("steps advertised reasoning without wrapping or entering Ultra implicitly", () => {
+    expect(ptyTestSource).toContain("reasoning_shortcuts::exercise_steps");
+    expect(reasoningDispatchSource).toContain("prepare_reasoning_shortcut");
+    expect(reasoningDispatchSource).not.toContain("EFFORTS");
+    expect(reasoningShortcutTestSource).toContain(
+      '"Reasoning is already at the lowest level (Low)."',
+    );
+    expect(reasoningShortcutTestSource).toContain(
+      '"Ultra shortcut leaves catalog model at Max"',
+    );
+    expect(reasoningShortcutTestSource).toContain(
+      '"status owns Alt reasoning and then closes"',
+    );
+    expect(reasoningShortcutTestSource).not.toContain("thread::sleep");
+  });
+  it("accepts catalog model/provider/effort only after nested confirmation and verifies cold settings", () => {
+    expect(ptyTestSource).toContain("model_picker::seed_catalog");
+    expect(ptyTestSource).toContain("model_picker::exercise_nested_selection");
+    expect(ptyTestSource).toContain("model_picker::assert_cold_settings");
+    expect(modelPickerTestSource).toContain("METHOD_MODEL_LIST");
+    expect(modelPickerTestSource).toContain(
+      '"model query and highlighted identity restored after child cancel"',
+    );
+    expect(modelPickerTestSource).toContain('"cold canonical thread/resume"');
+    expect(modelPickerTestSource).toContain('Some("high")');
+    expect(modelPickerTestSource).toContain('"f9 select · ctrl+x q back"');
+    expect(modelPickerTestSource).toContain(
+      '"configured Ctrl-D pages to More reasoning without closing or applying settings"',
+    );
+    expect(modelPickerTestSource).toContain(
+      '"configured cancel chord returns to effort parent"',
+    );
+    expect(modelPickerTestSource).not.toContain("thread::sleep");
+  });
+  it("opens the canonical resume list and cancels without submitting a turn", () => {
+    expect(ptyTestSource).toContain("resume_picker::exercise_open_and_cancel");
+    expect(resumeTestSource).toContain(
+      '"canonical session row and primary controls visible"',
+    );
+    expect(resumeTestSource).toContain(
+      '"short resume viewport retains its selected row and controls"',
+    );
+    expect(resumeTestSource).toContain('"page in the actual resume viewport"');
+    expect(gateSource).toContain('"      accept: f9"');
+    expect(gateSource).toContain('"      cancel: ctrl-x q"');
+    expect(resumeTestSource).toContain(
+      '"configured accept resumed the same completed canonical transcript"',
+    );
+    for (const marker of [
+      "Filter: All directories",
+      "Filter: Current cwd",
+      "Status: Archived",
+      "Status: Active",
+      "Sort: Created",
+      "Sort: Updated",
+    ]) {
+      expect(resumeTestSource).toContain(marker);
+    }
+    expect(runtimeSource).toContain("picker.has_pending_page_down()");
+    expect(resumeTestSource).toContain(
+      '"resume open/cancel must not submit a new canonical turn"',
+    );
+    expect(resumeTestSource).not.toContain("thread::sleep");
+  });
+  it("edits notes without answering and preserves the selected canonical response", () => {
+    expect(ptyTestSource).toContain(
+      "request_user_input::exercise_notes_and_selection",
+    );
+    expect(requestInputTestSource).toContain('"PTY_NOTES_TAIL"');
+    expect(requestInputTestSource).toContain(
+      '"notes focus/return must not resolve the canonical question"',
+    );
+    expect(gateSource).toContain(
+      'mode: ["Safe", "user_note: PTY_NOTE_ANSWER"]',
+    );
+    expect(terminalFixtureSource).toContain(
+      "userData: input.request.userData ?? null",
+    );
+    expect(requestInputTestSource).not.toContain("thread::sleep");
+    expect(requestInputTestSource).toContain(
+      "configured notes newline is a real focused editor action",
+    );
+    expect(requestInputTestSource).toContain(
+      "notes chord cancellation does not submit or lose selected option",
+    );
+    expect(gateSource).toContain("notes-keymap=ok");
+  });
   it("views approval details without resolving the protected request", () => {
     expect(ptyTestSource).toContain("approval::exercise_read_only_details");
     expect(approvalTestSource).toContain('"open approval details with Ctrl-A"');
-    expect(approvalTestSource).toContain('"close details without deciding approval"');
-    expect(approvalTestSource).toContain('"closing approval details must not resolve the canonical request"');
+    expect(approvalTestSource).toContain(
+      '"close details without deciding approval"',
+    );
+    expect(approvalTestSource).toContain(
+      '"closing approval details must not resolve the canonical request"',
+    );
   });
   it("drives catalog-backed suggestions through real keyboard completion", () => {
     expect(gateSource).toContain('"parser_alpha.rs", "parser_beta.rs"');
     expect(gateSource).toContain('".agents", "skills", name');
     expect(ptyTestSource).toContain("suggestions::exercise_suggestion_menus");
-    expect(suggestionTestSource).toContain('"original untruncated file path inserted"');
+    expect(suggestionTestSource).toContain(
+      '"original untruncated file path inserted"',
+    );
     expect(suggestionTestSource).toContain('"› gate-skill-09"');
-    expect(suggestionTestSource).toContain('"canonical skill token inserted and popup closed"');
-    expect(suggestionTestSource).toContain('"suggestion navigation/completion must not start a canonical turn"');
+    expect(suggestionTestSource).toContain(
+      '"canonical skill token inserted and popup closed"',
+    );
+    expect(suggestionTestSource).toContain(
+      '"suggestion navigation/completion must not start a canonical turn"',
+    );
     expect(suggestionTestSource).not.toContain("thread::sleep");
   });
   it("drives the real TUI through a portable PTY and current App Server", () => {
@@ -86,7 +524,9 @@ describe("TUI Gate B", () => {
     expect(resizeTestSource).toContain(
       "tmux_split_preserves_fresh_session_composer_row_after_resize_reflow",
     );
-    expect(resizeTestSource).toContain("tmux_repeated_resizes_do_not_push_composer_down");
+    expect(resizeTestSource).toContain(
+      "tmux_repeated_resizes_do_not_push_composer_down",
+    );
     expect(resizeTestSource).toContain(
       "tmux_width_resize_restore_keeps_visible_content_anchored",
     );
@@ -119,11 +559,19 @@ describe("TUI Gate B", () => {
     expect(ptyTestSource).toContain('"open shortcut overlay"');
     expect(ptyTestSource).toContain('"Keyboard shortcuts"');
     expect(ptyTestSource).toContain('"? / esc close"');
-    expect(ptyTestSource).toContain('"close shortcut overlay without interrupt"');
-    expect(ptyTestSource).toContain('"close active help without cancelling turn"');
-    expect(ptyTestSource).toContain('"closing shortcut help must not interrupt canonical turn"');
-    expect(ptyTestSource).toContain('"Select model"');
-    expect(ptyTestSource).toContain('"cancel model picker without changing settings"');
+    expect(ptyTestSource).toContain(
+      '"close shortcut overlay without interrupt"',
+    );
+    expect(ptyTestSource).toContain(
+      '"close active help without cancelling turn"',
+    );
+    expect(ptyTestSource).toContain(
+      '"closing shortcut help must not interrupt canonical turn"',
+    );
+    expect(ptyTestSource).toContain('"Select Model and Effort"');
+    expect(ptyTestSource).toContain(
+      '"cancel model picker without changing settings"',
+    );
     expect(ptyTestSource).not.toContain('write_all(b"\\x1b[1;1R")');
     expect(ptyTestSource).toContain("writer.write_all(&[20])");
     expect(ptyTestSource).toContain('"ctrl+t·esc·q close"');
@@ -205,7 +653,7 @@ describe("TUI Gate B", () => {
     expect(ptyTestSource).toContain('"esc to interrupt"');
     expect(ptyTestSource).toContain('write_all(b"\\x1b[1;3A")');
     expect(ptyTestSource).toContain('"editing queued"');
-    expect(ptyTestSource).toContain('write_typed_text(&mut writer, b"/agents\\r")');
+    expect(ptyTestSource).toContain("thread_input::prepare_root");
     expect(ptyTestSource).toContain('write_all(b"n")');
     expect(ptyTestSource).toContain('write_all(b"r")');
     expect(ptyTestSource).toContain('write_all(b"x")');
@@ -224,7 +672,7 @@ describe("TUI Gate B", () => {
       'event.payload?.source === "thread/queue/delete"',
     );
     expect(gateSource).toContain(
-      '"complete,approval,user-input,interrupt,failure,queue-edit,agents-overview"',
+      '"complete,approval,user-input,interrupt,failure,queue-edit,agents-overview,large-paste,diff-display,images,skills"',
     );
   });
 

@@ -59,7 +59,7 @@ impl App {
         if let Some(scroll) = self.transcript_search.close() {
             self.transcript_scroll = scroll;
         }
-        self.composer.clear_command_popup();
+        self.composer.clear_completion_popup();
         self.dismiss_pager_overlay();
         let pager = self
             .transcript_presentation

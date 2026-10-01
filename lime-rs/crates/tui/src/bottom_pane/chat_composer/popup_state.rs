@@ -6,6 +6,8 @@
 use super::super::command_popup::CommandPopup;
 use super::file_search_popup::FileSearchPopup;
 use super::skill_popup::SkillPopup;
+use super::FileSearchRequest;
+use app_server_protocol::protocol::v2::SkillMetadata;
 use std::ops::Range;
 
 /// One token occurrence whose autocomplete popup should remain hidden.
@@ -67,6 +69,9 @@ pub(super) struct PopupState {
     pub(super) dismissed_file_token: Option<DismissedToken>,
     pub(super) dismissed_skill_token: Option<DismissedToken>,
     pub(super) file_search_requested_query: Option<String>,
+    pub(super) file_search_generation: u64,
+    pub(super) file_search_request: Option<FileSearchRequest>,
+    pub(super) skills: Vec<SkillMetadata>,
 }
 
 impl ActivePopup {
@@ -80,13 +85,21 @@ impl ActivePopup {
 }
 
 impl PopupState {
+    /// Cancel in-flight search ownership as well as the visible completion surface.
+    pub(super) fn clear(&mut self) {
+        self.active = ActivePopup::None;
+        self.file_search_generation = self.file_search_generation.wrapping_add(1);
+        self.file_search_request = None;
+        self.file_search_requested_query = None;
+    }
+
     pub(super) fn active(&self) -> bool {
         !matches!(self.active, ActivePopup::None)
     }
 
     pub(super) fn dismiss_command(&mut self, token: impl Into<String>) {
         self.dismissed_command_token = Some(token.into());
-        self.active = ActivePopup::None;
+        self.clear();
     }
 
     pub(super) fn clear_dismissal(&mut self) {

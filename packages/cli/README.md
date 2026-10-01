@@ -102,6 +102,17 @@ tui:
 - `pager`：`scroll_up`、`scroll_down`、`page_up`、`page_down`、`half_page_up`、
   `half_page_down`、`jump_top`、`jump_bottom`、`close`、`close_transcript`、`find`
 - `agents`：`resume`、`search`、`new_task`、`rename`、`stop`、`toggle_grouping`
+- `list`：`move_up`、`move_down`、`move_left`、`move_right`、`page_up`、`page_down`、
+  `jump_top`、`jump_bottom`、`accept`、`cancel`；当前 resume/fork、模型/推理强度 picker、
+  `/subagents` 和 Agent Center 消费，其它选择器尚未接入。
+
+`/subagents` 与模型选择共用底部无边框列表，默认定位当前 canonical 线程，显示 Agent 路径、
+状态点和线程 ID。确认/返回提示来自真实配置；分页按实际可见条目计算，Ctrl+D 不再固定关闭。
+
+会话列表的导航、确认/取消和底部提示使用同一配置 snapshot；显式 unbind 不回退 Enter/Esc。
+默认 `Ctrl+F/Ctrl+B` 翻页，Tab 聚焦后用左右键或 `Ctrl+H/Ctrl+L` 改变筛选/状态/排序；旧
+`Ctrl+F` 筛选、`Ctrl+S` 状态、`Ctrl+R` 排序不保留。可打印导航键优先编辑搜索；
+`Ctrl+C`、`Ctrl+O/T/E`、Tab/Shift+Tab 和 Backspace 为 picker 保留，冲突配置显式拒绝。
 
 值可为单个按键字符串、有序 alternatives 数组、最多两段且以空格分隔的 chord，或空数组
 显式 unbind。未知字段、非法键名和同 context 冲突会 fail closed。composer/editor/Vim 尚未接入，

@@ -8,11 +8,19 @@ use std::time::Instant;
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
-use super::{ChatComposer, InputResult};
+use super::{pending_paste, ChatComposer, InputResult};
 use crate::bottom_pane::paste_burst::{CharDecision, FlushResult};
 use crate::key_hint;
 
 impl ChatComposer {
+    /// Materialize held typing before the host snapshots and replaces this editor.
+    pub(crate) fn flush_paste_burst_before_handoff(&mut self) {
+        if let Some(text) = self.draft.paste_burst.flush_before_modified_input() {
+            self.handle_paste(&text);
+        }
+        self.draft.paste_burst.clear_after_explicit_paste();
+    }
+
     pub(crate) fn handle_paste(&mut self, text: &str) {
         let pending = self
             .draft
@@ -21,17 +29,43 @@ impl ChatComposer {
             .unwrap_or_default();
         self.draft.paste_burst.clear_after_explicit_paste();
         let mut combined = pending;
-        combined.push_str(text);
+        combined.push_str(&text.replace("\r\n", "\n").replace('\r', "\n"));
+        if self.history_search.is_some() {
+            if !combined.is_empty() {
+                self.update_history_search_query(|query| query.push_str(&combined));
+            }
+            return;
+        }
         if self.draft.textarea.insert_vim_search_text(&combined) {
-            self.clear_command_popup();
+            self.clear_completion_popup();
             return;
         }
         let combined = self.continue_blockquote_paste(&combined);
         let started = self.begin_direct_vim_edit();
-        self.insert(&combined);
+        let elements_before = self.draft.textarea.element_payloads();
+        if combined.chars().count() > pending_paste::LARGE_PASTE_CHAR_THRESHOLD {
+            self.insert_large_paste(combined);
+        } else if combined.chars().count() > 1 && self.handle_paste_image_path(&combined) {
+            self.insert(" ");
+        } else {
+            self.insert(&combined);
+        }
+        self.reconcile_deleted_elements(elements_before);
+        self.reconcile_pending_pastes();
         if started {
             self.finish_vim_edit();
         }
+    }
+
+    pub(crate) fn handle_paste_image_path(&mut self, pasted: &str) -> bool {
+        let Some(path) = crate::clipboard_paste::normalize_pasted_path(pasted) else {
+            return false;
+        };
+        if image::image_dimensions(&path).is_err() {
+            return false;
+        }
+        self.attach_image(path);
+        true
     }
 
     /// Continue a Markdown blockquote across every line of a multiline paste.
@@ -134,7 +168,10 @@ impl ChatComposer {
         key: KeyEvent,
         now: Instant,
     ) -> Option<InputResult> {
-        if self.draft.disable_paste_burst || !Self::is_text_key(key) {
+        if self.draft.disable_paste_burst
+            || !self.draft.textarea.allows_paste_burst()
+            || !Self::is_text_key(key)
+        {
             return None;
         }
         let KeyCode::Char(ch) = key.code else {
@@ -164,11 +201,14 @@ impl ChatComposer {
                     &before_cursor,
                     usize::from(retro_chars),
                 ) {
-                    let cursor = self.cursor();
-                    self.draft
-                        .textarea
-                        .replace_range(grab.start_byte..cursor, "");
-                    self.draft.paste_burst.append_char_to_buffer(ch, now);
+                    if grab.start_byte == self.cursor()
+                        || self.draft.textarea.retract_paste_burst(grab.start_byte)
+                    {
+                        self.draft.paste_burst.append_char_to_buffer(ch, now);
+                    } else {
+                        self.draft.paste_burst.clear_after_explicit_paste();
+                        self.insert(&ch.to_string());
+                    }
                     true
                 } else {
                     self.insert(&ch.to_string());

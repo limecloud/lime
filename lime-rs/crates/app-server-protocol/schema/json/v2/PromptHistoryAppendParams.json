@@ -1,16 +1,16 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
-    "sessionId": {
+    "text": {
       "type": "string"
     },
-    "text": {
+    "threadId": {
       "type": "string"
     }
   },
   "required": [
-    "sessionId",
-    "text"
+    "text",
+    "threadId"
   ],
   "title": "PromptHistoryAppendParams",
   "type": "object"

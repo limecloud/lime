@@ -1,13 +1,16 @@
 use app_server_protocol::protocol::v2::Model;
-use crossterm::event::{Event, KeyCode, KeyEventKind, KeyModifiers};
+use crossterm::event::{Event, KeyCode, KeyModifiers};
 use ratatui::layout::Rect;
 use ratatui::Frame;
 use std::cell::Cell;
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::bottom_pane::selection_row_layout::MAX_POPUP_ROWS;
+use crate::keymap::{KeyChordMatcher, ListKeymap};
 use crate::locale::Locale;
 
+mod effort;
+mod input;
 mod render;
 pub(crate) use render::desired_height;
 
@@ -15,6 +18,7 @@ pub(crate) use render::desired_height;
 pub(crate) struct ModelSelection {
     pub(crate) model: String,
     pub(crate) provider: String,
+    pub(crate) effort: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -30,7 +34,11 @@ pub(crate) struct ModelPicker {
     selected: usize,
     query: String,
     current: Option<usize>,
+    current_effort: Option<String>,
+    effort_menu: Option<effort::EffortMenu>,
     page_rows: Cell<usize>,
+    list_keymap: ListKeymap,
+    list_chord_matcher: KeyChordMatcher,
 }
 
 impl ModelPicker {
@@ -45,8 +53,18 @@ impl ModelPicker {
             selected: 0,
             query: String::new(),
             current: None,
+            current_effort: None,
+            effort_menu: None,
             page_rows: Cell::new(MAX_POPUP_ROWS),
+            list_keymap: ListKeymap::default(),
+            list_chord_matcher: KeyChordMatcher::default(),
         }
+    }
+
+    pub(crate) fn with_keymap(mut self, keymap: ListKeymap) -> Self {
+        self.list_keymap = keymap;
+        self.list_chord_matcher.reset();
+        self
     }
 
     pub(crate) fn with_current(mut self, model: Option<&str>, provider: Option<&str>) -> Self {
@@ -69,13 +87,24 @@ impl ModelPicker {
     }
 
     pub(crate) fn selected_model(&self, index: usize) -> Option<ModelSelection> {
-        self.visible_indices()
-            .get(index)
-            .and_then(|model_index| self.models.get(*model_index))
-            .map(|model| ModelSelection {
-                model: model.model.clone(),
-                provider: model.provider_id.clone(),
-            })
+        let (model_index, effort) = if let Some(menu) = &self.effort_menu {
+            (
+                menu.model_index,
+                Some(menu.value(index)?.reasoning_effort.clone()),
+            )
+        } else {
+            let model_index = *self.visible_indices().get(index)?;
+            let effort = crate::model_catalog::reasoning_options(&self.models[model_index])
+                .first()
+                .map(|option| option.reasoning_effort.clone());
+            (model_index, effort)
+        };
+        let model = self.models.get(model_index)?;
+        Some(ModelSelection {
+            model: model.model.clone(),
+            provider: model.provider_id.clone(),
+            effort,
+        })
     }
 
     pub(crate) fn query(&self) -> &str {
@@ -88,93 +117,6 @@ impl ModelPicker {
             .into_iter()
             .filter_map(|index| self.models.get(index))
             .collect()
-    }
-
-    pub(crate) fn handle_event(&mut self, event: Event) -> ModelPickerAction {
-        match event {
-            Event::Key(key) if key.kind == KeyEventKind::Press => {
-                if key.modifiers.contains(KeyModifiers::CONTROL)
-                    && matches!(key.code, KeyCode::Char('c') | KeyCode::Char('d'))
-                {
-                    return ModelPickerAction::Cancel;
-                }
-                match key.code {
-                    KeyCode::Esc => ModelPickerAction::Cancel,
-                    KeyCode::Up | KeyCode::Char('p') | KeyCode::Char('k')
-                        if key.code == KeyCode::Up
-                            || key.modifiers.contains(KeyModifiers::CONTROL) =>
-                    {
-                        let count = self.visible_indices().len();
-                        if count > 0 {
-                            self.selected = self
-                                .selected
-                                .checked_sub(1)
-                                .unwrap_or(count.saturating_sub(1));
-                        }
-                        ModelPickerAction::None
-                    }
-                    KeyCode::Down | KeyCode::Char('n') | KeyCode::Char('j')
-                        if key.code == KeyCode::Down
-                            || key.modifiers.contains(KeyModifiers::CONTROL) =>
-                    {
-                        let count = self.visible_indices().len();
-                        if count > 0 {
-                            self.selected = (self.selected + 1) % count;
-                        }
-                        ModelPickerAction::None
-                    }
-                    KeyCode::Enter => self
-                        .selected_model(self.selected)
-                        .map(|_| ModelPickerAction::Select(self.selected))
-                        .unwrap_or(ModelPickerAction::None),
-                    KeyCode::PageUp => {
-                        self.selected = self.selected.saturating_sub(self.page_rows.get().max(1));
-                        ModelPickerAction::None
-                    }
-                    KeyCode::PageDown => {
-                        self.selected = self
-                            .selected
-                            .saturating_add(self.page_rows.get().max(1))
-                            .min(self.visible_indices().len().saturating_sub(1));
-                        ModelPickerAction::None
-                    }
-                    KeyCode::Home if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                        self.selected = 0;
-                        ModelPickerAction::None
-                    }
-                    KeyCode::End if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                        self.selected = self.visible_indices().len().saturating_sub(1);
-                        ModelPickerAction::None
-                    }
-                    KeyCode::Backspace => {
-                        if let Some((offset, _)) = self.query.grapheme_indices(true).next_back() {
-                            self.query.truncate(offset);
-                        }
-                        self.selected = 0;
-                        ModelPickerAction::None
-                    }
-                    KeyCode::Char(ch)
-                        if !ch.is_control()
-                            && !key
-                                .modifiers
-                                .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT) =>
-                    {
-                        self.query.push(ch);
-                        self.selected = 0;
-                        ModelPickerAction::None
-                    }
-                    _ => ModelPickerAction::None,
-                }
-            }
-            Event::Paste(text) => {
-                if let Some(text) = crate::clipboard_paste::normalize_pasted_search_query(&text) {
-                    self.query.push_str(&text);
-                    self.selected = 0;
-                }
-                ModelPickerAction::None
-            }
-            _ => ModelPickerAction::None,
-        }
     }
 
     fn visible_indices(&self) -> Vec<usize> {
@@ -206,6 +148,12 @@ pub(crate) fn render_with_locale(
 ) {
     render::render(frame, area, picker, locale);
 }
+
+#[cfg(test)]
+mod effort_tests;
+
+#[cfg(test)]
+mod keymap_tests;
 
 #[cfg(test)]
 mod tests {

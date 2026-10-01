@@ -687,7 +687,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
       if (sessionId && composerReceipt.draft.text.trim()) {
         void promptHistoryClientRef.current
           ?.appendPromptHistory({
-            sessionId,
+            threadId: sessionId,
             text: composerReceipt.draft.text,
           })
           .catch(() => undefined);

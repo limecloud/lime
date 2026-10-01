@@ -69,7 +69,8 @@ impl TranscriptFollowControl {
             .get()
             .is_some_and(|position| target.contains(position));
         self.area.set(Some(target));
-        let mut style = crate::style::user_message_style().patch(crate::style::accent_style());
+        let mut style =
+            crate::style::user_message_style().fg(crate::style::user_message_accent_color());
         if hovered {
             style = style.add_modifier(Modifier::REVERSED | Modifier::BOLD);
         }

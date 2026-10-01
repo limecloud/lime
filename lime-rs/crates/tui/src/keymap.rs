@@ -1,9 +1,22 @@
 //! Resolved keymap snapshot for Codex-shaped TUI interaction surfaces.
 
+mod agents;
+mod editor;
 mod hints;
+mod list;
+mod vim;
+pub(crate) use agents::{CenterKeymapAction, CenterKeymapContext};
+pub(crate) use editor::{EditorAction, EditorKeymap};
+pub(crate) use list::{ListAction, ListKeymap};
+use vim::{first_stroke, shortcuts_overlap};
+pub(crate) use vim::{
+    KeymapContext, VimKeymap, VimKeymapAction, VimNormalAction, VimNormalKeymap, VimOperatorAction,
+    VimOperatorKeymap, VimSearchAction, VimSearchKeymap, VimTextObjectAction, VimTextObjectKeymap,
+};
 
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use lime_core::config::{KeybindingsSpec, TuiKeymap, MAX_FUNCTION_KEY};
+use std::sync::Arc;
 
 #[cfg(test)]
 const ALT_LABEL: &str = "⌥";
@@ -64,6 +77,7 @@ impl KeyBinding {
             }
         }
         let key = match self.code {
+            KeyCode::Enter => "enter".to_string(),
             KeyCode::Char(' ') => "space".to_string(),
             KeyCode::Up => "↑".to_string(),
             KeyCode::Down => "↓".to_string(),
@@ -76,6 +90,11 @@ impl KeyBinding {
         label.push_str(&key);
         label
     }
+}
+
+/// Fixed host shortcuts use the same platform-aware labels as configured bindings.
+pub(crate) fn shortcut_label(code: KeyCode, modifiers: KeyModifiers) -> String {
+    KeyBinding { code, modifiers }.display_label()
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -206,6 +225,10 @@ impl KeyChordMatcher {
     pub(crate) fn reset(&mut self) {
         self.pending = None;
     }
+
+    pub(crate) fn is_pending(&self) -> bool {
+        self.pending.is_some()
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -319,91 +342,17 @@ pub(crate) struct AgentsKeymap {
     toggle_grouping: BindingSet,
 }
 
-impl AgentsKeymap {
-    pub(crate) fn reserves_key(&self, key: KeyEvent) -> bool {
-        [
-            &self.resume,
-            &self.search,
-            &self.new_task,
-            &self.rename,
-            &self.stop,
-            &self.toggle_grouping,
-        ]
-        .into_iter()
-        .any(|bindings| {
-            bindings.shortcuts.iter().any(|shortcut| match shortcut {
-                Shortcut::Single(binding) => binding.is_pressed(key),
-                Shortcut::Chord { prefix, .. } => prefix.is_pressed(key),
-            })
-        })
-    }
-
-    pub(crate) fn primary_hint(&self, action: AgentsKeymapAction) -> Option<String> {
-        let bindings = match action {
-            AgentsKeymapAction::Resume => &self.resume,
-            AgentsKeymapAction::Search => &self.search,
-            AgentsKeymapAction::NewTask => &self.new_task,
-            AgentsKeymapAction::Rename => &self.rename,
-            AgentsKeymapAction::Stop => &self.stop,
-            AgentsKeymapAction::ToggleGrouping => &self.toggle_grouping,
-        };
-        bindings.labels().next()
-    }
-
-    pub(crate) fn dispatch(
-        &self,
-        matcher: &mut KeyChordMatcher,
-        key: KeyEvent,
-    ) -> KeymapMatch<AgentsKeymapAction> {
-        matcher.advance(
-            key,
-            &[
-                (AgentsKeymapAction::Resume, &self.resume),
-                (AgentsKeymapAction::Search, &self.search),
-                (AgentsKeymapAction::NewTask, &self.new_task),
-                (AgentsKeymapAction::Rename, &self.rename),
-                (AgentsKeymapAction::Stop, &self.stop),
-                (AgentsKeymapAction::ToggleGrouping, &self.toggle_grouping),
-            ],
-        )
-    }
-
-    #[cfg(test)]
-    pub(crate) fn resume(&self, key: KeyEvent) -> bool {
-        self.resume.is_pressed(key)
-    }
-
-    #[cfg(test)]
-    pub(crate) fn search(&self, key: KeyEvent) -> bool {
-        self.search.is_pressed(key)
-    }
-
-    #[cfg(test)]
-    pub(crate) fn new_task(&self, key: KeyEvent) -> bool {
-        self.new_task.is_pressed(key)
-    }
-
-    #[cfg(test)]
-    pub(crate) fn rename(&self, key: KeyEvent) -> bool {
-        self.rename.is_pressed(key)
-    }
-
-    #[cfg(test)]
-    pub(crate) fn stop(&self, key: KeyEvent) -> bool {
-        self.stop.is_pressed(key)
-    }
-
-    #[cfg(test)]
-    pub(crate) fn toggle_grouping(&self, key: KeyEvent) -> bool {
-        self.toggle_grouping.is_pressed(key)
-    }
-}
-
 /// Immutable runtime snapshot resolved once from the App Server user config layer.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct RuntimeKeymap {
     transcript: TranscriptKeymap,
     agents: AgentsKeymap,
+    list: ListKeymap,
+    pub(crate) editor: Arc<EditorKeymap>,
+    pub(crate) vim_normal: Arc<VimNormalKeymap>,
+    pub(crate) vim_operator: Arc<VimOperatorKeymap>,
+    pub(crate) vim_text_object: Arc<VimTextObjectKeymap>,
+    pub(crate) vim_search: Arc<VimSearchKeymap>,
 }
 
 impl RuntimeKeymap {
@@ -551,7 +500,20 @@ impl RuntimeKeymap {
                 ("toggle_grouping", &agents.toggle_grouping),
             ],
         )?;
-        Ok(Self { transcript, agents })
+        let editor = EditorKeymap::from_config(&config.editor)?;
+        editor.validate_main_surface(&transcript)?;
+        let mut resolved = Self {
+            transcript,
+            agents,
+            list: ListKeymap::from_config(&config.list)?,
+            editor: Arc::new(editor),
+            vim_normal: Arc::new(VimNormalKeymap::from_config(&config.vim_normal)?),
+            vim_operator: Arc::new(VimOperatorKeymap::from_config(&config.vim_operator)?),
+            vim_text_object: Arc::new(VimTextObjectKeymap::from_config(&config.vim_text_object)?),
+            vim_search: Arc::new(VimSearchKeymap::from_config(&config.vim_search)?),
+        };
+        resolved.configure_vim()?;
+        Ok(resolved)
     }
 
     pub(crate) fn transcript(&self) -> &TranscriptKeymap {
@@ -560,6 +522,10 @@ impl RuntimeKeymap {
 
     pub(crate) fn agents(&self) -> &AgentsKeymap {
         &self.agents
+    }
+
+    pub(crate) fn list(&self) -> &ListKeymap {
+        &self.list
     }
 }
 
@@ -583,6 +549,18 @@ impl Default for AgentsKeymap {
 }
 
 fn validate_context(context: &str, actions: &[(&str, &BindingSet)]) -> Result<(), String> {
+    validate_context_bindings(context, actions, false)
+}
+
+fn validate_modal_context(context: &str, actions: &[(&str, &BindingSet)]) -> Result<(), String> {
+    validate_context_bindings(context, actions, true)
+}
+
+fn validate_context_bindings(
+    context: &str,
+    actions: &[(&str, &BindingSet)],
+    modal: bool,
+) -> Result<(), String> {
     let entries = actions
         .iter()
         .flat_map(|(action, bindings)| {
@@ -594,7 +572,7 @@ fn validate_context(context: &str, actions: &[(&str, &BindingSet)]) -> Result<()
         .collect::<Vec<_>>();
     for (action, shortcut) in &entries {
         if let Shortcut::Chord { prefix, .. } = shortcut {
-            if prefix.modifiers.is_empty() && matches!(prefix.code, KeyCode::Char(_)) {
+            if !modal && prefix.modifiers.is_empty() && matches!(prefix.code, KeyCode::Char(_)) {
                 return Err(format!(
                     "Invalid `tui.keymap.{context}.{action}` chord: printable prefixes would intercept ordinary text input"
                 ));
@@ -603,11 +581,7 @@ fn validate_context(context: &str, actions: &[(&str, &BindingSet)]) -> Result<()
     }
     for (index, (first_action, first)) in entries.iter().enumerate() {
         for (second_action, second) in entries.iter().skip(index + 1) {
-            let ambiguous = first == second
-                || matches!((first, second),
-                    (Shortcut::Single(single), Shortcut::Chord { prefix, .. })
-                    | (Shortcut::Chord { prefix, .. }, Shortcut::Single(single))
-                        if single.normalized_parts() == prefix.normalized_parts());
+            let ambiguous = shortcuts_overlap(first, second);
             if ambiguous {
                 return Err(format!(
                     "Ambiguous `tui.keymap.{context}` bindings: `{first_action}` and `{second_action}` overlap. Set unique keys and retry."
@@ -662,6 +636,7 @@ fn parse_keybinding(spec: &str) -> Option<KeyBinding> {
         "backspace" => KeyCode::Backspace,
         "esc" => KeyCode::Esc,
         "delete" => KeyCode::Delete,
+        "insert" => KeyCode::Insert,
         "up" => KeyCode::Up,
         "down" => KeyCode::Down,
         "left" => KeyCode::Left,
@@ -738,26 +713,6 @@ const fn ctrl(character: char) -> KeyBinding {
 
 const fn shift(character: char) -> KeyBinding {
     KeyBinding::shift(KeyCode::Char(character))
-}
-
-/// Returns whether a key belongs to the shared insert-mode editor surface.
-pub(crate) fn is_editor_key_event(key: KeyEvent) -> bool {
-    if !matches!(key.kind, KeyEventKind::Press | KeyEventKind::Repeat) {
-        return false;
-    }
-    let control = key.modifiers.contains(KeyModifiers::CONTROL);
-    let alt = key.modifiers.contains(KeyModifiers::ALT);
-    if matches!(key.code, KeyCode::Char(_)) && crate::key_hint::is_altgr(key.modifiers) {
-        return false;
-    }
-    match key.code {
-        KeyCode::Char(
-            'a' | 'b' | 'e' | 'f' | 'h' | 'j' | 'k' | 'm' | 'n' | 'p' | 'u' | 'w' | 'y',
-        ) if control => true,
-        KeyCode::Char('d') if alt => true,
-        KeyCode::Backspace | KeyCode::Delete if control || alt => true,
-        _ => false,
-    }
 }
 
 #[cfg(test)]

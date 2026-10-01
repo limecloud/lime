@@ -1,4 +1,6 @@
 mod app;
+mod app_event;
+mod app_event_sender;
 mod app_server_session;
 mod bottom_pane;
 mod clipboard_copy;
@@ -29,6 +31,7 @@ mod local_settings;
 mod locale;
 mod markdown;
 mod markdown_render;
+mod mention_codec;
 mod model_catalog;
 mod model_picker;
 mod multi_agents;
