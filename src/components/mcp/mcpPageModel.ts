@@ -28,6 +28,18 @@ export const MCP_PAGE_PRESETS = [
     },
   },
   {
+    id: "youcom",
+    nameKey: "settings.mcpPage.preset.youcom.name",
+    defaultName: "You.com",
+    descriptionKey: "settings.mcpPage.preset.youcom.description",
+    defaultDescription: "网页搜索与内容提取",
+    server_config: {
+      transport: "streamable_http",
+      url: "https://api.you.com/mcp?profile=free",
+      tool_timeout: 60,
+    },
+  },
+  {
     id: "github",
     nameKey: "settings.mcpPage.preset.github.name",
     defaultName: "GitHub",

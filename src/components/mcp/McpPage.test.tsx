@@ -343,6 +343,56 @@ describe("McpPage", () => {
     });
   });
 
+  it("You.com 预设应生成免鉴权的 streamable HTTP MCP 配置", async () => {
+    const hookValue = createHookValue({ servers: [] });
+    const container = await renderPage({ hideHeader: true });
+
+    await act(async () => {
+      findByTestId<HTMLButtonElement>(
+        container,
+        "mcp-config-create-server",
+      ).click();
+      await Promise.resolve();
+    });
+    await act(async () => {
+      findByTestId<HTMLButtonElement>(
+        container,
+        "mcp-config-preset-youcom",
+      ).click();
+      await Promise.resolve();
+    });
+
+    expect(
+      container.querySelector<HTMLInputElement>(
+        'input[placeholder="服务器名称"]',
+      )?.value,
+    ).toBe("You.com");
+    expect(container.querySelector("textarea")?.value).toContain(
+      "https://api.you.com/mcp?profile=free",
+    );
+    expect(container.textContent).toContain("连接配置");
+    expect(container.textContent).toContain("streamable_http");
+
+    await act(async () => {
+      findButton(container, "保存").click();
+      await Promise.resolve();
+    });
+
+    expect(hookValue.addServer).toHaveBeenCalledWith({
+      name: "You.com",
+      description: "网页搜索与内容提取",
+      server_config: {
+        transport: "streamable_http",
+        url: "https://api.you.com/mcp?profile=free",
+        tool_timeout: 60,
+      },
+      enabled_lime: true,
+      enabled_claude: true,
+      enabled_codex: true,
+      enabled_gemini: true,
+    });
+  });
+
   it("Context7 连接配置表单应直接写回 streamable HTTP JSON", async () => {
     const hookValue = createHookValue({ servers: [] });
     const container = await renderPage({ hideHeader: true });

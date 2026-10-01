@@ -2110,6 +2110,8 @@
   "settings.mcpPage.preset.filesystem.description": "ファイルシステムアクセス",
   "settings.mcpPage.preset.context7.name": "Context7",
   "settings.mcpPage.preset.context7.description": "最新ドキュメント検索",
+  "settings.mcpPage.preset.youcom.name": "You.com",
+  "settings.mcpPage.preset.youcom.description": "ウェブ検索とコンテンツ抽出",
   "settings.mcpPage.preset.github.name": "GitHub",
   "settings.mcpPage.preset.github.description": "GitHub API",
   "settings.mcpPage.preset.postgres.name": "PostgreSQL",
