@@ -289,31 +289,39 @@ export async function openMcpConfigSettings(page, options) {
 }
 
 export async function openSettings(page, options) {
-  await page.locator('[data-testid="app-sidebar-account-button"]').click();
-  await page.locator('[data-testid="app-sidebar-account-menu"]').waitFor({
-    state: "visible",
-    timeout: Math.min(30_000, options.timeoutMs),
-  });
-
-  const clicked = await page.evaluate(() => {
-    const menu = document.querySelector(
-      '[data-testid="app-sidebar-account-menu"]',
-    );
-    const buttons = Array.from(menu?.querySelectorAll("button") ?? []);
-    const target = buttons.find((button) => {
-      const text = button.textContent || "";
-      const aria = button.getAttribute("aria-label") || "";
-      return /模型设置|AI 服务商|AI Providers|Model Settings/.test(
-        `${text}\n${aria}`,
-      );
+  const settingsNav = page.locator('[data-testid="app-sidebar-nav-settings"]');
+  if (
+    (await settingsNav.count()) > 0 &&
+    (await settingsNav.first().isVisible())
+  ) {
+    await settingsNav.first().click();
+  } else {
+    await page.locator('[data-testid="app-sidebar-account-button"]').click();
+    await page.locator('[data-testid="app-sidebar-account-menu"]').waitFor({
+      state: "visible",
+      timeout: Math.min(30_000, options.timeoutMs),
     });
-    if (!(target instanceof HTMLButtonElement)) {
-      return false;
-    }
-    target.click();
-    return true;
-  });
-  assert(clicked, "未找到账号菜单里的模型设置入口");
+
+    const clicked = await page.evaluate(() => {
+      const menu = document.querySelector(
+        '[data-testid="app-sidebar-account-menu"]',
+      );
+      const buttons = Array.from(menu?.querySelectorAll("button") ?? []);
+      const target = buttons.find((button) => {
+        const text = button.textContent || "";
+        const aria = button.getAttribute("aria-label") || "";
+        return /模型设置|AI 服务商|AI Providers|Model Settings/.test(
+          `${text}\n${aria}`,
+        );
+      });
+      if (!(target instanceof HTMLButtonElement)) {
+        return false;
+      }
+      target.click();
+      return true;
+    });
+    assert(clicked, "未找到账号菜单里的模型设置入口");
+  }
 
   await page.locator('[data-testid="settings-top-header"]').waitFor({
     state: "visible",

@@ -68,6 +68,15 @@ describe("MCP config Electron fixture smoke guard", () => {
     expect(content).not.toContain("invokeMockOnly");
   });
 
+  it("opens settings through the current sidebar rail before the legacy account fallback", () => {
+    const content = readSmokeScript();
+
+    expect(content).toContain('[data-testid="app-sidebar-nav-settings"]');
+    expect(content).toContain("settingsNav.first().isVisible()");
+    expect(content).toContain('[data-testid="app-sidebar-account-button"]');
+    expect(content).toContain('[data-testid="app-sidebar-account-menu"]');
+  });
+
   it("writes same-run SETTINGS scenario evidence without relabeling", () => {
     const content = readSmokeScript();
     const evidenceCore = readEvidenceCore();
