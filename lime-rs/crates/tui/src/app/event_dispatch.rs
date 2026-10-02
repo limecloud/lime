@@ -139,7 +139,7 @@ impl App {
                             context.effort.clone(),
                             context.permissions.clone(),
                         );
-                        self.collaboration_mode = Some(collaboration_mode);
+                        self.chat_widget.collaboration_mode = Some(collaboration_mode);
                         self.projection.set_status("collaboration mode updated");
                     }
                     Err(error) => self.projection.set_status(error.to_string()),

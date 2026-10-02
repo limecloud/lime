@@ -701,6 +701,7 @@ export function useAgentChatWorkspaceSceneRuntime({
       {workspaceSceneNode}
       <ScheduledTaskDialog
         open={workspaceServiceSkillEntryActions.automationDialogOpen}
+        mode="create"
         initialForm={
           workspaceServiceSkillEntryActions.automationDialogInitialValues
         }

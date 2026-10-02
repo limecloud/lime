@@ -17,7 +17,7 @@ import {
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import styled from "styled-components";
-import { SettingsSidebar } from "./SettingsSidebar";
+import { SettingsNavigation } from "./SettingsNavigation";
 import { SettingsTabs } from "@/types/settings";
 import {
   Page,
@@ -30,9 +30,6 @@ import { buildHomeAgentParams } from "@/lib/workspace/navigation";
 import { shouldReserveMacWindowControls } from "@/lib/windowControls";
 import { SettingsHomePage } from "../home";
 import { resolveOemCloudRuntimeContext } from "@/lib/api/oemCloudRuntime";
-import { Home } from "lucide-react";
-
-const SETTINGS_SIDEBAR_WIDTH_PX = 240;
 
 const AppearanceSettings = lazy(() =>
   import("../general/appearance").then((module) => ({
@@ -109,93 +106,16 @@ const LayoutContainer = styled.div`
   flex: 1;
   min-height: 0;
   background: var(--lime-app-bg, hsl(var(--background)));
-
-  @media (max-width: 1200px) {
-    flex-direction: column;
-  }
 `;
 
-const HeaderBar = styled.div<{ $reserveWindowControls: boolean }>`
-  display: grid;
-  grid-template-columns: ${SETTINGS_SIDEBAR_WIDTH_PX}px;
-  align-items: center;
-  gap: 0;
-  min-height: 86px;
-  padding: ${({ $reserveWindowControls }) =>
-    $reserveWindowControls ? "34px 24px 14px 0" : "24px 24px 14px 0"};
-  border-bottom: 1px solid var(--lime-surface-border, hsl(var(--border)));
-  background: var(--lime-app-bg, hsl(var(--background)));
-
-  @media (max-width: 1200px) {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 8px;
-    padding: ${({ $reserveWindowControls }) =>
-      $reserveWindowControls ? "34px 20px 14px" : "24px 20px 14px"};
-  }
-
-  @media (max-width: 640px) {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 10px;
-    padding: ${({ $reserveWindowControls }) =>
-      $reserveWindowControls ? "34px 14px 14px" : "24px 14px 14px"};
-  }
-`;
-
-const HeaderHomeButton = styled.button`
-  -webkit-app-region: no-drag;
-  justify-self: start;
-  margin-left: 24px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  min-height: 36px;
-  padding: 0 14px;
-  border: 1px solid var(--lime-surface-border, hsl(var(--border)));
-  border-radius: 999px;
-  background: var(--lime-surface, hsl(var(--card)));
-  color: var(--lime-text-muted, hsl(var(--muted-foreground)));
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: 600;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
-  transition:
-    background 0.15s ease,
-    border-color 0.15s ease,
-    color 0.15s ease,
-    transform 0.15s ease;
-
-  &:hover {
-    border-color: var(
-      --lime-surface-border-strong,
-      hsl(var(--foreground) / 0.18)
-    );
-    background: var(--lime-surface-hover, hsl(var(--accent)));
-    color: var(--lime-text-strong, hsl(var(--foreground)));
-  }
-
-  &:active {
-    transform: translateY(1px);
-  }
-
-  svg {
-    width: 15px;
-    height: 15px;
-  }
-
-  @media (max-width: 1200px) {
-    justify-self: start;
-    margin-left: 0;
-  }
-`;
-
-const ContentContainer = styled.main`
+const ContentContainer = styled.main<{ $reserveWindowControls: boolean }>`
   flex: 1;
   min-width: 0;
   position: relative;
   isolation: isolate;
   overflow-y: auto;
-  padding: 24px 32px;
+  padding: ${({ $reserveWindowControls }) =>
+    $reserveWindowControls ? "48px 32px 24px" : "24px 32px"};
   background: var(
     --lime-stage-surface-soft,
     linear-gradient(
@@ -606,47 +526,34 @@ export function SettingsLayoutV2({
   }, [activeTab]);
 
   return (
-    <>
-      {/* 设置内容 */}
-      <HeaderBar
-        className="lime-settings-theme-scope"
+    <LayoutContainer className="lime-settings-theme-scope">
+      <SettingsNavigation
+        activeTab={activeTab}
+        reserveWindowControls={reserveWindowControls}
+        onTabChange={handleTabChange}
+        onTabPrefetch={handleTabPrefetch}
+        onBackHome={handleBackHome}
+        onNavigate={onNavigate}
+      />
+      <ContentContainer
+        ref={contentContainerRef}
         $reserveWindowControls={reserveWindowControls}
-        data-testid="settings-top-header"
-        data-window-controls-reserved={String(reserveWindowControls)}
       >
-        <HeaderHomeButton
-          type="button"
-          onClick={handleBackHome}
-          aria-label={t("settings.layout.action.backHome")}
-          data-testid="settings-home-button"
-        >
-          <Home />
-          {t("settings.layout.action.backHome")}
-        </HeaderHomeButton>
-      </HeaderBar>
-      <LayoutContainer className="lime-settings-theme-scope">
-        <SettingsSidebar
-          activeTab={activeTab}
-          onTabChange={handleTabChange}
-          onTabPrefetch={handleTabPrefetch}
-        />
-        <ContentContainer ref={contentContainerRef}>
-          <ContentAtmosphere data-testid="settings-content-atmosphere" />
-          <ContentWrapper $wide={WIDE_CONTENT_TABS.has(activeTab)}>
-            {renderSettingsContent(
-              activeTab,
-              handleTabChange,
-              t,
-              handleTabPrefetch,
-              onNavigate,
-              activeProviderView,
-              initialProviderFocus,
-              initialExecutionPolicyFocus,
-              activeDeveloperLabTab,
-            )}
-          </ContentWrapper>
-        </ContentContainer>
-      </LayoutContainer>
-    </>
+        <ContentAtmosphere data-testid="settings-content-atmosphere" />
+        <ContentWrapper $wide={WIDE_CONTENT_TABS.has(activeTab)}>
+          {renderSettingsContent(
+            activeTab,
+            handleTabChange,
+            t,
+            handleTabPrefetch,
+            onNavigate,
+            activeProviderView,
+            initialProviderFocus,
+            initialExecutionPolicyFocus,
+            activeDeveloperLabTab,
+          )}
+        </ContentWrapper>
+      </ContentContainer>
+    </LayoutContainer>
   );
 }

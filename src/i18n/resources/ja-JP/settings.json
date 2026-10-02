@@ -2222,5 +2222,9 @@
   "settings.mcpPage.runtime.resourceBrowser.preview.truncated": "切り詰め済みです。{{total}} 文字中、先頭 {{shown}} 文字のみを表示し、{{hidden}} 文字を非表示にしています。",
   "settings.mcpPage.runtime.resourceBrowser.preview.image": "画像データ、{{bytes}} バイト",
   "settings.mcpPage.runtime.resourceBrowser.preview.blob": "バイナリデータ、{{bytes}} バイト",
-  "settings.mcpPage.runtime.resourceBrowser.preview.empty": "内容はありません"
+  "settings.mcpPage.runtime.resourceBrowser.preview.empty": "内容はありません",
+  "settings.layout.sidebar.search.placeholder": "設定を検索",
+  "settings.layout.sidebar.search.label": "設定を検索",
+  "settings.layout.sidebar.search.clear": "検索をクリア",
+  "settings.layout.sidebar.search.noResults": "一致する設定がありません"
 }

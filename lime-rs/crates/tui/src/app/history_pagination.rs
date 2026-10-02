@@ -118,7 +118,8 @@ impl App {
         // transition already established that no older page remains, an in-flight completion is
         // stale even when its thread/cursor still match; fail closed before touching projection.
         if !transcript_history_surface_is_current(
-            self.pager_overlay
+            self.chat_widget
+                .pager_overlay
                 .as_ref()
                 .is_some_and(PagerOverlay::is_transcript),
             self.scrollback_has_older_history,
@@ -136,7 +137,7 @@ impl App {
         let items = app_server.apply_older_history_page(thread_id, cursor, page)?;
         self.prepend_history_page(items, turns);
         self.scrollback_has_older_history = app_server.has_older_history(thread_id);
-        if let Some(pager) = self.pager_overlay.as_ref() {
+        if let Some(pager) = self.chat_widget.pager_overlay.as_ref() {
             pager.set_older_history_available(self.scrollback_has_older_history);
         }
         Ok(true)
@@ -187,12 +188,12 @@ impl App {
         terminal: &mut crate::tui::Tui,
         app_server: &mut AppServerSession,
     ) -> Result<usize> {
-        if self.resume_picker.is_some()
-            || self.pager_overlay.is_some()
-            || self.export_picker.is_some()
-            || self.model_picker.is_some()
-            || self.agent_picker.is_some()
-            || self.agents_overview.is_some()
+        if self.chat_widget.resume_picker.is_some()
+            || self.chat_widget.pager_overlay.is_some()
+            || self.chat_widget.export_picker.is_some()
+            || self.chat_widget.model_picker.is_some()
+            || self.chat_widget.agent_picker.is_some()
+            || self.chat_widget.agents_overview.is_some()
         {
             return Ok(0);
         }

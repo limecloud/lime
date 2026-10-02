@@ -74,7 +74,6 @@
   "navigation.sidebar.conversations.projectMenu.remove.success": "프로젝트를 제거했습니다",
   "navigation.sidebar.conversations.projectMenu.remove.error": "프로젝트 제거 실패",
   "navigation.sidebar.conversations.projectsTitle": "프로젝트",
-  "navigation.sidebar.conversations.standaloneTitle": "대화",
   "navigation.sidebar.conversations.pinnedTitle": "고정됨",
   "navigation.sidebar.conversations.newConversation": "새 대화",
   "navigation.sidebar.conversations.newProjectConversation": "이 프로젝트에서 새 대화",
@@ -279,5 +278,16 @@
   "navigation.sidebar.importDialog.selection.selectGroup": "이 그룹 선택",
   "navigation.sidebar.importDialog.selection.clearGroup": "이 그룹 해제",
   "navigation.sidebar.importDialog.fidelity.compact": "도구, 명령, 패치, 승인, 추론 기록을 보존합니다.",
-  "navigation.sidebar.importDialog.status.archived": "보관됨"
+  "navigation.sidebar.importDialog.status.archived": "보관됨",
+  "navigation.sidebar.items.newChat": "새 채팅",
+  "navigation.sidebar.conversations.project.showMore": "더 보기",
+  "navigation.sidebar.conversations.project.showLess": "접기",
+  "navigation.sidebar.customization.title": "사용자 지정",
+  "navigation.sidebar.customization.search": "플러그인 검색",
+  "navigation.sidebar.customization.skills": "스킬",
+  "navigation.sidebar.customization.installed": "설치됨",
+  "navigation.sidebar.customization.loading": "플러그인 불러오는 중…",
+  "navigation.sidebar.customization.error": "설치된 플러그인을 불러올 수 없습니다",
+  "navigation.sidebar.customization.empty": "설치된 플러그인이 없습니다",
+  "navigation.sidebar.account.label": "계정"
 }

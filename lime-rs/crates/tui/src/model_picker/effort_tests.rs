@@ -240,7 +240,7 @@ fn nested_effort_render_reuses_wrapping_and_covers_all_locales_and_short_screens
 fn app_emits_one_combined_selection_only_after_effort_acceptance() {
     let mut app = crate::app::App::default();
     app.set_thread_id("canonical-thread".into());
-    app.composer.insert("preserved draft");
+    app.chat_widget.bottom_pane.insert_str("preserved draft");
     app.set_settings(
         Some("reasoner".into()),
         Some("p".into()),
@@ -262,12 +262,15 @@ fn app_emits_one_combined_selection_only_after_effort_acceptance() {
     assert_eq!(selection.effort.as_deref(), Some("high"));
     assert_eq!(selection.model, "reasoner");
     assert_eq!(selection.provider, "p");
-    assert!(app.model_picker.is_none());
+    assert!(app.chat_widget.model_picker.is_none());
     assert_eq!(
-        app.reasoning_effort.as_deref(),
+        app.chat_widget.reasoning_effort.as_deref(),
         Some("low"),
         "local settings only change after server success"
     );
-    assert_eq!(app.composer.text(), "preserved draft");
+    assert_eq!(
+        app.chat_widget.bottom_pane.composer_text(),
+        "preserved draft"
+    );
     assert_eq!(app.thread_id.as_deref(), Some("canonical-thread"));
 }

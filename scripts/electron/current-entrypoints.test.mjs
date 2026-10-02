@@ -369,7 +369,7 @@ describe("Electron current package entrypoints", () => {
     expect(smokeChecksContent).toContain("window.setSize");
     expect(smokeChecksContent).toContain("window.getSize");
     expect(memorySmokeContent).toContain(
-      '[data-testid="app-sidebar-account-model-settings"]',
+      '[data-testid="app-sidebar-nav-settings"]',
     );
     expect(memorySmokeContent).toContain(
       '[data-testid="settings-sidebar-tab-memory"]',

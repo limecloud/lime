@@ -53,8 +53,12 @@ describe("agent runtime current fixture regression smoke guard", () => {
     expect(content).toContain(
       "src/components/agent/chat/hooks/agentStreamRuntimeHandler.typedError.test.ts",
     );
+    expect(content).toContain("turn_completed|turn/completed|usage|工具");
     expect(content).toContain(
-      "src/components/agent/chat/components/MessageList.test.tsx",
+      "src/components/agent/chat/components/MessageList.runtimeStatus.test.tsx",
+    );
+    expect(content).not.toContain(
+      '"src/components/agent/chat/components/MessageList.test.tsx"',
     );
   });
 

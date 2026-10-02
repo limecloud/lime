@@ -102,22 +102,16 @@ export async function collectUnknownItemScenarioEvidence({ page, readModel }) {
     { hasText: UNKNOWN_ITEM_UPSTREAM_TYPE },
   );
   await unsupportedItem.waitFor({ state: "visible" });
-  const gui = await page.evaluate(
-    ({ upstreamType, secretMarker, safeFieldNames }) => {
-      const rows = Array.from(
-        document.querySelectorAll('[data-testid="timeline-unsupported-item"]'),
-      );
-      const target = rows.find((row) =>
-        (row.textContent || "").includes(upstreamType),
-      );
-      const text = target?.textContent || "";
+  const gui = await unsupportedItem.evaluate(
+    (target, { upstreamType, secretMarker, safeFieldNames }) => {
+      const text = target.innerText || "";
       const bodyText = document.body?.textContent || "";
       return {
-        count: rows.length,
-        visible: Boolean(target),
-        upstreamTypeVisible: text.includes(upstreamType),
-        safeFieldNamesVisible: safeFieldNames.every((name) =>
-          text.includes(name),
+        visible: target.getClientRects().length > 0 && text.trim().length > 0,
+        diagnosticsCollapsed: target.querySelector("details")?.open === false,
+        upstreamTypeHidden: !text.includes(upstreamType),
+        safeFieldNamesHidden: safeFieldNames.every(
+          (name) => !text.includes(name),
         ),
         internalTypeHidden: !text.includes("unknown_item"),
         rawValuesHidden:
@@ -132,10 +126,36 @@ export async function collectUnknownItemScenarioEvidence({ page, readModel }) {
       safeFieldNames: UNKNOWN_ITEM_SAFE_FIELD_NAMES,
     },
   );
+  const diagnostics = unsupportedItem.getByTestId(
+    "timeline-unsupported-item-diagnostics",
+  );
+  await diagnostics.waitFor({ state: "hidden" });
+  await unsupportedItem.locator("summary").click();
+  await diagnostics.waitFor({ state: "visible" });
+  const expanded = await diagnostics.evaluate(
+    (target, { upstreamType, safeFieldNames, secretMarker }) => ({
+      diagnosticsExpanded: target.closest("details")?.open === true,
+      upstreamTypeVisible: target.innerText.includes(upstreamType),
+      safeFieldNamesVisible: safeFieldNames.every((name) =>
+        target.innerText.includes(name),
+      ),
+      rawValuesHidden:
+        !target.textContent.includes(secretMarker) &&
+        !target.textContent.includes("opaque-value-must-not-render") &&
+        !target.textContent.includes("future capability"),
+    }),
+    {
+      upstreamType: UNKNOWN_ITEM_UPSTREAM_TYPE,
+      safeFieldNames: UNKNOWN_ITEM_SAFE_FIELD_NAMES,
+      secretMarker: UNKNOWN_ITEM_SECRET_MARKER,
+    },
+  );
+  await unsupportedItem.locator("summary").click();
+  await diagnostics.waitFor({ state: "hidden" });
   const item = readUnknownItemRecoveryEvidence(readModel);
   const serializedReadModel = JSON.stringify(readModel || {});
   return {
-    gui,
+    gui: { ...gui, diagnostics: expanded },
     readModel: {
       present: Boolean(item),
       itemId: item?.id ?? null,
@@ -195,11 +215,17 @@ export function buildUnknownItemScenarioAssertions({
       appServerRequestMethods.includes("thread/read"),
     unknownItemGuiFailVisible:
       evidence.gui?.visible === true &&
-      evidence.gui?.upstreamTypeVisible === true,
+      evidence.gui?.diagnosticsCollapsed === true &&
+      evidence.gui?.upstreamTypeHidden === true &&
+      evidence.gui?.safeFieldNamesHidden === true,
+    unknownItemGuiDiagnosticsInteractive:
+      evidence.gui?.diagnostics?.diagnosticsExpanded === true &&
+      evidence.gui?.diagnostics?.upstreamTypeVisible === true &&
+      evidence.gui?.diagnostics?.safeFieldNamesVisible === true,
     unknownItemGuiFieldsSanitized:
-      evidence.gui?.safeFieldNamesVisible === true &&
       evidence.gui?.internalTypeHidden === true &&
-      evidence.gui?.rawValuesHidden === true,
+      evidence.gui?.rawValuesHidden === true &&
+      evidence.gui?.diagnostics?.rawValuesHidden === true,
     unknownItemReadModelRecovered:
       evidence.readModel?.present === true &&
       evidence.readModel?.upstreamType === UNKNOWN_ITEM_UPSTREAM_TYPE &&

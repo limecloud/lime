@@ -105,12 +105,12 @@ mod tests {
             "tui":{"keymap":{"editor":{"insert_newline":"f11", "delete_forward":[]}}}
         }))
         .unwrap();
-        let mut composer = crate::bottom_pane::ChatComposer::default();
+        let mut composer = crate::bottom_pane::BottomPane::default();
         composer.set_keymap_bindings(&settings.keymap);
-        composer.insert("abc");
+        composer.insert_str("abc");
         composer.handle_key_event(KeyEvent::new(KeyCode::F(11), KeyModifiers::NONE));
         composer.handle_key_event(KeyEvent::new(KeyCode::Delete, KeyModifiers::NONE));
-        assert_eq!(composer.text(), "abc\n");
+        assert_eq!(composer.composer_text(), "abc\n");
         let error = LocalSettings::from_config_value(&json!({
             "tui":{"keymap":{"global":{"open_agents":"ctrl-n"}}}
         }))

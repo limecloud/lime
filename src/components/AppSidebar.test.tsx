@@ -52,6 +52,52 @@ describe("AppSidebar navigation", () => {
     );
   });
 
+  it("展开态应提供独立全局图标栏，并复用现有导航动作", async () => {
+    const onNavigate = vi.fn();
+    const container = mountSidebarContainer({ onNavigate });
+    await flushEffects(2);
+
+    const rail = container.querySelector('[data-testid="app-sidebar-rail"]');
+    expect(rail).not.toBeNull();
+    expect(
+      rail?.querySelector('[data-testid="app-sidebar-rail-home"]'),
+    ).not.toBeNull();
+    expect(
+      rail?.querySelector('[data-testid="app-sidebar-rail-scheduled-tasks"]'),
+    ).not.toBeNull();
+
+    act(() => {
+      rail
+        ?.querySelector<HTMLButtonElement>(
+          '[data-testid="app-sidebar-rail-scheduled-tasks"]',
+        )
+        ?.click();
+    });
+
+    expect(onNavigate).toHaveBeenCalledWith("scheduled-tasks", undefined);
+  });
+
+  it("折叠态仍保留全局搜索入口和展开提示", async () => {
+    const container = mountSidebarContainer();
+    await flushEffects(2);
+
+    act(() => {
+      container
+        .querySelector<HTMLButtonElement>('button[aria-label="折叠导航栏"]')
+        ?.click();
+    });
+    await flushEffects();
+
+    expect(
+      container.querySelector(
+        '[data-testid="app-sidebar-rail-search-button"]',
+      ),
+    ).not.toBeNull();
+    expect(
+      container.querySelector('button[aria-label="展开导航栏"]'),
+    ).not.toBeNull();
+  });
+
   it("新建任务首页应短 idle 加载最近对话，避免列表首屏长时间为空", async () => {
     const scheduledTasks: Array<{
       task: () => void;
@@ -134,7 +180,7 @@ describe("AppSidebar navigation", () => {
     ).not.toBeNull();
   });
 
-  it("默认应渲染一级主导航，并将辅助系统入口收进用户弹框", async () => {
+  it("默认应渲染一级主导航，并将设置与主题固定在 rail 底部", async () => {
     const container = mountSidebarContainer({
       currentPage: "settings",
     });
@@ -165,8 +211,8 @@ describe("AppSidebar navigation", () => {
     const menuScroll = container.querySelector(
       '[data-testid="app-sidebar-menu-scroll"]',
     );
-    const footerArea = container.querySelector(
-      '[data-testid="app-sidebar-footer-area"]',
+    const settingsRailButton = container.querySelector(
+      '[data-testid="app-sidebar-nav-settings"]',
     );
 
     expect(mainNavButtons).toEqual(["新建任务", "已安排任务", "插件"]);
@@ -176,8 +222,13 @@ describe("AppSidebar navigation", () => {
     expect(menuScroll).not.toBeNull();
     expect(getComputedStyle(menuScroll as Element).flexGrow).toBe("0");
     expect(getComputedStyle(menuScroll as Element).flexShrink).toBe("1");
-    expect(footerArea).not.toBeNull();
-    expect(getComputedStyle(footerArea as Element).paddingBottom).toBe("16px");
+    expect(settingsRailButton).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="app-sidebar-rail-appearance"]'),
+    ).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="app-sidebar-account-button"]'),
+    ).toBeNull();
   });
 
   it("已安排任务应作为一级入口打开独立任务页面", async () => {
@@ -197,6 +248,17 @@ describe("AppSidebar navigation", () => {
     });
 
     expect(onNavigate).toHaveBeenCalledWith("scheduled-tasks", undefined);
+  });
+
+  it("进入已安排任务页时应收起上下文栏，只保留 rail", async () => {
+    localStorage.setItem(APP_SIDEBAR_COLLAPSED_STORAGE_KEY, "false");
+    const container = mountSidebarContainer({
+      currentPage: "scheduled-tasks",
+    });
+    await flushEffects(2);
+
+    expect(container.querySelector('[data-testid="app-sidebar"]')?.getAttribute("data-collapsed")).toBe("true");
+    expect(container.querySelector('[data-testid="app-sidebar-rail-settings"]')).not.toBeNull();
   });
 
   it("从项目工作区进入已安排任务时应保留项目作用域", async () => {

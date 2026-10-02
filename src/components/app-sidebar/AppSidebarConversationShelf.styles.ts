@@ -3,26 +3,18 @@ import styled from "styled-components";
 export const ConversationShelf = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin: 2px 0 12px;
+  gap: 22px;
+  margin: 4px 0 12px;
 `;
 
 export const ConversationSection = styled.section<{ $compact?: boolean }>`
   display: flex;
   flex-direction: column;
-  gap: 7px;
-  min-height: ${({ $compact }) => ($compact ? "auto" : "116px")};
-  max-height: ${({ $compact }) => ($compact ? "180px" : "248px")};
-  padding: 8px;
-  border-radius: 14px;
-  border: 1px solid var(--sidebar-card-border, var(--sidebar-border));
-  background: color-mix(
-    in srgb,
-    var(--sidebar-search-bg, #ffffff) 88%,
-    transparent
-  );
-  box-shadow: inset 0 1px 0 var(--sidebar-card-highlight);
-  overflow: hidden;
+  gap: 6px;
+  min-height: 0;
+  max-height: none;
+  padding: 0;
+  overflow: visible;
 `;
 
 export const ConversationSectionHeader = styled.div`
@@ -30,15 +22,18 @@ export const ConversationSectionHeader = styled.div`
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 0 3px;
+  min-height: 24px;
+  padding: 0 4px;
   color: var(--sidebar-muted);
 `;
 
 export const ConversationSectionActions = styled.div`
   display: inline-flex;
   align-items: center;
-  gap: 2px;
+  gap: 0;
   flex-shrink: 0;
+  opacity: 1;
+  pointer-events: auto;
 `;
 
 export const ConversationSectionTitle = styled.h2`
@@ -47,8 +42,9 @@ export const ConversationSectionTitle = styled.h2`
   padding: 0;
   margin: 0;
   color: inherit;
-  font-size: 12px;
-  font-weight: 760;
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
 `;
 
 export const ConversationActionButton = styled.button`
@@ -85,12 +81,11 @@ export const ConversationActionButton = styled.button`
 export const ConversationList = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
   flex: 1;
   min-height: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
-  padding-right: 2px;
+  overflow: visible;
+  padding-right: 0;
 
   &::-webkit-scrollbar {
     width: 4px;
@@ -108,22 +103,19 @@ export const ConversationList = styled.div`
 
 export const ConversationListMoreButton = styled.button`
   width: 100%;
-  min-height: 32px;
-  border: 1px solid var(--sidebar-card-border, var(--sidebar-border));
-  border-radius: 11px;
-  background: var(--sidebar-search-bg);
+  min-height: 26px;
+  border: none;
+  border-radius: 7px;
+  padding: 0 7px;
+  background: transparent;
   color: var(--sidebar-muted);
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 400;
+  text-align: left;
   cursor: pointer;
-  transition:
-    background-color 0.18s ease,
-    border-color 0.18s ease,
-    color 0.18s ease;
 
   &:hover {
     background: var(--sidebar-hover);
-    border-color: var(--sidebar-search-border-hover);
     color: var(--sidebar-foreground);
   }
 `;

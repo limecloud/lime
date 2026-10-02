@@ -66,9 +66,11 @@ async fn real_stdio_thread_handoff_preserves_pending_input() {
     app.hydrate_thread(root.clone());
     app.set_thread_id(root.id.clone());
     app.set_cwd(cwd.into());
-    app.composer.handle_paste(&"界🙂".repeat(501));
-    app.composer.insert(" ROOT_DRAFT");
-    let root_draft = app.composer.draft_snapshot();
+    app.chat_widget
+        .bottom_pane
+        .handle_paste(&"界🙂".repeat(501));
+    app.chat_widget.bottom_pane.insert_str(" ROOT_DRAFT");
+    let root_draft = app.chat_widget.bottom_pane.composer_draft();
     let first_turn = session
         .start_turn("thread input handoff probe".into())
         .await
@@ -89,7 +91,7 @@ async fn real_stdio_thread_handoff_preserves_pending_input() {
     key(&mut app, KeyCode::Tab);
     paste(&mut app, "STDIO_RESTORED_界🙂");
     assert!(screen(&app).contains("STDIO_RESTORED_界🙂"));
-    let input_before_failed_resume = app.composer.draft_snapshot();
+    let input_before_failed_resume = app.chat_widget.bottom_pane.composer_draft();
     let mut model = Some("fixture-model".into());
     let mut provider = Some("fixture-provider".into());
     let mut effort = None;
@@ -122,7 +124,10 @@ async fn real_stdio_thread_handoff_preserves_pending_input() {
         .await
         .is_err());
     assert_eq!(app.thread_id.as_deref(), Some(root.id.as_str()));
-    assert_eq!(app.composer.draft_snapshot(), input_before_failed_resume);
+    assert_eq!(
+        app.chat_widget.bottom_pane.composer_draft(),
+        input_before_failed_resume
+    );
     assert!(screen(&app).contains("STDIO_RESTORED_界🙂"));
 
     for target in [&child.id, &root.id] {
@@ -139,12 +144,12 @@ async fn real_stdio_thread_handoff_preserves_pending_input() {
         .unwrap();
         assert_eq!(app.thread_id.as_deref(), Some(target.as_str()));
         if target == &child.id {
-            assert!(!app.bottom_pane.is_active());
-            assert!(app.composer.is_empty());
-            app.composer.insert("CHILD_DRAFT");
+            assert!(!app.chat_widget.bottom_pane.is_active());
+            assert!(app.chat_widget.bottom_pane.composer_is_empty());
+            app.chat_widget.bottom_pane.insert_str("CHILD_DRAFT");
         }
     }
-    assert_eq!(app.composer.draft_snapshot(), root_draft);
+    assert_eq!(app.chat_widget.bottom_pane.composer_draft(), root_draft);
     assert!(screen(&app).contains("STDIO_RESTORED_界🙂"));
     let AppAction::Respond(response @ AppServerResponse::UserInput { .. }) =
         key(&mut app, KeyCode::Enter)
@@ -169,7 +174,7 @@ async fn real_stdio_thread_handoff_preserves_pending_input() {
         &cwd.join("ledger.jsonl"),
     )
     .await;
-    assert!(!app.bottom_pane.is_active());
+    assert!(!app.chat_widget.bottom_pane.is_active());
 
     // Resolve a second request through the real transport while its edited view is dormant.
     let second_turn = session
@@ -197,7 +202,7 @@ async fn real_stdio_thread_handoff_preserves_pending_input() {
     )
     .await
     .unwrap();
-    assert_eq!(app.composer.text(), "CHILD_DRAFT");
+    assert_eq!(app.chat_widget.bottom_pane.composer_text(), "CHILD_DRAFT");
     session
         .respond(AppServerResponse::UserInput {
             id: request.id().clone(),
@@ -232,10 +237,10 @@ async fn real_stdio_thread_handoff_preserves_pending_input() {
     .await
     .unwrap();
     assert!(
-        !app.bottom_pane.is_active(),
+        !app.chat_widget.bottom_pane.is_active(),
         "resolved dormant request cannot reappear"
     );
-    assert_eq!(app.composer.draft_snapshot(), root_draft);
+    assert_eq!(app.chat_widget.bottom_pane.composer_draft(), root_draft);
     let root_read = session
         .thread_read(root.id.clone(), true)
         .await

@@ -1,6 +1,9 @@
 {
   "scheduledTasks.title": "已安排任務",
   "scheduledTasks.subtitle": "讓 Lime 按計畫繼續處理重複工作",
+  "scheduledTasks.sidebar.newTask": "新增任務",
+  "scheduledTasks.sidebar.immediate": "立即執行",
+  "scheduledTasks.sidebar.empty": "目前沒有已安排的任務",
   "scheduledTasks.loading": "正在載入已安排任務",
   "scheduledTasks.action.back": "返回任務清單",
   "scheduledTasks.action.cancel": "取消",
@@ -67,6 +70,7 @@
   "scheduledTasks.editor.threadMode.continue": "繼續指定對話",
   "scheduledTasks.editor.threadMode.new": "每次建立新對話",
   "scheduledTasks.editor.title.create": "建立已安排任務",
+  "scheduledTasks.editor.title.setup": "設定排程任務",
   "scheduledTasks.editor.title.edit": "編輯已安排任務",
   "scheduledTasks.editor.validation.days": "至少選擇一天",
   "scheduledTasks.editor.validation.fix": "請先修正表單中的問題",

@@ -157,7 +157,7 @@ impl App {
                 self.apply_notification(*notification)
             }
             ThreadBufferedEvent::Request(request) => {
-                if let Err(request) = self.bottom_pane.enqueue(*request) {
+                if let Err(request) = self.chat_widget.bottom_pane.enqueue(*request) {
                     debug_assert!(
                         false,
                         "buffered request became unsupported: {}",

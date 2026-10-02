@@ -15,6 +15,9 @@ pub(crate) fn desired_height_with_locale_for_width(
     locale: Locale,
     width: u16,
 ) -> u16 {
+    if !pane.is_active() {
+        return pane.composer.desired_height_for_width(width).clamp(3, 12);
+    }
     if matches!(pane.current(), Some(PendingInteraction::Approval(_))) {
         return super::approval_render::desired_height(pane, locale, width);
     }
@@ -39,6 +42,10 @@ pub(crate) fn render_with_locale(
     pane: &BottomPane,
     locale: Locale,
 ) {
+    if !pane.is_active() {
+        pane.composer.render(frame, area, locale);
+        return;
+    }
     if matches!(pane.current(), Some(PendingInteraction::Approval(_))) {
         super::approval_render::render(frame, area, pane, locale);
         return;
@@ -61,6 +68,24 @@ pub(crate) fn render_with_locale(
 
     if let Some(PendingInteraction::McpElicitation(request)) = pane.current() {
         mcp_server_elicitation::render::set_cursor_position(frame, inner, request, &content);
+    }
+}
+
+impl BottomPane {
+    /// Paint popup layers after the footer, using the same composer layout and state.
+    pub(crate) fn render_popups(&self, frame: &mut Frame<'_>, area: Rect, locale: Locale) {
+        if self.is_active() {
+            return;
+        }
+        if let Some(popup) = self.composer.command_popup() {
+            super::command_popup::render(frame, area, popup, locale);
+        }
+        if let Some(popup) = self.composer.file_search_popup() {
+            popup.render(frame, area, locale);
+        }
+        if let Some(popup) = self.composer.skill_popup() {
+            popup.render(frame, area, locale);
+        }
     }
 }
 

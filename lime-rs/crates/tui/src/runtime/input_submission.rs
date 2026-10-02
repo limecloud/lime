@@ -35,7 +35,7 @@ pub(super) async fn handle_submission(
         prompt.clone(),
         &images,
         &remote_images,
-        app.composer.skills(),
+        app.chat_widget.bottom_pane.skills(),
         text_elements.clone(),
         &mention_bindings,
     );

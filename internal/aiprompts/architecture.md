@@ -57,7 +57,17 @@ TUI 的终端输入与绘制调度 owner 对齐 Codex `tui`：`tui::EventBroker`
 
 终端历史回放继续以 Codex `insert_history` 为唯一算法基线：`tui::insert_history` 负责 scroll region、full-screen raw replay、软换行、OSC 8 和 viewport 上方 history rows；`HistoryTerminal` 只抽象终端写入与 viewport bookkeeping，具体宿主仍是 `tui::Tui`，测试宿主使用真实 `vt100::Parser`。`ViewportState` 只记录几何、cursor anchor、alternate-screen round trip 和 visible history rows，不复制 Thread/Turn/Item 或 history DB。任何需要恢复 transcript 的能力必须从 App Server canonical projection 生成 `Line`，再进入该 owner；不得在 TUI 另建 Codex `custom_terminal` 或持久化滚动缓冲。
 
-TUI 的唯一输入 owner 为 `bottom_pane::ChatComposer`：`TextArea` 只拥有文本、UTF-8 安全原子范围、
+TUI 的唯一输入 surface owner 为 Codex 对齐的 `ChatWidget`；其嵌入式 `bottom_pane` 持有私有主
+`ChatComposer` 与交互 views。App 只负责 host/global navigation、Thread/transport action 与
+canonical transcript。领域 API
+通过 `bottom_pane/composer` 注入 config/history/file-search 回包和完整附件/mentions，不公开
+editor 字段、Deref 或旧 App composer getter。独立问答 notes composer 保持每题状态，不与主
+草稿混用。`bottom_pane/input` 统一 modal、Vim/history query、popup、paste/mouse 与 chord
+优先级；命令执行返回 host action，权限/turn authority 仍归 App Server。主 paste burst 与交互
+倒计时由同一 pre_draw_tick/next_frame_delay 调度，隐藏主 editor 的 held typing 仍会 flush；
+断线状态也继续调度草稿，不依赖 session 连接。高度、主输入及 popup 绘制归
+`bottom_pane/render`，footer/shortcut presentation 在同一边界内读取私有 editor。
+`TextArea` 只拥有文本、UTF-8 安全原子范围、
 游标/选区与 wrap/render cache；`chat_composer::pending_paste` 保存长粘贴原文，提交/排队前仅按
 已登记范围展开，不能全局替换同名文字。同名 `current_text_with_pending` 与
 `expand_pending_pastes(text, elements, pending_pastes)` 共用纯转换 owner，有序扫描元素并按
@@ -76,7 +86,8 @@ flatten rich input 或改附件 owner。start 在环境/设置副作用前拒绝
 `ComposerDraft` 是历史搜索、未提交草稿与 Vim 撤销/重做
 共享的内存快照，包含文本、原子范围、pending paste、mention binding 和附件；offline editing 保留该 owner。
 编辑配置沿 `core::TuiEditorKeymap -> App Server config/read -> LocalSettings ->
-RuntimeKeymap.editor (Arc<EditorKeymap>) -> ChatComposer -> TextArea::set_keymap_bindings` 进入。
+RuntimeKeymap.editor (Arc<EditorKeymap>) -> ChatWidget.bottom_pane -> ChatComposer ->
+TextArea::set_keymap_bindings` 进入。
 `textarea/input::input_with_keymap` 解析唯一 matcher 的 resolved `EditorAction`，同一 semantic
 `VimAction` 承接普通/Insert/Replace 编辑与 repeat；不保留硬编码 editor-key detector。
 pending chord 由 TextArea 持有并先于 host/global 消费完成/取消，buffer replacement 与新 snapshot
@@ -90,20 +101,22 @@ find/replace 捕获 literal，不维护第二份快捷键清单。composer undo/
 Normal history movement 使用同一 action；buffer replacement/snapshot 更新清 pending。
 `textarea/vim_register` 持有 `KillBufferKind::{Characterwise,Linewise}`，linewise operator、
 yank 与 paste 共用同一 register，不把多行文本冒充 linewise。
-snapshot 传播为 `App::set_runtime_keymap -> ChatComposer + BottomPane -> queued/new
+snapshot 传播为 `App::set_runtime_keymap -> ChatWidget.bottom_pane -> main ChatComposer + queued/new
 RequestUserInput.composer | McpServerElicitation.text_area -> TextArea`；Vim query editor
 也消费相同 editor snapshot。pending completion/cancellation 先于 host/global/submit，idle
 Normal Esc 仍属于 host interrupt。MCP elicitation 拆成 control/render/schema/tests；渲染直接
 访问 render owner，不保留旧 reexport wrapper。责任开发者 root 确认此图，2026-10-01。
-线程切换由 `app/thread_input::ThreadInputState` 暂存同一个 `ComposerDraft` 和移交的
-`BottomPaneInputState`；成功 resume 后才捕获，目标恢复消费休眠快照，active editor/view
+线程切换由 App 按 Thread 暂存 `BottomPaneInputState { ComposerDraft, interaction queue }`，
+由 `ChatWidget.bottom_pane` 原子捕获/恢复，不保留 App 的平行 draft 字段或 ThreadInputState
+包装。
+成功 resume 后才捕获，目标恢复消费休眠快照，active editor/view
 继续唯一持有。Agent Center 打开时不提前捕获或搬走输入，不另存字符串镜像或 fallback。
 输入投影的生命周期为：
 
 ```text
 App successful thread/resume
-  -> ThreadInputState { ComposerDraft, BottomPaneInputState }
-  -> target restore consumes snapshot -> active composer + interaction views
+  -> ChatWidget.bottom_pane.take_input_state { ComposerDraft, interaction views }
+  -> ChatWidget.bottom_pane.restore_input_state consumes snapshot -> private composer + interaction views
 canonical thread notification
   -> matching active/dormant views -> resolved / turn terminal / item started / thread closed
 transport disconnected
@@ -121,8 +134,10 @@ Turn terminal。MCP elicitation 按独立 resolved/ThreadClosed 清理，不把 
 不保留 category HashSet、by-turn 镜像索引或无生产 consumer 的 pending 查询；Lime typed
 JSON-RPC response 已有精确 id，不复制 Codex native Op 的 FIFO/按 call-id 回答适配逻辑。
 已解决/淘汰的旧请求不能被同 item 的新请求复活，旧 buffered event 淘汰不清 replacement。
-架构图确认：root，2026-10-01；GUI/TUI共享业务主链和 canonical authority 不变，完整
-ChatWidget/BottomPane composer 所有权迁移继续 partial，不增加空壳或第二 backend。
+架构图确认：root，2026-10-02；GUI/TUI共享业务主链和 canonical authority 不变，主输入/交互
+以及 pager、transcript scroll/viewport/follow/search/selection/footer 等 session-local presentation
+状态已经由 `ChatWidget` 单一持有，完整 ChatWidget lifecycle（collaboration scope、replay seed
+和其它 Codex session state）迁移继续 partial，不增加空壳、Deref 或第二 backend。
 capture 前由同一 paste-burst owner 物化 held typing，不能丢失或在新 Thread 上迟到 flush。
 `ChatComposer::restore_thread_input_state` 创建 fresh `DraftState/TextArea`，恢复完整 rich draft
 与 cursor；bindings 从当前 RuntimeKeymap 重新注入，catalog/event sender/locale 等宿主配置
@@ -130,11 +145,26 @@ capture 前由同一 paste-burst owner 物化 held typing，不能丢失或在�
 和 popup dismissal 不跨线程。`KillBufferSnapshot` 用同名 take/restore 移交 session register，
 既保留 linewise/characterwise，也不纳入 ComposerDraft 或 App Server 持久化；active editor
 是唯一 live owner。相同 Thread 的 reconnect 继续保留原编辑状态，不走该 successful handoff
-重建；失败 resume 不动现有状态。root 确认此边界，2026-10-01；完整 ChatWidget lifecycle 仍 partial。
-Agent Center 的 `AgentsOverviewState::view` 是唯一交互 owner，输入直接更新它，canonical
-notification/refresh 只投影同一 view；分页只同步标量。不存在锁内 view 镜像、可见 id 副本或
+重建；失败 resume 不动现有状态。root 确认此边界，2026-10-02；ChatWidget 的 collaboration
+scope、replay seed 和其它 Codex session state 仍 partial。
+Agent Center 的 `ChatWidget.agents_overview -> AgentsOverviewState::view` 是唯一交互 owner，输入
+直接更新它；App 只负责 App Server 请求、canonical Thread notification 和 refresh 接线，均投影
+回同一 view；分页只同步标量。不存在锁内 view 镜像、可见 id 副本或
 无消费者的 daemon task 字段。Codex 的 `Arc<Mutex<ViewState>>` 有真实 SelectionView 消费者；
 Lime 当前直接渲染拥有的 view，因此不复制该共享宿主机制来伪装同构。
+model、agent、resume 与 export picker 也由 `ChatWidget` 持有 transient state；App 只负责打开
+动作、App Server 提交与 Thread/turn projection。`view`、input routing、footer/shortcut visibility
+和 picker lifecycle 必须读取同一 ChatWidget 实例，不允许恢复 App 级平行 picker 字段或第二个
+render owner。picker 的 catalog、session settings 和 canonical request 仍由既有 App Server
+边界提供，不把 UI owner 迁成 TUI 私有后端。
+session settings 的 surface projection 也归 `ChatWidget`：`model_catalog`、`model`、
+`model_provider`、`reasoning_effort`、`permissions`、`permission_profiles` 与
+`collaboration_mode` 由该 owner 同步并供 picker、status、快捷键和历史展示读取；
+`App::handle_event` 只负责把选择/循环动作 lowering 到既有 `thread/settings/update` 与
+`collaborationMode` JSON-RPC，不能在 App 再保留平行 settings/catalog 字段。catalog 与
+权限事实仍来自 App Server/session，不在 TUI 建第二份 provider 或持久化 owner。
+raw/rich transcript presentation mode (`HistoryRenderMode`) 同样属于 `ChatWidget`，App 只保留
+切换动作和状态反馈，不再保存第二份 presentation flag。
 本地图片由 `chat_composer::AttachmentState` 保存同一 `LocalImageAttachment` 的路径、占位符与
 typed `ImageDetail`，不再用重复的内部 AttachedImage 或 paths-only history 重建。远程图片由
 `RemoteImageAttachment { url, detail }` 保存完整 canonical 元数据；不存在按 URL 关联 detail
@@ -172,8 +202,8 @@ host lookup tasks 随 owner 释放中止，terminal event loop 不等待历史 I
 Replace recovery 属于该状态，跳过附件，粘贴前缀回收和 Backspace 共用同一 recovery；普通 buffer
 replacement 清除命令，取消搜索则恢复完整录制状态。Normal 模式禁止 paste burst 抢占命令。
 小模块拆分为仓库行数约束差异，不建立第二个 state owner；完整 Vim keymap consumer 已接入，
-thread handoff 已清理 Vim edit lifetime 并传递 session register；replay-seeded history、完整
-thread-owned composer lifecycle 仍未完成。
+thread handoff 已清理 Vim edit lifetime 并传递 session register；replay-seeded history、
+ChatWidget collaboration scope 和其它 session state 恢复仍未完成。
 数据流为 `paste -> ChatComposer draft/TextArea -> Text + TextElement / remote images / local images
 -> App Server -> canonical Thread/Turn/Item`；App/Runtime 只 lowering 为现有结构化 `UserInput`，
 顺序为 remote images、local images、text、skills。传输失败与 queue edit 回到同一草稿 owner。
@@ -192,7 +222,8 @@ prompt-history public append 与 entry 的 identity 统一为 `threadId`；TUI �
 JSONL `session_id` 字段由同一 canonical Thread ID lowering，不新增存储或兼容公开字段。
 此处复用同名 Codex owner/方法；小模块拆分、canonical queue 和严格 literal 保留为 merge。
 不增加第二套 composer、history DB、协议、turn/queue authority 或持久化；app/plugin/task mentions、
-完整 ChatWidget 与 thread-owned BottomPane lifecycle 仍为 partial。本轮架构图确认：
+ChatWidget collaboration scope、replay seed 与其它 session state 恢复仍为 partial，BottomPane 主输入
+与 transcript presentation 生命周期已收敛。本轮架构图确认：
 上面的 owner/data-flow 为 current，责任开发者 root，2026-10-01；无外部兼容或平行后端。
 
 终端 diff 由 `diff_render` 的唯一 parser/wrap owner 与 `diff_render/style` 的单次终端样式快照绘制，
@@ -1085,8 +1116,8 @@ Pending 必须在 canonical/projected/in-memory 的 Thread/session read/list、r
 
 ### 6.4 领域与基础设施组
 
-| Crate                                            | 准入                                                                                                           |
-| ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| Crate                                            | 准入                                                                                                                                                  |
+| ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `config`、`infra`、`core`                        | 配置、平台无关基础设施和稳定公共模型；不接受默认塞入的新 runtime 逻辑。                                                                               |
 | `services`、`processor`                          | 有明确领域 owner 的服务与处理器；中心 facade 只做 dispatch。                                                                                          |
 | `knowledge`、`embedding`、`document-preview`     | 独立领域能力。                                                                                                                                        |

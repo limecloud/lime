@@ -135,7 +135,11 @@ async fn real_stdio_queue_and_rejected_submission_preserve_typed_metadata() {
         .await
         .unwrap());
     assert!(app.restore_queued_submission_for_edit(listed[0].clone()));
-    let mut remote = app.composer.remote_images().to_vec();
+    let mut remote = app
+        .chat_widget
+        .bottom_pane
+        .composer_remote_images()
+        .to_vec();
     remote[0].url = "data:image/png;base64,not-base64!".into();
     app.restore_submission_draft(
         "界[token]".into(),
@@ -193,11 +197,11 @@ async fn real_stdio_queue_and_rejected_submission_preserve_typed_metadata() {
 
 fn composer_input(app: &App) -> Vec<UserInput> {
     submission_input(
-        app.composer.text().into(),
-        &app.composer.local_images(),
-        app.composer.remote_images(),
+        app.chat_widget.bottom_pane.composer_text().into(),
+        &app.chat_widget.bottom_pane.composer_local_images(),
+        app.chat_widget.bottom_pane.composer_remote_images(),
         &[],
-        app.composer.textarea().text_elements(),
+        app.chat_widget.bottom_pane.composer_text_elements(),
         &[],
     )
 }

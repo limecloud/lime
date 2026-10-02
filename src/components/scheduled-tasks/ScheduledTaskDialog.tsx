@@ -15,6 +15,7 @@ import {
 
 interface ScheduledTaskDialogProps {
   open: boolean;
+  mode: "create" | "edit";
   initialForm: ScheduledTaskFormState | null;
   saving: boolean;
   onOpenChange: (open: boolean) => void;
@@ -23,6 +24,7 @@ interface ScheduledTaskDialogProps {
 
 export function ScheduledTaskDialog({
   open,
+  mode,
   initialForm,
   saving,
   onOpenChange,
@@ -63,24 +65,31 @@ export function ScheduledTaskDialog({
     if (!form) {
       return;
     }
-    const nextErrors = validateScheduledTaskForm(form);
+    const normalizedForm = form.title.trim()
+      ? form
+      : {
+          ...form,
+          title: form.prompt.trim().split(/\r?\n/, 1)[0]?.slice(0, 80) || form.title,
+        };
+    const nextErrors = validateScheduledTaskForm(normalizedForm);
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) {
       toast.error(t("scheduledTasks.editor.validation.fix"));
       return;
     }
-    await onSubmit(form);
+    await onSubmit(normalizedForm);
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        maxWidth="max-w-[820px]"
-        className="lime-workbench-theme-scope h-[min(860px,calc(100vh-32px))] overflow-hidden rounded-lg border border-slate-200 bg-white p-0"
+        maxWidth="max-w-[548px]"
+        className="lime-workbench-theme-scope overflow-hidden rounded-[20px] border border-slate-200 bg-white p-0 shadow-2xl"
       >
         {form ? (
           <ScheduledTaskEditor
-            mode="create"
+            mode={mode}
+            compact
             form={form}
             errors={errors}
             preview={preview}

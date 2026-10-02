@@ -73,7 +73,10 @@ fn wrapped_url_fragments_keep_the_complete_destination() {
 fn composer_wrapped_url_fragments_keep_the_complete_destination() {
     let url = "https://github.com/openai/codex/pull/20252";
     let mut app = crate::app::App::default();
-    app.composer.insert(&format!("Fix CI on {url}"));
+    app.chat_widget
+        .bottom_pane
+        .composer
+        .insert(&format!("Fix CI on {url}"));
     let backend = ratatui::backend::TestBackend::new(34, 8);
     let mut terminal = ratatui::Terminal::new(backend).expect("terminal");
     terminal

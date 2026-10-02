@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -33,14 +33,13 @@ describe("Codex structured mention owners", () => {
     }
   });
   it("moves thread input views instead of flattening or clearing unresolved interactions", () => {
-    expect(source("app.rs")).toContain(
-      "HashMap<String, thread_input::ThreadInputState>",
-    );
+    expect(source("app.rs")).toContain("HashMap<String, BottomPaneInputState>");
     const input = source("app/thread_input.rs");
-    expect(input).toContain("bottom_pane: BottomPaneInputState");
-    expect(input).toContain("self.bottom_pane.take_input_state()");
     expect(input).toContain(
-      "self.bottom_pane.restore_input_state(state.bottom_pane)",
+      "self.chat_widget.bottom_pane.take_input_state()",
+    );
+    expect(input).toContain(
+      "self.chat_widget.bottom_pane.restore_input_state(state)",
     );
     expect(input).toContain("self.thread_event_channels.clear()");
     expect(source("app/session_lifecycle.rs")).not.toContain(
@@ -225,7 +224,7 @@ describe("Codex composer, modal and incremental history owners", () => {
   });
   it("propagates the same snapshot into queued and new BottomPane text editors", () => {
     expect(source("app.rs")).toContain(
-      "self.bottom_pane.set_keymap_bindings(&keymap)",
+      "self.chat_widget.bottom_pane.set_keymap_bindings(&keymap)",
     );
     const pane = source("bottom_pane/mod.rs");
     expect(pane).toContain("request.set_keymap_bindings(keymap)");
@@ -268,13 +267,13 @@ describe("Codex composer, modal and incremental history owners", () => {
     ]) {
       expect(input).toContain(symbol);
     }
-    expect(source("app.rs")).toContain(
-      "self.composer.set_keymap_bindings(&keymap)",
+    expect(source("bottom_pane/mod.rs")).toContain(
+      "self.composer.set_keymap_bindings(keymap)",
     );
     expect(source("bottom_pane/chat_composer/input.rs")).toContain(
       "editor_key_event_is_owned",
     );
-    expect(source("app/interaction.rs")).toContain(
+    expect(source("bottom_pane/input.rs")).toContain(
       "self.composer.key_chord_pending()",
     );
     for (const file of [
@@ -328,7 +327,7 @@ describe("Codex composer, modal and incremental history owners", () => {
     expect(stored).toContain("fn edit_stored_draft(");
     expect(stored).toContain("fn draft_snapshot(");
     expect(stored).toContain("swap_vim_persistent_state");
-    expect(source("app/thread_input.rs")).toContain(
+    expect(source("bottom_pane/input_state.rs")).toContain(
       "self.composer.draft_snapshot()",
     );
     expect(source("bottom_pane/chat_composer/draft.rs")).toContain(
@@ -452,5 +451,228 @@ describe("Codex composer, modal and incremental history owners", () => {
     ]) {
       expect(source(owner).split("\n").length, owner).toBeLessThan(800);
     }
+  });
+});
+
+describe("ChatWidget live composer ownership", () => {
+  it("keeps the BottomPane inside the current ChatWidget owner", () => {
+    const app = source("app.rs");
+    expect(app).toContain("chat_widget: ChatWidget");
+    expect(source("chatwidget.rs")).toContain(
+      "pub(crate) bottom_pane: BottomPane",
+    );
+    expect(source("lib.rs")).toContain("mod chatwidget;");
+    expect(app).not.toContain("bottom_pane: BottomPane");
+  });
+  it("forbids App editor fields, getters and direct editor consumers outside the pane", () => {
+    const root = path.resolve(process.cwd(), "lime-rs/crates/tui/src");
+    const visit = (directory) => {
+      for (const entry of readdirSync(directory, { withFileTypes: true })) {
+        const file = path.join(directory, entry.name);
+        if (entry.isDirectory()) {
+          if (file !== path.join(root, "bottom_pane")) visit(file);
+        } else if (entry.name.endsWith(".rs")) {
+          const text = readFileSync(file, "utf8");
+          expect(text, file).not.toMatch(/\b(?:app|self)\s*\.\s*composer\b/u);
+          expect(text, file).not.toMatch(/\.\s*bottom_pane\s*\.\s*composer\b/u);
+        }
+      }
+    };
+    visit(root);
+    const app = source("app.rs");
+    expect(app).not.toMatch(/composer\s*:\s*ChatComposer/u);
+    expect(app).not.toMatch(
+      /fn\s+(?:composer|composer_mut|replace_composer)\s*\(/u,
+    );
+    expect(source("bottom_pane/mod.rs")).toContain("composer: ChatComposer");
+    expect(source("bottom_pane/composer.rs")).not.toMatch(
+      /Deref|->\s*&(?:mut\s+)?ChatComposer/u,
+    );
+  });
+  it("keeps input, popup painting, timers and atomic snapshots inside the pane", () => {
+    const interaction = source("app/interaction.rs");
+    for (const old of [
+      "handle_command_popup_event",
+      "handle_file_search_popup_event",
+      "handle_skill_popup_event",
+      "prepare_popup_key_event",
+      "vim_search_wants_key",
+    ]) {
+      expect(interaction, old).not.toContain(old);
+    }
+    expect(interaction).toContain(
+      "self.chat_widget.bottom_pane.handle_event(event.clone())",
+    );
+    expect(source("bottom_pane/input.rs")).toContain(
+      "self.handle_interaction_event(event)",
+    );
+    expect(source("bottom_pane/input.rs")).toContain(
+      "self.handle_event_at(Event::Key(key), now)",
+    );
+    expect(source("bottom_pane/render.rs")).toContain(
+      "pane.composer.render(frame, area, locale)",
+    );
+    expect(source("view.rs")).not.toContain("command_popup::render");
+    expect(source("view.rs")).toMatch(
+      /app\s*\.\s*chat_widget\s*\.\s*bottom_pane\s*\.\s*render_popups/u,
+    );
+    const pane = source("bottom_pane/mod.rs");
+    expect(pane).toContain("self.composer.handle_paste_burst_flush(now)");
+    expect(pane).toContain("Some(a.min(b))");
+    expect(source("app.rs")).not.toContain("handle_paste_burst_flush");
+    const state = source("bottom_pane/input_state.rs");
+    expect(state).toContain("composer: ComposerDraft");
+    expect(state).toContain("self.composer.flush_paste_burst_before_handoff()");
+    expect(state).toContain("std::mem::take(&mut self.queue)");
+    expect(source("app/thread_input.rs")).not.toContain(
+      "struct ThreadInputState",
+    );
+    for (const owner of [
+      "bottom_pane/mod.rs",
+      "bottom_pane/composer.rs",
+      "bottom_pane/input.rs",
+      "bottom_pane/input_state.rs",
+      "bottom_pane/render.rs",
+    ]) {
+      expect(source(owner).split("\n").length, owner).toBeLessThan(800);
+    }
+  });
+
+  it("keeps transcript presentation state inside the ChatWidget owner", () => {
+    const widget = source("chatwidget.rs");
+    const app = source("app.rs");
+    for (const field of [
+      "pager_overlay: Option<PagerOverlay>",
+      "transcript_presentation: TranscriptPresentation",
+      "transcript_scroll: usize",
+      "transcript_viewport:",
+      "transcript_follow_control:",
+      "transcript_composer_gap:",
+      "transcript_footer:",
+      "transcript_prompt_header:",
+      "transcript_search:",
+      "transcript_selection:",
+    ]) {
+      expect(widget, field).toContain(field);
+    }
+    const appStruct = app.slice(
+      app.indexOf("pub(crate) struct App"),
+      app.indexOf("\n}\n\nimpl App"),
+    );
+    for (const field of [
+      "pager_overlay:",
+      "transcript_presentation:",
+      "transcript_scroll:",
+      "transcript_viewport:",
+      "transcript_follow_control:",
+      "transcript_composer_gap:",
+      "transcript_footer:",
+      "transcript_prompt_header:",
+      "transcript_search:",
+      "transcript_selection:",
+    ]) {
+      expect(appStruct, field).not.toContain(field);
+    }
+    const presentation = source("app/transcript_presentation.rs");
+    expect(presentation).toContain("self.chat_widget.transcript_presentation");
+    expect(presentation).toContain("self.chat_widget.pager_overlay");
+  });
+
+  it("keeps the Agent Center surface inside ChatWidget while App owns transport", () => {
+    const widget = source("chatwidget.rs");
+    const app = source("app.rs");
+    expect(widget).toContain(
+      "pub(crate) agents_overview: Option<AgentsOverviewState>",
+    );
+    const appStruct = app.slice(
+      app.indexOf("pub(crate) struct App"),
+      app.indexOf("\n}\n\nimpl App"),
+    );
+    expect(appStruct).not.toContain("agents_overview:");
+    expect(app).not.toMatch(/\b(?:app|self)\s*\.\s*agents_overview\b/u);
+    expect(source("app/agents_overview.rs")).toContain(
+      "self.chat_widget.agents_overview = Some(overview)",
+    );
+    expect(source("app/agents_overview_threads.rs")).toContain(
+      "self.chat_widget.agents_overview.as_mut()",
+    );
+    expect(source("view.rs")).toContain(
+      "app.chat_widget.agents_overview.as_ref()",
+    );
+  });
+
+  it("keeps transient picker and export surfaces inside ChatWidget", () => {
+    const widget = source("chatwidget.rs");
+    const app = source("app.rs");
+    for (const field of [
+      "model_picker: Option<ModelPicker>",
+      "agent_picker: Option<AgentPicker>",
+      "resume_picker: Option<PickerState>",
+      "export_picker: Option<ExportPicker>",
+    ]) {
+      expect(widget, field).toContain(field);
+    }
+    const appStruct = app.slice(
+      app.indexOf("pub(crate) struct App"),
+      app.indexOf("\n}\n\nimpl App"),
+    );
+    for (const field of [
+      "model_picker:",
+      "agent_picker:",
+      "resume_picker:",
+      "export_picker:",
+    ]) {
+      expect(appStruct, field).not.toContain(field);
+    }
+    expect(app).not.toMatch(
+      /\b(?:app|self)\s*\.\s*(?:model_picker|agent_picker|resume_picker|export_picker)\b/u,
+    );
+    expect(source("view.rs")).toContain("app.chat_widget.model_picker");
+    expect(source("view.rs")).toContain("app.chat_widget.resume_picker");
+    expect(source("app/interaction.rs")).toContain(
+      "self.chat_widget.model_picker",
+    );
+  });
+
+  it("keeps session settings and model catalog beside ChatWidget controls", () => {
+    const widget = source("chatwidget.rs");
+    const app = source("app.rs");
+    for (const field of [
+      "model_catalog: ModelCatalog",
+      "collaboration_mode: Option<agent_protocol::CollaborationMode>",
+      "model: Option<String>",
+      "model_provider: Option<String>",
+      "reasoning_effort: Option<String>",
+      "permissions: Option<String>",
+      "permission_profiles: Vec<String>",
+      "history_render_mode: HistoryRenderMode",
+    ]) {
+      expect(widget, field).toContain(field);
+    }
+    const appStruct = app.slice(
+      app.indexOf("pub(crate) struct App"),
+      app.indexOf("\n}\n\nimpl App"),
+    );
+    for (const field of [
+      "model_catalog:",
+      "collaboration_mode:",
+      "model:",
+      "model_provider:",
+      "reasoning_effort:",
+      "permissions:",
+      "permission_profiles:",
+      "history_render_mode:",
+    ]) {
+      expect(appStruct, field).not.toContain(field);
+    }
+    expect(source("app/thread_settings.rs")).toContain(
+      "self.chat_widget.model_catalog",
+    );
+    expect(source("app/event_dispatch.rs")).toContain(
+      "self.chat_widget.collaboration_mode",
+    );
+    expect(source("app/history_ui.rs")).toContain(
+      "app.chat_widget.reasoning_effort",
+    );
   });
 });

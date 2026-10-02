@@ -2,6 +2,8 @@ import { UI_LOCALE_OPTIONS } from "@/i18n/locales";
 
 export const APP_SIDEBAR_COLLAPSED_STORAGE_KEY = "lime.app-sidebar.collapsed";
 export const APP_SIDEBAR_COLLAPSE_EVENT = "lime:app-sidebar-collapse";
+export const APP_SIDEBAR_WIDTH = 280;
+export const APP_SIDEBAR_RAIL_WIDTH = 40;
 
 export const SIDEBAR_RECENT_SESSION_PAGE_SIZE = 10;
 export const SIDEBAR_SEARCH_RESULT_LIMIT = 8;

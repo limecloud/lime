@@ -94,7 +94,7 @@ fn fullscreen_details_keeps_complete_command_and_original_decision_identity() {
         )
         .is_none());
     match pane
-        .handle_event(Event::Key(KeyEvent::new(
+        .handle_interaction_event(Event::Key(KeyEvent::new(
             KeyCode::Enter,
             KeyModifiers::NONE,
         )))

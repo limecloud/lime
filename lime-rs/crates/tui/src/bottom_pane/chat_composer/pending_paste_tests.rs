@@ -214,16 +214,30 @@ fn every_locale_uses_an_atomic_label_but_submits_the_same_content() {
     ] {
         let mut app = crate::app::App::default();
         app.set_locale(locale);
-        app.composer.handle_paste(&pasted);
-        assert_eq!(app.composer.text(), locale.pasted_content_label(1001));
+        app.chat_widget.bottom_pane.composer.handle_paste(&pasted);
         assert_eq!(
-            app.composer.draft.textarea.text_element_snapshots().len(),
+            app.chat_widget.bottom_pane.composer.text(),
+            locale.pasted_content_label(1001)
+        );
+        assert_eq!(
+            app.chat_widget
+                .bottom_pane
+                .composer
+                .draft
+                .textarea
+                .text_element_snapshots()
+                .len(),
             1
         );
         let mut terminal =
             ratatui::Terminal::new(ratatui::backend::TestBackend::new(80, 3)).unwrap();
         terminal
-            .draw(|frame| app.composer.render(frame, frame.area(), locale))
+            .draw(|frame| {
+                app.chat_widget
+                    .bottom_pane
+                    .composer
+                    .render(frame, frame.area(), locale)
+            })
             .unwrap();
         let rendered = terminal
             .backend()
@@ -243,7 +257,7 @@ fn every_locale_uses_an_atomic_label_but_submits_the_same_content() {
             "{locale:?}: {rendered}"
         );
         assert_eq!(
-            key(&mut app.composer, KeyCode::Enter),
+            key(&mut app.chat_widget.bottom_pane.composer, KeyCode::Enter),
             InputResult::Submitted {
                 text: pasted.clone(),
                 text_elements: Vec::new()
@@ -268,13 +282,22 @@ fn history_navigation_and_thread_draft_handoff_never_leave_orphan_placeholders()
 
     let mut app = crate::app::App::default();
     app.thread_id = Some("root".into());
-    app.composer.handle_paste(&pasted);
-    let thread_snapshot = app.composer.snapshot_draft();
+    app.chat_widget.bottom_pane.composer.handle_paste(&pasted);
+    let thread_snapshot = app.chat_widget.bottom_pane.composer.snapshot_draft();
     app.capture_current_thread_input();
-    app.composer.replace(String::new());
+    app.chat_widget.bottom_pane.composer.replace(String::new());
     app.restore_thread_input("root");
-    assert_eq!(app.composer.snapshot_draft(), thread_snapshot);
-    assert_eq!(app.composer.current_text_with_pending(), pasted);
+    assert_eq!(
+        app.chat_widget.bottom_pane.composer.snapshot_draft(),
+        thread_snapshot
+    );
+    assert_eq!(
+        app.chat_widget
+            .bottom_pane
+            .composer
+            .current_text_with_pending(),
+        pasted
+    );
 }
 
 #[test]

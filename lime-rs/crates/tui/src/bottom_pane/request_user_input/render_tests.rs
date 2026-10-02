@@ -54,7 +54,8 @@ fn oversized_notes_remain_editable_and_show_localized_rejection_in_the_visible_f
         .is_none());
     assert_eq!(request.composer.snapshot_draft(), draft);
     let mut app = crate::app::App::default();
-    app.bottom_pane
+    app.chat_widget
+        .bottom_pane
         .queue
         .push_back(crate::bottom_pane::PendingInteraction::UserInput(request));
     for locale in [
@@ -75,13 +76,14 @@ fn oversized_notes_remain_editable_and_show_localized_rejection_in_the_visible_f
             "locale={locale:?}: {text}"
         );
     }
-    app.bottom_pane
+    app.chat_widget
+        .bottom_pane
         .handle_key_event(crossterm::event::KeyEvent::new(
             crossterm::event::KeyCode::Backspace,
             crossterm::event::KeyModifiers::NONE,
         ));
     let Some(crate::bottom_pane::PendingInteraction::UserInput(request)) =
-        app.bottom_pane.queue.front()
+        app.chat_widget.bottom_pane.queue.front()
     else {
         panic!("oversized notes must remain pending");
     };

@@ -220,10 +220,10 @@ describe("ScheduledTasksPage", () => {
     const container = renderPage({ onNavigate });
     await flushEffects();
 
-    expect(container.textContent).toContain("还没有已安排任务");
+    expect(container.textContent).toContain("暂无已安排的任务");
     expect(container.textContent).toContain("选择任务或创建新任务");
 
-    await click(findButton(container, "创建任务"));
+    await click(findButton(container, "新建任务"));
     expect(container.textContent).toContain("使用 Lime 创建");
     expect(container.textContent).toContain("手动设置");
 
@@ -240,15 +240,15 @@ describe("ScheduledTasksPage", () => {
       }),
     );
 
-    await click(findButton(container, "创建任务"));
+    await click(findButton(container, "新建任务"));
     const manualItem = Array.from(
       container.querySelectorAll<HTMLElement>('[role="menuitem"]'),
     ).find((item) => item.textContent?.includes("手动设置"));
     expect(manualItem).toBeTruthy();
     await click(manualItem as HTMLElement);
-    expect(container.textContent).toContain("创建已安排任务");
+    expect(document.body.textContent).toContain("设置定时任务");
     expect(
-      container.querySelector('input[placeholder*="每日项目进展"]'),
+      document.body.querySelector('textarea[aria-label="任务说明"]'),
     ).toBeTruthy();
   });
 
@@ -267,14 +267,14 @@ describe("ScheduledTasksPage", () => {
     });
     await flushEffects();
 
-    await click(findButton(container, "创建任务"));
+    await click(findButton(container, "新建任务"));
     const manualItem = Array.from(
       document.body.querySelectorAll<HTMLElement>('[role="menuitem"]'),
     ).find((item) => item.textContent?.includes("手动设置"));
     await click(manualItem as HTMLElement);
 
     const modelInput = Array.from(
-      container.querySelectorAll<HTMLInputElement>("input"),
+      document.body.querySelectorAll<HTMLInputElement>("input"),
     ).find(
       (input) => input.value === "custom-agnes / agnes-2.5-flash",
     );

@@ -44,15 +44,13 @@ use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 use self::agent_navigation::{AgentNavigationDirection, AgentNavigationState};
-use self::agent_picker::AgentPicker;
-use self::agents_overview::AgentsOverviewState;
-use self::transcript_export::ExportPicker;
-use crate::bottom_pane::{AppServerResponse, BottomPane, ChatComposer};
+use crate::app::transcript_export::ExportPicker;
+use crate::bottom_pane::{AppServerResponse, BottomPaneInputState};
+use crate::chatwidget::ChatWidget;
 use crate::clipboard_paste::ClipboardTextSource;
 use crate::history_cell::HistoryRenderMode;
 use crate::locale::Locale;
-use crate::model_catalog::ModelCatalog;
-use crate::model_picker::{ModelPicker, ModelSelection};
+use crate::model_picker::ModelSelection;
 use crate::pager_overlay::PagerOverlay;
 use crate::projection::ConversationProjection;
 use crate::resume_picker::{PickerAction, PickerState};
@@ -145,44 +143,20 @@ pub(crate) enum ExternalEditorState {
 
 #[derive(Debug, Default)]
 pub(crate) struct App {
-    pub(crate) bottom_pane: BottomPane,
-    pub(crate) composer: ChatComposer,
+    pub(crate) chat_widget: ChatWidget,
     pub(crate) projection: ConversationProjection,
-    pub(crate) model_picker: Option<ModelPicker>,
-    pub(crate) agent_picker: Option<AgentPicker>,
-    pub(crate) agents_overview: Option<AgentsOverviewState>,
-    pub(crate) resume_picker: Option<PickerState>,
-    pub(crate) model_catalog: ModelCatalog,
     pub(crate) skill_load_warnings: startup_prompts::SkillLoadWarningState,
     pub(crate) mcp_startup_warnings: startup_prompts::McpStartupWarningState,
     pending_mcp_login_start: Option<mcp_login::PendingMcpLoginStart>,
     active_mcp_login_ids: HashMap<String, mcp_login::ActiveMcpLogin>,
     mcp_login_generation: u64,
-    pub(crate) collaboration_mode: Option<agent_protocol::CollaborationMode>,
-    pub(crate) pager_overlay: Option<PagerOverlay>,
-    transcript_presentation: transcript_presentation::TranscriptPresentation,
-    pub(crate) export_picker: Option<ExportPicker>,
     pub(crate) thread_id: Option<String>,
     pub(crate) primary_thread_id: Option<String>,
     pub(crate) agent_navigation: AgentNavigationState,
     thread_event_channels: HashMap<String, self::thread_events::ThreadEventChannel>,
-    pub(crate) model: Option<String>,
-    pub(crate) model_provider: Option<String>,
-    pub(crate) reasoning_effort: Option<String>,
-    pub(crate) permissions: Option<String>,
-    pub(crate) permission_profiles: Vec<String>,
-    pub(crate) transcript_scroll: usize,
     pub(crate) scrollback_has_older_history: bool,
-    pub(crate) transcript_viewport: crate::transcript_reflow::TranscriptViewport,
-    pub(crate) transcript_follow_control: crate::transcript_view::TranscriptFollowControl,
-    pub(crate) transcript_composer_gap: crate::transcript_view::TranscriptComposerGap,
-    pub(crate) transcript_footer: crate::transcript_view::TranscriptFooter,
-    pub(crate) transcript_prompt_header: crate::transcript_view::TranscriptPromptHeader,
-    pub(crate) transcript_search: crate::transcript_view::TranscriptSearch,
-    pub(crate) transcript_selection: crate::transcript_view::TranscriptSelection,
     pub(crate) runtime_keymap: crate::keymap::RuntimeKeymap,
     pub(crate) global_key_chord_matcher: crate::keymap::KeyChordMatcher,
-    history_render_mode: HistoryRenderMode,
     pub(crate) locale: Locale,
     pub(crate) cwd: PathBuf,
     pub(crate) clipboard_lease: Option<crate::clipboard_copy::ClipboardLease>,
@@ -192,7 +166,7 @@ pub(crate) struct App {
     pub(crate) right_click_paste: RightClickPaste,
     pending_clipboard_paste: Option<right_click_paste::PendingPaste>,
     pub(crate) queued_submissions: Vec<QueuedSubmission>,
-    thread_input_states: HashMap<String, thread_input::ThreadInputState>,
+    thread_input_states: HashMap<String, BottomPaneInputState>,
     /// Keeps terminal input behind a startup request that may open a protected interaction.
     ///
     /// The App Server stream can deliver an approval or user-input request immediately after the
@@ -206,8 +180,7 @@ pub(crate) struct App {
 
 impl App {
     pub(crate) fn set_runtime_keymap(&mut self, keymap: crate::keymap::RuntimeKeymap) {
-        self.composer.set_keymap_bindings(&keymap);
-        self.bottom_pane.set_keymap_bindings(&keymap);
+        self.chat_widget.bottom_pane.set_keymap_bindings(&keymap);
         self.runtime_keymap = keymap;
         self.global_key_chord_matcher.reset();
     }
@@ -216,19 +189,17 @@ impl App {
         self.right_click_paste = mode;
     }
 
-    pub(crate) fn history_render_mode(&self) -> HistoryRenderMode {
-        self.history_render_mode
-    }
-
     pub(crate) fn raw_output_mode(&self) -> bool {
-        self.history_render_mode == HistoryRenderMode::Raw
+        self.chat_widget.history_render_mode == HistoryRenderMode::Raw
     }
 
     fn toggle_raw_output_mode(&mut self) {
         self.finish_main_transcript_selection(false);
-        self.transcript_viewport.suppress_next_activity();
-        self.transcript_prompt_header.clear();
-        self.history_render_mode = match self.history_render_mode {
+        self.chat_widget
+            .transcript_viewport
+            .suppress_next_activity();
+        self.chat_widget.transcript_prompt_header.clear();
+        self.chat_widget.history_render_mode = match self.chat_widget.history_render_mode {
             HistoryRenderMode::Rich => HistoryRenderMode::Raw,
             HistoryRenderMode::Raw => HistoryRenderMode::Rich,
         };
@@ -283,7 +254,7 @@ impl App {
     pub(crate) fn release_startup_input_boundary_if_ready(&mut self, user_input: bool) -> bool {
         if !user_input
             || !self.startup_protected_input_boundary
-            || self.bottom_pane.is_active()
+            || self.chat_widget.bottom_pane.is_active()
             || self.has_queued_startup_protected_request()
         {
             return false;
@@ -294,17 +265,19 @@ impl App {
 
     pub(crate) fn set_thread_id(&mut self, thread_id: String) {
         if self.thread_id.as_deref() != Some(thread_id.as_str()) {
-            self.composer.set_history_thread_id(&thread_id);
+            self.chat_widget
+                .bottom_pane
+                .set_history_thread_id(&thread_id);
             self.reset_transcript_presentation();
             self.primary_clipboard_lease = None;
             self.queued_submissions.clear();
-            self.transcript_scroll = 0;
-            self.transcript_viewport.clear();
-            self.transcript_follow_control.clear();
-            self.transcript_composer_gap.clear();
-            self.transcript_prompt_header.clear();
-            self.transcript_search.clear();
-            self.transcript_selection.reset();
+            self.chat_widget.transcript_scroll = 0;
+            self.chat_widget.transcript_viewport.clear();
+            self.chat_widget.transcript_follow_control.clear();
+            self.chat_widget.transcript_composer_gap.clear();
+            self.chat_widget.transcript_prompt_header.clear();
+            self.chat_widget.transcript_search.clear();
+            self.chat_widget.transcript_selection.reset();
             self.turn_lifecycle.reset_thread();
             self.turn_lifecycle
                 .restore_running(self.projection.active_turn_id(), Instant::now());
@@ -322,7 +295,7 @@ impl App {
 
     pub(crate) fn set_locale(&mut self, locale: Locale) {
         self.locale = locale;
-        self.composer.set_locale(locale);
+        self.chat_widget.bottom_pane.set_locale(locale);
     }
 
     /// Return the user-visible status while keeping active-turn and explicit command status ahead
@@ -340,13 +313,13 @@ impl App {
 
     pub(crate) fn hydrate_thread(&mut self, thread: Thread) {
         self.primary_clipboard_lease = None;
-        self.transcript_scroll = 0;
-        self.transcript_viewport.clear();
-        self.transcript_follow_control.clear();
-        self.transcript_composer_gap.clear();
-        self.transcript_prompt_header.clear();
-        self.transcript_search.clear();
-        self.transcript_selection.reset();
+        self.chat_widget.transcript_scroll = 0;
+        self.chat_widget.transcript_viewport.clear();
+        self.chat_widget.transcript_follow_control.clear();
+        self.chat_widget.transcript_composer_gap.clear();
+        self.chat_widget.transcript_prompt_header.clear();
+        self.chat_widget.transcript_search.clear();
+        self.chat_widget.transcript_selection.reset();
         self.turn_lifecycle.reset_thread();
         self.agent_navigation.upsert(
             thread.id.clone(),
@@ -385,15 +358,8 @@ impl App {
         true
     }
 
-    #[cfg(test)]
-    pub(crate) fn replace_composer(&mut self, text: String) {
-        self.composer.replace(text);
-        self.sync_completion_popup();
-    }
-
     pub(crate) fn apply_external_edit(&mut self, text: String) {
-        self.composer.apply_external_edit(text);
-        self.sync_completion_popup();
+        self.chat_widget.bottom_pane.apply_external_edit(text);
     }
 
     pub(crate) fn external_editor_state(&self) -> ExternalEditorState {
@@ -416,53 +382,54 @@ impl App {
 
     pub(crate) fn pre_draw_tick(&mut self, now: Instant) -> AppAction {
         let action = self
+            .chat_widget
             .bottom_pane
             .pre_draw_tick(now)
             .map(AppAction::Respond)
             .unwrap_or(AppAction::None);
-        if matches!(action, AppAction::Respond(_)) && !self.bottom_pane.is_active() {
+        if matches!(action, AppAction::Respond(_)) && !self.chat_widget.bottom_pane.is_active() {
             self.startup_pending_protected_request = false;
         }
         if !matches!(action, AppAction::None) {
             return action;
         }
-        let paste_burst_flushed = self.composer.handle_paste_burst_flush(now);
-        if paste_burst_flushed {
-            self.sync_completion_popup();
-        }
-        let paste_burst_needs_frame = self.composer.paste_burst_needs_frame();
-        let selection_scrolled = if let Some(picker) = self.resume_picker.as_ref() {
+        let selection_scrolled = if let Some(picker) = self.chat_widget.resume_picker.as_ref() {
             picker.tick_transcript_selection()
-        } else if self.pager_overlay.is_some() {
-            self.pager_overlay
+        } else if self.chat_widget.pager_overlay.is_some() {
+            self.chat_widget
+                .pager_overlay
                 .as_ref()
                 .is_some_and(PagerOverlay::tick_transcript_selection)
         } else {
-            self.transcript_selection.tick_edge_scroll()
+            self.chat_widget.transcript_selection.tick_edge_scroll()
         };
-        if selection_scrolled || paste_burst_needs_frame {
+        if selection_scrolled {
             AppAction::ScheduleFrameIn(crate::tui::TARGET_FRAME_INTERVAL)
         } else if self
+            .chat_widget
             .transcript_search
             .take_history_request(self.scrollback_has_older_history)
             || self
+                .chat_widget
                 .pager_overlay
                 .as_ref()
                 .is_some_and(PagerOverlay::take_search_history_request)
         {
             AppAction::LoadOlderHistory
-        } else if self.transcript_search.needs_frame()
+        } else if self.chat_widget.transcript_search.needs_frame()
             || self
+                .chat_widget
                 .pager_overlay
                 .as_ref()
                 .is_some_and(PagerOverlay::search_needs_frame)
             || self
+                .chat_widget
                 .resume_picker
                 .as_ref()
                 .is_some_and(PickerState::transcript_search_needs_frame)
         {
             AppAction::ScheduleFrameIn(crate::tui::TARGET_FRAME_INTERVAL)
-        } else if let Some(delay) = self.transcript_composer_gap.tick(now) {
+        } else if let Some(delay) = self.chat_widget.transcript_composer_gap.tick(now) {
             AppAction::ScheduleFrameIn(delay)
         } else {
             AppAction::None
@@ -470,57 +437,47 @@ impl App {
     }
 
     pub(crate) fn scroll_up(&mut self, amount: usize) {
-        self.transcript_scroll = self.transcript_scroll.saturating_add(amount);
+        self.chat_widget.transcript_scroll =
+            self.chat_widget.transcript_scroll.saturating_add(amount);
     }
 
     pub(crate) fn scroll_down(&mut self, amount: usize) {
-        self.transcript_scroll = self.transcript_scroll.saturating_sub(amount);
+        self.chat_widget.transcript_scroll =
+            self.chat_widget.transcript_scroll.saturating_sub(amount);
     }
 
     pub(crate) fn scroll_top(&mut self) {
-        self.transcript_scroll = usize::MAX;
+        self.chat_widget.transcript_scroll = usize::MAX;
     }
 
     pub(crate) fn scroll_bottom(&mut self) {
-        self.transcript_scroll = 0;
+        self.chat_widget.transcript_scroll = 0;
     }
 
     pub(crate) fn finish_main_transcript_selection(&mut self, follow: bool) {
         if follow {
             self.scroll_bottom();
-        } else if let Some(distance) = self.transcript_selection.take_resume_distance_from_bottom()
+        } else if let Some(distance) = self
+            .chat_widget
+            .transcript_selection
+            .take_resume_distance_from_bottom()
         {
-            self.transcript_scroll = distance;
+            self.chat_widget.transcript_scroll = distance;
         }
-        self.transcript_selection.clear();
+        self.chat_widget.transcript_selection.clear();
         self.primary_clipboard_lease = None;
     }
 
-    fn complete_slash_command(&mut self, command: SlashCommand) {
-        let suffix = if command.requires_argument() { " " } else { "" };
-        self.composer
-            .replace(format!("/{}{suffix}", command.command()));
-        self.clear_completion_popup();
-    }
-
-    fn sync_completion_popup(&mut self) {
-        self.composer.sync_completion_popup();
-    }
-
-    fn clear_completion_popup(&mut self) {
-        self.composer.clear_completion_popup();
-    }
-
     fn run_local_command(&mut self) -> Option<AppAction> {
-        let text = self.composer.text().trim();
-        let command = self.composer.command_from_prompt(text)?;
+        let text = self.chat_widget.bottom_pane.composer_text().trim();
+        let command = self.chat_widget.bottom_pane.command_from_prompt(text)?;
         let action = match command {
             SlashCommand::Raw => {
                 self.toggle_raw_output_mode();
                 AppAction::None
             }
             SlashCommand::Vim => {
-                let enabled = self.composer.toggle_vim_enabled();
+                let enabled = self.chat_widget.bottom_pane.toggle_vim_enabled();
                 self.projection
                     .set_status(self.locale.vim_mode_message(enabled));
                 AppAction::None
@@ -537,7 +494,8 @@ impl App {
                     .filter(|path| !path.is_empty())
                     .map(PathBuf::from);
                 if path.is_none() {
-                    self.export_picker = Some(ExportPicker::new(self.thread_id.as_deref()));
+                    self.chat_widget.export_picker =
+                        Some(ExportPicker::new(self.thread_id.as_deref()));
                     AppAction::None
                 } else {
                     AppAction::ExportTranscript { path }
@@ -572,23 +530,25 @@ impl App {
             }
             _ => return None,
         };
-        self.composer.replace(String::new());
-        self.clear_completion_popup();
+        self.chat_widget
+            .bottom_pane
+            .set_composer_text(String::new());
+        self.chat_widget.bottom_pane.clear_completion_popup();
         Some(action)
     }
 
     fn open_status_pager(&mut self) {
         self.dismiss_pager_overlay();
         let cwd = self.cwd.to_string_lossy();
-        self.pager_overlay = Some(
+        self.chat_widget.pager_overlay = Some(
             PagerOverlay::status(
                 self.locale,
                 StatusFacts {
                     thread_id: self.thread_id.as_deref(),
-                    model: self.model.as_deref(),
-                    provider: self.model_provider.as_deref(),
-                    effort: self.reasoning_effort.as_deref(),
-                    permissions: self.permissions.as_deref(),
+                    model: self.chat_widget.model.as_deref(),
+                    provider: self.chat_widget.model_provider.as_deref(),
+                    effort: self.chat_widget.reasoning_effort.as_deref(),
+                    permissions: self.chat_widget.permissions.as_deref(),
                     cwd: &cwd,
                     status: &self.status_value(),
                 },
@@ -604,7 +564,7 @@ impl App {
     ) {
         let lines = crate::history_cell::mcp_inventory_lines(&statuses, detail, self.locale);
         self.dismiss_pager_overlay();
-        self.pager_overlay = Some(
+        self.chat_widget.pager_overlay = Some(
             PagerOverlay::new(self.locale.mcp_inventory_title().to_string(), lines)
                 .with_keymap(self.runtime_keymap.transcript().clone()),
         );

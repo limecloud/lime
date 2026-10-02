@@ -1,5 +1,4 @@
 use super::*;
-use crate::bottom_pane::command_popup::CommandPopup;
 use crate::bottom_pane::{LocalImageAttachment, RemoteImageAttachment};
 use agent_protocol::TextElement;
 use app_server_protocol::protocol::v2::{
@@ -15,8 +14,8 @@ use crossterm::event::{
 use lime_core::config::{KeybindingSpec, KeybindingsSpec, TuiKeymap};
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
-use ratatui::widgets::StatefulWidgetRef;
 
+use crate::resume_picker::PickerState;
 use crate::tui::TuiEvent;
 
 fn dispatch_connected_input(app: &mut App, event: Event) -> AppAction {
@@ -41,8 +40,9 @@ fn to_tui_event(event: Event) -> TuiEvent {
 #[test]
 fn active_bottom_pane_receives_input_before_the_chat_composer() {
     let mut app = App::default();
-    app.composer.insert("draft");
-    app.bottom_pane
+    app.chat_widget.bottom_pane.insert_str("draft");
+    app.chat_widget
+        .bottom_pane
         .enqueue(ServerRequest::ItemCommandExecutionRequestApproval {
             id: RequestId::Integer(7),
             params: CommandExecutionRequestApprovalParams {
@@ -65,7 +65,7 @@ fn active_bottom_pane_receives_input_before_the_chat_composer() {
         Event::Key(KeyEvent::new(KeyCode::Char('x'), KeyModifiers::NONE)),
     );
     assert_eq!(ignored, AppAction::None);
-    assert_eq!(app.composer.text(), "draft");
+    assert_eq!(app.chat_widget.bottom_pane.composer_text(), "draft");
 
     let response = dispatch_connected_input(
         &mut app,
@@ -80,21 +80,22 @@ fn active_bottom_pane_receives_input_before_the_chat_composer() {
             ..
         })
     ));
-    assert!(!app.bottom_pane.is_active());
-    assert_eq!(app.composer.text(), "draft");
+    assert!(!app.chat_widget.bottom_pane.is_active());
+    assert_eq!(app.chat_widget.bottom_pane.composer_text(), "draft");
 }
 
 #[test]
 fn modal_transcript_wheel_scrolls_only_inside_the_visible_transcript() {
     let mut app = App::default();
-    app.transcript_selection.update_layout(
+    app.chat_widget.transcript_selection.update_layout(
         Rect::new(0, 0, 40, 5),
         5,
         &(0..20)
             .map(|index| crate::terminal_hyperlinks::HyperlinkLine::from(format!("line {index}")))
             .collect::<Vec<_>>(),
     );
-    app.bottom_pane
+    app.chat_widget
+        .bottom_pane
         .enqueue(ServerRequest::ItemCommandExecutionRequestApproval {
             id: RequestId::Integer(11),
             params: CommandExecutionRequestApprovalParams {
@@ -145,20 +146,21 @@ fn modal_transcript_wheel_scrolls_only_inside_the_visible_transcript() {
         ),
         AppAction::None
     );
-    assert!(app.composer.is_empty());
+    assert!(app.chat_widget.bottom_pane.composer_is_empty());
 }
 
 #[test]
 fn modal_transcript_wheel_remains_available_during_request_user_input() {
     let mut app = App::default();
-    app.transcript_selection.update_layout(
+    app.chat_widget.transcript_selection.update_layout(
         Rect::new(0, 0, 40, 5),
         5,
         &(0..20)
             .map(|index| crate::terminal_hyperlinks::HyperlinkLine::from(format!("line {index}")))
             .collect::<Vec<_>>(),
     );
-    app.bottom_pane
+    app.chat_widget
+        .bottom_pane
         .enqueue(ServerRequest::ItemToolRequestUserInput {
             id: RequestId::Integer(12),
             params: ToolRequestUserInputParams {
@@ -201,7 +203,7 @@ fn modal_transcript_wheel_remains_available_during_request_user_input() {
         ),
         AppAction::None
     );
-    assert!(app.composer.is_empty());
+    assert!(app.chat_widget.bottom_pane.composer_is_empty());
 }
 
 #[test]
@@ -235,8 +237,9 @@ fn mcp_startup_status_is_app_scoped_and_clears_when_ready() {
 fn startup_protected_request_keeps_draft_until_the_request_is_resolved() {
     let mut app = App::default();
     app.begin_startup_input_boundary();
-    app.composer.insert("startup draft");
-    app.bottom_pane
+    app.chat_widget.bottom_pane.insert_str("startup draft");
+    app.chat_widget
+        .bottom_pane
         .enqueue(ServerRequest::ItemCommandExecutionRequestApproval {
             id: RequestId::Integer(8),
             params: CommandExecutionRequestApprovalParams {
@@ -260,7 +263,7 @@ fn startup_protected_request_keeps_draft_until_the_request_is_resolved() {
         Event::Key(KeyEvent::new(KeyCode::Char('x'), KeyModifiers::NONE)),
     );
     assert_eq!(ignored, AppAction::None);
-    assert_eq!(app.composer.text(), "startup draft");
+    assert_eq!(app.chat_widget.bottom_pane.composer_text(), "startup draft");
     assert!(app.has_queued_startup_protected_request());
 
     let response = dispatch_connected_input(
@@ -272,7 +275,7 @@ fn startup_protected_request_keeps_draft_until_the_request_is_resolved() {
         AppAction::Respond(AppServerResponse::Command { .. })
     ));
     assert!(!app.has_queued_startup_protected_request());
-    assert_eq!(app.composer.text(), "startup draft");
+    assert_eq!(app.chat_widget.bottom_pane.composer_text(), "startup draft");
 }
 
 #[test]
@@ -326,7 +329,7 @@ fn first_safe_user_input_releases_boundary_before_reaching_composer() {
         AppAction::None
     );
     assert!(!app.startup_protected_input_boundary);
-    assert_eq!(app.composer.text(), "x");
+    assert_eq!(app.chat_widget.bottom_pane.composer_text(), "x");
 }
 
 #[test]
@@ -364,7 +367,7 @@ fn global_keymap_chord_does_not_cross_non_keyboard_boundaries() {
             ),
             AppAction::None
         );
-        assert!(!app.transcript_search.is_active());
+        assert!(!app.chat_widget.transcript_search.is_active());
     }
 }
 
@@ -372,7 +375,8 @@ fn global_keymap_chord_does_not_cross_non_keyboard_boundaries() {
 fn startup_boundary_waits_for_visible_request_before_releasing() {
     let mut app = App::default();
     app.begin_startup_input_boundary();
-    app.bottom_pane
+    app.chat_widget
+        .bottom_pane
         .enqueue(ServerRequest::ItemCommandExecutionRequestApproval {
             id: RequestId::Integer(10),
             params: CommandExecutionRequestApprovalParams {
@@ -416,7 +420,9 @@ fn slash_pwd_and_cwd_alias_display_current_working_directory_from_composer() {
         let mut app = App::default();
         app.set_cwd(std::path::PathBuf::from("/tmp/project"));
         app.set_locale(Locale::EnUs);
-        app.replace_composer(command.to_string());
+        app.chat_widget
+            .bottom_pane
+            .set_composer_text(command.to_string());
 
         let action = dispatch_connected_input(
             &mut app,
@@ -444,7 +450,9 @@ fn mcp_slash_commands_request_the_matching_inventory_detail() {
         ("/mcp verbose", McpServerStatusDetail::Full),
     ] {
         let mut app = App::default();
-        app.replace_composer(command.to_string());
+        app.chat_widget
+            .bottom_pane
+            .set_composer_text(command.to_string());
         assert_eq!(
             dispatch_connected_input(
                 &mut app,
@@ -452,8 +460,8 @@ fn mcp_slash_commands_request_the_matching_inventory_detail() {
             ),
             AppAction::FetchMcpInventory { detail }
         );
-        assert!(app.composer.is_empty());
-        assert!(app.composer.command_popup().is_none());
+        assert!(app.chat_widget.bottom_pane.composer_is_empty());
+        assert!(!app.chat_widget.bottom_pane.command_popup_active());
     }
 }
 
@@ -461,7 +469,9 @@ fn mcp_slash_commands_request_the_matching_inventory_detail() {
 fn mcp_slash_command_rejects_unknown_arguments_with_localized_usage() {
     let mut app = App::default();
     app.set_locale(Locale::ZhCn);
-    app.replace_composer("/mcp compact".to_string());
+    app.chat_widget
+        .bottom_pane
+        .set_composer_text("/mcp compact".to_string());
 
     assert_eq!(
         dispatch_connected_input(
@@ -474,7 +484,7 @@ fn mcp_slash_command_rejects_unknown_arguments_with_localized_usage() {
         app.projection.status(),
         "用法：/mcp [verbose | login <名称>]"
     );
-    assert!(app.composer.is_empty());
+    assert!(app.chat_widget.bottom_pane.composer_is_empty());
 }
 
 #[test]
@@ -482,21 +492,27 @@ fn mcp_login_slash_command_requires_one_server_name_and_active_thread() {
     let mut app = App::default();
     app.set_locale(Locale::EnUs);
 
-    app.replace_composer("/mcp login".to_string());
+    app.chat_widget
+        .bottom_pane
+        .set_composer_text("/mcp login".to_string());
     assert_eq!(app.run_local_command(), Some(AppAction::None));
     assert_eq!(
         app.projection.status(),
         "Usage: /mcp [verbose | login <name>]"
     );
 
-    app.replace_composer("/mcp login docs extra".to_string());
+    app.chat_widget
+        .bottom_pane
+        .set_composer_text("/mcp login docs extra".to_string());
     assert_eq!(app.run_local_command(), Some(AppAction::None));
     assert_eq!(
         app.projection.status(),
         "Usage: /mcp [verbose | login <name>]"
     );
 
-    app.replace_composer("/mcp login docs".to_string());
+    app.chat_widget
+        .bottom_pane
+        .set_composer_text("/mcp login docs".to_string());
     assert_eq!(app.run_local_command(), Some(AppAction::None));
     assert_eq!(
         app.projection.status(),
@@ -504,7 +520,9 @@ fn mcp_login_slash_command_requires_one_server_name_and_active_thread() {
     );
 
     app.set_thread_id("thread-1".to_string());
-    app.replace_composer("/mcp login docs".to_string());
+    app.chat_widget
+        .bottom_pane
+        .set_composer_text("/mcp login docs".to_string());
     assert_eq!(
         app.run_local_command(),
         Some(AppAction::StartMcpLogin {
@@ -648,7 +666,7 @@ fn mcp_login_pending_completion_replays_only_the_new_attempt() {
 #[test]
 fn tab_queues_a_follow_up_without_submitting_the_active_turn() {
     let mut app = App::default();
-    app.composer.insert("follow up");
+    app.chat_widget.bottom_pane.insert_str("follow up");
     app.projection.apply(
         app_server_protocol::protocol::v2::ServerNotification::TurnStarted(
             app_server_protocol::protocol::v2::TurnStartedNotification {
@@ -679,13 +697,13 @@ fn tab_queues_a_follow_up_without_submitting_the_active_turn() {
             text_elements: Vec::new()
         }
     );
-    assert!(app.composer.is_empty());
+    assert!(app.chat_widget.bottom_pane.composer_is_empty());
 }
 
 #[test]
 fn escape_interrupts_only_an_active_turn_and_preserves_the_draft() {
     let mut app = App::default();
-    app.composer.insert("keep this draft");
+    app.chat_widget.bottom_pane.insert_str("keep this draft");
     assert_eq!(
         dispatch_connected_input(
             &mut app,
@@ -703,13 +721,16 @@ fn escape_interrupts_only_an_active_turn_and_preserves_the_draft() {
         ),
         AppAction::Interrupt
     );
-    assert_eq!(app.composer.text(), "keep this draft");
+    assert_eq!(
+        app.chat_widget.bottom_pane.composer_text(),
+        "keep this draft"
+    );
 }
 
 #[test]
 fn ctrl_c_clears_idle_plain_text_draft_and_keeps_it_recallable() {
     let mut app = App::default();
-    app.composer.insert("draft");
+    app.chat_widget.bottom_pane.insert_str("draft");
 
     assert_eq!(
         dispatch_connected_input(
@@ -718,7 +739,7 @@ fn ctrl_c_clears_idle_plain_text_draft_and_keeps_it_recallable() {
         ),
         AppAction::None
     );
-    assert!(app.composer.is_empty());
+    assert!(app.chat_widget.bottom_pane.composer_is_empty());
 
     assert_eq!(
         dispatch_connected_input(
@@ -727,13 +748,13 @@ fn ctrl_c_clears_idle_plain_text_draft_and_keeps_it_recallable() {
         ),
         AppAction::None
     );
-    assert_eq!(app.composer.text(), "draft");
+    assert_eq!(app.chat_widget.bottom_pane.composer_text(), "draft");
 }
 
 #[test]
 fn ctrl_c_clears_active_turn_draft_without_interrupting() {
     let mut app = App::default();
-    app.composer.insert("draft");
+    app.chat_widget.bottom_pane.insert_str("draft");
     app.start_turn("turn-1".to_string());
 
     assert_eq!(
@@ -743,13 +764,13 @@ fn ctrl_c_clears_active_turn_draft_without_interrupting() {
         ),
         AppAction::None
     );
-    assert!(app.composer.is_empty());
+    assert!(app.chat_widget.bottom_pane.composer_is_empty());
 }
 
 #[test]
 fn ctrl_c_cancels_attachment_draft_without_interrupt_and_recalls_complete_history() {
     let mut app = App::default();
-    app.composer.insert("draft");
+    app.chat_widget.bottom_pane.insert_str("draft");
     app.attach_image(std::path::PathBuf::from("/tmp/draft.png"));
 
     assert_eq!(
@@ -759,16 +780,19 @@ fn ctrl_c_cancels_attachment_draft_without_interrupt_and_recalls_complete_histor
         ),
         AppAction::None
     );
-    assert!(app.composer.is_empty());
-    assert!(!app.composer.has_pending_images());
+    assert!(app.chat_widget.bottom_pane.composer_is_empty());
+    assert!(!app.chat_widget.bottom_pane.composer_has_pending_images());
     dispatch_connected_input(
         &mut app,
         Event::Key(KeyEvent::new(KeyCode::Up, KeyModifiers::NONE)),
     );
-    assert_eq!(app.composer.text(), "draft[Image #1]");
-    assert!(app.composer.has_pending_images());
     assert_eq!(
-        app.composer.textarea().text_elements(),
+        app.chat_widget.bottom_pane.composer_text(),
+        "draft[Image #1]"
+    );
+    assert!(app.chat_widget.bottom_pane.composer_has_pending_images());
+    assert_eq!(
+        app.chat_widget.bottom_pane.composer_text_elements(),
         vec![TextElement::new(5..15, Some("[Image #1]".into()))]
     );
 }
@@ -813,7 +837,7 @@ fn permission_profile_catalog_is_trimmed_deduplicated_and_used_for_cycles() {
     ]);
 
     assert_eq!(
-        app.permission_profiles,
+        app.chat_widget.permission_profiles,
         vec!["custom-read".to_string(), "custom-write".to_string()]
     );
     assert_eq!(
@@ -826,9 +850,12 @@ fn permission_profile_catalog_is_trimmed_deduplicated_and_used_for_cycles() {
     );
 
     app.set_permission_profiles([" ".to_string(), "custom-read".to_string()]);
-    assert_eq!(app.permission_profiles, vec!["custom-read".to_string()]);
+    assert_eq!(
+        app.chat_widget.permission_profiles,
+        vec!["custom-read".to_string()]
+    );
     app.set_permission_profiles(std::iter::empty::<String>());
-    assert!(app.permission_profiles.is_empty());
+    assert!(app.chat_widget.permission_profiles.is_empty());
     assert_eq!(
         app.cycle_permission_profile(Some(":read-only"), 1),
         ":workspace"
@@ -860,7 +887,10 @@ fn backtab_cycles_server_collaboration_modes_only_when_idle() {
     ]);
 
     assert_eq!(
-        app.collaboration_mode.as_ref().map(|mode| mode.mode),
+        app.chat_widget
+            .collaboration_mode
+            .as_ref()
+            .map(|mode| mode.mode),
         Some(agent_protocol::ModeKind::Default)
     );
     let plan_mode = agent_protocol::CollaborationMode {
@@ -878,7 +908,7 @@ fn backtab_cycles_server_collaboration_modes_only_when_idle() {
         ),
         AppAction::ChangeCollaborationMode(plan_mode.clone())
     );
-    app.collaboration_mode = Some(plan_mode);
+    app.chat_widget.collaboration_mode = Some(plan_mode);
     assert_eq!(
         dispatch_connected_input(
             &mut app,
@@ -907,14 +937,17 @@ fn backtab_cycles_server_collaboration_modes_only_when_idle() {
 #[test]
 fn settings_updates_keep_the_active_collaboration_mode_in_sync() {
     let mut app = App {
-        collaboration_mode: Some(agent_protocol::CollaborationMode {
-            mode: agent_protocol::ModeKind::Plan,
-            settings: agent_protocol::CollaborationModeSettings {
-                model: "old-model".to_string(),
-                reasoning_effort: Some("high".to_string()),
-                developer_instructions: None,
-            },
-        }),
+        chat_widget: crate::chatwidget::ChatWidget {
+            collaboration_mode: Some(agent_protocol::CollaborationMode {
+                mode: agent_protocol::ModeKind::Plan,
+                settings: agent_protocol::CollaborationModeSettings {
+                    model: "old-model".to_string(),
+                    reasoning_effort: Some("high".to_string()),
+                    developer_instructions: None,
+                },
+            }),
+            ..Default::default()
+        },
         ..App::default()
     };
 
@@ -925,7 +958,11 @@ fn settings_updates_keep_the_active_collaboration_mode_in_sync() {
         None,
     );
 
-    let mode = app.collaboration_mode.as_ref().expect("active mode");
+    let mode = app
+        .chat_widget
+        .collaboration_mode
+        .as_ref()
+        .expect("active mode");
     assert_eq!(mode.settings.model, "new-model");
     assert_eq!(mode.settings.reasoning_effort.as_deref(), Some("low"));
 
@@ -935,7 +972,11 @@ fn settings_updates_keep_the_active_collaboration_mode_in_sync() {
         None,
         None,
     );
-    let mode = app.collaboration_mode.as_ref().expect("active mode");
+    let mode = app
+        .chat_widget
+        .collaboration_mode
+        .as_ref()
+        .expect("active mode");
     assert_eq!(mode.settings.model, "newer-model");
     assert_eq!(mode.settings.reasoning_effort.as_deref(), Some("low"));
 }
@@ -948,7 +989,7 @@ fn an_open_popup_owns_escape_before_active_turn_interruption() {
         &mut app,
         Event::Key(KeyEvent::new(KeyCode::Char('/'), KeyModifiers::NONE)),
     );
-    assert!(app.composer.command_popup().is_some());
+    assert!(app.chat_widget.bottom_pane.command_popup_active());
 
     assert_eq!(
         dispatch_connected_input(
@@ -957,23 +998,24 @@ fn an_open_popup_owns_escape_before_active_turn_interruption() {
         ),
         AppAction::None
     );
-    assert!(app.composer.command_popup().is_none());
+    assert!(!app.chat_widget.bottom_pane.command_popup_active());
     assert!(app.projection.active_turn_id().is_some());
 }
 
 #[test]
 fn history_search_owns_escape_before_active_turn_interruption() {
     let mut app = App::default();
-    app.composer
+    app.chat_widget
+        .bottom_pane
         .set_cached_history(["previous prompt".to_string()]);
-    app.composer.insert("previous");
+    app.chat_widget.bottom_pane.insert_str("previous");
     app.start_turn("turn-1".to_string());
 
     dispatch_connected_input(
         &mut app,
         Event::Key(KeyEvent::new(KeyCode::Char('r'), KeyModifiers::CONTROL)),
     );
-    assert!(app.composer.history_search_active());
+    assert!(app.chat_widget.bottom_pane.history_search_active());
     assert_eq!(
         dispatch_connected_input(
             &mut app,
@@ -981,8 +1023,8 @@ fn history_search_owns_escape_before_active_turn_interruption() {
         ),
         AppAction::None
     );
-    assert!(!app.composer.history_search_active());
-    assert_eq!(app.composer.text(), "previous");
+    assert!(!app.chat_widget.bottom_pane.history_search_active());
+    assert_eq!(app.chat_widget.bottom_pane.composer_text(), "previous");
     assert!(app.projection.active_turn_id().is_some());
 }
 
@@ -990,7 +1032,7 @@ fn history_search_owns_escape_before_active_turn_interruption() {
 fn vim_slash_command_toggles_composer_mode_and_projects_localized_status() {
     let mut app = App::default();
     app.set_locale(Locale::ZhCn);
-    app.composer.insert("/vim");
+    app.chat_widget.bottom_pane.insert_str("/vim");
 
     assert_eq!(
         dispatch_connected_input(
@@ -999,11 +1041,11 @@ fn vim_slash_command_toggles_composer_mode_and_projects_localized_status() {
         ),
         AppAction::None
     );
-    assert!(app.composer.is_vim_normal_mode());
-    assert!(app.composer.is_empty());
+    assert!(app.chat_widget.bottom_pane.is_vim_normal_mode());
+    assert!(app.chat_widget.bottom_pane.composer_is_empty());
     assert_eq!(app.projection.status(), "已启用 Vim 编辑模式");
 
-    app.composer.insert("/vim");
+    app.chat_widget.bottom_pane.insert_str("/vim");
     assert_eq!(
         dispatch_connected_input(
             &mut app,
@@ -1011,8 +1053,8 @@ fn vim_slash_command_toggles_composer_mode_and_projects_localized_status() {
         ),
         AppAction::None
     );
-    assert!(!app.composer.is_vim_normal_mode());
-    assert!(app.composer.is_empty());
+    assert!(!app.chat_widget.bottom_pane.is_vim_normal_mode());
+    assert!(app.chat_widget.bottom_pane.composer_is_empty());
     assert_eq!(app.projection.status(), "已关闭 Vim 编辑模式");
 }
 
@@ -1020,7 +1062,7 @@ fn vim_slash_command_toggles_composer_mode_and_projects_localized_status() {
 fn raw_slash_command_and_global_shortcut_toggle_only_local_presentation() {
     let mut app = App::default();
     app.set_locale(Locale::ZhCn);
-    app.composer.insert("/raw");
+    app.chat_widget.bottom_pane.insert_str("/raw");
 
     assert_eq!(
         dispatch_connected_input(
@@ -1030,14 +1072,14 @@ fn raw_slash_command_and_global_shortcut_toggle_only_local_presentation() {
         AppAction::None
     );
     assert!(app.raw_output_mode());
-    assert!(app.composer.is_empty());
+    assert!(app.chat_widget.bottom_pane.composer_is_empty());
     assert_eq!(app.projection.status(), "已启用原始输出模式");
 
     dispatch_connected_input(
         &mut app,
         Event::Key(KeyEvent::new(KeyCode::Char('t'), KeyModifiers::CONTROL)),
     );
-    assert!(app.pager_overlay.is_some());
+    assert!(app.chat_widget.pager_overlay.is_some());
     assert_eq!(
         dispatch_connected_input(
             &mut app,
@@ -1047,7 +1089,7 @@ fn raw_slash_command_and_global_shortcut_toggle_only_local_presentation() {
     );
     assert!(!app.raw_output_mode());
     assert!(
-        app.pager_overlay.is_some(),
+        app.chat_widget.pager_overlay.is_some(),
         "global toggle must not close Ctrl+T"
     );
     assert_eq!(app.projection.status(), "已恢复富文本输出模式");
@@ -1056,7 +1098,7 @@ fn raw_slash_command_and_global_shortcut_toggle_only_local_presentation() {
 #[test]
 fn vim_insert_escape_returns_to_normal_before_interrupting_an_active_turn() {
     let mut app = App::default();
-    app.composer.set_vim_enabled(true);
+    app.chat_widget.bottom_pane.set_vim_enabled(true);
     app.start_turn("turn-1".to_string());
 
     assert_eq!(
@@ -1066,7 +1108,7 @@ fn vim_insert_escape_returns_to_normal_before_interrupting_an_active_turn() {
         ),
         AppAction::None
     );
-    assert!(!app.composer.is_vim_normal_mode());
+    assert!(!app.chat_widget.bottom_pane.is_vim_normal_mode());
     assert_eq!(
         dispatch_connected_input(
             &mut app,
@@ -1074,7 +1116,7 @@ fn vim_insert_escape_returns_to_normal_before_interrupting_an_active_turn() {
         ),
         AppAction::None
     );
-    assert!(app.composer.is_vim_normal_mode());
+    assert!(app.chat_widget.bottom_pane.is_vim_normal_mode());
     assert!(app.projection.active_turn_id().is_some());
 
     assert_eq!(
@@ -1089,8 +1131,8 @@ fn vim_insert_escape_returns_to_normal_before_interrupting_an_active_turn() {
 #[test]
 fn vim_search_owns_escape_and_paste_before_popup_or_active_turn() {
     let mut app = App::default();
-    app.composer.set_vim_enabled(true);
-    app.composer.insert("alpha beta");
+    app.chat_widget.bottom_pane.set_vim_enabled(true);
+    app.chat_widget.bottom_pane.insert_str("alpha beta");
     app.start_turn("turn-1".to_string());
 
     assert_eq!(
@@ -1100,15 +1142,18 @@ fn vim_search_owns_escape_and_paste_before_popup_or_active_turn() {
         ),
         AppAction::None
     );
-    assert!(app.composer.vim_search_active());
+    assert!(app.chat_widget.bottom_pane.vim_search_active());
 
     assert_eq!(
         dispatch_connected_input(&mut app, Event::Paste("beta".to_string())),
         AppAction::None
     );
-    assert_eq!(app.composer.text(), "alpha beta");
+    assert_eq!(app.chat_widget.bottom_pane.composer_text(), "alpha beta");
     assert_eq!(
-        app.composer.vim_search_query().map(|(query, _)| query),
+        app.chat_widget
+            .bottom_pane
+            .vim_search_query()
+            .map(|(query, _)| query),
         Some("beta")
     );
 
@@ -1119,17 +1164,18 @@ fn vim_search_owns_escape_and_paste_before_popup_or_active_turn() {
         ),
         AppAction::None
     );
-    assert!(!app.composer.vim_search_active());
+    assert!(!app.chat_widget.bottom_pane.vim_search_active());
     assert!(app.projection.active_turn_id().is_some());
 }
 
 #[test]
 fn vim_normal_up_and_down_do_not_replace_the_draft_with_history() {
     let mut app = App::default();
-    app.composer
+    app.chat_widget
+        .bottom_pane
         .set_cached_history(["previous prompt".to_string()]);
-    app.composer.insert("current draft");
-    app.composer.set_vim_enabled(true);
+    app.chat_widget.bottom_pane.insert_str("current draft");
+    app.chat_widget.bottom_pane.set_vim_enabled(true);
 
     for code in [KeyCode::Up, KeyCode::Down] {
         assert_eq!(
@@ -1139,15 +1185,15 @@ fn vim_normal_up_and_down_do_not_replace_the_draft_with_history() {
             ),
             AppAction::None
         );
-        assert_eq!(app.composer.text(), "current draft");
-        assert!(app.composer.is_vim_normal_mode());
+        assert_eq!(app.chat_widget.bottom_pane.composer_text(), "current draft");
+        assert!(app.chat_widget.bottom_pane.is_vim_normal_mode());
     }
 }
 
 #[test]
 fn codex_style_effort_and_permission_shortcuts_are_not_inserted_into_draft() {
     let mut app = App::default();
-    app.composer.insert("draft");
+    app.chat_widget.bottom_pane.insert_str("draft");
     assert_eq!(
         dispatch_connected_input(
             &mut app,
@@ -1162,7 +1208,7 @@ fn codex_style_effort_and_permission_shortcuts_are_not_inserted_into_draft() {
         ),
         AppAction::NextPermissions
     );
-    assert_eq!(app.composer.text(), "draft");
+    assert_eq!(app.chat_widget.bottom_pane.composer_text(), "draft");
 }
 
 #[test]
@@ -1175,7 +1221,7 @@ fn copy_shortcut_and_slash_command_do_not_become_turn_input() {
         ),
         AppAction::CopyLastResponse
     );
-    app.composer.insert("/copy");
+    app.chat_widget.bottom_pane.insert_str("/copy");
     assert_eq!(
         dispatch_connected_input(
             &mut app,
@@ -1183,13 +1229,13 @@ fn copy_shortcut_and_slash_command_do_not_become_turn_input() {
         ),
         AppAction::CopyLastResponse
     );
-    assert!(app.composer.is_empty());
+    assert!(app.chat_widget.bottom_pane.composer_is_empty());
 }
 
 #[test]
 fn export_slash_command_targets_the_canonical_transcript() {
     let mut app = App::default();
-    app.composer.insert("/export");
+    app.chat_widget.bottom_pane.insert_str("/export");
     assert_eq!(
         dispatch_connected_input(
             &mut app,
@@ -1197,11 +1243,13 @@ fn export_slash_command_targets_the_canonical_transcript() {
         ),
         AppAction::None
     );
-    assert!(app.export_picker.is_some());
-    assert!(app.composer.is_empty());
+    assert!(app.chat_widget.export_picker.is_some());
+    assert!(app.chat_widget.bottom_pane.composer_is_empty());
 
     let mut app = App::default();
-    app.composer.insert("/export transcript.md");
+    app.chat_widget
+        .bottom_pane
+        .insert_str("/export transcript.md");
     assert_eq!(
         dispatch_connected_input(
             &mut app,
@@ -1211,7 +1259,7 @@ fn export_slash_command_targets_the_canonical_transcript() {
             path: Some(std::path::PathBuf::from("transcript.md")),
         }
     );
-    assert!(app.composer.is_empty());
+    assert!(app.chat_widget.bottom_pane.composer_is_empty());
 }
 
 #[test]
@@ -1227,9 +1275,7 @@ fn slash_popup_filters_and_executes_immediate_commands() {
         );
     }
     assert_eq!(
-        app.composer
-            .command_popup()
-            .and_then(CommandPopup::selected),
+        app.chat_widget.bottom_pane.selected_command(),
         Some(SlashCommand::Model)
     );
 
@@ -1243,8 +1289,8 @@ fn slash_popup_filters_and_executes_immediate_commands() {
             text_elements: Vec::new()
         }
     );
-    assert!(app.composer.command_popup().is_none());
-    assert!(app.composer.is_empty());
+    assert!(!app.chat_widget.bottom_pane.command_popup_active());
+    assert!(app.chat_widget.bottom_pane.composer_is_empty());
 }
 
 #[test]
@@ -1254,21 +1300,19 @@ fn slash_popup_completes_argument_commands_and_reopens_after_cancelled_input_cha
         &mut app,
         Event::Key(KeyEvent::new(KeyCode::Char('/'), KeyModifiers::NONE)),
     );
-    assert!(app.composer.command_popup().is_some());
+    assert!(app.chat_widget.bottom_pane.command_popup_active());
     dispatch_connected_input(
         &mut app,
         Event::Key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE)),
     );
-    assert!(app.composer.command_popup().is_none());
+    assert!(!app.chat_widget.bottom_pane.command_popup_active());
 
     dispatch_connected_input(
         &mut app,
         Event::Key(KeyEvent::new(KeyCode::Char('e'), KeyModifiers::NONE)),
     );
     assert_eq!(
-        app.composer
-            .command_popup()
-            .and_then(CommandPopup::selected),
+        app.chat_widget.bottom_pane.selected_command(),
         Some(SlashCommand::Effort)
     );
     assert_eq!(
@@ -1278,14 +1322,14 @@ fn slash_popup_completes_argument_commands_and_reopens_after_cancelled_input_cha
         ),
         AppAction::None
     );
-    assert_eq!(app.composer.text(), "/effort ");
-    assert!(app.composer.command_popup().is_none());
+    assert_eq!(app.chat_widget.bottom_pane.composer_text(), "/effort ");
+    assert!(!app.chat_widget.bottom_pane.command_popup_active());
 }
 
 #[test]
 fn status_command_opens_an_ephemeral_pager_and_consumes_input_until_closed() {
     let mut app = App::default();
-    app.composer.insert("real prompt");
+    app.chat_widget.bottom_pane.insert_str("real prompt");
     assert_eq!(
         dispatch_connected_input(
             &mut app,
@@ -1303,7 +1347,7 @@ fn status_command_opens_an_ephemeral_pager_and_consumes_input_until_closed() {
         Some("high".to_string()),
         Some(":workspace".to_string()),
     );
-    app.composer.insert("/status");
+    app.chat_widget.bottom_pane.insert_str("/status");
 
     assert_eq!(
         dispatch_connected_input(
@@ -1312,33 +1356,33 @@ fn status_command_opens_an_ephemeral_pager_and_consumes_input_until_closed() {
         ),
         AppAction::None
     );
-    assert!(app.pager_overlay.is_some());
-    assert!(app.composer.is_empty());
+    assert!(app.chat_widget.pager_overlay.is_some());
+    assert!(app.chat_widget.bottom_pane.composer_is_empty());
 
     dispatch_connected_input(
         &mut app,
         Event::Key(KeyEvent::new(KeyCode::Char('x'), KeyModifiers::NONE)),
     );
-    assert!(app.composer.is_empty());
-    assert!(app.pager_overlay.is_some());
+    assert!(app.chat_widget.bottom_pane.composer_is_empty());
+    assert!(app.chat_widget.pager_overlay.is_some());
     dispatch_connected_input(
         &mut app,
         Event::Key(KeyEvent::new(KeyCode::Char('q'), KeyModifiers::NONE)),
     );
-    assert!(app.pager_overlay.is_none());
+    assert!(app.chat_widget.pager_overlay.is_none());
 
     dispatch_connected_input(
         &mut app,
         Event::Key(KeyEvent::new(KeyCode::Up, KeyModifiers::NONE)),
     );
-    assert_eq!(app.composer.text(), "real prompt");
+    assert_eq!(app.chat_widget.bottom_pane.composer_text(), "real prompt");
     assert!(app.projection.entries().is_empty());
 }
 
 #[test]
 fn ctrl_t_opens_transcript_without_copying_or_mutating_conversation_state() {
     let mut app = App::default();
-    app.composer.insert("draft");
+    app.chat_widget.bottom_pane.insert_str("draft");
 
     assert_eq!(
         dispatch_connected_input(
@@ -1348,18 +1392,19 @@ fn ctrl_t_opens_transcript_without_copying_or_mutating_conversation_state() {
         AppAction::None
     );
     assert!(app
+        .chat_widget
         .pager_overlay
         .as_ref()
         .is_some_and(PagerOverlay::is_transcript));
-    assert_eq!(app.composer.text(), "draft");
+    assert_eq!(app.chat_widget.bottom_pane.composer_text(), "draft");
     assert!(app.projection.entries().is_empty());
 
     dispatch_connected_input(
         &mut app,
         Event::Key(KeyEvent::new(KeyCode::Char('t'), KeyModifiers::CONTROL)),
     );
-    assert!(app.pager_overlay.is_none());
-    assert_eq!(app.composer.text(), "draft");
+    assert!(app.chat_widget.pager_overlay.is_none());
+    assert_eq!(app.chat_widget.bottom_pane.composer_text(), "draft");
 }
 
 #[test]
@@ -1389,11 +1434,11 @@ fn transcript_overlay_requests_older_history_only_when_session_has_more_pages() 
 fn switching_threads_resets_the_main_transcript_to_the_tail() {
     let mut app = App::default();
     app.set_thread_id("thread-1".to_string());
-    app.transcript_scroll = 12;
+    app.chat_widget.transcript_scroll = 12;
 
     app.set_thread_id("thread-2".to_string());
 
-    assert_eq!(app.transcript_scroll, 0);
+    assert_eq!(app.chat_widget.transcript_scroll, 0);
 }
 
 #[test]
@@ -1444,7 +1489,7 @@ fn failed_image_submission_restores_inline_elements_and_attachments() {
         panic!("expected image submission");
     };
     let images = app.take_recent_submission_images_with_placeholders();
-    assert!(!app.composer.has_pending_images());
+    assert!(!app.chat_widget.bottom_pane.composer_has_pending_images());
     app.restore_submission_draft(
         text.clone(),
         text_elements.clone(),
@@ -1453,12 +1498,18 @@ fn failed_image_submission_restores_inline_elements_and_attachments() {
         Vec::new(),
     );
 
-    assert_eq!(app.composer.text(), "[Image #1][Image #2]");
-    assert_eq!(app.composer.local_images(), images);
-    assert_eq!(app.composer.textarea().text_elements(), text_elements);
+    assert_eq!(
+        app.chat_widget.bottom_pane.composer_text(),
+        "[Image #1][Image #2]"
+    );
+    assert_eq!(app.chat_widget.bottom_pane.composer_local_images(), images);
+    assert_eq!(
+        app.chat_widget.bottom_pane.composer_text_elements(),
+        text_elements
+    );
 
     assert_eq!(
-        app.composer.local_image_paths(),
+        app.chat_widget.bottom_pane.composer_local_image_paths(),
         &[PathBuf::from("/tmp/one.png"), PathBuf::from("/tmp/two.png")]
     );
 }
@@ -1515,18 +1566,21 @@ fn alt_up_requests_server_delete_before_restoring_the_last_queued_input() {
 
     assert_eq!(action, AppAction::EditQueuedSubmission(submission.clone()));
     assert_eq!(app.queued_submissions, vec![submission.clone()]);
-    assert!(app.composer.is_empty());
-    assert!(!app.composer.has_pending_images());
+    assert!(app.chat_widget.bottom_pane.composer_is_empty());
+    assert!(!app.chat_widget.bottom_pane.composer_has_pending_images());
 
     assert!(app.restore_queued_submission_for_edit(submission));
     assert!(app.queued_submissions.is_empty());
-    assert_eq!(app.composer.text(), "[Image #1] revise this follow-up");
     assert_eq!(
-        app.composer.textarea().text_elements(),
+        app.chat_widget.bottom_pane.composer_text(),
+        "[Image #1] revise this follow-up"
+    );
+    assert_eq!(
+        app.chat_widget.bottom_pane.composer_text_elements(),
         vec![TextElement::new(0..10, Some("[Image #1]".to_string()))]
     );
     assert_eq!(
-        app.composer.local_image_paths(),
+        app.chat_widget.bottom_pane.composer_local_image_paths(),
         &[PathBuf::from("/tmp/queued.png")]
     );
 }
@@ -1551,7 +1605,10 @@ fn queued_skill_input_restores_as_an_editable_dollar_mention() {
     app.set_queued_submissions(vec![submission.clone()]);
 
     assert!(app.restore_queued_submission_for_edit(submission));
-    assert_eq!(app.composer.text(), "$review please check");
+    assert_eq!(
+        app.chat_widget.bottom_pane.composer_text(),
+        "$review please check"
+    );
     assert!(app.queued_submissions.is_empty());
 }
 
@@ -1585,11 +1642,11 @@ fn alt_up_offers_lossless_remote_image_queue_edit() {
     let remote_image = app.queued_submissions[0].clone();
     assert!(app.restore_queued_submission_for_edit(remote_image));
     assert_eq!(
-        app.composer.remote_image_urls(),
+        app.chat_widget.bottom_pane.composer_remote_image_urls(),
         &["https://example.test/input.png"]
     );
-    assert!(!app.composer.is_empty());
-    assert!(app.composer.textarea().is_empty());
+    assert!(!app.chat_widget.bottom_pane.composer_is_empty());
+    assert!(app.chat_widget.bottom_pane.composer_text().is_empty());
 
     app.set_queued_submissions(vec![QueuedSubmission {
         id: "queue-text".to_string(),
@@ -1599,7 +1656,7 @@ fn alt_up_offers_lossless_remote_image_queue_edit() {
         }],
         client_user_message_id: "client-text".to_string(),
     }]);
-    app.composer.insert("unsent draft");
+    app.chat_widget.bottom_pane.insert_str("unsent draft");
     assert_eq!(
         dispatch_connected_input(
             &mut app,
@@ -1607,7 +1664,7 @@ fn alt_up_offers_lossless_remote_image_queue_edit() {
         ),
         AppAction::None
     );
-    assert_eq!(app.composer.text(), "unsent draft");
+    assert_eq!(app.chat_widget.bottom_pane.composer_text(), "unsent draft");
     assert_eq!(app.queued_submissions.len(), 1);
 }
 
@@ -1626,7 +1683,10 @@ fn remote_image_rows_are_selectable_and_deletable_from_the_composer() {
         ),
         AppAction::None
     );
-    assert!(app.composer.has_selected_remote_image());
+    assert!(app
+        .chat_widget
+        .bottom_pane
+        .composer_has_selected_remote_image());
 
     assert_eq!(
         dispatch_connected_input(
@@ -1636,7 +1696,7 @@ fn remote_image_rows_are_selectable_and_deletable_from_the_composer() {
         AppAction::None
     );
     assert_eq!(
-        app.composer.remote_image_urls(),
+        app.chat_widget.bottom_pane.composer_remote_image_urls(),
         &["https://example.test/one.png"]
     );
 }
@@ -1644,7 +1704,7 @@ fn remote_image_rows_are_selectable_and_deletable_from_the_composer() {
 #[test]
 fn disconnected_input_edits_locally_without_submit_or_queue() {
     let mut app = App::default();
-    app.composer.insert("draft");
+    app.chat_widget.bottom_pane.insert_str("draft");
 
     assert_eq!(
         dispatch_disconnected_input(
@@ -1660,7 +1720,7 @@ fn disconnected_input_edits_locally_without_submit_or_queue() {
         ),
         AppAction::None
     );
-    assert_eq!(app.composer.text(), "draft!");
+    assert_eq!(app.chat_widget.bottom_pane.composer_text(), "draft!");
     assert!(app.queued_submissions.is_empty());
 }
 
@@ -1671,7 +1731,7 @@ fn disconnected_paste_and_ctrl_c_are_handled_at_the_app_boundary() {
         dispatch_disconnected_input(&mut app, Event::Paste("离线草稿".to_string())),
         AppAction::None
     );
-    assert_eq!(app.composer.text(), "离线草稿");
+    assert_eq!(app.chat_widget.bottom_pane.composer_text(), "离线草稿");
     assert_eq!(
         dispatch_disconnected_input(
             &mut app,
@@ -1699,17 +1759,20 @@ fn failed_submission_restores_the_complete_local_draft() {
         Vec::new(),
     );
 
-    assert_eq!(app.composer.text(), "retry [Image #2] after reconnect");
     assert_eq!(
-        app.composer.textarea().text_elements(),
+        app.chat_widget.bottom_pane.composer_text(),
+        "retry [Image #2] after reconnect"
+    );
+    assert_eq!(
+        app.chat_widget.bottom_pane.composer_text_elements(),
         vec![TextElement::new(6..16, Some("[Image #2]".to_string()))]
     );
     assert_eq!(
-        app.composer.local_image_paths(),
+        app.chat_widget.bottom_pane.composer_local_image_paths(),
         &[std::path::PathBuf::from("/tmp/retry.png")]
     );
     assert_eq!(
-        app.composer.remote_image_urls(),
+        app.chat_widget.bottom_pane.composer_remote_image_urls(),
         &["https://example.test/retry.png"]
     );
 }
@@ -1717,13 +1780,12 @@ fn failed_submission_restores_the_complete_local_draft() {
 #[test]
 fn composer_mouse_selection_precedes_shortcuts_and_requests_copy() {
     let mut app = App::default();
-    app.composer.insert("hello world");
+    app.chat_widget.bottom_pane.insert_str("hello world");
     let area = Rect::new(10, 5, 20, 2);
     let mut buffer = Buffer::empty(area);
-    {
-        let mut state = app.composer.textarea_state_mut();
-        StatefulWidgetRef::render_ref(&app.composer.textarea(), area, &mut buffer, &mut *state);
-    }
+    app.chat_widget
+        .bottom_pane
+        .render_composer_textarea(area, &mut buffer);
 
     for (kind, column) in [
         (MouseEventKind::Down(MouseButton::Left), 11),
@@ -1743,7 +1805,7 @@ fn composer_mouse_selection_precedes_shortcuts_and_requests_copy() {
             AppAction::None
         );
     }
-    assert_eq!(app.composer.text(), "hello world");
+    assert_eq!(app.chat_widget.bottom_pane.composer_text(), "hello world");
 
     assert_eq!(
         dispatch_connected_input(
@@ -1789,13 +1851,12 @@ fn composer_mouse_paste_requests_clipboard_surface_without_selection() {
     ] {
         let mut app = App::default();
         app.set_right_click_paste(lime_core::config::RightClickPaste::On);
-        app.composer.insert("draft");
+        app.chat_widget.bottom_pane.insert_str("draft");
         let area = Rect::new(10, 5, 20, 2);
         let mut buffer = Buffer::empty(area);
-        {
-            let mut state = app.composer.textarea_state_mut();
-            StatefulWidgetRef::render_ref(&app.composer.textarea(), area, &mut buffer, &mut *state);
-        }
+        app.chat_widget
+            .bottom_pane
+            .render_composer_textarea(area, &mut buffer);
 
         let action = dispatch_connected_input(
             &mut app,
@@ -1819,7 +1880,10 @@ fn composer_mouse_paste_requests_clipboard_surface_without_selection() {
 #[test]
 fn transcript_pager_routes_mouse_selection_copy_to_runtime_action() {
     let mut app = App {
-        pager_overlay: Some(PagerOverlay::transcript(Locale::EnUs)),
+        chat_widget: crate::chatwidget::ChatWidget {
+            pager_overlay: Some(PagerOverlay::transcript(Locale::EnUs)),
+            ..Default::default()
+        },
         ..App::default()
     };
     let lines = vec![crate::terminal_hyperlinks::HyperlinkLine::from(
@@ -1829,12 +1893,11 @@ fn transcript_pager_routes_mouse_selection_copy_to_runtime_action() {
         ratatui::Terminal::new(ratatui::backend::TestBackend::new(40, 8)).expect("terminal");
     terminal
         .draw(|frame| {
-            app.pager_overlay.as_ref().expect("pager").render(
-                frame,
-                frame.area(),
-                Locale::EnUs,
-                &lines,
-            );
+            app.chat_widget
+                .pager_overlay
+                .as_ref()
+                .expect("pager")
+                .render(frame, frame.area(), Locale::EnUs, &lines);
         })
         .expect("draw");
 
@@ -1872,7 +1935,10 @@ fn transcript_pager_routes_mouse_selection_copy_to_runtime_action() {
 #[test]
 fn transcript_pager_routes_stationary_link_release_to_runtime_action() {
     let mut app = App {
-        pager_overlay: Some(PagerOverlay::transcript(Locale::EnUs)),
+        chat_widget: crate::chatwidget::ChatWidget {
+            pager_overlay: Some(PagerOverlay::transcript(Locale::EnUs)),
+            ..Default::default()
+        },
         ..App::default()
     };
     let mut link = crate::terminal_hyperlinks::HyperlinkLine::from("docs");
@@ -1885,12 +1951,11 @@ fn transcript_pager_routes_stationary_link_release_to_runtime_action() {
         ratatui::Terminal::new(ratatui::backend::TestBackend::new(40, 8)).expect("terminal");
     terminal
         .draw(|frame| {
-            app.pager_overlay.as_ref().expect("pager").render(
-                frame,
-                frame.area(),
-                Locale::EnUs,
-                &[link],
-            );
+            app.chat_widget
+                .pager_overlay
+                .as_ref()
+                .expect("pager")
+                .render(frame, frame.area(), Locale::EnUs, &[link]);
         })
         .expect("draw");
 
@@ -1919,7 +1984,10 @@ fn transcript_pager_routes_stationary_link_release_to_runtime_action() {
 #[test]
 fn transcript_edge_drag_routes_frame_continuation_and_focus_loss_stops_it() {
     let mut app = App {
-        pager_overlay: Some(PagerOverlay::transcript(Locale::EnUs)),
+        chat_widget: crate::chatwidget::ChatWidget {
+            pager_overlay: Some(PagerOverlay::transcript(Locale::EnUs)),
+            ..Default::default()
+        },
         ..App::default()
     };
     let lines = (0..20)
@@ -1929,12 +1997,11 @@ fn transcript_edge_drag_routes_frame_continuation_and_focus_loss_stops_it() {
         ratatui::Terminal::new(ratatui::backend::TestBackend::new(40, 8)).expect("terminal");
     terminal
         .draw(|frame| {
-            app.pager_overlay.as_ref().expect("pager").render(
-                frame,
-                frame.area(),
-                Locale::EnUs,
-                &lines,
-            );
+            app.chat_widget
+                .pager_overlay
+                .as_ref()
+                .expect("pager")
+                .render(frame, frame.area(), Locale::EnUs, &lines);
         })
         .expect("tail draw");
     assert_eq!(
@@ -1946,12 +2013,11 @@ fn transcript_edge_drag_routes_frame_continuation_and_focus_loss_stops_it() {
     );
     terminal
         .draw(|frame| {
-            app.pager_overlay.as_ref().expect("pager").render(
-                frame,
-                frame.area(),
-                Locale::EnUs,
-                &lines,
-            );
+            app.chat_widget
+                .pager_overlay
+                .as_ref()
+                .expect("pager")
+                .render(frame, frame.area(), Locale::EnUs, &lines);
         })
         .expect("top draw");
 
@@ -1988,6 +2054,7 @@ fn transcript_edge_drag_routes_frame_continuation_and_focus_loss_stops_it() {
         AppAction::None
     );
     assert!(app
+        .chat_widget
         .pager_overlay
         .as_ref()
         .is_some_and(PagerOverlay::has_transcript_selection));
@@ -2027,13 +2094,16 @@ fn transcript_edge_drag_routes_frame_continuation_and_focus_loss_stops_it() {
 #[test]
 fn resume_picker_owns_input_until_cancelled() {
     let mut app = App {
-        resume_picker: Some(PickerState::new(
-            Vec::new(),
-            crate::resume_picker::SessionPickerAction::Resume,
-            crate::resume_picker::SessionStatus::Active,
-            None,
-            true,
-        )),
+        chat_widget: crate::chatwidget::ChatWidget {
+            resume_picker: Some(PickerState::new(
+                Vec::new(),
+                crate::resume_picker::SessionPickerAction::Resume,
+                crate::resume_picker::SessionStatus::Active,
+                None,
+                true,
+            )),
+            ..Default::default()
+        },
         ..App::default()
     };
 
@@ -2044,7 +2114,7 @@ fn resume_picker_owns_input_until_cancelled() {
         ),
         AppAction::ResumePicker(PickerAction::Reload)
     );
-    assert!(app.resume_picker.is_some());
+    assert!(app.chat_widget.resume_picker.is_some());
     assert_eq!(
         dispatch_connected_input(
             &mut app,
@@ -2059,7 +2129,7 @@ fn resume_picker_owns_input_until_cancelled() {
         ),
         AppAction::None
     );
-    assert!(app.resume_picker.is_none());
+    assert!(app.chat_widget.resume_picker.is_none());
 }
 
 #[test]
@@ -2088,7 +2158,7 @@ fn subagents_slash_command_opens_the_codex_named_picker() {
         Some("worker".to_string()),
         false,
     );
-    app.composer.insert("/subagents");
+    app.chat_widget.bottom_pane.insert_str("/subagents");
 
     assert_eq!(
         dispatch_connected_input(
@@ -2097,15 +2167,15 @@ fn subagents_slash_command_opens_the_codex_named_picker() {
         ),
         AppAction::None
     );
-    assert!(app.agents_overview.is_none());
-    assert!(app.agent_picker.is_some());
-    assert!(app.composer.is_empty());
+    assert!(app.chat_widget.agents_overview.is_none());
+    assert!(app.chat_widget.agent_picker.is_some());
+    assert!(app.chat_widget.bottom_pane.composer_is_empty());
 }
 
 #[test]
 fn agents_slash_command_opens_the_agents_overview() {
     let mut app = App::default();
-    app.composer.insert("/agents");
+    app.chat_widget.bottom_pane.insert_str("/agents");
 
     assert_eq!(
         dispatch_connected_input(
@@ -2114,15 +2184,17 @@ fn agents_slash_command_opens_the_agents_overview() {
         ),
         AppAction::RefreshAgentsOverview
     );
-    assert!(app.agents_overview.is_some());
-    assert!(app.agent_picker.is_none());
-    assert!(app.composer.is_empty());
+    assert!(app.chat_widget.agents_overview.is_some());
+    assert!(app.chat_widget.agent_picker.is_none());
+    assert!(app.chat_widget.bottom_pane.composer_is_empty());
 }
 
 #[test]
 fn empty_composer_left_opens_agents_overview_when_local_navigation_is_enabled() {
     let mut app = App::default();
-    app.composer.set_agents_navigation_enabled(true);
+    app.chat_widget
+        .bottom_pane
+        .set_agents_navigation_enabled(true);
 
     assert_eq!(
         dispatch_connected_input(
@@ -2131,14 +2203,16 @@ fn empty_composer_left_opens_agents_overview_when_local_navigation_is_enabled() 
         ),
         AppAction::RefreshAgentsOverview
     );
-    assert!(app.agents_overview.is_some());
-    assert!(app.composer.is_empty());
+    assert!(app.chat_widget.agents_overview.is_some());
+    assert!(app.chat_widget.bottom_pane.composer_is_empty());
 }
 
 #[test]
 fn empty_composer_left_stays_in_editor_when_navigation_is_disabled() {
     let mut app = App::default();
-    app.composer.set_agents_navigation_enabled(false);
+    app.chat_widget
+        .bottom_pane
+        .set_agents_navigation_enabled(false);
 
     assert_eq!(
         dispatch_connected_input(
@@ -2147,14 +2221,14 @@ fn empty_composer_left_stays_in_editor_when_navigation_is_disabled() {
         ),
         AppAction::None
     );
-    assert!(app.agents_overview.is_none());
-    assert!(app.composer.is_empty());
+    assert!(app.chat_widget.agents_overview.is_none());
+    assert!(app.chat_widget.bottom_pane.composer_is_empty());
 }
 
 #[test]
 fn resume_slash_command_opens_the_shared_picker_action() {
     let mut app = App::default();
-    app.composer.insert("/resume");
+    app.chat_widget.bottom_pane.insert_str("/resume");
 
     assert_eq!(
         dispatch_connected_input(
@@ -2163,7 +2237,7 @@ fn resume_slash_command_opens_the_shared_picker_action() {
         ),
         AppAction::OpenResumePicker
     );
-    assert!(app.composer.is_empty());
+    assert!(app.chat_widget.bottom_pane.composer_is_empty());
 }
 
 #[test]

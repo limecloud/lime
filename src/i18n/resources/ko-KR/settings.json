@@ -2222,5 +2222,9 @@
   "settings.mcpPage.runtime.resourceBrowser.preview.truncated": "잘렸습니다. 총 {{total}}자 중 처음 {{shown}}자만 표시하고 {{hidden}}자를 숨겼습니다.",
   "settings.mcpPage.runtime.resourceBrowser.preview.image": "이미지 데이터, {{bytes}}바이트",
   "settings.mcpPage.runtime.resourceBrowser.preview.blob": "바이너리 데이터, {{bytes}}바이트",
-  "settings.mcpPage.runtime.resourceBrowser.preview.empty": "내용 없음"
+  "settings.mcpPage.runtime.resourceBrowser.preview.empty": "내용 없음",
+  "settings.layout.sidebar.search.placeholder": "설정 검색",
+  "settings.layout.sidebar.search.label": "설정 검색",
+  "settings.layout.sidebar.search.clear": "검색 지우기",
+  "settings.layout.sidebar.search.noResults": "일치하는 설정이 없습니다"
 }

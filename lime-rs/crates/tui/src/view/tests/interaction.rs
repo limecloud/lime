@@ -3,8 +3,11 @@ use super::*;
 #[test]
 fn approval_fullscreen_details_close_without_deciding_or_losing_draft_and_selection() {
     let mut app = App::default();
-    app.composer.insert("unsent protected draft");
-    app.bottom_pane
+    app.chat_widget
+        .bottom_pane
+        .insert_str("unsent protected draft");
+    app.chat_widget
+        .bottom_pane
         .enqueue(ServerRequest::ItemCommandExecutionRequestApproval {
             id: RequestId::Integer(99),
             params: CommandExecutionRequestApprovalParams {
@@ -33,8 +36,8 @@ fn approval_fullscreen_details_close_without_deciding_or_losing_draft_and_select
         Event::Key(KeyEvent::new(KeyCode::Char('a'), KeyModifiers::CONTROL)),
     );
     assert!(matches!(action, crate::app::AppAction::None));
-    assert!(app.pager_overlay.is_some());
-    assert!(app.bottom_pane.is_active());
+    assert!(app.chat_widget.pager_overlay.is_some());
+    assert!(app.chat_widget.bottom_pane.is_active());
     let mut terminal = Terminal::new(TestBackend::new(60, 16)).unwrap();
     terminal.draw(|frame| render(frame, &app)).unwrap();
     assert!(buffer_text(&terminal).contains("long-command"));
@@ -43,14 +46,17 @@ fn approval_fullscreen_details_close_without_deciding_or_losing_draft_and_select
         Event::Key(KeyEvent::new(KeyCode::Char('y'), KeyModifiers::NONE)),
     );
     assert!(matches!(action, crate::app::AppAction::None));
-    assert!(app.bottom_pane.is_active());
+    assert!(app.chat_widget.bottom_pane.is_active());
     dispatch_connected_input(
         &mut app,
         Event::Key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE)),
     );
-    assert!(app.pager_overlay.is_none());
-    assert!(app.bottom_pane.is_active());
-    assert_eq!(app.composer.text(), "unsent protected draft");
+    assert!(app.chat_widget.pager_overlay.is_none());
+    assert!(app.chat_widget.bottom_pane.is_active());
+    assert_eq!(
+        app.chat_widget.bottom_pane.composer_text(),
+        "unsent protected draft"
+    );
     terminal.draw(|frame| render(frame, &app)).unwrap();
     assert!(buffer_text(&terminal).contains("› 4."));
     match dispatch_connected_input(
@@ -74,8 +80,9 @@ fn approval_fullscreen_details_close_without_deciding_or_losing_draft_and_select
 #[test]
 fn approval_replaces_the_composer_with_actionable_options() {
     let mut app = App::default();
-    app.composer.insert("unsent draft");
-    app.bottom_pane
+    app.chat_widget.bottom_pane.insert_str("unsent draft");
+    app.chat_widget
+        .bottom_pane
         .enqueue(ServerRequest::ItemCommandExecutionRequestApproval {
             id: RequestId::Integer(7),
             params: CommandExecutionRequestApprovalParams {
@@ -113,7 +120,8 @@ fn approval_hides_an_open_slash_command_popup() {
             crossterm::event::KeyModifiers::NONE,
         )),
     );
-    app.bottom_pane
+    app.chat_widget
+        .bottom_pane
         .enqueue(ServerRequest::ItemCommandExecutionRequestApproval {
             id: RequestId::Integer(9),
             params: CommandExecutionRequestApprovalParams {
@@ -143,7 +151,8 @@ fn approval_hides_an_open_slash_command_popup() {
 #[test]
 fn approval_narrow_layout_keeps_primary_controls_visible() {
     let mut app = App::default();
-    app.bottom_pane
+    app.chat_widget
+        .bottom_pane
         .enqueue(ServerRequest::ItemCommandExecutionRequestApproval {
             id: RequestId::Integer(10),
             params: CommandExecutionRequestApprovalParams {
@@ -174,7 +183,8 @@ fn approval_narrow_layout_keeps_primary_controls_visible() {
 #[test]
 fn request_user_input_narrow_layout_keeps_submit_and_cancel_visible() {
     let mut app = App::default();
-    app.bottom_pane
+    app.chat_widget
+        .bottom_pane
         .enqueue(ServerRequest::ItemToolRequestUserInput {
             id: RequestId::Integer(11),
             params: ToolRequestUserInputParams {
@@ -235,6 +245,7 @@ fn interactive_overlays_remain_actionable_across_supported_widths_and_locales() 
             let mut approval = App::default();
             approval.set_locale(locale);
             approval
+                .chat_widget
                 .bottom_pane
                 .enqueue(ServerRequest::ItemCommandExecutionRequestApproval {
                     id: RequestId::Integer(12),
@@ -295,6 +306,7 @@ fn interactive_overlays_remain_actionable_across_supported_widths_and_locales() 
             let mut question = App::default();
             question.set_locale(locale);
             question
+                .chat_widget
                 .bottom_pane
                 .enqueue(ServerRequest::ItemToolRequestUserInput {
                     id: RequestId::Integer(13),
@@ -364,7 +376,8 @@ fn interactive_overlays_remain_actionable_across_supported_widths_and_locales() 
 #[test]
 fn secret_user_input_is_masked_in_the_test_backend() {
     let mut app = App::default();
-    app.bottom_pane
+    app.chat_widget
+        .bottom_pane
         .enqueue(ServerRequest::ItemToolRequestUserInput {
             id: RequestId::Integer(8),
             params: ToolRequestUserInputParams {

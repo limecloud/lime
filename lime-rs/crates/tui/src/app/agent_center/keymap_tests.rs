@@ -258,7 +258,7 @@ fn app_agent_center_consumes_the_same_startup_snapshot_as_the_model_picker() {
         json!({"list":{"accept":"f9", "cancel":"ctrl-x q"}}),
     ));
     app.open_agents_overview();
-    let center = &mut app.agents_overview.as_mut().unwrap().view;
+    let center = &mut app.chat_widget.agents_overview.as_mut().unwrap().view;
     assert_eq!(press(center, KeyCode::Esc), AgentsOverviewAction::None);
     assert_eq!(cancel(center), AgentsOverviewAction::Cancel);
 }
@@ -292,7 +292,7 @@ fn fullscreen_notice_does_not_overpaint_the_configured_controls_or_editor() {
     assert!(!line(15).contains("refreshed"));
     assert!(line(14).contains("refreshed"), "{}", line(14));
     press(
-        &mut app.agents_overview.as_mut().unwrap().view,
+        &mut app.chat_widget.agents_overview.as_mut().unwrap().view,
         KeyCode::Char('n'),
     );
     terminal

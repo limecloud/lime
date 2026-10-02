@@ -3,6 +3,7 @@ mod app_event;
 mod app_event_sender;
 mod app_server_session;
 mod bottom_pane;
+mod chatwidget;
 mod clipboard_copy;
 mod clipboard_paste;
 mod collaboration_modes;

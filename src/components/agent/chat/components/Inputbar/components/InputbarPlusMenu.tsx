@@ -63,13 +63,13 @@ function InputbarPlusSwitch({ checked }: { checked?: boolean }) {
       className={cn(
         "relative inline-flex h-[18px] w-[32px] flex-shrink-0 items-center rounded-full border transition-colors",
         checked
-          ? "border-slate-900 bg-slate-900"
-          : "border-slate-200 bg-slate-100",
+          ? "border-[color:var(--lime-brand-strong)] bg-[color:var(--lime-brand-strong)]"
+          : "border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface-subtle)]",
       )}
     >
       <span
         className={cn(
-          "inline-block h-[14px] w-[14px] rounded-full bg-white shadow-sm transition-transform",
+          "inline-block h-[14px] w-[14px] rounded-full bg-[color:var(--lime-surface)] shadow-sm transition-transform",
           checked ? "translate-x-[15px]" : "translate-x-0.5",
         )}
       />
@@ -80,17 +80,17 @@ function InputbarPlusSwitch({ checked }: { checked?: boolean }) {
 const InputbarPlusRow = React.forwardRef<
   HTMLButtonElement,
   {
-  active?: boolean;
-  checked?: boolean;
-  disabled?: boolean;
-  icon: React.ReactNode;
-  label: string;
-  onClick?: () => void;
-  role?: "menuitem" | "menuitemcheckbox";
-  showArrow?: boolean;
-  testId: string;
-  title?: string;
-  trailing?: React.ReactNode;
+    active?: boolean;
+    checked?: boolean;
+    disabled?: boolean;
+    icon: React.ReactNode;
+    label: string;
+    onClick?: () => void;
+    role?: "menuitem" | "menuitemcheckbox";
+    showArrow?: boolean;
+    testId: string;
+    title?: string;
+    trailing?: React.ReactNode;
   }
 >(function InputbarPlusRow(
   {
@@ -116,23 +116,26 @@ const InputbarPlusRow = React.forwardRef<
       aria-checked={role === "menuitemcheckbox" ? Boolean(checked) : undefined}
       className={cn(
         "flex h-8 w-full min-w-0 items-center gap-2 px-2 text-left text-[13px] leading-none transition-colors",
-        "rounded-md text-slate-700 hover:bg-slate-50 hover:text-slate-950 focus-visible:bg-slate-50 focus-visible:outline-none",
-        active && "bg-slate-50 text-slate-950",
-        checked && "bg-slate-50 text-slate-950",
-        disabled && "cursor-default text-slate-300 hover:bg-transparent hover:text-slate-300",
+        "rounded-md text-[color:var(--lime-text)] hover:bg-[color:var(--lime-surface-hover)] hover:text-[color:var(--lime-text-strong)] focus-visible:bg-[color:var(--lime-surface-hover)] focus-visible:outline-none",
+        active &&
+          "bg-[color:var(--lime-surface-hover)] text-[color:var(--lime-text-strong)]",
+        checked &&
+          "bg-[color:var(--lime-surface-hover)] text-[color:var(--lime-text-strong)]",
+        disabled &&
+          "cursor-default text-[color:var(--lime-text-muted)] opacity-60 hover:bg-transparent",
       )}
       data-testid={testId}
       disabled={disabled}
       title={title}
       onClick={disabled ? undefined : onClick}
     >
-      <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center text-slate-500">
+      <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center text-[color:var(--lime-text-muted)]">
         {icon}
       </span>
       <span className="min-w-0 flex-1 truncate">{label}</span>
       {trailing}
       {showArrow ? (
-        <ChevronRight className="h-3.5 w-3.5 flex-shrink-0 text-slate-400" />
+        <ChevronRight className="h-3.5 w-3.5 flex-shrink-0 text-[color:var(--lime-text-muted)]" />
       ) : null}
     </button>
   );
@@ -291,9 +294,7 @@ export function InputbarPlusMenu({
               label={config.labels.subagent}
               role="menuitemcheckbox"
               testId="inputbar-plus-subagent-mode"
-              trailing={
-                <InputbarPlusSwitch checked={config.subagentEnabled} />
-              }
+              trailing={<InputbarPlusSwitch checked={config.subagentEnabled} />}
               onClick={config.onToggleSubagent}
             />
           ) : null}

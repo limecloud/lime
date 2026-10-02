@@ -4,7 +4,9 @@ mod approval_render;
 mod chat_composer;
 mod chat_composer_history;
 pub(crate) mod command_popup;
+mod composer;
 mod footer;
+mod input;
 mod input_state;
 pub(crate) mod list_selection_view;
 mod mcp_server_elicitation;
@@ -46,15 +48,16 @@ use action_required_title::{
     build_action_required_title_text, ActionRequiredItem, ACTION_REQUIRED_PREVIEW_PREFIX,
 };
 use approval_overlay::ApprovalOverlay;
+use chat_composer::ChatComposer;
 pub(crate) use chat_composer::{
-    ChatComposer, ComposerDraft, FileSearchPopupAction, FileSearchRequest, InputResult,
-    SkillPopupAction,
+    ComposerDraft, FileSearchPopupAction, FileSearchRequest, InputResult, SkillPopupAction,
 };
 use mcp_server_elicitation::McpServerElicitationOverlay;
 use request_user_input::RequestUserInputOverlay;
 pub(crate) use textarea::{TextArea, TextAreaState};
 
 pub(crate) use footer::render_footer;
+pub(crate) use input::ChatWidgetAction;
 pub(crate) use input_state::BottomPaneInputState;
 pub(crate) use render::{desired_height_with_locale_for_width, render_with_locale};
 pub(crate) use selection_tabs::render_filled_tab_bar;
@@ -216,6 +219,7 @@ impl PendingInteraction {
 
 #[derive(Debug, Default)]
 pub(crate) struct BottomPane {
+    composer: ChatComposer,
     queue: VecDeque<PendingInteraction>,
     keymap: crate::keymap::RuntimeKeymap,
 }
@@ -223,6 +227,7 @@ pub(crate) struct BottomPane {
 impl BottomPane {
     pub(crate) fn set_keymap_bindings(&mut self, keymap: &crate::keymap::RuntimeKeymap) {
         self.keymap = keymap.clone();
+        self.composer.set_keymap_bindings(keymap);
         for request in &mut self.queue {
             request.set_keymap_bindings(keymap);
         }
@@ -322,7 +327,7 @@ impl BottomPane {
         }
     }
 
-    pub(crate) fn clear(&mut self) {
+    pub(crate) fn clear_interactions(&mut self) {
         self.queue.clear();
     }
 
@@ -330,9 +335,9 @@ impl BottomPane {
         self.queue.front()
     }
 
-    pub(crate) fn handle_event(&mut self, event: Event) -> Option<AppServerResponse> {
+    fn handle_interaction_event(&mut self, event: Event) -> Option<AppServerResponse> {
         match event {
-            Event::Key(key) => self.handle_key_event(key),
+            Event::Key(key) => self.handle_interaction_key(key),
             Event::Paste(text) => {
                 match self.queue.front_mut() {
                     Some(PendingInteraction::UserInput(request)) => {
@@ -349,20 +354,34 @@ impl BottomPane {
         }
     }
 
-    pub(crate) fn handle_key_event(&mut self, key: KeyEvent) -> Option<AppServerResponse> {
+    fn handle_interaction_key(&mut self, key: KeyEvent) -> Option<AppServerResponse> {
         let response = self.queue.front_mut()?.handle_key_event(key)?;
         self.queue.pop_front();
         Some(response)
     }
 
     pub(crate) fn pre_draw_tick(&mut self, now: Instant) -> Option<AppServerResponse> {
+        if self.composer.handle_paste_burst_flush(now) {
+            self.composer.sync_completion_popup();
+        }
         let response = self.queue.front_mut()?.pre_draw_tick(now)?;
         self.queue.pop_front();
         Some(response)
     }
 
     pub(crate) fn next_frame_delay(&self, now: Instant) -> Option<Duration> {
-        self.queue.front()?.next_frame_delay(now)
+        let composer = self
+            .composer
+            .paste_burst_needs_frame()
+            .then_some(crate::tui::TARGET_FRAME_INTERVAL);
+        let interaction = self
+            .queue
+            .front()
+            .and_then(|view| view.next_frame_delay(now));
+        match (composer, interaction) {
+            (Some(a), Some(b)) => Some(a.min(b)),
+            (a, b) => a.or(b),
+        }
     }
 }
 
@@ -433,7 +452,7 @@ mod tests {
             Some("[ ! ] Action required Approve command?".to_string())
         );
 
-        let first = pane.handle_event(key(KeyCode::Enter));
+        let first = pane.handle_interaction_event(key(KeyCode::Enter));
         assert!(matches!(
             first,
             Some(AppServerResponse::Command {
@@ -443,7 +462,7 @@ mod tests {
         ));
         assert!(pane.is_active());
 
-        let second = pane.handle_event(key(KeyCode::Enter));
+        let second = pane.handle_interaction_event(key(KeyCode::Enter));
         assert!(matches!(
             second,
             Some(AppServerResponse::UserInput {
@@ -529,7 +548,7 @@ mod tests {
         assert!(pane.enqueue(mcp_elicitation).is_ok());
         assert!(pane.is_active());
         assert!(matches!(
-            pane.handle_event(key(KeyCode::Enter)),
+            pane.handle_interaction_event(key(KeyCode::Enter)),
             Some(AppServerResponse::McpElicitation {
                 response: McpServerElicitationRequestResponse {
                     action: app_server_protocol::protocol::v2::McpServerElicitationAction::Accept,

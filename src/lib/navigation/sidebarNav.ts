@@ -3,7 +3,7 @@ import {
   Boxes,
   CalendarClock,
   MessageCircleMore,
-  Plus,
+  SquarePen,
   Settings,
   type LucideIcon,
 } from "lucide-react";
@@ -40,7 +40,7 @@ const BASE_MAIN_SIDEBAR_NAV_ITEMS: SidebarNavItemDefinition[] = [
   {
     id: "home-general",
     label: "新建任务",
-    icon: Plus,
+    icon: SquarePen,
     page: "agent",
     params: buildHomeAgentParams(),
     resolveParams: (params) =>

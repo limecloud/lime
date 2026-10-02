@@ -496,16 +496,18 @@ describe("AgentThreadTimeline", () => {
 
     const container = renderTimeline([unsupportedItem]);
 
-    expect(container.textContent).toContain(
-      "记录了 runtime_protocol_diagnostic",
+    expect(container.textContent).toContain("暂时无法显示这条记录");
+    const diagnostics = container.querySelector("details");
+    expect(diagnostics?.hasAttribute("open")).toBe(false);
+    expect(diagnostics?.textContent).toContain(
+      "记录类型：runtime_protocol_diagnostic",
     );
-    expect(container.textContent).toContain("已隐藏底层协议详情");
     expect(container.textContent).not.toContain("request_metadata");
     expect(container.textContent).not.toContain("raw_payload");
     expect(container.textContent).not.toContain("jsonrpc");
     expect(container.textContent).not.toContain("turn/start");
   });
-  it("未知 canonical Item 应显示上游类型和脱敏字段名", () => {
+  it("未知 canonical Item 应把上游类型和脱敏字段名收进诊断详情", () => {
     const container = renderTimeline([
       {
         ...createBaseItem("unknown-item-1", 1),
@@ -515,8 +517,11 @@ describe("AgentThreadTimeline", () => {
       },
     ]);
 
-    expect(container.textContent).toContain("记录了 futureCapability");
-    expect(container.textContent).toContain(
+    expect(container.textContent).toContain("暂时无法显示这条记录");
+    const diagnostics = container.querySelector("details");
+    expect(diagnostics?.hasAttribute("open")).toBe(false);
+    expect(diagnostics?.textContent).toContain("记录类型：futureCapability");
+    expect(diagnostics?.textContent).toContain(
       "记录字段：[redacted], label, status",
     );
     expect(container.textContent).not.toContain("unknown_item");

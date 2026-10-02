@@ -1,35 +1,37 @@
-## Lime v1.148.0
+## Lime v1.149.0
 
 ### 新功能
 
-- TUI 输入与快捷键继续对齐 Codex：编辑器、Vim modal、搜索、历史、kill/yank register、列表分页和模型/推理强度选择统一消费可配置 keymap。
-- Thread resume 现在可以携带同一份 rich draft 与正在编辑的问答备注、审批选择和 MCP 表单，并在连接断开、恢复和终态通知时按 Thread 精确清理。
-- Prompt history 与 App Server 的公共 identity 统一使用 canonical Thread ID；TUI/CLI 继续复用同一 App Server JSON-RPC、RuntimeCore 和 Thread/Turn/Item 投影。
+- TUI 持续对齐 Codex ChatWidget：输入、交互、transcript presentation、Agent Center 以及模型/Agent/恢复/导出选择器收敛到单一 ChatWidget owner。
+- 侧栏新增可折叠 rail、项目对话分组的展开/收起与按需加载，并支持插件、技能和已安装目录的搜索导航。
+- Agent transcript 对暂不支持的 Item 提供稳定的多语言占位卡片，诊断字段默认折叠，需要时可展开查看。
+- 定时任务页面重做为更紧凑的任务列表与编辑器，支持即时创建、编辑、筛选、搜索、重复计划和运行预览。
 
 ### 修复
 
-- 修复结构化输入在 UTF-8 编辑、trim、queue edit、历史、重试和 external editor 之间丢失 `TextElement` placeholder、图片 detail、附件或 Skill identity 的问题。
-- 统一 start、steer、queue add/update 与 RuntimeCore 的输入长度校验和结构化错误，拒绝时保留完整 draft、附件、mention、cursor 与本地历史。
-- 修复 thread 切换、断线恢复、交互请求 resolved/terminal 通知、历史搜索和输入缓冲的状态串线；避免 foreign Thread 的请求写入当前 BottomPane。
-- 改进 diff、transcript、textarea、request-user-input 和 MCP elicitation 的布局、渲染与模块边界，覆盖窄终端、重排、焦点和终端恢复。
+- 修复插件目录在侧栏内切换筛选、搜索和详情时路由参数与页面状态不同步的问题。
+- 修复 TUI 在 Thread 切换、恢复、滚动、搜索、焦点变化和 transient picker 生命周期中出现的状态回流与重复 owner 问题。
+- 修复窄终端、全屏 Agent Center、重排、重连和终端恢复场景下的渲染与交互边界。
+- 修复定时任务编辑时标题、时间、时区、星期和启用状态的校验与回填，保持五语言文案一致。
 
 ### 优化与重构
 
-- 将 TUI 的 submission、thread input、message history、composer、textarea、Vim、model catalog、resume picker 和交互视图拆到单一职责 owner，继续沿用共享 App Server 主链。
-- 补充 canonical prompt history、typed input lowering、queue/turn projection、CLI stdio 与 TUI PTY 的 current fixture 和结构守卫。
-- 更新 TUI keymap、App Server 命令合同、架构说明、操作文档和 Codex 对齐执行记录。
+- 删除 App 中旧的 BottomPane、transcript、Agent Center 和 picker 平行字段及 mapper 命名，直接迁移到 current ChatWidget/BottomPane owner，不保留兼容壳。
+- 拆分侧栏、设置导航、rail、插件定制区和加载更多组件，统一使用 Lime 设计 token 与可访问交互。
+- 将定时任务创建与编辑表单拆为共享 editor owner，列表操作与弹窗生命周期复用同一表单事实源。
+- 将未知 Item 渲染、TUI 结构 inventory、PTY/stdio fixture 和 Vitest 批处理逻辑拆为独立 owner，保持共享 App Server JSON-RPC 与 canonical Thread/Turn/Item 主链。
 
 ### 测试与质量
 
-- 扩展 App Server protocol/schema/client、输入限制、prompt history、TUI 交互、Vim、编辑器、历史恢复、queue edit、stdio 和 PTY Gate B 回归覆盖。
-- 发版验证以 `npm run verify:app-version`、`npm run typecheck`、受影响 Rust/协议测试和 GUI smoke 结果为准；完整 Rust CI、跨平台打包、签名、公证与 npm 分发由发布流水线继续验证。
+- 补充 TUI ChatWidget owner、Agent Center、picker、transcript、PTY Gate B、CLI Gate B、侧栏、设置布局、插件目录和未知 Item 的回归覆盖。
+- 发布验证执行 `npm run verify:app-version`、`npm run typecheck`、`npm run test:contracts` 与 `npm run verify:gui-smoke`；跨平台打包、签名、公证和 npm optional packages 由发布流水线继续验证。
 
 ### 文档
 
-- 更新 `docs/ops.md`、App Server 架构与命令边界、TUI/CLI Codex 对齐计划及结构 inventory。
+- 更新架构说明、TUI/CLI Codex 对齐执行计划、结构 inventory 与 v1.149.0 发布执行计划。
 
 ### 其他
 
-- 本版本没有新增平行 runtime、历史存储或兼容后端；Desktop 与 CLI/TUI 继续共享 `Product Surface -> App Server JSON-RPC -> RuntimeCore -> Thread/Turn/Item` 主链。
+- 本版本不新增平行 runtime、协议后端、历史存储或兼容实现；Desktop 与 CLI/TUI 继续共享 `Product Surface -> App Server JSON-RPC -> RuntimeCore -> Thread/Turn/Item` 主链。
 
-**完整变更**: `v1.147.0` -> `v1.148.0`
+**完整变更**: `v1.148.0` -> `v1.149.0`

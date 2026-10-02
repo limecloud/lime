@@ -17,15 +17,15 @@ const desktopHostAliasPatterns = [
 ];
 
 const workspaceAliasSpecs = [
-  [
-    "@limecloud/app-server-client",
-    "packages/app-server-client/src/browser.ts",
-  ],
+  ["@limecloud/app-server-client", "packages/app-server-client/src/browser.ts"],
   [
     "@limecloud/agent-runtime-client/sessionGateway",
     "packages/agent-runtime-client/src/sessionGateway.ts",
   ],
-  ["@limecloud/agent-runtime-client", "packages/agent-runtime-client/src/index.ts"],
+  [
+    "@limecloud/agent-runtime-client",
+    "packages/agent-runtime-client/src/index.ts",
+  ],
   ["@limecloud/agent-ui-contracts", "packages/agent-ui-contracts/src/index.ts"],
   [
     "@limecloud/agent-runtime-projection",
@@ -64,7 +64,9 @@ export function createVitestSmokeConfig(rootDir) {
         ),
       )};\n` +
       `import svgr from ${JSON.stringify(
-        toFileUrl(path.join(rootDir, "node_modules/vite-plugin-svgr/dist/index.js")),
+        toFileUrl(
+          path.join(rootDir, "node_modules/vite-plugin-svgr/dist/index.js"),
+        ),
       )};\n` +
       `const rootDir = ${JSON.stringify(rootDir)};\n` +
       `const aliasSpecs = ${JSON.stringify(aliasSpecs)};\n` +
@@ -98,6 +100,7 @@ export function createVitestSmokeConfig(rootDir) {
 export function runVitestSmoke({ rootDir, label, args, logPrefix, env }) {
   const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
   const config = createVitestSmokeConfig(rootDir);
+  const reportPath = path.join(path.dirname(config.configPath), "results.json");
   const startedAt = Date.now();
 
   console.log(`\n[${logPrefix}] > ${label}`);
@@ -105,7 +108,19 @@ export function runVitestSmoke({ rootDir, label, args, logPrefix, env }) {
   try {
     const result = spawnSync(
       npmCommand,
-      ["exec", "--", "vitest", "run", ...args, "--config", config.configPath],
+      [
+        "exec",
+        "--",
+        "vitest",
+        "run",
+        ...args,
+        "--config",
+        config.configPath,
+        "--reporter=default",
+        "--reporter=json",
+        "--outputFile",
+        reportPath,
+      ],
       {
         cwd: rootDir,
         stdio: "inherit",
@@ -117,15 +132,39 @@ export function runVitestSmoke({ rootDir, label, args, logPrefix, env }) {
       throw result.error;
     }
 
-    if (typeof result.status === "number" && result.status !== 0) {
-      const error = new Error(`[${logPrefix}] ${label} 失败`);
-      error.exitCode = result.status;
+    if (result.status !== 0) {
+      const error = new Error(
+        `[${logPrefix}] ${label} 失败 (exit=${result.status}, signal=${result.signal ?? "none"})`,
+      );
+      error.exitCode = result.status ?? 1;
       throw error;
     }
 
+    let report;
+    try {
+      report = JSON.parse(fs.readFileSync(reportPath, "utf8"));
+    } catch (cause) {
+      throw new Error(`[${logPrefix}] ${label} 缺少有效 Vitest 执行报告`, {
+        cause,
+      });
+    }
+    if (
+      report?.success !== true ||
+      report.numFailedTests !== 0 ||
+      report.numFailedTestSuites !== 0 ||
+      !Number.isInteger(report.numPassedTests) ||
+      report.numPassedTests < 1
+    ) {
+      throw new Error(
+        `[${logPrefix}] ${label} 未通过有效测试 (passed=${report?.numPassedTests ?? "unknown"}, failed=${report?.numFailedTests ?? "unknown"}, skipped=${report?.numPendingTests ?? "unknown"})`,
+      );
+    }
+
+    console.log(`[${logPrefix}] ${label}: executed=${report.numPassedTests}`);
     return {
       label,
       status: "pass",
+      executedTests: report.numPassedTests,
       durationMs: Date.now() - startedAt,
       args,
     };

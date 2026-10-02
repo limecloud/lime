@@ -69,16 +69,16 @@ interface ChatNavbarOpenedProject {
 }
 
 const toolbarGroupClassName =
-  "flex max-w-full flex-nowrap items-center overflow-hidden whitespace-nowrap rounded-[20px] border border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface-subtle)] p-1.5 shadow-sm shadow-slate-950/5 backdrop-blur-sm";
+  "flex max-w-full flex-nowrap items-center overflow-hidden whitespace-nowrap rounded-[12px] border border-[color:var(--lime-surface-border)] bg-[color:var(--lime-surface)] p-1 shadow-none";
 
 const toolbarDividerClassName =
   "mx-1.5 h-6 w-px shrink-0 bg-[color:var(--lime-surface-border)]";
 
 const toolbarEmbeddedButtonClassName =
-  "h-9 shrink-0 whitespace-nowrap rounded-2xl border border-transparent px-3.5 text-xs shadow-none";
+  "h-8 shrink-0 whitespace-nowrap rounded-[9px] border border-transparent px-3 text-xs shadow-none";
 
 const toolbarGhostIconButtonClassName =
-  "h-9 w-9 shrink-0 rounded-2xl text-[color:var(--lime-text-muted)] hover:bg-[color:var(--lime-surface-hover)] hover:text-[color:var(--lime-text)]";
+  "h-8 w-8 shrink-0 rounded-[9px] text-[color:var(--lime-text-muted)] hover:bg-[color:var(--lime-surface-hover)] hover:text-[color:var(--lime-text)]";
 
 const toolbarTextButtonClassName =
   "gap-1.5 text-[color:var(--lime-text)] hover:bg-[color:var(--lime-surface)] hover:text-[color:var(--lime-text-strong)]";

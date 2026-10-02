@@ -1,4 +1,8 @@
 import styled from "styled-components";
+import {
+  APP_SIDEBAR_RAIL_WIDTH,
+  APP_SIDEBAR_WIDTH,
+} from "./AppSidebar.constants";
 
 export const Container = styled.aside<{
   $collapsed?: boolean;
@@ -20,9 +24,7 @@ export const Container = styled.aside<{
       ? "#1a2530"
       : "var(--lime-sidebar-surface-bottom, #fbfff5)"};
   --sidebar-surface: ${({ $themeMode }) =>
-    $themeMode === "dark"
-      ? "linear-gradient(180deg, #15202b 0%, #17232d 48%, #1a2530 100%)"
-      : "var(--lime-sidebar-surface, linear-gradient(180deg, var(--sidebar-surface-top) 0%, var(--sidebar-surface-middle) 46%, var(--sidebar-surface-bottom) 100%))"};
+    $themeMode === "dark" ? "#17232d" : "var(--lime-sidebar-surface, #f8f8f6)"};
   --sidebar-foreground: ${({ $themeMode }) =>
     $themeMode === "dark" ? "#eef4f7" : "var(--lime-text, #1a3b2b)"};
   --sidebar-muted: ${({ $themeMode }) =>
@@ -69,15 +71,16 @@ export const Container = styled.aside<{
     $themeMode === "dark"
       ? "rgba(255, 255, 255, 0.08)"
       : "var(--lime-sidebar-card-highlight, rgba(255, 255, 255, 0.72))"};
-  display: flex;
-  flex-direction: column;
-  width: ${({ $collapsed }) => ($collapsed ? "72px" : "272px")};
-  min-width: ${({ $collapsed }) => ($collapsed ? "72px" : "272px")};
-  height: 100vh;
-  padding: ${({ $collapsed }) =>
+  display: grid;
+  grid-template-columns: ${({ $collapsed }) =>
     $collapsed
-      ? "calc(12px + var(--sidebar-window-control-safe-top)) 6px 12px"
-      : "calc(14px + var(--sidebar-window-control-safe-top)) 14px 12px"};
+      ? `${APP_SIDEBAR_RAIL_WIDTH}px 0px`
+      : `${APP_SIDEBAR_RAIL_WIDTH}px minmax(0, 1fr)`};
+  width: ${({ $collapsed }) =>
+    $collapsed ? `${APP_SIDEBAR_RAIL_WIDTH}px` : `${APP_SIDEBAR_WIDTH}px`};
+  min-width: ${({ $collapsed }) =>
+    $collapsed ? `${APP_SIDEBAR_RAIL_WIDTH}px` : `${APP_SIDEBAR_WIDTH}px`};
+  height: 100vh;
   position: relative;
   isolation: isolate;
   z-index: 30;
@@ -87,50 +90,33 @@ export const Container = styled.aside<{
   transition:
     width 180ms ease,
     min-width 180ms ease,
-    padding 180ms ease;
+    grid-template-columns 180ms ease;
+`;
 
-  &::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    background:
-      radial-gradient(
-        circle at top left,
-        var(--lime-sidebar-glow-primary, rgba(132, 204, 22, 0.14)) 0%,
-        transparent 54%
-      ),
-      radial-gradient(
-        circle at 18% 18%,
-        var(--lime-sidebar-glow-secondary, rgba(16, 185, 129, 0.12)) 0%,
-        transparent 42%
-      ),
-      radial-gradient(
-        circle at bottom left,
-        var(--lime-sidebar-glow-tertiary, rgba(186, 230, 253, 0.12)) 0%,
-        transparent 46%
-      );
-    opacity: 0.82;
-    pointer-events: none;
-    z-index: 0;
-  }
-
-  > * {
-    position: relative;
-    z-index: 1;
-  }
+export const SidebarSurface = styled.div<{ $collapsed?: boolean }>`
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  padding: ${({ $collapsed }) =>
+    $collapsed
+      ? "0"
+      : "calc(10px + var(--sidebar-window-control-safe-top)) 10px 12px"};
+  overflow: hidden;
+  background: var(--sidebar-surface);
 `;
 
 export const HeaderArea = styled.div<{ $collapsed?: boolean }>`
   display: flex;
   flex-direction: column;
-  gap: ${({ $collapsed }) => ($collapsed ? "8px" : "14px")};
-  margin-bottom: 16px;
+  gap: ${({ $collapsed }) => ($collapsed ? "8px" : "7px")};
+  margin-bottom: 10px;
 `;
 
 export const HeaderTopRow = styled.div<{ $collapsed?: boolean }>`
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 2px;
   ${({ $collapsed }) =>
     $collapsed
       ? `
@@ -148,8 +134,8 @@ export const UserButton = styled.button<{ $collapsed?: boolean }>`
   flex: ${({ $collapsed }) => ($collapsed ? "0 0 auto" : "1 1 auto")};
   border: none;
   background: transparent;
-  border-radius: 14px;
-  padding: ${({ $collapsed }) => ($collapsed ? "8px" : "10px 12px")};
+  border-radius: 8px;
+  padding: ${({ $collapsed }) => ($collapsed ? "8px" : "5px 7px")};
   cursor: pointer;
   color: var(--sidebar-foreground);
   justify-content: ${({ $collapsed }) =>
@@ -164,9 +150,9 @@ export const UserButton = styled.button<{ $collapsed?: boolean }>`
 `;
 
 export const Avatar = styled.div`
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
   overflow: visible;
   flex-shrink: 0;
 
@@ -180,8 +166,8 @@ export const Avatar = styled.div`
 
 export const UserName = styled.div<{ $collapsed?: boolean }>`
   flex: 1;
-  font-size: 15px;
-  font-weight: 700;
+  font-size: 14px;
+  font-weight: 650;
   text-align: left;
   white-space: nowrap;
   overflow: hidden;
@@ -189,37 +175,53 @@ export const UserName = styled.div<{ $collapsed?: boolean }>`
   display: ${({ $collapsed }) => ($collapsed ? "none" : "block")};
 `;
 
-export const SearchButton = styled.button<{ $collapsed?: boolean }>`
+export const SearchButton = styled.button<{
+  $collapsed?: boolean;
+  $inline?: boolean;
+}>`
   display: flex;
   align-items: center;
   gap: 8px;
-  width: 100%;
-  height: 44px;
-  border-radius: 16px;
-  border: 1px solid var(--sidebar-card-border);
-  background: var(--sidebar-search-bg);
+  width: ${({ $inline }) => ($inline ? "26px" : "100%")};
+  flex-shrink: 0;
+  height: ${({ $inline }) => ($inline ? "30px" : "40px")};
+  border-radius: ${({ $inline }) => ($inline ? "8px" : "12px")};
+  border: ${({ $inline }) =>
+    $inline ? "none" : "1px solid var(--sidebar-card-border)"};
+  background: ${({ $inline }) =>
+    $inline ? "transparent" : "var(--sidebar-search-bg)"};
   color: var(--sidebar-muted);
-  padding: ${({ $collapsed }) => ($collapsed ? "0" : "0 14px")};
+  padding: ${({ $inline }) => ($inline ? "0" : "0 12px")};
   cursor: pointer;
-  justify-content: ${({ $collapsed }) =>
-    $collapsed ? "center" : "flex-start"};
+  justify-content: ${({ $inline }) => ($inline ? "center" : "flex-start")};
   transition:
     border-color 0.18s ease,
     background-color 0.18s ease,
     color 0.18s ease,
     box-shadow 0.18s ease;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.56);
+  box-shadow: ${({ $inline }) =>
+    $inline ? "none" : "inset 0 1px 0 rgba(255, 255, 255, 0.5)"};
 
   &:hover {
-    border-color: var(--sidebar-search-border-hover);
+    border-color: ${({ $inline }) =>
+      $inline ? "transparent" : "var(--sidebar-search-border-hover)"};
     background: var(--sidebar-search-hover);
     color: var(--sidebar-foreground);
   }
 
   span {
+    display: ${({ $inline }) => ($inline ? "none" : "inline")};
     font-size: 14px;
     font-weight: 600;
-    display: ${({ $collapsed }) => ($collapsed ? "none" : "inline")};
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  svg {
+    width: 15px;
+    height: 15px;
+    flex-shrink: 0;
   }
 `;
 
@@ -543,22 +545,23 @@ export const MenuScroll = styled.div`
 export const MainNavList = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  margin-bottom: 12px;
+  gap: 2px;
+  margin-bottom: 10px;
 `;
 
 export const NavButton = styled.button<{
   $active?: boolean;
   $collapsed?: boolean;
+  $hiddenInExpanded?: boolean;
 }>`
   display: flex;
   align-items: center;
   gap: ${({ $collapsed }) => ($collapsed ? "0" : "10px")};
   width: 100%;
-  height: ${({ $collapsed }) => ($collapsed ? "40px" : "46px")};
+  height: ${({ $collapsed }) => ($collapsed ? "40px" : "30px")};
   border: none;
-  border-radius: 14px;
-  padding: ${({ $collapsed }) => ($collapsed ? "0" : "0 12px")};
+  border-radius: 8px;
+  padding: ${({ $collapsed }) => ($collapsed ? "0" : "0 8px")};
   position: relative;
   background: ${({ $active }) =>
     $active ? "var(--sidebar-active)" : "transparent"};
@@ -572,13 +575,14 @@ export const NavButton = styled.button<{
     box-shadow 0.18s ease;
   justify-content: ${({ $collapsed }) =>
     $collapsed ? "center" : "flex-start"};
-  box-shadow: ${({ $active }) =>
-    $active ? "inset 0 1px 0 rgba(255, 255, 255, 0.48)" : "none"};
+  display: ${({ $collapsed, $hiddenInExpanded }) =>
+    !$collapsed && $hiddenInExpanded ? "none" : "flex"};
+  box-shadow: none;
 
   &::before {
     content: "";
     position: absolute;
-    left: ${({ $collapsed }) => ($collapsed ? "8px" : "7px")};
+    left: ${({ $collapsed }) => ($collapsed ? "5px" : "4px")};
     top: 50%;
     width: 3px;
     height: ${({ $active }) => ($active ? "18px" : "0")};
@@ -601,8 +605,8 @@ export const NavButton = styled.button<{
   }
 
   svg {
-    width: 17px;
-    height: 17px;
+    width: 15px;
+    height: 15px;
     flex-shrink: 0;
     opacity: ${({ $active }) => ($active ? 1 : 0.92)};
   }
@@ -611,45 +615,12 @@ export const NavButton = styled.button<{
 export const NavLabel = styled.span<{ $collapsed?: boolean }>`
   flex: 1;
   text-align: left;
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   display: ${({ $collapsed }) => ($collapsed ? "none" : "inline")};
-`;
-
-export const FooterArea = styled.div<{ $collapsed?: boolean }>`
-  padding-top: 10px;
-  padding-bottom: 16px;
-  border-top: 1px solid var(--sidebar-divider);
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-`;
-
-export const FooterPrimaryActionRow = styled.div<{ $collapsed?: boolean }>`
-  display: grid;
-  grid-template-columns: ${({ $collapsed }) =>
-    $collapsed ? "40px" : "minmax(0, 1fr) auto"};
-  align-items: center;
-  justify-content: ${({ $collapsed }) => ($collapsed ? "center" : "stretch")};
-  gap: ${({ $collapsed }) => ($collapsed ? "0" : "8px")};
-`;
-
-export const FooterSettingsAction = styled.div<{ $collapsed?: boolean }>`
-  min-width: 0;
-
-  > * {
-    width: 100%;
-  }
-`;
-
-export const FooterUpdateActionSlot = styled.div<{ $collapsed?: boolean }>`
-  display: ${({ $collapsed }) => ($collapsed ? "none" : "flex")};
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
 `;
 
 export const FooterAppearanceActionSlot = styled.div`
@@ -670,6 +641,7 @@ export const ActionRow = styled.div<{ $collapsed?: boolean }>`
 export const IconActionButton = styled.button<{ $active?: boolean }>`
   width: 30px;
   height: 30px;
+  flex-shrink: 0;
   border: none;
   border-radius: 10px;
   display: inline-flex;
@@ -704,14 +676,14 @@ export const HeaderInviteButton = styled.button<{
   $active?: boolean;
 }>`
   height: 30px;
-  min-width: ${({ $collapsed }) => ($collapsed ? "30px" : "88px")};
+  min-width: 28px;
   border: none;
   border-radius: 10px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: ${({ $collapsed }) => ($collapsed ? "0" : "6px")};
-  padding: ${({ $collapsed }) => ($collapsed ? "0" : "0 9px")};
+  padding: 0;
   background: ${({ $active }) =>
     $active ? "var(--sidebar-hover)" : "transparent"};
   color: ${({ $active }) =>
@@ -737,7 +709,7 @@ export const HeaderInviteButton = styled.button<{
   }
 
   span {
-    display: ${({ $collapsed }) => ($collapsed ? "none" : "inline")};
+    display: none;
     font-size: 13px;
     font-weight: 600;
     white-space: nowrap;
@@ -1293,16 +1265,6 @@ export const ColorSchemeCheck = styled.span<{ $active?: boolean }>`
     width: 13px;
     height: 13px;
   }
-`;
-
-export const AccountActionSlot = styled.div<{ $collapsed?: boolean }>`
-  position: relative;
-  margin-top: 4px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  align-items: ${({ $collapsed }) => ($collapsed ? "center" : "stretch")};
-  justify-content: ${({ $collapsed }) => ($collapsed ? "center" : "stretch")};
 `;
 
 export const AccountMenuAnchor = styled.div<{ $collapsed?: boolean }>`

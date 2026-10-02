@@ -27,7 +27,7 @@ export const Container = styled.div`
   flex-direction: column;
   position: relative;
   z-index: 2;
-  padding: 0 8px 12px;
+  padding: 0 8px 10px;
   width: 100%;
   max-width: none;
   margin: 0;
@@ -45,8 +45,11 @@ export const InputBarContainer = styled.div`
   position: relative;
   border: 1px solid var(--lime-composer-border, rgba(110, 231, 183, 0.84));
   border-radius: 22px;
-  padding: 10px 12px 10px 10px;
-  background: var(--lime-composer-surface);
+  padding: 9px 10px;
+  background: var(
+    --lime-composer-surface,
+    var(--lime-surface, hsl(var(--card)))
+  );
   box-shadow:
     0 10px 28px var(--lime-shadow-color),
     inset 0 1px 0 rgba(255, 255, 255, 0.9);
@@ -70,9 +73,12 @@ export const InputBarContainer = styled.div`
   }
 
   &.floating-composer {
-    border-radius: 34px;
-    padding: 20px 24px 18px 22px;
-    background: var(--lime-composer-surface-floating);
+    border-radius: 18px;
+    padding: 14px 16px 12px;
+    background: var(
+      --lime-composer-surface-floating,
+      var(--lime-surface, hsl(var(--card)))
+    );
     border-color: var(--lime-composer-border, rgba(110, 231, 183, 0.84));
     box-shadow:
       0 28px 56px -38px var(--lime-shadow-color),
@@ -198,7 +204,7 @@ export const StyledTextarea = styled.textarea`
   &.floating-composer {
     font-size: 17px;
     line-height: 1.78;
-    min-height: 126px;
+    min-height: 88px;
   }
 
   &.floating-composer.floating-collapsed {
@@ -231,13 +237,13 @@ export const BottomBar = styled.div`
   flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
-  padding-top: 10px;
-  margin-top: 10px;
-  gap: 12px;
+  padding-top: 8px;
+  margin-top: 8px;
+  gap: 8px;
   position: relative;
   flex-shrink: 0;
   min-width: 0;
-  border-top: 1px solid rgba(148, 163, 184, 0.22);
+  border-top: 1px solid var(--lime-surface-border, hsl(var(--border) / 0.7));
 
   &.floating-composer {
     padding-top: 15px;
@@ -706,13 +712,13 @@ export const InputIconButton = styled.button<{
         ? "rgba(15, 23, 42, 0.12)"
         : $destructive
           ? "rgba(225, 29, 72, 0.28)"
-          : "rgba(148, 163, 184, 0.28)"};
+          : "var(--lime-surface-border, hsl(var(--border)))"};
   background: ${({ $primary, $destructive }) =>
     $primary
       ? "var(--lime-brand, #10b981)"
       : $destructive
         ? "rgba(255, 226, 234, 0.92)"
-        : "rgba(255, 255, 255, 0.9)"};
+        : "var(--lime-surface, hsl(var(--card)))"};
   color: ${({ $primary, $destructive }) =>
     $primary
       ? "#f0fdf4"

@@ -31,14 +31,14 @@ fn startup_snapshot_reaches_existing_queued_and_new_notes_editors() {
     pane.set_keymap_bindings(&bindings());
     pane.enqueue(user_input(3)).unwrap();
     for id in 1..=3 {
-        pane.handle_event(Event::Paste("ab".into()));
-        pane.handle_key_event(key(KeyCode::F(12)));
-        pane.handle_event(Event::Paste("c".into()));
-        pane.handle_key_event(key(KeyCode::Backspace));
+        pane.handle_interaction_event(Event::Paste("ab".into()));
+        pane.handle_interaction_key(key(KeyCode::F(12)));
+        pane.handle_interaction_event(Event::Paste("c".into()));
+        pane.handle_interaction_key(key(KeyCode::Backspace));
         // A pending chord owns Enter instead of submitting an answer.
-        pane.handle_key_event(KeyEvent::new(KeyCode::Char('q'), KeyModifiers::CONTROL));
-        assert!(pane.handle_key_event(key(KeyCode::Enter)).is_none());
-        let response = pane.handle_key_event(key(KeyCode::Enter)).unwrap();
+        pane.handle_interaction_key(KeyEvent::new(KeyCode::Char('q'), KeyModifiers::CONTROL));
+        assert!(pane.handle_interaction_key(key(KeyCode::Enter)).is_none());
+        let response = pane.handle_interaction_key(key(KeyCode::Enter)).unwrap();
         let AppServerResponse::UserInput {
             id: response_id,
             response,
@@ -58,7 +58,7 @@ fn restoring_thread_views_reapplies_current_bindings_to_all_queued_editors() {
     for id in 1..=2 {
         pane.enqueue(user_input(id)).unwrap();
     }
-    pane.handle_event(Event::Paste("restored".into()));
+    pane.handle_interaction_event(Event::Paste("restored".into()));
     let state = pane.take_input_state();
     assert!(
         !pane.is_active(),
@@ -67,13 +67,13 @@ fn restoring_thread_views_reapplies_current_bindings_to_all_queued_editors() {
     pane.set_keymap_bindings(&bindings());
     pane.restore_input_state(state);
     for id in 1..=2 {
-        pane.handle_key_event(key(KeyCode::F(12)));
-        pane.handle_event(Event::Paste("tail".into()));
-        pane.handle_key_event(key(KeyCode::Backspace));
+        pane.handle_interaction_key(key(KeyCode::F(12)));
+        pane.handle_interaction_event(Event::Paste("tail".into()));
+        pane.handle_interaction_key(key(KeyCode::Backspace));
         let Some(AppServerResponse::UserInput {
             id: actual,
             response,
-        }) = pane.handle_key_event(key(KeyCode::Enter))
+        }) = pane.handle_interaction_key(key(KeyCode::Enter))
         else {
             panic!("restored notes must use current bindings")
         };
@@ -98,14 +98,14 @@ fn mcp_text_field_consumes_snapshot_without_ctrl_j_newline_fallback_or_chord_sub
     let mut pane = BottomPane::default();
     pane.set_keymap_bindings(&bindings());
     pane.enqueue(request).unwrap();
-    pane.handle_event(Event::Paste("ab".into()));
-    pane.handle_key_event(KeyEvent::new(KeyCode::Char('j'), KeyModifiers::CONTROL));
-    pane.handle_key_event(key(KeyCode::F(12)));
-    pane.handle_event(Event::Paste("c".into()));
-    pane.handle_key_event(key(KeyCode::Backspace));
-    pane.handle_key_event(KeyEvent::new(KeyCode::Char('q'), KeyModifiers::CONTROL));
-    assert!(pane.handle_key_event(key(KeyCode::Enter)).is_none());
-    let response = pane.handle_key_event(key(KeyCode::Enter)).unwrap();
+    pane.handle_interaction_event(Event::Paste("ab".into()));
+    pane.handle_interaction_key(KeyEvent::new(KeyCode::Char('j'), KeyModifiers::CONTROL));
+    pane.handle_interaction_key(key(KeyCode::F(12)));
+    pane.handle_interaction_event(Event::Paste("c".into()));
+    pane.handle_interaction_key(key(KeyCode::Backspace));
+    pane.handle_interaction_key(KeyEvent::new(KeyCode::Char('q'), KeyModifiers::CONTROL));
+    assert!(pane.handle_interaction_key(key(KeyCode::Enter)).is_none());
+    let response = pane.handle_interaction_key(key(KeyCode::Enter)).unwrap();
     let AppServerResponse::McpElicitation { response, .. } = response else {
         panic!("expected MCP response");
     };

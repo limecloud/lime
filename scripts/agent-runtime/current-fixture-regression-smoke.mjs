@@ -134,11 +134,11 @@ function main() {
     "src/components/agent/chat/hooks/agentStreamRuntimeHandler.unit.test.ts",
     "src/components/agent/chat/hooks/agentStreamRuntimeHandler.typedError.test.ts",
     "-t",
-    "turn_completed|usage|工具",
+    "turn_completed|turn/completed|usage|工具",
   ]);
 
   runVitest("Claw 消息列表终态 UI", [
-    "src/components/agent/chat/components/MessageList.test.tsx",
+    "src/components/agent/chat/components/MessageList.runtimeStatus.test.tsx",
     "-t",
     "远端 failed runtimeStatus|完成态 assistant 有正文|assistant 已有正文且仍在发送时",
   ]);

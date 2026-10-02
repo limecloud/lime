@@ -90,6 +90,7 @@ export async function waitForElectronSmokeMemorySettingsReady(
         return true;
       };
       const sidebarMemoryTabSelector = '[data-testid="settings-sidebar-tab-memory"]';
+      const sidebarSettingsSelector = '[data-testid="app-sidebar-nav-settings"]';
       const floatingNavButtonSelector = '[data-testid="settings-floating-nav-button"]';
       const floatingMemoryTabSelector = '[data-testid="settings-floating-tab-memory"]';
       const memoryTabNavigationReady = () =>
@@ -239,13 +240,20 @@ export async function waitForElectronSmokeMemorySettingsReady(
           tick();
         });
       const run = async () => {
-        let result = await waitFor(() => displayed(document.querySelector('[data-testid="app-sidebar-account-button"]')), "wait account menu trigger");
+        let result = await waitFor(() =>
+          interactable(document.querySelector('[data-testid="app-sidebar-account-button"]')) ||
+          interactable(document.querySelector(sidebarSettingsSelector)),
+          "wait settings navigation trigger",
+        );
         if (!result.ok) return result;
-        if (!click('[data-testid="app-sidebar-account-button"]')) return summarize("open account menu");
-
-        result = await waitFor(() => displayed(document.querySelector('[data-testid="app-sidebar-account-model-settings"]')), "wait model settings entry");
-        if (!result.ok) return result;
-        if (!click('[data-testid="app-sidebar-account-model-settings"]')) return summarize("open settings page");
+        if (interactable(document.querySelector(sidebarSettingsSelector))) {
+          if (!click(sidebarSettingsSelector)) return summarize("open settings page");
+        } else {
+          if (!click('[data-testid="app-sidebar-account-button"]')) return summarize("open account menu");
+          result = await waitFor(() => displayed(document.querySelector('[data-testid="app-sidebar-account-model-settings"]')), "wait model settings entry");
+          if (!result.ok) return result;
+          if (!click('[data-testid="app-sidebar-account-model-settings"]')) return summarize("open settings page");
+        }
 
         result = await waitFor(memoryTabNavigationReady, "wait settings memory tab");
         if (!result.ok) return result;

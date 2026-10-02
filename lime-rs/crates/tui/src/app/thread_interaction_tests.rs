@@ -90,11 +90,14 @@ fn questions_keep_each_notes_draft_selection_focus_and_the_main_rich_draft() {
         let mut app = App::default();
         app.set_locale(locale);
         app.set_thread_id("root".into());
-        app.composer.handle_paste(&"界🙂".repeat(501));
-        app.composer.insert(" MAIN_ROOT");
-        app.composer.attach_image("root.png".into());
-        let draft = app.composer.draft_snapshot();
-        app.bottom_pane
+        app.chat_widget
+            .bottom_pane
+            .handle_paste(&"界🙂".repeat(501));
+        app.chat_widget.bottom_pane.insert_str(" MAIN_ROOT");
+        app.chat_widget.bottom_pane.attach_image("root.png".into());
+        let draft = app.chat_widget.bottom_pane.composer_draft();
+        app.chat_widget
+            .bottom_pane
             .enqueue(question("root", "root-turn", 1))
             .unwrap();
         key(&mut app, KeyCode::Down);
@@ -106,16 +109,17 @@ fn questions_keep_each_notes_draft_selection_focus_and_the_main_rich_draft() {
         assert!(before.contains("ROOT_DETAILS"), "{locale:?}: {before}");
 
         handoff(&mut app, "child");
-        assert!(!app.bottom_pane.is_active());
-        assert!(app.composer.is_empty());
-        app.composer.insert("CHILD_DRAFT");
-        app.bottom_pane
+        assert!(!app.chat_widget.bottom_pane.is_active());
+        assert!(app.chat_widget.bottom_pane.composer_is_empty());
+        app.chat_widget.bottom_pane.insert_str("CHILD_DRAFT");
+        app.chat_widget
+            .bottom_pane
             .enqueue(question("child", "child-turn", 2))
             .unwrap();
         key(&mut app, KeyCode::Tab);
         paste(&mut app, "CHILD_MODE");
         handoff(&mut app, "root");
-        assert_eq!(app.composer.draft_snapshot(), draft);
+        assert_eq!(app.chat_widget.bottom_pane.composer_draft(), draft);
         assert!(
             !app.thread_input_states.contains_key("root"),
             "active input is consumed, not mirrored"
@@ -140,9 +144,9 @@ fn questions_keep_each_notes_draft_selection_focus_and_the_main_rich_draft() {
                 "details":{"answers":["ROOT_DETAILS"]}
             }})
         );
-        assert!(!app.bottom_pane.is_active());
+        assert!(!app.chat_widget.bottom_pane.is_active());
         handoff(&mut app, "child");
-        assert_eq!(app.composer.text(), "CHILD_DRAFT");
+        assert_eq!(app.chat_widget.bottom_pane.composer_text(), "CHILD_DRAFT");
         assert!(screen(&app).contains("CHILD_MODE"));
     }
 }
@@ -151,15 +155,16 @@ fn questions_keep_each_notes_draft_selection_focus_and_the_main_rich_draft() {
 fn opening_agent_center_does_not_move_or_duplicate_live_interactions() {
     let mut app = App::default();
     app.set_thread_id("root".into());
-    app.bottom_pane
+    app.chat_widget
+        .bottom_pane
         .enqueue(question("root", "turn", 1))
         .unwrap();
     key(&mut app, KeyCode::Tab);
     paste(&mut app, "STILL_LIVE");
     app.open_agents_overview();
-    assert!(app.bottom_pane.is_active());
+    assert!(app.chat_widget.bottom_pane.is_active());
     assert!(app.thread_input_states.is_empty());
-    app.agents_overview = None;
+    app.chat_widget.agents_overview = None;
     assert!(screen(&app).contains("STILL_LIVE"));
 }
 
@@ -167,7 +172,7 @@ fn opening_agent_center_does_not_move_or_duplicate_live_interactions() {
 fn approval_selection_and_new_buffered_requests_keep_arrival_order_without_duplicate_views() {
     let mut app = App::default();
     app.set_thread_id("root".into());
-    app.bottom_pane.enqueue(serde_json::from_value(json!({
+    app.chat_widget.bottom_pane.enqueue(serde_json::from_value(json!({
         "method":"item/commandExecution/requestApproval", "id":10,
         "params":{"threadId":"root", "turnId":"turn", "itemId":"command",
             "startedAtMs":0, "command":"cargo test", "availableDecisions":["accept","decline","cancel"]}
@@ -192,14 +197,15 @@ fn approval_selection_and_new_buffered_requests_keep_arrival_order_without_dupli
         panic!("the next view is the newly arrived canonical question")
     };
     assert_eq!(id, RequestId::Integer(11));
-    assert!(!app.bottom_pane.is_active());
+    assert!(!app.chat_widget.bottom_pane.is_active());
 }
 
 #[test]
 fn item_start_invalidates_only_the_matching_approval_item_and_turn() {
     let mut app = App::default();
     app.set_thread_id("root".into());
-    app.bottom_pane
+    app.chat_widget
+        .bottom_pane
         .enqueue(
             serde_json::from_value(json!({
                 "method":"item/commandExecution/requestApproval", "id":10,
@@ -208,7 +214,8 @@ fn item_start_invalidates_only_the_matching_approval_item_and_turn() {
             .unwrap(),
         )
         .unwrap();
-    app.bottom_pane
+    app.chat_widget
+        .bottom_pane
         .enqueue(
             serde_json::from_value(json!({
                 "method":"item/fileChange/requestApproval", "id":11,
@@ -225,7 +232,7 @@ fn item_start_invalidates_only_the_matching_approval_item_and_turn() {
                     "type":"commandExecution", "id":"command", "command":"cargo test", "cwd":"/tmp", "status":"inProgress"}
             }}),
         );
-        assert!(app.bottom_pane.is_active());
+        assert!(app.chat_widget.bottom_pane.is_active());
     }
     handoff(&mut app, "child");
     notify(
@@ -241,7 +248,8 @@ fn item_start_invalidates_only_the_matching_approval_item_and_turn() {
         panic!("only the file approval should remain after command execution starts")
     };
     assert_eq!(id, RequestId::Integer(11));
-    app.bottom_pane
+    app.chat_widget
+        .bottom_pane
         .enqueue(
             serde_json::from_value(json!({
                 "method":"item/fileChange/requestApproval", "id":12,
@@ -257,14 +265,14 @@ fn item_start_invalidates_only_the_matching_approval_item_and_turn() {
                 "type":"fileChange", "id":"patch", "changes":[], "status":"inProgress"}
         }}),
     );
-    assert!(!app.bottom_pane.is_active());
+    assert!(!app.chat_widget.bottom_pane.is_active());
 }
 
 #[test]
 fn resumed_mcp_form_keeps_field_values_and_cursor() {
     let mut app = App::default();
     app.set_thread_id("root".into());
-    app.bottom_pane.enqueue(serde_json::from_value(json!({
+    app.chat_widget.bottom_pane.enqueue(serde_json::from_value(json!({
         "method":"mcpServer/elicitation/request", "id":"form",
         "params":{"threadId":"root", "turnId":"turn", "serverName":"forms",
             "mode":"form", "message":"Fill the form", "requestedSchema":{
@@ -295,7 +303,10 @@ fn resolved_and_terminal_notifications_clear_only_matching_live_or_dormant_reque
     app.set_thread_id("root".into());
     app.begin_startup_input_boundary();
     for (turn, id) in [("turn-a", 1), ("turn-b", 2)] {
-        app.bottom_pane.enqueue(question("root", turn, id)).unwrap();
+        app.chat_widget
+            .bottom_pane
+            .enqueue(question("root", turn, id))
+            .unwrap();
     }
     app.note_startup_protected_request();
     notify(
@@ -304,9 +315,10 @@ fn resolved_and_terminal_notifications_clear_only_matching_live_or_dormant_reque
             "threadId":"foreign", "requestId":1
         }}),
     );
-    assert!(app.bottom_pane.is_active());
+    assert!(app.chat_widget.bottom_pane.is_active());
     handoff(&mut app, "child");
-    app.bottom_pane
+    app.chat_widget
+        .bottom_pane
         .enqueue(question("child", "turn-a", 1))
         .unwrap();
     notify(
@@ -316,7 +328,7 @@ fn resolved_and_terminal_notifications_clear_only_matching_live_or_dormant_reque
         }}),
     );
     assert!(
-        app.bottom_pane.is_active(),
+        app.chat_widget.bottom_pane.is_active(),
         "same id in another thread is not cleared"
     );
     complete(&mut app, "root", "turn-a");
@@ -329,22 +341,24 @@ fn resolved_and_terminal_notifications_clear_only_matching_live_or_dormant_reque
     assert!(!app.has_queued_startup_protected_request());
     handoff(&mut app, "child");
     complete(&mut app, "child", "unrelated");
-    assert!(app.bottom_pane.is_active());
+    assert!(app.chat_widget.bottom_pane.is_active());
     complete(&mut app, "child", "turn-a");
-    assert!(!app.bottom_pane.is_active());
+    assert!(!app.chat_widget.bottom_pane.is_active());
 }
 
 #[test]
 fn close_and_disconnect_invalidate_views_and_replay_without_losing_thread_drafts() {
     let mut app = App::default();
     app.set_thread_id("root".into());
-    app.composer.insert("ROOT_DRAFT");
-    app.bottom_pane
+    app.chat_widget.bottom_pane.insert_str("ROOT_DRAFT");
+    app.chat_widget
+        .bottom_pane
         .enqueue(question("root", "turn", 1))
         .unwrap();
     handoff(&mut app, "child");
-    app.composer.insert("CHILD_DRAFT");
-    app.bottom_pane
+    app.chat_widget.bottom_pane.insert_str("CHILD_DRAFT");
+    app.chat_widget
+        .bottom_pane
         .enqueue(question("child", "turn", 2))
         .unwrap();
     app.enqueue_thread_request("root", question("root", "turn", 3))
@@ -354,12 +368,13 @@ fn close_and_disconnect_invalidate_views_and_replay_without_losing_thread_drafts
         app.thread_event_channels.is_empty(),
         "old transport request ids cannot replay"
     );
-    assert!(!app.bottom_pane.is_active());
-    assert_eq!(app.composer.text(), "CHILD_DRAFT");
+    assert!(!app.chat_widget.bottom_pane.is_active());
+    assert_eq!(app.chat_widget.bottom_pane.composer_text(), "CHILD_DRAFT");
     handoff(&mut app, "root");
-    assert_eq!(app.composer.text(), "ROOT_DRAFT");
-    assert!(!app.bottom_pane.is_active());
-    app.bottom_pane
+    assert_eq!(app.chat_widget.bottom_pane.composer_text(), "ROOT_DRAFT");
+    assert!(!app.chat_widget.bottom_pane.is_active());
+    app.chat_widget
+        .bottom_pane
         .enqueue(question("root", "turn-new", 4))
         .unwrap();
     handoff(&mut app, "child");
@@ -368,15 +383,16 @@ fn close_and_disconnect_invalidate_views_and_replay_without_losing_thread_drafts
         json!({"method":"thread/closed", "params":{"threadId":"root"}}),
     );
     handoff(&mut app, "root");
-    assert!(!app.bottom_pane.is_active());
-    assert_eq!(app.composer.text(), "ROOT_DRAFT");
+    assert!(!app.chat_widget.bottom_pane.is_active());
+    assert_eq!(app.chat_widget.bottom_pane.composer_text(), "ROOT_DRAFT");
 }
 
 #[test]
 fn turn_terminal_clears_permissions_but_mcp_waits_for_its_own_resolved_identity() {
     let mut app = App::default();
     app.set_thread_id("root".into());
-    app.bottom_pane
+    app.chat_widget
+        .bottom_pane
         .enqueue(
             serde_json::from_value(json!({
                 "method":"item/permissions/requestApproval", "id":1,
@@ -386,7 +402,8 @@ fn turn_terminal_clears_permissions_but_mcp_waits_for_its_own_resolved_identity(
             .unwrap(),
         )
         .unwrap();
-    app.bottom_pane
+    app.chat_widget
+        .bottom_pane
         .enqueue(
             serde_json::from_value(json!({
                 "method":"mcpServer/elicitation/request", "id":"mcp-1",
@@ -412,5 +429,5 @@ fn turn_terminal_clears_permissions_but_mcp_waits_for_its_own_resolved_identity(
         }}),
     );
     handoff(&mut app, "root");
-    assert!(!app.bottom_pane.is_active());
+    assert!(!app.chat_widget.bottom_pane.is_active());
 }

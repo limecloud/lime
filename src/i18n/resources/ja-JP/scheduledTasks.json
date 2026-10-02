@@ -1,6 +1,9 @@
 {
   "scheduledTasks.title": "スケジュール済みタスク",
   "scheduledTasks.subtitle": "繰り返し作業を予定どおり Lime に実行させます",
+  "scheduledTasks.sidebar.newTask": "新しいタスク",
+  "scheduledTasks.sidebar.immediate": "即時実行",
+  "scheduledTasks.sidebar.empty": "スケジュール済みタスクはありません",
   "scheduledTasks.loading": "スケジュール済みタスクを読み込み中",
   "scheduledTasks.action.back": "タスク一覧に戻る",
   "scheduledTasks.action.cancel": "キャンセル",
@@ -67,6 +70,7 @@
   "scheduledTasks.editor.threadMode.continue": "指定した会話を継続",
   "scheduledTasks.editor.threadMode.new": "毎回新しい会話を開始",
   "scheduledTasks.editor.title.create": "スケジュール済みタスクを作成",
+  "scheduledTasks.editor.title.setup": "スケジュール済みタスクを設定",
   "scheduledTasks.editor.title.edit": "スケジュール済みタスクを編集",
   "scheduledTasks.editor.validation.days": "1 日以上選択してください",
   "scheduledTasks.editor.validation.fix": "フォームの問題を修正してください",

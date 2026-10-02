@@ -203,8 +203,11 @@ fn transcript_content_lines_use_canonical_entry_order() {
 #[test]
 fn empty_thread_starts_with_exactly_one_session_header() {
     let app = App {
+        chat_widget: crate::chatwidget::ChatWidget {
+            model: Some("fixture-model".to_string()),
+            ..Default::default()
+        },
         locale: Locale::EnUs,
-        model: Some("fixture-model".to_string()),
         cwd: "/workspace".into(),
         ..App::default()
     };

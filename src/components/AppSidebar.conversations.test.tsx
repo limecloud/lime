@@ -1131,7 +1131,7 @@ describe("AppSidebar conversations", () => {
     await flushEffects(2);
 
     expect(container.textContent).toContain("项目");
-    expect(container.textContent).toContain("对话");
+    expect(container.textContent).toContain("最近");
     expect(container.textContent).toContain("非项目会话");
     expect(container.textContent).toContain("本地目录会话");
     expect(container.textContent).not.toContain("未打开项目会话");
@@ -1166,8 +1166,12 @@ describe("AppSidebar conversations", () => {
     expect(mainNav).not.toBeNull();
     expect(conversationShelf).not.toBeNull();
     expect(recentConversationList).not.toBeNull();
-    expect(getComputedStyle(recentConversationList as Element).overflowY).toBe(
-      "auto",
+    const menuScroll = container.querySelector(
+      '[data-testid="app-sidebar-menu-scroll"]',
+    );
+    expect(getComputedStyle(menuScroll as Element).overflowY).toBe("auto");
+    expect(getComputedStyle(recentConversationList as Element).overflow).toBe(
+      "visible",
     );
     expect(
       conversationShelf?.querySelector(
@@ -1996,6 +2000,14 @@ describe("AppSidebar conversations", () => {
     });
     await flushEffects(2);
 
+    expect(container.querySelector('button[title="会话 19"]')).toBeNull();
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>(
+          '[data-testid="app-sidebar-project-show-more"]',
+        )
+        ?.click();
+    });
     expect(container.querySelector('button[title="会话 19"]')).not.toBeNull();
   });
 
@@ -2460,7 +2472,7 @@ describe("AppSidebar conversations", () => {
     );
 
     expect(shelf?.textContent).toContain("项目");
-    expect(shelf?.textContent).toContain("对话");
+    expect(shelf?.textContent).toContain("最近");
     expect(projectSection?.textContent).toContain("项目内会话");
     expect(projectSection?.textContent).not.toContain("独立会话");
     expect(conversationSection?.textContent).toContain("独立会话");

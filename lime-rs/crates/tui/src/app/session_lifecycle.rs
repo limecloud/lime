@@ -1,6 +1,7 @@
 //! Session and subagent selection lifecycle for the TUI app.
 
 use super::*;
+use crate::app::agent_picker::AgentPicker;
 use crate::app_server_session::AppServerSession;
 
 impl App {
@@ -78,7 +79,7 @@ impl App {
         if picker.is_empty() {
             self.projection.set_status(self.locale.agent_picker_empty());
         } else {
-            self.agent_picker = Some(picker);
+            self.chat_widget.agent_picker = Some(picker);
         }
     }
 }

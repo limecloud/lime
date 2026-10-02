@@ -1,7 +1,7 @@
 # TUI/CLI 继续同步 Codex 执行计划
 
 状态：in-progress（当前切片已验证；总体对齐仍有明确 defer/partial）
-日期：2026-09-08（最新续跑 2026-10-01）
+日期：2026-09-08（最新续跑 2026-10-02）
 参考实现：`/Users/coso/Documents/dev/rust/codex`
 当前基线：Rust commit `c248f6d48b`（参考目录当前 checkout）
 
@@ -13,7 +13,31 @@ Codex 对齐以公开 App Server/shared domain 与 TUI 源码为事实，未开�
 业务决策/权限/存储不得下沉到 TUI 私有后端；终端 keymap/composer/PTY 保持 surface owner，
 共享 protocol/schema/config 改动必须检查 GUI 消费链，不能以 TUI Gate B 冒充 GUI 验收。
 
-### 当前续跑：thread-owned interactive input（terminal acceptance；整体 partial）
+### 当前续跑：ChatWidget 输入与 transcript presentation owner（terminal acceptance completed；整体 partial）
+
+本轮用户已明确确认批量迁移（详细认领/验证见下方同名切片）。App 不再持有主 ChatComposer，
+39个原消费者已直接迁到 BottomPane；额外 local_settings 的测试也改走同一边界。主输入、
+popup/Vim/history/paste/mouse、计时与主draft/交互队列原子恢复归 BottomPane。旧 App.composer、
+重复 popup 维护函数和 ThreadInputState 包装已原位删除，无新 compat/deprecated 或第二后端。
+本次续跑进一步把该输入 owner 放入 Codex 对齐的 `ChatWidget`：App 现在只持有
+`chat_widget: ChatWidget`，主输入调用统一经过 `chat_widget.bottom_pane`；旧的 App 级
+`bottom_pane` 字段和 `BottomPaneAction`/composer mapper 命名已删除。ChatWidget 当前真实持有
+BottomPane 输入/交互 owner；本轮再把 pager、transcript scroll/viewport/follow/search/selection、
+footer/prompt header、composer gap、retained pager/bookmark、Agent Center 与 model/agent/resume/
+export picker surfaces 收敛到 ChatWidget。App 只保留 host/session 的 scrollback availability、
+App Server 请求与 canonical projection 接线，下一刀回到 collaboration scope、replay seed 和
+其它 Codex session state，
+不把本阶段误报为完整 ChatWidget。
+独立问答 notes editor 保留。前序输入 owner 的结构/夹具回流守卫61/61、新增owner回归7/7、
+线程生命周期15/15与 fresh PTY/stdio/CLI 证据仍有效；本轮新增 transcript owner 结构守卫与
+inventory 守卫40/40，TUI all-targets 为1457 library +18 integration +1 dependency guard，
+严格 all-target Clippy、fmt、diff check、contracts 与 legacy governance 均通过。本轮 fresh
+TUI Gate B 首次因 queue-edit PTY 时序抖动重跑后通过，fresh CLI Gate B 使用同一当前 binary
+通过；本切片仍为局部进展（非总体对齐率），整体 partial，其余defer不因本切片实现而标完成。
+以下thread-owned interactive input记录为前序证据，
+其中旧owner路径/待确认状态不再作为current事实。
+
+### 前序：thread-owned interactive input（terminal acceptance completed；整体 partial）
 
 主目标继续为 GUI/TUI 共用业务底层的全维度 Codex 对齐。本刀审计发现 successful
 thread handoff 仅保存 ComposerDraft，随后 clear BottomPane，正在编辑的问答/备注、审批
@@ -65,8 +89,8 @@ ThreadEventStore rebase消费；定向/crate/Clippy/fresh Gate B待latest验证�
 的FIFO索引策略。root确认输入投影与共享业务主链不变，2026-10-01。
 latest结构/夹具/PTY接线守卫59/59、ESLint、Prettier、docs boundary、diff check通过；
 inventory更新1408 src文件，仅用于发现差异。fresh build与replay定向被磁盘满中断：
-archive/query-cache/LLVM object输出均返回os error 28，非测试通过。当前Rust新回归、
-完整TUI/Clippy及fresh PTY/CLI不能沿用前序证据，条件2/4/5待latest；最低验收暂为
+archive/query-cache/LLVM object输出均返回os error 28，非测试通过。当时Rust新回归、
+完整TUI/Clippy及fresh PTY/CLI不能沿用前序证据，条件2/4/5待latest；当时最低验收为
 2/5（40%，仅本切片，非总体对齐率）。旧binary真实stdio只作为诊断，不升级fresh证据。
 已确认cargo/rustc退出，Data卷检查时仅余356MiB（随后895MiB），incremental约45G、
 deps约58G。未删除缓存/源码/二进制、未终止未知进程；清增量缓存需用户明确确认，
@@ -106,6 +130,184 @@ tests、1 dependency guard（普通运行未启用的PTY场景不计真实交互
 --all-targets --no-deps -D warnings与TUI fmt
 check通过。执行计划Prettier已修正。默认fresh smoke:tui-gate-b已启动，不设置二进制
 override、不放宽timeout、不将旧binary诊断或普通gated-test返回升级为真实证据。
+
+fresh首轮构建成功（4m50s），完整场景执行后在image ledger比较失败：byteRange内容
+相同，start/end键顺序不同，JSON.stringify比较错误地把对象顺序当identity。本进程
+准备最小修复时发现tui-gate-b.mjs被另一进程改为Node deepStrictEqual，apply_patch
+校验拒绝，未写入任何脚本/测试文件；立即暂停该文件写入并请求协作选择。现有并行
+修复经只读复核保留完整对象/数组顺序断言，没有只比较text或弱化identity。
+
+最终当前工作树验收通过：replay定向13/13、完整TUI 1450 library +18 integration tests
++1 dependency guard、strict all-target Clippy、TUI fmt、59结构/fixture/PTY接线守卫、
+contracts、Gate脚本ESLint与diff check。默认fresh Gate完整11场景通过，thread
+`01a0f76c-2f21-7ab2-952c-26b3ee9ca744`、turn `turn_29c10b25a2d949048f51114088323fe5`；
+强制thread-input-stdio marker通过，root `01a0f76c-582c-7e73-8349-18b43bc0f857`、child
+`01a0f76c-584c-7971-b5ae-e7df1d76dc8b`、turns `turn_0c848fd843734862be6ec24f26fd3147` /
+`turn_4ac83a96adc34b87a464b637151f1a1a`。typed-input-stdio、notes-keymap、thread draft/edit
+lifetime、session register、images、structured history、submission reject、focus/resize/
+reconnect与terminal=restored全部ok。同一fresh CLI/App Server二进制的CLI Gate B通过：
+thread `01a0f76d-46ca-7b50-9368-6d93f2b56257`、turn `turn_02d8ae6d940b4d16a62620bef00db770`，
+jsonl/stdin/error-exit/completion全部符合合同。受控external backend，无live provider。
+日志：`/tmp/lime-thread-interaction-gate-b-recovery.log`（首轮真实失败）、
+`/tmp/lime-thread-interaction-gate-b-retry-current.log`（最终通过）、
+`/tmp/lime-thread-interaction-cli-gate-b-recovery.log`（同binary CLI通过）。
+本切片最低退出条件5/5（100%，不代表总体对齐率）；整体partial/in-progress、goal active。
+本轮continuation只编辑本执行计划，脚本并行修复不冒领；验证当前工作树而非改动归属。
+GUI UX/Windows/X11/live与verify:local未新增验收，不以TUI Gate B代替Desktop Gate B。
+下一刀仍为真实BottomPane composer ownership与后续ChatWidget，不加兼容壳；约40文件
+批量迁移等待用户明确确认，未执行。源码/缓存/二进制未删除，没有提交、推送或建分支。
+
+#### 下一刀的只读所有权核准（2026-10-01，实施待确认）
+
+上一goal turn为progress：获得当前切片fresh PTY/CLI终端验收，而非状态复述。本次续跑
+重新读取当前工作树：HEAD为`dd9a851a0`，TUI源码和Gate脚本已干净，本进程未提交；
+Codex基线仍`c248f6d48b97eb4a2aa56147a0b11b7d763278b9`。App仍在app.rs:149直接持有
+ChatComposer，BottomPane仅持有queue/keymap；因此所有权重构未实现，现有绿灯不能证明
+全维度对齐。上一轮批量确认和并行脚本接管问题未收到用户明确回答；本轮只认领本计划，
+源码、脚本、GUI、shared protocol/runtime/provider/Electron均只读，不把自动goal续跑当确认。
+
+多行`(app|self).composer`盘点为40个候选文件；逐类核准后主composer consumer为39个：
+16个生产入口文件、23个测试引用文件（含chat_composer/paste_input.rs内的App回归）。
+唯一排除项是request_user_input/mod.rs中的RequestUserInputOverlay.composer，它属于每题
+备注编辑器；公开Codex BottomPane同样保留独立questions composer，不能全局替换self.composer。
+ThreadInputState.composer是ComposerDraft快照，也不是待移动的live editor字段。
+
+| 当前入口                                                    | 必须迁入的所有权                                     | 不能误迁的职责                                          |
+| ----------------------------------------------------------- | ---------------------------------------------------- | ------------------------------------------------------- |
+| app/input_flow、app/interaction                             | BottomPane统一editor/popup/Vim/paste/mouse路由       | App的全局退出、interrupt、线程导航与transport action    |
+| view、bottom_pane/footer、shortcut_overlay                  | BottomPane输入高度、绘制、popup与footer presentation | canonical transcript/Thread状态与App Server事实         |
+| app/thread_input、bottom_pane/input_state                   | 同一BottomPane原子捕获/恢复主draft与现有交互view     | 不能flatten notes，不能把草稿持久化成第二store          |
+| app.rs pre_draw_tick、runtime frame调度、keymap/history回包 | BottomPane主editor及交互view的timer/config/恢复接线  | session clipboard worker、stdio、文件系统与host生命周期 |
+
+审计新增约束：现有BottomPane::clear只清queue，app/thread_input::clear_connection_interactions
+依赖它保留主草稿。加入composer后不得把clear改成同时清draft；thread/resume失败、断线与
+successful handoff仍是三种不同生命周期。runtime目前只读取BottomPane的交互timer，而App
+另外flush主composer paste burst；仅移动字段将继续保留平行timer/input/render控制流，不能
+作为完成。目标必须无App.composer、无Deref/旧字段getter兼容壳，同时保持独立notes editor。
+
+真实主composer生产consumer：app.rs；app/{input_flow,input_submission,interaction,interrupts,
+message_history,reasoning_shortcuts,right_click_paste,startup,thread_input,transcript_presentation}；
+bottom_pane/{footer,shortcut_overlay}；runtime.rs、runtime/input_submission.rs；view.rs。
+实施还需同步既有BottomPane owner、相关测试/结构守卫、architecture与本计划；不新增业务
+backend/schema/method。分类：现有editor/view为current，App平行composition为待重构current
+缺口，不错误标成已删除dead；本轮没有新增compat/deprecated，也未恢复旧路径。
+以上是当前源码/公开Codex的只读证据与迁移边界核准，不是未执行计划的完成声明。批量实施
+仍为0%（待明确确认），整体partial/in-progress、goal active；未自行pause或标complete。
+
+#### GUI 共用底层验收与未知记录 presentation（2026-10-01，续跑）
+
+用户强调 GUI/TUI 共用底层后，补验 current Desktop surface，不改变 App Server/runtime/
+Thread/Turn/Item。前序完整 `smoke:agent-runtime-current-fixture` 真实 Electron 聚合退出0，
+22个 Electron 场景通过，external controlled backend、liveProviderUsed=false；`verify:gui-smoke`
+退出0，reload、三个viewport和memory settings ready，证据
+`.lime/qc/project-gates/standalone-shell-01-20261001130225-16263/shell-01-electron-smoke/summary.json`。
+日志 `/tmp/lime-shared-surfaces-gui-current-fixture.log` 与
+`/tmp/lime-shared-surfaces-gui-smoke.log`。它们只证明当时工作树的 Desktop/current fixture，
+不证明 live provider、Windows 或 Codex 未开源 Desktop 实现。
+
+只读复核聚合日志发现测试缺口：Claw消息终态阶段实际20条全部skipped，旧
+MessageList.test.tsx 已成为layout/scroll owner，终态场景归
+MessageList.runtimeStatus.test.tsx。真实Electron场景通过不掩盖该漏测。窄写集认领
+current-fixture-regression-smoke及tests、共享vitest-smoke-runner及tests：入口直接改到
+current测试owner；沿同一runner增加隔离JSON reporter，exit非0/被signal终止、缺失或
+损坏报告、报告失败、零实际passed测试均fail closed，返回executedTests。不新增第二runner、
+根脚本、config/schema或依赖。unit测试模拟Node默认/命名export一致，首轮测试harness
+interop失败已修；最终35/35回归、实际3/3终态场景通过，不把过滤skips计作执行。
+
+真实截图另暴露UX缺口：unknown Item卡把futureCapability、opaquePayload等内部字段名
+默认摊在对话主时间线。沿设计语言“普通主线隐藏实现词、诊断显式收纳”修复：唯一
+UnsupportedItemCard presentation owner保留通用fail-visible提示和canonical状态，原生
+details/summary默认折叠，展开后只显示已脱敏类型/字段名，不渲染raw metadata/payload。
+五语言同步；主renderer提取fallback，不增加新业务owner或本地持久化。该renderer原835行，
+提取后805行，其余展示分支后续继续拆分（退出条件<800行），不把这次局部提取称全清。
+
+新增窄写集：UnsupportedItemCard及独立component tests、现有timeline renderer/两条接线
+断言、五语言agent.json、unknown-item Electron collector及guard。本轮不碰TUI、共享协议、
+App Server/runtime/provider/Electron源码、release-v1.148.0-plan并行改动；不使用子Agent，
+不提交、推送、建分支、删除文件或缓存。canonical未知记录及read model保持，不为GUI另造
+fallback后端。current为presentation/runner；旧测试owner错配与默认机器字段展示为dead
+原位替换，无新增compat/deprecated。SRP拆展示，DRY共享runner，KISS原生展开交互。
+
+本切片退出条件：1) current终态3条确实执行与零执行fail closed；2) 五语言默认收纳/
+真实展开收起/无raw值组件回归；3) typecheck/lint/格式/契约与相关守卫；4) latest真实
+Electron聚合含诊断交互、同identity恢复/终态及最小GUI smoke。当前1/2通过，74/74
+focused回归通过；3/4进行中，不用前序Desktop结果代替latest UI交互。日志
+`/tmp/lime-shared-surfaces-focused-regression.log`。本刀没有跨层架构/协议变更，root确认
+共享Product Surface -> App Server -> RuntimeCore -> canonical projection主链不变。
+BottomPane/ChatWidget39文件主composer迁移仍待用户明确批量确认，未自动获得授权；
+整体partial/in-progress，尚未完成全维度对齐。
+
+续跑最终证据：`/tmp/lime-shared-surfaces-gui-current-fixture-final.log` 聚合退出0，22个真实
+Electron场景通过，streaming selector实际34/34（包含`turn/completed` typed error），终态3/3；
+runner/入口守卫35/35、focused74/74、零执行拒绝、typecheck/ESLint/Prettier/contracts通过。
+五语言missing/extra/unused均0，生产组件i18n scan无新增发现。latest `verify:gui-smoke`退出0，
+证据`.lime/qc/project-gates/standalone-shell-01-20261001134119-18820/shell-01-electron-smoke/summary.json`。
+本GUI切片退出条件4/4（100%，非总体对齐率），external controlled backend，无live provider；
+日志`/tmp/lime-shared-surfaces-*`。未新增全量verify:local/Windows/X11/live证据。
+
+#### BottomPane 主 composer 所有权迁移（2026-10-01，用户已确认批量实施）
+
+用户明确回复“确认：继续批量迁移并清理旧入口”，前述待确认仅为历史审计，不再阻塞。
+本轮认领核准39个主composer消费者、BottomPane输入/渲染/恢复owner、既有结构守卫、
+architecture及本计划；避让release-v1.148.0-plan未知并行改动，保留前序GUI修改。
+不修改shared App Server/protocol/runtime/provider/Electron，不新增backend或兼容壳。
+独立RequestUserInput备注editor不做机械替换。断线只清交互、不清草稿；成功handoff才
+捕获，失败resume不消费。责任开发者root确认目标图：App(host/actions) -> BottomPane
+(main composer + interaction views + input/render/timers/draft snapshot) -> existing editor/view。
+实施退出条件：1) 无App.composer及外部editor字段访问；2) 输入/渲染/计时与原子状态恢复
+归BottomPane；3) 生命周期/布局回归、all-targets/Clippy/fmt与结构回流守卫；4) fresh真实
+PTY/stdio及同binary CLI Gate B。当前4/4（100%，仅本切片），整体partial/in-progress，
+完整ChatWidget下一刀，不声明全维度对齐完成。
+
+实现为直接迁移，不是字段平移或getter包装：BottomPane私有持有主ChatComposer，input.rs
+路由活动view、popup/Vim/history/paste/mouse/chord，公开key API也不能绕过modal；
+render.rs统一主输入/交互高度与绘制，popup在footer之后由同一owner绘制。composer.rs
+只承接领域配置/回包/草稿操作，测试观察只返回值或渲染buffer，不公开editor/textarea句柄。
+App保留global导航/interrupt、native clipboard worker协作和transport action，不复制业务后端。
+BottomPaneInputState原子保存draft与移动的queue；原App ThreadInputState包装、composer字段、
+replace_composer及重复popup维护函数已删除。独立notes editor未重构为主editor副本。
+计时取主paste/活动interaction的最早delay，断线也继续物化草稿；clear_interactions职责不扩为
+清draft。当前keymap应用于主editor和所有queued/restored views，host配置不进入Thread快照。
+SRP分输入/展示/快照，DRY收统一调度，KISS/YAGNI不留Deref、第二backend、compat壳或未用生产API。
+分类：新BottomPane领域边界/原editor与交互views为current；旧App平行入口和快照包装为
+dead/deleted/guard-only；没有新增compat/deprecated。结构守卫遍历pane外Rust consumer，
+禁止旧字段、直接editor访问和getter恢复，同时守住input/render/timer/snapshot接线及<800行。
+本刀核准39个旧主composer消费者已迁，BottomPane owner/测试及local_settings接线同步；
+未删除源码文件、缓存、二进制或用户数据，未提交、推送或创建分支。
+
+首轮all-targets实际1454通过/2失败：帮助层Esc退到scroll/interrupt之后，以及公开pane按键
+接口只编辑主composer、越过活动notes。两处沿唯一input owner修复，不改原失败断言/超时；
+新增direct-key回归证明Backspace与Enter只编辑/提交活动notes、主草稿不变。最新完整TUI
+1457 library +18 integration +1 dependency guard通过，owner新增7/7、线程生命周期15/15；
+普通gated test early return不计真实stdio/PTY。strict all-target Clippy --no-deps -D warnings、
+TUI fmt、结构/夹具/PTY/inventory守卫61/61、ESLint/Prettier/diff check、contracts通过；
+legacy-report边界违规/分类漂移/零引用候选均0。inventory重新生成（1411文件）。
+
+默认fresh TUI Gate B构建成功（2m31s），完整11场景退出0，thread
+`01a0f7eb-bcaf-7520-892d-cacf910a515b`、turn `turn_668845abba4a441592e98cdda1d54cc6`；
+强制thread-input-stdio marker：root `01a0f7ec-3836-7041-bd43-a32a059bff26`、
+child `01a0f7ec-387a-71b3-aeab-8f61deab76bb`、turns
+`turn_a833a70e6c2940388d8ac17be4baa992` / `turn_f564f2da6a064abd84a01e5c4273d203`；
+typed-input-stdio：thread `01a0f7ec-6911-7710-b498-114d193a0803`、
+turn `turn_280a9dc1b27b492eb711eba5b9aad5bc`。queue edit、Agent Center、thread draft/edit lifetime、
+session register、notes keymap、images/mentions、structured history、submission reject、
+focus/resize/reconnect与terminal=restored全部ok。受控external backend，非live provider。
+保留本次隔离fixture evidence于
+`/var/folders/87/s6cpr7hd1_v43cs833x4s_900000gn/T/tui-gate-b-qpv3P8`（不含真实用户输入）。
+
+同一fresh CLI/App Server的CLI Gate B退出0，thread `01a0f7ee-f27f-72a3-88f4-be58bcf49162`、
+turn `turn_201161e0fc02411884f30b31f2be1c40`；jsonl/stdin/error-exit/completion合同通过。
+CLI前后二进制SHA-256一致：lime
+`24cea7f93a62de9001faad02e4130bb9ee7c5216bd8bf460ee66a1caeba9fd5d`；app-server
+`ac6b75af0167729538988ec46976d64e520668505c8fa655ee8e093d150bceea`。
+日志：`/tmp/lime-bottom-pane-{all-targets,clippy,fmt,guards,eslint,format,gate-b,cli-gate-b}-final.log`，
+contracts、inventory、legacy-report与定向失败/恢复日志同一prefix。
+责任开发者root确认实际架构图与architecture.md一致；GUI/TUI共用App Server/runtime/
+canonical owner未改变，无PR或release操作。本轮未新增全量verify:local/Windows/X11/live验收。
+工作区后续出现sidebar/navigation并行改动，保持只读；前序GUI证据只属于当时工作树，不覆盖
+这些后续改动。release-v1.148.0-plan继续避让。本切片验收完成不等于整体目标达成：
+完整ChatWidget/协作scope恢复、history byte scan/replay seed、Agent Center异步刷新、
+app/plugin/task mentions与平台/live等仍按原路线图partial/defer推进。
 
 ### 前序：lossless structured input restore（terminal acceptance completed；整体 partial）
 
@@ -5249,3 +5451,169 @@ queue-edit、agents-overview、sticky-prompt、main-find、focus-palette、resiz
 `turn_2fe2ec79257144dc8f1f07fd65092f56`，queue-edit、agents-overview、sticky-prompt、main-find、
 focus-palette、resize-reflow、reconnect 和 `terminal=restored` 均为 `ok`；App Server 仍只有既有
 `lower_turn_start_params`/`lower_runtime_options` dead-code warning。
+
+## 2026-10-02 ChatWidget 输入 owner 第一阶段
+
+对照公开 Codex `tui/chatwidget.rs`，先收敛真实的输入/交互 owner，而不是把整个 App 机械改名。
+新增 `tui/src/chatwidget.rs`，`ChatWidget` 直接持有唯一 `BottomPane`；App 的字段由旧的
+`bottom_pane: BottomPane` 改为 `chat_widget: ChatWidget`，所有主输入、审批/问答队列、popup、
+paste、Vim、draft snapshot、渲染和 timer 调用统一经过 `chat_widget.bottom_pane`。旧的
+`BottomPaneAction`、`map_bottom_pane_action` 和 `map_composer_action` 命名删除，改为
+`ChatWidgetAction`、`map_chat_widget_action` 和 `map_input_result`，避免把 current surface
+暴露成旧的平行 composer owner。
+
+本阶段没有新增 App Server method、protocol/schema、runtime/provider、GUI backend 或兼容别名；
+`App` 仍负责 host/global navigation、Thread/transport action 与 canonical transcript。
+`ChatWidget` 的 transcript presentation、collaboration scope 和其它 Codex session state 尚未
+迁入，继续列为下一刀，不把当前输入 owner 收敛误报为完整 ChatWidget。分类：ChatWidget/
+BottomPane 输入 owner 为 `current`；旧 App 级 `bottom_pane` 字段及旧 action/mapper 命名为
+`dead / deleted`；无新增 `compat/deprecated`。
+
+验证：TUI all-targets `1457 library + 18 integration + 1 dependency guard` 全部通过；strict
+all-target Clippy、Rust fmt、`git diff --check`、结构/夹具守卫 `39/39`、`npm run test:contracts`、
+`npm run governance:legacy-report` 均通过。fresh `npm run smoke:tui-gate-b` 真实重建并通过全部
+场景（thread `01a0f839-f01b-7832-9307-0dc8821a8353`，turn `turn_585cb6874baf4e079448d696e0502704`，
+含 queue-edit、Agent Center、thread draft/edit lifetime、notes keymap、恢复与 terminal restore）；
+同一 fresh binary 的 `npm run smoke:cli-gate-b` 通过（thread `01a0f83b-7b2b-7e91-9dc8-4cca2de7dc72`，
+turn `turn_305ad017c4b1484fb32c106ac8e748ec`）。没有修改 GUI/shared protocol/runtime/provider，
+因此未把 TUI Gate B 当作 Desktop Gate B；Windows/X11/live provider 与 `verify:gui-smoke` 仍是
+后续风险项。责任开发者 root 确认架构图，2026-10-02；主链仍为
+`Product Surface -> App Server JSON-RPC -> RuntimeCore -> Thread/Turn/Item projection`。
+
+## 2026-10-02 ChatWidget transcript presentation owner 第二阶段
+
+在第一阶段收敛 `ChatWidget.bottom_pane` 后，本轮继续按公开 Codex `tui/chatwidget.rs` 完成同一
+surface 的 session-local presentation 边界。`ChatWidget` 现在直接持有 `pager_overlay`、
+`TranscriptPresentation`（含 retained pager/bookmark）、transcript scroll/viewport/follow
+control/composer gap/footer/prompt header/search/selection；`App` 只保留 host/session 的
+`scrollback_has_older_history`，通过 `app/transcript_presentation.rs` 做生命周期接线，并继续
+负责 Thread/transport/canonical projection。所有清理、滚动、搜索、选择边缘滚动、pager 恢复与
+transcript footer/header 渲染均从 `chat_widget` 读取真实 current owner，不新增 getter、Deref、
+平行状态或第二份 transcript/read model。
+
+这次迁移是直接 owner 收敛：旧 App 字段定义已删除，`PagerOverlay::transcript_selection` 等
+pager 自身内部状态不误迁；`RequestUserInputOverlay.composer` 仍是独立题目 notes editor，
+不属于主 ChatWidget draft。结构守卫新增 ChatWidget transcript 字段与 App 反向回流断言，inventory
+更新至当前 TUI 文件树。分类：ChatWidget transcript presentation 为 `current`；App 级 transcript
+字段为 `dead / deleted / guard-only`；旧 notes editor 继续 `current` 独立 owner；无新增
+`compat/deprecated`。协作 scope、replay-seeded history 与其它 Codex session state 仍为
+`partial/defer`，因此不把本阶段误报为完整 ChatWidget 对齐。
+
+本阶段最低退出条件：
+
+1. `cargo fmt`、`git diff --check`、TUI all-targets 与 strict all-target Clippy 通过；
+2. composer/ChatWidget 结构守卫与 inventory 守卫通过，App 不再定义迁移字段；
+3. fresh TUI Gate B 和同 binary CLI Gate B 重新构建并通过，证明真实 PTY/stdio、canonical
+   Thread/Turn/Item、可见 transcript 状态和终端恢复；
+4. 记录未触达 GUI/protocol/runtime/provider 的边界，TUI Gate B 不冒充 Desktop Gate B。
+
+验证结果：TUI Gate B 重跑通过，thread `01a0f861-a0eb-7421-942f-fa2ff940f737`、turn
+`turn_2967ba5145834f00ae6cef4d73462188`，包含 queue-edit、Agent Center、thread draft/edit
+lifetime、notes keymap、history/search、Vim、images/mentions、resize/reconnect 与
+`terminal=restored`；CLI Gate B 使用同一 fresh binary 通过，thread
+`01a0f862-a38a-7051-ae8d-e38334970573`、turn `turn_13c6522417d24baf8a4f9c6f41fffcd0`，
+jsonl/stdin/error-exit/completion 全部符合合同。首次 TUI PTY 抖动仅作为失败日志，不升级为
+证据；没有放宽 timeout、复用旧 binary 或合成完成态。当前阶段4/4退出条件完成，整体仍
+`partial/in-progress`；GUI/protocol/runtime/provider 未触达，TUI/CLI Gate B 不冒充 Desktop
+Gate B。责任开发者 root，架构图确认 2026-10-02。
+
+## 2026-10-02 ChatWidget Agent Center surface 第三阶段
+
+继续对照公开 Codex ChatWidget 的 transient surface：Agent Center 的 `AgentsOverviewState`
+现在由 `ChatWidget.agents_overview` 单一持有，App 不再定义该字段。输入、全屏渲染、取消/选择、
+分页、refresh coalescing 和 notification buffer 均读取同一 ChatWidget state；App 保留
+App Server `thread/list`、rename/stop/dispatch 请求及 canonical Thread notification 接线，
+没有复制 view、线程数据或第二个 Agent Center backend。旧 `App.agents_overview` 字段/直接消费
+已删除为 `dead / deleted / guard-only`，无新增 `compat/deprecated`；`AgentsOverviewState::view`
+仍是唯一交互 owner。
+
+结构守卫新增 ChatWidget Agent Center owner、App 反向字段和 transport/view 接线断言，inventory
+保持当前 1412 个 TUI 源文件。Rust all-targets 1457 library +18 integration +1 dependency
+guard、strict all-target Clippy、fmt/diff check 与 41/41 结构/inventory 守卫通过。fresh TUI
+Gate B 通过，thread `01a0f874-c3d7-7202-89fd-6eb4ffc151b5`、turn
+`turn_2d16c54cd3434222b5f9391659ec8b33`，`agents-overview=ok` 及 thread draft/edit lifetime、
+Vim/mentions/history、resize/reconnect、`terminal=restored` 全部通过；同一 fresh binary 的
+CLI Gate B 通过，thread `01a0f876-db3c-7cf1-9dde-0f3e44a79eef`、turn
+`turn_0d9b52c883c943abae4d6998f11d55ea`，jsonl/stdin/error-exit/completion 合同通过。
+
+本阶段没有修改 GUI、App Server protocol、RuntimeCore、provider 或持久化；TUI/CLI Gate B 不
+冒充 Desktop Gate B。ChatWidget collaboration scope、replay seed、其它 session state 与
+settings/catalog 事实源的进一步 ChatWidget 化仍是 `partial/defer`，总体对齐继续 `in-progress`。
+
+## 2026-10-02 ChatWidget transient picker surfaces 第四阶段
+
+继续收敛 Codex ChatWidget transient UI：`model_picker`、`agent_picker`、`resume_picker` 与
+`export_picker` 已从 `App` 迁入 `ChatWidget`。App 仍负责打开动作、App Server model/thread
+请求、选择结果和 canonical Thread/turn projection；`view`、input routing、footer/shortcut
+visibility、transcript frame scheduling 与 picker 生命周期统一读取 `chat_widget`，没有新增
+getter、Deref、compat 壳、第二 renderer 或第二 settings/catalog owner。旧 App picker 字段和
+直接访问归类为 `dead / deleted / guard-only`，无新增 `compat/deprecated`。
+
+结构守卫新增四类 picker/export owner 与 App 反向字段断言，inventory 保持 1412 个 TUI 文件。
+Rust all-targets 1457 library +18 integration +1 dependency guard、strict all-target Clippy、
+fmt/diff check 与 42/42 structure/inventory tests 通过。fresh TUI Gate B 通过，thread
+`01a0f9cb-676e-7c92-a9d4-3b276e9c7a6a`、turn `turn_335708194d8643569bb7303bd1e8eb40`，覆盖
+queue-edit、agents-overview、history/search、Vim、mentions、resize/reconnect 和
+`terminal=restored`；同一 fresh binary 的 CLI Gate B 通过，thread
+`01a0f9cc-64d1-7423-864c-adeda11f6277`、turn `turn_36ae4a2d2b914ab0961035f8afac615e`，
+jsonl/stdin/error-exit/completion 合同通过。
+
+本阶段没有修改 GUI、App Server protocol、RuntimeCore、provider 或持久化；TUI/CLI Gate B 不
+冒充 Desktop Gate B。collaboration scope、replay seed、其它 session state 与 settings/catalog
+事实源的进一步 ChatWidget 化仍为 `partial/defer`，总体对齐继续 `in-progress`。
+
+## 2026-10-02 ChatWidget session settings owner 第五阶段
+
+继续对照公开 Codex `tui/chatwidget.rs` 收敛 ChatWidget 的 session-local 控制面：
+`model_catalog`、`collaboration_mode`、当前 `model`/`model_provider`、`reasoning_effort`、
+`permissions` 与 `permission_profiles` 已从 `App` 的平行字段迁入 `ChatWidget`。启动、重连和
+App Server notification 仍由 App/`AppServerSession` 读取 canonical settings/catalog，再通过
+同一 owner 注入；model/agent picker、`/status`、reasoning/permission 快捷键、历史摘要和
+协作模式切换全部读取 ChatWidget 的 projection。App 保留 transport、Thread/Turn/Item
+projection 与 action lowering，不新增 TUI provider/catalog、持久化或兼容壳。
+
+这次是直接 owner 收敛：旧 App settings/catalog 字段与直接消费归类为 `dead / deleted /
+guard-only`；`ChatWidget` session settings 为 `current`；无新增 `compat/deprecated`。App
+Server 的 `thread/settings/update`、`collaborationMode` 和 typed `model/list` 仍是 canonical
+事实源，TUI 不复制 provider readiness、模型配置或 runtime 状态机。GUI 与 TUI 继续共享同一
+App Server JSON-RPC、RuntimeCore 和 Thread/Turn/Item projection；本阶段没有触及 Electron
+bridge、GUI settings owner 或 protocol schema。
+
+结构守卫新增 ChatWidget settings/catalog owner、App 反向字段和历史/事件/线程设置接线断言，
+inventory 刷新为 `1412` 个 TUI 源文件；结构/inventory Vitest 为 `43/43`。TUI all-targets
+为 `1457` library + `18` integration + `1` dependency guard，strict all-target Clippy、
+`cargo fmt --check` 与 `git diff --check` 均通过。fresh `npm run smoke:tui-gate-b` 首次仅因
+PTY 时序抖动在首个 prompt 前关闭，未修改 timeout 或测试语义；按规则复跑后通过，thread
+`01a0fa1b-16b8-7f30-86d3-4297f4461d2e`、turn `turn_48b9a1a7a3a34bb19530ae0a4efef821`，
+包含 settings 迁移涉及的真实 PTY/alternate screen、stdio App Server JSON-RPC、canonical
+Thread/Turn/Item、queue-edit、Agent Center、history/search、Vim/mentions、resize/reconnect
+与 `terminal=restored`。同一 fresh binary 的 `npm run smoke:cli-gate-b` 通过，thread
+`01a0fa1e-1eb4-7200-b19d-320a0c0a6909`、turn `turn_14a5b277d5b445e6a47b0d781af07974`，
+`jsonl=ok`、`stdin=ok`、`error-exit=1`、`completion=zsh`。
+
+`npm run governance:legacy-report` 通过：扫描 `2068` 个文件，零引用候选 `0`、分类漂移 `0`、
+边界违规 `0`。本阶段没有修改 GUI、Electron bridge、App Server protocol、RuntimeCore、
+provider 或持久化，因此 TUI/CLI Gate B 不冒充 Desktop Gate B，`verify:gui-smoke` 不纳入本轮
+必跑集合。整体 Codex 对齐继续 `partial/in-progress`，下一刀回到 collaboration/replay seed、
+history contract 或其它仍有 canonical 缺口的 ChatWidget session owner。
+
+## 2026-10-02 ChatWidget transcript mode owner 第六阶段
+
+在 settings/catalog 迁移后继续收掉一处仍留在 `App` 的 session presentation 状态：
+`HistoryRenderMode`（rich/raw transcript）已迁入 `ChatWidget.history_render_mode`。历史渲染、
+`/raw` 切换与状态反馈读取同一字段；App 只负责 host action，不保留平行 presentation flag。
+这使 transcript mode 与既有 scroll/viewport/follow/search/selection 同属 ChatWidget surface，
+没有复制 canonical projection 或引入新的历史存储。
+
+分类：ChatWidget transcript mode 为 `current`；旧 App `history_render_mode` 字段/读取入口为
+`dead / deleted / guard-only`；无新增 `compat/deprecated`。结构守卫补充反向字段断言。
+定向结构/inventory 为 `43/43`，`cargo test -p tui --lib --no-run`、strict
+`cargo clippy -p tui --lib --no-deps -- -D warnings`、workspace fmt check 与 `git diff --check`
+均通过。fresh TUI Gate B 首轮为 PTY 时序抖动（图片编辑场景等待 cursor 时关闭，输出已含
+`EDITOR_JOB_CONTROL_OK`），复跑稳定通过，thread `01a0fa2b-c96f-75e3-a72b-b8d6cb6aa52a`、
+turn `turn_5ffaabb105e0423797371f6dc7abe0bf`，覆盖 transcript mode 相关的 rich/raw 可见面、
+history/search、resize/reconnect 与 `terminal=restored`；同一 fresh binary 的 CLI Gate B
+通过，thread `01a0fa2c-cb1d-7560-ab0c-6b41ce4813ba`、turn `turn_e37103466ffc41f4920459fb40b97f04`，
+`jsonl=ok`、`stdin=ok`、`error-exit=1`、`completion=zsh`。整体对齐仍为
+`partial/in-progress`，下一刀继续处理 collaboration/replay seed、history contract 或其它
+未收敛的 ChatWidget session owner。

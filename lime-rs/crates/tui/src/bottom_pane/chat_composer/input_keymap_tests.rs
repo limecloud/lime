@@ -41,8 +41,8 @@ fn app_modal_chords_and_operator_literal_capture_precede_host_submission_and_int
     use crate::app::{App, AppAction};
     use crate::tui::TuiEvent;
     let mut app = App::default();
-    app.composer.set_vim_enabled(true);
-    app.composer.replace("abc".into());
+    app.chat_widget.bottom_pane.composer.set_vim_enabled(true);
+    app.chat_widget.bottom_pane.composer.replace("abc".into());
     app.set_runtime_keymap(bindings(json!({"vim_normal":{"delete_char":"z x"}})));
     app.start_turn("turn-modal".into());
     for completion in [
@@ -57,7 +57,7 @@ fn app_modal_chords_and_operator_literal_capture_precede_host_submission_and_int
             app.handle_tui_event(TuiEvent::Key(completion), true),
             AppAction::None
         );
-        assert_eq!(app.composer.text(), "abc");
+        assert_eq!(app.chat_widget.bottom_pane.composer.text(), "abc");
         assert_eq!(app.projection.active_turn_id(), Some("turn-modal"));
     }
     app.handle_tui_event(
@@ -179,7 +179,7 @@ fn app_applies_snapshot_and_pending_editor_chord_cannot_trigger_host_actions() {
     use crate::tui::TuiEvent;
     let mut app = App::default();
     app.set_runtime_keymap(bindings(json!({"editor":{"kill_line_end":"ctrl-q k"}})));
-    app.composer.insert("abc");
+    app.chat_widget.bottom_pane.composer.insert("abc");
     app.start_turn("turn-editor".into());
     for event in [
         key(KeyCode::Char('q'), KeyModifiers::CONTROL),
@@ -190,9 +190,13 @@ fn app_applies_snapshot_and_pending_editor_chord_cannot_trigger_host_actions() {
             AppAction::None
         );
     }
-    assert_eq!(app.composer.text(), "abc");
+    assert_eq!(app.chat_widget.bottom_pane.composer.text(), "abc");
     assert_eq!(app.projection.active_turn_id(), Some("turn-editor"));
-    assert!(!app.composer.editor_key_chord_pending());
+    assert!(!app
+        .chat_widget
+        .bottom_pane
+        .composer
+        .editor_key_chord_pending());
     for event in [
         key(KeyCode::Char('q'), KeyModifiers::CONTROL),
         key(KeyCode::Enter, KeyModifiers::NONE),
@@ -202,7 +206,7 @@ fn app_applies_snapshot_and_pending_editor_chord_cannot_trigger_host_actions() {
             AppAction::None
         );
     }
-    assert_eq!(app.composer.text(), "abc");
+    assert_eq!(app.chat_widget.bottom_pane.composer.text(), "abc");
     // Windows AltGr must reach text input, not App's Ctrl/Alt+V image shortcut.
     if cfg!(windows) {
         app.handle_tui_event(
@@ -212,6 +216,6 @@ fn app_applies_snapshot_and_pending_editor_chord_cannot_trigger_host_actions() {
             )),
             true,
         );
-        assert_eq!(app.composer.text(), "abcv");
+        assert_eq!(app.chat_widget.bottom_pane.composer.text(), "abcv");
     }
 }

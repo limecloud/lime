@@ -5,7 +5,6 @@ use ratatui::Frame;
 
 use crate::app::App;
 use crate::bottom_pane;
-use crate::bottom_pane::command_popup;
 use crate::bottom_pane::pending_input_preview;
 use crate::line_truncation::truncate_line_with_ellipsis_if_overflow;
 use crate::model_picker;
@@ -15,14 +14,14 @@ use std::time::Instant;
 
 pub(crate) fn render(frame: &mut Frame<'_>, app: &App) {
     let area = frame.area();
-    if let Some(picker) = app.resume_picker.as_ref() {
-        app.transcript_follow_control.clear();
+    if let Some(picker) = app.chat_widget.resume_picker.as_ref() {
+        app.chat_widget.transcript_follow_control.clear();
         frame.render_widget(Clear, area);
         crate::resume_picker::render_with_locale(frame, picker, app.locale);
         return;
     }
-    if let Some(pager) = app.pager_overlay.as_ref() {
-        app.transcript_follow_control.clear();
+    if let Some(pager) = app.chat_widget.pager_overlay.as_ref() {
+        app.chat_widget.transcript_follow_control.clear();
         if pager.is_transcript() {
             let transcript =
                 crate::app::history_ui::render_transcript_pager_content(app, area.width);
@@ -32,17 +31,18 @@ pub(crate) fn render(frame: &mut Frame<'_>, app: &App) {
         }
         return;
     }
-    if let Some(picker) = app.export_picker.as_ref() {
-        app.transcript_follow_control.clear();
+    if let Some(picker) = app.chat_widget.export_picker.as_ref() {
+        app.chat_widget.transcript_follow_control.clear();
         crate::app::transcript_export::render_picker(frame, area, picker, app.locale);
         return;
     }
     let active_elapsed = app.active_turn_elapsed(Instant::now());
     let chunks = screen_chunks(area, app, active_elapsed);
-    let picker_active = app.model_picker.is_some() || app.agent_picker.is_some();
+    let picker_active =
+        app.chat_widget.model_picker.is_some() || app.chat_widget.agent_picker.is_some();
 
     render_transcript(frame, chunks.transcript, app);
-    if !app.bottom_pane.is_active() {
+    if !app.chat_widget.bottom_pane.is_active() {
         if let Some(elapsed) = active_elapsed {
             let inline_status = active_status_message(app);
             status_indicator_widget::render_with_messages(
@@ -58,71 +58,74 @@ pub(crate) fn render(frame: &mut Frame<'_>, app: &App) {
         }
         pending_input_preview::render(frame, chunks.preview, &app.queued_submissions, app.locale);
     }
-    if app.bottom_pane.is_active() {
-        bottom_pane::render_with_locale(frame, chunks.input, &app.bottom_pane, app.locale);
+    if app.chat_widget.bottom_pane.is_active() {
+        bottom_pane::render_with_locale(
+            frame,
+            chunks.input,
+            &app.chat_widget.bottom_pane,
+            app.locale,
+        );
     } else {
-        if let Some(picker) = app.model_picker.as_ref() {
+        if let Some(picker) = app.chat_widget.model_picker.as_ref() {
             model_picker::render_with_locale(frame, chunks.input, picker, app.locale);
-        } else if let Some(picker) = app.agent_picker.as_ref() {
+        } else if let Some(picker) = app.chat_widget.agent_picker.as_ref() {
             crate::app::agent_picker::render(frame, chunks.input, picker, app.locale);
         } else {
             if bottom_pane::shortcut_overlay::visible(app) {
                 bottom_pane::shortcut_overlay::render(frame, chunks.shortcuts, app);
             }
-            app.composer.render(frame, chunks.input, app.locale);
+            bottom_pane::render_with_locale(
+                frame,
+                chunks.input,
+                &app.chat_widget.bottom_pane,
+                app.locale,
+            );
         }
     }
-    let follow_area = (!app.bottom_pane.is_active()
-        && !app.composer.completion_popup_active()
-        && !app.composer.file_search_popup_active()
-        && !app.composer.skill_popup_active()
-        && app.model_picker.is_none()
-        && app.agents_overview.is_none()
-        && app.agent_picker.is_none())
+    let follow_area = (!app.chat_widget.bottom_pane.is_active()
+        && !app.chat_widget.bottom_pane.popup_active()
+        && app.chat_widget.model_picker.is_none()
+        && app.chat_widget.agents_overview.is_none()
+        && app.chat_widget.agent_picker.is_none())
     .then(|| Rect::new(chunks.input.x, chunks.input.y, chunks.input.width, 1));
-    if app.transcript_footer.render_search_query(
+    if app.chat_widget.transcript_footer.render_search_query(
         frame,
         follow_area,
         app.locale,
-        &app.transcript_search,
+        &app.chat_widget.transcript_search,
     ) || app
+        .chat_widget
         .transcript_composer_gap
         .render(frame, follow_area, app.locale)
     {
-        app.transcript_follow_control.clear();
+        app.chat_widget.transcript_follow_control.clear();
     } else {
-        app.transcript_follow_control.render(
+        app.chat_widget.transcript_follow_control.render(
             frame,
             follow_area,
             app.locale,
-            app.transcript_viewport.tail_visible(),
-            app.transcript_viewport.unseen_activity(),
+            app.chat_widget.transcript_viewport.tail_visible(),
+            app.chat_widget.transcript_viewport.unseen_activity(),
         );
     }
-    if app.bottom_pane.is_active()
+    if app.chat_widget.bottom_pane.is_active()
         || (!picker_active
-            && !app.transcript_footer.render_status(
+            && !app.chat_widget.transcript_footer.render_status(
                 frame,
                 chunks.footer,
                 app.locale,
-                &app.transcript_search,
-                app.transcript_selection.is_active(),
+                &app.chat_widget.transcript_search,
+                app.chat_widget.transcript_selection.is_active(),
             ))
     {
         bottom_pane::render_footer(frame, chunks.footer, app);
     }
-    if !app.bottom_pane.is_active() && !picker_active {
-        if let Some(popup) = app.composer.command_popup() {
-            command_popup::render(frame, chunks.input, popup, app.locale);
-        }
-        if let Some(popup) = app.composer.file_search_popup() {
-            popup.render(frame, chunks.input, app.locale);
-        }
-        if let Some(popup) = app.composer.skill_popup() {
-            popup.render(frame, chunks.input, app.locale);
-        }
+    if !app.chat_widget.bottom_pane.is_active() && !picker_active {
+        app.chat_widget
+            .bottom_pane
+            .render_popups(frame, chunks.input, app.locale);
     }
-    if let Some(overview) = app.agents_overview.as_ref() {
+    if let Some(overview) = app.chat_widget.agents_overview.as_ref() {
         // The fullscreen owner reserves notice and controls separately; do not overpaint hints.
         let notice = transient_status(app).map(|status| app.locale.status(&status));
         crate::app::agents_overview_view::render(
@@ -150,8 +153,9 @@ fn screen_chunks(
     app: &App,
     active_elapsed: Option<std::time::Duration>,
 ) -> ScreenChunks {
-    let picker_active = app.model_picker.is_some() || app.agent_picker.is_some();
-    let status_height = if app.bottom_pane.is_active() || picker_active {
+    let picker_active =
+        app.chat_widget.model_picker.is_some() || app.chat_widget.agent_picker.is_some();
+    let status_height = if app.chat_widget.bottom_pane.is_active() || picker_active {
         0
     } else if let Some(elapsed) = active_elapsed {
         let inline_status = active_status_message(app);
@@ -167,26 +171,31 @@ fn screen_chunks(
     } else {
         0
     };
-    let preview_height = if app.bottom_pane.is_active() || picker_active {
+    let preview_height = if app.chat_widget.bottom_pane.is_active() || picker_active {
         0
     } else {
         pending_input_preview::desired_height(&app.queued_submissions, area.width, app.locale)
             .min(8)
             .min(area.height.saturating_sub(6 + status_height))
     };
-    let input_height = if app.bottom_pane.is_active() {
-        bottom_pane::desired_height_with_locale_for_width(&app.bottom_pane, app.locale, area.width)
-    } else if let Some(picker) = app.model_picker.as_ref() {
+    let input_height = if app.chat_widget.bottom_pane.is_active() {
+        bottom_pane::desired_height_with_locale_for_width(
+            &app.chat_widget.bottom_pane,
+            app.locale,
+            area.width,
+        )
+    } else if let Some(picker) = app.chat_widget.model_picker.as_ref() {
         model_picker::desired_height(picker, app.locale, area.width)
             .min(area.height.saturating_sub(1))
-    } else if let Some(picker) = app.agent_picker.as_ref() {
+    } else if let Some(picker) = app.chat_widget.agent_picker.as_ref() {
         crate::app::agent_picker::desired_height(picker, app.locale, area.width)
             .min(area.height.saturating_sub(1))
     } else {
-        let desired = app
-            .composer
-            .desired_height_for_width(area.width)
-            .clamp(3, 12);
+        let desired = bottom_pane::desired_height_with_locale_for_width(
+            &app.chat_widget.bottom_pane,
+            app.locale,
+            area.width,
+        );
         desired.min(
             area.height
                 .saturating_sub(preview_height)
@@ -195,10 +204,11 @@ fn screen_chunks(
                 .max(1),
         )
     };
-    let footer_height = if picker_active && !app.bottom_pane.is_active() {
+    let footer_height = if picker_active && !app.chat_widget.bottom_pane.is_active() {
         0
-    } else if app.bottom_pane.is_active() {
-        app.bottom_pane
+    } else if app.chat_widget.bottom_pane.is_active() {
+        app.chat_widget
+            .bottom_pane
             .footer_required_height(app.locale, usize::from(area.width.saturating_sub(1)))
     } else {
         1
@@ -290,38 +300,44 @@ pub(crate) fn transcript_page_size(width: u16, height: u16, app: &App) -> usize 
 fn render_transcript(frame: &mut Frame<'_>, area: Rect, app: &App) {
     let current = crate::app::history_ui::render_main_transcript_content(app, area.width, false);
     let current_lines = &current.lines;
-    let snapshot = app.transcript_selection.snapshot_lines();
-    app.transcript_search.prepare(
+    let snapshot = app.chat_widget.transcript_selection.snapshot_lines();
+    app.chat_widget.transcript_search.prepare(
         current_lines,
         area.width,
         &std::collections::HashSet::new(),
         snapshot.is_some(),
     );
-    let search_lines = (app.transcript_search.is_active() && snapshot.is_none())
-        .then(|| app.transcript_search.highlighted_lines(current_lines));
+    let search_lines =
+        (app.chat_widget.transcript_search.is_active() && snapshot.is_none()).then(|| {
+            app.chat_widget
+                .transcript_search
+                .highlighted_lines(current_lines)
+        });
     let lines = snapshot
         .as_ref()
         .map(|lines| lines.as_slice())
         .or(search_lines.as_deref())
         .unwrap_or(current_lines);
     let prompt_source = app
+        .chat_widget
         .transcript_prompt_header
         .source(&current.prompt_header, snapshot.is_some());
     let initial_scroll = snapshot.as_ref().map_or_else(
         || {
-            if app.transcript_search.is_active() {
-                return app.transcript_search.resolve_main_scroll(
+            if app.chat_widget.transcript_search.is_active() {
+                return app.chat_widget.transcript_search.resolve_main_scroll(
                     current_lines,
                     area.width,
                     area.height,
                 );
             }
-            usize::from(
-                app.transcript_viewport
-                    .preview(current_lines, area, app.transcript_scroll),
-            )
+            usize::from(app.chat_widget.transcript_viewport.preview(
+                current_lines,
+                area,
+                app.chat_widget.transcript_scroll,
+            ))
         },
-        |_| app.transcript_selection.frozen_scroll(area, 0),
+        |_| app.chat_widget.transcript_selection.frozen_scroll(area, 0),
     );
     let reserved_body = Rect::new(
         area.x,
@@ -331,25 +347,26 @@ fn render_transcript(frame: &mut Frame<'_>, area: Rect, app: &App) {
     );
     let reserved_scroll = snapshot.as_ref().map_or_else(
         || {
-            if app.transcript_search.is_active() {
-                return app.transcript_search.resolve_main_scroll(
+            if app.chat_widget.transcript_search.is_active() {
+                return app.chat_widget.transcript_search.resolve_main_scroll(
                     current_lines,
                     reserved_body.width,
                     reserved_body.height,
                 );
             }
-            usize::from(app.transcript_viewport.preview(
+            usize::from(app.chat_widget.transcript_viewport.preview(
                 current_lines,
                 reserved_body,
-                app.transcript_scroll,
+                app.chat_widget.transcript_scroll,
             ))
         },
         |_| {
-            app.transcript_selection
+            app.chat_widget
+                .transcript_selection
                 .frozen_scroll(reserved_body, initial_scroll)
         },
     );
-    let header = app.transcript_prompt_header.layout(
+    let header = app.chat_widget.transcript_prompt_header.layout(
         &prompt_source,
         lines,
         area,
@@ -367,29 +384,40 @@ fn render_transcript(frame: &mut Frame<'_>, area: Rect, app: &App) {
     let current_height = HyperlinkParagraph::new(current_lines).line_count(area.width);
     let current_max_scroll = current_height.saturating_sub(usize::from(body.height));
     let scroll = if snapshot.is_some() {
-        let canonical_scroll =
-            app.transcript_viewport
-                .resolve_frozen_anchor(current_lines, body, frozen_scroll);
-        app.transcript_selection.note_resume_distance_from_bottom(
-            current_max_scroll.saturating_sub(usize::from(canonical_scroll)),
+        let canonical_scroll = app.chat_widget.transcript_viewport.resolve_frozen_anchor(
+            current_lines,
+            body,
+            frozen_scroll,
         );
+        app.chat_widget
+            .transcript_selection
+            .note_resume_distance_from_bottom(
+                current_max_scroll.saturating_sub(usize::from(canonical_scroll)),
+            );
         frozen_scroll
-    } else if app.transcript_search.is_active() {
-        app.transcript_search
-            .resolve_main_scroll(current_lines, body.width, body.height)
-    } else {
-        usize::from(
-            app.transcript_viewport
-                .resolve(current_lines, body, app.transcript_scroll),
+    } else if app.chat_widget.transcript_search.is_active() {
+        app.chat_widget.transcript_search.resolve_main_scroll(
+            current_lines,
+            body.width,
+            body.height,
         )
+    } else {
+        usize::from(app.chat_widget.transcript_viewport.resolve(
+            current_lines,
+            body,
+            app.chat_widget.transcript_scroll,
+        ))
     };
     let paragraph = HyperlinkParagraph::new(lines);
     frame.render_widget(
         paragraph.scroll(u16::try_from(scroll).unwrap_or(u16::MAX)),
         body,
     );
-    app.transcript_selection.update_layout(body, scroll, lines);
-    app.transcript_selection
+    app.chat_widget
+        .transcript_selection
+        .update_layout(body, scroll, lines);
+    app.chat_widget
+        .transcript_selection
         .render_highlight(frame.buffer_mut());
 }
 

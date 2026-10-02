@@ -37,7 +37,7 @@ pub(crate) fn apply_skills_list_response(app: &mut App, response: SkillsListResp
         .into_iter()
         .flat_map(|entry| entry.errors)
         .collect::<Vec<_>>();
-    app.composer.set_skills(skills);
+    app.chat_widget.bottom_pane.set_skills(skills);
     let newly_active = app.skill_load_warnings.newly_active_errors(&errors);
     startup_prompts::emit_skill_load_warnings(app, &newly_active);
 }
@@ -47,8 +47,11 @@ fn apply_prompt_history_response(app: &mut App, response: PromptHistoryReadRespo
     if let (Some(thread_id), Ok(entry_count)) =
         (&app.thread_id, usize::try_from(response.entry_count))
     {
-        app.composer
-            .set_history_metadata(thread_id.clone(), response.log_id, entry_count);
+        app.chat_widget.bottom_pane.set_history_metadata(
+            thread_id.clone(),
+            response.log_id,
+            entry_count,
+        );
     }
 }
 
@@ -298,7 +301,7 @@ mod tests {
             },
         );
         for (offset, text) in [(1, "newest"), (0, "oldest")] {
-            app.composer.on_history_lookup_response(
+            app.chat_widget.bottom_pane.on_history_lookup_response(
                 "thread",
                 crate::app_event::HistoryLookupResponse::Entry {
                     log_id: "log".into(),
@@ -307,15 +310,18 @@ mod tests {
                 },
             );
         }
-        app.composer
+        app.chat_widget
+            .bottom_pane
             .handle_key_event(KeyEvent::new(KeyCode::Up, KeyModifiers::NONE));
-        assert_eq!(app.composer.text(), "newest");
-        app.composer
+        assert_eq!(app.chat_widget.bottom_pane.composer_text(), "newest");
+        app.chat_widget
+            .bottom_pane
             .handle_key_event(KeyEvent::new(KeyCode::Up, KeyModifiers::NONE));
-        assert_eq!(app.composer.text(), "oldest");
-        app.composer
+        assert_eq!(app.chat_widget.bottom_pane.composer_text(), "oldest");
+        app.chat_widget
+            .bottom_pane
             .handle_key_event(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE));
-        assert_eq!(app.composer.text(), "newest");
+        assert_eq!(app.chat_widget.bottom_pane.composer_text(), "newest");
     }
 
     #[test]
@@ -354,7 +360,8 @@ mod tests {
         );
 
         assert_eq!(
-            app.composer
+            app.chat_widget
+                .bottom_pane
                 .skills()
                 .iter()
                 .map(|skill| skill.name.as_str())

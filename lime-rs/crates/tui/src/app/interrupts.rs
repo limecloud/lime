@@ -7,7 +7,7 @@
 use super::App;
 
 pub(super) fn should_interrupt_turn(app: &App) -> bool {
-    app.projection.active_turn_id().is_some() && !app.composer.vim_search_active()
+    app.projection.active_turn_id().is_some() && !app.chat_widget.bottom_pane.vim_search_active()
 }
 
 #[cfg(test)]
@@ -32,8 +32,9 @@ mod tests {
     fn vim_search_suppresses_interrupt() {
         let mut app = App::default();
         app.start_turn("turn-1".to_string());
-        app.composer.set_vim_enabled(true);
-        app.composer
+        app.chat_widget.bottom_pane.set_vim_enabled(true);
+        app.chat_widget
+            .bottom_pane
             .handle_key_event(KeyEvent::new(KeyCode::Char('/'), KeyModifiers::NONE));
 
         assert!(!should_interrupt_turn(&app));

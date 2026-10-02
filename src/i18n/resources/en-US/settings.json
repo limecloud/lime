@@ -2222,5 +2222,9 @@
   "settings.mcpPage.runtime.resourceBrowser.preview.truncated": "Truncated, showing the first {{shown}} of {{total}} characters; {{hidden}} hidden.",
   "settings.mcpPage.runtime.resourceBrowser.preview.image": "Image data, {{bytes}} bytes",
   "settings.mcpPage.runtime.resourceBrowser.preview.blob": "Binary data, {{bytes}} bytes",
-  "settings.mcpPage.runtime.resourceBrowser.preview.empty": "No content"
+  "settings.mcpPage.runtime.resourceBrowser.preview.empty": "No content",
+  "settings.layout.sidebar.search.placeholder": "Search settings",
+  "settings.layout.sidebar.search.label": "Search settings",
+  "settings.layout.sidebar.search.clear": "Clear settings search",
+  "settings.layout.sidebar.search.noResults": "No matching settings"
 }

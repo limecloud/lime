@@ -188,7 +188,7 @@ fn model_picker_replaces_composer_without_erasing_draft_or_session_settings() {
         Some("high".into()),
         None,
     );
-    app.composer.insert("preserved draft");
+    app.chat_widget.bottom_pane.insert_str("preserved draft");
     app.open_model_picker(vec![
         model("default", "provider", false, true),
         model("current", "provider", false, false),
@@ -212,10 +212,13 @@ fn model_picker_replaces_composer_without_erasing_draft_or_session_settings() {
         crate::tui::TuiEvent::Key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE)),
         true,
     );
-    assert!(app.model_picker.is_none());
-    assert_eq!(app.composer.text(), "preserved draft");
-    assert_eq!(app.model.as_deref(), Some("current"));
-    assert_eq!(app.model_provider.as_deref(), Some("provider"));
-    assert_eq!(app.reasoning_effort.as_deref(), Some("high"));
+    assert!(app.chat_widget.model_picker.is_none());
+    assert_eq!(
+        app.chat_widget.bottom_pane.composer_text(),
+        "preserved draft"
+    );
+    assert_eq!(app.chat_widget.model.as_deref(), Some("current"));
+    assert_eq!(app.chat_widget.model_provider.as_deref(), Some("provider"));
+    assert_eq!(app.chat_widget.reasoning_effort.as_deref(), Some("high"));
     assert_eq!(app.thread_id.as_deref(), Some("canonical-thread"));
 }

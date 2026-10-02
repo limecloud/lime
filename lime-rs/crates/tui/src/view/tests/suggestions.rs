@@ -6,14 +6,17 @@ use app_server_protocol::protocol::v2::{
 #[test]
 fn visible_file_selection_inserts_original_path_and_preserves_draft_suffix() {
     let mut app = App::default();
-    app.composer.insert("Before @parser");
-    app.composer.sync_completion_popup();
-    let request = app.composer.take_file_search_request().unwrap();
+    app.chat_widget.bottom_pane.insert_str("Before @parser");
+    let request = app
+        .chat_widget
+        .bottom_pane
+        .take_file_search_request()
+        .unwrap();
     let paths = [
         "long_directory_that_does_not_fit_in_a_narrow_terminal/parser_alpha.rs",
         "long_directory_that_does_not_fit_in_a_narrow_terminal/parser_beta.rs",
     ];
-    app.composer.on_file_search_result(
+    app.chat_widget.bottom_pane.on_file_search_result(
         request.generation,
         &request.query,
         paths
@@ -44,8 +47,11 @@ fn visible_file_selection_inserts_original_path_and_preserves_draft_suffix() {
         Event::Key(KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE)),
     );
     assert!(matches!(action, crate::app::AppAction::None));
-    assert_eq!(app.composer.text(), format!("Before {} ", paths[1]));
-    assert!(!app.composer.file_search_popup_active());
+    assert_eq!(
+        app.chat_widget.bottom_pane.composer_text(),
+        format!("Before {} ", paths[1])
+    );
+    assert!(!app.chat_widget.bottom_pane.popup_active());
     assert!(app.projection.active_turn_id().is_none());
     assert!(app.queued_submissions.is_empty());
 }
@@ -53,7 +59,7 @@ fn visible_file_selection_inserts_original_path_and_preserves_draft_suffix() {
 #[test]
 fn visible_scrolled_skill_inserts_canonical_name_and_cancel_preserves_token() {
     let mut app = App::default();
-    app.composer.set_skills(
+    app.chat_widget.bottom_pane.set_skills(
         (0..10)
             .map(|index| SkillMetadata {
                 name: format!("skill-{index:02}"),
@@ -67,8 +73,7 @@ fn visible_scrolled_skill_inserts_canonical_name_and_cancel_preserves_token() {
             })
             .collect(),
     );
-    app.composer.insert("Review $skill-");
-    app.composer.sync_completion_popup();
+    app.chat_widget.bottom_pane.insert_str("Review $skill-");
     dispatch_connected_input(
         &mut app,
         Event::Key(KeyEvent::new(KeyCode::Up, KeyModifiers::NONE)),
@@ -80,17 +85,19 @@ fn visible_scrolled_skill_inserts_canonical_name_and_cancel_preserves_token() {
         &mut app,
         Event::Key(KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE)),
     );
-    assert_eq!(app.composer.text(), "Review $skill-09 ");
-    assert!(!app.composer.skill_popup_active());
-    app.composer.insert("$skill-");
-    app.composer.sync_completion_popup();
-    assert!(app.composer.skill_popup_active());
-    let draft = app.composer.text().to_string();
+    assert_eq!(
+        app.chat_widget.bottom_pane.composer_text(),
+        "Review $skill-09 "
+    );
+    assert!(!app.chat_widget.bottom_pane.popup_active());
+    app.chat_widget.bottom_pane.insert_str("$skill-");
+    assert!(app.chat_widget.bottom_pane.popup_active());
+    let draft = app.chat_widget.bottom_pane.composer_text().to_string();
     dispatch_connected_input(
         &mut app,
         Event::Key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE)),
     );
-    assert_eq!(app.composer.text(), draft);
-    assert!(!app.composer.skill_popup_active());
+    assert_eq!(app.chat_widget.bottom_pane.composer_text(), draft);
+    assert!(!app.chat_widget.bottom_pane.popup_active());
     assert!(app.projection.active_turn_id().is_none());
 }

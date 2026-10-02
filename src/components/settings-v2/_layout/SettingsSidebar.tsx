@@ -6,7 +6,7 @@
  */
 
 import styled from "styled-components";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Search, X } from "lucide-react";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -17,16 +17,17 @@ import {
 import { SettingsTabs, SettingsGroupKey } from "@/types/settings";
 
 const SidebarContainer = styled.aside`
-  width: 240px;
-  min-width: 240px;
-  height: 100%;
-  border-right: 1px solid var(--lime-sidebar-border, hsl(var(--border)));
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  border: none;
   background: var(
     --lime-sidebar-surface,
     var(--lime-surface-subtle, hsl(var(--card)))
   );
   overflow-y: auto;
-  padding: 16px 8px;
+  padding: 0 10px 12px;
 
   &::-webkit-scrollbar {
     width: 4px;
@@ -41,15 +42,73 @@ const SidebarContainer = styled.aside`
     border-radius: 2px;
   }
 
-  @media (max-width: 1200px) {
+  @media (max-width: 640px) {
     display: none;
   }
+`;
+
+const SearchWrap = styled.div`
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 0 0 10px;
+  background: var(
+    --lime-sidebar-surface,
+    var(--lime-surface-subtle, hsl(var(--card)))
+  );
+`;
+
+const SearchField = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 32px;
+  padding: 0 9px;
+  border: 1px solid var(--lime-sidebar-border, hsl(var(--border)));
+  border-radius: 8px;
+  background: var(--lime-sidebar-search-bg, hsl(var(--background)));
+  color: var(--lime-sidebar-muted, hsl(var(--muted-foreground)));
+  &:focus-within {
+    border-color: var(--lime-sidebar-active-text, hsl(var(--ring)));
+    box-shadow: 0 0 0 2px hsl(var(--ring) / 0.12);
+  }
+  svg {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+  }
+  input {
+    min-width: 0;
+    flex: 1;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: var(--lime-sidebar-foreground, hsl(var(--foreground)));
+    font-size: 13px;
+  }
+  input::placeholder {
+    color: var(--lime-sidebar-muted, hsl(var(--muted-foreground)));
+  }
+  button {
+    display: inline-flex;
+    border: 0;
+    padding: 0;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+  }
+`;
+
+const NoResults = styled.div`
+  padding: 14px 9px;
+  color: var(--lime-sidebar-muted, hsl(var(--muted-foreground)));
+  font-size: 13px;
 `;
 
 const FloatingNavRoot = styled.div`
   display: none;
 
-  @media (max-width: 1200px) {
+  @media (max-width: 640px) {
     display: block;
     position: fixed;
     top: 96px;
@@ -64,7 +123,7 @@ const FloatingNavRoot = styled.div`
 `;
 
 const GroupContainer = styled.div`
-  margin-bottom: 8px;
+  margin-bottom: 10px;
 `;
 
 const GroupHeader = styled.button<{ $expanded: boolean }>`
@@ -72,15 +131,13 @@ const GroupHeader = styled.button<{ $expanded: boolean }>`
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  padding: 8px 12px;
+  padding: 8px 9px;
   border: none;
   background: transparent;
   cursor: pointer;
   font-size: 12px;
   font-weight: 500;
   color: var(--lime-text-muted, hsl(var(--muted-foreground)));
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
 
   svg {
     width: 14px;
@@ -106,9 +163,10 @@ const NavItem = styled.button<{ $active: boolean }>`
   align-items: center;
   gap: 10px;
   width: 100%;
-  padding: 10px 12px;
+  min-height: 32px;
+  padding: 6px 9px;
   border: none;
-  border-radius: 8px;
+  border-radius: 7px;
   background: ${({ $active }) =>
     $active ? "var(--lime-sidebar-active, hsl(var(--accent)))" : "transparent"};
   cursor: pointer;
@@ -126,8 +184,9 @@ const NavItem = styled.button<{ $active: boolean }>`
   }
 
   svg {
-    width: 18px;
-    height: 18px;
+    width: 16px;
+    height: 16px;
+    stroke-width: 1.7;
     flex-shrink: 0;
   }
 `;
@@ -271,11 +330,27 @@ export function SettingsSidebar({
   const floatingPanelId = useId();
   const floatingRootRef = useRef<HTMLDivElement | null>(null);
   const floatingButtonRef = useRef<HTMLButtonElement | null>(null);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
   const [floatingOpen, setFloatingOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const activeItem = useMemo(
     () => findActiveItem(categoryGroups, activeTab),
     [activeTab, categoryGroups],
   );
+  const filteredGroups = useMemo(() => {
+    const query = searchQuery.trim().toLocaleLowerCase();
+    if (!query) return categoryGroups;
+    return categoryGroups
+      .map((group) => ({
+        ...group,
+        items: group.items.filter(
+          (item) =>
+            item.label.toLocaleLowerCase().includes(query) ||
+            group.title.toLocaleLowerCase().includes(query),
+        ),
+      }))
+      .filter((group) => group.items.length > 0);
+  }, [categoryGroups, searchQuery]);
 
   // 默认展开所有分组
   const [expandedGroups, setExpandedGroups] = useState<
@@ -331,12 +406,66 @@ export function SettingsSidebar({
     };
   }, [floatingOpen]);
 
+  useEffect(() => {
+    const handleSearchShortcut = (event: KeyboardEvent) => {
+      if (
+        event.key.toLowerCase() !== "f" ||
+        (!event.metaKey && !event.ctrlKey)
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+      searchInputRef.current?.focus();
+      searchInputRef.current?.select();
+    };
+
+    document.addEventListener("keydown", handleSearchShortcut);
+    return () => {
+      document.removeEventListener("keydown", handleSearchShortcut);
+    };
+  }, []);
+
   const ActiveIcon = activeItem?.icon;
 
   return (
     <>
       <SidebarContainer data-testid="settings-sidebar">
-        {categoryGroups.map((group) => (
+        <SearchWrap>
+          <SearchField>
+            <Search aria-hidden />
+            <input
+              ref={searchInputRef}
+              type="search"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder={t(
+                "settings.layout.sidebar.search.placeholder",
+                "搜索设置",
+              )}
+              aria-label={t("settings.layout.sidebar.search.label", "搜索设置")}
+              data-testid="settings-sidebar-search"
+            />
+            {searchQuery ? (
+              <button
+                type="button"
+                aria-label={t(
+                  "settings.layout.sidebar.search.clear",
+                  "清除搜索",
+                )}
+                onClick={() => setSearchQuery("")}
+              >
+                <X aria-hidden />
+              </button>
+            ) : null}
+          </SearchField>
+        </SearchWrap>
+        {filteredGroups.length === 0 ? (
+          <NoResults data-testid="settings-sidebar-no-results">
+            {t("settings.layout.sidebar.search.noResults", "没有匹配的设置")}
+          </NoResults>
+        ) : null}
+        {filteredGroups.map((group) => (
           <GroupContainer key={group.key}>
             <GroupHeader
               $expanded={expandedGroups[group.key] ?? true}
@@ -345,11 +474,16 @@ export function SettingsSidebar({
               {group.title}
               <ChevronDown />
             </GroupHeader>
-            <GroupItems $expanded={expandedGroups[group.key] ?? true}>
+            <GroupItems
+              $expanded={
+                Boolean(searchQuery) || (expandedGroups[group.key] ?? true)
+              }
+            >
               {group.items.map((item) => (
                 <NavItem
                   key={item.key}
                   $active={activeTab === item.key}
+                  aria-current={activeTab === item.key ? "page" : undefined}
                   data-active={String(activeTab === item.key)}
                   data-testid={`settings-sidebar-tab-${item.key}`}
                   onMouseEnter={() => onTabPrefetch?.(item.key)}
@@ -397,7 +531,7 @@ export function SettingsSidebar({
             id={floatingPanelId}
             data-testid="settings-floating-nav-panel"
           >
-            {categoryGroups.map((group) => (
+            {filteredGroups.map((group) => (
               <FloatingGroup key={group.key}>
                 <FloatingGroupTitle>{group.title}</FloatingGroupTitle>
                 <GroupItems $expanded>
@@ -405,6 +539,7 @@ export function SettingsSidebar({
                     <NavItem
                       key={item.key}
                       $active={activeTab === item.key}
+                      aria-current={activeTab === item.key ? "page" : undefined}
                       data-active={String(activeTab === item.key)}
                       data-testid={`settings-floating-tab-${item.key}`}
                       onMouseEnter={() => onTabPrefetch?.(item.key)}

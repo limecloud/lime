@@ -6,10 +6,11 @@ use app_server_protocol::protocol::v2::{ServerNotification, ThreadItem};
 use app_server_protocol::RequestId;
 
 use super::approval_overlay::ApprovalRequest;
-use super::{BottomPane, PendingInteraction};
+use super::{BottomPane, ComposerDraft, PendingInteraction};
 
 #[derive(Debug, Default)]
 pub(crate) struct BottomPaneInputState {
+    composer: ComposerDraft,
     queue: VecDeque<PendingInteraction>,
 }
 
@@ -18,25 +19,35 @@ impl BottomPaneInputState {
         retain_pending(&mut self.queue, notification);
     }
 
-    pub(crate) fn clear(&mut self) {
+    pub(crate) fn clear_interactions(&mut self) {
         self.queue.clear();
+    }
+
+    #[cfg(test)]
+    pub(crate) fn composer_draft(&self) -> &ComposerDraft {
+        &self.composer
     }
 }
 
 impl BottomPane {
     pub(crate) fn take_input_state(&mut self) -> BottomPaneInputState {
+        self.composer.flush_paste_burst_before_handoff();
         BottomPaneInputState {
+            composer: self.composer.draft_snapshot(),
             queue: std::mem::take(&mut self.queue),
         }
     }
 
     pub(crate) fn restore_input_state(&mut self, state: BottomPaneInputState) {
+        self.composer
+            .restore_thread_input_state(state.composer, &self.keymap);
         self.queue = state.queue;
         // Host configuration is not part of a per-thread snapshot. Apply the current bindings
         // to every restored editor, including requests that are not at the front of the queue.
         for request in &mut self.queue {
             request.set_keymap_bindings(&self.keymap);
         }
+        self.composer.sync_completion_popup();
     }
 
     pub(crate) fn observe_notification(&mut self, notification: &ServerNotification) {

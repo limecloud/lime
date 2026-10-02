@@ -14,71 +14,158 @@ const inventory = JSON.parse(
 
 describe("Codex TUI structure inventory", () => {
   it("keeps Agent Center interaction on one view rather than fake shared state", () => {
-    const source = (file) => readFileSync(path.resolve(process.cwd(), "lime-rs/crates/tui/src", file), "utf8");
+    const source = (file) =>
+      readFileSync(
+        path.resolve(process.cwd(), "lime-rs/crates/tui/src", file),
+        "utf8",
+      );
     const state = source("app/agents_overview.rs");
-    for (const retired of ["view_state:", "visible_thread_ids:", "refresh_task:", "refresh_thread_ids:", "rendered_full_screen:", "initialized:", "request_id:", "sync_view_state", "AGENTS_OVERVIEW_VIEW_ID", "apply_agents_overview_thread_refresh", "select_agents_overview_thread", "repaint_agents_overview"]) {
+    for (const retired of [
+      "view_state:",
+      "visible_thread_ids:",
+      "refresh_task:",
+      "refresh_thread_ids:",
+      "rendered_full_screen:",
+      "initialized:",
+      "request_id:",
+      "sync_view_state",
+      "AGENTS_OVERVIEW_VIEW_ID",
+      "apply_agents_overview_thread_refresh",
+      "select_agents_overview_thread",
+      "repaint_agents_overview",
+    ]) {
       expect(state).not.toContain(retired);
     }
     expect(source("app/interaction.rs")).not.toContain("sync_view_state");
     expect(source("app/interaction.rs")).not.toContain("visible_thread_ids");
     expect(state).toContain("self.view.set_pagination(");
-    for (const retired of ["refresh_changed_agents_overview_threads", "start_agents_overview_refresh"]) {
+    for (const retired of [
+      "refresh_changed_agents_overview_threads",
+      "start_agents_overview_refresh",
+    ]) {
       expect(source("app/agents_overview_threads.rs")).not.toContain(retired);
     }
   });
   it("retains composer snapshots across thread handoff without an Agent Center string mirror", () => {
-    const source = (file) => readFileSync(path.resolve(process.cwd(), "lime-rs/crates/tui/src", file), "utf8");
-    expect(source("app/thread_input.rs")).toContain("self.composer.draft_snapshot()");
-    expect(source("app/thread_input.rs")).toContain("self.composer.flush_paste_burst_before_handoff()");
-    expect(source("bottom_pane/chat_composer/history_search_draft.rs")).toContain("search.original_draft.clone()");
-    expect(source("app/thread_input.rs")).toContain(".restore_thread_input_state(state.composer, &self.runtime_keymap)");
+    const source = (file) =>
+      readFileSync(
+        path.resolve(process.cwd(), "lime-rs/crates/tui/src", file),
+        "utf8",
+      );
+    expect(source("bottom_pane/input_state.rs")).toContain(
+      "self.composer.draft_snapshot()",
+    );
+    expect(source("bottom_pane/input_state.rs")).toContain(
+      "self.composer.flush_paste_burst_before_handoff()",
+    );
+    expect(
+      source("bottom_pane/chat_composer/history_search_draft.rs"),
+    ).toContain("search.original_draft.clone()");
+    expect(source("bottom_pane/input_state.rs")).toContain(
+      ".restore_thread_input_state(state.composer, &self.keymap)",
+    );
     const restore = source("bottom_pane/chat_composer/draft.rs");
-    for (const symbol of ["fn restore_thread_input_state(", "take_kill_buffer_snapshot()", "TextArea::default()", "restore_kill_buffer_snapshot(register)", "self.vim_history = VimHistory::default()", "self.restore_draft(draft)"]) {
+    for (const symbol of [
+      "fn restore_thread_input_state(",
+      "take_kill_buffer_snapshot()",
+      "TextArea::default()",
+      "restore_kill_buffer_snapshot(register)",
+      "self.vim_history = VimHistory::default()",
+      "self.restore_draft(draft)",
+    ]) {
       expect(restore).toContain(symbol);
     }
-    expect(source("bottom_pane/chat_composer/draft_state.rs")).not.toContain("kill_buffer");
+    expect(source("bottom_pane/chat_composer/draft_state.rs")).not.toContain(
+      "kill_buffer",
+    );
     expect(source("app/thread_input.rs")).toContain(".remove(thread_id)");
-    expect(source("app/session_lifecycle.rs")).toContain("self.capture_current_thread_input()");
+    expect(source("app/session_lifecycle.rs")).toContain(
+      "self.capture_current_thread_input()",
+    );
     expect(source("app/agents_overview.rs")).not.toContain("input_states:");
     expect(source("app.rs")).not.toContain("HashMap<String, String>");
   });
   it("keeps diff palette and full-row painting in the current shared render owners", () => {
-    const source = (file) => readFileSync(path.resolve(process.cwd(), "lime-rs/crates/tui/src", file), "utf8");
-    for (const owner of ["diff_render.rs", "diff_render/style.rs", "diff_render/tests.rs", "diff_render/style_tests.rs"]) {
+    const source = (file) =>
+      readFileSync(
+        path.resolve(process.cwd(), "lime-rs/crates/tui/src", file),
+        "utf8",
+      );
+    for (const owner of [
+      "diff_render.rs",
+      "diff_render/style.rs",
+      "diff_render/tests.rs",
+      "diff_render/style_tests.rs",
+    ]) {
       expect(source(owner).split("\n").length, owner).toBeLessThan(800);
     }
-    expect(source("diff_render.rs")).toContain("current_diff_render_style_context()");
-    expect(source("diff_render/style.rs")).toContain("struct DiffRenderStyleContext");
+    expect(source("diff_render.rs")).toContain(
+      "current_diff_render_style_context()",
+    );
+    expect(source("diff_render/style.rs")).toContain(
+      "struct DiffRenderStyleContext",
+    );
     for (const owner of ["diff_render.rs", "diff_render/style.rs"]) {
       expect(source(owner)).not.toContain("DiffStyleContext");
     }
-    expect(source("entry.rs")).not.toMatch(/EntryKind::Patch if text\.starts_with/u);
-    expect(source("diff_render.rs")).not.toContain("add_modifier(Modifier::DIM)");
+    expect(source("entry.rs")).not.toMatch(
+      /EntryKind::Patch if text\.starts_with/u,
+    );
+    expect(source("diff_render.rs")).not.toContain(
+      "add_modifier(Modifier::DIM)",
+    );
     expect(source("diff_render/style.rs")).toContain("readable_color_on");
-    expect(source("terminal_hyperlinks/paragraph.rs")).toContain("Style::default().bg(background)");
-    expect(source("diff_render/tests.rs")).not.toContain("theme_scope_background_resolution");
+    expect(source("terminal_hyperlinks/paragraph.rs")).toContain(
+      "Style::default().bg(background)",
+    );
+    expect(source("diff_render/tests.rs")).not.toContain(
+      "theme_scope_background_resolution",
+    );
   });
   it("prevents retired footer state and oversized view aggregation from returning", () => {
-    const source = (file) => readFileSync(path.resolve(process.cwd(), "lime-rs/crates/tui/src", file), "utf8");
+    const source = (file) =>
+      readFileSync(
+        path.resolve(process.cwd(), "lime-rs/crates/tui/src", file),
+        "utf8",
+      );
     expect(source("bottom_pane/footer.rs")).not.toContain("draft_ready_hint");
-    expect(source("bottom_pane/chat_composer/footer_state.rs")).not.toContain("FooterFlash");
+    expect(source("bottom_pane/chat_composer/footer_state.rs")).not.toContain(
+      "FooterFlash",
+    );
     expect(source("locale.rs")).not.toContain("draft_ready_hint");
     expect(source("view.rs")).toContain("mod tests;");
-    expect(source("view.rs")).not.toContain("render_transient_status(frame, chunks.footer");
+    expect(source("view.rs")).not.toContain(
+      "render_transient_status(frame, chunks.footer",
+    );
     expect(source("view.rs").split("\n").length).toBeLessThan(800);
     expect(source("keymap.rs")).toContain("mod hints;");
     expect(source("keymap.rs").split("\n").length).toBeLessThan(800);
     expect(source("model_picker.rs")).not.toContain("centered_popup");
     expect(source("model_picker/render.rs")).not.toContain("Borders");
-    expect(source("bottom_pane/selection_row_layout.rs")).not.toContain("centered_popup");
-    for (const owner of ["bottom_pane/chat_composer.rs", ...["draft", "history", "input", "completion", "render", "tests"].map(name => `bottom_pane/chat_composer/${name}.rs`)]) {
+    expect(source("bottom_pane/selection_row_layout.rs")).not.toContain(
+      "centered_popup",
+    );
+    for (const owner of [
+      "bottom_pane/chat_composer.rs",
+      ...["draft", "history", "input", "completion", "render", "tests"].map(
+        (name) => `bottom_pane/chat_composer/${name}.rs`,
+      ),
+    ]) {
       expect(source(owner).split("\n").length).toBeLessThan(800);
     }
     expect(source("view.rs")).not.toContain("fn render_composer");
-    expect(source("view.rs")).toContain("app.composer.render(frame, chunks.input, app.locale)");
-    expect(source("bottom_pane/chat_composer/render.rs")).toContain("Block::default().style(style)");
-    expect(source("bottom_pane/chat_composer/completion.rs")).not.toContain("fn sync_" + "command_popup");
-    expect(source("bottom_pane/chat_composer.rs")).not.toContain("file_search_generation:");
+    expect(source("bottom_pane/render.rs")).toContain(
+      "pane.composer.render(frame, area, locale)",
+    );
+    expect(source("bottom_pane/chat_composer/render.rs")).toContain(
+      "Block::default().style(style)",
+    );
+    expect(source("bottom_pane/chat_composer/completion.rs")).not.toContain(
+      "fn sync_" + "command_popup",
+    );
+    expect(source("bottom_pane/chat_composer.rs")).not.toContain(
+      "file_search_generation:",
+    );
     for (const consumer of ["model_picker/render.rs", "app/agent_picker.rs"]) {
       expect(source(consumer)).toContain("list_selection_view::render");
       expect(source(consumer)).not.toContain("centered_popup");
@@ -94,43 +181,96 @@ describe("Codex TUI structure inventory", () => {
   });
 
   it("keeps palette lowering and text contrast in shared owners", () => {
-    const source = (file) => readFileSync(path.resolve(process.cwd(), "lime-rs/crates/tui/src", file), "utf8");
+    const source = (file) =>
+      readFileSync(
+        path.resolve(process.cwd(), "lime-rs/crates/tui/src", file),
+        "utf8",
+      );
     expect(source("style.rs")).toContain("mod contrast;");
     expect(source("style.rs")).not.toContain("Color::Cyan");
-    expect(source("style/selection.rs")).not.toContain("fn readable_foreground");
+    expect(source("style/selection.rs")).not.toContain(
+      "fn readable_foreground",
+    );
     expect(source("style/selection.rs")).not.toContain("fn luminance");
     expect(source("terminal_palette.rs")).not.toContain("fn color_distance");
     expect(source("style/contrast.rs")).toContain("xterm_fixed_colors()");
     expect(source("style/contrast.rs")).not.toContain("XTERM_COLORS");
-    expect(source("transcript_view/follow_control.rs")).toContain("user_message_accent_color()");
+    expect(source("transcript_view/follow_control.rs")).toContain(
+      "user_message_accent_color()",
+    );
   });
 
   it("keeps atomic paste edits on the current composer and textarea owners", () => {
-    const source = (file) => readFileSync(path.resolve(process.cwd(), "lime-rs/crates/tui/src", file), "utf8");
-    for (const owner of ["bottom_pane/textarea.rs", "bottom_pane/textarea/editing.rs", "bottom_pane/textarea/elements.rs", "bottom_pane/textarea/vim.rs", "bottom_pane/textarea/vim/navigation.rs"]) {
+    const source = (file) =>
+      readFileSync(
+        path.resolve(process.cwd(), "lime-rs/crates/tui/src", file),
+        "utf8",
+      );
+    for (const owner of [
+      "bottom_pane/textarea.rs",
+      "bottom_pane/textarea/editing.rs",
+      "bottom_pane/textarea/elements.rs",
+      "bottom_pane/textarea/vim.rs",
+      "bottom_pane/textarea/vim/navigation.rs",
+    ]) {
       expect(source(owner).split("\n").length, owner).toBeLessThan(800);
     }
     expect(source("bottom_pane/textarea.rs")).toContain("mod elements;");
-    expect(source("bottom_pane/textarea/vim.rs")).not.toMatch(/self\.text\.(?:replace_range|insert_str|insert|push)\(/u);
-    expect(source("bottom_pane/chat_composer/pending_paste.rs")).toContain("fn expand_pending_pastes(");
-    expect(source("bottom_pane/chat_composer/pending_paste.rs")).toContain("VecDeque::pop_front");
-    expect(source("bottom_pane/chat_composer/pending_paste.rs")).not.toContain(".replace(");
-    expect(source("bottom_pane/chat_composer/submission.rs")).toContain("Self::expand_pending_pastes(");
-    expect(source("runtime.rs")).toContain("let draft = app.composer.current_text_with_pending()");
-    expect(source("bottom_pane/chat_composer/pending_paste.rs")).not.toMatch(/\bexpanded_text(?:_with_elements)?\b/u);
+    expect(source("bottom_pane/textarea/vim.rs")).not.toMatch(
+      /self\.text\.(?:replace_range|insert_str|insert|push)\(/u,
+    );
+    expect(source("bottom_pane/chat_composer/pending_paste.rs")).toContain(
+      "fn expand_pending_pastes(",
+    );
+    expect(source("bottom_pane/chat_composer/pending_paste.rs")).toContain(
+      "VecDeque::pop_front",
+    );
+    expect(source("bottom_pane/chat_composer/pending_paste.rs")).not.toContain(
+      ".replace(",
+    );
+    expect(source("bottom_pane/chat_composer/submission.rs")).toContain(
+      "Self::expand_pending_pastes(",
+    );
+    expect(source("runtime.rs")).toContain(
+      "let draft = app.chat_widget.bottom_pane.composer_text_with_pending()",
+    );
+    expect(source("bottom_pane/chat_composer/pending_paste.rs")).not.toMatch(
+      /\bexpanded_text(?:_with_elements)?\b/u,
+    );
   });
 
   it("keeps inline local images and structured submission on the single composer owner", () => {
-    const source = (file) => readFileSync(path.resolve(process.cwd(), "lime-rs/crates/tui/src", file), "utf8");
-    expect(source("bottom_pane/chat_composer/attachment_state.rs")).toContain("replace_element_payload");
-    expect(source("bottom_pane/chat_composer/paste_input.rs")).toContain("handle_paste_image_path");
+    const source = (file) =>
+      readFileSync(
+        path.resolve(process.cwd(), "lime-rs/crates/tui/src", file),
+        "utf8",
+      );
+    expect(source("bottom_pane/chat_composer/attachment_state.rs")).toContain(
+      "replace_element_payload",
+    );
+    expect(source("bottom_pane/chat_composer/paste_input.rs")).toContain(
+      "handle_paste_image_path",
+    );
     expect(source("runtime.rs")).toContain("app.apply_external_edit(text)");
-    expect(source("bottom_pane/chat_composer.rs")).toContain("history: ChatComposerHistory");
-    expect(source("bottom_pane/chat_composer.rs")).not.toContain("history: Vec<String>");
-    expect(source("bottom_pane/chat_composer/history.rs")).toContain("apply_history_entry");
-    expect(source("bottom_pane/chat_composer/render.rs")).not.toContain("local_image_lines");
-    for (const owner of ["bottom_pane/chat_composer/draft.rs", "app/input_submission.rs"]) {
-      expect(source(owner)).not.toMatch(/\b(?:restore_pending_images|take_pending_images|remove_last_pending_image)\b/u);
+    expect(source("bottom_pane/chat_composer.rs")).toContain(
+      "history: ChatComposerHistory",
+    );
+    expect(source("bottom_pane/chat_composer.rs")).not.toContain(
+      "history: Vec<String>",
+    );
+    expect(source("bottom_pane/chat_composer/history.rs")).toContain(
+      "apply_history_entry",
+    );
+    expect(source("bottom_pane/chat_composer/render.rs")).not.toContain(
+      "local_image_lines",
+    );
+    for (const owner of [
+      "bottom_pane/chat_composer/draft.rs",
+      "app/input_submission.rs",
+    ]) {
+      expect(source(owner)).not.toMatch(
+        /\b(?:restore_pending_images|take_pending_images|remove_last_pending_image)\b/u,
+      );
     }
   });
 
@@ -512,10 +652,24 @@ describe("Codex TUI structure inventory", () => {
     ]) {
       expect(symbols.has(name), name).toBe(true);
     }
-    for (const name of ["run_fork_picker_with_app_server", "run_session_picker_with_app_server", "fork_thread"]) {
-      expect(symbols.has(name), `unused terminal wrapper must not return: ${name}`).toBe(false);
+    for (const name of [
+      "run_fork_picker_with_app_server",
+      "run_session_picker_with_app_server",
+      "fork_thread",
+    ]) {
+      expect(
+        symbols.has(name),
+        `unused terminal wrapper must not return: ${name}`,
+      ).toBe(false);
     }
-    for (const file of ["resume_picker/host.rs", "resume_picker/input.rs", "resume_picker/render.rs", "resume_picker/layout.rs", "resume_picker/tests.rs", "resume_picker/tests/toolbar.rs"]) {
+    for (const file of [
+      "resume_picker/host.rs",
+      "resume_picker/input.rs",
+      "resume_picker/render.rs",
+      "resume_picker/layout.rs",
+      "resume_picker/tests.rs",
+      "resume_picker/tests/toolbar.rs",
+    ]) {
       expect(files.has(file), file).toBe(true);
     }
     expect(files.has("composer.rs")).toBe(false);
@@ -732,9 +886,7 @@ describe("Codex TUI structure inventory", () => {
     expect(app).not.toContain("fn handle_tui_event");
     expect(interaction).toContain("fn handle_tui_event");
     expect(inputFlow).toContain("fn handle_key_event");
-    expect(runtime).toContain(
-      "app.handle_tui_event_runtime(event, connected)",
-    );
+    expect(runtime).toContain("app.handle_tui_event_runtime(event, connected)");
     expect(runtime).not.toContain("handle_terminal_event");
     expect(runtime).not.toContain("handle_disconnected_event");
   });

@@ -1,7 +1,23 @@
-import { AlertCircle, CalendarClock, Search, X } from "lucide-react";
+import {
+  AlertCircle,
+  Bot,
+  Bell,
+  PenLine,
+  Plus,
+  Search,
+  SlidersHorizontal,
+  X,
+} from "lucide-react";
 import type { TFunction } from "i18next";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import type { ScheduledTaskSummary } from "@/lib/api/scheduledTasks";
 import {
@@ -23,6 +39,7 @@ interface ScheduledTaskListProps {
   onFilterChange: (filter: ScheduledTaskFilter) => void;
   onSelect: (id: string) => void;
   onCreate: () => void;
+  onCreateWithLime: () => void;
 }
 
 const FILTERS: ScheduledTaskFilter[] = ["all", "enabled", "paused"];
@@ -39,52 +56,119 @@ export function ScheduledTaskList({
   onFilterChange,
   onSelect,
   onCreate,
+  onCreateWithLime,
 }: ScheduledTaskListProps) {
   const copy = scheduledTaskPresentationCopy(t);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const newTaskLabel = t("scheduledTasks.sidebar.newTask", "新建任务");
+  const immediateLabel = t("scheduledTasks.sidebar.immediate", "即时执行");
   return (
-    <aside className="flex min-h-0 w-full shrink-0 flex-col border-b border-slate-200 bg-white md:w-[340px] md:border-b-0 md:border-r xl:w-[390px]">
-      <div className="border-b border-slate-200 px-4 py-4">
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <Input
-            value={query}
-            onChange={(event) => onQueryChange(event.target.value)}
-            placeholder={t("scheduledTasks.search.placeholder")}
-            aria-label={t("scheduledTasks.search.aria")}
-            className="border-slate-200 bg-slate-50 pl-9 pr-9 focus-visible:bg-white"
-          />
-          {query ? (
+    <aside className="flex min-h-0 w-full shrink-0 flex-col border-b border-slate-200 bg-white md:w-[240px] md:border-b-0 md:border-r">
+      <div className="border-b border-slate-200 px-3 pb-3 pt-4">
+        <div className="flex items-center justify-between gap-2">
+          <h1 className="flex min-w-0 items-center gap-1 truncate text-[15px] font-semibold text-slate-900">
+            <span className="truncate">{t("scheduledTasks.title")}</span>
+          </h1>
+          <div className="flex shrink-0 items-center gap-1">
             <button
               type="button"
-              className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-slate-500 hover:bg-slate-200"
-              aria-label={t("scheduledTasks.search.clear")}
-              title={t("scheduledTasks.search.clear")}
-              onClick={() => onQueryChange("")}
+              className="relative inline-flex h-7 w-7 items-center justify-center rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+              aria-label={t("navigation.sidebar.notifications", "通知")}
+              title={t("navigation.sidebar.notifications", "通知")}
             >
-              <X className="h-4 w-4" />
+              <Bell className="h-3.5 w-3.5" />
+              <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-sky-500" />
             </button>
-          ) : null}
+            <button
+              type="button"
+              className="inline-flex h-7 w-7 items-center justify-center rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+              aria-label={t("scheduledTasks.search.aria")}
+              title={t("scheduledTasks.search.aria")}
+              aria-expanded={searchOpen}
+              onClick={() => setSearchOpen((value) => !value)}
+            >
+              <Search className="h-3.5 w-3.5" />
+            </button>
+          </div>
         </div>
-        <div
-          className="mt-3 grid grid-cols-3 rounded-md bg-slate-100 p-1"
-          role="group"
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              className="mt-3 flex h-8 w-full items-center gap-2 rounded-md px-1 text-left text-xs font-medium text-slate-700 hover:bg-slate-50"
+              aria-label={newTaskLabel}
+            >
+              <Plus className="h-3.5 w-3.5 text-slate-500" />
+              <span>{newTaskLabel}</span>
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-52 bg-white">
+            <DropdownMenuItem onClick={onCreateWithLime}>
+              <Bot className="h-4 w-4" />
+              {t("scheduledTasks.action.createWithLime")}
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onCreate}>
+              <PenLine className="h-4 w-4" />
+              {t("scheduledTasks.action.manual")}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+        <button
+          type="button"
+          className="mt-3 flex h-7 w-full items-center justify-between rounded-md px-1 text-left text-xs text-slate-400 hover:bg-slate-50 hover:text-slate-600"
           aria-label={t("scheduledTasks.filter.aria")}
+          aria-expanded={filterOpen}
+          onClick={() => setFilterOpen((value) => !value)}
         >
-          {FILTERS.map((value) => (
-            <button
-              key={value}
-              type="button"
-              className={cn(
-                "h-8 rounded px-2 text-xs font-medium text-slate-600 transition-colors",
-                filter === value && "bg-white text-slate-950 shadow-sm",
-              )}
-              aria-pressed={filter === value}
-              onClick={() => onFilterChange(value)}
-            >
-              {t(`scheduledTasks.filter.${value}`)}
-            </button>
-          ))}
-        </div>
+          <span>{immediateLabel}</span>
+          <SlidersHorizontal className="h-3.5 w-3.5" />
+        </button>
+        {searchOpen ? (
+          <div className="relative mt-2">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+            <Input
+              value={query}
+              onChange={(event) => onQueryChange(event.target.value)}
+              placeholder={t("scheduledTasks.search.placeholder")}
+              aria-label={t("scheduledTasks.search.aria")}
+              className="h-8 border-slate-200 bg-slate-50 pl-8 pr-8 text-xs focus-visible:bg-white"
+            />
+            {query ? (
+              <button
+                type="button"
+                className="absolute right-1 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md text-slate-500 hover:bg-slate-200"
+                aria-label={t("scheduledTasks.search.clear")}
+                title={t("scheduledTasks.search.clear")}
+                onClick={() => onQueryChange("")}
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+        {filterOpen ? (
+          <div
+            className="mt-2 grid grid-cols-3 gap-1 rounded-md bg-slate-50 p-1"
+            role="group"
+            aria-label={t("scheduledTasks.filter.aria")}
+          >
+            {FILTERS.map((value) => (
+              <button
+                key={value}
+                type="button"
+                className={cn(
+                  "h-7 rounded px-1 text-[11px] font-medium text-slate-600 transition-colors",
+                  filter === value && "bg-white text-slate-950 shadow-sm",
+                )}
+                aria-pressed={filter === value}
+                onClick={() => onFilterChange(value)}
+              >
+                {t(`scheduledTasks.filter.${value}`)}
+              </button>
+            ))}
+          </div>
+        ) : null}
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto p-2">
@@ -145,17 +229,16 @@ export function ScheduledTaskList({
             })}
           </div>
         ) : (
-          <div className="flex min-h-64 flex-col items-center justify-center px-6 text-center">
-            <CalendarClock className="h-8 w-8 text-slate-400" />
-            <p className="mt-3 text-sm font-semibold text-slate-900">
+          <div className="flex min-h-40 flex-col items-start justify-center px-3 text-left">
+            <p className="text-xs font-medium text-slate-400">
               {query || filter !== "all"
                 ? t("scheduledTasks.empty.filtered.title")
-                : t("scheduledTasks.empty.title")}
+                : t("scheduledTasks.sidebar.empty")}
             </p>
-            <p className="mt-1 text-xs leading-5 text-slate-500">
+            <p className="mt-1 text-[11px] leading-5 text-slate-400">
               {query || filter !== "all"
                 ? t("scheduledTasks.empty.filtered.description")
-                : t("scheduledTasks.empty.description")}
+                : null}
             </p>
             {query || filter !== "all" ? (
               <Button
@@ -169,11 +252,7 @@ export function ScheduledTaskList({
               >
                 {t("scheduledTasks.action.clearFilters")}
               </Button>
-            ) : (
-              <Button size="sm" className="mt-4 bg-slate-900 hover:bg-slate-800" onClick={onCreate}>
-                {t("scheduledTasks.action.create")}
-              </Button>
-            )}
+            ) : null}
           </div>
         )}
       </div>

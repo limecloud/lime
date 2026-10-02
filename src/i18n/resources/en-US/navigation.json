@@ -74,7 +74,6 @@
   "navigation.sidebar.conversations.projectMenu.remove.success": "Project removed",
   "navigation.sidebar.conversations.projectMenu.remove.error": "Failed to remove project",
   "navigation.sidebar.conversations.projectsTitle": "Projects",
-  "navigation.sidebar.conversations.standaloneTitle": "Conversations",
   "navigation.sidebar.conversations.pinnedTitle": "Pinned",
   "navigation.sidebar.conversations.newConversation": "New Conversation",
   "navigation.sidebar.conversations.newProjectConversation": "New conversation in this project",
@@ -279,5 +278,16 @@
   "navigation.sidebar.importDialog.selection.selectGroup": "Select group",
   "navigation.sidebar.importDialog.selection.clearGroup": "Clear group",
   "navigation.sidebar.importDialog.fidelity.compact": "Tools, commands, patches, approvals, and reasoning records will be preserved.",
-  "navigation.sidebar.importDialog.status.archived": "Archived"
+  "navigation.sidebar.importDialog.status.archived": "Archived",
+  "navigation.sidebar.items.newChat": "New chat",
+  "navigation.sidebar.conversations.project.showMore": "Show more",
+  "navigation.sidebar.conversations.project.showLess": "Show less",
+  "navigation.sidebar.customization.title": "Customize",
+  "navigation.sidebar.customization.search": "Search plugins",
+  "navigation.sidebar.customization.skills": "Skills",
+  "navigation.sidebar.customization.installed": "Installed",
+  "navigation.sidebar.customization.loading": "Loading plugins…",
+  "navigation.sidebar.customization.error": "Unable to load installed plugins",
+  "navigation.sidebar.customization.empty": "No installed plugins yet",
+  "navigation.sidebar.account.label": "Account"
 }

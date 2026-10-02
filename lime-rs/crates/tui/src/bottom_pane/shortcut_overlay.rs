@@ -26,16 +26,19 @@ pub(crate) fn toggle_available(app: &App) -> bool {
 }
 
 pub(crate) fn visible(app: &App) -> bool {
-    app.composer.shortcut_overlay_visible()
-        && !app.bottom_pane.is_active()
-        && app.model_picker.is_none()
-        && app.agent_picker.is_none()
-        && app.agents_overview.is_none()
-        && app.resume_picker.is_none()
-        && app.export_picker.is_none()
-        && app.pager_overlay.is_none()
-        && !app.transcript_search.is_active()
-        && !app.transcript_selection.is_active()
+    app.chat_widget
+        .bottom_pane
+        .composer
+        .shortcut_overlay_visible()
+        && !app.chat_widget.bottom_pane.is_active()
+        && app.chat_widget.model_picker.is_none()
+        && app.chat_widget.agent_picker.is_none()
+        && app.chat_widget.agents_overview.is_none()
+        && app.chat_widget.resume_picker.is_none()
+        && app.chat_widget.export_picker.is_none()
+        && app.chat_widget.pager_overlay.is_none()
+        && !app.chat_widget.transcript_search.is_active()
+        && !app.chat_widget.transcript_selection.is_active()
 }
 
 pub(crate) fn agents_hint(app: &App) -> Option<String> {
@@ -43,7 +46,9 @@ pub(crate) fn agents_hint(app: &App) -> Option<String> {
         .transcript()
         .global_hint(GlobalKeymapAction::OpenAgents)
         .or_else(|| {
-            app.composer
+            app.chat_widget
+                .bottom_pane
+                .composer
                 .agents_navigation_available()
                 .then(|| "←".to_string())
         })
@@ -89,7 +94,7 @@ pub(crate) fn lines(app: &App, width: u16) -> Vec<Line<'static>> {
             Label::SendMessage
         }),
     );
-    if !app.model_catalog.collaboration_modes.is_empty() && !running {
+    if !app.chat_widget.model_catalog.collaboration_modes.is_empty() && !running {
         session.push(Some("shift+tab".into()), label(Label::ChangeMode));
     }
     session.push(Some("alt+,".into()), label(Label::LessReasoning));

@@ -8,13 +8,19 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 fn rejected_composer_input_stays_local_and_projects_a_visible_error_without_a_submit_action() {
     let mut app = App::default();
     let actual_chars = agent_protocol::input::MAX_USER_INPUT_TEXT_CHARS + 1;
-    app.composer.handle_paste(&"界".repeat(actual_chars));
-    let before = app.composer.snapshot_draft();
+    app.chat_widget
+        .bottom_pane
+        .handle_paste(&"界".repeat(actual_chars));
+    let before = app.chat_widget.bottom_pane.composer_snapshot();
     let result = app
-        .composer
+        .chat_widget
+        .bottom_pane
         .handle_key_event(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
-    assert!(matches!(app.map_composer_action(result), AppAction::None));
-    assert_eq!(app.composer.snapshot_draft(), before);
+    assert!(matches!(
+        app.map_chat_widget_action(result),
+        AppAction::None
+    ));
+    assert_eq!(app.chat_widget.bottom_pane.composer_snapshot(), before);
     let entry = app
         .projection
         .entries()
@@ -234,7 +240,7 @@ fn canonical_queue_and_failed_transport_restore_selected_paths_without_duplicate
     };
     app.set_queued_submissions(vec![queued.clone()]);
     assert!(app.restore_queued_submission_for_edit(queued));
-    assert_eq!(app.composer.text(), "界 $review");
+    assert_eq!(app.chat_widget.bottom_pane.composer_text(), "界 $review");
     let AppAction::Submit {
         text,
         text_elements,
@@ -254,7 +260,10 @@ fn canonical_queue_and_failed_transport_restore_selected_paths_without_duplicate
         Vec::new(),
         bindings.clone(),
     );
-    assert_eq!(app.composer.textarea().text_elements(), elements);
+    assert_eq!(
+        app.chat_widget.bottom_pane.composer_text_elements(),
+        elements
+    );
     assert!(matches!(
         app.handle_tui_event(
             TuiEvent::Key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE)),
@@ -302,10 +311,13 @@ fn queue_edit_rebases_multiple_text_parts_and_skill_prefix_without_losing_inline
         TextElement::new(11..21, Some("[Image #2]".into())),
         TextElement::new(27..34, Some("[token]".into())),
     ];
-    assert_eq!(app.composer.text(), text);
-    assert_eq!(app.composer.textarea().text_elements(), elements);
+    assert_eq!(app.chat_widget.bottom_pane.composer_text(), text);
     assert_eq!(
-        app.composer.local_images(),
+        app.chat_widget.bottom_pane.composer_text_elements(),
+        elements
+    );
+    assert_eq!(
+        app.chat_widget.bottom_pane.composer_local_images(),
         vec![LocalImageAttachment {
             placeholder: "[Image #2]".into(),
             path: "one.png".into(),
@@ -356,7 +368,10 @@ fn queue_edit_counts_duplicate_elements_and_orders_missing_bindings_before_text(
         ],
     };
     assert!(app.restore_queued_submission_for_edit(queued));
-    assert_eq!(app.composer.text(), "$review $review");
+    assert_eq!(
+        app.chat_widget.bottom_pane.composer_text(),
+        "$review $review"
+    );
     let AppAction::Submit {
         text,
         text_elements,
@@ -408,17 +423,25 @@ fn canonical_image_without_inline_metadata_adds_owned_prefix_but_never_reuses_li
         Vec::new(),
         Vec::new(),
     );
-    assert_eq!(app.composer.text(), "[Image #1] literal [Image #1]");
     assert_eq!(
-        app.composer.textarea().text_elements(),
+        app.chat_widget.bottom_pane.composer_text(),
+        "[Image #1] literal [Image #1]"
+    );
+    assert_eq!(
+        app.chat_widget.bottom_pane.composer_text_elements(),
         vec![TextElement::new(0..10, Some("[Image #1]".into()))]
     );
-    app.composer
+    app.chat_widget
+        .bottom_pane
         .handle_disconnected_key(KeyEvent::new(KeyCode::Home, KeyModifiers::NONE));
-    app.composer
+    app.chat_widget
+        .bottom_pane
         .handle_disconnected_key(KeyEvent::new(KeyCode::Delete, KeyModifiers::NONE));
-    assert_eq!(app.composer.text(), " literal [Image #1]");
-    assert!(!app.composer.has_pending_images());
+    assert_eq!(
+        app.chat_widget.bottom_pane.composer_text(),
+        " literal [Image #1]"
+    );
+    assert!(!app.chat_widget.bottom_pane.composer_has_pending_images());
 }
 
 #[test]
@@ -490,19 +513,20 @@ fn canonical_queue_edit_resubmit_history_and_failure_restore_keep_all_image_deta
             remote.clone(),
             Vec::new(),
         );
-        assert_eq!(app.composer.local_images(), local);
-        assert_eq!(app.composer.remote_images(), remote);
-        app.composer.clear_for_ctrl_c();
-        app.composer
+        assert_eq!(app.chat_widget.bottom_pane.composer_local_images(), local);
+        assert_eq!(app.chat_widget.bottom_pane.composer_remote_images(), remote);
+        app.chat_widget.bottom_pane.clear_composer_for_ctrl_c();
+        app.chat_widget
+            .bottom_pane
             .handle_key_event(KeyEvent::new(KeyCode::Up, KeyModifiers::NONE));
         assert_eq!(
-            app.composer.local_images(),
+            app.chat_widget.bottom_pane.composer_local_images(),
             local,
             "history must retain {detail:?}"
         );
-        assert_eq!(app.composer.remote_images(), remote);
+        assert_eq!(app.chat_widget.bottom_pane.composer_remote_images(), remote);
         assert_eq!(
-            app.composer.textarea().text_elements(),
+            app.chat_widget.bottom_pane.composer_text_elements(),
             vec![
                 TextElement::new(3..13, None),
                 TextElement::new(14..21, Some("[token]".into()))

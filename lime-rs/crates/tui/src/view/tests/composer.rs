@@ -17,7 +17,7 @@ fn test_backend_renders_streaming_unicode_and_composer() {
             delta: "你好，terminal".to_string(),
         },
     ));
-    app.composer.insert("继续");
+    app.chat_widget.bottom_pane.insert_str("继续");
     let mut terminal = Terminal::new(TestBackend::new(80, 16)).expect("terminal");
 
     terminal.draw(|frame| render(frame, &app)).expect("draw");
@@ -42,7 +42,7 @@ fn test_backend_renders_pending_images_above_composer_text() {
     let mut app = App::default();
     app.attach_image(std::path::PathBuf::from("/tmp/one.png"));
     app.attach_image(std::path::PathBuf::from("/tmp/two.png"));
-    app.composer.insert("describe these");
+    app.chat_widget.bottom_pane.insert_str("describe these");
     let mut terminal = Terminal::new(TestBackend::new(40, 10)).expect("terminal");
 
     terminal.draw(|frame| render(frame, &app)).expect("draw");
@@ -107,7 +107,8 @@ fn test_backend_renders_remote_images_with_selection_highlight() {
     assert!(text.contains("[Image #2]"));
 
     let _ = app
-        .composer
+        .chat_widget
+        .bottom_pane
         .handle_key_event(KeyEvent::new(KeyCode::Up, KeyModifiers::NONE));
     terminal.draw(|frame| render(frame, &app)).expect("redraw");
     let buffer = terminal.backend().buffer();
@@ -131,7 +132,7 @@ fn test_backend_renders_canonical_queue_between_transcript_and_composer() {
         }],
         client_user_message_id: "client-queue-1".to_string(),
     }]);
-    app.composer.insert("current draft");
+    app.chat_widget.bottom_pane.insert_str("current draft");
     let mut terminal = Terminal::new(TestBackend::new(40, 10)).expect("terminal");
 
     terminal.draw(|frame| render(frame, &app)).expect("draw");
@@ -160,7 +161,7 @@ fn active_turn_status_precedes_canonical_queue_and_composer() {
         }],
         client_user_message_id: "client-queue-1".to_string(),
     }]);
-    app.composer.insert("current draft");
+    app.chat_widget.bottom_pane.insert_str("current draft");
     let mut terminal = Terminal::new(TestBackend::new(48, 12)).expect("terminal");
 
     terminal.draw(|frame| render(frame, &app)).expect("draw");
@@ -205,7 +206,7 @@ fn active_turn_status_does_not_overflow_a_tiny_terminal() {
         }],
         client_user_message_id: "client-queue-1".to_string(),
     }]);
-    app.composer.insert("界界界界");
+    app.chat_widget.bottom_pane.insert_str("界界界界");
     let mut terminal = Terminal::new(TestBackend::new(12, 7)).expect("terminal");
 
     terminal.draw(|frame| render(frame, &app)).expect("draw");
@@ -237,7 +238,7 @@ fn status_and_footer_geometry_remains_stable_across_supported_widths_and_locales
                 }],
                 client_user_message_id: format!("client-{width}"),
             }]);
-            app.composer.insert("draft");
+            app.chat_widget.bottom_pane.insert_str("draft");
 
             let height = 20;
             let mut terminal = Terminal::new(TestBackend::new(width, height)).expect("terminal");
@@ -291,8 +292,10 @@ fn status_and_footer_geometry_remains_stable_across_supported_widths_and_locales
 fn history_search_footer_shows_localized_query_without_hiding_composer() {
     let mut app = App::default();
     app.set_locale(Locale::ZhCn);
-    app.composer.set_cached_history(["git status".to_string()]);
-    app.composer.insert("git");
+    app.chat_widget
+        .bottom_pane
+        .set_cached_history(["git status".to_string()]);
+    app.chat_widget.bottom_pane.insert_str("git");
     dispatch_connected_input(
         &mut app,
         Event::Key(crossterm::event::KeyEvent::new(
@@ -325,7 +328,9 @@ fn history_search_footer_shows_localized_query_without_hiding_composer() {
 #[test]
 fn history_search_preview_highlights_matches_until_accepted() {
     let mut app = App::default();
-    app.composer.set_cached_history(["Deploy Lime".to_string()]);
+    app.chat_widget
+        .bottom_pane
+        .set_cached_history(["Deploy Lime".to_string()]);
     dispatch_connected_input(
         &mut app,
         Event::Key(KeyEvent::new(KeyCode::Char('r'), KeyModifiers::CONTROL)),
@@ -379,7 +384,9 @@ fn history_search_preview_highlights_matches_until_accepted() {
 #[test]
 fn history_search_footer_cursor_tracks_query_and_clamps_to_narrow_width() {
     let mut app = App::default();
-    app.composer.set_cached_history(["git status".to_string()]);
+    app.chat_widget
+        .bottom_pane
+        .set_cached_history(["git status".to_string()]);
     dispatch_connected_input(
         &mut app,
         Event::Key(KeyEvent::new(KeyCode::Char('r'), KeyModifiers::CONTROL)),

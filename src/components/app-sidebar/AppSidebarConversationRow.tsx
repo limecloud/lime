@@ -31,13 +31,14 @@ interface AppSidebarConversationRowProps {
 const ConversationItemRow = styled.div<{
   $active?: boolean;
 }>`
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 0;
   width: 100%;
-  border-radius: 12px;
+  border-radius: 7px;
   background: ${({ $active }) =>
-    $active ? "var(--lime-sidebar-active, #e6f8ea)" : "transparent"};
+    $active ? "var(--sidebar-active, #e8e8e6)" : "transparent"};
   transition:
     background-color 0.18s ease,
     color 0.18s ease;
@@ -53,27 +54,24 @@ const ConversationItemButton = styled.button<{
 }>`
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   flex: 1;
   min-width: 0;
-  min-height: 38px;
+  min-height: 26px;
   border: none;
-  border-radius: 12px;
-  padding: 0 10px;
+  border-radius: 7px;
+  padding: 0 7px;
   background: transparent;
   color: ${({ $active }) =>
     $active ? "var(--sidebar-active-foreground)" : "var(--sidebar-foreground)"};
   cursor: pointer;
+  text-align: left;
   transition: color 0.18s ease;
-`;
 
-const ConversationItemDot = styled.span<{ $active?: boolean }>`
-  width: 8px;
-  height: 8px;
-  flex-shrink: 0;
-  border-radius: 999px;
-  background: ${({ $active }) =>
-    $active ? "var(--sidebar-active-foreground)" : "rgba(148, 163, 184, 0.72)"};
+  ${ConversationItemRow}:hover &,
+  ${ConversationItemRow}:focus-within & {
+    padding-right: 30px;
+  }
 `;
 
 const ConversationRuntimeStatusIcon = styled.span<{
@@ -122,22 +120,18 @@ const ConversationItemLabel = styled.span`
   text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 500;
 `;
 
-const ConversationItemMeta = styled.span`
-  flex-shrink: 0;
-  font-size: 11px;
-  color: var(--sidebar-muted);
-`;
-
 const ConversationItemActionButton = styled.button`
-  width: 30px;
-  min-width: 30px;
-  height: 38px;
+  position: absolute;
+  right: 0;
+  width: 26px;
+  min-width: 26px;
+  height: 26px;
   border: none;
-  border-radius: 12px;
+  border-radius: 7px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -162,7 +156,7 @@ const ConversationItemActionButton = styled.button`
   }
 
   ${ConversationItemRow}:hover &,
-  ${ConversationItemRow}[data-active="true"] & {
+  ${ConversationItemRow}:focus-within & {
     opacity: 1;
     pointer-events: auto;
   }
@@ -206,6 +200,7 @@ export function AppSidebarConversationRow({
           onNavigate(session);
         }}
         title={title}
+        aria-description={meta}
       >
         {runtimeStatus ? (
           <ConversationRuntimeStatusIcon
@@ -223,11 +218,8 @@ export function AppSidebarConversationRow({
               <LoaderCircle />
             )}
           </ConversationRuntimeStatusIcon>
-        ) : (
-          <ConversationItemDot $active={active} />
-        )}
+        ) : null}
         <ConversationItemLabel>{title}</ConversationItemLabel>
-        <ConversationItemMeta>{meta}</ConversationItemMeta>
       </ConversationItemButton>
       <ConversationItemActionButton
         type="button"

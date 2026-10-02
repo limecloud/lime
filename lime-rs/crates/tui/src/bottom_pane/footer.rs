@@ -17,8 +17,9 @@ use crate::width::usable_content_width_u16;
 const FOOTER_INDENT_COLS: u16 = 1;
 
 pub(crate) fn render_footer(frame: &mut Frame<'_>, area: Rect, app: &App) {
-    if app.bottom_pane.is_active() {
+    if app.chat_widget.bottom_pane.is_active() {
         if let Some(hints) = app
+            .chat_widget
             .bottom_pane
             .footer_hint_lines(app.locale, usize::from(area.width.saturating_sub(1)))
         {
@@ -39,14 +40,30 @@ pub(crate) fn render_footer(frame: &mut Frame<'_>, area: Rect, app: &App) {
             return;
         }
     }
-    if app.composer.shortcut_overlay_visible() {
+    if app
+        .chat_widget
+        .bottom_pane
+        .composer
+        .shortcut_overlay_visible()
+    {
         super::shortcut_overlay::render_close_hint(frame, area, app);
         return;
     }
-    let vim_indicator = app.composer.vim_mode_indicator_span();
-    if let Some(line) = app.composer.history_search_footer_line() {
+    let vim_indicator = app
+        .chat_widget
+        .bottom_pane
+        .composer
+        .vim_mode_indicator_span();
+    if let Some(line) = app
+        .chat_widget
+        .bottom_pane
+        .composer
+        .history_search_footer_line()
+    {
         render_line(frame, area, line, vim_indicator);
         if let Some((x, y)) = app
+            .chat_widget
+            .bottom_pane
             .composer
             .history_search_cursor_pos(area, app.locale.history_search_label())
         {
@@ -54,7 +71,7 @@ pub(crate) fn render_footer(frame: &mut Frame<'_>, area: Rect, app: &App) {
         }
         return;
     }
-    if let Some((query, direction)) = app.composer.vim_search_query() {
+    if let Some((query, direction)) = app.chat_widget.bottom_pane.composer.vim_search_query() {
         let prefix = match direction {
             crate::vim_search::SearchDirection::Forward => "/",
             crate::vim_search::SearchDirection::Backward => "?",
@@ -69,7 +86,7 @@ pub(crate) fn render_footer(frame: &mut Frame<'_>, area: Rect, app: &App) {
     }
     let props = FooterProps {
         locale: app.locale,
-        has_draft: app.composer.footer_has_draft(),
+        has_draft: app.chat_widget.bottom_pane.composer.footer_has_draft(),
         is_task_running: app.projection.active_turn_id().is_some(),
         plan_mode: should_show_plan_mode_hint(app),
         active_agent_label: app
@@ -229,20 +246,31 @@ fn summary_line(hint: &str, mode: Option<&'static str>) -> Line<'static> {
 
 fn should_show_plan_mode_hint(app: &App) -> bool {
     matches!(
-        app.collaboration_mode.as_ref().map(|mode| mode.mode),
+        app.chat_widget
+            .collaboration_mode
+            .as_ref()
+            .map(|mode| mode.mode),
         Some(agent_protocol::ModeKind::Plan)
-    ) && app.bottom_pane.current().is_none()
-        && app.model_picker.is_none()
-        && app.agent_picker.is_none()
-        && app.agents_overview.is_none()
-        && app.resume_picker.is_none()
-        && app.export_picker.is_none()
-        && app.pager_overlay.is_none()
-        && !app.composer.history_search_active()
-        && !app.composer.vim_search_active()
-        && !app.composer.completion_popup_active()
-        && !app.composer.file_search_popup_active()
-        && !app.composer.skill_popup_active()
+    ) && app.chat_widget.bottom_pane.current().is_none()
+        && app.chat_widget.model_picker.is_none()
+        && app.chat_widget.agent_picker.is_none()
+        && app.chat_widget.agents_overview.is_none()
+        && app.chat_widget.resume_picker.is_none()
+        && app.chat_widget.export_picker.is_none()
+        && app.chat_widget.pager_overlay.is_none()
+        && !app.chat_widget.bottom_pane.composer.history_search_active()
+        && !app.chat_widget.bottom_pane.composer.vim_search_active()
+        && !app
+            .chat_widget
+            .bottom_pane
+            .composer
+            .completion_popup_active()
+        && !app
+            .chat_widget
+            .bottom_pane
+            .composer
+            .file_search_popup_active()
+        && !app.chat_widget.bottom_pane.composer.skill_popup_active()
 }
 
 #[cfg(test)]
@@ -272,7 +300,7 @@ mod tests {
     #[test]
     fn idle_draft_suppresses_instructional_footer() {
         let mut app = App::default();
-        app.composer.insert("draft");
+        app.chat_widget.bottom_pane.composer.insert("draft");
 
         assert!(rendered_text(&app).trim().is_empty());
     }
@@ -324,7 +352,10 @@ mod tests {
         );
         app.set_thread_id("agent-1".to_string());
         for draft in ["", "draft"] {
-            app.composer.replace(draft.to_string());
+            app.chat_widget
+                .bottom_pane
+                .composer
+                .replace(draft.to_string());
             let text = rendered_text_at_width(&app, 40);
             assert!(text.contains("Robie [explorer]"), "{text}");
             assert!(!text.contains("? for shortcuts"), "{text}");
@@ -343,7 +374,7 @@ mod tests {
         );
         app.set_thread_id("agent-1".to_string());
         app.start_turn("turn-1".to_string());
-        app.composer.insert("draft");
+        app.chat_widget.bottom_pane.composer.insert("draft");
 
         let text = rendered_text_at_width(&app, 30);
         assert!(text.contains("Tab to queue message"), "{text}");
@@ -354,7 +385,7 @@ mod tests {
     fn queue_hint_shortens_before_it_disappears() {
         let mut app = App::default();
         app.start_turn("internal-turn-id".into());
-        app.composer.insert("draft");
+        app.chat_widget.bottom_pane.composer.insert("draft");
         let short = rendered_text_at_width(&app, 14);
         assert!(short.contains("Tab to queue"), "{short}");
         assert!(rendered_text_at_width(&app, 5).trim().is_empty());
@@ -381,7 +412,9 @@ mod tests {
             let mut app = App::default();
             app.set_locale(locale);
             app.start_turn("internal-turn-id".into());
-            app.composer
+            app.chat_widget
+                .bottom_pane
+                .composer
                 .attach_image(std::path::PathBuf::from("/tmp/image.png"));
             let text = rendered_text_at_width(&app, 100);
             let compact = |text: &str| {
@@ -400,11 +433,18 @@ mod tests {
     fn renders_localized_history_search_query() {
         let mut app = App::default();
         app.set_locale(Locale::ZhCn);
-        app.composer.set_cached_history(["git status".to_string()]);
-        app.composer.insert("git");
-        app.composer
+        app.chat_widget
+            .bottom_pane
+            .composer
+            .set_cached_history(["git status".to_string()]);
+        app.chat_widget.bottom_pane.composer.insert("git");
+        app.chat_widget
+            .bottom_pane
+            .composer
             .handle_key_event(KeyEvent::new(KeyCode::Char('r'), KeyModifiers::CONTROL));
-        app.composer
+        app.chat_widget
+            .bottom_pane
+            .composer
             .handle_key_event(KeyEvent::new(KeyCode::Char('g'), KeyModifiers::NONE));
 
         let text = rendered_text(&app);
@@ -434,7 +474,7 @@ mod tests {
     #[test]
     fn plan_mode_footer_explains_shift_tab_when_idle_and_fits() {
         let mut app = App::default();
-        app.collaboration_mode = Some(agent_protocol::CollaborationMode {
+        app.chat_widget.collaboration_mode = Some(agent_protocol::CollaborationMode {
             mode: agent_protocol::ModeKind::Plan,
             settings: agent_protocol::CollaborationModeSettings {
                 model: "fixture-model".to_string(),
@@ -460,7 +500,7 @@ mod tests {
         let running = rendered_text_at_width(&app, 100);
         assert!(running.contains("Plan mode"), "{running}");
         assert!(!running.contains("shift+tab"), "{running}");
-        app.composer.insert("draft");
+        app.chat_widget.bottom_pane.composer.insert("draft");
         let queue = rendered_text_at_width(&app, 100);
         assert!(
             queue.contains("Tab to queue message · Plan mode"),
@@ -474,7 +514,7 @@ mod tests {
     #[test]
     fn plan_mode_footer_hides_hint_while_composer_popup_is_active() {
         let mut app = App::default();
-        app.collaboration_mode = Some(agent_protocol::CollaborationMode {
+        app.chat_widget.collaboration_mode = Some(agent_protocol::CollaborationMode {
             mode: agent_protocol::ModeKind::Plan,
             settings: agent_protocol::CollaborationModeSettings {
                 model: "fixture-model".to_string(),
@@ -482,8 +522,8 @@ mod tests {
                 developer_instructions: None,
             },
         });
-        app.composer.insert("/model");
-        app.composer.sync_completion_popup();
+        app.chat_widget.bottom_pane.composer.insert("/model");
+        app.chat_widget.bottom_pane.composer.sync_completion_popup();
 
         let text = rendered_text_at_width(&app, 100);
         assert!(!text.contains("Plan mode"), "{text}");
@@ -492,7 +532,7 @@ mod tests {
     #[test]
     fn renders_vim_mode_indicator_and_truncates_it_in_a_narrow_terminal() {
         let mut app = App::default();
-        app.composer.set_vim_enabled(true);
+        app.chat_widget.bottom_pane.composer.set_vim_enabled(true);
 
         assert!(rendered_text(&app).contains("Vim: Normal"));
 
@@ -504,11 +544,15 @@ mod tests {
     #[test]
     fn renders_vim_search_query_before_submission() {
         let mut app = App::default();
-        app.composer.set_vim_enabled(true);
-        app.composer.insert("alpha beta");
-        app.composer
+        app.chat_widget.bottom_pane.composer.set_vim_enabled(true);
+        app.chat_widget.bottom_pane.composer.insert("alpha beta");
+        app.chat_widget
+            .bottom_pane
+            .composer
             .handle_key_event(KeyEvent::new(KeyCode::Char('/'), KeyModifiers::NONE));
-        app.composer
+        app.chat_widget
+            .bottom_pane
+            .composer
             .handle_key_event(KeyEvent::new(KeyCode::Char('b'), KeyModifiers::NONE));
 
         let text = rendered_text(&app);

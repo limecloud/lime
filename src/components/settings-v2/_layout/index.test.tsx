@@ -243,7 +243,7 @@ describe("SettingsLayoutV2 Experimental Tab", () => {
 });
 
 describe("SettingsLayoutV2 Developer Tab", () => {
-  it("设置页顶栏应只保留左侧回到首页入口，避免重复标题突兀", async () => {
+  it("设置页应在上下文侧栏保留标题、返回首页和全局导航", async () => {
     vi.stubGlobal("navigator", {
       platform: "MacIntel",
       userAgent: "Mac OS X",
@@ -262,14 +262,22 @@ describe("SettingsLayoutV2 Developer Tab", () => {
 
     expect(header).not.toBeNull();
     expect(header?.textContent ?? "").not.toContain("设置中心");
-    expect(header?.textContent ?? "").not.toContain("设置");
+    expect(header?.textContent ?? "").toContain("Settings");
     expect(header?.classList.contains("lime-settings-theme-scope")).toBe(true);
     expect(header?.getAttribute("data-window-controls-reserved")).toBe("true");
     expect(button).not.toBeNull();
     expect(button?.textContent ?? "").toContain("Back Home");
     expect(button?.getAttribute("aria-label")).toBe("Back Home");
-    expect(getComputedStyle(header as Element).paddingLeft).toBe("0px");
-    expect(getComputedStyle(button as Element).marginLeft).toBe("24px");
+    const navigation = container.querySelector(
+      '[data-testid="settings-navigation"]',
+    );
+    expect(navigation?.contains(header)).toBe(true);
+    expect(getComputedStyle(navigation as Element).width).toBe("280px");
+    expect(
+      container
+        .querySelector('[data-testid="app-sidebar-rail-settings"]')
+        ?.getAttribute("aria-current"),
+    ).toBe("page");
     expect(
       container.querySelector('[data-testid="settings-title-group"]'),
     ).toBe(null);
@@ -281,6 +289,20 @@ describe("SettingsLayoutV2 Developer Tab", () => {
 
     expect(onNavigate).toHaveBeenCalledTimes(1);
     expect(onNavigate.mock.calls[0]?.[0]).toBe("agent");
+  });
+
+  it("设置页的全局图标栏应能够切回插件上下文", async () => {
+    const onNavigate = vi.fn();
+    const container = renderComponent(SettingsTabs.Home, onNavigate);
+    await flushEffects();
+    act(() => {
+      container
+        .querySelector<HTMLButtonElement>(
+          '[data-testid="app-sidebar-rail-plugins"]',
+        )
+        ?.click();
+    });
+    expect(onNavigate).toHaveBeenCalledWith("plugins", undefined);
   });
 
   it("开发者页应展示开发者与实验功能合并页，不再复用壳层设置页标题", async () => {
@@ -359,7 +381,6 @@ describe("SettingsLayoutV2 Developer Tab", () => {
     expect(container.textContent ?? "").toContain("execution-policy");
     expect(mockExecutionPolicySettings).toHaveBeenCalledTimes(1);
   });
-
 });
 
 describe("SettingsLayoutV2 Provider Focus", () => {

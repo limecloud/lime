@@ -63,7 +63,7 @@ fn app_open_consumes_the_startup_keymap_and_current_thread_snapshot() {
     app.set_thread_id("root".into());
     app.set_runtime_keymap(RuntimeKeymap::from_config(&config).unwrap());
     app.open_agent_picker();
-    let picker = app.agent_picker.as_mut().expect("root picker");
+    let picker = app.chat_widget.agent_picker.as_mut().expect("root picker");
     assert_eq!(picker.current, Some(picker.selected));
     assert_eq!(
         key(picker, KeyCode::Enter, KeyModifiers::NONE),
@@ -142,7 +142,9 @@ fn subagents_replaces_composer_without_erasing_draft_settings_or_thread() {
         Some("high".into()),
         None,
     );
-    app.composer.insert("preserved root draft");
+    app.chat_widget
+        .bottom_pane
+        .insert_str("preserved root draft");
     app.open_agent_picker();
     let mut terminal = Terminal::new(TestBackend::new(100, 24)).unwrap();
     terminal
@@ -161,12 +163,15 @@ fn subagents_replaces_composer_without_erasing_draft_settings_or_thread() {
         crate::tui::TuiEvent::Key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE)),
         true,
     );
-    assert!(app.agent_picker.is_none());
-    assert_eq!(app.composer.text(), "preserved root draft");
+    assert!(app.chat_widget.agent_picker.is_none());
+    assert_eq!(
+        app.chat_widget.bottom_pane.composer_text(),
+        "preserved root draft"
+    );
     assert_eq!(app.thread_id.as_deref(), Some("root"));
-    assert_eq!(app.model.as_deref(), Some("model"));
-    assert_eq!(app.model_provider.as_deref(), Some("provider"));
-    assert_eq!(app.reasoning_effort.as_deref(), Some("high"));
+    assert_eq!(app.chat_widget.model.as_deref(), Some("model"));
+    assert_eq!(app.chat_widget.model_provider.as_deref(), Some("provider"));
+    assert_eq!(app.chat_widget.reasoning_effort.as_deref(), Some("high"));
 }
 
 #[test]

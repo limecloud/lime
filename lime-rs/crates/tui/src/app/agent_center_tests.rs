@@ -682,7 +682,7 @@ fn live_center_help_footer_is_not_overwritten_by_app_feedback() {
     app.open_agents_overview();
     app.projection.set_status("agent renamed");
     press(
-        &mut app.agents_overview.as_mut().unwrap().view,
+        &mut app.chat_widget.agents_overview.as_mut().unwrap().view,
         KeyCode::Char('?'),
     );
     let mut terminal = ratatui::Terminal::new(ratatui::backend::TestBackend::new(110, 28)).unwrap();

@@ -28,7 +28,7 @@ fn ready() -> App {
         Some("medium".into()),
         None,
     );
-    app.composer.insert("draft");
+    app.chat_widget.bottom_pane.insert_str("draft");
     app
 }
 
@@ -44,44 +44,45 @@ fn preparing_a_supported_step_does_not_change_local_settings_or_draft() {
     let mut app = ready();
     assert_eq!(app.prepare_reasoning_shortcut(Raise), Some("high".into()));
     assert_eq!(app.prepare_reasoning_shortcut(Lower), Some("low".into()));
-    assert_eq!(app.reasoning_effort.as_deref(), Some("medium"));
-    assert_eq!(app.composer.text(), "draft");
+    assert_eq!(app.chat_widget.reasoning_effort.as_deref(), Some("medium"));
+    assert_eq!(app.chat_widget.bottom_pane.composer_text(), "draft");
 }
 
 #[test]
 fn boundary_and_ultra_navigation_are_informational_not_settings_changes() {
     let mut app = ready();
-    app.reasoning_effort = Some("low".into());
+    app.chat_widget.reasoning_effort = Some("low".into());
     assert_eq!(app.prepare_reasoning_shortcut(Lower), None);
     assert_eq!(
         app.projection.status(),
         "Reasoning is already at the lowest level (Low)."
     );
-    assert_eq!(app.reasoning_effort.as_deref(), Some("low"));
-    app.reasoning_effort = Some("max".into());
+    assert_eq!(app.chat_widget.reasoning_effort.as_deref(), Some("low"));
+    app.chat_widget.reasoning_effort = Some("max".into());
     assert_eq!(app.prepare_reasoning_shortcut(Raise), None);
     assert_eq!(
         app.projection.status(),
         "Ultra is available under /model → reasoner → More reasoning…"
     );
-    assert_eq!(app.reasoning_effort.as_deref(), Some("max"));
+    assert_eq!(app.chat_widget.reasoning_effort.as_deref(), Some("max"));
 }
 
 #[test]
 fn unavailable_or_ambiguous_catalog_never_guesses_an_effort() {
     let mut app = ready();
-    app.model_catalog.models.clear();
+    app.chat_widget.model_catalog.models.clear();
     assert_eq!(app.prepare_reasoning_shortcut(Raise), None);
     assert_eq!(
         app.projection.status(),
         "Reasoning shortcuts are unavailable for reasoner."
     );
     let mut app = ready();
-    app.model_catalog
+    app.chat_widget
+        .model_catalog
         .models
-        .push(app.model_catalog.models[0].clone());
+        .push(app.chat_widget.model_catalog.models[0].clone());
     assert_eq!(app.prepare_reasoning_shortcut(Raise), None);
-    assert_eq!(app.reasoning_effort.as_deref(), Some("medium"));
+    assert_eq!(app.chat_widget.reasoning_effort.as_deref(), Some("medium"));
 }
 
 #[test]
@@ -103,13 +104,13 @@ fn startup_and_parent_owned_threads_are_not_mutable_by_shortcuts() {
         app.projection.status(),
         "Sub-agent thread is parent-owned; reasoning cannot be changed directly."
     );
-    assert_eq!(app.reasoning_effort.as_deref(), Some("medium"));
+    assert_eq!(app.chat_widget.reasoning_effort.as_deref(), Some("medium"));
 }
 
 #[test]
 fn plan_scope_fails_closed_instead_of_mutating_the_ordinary_effort() {
     let mut app = ready();
-    app.collaboration_mode = Some(agent_protocol::CollaborationMode {
+    app.chat_widget.collaboration_mode = Some(agent_protocol::CollaborationMode {
         mode: agent_protocol::ModeKind::Plan,
         settings: agent_protocol::CollaborationModeSettings {
             model: "reasoner".into(),
@@ -117,34 +118,35 @@ fn plan_scope_fails_closed_instead_of_mutating_the_ordinary_effort() {
             developer_instructions: None,
         },
     });
-    let mode = app.collaboration_mode.clone();
+    let mode = app.chat_widget.collaboration_mode.clone();
     assert_eq!(app.prepare_reasoning_shortcut(Raise), None);
     assert!(app
         .projection
         .status()
         .contains("Plan-only reasoning changes are not supported"));
-    assert_eq!(app.collaboration_mode, mode);
-    assert_eq!(app.reasoning_effort.as_deref(), Some("medium"));
+    assert_eq!(app.chat_widget.collaboration_mode, mode);
+    assert_eq!(app.chat_widget.reasoning_effort.as_deref(), Some("medium"));
 }
 
 #[test]
 fn model_picker_and_status_own_alt_reasoning_keys() {
     let mut app = ready();
-    app.open_model_picker(app.model_catalog.models.clone());
+    app.open_model_picker(app.chat_widget.model_catalog.models.clone());
     assert_eq!(shortcut(&mut app, '.'), AppAction::None);
     assert_eq!(app.prepare_reasoning_shortcut(Raise), None);
-    app.model_picker = None;
+    app.chat_widget.model_picker = None;
     app.open_status_pager();
     assert_eq!(shortcut(&mut app, ','), AppAction::None);
     assert_eq!(app.prepare_reasoning_shortcut(Lower), None);
-    assert_eq!(app.reasoning_effort.as_deref(), Some("medium"));
-    assert_eq!(app.composer.text(), "draft");
+    assert_eq!(app.chat_widget.reasoning_effort.as_deref(), Some("medium"));
+    assert_eq!(app.chat_widget.bottom_pane.composer_text(), "draft");
 }
 
 #[test]
 fn approval_popup_and_external_editor_block_settings_dispatch() {
     let mut app = ready();
-    app.bottom_pane
+    app.chat_widget
+        .bottom_pane
         .enqueue(ServerRequest::ItemCommandExecutionRequestApproval {
             id: RequestId::Integer(7),
             params: CommandExecutionRequestApprovalParams {
@@ -163,10 +165,10 @@ fn approval_popup_and_external_editor_block_settings_dispatch() {
         .unwrap();
     assert_eq!(shortcut(&mut app, '.'), AppAction::None);
     assert_eq!(app.prepare_reasoning_shortcut(Raise), None);
-    assert!(app.bottom_pane.is_active());
+    assert!(app.chat_widget.bottom_pane.is_active());
     let mut app = ready();
-    app.replace_composer("/mo".into());
-    assert!(app.composer.completion_popup_active());
+    app.chat_widget.bottom_pane.set_composer_text("/mo".into());
+    assert!(app.chat_widget.bottom_pane.popup_active());
     let action = shortcut(&mut app, '.');
     assert!(!matches!(
         action,
@@ -176,7 +178,7 @@ fn approval_popup_and_external_editor_block_settings_dispatch() {
     let mut app = ready();
     app.set_external_editor_state(ExternalEditorState::Active);
     assert_eq!(app.prepare_reasoning_shortcut(Raise), None);
-    assert_eq!(app.reasoning_effort.as_deref(), Some("medium"));
+    assert_eq!(app.chat_widget.reasoning_effort.as_deref(), Some("medium"));
 }
 
 #[test]
@@ -190,7 +192,7 @@ fn reasoning_keys_preserve_drafts_and_ignore_release_events() {
         app.handle_tui_event(TuiEvent::Key(release), true),
         AppAction::None
     );
-    assert_eq!(app.composer.text(), "draft");
+    assert_eq!(app.chat_widget.bottom_pane.composer_text(), "draft");
 }
 
 #[test]
@@ -224,7 +226,7 @@ fn reasoning_feedback_is_localized_with_catalog_identity_preserved() {
     ] {
         let mut app = ready();
         app.locale = locale;
-        app.reasoning_effort = Some("low".into());
+        app.chat_widget.reasoning_effort = Some("low".into());
         assert_eq!(app.prepare_reasoning_shortcut(Lower), None);
         assert_eq!(app.projection.status(), lowest);
         assert_eq!(locale.reasoning_updated_message("high"), updated);

@@ -8,7 +8,9 @@ use ratatui::Terminal;
 fn help_app(locale: Locale) -> App {
     let mut app = App::default();
     app.set_locale(locale);
-    app.composer
+    app.chat_widget
+        .bottom_pane
+        .composer
         .handle_key_event(KeyEvent::new(KeyCode::Char('?'), KeyModifiers::NONE));
     app
 }
@@ -202,6 +204,10 @@ fn a_global_question_mark_binding_owns_routing_and_footer_hint() {
         crate::tui::TuiEvent::Key(KeyEvent::new(KeyCode::Char('?'), KeyModifiers::NONE)),
         true,
     );
-    assert!(app.agents_overview.is_some());
-    assert!(!app.composer.shortcut_overlay_visible());
+    assert!(app.chat_widget.agents_overview.is_some());
+    assert!(!app
+        .chat_widget
+        .bottom_pane
+        .composer
+        .shortcut_overlay_visible());
 }

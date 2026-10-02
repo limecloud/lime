@@ -74,7 +74,6 @@
   "navigation.sidebar.conversations.projectMenu.remove.success": "已移除项目",
   "navigation.sidebar.conversations.projectMenu.remove.error": "移除项目失败",
   "navigation.sidebar.conversations.projectsTitle": "项目",
-  "navigation.sidebar.conversations.standaloneTitle": "对话",
   "navigation.sidebar.conversations.pinnedTitle": "置顶",
   "navigation.sidebar.conversations.newConversation": "新建对话",
   "navigation.sidebar.conversations.newProjectConversation": "在此项目新建对话",
@@ -279,5 +278,16 @@
   "navigation.sidebar.importDialog.selection.selectGroup": "选择本组",
   "navigation.sidebar.importDialog.selection.clearGroup": "取消本组",
   "navigation.sidebar.importDialog.fidelity.compact": "将保留工具、命令、补丁、确认与思考记录。",
-  "navigation.sidebar.importDialog.status.archived": "已归档"
+  "navigation.sidebar.importDialog.status.archived": "已归档",
+  "navigation.sidebar.items.newChat": "新聊天",
+  "navigation.sidebar.conversations.project.showMore": "展开显示",
+  "navigation.sidebar.conversations.project.showLess": "收起显示",
+  "navigation.sidebar.customization.title": "自定义",
+  "navigation.sidebar.customization.search": "搜索插件",
+  "navigation.sidebar.customization.skills": "技能",
+  "navigation.sidebar.customization.installed": "已安装",
+  "navigation.sidebar.customization.loading": "正在加载插件…",
+  "navigation.sidebar.customization.error": "暂时无法读取已安装插件",
+  "navigation.sidebar.customization.empty": "还没有已安装插件",
+  "navigation.sidebar.account.label": "账户"
 }

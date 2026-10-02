@@ -1,6 +1,9 @@
 {
   "scheduledTasks.title": "Scheduled Tasks",
   "scheduledTasks.subtitle": "Let Lime continue recurring work on your schedule",
+  "scheduledTasks.sidebar.newTask": "New task",
+  "scheduledTasks.sidebar.immediate": "Run now",
+  "scheduledTasks.sidebar.empty": "No scheduled tasks",
   "scheduledTasks.loading": "Loading scheduled tasks",
   "scheduledTasks.action.back": "Back to task list",
   "scheduledTasks.action.cancel": "Cancel",
@@ -67,6 +70,7 @@
   "scheduledTasks.editor.threadMode.continue": "Continue a specific conversation",
   "scheduledTasks.editor.threadMode.new": "Start a new conversation each time",
   "scheduledTasks.editor.title.create": "Create scheduled task",
+  "scheduledTasks.editor.title.setup": "Set up scheduled task",
   "scheduledTasks.editor.title.edit": "Edit scheduled task",
   "scheduledTasks.editor.validation.days": "Select at least one day",
   "scheduledTasks.editor.validation.fix": "Fix the issues in the form first",

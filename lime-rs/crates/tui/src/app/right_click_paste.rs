@@ -42,24 +42,22 @@ impl App {
         source: ClipboardTextSource,
     ) -> Option<(Option<String>, (String, usize))> {
         if !right_click_paste_allowed(self.right_click_paste, source)
-            || self.pager_overlay.is_some()
-            || self.export_picker.is_some()
-            || self.bottom_pane.is_active()
-            || self.resume_picker.is_some()
-            || self.agents_overview.is_some()
-            || self.model_picker.is_some()
-            || self.agent_picker.is_some()
-            || self.transcript_search.is_active()
-            || self.transcript_selection.is_active()
-            || self.composer.history_search_active()
-            || self.composer.vim_search_active()
-            || self.composer.completion_popup_active()
-            || self.composer.file_search_popup_active()
-            || self.composer.skill_popup_active()
+            || self.chat_widget.pager_overlay.is_some()
+            || self.chat_widget.export_picker.is_some()
+            || self.chat_widget.bottom_pane.is_active()
+            || self.chat_widget.resume_picker.is_some()
+            || self.chat_widget.agents_overview.is_some()
+            || self.chat_widget.model_picker.is_some()
+            || self.chat_widget.agent_picker.is_some()
+            || self.chat_widget.transcript_search.is_active()
+            || self.chat_widget.transcript_selection.is_active()
+            || self.chat_widget.bottom_pane.history_search_active()
+            || self.chat_widget.bottom_pane.vim_search_active()
+            || self.chat_widget.bottom_pane.popup_active()
         {
             return None;
         }
-        let target = self.composer.clipboard_paste_target()?;
+        let target = self.chat_widget.bottom_pane.clipboard_paste_target()?;
         Some((self.thread_id.clone(), target))
     }
 
@@ -103,8 +101,9 @@ impl App {
         self.pending_clipboard_paste = None;
         match result {
             Ok(text) if !text.is_empty() => {
-                self.composer.handle_paste(&normalize_clipboard_text(text));
-                self.composer.sync_completion_popup();
+                self.chat_widget
+                    .bottom_pane
+                    .handle_paste(&normalize_clipboard_text(text));
             }
             Ok(_) => {}
             Err(error) => self.projection.set_status(
@@ -150,23 +149,29 @@ mod tests {
     #[test]
     fn late_completion_is_rejected_after_draft_changes() {
         let mut app = App::default();
-        app.composer.replace("before".to_string());
+        app.chat_widget
+            .bottom_pane
+            .set_composer_text("before".to_string());
         app.pending_clipboard_paste = Some(PendingPaste {
             id: 7,
             thread: None,
             draft: ("before".to_string(), "before".len()),
             source: ClipboardTextSource::Clipboard,
         });
-        app.composer.replace("newer".to_string());
+        app.chat_widget
+            .bottom_pane
+            .set_composer_text("newer".to_string());
         app.finish_clipboard_paste(7, Ok("stale".to_string()));
-        assert_eq!(app.composer.text(), "newer");
+        assert_eq!(app.chat_widget.bottom_pane.composer_text(), "newer");
         assert!(app.pending_clipboard_paste.is_none());
     }
 
     #[test]
     fn late_completion_is_rejected_after_thread_switch() {
         let mut app = App::default();
-        app.composer.replace("draft".to_string());
+        app.chat_widget
+            .bottom_pane
+            .set_composer_text("draft".to_string());
         app.set_thread_id("thread-a".to_string());
         app.pending_clipboard_paste = Some(PendingPaste {
             id: 8,
@@ -176,7 +181,7 @@ mod tests {
         });
         app.set_thread_id("thread-b".to_string());
         app.finish_clipboard_paste(8, Ok("stale".to_string()));
-        assert_eq!(app.composer.text(), "draft");
+        assert_eq!(app.chat_widget.bottom_pane.composer_text(), "draft");
         assert!(app.pending_clipboard_paste.is_none());
     }
 }

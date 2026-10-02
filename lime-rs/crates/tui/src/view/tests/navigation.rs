@@ -48,12 +48,12 @@ fn transcript_follow_control_reports_activity_and_returns_to_latest() {
     let mut terminal = Terminal::new(TestBackend::new(60, 10)).expect("terminal");
 
     terminal.draw(|frame| render(frame, &app)).expect("draw");
-    assert!(app.transcript_viewport.tail_visible());
+    assert!(app.chat_widget.transcript_viewport.tail_visible());
     assert!(!buffer_text(&terminal).contains("Back to bottom"));
 
     app.scroll_up(4);
     terminal.draw(|frame| render(frame, &app)).expect("pause");
-    assert!(!app.transcript_viewport.tail_visible());
+    assert!(!app.chat_widget.transcript_viewport.tail_visible());
     assert!(buffer_text(&terminal).contains("Back to bottom"));
     assert!(!buffer_text(&terminal).contains("New activity"));
 
@@ -80,9 +80,10 @@ fn transcript_follow_control_reports_activity_and_returns_to_latest() {
         .expect("activity repaint");
     let paused = buffer_text(&terminal);
     assert!(paused.contains("New activity"), "{paused}");
-    assert!(app.transcript_viewport.unseen_activity());
+    assert!(app.chat_widget.transcript_viewport.unseen_activity());
 
     let area = app
+        .chat_widget
         .transcript_follow_control
         .area()
         .expect("follow control area");
@@ -100,14 +101,14 @@ fn transcript_follow_control_reports_activity_and_returns_to_latest() {
             }),
         );
     }
-    assert_eq!(app.transcript_scroll, 0);
+    assert_eq!(app.chat_widget.transcript_scroll, 0);
     terminal
         .draw(|frame| render(frame, &app))
         .expect("latest repaint");
     let latest = buffer_text(&terminal);
     assert!(latest.contains("LATEST_CANONICAL_ROW"), "{latest}");
     assert!(!latest.contains("Back to bottom"), "{latest}");
-    assert!(!app.transcript_viewport.unseen_activity());
+    assert!(!app.chat_widget.transcript_viewport.unseen_activity());
 
     app.scroll_up(4);
     terminal
@@ -120,7 +121,7 @@ fn transcript_follow_control_reports_activity_and_returns_to_latest() {
         ),
         crate::app::AppAction::None
     );
-    assert_eq!(app.transcript_scroll, 0);
+    assert_eq!(app.chat_widget.transcript_scroll, 0);
     terminal
         .draw(|frame| render(frame, &app))
         .expect("escape repaint");
@@ -148,17 +149,17 @@ fn transcript_follow_control_adapts_to_width_and_yields_to_composer_popup() {
     terminal.draw(|frame| render(frame, &app)).expect("draw");
     let narrow = buffer_text(&terminal);
     assert!(narrow.contains("↓ Bottom"), "{narrow}");
-    assert!(app.transcript_follow_control.area().is_some());
+    assert!(app.chat_widget.transcript_follow_control.area().is_some());
 
     dispatch_connected_input(
         &mut app,
         Event::Key(KeyEvent::new(KeyCode::Char('/'), KeyModifiers::NONE)),
     );
-    assert!(app.composer.completion_popup_active());
+    assert!(app.chat_widget.bottom_pane.popup_active());
     terminal
         .draw(|frame| render(frame, &app))
         .expect("popup draw");
-    assert!(app.transcript_follow_control.area().is_none());
+    assert!(app.chat_widget.transcript_follow_control.area().is_none());
 }
 
 #[test]
@@ -177,7 +178,8 @@ fn transcript_copy_feedback_temporarily_owns_the_composer_gap() {
         },
     ));
     app.scroll_up(3);
-    app.transcript_composer_gap
+    app.chat_widget
+        .transcript_composer_gap
         .show_copy_feedback(&Ok(crate::clipboard_copy::CopyStatus::Confirmed), 7);
     let mut terminal = Terminal::new(TestBackend::new(60, 10)).expect("terminal");
 
@@ -187,9 +189,9 @@ fn transcript_copy_feedback_temporarily_owns_the_composer_gap() {
     let feedback = buffer_text(&terminal);
     assert!(feedback.contains("Copied 7 chars"), "{feedback}");
     assert!(!feedback.contains("Back to bottom"), "{feedback}");
-    assert!(app.transcript_follow_control.area().is_none());
+    assert!(app.chat_widget.transcript_follow_control.area().is_none());
 
-    app.transcript_composer_gap.expire_for_test();
+    app.chat_widget.transcript_composer_gap.expire_for_test();
     assert_eq!(
         app.pre_draw_tick(Instant::now()),
         crate::app::AppAction::None
@@ -198,7 +200,7 @@ fn transcript_copy_feedback_temporarily_owns_the_composer_gap() {
         .draw(|frame| render(frame, &app))
         .expect("follow draw");
     assert!(buffer_text(&terminal).contains("Back to bottom"));
-    assert!(app.transcript_follow_control.area().is_some());
+    assert!(app.chat_widget.transcript_follow_control.area().is_some());
 }
 
 #[test]
@@ -263,7 +265,7 @@ fn main_transcript_selection_freezes_source_and_owns_copy_before_composer() {
             )),
         );
     }
-    assert!(app.transcript_selection.is_active());
+    assert!(app.chat_widget.transcript_selection.is_active());
 
     terminal
         .draw(|frame| render(frame, &app))
@@ -288,7 +290,7 @@ fn main_transcript_selection_freezes_source_and_owns_copy_before_composer() {
             target: crate::app::TranscriptSelectionTarget::MainTranscript,
         }
     );
-    assert!(app.composer.is_empty());
+    assert!(app.chat_widget.bottom_pane.composer_is_empty());
 
     app.projection.apply(ServerNotification::AgentMessageDelta(
         AgentMessageDeltaNotification {
@@ -304,10 +306,10 @@ fn main_transcript_selection_freezes_source_and_owns_copy_before_composer() {
     let frozen = buffer_text(&terminal);
     assert!(frozen.contains("SELECT_ME tail"), "{frozen}");
     assert!(!frozen.contains("NEW_TAIL_ACTIVITY"), "{frozen}");
-    assert!(app.transcript_viewport.unseen_activity());
+    assert!(app.chat_widget.transcript_viewport.unseen_activity());
 
     app.finish_main_transcript_selection(false);
-    assert!(app.transcript_scroll > 0);
+    assert!(app.chat_widget.transcript_scroll > 0);
     terminal
         .draw(|frame| render(frame, &app))
         .expect("resumed reading draw");
@@ -391,7 +393,7 @@ fn sticky_prompt_header_keeps_selection_rows_and_copy_position_stable() {
             )),
         );
     }
-    assert!(app.transcript_selection.is_active());
+    assert!(app.chat_widget.transcript_selection.is_active());
 
     terminal
         .draw(|frame| render(frame, &app))
@@ -505,25 +507,25 @@ fn sticky_prompt_header_yields_at_turn_boundary_until_the_viewport_moves() {
             .is_some_and(|line| line.contains("first answer")),
         "{first}"
     );
-    assert!(app.transcript_prompt_header.has_suppression());
+    assert!(app.chat_widget.transcript_prompt_header.has_suppression());
 
     terminal
         .draw(|frame| render(frame, &app))
         .expect("stable draw");
     assert_eq!(buffer_text(&terminal), first);
-    assert!(app.transcript_prompt_header.has_suppression());
+    assert!(app.chat_widget.transcript_prompt_header.has_suppression());
 
     app.scroll_up(1);
     terminal
         .draw(|frame| render(frame, &app))
         .expect("moved draw");
-    assert!(!app.transcript_prompt_header.has_suppression());
+    assert!(!app.chat_widget.transcript_prompt_header.has_suppression());
     app.scroll_bottom();
     terminal
         .draw(|frame| render(frame, &app))
         .expect("returned draw");
     assert_eq!(buffer_text(&terminal), first);
-    assert!(app.transcript_prompt_header.has_suppression());
+    assert!(app.chat_widget.transcript_prompt_header.has_suppression());
 }
 
 #[test]

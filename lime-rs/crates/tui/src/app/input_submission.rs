@@ -9,7 +9,7 @@ use super::skills::{collect_tool_mentions, find_skill_mentions_with_tool_mention
 use super::*;
 use crate::bottom_pane::pending_input_preview::can_restore_submission;
 use crate::bottom_pane::{
-    InputResult, LocalImageAttachment, MentionBinding, RemoteImageAttachment,
+    ChatWidgetAction, InputResult, LocalImageAttachment, MentionBinding, RemoteImageAttachment,
 };
 use app_server_protocol::protocol::v2::UserInput;
 
@@ -93,16 +93,19 @@ pub(crate) fn history_text(
 
 impl App {
     pub(crate) fn take_recent_submission_mention_bindings(&mut self) -> Vec<MentionBinding> {
-        self.composer.take_recent_submission_mention_bindings()
+        self.chat_widget
+            .bottom_pane
+            .take_recent_submission_mention_bindings()
     }
     pub(crate) fn attach_image(&mut self, path: PathBuf) {
-        self.composer.attach_image(path);
+        self.chat_widget.bottom_pane.attach_image(path);
     }
 
     pub(crate) fn take_recent_submission_images_with_placeholders(
         &mut self,
     ) -> Vec<LocalImageAttachment> {
-        self.composer
+        self.chat_widget
+            .bottom_pane
             .take_recent_submission_images_with_placeholders()
     }
 
@@ -118,30 +121,30 @@ impl App {
         remote_images: Vec<RemoteImageAttachment>,
         mention_bindings: Vec<MentionBinding>,
     ) {
-        self.composer.edit_stored_draft(|composer| {
-            composer.set_text_content_with_mention_bindings(
+        self.chat_widget
+            .bottom_pane
+            .set_composer_text_with_mention_bindings(
                 prompt,
                 text_elements,
                 images,
                 remote_images,
                 mention_bindings,
             );
-        });
-        self.clear_completion_popup();
+        self.chat_widget.bottom_pane.clear_completion_popup();
     }
 
     pub(crate) fn take_remote_images(&mut self) -> Vec<RemoteImageAttachment> {
-        self.composer.take_remote_images()
+        self.chat_widget.bottom_pane.take_remote_images()
     }
 
     #[cfg(test)]
     pub(crate) fn take_remote_image_urls(&mut self) -> Vec<String> {
-        self.composer.take_remote_image_urls()
+        self.chat_widget.bottom_pane.take_remote_image_urls()
     }
 
     #[cfg(test)]
     pub(crate) fn set_remote_image_urls(&mut self, urls: Vec<String>) {
-        self.composer.set_remote_image_urls(urls);
+        self.chat_widget.bottom_pane.set_remote_image_urls(urls);
     }
 
     pub(crate) fn set_queued_submissions(&mut self, submissions: Vec<QueuedSubmission>) {
@@ -164,7 +167,8 @@ impl App {
         &mut self,
         submission: QueuedSubmission,
     ) -> bool {
-        if !self.composer.is_empty() || !can_restore_submission(&submission) {
+        if !self.chat_widget.bottom_pane.composer_is_empty() || !can_restore_submission(&submission)
+        {
             return false;
         }
         let submission_id = submission.id.clone();
@@ -263,24 +267,26 @@ impl App {
                 detail,
             })
             .collect();
-        self.composer.set_text_content_with_mention_bindings(
-            text,
-            text_elements,
-            local_images,
-            remote_images,
-            mention_bindings,
-        );
-        self.clear_completion_popup();
+        self.chat_widget
+            .bottom_pane
+            .set_composer_text_with_mention_bindings(
+                text,
+                text_elements,
+                local_images,
+                remote_images,
+                mention_bindings,
+            );
+        self.chat_widget.bottom_pane.clear_completion_popup();
         true
     }
 
-    pub(super) fn map_composer_action(&mut self, action: InputResult) -> AppAction {
+    pub(super) fn map_input_result(&mut self, action: InputResult) -> AppAction {
         let mapped = match action {
             InputResult::Submitted {
                 text,
                 text_elements,
             } => {
-                self.clear_completion_popup();
+                self.chat_widget.bottom_pane.clear_completion_popup();
                 AppAction::Submit {
                     text,
                     text_elements,
@@ -290,16 +296,20 @@ impl App {
                 text,
                 text_elements,
             } => {
-                self.clear_completion_popup();
+                self.chat_widget.bottom_pane.clear_completion_popup();
                 AppAction::Queue {
                     text,
                     text_elements,
                 }
             }
             InputResult::Interrupt => {
-                let cleared = self.composer.clear_for_ctrl_c().is_some();
+                let cleared = self
+                    .chat_widget
+                    .bottom_pane
+                    .clear_composer_for_ctrl_c()
+                    .is_some();
                 if cleared {
-                    self.clear_completion_popup();
+                    self.chat_widget.bottom_pane.clear_completion_popup();
                     // Codex treats Ctrl-C as composer cancellation when a draft is present.
                     // Do not also interrupt the active turn: a follow-up Ctrl-C can then be
                     // handled after the terminal projection settles.
@@ -326,20 +336,38 @@ impl App {
                 AppAction::RefreshAgentsOverview
             }
             InputResult::Quit => AppAction::Quit,
-            InputResult::Changed => {
-                if self.composer.history_search_active() || self.composer.vim_search_active() {
-                    self.clear_completion_popup();
-                } else {
-                    self.sync_completion_popup();
-                }
-                AppAction::None
-            }
+            InputResult::Changed => AppAction::None,
             InputResult::None => AppAction::None,
         };
-        if matches!(mapped, AppAction::None) && self.composer.paste_burst_needs_frame() {
-            AppAction::ScheduleFrameIn(crate::tui::TARGET_FRAME_INTERVAL)
+        if let (AppAction::None, Some(delay)) = (
+            &mapped,
+            self.chat_widget
+                .bottom_pane
+                .next_frame_delay(std::time::Instant::now()),
+        ) {
+            AppAction::ScheduleFrameIn(delay)
         } else {
             mapped
+        }
+    }
+
+    pub(super) fn map_chat_widget_action(&mut self, action: ChatWidgetAction) -> AppAction {
+        match action {
+            ChatWidgetAction::Input(input) => self.map_input_result(input),
+            ChatWidgetAction::Respond(response) => AppAction::Respond(response),
+            ChatWidgetAction::ExecuteCommand => {
+                if let Some(action) = self.run_local_command() {
+                    return action;
+                }
+                let input =
+                    self.chat_widget
+                        .bottom_pane
+                        .handle_key_event(crossterm::event::KeyEvent::new(
+                            crossterm::event::KeyCode::Enter,
+                            crossterm::event::KeyModifiers::NONE,
+                        ));
+                self.map_chat_widget_action(input)
+            }
         }
     }
 }

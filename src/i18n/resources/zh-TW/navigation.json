@@ -74,7 +74,6 @@
   "navigation.sidebar.conversations.projectMenu.remove.success": "已移除專案",
   "navigation.sidebar.conversations.projectMenu.remove.error": "移除專案失敗",
   "navigation.sidebar.conversations.projectsTitle": "專案",
-  "navigation.sidebar.conversations.standaloneTitle": "對話",
   "navigation.sidebar.conversations.pinnedTitle": "置頂",
   "navigation.sidebar.conversations.newConversation": "新增對話",
   "navigation.sidebar.conversations.newProjectConversation": "在此專案新增對話",
@@ -279,5 +278,16 @@
   "navigation.sidebar.importDialog.selection.selectGroup": "選擇本組",
   "navigation.sidebar.importDialog.selection.clearGroup": "取消本組",
   "navigation.sidebar.importDialog.fidelity.compact": "會保留工具、命令、補丁、確認與思考記錄。",
-  "navigation.sidebar.importDialog.status.archived": "已歸檔"
+  "navigation.sidebar.importDialog.status.archived": "已歸檔",
+  "navigation.sidebar.items.newChat": "新聊天",
+  "navigation.sidebar.conversations.project.showMore": "展開顯示",
+  "navigation.sidebar.conversations.project.showLess": "收起顯示",
+  "navigation.sidebar.customization.title": "自訂",
+  "navigation.sidebar.customization.search": "搜尋外掛",
+  "navigation.sidebar.customization.skills": "技能",
+  "navigation.sidebar.customization.installed": "已安裝",
+  "navigation.sidebar.customization.loading": "正在載入外掛…",
+  "navigation.sidebar.customization.error": "暫時無法讀取已安裝外掛",
+  "navigation.sidebar.customization.empty": "尚無已安裝外掛",
+  "navigation.sidebar.account.label": "帳戶"
 }

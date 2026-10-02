@@ -77770,7 +77770,7 @@
     },
     "lime-rs/crates/tui/src": {
       "root": "/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/crates/tui/src",
-      "fileCount": 360,
+      "fileCount": 364,
       "files": [
         "app.rs",
         "app/agent_center/hints.rs",
@@ -77895,8 +77895,11 @@
         "bottom_pane/chat_composer_history/search_tests.rs",
         "bottom_pane/chat_composer_history/tests.rs",
         "bottom_pane/command_popup.rs",
+        "bottom_pane/composer.rs",
         "bottom_pane/footer.rs",
+        "bottom_pane/input.rs",
         "bottom_pane/input_state.rs",
+        "bottom_pane/input_tests.rs",
         "bottom_pane/keymap_tests.rs",
         "bottom_pane/list_selection_view.rs",
         "bottom_pane/mcp_server_elicitation.rs",
@@ -77943,6 +77946,7 @@
         "bottom_pane/textarea/vim_search_tests.rs",
         "bottom_pane/textarea/wrapping.rs",
         "bottom_pane/textarea/wrapping_tests.rs",
+        "chatwidget.rs",
         "clipboard_copy.rs",
         "clipboard_copy/worker.rs",
         "clipboard_paste.rs",
@@ -78133,7 +78137,7 @@
         "width.rs",
         "wrapping.rs"
       ],
-      "symbolCount": 4774,
+      "symbolCount": 4848,
       "symbols": [
         {
           "path": "app.rs",
@@ -78167,16 +78171,6 @@
         },
         {
           "path": "app.rs",
-          "name": "clear_completion_popup",
-          "kind": "function"
-        },
-        {
-          "path": "app.rs",
-          "name": "complete_slash_command",
-          "kind": "function"
-        },
-        {
-          "path": "app.rs",
           "name": "end_startup_input_boundary",
           "kind": "function"
         },
@@ -78198,11 +78192,6 @@
         {
           "path": "app.rs",
           "name": "has_queued_startup_protected_request",
-          "kind": "function"
-        },
-        {
-          "path": "app.rs",
-          "name": "history_render_mode",
           "kind": "function"
         },
         {
@@ -78238,11 +78227,6 @@
         {
           "path": "app.rs",
           "name": "release_startup_input_boundary_if_ready",
-          "kind": "function"
-        },
-        {
-          "path": "app.rs",
-          "name": "replace_composer",
           "kind": "function"
         },
         {
@@ -78313,11 +78297,6 @@
         {
           "path": "app.rs",
           "name": "status_value",
-          "kind": "function"
-        },
-        {
-          "path": "app.rs",
-          "name": "sync_completion_popup",
           "kind": "function"
         },
         {
@@ -79722,7 +79701,12 @@
         },
         {
           "path": "app/input_submission.rs",
-          "name": "map_composer_action",
+          "name": "map_chat_widget_action",
+          "kind": "function"
+        },
+        {
+          "path": "app/input_submission.rs",
+          "name": "map_input_result",
           "kind": "function"
         },
         {
@@ -81091,11 +81075,6 @@
           "kind": "function"
         },
         {
-          "path": "app/thread_input.rs",
-          "name": "ThreadInputState",
-          "kind": "type"
-        },
-        {
           "path": "app/thread_input_tests.rs",
           "name": "foreign_undo_repeat_and_pending_modal_input_cannot_restore_a_previous_thread",
           "kind": "function"
@@ -81402,22 +81381,7 @@
         },
         {
           "path": "app/transcript_presentation.rs",
-          "name": "clear",
-          "kind": "function"
-        },
-        {
-          "path": "app/transcript_presentation.rs",
           "name": "dismiss_pager_overlay",
-          "kind": "function"
-        },
-        {
-          "path": "app/transcript_presentation.rs",
-          "name": "has_detailed_bookmark",
-          "kind": "function"
-        },
-        {
-          "path": "app/transcript_presentation.rs",
-          "name": "open",
           "kind": "function"
         },
         {
@@ -81429,21 +81393,6 @@
           "path": "app/transcript_presentation.rs",
           "name": "reset_transcript_presentation",
           "kind": "function"
-        },
-        {
-          "path": "app/transcript_presentation.rs",
-          "name": "retain",
-          "kind": "function"
-        },
-        {
-          "path": "app/transcript_presentation.rs",
-          "name": "RetainedTranscript",
-          "kind": "type"
-        },
-        {
-          "path": "app/transcript_presentation.rs",
-          "name": "TranscriptPresentation",
-          "kind": "type"
         },
         {
           "path": "app/transcript_presentation_tests.rs",
@@ -84926,6 +84875,281 @@
           "kind": "function"
         },
         {
+          "path": "bottom_pane/composer.rs",
+          "name": "apply_external_edit",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/composer.rs",
+          "name": "attach_image",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/composer.rs",
+          "name": "clear_completion_popup",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/composer.rs",
+          "name": "clear_composer_for_ctrl_c",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/composer.rs",
+          "name": "clear_mouse_selection",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/composer.rs",
+          "name": "clipboard_paste_request",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/composer.rs",
+          "name": "clipboard_paste_target",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/composer.rs",
+          "name": "command_from_prompt",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/composer.rs",
+          "name": "command_popup_active",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/composer.rs",
+          "name": "composer_draft",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/composer.rs",
+          "name": "composer_has_pending_images",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/composer.rs",
+          "name": "composer_has_selected_remote_image",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/composer.rs",
+          "name": "composer_is_empty",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/composer.rs",
+          "name": "composer_local_image_paths",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/composer.rs",
+          "name": "composer_local_images",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/composer.rs",
+          "name": "composer_remote_image_urls",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/composer.rs",
+          "name": "composer_remote_images",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/composer.rs",
+          "name": "composer_snapshot",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/composer.rs",
+          "name": "composer_text",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/composer.rs",
+          "name": "composer_text_elements",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/composer.rs",
+          "name": "composer_text_with_pending",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/composer.rs",
+          "name": "copy_selection_request",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/composer.rs",
+          "name": "dismiss_shortcut_overlay",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/composer.rs",
+          "name": "end_mouse_drag",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/composer.rs",
+          "name": "history_search_active",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/composer.rs",
+          "name": "history_search_query",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/composer.rs",
+          "name": "insert_str",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/composer.rs",
+          "name": "is_vim_normal_mode",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/composer.rs",
+          "name": "key_chord_pending",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/composer.rs",
+          "name": "on_file_search_result",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/composer.rs",
+          "name": "on_history_lookup_response",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/composer.rs",
+          "name": "paste_burst_is_disabled",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/composer.rs",
+          "name": "render_composer_textarea",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/composer.rs",
+          "name": "selected_command",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/composer.rs",
+          "name": "set_agents_navigation_enabled",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/composer.rs",
+          "name": "set_app_event_tx",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/composer.rs",
+          "name": "set_cached_history",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/composer.rs",
+          "name": "set_composer_text",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/composer.rs",
+          "name": "set_composer_text_with_mention_bindings",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/composer.rs",
+          "name": "set_history_metadata",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/composer.rs",
+          "name": "set_history_thread_id",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/composer.rs",
+          "name": "set_locale",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/composer.rs",
+          "name": "set_paste_burst_disabled",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/composer.rs",
+          "name": "set_remote_image_urls",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/composer.rs",
+          "name": "set_skills",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/composer.rs",
+          "name": "set_vim_enabled",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/composer.rs",
+          "name": "skills",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/composer.rs",
+          "name": "take_file_search_request",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/composer.rs",
+          "name": "take_recent_submission_images_with_placeholders",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/composer.rs",
+          "name": "take_recent_submission_mention_bindings",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/composer.rs",
+          "name": "take_remote_image_urls",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/composer.rs",
+          "name": "take_remote_images",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/composer.rs",
+          "name": "toggle_vim_enabled",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/composer.rs",
+          "name": "vim_search_active",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/composer.rs",
+          "name": "vim_search_query",
+          "kind": "function"
+        },
+        {
           "path": "bottom_pane/footer.rs",
           "name": "active_draft_prefers_queue_hint_and_hides_context_when_narrow",
           "kind": "function"
@@ -85031,13 +85255,83 @@
           "kind": "function"
         },
         {
+          "path": "bottom_pane/input.rs",
+          "name": "ChatWidgetAction",
+          "kind": "type"
+        },
+        {
+          "path": "bottom_pane/input.rs",
+          "name": "complete_slash_command",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/input.rs",
+          "name": "finish_input",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/input.rs",
+          "name": "handle_composer_key_at",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/input.rs",
+          "name": "handle_disconnected_key",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/input.rs",
+          "name": "handle_event",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/input.rs",
+          "name": "handle_event_at",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/input.rs",
+          "name": "handle_key_event",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/input.rs",
+          "name": "handle_key_event_at",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/input.rs",
+          "name": "handle_mouse",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/input.rs",
+          "name": "handle_paste",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/input.rs",
+          "name": "handle_query_event",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/input.rs",
+          "name": "popup_active",
+          "kind": "function"
+        },
+        {
           "path": "bottom_pane/input_state.rs",
           "name": "BottomPaneInputState",
           "kind": "type"
         },
         {
           "path": "bottom_pane/input_state.rs",
-          "name": "clear",
+          "name": "clear_interactions",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/input_state.rs",
+          "name": "composer_draft",
           "kind": "function"
         },
         {
@@ -85078,6 +85372,46 @@
         {
           "path": "bottom_pane/input_state.rs",
           "name": "turn_id",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/input_tests.rs",
+          "name": "command_popup_completion_is_owned_by_the_pane_but_execution_is_a_host_action",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/input_tests.rs",
+          "name": "direct_key_api_edits_the_active_question_not_the_hidden_main_draft",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/input_tests.rs",
+          "name": "disconnect_clears_interactions_but_preserves_main_pending_typing_and_images",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/input_tests.rs",
+          "name": "history_query_paste_cannot_open_a_popup_from_the_preview",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/input_tests.rs",
+          "name": "main_paste_timer_keeps_running_behind_an_interaction_without_editing_notes",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/input_tests.rs",
+          "name": "ordinary_keys_pass_to_host_routing_but_paste_and_mouse_stay_in_the_pane",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/input_tests.rs",
+          "name": "pane_capture_restores_the_main_draft_and_same_question_view_atomically",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/input_tests.rs",
+          "name": "question",
           "kind": "function"
         },
         {
@@ -85577,7 +85911,7 @@
         },
         {
           "path": "bottom_pane/mod.rs",
-          "name": "clear",
+          "name": "clear_interactions",
           "kind": "function"
         },
         {
@@ -85612,12 +85946,12 @@
         },
         {
           "path": "bottom_pane/mod.rs",
-          "name": "handle_event",
+          "name": "handle_interaction_event",
           "kind": "function"
         },
         {
           "path": "bottom_pane/mod.rs",
-          "name": "handle_key_event",
+          "name": "handle_interaction_key",
           "kind": "function"
         },
         {
@@ -85928,6 +86262,11 @@
         {
           "path": "bottom_pane/render.rs",
           "name": "narrow_height_uses_the_same_width_as_rendered_content",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/render.rs",
+          "name": "render_popups",
           "kind": "function"
         },
         {
@@ -88264,6 +88603,41 @@
           "path": "bottom_pane/textarea/wrapping_tests.rs",
           "name": "wrapped_rows",
           "kind": "function"
+        },
+        {
+          "path": "chatwidget.rs",
+          "name": "ChatWidget",
+          "kind": "type"
+        },
+        {
+          "path": "chatwidget.rs",
+          "name": "clear",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget.rs",
+          "name": "has_detailed_bookmark",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget.rs",
+          "name": "open",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget.rs",
+          "name": "retain",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget.rs",
+          "name": "RetainedTranscript",
+          "kind": "type"
+        },
+        {
+          "path": "chatwidget.rs",
+          "name": "TranscriptPresentation",
+          "kind": "type"
         },
         {
           "path": "clipboard_copy.rs",
@@ -102006,7 +102380,7 @@
           "kind": "function"
         }
       ],
-      "treeSha256": "3b3fd0ce5cca2a7627ffc5a6f5d5af646a59fae1f15710b28afba911fa543d39"
+      "treeSha256": "0d18de786e8d8d276e1bfd947e2c3861b5f5a87b5ac5c89e439019778845f88a"
     },
     "codex-rs/tui/tests": {
       "root": "/Users/coso/Documents/dev/rust/codex/codex-rs/tui/tests",
@@ -103233,7 +103607,6 @@
       "bottom_pane/warnings_view_render.rs",
       "bottom_pane/warnings_view_tests.rs",
       "branch_summary.rs",
-      "chatwidget.rs",
       "chatwidget/activity_groups.rs",
       "chatwidget/activity_presentation.rs",
       "chatwidget/backend_banners.rs",
@@ -103799,7 +104172,10 @@
       "bottom_pane/chat_composer_history/search.rs",
       "bottom_pane/chat_composer_history/search_tests.rs",
       "bottom_pane/chat_composer_history/tests.rs",
+      "bottom_pane/composer.rs",
+      "bottom_pane/input.rs",
       "bottom_pane/input_state.rs",
+      "bottom_pane/input_tests.rs",
       "bottom_pane/keymap_tests.rs",
       "bottom_pane/mcp_server_elicitation/render.rs",
       "bottom_pane/mcp_server_elicitation/schema.rs",
@@ -104043,7 +104419,6 @@
       "ChatComposerConfig",
       "ChatComposerPresentation",
       "ChatKeymap",
-      "ChatWidget",
       "ChatWidgetInit",
       "Chats",
       "ChunkingDecision",
@@ -104739,6 +105114,7 @@
       "ThreadEventAttachment",
       "ThreadGoalSetMode",
       "ThreadHistorySupport",
+      "ThreadInputState",
       "ThreadInputStateRestoreMode",
       "ThreadInteractiveRequest",
       "ThreadItemRenderSource",
@@ -106011,7 +106387,6 @@
       "clear_command_resolves_for_dispatch",
       "clear_committed_mcp_inventory_loading",
       "clear_completion_returns_to_selected_keymap_picker_row",
-      "clear_composer_for_ctrl_c",
       "clear_config_value",
       "clear_context_compaction",
       "clear_current_draft",
@@ -106344,10 +106719,7 @@
       "composer_gap_rows",
       "composer_hint",
       "composer_input_enabled",
-      "composer_is_empty",
       "composer_is_vim_enabled",
-      "composer_local_image_paths",
-      "composer_local_images",
       "composer_mouse_edits_flush_typing_and_reconcile_placeholders",
       "composer_paste_releases_selection_and_retains_normal_cursor_movement",
       "composer_pending_pastes",
@@ -106356,9 +106728,6 @@
       "composer_shown_after_denied_while_task_running",
       "composer_state_from_user_message",
       "composer_submission_sends_once_and_requests_latest",
-      "composer_text",
-      "composer_text_elements",
-      "composer_text_with_pending",
       "composer_with_draft_tail",
       "composer_with_history",
       "composer_with_search_preview",
@@ -108599,6 +108968,7 @@
       "history_navigation_restores_remote_only_submissions",
       "history_pagination_compat_detects_unsupported_server_fields",
       "history_prefetch_counts_rows_in_preceding_entries",
+      "history_render_mode",
       "history_search_acceptance_and_cancellation_update_sparkles_before_rendering",
       "history_search_accepts_matching_entry",
       "history_search_action_key_span",
@@ -110948,7 +111318,6 @@
       "pop_link",
       "pop_next_queued_user_message",
       "pop_user_input_request_for_turn",
-      "popup_active",
       "popup_content_width",
       "popup_hints_follow_configured_bindings",
       "popup_name_truncation_counts_halfwidth_sound_marks",
@@ -112925,8 +113294,6 @@
       "set_composer_cursor",
       "set_composer_input_enabled",
       "set_composer_pending_pastes",
-      "set_composer_text",
-      "set_composer_text_with_mention_bindings",
       "set_connector_mentions",
       "set_connector_mentions_excludes_disabled_apps_from_mention_popup",
       "set_connector_mentions_refreshes_open_mention_popup",
@@ -115598,6 +115965,7 @@
       "BottomPaneInputState",
       "CenterKeymapAction",
       "CenterKeymapContext",
+      "ChatWidgetAction",
       "ClipboardTextSource",
       "CodeLineHighlighter",
       "ColumnKind",
@@ -115967,6 +116335,7 @@
       "clear_draft",
       "clear_focus",
       "clear_history_page_error",
+      "clear_interactions",
       "clear_mouse_selection",
       "clear_search_awaiting",
       "clear_suppression",
@@ -116018,6 +116387,8 @@
       "command_output_deltas_follow_the_command_without_splitting_chunks",
       "command_output_omission_markers_cover_all_product_locales",
       "command_parts",
+      "command_popup_active",
+      "command_popup_completion_is_owned_by_the_pane_but_execution_is_a_host_action",
       "command_text",
       "command_without_output_keeps_generic_details",
       "commands_parse_without_becoming_turn_input",
@@ -116051,10 +116422,16 @@
       "completion_separator_localizes_elapsed_label",
       "completion_skill_tag",
       "composer_copy_clears_selection_only_after_confirmation",
+      "composer_draft",
+      "composer_has_pending_images",
+      "composer_has_selected_remote_image",
       "composer_input",
       "composer_mouse_paste_requests_clipboard_surface_without_selection",
       "composer_mouse_selection_precedes_shortcuts_and_requests_copy",
       "composer_placeholder",
+      "composer_remote_image_urls",
+      "composer_remote_images",
+      "composer_snapshot",
       "composite_history_cell_separates_non_empty_parts",
       "computer_activity_bounds_multiline_titles_before_projection",
       "computer_activity_bounds_provider_diagnostics",
@@ -116203,10 +116580,12 @@
       "diff_gallery_94x35",
       "diff_keeps_independent_multiline_syntax_state_for_old_and_new_files",
       "diff_uses_file_extension_for_syntax_highlighting",
+      "direct_key_api_edits_the_active_question_not_the_hidden_main_draft",
       "direct_paste_replaces_stale_redo",
       "disabled_reason_is_visible_and_width_bounded",
       "disabling_vim_cancels_an_active_query",
       "disclosure_controls_are_excluded_from_copy_and_search_source",
+      "disconnect_clears_interactions_but_preserves_main_pending_typing_and_images",
       "disconnected_edit_preserves_draft_and_cancels_history_preview",
       "disconnected_editing_preserves_graphemes_and_cursor_boundaries",
       "disconnected_enter_and_tab_leave_input_available_for_reconnect",
@@ -116430,6 +116809,7 @@
       "finish_cell",
       "finish_clipboard_paste",
       "finish_highlighted_code_block",
+      "finish_input",
       "finish_line",
       "finish_line_if_needed",
       "finish_link",
@@ -116503,18 +116883,23 @@
       "grouped_history_filters_metadata_hidden_user_without_moving_completion",
       "grouped_history_hides_nested_review_prompts_from_turn_metadata",
       "handle_command_popup_event",
+      "handle_composer_key_at",
       "handle_destination_event",
       "handle_disconnected_key",
       "handle_editor_key",
+      "handle_event_at",
       "handle_field_navigation",
       "handle_file_search_popup_event",
       "handle_filename_event",
+      "handle_interaction_event",
+      "handle_interaction_key",
       "handle_key_event_inner_at",
       "handle_list_action",
       "handle_older_history_page_with_turns",
       "handle_paste_burst_enter",
       "handle_paste_burst_tab",
       "handle_paste_burst_text_key",
+      "handle_query_event",
       "handle_skill_popup_event",
       "handle_task_action",
       "handle_text_key",
@@ -116556,6 +116941,7 @@
       "history_navigation_does_not_replace_an_arbitrary_draft",
       "history_next",
       "history_previous",
+      "history_query_paste_cannot_open_a_popup_from_the_preview",
       "history_search_actions",
       "history_search_cancel_recall_and_thread_restore_keep_complete_typed_input",
       "history_search_cancel_restores_cursor_and_attachments",
@@ -116759,12 +117145,14 @@
       "lower_history_page",
       "main_find_owns_query_footer_highlight_and_restores_compact_position",
       "main_find_pauses_for_selection_and_reuses_older_history_action",
+      "main_paste_timer_keeps_running_behind_an_interaction_without_editing_notes",
       "main_transcript_copy_preserves_reading_position_unless_enter_follows",
       "main_transcript_selection_freezes_source_and_owns_copy_before_composer",
       "main_transcript_uses_grouped_compact_activity_and_turn_boundaries",
       "malformed_entry_is_cached_and_navigation_skips_it_without_refetching",
       "many",
-      "map_composer_action",
+      "map_chat_widget_action",
+      "map_input_result",
       "maps_windows_temp_paths_for_wsl",
       "mark_preview_loading",
       "mark_text_changed",
@@ -116998,6 +117386,7 @@
       "ordered",
       "ordered_list_markers_use_terminal_palette",
       "ordinary_insertions_shift_elements_but_never_split_their_payload",
+      "ordinary_keys_pass_to_host_routing_but_paste_and_mouse_stay_in_the_pane",
       "ordinary_placeholder_text_does_not_keep_a_deleted_attachment_alive_offline",
       "osc52_encoding_roundtrips_and_wraps_tmux",
       "osc52_rejects_oversized_payloads",
@@ -117047,6 +117436,7 @@
       "painted_diff_palette_matrix_keeps_full_width_fill_and_distinct_gutters",
       "painted_secondary_labels_reset_inherited_modifiers_and_stay_readable",
       "painted_selection_clears_inherited_dim_and_meets_contrast_after_conversion",
+      "pane_capture_restores_the_main_draft_and_same_question_view_atomically",
       "params",
       "params_with_meta",
       "parse_default_index",
@@ -117301,6 +117691,7 @@
       "render_at",
       "render_at_cwd",
       "render_close_hint",
+      "render_composer_textarea",
       "render_elements",
       "render_highlight",
       "render_inner",
@@ -117309,6 +117700,7 @@
       "render_markdown_text_keeps_plain_content",
       "render_mouse_selection",
       "render_pipe_fallback",
+      "render_popups",
       "render_row",
       "render_rows_with_layout",
       "render_search_query",
@@ -117343,7 +117735,6 @@
       "repeated_alternate_entry_preserves_original_inline_area",
       "repeated_page_down_during_loading_preserves_its_target",
       "replace",
-      "replace_composer",
       "replace_entry",
       "replace_paste_skips_atomic_attachment_and_backspace_retraces_original_cursor",
       "replace_recovery_consumes_rebound_delete_action",
@@ -117505,6 +117896,7 @@
       "seed_persistent_history",
       "select_fields_support_horizontal_navigation_and_digits",
       "select_thread",
+      "selected_command",
       "selected_file_uses_codex_marker_without_narrow_overflow",
       "selected_filename",
       "selected_identity",

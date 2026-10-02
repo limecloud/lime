@@ -28,6 +28,7 @@ import {
 } from "@/components/app-sidebar/sidebarSessionFormatting";
 import { AppSidebarConversationRow } from "@/components/app-sidebar/AppSidebarConversationRow";
 import { AppSidebarConversationEmptyState } from "@/components/app-sidebar/AppSidebarConversationEmptyState";
+import { AppSidebarLoadMore } from "./AppSidebarLoadMore";
 import { AppSidebarProjectConversationGroups } from "@/components/app-sidebar/AppSidebarProjectConversationGroups";
 import {
   AppSidebarConversationMenus,
@@ -47,7 +48,6 @@ import { useAppSidebarThreadSections } from "@/components/app-sidebar/useAppSide
 import {
   ConversationActionButton,
   ConversationList,
-  ConversationListMoreButton,
   ConversationSection,
   ConversationSectionActions,
   ConversationSectionHeader,
@@ -302,8 +302,8 @@ export function AppSidebarConversationShelf({
     "项目",
   );
   const standaloneTitleLabel = t(
-    "navigation.sidebar.conversations.standaloneTitle",
-    "对话",
+    "navigation.sidebar.search.section.recent",
+    "最近",
   );
   const pinnedTitleLabel = t(
     "navigation.sidebar.conversations.pinnedTitle",
@@ -543,6 +543,15 @@ export function AppSidebarConversationShelf({
             collapsedProjectIds={collapsedProjectIds}
             newProjectConversationLabel={newProjectConversationLabel}
             projectMoreActionsLabel={projectMoreActionsLabel}
+            currentSessionId={currentSessionId}
+            showMoreLabel={t(
+              "navigation.sidebar.conversations.project.showMore",
+              "展开显示",
+            )}
+            showLessLabel={t(
+              "navigation.sidebar.conversations.project.showLess",
+              "收起显示",
+            )}
             formatNewProjectConversationForLabel={(projectName) =>
               t("navigation.sidebar.conversations.newProjectConversationFor", {
                 title: projectName,
@@ -615,9 +624,11 @@ export function AppSidebarConversationShelf({
           <AppSidebarConversationEmptyState text={emptyStandaloneLabel} />
         )}
         {hasMoreRecent ? (
-          <ConversationListMoreButton type="button" onClick={onShowMoreRecent}>
-            {moreRecentLabel}
-          </ConversationListMoreButton>
+          <AppSidebarLoadMore
+            itemCount={recentSessions.length}
+            label={moreRecentLabel}
+            onLoadMore={onShowMoreRecent}
+          />
         ) : null}
       </ConversationList>
     </ConversationSection>

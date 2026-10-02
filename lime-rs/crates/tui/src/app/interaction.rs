@@ -1,7 +1,7 @@
 //! Key routing and composer-adjacent interaction for the TUI app.
 //!
 //! This is the Lime owner corresponding to Codex `chatwidget/interaction.rs`. It orders terminal
-//! surfaces from most specific to least specific while leaving editing state in `ChatComposer`
+//! surfaces from most specific to least specific while leaving input ownership in `BottomPane`
 //! and canonical turn state in `ConversationProjection`.
 
 use std::time::Instant;
@@ -12,7 +12,6 @@ use super::agent_picker::AgentPickerAction;
 use super::agents_overview_view::AgentsOverviewAction;
 use super::transcript_export::ExportPickerAction;
 use super::{App, AppAction, TranscriptSelectionTarget};
-use crate::bottom_pane::command_popup::CommandPopupAction;
 use crate::keymap::{GlobalKeymapAction, KeymapMatch};
 use crate::model_picker::ModelPickerAction;
 use crate::pager_overlay::PagerAction;
@@ -43,10 +42,10 @@ impl App {
             return None;
         }
 
-        match self.transcript_selection.handle_event(event) {
+        match self.chat_widget.transcript_selection.handle_event(event) {
             Some(TranscriptSelectionAction::Scroll { rows }) => {
-                if self.transcript_selection.is_active() {
-                    self.transcript_selection.scroll_rows(rows);
+                if self.chat_widget.transcript_selection.is_active() {
+                    self.chat_widget.transcript_selection.scroll_rows(rows);
                     Some(AppAction::None)
                 } else {
                     Some(AppAction::ScrollRows(rows))
@@ -59,10 +58,12 @@ impl App {
 
     #[cfg(test)]
     pub(crate) fn handle_tui_event(&mut self, event: TuiEvent, connected: bool) -> AppAction {
-        let was_disabled = self.composer.paste_burst_is_disabled();
-        self.composer.set_paste_burst_disabled(true);
+        let was_disabled = self.chat_widget.bottom_pane.paste_burst_is_disabled();
+        self.chat_widget.bottom_pane.set_paste_burst_disabled(true);
         let action = self.handle_tui_event_impl(event, connected);
-        self.composer.set_paste_burst_disabled(was_disabled);
+        self.chat_widget
+            .bottom_pane
+            .set_paste_burst_disabled(was_disabled);
         action
     }
 
@@ -79,11 +80,11 @@ impl App {
             self.global_key_chord_matcher.reset();
         }
         if matches!(&event, TuiEvent::FocusLost | TuiEvent::Resume) {
-            self.transcript_selection.end_drag();
-            if let Some(pager) = self.pager_overlay.as_ref() {
+            self.chat_widget.transcript_selection.end_drag();
+            if let Some(pager) = self.chat_widget.pager_overlay.as_ref() {
                 pager.end_transcript_drag();
             }
-            if let Some(picker) = self.resume_picker.as_ref() {
+            if let Some(picker) = self.chat_widget.resume_picker.as_ref() {
                 picker.end_transcript_drag();
             }
         }
@@ -98,17 +99,19 @@ impl App {
                     AppAction::Quit
                 }
                 TuiEvent::Key(key) => {
-                    self.composer.handle_disconnected_key(key);
-                    self.clear_completion_popup();
+                    self.chat_widget.bottom_pane.handle_disconnected_key(key);
+                    self.chat_widget.bottom_pane.clear_completion_popup();
                     AppAction::None
                 }
                 TuiEvent::Paste(text) => {
-                    self.composer.handle_paste(&normalize_paste(text));
-                    self.clear_completion_popup();
+                    self.chat_widget
+                        .bottom_pane
+                        .handle_paste(&normalize_paste(text));
+                    self.chat_widget.bottom_pane.clear_completion_popup();
                     AppAction::None
                 }
                 TuiEvent::Mouse(_) => {
-                    self.composer.end_mouse_drag();
+                    self.chat_widget.bottom_pane.end_mouse_drag();
                     AppAction::None
                 }
                 _ => AppAction::None,
@@ -126,24 +129,26 @@ impl App {
             return AppAction::None;
         }
 
-        let composer_owns_copy = self.pager_overlay.is_none()
-            && self.export_picker.is_none()
-            && !self.bottom_pane.is_active()
-            && self.resume_picker.is_none()
-            && self.agents_overview.is_none()
-            && self.model_picker.is_none()
-            && self.agent_picker.is_none()
-            && !self.transcript_search.is_active()
-            && !self.transcript_selection.is_active()
+        let composer_owns_copy = self.chat_widget.pager_overlay.is_none()
+            && self.chat_widget.export_picker.is_none()
+            && !self.chat_widget.bottom_pane.is_active()
+            && self.chat_widget.resume_picker.is_none()
+            && self.chat_widget.agents_overview.is_none()
+            && self.chat_widget.model_picker.is_none()
+            && self.chat_widget.agent_picker.is_none()
+            && !self.chat_widget.transcript_search.is_active()
+            && !self.chat_widget.transcript_selection.is_active()
             && !self.has_queued_startup_protected_request();
         if composer_owns_copy {
-            if let Some((text, clear_selection)) = self.composer.copy_selection_request(&event) {
+            if let Some((text, clear_selection)) =
+                self.chat_widget.bottom_pane.copy_selection_request(&event)
+            {
                 return AppAction::CopyComposerSelection {
                     text,
                     clear_selection,
                 };
             }
-            if let Some(source) = self.composer.clipboard_paste_request(&event) {
+            if let Some(source) = self.chat_widget.bottom_pane.clipboard_paste_request(&event) {
                 if crate::clipboard_paste::right_click_paste_allowed(self.right_click_paste, source)
                 {
                     return AppAction::PasteClipboardText(source);
@@ -162,7 +167,7 @@ impl App {
             TuiEvent::Resume => return AppAction::None,
         };
 
-        if let Some(pager) = self.pager_overlay.as_mut() {
+        if let Some(pager) = self.chat_widget.pager_overlay.as_mut() {
             return match pager.handle_event(&event) {
                 PagerAction::Close => {
                     self.dismiss_pager_overlay();
@@ -187,34 +192,36 @@ impl App {
             };
         }
 
-        if let Some(picker) = self.export_picker.as_mut() {
+        if let Some(picker) = self.chat_widget.export_picker.as_mut() {
             let action = picker.handle_event(&event);
             return match action {
                 ExportPickerAction::None => AppAction::None,
                 ExportPickerAction::Cancel => {
-                    self.export_picker = None;
+                    self.chat_widget.export_picker = None;
                     AppAction::None
                 }
                 ExportPickerAction::Copy => {
-                    self.export_picker = None;
+                    self.chat_widget.export_picker = None;
                     AppAction::ExportTranscript { path: None }
                 }
                 ExportPickerAction::Save => {
                     let path = picker.selected_path();
-                    self.export_picker = None;
+                    self.chat_widget.export_picker = None;
                     path.map(|path| AppAction::ExportTranscript { path: Some(path) })
                         .unwrap_or(AppAction::None)
                 }
             };
         }
 
-        if self.bottom_pane.is_active() {
+        if self.chat_widget.bottom_pane.is_active() {
             if let Event::Key(key) = &event {
-                if let Some((title, lines)) =
-                    self.bottom_pane.approval_details_for_key(*key, self.locale)
+                if let Some((title, lines)) = self
+                    .chat_widget
+                    .bottom_pane
+                    .approval_details_for_key(*key, self.locale)
                 {
                     self.dismiss_pager_overlay();
-                    self.pager_overlay = Some(
+                    self.chat_widget.pager_overlay = Some(
                         crate::pager_overlay::PagerOverlay::new(title, lines)
                             .with_keymap(self.runtime_keymap.transcript().clone()),
                     );
@@ -225,11 +232,13 @@ impl App {
                 return action;
             }
             let action = self
+                .chat_widget
                 .bottom_pane
                 .handle_event(event)
-                .map(AppAction::Respond)
+                .map(|action| self.map_chat_widget_action(action))
                 .unwrap_or(AppAction::None);
-            if matches!(action, AppAction::Respond(_)) && !self.bottom_pane.is_active() {
+            if matches!(action, AppAction::Respond(_)) && !self.chat_widget.bottom_pane.is_active()
+            {
                 self.startup_pending_protected_request = false;
             }
             return action;
@@ -247,7 +256,7 @@ impl App {
             Event::Key(_) | Event::Paste(_)
         ));
 
-        if let Some(picker) = self.resume_picker.as_mut() {
+        if let Some(picker) = self.chat_widget.resume_picker.as_mut() {
             if picker.transcript_pager_is_open() {
                 return match picker.handle_transcript_pager_event(&event) {
                     Some(PagerAction::CopyTranscriptSelection { text, follow }) => {
@@ -269,26 +278,26 @@ impl App {
             }
             let action = picker.handle_event(event);
             if action == PickerAction::Cancel {
-                self.resume_picker = None;
+                self.chat_widget.resume_picker = None;
                 return AppAction::None;
             }
             return AppAction::ResumePicker(action);
         }
 
-        if let Some(overview) = self.agents_overview.as_mut() {
+        if let Some(overview) = self.chat_widget.agents_overview.as_mut() {
             let action = overview.view.handle_event(event);
             return match action {
                 AgentsOverviewAction::Select => {
                     let thread_id = overview.view.selected_thread_id().map(str::to_owned);
-                    self.agents_overview = None;
-                    self.agent_picker = None;
+                    self.chat_widget.agents_overview = None;
+                    self.chat_widget.agent_picker = None;
                     thread_id
                         .map(AppAction::SwitchThread)
                         .unwrap_or(AppAction::None)
                 }
                 AgentsOverviewAction::Cancel => {
-                    self.agents_overview = None;
-                    self.agent_picker = None;
+                    self.chat_widget.agents_overview = None;
+                    self.chat_widget.agent_picker = None;
                     AppAction::None
                 }
                 AgentsOverviewAction::LoadMore => AppAction::LoadMoreAgentsOverview,
@@ -306,38 +315,38 @@ impl App {
             };
         }
 
-        if let Some(picker) = self.model_picker.as_mut() {
+        if let Some(picker) = self.chat_widget.model_picker.as_mut() {
             return match picker.handle_event(event) {
                 ModelPickerAction::Select(index) => {
                     let selection = picker.selected_model(index);
-                    self.model_picker = None;
+                    self.chat_widget.model_picker = None;
                     selection
                         .map(AppAction::SelectModel)
                         .unwrap_or(AppAction::None)
                 }
                 ModelPickerAction::Cancel => {
-                    self.model_picker = None;
+                    self.chat_widget.model_picker = None;
                     AppAction::None
                 }
                 ModelPickerAction::None => AppAction::None,
             };
         }
 
-        if let Some(picker) = self.agent_picker.as_mut() {
+        if let Some(picker) = self.chat_widget.agent_picker.as_mut() {
             return match picker.handle_event(event) {
                 AgentPickerAction::Select(thread_id) => {
-                    self.agent_picker = None;
+                    self.chat_widget.agent_picker = None;
                     AppAction::SwitchThread(thread_id)
                 }
                 AgentPickerAction::Cancel => {
-                    self.agent_picker = None;
+                    self.chat_widget.agent_picker = None;
                     AppAction::None
                 }
                 AgentPickerAction::None => AppAction::None,
             };
         }
 
-        let main_selection_wants_event = self.transcript_selection.is_active()
+        let main_selection_wants_event = self.chat_widget.transcript_selection.is_active()
             || matches!(event, Event::Mouse(_))
             || matches!(
                 event,
@@ -347,13 +356,11 @@ impl App {
                         && key.code == KeyCode::Char(' ')
             );
         if main_selection_wants_event
-            && !self.composer.file_search_popup_active()
-            && !self.composer.skill_popup_active()
-            && !self.composer.completion_popup_active()
-            && !self.composer.history_search_active()
+            && !self.chat_widget.bottom_pane.popup_active()
+            && !self.chat_widget.bottom_pane.history_search_active()
         {
-            let had_selection = self.transcript_selection.is_active();
-            if let Some(action) = self.transcript_selection.handle_event(&event) {
+            let had_selection = self.chat_widget.transcript_selection.is_active();
+            if let Some(action) = self.chat_widget.transcript_selection.handle_event(&event) {
                 let app_action = match action {
                     TranscriptSelectionAction::Consumed => AppAction::None,
                     TranscriptSelectionAction::Copy { text, follow } => {
@@ -367,19 +374,19 @@ impl App {
                         AppAction::OpenLink(destination)
                     }
                     TranscriptSelectionAction::Scroll { rows } => {
-                        if self.transcript_selection.is_active() {
-                            self.transcript_selection.scroll_rows(rows);
+                        if self.chat_widget.transcript_selection.is_active() {
+                            self.chat_widget.transcript_selection.scroll_rows(rows);
                         } else {
                             return AppAction::ScrollRows(rows);
                         }
                         AppAction::None
                     }
                     TranscriptSelectionAction::RevealRow(row) => {
-                        self.transcript_selection.reveal_row(row);
+                        self.chat_widget.transcript_selection.reveal_row(row);
                         AppAction::None
                     }
                 };
-                if had_selection && !self.transcript_selection.is_active() {
+                if had_selection && !self.chat_widget.transcript_selection.is_active() {
                     self.finish_main_transcript_selection(false);
                 }
                 return app_action;
@@ -389,8 +396,9 @@ impl App {
             }
         }
 
-        if self.transcript_search.is_active() {
+        if self.chat_widget.transcript_search.is_active() {
             return match self
+                .chat_widget
                 .transcript_search
                 .handle_event(&event, self.scrollback_has_older_history)
             {
@@ -401,127 +409,28 @@ impl App {
                 SearchAction::LoadOlderHistory => AppAction::LoadOlderHistory,
                 SearchAction::Closed { restore_scroll } => {
                     if let Some(scroll) = restore_scroll {
-                        self.transcript_scroll = scroll;
+                        self.chat_widget.transcript_scroll = scroll;
                     }
                     AppAction::None
                 }
             };
         }
 
-        if matches!(event, Event::Key(_) | Event::FocusLost) {
-            self.composer.end_mouse_drag();
-        }
-
         if let Event::Mouse(mouse) = event {
-            if let Some(action) = self.transcript_follow_control.handle_mouse(mouse) {
+            if let Some(action) = self
+                .chat_widget
+                .transcript_follow_control
+                .handle_mouse(mouse)
+            {
                 if action == TranscriptFollowAction::ReturnToLatest {
                     self.scroll_bottom();
                 }
                 return AppAction::None;
             }
-            self.composer.handle_mouse(mouse);
-            return AppAction::None;
         }
 
-        // Vim query input is owned by the composer and must precede popups, global shortcuts,
-        // and submission handling. Query paste edits the ephemeral query editor, never the draft.
-        let vim_query_owns_event = self.composer.vim_search_active()
-            || matches!(&event, Event::Key(key) if self.composer.vim_search_wants_key(*key));
-        if vim_query_owns_event {
-            match event {
-                Event::Key(key) => {
-                    let action = self.composer.handle_key_event_at(key, Instant::now());
-                    return self.map_composer_action(action);
-                }
-                Event::Paste(text) => {
-                    self.composer.handle_paste(&text);
-                    return AppAction::None;
-                }
-                _ => {}
-            }
-        }
-
-        if self.composer.completion_popup_active() {
-            if let Event::Key(key) = &event {
-                if self.composer.prepare_popup_key_event(*key, Instant::now()) {
-                    return self.map_composer_action(crate::bottom_pane::InputResult::Changed);
-                }
-            }
-        }
-
-        if self.composer.file_search_popup_active() {
-            let action = self.composer.handle_file_search_popup_event(&event);
-            match action {
-                crate::bottom_pane::FileSearchPopupAction::Pass => {}
-                crate::bottom_pane::FileSearchPopupAction::Consumed => {
-                    if !matches!(event, Event::Key(key) if key.code == KeyCode::Enter) {
-                        return AppAction::None;
-                    }
-                }
-                crate::bottom_pane::FileSearchPopupAction::Cancel
-                | crate::bottom_pane::FileSearchPopupAction::Complete => {
-                    return AppAction::None;
-                }
-            }
-        }
-
-        if self.composer.skill_popup_active() {
-            let action = self.composer.handle_skill_popup_event(&event);
-            match action {
-                crate::bottom_pane::SkillPopupAction::Pass => {}
-                crate::bottom_pane::SkillPopupAction::Consumed => return AppAction::None,
-                crate::bottom_pane::SkillPopupAction::Cancel
-                | crate::bottom_pane::SkillPopupAction::Complete => return AppAction::None,
-            }
-        }
-
-        if self.composer.completion_popup_active() {
-            let action = self.composer.handle_command_popup_event(&event);
-            match action {
-                CommandPopupAction::Pass => {}
-                CommandPopupAction::Consumed => return AppAction::None,
-                CommandPopupAction::Cancel => return AppAction::None,
-                CommandPopupAction::Complete(command) => {
-                    self.complete_slash_command(command);
-                    return AppAction::None;
-                }
-                CommandPopupAction::Execute(command) => {
-                    self.composer.replace(format!("/{}", command.command()));
-                    self.clear_completion_popup();
-                    if let Some(action) = self.run_local_command() {
-                        return action;
-                    }
-                    let action = self
-                        .composer
-                        .handle_key_event(crossterm::event::KeyEvent::new(
-                            KeyCode::Enter,
-                            KeyModifiers::NONE,
-                        ));
-                    return self.map_composer_action(action);
-                }
-            }
-        }
-
-        if self.composer.history_search_active() {
-            match event {
-                Event::Key(key) => {
-                    let action = self.composer.handle_key_event_at(key, Instant::now());
-                    return self.map_composer_action(action);
-                }
-                Event::Paste(text) => self.composer.handle_paste(&text),
-                _ => {}
-            }
-            return AppAction::None;
-        }
-
-        if let Event::Key(key) = event {
-            if self.composer.should_handle_vim_insert_escape(key)
-                || self.composer.key_chord_pending()
-                || self.composer.vim_key_event_is_owned(key)
-            {
-                let action = self.composer.handle_key_event_at(key, Instant::now());
-                return self.map_composer_action(action);
-            }
+        if let Some(action) = self.chat_widget.bottom_pane.handle_event(event.clone()) {
+            return self.map_chat_widget_action(action);
         }
 
         if let Event::Key(key) = event {
@@ -531,20 +440,22 @@ impl App {
                 .dispatch_global(&mut self.global_key_chord_matcher, key)
             {
                 KeymapMatch::Completed(GlobalKeymapAction::OpenAgents) => {
-                    self.composer.dismiss_shortcut_overlay();
+                    self.chat_widget.bottom_pane.dismiss_shortcut_overlay();
                     self.open_agents_overview();
                     return AppAction::RefreshAgentsOverview;
                 }
                 KeymapMatch::Completed(GlobalKeymapAction::OpenTranscript) => {
-                    self.composer.dismiss_shortcut_overlay();
+                    self.chat_widget.bottom_pane.dismiss_shortcut_overlay();
                     self.open_transcript_pager();
                     return AppAction::None;
                 }
                 KeymapMatch::Completed(GlobalKeymapAction::FindTranscript) => {
-                    self.composer.dismiss_shortcut_overlay();
-                    self.transcript_search
-                        .begin(self.transcript_scroll, /*restore_on_close*/ true);
-                    self.transcript_follow_control.clear();
+                    self.chat_widget.bottom_pane.dismiss_shortcut_overlay();
+                    self.chat_widget.transcript_search.begin(
+                        self.chat_widget.transcript_scroll,
+                        /*restore_on_close*/ true,
+                    );
+                    self.chat_widget.transcript_follow_control.clear();
                     return AppAction::ScheduleFrameIn(crate::tui::TARGET_FRAME_INTERVAL);
                 }
                 KeymapMatch::Pending | KeymapMatch::Cancelled => return AppAction::None,
@@ -555,8 +466,7 @@ impl App {
         match event {
             Event::Key(key) => self.handle_key_event(key),
             Event::Paste(text) => {
-                self.composer.handle_paste(&text);
-                self.sync_completion_popup();
+                self.chat_widget.bottom_pane.handle_paste(&text);
                 AppAction::None
             }
             _ => AppAction::None,

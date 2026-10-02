@@ -2222,5 +2222,9 @@
   "settings.mcpPage.runtime.resourceBrowser.preview.truncated": "已截斷，僅顯示前 {{shown}} / {{total}} 個字元，隱藏 {{hidden}} 個字元。",
   "settings.mcpPage.runtime.resourceBrowser.preview.image": "圖片資料，{{bytes}} 位元組",
   "settings.mcpPage.runtime.resourceBrowser.preview.blob": "二進位資料，{{bytes}} 位元組",
-  "settings.mcpPage.runtime.resourceBrowser.preview.empty": "無內容"
+  "settings.mcpPage.runtime.resourceBrowser.preview.empty": "無內容",
+  "settings.layout.sidebar.search.placeholder": "搜尋設定",
+  "settings.layout.sidebar.search.label": "搜尋設定",
+  "settings.layout.sidebar.search.clear": "清除搜尋",
+  "settings.layout.sidebar.search.noResults": "沒有符合的設定"
 }

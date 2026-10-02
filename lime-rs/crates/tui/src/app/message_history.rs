@@ -35,7 +35,8 @@ impl MessageHistory {
                 thread_id,
                 event: response,
             } => {
-                app.composer
+                app.chat_widget
+                    .bottom_pane
                     .on_history_lookup_response(&thread_id, response);
                 return;
             }

@@ -282,9 +282,9 @@ mod tests {
     #[test]
     fn status_popup_execution_does_not_restore_a_pending_character() {
         let mut app = App::default();
-        app.composer.insert("/statu");
+        app.chat_widget.bottom_pane.composer.insert("/statu");
         assert_eq!(
-            app.composer.handle_key_event_at(
+            app.chat_widget.bottom_pane.composer.handle_key_event_at(
                 KeyEvent::new(KeyCode::Char('s'), KeyModifiers::NONE),
                 Instant::now() - Duration::from_secs(1),
             ),
@@ -303,8 +303,12 @@ mod tests {
             TuiEvent::Key(KeyEvent::new(KeyCode::Char('q'), KeyModifiers::NONE)),
             true,
         );
-        assert!(app.composer.is_empty());
-        assert!(!app.composer.paste_burst_needs_frame());
+        assert!(app.chat_widget.bottom_pane.composer.is_empty());
+        assert!(!app
+            .chat_widget
+            .bottom_pane
+            .composer
+            .paste_burst_needs_frame());
     }
 
     #[test]

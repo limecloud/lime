@@ -10,7 +10,7 @@ use app_server_protocol::protocol::v2::{
 impl App {
     pub(crate) fn track_agents_overview_notification(&mut self, notification: &ServerNotification) {
         let primary = self.primary_thread_id.clone();
-        let Some(overview) = self.agents_overview.as_mut() else {
+        let Some(overview) = self.chat_widget.agents_overview.as_mut() else {
             return;
         };
         let thread_id = match notification {
@@ -96,7 +96,7 @@ impl App {
         &mut self,
         app_server: &AppServerSession,
     ) -> Result<()> {
-        let Some(overview) = self.agents_overview.as_mut() else {
+        let Some(overview) = self.chat_widget.agents_overview.as_mut() else {
             return Ok(());
         };
         if overview.refreshing || overview.loading_more {
@@ -123,7 +123,7 @@ impl App {
         match result {
             Ok((threads, next_cursor)) => {
                 let primary = self.primary_thread_id.clone();
-                if let Some(overview) = self.agents_overview.as_mut() {
+                if let Some(overview) = self.chat_widget.agents_overview.as_mut() {
                     overview.apply_refresh_page(
                         generation,
                         threads,
@@ -132,6 +132,7 @@ impl App {
                     );
                 }
                 let buffered = self
+                    .chat_widget
                     .agents_overview
                     .as_mut()
                     .map(|overview| {
@@ -146,6 +147,7 @@ impl App {
                     self.track_agents_overview_notification(&notification);
                 }
                 let refresh_pending = self
+                    .chat_widget
                     .agents_overview
                     .as_mut()
                     .is_some_and(|overview| overview.take_refresh_pending());
@@ -156,7 +158,7 @@ impl App {
                 Ok(())
             }
             Err(error) => {
-                if let Some(overview) = self.agents_overview.as_mut() {
+                if let Some(overview) = self.chat_widget.agents_overview.as_mut() {
                     overview.refreshing = false;
                     overview.sync_pagination();
                 }
@@ -171,7 +173,7 @@ impl App {
         &mut self,
         app_server: &AppServerSession,
     ) -> Result<()> {
-        let Some(overview) = self.agents_overview.as_mut() else {
+        let Some(overview) = self.chat_widget.agents_overview.as_mut() else {
             return Ok(());
         };
         let Some(cursor) = overview.begin_load_more() else {
@@ -190,13 +192,17 @@ impl App {
             .context("failed to load more agents overview threads");
         match result {
             Ok(page) => {
-                let repeated_cursor = self.agents_overview.as_ref().is_some_and(|overview| {
-                    overview.next_cursor_is_repeated(page.next_cursor.as_deref())
-                });
+                let repeated_cursor =
+                    self.chat_widget
+                        .agents_overview
+                        .as_ref()
+                        .is_some_and(|overview| {
+                            overview.next_cursor_is_repeated(page.next_cursor.as_deref())
+                        });
                 if repeated_cursor {
                     let error =
                         anyhow::anyhow!("agents overview thread list repeated cursor {cursor}");
-                    if let Some(overview) = self.agents_overview.as_mut() {
+                    if let Some(overview) = self.chat_widget.agents_overview.as_mut() {
                         overview.fail_load_more();
                     }
                     self.projection
@@ -204,10 +210,11 @@ impl App {
                     return Err(error);
                 }
                 let primary = self.primary_thread_id.clone();
-                if let Some(overview) = self.agents_overview.as_mut() {
+                if let Some(overview) = self.chat_widget.agents_overview.as_mut() {
                     overview.apply_load_more(page.data, page.next_cursor, primary.as_deref());
                 }
                 let buffered = self
+                    .chat_widget
                     .agents_overview
                     .as_mut()
                     .map(|overview| {
@@ -222,6 +229,7 @@ impl App {
                     self.track_agents_overview_notification(&notification);
                 }
                 let refresh_pending = self
+                    .chat_widget
                     .agents_overview
                     .as_mut()
                     .is_some_and(|overview| overview.take_refresh_pending());
@@ -232,10 +240,11 @@ impl App {
                 Ok(())
             }
             Err(error) => {
-                if let Some(overview) = self.agents_overview.as_mut() {
+                if let Some(overview) = self.chat_widget.agents_overview.as_mut() {
                     overview.fail_load_more();
                 }
                 let refresh_pending = self
+                    .chat_widget
                     .agents_overview
                     .as_mut()
                     .is_some_and(|overview| overview.take_refresh_pending());

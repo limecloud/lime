@@ -87,15 +87,23 @@ fn overlay_escape_closes_help_before_active_turn_interrupt_or_scroll() {
     let mut app = App::default();
     app.start_turn("canonical-turn".into());
     app.scroll_up(5);
-    let scroll = app.transcript_scroll;
+    let scroll = app.chat_widget.transcript_scroll;
     app.handle_tui_event(TuiEvent::Key(key(KeyCode::Char('?'))), true);
-    assert!(app.composer.shortcut_overlay_visible());
+    assert!(app
+        .chat_widget
+        .bottom_pane
+        .composer
+        .shortcut_overlay_visible());
     assert_eq!(
         app.handle_tui_event(TuiEvent::Key(key(KeyCode::Esc)), true),
         AppAction::None
     );
-    assert_eq!(app.transcript_scroll, scroll);
-    assert!(!app.composer.shortcut_overlay_visible());
+    assert_eq!(app.chat_widget.transcript_scroll, scroll);
+    assert!(!app
+        .chat_widget
+        .bottom_pane
+        .composer
+        .shortcut_overlay_visible());
     app.scroll_bottom();
     assert_eq!(
         app.handle_tui_event(TuiEvent::Key(key(KeyCode::Esc)), true),

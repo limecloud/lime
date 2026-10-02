@@ -41,7 +41,7 @@ export function PluginWorkspaceTabs({
 
   return (
     <div className="lime-workbench-theme-scope flex min-h-0 flex-1 flex-col overflow-hidden bg-[color:var(--lime-app-bg)]">
-      <nav className="flex h-12 shrink-0 items-center border-b border-[color:var(--lime-surface-border)] bg-[color:var(--lime-app-bg)] px-5 lg:px-8">
+      <nav className="hidden" aria-hidden="true">
         <div
           className="relative z-[1001] flex items-center gap-1 [app-region:no-drag] [-webkit-app-region:no-drag]"
           role="tablist"

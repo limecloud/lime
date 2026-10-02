@@ -191,12 +191,75 @@ describe("PluginCatalogPage", () => {
     }
   });
 
+  it("同页侧栏导航应同步安装筛选、搜索和选中的插件详情", async () => {
+    mocks.listPluginCatalog.mockResolvedValue({
+      generatedAt: "now",
+      plugins: [
+        summary(),
+        summary({ id: "browser", name: "Browser", installed: false }),
+      ],
+    });
+    const container = await renderPage();
+    const { root } = mounted.at(-1)!;
+    await act(async () => {
+      root.render(
+        <PluginCatalogPage
+          pageParams={{
+            statusFilter: "installed",
+            selectedPluginId: "writer-plugin",
+            query: "Writer",
+          }}
+        />,
+      );
+    });
+    await flush();
+    expect(
+      container
+        .querySelector('[data-testid="plugin-catalog-search"]')
+        ?.getAttribute("value"),
+    ).toBe("Writer");
+    expect(
+      container.querySelector('[data-testid="plugin-catalog-card-browser"]'),
+    ).toBeNull();
+    expect(mocks.readPluginCatalog).toHaveBeenLastCalledWith({
+      pluginId: "writer-plugin",
+    });
+
+    await click(
+      container.querySelector('[data-testid="plugin-catalog-view-all"]'),
+    );
+    await act(async () => {
+      root.render(
+        <PluginCatalogPage pageParams={{ statusFilter: "installed" }} />,
+      );
+    });
+    await flush();
+    expect(
+      container.querySelector<HTMLInputElement>(
+        '[data-testid="plugin-catalog-search"]',
+      )?.value,
+    ).toBe("");
+    expect(
+      container.querySelector('[data-testid="plugin-catalog-card-browser"]'),
+    ).toBeNull();
+
+    await act(async () => {
+      root.render(<PluginCatalogPage pageParams={{}} />);
+    });
+    await flush();
+    expect(
+      container.querySelector('[data-testid="plugin-catalog-card-browser"]'),
+    ).not.toBeNull();
+  });
+
   it("从 v2 catalog 展示安装状态并读取详情", async () => {
     const container = await renderPage();
 
     expect(container.textContent).toContain("插件中心");
     expect(
-      container.querySelector('[data-testid="plugin-catalog-card-writer-plugin"]'),
+      container.querySelector(
+        '[data-testid="plugin-catalog-card-writer-plugin"]',
+      ),
     ).not.toBeNull();
     expect(mocks.listPluginCatalog).toHaveBeenCalledWith();
     expect(mocks.readPluginCatalog).toHaveBeenCalledWith({
@@ -205,7 +268,9 @@ describe("PluginCatalogPage", () => {
     expect(container.textContent).toContain("Article Writing");
     expect(
       container
-        .querySelector('[data-testid="plugin-catalog-app-readiness-writer-app"]')
+        .querySelector(
+          '[data-testid="plugin-catalog-app-readiness-writer-app"]',
+        )
         ?.getAttribute("data-callable"),
     ).toBe("false");
     expect(container.textContent).toContain("宿主待接入");
@@ -216,7 +281,9 @@ describe("PluginCatalogPage", () => {
       ),
     );
     await click(
-      container.querySelector('[data-testid="plugin-catalog-toggle-writer-plugin"]'),
+      container.querySelector(
+        '[data-testid="plugin-catalog-toggle-writer-plugin"]',
+      ),
     );
     expect(mocks.setPluginCatalogEnabled).toHaveBeenCalledWith({
       pluginId: "writer-plugin",
@@ -276,11 +343,15 @@ describe("PluginCatalogPage", () => {
       marketplacePaths: ["/tmp/marketplace"],
     });
     expect(
-      document.body.querySelector('[data-testid="plugin-catalog-install-review"]'),
+      document.body.querySelector(
+        '[data-testid="plugin-catalog-install-review"]',
+      ),
     ).not.toBeNull();
 
     await click(
-      document.body.querySelector('[data-testid="plugin-catalog-confirm-install"]'),
+      document.body.querySelector(
+        '[data-testid="plugin-catalog-confirm-install"]',
+      ),
     );
     expect(mocks.installPluginCatalog).toHaveBeenCalledWith({
       sourcePath: "/tmp/writer-plugin",

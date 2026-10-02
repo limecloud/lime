@@ -249,7 +249,7 @@ impl super::App {
             self.runtime_keymap.agents().clone(),
             self.runtime_keymap.list().clone(),
         );
-        self.agents_overview = Some(overview);
+        self.chat_widget.agents_overview = Some(overview);
     }
 
     /// Start a background task through the current App Server session.
@@ -262,8 +262,8 @@ impl super::App {
         let thread = app_server
             .start_thread_with_session_start_source(
                 cwd.unwrap_or_else(|| self.cwd.clone()),
-                self.model.clone(),
-                self.model_provider.clone(),
+                self.chat_widget.model.clone(),
+                self.chat_widget.model_provider.clone(),
                 None,
             )
             .await?;

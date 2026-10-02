@@ -36,7 +36,7 @@ fn test_backend_renders_filtered_slash_command_popup_above_composer() {
 fn export_picker_matches_codex_destination_and_filename_flow() {
     let mut app = App::default();
     app.set_thread_id("00000000-0000-0000-0000-000000000123".to_string());
-    app.composer.insert("/export");
+    app.chat_widget.bottom_pane.insert_str("/export");
     assert_eq!(
         dispatch_connected_input(
             &mut app,
@@ -67,6 +67,7 @@ fn export_picker_matches_codex_destination_and_filename_flow() {
         crate::app::AppAction::None
     );
     assert!(app
+        .chat_widget
         .export_picker
         .as_ref()
         .is_some_and(crate::app::transcript_export::ExportPicker::is_filename_prompt));
@@ -89,7 +90,7 @@ fn export_picker_matches_codex_destination_and_filename_flow() {
             )),
         }
     );
-    assert!(app.export_picker.is_none());
+    assert!(app.chat_widget.export_picker.is_none());
 }
 
 #[test]
@@ -103,7 +104,7 @@ fn status_pager_owns_the_frame_and_renders_current_session_facts() {
         Some("high".to_string()),
         Some(":workspace".to_string()),
     );
-    app.composer.insert("/status");
+    app.chat_widget.bottom_pane.insert_str("/status");
     dispatch_connected_input(
         &mut app,
         Event::Key(crossterm::event::KeyEvent::new(
@@ -134,7 +135,9 @@ fn status_pager_owns_the_frame_and_renders_current_session_facts() {
 fn transcript_overlay_renders_live_canonical_projection_with_markdown_and_links() {
     let destination = "https://example.com/transcript";
     let mut app = App::default();
-    app.composer.insert("draft remains private");
+    app.chat_widget
+        .bottom_pane
+        .insert_str("draft remains private");
     app.projection.apply(ServerNotification::AgentMessageDelta(
         AgentMessageDeltaNotification {
             thread_id: "thread-1".to_string(),
@@ -451,7 +454,7 @@ fn test_backend_renders_bounded_command_output_marker() {
 fn narrow_terminal_does_not_overflow_or_panic() {
     let mut app = App::default();
     app.projection.set_status("a-status-that-does-not-fit");
-    app.composer.insert("界界界界");
+    app.chat_widget.bottom_pane.insert_str("界界界界");
     let mut terminal = Terminal::new(TestBackend::new(8, 6)).expect("terminal");
 
     terminal.draw(|frame| render(frame, &app)).expect("draw");

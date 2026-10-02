@@ -28,10 +28,17 @@ function positiveInput() {
       unknownItem: {
         gui: {
           visible: true,
-          upstreamTypeVisible: true,
-          safeFieldNamesVisible: true,
+          diagnosticsCollapsed: true,
+          upstreamTypeHidden: true,
+          safeFieldNamesHidden: true,
           internalTypeHidden: true,
           rawValuesHidden: true,
+          diagnostics: {
+            diagnosticsExpanded: true,
+            upstreamTypeVisible: true,
+            safeFieldNamesVisible: true,
+            rawValuesHidden: true,
+          },
         },
         readModel: {
           present: true,
@@ -102,6 +109,33 @@ describe("unknown Item current fixture", () => {
     expect(
       buildUnknownItemScenarioAssertions(input)
         .unknownItemReadModelFieldsSanitized,
+    ).toBe(false);
+  });
+
+  it.each([
+    "diagnosticsCollapsed",
+    "upstreamTypeHidden",
+    "safeFieldNamesHidden",
+  ])("rejects default conversation exposure when %s is false", (field) => {
+    const input = positiveInput();
+    input.summary.unknownItem.gui[field] = false;
+    expect(
+      buildUnknownItemScenarioAssertions(input).unknownItemGuiFailVisible,
+    ).toBe(false);
+  });
+
+  it("requires working diagnostics interaction without exposing raw values", () => {
+    const input = positiveInput();
+    input.summary.unknownItem.gui.diagnostics.diagnosticsExpanded = false;
+    expect(
+      buildUnknownItemScenarioAssertions(input)
+        .unknownItemGuiDiagnosticsInteractive,
+    ).toBe(false);
+
+    input.summary.unknownItem.gui.diagnostics.diagnosticsExpanded = true;
+    input.summary.unknownItem.gui.diagnostics.rawValuesHidden = false;
+    expect(
+      buildUnknownItemScenarioAssertions(input).unknownItemGuiFieldsSanitized,
     ).toBe(false);
   });
 });

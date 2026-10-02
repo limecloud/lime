@@ -152,7 +152,7 @@ fn agents_overview_buffers_latest_notification_during_refresh() {
     let mut state = AgentsOverviewState::new(None);
     state.replace_threads(vec![thread("background", None, ThreadStatus::Idle)], None);
     state.refreshing = true;
-    app.agents_overview = Some(state);
+    app.chat_widget.agents_overview = Some(state);
 
     let notification = ServerNotification::ThreadNameUpdated(ThreadNameUpdatedNotification {
         thread_id: "background".to_string(),
@@ -166,7 +166,11 @@ fn agents_overview_buffers_latest_notification_during_refresh() {
         },
     ));
 
-    let overview = app.agents_overview.as_ref().expect("overview state");
+    let overview = app
+        .chat_widget
+        .agents_overview
+        .as_ref()
+        .expect("overview state");
     assert_eq!(overview.refresh_notifications["background"].len(), 1);
     assert_eq!(
         overview
@@ -187,7 +191,7 @@ fn agents_overview_buffers_latest_notification_during_refresh() {
 fn background_thread_notifications_do_not_mutate_the_current_projection() {
     let mut app = super::super::App::default();
     app.set_thread_id("current".to_string());
-    app.agents_overview = Some(AgentsOverviewState::new(Some("current")));
+    app.chat_widget.agents_overview = Some(AgentsOverviewState::new(Some("current")));
 
     app.apply_notification(ServerNotification::AgentMessageDelta(
         AgentMessageDeltaNotification {
@@ -227,13 +231,13 @@ fn agents_overview_filter_and_pagination_share_the_live_view_after_notifications
         Some("next-page".into()),
         None,
     );
-    app.agents_overview = Some(state);
+    app.chat_widget.agents_overview = Some(state);
     app.handle_tui_event(
         TuiEvent::Key(KeyEvent::new(KeyCode::Char('f'), KeyModifiers::NONE)),
         true,
     );
     app.handle_tui_event(TuiEvent::Paste("background".into()), true);
-    let state = app.agents_overview.as_ref().unwrap();
+    let state = app.chat_widget.agents_overview.as_ref().unwrap();
     assert_eq!(state.view.search(), "background");
     assert_eq!(state.view.selected_thread_id(), Some("background"));
 
@@ -243,7 +247,7 @@ fn agents_overview_filter_and_pagination_share_the_live_view_after_notifications
             thread_name: Some("background updated".into()),
         },
     ));
-    let state = app.agents_overview.as_mut().unwrap();
+    let state = app.chat_widget.agents_overview.as_mut().unwrap();
     assert_eq!(state.view.search(), "background");
     assert_eq!(state.view.selected_thread_id(), Some("background"));
     assert_eq!(

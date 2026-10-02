@@ -28,7 +28,7 @@
 - [x] `npm run verify:gui-smoke`：真实Electron/App Server `1.148.0`、重载、3种窗口尺寸、memory settings通过，summary `.lime/qc/project-gates/standalone-shell-01-20261001121857-88407/shell-01-electron-smoke/summary.json`。
 - [x] `npm run smoke:cli-gate-b`：fresh当前二进制真实stdio通过，日志 `/tmp/lime-release-v1.148.0-cli-gate-b.log`。
 - [x] `npm run smoke:tui-gate-b`：首次新输入断言误将JSON对象键顺序当成数据不同；已改为Node deepStrictEqual，保留全对象字段/数组顺序要求，守卫`22/22`与完整11场景真实PTY复验通过。thread `01a0f76a-4911-7f12-975a-4388bad23e4a`、turn `turn_d0a68acd89294c80b5ace4cf575a9d3e`；thread-input/typed-input实际stdio、queue/edit、agents、notes、images/skills/history、keymap、focus/resize/reconnect与terminal恢复通过。日志 `/tmp/lime-release-v1.148.0-tui-gate-b.log`。
-- [x] workspace fmt、`git diff --check`；staged摘要待冻结候选时复核。
+- [x] workspace fmt、`git diff --check`与`git diff --cached --check`；冻结252个文件，`40101 insertions(+), 13389 deletions(-)`。
 - [ ] 远端 Actions、Release 资产、npm optional packages 与安装证据
 
 资源限制：此前 `lime-rs/target` 约 103 GiB，已按用户授权删除生成产物以恢复验证空间；源代码与 Git 跟踪文件未删除。
@@ -40,6 +40,12 @@
 用户已明确“我出去了,我完全授权,不要找我确认,完成发布”。清理生成产物、必要修复、全部候选commit/tag/main与tag推送及发布收口均在该授权内，不再重复询问。冻结候选后复核staged摘要，连续执行全部Git写操作，再复核本地状态、提交和远端引用。
 
 本轮窄写集：release metadata与TUI Gate脚本两处结构化断言修复；其余候选产品源码避让原写入进程，仅验证并纳入发布。
+
+发布提交 `dd9a851a007cd1bbe6c10393b64293f7877e87e1` 已通过 pre-commit hook，`main` 与 `v1.148.0` 已推送并复核远端同SHA。Release run：<https://github.com/limecloud/lime/actions/runs/36861855091>；Quality run：<https://github.com/limecloud/lime/actions/runs/36861825791>。发布后的并发TUI对齐计划改动留在工作树，不并入已冻结tag。
+
+远端 Frontend Full job `110367752138` 已通过 lint、typecheck 与完整Vitest：120批次、1592个测试文件、11282个测试通过，1个既有跳过测试。Integrity、真实GUI smoke与文档部署已通过；Rust/Windows及发布矩阵继续等待远端最终结果。
+
+Electron macOS arm64 job `110367868504` 已通过构建、资源检查、打包native host Gate B与资产上传。Windows x64 job `110367868627` 已通过真实Squirrel安装/N-1升级、CodeMode Gate B、native host Gate B、候选身份检查与资产上传。macOS x64尚在构建，GitHub Release仍保持draft。
 
 ## 架构与分类
 

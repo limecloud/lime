@@ -13,7 +13,7 @@ export const Navbar = styled.div<{
   justify-content: ${({ $collapsed }) =>
     $collapsed ? "flex-end" : "space-between"};
   gap: ${({ $compact, $collapsed, $taskCenter }) =>
-    $collapsed ? "10px" : $taskCenter ? "8px" : $compact ? "8px" : "12px"};
+    $collapsed ? "8px" : $taskCenter ? "8px" : $compact ? "8px" : "10px"};
   padding: ${({ $compact, $collapsed, $taskCenter }) =>
     $collapsed
       ? $compact
@@ -25,9 +25,9 @@ export const Navbar = styled.div<{
           : "1px 8px 0"
         : $compact
           ? "7px 10px 7px"
-          : "12px 16px 10px"};
+          : "6px 12px"};
   min-height: ${({ $compact, $collapsed, $taskCenter }) =>
-    $collapsed ? "auto" : $taskCenter ? "auto" : $compact ? "50px" : "64px"};
+    $collapsed ? "auto" : $taskCenter ? "auto" : $compact ? "46px" : "46px"};
   border-bottom: ${({ $collapsed }) =>
     $collapsed
       ? "none"
@@ -43,7 +43,7 @@ export const Navbar = styled.div<{
       ? "transparent"
       : $taskCenter
         ? "transparent"
-        : "var(--lime-composer-surface-floating)"};
+        : "var(--lime-surface, var(--lime-composer-surface-floating))"};
   box-shadow: ${({ $collapsed, $taskCenter }) =>
     $collapsed
       ? "none"

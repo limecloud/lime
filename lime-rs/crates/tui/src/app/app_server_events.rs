@@ -24,7 +24,7 @@ impl App {
             }
             AppServerEvent::Disconnected { .. } => {
                 self.clear_connection_interactions();
-                self.model_picker = None;
+                self.chat_widget.model_picker = None;
                 self.dismiss_pager_overlay();
                 self.projection.set_status("reconnecting");
             }

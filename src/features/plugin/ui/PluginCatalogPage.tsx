@@ -86,6 +86,14 @@ export function PluginCatalogPage({
   const [uninstallTarget, setUninstallTarget] =
     useState<AppServerPluginCatalogSummary | null>(null);
 
+  // 侧栏在同一页面内切换目录、安装态和详情时同步路由参数。
+  useEffect(() => {
+    setSelectedId(pageParams?.selectedPluginId ?? null);
+    setView(pageParams?.statusFilter === "installed" ? "installed" : "all");
+    setQuery(pageParams?.query ?? "");
+    setSource("all");
+  }, [pageParams]);
+
   const refresh = useCallback(async () => {
     setLoading(true);
     setError(null);

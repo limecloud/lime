@@ -37,6 +37,7 @@ export const setOemCloudBootstrapSnapshot = setOemCloudBootstrapSnapshotImpl;
 export const setStoredOemCloudSessionState = setStoredOemCloudSessionStateImpl;
 
 const {
+  mockListInstalledPluginCatalog,
   mockGetConfig,
   mockSaveConfig,
   mockSubscribeAppConfigChanged,
@@ -85,6 +86,7 @@ const {
   mockRemindUpdateLater,
   mockStartUpdateInstallSession,
 } = vi.hoisted(() => ({
+  mockListInstalledPluginCatalog: vi.fn(),
   mockGetConfig: vi.fn(),
   mockSaveConfig: vi.fn(),
   mockSubscribeAppConfigChanged: vi.fn(),
@@ -148,6 +150,7 @@ const {
 }));
 
 export {
+  mockListInstalledPluginCatalog,
   mockBuildOemCloudUserCenterUrl,
   mockCheckForUpdates,
   mockCreateExternalBrowserOpenTarget,
@@ -200,6 +203,12 @@ vi.mock("@/lib/api/appConfig", () => ({
   getConfig: mockGetConfig,
   saveConfig: mockSaveConfig,
   subscribeAppConfigChanged: mockSubscribeAppConfigChanged,
+}));
+
+vi.mock("@/lib/api/pluginCatalog", () => ({
+  PLUGIN_CATALOG_CHANGED_EVENT: "lime:plugin-catalog-changed",
+  listInstalledPluginCatalog: (...args: unknown[]) =>
+    mockListInstalledPluginCatalog(...args),
 }));
 
 vi.mock("@/i18n/legacy-patch/I18nPatchProvider", () => ({
@@ -698,6 +707,10 @@ export async function resetAppSidebarTest() {
   document.documentElement.removeAttribute("data-lime-color-scheme");
   document.documentElement.removeAttribute("style");
   mockGetConfig.mockResolvedValue({});
+  mockListInstalledPluginCatalog.mockResolvedValue({
+    plugins: [],
+    generatedAt: "now",
+  });
   mockSaveConfig.mockResolvedValue(undefined);
   mockListAgentRuntimeSessions.mockResolvedValue([]);
   mockOpenDesktopDialog.mockResolvedValue(null);

@@ -87,14 +87,14 @@ pub(crate) fn render_main_transcript_content(
 ) -> MainTranscriptContent {
     let content_width = viewport_width.saturating_sub(2).max(1);
     let header = SessionHeaderHistoryCell::new(
-        app.model.as_deref().unwrap_or("auto"),
-        app.reasoning_effort.clone(),
-        app.permissions.clone(),
+        app.chat_widget.model.as_deref().unwrap_or("auto"),
+        app.chat_widget.reasoning_effort.clone(),
+        app.chat_widget.permissions.clone(),
         app.cwd.clone(),
         env!("CARGO_PKG_VERSION"),
         app.locale,
     );
-    let mode = app.history_render_mode();
+    let mode = app.chat_widget.history_render_mode;
     let mut content = MainTranscriptContent::default();
     content.push_other(
         "session-header",
@@ -198,9 +198,9 @@ pub(crate) fn render_main_transcript_content(
 pub(crate) fn render_transcript_pager_content(app: &App, viewport_width: u16) -> TranscriptContent {
     let content_width = viewport_width.saturating_sub(2).max(1);
     let header = SessionHeaderHistoryCell::new(
-        app.model.as_deref().unwrap_or("auto"),
-        app.reasoning_effort.clone(),
-        app.permissions.clone(),
+        app.chat_widget.model.as_deref().unwrap_or("auto"),
+        app.chat_widget.reasoning_effort.clone(),
+        app.chat_widget.permissions.clone(),
         app.cwd.clone(),
         env!("CARGO_PKG_VERSION"),
         app.locale,

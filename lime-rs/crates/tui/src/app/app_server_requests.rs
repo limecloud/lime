@@ -51,7 +51,7 @@ impl App {
                         return;
                     }
                 }
-                match self.bottom_pane.enqueue(request) {
+                match self.chat_widget.bottom_pane.enqueue(request) {
                     Ok(()) => {
                         if !unsupported_request {
                             self.note_startup_protected_request();

@@ -1,7 +1,7 @@
 //! Keyboard input flow for the TUI app.
 //!
 //! This owner mirrors Codex `chatwidget/input_flow`: App owns global routing,
-//! while ChatComposer remains the editor and popup owner.
+//! while BottomPane owns editor and popup interaction.
 
 use super::*;
 use crate::app::agent_navigation::AgentNavigationDirection;
@@ -14,9 +14,10 @@ impl App {
             && matches!(key_event.code, KeyCode::Char(_))
         {
             let action = self
-                .composer
+                .chat_widget
+                .bottom_pane
                 .handle_key_event_at(key_event, std::time::Instant::now());
-            return self.map_composer_action(action);
+            return self.map_chat_widget_action(action);
         }
         if key_event.modifiers.contains(KeyModifiers::ALT)
             && matches!(key_event.code, KeyCode::Char(',' | '.'))
@@ -24,15 +25,8 @@ impl App {
         {
             return AppAction::None;
         }
-        if key_event.kind == KeyEventKind::Press
-            && key_event.code == KeyCode::Esc
-            && key_event.modifiers.is_empty()
-            && self.composer.dismiss_shortcut_overlay()
-        {
-            return AppAction::None;
-        }
-        if self.resume_picker.is_none()
-            && self.agents_overview.is_none()
+        if self.chat_widget.resume_picker.is_none()
+            && self.chat_widget.agents_overview.is_none()
             && key_event.kind == KeyEventKind::Press
         {
             match key_event.code {
@@ -50,7 +44,7 @@ impl App {
 
         if key_event.kind == KeyEventKind::Press
             && self.projection.active_turn_id().is_none()
-            && self.composer.is_empty()
+            && self.chat_widget.bottom_pane.composer_is_empty()
         {
             let direction = if crate::multi_agents::previous_agent_shortcut_matches(key_event, true)
             {
@@ -82,7 +76,7 @@ impl App {
                 code: KeyCode::Esc,
                 kind: KeyEventKind::Press,
                 ..
-            } if self.transcript_scroll > 0 => {
+            } if self.chat_widget.transcript_scroll > 0 => {
                 self.scroll_bottom();
                 AppAction::None
             }
@@ -114,19 +108,22 @@ impl App {
                 modifiers,
                 kind: KeyEventKind::Press,
                 ..
-            } if modifiers.contains(KeyModifiers::ALT) && self.composer.is_empty() => self
-                .queued_submissions
-                .last()
-                .filter(|submission| can_restore_submission(submission))
-                .cloned()
-                .map(AppAction::EditQueuedSubmission)
-                .unwrap_or(AppAction::None),
+            } if modifiers.contains(KeyModifiers::ALT)
+                && self.chat_widget.bottom_pane.composer_is_empty() =>
+            {
+                self.queued_submissions
+                    .last()
+                    .filter(|submission| can_restore_submission(submission))
+                    .cloned()
+                    .map(AppAction::EditQueuedSubmission)
+                    .unwrap_or(AppAction::None)
+            }
             KeyEvent {
                 kind: KeyEventKind::Press,
                 ..
             } => {
                 if key_event.code == KeyCode::Enter
-                    && !self.composer.vim_search_active()
+                    && !self.chat_widget.bottom_pane.vim_search_active()
                     && !key_event
                         .modifiers
                         .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT | KeyModifiers::SHIFT)
@@ -136,15 +133,17 @@ impl App {
                     }
                 }
                 let action = self
-                    .composer
+                    .chat_widget
+                    .bottom_pane
                     .handle_key_event_at(key_event, std::time::Instant::now());
-                self.map_composer_action(action)
+                self.map_chat_widget_action(action)
             }
             _ => {
                 let action = self
-                    .composer
+                    .chat_widget
+                    .bottom_pane
                     .handle_key_event_at(key_event, std::time::Instant::now());
-                self.map_composer_action(action)
+                self.map_chat_widget_action(action)
             }
         }
     }
