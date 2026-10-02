@@ -29,7 +29,8 @@
 
 首轮 GitHub Actions release run `36951843849` 在 macOS arm64/x64 的 packaged Gate B
 因共享 `openSettings()` 仍等待已移除的 `[data-testid="app-sidebar-account-button"]`
-失败；Windows 构建通过。修复提交 `5e11b1788` 让该入口优先使用当前
+失败；Windows 构建通过。修复提交 `2adeff44f` 让该入口优先使用当前
 `[data-testid="app-sidebar-nav-settings"]`，并保留旧账号菜单回退，定向 fixture、Electron
-entrypoint 与 release workflow guard 已通过。待修复提交推送后重跑同一版本的 release workflow，
-确认两种 macOS 架构、Electron 资产发布和 GitHub Release 均成功。
+entrypoint 与 release workflow guard 已通过。修复提交已推送并重建同一版本标签；release run
+`37001148769` 的 macOS arm64/x64、Windows x64、Electron 资产、R2 updater 和 CLI npm 四平台
+均成功，GitHub Release `v1.149.0` 已发布并包含 14 个资产。
