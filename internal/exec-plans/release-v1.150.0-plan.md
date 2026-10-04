@@ -1,6 +1,6 @@
 # Lime v1.150.0 发布执行计划
 
-状态：进行中
+状态：本地已发布，远端推送阻塞
 日期：2026-10-04
 基线：`v1.149.0` / `2adeff44f`
 目标：将当前工作树中 v1.149.0 之后的 TUI/CLI ChatWidget、历史、交互、结构守卫、架构和执行计划改动作为 v1.150.0 release candidate，完成版本同步、发布说明、质量门禁和远端发布。
@@ -8,7 +8,7 @@
 ## Release candidate
 
 - release metadata：`package.json`、`packages/cli/package.json`、`lime-rs/Cargo.toml`、`lime-rs/Cargo.lock`、`RELEASE_NOTES.md`、`RELEASE_NOTES.en.md`。
-- candidate changes：当前工作树中全部已跟踪与未跟踪改动（TUI ChatWidget 拆分、历史分页/恢复、交互与输入生命周期、结构守卫、架构和执行计划），共 110 个已跟踪文件与 6 个未跟踪文件（含本发布计划与 5 个 ChatWidget 模块）；无排除项。
+- candidate changes：当前工作树中全部已跟踪与未跟踪改动（TUI ChatWidget 拆分、历史分页/恢复、交互与输入生命周期、结构守卫、架构和执行计划），最终 release commit 包含 117 个路径；初始盘点为 110 个已跟踪文件与 6 个未跟踪文件，暂存前又纳入 1 个并行产生的 TUI 改动；无排除项。
 - excluded changes：无。工作区未发现可从本次发布自动排除的个人临时文件。
 
 ## 退出条件
@@ -18,8 +18,8 @@
 - [x] `npm run typecheck` 通过。
 - [x] `npm run test:contracts` 通过。
 - [x] TUI 全目标测试、strict Clippy、结构守卫、TUI Gate B 与 CLI Gate B 通过；`npm run verify:gui-smoke` 构建通过但 Electron smoke 因缺少结构化 `summary.json` 失败，已记录为 harness-blocked。
-- [ ] release candidate staged 摘要复核，取得 git 写操作确认。
-- [ ] 创建 `Release v1.150.0` commit、`v1.150.0` tag，推送 `main` 与 tag，并复核远端 SHA。
+- [x] release candidate staged 摘要复核，取得 git 写操作确认。
+- [x] 已创建 `Release v1.150.0` commit（`b34f89280`）与本地 `v1.150.0` tag；远端 `main` 与 tag 推送因凭据环境阻塞。
 
 ## 架构确认
 
@@ -40,4 +40,10 @@
 
 ## 当前阻塞
 
-远端只读检查 `git ls-remote` 因本机 Git 用户映射/凭据失败（`No user exists for uid 501`），待发布写操作时复核并记录。GUI smoke 的结构化 summary 缺失也需发布流水线或 harness 修复后补证据。
+本机 Git 用户映射/凭据失败（`No user exists for uid 501`），`git push origin main` 与 `git push origin v1.150.0` 均失败；修复凭据后需继续推送并复核远端 SHA。GUI smoke 的结构化 summary 缺失也需发布流水线或 harness 修复后补证据。
+
+## 本地发布结果
+
+- commit：`b34f89280`（`Release v1.150.0`）
+- tag：本地 `v1.150.0` 已创建，指向 `b34f89280`
+- 远端：`origin/main` 与 `origin/v1.150.0` 尚未更新，待凭据环境恢复后重试。
