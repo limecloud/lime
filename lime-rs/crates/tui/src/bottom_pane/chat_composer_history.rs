@@ -6,6 +6,7 @@ use crate::app_event::AppEvent;
 use crate::app_event_sender::AppEventSender;
 use crate::bottom_pane::{LocalImageAttachment, RemoteImageAttachment};
 use agent_protocol::TextElement;
+use app_server_protocol::protocol::v2::{ThreadItem, Turn, UserInput};
 use std::collections::{HashMap, HashSet};
 
 mod search;
@@ -43,6 +44,116 @@ impl HistoryEntry {
                 .collect(),
         }
     }
+
+    /// Lower one canonical user message into the existing composer history shape.
+    ///
+    /// Replay must preserve the structured input facts that the composer can restore. Review
+    /// filtering is intentionally owned by the caller because it requires complete Turn
+    /// metadata; this conversion only handles one already-approved UserMessage payload.
+    pub(super) fn from_user_inputs(inputs: &[UserInput]) -> Option<Self> {
+        let mut text = String::new();
+        let mut text_elements = Vec::new();
+        let mut local_images = Vec::new();
+        let mut remote_images = Vec::new();
+        let mut mention_bindings = Vec::new();
+
+        for input in inputs {
+            match input {
+                UserInput::Text {
+                    text: value,
+                    text_elements: elements,
+                } => {
+                    let offset = text.len();
+                    text.push_str(value);
+                    text_elements.extend(elements.iter().map(|element| {
+                        TextElement::new(
+                            element.byte_range.start + offset..element.byte_range.end + offset,
+                            element.placeholder.clone(),
+                        )
+                    }));
+                }
+                UserInput::Image { detail, url } => {
+                    remote_images.push(RemoteImageAttachment {
+                        url: url.clone(),
+                        detail: *detail,
+                    });
+                }
+                UserInput::LocalImage { detail, path } => {
+                    let image_number = remote_images.len() + local_images.len() + 1;
+                    local_images.push(LocalImageAttachment {
+                        placeholder: format!("[Image #{image_number}]"),
+                        path: path.clone().into(),
+                        detail: *detail,
+                    });
+                }
+                UserInput::Skill { name, path } => mention_bindings.push(MentionBinding {
+                    sigil: '$',
+                    mention: name.clone(),
+                    path: path.clone(),
+                }),
+                UserInput::Mention { name, path } => mention_bindings.push(MentionBinding {
+                    sigil: '@',
+                    mention: name.clone(),
+                    path: path.clone(),
+                }),
+            }
+        }
+
+        let entry = Self {
+            text,
+            text_elements,
+            local_images,
+            remote_images,
+            pending_pastes: Vec::new(),
+            mention_bindings,
+        };
+        (!entry.is_empty()).then_some(entry)
+    }
+
+    fn is_empty(&self) -> bool {
+        self.text.is_empty()
+            && self.text_elements.is_empty()
+            && self.local_images.is_empty()
+            && self.remote_images.is_empty()
+            && self.pending_pastes.is_empty()
+            && self.mention_bindings.is_empty()
+    }
+}
+
+pub(super) fn replay_entries_from_turns(turns: &[Turn]) -> Vec<HistoryEntry> {
+    let hidden_ids = crate::history_filter::hidden_user_message_ids(turns);
+    turns
+        .iter()
+        .flat_map(|turn| turn.items.iter())
+        .filter_map(|item| match item {
+            ThreadItem::UserMessage { id, content, .. } if !hidden_ids.contains(id) => {
+                HistoryEntry::from_user_inputs(content)
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+pub(super) fn replay_entries_from_items(
+    items: &[ThreadItem],
+    turns: Option<&[Turn]>,
+) -> Vec<HistoryEntry> {
+    // A flat paginated page cannot prove nested-review identity. Do not seed it until the
+    // optional canonical Turn enrichment is available; rendering may remain item-only, but
+    // composer recall must never expose an agent-only review prompt.
+    let Some(turns) = turns else {
+        return Vec::new();
+    };
+    let hidden_ids = crate::history_filter::hidden_user_message_ids(turns);
+    crate::history_filter::filter_review_mode_items(items)
+        .into_iter()
+        .filter_map(|item| match item {
+            ThreadItem::UserMessage { id, content, .. } if !hidden_ids.contains(&id) => {
+                HistoryEntry::from_user_inputs(&content)
+            }
+            _ => None,
+        })
+        .collect()
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -58,6 +169,7 @@ pub(super) struct ChatComposerHistory {
     persistent_log_id: Option<String>,
     persistent_entry_count: usize,
     local_history: Vec<HistoryEntry>,
+    replay_seeded_history: Vec<HistoryEntry>,
     fetched_history: HashMap<usize, Option<HistoryEntry>>,
     history_cursor: Option<usize>,
     pending_navigation_direction: Option<HistorySearchDirection>,
@@ -70,14 +182,19 @@ pub(super) struct ChatComposerHistory {
 impl ChatComposerHistory {
     /// Startup-local drafts survive initial configuration; later thread snapshots reset history.
     pub(super) fn set_metadata(&mut self, thread_id: String, log_id: String, entry_count: usize) {
-        let had_configured_thread = self.thread_id.replace(thread_id).is_some();
+        let thread_changed = self
+            .thread_id
+            .as_deref()
+            .is_some_and(|current| current != thread_id);
+        self.thread_id = Some(thread_id);
         self.persistent_log_id = Some(log_id);
         self.persistent_entry_count = entry_count;
         self.fetched_history.clear();
         self.in_flight_entries.clear();
         self.in_flight_batches.clear();
-        if had_configured_thread {
+        if thread_changed {
             self.local_history.clear();
+            self.replay_seeded_history.clear();
         }
         self.reset_navigation();
     }
@@ -102,18 +219,72 @@ impl ChatComposerHistory {
     }
 
     pub(super) fn record_local_submission(&mut self, entry: HistoryEntry) {
-        if entry.text.is_empty()
-            && entry.text_elements.is_empty()
-            && entry.local_images.is_empty()
-            && entry.remote_images.is_empty()
-            && entry.pending_pastes.is_empty()
-            && entry.mention_bindings.is_empty()
-        {
-            return;
+        self.record_local_submission_inner(entry);
+    }
+
+    pub(super) fn record_replayed_submission(&mut self, entry: HistoryEntry) {
+        if self.record_local_submission_inner(entry.clone()) {
+            self.replay_seeded_history.push(entry);
+        }
+    }
+
+    /// Insert an older paginated replay page before the currently visible replay entries.
+    ///
+    /// Page responses are delivered newest-first over time, so the page owner must prepend them
+    /// to keep Up recall chronological. Exact replay duplicates are ignored to make overlapping
+    /// page responses fail closed without collapsing ordinary local submissions.
+    pub(super) fn prepend_replayed_submissions(
+        &mut self,
+        entries: impl IntoIterator<Item = HistoryEntry>,
+    ) {
+        let mut entries = entries.into_iter().collect::<Vec<_>>();
+        entries.reverse();
+        for entry in entries {
+            if entry.is_empty()
+                || self
+                    .replay_seeded_history
+                    .iter()
+                    .any(|existing| existing == &entry)
+            {
+                continue;
+            }
+            self.local_history.insert(0, entry.clone());
+            self.replay_seeded_history.insert(0, entry);
+        }
+        self.reset_navigation();
+    }
+
+    fn record_local_submission_inner(&mut self, entry: HistoryEntry) -> bool {
+        if entry.is_empty() {
+            return false;
         }
         self.reset_navigation();
         if self.local_history.last() != Some(&entry) {
             self.local_history.push(entry);
+            return true;
+        }
+        false
+    }
+
+    /// Replace replay facts for a hydrated thread while retaining the existing history owner.
+    pub(super) fn replace_replayed_history(
+        &mut self,
+        thread_id: String,
+        entries: impl IntoIterator<Item = HistoryEntry>,
+    ) {
+        self.set_thread_id(&thread_id);
+        let previous = std::mem::take(&mut self.replay_seeded_history);
+        for entry in previous {
+            if let Some(index) = self
+                .local_history
+                .iter()
+                .position(|current| current == &entry)
+            {
+                self.local_history.remove(index);
+            }
+        }
+        for entry in entries {
+            self.record_replayed_submission(entry);
         }
     }
 
@@ -194,6 +365,16 @@ impl ChatComposerHistory {
             .take()
             .expect("pending direction");
         if let Some(entry) = entry {
+            if self.persistent_entry_duplicates_local(&entry) {
+                let Some(next) = self.next_history_offset(offset, direction) else {
+                    return HistoryEntryResponse::Ignored;
+                };
+                self.history_cursor = Some(next);
+                return self
+                    .populate_history_at_index(next, direction, app_event_tx)
+                    .map(HistoryEntryResponse::Found)
+                    .unwrap_or(HistoryEntryResponse::Ignored);
+            }
             self.record_recalled_text(entry.text.clone());
             return HistoryEntryResponse::Found(entry);
         }
@@ -257,6 +438,13 @@ impl ChatComposerHistory {
     ) -> Option<HistoryEntry> {
         loop {
             if let Some(entry) = self.entry_at_cached_offset(offset) {
+                if offset < self.persistent_entry_count
+                    && self.persistent_entry_duplicates_local(&entry)
+                {
+                    offset = self.next_history_offset(offset, direction)?;
+                    self.history_cursor = Some(offset);
+                    continue;
+                }
                 self.pending_navigation_direction = None;
                 self.record_recalled_text(entry.text.clone());
                 return Some(entry);
@@ -291,6 +479,12 @@ impl ChatComposerHistory {
         } else {
             false
         }
+    }
+
+    fn persistent_entry_duplicates_local(&self, entry: &HistoryEntry) -> bool {
+        self.replay_seeded_history.iter().any(|replayed| {
+            replayed.text == entry.text && replayed.mention_bindings == entry.mention_bindings
+        })
     }
 
     /// Complete cache fixture, not a production eager-load API.

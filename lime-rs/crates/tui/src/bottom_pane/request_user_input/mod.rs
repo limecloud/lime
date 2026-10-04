@@ -246,19 +246,7 @@ impl RequestUserInputOverlay {
             locale.request_submit_hint(),
             locale.request_cancel_hint()
         );
-        let selected = [
-            primary.as_str(),
-            "Enter · Esc",
-            "↵ · Esc",
-            "↵Esc",
-            "Esc",
-            "",
-        ]
-        .into_iter()
-        .find(|candidate| display_width(candidate) <= width)
-        .unwrap_or("")
-        .to_string();
-        selected
+        super::fit_primary_action_hint(primary, width)
     }
 
     fn option_position_hint(&self, locale: crate::locale::Locale) -> Option<String> {

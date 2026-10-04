@@ -7,6 +7,19 @@ use crate::tui::TuiEvent;
 use app_server_protocol::protocol::v2::{FuzzyFileSearchResult, SkillMetadata};
 
 impl BottomPane {
+    pub(crate) fn composer_input_enabled(&self) -> bool {
+        self.composer.input_enabled()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_composer_input_enabled(
+        &mut self,
+        enabled: bool,
+        placeholder: Option<String>,
+    ) {
+        self.composer.set_input_enabled(enabled, placeholder);
+    }
+
     pub(crate) fn composer_text(&self) -> &str {
         self.composer.text()
     }
@@ -133,6 +146,24 @@ impl BottomPane {
         self.composer.set_history_thread_id(thread_id)
     }
 
+    pub(crate) fn replace_replayed_history(
+        &mut self,
+        thread_id: String,
+        turns: &[app_server_protocol::protocol::v2::Turn],
+    ) {
+        self.composer.replace_replayed_history(thread_id, turns)
+    }
+
+    pub(crate) fn record_replayed_history_page(
+        &mut self,
+        items: &[app_server_protocol::protocol::v2::ThreadItem],
+        turns: Option<&[app_server_protocol::protocol::v2::Turn]>,
+        prepend: bool,
+    ) {
+        self.composer
+            .record_replayed_history_page(items, turns, prepend)
+    }
+
     pub(crate) fn attach_image(&mut self, path: std::path::PathBuf) {
         self.composer.attach_image(path)
     }
@@ -166,6 +197,42 @@ impl BottomPane {
 
     pub(crate) fn vim_search_active(&self) -> bool {
         self.composer.vim_search_active()
+    }
+
+    pub(crate) fn footer_mode(&self) -> super::FooterMode {
+        self.composer.footer_mode()
+    }
+
+    pub(crate) fn agents_navigation_available(&self) -> bool {
+        self.composer.agents_navigation_available()
+    }
+
+    pub(crate) fn completion_popup_active(&self) -> bool {
+        self.composer.completion_popup_active()
+    }
+
+    pub(crate) fn file_search_popup_active(&self) -> bool {
+        self.composer.file_search_popup_active()
+    }
+
+    pub(crate) fn skill_popup_active(&self) -> bool {
+        self.composer.skill_popup_active()
+    }
+
+    pub(crate) fn vim_mode_indicator_span(&self) -> Option<ratatui::text::Span<'static>> {
+        self.composer.vim_mode_indicator_span()
+    }
+
+    pub(crate) fn history_search_footer_line(&self) -> Option<ratatui::text::Line<'static>> {
+        self.composer.history_search_footer_line()
+    }
+
+    pub(crate) fn history_search_cursor_column(&self, label: &str) -> Option<u16> {
+        self.composer.history_search_cursor_column(label)
+    }
+
+    pub(crate) fn vim_search_query(&self) -> Option<(&str, crate::vim_search::SearchDirection)> {
+        self.composer.vim_search_query()
     }
 
     #[cfg(test)]
@@ -286,11 +353,6 @@ impl BottomPane {
     #[cfg(test)]
     pub(crate) fn history_search_query(&self) -> Option<&str> {
         self.composer.history_search_query()
-    }
-
-    #[cfg(test)]
-    pub(crate) fn vim_search_query(&self) -> Option<(&str, crate::vim_search::SearchDirection)> {
-        self.composer.vim_search_query()
     }
 
     #[cfg(test)]

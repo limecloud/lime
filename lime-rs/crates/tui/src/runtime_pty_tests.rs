@@ -51,6 +51,14 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
     let prompt = std::env::var("LIME_TEST_TERMINAL_PROMPT").expect("terminal prompt");
     let queue_prompt = std::env::var("LIME_TEST_TERMINAL_QUEUE_PROMPT")
         .unwrap_or_else(|_| "queued follow-up for editing".to_string());
+    let queue_edit_hint = format!(
+        "{} edit last queued input",
+        if cfg!(target_os = "macos") {
+            "⌥↑"
+        } else {
+            "alt+↑"
+        }
+    );
     let completed_text =
         std::env::var("LIME_TEST_TERMINAL_COMPLETED_TEXT").expect("completed text");
     let reasoning_text = std::env::var("LIME_TEST_TERMINAL_REASONING_TEXT")
@@ -1040,7 +1048,7 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
                 &output_rx,
                 &mut output,
                 queued_at,
-                "Alt+Up edit last queued input",
+                &queue_edit_hint,
                 Duration::from_secs(10),
             );
 
@@ -1170,7 +1178,7 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
             "canonical queued preview was not rendered"
         );
         assert!(
-            visible.contains("Alt+Up edit last queued input"),
+            visible.contains(&queue_edit_hint),
             "queue edit affordance was not rendered"
         );
         assert!(

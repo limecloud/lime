@@ -139,11 +139,10 @@ impl PagerOverlay {
         }
     }
 
-    /// Mark a synchronous older-history request before entering the App Server await.
+    /// Mark an asynchronous older-history request before handing it to the host event loop.
     ///
-    /// The current TUI transport does not redraw while the request is in flight, but retaining
-    /// this state keeps the pager's footer authoritative for the next frame and gives failures a
-    /// retryable surface without moving the transcript anchor.
+    /// The footer remains authoritative while the App Server request is in flight, and the
+    /// transcript anchor stays stable until the completion event is accepted.
     pub(crate) fn begin_older_history_load(&self) {
         if self.is_transcript() {
             self.history_load_state.set(HistoryLoadState::Loading);

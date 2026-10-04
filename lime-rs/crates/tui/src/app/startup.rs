@@ -13,10 +13,6 @@ use app_server_protocol::protocol::v2::{PromptHistoryReadResponse, SkillsListRes
 
 #[derive(Debug)]
 pub(crate) struct StartupSessionState {
-    pub(crate) model: Option<String>,
-    pub(crate) model_provider: Option<String>,
-    pub(crate) effort: Option<String>,
-    pub(crate) permissions: Option<String>,
     pub(crate) approval_policy: Option<String>,
     pub(crate) approvals_reviewer: Option<String>,
     pub(crate) sandbox_policy: Option<String>,
@@ -38,7 +34,10 @@ pub(crate) fn apply_skills_list_response(app: &mut App, response: SkillsListResp
         .flat_map(|entry| entry.errors)
         .collect::<Vec<_>>();
     app.chat_widget.bottom_pane.set_skills(skills);
-    let newly_active = app.skill_load_warnings.newly_active_errors(&errors);
+    let newly_active = app
+        .chat_widget
+        .skill_load_warnings
+        .newly_active_errors(&errors);
     startup_prompts::emit_skill_load_warnings(app, &newly_active);
 }
 
@@ -89,7 +88,8 @@ pub(crate) async fn initialize_session(
         };
         app.hydrate_thread(response.thread);
         app.prepend_initial_history_page(initial_page);
-        app.scrollback_has_older_history = session.has_older_history(&resumed_thread_id);
+        app.chat_widget
+            .set_scrollback_has_older_history(session.has_older_history(&resumed_thread_id));
         if model.is_none() {
             model = Some(response.model);
         }
@@ -120,7 +120,7 @@ pub(crate) async fn initialize_session(
     let permission_profiles = session
         .list_permission_profiles(Some(permission_cwd))
         .await?;
-    app.set_permission_profiles(
+    app.chat_widget.set_permission_profiles(
         permission_profiles
             .data
             .into_iter()
@@ -131,7 +131,7 @@ pub(crate) async fn initialize_session(
         permissions = session.active_permission_profile().map(str::to_string);
     }
     match session.list_models(100).await {
-        Ok(response) => app.set_model_catalog(response.data),
+        Ok(response) => app.chat_widget.set_model_catalog(response.data),
         Err(error) => app
             .projection
             .set_status(format!("model catalog unavailable: {error}")),
@@ -144,7 +144,7 @@ pub(crate) async fn initialize_session(
     }
     app.set_thread_id(session.thread_id()?.to_string());
     let collaboration_modes = session.list_collaboration_modes().await.unwrap_or_default();
-    app.set_collaboration_modes(collaboration_modes);
+    app.chat_widget.set_collaboration_modes(collaboration_modes);
     session
         .update_settings_with_policy(
             ThreadSettingsPatch::new(
@@ -160,7 +160,7 @@ pub(crate) async fn initialize_session(
             ),
         )
         .await?;
-    app.set_settings(
+    app.chat_widget.set_settings(
         model.clone(),
         model_provider.clone(),
         effort.clone(),
@@ -175,10 +175,6 @@ pub(crate) async fn initialize_session(
     app.refresh_queued_submissions(session).await;
 
     Ok(StartupSessionState {
-        model,
-        model_provider,
-        effort,
-        permissions,
         approval_policy: options.approval_policy.clone(),
         approvals_reviewer: options.approvals_reviewer.clone(),
         sandbox_policy: options.sandbox_policy.clone(),

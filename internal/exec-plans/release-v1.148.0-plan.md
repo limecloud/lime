@@ -142,7 +142,6 @@ Electron macOS arm64 job `110367868504` 已通过构建、资源检查、打包n
 - `lime-rs/crates/tui/src/app/thread_input.rs`
 - `lime-rs/crates/tui/src/app/thread_input_tests.rs`
 - `lime-rs/crates/tui/src/app/thread_interaction_tests.rs`
-- `lime-rs/crates/tui/src/app/thread_settings.rs`
 - `lime-rs/crates/tui/src/app/transcript_presentation.rs`
 - `lime-rs/crates/tui/src/app/transcript_presentation_tests.rs`
 - `lime-rs/crates/tui/src/app_event.rs`

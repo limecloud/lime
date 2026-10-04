@@ -56,11 +56,30 @@ use mcp_server_elicitation::McpServerElicitationOverlay;
 use request_user_input::RequestUserInputOverlay;
 pub(crate) use textarea::{TextArea, TextAreaState};
 
-pub(crate) use footer::render_footer;
+pub(crate) use footer::{render_footer, FooterMode, FooterProps};
 pub(crate) use input::ChatWidgetAction;
 pub(crate) use input_state::BottomPaneInputState;
 pub(crate) use render::{desired_height_with_locale_for_width, render_with_locale};
 pub(crate) use selection_tabs::render_filled_tab_bar;
+
+/// Keep the primary submit/cancel affordance visible while progressively reducing its copy on
+/// narrow terminals. Approval and request-user-input overlays share this geometry policy; their
+/// locale owners still provide the full primary label and each caller supplies its actual content
+/// width.
+pub(crate) fn fit_primary_action_hint(primary: String, available: usize) -> String {
+    [
+        primary.as_str(),
+        "Enter · Esc",
+        "↵ · Esc",
+        "↵Esc",
+        "Esc",
+        "",
+    ]
+    .into_iter()
+    .find(|hint| crate::width::display_width(hint) <= available)
+    .unwrap_or_default()
+    .to_string()
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct LocalImageAttachment {

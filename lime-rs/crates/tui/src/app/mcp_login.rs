@@ -75,12 +75,13 @@ impl App {
                 },
                 None => {
                     self.projection
-                        .set_status(self.locale.mcp_login_requires_session());
+                        .set_status(self.chat_widget.locale.mcp_login_requires_session());
                     AppAction::None
                 }
             },
             _ => {
-                self.projection.set_status(self.locale.mcp_usage());
+                self.projection
+                    .set_status(self.chat_widget.locale.mcp_usage());
                 AppAction::None
             }
         }
@@ -89,7 +90,7 @@ impl App {
     pub(super) fn begin_mcp_login_start(&mut self, name: String, thread_id: String) -> Option<u64> {
         if let Some(pending) = self.pending_mcp_login_start.as_ref() {
             self.projection
-                .add_info_message(self.locale.mcp_login_in_progress(&pending.name));
+                .add_info_message(self.chat_widget.locale.mcp_login_in_progress(&pending.name));
             return None;
         }
         self.mcp_login_generation = self.mcp_login_generation.wrapping_add(1);
@@ -169,13 +170,16 @@ impl App {
                 if !already_completed {
                     match open(&response.authorization_url) {
                         Ok(()) if self.thread_id.as_ref() == Some(&pending.thread_id) => {
-                            self.projection
-                                .add_info_message(self.locale.mcp_login_opened(&pending.name));
+                            self.projection.add_info_message(
+                                self.chat_widget.locale.mcp_login_opened(&pending.name),
+                            );
                         }
                         Err(error) => {
                             self.projection.add_error_message(format!(
                                 "{}\n{}",
-                                self.locale.mcp_login_open_failed(&pending.name, &error),
+                                self.chat_widget
+                                    .locale
+                                    .mcp_login_open_failed(&pending.name, &error),
                                 response.authorization_url
                             ));
                         }
@@ -227,11 +231,15 @@ impl App {
 
         self.active_mcp_login_ids.remove(&completion.name);
         if completion.success {
-            self.projection
-                .set_status(self.locale.mcp_login_succeeded(&completion.name));
+            self.projection.set_status(
+                self.chat_widget
+                    .locale
+                    .mcp_login_succeeded(&completion.name),
+            );
         } else {
             self.projection.set_status(
-                self.locale
+                self.chat_widget
+                    .locale
                     .mcp_login_failed_completion(&completion.name, completion.error.as_deref()),
             );
         }

@@ -78,7 +78,7 @@ describe("Codex TUI structure inventory", () => {
     expect(source("bottom_pane/chat_composer/draft_state.rs")).not.toContain(
       "kill_buffer",
     );
-    expect(source("app/thread_input.rs")).toContain(".remove(thread_id)");
+    expect(source("chatwidget/input.rs")).toContain(".remove(thread_id)");
     expect(source("app/session_lifecycle.rs")).toContain(
       "self.capture_current_thread_input()",
     );
@@ -128,7 +128,49 @@ describe("Codex TUI structure inventory", () => {
         path.resolve(process.cwd(), "lime-rs/crates/tui/src", file),
         "utf8",
       );
-    expect(source("bottom_pane/footer.rs")).not.toContain("draft_ready_hint");
+    const footer = source("bottom_pane/footer.rs").split("#[cfg(test)]")[0];
+    expect(footer).not.toContain("draft_ready_hint");
+    expect(footer).toContain(
+      "props: &FooterProps",
+    );
+    expect(footer).toContain("mode: FooterMode");
+    expect(footer).not.toContain("has_draft: bool");
+    expect(footer).not.toContain(
+      "shortcut_overlay_visible()",
+    );
+    expect(footer).toContain(
+      "props.history_search_line",
+    );
+    expect(footer).toContain(
+      "interaction_hint_lines",
+    );
+    expect(footer).not.toContain(
+      "use crate::app::App",
+    );
+    expect(footer).not.toContain(
+      "footer_hint_lines(",
+    );
+    expect(footer).not.toContain(
+      "render_close_hint(",
+    );
+    expect(source("bottom_pane/footer.rs")).not.toContain(
+      "history_search_footer_line()",
+    );
+    expect(source("bottom_pane/footer.rs")).not.toContain(
+      "vim_search_query()",
+    );
+    expect(source("bottom_pane/chat_composer/footer_state.rs")).toContain(
+      "fn footer_mode(",
+    );
+    expect(source("chatwidget/footer.rs")).toContain(
+      "pub(crate) fn footer_props(",
+    );
+    expect(source("chatwidget/footer.rs")).toContain(
+      "interaction_hint_lines:",
+    );
+    expect(source("chatwidget/footer.rs")).toContain(
+      "shortcut_close_hint:",
+    );
     expect(source("bottom_pane/chat_composer/footer_state.rs")).not.toContain(
       "FooterFlash",
     );
@@ -299,6 +341,8 @@ describe("Codex TUI structure inventory", () => {
 
   it("locks Codex-shaped current TUI module and symbol names", () => {
     const files = new Set(inventory.trees["lime-rs/crates/tui/src"].files);
+    expect(files).not.toContain("status_indicator_widget/timer.rs");
+    expect(files).not.toContain("status_indicator_widget/timer_tests.rs");
     for (const file of [
       "markdown_render.rs",
       "status_indicator_widget.rs",
@@ -333,7 +377,6 @@ describe("Codex TUI structure inventory", () => {
       "bottom_pane/request_user_input/render.rs",
       "clipboard_copy.rs",
       "clipboard_paste.rs",
-      "command_popup.rs",
       "keymap.rs",
       "keymap/hints.rs",
       "keymap/agents.rs",
@@ -348,6 +391,7 @@ describe("Codex TUI structure inventory", () => {
       "bottom_pane/list_selection_view.rs",
       "app/agent_picker/tests.rs",
       "runtime_pty_tests/agent_picker.rs",
+      "chatwidget/settings.rs",
       "model_picker/input.rs",
       "model_picker/keymap_tests.rs",
       "model_picker/render_tests.rs",
@@ -365,7 +409,6 @@ describe("Codex TUI structure inventory", () => {
       "app/pending_interactive_replay.rs",
       "app/replay_filter.rs",
       "app/thread_events.rs",
-      "app/thread_settings.rs",
       "app/tests.rs",
       "app/history_pagination.rs",
       "app/history_ui.rs",
@@ -391,9 +434,7 @@ describe("Codex TUI structure inventory", () => {
       "view/tests/interaction.rs",
       "app_server_session/history.rs",
       "app_server_session/history_tests.rs",
-      "pending_input_preview.rs",
       "terminal_hyperlinks.rs",
-      "reconnect.rs",
       "bottom_pane/textarea.rs",
       "bottom_pane/textarea/hyperlinks.rs",
       "bottom_pane/textarea/hyperlinks_tests.rs",
@@ -630,8 +671,8 @@ describe("Codex TUI structure inventory", () => {
       "ThreadHistoryPagination",
       "thread_items_page_params",
       "hydrate_initial_thread_history",
-      "request_older_history_page",
-      "handle_older_history_page",
+      "spawn_older_history_page_load",
+      "handle_older_history_page_loaded",
       "render_markdown_transcript",
       "write_transcript",
       "StartupSessionState",
@@ -1061,21 +1102,22 @@ describe("Codex TUI structure inventory", () => {
   });
 
   it("keeps thread settings state in the Codex-named owner", () => {
-    const threadSettings = readFileSync(
-      path.resolve(
-        process.cwd(),
-        "lime-rs/crates/tui/src/app/thread_settings.rs",
-      ),
-      "utf8",
-    );
     const app = readFileSync(
       path.resolve(process.cwd(), "lime-rs/crates/tui/src/app.rs"),
       "utf8",
     );
+    const widgetSettings = readFileSync(
+      path.resolve(
+        process.cwd(),
+        "lime-rs/crates/tui/src/chatwidget/settings.rs",
+      ),
+      "utf8",
+    );
 
-    expect(threadSettings).toContain("fn set_settings");
-    expect(threadSettings).toContain("fn set_permission_profiles");
-    expect(threadSettings).toContain("fn next_collaboration_mode");
+    expect(widgetSettings).toContain("fn set_settings");
+    expect(widgetSettings).toContain("fn set_permission_profiles");
+    expect(widgetSettings).toContain("fn next_collaboration_mode");
+    expect(widgetSettings).toContain("fn plan_mode");
     expect(app).not.toContain("fn sync_default_collaboration_mode");
   });
 
@@ -1094,6 +1136,46 @@ describe("Codex TUI structure inventory", () => {
 
     expect(app).toContain("mod session_lifecycle;");
     expect(sessionLifecycle).toContain("fn open_agent_picker");
+  });
+
+  it("keeps older transcript IO off the TUI event loop", () => {
+    const runtime = readFileSync(
+      path.resolve(process.cwd(), "lime-rs/crates/tui/src/runtime.rs"),
+      "utf8",
+    );
+    const appEvents = readFileSync(
+      path.resolve(process.cwd(), "lime-rs/crates/tui/src/app_event.rs"),
+      "utf8",
+    );
+    const pagination = readFileSync(
+      path.resolve(
+        process.cwd(),
+        "lime-rs/crates/tui/src/app/history_pagination.rs",
+      ),
+      "utf8",
+    );
+
+    expect(appEvents).toContain("OlderThreadHistoryLoaded");
+    expect(appEvents).toContain("OlderHistoryLoadMode");
+    expect(pagination).toContain("spawn_older_history_page_load");
+    expect(pagination).toContain("OlderHistoryLoadStart");
+    expect(runtime).toContain("OlderHistoryLoadMode::TopUp");
+    expect(runtime).not.toContain("request_all_older_history_pages");
+    expect(runtime).not.toContain("request_older_history_page");
+  });
+
+  it("keeps bounded resume previews on canonical Turn review facts", () => {
+    const preview = readFileSync(
+      path.resolve(
+        process.cwd(),
+        "lime-rs/crates/tui/src/resume_picker_transcript_preview.rs",
+      ),
+      "utf8",
+    );
+
+    expect(preview).toContain("thread_turns_for_items_with_handle");
+    expect(preview).toContain("hidden_user_message_ids");
+    expect(preview).toContain("preview_from_items_with_turns");
   });
 
   it("keeps upstream product-only differences explicit", () => {

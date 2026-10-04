@@ -136,7 +136,7 @@ fn status_dot_uses_closed_fact_not_running_hint() {
 fn subagents_replaces_composer_without_erasing_draft_settings_or_thread() {
     let mut app = crate::app::App::default();
     app.set_thread_id("root".into());
-    app.set_settings(
+    app.chat_widget.set_settings(
         Some("model".into()),
         Some("provider".into()),
         Some("high".into()),

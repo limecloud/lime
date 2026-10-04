@@ -23,6 +23,34 @@ impl ChatComposer {
         self.history.set_thread_id(thread_id);
     }
 
+    /// Replace composer replay facts from a hydrated canonical thread.
+    pub(crate) fn replace_replayed_history(
+        &mut self,
+        thread_id: String,
+        turns: &[app_server_protocol::protocol::v2::Turn],
+    ) {
+        self.cancel_history_search();
+        self.history
+            .replace_replayed_history(thread_id, replay_entries_from_turns(turns));
+    }
+
+    /// Feed one canonical transcript page into the same composer history owner.
+    pub(crate) fn record_replayed_history_page(
+        &mut self,
+        items: &[app_server_protocol::protocol::v2::ThreadItem],
+        turns: Option<&[app_server_protocol::protocol::v2::Turn]>,
+        prepend: bool,
+    ) {
+        let entries = replay_entries_from_items(items, turns);
+        if prepend {
+            self.history.prepend_replayed_submissions(entries);
+        } else {
+            for entry in entries {
+                self.history.record_replayed_submission(entry);
+            }
+        }
+    }
+
     /// The host checks the requesting thread before dispatching a lookup response.
     pub(crate) fn on_history_lookup_response(
         &mut self,

@@ -5617,3 +5617,1110 @@ history/search、resize/reconnect 与 `terminal=restored`；同一 fresh binary 
 `jsonl=ok`、`stdin=ok`、`error-exit=1`、`completion=zsh`。整体对齐仍为
 `partial/in-progress`，下一刀继续处理 collaboration/replay seed、history contract 或其它
 未收敛的 ChatWidget session owner。
+额外尝试 `npm run verify:gui-smoke` 仅完成 Electron/renderer/host/App Server 资源构建，
+最后的 `shell-01-electron-smoke` 结构化 `summary.json` 未生成，Desktop Gate B 因此仍为
+`unverified/harness-blocked`，不能用本阶段 TUI/CLI 证据替代。
+
+## 2026-10-02 ChatWidget navigation/history owner 第七阶段
+
+继续收敛 Codex ChatWidget 的 transient/session surface：Agent navigation 的稳定顺序、liveness、
+parent-owned 标记以及 transcript older-history availability 已从 `App` 迁入 `ChatWidget`。
+Thread start/close/status、sub-agent tool observation、Agent picker/footer、history pagination、
+runtime scroll/reconnect 和 TestBackend fixture 全部改为读取同一个 `ChatWidget` projection；
+App 仍只负责 transport、Thread/notification routing、App Server history 请求和 canonical
+projection，不新增 navigation store、daemon 或本地 history backend。
+
+分类：ChatWidget agent navigation/history surface 为 `current`；旧 App 字段与直接消费为
+`dead / deleted / guard-only`；`ReconnectState` 中的短生命周期 transport snapshot 仍是
+`compat` 边界，只负责把 App Server 返回值交给 ChatWidget，不承载 UI 业务逻辑；无新增
+`deprecated`。结构守卫扩展为 `44/44`，inventory 仍为 `1412` 个 TUI 源文件。
+
+验证：TUI all-targets `1457` library + `18` integration + `1` dependency guard、strict
+all-target Clippy、fmt/diff check 均通过；fresh TUI/CLI Gate B 需在本阶段收尾后重跑。整体
+对齐仍为 `partial/in-progress`，下一刀继续迁移 runtime keymap/clipboard/queued input 或
+turn lifecycle 等仍留在 App 的 session-local owner，并继续保持 App Server canonical 主链。
+
+## 2026-10-02 ChatWidget remaining session-local owner 第八阶段
+
+沿第七阶段路线继续收回剩余 session-local TUI owner，避免 `App` 重新膨胀为第二个 ChatWidget。
+本阶段窄写集覆盖 runtime keymap/global chord matcher、CLIPBOARD/PRIMARY lease、right-click paste
+pending identity、queued submissions、per-thread `BottomPaneInputState`、turn lifecycle 与 skill/MCP
+startup warning presentation。未迁移 `ConversationProjection`、App Server transport/session、Thread/Turn/Item
+canonical projection、RuntimeCore、provider、tool authority。
+
+实现结果：
+
+- `ChatWidget` 新增并唯一持有 `RuntimeKeymap`、`KeyChordMatcher`、clipboard leases、`RightClickPaste`
+  policy、`PendingPaste`、`QueuedSubmission` projection、thread input snapshots、`TurnLifecycleState`
+  和两类 startup warning state；`BottomPane` 仍是 composer/interactive request owner。
+- `App` 保留 `set_runtime_keymap`/`set_right_click_paste` 作为 host 配置入口，但只委托到 ChatWidget；
+  生产消费者、render/view、runtime clipboard completion、thread handoff、history/queue edit 和 notification
+  接线均读取 ChatWidget 字段，不保留旧字段或 getter/Deref 兼容壳。
+- `app/right_click_paste.rs` 的 pending paste 校验现在以 `ChatWidget` 的 thread/draft snapshot 为准；
+  queue preview/edit 继续消费 App Server canonical list，不新增本地 queue backend。
+- 结构守卫扩展为 `23/23`，新增 App 反向字段断言和 keymap/clipboard/thread snapshot/turn-warning 接线断言；
+  TUI inventory 重生成：`1412` 个源文件，Codex snapshot `1346`（direct 77 / merge 949 / contract 200 /
+  defer 30 / dead 90）。
+
+验证结果：
+
+- `cargo test --manifest-path lime-rs/Cargo.toml -p tui --all-targets --no-default-features`：`1457` library +
+  `18` integration + `1` dependency guard 全部通过。
+- `cargo clippy --manifest-path lime-rs/Cargo.toml -p tui --all-targets --no-default-features --no-deps -- -D warnings`、
+  Rust fmt、Prettier/ESLint、`git diff --check` 通过。
+- `npx vitest run scripts/app-server/tui-composer-structure.test.mjs`：`23/23`；
+  `npm run governance:legacy-report`：扫描 `2068` 文件，零引用候选 `0`、分类漂移 `0`、边界违规 `0`。
+- fresh `npm run smoke:tui-gate-b` 通过：thread `01a0fa50-bac4-7a31-8654-4d16321f2791`、turn
+  `turn_53f929c861df44d69c1ab23b798a7286`；thread-input stdio、typed queue/edit、Agent Center、history/search、
+  Vim/mentions、resize/reconnect、terminal restore 全部通过。
+- fresh `npm run smoke:cli-gate-b` 通过：thread `01a0fa51-92be-72f3-8180-6d04b7e9a95b`、turn
+  `turn_0ad6a3928150485aa3a84180306abbd4`；`jsonl=ok`、`stdin=ok`、`error-exit=1`、`completion=zsh`。
+- 本阶段没有修改 GUI、Electron bridge、App Server protocol、RuntimeCore、provider 或持久化；TUI/CLI Gate B
+  不冒充 Desktop Gate B。`verify:gui-smoke`/Windows/X11/live provider 未在本刀新增证据，Desktop 状态继续
+  `unverified/harness-blocked`。
+
+本阶段退出条件 4/4 完成；整体 Codex 对齐仍为 `partial/in-progress`。下一刀优先检查 replay seed/history
+contract 与其它未收敛 ChatWidget session state，再决定是否清理剩余 App-local warning/startup 边界。
+
+## 2026-10-02 ChatWidget external editor lifecycle owner 第九阶段
+
+继续对照公开 Codex `chatwidget.rs` 的 session-local owner：外部编辑器生命周期状态此前仍由
+`App` 持有，输入占用判断、异步 editor launch 与 runtime 恢复路径因此保留了 App 级平行状态。
+本阶段将 `ExternalEditorState` 与 request/active/reset 操作直接迁入 `ChatWidget`，输入提交、推理
+快捷键和 runtime editor loop 统一读取同一 owner；`App` 不再提供旧 getter/setter 包装，也不改变
+外部编辑器的 host 生命周期、草稿传递或 terminal restore 语义。
+
+分类：`ChatWidget.external_editor_state` 及其生命周期方法为 `current`；旧 App 字段、getter 和
+setter 为 `dead / deleted / guard-only`；无新增 `compat/deprecated`。`ConversationProjection`、
+App Server transport/session、Thread/Turn/Item canonical projection、RuntimeCore、provider 与 GUI
+bridge 均未触达，TUI 仍通过既有 App Server 主链运行。
+
+结构守卫新增 ChatWidget external-editor owner 与 App 反向字段断言。验证：TUI library
+`1457/1457`、结构守卫 `24/24`、strict all-target Clippy、Rust fmt、`git diff --check`、
+`npm run governance:legacy-report`（扫描 `2068` 文件，零引用候选/分类漂移/边界违规均为 `0`）
+和 `npm run test:contracts` 均通过。fresh TUI Gate B 通过，thread
+`01a0fa5a-fe87-78b1-a845-48ef6138eaf2`、turn `turn_507d7c94311744c7a577474c0fd129cc`，
+覆盖 queue/edit、Agent Center、history/search、Vim、mentions、resize/reconnect、terminal restore
+及 editor keymap/chord 场景；同一 fresh binary 的 CLI Gate B 通过，thread
+`01a0fa5b-bd19-7673-a7fe-8a74d8302e04`、turn `turn_2d5417f633d7413ab7e1947958cb76ed`，
+`jsonl=ok`、`stdin=ok`、`error-exit=1`、`completion=zsh`。Desktop Gate B 继续
+`unverified/harness-blocked`，不以终端证据替代 GUI 验收。
+
+本阶段退出条件 `4/4` 完成：1) editor request/active/reset 只有 ChatWidget 一份状态；2) Ctrl-G、
+reasoning shortcut blocking 与 async runtime editor loop 回归通过；3) fresh TUI Gate B 与同 binary
+CLI Gate B 重新通过；4) replay seed/history contract 与其它 ChatWidget session 缺口仍明确为
+`partial/defer`。下一刀回到 A2 history/transcript contract 或 startup/replay owner。
+
+## 2026-10-03 ChatWidget interaction presentation owner 第十六阶段（已完成）
+
+沿 A3 interaction 收口继续对照 Codex `chatwidget/interaction.rs`：App 原先仍直接编排审批详情
+pager 创建、modal transcript wheel 的 selection mutation，以及 FocusLost/Resume 时 pager、resume
+picker 和 selection 的 drag 收尾。它们虽然已经访问 `ChatWidget` 字段，但 presentation 行为仍
+散落在 host router，容易重新形成第二套 interaction owner。
+
+本刀新增 `chatwidget/interaction.rs`，由 ChatWidget 统一承接：
+
+- `end_interaction_drag`：selection、transcript pager、resume picker 的 drag 收尾；
+- `open_approval_details_pager`：审批详情标题/行数据、transcript keymap 和 pager 构造；
+- `route_modal_transcript_wheel`：受保护交互期间 transcript wheel 的 hit-test 与滚动 mutation；
+- `handle_main_transcript_selection` / `finish_main_transcript_selection_if_active`：主 transcript
+  selection 事件和结束恢复。
+
+`app/interaction.rs` 现在只保留连接状态、surface 优先级、`AppAction` 映射和 host boundary；不再
+直接调用 `approval_details_for_key`、`transcript_selection.handle_event` 或回写
+`pager_overlay`。没有新增 protocol、schema、transport、provider、mock backend 或第二 history
+store；App 仍拥有 thread routing、transport channels、startup host boundary 与 canonical
+projection。
+
+分类：`ChatWidget` interaction presentation 为 `current`；App 直接编排的旧 mutation 为
+`dead / deleted / guard-only`；无新增 `compat/deprecated`。
+
+验证结果：
+
+- `cargo test -p tui --all-targets --no-default-features`：`1462` library + `18` integration +
+  `1` dependency guard 全部通过；
+- `cargo clippy -p tui --all-targets --no-default-features --no-deps -- -D warnings`、Rust fmt、
+  `git diff --check` 通过；
+- 结构守卫与 inventory：`54/54` 通过；
+- `npm run test:contracts` 通过；
+- `npm run governance:legacy-report`：扫描 `2068` 文件，零引用候选、分类漂移、边界违规均为 `0`；
+- fresh `npm run smoke:tui-gate-b` 通过：thread `01a0fdc3-d32f-7801-b7da-da25cd9a9d16`、turn
+  `turn_e392a56d4ff0434db9a02c37481a2975`；thread-input stdio、typed queue/edit、Agent Center、
+  history/search、Vim/mentions、resize/reconnect、terminal restore 全部通过；
+- 同一 fresh binary 的 `npm run smoke:cli-gate-b` 通过：thread `01a0fdc3-d213-7f20-9eb2-329a41afbbc5`、
+  turn `turn_ed2be5f924564bcd9c8c9cc003a199f4`；`jsonl=ok`、`stdin=ok`、`error-exit=1`、
+  `completion=zsh`。
+
+本阶段退出条件 `4/4` 完成：1) modal/pager/selection presentation mutation 只有 ChatWidget
+owner；2) 审批详情 pager、modal wheel、FocusLost/Resume drag cleanup 回归通过；3) fresh TUI Gate B
+与 CLI Gate B 重新通过；4) App transport/routing 与 startup boundary 未被迁移。Desktop Gate B 仍为
+`unverified / harness-blocked`，不能用 TUI/CLI 证据替代 GUI 验收。整体 Codex 对齐仍为
+`partial / in-progress`；下一刀优先继续收口 ChatWidget interaction 中 picker/resume/export
+分支的 mutation，或回到剩余 A2 transcript/history contract，不恢复旧 composer、旧
+`thread_settings` 或第二 history store。
+
+## 2026-10-03 ChatWidget picker/export lifecycle owner 第十七阶段（已完成）
+
+继续第十六阶段的 interaction owner 收口：`app/interaction.rs` 原先仍直接持有并修改
+`export_picker`、`resume_picker`、`agents_overview`、`model_picker`、`agent_picker`，包括 picker
+关闭、选择结果提取和 resume transcript pager 分支。它们属于 ChatWidget 的 session-local
+presentation，不应由 App host router 维护第二套生命周期。
+
+本刀将生命周期行为迁入 `chatwidget/interaction.rs`：
+
+- `handle_export_picker_event` 负责 export picker 消费、取消/复制/保存路径提取和关闭；
+- `handle_resume_picker_event` 负责 resume picker 的 transcript pager 与列表事件分派，并在取消时
+  关闭 picker；
+- `handle_agents_overview_event` 负责 Agent Center action、选中 thread identity 捕获以及关闭
+  overview/agent picker；
+- `handle_model_picker_event` 负责 model selection lowering、取消和关闭；
+- `handle_agent_picker_event` 负责 agent thread selection/cancel 与关闭。
+
+App 现在只消费这些 ChatWidget interaction result 并映射为 `AppAction`；取消语义保持 Codex/Lime
+既有合同（`/resume` cancel 仍为 `AppAction::None`）。未新增 protocol/schema、transport、provider、
+mock backend 或第二 history store，App 继续拥有 thread routing、transport channels、startup host
+boundary 与 canonical projection。
+
+分类：picker/export lifecycle 为 `current`；App 直接 mutation、字段关闭和选择提取为
+`dead / deleted / guard-only`；无新增 `compat/deprecated`。
+
+验证结果：
+
+- `cargo test -p tui --all-targets --no-default-features`：`1462` library + `18` integration +
+  `1` dependency guard 全部通过；
+- `cargo clippy -p tui --all-targets --no-default-features --no-deps -- -D warnings`、Rust fmt、
+  `git diff --check` 通过；
+- 结构守卫与 inventory：`55/55` 通过；
+- `npm run test:contracts` 与 `npm run governance:legacy-report` 通过（2068 文件，零引用候选、
+  分类漂移、边界违规均为 `0`）；
+- fresh `npm run smoke:tui-gate-b` 通过：thread `01a0fdce-14fb-7820-9adc-a18fdaf5f919`、turn
+  `turn_5d432c7ec5664cdd86d4405a33e0041a`；typed queue/edit、Agent Center、history/search、
+  structured/persistent history、Vim/mentions、resize/reconnect、terminal restore 全部通过；
+- 同一 fresh binary 的 `npm run smoke:cli-gate-b` 通过：thread `01a0fdce-10c9-7073-956d-bf2e44b3226a`、
+  turn `turn_18cf7aebcfa34eeb894e59384b0ec6d8`；`jsonl=ok`、`stdin=ok`、`error-exit=1`、
+  `completion=zsh`。
+
+本阶段退出条件 `4/4` 完成：1) 五类 picker/export mutation 只有 ChatWidget owner；2) 选择、取消、
+  resume pager 和 export path 语义回归通过；3) fresh TUI Gate B 与 CLI Gate B 重新通过；4) App
+  transport/routing、startup boundary、canonical projection 未被迁移。Desktop Gate B 继续
+`unverified / harness-blocked`；整体 Codex 对齐仍为 `partial / in-progress`。下一刀优先回到
+剩余 A2 transcript/history contract，或审计 ChatWidget interaction 中仍可下沉的 keymap/scroll
+presentation 分支，不恢复旧 composer、旧 `thread_settings` 或第二 history store。
+
+## 2026-10-03 ChatWidget transcript interaction mutation closure 第十八阶段（已完成）
+
+第十七阶段后继续审计 `app/interaction.rs` 的 presentation mutation，发现 picker/export 已收口，
+但主 pager event close、selection scroll/reveal、transcript search 关闭时恢复 scroll，以及 follow
+control 返回 latest 仍由 App 直接修改 ChatWidget 内部字段。本刀补齐最后一组 interaction mutation
+边界：
+
+- `handle_pager_event`：ChatWidget 自己处理 pager event，并在 Close 时 retain/dismiss；
+- `scroll_main_selection` / `reveal_main_selection_row`：selection 的滚动与可见行 reveal；
+- `handle_transcript_search_event`：搜索事件与 close 时 scroll 恢复；
+- `handle_transcript_follow_mouse`：follow control 命中与 return-to-latest scroll。
+
+App 只保留 `PagerAction`、`SearchAction`、selection action 到 `AppAction` 的映射，不再直接调用
+`pager.handle_event`、`transcript_search.handle_event`、`transcript_follow_control.handle_mouse` 或
+selection mutation。无新增 protocol/schema、transport、provider、mock backend 或第二 history store。
+
+验证：TUI `1462 + 18 + 1` 全绿；结构/inventory `55/55`；strict all-target no-deps Clippy、Rust
+fmt、`git diff --check`、contracts、legacy report（2068 文件，零引用候选/分类漂移/边界违规均为
+`0`）通过。最终 fresh TUI Gate B 通过：thread `01a0fdd6-6375-7590-a15e-af3a0b5d2294`、turn
+`turn_2b36f3d0080643eb9a351acf1d7c814d`，覆盖真实 PTY/alternate screen、thread input、typed
+queue/edit、Agent Center、history/search、Vim/mentions、resize/reconnect、terminal restore；同一
+fresh binary CLI Gate B 通过：thread `01a0fdd6-489c-7891-893e-7df99f367563`、turn
+`turn_821879da96d04eb49255faa85ebf80f7`，`jsonl=ok`、`stdin=ok`、`error-exit=1`、`completion=zsh`。
+
+退出条件 `4/4`：1) transcript interaction mutation 只有 ChatWidget owner；2) pager/search/follow/
+selection 回归保持；3) 最终 TUI/CLI Gate B 通过；4) App Server/runtime/projection 主链未被触达。
+Desktop Gate B 仍为 `unverified / harness-blocked`；整体对齐继续保持 `partial / in-progress`。
+
+## 2026-10-03 ChatWidget global keymap/startup presentation owner 第十九阶段（已完成）
+
+继续清理 App host interaction 中最后一组可变 presentation 入口：global key chord matcher 的
+reset/dispatch、shortcut overlay 关闭、transcript search begin/follow reset，以及 startup
+protected-request pending 标记的 set/clear/read。它们不属于 App Server transport 或 thread routing，
+统一收回 ChatWidget。
+
+新增 ChatWidget owner 方法：`reset_global_key_chord`、`dispatch_global_key`、
+`dismiss_shortcut_overlay`、`begin_transcript_search`、`startup_protected_request_pending`、
+`set_startup_protected_request_pending`、`clear_startup_protected_request`。App 仅保留
+`startup_protected_input_boundary` host gate、thread-event buffer 检查和 global action 到
+`AppAction` 映射；不再直接回写 `global_key_chord_matcher`、`transcript_search`、follow control 或
+`startup_pending_protected_request`。
+
+分类：ChatWidget global keymap/search/startup presentation 为 `current`；App 直接 mutation 为
+`dead / deleted / guard-only`；无新增 `compat/deprecated`，无协议、schema、provider、mock 或
+第二 history store。
+
+验证：TUI `1462 + 18 + 1`、strict all-target no-deps Clippy、Rust fmt、结构/inventory `55/55`、
+`git diff --check` 全部通过；最终 fresh TUI Gate B 通过：thread `01a0fddd-6980-76d2-a7f2-3266fd32a012`、
+turn `turn_1639079023004f46a278f4f43fc660de`，真实 PTY/alternate screen、thread input、typed
+queue/edit、Agent Center、history/search、Vim/mentions、resize/reconnect、terminal restore 全部
+通过；同一 fresh binary CLI Gate B 通过：thread `01a0fddd-6525-7de1-84b3-6f3a484ff227`、turn
+`turn_a8b4f194b5a7427ab143980abc154e9e`，`jsonl=ok`、`stdin=ok`、`error-exit=1`、`completion=zsh`。
+`npm run test:contracts`、`npm run governance:legacy-report`（2068 文件，零引用候选/分类漂移/边界
+违规均为 `0`）也已通过。
+
+退出条件 `4/4`：1) global keymap/search/startup presentation 单 owner；2) startup gate 与
+transport ownership 未混淆；3) 最终 TUI/CLI Gate B 通过；4) 守卫阻止 direct mutation 回流。Desktop
+Gate B 继续 `unverified / harness-blocked`；整体 Codex 对齐保持 `partial / in-progress`。
+
+## 2026-10-02 ChatWidget startup protected-request pending owner 第十阶段
+
+沿第九阶段继续区分 host startup gate 与 chat presentation pending：
+`startup_pending_protected_request` 已从 `App` 迁入 `ChatWidget`，成功 thread handoff、交互回应、
+pre-draw timer、断线清理和 startup request 接线全部读写同一 UI pending owner；
+`startup_protected_input_boundary` 仍归 App 的 terminal host 生命周期，不能把 host gate 误迁为
+第二个 transport/session owner。现有 queued protected-request 检查仍合并当前 Thread bounded
+event channel，未复制 request queue 或业务 waiter。
+
+分类：ChatWidget pending presentation 为 `current`；旧 App pending 字段与直接消费为
+`dead / deleted / guard-only`；无新增 `compat/deprecated`。TUI library `1457/1457`、结构守卫
+`25/25`、strict all-target Clippy、Rust fmt 和 `git diff --check` 通过；fresh TUI/CLI Gate B
+待本阶段收尾后重跑。GUI/protocol/runtime/provider 未触达，Desktop Gate B 继续
+`unverified/harness-blocked`。最低退出条件：pending 状态单 owner、host boundary 保持、交互/断线/
+thread-switch 回归与 fresh Gate B 通过。整体对齐仍为 `partial/in-progress`；下一刀优先回到
+A2 remaining history/transcript contract 或 replay-seeded history。
+
+## 2026-10-02 replay-seeded composer history 第十一阶段（已完成）
+
+本阶段回到 Codex `ChatComposerHistory::record_replayed_submission` 语义：resume/hydrate 与
+paginated transcript 的 canonical `ThreadItem::UserMessage` 现在进入同一个 BottomPane 主
+composer history owner，Up/Down 与 Ctrl-R 不再只看到本地提交或独立的 text-only prompt
+history。`HistoryEntry::from_user_inputs` 保留 TextElement byte range、local/remote image
+detail 与 Skill/Mention binding；legacy Turn 先使用 `hidden_user_message_ids` 过滤 review
+prompt/nested duplicate，paginated older page 以 prepend 保持 chronological recall，persistent
+prompt history 与 replay entries 在现有 owner 内按 text/mention identity 去重。
+
+无 Turn enrichment 的 flat paginated page 只允许进入 transcript projection，不 seed composer
+history（fail closed），避免从 item-only 页面猜测并暴露 agent-only review prompt。没有新增
+protocol、schema、App Server 方法、mock backend、第二 history store 或 compat 包装；App 仅把
+canonical replay facts 交给 BottomPane，持久化 prompt history 仍由 App Server `promptHistory/*`
+提供。
+
+分类：`ChatComposerHistory` replay seed、canonical input lowering 与 BottomPane 接线为
+`current`；旧的“只从 local submit recall”的缺口为原位重构，不新增 `compat/deprecated`。
+结构守卫已扩展 replay owner、hydrate/page 接线和 no-Turn fail-closed 断言；新增 history
+conversion、review filter、older-page order、persistent duplicate 与 flat-page guard 回归。
+退出条件已完成：replay/history 定向 13/13，TUI all-targets `1461/1461`（含 integration/
+dependency guard）、strict all-target Clippy、Rust fmt、结构守卫 `25/25`、contracts、legacy
+report（2068 文件，零引用候选/分类漂移/边界违规均为 0）和 `git diff --check` 全部通过。
+fresh TUI Gate B 通过：thread `01a0fc6e-83f0-7123-9209-dccf08038ac2`、turn
+`turn_935636cdea7e4b2cb7518ce97acd21f4`，`structured-history`、`persistent-history`、Vim/
+mentions、resize/reconnect 和 `terminal=restored` 全部通过；同一 fresh binary 的 CLI Gate B
+通过：thread `01a0fc6f-86a4-7da0-b73a-b77b1d255c00`、turn
+`turn_2fbb761cde5c4dd4bfc31b49dba4687b`，`jsonl=ok`、`stdin=ok`、`error-exit=1`、
+`completion=zsh`。受控 external backend，非 live provider。Desktop Gate B 继续
+`unverified/harness-blocked`，不能用 TUI/CLI 证据替代 GUI 验收。整体对齐保持
+`partial/in-progress`；下一刀继续回到 ChatWidget collaboration scope、其它 session state
+或剩余 A2 transcript contract，而不是恢复旧 composer/第二 history store。
+
+## 2026-10-02 ChatWidget collaboration/settings owner 第十二阶段（已完成）
+
+继续对照公开 Codex `tui/chatwidget/settings.rs` 收敛协作控制面：Lime 原先把模型 catalog、
+线程设置快照、permission profile 归一化、默认 collaboration mode 推导、Plan/BackTab 选择
+和 model picker 构造全部写在 `app/thread_settings.rs`，使 App 仍承担 ChatWidget 业务规则。
+
+本刀将这些规则直接迁入新增的 `chatwidget/settings.rs`：ChatWidget 成为唯一的
+model/provider/effort/permission/collaboration projection 与 derivation owner；旧 App 的
+`thread_settings` 委托文件已删除，启动、重连及 App Server 返回值直接调用 ChatWidget，不新增协议、schema、
+transport、provider 或第二份 settings store。生产输入与 runtime 直接消费
+`chat_widget.next_collaboration_mode()`、`plan_mode()` 和 `set_collaboration_mode(...)`，
+独立问答 notes editor、canonical Thread/Turn/Item、App Server `thread/settings/update` 与
+`collaborationMode` authority 保持不变。
+
+结构守卫新增 ChatWidget settings owner、App 窄委托和 runtime/event/input 接线断言；旧的
+App 内协作推导逻辑归 `dead / guard-only`，没有新增 `compat/deprecated`。本阶段验证已完成：
+TUI `1462` library + `18` integration + `1` dependency guard、strict TUI Clippy
+(`--all-targets --no-deps`)、Rust fmt、结构/inventory `51/51`、`npm run test:contracts`、
+`npm run governance:legacy-report`（2068 文件、零引用候选/分类漂移/边界违规）与
+`git diff --check` 均通过。fresh `npm run smoke:tui-gate-b` 通过，thread
+`01a0fc9c-6f34-7cc2-9db8-96aa8f41f264`、turn `turn_36dbbc5f0e624f328110ee9900bddaff`，
+包含真实 PTY、alternate screen、typed input、history/reconnect 与 `terminal=restored`；同一
+fresh binary 的 `npm run smoke:cli-gate-b` 通过，thread `01a0fc9c-6ac6-7ca1-b19a-9b8fd1e3dc48`、
+turn `turn_e95d8a8508a145ca85679e0de3f1f063`，`jsonl=ok`、`stdin=ok`、`error-exit=1`、
+`completion=zsh`。完整 workspace Clippy 仍会命中既有 `agent-protocol` 的
+`large_enum_variant` 与 `derivable_impls` 基线告警，本阶段以 owner 级 no-deps 严格检查为准。
+Desktop Gate B 继续 `unverified/harness-blocked`，整体对齐仍为 `partial/in-progress`。
+
+## 2026-10-02 ChatWidget locale presentation owner 第十三阶段（已完成）
+
+继续审计 ChatWidget 剩余 session-local presentation state：App 原先持有 `Locale`，导致
+history、pager、footer、shortcut、MCP 状态文案和 view 渲染读取第二个宿主级 presentation
+owner。本刀将 `locale: Locale` 收回 `ChatWidget`；`App::set_locale` 仅作为启动 host 配置委托，
+所有用户可见文案、历史/分页/快捷键/状态渲染以及 MCP 登录反馈统一读取
+`app.chat_widget.locale`。未迁移 `cwd`、Thread transport、MCP login request lifecycle、
+canonical projection 或 App Server authority；这些仍是 App/transport current owner，不伪造
+ChatWidget 业务状态。
+
+分类：ChatWidget locale 与所有读取接线为 `current`；旧 App `locale` 字段/直接消费为
+`dead / deleted / guard-only`；`App::set_locale` 仅是 current host 配置入口并委托 ChatWidget；无新增
+`compat/deprecated`、协议、schema、provider 或 GUI backend。新增结构守卫要求 App 不再声明 locale，
+view/history/MCP 文案只从 ChatWidget 读取；TUI inventory 已刷新至 `1412` 文件。
+
+验证：TUI `1462` library + `18` integration + `1` dependency guard、结构/inventory
+`52/52`（含 MCP OAuth transport owner 负向守卫）、locale 相关 TestBackend/五语言回归、strict TUI Clippy
+(`--all-targets --no-deps`)、`npm run test:contracts`、`npm run governance:legacy-report`、
+`git diff --check` 均通过。locale 迁移后的 fresh `npm run smoke:tui-gate-b` 再次通过，thread
+`01a0fcb7-9d08-7fc0-8894-dfd894f8cc26`、turn `turn_92eb7cb50f504f77aa9b0ab6f8458741`，
+`images=ok`、`structured-history=ok`、`resize/reconnect`、`terminal=restored`；同一 fresh
+binary 的 `npm run smoke:cli-gate-b` 通过，thread `01a0fcb7-87ee-7050-a89f-8c4c3e7fd9a7`、
+turn `turn_dbbd4bf3a419450c8c1e17fb2c5faaf5`，`jsonl=ok`、`stdin=ok`、`error-exit=1`、
+`completion=zsh`。整体对齐仍为 `partial/in-progress`；下一刀优先审计 MCP login transient state
+是否保持 App-scoped transport owner，并回到剩余 A2 history/transcript contract，不恢复旧
+composer、旧 `thread_settings` 入口或第二 history store。
+
+## 2026-10-02 ChatWidget settings single-owner 第十四阶段（已完成）
+
+继续对照 Codex `ChatWidget` settings owner 收敛 TUI 的模型、provider、推理强度、权限和
+协作模式快照。此前 `App::runtime` 与 `app/thread_settings.rs` 共同持有并回写同一组可变
+settings，形成第二套 settings owner；启动、resume、model picker、快捷键和 App Server
+返回值也因此需要在宿主层传递多组可变引用。
+
+本刀将 settings patch、模型/推理/权限/协作模式更新、model catalog、permission profile
+归一化与 collaboration derivation 全部收回 `ChatWidget` 的 `settings.rs`。`EventContext`
+不再携带四组 runtime settings 引用；startup/session lifecycle 只保留 terminal host policy
+并直接委托 ChatWidget；runtime reconnect、picker 与 settings command 也只消费
+`chat_widget`。旧 `app/thread_settings.rs` 已物理删除，不新增 compat 包装层、协议、schema、
+transport、provider 或第二份 settings store；App Server `thread/settings/update` 仍是
+canonical authority，MCP OAuth request/generation 状态继续留在 App 的 transport owner。
+
+分类：ChatWidget settings snapshot、model catalog、permission/collaboration projection
+及其接线为 `current`；旧 App/runtime settings 字段、`thread_settings` 实现和直接可变引用
+为 `dead / deleted / guard-only`；无新增 `compat/deprecated`。结构守卫新增 settings
+single-owner、App 窄委托、runtime/event/input 不得回持 settings 的负向断言。
+
+本阶段已通过结构守卫 `53/53`、Rust fmt check、`git diff --check`、`npm run test:contracts`
+与 `npm run governance:legacy-report`（2068 文件，零引用候选/分类漂移/边界违规均为 0）。
+fresh `npm run smoke:tui-gate-b` 通过，thread `01a0fd18-398e-7470-8f17-50bfd0110687`、
+turn `turn_3c442bc7fc1e484c9398f9112f6a411f`，包含真实 PTY、alternate screen、typed input、
+history/reconnect、resize、structured/persistent history 与 `terminal=restored`；同一 fresh
+binary 的 `npm run smoke:cli-gate-b` 通过，thread `01a0fd18-3878-7713-9abd-5f9f1644bdae`、
+turn `turn_d019d493c44446508d6bae3eecbe06ad`，`jsonl=ok`、`stdin=ok`、`error-exit=1`、
+`completion=zsh`。TUI `1462` library + `18` integration + `1` dependency guard 与 strict
+all-target no-deps Clippy 已在实现阶段通过。Desktop Gate B 继续 `unverified/harness-blocked`，
+TUI/CLI 证据不能替代 GUI 验收；整体对齐保持 `partial/in-progress`。下一刀回到剩余 A2
+transcript contract 或其它仍未收敛的 ChatWidget session-local state，不恢复旧 composer、
+旧 `thread_settings` 或第二 history store。
+
+## 2026-10-02 ChatWidget transcript presentation owner 第十五阶段（已完成）
+
+继续沿 Codex `ChatWidget` transcript/pager owner 收口 App 中残留的用户界面状态变更。此前
+`App` 虽已不再声明 transcript 字段，但仍直接修改 `pager_overlay`、scroll、selection、
+clipboard lease、follow/reflow、turn lifecycle，并在 App 内创建 status/MCP pager，行为 owner
+仍然分裂。
+
+本刀新增 `chatwidget/transcript.rs`，由 ChatWidget 统一承接 raw/rich render mode 切换、
+transcript pager 打开/关闭/重置、status/MCP inventory pager 创建、scroll 上下/首尾、selection
+结束、thread switch reset 与 hydrated-thread reset。`app/transcript_presentation.rs` 保留为
+窄 host 委托；`App` 的 thread routing、startup boundary、transport、`ConversationProjection`
+和 canonical Thread/Turn/Item 仍保持原 owner。没有新增 protocol/schema、第二 history store、
+compat/deprecated 包装或生产 mock。
+
+分类：`ChatWidget` transcript/pager 行为与 `chatwidget/transcript.rs` 为 `current`；App 中
+直接操作 ChatWidget presentation 字段为 `dead / deleted / guard-only`；MCP login request
+生命周期仍是 App-scoped transport current。结构守卫扩展为要求 transcript 方法集中在
+ChatWidget，并禁止 App 直接创建 pager 或回写 pager overlay。
+
+验证：结构/inventory `53/53`、TUI `1462` library + `18` integration + `1` dependency guard、
+strict all-target no-deps Clippy、Rust fmt、`git diff --check` 均通过。fresh
+`npm run smoke:tui-gate-b` 通过，thread `01a0fd2d-ce14-7170-906b-7bb8824c842f`、turn
+`turn_8ac005ff10164b2895ce91c50982a0c7`，覆盖真实 PTY、alternate screen、typed input、
+history/search/resize/reconnect、pager 相关投影与 `terminal=restored`；同一 fresh binary 的
+`npm run smoke:cli-gate-b` 通过，thread `01a0fd2d-c9ec-71d1-9eef-b3fdcfad51ba`、turn
+`turn_8dd81adc61d648dba36184615e701572`，`jsonl=ok`、`stdin=ok`、`error-exit=1`、
+`completion=zsh`。Desktop Gate B 继续 `unverified/harness-blocked`，整体对齐仍为
+`partial/in-progress`；下一刀继续处理 A3 ChatWidget input/interaction 或剩余 A2
+transcript contract，不恢复旧 composer、旧 `thread_settings` 或第二 history store。
+
+## 2026-10-03 ChatWidget queued input / clipboard pending owner 第二十阶段（已完成）
+
+继续审计 ChatWidget 迁移后的瞬态输入边界：队列字段虽然已经位于 ChatWidget，但 App 的
+`input_submission` 仍直接替换、upsert、删除并重建 queued submission；`input_flow` 和
+`view` 也直接读取字段。异步右键粘贴的 pending completion 同样由 App 直接写字段，形成
+宿主与 ChatWidget 的第二个可变入口。
+
+本刀在 `chatwidget/input.rs` 收口 `queued_submissions()`、
+`replace_queued_submissions`、`upsert_queued_submission`、
+`restore_queued_submission_for_edit`，并收口 `set/pending/take/clear_pending_clipboard_paste`
+及 source 读取。队列编辑恢复（文本元素 byte range、图片 detail、Skill/Mention binding）
+现在和主 BottomPane editor 一样由 ChatWidget input owner 负责；App 只保留 host 委托、线程
+与 canonical projection 语义。右键粘贴仍由 App 负责线程/草稿一致性检查和 worker 结果落地，
+但 pending 生命周期不再 direct mutation。未新增协议、schema、transport、provider、mock
+backend、第二 history store 或 compat/deprecated 包装。
+
+分类：ChatWidget queue/edit/pending clipboard API 为 `current`；App 对 queued/pending 字段
+的直接读写为 `dead / guard-only`；既有 `App::set_queued_submissions`、
+`upsert_queued_submission`、`restore_queued_submission_for_edit` 仅为 host 委托入口，不承接
+业务逻辑。结构守卫扩展为要求 queue/paste mutation 只在 ChatWidget input owner，并禁止
+`app/input_submission.rs`、`app/input_flow.rs`、`view.rs`、`app/right_click_paste.rs` 回写字段。
+
+验证：TUI all-targets `1462` library + `18` integration + `1` dependency guard 全绿；strict
+all-target no-deps Clippy、Rust fmt、`git diff --check`、ChatWidget/composer 结构守卫 `31/31`、
+`npm run inventory:tui-structure`（`1415` 文件）、`npm run test:contracts`、
+`npm run governance:legacy-report`（2068 文件，零引用候选/分类漂移/边界违规均为 `0`）通过。
+fresh TUI Gate B 通过：thread `01a0fe72-5247-7331-a264-a4b62ddb126c`、turn
+`turn_a768918b44d1417d838ea3a00c502092`，queue/edit、structured/persistent history、Vim/
+mentions、resize/reconnect、terminal restore 全部通过；同一 fresh binary 的 CLI Gate B 通过：
+thread `01a0fe73-1f71-7a23-9232-2775728acf85`、turn `turn_d26820a6c46a48c5b5f7e155b2d13d9d`，
+`jsonl=ok`、`stdin=ok`、`error-exit=1`、`completion=zsh`。两者均为受控 external backend，
+非 live provider。
+本刀未触及 App Server/protocol/runtime/provider/Electron 主链，未宣称 Desktop Gate B；整体 Codex
+对齐仍为 `partial / in-progress`，Desktop Gate B 继续 `unverified / harness-blocked`。
+
+下一刀回到 A2 transcript/history contract：优先统一 resume/full transcript、preview 与
+incremental pagination 的 canonical lowering/失败语义，继续禁止第二套 history store 和
+text-only prompt history。
+
+## 2026-10-03 ChatWidget lifecycle availability owner 第二十一阶段（已完成）
+
+继续清理 runtime/session lifecycle 对 ChatWidget 交互状态的直接赋值。resume picker、agent
+picker、agents overview、model picker 的创建/关闭以及 transcript/pager older-history
+availability 的写入口统一收回 `chatwidget/interaction.rs` 与 `chatwidget/transcript.rs`；
+启动、resume、reconnect、history hydrate 和 Agent Center 只保留 host routing 与 App Server
+生命周期委托。`agents_overview_threads.rs` 的 mutable overview 业务 owner 仍按领域保留，
+没有用无意义 setter 覆盖真实 owner。
+
+分类：ChatWidget lifecycle/pager availability API 与接线为 `current`；runtime/app 对上述
+字段的散落赋值为 `dead / guard-only`；未新增 `compat/deprecated`、协议、schema、provider、
+mock backend 或第二 history store。`resume_picker_mut` 只作为真实 picker 业务 owner 的
+受控 mutable accessor，不伪装成完整行为迁移。
+
+验证：TUI `1462` library + `18` integration + `1` dependency guard、strict all-target
+no-deps Clippy、Rust fmt、结构/inventory `55/55`、`test:contracts` 与
+`governance:legacy-report`（2068 文件，零引用候选/分类漂移/边界违规均为 0）通过。该阶段
+代码尚未单独产生新的 Gate B 证据，不能复用第二十阶段的 smoke 结果作为本阶段最新证据。
+
+## 2026-10-03 Codex-style asynchronous transcript pagination 第二十二阶段（已完成）
+
+修复 A2 history/transcript 的可见交互缺口：旧实现从 runtime 直接 `await` item page、Turn
+enrichment 和全量历史循环，加载期间阻塞键盘、重绘、Esc/退出与 App Server 通知。本刀在现有
+`AppEvent` 管道新增 `OlderThreadHistoryLoaded` 与 `OlderHistoryLoadMode`（单页、全量、可视区
+补齐），后台 task 只移动克隆的 `RequestHandle`，完成后由主循环校验 thread/cursor、应用
+canonical item/Turn 投影、刷新 availability，并按模式继续下一页或进入失败可重试状态。
+
+启动、resize、reconnect 的 underfilled transcript top-up 也改为同一异步事件流；旧的同步
+`request_all_older_history_pages`、terminal top-up 入口和滚动内同步 history await 已删除。
+App Server 仍是唯一历史事实源，Turn enrichment、review hidden filtering、replay seed、
+stale response cancellation 与 cursor repeat 防护保持不变，没有新建 TUI history store 或
+text-only fallback。
+
+分类：`AppEvent` history completion、App Server request-handle lowering 和 ChatWidget transcript
+projection 为 `current`；同步分页入口为 `dead / deleted / guard-only`；旧 prompt history
+事件仍是独立 composer history current owner，不与 Thread transcript 混合。
+
+验证：TUI `1462` library + `18` integration + `1` dependency guard、strict all-target
+no-deps Clippy、Rust fmt、`git diff --check`、结构守卫 `56/56`、`npm run test:contracts`、
+`npm run governance:legacy-report`（2068 文件、零引用候选/分类漂移/边界违规均为 0）通过。
+最新 fresh TUI Gate B 通过：thread `01a0fe90-5b5e-7472-8523-5a5b4126ac65`、turn
+`turn_4d2ae218a15f4b379f66073d643baf00`，覆盖真实 PTY、alternate screen、typed input、
+queue/edit、structured/persistent history、history/search、resize/reconnect、terminal restore；
+同一 fresh binary 的 CLI Gate B 通过：thread `01a0fe91-300a-7161-bafa-1daf90bdecd8`、turn
+`turn_0df40b8e2da14165a0e1d2e5e93b1a53`，`jsonl=ok`、`stdin=ok`、`error-exit=1`、
+`completion=zsh`。两者均为受控 external backend，非 live provider；Desktop Gate B 仍为
+`unverified / harness-blocked`，整体 Codex 对齐保持 `partial / in-progress`。
+
+下一刀继续 A2 canonical history lowering：审计 `thread_transcript` 完整历史、resume picker
+preview 与增量分页在失败、Turn filtering、边界锚点和重连后的 read model 是否完全共享同一
+投影语义；不恢复旧 composer、第二 history store 或同步阻塞入口。
+
+## 2026-10-03 Resume preview canonical Turn lowering 第二十三阶段（已完成）
+
+补齐 resume picker 的 bounded transcript preview：分页 preview 之前只把局部 item 页交给
+`ConversationProjection`，只能依据页内 Entered/ExitedReviewMode 推断状态；跨页 review 或
+中断嵌套 review 会与完整 transcript、增量分页产生不同的隐藏用户消息语义。本刀保留
+preview 的扫描上限和展示行数，但同时收集 item page 的 canonical turn ids，通过现有
+App Server request handle 获取 Turn metadata，再用 `hidden_user_message_ids` + canonical id
+过滤后生成 preview；Turn 读取失败时保持已有 item-only fail-closed 展示，不创建第二历史源。
+
+分类：resume preview 的 Turn lowering 与 `thread_transcript`/incremental pagination 共用的
+history filter 为 `current`；原 page-local preview 逻辑仅作为无 Turn metadata 的受控降级，
+不新增 compat/deprecated owner。新增结构守卫禁止 bounded preview 绕过 Turn facts。
+
+验证：TUI `1463` library + `18` integration + `1` dependency guard、strict all-target
+no-deps Clippy、Rust fmt、`git diff --check`、结构守卫 `57/57` 通过。最新 fresh TUI Gate B
+通过：thread `01a0fe96-89d1-72d1-92df-0b7ada58ffbf`、turn
+`turn_919150b5b80145ac9fc83cf6604e31f9`，覆盖真实 PTY、输入/队列编辑、structured/persistent
+history、history/search、resize/reconnect 与 terminal restore；同一 fresh binary 的 CLI Gate B
+通过：thread `01a0fe97-3fe9-78b0-a099-7e3dfe796c5f`、turn
+`turn_c572eb92021e4a9381cc43e6858e2eee`，`jsonl=ok`、`stdin=ok`、`error-exit=1`、
+`completion=zsh`。两者为受控 external backend，非 live provider；Desktop Gate B 仍为
+`unverified / harness-blocked`，整体对齐保持 `partial / in-progress`。
+
+下一刀优先验证历史请求失败后的 UI 状态恢复（pager/search retry、stale completion、session
+切换）并继续收敛 App Server read model lowering，不恢复旧 composer、第二 history store 或
+生产 mock fallback。
+
+## 2026-10-03 History retry/session-race contract 第二十四阶段（已完成）
+
+继续收口历史加载期间的竞态：单页滚动请求尚未完成时触发 Pager/Search 全量加载，旧逻辑会
+把 cursor 正在使用误判成不可用，提前把 Loading 重置为 Idle；线程切换或 reconnect 也可能
+让旧 completion 覆盖新 surface 的状态。本刀新增 `OlderHistoryLoadStart::{Started,Pending,
+Unavailable}`，由 `AppServerSession` cursor owner 区分真实无历史与已有请求；runtime 保留
+`history_load_all_requested` 意图，Pending 时不重置 UI，单页 completion 后自动接续全量加载。
+线程 resume/switch/reconnect 会清除旧的全量意图，completion 仍先校验当前 Thread/cursor，
+失败路径统一进入 Pager/Search Failed 并保留 Home/Enter retry。
+
+分类：cursor pending/result 状态与 retry 意图为 `current`；同步阻塞/无差别布尔判断为
+`dead / deleted / guard-only`；没有新增 compat/deprecated、协议、schema、mock backend 或
+第二 history store。结构守卫补充 `OlderHistoryLoadStart` 与异步 history owner 约束。
+
+验证：TUI `1463` library + `18` integration + `1` dependency guard、strict all-target
+no-deps Clippy、Rust fmt、结构守卫 `57/57`、`git diff --check` 全部通过。最新 fresh TUI
+Gate B 通过：thread `01a0ff61-fd3e-7323-a100-93224f817097`、turn
+`turn_42fc152a1dbc4b689a68148f28d082db`，覆盖队列编辑、历史搜索/结构化历史、resize/reconnect
+和 terminal restore；同一 fresh binary 的 CLI Gate B 通过：thread
+`01a0ff62-d9e6-7720-a6f0-c292a5846d9c`、turn `turn_ad252cbce1704e989c8b39177e9a62a4`，
+`jsonl=ok`、`stdin=ok`、`error-exit=1`、`completion=zsh`。两者均为受控 external backend，
+非 live provider；Desktop Gate B 仍为 `unverified / harness-blocked`，整体对齐保持
+`partial / in-progress`。
+
+下一刀继续补充真实失败注入的 PTY 回归，覆盖 item page/Turn enrichment 分别失败、线程切换
+期间 stale completion，以及 Pager/Search 的 retry 后 cursor 是否保持可推进。
+
+本阶段同步更新 `internal/aiprompts/architecture.md`，明确 history completion/event flow 与
+resume preview lowering 复用 App Server canonical Thread/Turn/Item，不把异步任务或 preview
+缓存升级为新的业务 owner。
+
+## 2026-10-03 TUI history failure fixture config contract 第二十五阶段（已完成）
+
+真实 history pagination fixture 在进入 item page 失败注入前，会先通过 remote App Server
+transport 启动 TUI。该 fixture 漏掉了 current `config/read` v2 响应，默认分支返回空对象，导致
+TUI 在读取 immutable keymap/settings snapshot 时错误退出，掩盖了后续 Home retry、Turn
+enrichment 和 stale completion 场景。本刀只补齐 fixture 的 `config/read -> {config, origins}`
+响应，不在 TUI 内增加文件读取或 mock fallback；remote transport 仍复用同一 App Server
+JSON-RPC/config contract。
+
+分类：`config/read` fixture 响应为 `current test-only` 合同；空对象 fallback 为
+`dead / deleted / guard-only`；没有新增 compat/deprecated、协议、schema、生产 mock 或
+第二 history store。现有 `history_failure_response` 现在覆盖 initialize、thread/resume、
+config/read、thread/items/list 所需的最小公共入口。
+
+验证：fresh `npm run smoke:tui-history-pagination` 通过，paginated `207 items / 3 pages`、
+legacy `102 items / 2 pages`，并覆盖 item page failure + Home retry、Turn enrichment 一次失败
+后的 item-only fallback、underfilled scrollback top-up、nested review filtering、stale/session
+boundary 与 alternate-screen restore（paginated `01a0ff88-676d-7df1-bcef-940bdfb8d19a`，legacy
+`01a0ff88-39e8-74a1-895e-a2f1c877cde5`）；
+`npm run test:rust:related -- lime-rs/crates/tui/tests/suite/history_pagination.rs` 通过
+（CLI 8 + TUI 1463 library tests）；`npm run test:contracts`、
+`npm run governance:legacy-report`（2068 文件，零引用候选/分类漂移/边界违规均为 0）、
+`npm run inventory:tui-structure`、`npx vitest run scripts/app-server/tui-gate-b.test.mjs`
+（23/23，包含 config/read fixture 回流守卫）、workspace Rust fmt 与 `git diff --check` 均通过。
+fresh `npm run smoke:tui-gate-b` 通过（thread `01a0ff84-4fa1-7fb0-88cf-e596434c953a`、turn
+`turn_c74cf5e05ac94a52b56aa44aabde4fc5`，`history/search`、queue/edit、resize/reconnect、
+terminal restore）；同一 fresh binary 的 `npm run smoke:cli-gate-b` 通过（thread
+`01a0ff85-21d4-7b03-b1b9-0ebaebcc9529`、turn `turn_100eefe8e2b748c99375622a6fc030c6`，
+`jsonl=ok`、`stdin=ok`、`error-exit=1`、`completion=zsh`）。
+Desktop Gate B 仍为 `unverified / harness-blocked`；整体 Codex 对齐继续为
+`partial / in-progress`。
+
+下一刀继续真实失败注入下的历史 UI 语义审计：分别验证 item page、Turn enrichment、重连和
+线程切换后的 retry footer/anchor/cursor；不恢复旧 composer、第二 history store 或生产
+mock fallback。
+
+## 2026-10-03 History stale completion PTY boundary 第二十六阶段（已完成）
+
+补齐真实 PTY 下的 history stale completion 边界。新增线程切换 fixture：旧线程的 older-page
+请求在用户打开 `/resume` 并切换到另一条 canonical Thread 后才释放，随后验证旧 page item
+不会进入新线程 projection，也不会把当前状态改成 `History load failed`。新增重连 fixture：旧
+连接在 older-page 请求进行中断开，TUI 通过同一 remote App Server contract 重连并 hydrate
+最新 page，验证旧请求失败不会污染重连后的 transcript 或 retry footer；两条场景都断言
+alternate screen 恢复。
+
+测试 helper 只扩展现有 `history_pagination.rs` suite 与 PtyLime 的输入 pacing，没有新增
+harness、history store、生产 mock 或兼容入口。结构守卫同步要求线程切换/重连测试与 fixture
+server 存在，防止失败边界回退为静态单测。
+
+分类：stale completion thread/cursor/surface rejection 与 PTY fixture 为 `current test-only`；
+旧同步 history 入口、第二套 projection 与 mock fallback 仍为 `dead / deleted / guard-only`；
+GUI/TUI/App Server JSON-RPC/RuntimeCore 共享主链不变。
+
+验证：`npm run smoke:tui-history-pagination` 通过，覆盖 paginated `207 items / 3 pages`、
+legacy `102 items / 2 pages`、item page failure + Home retry、Turn enrichment failure fallback、
+线程切换 stale completion、重连 stale completion、underfilled top-up、nested review filtering 与
+alternate-screen restore；Rust fmt、`git diff --check`、TUI history suite 编译通过；结构守卫
+`tui-gate-b.test.mjs` 已补对应测试标记。Desktop Gate B 仍为 `unverified / harness-blocked`，
+整体 Codex 对齐保持 `partial / in-progress`。
+
+下一刀继续审计 history search 与 pager retry 在多次 reconnect/切线程后的 anchor/cursor 复用，
+再回到 CLI/TUI 输入框和可见状态的 Codex UX 差异；不恢复旧 composer、第二 history store 或
+生产 mock fallback。
+
+## 2026-10-03 History search retry/session-race PTY boundary 第二十七阶段（已完成）
+
+补齐主 transcript Find（非 pager overlay）的真实交互证据。此前 history failure/stale
+completion 只证明 pager surface；主搜索虽然已有 `SearchHistoryState::{Loading,Failed}` 和
+Home/Enter retry 逻辑，却没有经过真实 PTY、remote App Server JSON-RPC 和 alternate screen
+的跨层回归。本刀复用现有 `history_pagination.rs` fixture server，不新增 history store、
+mock backend 或第二套 harness：新增 item page failure 后保留 Find query/cursor 并用 Home
+重试，新增线程切换期间旧搜索 completion 被拒绝，新增 reconnect hydrate 后旧搜索 surface、
+query 和 failure state 被清理。所有断言仍以 canonical thread/item projection 和用户可见
+footer 为准；PTY fixture 先等待初始 canonical history marker，再用 bracketed-paste 一次性
+写入完整 query，避免把启动 hydrate 竞态或逐字输入期间的 bounded scan 误判为 search owner
+回归。
+
+分类：主 transcript Find 的搜索状态、retry 和 thread/reconnect 清理为 `current`；旧同步
+history 入口、第二套搜索/历史 projection 和生产 mock fallback 仍为 `dead / deleted /
+guard-only`；新增 fixture 与结构守卫为 `current test-only`，无 `compat/deprecated`。
+
+验证：fresh `npm run smoke:tui-history-pagination` 通过，覆盖 paginated `207 items / 3
+pages`、legacy `102 items / 2 pages`、Pager item page failure + Home retry、Turn enrichment
+failure fallback、主 Find failure + Home retry、主 Find 线程切换 stale completion、主 Find
+reconnect stale completion、underfilled top-up、nested review filtering 和
+alternate-screen restore；`cargo fmt --manifest-path lime-rs/Cargo.toml --all -- --check` 通过，
+历史 suite 编译/执行通过（真实 smoke 中 8 场景），Gate B 结构守卫新增 3 个主搜索场景和
+race query 标记。Desktop Gate B 仍为 `unverified / harness-blocked`，整体 Codex 对齐保持
+`partial / in-progress`。
+
+下一刀回到 CLI/TUI 输入框、footer 和可见状态的 Codex UX 差异，继续清理旧 composer/重复
+surface；不恢复旧 composer、第二 history store 或生产 mock fallback。
+
+## 2026-10-03 FooterProps presentation boundary 第二十八阶段（已完成）
+
+把 footer 的状态收集从底栏 renderer 收回 `ChatWidget`：新增
+`chatwidget/footer.rs` 作为唯一 `FooterProps` lowering owner，统一从 ChatWidget、BottomPane
+和 canonical turn-running fact 生成 draft、Plan、active-agent、agents shortcut 与 shortcut
+toggle 状态；`view.rs` 只把快照传给 `bottom_pane::render_footer`。BottomPane 仅新增窄的
+footer 读取接口，输入文本、popup、历史搜索与附件仍由现有 `ChatComposer` 单一 owner 持有。
+这与 Codex 的 `FooterProps` / pure footer layout 边界对齐，没有恢复旧 composer、没有新增
+compat/deprecated 平行层，也没有改变 GUI/TUI 共享 App Server JSON-RPC、RuntimeCore 和
+Thread/Turn/Item projection 的业务主链。
+
+分类：`ChatWidget::footer_props`、纯 footer layout 与窄读取接口为 `current`；旧的 App
+直接穿透 composer 推导 footer 状态为 `dead / deleted / guard-only`；没有新增
+`compat/deprecated`。结构守卫同步要求 footer renderer 消费 `FooterProps`，并锁定
+`chatwidget/footer.rs` owner，防止状态逻辑回流到 view 或 renderer。
+
+验证：`npm run test:rust:related -- lime-rs/crates/tui/src/bottom_pane/footer.rs
+lime-rs/crates/tui/src/bottom_pane/composer.rs lime-rs/crates/tui/src/chatwidget/footer.rs
+lime-rs/crates/tui/src/view.rs` 通过（CLI 8 + TUI 1463）；`cargo fmt ... -- --check`、
+`git diff --check`、`npx vitest run scripts/app-server/tui-gate-b.test.mjs
+scripts/app-server/tui-composer-structure.test.mjs` 通过（54/54）；fresh
+`npm run smoke:tui-gate-b` 通过，覆盖真实 lime、PTY、alternate screen、输入/排队、history
+search、resize、reconnect 与 terminal restore；`npm run governance:legacy-report` 通过
+（2068 文件，零引用候选/分类漂移/边界违规均为 0）；结构 inventory guard 同步采用当前
+异步 history owner 的 `spawn_older_history_page_load` /
+`handle_older_history_page_loaded` 命名并通过（80/80，含 composer/gate/结构三组），未把本轮 footer 代码标为失败；
+Desktop Gate B 仍为 `unverified / harness-blocked`，整体对齐保持 `partial / in-progress`。
+
+下一刀继续收口输入框可见状态：对照 Codex `ChatComposer::FooterMode` 与 composer layout，
+补齐输入禁用/运行中/弹层/Plan 状态的统一测量与渲染快照；不恢复旧 composer，不把
+`RequestUserInputOverlay.composer` 误并入主输入框。
+
+## 2026-10-03 FooterMode snapshot lowering 第二十九阶段（已完成）
+
+继续收口输入框可见状态：将 `FooterMode` 提升为 `bottom_pane::footer` 的共享 presentation
+类型，保持 transient mode 的实际状态仍由 `ChatComposer` 持有；新增 `ChatComposer::footer_mode()`
+作为唯一有效模式解析入口，按 Codex 的优先级处理历史搜索、Vim 搜索、shortcut overlay、
+附件与草稿基态。`ChatWidget::footer_props` 现在传递显式 `mode`，footer renderer 只消费
+快照，不再反向探测 composer 是否打开快捷键层；删除无消费者的 `BottomPane::shortcut_overlay_visible`
+和 `footer_has_draft` 读取壳，避免恢复旧的双重派生状态。
+
+分类：`FooterMode`、`ChatComposer::footer_mode`、`FooterProps.mode` 与纯 footer renderer 为
+`current`；旧的 renderer 直接探测 overlay、`has_draft`/`footer_has_draft` 派生入口为
+`dead / deleted / guard-only`；没有新增 `compat` 或 `deprecated`，没有恢复旧 composer、
+第二套 history store、生产 mock 或平行业务后端。`RequestUserInputOverlay.composer` 仍为
+独立 notes editor owner，不纳入主输入框。
+
+验证：`npm run test:rust:related -- lime-rs/crates/tui/src/bottom_pane/footer.rs
+lime-rs/crates/tui/src/bottom_pane/chat_composer/footer_state.rs
+lime-rs/crates/tui/src/chatwidget/footer.rs` 通过（CLI 8 + TUI 1463）；Rust fmt、
+`npx vitest run scripts/app-server/tui-structure-inventory.test.mjs
+scripts/app-server/tui-composer-structure.test.mjs scripts/app-server/tui-gate-b.test.mjs`
+通过（80/80）；fresh `npm run smoke:tui-gate-b` 通过，覆盖真实 `lime`、PTY、alternate
+screen、queue/edit、history search、Plan/shortcut/resize/reconnect 与 terminal restore，
+thread `01a1017c-c1ee-77a0-88a4-076c2ba96ecf`、turn `turn_5b306e66a07f44c2bf5f510c8ae28ab4`。
+Desktop Gate B 仍为 `unverified / harness-blocked`，整体 Codex 对齐仍为 `partial /
+in-progress`。
+
+下一刀继续补齐 Codex 的 `EscHint`/quit reminder 与运行中禁用态的 footer mode 测量，随后
+审计输入框窄宽度、多语言、remote image rows 的统一 snapshot；不把独立问答 notes editor
+误并入主 composer。
+
+## 2026-10-03 Footer interaction snapshot lowering 第三十阶段（已完成）
+
+本刀先收口第二十九阶段遗留的 renderer 反向读取：当前 `bottom_pane::footer` 虽已消费
+`FooterProps`，但 active approval/user-input footer 仍直接从 `App -> ChatWidget -> BottomPane`
+读取，shortcut overlay 关闭文案也在 renderer 侧重新解析 locale/key availability。按 Codex
+`FooterProps` 边界，将交互 footer 的已测量 hints 与 shortcut close 文案在 `ChatWidget` 统一
+lower 成快照，renderer 只负责宽度内裁剪、清屏和绘制；不改变队列、协议 response、主
+`ChatComposer` 或 `RequestUserInputOverlay.composer` owner。
+
+窄写集：`chatwidget/footer.rs`、`bottom_pane/footer.rs`、`bottom_pane/shortcut_overlay.rs`、
+`view.rs`、footer/结构回归。退出条件：1) footer renderer 不再读取 App/BottomPane；2) active
+interaction 与 shortcut close hints 仍覆盖五语言和窄宽度；3) FooterProps lowering 与
+`screen_chunks` 使用同一 width；4) TUI related/all-target、结构守卫、fmt/diff/governance
+通过；5) fresh TUI Gate B 保持输入、history、resize、reconnect、terminal restore 通过。
+Desktop Gate B 仍不因本刀升级。
+
+实现与验收：`ChatWidget::footer_props(width, ...)` 现在一次性 lowering active interaction
+footer hints（approval/user-input）和 shortcut overlay close hint；`bottom_pane::footer` 不再
+依赖 `App`、`BottomPane`、`footer_hint_lines` 或 `render_close_hint`，只消费快照并按同一
+screen width 做最后裁剪。删除无生产消费者的 `shortcut_overlay::toggle_available` wrapper，
+由 `ChatWidget::shortcut_toggle_available` 作为唯一 owner；窄屏 close hint 仍先降级为
+`esc close`，避免 renderer 截断成不可执行的 `? / esc cl…`。`RequestUserInputOverlay.composer`
+与交互队列 owner 未改变。
+
+分类：`FooterProps` 的 interaction/shortcut presentation lowering、纯 footer renderer 与
+窄屏 fallback 为 `current`；旧 footer 反向读取 App/BottomPane、旧 close/toggle wrapper 为
+`dead / deleted / guard-only`；没有新增 `compat/deprecated`、第二 history store、生产 mock
+或平行业务后端。
+
+验证：`npm run test:rust:related -- lime-rs/crates/tui/src/bottom_pane/footer.rs
+lime-rs/crates/tui/src/bottom_pane/shortcut_overlay.rs lime-rs/crates/tui/src/chatwidget/footer.rs
+lime-rs/crates/tui/src/view.rs` 通过（CLI 8 + TUI 1463）；`cargo fmt --manifest-path
+lime-rs/Cargo.toml --all -- --check`、`git diff --check` 通过；TUI 结构/Composer/Gate 守卫
+`80/80`；`npm run test:contracts` 通过（protocol 1036 类型无漂移、命令 299、治理脚本与
+docs boundary 全绿）；`npm run governance:legacy-report` 通过（2068 文件，零引用候选、
+分类漂移、边界违规均为 0）；fresh `npm run smoke:tui-gate-b` 通过，真实 PTY/alternate
+screen、输入/排队、history/Vim search、resize、reconnect、terminal restore 全绿，thread
+`01a101a6-5b1c-77c2-9e23-e67dda70eb47`、turn `turn_9b91843008b345c292e798f62eb466fb`。
+Desktop Gate B 仍为 `unverified / harness-blocked`，整体 Codex 对齐保持 `partial /
+in-progress`。
+
+下一刀继续审计输入框禁用态、popup/status/input 的统一测量以及 remote image rows/cursor
+geometry；只有 Lime 存在对应真实交互 owner 时才实现 Codex `EscHint`/quit reminder，不添加
+空壳 enum 或兼容层。
+
+## 2026-10-03 Composer input-disabled / remote-image cursor geometry 第三十一阶段（已完成）
+
+按 Codex `ChatComposer` 的 `input_enabled` 语义补齐 Lime 主 composer 的禁用态边界。新增
+`DraftState.input_enabled` 与禁用 placeholder，由 `ChatComposer` 统一负责开关、shutdown
+presentation、popup 清理和 cursor lowering；`BottomPane` 仅提供窄 host 配置入口，不新增第二个
+editor owner。禁用时键盘、paste burst、显式粘贴、断线编辑和鼠标编辑全部 fail closed，现有
+rich draft、atomic elements、local/remote attachments 和 per-thread snapshot 保留；渲染使用
+同一 `ComposerLayout`，显示 dim prompt/禁用提示并隐藏 cursor。remote image selection 继续
+独占 row focus，选中时 cursor 隐藏，Down 返回 textarea 后恢复。
+
+`FooterProps` 同步带 `input_enabled` presentation fact：被禁用的 passive footer 会清屏，交互
+请求 hints 仍优先保留，避免 shutdown/reconnect 状态继续显示可执行 shortcuts 或 Plan 提示。
+
+分类：`input_enabled`、禁用态渲染/输入边界、统一 cursor geometry 和 remote-image selection 为
+`current`；原先无禁用 guard 的编辑/粘贴/鼠标入口为 `dead / deleted / guard-only`；没有新增
+`compat/deprecated`、第二 composer、协议/schema、生产 mock 或平行业务后端。独立
+`RequestUserInputOverlay.composer` 未迁移。
+
+验证：composer 定向 181 项通过；`npm run test:rust:related -- lime-rs/crates/tui/src/bottom_pane/chat_composer lime-rs/crates/tui/src/bottom_pane/composer.rs lime-rs/crates/tui/src/bottom_pane/chat_composer/render_tests.rs` 通过（CLI 8 + TUI 1465）；`cargo fmt --manifest-path lime-rs/Cargo.toml --all -- --check`、`git diff --check` 通过；TUI 结构/Composer/Gate 守卫 80/80；fresh `npm run smoke:tui-gate-b` 通过，覆盖真实 lime、PTY、alternate screen、输入/排队、history/search、images、resize/reconnect 与 terminal restore，thread `01a101bd-3aa9-7511-9231-fb86f668aa1f`、turn `turn_6f8cf48ea3b34b5ca8ae40848c017386`，同轮 thread-input/typed-input fixture 也通过。Desktop Gate B 仍为 `unverified / harness-blocked`，不以 TUI 证据替代。
+
+下一刀回到 popup/status/input 统一测量：对齐 Codex popup overlay 与 composer desired-height 的裁剪关系，补五语言 CJK/emoji display-width 稳定快照；继续清理无真实 consumer 的旧 wrapper，不恢复旧 composer 或空壳 `EscHint`/quit reminder。
+
+## 2026-10-03 Popup overlay clipping / Unicode width / dead wrapper 第三十二阶段（已完成）
+
+对照 Codex `ChatComposer::render_with_options` 的 overlay 裁剪语义，收敛 Lime popup 的屏幕边界：
+`BottomPane::render_popups` 现在接收 transcript surface 的 top 作为唯一 clip top，command/file/skill
+popup 共享 `available_above` 计算，避免越过屏幕上界；status、queued-input preview 与 shortcut rows
+仍由同一 screen split / composer owner 统一测量，popup 不另起布局。composer 的
+desired-height 仍由现有 `ComposerLayout` 提供，不新增第二套测量器。新增五语言 CJK/emoji 与 popup
+窄宽度回归，按 Ratatui continuation cell 语义校验实际显示宽度，避免中文/emoji 造成行溢出。
+
+治理清理：删除无生产消费者的顶层 `tui/src/command_popup.rs`、`pending_input_preview.rs`、
+`reconnect.rs`、`highlight.rs` 兼容转导及对应 `lib.rs` 模块声明；唯一 owner 分别保留在
+`bottom_pane/command_popup.rs`、`bottom_pane/pending_input_preview.rs`、`app/reconnect.rs`、
+`render/highlight.rs`，结构守卫明确禁止 wrapper 回流。没有
+新增 compat/deprecated、第二 composer、协议/schema、生产 mock 或平行业务后端，独立
+`RequestUserInputOverlay.composer` 保持不变。
+
+分类：popup clip geometry、Unicode display-width 回归和 BottomPane owner 为 `current`；顶层
+command/pending-input/reconnect/highlight wrapper 为 `dead / deleted / guard-only`；历史 inventory
+记录只作为 evidence，不再作为 current owner。主链仍为 `Product Surface -> App Server JSON-RPC -> RuntimeCore ->
+Thread/Turn/Item projection`。
+
+验证：popup/Unicode 定向回归 4/4；完整 `npm run test:rust:related -- ...` 为 CLI 8/8、TUI
+1468/1468；TUI 结构/Composer/Gate 守卫 81/81；`npm run inventory:tui-structure`、
+`cargo fmt --manifest-path lime-rs/Cargo.toml --all -- --check`、`git diff --check` 与
+`npm run governance:legacy-report`（2068 文件、零引用候选/分类漂移/边界违规）均通过；
+`cargo clippy -p tui --lib --no-default-features --no-deps -- -D warnings` 与
+`cargo test -p tui --all-targets --no-default-features`（1468 library、23 integration、1
+dependency guard）通过。fresh
+`npm run smoke:tui-gate-b` 通过真实 `lime`、PTY、alternate screen、App Server stdio、
+canonical Thread/Turn/Item、popup 相关输入、history/search、images、resize/reconnect 与
+terminal restore；thread `01a101f9-37f3-7400-82f9-3edea3bf59ad`、turn
+`turn_a4661d41bc8248c1aeeab3e42839eb15`，`terminal=restored`。Desktop Gate B 继续为
+`unverified / harness-blocked`，不以 TUI 证据替代 GUI 验收。下一刀继续检查 popup/footer/input
+的统一 owner 以及剩余无真实 consumer 的 wrapper。
+
+## 2026-10-03 Shortcut owner / platform key-label convergence 第三十三阶段（已完成）
+
+完成第三十二阶段后遗留的 wrapper 审计：`shortcut_help.rs` 与 Codex 同名且仍被
+`bottom_pane/shortcut_overlay.rs`、`app/agent_center/hints.rs` 的生产路径共同消费，属于
+`current` 共享布局 owner，不是可删除的兼容壳；因此没有误删或新增平行实现。移除
+`lib.rs` 中误导性的 compatibility delegate 注释，并把 shortcut overlay 与 Agent Center
+里散落的固定键位统一收回 `keymap::shortcut_label`，覆盖 Tab/Shift+Tab、Ctrl/Alt、F4、
+Ctrl+Space 等显示，平台标签和已有 dispatch 规则保持同一事实源。
+
+分类：`shortcut_help`、`shortcut_label` 和两处 help surface 为 `current`；此前已删除的
+顶层 command/pending-input/reconnect/highlight/status wrapper 继续保持 `dead / deleted /
+guard-only`；没有新增 `compat/deprecated`、第二 composer、协议/schema、生产 mock 或平行
+业务后端。结构守卫新增 current `shortcut_help::group_lines` 断言和 compatibility 注释回流
+检查，防止共享 owner 被错误降级为 wrapper。
+
+验证：`npm run test:rust:related -- lime-rs/crates/tui/src/bottom_pane/shortcut_overlay.rs
+lime-rs/crates/tui/src/app/agent_center/hints.rs lime-rs/crates/tui/src/keymap.rs` 通过
+（CLI 8 + TUI 1465）；`npx vitest run scripts/app-server/tui-composer-structure.test.mjs
+scripts/app-server/tui-structure-inventory.test.mjs scripts/app-server/tui-gate-b.test.mjs`
+通过（81/81）；`cargo fmt --manifest-path lime-rs/Cargo.toml --all -- --check`、
+`cargo clippy --manifest-path lime-rs/Cargo.toml -p tui --lib --no-default-features --no-deps
+-- -D warnings`、`git diff --check` 通过；`npm run governance:legacy-report` 通过（2068
+文件，零引用候选/分类漂移/边界违规均为 0）。删除 `status_indicator.rs` 后的最新 fresh
+`npm run smoke:tui-gate-b` 通过：真实 `lime`、PTY、alternate screen、App Server stdio、
+canonical Thread/Turn/Item、输入/排队、history/search、images、resize/reconnect 和
+terminal restore 全绿，最新 shortcut-label 变更后的 thread `01a10217-8380-7d71-b456-97475c437edb`、turn
+`turn_369e796a88ee4edd859f74bfe3ae53c8`，`terminal=restored`。Desktop Gate B 仍为
+`unverified / harness-blocked`，整体 Codex 对齐保持 `partial / in-progress`。
+
+下一刀继续沿 Codex status/pending-input presentation 对照，重点检查 interrupt hint 是否与
+统一 keymap label、运行中禁用态和 queued preview 共用同一事实源；只有确认存在真实 Lime
+owner 才迁移，不恢复旧 composer、兼容 wrapper 或空壳 `EscHint`。
+
+## 2026-10-03 Status timer dead-surface cleanup 第三十四阶段（已完成）
+
+继续审计 status/pending-input presentation：Lime 的状态耗时事实由
+`App::active_turn_elapsed` 与 `TurnLifecycleState` 提供，`status_indicator_widget/timer.rs`
+只有测试引用，生产 `view.rs` 从未创建或读取 `StatusTimer`。直接删除该脱离构建消费图的死
+支线及 `timer_tests.rs`，保留 `StatusIndicatorWidget`、`summary_shimmer` 和现有统一
+`screen_chunks` 测量；没有为了对齐 Codex 而恢复第二套 timer 状态机。
+
+分类：`StatusIndicatorWidget`/`summary_shimmer` 与 `TurnLifecycleState` 为 `current`；
+独立 `StatusTimer` 文件及测试为 `dead / deleted / guard-only`；没有新增 `compat/deprecated`、
+第二 composer、协议/schema、生产 mock 或平行业务后端。inventory 守卫新增 timer 文件负向
+断言，防止死 status 支线回流。
+
+验证：`npm run inventory:tui-structure` 刷新 TUI inventory 至 1409 files；
+`npm run test:rust:related -- lime-rs/crates/tui/src/status_indicator_widget.rs` 通过
+（CLI 8 + TUI 1464）；`npx vitest run scripts/app-server/tui-structure-inventory.test.mjs
+scripts/app-server/tui-composer-structure.test.mjs scripts/app-server/tui-gate-b.test.mjs`
+通过（81/81）；`cargo fmt --manifest-path lime-rs/Cargo.toml --all -- --check`、
+`cargo clippy --manifest-path lime-rs/Cargo.toml -p tui --lib --no-default-features --no-deps
+-- -D warnings`、`git diff --check` 通过。删除 timer 后 fresh `npm run smoke:tui-gate-b`
+仍通过：真实 `lime`、PTY、alternate screen、App Server stdio、canonical Thread/Turn/Item、
+输入/排队、history/search、images、resize/reconnect 和 terminal restore 全绿，thread
+`01a1021f-71d0-7ea3-8b51-01386222af3f`、turn `turn_aadd8ac94844489ebfaf732f405a6b9f`，
+`terminal=restored`。Desktop Gate B 仍为 `unverified / harness-blocked`，整体 Codex 对齐
+保持 `partial / in-progress`。
+
+下一刀继续对照 Codex 的 status/pending-input 可见文案与动态快捷键绑定，优先把真实存在的
+`Alt+Up` queued-edit hint 纳入统一 `keymap::shortcut_label` 测量；如果协议/运行时没有
+pending steer owner，则保持 queue-only 语义，不伪造 Codex 状态。
+
+## 2026-10-03 Status presentation dead API cleanup 第三十五阶段（已完成）
+
+继续收窄 status presentation owner：`StatusIndicatorWidget` 中仅供本文件单测使用的
+`update_details`、`set_interrupt_hint`、`status_line` 与 capitalization enum 已改为
+`cfg(test)`；未被生产调用的顶层 `render` helper、`update_header` 和
+`set_interrupt_hint_visible` 直接删除。生产路径现在只保留 `view.rs` 实际消费的
+`render_with_messages`、`desired_height_with_messages`、统一 `lines`/height lowering，避免
+测试 setter 演化成第二套 status 控制面。
+
+分类：`StatusIndicatorWidget`、`summary_shimmer`、`TurnLifecycleState` 和 view 的 status
+split 为 `current`；`StatusTimer`、旧 status helper/setter 为 `dead / deleted / guard-only`；
+没有新增 `compat/deprecated`、第二 composer、协议/schema、生产 mock 或平行业务后端。
+
+验证：`npm run test:rust:related -- lime-rs/crates/tui/src/status_indicator_widget.rs`
+通过（CLI 8 + TUI 1464）；`cargo fmt --manifest-path lime-rs/Cargo.toml --all -- --check`、
+`cargo clippy --manifest-path lime-rs/Cargo.toml -p tui --lib --no-default-features --no-deps
+-- -D warnings`、`npm run governance:legacy-report`（Rust 1744 文件、零引用候选/分类漂移/
+边界违规均为 0）和 `git diff --check` 通过。最新 fresh `npm run smoke:tui-gate-b` 通过真实
+`lime`、PTY、alternate screen、App Server stdio、canonical Thread/Turn/Item、输入/排队、
+history/search、images、resize/reconnect 和 terminal restore 全绿，thread
+`01a10226-38f4-73a0-9e5a-0892d9471f64`、turn `turn_a306b98f60d74059a3553d161366e9a0`，
+`terminal=restored`。Desktop Gate B 仍为 `unverified / harness-blocked`，整体 Codex 对齐
+保持 `partial / in-progress`。
+
+下一刀继续检查 queued preview 的 `Alt+Up` 文案是否应由统一 keymap owner lowering；若不引入
+真实可配置 binding，则只做显示宽度/五语言快照收口，不恢复 Codex 不存在于 Lime 协议的
+pending-steer 假状态。
+
+## 2026-10-04 Queued preview shortcut lowering 第三十六阶段（已完成）
+
+完成 queued preview 遗留的跨平台快捷键收口：`keymap` 现在同时拥有固定 host action 的
+`queued_input_edit_matches` 与 `queued_input_edit_shortcut_label`，`app/input_flow.rs` 不再
+重复内联 `Alt+Up` 判定；`bottom_pane/pending_input_preview.rs` 通过同一 keymap lowering
+展示编辑提示。Locale 只负责五语言句子拼接，移除 `Alt+Up` 硬编码，使 macOS 显示 `⌥↑`、
+其他平台显示 `alt+↑`，窄屏仍沿用既有 display-width 截断。真实 PTY 断言按目标平台校验
+符号，不依赖测试构建中的固定标签。
+
+分类：queued-edit keymap、Locale lowering、queued preview presentation 与输入 dispatch 为
+`current`；原先各处硬编码的快捷键文案为 `dead / deleted / guard-only`；没有新增
+`compat/deprecated`、第二 composer、pending-steer 假状态、协议/schema、生产 mock 或平行
+业务后端。queue-only 语义保持不变，`RequestUserInputOverlay.composer` 仍是独立 notes editor。
+
+验证：`npm run test:rust:related -- lime-rs/crates/tui/src/keymap.rs
+lime-rs/crates/tui/src/app/input_flow.rs lime-rs/crates/tui/src/bottom_pane/pending_input_preview.rs
+lime-rs/crates/tui/src/locale.rs lime-rs/crates/tui/src/runtime_pty_tests.rs` 通过（CLI 8 +
+TUI 1466，新增五语言窄宽度 queued-edit display-width 回归）；`npx vitest run scripts/app-server/tui-composer-structure.test.mjs
+scripts/app-server/tui-structure-inventory.test.mjs scripts/app-server/tui-gate-b.test.mjs` 通过
+（81/81）；`cargo fmt --manifest-path lime-rs/Cargo.toml --all -- --check`、Clippy `-D warnings`、
+`git diff --check` 与 `npm run governance:legacy-report`（2068 文件、Rust 1744 文件、零引用
+候选/分类漂移/边界违规）均通过。fresh `npm run smoke:tui-gate-b` 通过真实 `lime`、PTY、
+alternate screen、App Server stdio、canonical Thread/Turn/Item、queue-edit、history/search、
+images、resize/reconnect 与 terminal restore；thread `01a1048b-9429-7161-b627-d35b4348171c`、
+turn `turn_5e974ee9c02e43d9a4406dff98539ef1`，`terminal=restored`。Desktop Gate B 仍为
+`unverified / harness-blocked`，不以 TUI 证据替代 GUI 验收，整体 Codex 对齐保持 `partial /
+in-progress`。
+
+下一刀回到 Codex status/pending-input presentation 与统一测量，继续审计 interrupt hint、运行中
+禁用态和 queued preview 的窄宽度组合；只迁移 Lime 已有真实 owner，不恢复旧 composer、兼容
+wrapper 或不存在于协议的 pending-steer 状态。
+
+## 2026-10-04 Status interrupt presentation dead-field cleanup 第三十七阶段（已完成）
+
+继续对照 Codex status row 后确认，Lime 的 `StatusIndicatorWidget` 始终显示活动回合的
+interrupt hint；`show_interrupt_hint` 只有构造默认值和渲染分支，没有生产 setter、配置来源或
+真实 consumer。直接删除该字段与不可达双分支，保留 `interrupt_hint`、本地化文案、测试专用
+remap setter 和同一 `lines`/height lowering，不引入 Codex 不存在于 Lime keymap 的空壳
+interrupt binding。
+
+分类：`StatusIndicatorWidget`、`interrupt_hint`、`TurnLifecycleState` 与 view status split 为
+`current`；`show_interrupt_hint` 字段/分支为 `dead / deleted / guard-only`；没有新增
+`compat/deprecated`、第二 composer、pending-steer 假状态、协议/schema、生产 mock 或平行
+业务后端。独立 `RequestUserInputOverlay.composer` 保持 notes editor owner。
+
+验证：`npm run test:rust:related -- lime-rs/crates/tui/src/status_indicator_widget.rs
+lime-rs/crates/tui/src/view.rs lime-rs/crates/tui/src/view/tests/composer.rs` 通过（CLI 8 +
+TUI 1466）；TUI 结构/Composer/Gate 守卫 81/81、fmt、Clippy `-D warnings`、`git diff --check`
+均通过；`npm run governance:legacy-report` 通过（2068 文件、Rust 1744 文件、零引用候选/
+分类漂移/边界违规）。fresh `npm run smoke:tui-gate-b` 通过真实 `lime`、PTY、alternate
+screen、App Server stdio、canonical Thread/Turn/Item、queue-edit、history/search、images、
+resize/reconnect 与 terminal restore；thread `01a104b9-6f8b-7882-aa95-1e2871183071`、turn
+`turn_beee82d2def44384a2d2a6c72ebdafea`，`terminal=restored`。Desktop Gate B 仍为
+`unverified / harness-blocked`，不以 TUI 证据替代 GUI 验收，整体 Codex 对齐保持 `partial /
+in-progress`。
+
+下一刀继续检查 status/pending-input 在 request-user-input、approval 和 disabled composer
+之间的统一 footer/shortcut lowering；只收敛真实 owner，优先删除无生产 consumer 的 fallback
+分支和重复测量。
+
+## 2026-10-04 Interactive footer lowering convergence 第三十八阶段（已完成）
+
+继续收口 Codex 风格的 pending-input presentation：approval 与 request-user-input 之前各自
+维护一份窄屏 primary action fallback，导致同一套提交/取消语义在不同 overlay 上可能出现不同
+的降级顺序。新增 `bottom_pane::fit_primary_action_hint` 作为共享 lowering owner，统一候选顺序
+为完整本地化文案、`Enter · Esc`、`↵ · Esc`、`↵Esc`、`Esc` 和空字符串；approval 与
+request-user-input 只保留各自真实的 content width 边界（approval 仍扣除自身缩进，request-user-input
+使用调用方传入宽度）。
+
+request-user-input 的 notes editor 继续是独立 `RequestUserInputOverlay.composer` owner；disabled
+composer 仍由 `FooterProps.input_enabled` 清理被动 footer，不引入 approval/input 的第二套 composer
+或虚假的 Codex pending-steer 状态。3 列 request-user-input 回归中曾因过度压缩导致 `Esc` 丢失，
+已通过共享候选序列修复，并补齐 approval/request-user-input 超窄宽度与五语言显示宽度断言。
+
+分类：共享 primary-action footer lowering、approval/request-user-input footer presentation 与
+disabled composer 清空语义为 `current`；两处重复 fallback 为 `dead / deleted / guard-only`；无新增
+`compat/deprecated`、协议/schema、生产 mock、平行业务后端或旧 composer 入口。
+
+验证：`cargo fmt --manifest-path lime-rs/Cargo.toml --all -- --check`、TUI Clippy
+`-D warnings`、`git diff --check`、TUI 结构/Composer/Gate 守卫 `81/81` 和
+`npm run governance:legacy-report`（扫描 2068 文件、Rust 1744 文件，零引用候选/分类漂移/边界违规
+均为 `0`）通过；相关 TUI/CLI 定向测试与 footer 超窄回归通过。fresh
+`npm run smoke:tui-gate-b` 通过真实 `lime`、PTY、alternate screen、App Server stdio、canonical
+Thread/Turn/Item、queue/edit、history/search、images、resize/reconnect 与 terminal restore；thread
+`01a104c2-2eb4-7502-a6e5-1dd275889dd2`、turn `turn_af166d322c4d491cabf24cf3de83a700`，
+`terminal=restored`。
+
+Desktop Gate B 继续为 `unverified / harness-blocked`，不能用 TUI 证据替代 GUI 验收；整体 Codex
+对齐仍为 `partial / in-progress`。下一刀继续审计 MCP elicitation、disabled composer 与普通
+footer 的 key-label/width owner 是否存在真实重复，只在确认 current consumer 后收口，不恢复旧
+composer、兼容 wrapper 或不存在于协议的状态。
+
+## 2026-10-04 Shutdown composer dead-wrapper cleanup 第三十九阶段（已完成）
+
+沿 disabled-composer 审计继续清理旧入口：`BottomPane::show_shutdown_in_progress` 与
+`ChatComposer::show_shutdown_in_progress` 在生产、测试和 Gate B 构建图都没有消费者，只会把
+历史的 “Shutting down...” 文案路径作为不可达第二套输入控制面保留下来。直接删除这两个 dead
+wrapper；`set_composer_input_enabled` / `set_input_enabled` 仅由 disabled-footer 单测使用，收为
+`cfg(test)`，生产仍由 current `FooterProps.input_enabled` 读取真实 composer 状态并清空被动 footer。
+
+分类：`ChatComposer.input_enabled`、`FooterProps.input_enabled` 与 disabled footer rendering 为
+`current`；shutdown wrapper 与未使用的生产 setter 为 `dead / deleted / guard-only`；无新增
+`compat/deprecated`、第二 composer、协议/schema、生产 mock 或平行业务后端。结构守卫新增不可达
+shutdown wrapper 回流断言。
+
+验证：Rust related CLI `8/8`、TUI `1466/1466` 通过；Rust fmt、Clippy `-D warnings`、
+`git diff --check` 通过；TUI 结构/Composer/Gate 守卫 `82/82` 通过；
+`npm run governance:legacy-report` 扫描 2068 文件、Rust 1744 文件，零引用候选/分类漂移/边界违规
+均为 `0`。fresh `npm run smoke:tui-gate-b` 通过真实 `lime`、PTY、alternate screen、App Server
+stdio、canonical Thread/Turn/Item、queue/edit、history/search、images、resize/reconnect 与 terminal
+restore；thread `01a104c9-8062-7d90-b7aa-428d48fb63b3`、turn `turn_a23cd48d9234482ca1f922c42e36187b`，
+`terminal=restored`。
+
+Desktop Gate B 仍为 `unverified / harness-blocked`，不能用 TUI 证据替代 GUI 验收；整体 Codex
+对齐仍为 `partial / in-progress`。下一刀继续审计 MCP elicitation 的 footer compacting 是否能
+复用同一 display-width/primary-action lowering owner；若语义确有差异则保持独立 current owner，
+只删除确认无消费者的 fallback。
+
+## 2026-10-04 Turn lifecycle dead-state cleanup 第四十阶段（已完成）
+
+继续审计运行中状态后确认，`TurnLifecycleState` 的 current owner 只有
+`agent_turn_running`、`last_turn_id`、`active_turn_started_at` 以及 projection transition/elapsed
+lowering。`budget_limited_turn_ids`、`mark_budget_limited`、`take_budget_limited` 和
+`rendered_completion_turn_ids` 在生产代码、App Server 投影、TUI/CLI Gate B 中均无消费者，只由
+自身单测维持，属于预建的 Codex/旧 runtime 状态空壳。直接删除字段、清理逻辑和正向测试，避免
+为 Lime 协议没有的 budget/completion 控制面保留第二套状态机。
+
+分类：ChatWidget `TurnLifecycleState` running/elapsed projection 为 `current`；budget-limited 与
+rendered-completion dead fields/methods/tests 为 `dead / deleted / guard-only`；无新增
+`compat/deprecated`、协议/schema、生产 mock、平行业务后端或旧 composer 入口。结构守卫补充
+四个 dead symbol 的负向回流断言。
+
+验证：Rust related CLI `8/8`、TUI `1465/1465` 通过；Rust fmt、Clippy `-D warnings`、
+`git diff --check`、TUI 结构/Composer/Gate 守卫 `82/82` 通过；精确 PTY 回归
+`real_pty_restores_terminal_after_visible_turn_completion` 通过。fresh
+`npm run smoke:tui-gate-b` 最终通过真实 `lime`、PTY、alternate screen、App Server stdio、canonical
+Thread/Turn/Item、queue/edit、history/search、images、resize/reconnect 与 terminal restore；thread
+`01a104d4-efdb-7d00-b201-90311f10681b`、turn `turn_dd7bdd00b6274e6f96574f9f11191dd9`，
+`terminal=restored`。中间一次失败仅为并发构建锁/超时，复跑已确认产品测试通过。
+
+Desktop Gate B 仍为 `unverified / harness-blocked`，不能用 TUI 证据替代 GUI 验收；整体 Codex
+对齐仍为 `partial / in-progress`。下一刀继续回到 MCP elicitation footer 与普通 footer 的
+primary-action/width owner 审计，只有真实重复或无消费者才做删除/重构。
+
+## 2026-10-04 Replay filter dead-code exemption cleanup 第四十一阶段（已完成）
+
+继续清理迁移残留后确认，`app/replay_filter.rs` 的
+`snapshot_has_pending_interactive_request` 与 `event_is_notice` 都由
+`app/thread_events.rs` 的生产回放路径真实消费，之前保留的
+`#[cfg_attr(not(test), allow(dead_code))]` 已经失真。删除两处豁免并增加结构守卫，保持 replay
+authority 仍在既有 ThreadEventSnapshot/notification projection owner，不新增 replay store、旁路
+状态或兼容包装。
+
+分类：replay filter 的 pending-interaction/notice lowering 为 `current`；过时 dead-code 豁免为
+`dead / deleted / guard-only`；无新增 `compat/deprecated`、第二 composer、协议/schema、生产
+mock 或平行业务后端。
+
+验证：Rust related CLI `8/8`、TUI `1465/1465` 通过；Rust fmt、Clippy `-D warnings`、
+`git diff --check`、TUI 结构/Composer/Gate 守卫 `82/82` 通过。fresh
+`npm run smoke:tui-gate-b` 通过真实 `lime`、PTY、alternate screen、App Server stdio、canonical
+Thread/Turn/Item、queue/edit、history/search、images、resize/reconnect 与 terminal restore；thread
+`01a104da-0e0f-7902-8490-b23d96d00c58`、turn `turn_399498afcf8b47cea37ce41a3536715f`，
+`terminal=restored`。治理扫描仍为 2068 文件、Rust 1744 文件，零引用候选/分类漂移/边界违规均
+为 `0`。
+
+Desktop Gate B 继续为 `unverified / harness-blocked`，不能用 TUI 证据替代 GUI 验收；整体 Codex
+对齐仍为 `partial / in-progress`。下一刀回到 MCP elicitation footer 与普通 footer 的
+primary-action/width owner 审计，若没有严格重复则保持两个 current surface 的语义边界。
+
+## 2026-10-04 Agent navigation dead-method cleanup 第四十二阶段（已完成）
+
+继续审计 ChatWidget 的 Agent navigation owner：`AgentNavigationState` 只需要
+`upsert/record_sub_agent_activity/mark_running/mark_stopped/mark_closed`、有序列表、相邻线程和
+当前 agent label；`set_agent_path`、`clear`、`remove`、`ordered_path_backed_subagent_threads` 以及
+`is_empty` 均无生产消费者，之前被整个 impl 的 `#[allow(dead_code)]` 隐藏。直接删除这些旧 API 和
+豁免，保留 Agent Center/Thread events/ChatWidget footer 当前真实消费链；不新增第二套导航 store
+或跨线程删除旁路。
+
+分类：`AgentNavigationState` current navigation/liveness/label owner 为 `current`；四个无消费者
+方法与过时 dead-code 豁免为 `dead / deleted / guard-only`；无新增 `compat/deprecated`、协议/schema、
+生产 mock、平行业务后端或旧 composer 入口。结构守卫补充五个 dead symbol 的负向回流断言。
+
+验证：Rust related CLI `8/8`、TUI `1465/1465` 通过；Rust fmt、Clippy `-D warnings`、
+`git diff --check`、TUI 结构/Composer/Gate 守卫 `82/82` 通过。fresh
+`npm run smoke:tui-gate-b` 通过真实 `lime`、PTY、alternate screen、App Server stdio、canonical
+Thread/Turn/Item、Agent Center、queue/edit、history/search、images、resize/reconnect 与 terminal
+restore；thread `01a104df-87c0-7472-ba10-0d141930f605`、turn `turn_d204aadd70944b6c973fc7addedc7b81`，
+`terminal=restored`。治理扫描仍为 2068 文件、Rust 1744 文件，零引用候选/分类漂移/边界违规均
+为 `0`。
+
+Desktop Gate B 继续为 `unverified / harness-blocked`，不能用 TUI 证据替代 GUI 验收；整体 Codex
+对齐仍为 `partial / in-progress`。下一刀继续审计 MCP elicitation footer 与普通 footer 的
+primary-action/width owner，优先处理真实重复或无消费者的 fallback，不扩展协议没有的状态。

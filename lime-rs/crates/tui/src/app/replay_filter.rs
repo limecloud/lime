@@ -9,7 +9,6 @@ use app_server_protocol::protocol::v2::{ServerNotification, ThreadItem};
 
 use super::thread_events::{ThreadBufferedEvent, ThreadEventSnapshot};
 
-#[cfg_attr(not(test), allow(dead_code))]
 pub(super) fn snapshot_has_pending_interactive_request(snapshot: &ThreadEventSnapshot) -> bool {
     snapshot.events.iter().any(|event| {
         matches!(
@@ -27,7 +26,6 @@ pub(super) fn snapshot_has_pending_interactive_request(snapshot: &ThreadEventSna
     })
 }
 
-#[cfg_attr(not(test), allow(dead_code))]
 pub(super) fn event_is_notice(event: &ThreadBufferedEvent) -> bool {
     matches!(
         event,

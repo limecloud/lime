@@ -11,9 +11,12 @@ use super::App;
 pub(super) fn observe_item(app: &mut App, item: &ThreadItem) {
     if let Some(activity) = crate::multi_agents::sub_agent_activity_display(item) {
         // Parent-stream activity is authoritative until the child is resumed independently.
-        app.agent_navigation
+        app.chat_widget
+            .agent_navigation
             .mark_parent_owned(activity.thread_id.clone());
-        app.agent_navigation.record_sub_agent_activity(activity);
+        app.chat_widget
+            .agent_navigation
+            .record_sub_agent_activity(activity);
         return;
     }
 
@@ -24,7 +27,9 @@ pub(super) fn observe_item(app: &mut App, item: &ThreadItem) {
     } = item
     {
         for thread_id in receiver_thread_ids {
-            app.agent_navigation.mark_parent_owned(thread_id.clone());
+            app.chat_widget
+                .agent_navigation
+                .mark_parent_owned(thread_id.clone());
         }
     }
 }
@@ -52,7 +57,7 @@ mod tests {
 
         observe_item(&mut app, &item);
 
-        assert!(app.agent_navigation.is_parent_owned("child-1"));
+        assert!(app.chat_widget.agent_navigation.is_parent_owned("child-1"));
     }
 
     #[test]
@@ -68,8 +73,9 @@ mod tests {
 
         observe_item(&mut app, &item);
 
-        assert!(app.agent_navigation.is_parent_owned("child-1"));
+        assert!(app.chat_widget.agent_navigation.is_parent_owned("child-1"));
         assert!(app
+            .chat_widget
             .agent_navigation
             .get("child-1")
             .is_some_and(|entry| entry.is_running));

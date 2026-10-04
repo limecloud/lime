@@ -23,14 +23,9 @@ pub(crate) struct AgentNavigationState {
     parent_owned_threads: std::collections::HashSet<String>,
 }
 
-#[allow(dead_code)]
 impl AgentNavigationState {
     pub(crate) fn get(&self, thread_id: &str) -> Option<&AgentPickerThreadEntry> {
         self.threads.get(thread_id)
-    }
-
-    pub(crate) fn is_empty(&self) -> bool {
-        self.threads.is_empty()
     }
 
     pub(crate) fn is_parent_owned(&self, thread_id: &str) -> bool {
@@ -118,14 +113,6 @@ impl AgentNavigationState {
         }
     }
 
-    pub(crate) fn set_agent_path(&mut self, thread_id: &str, agent_path: Option<String>) {
-        if let Some(agent_path) = agent_path {
-            if let Some(entry) = self.threads.get_mut(thread_id) {
-                entry.agent_path = Some(agent_path);
-            }
-        }
-    }
-
     pub(crate) fn mark_closed(&mut self, thread_id: &str) {
         if let Some(entry) = self.threads.get_mut(thread_id) {
             entry.is_closed = true;
@@ -135,20 +122,6 @@ impl AgentNavigationState {
         }
     }
 
-    pub(crate) fn clear(&mut self) {
-        self.threads.clear();
-        self.order.clear();
-        self.stopped_threads.clear();
-        self.parent_owned_threads.clear();
-    }
-
-    pub(crate) fn remove(&mut self, thread_id: &str) {
-        self.threads.remove(thread_id);
-        self.order.retain(|candidate| candidate != thread_id);
-        self.stopped_threads.remove(thread_id);
-        self.parent_owned_threads.remove(thread_id);
-    }
-
     pub(crate) fn ordered_threads(&self) -> Vec<(&str, &AgentPickerThreadEntry)> {
         self.order
             .iter()
@@ -156,22 +129,6 @@ impl AgentNavigationState {
                 self.threads
                     .get(thread_id)
                     .map(|entry| (thread_id.as_str(), entry))
-            })
-            .collect()
-    }
-
-    pub(crate) fn ordered_path_backed_subagent_threads(
-        &self,
-        primary_thread_id: Option<&str>,
-    ) -> Vec<(&str, &AgentPickerThreadEntry)> {
-        self.ordered_threads()
-            .into_iter()
-            .filter(|(thread_id, entry)| {
-                Some(*thread_id) != primary_thread_id
-                    && entry
-                        .agent_path
-                        .as_deref()
-                        .is_some_and(|path| !path.trim().is_empty())
             })
             .collect()
     }

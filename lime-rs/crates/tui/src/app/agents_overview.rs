@@ -246,10 +246,10 @@ impl super::App {
         let primary = self.primary_thread_id.as_deref();
         let overview = AgentsOverviewState::new_with_keymap(
             primary,
-            self.runtime_keymap.agents().clone(),
-            self.runtime_keymap.list().clone(),
+            self.chat_widget.runtime_keymap.agents().clone(),
+            self.chat_widget.runtime_keymap.list().clone(),
         );
-        self.chat_widget.agents_overview = Some(overview);
+        self.chat_widget.set_agents_overview(overview);
     }
 
     /// Start a background task through the current App Server session.

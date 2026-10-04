@@ -591,13 +591,13 @@ impl Locale {
         }
     }
 
-    pub(crate) fn edit_queued_input_hint(self) -> &'static str {
+    pub(crate) fn edit_queued_input_hint(self, shortcut: &str) -> String {
         match self {
-            Self::ZhCn => "Alt+Up 编辑最后一条排队输入",
-            Self::ZhTw => "Alt+Up 編輯最後一則排隊輸入",
-            Self::EnUs => "Alt+Up edit last queued input",
-            Self::JaJp => "Alt+Up 最後のキュー入力を編集",
-            Self::KoKr => "Alt+Up 마지막 대기 입력 편집",
+            Self::ZhCn => format!("{shortcut} 编辑最后一条排队输入"),
+            Self::ZhTw => format!("{shortcut} 編輯最後一則排隊輸入"),
+            Self::EnUs => format!("{shortcut} edit last queued input"),
+            Self::JaJp => format!("{shortcut} 最後のキュー入力を編集"),
+            Self::KoKr => format!("{shortcut} 마지막 대기 입력 편집"),
         }
     }
 
@@ -2912,7 +2912,7 @@ mod tests {
                 "正在编辑排队输入",
                 "排队输入已不可用",
                 "编辑排队输入失败: offline",
-                "Alt+Up 编辑最后一条排队输入",
+                "编辑最后一条排队输入",
             ),
             (
                 Locale::ZhTw,
@@ -2920,7 +2920,7 @@ mod tests {
                 "正在編輯排隊輸入",
                 "排隊輸入已無法使用",
                 "編輯排隊輸入失敗: offline",
-                "Alt+Up 編輯最後一則排隊輸入",
+                "編輯最後一則排隊輸入",
             ),
             (
                 Locale::EnUs,
@@ -2928,7 +2928,7 @@ mod tests {
                 "editing queued input",
                 "queued input unavailable",
                 "queue edit failed: offline",
-                "Alt+Up edit last queued input",
+                "edit last queued input",
             ),
             (
                 Locale::JaJp,
@@ -2936,7 +2936,7 @@ mod tests {
                 "キュー入力を編集中",
                 "キュー入力を利用できません",
                 "キュー入力の編集に失敗しました: offline",
-                "Alt+Up 最後のキュー入力を編集",
+                "最後のキュー入力を編集",
             ),
             (
                 Locale::KoKr,
@@ -2944,15 +2944,19 @@ mod tests {
                 "대기 입력 편집 중",
                 "대기 입력을 사용할 수 없음",
                 "대기 입력 편집 실패: offline",
-                "Alt+Up 마지막 대기 입력 편집",
+                "마지막 대기 입력 편집",
             ),
         ];
+        let shortcut = crate::keymap::queued_input_edit_shortcut_label();
         for (locale, unavailable, editing, input_unavailable, failed, hint) in cases {
             assert_eq!(locale.status("queue unavailable: offline"), unavailable);
             assert_eq!(locale.status("queued input editing"), editing);
             assert_eq!(locale.status("queued input unavailable"), input_unavailable);
             assert_eq!(locale.status("queue edit failed: offline"), failed);
-            assert_eq!(locale.edit_queued_input_hint(), hint);
+            assert_eq!(
+                locale.edit_queued_input_hint(&shortcut),
+                format!("{shortcut} {hint}")
+            );
         }
     }
 

@@ -96,15 +96,30 @@ impl SkillPopup {
         }
     }
 
-    pub(crate) fn render(&self, frame: &mut Frame<'_>, composer_area: Rect, locale: Locale) {
-        if composer_area.y == 0 || composer_area.width == 0 {
+    #[cfg(test)]
+    fn render(&self, frame: &mut Frame<'_>, composer_area: Rect, locale: Locale) {
+        self.render_with_clip_top(frame, composer_area, locale, 0);
+    }
+
+    pub(crate) fn render_with_clip_top(
+        &self,
+        frame: &mut Frame<'_>,
+        composer_area: Rect,
+        locale: Locale,
+        clip_top: u16,
+    ) {
+        if composer_area.width == 0 {
             return;
         }
         let matches = self.matches();
+        let available_above = composer_area.y.saturating_sub(clip_top);
         let height = u16::try_from(matches.len().clamp(1, MAX_POPUP_ROWS))
             .unwrap_or(u16::MAX)
             .saturating_add(3)
-            .min(composer_area.y);
+            .min(available_above);
+        if height == 0 {
+            return;
+        }
         let area = Rect::new(
             composer_area.x,
             composer_area.y.saturating_sub(height),

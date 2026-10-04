@@ -73,6 +73,16 @@ impl ChatComposer {
             .saturating_add(u16::from(!self.remote_images().is_empty()))
             .saturating_add(COMPOSER_TOP_ROWS + COMPOSER_BOTTOM_ROWS)
     }
+
+    pub(crate) fn cursor_pos(&self, area: Rect) -> Option<(u16, u16)> {
+        if !self.input_enabled() || self.has_selected_remote_image() {
+            return None;
+        }
+        let layout = self.layout(area);
+        let state = *self.draft.textarea_state.borrow();
+        self.textarea()
+            .cursor_pos_with_state(layout.textarea, state)
+    }
 }
 
 #[cfg(test)]

@@ -1,5 +1,5 @@
 use super::*;
-use app_server_protocol::protocol::v2::ThreadItem;
+use app_server_protocol::protocol::v2::{ThreadItem, Turn, TurnItemsView, TurnStatus};
 
 fn user_item(text: &str) -> ThreadItem {
     ThreadItem::UserMessage {
@@ -127,6 +127,47 @@ fn preview_uses_canonical_review_filtering_before_selecting_speakers() {
         },
         assistant_item("visible answer"),
     ]);
+
+    assert_eq!(
+        lines,
+        vec![TranscriptPreviewLine {
+            speaker: TranscriptPreviewSpeaker::Assistant,
+            text: String::from("visible answer"),
+        }]
+    );
+}
+
+#[test]
+fn bounded_preview_applies_turn_review_ids_across_page_boundaries() {
+    let turn = Turn {
+        id: String::from("review-turn"),
+        items: vec![
+            ThreadItem::EnteredReviewMode {
+                id: String::from("review-enter"),
+                metadata: None,
+                review: String::from("review"),
+            },
+            user_item("hidden review prompt"),
+            ThreadItem::ExitedReviewMode {
+                id: String::from("review-exit"),
+                metadata: None,
+                review: String::from("review"),
+            },
+        ],
+        items_view: TurnItemsView::Full,
+        status: TurnStatus::Completed,
+        error: None,
+        started_at: Some(1),
+        completed_at: Some(2),
+        duration_ms: Some(1),
+    };
+    let lines = preview_from_items_with_turns(
+        &[
+            user_item("hidden review prompt"),
+            assistant_item("visible answer"),
+        ],
+        &[turn],
+    );
 
     assert_eq!(
         lines,

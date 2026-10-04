@@ -62,9 +62,10 @@ fn preview_lines(
         ));
     }
     if submissions.last().is_some_and(can_restore_submission) {
+        let shortcut = crate::keymap::queued_input_edit_shortcut_label();
         lines.push(truncate_line_with_ellipsis_if_overflow(
             Line::styled(
-                format!("   {}", locale.edit_queued_input_hint()),
+                format!("   {}", locale.edit_queued_input_hint(&shortcut)),
                 Style::default().fg(Color::DarkGray),
             ),
             usize::from(width),
@@ -252,7 +253,8 @@ mod tests {
 
         assert_eq!(lines.len(), 5);
         assert_eq!(line_text(&lines[3]), "   …");
-        assert!(line_text(lines.last().expect("edit hint")).contains("Alt+Up"));
+        assert!(line_text(lines.last().expect("edit hint"))
+            .contains(&crate::keymap::queued_input_edit_shortcut_label()));
         assert!(lines.iter().all(|line| line_width(line) <= 12));
     }
 
@@ -312,7 +314,7 @@ mod tests {
             .iter()
             .map(line_text)
             .collect::<String>()
-            .contains("Alt+Up"));
+            .contains(&crate::keymap::queued_input_edit_shortcut_label()));
     }
 
     #[test]
@@ -339,6 +341,34 @@ mod tests {
             let text = lines.iter().map(line_text).collect::<Vec<_>>().join("\n");
             assert!(text.contains(queued), "{locale:?}: {text}");
             assert!(text.contains(image), "{locale:?}: {text}");
+        }
+    }
+
+    #[test]
+    fn queued_edit_hint_stays_width_bounded_across_locales_and_narrow_terminals() {
+        let queued = submission(
+            "unicode",
+            vec![UserInput::Text {
+                text: "你好🙂 queued follow-up".to_string(),
+                text_elements: Vec::new(),
+            }],
+        );
+        for locale in [
+            Locale::ZhCn,
+            Locale::ZhTw,
+            Locale::EnUs,
+            Locale::JaJp,
+            Locale::KoKr,
+        ] {
+            for width in [4, 5, 8, 12, 20, 40] {
+                let lines = preview_lines(std::slice::from_ref(&queued), width, locale);
+                assert!(
+                    lines
+                        .iter()
+                        .all(|line| line_width(line) <= usize::from(width)),
+                    "{locale:?} at {width}: {lines:?}"
+                );
+            }
         }
     }
 
@@ -382,7 +412,9 @@ mod tests {
                         .iter()
                         .map(line_text)
                         .collect::<String>()
-                        .contains(locale.edit_queued_input_hint()),
+                        .contains(&locale.edit_queued_input_hint(
+                            &crate::keymap::queued_input_edit_shortcut_label()
+                        )),
                     "{locale:?} / {detail:?}"
                 );
             }

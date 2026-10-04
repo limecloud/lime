@@ -241,13 +241,14 @@ fn app_emits_one_combined_selection_only_after_effort_acceptance() {
     let mut app = crate::app::App::default();
     app.set_thread_id("canonical-thread".into());
     app.chat_widget.bottom_pane.insert_str("preserved draft");
-    app.set_settings(
+    app.chat_widget.set_settings(
         Some("reasoner".into()),
         Some("p".into()),
         Some("low".into()),
         None,
     );
-    app.open_model_picker(vec![preset("reasoner", "p", &["low", "high"], "low")]);
+    app.chat_widget
+        .open_model_picker(vec![preset("reasoner", "p", &["low", "high"], "low")]);
     let send = |app: &mut crate::app::App, code| {
         app.handle_tui_event(
             crate::tui::TuiEvent::Key(KeyEvent::new(code, KeyModifiers::NONE)),

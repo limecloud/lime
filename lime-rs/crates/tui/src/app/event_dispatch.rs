@@ -14,10 +14,6 @@ pub(crate) struct EventContext<'a> {
     pub(crate) session: &'a mut AppServerSession,
     pub(crate) mcp_login_tx:
         &'a tokio::sync::mpsc::UnboundedSender<super::mcp_login::McpLoginStarted>,
-    pub(crate) model: &'a mut Option<String>,
-    pub(crate) model_provider: &'a mut Option<String>,
-    pub(crate) effort: &'a mut Option<String>,
-    pub(crate) permissions: &'a mut Option<String>,
 }
 
 pub(crate) enum EventDispatch {
@@ -48,15 +44,9 @@ impl App {
                     .await
                 {
                     Ok(()) => {
-                        *context.effort = Some(next.clone());
-                        self.set_settings(
-                            context.model.clone(),
-                            context.model_provider.clone(),
-                            context.effort.clone(),
-                            context.permissions.clone(),
-                        );
+                        self.chat_widget.apply_effort(next.clone());
                         self.projection
-                            .set_status(self.locale.reasoning_updated_message(&next));
+                            .set_status(self.chat_widget.locale.reasoning_updated_message(&next));
                     }
                     Err(error) => self.projection.set_status(error.to_string()),
                 }
@@ -68,20 +58,16 @@ impl App {
                 } else {
                     1
                 };
-                let next = self.cycle_permission_profile(context.permissions.as_deref(), direction);
+                let next = self
+                    .chat_widget
+                    .cycle_permission_profile(self.chat_widget.permissions.as_deref(), direction);
                 match context
                     .session
                     .update_settings(None, None, None, Some(next.clone()))
                     .await
                 {
                     Ok(()) => {
-                        *context.permissions = Some(next.clone());
-                        self.set_settings(
-                            context.model.clone(),
-                            context.model_provider.clone(),
-                            context.effort.clone(),
-                            context.permissions.clone(),
-                        );
+                        self.chat_widget.apply_permissions(next.clone());
                         self.projection.set_status(format!("permissions: {next}"));
                     }
                     Err(error) => self.projection.set_status(error.to_string()),
@@ -107,16 +93,10 @@ impl App {
                     .await
                 {
                     Ok(()) => {
-                        *context.model = Some(selection.model);
-                        *context.model_provider = Some(selection.provider);
-                        if let Some(effort) = selection.effort {
-                            *context.effort = Some(effort);
-                        }
-                        self.set_settings(
-                            context.model.clone(),
-                            context.model_provider.clone(),
-                            context.effort.clone(),
-                            context.permissions.clone(),
+                        self.chat_widget.apply_model_selection(
+                            selection.model,
+                            Some(selection.provider),
+                            selection.effort,
                         );
                         self.projection.set_status("settings updated");
                     }
@@ -131,15 +111,8 @@ impl App {
                     .await
                 {
                     Ok(()) => {
-                        *context.model = Some(collaboration_mode.settings.model.clone());
-                        *context.effort = collaboration_mode.settings.reasoning_effort.clone();
-                        self.set_settings(
-                            context.model.clone(),
-                            context.model_provider.clone(),
-                            context.effort.clone(),
-                            context.permissions.clone(),
-                        );
-                        self.chat_widget.collaboration_mode = Some(collaboration_mode);
+                        self.chat_widget
+                            .apply_collaboration_mode(collaboration_mode);
                         self.projection.set_status("collaboration mode updated");
                     }
                     Err(error) => self.projection.set_status(error.to_string()),

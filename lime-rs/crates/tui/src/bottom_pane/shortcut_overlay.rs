@@ -1,5 +1,6 @@
 //! Width-aware shortcut reference above the composer; measurement and painting share one model.
 
+use crossterm::event::{KeyCode, KeyModifiers};
 use ratatui::layout::Rect;
 use ratatui::style::Stylize;
 use ratatui::text::{Line, Span};
@@ -7,23 +8,11 @@ use ratatui::widgets::{Clear, Paragraph};
 use ratatui::Frame;
 
 use crate::app::App;
-use crate::keymap::{EditorAction, GlobalKeymapAction, PagerKeymapAction};
-use crate::line_truncation::truncate_line_with_ellipsis_if_overflow;
+use crate::keymap::{shortcut_label, EditorAction, GlobalKeymapAction, PagerKeymapAction};
 use crate::locale::{Locale, ShortcutLabel as Label};
 use crate::shortcut_help::Group;
 use crate::style::{accent_style, footer_hint_label_style};
 use crate::wrapping::word_wrap_lines;
-
-pub(crate) fn toggle_available(app: &App) -> bool {
-    use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
-    [KeyModifiers::NONE, KeyModifiers::SHIFT]
-        .into_iter()
-        .all(|modifiers| {
-            !app.runtime_keymap
-                .transcript()
-                .reserves_global_key(KeyEvent::new(KeyCode::Char('?'), modifiers))
-        })
-}
 
 pub(crate) fn visible(app: &App) -> bool {
     app.chat_widget
@@ -42,44 +31,54 @@ pub(crate) fn visible(app: &App) -> bool {
 }
 
 pub(crate) fn agents_hint(app: &App) -> Option<String> {
-    app.runtime_keymap
-        .transcript()
-        .global_hint(GlobalKeymapAction::OpenAgents)
-        .or_else(|| {
-            app.chat_widget
-                .bottom_pane
-                .composer
-                .agents_navigation_available()
-                .then(|| "←".to_string())
-        })
+    app.chat_widget.agents_hint()
 }
 
 pub(crate) fn lines(app: &App, width: u16) -> Vec<Line<'static>> {
-    let locale = app.locale;
+    let locale = app.chat_widget.locale;
     let label = |kind| locale.shortcut_label(kind);
     let mut compose = Group {
         title: label(Label::Compose),
         entries: Vec::new(),
     };
     for (key, kind) in [
-        ("/", Label::Commands),
-        ("@", Label::MentionFiles),
-        ("$", Label::Skills),
+        (
+            shortcut_label(KeyCode::Char('/'), KeyModifiers::NONE),
+            Label::Commands,
+        ),
+        (
+            shortcut_label(KeyCode::Char('@'), KeyModifiers::NONE),
+            Label::MentionFiles,
+        ),
+        (
+            shortcut_label(KeyCode::Char('$'), KeyModifiers::NONE),
+            Label::Skills,
+        ),
     ] {
-        compose.push(Some(key.into()), label(kind));
+        compose.push(Some(key), label(kind));
     }
     compose.push(
-        app.runtime_keymap
+        app.chat_widget
+            .runtime_keymap
             .editor
             .primary_hint(EditorAction::InsertNewline),
         label(Label::NewLine),
     );
     for (key, kind) in [
-        ("ctrl+v", Label::PasteImage),
-        ("ctrl+g", Label::ExternalEditor),
-        ("ctrl+r", Label::SearchHistory),
+        (
+            shortcut_label(KeyCode::Char('v'), KeyModifiers::CONTROL),
+            Label::PasteImage,
+        ),
+        (
+            shortcut_label(KeyCode::Char('g'), KeyModifiers::CONTROL),
+            Label::ExternalEditor,
+        ),
+        (
+            shortcut_label(KeyCode::Char('r'), KeyModifiers::CONTROL),
+            Label::SearchHistory,
+        ),
     ] {
-        compose.push(Some(key.into()), label(kind));
+        compose.push(Some(key), label(kind));
     }
     let running = app.projection.active_turn_id().is_some();
     let mut session = Group {
@@ -87,7 +86,7 @@ pub(crate) fn lines(app: &App, width: u16) -> Vec<Line<'static>> {
         entries: Vec::new(),
     };
     session.push(
-        Some("tab".into()),
+        Some(shortcut_label(KeyCode::Tab, KeyModifiers::NONE)),
         label(if running {
             Label::QueueMessage
         } else {
@@ -95,13 +94,22 @@ pub(crate) fn lines(app: &App, width: u16) -> Vec<Line<'static>> {
         }),
     );
     if !app.chat_widget.model_catalog.collaboration_modes.is_empty() && !running {
-        session.push(Some("shift+tab".into()), label(Label::ChangeMode));
+        session.push(
+            Some(shortcut_label(KeyCode::Tab, KeyModifiers::SHIFT)),
+            label(Label::ChangeMode),
+        );
     }
-    session.push(Some("alt+,".into()), label(Label::LessReasoning));
-    session.push(Some("alt+.".into()), label(Label::MoreReasoning));
+    session.push(
+        Some(shortcut_label(KeyCode::Char(','), KeyModifiers::ALT)),
+        label(Label::LessReasoning),
+    );
+    session.push(
+        Some(shortcut_label(KeyCode::Char('.'), KeyModifiers::ALT)),
+        label(Label::MoreReasoning),
+    );
     session.push(agents_hint(app), label(Label::Agents));
     session.push(
-        Some("ctrl+c".into()),
+        Some(shortcut_label(KeyCode::Char('c'), KeyModifiers::CONTROL)),
         label(if running {
             Label::Interrupt
         } else {
@@ -109,7 +117,7 @@ pub(crate) fn lines(app: &App, width: u16) -> Vec<Line<'static>> {
         }),
     );
 
-    let keymap = app.runtime_keymap.transcript();
+    let keymap = app.chat_widget.runtime_keymap.transcript();
     let mut transcript = Group {
         title: label(Label::Transcript),
         entries: Vec::new(),
@@ -122,7 +130,10 @@ pub(crate) fn lines(app: &App, width: u16) -> Vec<Line<'static>> {
         keymap.pager_hint(PagerKeymapAction::Find),
         label(Label::FindText),
     );
-    transcript.push(Some("f4".into()), label(Label::InspectActivity));
+    transcript.push(
+        Some(shortcut_label(KeyCode::F(4), KeyModifiers::NONE)),
+        label(Label::InspectActivity),
+    );
     transcript.push(
         keymap.pager_hint(PagerKeymapAction::PageUp),
         label(Label::ScrollUp),
@@ -131,7 +142,10 @@ pub(crate) fn lines(app: &App, width: u16) -> Vec<Line<'static>> {
         keymap.pager_hint(PagerKeymapAction::PageDown),
         label(Label::ScrollDown),
     );
-    transcript.push(Some("ctrl+space".into()), label(Label::StartSelection));
+    transcript.push(
+        Some(shortcut_label(KeyCode::Char(' '), KeyModifiers::CONTROL)),
+        label(Label::StartSelection),
+    );
     transcript.push(
         keymap.pager_hint(PagerKeymapAction::JumpTop),
         label(Label::Top),
@@ -190,36 +204,30 @@ pub(crate) fn render(frame: &mut Frame<'_>, area: Rect, app: &App) {
     let mut body = lines(app, content.width);
     let height = usize::from(content.height);
     if body.len() > height {
-        let mut footer = customization_lines(app.locale, content.width);
+        let mut footer = customization_lines(app.chat_widget.locale, content.width);
         footer.truncate(height);
         let body_height = height.saturating_sub(footer.len());
         body.truncate(body_height.saturating_sub(1));
         if body_height > 0 {
-            body.push(Line::from(app.locale.shortcut_label(Label::Resize)).dim());
+            body.push(Line::from(app.chat_widget.locale.shortcut_label(Label::Resize)).dim());
         }
         body.extend(footer);
     }
     frame.render_widget(Paragraph::new(body), content);
 }
 
-pub(crate) fn render_close_hint(frame: &mut Frame<'_>, area: Rect, app: &App) {
-    let width = usize::from(area.width.saturating_sub(1));
-    let label = app.locale.shortcut_label(Label::Close);
-    let full = if toggle_available(app) {
+pub(crate) fn close_hint_text(locale: Locale, toggle_available: bool, width: usize) -> String {
+    let label = locale.shortcut_label(Label::Close);
+    let full = if toggle_available {
         format!("? / esc {label}")
     } else {
         format!("esc {label}")
     };
-    let text = if crate::width::display_width(&full) <= width {
+    if crate::width::display_width(&full) <= width {
         full
     } else {
         format!("esc {label}")
-    };
-    let line = Line::from(Span::styled(format!(" {text}"), footer_hint_label_style()));
-    frame.render_widget(
-        Paragraph::new(truncate_line_with_ellipsis_if_overflow(line, width + 1)),
-        area,
-    );
+    }
 }
 
 #[cfg(test)]

@@ -207,7 +207,11 @@ fn history_search_cancel_restores_cursor_and_attachments() {
         composer.local_image_paths(),
         &[std::path::PathBuf::from("/tmp/draft.png")]
     );
-    assert!(composer.footer_has_draft());
+    assert_eq!(
+        composer.footer_mode(),
+        FooterMode::ComposerHasDraft,
+        "restored draft remains the active composer footer mode"
+    );
 }
 
 #[test]

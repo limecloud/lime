@@ -28,6 +28,9 @@ impl ChatComposer {
     }
 
     pub(crate) fn handle_key_event_at(&mut self, key: KeyEvent, now: Instant) -> InputResult {
+        if !self.draft.input_enabled {
+            return InputResult::None;
+        }
         if matches!(key.kind, KeyEventKind::Release) {
             return InputResult::None;
         }

@@ -1,7 +1,7 @@
 //! Async mouse paste ownership for the editable composer.
 //!
 //! Native clipboard reads are owned by the session worker, but the UI ownership and draft
-//! snapshot live on `App`. This keeps a late completion from being inserted after a thread,
+//! snapshot live on `ChatWidget`. This keeps a late completion from being inserted after a thread,
 //! popup, selection, or draft changed while the broker was busy.
 
 use crossterm::event::{MouseButton, MouseEventKind};
@@ -13,11 +13,17 @@ use crate::clipboard_paste::{
 use crate::tui::TuiEvent;
 
 #[derive(Debug, Clone)]
-pub(super) struct PendingPaste {
+pub(crate) struct PendingPaste {
     id: u64,
     thread: Option<String>,
     draft: (String, usize),
     source: ClipboardTextSource,
+}
+
+impl PendingPaste {
+    pub(crate) fn source(&self) -> ClipboardTextSource {
+        self.source
+    }
 }
 
 fn keep_pending(event: &TuiEvent, source: ClipboardTextSource) -> bool {
@@ -41,7 +47,7 @@ impl App {
         &self,
         source: ClipboardTextSource,
     ) -> Option<(Option<String>, (String, usize))> {
-        if !right_click_paste_allowed(self.right_click_paste, source)
+        if !right_click_paste_allowed(self.chat_widget.right_click_paste, source)
             || self.chat_widget.pager_overlay.is_some()
             || self.chat_widget.export_picker.is_some()
             || self.chat_widget.bottom_pane.is_active()
@@ -65,7 +71,7 @@ impl App {
         let Some((thread, draft)) = self.clipboard_paste_target(source) else {
             return false;
         };
-        self.pending_clipboard_paste = Some(PendingPaste {
+        self.chat_widget.set_pending_clipboard_paste(PendingPaste {
             id,
             thread,
             draft,
@@ -76,18 +82,18 @@ impl App {
 
     /// Invalidate before dispatching input or polling a completion.
     pub(crate) fn invalidate_clipboard_paste(&mut self, event: &TuiEvent) -> Option<u64> {
-        let pending = self.pending_clipboard_paste.as_ref()?;
-        if keep_pending(event, pending.source) {
+        let source = self.chat_widget.pending_clipboard_source()?;
+        if keep_pending(event, source) {
             return None;
         }
-        self.pending_clipboard_paste
-            .take()
+        self.chat_widget
+            .take_pending_clipboard_paste()
             .map(|pending| pending.id)
     }
 
     /// Apply only a completion that still belongs to the same thread and exact composer draft.
     pub(crate) fn finish_clipboard_paste(&mut self, id: u64, result: Result<String, String>) {
-        let Some(pending) = self.pending_clipboard_paste.as_ref() else {
+        let Some(pending) = self.chat_widget.pending_clipboard_paste().cloned() else {
             return;
         };
         if pending.id != id {
@@ -95,10 +101,10 @@ impl App {
         }
         let target = self.clipboard_paste_target(pending.source);
         if target.as_ref() != Some(&(pending.thread.clone(), pending.draft.clone())) {
-            self.pending_clipboard_paste = None;
+            self.chat_widget.clear_pending_clipboard_paste();
             return;
         }
-        self.pending_clipboard_paste = None;
+        self.chat_widget.clear_pending_clipboard_paste();
         match result {
             Ok(text) if !text.is_empty() => {
                 self.chat_widget
@@ -107,7 +113,8 @@ impl App {
             }
             Ok(_) => {}
             Err(error) => self.projection.set_status(
-                self.locale
+                self.chat_widget
+                    .locale
                     .status(&format!("clipboard paste failed: {error}")),
             ),
         }
@@ -152,7 +159,7 @@ mod tests {
         app.chat_widget
             .bottom_pane
             .set_composer_text("before".to_string());
-        app.pending_clipboard_paste = Some(PendingPaste {
+        app.chat_widget.set_pending_clipboard_paste(PendingPaste {
             id: 7,
             thread: None,
             draft: ("before".to_string(), "before".len()),
@@ -163,7 +170,7 @@ mod tests {
             .set_composer_text("newer".to_string());
         app.finish_clipboard_paste(7, Ok("stale".to_string()));
         assert_eq!(app.chat_widget.bottom_pane.composer_text(), "newer");
-        assert!(app.pending_clipboard_paste.is_none());
+        assert!(app.chat_widget.pending_clipboard_paste().is_none());
     }
 
     #[test]
@@ -173,7 +180,7 @@ mod tests {
             .bottom_pane
             .set_composer_text("draft".to_string());
         app.set_thread_id("thread-a".to_string());
-        app.pending_clipboard_paste = Some(PendingPaste {
+        app.chat_widget.set_pending_clipboard_paste(PendingPaste {
             id: 8,
             thread: Some("thread-a".to_string()),
             draft: ("draft".to_string(), "draft".len()),
@@ -182,6 +189,6 @@ mod tests {
         app.set_thread_id("thread-b".to_string());
         app.finish_clipboard_paste(8, Ok("stale".to_string()));
         assert_eq!(app.chat_widget.bottom_pane.composer_text(), "draft");
-        assert!(app.pending_clipboard_paste.is_none());
+        assert!(app.chat_widget.pending_clipboard_paste().is_none());
     }
 }

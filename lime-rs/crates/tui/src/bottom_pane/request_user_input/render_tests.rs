@@ -65,7 +65,7 @@ fn oversized_notes_remain_editable_and_show_localized_rejection_in_the_visible_f
         Locale::JaJp,
         Locale::KoKr,
     ] {
-        app.locale = locale;
+        app.chat_widget.locale = locale;
         let mut terminal = Terminal::new(TestBackend::new(150, 24)).unwrap();
         terminal
             .draw(|frame| crate::view::render(frame, &app))

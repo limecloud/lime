@@ -8,8 +8,6 @@ mod clipboard_copy;
 mod clipboard_paste;
 mod collaboration_modes;
 #[allow(dead_code)]
-mod command_popup;
-#[allow(dead_code)]
 mod cwd_prompt;
 mod diff_render;
 mod entry;
@@ -17,8 +15,6 @@ mod entry;
 mod exec_cell;
 mod external_editor;
 mod fuzzy_match;
-#[allow(dead_code, unused_imports)]
-mod highlight;
 #[allow(dead_code, unused_imports)]
 mod history_cell;
 mod history_filter;
@@ -37,8 +33,6 @@ mod model_catalog;
 mod model_picker;
 mod multi_agents;
 mod pager_overlay;
-#[allow(dead_code)]
-mod pending_input_preview;
 mod projection;
 #[allow(dead_code)]
 mod render;
@@ -50,10 +44,9 @@ mod session_resume;
 mod settings;
 mod slash_command;
 mod status;
-// Kept as a compatibility delegate while callers converge on the widget owner.
+// Shared shortcut layout owner used by the shortcut overlay and Agent Center.
 mod shortcut_help;
 #[allow(dead_code)]
-mod status_indicator;
 mod status_indicator_widget;
 mod style;
 mod table_detect;

@@ -1,5 +1,7 @@
 //! Composer-owned history query and preview; traversal belongs to `ChatComposerHistory`.
 
+#[cfg(test)]
+use ratatui::layout::Rect;
 use ratatui::style::{Color, Style};
 use ratatui::text::Span;
 use std::ops::Range;
@@ -58,20 +60,24 @@ impl ChatComposer {
         history_search::match_ranges(self.text(), &search.query)
     }
 
-    /// 返回 footer 历史搜索查询输入框的光标位置。
-    pub(crate) fn history_search_cursor_pos(&self, area: Rect, label: &str) -> Option<(u16, u16)> {
+    /// 返回 footer 历史搜索查询输入框的光标列。
+    pub(crate) fn history_search_cursor_column(&self, label: &str) -> Option<u16> {
         let search = self.history_search.as_ref()?;
-        if area.is_empty() {
-            return None;
-        }
         let prefix_width =
             u16::try_from(Line::from(format!(" {label}")).width()).unwrap_or(u16::MAX);
         let query_width =
             u16::try_from(Line::from(search.display_query()).width()).unwrap_or(u16::MAX);
-        let desired_x = area
-            .x
-            .saturating_add(prefix_width)
-            .saturating_add(query_width);
+        Some(prefix_width.saturating_add(query_width))
+    }
+
+    /// 返回 footer 历史搜索查询输入框的光标位置。
+    #[cfg(test)]
+    pub(crate) fn history_search_cursor_pos(&self, area: Rect, label: &str) -> Option<(u16, u16)> {
+        if area.is_empty() {
+            return None;
+        }
+        let column = self.history_search_cursor_column(label)?;
+        let desired_x = area.x.saturating_add(column);
         let max_x = area.x.saturating_add(area.width.saturating_sub(1));
         Some((desired_x.min(max_x), area.y))
     }

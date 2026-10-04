@@ -1,5 +1,7 @@
 use super::*;
 use crate::app_event::{HistoryBatchCursor, HistoryBatchEntryResponse};
+use agent_protocol::TextElement;
+use app_server_protocol::protocol::v2::UserInput;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver};
 
 fn persistent(
@@ -50,6 +52,150 @@ fn local_history_ignores_empty_and_collapses_only_identical_adjacent_rich_entrie
     history.record_local_submission(rich.clone());
     assert_eq!(history.local_history.len(), 2);
     assert_eq!(history.navigate_up(&AppEventSender::default()), Some(rich));
+}
+
+#[test]
+fn canonical_user_inputs_seed_one_rich_history_entry() {
+    let inputs = vec![
+        UserInput::Image {
+            detail: Some(agent_protocol::ImageDetail::High),
+            url: "https://example.test/image.png".into(),
+        },
+        UserInput::LocalImage {
+            detail: None,
+            path: "/tmp/local.png".into(),
+        },
+        UserInput::Text {
+            text: "use $sample".into(),
+            text_elements: vec![TextElement::new(4..11, Some("$sample".into()))],
+        },
+        UserInput::Skill {
+            name: "sample".into(),
+            path: "skill://sample".into(),
+        },
+    ];
+
+    let entry = HistoryEntry::from_user_inputs(&inputs).expect("non-empty canonical input");
+    assert_eq!(entry.text, "use $sample");
+    assert_eq!(entry.text_elements.len(), 1);
+    assert_eq!(entry.remote_images.len(), 1);
+    assert_eq!(entry.local_images[0].placeholder, "[Image #2]");
+    assert_eq!(
+        entry.mention_bindings,
+        vec![MentionBinding {
+            sigil: '$',
+            mention: "sample".into(),
+            path: "skill://sample".into(),
+        }]
+    );
+}
+
+#[test]
+fn replay_seed_filters_review_prompts_and_recall_keeps_canonical_order() {
+    use app_server_protocol::protocol::v2::{ThreadItem, Turn, TurnItemsView, TurnStatus};
+
+    let turns = vec![
+        Turn {
+            id: "review".into(),
+            items: vec![
+                ThreadItem::EnteredReviewMode {
+                    id: "review-enter".into(),
+                    metadata: None,
+                    review: "main".into(),
+                },
+                ThreadItem::UserMessage {
+                    id: "hidden".into(),
+                    metadata: None,
+                    client_id: None,
+                    content: vec![UserInput::Text {
+                        text: "review prompt".into(),
+                        text_elements: Vec::new(),
+                    }],
+                },
+                ThreadItem::ExitedReviewMode {
+                    id: "review-exit".into(),
+                    metadata: None,
+                    review: "main".into(),
+                },
+            ],
+            items_view: TurnItemsView::Full,
+            status: TurnStatus::Completed,
+            error: None,
+            started_at: None,
+            completed_at: None,
+            duration_ms: None,
+        },
+        Turn {
+            id: "visible".into(),
+            items: vec![ThreadItem::UserMessage {
+                id: "visible-user".into(),
+                metadata: None,
+                client_id: None,
+                content: vec![UserInput::Text {
+                    text: "visible prompt".into(),
+                    text_elements: Vec::new(),
+                }],
+            }],
+            items_view: TurnItemsView::Full,
+            status: TurnStatus::Completed,
+            error: None,
+            started_at: None,
+            completed_at: None,
+            duration_ms: None,
+        },
+    ];
+    let entries = replay_entries_from_turns(&turns);
+    assert_eq!(
+        entries
+            .iter()
+            .map(|entry| entry.text.as_str())
+            .collect::<Vec<_>>(),
+        vec!["visible prompt"]
+    );
+
+    let (mut history, tx, _rx) = persistent(0);
+    for entry in entries {
+        history.record_replayed_submission(entry);
+    }
+    assert_eq!(
+        history.navigate_up(&tx).map(|entry| entry.text),
+        Some("visible prompt".into())
+    );
+}
+
+#[test]
+fn replay_entries_prepend_older_pages_and_persistent_duplicates_are_skipped() {
+    let (mut history, tx, mut rx) = persistent(1);
+    history.record_replayed_submission(HistoryEntry::new("newest".into()));
+    history.prepend_replayed_submissions(vec![HistoryEntry::new("oldest".into())]);
+
+    assert_eq!(
+        history.navigate_up(&tx).map(|entry| entry.text),
+        Some("newest".into())
+    );
+    assert_eq!(
+        history.navigate_up(&tx).map(|entry| entry.text),
+        Some("oldest".into())
+    );
+
+    history.reset_navigation();
+    assert_eq!(
+        history.navigate_up(&tx).map(|entry| entry.text),
+        Some("newest".into())
+    );
+    assert_eq!(
+        history.navigate_up(&tx).map(|entry| entry.text),
+        Some("oldest".into())
+    );
+    assert_eq!(history.navigate_up(&tx), None);
+    assert!(matches!(
+        rx.try_recv().unwrap(),
+        AppEvent::LookupMessageHistoryEntry { offset: 0, .. }
+    ));
+    assert_eq!(
+        history.on_entry_response("log", 0, Some("oldest".into()), &tx),
+        HistoryEntryResponse::Ignored
+    );
 }
 
 #[test]

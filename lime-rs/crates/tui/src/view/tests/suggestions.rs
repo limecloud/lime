@@ -53,7 +53,7 @@ fn visible_file_selection_inserts_original_path_and_preserves_draft_suffix() {
     );
     assert!(!app.chat_widget.bottom_pane.popup_active());
     assert!(app.projection.active_turn_id().is_none());
-    assert!(app.queued_submissions.is_empty());
+    assert!(app.chat_widget.queued_submissions().is_empty());
 }
 
 #[test]

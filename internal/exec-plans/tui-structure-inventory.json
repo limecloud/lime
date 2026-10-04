@@ -77770,7 +77770,7 @@
     },
     "lime-rs/crates/tui/src": {
       "root": "/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/crates/tui/src",
-      "fileCount": 364,
+      "fileCount": 361,
       "files": [
         "app.rs",
         "app/agent_center/hints.rs",
@@ -77828,7 +77828,6 @@
         "app/thread_input.rs",
         "app/thread_input_tests.rs",
         "app/thread_interaction_tests.rs",
-        "app/thread_settings.rs",
         "app/tool_lifecycle.rs",
         "app/transcript_export.rs",
         "app/transcript_presentation.rs",
@@ -77947,12 +77946,16 @@
         "bottom_pane/textarea/wrapping.rs",
         "bottom_pane/textarea/wrapping_tests.rs",
         "chatwidget.rs",
+        "chatwidget/footer.rs",
+        "chatwidget/input.rs",
+        "chatwidget/interaction.rs",
+        "chatwidget/settings.rs",
+        "chatwidget/transcript.rs",
         "clipboard_copy.rs",
         "clipboard_copy/worker.rs",
         "clipboard_paste.rs",
         "clipboard_paste/worker.rs",
         "collaboration_modes.rs",
-        "command_popup.rs",
         "cwd_prompt.rs",
         "diff_render.rs",
         "diff_render/style.rs",
@@ -77965,7 +77968,6 @@
         "exec_cell/render.rs",
         "external_editor.rs",
         "fuzzy_match.rs",
-        "highlight.rs",
         "history_cell/activity_preview.rs",
         "history_cell/approvals.rs",
         "history_cell/base.rs",
@@ -78025,10 +78027,8 @@
         "multi_agents.rs",
         "pager_overlay.rs",
         "pager_overlay/disclosure_tests.rs",
-        "pending_input_preview.rs",
         "projection.rs",
         "projection_tests.rs",
-        "reconnect.rs",
         "render/highlight.rs",
         "render/highlight_streaming.rs",
         "render/highlight_streaming_tests.rs",
@@ -78076,11 +78076,8 @@
         "slash_command.rs",
         "status/format.rs",
         "status/mod.rs",
-        "status_indicator.rs",
         "status_indicator_widget.rs",
         "status_indicator_widget/summary_shimmer.rs",
-        "status_indicator_widget/timer.rs",
-        "status_indicator_widget/timer_tests.rs",
         "style.rs",
         "style/contrast.rs",
         "style/contrast_tests.rs",
@@ -78137,7 +78134,7 @@
         "width.rs",
         "wrapping.rs"
       ],
-      "symbolCount": 4848,
+      "symbolCount": 4957,
       "symbols": [
         {
           "path": "app.rs",
@@ -78173,16 +78170,6 @@
           "path": "app.rs",
           "name": "end_startup_input_boundary",
           "kind": "function"
-        },
-        {
-          "path": "app.rs",
-          "name": "external_editor_state",
-          "kind": "function"
-        },
-        {
-          "path": "app.rs",
-          "name": "ExternalEditorState",
-          "kind": "type"
         },
         {
           "path": "app.rs",
@@ -78231,16 +78218,6 @@
         },
         {
           "path": "app.rs",
-          "name": "request_external_editor_launch",
-          "kind": "function"
-        },
-        {
-          "path": "app.rs",
-          "name": "reset_external_editor_state",
-          "kind": "function"
-        },
-        {
-          "path": "app.rs",
           "name": "run_local_command",
           "kind": "function"
         },
@@ -78267,11 +78244,6 @@
         {
           "path": "app.rs",
           "name": "set_cwd",
-          "kind": "function"
-        },
-        {
-          "path": "app.rs",
-          "name": "set_external_editor_state",
           "kind": "function"
         },
         {
@@ -79361,7 +79333,7 @@
         },
         {
           "path": "app/history_pagination.rs",
-          "name": "handle_older_history_page",
+          "name": "handle_older_history_page_loaded",
           "kind": "function"
         },
         {
@@ -79391,6 +79363,11 @@
         },
         {
           "path": "app/history_pagination.rs",
+          "name": "OlderHistoryLoadStart",
+          "kind": "type"
+        },
+        {
+          "path": "app/history_pagination.rs",
           "name": "prepend_history_page",
           "kind": "function"
         },
@@ -79401,22 +79378,12 @@
         },
         {
           "path": "app/history_pagination.rs",
-          "name": "request_all_older_history_pages",
+          "name": "replay_seed_requires_turn_facts_and_keeps_older_pages_before_newer_recall",
           "kind": "function"
         },
         {
           "path": "app/history_pagination.rs",
-          "name": "request_older_history_page",
-          "kind": "function"
-        },
-        {
-          "path": "app/history_pagination.rs",
-          "name": "top_up_underfilled_history",
-          "kind": "function"
-        },
-        {
-          "path": "app/history_pagination.rs",
-          "name": "top_up_underfilled_history_for_terminal",
+          "name": "spawn_older_history_page_load",
           "kind": "function"
         },
         {
@@ -79845,11 +79812,6 @@
           "kind": "function"
         },
         {
-          "path": "app/interaction.rs",
-          "name": "route_modal_transcript_wheel",
-          "kind": "function"
-        },
-        {
           "path": "app/interrupts.rs",
           "name": "active_turn_can_interrupt",
           "kind": "function"
@@ -80273,6 +80235,11 @@
           "path": "app/right_click_paste.rs",
           "name": "PendingPaste",
           "kind": "type"
+        },
+        {
+          "path": "app/right_click_paste.rs",
+          "name": "source",
+          "kind": "function"
         },
         {
           "path": "app/session_lifecycle.rs",
@@ -81180,51 +81147,6 @@
           "kind": "function"
         },
         {
-          "path": "app/thread_settings.rs",
-          "name": "cycle_permission_profile",
-          "kind": "function"
-        },
-        {
-          "path": "app/thread_settings.rs",
-          "name": "next_collaboration_mode",
-          "kind": "function"
-        },
-        {
-          "path": "app/thread_settings.rs",
-          "name": "open_model_picker",
-          "kind": "function"
-        },
-        {
-          "path": "app/thread_settings.rs",
-          "name": "plan_mode",
-          "kind": "function"
-        },
-        {
-          "path": "app/thread_settings.rs",
-          "name": "set_collaboration_modes",
-          "kind": "function"
-        },
-        {
-          "path": "app/thread_settings.rs",
-          "name": "set_model_catalog",
-          "kind": "function"
-        },
-        {
-          "path": "app/thread_settings.rs",
-          "name": "set_permission_profiles",
-          "kind": "function"
-        },
-        {
-          "path": "app/thread_settings.rs",
-          "name": "set_settings",
-          "kind": "function"
-        },
-        {
-          "path": "app/thread_settings.rs",
-          "name": "sync_default_collaboration_mode",
-          "kind": "function"
-        },
-        {
           "path": "app/tool_lifecycle.rs",
           "name": "observe_item",
           "kind": "function"
@@ -81553,6 +81475,11 @@
           "path": "app_event.rs",
           "name": "new",
           "kind": "function"
+        },
+        {
+          "path": "app_event.rs",
+          "name": "OlderHistoryLoadMode",
+          "kind": "type"
         },
         {
           "path": "app_event_sender.rs",
@@ -81921,12 +81848,22 @@
         },
         {
           "path": "app_server_session/history.rs",
+          "name": "thread_items_page_with_handle",
+          "kind": "function"
+        },
+        {
+          "path": "app_server_session/history.rs",
           "name": "thread_turns_for_items",
           "kind": "function"
         },
         {
           "path": "app_server_session/history.rs",
-          "name": "thread_turns_page",
+          "name": "thread_turns_for_items_with_handle",
+          "kind": "function"
+        },
+        {
+          "path": "app_server_session/history.rs",
+          "name": "thread_turns_page_with_handle",
           "kind": "function"
         },
         {
@@ -82661,11 +82598,6 @@
         },
         {
           "path": "bottom_pane/chat_composer/draft.rs",
-          "name": "footer_has_draft",
-          "kind": "function"
-        },
-        {
-          "path": "bottom_pane/chat_composer/draft.rs",
           "name": "has_pending_images",
           "kind": "function"
         },
@@ -82677,6 +82609,11 @@
         {
           "path": "bottom_pane/chat_composer/draft.rs",
           "name": "history_search_active",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/chat_composer/draft.rs",
+          "name": "input_enabled",
           "kind": "function"
         },
         {
@@ -82746,6 +82683,11 @@
         },
         {
           "path": "bottom_pane/chat_composer/draft.rs",
+          "name": "set_input_enabled",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/chat_composer/draft.rs",
           "name": "set_locale",
           "kind": "function"
         },
@@ -82772,6 +82714,11 @@
         {
           "path": "bottom_pane/chat_composer/draft.rs",
           "name": "should_handle_vim_insert_escape",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/chat_composer/draft.rs",
+          "name": "show_shutdown_in_progress",
           "kind": "function"
         },
         {
@@ -82833,6 +82780,11 @@
           "path": "bottom_pane/chat_composer/draft_state.rs",
           "name": "ComposerMentionBinding",
           "kind": "type"
+        },
+        {
+          "path": "bottom_pane/chat_composer/draft_state.rs",
+          "name": "default",
+          "kind": "function"
         },
         {
           "path": "bottom_pane/chat_composer/draft_state.rs",
@@ -82921,6 +82873,11 @@
         },
         {
           "path": "bottom_pane/chat_composer/file_search_popup.rs",
+          "name": "render_with_clip_top",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/chat_composer/file_search_popup.rs",
           "name": "result",
           "kind": "function"
         },
@@ -82961,8 +82918,8 @@
         },
         {
           "path": "bottom_pane/chat_composer/footer_state.rs",
-          "name": "FooterMode",
-          "kind": "type"
+          "name": "footer_mode",
+          "kind": "function"
         },
         {
           "path": "bottom_pane/chat_composer/footer_state.rs",
@@ -83062,6 +83019,16 @@
         {
           "path": "bottom_pane/chat_composer/history.rs",
           "name": "on_history_lookup_response",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/chat_composer/history.rs",
+          "name": "record_replayed_history_page",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/chat_composer/history.rs",
+          "name": "replace_replayed_history",
           "kind": "function"
         },
         {
@@ -83167,6 +83134,11 @@
         {
           "path": "bottom_pane/chat_composer/history_search.rs",
           "name": "handle_history_search_key",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/chat_composer/history_search.rs",
+          "name": "history_search_cursor_column",
           "kind": "function"
         },
         {
@@ -83306,6 +83278,11 @@
         },
         {
           "path": "bottom_pane/chat_composer/history_tests.rs",
+          "name": "replay_seed_restores_rich_images_elements_and_mentions_through_up_recall",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/chat_composer/history_tests.rs",
           "name": "reverse_search_previews_its_own_attachments_cancel_restores_draft_accept_requires_another_enter",
           "kind": "function"
         },
@@ -83418,6 +83395,11 @@
           "path": "bottom_pane/chat_composer/layout.rs",
           "name": "ComposerLayout",
           "kind": "type"
+        },
+        {
+          "path": "bottom_pane/chat_composer/layout.rs",
+          "name": "cursor_pos",
+          "kind": "function"
         },
         {
           "path": "bottom_pane/chat_composer/layout.rs",
@@ -83831,6 +83813,11 @@
         },
         {
           "path": "bottom_pane/chat_composer/render_tests.rs",
+          "name": "disabled_input_keeps_draft_but_hides_cursor_and_uses_disabled_placeholder",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/chat_composer/render_tests.rs",
           "name": "input_is_a_borderless_filled_band_with_top_bottom_and_right_padding",
           "kind": "function"
         },
@@ -83842,6 +83829,11 @@
         {
           "path": "bottom_pane/chat_composer/render_tests.rs",
           "name": "narrow_and_clipped_input_keeps_text_cursor_and_draft_at_the_actual_width",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/chat_composer/render_tests.rs",
+          "name": "selected_remote_image_hides_cursor_until_selection_is_cleared",
           "kind": "function"
         },
         {
@@ -83887,6 +83879,11 @@
         {
           "path": "bottom_pane/chat_composer/skill_popup.rs",
           "name": "render",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/chat_composer/skill_popup.rs",
+          "name": "render_with_clip_top",
           "kind": "function"
         },
         {
@@ -84441,6 +84438,11 @@
         },
         {
           "path": "bottom_pane/chat_composer_history.rs",
+          "name": "from_user_inputs",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/chat_composer_history.rs",
           "name": "HistoryEntry",
           "kind": "type"
         },
@@ -84448,6 +84450,11 @@
           "path": "bottom_pane/chat_composer_history.rs",
           "name": "HistoryEntryResponse",
           "kind": "type"
+        },
+        {
+          "path": "bottom_pane/chat_composer_history.rs",
+          "name": "is_empty",
+          "kind": "function"
         },
         {
           "path": "bottom_pane/chat_composer_history.rs",
@@ -84496,7 +84503,17 @@
         },
         {
           "path": "bottom_pane/chat_composer_history.rs",
+          "name": "persistent_entry_duplicates_local",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/chat_composer_history.rs",
           "name": "populate_history_at_index",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/chat_composer_history.rs",
+          "name": "prepend_replayed_submissions",
           "kind": "function"
         },
         {
@@ -84506,7 +84523,32 @@
         },
         {
           "path": "bottom_pane/chat_composer_history.rs",
+          "name": "record_local_submission_inner",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/chat_composer_history.rs",
           "name": "record_recalled_text",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/chat_composer_history.rs",
+          "name": "record_replayed_submission",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/chat_composer_history.rs",
+          "name": "replace_replayed_history",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/chat_composer_history.rs",
+          "name": "replay_entries_from_items",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/chat_composer_history.rs",
+          "name": "replay_entries_from_turns",
           "kind": "function"
         },
         {
@@ -84726,6 +84768,11 @@
         },
         {
           "path": "bottom_pane/chat_composer_history/tests.rs",
+          "name": "canonical_user_inputs_seed_one_rich_history_entry",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/chat_composer_history/tests.rs",
           "name": "disconnected_event_consumer_fails_closed_and_entry_io_failure_does_not_poison_cache",
           "kind": "function"
         },
@@ -84772,6 +84819,16 @@
         {
           "path": "bottom_pane/chat_composer_history/tests.rs",
           "name": "persistent",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/chat_composer_history/tests.rs",
+          "name": "replay_entries_prepend_older_pages_and_persistent_duplicates_are_skipped",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/chat_composer_history/tests.rs",
+          "name": "replay_seed_filters_review_prompts_and_recall_keeps_canonical_order",
           "kind": "function"
         },
         {
@@ -84856,6 +84913,11 @@
         },
         {
           "path": "bottom_pane/command_popup.rs",
+          "name": "render_with_clip_top",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/command_popup.rs",
           "name": "rows",
           "kind": "function"
         },
@@ -84872,6 +84934,11 @@
         {
           "path": "bottom_pane/command_popup.rs",
           "name": "update",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/composer.rs",
+          "name": "agents_navigation_available",
           "kind": "function"
         },
         {
@@ -84921,6 +84988,11 @@
         },
         {
           "path": "bottom_pane/composer.rs",
+          "name": "completion_popup_active",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/composer.rs",
           "name": "composer_draft",
           "kind": "function"
         },
@@ -84932,6 +85004,11 @@
         {
           "path": "bottom_pane/composer.rs",
           "name": "composer_has_selected_remote_image",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/composer.rs",
+          "name": "composer_input_enabled",
           "kind": "function"
         },
         {
@@ -84996,7 +85073,27 @@
         },
         {
           "path": "bottom_pane/composer.rs",
+          "name": "file_search_popup_active",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/composer.rs",
+          "name": "footer_mode",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/composer.rs",
           "name": "history_search_active",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/composer.rs",
+          "name": "history_search_cursor_column",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/composer.rs",
+          "name": "history_search_footer_line",
           "kind": "function"
         },
         {
@@ -85036,7 +85133,17 @@
         },
         {
           "path": "bottom_pane/composer.rs",
+          "name": "record_replayed_history_page",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/composer.rs",
           "name": "render_composer_textarea",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/composer.rs",
+          "name": "replace_replayed_history",
           "kind": "function"
         },
         {
@@ -85057,6 +85164,11 @@
         {
           "path": "bottom_pane/composer.rs",
           "name": "set_cached_history",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/composer.rs",
+          "name": "set_composer_input_enabled",
           "kind": "function"
         },
         {
@@ -85106,6 +85218,16 @@
         },
         {
           "path": "bottom_pane/composer.rs",
+          "name": "show_shutdown_in_progress",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/composer.rs",
+          "name": "skill_popup_active",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/composer.rs",
           "name": "skills",
           "kind": "function"
         },
@@ -85141,6 +85263,11 @@
         },
         {
           "path": "bottom_pane/composer.rs",
+          "name": "vim_mode_indicator_span",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/composer.rs",
           "name": "vim_search_active",
           "kind": "function"
         },
@@ -85153,6 +85280,16 @@
           "path": "bottom_pane/footer.rs",
           "name": "active_draft_prefers_queue_hint_and_hides_context_when_narrow",
           "kind": "function"
+        },
+        {
+          "path": "bottom_pane/footer.rs",
+          "name": "disabled_composer_clears_passive_footer",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/footer.rs",
+          "name": "FooterMode",
+          "kind": "type"
         },
         {
           "path": "bottom_pane/footer.rs",
@@ -85206,6 +85343,11 @@
         },
         {
           "path": "bottom_pane/footer.rs",
+          "name": "render_shortcut_close_hint",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/footer.rs",
           "name": "rendered_text",
           "kind": "function"
         },
@@ -85237,11 +85379,6 @@
         {
           "path": "bottom_pane/footer.rs",
           "name": "running_empty_composer_shows_shortcuts_not_protocol_identity",
-          "kind": "function"
-        },
-        {
-          "path": "bottom_pane/footer.rs",
-          "name": "should_show_plan_mode_hint",
           "kind": "function"
         },
         {
@@ -86921,6 +87058,11 @@
         },
         {
           "path": "bottom_pane/shortcut_overlay.rs",
+          "name": "close_hint_text",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/shortcut_overlay.rs",
           "name": "customization_lines",
           "kind": "function"
         },
@@ -86937,16 +87079,6 @@
         {
           "path": "bottom_pane/shortcut_overlay.rs",
           "name": "render",
-          "kind": "function"
-        },
-        {
-          "path": "bottom_pane/shortcut_overlay.rs",
-          "name": "render_close_hint",
-          "kind": "function"
-        },
-        {
-          "path": "bottom_pane/shortcut_overlay.rs",
-          "name": "toggle_available",
           "kind": "function"
         },
         {
@@ -88616,12 +88748,32 @@
         },
         {
           "path": "chatwidget.rs",
+          "name": "external_editor_state",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget.rs",
+          "name": "ExternalEditorState",
+          "kind": "type"
+        },
+        {
+          "path": "chatwidget.rs",
           "name": "has_detailed_bookmark",
           "kind": "function"
         },
         {
           "path": "chatwidget.rs",
           "name": "open",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget.rs",
+          "name": "request_external_editor_launch",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget.rs",
+          "name": "reset_external_editor_state",
           "kind": "function"
         },
         {
@@ -88636,8 +88788,433 @@
         },
         {
           "path": "chatwidget.rs",
+          "name": "set_external_editor_state",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget.rs",
+          "name": "set_locale",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget.rs",
+          "name": "set_runtime_keymap",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget.rs",
           "name": "TranscriptPresentation",
           "kind": "type"
+        },
+        {
+          "path": "chatwidget/footer.rs",
+          "name": "agents_hint",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/footer.rs",
+          "name": "footer_props",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/footer.rs",
+          "name": "shortcut_toggle_available",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/footer.rs",
+          "name": "should_show_plan_mode_hint",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/input.rs",
+          "name": "capture_thread_input",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/input.rs",
+          "name": "clear_pending_clipboard_paste",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/input.rs",
+          "name": "clear_startup_protected_request",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/input.rs",
+          "name": "clear_thread_interactions",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/input.rs",
+          "name": "observe_thread_input_notification",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/input.rs",
+          "name": "pending_clipboard_paste",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/input.rs",
+          "name": "pending_clipboard_source",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/input.rs",
+          "name": "queued_submissions",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/input.rs",
+          "name": "replace_queued_submissions",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/input.rs",
+          "name": "restore_queued_submission_for_edit",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/input.rs",
+          "name": "restore_thread_input",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/input.rs",
+          "name": "set_pending_clipboard_paste",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/input.rs",
+          "name": "set_startup_protected_request_pending",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/input.rs",
+          "name": "startup_protected_request_pending",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/input.rs",
+          "name": "take_pending_clipboard_paste",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/input.rs",
+          "name": "upsert_queued_submission",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/interaction.rs",
+          "name": "AgentsOverviewEvent",
+          "kind": "type"
+        },
+        {
+          "path": "chatwidget/interaction.rs",
+          "name": "begin_transcript_search",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/interaction.rs",
+          "name": "clear_agents_overview",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/interaction.rs",
+          "name": "clear_model_picker",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/interaction.rs",
+          "name": "clear_resume_picker",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/interaction.rs",
+          "name": "dismiss_shortcut_overlay",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/interaction.rs",
+          "name": "dispatch_global_key",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/interaction.rs",
+          "name": "end_interaction_drag",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/interaction.rs",
+          "name": "ExportPickerEvent",
+          "kind": "type"
+        },
+        {
+          "path": "chatwidget/interaction.rs",
+          "name": "finish_main_transcript_selection_if_active",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/interaction.rs",
+          "name": "handle_agent_picker_event",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/interaction.rs",
+          "name": "handle_agents_overview_event",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/interaction.rs",
+          "name": "handle_export_picker_event",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/interaction.rs",
+          "name": "handle_main_transcript_selection",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/interaction.rs",
+          "name": "handle_model_picker_event",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/interaction.rs",
+          "name": "handle_pager_event",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/interaction.rs",
+          "name": "handle_resume_picker_event",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/interaction.rs",
+          "name": "handle_transcript_follow_mouse",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/interaction.rs",
+          "name": "handle_transcript_search_event",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/interaction.rs",
+          "name": "ModelPickerEvent",
+          "kind": "type"
+        },
+        {
+          "path": "chatwidget/interaction.rs",
+          "name": "open_approval_details_pager",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/interaction.rs",
+          "name": "reset_global_key_chord",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/interaction.rs",
+          "name": "resume_picker_mut",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/interaction.rs",
+          "name": "ResumePickerEvent",
+          "kind": "type"
+        },
+        {
+          "path": "chatwidget/interaction.rs",
+          "name": "reveal_main_selection_row",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/interaction.rs",
+          "name": "route_modal_transcript_wheel",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/interaction.rs",
+          "name": "scroll_main_selection",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/interaction.rs",
+          "name": "set_agent_picker",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/interaction.rs",
+          "name": "set_agents_overview",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/interaction.rs",
+          "name": "set_resume_picker",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/settings.rs",
+          "name": "apply_collaboration_mode",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/settings.rs",
+          "name": "apply_effort",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/settings.rs",
+          "name": "apply_model_selection",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/settings.rs",
+          "name": "apply_permissions",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/settings.rs",
+          "name": "cycle_permission_profile",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/settings.rs",
+          "name": "next_collaboration_mode",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/settings.rs",
+          "name": "open_model_picker",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/settings.rs",
+          "name": "plan_mode",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/settings.rs",
+          "name": "set_collaboration_mode",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/settings.rs",
+          "name": "set_collaboration_modes",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/settings.rs",
+          "name": "set_model_catalog",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/settings.rs",
+          "name": "set_permission_profiles",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/settings.rs",
+          "name": "set_settings",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/settings.rs",
+          "name": "settings_patch",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/settings.rs",
+          "name": "sync_default_collaboration_mode",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/transcript.rs",
+          "name": "dismiss_pager_overlay",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/transcript.rs",
+          "name": "finish_transcript_selection",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/transcript.rs",
+          "name": "is_raw_output_mode",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/transcript.rs",
+          "name": "open_mcp_inventory",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/transcript.rs",
+          "name": "open_status_pager",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/transcript.rs",
+          "name": "open_transcript_pager",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/transcript.rs",
+          "name": "reset_for_hydrated_thread",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/transcript.rs",
+          "name": "reset_thread_surface",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/transcript.rs",
+          "name": "reset_transcript_presentation",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/transcript.rs",
+          "name": "scroll_bottom",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/transcript.rs",
+          "name": "scroll_down",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/transcript.rs",
+          "name": "scroll_top",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/transcript.rs",
+          "name": "scroll_up",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/transcript.rs",
+          "name": "scrollback_has_older_history",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/transcript.rs",
+          "name": "set_pager_overlay",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/transcript.rs",
+          "name": "set_scrollback_has_older_history",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/transcript.rs",
+          "name": "toggle_history_render_mode",
+          "kind": "function"
         },
         {
           "path": "clipboard_copy.rs",
@@ -96811,6 +97388,11 @@
         },
         {
           "path": "resume_picker_transcript_preview.rs",
+          "name": "preview_from_items_with_turns",
+          "kind": "function"
+        },
+        {
+          "path": "resume_picker_transcript_preview.rs",
           "name": "TranscriptPreviewLine",
           "kind": "type"
         },
@@ -96822,6 +97404,11 @@
         {
           "path": "resume_picker_transcript_preview_tests.rs",
           "name": "assistant_item",
+          "kind": "function"
+        },
+        {
+          "path": "resume_picker_transcript_preview_tests.rs",
+          "name": "bounded_preview_applies_turn_review_ids_across_page_boundaries",
           "kind": "function"
         },
         {
@@ -96886,6 +97473,11 @@
         },
         {
           "path": "runtime.rs",
+          "name": "complete_history_load",
+          "kind": "function"
+        },
+        {
+          "path": "runtime.rs",
           "name": "composer_copy_clears_selection_only_after_confirmation",
           "kind": "function"
         },
@@ -96936,8 +97528,18 @@
         },
         {
           "path": "runtime.rs",
+          "name": "fail_history_load",
+          "kind": "function"
+        },
+        {
+          "path": "runtime.rs",
           "name": "FileSearchEvent",
           "kind": "type"
+        },
+        {
+          "path": "runtime.rs",
+          "name": "history_top_up_needed",
+          "kind": "function"
         },
         {
           "path": "runtime.rs",
@@ -97600,41 +98202,6 @@
           "kind": "type"
         },
         {
-          "path": "status_indicator.rs",
-          "name": "elapsed_time_matches_codex_compact_format",
-          "kind": "function"
-        },
-        {
-          "path": "status_indicator.rs",
-          "name": "fixed_elapsed_test_backend_matches_wide_and_narrow_layouts",
-          "kind": "function"
-        },
-        {
-          "path": "status_indicator.rs",
-          "name": "fmt_elapsed_compact",
-          "kind": "function"
-        },
-        {
-          "path": "status_indicator.rs",
-          "name": "line_text",
-          "kind": "function"
-        },
-        {
-          "path": "status_indicator.rs",
-          "name": "render",
-          "kind": "function"
-        },
-        {
-          "path": "status_indicator.rs",
-          "name": "status_line",
-          "kind": "function"
-        },
-        {
-          "path": "status_indicator.rs",
-          "name": "working_status_is_localized_and_width_bounded",
-          "kind": "function"
-        },
-        {
           "path": "status_indicator_widget.rs",
           "name": "active_status_height_and_width_are_bounded_for_supported_locales",
           "kind": "function"
@@ -97802,41 +98369,6 @@
         {
           "path": "status_indicator_widget/summary_shimmer.rs",
           "name": "true_color_shimmer_preserves_grapheme_boundaries",
-          "kind": "function"
-        },
-        {
-          "path": "status_indicator_widget/timer.rs",
-          "name": "default",
-          "kind": "function"
-        },
-        {
-          "path": "status_indicator_widget/timer.rs",
-          "name": "elapsed_at",
-          "kind": "function"
-        },
-        {
-          "path": "status_indicator_widget/timer.rs",
-          "name": "pause_at",
-          "kind": "function"
-        },
-        {
-          "path": "status_indicator_widget/timer.rs",
-          "name": "reset",
-          "kind": "function"
-        },
-        {
-          "path": "status_indicator_widget/timer.rs",
-          "name": "resume_at",
-          "kind": "function"
-        },
-        {
-          "path": "status_indicator_widget/timer.rs",
-          "name": "StatusTimer",
-          "kind": "type"
-        },
-        {
-          "path": "status_indicator_widget/timer_tests.rs",
-          "name": "pauses_and_resumes_without_counting_wait_time",
           "kind": "function"
         },
         {
@@ -101561,6 +102093,16 @@
         },
         {
           "path": "view/tests/presentation.rs",
+          "name": "composer_popup_remains_visible_with_status_and_queue_rows",
+          "kind": "function"
+        },
+        {
+          "path": "view/tests/presentation.rs",
+          "name": "composer_popup_unicode_rows_stay_within_display_width_for_all_locales",
+          "kind": "function"
+        },
+        {
+          "path": "view/tests/presentation.rs",
           "name": "export_picker_matches_codex_destination_and_filename_flow",
           "kind": "function"
         },
@@ -102380,7 +102922,7 @@
           "kind": "function"
         }
       ],
-      "treeSha256": "0d18de786e8d8d276e1bfd947e2c3861b5f5a87b5ac5c89e439019778845f88a"
+      "treeSha256": "4a2dbe2b73fb25c8cb5f7c6d5ac47dfa210672f1d661cef0fe51ce6bcf333fa4"
     },
     "codex-rs/tui/tests": {
       "root": "/Users/coso/Documents/dev/rust/codex/codex-rs/tui/tests",
@@ -102756,7 +103298,7 @@
         "suite/vt100_live_commit.rs",
         "test_backend.rs"
       ],
-      "symbolCount": 102,
+      "symbolCount": 117,
       "symbols": [
         {
           "path": "manager_dependency_regression.rs",
@@ -102899,6 +103441,11 @@
           "kind": "function"
         },
         {
+          "path": "suite/focus_palette.rs",
+          "name": "write_typed_input",
+          "kind": "function"
+        },
+        {
           "path": "suite/history_pagination.rs",
           "name": "assert_complete_transcript",
           "kind": "function"
@@ -102930,6 +103477,31 @@
         },
         {
           "path": "suite/history_pagination.rs",
+          "name": "history_race_item",
+          "kind": "function"
+        },
+        {
+          "path": "suite/history_pagination.rs",
+          "name": "history_race_response",
+          "kind": "function"
+        },
+        {
+          "path": "suite/history_pagination.rs",
+          "name": "history_race_stale_page_response",
+          "kind": "function"
+        },
+        {
+          "path": "suite/history_pagination.rs",
+          "name": "history_race_thread",
+          "kind": "function"
+        },
+        {
+          "path": "suite/history_pagination.rs",
+          "name": "history_race_thread_response",
+          "kind": "function"
+        },
+        {
+          "path": "suite/history_pagination.rs",
           "name": "required_path",
           "kind": "function"
         },
@@ -102950,12 +103522,52 @@
         },
         {
           "path": "suite/history_pagination.rs",
+          "name": "run_history_reconnect_server",
+          "kind": "function"
+        },
+        {
+          "path": "suite/history_pagination.rs",
+          "name": "run_history_switch_server",
+          "kind": "function"
+        },
+        {
+          "path": "suite/history_pagination.rs",
           "name": "send_history_failure",
           "kind": "function"
         },
         {
           "path": "suite/history_pagination.rs",
+          "name": "send_history_result",
+          "kind": "function"
+        },
+        {
+          "path": "suite/history_pagination.rs",
+          "name": "transcript_history_completion_is_ignored_after_reconnect",
+          "kind": "function"
+        },
+        {
+          "path": "suite/history_pagination.rs",
+          "name": "transcript_history_completion_is_ignored_after_thread_switch",
+          "kind": "function"
+        },
+        {
+          "path": "suite/history_pagination.rs",
           "name": "transcript_history_failure_keeps_anchor_and_home_retry_recovers",
+          "kind": "function"
+        },
+        {
+          "path": "suite/history_pagination.rs",
+          "name": "transcript_search_completion_is_ignored_after_reconnect",
+          "kind": "function"
+        },
+        {
+          "path": "suite/history_pagination.rs",
+          "name": "transcript_search_completion_is_ignored_after_thread_switch",
+          "kind": "function"
+        },
+        {
+          "path": "suite/history_pagination.rs",
+          "name": "transcript_search_history_failure_keeps_query_and_home_retry_recovers",
           "kind": "function"
         },
         {
@@ -102966,6 +103578,11 @@
         {
           "path": "suite/history_pagination.rs",
           "name": "underfilled_scrollback_fetches_older_pages_without_opening_the_transcript",
+          "kind": "function"
+        },
+        {
+          "path": "suite/history_pagination.rs",
+          "name": "wait_for_atomic_flag",
           "kind": "function"
         },
         {
@@ -103269,7 +103886,7 @@
           "kind": "function"
         }
       ],
-      "treeSha256": "f9e6d1157471eaa1bca68194560b437856fac3e068680089faffdf13b93c0218"
+      "treeSha256": "94dfe68835262148b0d92343c3d64a35b5fc2e796a48c154a7571e81a4d24cd4"
     }
   },
   "comparisons": {
@@ -103465,6 +104082,7 @@
       "app/thread_goal_actions.rs",
       "app/thread_routing.rs",
       "app/thread_session_state.rs",
+      "app/thread_settings.rs",
       "app/thread_title.rs",
       "app/thread_title_tests.rs",
       "app/transcript_export_tests.rs",
@@ -103631,7 +104249,6 @@
       "chatwidget/input_queue.rs",
       "chatwidget/input_restore.rs",
       "chatwidget/input_submission.rs",
-      "chatwidget/interaction.rs",
       "chatwidget/interrupts.rs",
       "chatwidget/keymap_picker.rs",
       "chatwidget/luna_reserve_model.rs",
@@ -103685,7 +104302,6 @@
       "chatwidget/session_flow.rs",
       "chatwidget/session_header.rs",
       "chatwidget/session_model_selection.rs",
-      "chatwidget/settings.rs",
       "chatwidget/settings_popups.rs",
       "chatwidget/side.rs",
       "chatwidget/skills.rs",
@@ -103754,7 +104370,6 @@
       "chatwidget/thread_usage_tests.rs",
       "chatwidget/tool_lifecycle.rs",
       "chatwidget/tool_requests.rs",
-      "chatwidget/transcript.rs",
       "chatwidget/transcript_export.rs",
       "chatwidget/tui_mode_picker.rs",
       "chatwidget/turn_lifecycle.rs",
@@ -104000,6 +104615,8 @@
       "status/thread_usage.rs",
       "status/thread_usage_tests.rs",
       "status_indicator_widget/effects_tests.rs",
+      "status_indicator_widget/timer.rs",
+      "status_indicator_widget/timer_tests.rs",
       "streaming/chunking.rs",
       "streaming/code_fence.rs",
       "streaming/code_fence_render_tests.rs",
@@ -104195,14 +104812,14 @@
       "bottom_pane/textarea/vim_register.rs",
       "bottom_pane/textarea/vim_register_tests.rs",
       "bottom_pane/textarea/vim_search_tests.rs",
+      "chatwidget/footer.rs",
+      "chatwidget/input.rs",
       "clipboard_paste/worker.rs",
-      "command_popup.rs",
       "diff_render/style.rs",
       "diff_render/style_tests.rs",
       "diff_render/tests.rs",
       "entry.rs",
       "fuzzy_match.rs",
-      "highlight.rs",
       "history_cell/hook.rs",
       "history_filter.rs",
       "keymap/agents.rs",
@@ -104233,10 +104850,8 @@
       "model_picker/render.rs",
       "model_picker/render_tests.rs",
       "pager_overlay/disclosure_tests.rs",
-      "pending_input_preview.rs",
       "projection.rs",
       "projection_tests.rs",
-      "reconnect.rs",
       "resume_picker/host.rs",
       "resume_picker/input.rs",
       "resume_picker/render.rs",
@@ -104265,7 +104880,6 @@
       "runtime_pty_tests/vim_keymap.rs",
       "selection_list.rs",
       "settings.rs",
-      "status_indicator.rs",
       "status_indicator_widget/summary_shimmer.rs",
       "style/selection.rs",
       "terminal_hyperlinks/paragraph_tests.rs",
@@ -105065,6 +105679,7 @@
       "StatusSurfacePreviewItem",
       "StatusSurfaceSelections",
       "StatusThreadUsage",
+      "StatusTimer",
       "StatusTokenUsageData",
       "StderrState",
       "SteerSwitch",
@@ -106718,7 +107333,6 @@
       "composer_gap_has_content",
       "composer_gap_rows",
       "composer_hint",
-      "composer_input_enabled",
       "composer_is_vim_enabled",
       "composer_mouse_edits_flush_typing_and_reconcile_placeholders",
       "composer_paste_releases_selection_and_retains_normal_cursor_movement",
@@ -107597,6 +108211,7 @@
       "effort_transition_does_not_queue_a_missing_outgoing_status_line",
       "effort_transition_keeps_the_full_footer_row",
       "effort_transition_never_replaces_a_footer_flash",
+      "elapsed_at",
       "elapsed_since_start",
       "elevated_windows_sandbox_setup_required",
       "elicitation_options",
@@ -108375,13 +108990,11 @@
       "footer_lines",
       "footer_lines_text",
       "footer_marks_missing_branch",
-      "footer_mode",
       "footer_mode_snapshots",
       "footer_omits_cwd_when_hidden",
       "footer_part_width",
       "footer_parts_width",
       "footer_prioritizes_active_sort_timestamp",
-      "footer_props",
       "footer_snapshot",
       "footer_snapshots",
       "footer_status_line_truncates_to_keep_mode_indicator",
@@ -108740,6 +109353,7 @@
       "handle_model_verification",
       "handle_non_ascii_char",
       "handle_non_retry_error",
+      "handle_older_history_page",
       "handle_overlay_event",
       "handle_owned_backtrack_event",
       "handle_owned_transcript_event",
@@ -109148,7 +109762,6 @@
       "inline_visualizations_without_context_use_canonical_full_render",
       "input_area",
       "input_disabled_ignores_keypresses_and_hides_cursor",
-      "input_enabled",
       "input_height",
       "input_history_search_uses_the_final_row",
       "input_probe_targets_the_containing_pane_and_only_disables_confirmed_mouse_off",
@@ -110941,11 +111554,13 @@
       "paths_match",
       "pause",
       "pause_active_goal_for_interrupt",
+      "pause_at",
       "pause_clock",
       "pause_for_disconnect",
       "pause_status_timer_for_modal",
       "pause_unavailable_thread",
       "paused_header_reservation_survives_copy_until_scroll_or_resize",
+      "pauses_and_resumes_without_counting_wait_time",
       "payload",
       "peak",
       "pending",
@@ -111040,7 +111655,6 @@
       "persisted_resume_does_not_forward_implicit_service_tier",
       "persisted_transcript_includes_file_and_mcp_details",
       "persisted_web_and_image_activity_preserves_full_details",
-      "persistent_entry_duplicates_local",
       "persistent_restore_gates_at_mentions",
       "personality_opt_out_only",
       "pet_alias_parses_to_pets_command",
@@ -111913,11 +112527,9 @@
       "record_composer_activity_at",
       "record_error",
       "record_items",
-      "record_local_submission_inner",
       "record_pending_slash_command_history",
       "record_popup",
       "record_realtime_failure",
-      "record_replayed_submission",
       "record_replayed_user_message_history",
       "record_safety_buffering_turn",
       "record_start",
@@ -112547,6 +113159,7 @@
       "request_legacy_transcript_history",
       "request_managed_worktrees",
       "request_matches_server_request",
+      "request_older_history_page",
       "request_owned_history",
       "request_pending_usage_output_insertion",
       "request_pending_usage_output_insertion_after_stream_shutdown",
@@ -112774,6 +113387,7 @@
       "result_block_text",
       "result_kind",
       "resumable_thread",
+      "resume_at",
       "resume_background_voice",
       "resume_begin",
       "resume_config_for_target",
@@ -113292,7 +113906,6 @@
       "set_collaboration_mode_indicator",
       "set_collaboration_modes_enabled",
       "set_composer_cursor",
-      "set_composer_input_enabled",
       "set_composer_pending_pastes",
       "set_connector_mentions",
       "set_connector_mentions_excludes_disabled_apps_from_mention_popup",
@@ -113344,7 +113957,6 @@
       "set_image_support_for_tests",
       "set_initial_user_message_submit_suppressed",
       "set_inline_banner",
-      "set_input_enabled",
       "set_input_record_mode",
       "set_interrupt_binding",
       "set_interrupted_turn_notice_mode",
@@ -113602,7 +114214,6 @@
       "show_selection_view",
       "show_session_checkout_picker",
       "show_shutdown_feedback",
-      "show_shutdown_in_progress",
       "show_text_prompt",
       "show_transcript_export_file_prompt",
       "show_transcript_export_popup",
@@ -114910,6 +115521,7 @@
       "thread_to_transcript_cells_renders_core_message_types",
       "thread_to_transcript_cells_retains_summary_and_raw_reasoning_when_enabled",
       "thread_tool_transport",
+      "thread_turns_page",
       "thread_unavailable",
       "thread_unsubscribe",
       "thread_usage",
@@ -115958,6 +116570,7 @@
       "AgentPickerAction",
       "AgentPickerEntry",
       "AgentsKeymapAction",
+      "AgentsOverviewEvent",
       "AgentsOverviewInputMode",
       "AppAction",
       "AppServerResponse",
@@ -115988,6 +116601,7 @@
       "ExecResult",
       "ExportPicker",
       "ExportPickerAction",
+      "ExportPickerEvent",
       "ExportPickerMode",
       "FileSearchEvent",
       "FileSearchPopupAction",
@@ -116017,8 +116631,11 @@
       "ModalBinding",
       "ModelPicker",
       "ModelPickerAction",
+      "ModelPickerEvent",
       "ModelSelection",
       "MultiAgentHistoryCell",
+      "OlderHistoryLoadMode",
+      "OlderHistoryLoadStart",
       "PagerAction",
       "PagerKeymapAction",
       "PagerOverlay",
@@ -116038,6 +116655,7 @@
       "ReconnectedSession",
       "RemoteImageAttachment",
       "RenderedControl",
+      "ResumePickerEvent",
       "RetainedTranscript",
       "RowRenderable",
       "ScanState",
@@ -116184,16 +116802,20 @@
       "append_reasoning_section_break",
       "append_shifted",
       "apply_add_block",
+      "apply_collaboration_mode",
       "apply_completed_message",
       "apply_copy_completion",
       "apply_delete_block",
       "apply_editor_action",
+      "apply_effort",
       "apply_exploration_item",
       "apply_history_entry_response",
       "apply_load_more",
+      "apply_model_selection",
       "apply_multiple_files_block",
       "apply_notification",
       "apply_pending_anchor",
+      "apply_permissions",
       "apply_prompt_history_response",
       "apply_reasoning_item",
       "apply_refresh",
@@ -116274,6 +116896,7 @@
       "begin_older_history_load",
       "begin_refresh",
       "begin_startup_input_boundary",
+      "begin_transcript_search",
       "begin_vim_key",
       "binding_actions",
       "binding_labels",
@@ -116284,6 +116907,7 @@
       "bookmark_restores_stable_source_after_pagination_and_rewrap",
       "boundary",
       "boundary_and_ultra_navigation_are_informational_not_settings_changes",
+      "bounded_preview_applies_turn_review_ids_across_page_boundaries",
       "bounded_scan_yields_between_large_windows_and_eight_short_lines",
       "bounds_do_not_wrap_or_invent_supported_choices",
       "bracketed_image_path_paste_uses_real_file_decoding_and_keeps_other_text_literal",
@@ -116316,7 +116940,9 @@
       "canonical_projection_adapter_preserves_item_identity_and_text",
       "canonical_queue_and_failed_transport_restore_selected_paths_without_duplicate_tokens",
       "canonical_queue_edit_resubmit_history_and_failure_restore_keep_all_image_details_and_none_elements",
+      "canonical_user_inputs_seed_one_rich_history_entry",
       "capture_current_thread_input",
+      "capture_thread_input",
       "case_insensitive_matching_does_not_merge_case_distinct_prompt_text",
       "catalog",
       "center_footer_line",
@@ -116329,6 +116955,7 @@
       "chord_resets_at_non_keyboard_boundaries_and_release_never_accepts",
       "chronological_turns",
       "cleanup_failed_enter",
+      "clear_agents_overview",
       "clear_completion_popup",
       "clear_connection_interactions",
       "clear_dismissal",
@@ -116336,9 +116963,14 @@
       "clear_focus",
       "clear_history_page_error",
       "clear_interactions",
+      "clear_model_picker",
       "clear_mouse_selection",
+      "clear_pending_clipboard_paste",
+      "clear_resume_picker",
       "clear_search_awaiting",
+      "clear_startup_protected_request",
       "clear_suppression",
+      "clear_thread_interactions",
       "clear_transcript_selection",
       "clearing_dismissal_does_not_reopen_popup_by_itself",
       "clearing_file_completion_invalidates_pending_and_reissues_the_same_query",
@@ -116351,6 +116983,7 @@
       "clipped_file_list_keeps_selected_item_visible_and_bounds_unicode_paths",
       "clipped_wrapped_viewport_keeps_selected_row_visible",
       "close_and_disconnect_invalidate_views_and_replay_without_losing_thread_drafts",
+      "close_hint_text",
       "close_search",
       "closing_detailed_transcript_clears_search_and_selection",
       "closing_thread_clears_all_prompt_categories",
@@ -116429,6 +117062,8 @@
       "composer_mouse_paste_requests_clipboard_surface_without_selection",
       "composer_mouse_selection_precedes_shortcuts_and_requests_copy",
       "composer_placeholder",
+      "composer_popup_remains_visible_with_status_and_queue_rows",
+      "composer_popup_unicode_rows_stay_within_display_width_for_all_locales",
       "composer_remote_image_urls",
       "composer_remote_images",
       "composer_snapshot",
@@ -116582,6 +117217,8 @@
       "diff_uses_file_extension_for_syntax_highlighting",
       "direct_key_api_edits_the_active_question_not_the_hidden_main_draft",
       "direct_paste_replaces_stale_redo",
+      "disabled_composer_clears_passive_footer",
+      "disabled_input_keeps_draft_but_hides_cursor_and_uses_disabled_placeholder",
       "disabled_reason_is_visible_and_width_bounded",
       "disabling_vim_cancels_an_active_query",
       "disclosure_controls_are_excluded_from_copy_and_search_source",
@@ -116608,6 +117245,7 @@
       "dispatch_connected_input",
       "dispatch_disconnected_input",
       "dispatch_global",
+      "dispatch_global_key",
       "dispatch_pager",
       "display_change_path",
       "display_column_lookup_uses_the_same_safe_destination_boundary",
@@ -116682,6 +117320,7 @@
       "empty_vim_search_backspace_cancels_without_submission",
       "encode_rgba_as_png",
       "end",
+      "end_interaction_drag",
       "end_offset",
       "end_startup_input_boundary",
       "end_transcript_drag",
@@ -116814,9 +117453,11 @@
       "finish_line_if_needed",
       "finish_link",
       "finish_main_transcript_selection",
+      "finish_main_transcript_selection_if_active",
       "finish_mcp_login_start",
       "finish_row",
       "finish_table",
+      "finish_transcript_selection",
       "finish_vim_key",
       "first_metadata_keeps_startup_local_but_next_configuration_clears_it",
       "first_safe_user_input_releases_boundary_before_reaching_composer",
@@ -116824,7 +117465,6 @@
       "first_viewport_change_clears_from_new_area_when_old_area_is_empty",
       "first_width_sets_baseline_without_reflow",
       "fit_footer_hint",
-      "fixed_elapsed_test_backend_matches_wide_and_narrow_layouts",
       "fixed_syntax_theme_uses_codex_default_diff_surface",
       "flat_page_can_continue_an_existing_review_interval",
       "flat_page_only_filters_explicit_review_boundary",
@@ -116841,7 +117481,6 @@
       "followup_labels_leave_code_links_escaped_and_malformed_directives_untouched",
       "followup_labels_match_codex_malformed_and_nested_boundaries",
       "footer_control_lines",
-      "footer_has_draft",
       "footer_hints",
       "footer_primary_controls_survive_all_product_locales_and_modes",
       "footer_renders_the_active_agent_label",
@@ -116865,6 +117504,7 @@
       "from_name",
       "from_navigation",
       "from_server_request",
+      "from_user_inputs",
       "frozen_scroll",
       "frozen_selection_anchor_observes_tail_activity_and_remaps_history_prepend",
       "full_inventory_preserves_resource_order_from_app_server",
@@ -116882,12 +117522,15 @@
       "grouped_history_does_not_move_completion_to_a_previous_visible_item",
       "grouped_history_filters_metadata_hidden_user_without_moving_completion",
       "grouped_history_hides_nested_review_prompts_from_turn_metadata",
+      "handle_agent_picker_event",
+      "handle_agents_overview_event",
       "handle_command_popup_event",
       "handle_composer_key_at",
       "handle_destination_event",
       "handle_disconnected_key",
       "handle_editor_key",
       "handle_event_at",
+      "handle_export_picker_event",
       "handle_field_navigation",
       "handle_file_search_popup_event",
       "handle_filename_event",
@@ -116895,15 +117538,22 @@
       "handle_interaction_key",
       "handle_key_event_inner_at",
       "handle_list_action",
+      "handle_main_transcript_selection",
+      "handle_model_picker_event",
+      "handle_older_history_page_loaded",
       "handle_older_history_page_with_turns",
+      "handle_pager_event",
       "handle_paste_burst_enter",
       "handle_paste_burst_tab",
       "handle_paste_burst_text_key",
       "handle_query_event",
+      "handle_resume_picker_event",
       "handle_skill_popup_event",
       "handle_task_action",
       "handle_text_key",
+      "handle_transcript_follow_mouse",
       "handle_transcript_pager_event",
+      "handle_transcript_search_event",
       "handle_tui_event_impl",
       "handle_tui_event_runtime",
       "handoff",
@@ -116945,6 +117595,7 @@
       "history_search_actions",
       "history_search_cancel_recall_and_thread_restore_keep_complete_typed_input",
       "history_search_cancel_restores_cursor_and_attachments",
+      "history_search_cursor_column",
       "history_search_footer_cursor_tracks_query_and_clamps_to_narrow_width",
       "history_search_footer_marks_multiline_query_status_keys_and_safe_cursor_in_five_locales",
       "history_search_footer_shows_localized_query_without_hiding_composer",
@@ -116959,6 +117610,7 @@
       "history_search_preview_highlights_matches_until_accepted",
       "history_search_query",
       "history_search_unavailable",
+      "history_top_up_needed",
       "hit_testing_stays_on_utf8_grapheme_boundaries_and_keeps_tabs",
       "home_dir",
       "hook_and_details_reflow_to_distinct_rows_without_dropping_the_header",
@@ -117029,6 +117681,7 @@
       "is_option_line",
       "is_preserving_insertion_before_offset",
       "is_quiet_success",
+      "is_raw_output_mode",
       "is_resolved_by",
       "is_searching",
       "is_select_field",
@@ -117363,6 +118016,7 @@
       "one_column_wrap_uses_a_visible_placeholder_for_wide_graphemes",
       "only_a_vertical_edge_drag_requests_auto_scroll",
       "only_safe_web_destinations_receive_osc8",
+      "open_approval_details_pager",
       "open_center",
       "open_link",
       "open_link_with",
@@ -117472,6 +118126,8 @@
       "patch_format_preserves_rename_destination",
       "patch_summary",
       "pending_and_unavailable_feedback_is_localized_and_never_claims_no_match",
+      "pending_clipboard_paste",
+      "pending_clipboard_source",
       "pending_cursor_matches",
       "pending_history_cursor_requires_loading_and_exact_cursor",
       "pending_insert_chord_owns_escape_without_leaving_vim_insert_mode",
@@ -117539,12 +118195,14 @@
       "prepend_page_entries",
       "prepend_page_items",
       "prepend_page_turns",
+      "prepend_replayed_submissions",
       "prepend_revision_and_resize_restart_without_losing_literal_identity",
       "preserves_multiline_and_empty_input",
       "preset",
       "preview_from_entries",
       "preview_from_entries_returns_newest_lines_in_transcript_order",
       "preview_from_items",
+      "preview_from_items_with_turns",
       "preview_ignores_non_text_inputs_and_blank_lines",
       "preview_is_bounded_to_six_lines",
       "preview_keeps_newest_lines_and_restores_transcript_order",
@@ -117612,6 +118270,7 @@
       "queue_unavailable_status_covers_all_product_locales",
       "queued_skill_input_restores_as_an_editable_dollar_mention",
       "queued_submission_projection_updates_by_id_and_clears_on_thread_change",
+      "queued_submissions",
       "queues_requests_and_resolves_them_in_arrival_order",
       "quoted_selection_omits_rendered_markers_but_preserves_literal_markers_and_mixed_content",
       "range_start",
@@ -117665,6 +118324,7 @@
       "record_assistant_phase",
       "record_entry",
       "record_other",
+      "record_replayed_history_page",
       "refresh_queued_submissions",
       "rejected_composer_input_stays_local_and_projects_a_visible_error_without_a_submit_action",
       "rejected_submission",
@@ -117690,7 +118350,6 @@
       "rename_uses_destination_extension_for_syntax_highlighting",
       "render_at",
       "render_at_cwd",
-      "render_close_hint",
       "render_composer_textarea",
       "render_elements",
       "render_highlight",
@@ -117706,6 +118365,7 @@
       "render_search_query",
       "render_separator",
       "render_session_list",
+      "render_shortcut_close_hint",
       "render_status",
       "render_transcript_entries_content",
       "render_transcript_entry_lines",
@@ -117713,6 +118373,7 @@
       "render_transcript_pager_content",
       "render_transient_status",
       "render_unconstrained",
+      "render_with_clip_top",
       "render_with_cwd",
       "render_with_locale",
       "render_with_messages",
@@ -117737,12 +118398,19 @@
       "replace",
       "replace_entry",
       "replace_paste_skips_atomic_attachment_and_backspace_retraces_original_cursor",
+      "replace_queued_submissions",
       "replace_recovery_consumes_rebound_delete_action",
+      "replace_replayed_history",
       "replace_text",
       "replace_threads",
       "replace_threads_page",
       "replacement_retains_live_bindings_but_retires_old_editor_chord_and_query",
-      "request_all_older_history_pages",
+      "replay_entries_from_items",
+      "replay_entries_from_turns",
+      "replay_entries_prepend_older_pages_and_persistent_duplicates_are_skipped",
+      "replay_seed_filters_review_prompts_and_recall_keeps_canonical_order",
+      "replay_seed_requires_turn_facts_and_keeps_older_pages_before_newer_recall",
+      "replay_seed_restores_rich_images_elements_and_mentions_through_up_recall",
       "request_cancel_hint",
       "request_copy",
       "request_copy_internal",
@@ -117772,8 +118440,11 @@
       "reserves_global_key",
       "reserves_key",
       "reset_discards_cursor_and_scan_progress",
+      "reset_for_hydrated_thread",
+      "reset_global_key_chord",
       "reset_history_navigation",
       "reset_text_state",
+      "reset_thread_surface",
       "reset_transcript_anchor_at_top",
       "reset_transcript_presentation",
       "resize_and_render_update_the_same_paging_geometry",
@@ -117816,6 +118487,7 @@
       "resume_more",
       "resume_named_thread",
       "resume_picker_controls_cover_all_product_locales",
+      "resume_picker_mut",
       "resume_picker_owns_input_until_cancelled",
       "resume_picker_render_matrix_stays_bounded_across_locales_and_widths",
       "resume_picker_short_terminal_heights_remain_renderable",
@@ -117839,6 +118511,7 @@
       "resumed_mcp_form_keeps_field_values_and_cursor",
       "retain_pending",
       "reveal_focused",
+      "reveal_main_selection_row",
       "reveal_row",
       "reveal_transcript_row",
       "reverse_search_previews_its_own_attachments_cancel_restores_draft_accept_requires_another_enter",
@@ -117871,10 +118544,12 @@
       "screen_size",
       "scroll_bottom",
       "scroll_down",
+      "scroll_main_selection",
       "scroll_rows",
       "scroll_top",
       "scroll_transcript_rows",
       "scroll_up",
+      "scrollback_has_older_history",
       "scrolling_full_matches_keeps_selected_skill_visible_with_overflow_hints",
       "search_awaits_entry",
       "search_cancel_preserves_draft_and_clears_operator_pending",
@@ -117907,6 +118582,7 @@
       "selected_path",
       "selected_paths_precede_typed_names_and_never_fall_back_after_catalog_refresh",
       "selected_remote_image_delete_is_undoable_with_text_unchanged",
+      "selected_remote_image_hides_cursor_until_selection_is_cleared",
       "selected_remote_image_index",
       "selected_rows_use_codex_marker_and_bold_cyan_style",
       "selected_session_line",
@@ -117936,9 +118612,12 @@
       "session_list_item",
       "session_picker_action_keeps_resume_and_fork_selection_distinct",
       "session_target_uses_thread_id_when_path_is_not_available",
+      "set_agent_picker",
+      "set_agents_overview",
       "set_app_event_tx",
       "set_cached_entries",
       "set_cached_history",
+      "set_collaboration_mode",
       "set_collaboration_modes",
       "set_cwd",
       "set_history_thread_id",
@@ -117948,20 +118627,26 @@
       "set_model_catalog",
       "set_model_provider_filter",
       "set_older_history_available",
+      "set_pager_overlay",
       "set_pagination",
       "set_paste_burst_disabled",
+      "set_pending_clipboard_paste",
       "set_permission_profiles",
       "set_queued_submissions",
       "set_remote_images",
+      "set_resume_picker",
       "set_right_click_paste",
       "set_runtime_keymap",
+      "set_scrollback_has_older_history",
       "set_selected_row",
       "set_settings",
+      "set_startup_protected_request_pending",
       "set_thread_id",
       "set_transcript",
       "set_transcript_keymap",
       "set_transcript_preview",
       "set_vim_search_editor_keymap",
+      "settings_patch",
       "settings_updates_keep_the_active_collaboration_mode_in_sync",
       "settle_running_entries",
       "shadows",
@@ -117973,6 +118658,7 @@
       "shortcut_label",
       "shortcut_overlay_measurement_and_paint_share_localized_responsive_rows",
       "shortcut_overlay_uses_runtime_bindings_and_omits_disabled_actions",
+      "shortcut_toggle_available",
       "shortcuts_hint",
       "shortcuts_overlap",
       "shortcuts_stay_above_editable_composer_with_close_hint_on_last_row",
@@ -118019,6 +118705,7 @@
       "spawn_archive_request",
       "spawn_file_search",
       "spawn_marks_receiver_thread_as_parent_owned",
+      "spawn_older_history_page_load",
       "spawn_preview_load",
       "spawn_request_summary_preserves_model_and_effort",
       "spawn_thread_load",
@@ -118046,6 +118733,7 @@
       "startup_boundary_ignores_protected_requests_for_background_threads",
       "startup_boundary_waits_for_visible_request_before_releasing",
       "startup_protected_request_keeps_draft_until_the_request_is_resolved",
+      "startup_protected_request_pending",
       "startup_snapshot_reaches_existing_queued_and_new_notes_editors",
       "state_label",
       "stateful_render_clears_rows_outside_the_current_draft",
@@ -118136,6 +118824,7 @@
       "take_file_search_request",
       "take_history_request",
       "take_input_state",
+      "take_pending_clipboard_paste",
       "take_refresh_pending",
       "take_remote_images",
       "take_resume_distance_from_bottom",
@@ -118187,12 +118876,15 @@
       "thread_handoff_preserves_atomic_paste_cursor_and_both_attachment_kinds",
       "thread_item_id",
       "thread_items_page_params_use_codex_descending_shape",
+      "thread_items_page_with_handle",
       "thread_line_with_preview",
       "thread_notifications_route_to_their_thread",
       "thread_pages_append_unique_threads_and_keep_the_next_cursor",
       "thread_state",
       "thread_to_transcript_entries",
       "thread_turns_for_items",
+      "thread_turns_for_items_with_handle",
+      "thread_turns_page_with_handle",
       "threshold_counts_unicode_characters_not_bytes_and_normalizes_newlines",
       "tick_edge_scroll",
       "tick_transcript_selection",
@@ -118207,9 +118899,9 @@
       "to_mode_preserves_an_explicit_effort_clear",
       "to_mode_uses_mask_values_and_fallbacks",
       "to_tui_event",
-      "toggle_available",
       "toggle_filter",
       "toggle_grouping",
+      "toggle_history_render_mode",
       "toggle_raw_output_mode",
       "toggle_sort",
       "toggle_transcript",
@@ -118219,8 +118911,6 @@
       "tool_call_history_cells_cover_collaboration_lifecycle",
       "tool_suggestion_empty_schema_remains_fail_closed_without_a_consumer",
       "toolbar_order_and_interaction_hints_cover_product_locales",
-      "top_up_underfilled_history",
-      "top_up_underfilled_history_for_terminal",
       "total_bytes",
       "trailing_newline_does_not_create_a_phantom_line",
       "transcript_activity_action_label",
@@ -118491,7 +119181,6 @@
       "worker_reads_off_thread_and_returns_result",
       "working_directory_messages_cover_all_product_locales",
       "working_label",
-      "working_status_is_localized_and_width_bounded",
       "wrap_behavior_insert",
       "wrap_diff_content",
       "wrap_filter_and_reset_keep_selection_and_window_consistent",

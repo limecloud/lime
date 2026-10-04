@@ -1,7 +1,8 @@
 mod history;
 
 pub(crate) use history::{
-    thread_items_page_params, InitialHistoryPage, HISTORY_ITEM_PAGE_LIMIT, HISTORY_ITEM_SCAN_LIMIT,
+    thread_items_page_params, thread_items_page_with_handle, thread_turns_for_items_with_handle,
+    InitialHistoryPage, HISTORY_ITEM_PAGE_LIMIT, HISTORY_ITEM_SCAN_LIMIT,
 };
 
 use std::collections::{HashMap, HashSet};

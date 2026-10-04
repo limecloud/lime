@@ -141,17 +141,24 @@ impl CommandPopup {
     }
 }
 
-pub(crate) fn render(
+#[cfg(test)]
+fn render(frame: &mut Frame<'_>, composer_area: Rect, popup: &CommandPopup, locale: Locale) {
+    render_with_clip_top(frame, composer_area, popup, locale, 0);
+}
+
+pub(crate) fn render_with_clip_top(
     frame: &mut Frame<'_>,
     composer_area: Rect,
     popup: &CommandPopup,
     locale: Locale,
+    clip_top: u16,
 ) {
     let rows = popup.rows(locale);
-    if rows.is_empty() || composer_area.y == 0 || composer_area.width == 0 {
+    if rows.is_empty() || composer_area.width == 0 {
         return;
     }
-    let height = measure_rows_height(&rows, &popup.state, composer_area.width).min(composer_area.y);
+    let available_above = composer_area.y.saturating_sub(clip_top);
+    let height = measure_rows_height(&rows, &popup.state, composer_area.width).min(available_above);
     if height == 0 {
         return;
     }

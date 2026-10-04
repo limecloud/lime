@@ -1,22 +1,93 @@
 //! Load older transcript pages without creating a TUI-local history store.
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use app_server_protocol::protocol::v2::Turn;
 use std::collections::HashSet;
 
 use super::App;
-use crate::app_server_session::{AppServerSession, InitialHistoryPage, HISTORY_ITEM_PAGE_LIMIT};
+use crate::app_event::{AppEvent, OlderHistoryLoadMode};
+use crate::app_event_sender::AppEventSender;
+use crate::app_server_session::{
+    thread_items_page_with_handle, thread_turns_for_items_with_handle, AppServerSession,
+    InitialHistoryPage, HISTORY_ITEM_PAGE_LIMIT,
+};
 use crate::history_filter::hidden_user_message_ids;
 use crate::pager_overlay::PagerOverlay;
 
 #[path = "history_completion.rs"]
 pub(crate) mod completion;
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum OlderHistoryLoadStart {
+    Started,
+    Pending,
+    Unavailable,
+}
+
 impl App {
+    /// Start one older-page request without holding the TUI event loop on App Server IO.
+    ///
+    /// The request handle is the only transport state moved into the task. Cursor ownership and
+    /// projection remain on the main loop, where stale responses can be rejected atomically.
+    pub(crate) fn spawn_older_history_page_load(
+        &mut self,
+        app_server: &mut AppServerSession,
+        app_event_tx: &AppEventSender,
+        mode: OlderHistoryLoadMode,
+    ) -> OlderHistoryLoadStart {
+        let Some(thread_id) = self.thread_id.clone() else {
+            return OlderHistoryLoadStart::Unavailable;
+        };
+        if !app_server.has_older_history(&thread_id) {
+            return OlderHistoryLoadStart::Unavailable;
+        }
+        let Some(cursor) = app_server.begin_older_history_page(&thread_id) else {
+            return OlderHistoryLoadStart::Pending;
+        };
+        let request_handle = app_server.request_handle();
+        let tx = app_event_tx.clone();
+        tokio::spawn(async move {
+            let result = thread_items_page_with_handle(
+                request_handle.clone(),
+                thread_id.clone(),
+                Some(cursor.clone()),
+                HISTORY_ITEM_PAGE_LIMIT,
+            )
+            .await;
+            let turns = result
+                .as_ref()
+                .ok()
+                .map(|page| {
+                    page.data
+                        .iter()
+                        .map(|entry| entry.turn_id.clone())
+                        .collect::<HashSet<_>>()
+                })
+                .filter(|turn_ids| !turn_ids.is_empty());
+            let turns = match turns {
+                Some(turn_ids) => {
+                    thread_turns_for_items_with_handle(request_handle, thread_id.clone(), &turn_ids)
+                        .await
+                        .ok()
+                }
+                None => None,
+            };
+            let result = result.map_err(|error| error.to_string());
+            let _ = tx.send(AppEvent::OlderThreadHistoryLoaded {
+                thread_id,
+                cursor,
+                result,
+                turns,
+                mode,
+            });
+        });
+        OlderHistoryLoadStart::Started
+    }
+
     /// Prepend the initial paginated page using the same optional Turn enrichment as older pages.
     pub(crate) fn prepend_initial_history_page(&mut self, page: InitialHistoryPage) {
         let InitialHistoryPage { items, turns } = page;
-        self.prepend_history_page(items, turns.as_deref());
+        self.prepend_history_page(items, turns.as_deref(), false);
     }
 
     /// Reconcile one page against the Turn metadata available for it and its adjacent context.
@@ -28,7 +99,11 @@ impl App {
         &mut self,
         items: Vec<app_server_protocol::protocol::v2::ThreadItem>,
         turns: Option<&[Turn]>,
+        prepend_replay: bool,
     ) {
+        self.chat_widget
+            .bottom_pane
+            .record_replayed_history_page(&items, turns, prepend_replay);
         if let Some(turns) = turns {
             let hidden_ids = hidden_user_message_ids(turns);
             let groups = completion::group_completed_turn_items(items, turns);
@@ -38,63 +113,6 @@ impl App {
         } else {
             self.projection.prepend_items(items);
         }
-    }
-
-    /// Load one bounded page shared by terminal scrollback and the transcript overlay.
-    pub(crate) async fn request_older_history_page(
-        &mut self,
-        app_server: &mut AppServerSession,
-    ) -> Result<bool> {
-        let Some(thread_id) = self.thread_id.clone() else {
-            return Ok(false);
-        };
-        let Some(cursor) = app_server.begin_older_history_page(&thread_id) else {
-            return Ok(false);
-        };
-        let result = app_server
-            .thread_items_page(
-                thread_id.clone(),
-                Some(cursor.clone()),
-                HISTORY_ITEM_PAGE_LIMIT,
-            )
-            .await;
-        if self.thread_id.as_deref() != Some(thread_id.as_str()) {
-            app_server.cancel_older_history_page(&thread_id, &cursor);
-            return Ok(false);
-        }
-        // Turn metadata is optional for older App Servers. When available it lets the
-        // projection place completion separators at the exact last item of each completed turn.
-        let turn_ids = result.as_ref().ok().map(|page| {
-            page.data
-                .iter()
-                .map(|entry| entry.turn_id.clone())
-                .collect::<HashSet<_>>()
-        });
-        let turns = match turn_ids {
-            Some(turn_ids) if !turn_ids.is_empty() => app_server
-                .thread_turns_for_items(thread_id.clone(), &turn_ids)
-                .await
-                .ok(),
-            _ => None,
-        };
-        self.handle_older_history_page_with_turns(
-            app_server,
-            &thread_id,
-            &cursor,
-            result,
-            turns.as_deref(),
-        )
-    }
-
-    #[allow(dead_code)]
-    pub(crate) fn handle_older_history_page(
-        &mut self,
-        app_server: &mut AppServerSession,
-        thread_id: &str,
-        cursor: &str,
-        result: Result<app_server_protocol::protocol::v2::ThreadItemsListResponse>,
-    ) -> Result<bool> {
-        self.handle_older_history_page_with_turns(app_server, thread_id, cursor, result, None)
     }
 
     fn handle_older_history_page_with_turns(
@@ -122,7 +140,7 @@ impl App {
                 .pager_overlay
                 .as_ref()
                 .is_some_and(PagerOverlay::is_transcript),
-            self.scrollback_has_older_history,
+            self.chat_widget.scrollback_has_older_history(),
         ) {
             app_server.cancel_older_history_page(thread_id, cursor);
             return Ok(false);
@@ -135,75 +153,30 @@ impl App {
             }
         };
         let items = app_server.apply_older_history_page(thread_id, cursor, page)?;
-        self.prepend_history_page(items, turns);
-        self.scrollback_has_older_history = app_server.has_older_history(thread_id);
-        if let Some(pager) = self.chat_widget.pager_overlay.as_ref() {
-            pager.set_older_history_available(self.scrollback_has_older_history);
-        }
+        self.prepend_history_page(items, turns, true);
+        self.chat_widget
+            .set_scrollback_has_older_history(app_server.has_older_history(thread_id));
         Ok(true)
     }
 
-    /// Load every remaining older page after the transcript overlay reaches its beginning.
-    ///
-    /// Codex treats Home as a request for the complete historical beginning. Ordinary scrollback
-    /// still calls `request_older_history_page` once per key event, so large histories do not get
-    /// fetched eagerly during normal scrolling.
-    pub(crate) async fn request_all_older_history_pages(
+    pub(crate) fn handle_older_history_page_loaded(
         &mut self,
         app_server: &mut AppServerSession,
-    ) -> Result<usize> {
-        let mut loaded = 0;
-        while self.scrollback_has_older_history {
-            if !self.request_older_history_page(app_server).await? {
-                break;
-            }
-            loaded += 1;
-        }
-        Ok(loaded)
-    }
-
-    /// Fill an underfull main transcript from canonical older pages without opening the pager.
-    pub(crate) async fn top_up_underfilled_history(
-        &mut self,
-        app_server: &mut AppServerSession,
-        viewport_width: u16,
-        minimum_rows: usize,
-    ) -> Result<usize> {
-        let mut loaded = 0;
-        while self.scrollback_has_older_history
-            && crate::app::history_ui::rendered_transcript_row_count(self, viewport_width)
-                < minimum_rows
-        {
-            if !self.request_older_history_page(app_server).await? {
-                break;
-            }
-            loaded += 1;
-        }
-        Ok(loaded)
-    }
-
-    /// Refill the visible main transcript after startup, session changes, reconnects, or resize.
-    pub(crate) async fn top_up_underfilled_history_for_terminal(
-        &mut self,
-        terminal: &mut crate::tui::Tui,
-        app_server: &mut AppServerSession,
-    ) -> Result<usize> {
-        if self.chat_widget.resume_picker.is_some()
-            || self.chat_widget.pager_overlay.is_some()
-            || self.chat_widget.export_picker.is_some()
-            || self.chat_widget.model_picker.is_some()
-            || self.chat_widget.agent_picker.is_some()
-            || self.chat_widget.agents_overview.is_some()
-        {
-            return Ok(0);
-        }
-        let size = terminal
-            .terminal_mut()
-            .size()
-            .context("failed to read terminal size for history top-up")?;
-        let minimum_rows = crate::view::transcript_page_size(size.width, size.height, self);
-        self.top_up_underfilled_history(app_server, size.width, minimum_rows)
-            .await
+        thread_id: &str,
+        cursor: &str,
+        result: std::result::Result<
+            app_server_protocol::protocol::v2::ThreadItemsListResponse,
+            String,
+        >,
+        turns: Option<Vec<Turn>>,
+    ) -> Result<bool> {
+        self.handle_older_history_page_with_turns(
+            app_server,
+            thread_id,
+            cursor,
+            result.map_err(anyhow::Error::msg),
+            turns.as_deref(),
+        )
     }
 }
 
@@ -223,6 +196,7 @@ fn transcript_history_surface_is_current(
 mod tests {
     use super::*;
     use app_server_protocol::protocol::v2::{TurnItemsView, TurnStatus, UserInput};
+    use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
     fn user_message(id: &str, text: &str) -> app_server_protocol::protocol::v2::ThreadItem {
         app_server_protocol::protocol::v2::ThreadItem::UserMessage {
@@ -303,6 +277,59 @@ mod tests {
 
         assert_eq!(app.projection.entries().len(), 2);
         assert!(app.projection.completion_after("answer").is_none());
+    }
+
+    #[test]
+    fn replay_seed_requires_turn_facts_and_keeps_older_pages_before_newer_recall() {
+        let mut app = App::default();
+        app.set_thread_id("thread".into());
+        app.prepend_initial_history_page(InitialHistoryPage {
+            items: vec![user_message("new", "new prompt")],
+            turns: None,
+        });
+        app.chat_widget
+            .bottom_pane
+            .handle_key_event(KeyEvent::new(KeyCode::Up, KeyModifiers::NONE));
+        assert!(app.chat_widget.bottom_pane.composer_text().is_empty());
+
+        let new_turn = Turn {
+            id: "new-turn".into(),
+            items: vec![user_message("new", "new prompt")],
+            items_view: TurnItemsView::Full,
+            status: TurnStatus::Completed,
+            error: None,
+            started_at: None,
+            completed_at: None,
+            duration_ms: None,
+        };
+        app.prepend_initial_history_page(InitialHistoryPage {
+            items: vec![user_message("new", "new prompt")],
+            turns: Some(vec![new_turn]),
+        });
+        let old_turn = Turn {
+            id: "old-turn".into(),
+            items: vec![user_message("old", "old prompt")],
+            items_view: TurnItemsView::Full,
+            status: TurnStatus::Completed,
+            error: None,
+            started_at: None,
+            completed_at: None,
+            duration_ms: None,
+        };
+        app.prepend_history_page(
+            vec![user_message("old", "old prompt")],
+            Some(&[old_turn]),
+            true,
+        );
+
+        app.chat_widget
+            .bottom_pane
+            .handle_key_event(KeyEvent::new(KeyCode::Up, KeyModifiers::NONE));
+        assert_eq!(app.chat_widget.bottom_pane.composer_text(), "new prompt");
+        app.chat_widget
+            .bottom_pane
+            .handle_key_event(KeyEvent::new(KeyCode::Up, KeyModifiers::NONE));
+        assert_eq!(app.chat_widget.bottom_pane.composer_text(), "old prompt");
     }
 
     #[test]
@@ -430,6 +457,7 @@ mod tests {
         app.prepend_history_page(
             vec![user_message("older-visible", "older visible")],
             Some(&[previous_review_turn, nested_review_turn]),
+            true,
         );
 
         assert_eq!(

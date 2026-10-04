@@ -20,19 +20,14 @@ use crate::style::muted_style;
 use crate::width::display_width;
 use crate::wrapping::{word_wrap_lines, RtOptions};
 
-#[allow(dead_code)]
-#[path = "status_indicator_widget/timer.rs"]
-mod timer;
-#[allow(dead_code, unused_imports)]
-pub(crate) use timer::StatusTimer;
 #[path = "status_indicator_widget/summary_shimmer.rs"]
 mod summary_shimmer;
 
 pub(crate) const STATUS_DETAILS_DEFAULT_MAX_LINES: usize = 3;
 const DETAILS_PREFIX: &str = "  └ ";
 
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[allow(dead_code)]
 pub(crate) enum StatusDetailsCapitalization {
     CapitalizeFirst,
     Preserve,
@@ -51,10 +46,8 @@ pub(crate) struct StatusIndicatorWidget {
     details_max_lines: usize,
     inline_message: Option<String>,
     hook_status_message: Option<String>,
-    show_interrupt_hint: bool,
 }
 
-#[allow(dead_code)]
 impl StatusIndicatorWidget {
     pub(crate) fn new(locale: Locale, elapsed: Duration) -> Self {
         Self {
@@ -65,14 +58,10 @@ impl StatusIndicatorWidget {
             details_max_lines: STATUS_DETAILS_DEFAULT_MAX_LINES,
             inline_message: None,
             hook_status_message: None,
-            show_interrupt_hint: true,
         }
     }
 
-    pub(crate) fn update_header(&mut self, header: impl Into<String>) {
-        self.header = header.into();
-    }
-
+    #[cfg(test)]
     pub(crate) fn update_details(
         &mut self,
         details: Option<String>,
@@ -105,10 +94,7 @@ impl StatusIndicatorWidget {
             .filter(|message| !message.is_empty());
     }
 
-    pub(crate) fn set_interrupt_hint_visible(&mut self, visible: bool) {
-        self.show_interrupt_hint = visible;
-    }
-
+    #[cfg(test)]
     pub(crate) fn set_interrupt_hint(&mut self, hint: impl Into<String>) {
         self.interrupt_hint = hint.into();
     }
@@ -124,6 +110,7 @@ impl StatusIndicatorWidget {
         frame.render_widget(Paragraph::new(Text::from(self.lines(area.width))), area);
     }
 
+    #[cfg(test)]
     pub(crate) fn status_line(&self, width: u16) -> Line<'static> {
         self.lines(width)
             .into_iter()
@@ -140,14 +127,10 @@ impl StatusIndicatorWidget {
         let header_style = muted_style().add_modifier(Modifier::BOLD);
         let mut spans = vec![Span::styled("• ", header_style)];
         spans.extend(summary_shimmer::summary_shimmer(&self.header, self.elapsed));
-        if self.show_interrupt_hint {
-            spans.push(Span::styled(
-                format!(" ({elapsed} • {})", self.interrupt_hint),
-                header_style,
-            ));
-        } else {
-            spans.push(Span::styled(format!(" ({elapsed})"), header_style));
-        }
+        spans.push(Span::styled(
+            format!(" ({elapsed} • {})", self.interrupt_hint),
+            header_style,
+        ));
         if let Some(message) = &self.inline_message {
             spans.extend([
                 Span::styled(" · ", muted_style()),
@@ -227,12 +210,6 @@ impl StatusIndicatorWidget {
         }
         lines
     }
-}
-
-#[allow(dead_code)]
-pub(crate) fn render(frame: &mut Frame<'_>, area: Rect, locale: Locale, elapsed: Duration) {
-    let widget = StatusIndicatorWidget::new(locale, elapsed);
-    widget.render(area, frame);
 }
 
 pub(crate) fn render_with_messages(

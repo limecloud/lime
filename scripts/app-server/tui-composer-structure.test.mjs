@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -8,9 +8,52 @@ const source = (file) =>
     "utf8",
   );
 
+const sourcePath = (file) =>
+  path.resolve(process.cwd(), "lime-rs/crates/tui/src", file);
+
 describe("Codex structured mention owners", () => {
+  it("keeps moved TUI owners in their current modules and blocks dead root wrappers", () => {
+    for (const wrapper of [
+      "command_popup.rs",
+      "pending_input_preview.rs",
+      "reconnect.rs",
+      "highlight.rs",
+      "status_indicator.rs",
+    ]) {
+      expect(existsSync(sourcePath(wrapper)), wrapper).toBe(false);
+    }
+    const lib = source("lib.rs");
+    for (const retired of [
+      "mod command_popup;",
+      "mod pending_input_preview;",
+      "mod highlight;",
+      "mod status_indicator;",
+    ]) {
+      expect(lib, retired).not.toContain(retired);
+    }
+    expect(source("bottom_pane/mod.rs")).toContain(
+      "pub(crate) mod command_popup;",
+    );
+    expect(source("bottom_pane/pending_input_preview.rs")).toContain(
+      "pub(crate) fn desired_height(",
+    );
+    expect(source("app/reconnect.rs")).toContain(
+      "pub(crate) async fn reconnect_session(",
+    );
+    expect(source("render/highlight.rs")).toContain(
+      "pub(crate) fn highlight_code_to_lines(",
+    );
+    expect(source("shortcut_help.rs")).toContain(
+      "pub(crate) fn group_lines(",
+    );
+    expect(lib).not.toContain("compatibility delegate");
+  });
+
   it("keeps replay authority in the exact pending request table without parallel category indexes", () => {
     const replay = source("app/pending_interactive_replay.rs");
+    expect(source("app/replay_filter.rs")).not.toContain(
+      "cfg_attr(not(test), allow(dead_code))",
+    );
     expect(replay).toContain(
       "pending_requests_by_request_id: HashMap<RequestId, PendingInteractiveRequest>",
     );
@@ -33,13 +76,23 @@ describe("Codex structured mention owners", () => {
     }
   });
   it("moves thread input views instead of flattening or clearing unresolved interactions", () => {
-    expect(source("app.rs")).toContain("HashMap<String, BottomPaneInputState>");
-    const input = source("app/thread_input.rs");
-    expect(input).toContain(
-      "self.chat_widget.bottom_pane.take_input_state()",
+    expect(source("chatwidget.rs")).toContain(
+      "HashMap<String, crate::bottom_pane::BottomPaneInputState>",
     );
+    const app = source("app.rs");
+    const appStruct = app.slice(
+      app.indexOf("pub(crate) struct App"),
+      app.indexOf("\n}\n\nimpl App"),
+    );
+    expect(appStruct).not.toContain("thread_input_states:");
+    const input = source("app/thread_input.rs");
+    const widgetInput = source("chatwidget/input.rs");
+    expect(widgetInput).toContain("self.bottom_pane.take_input_state()");
+    expect(widgetInput).toContain("self.bottom_pane.restore_input_state(state)");
+    expect(input).toContain("self.chat_widget.capture_thread_input(&thread_id)");
+    expect(input).toContain("self.chat_widget.restore_thread_input(thread_id)");
     expect(input).toContain(
-      "self.chat_widget.bottom_pane.restore_input_state(state)",
+      "self.chat_widget.observe_thread_input_notification(",
     );
     expect(input).toContain("self.thread_event_channels.clear()");
     expect(source("app/session_lifecycle.rs")).not.toContain(
@@ -223,8 +276,8 @@ describe("Codex composer, modal and incremental history owners", () => {
     );
   });
   it("propagates the same snapshot into queued and new BottomPane text editors", () => {
-    expect(source("app.rs")).toContain(
-      "self.chat_widget.bottom_pane.set_keymap_bindings(&keymap)",
+    expect(source("chatwidget.rs")).toContain(
+      "self.bottom_pane.set_keymap_bindings(&keymap)",
     );
     const pane = source("bottom_pane/mod.rs");
     expect(pane).toContain("request.set_keymap_bindings(keymap)");
@@ -363,6 +416,9 @@ describe("Codex composer, modal and incremental history owners", () => {
     for (const symbol of [
       "set_metadata",
       "local_history",
+      "replay_seeded_history",
+      "record_replayed_submission",
+      "replace_replayed_history",
       "fetched_history",
       "history_cursor",
       "on_entry_response",
@@ -378,6 +434,13 @@ describe("Codex composer, modal and incremental history owners", () => {
       expect(history).not.toContain(old);
     }
     expect(source("app/startup.rs")).toContain("set_history_metadata");
+    expect(source("app.rs")).toContain(
+      "replace_replayed_history(thread.id.clone(), &thread.turns)",
+    );
+    expect(source("app/history_pagination.rs")).toContain(
+      "record_replayed_history_page(&items, turns, prepend_replay)",
+    );
+    expect(history).toContain("let Some(turns) = turns else {");
     expect(source("app/startup.rs")).not.toContain("load_history");
     for (const symbol of [
       "LookupMessageHistoryEntry",
@@ -538,6 +601,14 @@ describe("ChatWidget live composer ownership", () => {
     }
   });
 
+  it("does not retain an unreachable shutdown composer wrapper", () => {
+    const bottomPane = source("bottom_pane/composer.rs");
+    const composerDraft = source("bottom_pane/chat_composer/draft.rs");
+    expect(bottomPane).not.toContain("show_shutdown_in_progress");
+    expect(composerDraft).not.toContain("show_shutdown_in_progress");
+    expect(bottomPane).toContain("#[cfg(test)]\n    pub(crate) fn set_composer_input_enabled(");
+  });
+
   it("keeps transcript presentation state inside the ChatWidget owner", () => {
     const widget = source("chatwidget.rs");
     const app = source("app.rs");
@@ -574,8 +645,52 @@ describe("ChatWidget live composer ownership", () => {
       expect(appStruct, field).not.toContain(field);
     }
     const presentation = source("app/transcript_presentation.rs");
-    expect(presentation).toContain("self.chat_widget.transcript_presentation");
-    expect(presentation).toContain("self.chat_widget.pager_overlay");
+    expect(presentation).toContain(
+      "self.chat_widget.open_transcript_pager()",
+    );
+    expect(presentation).toContain(
+      "self.chat_widget.dismiss_pager_overlay()",
+    );
+    expect(presentation).toContain(
+      "self.chat_widget.reset_transcript_presentation()",
+    );
+    const transcript = source("chatwidget/transcript.rs");
+    for (const method of [
+      "fn toggle_history_render_mode(",
+      "fn is_raw_output_mode(",
+      "fn open_transcript_pager(",
+      "fn dismiss_pager_overlay(",
+      "fn reset_transcript_presentation(",
+      "fn reset_thread_surface(",
+      "fn reset_for_hydrated_thread(",
+      "fn scroll_up(",
+      "fn scroll_down(",
+      "fn scroll_top(",
+      "fn scroll_bottom(",
+      "fn finish_transcript_selection(",
+      "fn open_status_pager(",
+      "fn open_mcp_inventory(",
+    ]) {
+      expect(transcript, method).toContain(method);
+    }
+    expect(transcript).toContain("self.transcript_presentation");
+    expect(transcript).toContain("self.pager_overlay");
+    expect(source("app.rs")).toContain(
+      "self.chat_widget.finish_transcript_selection(follow)",
+    );
+    expect(source("app.rs")).toContain("self.chat_widget.scroll_up(amount)");
+    expect(source("app.rs")).toContain("self.chat_widget.scroll_down(amount)");
+    expect(source("app.rs")).toContain("self.chat_widget.scroll_top()");
+    expect(source("app.rs")).toContain("self.chat_widget.scroll_bottom()");
+    expect(source("app.rs")).toContain(
+      "self.chat_widget.open_status_pager(StatusFacts",
+    );
+    expect(source("app.rs")).toContain(
+      "self.chat_widget.open_mcp_inventory(&statuses, detail)",
+    );
+    expect(source("app.rs")).not.toMatch(
+      /self\.chat_widget\.pager_overlay\s*=\s*Some/u,
+    );
   });
 
   it("keeps the Agent Center surface inside ChatWidget while App owns transport", () => {
@@ -591,7 +706,7 @@ describe("ChatWidget live composer ownership", () => {
     expect(appStruct).not.toContain("agents_overview:");
     expect(app).not.toMatch(/\b(?:app|self)\s*\.\s*agents_overview\b/u);
     expect(source("app/agents_overview.rs")).toContain(
-      "self.chat_widget.agents_overview = Some(overview)",
+      "self.chat_widget.set_agents_overview(overview)",
     );
     expect(source("app/agents_overview_threads.rs")).toContain(
       "self.chat_widget.agents_overview.as_mut()",
@@ -665,14 +780,451 @@ describe("ChatWidget live composer ownership", () => {
     ]) {
       expect(appStruct, field).not.toContain(field);
     }
-    expect(source("app/thread_settings.rs")).toContain(
-      "self.chat_widget.model_catalog",
+    expect(source("chatwidget/settings.rs")).toContain("self.model_catalog");
+    expect(source("chatwidget/settings.rs")).toContain(
+      "set_model_catalog(",
     );
     expect(source("app/event_dispatch.rs")).toContain(
-      "self.chat_widget.collaboration_mode",
+      "apply_collaboration_mode(collaboration_mode)",
     );
     expect(source("app/history_ui.rs")).toContain(
       "app.chat_widget.reasoning_effort",
     );
+  });
+
+  it("keeps runtime settings mutations in the ChatWidget owner", () => {
+    const runtime = source("runtime.rs");
+    const dispatch = source("app/event_dispatch.rs");
+    const settings = source("chatwidget/settings.rs");
+    for (const local of [
+      "let mut model",
+      "let mut model_provider",
+      "let mut effort",
+      "let mut permissions",
+      "model: &mut",
+      "model_provider: &mut",
+      "effort: &mut",
+      "permissions: &mut",
+    ]) {
+      expect(runtime, local).not.toContain(local);
+      expect(dispatch, local).not.toContain(local);
+    }
+    expect(runtime).toContain("app.chat_widget.settings_patch()");
+    expect(dispatch).toContain("self.chat_widget.apply_model_selection(");
+    expect(dispatch).toContain("self.chat_widget.apply_effort(next.clone())");
+    expect(dispatch).toContain("self.chat_widget.apply_permissions(next.clone())");
+    for (const method of [
+      "fn settings_patch(",
+      "fn apply_model_selection(",
+      "fn apply_effort(",
+      "fn apply_permissions(",
+      "fn apply_collaboration_mode(",
+    ]) {
+      expect(settings).toContain(method);
+    }
+  });
+
+  it("keeps locale and user-visible copy beside the ChatWidget presentation owner", () => {
+    const widget = source("chatwidget.rs");
+    const app = source("app.rs");
+    expect(widget).toContain("pub(crate) locale: Locale");
+    const appStruct = app.slice(
+      app.indexOf("pub(crate) struct App"),
+      app.indexOf("\n}\n\nimpl App"),
+    );
+    expect(appStruct).not.toContain("locale:");
+    expect(widget).toContain("pub(crate) fn set_locale(&mut self, locale: Locale)");
+    expect(app).toContain("self.chat_widget.set_locale(locale)");
+    expect(source("view.rs")).toContain("app.chat_widget.locale");
+    expect(source("app/history_ui.rs")).toContain("app.chat_widget.locale");
+    expect(source("app/mcp_login.rs")).toContain(
+      "self.chat_widget.locale.mcp_login",
+    );
+    expect(app).not.toMatch(/\b(?:app|self)\.locale\b/u);
+  });
+
+  it("keeps MCP OAuth request ordering at the App transport boundary", () => {
+    const widget = source("chatwidget.rs");
+    const app = source("app.rs");
+    expect(app).toContain(
+      "pending_mcp_login_start: Option<mcp_login::PendingMcpLoginStart>",
+    );
+    expect(app).toContain(
+      "active_mcp_login_ids: HashMap<String, mcp_login::ActiveMcpLogin>",
+    );
+    expect(app).toContain("mcp_login_generation: u64");
+    expect(widget).not.toContain("PendingMcpLoginStart");
+    expect(widget).not.toContain("ActiveMcpLogin");
+    expect(source("app/mcp_login.rs")).toContain("fn start_mcp_login(");
+    expect(source("app/event_dispatch.rs")).toContain(
+      "super::mcp_login::start_mcp_login(",
+    );
+  });
+
+  it("keeps collaboration derivation in the ChatWidget settings owner", () => {
+    const settings = source("chatwidget/settings.rs");
+    for (const symbol of [
+      "impl ChatWidget",
+      "set_model_catalog(",
+      "set_settings(",
+      "set_collaboration_modes(",
+      "next_collaboration_mode(",
+      "plan_mode(",
+      "sync_default_collaboration_mode(",
+    ]) {
+      expect(settings, symbol).toContain(symbol);
+    }
+    const widgetSettings = source("chatwidget/settings.rs");
+    expect(widgetSettings).toContain("use crate::collaboration_modes");
+    expect(widgetSettings).toContain("self.model_catalog");
+    expect(source("app/input_flow.rs")).toContain(".next_collaboration_mode()");
+    expect(source("runtime.rs")).toContain("app.chat_widget.plan_mode()");
+    expect(source("app/event_dispatch.rs")).toContain(
+      "apply_collaboration_mode(collaboration_mode)",
+    );
+  });
+
+  it("keeps agent navigation and transcript history availability in ChatWidget", () => {
+    const widget = source("chatwidget.rs");
+    const app = source("app.rs");
+    const navigation = source("app/agent_navigation.rs");
+    expect(widget).toContain("agent_navigation: AgentNavigationState");
+    expect(widget).toContain("scrollback_has_older_history: bool");
+    const appStruct = app.slice(
+      app.indexOf("pub(crate) struct App"),
+      app.indexOf("\n}\n\nimpl App"),
+    );
+    expect(appStruct).not.toContain("agent_navigation:");
+    expect(appStruct).not.toContain("scrollback_has_older_history:");
+    expect(app).toContain("self.chat_widget.agent_navigation");
+    expect(source("app/history_pagination.rs")).toContain(
+      "self.chat_widget.scrollback_has_older_history",
+    );
+    expect(source("chatwidget/transcript.rs")).toContain(
+      "fn set_scrollback_has_older_history(",
+    );
+    expect(source("app/startup.rs")).toContain(
+      "set_scrollback_has_older_history(",
+    );
+    expect(source("app/session_lifecycle.rs")).toContain(
+      "set_scrollback_has_older_history(",
+    );
+    expect(source("bottom_pane/footer.rs")).toContain(
+      "app.chat_widget.agent_navigation",
+    );
+    for (const deadSurface of [
+      "fn is_empty(",
+      "fn set_agent_path(",
+      "fn clear(",
+      "fn remove(",
+      "fn ordered_path_backed_subagent_threads(",
+      "allow(dead_code)",
+    ]) {
+      expect(navigation, deadSurface).not.toContain(deadSurface);
+    }
+  });
+
+  it("keeps the runtime keymap and global chord matcher in ChatWidget", () => {
+    const widget = source("chatwidget.rs");
+    const app = source("app.rs");
+    expect(widget).toContain("pub(crate) runtime_keymap: RuntimeKeymap");
+    expect(widget).toContain(
+      "pub(crate) global_key_chord_matcher: KeyChordMatcher",
+    );
+    const appStruct = app.slice(
+      app.indexOf("pub(crate) struct App"),
+      app.indexOf("\n}\n\nimpl App"),
+    );
+    expect(appStruct).not.toContain("runtime_keymap:");
+    expect(appStruct).not.toContain("global_key_chord_matcher:");
+    expect(source("app/interaction.rs")).toContain(
+      "self.chat_widget.dispatch_global_key(key)",
+    );
+    expect(source("chatwidget/interaction.rs")).toContain(
+      "self.global_key_chord_matcher",
+    );
+    expect(source("runtime.rs")).toContain("app.chat_widget.runtime_keymap");
+  });
+
+  it("keeps clipboard leases, mouse-paste guards and queued submissions in ChatWidget", () => {
+    const widget = source("chatwidget.rs");
+    const app = source("app.rs");
+    for (const field of [
+      "clipboard_lease: Option<crate::clipboard_copy::ClipboardLease>",
+      "primary_clipboard_lease: Option<crate::clipboard_copy::ClipboardLease>",
+      "right_click_paste: RightClickPaste",
+      "pending_clipboard_paste: Option<PendingPaste>",
+      "queued_submissions: Vec<QueuedSubmission>",
+    ]) {
+      expect(widget, field).toContain(field);
+    }
+    const appStruct = app.slice(
+      app.indexOf("pub(crate) struct App"),
+      app.indexOf("\n}\n\nimpl App"),
+    );
+    for (const field of [
+      "clipboard_lease:",
+      "primary_clipboard_lease:",
+      "right_click_paste:",
+      "pending_clipboard_paste:",
+      "queued_submissions:",
+    ]) {
+      expect(appStruct, field).not.toContain(field);
+    }
+    const widgetInput = source("chatwidget/input.rs");
+    for (const method of [
+      "fn queued_submissions(",
+      "fn replace_queued_submissions(",
+      "fn upsert_queued_submission(",
+      "fn restore_queued_submission_for_edit(",
+    ]) {
+      expect(widgetInput, method).toContain(method);
+    }
+    expect(source("view.rs")).toContain("app.chat_widget.queued_submissions()");
+    expect(source("app/input_flow.rs")).toContain(".queued_submissions()");
+    const submission = source("app/input_submission.rs");
+    expect(submission).toContain(
+      "self.chat_widget.replace_queued_submissions(submissions)",
+    );
+    expect(submission).toContain(
+      "self.chat_widget.upsert_queued_submission(submission)",
+    );
+    expect(submission).toContain(
+      "restore_queued_submission_for_edit(submission)",
+    );
+    expect(submission).not.toContain("self.chat_widget.queued_submissions");
+    const paste = source("app/right_click_paste.rs");
+    const pasteWidgetInput = source("chatwidget/input.rs");
+    for (const method of [
+      "fn set_pending_clipboard_paste(",
+      "fn pending_clipboard_paste(",
+      "fn pending_clipboard_source(",
+      "fn take_pending_clipboard_paste(",
+      "fn clear_pending_clipboard_paste(",
+    ]) {
+      expect(pasteWidgetInput, method).toContain(method);
+    }
+    expect(paste).toContain("self.chat_widget.set_pending_clipboard_paste(");
+    expect(paste).toContain("self.chat_widget.pending_clipboard_paste()");
+    expect(paste).toContain("take_pending_clipboard_paste()");
+    expect(paste).toContain("self.chat_widget.clear_pending_clipboard_paste()");
+    expect(paste).not.toContain("self.chat_widget.pending_clipboard_paste =");
+  });
+
+  it("keeps thread draft snapshots, turn lifecycle and startup warnings in ChatWidget", () => {
+    const widget = source("chatwidget.rs");
+    const app = source("app.rs");
+    const lifecycle = source("app/turn_lifecycle.rs");
+    for (const field of [
+      "thread_input_states: HashMap<String, crate::bottom_pane::BottomPaneInputState>",
+      "turn_lifecycle: crate::app::turn_lifecycle::TurnLifecycleState",
+      "skill_load_warnings: crate::app::startup_prompts::SkillLoadWarningState",
+      "mcp_startup_warnings: crate::app::startup_prompts::McpStartupWarningState",
+    ]) {
+      expect(widget, field).toContain(field);
+    }
+    const appStruct = app.slice(
+      app.indexOf("pub(crate) struct App"),
+      app.indexOf("\n}\n\nimpl App"),
+    );
+    for (const field of [
+      "thread_input_states:",
+      "turn_lifecycle:",
+      "skill_load_warnings:",
+      "mcp_startup_warnings:",
+    ]) {
+      expect(appStruct, field).not.toContain(field);
+    }
+    const threadInput = source("chatwidget/input.rs");
+    for (const method of [
+      "fn capture_thread_input(",
+      "fn restore_thread_input(",
+      "fn observe_thread_input_notification(",
+      "fn clear_thread_interactions(",
+    ]) {
+      expect(threadInput, method).toContain(method);
+    }
+    expect(source("app/thread_input.rs")).toContain(
+      "self.chat_widget.capture_thread_input(&thread_id)",
+    );
+    expect(source("app/thread_input.rs")).not.toContain(
+      "self.chat_widget.thread_input_states",
+    );
+    expect(source("app/thread_events.rs")).toContain(
+      "self.chat_widget.turn_lifecycle",
+    );
+    for (const deadSurface of [
+      "budget_limited_turn_ids",
+      "rendered_completion_turn_ids",
+      "mark_budget_limited(",
+      "take_budget_limited(",
+    ]) {
+      expect(lifecycle, deadSurface).not.toContain(deadSurface);
+    }
+  });
+
+  it("keeps external editor lifecycle state in ChatWidget", () => {
+    const widget = source("chatwidget.rs");
+    const app = source("app.rs");
+    expect(widget).toContain("external_editor_state: ExternalEditorState");
+    expect(widget).toContain("pub(crate) fn request_external_editor_launch");
+    expect(widget).toContain("pub(crate) fn reset_external_editor_state");
+    const appStruct = app.slice(
+      app.indexOf("pub(crate) struct App"),
+      app.indexOf("\n}\n\nimpl App"),
+    );
+    expect(appStruct).not.toContain("external_editor_state:");
+    expect(app).not.toMatch(/\b(?:app|self)\s*\.\s*external_editor_state\b/u);
+    expect(source("runtime.rs")).toContain(
+      "app.chat_widget.external_editor_state()",
+    );
+    expect(source("app/input_submission.rs")).toContain(
+      "self.chat_widget.request_external_editor_launch()",
+    );
+  });
+
+  it("keeps startup protected-request presentation pending state in ChatWidget", () => {
+    const widget = source("chatwidget.rs");
+    const app = source("app.rs");
+    expect(widget).toContain("startup_pending_protected_request: bool");
+    const appStruct = app.slice(
+      app.indexOf("pub(crate) struct App"),
+      app.indexOf("\n}\n\nimpl App"),
+    );
+    expect(appStruct).not.toContain("startup_pending_protected_request:");
+    expect(app).not.toMatch(
+      /\b(?:app|self)\s*\.\s*startup_pending_protected_request\b/u,
+    );
+    expect(source("chatwidget/input.rs")).toContain(
+      "self.startup_pending_protected_request",
+    );
+    expect(source("app/thread_input.rs")).toContain(
+      "self.chat_widget.clear_thread_interactions()",
+    );
+    expect(source("app/interaction.rs")).not.toContain(
+      "startup_pending_protected_request",
+    );
+    expect(source("app.rs")).toContain(
+      "self.chat_widget.startup_protected_request_pending()",
+    );
+    expect(source("app.rs")).toContain(
+      "self.chat_widget.set_startup_protected_request_pending(true)",
+    );
+  });
+
+  it("keeps modal transcript interaction and approval detail pager construction in ChatWidget", () => {
+    const interaction = source("app/interaction.rs");
+    const widgetInteraction = source("chatwidget/interaction.rs");
+    for (const method of [
+      "fn end_interaction_drag(",
+      "fn open_approval_details_pager(",
+      "fn route_modal_transcript_wheel(",
+      "fn handle_main_transcript_selection(",
+      "fn finish_main_transcript_selection_if_active(",
+      "fn scroll_main_selection(",
+      "fn reveal_main_selection_row(",
+      "fn handle_pager_event(",
+      "fn handle_transcript_search_event(",
+      "fn handle_transcript_follow_mouse(",
+      "fn reset_global_key_chord(",
+      "fn dispatch_global_key(",
+      "fn dismiss_shortcut_overlay(",
+      "fn begin_transcript_search(",
+    ]) {
+      expect(widgetInteraction, method).toContain(method);
+    }
+    expect(interaction).toContain(
+      "self.chat_widget.end_interaction_drag()",
+    );
+    expect(interaction).toContain(
+      "self.chat_widget.open_approval_details_pager(*key)",
+    );
+    expect(interaction).toContain(
+      "self.chat_widget.route_modal_transcript_wheel(&event)",
+    );
+    expect(interaction).toContain(
+      "self.chat_widget.handle_main_transcript_selection(&event)",
+    );
+    expect(interaction).not.toContain("approval_details_for_key(");
+    expect(interaction).not.toContain("transcript_selection.handle_event(");
+    expect(interaction).not.toContain("transcript_selection.scroll_rows(");
+    expect(interaction).not.toContain("transcript_selection.reveal_row(");
+    expect(interaction).not.toContain("transcript_search.handle_event(");
+    expect(interaction).not.toContain("transcript_follow_control.handle_mouse(");
+    expect(interaction).not.toContain("pager.handle_event(");
+    expect(interaction).not.toContain("global_key_chord_matcher.reset(");
+    expect(interaction).not.toContain("global_key_chord_matcher, key");
+    expect(interaction).not.toContain("transcript_search.begin(");
+    expect(interaction).not.toContain("transcript_follow_control.clear(");
+    expect(interaction).not.toMatch(
+      /self\.chat_widget\.pager_overlay\s*=\s*Some/u,
+    );
+  });
+
+  it("keeps picker and export lifecycle mutations in ChatWidget interaction", () => {
+    const interaction = source("app/interaction.rs");
+    const widgetInteraction = source("chatwidget/interaction.rs");
+    for (const method of [
+      "fn handle_export_picker_event(",
+      "fn handle_resume_picker_event(",
+      "fn handle_agents_overview_event(",
+      "fn handle_model_picker_event(",
+      "fn handle_agent_picker_event(",
+    ]) {
+      expect(widgetInteraction, method).toContain(method);
+    }
+    for (const field of [
+      "export_picker.as_mut()",
+      "resume_picker.as_mut()",
+      "agents_overview.as_mut()",
+      "model_picker.as_mut()",
+      "agent_picker.as_mut()",
+      "export_picker = None",
+      "resume_picker = None",
+      "agents_overview = None",
+      "model_picker = None",
+      "agent_picker = None",
+    ]) {
+      expect(interaction, field).not.toContain(field);
+    }
+    for (const call of [
+      "handle_export_picker_event(&event)",
+      "handle_resume_picker_event(&event)",
+      "handle_agents_overview_event(&event)",
+      "handle_model_picker_event(&event)",
+      "handle_agent_picker_event(&event)",
+    ]) {
+      expect(interaction, call).toContain(call);
+    }
+    expect(widgetInteraction).toContain("self.export_picker = None");
+    expect(widgetInteraction).toContain("self.resume_picker = None");
+    expect(widgetInteraction).toContain("self.agents_overview = None");
+    expect(widgetInteraction).toContain("self.model_picker = None");
+    expect(widgetInteraction).toContain("self.agent_picker = None");
+    for (const method of [
+      "fn set_resume_picker(",
+      "fn clear_resume_picker(",
+      "fn resume_picker_mut(",
+      "fn set_agents_overview(",
+      "fn clear_agents_overview(",
+      "fn clear_model_picker(",
+      "fn set_agent_picker(",
+    ]) {
+      expect(widgetInteraction, method).toContain(method);
+    }
+    const runtime = source("runtime.rs");
+    for (const assignment of [
+      "chat_widget.resume_picker =",
+      "chat_widget.agents_overview =",
+      "chat_widget.model_picker =",
+      "chat_widget.agent_picker =",
+      "chat_widget.pager_overlay =",
+      "chat_widget.scrollback_has_older_history =",
+    ]) {
+      expect(runtime, assignment).not.toContain(assignment);
+    }
+    expect(runtime).toContain("app.chat_widget.set_resume_picker(picker)");
+    expect(runtime).toContain("app.chat_widget.clear_resume_picker()");
+    expect(runtime).toContain("app.chat_widget.clear_agents_overview()");
   });
 });

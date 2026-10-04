@@ -1,5 +1,7 @@
 //! Typed host events. History IO stays behind the App Server request boundary.
 
+use app_server_protocol::protocol::v2::{ThreadItemsListResponse, Turn};
+
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub(crate) struct HistoryBatchCursor {
     end_offset: usize,
@@ -19,6 +21,13 @@ impl HistoryBatchCursor {
 pub(crate) struct HistoryBatchEntryResponse {
     pub(crate) offset: usize,
     pub(crate) entry: Option<String>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum OlderHistoryLoadMode {
+    OnePage,
+    All,
+    TopUp,
 }
 
 #[derive(Debug)]
@@ -46,6 +55,13 @@ pub(crate) enum HistoryLookupResponse {
 
 #[derive(Debug)]
 pub(crate) enum AppEvent {
+    OlderThreadHistoryLoaded {
+        thread_id: String,
+        cursor: String,
+        result: Result<ThreadItemsListResponse, String>,
+        turns: Option<Vec<Turn>>,
+        mode: OlderHistoryLoadMode,
+    },
     LookupMessageHistoryEntry {
         thread_id: String,
         offset: usize,

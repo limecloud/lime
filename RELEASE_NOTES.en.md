@@ -1,39 +1,37 @@
-## Lime v1.149.0
+## Lime v1.150.0
 
 Simplified Chinese release notes are the primary version.
 
 ### New Features
 
-- Continued Codex-aligned TUI ChatWidget work: input and interaction state, transcript presentation, Agent Center, and model/agent/resume/export pickers now converge on one ChatWidget owner.
-- Added a collapsible sidebar rail, expandable project conversation groups with incremental loading, and searchable navigation for plugins, skills, and installed catalogs.
-- Added a stable localized placeholder card for unsupported transcript items, with diagnostic fields collapsed by default and expandable on demand.
-- Redesigned scheduled tasks with a compact list and editor for immediate creation, editing, filtering, search, recurring schedules, and run previews.
+- Continued ChatWidget session convergence for runtime keymap, clipboard and right-click paste, queued submissions, per-thread draft snapshots, turn lifecycle, and startup warning presentation.
+- Changed history pagination, resume preview, and transcript loading to an asynchronous completion/event flow with thread and cursor ownership checks while keyboard, redraw, and App Server notifications remain responsive.
+- Added ChatWidget ownership for approval details, transcript wheel and selection drag handling, resume/Agent/model/export pickers, and external editor lifecycle.
 
 ### Fixes
 
-- Fixed route parameters and page state getting out of sync when plugin catalog filters, search, and details changed within the sidebar.
-- Fixed duplicate owner and state handoff issues across TUI thread switching, recovery, scrolling, search, focus changes, and transient picker lifecycles.
-- Fixed rendering and interaction boundaries for narrow terminals, fullscreen Agent Center, reflow, reconnect, and terminal recovery.
-- Fixed scheduled-task validation and form hydration for titles, times, time zones, weekdays, and enabled state with consistent five-locale copy.
+- Fixed state handoff, duplicate requests, and incorrect loading resets during history pagination, resume preview, scrolling, search, reconnect, and terminal recovery.
+- Fixed interaction boundaries for disabled input, draft restoration, queue editing, clipboard races, modal/pager selection, and picker cancellation.
+- Fixed rendering and lifecycle issues in narrow terminals, focus transitions, approval details, and asynchronous external-editor returns.
 
 ### Improvements and Refactoring
 
-- Removed the old App-level BottomPane, transcript, Agent Center, picker fields, and mapper names; ownership now moves directly to current ChatWidget/BottomPane owners without compatibility shells.
-- Split sidebar, settings navigation, rail, plugin customization, and load-more components while standardizing Lime design tokens and accessible interactions.
-- Extracted a shared scheduled-task editor owner so create/edit dialogs and list actions use one form source of truth.
-- Extracted unsupported-item rendering, TUI structure inventory, PTY/stdio fixtures, and Vitest batching into focused owners while retaining the shared App Server JSON-RPC and canonical Thread/Turn/Item chain.
+- Removed remaining App-level ChatWidget fields, getters/setters, and legacy `thread_settings`, command popup, and status indicator entry points in favor of current ChatWidget/BottomPane owners.
+- Split ChatWidget into focused input, interaction, settings, transcript, and footer modules; App remains responsible for host lifecycle, transport/session, Thread routing, and canonical projection.
+- Kept the single `Product Surface -> App Server JSON-RPC -> RuntimeCore -> Thread/Turn/Item projection` chain without a local history/queue backend, parallel runtime, or compatibility shell.
 
 ### Testing and Quality
 
-- Expanded regression coverage for ChatWidget ownership, Agent Center, pickers, transcript presentation, PTY Gate B, CLI Gate B, sidebar, settings layout, plugin catalog, and unsupported items.
-- Release validation runs `npm run verify:app-version`, `npm run typecheck`, `npm run test:contracts`, and `npm run verify:gui-smoke`; cross-platform packaging, signing, notarization, and npm optional packages remain verified by the release pipeline.
+- Expanded TUI ChatWidget, history pagination, picker, queue, input, recovery, PTY, and structure-guard coverage, and refreshed Codex-alignment and structure inventories.
+- Added CLI/TUI Gate B coverage while continuing to reuse the App Server JSON-RPC and canonical Thread/Turn/Item facts.
+- Release validation runs `npm run verify:app-version`, `npm run typecheck`, `npm run test:contracts`, focused Rust TUI tests, and `npm run verify:gui-smoke`; any failed gate is recorded in the release plan.
 
 ### Documentation
 
-- Updated architecture guidance, the TUI/CLI Codex-alignment execution plan, structure inventory, and the v1.149.0 release execution plan.
+- Updated architecture confirmation, the TUI/CLI Codex-alignment execution plan, TUI structure inventories, and the release execution plan.
 
 ### Other
 
-- This release adds no parallel runtime, protocol backend, history store, or compatibility implementation. Desktop and CLI/TUI continue to share the `Product Surface -> App Server JSON-RPC -> RuntimeCore -> Thread/Turn/Item` chain.
+- Desktop and CLI/TUI continue to share the same App Server/runtime/canonical projection; retired runtimes and production mock fallbacks remain absent.
 
-**Full changes**: `v1.148.0` -> `v1.149.0`
+**Full changes**: `v1.149.0` -> `v1.150.0`

@@ -10,6 +10,9 @@ use super::ChatComposer;
 impl ChatComposer {
     /// Apply a basic editor key while disconnected without submitting or queueing the draft.
     pub(crate) fn handle_disconnected_key(&mut self, key: KeyEvent) {
+        if !self.draft.input_enabled {
+            return;
+        }
         self.cancel_history_search();
         // A disconnected composer keeps the draft editable, but it must not retain a stale
         // history-recall marker across the reconnect boundary.

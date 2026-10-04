@@ -73,18 +73,24 @@ pub(crate) fn render_with_locale(
 
 impl BottomPane {
     /// Paint popup layers after the footer, using the same composer layout and state.
-    pub(crate) fn render_popups(&self, frame: &mut Frame<'_>, area: Rect, locale: Locale) {
+    pub(crate) fn render_popups(
+        &self,
+        frame: &mut Frame<'_>,
+        area: Rect,
+        locale: Locale,
+        clip_top: u16,
+    ) {
         if self.is_active() {
             return;
         }
         if let Some(popup) = self.composer.command_popup() {
-            super::command_popup::render(frame, area, popup, locale);
+            super::command_popup::render_with_clip_top(frame, area, popup, locale, clip_top);
         }
         if let Some(popup) = self.composer.file_search_popup() {
-            popup.render(frame, area, locale);
+            popup.render_with_clip_top(frame, area, locale, clip_top);
         }
         if let Some(popup) = self.composer.skill_popup() {
-            popup.render(frame, area, locale);
+            popup.render_with_clip_top(frame, area, locale, clip_top);
         }
     }
 }

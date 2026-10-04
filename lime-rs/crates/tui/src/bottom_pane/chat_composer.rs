@@ -1,7 +1,6 @@
 //! Current composer state; draft, input, history, and completion each have one control-flow owner.
 
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
-use ratatui::layout::Rect;
 use ratatui::text::Line;
 use std::cell::RefMut;
 use std::ops::Range;
@@ -43,18 +42,19 @@ pub(crate) use self::draft_state::ComposerDraft;
 use self::draft_state::{ComposerMentionBinding, DraftState};
 use self::file_search_popup::FileSearchPopup;
 pub(crate) use self::file_search_popup::FileSearchPopupAction;
-use self::footer_state::{FooterMode, FooterState};
+use self::footer_state::FooterState;
 use self::history_search::HistorySearchSession;
 use self::popup_state::{ActivePopup, DismissedToken, PopupState};
 use self::skill_popup::SkillPopup;
 pub(crate) use self::skill_popup::SkillPopupAction;
 use self::vim_history::VimHistory;
 use super::command_popup::{CommandPopup, CommandPopupAction};
+use super::footer::FooterMode;
 use super::MentionBinding;
 use crate::app_event_sender::AppEventSender;
 use crate::bottom_pane::chat_composer_history::{
-    ChatComposerHistory, HistoryEntry, HistoryEntryResponse, HistorySearchDirection,
-    HistorySearchResult,
+    replay_entries_from_items, replay_entries_from_turns, ChatComposerHistory, HistoryEntry,
+    HistoryEntryResponse, HistorySearchDirection, HistorySearchResult,
 };
 use crate::bottom_pane::textarea::{TextArea, TextAreaState, VimPersistentState};
 use app_server_protocol::protocol::v2::{FuzzyFileSearchResult, SkillMetadata};

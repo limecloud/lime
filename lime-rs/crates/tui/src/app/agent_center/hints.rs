@@ -1,7 +1,7 @@
 //! The compact footer and help consume the same resolved task bindings as dispatch.
 
 use super::*;
-use crate::keymap::{AgentsKeymapAction, ListAction};
+use crate::keymap::{shortcut_label, AgentsKeymapAction, ListAction};
 use crate::locale::Locale;
 use crate::style::{footer_hint_label_style, key_hint_style};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -113,7 +113,10 @@ impl AgentsOverviewView {
                 locale.agent_center_label(action),
             );
         }
-        navigate.push(Some("ctrl+c".into()), locale.agent_center_label("Quit"));
+        navigate.push(
+            Some(shortcut_label(KeyCode::Char('c'), KeyModifiers::CONTROL)),
+            locale.agent_center_label("Quit"),
+        );
         let mut tasks = Group {
             title: locale.agent_center_label("Tasks"),
             entries: Vec::new(),

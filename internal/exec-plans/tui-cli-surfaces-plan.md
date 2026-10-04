@@ -1104,12 +1104,13 @@ Cloud`。下一刀应继续对照 Codex `app/event_dispatch.rs`、`app_event.rs`
 
 ## 2026-09-06 Codex thread settings owner alignment
 
-- 按 Codex `tui/src/app/thread_settings.rs` 将 Lime 的模型/provider、effort、权限 profile 和
-  collaboration mode 状态同步迁入 `app/thread_settings.rs`。`set_settings`、profile 去重与
-  cycling、model picker catalog 更新及 mode 选择均保留原有行为和 API 名称。
-- App Server 持久化仍由 `AppServerSession` 承担；该模块只维护 TUI 的当前线程 settings/read
-  model，不创建 Codex legacy config 或 provider catalog 副本。
-- 分类：`current = app/thread_settings.rs`；`compat/deprecated = none`；
+- 按 Codex `tui/chatwidget/settings.rs` 将 Lime 的模型/provider、effort、权限 profile 和
+  collaboration mode 状态同步收敛到 `chatwidget/settings.rs`。`set_settings`、profile 去重与
+  cycling、model picker catalog 更新及 mode 选择均保留原有行为和 API 名称；旧的
+  `app/thread_settings.rs` 委托入口已删除。
+- App Server 持久化仍由 `AppServerSession` 承担；该模块只维护 ChatWidget 的当前线程
+  settings/read model，不创建 Codex legacy config 或 provider catalog 副本。
+- 分类：`current = chatwidget/settings.rs`；`compat/deprecated = none`；
   `dead/deleted/forbidden-to-restore = 旧 lime-cli、terminal-ui、Codex 私有 runtime/history/state DB`；
   `deferred = Codex account/managed config product-only settings`。
 

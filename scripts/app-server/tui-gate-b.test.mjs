@@ -83,6 +83,13 @@ const reconnectTestSource = readFileSync(
   path.resolve(process.cwd(), "lime-rs/crates/tui/tests/suite/reconnect.rs"),
   "utf8",
 );
+const historyPaginationTestSource = readFileSync(
+  path.resolve(
+    process.cwd(),
+    "lime-rs/crates/tui/tests/suite/history_pagination.rs",
+  ),
+  "utf8",
+);
 
 describe("TUI Gate B", () => {
   it("requires executed thread-input resume evidence rather than a skipped or empty target", () => {
@@ -129,6 +136,41 @@ describe("TUI Gate B", () => {
       "typed input stdio fixture did not execute its full canonical assertions",
     );
     expect(gateSource).toContain("typed-input-stdio=ok");
+  });
+  it("requires history failure fixtures to satisfy the startup config contract", () => {
+    expect(historyPaginationTestSource).toContain(
+      "transcript_history_failure_keeps_anchor_and_home_retry_recovers",
+    );
+    expect(historyPaginationTestSource).toContain(
+      "transcript_history_completion_is_ignored_after_thread_switch",
+    );
+    expect(historyPaginationTestSource).toContain(
+      "transcript_history_completion_is_ignored_after_reconnect",
+    );
+    expect(historyPaginationTestSource).toContain(
+      "transcript_search_history_failure_keeps_query_and_home_retry_recovers",
+    );
+    expect(historyPaginationTestSource).toContain(
+      "transcript_search_completion_is_ignored_after_thread_switch",
+    );
+    expect(historyPaginationTestSource).toContain(
+      "transcript_search_completion_is_ignored_after_reconnect",
+    );
+    expect(historyPaginationTestSource).toContain(
+      "HISTORY_SEARCH_RACE_QUERY",
+    );
+    expect(historyPaginationTestSource).toContain(
+      "run_history_switch_server",
+    );
+    expect(historyPaginationTestSource).toContain(
+      "run_history_reconnect_server",
+    );
+    expect(historyPaginationTestSource).toContain(
+      '"config/read" => json!({"config": {}, "origins": {}})',
+    );
+    expect(historyPaginationTestSource).toContain(
+      "fixture Turn enrichment failed once",
+    );
   });
   it("rejects oversized expanded paste without a turn and permits an atomic corrected retry", () => {
     const source = readFileSync(

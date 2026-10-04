@@ -209,7 +209,8 @@ fn app_open_model_picker_consumes_the_startup_list_snapshot() {
     let mut app = crate::app::App::default();
     app.set_thread_id("thread".into());
     app.set_runtime_keymap(RuntimeKeymap::from_config(&config).unwrap());
-    app.open_model_picker(vec![model("only", "p", false, true)]);
+    app.chat_widget
+        .open_model_picker(vec![model("only", "p", false, true)]);
     let picker = app.chat_widget.model_picker.as_mut().unwrap();
     assert_eq!(
         key(picker, KeyCode::Enter, KeyModifiers::NONE),

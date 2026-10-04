@@ -9,15 +9,10 @@ impl App {
     ///
     /// Thread identity, queued input and agent-overview replay all move together so callers do
     /// not accidentally switch only the transport target or only the rendered conversation.
-    #[allow(clippy::too_many_arguments)]
     pub(crate) async fn resume_target_session(
         &mut self,
         session: &mut AppServerSession,
         thread_id: String,
-        model: &mut Option<String>,
-        model_provider: &mut Option<String>,
-        effort: &mut Option<String>,
-        permissions: &mut Option<String>,
         options: &crate::runtime::TuiOptions,
     ) -> anyhow::Result<()> {
         if self.thread_id.as_deref() == Some(thread_id.as_str()) {
@@ -45,7 +40,9 @@ impl App {
         match initial_page {
             Ok(page) => {
                 self.prepend_initial_history_page(page);
-                self.scrollback_has_older_history = session.has_older_history(&resumed_thread_id);
+                self.chat_widget.set_scrollback_has_older_history(
+                    session.has_older_history(&resumed_thread_id),
+                );
             }
             Err(error) => self
                 .projection
@@ -53,33 +50,35 @@ impl App {
         }
         self.restore_thread_input(&resumed_thread_id);
         self.replay_thread_snapshot(snapshot);
-        *model = Some(response.model);
-        *model_provider = Some(response.model_provider);
-        *effort = response.reasoning_effort;
-        if options.permissions.is_none() {
-            *permissions = session.active_permission_profile().map(str::to_string);
-        }
+        let permissions = if options.permissions.is_none() {
+            session.active_permission_profile().map(str::to_string)
+        } else {
+            self.chat_widget.permissions.clone()
+        };
         let resumed_cwd = PathBuf::from(response.cwd);
         super::working_directory::sync_server_cwd(self, resumed_cwd);
-        self.set_settings(
-            model.clone(),
-            model_provider.clone(),
-            effort.clone(),
-            permissions.clone(),
+        self.chat_widget.set_settings(
+            Some(response.model),
+            Some(response.model_provider),
+            response.reasoning_effort,
+            permissions,
         );
         self.refresh_queued_submissions(session).await;
         Ok(())
     }
 
     pub(super) fn open_agent_picker(&mut self) {
-        let picker =
-            AgentPicker::from_navigation(&self.agent_navigation, self.primary_thread_id.as_deref())
-                .with_current(self.thread_id.as_deref())
-                .with_keymap(self.runtime_keymap.list().clone());
+        let picker = AgentPicker::from_navigation(
+            &self.chat_widget.agent_navigation,
+            self.primary_thread_id.as_deref(),
+        )
+        .with_current(self.thread_id.as_deref())
+        .with_keymap(self.chat_widget.runtime_keymap.list().clone());
         if picker.is_empty() {
-            self.projection.set_status(self.locale.agent_picker_empty());
+            self.projection
+                .set_status(self.chat_widget.locale.agent_picker_empty());
         } else {
-            self.chat_widget.agent_picker = Some(picker);
+            self.chat_widget.set_agent_picker(picker);
         }
     }
 }

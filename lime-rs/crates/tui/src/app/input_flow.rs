@@ -66,8 +66,22 @@ impl App {
             && self.projection.active_turn_id().is_none()
         {
             return self
+                .chat_widget
                 .next_collaboration_mode()
                 .map(AppAction::ChangeCollaborationMode)
+                .unwrap_or(AppAction::None);
+        }
+
+        if crate::keymap::queued_input_edit_matches(key_event)
+            && self.chat_widget.bottom_pane.composer_is_empty()
+        {
+            return self
+                .chat_widget
+                .queued_submissions()
+                .last()
+                .filter(|submission| can_restore_submission(submission))
+                .cloned()
+                .map(AppAction::EditQueuedSubmission)
                 .unwrap_or(AppAction::None);
         }
 
@@ -102,21 +116,6 @@ impl App {
                 ..
             } if modifiers.contains(KeyModifiers::CONTROL) && value.eq_ignore_ascii_case(&'o') => {
                 AppAction::CopyLastResponse
-            }
-            KeyEvent {
-                code: KeyCode::Up,
-                modifiers,
-                kind: KeyEventKind::Press,
-                ..
-            } if modifiers.contains(KeyModifiers::ALT)
-                && self.chat_widget.bottom_pane.composer_is_empty() =>
-            {
-                self.queued_submissions
-                    .last()
-                    .filter(|submission| can_restore_submission(submission))
-                    .cloned()
-                    .map(AppAction::EditQueuedSubmission)
-                    .unwrap_or(AppAction::None)
             }
             KeyEvent {
                 kind: KeyEventKind::Press,

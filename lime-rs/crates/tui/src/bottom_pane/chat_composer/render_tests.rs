@@ -1,4 +1,5 @@
 use super::*;
+use crate::bottom_pane::InputResult;
 use crate::locale::Locale;
 use crate::terminal_probe::DefaultColors;
 use ratatui::{backend::TestBackend, Terminal};
@@ -132,4 +133,64 @@ fn localized_placeholder_uses_the_same_prompt_baseline_in_every_product_locale()
         );
         assert_eq!(terminal.backend().cursor_position(), Position::new(2, 1));
     }
+}
+
+#[test]
+fn disabled_input_keeps_draft_but_hides_cursor_and_uses_disabled_placeholder() {
+    let mut composer = ChatComposer::default();
+    composer.insert("draft that must remain recoverable");
+    composer.set_input_enabled(false, Some("Waiting for reconnect...".to_string()));
+
+    assert!(!composer.input_enabled());
+    assert_eq!(composer.text(), "draft that must remain recoverable");
+    assert_eq!(
+        composer.handle_key_event(crossterm::event::KeyEvent::new(
+            crossterm::event::KeyCode::Char('x'),
+            crossterm::event::KeyModifiers::NONE,
+        )),
+        InputResult::None
+    );
+    composer.handle_paste(" pasted");
+    assert_eq!(composer.text(), "draft that must remain recoverable");
+
+    let mut terminal = Terminal::new(TestBackend::new(48, 5)).unwrap();
+    terminal
+        .draw(|frame| composer.render(frame, frame.area(), Locale::EnUs))
+        .unwrap();
+    let rendered = text(&terminal);
+    assert!(rendered.contains("Waiting for reconnect..."), "{rendered}");
+    assert!(
+        !rendered.contains("draft that must remain recoverable"),
+        "{rendered}"
+    );
+    assert_eq!(composer.cursor_pos(Rect::new(0, 0, 48, 5)), None);
+}
+
+#[test]
+fn selected_remote_image_hides_cursor_until_selection_is_cleared() {
+    use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+
+    let mut composer = ChatComposer::default();
+    composer.set_remote_image_urls(vec!["https://example.test/image.png".to_string()]);
+    composer.insert("describe");
+    let mut terminal = Terminal::new(TestBackend::new(40, 6)).unwrap();
+    terminal
+        .draw(|frame| composer.render(frame, frame.area(), Locale::EnUs))
+        .unwrap();
+    assert!(composer.cursor_pos(Rect::new(0, 0, 40, 6)).is_some());
+
+    composer.draft.textarea.set_cursor(0);
+    assert_eq!(
+        composer.handle_key_event(KeyEvent::new(KeyCode::Up, KeyModifiers::NONE)),
+        InputResult::Changed
+    );
+    assert!(composer.has_selected_remote_image());
+    assert_eq!(composer.cursor_pos(Rect::new(0, 0, 40, 6)), None);
+
+    assert_eq!(
+        composer.handle_key_event(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE)),
+        InputResult::Changed
+    );
+    assert!(!composer.has_selected_remote_image());
+    assert!(composer.cursor_pos(Rect::new(0, 0, 40, 6)).is_some());
 }

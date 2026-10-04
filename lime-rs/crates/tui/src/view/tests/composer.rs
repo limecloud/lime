@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn test_backend_renders_streaming_unicode_and_composer() {
     let mut app = App::default();
-    app.set_settings(
+    app.chat_widget.set_settings(
         Some("fixture-model".to_string()),
         Some("fixture-provider".to_string()),
         Some("high".to_string()),
@@ -181,7 +181,7 @@ fn active_turn_status_precedes_canonical_queue_and_composer() {
 fn footer_renders_the_active_agent_label() {
     let mut app = App::default();
     app.set_thread_id("main".to_string());
-    app.agent_navigation.upsert(
+    app.chat_widget.agent_navigation.upsert(
         "agent-1",
         Some("Robie".to_string()),
         Some("explorer".to_string()),
@@ -404,7 +404,11 @@ fn history_search_footer_cursor_tracks_query_and_clamps_to_narrow_width() {
         .draw(|frame| render(frame, &app))
         .expect("draw wide");
     let footer = screen_chunks(wide, &app, app.active_turn_elapsed(Instant::now())).footer;
-    let prefix_width = Line::from(format!(" {}", app.locale.history_search_label())).width() as u16;
+    let prefix_width = Line::from(format!(
+        " {}",
+        app.chat_widget.locale.history_search_label()
+    ))
+    .width() as u16;
     assert_eq!(
         terminal.backend().cursor_position(),
         Position::new(footer.x + prefix_width + 3, footer.y)

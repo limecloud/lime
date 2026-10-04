@@ -25,7 +25,7 @@ impl ChatComposer {
         if text_area.is_empty() {
             return;
         }
-        let cursor = {
+        {
             let mut state = self.textarea_state_mut();
             self.textarea().remember_rendered_area(text_area);
             let highlights = self
@@ -41,12 +41,17 @@ impl ChatComposer {
                 })
                 .collect::<Vec<_>>();
             let prompt_width = layout::PROMPT_GUTTER_COLS.min(layout.inner.width);
-            let prompt = Line::from(Span::styled("› ", Style::default().bold()));
+            let prompt_style = if self.input_enabled() {
+                Style::default().add_modifier(Modifier::BOLD)
+            } else {
+                crate::style::muted_style()
+            };
+            let prompt = Line::from(Span::styled("› ", prompt_style));
             frame.render_widget(
                 Paragraph::new(prompt),
                 Rect::new(layout.inner.x, text_area.y, prompt_width, 1),
             );
-            if highlights.is_empty() {
+            if self.input_enabled() && highlights.is_empty() {
                 if self.textarea().is_empty() {
                     // Keep attachment rows visible above the input baseline. The prompt occupies its
                     // own gutter, while the placeholder is rendered inside the text area so both
@@ -59,7 +64,7 @@ impl ChatComposer {
                 } else {
                     frame.render_stateful_widget_ref(self.textarea(), text_area, &mut *state);
                 }
-            } else {
+            } else if self.input_enabled() {
                 self.textarea().render_ref_styled_with_highlights(
                     text_area,
                     frame.buffer_mut(),
@@ -68,10 +73,24 @@ impl ChatComposer {
                     &highlights,
                 );
             }
-            self.textarea().cursor_pos_with_state(text_area, *state)
-        };
-        if let Some((x, y)) = cursor.filter(|_| !self.has_selected_remote_image()) {
+        }
+        if let Some((x, y)) = self.cursor_pos(area) {
             frame.set_cursor_position(Position::new(x, y));
+        }
+
+        if !self.input_enabled() {
+            let placeholder = self
+                .draft
+                .input_disabled_placeholder
+                .as_deref()
+                .unwrap_or("Input disabled.");
+            frame.render_widget(
+                Paragraph::new(Line::from(Span::styled(
+                    placeholder,
+                    crate::style::muted_style(),
+                ))),
+                text_area,
+            );
         }
     }
 }

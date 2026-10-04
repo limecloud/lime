@@ -1,37 +1,35 @@
-## Lime v1.149.0
+## Lime v1.150.0
 
 ### 新功能
 
-- TUI 持续对齐 Codex ChatWidget：输入、交互、transcript presentation、Agent Center 以及模型/Agent/恢复/导出选择器收敛到单一 ChatWidget owner。
-- 侧栏新增可折叠 rail、项目对话分组的展开/收起与按需加载，并支持插件、技能和已安装目录的搜索导航。
-- Agent transcript 对暂不支持的 Item 提供稳定的多语言占位卡片，诊断字段默认折叠，需要时可展开查看。
-- 定时任务页面重做为更紧凑的任务列表与编辑器，支持即时创建、编辑、筛选、搜索、重复计划和运行预览。
+- ChatWidget 继续收敛终端会话状态，统一承接运行时快捷键、剪贴板与右键粘贴、排队提交、按线程草稿快照、回合生命周期和启动警告展示。
+- 历史分页、恢复预览和 transcript 加载改为异步 completion/event 流，支持线程与 cursor 归属校验，并在分页期间保持键盘、重绘和 App Server 通知处理。
+- 交互层补齐审批详情、transcript 滚轮、选择拖拽、恢复/Agent/模型/导出 picker 以及外部编辑器生命周期的 ChatWidget owner。
 
 ### 修复
 
-- 修复插件目录在侧栏内切换筛选、搜索和详情时路由参数与页面状态不同步的问题。
-- 修复 TUI 在 Thread 切换、恢复、滚动、搜索、焦点变化和 transient picker 生命周期中出现的状态回流与重复 owner 问题。
-- 修复窄终端、全屏 Agent Center、重排、重连和终端恢复场景下的渲染与交互边界。
-- 修复定时任务编辑时标题、时间、时区、星期和启用状态的校验与回填，保持五语言文案一致。
+- 修复历史分页、恢复预览、滚动、搜索、重连和终端恢复期间的状态回流、重复请求和 loading 误复位。
+- 修复输入禁用、草稿恢复、队列编辑、剪贴板竞态、modal/pager selection 和 picker 取消路径的交互边界。
+- 修复 TUI 在窄终端、焦点切换、审批详情和外部编辑器异步返回时的渲染与生命周期问题。
 
 ### 优化与重构
 
-- 删除 App 中旧的 BottomPane、transcript、Agent Center 和 picker 平行字段及 mapper 命名，直接迁移到 current ChatWidget/BottomPane owner，不保留兼容壳。
-- 拆分侧栏、设置导航、rail、插件定制区和加载更多组件，统一使用 Lime 设计 token 与可访问交互。
-- 将定时任务创建与编辑表单拆为共享 editor owner，列表操作与弹窗生命周期复用同一表单事实源。
-- 将未知 Item 渲染、TUI 结构 inventory、PTY/stdio fixture 和 Vitest 批处理逻辑拆为独立 owner，保持共享 App Server JSON-RPC 与 canonical Thread/Turn/Item 主链。
+- 删除 App 中残留的 ChatWidget 平行字段、getter/setter 和旧 `thread_settings`、command popup、status indicator 等入口，直接迁移到 current ChatWidget/BottomPane owner。
+- 将 ChatWidget 拆分为 input、interaction、settings、transcript、footer 等窄职责模块；App 继续只负责 host 生命周期、transport/session、Thread 路由和 canonical projection。
+- 保持 `Product Surface -> App Server JSON-RPC -> RuntimeCore -> Thread/Turn/Item projection` 唯一主链，不新增本地 history/queue backend、平行 runtime 或兼容层。
 
 ### 测试与质量
 
-- 补充 TUI ChatWidget owner、Agent Center、picker、transcript、PTY Gate B、CLI Gate B、侧栏、设置布局、插件目录和未知 Item 的回归覆盖。
-- 发布验证执行 `npm run verify:app-version`、`npm run typecheck`、`npm run test:contracts` 与 `npm run verify:gui-smoke`；跨平台打包、签名、公证和 npm optional packages 由发布流水线继续验证。
+- 扩展 TUI ChatWidget、历史分页、选择器、队列、输入、恢复、PTY 和结构守卫测试，并更新 Codex 对齐与结构 inventory。
+- 补充 CLI/TUI Gate B 场景覆盖，继续复用 App Server JSON-RPC 与 canonical Thread/Turn/Item 事实源。
+- 发布验证执行 `npm run verify:app-version`、`npm run typecheck`、`npm run test:contracts`、Rust TUI 定向测试与 `npm run verify:gui-smoke`；未通过的门禁会在发布计划中记录。
 
 ### 文档
 
-- 更新架构说明、TUI/CLI Codex 对齐执行计划、结构 inventory 与 v1.149.0 发布执行计划。
+- 更新架构确认、TUI/CLI Codex 对齐执行计划、TUI 结构 inventory 与发布执行计划。
 
 ### 其他
 
-- 本版本不新增平行 runtime、协议后端、历史存储或兼容实现；Desktop 与 CLI/TUI 继续共享 `Product Surface -> App Server JSON-RPC -> RuntimeCore -> Thread/Turn/Item` 主链。
+- 本版本继续保持 Desktop 与 CLI/TUI 共享同一个 App Server/runtime/canonical projection，未恢复已退役 runtime 或生产 mock fallback。
 
-**完整变更**: `v1.148.0` -> `v1.149.0`
+**完整变更**: `v1.149.0` -> `v1.150.0`

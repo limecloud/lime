@@ -22,6 +22,9 @@ impl ChatComposer {
     }
 
     pub(crate) fn handle_paste(&mut self, text: &str) {
+        if !self.draft.input_enabled {
+            return;
+        }
         let pending = self
             .draft
             .paste_burst
@@ -115,6 +118,10 @@ impl ChatComposer {
     }
 
     pub(crate) fn handle_paste_burst_flush(&mut self, now: Instant) -> bool {
+        if !self.draft.input_enabled {
+            self.draft.paste_burst.clear_after_explicit_paste();
+            return false;
+        }
         match self.draft.paste_burst.flush_if_due(now) {
             FlushResult::Paste(text) => {
                 self.handle_paste(&text);

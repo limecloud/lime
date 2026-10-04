@@ -33,6 +33,88 @@ fn test_backend_renders_filtered_slash_command_popup_above_composer() {
 }
 
 #[test]
+fn composer_popup_remains_visible_with_status_and_queue_rows() {
+    let mut app = App::default();
+    app.start_turn("turn-popup-clip".to_string());
+    app.set_queued_submissions(vec![QueuedSubmission {
+        id: "queue-popup-clip".to_string(),
+        input: vec![UserInput::Text {
+            text: "queued follow-up".to_string(),
+            text_elements: Vec::new(),
+        }],
+        client_user_message_id: "client-popup-clip".to_string(),
+    }]);
+    for character in ['/', 'p', 'e'] {
+        dispatch_connected_input(
+            &mut app,
+            Event::Key(KeyEvent::new(KeyCode::Char(character), KeyModifiers::NONE)),
+        );
+    }
+
+    let width = 48;
+    let height = 14;
+    let mut terminal = Terminal::new(TestBackend::new(width, height)).expect("terminal");
+    terminal.draw(|frame| render(frame, &app)).expect("draw");
+
+    let chunks = screen_chunks(
+        Rect::new(0, 0, width, height),
+        &app,
+        app.active_turn_elapsed(Instant::now()),
+    );
+    assert!(chunks.status.height > 0, "status row was not allocated");
+    assert!(
+        chunks.preview.height > 0,
+        "queue preview row was not allocated"
+    );
+
+    assert!(buffer_text(&terminal).contains("/permissions"));
+}
+
+#[test]
+fn composer_popup_unicode_rows_stay_within_display_width_for_all_locales() {
+    for locale in [
+        Locale::ZhCn,
+        Locale::ZhTw,
+        Locale::EnUs,
+        Locale::JaJp,
+        Locale::KoKr,
+    ] {
+        for width in [24, 40] {
+            let mut app = App::default();
+            app.set_locale(locale);
+            app.chat_widget.bottom_pane.insert_str("你好🙂 /p");
+            let height = 12;
+            let mut terminal = Terminal::new(TestBackend::new(width, height)).expect("terminal");
+            terminal.draw(|frame| render(frame, &app)).expect("draw");
+
+            let buffer = terminal.backend().buffer();
+            for y in 0..buffer.area.height {
+                let mut row_width = 0;
+                let mut continuation = false;
+                for x in 0..buffer.area.width {
+                    if continuation {
+                        continuation = false;
+                        continue;
+                    }
+                    let symbol = crate::terminal_hyperlinks::strip_osc8(buffer[(x, y)].symbol());
+                    let width = crate::width::display_width(&symbol);
+                    row_width += width;
+                    continuation = width > 1;
+                }
+                assert!(
+                    row_width <= usize::from(width),
+                    "{locale:?} row {y} exceeded {width}: {row_width}"
+                );
+            }
+            let text = buffer_text(&terminal);
+            assert!(text.contains('你'), "{locale:?}: {text}");
+            assert!(text.contains('好'), "{locale:?}: {text}");
+            assert!(text.contains('🙂'), "{locale:?}: {text}");
+        }
+    }
+}
+
+#[test]
 fn export_picker_matches_codex_destination_and_filename_flow() {
     let mut app = App::default();
     app.set_thread_id("00000000-0000-0000-0000-000000000123".to_string());
@@ -98,7 +180,7 @@ fn status_pager_owns_the_frame_and_renders_current_session_facts() {
     let mut app = App::default();
     app.set_thread_id("thread-1".to_string());
     app.set_cwd(std::path::PathBuf::from("/workspace"));
-    app.set_settings(
+    app.chat_widget.set_settings(
         Some("gpt-5".to_string()),
         Some("openai".to_string()),
         Some("high".to_string()),
@@ -193,7 +275,7 @@ fn user_visible_header_labels_cover_all_product_locales() {
     ] {
         let mut app = App::default();
         app.set_locale(locale);
-        app.set_settings(
+        app.chat_widget.set_settings(
             Some("fixture-model".to_string()),
             Some("fixture-provider".to_string()),
             Some("high".to_string()),

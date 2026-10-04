@@ -97,6 +97,19 @@ pub(crate) fn shortcut_label(code: KeyCode, modifiers: KeyModifiers) -> String {
     KeyBinding { code, modifiers }.display_label()
 }
 
+/// The queued-input edit shortcut is a host action rather than a configurable editor binding.
+/// Keep its dispatch predicate and visible label together so the affordance cannot drift from
+/// the key handled by `App::handle_key_event`.
+pub(crate) fn queued_input_edit_matches(key: KeyEvent) -> bool {
+    key.kind == KeyEventKind::Press
+        && key.code == KeyCode::Up
+        && key.modifiers.contains(KeyModifiers::ALT)
+}
+
+pub(crate) fn queued_input_edit_shortcut_label() -> String {
+    shortcut_label(KeyCode::Up, KeyModifiers::ALT)
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 enum Shortcut {
     Single(KeyBinding),

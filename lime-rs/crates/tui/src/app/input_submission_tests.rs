@@ -29,7 +29,9 @@ fn rejected_composer_input_stays_local_and_projects_a_visible_error_without_a_su
     assert_eq!(entry.kind, crate::projection::EntryKind::Error);
     assert_eq!(
         entry.text,
-        app.locale.user_input_too_large_message(actual_chars)
+        app.chat_widget
+            .locale
+            .user_input_too_large_message(actual_chars)
     );
 }
 
@@ -342,7 +344,7 @@ fn queue_edit_rebases_multiple_text_parts_and_skill_prefix_without_losing_inline
         app.take_remote_image_urls(),
         vec!["https://example.test/remote.png"]
     );
-    assert!(app.queued_submissions.is_empty());
+    assert!(app.chat_widget.queued_submissions().is_empty());
 }
 
 #[test]
@@ -481,7 +483,7 @@ fn canonical_queue_edit_resubmit_history_and_failure_restore_keep_all_image_deta
         };
         app.set_queued_submissions(vec![queued.clone()]);
         assert!(app.restore_queued_submission_for_edit(queued));
-        assert!(app.queued_submissions.is_empty());
+        assert!(app.chat_widget.queued_submissions().is_empty());
         let AppAction::Submit {
             text,
             text_elements,

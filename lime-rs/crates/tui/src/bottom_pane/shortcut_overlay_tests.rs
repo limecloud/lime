@@ -194,7 +194,7 @@ fn a_global_question_mark_binding_owns_routing_and_footer_hint() {
     let mut config = TuiKeymap::default();
     config.global.open_agents = Some(KeybindingsSpec::One(KeybindingSpec("?".into())));
     app.set_runtime_keymap(RuntimeKeymap::from_config(&config).unwrap());
-    assert!(!toggle_available(&app));
+    assert!(!app.chat_widget.shortcut_toggle_available());
     let mut terminal = Terminal::new(TestBackend::new(80, 20)).unwrap();
     terminal.draw(|f| crate::view::render(f, &app)).unwrap();
     let text = buffer_text(&terminal);

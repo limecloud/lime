@@ -1,16 +1,18 @@
-use std::io;
+use std::{collections::HashSet, io};
 
 use app_server_client::RequestHandle;
 #[cfg(test)]
 use app_server_protocol::protocol::v2::UserInput;
 use app_server_protocol::protocol::v2::{
     ThreadHistoryMode, ThreadItem, ThreadItemsListResponse, ThreadReadParams, ThreadReadResponse,
-    METHOD_THREAD_ITEMS_LIST, METHOD_THREAD_READ,
+    Turn, METHOD_THREAD_ITEMS_LIST, METHOD_THREAD_READ,
 };
 
 use crate::app_server_session::{
-    thread_items_page_params, AppServerSession, HISTORY_ITEM_PAGE_LIMIT, HISTORY_ITEM_SCAN_LIMIT,
+    thread_items_page_params, thread_turns_for_items_with_handle, AppServerSession,
+    HISTORY_ITEM_PAGE_LIMIT, HISTORY_ITEM_SCAN_LIMIT,
 };
+use crate::history_filter::{filter_user_message_ids, hidden_user_message_ids};
 use crate::projection::{ConversationProjection, EntryKind};
 
 const MAX_TRANSCRIPT_PREVIEW_LINES: usize = 6;
@@ -82,6 +84,7 @@ async fn load_paginated_preview(
     let mut cursor = None;
     let mut seen_cursors = std::collections::HashSet::new();
     let mut scanned_items = 0_usize;
+    let mut turn_ids = HashSet::new();
 
     loop {
         let remaining_items = HISTORY_ITEM_SCAN_LIMIT.saturating_sub(scanned_items);
@@ -102,6 +105,7 @@ async fn load_paginated_preview(
             )
             .await
             .map_err(io::Error::other)?;
+        turn_ids.extend(page.data.iter().map(|entry| entry.turn_id.clone()));
         scanned_items = scanned_items.saturating_add(page.data.len());
         let page_items = page
             .data
@@ -122,7 +126,17 @@ async fn load_paginated_preview(
         cursor = Some(next_cursor);
     }
 
-    Ok(preview_from_items(&items))
+    let turns = if turn_ids.is_empty() {
+        None
+    } else {
+        thread_turns_for_items_with_handle(request_handle, thread_id, &turn_ids)
+            .await
+            .ok()
+    };
+    Ok(match turns {
+        Some(turns) => preview_from_items_with_turns(&items, &turns),
+        None => preview_from_items(&items),
+    })
 }
 
 fn preview_from_items(items: &[ThreadItem]) -> Vec<TranscriptPreviewLine> {
@@ -141,6 +155,15 @@ fn preview_from_items(items: &[ThreadItem]) -> Vec<TranscriptPreviewLine> {
         })
         .collect();
     preview_from_entries(entries).expect("preview projection is infallible")
+}
+
+fn preview_from_items_with_turns(
+    items: &[ThreadItem],
+    turns: &[Turn],
+) -> Vec<TranscriptPreviewLine> {
+    let hidden_ids = hidden_user_message_ids(turns);
+    let visible_items = filter_user_message_ids(items, &hidden_ids);
+    preview_from_items(&visible_items)
 }
 
 fn next_preview_cursor(

@@ -165,7 +165,10 @@ fn materialized_text(content: &TranscriptContent, expanded: bool) -> String {
 #[test]
 fn transcript_content_lines_use_canonical_entry_order() {
     let mut app = App {
-        locale: Locale::EnUs,
+        chat_widget: crate::chatwidget::ChatWidget {
+            locale: Locale::EnUs,
+            ..Default::default()
+        },
         ..App::default()
     };
     app.projection.apply(
@@ -205,9 +208,9 @@ fn empty_thread_starts_with_exactly_one_session_header() {
     let app = App {
         chat_widget: crate::chatwidget::ChatWidget {
             model: Some("fixture-model".to_string()),
+            locale: Locale::EnUs,
             ..Default::default()
         },
-        locale: Locale::EnUs,
         cwd: "/workspace".into(),
         ..App::default()
     };
@@ -226,12 +229,18 @@ fn empty_thread_starts_with_exactly_one_session_header() {
 #[test]
 fn compact_main_hides_standalone_reasoning_but_pager_retains_it() {
     let empty = App {
-        locale: Locale::EnUs,
+        chat_widget: crate::chatwidget::ChatWidget {
+            locale: Locale::EnUs,
+            ..Default::default()
+        },
         cwd: "/workspace".into(),
         ..App::default()
     };
     let mut app = App {
-        locale: Locale::EnUs,
+        chat_widget: crate::chatwidget::ChatWidget {
+            locale: Locale::EnUs,
+            ..Default::default()
+        },
         cwd: "/workspace".into(),
         ..App::default()
     };
@@ -260,7 +269,10 @@ fn compact_main_hides_standalone_reasoning_but_pager_retains_it() {
 #[test]
 fn flat_reasoning_without_turn_scope_is_hidden_only_from_compact_main() {
     let mut app = App {
-        locale: Locale::EnUs,
+        chat_widget: crate::chatwidget::ChatWidget {
+            locale: Locale::EnUs,
+            ..Default::default()
+        },
         cwd: "/workspace".into(),
         ..App::default()
     };
@@ -287,7 +299,10 @@ fn flat_reasoning_without_turn_scope_is_hidden_only_from_compact_main() {
 #[test]
 fn hidden_reasoning_keeps_its_completion_separator_in_compact_main() {
     let mut app = App {
-        locale: Locale::EnUs,
+        chat_widget: crate::chatwidget::ChatWidget {
+            locale: Locale::EnUs,
+            ..Default::default()
+        },
         ..App::default()
     };
     apply_reasoning_item(
@@ -311,7 +326,10 @@ fn hidden_reasoning_keeps_its_completion_separator_in_compact_main() {
 #[test]
 fn raw_main_preserves_markdown_source_while_detailed_pager_retains_reasoning() {
     let mut app = App {
-        locale: Locale::EnUs,
+        chat_widget: crate::chatwidget::ChatWidget {
+            locale: Locale::EnUs,
+            ..Default::default()
+        },
         cwd: "/workspace".into(),
         ..App::default()
     };
@@ -441,7 +459,10 @@ fn wrapped_list_file_links_keep_the_target_with_following_prose() {
 #[test]
 fn transcript_content_lines_render_completion_separator_after_completed_turn() {
     let mut app = App {
-        locale: Locale::EnUs,
+        chat_widget: crate::chatwidget::ChatWidget {
+            locale: Locale::EnUs,
+            ..Default::default()
+        },
         ..App::default()
     };
     app.projection.add_warning_message("answer");
@@ -457,7 +478,10 @@ fn transcript_content_lines_render_completion_separator_after_completed_turn() {
 #[test]
 fn rendered_transcript_row_count_tracks_wrapped_viewport_width() {
     let mut app = App {
-        locale: Locale::EnUs,
+        chat_widget: crate::chatwidget::ChatWidget {
+            locale: Locale::EnUs,
+            ..Default::default()
+        },
         ..App::default()
     };
     app.projection.add_warning_message(
@@ -777,7 +801,10 @@ fn computer_activity_localizes_the_missing_title_fallback() {
 #[test]
 fn main_transcript_uses_grouped_compact_activity_and_turn_boundaries() {
     let mut app = App {
-        locale: Locale::EnUs,
+        chat_widget: crate::chatwidget::ChatWidget {
+            locale: Locale::EnUs,
+            ..Default::default()
+        },
         ..App::default()
     };
     apply_exploration_item(
@@ -829,7 +856,10 @@ fn main_transcript_uses_grouped_compact_activity_and_turn_boundaries() {
 #[test]
 fn canonical_main_transcript_absorbs_reasoning_and_keeps_trailing_completion() {
     let mut app = App {
-        locale: Locale::EnUs,
+        chat_widget: crate::chatwidget::ChatWidget {
+            locale: Locale::EnUs,
+            ..Default::default()
+        },
         ..App::default()
     };
     apply_exploration_item(
@@ -875,7 +905,10 @@ fn canonical_main_transcript_absorbs_reasoning_and_keeps_trailing_completion() {
 #[test]
 fn streamed_reasoning_keeps_scope_when_canonical_item_replaces_it() {
     let mut app = App {
-        locale: Locale::EnUs,
+        chat_widget: crate::chatwidget::ChatWidget {
+            locale: Locale::EnUs,
+            ..Default::default()
+        },
         ..App::default()
     };
     apply_exploration_item(

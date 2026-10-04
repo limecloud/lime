@@ -297,7 +297,7 @@ fn main_find_owns_query_footer_highlight_and_restores_compact_position() {
 #[test]
 fn main_find_pauses_for_selection_and_reuses_older_history_action() {
     let mut app = app_with_searchable_transcript();
-    app.scrollback_has_older_history = true;
+    app.chat_widget.scrollback_has_older_history = true;
     let mut terminal = Terminal::new(TestBackend::new(64, 12)).expect("terminal");
     terminal
         .draw(|frame| crate::view::render(frame, &app))

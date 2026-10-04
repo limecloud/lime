@@ -8,98 +8,89 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Clear, Paragraph};
 use ratatui::Frame;
 
-use crate::app::App;
 use crate::line_truncation::{line_width, truncate_line_with_ellipsis_if_overflow};
 use crate::locale::Locale;
-use crate::style::{accent_style, footer_hint_label_style};
+use crate::style::footer_hint_label_style;
 use crate::width::usable_content_width_u16;
 
 const FOOTER_INDENT_COLS: u16 = 1;
 
-pub(crate) fn render_footer(frame: &mut Frame<'_>, area: Rect, app: &App) {
-    if app.chat_widget.bottom_pane.is_active() {
-        if let Some(hints) = app
-            .chat_widget
-            .bottom_pane
-            .footer_hint_lines(app.locale, usize::from(area.width.saturating_sub(1)))
-        {
-            let width =
-                usable_content_width_u16(area.width, FOOTER_INDENT_COLS).unwrap_or_default();
-            let lines = hints
-                .into_iter()
-                .take(usize::from(area.height))
-                .map(|hint| {
-                    truncate_line_with_ellipsis_if_overflow(
-                        Line::from(Span::styled(format!(" {hint}"), footer_hint_label_style())),
-                        width,
-                    )
-                })
-                .collect::<Vec<_>>();
-            frame.render_widget(Clear, area);
-            frame.render_widget(Paragraph::new(lines), area);
-            return;
-        }
-    }
-    if app
-        .chat_widget
-        .bottom_pane
-        .composer
-        .shortcut_overlay_visible()
+/// Selects the footer surface rendered below the composer.
+///
+/// The composer owns the transient state, while the footer owns the public presentation
+/// vocabulary. Keeping the mode in the snapshot prevents the renderer from re-deriving it from
+/// draft text and accidentally diverging from input handling.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum FooterMode {
+    #[default]
+    ComposerEmpty,
+    ComposerHasDraft,
+    HistorySearch,
+    ShortcutOverlay,
+}
+
+pub(crate) fn render_footer(frame: &mut Frame<'_>, area: Rect, props: &FooterProps) {
+    if let Some(hints) = props
+        .interaction_hint_lines
+        .as_ref()
+        .filter(|hints| !hints.is_empty())
     {
-        super::shortcut_overlay::render_close_hint(frame, area, app);
+        let width = usable_content_width_u16(area.width, FOOTER_INDENT_COLS).unwrap_or_default();
+        let lines = hints
+            .iter()
+            .take(usize::from(area.height))
+            .map(|hint| {
+                truncate_line_with_ellipsis_if_overflow(
+                    Line::from(Span::styled(format!(" {hint}"), footer_hint_label_style())),
+                    width,
+                )
+            })
+            .collect::<Vec<_>>();
+        frame.render_widget(Clear, area);
+        frame.render_widget(Paragraph::new(lines), area);
         return;
     }
-    let vim_indicator = app
-        .chat_widget
-        .bottom_pane
-        .composer
-        .vim_mode_indicator_span();
-    if let Some(line) = app
-        .chat_widget
-        .bottom_pane
-        .composer
-        .history_search_footer_line()
-    {
+    if !props.input_enabled {
+        frame.render_widget(Clear, area);
+        return;
+    }
+    if props.mode == FooterMode::ShortcutOverlay {
+        render_shortcut_close_hint(frame, area, props.shortcut_close_hint.as_deref());
+        return;
+    }
+    let vim_indicator = props.vim_mode_indicator.clone();
+    if let Some(line) = props.history_search_line.clone() {
+        render_line(frame, area, line, vim_indicator.clone());
+        if let Some(column) = props.history_search_cursor_column {
+            let x = area
+                .x
+                .saturating_add(column)
+                .min(area.x.saturating_add(area.width.saturating_sub(1)));
+            frame.set_cursor_position(Position::new(x, area.y));
+        }
+        return;
+    }
+    if let Some(line) = props.vim_search_line.clone() {
         render_line(frame, area, line, vim_indicator);
-        if let Some((x, y)) = app
-            .chat_widget
-            .bottom_pane
-            .composer
-            .history_search_cursor_pos(area, app.locale.history_search_label())
-        {
-            frame.set_cursor_position(Position::new(x, y));
-        }
         return;
     }
-    if let Some((query, direction)) = app.chat_widget.bottom_pane.composer.vim_search_query() {
-        let prefix = match direction {
-            crate::vim_search::SearchDirection::Forward => "/",
-            crate::vim_search::SearchDirection::Backward => "?",
-        };
-        render_line(
-            frame,
-            area,
-            Line::from(Span::styled(format!("{prefix}{query}"), accent_style())),
-            vim_indicator,
-        );
-        return;
-    }
-    let props = FooterProps {
-        locale: app.locale,
-        has_draft: app.chat_widget.bottom_pane.composer.footer_has_draft(),
-        is_task_running: app.projection.active_turn_id().is_some(),
-        plan_mode: should_show_plan_mode_hint(app),
-        active_agent_label: app
-            .agent_navigation
-            .active_agent_label(app.thread_id.as_deref(), app.primary_thread_id.as_deref()),
-        agents_hint: super::shortcut_overlay::agents_hint(app),
-        shortcuts_available: super::shortcut_overlay::toggle_available(app),
-    };
     render_line(
         frame,
         area,
-        single_line_footer_layout(&props, area.width),
+        single_line_footer_layout(props, area.width),
         vim_indicator,
+    );
+}
+
+fn render_shortcut_close_hint(frame: &mut Frame<'_>, area: Rect, hint: Option<&str>) {
+    let Some(hint) = hint else {
+        return;
+    };
+    let width = usize::from(area.width.saturating_sub(1));
+    let line = Line::from(Span::styled(format!(" {hint}"), footer_hint_label_style()));
+    frame.render_widget(
+        Paragraph::new(truncate_line_with_ellipsis_if_overflow(line, width + 1)),
+        area,
     );
 }
 
@@ -124,25 +115,34 @@ fn render_line(
     );
 }
 
-struct FooterProps {
-    locale: Locale,
-    has_draft: bool,
-    is_task_running: bool,
-    plan_mode: bool,
-    active_agent_label: Option<String>,
-    agents_hint: Option<String>,
-    shortcuts_available: bool,
+#[derive(Clone, Debug)]
+pub(crate) struct FooterProps {
+    pub(crate) locale: Locale,
+    pub(crate) mode: FooterMode,
+    pub(crate) input_enabled: bool,
+    pub(crate) interaction_hint_lines: Option<Vec<String>>,
+    pub(crate) shortcut_close_hint: Option<String>,
+    pub(crate) history_search_line: Option<Line<'static>>,
+    pub(crate) history_search_cursor_column: Option<u16>,
+    pub(crate) vim_search_line: Option<Line<'static>>,
+    pub(crate) vim_mode_indicator: Option<Span<'static>>,
+    pub(crate) is_task_running: bool,
+    pub(crate) plan_mode: bool,
+    pub(crate) active_agent_label: Option<String>,
+    pub(crate) agents_hint: Option<String>,
+    pub(crate) shortcuts_available: bool,
 }
 
 /// Follow Codex's actionable collapse order without inventing unavailable usage/status facts.
 fn single_line_footer_layout(props: &FooterProps, width: u16) -> Line<'static> {
     let available = usize::from(width.saturating_sub(FOOTER_INDENT_COLS));
     let fits = |line: &Line<'_>| line_width(line) <= available;
-    let queue = props.has_draft && props.is_task_running;
+    let has_draft = props.mode == FooterMode::ComposerHasDraft;
+    let queue = has_draft && props.is_task_running;
     if !queue {
         if let Some(label) = &props.active_agent_label {
             let mut line = Line::from(Span::styled(label.clone(), footer_hint_label_style()));
-            if !props.has_draft {
+            if !has_draft {
                 if let Some(key) = &props.agents_hint {
                     line.push_span(Span::styled(
                         format!(" · {}", props.locale.agents_key_hint(key)),
@@ -155,7 +155,7 @@ fn single_line_footer_layout(props: &FooterProps, width: u16) -> Line<'static> {
     }
     let hint = if queue {
         props.locale.queue_message_hint().to_string()
-    } else if !props.has_draft {
+    } else if !has_draft {
         match (&props.agents_hint, props.shortcuts_available) {
             (Some(key), true) => format!(
                 "{} · {}",
@@ -201,7 +201,7 @@ fn single_line_footer_layout(props: &FooterProps, width: u16) -> Line<'static> {
                 return line;
             }
         }
-    } else if !props.has_draft {
+    } else if !has_draft {
         if let Some(key) = &props.agents_hint {
             let compact = summary_line(&props.locale.agents_key_hint(key), None);
             if fits(&compact) {
@@ -244,35 +244,6 @@ fn summary_line(hint: &str, mode: Option<&'static str>) -> Line<'static> {
     line
 }
 
-fn should_show_plan_mode_hint(app: &App) -> bool {
-    matches!(
-        app.chat_widget
-            .collaboration_mode
-            .as_ref()
-            .map(|mode| mode.mode),
-        Some(agent_protocol::ModeKind::Plan)
-    ) && app.chat_widget.bottom_pane.current().is_none()
-        && app.chat_widget.model_picker.is_none()
-        && app.chat_widget.agent_picker.is_none()
-        && app.chat_widget.agents_overview.is_none()
-        && app.chat_widget.resume_picker.is_none()
-        && app.chat_widget.export_picker.is_none()
-        && app.chat_widget.pager_overlay.is_none()
-        && !app.chat_widget.bottom_pane.composer.history_search_active()
-        && !app.chat_widget.bottom_pane.composer.vim_search_active()
-        && !app
-            .chat_widget
-            .bottom_pane
-            .composer
-            .completion_popup_active()
-        && !app
-            .chat_widget
-            .bottom_pane
-            .composer
-            .file_search_popup_active()
-        && !app.chat_widget.bottom_pane.composer.skill_popup_active()
-}
-
 #[cfg(test)]
 mod tests {
     use super::render_footer;
@@ -285,7 +256,15 @@ mod tests {
     fn rendered_text_at_width(app: &App, width: u16) -> String {
         let mut terminal = Terminal::new(TestBackend::new(width, 1)).expect("terminal");
         terminal
-            .draw(|frame| render_footer(frame, frame.area(), app))
+            .draw(|frame| {
+                let props = app.chat_widget.footer_props(
+                    width,
+                    app.projection.active_turn_id().is_some(),
+                    app.thread_id.as_deref(),
+                    app.primary_thread_id.as_deref(),
+                );
+                render_footer(frame, frame.area(), &props)
+            })
             .expect("draw footer");
         let buffer = terminal.backend().buffer();
         (0..buffer.area.width)
@@ -303,6 +282,21 @@ mod tests {
         app.chat_widget.bottom_pane.composer.insert("draft");
 
         assert!(rendered_text(&app).trim().is_empty());
+    }
+
+    #[test]
+    fn disabled_composer_clears_passive_footer() {
+        let mut app = App::default();
+        app.chat_widget
+            .bottom_pane
+            .set_composer_input_enabled(false, Some("Waiting".to_string()));
+
+        assert!(rendered_text(&app).trim().is_empty());
+
+        app.chat_widget
+            .bottom_pane
+            .set_composer_input_enabled(true, None);
+        assert!(!rendered_text(&app).trim().is_empty());
     }
 
     #[test]
@@ -344,7 +338,7 @@ mod tests {
     fn passive_agent_label_replaces_shortcuts_in_empty_and_idle_draft_modes() {
         let mut app = App::default();
         app.set_thread_id("main".to_string());
-        app.agent_navigation.upsert(
+        app.chat_widget.agent_navigation.upsert(
             "agent-1",
             Some("Robie".into()),
             Some("explorer".into()),
@@ -366,7 +360,7 @@ mod tests {
     fn active_draft_prefers_queue_hint_and_hides_context_when_narrow() {
         let mut app = App::default();
         app.set_thread_id("main".to_string());
-        app.agent_navigation.upsert(
+        app.chat_widget.agent_navigation.upsert(
             "agent-1",
             Some("Robie".to_string()),
             Some("explorer".to_string()),
@@ -459,7 +453,7 @@ mod tests {
     fn renders_active_agent_context() {
         let mut app = App::default();
         app.set_thread_id("main".to_string());
-        app.agent_navigation.upsert(
+        app.chat_widget.agent_navigation.upsert(
             "agent-1",
             Some("Robie".to_string()),
             Some("explorer".to_string()),

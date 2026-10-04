@@ -3,14 +3,7 @@
 //! This mirrors Codex's owner boundary: transient footer state lives beside composer input, while
 //! the app view only renders the selected mode and text.
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub(super) enum FooterMode {
-    #[default]
-    ComposerEmpty,
-    ComposerHasDraft,
-    HistorySearch,
-    ShortcutOverlay,
-}
+use super::super::footer::FooterMode;
 
 #[derive(Debug, Default)]
 pub(super) struct FooterState {
@@ -18,11 +11,38 @@ pub(super) struct FooterState {
 }
 
 impl super::ChatComposer {
+    /// Resolve the effective footer surface from composer-owned transient state.
+    ///
+    /// The stored mode is only an override. History/Vim search always wins, while the base mode
+    /// follows the rich draft (including attachments), matching Codex's `footer_mode()` contract.
+    pub(crate) fn footer_mode(&self) -> FooterMode {
+        if self.history_search.is_some() || self.vim_search_active() {
+            return FooterMode::HistorySearch;
+        }
+
+        let base_mode = if self.is_empty() {
+            FooterMode::ComposerEmpty
+        } else {
+            FooterMode::ComposerHasDraft
+        };
+
+        match self.footer.mode {
+            FooterMode::ShortcutOverlay
+                if !self.popups.active()
+                    && !self.history_search_active()
+                    && !self.vim_search_active()
+                    && !self.is_vim_normal_mode()
+                    && !self.draft.paste_burst.is_active() =>
+            {
+                FooterMode::ShortcutOverlay
+            }
+            FooterMode::HistorySearch => FooterMode::HistorySearch,
+            _ => base_mode,
+        }
+    }
+
     pub(crate) fn shortcut_overlay_visible(&self) -> bool {
-        self.footer.mode == FooterMode::ShortcutOverlay
-            && !self.popups.active()
-            && self.history_search.is_none()
-            && !self.vim_search_active()
+        self.footer_mode() == FooterMode::ShortcutOverlay
     }
 
     pub(crate) fn dismiss_shortcut_overlay(&mut self) -> bool {

@@ -266,7 +266,10 @@ fn app_agent_center_consumes_the_same_startup_snapshot_as_the_model_picker() {
 #[test]
 fn fullscreen_notice_does_not_overpaint_the_configured_controls_or_editor() {
     let mut app = crate::app::App {
-        locale: Locale::EnUs,
+        chat_widget: crate::chatwidget::ChatWidget {
+            locale: Locale::EnUs,
+            ..Default::default()
+        },
         ..crate::app::App::default()
     };
     app.set_runtime_keymap(configured(

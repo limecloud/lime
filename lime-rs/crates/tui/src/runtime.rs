@@ -12,9 +12,10 @@ use serde::Serialize;
 
 use crate::app::event_dispatch::{EventContext, EventDispatch};
 use crate::app::reconnect::{reconnect_session, ReconnectedSession};
-use crate::app::{App, AppAction, ExternalEditorState};
+use crate::app::{App, AppAction};
 use crate::app_server_session::{AppServerSession, ThreadSettingsPatch};
 use crate::bottom_pane::{AppServerResponse, FileSearchRequest};
+use crate::chatwidget::ExternalEditorState;
 use crate::clipboard_paste::paste_image_to_temp_png;
 use crate::external_editor::edit_draft;
 use crate::locale::Locale;
@@ -169,20 +170,8 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
         &mut app,
     )
     .await;
-    let (
-        mut model,
-        mut model_provider,
-        mut effort,
-        mut permissions,
-        approval_policy,
-        mut approvals_reviewer,
-        mut sandbox_policy,
-    ) = match setup_result {
+    let (approval_policy, mut approvals_reviewer, mut sandbox_policy) = match setup_result {
         Ok(state) => (
-            state.model,
-            state.model_provider,
-            state.effort,
-            state.permissions,
             state.approval_policy,
             state.approvals_reviewer,
             state.sandbox_policy,
@@ -207,18 +196,6 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
             return Err(error);
         }
     };
-    if let Err(error) = app
-        .top_up_underfilled_history_for_terminal(
-            &mut terminal,
-            session
-                .as_mut()
-                .expect("session available after terminal setup"),
-        )
-        .await
-    {
-        app.projection
-            .set_status(format!("history page failed: {error}"));
-    }
     let mut input = terminal.event_stream();
     let frame_requester = terminal.frame_requester();
     frame_requester.schedule_frame();
@@ -232,7 +209,8 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
         let mut reconnect: Option<Pin<Box<dyn Future<Output = Result<ReconnectedSession>>>>> = None;
         let mut reconnect_thread_id: Option<String> = None;
         let mut reconnect_failed = false;
-        let mut history_top_up_requested = false;
+        let mut history_top_up_requested = true;
+        let mut history_load_all_requested = false;
         let (file_search_tx, mut file_search_rx) =
             tokio::sync::mpsc::unbounded_channel::<FileSearchEvent>();
         let (mcp_login_tx, mut mcp_login_rx) =
@@ -244,12 +222,7 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
                     reconnect = Some(Box::pin(reconnect_session(
                         options.clone(),
                         thread_id.to_string(),
-                        ThreadSettingsPatch::new(
-                            model.clone(),
-                            model_provider.clone(),
-                            effort.clone(),
-                            permissions.clone(),
-                        )
+                        app.chat_widget.settings_patch()
                         .with_policy(
                             approval_policy.clone(),
                             approvals_reviewer.clone(),
@@ -263,18 +236,15 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
                 }
             }
             if history_top_up_requested {
+                history_top_up_requested = false;
                 if let Some(active_session) = session.as_mut() {
-                    if let Err(error) = app
-                        .top_up_underfilled_history_for_terminal(
-                            &mut terminal,
+                    if history_top_up_needed(&mut terminal, &app)? {
+                        let _ = app.spawn_older_history_page_load(
                             active_session,
-                        )
-                        .await
-                    {
-                        app.projection
-                            .set_status(format!("history page failed: {error}"));
+                            &app_event_tx,
+                            crate::app_event::OlderHistoryLoadMode::TopUp,
+                        );
                     }
-                    history_top_up_requested = false;
                 }
             }
             if let Some(delay) = app.chat_widget.bottom_pane.next_frame_delay(std::time::Instant::now()) {
@@ -285,7 +255,7 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
                 .context("failed to synchronize terminal viewport")?;
             if let Some(active_session) = session.as_ref() {
                 if let (Some(picker), Some(sender)) =
-                    (app.chat_widget.resume_picker.as_mut(), resume_picker_load_tx.as_ref())
+                    (app.chat_widget.resume_picker_mut(), resume_picker_load_tx.as_ref())
                 {
                     if let Some(thread_id) = picker.selected_thread_id().map(ToOwned::to_owned) {
                         crate::resume_picker::spawn_preview_load(
@@ -302,13 +272,14 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
                 .draw(|frame| view::render(frame, &app))
                 .context("failed to render terminal")?;
 
-            if app.external_editor_state() == ExternalEditorState::Requested {
-                app.set_external_editor_state(ExternalEditorState::Active);
+            if app.chat_widget.external_editor_state() == ExternalEditorState::Requested {
+                app.chat_widget
+                    .set_external_editor_state(ExternalEditorState::Active);
                 let draft = app.chat_widget.bottom_pane.composer_text_with_pending();
                 let edited = terminal
                     .with_restored(|| edit_draft(&draft, &options.cwd))
                     .await;
-                app.reset_external_editor_state();
+                app.chat_widget.reset_external_editor_state();
                 match edited {
                     Ok(Some(text)) => app.apply_external_edit(text),
                     Ok(None) => app.projection.set_status("editor draft empty"),
@@ -323,10 +294,93 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
             tokio::select! {
                 app_event = app_event_rx.recv() => {
                     if let Some(event) = app_event {
-                        message_history.handle_event(
-                            event, &mut app, session.as_ref().map(AppServerSession::request_handle),
-                            &app_event_tx,
-                        );
+                        match event {
+                            crate::app_event::AppEvent::OlderThreadHistoryLoaded {
+                                thread_id,
+                                cursor,
+                                result,
+                                turns,
+                                mode,
+                            } => {
+                                let page_result = session.as_mut().map(|active_session| {
+                                    app.handle_older_history_page_loaded(
+                                        active_session,
+                                        &thread_id,
+                                        &cursor,
+                                        result,
+                                        turns,
+                                    )
+                                });
+                                match page_result {
+                                    Some(Ok(true))
+                                        if (mode == crate::app_event::OlderHistoryLoadMode::All
+                                            || history_load_all_requested)
+                                            && app.chat_widget.scrollback_has_older_history() =>
+                                    {
+                                        if let Some(active_session) = session.as_mut() {
+                                            match app.spawn_older_history_page_load(
+                                                active_session,
+                                                &app_event_tx,
+                                                crate::app_event::OlderHistoryLoadMode::All,
+                                            ) {
+                                                crate::app::history_pagination::OlderHistoryLoadStart::Unavailable => {
+                                                    history_load_all_requested = false;
+                                                    complete_history_load(&mut app);
+                                                }
+                                                crate::app::history_pagination::OlderHistoryLoadStart::Started
+                                                | crate::app::history_pagination::OlderHistoryLoadStart::Pending => {}
+                                            }
+                                        }
+                                    }
+                                    Some(Ok(true))
+                                        if mode == crate::app_event::OlderHistoryLoadMode::TopUp =>
+                                    {
+                                        clear_history_page_error(&mut app);
+                                        if history_load_all_requested
+                                            && !app.chat_widget.scrollback_has_older_history()
+                                        {
+                                            history_load_all_requested = false;
+                                            complete_history_load(&mut app);
+                                        } else if let Some(active_session) = session.as_mut() {
+                                            if history_top_up_needed(&mut terminal, &app)? {
+                                                let _ = app.spawn_older_history_page_load(
+                                                    active_session,
+                                                    &app_event_tx,
+                                                    crate::app_event::OlderHistoryLoadMode::TopUp,
+                                                );
+                                            }
+                                        }
+                                    }
+                                    Some(Ok(true)) => {
+                                        if mode == crate::app_event::OlderHistoryLoadMode::All
+                                            || history_load_all_requested
+                                        {
+                                            history_load_all_requested = false;
+                                            complete_history_load(&mut app);
+                                        } else {
+                                            clear_history_page_error(&mut app);
+                                        }
+                                    }
+                                    Some(Ok(false)) => {}
+                                    Some(Err(error)) => {
+                                        history_load_all_requested = false;
+                                        fail_history_load(
+                                            &mut app,
+                                            &format!("history page failed: {error}"),
+                                        );
+                                    }
+                                    None => {}
+                                }
+                            }
+                            event => {
+                                message_history.handle_event(
+                                    event,
+                                    &mut app,
+                                    session.as_ref().map(AppServerSession::request_handle),
+                                    &app_event_tx,
+                                );
+                            }
+                        }
                         frame_requester.schedule_frame();
                     }
                 }
@@ -351,7 +405,7 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
                         resume_picker_load_tx = None;
                         continue;
                     };
-                    let Some(picker) = app.chat_widget.resume_picker.as_mut() else {
+                    let Some(picker) = app.chat_widget.resume_picker_mut() else {
                         continue;
                     };
                     match resume_event {
@@ -390,19 +444,16 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
                                 picker.handle_unarchive_result(thread_id, *result)
                             {
                                 let thread_id = target.thread_id;
-                                app.chat_widget.resume_picker = None;
+                                app.chat_widget.clear_resume_picker();
                                 resume_picker_load_rx = None;
                                 resume_picker_load_tx = None;
-                                app.chat_widget.agents_overview = None;
+                                app.chat_widget.clear_agents_overview();
+                                history_load_all_requested = false;
                                 match app.resume_target_session(
                                     session
                                         .as_mut()
                                         .expect("session available during resume picker"),
                                     thread_id,
-                                    &mut model,
-                                    &mut model_provider,
-                                    &mut effort,
-                                    &mut permissions,
                                     &options,
                                 )
                                 .await
@@ -486,16 +537,12 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
                     let action = match app
                         .handle_event(
                             action,
-                            EventContext {
-                                session: session
-                                    .as_mut()
-                                    .expect("session available during TUI action dispatch"),
-                                mcp_login_tx: &mcp_login_tx,
-                                model: &mut model,
-                                model_provider: &mut model_provider,
-                                effort: &mut effort,
-                                permissions: &mut permissions,
-                            },
+                                EventContext {
+                                    session: session
+                                        .as_mut()
+                                        .expect("session available during TUI action dispatch"),
+                                    mcp_login_tx: &mcp_login_tx,
+                                },
                         )
                         .await?
                     {
@@ -510,7 +557,9 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
                             if let Some(command) = parse_settings_command(&prompt) {
                                 match command {
                                     Ok(SettingsCommand::Plan) => {
-                                        let Some(collaboration_mode) = app.plan_mode() else {
+                                        let Some(collaboration_mode) =
+                                            app.chat_widget.plan_mode()
+                                        else {
                                             app.projection
                                                 .set_status("plan mode unavailable on this server");
                                             continue;
@@ -522,15 +571,8 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
                                             .await
                                         {
                                             Ok(()) => {
-                                                model = Some(collaboration_mode.settings.model.clone());
-                                                effort = collaboration_mode.settings.reasoning_effort.clone();
-                                                app.set_settings(
-                                                    model.clone(),
-                                                    model_provider.clone(),
-                                                    effort.clone(),
-                                                    permissions.clone(),
-                                                );
-                                                app.chat_widget.collaboration_mode = Some(collaboration_mode);
+                                                app.chat_widget
+                                                    .apply_collaboration_mode(collaboration_mode);
                                                 app.projection.set_status("plan mode");
                                             }
                                             Err(error) => app.projection.set_status(error.to_string()),
@@ -544,7 +586,7 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
                                             .await
                                         {
                                             Ok(response) => {
-                                                app.open_model_picker(response.data);
+                                                app.chat_widget.open_model_picker(response.data);
                                                 app.projection.set_status("choose model");
                                             }
                                             Err(error) => {
@@ -568,13 +610,10 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
                                             .await
                                         {
                                             Ok(()) => {
-                                                model = Some(model_value);
-                                                model_provider = provider;
-                                                app.set_settings(
-                                                    model.clone(),
-                                                    model_provider.clone(),
-                                                    effort.clone(),
-                                                    permissions.clone(),
+                                                app.chat_widget.apply_model_selection(
+                                                    model_value,
+                                                    provider,
+                                                    None,
                                                 );
                                                 app.projection.set_status("settings updated");
                                             }
@@ -589,13 +628,7 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
                                             .await
                                         {
                                             Ok(()) => {
-                                                effort = Some(value);
-                                                app.set_settings(
-                                                    model.clone(),
-                                                    model_provider.clone(),
-                                                    effort.clone(),
-                                                    permissions.clone(),
-                                                );
+                                                app.chat_widget.apply_effort(value);
                                                 app.projection.set_status("settings updated");
                                             }
                                             Err(error) => app.projection.set_status(error.to_string()),
@@ -609,15 +642,9 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
                                             .await
                                         {
                                             Ok(()) => {
-                                                permissions = Some(value);
                                                 sandbox_policy = None;
                                                 approvals_reviewer = None;
-                                                app.set_settings(
-                                                    model.clone(),
-                                                    model_provider.clone(),
-                                                    effort.clone(),
-                                                    permissions.clone(),
-                                                );
+                                                app.chat_widget.apply_permissions(value);
                                                 app.projection.set_status("settings updated");
                                             }
                                             Err(error) => app.projection.set_status(error.to_string()),
@@ -730,10 +757,18 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
                         AppAction::OpenLink(destination) => match open_link(&destination) {
                             Ok(()) => app
                                 .projection
-                                .set_status(app.locale.transcript_link_opened(&destination)),
+                                .set_status(
+                                    app.chat_widget
+                                        .locale
+                                        .transcript_link_opened(&destination),
+                                ),
                             Err(error) => app
                                 .projection
-                                .set_status(app.locale.transcript_link_open_failed(&error)),
+                                .set_status(
+                                    app.chat_widget
+                                        .locale
+                                        .transcript_link_open_failed(&error),
+                                ),
                         },
                         AppAction::ScheduleFrameIn(delay) => {
                             frame_requester.schedule_frame_in(delay);
@@ -785,10 +820,12 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
                                 }
                                 Ok(None) => app
                                     .projection
-                                    .set_status(app.locale.status("clipboard is busy")),
+                                    .set_status(
+                                        app.chat_widget.locale.status("clipboard is busy"),
+                                    ),
                                 Err(error) => app
                                     .projection
-                                    .set_status(app.locale.status(&format!(
+                                    .set_status(app.chat_widget.locale.status(&format!(
                                         "clipboard paste failed: {error}"
                                     ))),
                             }
@@ -813,18 +850,14 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
                         AppAction::ScrollUp => {
                             let page_size = current_transcript_page_size(&mut terminal, &app)?;
                             app.scroll_up(page_size);
-                            if app.scrollback_has_older_history {
-                                if let Err(error) = app
-                                    .request_older_history_page(
-                                        session
-                                            .as_mut()
-                                            .expect("session available during TUI"),
-                                    )
-                                    .await
-                                {
-                                    app.projection
-                                        .set_status(format!("history page failed: {error}"));
-                                }
+                            if app.chat_widget.scrollback_has_older_history() {
+                                let active_session =
+                                    session.as_mut().expect("session available during TUI");
+                                let _ = app.spawn_older_history_page_load(
+                                    active_session,
+                                    &app_event_tx,
+                                    crate::app_event::OlderHistoryLoadMode::OnePage,
+                                );
                             }
                         }
                         AppAction::ScrollDown => {
@@ -834,18 +867,14 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
                         AppAction::ScrollRows(rows) => {
                             if rows < 0 {
                                 app.scroll_up(rows.unsigned_abs());
-                                if app.scrollback_has_older_history {
-                                    if let Err(error) = app
-                                        .request_older_history_page(
-                                            session
-                                                .as_mut()
-                                                .expect("session available during TUI"),
-                                        )
-                                        .await
-                                    {
-                                        app.projection
-                                            .set_status(format!("history page failed: {error}"));
-                                    }
+                                if app.chat_widget.scrollback_has_older_history() {
+                                    let active_session =
+                                        session.as_mut().expect("session available during TUI");
+                                    let _ = app.spawn_older_history_page_load(
+                                        active_session,
+                                        &app_event_tx,
+                                        crate::app_event::OlderHistoryLoadMode::OnePage,
+                                    );
                                 }
                             } else {
                                 app.scroll_down(rows.unsigned_abs());
@@ -860,30 +889,19 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
                             if app.chat_widget.transcript_search.is_active() {
                                 app.chat_widget.transcript_search.begin_history_load();
                             }
-                            let result = app
-                                .request_all_older_history_pages(
-                                    session.as_mut().expect(
-                                        "session available during transcript history loading",
-                                    ),
-                                )
-                                .await;
-                            match result {
-                                Ok(_) => {
-                                    clear_history_page_error(&mut app);
-                                    if let Some(pager) = app.chat_widget.pager_overlay.as_ref() {
-                                        pager.complete_older_history_load();
-                                        pager.reset_transcript_anchor_at_top();
-                                    }
-                                    app.chat_widget.transcript_search.complete_history_load();
+                            history_load_all_requested = true;
+                            if let Some(active_session) = session.as_mut() {
+                                if app.spawn_older_history_page_load(
+                                    active_session,
+                                    &app_event_tx,
+                                    crate::app_event::OlderHistoryLoadMode::All,
+                                ) == crate::app::history_pagination::OlderHistoryLoadStart::Unavailable {
+                                    history_load_all_requested = false;
+                                    complete_history_load(&mut app);
                                 }
-                                Err(error) => {
-                                    if let Some(pager) = app.chat_widget.pager_overlay.as_ref() {
-                                        pager.fail_older_history_load();
-                                    }
-                                    app.chat_widget.transcript_search.fail_history_load();
-                                    app.projection
-                                        .set_status(format!("history page failed: {error}"));
-                                }
+                            } else {
+                                history_load_all_requested = false;
+                                fail_history_load(&mut app, "history transport unavailable");
                             }
                         }
                         AppAction::OpenResumePicker => {
@@ -896,11 +914,15 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
                                     Some(app.cwd.clone()),
                                     false,
                                 );
-                                picker.set_model_provider_filter(model_provider.clone());
-                                picker.set_transcript_keymap(
-                                    app.runtime_keymap.transcript().clone(),
+                                picker.set_model_provider_filter(
+                                    app.chat_widget.model_provider.clone(),
                                 );
-                                picker.set_list_keymap(app.runtime_keymap.list().clone());
+                                picker.set_transcript_keymap(
+                                    app.chat_widget.runtime_keymap.transcript().clone(),
+                                );
+                                picker.set_list_keymap(
+                                    app.chat_widget.runtime_keymap.list().clone(),
+                                );
                                 crate::resume_picker::spawn_thread_load(
                                     session
                                         .as_ref()
@@ -909,13 +931,14 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
                                     &load_tx,
                                     &mut picker,
                                 );
-                                app.chat_widget.resume_picker = Some(picker);
+                                app.chat_widget.set_resume_picker(picker);
                                 resume_picker_load_tx = Some(load_tx);
                                 resume_picker_load_rx = Some(load_rx);
                             }
                         }
                         AppAction::ResumePicker(action) => {
-                            let Some(picker) = app.chat_widget.resume_picker.as_mut() else {
+                            let locale = app.chat_widget.locale;
+                            let Some(picker) = app.chat_widget.resume_picker_mut() else {
                                 continue;
                             };
                             let request_handle = session
@@ -925,10 +948,11 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
                             match action {
                                 PickerAction::Select => {
                                     let selected = picker.selected_thread_id().map(ToOwned::to_owned);
-                                    app.chat_widget.resume_picker = None;
+                                    app.chat_widget.clear_resume_picker();
                                     resume_picker_load_rx = None;
                                     resume_picker_load_tx = None;
-                                    app.chat_widget.agents_overview = None;
+                                    app.chat_widget.clear_agents_overview();
+                                    history_load_all_requested = false;
                                     if let Some(thread_id) = selected {
                                         app.projection
                                             .set_status(format!("resuming session {thread_id}"));
@@ -937,10 +961,6 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
                                                 .as_mut()
                                                 .expect("session available during resume picker"),
                                             thread_id,
-                                            &mut model,
-                                            &mut model_provider,
-                                            &mut effort,
-                                            &mut permissions,
                                             &options,
                                         )
                                         .await
@@ -1012,7 +1032,9 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
                                     }
                                 }
                                 PickerAction::OpenTranscript => {
-                                    if let Some(thread_id) = picker.open_transcript_pager(app.locale) {
+                                    if let Some(thread_id) = picker
+                                        .open_transcript_pager(locale)
+                                    {
                                         if let Some(sender) = resume_picker_load_tx.as_ref() {
                                             crate::resume_picker::spawn_transcript_load(
                                                 request_handle,
@@ -1038,13 +1060,10 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
                             }
                         }
                         AppAction::SwitchThread(thread_id) => {
+                            history_load_all_requested = false;
                             match app.resume_target_session(
                                 session.as_mut().expect("session available during TUI"),
                                 thread_id,
-                                &mut model,
-                                &mut model_provider,
-                                &mut effort,
-                                &mut permissions,
                                 &options,
                             )
                             .await
@@ -1127,6 +1146,7 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
                     reconnect = None;
                     match result {
                         Ok(reconnected) => {
+                            history_load_all_requested = false;
                             let active_profile = reconnected
                                 .session
                                 .active_permission_profile()
@@ -1139,10 +1159,12 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
                             if let Some(history_page) = reconnected.history_page {
                                 app.prepend_initial_history_page(history_page);
                             }
-                            app.scrollback_has_older_history =
-                                reconnected.scrollback_has_older_history;
-                            app.set_permission_profiles(reconnected.permission_profiles);
-                            app.set_collaboration_modes(
+                            app.chat_widget.set_scrollback_has_older_history(
+                                reconnected.scrollback_has_older_history,
+                            );
+                            app.chat_widget
+                                .set_permission_profiles(reconnected.permission_profiles);
+                            app.chat_widget.set_collaboration_modes(
                                 reconnected
                                     .session
                                     .list_collaboration_modes()
@@ -1151,15 +1173,9 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
                             );
                             if options.permissions.is_none() {
                                 if let Some(active_profile) = active_profile {
-                                    permissions = Some(active_profile);
+                                    app.chat_widget.apply_permissions(active_profile);
                                 }
                             }
-                            app.set_settings(
-                                model.clone(),
-                                model_provider.clone(),
-                                effort.clone(),
-                                permissions.clone(),
-                            );
                             app.refresh_queued_submissions(&reconnected.session).await;
                             session = Some(reconnected.session);
                             reconnect_thread_id = None;
@@ -1204,12 +1220,50 @@ fn clear_history_page_error(app: &mut App) {
     }
 }
 
+fn complete_history_load(app: &mut App) {
+    clear_history_page_error(app);
+    if let Some(pager) = app.chat_widget.pager_overlay.as_ref() {
+        pager.complete_older_history_load();
+        pager.reset_transcript_anchor_at_top();
+    }
+    app.chat_widget.transcript_search.complete_history_load();
+}
+
+fn fail_history_load(app: &mut App, message: &str) {
+    if let Some(pager) = app.chat_widget.pager_overlay.as_ref() {
+        pager.fail_older_history_load();
+    }
+    app.chat_widget.transcript_search.fail_history_load();
+    app.projection.set_status(message);
+}
+
 fn current_transcript_page_size(terminal: &mut Tui, app: &App) -> Result<usize> {
     let size = terminal
         .terminal_mut()
         .size()
         .context("failed to read terminal size")?;
     Ok(view::transcript_page_size(size.width, size.height, app))
+}
+
+fn history_top_up_needed(terminal: &mut Tui, app: &App) -> Result<bool> {
+    if app.chat_widget.resume_picker.is_some()
+        || app.chat_widget.pager_overlay.is_some()
+        || app.chat_widget.export_picker.is_some()
+        || app.chat_widget.model_picker.is_some()
+        || app.chat_widget.agent_picker.is_some()
+        || app.chat_widget.agents_overview.is_some()
+    {
+        return Ok(false);
+    }
+    if !app.chat_widget.scrollback_has_older_history() {
+        return Ok(false);
+    }
+    let size = terminal
+        .terminal_mut()
+        .size()
+        .context("failed to read terminal size for history top-up")?;
+    let minimum_rows = view::transcript_page_size(size.width, size.height, app);
+    Ok(crate::app::history_ui::rendered_transcript_row_count(app, size.width) < minimum_rows)
 }
 
 /// Resume without an explicit id using the same canonical thread picker as Codex.
@@ -1289,7 +1343,7 @@ fn apply_copy_completion(
 ) {
     let status = completion
         .clipboard
-        .map(|outcome| outcome.store(&mut app.clipboard_lease));
+        .map(|outcome| outcome.store(&mut app.chat_widget.clipboard_lease));
     let surface_active = match &context {
         PendingCopyContext::TranscriptSelection { target, .. } => match target {
             crate::app::TranscriptSelectionTarget::MainTranscript => {
@@ -1308,7 +1362,8 @@ fn apply_copy_completion(
     };
     if apply_feedback && surface_active {
         if let Some(primary) = completion.primary {
-            let _ = primary.map(|outcome| outcome.store(&mut app.primary_clipboard_lease));
+            let _ =
+                primary.map(|outcome| outcome.store(&mut app.chat_widget.primary_clipboard_lease));
         }
     }
     if !apply_feedback || !surface_active {
@@ -1357,7 +1412,7 @@ fn apply_copy_completion(
                     }
                 }
                 crate::app::TranscriptSelectionTarget::ResumePicker => {
-                    if let Some(picker) = app.chat_widget.resume_picker.as_mut() {
+                    if let Some(picker) = app.chat_widget.resume_picker_mut() {
                         picker.apply_transcript_copy_result(follow, characters, &status);
                     }
                 }
@@ -1397,7 +1452,7 @@ fn copy_last_response_with(
         return;
     }
     match copy(response.as_ref()) {
-        Ok(outcome) => match outcome.store(&mut app.clipboard_lease) {
+        Ok(outcome) => match outcome.store(&mut app.chat_widget.clipboard_lease) {
             crate::clipboard_copy::CopyStatus::Confirmed => {
                 app.projection.set_status("copied last response");
             }
@@ -1417,7 +1472,7 @@ fn copy_composer_selection_with(
     copy: impl FnOnce(&str) -> Result<crate::clipboard_copy::CopyOutcome, String>,
 ) {
     match copy(text) {
-        Ok(outcome) => match outcome.store(&mut app.clipboard_lease) {
+        Ok(outcome) => match outcome.store(&mut app.chat_widget.clipboard_lease) {
             crate::clipboard_copy::CopyStatus::Confirmed => {
                 if clear_selection {
                     app.chat_widget.bottom_pane.clear_mouse_selection();
@@ -1457,7 +1512,7 @@ fn copy_transcript_selection_with(
     copy: impl FnOnce(&str) -> Result<crate::clipboard_copy::CopyOutcome, String>,
 ) {
     let characters = text.chars().count();
-    let result = copy(text).map(|outcome| outcome.store(&mut app.clipboard_lease));
+    let result = copy(text).map(|outcome| outcome.store(&mut app.chat_widget.clipboard_lease));
     // Codex keeps the X11 PRIMARY selection available while the user keeps a transcript
     // selection active. It is independent from CLIPBOARD, so retain a second lease instead of
     // replacing the normal copy lease. Unsupported/remote terminals fail closed and keep the
@@ -1470,7 +1525,7 @@ fn copy_transcript_selection_with(
         )
     {
         if let Ok(outcome) = crate::clipboard_copy::copy_to_primary(text) {
-            let _ = outcome.store(&mut app.primary_clipboard_lease);
+            let _ = outcome.store(&mut app.chat_widget.primary_clipboard_lease);
         }
     }
     match target {
@@ -1488,7 +1543,7 @@ fn copy_transcript_selection_with(
             }
         }
         crate::app::TranscriptSelectionTarget::ResumePicker => {
-            if let Some(picker) = app.chat_widget.resume_picker.as_mut() {
+            if let Some(picker) = app.chat_widget.resume_picker_mut() {
                 picker.apply_transcript_copy_result(follow, characters, &result);
             }
         }
@@ -1744,7 +1799,7 @@ mod tests {
         }
         assert!(pager.has_transcript_selection());
         let mut app = App::default();
-        app.chat_widget.pager_overlay = Some(pager);
+        app.chat_widget.set_pager_overlay(pager);
         app
     }
 
@@ -1951,7 +2006,7 @@ mod tests {
 
         assert_eq!(copied.into_inner(), "**answer** with `code` continue");
         assert_eq!(app.projection.status(), "copied last response");
-        assert!(app.clipboard_lease.is_some());
+        assert!(app.chat_widget.clipboard_lease.is_some());
 
         let mut empty = App::default();
         copy_last_response_with(&mut empty, |_| panic!("clipboard must not be called"));
@@ -2005,7 +2060,7 @@ mod tests {
             )))
         });
 
-        assert!(app.clipboard_lease.is_some());
+        assert!(app.chat_widget.clipboard_lease.is_some());
         assert_eq!(app.projection.status(), "copy confirmed: 4");
         assert!(app
             .chat_widget
@@ -2035,7 +2090,7 @@ mod tests {
         );
 
         assert_eq!(copied.into_inner(), "alpha");
-        assert!(app.clipboard_lease.is_some());
+        assert!(app.chat_widget.clipboard_lease.is_some());
         assert_eq!(app.projection.status(), "copy confirmed: 5");
         assert!(!app
             .chat_widget

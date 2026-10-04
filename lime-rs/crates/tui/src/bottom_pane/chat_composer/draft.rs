@@ -3,6 +3,20 @@
 use super::*;
 
 impl ChatComposer {
+    pub(crate) fn input_enabled(&self) -> bool {
+        self.draft.input_enabled
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_input_enabled(&mut self, enabled: bool, placeholder: Option<String>) {
+        self.draft.input_enabled = enabled;
+        self.draft.input_disabled_placeholder = if enabled { None } else { placeholder };
+        if !enabled {
+            self.draft.paste_burst.clear_after_explicit_paste();
+            self.popups.clear();
+        }
+    }
+
     /// A thread handoff creates a fresh edit lifetime, carrying only the session register.
     pub(crate) fn restore_thread_input_state(
         &mut self,
@@ -293,10 +307,6 @@ impl ChatComposer {
 
     pub(crate) fn history_search_active(&self) -> bool {
         self.history_search.is_some()
-    }
-
-    pub(crate) fn footer_has_draft(&self) -> bool {
-        matches!(self.footer.mode, FooterMode::ComposerHasDraft) || !self.attachments.is_empty()
     }
 
     pub(crate) fn set_vim_enabled(&mut self, enabled: bool) {

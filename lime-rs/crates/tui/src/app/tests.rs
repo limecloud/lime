@@ -1,5 +1,6 @@
 use super::*;
 use crate::bottom_pane::{LocalImageAttachment, RemoteImageAttachment};
+use crate::chatwidget::ExternalEditorState;
 use agent_protocol::TextElement;
 use app_server_protocol::protocol::v2::{
     CommandExecutionApprovalDecision, CommandExecutionRequestApprovalParams, McpServerStartupState,
@@ -313,7 +314,7 @@ fn startup_boundary_ends_on_the_first_safe_user_input() {
     assert!(app.startup_protected_input_boundary);
     assert!(app.release_startup_input_boundary_if_ready(true));
     assert!(!app.startup_protected_input_boundary);
-    assert!(!app.startup_pending_protected_request);
+    assert!(!app.chat_widget.startup_pending_protected_request);
 }
 
 #[test]
@@ -397,7 +398,7 @@ fn startup_boundary_waits_for_visible_request_before_releasing() {
 
     assert!(!app.release_startup_input_boundary_if_ready(true));
     assert!(app.startup_protected_input_boundary);
-    assert!(app.startup_pending_protected_request);
+    assert!(app.chat_widget.startup_pending_protected_request);
 }
 
 #[test]
@@ -410,7 +411,10 @@ fn ctrl_g_requests_external_editor_after_the_current_draw() {
     );
 
     assert_eq!(action, AppAction::None);
-    assert_eq!(app.external_editor_state(), ExternalEditorState::Requested);
+    assert_eq!(
+        app.chat_widget.external_editor_state(),
+        ExternalEditorState::Requested
+    );
 }
 
 #[test]
@@ -829,7 +833,7 @@ fn turn_completion_clears_the_active_status_timer() {
 #[test]
 fn permission_profile_catalog_is_trimmed_deduplicated_and_used_for_cycles() {
     let mut app = App::default();
-    app.set_permission_profiles([
+    app.chat_widget.set_permission_profiles([
         " custom-read ".to_string(),
         "custom-write".to_string(),
         "custom-read".to_string(),
@@ -841,23 +845,28 @@ fn permission_profile_catalog_is_trimmed_deduplicated_and_used_for_cycles() {
         vec!["custom-read".to_string(), "custom-write".to_string()]
     );
     assert_eq!(
-        app.cycle_permission_profile(Some("custom-read"), 1),
+        app.chat_widget
+            .cycle_permission_profile(Some("custom-read"), 1),
         "custom-write"
     );
     assert_eq!(
-        app.cycle_permission_profile(Some("custom-write"), 1),
+        app.chat_widget
+            .cycle_permission_profile(Some("custom-write"), 1),
         "custom-read"
     );
 
-    app.set_permission_profiles([" ".to_string(), "custom-read".to_string()]);
+    app.chat_widget
+        .set_permission_profiles([" ".to_string(), "custom-read".to_string()]);
     assert_eq!(
         app.chat_widget.permission_profiles,
         vec!["custom-read".to_string()]
     );
-    app.set_permission_profiles(std::iter::empty::<String>());
+    app.chat_widget
+        .set_permission_profiles(std::iter::empty::<String>());
     assert!(app.chat_widget.permission_profiles.is_empty());
     assert_eq!(
-        app.cycle_permission_profile(Some(":read-only"), 1),
+        app.chat_widget
+            .cycle_permission_profile(Some(":read-only"), 1),
         ":workspace"
     );
 }
@@ -865,13 +874,13 @@ fn permission_profile_catalog_is_trimmed_deduplicated_and_used_for_cycles() {
 #[test]
 fn backtab_cycles_server_collaboration_modes_only_when_idle() {
     let mut app = App::default();
-    app.set_settings(
+    app.chat_widget.set_settings(
         Some("fixture-model".to_string()),
         Some("fixture-provider".to_string()),
         Some("medium".to_string()),
         None,
     );
-    app.set_collaboration_modes(vec![
+    app.chat_widget.set_collaboration_modes(vec![
         app_server_protocol::protocol::v2::CollaborationModeMask {
             name: "Plan".to_string(),
             mode: Some(agent_protocol::ModeKind::Plan),
@@ -951,7 +960,7 @@ fn settings_updates_keep_the_active_collaboration_mode_in_sync() {
         ..App::default()
     };
 
-    app.set_settings(
+    app.chat_widget.set_settings(
         Some("new-model".to_string()),
         Some("fixture-provider".to_string()),
         Some("low".to_string()),
@@ -966,7 +975,7 @@ fn settings_updates_keep_the_active_collaboration_mode_in_sync() {
     assert_eq!(mode.settings.model, "new-model");
     assert_eq!(mode.settings.reasoning_effort.as_deref(), Some("low"));
 
-    app.set_settings(
+    app.chat_widget.set_settings(
         Some("newer-model".to_string()),
         Some("fixture-provider".to_string()),
         None,
@@ -1341,7 +1350,7 @@ fn status_command_opens_an_ephemeral_pager_and_consumes_input_until_closed() {
         }
     );
     app.set_thread_id("thread-1".to_string());
-    app.set_settings(
+    app.chat_widget.set_settings(
         Some("gpt-5".to_string()),
         Some("openai".to_string()),
         Some("high".to_string()),
@@ -1410,7 +1419,10 @@ fn ctrl_t_opens_transcript_without_copying_or_mutating_conversation_state() {
 #[test]
 fn transcript_overlay_requests_older_history_only_when_session_has_more_pages() {
     let mut app = App {
-        scrollback_has_older_history: true,
+        chat_widget: crate::chatwidget::ChatWidget {
+            scrollback_has_older_history: true,
+            ..crate::chatwidget::ChatWidget::default()
+        },
         ..App::default()
     };
     assert_eq!(
@@ -1530,14 +1542,14 @@ fn queued_submission_projection_updates_by_id_and_clears_on_thread_change() {
     app.upsert_queued_submission(queued("queue-1", "revised"));
     app.upsert_queued_submission(queued("queue-2", "second"));
 
-    assert_eq!(app.queued_submissions.len(), 2);
+    assert_eq!(app.chat_widget.queued_submissions().len(), 2);
     assert!(matches!(
-        app.queued_submissions[0].input.as_slice(),
+        app.chat_widget.queued_submissions()[0].input.as_slice(),
         [UserInput::Text { text, .. }] if text == "revised"
     ));
 
     app.set_thread_id("thread-2".to_string());
-    assert!(app.queued_submissions.is_empty());
+    assert!(app.chat_widget.queued_submissions().is_empty());
 }
 
 #[test]
@@ -1565,12 +1577,15 @@ fn alt_up_requests_server_delete_before_restoring_the_last_queued_input() {
     );
 
     assert_eq!(action, AppAction::EditQueuedSubmission(submission.clone()));
-    assert_eq!(app.queued_submissions, vec![submission.clone()]);
+    assert_eq!(
+        app.chat_widget.queued_submissions(),
+        std::slice::from_ref(&submission)
+    );
     assert!(app.chat_widget.bottom_pane.composer_is_empty());
     assert!(!app.chat_widget.bottom_pane.composer_has_pending_images());
 
     assert!(app.restore_queued_submission_for_edit(submission));
-    assert!(app.queued_submissions.is_empty());
+    assert!(app.chat_widget.queued_submissions().is_empty());
     assert_eq!(
         app.chat_widget.bottom_pane.composer_text(),
         "[Image #1] revise this follow-up"
@@ -1609,7 +1624,7 @@ fn queued_skill_input_restores_as_an_editable_dollar_mention() {
         app.chat_widget.bottom_pane.composer_text(),
         "$review please check"
     );
-    assert!(app.queued_submissions.is_empty());
+    assert!(app.chat_widget.queued_submissions().is_empty());
 }
 
 #[test]
@@ -1639,7 +1654,7 @@ fn alt_up_offers_lossless_remote_image_queue_edit() {
         })
     );
 
-    let remote_image = app.queued_submissions[0].clone();
+    let remote_image = app.chat_widget.queued_submissions()[0].clone();
     assert!(app.restore_queued_submission_for_edit(remote_image));
     assert_eq!(
         app.chat_widget.bottom_pane.composer_remote_image_urls(),
@@ -1665,7 +1680,7 @@ fn alt_up_offers_lossless_remote_image_queue_edit() {
         AppAction::None
     );
     assert_eq!(app.chat_widget.bottom_pane.composer_text(), "unsent draft");
-    assert_eq!(app.queued_submissions.len(), 1);
+    assert_eq!(app.chat_widget.queued_submissions().len(), 1);
 }
 
 #[test]
@@ -1721,7 +1736,7 @@ fn disconnected_input_edits_locally_without_submit_or_queue() {
         AppAction::None
     );
     assert_eq!(app.chat_widget.bottom_pane.composer_text(), "draft!");
-    assert!(app.queued_submissions.is_empty());
+    assert!(app.chat_widget.queued_submissions().is_empty());
 }
 
 #[test]
@@ -1867,12 +1882,14 @@ fn composer_mouse_paste_requests_clipboard_surface_without_selection() {
                 modifiers: KeyModifiers::NONE,
             }),
         );
-        let expected =
-            if crate::clipboard_paste::right_click_paste_allowed(app.right_click_paste, source) {
-                AppAction::PasteClipboardText(source)
-            } else {
-                AppAction::None
-            };
+        let expected = if crate::clipboard_paste::right_click_paste_allowed(
+            app.chat_widget.right_click_paste,
+            source,
+        ) {
+            AppAction::PasteClipboardText(source)
+        } else {
+            AppAction::None
+        };
         assert_eq!(action, expected);
     }
 }
@@ -2136,7 +2153,8 @@ fn resume_picker_owns_input_until_cancelled() {
 fn alt_right_switches_to_the_next_agent_in_spawn_order() {
     let mut app = App::default();
     app.set_thread_id("main".to_string());
-    app.agent_navigation
+    app.chat_widget
+        .agent_navigation
         .upsert("agent-1", Some("Robie".to_string()), None, false);
 
     assert_eq!(
@@ -2152,7 +2170,7 @@ fn alt_right_switches_to_the_next_agent_in_spawn_order() {
 fn subagents_slash_command_opens_the_codex_named_picker() {
     let mut app = App::default();
     app.set_thread_id("main".to_string());
-    app.agent_navigation.upsert(
+    app.chat_widget.agent_navigation.upsert(
         "agent-1",
         Some("Robie".to_string()),
         Some("worker".to_string()),
@@ -2283,13 +2301,15 @@ fn sub_agent_activity_updates_navigation_liveness_and_label() {
     ));
 
     assert!(
-        app.agent_navigation
+        app.chat_widget
+            .agent_navigation
             .get("agent-1")
             .expect("activity creates picker row")
             .is_running
     );
     assert_eq!(
-        app.agent_navigation
+        app.chat_widget
+            .agent_navigation
             .active_agent_label(Some("agent-1"), Some("main")),
         Some("`/root/worker`".to_string())
     );

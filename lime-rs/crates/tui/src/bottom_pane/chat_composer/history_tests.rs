@@ -1,5 +1,6 @@
 use super::*;
 use agent_protocol::TextElement;
+use ratatui::layout::Rect;
 
 fn key(composer: &mut ChatComposer, code: KeyCode) -> InputResult {
     composer.handle_key_event(KeyEvent::new(code, KeyModifiers::NONE))
@@ -199,4 +200,83 @@ fn reverse_search_previews_its_own_attachments_cancel_restores_draft_accept_requ
             );
         }
     }
+}
+
+#[test]
+fn replay_seed_restores_rich_images_elements_and_mentions_through_up_recall() {
+    use app_server_protocol::protocol::v2::{
+        ThreadItem, Turn, TurnItemsView, TurnStatus, UserInput,
+    };
+
+    let mut composer = ChatComposer::default();
+    let turn = Turn {
+        id: "turn-replay".into(),
+        items: vec![ThreadItem::UserMessage {
+            id: "user-replay".into(),
+            metadata: None,
+            client_id: None,
+            content: vec![
+                UserInput::Image {
+                    detail: Some(agent_protocol::ImageDetail::Low),
+                    url: "https://example.test/replay.png".into(),
+                },
+                UserInput::LocalImage {
+                    detail: Some(agent_protocol::ImageDetail::Original),
+                    path: "/tmp/replay.png".into(),
+                },
+                UserInput::Text {
+                    text: "inspect $sample".into(),
+                    text_elements: vec![TextElement::new(8..15, Some("$sample".into()))],
+                },
+                UserInput::Skill {
+                    name: "sample".into(),
+                    path: "skill://sample".into(),
+                },
+            ],
+        }],
+        items_view: TurnItemsView::Full,
+        status: TurnStatus::Completed,
+        error: None,
+        started_at: None,
+        completed_at: None,
+        duration_ms: None,
+    };
+    composer.replace_replayed_history("thread-replay".into(), &[turn]);
+
+    assert!(matches!(
+        key(&mut composer, KeyCode::Up),
+        InputResult::Changed
+    ));
+    assert_eq!(composer.text(), "[Image #2] inspect $sample");
+    assert_eq!(
+        composer.textarea().text_elements(),
+        vec![
+            TextElement::new(0..10, Some("[Image #2]".into())),
+            TextElement::new(19..26, Some("$sample".into())),
+        ]
+    );
+    assert_eq!(
+        composer.remote_images()[0].url,
+        "https://example.test/replay.png"
+    );
+    assert_eq!(
+        composer.remote_images()[0].detail,
+        Some(agent_protocol::ImageDetail::Low)
+    );
+    assert_eq!(
+        composer.local_images()[0].path,
+        std::path::PathBuf::from("/tmp/replay.png")
+    );
+    assert_eq!(
+        composer.local_images()[0].detail,
+        Some(agent_protocol::ImageDetail::Original)
+    );
+    assert_eq!(
+        composer.snapshot_mention_bindings(),
+        vec![MentionBinding {
+            sigil: '$',
+            mention: "sample".into(),
+            path: "skill://sample".into(),
+        }]
+    );
 }

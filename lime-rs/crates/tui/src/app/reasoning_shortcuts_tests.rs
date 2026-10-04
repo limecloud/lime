@@ -1,4 +1,5 @@
 use super::*;
+use crate::chatwidget::ExternalEditorState;
 use crate::model_catalog::tests::model;
 use crate::tui::TuiEvent;
 use app_server_protocol::protocol::v2::{
@@ -21,8 +22,8 @@ fn ready() -> App {
             description: String::new(),
         })
         .collect();
-    app.set_model_catalog(vec![model]);
-    app.set_settings(
+    app.chat_widget.set_model_catalog(vec![model]);
+    app.chat_widget.set_settings(
         Some("reasoner".into()),
         Some("provider".into()),
         Some("medium".into()),
@@ -98,7 +99,7 @@ fn startup_and_parent_owned_threads_are_not_mutable_by_shortcuts() {
     app.begin_startup_input_boundary();
     assert_eq!(app.prepare_reasoning_shortcut(Raise), None);
     app.startup_protected_input_boundary = false;
-    app.agent_navigation.mark_parent_owned("thread");
+    app.chat_widget.agent_navigation.mark_parent_owned("thread");
     assert_eq!(app.prepare_reasoning_shortcut(Raise), None);
     assert_eq!(
         app.projection.status(),
@@ -131,7 +132,8 @@ fn plan_scope_fails_closed_instead_of_mutating_the_ordinary_effort() {
 #[test]
 fn model_picker_and_status_own_alt_reasoning_keys() {
     let mut app = ready();
-    app.open_model_picker(app.chat_widget.model_catalog.models.clone());
+    app.chat_widget
+        .open_model_picker(app.chat_widget.model_catalog.models.clone());
     assert_eq!(shortcut(&mut app, '.'), AppAction::None);
     assert_eq!(app.prepare_reasoning_shortcut(Raise), None);
     app.chat_widget.model_picker = None;
@@ -176,7 +178,8 @@ fn approval_popup_and_external_editor_block_settings_dispatch() {
     ));
     assert_eq!(app.prepare_reasoning_shortcut(Raise), None);
     let mut app = ready();
-    app.set_external_editor_state(ExternalEditorState::Active);
+    app.chat_widget
+        .set_external_editor_state(ExternalEditorState::Active);
     assert_eq!(app.prepare_reasoning_shortcut(Raise), None);
     assert_eq!(app.chat_widget.reasoning_effort.as_deref(), Some("medium"));
 }
@@ -225,7 +228,7 @@ fn reasoning_feedback_is_localized_with_catalog_identity_preserved() {
         ),
     ] {
         let mut app = ready();
-        app.locale = locale;
+        app.chat_widget.locale = locale;
         app.chat_widget.reasoning_effort = Some("low".into());
         assert_eq!(app.prepare_reasoning_shortcut(Lower), None);
         assert_eq!(app.projection.status(), lowest);

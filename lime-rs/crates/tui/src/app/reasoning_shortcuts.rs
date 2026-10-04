@@ -1,6 +1,7 @@
 //! Main-surface reasoning shortcuts never infer capabilities or escape an input owner.
 
 use super::*;
+use crate::chatwidget::ExternalEditorState;
 use crate::model_catalog::{ReasoningShortcutDirection, ReasoningStep};
 
 impl App {
@@ -16,7 +17,7 @@ impl App {
             || self.chat_widget.bottom_pane.popup_active()
             || self.chat_widget.bottom_pane.history_search_active()
             || self.chat_widget.bottom_pane.vim_search_active()
-            || self.external_editor_state() != ExternalEditorState::Closed
+            || self.chat_widget.external_editor_state() != ExternalEditorState::Closed
             || self.has_queued_startup_protected_request()
     }
 
@@ -29,12 +30,12 @@ impl App {
         }
         if !self.can_accept_direct_input() {
             self.projection
-                .set_status(self.locale.reasoning_parent_owned_message());
+                .set_status(self.chat_widget.locale.reasoning_parent_owned_message());
             return None;
         }
         if self.thread_id.is_none() || self.startup_protected_input_boundary {
             self.projection
-                .set_status(self.locale.reasoning_startup_message());
+                .set_status(self.chat_widget.locale.reasoning_startup_message());
             return None;
         }
         // The current contract couples Plan and ordinary effort. Do not pretend a plain settings
@@ -46,7 +47,7 @@ impl App {
             .is_some_and(|mode| mode.mode == agent_protocol::ModeKind::Plan)
         {
             self.projection
-                .set_status(self.locale.reasoning_plan_message());
+                .set_status(self.chat_widget.locale.reasoning_plan_message());
             return None;
         }
         match self.chat_widget.model_catalog.reasoning_step(
@@ -57,20 +58,23 @@ impl App {
         ) {
             Some(ReasoningStep::Change(effort)) => Some(effort),
             Some(ReasoningStep::Bound(effort)) => {
-                self.projection
-                    .set_status(self.locale.reasoning_boundary_message(direction, &effort));
+                self.projection.set_status(
+                    self.chat_widget
+                        .locale
+                        .reasoning_boundary_message(direction, &effort),
+                );
                 None
             }
             Some(ReasoningStep::Advanced) => {
                 self.projection
-                    .set_status(self.locale.reasoning_ultra_message(
+                    .set_status(self.chat_widget.locale.reasoning_ultra_message(
                         self.chat_widget.model.as_deref().unwrap_or_default(),
                     ));
                 None
             }
             None => {
                 self.projection
-                    .set_status(self.locale.reasoning_unavailable_message(
+                    .set_status(self.chat_widget.locale.reasoning_unavailable_message(
                         self.chat_widget.model.as_deref().unwrap_or_default(),
                     ));
                 None

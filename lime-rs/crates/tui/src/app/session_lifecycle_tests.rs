@@ -92,17 +92,13 @@ async fn real_stdio_thread_handoff_preserves_pending_input() {
     paste(&mut app, "STDIO_RESTORED_界🙂");
     assert!(screen(&app).contains("STDIO_RESTORED_界🙂"));
     let input_before_failed_resume = app.chat_widget.bottom_pane.composer_draft();
-    let mut model = Some("fixture-model".into());
-    let mut provider = Some("fixture-provider".into());
-    let mut effort = None;
-    let mut permissions = None;
     let options = crate::runtime::TuiOptions {
         app_server_bin: PathBuf::from(std::env::var_os("LIME_TEST_APP_SERVER_BIN").unwrap()),
         app_server_args: Vec::new(),
         remote: None,
         cwd: cwd.into(),
-        model: model.clone(),
-        model_provider: provider.clone(),
+        model: Some("fixture-model".into()),
+        model_provider: Some("fixture-provider".into()),
         reasoning_effort: None,
         permissions: None,
         approval_policy: None,
@@ -112,15 +108,7 @@ async fn real_stdio_thread_handoff_preserves_pending_input() {
         resume_thread: None,
     };
     assert!(app
-        .resume_target_session(
-            &mut session,
-            "missing-thread".into(),
-            &mut model,
-            &mut provider,
-            &mut effort,
-            &mut permissions,
-            &options
-        )
+        .resume_target_session(&mut session, "missing-thread".into(), &options)
         .await
         .is_err());
     assert_eq!(app.thread_id.as_deref(), Some(root.id.as_str()));
@@ -131,17 +119,9 @@ async fn real_stdio_thread_handoff_preserves_pending_input() {
     assert!(screen(&app).contains("STDIO_RESTORED_界🙂"));
 
     for target in [&child.id, &root.id] {
-        app.resume_target_session(
-            &mut session,
-            target.clone(),
-            &mut model,
-            &mut provider,
-            &mut effort,
-            &mut permissions,
-            &options,
-        )
-        .await
-        .unwrap();
+        app.resume_target_session(&mut session, target.clone(), &options)
+            .await
+            .unwrap();
         assert_eq!(app.thread_id.as_deref(), Some(target.as_str()));
         if target == &child.id {
             assert!(!app.chat_widget.bottom_pane.is_active());
@@ -191,17 +171,9 @@ async fn real_stdio_thread_handoff_preserves_pending_input() {
     .await;
     key(&mut app, KeyCode::Tab);
     paste(&mut app, "DORMANT_NOTES");
-    app.resume_target_session(
-        &mut session,
-        child.id.clone(),
-        &mut model,
-        &mut provider,
-        &mut effort,
-        &mut permissions,
-        &options,
-    )
-    .await
-    .unwrap();
+    app.resume_target_session(&mut session, child.id.clone(), &options)
+        .await
+        .unwrap();
     assert_eq!(app.chat_widget.bottom_pane.composer_text(), "CHILD_DRAFT");
     session
         .respond(AppServerResponse::UserInput {
@@ -225,17 +197,9 @@ async fn real_stdio_thread_handoff_preserves_pending_input() {
         &cwd.join("ledger.jsonl"),
     )
     .await;
-    app.resume_target_session(
-        &mut session,
-        root.id.clone(),
-        &mut model,
-        &mut provider,
-        &mut effort,
-        &mut permissions,
-        &options,
-    )
-    .await
-    .unwrap();
+    app.resume_target_session(&mut session, root.id.clone(), &options)
+        .await
+        .unwrap();
     assert!(
         !app.chat_widget.bottom_pane.is_active(),
         "resolved dormant request cannot reappear"

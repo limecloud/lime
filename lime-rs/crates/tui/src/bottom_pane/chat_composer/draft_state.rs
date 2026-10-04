@@ -50,16 +50,35 @@ impl ComposerDraft {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub(super) struct DraftState {
     pub(super) textarea: TextArea,
     pub(super) textarea_state: RefCell<TextAreaState>,
+    pub(super) input_enabled: bool,
+    pub(super) input_disabled_placeholder: Option<String>,
     pub(super) saved_draft: Option<ComposerDraft>,
     pub(super) paste_burst: PasteBurst,
     pub(super) disable_paste_burst: bool,
     pub(super) pending_pastes: Vec<(String, String)>,
     pub(super) mention_bindings: HashMap<u64, ComposerMentionBinding>,
     pub(super) recent_submission_mention_bindings: Vec<MentionBinding>,
+}
+
+impl Default for DraftState {
+    fn default() -> Self {
+        Self {
+            textarea: TextArea::default(),
+            textarea_state: RefCell::new(TextAreaState::default()),
+            input_enabled: true,
+            input_disabled_placeholder: None,
+            saved_draft: None,
+            paste_burst: PasteBurst::default(),
+            disable_paste_burst: false,
+            pending_pastes: Vec::new(),
+            mention_bindings: HashMap::new(),
+            recent_submission_mention_bindings: Vec::new(),
+        }
+    }
 }
 
 #[derive(Clone, Debug)]

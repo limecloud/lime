@@ -96,11 +96,14 @@ pub(crate) fn emit_skill_load_warnings(app: &mut App, errors: &[SkillErrorInfo])
     }
 
     app.projection
-        .add_warning_message(app.locale.skipped_skills_message(errors.len()));
+        .add_warning_message(app.chat_widget.locale.skipped_skills_message(errors.len()));
     for error in errors {
         let path = error.path.display().to_string();
-        app.projection
-            .add_error_message(app.locale.skill_load_error_message(&path, &error.message));
+        app.projection.add_error_message(
+            app.chat_widget
+                .locale
+                .skill_load_error_message(&path, &error.message),
+        );
     }
 }
 

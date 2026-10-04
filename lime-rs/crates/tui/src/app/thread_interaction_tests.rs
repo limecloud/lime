@@ -121,7 +121,7 @@ fn questions_keep_each_notes_draft_selection_focus_and_the_main_rich_draft() {
         handoff(&mut app, "root");
         assert_eq!(app.chat_widget.bottom_pane.composer_draft(), draft);
         assert!(
-            !app.thread_input_states.contains_key("root"),
+            !app.chat_widget.thread_input_states.contains_key("root"),
             "active input is consumed, not mirrored"
         );
         let restored = screen(&app);
@@ -163,7 +163,7 @@ fn opening_agent_center_does_not_move_or_duplicate_live_interactions() {
     paste(&mut app, "STILL_LIVE");
     app.open_agents_overview();
     assert!(app.chat_widget.bottom_pane.is_active());
-    assert!(app.thread_input_states.is_empty());
+    assert!(app.chat_widget.thread_input_states.is_empty());
     app.chat_widget.agents_overview = None;
     assert!(screen(&app).contains("STILL_LIVE"));
 }

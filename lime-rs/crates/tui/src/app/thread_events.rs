@@ -197,7 +197,7 @@ impl App {
 
     pub(crate) fn apply_notification(&mut self, notification: ServerNotification) {
         if let ServerNotification::McpServerStatusUpdated(params) = &notification {
-            self.mcp_startup_warnings.observe(params);
+            self.chat_widget.mcp_startup_warnings.observe(params);
         }
         self.track_agents_overview_notification(&notification);
         self.observe_notification(&notification);
@@ -226,7 +226,7 @@ impl App {
         let previous_turn_id = self.projection.active_turn_id().map(str::to_owned);
         self.projection.apply(notification);
         let active_turn_id = self.projection.active_turn_id();
-        self.turn_lifecycle.sync_projection_turn(
+        self.chat_widget.turn_lifecycle.sync_projection_turn(
             previous_turn_id.as_deref(),
             active_turn_id,
             Instant::now(),
@@ -252,28 +252,33 @@ impl App {
     fn observe_notification(&mut self, notification: &ServerNotification) {
         match notification {
             ServerNotification::ThreadStarted(params) => {
-                self.agent_navigation.upsert(
+                self.chat_widget.agent_navigation.upsert(
                     params.thread.id.clone(),
                     params.thread.agent_nickname.clone(),
                     params.thread.agent_role.clone(),
                     false,
                 );
                 if params.thread.parent_thread_id.is_some() {
-                    self.agent_navigation
+                    self.chat_widget
+                        .agent_navigation
                         .mark_parent_owned(params.thread.id.clone());
                 }
             }
             ServerNotification::ThreadClosed(params) => {
-                self.agent_navigation.mark_closed(&params.thread_id);
+                self.chat_widget
+                    .agent_navigation
+                    .mark_closed(&params.thread_id);
             }
             ServerNotification::ThreadStatusChanged(params) => match &params.status {
-                app_server_protocol::protocol::v2::ThreadStatus::Active { .. } => {
-                    self.agent_navigation.mark_running(&params.thread_id)
-                }
+                app_server_protocol::protocol::v2::ThreadStatus::Active { .. } => self
+                    .chat_widget
+                    .agent_navigation
+                    .mark_running(&params.thread_id),
                 app_server_protocol::protocol::v2::ThreadStatus::Idle
-                | app_server_protocol::protocol::v2::ThreadStatus::SystemError => {
-                    self.agent_navigation.mark_stopped(&params.thread_id)
-                }
+                | app_server_protocol::protocol::v2::ThreadStatus::SystemError => self
+                    .chat_widget
+                    .agent_navigation
+                    .mark_stopped(&params.thread_id),
                 app_server_protocol::protocol::v2::ThreadStatus::NotLoaded => {}
             },
             ServerNotification::ItemStarted(params) => {

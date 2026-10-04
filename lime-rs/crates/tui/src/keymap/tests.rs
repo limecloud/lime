@@ -28,6 +28,23 @@ fn codex_transcript_defaults_and_hints_share_one_owner() {
 }
 
 #[test]
+fn queued_input_edit_dispatch_and_label_share_one_binding() {
+    assert!(queued_input_edit_matches(KeyEvent::new(
+        KeyCode::Up,
+        KeyModifiers::ALT,
+    )));
+    assert!(!queued_input_edit_matches(KeyEvent::new(
+        KeyCode::Up,
+        KeyModifiers::NONE,
+    )));
+    assert!(!queued_input_edit_matches(KeyEvent::new(
+        KeyCode::Down,
+        KeyModifiers::ALT,
+    )));
+    assert_eq!(queued_input_edit_shortcut_label(), "⌥↑");
+}
+
+#[test]
 fn custom_chord_alternatives_dispatch_and_update_hints() {
     let mut config = TuiKeymap::default();
     config.global.find_transcript = Some(many(&["f6", "ctrl-x f"]));

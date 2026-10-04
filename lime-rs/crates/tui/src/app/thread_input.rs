@@ -7,17 +7,11 @@ impl App {
         let Some(thread_id) = self.thread_id.clone() else {
             return;
         };
-        self.thread_input_states
-            .insert(thread_id, self.chat_widget.bottom_pane.take_input_state());
+        self.chat_widget.capture_thread_input(&thread_id);
     }
 
     pub(crate) fn restore_thread_input(&mut self, thread_id: &str) {
-        let state = self
-            .thread_input_states
-            .remove(thread_id)
-            .unwrap_or_default();
-        self.chat_widget.bottom_pane.restore_input_state(state);
-        self.startup_pending_protected_request = self.chat_widget.bottom_pane.is_active();
+        self.chat_widget.restore_thread_input(thread_id);
     }
 
     pub(super) fn observe_thread_input_notification(
@@ -25,25 +19,16 @@ impl App {
         thread_id: &str,
         notification: &app_server_protocol::protocol::v2::ServerNotification,
     ) {
-        if self.thread_id.as_deref() == Some(thread_id) {
-            self.chat_widget
-                .bottom_pane
-                .observe_notification(notification);
-            if !self.chat_widget.bottom_pane.is_active() {
-                self.startup_pending_protected_request = false;
-            }
-        } else if let Some(state) = self.thread_input_states.get_mut(thread_id) {
-            state.observe_notification(notification);
-        }
+        self.chat_widget.observe_thread_input_notification(
+            thread_id,
+            notification,
+            self.thread_id.as_deref() == Some(thread_id),
+        );
     }
 
     pub(super) fn clear_connection_interactions(&mut self) {
-        self.chat_widget.bottom_pane.clear_interactions();
-        for state in self.thread_input_states.values_mut() {
-            state.clear_interactions();
-        }
+        self.chat_widget.clear_thread_interactions();
         self.thread_event_channels.clear();
-        self.startup_pending_protected_request = false;
     }
 }
 
@@ -95,7 +80,7 @@ mod tests {
                 root,
                 "opening Agent Center must not alter the live draft"
             );
-            app.chat_widget.agents_overview = None;
+            app.chat_widget.clear_agents_overview();
             app.capture_current_thread_input();
             app.set_thread_id("child".into());
             app.restore_thread_input("child");
@@ -122,7 +107,7 @@ mod tests {
                 root_text
             );
             assert!(
-                !app.thread_input_states.contains_key("root"),
+                !app.chat_widget.thread_input_states.contains_key("root"),
                 "the active composer is the sole live owner"
             );
             app.capture_current_thread_input();
@@ -152,7 +137,10 @@ mod tests {
         let stored = app.chat_widget.bottom_pane.composer_draft();
         assert_eq!(app.chat_widget.bottom_pane.composer_text(), "history match");
         app.capture_current_thread_input();
-        assert_eq!(app.thread_input_states["root"].composer_draft(), &stored);
+        assert_eq!(
+            app.chat_widget.thread_input_states["root"].composer_draft(),
+            &stored
+        );
         app.set_thread_id("child".into());
         app.restore_thread_input("child");
         app.set_thread_id("root".into());
@@ -165,7 +153,7 @@ mod tests {
         let mut app = App::default();
         app.chat_widget.bottom_pane.insert_str("unbound");
         app.capture_current_thread_input();
-        assert!(app.thread_input_states.is_empty());
+        assert!(app.chat_widget.thread_input_states.is_empty());
         app.set_thread_id("root".into());
         app.capture_current_thread_input();
         app.chat_widget.bottom_pane.set_composer_text(String::new());

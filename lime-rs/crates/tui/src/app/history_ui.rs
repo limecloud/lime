@@ -92,7 +92,7 @@ pub(crate) fn render_main_transcript_content(
         app.chat_widget.permissions.clone(),
         app.cwd.clone(),
         env!("CARGO_PKG_VERSION"),
-        app.locale,
+        app.chat_widget.locale,
     );
     let mode = app.chat_widget.history_render_mode;
     let mut content = MainTranscriptContent::default();
@@ -105,17 +105,18 @@ pub(crate) fn render_main_transcript_content(
     if mode == HistoryRenderMode::Raw {
         for entry in entries {
             let mut group = MainTranscriptContent::default();
-            let cell = TranscriptHistoryCell::new(entry.clone(), app.locale, app.cwd.clone());
+            let cell =
+                TranscriptHistoryCell::new(entry.clone(), app.chat_widget.locale, app.cwd.clone());
             group.push_entry(
                 entry,
-                app.locale,
+                app.chat_widget.locale,
                 cell.display_hyperlink_lines_for_mode(content_width, mode),
             );
             if let Some(boundary) = app.projection.completion_after(&entry.id) {
                 group.push_other(
                     format!("completion:{}", entry.id),
                     FinalMessageSeparator::new(boundary.elapsed_seconds)
-                        .with_locale(app.locale)
+                        .with_locale(app.chat_widget.locale)
                         .display_hyperlink_lines_for_mode(content_width, mode),
                 );
             }
@@ -144,7 +145,9 @@ pub(crate) fn render_main_transcript_content(
         }
         let group = &entries[index..end];
         let mut rendered = MainTranscriptContent::default();
-        if let Some(compact) = activity_group_compact_lines(group, app.locale, content_width) {
+        if let Some(compact) =
+            activity_group_compact_lines(group, app.chat_widget.locale, content_width)
+        {
             rendered.push_other(format!("activity:{}", group[0].id), compact);
         } else {
             let mut rendered_entries = 0;
@@ -160,8 +163,13 @@ pub(crate) fn render_main_transcript_content(
                 }
                 rendered.push_entry(
                     entry,
-                    app.locale,
-                    render_transcript_entry_lines(entry, viewport_width, app.locale, &app.cwd),
+                    app.chat_widget.locale,
+                    render_transcript_entry_lines(
+                        entry,
+                        viewport_width,
+                        app.chat_widget.locale,
+                        &app.cwd,
+                    ),
                 );
                 rendered_entries += 1;
             }
@@ -171,7 +179,7 @@ pub(crate) fn render_main_transcript_content(
             rendered.push_other(
                 format!("completion:{}", last.id),
                 FinalMessageSeparator::new(boundary.elapsed_seconds)
-                    .with_locale(app.locale)
+                    .with_locale(app.chat_widget.locale)
                     .display_hyperlink_lines(viewport_width.saturating_sub(2).max(1)),
             );
         }
@@ -203,7 +211,7 @@ pub(crate) fn render_transcript_pager_content(app: &App, viewport_width: u16) ->
         app.chat_widget.permissions.clone(),
         app.cwd.clone(),
         env!("CARGO_PKG_VERSION"),
-        app.locale,
+        app.chat_widget.locale,
     );
     let mut content = TranscriptContent::default();
     content.push_keyed_lines(
@@ -231,7 +239,7 @@ pub(crate) fn render_transcript_pager_content(app: &App, viewport_width: u16) ->
             &mut content,
             &entries[index..end],
             viewport_width,
-            app.locale,
+            app.chat_widget.locale,
             &app.cwd,
         );
         let last = &entries[end - 1];
@@ -239,7 +247,7 @@ pub(crate) fn render_transcript_pager_content(app: &App, viewport_width: u16) ->
             content.push_keyed_lines(
                 format!("completion:{}", last.id),
                 FinalMessageSeparator::new(boundary.elapsed_seconds)
-                    .with_locale(app.locale)
+                    .with_locale(app.chat_widget.locale)
                     .display_hyperlink_lines(content_width),
             );
         }

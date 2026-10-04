@@ -129,7 +129,7 @@ async fn real_stdio_queue_and_rejected_submission_preserve_typed_metadata() {
         listed[0].input, canonical,
         "canonical queue -> TUI edit -> real queue/add is lossless"
     );
-    assert_eq!(app.queued_submissions, listed);
+    assert_eq!(app.chat_widget.queued_submissions(), listed.as_slice());
     assert!(session
         .delete_queued_submission(listed[0].id.clone())
         .await

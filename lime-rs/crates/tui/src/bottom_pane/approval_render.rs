@@ -113,19 +113,10 @@ pub(super) fn desired_height(pane: &BottomPane, locale: Locale, width: u16) -> u
 }
 
 pub(super) fn footer_hint(locale: Locale, width: usize) -> String {
-    let available = width.saturating_sub(1);
-    [
-        locale.approval_controls(),
-        "Enter · Esc",
-        "↵ · Esc",
-        "↵Esc",
-        "Esc",
-        "",
-    ]
-    .into_iter()
-    .find(|hint| crate::width::display_width(hint) <= available)
-    .unwrap_or_default()
-    .to_string()
+    super::fit_primary_action_hint(
+        locale.approval_controls().to_string(),
+        width.saturating_sub(1),
+    )
 }
 
 pub(super) fn render(frame: &mut Frame<'_>, area: Rect, pane: &BottomPane, locale: Locale) {

@@ -77,7 +77,7 @@ impl ChatComposer {
     }
 
     pub(crate) fn handle_mouse(&mut self, event: MouseEvent) -> bool {
-        if self.history_search.is_some() || self.vim_search_active() {
+        if !self.draft.input_enabled || self.history_search.is_some() || self.vim_search_active() {
             self.end_mouse_drag();
             return false;
         }

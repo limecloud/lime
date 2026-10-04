@@ -182,14 +182,14 @@ fn model_picker_page_step_uses_the_painted_visual_window() {
 fn model_picker_replaces_composer_without_erasing_draft_or_session_settings() {
     let mut app = crate::app::App::default();
     app.set_thread_id("canonical-thread".into());
-    app.set_settings(
+    app.chat_widget.set_settings(
         Some("current".into()),
         Some("provider".into()),
         Some("high".into()),
         None,
     );
     app.chat_widget.bottom_pane.insert_str("preserved draft");
-    app.open_model_picker(vec![
+    app.chat_widget.open_model_picker(vec![
         model("default", "provider", false, true),
         model("current", "provider", false, false),
     ]);

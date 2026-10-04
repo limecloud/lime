@@ -3,6 +3,7 @@
 use std::collections::HashSet;
 
 use anyhow::{bail, Context, Result};
+use app_server_client::RequestHandle;
 use app_server_protocol::protocol::v2::{
     SortDirection, ThreadItem, ThreadItemsListParams, ThreadItemsListResponse,
     ThreadTurnsListParams, ThreadTurnsListResponse, Turn, TurnItemsView, METHOD_THREAD_ITEMS_LIST,
@@ -200,33 +201,7 @@ impl AppServerSession {
         cursor: Option<String>,
         limit: u32,
     ) -> Result<ThreadItemsListResponse> {
-        self.request_handle
-            .request(
-                METHOD_THREAD_ITEMS_LIST,
-                thread_items_page_params(thread_id, None, cursor, limit),
-            )
-            .await
-            .context("failed to load App Server thread item page")
-    }
-
-    pub(crate) async fn thread_turns_page(
-        &self,
-        thread_id: impl Into<String>,
-        cursor: Option<String>,
-    ) -> Result<ThreadTurnsListResponse> {
-        self.request_handle
-            .request(
-                METHOD_THREAD_TURNS_LIST,
-                ThreadTurnsListParams {
-                    thread_id: thread_id.into(),
-                    cursor,
-                    limit: Some(HISTORY_ITEM_PAGE_LIMIT),
-                    sort_direction: Some(SortDirection::Desc),
-                    items_view: Some(TurnItemsView::Full),
-                },
-            )
-            .await
-            .context("failed to load App Server thread turn page")
+        thread_items_page_with_handle(self.request_handle.clone(), thread_id, cursor, limit).await
     }
 
     /// Load the turn pages that cover the item page and one older context turn.
@@ -239,38 +214,85 @@ impl AppServerSession {
         thread_id: impl Into<String>,
         target_turn_ids: &HashSet<String>,
     ) -> Result<Vec<Turn>> {
-        if target_turn_ids.is_empty() {
-            return Ok(Vec::new());
-        }
-        let thread_id = thread_id.into();
-        let mut cursor = None;
-        let mut seen_cursors = HashSet::new();
-        let mut turns_desc = Vec::new();
+        thread_turns_for_items_with_handle(self.request_handle.clone(), thread_id, target_turn_ids)
+            .await
+    }
+}
 
-        for _ in 0..16 {
-            let page = self
-                .thread_turns_page(thread_id.clone(), cursor.clone())
-                .await?;
-            turns_desc.extend(page.data);
-            if all_target_turns_loaded(&turns_desc, target_turn_ids)
-                && has_older_turn_context(&turns_desc, target_turn_ids)
-            {
+pub(crate) async fn thread_items_page_with_handle(
+    request_handle: RequestHandle,
+    thread_id: impl Into<String>,
+    cursor: Option<String>,
+    limit: u32,
+) -> Result<ThreadItemsListResponse> {
+    request_handle
+        .request(
+            METHOD_THREAD_ITEMS_LIST,
+            thread_items_page_params(thread_id, None, cursor, limit),
+        )
+        .await
+        .context("failed to load App Server thread item page")
+}
+
+async fn thread_turns_page_with_handle(
+    request_handle: RequestHandle,
+    thread_id: impl Into<String>,
+    cursor: Option<String>,
+) -> Result<ThreadTurnsListResponse> {
+    request_handle
+        .request(
+            METHOD_THREAD_TURNS_LIST,
+            ThreadTurnsListParams {
+                thread_id: thread_id.into(),
+                cursor,
+                limit: Some(HISTORY_ITEM_PAGE_LIMIT),
+                sort_direction: Some(SortDirection::Desc),
+                items_view: Some(TurnItemsView::Full),
+            },
+        )
+        .await
+        .context("failed to load App Server thread turn page")
+}
+
+pub(crate) async fn thread_turns_for_items_with_handle(
+    request_handle: RequestHandle,
+    thread_id: impl Into<String>,
+    target_turn_ids: &HashSet<String>,
+) -> Result<Vec<Turn>> {
+    if target_turn_ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    let thread_id = thread_id.into();
+    let mut cursor = None;
+    let mut seen_cursors = HashSet::new();
+    let mut turns_desc = Vec::new();
+
+    for _ in 0..16 {
+        let page = thread_turns_page_with_handle(
+            request_handle.clone(),
+            thread_id.clone(),
+            cursor.clone(),
+        )
+        .await?;
+        turns_desc.extend(page.data);
+        if all_target_turns_loaded(&turns_desc, target_turn_ids)
+            && has_older_turn_context(&turns_desc, target_turn_ids)
+        {
+            return Ok(chronological_turns(turns_desc));
+        }
+        let Some(next_cursor) = page.next_cursor else {
+            if all_target_turns_loaded(&turns_desc, target_turn_ids) {
                 return Ok(chronological_turns(turns_desc));
             }
-            let Some(next_cursor) = page.next_cursor else {
-                if all_target_turns_loaded(&turns_desc, target_turn_ids) {
-                    return Ok(chronological_turns(turns_desc));
-                }
-                bail!("thread turns page is missing an item page target turn");
-            };
-            if !seen_cursors.insert(next_cursor.clone()) {
-                bail!("thread turns pagination repeated cursor {next_cursor}");
-            }
-            cursor = Some(next_cursor);
+            bail!("thread turns page is missing an item page target turn");
+        };
+        if !seen_cursors.insert(next_cursor.clone()) {
+            bail!("thread turns pagination repeated cursor {next_cursor}");
         }
-
-        bail!("thread turns pagination exceeded 16 pages")
+        cursor = Some(next_cursor);
     }
+
+    bail!("thread turns pagination exceeded 16 pages")
 }
 
 fn chronological_turns(turns_desc: Vec<Turn>) -> Vec<Turn> {

@@ -51,7 +51,7 @@ Future Cloud -> authenticated transport ----> LimeCore gateway
                                                 -> ThreadStore + Thread/Turn/Item projection
 ```
 
-`Product Surface`、`Host/Transport` 与业务 runtime 是三层边界。Desktop、TUI、CLI 可以拥有各自的窗口/终端生命周期、输入法、快捷键和展示投影，但不能拥有 provider loop、工具 registry、approval authority、Thread/Turn/Item 状态机或持久化副本。`app-server-protocol` 是跨 surface 合同，`app-server-client` 是 Rust surface 的连接/session owner；本地 stdio 是当前实现，未来 Cloud 通过同一 session facade 接入认证后的远端 transport。TUI 的 `resume` picker 与 Codex-shaped `Agents Overview` 只读取 App Server `thread/list`，选中后进入标准 `thread/resume`；Overview 的状态分组、子线程状态冒泡与刷新仅投影 canonical Thread/notification，不访问私有 daemon/state DB。Overview 的新任务、改名和停止操作分别 lowering 到现有 `thread/start` + `turn/start`、`thread/name/set` 与 `turn/interrupt`，不复制 Codex agents daemon；刷新请求使用单一 request identity，合并 pending 请求并重放刷新期间到达的最新 thread notification。TUI 在 `app/app_server_event_targets.rs` 复用 Codex 同名 `server_notification_thread_target`、`server_request_thread_id` 与 `ServerNotificationThreadTarget`：Thread-scoped notification 可以更新 Overview/导航，但只有当前 Thread 能写入当前 `ConversationProjection`；foreign Thread 的可交互 server request 进入对应 `ThreadEventStore` 的 bounded replay channel，`pending_interactive_replay` 只允许仍未解决的 request 在 `thread/resume` 后重放；Dynamic Tool 和不受支持的 MCP elicitation schema 没有 TUI consumer，立即 fail closed；受支持的 MCP form/approval 由 BottomPane 消费，buffer 满时也直接 reject，不得落入当前 Thread 的 BottomPane。连接中断只由 TUI `app/reconnect.rs` session owner 做 bounded reconnect，并以原 Thread id hydrate canonical history，composer draft 保持在 surface 内存中，旧 connection 的 pending approval 丢弃且不得跨连接回放。TUI 的 `app/app_server_events.rs` 只负责 transport event 分流和 notification dispatch；`app/app_server_requests.rs` 负责 reverse server request routing 与 reject/queue 语义；`app/thread_events.rs` 负责 canonical Thread/Turn/Item notification projection 和 agent liveness；`app/pending_interactive_replay.rs` 负责 Codex 对齐的 pending request identity；`app/thread_settings.rs` 负责当前 thread 的 model/provider、effort、permission profile 与 collaboration mode read model；`app/event_dispatch.rs` 的 `App::handle_event` 负责 App Server-backed settings、协作模式、权限和 Agents Overview action。TUI 的 effort/permission 快捷键只 lowering 到 `thread/settings/update`；`/model` picker 只消费 typed `model/list` 的可见 catalog，并在选择后 lowering 到同一 settings method，不复制 Codex 配置或 provider catalog。
+`Product Surface`、`Host/Transport` 与业务 runtime 是三层边界。Desktop、TUI、CLI 可以拥有各自的窗口/终端生命周期、输入法、快捷键和展示投影，但不能拥有 provider loop、工具 registry、approval authority、Thread/Turn/Item 状态机或持久化副本。`app-server-protocol` 是跨 surface 合同，`app-server-client` 是 Rust surface 的连接/session owner；本地 stdio 是当前实现，未来 Cloud 通过同一 session facade 接入认证后的远端 transport。TUI 的 `resume` picker 与 Codex-shaped `Agents Overview` 只读取 App Server `thread/list`，选中后进入标准 `thread/resume`；Overview 的状态分组、子线程状态冒泡与刷新仅投影 canonical Thread/notification，不访问私有 daemon/state DB。Overview 的新任务、改名和停止操作分别 lowering 到现有 `thread/start` + `turn/start`、`thread/name/set` 与 `turn/interrupt`，不复制 Codex agents daemon；刷新请求使用单一 request identity，合并 pending 请求并重放刷新期间到达的最新 thread notification。TUI 在 `app/app_server_event_targets.rs` 复用 Codex 同名 `server_notification_thread_target`、`server_request_thread_id` 与 `ServerNotificationThreadTarget`：Thread-scoped notification 可以更新 Overview/导航，但只有当前 Thread 能写入当前 `ConversationProjection`；foreign Thread 的可交互 server request 进入对应 `ThreadEventStore` 的 bounded replay channel，`pending_interactive_replay` 只允许仍未解决的 request 在 `thread/resume` 后重放；Dynamic Tool 和不受支持的 MCP elicitation schema 没有 TUI consumer，立即 fail closed；受支持的 MCP form/approval 由 BottomPane 消费，buffer 满时也直接 reject，不得落入当前 Thread 的 BottomPane。连接中断只由 TUI `app/reconnect.rs` session owner 做 bounded reconnect，并以原 Thread id hydrate canonical history，composer draft 保持在 surface 内存中，旧 connection 的 pending approval 丢弃且不得跨连接回放。TUI 的 `app/app_server_events.rs` 只负责 transport event 分流和 notification dispatch；`app/app_server_requests.rs` 负责 reverse server request routing 与 reject/queue 语义；`app/thread_events.rs` 负责 canonical Thread/Turn/Item notification projection 和 agent liveness；`app/pending_interactive_replay.rs` 负责 Codex 对齐的 pending request identity；`chatwidget/settings.rs` 负责 ChatWidget 的 model/provider、effort、permission profile 与 collaboration mode surface projection；`app/event_dispatch.rs` 的 `App::handle_event` 负责 App Server-backed settings、协作模式、权限和 Agents Overview action。用户可见 locale 与 copy 同样由 ChatWidget 持有，App 只通过 `set_locale` 做 host 配置委托。TUI 的 effort/permission 快捷键只 lowering 到 `thread/settings/update`；`/model` picker 只消费 typed `model/list` 的可见 catalog，并在选择后 lowering 到同一 settings method，不复制 Codex 配置或 provider catalog。
 
 TUI 的终端输入与绘制调度 owner 对齐 Codex `tui`：`tui::EventBroker` 统一持有可暂停/恢复的 crossterm 输入源，`tui::TuiEventStream` 将 key、paste、resize、focus 和 draw 归一化后交给 runtime；`tui::FrameRequester` 与 `frame_rate_limiter` 合并异步重绘并限制频率。workspace 级 crossterm 固定使用 Codex 同源的 `openai-oss-forks/crossterm` revision `45fecb9508105988f42fe6ff0441783ed3717f92`，其 terminal readiness 和外部消费输入修复是 external editor 交接的唯一依赖事实源。`tui::Tui` 只负责 terminal mode 生命周期，并在外部编辑器或恢复流程中暂停 broker，确保 stdin 不被后台 reader 占用。该层不得承接 App Server 请求、Thread 状态或第二套业务事件总线。真实 TUI Gate B 使用 PTY 驱动键盘和 alternate screen，并按 Codex 测试依赖使用 `vt100::Parser` 还原关闭前的实际屏幕；不能用删除 ANSI 后的字节拼接冒充用户可见状态。
 
@@ -135,8 +135,9 @@ Turn terminal。MCP elicitation 按独立 resolved/ThreadClosed 清理，不把 
 JSON-RPC response 已有精确 id，不复制 Codex native Op 的 FIFO/按 call-id 回答适配逻辑。
 已解决/淘汰的旧请求不能被同 item 的新请求复活，旧 buffered event 淘汰不清 replacement。
 架构图确认：root，2026-10-02；GUI/TUI共享业务主链和 canonical authority 不变，主输入/交互
-以及 pager、transcript scroll/viewport/follow/search/selection/footer 等 session-local presentation
-状态已经由 `ChatWidget` 单一持有，完整 ChatWidget lifecycle（collaboration scope、replay seed
+以及 pager、transcript scroll/viewport/follow/search/selection/footer、外部编辑器生命周期与 startup
+protected-request pending 等
+session-local presentation 状态已经由 `ChatWidget` 单一持有，完整 ChatWidget lifecycle（collaboration scope、replay seed
 和其它 Codex session state）迁移继续 partial，不增加空壳、Deref 或第二 backend。
 capture 前由同一 paste-burst owner 物化 held typing，不能丢失或在新 Thread 上迟到 flush。
 `ChatComposer::restore_thread_input_state` 创建 fresh `DraftState/TextArea`，恢复完整 rich draft
@@ -163,8 +164,18 @@ session settings 的 surface projection 也归 `ChatWidget`：`model_catalog`、
 `App::handle_event` 只负责把选择/循环动作 lowering 到既有 `thread/settings/update` 与
 `collaborationMode` JSON-RPC，不能在 App 再保留平行 settings/catalog 字段。catalog 与
 权限事实仍来自 App Server/session，不在 TUI 建第二份 provider 或持久化 owner。
+协作模式默认推导、catalog 快照归一化与 picker 构造位于 `chatwidget/settings.rs`；旧的
+`app/thread_settings.rs` 委托入口已删除，App Server/session 快照由启动与重连调用直接交给
+ChatWidget。不得把这些 ChatWidget 业务规则重新堆回 App 或新增平行 settings owner。
+runtime 不再保留可变的 `model/model_provider/effort/permissions` 副本；重连所需的
+`ThreadSettingsPatch`、快捷键更新和 picker/协作模式变更均通过 `ChatWidget` 的 settings
+owner 方法完成。审批策略、sandbox 与 reviewer 仍是 terminal host policy，不能混入该 UI
+snapshot。
 raw/rich transcript presentation mode (`HistoryRenderMode`) 同样属于 `ChatWidget`，App 只保留
 切换动作和状态反馈，不再保存第二份 presentation flag。
+Agent navigation ordering/liveness/parent-owned facts 与 scrollback older-history availability
+也属于 `ChatWidget` session surface；App 只负责 Thread/notification transport 和历史请求，
+不能重新在宿主层保存 Agent picker/navigation 或 transcript pagination flags。
 本地图片由 `chat_composer::AttachmentState` 保存同一 `LocalImageAttachment` 的路径、占位符与
 typed `ImageDetail`，不再用重复的内部 AttachedImage 或 paths-only history 重建。远程图片由
 `RemoteImageAttachment { url, detail }` 保存完整 canonical 元数据；不存在按 URL 关联 detail
@@ -190,6 +201,13 @@ accept 丢弃。host 用 `draft_snapshot` 捕获 original，Vim 内部用 `snaps
 `set_history_metadata(thread_id, log_id, entry_count)`，不再截取一页或裁剪到 200 条。
 `ChatComposerHistory` 统一持有 `local_history/fetched_history/history_cursor`；正常 recall
 按需请求单条，搜索在 newest probe miss 后切换到 `search_batch` 的 query-independent 批量缓存。
+同一 owner 还持有 `replay_seeded_history`：legacy `thread/read` 的 canonical UserMessage 与
+带完整 Turn 元数据的 paginated item page 先 lowering 为 rich `HistoryEntry`，再进入同一
+Up/Down/Ctrl-R 状态机；旧页以 prepend 保持时间顺序，persistent prompt history 与 replay
+entry 按 text/mention identity 去重。review prompt 与 nested-review duplicate 只在
+`history_filter::hidden_user_message_ids` 证明可见后 seed；没有 Turn enrichment 的 flat page
+直接 fail closed，不把猜测出的用户消息写入 composer history。该 seed 只在 ChatComposerHistory
+内存中存在，不新增协议、schema、持久化表或 App 级 history store。
 `app_event/AppEventSender` 传递同名 `LookupMessageHistoryEntry/Batch`，
 `app/message_history` 通过 cloned RequestHandle 异步访问既有 `promptHistory/read`，
 再由 `on_entry_response/on_batch_response/on_batch_error` 继续唯一状态机。线程/log/cursor
@@ -202,8 +220,9 @@ host lookup tasks 随 owner 释放中止，terminal event loop 不等待历史 I
 Replace recovery 属于该状态，跳过附件，粘贴前缀回收和 Backspace 共用同一 recovery；普通 buffer
 replacement 清除命令，取消搜索则恢复完整录制状态。Normal 模式禁止 paste burst 抢占命令。
 小模块拆分为仓库行数约束差异，不建立第二个 state owner；完整 Vim keymap consumer 已接入，
-thread handoff 已清理 Vim edit lifetime 并传递 session register；replay-seeded history、
-ChatWidget collaboration scope 和其它 session state 恢复仍未完成。
+thread handoff 已清理 Vim edit lifetime 并传递 session register；ChatWidget collaboration
+scope 和其它 session state 恢复仍未完成，replay-seeded composer history 已由上述 owner
+承接并受 Turn identity/review guard 约束。
 数据流为 `paste -> ChatComposer draft/TextArea -> Text + TextElement / remote images / local images
 -> App Server -> canonical Thread/Turn/Item`；App/Runtime 只 lowering 为现有结构化 `UserInput`，
 顺序为 remote images、local images、text、skills。传输失败与 queue edit 回到同一草稿 owner。
@@ -222,7 +241,7 @@ prompt-history public append 与 entry 的 identity 统一为 `threadId`；TUI �
 JSONL `session_id` 字段由同一 canonical Thread ID lowering，不新增存储或兼容公开字段。
 此处复用同名 Codex owner/方法；小模块拆分、canonical queue 和严格 literal 保留为 merge。
 不增加第二套 composer、history DB、协议、turn/queue authority 或持久化；app/plugin/task mentions、
-ChatWidget collaboration scope、replay seed 与其它 session state 恢复仍为 partial，BottomPane 主输入
+ChatWidget collaboration scope 与其它 session state 恢复仍为 partial，BottomPane 主输入
 与 transcript presentation 生命周期已收敛。本轮架构图确认：
 上面的 owner/data-flow 为 current，责任开发者 root，2026-10-01；无外部兼容或平行后端。
 
@@ -249,8 +268,14 @@ noclobber 保护拒绝覆盖已有文件。该 owner 不读取本地 rollout/his
 
 `app/history_pagination.rs` 是 TUI 历史分页状态机 owner。它只保存 App Server 返回的
 opaque `thread/items/list` cursor、loading 状态和去重集合；PageUp 触发的 older-history
-请求必须经 `AppServerSession` 的 `RequestHandle` 发送，返回的 `ThreadItemEntry` 先 lowering
-为 `TranscriptEntry` 再 prepend 到 `ConversationProjection`。分页不能在 TUI 创建本地
+请求必须经克隆的 `AppServerSession::RequestHandle` 在后台发送，并通过
+`AppEvent::OlderThreadHistoryLoaded` 回到 TUI 主循环；主循环先校验 Thread/cursor ownership，
+再把返回的 `ThreadItemEntry` 和可选 Turn enrichment lowering 为 `TranscriptEntry` 并 prepend
+到 `ConversationProjection`。单页滚动、Pager 全量加载和启动/resize/reconnect 可视区补齐
+共享同一异步 completion flow，不能在 event loop 内同步 await，确保键盘、重绘、退出和
+App Server notification 在历史 IO 期间继续处理。`OlderHistoryLoadStart` 明确区分
+`Started`、`Pending` 与 `Unavailable`；Pager/Search 的全量加载意图在单页 completion 后
+继续消费，不能因 cursor 正在使用而把 Loading 误重置为 Idle。分页不能在 TUI 创建本地
 history store；legacy thread 继续使用 `thread/read(includeTurns=true)`，paginated thread
 使用 `thread/resume(excludeTurns=true)` 加 `thread/items/list`，直到 `nextCursor` 为 null。
 paginated metadata-only resume 的 head cursor 由
@@ -260,7 +285,11 @@ paginated metadata-only resume 的 head cursor 由
 head cursor，TUI 从 item cursor 开始 bounded hydration；重复或不前进的分页 cursor 按
 Codex `advancing_cursor` 语义终止，不转成第二套错误协议或本地 cursor。
 当前 overlay 的 bounded reflow 和 Codex 专用 review/MCP/file-activity 过滤仍属于
-`defer`，未伪造为 Lime current 语义。
+`defer`，未伪造为 Lime current 语义。Resume picker 的 bounded preview 也必须在展示前
+尽可能读取同一批 canonical Turn facts，通过 `hidden_user_message_ids` 做跨页 review
+过滤；Turn 请求失败时只能保留受控 item-only fail-closed 展示，不能建立 preview history
+store 或第二套过滤规则。架构图确认：history completion/event flow 与 preview lowering
+继续复用 App Server canonical Thread/Turn/Item；责任开发者 root，2026-10-03。
 
 CLI 的 npm 分发边界对齐 `/Users/coso/Documents/dev/rust/codex/codex-cli`：`@limecloud/lime` 根包只发布 ESM launcher，并通过 optional dependency alias 选择平台包；平台包在 `vendor/<target-triple>/bin` 原子携带 `lime`、`app-server`、`code-mode-host`、Windows sandbox helpers 与 App Server 所需动态运行库。launcher 只负责平台解析、包管理器归属、参数/stdin/stdout 转发、signal forwarding 和退出原因镜像，不下载 release asset、不回退 `cargo run`，也不承接 App Server 业务。平台包必须先于根包串行发布，避免根包引用尚不存在的载荷版本；尚无真实构建/运行证据的平台不进入 optional dependency catalog。
 
@@ -3383,3 +3412,40 @@ Responsible developer confirmation: root, 2026-08-20. Confirmation content: 已�
 `before-mouse-event` / `before-input-event` 与 CDP input 的触发边界；确认 native 用户输入由 BrowserTabHost 直接撤销
 Agent lease、snapshot 和 approval token，Agent CDP input 只通过 scoped suppression 排除自触发，不改变 canonical
 Thread/Turn/Item 与 approval owner。
+
+## 46. TUI ChatWidget session-local owner 收敛
+
+CLI/TUI 继续沿用唯一业务主链：
+
+```text
+CLI/TUI Host -> App Server JSON-RPC -> RuntimeCore -> Thread/Turn/Item projection -> ChatWidget
+```
+
+`ChatWidget` 是终端 chat surface 的唯一 session-local owner。除主 composer、BottomPane 交互与 transcript
+presentation 外，它还持有 locale/copy presentation、runtime keymap/global chord matcher、CLIPBOARD/PRIMARY
+lease、right-click paste 竞态、queued submissions、per-thread `BottomPaneInputState` 快照、turn lifecycle 以及
+skill/MCP startup warning presentation state。`App` 只保留 host 生命周期、transport/session action、Thread/notification routing 和 canonical
+projection；不得恢复同名平行字段、getter、Deref facade 或第二份 queue/history/backend。
+
+主 composer 的 `input_enabled`、禁用态 placeholder、popup 清理与 cursor 可见性也属于同一
+`ChatWidget -> BottomPane -> ChatComposer` presentation owner。输入禁用只阻断终端编辑、粘贴和鼠标
+变更，保留可恢复草稿与 remote image rows；不修改 App Server JSON-RPC、RuntimeCore 或 canonical
+Thread/Turn/Item。`RequestUserInputOverlay.composer` 仍是独立 notes editor，不得机械并入主 composer。
+
+这些字段仍是 UI session state，不是 App Server canonical Thread/Turn/Item、RuntimeCore、provider 或工具 authority。
+模型/provider/effort/permission/collaboration 的 surface projection 与 Codex-shaped 推导由
+`chatwidget/settings.rs` 单一持有；启动、重连和 App Server 返回的快照直接调用 ChatWidget
+setter，不保留第二套协作模式选择或 catalog 归一化逻辑。旧 `app/thread_settings.rs` 已删除，
+由结构守卫防止回流。
+右键粘贴的 native clipboard worker 继续由 runtime/host 驱动，ChatWidget 只校验 thread/draft identity 并接收完成态；
+queued submissions 继续由 App Server `thread/list_queued_submissions` 提供事实源，ChatWidget 仅作可见投影与编辑接线。
+
+分类：ChatWidget session-local state 为 `current`；旧 App 平行字段与直接消费为 `dead / deleted / guard-only`；
+transport reconnect snapshot 仍是 `compat` 边界，仅负责跨线程把 canonical 返回值交给 ChatWidget；本阶段没有新增
+`deprecated`、协议、schema、provider 或 GUI backend。Desktop 与 TUI 仍共享同一个 App Server/runtime/canonical
+projection，TUI/CLI Gate B 不替代 Desktop Gate B。
+
+Architecture impact: major；Responsible developer confirmation: root, 2026-10-02。Confirmation content：已对照公开
+Codex `tui/chatwidget.rs`、`chatwidget/input_queue.rs`、`chatwidget/turn_runtime.rs` 与 `app/right_click_paste.rs`，
+确认上述 session-local 状态归 ChatWidget/BottomPane，App 不再成为第二个 ChatWidget；CLI/TUI 共享业务主链与 GUI，未复制
+runtime、provider、transport 或 canonical read model。
