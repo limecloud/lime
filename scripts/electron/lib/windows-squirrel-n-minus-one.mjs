@@ -195,6 +195,30 @@ export async function findReadyElectronUpdaterPage(pages) {
   return null;
 }
 
+export async function waitForNMinusOneAutomaticUpdate(
+  page,
+  { timeoutMs = 60_000 } = {},
+) {
+  const readSession = () =>
+    page
+      .evaluate(() => window.electronAPI.invoke("get_update_install_session"))
+      .catch(() => null);
+  const session = await waitFor(readSession, {
+    label: "N-1 update session",
+    timeoutMs,
+  });
+  if (session.stage === "idle") {
+    await page.getByTestId("app-sidebar-nav-settings").click();
+    await page.getByTestId("settings-sidebar-tab-about").click();
+  }
+  return await waitFor(readSession, {
+    accept: (value) => Boolean(value && value.stage !== "idle"),
+    label: "N-1 automatic update check",
+    timeoutMs,
+    intervalMs: 250,
+  });
+}
+
 export function buildStopInstalledAppScript() {
   const matchingProcesses =
     "@(Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -and [String]::Equals([System.IO.Path]::GetFullPath($_.ExecutablePath), $target, [StringComparison]::OrdinalIgnoreCase) })";
@@ -510,20 +534,7 @@ export async function exerciseNMinusOneUpdate({
       { label: "N-1 Electron updater bridge", timeoutMs: 60_000 },
     );
 
-    const initialSession = await waitFor(
-      () =>
-        page
-          .evaluate(() =>
-            window.electronAPI.invoke("get_update_install_session"),
-          )
-          .catch(() => null),
-      {
-        accept: (session) => Boolean(session && session.stage !== "idle"),
-        label: "N-1 automatic update check",
-        timeoutMs: 60_000,
-        intervalMs: 250,
-      },
-    );
+    const initialSession = await waitForNMinusOneAutomaticUpdate(page);
     if (
       !["checking", "downloading", "completed", "failed"].includes(
         initialSession.stage,

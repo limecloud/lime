@@ -24,6 +24,7 @@ Simplified Chinese release notes are the primary version.
 
 - Expanded TUI ChatWidget, history pagination, picker, queue, input, recovery, PTY, and structure-guard coverage, and refreshed Codex-alignment and structure inventories.
 - Added CLI/TUI Gate B coverage while continuing to reuse the App Server JSON-RPC and canonical Thread/Turn/Item facts.
+- Fixed the Windows N-1 upgrade gate to open the real Settings → About entry when the previous version has not started checking, while retaining download, restart installation, and version checks.
 - Release validation runs `npm run verify:app-version`, `npm run typecheck`, `npm run test:contracts`, focused Rust TUI tests, and `npm run verify:gui-smoke`; any failed gate is recorded in the release plan.
 
 ### Documentation

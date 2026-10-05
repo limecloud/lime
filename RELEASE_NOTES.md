@@ -22,6 +22,7 @@
 
 - 扩展 TUI ChatWidget、历史分页、选择器、队列、输入、恢复、PTY 和结构守卫测试，并更新 Codex 对齐与结构 inventory。
 - 补充 CLI/TUI Gate B 场景覆盖，继续复用 App Server JSON-RPC 与 canonical Thread/Turn/Item 事实源。
+- 修复 Windows N-1 升级门禁：在上一版本尚未检查更新时，通过真实“设置 → 关于”入口观察自动检查，保留下载、重启安装和版本匹配验证。
 - 发布验证执行 `npm run verify:app-version`、`npm run typecheck`、`npm run test:contracts`、Rust TUI 定向测试与 `npm run verify:gui-smoke`；未通过的门禁会在发布计划中记录。
 
 ### 文档

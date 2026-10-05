@@ -1,7 +1,7 @@
 # Lime v1.150.0 发布执行计划
 
-状态：本地已发布，远端推送阻塞
-日期：2026-10-04
+状态：commit / tag 已推送，Windows Squirrel 安装门禁失败，GitHub Release 尚未公开
+日期：2026-10-05
 基线：`v1.149.0` / `2adeff44f`
 目标：将当前工作树中 v1.149.0 之后的 TUI/CLI ChatWidget、历史、交互、结构守卫、架构和执行计划改动作为 v1.150.0 release candidate，完成版本同步、发布说明、质量门禁和远端发布。
 
@@ -19,7 +19,8 @@
 - [x] `npm run test:contracts` 通过。
 - [x] TUI 全目标测试、strict Clippy、结构守卫、TUI Gate B 与 CLI Gate B 通过；`npm run verify:gui-smoke` 构建通过但 Electron smoke 因缺少结构化 `summary.json` 失败，已记录为 harness-blocked。
 - [x] release candidate staged 摘要复核，取得 git 写操作确认。
-- [x] 已创建 `Release v1.150.0` commit（`b34f89280`）与本地 `v1.150.0` tag；远端 `main` 与 tag 推送因凭据环境阻塞。
+- [x] 已创建并推送 `Release v1.150.0` commit（`b34f89280`）与 `v1.150.0` tag。
+- [ ] Release workflow 全部必要 job 通过，公开 GitHub Release 和安装 / CLI 产物。
 
 ## 架构确认
 
@@ -40,10 +41,26 @@
 
 ## 当前阻塞
 
-本机 Git 用户映射/凭据失败（`No user exists for uid 501`），`git push origin main` 与 `git push origin v1.150.0` 均失败；修复凭据后需继续推送并复核远端 SHA。GUI smoke 的结构化 summary 缺失也需发布流水线或 harness 修复后补证据。
+Git 的 `No user exists for uid 501` 已通过临时 libssh2 transport 恢复推送；本机 GitHub API 凭据仍不可用，公开 API 无法读取 Actions 日志或下载 evidence artifact。
+
+- Release run `37180108159` 和同一 tag / SHA 重触发的 run `37182748588` 均失败于 `Smoke installed Windows Squirrel candidate`；两个 macOS 构建均通过，最终 Electron / R2 / CLI 发布被跳过。
+- Windows smoke 实现与 workflow 相对 v1.149.0 没有变化，目前只有退出码 1，尚无已证实根因；不得跳过门禁或把重试成功当作根因修复。
+- 2026-10-05 创建隔离分支 `release-diagnostics-v1.150.0`，仅新增只读诊断 workflow，run `37253756162` 读取失败 run 的 Squirrel summary artifact，提取 failedStage / error / assertions。此诊断分支不修改 main、版本 tag 或本地工作区。
+- Tag 推送后出现的 TUI/MCP/approval 后续改动不属于已冻结的 release candidate，继续避让；恢复发布仅认领 release workflow / Windows smoke owner 与本计划。
+- 本地 GUI smoke 缺少结构化 summary，Desktop Gate B 仍需发布流水线补证据。
+
+## Windows 发布恢复（2026-10-05）
+
+- 只读诊断 run `37253756162` 成功读取 artifact，确认 `failedStage=n-minus-one-update`、`error=timed out waiting for N-1 automatic update check`。
+- 根因：v1.149.0 的 sidebar 重构移除 `AppUpdateEntry` 挂载，首页不再发起该检查；N-1 smoke 仍假定首页会自动离开 `idle`。当前“设置 → 关于”页面的 `AboutSection` 仍调用 `checkForUpdates({ automatic: true })`，updater owner 与协议未改变。
+- 修复：先观察 N-1 会话；仅在 `idle` 时通过 GUI 打开 settings/about。已经检查或下载时继续观察，不直接补发 native check、不合成完成态、不跳过 feed / 下载 / 安装 / SHELL-01 / 版本匹配门禁。同时把 failedStage / error 输出为 Actions annotation，后续无需下载私有日志即可定位失败。
+- 恢复写集：Windows smoke 主脚本、既有 N-1 helper、回归测试、release/updater 文档、本计划与双语 release notes。15 个后续 TUI/MCP/approval 文件明确排除，保持原始 release candidate 产品代码。
+- 回归：Windows smoke / packaged evidence / workflow guard / docs guard 四个测试文件 `88/88` 通过；`npm run verify:app-version`、`npm run typecheck`、`npm run test:contracts` 均通过。实际 Windows 平台验证由恢复后的 release run 给出，macOS 本地不冒充 Windows evidence。
+- 当前分类：Forge Squirrel、Electron built-in updater 与真实 GUI 升级门禁为 `current`；临时诊断 workflow 为诊断分支上的一次性 evidence，不进入 main 或 release tag；未新增 compat / deprecated 入口，未恢复 dead runtime。
+- 退出条件：将上述窄写集提交并推送 main，保持版本 `1.150.0` 将尚未公开的 release tag 指向修复提交，release workflow 必要平台门禁和 GitHub / CLI 发布成功，删除临时诊断分支并回写证据。
 
 ## 本地发布结果
 
 - commit：`b34f89280`（`Release v1.150.0`）
-- tag：本地 `v1.150.0` 已创建，指向 `b34f89280`
-- 远端：`origin/main` 与 `origin/v1.150.0` 尚未更新，待凭据环境恢复后重试。
+- tag：本地和远端 `v1.150.0` 均指向 `b34f89280`
+- 远端：`origin/main` 指向 `3d3a58b74`；release workflow 尚未通过，GitHub Release 为未公开状态。

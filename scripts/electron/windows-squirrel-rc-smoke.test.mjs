@@ -22,6 +22,7 @@ import {
   selectSquirrelInstaller,
   stopInstalledApp,
   uninstallInstalledSquirrel,
+  waitForNMinusOneAutomaticUpdate,
   waitForWindowsProcessExit,
 } from "./windows-squirrel-rc-smoke.mjs";
 
@@ -368,6 +369,61 @@ describe("Windows Squirrel RC smoke", () => {
     ).rejects.toThrow("Squirrel uninstall exited with 1");
   });
 
+  it("N-1 首页尚未检查时，从关于页面启动真实自动更新检查", async () => {
+    const checking = { stage: "checking", currentVersion: "1.149.0" };
+    const settingsClick = vi.fn().mockResolvedValue(undefined);
+    const aboutClick = vi.fn().mockResolvedValue(undefined);
+    const page = {
+      evaluate: vi
+        .fn()
+        .mockResolvedValueOnce({ stage: "idle" })
+        .mockResolvedValue(checking),
+      getByTestId: vi.fn((id) => ({
+        click: id === "app-sidebar-nav-settings" ? settingsClick : aboutClick,
+      })),
+    };
+
+    await expect(waitForNMinusOneAutomaticUpdate(page)).resolves.toEqual(
+      checking,
+    );
+    expect(page.getByTestId.mock.calls).toEqual([
+      ["app-sidebar-nav-settings"],
+      ["settings-sidebar-tab-about"],
+    ]);
+    expect(settingsClick.mock.invocationCallOrder[0]).toBeLessThan(
+      aboutClick.mock.invocationCallOrder[0],
+    );
+  });
+
+  it("N-1 已开始检查时只观察会话，不重复打开入口", async () => {
+    const downloaded = { stage: "completed", latestVersion: "1.150.0" };
+    const page = {
+      evaluate: vi
+        .fn()
+        .mockResolvedValueOnce({ stage: "checking" })
+        .mockResolvedValue(downloaded),
+      getByTestId: vi.fn(),
+    };
+
+    await expect(waitForNMinusOneAutomaticUpdate(page)).resolves.toEqual(
+      downloaded,
+    );
+    expect(page.getByTestId).not.toHaveBeenCalled();
+  });
+
+  it("关于页面未启动检查时仍失败，不伪造非 idle 会话", async () => {
+    const page = {
+      evaluate: vi.fn().mockResolvedValue({ stage: "idle" }),
+      getByTestId: vi.fn(() => ({
+        click: vi.fn().mockResolvedValue(undefined),
+      })),
+    };
+
+    await expect(
+      waitForNMinusOneAutomaticUpdate(page, { timeoutMs: 1 }),
+    ).rejects.toThrow("timed out waiting for N-1 automatic update check");
+  });
+
   it("N-1 更新应观察应用自动检查且不得主动触发第二次 native check", () => {
     const source = fs.readFileSync(
       "scripts/electron/lib/windows-squirrel-n-minus-one.mjs",
@@ -375,7 +431,7 @@ describe("Windows Squirrel RC smoke", () => {
     );
 
     expect(source).toContain('label: "N-1 automatic update check"');
-    expect(source).toContain('session.stage !== "idle"');
+    expect(source).toContain('value.stage !== "idle"');
     expect(source).not.toContain(
       'window.electronAPI.invoke("check_for_updates")',
     );

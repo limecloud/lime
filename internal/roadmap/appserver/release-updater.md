@@ -155,6 +155,8 @@ Renderer 仍通过既有命令名进入更新体验，但实现 owner 已切到 
 
 开发态默认不启用真实 updater。只有显式设置 `LIME_ELECTRON_ENABLE_DEV_UPDATER=1` 时才允许在开发包里调用 Electron 内置 `autoUpdater`，避免开发环境误连生产 feed。
 
+Windows N-1 升级门禁从已安装的上一版本读取 updater 会话；若首页保持 `idle`，通过真实 GUI 打开“设置 → 关于”，观察该页面发起的自动检查。测试不得直接补发第二次 native check，仍须证明隔离候选 feed 的下载、重启安装和候选版本路径。
+
 `open_update_window` 允许 renderer 通过前端 gateway 传入侧边栏更新按钮的锚点矩形；Electron Host 只做参数投影和窗口定位，不承接后端业务事实。更新提醒窗口必须贴近侧栏更新入口上方，并保持透明独立窗口内只有一层实体 toast 表面，避免居中弹出或外层背景露出造成双层弹窗观感。
 
 ## 6. 平稳迁移要求

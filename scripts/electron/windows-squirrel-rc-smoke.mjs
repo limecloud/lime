@@ -31,6 +31,7 @@ import {
   selectNMinusOneVersion,
   stopInstalledApp,
   uninstallInstalledSquirrel,
+  waitForNMinusOneAutomaticUpdate,
   waitForWindowsProcessExit,
 } from "./lib/windows-squirrel-n-minus-one.mjs";
 import {
@@ -52,6 +53,7 @@ export {
   selectNMinusOneVersion,
   stopInstalledApp,
   uninstallInstalledSquirrel,
+  waitForNMinusOneAutomaticUpdate,
   waitForWindowsProcessExit,
 };
 
@@ -261,6 +263,7 @@ export async function cleanupFromSummary(summaryPath) {
     `[windows-squirrel-rc-cleanup] result=${summary.result} stage=${summary.failedStage || "complete"} summary=${absoluteSummaryPath}`,
   );
   if (summary.result !== "pass") {
+    logWindowsRcFailure(summary);
     process.exitCode = 1;
   }
 }
@@ -540,8 +543,18 @@ async function main() {
     `[windows-squirrel-rc] result=${summary.result} stage=${summary.failedStage || "complete"} summary=${summaryPath}`,
   );
   if (summary.result !== "pass") {
+    logWindowsRcFailure(summary);
     process.exitCode = 1;
   }
+}
+
+function logWindowsRcFailure(summary) {
+  const diagnostic =
+    `stage=${summary.failedStage}; ${summary.error || summary.assertions.failed.join(", ")}`
+      .replaceAll("%", "%25")
+      .replaceAll("\r", "%0D")
+      .replaceAll("\n", "%0A");
+  console.error(`::error title=Windows Squirrel RC::${diagnostic}`);
 }
 
 function parseArgs(argv) {
