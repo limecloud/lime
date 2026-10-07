@@ -69,6 +69,7 @@ current：TUI 交互、共享 keymap/config、status/title picker、canonical fa
 - 本机对 stable 下 darwin-arm64/darwin-x64 的 `RELEASES.json` 和 win32-x64 的 `RELEASES` 直连均返回 curl 28 / SSL connection timeout；公开 feed 读取未验证，不将上传证据扩张为本机实测成功。
 - 上传修复验证：四文件 Vitest 76/76（新 uploader 9、资产 12、workflow 43、docs 12）；定向 ESLint、`npm run test:contracts`（含 scripts governance）、diff check 通过。补发 YAML/Bash syntax、原 run 身份核对及 jq gate 正向/单平台失败拒绝通过。大文件与失败分支是显式 unit fixture；本机 AWS CLI 的 Python 2.7 interpreter 缺失，真实 S3 上传待 Ubuntu runner 验证，不修改本机全局工具或凭证。
 - 沿用用户已确认的发布提交/推送授权，仅暂存本计划声明的 8 个发布流程修复路径，后续产品开发不进入修复提交；未来 R2 job 移除 continue-on-error，缺失 payload 不再标记整个发布成功。
+- 修复 commit `0be7d79ddf62917df3d478fde4873d6bfce080d6` 已推送；补发 run `37616940818` 在身份/gate 步骤停止，未执行上传：jq quoted expression 内含续行反斜杠。已修正并将 workflow 原始 shell 直接执行纳入回归，覆盖正确源、错误 SHA、失败原构建三分支，避免仅 syntax check 或变换后表达式漏检。
 - 本轮准备与 Git 发布完成度 100%，端到端分发完成度 90%；下一刀为核验跨平台构建、GitHub assets、R2 updater 与 CLI/npm 发布。纯 evidence 更新不移动发布 tag。
 - 最终发布候选已暂存：132 个路径，`git diff --cached --stat` 为 12184 insertions / 1744 deletions（此行加入前）；无未暂存或未跟踪遗漏，cached diff check 通过。7 个 metadata 与 125 个 candidate 分组清单如下。用户确认后创建 `Release v1.151.0` commit、`v1.151.0` tag 并推送 `origin/main` 与 tag，随后核验发布 workflow。
 - TUI 开发者已回写第五十七阶段功能/终端验收完成，并开始登记第五十八阶段；本候选的实际产品能力截至已验证的 task-progress。最终 git 写操作只使用这份已暂存候选；后续并行开发不得夹入未验证内容。无 tag 覆盖/force push/源码删除。

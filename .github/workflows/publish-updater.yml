@@ -41,7 +41,7 @@ jobs:
             '.head_sha == $sha and .repository.full_name == $repo and .path == ".github/workflows/release.yml"' \
             "$RUNNER_TEMP/source-run.json"
           gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RELEASE_RUN_ID/jobs?per_page=100" > "$RUNNER_TEMP/source-jobs.json"
-          jq -e '.jobs as $jobs | ["Build Electron Windows-x64", "Build Electron macOS-arm64", "Build Electron macOS-x64", "Publish Electron release assets"] as $required | \
+          jq -e '.jobs as $jobs | ["Build Electron Windows-x64", "Build Electron macOS-arm64", "Build Electron macOS-x64", "Publish Electron release assets"] as $required |
             all($required[]; . as $name | any($jobs[]; .name == $name and .conclusion == "success"))' \
             "$RUNNER_TEMP/source-jobs.json"
           echo "Recovering $RELEASE_TAG from verified source commit $TAG_SHA / run $RELEASE_RUN_ID"

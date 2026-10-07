@@ -1,8 +1,10 @@
+import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
+import YAML from "yaml";
 
 import {
   resolveR2Credentials,
@@ -16,6 +18,91 @@ const credentials = {
   accessKeyId,
   secretAccessKey: "test-secret",
 };
+
+describe("updater recovery source gates", () => {
+  it.each([
+    {
+      name: "matching source and successful builds",
+      sha: "candidate",
+      failed: false,
+      expected: 0,
+    },
+    {
+      name: "different tag commit",
+      sha: "different",
+      failed: false,
+      expected: 1,
+    },
+    {
+      name: "failed original build",
+      sha: "candidate",
+      failed: true,
+      expected: 1,
+    },
+  ])(
+    "executes the actual workflow shell: $name",
+    ({ sha, failed, expected }) => {
+      const root = fs.mkdtempSync(path.join(os.tmpdir(), "updater-recovery-"));
+      const names = [
+        "Build Electron Windows-x64",
+        "Build Electron macOS-arm64",
+        "Build Electron macOS-x64",
+        "Publish Electron release assets",
+      ];
+      const jobsFile = path.join(root, "jobs.json");
+      const runFile = path.join(root, "run.json");
+      fs.writeFileSync(
+        jobsFile,
+        JSON.stringify({
+          jobs: names.map((name, index) => ({
+            name,
+            conclusion: failed && index === 0 ? "failure" : "success",
+          })),
+        }),
+      );
+      fs.writeFileSync(
+        runFile,
+        JSON.stringify({
+          head_sha: sha,
+          path: ".github/workflows/release.yml",
+          repository: { full_name: "limecloud/lime" },
+        }),
+      );
+      fs.writeFileSync(
+        path.join(root, "gh"),
+        '#!/bin/sh\ncase "$2" in\n  */jobs\\?*) cat "$RECOVERY_TEST_JOBS" ;;\n  *) cat "$RECOVERY_TEST_RUN" ;;\nesac\n',
+        { mode: 0o755 },
+      );
+      fs.writeFileSync(
+        path.join(root, "git"),
+        '#!/bin/sh\nprintf "%s\\n" "$RECOVERY_TEST_TAG_SHA"\n',
+        { mode: 0o755 },
+      );
+      const workflow = YAML.parse(
+        fs.readFileSync(".github/workflows/publish-updater.yml", "utf8"),
+      );
+      const step = workflow.jobs.publish_updater.steps.find(
+        (item) => item.name === "Validate original release identity and gates",
+      );
+      const result = spawnSync("bash", ["-e", "-o", "pipefail"], {
+        input: step.run,
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          PATH: `${root}${path.delimiter}${process.env.PATH}`,
+          RUNNER_TEMP: root,
+          GITHUB_REPOSITORY: "limecloud/lime",
+          RELEASE_TAG: "v1.151.0",
+          RELEASE_RUN_ID: "37610907191",
+          RECOVERY_TEST_TAG_SHA: "candidate",
+          RECOVERY_TEST_JOBS: jobsFile,
+          RECOVERY_TEST_RUN: runFile,
+        },
+      });
+      expect(result.status, result.stderr).toBe(expected);
+    },
+  );
+});
 
 function fixture({ large = false } = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "updater-r2-"));
@@ -62,15 +149,13 @@ function fixture({ large = false } = {}) {
 
 describe("R2 S3 credentials", () => {
   it("derives credentials from an active account token without creating a token", async () => {
-    const request = vi
-      .fn()
-      .mockResolvedValue({
-        ok: true,
-        json: async () => ({
-          success: true,
-          result: { id: accessKeyId, status: "active" },
-        }),
-      });
+    const request = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        success: true,
+        result: { id: accessKeyId, status: "active" },
+      }),
+    });
     const result = await resolveR2Credentials(
       { CLOUDFLARE_ACCOUNT_ID: accountId, CLOUDFLARE_API_TOKEN: "token-value" },
       request,
@@ -116,15 +201,13 @@ describe("R2 S3 credentials", () => {
   });
 
   it("rejects inactive or unverified tokens", async () => {
-    const request = vi
-      .fn()
-      .mockResolvedValue({
-        ok: true,
-        json: async () => ({
-          success: true,
-          result: { id: accessKeyId, status: "expired" },
-        }),
-      });
+    const request = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        success: true,
+        result: { id: accessKeyId, status: "expired" },
+      }),
+    });
     await expect(
       resolveR2Credentials(
         {
