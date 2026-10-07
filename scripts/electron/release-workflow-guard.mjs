@@ -720,6 +720,11 @@ function assertPublishSteps(workflow) {
     "scripts/electron/update-feed-r2-upload-plan.mjs",
     "R2 updater upload plan",
   );
+  assertIncludes(
+    uploadStep?.run,
+    "scripts/electron/upload-update-feed-r2.mjs",
+    "R2 S3 multipart upload and object verification",
+  );
   const cleanupStep = stepByName(
     updaterSteps,
     "Clean old updater assets from Cloudflare R2",

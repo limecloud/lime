@@ -45,6 +45,19 @@ describe("Electron release workflow guard", () => {
     expect(() => validateReleaseWorkflow()).not.toThrow();
   });
 
+  it("rejects updater uploads without S3 multipart and remote verification", () => {
+    const current = fs.readFileSync(".github/workflows/release.yml", "utf8");
+    const workflowPath = tempWorkflowPath(
+      current.replace(
+        "scripts/electron/upload-update-feed-r2.mjs",
+        "wrangler r2 object put",
+      ),
+    );
+    expect(() => validateReleaseWorkflow({ workflowPath })).toThrow(
+      /R2 S3 multipart upload and object verification/,
+    );
+  });
+
   it("rejects macOS arm64 runner drift", () => {
     const current = fs.readFileSync(".github/workflows/release.yml", "utf8");
     const workflowPath = tempWorkflowPath(

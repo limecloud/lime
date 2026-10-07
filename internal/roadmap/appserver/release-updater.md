@@ -1,7 +1,7 @@
 # Electron Release / Updater 边界
 
 > 状态：current planning source
-> 更新时间：2026-06-08
+> 更新时间：2026-10-07
 > 作用：固定 Lime Desktop 下线上一代前端宿主后的 release、签名、公证、updater feed 与平稳迁移口径。
 
 ## 1. 事实源
@@ -15,6 +15,8 @@ Lime Desktop 的发布与更新链路由 Electron current 接管：
 | 发布 CI          | `.github/workflows/release.yml`                   | 多平台构建、签名、公证、staging、GitHub Release、Cloudflare R2 feed                                  |
 | 资产 staging     | `scripts/electron/stage-release-assets.mjs`       | 从 `release-electron` 提取 installer、updater metadata 与 zip / nupkg                                |
 | updater 上传计划 | `scripts/electron/update-feed-r2-upload-plan.mjs` | 生成按 feed 与版本隔离的 R2 upload plan                                                              |
+| updater 上传执行 | `scripts/electron/upload-update-feed-r2.mjs`     | R2 S3 分片上传、失败阻断、逐项远端校验与 feed 最后发布                                                |
+| updater 补发     | `.github/workflows/publish-updater.yml`           | 核对原 tag/run 与打包门禁，消费原 staged artifacts 补发，不移动 tag 或重新构建候选                    |
 | workflow 守卫    | `scripts/electron/release-workflow-guard.mjs`     | 结构化校验 release workflow 矩阵、Forge make、签名、公证和旧链路拒绝                                 |
 | 包资源校验       | `scripts/electron/verify-package-resources.mjs`   | 校验 packaged app 内 desktop assets、App Server sidecar 与 release manifest                          |
 | 本地 make 证据   | `scripts/electron/make-zip-local-feed.mjs`        | 用本地 `RELEASES.json` feed 验证 Forge ZIP / macOS updater metadata，不依赖线上 R2 可用性            |
@@ -90,6 +92,10 @@ lime/stable/vX.Y.Z/<feed>/<asset>
 ```
 
 `RELEASES.json` / `RELEASES` 使用短缓存；installer、zip 与 nupkg 使用长缓存。GitHub Release 是归档和人工下载入口，客户端热路径直接读 R2 自域名。
+
+R2 上传使用 Ubuntu runner 既有 AWS CLI 的 S3 multipart 能力，避免 Wrangler 单对象 300 MiB 限制。上传脚本按 Cloudflare 官方合同从已有 API token 的 verify ID 和 token value 的 SHA-256 派生 S3 凭证，只传入子进程环境，GitHub Actions 中遮蔽派生值，不新增凭证或修改 secret。所有 payload 先上传并通过 HEAD 比对大小、Content-Type、Cache-Control 与源 SHA-256 元数据；任一失败立即阻断，全部 payload 校验后才发布 feed。SHA-256 元数据是源摘要记录，不冒充服务端重新计算的摘要。
+
+已发布版本的分发补发入口为 `Publish updater`，输入既有 tag 和原 Release run ID；workflow 验证 tag/run commit SHA、仓库、原 workflow 路径、三平台构建及 GitHub assets publish 成功，再下载该 run 的原始 staged artifacts，复用同一上传脚本。补发不重建版本、不改写 tag、不清理旧对象。官方凭证合同：[Cloudflare R2 Authentication](https://developers.cloudflare.com/r2/api/tokens/#get-s3-api-credentials-from-an-api-token)。
 
 ## 4. 打包与签名
 

@@ -714,7 +714,6 @@ jobs:
     name: Publish Electron updater assets to Cloudflare R2
     needs: publish_release_assets
     if: needs.publish_release_assets.result == 'success'
-    continue-on-error: true
     runs-on: ubuntu-22.04
 
     steps:
@@ -754,25 +753,7 @@ jobs:
             --version "$RELEASE_TAG" \
             --output "$PLAN"
 
-          node - "$PLAN" <<'NODE' > "$RUNNER_TEMP/electron-r2-upload.sh"
-          const fs = require('fs');
-          const plan = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
-          for (const item of plan) {
-            const args = [
-              'npx wrangler@latest r2 object put',
-              JSON.stringify(`${item.bucket}/${item.key}`),
-              '--remote',
-              '--file',
-              JSON.stringify(item.file),
-              '--content-type',
-              JSON.stringify(item.contentType),
-              '--cache-control',
-              JSON.stringify(item.cacheControl),
-            ];
-            console.log(args.join(' '));
-          }
-          NODE
-          bash "$RUNNER_TEMP/electron-r2-upload.sh"
+          node scripts/electron/upload-update-feed-r2.mjs "$PLAN"
 
       - name: Clean old updater assets from Cloudflare R2
         env:

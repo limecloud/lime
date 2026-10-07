@@ -1,0 +1,80 @@
+name: Publish updater
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Existing release tag (e.g., v1.151.0)"
+        required: true
+      release_run_id:
+        description: "Original Release workflow run containing staged Electron assets"
+        required: true
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  publish_updater:
+    name: Recover Electron updater assets to Cloudflare R2
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout uploader
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.sha }}
+
+      - name: Validate original release identity and gates
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.version }}
+          RELEASE_RUN_ID: ${{ inputs.release_run_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          [[ "$RELEASE_RUN_ID" =~ ^[0-9]+$ ]]
+          TAG_SHA="$(git rev-parse "${RELEASE_TAG}^{commit}")"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RELEASE_RUN_ID" > "$RUNNER_TEMP/source-run.json"
+          jq -e --arg sha "$TAG_SHA" --arg repo "$GITHUB_REPOSITORY" \
+            '.head_sha == $sha and .repository.full_name == $repo and .path == ".github/workflows/release.yml"' \
+            "$RUNNER_TEMP/source-run.json"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RELEASE_RUN_ID/jobs?per_page=100" > "$RUNNER_TEMP/source-jobs.json"
+          jq -e '.jobs as $jobs | ["Build Electron Windows-x64", "Build Electron macOS-arm64", "Build Electron macOS-x64", "Publish Electron release assets"] as $required | \
+            all($required[]; . as $name | any($jobs[]; .name == $name and .conclusion == "success"))' \
+            "$RUNNER_TEMP/source-jobs.json"
+          echo "Recovering $RELEASE_TAG from verified source commit $TAG_SHA / run $RELEASE_RUN_ID"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Download original staged release assets
+        uses: actions/download-artifact@v4
+        with:
+          pattern: release-assets-*
+          path: release-assets
+          merge-multiple: true
+          run-id: ${{ inputs.release_run_id }}
+          github-token: ${{ github.token }}
+
+      - name: Upload and verify Electron updater assets
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          LIME_RELEASES_R2_BUCKET: ${{ secrets.LIME_RELEASES_R2_BUCKET }}
+          RELEASE_TAG: ${{ inputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          PLAN="$RUNNER_TEMP/electron-r2-upload-plan.json"
+          node scripts/electron/update-feed-r2-upload-plan.mjs \
+            --assets-dir release-assets \
+            --bucket "${LIME_RELEASES_R2_BUCKET:-lime-releases}" \
+            --channel stable \
+            --version "$RELEASE_TAG" \
+            --output "$PLAN"
+          jq -e 'length == 18' "$PLAN" > /dev/null
+          node scripts/electron/upload-update-feed-r2.mjs "$PLAN"
