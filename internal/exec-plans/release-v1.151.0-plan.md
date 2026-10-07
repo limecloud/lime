@@ -1,6 +1,6 @@
 # Lime v1.151.0 发布执行计划
 
-状态：GitHub 桌面 Release 已公开，R2 假成功问题已修复并完成真实补发；等待 CLI/npm 完成
+状态：完成（100%）；main/tag、GitHub Release、四平台 CLI/npm 与 R2 分发均已核验
 日期：2026-10-07
 基线：`v1.150.0` / `1236c5e9229c05234b5fe0f3fa4dbe352a63056f`
 目标：发布当前 TUI 交互、状态栏、终端标题及共享配置改动，完成版本同步、双语发布说明、必要门禁、release commit、tag 与远端发布核验。
@@ -25,13 +25,13 @@
 - [x] 真实 CLI/TUI stdio/PTY fixture 验证；执行 GUI smoke，记录真实结果与环境限制。
 - [x] 汇总最终 candidate、暂存摘要、验证和排除项，取得 commit/tag/push 危险操作确认。
 - [x] 创建 release commit 和 `v1.151.0` tag，推送 main/tag 并核验远端引用。
-- [ ] 核验 Release workflow、GitHub Release、updater 与 CLI 发布状态；未完成的分发明确记录。
+- [x] 核验 Release workflow、GitHub Release、updater 与 CLI 发布状态，记录真实结果及验证范围。
 
 ## 架构确认与分类
 
 候选继续沿用 `Product Surface -> App Server JSON-RPC -> RuntimeCore -> canonical Thread/Turn/Item -> GUI/terminal projection`。状态栏/标题使用 TUI presentation owner，共享配置仍经已有 `config/read` 与 `config/batchWrite`，不新增协议后端、私有存储或平行 runtime。已只读复核 `architecture.md` 中共享 picker/config/OSC 与 typed plan -> projection/plans -> status facts 的架构图及责任开发者确认：task-progress 直接消费 canonical checklist，text-only 历史不猜测计数，无新增协议/存储 owner。发布复核责任开发者 root，2026-10-07。
 
-current：TUI 交互、共享 keymap/config、status/title picker、canonical facts 与 managed OSC；compat/deprecated：无新增；dead/deleted：重复布局/保存与旧提示分支已由候选直接迁移，不恢复已退役入口。本轮只同步发版事实源，遵循 KISS/DRY，不新增版本包装层。
+current：TUI 交互、共享 keymap/config、status/title picker、canonical facts、managed OSC 与既有发布领域的 R2 S3 uploader；compat/deprecated：无新增；dead/deleted：重复布局/保存、旧提示分支及生成 Wrangler 上传子 shell 已直接迁移，不恢复已退役入口。版本同步遵循 KISS/DRY，不新增版本包装层；正常发布与补发复用同一 uploader，凭证解析、上传和校验保持清晰职责，不新增产品依赖或平行业务后端。
 
 ## 验证与环境
 
@@ -62,18 +62,22 @@ current：TUI 交互、共享 keymap/config、status/title picker、canonical fa
 
 - release commit：`91be2dbd3c5a672b1a53a7b044662c89735b1d53`（`Release v1.151.0`）；pre-commit 验证 132/132 通过。与已确认 tree 的差异仅为本计划授权状态更新，产品候选未变。
 - main/tag：`git push origin main` 与 `git push origin v1.151.0` 均成功；远端 main、`refs/tags/v1.151.0` 与本地 tag 均为上述 SHA。
-- Release workflow：[37610907191](https://github.com/limecloud/lime/actions/runs/37610907191)，event=push，headBranch=v1.151.0，headSha 与发布提交一致。Prepare、Windows x64、macOS arm64/x64 构建和 Electron assets publish 均 success；四平台 CLI 与 R2 job 已启动，流水线仍 in_progress。
-- [GitHub Release v1.151.0](https://github.com/limecloud/lime/releases/tag/v1.151.0)：2026-10-07T11:38:13Z 公开，isDraft=false、isPrerelease=false，当前 9 个桌面资产；CLI 资产将在后续 job 完成后补齐。
+- Release workflow：[37610907191](https://github.com/limecloud/lime/actions/runs/37610907191)，event=push，headBranch=v1.151.0，headSha 与发布提交一致，最终 completed/success，11/11 job API conclusion=success。R2 原 job 的假成功已识别，真实分发以独立补发证据为准。四平台 CLI build 与 Publish CLI npm packages 均 success。最终结构化证据 `.lime/releases/v1.151.0/release-run-final.json`。
+- [GitHub Release v1.151.0](https://github.com/limecloud/lime/releases/tag/v1.151.0)：2026-10-07T11:38:13Z 公开，isDraft=false、isPrerelease=false，最终 14/14 资产（9 桌面、4 平台 CLI tarball、1 CLI 根包），全部 uploaded、size>0 且具 SHA-256 digest；证据 `.lime/releases/v1.151.0/github-release-final.json`。
 - R2 job `112772481582`：API conclusion/step 为 success，但逐项日志复核发现 12 次大文件上传均被 Wrangler 300 MiB 限制拒绝，只有 6 次 feed 元数据上传成功。生成的子 shell 缺少 `set -e`，最后 feed 成功掩盖前面的错误，因此该 job 不作为 R2 分发成功证据。旧对象清理因 Wrangler 无 list 命令跳过。日志保存 `.lime/releases/v1.151.0/r2-publish.log`。
 - R2 修复采用现有 API token 按 Cloudflare 官方合同派生 S3 凭证，通过 runner 既有 AWS CLI 分片上传；首个失败立即阻断，先所有 payload 后 feed，每个对象通过 HEAD 比对大小、类型、缓存策略及源 SHA-256 元数据。独立 workflow 核对原 tag/run SHA、原三个构建与资产 publish 成功，下载该 run 的原始 staged artifacts，不重打 tag、不重新构建候选。
-- 本机对 stable 下 darwin-arm64/darwin-x64 的 `RELEASES.json` 和 win32-x64 的 `RELEASES` 直连均返回 curl 28 / SSL connection timeout；公开 feed 读取未验证，不将上传证据扩张为本机实测成功。
+- 本机对 `updates.limecloud.com` 下三平台 stable feed 直连均返回 curl 28 / SSL connection timeout；该自定义域名直连读取未验证。后续从真实 release metadata 读取到实际 R2 公开地址，并完成该入口的公开 feed/payload 核验（见下方），不将两个域名的证据混同。
 - 上传修复验证：四文件 Vitest 76/76（新 uploader 9、资产 12、workflow 43、docs 12）；定向 ESLint、`npm run test:contracts`（含 scripts governance）、diff check 通过。补发 YAML/Bash syntax、原 run 身份核对及 jq gate 正向/单平台失败拒绝通过。大文件与失败分支是显式 unit fixture；本机 AWS CLI 的 Python 2.7 interpreter 缺失，真实 S3 上传待 Ubuntu runner 验证，不修改本机全局工具或凭证。
 - 沿用用户已确认的发布提交/推送授权，仅暂存本计划声明的 8 个发布流程修复路径，后续产品开发不进入修复提交；未来 R2 job 移除 continue-on-error，缺失 payload 不再标记整个发布成功。
 - 修复 commit `0be7d79ddf62917df3d478fde4873d6bfce080d6` 已推送；补发 run `37616940818` 在身份/gate 步骤停止，未执行上传：jq quoted expression 内含续行反斜杠。已修正并将 workflow 原始 shell 直接执行纳入回归，覆盖正确源、错误 SHA、失败原构建三分支，避免仅 syntax check 或变换后表达式漏检。
 - 第二修复 commit `53541cd4a6c1221d3415265f0f3356696ca10923` 已推送；uploader/recovery 最新 12/12 与 ESLint 通过，补发 run `37617265298` 已通过原身份/构建门禁并执行真实上传。新增 R2 guard 放入既有 `scripts/electron/lib/release-workflow-candidate-guard.mjs`，避免主 guard 超过原 1000 行边界。
 - [R2 补发 run 37617265298](https://github.com/limecloud/lime/actions/runs/37617265298) 最终 success，2026-10-07T11:57:33Z 完成 18/18 独立对象校验（current/versioned payload 12、feed 6）；全部源摘要与大小匹配 GitHub 的 9 个桌面 assets digest/size，payload 全部通过后才上传 feed。完整日志与结构化摘要为 `.lime/releases/v1.151.0/r2-recovery.log`、`r2-recovery-summary.json`。R2 发布证据以本次补发为准，原假成功 job 保留作问题记录。guard 移至既有 helper 后 43/43 与 ESLint 再次通过。
-- 本轮准备与 Git 发布完成度 100%，端到端分发完成度 90%；下一刀为核验跨平台构建、GitHub assets、R2 updater 与 CLI/npm 发布。纯 evidence 更新不移动发布 tag。
-- 最终发布候选已暂存：132 个路径，`git diff --cached --stat` 为 12184 insertions / 1744 deletions（此行加入前）；无未暂存或未跟踪遗漏，cached diff check 通过。7 个 metadata 与 125 个 candidate 分组清单如下。用户确认后创建 `Release v1.151.0` commit、`v1.151.0` tag 并推送 `origin/main` 与 tag，随后核验发布 workflow。
+- 公开入口实测：release metadata 的实际 base 为 `https://pub-fa568bd8496349bcafe04091e2b02e1e.r2.dev/`。curl 对 current 下全部 9 个对象 HTTP=200 且 Content-Length 匹配；三份 feed GET 的 SHA-256 匹配 GitHub/R2 源摘要，macOS currentRelease=1.151.0、updateTo URL 指向该公开入口的 v1.151.0 ZIP，Windows RELEASES 指向 359472919 bytes 的 v1.151.0 nupkg。证据 `.lime/releases/v1.151.0/r2-public-summary.json`。Python 默认 User-Agent 请求曾 403，保持 TLS 校验的 curl 完成实测；不宣称下载/安装完整大文件或默认自定义域名通过。
+- npm 根包 `@limecloud/lime@1.151.0` 已发布且 latest=1.151.0；optionalDependencies 精确指向四个平台包 `@limecloud/lime-{linux-x64,darwin-x64,darwin-arm64,win32-x64}@1.151.0-<platform>`，四包的对应 dist-tag、版本文档、integrity 与 provenance 元数据已核验，四个平台 tarball HTTP HEAD 均通过。根包实际 tarball 的 SHA-256 匹配 GitHub asset，SHA-512 匹配 npm integrity，实际 package.json 的 version、bin 和四个依赖与 registry 一致。证据 `.lime/releases/v1.151.0/npm-publication-summary.json`、`npm-root-published.tgz`、`npm-publish.log`。
+- npm 初读平台接口出现 404/旧版本；逐步读取到新版。Windows 常规查询仍命中旧数据时，刷新公开 registry 查询键后返回 1.151.0-win32-x64 的版本及 tag，实际新版 tarball HTTP=200，记录于 `npm-win32-x64-packument-fresh.json` 与 summary。不重复发布已存在的版本或更改 npm tag。
+- 发布流程补救与证据 commit：`0be7d79ddf62917df3d478fde4873d6bfce080d6`、`53541cd4a6c1221d3415265f0f3356696ca10923`、`b7ae7b031090c1120c7ec087d73cebfe1e7cc0ee` 已推送 main；只包含本计划声明的发布领域修复，产品版本的 tag 始终为 `91be2dbd3c5a672b1a53a7b044662c89735b1d53`。最终收尾只提交本计划，不纳入并行 TUI 工作树。
+- 本轮准备、Git 发布与端到端分发完成度 100%；本任务无剩余分发步骤。保留的验证限制为默认自定义更新域名本机 SSL 超时、未执行 live provider 或四平台 npm 安装后的完整交互矩阵；已完成的证据层级和真实公开入口验证如上。纯 evidence 收尾不移动发布 tag。
+- 最终发布候选冻结时已暂存：132 个路径，`git diff --cached --stat` 为 12184 insertions / 1744 deletions（此行加入前）；无未暂存或未跟踪遗漏，cached diff check 通过。7 个 metadata 与 125 个 candidate 分组清单如下。用户确认后，该候选已成为 `Release v1.151.0` commit 和 `v1.151.0` tag，完成 main/tag 推送与分发核验。
 - TUI 开发者已回写第五十七阶段功能/终端验收完成，并开始登记第五十八阶段；本候选的实际产品能力截至已验证的 task-progress。最终 git 写操作只使用这份已暂存候选；后续并行开发不得夹入未验证内容。无 tag 覆盖/force push/源码删除。
 - 用户危险操作确认：“继续”。执行前复核暂存 tree 仍为 `42d3702fbe863dda46d7c53fd0152b7ced688479`，132 files / 12186 insertions / 1744 deletions，与确认前完全一致；后续只补本计划的授权/证据状态。远端 main 仍为基线，目标 tag 未存在。工作树后续 token usage 增量不暂存、不回滚。
 
