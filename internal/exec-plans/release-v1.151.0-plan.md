@@ -1,6 +1,6 @@
 # Lime v1.151.0 发布执行计划
 
-状态：GitHub 桌面 Release 已公开，CLI/npm 构建中；R2 job 假成功，修复大文件上传并补发
+状态：GitHub 桌面 Release 已公开，R2 假成功问题已修复并完成真实补发；等待 CLI/npm 完成
 日期：2026-10-07
 基线：`v1.150.0` / `1236c5e9229c05234b5fe0f3fa4dbe352a63056f`
 目标：发布当前 TUI 交互、状态栏、终端标题及共享配置改动，完成版本同步、双语发布说明、必要门禁、release commit、tag 与远端发布核验。
@@ -70,6 +70,8 @@ current：TUI 交互、共享 keymap/config、status/title picker、canonical fa
 - 上传修复验证：四文件 Vitest 76/76（新 uploader 9、资产 12、workflow 43、docs 12）；定向 ESLint、`npm run test:contracts`（含 scripts governance）、diff check 通过。补发 YAML/Bash syntax、原 run 身份核对及 jq gate 正向/单平台失败拒绝通过。大文件与失败分支是显式 unit fixture；本机 AWS CLI 的 Python 2.7 interpreter 缺失，真实 S3 上传待 Ubuntu runner 验证，不修改本机全局工具或凭证。
 - 沿用用户已确认的发布提交/推送授权，仅暂存本计划声明的 8 个发布流程修复路径，后续产品开发不进入修复提交；未来 R2 job 移除 continue-on-error，缺失 payload 不再标记整个发布成功。
 - 修复 commit `0be7d79ddf62917df3d478fde4873d6bfce080d6` 已推送；补发 run `37616940818` 在身份/gate 步骤停止，未执行上传：jq quoted expression 内含续行反斜杠。已修正并将 workflow 原始 shell 直接执行纳入回归，覆盖正确源、错误 SHA、失败原构建三分支，避免仅 syntax check 或变换后表达式漏检。
+- 第二修复 commit `53541cd4a6c1221d3415265f0f3356696ca10923` 已推送；uploader/recovery 最新 12/12 与 ESLint 通过，补发 run `37617265298` 已通过原身份/构建门禁并执行真实上传。新增 R2 guard 放入既有 `scripts/electron/lib/release-workflow-candidate-guard.mjs`，避免主 guard 超过原 1000 行边界。
+- [R2 补发 run 37617265298](https://github.com/limecloud/lime/actions/runs/37617265298) 最终 success，2026-10-07T11:57:33Z 完成 18/18 独立对象校验（current/versioned payload 12、feed 6）；全部源摘要与大小匹配 GitHub 的 9 个桌面 assets digest/size，payload 全部通过后才上传 feed。完整日志与结构化摘要为 `.lime/releases/v1.151.0/r2-recovery.log`、`r2-recovery-summary.json`。R2 发布证据以本次补发为准，原假成功 job 保留作问题记录。guard 移至既有 helper 后 43/43 与 ESLint 再次通过。
 - 本轮准备与 Git 发布完成度 100%，端到端分发完成度 90%；下一刀为核验跨平台构建、GitHub assets、R2 updater 与 CLI/npm 发布。纯 evidence 更新不移动发布 tag。
 - 最终发布候选已暂存：132 个路径，`git diff --cached --stat` 为 12184 insertions / 1744 deletions（此行加入前）；无未暂存或未跟踪遗漏，cached diff check 通过。7 个 metadata 与 125 个 candidate 分组清单如下。用户确认后创建 `Release v1.151.0` commit、`v1.151.0` tag 并推送 `origin/main` 与 tag，随后核验发布 workflow。
 - TUI 开发者已回写第五十七阶段功能/终端验收完成，并开始登记第五十八阶段；本候选的实际产品能力截至已验证的 task-progress。最终 git 写操作只使用这份已暂存候选；后续并行开发不得夹入未验证内容。无 tag 覆盖/force push/源码删除。

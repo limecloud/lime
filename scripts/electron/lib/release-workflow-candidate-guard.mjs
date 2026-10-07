@@ -163,4 +163,13 @@ export function validateReleaseCandidateWorkflow(workflow) {
   assertBuildCandidateIdentity(workflow);
   assertReleaseProvenance(workflow);
   assertCliNpmTrustedPublishing(workflow);
+  const uploadStep = stepByName(
+    workflow?.jobs?.publish_updater_assets_r2?.steps || [],
+    "Upload Electron updater assets to Cloudflare R2",
+  );
+  assertIncludes(
+    uploadStep?.run,
+    "scripts/electron/upload-update-feed-r2.mjs",
+    "R2 S3 multipart upload and object verification",
+  );
 }
