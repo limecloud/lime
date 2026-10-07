@@ -329,3 +329,114 @@ fn empty_list_does_not_submit_or_advertise_a_hardcoded_escape() {
     assert!(text.contains("ctrl+x q"), "{text}");
     assert!(!text.contains("Esc"), "{text}");
 }
+
+#[test]
+fn narrow_picker_footer_separates_whole_chords_and_preserves_one_sided_bindings() {
+    for locale in [
+        Locale::ZhCn,
+        Locale::ZhTw,
+        Locale::EnUs,
+        Locale::JaJp,
+        Locale::KoKr,
+    ] {
+        for (accept, cancel) in [(true, true), (true, false), (false, true), (false, false)] {
+            let picker = picker(2).with_keymap(configured(json!({
+                "accept": if accept { json!("ctrl-x a") } else { json!([]) },
+                "cancel": if cancel { json!("ctrl-x q") } else { json!([]) }
+            })));
+            for content_width in 0..70 {
+                let text = screen(&picker, locale, content_width + 4, 16);
+                let footer = text.lines().last().unwrap().trim();
+                assert!(
+                    !footer.contains('…'),
+                    "{locale:?}/{content_width}: {footer}"
+                );
+                assert!(
+                    !footer.contains("enter") && !footer.contains("esc"),
+                    "{footer}"
+                );
+                assert!(
+                    !footer.contains("ctrl+x a ctrl+x q"),
+                    "ambiguous chord list: {footer}"
+                );
+                if footer.contains("ctrl+x a") {
+                    assert!(accept, "unbound accept: {footer}");
+                }
+                if footer.contains("ctrl+x q") {
+                    assert!(cancel, "unbound cancel: {footer}");
+                }
+                if footer.contains("ctrl+x") {
+                    assert!(
+                        footer.contains("ctrl+x a") || footer.contains("ctrl+x q"),
+                        "partial chord: {footer}"
+                    );
+                }
+                if content_width == 8 && (accept || cancel) {
+                    assert_eq!(
+                        footer,
+                        if cancel { "ctrl+x q" } else { "ctrl+x a" },
+                        "{locale:?}"
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn empty_picker_footer_only_advertises_executable_cancel() {
+    for locale in [
+        Locale::ZhCn,
+        Locale::ZhTw,
+        Locale::EnUs,
+        Locale::JaJp,
+        Locale::KoKr,
+    ] {
+        let mut picker = picker(0).with_keymap(configured(json!({"accept": "f9", "cancel": "f8"})));
+        let text = screen(&picker, locale, 100, 16);
+        let footer = text.lines().last().unwrap();
+        assert!(
+            !footer.contains("f9") && footer.contains("f8"),
+            "{locale:?}: {footer}"
+        );
+        assert_eq!(
+            key(&mut picker, KeyCode::F(9), KeyModifiers::NONE),
+            AgentPickerAction::None
+        );
+        assert_eq!(
+            key(&mut picker, KeyCode::F(8), KeyModifiers::NONE),
+            AgentPickerAction::Cancel
+        );
+    }
+}
+
+#[test]
+fn picker_footer_distinguishes_keyboard_tokens_from_localized_labels() {
+    for locale in [
+        Locale::ZhCn,
+        Locale::ZhTw,
+        Locale::EnUs,
+        Locale::JaJp,
+        Locale::KoKr,
+    ] {
+        let picker = picker(2).with_keymap(configured(json!({"accept":"f9", "cancel":"f8"})));
+        let mut terminal = Terminal::new(TestBackend::new(100, 16)).unwrap();
+        terminal
+            .draw(|frame| render(frame, frame.area(), &picker, locale))
+            .unwrap();
+        let buffer = terminal.backend().buffer();
+        assert_eq!(buffer[(2, 15)].symbol(), "f", "{locale:?}");
+        assert!(
+            buffer[(2, 15)]
+                .modifier
+                .contains(ratatui::style::Modifier::BOLD),
+            "key lost emphasis: {locale:?}"
+        );
+        assert!(
+            !buffer[(5, 15)]
+                .modifier
+                .contains(ratatui::style::Modifier::BOLD),
+            "label competes with shortcut: {locale:?}"
+        );
+    }
+}

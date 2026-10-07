@@ -11,6 +11,21 @@ fn key(code: KeyCode, modifiers: KeyModifiers) -> KeyEvent {
 }
 
 #[test]
+fn searchable_list_hints_skip_printable_navigation_that_belongs_to_the_query() {
+    let list = configured(json!({"move_left": ["h", "f7"], "move_right": "l"})).unwrap();
+    assert_eq!(
+        list.primary_searchable_hint(ListAction::MoveLeft)
+            .as_deref(),
+        Some("f7")
+    );
+    assert_eq!(list.primary_searchable_hint(ListAction::MoveRight), None);
+    assert_eq!(
+        list.primary_searchable_hint(ListAction::Accept).as_deref(),
+        Some("enter")
+    );
+}
+
+#[test]
 fn defaults_route_modified_navigation_and_keep_plain_text_searchable() {
     let list = ListKeymap::default();
     let mut matcher = KeyChordMatcher::default();

@@ -7,6 +7,8 @@ pub(crate) enum SlashCommand {
     Effort,
     Permissions,
     Status,
+    Statusline,
+    Title,
     Pwd,
     Copy,
     Export,
@@ -19,12 +21,14 @@ pub(crate) enum SlashCommand {
 }
 
 impl SlashCommand {
-    pub(crate) const ALL: [Self; 14] = [
+    pub(crate) const ALL: [Self; 16] = [
         Self::Model,
         Self::Plan,
         Self::Effort,
         Self::Permissions,
         Self::Status,
+        Self::Statusline,
+        Self::Title,
         Self::Pwd,
         Self::Copy,
         Self::Export,
@@ -43,6 +47,8 @@ impl SlashCommand {
             Self::Effort => "effort",
             Self::Permissions => "permissions",
             Self::Status => "status",
+            Self::Statusline => "statusline",
+            Self::Title => "title",
             Self::Pwd => "pwd",
             Self::Copy => "copy",
             Self::Export => "export",
@@ -110,6 +116,8 @@ mod tests {
                 "effort",
                 "permissions",
                 "status",
+                "statusline",
+                "title",
                 "pwd",
                 "copy",
                 "export",

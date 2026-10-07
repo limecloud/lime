@@ -102,6 +102,11 @@ impl TextArea {
         self.vim_enabled && self.vim_mode == VimMode::Normal
     }
 
+    /// Return whether rendering should use the insert-mode cursor style.
+    pub(crate) fn uses_vim_insert_cursor(&self) -> bool {
+        self.vim_enabled && self.vim_mode == VimMode::Insert
+    }
+
     pub(crate) fn allows_paste_burst(&self) -> bool {
         !self.vim_enabled || matches!(self.vim_mode, VimMode::Insert | VimMode::Replace)
     }

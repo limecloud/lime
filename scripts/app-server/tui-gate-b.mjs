@@ -163,6 +163,7 @@ async function main() {
         command: "printf tui-gate-b",
         reasoningText,
         scenario,
+        taskProgress: scenario === "complete",
       });
 
       const testOptions = {
@@ -399,7 +400,7 @@ async function main() {
     });
     const expectedSequences = {
       complete:
-        "turn.started,message.delta,item.started,item.completed,item.started,item.completed,turn.completed",
+        "turn.started,turn.plan.updated,message.delta,item.started,item.completed,item.started,item.completed,turn.completed",
       approval: "turn.started,item.started,action.required",
       "user-input": "turn.started,item.started,action.required",
       interrupt: "turn.started,message.delta",
@@ -609,6 +610,7 @@ async function main() {
           ? "vim-keymap=ok vim-linewise=ok vim-modal-chord=ok"
           : null,
         scenarios.includes("user-input") ? "notes-keymap=ok" : null,
+        scenarios.includes("complete") ? "task-progress=ok" : null,
         scenarios.includes("images") ? "images=ok" : null,
         scenarios.includes("skills") ? "skill-mentions=ok" : null,
         scenarios.includes("images") && scenarios.includes("large-paste")

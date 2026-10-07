@@ -14,6 +14,10 @@ mod agent_picker;
 mod approval;
 #[path = "runtime_pty_tests/composer.rs"]
 mod composer;
+#[path = "runtime_pty_tests/config.rs"]
+mod config;
+#[path = "runtime_pty_tests/cursor_style.rs"]
+mod cursor_style;
 #[path = "runtime_pty_tests/diff_display.rs"]
 mod diff_display;
 #[path = "runtime_pty_tests/images.rs"]
@@ -30,10 +34,20 @@ mod request_user_input;
 mod resume_picker;
 #[path = "runtime_pty_tests/skills.rs"]
 mod skills;
+#[path = "runtime_pty_tests/status_line.rs"]
+mod status_line;
 #[path = "runtime_pty_tests/suggestions.rs"]
 mod suggestions;
+#[path = "runtime_pty_tests/task_progress.rs"]
+mod task_progress;
+#[path = "runtime_pty_tests/terminal_title.rs"]
+mod terminal_title;
 #[path = "runtime_pty_tests/thread_input.rs"]
 mod thread_input;
+#[path = "runtime_pty_tests/title_setup.rs"]
+mod title_setup;
+#[path = "runtime_pty_tests/transcript_export.rs"]
+mod transcript_export;
 #[path = "runtime_pty_tests/vim_keymap.rs"]
 mod vim_keymap;
 
@@ -65,7 +79,7 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
         .unwrap_or_else(|_| "TUI_GATE_B_REASONING_DETAIL".to_string());
     let raw_text = std::env::var("LIME_TEST_TERMINAL_RAW_TEXT")
         .unwrap_or_else(|_| "TUI_GATE_B_RAW_SOURCE".to_string());
-    let permission_config = std::env::var_os("LIME_TEST_PERMISSION_CONFIG");
+    let permission_config = std::env::var_os("LIME_TEST_PERMISSION_CONFIG").map(PathBuf::from);
     let expected_permission_profile = std::env::var("LIME_TEST_PERMISSION_PROFILE").ok();
     let scenario =
         std::env::var("LIME_TEST_TERMINAL_SCENARIO").unwrap_or_else(|_| "complete".to_string());
@@ -133,7 +147,7 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
         command.env_remove("FORCE_COLOR");
         command.env("COLORTERM", "truecolor");
     }
-    if let Some(permission_config) = permission_config {
+    if let Some(permission_config) = permission_config.as_ref() {
         command.env("LIME_CONFIG_PATH", permission_config);
     }
     if scenario == "complete" {
@@ -196,6 +210,7 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
         "Ask Lime to do anything",
         Duration::from_secs(10),
     );
+    terminal_title::wait_for_idle(&output_rx, &mut output, &cwd);
     if scenario == "complete" {
         composer::exercise_multiline_surface(
             &mut writer,
@@ -207,6 +222,7 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
     }
     if scenario == "agents-overview" {
         thread_input::prepare_root(&mut writer, &output_rx, &mut output, &ledger_path);
+        terminal_title::wait_for_named_thread(&output_rx, &mut output, "Gate B root draft");
         wait_for_marker(
             &output_rx,
             &mut output,
@@ -335,6 +351,7 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
             Duration::from_secs(10),
         );
         agents_overview_resumed_screen = Some(terminal_screen_text(&output));
+        terminal_title::wait_for_named_thread(&output_rx, &mut output, "Gate B background");
         thread_input::exercise_round_trip(&mut writer, &output_rx, &mut output, &ledger_path);
         writer.write_all(&[4]).expect("exit TUI");
         writer.flush().expect("flush TUI exit");
@@ -362,7 +379,13 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
             &output_rx,
             &mut output,
             "shortcut close restores the main footer and removes the overlay",
-            |screen| screen.contains("? for shortcuts") && !screen.contains("Keyboard shortcuts"),
+            |screen| {
+                screen
+                    .lines()
+                    .last()
+                    .is_some_and(|line| line.contains(" · "))
+                    && !screen.contains("Keyboard shortcuts")
+            },
         );
         assert!(!terminal_screen_text(&output).contains("Keyboard shortcuts"));
         write_typed_text(&mut writer, b"/model");
@@ -564,14 +587,24 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
             _ => &completed_text,
         };
         wait_for_marker(&output_rx, &mut output, marker, Duration::from_secs(10));
+        match scenario.as_str() {
+            "approval" | "user-input" => {
+                terminal_title::wait_for_action_required(&output_rx, &mut output)
+            }
+            "interrupt" | "queue-edit" => terminal_title::wait_for_running(&output_rx, &mut output),
+            _ => {}
+        }
         if scenario == "approval" {
             approval::exercise_read_only_details(
+                master.as_ref(),
                 &mut writer,
                 &output_rx,
                 &mut output,
                 &ledger_path,
             );
-            writer.write_all(b"y").expect("approve command");
+            writer
+                .write_all(b"\x1b[20~")
+                .expect("approve command with configured F9");
             writer.flush().expect("flush approval");
             wait_for_marker(
                 &output_rx,
@@ -594,6 +627,9 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
                 &completed_text,
                 Duration::from_secs(10),
             );
+        }
+        if !matches!(scenario.as_str(), "interrupt" | "queue-edit") {
+            terminal_title::wait_for_idle(&output_rx, &mut output, &cwd);
         }
         if scenario == "diff-display" {
             diff_display::assert_painted_patch(&output_rx, &mut output);
@@ -625,6 +661,7 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
                 "rich main transcript leaked raw markdown source"
             );
             agent_picker::exercise_open_cancel_and_current_root(
+                master.as_ref(),
                 &mut writer,
                 &output_rx,
                 &mut output,
@@ -638,6 +675,39 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
                 &ledger_path,
                 &completed_text,
                 master.as_ref(),
+            );
+            transcript_export::exercise_destination_filename_and_cancel(
+                master.as_ref(),
+                &mut writer,
+                &output_rx,
+                &mut output,
+                &ledger_path,
+                &completed_text,
+            );
+            status_line::exercise_selection_save_and_cancel(
+                master.as_ref(),
+                &mut writer,
+                &output_rx,
+                &mut output,
+                &ledger_path,
+                &completed_text,
+                permission_config.as_deref().expect("isolated TUI config"),
+            );
+            title_setup::exercise_preview_save_and_cancel(
+                master.as_ref(),
+                &mut writer,
+                &output_rx,
+                &mut output,
+                &ledger_path,
+                &completed_text,
+                permission_config.as_deref().expect("isolated TUI config"),
+            );
+            task_progress::exercise_shared_progress(
+                &mut writer,
+                &output_rx,
+                &mut output,
+                &ledger_path,
+                permission_config.as_deref().expect("isolated TUI config"),
             );
             let (prompt_header_row, _) =
                 terminal_marker_position(&output, &prompt).expect("sticky prompt header position");
@@ -1011,7 +1081,11 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
                 &mut output,
                 "active help closed and composer shortcuts restored",
                 |screen| {
-                    screen.contains("? for shortcuts") && !screen.contains("Keyboard shortcuts")
+                    screen
+                        .lines()
+                        .last()
+                        .is_some_and(|line| line.contains(" · "))
+                        && !screen.contains("Keyboard shortcuts")
                 },
             );
             let cancelled = std::fs::read_to_string(&ledger_path)
@@ -1216,6 +1290,8 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
         output.contains("\u{1b}[?1049l"),
         "alternate screen not restored"
     );
+    cursor_style::assert_default_restored(&output);
+    terminal_title::assert_cleared_on_exit(&output);
     assert!(
         output.contains("\u{1b}[?1000l"),
         "mouse capture not restored"
@@ -1225,6 +1301,8 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
             output.contains("EDITOR_JOB_CONTROL_OK"),
             "external editor did not inherit the PTY"
         );
+        cursor_style::assert_default_before_editor(&output);
+        terminal_title::assert_external_editor_handoff(&output);
         assert!(
             visible_terminal_text(&output).contains("/ STATUS"),
             "status pager was not visible"

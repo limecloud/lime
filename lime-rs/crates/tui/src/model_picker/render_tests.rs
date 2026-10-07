@@ -121,9 +121,11 @@ fn model_picker_title_and_controls_cover_all_locales_and_tiny_areas() {
                 .collect::<String>()
         };
         assert!(compact(&text).contains(&compact(locale.model_picker_title())));
-        assert!(compact(&text).contains(&compact(
-            &locale.selection_picker_footer(Some("enter"), Some("esc"))
-        )));
+        assert!(compact(&text).contains(&compact(&format!(
+            "enter {} · esc {}",
+            locale.picker_select_label(),
+            locale.picker_back_label()
+        ))));
         for (width, height) in [(1, 1), (2, 2), (8, 3), (12, 4)] {
             screen(&picker, locale, width, height);
         }

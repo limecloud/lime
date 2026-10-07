@@ -185,9 +185,11 @@ fn configured_footer_covers_all_locales_and_narrow_width_without_fake_keys() {
                         .collect::<String>()
                 };
                 assert!(
-                    compact(&footer).contains(&compact(
-                        &locale.selection_picker_footer(Some("f9"), Some("ctrl+x q"))
-                    )),
+                    compact(&footer).contains(&compact(&format!(
+                        "f9 {} · ctrl+x q {}",
+                        locale.picker_select_label(),
+                        locale.picker_back_label()
+                    ))),
                     "{footer}"
                 );
             } else if width == 8 {
@@ -220,4 +222,38 @@ fn app_open_model_picker_consumes_the_startup_list_snapshot() {
         key(picker, KeyCode::F(9), KeyModifiers::NONE),
         ModelPickerAction::Select(0)
     );
+}
+
+#[test]
+fn empty_model_filter_keeps_only_the_executable_cancel_hint() {
+    for locale in [
+        Locale::ZhCn,
+        Locale::ZhTw,
+        Locale::EnUs,
+        Locale::JaJp,
+        Locale::KoKr,
+    ] {
+        let mut picker = nested();
+        picker.handle_event(Event::Paste("unmatched-model-query".into()));
+        let mut terminal = Terminal::new(TestBackend::new(100, 20)).unwrap();
+        terminal
+            .draw(|frame| render_with_locale(frame, frame.area(), &picker, locale))
+            .unwrap();
+        let footer = (0..100)
+            .map(|x| terminal.backend().buffer()[(x, 19)].symbol())
+            .collect::<String>();
+        assert!(
+            !footer.contains("f9") && footer.contains("ctrl+x q"),
+            "{locale:?}: {footer}"
+        );
+        assert_eq!(
+            key(&mut picker, KeyCode::F(9), KeyModifiers::NONE),
+            ModelPickerAction::None
+        );
+        key(&mut picker, KeyCode::Char('x'), KeyModifiers::CONTROL);
+        assert_eq!(
+            key(&mut picker, KeyCode::Char('q'), KeyModifiers::NONE),
+            ModelPickerAction::Cancel
+        );
+    }
 }

@@ -5,11 +5,13 @@ mod chat_composer;
 mod chat_composer_history;
 pub(crate) mod command_popup;
 mod composer;
+pub(crate) mod custom_prompt_view;
 mod footer;
 mod input;
 mod input_state;
 pub(crate) mod list_selection_view;
 mod mcp_server_elicitation;
+pub(crate) mod multi_select_picker;
 pub(crate) mod paste_burst;
 pub(crate) mod pending_input_preview;
 mod picker_rows;
@@ -20,7 +22,10 @@ mod selection_popup_common;
 pub(crate) mod selection_row_layout;
 mod selection_tabs;
 pub(crate) mod shortcut_overlay;
+pub(crate) mod status_line_setup;
+pub(crate) mod status_surface_preview;
 mod textarea;
+pub(crate) mod title_setup;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct MentionBinding {
@@ -56,30 +61,11 @@ use mcp_server_elicitation::McpServerElicitationOverlay;
 use request_user_input::RequestUserInputOverlay;
 pub(crate) use textarea::{TextArea, TextAreaState};
 
-pub(crate) use footer::{render_footer, FooterMode, FooterProps};
+pub(crate) use footer::{inset_footer_hint_area, render_footer, FooterMode, FooterProps};
 pub(crate) use input::ChatWidgetAction;
 pub(crate) use input_state::BottomPaneInputState;
 pub(crate) use render::{desired_height_with_locale_for_width, render_with_locale};
 pub(crate) use selection_tabs::render_filled_tab_bar;
-
-/// Keep the primary submit/cancel affordance visible while progressively reducing its copy on
-/// narrow terminals. Approval and request-user-input overlays share this geometry policy; their
-/// locale owners still provide the full primary label and each caller supplies its actual content
-/// width.
-pub(crate) fn fit_primary_action_hint(primary: String, available: usize) -> String {
-    [
-        primary.as_str(),
-        "Enter · Esc",
-        "↵ · Esc",
-        "↵Esc",
-        "Esc",
-        "",
-    ]
-    .into_iter()
-    .find(|hint| crate::width::display_width(hint) <= available)
-    .unwrap_or_default()
-    .to_string()
-}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct LocalImageAttachment {
@@ -163,9 +149,9 @@ enum PendingInteraction {
 impl PendingInteraction {
     fn set_keymap_bindings(&mut self, keymap: &crate::keymap::RuntimeKeymap) {
         match self {
-            Self::UserInput(request) => request.composer.set_keymap_bindings(keymap),
+            Self::UserInput(request) => request.set_keymap_bindings(keymap),
             Self::McpElicitation(request) => request.set_keymap_bindings(keymap),
-            Self::Approval(_) => {}
+            Self::Approval(approval) => approval.set_keymap_bindings(keymap),
         }
     }
 
@@ -321,13 +307,16 @@ impl BottomPane {
         width: usize,
     ) -> Option<Vec<String>> {
         match self.queue.front() {
-            Some(PendingInteraction::Approval(_)) => {
-                Some(vec![approval_render::footer_hint(locale, width)])
+            Some(PendingInteraction::Approval(approval)) => {
+                Some(vec![approval_render::footer_hint(approval, locale, width)])
             }
             Some(PendingInteraction::UserInput(request)) => {
                 Some(request.footer_hint_lines(locale, width))
             }
-            Some(PendingInteraction::McpElicitation(_)) | None => None,
+            // MCP renders its action hints inside the elicitation surface. Keep the outer footer
+            // reserved but blank so global composer shortcuts do not compete with the same actions.
+            Some(PendingInteraction::McpElicitation(_)) => Some(Vec::new()),
+            None => None,
         }
     }
 
@@ -528,6 +517,35 @@ mod tests {
             assert!(title.contains(label), "{locale:?}: {title}");
             assert!(title.ends_with(" Mode"), "{locale:?}: {title}");
         }
+    }
+
+    #[test]
+    fn mcp_footer_projection_blanks_the_outer_composer_footer() {
+        let mut pane = BottomPane::default();
+        let request = serde_json::from_value::<ServerRequest>(json!({
+            "method": "mcpServer/elicitation/request",
+            "id": 7,
+            "params": {
+                "threadId": "thread-1",
+                "turnId": "turn-1",
+                "serverName": "form-server",
+                "mode": "form",
+                "message": "Choose a value",
+                "requestedSchema": {
+                    "type": "object",
+                    "properties": {
+                        "confirmed": { "type": "boolean" }
+                    }
+                }
+            }
+        }))
+        .expect("MCP elicitation request");
+        pane.enqueue(request).expect("queue MCP elicitation");
+
+        assert_eq!(
+            pane.footer_hint_lines(crate::locale::Locale::EnUs, 80),
+            Some(Vec::new())
+        );
     }
 
     #[test]

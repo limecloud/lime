@@ -1,5 +1,154 @@
 use super::*;
+use crate::footer_hint::{first_fitting_line, shortcut};
 use crate::keymap::ListAction;
+
+struct PickerFooterHint {
+    key: String,
+    label: &'static str,
+    priority: u8,
+}
+
+fn footer_hint_line<'a>(
+    hints: impl IntoIterator<Item = &'a PickerFooterHint>,
+    labels: bool,
+    separator: &str,
+) -> Line<'static> {
+    let mut spans = Vec::new();
+    for hint in hints {
+        if !spans.is_empty() {
+            spans.push(Span::styled(
+                separator.to_string(),
+                crate::style::footer_hint_label_style(),
+            ));
+        }
+        if labels {
+            spans.extend(shortcut(&hint.key, hint.label).spans);
+        } else {
+            spans.push(Span::styled(
+                hint.key.clone(),
+                crate::style::key_hint_style(),
+            ));
+        }
+    }
+    Line::from(spans)
+}
+
+/// Reduce whole hints by priority; a chord is never shortened into a different key sequence.
+fn hint_line_for_row(hints: &[PickerFooterHint], width: usize) -> Line<'static> {
+    let mut candidates = vec![
+        footer_hint_line(hints, true, " · "),
+        footer_hint_line(hints, false, " · "),
+        footer_hint_line(hints, false, "·"),
+    ];
+    let mut retained = (0..hints.len()).collect::<Vec<_>>();
+    retained.sort_by_key(|index| hints[*index].priority);
+    for labels in [true, false] {
+        for count in (1..retained.len()).rev() {
+            // Preserve presentation order even when priority determines which hints survive.
+            let selected = hints
+                .iter()
+                .enumerate()
+                .filter(|(index, _)| retained[..count].contains(index))
+                .map(|(_, hint)| hint);
+            candidates.push(footer_hint_line(selected, labels, " · "));
+        }
+        // A long high-priority chord must not hide a shorter executable secondary key.
+        candidates.extend(
+            retained
+                .iter()
+                .map(|index| footer_hint_line([&hints[*index]], labels, "")),
+        );
+    }
+    first_fitting_line(candidates, width)
+}
+
+pub(super) fn footer_hint_lines(
+    picker: &PickerState,
+    locale: Locale,
+    width: u16,
+) -> [Line<'static>; 2] {
+    let mut primary = Vec::new();
+    if picker.selected_thread_id().is_some() {
+        if let Some(key) = picker.list_keymap.primary_hint(ListAction::Accept) {
+            primary.push(PickerFooterHint {
+                key,
+                label: locale.resume_action_label(
+                    matches!(picker.action, SessionPickerAction::Fork),
+                    picker.status == SessionStatus::Archived,
+                ),
+                priority: 1,
+            });
+        }
+    }
+    if let Some(key) = picker.list_keymap.primary_hint(ListAction::Cancel) {
+        primary.push(PickerFooterHint {
+            key,
+            label: locale.resume_cancel_label(!picker.query.is_empty()),
+            priority: 0,
+        });
+    }
+    let primary = hint_line_for_row(&primary, usize::from(width));
+    let message = picker.status_message.as_deref().or_else(|| {
+        if picker.loading {
+            Some(locale.resume_loading())
+        } else if picker.threads.is_empty() {
+            Some(locale.resume_empty())
+        } else {
+            None
+        }
+    });
+    if let Some(message) = message {
+        return [
+            primary,
+            Line::from(truncate_display(message, usize::from(width))),
+        ];
+    }
+    let mut secondary = vec![PickerFooterHint {
+        key: "tab".into(),
+        label: locale.resume_focus_label(),
+        priority: 7,
+    }];
+    let option_keys = [ListAction::MoveLeft, ListAction::MoveRight]
+        .into_iter()
+        .filter_map(|action| picker.list_keymap.primary_hint(action))
+        .collect::<Vec<_>>()
+        .join("/");
+    let can_change = picker.toolbar_focus != ToolbarControl::Filter || picker.filter_cwd.is_some();
+    if can_change && !option_keys.is_empty() {
+        secondary.push(PickerFooterHint {
+            key: option_keys,
+            label: locale.resume_change_label(),
+            priority: 8,
+        });
+    }
+    secondary.extend([
+        PickerFooterHint {
+            key: "ctrl+c".into(),
+            label: locale.resume_cancel_label(false),
+            priority: 2,
+        },
+        PickerFooterHint {
+            key: "ctrl+o".into(),
+            label: locale.resume_density_label(picker.density == SessionListDensity::Dense),
+            priority: 3,
+        },
+    ]);
+    if picker.selected_thread_id().is_some() {
+        secondary.extend([
+            PickerFooterHint {
+                key: "ctrl+t".into(),
+                label: locale.resume_transcript_label(),
+                priority: 4,
+            },
+            PickerFooterHint {
+                key: "ctrl+e".into(),
+                label: locale.resume_expand_label(),
+                priority: 6,
+            },
+        ]);
+    }
+    [primary, hint_line_for_row(&secondary, usize::from(width))]
+}
 
 #[cfg(test)]
 pub(super) fn render(frame: &mut Frame<'_>, picker: &PickerState) {
@@ -157,46 +306,15 @@ pub(super) fn render_picker_footer(
     if area.width == 0 || area.height == 0 {
         return;
     }
-    let accept = picker.list_keymap.primary_hint(ListAction::Accept);
-    let cancel = picker.list_keymap.primary_hint(ListAction::Cancel);
-    let wide = [
-        accept.as_deref().map(|key| {
-            locale.resume_enter_hint(
-                key,
-                matches!(picker.action, SessionPickerAction::Fork),
-                picker.status == SessionStatus::Archived,
-            )
-        }),
-        cancel
-            .as_deref()
-            .map(|key| locale.resume_escape_hint(key, !picker.query.is_empty())),
-    ]
-    .into_iter()
-    .flatten()
-    .collect::<Vec<_>>()
-    .join(" | ");
-    let keys = [accept.as_deref(), cancel.as_deref()]
-        .into_iter()
-        .flatten()
-        .collect::<Vec<_>>();
-    let compact = keys.join(" · ");
-    let minimal = keys.join(" ");
-    let budget = usize::from(area.width.saturating_sub(2));
-    let primary = [
-        wide,
-        compact,
-        minimal,
-        cancel.unwrap_or_default(),
-        accept.unwrap_or_default(),
-    ]
-    .into_iter()
-    .find(|hint| display_width(hint) <= budget)
-    .unwrap_or_default();
+    let hints = ratatui::layout::Rect::new(
+        area.x.saturating_add(1),
+        area.y.saturating_add(u16::from(area.height > 1)),
+        area.width.saturating_sub(2),
+        area.height.saturating_sub(u16::from(area.height > 1)),
+    );
+    let [primary, secondary] = footer_hint_lines(picker, locale, hints.width);
     if area.height == 1 {
-        frame.render_widget(
-            Paragraph::new(primary).style(crate::style::muted_style()),
-            area,
-        );
+        frame.render_widget(Paragraph::new(primary), hints);
         return;
     }
     let progress = format!(
@@ -219,41 +337,13 @@ pub(super) fn render_picker_footer(
         Paragraph::new(separator).style(Style::default().fg(Color::DarkGray)),
         ratatui::layout::Rect::new(area.x, area.y, area.width, 1),
     );
-    let hints = ratatui::layout::Rect::new(
-        area.x.saturating_add(1),
-        area.y.saturating_add(1),
-        area.width.saturating_sub(2),
-        area.height.saturating_sub(1),
-    );
     frame.render_widget(
-        Paragraph::new(primary).style(crate::style::muted_style()),
+        Paragraph::new(primary),
         ratatui::layout::Rect::new(hints.x, hints.y, hints.width, 1),
     );
     if hints.height > 1 {
-        let secondary = if let Some(message) = picker.status_message.as_deref() {
-            message.to_string()
-        } else if picker.loading {
-            locale.resume_loading().to_string()
-        } else if picker.threads.is_empty() {
-            locale.resume_empty().to_string()
-        } else {
-            format!(
-                "{} | {} | {} | {}",
-                locale.resume_controls_hint(
-                    &[ListAction::MoveLeft, ListAction::MoveRight]
-                        .into_iter()
-                        .filter_map(|action| picker.list_keymap.primary_hint(action))
-                        .collect::<Vec<_>>()
-                        .join("/")
-                ),
-                locale.resume_expand_hint(),
-                locale.resume_transcript_hint(),
-                locale.resume_density_label(picker.density == SessionListDensity::Dense)
-            )
-        };
         frame.render_widget(
-            Paragraph::new(truncate_display(&secondary, usize::from(hints.width)))
-                .style(crate::style::muted_style()),
+            Paragraph::new(secondary).style(crate::style::footer_hint_label_style()),
             ratatui::layout::Rect::new(hints.x, hints.y + 1, hints.width, 1),
         );
     }

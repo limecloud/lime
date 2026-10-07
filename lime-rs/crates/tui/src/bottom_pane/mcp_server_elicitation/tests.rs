@@ -415,7 +415,110 @@ fn form_surface_localizes_generated_labels_and_controls() {
         assert!(text.contains("server-1"));
         assert!(text.contains(&locale.mcp_elicitation_progress(1, 1)));
         assert!(text.contains(locale.mcp_elicitation_boolean_option(true)));
-        assert!(text.contains(locale.mcp_elicitation_controls(true).trim()));
+        let controls = [
+            locale.mcp_select_hint("↑", "↓"),
+            locale.mcp_confirm_hint("enter"),
+            locale.mcp_field_hint("tab", Some("←"), Some("→")),
+            locale.mcp_cancel_hint("esc"),
+        ]
+        .join("  ");
+        assert!(text.contains(controls.trim()), "{locale:?}: {text}");
+    }
+}
+
+#[test]
+fn controls_follow_the_runtime_list_keymap_snapshot() {
+    let mut overlay = overlay(json!({
+        "type": "object",
+        "properties": { "confirmed": { "type": "boolean" } }
+    }));
+    let keymap = crate::keymap::RuntimeKeymap::from_config(
+        &serde_json::from_value(json!({
+            "list": {
+                "move_up": "f9",
+                "move_down": "f10",
+                "move_left": "f7",
+                "move_right": "f8",
+                "accept": "f12",
+                "cancel": "f11"
+            }
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+    overlay.set_keymap_bindings(&keymap);
+
+    let text = lines_with_locale(&overlay, Locale::EnUs)
+        .into_iter()
+        .map(|line| line.to_string())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(text.contains("f9/f10 select"), "{text}");
+    assert!(text.contains("f12 confirm"), "{text}");
+    assert!(text.contains("Tab/f7/f8 switch field"), "{text}");
+    assert!(text.contains("f11 cancel"), "{text}");
+    let narrow = lines_with_locale_with_width(&overlay, Locale::EnUs, 8)
+        .into_iter()
+        .map(|line| line.to_string())
+        .collect::<Vec<_>>();
+    assert!(narrow.iter().any(|line| line.contains("f12")), "{narrow:?}");
+    assert!(narrow.iter().any(|line| line.contains("f11")), "{narrow:?}");
+}
+
+#[test]
+fn footer_never_clips_configured_chords_or_recreates_unbound_actions() {
+    for (accept, cancel) in [(true, true), (true, false), (false, true), (false, false)] {
+        let keymap = crate::keymap::RuntimeKeymap::from_config(
+            &serde_json::from_value(json!({"list": {
+                "accept": if accept { json!("ctrl-x s") } else { json!([]) },
+                "cancel": if cancel { json!("ctrl-x q") } else { json!([]) },
+                "move_left": [], "move_right": "f8"
+            }}))
+            .unwrap(),
+        )
+        .unwrap();
+        for locale in [
+            Locale::ZhCn,
+            Locale::ZhTw,
+            Locale::EnUs,
+            Locale::JaJp,
+            Locale::KoKr,
+        ] {
+            for width in 1..60 {
+                let rows = footer_control_lines(locale, true, Some(width), keymap.list());
+                let text = rows
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                assert!(
+                    !text.contains("Enter") && !text.contains("Esc"),
+                    "{locale:?}/{width}: {text}"
+                );
+                assert!(!text.contains('…'), "{locale:?}/{width}: {text}");
+                for row in &rows {
+                    let text = row.to_string();
+                    assert!(display_width(&text) <= width, "{locale:?}/{width}: {text}");
+                    if text.contains("ctrl+x") {
+                        assert!(
+                            text.contains("ctrl+x s") || text.contains("ctrl+x q"),
+                            "partial chord: {text}"
+                        );
+                    }
+                }
+                if width >= 8 {
+                    assert_eq!(text.contains("ctrl+x s"), accept, "{text}");
+                    assert_eq!(text.contains("ctrl+x q"), cancel, "{text}");
+                    assert!(text.contains("Tab"), "field navigation lost: {text}");
+                }
+                if width >= 40 {
+                    assert!(
+                        text.contains("Tab/f8"),
+                        "one-sided field binding lost: {text}"
+                    );
+                }
+            }
+        }
     }
 }
 

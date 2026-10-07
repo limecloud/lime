@@ -89,6 +89,8 @@ impl ChatWidget {
     }
 
     pub(crate) fn reset_for_hydrated_thread(&mut self) {
+        self.status_line_setup = None;
+        self.terminal_title_setup = None;
         self.primary_clipboard_lease = None;
         self.transcript_scroll = 0;
         self.transcript_viewport.clear();

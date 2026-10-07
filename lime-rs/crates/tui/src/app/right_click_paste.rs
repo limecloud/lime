@@ -50,6 +50,8 @@ impl App {
         if !right_click_paste_allowed(self.chat_widget.right_click_paste, source)
             || self.chat_widget.pager_overlay.is_some()
             || self.chat_widget.export_picker.is_some()
+            || self.chat_widget.status_line_setup.is_some()
+            || self.chat_widget.terminal_title_setup.is_some()
             || self.chat_widget.bottom_pane.is_active()
             || self.chat_widget.resume_picker.is_some()
             || self.chat_widget.agents_overview.is_some()

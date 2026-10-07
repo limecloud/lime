@@ -139,6 +139,7 @@ fn resume_named_thread(
         "canonical thread resumed out of Agent Center",
         |screen| !screen.contains("Agent command center") && screen.contains("switched agent"),
     );
+    terminal_title::wait_for_named_thread(output_rx, output, name);
 }
 
 pub(super) fn exercise_round_trip(

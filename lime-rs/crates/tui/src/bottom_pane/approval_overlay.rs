@@ -9,6 +9,7 @@ use app_server_protocol::RequestId;
 use crossterm::event::{KeyCode, KeyEventKind, KeyModifiers};
 
 use super::AppServerResponse;
+use crate::keymap::{KeyChordMatcher, KeymapMatch, ListAction, ListKeymap};
 
 #[derive(Debug)]
 pub(super) enum ApprovalRequest {
@@ -30,6 +31,8 @@ pub(super) enum ApprovalRequest {
 pub(super) struct ApprovalOverlay {
     pub(super) request: ApprovalRequest,
     pub(super) selected: usize,
+    list_keymap: ListKeymap,
+    list_key_chord_matcher: KeyChordMatcher,
 }
 
 impl ApprovalOverlay {
@@ -49,7 +52,21 @@ impl ApprovalOverlay {
         Self {
             request,
             selected: 0,
+            list_keymap: ListKeymap::default(),
+            list_key_chord_matcher: KeyChordMatcher::default(),
         }
+    }
+
+    pub(super) fn set_keymap_bindings(&mut self, keymap: &crate::keymap::RuntimeKeymap) {
+        self.list_keymap = keymap.list().clone();
+        self.list_key_chord_matcher.reset();
+    }
+
+    pub(super) fn action_hint_keys(&self) -> (Option<String>, Option<String>) {
+        (
+            self.list_keymap.primary_hint(ListAction::Accept),
+            self.list_keymap.primary_hint(ListAction::Cancel),
+        )
     }
 
     pub(super) fn handle_key_event(
@@ -62,33 +79,48 @@ impl ApprovalOverlay {
         if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') {
             return Some(self.cancel_response());
         }
-        match key.code {
-            KeyCode::Up | KeyCode::Char('p') | KeyCode::Char('k')
-                if key.code == KeyCode::Up || key.modifiers.contains(KeyModifiers::CONTROL) =>
-            {
-                let count = self.option_count();
-                if count > 0 {
-                    self.selected = self.selected.checked_sub(1).unwrap_or(count - 1);
-                }
+        match self
+            .list_keymap
+            .dispatch(&mut self.list_key_chord_matcher, key, false)
+        {
+            KeymapMatch::Completed(ListAction::MoveUp) => {
+                self.move_selection(false);
                 None
             }
-            KeyCode::Down | KeyCode::Char('n') | KeyCode::Char('j')
-                if key.code == KeyCode::Down || key.modifiers.contains(KeyModifiers::CONTROL) =>
-            {
-                let count = self.option_count();
-                if count > 0 {
-                    self.selected = (self.selected + 1) % count;
-                }
+            KeymapMatch::Completed(ListAction::MoveDown) => {
+                self.move_selection(true);
                 None
             }
-            KeyCode::Enter => Some(self.response_for_selected()),
-            KeyCode::Esc => Some(self.cancel_response()),
-            KeyCode::Char('y') => {
-                self.selected = 0;
-                Some(self.response_for_selected())
-            }
-            KeyCode::Char('n') if key.modifiers.is_empty() => Some(self.decline_response()),
-            _ => None,
+            KeymapMatch::Completed(ListAction::Accept) => Some(self.response_for_selected()),
+            KeymapMatch::Completed(ListAction::Cancel) => Some(self.cancel_response()),
+            KeymapMatch::Pending | KeymapMatch::Cancelled => None,
+            KeymapMatch::Completed(
+                ListAction::MoveLeft
+                | ListAction::MoveRight
+                | ListAction::PageUp
+                | ListAction::PageDown
+                | ListAction::JumpTop
+                | ListAction::JumpBottom,
+            )
+            | KeymapMatch::PassThrough => match key.code {
+                KeyCode::Char('y') => {
+                    self.selected = 0;
+                    Some(self.response_for_selected())
+                }
+                KeyCode::Char('n') if key.modifiers.is_empty() => Some(self.decline_response()),
+                _ => None,
+            },
+        }
+    }
+
+    fn move_selection(&mut self, next: bool) {
+        let count = self.option_count();
+        if count > 0 {
+            self.selected = if next {
+                (self.selected + 1) % count
+            } else {
+                self.selected.checked_sub(1).unwrap_or(count - 1)
+            };
         }
     }
 

@@ -292,7 +292,7 @@ mod tests {
 
         assert!(text.contains("/model"));
         assert!(compact.contains("选择模型"), "{text}");
-        assert!(text.contains("/copy"));
+        assert!(text.contains("/title"));
     }
 
     #[test]

@@ -112,10 +112,13 @@ pub(super) fn desired_height(pane: &BottomPane, locale: Locale, width: u16) -> u
         .clamp(5, 18)
 }
 
-pub(super) fn footer_hint(locale: Locale, width: usize) -> String {
-    super::fit_primary_action_hint(
-        locale.approval_controls().to_string(),
-        width.saturating_sub(1),
+pub(super) fn footer_hint(approval: &ApprovalOverlay, locale: Locale, width: usize) -> String {
+    use crate::footer_hint::{primary_action_hint, ShortcutHint};
+    let (confirm_key, cancel_key) = approval.action_hint_keys();
+    primary_action_hint(
+        confirm_key.map(|key| ShortcutHint::new(&key, locale.approval_confirm_hint(&key))),
+        cancel_key.map(|key| ShortcutHint::new(&key, locale.approval_cancel_hint(&key))),
+        width,
     )
 }
 

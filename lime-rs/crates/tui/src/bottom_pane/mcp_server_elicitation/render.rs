@@ -1,6 +1,8 @@
 //! Elicitation presentation and width-aware control hints.
 
 use super::*;
+use crate::footer_hint::{display_key_label, wrap_hint_rows, ShortcutHint};
+use crate::keymap::{ListAction, ListKeymap};
 
 pub(in super::super) fn lines_with_locale(
     overlay: &McpServerElicitationOverlay,
@@ -152,6 +154,7 @@ pub(super) fn lines_with_locale_inner(
         locale,
         overlay.is_select_field(),
         width,
+        &overlay.list_keymap,
     ));
     lines
 }
@@ -215,118 +218,85 @@ pub(super) fn footer_control_lines(
     locale: Locale,
     select: bool,
     width: Option<usize>,
+    list_keymap: &ListKeymap,
 ) -> Vec<Line<'static>> {
-    let full = locale.mcp_elicitation_controls(select);
+    let selection = if select {
+        match (
+            list_keymap.primary_hint(ListAction::MoveUp),
+            list_keymap.primary_hint(ListAction::MoveDown),
+        ) {
+            (Some(up), Some(down)) => Some(ShortcutHint::new(
+                &format!("{}/{}", display_key_label(&up), display_key_label(&down)),
+                locale.mcp_select_hint(&up, &down),
+            )),
+            _ => None,
+        }
+    } else {
+        None
+    };
+    let confirm = if select {
+        list_keymap.primary_hint(ListAction::Accept)
+    } else {
+        Some("enter".to_string())
+    }
+    .map(|key| ShortcutHint::new(&key, locale.mcp_confirm_hint(&key)));
+    let (left, right) = if select {
+        (
+            list_keymap.primary_hint(ListAction::MoveLeft),
+            list_keymap.primary_hint(ListAction::MoveRight),
+        )
+    } else {
+        (None, None)
+    };
+    let field_keys = [Some("tab"), left.as_deref(), right.as_deref()]
+        .into_iter()
+        .flatten()
+        .map(display_key_label)
+        .collect::<Vec<_>>()
+        .join("/");
+    let field = ShortcutHint::new(
+        &field_keys,
+        locale.mcp_field_hint("tab", left.as_deref(), right.as_deref()),
+    )
+    .with_alternative_key("tab");
+    let cancel = if select {
+        list_keymap.primary_hint(ListAction::Cancel)
+    } else {
+        Some("esc".to_string())
+    }
+    .map(|key| ShortcutHint::new(&key, locale.mcp_cancel_hint(&key)));
+    let full = [
+        selection.as_ref(),
+        confirm.as_ref(),
+        Some(&field),
+        cancel.as_ref(),
+    ]
+    .into_iter()
+    .flatten()
+    .map(ShortcutHint::text)
+    .collect::<Vec<_>>()
+    .join("  ");
     let Some(width) = width else {
         return vec![Line::styled(full, muted_style())];
     };
-    let width = width.max(1);
     if display_width(&full) <= width {
         return vec![Line::styled(full, muted_style())];
     }
-
-    // Locale strings intentionally keep two spaces between tips. Reusing those boundaries lets
-    // the wide layout remain byte-for-byte stable while allowing narrow terminals to pack each
-    // action independently. Submit and cancel stay ahead of navigation hints so the primary
-    // action set remains visible when the footer needs multiple rows.
-    let segments = full
-        .split("  ")
-        .filter(|segment| !segment.is_empty())
-        .map(str::to_owned)
-        .collect::<Vec<_>>();
-    if segments.len() < 2 {
-        return vec![Line::styled(
-            compact_control_segment(&full, width),
-            muted_style(),
-        )];
-    }
-    let submit_index = segments
-        .iter()
-        .position(|segment| contains_submit_hint(segment))
-        .unwrap_or(0);
-    let cancel_index = segments
-        .iter()
-        .position(|segment| contains_cancel_hint(segment))
-        .unwrap_or(segments.len().saturating_sub(1));
-    let cancel_segment = (cancel_index != submit_index).then(|| segments[cancel_index].clone());
-    let mut ordered = Vec::with_capacity(segments.len());
-    ordered.push(segments[submit_index].clone());
-    for (index, segment) in segments.into_iter().enumerate() {
-        if index != submit_index && index != cancel_index {
-            ordered.push(segment);
-        }
-    }
-    if let Some(cancel_segment) = cancel_segment {
-        ordered.push(cancel_segment);
-    }
-
-    let mut rows = Vec::<String>::new();
-    let mut current = String::new();
-    for segment in ordered {
-        let segment = compact_control_segment(&segment, width);
-        if current.is_empty() {
-            current = segment;
-            continue;
-        }
-        let candidate = format!("{current}  {segment}");
-        if display_width(&candidate) <= width {
-            current = candidate;
-        } else {
-            rows.push(current);
-            current = segment;
-        }
-    }
-    if !current.is_empty() {
-        rows.push(current);
-    }
-    rows.into_iter()
-        .map(|line| Line::styled(line, muted_style()))
-        .collect()
-}
-
-pub(super) fn contains_submit_hint(segment: &str) -> bool {
-    segment.contains("Enter")
-        || segment.contains("↵")
-        || segment.contains("确认")
-        || segment.contains("確定")
-        || segment.contains("확인")
-}
-
-pub(super) fn contains_cancel_hint(segment: &str) -> bool {
-    segment.contains("Esc")
-        || segment.contains('⎋')
-        || segment.contains("取消")
-        || segment.contains("キャンセル")
-        || segment.contains("취소")
-}
-
-pub(super) fn compact_control_segment(segment: &str, width: usize) -> String {
-    if display_width(segment) <= width {
-        return segment.to_owned();
-    }
-    let candidates = if contains_cancel_hint(segment) {
-        vec!["Esc", "⎋"]
-    } else if contains_submit_hint(segment) {
-        vec!["Enter", "↵"]
-    } else if segment.contains('↑') || segment.contains('↓') {
-        vec!["↑/↓", "↑↓", "↑", "↓"]
-    } else if segment.contains("Tab")
-        || segment.contains("欄位")
-        || segment.contains("字段")
-        || segment.contains("フィールド")
-        || segment.contains("필드")
-    {
-        vec!["Tab", "⇥"]
-    } else {
-        Vec::new()
-    };
-    if let Some(candidate) = candidates
+    // The request owns priority; the shared layout only chooses and packs whole hints.
+    let hints = [
+        confirm.as_ref(),
+        selection.as_ref(),
+        Some(&field),
+        cancel.as_ref(),
+    ]
+    .into_iter()
+    .flatten()
+    .map(|hint| hint.fit(width))
+    .filter(|hint| !hint.is_empty());
+    wrap_hint_rows(hints, width, 2, |hint| display_width(hint))
         .into_iter()
-        .find(|candidate| display_width(candidate) <= width)
-    {
-        return candidate.to_owned();
-    }
-    truncate_line_with_ellipsis_if_overflow(Line::from(segment.to_owned()), width).to_string()
+        .map(|row| Line::styled(row.join("  "), muted_style()))
+        .collect()
 }
 
 pub(in super::super) fn set_cursor_position(

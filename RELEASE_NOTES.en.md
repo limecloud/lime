@@ -1,38 +1,40 @@
-## Lime v1.150.0
+## Lime v1.151.0
 
 Simplified Chinese release notes are the primary version.
 
 ### New Features
 
-- Continued ChatWidget session convergence for runtime keymap, clipboard and right-click paste, queued submissions, per-thread draft snapshots, turn lifecycle, and startup warning presentation.
-- Changed history pagination, resume preview, and transcript loading to an asynchronous completion/event flow with thread and cursor ownership checks while keyboard, redraw, and App Server notifications remain responsive.
-- Added ChatWidget ownership for approval details, transcript wheel and selection drag handling, resume/Agent/model/export pickers, and external editor lifecycle.
+- Added `/statusline` configuration with search, multiple selection, ordering, and previews of current thread facts. Confirmed preferences take effect immediately and persist in shared configuration, with options to disable the status line or its colors.
+- Added `/title` configuration with live terminal-title previews, cancellation restoration, ordering, and restart persistence. Available facts include activity, required actions, thread, directory, model, and reasoning effort.
+- Status lines and titles can show completed/total task counts from the App Server's structured plan. Progress is omitted when structured facts are unavailable.
+- Unified export filename input with the multiline editor, including Vim, paste handling, dynamic height, and line breaks. Focus and Vim mode now determine the terminal cursor shape.
 
 ### Fixes
 
-- Fixed state handoff, duplicate requests, and incorrect loading resets during history pagination, resume preview, scrolling, search, reconnect, and terminal recovery.
-- Fixed interaction boundaries for disabled input, draft restoration, queue editing, clipboard races, modal/pager selection, and picker cancellation.
-- Fixed rendering and lifecycle issues in narrow terminals, focus transitions, approval details, and asynchronous external-editor returns.
+- Approval, user-input, MCP forms, and pickers now consistently honor configured shortcuts, chords, and unbound actions, with matching visible hints.
+- Fixed truncated chords, duplicated footer-width deductions, and unrelated global hints in interactive overlays on narrow terminals.
+- Fixed configuration conflict and cancellation boundaries for status lines and titles. GUI saves of other settings preserve ordered TUI preferences, explicit disabling, and custom keymaps.
+- Terminal titles filter control characters and limit display length. Titles managed by the current process are cleared on exit or external-editor handoff and reapplied on return.
 
 ### Improvements and Refactoring
 
-- Removed remaining App-level ChatWidget fields, getters/setters, and legacy `thread_settings`, command popup, and status indicator entry points in favor of current ChatWidget/BottomPane owners.
-- Split ChatWidget into focused input, interaction, settings, transcript, and footer modules; App remains responsible for host lifecycle, transport/session, Thread routing, and canonical projection.
-- Kept the single `Product Surface -> App Server JSON-RPC -> RuntimeCore -> Thread/Turn/Item projection` chain without a local history/queue backend, parallel runtime, or compatibility shell.
+- Status-line and title setup share selection layout, canonical fact projection, and versioned configuration writes, replacing duplicate implementations.
+- Moved export interaction into ChatWidget and kept terminal-title output and lifecycle management in the TUI host.
+- Desktop and CLI/TUI retain the shared App Server, runtime, and canonical Thread/Turn/Item chain without private configuration storage or a parallel backend.
 
 ### Testing and Quality
 
-- Expanded TUI ChatWidget, history pagination, picker, queue, input, recovery, PTY, and structure-guard coverage, and refreshed Codex-alignment and structure inventories.
-- Added CLI/TUI Gate B coverage while continuing to reuse the App Server JSON-RPC and canonical Thread/Turn/Item facts.
-- Fixed the Windows N-1 upgrade gate to open the real Settings → About entry when the previous version has not started checking, while retaining download, restart installation, and version checks.
-- Release validation runs `npm run verify:app-version`, `npm run typecheck`, `npm run test:contracts`, focused Rust TUI tests, and `npm run verify:gui-smoke`; any failed gate is recorded in the release plan.
+- Expanded regressions for localized shortcuts in five languages, narrow layouts, export input, cursor styles, status lines, titles, and shared configuration.
+- Expanded real PTY and stdio scenarios for preview, save, cancel, reopen, configuration conflicts, title output, and terminal restoration.
+- Removed unused sidebar and scheduled-task translations consistently across five languages to resolve a local quality-gate blocker.
+- Release-gate results and unverified platform scope are recorded in this version's release execution plan.
 
 ### Documentation
 
-- Updated architecture confirmation, the TUI/CLI Codex-alignment execution plan, TUI structure inventories, and the release execution plan.
+- Updated TUI operations, command boundaries, architecture diagrams, the Codex-alignment plan, and structure inventories.
 
 ### Other
 
-- Desktop and CLI/TUI continue to share the same App Server/runtime/canonical projection; retired runtimes and production mock fallbacks remain absent.
+- Unified the release version at `1.151.0`. Historical release notes remain available through Git history and GitHub Releases.
 
-**Full changes**: `v1.149.0` -> `v1.150.0`
+**Full changes**: `v1.150.0` -> `v1.151.0`

@@ -194,6 +194,7 @@ impl AgentPicker {
             })
             .collect();
         ListSelectionView {
+            footer: None,
             title: locale.agent_picker_title(),
             subtitle: Line::from(AgentNavigationState::picker_subtitle(locale)),
             query: None,

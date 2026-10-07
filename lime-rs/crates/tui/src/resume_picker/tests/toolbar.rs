@@ -195,7 +195,7 @@ fn toolbar_order_and_interaction_hints_cover_product_locales() {
         let status = line.find(locale.resume_toolbar_label("status")).unwrap();
         let sort = line.find(locale.resume_toolbar_label("sort")).unwrap();
         assert!(filter < status && status < sort, "{line}");
-        let hint = locale.resume_controls_hint("←/→");
+        let hint = footer_hint_lines(&picker, locale, 240)[1].to_string();
         assert!(hint.contains("tab") && hint.contains("←/→"), "{hint}");
         assert!(!hint.contains("Esc new"), "{hint}");
     }

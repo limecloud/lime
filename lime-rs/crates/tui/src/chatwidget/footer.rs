@@ -6,9 +6,10 @@
 
 use super::ChatWidget;
 use crate::bottom_pane::shortcut_overlay;
-use crate::bottom_pane::{FooterMode, FooterProps};
+use crate::bottom_pane::{inset_footer_hint_area, FooterMode, FooterProps};
 use crate::keymap::GlobalKeymapAction;
 use crate::style::accent_style;
+use ratatui::layout::Rect;
 use ratatui::text::{Line, Span};
 
 impl ChatWidget {
@@ -20,6 +21,7 @@ impl ChatWidget {
         primary_thread_id: Option<&str>,
     ) -> FooterProps {
         let mode = self.bottom_pane.footer_mode();
+        let content_width = usize::from(inset_footer_hint_area(Rect::new(0, 0, width, 1)).width);
         FooterProps {
             locale: self.locale,
             mode,
@@ -29,14 +31,14 @@ impl ChatWidget {
                 .is_active()
                 .then(|| {
                     self.bottom_pane
-                        .footer_hint_lines(self.locale, usize::from(width.saturating_sub(1)))
+                        .footer_hint_lines(self.locale, content_width)
                 })
                 .flatten(),
             shortcut_close_hint: (mode == FooterMode::ShortcutOverlay).then(|| {
                 shortcut_overlay::close_hint_text(
                     self.locale,
                     self.shortcut_toggle_available(),
-                    usize::from(width.saturating_sub(1)),
+                    content_width,
                 )
             }),
             history_search_line: self.bottom_pane.history_search_footer_line(),
@@ -61,6 +63,8 @@ impl ChatWidget {
                 .active_agent_label(thread_id, primary_thread_id),
             agents_hint: self.agents_hint(),
             shortcuts_available: self.shortcut_toggle_available(),
+            status_line_value: None,
+            status_line_enabled: false,
         }
     }
 
@@ -74,6 +78,8 @@ impl ChatWidget {
             && self.agents_overview.is_none()
             && self.resume_picker.is_none()
             && self.export_picker.is_none()
+            && self.status_line_setup.is_none()
+            && self.terminal_title_setup.is_none()
             && self.pager_overlay.is_none()
             && !self.bottom_pane.history_search_active()
             && !self.bottom_pane.vim_search_active()

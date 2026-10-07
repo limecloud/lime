@@ -10,6 +10,8 @@ use std::time::{Duration, Instant};
 
 use super::{AppServerResponse, ChatComposer, InputResult};
 use crate::bottom_pane::selection_row_layout::MAX_POPUP_ROWS;
+use crate::footer_hint::{display_key_label, primary_action_hint, wrap_hint_rows, ShortcutHint};
+use crate::keymap::{KeyChordMatcher, KeymapMatch, ListAction, ListKeymap};
 use crate::line_truncation::truncate_line_with_ellipsis_if_overflow;
 use crate::width::display_width;
 
@@ -57,6 +59,8 @@ pub(super) struct RequestUserInputOverlay {
     question_selections: Vec<usize>,
     /// Stores the Options/Notes focus per question.
     question_editing: Vec<bool>,
+    list_keymap: ListKeymap,
+    list_key_chord_matcher: KeyChordMatcher,
     request_started_at: Instant,
     auto_resolution_snoozed: bool,
     submission_error: Option<usize>,
@@ -86,6 +90,8 @@ impl RequestUserInputOverlay {
             question_drafts: vec![String::new(); question_count],
             question_selections: vec![0; question_count],
             question_editing,
+            list_keymap: ListKeymap::default(),
+            list_key_chord_matcher: KeyChordMatcher::default(),
             request_started_at: Instant::now(),
             auto_resolution_snoozed: false,
             submission_error: None,
@@ -99,6 +105,12 @@ impl RequestUserInputOverlay {
             .map(|question| question.header.clone())
             .filter(|header| !header.trim().is_empty())
             .or_else(|| Some(locale.request_input_action_label().to_string()))
+    }
+
+    pub(super) fn set_keymap_bindings(&mut self, keymap: &crate::keymap::RuntimeKeymap) {
+        self.composer.set_keymap_bindings(keymap);
+        self.list_keymap = keymap.list().clone();
+        self.list_key_chord_matcher.reset();
     }
 
     fn snooze_auto_resolution(&mut self) {
@@ -168,23 +180,41 @@ impl RequestUserInputOverlay {
         }
     }
 
-    fn footer_hints(&self, locale: crate::locale::Locale) -> Vec<String> {
-        let mut hints = Vec::with_capacity(6);
-        // The submit/cancel pair is the non-negotiable action set on narrow terminals.
-        // Secondary navigation may be clipped, but these two controls must remain visible.
-        hints.push(locale.request_submit_hint().to_string());
-        hints.push(locale.request_cancel_hint().to_string());
+    fn secondary_footer_hints(&self, locale: crate::locale::Locale, width: usize) -> Vec<String> {
+        let mut hints = Vec::with_capacity(4);
         if let Some(position) = self.option_position_hint(locale) {
-            hints.push(position);
+            hints.push(fit_footer_hint(position, width));
         }
         if self.has_options() && !self.editing {
-            hints.push(locale.request_select_hint().to_string());
+            if let (Some(up), Some(down)) = (
+                self.list_keymap.primary_hint(ListAction::MoveUp),
+                self.list_keymap.primary_hint(ListAction::MoveDown),
+            ) {
+                hints.push(
+                    ShortcutHint::new(
+                        &format!("{}/{}", display_key_label(&up), display_key_label(&down)),
+                        locale.request_select_hint(&up, &down),
+                    )
+                    .fit(width),
+                );
+            }
         }
         if self.has_options() {
-            hints.push(locale.request_notes_hint().to_string());
+            hints.push(ShortcutHint::new("tab", locale.request_notes_hint("tab")).fit(width));
         }
-        if self.params.questions.len() > 1 {
-            hints.push(locale.request_question_nav_hint().to_string());
+        if self.params.questions.len() > 1 && !self.editing {
+            if let (Some(left), Some(right)) = (
+                self.list_keymap.primary_hint(ListAction::MoveLeft),
+                self.list_keymap.primary_hint(ListAction::MoveRight),
+            ) {
+                hints.push(
+                    ShortcutHint::new(
+                        &format!("{}/{}", display_key_label(&left), display_key_label(&right)),
+                        locale.request_question_nav_hint(&left, &right),
+                    )
+                    .fit(width),
+                );
+            }
         }
         hints
     }
@@ -198,35 +228,15 @@ impl RequestUserInputOverlay {
             return Vec::new();
         }
 
-        let hints = self.footer_hints(locale);
-        let mut tips = Vec::with_capacity(hints.len().saturating_sub(1));
-        tips.push(self.primary_footer_hint_for_width(locale, width));
-        tips.extend(
-            hints
-                .into_iter()
-                .skip(2)
-                .map(|hint| fit_footer_hint(hint, width)),
-        );
-
-        let mut lines = Vec::new();
-        let mut current = String::new();
-        for tip in tips.into_iter().filter(|tip| !tip.is_empty()) {
-            let candidate = if current.is_empty() {
-                tip.clone()
-            } else {
-                format!("{current} · {tip}")
-            };
-            if display_width(&candidate) <= width {
-                current = candidate;
-            } else {
-                lines.push(current);
-                current = tip;
-            }
-        }
-        if !current.is_empty() {
-            lines.push(current);
-        }
-        lines
+        let tips = std::iter::once(self.primary_footer_hint_for_width(locale, width))
+            .chain(self.secondary_footer_hints(locale, width))
+            .filter(|hint| !hint.is_empty());
+        wrap_hint_rows(tips, width, display_width(" · "), |hint| {
+            display_width(hint)
+        })
+        .into_iter()
+        .map(|row| row.join(" · "))
+        .collect()
     }
 
     pub(super) fn footer_required_height(
@@ -241,12 +251,23 @@ impl RequestUserInputOverlay {
         if let Some(actual_chars) = self.submission_error {
             return fit_footer_hint(locale.user_input_too_large_message(actual_chars), width);
         }
-        let primary = format!(
-            "{} · {}",
-            locale.request_submit_hint(),
-            locale.request_cancel_hint()
-        );
-        super::fit_primary_action_hint(primary, width)
+        let (submit_key, cancel_key) = self.action_hint_keys();
+        primary_action_hint(
+            submit_key.map(|key| ShortcutHint::new(&key, locale.request_submit_hint(&key))),
+            cancel_key.map(|key| ShortcutHint::new(&key, locale.request_cancel_hint(&key))),
+            width,
+        )
+    }
+
+    fn action_hint_keys(&self) -> (Option<String>, Option<String>) {
+        if self.has_options() && !self.editing {
+            (
+                self.list_keymap.primary_hint(ListAction::Accept),
+                self.list_keymap.primary_hint(ListAction::Cancel),
+            )
+        } else {
+            (Some("enter".to_string()), Some("esc".to_string()))
+        }
     }
 
     fn option_position_hint(&self, locale: crate::locale::Locale) -> Option<String> {
@@ -294,6 +315,7 @@ impl RequestUserInputOverlay {
         if count < 2 {
             return;
         }
+        self.list_key_chord_matcher.reset();
         self.save_current_state();
         self.question_index = if next {
             (self.question_index + 1) % count
@@ -347,153 +369,169 @@ impl RequestUserInputOverlay {
                     Some(self.cancel())
                 }
             }
-            key if key.kind == KeyEventKind::Press => match key.code {
-                KeyCode::Esc if self.editing && self.has_options() => {
-                    self.clear_notes_and_focus_options();
-                    None
-                }
-                KeyCode::Esc => Some(self.cancel()),
-                KeyCode::Char('p') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                    self.move_question(false);
-                    None
-                }
-                KeyCode::Char('n') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                    self.move_question(true);
-                    None
-                }
-                KeyCode::PageUp => {
-                    self.move_question(false);
-                    None
-                }
-                KeyCode::PageDown => {
-                    self.move_question(true);
-                    None
-                }
-                KeyCode::Left | KeyCode::Char('h')
-                    if !self.editing && self.has_options() && key.modifiers.is_empty() =>
-                {
-                    self.move_question(false);
-                    None
-                }
-                KeyCode::Right | KeyCode::Char('l')
-                    if !self.editing && self.has_options() && key.modifiers.is_empty() =>
-                {
-                    self.move_question(true);
-                    None
-                }
-                KeyCode::Tab if self.has_options() && self.editing => {
-                    self.clear_notes_and_focus_options();
-                    None
-                }
-                KeyCode::Tab if self.has_options() => {
-                    self.restore_current_state();
-                    self.editing = true;
-                    self.save_current_state();
-                    None
-                }
-                KeyCode::Up if !self.editing => {
-                    self.move_option(false);
-                    None
-                }
-                KeyCode::Char('k')
-                    if !self.editing
-                        && (key.modifiers.is_empty()
-                            || key.modifiers.contains(KeyModifiers::CONTROL)) =>
-                {
-                    self.move_option(false);
-                    None
-                }
-                KeyCode::Down if !self.editing => {
-                    self.move_option(true);
-                    None
-                }
-                KeyCode::Char('j')
-                    if !self.editing
-                        && (key.modifiers.is_empty()
-                            || key.modifiers.contains(KeyModifiers::CONTROL)) =>
-                {
-                    self.move_option(true);
-                    None
-                }
-                KeyCode::Char(' ')
-                    if !self.editing && self.has_options() && key.modifiers.is_empty() =>
-                {
-                    self.save_current_state();
-                    None
-                }
-                KeyCode::Backspace
-                    if self.editing && self.has_options() && self.composer.is_empty() =>
-                {
-                    self.clear_notes_and_focus_options();
-                    None
-                }
-                _ if self.editing && key.code == KeyCode::Enter && self.composer.is_empty() => {
-                    let answer = self.selected_option_label().into_iter().collect();
-                    self.commit(answer)
-                }
-                _ if self.editing => match self.composer.handle_key_event(key) {
-                    InputResult::Submitted { text, .. } => {
-                        let mut answers =
-                            self.selected_option_label().into_iter().collect::<Vec<_>>();
-                        let note = text.trim();
-                        if !note.is_empty() {
-                            if self.has_options() {
-                                answers.push(format!("user_note: {note}"));
-                            } else {
-                                answers.push(note.to_string());
-                            }
-                        }
-                        self.commit(answers)
-                    }
-                    InputResult::Interrupt | InputResult::Quit => Some(self.cancel()),
-                    InputResult::Queued { text, .. } => {
-                        self.composer.insert(&text);
-                        self.save_current_state();
-                        None
-                    }
-                    InputResult::SubmissionRejected { actual_chars } => {
-                        self.submission_error = Some(actual_chars);
-                        self.save_current_state();
-                        None
-                    }
-                    InputResult::None
-                    | InputResult::Changed
-                    | InputResult::DecreaseEffort
-                    | InputResult::IncreaseEffort
-                    | InputResult::PreviousPermissions
-                    | InputResult::NextPermissions
-                    | InputResult::OpenExternalEditor
-                    | InputResult::OpenAgentsOverview => {
-                        self.save_current_state();
-                        None
-                    }
-                },
-                KeyCode::Enter => {
-                    if self.selected == self.current_options().map_or(usize::MAX, <[_]>::len)
-                        && self.other_option_enabled()
+            key if key.kind == KeyEventKind::Press => {
+                if !self.editing {
+                    match self
+                        .list_keymap
+                        .dispatch(&mut self.list_key_chord_matcher, key, false)
                     {
+                        KeymapMatch::Completed(ListAction::MoveUp) => {
+                            self.move_option(false);
+                            return None;
+                        }
+                        KeymapMatch::Completed(ListAction::MoveDown) => {
+                            self.move_option(true);
+                            return None;
+                        }
+                        KeymapMatch::Completed(ListAction::MoveLeft) => {
+                            if self.has_options() {
+                                self.move_question(false);
+                            }
+                            return None;
+                        }
+                        KeymapMatch::Completed(ListAction::MoveRight) => {
+                            if self.has_options() {
+                                self.move_question(true);
+                            }
+                            return None;
+                        }
+                        KeymapMatch::Completed(ListAction::Accept) => {
+                            return self.commit_selected_or_open_notes();
+                        }
+                        KeymapMatch::Completed(ListAction::Cancel) => return Some(self.cancel()),
+                        KeymapMatch::Completed(ListAction::PageUp) => {
+                            self.move_question(false);
+                            return None;
+                        }
+                        KeymapMatch::Completed(ListAction::PageDown) => {
+                            self.move_question(true);
+                            return None;
+                        }
+                        KeymapMatch::Pending | KeymapMatch::Cancelled => return None,
+                        KeymapMatch::Completed(ListAction::JumpTop)
+                        | KeymapMatch::Completed(ListAction::JumpBottom)
+                        | KeymapMatch::PassThrough => {}
+                    }
+                }
+                match key.code {
+                    KeyCode::Esc if self.editing && self.has_options() => {
+                        self.clear_notes_and_focus_options();
+                        None
+                    }
+                    KeyCode::Esc if self.editing => Some(self.cancel()),
+                    KeyCode::Char('p')
+                        if self.editing && key.modifiers.contains(KeyModifiers::CONTROL) =>
+                    {
+                        self.move_question(false);
+                        None
+                    }
+                    KeyCode::Char('n')
+                        if self.editing && key.modifiers.contains(KeyModifiers::CONTROL) =>
+                    {
+                        self.move_question(true);
+                        None
+                    }
+                    KeyCode::PageUp if self.editing => {
+                        self.move_question(false);
+                        None
+                    }
+                    KeyCode::PageDown if self.editing => {
+                        self.move_question(true);
+                        None
+                    }
+                    KeyCode::Tab if self.has_options() && self.editing => {
+                        self.list_key_chord_matcher.reset();
+                        self.clear_notes_and_focus_options();
+                        None
+                    }
+                    KeyCode::Tab if self.has_options() => {
+                        self.list_key_chord_matcher.reset();
+                        self.restore_current_state();
                         self.editing = true;
                         self.save_current_state();
-                        return None;
-                    }
-                    let answer = self.selected_option_label().into_iter().collect();
-                    self.commit(answer)
-                }
-                KeyCode::Char(ch) if ch.is_ascii_digit() && ch != '0' => {
-                    let index = ch.to_digit(10).unwrap_or_default() as usize - 1;
-                    if index < self.option_count() {
-                        self.selected = index;
-                        self.save_current_state();
-                        let answer = self.selected_option_label().into_iter().collect();
-                        self.commit(answer)
-                    } else {
                         None
                     }
+                    KeyCode::Char(' ')
+                        if !self.editing && self.has_options() && key.modifiers.is_empty() =>
+                    {
+                        self.save_current_state();
+                        None
+                    }
+                    KeyCode::Backspace
+                        if self.editing && self.has_options() && self.composer.is_empty() =>
+                    {
+                        self.clear_notes_and_focus_options();
+                        None
+                    }
+                    _ if self.editing && key.code == KeyCode::Enter && self.composer.is_empty() => {
+                        let answer = self.selected_option_label().into_iter().collect();
+                        self.commit(answer)
+                    }
+                    _ if self.editing => match self.composer.handle_key_event(key) {
+                        InputResult::Submitted { text, .. } => {
+                            let mut answers =
+                                self.selected_option_label().into_iter().collect::<Vec<_>>();
+                            let note = text.trim();
+                            if !note.is_empty() {
+                                if self.has_options() {
+                                    answers.push(format!("user_note: {note}"));
+                                } else {
+                                    answers.push(note.to_string());
+                                }
+                            }
+                            self.commit(answers)
+                        }
+                        InputResult::Interrupt | InputResult::Quit => Some(self.cancel()),
+                        InputResult::Queued { text, .. } => {
+                            self.composer.insert(&text);
+                            self.save_current_state();
+                            None
+                        }
+                        InputResult::SubmissionRejected { actual_chars } => {
+                            self.submission_error = Some(actual_chars);
+                            self.save_current_state();
+                            None
+                        }
+                        InputResult::None
+                        | InputResult::Changed
+                        | InputResult::DecreaseEffort
+                        | InputResult::IncreaseEffort
+                        | InputResult::PreviousPermissions
+                        | InputResult::NextPermissions
+                        | InputResult::OpenExternalEditor
+                        | InputResult::OpenAgentsOverview => {
+                            self.save_current_state();
+                            None
+                        }
+                    },
+                    KeyCode::Char(ch) if ch.is_ascii_digit() && ch != '0' => {
+                        let index = ch.to_digit(10).unwrap_or_default() as usize - 1;
+                        if index < self.option_count() {
+                            self.selected = index;
+                            self.save_current_state();
+                            let answer = self.selected_option_label().into_iter().collect();
+                            self.commit(answer)
+                        } else {
+                            None
+                        }
+                    }
+                    _ => None,
                 }
-                _ => None,
-            },
+            }
             _ => None,
         }
+    }
+
+    fn commit_selected_or_open_notes(&mut self) -> Option<AppServerResponse> {
+        if self.selected == self.current_options().map_or(usize::MAX, <[_]>::len)
+            && self.other_option_enabled()
+        {
+            self.editing = true;
+            self.save_current_state();
+            return None;
+        }
+        let answer = self.selected_option_label().into_iter().collect();
+        self.commit(answer)
     }
 
     fn commit(&mut self, answers: Vec<String>) -> Option<AppServerResponse> {

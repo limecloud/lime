@@ -12,6 +12,31 @@ use crate::status_indicator_widget;
 use crate::terminal_hyperlinks::HyperlinkParagraph;
 use std::time::Instant;
 
+/// The visible input surface owns the cursor shape; hidden composer state cannot override it.
+pub(crate) fn cursor_style(app: &App) -> crossterm::cursor::SetCursorStyle {
+    use crossterm::cursor::SetCursorStyle;
+    let widget = &app.chat_widget;
+    if widget.resume_picker.is_some()
+        || widget.pager_overlay.is_some()
+        || widget.agents_overview.is_some()
+    {
+        return SetCursorStyle::DefaultUserShape;
+    }
+    if let Some(picker) = &widget.export_picker {
+        return picker.cursor_style();
+    }
+    if !widget.bottom_pane.is_active()
+        && (widget.model_picker.is_some()
+            || widget.status_line_setup.is_some()
+            || widget.terminal_title_setup.is_some()
+            || widget.agent_picker.is_some()
+            || widget.transcript_search.is_active())
+    {
+        return SetCursorStyle::DefaultUserShape;
+    }
+    widget.bottom_pane.cursor_style()
+}
+
 pub(crate) fn render(frame: &mut Frame<'_>, app: &App) {
     let area = frame.area();
     if let Some(picker) = app.chat_widget.resume_picker.as_ref() {
@@ -31,15 +56,13 @@ pub(crate) fn render(frame: &mut Frame<'_>, app: &App) {
         }
         return;
     }
-    if let Some(picker) = app.chat_widget.export_picker.as_ref() {
-        app.chat_widget.transcript_follow_control.clear();
-        crate::app::transcript_export::render_picker(frame, area, picker, app.chat_widget.locale);
-        return;
-    }
     let active_elapsed = app.active_turn_elapsed(Instant::now());
     let chunks = screen_chunks(area, app, active_elapsed);
-    let picker_active =
-        app.chat_widget.model_picker.is_some() || app.chat_widget.agent_picker.is_some();
+    let picker_active = app.chat_widget.model_picker.is_some()
+        || app.chat_widget.status_line_setup.is_some()
+        || app.chat_widget.terminal_title_setup.is_some()
+        || app.chat_widget.agent_picker.is_some()
+        || app.chat_widget.export_picker.is_some();
 
     render_transcript(frame, chunks.transcript, app);
     if !app.chat_widget.bottom_pane.is_active() {
@@ -63,7 +86,14 @@ pub(crate) fn render(frame: &mut Frame<'_>, app: &App) {
             app.chat_widget.locale,
         );
     }
-    if app.chat_widget.bottom_pane.is_active() {
+    if let Some(picker) = app.chat_widget.export_picker.as_ref() {
+        crate::chatwidget::transcript_export::render_picker(
+            frame,
+            chunks.input,
+            picker,
+            app.chat_widget.locale,
+        );
+    } else if app.chat_widget.bottom_pane.is_active() {
         bottom_pane::render_with_locale(
             frame,
             chunks.input,
@@ -71,7 +101,21 @@ pub(crate) fn render(frame: &mut Frame<'_>, app: &App) {
             app.chat_widget.locale,
         );
     } else {
-        if let Some(picker) = app.chat_widget.model_picker.as_ref() {
+        if let Some(picker) = app.chat_widget.terminal_title_setup.as_ref() {
+            picker.render(
+                frame,
+                chunks.input,
+                app.chat_widget.locale,
+                app.terminal_title_text(Instant::now()),
+            );
+        } else if let Some(picker) = app.chat_widget.status_line_setup.as_ref() {
+            picker.render(
+                frame,
+                chunks.input,
+                app.chat_widget.locale,
+                &app.status_surface_data(),
+            );
+        } else if let Some(picker) = app.chat_widget.model_picker.as_ref() {
             model_picker::render_with_locale(frame, chunks.input, picker, app.chat_widget.locale);
         } else if let Some(picker) = app.chat_widget.agent_picker.as_ref() {
             crate::app::agent_picker::render(frame, chunks.input, picker, app.chat_widget.locale);
@@ -91,6 +135,9 @@ pub(crate) fn render(frame: &mut Frame<'_>, app: &App) {
         && !app.chat_widget.bottom_pane.popup_active()
         && app.chat_widget.model_picker.is_none()
         && app.chat_widget.agents_overview.is_none()
+        && app.chat_widget.export_picker.is_none()
+        && app.chat_widget.status_line_setup.is_none()
+        && app.chat_widget.terminal_title_setup.is_none()
         && app.chat_widget.agent_picker.is_none())
     .then(|| Rect::new(chunks.input.x, chunks.input.y, chunks.input.width, 1));
     if app.chat_widget.transcript_footer.render_search_query(
@@ -123,11 +170,18 @@ pub(crate) fn render(frame: &mut Frame<'_>, app: &App) {
                 app.chat_widget.transcript_selection.is_active(),
             ))
     {
-        let footer_props = app.chat_widget.footer_props(
+        let mut footer_props = app.chat_widget.footer_props(
             area.width,
             app.projection.active_turn_id().is_some(),
             app.thread_id.as_deref(),
             app.primary_thread_id.as_deref(),
+        );
+        let items = app.chat_widget.status_line_items();
+        footer_props.status_line_enabled = !items.is_empty();
+        footer_props.status_line_value = app.status_surface_data().line(
+            &items,
+            app.chat_widget.tui_config.status_line_use_colors,
+            app.chat_widget.locale,
         );
         bottom_pane::render_footer(frame, chunks.footer, &footer_props);
     }
@@ -167,8 +221,11 @@ fn screen_chunks(
     app: &App,
     active_elapsed: Option<std::time::Duration>,
 ) -> ScreenChunks {
-    let picker_active =
-        app.chat_widget.model_picker.is_some() || app.chat_widget.agent_picker.is_some();
+    let picker_active = app.chat_widget.model_picker.is_some()
+        || app.chat_widget.status_line_setup.is_some()
+        || app.chat_widget.terminal_title_setup.is_some()
+        || app.chat_widget.agent_picker.is_some()
+        || app.chat_widget.export_picker.is_some();
     let status_height = if app.chat_widget.bottom_pane.is_active() || picker_active {
         0
     } else if let Some(elapsed) = active_elapsed {
@@ -196,12 +253,27 @@ fn screen_chunks(
         .min(8)
         .min(area.height.saturating_sub(6 + status_height))
     };
-    let input_height = if app.chat_widget.bottom_pane.is_active() {
+    let input_height = if let Some(picker) = app.chat_widget.export_picker.as_ref() {
+        crate::chatwidget::transcript_export::desired_height(
+            picker,
+            app.chat_widget.locale,
+            area.width,
+        )
+        .min(area.height.saturating_sub(1))
+    } else if app.chat_widget.bottom_pane.is_active() {
         bottom_pane::desired_height_with_locale_for_width(
             &app.chat_widget.bottom_pane,
             app.chat_widget.locale,
             area.width,
         )
+    } else if let Some(picker) = app.chat_widget.terminal_title_setup.as_ref() {
+        picker
+            .desired_height(app.chat_widget.locale, area.width)
+            .min(area.height.saturating_sub(1))
+    } else if let Some(picker) = app.chat_widget.status_line_setup.as_ref() {
+        picker
+            .desired_height(app.chat_widget.locale, area.width)
+            .min(area.height.saturating_sub(1))
     } else if let Some(picker) = app.chat_widget.model_picker.as_ref() {
         model_picker::desired_height(picker, app.chat_widget.locale, area.width)
             .min(area.height.saturating_sub(1))
@@ -222,12 +294,14 @@ fn screen_chunks(
                 .max(1),
         )
     };
-    let footer_height = if picker_active && !app.chat_widget.bottom_pane.is_active() {
+    let footer_height = if app.chat_widget.export_picker.is_some()
+        || picker_active && !app.chat_widget.bottom_pane.is_active()
+    {
         0
     } else if app.chat_widget.bottom_pane.is_active() {
         app.chat_widget.bottom_pane.footer_required_height(
             app.chat_widget.locale,
-            usize::from(area.width.saturating_sub(1)),
+            usize::from(bottom_pane::inset_footer_hint_area(area).width),
         )
     } else {
         1

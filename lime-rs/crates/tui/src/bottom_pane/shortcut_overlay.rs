@@ -8,6 +8,8 @@ use ratatui::widgets::{Clear, Paragraph};
 use ratatui::Frame;
 
 use crate::app::App;
+use crate::bottom_pane::inset_footer_hint_area;
+use crate::footer_hint::first_fitting_line;
 use crate::keymap::{shortcut_label, EditorAction, GlobalKeymapAction, PagerKeymapAction};
 use crate::locale::{Locale, ShortcutLabel as Label};
 use crate::shortcut_help::Group;
@@ -25,6 +27,8 @@ pub(crate) fn visible(app: &App) -> bool {
         && app.chat_widget.agents_overview.is_none()
         && app.chat_widget.resume_picker.is_none()
         && app.chat_widget.export_picker.is_none()
+        && app.chat_widget.status_line_setup.is_none()
+        && app.chat_widget.terminal_title_setup.is_none()
         && app.chat_widget.pager_overlay.is_none()
         && !app.chat_widget.transcript_search.is_active()
         && !app.chat_widget.transcript_selection.is_active()
@@ -170,7 +174,8 @@ pub(crate) fn lines(app: &App, width: u16) -> Vec<Line<'static>> {
 }
 
 pub(crate) fn desired_height(app: &App, width: u16) -> u16 {
-    u16::try_from(lines(app, width.saturating_sub(1)).len()).unwrap_or(u16::MAX)
+    let content = inset_footer_hint_area(Rect::new(0, 0, width, 1));
+    u16::try_from(lines(app, content.width).len()).unwrap_or(u16::MAX)
 }
 
 fn customization_lines(locale: Locale, width: u16) -> Vec<Line<'static>> {
@@ -192,12 +197,7 @@ pub(crate) fn render(frame: &mut Frame<'_>, area: Rect, app: &App) {
         return;
     }
     frame.render_widget(Clear, area);
-    let content = Rect::new(
-        area.x.saturating_add(1),
-        area.y,
-        area.width.saturating_sub(1),
-        area.height,
-    );
+    let content = inset_footer_hint_area(area);
     if content.is_empty() {
         return;
     }
@@ -223,11 +223,11 @@ pub(crate) fn close_hint_text(locale: Locale, toggle_available: bool, width: usi
     } else {
         format!("esc {label}")
     };
-    if crate::width::display_width(&full) <= width {
-        full
-    } else {
-        format!("esc {label}")
-    }
+    first_fitting_line(
+        [full, format!("esc {label}"), "esc".to_string()].map(Line::from),
+        width,
+    )
+    .to_string()
 }
 
 #[cfg(test)]

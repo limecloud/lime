@@ -46,6 +46,7 @@ fn view(picker: &ModelPicker, locale: Locale) -> ListSelectionView<'_> {
         model_rows(picker, locale)
     };
     ListSelectionView {
+        footer: None,
         title: picker
             .effort_menu
             .as_ref()

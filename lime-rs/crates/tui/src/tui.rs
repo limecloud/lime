@@ -6,7 +6,7 @@ use std::sync::Arc;
 use std::sync::Once;
 use std::time::Duration;
 
-use crossterm::cursor::Show;
+use crossterm::cursor::{SetCursorStyle, Show};
 #[cfg(not(windows))]
 use crossterm::event::EnableFocusChange;
 use crossterm::event::{
@@ -23,6 +23,7 @@ use ratatui::layout::{Position, Size};
 use ratatui::Terminal as RatatuiTerminal;
 use tokio::sync::broadcast;
 
+use crate::terminal_title::{clear_terminal_title, ManagedTerminalTitle};
 use crate::viewport::ViewportState;
 
 pub(crate) mod event_stream;
@@ -52,6 +53,16 @@ pub(crate) type Terminal = RatatuiTerminal<CrosstermBackend<Stdout>>;
 
 static PANIC_HOOK: Once = Once::new();
 static TERMINAL_ACTIVE: AtomicBool = AtomicBool::new(false);
+// The panic hook retains only ownership, never a second copy of the title or business state.
+static TERMINAL_TITLE_ACTIVE: AtomicBool = AtomicBool::new(false);
+
+fn clear_title_after_panic(output: &mut impl Write) -> io::Result<()> {
+    if TERMINAL_TITLE_ACTIVE.load(Ordering::Acquire) {
+        clear_terminal_title(output)?;
+        TERMINAL_TITLE_ACTIVE.store(false, Ordering::Release);
+    }
+    Ok(())
+}
 
 fn install_panic_hook() {
     PANIC_HOOK.call_once(|| {
@@ -67,7 +78,10 @@ fn install_panic_hook() {
 
 fn restore_terminal_state() -> io::Result<()> {
     let mut output = stdout();
-    let mut first_error = crossterm::execute!(output, Show).err();
+    let mut first_error = crossterm::execute!(output, SetCursorStyle::DefaultUserShape, Show).err();
+    if let Err(error) = clear_title_after_panic(&mut output) {
+        first_error.get_or_insert(error);
+    }
     if let Err(error) = crossterm::execute!(
         output,
         DisableBracketedPaste,
@@ -108,7 +122,7 @@ fn restore_keep_raw() -> io::Result<()> {
         DisableMouseCapture
     )
     .err();
-    if let Err(error) = execute!(output, Show) {
+    if let Err(error) = execute!(output, SetCursorStyle::DefaultUserShape, Show) {
         first_error.get_or_insert(error);
     }
     match first_error {
@@ -124,6 +138,7 @@ fn cleanup_failed_enter(output: &mut Stdout) {
     #[cfg(not(windows))]
     let _ = execute!(output, DisableFocusChange);
     let _ = execute!(output, DisableMouseCapture);
+    let _ = execute!(output, SetCursorStyle::DefaultUserShape, Show);
     let _ = execute!(output, LeaveAlternateScreen);
     let _ = disable_raw_mode();
 }
@@ -160,6 +175,7 @@ fn flush_terminal_input_buffer() {}
 
 pub(crate) struct Tui {
     terminal: Terminal,
+    terminal_title: ManagedTerminalTitle,
     viewport: ViewportState,
     restored: bool,
     event_broker: Arc<EventBroker>,
@@ -253,6 +269,7 @@ impl Tui {
         TERMINAL_ACTIVE.store(true, Ordering::Release);
         Ok(Self {
             terminal,
+            terminal_title: ManagedTerminalTitle::default(),
             viewport,
             restored: false,
             event_broker,
@@ -266,6 +283,30 @@ impl Tui {
 
     pub(crate) fn terminal_mut(&mut self) -> &mut Terminal {
         &mut self.terminal
+    }
+
+    /// Apply focused cursor and title presentation through the same host as frame drawing.
+    pub(crate) fn draw(
+        &mut self,
+        cursor_style: SetCursorStyle,
+        terminal_title: Option<&str>,
+        render: impl FnOnce(&mut ratatui::Frame<'_>),
+    ) -> io::Result<()> {
+        self.terminal.draw(render)?;
+        execute!(self.terminal.backend_mut(), cursor_style)?;
+        // A tab-title failure must not stop the canonical conversation or frame drawing.
+        if let Err(error) = self.refresh_terminal_title(terminal_title) {
+            tracing::debug!(%error, "failed to refresh terminal title");
+        }
+        Ok(())
+    }
+
+    fn refresh_terminal_title(&mut self, title: Option<&str>) -> io::Result<()> {
+        let result = self
+            .terminal_title
+            .refresh(self.terminal.backend_mut(), title);
+        TERMINAL_TITLE_ACTIVE.store(self.terminal_title.is_managed(), Ordering::Release);
+        result
     }
 
     pub(crate) fn screen_size(&self) -> Size {
@@ -342,6 +383,10 @@ impl Tui {
     {
         self.pause_events();
 
+        if let Err(error) = self.refresh_terminal_title(None) {
+            tracing::debug!(%error, "failed to clear terminal title before external program");
+        }
+
         let was_alt_screen = self.viewport.is_alt_screen_active();
         if was_alt_screen {
             let _ = self.leave_alt_screen();
@@ -374,7 +419,15 @@ impl Tui {
         self.restored = true;
         self.event_broker.pause_events();
         TERMINAL_ACTIVE.store(false, Ordering::Release);
-        let mut first_error = self.terminal.show_cursor().err();
+        let mut first_error = execute!(
+            self.terminal.backend_mut(),
+            SetCursorStyle::DefaultUserShape,
+            Show
+        )
+        .err();
+        if let Err(error) = self.refresh_terminal_title(None) {
+            first_error.get_or_insert(error);
+        }
         if let Err(error) = execute!(
             self.terminal.backend_mut(),
             DisableBracketedPaste,

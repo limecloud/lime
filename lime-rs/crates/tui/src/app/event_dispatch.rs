@@ -29,6 +29,15 @@ impl App {
         context: EventContext<'_>,
     ) -> Result<EventDispatch> {
         match event {
+            AppAction::TerminalTitleSetup { items } => {
+                self.save_terminal_title(context.session, items).await;
+                Ok(EventDispatch::Handled)
+            }
+            AppAction::StatusLineSetup { items, use_colors } => {
+                self.save_status_line(context.session, items, use_colors)
+                    .await;
+                Ok(EventDispatch::Handled)
+            }
             action @ (AppAction::DecreaseEffort | AppAction::IncreaseEffort) => {
                 let direction = if matches!(action, AppAction::DecreaseEffort) {
                     ReasoningShortcutDirection::Lower

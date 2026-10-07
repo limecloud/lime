@@ -72,6 +72,16 @@ pub(crate) fn render_with_locale(
 }
 
 impl BottomPane {
+    pub(crate) fn cursor_style(&self) -> crossterm::cursor::SetCursorStyle {
+        match self.current() {
+            None => self.composer.cursor_style(),
+            Some(PendingInteraction::UserInput(request)) if request.editing => {
+                request.composer.cursor_style()
+            }
+            Some(_) => crossterm::cursor::SetCursorStyle::DefaultUserShape,
+        }
+    }
+
     /// Paint popup layers after the footer, using the same composer layout and state.
     pub(crate) fn render_popups(
         &self,

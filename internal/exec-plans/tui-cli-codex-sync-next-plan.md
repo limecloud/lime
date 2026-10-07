@@ -5801,8 +5801,8 @@ boundary 与 canonical projection。
   `completion=zsh`。
 
 本阶段退出条件 `4/4` 完成：1) 五类 picker/export mutation 只有 ChatWidget owner；2) 选择、取消、
-  resume pager 和 export path 语义回归通过；3) fresh TUI Gate B 与 CLI Gate B 重新通过；4) App
-  transport/routing、startup boundary、canonical projection 未被迁移。Desktop Gate B 继续
+resume pager 和 export path 语义回归通过；3) fresh TUI Gate B 与 CLI Gate B 重新通过；4) App
+transport/routing、startup boundary、canonical projection 未被迁移。Desktop Gate B 继续
 `unverified / harness-blocked`；整体 Codex 对齐仍为 `partial / in-progress`。下一刀优先回到
 剩余 A2 transcript/history contract，或审计 ChatWidget interaction 中仍可下沉的 keymap/scroll
 presentation 分支，不恢复旧 composer、旧 `thread_settings` 或第二 history store。
@@ -6724,3 +6724,821 @@ restore；thread `01a104df-87c0-7472-ba10-0d141930f605`、turn `turn_d204aadd709
 Desktop Gate B 继续为 `unverified / harness-blocked`，不能用 TUI 证据替代 GUI 验收；整体 Codex
 对齐仍为 `partial / in-progress`。下一刀继续审计 MCP elicitation footer 与普通 footer 的
 primary-action/width owner，优先处理真实重复或无消费者的 fallback，不扩展协议没有的状态。
+
+## 2026-10-04 MCP overlay footer ownership cleanup 第四十三阶段（已完成）
+
+确认 MCP elicitation 的控制提示已经由其自身 overlay 内容负责渲染；外层普通 footer 之前因
+`interaction_hint_lines=None` 继续显示全局 composer 快捷键，形成重复 footer 和竞争焦点。将
+`FooterProps.interaction_hint_lines` 的 `Some(empty)` 明确定义为清空外层 footer 的 presentation
+projection，MCP current owner 返回该空投影；普通 composer 继续使用 `None` 的既有策略。补充
+footer renderer 与 BottomPane projection 回归，未改 MCP 协议、locale controls 或独立 notes
+editor，也未新增 compat/deprecated wrapper。
+
+分类：MCP overlay 控制提示与 outer-footer blanking 为 `current`；MCP 下误显示的全局 footer
+路径为 `dead / deleted / guard-only`；没有新增 `compat/deprecated`、第二 composer、生产 mock
+或平行业务后端。
+
+验证：Rust related CLI `8/8`、TUI `1467/1467`；Rust fmt、TUI Clippy `-D warnings`、
+`git diff --check`、TUI 结构/Composer/Gate 守卫 `82/82` 和
+`npm run governance:legacy-report`（2068 文件、Rust 1744 文件，零引用候选/分类漂移/边界违规
+均为 `0`）通过。fresh `npm run smoke:tui-gate-b` 通过真实 `lime`、PTY、alternate screen、
+App Server stdio、canonical Thread/Turn/Item、queue/edit、history/search、images、
+resize/reconnect 和 terminal restore；thread `01a1055a-e0cc-7d90-85ac-c2538194b436`、
+turn `turn_04ffb4db03aa42cbb90ba523df04f061`，`terminal=restored`。Desktop Gate B 仍为
+`unverified / harness-blocked`，不能用 TUI 证据替代 GUI 验收；整体 Codex 对齐保持
+`partial / in-progress`。下一刀继续检查 MCP/approval/request-user-input 的动态 keymap owner
+与显示 hint 是否仍存在真实硬编码，优先迁移已有 current keymap，不伪造协议外状态。
+
+## 2026-10-04 MCP select keymap dispatch convergence 第四十四阶段（已完成）
+
+继续对照 Codex 的 `ListKeymap` owner：MCP elicitation 之前只把 `RuntimeKeymap` 传给文本
+编辑器，select 字段仍由 `Enter`、`Esc`、`↑/↓`、`j/k` 的局部 `match` 直接处理。新增
+`ListKeymap`/`KeyChordMatcher` 快照到 MCP overlay，select 的 accept、cancel、上下移动以及
+自定义左右字段导航现在统一经过 current keymap dispatch；Ctrl-C 的清稿/取消边界与文本编辑器
+仍保持独立。未把 list keymap 套到 notes editor，也未伪造新的 submit binding 或协议状态。
+
+分类：MCP select keymap snapshot/dispatch 与字段导航为 `current`；select 内原有的 Enter/Esc/
+↑↓/j/k 直接分支为 `dead / deleted / guard-only`；没有新增 `compat/deprecated`、第二
+composer、生产 mock 或平行业务后端。
+
+验证：Rust related CLI `8/8`、TUI `1468/1468` 通过；覆盖 MCP select 自定义 F10/F11/F12
+导航/取消/确认以及既有 Ctrl-C 边界；fmt、Clippy `-D warnings`、TUI 结构/Composer/Gate 守卫
+`82/82`、`git diff --check` 和 `npm run governance:legacy-report`（2068 文件、Rust 1744 文件，
+零引用候选/分类漂移/边界违规均为 `0`）通过。fresh `npm run smoke:tui-gate-b` 通过真实
+`lime`、PTY、alternate screen、App Server stdio、canonical Thread/Turn/Item、queue/edit、
+history/search、images、resize/reconnect 和 terminal restore；thread
+`01a10569-503f-7260-ab58-3f4f0ca9e431`、turn `turn_04673f396d0f4afd8546c5f0f8438f1811`，
+`terminal=restored`。下一刀继续把 MCP 与 request-user-input 的可见 hint 迁移到
+同一 keymap snapshot，消除“实际按键已可配置但 footer 仍显示 Enter/Esc”的事实漂移。
+
+## 2026-10-04 Interactive overlay keymap-hint convergence 第四十五阶段（已完成）
+
+继续收口第四十四阶段留下的 footer 事实漂移：MCP select 已经使用 `ListKeymap` 派发，但其
+footer 仍由 locale 固定拼接 `Enter/Esc/↑↓`；request-user-input 的选项焦点则同时使用固定
+按键处理和固定 footer，备注编辑时还会继续显示不适用的左右切题提示。两个 overlay 现在都
+在创建/恢复时接收同一 `RuntimeKeymap` snapshot：request-user-input 的选项焦点通过
+`ListKeymap` 派发 accept/cancel、上下移动和左右切题；MCP select 的左右/分页字段导航也
+通过相同 owner，Tab 与文本 editor 仍保留各自真实的固定边界。
+
+footer lowering 改为从实际 snapshot 生成 key label，再交给既有五语言 locale label 和共享
+窄屏 projection；未绑定 action 不再伪造默认键，custom `f9/f10/f11/f12` 不会在窄屏压缩时
+错误降级为 Enter/Esc。request-user-input 在 notes editing 时只显示真实 Enter/Esc/Tab，
+不再宣称左右键能切题。旧固定 `request_*_hint()` 与 `mcp_elicitation_controls()` locale
+组合 helper 直接移除，无新增 compat/deprecated、协议/schema、mock 或平行业务后端。
+
+分类：RuntimeKeymap 到 interactive overlay 的 snapshot 接线、动态 dispatch 和 footer
+projection 为 `current`；overlay 内固定 Enter/Esc/↑↓/左右的重复分支与固定 locale controls
+组合为 `dead / deleted / guard-only`；独立 notes composer/editor 仍为 `current`，没有恢复旧
+composer。结构守卫增加 request keymap snapshot/dispatch 与动态 hint 断言，并保留 MCP 外层
+footer blanking 的既有回归。
+
+验证：request-user-input 定向 37/37、MCP 定向 17/17；TUI library `1471/1471`；TUI
+Clippy `--all-targets --no-deps -D warnings`、Rust fmt、`git diff --check`；结构/inventory/
+Gate 脚本 `82/82`；`npm run governance:legacy-report` 扫描 2068 文件、Rust 1744 文件，零引用
+候选/分类漂移/边界违规均为 `0`。fresh `npm run smoke:tui-gate-b` 通过真实 `lime`、PTY、
+alternate screen、App Server stdio、canonical Thread/Turn/Item、queue/edit、history/search、
+images、resize/reconnect 与 terminal restore；thread `01a1059d-16cb-72e0-afa7-f6a1bba4c003`，
+turn `turn_3b46fa5f26de44519065247bddc8fcb7`，`terminal=restored`。
+
+Desktop Gate B 仍为 `unverified / harness-blocked`，不能用 TUI 证据替代 GUI 验收；整体 Codex
+对齐仍为 `partial / in-progress`。下一刀回到 approval/MCP/request-user-input 三类 overlay
+是否共享同一 primary-action width owner 的剩余重复审计，或继续收敛 CLI/TUI 其它固定 key label；
+不恢复旧 composer、兼容 wrapper 或协议外状态。
+
+## 2026-10-04 Approval overlay keymap/footer convergence 第四十六阶段（已完成）
+
+继续收口三类 interactive overlay 的 Codex keymap owner：Approval overlay 之前仍由固定
+`Enter`/`Esc` 分支驱动确认/取消，footer 也固定显示同一组按键。现在 Approval 与 MCP/request-user-input
+一样接收启动时的 `RuntimeKeymap` snapshot，通过 `ListKeymap` dispatch 上下移动、确认和取消，footer
+从实际 accept/cancel binding lowering；未绑定动作不再恢复隐藏的 Enter/Esc 默认行为，`y`/`n` 专属
+快捷动作和 Ctrl-C 取消边界保持不变。Gate B approval PTY 回归同步改为断言 fixture 配置的
+`f9 confirm · ctrl+x q cancel`，不再把旧固定文案当成 current 合同。
+
+分类：Approval `ListKeymap` snapshot/dispatch、动态 action footer 与 request/MCP 的统一接线为
+`current`；Approval 内固定 Enter/Esc 控制和 PTY 固定 footer 断言为 `dead / deleted / guard-only`；
+无新增 `compat/deprecated`、协议/schema、生产 mock、平行业务后端或旧 composer 入口。
+
+验证：Approval 定向 `22/22`、request-user-input `37/37`、MCP `17/17`，TUI library `1472/1472`；
+TUI Clippy `-D warnings`、Rust fmt、`git diff --check`、结构/inventory/Gate 守卫 `82/82` 通过；
+`npm run governance:legacy-report` 保持扫描 2068 文件、Rust 1744 文件，零引用候选/分类漂移/边界
+违规均为 `0`。fresh `npm run smoke:tui-gate-b` 在 Approval PTY 断言同步后通过真实 `lime`、PTY、
+alternate screen、App Server stdio、canonical Thread/Turn/Item、queue/edit、history/search、images、
+resize/reconnect 与 terminal restore；thread `01a105b1-0fe7-7943-9591-5642d8824755`、turn
+`turn_135863ceab1f4092bac4dd01a65eedf9`，`terminal=restored`。
+
+Desktop Gate B 仍为 `unverified / harness-blocked`，不能用 TUI 证据替代 GUI 验收；整体 Codex
+对齐仍为 `partial / in-progress`。下一刀继续审计 CLI/TUI 其它 overlay 与 picker 的固定 key label
+和窄屏 lowering，只迁移已经存在的 current keymap owner，不恢复旧 composer、兼容 wrapper 或协议外
+状态。
+
+## 2026-10-05 Atomic interactive footer hints 第四十七阶段（已完成）
+
+主目标仍为 GUI/TUI 共用底层的 Codex 功能、命名、目录与 UI/UX 对齐。对照 Codex
+`footer_hint.rs` 的完整 hint 选择与整项排布，本轮修复 Approval/request-user-input 窄屏共享 helper
+仍硬编码 Enter/Esc、解除绑定后 request footer `.skip(2)` 误删导航、MCP 按本地化字符串识别
+动作并截断组合键的问题。新增回归已证明前两项失败；前序第四十五/四十六阶段的动态窄屏完整性
+结论不覆盖这些场景，必须由本轮 fresh evidence 补齐。
+
+窄写集：TUI `footer_hint` owner、lib 接线、三个 interactive footer 的 presentation lowering、
+locale key 显示 owner、定向 keymap/footers 回归、既有 Approval PTY 夹具、结构守卫及本计划。
+已有 release 执行计划改动避让；App Server/GUI/runtime/protocol/provider/持久化保持只读。
+退出条件：1) 绑定、单侧/双侧解绑在五语言和窄屏上真实显示；2) 组合键保持完整，不能伪造默认
+键或显示半个 chord；3) 解除主操作绑定不丢导航，MCP 无本地化文案解析；4) Rust related、fmt、
+Clippy 与结构守卫通过；5) 真实 Approval 窄屏 PTY 与 fresh TUI Gate B 通过。仅满足本切片
+退出条件时标完成，不代表整体 Codex 对齐率。此刀仅收敛 TUI presentation helper，不改变共享
+业务边界或增加第二后端。
+
+实现：新增 Codex 同名 `tui/src/footer_hint.rs`，以 `ShortcutHint` 分离实际 key 与本地化文案，
+`first_fitting_line` 只选择可完整显示的候选，`wrap_hint_rows` 以整项排布；Approval、
+request-user-input、MCP 共用此 owner。request 主操作与次要导航分别构造，删除 `.skip(2)`；
+MCP 删除 `contains_submit_hint/contains_cancel_hint/compact_control_segment`，不再解析翻译或
+截断 chord，单侧左右字段绑定也真实显示。删除旧 `fit_primary_action_hint` 与没有生产消费者
+的 `approval_controls`，同步 locale、测试与结构守卫。五语言回归覆盖窄屏、函数键、完整组合键、
+主操作单侧/双侧解绑以及导航保留；不强行把 Codex 自身独立的 slash/file/skill completion
+输入边界迁成普通 `ListKeymap`。
+
+参考 Codex HEAD `c248f6d48b97eb4a2aa56147a0b11b7d763278b9`；
+`codex-rs/tui/src/footer_hint.rs` SHA256
+`25711ac66254caeb48db58e07cc4d5aa697be6ecdc70858a7ff26c3402f76a20`。
+`npm run inventory:tui-structure` 已更新两侧源码 inventory，共 1410 文件。
+
+验证：bottom-pane 定向 `418/418`；最终 Rust related CLI `8/8`、TUI `1475/1475`；
+Rust fmt、TUI Clippy `--all-targets --no-deps -D warnings`、结构/inventory/Gate 守卫 `83/83`
+及修改脚本的 Prettier/ESLint 均通过；inventory 更新后额外确认其守卫 `26/26` 通过。
+`npm run governance:legacy-report` 扫描 2068 文件、Rust 1745 文件，零引用候选/分类漂移/边界
+违规均为 `0`。最终审阅确认旧 helper 无生产引用，仅负向守卫与历史计划保留名称；
+`git diff --check` 通过。
+
+fresh `npm run smoke:tui-gate-b` 通过真实 `lime`、PTY、alternate screen、键盘输入、
+App Server stdio 与 canonical Thread/Turn/Item 投影，覆盖 queue/edit、history/search、images、
+resize/reconnect 和 terminal restore。新增 Approval 场景证明解绑的 Enter 不批准请求，18 列
+仍显示完整 `f9 · ctrl+x q`，恢复 100 列后由配置的 F9 批准；thread
+`01a10b41-231e-7400-9d0a-a52ac06f9db2`、turn `turn_8c3c161ae72f4e3d91fb0538b3d52c37`，
+`terminal=restored`。使用受控 external fixture backend，不调用 live provider。
+
+分类：共享完整 shortcut hint owner 与三个交互面板的 keymap presentation 为 `current`；旧
+固定默认键回退、文案识别/组合键截断 helper 和位置式 `.skip(2)` 为
+`dead / deleted / guard-only`；无新增 `compat/deprecated`、旧 composer、生产 mock 或第二后端。
+遵循 DRY 收敛真实重复，以独立语义 owner 保持单一职责，不为未发现的差异预建抽象。
+
+本切片退出条件全部满足，完成度 `100%`；整体 Codex 对齐保持 `partial / in-progress`，没有
+可核验的统一分母，不能据本轮推算总体百分比。Desktop Gate B 继续为
+`unverified / harness-blocked`；GUI、Windows 与 live provider 未由本轮证明。
+下一刀回到其它 picker/overlay 的固定 key label、组合键与窄屏显示审计，优先修复实际派发和
+显示不一致的 current 路径，再清退重复 helper；继续保持 GUI/TUI 共享业务主链。
+
+## 2026-10-05 Footer measurement/render convergence 第四十八阶段（已完成）
+
+主目标继续为 GUI/TUI 共用底层的 Codex CLI/TUI 全面对齐。本轮发现普通/interactive footer
+测量已扣缩进，paint 再扣缩进后又把缩进拼入内容，导致边界宽度上完整 hint 被省略号截断；
+passive agent context 无宽度选择就追加 key label，Vim indicator 也在候选选择后追加，可能裁断
+真实组合键；shortcut close helper 在短候选仍溢出时直接返回该候选。对照 Codex footer 的
+`inset_footer_hint_area` 与完整候选选择，修正同一 current presentation owner 的布局合同。
+
+窄写集：`bottom_pane/footer.rs`、`approval_render.rs` 与其定向测试、`shortcut_overlay.rs` 与
+其测试、`chatwidget/footer.rs` 接线、既有 footer_hint owner（仅必要复用）、结构守卫、inventory
+及本计划；`bottom_pane/mod.rs` 导出、`view.rs` footer 高度测量与既有 Approval PTY 夹具同步
+消费同一内容区域，真实窄屏回归收紧到刚好容纳组合键的 14 列。
+`width.rs` 中已无生产消费者的旧 content-width helper 与专属测试直接删除，并补回流守卫。
+release 执行计划继续避让；共享 App Server/runtime/protocol/provider/GUI 与持久化
+只读。不恢复旧 composer 或新增 compat；本轮不是共享业务架构变更。
+
+退出条件：1) 实际 painted footer 在五语言的刚好可容纳宽度保留完整提示；2) interactive
+shortcut 与 close hint 不发生半个 chord/默认键回退；3) Agent context 和 Vim 组合不会把实际
+快捷键挤断，passive copy 可以按宽度裁剪；4) 定向/related Rust、fmt/Clippy、结构守卫与治理
+通过；5) fresh TUI Gate B 证明真实 PTY/stdio/canonical projection 与 terminal restore。
+
+实现：新增 Codex 同名 `inset_footer_hint_area` 到既有 footer owner，ChatWidget props、view
+footer 高度测量、shortcut overlay 的测量/paint 统一消费同一 content rectangle。普通与
+interactive footer 不再把缩进拼进 hint 后再次扣减宽度；Approval helper 接收实际内容宽度，
+解除额外预留。interactive/close hint 只绘制完整候选，shortcut close 在完整本地化提示、
+`esc` 裸键、空行间选择，不能返回溢出字符串。Vim context 在选择 action hint 前预留实际宽度；
+passive Agent label 允许裁剪，但附加 agents hint 只能完整显示，不显示部分组合键。
+两个无生产消费者的 `usable_content_width/usable_content_width_u16` 与两条专属测试直接删除；
+Clippy 首次指出的 dead-code 已收掉，无 dead-code 豁免或替代包装。
+
+先增加五条真实 TestBackend/close-hint 回归，原实现全部失败：包括 `ctrl+x q` 在 9 列总宽
+被画成 `ctrl+x…`、五语言快捷键提示刚好容纳仍被截断、Agent context 的半条 hint、Vim
+附加后的边界溢出及 close hint 返回溢出字符串。修复后 bottom-pane 定向 `423/423` 通过；
+清理两个旧 width helper 专属测试后最终 related CLI `8/8`、TUI `1478/1478`，
+结构/inventory/Gate 守卫 `84/84`、Clippy `--all-targets --no-deps -D warnings`、Rust fmt、
+修改脚本的 Prettier/ESLint 与 `git diff --check` 均通过。源码 inventory 已更新为 1410 文件。
+
+参考 Codex HEAD `c248f6d48b97eb4a2aa56147a0b11b7d763278b9`；
+`codex-rs/tui/src/bottom_pane/footer.rs` SHA256
+`101110f738896098133ea1d7c951356a2c3d21584ace96f6e796cad7fa88da62`。
+
+最终治理扫描 2068 文件、Rust 1745 文件，零引用候选/分类漂移/边界违规均为 `0`。
+fresh `npm run smoke:tui-gate-b` 通过真实 `lime`、PTY、alternate screen、键盘输入、App Server
+stdio 和 canonical Thread/Turn/Item projection，包含实际运行的 14 列 Approval 回归、队列/
+编辑、Agent Center、thread draft、history/search、Vim/editor keymap、图片、resize/reconnect
+与 terminal restore；thread `01a10b52-0d59-7782-9bfc-26a7d625ad3b`、turn
+`turn_20a8007581ca4665a09c9ef833579e2d`，`terminal=restored`。Approval 在 14 列完整绘制
+`f9 · ctrl+x q`，解绑的 Enter、详情开关和 resize 均不产生 `actionRespond`，恢复 100 列后
+由实际配置的 F9 完成批准；本轮使用受控 external fixture backend，不调用 live provider。
+
+分类：统一 footer content rectangle、实际宽度候选选择和上下文预留为 `current`；重复扣减/
+拼接缩进、溢出 close hint 回退以及两个无消费者 width helper 为
+`dead / deleted / guard-only`；无新增 `compat/deprecated`、第二 composer 或平行业务后端。
+以 DRY 收敛测量/paint 的真实重复，以既有 FooterProps 的单一职责隔离 presentation 与业务。
+本切片退出条件全部满足，完成度 `100%`；整体仍为 `partial / in-progress`，不能从切片测试
+数推算总体对齐率。Desktop Gate B 保持 `unverified / harness-blocked`；本轮仅证明 macOS TUI
+与受控 fixture，未证明 GUI、Windows 或 live provider。
+
+下一刀继续回到 `ListSelectionView`/Agent Center 的独立 footer 候选与普通 composer 显示
+差异，审计多 stroke 快捷键是否仍被拼成含混序列、单侧解绑是否提前命中空候选；只按真实
+消费者迁入共享完整 hint owner，保留 picker 和 completion 各自输入语义，不增加长期兼容层。
+
+## 2026-10-05 Picker atomic shortcut hints 第四十九阶段（已完成）
+
+主目标继续为 GUI/TUI 共用底层的 Codex CLI/TUI 功能、命名、目录与 UI/UX 对齐。本轮审计
+`ListSelectionView` 与 Agent Center footer：前者在窄屏候选用空格合并两个 chord，显示成含混
+连续序列；后者主操作解绑时空 essential 候选提前命中，遮蔽仍可执行的 help/new key；空列表
+仍显示无实际动作的 accept/select hint。共享 interactive primary helper 也需要在取消 chord
+放不下时继续尝试较短的 accept，不能由空取消候选终止选择。
+
+窄写集：`footer_hint.rs`、`bottom_pane/list_selection_view.rs`、`app/agent_center/hints.rs`、
+`locale/pickers.rs` 与其测试消费者，Agent/Model picker、Agent Center 和 interactive keymap
+回归，既有 picker PTY 夹具、结构守卫、inventory 与本计划。release 执行计划改动继续避让；
+共享 App Server/runtime/protocol/provider/GUI/持久化只读。不新增 composer、compat 或第二后端。
+
+退出条件：1) 多语言 footer 的 chord 始终完整且两个动作有明确分隔；2) 主动作单侧/双侧解绑
+不会伪造按键，仍可执行的 secondary hint 不被空候选遮蔽；3) 空列表不提示不可执行的选择，
+真实派发保持不变；4) 复用 Codex 同名完整候选/shortcut 样式 owner，清退重复 locale 组合 API；5) 定向/related Rust、fmt/Clippy、结构守卫/治理与 fresh TUI Gate B 通过。
+
+实现：Codex 同名 `footer_hint::shortcut` 统一 key token 与本地化 label 的样式，
+`first_fitting_line` 跳过空候选并用实际 display width 选择整项。ListSelectionView 删除无分隔
+的 `keys.join(" ")` 降级，移除 footer paint 的二次 ellipsis 裁剪；空 Agent/Model 列表不显示
+无消费者的 accept hint。Agent Center 删除本地 `.find(line.width)` 排布，将当前选中行/
+input mode/分页加载事实用于 accept hint；空结果不宣称 open/move，正在加载的 Show more
+不宣称确认，NewTask/可执行分页操作保持可见，Show more 文案沿用既有五语言标签。
+主操作解绑时仍选择真实可执行的 help/new key。interactive primary helper 在 cancel chord
+放不下时继续选择完整 accept，取消仍优先。locale 的 `selection_picker_footer` 组合 API
+已删除，迁入 `picker_select_label/picker_back_label`，所有生产与测试消费者直接迁移。
+
+原实现四条回归全部失败；补充 Agent Center 空结果/分页/input 回归也失败，已由 current
+presentation owner 修复。验证：picker 定向 `115/115`、footer 定向 `46/46`；最终 related
+CLI `8/8`、TUI `1485/1485`；结构/inventory/Gate 守卫 `85/85`、Clippy
+`--all-targets --no-deps -D warnings`、Rust fmt、修改脚本 ESLint/Prettier、
+`git diff --check` 均通过。通知不覆盖控件的旧 TestBackend 夹具补充明确可选任务行，
+不再让无任务的空状态宣称 f9 open。inventory 已更新，两侧仍共 1410 文件；治理扫描
+2068 文件、Rust 1745 文件，零引用候选/分类漂移/边界违规均为 `0`。
+
+参考 Codex HEAD `c248f6d48b97eb4a2aa56147a0b11b7d763278b9`；`footer_hint.rs` SHA256
+`25711ac66254caeb48db58e07cc4d5aa697be6ecdc70858a7ff26c3402f76a20`，
+`app/agent_center/hints.rs` SHA256
+`e3dccc50fb82f7435d52ff61faf5b211e4a67ee0287e3cd61e85e2505f99830b`。
+
+fresh `npm run smoke:tui-gate-b` 通过真实 `lime`、PTY、alternate screen、键盘输入、
+App Server stdio 与 canonical Thread/Turn/Item projection。新增 subagents 16 列缩放场景
+只显示完整 `ctrl+x q`，恢复 100 列后显示明确分隔的双操作，未改变 canonical root；同时覆盖
+14 列 Approval、queue/edit、Agent Center、history/search、Vim/editor keymap、images、
+resize/reconnect 与 terminal restore。thread `01a10bc0-9e4e-7312-b26a-1a79eefa8e92`、
+turn `turn_0b7867e664d1455b8e21c5176e4a62cf`，`terminal=restored`。
+使用受控 external fixture backend，不调用 live provider。
+
+分类：完整 styled shortcut owner 与 picker/Center 的可执行动作提示为 `current`；无分隔
+chord 合并、空候选遮蔽、无作用 accept 提示和旧 locale 组合 API 为
+`dead / deleted / guard-only`；无新增 `compat/deprecated`。遵循 DRY 收敛实际重复，保持
+presentation 与真实输入/业务 owner 分离，不增加平行业务后端。
+本切片退出条件全部满足，完成度 `100%`；整体为 `partial / in-progress`，无可核验总体分母。
+Desktop Gate B 保持 `unverified / harness-blocked`；GUI、Windows 与 live provider 本轮未证明。
+
+下一刀继续迁移 Resume picker 的同类 footer 残留：无分隔 chord 候选、空列表 accept 提示、
+secondary hint 二次裁剪，以及高度为 1 时测量/绘制区域不一致；保持共享业务底层只读。
+
+## 2026-10-05 Resume footer atomic presentation 第五十阶段（已完成）
+
+主目标继续为 GUI/TUI 共用底层的 Codex CLI/TUI 全面对齐。Resume picker 仍有独立的空格
+合并 chord 候选、空列表 accept 提示、secondary 字符串二次裁剪；高度为 1 时测量扣缩进，
+paint 却用原区域。对照 Codex `PickerFooterHint`、`hint_line_for_row` 的完整 hint 选择和
+样式，将其迁入既有 `footer_hint` owner，并直接删除混合 key/copy 的旧 locale 组合 API。
+
+窄写集：`resume_picker/render.rs`、`resume_picker/tests/keymap.rs`、`tests/toolbar.rs`、
+`locale/pickers.rs` 与 `locale.rs` 的对应方法/回归消费者，既有
+`runtime_pty_tests/resume_picker.rs`、两个结构/Gate 守卫、inventory 和本计划。
+已有第 47—49 阶段改动保留，release 执行计划避让；共享业务主链和 GUI 保持只读。
+本轮仅 TUI presentation/test 收敛，不构成共享业务架构变更。
+
+退出条件：1) 五语言 primary/secondary 的每个快捷键完整，动作之间明确分隔；2) 空列表
+和解绑不伪造恢复/默认键，仍可执行的短键不会被空候选遮蔽；3) 高度为 1 和完整 footer
+使用一致的实际内容区域，按键强调与标签分离；4) 旧 locale key/copy 组合入口删除并补守卫；5) 定向/related Rust、fmt/Clippy、结构/inventory/治理和 fresh TUI Gate B 通过。
+
+实现：以 Codex 同名 `PickerFooterHint`、`hint_line_for_row`、`footer_hint_lines` 分离实际
+key、五语言 label 和展示优先级，复用 `footer_hint::shortcut/first_fitting_line`。
+primary/secondary 都只选择完整项，紧凑模式保留明确 `·` 分隔；长高优先级 chord 不能遮蔽
+可执行短键。空结果不提示 resume/fork/restore；无目录候选的当前 Filter 不提示 change。
+密度操作使用真实目标视图文案，保留 ctrl+c、transcript、expand 各自输入 owner。
+单行和完整 footer 先计算同一个内容区域，再用该区域测量/paint。
+旧 `resume_enter_hint/resume_escape_hint/resume_controls_hint/resume_expand_hint/
+resume_transcript_hint` 五个 key/copy 组合 API 直接删除，生产与测试消费者直接迁移，无包装层。
+
+先补五条行为回归，原实现全部失败；修复后追加解绑短键/单侧 option/不可切换 filter 回归。
+Resume 定向 `78/78`，最终 Rust related CLI `8/8`、TUI `1492/1492`；结构/inventory/Gate
+守卫 `86/86`、TUI Clippy `--all-targets --no-deps -D warnings`、Rust fmt、修改脚本
+Prettier/ESLint 与 `git diff --check` 通过。inventory 仍共 1410 文件；治理扫描 2068 文件、
+Rust 1745 文件，零引用候选/分类漂移/边界违规均为 `0`。
+
+参考 Codex HEAD `c248f6d48b97eb4a2aa56147a0b11b7d763278b9`；`resume_picker.rs` SHA256
+`c92d93de52b85a397bcf2b5dba3851ce336b7845303070123c378e7e33ab9ccd`。
+fresh `npm run smoke:tui-gate-b` 通过真实 PTY/alternate screen/键盘/App Server stdio 与同一
+canonical projection。新增 `/resume` 8 行 × 10 列场景证明实际 footer 保留缩进和完整
+`ctrl+x q`，恢复 100 列后同一 canonical row 显示 `f9 resume · ctrl+x q close`，实际 F9 恢复
+完成态，未提交新 turn；thread `01a10bce-f7eb-7f12-9fa8-2566e76e4067`、turn
+`turn_85d3aa41bd3c48d7a8073503abe64657`，`terminal=restored`。
+fixture 同时覆盖既有 Approval/subagents 窄屏与 queue/edit、Agent Center、history/search、
+Vim/editor keymap、images、resize/reconnect；使用受控 external backend，无 live provider。
+
+分类：Resume 完整 styled hints 与实际内容区域为 `current`；无分隔合并、secondary action
+裁剪、空结果 accept 提示、无作用 change 文案和五个旧组合 API 为
+`dead / deleted / guard-only`；无新增 `compat/deprecated`。遵循 DRY 复用已有样式/宽度 owner，
+以单一职责区分 display copy 和 key facts，不预建通用业务框架。
+本切片完成度 `100%`；整体仍 `partial / in-progress`，无可核验总体分母。
+Desktop Gate B 仍 `unverified / harness-blocked`；GUI、Windows 与 live provider 本轮未证明。
+
+下一刀回到 `/export`：Codex 已由 `chatwidget/transcript_export` 使用通用 SelectionView，
+Lime 仍把独立 destination picker、固定默认键和 filename UI 放在 app 的导出业务模块。
+优先直接迁移界面 owner、复用 current ListSelectionView 与启动 keymap，再清理旧渲染/提示。
+
+## 2026-10-05 Transcript export surface owner 第五十一阶段（已完成）
+
+主目标继续为 Codex CLI/TUI 功能、命名、目录、设计模式与 UI/UX 对齐。Codex 的导出界面
+由 `chatwidget/transcript_export` 使用通用 SelectionView 和 current prompt/editor；Lime
+仍把独立 destination/filename UI 与 Markdown/file 导出放在 `app/transcript_export`，
+且 destination 的固定 Enter/Esc/j/k 绕过启动 ListKeymap，filename 未消费 editor snapshot。
+
+窄写集：`chatwidget/transcript_export.rs`（新 current owner）、`chatwidget.rs`/interaction
+接线、`app/transcript_export.rs` 与 App slash 接线、view 接线、相关 UI/host 回归，
+locale 的旧 export hint 方法，新增 PTY export 夹具与既有接线、结构/Gate 守卫、inventory、架构图
+与本计划。第 47—50 阶段改动保留；release 计划及 App Server/GUI/runtime/provider/protocol/
+持久化 owner 避让。不恢复旧 composer、Compat facade 或 production mock。
+
+退出条件：1) destination 的输入和显示共用 current ListKeymap/SelectionView，配置/解绑/
+chord/page/direct number 与五语言真实一致；2) filename 消费同一 TextArea editor snapshot，
+pending chord 先于 prompt submit/cancel，普通 Enter/Esc 保持 Codex prompt 语义；3) 导出界面
+直接迁到 ChatWidget，app 导出模块只保留 canonical Markdown/file owner；4) 旧独立 row/
+固定提示删除并补守卫；5) Rust 定向/related、fmt/Clippy、结构/inventory/治理与 fresh PTY
+Gate B 证明真实 /export 选择/filename 编辑/取消且不提交新 canonical turn。
+
+架构图确认：由当前责任开发者 root 确认 terminal presentation owner 迁移；最终图随实现
+写入 `internal/aiprompts/architecture.md`。业务仍走共享 App Server/canonical projection，
+不改变 GUI/TUI 的 runtime、协议或持久化边界。
+
+补充写集：既有 `view/tests/presentation.rs` 的 ExportPicker 类型消费者直接迁移；五语言
+export matrix 在极窄窗口暴露 `ListSelectionView` 的不可分双宽 grapheme 超过一列后触发
+debug width assertion，故在其既有 `rows` lowering 对 passive row copy 做最终宽度归一化，
+测量/paint 使用同一 bounded rows。footer action hints 不参与该裁剪，shared wrap 算法不变。
+
+实现：导出 UI 直接迁到 Codex 同名 `chatwidget/transcript_export.rs`；
+`ChatWidget::show_transcript_export_popup` 注入实际启动 RuntimeKeymap。destination 复用
+`ListSelectionView` 的 row composition、width/height 与真实 viewport，configured ListKeymap
+承接 accept/cancel/navigation/chord/page/jump；非搜索列表支持 wrap 与直接数字选择。
+旧硬编码 Enter/Esc/j/k 和会抢占配置 page-down 的 Ctrl-D cancel 删除；Ctrl-C 仍为 protected
+exit。filename 复用 current TextArea/editor snapshot，pending editor chord 优先处理 Enter/Esc；
+paste/resize 等非键盘事件清 pending，普通 Enter/Esc 沿用 Codex custom prompt 的 submit/back
+语义，列表的 F9 不冒充文件名 prompt 的确认键。filename render/cursor 共用 input rectangle，
+TextAreaState 由同一 view 保存；空文件名不显示无效 save 提示。
+
+两种 export view 均落在 bottom input 区域，保留 canonical transcript 和原 composer draft；
+删除居中 fullscreen early-return、旧 cyan/竖线独立 row 画法、`export_option_line` 与
+`export_picker_hint/export_prompt_hint` 固定翻译组合 API，所有调用和测试直接迁移。
+`app/transcript_export.rs` 从 614 行收敛为 257 行，仅承接 canonical Markdown 和 noclobber
+file owner；没有 reexport、compat facade、第二 writer 或其它业务后端。
+
+原实现三条 App/ChatWidget 行为回归全部失败。最终 export 定向 `16/16`，Rust related
+CLI `8/8`、TUI `1501/1501`；结构/inventory/Gate 守卫 `88/88`，TUI Clippy
+`--all-targets --no-deps -D warnings`、Rust fmt、修改脚本 Prettier/ESLint 与
+`git diff --check` 均通过。完整 library 同时覆盖保留的 Markdown/file 业务回归，五语言
+viewport matrix 覆盖 1/2/4/10/14/24/40/100 列与 1/2/3/4/8/24 行，无 panic，宽窗口保留
+同一 canonical body；
+解绑、共享 prefix、Enter/Esc editor completion、paste reset、短 footer、page/jump/direct number
+和 draft retention 有稳定行为回归。inventory 共 1413 文件；治理扫描 2068 文件、Rust
+1748 文件，零引用候选/分类漂移/边界违规均为 `0`。
+
+参考 Codex HEAD `c248f6d48b97eb4a2aa56147a0b11b7d763278b9`；
+`chatwidget/transcript_export.rs` SHA256
+`8d75ac0d51a1c2a1c61eded71d6bdb1ae859ba2abe4c1f1d91d1ad5714ac98ff`，
+`bottom_pane/custom_prompt_view.rs` SHA256
+`4880cc36f6b58d1358159193cdb6f43f0cb448c4eca50a5fe1633680419c3456`。
+
+fresh `npm run smoke:tui-gate-b` 通过真实 `lime`、PTY、alternate screen、键盘输入、App Server
+stdio 与 canonical Thread/Turn/Item。新增 `/export` 场景实际覆盖 14 列完整取消 chord、恢复
+100 列、解绑 Enter 不触发复制、Down/F9 打开 filename、当前 `ctrl+q k` editor chord 清空输入、
+真实 bracketed paste、Esc 返回 destination、配置的 `ctrl+x q` 取消；整个流程 canonical
+完成文本始终可见，ledger 中 complete 场景只有 1 次 turnStart。thread
+`01a10be5-5018-7493-ab40-12981aeacad5`、turn `turn_6e779d58aa414df18da3912b8db263e1`，
+`terminal=restored`。fixture 同时回归 Resume/Approval/subagents 窄屏、queue/edit、Agent Center、
+history/search、Vim/editor keymap、images 与 resize/reconnect；使用受控 external backend，
+不调用 live provider。生产协议/bridge/GUI 未修改，无需重跑其全量门禁。
+
+架构影响：`/export` terminal UI owner 从 App 导出模块迁到 ChatWidget，共享业务 owner 不变。
+架构图已更新：`internal/aiprompts/architecture.md` 的 2.1 多 Surface 主链/导出 owner 段。
+责任开发者确认：root，2026-10-05。
+确认内容：已核对目录归属、数据流、依赖方向、协议边界和验证门禁。
+
+分类：ChatWidget export surface、共享 ListSelectionView/TextArea 与 App canonical exporter 为
+`current`；旧 App UI 类型/渲染、独立 option row、固定 hint、Ctrl-D 隐藏取消和 fullscreen
+early-return 为 `dead / deleted / guard-only`；无新增 `compat/deprecated`。
+DRY 复用现有 row/editor/shortcut owner，单一职责分离用户交互与文件导出，不为单个输入预建
+平行 prompt 框架。避让 release 执行计划及共享 App Server/GUI/runtime/provider/protocol/持久化。
+本切片退出条件全部满足，完成度 `100%`；总体仍 `partial / in-progress`，无可核验总体分母。
+Desktop Gate B 仍 `unverified / harness-blocked`；本轮未证明 GUI、Windows 与 live provider。
+
+下一刀继续对照 Codex `custom_prompt_view/picker` 的输入区高度、长文本滚动与 Vim/paste
+行为；当前 export filename 仍为受限高度的专用表单，不能把本轮 editor snapshot 接入宣称为
+完整 CustomPromptView 对齐。优先以真实输入/显示差异推进 current surface，再清理重复入口。
+
+## 2026-10-06 Custom prompt input/picker 第五十二阶段（已完成）
+
+主目标仍为 Codex CLI/TUI 的功能、命名、目录、设计模式和 UI/UX 对齐。本轮直接把
+`/export` filename 迁入 Codex 同名 `bottom_pane/custom_prompt_view.rs` 与 `picker.rs`，
+复用 current TextArea/PasteBurst，清理固定五行高度、单行 header 截断和删除粘贴换行的专用实现。
+
+窄写集：上述新 prompt owner、`bottom_pane/mod.rs` 接线、`chatwidget/transcript_export.rs`
+及其行为回归、locale prompt 模式 label、既有 export PTY fixture、结构/Gate 守卫、inventory、
+本计划与架构文档 export owner 段。第 47—51 阶段脏改动保留；release 计划避让；GUI、
+App Server、runtime、provider、protocol 与持久化只读。不恢复旧 composer 或增加 compat。
+
+退出条件：1) filename 使用同一 generic prompt 的输入/render/cursor owner，长文本动态高度
+1..8、header wrap 与 bounded scroll；2) 启动 Vim 设置继承、insert Esc→normal、normal Esc
+返回、pending operator/editor chord 优先，提示与实际动作一致；3) bracketed paste 原文保留、
+快速非 bracketed Enter 不误提交，modifier Enter 由 editor owner 处理；4) 五语言/narrow/resize
+稳定回归和负向守卫；5) related Rust、fmt/Clippy、inventory/治理及 fresh PTY Gate B。
+
+事实源：CustomPromptView 仅负责 terminal text prompt；ChatWidget 负责 export destination
+与 submit/back 流转；App 仍为 canonical Markdown/file 导出 owner。不复制 Codex callback/
+suggestion 框架，使用 Lime 已有 action gateway，不改变共享业务边界。
+架构图将在实现落定后更新，并由当前责任开发者 root 确认；未验收前不标记完成。
+
+实现已落定：CustomPromptView 持有 TextArea、viewport state 和共享 PasteBurst，目录/类型/
+方法沿用 Codex `custom_prompt_view/picker`；export filename 直接消费，不保留 wrapper。
+输入高度按实际宽度动态增长至八行，header wrap，游标与绘制复用同一 bounded rectangle；
+footer 选完整 hint，Vim mode 仅在完整 action hint 与 mode 同时容纳时放在右侧。
+启动 Vim 状态从 current composer 继承并进入 Insert，Esc 切 Normal、pending operator/search/
+editor chord 消费完成/取消，再由 idle Normal Esc 返回 destination。Ctrl-C 保持 protected exit。
+modifier Enter 进入同一 editor keymap；快速非 bracketed chars/Tab/Enter 使用既有 PasteBurst
+的 direct-insert 路径，不另建 timer 或 buffering owner。bracketed paste 原文保留，submit
+只 trim value 边界。旧固定五行高度、header ellipsis、filename 独立 render/state 与删除换行
+分支直接删除，`chatwidget/transcript_export.rs` 由 320 行收敛为 234 行。
+
+三条新增产品回归在旧实现上均失败：height `5 -> 5`、换行丢失与 Vim 未继承。相关 Rust
+CLI `8/8`、TUI `1510/1510` 通过；新增 prompt 的确定性时钟回归覆盖 burst timeout、显式
+paste/navigation reset、modifier Enter、key release、pending Vim/search/chord 与 protected
+Ctrl-C。五语言覆盖 wrap、mode/back 文案、offset viewport、1/2/4/5/10/14/24/40/100 列、
+1/2/3/4/8/16 行、14 行 Unicode scroll 与 resize；App export 继续覆盖同一 canonical body。
+Clippy `--all-targets --no-deps -D warnings`、Rust fmt、脚本 Prettier/ESLint、diff check 通过。
+结构/inventory/Gate 守卫 `89/89`；inventory 共 1416 文件；治理扫描 2068 文件、Rust 1751
+文件，零引用候选/分类漂移/边界违规均为 `0`；scripts governance 通过。
+
+参考 Codex HEAD `c248f6d48b97eb4a2aa56147a0b11b7d763278b9`；
+`bottom_pane/custom_prompt_view.rs` SHA256
+`4880cc36f6b58d1358159193cdb6f43f0cb448c4eca50a5fe1633680419c3456`；
+`bottom_pane/custom_prompt_view/picker.rs` SHA256
+`cd2100c65094f0331b0e1a9eda9b457815cf32b464f8cd079842f69d3008e2da`。
+
+架构影响：terminal prompt 的输入/显示直接收敛到 CustomPromptView，export 与文件写入仍
+分属 ChatWidget/App。架构图已更新 `internal/aiprompts/architecture.md` 的 2.1 export owner
+段，责任开发者 root，2026-10-06，确认目录归属、数据流、依赖方向、共享业务边界与验证门禁。
+分类：CustomPromptView、TextArea/PasteBurst 与 export current consumer 为 `current`；专用
+filename renderer/state、固定高度/header 截断/粘贴 flatten 为 `dead / deleted / guard-only`；
+无新增 `compat/deprecated`。DRY 复用现有编辑/粘贴 owner，单一职责分离 UI 和文件导出，
+不预建未消费的 review callback/suggestion/event 框架。
+
+fresh `npm run smoke:tui-gate-b` 通过真实 lime、PTY、alternate screen、App Server stdio 与
+同一 canonical 投影。新增场景证明 12 行 Unicode bracketed paste 保留换行、输入动态增长/
+tail scroll、24/100 列 resize/reflow、Up 回到首行、继承 Vim Insert、Esc→Normal、配置 z
+prefix 的 pending Escape 与 idle Normal 返回、取消恢复主 composer；complete ledger 始终
+只有一个 turnStart。thread `01a11065-2af8-7641-b222-350d3f177c37`、turn
+`turn_04a4a35b74d74661894534113d2de10e`，`terminal=restored`。使用受控 external backend，
+不调用 live provider；fixture 同时回归 prior Resume/Approval/subagents、queue/edit、history/
+search、Vim/editor、images、resize/reconnect 等主路径。本切片退出条件满足，完成度 `100%`；
+整体仍 `partial / in-progress`，无可核验总体分母。Desktop Gate B 仍
+`unverified / harness-blocked`；GUI、Windows 与 live provider 本轮未证明。
+
+下一刀为 Vim 光标形态：Codex TextArea 的 `uses_vim_insert_cursor` 驱动 SteadyBar，Normal/
+Replace 与非 editor surface 使用用户默认形态，并在退出/外部编辑器交接恢复；Lime current
+Renderable 虽有 cursor_style 合同，实际 Ratatui draw/terminal restore 尚未消费。
+
+## 2026-10-06 Focused cursor style 第五十三阶段（已完成）
+
+继续主输入显示对齐。窄写集：TextArea 的 mode flag、ChatComposer/CustomPromptView 的
+cursor_style、BottomPane/view 的 focused surface 选择、Tui draw/restore owner、runtime 与
+Resume host 的绘制接线、定向 view 行为回归、既有 PTY export/Vim 夹具与 cursor style 观察
+helper、结构/Gate 守卫、inventory、本计划和架构段。runtime 大文件只直接迁移两个 draw
+调用，不堆叠业务逻辑；release 计划与共享 App Server/GUI/runtime core/provider/protocol/
+持久化避让。
+
+退出条件：1) Vim Insert 为 SteadyBar，Normal/Replace 为 DefaultUserShape，hidden main
+editor 不泄漏 shape 到 picker/pager/approval；2) production draw 统一消费 focused view style，
+普通退出、panic、初始化失败和外部 editor handoff 都恢复用户默认形态；3) 稳定输入状态
+回归、真实 PTY 最新 DECSCUSR 命令与 terminal exit 证据，Rust related/fmt/Clippy、结构/
+inventory/治理通过。仅修改 terminal presentation/host，不改变 canonical 业务边界。
+
+实现：采用 Codex 同名 `TextArea::uses_vim_insert_cursor`，只判定 enabled + Insert；
+ChatComposer/CustomPromptView 按该事实 lowering cursor_style。BottomPane 选择 active notes
+自己的 composer，其余交互使用默认形状；view 根据实际 render 优先级选择 export/picker/
+pager/approval/主输入，不让隐藏的 Vim Insert 泄漏到其它 surface。Tui 新 current `draw`
+直接消费 style 参数，在同一 backend 绘制和发送 SetCursorStyle；runtime 常规/断线 redraw
+与 Resume 独立 host 全部直接迁移，旧 `terminal_mut().draw` production 路径删除并封守卫。
+`terminal_mut` 仍为 screen-size 等真实读取的 current API，不误删整个入口。
+
+正常 restore、panic restore、初始化失败 cleanup 和 external editor handoff 都显式发
+DefaultUserShape + Show。保留 Ratatui 的 current Frame/Terminal，不复制 Codex custom_terminal；
+该依赖差异只由 Tui host 的 display 参数承接，不增加平行 terminal/event/runtime owner。
+
+四条 focused view 输入回归通过：main Insert→Normal→Replace→Insert；export destination/
+filename/back/cancel 与 retained main Insert；pager/approval 遮挡后恢复。Rust related CLI
+`8/8`、TUI `1514/1514`；结构/inventory/Gate 守卫 `91/91`；TUI Clippy all-targets/no-deps/
+`-D warnings`、fmt check、脚本 Prettier/ESLint 和 diff check 通过。inventory 共 1418 文件；
+治理扫描 2068 文件、Rust 1752 文件，零引用候选/分类漂移/边界违规均为 `0`。
+
+fresh `npm run smoke:tui-gate-b` 再次通过真实 lime、PTY、alternate screen 与 App Server stdio。
+既有 main Vim/export 输入场景新增 latest DECSCUSR 观察：真实 Insert 发 `6 q`，Esc/Normal
+发 `0 q`，所有场景退出最新 shape 为用户默认，external editor marker 前同样为默认形状。
+等待来自实际 PTY 字节和屏幕 predicate，无固定 sleep 或测试侧合成命令。thread
+`01a1106f-42ca-7720-ba0f-24c27dcaa51a`、turn `turn_bc4dafaed55c45aeaa7f1b2c0d778ec9`，
+`terminal=restored`。该 fixture 同时重新证明第 52 阶段 Unicode multiline/resize/Vim prompt
+及此前的其他主路径。使用受控 external backend，不调用 live provider；panic/failed-enter
+恢复分支由实现与结构守卫覆盖，本轮未通过真实崩溃/初始化失败 PTY 故障注入。
+
+参考 Codex HEAD 仍为 `c248f6d48b97eb4a2aa56147a0b11b7d763278b9`；
+`bottom_pane/textarea.rs` SHA256
+`28497a7a1dc24ed593b0de14da2b154086d150638a7b6d1805fb501cccdb4b50`；
+`custom_terminal.rs` SHA256
+`80345bf2f46bc2f063cd49ff226a49b488a081d4d3d278a13a817fad1d241350`；
+`tui.rs` SHA256 `02f52eb34718102087da2cb44b9fde37188a70b885410b5142f5479e43eb8e82`。
+架构图已写入 `internal/aiprompts/architecture.md` 2.1 focused cursor 段，root 于 2026-10-06
+确认 terminal presentation/host 数据流、依赖方向、生命周期和共享业务边界。
+
+分类：mode flag、focused cursor projection、Tui draw/restore 为 `current`；绕过 host 的三处
+production raw draw 为 `dead / deleted / guard-only`；无新增 `compat/deprecated`。
+遵循 KISS 只加当前有消费者的形状 API，DRY 复用同一 mode owner与 current terminal backend，
+不复制底层终端库、不引入第二业务后端。避让 release 执行计划与 GUI/App Server/runtime core/
+provider/protocol/持久化。本切片完成度 `100%`；总体仍 `partial / in-progress`，无可核验
+总体分母。Desktop Gate B 仍 `unverified / harness-blocked`，GUI/Windows/live provider 未证明。
+
+下一刀回到主界面状态栏：Codex 已有 `bottom_pane/status_line_setup`、StatusLineItem 与
+multi-select picker 的选择/排序/preview；Lime current slash catalog 仍只有 `/status` 信息
+pager，没有 `/statusline` 或 status-line config owner。需先核对 shared config/current facts
+与真实 footer，再按有事实来源的项目直接迁移；不能把没有 provider/read-model 来源的数据
+做成静态占位，也不能用扩展 Busy status indicator 冒充持久 status line。
+
+## 第五十四阶段：StatusLineSetupView 与共享状态栏配置（功能/终端验收完成，仓库门禁阻塞）
+
+主目标仍为 Codex CLI/TUI 全面对齐，本轮补 `/statusline` 的选择、排序、搜索、真实预览、
+确认/取消与重启恢复。唯一配置事实源是 core TuiConfig，经既有 App Server config/read 与
+config/batchWrite 读写同一个 config.yaml；不新增 method、IPC、私有存储或平行业务后端。
+仅接入有真实来源的 model/effort/cwd/permissions/thread/raw-output 项，不伪造 usage/额度/Git。
+
+窄写集：core config/tui_keymap，TUI LocalSettings/session、StatusLineSetupView 与 multi-select
+owner、ChatWidget status controls、App action/dispatch/interaction、footer/view/slash/locale，
+配置 public JSON-RPC 与定向/PTY 回归，既有结构/Gate 守卫和 inventory，ops、架构与本计划。
+已有本任务改动保留；未知 release-v1.150.0-plan.md 避让。超千行宿主只加模块接线，业务逻辑
+进入独立 status owner；不继续向大文件堆叠。配置协议的 JSON value 形状保持原边界。
+
+退出条件：默认/显式空列表与 ordered list 对齐；预览与 footer 同一 facts renderer；确认原子
+写两项且版本冲突拒绝，取消零写；未知/不可用 facts 省略；真实 list bindings/chord/unbind
+不回落硬编码；active overlay/search/queue hints 优先；五语言与 narrow/resize 回归通过；
+真实 PTY 保存/取消/重开、stdio shared config 与 canonical ledger 证据通过。Desktop Gate B、
+Windows、live provider 仍未证明。全局对齐保持 partial，无可核验总体分母。
+
+第五十四阶段实现和终端验收已完成：TUI `1527/1527`、core TUI config `7/7`、public
+`config_jsonrpc` `1/1`、GUI shared config `14/14`、结构/inventory/Gate 守卫 `93/93` 通过。
+TUI Clippy all-targets/no-deps/-D warnings、fmt、TS typecheck、受影响 ESLint、contracts 与
+diff check 通过；inventory 已更新为 1428 文件。扩展窄写集为 `src/lib/api/appConfigTypes.ts`、
+`appConfig.ts` 与 `appConfig.test.ts`：只声明共享 TuiConfig 并证明 GUI 差异写语言设置时不
+覆盖有序列表/false/keymap，返回值 clone 不污染缓存，fresh read 保留显式 []。
+
+fresh TUI Gate B thread `01a110e2-dd9e-71d0-b7ea-5a55bc00adfe`、turn
+`turn_96ac8241c0714650b6cfdd4c3a5f3cf8`，`terminal=restored`。真实 PTY 覆盖 F9 保存、
+ctrl-x q 取消、Enter unbind、Space 勾选、12/100 列 reflow、关闭/重开、恢复默认顺序/颜色；
+新真实 stdio App Server 从同一配置重新读取 []/false，陈旧版本被拒绝并刷新版本，没有部分
+写入或新增 canonical turn。首轮 fixture 只在 Cargo artifact lock 等待中超时，串行重跑
+通过；public config 初次 V8 下载受 DNS 限制，用仓库校验缓存后通过，未变更依赖/fallback。
+
+参考 Codex HEAD `c248f6d48b97eb4a2aa56147a0b11b7d763278b9`；status_line_setup SHA256
+`474a540a88dfa0ac12e0774a07b775e2a3bc6e520492837a588257508a1c12ec`；multi_select_picker
+`09dfa0c948ad4d43432cffa71fac83a73ffb6542c4e19130fde2ef28eaecc684`；status_surface_preview
+`425252cb58c0a5a56ffd2c81f28c81ce84d761e5135de4006e62814a5fb49b36`。root 已在架构文档
+确认共享配置与 facts owner、依赖方向和确认后写入边界。分类：shared config/status picker/
+preview/footer 为 current；私有 right_click_paste snapshot 和原 session 根 read_config 为
+dead / deleted，直接迁移消费者；无 compat/deprecated。KISS 只开放真实可用 facts，DRY
+复用列表 geometry/renderer 与共享配置 transport，UI 与持久化职责分离。
+
+仓库交付门禁尚未全绿：`verify:local` 在本轮未改的 GUI 资源中发现 26 个未引用 key
+（navigation.sidebar.account 20、scheduledTasks 6），停止后续任务；不扩展本切片删除这些
+资源。独立运行的 typecheck/contracts/定向回归已通过。`verify:gui-smoke` 首轮 renderer
+构建因 ENOSPC 中断，未进入 Electron；仅以 cargo clean -p tui 清理本任务可再生成的 TUI
+编译产物（Cargo 报告 125840 files / 56.9 GiB，磁盘可用空间恢复），源文件和用户数据未
+删除。重跑 renderer/host/client/sidecar 构建均通过，但 Electron smoke 仍未生成
+`.lime/qc/project-gates/standalone-shell-01-20261006111128-11513/shell-01-electron-smoke/summary.json`；
+Desktop Gate B 仍 unverified / harness-blocked，不以构建成功替代交互证据。本切片
+功能/终端退出条件 `100%`，仓库交付仍 blocked；整体仍 partial / in-progress。
+
+## 第五十五阶段：默认终端标题与 managed OSC 生命周期（功能/终端验收完成，仓库门禁阻塞）
+
+下一刀对齐真实窗口/标签标题。范围是 Codex 默认 activity/thread-name/project-name 的
+显示和 managed title 清理；使用现有 App canonical projection、BottomPane pending request
+与 status_surface_data，不新增业务状态机、timer、配置空框架或私有 IO。`/title` 的交互
+配置仍列为后续明确缺口，本切片不宣称整个 title 能力完成。
+
+窄写集：terminal_title 输出 owner、App terminal-title projection、Tui draw/restore/handoff、
+runtime 两处 draw 与 Resume host 的直接调用迁移、定向/PTY 回归、结构/Gate 守卫、inventory、
+ops/architecture 与本计划。共享 config/GUI/App Server/provider/持久化和未知 release 计划避让。
+退出条件：默认顺序与 available facts 对齐；running spinner 使用现有 100ms redraw；等待
+审批/问答/MCP 显示同一 pending request 的五语言 Action Required；idle 无 spinner，线程
+切换/name 更新不串台；OSC 移除控制/不可见格式字符，折叠空白并限制 240 字符；重复值
+零输出，失败可重试；正常退出/panic/external editor 清除本进程已管理的标题，未管理时不
+清掉 shell 标题；真实 PTY 观察 OSC 字节、运行/阻塞/恢复与 terminal exit，相关门禁通过。
+
+实现：`app/terminal_title` 从共享 status facts 读取当前 canonical Thread 的名称与 server cwd，
+无项目根读取合同时使用 cwd basename fallback；没有名称时直接省略。active turn 的现有
+clock 计算 Codex 十帧 Braille spinner，既有 100ms redraw 驱动；pending request queue 驱动
+本地化 `[ ! ] / [ . ]` Action required，处理后回到 activity，canonical terminal 后恢复 idle。
+不从 transcript 猜名字、不读取磁盘或复制业务状态。foreign name notification 留在既有
+Thread buffer，真实切换/hydrate/replay 后才参与当前 title。projection 与低层输出职责分离。
+
+`terminal_title::ManagedTerminalTitle` 持有最后成功输出的 sanitised 字符串，输出前移除
+control/bidi/invisible 格式字符、折叠空白并限制 240 个 Unicode 字符，OSC 0 使用 BEL 结束。
+相同 sanitised 值不重复写入，empty/no-visible-content 只清本进程已管理标题，失败不推进
+cache、下次 frame 可重试。Tui draw 直接消费 optional title；正常退出和 external editor
+handoff 清标题，编辑器返回后可重写同一 context；panic hook 只保留 managed flag，未设
+标题时不清 shell 标题。跨 surface 数据仍来自同一 App Server/read model，未新增配置键。
+
+TUI `1533/1533` unit、现有 suite `23/23`、focus integration `1/1` 通过；新增六条行为回归
+覆盖 Unicode/控制注入/240 字符边界、去重/只清 managed/重新应用、set/clear 失败重试、
+canonical name/foreign buffer/thread switch/unset、100ms turn clock 与 completed、五语言
+pending request 到 response。结构/inventory/Gate 守卫 `95/95` 与 GUI config `14/14` 通过；
+TUI Clippy all-targets/no-deps/-D warnings、fmt check、脚本 ESLint/Prettier、diff check 通过。
+inventory 共 1433 文件。治理 runtime=2068、Rust runtime=1767、test=1356、Rust test=197，
+零引用候选/分类漂移/边界违规均为 0；未改的 release 计划仍为原 numstat 13/10。
+
+fresh TUI Gate B 第一次 thread `01a110f2-2efa-7cd3-94d7-90c5571af4eb`、turn
+`turn_a5c37f40f43248149044fe505f0196e1` 通过；补 canonical terminal 后 idle-title 观察后再跑
+一次，thread `01a110f4-89d3-7d00-a6c7-243723dfb65c`、turn
+`turn_6b49bf2258c94b2289b8445aa67f2d18`，`terminal=restored`。真实 OSC observer 证明初始
+cwd/idle、interrupt/queue-edit activity、approval/user-input Action required、完成/失败后的
+idle、root/background 命名与多次 thread handoff、外部 editor marker 前清空/返回后重写、
+每个 scenario 退出最后 OSC payload 为空。observer 只观察 PTY，不合成命令、无固定 sleep。
+同一 fixture 同时重验第 54 阶段 status-line save/cancel/restore/version conflict，canonical
+ledger 未新增 turn。backend 为受控 external fixture，不调用 live provider。panic 清理仅有
+实现与结构守卫，本轮没有真实 panic 故障注入；Windows/GUI/live provider 不由本轮证明。
+
+参考 Codex HEAD `c248f6d48b97eb4a2aa56147a0b11b7d763278b9`；terminal_title.rs SHA256
+`252814d012d681c7cefc96cc7e5cd677b8bd54fb770c03a6ad8f4b1d0848a848`；
+chatwidget/status_surfaces.rs SHA256
+`e96ac7db77866266a5b146b885f03487bf801511295bd35474877783537e6200`。root 已在 architecture.md
+确认 canonical facts -> title projection -> current Tui host -> managed OSC -> restore/handoff
+数据流、依赖方向与生命周期。分类：默认 title projection、managed OSC、当前 host 为
+current；本切片无新增 compat/deprecated，无第二业务 backend。现有 focused raw-draw 入口
+保持 dead / deleted / guard-only，不恢复旧 renderer/composer。
+
+默认标题切片功能/终端退出条件完成度 `100%`；可配置 `/title`、provider usage/额度、Git
+facts 等仍是明确未对齐项，整体仍 partial / in-progress，不用测试数推算总体完成率。仓库
+交付门禁沿用第 54 阶段阻塞：verify:local 的 26 个未引用 GUI i18n key，以及 Desktop smoke
+缺 structured summary；两者不是本切片通过项。下一刀为 `/title` TerminalTitleSetupView，
+要直接复用 current MultiSelectPicker、共享 TuiConfig/config version 与同一 facts projection，
+并把重复 selection layout 收敛到一个真实 owner，避免复制状态栏或另建 title 私有存储。
+
+## 第五十六阶段：TerminalTitleSetupView 与共享多选布局（功能/终端验收完成，仓库门禁阻塞）
+
+主目标继续为 Codex CLI/TUI 全面对齐；本轮补 `/title` 的选择、排序、搜索、实时 OSC
+预览、取消恢复与共享配置持久化。事实源为 core TuiConfig，经现有 config/read 与
+config/batchWrite 保存；标题和状态栏继续使用同一 canonical facts，不新增业务后端。
+
+窄写集：core TuiConfig、GUI shared config 类型/回归、public config_jsonrpc、TUI 当前
+multi-select/status/title/setup/locale/action/view/modal 接线与定向/PTY 回归，既有结构/Gate
+守卫、inventory、ops/architecture 和本计划。此前本任务改动保留，release-v1.150.0-plan.md
+避让。超千行宿主只加模块/variant 接线，领域逻辑进入独立 owner。
+
+退出条件：None 默认、[] 关闭、ordered selection/alias 去重与不可用事实省略；共享多选
+布局直接替换旧 status renderer；真实 resolved list bindings/chord/unbind、五语言/narrow/
+resize；预览零配置写、取消恢复 saved selection，Enter 只产出 host action，确认成功才
+应用，版本冲突拒绝并重读；真实 PTY 观察预览/取消/保存/清空/重开和 fresh stdio 持久化，
+不增加 canonical turn。相关定向/契约/治理门禁通过并记录仓库阻塞；整体仍 partial。
+
+实现完成：`TerminalTitleItem/TerminalTitleSetupView` 对齐 Codex 同名 owner，开放 11 个有
+真实来源的项目，保留 Codex canonical ID/alias、configured order 优先/去重、None 默认和
+[] 关闭。未命名 thread-title 使用 canonical Thread ID，thread-name 继续省略；普通项目
+用 ` | `，activity 两侧空格，等待操作且选中 activity 时前置五语言提醒并省略重复 run-state。
+长 project/thread/其它 segment 分别按 Unicode 字素限制 24/48/32，最终仍走既有 240 字符
+managed OSC sanitizer。无 Git/usage/额度伪造，无项目根合同时明示 cwd basename 来源。
+
+`MultiSelectPicker` 直接接管原 status setup 的 checkbox/ListSelectionView/控制提示/preview
+布局和 page rows，两种 setup 仅持有领域选择与委托，不保留独立 renderer 双轨。通用
+save/toggle/reorder/preview labels 直接迁到 locale/pickers，并补“没有匹配的项目”五语言。
+`app/status_controls::write_tui_preferences` 为唯一 expectedVersion/config batch/recovery
+owner；status/title 各自选择 edits 和成功投影。取消/断线/hydrate 只移除临时选择，保存
+成功前不改 shared preferences；preview 不发请求，不创建 canonical turn。GUI gateway
+声明 terminal_title additive field，差异保存其它设置不覆盖有序列表/[]，缓存 clone 独立。
+共享 config wire 仍是原 JSON value，无新增 method/IPC、schema-generated type、依赖或锁文件。
+
+TUI `1542/1542` unit、suite `23/23`、focus integration `1/1`；core TUI config `8/8`、
+public config_jsonrpc `1/1`、GUI config `14/14`、结构/inventory/Gate 守卫 `97/97` 全通过。
+TUI Clippy all-targets/no-deps/-D warnings、fmt check、TS typecheck、ESLint/Prettier、
+test:contracts 与 diff check 通过。inventory 更新为 1439 文件；治理 runtime=2068、
+Rust runtime=1773、test=1356、Rust test=197，零引用候选/分类漂移/边界违规均为 0。
+未改 release 计划仍为原 numstat 13/10。新增 slash 后的 bounded catalog 回归改断言实际
+可见 `/title`，完整 TUI 回归已重验，不依赖旧固定 catalog 行数。
+
+fresh 完整 `npm run smoke:tui-gate-b` thread `01a11145-0c21-7483-914f-76a92d521b07`、turn
+`turn_49910cd2d54c49e7a7b07ce0f307c0b8`，`terminal=restored`。真实 PTY 证明打开/实时
+ordered OSC preview、preview 零持久化、12/100 列 resize、Enter unbind、完整 ctrl-x q
+取消并恢复实际标题、F9 有序保存/重开、[] 清 managed OSC/读回、Ctrl-C 只关配置器并
+恢复 saved disabled title、从同一产品 UI 恢复默认项。共享 fresh stdio fixture 同时检验
+状态栏与标题的陈旧版本拒绝/重读，没有部分写入，没有增加 canonical turn；公共 JSON-RPC
+还证明 ordered/[] 持久化及非法 shape 拒绝。backend 为受控 external fixture，无 live provider。
+原 approval/user-input/activity/thread handoff/external editor/exit 标题观察与完整其它场景
+同次重验。Windows/GUI/live provider 和真实 panic 故障注入不由本轮证明。
+
+Codex HEAD `c248f6d48b97eb4a2aa56147a0b11b7d763278b9`；title_setup SHA256
+`9f2899f5926d0e8b017cf147c53ccae06b8ed542b77fcb4350463ea3c77fc007`；multi_select_picker
+`09dfa0c948ad4d43432cffa71fac83a73ffb6542c4e19130fde2ef28eaecc684`；status_surfaces
+`e96ac7db77866266a5b146b885f03487bf801511295bd35474877783537e6200`。root 于 2026-10-06
+在 architecture.md 确认共享 config/multi-select/facts/OSC owner、依赖方向与临时/持久状态边界。
+分类：title setup、shared picker/layout/config writer 为 current；旧 status 独立布局与重复
+config-write/recovery 代码为 dead / deleted / guard-only；无新增 compat/deprecated。
+KISS 只开放有真来源的项目，DRY 收敛真实双消费者的布局与保存，SOLID 分离选择/事实投影/
+共享存储/terminal IO。此前任务改动保持，未知 release 热区避让。
+
+本切片功能/终端退出条件完成度 `100%`；全局仍 partial / in-progress，无可核验总体分母。
+`verify:local` 本轮实际重跑，仍在 26 个未引用 GUI i18n key（navigation 20、scheduledTasks 6）
+阻塞。Desktop Gate B 继续沿用前阶段 smoke 缺 structured summary 的 unverified /
+harness-blocked；本轮仅同步 GUI 配置类型与回归，未变 GUI 交互路径，不重复无变化的大型
+Desktop 构建/失败 harness。仓库交付未全绿，不用终端验收代替 Desktop 或 Windows 证据。
+
+下一刀优先核对 status/title 的 structured task-progress 与 token-usage canonical facts。
+已有 TurnPlanUpdated 与 ThreadTokenUsageUpdated 协议，但 TUI 当前只把 plan 降成文本、
+未消费 usage 通知；需要先明确 current read model/replay 来源，再补有真实依据的显示和
+恢复，不能解析 transcript 猜进度或伪造 context/额度。
+
+## 第五十七阶段：结构化 task-progress 与计划投影 owner（功能/终端验收完成）
+
+主目标继续为 Codex CLI/TUI 显示/命名/设计模式对齐；本轮把既有 TurnPlanUpdated 的
+completed/total 投影供 status/title 的 task-progress 消费。计划文本与计数从同一 typed
+notification 更新，不能解析 transcript；只展示已观察到的 current Thread facts，空计划
+清除、closed turn late update 拒绝、foreign Thread 先 buffer，hydrate 清空后复用现有 replay。
+当前历史 ThreadItem::Plan 是文本，不伪造缺失的 durable checklist 计数。
+
+窄写集：TUI projection/plans 新领域模块与 root 仅 field/mod/dispatch/reset 接线、status
+facts/item/title/locale、定向/PTY 回归与既有结构/Gate/inventory；受控 terminal external
+fixture 追加 canonical turn.plan.updated 事件，ops/architecture/本计划。避让 release、
+GUI、App Server/protocol、config schema 和依赖。projection.rs 已 1462 行，本轮只迁出
+现有 plan branch/marker，新增逻辑全进 plans，退出条件为持续拆分其它领域而非继续堆叠。
+
+退出条件：canonical plan 文本与 typed count 同步；零/未观察/foreign/closed/hydrate 回归；
+五语言 status/title/preview 同一 formatter；真实 PTY 可选择 task-progress 并观察 shared
+config/footer/OSC 真实来源、不新增 turn；此前全部 TUI/title/status 退出条件保持。
+
+执行期环境变化：其它工作将 workspace/npm 版本改为 1.151.0，并产生 release-v1.151.0-plan.md；
+本轮不修改/认领这些 manifest、lockfile 或新发布计划，原 release-v1.150.0-plan.md 仍为
+13/10。Codex HEAD 更新到 `4aaee872e31abefe0d32e91faab23b09b6968824`，只读复核 task
+progress 的 completed/total 与 Tasks 格式仍一致。当前版本真实 CLI Gate B 通过：thread
+`01a11412-696d-76a3-b027-2626993700c0`、turn `turn_ad4e07c2340f4dc68c756b83db7edb43`，
+JSONL/stdin/error-exit/completion 与原事件合同保持。新 TUI Gate 首轮只在 Cargo artifact
+lock 排队超时，没有进入 PTY；先串行完成当前版本 crate 校验，再重跑 fresh Gate，不把
+锁等待失败当交互证据。当前 stage 尚未标记完成。
+
+实现与验收完成：`projection/plans` 直接接管原 plan branch/marker，typed status 计数与
+计划文本同步，status/title/preview 共用 task-progress value。TUI 当前版本 `1545/1545`
+unit、suite `23/23`、focus integration `1/1` 通过；结构/inventory/Gate/fixture 守卫
+`101/101` 通过。Clippy all-targets/no-deps/-D warnings、fmt、脚本 ESLint/Prettier、docs
+boundary 与 diff check 通过。inventory 为 1442 文件；治理 runtime=2068、Rust=1776、
+test=1356、Rust test=197，零引用候选/分类漂移/边界违规均为空。
+
+2026-10-07 fresh 完整真实 TUI Gate B 通过：thread
+`01a115eb-24ab-7381-a1e6-c438413b4723`、turn
+`turn_7ad8d487a55c4dd992a8dbd737a8f599`，`task-progress=ok`、`terminal=restored`。
+真实键盘完成选择/排序、footer/OSC preview/cancel/save、fresh stdio shared config/conflict、
+恢复原选择且 ledger 无新增 turn。前一次真正 PTY 失败来自长 cwd 将末尾 progress preview
+正常裁切；fixture 已经通过真实排序键将 progress 移首，并核验保存顺序，未改产品截断规则。
+CLI 默认 fixture 不添加计划事件，显式 TUI complete scenario 才启用 typed plan。
+
+Codex HEAD `4aaee872e31abefe0d32e91faab23b09b6968824`；status_surfaces SHA256
+`97b1698b8cd73c5cc9b4ee2cbf1d99183c6cdfd8561571cc23dcc6f6c22f0321`，turn_runtime
+`537e60fac75d995a0ce662432d6186d04cabde727bc4d379d42fcbefe8d0d8a9`。root 已确认
+architecture.md 的 typed plan/facts/shared formatter 依赖与历史缺口。
+分类：plans/status/title current；原 plan branch/marker 已迁出，不保留双轨；无新增
+compat/deprecated。KISS 不解析历史文本补假计数，DRY 共用 formatter，SOLID 将计划投影
+从大宿主拆出。本切片退出条件 `100%`；总体仍 partial / in-progress，没有可核验总体分母。
+Windows/live provider/Desktop/panic 注入未由本轮证明。仓库门禁沿用前阶段记录，后续需按
+当前工作树重核，而不能把原阻塞或其它发布工作状态视为本轮已验证。
+
+## 第五十八阶段：token usage 与上下文状态显示（进行中）
+
+主目标继续为 Codex CLI/TUI 全面对齐，本轮接入已存在的 canonical
+`thread/tokenUsage/updated`，供状态栏、标题配置预览和 `/status` 共同消费。唯一来源为
+App Server typed ThreadTokenUsage；不在 TUI 重算 provider 累计、不读本地日志、不解析
+transcript、不伪造未观察到的 usage 或额度。GUI 继续消费同一既有通知，无新协议或后端。
+
+窄写集：TUI projection/token_usage、status/token formatter、status/title item/locale、
+App facts/pager 最小接线、定向/PTY 回归；既有 terminal external fixture/Gate 守卫、
+inventory、ops/architecture/本计划。发布 manifest、lockfile、i18n GUI 热区与发布计划避让。
+projection root 超千行只接 field/reset/dispatch，不追加业务算法；status 的重复 field
+构建顺便收敛为同一 owner。
+
+退出条件：used-tokens 为 non-cached input + output，input/output 保持服务端累计；
+context 使用 last.total_tokens 与真实 window，按 Codex 12000 baseline 算剩余/使用百分比。
+未知或非正 window 省略，不复制无来源的 100% 默认；负值/溢出安全、已观察零值与 unknown
+可区分；Thread handoff/hydrate/replay 隔离、旧 Turn 通知不覆盖新 Turn，允许当前最后 Turn
+的终态 usage 到达；五语言/窄屏/status copy 与真实 PTY 证明同一事实源，配置不新建 Turn。

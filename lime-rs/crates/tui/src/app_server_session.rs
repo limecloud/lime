@@ -1,3 +1,4 @@
+mod config;
 mod history;
 
 pub(crate) use history::{
@@ -15,21 +16,20 @@ use app_server_client::{
 };
 use app_server_protocol::protocol::v2::{
     CollaborationModeListParams, CollaborationModeListResponse, CollaborationModeMask,
-    ConfigReadParams, ConfigReadResponse, CurrentTimeReadResponse, FuzzyFileSearchParams,
-    FuzzyFileSearchResponse, ListMcpServerStatusParams, ListMcpServerStatusResponse,
-    McpServerElicitationRequestResponse, McpServerStatus, McpServerStatusDetail, ModelListParams,
-    ModelListResponse, PermissionProfileListParams, PermissionProfileListResponse,
-    PromptHistoryAppendParams, PromptHistoryAppendResponse, PromptHistoryReadParams,
-    PromptHistoryReadResponse, QueuedSubmission, ServerRequest, SkillsListParams,
-    SkillsListResponse, ThreadListParams, ThreadListResponse, ThreadQueueAddParams,
-    ThreadQueueAddResponse, ThreadQueueDeleteParams, ThreadQueueDeleteResponse,
-    ThreadQueueListParams, ThreadQueueListResponse, ThreadReadParams, ThreadReadResponse,
-    ThreadResumeParams, ThreadResumeResponse, ThreadSetNameParams, ThreadSetNameResponse,
-    ThreadSettingsUpdateParams, ThreadSettingsUpdateResponse, ThreadStartParams,
-    ThreadStartResponse, ThreadStartSource, ThreadUnarchiveParams, ThreadUnarchiveResponse,
-    TurnInterruptParams, TurnInterruptResponse, TurnStartParams, TurnStartResponse,
-    TurnSteerParams, TurnSteerResponse, UserInput, METHOD_COLLABORATION_MODE_LIST,
-    METHOD_CONFIG_READ, METHOD_FUZZY_FILE_SEARCH, METHOD_MCP_SERVER_STATUS_LIST,
+    CurrentTimeReadResponse, FuzzyFileSearchParams, FuzzyFileSearchResponse,
+    ListMcpServerStatusParams, ListMcpServerStatusResponse, McpServerElicitationRequestResponse,
+    McpServerStatus, McpServerStatusDetail, ModelListParams, ModelListResponse,
+    PermissionProfileListParams, PermissionProfileListResponse, PromptHistoryAppendParams,
+    PromptHistoryAppendResponse, PromptHistoryReadParams, PromptHistoryReadResponse,
+    QueuedSubmission, ServerRequest, SkillsListParams, SkillsListResponse, ThreadListParams,
+    ThreadListResponse, ThreadQueueAddParams, ThreadQueueAddResponse, ThreadQueueDeleteParams,
+    ThreadQueueDeleteResponse, ThreadQueueListParams, ThreadQueueListResponse, ThreadReadParams,
+    ThreadReadResponse, ThreadResumeParams, ThreadResumeResponse, ThreadSetNameParams,
+    ThreadSetNameResponse, ThreadSettingsUpdateParams, ThreadSettingsUpdateResponse,
+    ThreadStartParams, ThreadStartResponse, ThreadStartSource, ThreadUnarchiveParams,
+    ThreadUnarchiveResponse, TurnInterruptParams, TurnInterruptResponse, TurnStartParams,
+    TurnStartResponse, TurnSteerParams, TurnSteerResponse, UserInput,
+    METHOD_COLLABORATION_MODE_LIST, METHOD_FUZZY_FILE_SEARCH, METHOD_MCP_SERVER_STATUS_LIST,
     METHOD_PERMISSION_PROFILE_LIST, METHOD_PROMPT_HISTORY_APPEND, METHOD_PROMPT_HISTORY_READ,
     METHOD_SKILLS_LIST, METHOD_THREAD_ARCHIVE, METHOD_THREAD_QUEUE_ADD, METHOD_THREAD_QUEUE_DELETE,
     METHOD_THREAD_QUEUE_LIST, METHOD_THREAD_READ, METHOD_THREAD_RESUME,
@@ -101,13 +101,6 @@ pub(crate) struct AppServerSession {
 }
 
 impl AppServerSession {
-    pub(crate) async fn read_config(&self) -> Result<ConfigReadResponse> {
-        self.request_handle
-            .request(METHOD_CONFIG_READ, ConfigReadParams::default())
-            .await
-            .context("failed to read TUI settings through App Server config/read")
-    }
-
     pub(crate) async fn list_mcp_server_statuses(
         &self,
         detail: McpServerStatusDetail,

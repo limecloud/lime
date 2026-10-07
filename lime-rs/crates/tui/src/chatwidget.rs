@@ -5,11 +5,11 @@
 //! thread routing and lifecycle decisions. Keeping this surface boundary explicit prevents the
 //! host from becoming a second composer or transcript owner.
 
+use self::transcript_export::ExportPicker;
 use crate::app::agent_navigation::AgentNavigationState;
 use crate::app::agent_picker::AgentPicker;
 use crate::app::agents_overview::AgentsOverviewState;
 use crate::app::right_click_paste::PendingPaste;
-use crate::app::transcript_export::ExportPicker;
 use crate::bottom_pane::BottomPane;
 use crate::history_cell::HistoryRenderMode;
 use crate::keymap::{KeyChordMatcher, RuntimeKeymap, TranscriptKeymap};
@@ -27,7 +27,11 @@ mod footer;
 mod input;
 mod interaction;
 mod settings;
+mod status_controls;
 mod transcript;
+pub(crate) mod transcript_export;
+#[cfg(test)]
+mod transcript_export_tests;
 
 pub(crate) use interaction::{ExportPickerEvent, ModelPickerEvent, ResumePickerEvent};
 
@@ -90,6 +94,13 @@ impl TranscriptPresentation {
 /// [`crate::app::App`], so GUI and TUI continue to consume the same canonical backend.
 #[derive(Debug, Default)]
 pub(crate) struct ChatWidget {
+    pub(crate) tui_config: lime_core::config::TuiConfig,
+    pub(crate) config_version: Option<String>,
+    pub(crate) thread_names: HashMap<String, String>,
+    pub(crate) status_line_setup:
+        Option<crate::bottom_pane::status_line_setup::StatusLineSetupView>,
+    pub(crate) terminal_title_setup:
+        Option<crate::bottom_pane::title_setup::TerminalTitleSetupView>,
     pub(crate) bottom_pane: BottomPane,
     pub(crate) locale: Locale,
     pub(crate) runtime_keymap: RuntimeKeymap,

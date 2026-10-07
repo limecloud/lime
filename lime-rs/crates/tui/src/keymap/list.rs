@@ -105,6 +105,7 @@ impl ListKeymap {
         // Resume's protected exit, details and toolbar-focus keys are not list configuration.
         // Reject unreachable custom bindings instead of displaying hints that cannot work.
         let reserved = [
+            plain_char(' '),
             ctrl('c'),
             ctrl('o'),
             ctrl('t'),
@@ -176,6 +177,31 @@ impl ListKeymap {
             .1
             .labels()
             .next()
+    }
+
+    /// Search owns plain text even when a printable navigation alternative is configured.
+    pub(crate) fn primary_searchable_hint(&self, action: ListAction) -> Option<String> {
+        self.actions
+            .iter()
+            .find(|(candidate, _)| *candidate == action)?
+            .1
+            .shortcuts
+            .iter()
+            .find(|shortcut| {
+                let first = match shortcut {
+                    Shortcut::Single(key) => key,
+                    Shortcut::Chord { prefix, .. } => prefix,
+                };
+                matches!(
+                    self.dispatch(
+                        &mut KeyChordMatcher::default(),
+                        KeyEvent::new(first.code, first.modifiers),
+                        true
+                    ),
+                    KeymapMatch::Completed(_) | KeymapMatch::Pending
+                )
+            })
+            .map(Shortcut::display_label)
     }
 
     pub(crate) fn primary_hint_without_tasks(

@@ -83,6 +83,14 @@ impl ChatComposer {
         self.textarea()
             .cursor_pos_with_state(layout.textarea, state)
     }
+
+    pub(crate) fn cursor_style(&self) -> crossterm::cursor::SetCursorStyle {
+        if self.draft.textarea.uses_vim_insert_cursor() {
+            crossterm::cursor::SetCursorStyle::SteadyBar
+        } else {
+            crossterm::cursor::SetCursorStyle::DefaultUserShape
+        }
+    }
 }
 
 #[cfg(test)]

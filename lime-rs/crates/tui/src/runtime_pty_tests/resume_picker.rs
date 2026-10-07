@@ -69,6 +69,42 @@ pub(super) fn exercise_open_and_cancel(
                 && visible.contains("ctrl+x q close")
         },
     );
+    master
+        .resize(PtySize {
+            rows: 8,
+            cols: 10,
+            pixel_width: 0,
+            pixel_height: 0,
+        })
+        .expect("shrink resume footer to its exact chord width");
+    wait_for_screen(
+        output_rx,
+        output,
+        "ten-column resume footer retains the whole cancel chord with its inset",
+        |screen| {
+            screen
+                .lines()
+                .nth(7)
+                .is_some_and(|line| line.trim_end() == " ctrl+x q")
+        },
+    );
+    master
+        .resize(PtySize {
+            rows: 8,
+            cols: 100,
+            pixel_width: 0,
+            pixel_height: 0,
+        })
+        .expect("restore short resume footer width");
+    wait_for_screen(
+        output_rx,
+        output,
+        "resume primary hints expand after narrow resize on the same canonical row",
+        |screen| {
+            let visible = screen.lines().take(8).collect::<Vec<_>>().join("\n");
+            visible.contains("› ") && visible.contains("f9 resume · ctrl+x q close")
+        },
+    );
     writer
         .write_all(b"\x04\x15")
         .expect("page in the actual resume viewport");

@@ -108,6 +108,18 @@ async fn config_control_plane_uses_the_single_desktop_yaml_layer() {
                 "keyPath": "tui.keymap.vim_normal.redo",
                 "value": "z r",
                 "mergeStrategy": "replace"
+            }, {
+                "keyPath": "tui.status_line",
+                "value": ["session-id", "model-with-reasoning", "current-dir"],
+                "mergeStrategy": "replace"
+            }, {
+                "keyPath": "tui.status_line_use_colors",
+                "value": false,
+                "mergeStrategy": "replace"
+            }, {
+                "keyPath": "tui.terminal_title",
+                "value": ["project-name", "activity", "thread-title"],
+                "mergeStrategy": "replace"
             }],
             "expectedVersion": version,
             "reloadUserConfig": true
@@ -125,6 +137,18 @@ async fn config_control_plane_uses_the_single_desktop_yaml_layer() {
         .to_string();
 
     let vim_read = request(&server, 30, METHOD_CONFIG_READ, json!({})).await;
+    assert_eq!(
+        vim_read["result"]["config"]["tui"]["terminal_title"],
+        json!(["project-name", "activity", "thread-title"])
+    );
+    assert_eq!(
+        vim_read["result"]["config"]["tui"]["status_line"],
+        json!(["session-id", "model-with-reasoning", "current-dir"])
+    );
+    assert_eq!(
+        vim_read["result"]["config"]["tui"]["status_line_use_colors"],
+        false
+    );
     for (context, expected) in [
         ("vim_normal", json!({"undo": ["f12", "z u"], "redo": "z r"})),
         ("vim_operator", json!({"motion_word_forward": "ctrl-q w"})),
@@ -151,6 +175,26 @@ async fn config_control_plane_uses_the_single_desktop_yaml_layer() {
     .await;
     assert_eq!(value_write["result"]["status"], "ok");
     let persisted = ConfigManager::load(&config_path).expect("load persisted config");
+    assert_eq!(
+        persisted.config().tui.status_line.as_deref(),
+        Some(
+            [
+                "session-id".to_string(),
+                "model-with-reasoning".to_string(),
+                "current-dir".to_string()
+            ]
+            .as_slice()
+        )
+    );
+    assert!(!persisted.config().tui.status_line_use_colors);
+    assert_eq!(
+        persisted.config().tui.terminal_title,
+        Some(vec![
+            "project-name".into(),
+            "activity".into(),
+            "thread-title".into()
+        ])
+    );
     assert_eq!(
         serde_json::to_value(&persisted.config().tui.keymap.editor).unwrap(),
         json!({
@@ -257,6 +301,10 @@ async fn config_control_plane_uses_the_single_desktop_yaml_layer() {
         ),
         (14, "tui.keymap.vim_text_object.parenthesis", json!("f12")),
         (15, "tui.keymap.vim_search.forward", json!("f25")),
+        (16, "tui.status_line", json!([1])),
+        (17, "tui.status_line_use_colors", json!("false")),
+        (18, "tui.terminal_title", json!([1])),
+        (19, "tui.terminal_title", json!("activity")),
     ] {
         let invalid = request_error(
             &server,
@@ -274,6 +322,18 @@ async fn config_control_plane_uses_the_single_desktop_yaml_layer() {
     }
     let final_read = request(&server, 11, METHOD_CONFIG_READ, json!({})).await;
     assert_eq!(
+        final_read["result"]["config"]["tui"]["terminal_title"],
+        json!(["project-name", "activity", "thread-title"])
+    );
+    assert_eq!(
+        final_read["result"]["config"]["tui"]["status_line"],
+        json!(["session-id", "model-with-reasoning", "current-dir"])
+    );
+    assert_eq!(
+        final_read["result"]["config"]["tui"]["status_line_use_colors"],
+        false
+    );
+    assert_eq!(
         final_read["result"]["config"]["tui"]["keymap"]["editor"],
         json!({
             "move_left": ["f9", "ctrl-q h"], "delete_backward": [], "kill_whole_line": "ctrl-q k"
@@ -284,6 +344,30 @@ async fn config_control_plane_uses_the_single_desktop_yaml_layer() {
         final_read["result"]["config"]["tui"]["keymap"]["vim_normal"],
         json!({"undo": ["f12", "z u"], "redo": "z r"}),
         "invalid Vim writes must not mutate persisted config"
+    );
+    let cleared = request(
+        &server,
+        31,
+        METHOD_CONFIG_BATCH_WRITE,
+        json!({
+            "edits": [{"keyPath": "tui.terminal_title", "value": [], "mergeStrategy": "replace"}],
+            "reloadUserConfig": true
+        }),
+    )
+    .await;
+    assert_eq!(cleared["result"]["status"], "ok");
+    assert_eq!(
+        ConfigManager::load(&config_path)
+            .unwrap()
+            .config()
+            .tui
+            .terminal_title,
+        Some(vec![])
+    );
+    let empty_read = request(&server, 32, METHOD_CONFIG_READ, json!({})).await;
+    assert_eq!(
+        empty_read["result"]["config"]["tui"]["terminal_title"],
+        json!([])
     );
 }
 

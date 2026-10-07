@@ -294,11 +294,14 @@ fn interactive_overlays_remain_actionable_across_supported_widths_and_locales() 
             );
             assert!(
                 approval_compact.contains(
-                    &locale
-                        .approval_controls()
-                        .chars()
-                        .filter(|character| !character.is_whitespace())
-                        .collect::<String>(),
+                    &format!(
+                        "{} · {}",
+                        locale.approval_confirm_hint("enter"),
+                        locale.approval_cancel_hint("esc")
+                    )
+                    .chars()
+                    .filter(|character| !character.is_whitespace())
+                    .collect::<String>(),
                 ),
                 "approval controls for {locale:?} at {width}: {approval_text}"
             );
@@ -348,7 +351,7 @@ fn interactive_overlays_remain_actionable_across_supported_widths_and_locales() 
             assert!(
                 question_compact.contains(
                     &locale
-                        .request_submit_hint()
+                        .request_submit_hint("enter")
                         .chars()
                         .filter(|character| !character.is_whitespace())
                         .collect::<String>(),
@@ -358,7 +361,7 @@ fn interactive_overlays_remain_actionable_across_supported_widths_and_locales() 
             assert!(
                 question_compact.contains(
                     &locale
-                        .request_cancel_hint()
+                        .request_cancel_hint("esc")
                         .chars()
                         .filter(|character| !character.is_whitespace())
                         .collect::<String>(),

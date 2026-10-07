@@ -17,6 +17,8 @@ use crate::history_filter::{
 };
 use crate::multi_agents;
 
+mod plans;
+
 fn latest_summary_line(text: &str) -> Option<String> {
     text.lines().rev().find_map(|line| {
         let line = line.trim();
@@ -168,6 +170,7 @@ pub(crate) struct ConversationProjection {
     /// Explicit assistant phases keyed by canonical item id. Legacy items
     /// omit this field and retain the historical final-answer behavior.
     assistant_phases: HashMap<String, MessagePhase>,
+    last_plan_progress: Option<plans::PlanProgress>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -380,6 +383,7 @@ impl ConversationProjection {
     }
 
     pub(crate) fn hydrate_thread(&mut self, thread: Thread) {
+        self.last_plan_progress = None;
         self.entries.clear();
         self.completion_boundaries.clear();
         self.active_turn_id = None;
@@ -609,27 +613,7 @@ impl ConversationProjection {
                     activity_detail: None,
                 });
             }
-            ServerNotification::TurnPlanUpdated(params) => {
-                if self.closed_turn_ids.contains(&params.turn_id) {
-                    return;
-                }
-                let text = params
-                    .plan
-                    .iter()
-                    .map(|step| format!("{} {}", plan_marker(step.status), step.step))
-                    .collect::<Vec<_>>()
-                    .join("\n");
-                self.replace_entry(TranscriptEntry {
-                    id: format!("turn-{}-plan", params.turn_id),
-                    kind: EntryKind::Plan,
-                    text,
-                    streaming: true,
-                    status: Some(EntryStatus::Running),
-                    summary: Vec::new(),
-                    activity_group: None,
-                    activity_detail: None,
-                });
-            }
+            ServerNotification::TurnPlanUpdated(params) => self.project_plan_update(params),
             ServerNotification::Warning(params) => {
                 self.push_notice(EntryKind::Warning, params.message);
             }
@@ -921,14 +905,6 @@ fn turn_status(status: TurnStatus) -> &'static str {
         TurnStatus::Interrupted => "interrupted",
         TurnStatus::Failed => "failed",
         TurnStatus::InProgress => "running",
-    }
-}
-
-fn plan_marker(status: app_server_protocol::protocol::v2::TurnPlanStepStatus) -> &'static str {
-    match status {
-        app_server_protocol::protocol::v2::TurnPlanStepStatus::Pending => "[ ]",
-        app_server_protocol::protocol::v2::TurnPlanStepStatus::InProgress => "[~]",
-        app_server_protocol::protocol::v2::TurnPlanStepStatus::Completed => "[x]",
     }
 }
 

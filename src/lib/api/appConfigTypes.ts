@@ -344,7 +344,17 @@ export interface EnvironmentPreview {
   entries: EnvironmentPreviewEntry[];
 }
 
+/** Shared user-config preferences; validation remains in core TuiConfig. */
+export interface TuiConfig {
+  right_click_paste?: "auto" | "on" | "off";
+  keymap?: Record<string, Record<string, string | string[]>>;
+  status_line?: string[] | null;
+  status_line_use_colors?: boolean;
+  terminal_title?: string[] | null;
+}
+
 export interface Config {
+  tui?: TuiConfig;
   server: {
     host: string;
     port: number;

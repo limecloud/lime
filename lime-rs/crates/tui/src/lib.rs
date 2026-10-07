@@ -14,6 +14,7 @@ mod entry;
 #[allow(dead_code, unused_imports)]
 mod exec_cell;
 mod external_editor;
+mod footer_hint;
 mod fuzzy_match;
 #[allow(dead_code, unused_imports)]
 mod history_cell;
@@ -53,6 +54,7 @@ mod table_detect;
 mod terminal_hyperlinks;
 mod terminal_palette;
 mod terminal_probe;
+mod terminal_title;
 mod text_formatting;
 mod text_selection;
 mod thread_transcript;

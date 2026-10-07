@@ -24,13 +24,39 @@
 
 ### TUI 按键配置
 
-TUI 只从上述 Lime 用户配置读取 `tui.keymap` 与 `tui.right_click_paste`。启动时会经 App Server
-`config/read` 生成不可变 runtime snapshot；修改配置后需重启当前 TUI 进程。不要创建 TUI 专用
+TUI 只从上述 Lime 用户配置读取 `tui.keymap`、`tui.right_click_paste`、`tui.status_line` 与
+`tui.status_line_use_colors` 与 `tui.terminal_title`。启动时会经 App Server `config/read` 生成不可变按键 snapshot；
+修改按键配置后需重启当前 TUI 进程。不要创建 TUI 专用
 配置文件或按键环境变量。`right_click_paste` 支持 `auto`（默认，遵循 SSH/WSL/VS Code 安全护栏）、
 `on` 和 `off`；中键 PRIMARY 仅在本地 X11 可用时启用。
 
+`/statusline` 打开状态栏选择器：Space 勾选、左右键调整顺序、输入文字搜索；搜索中不排序。
+确认和取消使用当前 `tui.keymap.list.accept|cancel`，默认 Enter/Esc。预览使用当前线程真实数据，
+取消不写配置。确认通过共享 `config/batchWrite` 原子保存两个状态栏字段并立即应用，版本冲突
+拒绝写入；失败后刷新共享版本，由用户再次确认重试。省略 `status_line` 默认显示
+`model-with-reasoning`、`current-dir`、`thread-name`；显式 `[]` 关闭。未知或不可用项目省略，
+不会显示假额度、token 或 Git 数据。主题颜色默认开启；状态栏让位给交互、搜索与排队提示。
+
+终端标签标题默认显示活动指示、当前线程名称和工作目录名称；未命名线程省略名称，空闲时
+省略活动指示。等待审批、问答或 MCP 输入时显示“需要操作”。退出 TUI 或交接外部编辑器时
+清除当前进程设置的标题，编辑器返回后重新应用；不尝试恢复终端先前的标题。
+
+`/title` 打开终端标题选择器，与 `/statusline` 共用搜索、多选、排序和当前 list 按键配置。
+选择会实时预览真实标签标题，取消或 Ctrl+C 恢复已保存选择；只有确认写入成功才更新共享
+`tui.terminal_title`。省略配置默认 `[activity, thread-name, project-name]`，显式 `[]` 关闭。
+可选应用名、工作目录/项目名、活动/运行状态、线程名称/标题/标识、模型/推理强度；
+线程标题在未命名时显示标识。活动项被取消时不显示 spinner 或“需要操作”。
+普通项目用 ` | ` 分隔，活动项两侧用空格；不可用项目省略，长项目按 Unicode 字素截断。
+
+两种配置器都提供 `task-progress`，显示最近一次结构化计划的完成数/总数。计数直接来自
+App Server `turn/plan/updated` 的状态字段，空计划会清除；没有观察到结构化计划时省略。
+恢复后的历史计划若只有文本，则只显示计划正文，等待新的结构化更新后再显示计数。
+
 ```yaml
 tui:
+  status_line: [model-with-reasoning, current-dir, thread-name]
+  status_line_use_colors: true
+  terminal_title: [activity, thread-name, project-name]
   right_click_paste: auto
   keymap:
     global:
@@ -44,13 +70,13 @@ tui:
       kill_whole_line: ctrl-q k
       move_word_left: [alt-b, alt-left, ctrl-left, f10]
     vim_normal:
-      undo: [u, 'z u']
+      undo: [u, "z u"]
     vim_operator:
-      motion_word_forward: [w, 'z w']
+      motion_word_forward: [w, "z w"]
     vim_text_object:
       word: [w, f12]
     vim_search:
-      forward: ['/', 'z /']
+      forward: ["/", "z /"]
 ```
 
 每个 action 可使用单个按键、按优先级排列的数组、最多两段且以空格分隔的 chord，或用空数组

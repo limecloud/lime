@@ -12,6 +12,130 @@ const sourcePath = (file) =>
   path.resolve(process.cwd(), "lime-rs/crates/tui/src", file);
 
 describe("Codex structured mention owners", () => {
+  it("projects task progress from one typed checklist owner instead of transcript parsing", () => {
+    const projection = source("projection.rs");
+    expect(projection).toContain(
+      "ServerNotification::TurnPlanUpdated(params) => self.project_plan_update(params)",
+    );
+    expect(projection).not.toContain("fn plan_marker(");
+    const plans = source("projection/plans.rs");
+    expect(plans).toContain("TurnPlanStepStatus::Completed");
+    expect(plans).toContain("self.closed_turn_ids.contains(&params.turn_id)");
+    expect(plans).not.toMatch(/regex|\.split\(|std::fs|ConfigManager/);
+    expect(source("app/status_line.rs")).toContain(
+      "self.projection.plan_progress(id)",
+    );
+    expect(source("bottom_pane/status_surface_preview.rs")).toContain(
+      "locale.task_progress_value(completed, total)",
+    );
+    expect(source("bottom_pane/title_setup.rs")).toContain(
+      "Some(StatusLineItem::TaskProgress)",
+    );
+    expect(plans.split("\n").length).toBeLessThan(800);
+  });
+  it("keeps terminal-title facts and managed output in separate current owners", () => {
+    const projection = source("app/terminal_title.rs");
+    expect(projection).toContain("self.status_surface_data()");
+    expect(projection).toContain("self.active_turn_elapsed(now)");
+    expect(projection).toContain("self.chat_widget.bottom_pane.is_active()");
+    expect(projection).not.toMatch(
+      /std::fs|ConfigManager|tokio::spawn|tokio::time/,
+    );
+    const output = source("terminal_title.rs");
+    expect(output).toContain("MAX_TERMINAL_TITLE_CHARS: usize = 240");
+    expect(output).not.toMatch(
+      /AppServerSession|ThreadStore|ConversationProjection/,
+    );
+    const host = source("tui.rs");
+    for (const method of ["with_restored", "restore"]) {
+      expect(host.slice(host.indexOf(`fn ${method}`))).toContain(
+        "self.refresh_terminal_title(None)",
+      );
+    }
+    expect(host).toContain("clear_title_after_panic(&mut output)");
+    expect(host).toContain("self.terminal_title.is_managed()");
+    expect(source("runtime.rs")).toContain(
+      "app.terminal_title_text(std::time::Instant::now()).as_deref()",
+    );
+    for (const owner of ["terminal_title.rs", "app/terminal_title.rs"]) {
+      expect(source(owner).split("\n").length).toBeLessThan(800);
+    }
+  });
+  it("keeps status-line preferences and preview on the shared config and facts owners", () => {
+    expect(source("bottom_pane/mod.rs")).toContain(
+      "pub(crate) mod status_line_setup;",
+    );
+    expect(source("bottom_pane/mod.rs")).toContain(
+      "pub(crate) mod multi_select_picker;",
+    );
+    const session = source("app_server_session/config.rs");
+    expect(session).toContain("METHOD_CONFIG_READ");
+    expect(session).toContain("include_layers: true");
+    expect(session).toContain("METHOD_CONFIG_BATCH_WRITE");
+    const persistence = source("app/status_line.rs");
+    expect(persistence).toContain('key_path: "tui.status_line"');
+    expect(persistence).toContain('key_path: "tui.status_line_use_colors"');
+    const configWriter = source("app/status_controls.rs");
+    expect(configWriter).toContain("expected_version: Some(version)");
+    expect(configWriter).toContain(
+      "let Some(version) = self.chat_widget.config_version.clone()",
+    );
+    for (const owner of [
+      "app/status_line.rs",
+      "chatwidget/status_controls.rs",
+      "bottom_pane/status_line_setup.rs",
+      "bottom_pane/status_surface_preview.rs",
+      "app/status_controls.rs",
+      "bottom_pane/title_setup.rs",
+    ]) {
+      expect(source(owner), owner).not.toMatch(
+        /std::fs|ConfigManager|save_config|mock|status_indicator_widget/,
+      );
+      expect(source(owner).split("\n").length, owner).toBeLessThan(800);
+    }
+    expect(source("bottom_pane/status_line_setup.rs")).toContain(
+      "StatusSurfacePreviewData",
+    );
+    expect(source("bottom_pane/status_line_setup.rs")).not.toContain(
+      "SelectionRow",
+    );
+    expect(source("bottom_pane/title_setup.rs")).not.toContain("SelectionRow");
+    expect(source("bottom_pane/multi_select_picker.rs")).toContain(
+      "SelectionRow::new",
+    );
+    expect(source("view.rs")).toContain("app.status_surface_data()");
+    expect(source("bottom_pane/footer.rs")).toContain(
+      "fn passive_footer_status_line(",
+    );
+  });
+  it("keeps title preview temporary and writes through the same versioned preferences owner", () => {
+    expect(source("bottom_pane/mod.rs")).toContain(
+      "pub(crate) mod title_setup;",
+    );
+    const projection = source("app/terminal_title.rs");
+    expect(projection).toContain("title_text_for_items(");
+    expect(projection).toMatch(/self\s*\.write_tui_preferences/);
+    expect(projection).toContain('key_path: "tui.terminal_title"');
+    expect(source("view.rs")).toContain(
+      "app.terminal_title_text(Instant::now())",
+    );
+    expect(source("chatwidget/transcript.rs")).toContain(
+      "self.terminal_title_setup = None;",
+    );
+    expect(source("app/thread_input.rs")).toContain(
+      "self.chat_widget.terminal_title_setup = None;",
+    );
+    for (const method of [
+      "handle_terminal_title_setup_event",
+      "terminal_title_text",
+    ]) {
+      const body = projection.slice(
+        projection.indexOf(`fn ${method}`),
+        projection.indexOf("pub(super) async fn save_terminal_title"),
+      );
+      expect(body).not.toMatch(/write_config_batch|write_tui_preferences/);
+    }
+  });
   it("keeps moved TUI owners in their current modules and blocks dead root wrappers", () => {
     for (const wrapper of [
       "command_popup.rs",
@@ -43,9 +167,7 @@ describe("Codex structured mention owners", () => {
     expect(source("render/highlight.rs")).toContain(
       "pub(crate) fn highlight_code_to_lines(",
     );
-    expect(source("shortcut_help.rs")).toContain(
-      "pub(crate) fn group_lines(",
-    );
+    expect(source("shortcut_help.rs")).toContain("pub(crate) fn group_lines(");
     expect(lib).not.toContain("compatibility delegate");
   });
 
@@ -88,8 +210,12 @@ describe("Codex structured mention owners", () => {
     const input = source("app/thread_input.rs");
     const widgetInput = source("chatwidget/input.rs");
     expect(widgetInput).toContain("self.bottom_pane.take_input_state()");
-    expect(widgetInput).toContain("self.bottom_pane.restore_input_state(state)");
-    expect(input).toContain("self.chat_widget.capture_thread_input(&thread_id)");
+    expect(widgetInput).toContain(
+      "self.bottom_pane.restore_input_state(state)",
+    );
+    expect(input).toContain(
+      "self.chat_widget.capture_thread_input(&thread_id)",
+    );
     expect(input).toContain("self.chat_widget.restore_thread_input(thread_id)");
     expect(input).toContain(
       "self.chat_widget.observe_thread_input_notification(",
@@ -282,12 +408,24 @@ describe("Codex composer, modal and incremental history owners", () => {
     const pane = source("bottom_pane/mod.rs");
     expect(pane).toContain("request.set_keymap_bindings(keymap)");
     expect(pane).toContain("interaction.set_keymap_bindings(&self.keymap)");
-    expect(source("bottom_pane/request_user_input/mod.rs")).toContain(
-      "self.composer.key_chord_pending()",
-    );
-    expect(source("bottom_pane/mcp_server_elicitation.rs")).toContain(
-      "self.text_area.editor_key_chord_pending()",
-    );
+    const request = source("bottom_pane/request_user_input/mod.rs");
+    expect(request).toContain("self.composer.key_chord_pending()");
+    expect(request).toContain("list_keymap: ListKeymap");
+    expect(request).toContain("self.list_keymap.primary_hint(");
+    expect(request).toContain(".list_keymap");
+    expect(request).toContain(".dispatch(");
+    expect(request).not.toContain("locale.request_submit_hint()");
+    expect(request).not.toContain("locale.request_cancel_hint()");
+    const approval = source("bottom_pane/approval_overlay.rs");
+    expect(approval).toContain("list_keymap: ListKeymap");
+    expect(approval).toContain("KeymapMatch::Completed(ListAction::Accept)");
+    expect(approval).toContain(".dispatch(");
+    const mcp = source("bottom_pane/mcp_server_elicitation.rs");
+    expect(mcp).toContain("self.text_area.editor_key_chord_pending()");
+    expect(mcp).toContain("list_keymap: ListKeymap");
+    expect(mcp).toContain(".list_keymap");
+    expect(mcp).toContain(".dispatch(");
+    expect(mcp).not.toContain("mcp_elicitation_controls(");
     const textInput = source("bottom_pane/mcp_server_elicitation.rs")
       .split("fn handle_text_key(")[1]
       .split("pub(super) fn handle_paste(")[0];
@@ -306,6 +444,187 @@ describe("Codex composer, modal and incremental history owners", () => {
       "bottom_pane/mcp_server_elicitation/tests.rs",
     ]) {
       expect(source(owner).split("\n").length, owner).toBeLessThan(800);
+    }
+  });
+  it("packs complete interactive hints through the Codex footer_hint owner", () => {
+    expect(source("lib.rs")).toContain("mod footer_hint;");
+    const hints = source("footer_hint.rs");
+    expect(hints).toContain("fn first_fitting_line(");
+    expect(hints).toContain("fn wrap_hint_rows<T>(");
+    expect(hints).not.toContain("truncate_line_with_ellipsis_if_overflow");
+    const request = source("bottom_pane/request_user_input/mod.rs");
+    expect(request).toContain("primary_action_hint(");
+    expect(request).toContain("wrap_hint_rows(");
+    expect(request).not.toContain(".skip(2)");
+    expect(source("bottom_pane/approval_render.rs")).toContain(
+      "primary_action_hint(",
+    );
+    expect(source("bottom_pane/mod.rs")).not.toContain(
+      "fit_primary_action_hint",
+    );
+    const mcp = source("bottom_pane/mcp_server_elicitation/render.rs");
+    expect(mcp).toContain("wrap_hint_rows(");
+    for (const retired of [
+      "contains_submit_hint",
+      "contains_cancel_hint",
+      "compact_control_segment",
+    ]) {
+      expect(mcp).not.toContain(retired);
+    }
+    expect(source("locale.rs")).not.toContain("fn approval_controls(");
+  });
+  it("shares footer content geometry across measurement and painting", () => {
+    const footer = source("bottom_pane/footer.rs").split("#[cfg(test)]")[0];
+    expect(footer).toContain("fn inset_footer_hint_area(");
+    expect(footer).toContain("let content = inset_footer_hint_area(area)");
+    expect(footer).toContain("first_fitting_line(");
+    expect(footer).not.toContain('format!(" {hint}")');
+    expect(footer).not.toContain("usable_content_width_u16");
+    expect(source("width.rs")).not.toContain("fn usable_content_width");
+    expect(source("chatwidget/footer.rs")).toContain("inset_footer_hint_area(");
+    expect(source("view.rs")).toContain(
+      "bottom_pane::inset_footer_hint_area(area)",
+    );
+    const shortcuts = source("bottom_pane/shortcut_overlay.rs");
+    expect(shortcuts).toContain("let content = inset_footer_hint_area(area)");
+    expect(shortcuts).toContain("first_fitting_line(");
+  });
+  it("uses complete styled hints for picker and Agent Center footers", () => {
+    const shared = source("footer_hint.rs");
+    expect(shared).toContain("fn shortcut(");
+    expect(shared).toContain("line_width > 0 && line_width <= width");
+    const picker = source("bottom_pane/list_selection_view.rs");
+    expect(picker).toContain("shortcut(key, label)");
+    expect(picker).toContain("first_fitting_line(");
+    expect(picker).toContain("!view.entries.is_empty()");
+    expect(picker).not.toContain('keys.join(" ")');
+    expect(source("locale/pickers.rs")).not.toContain(
+      "selection_picker_footer",
+    );
+    const center = source("app/agent_center/hints.rs");
+    expect(center).toContain("shortcut(key, label)");
+    expect(center).toContain("first_fitting_line(");
+    expect(center).toContain("self.accept_hint()");
+    expect(center).toContain("!self.loading_more()");
+    expect(center).not.toContain(".find(|line| line.width()");
+  });
+  it("packs Resume shortcuts whole and deletes locale key/copy composition", () => {
+    const resume = source("resume_picker/render.rs");
+    expect(resume).toContain("struct PickerFooterHint");
+    expect(resume).toContain("fn hint_line_for_row(");
+    expect(resume).toContain("shortcut(&hint.key, hint.label)");
+    expect(resume).toContain("first_fitting_line(candidates, width)");
+    expect(resume).toContain("picker.selected_thread_id().is_some()");
+    expect(resume).toContain("footer_hint_lines(picker, locale, hints.width)");
+    expect(resume).not.toContain('keys.join(" ")');
+    expect(resume).not.toContain("truncate_display(&secondary");
+    for (const retired of [
+      "resume_enter_hint",
+      "resume_escape_hint",
+      "resume_controls_hint",
+      "resume_expand_hint",
+      "resume_transcript_hint",
+    ]) {
+      expect(source("locale.rs")).not.toContain(retired);
+      expect(source("locale/pickers.rs")).not.toContain(retired);
+      expect(resume).not.toContain(retired);
+    }
+  });
+  it("owns export prompts in ChatWidget and reuses the current selection/editor boundaries", () => {
+    const surface = source("chatwidget/transcript_export.rs");
+    expect(surface).toContain("fn show_transcript_export_popup(");
+    expect(surface).toContain("ListSelectionView");
+    expect(surface).toContain("list_selection_view::render(");
+    expect(surface).toContain("list_selection_view::desired_height(");
+    expect(surface).toContain("prompt.set_keymap_bindings(keymap)");
+    expect(surface).toContain("filename: CustomPromptView");
+    expect(surface).toContain("self.filename.handle_key_event(*key)");
+    expect(surface).toContain("self.keymap.list()");
+    expect(surface).not.toContain("fn export_option_line(");
+    expect(source("chatwidget.rs")).toContain(
+      "pub(crate) mod transcript_export;",
+    );
+    const appExport = source("app/transcript_export.rs");
+    for (const retired of [
+      "ExportPicker",
+      "fn render_picker(",
+      "export_option_line",
+    ]) {
+      expect(appExport).not.toContain(retired);
+    }
+    expect(appExport).toContain("fn render_markdown_transcript(");
+    expect(appExport).toContain("persist_noclobber");
+    expect(source("view.rs")).toContain(
+      "crate::chatwidget::transcript_export::render_picker(",
+    );
+    expect(source("view.rs")).not.toContain(
+      "crate::app::transcript_export::render_picker",
+    );
+    for (const retired of [
+      "fn export_picker_hint(",
+      "fn export_prompt_hint(",
+    ]) {
+      expect(source("locale.rs")).not.toContain(retired);
+    }
+  });
+
+  it("keeps prompt editing and picker layout in one current owner and blocks the dedicated filename renderer", () => {
+    const prompt = source("bottom_pane/custom_prompt_view.rs");
+    const picker = source("bottom_pane/custom_prompt_view/picker.rs");
+    const exportSurface = source("chatwidget/transcript_export.rs");
+    expect(source("bottom_pane/mod.rs")).toContain(
+      "pub(crate) mod custom_prompt_view;",
+    );
+    for (const symbol of [
+      "textarea: TextArea",
+      "paste_burst: PasteBurst",
+      "fn handle_key_event_at(",
+      "fn enable_vim_in_insert_mode(",
+      "editor_key_chord_pending()",
+      "is_vim_operator_pending()",
+      "direct_insert_newline_should_insert(now)",
+      "self.textarea.insert_str(pasted)",
+    ]) {
+      expect(prompt, symbol).toContain(symbol);
+    }
+    for (const symbol of [
+      "fn picker_desired_height(",
+      "fn picker_areas(",
+      "fn picker_cursor_pos(",
+      "clamp(1, 8)",
+      "wrap(Wrap { trim: false })",
+    ]) {
+      expect(picker, symbol).toContain(symbol);
+    }
+    for (const retired of [
+      "filename_state",
+      "TextAreaState",
+      "truncate_line_with_ellipsis_if_overflow",
+      "cursor_pos_with_state",
+      "render_stateful_widget_ref",
+      "replace(['\\r', '\\n']",
+    ]) {
+      expect(exportSurface, retired).not.toContain(retired);
+    }
+    expect(exportSurface).toContain(
+      "picker.filename.enable_vim_in_insert_mode()",
+    );
+    for (const owner of [
+      "bottom_pane/custom_prompt_view.rs",
+      "bottom_pane/custom_prompt_view/picker.rs",
+      "bottom_pane/custom_prompt_view_tests.rs",
+      "chatwidget/transcript_export.rs",
+    ]) {
+      expect(source(owner).split("\n").length, owner).toBeLessThan(800);
+    }
+    for (const retiredBoundary of [
+      "app_server",
+      "RuntimeCore",
+      "ThreadStore",
+      "persist_noclobber",
+    ]) {
+      expect(prompt, retiredBoundary).not.toContain(retiredBoundary);
+      expect(picker, retiredBoundary).not.toContain(retiredBoundary);
     }
   });
   it("routes the resolved editor snapshot through one semantic TextArea owner", () => {
@@ -606,7 +925,9 @@ describe("ChatWidget live composer ownership", () => {
     const composerDraft = source("bottom_pane/chat_composer/draft.rs");
     expect(bottomPane).not.toContain("show_shutdown_in_progress");
     expect(composerDraft).not.toContain("show_shutdown_in_progress");
-    expect(bottomPane).toContain("#[cfg(test)]\n    pub(crate) fn set_composer_input_enabled(");
+    expect(bottomPane).toContain(
+      "#[cfg(test)]\n    pub(crate) fn set_composer_input_enabled(",
+    );
   });
 
   it("keeps transcript presentation state inside the ChatWidget owner", () => {
@@ -645,12 +966,8 @@ describe("ChatWidget live composer ownership", () => {
       expect(appStruct, field).not.toContain(field);
     }
     const presentation = source("app/transcript_presentation.rs");
-    expect(presentation).toContain(
-      "self.chat_widget.open_transcript_pager()",
-    );
-    expect(presentation).toContain(
-      "self.chat_widget.dismiss_pager_overlay()",
-    );
+    expect(presentation).toContain("self.chat_widget.open_transcript_pager()");
+    expect(presentation).toContain("self.chat_widget.dismiss_pager_overlay()");
     expect(presentation).toContain(
       "self.chat_widget.reset_transcript_presentation()",
     );
@@ -749,6 +1066,52 @@ describe("ChatWidget live composer ownership", () => {
     );
   });
 
+  it("routes focused cursor styles through the current terminal host and restores the user shape", () => {
+    expect(source("bottom_pane/textarea/vim.rs")).toContain(
+      "fn uses_vim_insert_cursor(",
+    );
+    for (const owner of [
+      "bottom_pane/chat_composer/layout.rs",
+      "bottom_pane/custom_prompt_view.rs",
+    ]) {
+      expect(source(owner), owner).toContain("uses_vim_insert_cursor()");
+      expect(source(owner), owner).toContain("SetCursorStyle::SteadyBar");
+    }
+    expect(source("view.rs")).toContain(
+      "pub(crate) fn cursor_style(app: &App)",
+    );
+    expect(source("view.rs")).toContain("return picker.cursor_style()");
+    expect(source("bottom_pane/render.rs")).toContain(
+      "request.composer.cursor_style()",
+    );
+    const host = source("tui.rs");
+    expect(host).toContain("pub(crate) fn draw(");
+    expect(host).toContain(
+      "execute!(self.terminal.backend_mut(), cursor_style)",
+    );
+    for (const cleanup of [
+      "restore_terminal_state",
+      "restore_keep_raw",
+      "cleanup_failed_enter",
+    ]) {
+      const section = host
+        .slice(host.indexOf(`fn ${cleanup}(`))
+        .split("\n}\n")[0];
+      expect(section, cleanup).toContain("SetCursorStyle::DefaultUserShape");
+    }
+    expect(
+      host.slice(host.indexOf("pub(crate) fn restore(&mut self)")),
+    ).toContain("SetCursorStyle::DefaultUserShape");
+    for (const owner of ["runtime.rs", "resume_picker/host.rs"]) {
+      expect(source(owner), owner).not.toMatch(
+        /\.terminal_mut\(\)\s*\.draw\(/u,
+      );
+    }
+    expect(source("runtime.rs")).toMatch(
+      /\.draw\(\s*view::cursor_style\(&app\)/u,
+    );
+  });
+
   it("keeps session settings and model catalog beside ChatWidget controls", () => {
     const widget = source("chatwidget.rs");
     const app = source("app.rs");
@@ -781,9 +1144,7 @@ describe("ChatWidget live composer ownership", () => {
       expect(appStruct, field).not.toContain(field);
     }
     expect(source("chatwidget/settings.rs")).toContain("self.model_catalog");
-    expect(source("chatwidget/settings.rs")).toContain(
-      "set_model_catalog(",
-    );
+    expect(source("chatwidget/settings.rs")).toContain("set_model_catalog(");
     expect(source("app/event_dispatch.rs")).toContain(
       "apply_collaboration_mode(collaboration_mode)",
     );
@@ -812,7 +1173,9 @@ describe("ChatWidget live composer ownership", () => {
     expect(runtime).toContain("app.chat_widget.settings_patch()");
     expect(dispatch).toContain("self.chat_widget.apply_model_selection(");
     expect(dispatch).toContain("self.chat_widget.apply_effort(next.clone())");
-    expect(dispatch).toContain("self.chat_widget.apply_permissions(next.clone())");
+    expect(dispatch).toContain(
+      "self.chat_widget.apply_permissions(next.clone())",
+    );
     for (const method of [
       "fn settings_patch(",
       "fn apply_model_selection(",
@@ -833,7 +1196,9 @@ describe("ChatWidget live composer ownership", () => {
       app.indexOf("\n}\n\nimpl App"),
     );
     expect(appStruct).not.toContain("locale:");
-    expect(widget).toContain("pub(crate) fn set_locale(&mut self, locale: Locale)");
+    expect(widget).toContain(
+      "pub(crate) fn set_locale(&mut self, locale: Locale)",
+    );
     expect(app).toContain("self.chat_widget.set_locale(locale)");
     expect(source("view.rs")).toContain("app.chat_widget.locale");
     expect(source("app/history_ui.rs")).toContain("app.chat_widget.locale");
@@ -1133,9 +1498,7 @@ describe("ChatWidget live composer ownership", () => {
     ]) {
       expect(widgetInteraction, method).toContain(method);
     }
-    expect(interaction).toContain(
-      "self.chat_widget.end_interaction_drag()",
-    );
+    expect(interaction).toContain("self.chat_widget.end_interaction_drag()");
     expect(interaction).toContain(
       "self.chat_widget.open_approval_details_pager(*key)",
     );
@@ -1150,7 +1513,9 @@ describe("ChatWidget live composer ownership", () => {
     expect(interaction).not.toContain("transcript_selection.scroll_rows(");
     expect(interaction).not.toContain("transcript_selection.reveal_row(");
     expect(interaction).not.toContain("transcript_search.handle_event(");
-    expect(interaction).not.toContain("transcript_follow_control.handle_mouse(");
+    expect(interaction).not.toContain(
+      "transcript_follow_control.handle_mouse(",
+    );
     expect(interaction).not.toContain("pager.handle_event(");
     expect(interaction).not.toContain("global_key_chord_matcher.reset(");
     expect(interaction).not.toContain("global_key_chord_matcher, key");

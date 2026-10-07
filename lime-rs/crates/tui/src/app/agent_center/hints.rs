@@ -1,9 +1,9 @@
 //! The compact footer and help consume the same resolved task bindings as dispatch.
 
 use super::*;
+use crate::footer_hint::{first_fitting_line, shortcut};
 use crate::keymap::{shortcut_label, AgentsKeymapAction, ListAction};
 use crate::locale::Locale;
-use crate::style::{footer_hint_label_style, key_hint_style};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::style::Stylize;
 use ratatui::text::{Line, Span};
@@ -14,11 +14,7 @@ pub(super) fn hint_line(items: &[(String, String)]) -> Line<'static> {
         if !spans.is_empty() {
             spans.push(Span::raw("  "));
         }
-        spans.push(Span::styled(key.clone(), key_hint_style()));
-        spans.push(Span::styled(
-            format!(" {label}"),
-            footer_hint_label_style().not_bold(),
-        ));
+        spans.extend(shortcut(key, label).spans);
     }
     Line::from(spans)
 }
@@ -31,6 +27,16 @@ impl AgentsOverviewView {
             self.list_keymap
                 .primary_hint_without_tasks(action, &self.agents_keymap)
         }
+    }
+
+    fn accept_hint(&self) -> Option<String> {
+        let available = !self.help
+            && (self.input_mode.is_some()
+                || self.selected_row().is_some()
+                || self.selected_is_load_more() && !self.loading_more());
+        available
+            .then(|| self.list_hint(ListAction::Accept))
+            .flatten()
     }
 
     pub(super) fn center_filter_hint(&self) -> String {
@@ -67,7 +73,7 @@ impl AgentsOverviewView {
         if self.help {
             return hints;
         }
-        if !self.editing_metadata() {
+        if !self.editing_metadata() && self.item_count() > 0 {
             let navigation = [ListAction::MoveUp, ListAction::MoveDown]
                 .into_iter()
                 .filter_map(|code| self.list_hint(code))
@@ -80,9 +86,10 @@ impl AgentsOverviewView {
         let action = match self.input_mode {
             Some(super::super::AgentsOverviewInputMode::Rename) => "rename",
             Some(super::super::AgentsOverviewInputMode::NewTask) => "confirm",
+            None if self.selected_is_load_more() => "Show more",
             None => "open",
         };
-        let accept = self.list_hint(ListAction::Accept);
+        let accept = self.accept_hint();
         if let Some(accept) = accept {
             hints.push((accept, label(action)));
         }
@@ -162,15 +169,10 @@ impl AgentsOverviewView {
 
     pub(super) fn center_footer_line(&self, locale: Locale, width: u16) -> Line<'static> {
         let hints = self.center_footer_hints(locale);
-        let keys = [
-            self.list_hint(ListAction::Cancel),
-            (!self.help)
-                .then(|| self.list_hint(ListAction::Accept))
-                .flatten(),
-        ]
-        .into_iter()
-        .flatten()
-        .collect::<Vec<_>>();
+        let keys = [self.list_hint(ListAction::Cancel), self.accept_hint()]
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>();
         let essential = keys
             .iter()
             .filter_map(|key| {
@@ -180,14 +182,21 @@ impl AgentsOverviewView {
                     .cloned()
             })
             .collect::<Vec<_>>();
-        [
-            hint_line(&hints),
-            hint_line(&essential),
-            Line::from(keys.join(" · ")).dim(),
-        ]
-        .into_iter()
-        .chain(keys.into_iter().map(|key| Line::from(key).dim()))
-        .find(|line| line.width() <= usize::from(width))
-        .unwrap_or_default()
+        first_fitting_line(
+            [
+                hint_line(&hints),
+                hint_line(&essential),
+                Line::from(keys.join(" · ")).dim(),
+            ]
+            .into_iter()
+            .chain(keys.iter().map(|key| Line::from(key.clone()).dim()))
+            .chain(
+                hints
+                    .iter()
+                    .filter(|(key, _)| !keys.contains(key))
+                    .map(|(key, _)| Line::from(key.clone()).dim()),
+            ),
+            usize::from(width),
+        )
     }
 }

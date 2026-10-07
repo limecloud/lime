@@ -81,6 +81,8 @@ impl App {
             &event,
             TuiEvent::Key(key)
                 if key.kind == KeyEventKind::Press
+                    && self.chat_widget.status_line_setup.is_none()
+                    && self.chat_widget.terminal_title_setup.is_none()
                     && key.modifiers == KeyModifiers::ALT
                     && matches!(key.code, KeyCode::Char(value) if value.eq_ignore_ascii_case(&'r'))
         ) {
@@ -89,6 +91,8 @@ impl App {
         }
 
         let composer_owns_copy = self.chat_widget.pager_overlay.is_none()
+            && self.chat_widget.status_line_setup.is_none()
+            && self.chat_widget.terminal_title_setup.is_none()
             && self.chat_widget.export_picker.is_none()
             && !self.chat_widget.bottom_pane.is_active()
             && self.chat_widget.resume_picker.is_none()
@@ -161,6 +165,15 @@ impl App {
                     .map(|path| AppAction::ExportTranscript { path: Some(path) })
                     .unwrap_or(AppAction::None),
             };
+        }
+
+        if !self.chat_widget.bottom_pane.is_active() {
+            if let Some(action) = self.handle_terminal_title_setup_event(&event) {
+                return action;
+            }
+            if let Some(action) = self.handle_status_line_setup_event(&event) {
+                return action;
+            }
         }
 
         if self.chat_widget.bottom_pane.is_active() {

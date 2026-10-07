@@ -15,8 +15,22 @@ pub(super) fn exercise_modal_keymap(
         "configured Vim owner starts in Normal",
         |screen| screen.contains("Vim: Normal") && screen.contains("Ask Lime to do anything"),
     );
+    cursor_style::wait_for_style(
+        output_rx,
+        output,
+        0,
+        "main Vim Normal uses the user's default cursor",
+    );
+    writer.write_all(b"i").unwrap();
+    writer.flush().unwrap();
+    cursor_style::wait_for_style(
+        output_rx,
+        output,
+        6,
+        "main Vim Insert emits a steady bar cursor",
+    );
     writer
-        .write_all(b"i\x1b[200~one two tail\x1b[201~\x1b")
+        .write_all(b"\x1b[200~one two tail\x1b[201~\x1b")
         .unwrap();
     writer.flush().unwrap();
     wait_for_screen(
@@ -27,6 +41,12 @@ pub(super) fn exercise_modal_keymap(
             screen.lines().any(|line| line.trim() == "› one two tail")
                 && screen.contains("Vim: Normal")
         },
+    );
+    cursor_style::wait_for_style(
+        output_rx,
+        output,
+        0,
+        "main Vim Escape restores the default cursor",
     );
     writer.write_all(b"0x").unwrap();
     writer.flush().unwrap();

@@ -3,6 +3,36 @@
 use super::Locale;
 
 impl Locale {
+    pub(crate) fn multi_select_preview_label(self) -> &'static str {
+        self.picker_copy(["预览", "預覽", "Preview", "プレビュー", "미리 보기"])
+    }
+    pub(crate) fn multi_select_save_label(self) -> &'static str {
+        self.picker_copy(["保存", "儲存", "save", "保存", "저장"])
+    }
+    pub(crate) fn multi_select_toggle_label(self) -> &'static str {
+        self.picker_copy(["勾选", "勾選", "toggle", "選択切替", "선택 전환"])
+    }
+    pub(crate) fn multi_select_order_label(self) -> &'static str {
+        self.picker_copy(["排序", "排序", "reorder", "並べ替え", "순서 변경"])
+    }
+    fn picker_copy(self, values: [&'static str; 5]) -> &'static str {
+        values[match self {
+            Self::ZhCn => 0,
+            Self::ZhTw => 1,
+            Self::EnUs => 2,
+            Self::JaJp => 3,
+            Self::KoKr => 4,
+        }]
+    }
+    pub(crate) fn multi_select_empty(self) -> &'static str {
+        self.picker_copy([
+            "没有匹配的项目",
+            "沒有符合的項目",
+            "No matching items",
+            "一致する項目がありません",
+            "일치하는 항목이 없습니다",
+        ])
+    }
     pub(crate) fn agent_picker_title(self) -> &'static str {
         match self {
             Self::ZhCn => "子 Agent",
@@ -74,8 +104,8 @@ impl Locale {
         }
     }
 
-    pub(crate) fn resume_escape_hint(self, key: &str, has_query: bool) -> String {
-        let label = match (self, has_query) {
+    pub(crate) fn resume_cancel_label(self, has_query: bool) -> &'static str {
+        match (self, has_query) {
             (Self::ZhCn, false) => "关闭",
             (Self::ZhCn, true) => "清空搜索",
             (Self::ZhTw, false) => "關閉",
@@ -86,12 +116,11 @@ impl Locale {
             (Self::JaJp, true) => "検索をクリア",
             (Self::KoKr, false) => "닫기",
             (Self::KoKr, true) => "검색 지우기",
-        };
-        format!("{key} {label}")
+        }
     }
 
-    pub(crate) fn resume_enter_hint(self, key: &str, fork: bool, archived: bool) -> String {
-        let label = match (self, fork, archived) {
+    pub(crate) fn resume_action_label(self, fork: bool, archived: bool) -> &'static str {
+        match (self, fork, archived) {
             (Self::ZhCn, _, true) | (Self::ZhCn, false, false) => "恢复",
             (Self::ZhCn, true, false) => "分叉",
             (Self::ZhTw, _, true) | (Self::ZhTw, false, false) => "恢復",
@@ -104,24 +133,26 @@ impl Locale {
             (Self::KoKr, _, true) => "복원",
             (Self::KoKr, false, false) => "재개",
             (Self::KoKr, true, false) => "분기",
-        };
-        format!("{key} {label}")
+        }
     }
 
-    pub(crate) fn resume_controls_hint(self, option_keys: &str) -> String {
-        let (focus, change, close, density) = match self {
-            Self::ZhCn => ("聚焦", "切换", "关闭", "密度"),
-            Self::ZhTw => ("聚焦", "切換", "關閉", "密度"),
-            Self::EnUs => ("focus", "change", "close", "density"),
-            Self::JaJp => ("フォーカス", "切り替え", "閉じる", "表示密度"),
-            Self::KoKr => ("포커스", "변경", "닫기", "밀도"),
-        };
-        let change = if option_keys.is_empty() {
-            String::new()
-        } else {
-            format!("  {option_keys} {change}")
-        };
-        format!("tab {focus}{change}  ctrl+c {close}  ctrl+o {density}")
+    pub(crate) fn resume_focus_label(self) -> &'static str {
+        match self {
+            Self::ZhCn | Self::ZhTw => "聚焦",
+            Self::EnUs => "focus",
+            Self::JaJp => "フォーカス",
+            Self::KoKr => "포커스",
+        }
+    }
+
+    pub(crate) fn resume_change_label(self) -> &'static str {
+        match self {
+            Self::ZhCn => "切换",
+            Self::ZhTw => "切換",
+            Self::EnUs => "change option",
+            Self::JaJp => "切り替え",
+            Self::KoKr => "변경",
+        }
     }
 
     pub(crate) fn resume_more(self, above: bool) -> &'static str {
@@ -289,25 +320,33 @@ impl Locale {
         }
     }
 
-    pub(crate) fn selection_picker_footer(
-        self,
-        accept: Option<&str>,
-        cancel: Option<&str>,
-    ) -> String {
-        let (select, back) = match self {
-            Self::ZhCn => ("选择", "返回"),
-            Self::ZhTw => ("選擇", "返回"),
-            Self::EnUs => ("select", "back"),
-            Self::JaJp => ("選択", "戻る"),
-            Self::KoKr => ("선택", "돌아가기"),
-        };
-        [
-            accept.map(|key| format!("{key} {select}")),
-            cancel.map(|key| format!("{key} {back}")),
-        ]
-        .into_iter()
-        .flatten()
-        .collect::<Vec<_>>()
-        .join(" · ")
+    pub(crate) fn picker_select_label(self) -> &'static str {
+        match self {
+            Self::ZhCn => "选择",
+            Self::ZhTw => "選擇",
+            Self::EnUs => "select",
+            Self::JaJp => "選択",
+            Self::KoKr => "선택",
+        }
+    }
+
+    pub(crate) fn picker_back_label(self) -> &'static str {
+        match self {
+            Self::ZhCn => "返回",
+            Self::ZhTw => "返回",
+            Self::EnUs => "back",
+            Self::JaJp => "戻る",
+            Self::KoKr => "돌아가기",
+        }
+    }
+
+    pub(crate) fn prompt_normal_mode_label(self) -> &'static str {
+        match self {
+            Self::ZhCn => "普通模式",
+            Self::ZhTw => "一般模式",
+            Self::EnUs => "normal mode",
+            Self::JaJp => "ノーマルモード",
+            Self::KoKr => "일반 모드",
+        }
     }
 }

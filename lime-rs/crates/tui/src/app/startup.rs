@@ -103,6 +103,8 @@ pub(crate) async fn initialize_session(
         let response = session
             .start_thread(options.cwd.clone(), model.clone(), model_provider.clone())
             .await?;
+        app.chat_widget
+            .set_status_thread_name(response.thread.id.clone(), response.thread.name.clone());
         permission_cwd = response.cwd.clone();
         if model.is_none() {
             model = Some(response.model);

@@ -25,6 +25,9 @@ mod skills;
 pub(crate) mod startup;
 #[allow(dead_code)]
 pub(crate) mod startup_prompts;
+mod status_controls;
+mod status_line;
+mod terminal_title;
 mod thread_event_buffer;
 mod thread_events;
 mod thread_input;
@@ -42,7 +45,6 @@ use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 use self::agent_navigation::AgentNavigationDirection;
-use crate::app::transcript_export::ExportPicker;
 use crate::bottom_pane::AppServerResponse;
 use crate::chatwidget::ChatWidget;
 use crate::clipboard_paste::ClipboardTextSource;
@@ -102,6 +104,13 @@ pub(crate) enum AppAction {
     ScrollBottom,
     LoadOlderHistory,
     SelectModel(ModelSelection),
+    StatusLineSetup {
+        items: Vec<String>,
+        use_colors: bool,
+    },
+    TerminalTitleSetup {
+        items: Vec<String>,
+    },
     ChangeCollaborationMode(agent_protocol::CollaborationMode),
     SwitchThread(String),
     RefreshAgentsOverview,
@@ -270,6 +279,8 @@ impl App {
 
     pub(crate) fn hydrate_thread(&mut self, thread: Thread) {
         self.chat_widget.reset_for_hydrated_thread();
+        self.chat_widget
+            .set_status_thread_name(thread.id.clone(), thread.name.clone());
         self.chat_widget.agent_navigation.upsert(
             thread.id.clone(),
             thread.agent_nickname.clone(),
@@ -412,6 +423,14 @@ impl App {
                 self.open_status_pager();
                 AppAction::None
             }
+            SlashCommand::Statusline => {
+                self.chat_widget.show_status_line_setup();
+                AppAction::None
+            }
+            SlashCommand::Title => {
+                self.chat_widget.show_terminal_title_setup();
+                AppAction::None
+            }
             SlashCommand::Copy => AppAction::CopyLastResponse,
             SlashCommand::Export => {
                 let path = text
@@ -420,8 +439,8 @@ impl App {
                     .filter(|path| !path.is_empty())
                     .map(PathBuf::from);
                 if path.is_none() {
-                    self.chat_widget.export_picker =
-                        Some(ExportPicker::new(self.thread_id.as_deref()));
+                    self.chat_widget
+                        .show_transcript_export_popup(self.thread_id.as_deref());
                     AppAction::None
                 } else {
                     AppAction::ExportTranscript { path }

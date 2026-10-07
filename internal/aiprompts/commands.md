@@ -27,8 +27,8 @@ All surfaces
 
 ## Owner 判定
 
-| 需求                                                            | Owner                                               |
-| --------------------------------------------------------------- | --------------------------------------------------- |
+| 需求                                                            | Owner                                                  |
+| --------------------------------------------------------------- | ------------------------------------------------------ |
 | Thread / Turn / Item、read model、evidence、业务查询与写入      | App Server protocol + handler + current Rust domain    |
 | 模型路由、canonical content、capability、provider wire lowering | `runtime-core` / `model-provider`                      |
 | 工具定义、审批、sandbox、dispatch、MCP                          | `tool-runtime`                                         |
@@ -58,6 +58,7 @@ CLI/TUI/`exec`/`resume` 共用 Codex 形状的权限输入：`--sandbox {read-on
 
 Plugin CLI 只消费本地 Plugin v3 current catalog：`plugin/list`、`plugin/read`、`plugin/search`、
 `plugin/install`、`plugin/uninstall`、`plugin/installed` 和 `plugin/enabled/set`。`plugin list --plugin-cwd
+
 <DIR>` 将指定目录下的 `.agents/plugins/marketplace.json` 作为显式 discovery root；`--available` 必须
 和 `--json` 同用；JSON 默认只投影已安装条目，带 `--available` 才显示 catalog 返回的可安装条目，避免把可安装条目误当成已安装状态。当前本地 catalog 没有远程 marketplace cache 或
 force-refetch 语义，Codex 的远程 marketplace/账号管理与 `marketplace add/remove/upgrade` 继续
@@ -81,7 +82,8 @@ modal/popup、未完成 startup 和 parent-owned thread 禁止穿透；当前服
 effort override，因此 Plan 快捷键显式 fail closed，不把普通 durable settings 更新冒充该 scope。
 普通模式只经既有 thread/settings/update 修改当前 Thread，成功后再更新本地投影，不写全局默认。
 
-TUI 偏好只允许位于同一 Lime 用户配置的 `tui.right_click_paste` 与 `tui.keymap`，由启动期
+TUI 偏好只允许位于同一 Lime 用户配置的 `tui.right_click_paste`、`tui.keymap`、`tui.status_line`
+与 `tui.status_line_use_colors`，由启动期
 `config/read -> LocalSettings -> RuntimeKeymap` 解析为进程内不可变 snapshot；主 TUI 与独立 resume
 picker 都必须在进入 alternate screen 前完成读取。当前真实 consumer 只包括
 `tui.right_click_paste=auto|on|off`（右键 CLIPBOARD；中键 PRIMARY 仍要求本地 X11）以及
@@ -89,7 +91,7 @@ picker 都必须在进入 alternate screen 前完成读取。当前真实 consum
 `scroll_up|scroll_down|page_up|page_down|half_page_up|half_page_down|jump_top|jump_bottom|close|close_transcript|find`
 以及 `agents.resume|search|new_task|rename|stop|toggle_grouping`。
 `list.move_up|move_down|move_left|move_right|page_up|page_down|jump_top|jump_bottom|accept|cancel`
-当前由 resume/fork、模型及两级推理强度 picker、`/subagents` 和 Agent Center 消费，
+当前由 resume/fork、模型及两级推理强度 picker、`/subagents`、`/statusline`、`/title` 和 Agent Center 消费，
 其它 lists 尚未接入；默认 Ctrl+F/Ctrl+B 为 paging，
 旧 Ctrl+F filter / Ctrl+S status / Ctrl+R sort 已删除。picker 固定退出、详情/密度、焦点和
 搜索删除键不可被该 context 截获，冲突配置 fail closed；可打印导航仍优先进入搜索。
@@ -102,6 +104,21 @@ context/action、非法键名、超过两段的 chord、同 context 冲突、sin
 文本的 printable chord prefix 均 fail closed；只有 Vim modal contexts 允许 printable prefix。
 dispatch 与 footer hint 必须消费同一 snapshot；不得为 composer 专用提交/队列等尚未接线的
 context 提前暴露配置，也不得新增 TUI 私有配置文件或环境变量配置面。
+
+`/statusline` 的 current owner 为 `bottom_pane/status_line_setup` 与 `multi_select_picker`。
+确认只经现有 `config/batchWrite` 同时更新有序 `tui.status_line` 和 `tui.status_line_use_colors`，
+携带 `config/read` 用户层版本；取消不写，冲突不自动重试。None 使用 model-with-reasoning /
+current-dir / thread-name，显式空列表关闭。preview/footer 共享 `status_surface_preview` 的真实
+settings/cwd/Thread facts，未知或不可用项目省略，不填静态额度或 usage。Space 为多选固定键，
+不得被 list 配置截获；左右排序只在空 query 生效。配置 schema 仍由共享 core TuiConfig 校验，
+App Server config wire 保持现有 JSON value，GUI gateway/Host 无新增命令或平行配置。
+
+`/title` 对齐 Codex `bottom_pane/title_setup::TerminalTitleSetupView`，复用同一 MultiSelectPicker
+的 state、布局、ListSelectionView geometry、preview 行与 resolved controls。临时 selection
+只投影到现有 managed OSC，取消/断线/hydrate 恢复 saved preferences。确认只写共享
+`tui.terminal_title`；标题和状态栏统一由 `app/status_controls::write_tui_preferences` 做
+版本校验、config/batchWrite 与失败重读，不复制 transport 或建立私有存储。None 默认
+activity/thread-name/project-name，[] 关闭；App facts renderer 同时用于窗口标题和配置预览。
 
 `editor` 的 17 个 Codex 同义动作由 `TuiEditorKeymap -> RuntimeKeymap.editor ->
 TextArea::set_keymap_bindings/input_with_keymap` 消费，composer 普通/Insert/Replace 不再维护

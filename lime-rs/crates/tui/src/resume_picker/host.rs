@@ -213,8 +213,11 @@ async fn run_session_picker_with_action(
             spawn_preview_load(request_handle.clone(), &load_tx, &mut picker, thread_id);
         }
         terminal
-            .terminal_mut()
-            .draw(|frame| render_with_locale(frame, &picker, locale))
+            .draw(
+                crossterm::cursor::SetCursorStyle::DefaultUserShape,
+                None,
+                |frame| render_with_locale(frame, &picker, locale),
+            )
             .context("failed to render session picker")?;
         tokio::select! {
             load_event = load_rx.recv() => {

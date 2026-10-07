@@ -7,6 +7,7 @@ export async function writeTerminalExternalBackend(
     command,
     reasoningText = "TUI_GATE_B_REASONING_DETAIL",
     scenario = "complete",
+    taskProgress = false,
   },
 ) {
   await writeFile(
@@ -212,6 +213,16 @@ if (input.kind === "turnStart") {
       { type: "item.started", payload: { item: patchItem("inProgress") } },
       { type: "item.completed", payload: { item: patchItem("completed") } },
     );
+  }
+  if (${JSON.stringify(taskProgress)}) {
+    events.unshift({ type: "turn.plan.updated", payload: {
+      explanation: "Canonical task progress fixture",
+      plan: [
+        { step: "PTY_PLAN_COMPLETED_STEP", status: "completed" },
+        { step: "PTY_PLAN_ACTIVE_STEP", status: "in_progress" },
+        { step: "PTY_PLAN_PENDING_STEP", status: "pending" },
+      ],
+    } });
   }
   events.unshift({ type: "turn.started", payload: {} });
 } else if (input.kind === "actionRespond") {

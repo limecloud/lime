@@ -65,6 +65,62 @@ describe("appConfig API", () => {
     invalidateAppConfigCache();
   });
 
+  it("GUI 配置编辑保留同一用户层的 TUI 状态栏，不生成覆盖写入", async () => {
+    const tui = {
+      status_line: ["current-dir", "model-with-reasoning"],
+      status_line_use_colors: false,
+      terminal_title: ["project-name", "activity", "thread-title"],
+      keymap: { list: { accept: "f9", cancel: "ctrl-x q" } },
+    };
+    appServerRequest
+      .mockResolvedValueOnce(
+        configReadResult({
+          default_provider: "openai",
+          language: "zh-CN",
+          tui,
+        }),
+      )
+      .mockResolvedValueOnce(configWriteResult());
+    const updated = await updateConfig((current) => ({
+      ...current,
+      language: "en-US",
+    }));
+    expect(updated.tui).toEqual(tui);
+    expect(appServerRequest).toHaveBeenLastCalledWith(
+      METHOD_CONFIG_BATCH_WRITE,
+      {
+        edits: [
+          { keyPath: "language", value: "en-US", mergeStrategy: "replace" },
+        ],
+        expectedVersion: "version-1",
+        reloadUserConfig: true,
+      },
+    );
+    updated.tui!.status_line!.reverse();
+    updated.tui!.terminal_title!.reverse();
+    expect((await getConfig()).tui).toEqual(tui);
+    invalidateAppConfigCache();
+    appServerRequest.mockResolvedValueOnce(
+      configReadResult(
+        {
+          language: "en-US",
+          default_provider: "openai",
+          tui: {
+            status_line: [],
+            status_line_use_colors: false,
+            terminal_title: [],
+          },
+        },
+        "version-3",
+      ),
+    );
+    expect((await getConfig()).tui).toEqual({
+      status_line: [],
+      terminal_title: [],
+      status_line_use_colors: false,
+    });
+  });
+
   it("配置读取走 App Server，宿主环境能力保持 Electron owner", async () => {
     appServerRequest.mockResolvedValueOnce(
       configReadResult({ default_provider: "claude" }),

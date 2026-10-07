@@ -118,8 +118,12 @@ fn responsive_approval_footer_keeps_submit_and_cancel_keys_together() {
         Locale::KoKr,
     ] {
         for width in 1..80 {
-            let hint = footer_hint(locale, width);
-            assert!(crate::width::display_width(&hint) <= width.saturating_sub(1));
+            let pane = pane();
+            let PendingInteraction::Approval(approval) = pane.current().expect("approval") else {
+                unreachable!();
+            };
+            let hint = footer_hint(approval, locale, width);
+            assert!(crate::width::display_width(&hint) <= width);
             if width >= 12 {
                 assert!(
                     hint.contains("Enter") && hint.contains("Esc"),

@@ -56,7 +56,7 @@ fn review_boundary(id: &str, entered: bool) -> ThreadItem {
     }
 }
 
-fn test_thread(turns: Vec<Turn>) -> Thread {
+pub(super) fn test_thread(turns: Vec<Turn>) -> Thread {
     Thread {
         id: "thread-review-filter".to_string(),
         extra: None,
@@ -88,7 +88,7 @@ fn test_thread(turns: Vec<Turn>) -> Thread {
     }
 }
 
-fn test_turn(id: &str, status: TurnStatus, items: Vec<ThreadItem>) -> Turn {
+pub(super) fn test_turn(id: &str, status: TurnStatus, items: Vec<ThreadItem>) -> Turn {
     Turn {
         id: id.to_string(),
         items,

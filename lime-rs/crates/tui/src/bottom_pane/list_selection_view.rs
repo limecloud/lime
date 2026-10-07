@@ -1,6 +1,7 @@
 //! Borderless bottom picker; wrapped visual rows drive both measurement and scrolling.
 
 use crate::bottom_pane::selection_row_layout::MAX_POPUP_ROWS;
+use crate::footer_hint::{first_fitting_line, shortcut};
 use crate::keymap::{ListAction, ListKeymap};
 use crate::locale::Locale;
 use ratatui::Frame;
@@ -27,6 +28,7 @@ pub(crate) struct ListSelectionView<'a> {
     pub(crate) empty_text: &'a str,
     pub(crate) keymap: &'a ListKeymap,
     pub(crate) locale: Locale,
+    pub(crate) footer: Option<Line<'static>>,
 }
 
 fn rows(view: &ListSelectionView<'_>, width: u16) -> Vec<Vec<Line<'static>>> {
@@ -59,6 +61,11 @@ fn rows(view: &ListSelectionView<'_>, width: u16) -> Vec<Vec<Line<'static>>> {
                     min_description_width: 12,
                 },
             )
+            .into_iter()
+            // An indivisible wide grapheme may exceed a one-column wrap budget. Normalize
+            // passive row copy before measuring the viewport; shortcut footers stay atomic.
+            .map(|line| truncate_line_with_ellipsis_if_overflow(line, usize::from(row_width)))
+            .collect()
         })
         .collect()
 }
@@ -219,12 +226,19 @@ pub(crate) fn render(frame: &mut Frame<'_>, area: Rect, view: &ListSelectionView
     }
     if footer_height > 0 {
         let footer = Rect::new(content_x, area.bottom() - 1, content_width, 1);
-        let hint = controls_hint(view.locale, view.keymap, usize::from(footer.width));
+        let accept = (!view.entries.is_empty())
+            .then(|| view.keymap.primary_hint(ListAction::Accept))
+            .flatten();
+        let cancel = view.keymap.primary_hint(ListAction::Cancel);
         frame.render_widget(
-            Paragraph::new(truncate_line_with_ellipsis_if_overflow(
-                Line::from(hint).dim(),
-                usize::from(footer.width),
-            )),
+            Paragraph::new(view.footer.clone().unwrap_or_else(|| {
+                controls_hint(
+                    view.locale,
+                    accept.as_deref(),
+                    cancel.as_deref(),
+                    usize::from(footer.width),
+                )
+            })),
             footer,
         );
     }
@@ -235,21 +249,34 @@ pub(crate) fn render(frame: &mut Frame<'_>, area: Rect, view: &ListSelectionView
     end.saturating_sub(start).max(1)
 }
 /// Never truncate a chord or advertise a default that the configured snapshot replaced.
-fn controls_hint(locale: Locale, keymap: &ListKeymap, width: usize) -> String {
-    let accept = keymap.primary_hint(ListAction::Accept);
-    let cancel = keymap.primary_hint(ListAction::Cancel);
-    let keys = [accept.as_deref(), cancel.as_deref()]
-        .into_iter()
-        .flatten()
-        .collect::<Vec<_>>();
-    [
-        locale.selection_picker_footer(accept.as_deref(), cancel.as_deref()),
-        keys.join(" · "),
-        keys.join(" "),
-        cancel.unwrap_or_default(),
-        accept.unwrap_or_default(),
-    ]
-    .into_iter()
-    .find(|hint| display_width(hint) <= width)
-    .unwrap_or_default()
+fn controls_hint(
+    locale: Locale,
+    accept: Option<&str>,
+    cancel: Option<&str>,
+    width: usize,
+) -> Line<'static> {
+    let mut full = Line::default();
+    for (key, label) in [
+        (accept, locale.picker_select_label()),
+        (cancel, locale.picker_back_label()),
+    ] {
+        if let Some(key) = key {
+            if !full.spans.is_empty() {
+                full.push_span(Span::styled(" · ", muted_style()));
+            }
+            full.spans.extend(shortcut(key, label).spans);
+        }
+    }
+    let keys = [accept, cancel].into_iter().flatten().collect::<Vec<_>>();
+    first_fitting_line(
+        [full, Line::from(keys.join(" · ")).dim()]
+            .into_iter()
+            .chain(
+                [cancel, accept]
+                    .into_iter()
+                    .flatten()
+                    .map(|key| Line::from(key.to_string()).dim()),
+            ),
+        width,
+    )
 }

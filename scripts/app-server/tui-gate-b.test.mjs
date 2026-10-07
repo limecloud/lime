@@ -15,6 +15,13 @@ const ptyTestSource = readFileSync(
   path.resolve(process.cwd(), "lime-rs/crates/tui/src/runtime_pty_tests.rs"),
   "utf8",
 );
+const statusLinePtySource = readFileSync(
+  path.resolve(
+    process.cwd(),
+    "lime-rs/crates/tui/src/runtime_pty_tests/status_line.rs",
+  ),
+  "utf8",
+);
 const terminalFixtureSource = readFileSync(
   path.resolve(process.cwd(), "scripts/app-server/terminal-gate-fixture.mjs"),
   "utf8",
@@ -47,10 +54,24 @@ const resumeTestSource = readFileSync(
   ),
   "utf8",
 );
+const exportTestSource = readFileSync(
+  path.resolve(
+    process.cwd(),
+    "lime-rs/crates/tui/src/runtime_pty_tests/transcript_export.rs",
+  ),
+  "utf8",
+);
 const modelPickerTestSource = readFileSync(
   path.resolve(
     process.cwd(),
     "lime-rs/crates/tui/src/runtime_pty_tests/model_picker.rs",
+  ),
+  "utf8",
+);
+const cursorStyleTestSource = readFileSync(
+  path.resolve(
+    process.cwd(),
+    "lime-rs/crates/tui/src/runtime_pty_tests/cursor_style.rs",
   ),
   "utf8",
 );
@@ -92,6 +113,106 @@ const historyPaginationTestSource = readFileSync(
 );
 
 describe("TUI Gate B", () => {
+  it("requires canonical task progress in both the real footer and OSC preview", () => {
+    expect(ptyTestSource).toContain("task_progress::exercise_shared_progress(");
+    const progress = readFileSync(
+      path.resolve(
+        process.cwd(),
+        "lime-rs/crates/tui/src/runtime_pty_tests/task_progress.rs",
+      ),
+      "utf8",
+    );
+    for (const marker of [
+      "saved footer shows canonical task progress",
+      "title preview uses the same typed task progress",
+      "saved title and footer share canonical progress",
+      "task-progress configuration must not create a canonical turn",
+    ]) {
+      expect(progress).toContain(marker);
+    }
+    expect(progress).not.toMatch(
+      /thread::sleep|tokio::time::sleep|MockBackend/,
+    );
+    const backend = readFileSync(
+      path.resolve(
+        process.cwd(),
+        "scripts/app-server/terminal-gate-fixture.mjs",
+      ),
+      "utf8",
+    );
+    expect(backend).toContain('type: "turn.plan.updated"');
+  });
+  it("requires real title preview, cancellation, ordered persistence and disabled OSC evidence", () => {
+    expect(ptyTestSource).toContain(
+      "title_setup::exercise_preview_save_and_cancel(",
+    );
+    const setup = readFileSync(
+      path.resolve(
+        process.cwd(),
+        "lime-rs/crates/tui/src/runtime_pty_tests/title_setup.rs",
+      ),
+      "utf8",
+    );
+    for (const marker of [
+      "ordered title selection previews real OSC before saving",
+      "cancel restores actual managed OSC",
+      "explicit empty selection clears managed OSC",
+      "Ctrl-C restores the saved disabled title",
+      "title interaction must not create a canonical turn",
+      "narrow title setup keeps the full cancel chord",
+    ])
+      expect(setup).toContain(marker);
+    expect(setup).not.toMatch(/thread::sleep|tokio::time::sleep|MockBackend/);
+    const config = readFileSync(
+      path.resolve(
+        process.cwd(),
+        "lime-rs/crates/tui/src/runtime_pty_tests/config.rs",
+      ),
+      "utf8",
+    );
+    expect(config).toContain("AppAction::TerminalTitleSetup");
+    expect(config).toContain("conflict must recover the latest shared version");
+  });
+  it("observes terminal titles from real OSC bytes and restores them on exit and handoff", () => {
+    const observer = readFileSync(
+      path.resolve(
+        process.cwd(),
+        "lime-rs/crates/tui/src/runtime_pty_tests/terminal_title.rs",
+      ),
+      "utf8",
+    );
+    expect(observer).toContain('output.match_indices("\\x1b]0;")');
+    expect(observer).not.toMatch(
+      /thread::sleep|tokio::time::sleep|MockBackend/,
+    );
+    for (const action of [
+      "wait_for_idle",
+      "wait_for_running",
+      "wait_for_action_required",
+      "wait_for_named_thread",
+      "assert_cleared_on_exit",
+      "assert_external_editor_handoff",
+    ]) {
+      expect(ptyTestSource).toContain(`terminal_title::${action}(`);
+    }
+  });
+  it("requires real status-line selection, save, cancel and narrow reflow evidence", () => {
+    expect(ptyTestSource).toContain(
+      "status_line::exercise_selection_save_and_cancel(",
+    );
+    for (const marker of [
+      "reopened setup keeps explicit empty selection",
+      "configured cancel restores the saved status line without writing",
+      "narrow setup keeps the complete configured cancel chord",
+      "status-line interaction must not start another canonical turn",
+    ]) {
+      expect(statusLinePtySource, marker).toContain(marker);
+    }
+    expect(statusLinePtySource).toContain("ConfigManager::load(config_path)");
+    expect(statusLinePtySource).not.toMatch(
+      /thread::sleep|tokio::time::sleep|MockBackend/,
+    );
+  });
   it("requires executed thread-input resume evidence rather than a skipped or empty target", () => {
     const source = readFileSync(
       path.resolve(
@@ -156,12 +277,8 @@ describe("TUI Gate B", () => {
     expect(historyPaginationTestSource).toContain(
       "transcript_search_completion_is_ignored_after_reconnect",
     );
-    expect(historyPaginationTestSource).toContain(
-      "HISTORY_SEARCH_RACE_QUERY",
-    );
-    expect(historyPaginationTestSource).toContain(
-      "run_history_switch_server",
-    );
+    expect(historyPaginationTestSource).toContain("HISTORY_SEARCH_RACE_QUERY");
+    expect(historyPaginationTestSource).toContain("run_history_switch_server");
     expect(historyPaginationTestSource).toContain(
       "run_history_reconnect_server",
     );
@@ -407,6 +524,10 @@ describe("TUI Gate B", () => {
     expect(source).toContain("› 1. • Main [default] (current)");
     expect(source).toContain("f9 select · ctrl+x q back");
     expect(source).toContain("screen.contains(&thread_id)");
+    expect(source).toContain("cols: 16");
+    expect(source).toContain(
+      "narrow subagents footer selects a whole cancel chord instead of merging actions",
+    );
     expect(source).toContain(
       "subagents open/cancel/current root must not submit a canonical turn",
     );
@@ -466,6 +587,13 @@ describe("TUI Gate B", () => {
     expect(resumeTestSource).toContain(
       '"short resume viewport retains its selected row and controls"',
     );
+    expect(resumeTestSource).toContain("cols: 10");
+    expect(resumeTestSource).toContain(
+      '"ten-column resume footer retains the whole cancel chord with its inset"',
+    );
+    expect(resumeTestSource).toContain(
+      '"resume primary hints expand after narrow resize on the same canonical row"',
+    );
     expect(resumeTestSource).toContain('"page in the actual resume viewport"');
     expect(gateSource).toContain('"      accept: f9"');
     expect(gateSource).toContain('"      cancel: ctrl-x q"');
@@ -488,6 +616,65 @@ describe("TUI Gate B", () => {
     );
     expect(resumeTestSource).not.toContain("thread::sleep");
   });
+  it("edits the real export prompts with configured keys and keeps canonical output visible", () => {
+    expect(ptyTestSource).toContain(
+      "transcript_export::exercise_destination_filename_and_cancel",
+    );
+    for (const marker of [
+      "export destination uses configured controls and keeps the canonical transcript visible",
+      "narrow export destination displays the complete configured cancel chord",
+      "configured F9 opens the filename prompt on the same canonical transcript",
+      "export filename consumes the current editor chord without submitting",
+      "edited export filename is visible without a new canonical turn",
+      "multiline export prompt grows and scrolls to the visible tail",
+      "export prompt keeps its cursor tail after narrow resize",
+      "export prompt reflows without dropping pasted newlines",
+      "export editor navigation scrolls back to the first pasted row",
+      "export prompt inherits Vim in Insert mode",
+      "export Insert Escape switches to Normal without closing the prompt",
+      "export pending Vim chord updates the actual Escape hint",
+      "export pending Vim chord owns Escape before prompt navigation",
+      "export Vim cancellation restores the composer mode and canonical transcript",
+      "export cancel restores the canonical transcript and main composer",
+      "export selection, editing and cancellation must not start a canonical turn",
+    ]) {
+      expect(exportTestSource).toContain(marker);
+    }
+    expect(exportTestSource).toContain("cols: 14");
+    expect(exportTestSource).toContain("PTY_EXPORT_NAME.md");
+    expect(exportTestSource).not.toContain("thread::sleep");
+  });
+  it("observes real terminal cursor commands across Vim transitions, exit and external editor handoff", () => {
+    const vimSource = readFileSync(
+      path.resolve(
+        process.cwd(),
+        "lime-rs/crates/tui/src/runtime_pty_tests/vim_keymap.rs",
+      ),
+      "utf8",
+    );
+    expect(cursorStyleTestSource).toContain('output.rmatch_indices("\\x1b[")');
+    expect(cursorStyleTestSource).toContain("recv_timeout(remaining)");
+    expect(cursorStyleTestSource).not.toContain("thread::sleep");
+    for (const marker of [
+      "main Vim Insert emits a steady bar cursor",
+      "main Vim Escape restores the default cursor",
+    ]) {
+      expect(vimSource, marker).toContain(marker);
+    }
+    for (const marker of [
+      "export Vim Insert emits a steady bar cursor",
+      "export Vim Normal restores the user's default cursor",
+    ]) {
+      expect(exportTestSource, marker).toContain(marker);
+    }
+    expect(ptyTestSource).toContain(
+      "cursor_style::assert_default_restored(&output)",
+    );
+    expect(ptyTestSource).toContain(
+      "cursor_style::assert_default_before_editor(&output)",
+    );
+  });
+
   it("edits notes without answering and preserves the selected canonical response", () => {
     expect(ptyTestSource).toContain(
       "request_user_input::exercise_notes_and_selection",
@@ -518,8 +705,14 @@ describe("TUI Gate B", () => {
       '"close details without deciding approval"',
     );
     expect(approvalTestSource).toContain(
-      '"closing approval details must not resolve the canonical request"',
+      '"details, unbound Enter and footer resize must not resolve the canonical request"',
     );
+    expect(approvalTestSource).toContain(
+      '"narrow approval footer keeps the configured accept key and whole cancel chord"',
+    );
+    expect(approvalTestSource).toContain("cols: 14");
+    expect(ptyTestSource).toContain('"approve command with configured F9"');
+    expect(approvalTestSource).not.toContain("thread::sleep");
   });
   it("drives catalog-backed suggestions through real keyboard completion", () => {
     expect(gateSource).toContain('"parser_alpha.rs", "parser_beta.rs"');

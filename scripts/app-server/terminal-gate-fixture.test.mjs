@@ -7,6 +7,46 @@ import { expect, it } from "vitest";
 
 import { writeTerminalExternalBackend } from "./terminal-gate-fixture.mjs";
 
+it("emits typed checklist progress only for the explicitly enabled TUI fixture", async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "terminal-progress-fixture-"));
+  try {
+    const backend = path.join(dir, "backend.mjs");
+    const ledger = path.join(dir, "ledger.jsonl");
+    for (const taskProgress of [false, true]) {
+      await writeTerminalExternalBackend(backend, {
+        completedText: "completed",
+        command: "test-only",
+        taskProgress,
+      });
+      const events = JSON.parse(
+        execFileSync(process.execPath, [backend, ledger], {
+          input: JSON.stringify({
+            kind: "turnStart",
+            request: {
+              session: { sessionId: "session", threadId: "thread" },
+              turn: { turnId: "turn" },
+            },
+          }),
+          encoding: "utf8",
+        }),
+      ).events;
+      const plan = events.find((event) => event.type === "turn.plan.updated");
+      expect(Boolean(plan)).toBe(taskProgress);
+      if (taskProgress) {
+        expect(events[0].type).toBe("turn.started");
+        expect(plan.payload.plan.map((step) => step.status)).toEqual([
+          "completed",
+          "in_progress",
+          "pending",
+        ]);
+        expect(events.at(-1).type).toBe("turn.completed");
+      }
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 it("correlates consecutive questions and responses without reusing identities", async () => {
   const dir = mkdtempSync(path.join(tmpdir(), "terminal-question-fixture-"));
   try {

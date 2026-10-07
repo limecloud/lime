@@ -3,10 +3,13 @@ mod composer;
 mod pickers;
 mod reasoning;
 mod shortcuts;
+mod status_line;
+mod title;
 pub(crate) use shortcuts::ShortcutLabel;
 
 use std::borrow::Cow;
 
+use crate::footer_hint::display_key_label;
 use crate::slash_command::SlashCommand;
 use std::env;
 
@@ -273,6 +276,16 @@ impl Locale {
 
     pub(crate) fn slash_command_description(self, command: SlashCommand) -> &'static str {
         match (self, command) {
+            (Self::ZhCn, SlashCommand::Statusline) => "配置状态栏",
+            (Self::ZhTw, SlashCommand::Statusline) => "設定狀態列",
+            (Self::EnUs, SlashCommand::Statusline) => "configure the status line",
+            (Self::JaJp, SlashCommand::Statusline) => "ステータス行を設定",
+            (Self::KoKr, SlashCommand::Statusline) => "상태 표시줄 설정",
+            (Self::ZhCn, SlashCommand::Title) => "配置终端标题",
+            (Self::ZhTw, SlashCommand::Title) => "設定終端標題",
+            (Self::EnUs, SlashCommand::Title) => "configure the terminal title",
+            (Self::JaJp, SlashCommand::Title) => "ターミナルタイトルを設定",
+            (Self::KoKr, SlashCommand::Title) => "터미널 제목 설정",
             (Self::ZhCn, SlashCommand::Model) => "选择模型",
             (Self::ZhTw, SlashCommand::Model) => "選擇模型",
             (Self::EnUs, SlashCommand::Model) => "choose a model",
@@ -484,16 +497,6 @@ impl Locale {
         }
     }
 
-    pub(crate) fn export_picker_hint(self) -> &'static str {
-        match self {
-            Self::ZhCn => "按 Enter 确认，按 Esc 返回",
-            Self::ZhTw => "按 Enter 確認，按 Esc 返回",
-            Self::EnUs => "Press enter to confirm or esc to go back",
-            Self::JaJp => "Enter で確定、Esc で戻る",
-            Self::KoKr => "Enter로 확인하거나 Esc로 돌아가기",
-        }
-    }
-
     pub(crate) fn export_prompt_title(self) -> &'static str {
         match self {
             Self::ZhCn => "保存对话",
@@ -501,16 +504,6 @@ impl Locale {
             Self::EnUs => "Save conversation",
             Self::JaJp => "会話を保存",
             Self::KoKr => "대화 저장",
-        }
-    }
-
-    pub(crate) fn export_prompt_hint(self) -> &'static str {
-        match self {
-            Self::ZhCn => "输入文件名并按 Enter 确认，按 Esc 返回",
-            Self::ZhTw => "輸入檔名並按 Enter 確認，按 Esc 返回",
-            Self::EnUs => "Type a filename and press Enter to confirm, Esc to go back",
-            Self::JaJp => "ファイル名を入力して Enter で確定、Esc で戻る",
-            Self::KoKr => "파일 이름을 입력하고 Enter로 확인하거나 Esc로 돌아가기",
         }
     }
 
@@ -2110,67 +2103,119 @@ impl Locale {
         }
     }
 
-    /// Stable primary/escape controls shown below an approval request.
-    ///
-    /// Keep this deliberately short: the approval pane can be rendered in a 40-column
-    /// terminal, where a long explanatory footer would otherwise hide the only safe way out.
-    pub(crate) fn approval_controls(self) -> &'static str {
+    pub(crate) fn approval_confirm_hint(&self, key: &str) -> String {
+        format!(
+            "{} {}",
+            display_key_label(key),
+            self.approval_confirm_label()
+        )
+    }
+
+    fn approval_confirm_label(&self) -> &'static str {
         match self {
-            Self::ZhCn => "Enter 确认 · Esc 取消",
-            Self::ZhTw => "Enter 確認 · Esc 取消",
-            Self::EnUs => "Enter confirm · Esc cancel",
-            Self::JaJp => "Enter 確定 · Esc キャンセル",
-            Self::KoKr => "Enter 확인 · Esc 취소",
+            Self::ZhCn => "确认",
+            Self::ZhTw => "確認",
+            Self::EnUs => "confirm",
+            Self::JaJp => "確定",
+            Self::KoKr => "확인",
         }
     }
 
-    pub(crate) fn request_submit_hint(self) -> &'static str {
+    pub(crate) fn approval_cancel_hint(&self, key: &str) -> String {
+        format!(
+            "{} {}",
+            display_key_label(key),
+            self.approval_cancel_label()
+        )
+    }
+
+    fn approval_cancel_label(&self) -> &'static str {
         match self {
-            Self::ZhCn => "Enter 提交",
-            Self::ZhTw => "Enter 提交",
-            Self::EnUs => "Enter submit",
-            Self::JaJp => "Enter 送信",
-            Self::KoKr => "Enter 제출",
+            Self::ZhCn => "取消",
+            Self::ZhTw => "取消",
+            Self::EnUs => "cancel",
+            Self::JaJp => "キャンセル",
+            Self::KoKr => "취소",
         }
     }
 
-    pub(crate) fn request_cancel_hint(self) -> &'static str {
+    pub(crate) fn request_submit_hint(self, key: &str) -> String {
+        format!("{} {}", display_key_label(key), self.request_submit_label())
+    }
+
+    fn request_submit_label(self) -> &'static str {
         match self {
-            Self::ZhCn => "Esc 取消",
-            Self::ZhTw => "Esc 取消",
-            Self::EnUs => "Esc cancel",
-            Self::JaJp => "Esc キャンセル",
-            Self::KoKr => "Esc 취소",
+            Self::ZhCn => "提交",
+            Self::ZhTw => "提交",
+            Self::EnUs => "submit",
+            Self::JaJp => "送信",
+            Self::KoKr => "제출",
         }
     }
 
-    pub(crate) fn request_notes_hint(self) -> &'static str {
+    pub(crate) fn request_cancel_hint(self, key: &str) -> String {
+        format!("{} {}", display_key_label(key), self.request_cancel_label())
+    }
+
+    fn request_cancel_label(self) -> &'static str {
         match self {
-            Self::ZhCn => "Tab 备注",
-            Self::ZhTw => "Tab 備註",
-            Self::EnUs => "Tab notes",
-            Self::JaJp => "Tab メモ",
-            Self::KoKr => "Tab 메모",
+            Self::ZhCn => "取消",
+            Self::ZhTw => "取消",
+            Self::EnUs => "cancel",
+            Self::JaJp => "キャンセル",
+            Self::KoKr => "취소",
         }
     }
 
-    pub(crate) fn request_select_hint(self) -> &'static str {
+    pub(crate) fn request_notes_hint(self, key: &str) -> String {
+        format!("{} {}", display_key_label(key), self.request_notes_label())
+    }
+
+    fn request_notes_label(self) -> &'static str {
         match self {
-            Self::ZhCn => "↑/↓ 选择",
-            Self::ZhTw => "↑/↓ 選擇",
-            Self::EnUs => "↑/↓ select",
-            Self::JaJp => "↑/↓ 選択",
-            Self::KoKr => "↑/↓ 선택",
+            Self::ZhCn => "备注",
+            Self::ZhTw => "備註",
+            Self::EnUs => "notes",
+            Self::JaJp => "メモ",
+            Self::KoKr => "메모",
         }
     }
 
-    pub(crate) fn request_question_nav_hint(self) -> &'static str {
+    pub(crate) fn request_select_hint(self, up: &str, down: &str) -> String {
+        format!(
+            "{}/{} {}",
+            display_key_label(up),
+            display_key_label(down),
+            self.request_select_label()
+        )
+    }
+
+    fn request_select_label(self) -> &'static str {
         match self {
-            Self::ZhCn => "←/→ 切换问题",
-            Self::ZhTw => "←/→ 切換問題",
-            Self::EnUs => "←/→ questions",
-            Self::JaJp => "←/→ 質問",
-            Self::KoKr => "←/→ 질문",
+            Self::ZhCn => "选择",
+            Self::ZhTw => "選擇",
+            Self::EnUs => "select",
+            Self::JaJp => "選択",
+            Self::KoKr => "선택",
+        }
+    }
+
+    pub(crate) fn request_question_nav_hint(self, left: &str, right: &str) -> String {
+        format!(
+            "{}/{} {}",
+            display_key_label(left),
+            display_key_label(right),
+            self.request_question_nav_label()
+        )
+    }
+
+    fn request_question_nav_label(self) -> &'static str {
+        match self {
+            Self::ZhCn => "切换问题",
+            Self::ZhTw => "切換問題",
+            Self::EnUs => "questions",
+            Self::JaJp => "質問",
+            Self::KoKr => "질문",
         }
     }
 
@@ -2265,22 +2310,75 @@ impl Locale {
         }
     }
 
-    pub(crate) fn mcp_elicitation_controls(self, select: bool) -> String {
-        match (self, select) {
-            (Self::ZhCn, true) => "↑/↓ 选择  Enter 确认  Tab/←/→ 切换字段  Esc 取消".to_string(),
-            (Self::ZhCn, false) => "Enter 确认  Tab 切换字段  Esc 取消".to_string(),
-            (Self::ZhTw, true) => "↑/↓ 選擇  Enter 確認  Tab/←/→ 切換欄位  Esc 取消".to_string(),
-            (Self::ZhTw, false) => "Enter 確認  Tab 切換欄位  Esc 取消".to_string(),
-            (Self::EnUs, true) => {
-                "Up/Down select  Enter confirm  Tab/Left/Right switch field  Esc cancel".to_string()
-            }
-            (Self::EnUs, false) => "Enter confirm  Tab switch field  Esc cancel".to_string(),
-            (Self::JaJp, true) => {
-                "↑/↓ 選択  Enter 確定  Tab/←/→ フィールド切替  Esc キャンセル".to_string()
-            }
-            (Self::JaJp, false) => "Enter 確定  Tab フィールド切替  Esc キャンセル".to_string(),
-            (Self::KoKr, true) => "↑/↓ 선택  Enter 확인  Tab/←/→ 필드 전환  Esc 취소".to_string(),
-            (Self::KoKr, false) => "Enter 확인  Tab 필드 전환  Esc 취소".to_string(),
+    pub(crate) fn mcp_confirm_hint(self, key: &str) -> String {
+        format!("{} {}", display_key_label(key), self.mcp_confirm_label())
+    }
+
+    fn mcp_confirm_label(self) -> &'static str {
+        match self {
+            Self::ZhCn => "确认",
+            Self::ZhTw => "確認",
+            Self::EnUs => "confirm",
+            Self::JaJp => "確定",
+            Self::KoKr => "확인",
+        }
+    }
+
+    pub(crate) fn mcp_cancel_hint(self, key: &str) -> String {
+        format!("{} {}", display_key_label(key), self.mcp_cancel_label())
+    }
+
+    fn mcp_cancel_label(self) -> &'static str {
+        match self {
+            Self::ZhCn => "取消",
+            Self::ZhTw => "取消",
+            Self::EnUs => "cancel",
+            Self::JaJp => "キャンセル",
+            Self::KoKr => "취소",
+        }
+    }
+
+    pub(crate) fn mcp_select_hint(self, up: &str, down: &str) -> String {
+        format!(
+            "{}/{} {}",
+            display_key_label(up),
+            display_key_label(down),
+            self.mcp_select_label()
+        )
+    }
+
+    fn mcp_select_label(self) -> &'static str {
+        match self {
+            Self::ZhCn => "选择",
+            Self::ZhTw => "選擇",
+            Self::EnUs => "select",
+            Self::JaJp => "選択",
+            Self::KoKr => "선택",
+        }
+    }
+
+    pub(crate) fn mcp_field_hint(
+        self,
+        tab: &str,
+        left: Option<&str>,
+        right: Option<&str>,
+    ) -> String {
+        let keys = [Some(tab), left, right]
+            .into_iter()
+            .flatten()
+            .map(display_key_label)
+            .collect::<Vec<_>>()
+            .join("/");
+        format!("{keys} {}", self.mcp_field_label())
+    }
+
+    fn mcp_field_label(self) -> &'static str {
+        match self {
+            Self::ZhCn => "切换字段",
+            Self::ZhTw => "切換欄位",
+            Self::EnUs => "switch field",
+            Self::JaJp => "フィールド切替",
+            Self::KoKr => "필드 전환",
         }
     }
 
@@ -2463,23 +2561,23 @@ impl Locale {
         }
     }
 
-    pub(crate) fn resume_expand_hint(self) -> &'static str {
+    pub(crate) fn resume_expand_label(self) -> &'static str {
         match self {
-            Self::ZhCn => "Ctrl+E 展开记录",
-            Self::ZhTw => "Ctrl+E 展開記錄",
-            Self::EnUs => "Ctrl+E expand transcript",
-            Self::JaJp => "Ctrl+E 履歴を展開",
-            Self::KoKr => "Ctrl+E 대화 기록 펼치기",
+            Self::ZhCn => "展开记录",
+            Self::ZhTw => "展開記錄",
+            Self::EnUs => "expand transcript",
+            Self::JaJp => "履歴を展開",
+            Self::KoKr => "대화 기록 펼치기",
         }
     }
 
-    pub(crate) fn resume_transcript_hint(self) -> &'static str {
+    pub(crate) fn resume_transcript_label(self) -> &'static str {
         match self {
-            Self::ZhCn => "Ctrl+T 查看完整记录",
-            Self::ZhTw => "Ctrl+T 檢視完整記錄",
-            Self::EnUs => "Ctrl+T view full transcript",
-            Self::JaJp => "Ctrl+T 完全な履歴を表示",
-            Self::KoKr => "Ctrl+T 전체 대화 기록 보기",
+            Self::ZhCn => "查看完整记录",
+            Self::ZhTw => "檢視完整記錄",
+            Self::EnUs => "view full transcript",
+            Self::JaJp => "完全な履歴を表示",
+            Self::KoKr => "전체 대화 기록 보기",
         }
     }
 
@@ -3056,9 +3154,7 @@ mod tests {
                 locale.export_copy_description(),
                 locale.export_file_label(),
                 locale.export_file_description(),
-                locale.export_picker_hint(),
                 locale.export_prompt_title(),
-                locale.export_prompt_hint(),
             ] {
                 assert!(!label.is_empty(), "missing export label for {locale:?}");
             }
@@ -3098,12 +3194,13 @@ mod tests {
             Locale::JaJp,
             Locale::KoKr,
         ] {
-            assert!(!locale.approval_controls().is_empty());
-            assert!(!locale.request_submit_hint().is_empty());
-            assert!(!locale.request_cancel_hint().is_empty());
-            assert!(!locale.request_notes_hint().is_empty());
-            assert!(!locale.request_select_hint().is_empty());
-            assert!(!locale.request_question_nav_hint().is_empty());
+            assert!(!locale.approval_confirm_hint("enter").is_empty());
+            assert!(!locale.approval_cancel_hint("esc").is_empty());
+            assert!(!locale.request_submit_hint("enter").is_empty());
+            assert!(!locale.request_cancel_hint("esc").is_empty());
+            assert!(!locale.request_notes_hint("tab").is_empty());
+            assert!(!locale.request_select_hint("↑", "↓").is_empty());
+            assert!(!locale.request_question_nav_hint("←", "→").is_empty());
         }
     }
 
@@ -3386,10 +3483,13 @@ mod tests {
         ] {
             assert!(!locale.resume_picker_title(false).is_empty());
             assert!(!locale.resume_picker_title(true).is_empty());
-            assert!(!locale.resume_enter_hint("enter", false, false).is_empty());
-            assert!(!locale.resume_enter_hint("enter", true, false).is_empty());
-            assert!(!locale.resume_enter_hint("enter", false, true).is_empty());
-            assert!(!locale.resume_controls_hint("←/→").is_empty());
+            assert!(!locale.resume_action_label(false, false).is_empty());
+            assert!(!locale.resume_action_label(true, false).is_empty());
+            assert!(!locale.resume_action_label(false, true).is_empty());
+            assert!(!locale.resume_cancel_label(false).is_empty());
+            assert!(!locale.resume_cancel_label(true).is_empty());
+            assert!(!locale.resume_focus_label().is_empty());
+            assert!(!locale.resume_change_label().is_empty());
             assert!(!locale.resume_search_placeholder().is_empty());
             assert!(!locale.resume_loading().is_empty());
             assert!(!locale.resume_status_label(false).is_empty());
@@ -3400,8 +3500,8 @@ mod tests {
             assert!(!locale.resume_sort_label(true).is_empty());
             assert!(!locale.resume_density_label(false).is_empty());
             assert!(!locale.resume_density_label(true).is_empty());
-            assert!(!locale.resume_expand_hint().is_empty());
-            assert!(!locale.resume_transcript_hint().is_empty());
+            assert!(!locale.resume_expand_label().is_empty());
+            assert!(!locale.resume_transcript_label().is_empty());
             assert!(!locale.created_label().is_empty());
             assert!(!locale.updated_label().is_empty());
             assert!(!locale.resume_transcript_loading().is_empty());

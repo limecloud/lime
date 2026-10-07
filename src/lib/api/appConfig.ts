@@ -64,6 +64,7 @@ export type {
   ToolExecutionRestrictionProfileConfig,
   ToolExecutionSandboxProfileConfig,
   ToolExecutionWarningPolicyConfig,
+  TuiConfig,
   UserProfile,
   WorkspacePreferencesConfig,
   WorkspaceSandboxConfig,

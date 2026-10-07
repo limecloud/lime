@@ -3,6 +3,7 @@
 use super::*;
 
 pub(super) fn exercise_open_cancel_and_current_root(
+    master: &dyn portable_pty::MasterPty,
     writer: &mut impl Write,
     output_rx: &mpsc::Receiver<Vec<u8>>,
     output: &mut String,
@@ -32,6 +33,44 @@ pub(super) fn exercise_open_cancel_and_current_root(
                     && screen.contains("f9 select · ctrl+x q back")
             },
         );
+        if cancel {
+            master
+                .resize(PtySize {
+                    rows: 24,
+                    cols: 16,
+                    pixel_width: 0,
+                    pixel_height: 0,
+                })
+                .expect("shrink subagents footer viewport");
+            wait_for_screen(
+                output_rx,
+                output,
+                "narrow subagents footer selects a whole cancel chord instead of merging actions",
+                |screen| {
+                    screen.contains("Subagents")
+                        && screen
+                            .lines()
+                            .last()
+                            .is_some_and(|line| line.trim() == "ctrl+x q")
+                },
+            );
+            master
+                .resize(PtySize {
+                    rows: 24,
+                    cols: 100,
+                    pixel_width: 0,
+                    pixel_height: 0,
+                })
+                .expect("restore subagents footer viewport");
+            wait_for_screen(
+                output_rx,
+                output,
+                "subagents footer expands after resize without changing the canonical root",
+                |screen| {
+                    screen.contains("f9 select · ctrl+x q back") && screen.contains(&thread_id)
+                },
+            );
+        }
         writer
             .write_all(b"\x04\x15")
             .expect("configured subagents page keys");

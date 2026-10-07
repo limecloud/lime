@@ -152,7 +152,7 @@ fn export_picker_matches_codex_destination_and_filename_flow() {
         .chat_widget
         .export_picker
         .as_ref()
-        .is_some_and(crate::app::transcript_export::ExportPicker::is_filename_prompt));
+        .is_some_and(crate::chatwidget::transcript_export::ExportPicker::is_filename_prompt));
 
     terminal
         .draw(|frame| render(frame, &app))

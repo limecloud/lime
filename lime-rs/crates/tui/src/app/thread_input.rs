@@ -27,6 +27,8 @@ impl App {
     }
 
     pub(super) fn clear_connection_interactions(&mut self) {
+        self.chat_widget.status_line_setup = None;
+        self.chat_widget.terminal_title_setup = None;
         self.chat_widget.clear_thread_interactions();
         self.thread_event_channels.clear();
     }

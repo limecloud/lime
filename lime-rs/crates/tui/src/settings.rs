@@ -51,7 +51,9 @@ pub(crate) fn parse_settings_command(prompt: &str) -> Option<Result<SettingsComm
         | SlashCommand::Mcp
         | SlashCommand::Raw
         | SlashCommand::Vim
-        | SlashCommand::Pwd => None,
+        | SlashCommand::Pwd
+        | SlashCommand::Statusline
+        | SlashCommand::Title => None,
     }
 }
 

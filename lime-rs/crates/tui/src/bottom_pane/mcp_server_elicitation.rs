@@ -19,6 +19,7 @@ use serde_json::{Map, Value};
 
 use super::{AppServerResponse, TextArea, TextAreaState};
 use crate::bottom_pane::selection_row_layout::{visible_item_window, MAX_POPUP_ROWS};
+use crate::keymap::{KeyChordMatcher, KeymapMatch, ListAction, ListKeymap};
 use crate::line_truncation::truncate_line_with_ellipsis_if_overflow;
 use crate::locale::Locale;
 use crate::style::{accent_style, muted_style};
@@ -106,6 +107,8 @@ pub(super) struct McpServerElicitationOverlay {
     current_field: usize,
     text_area: TextArea,
     text_area_state: TextAreaState,
+    list_keymap: ListKeymap,
+    list_key_chord_matcher: KeyChordMatcher,
     validation_error: bool,
     done: bool,
 }
@@ -174,6 +177,8 @@ impl McpServerElicitationOverlay {
             current_field: 0,
             text_area: TextArea::default(),
             text_area_state: TextAreaState::default(),
+            list_keymap: ListKeymap::default(),
+            list_key_chord_matcher: KeyChordMatcher::default(),
             validation_error: false,
             done: false,
         };
@@ -187,6 +192,8 @@ impl McpServerElicitationOverlay {
 
     pub(super) fn set_keymap_bindings(&mut self, keymap: &crate::keymap::RuntimeKeymap) {
         self.text_area.set_keymap_bindings(keymap);
+        self.list_keymap = keymap.list().clone();
+        self.list_key_chord_matcher.reset();
     }
 
     pub(super) fn handle_key_event(&mut self, key: KeyEvent) -> Option<AppServerResponse> {
@@ -196,9 +203,6 @@ impl McpServerElicitationOverlay {
         if self.is_text_field() && self.text_area.editor_key_chord_pending() {
             self.handle_text_key(key);
             return None;
-        }
-        if key.code == KeyCode::Esc {
-            return Some(self.cancel_response());
         }
         if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') {
             // Ctrl-C clears an in-progress text draft before it cancels the elicitation, matching
@@ -211,9 +215,11 @@ impl McpServerElicitationOverlay {
             }
             return Some(self.cancel_response());
         }
-
         if self.is_select_field() {
             return self.handle_select_key(key);
+        }
+        if key.code == KeyCode::Esc {
+            return Some(self.cancel_response());
         }
 
         if self.handle_field_navigation(key) {
@@ -244,29 +250,51 @@ impl McpServerElicitationOverlay {
     }
 
     fn handle_select_key(&mut self, key: KeyEvent) -> Option<AppServerResponse> {
-        if self.handle_field_navigation(key) {
-            return None;
-        }
         let options_len = self.current_options().len();
+        match self
+            .list_keymap
+            .dispatch(&mut self.list_key_chord_matcher, key, false)
+        {
+            KeymapMatch::Completed(ListAction::MoveUp) => {
+                self.move_select_option(options_len, false);
+                return None;
+            }
+            KeymapMatch::Completed(ListAction::MoveDown) => {
+                self.move_select_option(options_len, true);
+                return None;
+            }
+            KeymapMatch::Completed(ListAction::Accept) => {
+                self.commit_current_field();
+                return self.advance_or_submit();
+            }
+            KeymapMatch::Completed(ListAction::Cancel) => {
+                return Some(self.cancel_response());
+            }
+            KeymapMatch::Pending | KeymapMatch::Cancelled => return None,
+            KeymapMatch::Completed(ListAction::MoveLeft) => {
+                self.move_field(false);
+                return None;
+            }
+            KeymapMatch::Completed(ListAction::MoveRight) => {
+                self.move_field(true);
+                return None;
+            }
+            KeymapMatch::Completed(ListAction::PageUp) => {
+                self.move_field(false);
+                return None;
+            }
+            KeymapMatch::Completed(ListAction::PageDown) => {
+                self.move_field(true);
+                return None;
+            }
+            KeymapMatch::Completed(ListAction::JumpTop | ListAction::JumpBottom) => {}
+            KeymapMatch::PassThrough => {
+                if self.handle_field_navigation(key) {
+                    return None;
+                }
+            }
+        }
         match key.code {
-            KeyCode::Up | KeyCode::Char('k') => {
-                if let Some((selected, committed)) = self.current_select_state_mut() {
-                    *selected = Some(match *selected {
-                        Some(0) | None => options_len.saturating_sub(1),
-                        Some(index) => index.saturating_sub(1),
-                    });
-                    *committed = false;
-                }
-            }
-            KeyCode::Down | KeyCode::Char('j') => {
-                if let Some((selected, committed)) = self.current_select_state_mut() {
-                    *selected = Some(match *selected {
-                        Some(index) => (index + 1) % options_len,
-                        None => 0,
-                    });
-                    *committed = false;
-                }
-            }
             KeyCode::Backspace | KeyCode::Delete => {
                 if let Some((selected, committed)) = self.current_select_state_mut() {
                     *selected = None;
@@ -274,10 +302,6 @@ impl McpServerElicitationOverlay {
                 }
             }
             KeyCode::Char(' ') => self.commit_current_field(),
-            KeyCode::Enter if key.modifiers.is_empty() => {
-                self.commit_current_field();
-                return self.advance_or_submit();
-            }
             KeyCode::Char(ch) => {
                 let digit = ch.to_digit(10)?;
                 if digit == 0 {
@@ -297,7 +321,31 @@ impl McpServerElicitationOverlay {
         None
     }
 
+    fn move_select_option(&mut self, options_len: usize, next: bool) {
+        if options_len == 0 {
+            return;
+        }
+        if let Some((selected, committed)) = self.current_select_state_mut() {
+            *selected = Some(match (next, *selected) {
+                (false, Some(0) | None) => options_len.saturating_sub(1),
+                (false, Some(index)) => index.saturating_sub(1),
+                (true, Some(index)) => (index + 1) % options_len,
+                (true, None) => 0,
+            });
+            *committed = false;
+        }
+    }
+
     fn handle_field_navigation(&mut self, key: KeyEvent) -> bool {
+        if self.is_select_field() {
+            let previous = key.code == KeyCode::BackTab;
+            let next = key.code == KeyCode::Tab;
+            if previous || next {
+                self.move_field(next);
+                return true;
+            }
+            return false;
+        }
         let previous = matches!(key.code, KeyCode::BackTab | KeyCode::PageUp)
             || key.code == KeyCode::Char('p') && key.modifiers == KeyModifiers::CONTROL;
         let next = matches!(key.code, KeyCode::Tab | KeyCode::PageDown)
@@ -323,6 +371,7 @@ impl McpServerElicitationOverlay {
         if self.fields.len() < 2 {
             return;
         }
+        self.list_key_chord_matcher.reset();
         self.save_text_draft();
         let offset = if next { 1 } else { self.fields.len() - 1 };
         self.current_field = (self.current_field + offset) % self.fields.len();

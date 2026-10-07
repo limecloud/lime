@@ -57,6 +57,89 @@ TUI 的终端输入与绘制调度 owner 对齐 Codex `tui`：`tui::EventBroker`
 
 终端历史回放继续以 Codex `insert_history` 为唯一算法基线：`tui::insert_history` 负责 scroll region、full-screen raw replay、软换行、OSC 8 和 viewport 上方 history rows；`HistoryTerminal` 只抽象终端写入与 viewport bookkeeping，具体宿主仍是 `tui::Tui`，测试宿主使用真实 `vt100::Parser`。`ViewportState` 只记录几何、cursor anchor、alternate-screen round trip 和 visible history rows，不复制 Thread/Turn/Item 或 history DB。任何需要恢复 transcript 的能力必须从 App Server canonical projection 生成 `Line`，再进入该 owner；不得在 TUI 另建 Codex `custom_terminal` 或持久化滚动缓冲。
 
+光标形态也只归 current terminal presentation/host：`TextArea::uses_vim_insert_cursor` 是
+唯一 mode 判定，ChatComposer 与 CustomPromptView 将 Insert lowering 为 SteadyBar，Normal/
+Replace 为 DefaultUserShape。`view::cursor_style` 选择当前可见 input owner，BottomPane 的
+active notes 使用自身 composer，picker/pager/approval 不读取隐藏主 editor 的形状。
+`Tui::draw` 统一绘制并向同一 backend 发送 SetCursorStyle；runtime 的常规/断线重绘和
+Resume 独立 host 都直接消费它，不绕过为 `terminal_mut().draw`。Ratatui Frame 无 Codex
+custom Frame 的 style 字段，因此只在当前 Tui host 注入 presentation 参数，不复制终端库。
+普通退出、panic、失败初始化与 external editor handoff 均恢复 DefaultUserShape。
+
+终端标题由 `app/terminal_title` 读取同一 `status_surface_data`、canonical active turn
+clock 与 BottomPane request queue。activity/thread-name/cwd basename fallback 只是展示投影，
+spinner/blink 复用既有 active-turn redraw，不增加定时器、业务状态机或存储。
+`terminal_title::ManagedTerminalTitle` 只持有最后成功写入的 sanitised OSC 0 title，去掉
+control/不可见格式字符、折叠空白、限制 240 字符并去重。`Tui::draw` 注入该 optional
+presentation，host 负责写入与 normal restore/external editor handoff 清理；panic hook
+只保留 managed ownership flag。没有写过标题时不清 shell 标题，清理后下次 frame 可重新
+写入同一值，失败不确认 cache；不尝试查询/恢复不可移植的 previous title。
+
+```text
+canonical status facts + current turn clock + pending request queue
+  -> App terminal-title projection -> Tui::draw -> ManagedTerminalTitle -> OSC 0
+  -> normal restore / panic / external editor handoff -> clear managed title
+```
+
+架构确认：root，2026-10-06；确认 terminal presentation/host owner、依赖方向与生命周期，
+GUI/TUI 共享业务后端不变。`/title` 的临时 selection 由 TerminalTitleSetupView 持有，
+`title_setup::title_text_for_items` 同时渲染真实 OSC 与 popup preview；取消/断线/hydrate
+移除临时选择，自然恢复共享 saved preferences，不复制原配置或 canonical 业务状态。
+
+```text
+TextArea Vim mode -> ChatComposer / CustomPromptView.cursor_style
+  -> focused BottomPane / view::cursor_style -> Tui::draw -> current terminal backend
+  -> restore / panic / failed enter / external editor -> DefaultUserShape
+```
+
+架构确认：root，2026-10-06；仅 terminal presentation 与 host 合同收敛，共享业务边界不变。
+
+状态栏偏好由共享 `core::TuiConfig` 唯一持久化。`app_server_session/config` 经现有
+`config/read(includeLayers=true)` 获取用户层与版本，`LocalSettings` 分离 immutable keymap
+和可更新的 presentation preferences；`/statusline` 消费 Codex 同名 `StatusLineSetupView`、
+`MultiSelectPicker` 与 current `ListSelectionView`。搜索/勾选/排序均为 TUI 临时输入状态，
+确认返回 AppAction，`app/status_line` 与 `app/terminal_title` 委托唯一
+`app/status_controls::write_tui_preferences`，经既有 `config/batchWrite` 带 expectedVersion
+写入各自字段。状态栏两项原子写入，标题写 terminal_title；成功才更新 ChatWidget 投影，
+取消零写入，冲突不自动重试。MultiSelectPicker 唯一拥有两种 setup 的 checkbox、控制提示、
+preview 布局与 viewport/page rows；旧 status setup 独立布局已直接迁移删除。
+不新增 method、Electron IPC、私有配置文件、数据库或 GUI/runtime backend。
+
+`status_surface_preview::StatusSurfacePreviewData` 同时渲染配置预览和 passive FooterProps。
+model/effort/permissions 来自 canonical settings，cwd 来自 server cwd，thread-name 来自相同
+Thread 的 hydrate/name notification，raw-output 来自 current render mode；未知/缺失项直接省略。
+线程名称按 Thread ID 保存为只读投影，不猜测 transcript 摘要。主动交互、history/Vim/transcript
+search 与 queue hint 优先；状态栏不并入 Busy indicator，也不生成 runtime 业务事件。
+
+```text
+shared core TuiConfig / config.yaml
+  <-> existing App Server config/read|config/batchWrite <-> app_server_session/config
+  -> LocalSettings -> ChatWidget preferences -> StatusLineSetupView / TerminalTitleSetupView
+  -> shared MultiSelectPicker -> AppAction -> App status_controls writer -> acknowledged preferences
+canonical settings / cwd / Thread metadata -> StatusSurfacePreviewData
+  -> status preview + passive FooterProps / title preview + managed OSC -> current terminal host
+```
+
+架构确认：root，2026-10-06；确认配置 owner、版本并发合同、临时选择状态与 canonical facts
+依赖方向及共享 multi-select 布局/写入 owner。GUI/TUI 共用原配置控制面，无平行业务后端；
+真实 PTY 与定向验证记录在执行计划第五十六阶段。
+
+`projection/plans` 唯一消费 typed `TurnPlanUpdated` 更新计划 transcript 和 completed/total。
+`last_plan_progress` 是 current Thread 的只读展示快照，经 Thread ID 检查后进入同一
+StatusSurfacePreviewData，status/title 的 `task-progress` 复用五语言 formatter。空 checklist
+清除计数，closed turn 迟到通知拒绝，foreign Thread 使用原 event buffer/replay。hydrate
+清空计数，text-only ThreadItem::Plan 不解析为 structured checklist；不建第二计划存储或
+runtime 状态机。projection root 只保留 field/reset/dispatch，计划文本/marker 实现已迁出。
+
+```text
+App Server TurnPlanUpdated -> current Thread event routing / foreign buffer + replay
+  -> projection/plans -> plan transcript + typed completed/total
+  -> StatusSurfacePreviewData -> shared locale formatter -> footer/title/setup preview
+```
+
+架构确认：root，2026-10-07；计划投影与 status facts 依赖方向保持 App Server 主链，
+无 protocol/runtime/persistence/GUI backend 改动。历史 typed checklist 缺失时显式省略进度。
+
 TUI 的唯一输入 surface owner 为 Codex 对齐的 `ChatWidget`；其嵌入式 `bottom_pane` 持有私有主
 `ChatComposer` 与交互 views。App 只负责 host/global navigation、Thread/transport action 与
 canonical transcript。领域 API
@@ -261,10 +344,34 @@ provider、runtime loop、ThreadStore 或第二份 transcript/read model；未�
 `app-server-client` transport 边界接入同一 canonical projection。
 
 `app/history_ui.rs` 是主 transcript、Ctrl+T pager 和 resume transcript 的统一投影入口；
-`app/transcript_export.rs` 是 `/export` 的 current owner，导出只消费当前
+`chatwidget/transcript_export.rs` 是 `/export` destination/filename 的唯一 terminal surface owner：
+`ChatWidget::show_transcript_export_popup` 注入启动 RuntimeKeymap，destination 复用 current
+`ListSelectionView` 的排布、实际 viewport 与 ListKeymap；filename 直接消费 Codex 同名
+`bottom_pane/custom_prompt_view.rs` 与 `custom_prompt_view/picker.rs`。CustomPromptView 是
+terminal text prompt 的唯一输入和显示 owner，复用 TextArea editor/Vim snapshot、PasteBurst
+防误提交与 stateful scroll；pending editor chord/Vim operator/search 先于 prompt Enter/Esc。
+picker 的 wrapped header、1..8 行输入高度、render/cursor rectangle 与完整 footer hints
+同源。ChatWidget 持有 export destination/submit/back；prompt 只返回 action，不持有文件写入、
+canonical projection 或平行 callback/event 后端。两种 view 替换 bottom input 区域，
+保留同一 canonical transcript，不另建居中 fullscreen picker 或独立 row/footer 算法。
+
+```text
+ChatWidget.export_picker
+  -> destination: bottom_pane/ListSelectionView + RuntimeKeymap.list
+  -> filename: bottom_pane/CustomPromptView
+                 -> TextArea(editor/Vim + viewport state) + PasteBurst
+                 -> custom_prompt_view/picker(header/input/footer/cursor)
+  -> ExportPickerEvent -> AppAction::ExportTranscript
+       -> app/transcript_export <- canonical ConversationProjection
+```
+
+`app/transcript_export.rs` 只负责 Markdown/file 导出，消费当前
 `ConversationProjection` 的 canonical entries，支持剪贴板复制和显式路径写入，并通过
 noclobber 保护拒绝覆盖已有文件。该 owner 不读取本地 rollout/history DB，也不在导出边界
 重新拼装 Thread/Turn/Item。
+架构图确认：root，2026-10-06；界面 owner 直接迁移，旧 App picker/render、固定提示与
+专用 filename renderer 删除；
+GUI/TUI 的 App Server、runtime、protocol 与持久化边界不变。
 
 `app/history_pagination.rs` 是 TUI 历史分页状态机 owner。它只保存 App Server 返回的
 opaque `thread/items/list` cursor、loading 状态和去重集合；PageUp 触发的 older-history

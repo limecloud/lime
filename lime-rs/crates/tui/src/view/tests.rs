@@ -54,6 +54,7 @@ fn buffer_text(terminal: &Terminal<TestBackend>) -> String {
 }
 
 mod composer;
+mod cursor;
 mod interaction;
 mod navigation;
 mod presentation;

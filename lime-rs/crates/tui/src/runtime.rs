@@ -156,7 +156,9 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
         .bottom_pane
         .set_app_event_tx(app_event_tx.clone());
     let mut message_history = crate::app::message_history::MessageHistory::default();
-    app.set_right_click_paste(local_settings.right_click_paste);
+    app.set_right_click_paste(local_settings.tui.right_click_paste);
+    app.chat_widget.tui_config = local_settings.tui;
+    app.chat_widget.config_version = local_settings.config_version;
     app.set_runtime_keymap(local_settings.keymap);
     app.set_cwd(options.cwd.clone());
     app.set_locale(Locale::resolve(options.locale.as_deref()));
@@ -268,8 +270,11 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
                 }
             }
             terminal
-                .terminal_mut()
-                .draw(|frame| view::render(frame, &app))
+                .draw(
+                    view::cursor_style(&app),
+                    app.terminal_title_text(std::time::Instant::now()).as_deref(),
+                    |frame| view::render(frame, &app),
+                )
                 .context("failed to render terminal")?;
 
             if app.chat_widget.external_editor_state() == ExternalEditorState::Requested {
@@ -1083,6 +1088,8 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
                         | AppAction::NextPermissions
                         | AppAction::Respond(_)
                         | AppAction::SelectModel(_)
+                        | AppAction::StatusLineSetup { .. }
+                        | AppAction::TerminalTitleSetup { .. }
                         | AppAction::ChangeCollaborationMode(_)
                         | AppAction::RefreshAgentsOverview
                         | AppAction::LoadMoreAgentsOverview
@@ -1126,8 +1133,11 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
                                 .thread_id()?
                             .to_string();
                             terminal
-                                .terminal_mut()
-                                .draw(|frame| view::render(frame, &app))
+                                .draw(
+                                    view::cursor_style(&app),
+                                    app.terminal_title_text(std::time::Instant::now()).as_deref(),
+                                    |frame| view::render(frame, &app),
+                                )
                                 .context("failed to render reconnecting state")?;
                             let old_session = session
                                 .take()
@@ -1249,6 +1259,8 @@ fn history_top_up_needed(terminal: &mut Tui, app: &App) -> Result<bool> {
     if app.chat_widget.resume_picker.is_some()
         || app.chat_widget.pager_overlay.is_some()
         || app.chat_widget.export_picker.is_some()
+        || app.chat_widget.status_line_setup.is_some()
+        || app.chat_widget.terminal_title_setup.is_some()
         || app.chat_widget.model_picker.is_some()
         || app.chat_widget.agent_picker.is_some()
         || app.chat_widget.agents_overview.is_some()

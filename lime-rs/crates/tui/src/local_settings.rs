@@ -4,7 +4,7 @@
 //! resolved runtime keymap remains immutable for the lifetime of one TUI process.
 
 use anyhow::{Context, Result};
-use lime_core::config::{RightClickPaste, TuiConfig};
+use lime_core::config::TuiConfig;
 use serde_json::Value;
 
 use crate::app_server_session::AppServerSession;
@@ -13,13 +13,20 @@ use crate::keymap::RuntimeKeymap;
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub(crate) struct LocalSettings {
     pub(crate) keymap: RuntimeKeymap,
-    pub(crate) right_click_paste: RightClickPaste,
+    pub(crate) tui: TuiConfig,
+    pub(crate) config_version: Option<String>,
 }
 
 impl LocalSettings {
     pub(crate) async fn read(session: &AppServerSession) -> Result<Self> {
         let response = session.read_config().await?;
-        Self::from_config_value(&response.config)
+        let mut settings = Self::from_config_value(&response.config)?;
+        settings.config_version = response
+            .layers
+            .as_ref()
+            .and_then(|layers| layers.first())
+            .map(|layer| layer.version.clone());
+        Ok(settings)
     }
 
     fn from_config_value(config: &Value) -> Result<Self> {
@@ -34,7 +41,8 @@ impl LocalSettings {
             .context("invalid TUI keymap")?;
         Ok(Self {
             keymap,
-            right_click_paste: tui.right_click_paste,
+            tui,
+            config_version: None,
         })
     }
 }
@@ -44,6 +52,7 @@ mod tests {
     use super::*;
     use crate::keymap::{GlobalKeymapAction, KeyChordMatcher, KeymapMatch};
     use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+    use lime_core::config::RightClickPaste;
     use serde_json::json;
 
     #[test]
@@ -56,7 +65,7 @@ mod tests {
             }
         }))
         .expect("valid local settings");
-        assert_eq!(settings.right_click_paste, RightClickPaste::Auto);
+        assert_eq!(settings.tui.right_click_paste, RightClickPaste::Auto);
         let mut matcher = KeyChordMatcher::default();
         assert_eq!(
             settings.keymap.transcript().dispatch_global(
@@ -96,7 +105,28 @@ mod tests {
             "tui": {"right_click_paste": "off"}
         }))
         .expect("valid local settings");
-        assert_eq!(settings.right_click_paste, RightClickPaste::Off);
+        assert_eq!(settings.tui.right_click_paste, RightClickPaste::Off);
+    }
+
+    #[test]
+    fn config_read_value_preserves_order_empty_and_colors_without_a_private_default() {
+        for ids in [json!([]), json!(["current-dir", "model"])] {
+            let settings = LocalSettings::from_config_value(
+                &json!({"tui": {"status_line": ids, "status_line_use_colors": false, "terminal_title": ids}}),
+            )
+            .unwrap();
+            assert_eq!(
+                serde_json::to_value(&settings.tui).unwrap()["status_line"],
+                ids
+            );
+            assert_eq!(
+                serde_json::to_value(&settings.tui).unwrap()["terminal_title"],
+                ids
+            );
+            assert!(!settings.tui.status_line_use_colors);
+        }
+        let settings = LocalSettings::from_config_value(&json!({})).unwrap();
+        assert_eq!(settings.tui, TuiConfig::default());
     }
 
     #[test]

@@ -276,6 +276,8 @@ fn fullscreen_notice_does_not_overpaint_the_configured_controls_or_editor() {
         json!({"list":{"accept":"f9", "cancel":"ctrl-x q"}}),
     ));
     app.open_agents_overview();
+    app.chat_widget.agents_overview.as_mut().unwrap().view.rows =
+        vec![row("task-00", AgentsOverviewGroup::Ready, false)];
     app.projection.set_status("agents overview refreshed");
     let mut terminal = ratatui::Terminal::new(ratatui::backend::TestBackend::new(100, 16)).unwrap();
     terminal
@@ -357,4 +359,97 @@ fn footer_yields_to_task_keys_and_restores_cancel_while_editing() {
         .any(|(key, action)| key == "esc" && action == "back"));
     assert_eq!(press(&mut view, KeyCode::Esc), AgentsOverviewAction::None);
     assert_eq!(view.input_mode(), None);
+}
+
+#[test]
+fn unbound_primary_footer_still_advertises_reachable_secondary_keys() {
+    for locale in [
+        Locale::ZhCn,
+        Locale::ZhTw,
+        Locale::EnUs,
+        Locale::JaJp,
+        Locale::KoKr,
+    ] {
+        let mut center = view(json!({"list":{"accept":[], "cancel":[]}}));
+        let (text, _) = screen(&center, 5, 16, locale);
+        let footer = text.lines().last().unwrap().trim();
+        assert_eq!(footer, "?", "{locale:?}: {text}");
+        press(&mut center, KeyCode::Char('?'));
+        assert!(center.help);
+        press(&mut center, KeyCode::Char('?'));
+        assert!(!center.help);
+
+        let mut center =
+            view(json!({"list":{"accept":[], "cancel":[]}, "agents":{"new_task":"?"}}));
+        let (text, _) = screen(&center, 5, 16, locale);
+        assert_eq!(
+            text.lines().last().unwrap().trim(),
+            "?",
+            "{locale:?}: {text}"
+        );
+        press(&mut center, KeyCode::Char('?'));
+        assert_eq!(center.input_mode(), Some(AgentsOverviewInputMode::NewTask));
+    }
+}
+
+#[test]
+fn empty_center_hides_unavailable_open_but_keeps_input_and_pagination_actions() {
+    for locale in [
+        Locale::ZhCn,
+        Locale::ZhTw,
+        Locale::EnUs,
+        Locale::JaJp,
+        Locale::KoKr,
+    ] {
+        let keymap = configured(json!({"list":{"accept":"f9", "cancel":"f8"}}));
+        let mut center = AgentsOverviewView::new_with_keymap(
+            Vec::new(),
+            None,
+            keymap.agents().clone(),
+            keymap.list().clone(),
+        );
+        for width in 1..70 {
+            let footer = center.center_footer_line(locale, width).to_string();
+            assert!(!footer.contains("f9"), "empty {locale:?}/{width}: {footer}");
+        }
+        assert_eq!(
+            press(&mut center, KeyCode::F(9)),
+            AgentsOverviewAction::None
+        );
+        assert!(!center
+            .center_footer_hints(locale)
+            .iter()
+            .any(|(_, label)| label == locale.agent_center_label("move")));
+        press(&mut center, KeyCode::Char('n'));
+        assert!(center
+            .center_footer_line(locale, 100)
+            .to_string()
+            .contains("f9"));
+        press(&mut center, KeyCode::Char('a'));
+        assert!(
+            matches!(press(&mut center, KeyCode::F(9)), AgentsOverviewAction::Dispatch { prompt, .. } if prompt == "a")
+        );
+        center.set_pagination(true, false, false);
+        assert!(center
+            .center_footer_line(locale, 100)
+            .to_string()
+            .contains("f9"));
+        assert!(center
+            .center_footer_hints(locale)
+            .iter()
+            .any(|(key, label)| key == "f9" && label == locale.agent_center_label("Show more")));
+        assert_eq!(
+            press(&mut center, KeyCode::F(9)),
+            AgentsOverviewAction::LoadMore
+        );
+        center.set_pagination(true, true, false);
+        assert!(!center
+            .center_footer_line(locale, 100)
+            .to_string()
+            .contains("f9"));
+        assert_eq!(
+            press(&mut center, KeyCode::F(9)),
+            AgentsOverviewAction::None
+        );
+    }
 }

@@ -224,6 +224,7 @@ impl App {
             }
         }
         let previous_turn_id = self.projection.active_turn_id().map(str::to_owned);
+        self.observe_status_thread_metadata(&notification);
         self.projection.apply(notification);
         let active_turn_id = self.projection.active_turn_id();
         self.chat_widget.turn_lifecycle.sync_projection_turn(

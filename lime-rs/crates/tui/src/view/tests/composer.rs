@@ -34,7 +34,7 @@ fn test_backend_renders_streaming_unicode_and_composer() {
         .filter(|character| !character.is_whitespace())
         .collect::<String>();
     assert!(!compact.contains("model:fixture-model"));
-    assert!(!compact.contains("high"));
+    assert!(compact.contains("fixture-modelhigh"));
 }
 
 #[test]

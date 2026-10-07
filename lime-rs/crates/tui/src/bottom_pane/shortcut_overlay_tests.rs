@@ -189,8 +189,37 @@ fn send_and_queue_labels_follow_canonical_active_turn() {
 }
 
 #[test]
+fn close_hint_always_selects_a_complete_executable_variant() {
+    for locale in [
+        Locale::ZhCn,
+        Locale::ZhTw,
+        Locale::EnUs,
+        Locale::JaJp,
+        Locale::KoKr,
+    ] {
+        for toggle_available in [false, true] {
+            for width in 0..80 {
+                let hint = close_hint_text(locale, toggle_available, width);
+                assert!(
+                    crate::width::display_width(&hint) <= width,
+                    "{locale:?}/{toggle_available}/{width}: {hint}"
+                );
+                assert!(!hint.contains('…'), "{hint}");
+                if !hint.is_empty() {
+                    assert!(
+                        hint.contains("esc"),
+                        "closing shortcut must remain complete: {hint}"
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[test]
 fn a_global_question_mark_binding_owns_routing_and_footer_hint() {
     let mut app = App::default();
+    app.chat_widget.tui_config.status_line = Some(vec![]);
     let mut config = TuiKeymap::default();
     config.global.open_agents = Some(KeybindingsSpec::One(KeybindingSpec("?".into())));
     app.set_runtime_keymap(RuntimeKeymap::from_config(&config).unwrap());
