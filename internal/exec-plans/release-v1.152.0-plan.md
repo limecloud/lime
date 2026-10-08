@@ -1,6 +1,6 @@
 # Lime v1.152.0 发布执行计划
 
-状态：源码发布完成；整体退出条件 7/8（约88%），发布流水线运行中
+状态：源码、桌面、R2与npm发布流程完成；整体退出条件7/8（约88%），macOS x64 npm公开分发待npm处理
 日期：2026-10-08
 基线：`v1.151.0` / `91be2dbd3c5a672b1a53a7b044662c89735b1d53`
 起点：`main` / `9acfc35efe12a5ea2769033cbe909aa9e61c472e`
@@ -63,9 +63,15 @@
 
 - release commit：`26b14f43939d575f9132e58191cd9bb3aa8865fd`（`Release v1.152.0`）；pre-commit 验证124/124通过。与已确认 tree 的差异仅为本计划授权状态记录。
 - main/tag：`git push origin main` 与 `git push origin v1.152.0` 均成功，远端两引用与本地 tag 均为上述 SHA。提交后工作树干净。
-- Release workflow：[37758324548](https://github.com/limecloud/lime/actions/runs/37758324548)，event=push、headBranch=v1.152.0、headSha 与 release commit 一致，已进入 in_progress。
-- 下一步：持续核验原 run 的全部 job、GitHub assets、CLI/npm 和 updater 分发；不移动 tag。
-- 完成度：本地准备与 Git 发布100%；整体退出条件7/8（约88%）。远端分发尚未完成，不把推送成功当成完整发布完成。
+- Release workflow：[37758324548](https://github.com/limecloud/lime/actions/runs/37758324548)，event=push、headBranch=v1.152.0、headSha 与 release commit 一致；全部11个job为success。
+- GitHub Release公开且为latest稳定版，非draft/prerelease；14/14资产uploaded、size>0、SHA256齐全，远端release body与本版中文说明逐字相同。桌面9个资产与CLI/npm5个tarball均齐全；macOS arm64/x64签名、公证与native Gate B通过，Windows原产物补验已通过。
+- R2分发：current/versioned共18个对象的CI回读长度与SHA256通过；公开R2的18个URL通过，feed正文与GitHub字节/digest匹配，当前版本为1.152.0。本机默认自定义更新域名HTTPS连接超时，仅保留公开R2通过结论，不声称所有客户端默认域名可用。
+- npm发布job按platform-first执行成功，五个包均输出已接受发布与signed provenance；没有重复版本skip或发布错误。npm同时明确提示包正在处理、可能延迟公开。根包latest=1.152.0，Linux/macOS arm64/Windows对应平台tag已更新且公开tarball可读；macOS x64的1.152.0-darwin-x64元数据与attestation持续404，平台tag仍指向1.151.0-darwin-x64。不能把CI接受发布扩张为该平台的公开安装可用。
+- 实际registry安装：本机隔离目录执行 `npm install --registry https://registry.npmjs.org --ignore-scripts --no-audit --no-fund --no-package-lock --prefer-online @limecloud/lime@1.152.0` 成功，安装根包与macOS arm64平台包。根manifest/launcher及7个runtime文件与已通过CLI/TUI Gate B的组装包逐字节或SHA256相同，实际launcher输出lime 1.152.0。
+- 公开根tarball的SHA512、GitHub SHA256、manifest/bin/optionalDependencies与实际安装launcher通过；Linux/macOS arm64/Windows三个公开平台tarball的完整SHA512、GitHub SHA256、manifest/os/cpu、CLI/App Server/CodeMode、Windows sandbox helpers和动态库检查通过。其它OS/arch只记录结构/分发证据，不冒充真实npm交互。
+- 四个已公开包的provenance内容绑定通过：subject SHA512等于registry integrity，workflow为原release.yml/tag，resolved gitCommit为原发布SHA，invocationId为原run/attempt1；这是attestation内容核对，不声称独立Sigstore密码学验证。
+- 下一步：待npm公开 `@limecloud/lime-darwin-x64@1.152.0-darwin-x64` 后补足第五包metadata/tag/provenance与平台tarball校验，随后更新此记录；不重发版本、不移动tag。
+- 完成度：发布准备、Git发布、CI执行、桌面与R2分发100%；端到端公开分发退出条件7/8（约88%），唯一公开npm缺口由外部处理决定。
 
 ## Windows 发布证据缺口与补验
 
@@ -82,6 +88,14 @@
 原生 Node 的实际 YAML shell 在本机执行通过；两文件 Vitest 12/12、workflow Prettier 与 diff check 通过。2026-10-08 10:23 UTC，原 R2 job success；公开 R2 current/versioned 共18个 URL 的内容或长度核对18/18通过，三个 feed 与 GitHub digest/原始字节一致，mac feed 的 currentRelease/updateTo.version 为1.152.0。GitHub Release已公开（非 draft、非 prerelease），9个桌面资产 uploaded/size>0且含SHA256；CLI/npm仍构建中，暂不宣称完整分发完成。
 
 第二轮补验 [37763248438](https://github.com/limecloud/lime/actions/runs/37763248438)，脚本 SHA `278fb5522d9e28ef033e01d6c9eb4aa55a22b56e`：Windows 原生 Node 入口全部通过；下载原 artifact 的SHA256为 `111a82a1184a7e2c7c1c06147d9ab86d92ea1df0ba9a84fa206e062b6fe6c8fc`，与原 run artifact一致。Squirrel前置报候选feed缺RELEASES：原 workflow上传整个 `release-assets`，artifact保留 `x86_64-pc-windows-msvc` 子目录，补验误用了平铺目录。修正两个消费路径并在安装前要求feed/full nupkg/Setup三文件非空；尚未形成产品Gate B结果。本机对默认自定义更新域名 `updates.limecloud.com` 的HTTPS连接超时，公开R2入口通过；不将前者扩张成全球可用/不可用判断。
+
+第三轮补验 [37763827153](https://github.com/limecloud/lime/actions/runs/37763827153)，脚本 SHA `e9a53b59b688eeb4faa74f16acb242685174afee`：success。已下载并实读结构化证据，同一原发布SHA、runId `release-recovery-37763827153-1-win32-x64`、安装路径 `C:\Users\runneradmin\AppData\Local\lime\app-1.152.0\Lime.exe` 在Squirrel、CodeMode、native与packaged identity全部匹配。N-1真实更新与卸载21/21、已安装Electron SHELL-01 24/24、CodeMode21项断言、native6项检查、packaged identity4项检查全部通过；App Server与CodeMode来自同一已安装resources且CodeMode parent为App Server，五个必需sidecar/helper的manifest与SHA256通过。第三轮为原产品的真实补验，替代原native/identity假成功证据；前两轮harness失败记录保留。
+
+macOS两个原run native artifact也已下载实读：darwin-arm64/x64均为上述原发布SHA，各8项Gate B检查passed，candidateRunId分别为 `release-37758324548-1-darwin-arm64` / `release-37758324548-1-darwin-x64`。R2 job日志另有18/18对象的真实长度与SHA256回读校验，覆盖payload与feed，不只采用job状态。Linux CLI平台构建/打包已success；其它三个平台仍编译中。
+
+补验修复后的 `npm run test:contracts` 完整补跑通过，包含协议生成物无漂移、Release workflow guard、Desktop/CLI边界、脚本治理与docs boundary；两份原run macOS native summary及第三轮Windows全部证据在本版本忽略目录保留。2026-10-08 10:44 UTC，Linux/macOS arm64 CLI平台job success，Windows进入打包、macOS x64编译中；npm仍待所有平台完成后按platform-first发布。
+
+macOS arm64发布tarball从GitHub完整下载并核对SHA256 `0901bea257efc12e1ad0e624ee4ec1d8f35101c94ac09b18d562da4dcc7a07d7`；用本版根包metadata/launcher与实际平台payload组装optional dependency安装布局，launcher逐字节等于原tag。`lime --version`为1.152.0；真实CLI Gate B通过，thread `01a11b2a-ccc1-7d23-a42e-20392a25df76`、turn `turn_c5024ab0bc184d3780bf209a950a9df0`，从launcher解析平台包并使用sibling App Server，JSONL/stdin/error-exit/completion通过。真实TUI `complete` Gate B通过，thread `01a11b2e-c133-70e2-9e36-340cc6a22b5f`、turn `turn_be56fae3a8b04f998e4bc391426c82db`，回退/冷恢复、token/context、reasoning、PTY/按键与terminal restored通过；与源码全场景证据结合，不声称其余OS/arch的npm真实安装已验证。registry发布后仍需真实npm安装，并比较根launcher/manifest与平台runtime文件一致性。
 
 ## 候选路径清单
 
