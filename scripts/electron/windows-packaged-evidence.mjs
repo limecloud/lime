@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
+import { pathToFileURL } from "node:url";
 
 import { normalizeVersion } from "./windows-squirrel-rc-smoke.mjs";
 import { normalizeCandidateSha } from "./lib/release-candidate-identity.mjs";
@@ -545,7 +546,10 @@ function resolveOutputArg(argv, fallback) {
   return output && !output.startsWith("--") ? path.resolve(output) : fallback;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href
+) {
   main().catch((error) => {
     console.error(`[windows-packaged-evidence] failed: ${error.message}`);
     process.exitCode = 1;

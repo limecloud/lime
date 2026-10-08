@@ -15,12 +15,17 @@ on:
         description: "可选 N-1 release tag；留空时自动选择低于候选的最新稳定 tag"
         required: false
         default: ""
+      release_run_id:
+        description: "可选原 Release run ID；补验其签名 Windows 产物，不重新构建"
+        required: false
+        default: ""
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
-  group: build-windows-test-${{ github.event.inputs.source_ref || github.ref }}
+  group: build-windows-test-${{ github.event.inputs.release_run_id || github.event.inputs.source_ref || github.ref }}
   cancel-in-progress: true
 
 env:
@@ -33,6 +38,7 @@ env:
 
 jobs:
   build-windows-test:
+    if: ${{ github.event.inputs.release_run_id == '' }}
     name: Build Electron Windows x64 Squirrel installer
     runs-on: windows-2022
     timeout-minutes: 90
@@ -375,3 +381,115 @@ jobs:
           if-no-files-found: warn
           retention-days: ${{ github.event.inputs.retention_days || 7 }}
           path: windows-plugin-mcp-contract-tests.log
+
+  verify-release-windows:
+    if: ${{ github.event.inputs.release_run_id != '' }}
+    name: Verify original Windows release candidate
+    runs-on: windows-2022
+    timeout-minutes: 30
+    steps:
+      - name: Checkout verification scripts
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.sha }}
+
+      - name: Validate original release identity
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_RUN_ID: ${{ github.event.inputs.release_run_id }}
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_RUN_ID" =~ ^[0-9]+$ ]]
+          VERSION="$(node -p "require('./package.json').version")"
+          TAG="v$VERSION"
+          TAG_SHA="$(git rev-parse "refs/tags/$TAG^{commit}")"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RELEASE_RUN_ID" > release-source.json
+          jq -e --arg sha "$TAG_SHA" --arg tag "$TAG" '.head_sha == $sha and .head_branch == $tag and .event == "push" and .path == ".github/workflows/release.yml"' release-source.json
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RELEASE_RUN_ID/jobs?per_page=100" > release-source-jobs.json
+          jq -e '.jobs | any(.name == "Build Electron Windows-x64" and .conclusion == "success")' release-source-jobs.json
+          echo "LIME_CANDIDATE_SHA=$TAG_SHA" >> "$GITHUB_ENV"
+          echo "LIME_GATE_RUN_ID=release-recovery-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-win32-x64" >> "$GITHUB_ENV"
+          echo "RELEASE_VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install verification dependencies
+        run: pnpm install --frozen-lockfile --config.node-linker=hoisted
+
+      - name: Verify actual Windows script entrypoints
+        shell: bash
+        run: npx vitest run scripts/electron/windows-native-host-gate-b.test.mjs scripts/electron/windows-packaged-evidence.test.mjs
+
+      - name: Download original signed Windows assets
+        uses: actions/download-artifact@v4
+        with:
+          name: release-assets-x86_64-pc-windows-msvc
+          path: windows-release-package
+          github-token: ${{ github.token }}
+          run-id: ${{ github.event.inputs.release_run_id }}
+
+      - name: Install original release candidate
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          N_MINUS_ONE_VERSION="$(CANDIDATE_VERSION="$RELEASE_VERSION" node --input-type=module -e 'import {execFileSync} from "node:child_process"; import {selectNMinusOneVersion} from "./scripts/electron/windows-squirrel-rc-smoke.mjs"; process.stdout.write(selectNMinusOneVersion({candidateVersion:process.env.CANDIDATE_VERSION,tags:execFileSync("git",["tag","--list"],{encoding:"utf8"}).split(/\r?\n/)}));')"
+          mkdir -p windows-n-minus-one-package
+          gh release download "v$N_MINUS_ONE_VERSION" --repo "$GITHUB_REPOSITORY" --pattern "Lime-$N_MINUS_ONE_VERSION.Setup.exe" --dir windows-n-minus-one-package
+          node scripts/electron/windows-squirrel-rc-smoke.mjs \
+            --installer-dir windows-release-package --candidate-feed-dir windows-release-package \
+            --evidence-dir ".lime/qc/windows-squirrel-rc/$RELEASE_VERSION" \
+            --n-minus-one-installer-dir windows-n-minus-one-package --n-minus-one-version "$N_MINUS_ONE_VERSION" \
+            --version "$RELEASE_VERSION" --candidate-sha "$LIME_CANDIDATE_SHA" --run-id "$LIME_GATE_RUN_ID"
+
+      - name: Run installed candidate gates and identity validation
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXECUTABLE="$(node -e 'const fs=require("node:fs");const s=JSON.parse(fs.readFileSync(`.lime/qc/windows-squirrel-rc/${process.env.RELEASE_VERSION}/summary.json`));if(!s.evidence?.installation?.executable)throw new Error("Installed executable missing");process.stdout.write(s.evidence.installation.executable);')"
+          node scripts/agent-runtime/code-mode-electron-gate-b.mjs \
+            --electron-executable "$EXECUTABLE" --output ".lime/qc/gui-evidence/code-mode-electron-gate-b-windows/summary.json" --timeout-ms 600000
+          node scripts/electron/windows-native-host-gate-b.mjs \
+            --electron-executable "$EXECUTABLE" --evidence-dir ".lime/qc/gui-evidence/windows-native-host-gate-b" --timeout-ms 120000
+          node scripts/electron/windows-packaged-evidence.mjs \
+            --version "$RELEASE_VERSION" --candidate-sha "$LIME_CANDIDATE_SHA" \
+            --squirrel-summary ".lime/qc/windows-squirrel-rc/$RELEASE_VERSION/summary.json" \
+            --code-mode-summary ".lime/qc/gui-evidence/code-mode-electron-gate-b-windows/summary.json" \
+            --native-host-summary ".lime/qc/gui-evidence/windows-native-host-gate-b/summary.json" \
+            --output ".lime/qc/gui-evidence/windows-packaged-evidence/$RELEASE_VERSION/summary.json"
+          test -s ".lime/qc/gui-evidence/windows-packaged-evidence/$RELEASE_VERSION/summary.json"
+
+      - name: Uninstall original candidate
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          SUMMARY=".lime/qc/windows-squirrel-rc/$RELEASE_VERSION/summary.json"
+          if [ -f "$SUMMARY" ]; then
+            node scripts/electron/windows-squirrel-rc-smoke.mjs --cleanup-summary "$SUMMARY"
+          fi
+
+      - name: Upload candidate identity evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-release-recovery-evidence
+          if-no-files-found: error
+          path: |
+            release-source.json
+            release-source-jobs.json
+            .lime/qc/windows-squirrel-rc
+            .lime/qc/gui-evidence/code-mode-electron-gate-b-windows
+            .lime/qc/gui-evidence/windows-native-host-gate-b
+            .lime/qc/gui-evidence/windows-packaged-evidence

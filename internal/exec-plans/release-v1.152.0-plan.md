@@ -1,6 +1,6 @@
 # Lime v1.152.0 发布执行计划
 
-状态：发布准备完成（100%）；整体退出条件 6/8（75%），已获确认，执行 commit/tag/push 与分发核验
+状态：源码发布完成；整体退出条件 7/8（约88%），发布流水线运行中
 日期：2026-10-08
 基线：`v1.151.0` / `91be2dbd3c5a672b1a53a7b044662c89735b1d53`
 起点：`main` / `9acfc35efe12a5ea2769033cbe909aa9e61c472e`
@@ -22,7 +22,7 @@
 - [x] `npm run typecheck`、contracts、受影响 Rust/脚本/GUI 推理回归通过。
 - [x] 真实 CLI/TUI stdio/PTY fixture 与 GUI smoke 通过，记录证据和限制。
 - [x] 按仓库危险操作规则取得 commit/tag/push 明确确认；用户于 2026-10-08 回复“继续”。
-- [ ] 提交 `Release v1.152.0`，创建 tag，推送 main/tag 并核对远端 SHA。
+- [x] 提交 `Release v1.152.0`，创建 tag，推送 main/tag 并核对远端 SHA。
 - [ ] 核验 Release workflow、GitHub Release、CLI/npm 与 updater 分发结果。
 
 ## 架构确认与分类
@@ -61,9 +61,21 @@
 
 ## 发布状态
 
-- commit/tag/push：用户已明确回复“继续”，授权冻结的 124 个路径及本计划状态更新；即将执行。
-- 下一步：连续完成 release commit、`v1.152.0` tag、main/tag 推送和远端 SHA 复核，再跟踪 Release workflow、GitHub assets、CLI/npm 与 updater 分发。
-- 完成度：发布准备100%；整体退出条件6/8（75%）。授权记录以外的候选内容与已确认 tree 一致。
+- release commit：`26b14f43939d575f9132e58191cd9bb3aa8865fd`（`Release v1.152.0`）；pre-commit 验证124/124通过。与已确认 tree 的差异仅为本计划授权状态记录。
+- main/tag：`git push origin main` 与 `git push origin v1.152.0` 均成功，远端两引用与本地 tag 均为上述 SHA。提交后工作树干净。
+- Release workflow：[37758324548](https://github.com/limecloud/lime/actions/runs/37758324548)，event=push、headBranch=v1.152.0、headSha 与 release commit 一致，已进入 in_progress。
+- 下一步：持续核验原 run 的全部 job、GitHub assets、CLI/npm 和 updater 分发；不移动 tag。
+- 完成度：本地准备与 Git 发布100%；整体退出条件7/8（约88%）。远端分发尚未完成，不把推送成功当成完整发布完成。
+
+## Windows 发布证据缺口与补验
+
+原 Windows job API 为 success；结构化 Squirrel 证据已实读：SHA 为 release commit，N-1 1.151.0 -> 1.152.0 的真实 updater 安装和卸载21/21通过，CodeMode artifact也存在。但 job log 的 native-host / packaged-identity 两步没有主体输出，上传明确提示文件不存在。其入口使用 `import.meta.url === file://${process.argv[1]}`，Windows 路径不匹配，导致静默 exit 0；这两项原步骤属于假成功，不能作为 Gate B 证据。
+
+发布范围内扩展窄写集：两个 Windows 门禁脚本与对应真实 CLI 回归、Release workflow 的必需证据上传策略、既有 build-windows-test workflow 的原 run 产物补验分支、本计划。改用标准 pathToFileURL；补验仅安装原 run 的签名产物，核对 tag/run/SHA 与原 Windows build success，再在真实 Windows 上运行 CLI 入口回归、Squirrel、CodeMode、native-host 和身份 gate。测试脚本从修复提交读取，产品候选、版本和原 tag 保持既有 SHA，不重新构建或替换发布资产。此路径沿用用户本轮发布与推送确认，不包含并行产品开发。
+
+补验前原 native-host/packaged-identity 标记 unverified；发布分发仍由原 run 完成。修复、补验与最终证据将在此节追加。
+
+修复验证：真实 CLI help/缺参退出/失败文件、原 run 正确身份/错误 SHA/失败构建的实际 YAML shell、发布守卫共55/55通过；定向 ESLint、两份 YAML Prettier、contracts 和 diff check通过。入口修复直接替换旧判断，无 wrapper/新依赖；新分支复用既有 Windows smoke/CodeMode/native/identity owner。原三个桌面构建/API门禁均通过，缓存收尾中。原 Windows native/identity 步骤的假成功记录保留；最终以补验结构化证据为准。
 
 ## 候选路径清单
 

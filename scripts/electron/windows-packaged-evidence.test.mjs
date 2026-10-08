@@ -8,7 +8,9 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { spawnSync } from "node:child_process";
 import { afterEach, describe, expect, it } from "vitest";
+import YAML from "yaml";
 
 import {
   buildWindowsPackagedEvidenceSummary,
@@ -138,6 +140,97 @@ function createFixture() {
 }
 
 describe("Windows packaged evidence identity", () => {
+  it.each([
+    {
+      name: "原 tag 与成功构建",
+      sha: "a".repeat(40),
+      build: "success",
+      passed: true,
+    },
+    { name: "错误 SHA", sha: "b".repeat(40), build: "success", passed: false },
+    {
+      name: "失败的原构建",
+      sha: "a".repeat(40),
+      build: "failure",
+      passed: false,
+    },
+  ])("实际补验 shell 校验 $name", ({ sha, build, passed }) => {
+    const root = mkdtempSync(path.join(tmpdir(), "lime recovery identity "));
+    roots.push(root);
+    writeFileSync(
+      path.join(root, "package.json"),
+      JSON.stringify({ version: "1.2.3" }),
+    );
+    writeFileSync(
+      path.join(root, "fixture-run.json"),
+      JSON.stringify({
+        head_sha: sha,
+        head_branch: "v1.2.3",
+        event: "push",
+        path: ".github/workflows/release.yml",
+      }),
+    );
+    writeFileSync(
+      path.join(root, "fixture-jobs.json"),
+      JSON.stringify({
+        jobs: [{ name: "Build Electron Windows-x64", conclusion: build }],
+      }),
+    );
+    const workflow = YAML.parse(
+      readFileSync(".github/workflows/build-windows-test.yml", "utf8"),
+    );
+    const step = workflow.jobs["verify-release-windows"].steps.find(
+      (step) => step.name === "Validate original release identity",
+    );
+    const shell = `
+git() { printf '%s\\n' "$FIXTURE_TAG_SHA"; }
+gh() { case "$2" in */jobs*) cat fixture-jobs.json;; *) cat fixture-run.json;; esac; }
+${step.run}`;
+    const result = spawnSync("bash", ["-c", shell], {
+      cwd: root,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        FIXTURE_TAG_SHA: "a".repeat(40),
+        RELEASE_RUN_ID: "12345",
+        GITHUB_REPOSITORY: "limecloud/lime",
+        GITHUB_ENV: path.join(root, "github-env"),
+        GITHUB_RUN_ID: "56789",
+        GITHUB_RUN_ATTEMPT: "1",
+      },
+    });
+    expect(result.status, result.stderr).toBe(passed ? 0 : 1);
+    if (passed) {
+      expect(readFileSync(path.join(root, "github-env"), "utf8")).toContain(
+        `LIME_CANDIDATE_SHA=${"a".repeat(40)}`,
+      );
+    }
+  });
+
+  it("通过真实 CLI 入口显示帮助并把缺失证据写为失败", () => {
+    const script = path.resolve(
+      "scripts/electron/windows-packaged-evidence.mjs",
+    );
+    const help = spawnSync(process.execPath, [script, "--help"], {
+      encoding: "utf8",
+    });
+    expect(help.status).toBe(0);
+    expect(help.stdout).toContain(
+      "Usage: node scripts/electron/windows-packaged-evidence.mjs",
+    );
+    const root = mkdtempSync(path.join(tmpdir(), "lime packaged evidence "));
+    roots.push(root);
+    const output = path.join(root, "failed summary.json");
+    const missing = spawnSync(process.execPath, [script, "--output", output], {
+      encoding: "utf8",
+    });
+    expect(missing.status).toBe(1);
+    expect(JSON.parse(readFileSync(output, "utf8"))).toMatchObject({
+      result: "failed",
+      failures: [{ name: "arguments" }],
+    });
+  });
+
   it("解析 camelCase 参数并要求三个 summary", () => {
     expect(
       parseArgs([

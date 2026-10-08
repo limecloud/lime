@@ -6,6 +6,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import path from "node:path";
 import process from "node:process";
+import { pathToFileURL } from "node:url";
 
 const LOG_PREFIX = "[smoke:windows-native-host-gate-b]";
 const DEFAULT_TIMEOUT_MS = 120_000;
@@ -356,7 +357,10 @@ async function main() {
   console.log(`${LOG_PREFIX} result=passed summary=${result.summaryPath}`);
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href
+) {
   main().catch((error) => {
     console.error(`${LOG_PREFIX} result=failed error=${error.message}`);
     process.exitCode = 1;

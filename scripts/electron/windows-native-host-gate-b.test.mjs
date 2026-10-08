@@ -1,6 +1,7 @@
 import { mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import path from "node:path";
 import { tmpdir } from "node:os";
+import { spawnSync } from "node:child_process";
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
@@ -17,6 +18,22 @@ afterEach(() => {
 });
 
 describe("windows-native-host-gate-b", () => {
+  it("通过真实 CLI 入口显示帮助并拒绝缺失安装路径", () => {
+    const script = path.resolve(
+      "scripts/electron/windows-native-host-gate-b.mjs",
+    );
+    const help = spawnSync(process.execPath, [script, "--help"], {
+      encoding: "utf8",
+    });
+    expect(help.status).toBe(0);
+    expect(help.stdout).toContain(
+      "Usage: node scripts/electron/windows-native-host-gate-b.mjs",
+    );
+    const missing = spawnSync(process.execPath, [script], { encoding: "utf8" });
+    expect(missing.status).toBe(1);
+    expect(missing.stderr).toContain("result=failed");
+  });
+
   it("保留 help 解析，不要求在本机启动 Windows runner", () => {
     expect(parseArgs(["--help"]).help).toBe(true);
   });
