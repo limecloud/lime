@@ -129,39 +129,4 @@ impl HistoryCell for AgentMessageCell {
     }
 }
 
-#[derive(Debug, Clone)]
-pub(crate) struct ReasoningSummaryCell {
-    pub(crate) summary: String,
-}
-
-impl ReasoningSummaryCell {
-    pub(crate) fn new(summary: impl Into<String>) -> Self {
-        Self {
-            summary: summary.into(),
-        }
-    }
-}
-
-impl HistoryCell for ReasoningSummaryCell {
-    fn display_lines(&self, width: u16) -> Vec<Line<'static>> {
-        self.display_hyperlink_lines(width)
-            .into_iter()
-            .map(|line| line.line)
-            .collect()
-    }
-
-    fn display_hyperlink_lines(&self, width: u16) -> Vec<HyperlinkLine> {
-        TranscriptHistoryCell::new(
-            message_entry(EntryKind::Reasoning, self.summary.clone(), false),
-            Locale::default(),
-            std::path::PathBuf::new(),
-        )
-        .display_hyperlink_lines(width)
-    }
-
-    fn raw_lines(&self) -> Vec<Line<'static>> {
-        self.display_lines(u16::MAX)
-    }
-}
-
 pub(crate) type StreamingAgentTailCell = AgentMessageCell;

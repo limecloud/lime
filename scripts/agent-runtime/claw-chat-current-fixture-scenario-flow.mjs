@@ -1,4 +1,9 @@
 import process from "node:process";
+import {
+  summarizeReasoningFirstVisibleReadModel,
+  waitForGuiReasoningFirstVisibleBeforeAnswer,
+  waitForGuiReasoningFirstVisibleCompleted,
+} from "./reasoning-fixture.mjs";
 
 import {
   APPROVAL_REQUEST_CANCEL_SCENARIO,
@@ -30,12 +35,10 @@ import {
   PLAN_DONE_TEXT,
   PLAN_PROMPT,
   PLAN_STEPS,
-  REASONING_FIRST_VISIBLE_CONTENT_TEXT,
   REASONING_FIRST_VISIBLE_DONE_TEXT,
   REASONING_FIRST_VISIBLE_FINAL_TEXT,
   REASONING_FIRST_VISIBLE_PROMPT,
   REASONING_FIRST_VISIBLE_SCENARIO,
-  REASONING_FIRST_VISIBLE_TEXT,
   RIGHT_SURFACE_VISUAL_MATRIX_SCENARIO,
   THREAD_ACTIVITY_PANEL_SCENARIO,
   SESSION_ID,
@@ -74,8 +77,6 @@ import {
   waitForGuiChatCanceled,
   waitForGuiChatCompleted,
   waitForGuiPlanCompleted,
-  waitForGuiReasoningFirstVisibleBeforeAnswer,
-  waitForGuiReasoningFirstVisibleCompleted,
   waitForStopButtonVisibleAndClick,
 } from "./claw-chat-current-fixture-gui-completion-waits.mjs";
 import { waitForGuiMcpStructuredContentCompleted } from "./claw-chat-current-fixture-gui-tool-waits.mjs";
@@ -222,60 +223,6 @@ function summarizeStreamParserBoundaryReadModel(readModel) {
     noDuplicateFinalText:
       longestAssistantText.length > 0 &&
       guardHits.every((hit) => hit.occurrences === 1),
-  };
-}
-
-function summarizeReasoningFirstVisibleReadModel(readModel) {
-  const serialized = JSON.stringify(readModel || {});
-  const items = collectReadModelThreadItems(readModel);
-  const reasoningItems = items.filter((item) => item?.type === "reasoning");
-  const reasoningItem = reasoningItems.find((item) =>
-    JSON.stringify(item || {}).includes(REASONING_FIRST_VISIBLE_TEXT),
-  );
-  const reasoningSequence =
-    typeof reasoningItem?.sequence === "number"
-      ? reasoningItem.sequence
-      : reasoningItem
-        ? items.indexOf(reasoningItem)
-        : null;
-  const finalItem = items.find((item) =>
-    JSON.stringify(item || {}).includes(REASONING_FIRST_VISIBLE_FINAL_TEXT),
-  );
-  const finalSequence =
-    typeof finalItem?.sequence === "number"
-      ? finalItem.sequence
-      : finalItem
-        ? items.indexOf(finalItem)
-        : null;
-
-  return {
-    detailItemCount: Array.isArray(readModel?.detail?.items)
-      ? readModel.detail.items.length
-      : null,
-    threadReadItemCount: Array.isArray(
-      readModel?.detail?.thread_read?.thread_items,
-    )
-      ? readModel.detail.thread_read.thread_items.length
-      : null,
-    latestTurnStatus: readModelLatestTurnStatus(readModel),
-    includesPrompt: serialized.includes(REASONING_FIRST_VISIBLE_PROMPT),
-    includesAssistantDone: serialized.includes(
-      REASONING_FIRST_VISIBLE_DONE_TEXT,
-    ),
-    includesFinalText: serialized.includes(REASONING_FIRST_VISIBLE_FINAL_TEXT),
-    includesReasoningText: serialized.includes(REASONING_FIRST_VISIBLE_TEXT),
-    includesReasoningContentText: serialized.includes(
-      REASONING_FIRST_VISIBLE_CONTENT_TEXT,
-    ),
-    includesReasoningItem: Boolean(reasoningItem),
-    reasoningItemCount: reasoningItems.length,
-    reasoningItemStatus: reasoningItem?.status ?? null,
-    reasoningSequence,
-    finalSequence,
-    reasoningSequenceBeforeFinal:
-      reasoningSequence != null &&
-      finalSequence != null &&
-      reasoningSequence < finalSequence,
   };
 }
 

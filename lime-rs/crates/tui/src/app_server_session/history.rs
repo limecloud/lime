@@ -15,14 +15,14 @@ use super::AppServerSession;
 pub(crate) const HISTORY_ITEM_PAGE_LIMIT: u32 = 100;
 pub(crate) const HISTORY_ITEM_SCAN_LIMIT: usize = 4 * HISTORY_ITEM_PAGE_LIMIT as usize;
 
-/// The first page of a paginated transcript and the optional Turn metadata used to render it.
+/// The first page of a paginated transcript and the Turn metadata used to render it.
 ///
-/// Items remain the canonical payload. Turn metadata is an enrichment contract: callers must
-/// keep the item-only path when an older App Server cannot provide it.
+/// Items remain the canonical payload. Nonempty pages require complete Turn metadata;
+/// an empty page carries an empty metadata list.
 #[derive(Debug)]
 pub(crate) struct InitialHistoryPage {
     pub(crate) items: Vec<ThreadItem>,
-    pub(crate) turns: Option<Vec<Turn>>,
+    pub(crate) turns: Vec<Turn>,
 }
 
 pub(crate) fn thread_items_page_params(
@@ -126,15 +126,9 @@ impl AppServerSession {
             .iter()
             .map(|entry| entry.turn_id.clone())
             .collect::<HashSet<_>>();
-        let turns = if turn_ids.is_empty() {
-            None
-        } else {
-            // Turn metadata is optional for compatibility with older App Servers. The caller
-            // renders the same canonical items without enrichment when this lookup is absent.
-            self.thread_turns_for_items(thread_id.clone(), &turn_ids)
-                .await
-                .ok()
-        };
+        let turns = self
+            .thread_turns_for_items(thread_id.clone(), &turn_ids)
+            .await?;
         let items = page
             .data
             .into_iter()
@@ -207,8 +201,8 @@ impl AppServerSession {
     /// Load the turn pages that cover the item page and one older context turn.
     ///
     /// The lookup is bounded and stops on a repeated cursor, so an older or malformed App Server
-    /// cannot make a scroll request unbounded. A missing turn page is handled by the caller as an
-    /// item-only projection without inventing completion state.
+    /// cannot make a scroll request unbounded. Missing Turn facts fail the entire page so the
+    /// caller retains its cursor for an explicit retry.
     pub(crate) async fn thread_turns_for_items(
         &self,
         thread_id: impl Into<String>,
@@ -234,7 +228,7 @@ pub(crate) async fn thread_items_page_with_handle(
         .context("failed to load App Server thread item page")
 }
 
-async fn thread_turns_page_with_handle(
+pub(crate) async fn thread_turns_page_with_handle(
     request_handle: RequestHandle,
     thread_id: impl Into<String>,
     cursor: Option<String>,

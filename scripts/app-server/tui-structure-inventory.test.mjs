@@ -130,47 +130,27 @@ describe("Codex TUI structure inventory", () => {
       );
     const footer = source("bottom_pane/footer.rs").split("#[cfg(test)]")[0];
     expect(footer).not.toContain("draft_ready_hint");
-    expect(footer).toContain(
-      "props: &FooterProps",
-    );
+    expect(footer).toContain("props: &FooterProps");
     expect(footer).toContain("mode: FooterMode");
     expect(footer).not.toContain("has_draft: bool");
-    expect(footer).not.toContain(
-      "shortcut_overlay_visible()",
-    );
-    expect(footer).toContain(
-      "props.history_search_line",
-    );
-    expect(footer).toContain(
-      "interaction_hint_lines",
-    );
-    expect(footer).not.toContain(
-      "use crate::app::App",
-    );
-    expect(footer).not.toContain(
-      "footer_hint_lines(",
-    );
-    expect(footer).not.toContain(
-      "render_close_hint(",
-    );
+    expect(footer).not.toContain("shortcut_overlay_visible()");
+    expect(footer).toContain("props.history_search_line");
+    expect(footer).toContain("interaction_hint_lines");
+    expect(footer).not.toContain("use crate::app::App");
+    expect(footer).not.toContain("footer_hint_lines(");
+    expect(footer).not.toContain("render_close_hint(");
     expect(source("bottom_pane/footer.rs")).not.toContain(
       "history_search_footer_line()",
     );
-    expect(source("bottom_pane/footer.rs")).not.toContain(
-      "vim_search_query()",
-    );
+    expect(source("bottom_pane/footer.rs")).not.toContain("vim_search_query()");
     expect(source("bottom_pane/chat_composer/footer_state.rs")).toContain(
       "fn footer_mode(",
     );
     expect(source("chatwidget/footer.rs")).toContain(
       "pub(crate) fn footer_props(",
     );
-    expect(source("chatwidget/footer.rs")).toContain(
-      "interaction_hint_lines:",
-    );
-    expect(source("chatwidget/footer.rs")).toContain(
-      "shortcut_close_hint:",
-    );
+    expect(source("chatwidget/footer.rs")).toContain("interaction_hint_lines:");
+    expect(source("chatwidget/footer.rs")).toContain("shortcut_close_hint:");
     expect(source("bottom_pane/chat_composer/footer_state.rs")).not.toContain(
       "FooterFlash",
     );
@@ -555,7 +535,7 @@ describe("Codex TUI structure inventory", () => {
       "ArchiveState",
       "PaginationState",
       "load_transcript_preview",
-      "load_session_transcript_with_handle",
+      "load_session_transcript",
       "thread_to_transcript_entries",
       "selection_option_row",
       "selection_option_row_with_dim",

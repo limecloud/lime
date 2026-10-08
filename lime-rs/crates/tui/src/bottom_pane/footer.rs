@@ -1,7 +1,7 @@
 //! Footer rendering owned by the bottom-pane interaction surface.
 //!
 //! Canonical composer and projection state are lowered once into pure presentation props.
-//! Instructional hints yield to passive agent context while idle, but never to protocol ids.
+//! Configured ambient context shares the row with complete hints; required actions take priority.
 
 use ratatui::layout::{Position, Rect};
 use ratatui::text::{Line, Span};
@@ -11,6 +11,7 @@ use ratatui::Frame;
 use crate::footer_hint::first_fitting_line;
 use crate::line_truncation::{line_width, truncate_line_with_ellipsis_if_overflow};
 use crate::locale::Locale;
+use crate::status::helpers::format_tokens_compact;
 use crate::style::footer_hint_label_style;
 use crate::width::display_width;
 
@@ -26,6 +27,7 @@ pub(crate) enum FooterMode {
     #[default]
     ComposerEmpty,
     ComposerHasDraft,
+    EscHint,
     HistorySearch,
     ShortcutOverlay,
 }
@@ -60,6 +62,22 @@ pub(crate) fn render_footer(frame: &mut Frame<'_>, area: Rect, props: &FooterPro
         render_shortcut_close_hint(frame, content, props.shortcut_close_hint.as_deref());
         return;
     }
+    if props.mode == FooterMode::EscHint {
+        frame.render_widget(
+            Paragraph::new(first_fitting_line(
+                [
+                    Line::styled(props.locale.esc_backtrack_hint(), footer_hint_label_style()),
+                    Line::styled(
+                        props.locale.esc_backtrack_hint_compact(),
+                        footer_hint_label_style(),
+                    ),
+                ],
+                usize::from(content.width),
+            )),
+            content,
+        );
+        return;
+    }
     let vim_indicator = props.vim_mode_indicator.clone();
     if let Some(line) = props.history_search_line.clone() {
         render_line(frame, content, line, vim_indicator.clone());
@@ -76,15 +94,27 @@ pub(crate) fn render_footer(frame: &mut Frame<'_>, area: Rect, props: &FooterPro
         render_line(frame, content, line, vim_indicator);
         return;
     }
-    let indicator_width = vim_indicator.as_ref().map_or(0, |indicator| {
-        u16::try_from(display_width(&indicator.content).saturating_add(2)).unwrap_or(u16::MAX)
-    });
-    render_line(
-        frame,
-        content,
-        single_line_footer_layout(props, content.width.saturating_sub(indicator_width)),
-        vim_indicator,
-    );
+    let mut right = right_footer_line(props);
+    let (mut left, show_right) = single_line_footer_layout(props, content, &right);
+    if !show_right {
+        // Vim remains useful when context yields to an actionable queue or cycle hint.
+        right = props
+            .vim_mode_indicator
+            .clone()
+            .map_or_else(Line::default, |indicator| {
+                truncate_line_with_ellipsis_if_overflow(
+                    Line::from(indicator),
+                    usize::from(content.width.saturating_sub(1)),
+                )
+            });
+        let (fallback_left, show_vim) = single_line_footer_layout(props, content, &right);
+        left = fallback_left;
+        if !show_vim {
+            right = Line::default();
+        }
+    }
+    frame.render_widget(Paragraph::new(left), content);
+    render_context_right(frame, content, &right);
 }
 
 /// Measurement and painting share one content rectangle; indentation is never part of the hint.
@@ -140,6 +170,8 @@ fn render_line(
 pub(crate) struct FooterProps {
     pub(crate) status_line_value: Option<Line<'static>>,
     pub(crate) status_line_enabled: bool,
+    pub(crate) context_window_percent: Option<i64>,
+    pub(crate) context_window_used_tokens: Option<i64>,
     pub(crate) locale: Locale,
     pub(crate) mode: FooterMode,
     pub(crate) input_enabled: bool,
@@ -158,25 +190,126 @@ pub(crate) struct FooterProps {
     pub(crate) shortcuts_available: bool,
 }
 
+fn uses_passive_footer_status_layout(props: &FooterProps) -> bool {
+    props.status_line_enabled
+        && matches!(
+            props.mode,
+            FooterMode::ComposerEmpty | FooterMode::ComposerHasDraft
+        )
+        && !(props.mode == FooterMode::ComposerHasDraft && props.is_task_running)
+}
+
+fn context_window_line(
+    percent: Option<i64>,
+    used_tokens: Option<i64>,
+    locale: Locale,
+) -> Line<'static> {
+    let text = percent
+        .map(|percent| locale.context_window_remaining(percent))
+        .or_else(|| {
+            used_tokens.map(|tokens| {
+                locale.token_usage_value(
+                    super::status_line_setup::StatusLineItem::UsedTokens,
+                    &format_tokens_compact(tokens),
+                )
+            })
+        });
+    text.map_or_else(Line::default, |text| {
+        Line::from(Span::styled(text, footer_hint_label_style()))
+    })
+}
+
+fn right_footer_line(props: &FooterProps) -> Line<'static> {
+    let mut line = if uses_passive_footer_status_layout(props) {
+        summary_line("", props.plan_mode.then(|| props.locale.plan_mode_label()))
+    } else {
+        context_window_line(
+            props.context_window_percent,
+            props.context_window_used_tokens,
+            props.locale,
+        )
+    };
+    if let Some(indicator) = props.vim_mode_indicator.clone() {
+        if line_width(&line) > 0 {
+            line.push_span(Span::styled(" | ", footer_hint_label_style()));
+        }
+        line.push_span(indicator);
+    }
+    line
+}
+
+/// `area` already includes the shared left indent; leave one column on the right and between sides.
+fn max_left_width_for_right(area: Rect, right_width: usize) -> Option<usize> {
+    if right_width == 0 {
+        return Some(usize::from(area.width));
+    }
+    usize::from(area.width)
+        .checked_sub(right_width + 1)
+        .map(|left| left.saturating_sub(1))
+}
+
+fn render_context_right(frame: &mut Frame<'_>, area: Rect, line: &Line<'static>) {
+    let width = line_width(line);
+    if width == 0 || max_left_width_for_right(area, width).is_none() {
+        return;
+    }
+    let width = u16::try_from(width).unwrap_or(u16::MAX);
+    frame.render_widget(
+        Paragraph::new(line.clone()),
+        Rect::new(
+            area.x.saturating_add(area.width).saturating_sub(width + 1),
+            area.y,
+            width,
+            1,
+        ),
+    );
+}
+
 /// Follow Codex's actionable collapse order without inventing unavailable usage/status facts.
-fn single_line_footer_layout(props: &FooterProps, width: u16) -> Line<'static> {
-    let available = usize::from(width);
-    let fits = |line: &Line<'_>| line_width(line) <= available;
+fn single_line_footer_layout(
+    props: &FooterProps,
+    area: Rect,
+    right: &Line<'_>,
+) -> (Line<'static>, bool) {
+    let available = usize::from(area.width);
+    let left_with_right = max_left_width_for_right(area, line_width(right));
     let has_draft = props.mode == FooterMode::ComposerHasDraft;
     let queue = has_draft && props.is_task_running;
     if let Some(mut line) = passive_footer_status_line(props) {
-        let mode = props
-            .plan_mode
-            .then(|| summary_line("", Some(props.locale.plan_mode_label())));
+        let mode = (props.plan_mode && !uses_passive_footer_status_layout(props)).then(|| {
+            summary_line(
+                "",
+                Some(if props.is_task_running {
+                    props.locale.plan_mode_label()
+                } else {
+                    props.locale.plan_mode_cycle_hint()
+                }),
+            )
+        });
         if mode
             .as_ref()
             .is_some_and(|mode| line_width(mode) > available)
         {
-            return Line::default();
+            let mode = summary_line("", Some(props.locale.plan_mode_label()));
+            return (
+                if line_width(&mode) <= available {
+                    mode
+                } else {
+                    Line::default()
+                },
+                false,
+            );
         }
-        let left_width = mode.as_ref().map_or(available, |mode| {
-            available.saturating_sub(line_width(mode) + 3)
-        });
+        let show_right = left_with_right
+            .is_some_and(|left| mode.as_ref().is_none_or(|mode| line_width(mode) <= left));
+        let limit = if show_right {
+            left_with_right.unwrap_or(available)
+        } else {
+            available
+        };
+        let left_width = mode
+            .as_ref()
+            .map_or(limit, |mode| limit.saturating_sub(line_width(mode) + 3));
         line = truncate_line_with_ellipsis_if_overflow(line, left_width);
         if !has_draft && line_width(&line) > 0 {
             if let Some(key) = &props.agents_hint {
@@ -196,7 +329,10 @@ fn single_line_footer_layout(props: &FooterProps, width: u16) -> Line<'static> {
             }
             line.spans.extend(mode.spans);
         }
-        return truncate_line_with_ellipsis_if_overflow(line, available);
+        return (
+            truncate_line_with_ellipsis_if_overflow(line, limit),
+            show_right,
+        );
     }
     let hint = if queue {
         props.locale.queue_message_hint().to_string()
@@ -224,17 +360,13 @@ fn single_line_footer_layout(props: &FooterProps, width: u16) -> Line<'static> {
             }
         }),
     );
-    if fits(&full) {
-        return full;
-    }
+    let mut candidates = vec![(full, true)];
     if queue {
         let short = summary_line(
             props.locale.queue_short_hint(),
             props.plan_mode.then(|| props.locale.plan_mode_label()),
         );
-        if fits(&short) {
-            return short;
-        }
+        candidates.push((short, true));
     } else if props.plan_mode {
         // Prefer mode cycling over the shortcuts entry; only then reduce to the mode label.
         for text in [
@@ -242,25 +374,41 @@ fn single_line_footer_layout(props: &FooterProps, width: u16) -> Line<'static> {
             props.locale.plan_mode_label(),
         ] {
             let line = summary_line("", Some(text));
-            if fits(&line) {
-                return line;
-            }
+            // The idle cycle hint must outlive the context indicator.
+            candidates.push((
+                line,
+                props.is_task_running || text == props.locale.plan_mode_cycle_hint(),
+            ));
         }
     } else if !has_draft {
         if let Some(key) = &props.agents_hint {
             let compact = summary_line(&props.locale.agents_key_hint(key), None);
-            if fits(&compact) {
-                return compact;
+            candidates.push((compact, true));
+        }
+    }
+    if props.plan_mode && queue {
+        let mode = summary_line("", Some(props.locale.plan_mode_label()));
+        candidates.push((mode, props.is_task_running));
+    }
+    if let Some(limit) = left_with_right {
+        for (line, permits_context) in &candidates {
+            if *permits_context && line_width(line) <= limit {
+                return (line.clone(), true);
             }
         }
     }
-    if props.plan_mode {
-        let mode = summary_line("", Some(props.locale.plan_mode_label()));
-        if fits(&mode) {
-            return mode;
+    if !queue && !props.plan_mode && left_with_right.is_some() {
+        return (Line::default(), true);
+    }
+    for (line, _) in candidates {
+        if line_width(&line) <= available {
+            return (line, false);
         }
     }
-    Line::default()
+    (
+        Line::default(),
+        !queue && !props.plan_mode && left_with_right.is_some(),
+    )
 }
 
 /// Contextual status and agent identity yield to queue prompts and active input modes.
@@ -294,7 +442,7 @@ fn summary_line(hint: &str, mode: Option<&'static str>) -> Line<'static> {
         if !hint.is_empty() {
             line.push_span(Span::styled(" · ", footer_hint_label_style()));
         }
-        // Match Codex's mode emphasis rather than treating Plan as passive right-side context.
+        // Keep the Plan label emphasized and the cycle suffix secondary.
         let (label, suffix) = mode
             .split_once(" (")
             .or_else(|| mode.split_once('（'))
@@ -312,433 +460,5 @@ fn summary_line(hint: &str, mode: Option<&'static str>) -> Line<'static> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::{render_footer, FooterProps};
-    use crate::app::App;
-    use crate::locale::Locale;
-    use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
-    use ratatui::backend::TestBackend;
-    use ratatui::Terminal;
-
-    fn rendered_text_at_width(app: &App, width: u16) -> String {
-        let props = app.chat_widget.footer_props(
-            width,
-            app.projection.active_turn_id().is_some(),
-            app.thread_id.as_deref(),
-            app.primary_thread_id.as_deref(),
-        );
-        rendered_props_at_width(&props, width)
-    }
-
-    fn rendered_props_at_width(props: &FooterProps, width: u16) -> String {
-        let mut terminal = Terminal::new(TestBackend::new(width, 1)).expect("terminal");
-        terminal
-            .draw(|frame| render_footer(frame, frame.area(), props))
-            .expect("draw footer");
-        let buffer = terminal.backend().buffer();
-        (0..buffer.area.width)
-            .map(|x| buffer[(x, 0)].symbol())
-            .collect::<String>()
-    }
-
-    fn rendered_text(app: &App) -> String {
-        rendered_text_at_width(app, 64)
-    }
-
-    fn compact(text: &str) -> String {
-        text.chars().filter(|c| !c.is_whitespace()).collect()
-    }
-
-    #[test]
-    fn painted_footer_keeps_the_complete_hint_at_its_exact_content_width() {
-        for locale in [
-            Locale::ZhCn,
-            Locale::ZhTw,
-            Locale::EnUs,
-            Locale::JaJp,
-            Locale::KoKr,
-        ] {
-            let mut app = App::default();
-            app.set_locale(locale);
-            let width =
-                u16::try_from(crate::width::display_width(locale.shortcuts_hint()) + 1).unwrap();
-            let text = rendered_text_at_width(&app, width);
-            assert_eq!(
-                compact(&text),
-                compact(locale.shortcuts_hint()),
-                "{locale:?}: {text}"
-            );
-            assert!(!text.contains('…'), "complete hint clipped: {text}");
-        }
-    }
-
-    #[test]
-    fn painted_interaction_footer_never_clips_a_chord_at_the_content_boundary() {
-        let app = App::default();
-        for hint in ["ctrl+x q", "f9 · ctrl+x q"] {
-            let width = u16::try_from(crate::width::display_width(hint) + 1).unwrap();
-            let mut props = app.chat_widget.footer_props(width, false, None, None);
-            props.interaction_hint_lines = Some(vec![hint.to_string()]);
-            let text = rendered_props_at_width(&props, width);
-            assert_eq!(text.trim(), hint, "{width}: {text}");
-        }
-    }
-
-    #[test]
-    fn passive_agent_context_only_appends_complete_action_hints() {
-        let app = App::default();
-        for locale in [
-            Locale::ZhCn,
-            Locale::ZhTw,
-            Locale::EnUs,
-            Locale::JaJp,
-            Locale::KoKr,
-        ] {
-            for width in 1..80 {
-                let mut props = app.chat_widget.footer_props(width, false, None, None);
-                props.locale = locale;
-                props.active_agent_label = Some("Explorer".into());
-                props.agents_hint = Some("ctrl+x a".into());
-                let text = rendered_props_at_width(&props, width);
-                if let Some((_, hint)) = text.split_once('·') {
-                    assert_eq!(
-                        compact(hint),
-                        compact(&locale.agents_key_hint("ctrl+x a")),
-                        "{locale:?}/{width}: {text}"
-                    );
-                }
-            }
-        }
-    }
-
-    #[test]
-    fn footer_reserves_vim_context_before_choosing_complete_action_hints() {
-        for locale in [
-            Locale::ZhCn,
-            Locale::ZhTw,
-            Locale::EnUs,
-            Locale::JaJp,
-            Locale::KoKr,
-        ] {
-            let mut app = App::default();
-            app.set_locale(locale);
-            app.chat_widget.bottom_pane.composer.set_vim_enabled(true);
-            let expected = format!("{}  Vim: Normal", locale.shortcuts_hint());
-            let width = u16::try_from(crate::width::display_width(&expected) + 1).unwrap();
-            let text = rendered_text_at_width(&app, width);
-            assert_eq!(compact(&text), compact(&expected), "{locale:?}: {text}");
-            let narrower = rendered_text_at_width(&app, width - 1);
-            assert!(narrower.contains("Vim: Normal"), "{narrower}");
-            assert!(
-                !narrower.contains('…'),
-                "action copy clipped by Vim: {narrower}"
-            );
-        }
-    }
-
-    #[test]
-    fn idle_draft_suppresses_instructional_footer() {
-        let mut app = App::default();
-        app.chat_widget.bottom_pane.composer.insert("draft");
-
-        assert!(rendered_text(&app).trim().is_empty());
-    }
-
-    #[test]
-    fn disabled_composer_clears_passive_footer() {
-        let mut app = App::default();
-        app.chat_widget
-            .bottom_pane
-            .set_composer_input_enabled(false, Some("Waiting".to_string()));
-
-        assert!(rendered_text(&app).trim().is_empty());
-
-        app.chat_widget
-            .bottom_pane
-            .set_composer_input_enabled(true, None);
-        assert!(!rendered_text(&app).trim().is_empty());
-    }
-
-    #[test]
-    fn explicit_empty_interaction_hints_clear_the_outer_footer() {
-        let app = App::default();
-        let mut props = app.chat_widget.footer_props(
-            64,
-            false,
-            app.thread_id.as_deref(),
-            app.primary_thread_id.as_deref(),
-        );
-        props.interaction_hint_lines = Some(Vec::new());
-
-        let mut terminal = Terminal::new(TestBackend::new(64, 1)).expect("terminal");
-        terminal
-            .draw(|frame| render_footer(frame, frame.area(), &props))
-            .expect("draw footer");
-        let text = terminal
-            .backend()
-            .buffer()
-            .content
-            .iter()
-            .map(|cell| cell.symbol())
-            .collect::<String>();
-
-        assert!(
-            text.trim().is_empty(),
-            "explicit blank footer leaked: {text:?}"
-        );
-    }
-
-    #[test]
-    fn idle_footer_keeps_localized_shortcut_entry_point_across_supported_widths() {
-        for locale in [
-            Locale::ZhCn,
-            Locale::ZhTw,
-            Locale::EnUs,
-            Locale::JaJp,
-            Locale::KoKr,
-        ] {
-            let mut app = App::default();
-            app.set_locale(locale);
-            for width in [40, 80, 120] {
-                let text = rendered_text_at_width(&app, width);
-                let compact = text
-                    .chars()
-                    .filter(|character| !character.is_whitespace())
-                    .collect::<String>();
-                let expected = locale
-                    .shortcuts_hint()
-                    .chars()
-                    .filter(|character| !character.is_whitespace())
-                    .collect::<String>();
-                assert!(
-                    compact.contains(&expected),
-                    "{locale:?} at {width}: {text:?}"
-                );
-                assert_eq!(
-                    text.lines().count(),
-                    1,
-                    "footer must remain a single row for {locale:?} at {width}: {text:?}"
-                );
-            }
-        }
-    }
-
-    #[test]
-    fn passive_agent_label_replaces_shortcuts_in_empty_and_idle_draft_modes() {
-        let mut app = App::default();
-        app.set_thread_id("main".to_string());
-        app.chat_widget.agent_navigation.upsert(
-            "agent-1",
-            Some("Robie".into()),
-            Some("explorer".into()),
-            false,
-        );
-        app.set_thread_id("agent-1".to_string());
-        for draft in ["", "draft"] {
-            app.chat_widget
-                .bottom_pane
-                .composer
-                .replace(draft.to_string());
-            let text = rendered_text_at_width(&app, 40);
-            assert!(text.contains("Robie [explorer]"), "{text}");
-            assert!(!text.contains("? for shortcuts"), "{text}");
-        }
-    }
-
-    #[test]
-    fn active_draft_prefers_queue_hint_and_hides_context_when_narrow() {
-        let mut app = App::default();
-        app.set_thread_id("main".to_string());
-        app.chat_widget.agent_navigation.upsert(
-            "agent-1",
-            Some("Robie".to_string()),
-            Some("explorer".to_string()),
-            false,
-        );
-        app.set_thread_id("agent-1".to_string());
-        app.start_turn("turn-1".to_string());
-        app.chat_widget.bottom_pane.composer.insert("draft");
-
-        let text = rendered_text_at_width(&app, 30);
-        assert!(text.contains("Tab to queue message"), "{text}");
-        assert!(!text.contains("Robie [explorer]"), "{text}");
-    }
-
-    #[test]
-    fn queue_hint_shortens_before_it_disappears() {
-        let mut app = App::default();
-        app.start_turn("internal-turn-id".into());
-        app.chat_widget.bottom_pane.composer.insert("draft");
-        let short = rendered_text_at_width(&app, 14);
-        assert!(short.contains("Tab to queue"), "{short}");
-        assert!(rendered_text_at_width(&app, 5).trim().is_empty());
-    }
-
-    #[test]
-    fn running_empty_composer_shows_shortcuts_not_protocol_identity() {
-        let mut app = App::default();
-        app.start_turn("internal-turn-id".into());
-        let text = rendered_text(&app);
-        assert!(text.contains("? for shortcuts"), "{text}");
-        assert!(!text.contains("internal-turn-id"), "{text}");
-    }
-
-    #[test]
-    fn queue_hint_is_localized_and_attachments_count_as_draft() {
-        for locale in [
-            Locale::ZhCn,
-            Locale::ZhTw,
-            Locale::EnUs,
-            Locale::JaJp,
-            Locale::KoKr,
-        ] {
-            let mut app = App::default();
-            app.set_locale(locale);
-            app.start_turn("internal-turn-id".into());
-            app.chat_widget
-                .bottom_pane
-                .composer
-                .attach_image(std::path::PathBuf::from("/tmp/image.png"));
-            let text = rendered_text_at_width(&app, 100);
-            let compact = |text: &str| {
-                text.chars()
-                    .filter(|c| !c.is_whitespace())
-                    .collect::<String>()
-            };
-            assert!(
-                compact(&text).contains(&compact(locale.queue_message_hint())),
-                "{text}"
-            );
-        }
-    }
-
-    #[test]
-    fn renders_localized_history_search_query() {
-        let mut app = App::default();
-        app.set_locale(Locale::ZhCn);
-        app.chat_widget
-            .bottom_pane
-            .composer
-            .set_cached_history(["git status".to_string()]);
-        app.chat_widget.bottom_pane.composer.insert("git");
-        app.chat_widget
-            .bottom_pane
-            .composer
-            .handle_key_event(KeyEvent::new(KeyCode::Char('r'), KeyModifiers::CONTROL));
-        app.chat_widget
-            .bottom_pane
-            .composer
-            .handle_key_event(KeyEvent::new(KeyCode::Char('g'), KeyModifiers::NONE));
-
-        let text = rendered_text(&app);
-        let compact = text
-            .chars()
-            .filter(|character| !character.is_whitespace())
-            .collect::<String>();
-        assert!(compact.contains("反向搜索：g"), "{text}");
-    }
-
-    #[test]
-    fn renders_active_agent_context() {
-        let mut app = App::default();
-        app.set_thread_id("main".to_string());
-        app.chat_widget.agent_navigation.upsert(
-            "agent-1",
-            Some("Robie".to_string()),
-            Some("explorer".to_string()),
-            false,
-        );
-        app.set_thread_id("agent-1".to_string());
-
-        let text = rendered_text(&app);
-        assert!(text.contains("Robie [explorer]"), "{text}");
-    }
-
-    #[test]
-    fn plan_mode_footer_explains_shift_tab_when_idle_and_fits() {
-        let mut app = App::default();
-        app.chat_widget.collaboration_mode = Some(agent_protocol::CollaborationMode {
-            mode: agent_protocol::ModeKind::Plan,
-            settings: agent_protocol::CollaborationModeSettings {
-                model: "fixture-model".to_string(),
-                reasoning_effort: Some("high".to_string()),
-                developer_instructions: None,
-            },
-        });
-
-        let wide = rendered_text_at_width(&app, 100);
-        assert!(wide.contains("Plan mode (shift+tab to cycle)"), "{wide}");
-
-        let narrow = rendered_text_at_width(&app, 44);
-        assert!(
-            narrow.contains("Plan mode (shift+tab to cycle)"),
-            "{narrow}"
-        );
-        assert!(!narrow.contains("? for shortcuts"), "{narrow}");
-        let tiny = rendered_text_at_width(&app, 16);
-        assert!(tiny.contains("Plan mode"), "{tiny}");
-        assert!(!tiny.contains("shift+tab"), "{tiny}");
-
-        app.start_turn("turn-1".to_string());
-        let running = rendered_text_at_width(&app, 100);
-        assert!(running.contains("Plan mode"), "{running}");
-        assert!(!running.contains("shift+tab"), "{running}");
-        app.chat_widget.bottom_pane.composer.insert("draft");
-        let queue = rendered_text_at_width(&app, 100);
-        assert!(
-            queue.contains("Tab to queue message · Plan mode"),
-            "{queue}"
-        );
-        let short = rendered_text_at_width(&app, 26);
-        assert!(short.contains("Tab to queue · Plan mode"), "{short}");
-        assert!(rendered_text_at_width(&app, 16).contains("Plan mode"));
-    }
-
-    #[test]
-    fn plan_mode_footer_hides_hint_while_composer_popup_is_active() {
-        let mut app = App::default();
-        app.chat_widget.collaboration_mode = Some(agent_protocol::CollaborationMode {
-            mode: agent_protocol::ModeKind::Plan,
-            settings: agent_protocol::CollaborationModeSettings {
-                model: "fixture-model".to_string(),
-                reasoning_effort: None,
-                developer_instructions: None,
-            },
-        });
-        app.chat_widget.bottom_pane.composer.insert("/model");
-        app.chat_widget.bottom_pane.composer.sync_completion_popup();
-
-        let text = rendered_text_at_width(&app, 100);
-        assert!(!text.contains("Plan mode"), "{text}");
-    }
-
-    #[test]
-    fn renders_vim_mode_indicator_and_truncates_it_in_a_narrow_terminal() {
-        let mut app = App::default();
-        app.chat_widget.bottom_pane.composer.set_vim_enabled(true);
-
-        assert!(rendered_text(&app).contains("Vim: Normal"));
-
-        let narrow = rendered_text_at_width(&app, 10);
-        assert_eq!(narrow.chars().count(), 10, "{narrow}");
-        assert!(narrow.contains('…'), "{narrow}");
-    }
-
-    #[test]
-    fn renders_vim_search_query_before_submission() {
-        let mut app = App::default();
-        app.chat_widget.bottom_pane.composer.set_vim_enabled(true);
-        app.chat_widget.bottom_pane.composer.insert("alpha beta");
-        app.chat_widget
-            .bottom_pane
-            .composer
-            .handle_key_event(KeyEvent::new(KeyCode::Char('/'), KeyModifiers::NONE));
-        app.chat_widget
-            .bottom_pane
-            .composer
-            .handle_key_event(KeyEvent::new(KeyCode::Char('b'), KeyModifiers::NONE));
-
-        let text = rendered_text(&app);
-        assert!(text.contains("/b"), "{text}");
-    }
-}
+#[path = "footer_tests.rs"]
+mod tests;

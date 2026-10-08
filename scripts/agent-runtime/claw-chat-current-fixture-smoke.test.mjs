@@ -84,6 +84,7 @@ const fixtureSourceFiles = [
   "scripts/agent-runtime/claw-chat-current-fixture-read-model-waits.mjs",
   "scripts/agent-runtime/claw-chat-current-fixture-session.mjs",
   "scripts/agent-runtime/claw-chat-current-fixture-gui-completion-waits.mjs",
+  "scripts/agent-runtime/reasoning-fixture.mjs",
   "scripts/agent-runtime/claw-chat-current-fixture-gui-input-modes.mjs",
   "scripts/agent-runtime/claw-chat-current-fixture-gui-tool-waits.mjs",
   "scripts/agent-runtime/claw-chat-current-fixture-gui-web-tools-waits.mjs",
@@ -2441,7 +2442,10 @@ describe("claw chat current Electron fixture smoke guard", () => {
     expect(content).toContain("historicalReasoningPreviewExpanded");
     expect(content).toContain("reasoningDetailsAvailable");
     expect(content).toContain("reasoningOpenedByClick");
-    expect(content).toContain("reasoningContentExpandedAfterCompletion");
+    expect(content).toContain("reasoningSummaryExpandedAfterCompletion");
+    expect(content).not.toContain("reasoningContentExpandedAfterCompletion");
+    expect(content).toContain("rawReasoningInDom");
+    expect(content).toContain("reasoningSummaryOccurrences");
     expect(content).toContain("readModelReasoningFirstVisibleCompleted");
     expect(content).toContain("readModelReasoningFirstVisibleItemObserved");
     expect(content).toContain("REASONING_FIRST_VISIBLE_ASSERTION_KEYS");

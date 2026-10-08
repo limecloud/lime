@@ -79,11 +79,11 @@ function canonicalReadModel(items) {
   const turnItems = Array.isArray(items[0]) ? items : [items];
   return {
     turns: turnItems.map((currentItems, index) => ({
-        turnId: "skills-runtime-read-model-turn",
-        status: "completed",
-        items: currentItems,
-        ordinal: index,
-      })),
+      turnId: "skills-runtime-read-model-turn",
+      status: "completed",
+      items: currentItems,
+      ordinal: index,
+    })),
   };
 }
 
@@ -167,7 +167,7 @@ export function registerSkillsRuntimeSmokeGuards({
       '"registration.json"',
       "workspace-registered-skill-enable-runtime",
       "app-sidebar-nav-plugins",
-      "plugin-workspace-tab-skills",
+      "app-sidebar-customization-skills",
       "sanitizeBackendLedgerForEvidence",
       "isIgnorableConsoleError",
       "actionableConsoleErrors",
@@ -260,7 +260,7 @@ export function registerSkillsRuntimeSmokeGuards({
       "missing-visible-trigger",
       "visibleElementSnapshot(candidate).visible",
       "app-sidebar-nav-plugins",
-      "plugin-workspace-tab-experts",
+      "app-sidebar-customization-experts",
       "expert-start-${EXPERT_SKILLS_RUNTIME_ID}",
       "expert-info-skills-add",
       "EXPERT_SKILLS_RUNTIME_SKILL_REF",

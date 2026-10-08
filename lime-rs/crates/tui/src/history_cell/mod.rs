@@ -25,6 +25,7 @@ mod messages;
 mod notices;
 mod patches;
 mod plans;
+mod reasoning;
 mod request_user_input;
 mod search;
 mod separators;
@@ -49,6 +50,7 @@ pub(crate) use messages::*;
 pub(crate) use notices::*;
 pub(crate) use patches::*;
 pub(crate) use plans::*;
+pub(crate) use reasoning::{split_reasoning_summary_parts, ReasoningSummaryCell};
 pub(crate) use request_user_input::*;
 pub(crate) use search::*;
 pub(crate) use separators::*;
@@ -218,6 +220,13 @@ impl HistoryCell for TranscriptHistoryCell {
     }
 
     fn display_hyperlink_lines(&self, width: u16) -> Vec<HyperlinkLine> {
+        if self.entry.kind == EntryKind::Reasoning {
+            return Vec::new();
+        }
+        self.transcript_hyperlink_lines(width)
+    }
+
+    fn transcript_hyperlink_lines(&self, width: u16) -> Vec<HyperlinkLine> {
         entry::hyperlink_lines_with_locale(
             &self.entry,
             self.locale,
@@ -226,7 +235,14 @@ impl HistoryCell for TranscriptHistoryCell {
         )
     }
 
+    fn transcript_lines(&self, width: u16) -> Vec<Line<'static>> {
+        visible_lines_ref(&self.transcript_hyperlink_lines(width))
+    }
+
     fn compact_hyperlink_lines(&self, width: u16) -> Vec<HyperlinkLine> {
+        if self.entry.kind == EntryKind::Reasoning {
+            return Vec::new();
+        }
         entry::compact_hyperlink_lines_with_locale(
             &self.entry,
             self.locale,
@@ -244,7 +260,7 @@ impl HistoryCell for TranscriptHistoryCell {
     }
 
     fn expanded_hyperlink_lines(&self, width: u16) -> Vec<HyperlinkLine> {
-        self.display_hyperlink_lines(width)
+        self.transcript_hyperlink_lines(width)
     }
 
     fn activity_disclosure(&self, width: u16) -> Option<ActivityDisclosure> {

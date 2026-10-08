@@ -11,6 +11,17 @@ pub(super) struct FooterState {
 }
 
 impl super::ChatComposer {
+    pub(crate) fn can_backtrack(&self) -> bool {
+        self.is_empty()
+            && self.input_enabled()
+            && !self.popups.active()
+            && !self.history_search_active()
+            && !self.vim_search_active()
+            && !self.is_vim_normal_mode()
+            && !self.key_chord_pending()
+            && !self.draft.paste_burst.is_active()
+            && !self.shortcut_overlay_visible()
+    }
     /// Resolve the effective footer surface from composer-owned transient state.
     ///
     /// The stored mode is only an override. History/Vim search always wins, while the base mode
@@ -27,6 +38,14 @@ impl super::ChatComposer {
         };
 
         match self.footer.mode {
+            FooterMode::EscHint
+                if self.is_empty()
+                    && !self.popups.active()
+                    && !self.is_vim_normal_mode()
+                    && !self.draft.paste_burst.is_active() =>
+            {
+                FooterMode::EscHint
+            }
             FooterMode::ShortcutOverlay
                 if !self.popups.active()
                     && !self.history_search_active()
@@ -38,6 +57,14 @@ impl super::ChatComposer {
             }
             FooterMode::HistorySearch => FooterMode::HistorySearch,
             _ => base_mode,
+        }
+    }
+
+    pub(crate) fn show_esc_backtrack_hint(&mut self, show: bool) {
+        if show {
+            self.footer.mode = FooterMode::EscHint;
+        } else if self.footer.mode == FooterMode::EscHint {
+            self.footer.mode = FooterMode::ComposerEmpty;
         }
     }
 
@@ -81,6 +108,7 @@ impl super::ChatComposer {
             return true;
         }
         // Any editor activity resumes the base footer; paste insertion uses the same reset path.
+        self.show_esc_backtrack_hint(false);
         self.dismiss_shortcut_overlay();
         false
     }

@@ -31,7 +31,9 @@ impl MessageHistory {
     ) {
         while self.lookups.try_join_next().is_some() {}
         let (thread_id, cursor, log_id, single_entry) = match event {
-            AppEvent::OlderThreadHistoryLoaded { .. } => return,
+            AppEvent::OlderThreadHistoryLoaded { .. }
+            | AppEvent::Backtrack(_)
+            | AppEvent::ThreadHistoryReplaced { .. } => return,
             AppEvent::ThreadHistoryEntryResponse {
                 thread_id,
                 event: response,

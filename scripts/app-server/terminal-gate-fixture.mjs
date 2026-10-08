@@ -6,14 +6,17 @@ export async function writeTerminalExternalBackend(
     completedText,
     command,
     reasoningText = "TUI_GATE_B_REASONING_DETAIL",
+    reasoningParts = [reasoningText],
+    reasoningContent = [],
     scenario = "complete",
     taskProgress = false,
+    tokenUsage = false,
   },
 ) {
   await writeFile(
     backendPath,
     `#!/usr/bin/env node
-import { appendFileSync, readFileSync } from "node:fs";
+import { appendFileSync, existsSync, readFileSync, watchFile, unwatchFile } from "node:fs";
 
 const input = JSON.parse(readFileSync(0, "utf8"));
 const ledgerPath = process.argv[2];
@@ -22,10 +25,12 @@ const turn = input.request.turn ?? {};
 const questionCallId = "terminal-question-" + turn.turnId;
 const questionRequestId = "terminal-user-input-" + turn.turnId;
 const assistantItemId = "terminal-assistant-" + turn.turnId;
+const commandCallId = "terminal-command-" + turn.turnId;
+const summaryParts = ${JSON.stringify(reasoningParts)};
 const toolItem = (
   status,
   output,
-  { callId = "terminal-command", name = "Bash" } = {},
+  { callId = commandCallId, name = "Bash" } = {},
 ) => ({
   sessionId: session.sessionId,
   threadId: session.threadId,
@@ -58,7 +63,7 @@ const reasoningItem = (status) => ({
   sessionId: session.sessionId,
   threadId: session.threadId,
   turnId: turn.turnId,
-  itemId: "item_terminal-reasoning",
+  itemId: "item_terminal-reasoning-" + turn.turnId,
   sequence: 2,
   ordinal: 2,
   createdAtMs: Date.now(),
@@ -68,8 +73,8 @@ const reasoningItem = (status) => ({
   status,
   payload: {
     type: "reasoning",
-    summary: [${JSON.stringify(reasoningText)}],
-    content: [],
+    summary: summaryParts,
+    content: ${JSON.stringify(reasoningContent)},
   },
   metadata: {},
 });
@@ -88,7 +93,9 @@ const patchItem = (status) => ({
 });
 let events = [];
 if (input.kind === "turnStart") {
-  if (${JSON.stringify(scenario)} === "approval") {
+  if (${JSON.stringify(scenario)} === "reasoning-resume") {
+    events = [{ type: "item.started", payload: { item: reasoningItem("inProgress") } }];
+  } else if (${JSON.stringify(scenario)} === "approval") {
     events = [
       {
         type: "item.started",
@@ -101,7 +108,7 @@ if (input.kind === "turnStart") {
           actionKind: "tool_execution_policy",
           requestId: "terminal-approval",
           actionId: "terminal-approval",
-          toolCallId: "terminal-command",
+          toolCallId: commandCallId,
           toolName: "Bash",
           toolFamily: "shell_command",
           runtime_contract: {
@@ -224,6 +231,19 @@ if (input.kind === "turnStart") {
       ],
     } });
   }
+  if (${JSON.stringify(tokenUsage)}) {
+    events.splice(events.length - 1, 0, { type: "provider.usage", payload: { usage: {
+      total_token_usage: {
+        total_tokens: 161000, input_tokens: 155000, cached_input_tokens: 130000,
+        cache_write_input_tokens: 500, output_tokens: 6000, reasoning_output_tokens: 2000,
+      },
+      last_token_usage: {
+        total_tokens: 31000, input_tokens: 30000, cached_input_tokens: 10000,
+        cache_write_input_tokens: 100, output_tokens: 1000, reasoning_output_tokens: 500,
+      },
+      model_context_window: 128000,
+    } } });
+  }
   events.unshift({ type: "turn.started", payload: {} });
 } else if (input.kind === "actionRespond") {
   const decision = input.request.decision ?? null;
@@ -231,7 +251,7 @@ if (input.kind === "turnStart") {
   const isAskUser = String(input.request.actionType ?? "").toLowerCase().includes("ask");
   const toolCallId = isAskUser
     ? questionCallId
-    : "terminal-command";
+    : commandCallId;
   events = [
     {
       type: canceled ? "action.canceled" : "action.resolved",
@@ -282,6 +302,29 @@ appendFileSync(
   }) + "\\n",
 );
 console.log(JSON.stringify({ events }));
+if (input.kind === "turnStart" && ${JSON.stringify(scenario)} === "reasoning-resume") {
+  // The reader releases this barrier only after canonical resume and page hydration.
+  const continuePath = ledgerPath + ".continue";
+  await new Promise((resolve) => {
+    const check = () => {
+      if (!existsSync(continuePath)) return;
+      unwatchFile(continuePath, check);
+      resolve();
+    };
+    watchFile(continuePath, { interval: 10 }, check);
+    check();
+  });
+  const index = 0;
+  summaryParts[index] += " STDIO_RESUMED_DELTA";
+  console.log(JSON.stringify({ events: [
+    { type: "reasoning.summary", payload: {
+      itemId: "item_terminal-reasoning-" + turn.turnId,
+      summaryIndex: index, summary: " STDIO_RESUMED_DELTA",
+    } },
+    { type: "item.completed", payload: { item: reasoningItem("completed") } },
+    { type: "turn.completed", payload: { status: "completed" } },
+  ] }));
+}
 if (
   input.kind === "turnStart" &&
   (${JSON.stringify(scenario)} === "interrupt" ||

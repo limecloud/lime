@@ -140,6 +140,65 @@ App Server TurnPlanUpdated -> current Thread event routing / foreign buffer + re
 架构确认：root，2026-10-07；计划投影与 status facts 依赖方向保持 App Server 主链，
 无 protocol/runtime/persistence/GUI backend 改动。历史 typed checklist 缺失时显式省略进度。
 
+`projection/token_usage::TokenUsageState` 保存 App Server typed ThreadTokenUsage 的只读快照，
+累计仍由服务端拥有，不在 TUI 加和事件。当前 Thread/最后 Turn 身份限制旧通知；最后 Turn
+的最终 usage 可在 terminal 后到达，新 Turn 开始后旧 Turn 不能覆盖。hydrate 清空 usage，
+不会从历史文本或本地日志补出 token。现有 ThreadEventStore 在 session refresh 时保留最后
+一份已观察 typed usage，因为当前 thread/read 不含 durable token snapshot；它仍受原容量
+和当前 projection identity 校验，断线清理遵守原 owner，不新增缓存持久化或业务后端。
+
+```text
+RuntimeCore provider usage -> App Server ThreadTokenUsageUpdated -> current Thread routing
+  / existing bounded foreign buffer (latest usage retained on refresh)
+  -> projection/token_usage -> same ThreadTokenUsage facts
+  -> status/helpers -> footer + title/setup preview + status pager/copy
+```
+
+`status/helpers` 对齐 Codex 目录，是显示算法的唯一 owner。used-tokens 为 non-cached input + output；
+input/output 取 total，context 取 last.total_tokens 与 server model_context_window，使用
+Codex 12000 baseline、四舍五入和 0..100 边界。未知/非正 window 不输出默认 100%；已观察
+input/output 零值可显示，used-tokens 零值省略。负值与溢出在纯显示层安全处理。五语言
+labels/value 为 locale/token_usage，title 委托同一 status item。status 的渲染与复制字段
+直接收敛为一个 fields owner。架构确认：root，2026-10-07；GUI/TUI 继续共用同一已有
+notification/protocol/runtime/persistence，无新增公开字段、method 或兼容后端。
+
+普通 composer footer 也消费同一 StatusSurfacePreviewData.token_usage，由 view 一次派生
+immutable FooterProps 的 context_window_percent/context_window_used_tokens；bottom_pane
+不保存或累计用量。百分比复用 status/helpers，无有效 window 时展示 server total.total_tokens
+（包括 cached input；不混用 blended 计费统计），unknown 为空。bottom_pane/footer 是完整
+左右布局的唯一 owner，先测量完整操作提示再决定 context 是否可见；idle Plan cycle 与
+queue 提示优先，搜索/interactive overlays 使用自身 footer，不泄漏统计。passive status
+layout 右侧只放模式/Vim，普通 layout 右侧放 context/Vim，保留一列边距和最小间隔。
+原 inline tests 直接迁到 footer_tests；没有新 composer、runtime 或配置存储。
+架构确认：root，2026-10-07；现有 canonical facts -> immutable FooterProps -> pure footer
+数据流和 GUI/TUI 共享底层保持，run-state/thread-id 仅统一既有配置项目的 canonical 名称。
+
+TUI 历史回退交互由 Codex 同名 `app_backtrack` 持有：空输入两次 Esc 在已有 transcript
+pager 中选择用户 prompt，左右/h/l 不循环，Enter 请求现有 `thread/revert`。新建 CLI/TUI
+Thread 显式使用 Paginated，fresh/resume 都 hydrate 服务端 Thread，不从本地默认值猜模式；
+Legacy Thread 的独立回退继续 fail closed。目标来自 `thread/turns/list` 的 Full Turn，
+只允许已结束 Turn 的第一条 UserMessage，跨页 review 使用相邻较旧 Turn metadata，
+不把 steer、局部历史或未知输入当可独立编辑的目标。canonical UserInput 通过
+`chat_composer_history/user_input -> BottomPane::restore_user_inputs` 恢复，recall、queue edit
+和 backtrack 共用同一 typed conversion/editor，不复制图片 detail 或 mention lowering。
+
+```text
+Esc / existing transcript pager -> app_backtrack (Thread + generation + cursor)
+  -> app-server-client RequestHandle -> thread/turns/list Full -> selectable prompt
+Enter -> thread/revert -> same canonical Thread history prefix
+  -> history_replacement -> thread/read metadata + bounded thread/items/list / required Turn facts
+  -> same projection + existing bounded ThreadEventStore replay
+selected canonical UserInput -> shared HistoryEntry restoration -> private ChatComposer
+```
+
+`app/history_replacement` 同时承接回退响应与 `thread/reverted`，清除旧历史、usage、queue
+与 replay seed，保留 draft；读取期间的新通知/请求复用原 ThreadEventStore，exact-id 过滤
+与容量不变。notification 先于 response 时等待 prompt 恢复再启动 hydrate；失败禁止提交、
+Esc 重试，重试不丢新事件。读任务取消/旧 generation/Thread/cursor 的回包 fail closed，
+mutation 不因退出浏览取消。pager 分为 state/render/browsing 与独立 tests，复用同一
+bookmark/disclosure，不另建回退窗口或 backend。root 架构确认：2026-10-07；本阶段
+没有新增 method/schema/runtime/persistence/GUI owner，文件系统回滚不属于此操作。
+
 TUI 的唯一输入 surface owner 为 Codex 对齐的 `ChatWidget`；其嵌入式 `bottom_pane` 持有私有主
 `ChatComposer` 与交互 views。App 只负责 host/global navigation、Thread/transport action 与
 canonical transcript。领域 API
@@ -284,12 +343,12 @@ accept 丢弃。host 用 `draft_snapshot` 捕获 original，Vim 内部用 `snaps
 `set_history_metadata(thread_id, log_id, entry_count)`，不再截取一页或裁剪到 200 条。
 `ChatComposerHistory` 统一持有 `local_history/fetched_history/history_cursor`；正常 recall
 按需请求单条，搜索在 newest probe miss 后切换到 `search_batch` 的 query-independent 批量缓存。
-同一 owner 还持有 `replay_seeded_history`：legacy `thread/read` 的 canonical UserMessage 与
-带完整 Turn 元数据的 paginated item page 先 lowering 为 rich `HistoryEntry`，再进入同一
+同一 owner 还持有 `replay_seeded_history`：所有存量 Thread 都通过 canonical item page 与
+完整 Turn 元数据先 lowering 为 rich `HistoryEntry`，再进入同一
 Up/Down/Ctrl-R 状态机；旧页以 prepend 保持时间顺序，persistent prompt history 与 replay
 entry 按 text/mention identity 去重。review prompt 与 nested-review duplicate 只在
-`history_filter::hidden_user_message_ids` 证明可见后 seed；没有 Turn enrichment 的 flat page
-直接 fail closed，不把猜测出的用户消息写入 composer history。该 seed 只在 ChatComposerHistory
+`history_filter::hidden_user_message_ids` 证明可见后 seed；Turn 读取失败即整个页面失败，
+成功页面接口不允许缺失元数据，不保留 flat page 降级。该 seed 只在 ChatComposerHistory
 内存中存在，不新增协议、schema、持久化表或 App 级 history store。
 `app_event/AppEventSender` 传递同名 `LookupMessageHistoryEntry/Batch`，
 `app/message_history` 通过 cloned RequestHandle 异步访问既有 `promptHistory/read`，
@@ -343,6 +402,61 @@ history-cell 输入的兼容投影，不得重新实现 command output 限制。
 provider、runtime loop、ThreadStore 或第二份 transcript/read model；未来 Cloud 只在
 `app-server-client` transport 边界接入同一 canonical projection。
 
+`projection/items` 是 typed canonical item lowering 的唯一 owner，`projection/streaming`
+负责 provisional delta 接线；`projection/reasoning` 保留 canonical/streamed indexed summary
+parts 与状态标题；projection root 只负责 canonical 事件路由与
+Thread/Turn 生命周期。原宿主内的重复位置直接迁出，根文件回到 1000 行以内。
+推理摘要只来自 `Reasoning.summary` 和 `ReasoningSummaryTextDelta`；默认隐藏
+`Reasoning.content` 与 `ReasoningTextDelta`，不把原文补成缺失摘要或混入 status。
+raw-only canonical item 保留身份事实，但 entry renderer 不显示空 bullet，export 不输出
+空内容。rich/raw 是终端排版方式，不能借此开启 raw reasoning。显式 raw reasoning 配置
+尚未接入，不增加无消费者的 Visible enum/config stub。
+
+`history_cell/reasoning::split_reasoning_summary_parts` 是摘要正文转换的唯一 owner：
+以空行连接有效 parts，只去除独立 `<!-- -->` 占位；首个带换行的 bold 标题留给状态，
+bold-only、行内强调和正文中的 literal comment 保留。`ActivityDetail::Reasoning` 保存
+原始 indexed parts，`TranscriptEntry.text` 保存转换后的正文；status 从 parts 读取，
+不从剥掉标题的正文反推。重复 part-added 不清空已收 delta，负 index 拒绝，稀疏 index
+不扩张空 Vec。canonical completion 替换同 id facts，关闭 Turn/已完成 item 不接迟到
+delta。InProgress Turn 的 full snapshot 尾部 Reasoning 仅恢复为 terminal host 的
+provisional 状态，不推断 canonical 完成事实；非尾部和已关闭 Turn 的 item 保持 settled。
+`projection/history` 统一 full hydrate、分页 lifecycle 与 Codex-shaped
+`restore_active_reasoning_item/recover_resumed_reasoning`；原 root hydrate 位置直接迁出。
+分页先插入 canonical items，再恢复尾部 indexed parts/status；旧页不能覆盖已有 live
+进度。首次 summary/part/completion 无 item/started 仍可继续；同 id start 保留 snapshot，
+新 non-user item 则收尾旧 provisional，terminal/切 Thread 清恢复意图。
+此恢复状态不跨 App Server wire、持久化或 GUI 边界，不能成为第二 read model。
+root 已确认上述数据流与共享 canonical 边界，2026-10-08。
+
+App Server `processor/v2_notifications/reasoning` 独占 typed 推理通知 lowering，
+identity 与 content 解析分离：identity 校验继续 trim，summary/raw delta 和正文片段
+原样保留空白。通用 `text_from_payload` 同样保留 assistant batch/final reasoning 的
+片段边界，不能把身份规范化规则用于正文。原大文件中的 reasoning implementation 与
+inline tests 按领域迁出并直接删除；GUI/TUI 仍消费同一个 notification owner。
+root 已确认这项共享数据修复，没有 protocol/schema 或第二业务后端，2026-10-08。
+
+`ReasoningSummaryCell` 现在由实际 entry adapter 消费，只在 expanded/transcript 绘制
+正文；compact/raw 留空。它快照 cwd，复用 markdown/local-link 和 hyperlink wrap owner，
+每个续行保留两列缩进，全部正文 dim/italic；无用 generic reasoning adapter 已直接删除。
+同一正文供 pager、搜索、导出和 canonical 恢复消费，不建立第二存储或 GUI/runtime 分支。
+
+```text
+canonical ThreadItem -> projection/items -> indexed summary facts -> normalized body
+typed summary delta/index -> projection/streaming -> same summary facts -> body + status
+normalized body -> TranscriptEntry -> ReasoningSummaryCell (details only) / export
+raw reasoning delta/content -> default hidden terminal policy
+```
+
+架构图确认：root，2026-10-07；迁出的是 TUI 投影职责，App Server/RuntimeCore/GUI 的
+canonical summary/content 合同不变，没有平行模型、持久化或 provider 处理；第63阶段的
+indexed parts -> 同源 body/status -> 实际 transcript-only cell 数据流已由 root 确认。
+
+App Server `thread_item_projection/materializer` 在 typed canonical reasoning 生命周期入口
+以真实事件 envelope 固定 `source_event_id/type`，保留其余 nested metadata；两处既有
+history merge 因此按 snapshot 替换 parts，而不是把 started/completed 全量内容追加两次。
+fork canonical seed 仍保留原事实来源。没有 UI 文本去重或协议扩张；同一修复同时服务
+GUI/TUI 的 notification、分页 read model 与冷恢复。root 已确认此共享数据流，2026-10-07。
+
 `app/history_ui.rs` 是主 transcript、Ctrl+T pager 和 resume transcript 的统一投影入口；
 `chatwidget/transcript_export.rs` 是 `/export` destination/filename 的唯一 terminal surface owner：
 `ChatWidget::show_transcript_export_popup` 注入启动 RuntimeKeymap，destination 复用 current
@@ -377,26 +491,42 @@ GUI/TUI 的 App Server、runtime、protocol 与持久化边界不变。
 opaque `thread/items/list` cursor、loading 状态和去重集合；PageUp 触发的 older-history
 请求必须经克隆的 `AppServerSession::RequestHandle` 在后台发送，并通过
 `AppEvent::OlderThreadHistoryLoaded` 回到 TUI 主循环；主循环先校验 Thread/cursor ownership，
-再把返回的 `ThreadItemEntry` 和可选 Turn enrichment lowering 为 `TranscriptEntry` 并 prepend
+再把返回的 `ThreadItemEntry` 和必须成功读取的 Turn facts lowering 为 `TranscriptEntry` 并 prepend
 到 `ConversationProjection`。单页滚动、Pager 全量加载和启动/resize/reconnect 可视区补齐
 共享同一异步 completion flow，不能在 event loop 内同步 await，确保键盘、重绘、退出和
 App Server notification 在历史 IO 期间继续处理。`OlderHistoryLoadStart` 明确区分
 `Started`、`Pending` 与 `Unavailable`；Pager/Search 的全量加载意图在单页 completion 后
 继续消费，不能因 cursor 正在使用而把 Loading 误重置为 Idle。分页不能在 TUI 创建本地
-history store；legacy thread 继续使用 `thread/read(includeTurns=true)`，paginated thread
-使用 `thread/resume(excludeTurns=true)` 加 `thread/items/list`，直到 `nextCursor` 为 null。
+history store；Legacy 与 Paginated Thread 统一使用 `thread/resume(excludeTurns=true)` 加
+`thread/items/list` 和 `thread/turns/list`，直到 `nextCursor` 为 null。旧全量读取分支、
+session/handle 重复包装与 item-only 降级已删除；historyMode 只保留服务端事实及原
+thread/revert 的 Paginated 限制，不在 TUI 转换存量 Thread。
 paginated metadata-only resume 的 head cursor 由
 `RuntimeCore::paginated_resume_backwards_cursors` 通过 canonical ThreadStore 的
 `list_turns/list_items(sort=desc, limit=1)` 生成；store 从页首行编码 inclusive
 `backwardsCursor`，cursor 内容不离开 store 解析边界。`thread/resume` 返回稳定的 turn/item
 head cursor，TUI 从 item cursor 开始 bounded hydration；重复或不前进的分页 cursor 按
 Codex `advancing_cursor` 语义终止，不转成第二套错误协议或本地 cursor。
-当前 overlay 的 bounded reflow 和 Codex 专用 review/MCP/file-activity 过滤仍属于
-`defer`，未伪造为 Lime current 语义。Resume picker 的 bounded preview 也必须在展示前
-尽可能读取同一批 canonical Turn facts，通过 `hidden_user_message_ids` 做跨页 review
-过滤；Turn 请求失败时只能保留受控 item-only fail-closed 展示，不能建立 preview history
-store 或第二套过滤规则。架构图确认：history completion/event flow 与 preview lowering
-继续复用 App Server canonical Thread/Turn/Item；责任开发者 root，2026-10-03。
+当前 overlay 的 bounded reflow 和 Codex 专用 MCP/file-activity 过滤仍属于
+`defer`。Resume picker preview 最多扫描 400 items，先读取 canonical Turn facts 并通过
+`hidden_user_message_ids` 过滤，再判断是否已有六行，隐藏 prompt 不消耗可见行预算。
+重复 cursor 或元数据失败显式失败；完整 transcript/导出同样只用 metadata + canonical
+turn/item paging，并拒绝没有对应 Turn 的 item。preview 不建立 history store。
+`InitialHistoryPage` 与异步 older completion 都要求 Turn Vec；空页面为两份空 Vec。
+`projection/history` 恢复 active/closed Turn identity，保留新 live Turn、拒绝已结束回合的
+迟到 delta，不从历史文本制造 usage。turn_lifecycle 同步投影事实，transport 与 GUI/runtime
+owner 不变。
+
+```text
+startup / resume / reconnect / history replacement
+  -> app-server-client -> metadata + canonical items/list + turns/list
+  -> required item/Turn page -> history_pagination (Thread/cursor ownership)
+  -> projection/history lifecycle + completion/review lowering + composer recall
+picker preview / complete transcript -> same canonical paging and review facts
+```
+
+架构图确认：root，2026-10-07；唯一 history paging、required facts 与 projection 生命周期
+依赖方向如上，GUI/TUI 继续共享 App Server/RuntimeCore/ThreadStore；无新公开协议或后端。
 
 CLI 的 npm 分发边界对齐 `/Users/coso/Documents/dev/rust/codex/codex-cli`：`@limecloud/lime` 根包只发布 ESM launcher，并通过 optional dependency alias 选择平台包；平台包在 `vendor/<target-triple>/bin` 原子携带 `lime`、`app-server`、`code-mode-host`、Windows sandbox helpers 与 App Server 所需动态运行库。launcher 只负责平台解析、包管理器归属、参数/stdin/stdout 转发、signal forwarding 和退出原因镜像，不下载 release asset、不回退 `cargo run`，也不承接 App Server 业务。平台包必须先于根包串行发布，避免根包引用尚不存在的载荷版本；尚无真实构建/运行证据的平台不进入 optional dependency catalog。
 

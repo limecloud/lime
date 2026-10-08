@@ -7,6 +7,32 @@ use crate::tui::TuiEvent;
 use app_server_protocol::protocol::v2::{FuzzyFileSearchResult, SkillMetadata};
 
 impl BottomPane {
+    pub(crate) fn can_backtrack(&self) -> bool {
+        !self.is_active() && self.composer.can_backtrack()
+    }
+    pub(crate) fn restore_user_inputs(
+        &mut self,
+        inputs: &[app_server_protocol::protocol::v2::UserInput],
+    ) -> bool {
+        let Some(entry) = super::chat_composer_history::HistoryEntry::from_user_inputs(inputs)
+        else {
+            return false;
+        };
+        self.composer
+            .edit_stored_draft(|composer| composer.apply_history_entry(entry));
+        self.composer.clear_completion_popup();
+        true
+    }
+
+    pub(crate) fn can_restore_user_inputs(
+        inputs: &[app_server_protocol::protocol::v2::UserInput],
+    ) -> bool {
+        super::chat_composer_history::HistoryEntry::from_user_inputs(inputs).is_some()
+    }
+
+    pub(crate) fn show_esc_backtrack_hint(&mut self, show: bool) {
+        self.composer.show_esc_backtrack_hint(show);
+    }
     pub(crate) fn composer_input_enabled(&self) -> bool {
         self.composer.input_enabled()
     }
@@ -157,7 +183,7 @@ impl BottomPane {
     pub(crate) fn record_replayed_history_page(
         &mut self,
         items: &[app_server_protocol::protocol::v2::ThreadItem],
-        turns: Option<&[app_server_protocol::protocol::v2::Turn]>,
+        turns: &[app_server_protocol::protocol::v2::Turn],
         prepend: bool,
     ) {
         self.composer

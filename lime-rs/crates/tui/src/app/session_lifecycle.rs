@@ -20,19 +20,10 @@ impl App {
         }
         let response = session.resume_thread(thread_id).await?;
         let resumed_thread_id = response.thread.id.clone();
-        let paginated_history = response.thread.history_mode
-            == app_server_protocol::protocol::v2::ThreadHistoryMode::Paginated;
         let initial_cursor = response.items_backwards_cursor.clone();
-        let initial_page = if paginated_history {
-            session
-                .hydrate_initial_thread_history(resumed_thread_id.clone(), initial_cursor)
-                .await
-        } else {
-            Ok(crate::app_server_session::InitialHistoryPage {
-                items: Vec::new(),
-                turns: None,
-            })
-        };
+        let initial_page = session
+            .hydrate_initial_thread_history(resumed_thread_id.clone(), initial_cursor)
+            .await;
         let snapshot = self.take_thread_event_snapshot(&resumed_thread_id, true);
         self.capture_current_thread_input();
         self.hydrate_thread(response.thread);

@@ -1,9 +1,9 @@
 # TUI/CLI 继续同步 Codex 执行计划
 
 状态：in-progress（当前切片已验证；总体对齐仍有明确 defer/partial）
-日期：2026-09-08（最新续跑 2026-10-02）
+日期：2026-09-08（最新续跑 2026-10-07）
 参考实现：`/Users/coso/Documents/dev/rust/codex`
-当前基线：Rust commit `c248f6d48b`（参考目录当前 checkout）
+当前基线：Rust commit `4aaee872e31abefe0d32e91faab23b09b6968824`（参考目录当前 checkout）
 
 ## 全维度对齐验收（2026-10-01）
 
@@ -7524,7 +7524,7 @@ compat/deprecated。KISS 不解析历史文本补假计数，DRY 共用 formatte
 Windows/live provider/Desktop/panic 注入未由本轮证明。仓库门禁沿用前阶段记录，后续需按
 当前工作树重核，而不能把原阻塞或其它发布工作状态视为本轮已验证。
 
-## 第五十八阶段：token usage 与上下文状态显示（进行中）
+## 第五十八阶段：token usage 与上下文状态显示（功能/终端验收完成）
 
 主目标继续为 Codex CLI/TUI 全面对齐，本轮接入已存在的 canonical
 `thread/tokenUsage/updated`，供状态栏、标题配置预览和 `/status` 共同消费。唯一来源为
@@ -7542,3 +7542,465 @@ context 使用 last.total_tokens 与真实 window，按 Codex 12000 baseline 算
 未知或非正 window 省略，不复制无来源的 100% 默认；负值/溢出安全、已观察零值与 unknown
 可区分；Thread handoff/hydrate/replay 隔离、旧 Turn 通知不覆盖新 Turn，允许当前最后 Turn
 的终态 usage 到达；五语言/窄屏/status copy 与真实 PTY 证明同一事实源，配置不新建 Turn。
+
+实现完成：`projection/token_usage` 保存 typed snapshot，并同时接请求 acknowledgement 与
+TurnStarted 的身份；新 Turn 后拒绝旧 Turn 用量，当前最后 Turn 的终态通知仍可消费。
+hydrate 清空用量并从 canonical 最后 Turn 初始化身份，不从历史文本制造统计。Thread
+buffer rebase 保留最后一份已观察 typed usage；切换后 replay 最后快照，不累加通知。
+冷恢复的 thread/read 尚无 durable usage 合同，仍等待新通知，明确保留此能力缺口。
+
+`status/helpers.rs` 对齐 Codex 的 format_tokens_compact/blended_total/上下文百分比，统一
+驱动 status/title/setup/pager；临时 status/token_usage 路径直接迁走，原重复字段构建收敛
+为 fields()。新增六个 status 项目及五个 title 项目，五语言共享标签与值，无新协议、GUI
+业务路径、依赖、锁文件或配置存储。projection root 仅接线，退出条件继续为拆分领域逻辑。
+
+当前版本 1.151.0：TUI unit `1553/1553`、suite `23/23`、integration `1/1`；结构/Gate/
+fixture/inventory 守卫 `104/104` 全通过。Clippy all-targets/no-deps/-D warnings、fmt、
+脚本 ESLint/Prettier、contracts、docs boundary、diff check 通过。inventory 共 1484 文件
+（Codex 1084、Lime 400；独立 test 树另 18/11）。治理 runtime=2068、Rust=1782、
+test=1356、Rust test=197，零引用候选/分类漂移/边界违规均为 0。verify:local 实际通过，
+smart 检测 32 文件，执行 cli/tui 范围测试。并行工作已清除此前 GUI 的 26 个未引用翻译
+key，本轮只读重核 i18n:unused=0；不认领该改动，不继续将历史 i18n 阻塞视作当前阻塞。
+
+2026-10-07 完整真实 TUI Gate B：thread `01a11605-2daf-77a3-99f0-c098dd804f51`、turn
+`turn_c306bd4372bd4a32b9272454b419acde`，task-progress=ok、token-usage=ok、
+terminal=restored。真实 /status、选择/排序/保存、footer、OSC preview/cancel/save、fresh
+stdio 配置/conflict 与恢复，ledger 无新增 Turn；全部既有输入/编辑/审批/线程/draft/
+history/images/skills/reconnect 场景同次通过。此前两次失败分别为 fixture 的 cwd 搜索词
+匹配到 Context window、扩展完整场景触及总 60s；已改真实 working directory 搜索与该
+场景 120s 总时限，其它场景仍 60s、screen predicate 仍 10s，没有固定 sleep 或合成终态。
+真实 CLI Gate B：thread `01a11606-a497-7810-9ece-a5cdc0218a9b`、turn
+`turn_e5f0ba26194c490f96ef73001b6fd7be`，JSONL/stdin/error-exit1/zsh completion 通过；
+usage 仅显式 TUI fixture 注入，CLI 默认事件序列保持。
+
+Codex HEAD `4aaee872e31abefe0d32e91faab23b09b6968824`；status/helpers.rs SHA256
+`7a0536c9854def413c0d20516cd9850c69bc85753902d01fcacc71753bfd210d`；protocol.rs
+`54f175eeb1410f1b1937df7466da2dc73258ccc5e2b6f09bd6172868a19c23b7`。root 于
+2026-10-07 已在 architecture.md 确认 typed usage/bounded buffer/projection/shared formatter
+的数据流与缺失 durable snapshot 边界。分类：typed projection/helpers/shared facts 为
+current；重复字段构建与临时 formatter 路径为 dead / deleted，无新增 compat/deprecated。
+KISS 不补伪事实，DRY 共用显示算法，SOLID 分开身份校验、展示与 transport owner。
+
+本切片功能/终端退出条件 `100%`；总体仍 partial / in-progress，无可信总体分母。
+Desktop Gate B 仍 unverified / harness-blocked（此前 GUI smoke 缺 structured summary，
+本轮没有新 Desktop 证据）；Windows/live provider/panic 故障注入未由本轮证明。
+
+## 第五十九阶段：普通 composer 底栏上下文与 canonical 配置名（功能/终端验收完成）
+
+主目标继续为 Codex CLI/TUI 全面对齐；下一刀补普通底栏右侧上下文及 Vim 排布，直接
+消费同一 typed usage 的 immutable FooterProps。状态栏 passive 布局不重复显示 context；
+未知事实为空，已观察用量但无有效 window 时用服务端累计 total_tokens（不是 blended
+计费统计），与 Codex 的普通 footer 语义一致。配置保存 canonical run-state/thread-id，
+只保留 Codex 自身的解析 alias，不加 compat wrapper。
+
+窄写集：bottom_pane/footer 与纯 context/layout owner、既有 inline tests 迁出、view/
+chatwidget 最小 snapshot 接线、status item/消费者命名、locale token 文案、定向/PTY 回归、
+既有结构/Gate/inventory、ops/commands/architecture/本计划。避让发布计划、manifest、
+锁文件、GUI/App Server/protocol。footer 近 800 行先迁出 tests，不在大宿主堆业务逻辑。
+
+退出条件：真实百分比/total fallback/unknown/zero 五语言；右侧完整显示并保留边距与间隔，
+Unicode 宽度正确；窄屏先保全 queue/cycle 操作提示，必要时隐藏 context；passive status、
+history/Vim search/shortcuts/interactive overlays 无 context 泄漏；Vim 模式右对齐，足够宽时
+context 与 Vim 用分隔符组合；canonical 配置选择/保存/alias 去重；真实 PTY keyboard/
+resize/恢复及同一 stdio 配置和 canonical ledger 验证，相关门禁通过后登记证据。
+
+实现与最终验证：普通 footer 的 context/window/total fallback、Vim 组合、queue/cycle 窄屏
+优先级均由 pure footer owner 承接；447 行 production 与 602 行独立 tests，原 inline
+tests 位置直接迁出。App 只传 immutable FooterProps，不在 composer 累计用量。
+run-state/thread-id 保存 canonical ID，五语言选择器使用准确名称；Status/SessionId enum
+及 Codex 自身解析 alias 保持原语义。history/Vim search/shortcuts/interactive modes 隔离。
+
+TUI unit 1561、suite 23、integration 1 全通过；结构/Gate/fixture/inventory 105/105，
+最终 inventory 守卫 26/26。Clippy all-targets/no-deps/-D warnings、fmt、ESLint、Prettier、
+contracts、diff check 通过。inventory 1486 文件（Codex1084、Lime402）；治理 runtime2068、
+Rust1784、test1356、Rust test197，零引用候选/漂移/违规均0。最新 verify:local 通过，
+smart39文件、版本1.151.0、Rust范围cli/tui（CLI8、TUI1561）。无版本、依赖或锁文件变更。
+
+2026-10-07 完整真实 TUI Gate B：thread `01a11628-2ffd-79b0-8cbe-6d0afbe6c135`、turn
+`turn_fcd95d75acd54710b420ea089b098c88`，task-progress/token-usage/context-footer/
+canonical-status-ids=ok、terminal=restored，既有全部场景同次通过。focused complete：
+thread `01a11624-8fad-70d2-9b9f-37f505118ef0`、turn
+`turn_c2bc2aeae34540e5ba25a3f93a420c7e`。同次 thread-input stdio root
+`01a11629-511c-7272-bd2d-6817ea7b1366`、child `01a11629-513c-7660-b3f3-289d26c4f5d8`；
+typed-input stdio thread `01a11629-6b6d-7b51-b73a-883c2b182877`、turn
+`turn_fc05cdd182914089b94f96842fe4d3ef`、queue `27c40ffe-7581-4a80-9065-7971b7389d7d`。
+本阶段未新增 CLI Gate，不能冒充第五十八阶段证据为本阶段验收。
+
+PTY 证明真实16/100列 resize、context/Vim query/cancel、快捷键隔离、canonical设置保存与
+ledger同一Thread UUID、fresh stdio配置重读/version conflict和恢复，且无新增Turn。
+夹具使用可见 checkbox 状态屏障及实际catalog数量，不靠固定 sleep；16列完整提示和
+context都放不下时允许留空。架构由root于2026-10-07确认。避让release-v1.151.0-plan.md
+的并行改动（当时numstat6/4）。KISS保持纯布局，DRY共享usage与typed配置，SOLID分开
+展示和事实接线。current为FooterProps/pure layout/canonical writer；原普通左侧Vim拼接、
+inline tests位置与旧canonical writer名称为dead/deleted；无新增compat/deprecated。
+
+本切片功能/终端退出条件100%；总体partial/in-progress，无可信总体分母。Desktop Gate B
+本阶段未新增，原GUI smoke structured summary harness缺口未重验；Windows/live provider/
+panic注入未证明。下一刀为Esc历史回退编辑，复用既有thread/revert与typed输入恢复。
+
+## 第六十阶段：Esc 历史回退编辑与 canonical 输入恢复（功能/终端验收完成）
+
+主目标不变。current事实源为现有App Server thread/turns/list、thread/revert与同一
+Thread/Turn/Item投影。TUI新增Codex-shaped app_backtrack状态机，不解析transcript文本
+重建输入；复用HistoryEntry::from_user_inputs和composer历史恢复，不建立第三套lowering。
+
+窄写集：TUI app_backtrack及输入/overlay/session最小接线、pager领域拆分、footer EscHint、
+五语言、typed历史请求/回退worker与稳定回归、现有PTY/Gate/结构/inventory、架构/命令/
+ops/本计划。避让GUI、协议/backend、manifest/锁文件及发布计划。pager_overlay原1912行，
+先迁出tests并按领域拆分；宿主只接field/mod/dispatch，不继续堆业务逻辑。
+
+退出条件：空输入首次Esc提示、再次Esc进入最近用户prompt预览；左右选择、不循环；Esc
+取消恢复阅读起点，Enter经现有thread/revert回退至所选Turn之前，再从typed UserInput
+恢复文本/elements/图片/Skill/Mention。异步分页/失败/重连/切Thread不得污染新会话或丢
+草稿；未知/不可编辑输入fail closed。保留运行中interrupt、Vim/搜索/modal输入优先级。
+thread/reverted及回退响应均刷新canonical历史，不留被删除Turn；相关单测/结构/contracts/
+local与真实PTY+stdio回归通过后登记证据，不把切片完成冒充总体完成。
+
+2026-10-07 接续发现并修复：thread/revert 只允许 Paginated Thread，原 CLI/TUI 创建仍为
+Legacy，新建 TUI 又仅设置状态栏名字、没有 hydrate 服务端 Thread。现在创建显式请求
+Paginated，fresh startup 与 resume 共用 hydrate_thread；现存 Legacy 不伪造可回退支持。
+focused complete 真实 PTY 已通过（thread 01a11650-66f6-7130-a18e-1b45c005d7b9，
+removed turn turn_70e47f17956a419d919d63cedbcdc04c），此证据早于后续事件缓冲补丁，
+最终收尾必须重跑。mode 改动也影响 exec，需本轮 CLI Gate B。
+
+回退刷新重用 bounded ThreadEventStore：从 thread/reverted 边界清旧事件，读取期间保留
+新通知与 exact-id 未决请求，canonical hydrate 后重放；失败重试不清这些新事件。只读
+preview 随 TurnStarted/ThreadClosed 失效，mutation 不由 UI 取消中止。目标只取 Full 且
+已结束 Turn 的第一条 UserMessage，拒绝把 steer、残缺记录或 hidden review 当独立回退。
+窄屏 footer 按 first-fitting 候选保留 Enter/Esc。新增真实 stdio 三轮选择/保留前缀/typed
+TextElement/文件不变/冷恢复/live-refresh 测试，Gate 强制提取 evidence marker；仍待验收。
+
+最终验收（2026-10-07，1.151.0）：TUI unit1572、suite23、integration1；结构/Gate/fixture/
+inventory108/108。Clippy all-targets/no-deps/-D warnings、fmt、ESLint/Prettier、contracts、
+docs boundary、diff check均通过。verify:local smart检测73文件，CLI8/TUI1572通过。
+inventory1498（Codex1084、Lime414），治理runtime2068/Rust1796/test1356/Rust test197，
+零引用候选/分类漂移/边界违规均0。无版本、manifest、依赖或锁文件改动。
+
+完整真实TUI Gate B：thread `01a11664-7ee0-7990-bbc3-cc1983642dbd`，removed turn
+`turn_c02161ff93b54c0098ae1a6dbbd259cb`；backtrack/cold-revert-resume/typed-revert/files/
+live-refresh/refresh-retry与既有全部场景通过、terminal=restored。同次真实stdio前缀验收
+thread `01a11665-bd29-7113-bd62-b0cf8212241b`、preserved turn
+`turn_f3d921e0e5304091be5f9d824234b96c`，三轮中选择第二轮回退，原第一轮保留，第二/三轮
+删除，TextElement恢复且workspace文件未变；显式新回合真实通知跨刷新/失败重试重放。
+IO失败是在UI owner处注入，服务端通知/终态来自真实external backend；旧generation成功
+回包不能完成新retry。notification先于response的prompt恢复顺序由稳定unit覆盖。
+
+真实CLI Gate B：thread `01a1165f-9854-7323-a5f9-7e9a0dd6e90c`、turn
+`turn_c9978be81f754a2684f931511ffa1b7c`，JSONL/stdin/error-exit1/zsh completion通过。
+完整TUI首跑被Cargo编译/锁等待40秒挤占120秒外层时限，未有交互assertion失败；重跑
+通过，runner再将cargo test --no-run移到PTY计时前。该runner focused重核通过：thread
+`01a11666-a775-76b2-a103-dda5f4cc69ae`、turn `turn_8a3e23b1d12142d597ade224b8ef8a41`；
+stdio thread `01a11667-fb0f-7b43-bf9c-2dafa53998f9`，preserved
+`turn_f483697fb23f4f2b825f29c6abed87c9`。多轮fixture原固定reasoning/tool ID曾触发canonical
+拒绝，现按Turn唯一，unit防回流；没有放松服务端身份校验或延长产品timeout。
+
+Codex HEAD `4aaee872e31abefe0d32e91faab23b09b6968824`；app_backtrack.rs SHA256
+`0046e0ab6514b582787f373bf67c20ff95377eec2c62ef9c2191571e1674ae66`。root已确认
+architecture.md的host状态/共享typed恢复/原bounded事件store/同一App Server数据流。
+current为app_backtrack/history_replacement/shared UserInput conversion/pager领域owner；
+原inline pager tests位置与queue重复lowering为dead/deleted，无新增compat/deprecated。
+KISS不重建历史文本，DRY共用输入和事件owner，SOLID拆分state/render/IO。发布并行文件
+继续避让，本进程未提交/推送/建分支。切片退出条件100%，总体partial/in-progress，无可信
+总体分母；Desktop/Windows/live provider/panic未由本轮证明。下一刀：统一历史分页读取。
+
+## 第六十一阶段：历史读取去双轨与分页 owner 收敛（功能/终端验收完成）
+
+主目标继续Codex CLI/TUI全方面对齐。本轮事实源仍为同一App Server metadata、
+thread/items/list与thread/turns/list；服务端已支持分页读取Legacy与Paginated存量Thread，
+TUI不再以historyMode决定是否走全量thread/read(includeTurns=true)。mode仍由服务端
+提供，thread/revert的Paginated限定不变，不伪造存量Thread转换。
+
+窄写集：TUI app_server_session/history、startup/session_lifecycle/reconnect、history_pagination、
+projection/history 与生命周期接线、thread_transcript、composer replay page API、
+resume_picker_transcript_preview及实际调用、对应定向/真实history/reconnect PTY fixture、
+focus_palette 既有 PTY 观察 helper、既有结构/
+inventory守卫、architecture/commands/ops/本计划。App Server/backend/protocol只读，
+GUI、发布manifest/锁文件/发布计划继续避让。
+
+退出条件：resume初始页、picker预览和完整transcript/导出都采用bounded canonical分页，
+删除旧Legacy全量分支与未使用包装/重复入口，不新增compat；存量历史仍可读；跨页顺序/
+review/完成态/游标/失败/切Thread保持原合同。分页metadata一致性失败不得回退未经
+验证的完整历史或猜测事实。定向Rust、真实Legacy+Paginated history PTY、结构/contracts/
+local通过后登记证据；本阶段未验收完成。
+
+实现接续：所有存量 mode 统一 canonical 分页；旧全量 reader、无引用包装与 flat
+fallback 直接删除。Turn metadata IO 失败作为整页失败，初始页和 older event result
+将 items/Turn Vec 一起传递，不再允许成功页缺元数据。projection/history 恢复 active/
+closed identity、隔离旧 delta 和 usage；review 过滤先于 preview 六行预算。history suite
+原 1132 行拆成 scenario root 与 fixtures；fake remote 返回与 item 页一致的 Full Turn
+facts，并覆盖 item IO 与 metadata IO 两种失败。reconnect fixture 迁为 metadata-only
+resume + canonical items/turns，禁止依靠 response 内嵌 turns 通过。
+
+初轮真实 history Gate 已通过：Paginated `01a116a1-61f6-7c20-bfe8-795ca22de1de`，
+3页207items；Legacy `01a116a1-338c-7570-8a27-5ad1084c6b95`，2页102items；
+review=nested-filtered、underfilled=auto-filled、alternate-screen=restored。
+此证据早于 required Vec 接口与 reconnect fixture 改动，最终验收须重跑。当前 unit1573/
+suite23/integration1、定向结构83通过，完整 Gate/Clippy/contracts/local 尚待完成。
+
+复跑夹具修复：race 初始一条短消息会触发真实 startup underfill，可能在 Find 打开前
+提前断线；改为填满初始视口，让显式 Home 触发旧页 IO，underfill 仍由真实 stdio 单独
+覆盖。搜索重连以最终“reconnected”footer作重绘屏障，不能只等顶部新历史 substring。
+既有 PTY helper 在 child exit 后先读到 reader EOF，再检查恢复序列；不放宽恢复断言或
+用 sleep 合成成功。v2-v4 的真实失败保留在 /tmp 日志；v5 的 helper import 编译失败已修正，
+最终验收使用 v6 及 fresh full Gate。
+
+最终验收（2026-10-07，1.151.0）：TUI unit1573/suite23/integration1，结构/Gate/fixture/
+inventory109/109；Clippy all-targets/no-deps/-D warnings、fmt、ESLint/Prettier、contracts、
+docs boundary、diff check与verify:local全部通过。local smart87文件，CLI8/TUI1573；
+inventory1500（Codex1084、Lime416），治理runtime2068/Rust1798/test1356/Rust test198，
+零引用候选/分类漂移/边界违规均0。manifest、版本、依赖、锁文件无变更。
+
+真实 history Gate v6：Paginated `01a116b1-fd77-74e3-a5a6-f6f4886e0a3f`，3页207items；
+Legacy `01a116b1-cf08-7921-b94a-aae94d27051e`，2页102items；nested review、underfill、
+item/Turn metadata失败重试、切Thread/reconnect竞态与alternate-screen恢复通过。
+完整 fresh TUI Gate：thread `01a116b2-694c-79d0-ae78-58ea822800aa`，turn
+`turn_ad8e8a5f10844ab6a9a432834ea391f0`，既有全部场景、reconnect与terminal=restored；
+同次 backtrack stdio thread `01a116b3-92f7-7c30-9ec8-2804ec3033ba`，preserved turn
+`turn_61bc641c5e594813ae2bee43c093d013`，canonical前缀/typed恢复/live-refresh/retry通过。
+真实CLI Gate：thread `01a116b4-2637-7111-aebb-61f19944e327`，turn
+`turn_b632d4a59f134a7eb8b4f45dc61bb49e`，JSONL/stdin/error-exit1/zsh completion通过。
+
+Codex HEAD `4aaee872e31abefe0d32e91faab23b09b6968824`；thread_transcript SHA256
+`2edb024b1c844d345ba207fe9be7755d6fec2bc578ae5d2e2366ff28726162a1`；preview SHA256
+`44f987898876ef457a7a915dcf566570bc138b235f3f53a44705bde25cb492c8`。
+root已确认architecture.md的统一分页/required Turn facts/lifecycle接线，无新业务后端。
+current为canonical page/projection facts/单一reader；旧Legacy全量分支、无引用包装、
+optional元数据与flat fallback为dead/deleted；PTY夹具和观察helper为test-only。
+无新增compat/deprecated。KISS拒绝猜测metadata，DRY统一成功页shape，SOLID分离IO/
+投影与PTY观察。切片100%，总体partial/in-progress，无可信总体分母；Desktop/Windows/
+live provider/panic本轮未新增证据。
+
+## 第六十二阶段：推理摘要事实与默认隐藏原文（功能/终端验收完成）
+
+下一刀直接服务显示对齐。Codex默认隐藏raw reasoning，Lime当前把ReasoningTextDelta
+追加到摘要，并在summary为空时用content替代，会污染status/pager/export。
+本轮只对齐默认显示语义，不假称已支持Codex的显式show_raw_agent_reasoning配置。
+事实源仍为App Server typed summary/content；不改GUI、provider、protocol或后端。
+
+窄写集：TUI projection/items与streaming拆分、root最小dispatch、entry空摘要绘制、
+专用unit/既有结构守卫、inventory、架构/ops/本计划。projection root原1446行，先迁出
+canonical lowering与streaming职责，使其回到1000行以内；旧位置直接删除，无包装层。
+退出条件：raw delta不修改摘要/status，raw-only历史不显示或导出原文；summary在live/
+canonical hydrate后一致，完成/closed Turn拒绝迟到事件；专用回归/crate/结构/Clippy/
+contracts/local与fresh终端Gate通过后登记。显式raw配置及其它未对齐项继续partial。
+
+实现：canonical lowering原位迁到projection/items，delta/摘要分段/status标题迁到
+projection/streaming，root1446 -> 814行；items536行，streaming118行，旧位置直接删除。
+ReasoningTextDelta默认不修改摘要或status，canonical只读取summary；raw-only项保留
+identity但不渲染空bullet，export跳过空内容。三条typed回归证明raw-first/interleaved、
+完成与closed后迟到事件、live/cold hydrate与实际entry renderer/export的默认隔离。
+没有引入无consumer的RawReasoningVisibility::Visible、私有config或第二read model。
+
+最终验收（2026-10-07，1.151.0）：TUI unit1576/suite23/integration1、结构/Gate/fixture/
+inventory110/110；Clippy all-targets/no-deps/-D warnings、fmt、ESLint/Prettier、contracts、
+docs boundary、diff check、verify:local全部通过。local smart92文件、CLI8/TUI1576；
+inventory1503（Codex1084、Lime419），治理runtime2068/Rust1801/test1356/Rust test198，
+零引用候选/分类漂移/边界违规0。manifest、版本、依赖与锁文件未变。
+
+fresh完整TUI Gate：thread `01a116bd-04d6-72e1-b8d8-10c57f6f0b42`，turn
+`turn_6356d0b61141423390b02a460906bc64`；所有既有输入/摘要详情/typed历史/回退/重连/
+status/title/footer/PTY键盘及terminal=restored通过。stdio回退前缀thread
+`01a116be-2814-74a0-9f5c-14ab87fe39f3`，preserved turn
+`turn_8096f955268e4fdb9a12dd046cb56649`。raw隔离的专门证据为typed unit、renderer与export；
+本阶段fresh PTY为总体回归，未注入raw delta，不升级成该场景的live provider证据。
+CLI Gate仍为第61阶段同代码主链的证据，本阶段没有新增CLI或Desktop Gate。
+
+Codex HEAD仍`4aaee872e31abefe0d32e91faab23b09b6968824`，chatwidget/protocol.rs SHA256
+`46809d852877902c958f47d7f266ece94d59b0f863e3e9dd2673954ca0673a6e`；root已确认
+architecture.md的items/streaming/default hidden policy数据流和GUI/TUI共享canonical合同。
+current为领域projection/entry renderer；旧inline转换与streaming位置、summary为空时
+raw fallback为dead/deleted；无新增compat/deprecated。KISS不把原文伪装摘要，DRY单一
+canonical lowering，SOLID分开事实转换、流式状态与绘制。
+本切片100%，总体partial/in-progress，无可信总体分母。显式raw配置、Desktop/Windows/
+live provider/panic及其余defer未由本轮完成；下一刀核对推理摘要布局与显式显示配置owner。
+
+## 第六十三阶段：摘要分段与实际 HistoryCell 渲染对齐（功能/终端/桌面回归验收完成）
+
+主目标仍为 Codex CLI/TUI 全方面对齐。本轮先补用户可见正文布局：Codex 的
+split_reasoning_summary_parts 保留段落、移除独立空注释占位，并只拆首个带换行的
+bold 标题。状态 latest_summary_line 已逐行核准一致，继续读原始结构化摘要；正文
+不能反向成为状态事实。现有 ReasoningSummaryCell 没有生产消费者，应直接接入
+TranscriptHistoryCell 的 expanded/transcript 渲染，删除原通用 adapter 壳和重复绘制。
+
+窄写集：TUI projection/reasoning、streaming/items 与最小 dispatch、ActivityDetail
+必要事实字段及既有测试机械迁移、history_cell/reasoning/messages/mod、entry 最小
+渲染委托、专用摘要回归、真实 PTY 观察 helper、terminal external fixture、既有结构/
+inventory 守卫和 architecture/commands/ops/本计划。共享 protocol/runtime/config、GUI、
+manifest/锁文件只读；不新增 raw 配置 stub 或私有开关。
+
+退出条件：canonical/live/reconnect 共用一个 parts -> body 转换；summaryIndex 保留
+且重复 part-added 不破坏内容；空占位不泄露标题/空 bullet，bold-only 和 literal HTML
+comment 不误删；raw 默认仍隐藏，canonical completion 与 closed Turn 拒绝迟到 delta。
+实际 cell 保留 cwd/链接、窄屏包装和 transcript-only 行为；定向/crate/结构/Clippy/
+contracts/local 及 fresh PTY/stdio 通过后登记证据。当前未完成，不宣称总体对齐完成。
+
+真实 PTY 初跑发现重复正文/标题。只读 stdio 诊断证明 typed item/started 的四个 summary
+parts 在 item/completed 和 thread/items/list 变成八个，根因在 App Server materializer：
+canonical reasoning lifecycle payload 没有 envelope source_event_type，后续两个既有 merge
+owner 将完整 snapshot 当 delta append。扩大窄写集到 App Server materializer 的
+canonical reasoning metadata 边界及 incremental 专用回归；不改 protocol/schema、
+GUI renderer、两个既有 merge owner，不在 TUI 去重正文。shared canonical 修复必须补
+current runtime fixture/GUI smoke/contracts 与真实 stdio 读回证据。
+
+PTY root 与 projection_tests 原已超过 1000 行，本轮仅做 helper dispatch/事实字段的必要
+机械接线；新测试/观察逻辑独立进入 reasoning/专用文件，不向大文件追加业务。退出条件
+是后续沿 runtime_pty_tests scenario 拆分继续压缩 root，当前不以此宣称整体结构已完成。
+
+2026-10-08 接续：完整 fresh TUI Gate B v3 已通过，thread
+`01a119a0-e5ab-7a43-aa7e-ec651fbec98d`、turn
+`turn_d73553de0c954b229b9e37b5c2ef095b`；reasoning-parts、既有全部场景与
+terminal=restored。真实摘要 stdio thread `01a119a2-09b8-78e1-b555-a55efa0af3c7`、
+turn `turn_b341d42b25b242a693b91c60bcf37156`，notification/canonical/cold-resume/raw-hidden
+均通过，日志 `/tmp/lime-tui-stage63-full-gate-v3.log`。TUI strict Clippy all-targets 及
+contracts 最终复核通过；App Server strict Clippy 当次有 158 项诊断，其中 materializer
+文件的原有 is_read_file_marker 仍有 lint，本轮新增 snapshot metadata 语句无诊断，
+不宣称全 workspace lint 全绿。
+current runtime 聚合失败截图证明 Skills 页仍走隐藏旧顶部 tab；夹具现迁到真实可见
+`app-sidebar-customization-skills`，同步既有守卫。最终 fresh 聚合已在第64阶段通过，
+包括 Skills/Experts 的 current 侧栏点击；不是复用 BUILD_READY=1 的旧 sidecar 证据。
+
+收口分类：indexed parts/正文转换/实际 ReasoningSummaryCell 与 shared materializer 为 current；
+原 inline reasoning 位置、generic adapter 和隐藏旧 tab 的正向点击为 dead/deleted。
+无新增 compat/deprecated。KISS 保留结构化 facts，DRY 共用正文转换，SOLID 分离正文绘制
+与共享持久化。切片退出条件100%；总体 partial/in-progress，无可信总体分母。
+Desktop 摘要默认隔离的独立证据由第65阶段给出，不能当成 sparse parts 的桌面专项证明。
+
+## 第六十四阶段：运行中摘要 replay 与无 started 增量恢复（功能/终端/桌面回归验收完成）
+
+主目标不变。Codex chatwidget/replay 只将 InProgress Turn 的尾部 Reasoning 暂存为
+provisional；首次更新可以没有 item/started，新 non-user item 开始时收尾旧尾部。
+Lime 分页路径只有 Turn 身份恢复，摘要 status 缺失且后续 delta 被 streaming=false 拒绝。
+本轮在现有 projection/history 收敛 hydrate/replay 生命周期，复用同一 indexed parts
+和 canonical completion；provisional 仅为 terminal host 状态，不伪造持久化完成事实。
+
+窄写集：TUI projection/history、reasoning 恢复领域、root 最小生命周期/dispatch、
+app/history_pagination 接线、专用 unit/真实恢复测试、既有 Gate/结构/inventory 守卫与
+architecture/commands/ops/本计划。共享 App Server/protocol/config、GUI 产品组件、
+manifest/锁文件/发布文件只读。前序脏文件继续保留。
+退出条件：分页 resume/reconnect 的尾部摘要状态和正文一致，旧 Turn/非尾部已完成项
+不能被旧 delta 重开；首次 summary/part/completion 无 started 可恢复；新 item/terminal/
+切 Thread 清 provisional，重复/较旧 page 不覆盖 live 进度。raw 默认隐藏不变。
+定向/crate、真实 PTY/stdio 恢复与结构/contracts/local 通过后登记，未验收前不标完成。
+
+真实 stdio 首轮暴露共享通知文本 trim：summary delta `" STDIO_RESUMED_DELTA"`
+被投影为 `"STDIO_RESUMED_DELTA"`，live 正文与 canonical 读回不一致。扩大写集到
+App Server v2_notifications 的 reasoning/text parsing owner：identity parsing 仍独立 trim，
+body/summary/raw delta 原样保留空白和空 delta；不让 TUI 补空格或放宽正文断言。
+原 v2_notifications.rs 1993 行，先迁 reasoning projector，并将既有 inline tests 按
+reasoning/model/core 分开，旧位置直接删除；所有新 owner 必须低于 800 行。
+GUI fixture Skills 和 Expert Plaza 两条导航从隐藏旧顶部 tab 迁到 current 侧栏，旧正向
+guard 同步替换，无 GUI 产品组件或兼容入口改动。剩余聚合场景按原配方续跑。
+
+实现与初核：TUI root hydrate 迁到 projection/history，root 760 行，history 190 行左右；
+只恢复 Full/InProgress 的尾部摘要，Summary preview 不推断 active tail。新增 replay
+回归覆盖无 started 的 delta/part/completion、重复 start、旧页、非尾部/closed item 和
+不同 item 收尾。App Server root 1993 -> 700 行，tests/core 729、model 364、reasoning 196、
+reasoning producer 87，旧位置删除。53 项 shared notification 回归、195 项结构/fixture
+守卫、contracts、governance 均通过；ESLint/diff check 通过。全 crate 初核1591/23/1通过，
+后补 Summary view guard 尚待最终 local 重验。初轮新 Gate 的 borrow/2024 let-chain 编译
+问题已改为 2021 兼容写法；focused v2 的文本空白失败保留于日志，用 shared owner 修复，
+没有降低断言。最终真实 stdio 已见恢复成功 marker，完整 Gate 尚在运行。
+
+GUI 聚合的失败已分段续验：Skills、MCP structuredContent、media reference、Expert Plaza/
+Expert Panel、typed-error success/failure、content-factory article 均通过各自真实 Electron
+配方。Skills 证据 `claw-chat-current-fixture-skills-runtime-stage63-summary.json`，专家等
+续跑日志 `/tmp/lime-tui-stage63-runtime-fixture-tail-v2.log`。这些证明原隐藏标签导航缺口
+已修复；证据早于本阶段 shared whitespace 最终补丁，最终 GUI/current-fixture 门禁待补。
+
+完整 Gate 首轮的真实 stdio parts/resume 均通过，但新 PTY restore status 失败：runtime
+重连成功后的 set_status("reconnected") 清空了刚恢复的 reasoning_status。现在使用 history
+owner 的 on_reconnected 保留 canonical 摘要优先级，原非摘要场景的 reconnected 文案仍
+保留；runtime 仅一行接线，专用 replay unit 同步覆盖。首轮失败日志保留，最终必须重跑。
+
+最终终端接续（2026-10-08，1.151.0）：完整 fresh TUI Gate B 通过，日志
+`/tmp/lime-tui-stage64-full-gate-final.log`；PTY thread
+`01a119c6-00e9-7511-87aa-f808d3505a77`、turn
+`turn_ff484eb64fe24d4ebb497cdcaffc3205`，reasoning-parts 与所有既有场景、terminal=restored。
+真实摘要 stdio thread `01a119c7-1a59-7fd0-97af-21ceb3d0dfde`、turn
+`turn_0b0ba01f826a4fbb965c62d51f337cba`，notification/canonical/cold-resume/raw-hidden 通过；
+真实恢复 stdio thread `01a119c7-1f18-7c12-891f-aed2cbc1f320`、turn
+`turn_dae1f333ba62497e9b3cf5d3cf70b2c8`，metadata-resume/page/no-started/canonical/terminal
+通过。恢复 PTY 证明 snapshot status、无 started 增量、Ctrl+T detail、raw 隐藏和终端恢复；
+它使用真实 PTY + test-only WebSocket server，实际 App Server 由前述独立 stdio 场景证明，
+不能冒充同一次 PTY 经过真实 App Server 的专项摘要恢复证据。
+
+真实 CLI Gate B 同步通过，日志 `/tmp/lime-tui-stage64-cli-gate-final.log`；thread
+`01a119c7-d8fe-73c0-8e06-4ef5cc31c96b`、turn
+`turn_543b85ad3eea4539894966936bb15e71`，JSONL/stdin/error-exit1/zsh completion 通过。
+最新结构/fixture 守卫196/196（含 shared notification owner 行数守卫）；verify:local
+通过 App Server1791、CLI8、TUI1592；TUI strict Clippy all-targets/no-deps/-D warnings 通过。
+App Server strict Clippy 最终为 lib122/lib-test152 项诊断，日志
+`/tmp/lime-tui-stage64-clippy-server-final.log`；reasoning 通知 owner 和迁出的测试无诊断，
+materializer 的原有 is_read_file_marker lint 未清理，不提升为 workspace lint 全绿。
+GUI 聚合重新构建 renderer/host/App Server，未使用 BUILD_READY 跳过 freshness；最终
+`npm run smoke:agent-runtime-current-fixture` 整体通过，日志
+`/tmp/lime-tui-stage64-current-runtime-final.log`。覆盖22项真实 Electron 配方，包括首页
+首发、Coding Workbench、图片、停止/继续、审批、rich draft/steer、Plan、Skills、MCP、media、
+Experts、typed error retry success/failure 与 Article Editor；liveProviderUsed=false。
+最后 article Thread `01a119cf-3b6d-7a13-b4ef-f57db30e8382`。这是最新共享后端的桌面回归，
+不冒充桌面运行中摘要 reconnect 的专项证据；独立 reasoning 显示专项见第65阶段。
+
+current 为 projection/history 生命周期/同源 indexed parts、shared reasoning notification owner；
+旧 root hydrate、inline reasoning projector/tests 位置为 dead/deleted；恢复屏障、WebSocket
+server 和 PTY observer 为 test-only。无新增 compat/deprecated，无 protocol/schema、版本、
+manifest、依赖或锁文件变更。root 已确认 architecture.md 的数据流，GUI/TUI 共享同一
+canonical owner；KISS 不猜完成态，DRY 统一 replay 与正文保真，SOLID 分离历史和通知职责。
+切片退出条件100%；总体 partial/in-progress，无可信总体分母。App Server strict lint 基线、
+显式 raw 配置、Windows/live provider/panic 与桌面运行中摘要恢复专项仍未完成。
+
+## 第六十五阶段：桌面推理专项夹具与默认显示策略收敛（验收完成）
+
+第64阶段最新 renderer/host/App Server 重建后的 current-runtime 聚合已通过，额外执行
+reasoning-first-visible 真实 Electron 专项暴露旧正向断言：展开详情必须显示 raw content。
+当前 GUI reasoningDisplayText 与 AgentThreadTimeline.reasoning 回归已经明确只显示摘要，
+包括展开/冷 hydrate；失败截图中摘要/最终回答可见、输入可用、终态正常、raw 未显示。
+该夹具属于 rewrite，不恢复已清理的 raw fallback，也不把失败报告提升为产品通过。
+
+窄写集：现有 GUI completion waits 的推理观察逻辑迁到 scripts/agent-runtime/reasoning-fixture，
+scenario-flow 的推理 read-model 汇总一起迁出；现有 runtime-surface-assertions、smoke guard
+和新增专用夹具回归、执行计划。产品 GUI、Rust、协议、配置和发布文件只读。
+原 waits1245/scenario-flow1018 行，不继续在大文件追加分支；旧位置直接删除，调用直迁，
+无 compat re-export。read model 保留完整 summary/content，DOM 默认隐藏 raw。
+
+退出条件：真实 Electron 证明摘要先于回答可见、完成后可展开、摘要只出现一次、raw 在
+展开后的 DOM 中也不存在，canonical read model 仍保留原文；纯 predicate 回归拒绝原文
+泄漏/重复摘要/未展开，结构守卫防旧断言回流；定向 fixture 与 GUI shell smoke 通过。
+current-runtime 已验证的其它场景不受该 test-only owner 迁移影响，无新业务后端。
+退出后仅本切片可标100%，显式 raw 配置和其余 Codex 差异继续 partial。
+
+最终验收（2026-10-08）：新 reasoning-fixture 354行，generic waits1245 -> 972，
+scenario-flow1018 -> 965，旧位置直接删除，调用直接迁移。完成/展开的 predicate 要求
+summary occurrences=1、raw visible=false、raw DOM=false；read model 原文完整性仍为
+必需断言。5项专用回归、83项既有 fixture guard 和15项 GUI reasoning 组件回归，103/103
+通过；ESLint、Prettier、scripts governance、fmt/diff check 通过。Rust/product/protocol 未改，
+沿用第64阶段相同源码的 local/contracts/Clippy 与真实终端证据，不无差别重跑 crate。
+
+独立真实 Electron Gate B controlled fixture 通过，Thread
+`01a119d3-cc1d-7d72-8ba4-96215831e541`；摘要在最终回答前可见，完成后真实点击展开，
+正文只出现一次，raw visible=false/raw DOM=false，canonical summary/content 均保留，
+console/page/invoke errors=0。证据
+`.lime/qc/gui-evidence/claw-chat-current-fixture/claw-chat-current-fixture-reasoning-stage65-final-summary.json`，
+日志 `/tmp/lime-tui-stage65-reasoning-electron-final.log`；页面为真实 Electron 的
+`file:///.../dist/index.html?nativeStartup=1`，截图已人工视读。旧失败证据仍保留为 stage64-final，
+没有覆盖失败或恢复 raw fallback；本证据不证明显式 raw 开关或 live provider。
+
+`npm run verify:gui-smoke` 通过，run_id
+`standalone-shell-01-20261008044553-43631`；当前 shell、Claw reload、三种 viewport 与 memory
+settings 均通过，结构化 summary 为 pass，日志 `/tmp/lime-tui-stage65-gui-smoke-final.log`。
+它是通用 shell 回归，独立 reasoning 场景由前述专项证据证明。
+
+current 产品显示仍由既有 reasoningDisplayText/AgentThreadTimeline 承接；新的 Electron
+observations/predicate/read-model summary 为 test-only；旧 raw-expanded 正向断言、两个
+大文件中的重复 owner 位置为 dead/deleted，无新增 compat/deprecated。KISS 区分完整事实
+与可见摘要，DRY 共用一个观察 owner，SOLID 分开通用等待与推理领域。
+本切片100%；总体仍 partial/in-progress，无可信总体分母。下一刀迁移该专项 backend
+仍混用的 reasoning.started/final/ended 与 flat item.updated fixture 到 canonical typed Item
+lifecycle，并替换旧正向 guard；当前 read-model collector 在专项报告中计数2，不能用
+DOM 摘要一次冒充“仅一条 canonical Reasoning Item”已被证明。显式 raw 配置、桌面运行中
+摘要恢复、Windows/live provider/panic 与其余 UI/结构差异继续待办。未提交、推送或建分支。
+
+最终边界复核：test:contracts（含 docs boundary/scripts governance）与 legacy-report 均通过；
+日志 `/tmp/lime-tui-stage65-contracts-final.log`、`/tmp/lime-tui-stage65-governance-final.log`。
+治理扫描2068/Rust1810、test1356/Rust-test198，零引用候选/分类漂移/边界违规均0。
+本轮技能分别约束 current/dead 分类、按风险续验与 Gate B claim boundary；没有扩张为
+生产 mock、私有配置或第二业务后端。

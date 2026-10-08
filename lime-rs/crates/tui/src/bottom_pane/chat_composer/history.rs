@@ -38,7 +38,7 @@ impl ChatComposer {
     pub(crate) fn record_replayed_history_page(
         &mut self,
         items: &[app_server_protocol::protocol::v2::ThreadItem],
-        turns: Option<&[app_server_protocol::protocol::v2::Turn]>,
+        turns: &[app_server_protocol::protocol::v2::Turn],
         prepend: bool,
     ) {
         let entries = replay_entries_from_items(items, turns);
@@ -224,7 +224,7 @@ impl ChatComposer {
         }
     }
 
-    pub(super) fn apply_history_entry(&mut self, entry: HistoryEntry) {
+    pub(in crate::bottom_pane) fn apply_history_entry(&mut self, entry: HistoryEntry) {
         self.rebuild_text_content(
             entry.text,
             entry.text_elements,

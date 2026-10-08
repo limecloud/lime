@@ -87,9 +87,21 @@ impl Locale {
             ]),
             StatusLineItem::Reasoning => self.effort_label(),
             StatusLineItem::CurrentDir => self.cwd_label(),
-            StatusLineItem::Status => self.state_label(),
+            StatusLineItem::Status => self.status_line_copy([
+                "运行状态",
+                "執行狀態",
+                "run-state",
+                "実行状態",
+                "실행 상태",
+            ]),
             StatusLineItem::Permissions => self.permissions_label(),
-            StatusLineItem::SessionId => self.thread_label(),
+            StatusLineItem::SessionId => self.status_line_copy([
+                "线程标识",
+                "執行緒識別碼",
+                "thread-id",
+                "スレッド ID",
+                "스레드 ID",
+            ]),
             StatusLineItem::ThreadName => self.status_line_copy([
                 "线程名称",
                 "執行緒名稱",
@@ -105,6 +117,7 @@ impl Locale {
                 "タスクの進捗",
                 "작업 진행 상황",
             ]),
+            item => self.token_usage_item_name(item),
         }
     }
     pub(crate) fn status_line_item_description(self, item: StatusLineItem) -> &'static str {
@@ -179,6 +192,7 @@ impl Locale {
                 "最新の計画の完了数と合計",
                 "최근 계획의 완료 단계 및 총 단계",
             ]),
+            item => self.token_usage_item_description(item),
         }
     }
 }

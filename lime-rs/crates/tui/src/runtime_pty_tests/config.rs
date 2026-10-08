@@ -1,5 +1,30 @@
 use super::*;
 
+pub(super) fn open_setup(writer: &mut Box<dyn Write + Send>, command: &str) {
+    writer
+        .write_all(format!("\x1b[200~/{command}\x1b[201~\r").as_bytes())
+        .unwrap();
+    writer.flush().unwrap();
+}
+
+pub(super) fn toggle_setup_item(writer: &mut Box<dyn Write + Send>, name: &str, move_first: bool) {
+    writer
+        .write_all(format!("\x1b[200~{name}\x1b[201~ ").as_bytes())
+        .unwrap();
+    for _ in name.chars() {
+        writer.write_all(b"\x7f").unwrap();
+    }
+    if move_first {
+        let item_count = crate::bottom_pane::status_line_setup::StatusLineItem::ALL
+            .len()
+            .max(crate::bottom_pane::title_setup::TerminalTitleItem::ALL.len());
+        for _ in 0..item_count {
+            writer.write_all(b"\x1b[D").unwrap();
+        }
+    }
+    writer.flush().unwrap();
+}
+
 pub(super) fn assert_fresh_stdio_settings(expected: &lime_core::config::TuiConfig) {
     use crate::app_server_session::AppServerSession;
     use crate::local_settings::LocalSettings;

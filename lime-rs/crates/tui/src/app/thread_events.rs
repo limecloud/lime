@@ -78,14 +78,22 @@ impl ThreadEventStore {
     }
 
     /// A fresh `thread/resume` snapshot supersedes buffered projection events. Interactive
-    /// requests survive because they still need an explicit client response.
+    /// requests survive because they still need an explicit client response. The latest usage
+    /// survives because `thread/read` does not yet carry a durable token snapshot.
     pub(super) fn rebase_buffer_after_session_refresh(&mut self) {
+        let latest_usage = self.buffer.iter().rev().find(|event| matches!(event,
+            ThreadBufferedEvent::Notification(notification)
+                if matches!(notification.as_ref(), ServerNotification::ThreadTokenUsageUpdated(_))
+        )).cloned();
         self.buffer.retain(|event| {
             matches!(event, ThreadBufferedEvent::Request(request)
                     if self.pending_interactive_replay.should_replay_snapshot_request(request))
                 || matches!(event, ThreadBufferedEvent::Notification(notification)
                     if matches!(notification.as_ref(), ServerNotification::McpServerOauthLoginCompleted(_)))
         });
+        if let Some(usage) = latest_usage {
+            self.buffer.push_back(usage);
+        }
         self.buffered_agent_message_delta_bytes = 0;
     }
 
@@ -196,6 +204,9 @@ impl App {
     }
 
     pub(crate) fn apply_notification(&mut self, notification: ServerNotification) {
+        if let ServerNotification::ThreadReverted(params) = &notification {
+            self.note_thread_reverted(&params.thread_id);
+        }
         if let ServerNotification::McpServerStatusUpdated(params) = &notification {
             self.chat_widget.mcp_startup_warnings.observe(params);
         }
@@ -204,6 +215,29 @@ impl App {
         let target = server_notification_thread_target(&notification);
         if let ServerNotificationThreadTarget::Thread(thread_id) = &target {
             self.observe_thread_input_notification(thread_id, &notification);
+            if self.thread_id.as_deref() == Some(thread_id.as_str()) {
+                if matches!(notification, ServerNotification::ThreadReverted(_)) {
+                    return;
+                }
+                if self.history_replacement.is_pending() {
+                    self.ensure_thread_channel(thread_id)
+                        .store
+                        .push_notification_ref(&notification);
+                    return;
+                }
+                if !self.backtrack_revert_pending()
+                    && matches!(
+                        notification,
+                        ServerNotification::TurnStarted(_) | ServerNotification::ThreadClosed(_)
+                    )
+                {
+                    let browsing = self.backtrack.overlay_preview_active;
+                    self.reset_backtrack_state();
+                    if browsing {
+                        self.chat_widget.dismiss_pager_overlay();
+                    }
+                }
+            }
         }
         if matches!(
             target,

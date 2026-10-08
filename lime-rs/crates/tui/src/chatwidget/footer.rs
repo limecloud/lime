@@ -65,6 +65,8 @@ impl ChatWidget {
             shortcuts_available: self.shortcut_toggle_available(),
             status_line_value: None,
             status_line_enabled: false,
+            context_window_percent: None,
+            context_window_used_tokens: None,
         }
     }
 

@@ -167,12 +167,23 @@ pub(super) fn assert_canonical_input(app_server: &Path, cwd: &Path, ledger: &Pat
             })
             .await
             .expect("cold image evidence must initialize real stdio App Server");
-            let thread = session
-                .thread_read(thread_id, true)
+            let mut thread = session
+                .thread_read(thread_id, false)
                 .await
                 .expect("read canonical image thread")
                 .thread;
             assert_eq!(thread.id, thread_id);
+            thread.turns = crate::app_server_session::thread_turns_page_with_handle(
+                session.request_handle(),
+                thread_id,
+                None,
+            )
+            .await
+            .unwrap()
+            .data
+            .into_iter()
+            .rev()
+            .collect();
             let turn = thread
                 .turns
                 .iter()

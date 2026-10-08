@@ -47,81 +47,83 @@ impl App {
         let request_handle = app_server.request_handle();
         let tx = app_event_tx.clone();
         tokio::spawn(async move {
-            let result = thread_items_page_with_handle(
-                request_handle.clone(),
-                thread_id.clone(),
-                Some(cursor.clone()),
-                HISTORY_ITEM_PAGE_LIMIT,
-            )
+            let result: Result<_> = async {
+                let page = thread_items_page_with_handle(
+                    request_handle.clone(),
+                    thread_id.clone(),
+                    Some(cursor.clone()),
+                    HISTORY_ITEM_PAGE_LIMIT,
+                )
+                .await?;
+                let turn_ids = page
+                    .data
+                    .iter()
+                    .map(|entry| entry.turn_id.clone())
+                    .collect::<HashSet<_>>();
+                let turns = thread_turns_for_items_with_handle(
+                    request_handle,
+                    thread_id.clone(),
+                    &turn_ids,
+                )
+                .await?;
+                Ok((page, turns))
+            }
             .await;
-            let turns = result
-                .as_ref()
-                .ok()
-                .map(|page| {
-                    page.data
-                        .iter()
-                        .map(|entry| entry.turn_id.clone())
-                        .collect::<HashSet<_>>()
-                })
-                .filter(|turn_ids| !turn_ids.is_empty());
-            let turns = match turns {
-                Some(turn_ids) => {
-                    thread_turns_for_items_with_handle(request_handle, thread_id.clone(), &turn_ids)
-                        .await
-                        .ok()
-                }
-                None => None,
-            };
-            let result = result.map_err(|error| error.to_string());
             let _ = tx.send(AppEvent::OlderThreadHistoryLoaded {
                 thread_id,
                 cursor,
-                result,
-                turns,
+                result: result.map_err(|error| error.to_string()),
                 mode,
             });
         });
         OlderHistoryLoadStart::Started
     }
 
-    /// Prepend the initial paginated page using the same optional Turn enrichment as older pages.
+    /// Prepend the initial page using the same required Turn facts as older pages.
     pub(crate) fn prepend_initial_history_page(&mut self, page: InitialHistoryPage) {
         let InitialHistoryPage { items, turns } = page;
-        self.prepend_history_page(items, turns.as_deref(), false);
+        self.prepend_history_page(items, &turns, false);
     }
 
     /// Reconcile one page against the Turn metadata available for it and its adjacent context.
     ///
-    /// An older App Server may initially expose only flat items. When a later page provides the
-    /// canonical Turn pair for a nested review, remove the now-classified prompt before prepending
-    /// the page so the projection never keeps a duplicate hidden entry.
+    /// Additional canonical context can classify an earlier item as a hidden nested-review prompt.
+    /// IO never degrades a failed Turn lookup into an unverified flat page.
     fn prepend_history_page(
         &mut self,
         items: Vec<app_server_protocol::protocol::v2::ThreadItem>,
-        turns: Option<&[Turn]>,
+        turns: &[Turn],
         prepend_replay: bool,
     ) {
         self.chat_widget
             .bottom_pane
             .record_replayed_history_page(&items, turns, prepend_replay);
-        if let Some(turns) = turns {
-            let hidden_ids = hidden_user_message_ids(turns);
-            let groups = completion::group_completed_turn_items(items, turns);
-            self.projection.remove_hidden_entries(&hidden_ids);
-            self.projection
-                .prepend_grouped_items_with_hidden_ids(groups, &hidden_ids);
-        } else {
-            self.projection.prepend_items(items);
-        }
+        let previous_turn_id = self.projection.active_turn_id().map(str::to_owned);
+        let hidden_ids = hidden_user_message_ids(turns);
+        let groups = completion::group_completed_turn_items(items, turns);
+        self.projection.remove_hidden_entries(&hidden_ids);
+        self.projection
+            .prepend_grouped_items_with_hidden_ids(groups, &hidden_ids);
+        self.projection.restore_history_turns(turns);
+        self.chat_widget.turn_lifecycle.sync_projection_turn(
+            previous_turn_id.as_deref(),
+            self.projection.active_turn_id(),
+            std::time::Instant::now(),
+        );
     }
 
-    fn handle_older_history_page_with_turns(
+    pub(crate) fn handle_older_history_page_loaded(
         &mut self,
         app_server: &mut AppServerSession,
         thread_id: &str,
         cursor: &str,
-        result: Result<app_server_protocol::protocol::v2::ThreadItemsListResponse>,
-        turns: Option<&[Turn]>,
+        result: std::result::Result<
+            (
+                app_server_protocol::protocol::v2::ThreadItemsListResponse,
+                Vec<Turn>,
+            ),
+            String,
+        >,
     ) -> Result<bool> {
         // A completion must first prove that it still owns the current cursor. This keeps a
         // stale response from cancelling or projecting a newer request after a retry.
@@ -145,38 +147,18 @@ impl App {
             app_server.cancel_older_history_page(thread_id, cursor);
             return Ok(false);
         }
-        let page = match result {
+        let (page, turns) = match result {
             Ok(page) => page,
             Err(error) => {
                 app_server.cancel_older_history_page(thread_id, cursor);
-                return Err(error);
+                return Err(anyhow::Error::msg(error));
             }
         };
         let items = app_server.apply_older_history_page(thread_id, cursor, page)?;
-        self.prepend_history_page(items, turns, true);
+        self.prepend_history_page(items, &turns, true);
         self.chat_widget
             .set_scrollback_has_older_history(app_server.has_older_history(thread_id));
         Ok(true)
-    }
-
-    pub(crate) fn handle_older_history_page_loaded(
-        &mut self,
-        app_server: &mut AppServerSession,
-        thread_id: &str,
-        cursor: &str,
-        result: std::result::Result<
-            app_server_protocol::protocol::v2::ThreadItemsListResponse,
-            String,
-        >,
-        turns: Option<Vec<Turn>>,
-    ) -> Result<bool> {
-        self.handle_older_history_page_with_turns(
-            app_server,
-            thread_id,
-            cursor,
-            result.map_err(anyhow::Error::msg),
-            turns.as_deref(),
-        )
     }
 }
 
@@ -250,7 +232,7 @@ mod tests {
         let mut app = App::default();
         app.prepend_initial_history_page(InitialHistoryPage {
             items,
-            turns: Some(vec![turn]),
+            turns: vec![turn],
         });
 
         assert_eq!(
@@ -270,28 +252,26 @@ mod tests {
     }
 
     #[test]
-    fn initial_history_page_without_turn_metadata_stays_item_only() {
-        let items = vec![user_message("prompt", "visible"), answer("answer", "done")];
+    fn empty_history_page_preserves_live_projection_and_composer() {
         let mut app = App::default();
-        app.prepend_initial_history_page(InitialHistoryPage { items, turns: None });
+        app.projection.start_turn("live".into());
+        app.chat_widget
+            .bottom_pane
+            .set_composer_text("draft".into());
+        app.prepend_initial_history_page(InitialHistoryPage {
+            items: Vec::new(),
+            turns: Vec::new(),
+        });
 
-        assert_eq!(app.projection.entries().len(), 2);
-        assert!(app.projection.completion_after("answer").is_none());
+        assert!(app.projection.entries().is_empty());
+        assert_eq!(app.projection.active_turn_id(), Some("live"));
+        assert_eq!(app.chat_widget.bottom_pane.composer_text(), "draft");
     }
 
     #[test]
-    fn replay_seed_requires_turn_facts_and_keeps_older_pages_before_newer_recall() {
+    fn replay_seed_keeps_older_pages_before_newer_recall() {
         let mut app = App::default();
         app.set_thread_id("thread".into());
-        app.prepend_initial_history_page(InitialHistoryPage {
-            items: vec![user_message("new", "new prompt")],
-            turns: None,
-        });
-        app.chat_widget
-            .bottom_pane
-            .handle_key_event(KeyEvent::new(KeyCode::Up, KeyModifiers::NONE));
-        assert!(app.chat_widget.bottom_pane.composer_text().is_empty());
-
         let new_turn = Turn {
             id: "new-turn".into(),
             items: vec![user_message("new", "new prompt")],
@@ -304,7 +284,7 @@ mod tests {
         };
         app.prepend_initial_history_page(InitialHistoryPage {
             items: vec![user_message("new", "new prompt")],
-            turns: Some(vec![new_turn]),
+            turns: vec![new_turn],
         });
         let old_turn = Turn {
             id: "old-turn".into(),
@@ -316,11 +296,7 @@ mod tests {
             completed_at: None,
             duration_ms: None,
         };
-        app.prepend_history_page(
-            vec![user_message("old", "old prompt")],
-            Some(&[old_turn]),
-            true,
-        );
+        app.prepend_history_page(vec![user_message("old", "old prompt")], &[old_turn], true);
 
         app.chat_widget
             .bottom_pane
@@ -358,7 +334,7 @@ mod tests {
         let mut app = App::default();
         app.prepend_initial_history_page(InitialHistoryPage {
             items: newest_items,
-            turns: Some(vec![newest_turn]),
+            turns: vec![newest_turn],
         });
 
         let older_items = vec![
@@ -416,11 +392,11 @@ mod tests {
         let duplicate = user_message("nested-duplicate", "same prompt");
         let mut app = App::default();
 
-        // The initial item-only page can render a prompt before the server exposes Turn metadata.
-        app.prepend_initial_history_page(InitialHistoryPage {
-            items: vec![hidden.clone(), user_message("visible", "visible prompt")],
-            turns: None,
-        });
+        // Live items can precede the adjacent Turn context later discovered by pagination.
+        app.projection.prepend_items(vec![
+            hidden.clone(),
+            user_message("visible", "visible prompt"),
+        ]);
 
         let previous_review_turn = Turn {
             id: "review-turn".to_string(),
@@ -456,7 +432,7 @@ mod tests {
 
         app.prepend_history_page(
             vec![user_message("older-visible", "older visible")],
-            Some(&[previous_review_turn, nested_review_turn]),
+            &[previous_review_turn, nested_review_turn],
             true,
         );
 

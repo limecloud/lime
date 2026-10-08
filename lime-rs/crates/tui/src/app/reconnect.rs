@@ -8,7 +8,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use anyhow::{bail, Result};
-use app_server_protocol::protocol::v2::{Thread, ThreadHistoryMode};
+use app_server_protocol::protocol::v2::Thread;
 
 use crate::app_server_session::{AppServerSession, InitialHistoryPage, ThreadSettingsPatch};
 use crate::runtime::{connect_session, TuiOptions};
@@ -25,7 +25,7 @@ pub(crate) struct ReconnectedSession {
     pub(crate) session: AppServerSession,
     pub(crate) thread: Thread,
     pub(crate) cwd: PathBuf,
-    pub(crate) history_page: Option<InitialHistoryPage>,
+    pub(crate) history_page: InitialHistoryPage,
     pub(crate) scrollback_has_older_history: bool,
     pub(crate) permission_profiles: Vec<String>,
 }
@@ -51,25 +51,19 @@ pub(crate) async fn reconnect_session(
             Ok(response) => {
                 let cwd = PathBuf::from(&response.cwd);
                 let thread_id_for_history = response.thread.id.clone();
-                let paginated_history =
-                    response.thread.history_mode == ThreadHistoryMode::Paginated;
-                let history_page = if paginated_history {
-                    match candidate
-                        .hydrate_initial_thread_history(
-                            thread_id_for_history.clone(),
-                            response.items_backwards_cursor.clone(),
-                        )
-                        .await
-                    {
-                        Ok(page) => Some(page),
-                        Err(error) => {
-                            let _ = candidate.shutdown().await;
-                            last_error = Some(error);
-                            continue;
-                        }
+                let history_page = match candidate
+                    .hydrate_initial_thread_history(
+                        thread_id_for_history.clone(),
+                        response.items_backwards_cursor.clone(),
+                    )
+                    .await
+                {
+                    Ok(page) => page,
+                    Err(error) => {
+                        let _ = candidate.shutdown().await;
+                        last_error = Some(error);
+                        continue;
                     }
-                } else {
-                    None
                 };
                 let scrollback_has_older_history =
                     candidate.has_older_history(&thread_id_for_history);

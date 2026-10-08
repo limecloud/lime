@@ -173,11 +173,22 @@ async fn real_stdio_queue_and_rejected_submission_preserve_typed_metadata() {
         .await
         .unwrap()
         .is_empty());
-    let read = session
-        .thread_read(thread.id.clone(), true)
+    let mut read = session
+        .thread_read(thread.id.clone(), false)
         .await
         .unwrap()
         .thread;
+    read.turns = crate::app_server_session::thread_turns_page_with_handle(
+        session.request_handle(),
+        thread.id.clone(),
+        None,
+    )
+    .await
+    .unwrap()
+    .data
+    .into_iter()
+    .rev()
+    .collect();
     assert_eq!(read.id, thread.id);
     assert_eq!(
         read.turns.iter().filter(|turn| turn.id == turn_id).count(),

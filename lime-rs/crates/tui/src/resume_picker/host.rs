@@ -105,7 +105,8 @@ pub(crate) fn spawn_preview_load(
     picker.mark_preview_loading(thread_id.clone());
     let sender = sender.clone();
     tokio::spawn(async move {
-        let result = load_transcript_preview_with_handle(request_handle, thread_id.clone()).await;
+        let result =
+            transcript_preview::load_transcript_preview(request_handle, thread_id.clone()).await;
         let _ = sender.send(PickerLoadEvent::Preview { thread_id, result });
     });
 }
@@ -117,20 +118,11 @@ pub(crate) fn spawn_transcript_load(
 ) {
     let sender = sender.clone();
     tokio::spawn(async move {
-        let result = crate::thread_transcript::load_session_transcript_with_handle(
-            request_handle,
-            thread_id.clone(),
-        )
-        .await;
+        let result =
+            crate::thread_transcript::load_session_transcript(request_handle, thread_id.clone())
+                .await;
         let _ = sender.send(PickerLoadEvent::Transcript { thread_id, result });
     });
-}
-
-async fn load_transcript_preview_with_handle(
-    request_handle: RequestHandle,
-    thread_id: String,
-) -> std::io::Result<Vec<transcript_preview::TranscriptPreviewLine>> {
-    transcript_preview::load_transcript_preview_with_handle(request_handle, thread_id).await
 }
 
 pub(crate) fn spawn_archive_request(

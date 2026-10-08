@@ -202,3 +202,135 @@ fn task_progress_follows_current_typed_events_and_foreign_thread_replay() {
     })).unwrap());
     assert!(app.status_surface_data().task_progress.is_none());
 }
+
+fn usage_update(thread: &str, input: i64) -> ServerNotification {
+    serde_json::from_value(json!({
+        "method": "thread/tokenUsage/updated", "params": {
+            "threadId": thread, "turnId": "turn-usage", "tokenUsage": {
+                "total": {"totalTokens": input + 6000, "inputTokens": input, "cachedInputTokens": 130000,
+                    "cacheWriteInputTokens": 500, "outputTokens": 6000, "reasoningOutputTokens": 2000},
+                "last": {"totalTokens": 31000, "inputTokens": 30000, "cachedInputTokens": 10000,
+                    "outputTokens": 1000, "reasoningOutputTokens": 500},
+                "modelContextWindow": 128000
+            }
+        }
+    })).unwrap()
+}
+
+#[test]
+fn token_usage_footer_title_and_status_share_real_counts_in_all_five_languages() {
+    let mut app = app();
+    let ids = vec!["used-tokens".into(), "context-remaining".into()];
+    app.chat_widget.tui_config.status_line = Some(ids.clone());
+    app.chat_widget.tui_config.terminal_title = Some(ids.clone());
+    assert!(app.terminal_title_text(std::time::Instant::now()).is_none());
+    app.apply_notification(usage_update("thread-status", 155000));
+    app.apply_notification(usage_update("background", 900000));
+    assert_eq!(
+        app.status_surface_data()
+            .token_usage
+            .unwrap()
+            .total
+            .input_tokens,
+        155000
+    );
+    for (locale, used, remaining) in [
+        (Locale::ZhCn, "31K 已用", "上下文 84% 剩余"),
+        (Locale::ZhTw, "31K 已用", "上下文 84% 剩餘"),
+        (Locale::EnUs, "31K used", "Context 84% left"),
+        (Locale::JaJp, "31K 使用済み", "コンテキスト 84% 残り"),
+        (Locale::KoKr, "31K 사용", "컨텍스트 84% 남음"),
+    ] {
+        app.set_locale(locale);
+        assert_eq!(
+            app.terminal_title_text(std::time::Instant::now()).unwrap(),
+            format!("{used} | {remaining}")
+        );
+        assert_eq!(
+            app.status_surface_data()
+                .line(&ids, false, locale)
+                .unwrap()
+                .to_string(),
+            format!("{used} · {remaining}")
+        );
+        let footer = screen(&app);
+        let compact = |text: &str| {
+            text.chars()
+                .filter(|ch| !ch.is_whitespace())
+                .collect::<String>()
+        };
+        assert!(
+            compact(footer.lines().last().unwrap()).contains(&compact(used)),
+            "locale={locale:?}: {footer}"
+        );
+        app.open_status_pager();
+        let pager = screen(&app);
+        assert!(
+            compact(&pager).contains(&compact(used)),
+            "locale={locale:?}: {pager}"
+        );
+        assert!(
+            compact(&pager).contains(&compact(remaining)),
+            "locale={locale:?}: {pager}"
+        );
+        assert!(pager.contains("155K"));
+        app.chat_widget.dismiss_pager_overlay();
+    }
+}
+
+#[test]
+fn token_usage_handoff_hydrates_then_replays_only_the_target_threads_buffer() {
+    let mut app = app();
+    app.apply_notification(usage_update("thread-status", 155000));
+    app.apply_notification(usage_update("background", 900000));
+    app.apply_notification(usage_update("background", 910000));
+    let snapshot = app.take_thread_event_snapshot("background", true);
+    app.hydrate_thread(serde_json::from_value(json!({
+        "id": "background", "sessionId": "session-background", "preview": "", "ephemeral": false,
+        "modelProvider": "fixture", "createdAt": 1, "updatedAt": 1, "status": {"type": "idle"},
+        "cwd": "/workspace", "cliVersion": "test", "source": "cli", "turns": []
+    })).unwrap());
+    app.set_thread_id("background".into());
+    assert!(app.status_surface_data().token_usage.is_none());
+    app.replay_thread_snapshot(snapshot);
+    assert_eq!(
+        app.status_surface_data()
+            .token_usage
+            .unwrap()
+            .total
+            .input_tokens,
+        910000
+    );
+    app.set_thread_id("new-thread".into());
+    assert!(app.status_surface_data().token_usage.is_none());
+}
+
+#[test]
+fn ordinary_composer_footer_consumes_current_typed_usage_and_server_total_fallback() {
+    let mut app = app();
+    app.chat_widget.tui_config.status_line = Some(vec![]);
+    assert!(!screen(&app).contains("context left"));
+    app.apply_notification(usage_update("thread-status", 155000));
+    app.apply_notification(usage_update("background", 900000));
+    let painted = screen(&app);
+    let footer = painted.lines().last().unwrap();
+    assert!(footer.contains("? for shortcuts"), "{footer}");
+    assert!(footer.trim_end().ends_with("84% context left"), "{footer}");
+
+    let mut update = usage_update("thread-status", 155000);
+    let ServerNotification::ThreadTokenUsageUpdated(params) = &mut update else {
+        panic!("typed usage")
+    };
+    params.token_usage.model_context_window = None;
+    app.apply_notification(update);
+    let painted = screen(&app);
+    let footer = painted.lines().last().unwrap();
+    assert!(footer.trim_end().ends_with("161K used"), "{footer}");
+    assert!(
+        !footer.contains("31K used"),
+        "ordinary fallback is server total, not blended: {footer}"
+    );
+    app.set_thread_id("fresh-thread".into());
+    assert!(!screen(&app).contains("161K used"));
+    assert!(!screen(&app).contains("context left"));
+}

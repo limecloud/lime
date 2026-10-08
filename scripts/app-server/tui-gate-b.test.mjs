@@ -104,15 +104,45 @@ const reconnectTestSource = readFileSync(
   path.resolve(process.cwd(), "lime-rs/crates/tui/tests/suite/reconnect.rs"),
   "utf8",
 );
-const historyPaginationTestSource = readFileSync(
-  path.resolve(
-    process.cwd(),
-    "lime-rs/crates/tui/tests/suite/history_pagination.rs",
-  ),
-  "utf8",
-);
+const historyPaginationTestSource =
+  readFileSync(
+    path.resolve(
+      process.cwd(),
+      "lime-rs/crates/tui/tests/suite/history_pagination.rs",
+    ),
+    "utf8",
+  ) +
+  readFileSync(
+    path.resolve(
+      process.cwd(),
+      "lime-rs/crates/tui/tests/suite/history_pagination/fixtures.rs",
+    ),
+    "utf8",
+  );
 
 describe("TUI Gate B", () => {
+  it("requires canonical usage in the real pager, footer and OSC with shared persistence", () => {
+    expect(ptyTestSource).toContain("token_usage::exercise_shared_usage(");
+    const usage = readFileSync(
+      path.resolve(
+        process.cwd(),
+        "lime-rs/crates/tui/src/runtime_pty_tests/token_usage.rs",
+      ),
+      "utf8",
+    );
+    for (const marker of [
+      "status pager displays server totals and latest context",
+      "footer displays canonical usage and context",
+      "OSC preview uses the same canonical usage",
+      "usage title cancel restores or save acknowledges",
+      "config::assert_fresh_stdio_settings(&selected)",
+      "usage configuration must not create a canonical turn",
+    ]) {
+      expect(usage).toContain(marker);
+    }
+    expect(usage).not.toMatch(/thread::sleep|tokio::time::sleep|MockBackend/);
+    expect(gateSource).toContain('"token-usage=ok"');
+  });
   it("requires canonical task progress in both the real footer and OSC preview", () => {
     expect(ptyTestSource).toContain("task_progress::exercise_shared_progress(");
     const progress = readFileSync(
@@ -249,7 +279,8 @@ describe("TUI Gate B", () => {
     ]) {
       expect(source).toContain(marker);
     }
-    expect(source).toContain(".thread_read(thread.id.clone(), true)");
+    expect(source).toContain(".thread_read(thread.id.clone(), false)");
+    expect(source).toContain("thread_turns_page_with_handle(");
     expect(source).toContain("Some(ImageDetail::Original)");
     expect(source).toContain("TextElement::new(3..10, None)");
     expect(source).not.toContain("thread::sleep");
@@ -258,6 +289,44 @@ describe("TUI Gate B", () => {
     );
     expect(gateSource).toContain("typed-input-stdio=ok");
   });
+  it("requires real PTY backtracking and a fresh canonical resume after history replacement", () => {
+    const source = readFileSync(
+      path.resolve(
+        process.cwd(),
+        "lime-rs/crates/tui/src/runtime_pty_tests/backtrack.rs",
+      ),
+      "utf8",
+    );
+    expect(source).toContain("canonical prompt browsing and rewind controls");
+    expect(source).toContain(
+      "revert replaces history and restores the selected typed prompt",
+    );
+    expect(source).toContain(".thread_read(&thread_id, false)");
+    expect(source).toContain(".resume_thread(thread_id.clone())");
+    expect(source).toContain("TUI_BACKTRACK_OK");
+    expect(source).not.toContain("thread::sleep");
+    expect(gateSource).toContain(
+      "backtrack PTY fixture did not prove canonical revert and cold resume",
+    );
+    expect(gateSource).toContain("cold-revert-resume=ok");
+    const stdio = readFileSync(
+      path.resolve(
+        process.cwd(),
+        "lime-rs/crates/tui/src/app_backtrack/stdio_tests.rs",
+      ),
+      "utf8",
+    );
+    expect(stdio).toContain(".start_turn_input(input)");
+    expect(stdio).toContain(
+      "app.chat_widget.bottom_pane.composer_text_elements()",
+    );
+    expect(stdio).toContain(
+      "receive_terminal(&mut app, &mut session, &live_turn)",
+    );
+    expect(stdio).not.toMatch(/tokio::time::sleep|thread::sleep|MockBackend/);
+    expect(gateSource).toContain("backtrack-stdio=ok");
+  });
+
   it("requires history failure fixtures to satisfy the startup config contract", () => {
     expect(historyPaginationTestSource).toContain(
       "transcript_history_failure_keeps_anchor_and_home_retry_recovers",
@@ -416,7 +485,8 @@ describe("TUI Gate B", () => {
     expect(source).toContain(
       "same canonical user item retains selected skill path",
     );
-    expect(source).toContain("session.thread_read(thread_id, true)");
+    expect(source).toMatch(/session\s*\.thread_read\(thread_id, false\)/u);
+    expect(source).toContain("thread_turns_page_with_handle");
     expect(source).not.toContain("thread::sleep");
     expect(gateSource).toContain("skill-mentions=ok");
   });
@@ -436,7 +506,8 @@ describe("TUI Gate B", () => {
     expect(source).toContain(
       "only the retained second image's actual bytes reach runtime lowering",
     );
-    expect(source).toMatch(/session\s*\.thread_read\(thread_id, true\)/u);
+    expect(source).toMatch(/session\s*\.thread_read\(thread_id, false\)/u);
+    expect(source).toContain("thread_turns_page_with_handle");
     expect(source).toContain("TextElement::new(15..25");
     expect(source).not.toContain("thread::sleep");
     expect(terminalFixtureSource).toContain(
@@ -867,6 +938,20 @@ describe("TUI Gate B", () => {
     );
     expect(terminalFixtureSource).toContain('kind: "reasoning"');
     expect(terminalFixtureSource).toContain('type: "reasoning"');
+    expect(terminalFixtureSource).toContain("JSON.stringify(reasoningParts)");
+    expect(gateSource).toContain("PTY_EMPTY_STATUS");
+    expect(gateSource).toContain("PTY_BODY_HEADER");
+    expect(gateSource).toContain("TUI_REASONING_PARTS_OK");
+    expect(gateSource).toContain("STDIO_REASONING_PARTS_OK");
+    expect(gateSource).toContain("STDIO_REASONING_RESUME_OK");
+    expect(gateSource).toContain("TUI_REASONING_RESUME_OK");
+    expect(gateSource).toContain(
+      "real_stdio_running_reasoning_resumes_indexed_parts_without_started",
+    );
+    expect(gateSource).toContain(
+      "real_stdio_reasoning_snapshot_matches_notifications_and_cold_read",
+    );
+    expect(ptyTestSource).toContain("reasoning::assert_summary_body");
     expect(gateSource).toContain("LIME_TEST_TERMINAL_REASONING_TEXT");
     expect(gateSource).toContain("LIME_TEST_TERMINAL_RAW_TEXT");
     expect(ptyTestSource).toContain(

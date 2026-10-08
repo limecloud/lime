@@ -387,7 +387,7 @@ fn activity_group_compact_lines(
 }
 
 fn activity_reasoning_scope(entry: &TranscriptEntry) -> Option<&str> {
-    let ActivityDetail::Reasoning { scope } = entry.activity_detail.as_ref()? else {
+    let ActivityDetail::Reasoning { scope, .. } = entry.activity_detail.as_ref()? else {
         return None;
     };
     Some(scope)

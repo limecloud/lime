@@ -3,7 +3,9 @@
 use crate::bottom_pane::status_line_setup::StatusLineItem;
 use crate::history_cell::sanitize_user_text;
 use crate::locale::Locale;
+use crate::status::helpers::token_usage_value;
 use crate::style::{accent_style, muted_style};
+use app_server_protocol::protocol::v2::ThreadTokenUsage;
 use ratatui::text::{Line, Span};
 
 #[derive(Clone, Debug, Default)]
@@ -17,6 +19,7 @@ pub(crate) struct StatusSurfacePreviewData {
     pub(crate) thread_name: Option<String>,
     pub(crate) raw_output: bool,
     pub(crate) task_progress: Option<(usize, usize)>,
+    pub(crate) token_usage: Option<ThreadTokenUsage>,
 }
 
 impl StatusSurfacePreviewData {
@@ -42,6 +45,10 @@ impl StatusSurfacePreviewData {
                 .task_progress
                 .filter(|(_, total)| *total > 0)
                 .map(|(completed, total)| locale.task_progress_value(completed, total)),
+            item => self
+                .token_usage
+                .as_ref()
+                .and_then(|usage| token_usage_value(item, usage, locale)),
         }?;
         let value = sanitize_user_text(value.into()).replace(['\r', '\n', '\t'], " ");
         (!value.is_empty()).then_some(value)

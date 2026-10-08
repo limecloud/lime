@@ -2,6 +2,21 @@
 
 use app_server_protocol::protocol::v2::{ThreadItemsListResponse, Turn};
 
+#[derive(Debug)]
+pub(crate) enum BacktrackEvent {
+    HistoryLoaded {
+        thread_id: String,
+        generation: u64,
+        cursor: Option<String>,
+        result: Result<crate::app_backtrack::BacktrackPage, String>,
+    },
+    Reverted {
+        thread_id: String,
+        generation: u64,
+        result: Result<Box<app_server_protocol::protocol::v2::ThreadRevertResponse>, String>,
+    },
+}
+
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub(crate) struct HistoryBatchCursor {
     end_offset: usize,
@@ -55,11 +70,16 @@ pub(crate) enum HistoryLookupResponse {
 
 #[derive(Debug)]
 pub(crate) enum AppEvent {
+    Backtrack(BacktrackEvent),
+    ThreadHistoryReplaced {
+        thread_id: String,
+        generation: u64,
+        result: Result<Box<crate::app::history_replacement::HistoryReplacement>, String>,
+    },
     OlderThreadHistoryLoaded {
         thread_id: String,
         cursor: String,
-        result: Result<ThreadItemsListResponse, String>,
-        turns: Option<Vec<Turn>>,
+        result: Result<(ThreadItemsListResponse, Vec<Turn>), String>,
         mode: OlderHistoryLoadMode,
     },
     LookupMessageHistoryEntry {

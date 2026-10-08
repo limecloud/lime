@@ -18,34 +18,15 @@ pub(super) fn exercise_shared_progress(
         .clone();
     let saved_title = terminal_title::latest_title(output).unwrap().to_string();
     let progress_title = format!("{saved_title} | Tasks 1/3");
-    let open = |writer: &mut Box<dyn Write + Send>, command: &str| {
-        writer
-            .write_all(format!("\x1b[200~/{command}\x1b[201~\r").as_bytes())
-            .unwrap();
-        writer.flush().unwrap();
-    };
-    let toggle = |writer: &mut Box<dyn Write + Send>| {
-        writer
-            .write_all(b"\x1b[200~Task progress\x1b[201~ ")
-            .unwrap();
-        writer.flush().unwrap();
-    };
-    open(writer, "statusline");
+    config::open_setup(writer, "statusline");
     wait_for_screen(
         output_rx,
         output,
         "canonical checklist is selectable in the status-line setup",
         |screen| screen.contains("Configure status line"),
     );
-    toggle(writer);
     // Move progress first through the product ordering keys so a long real cwd cannot hide it.
-    for _ in 0.."Task progress".len() {
-        writer.write_all(b"\x7f").unwrap();
-    }
-    for _ in 0..12 {
-        writer.write_all(b"\x1b[D").unwrap();
-    }
-    writer.flush().unwrap();
+    config::toggle_setup_item(writer, "Task progress", true);
     wait_for_screen(
         output_rx,
         output,
@@ -68,14 +49,14 @@ pub(super) fn exercise_shared_progress(
         },
     );
 
-    open(writer, "title");
+    config::open_setup(writer, "title");
     wait_for_screen(
         output_rx,
         output,
         "canonical checklist is selectable in the title setup",
         |screen| screen.contains("Configure terminal title"),
     );
-    toggle(writer);
+    config::toggle_setup_item(writer, "Task progress", false);
     terminal_title::wait_for_title(
         output_rx,
         output,
@@ -97,14 +78,14 @@ pub(super) fn exercise_shared_progress(
         |title| title == saved_title,
     );
 
-    open(writer, "title");
+    config::open_setup(writer, "title");
     wait_for_screen(
         output_rx,
         output,
         "reopen task-progress title setup",
         |screen| screen.contains("Configure terminal title"),
     );
-    toggle(writer);
+    config::toggle_setup_item(writer, "Task progress", false);
     writer.write_all(b"\x1b[20~").unwrap();
     writer.flush().unwrap();
     wait_for_screen(
@@ -150,7 +131,7 @@ pub(super) fn exercise_shared_progress(
     config::assert_fresh_stdio_settings(&progress);
 
     for command in ["title", "statusline"] {
-        open(writer, command);
+        config::open_setup(writer, command);
         let title = if command == "title" {
             "Configure terminal title"
         } else {
@@ -162,7 +143,7 @@ pub(super) fn exercise_shared_progress(
             "remove task-progress selection through current setup",
             |screen| screen.contains(title),
         );
-        toggle(writer);
+        config::toggle_setup_item(writer, "Task progress", false);
         writer.write_all(b"\x1b[20~").unwrap();
         writer.flush().unwrap();
         wait_for_screen(

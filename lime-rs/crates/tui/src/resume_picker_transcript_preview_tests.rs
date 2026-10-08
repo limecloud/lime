@@ -94,20 +94,14 @@ fn preview_is_bounded_to_six_lines() {
 fn preview_pagination_fails_closed_on_a_repeated_cursor() {
     let mut seen = std::collections::HashSet::from([String::from("head")]);
     assert_eq!(
-        next_preview_cursor(Some(String::from("tail")), &mut seen),
+        next_preview_cursor(Some(String::from("tail")), &mut seen).unwrap(),
         Some(String::from("tail"))
     );
     assert_eq!(
-        next_preview_cursor(Some(String::from("tail")), &mut seen),
-        None
-    );
-}
-
-#[test]
-fn preview_scan_budget_is_four_item_pages() {
-    assert_eq!(
-        HISTORY_ITEM_SCAN_LIMIT,
-        4 * HISTORY_ITEM_PAGE_LIMIT as usize
+        next_preview_cursor(Some(String::from("tail")), &mut seen)
+            .unwrap_err()
+            .kind(),
+        io::ErrorKind::InvalidData
     );
 }
 
@@ -186,8 +180,7 @@ fn preview_from_entries_returns_newest_lines_in_transcript_order() {
             TranscriptPreviewSpeaker::Assistant,
             String::from("second\nthird"),
         ),
-    ])
-    .expect("preview");
+    ]);
 
     assert_eq!(
         lines,

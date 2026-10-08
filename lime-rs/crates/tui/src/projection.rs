@@ -1,40 +1,24 @@
 use agent_protocol::response_item::MessagePhase;
 use app_server_protocol::protocol::v2::{
-    CollabAgentToolCallStatus, CommandAction, CommandExecutionSource, CommandExecutionStatus,
-    DynamicToolCallStatus, HookRunStatus, McpToolCallStatus, PatchApplyStatus, PatchChangeKind,
-    ServerNotification, Thread, ThreadItem, TurnStatus, UserInput,
+    CommandAction, HookRunStatus, ServerNotification, ThreadItem, TurnStatus,
 };
 use std::collections::{HashMap, HashSet};
 
-use crate::history_cell::{
-    compact_text, computer_activity_facts, computer_activity_summary,
-    invocation_text as mcp_invocation_text, is_computer_activity, summary as mcp_summary,
-    web_search_detail, ComputerActivityFacts,
-};
+use crate::history_cell::ComputerActivityFacts;
 use crate::history_filter::{
     filter_review_mode_items, filter_review_mode_items_with_state, filter_user_message_ids,
-    hidden_user_message_ids, user_message_id,
 };
-use crate::multi_agents;
 
+use items::{format_patch, project_item, project_item_with_scope, WebSearchLifecycle};
+
+mod history;
+mod items;
 mod plans;
+mod reasoning;
+mod streaming;
+mod token_usage;
 
-fn latest_summary_line(text: &str) -> Option<String> {
-    text.lines().rev().find_map(|line| {
-        let line = line.trim();
-        if line.is_empty() || line.starts_with("<!--") {
-            return None;
-        }
-        let line = line.trim_start_matches('#').trim();
-        let line = if let Some(stripped) = line.strip_prefix("**") {
-            let (bold, trailing) = stripped.split_once("**")?;
-            format!("{bold}{trailing}")
-        } else {
-            line.to_string()
-        };
-        (!line.is_empty()).then_some(line)
-    })
-}
+pub(crate) use reasoning::ReasoningSummary;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum EntryKind {
@@ -85,9 +69,11 @@ pub(crate) enum ActivityDetail {
     },
     Computer(ComputerActivityFacts),
     /// Transcript-only reasoning may stay inside the preceding activity when this canonical
-    /// turn scope matches. The text remains owned by the reasoning entry itself.
+    /// turn scope matches. Structured parts retain status and placeholder boundaries; entry text
+    /// is the renderable body derived from these facts.
     Reasoning {
         scope: String,
+        summary: ReasoningSummary,
     },
 }
 
@@ -165,12 +151,15 @@ pub(crate) struct ConversationProjection {
     status: String,
     /// Latest usable reasoning summary while the active turn is still running.
     reasoning_status: Option<String>,
+    /// Host-owned recovery intent, never a canonical item completion fact.
+    resumed_reasoning: Option<history::ResumedReasoning>,
     review_mode: bool,
     active_hooks: Vec<ActiveHook>,
     /// Explicit assistant phases keyed by canonical item id. Legacy items
     /// omit this field and retain the historical final-answer behavior.
     assistant_phases: HashMap<String, MessagePhase>,
     last_plan_progress: Option<plans::PlanProgress>,
+    token_usage: token_usage::TokenUsageState,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -282,6 +271,8 @@ impl ConversationProjection {
     }
 
     pub(crate) fn start_turn(&mut self, turn_id: String) {
+        self.finish_resumed_reasoning();
+        self.token_usage.note_turn_id(&turn_id);
         self.reasoning_status = None;
         self.active_turn_id = Some(turn_id);
         self.status = "running".to_string();
@@ -382,86 +373,22 @@ impl ConversationProjection {
         self.completion_boundaries = boundaries;
     }
 
-    pub(crate) fn hydrate_thread(&mut self, thread: Thread) {
-        self.last_plan_progress = None;
-        self.entries.clear();
-        self.completion_boundaries.clear();
-        self.active_turn_id = None;
-        self.closed_turn_ids.clear();
-        self.status = "ready".to_string();
-        self.reasoning_status = None;
-        self.review_mode = false;
-        self.active_hooks.clear();
-        self.assistant_phases.clear();
-
-        let hidden_user_messages = hidden_user_message_ids(&thread.turns);
-        for turn in thread.turns {
-            let activity_scope = turn.id.clone();
-            if matches!(
-                turn.status,
-                TurnStatus::Completed | TurnStatus::Failed | TurnStatus::Interrupted
-            ) {
-                self.closed_turn_ids.insert(turn.id.clone());
-            }
-            if turn.status == TurnStatus::InProgress {
-                self.active_turn_id = Some(turn.id.clone());
-                self.status = "running".to_string();
-            }
-            let final_entry_id = (turn.status == TurnStatus::Completed)
-                .then(|| turn.items.last())
-                .flatten()
-                .and_then(|item| {
-                    project_item_with_scope(
-                        item,
-                        false,
-                        WebSearchLifecycle::Historical,
-                        Some(&activity_scope),
-                    )
-                    .map(|entry| entry.id)
-                });
-            for item in turn.items {
-                self.update_review_mode(&item);
-                self.record_assistant_phase(&item);
-                if user_message_id(&item).is_some_and(|id| hidden_user_messages.contains(id)) {
-                    continue;
-                }
-                if let Some(entry) = project_item_with_scope(
-                    &item,
-                    false,
-                    WebSearchLifecycle::Historical,
-                    Some(&activity_scope),
-                ) {
-                    self.remember_reasoning_status(turn.id.as_str(), &entry);
-                    self.replace_entry(entry);
-                }
-            }
-            if turn.status == TurnStatus::Completed {
-                if let Some(entry_id) =
-                    final_entry_id.filter(|id| self.entries.iter().any(|current| current.id == *id))
-                {
-                    self.add_completion_boundary(
-                        entry_id,
-                        turn.duration_ms
-                            .and_then(|duration| u64::try_from(duration).ok())
-                            .map(|duration| duration / 1_000),
-                    );
-                }
-            }
-            if self.active_turn_id.is_none() {
-                self.status = turn_status(turn.status).to_string();
-            }
-        }
-    }
-
     pub(crate) fn apply(&mut self, notification: ServerNotification) {
+        if !self.recover_resumed_reasoning(&notification) {
+            return;
+        }
         match notification {
             ServerNotification::TurnStarted(params) => {
+                self.finish_resumed_reasoning();
+                self.token_usage
+                    .begin_turn(&params.thread_id, &params.turn.id);
                 self.closed_turn_ids.remove(&params.turn.id);
                 self.reasoning_status = None;
                 self.active_turn_id = Some(params.turn.id);
                 self.status = "running".to_string();
             }
             ServerNotification::TurnCompleted(params) => {
+                self.finish_resumed_reasoning();
                 self.active_turn_id = None;
                 self.reasoning_status = None;
                 self.active_hooks
@@ -549,24 +476,23 @@ impl ConversationProjection {
                 );
             }
             ServerNotification::ReasoningSummaryTextDelta(params) => {
-                self.append_delta(
+                self.append_reasoning_summary(
                     params.turn_id,
                     params.item_id,
-                    EntryKind::Reasoning,
+                    params.summary_index,
                     params.delta,
                 );
             }
             ServerNotification::ReasoningSummaryPartAdded(params) => {
-                self.append_reasoning_section_break(params.turn_id, params.item_id);
-            }
-            ServerNotification::ReasoningTextDelta(params) => {
-                self.append_delta(
+                self.append_reasoning_summary(
                     params.turn_id,
                     params.item_id,
-                    EntryKind::Reasoning,
-                    params.delta,
+                    params.summary_index,
+                    String::new(),
                 );
             }
+            // Codex hides raw reasoning by default; only typed summary deltas drive this surface.
+            ServerNotification::ReasoningTextDelta(_) => {}
             ServerNotification::PlanDelta(params) => {
                 self.append_delta(
                     params.turn_id,
@@ -614,6 +540,7 @@ impl ConversationProjection {
                 });
             }
             ServerNotification::TurnPlanUpdated(params) => self.project_plan_update(params),
+            ServerNotification::ThreadTokenUsageUpdated(params) => self.token_usage.update(params),
             ServerNotification::Warning(params) => {
                 self.push_notice(EntryKind::Warning, params.message);
             }
@@ -681,92 +608,6 @@ impl ConversationProjection {
             activity_group: None,
             activity_detail: None,
         });
-    }
-
-    fn append_delta(&mut self, turn_id: String, id: String, kind: EntryKind, delta: String) {
-        if self.closed_turn_ids.contains(&turn_id) {
-            return;
-        }
-        let active_turn = self.active_turn_id.as_deref() == Some(turn_id.as_str());
-        if let Some(entry) = self.entries.iter_mut().find(|entry| entry.id == id) {
-            // Once an item has been replaced by its canonical completion (or a terminal turn
-            // settled the provisional stream), late transport deltas must not reopen it. Codex
-            // flushes the active stream before accepting terminal history for the same reason.
-            if !entry.streaming || entry.kind != kind {
-                return;
-            }
-            entry.text.push_str(&delta);
-            entry.streaming = true;
-            if kind == EntryKind::Reasoning && entry.activity_detail.is_none() {
-                entry.activity_detail = Some(ActivityDetail::Reasoning {
-                    scope: turn_id.clone(),
-                });
-            }
-            let reasoning_status = (active_turn && kind == EntryKind::Reasoning)
-                .then(|| latest_summary_line(&entry.text))
-                .flatten();
-            if let Some(reasoning_status) = reasoning_status {
-                self.reasoning_status = Some(reasoning_status);
-            }
-            return;
-        }
-        let entry = TranscriptEntry {
-            id,
-            kind,
-            text: delta,
-            streaming: true,
-            status: (kind == EntryKind::Command || kind == EntryKind::Plan)
-                .then_some(EntryStatus::Running),
-            summary: Vec::new(),
-            activity_group: None,
-            activity_detail: (kind == EntryKind::Reasoning).then_some(ActivityDetail::Reasoning {
-                scope: turn_id.clone(),
-            }),
-        };
-        if active_turn {
-            self.remember_reasoning_status(&turn_id, &entry);
-        }
-        self.entries.push(entry);
-    }
-
-    /// Preserve the boundary between streamed reasoning summary parts.
-    ///
-    /// The following item completion remains authoritative and replaces this provisional entry
-    /// with the canonical summary. A completed historical reasoning item is therefore left
-    /// untouched when a late notification arrives after reconnect.
-    fn append_reasoning_section_break(&mut self, turn_id: String, id: String) {
-        if self.closed_turn_ids.contains(&turn_id) {
-            return;
-        }
-        if let Some(entry) = self.entries.iter_mut().find(|entry| entry.id == id) {
-            if entry.kind != EntryKind::Reasoning || !entry.streaming {
-                return;
-            }
-            if !entry.text.is_empty() && !entry.text.ends_with('\n') {
-                entry.text.push('\n');
-            }
-            return;
-        }
-
-        self.entries.push(TranscriptEntry {
-            id,
-            kind: EntryKind::Reasoning,
-            text: String::new(),
-            streaming: true,
-            status: None,
-            summary: Vec::new(),
-            activity_group: None,
-            activity_detail: Some(ActivityDetail::Reasoning { scope: turn_id }),
-        });
-    }
-
-    fn remember_reasoning_status(&mut self, turn_id: &str, entry: &TranscriptEntry) {
-        if self.active_turn_id.as_deref() != Some(turn_id) || entry.kind != EntryKind::Reasoning {
-            return;
-        }
-        if let Some(summary) = latest_summary_line(&entry.text) {
-            self.reasoning_status = Some(summary);
-        }
     }
 
     fn update_review_mode(&mut self, item: &ThreadItem) {
@@ -906,526 +747,6 @@ fn turn_status(status: TurnStatus) -> &'static str {
         TurnStatus::Failed => "failed",
         TurnStatus::InProgress => "running",
     }
-}
-
-fn project_item(item: &ThreadItem, streaming: bool) -> Option<TranscriptEntry> {
-    project_item_with_lifecycle(item, streaming, WebSearchLifecycle::Historical)
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum WebSearchLifecycle {
-    Historical,
-    Started,
-    Completed,
-}
-
-fn project_item_with_lifecycle(
-    item: &ThreadItem,
-    streaming: bool,
-    web_search_lifecycle: WebSearchLifecycle,
-) -> Option<TranscriptEntry> {
-    project_item_with_scope(item, streaming, web_search_lifecycle, None)
-}
-
-fn project_item_with_scope(
-    item: &ThreadItem,
-    streaming: bool,
-    web_search_lifecycle: WebSearchLifecycle,
-    activity_scope: Option<&str>,
-) -> Option<TranscriptEntry> {
-    let activity_group = activity_scope
-        .and_then(|scope| activity_group_kind(item).map(|kind| ActivityGroupKey::new(kind, scope)));
-    let activity_detail = activity_group
-        .as_ref()
-        .and_then(|_| project_activity_detail(item))
-        .or_else(|| {
-            (matches!(item, ThreadItem::Reasoning { .. }))
-                .then(|| activity_scope)
-                .flatten()
-                .map(|scope| ActivityDetail::Reasoning {
-                    scope: scope.to_string(),
-                })
-        });
-    let (id, kind, text, status, summary) = match item {
-        ThreadItem::UserMessage {
-            id,
-            client_id,
-            content,
-            ..
-        } => {
-            let (text, summary) = user_input_projection(content);
-            (
-                client_id.as_ref().unwrap_or(id).clone(),
-                EntryKind::User,
-                text,
-                None,
-                summary,
-            )
-        }
-        ThreadItem::HookPrompt { id, fragments, .. } => (
-            id.clone(),
-            EntryKind::System,
-            fragments
-                .iter()
-                .map(|fragment| fragment.text.as_str())
-                .collect::<Vec<_>>()
-                .join("\n"),
-            None,
-            Vec::new(),
-        ),
-        ThreadItem::AgentMessage { id, text, .. } => (
-            id.clone(),
-            EntryKind::Assistant,
-            text.clone(),
-            None,
-            Vec::new(),
-        ),
-        ThreadItem::Plan { id, text, .. } => (
-            id.clone(),
-            EntryKind::Plan,
-            text.clone(),
-            Some(EntryStatus::Completed),
-            Vec::new(),
-        ),
-        ThreadItem::Reasoning {
-            id,
-            summary,
-            content,
-            ..
-        } => {
-            let text = if summary.is_empty() { content } else { summary }.join("\n");
-            (id.clone(), EntryKind::Reasoning, text, None, Vec::new())
-        }
-        ThreadItem::CommandExecution {
-            id,
-            command,
-            status,
-            aggregated_output,
-            exit_code,
-            duration_ms,
-            ..
-        } => {
-            let mut summary = Vec::new();
-            if let Some(exit_code) = exit_code {
-                summary.push(format!("exit {exit_code}"));
-            }
-            if let Some(duration_ms) = duration_ms {
-                summary.push(format!("duration {duration_ms}ms"));
-            }
-            (
-                id.clone(),
-                EntryKind::Command,
-                command_text(command, aggregated_output.as_deref(), streaming),
-                Some(command_entry_status(*status)),
-                summary,
-            )
-        }
-        ThreadItem::FileChange {
-            id,
-            changes,
-            status,
-            ..
-        } => (
-            id.clone(),
-            EntryKind::Patch,
-            format_patch(changes),
-            Some(patch_entry_status(*status)),
-            patch_summary(changes),
-        ),
-        ThreadItem::McpToolCall {
-            id,
-            server,
-            tool,
-            arguments,
-            status,
-            result,
-            error,
-            duration_ms,
-            ..
-        } => {
-            let mut summary = mcp_summary(result.as_deref(), error.as_ref(), *duration_ms);
-            if is_computer_activity(server) {
-                summary.extend(computer_activity_summary(
-                    arguments,
-                    result.as_deref(),
-                    error.as_ref(),
-                ));
-            }
-            (
-                id.clone(),
-                EntryKind::Mcp,
-                mcp_invocation_text(server, tool, arguments),
-                Some(mcp_entry_status(*status)),
-                summary,
-            )
-        }
-        ThreadItem::DynamicToolCall {
-            id,
-            tool,
-            status,
-            content_items,
-            success,
-            duration_ms,
-            ..
-        } => (
-            id.clone(),
-            EntryKind::Tool,
-            tool.clone(),
-            Some(dynamic_entry_status(*status)),
-            dynamic_summary(content_items.as_deref(), *success, *duration_ms),
-        ),
-        item @ ThreadItem::CollabAgentToolCall {
-            id, tool, status, ..
-        } => {
-            let text = multi_agents::tool_call_history_cell(item)
-                .map(|cell| cell.title)
-                .unwrap_or_else(|| format!("{tool:?}"));
-            (
-                id.clone(),
-                EntryKind::MultiAgent,
-                text,
-                Some(collab_entry_status(*status)),
-                multi_agents::collab_summary_for_item(item),
-            )
-        }
-        item @ ThreadItem::SubAgentActivity {
-            id,
-            kind,
-            agent_path,
-            ..
-        } => {
-            let status = multi_agents::sub_agent_activity_display(item)
-                .map(|activity| {
-                    if activity.is_running_hint {
-                        EntryStatus::Running
-                    } else {
-                        EntryStatus::Interrupted
-                    }
-                })
-                .or(Some(EntryStatus::Running));
-            (
-                id.clone(),
-                EntryKind::MultiAgent,
-                multi_agents::sub_agent_activity_summary(*kind, agent_path),
-                status,
-                Vec::new(),
-            )
-        }
-        ThreadItem::WebSearch(item) => {
-            let detail =
-                web_search_detail(item.query.as_deref().unwrap_or(""), item.action.as_ref());
-            let text = match web_search_lifecycle {
-                WebSearchLifecycle::Historical => {
-                    if detail.is_empty() {
-                        "web search".to_string()
-                    } else {
-                        format!("web search: {detail}")
-                    }
-                }
-                WebSearchLifecycle::Started => {
-                    if detail.is_empty() {
-                        "searching the web".to_string()
-                    } else {
-                        format!("searching the web {detail}")
-                    }
-                }
-                WebSearchLifecycle::Completed => {
-                    if detail.is_empty() {
-                        "searched the web".to_string()
-                    } else {
-                        format!("searched the web for {detail}")
-                    }
-                }
-            };
-            (item.id.clone(), EntryKind::Tool, text, None, Vec::new())
-        }
-        ThreadItem::ImageView { id, path, .. } => (
-            id.clone(),
-            EntryKind::Tool,
-            format!("view image: {path}"),
-            None,
-            Vec::new(),
-        ),
-        // Sleep is an internal runtime control item in Codex and is not part of the
-        // user-visible transcript or agent status feed.
-        ThreadItem::Sleep(_) => return None,
-        ThreadItem::ImageGeneration(item) => {
-            let mut summary = Vec::new();
-            if let Some(path) = item.saved_path.as_deref() {
-                summary.push(format!("saved: {path}"));
-            }
-            if let Some(prompt) = item.revised_prompt.as_deref() {
-                summary.push(format!("revised prompt: {}", compact_text(prompt)));
-            }
-            (
-                item.id.clone(),
-                EntryKind::Tool,
-                "image generation".to_string(),
-                image_generation_status(&item.status),
-                summary,
-            )
-        }
-        ThreadItem::EnteredReviewMode { id, review, .. } => (
-            id.clone(),
-            EntryKind::System,
-            format!("review started: {review}"),
-            Some(EntryStatus::Running),
-            Vec::new(),
-        ),
-        ThreadItem::ExitedReviewMode { id, review, .. } => (
-            id.clone(),
-            EntryKind::System,
-            format!("review completed: {review}"),
-            Some(EntryStatus::Completed),
-            Vec::new(),
-        ),
-        ThreadItem::ContextCompaction { id, .. } => (
-            id.clone(),
-            EntryKind::System,
-            "context compacted".to_string(),
-            None,
-            Vec::new(),
-        ),
-        ThreadItem::UnknownItem {
-            id, upstream_type, ..
-        } => (
-            id.clone(),
-            EntryKind::System,
-            format!("unsupported item: {upstream_type}"),
-            Some(EntryStatus::Failed),
-            Vec::new(),
-        ),
-    };
-
-    Some(TranscriptEntry {
-        id,
-        kind,
-        text,
-        streaming,
-        status,
-        summary,
-        activity_group,
-        activity_detail,
-    })
-}
-
-fn activity_group_kind(item: &ThreadItem) -> Option<ActivityGroupKind> {
-    match item {
-        ThreadItem::CommandExecution {
-            source,
-            command_actions,
-            ..
-        } if *source != CommandExecutionSource::UserShell
-            && !command_actions.is_empty()
-            && command_actions.iter().all(|action| {
-                matches!(
-                    action,
-                    CommandAction::Read { .. }
-                        | CommandAction::ListFiles { .. }
-                        | CommandAction::Search { .. }
-                )
-            }) =>
-        {
-            Some(ActivityGroupKind::Exploration)
-        }
-        ThreadItem::McpToolCall { server, .. } if is_computer_activity(server) => {
-            Some(ActivityGroupKind::Computer)
-        }
-        _ => None,
-    }
-}
-
-fn project_activity_detail(item: &ThreadItem) -> Option<ActivityDetail> {
-    match item {
-        ThreadItem::CommandExecution {
-            command_actions,
-            exit_code,
-            ..
-        } => Some(ActivityDetail::Exploration {
-            actions: command_actions.clone(),
-            exit_code: *exit_code,
-        }),
-        ThreadItem::McpToolCall {
-            arguments,
-            result,
-            error,
-            ..
-        } => Some(ActivityDetail::Computer(computer_activity_facts(
-            arguments,
-            result.as_deref(),
-            error.as_ref(),
-        ))),
-        _ => None,
-    }
-}
-
-fn command_text(command: &str, output: Option<&str>, streaming: bool) -> String {
-    let mut text = command.to_string();
-    if let Some(output) = output.filter(|output| !output.is_empty()) {
-        if !text.ends_with('\n') {
-            text.push('\n');
-        }
-        text.push_str(output);
-    } else if streaming && !text.ends_with('\n') {
-        text.push('\n');
-    }
-    text
-}
-
-fn patch_summary(changes: &[app_server_protocol::protocol::v2::FileUpdateChange]) -> Vec<String> {
-    let mut added = 0;
-    let mut deleted = 0;
-    let mut updated = 0;
-    for change in changes {
-        match &change.kind {
-            PatchChangeKind::Add => added += 1,
-            PatchChangeKind::Delete => deleted += 1,
-            PatchChangeKind::Update { .. } => updated += 1,
-        }
-    }
-    let mut details = vec![format!("files: {}", changes.len())];
-    if added > 0 {
-        details.push(format!("added: {added}"));
-    }
-    if deleted > 0 {
-        details.push(format!("deleted: {deleted}"));
-    }
-    if updated > 0 {
-        details.push(format!("updated: {updated}"));
-    }
-    details
-}
-
-fn dynamic_summary(
-    content_items: Option<&[app_server_protocol::protocol::v2::DynamicToolCallOutputContentItem]>,
-    success: Option<bool>,
-    duration_ms: Option<i64>,
-) -> Vec<String> {
-    let mut details = Vec::new();
-    if let Some(success) = success {
-        details.push(format!("success: {success}"));
-    }
-    if let Some(content_items) = content_items {
-        details.push(format!("content items: {}", content_items.len()));
-        details.extend(dynamic_content_previews(content_items));
-    }
-    if let Some(duration_ms) = duration_ms {
-        details.push(format!("duration {duration_ms}ms"));
-    }
-    details
-}
-
-fn dynamic_content_previews(
-    content_items: &[app_server_protocol::protocol::v2::DynamicToolCallOutputContentItem],
-) -> Vec<String> {
-    content_items
-        .iter()
-        .filter_map(|item| match item {
-            app_server_protocol::protocol::v2::DynamicToolCallOutputContentItem::InputText {
-                text,
-            } if !text.trim().is_empty() => Some(format!("output: {}", compact_text(text))),
-            _ => None,
-        })
-        .take(4)
-        .collect()
-}
-
-fn command_entry_status(status: CommandExecutionStatus) -> EntryStatus {
-    match status {
-        CommandExecutionStatus::InProgress => EntryStatus::Running,
-        CommandExecutionStatus::Completed => EntryStatus::Completed,
-        CommandExecutionStatus::Failed => EntryStatus::Failed,
-        CommandExecutionStatus::Declined => EntryStatus::Declined,
-    }
-}
-
-fn patch_entry_status(status: PatchApplyStatus) -> EntryStatus {
-    match status {
-        PatchApplyStatus::InProgress => EntryStatus::Running,
-        PatchApplyStatus::Completed => EntryStatus::Completed,
-        PatchApplyStatus::Failed => EntryStatus::Failed,
-        PatchApplyStatus::Declined => EntryStatus::Declined,
-    }
-}
-
-fn mcp_entry_status(status: McpToolCallStatus) -> EntryStatus {
-    match status {
-        McpToolCallStatus::InProgress => EntryStatus::Running,
-        McpToolCallStatus::Completed => EntryStatus::Completed,
-        McpToolCallStatus::Failed => EntryStatus::Failed,
-    }
-}
-
-fn dynamic_entry_status(status: DynamicToolCallStatus) -> EntryStatus {
-    match status {
-        DynamicToolCallStatus::InProgress => EntryStatus::Running,
-        DynamicToolCallStatus::Completed => EntryStatus::Completed,
-        DynamicToolCallStatus::Failed => EntryStatus::Failed,
-    }
-}
-
-fn collab_entry_status(status: CollabAgentToolCallStatus) -> EntryStatus {
-    match status {
-        CollabAgentToolCallStatus::InProgress => EntryStatus::Running,
-        CollabAgentToolCallStatus::Completed => EntryStatus::Completed,
-        CollabAgentToolCallStatus::Failed => EntryStatus::Failed,
-    }
-}
-
-fn image_generation_status(status: &str) -> Option<EntryStatus> {
-    match status.to_ascii_lowercase().as_str() {
-        "in_progress" | "in-progress" | "running" => Some(EntryStatus::Running),
-        "completed" | "succeeded" | "success" => Some(EntryStatus::Completed),
-        "failed" | "error" => Some(EntryStatus::Failed),
-        "declined" => Some(EntryStatus::Declined),
-        _ => None,
-    }
-}
-
-fn format_patch(changes: &[app_server_protocol::protocol::v2::FileUpdateChange]) -> String {
-    changes
-        .iter()
-        .map(|change| {
-            let (kind, move_path) = match &change.kind {
-                app_server_protocol::protocol::v2::PatchChangeKind::Add => ("added", None),
-                app_server_protocol::protocol::v2::PatchChangeKind::Delete => ("deleted", None),
-                app_server_protocol::protocol::v2::PatchChangeKind::Update { move_path } => {
-                    ("updated", move_path.as_deref())
-                }
-            };
-            let path = move_path
-                .filter(|path| !path.trim().is_empty())
-                .map(|path| format!("{} → {path}", change.path))
-                .unwrap_or_else(|| change.path.clone());
-            if change.diff.trim().is_empty() {
-                format!("{kind} {path}")
-            } else {
-                format!("{kind} {path}\n{}", change.diff)
-            }
-        })
-        .collect::<Vec<_>>()
-        .join("\n")
-}
-
-fn user_input_projection(content: &[UserInput]) -> (String, Vec<String>) {
-    let mut text = Vec::new();
-    let mut image_count = 0usize;
-
-    for input in content {
-        match input {
-            UserInput::Text { text: value, .. } => text.push(value.clone()),
-            UserInput::Image { .. } | UserInput::LocalImage { .. } => {
-                image_count += 1;
-            }
-            UserInput::Skill { name, .. } => text.push(format!("[skill: {name}]")),
-            UserInput::Mention { name, .. } => text.push(format!("[@{name}]")),
-        }
-    }
-
-    let summary = (1..=image_count)
-        .map(|index| format!("image: {index}"))
-        .collect();
-    (text.join("\n"), summary)
 }
 
 #[cfg(test)]

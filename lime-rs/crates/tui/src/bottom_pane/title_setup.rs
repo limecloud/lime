@@ -31,10 +31,15 @@ pub(crate) enum TerminalTitleItem {
     ModelWithReasoning,
     Reasoning,
     TaskProgress,
+    UsedTokens,
+    TotalInputTokens,
+    TotalOutputTokens,
+    ContextRemaining,
+    ContextUsed,
 }
 
 impl TerminalTitleItem {
-    pub(crate) const ALL: [Self; 12] = [
+    pub(crate) const ALL: [Self; 17] = [
         Self::AppName,
         Self::Project,
         Self::CurrentDir,
@@ -47,6 +52,11 @@ impl TerminalTitleItem {
         Self::ModelWithReasoning,
         Self::Reasoning,
         Self::TaskProgress,
+        Self::UsedTokens,
+        Self::TotalInputTokens,
+        Self::TotalOutputTokens,
+        Self::ContextRemaining,
+        Self::ContextUsed,
     ];
     pub(crate) fn id(self) -> &'static str {
         match self {
@@ -62,6 +72,11 @@ impl TerminalTitleItem {
             Self::ModelWithReasoning => "model-with-reasoning",
             Self::Reasoning => "reasoning",
             Self::TaskProgress => "task-progress",
+            Self::UsedTokens => "used-tokens",
+            Self::TotalInputTokens => "total-input-tokens",
+            Self::TotalOutputTokens => "total-output-tokens",
+            Self::ContextRemaining => "context-remaining",
+            Self::ContextUsed => "context-used",
         }
     }
     pub(crate) fn from_id(id: &str) -> Option<Self> {
@@ -72,6 +87,7 @@ impl TerminalTitleItem {
             "thread" => Some(Self::Thread),
             "session-id" => Some(Self::SessionId),
             "model-name" => Some(Self::Model),
+            "context-usage" => Some(Self::ContextUsed),
             _ => Self::ALL.into_iter().find(|item| item.id() == id),
         }
     }
@@ -86,6 +102,11 @@ impl TerminalTitleItem {
             Self::ModelWithReasoning => Some(StatusLineItem::ModelWithReasoning),
             Self::Reasoning => Some(StatusLineItem::Reasoning),
             Self::TaskProgress => Some(StatusLineItem::TaskProgress),
+            Self::UsedTokens => Some(StatusLineItem::UsedTokens),
+            Self::TotalInputTokens => Some(StatusLineItem::TotalInputTokens),
+            Self::TotalOutputTokens => Some(StatusLineItem::TotalOutputTokens),
+            Self::ContextRemaining => Some(StatusLineItem::ContextRemaining),
+            Self::ContextUsed => Some(StatusLineItem::ContextUsed),
             _ => None,
         }
     }

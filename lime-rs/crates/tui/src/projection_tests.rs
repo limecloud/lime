@@ -1,17 +1,20 @@
+use super::items::{activity_group_kind, dynamic_summary};
 use super::*;
 use agent_protocol::response_item::MessagePhase;
 use app_server_protocol::protocol::v2::{
     AgentMessageDeltaNotification, CollabAgentState, CollabAgentStatus, CollabAgentTool,
-    CommandAction, CommandExecutionOutputDeltaNotification, CommandExecutionSource,
-    DynamicToolCallOutputContentItem, ErrorNotification, FileChangePatchUpdatedNotification,
-    FileUpdateChange, HookCompletedNotification, HookEventName, HookExecutionMode, HookHandlerType,
-    HookOutputEntry, HookOutputEntryKind, HookRunStatus, HookRunSummary, HookScope, HookSource,
+    CollabAgentToolCallStatus, CommandAction, CommandExecutionOutputDeltaNotification,
+    CommandExecutionSource, CommandExecutionStatus, DynamicToolCallOutputContentItem,
+    DynamicToolCallStatus, ErrorNotification, FileChangePatchUpdatedNotification, FileUpdateChange,
+    HookCompletedNotification, HookEventName, HookExecutionMode, HookHandlerType, HookOutputEntry,
+    HookOutputEntryKind, HookRunStatus, HookRunSummary, HookScope, HookSource,
     HookStartedNotification, ImageGenerationItem, ItemCompletedNotification,
-    ItemStartedNotification, McpToolCallError, McpToolCallResult, PatchChangeKind,
-    ReasoningSummaryPartAddedNotification, ReasoningSummaryTextDeltaNotification, SessionSource,
-    SleepItem, Thread, ThreadActiveFlag, ThreadItem, ThreadStatus, Turn, TurnCompletedNotification,
-    TurnDiffUpdatedNotification, TurnError, TurnItemsView, TurnPlanStep, TurnPlanStepStatus,
-    TurnPlanUpdatedNotification, WarningNotification, WebSearchItem,
+    ItemStartedNotification, McpToolCallError, McpToolCallResult, McpToolCallStatus,
+    PatchApplyStatus, PatchChangeKind, ReasoningSummaryPartAddedNotification,
+    ReasoningSummaryTextDeltaNotification, SessionSource, SleepItem, Thread, ThreadActiveFlag,
+    ThreadItem, ThreadStatus, Turn, TurnCompletedNotification, TurnDiffUpdatedNotification,
+    TurnError, TurnItemsView, TurnPlanStep, TurnPlanStepStatus, TurnPlanUpdatedNotification,
+    WarningNotification, WebSearchItem,
 };
 use serde_json::json;
 use std::collections::{HashMap, HashSet};
@@ -629,12 +632,13 @@ fn reasoning_summary_parts_keep_streamed_section_boundaries() {
         },
     ));
 
-    assert_eq!(projection.entries()[0].text, "检查输入\n准备回答");
+    assert_eq!(projection.entries()[0].text, "检查输入\n\n准备回答");
     assert!(projection.entries()[0].streaming);
     assert_eq!(
         projection.entries()[0].activity_detail,
         Some(ActivityDetail::Reasoning {
             scope: "turn-1".to_string(),
+            summary: ReasoningSummary::from_parts(&["检查输入".into(), "准备回答".into()]),
         })
     );
 }
@@ -1384,7 +1388,7 @@ fn dynamic_text_previews_are_compact_bounded_and_ignore_media_urls() {
         },
     ];
 
-    let summary = super::dynamic_summary(Some(&content), Some(true), None);
+    let summary = dynamic_summary(Some(&content), Some(true), None);
 
     assert_eq!(
         summary,
@@ -1638,6 +1642,7 @@ fn activity_group_requires_canonical_kind_and_turn_scope() {
         scoped.activity_detail,
         Some(ActivityDetail::Reasoning {
             scope: "turn-1".to_string(),
+            summary: ReasoningSummary::from_parts(&["Inspect the result".into()]),
         })
     );
     assert_eq!(

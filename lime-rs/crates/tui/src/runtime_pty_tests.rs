@@ -12,6 +12,8 @@ use portable_pty::{native_pty_system, CommandBuilder, PtySize};
 mod agent_picker;
 #[path = "runtime_pty_tests/approval.rs"]
 mod approval;
+#[path = "runtime_pty_tests/backtrack.rs"]
+mod backtrack;
 #[path = "runtime_pty_tests/composer.rs"]
 mod composer;
 #[path = "runtime_pty_tests/config.rs"]
@@ -20,12 +22,16 @@ mod config;
 mod cursor_style;
 #[path = "runtime_pty_tests/diff_display.rs"]
 mod diff_display;
+#[path = "runtime_pty_tests/footer.rs"]
+mod footer;
 #[path = "runtime_pty_tests/images.rs"]
 mod images;
 #[path = "runtime_pty_tests/model_picker.rs"]
 mod model_picker;
 #[path = "runtime_pty_tests/pending_paste.rs"]
 mod pending_paste;
+#[path = "runtime_pty_tests/reasoning.rs"]
+mod reasoning;
 #[path = "runtime_pty_tests/reasoning_shortcuts.rs"]
 mod reasoning_shortcuts;
 #[path = "runtime_pty_tests/request_user_input.rs"]
@@ -46,6 +52,8 @@ mod terminal_title;
 mod thread_input;
 #[path = "runtime_pty_tests/title_setup.rs"]
 mod title_setup;
+#[path = "runtime_pty_tests/token_usage.rs"]
+mod token_usage;
 #[path = "runtime_pty_tests/transcript_export.rs"]
 mod transcript_export;
 #[path = "runtime_pty_tests/vim_keymap.rs"]
@@ -709,6 +717,21 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
                 &ledger_path,
                 permission_config.as_deref().expect("isolated TUI config"),
             );
+            token_usage::exercise_shared_usage(
+                &mut writer,
+                &output_rx,
+                &mut output,
+                &ledger_path,
+                permission_config.as_deref().expect("isolated TUI config"),
+            );
+            footer::exercise_context_and_canonical_config(
+                master.as_ref(),
+                &mut writer,
+                &output_rx,
+                &mut output,
+                &ledger_path,
+                permission_config.as_deref().expect("isolated TUI config"),
+            );
             let (prompt_header_row, _) =
                 terminal_marker_position(&output, &prompt).expect("sticky prompt header position");
             assert_eq!(
@@ -879,6 +902,7 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
                 Duration::from_secs(10),
             );
             transcript_reasoning_visible = true;
+            reasoning::assert_summary_body(&output_rx, &mut output, &reasoning_text);
             wait_for_screen_marker(
                 &output_rx,
                 &mut output,
@@ -1052,6 +1076,13 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
             );
             model_picker::exercise_nested_selection(&mut writer, &output_rx, &mut output);
             reasoning_shortcuts::exercise_steps(&mut writer, &output_rx, &mut output);
+            backtrack::exercise_previous_prompt(
+                &mut writer,
+                &output_rx,
+                &mut output,
+                &prompt,
+                &completed_text,
+            );
         }
         if scenario == "queue-edit" {
             writer
@@ -1206,6 +1237,9 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
     }
 
     assert!(status.success(), "TUI exited with {status:?}: {output}");
+    if scenario == "complete" {
+        backtrack::assert_cold_canonical_history(&app_server_bin, &cwd, &ledger_path);
+    }
     if scenario == "images" {
         images::assert_canonical_input(&app_server_bin, &cwd, &ledger_path, &prompt);
     }

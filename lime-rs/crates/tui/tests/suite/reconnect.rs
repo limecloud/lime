@@ -39,6 +39,7 @@ async fn automatic_reconnect_restores_draft_and_routes_new_notifications() -> Re
     let (disconnect_tx, disconnect_rx) = oneshot::channel();
     let (restore_tx, restore_rx) = oneshot::channel();
     let (restore_ready_tx, restore_ready_rx) = oneshot::channel();
+    let (reasoning_tx, reasoning_rx) = oneshot::channel();
     let methods = std::sync::Arc::new(Mutex::new(Vec::<String>::new()));
     let server_methods = methods.clone();
     let server = tokio::spawn(async move {
@@ -48,6 +49,7 @@ async fn automatic_reconnect_restores_draft_and_routes_new_notifications() -> Re
             disconnect_rx,
             restore_rx,
             restore_ready_tx,
+            reasoning_rx,
         )
         .await
     });
@@ -73,6 +75,11 @@ async fn automatic_reconnect_restores_draft_and_routes_new_notifications() -> Re
     restore_tx
         .send(())
         .map_err(|_| anyhow::anyhow!("fixture reconnect gate was not waiting"))?;
+    terminal.wait_for_screen("PTY_RESUMED_STATUS", RECONNECT_TIMEOUT)?;
+    reasoning_tx
+        .send(())
+        .map_err(|_| anyhow::anyhow!("reasoning fixture barrier closed"))?;
+    terminal.wait_for_screen("PTY_RESUMED_DELTA_STATUS", RECONNECT_TIMEOUT)?;
     terminal.wait_for_screen("fresh-notification-after-reconnect", RECONNECT_TIMEOUT)?;
     ensure!(
         terminal.screen_contains("preserved-draft!"),
@@ -80,6 +87,14 @@ async fn automatic_reconnect_restores_draft_and_routes_new_notifications() -> Re
         terminal.screen_contents()
     );
     terminal.write_input(&[21])?;
+    terminal.write_input(&[20])?;
+    terminal.wait_for_screen("PTY_RESUMED_BODY_DELTA", RECONNECT_TIMEOUT)?;
+    ensure!(
+        !terminal.screen_contains("PTY_RAW_MUST_STAY_HIDDEN"),
+        "raw reasoning leaked after resume"
+    );
+    terminal.write_input(&[20])?;
+    terminal.wait_for_screen("PTY_RESUMED_DELTA_STATUS", RECONNECT_TIMEOUT)?;
     terminal.write_typed_input(b"/pwd\r")?;
     terminal.wait_for_screen(RESTORED_CWD, RECONNECT_TIMEOUT)?;
 
@@ -115,10 +130,25 @@ async fn automatic_reconnect_restores_draft_and_routes_new_notifications() -> Re
         !methods.iter().any(|method| method == "turn/start"),
         "reconnect started a new turn instead of resuming: {methods:?}"
     );
+    for method in ["thread/items/list", "thread/turns/list"] {
+        ensure!(
+            methods
+                .iter()
+                .filter(|observed| observed.as_str() == method)
+                .count()
+                == 1,
+            "reconnect did not hydrate canonical history through {method}: {methods:?}"
+        );
+    }
+    ensure!(
+        !methods.iter().any(|method| method == "thread/read"),
+        "reconnect used the retired full thread reader: {methods:?}"
+    );
     ensure!(
         observed,
         "reconnect fixture did not observe the final client close"
     );
+    println!("TUI_REASONING_RESUME_OK thread={THREAD_ID} turn={TURN_ID} snapshot-status=ok no-started=ok detail=ok raw=hidden terminal=restored transport=websocket-fixture");
     Ok(())
 }
 
@@ -128,10 +158,12 @@ async fn run_fixture_server(
     mut disconnect_rx: oneshot::Receiver<()>,
     restore_rx: oneshot::Receiver<()>,
     restore_ready_tx: oneshot::Sender<()>,
+    reasoning_rx: oneshot::Receiver<()>,
 ) -> Result<bool> {
     let mut restore_ready_tx = Some(restore_ready_tx);
     let mut restore_rx = Some(restore_rx);
     let mut connection_index = 0_u8;
+    let mut reasoning_rx = Some(reasoning_rx);
     loop {
         let (stream, _) = listener.accept().await?;
         let mut socket = accept_async(stream).await?;
@@ -148,6 +180,7 @@ async fn run_fixture_server(
             connection_index,
             methods.clone(),
             &mut disconnect_rx,
+            &mut reasoning_rx,
         )
         .await?;
         connection_index = connection_index.saturating_add(1);
@@ -162,6 +195,7 @@ async fn serve_connection(
     connection_index: u8,
     methods: std::sync::Arc<Mutex<Vec<String>>>,
     disconnect_rx: &mut oneshot::Receiver<()>,
+    reasoning_rx: &mut Option<oneshot::Receiver<()>>,
 ) -> Result<bool> {
     loop {
         let message = if connection_index == 0 {
@@ -169,6 +203,35 @@ async fn serve_connection(
                 _ = &mut *disconnect_rx => {
                     socket.close(None).await?;
                     return Ok(true);
+                }
+                message = socket.next() => message,
+            }
+        } else if connection_index >= 2 && reasoning_rx.is_some() {
+            tokio::select! {
+                ready = reasoning_rx.as_mut().unwrap() => {
+                    ready.context("reasoning barrier was not released")?;
+                    reasoning_rx.take();
+                    for (method, params) in [
+                        ("item/reasoning/summaryTextDelta", json!({
+                            "threadId": THREAD_ID, "turnId": TURN_ID, "itemId": "reasoning-tail",
+                            "summaryIndex": 0, "delta": " PTY_RESUMED_BODY_DELTA",
+                        })),
+                        ("item/reasoning/summaryTextDelta", json!({
+                            "threadId": THREAD_ID, "turnId": TURN_ID, "itemId": "reasoning-tail",
+                            "summaryIndex": 2, "delta": "**PTY_RESUMED_DELTA_STATUS**\n<!-- -->",
+                        })),
+                        ("item/agentMessage/delta", json!({
+                            "threadId": THREAD_ID, "turnId": TURN_ID, "itemId": "live-item",
+                            "delta": "fresh-notification-after-reconnect",
+                        })),
+                    ] {
+                        socket.send(Message::Text(app_server_transport::encode_message(
+                            &JsonRpcMessage::Notification(app_server_protocol::JsonRpcNotification::new(
+                                method, Some(params),
+                            )),
+                        )?)).await?;
+                    }
+                    continue;
                 }
                 message = socket.next() => message,
             }
@@ -186,6 +249,16 @@ async fn serve_connection(
             continue;
         };
         methods.lock().await.push(request.method.clone());
+        if request.method == "thread/resume" {
+            ensure!(
+                request
+                    .params
+                    .as_ref()
+                    .and_then(|params| params.get("excludeTurns"))
+                    == Some(&json!(true)),
+                "reconnect must request metadata-only resume"
+            );
+        }
 
         if connection_index == 1 && request.method == "thread/resume" {
             send_error(
@@ -203,22 +276,6 @@ async fn serve_connection(
                 &JsonRpcMessage::Response(JsonRpcResponse::new(request.id, response)?),
             )?))
             .await?;
-
-        if request.method == "thread/resume" && connection_index >= 2 {
-            socket
-                .send(Message::Text(app_server_transport::encode_message(
-                    &JsonRpcMessage::Notification(app_server_protocol::JsonRpcNotification::new(
-                        "item/agentMessage/delta",
-                        Some(json!({
-                            "threadId": THREAD_ID,
-                            "turnId": TURN_ID,
-                            "itemId": "live-item",
-                            "delta": "fresh-notification-after-reconnect",
-                        })),
-                    )),
-                )?))
-                .await?;
-        }
     }
 }
 
@@ -269,9 +326,33 @@ fn fixture_response(method: &str, connection_index: u8) -> Value {
             "nextCursor": null
         }),
         "thread/queue/list" => json!({"data": [], "nextCursor": null}),
+        "thread/items/list" => json!({
+            "data": [
+                {"turnId": TURN_ID, "item": history_reasoning()},
+                {"turnId": TURN_ID, "item": history_prompt()}
+            ],
+            "nextCursor": null, "backwardsCursor": null
+        }),
+        "thread/turns/list" => json!({
+            "data": [{"id": TURN_ID, "items": [history_prompt(), history_reasoning()], "itemsView": "full", "status": "inProgress"}],
+            "nextCursor": null, "backwardsCursor": null
+        }),
         "skills/list" => json!({"data": [], "nextCursor": null}),
         _ => json!({}),
     }
+}
+
+fn history_prompt() -> Value {
+    json!({
+        "type": "userMessage", "id": "history-prompt",
+        "content": [{"type": "text", "text": "running task before reconnect", "textElements": []}]
+    })
+}
+
+fn history_reasoning() -> Value {
+    json!({"type": "reasoning", "id": "reasoning-tail", "summary": [
+        "**Body**\n\nPTY_RESUMED_BODY", "**PTY_RESUMED_STATUS**\n<!-- -->",
+    ], "content": ["PTY_RAW_MUST_STAY_HIDDEN"]})
 }
 
 fn thread_response(connection_index: u8) -> Value {
@@ -295,12 +376,7 @@ fn thread_response(connection_index: u8) -> Value {
             "cwd": cwd,
             "cliVersion": "fixture",
             "source": "appServer",
-            "turns": [{
-                "id": TURN_ID,
-                "items": [],
-                "itemsView": "full",
-                "status": "inProgress"
-            }]
+            "turns": []
         },
         "model": "fixture-model",
         "modelProvider": "fixture-provider",
@@ -463,7 +539,15 @@ impl PtyReconnect {
         let deadline = Instant::now() + Duration::from_secs(5);
         while Instant::now() < deadline {
             if self.child.try_wait()?.is_some() {
-                return Ok(());
+                // Drain the reader's final bytes after process exit before checking restoration.
+                while Instant::now() < deadline {
+                    match self.reader.recv_timeout(Duration::from_millis(20)) {
+                        Ok(chunk) => self.output.extend_from_slice(&chunk),
+                        Err(mpsc::RecvTimeoutError::Disconnected) => return Ok(()),
+                        Err(mpsc::RecvTimeoutError::Timeout) => {}
+                    }
+                }
+                break;
             }
             self.read_output(Duration::from_millis(20))?;
         }

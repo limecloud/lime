@@ -38,12 +38,22 @@ fn status_line_default_empty_and_ordered_selection_are_distinct() {
         status_line: Some(vec![
             "session-id".into(),
             "model-name".into(),
-            "session-id".into(),
+            "thread-id".into(),
+            "status".into(),
+            "run-state".into(),
             "unavailable".into(),
         ]),
         ..Default::default()
     });
-    assert_eq!(ordered.selection().0, ["session-id", "model"]);
+    assert_eq!(ordered.selection().0, ["thread-id", "model", "run-state"]);
+    let mut ordered = ordered;
+    assert_eq!(
+        key(&mut ordered, KeyCode::F(9), KeyModifiers::NONE),
+        StatusLineSetupAction::Confirm {
+            items: vec!["thread-id".into(), "model".into(), "run-state".into()],
+            use_colors: true,
+        }
+    );
 }
 
 #[test]
@@ -77,6 +87,67 @@ fn status_line_confirm_cancel_and_pending_chords_use_the_resolved_keymap() {
         key(&mut view, KeyCode::Char('q'), KeyModifiers::NONE),
         StatusLineSetupAction::Cancel
     );
+}
+
+#[test]
+fn canonical_state_and_thread_names_select_distinct_items_in_all_five_languages() {
+    for locale in [
+        Locale::ZhCn,
+        Locale::ZhTw,
+        Locale::EnUs,
+        Locale::JaJp,
+        Locale::KoKr,
+    ] {
+        for item in [StatusLineItem::Status, StatusLineItem::SessionId] {
+            let mut view = StatusLineSetupView::new(
+                &TuiConfig {
+                    status_line: Some(vec![]),
+                    ..Default::default()
+                },
+                configured(TuiConfig::default()).picker.keymap,
+                locale,
+            );
+            let name = locale.status_line_item_name(item);
+            view.handle_event(&Event::Paste(name.to_string()));
+            assert_eq!(view.picker.filtered_indices.len(), 1, "{locale:?}: {name}");
+            key(&mut view, KeyCode::Char(' '), KeyModifiers::NONE);
+            assert_eq!(
+                key(&mut view, KeyCode::F(9), KeyModifiers::NONE),
+                StatusLineSetupAction::Confirm {
+                    items: vec![item.id().into()],
+                    use_colors: true
+                },
+                "{locale:?}: {name}"
+            );
+            let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
+            terminal
+                .draw(|frame| {
+                    view.render(
+                        frame,
+                        frame.area(),
+                        locale,
+                        &StatusSurfacePreviewData::default(),
+                    )
+                })
+                .unwrap();
+            let screen = terminal
+                .backend()
+                .buffer()
+                .content
+                .iter()
+                .map(|cell| cell.symbol())
+                .collect::<String>();
+            let compact = |text: &str| {
+                text.chars()
+                    .filter(|ch| !ch.is_whitespace())
+                    .collect::<String>()
+            };
+            assert!(
+                compact(&screen).contains(&compact(name)),
+                "{locale:?}: {screen}"
+            );
+        }
+    }
 }
 
 #[test]
@@ -166,7 +237,7 @@ fn status_line_preview_omits_unavailable_facts_and_keeps_configured_order() {
         ..Default::default()
     };
     let ids = [
-        "session-id",
+        "thread-id",
         "unknown",
         "current-dir",
         "model-with-reasoning",

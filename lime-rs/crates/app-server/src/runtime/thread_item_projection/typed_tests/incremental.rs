@@ -3,6 +3,76 @@ use super::{event, materialize_events};
 use serde_json::json;
 
 #[test]
+fn canonical_reasoning_snapshots_replace_parts_in_materializer_and_durable_history() {
+    use agent_protocol::ThreadItemPayload;
+    for metadata in [
+        json!({}),
+        serde_json::Value::Null,
+        json!({"source_event_type": "reasoning.delta", "source_event_id": "stale", "provider": "fixture"}),
+    ] {
+        let summary = vec![
+            "**Plan**\n\nBody".to_string(),
+            "Repeated part".to_string(),
+            "Repeated part".to_string(),
+        ];
+        let content = vec!["raw content".to_string()];
+        let mut item = super::canonical_tool_item("reasoning-1", "inProgress", 1);
+        item["kind"] = json!("reasoning");
+        item["payload"] = json!({"type":"reasoning", "summary":summary, "content":content});
+        item["metadata"] = metadata.clone();
+        let events = ["item.started", "item.updated", "item.completed"].map(|event_type| {
+            let sequence = match event_type {
+                "item.started" => 1,
+                "item.updated" => 2,
+                _ => 3,
+            };
+            event(
+                &format!("event-{sequence}"),
+                sequence,
+                event_type,
+                "turn-1",
+                json!({"item":item}),
+            )
+        });
+        let expected = ThreadItemPayload::Reasoning { summary, content };
+        let changes = materialize_events(&events, "session-1", "thread-1").unwrap();
+        assert_eq!(
+            changes.changed_items[0].payload, expected,
+            "full replay metadata={metadata}"
+        );
+        let mut incremental =
+            IncrementalMaterializer::from_events(&[], "session-1", "thread-1").unwrap();
+        let mut history = thread_store::ThreadHistoryBuilder::new();
+        for event in &events {
+            let entities = incremental.apply(event).unwrap();
+            let item = entities.item.unwrap();
+            assert_eq!(
+                item.payload, expected,
+                "incremental event={} metadata={metadata}",
+                event.event_type
+            );
+            assert_eq!(item.metadata["source_event_type"], event.event_type);
+            assert_eq!(item.metadata["source_event_id"], event.event_id);
+            assert_eq!(item.metadata["provider"], metadata["provider"]);
+            history
+                .apply_change_set(agent_protocol::ThreadHistoryChangeSet {
+                    sequence: event.sequence,
+                    changed_items: vec![item],
+                    changed_turns: entities.turn.into_iter().collect(),
+                    ..Default::default()
+                })
+                .unwrap();
+            assert_eq!(
+                history.raw_items()[0].payload,
+                expected,
+                "durable event={} metadata={metadata}",
+                event.event_type
+            );
+        }
+    }
+}
+
+#[test]
 fn incremental_item_snapshot_matches_full_history_materialization() {
     let first = event(
         "event-1",

@@ -41,6 +41,20 @@ impl App {
     }
 
     fn handle_tui_event_impl(&mut self, event: TuiEvent, connected: bool) -> AppAction {
+        if self.backtrack.primed
+            && !self.backtrack.overlay_preview_active
+            && matches!(
+                &event,
+                TuiEvent::Paste(_)
+                    | TuiEvent::Key(crossterm::event::KeyEvent {
+                        kind: KeyEventKind::Press,
+                        ..
+                    })
+            )
+            && !matches!(&event, TuiEvent::Key(key) if key.code == KeyCode::Esc && key.modifiers.is_empty())
+        {
+            self.reset_backtrack_state();
+        }
         if !matches!(&event, TuiEvent::Key(_)) {
             self.chat_widget.reset_global_key_chord();
         }
@@ -49,6 +63,8 @@ impl App {
         }
 
         if !connected {
+            self.reset_backtrack_state();
+            self.history_replacement.reset();
             return match event {
                 TuiEvent::Key(key)
                     if key.kind == KeyEventKind::Press
@@ -133,8 +149,14 @@ impl App {
         };
 
         if self.chat_widget.pager_overlay.is_some() {
+            if let Some(action) = self.handle_backtrack_overlay_event(&event) {
+                return action;
+            }
             return match self.chat_widget.handle_pager_event(&event) {
-                Some(PagerAction::Close) => AppAction::None,
+                Some(PagerAction::Close) => {
+                    self.reset_backtrack_state();
+                    AppAction::None
+                }
                 Some(PagerAction::LoadOlderHistory) => AppAction::LoadOlderHistory,
                 Some(PagerAction::ScheduleFrame) => {
                     AppAction::ScheduleFrameIn(crate::tui::TARGET_FRAME_INTERVAL)

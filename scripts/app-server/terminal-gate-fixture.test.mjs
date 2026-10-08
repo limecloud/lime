@@ -7,6 +7,128 @@ import { expect, it } from "vitest";
 
 import { writeTerminalExternalBackend } from "./terminal-gate-fixture.mjs";
 
+it("scopes every completed reasoning and command identity to its canonical Turn", async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "terminal-multiple-turns-"));
+  try {
+    const backend = path.join(dir, "backend.mjs");
+    const reasoningParts = [
+      "**Status**\n\n<!-- -->",
+      "**Plan**\n\nSummary body",
+      "Second paragraph",
+      "**Tail**\n<!-- -->",
+    ];
+    await writeTerminalExternalBackend(backend, {
+      completedText: "completed",
+      command: "test-only",
+      reasoningParts,
+      reasoningContent: ["raw fixture content"],
+    });
+    const turns = ["first", "second"].map(
+      (turnId) =>
+        JSON.parse(
+          execFileSync(
+            process.execPath,
+            [backend, path.join(dir, "ledger.jsonl")],
+            {
+              input: JSON.stringify({
+                kind: "turnStart",
+                request: {
+                  session: { sessionId: "session", threadId: "thread" },
+                  turn: { turnId },
+                },
+              }),
+              encoding: "utf8",
+            },
+          ),
+        ).events,
+    );
+    const completed = turns.map((events) =>
+      events
+        .filter((event) => event.type === "item.completed")
+        .map((event) => event.payload.item),
+    );
+    expect(completed[0]).toHaveLength(2);
+    for (const items of completed) {
+      expect(
+        items.find((item) => item.kind === "reasoning").payload.summary,
+      ).toEqual(reasoningParts);
+      expect(
+        items.find((item) => item.kind === "reasoning").payload.content,
+      ).toEqual(["raw fixture content"]);
+    }
+    for (const item of completed[0]) {
+      expect(completed[1].some((second) => second.itemId === item.itemId)).toBe(
+        false,
+      );
+    }
+    for (const [index, events] of turns.entries()) {
+      const started = events
+        .filter((event) => event.type === "item.started")
+        .map((event) => event.payload.item.itemId);
+      expect(completed[index].map((item) => item.itemId)).toEqual(started);
+      expect(events.at(-1).type).toBe("turn.completed");
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+it("keeps CLI usage absent by default and emits distinct total and last facts when enabled", async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "terminal-usage-fixture-"));
+  try {
+    const backend = path.join(dir, "backend.mjs");
+    for (const tokenUsage of [false, true]) {
+      await writeTerminalExternalBackend(backend, {
+        completedText: "completed",
+        command: "test-only",
+        tokenUsage,
+      });
+      const events = JSON.parse(
+        execFileSync(
+          process.execPath,
+          [backend, path.join(dir, "ledger.jsonl")],
+          {
+            input: JSON.stringify({
+              kind: "turnStart",
+              request: {
+                session: { sessionId: "session", threadId: "thread" },
+                turn: { turnId: "turn" },
+              },
+            }),
+            encoding: "utf8",
+          },
+        ),
+      ).events;
+      const usage = events.find((event) => event.type === "provider.usage");
+      expect(Boolean(usage)).toBe(tokenUsage);
+      if (tokenUsage) {
+        expect(events.at(-2)).toBe(usage);
+        expect(usage.payload.usage).toEqual({
+          total_token_usage: {
+            total_tokens: 161000,
+            input_tokens: 155000,
+            cached_input_tokens: 130000,
+            cache_write_input_tokens: 500,
+            output_tokens: 6000,
+            reasoning_output_tokens: 2000,
+          },
+          last_token_usage: {
+            total_tokens: 31000,
+            input_tokens: 30000,
+            cached_input_tokens: 10000,
+            cache_write_input_tokens: 100,
+            output_tokens: 1000,
+            reasoning_output_tokens: 500,
+          },
+          model_context_window: 128000,
+        });
+      }
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 it("emits typed checklist progress only for the explicitly enabled TUI fixture", async () => {
   const dir = mkdtempSync(path.join(tmpdir(), "terminal-progress-fixture-"));
   try {

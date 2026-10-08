@@ -299,12 +299,15 @@ impl super::App {
         app_server: &AppServerSession,
         thread_id: String,
     ) -> Result<Option<String>> {
-        let thread = app_server.thread_read(thread_id.clone(), true).await?;
-        let turn_id = thread
-            .thread
-            .turns
+        let page = crate::app_server_session::thread_turns_page_with_handle(
+            app_server.request_handle(),
+            thread_id.clone(),
+            None,
+        )
+        .await?;
+        let turn_id = page
+            .data
             .into_iter()
-            .rev()
             .find(|turn| turn.status == TurnStatus::InProgress)
             .map(|turn| turn.id);
         let Some(turn_id) = turn_id else {

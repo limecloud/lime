@@ -72,20 +72,11 @@ pub(crate) async fn initialize_session(
     if let Some(thread_id) = options.resume_thread.clone() {
         let response = session.resume_thread(thread_id).await?;
         permission_cwd = response.cwd.clone();
-        let paginated_history = response.thread.history_mode
-            == app_server_protocol::protocol::v2::ThreadHistoryMode::Paginated;
         let initial_cursor = response.items_backwards_cursor.clone();
         let resumed_thread_id = response.thread.id.clone();
-        let initial_page = if paginated_history {
-            session
-                .hydrate_initial_thread_history(resumed_thread_id.clone(), initial_cursor)
-                .await?
-        } else {
-            crate::app_server_session::InitialHistoryPage {
-                items: Vec::new(),
-                turns: None,
-            }
-        };
+        let initial_page = session
+            .hydrate_initial_thread_history(resumed_thread_id.clone(), initial_cursor)
+            .await?;
         app.hydrate_thread(response.thread);
         app.prepend_initial_history_page(initial_page);
         app.chat_widget
@@ -103,8 +94,7 @@ pub(crate) async fn initialize_session(
         let response = session
             .start_thread(options.cwd.clone(), model.clone(), model_provider.clone())
             .await?;
-        app.chat_widget
-            .set_status_thread_name(response.thread.id.clone(), response.thread.name.clone());
+        app.hydrate_thread(response.thread);
         permission_cwd = response.cwd.clone();
         if model.is_none() {
             model = Some(response.model);

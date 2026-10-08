@@ -178,7 +178,16 @@ pub(crate) fn render(frame: &mut Frame<'_>, app: &App) {
         );
         let items = app.chat_widget.status_line_items();
         footer_props.status_line_enabled = !items.is_empty();
-        footer_props.status_line_value = app.status_surface_data().line(
+        let data = app.status_surface_data();
+        footer_props.context_window_percent = data
+            .token_usage
+            .as_ref()
+            .and_then(crate::status::helpers::percent_of_context_window_remaining);
+        footer_props.context_window_used_tokens = data
+            .token_usage
+            .as_ref()
+            .map(|usage| usage.total.total_tokens.max(0));
+        footer_props.status_line_value = data.line(
             &items,
             app.chat_widget.tui_config.status_line_use_colors,
             app.chat_widget.locale,

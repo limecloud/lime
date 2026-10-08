@@ -4,13 +4,12 @@ use app_server_client::RequestHandle;
 #[cfg(test)]
 use app_server_protocol::protocol::v2::UserInput;
 use app_server_protocol::protocol::v2::{
-    ThreadHistoryMode, ThreadItem, ThreadItemsListResponse, ThreadReadParams, ThreadReadResponse,
-    Turn, METHOD_THREAD_ITEMS_LIST, METHOD_THREAD_READ,
+    ThreadItem, ThreadItemsListResponse, Turn, METHOD_THREAD_ITEMS_LIST,
 };
 
 use crate::app_server_session::{
-    thread_items_page_params, thread_turns_for_items_with_handle, AppServerSession,
-    HISTORY_ITEM_PAGE_LIMIT, HISTORY_ITEM_SCAN_LIMIT,
+    thread_items_page_params, thread_turns_for_items_with_handle, HISTORY_ITEM_PAGE_LIMIT,
+    HISTORY_ITEM_SCAN_LIMIT,
 };
 use crate::history_filter::{filter_user_message_ids, hidden_user_message_ids};
 use crate::projection::{ConversationProjection, EntryKind};
@@ -32,51 +31,7 @@ pub(crate) enum TranscriptPreviewSpeaker {
 }
 
 /// Load a bounded preview from the canonical App Server thread projection.
-#[allow(dead_code)]
 pub(crate) async fn load_transcript_preview(
-    app_server: &AppServerSession,
-    thread_id: &str,
-) -> io::Result<Vec<TranscriptPreviewLine>> {
-    load_transcript_preview_with_handle(app_server.request_handle(), thread_id.to_string()).await
-}
-
-pub(crate) async fn load_transcript_preview_with_handle(
-    request_handle: RequestHandle,
-    thread_id: String,
-) -> io::Result<Vec<TranscriptPreviewLine>> {
-    let metadata: ThreadReadResponse = request_handle
-        .request(
-            METHOD_THREAD_READ,
-            ThreadReadParams {
-                thread_id: thread_id.clone(),
-                include_turns: false,
-            },
-        )
-        .await
-        .map_err(io::Error::other)?;
-
-    if metadata.thread.history_mode == ThreadHistoryMode::Paginated {
-        return load_paginated_preview(request_handle, thread_id).await;
-    }
-
-    let entries =
-        crate::thread_transcript::load_session_transcript_with_handle(request_handle, thread_id)
-            .await?;
-    let entries = entries
-        .into_iter()
-        .filter_map(|entry| {
-            let speaker = match entry.kind {
-                crate::projection::EntryKind::User => TranscriptPreviewSpeaker::User,
-                crate::projection::EntryKind::Assistant => TranscriptPreviewSpeaker::Assistant,
-                _ => return None,
-            };
-            Some((speaker, entry.text))
-        })
-        .collect();
-    preview_from_entries(entries)
-}
-
-async fn load_paginated_preview(
     request_handle: RequestHandle,
     thread_id: String,
 ) -> io::Result<Vec<TranscriptPreviewLine>> {
@@ -86,7 +41,8 @@ async fn load_paginated_preview(
     let mut scanned_items = 0_usize;
     let mut turn_ids = HashSet::new();
 
-    loop {
+    // One small initial page plus at most four full pages; empty advancing pages remain bounded.
+    for _ in 0..=HISTORY_ITEM_SCAN_LIMIT / HISTORY_ITEM_PAGE_LIMIT as usize {
         let remaining_items = HISTORY_ITEM_SCAN_LIMIT.saturating_sub(scanned_items);
         let page_size = if cursor.is_none() {
             TRANSCRIPT_PREVIEW_ITEMS_PAGE_SIZE
@@ -95,7 +51,7 @@ async fn load_paginated_preview(
         }
         .min(remaining_items as u32);
         if page_size == 0 {
-            break;
+            return Ok(Vec::new());
         }
 
         let page: ThreadItemsListResponse = request_handle
@@ -115,28 +71,27 @@ async fn load_paginated_preview(
             .rev()
             .collect::<Vec<_>>();
         items.splice(0..0, page_items);
-        if preview_from_items(&items).len() == MAX_TRANSCRIPT_PREVIEW_LINES
+        let turns = thread_turns_for_items_with_handle(
+            request_handle.clone(),
+            thread_id.clone(),
+            &turn_ids,
+        )
+        .await
+        .map_err(io::Error::other)?;
+        let preview = preview_from_items_with_turns(&items, &turns);
+        if preview.len() == MAX_TRANSCRIPT_PREVIEW_LINES
             || scanned_items >= HISTORY_ITEM_SCAN_LIMIT
+            || page.next_cursor.is_none()
         {
-            break;
+            return Ok(preview);
         }
-        let Some(next_cursor) = next_preview_cursor(page.next_cursor, &mut seen_cursors) else {
-            break;
+        let Some(next_cursor) = next_preview_cursor(page.next_cursor, &mut seen_cursors)? else {
+            return Ok(preview);
         };
         cursor = Some(next_cursor);
     }
 
-    let turns = if turn_ids.is_empty() {
-        None
-    } else {
-        thread_turns_for_items_with_handle(request_handle, thread_id, &turn_ids)
-            .await
-            .ok()
-    };
-    Ok(match turns {
-        Some(turns) => preview_from_items_with_turns(&items, &turns),
-        None => preview_from_items(&items),
-    })
+    Err(io::ErrorKind::InvalidData.into())
 }
 
 fn preview_from_items(items: &[ThreadItem]) -> Vec<TranscriptPreviewLine> {
@@ -154,7 +109,7 @@ fn preview_from_items(items: &[ThreadItem]) -> Vec<TranscriptPreviewLine> {
             Some((speaker, entry.text.clone()))
         })
         .collect();
-    preview_from_entries(entries).expect("preview projection is infallible")
+    preview_from_entries(entries)
 }
 
 fn preview_from_items_with_turns(
@@ -169,13 +124,19 @@ fn preview_from_items_with_turns(
 fn next_preview_cursor(
     next_cursor: Option<String>,
     seen_cursors: &mut std::collections::HashSet<String>,
-) -> Option<String> {
-    next_cursor.filter(|next| seen_cursors.insert(next.clone()))
+) -> io::Result<Option<String>> {
+    if next_cursor
+        .as_ref()
+        .is_some_and(|next| !seen_cursors.insert(next.clone()))
+    {
+        return Err(io::ErrorKind::InvalidData.into());
+    }
+    Ok(next_cursor)
 }
 
 pub(crate) fn preview_from_entries(
     entries: Vec<(TranscriptPreviewSpeaker, String)>,
-) -> io::Result<Vec<TranscriptPreviewLine>> {
+) -> Vec<TranscriptPreviewLine> {
     let mut lines = Vec::with_capacity(MAX_TRANSCRIPT_PREVIEW_LINES);
     for (speaker, text) in entries.into_iter().rev() {
         for text in text.lines().rev() {
@@ -197,7 +158,7 @@ pub(crate) fn preview_from_entries(
     }
 
     lines.reverse();
-    Ok(lines)
+    lines
 }
 
 #[cfg(test)]

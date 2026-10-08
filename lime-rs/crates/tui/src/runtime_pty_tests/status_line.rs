@@ -148,7 +148,11 @@ pub(super) fn exercise_selection_save_and_cancel(
         "restore default status-line selection",
         |screen| screen.contains("Configure status line"),
     );
-    writer.write_all(b" \x1b[B \x1b[D\x1b[B\x1b[B\x1b[B \x1b[D\x1b[D\x1b[F\x1b[A\x1b[A\x1b[A \x1b[D\x1b[D\x1b[D\x1b[D\x1b[D\x1b[F \x1b[20~").unwrap();
+    writer.write_all(b" ").unwrap();
+    for name in ["Thread name", "working directory", "Model with reasoning"] {
+        config::toggle_setup_item(writer, name, true);
+    }
+    writer.write_all(b"\x1b[F \x1b[20~").unwrap();
     writer.flush().unwrap();
     wait_for_screen(
         output_rx,

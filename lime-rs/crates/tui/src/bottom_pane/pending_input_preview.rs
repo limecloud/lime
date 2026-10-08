@@ -75,35 +75,12 @@ fn preview_lines(
 }
 
 pub(crate) fn can_restore_submission(submission: &QueuedSubmission) -> bool {
-    !submission.input.is_empty()
-        && submission.input.iter().all(|input| match input {
-            UserInput::Text {
-                text,
-                text_elements,
-            } => {
-                // TextArea owns validated atomic ranges; selected skills additionally restore
-                // their path through MentionBinding. An absent placeholder uses the valid range.
-                text_elements.iter().all(|element| {
-                    let range = element.byte_range;
-                    range.start < range.end
-                        && text.get(range.start..range.end).is_some_and(|value| {
-                            element
-                                .placeholder
-                                .as_deref()
-                                .is_none_or(|placeholder| placeholder == value)
-                        })
-                }) && text_elements
-                    .windows(2)
-                    .all(|pair| pair[0].byte_range.end <= pair[1].byte_range.start)
-            }
-            UserInput::LocalImage { .. } | UserInput::Image { .. } => true,
-            UserInput::Skill { name, path } => {
-                !name.is_empty()
-                    && name.bytes().all(crate::mention_codec::is_mention_name_char)
-                    && !path.is_empty()
-            }
-            UserInput::Mention { .. } => false,
-        })
+    // Queue editing keeps its existing policy for Mention; restoration itself is shared.
+    !submission
+        .input
+        .iter()
+        .any(|input| matches!(input, UserInput::Mention { .. }))
+        && super::BottomPane::can_restore_user_inputs(&submission.input)
 }
 
 fn submission_preview_lines(

@@ -205,11 +205,22 @@ async fn real_stdio_thread_handoff_preserves_pending_input() {
         "resolved dormant request cannot reappear"
     );
     assert_eq!(app.chat_widget.bottom_pane.composer_draft(), root_draft);
-    let root_read = session
-        .thread_read(root.id.clone(), true)
+    let mut root_read = session
+        .thread_read(root.id.clone(), false)
         .await
         .unwrap()
         .thread;
+    root_read.turns = crate::app_server_session::thread_turns_page_with_handle(
+        session.request_handle(),
+        root.id.clone(),
+        None,
+    )
+    .await
+    .unwrap()
+    .data
+    .into_iter()
+    .rev()
+    .collect();
     assert_eq!(
         root_read
             .turns
@@ -219,12 +230,21 @@ async fn real_stdio_thread_handoff_preserves_pending_input() {
         vec![&first_turn, &second_turn]
     );
     let child_read = session
-        .thread_read(child.id.clone(), true)
+        .thread_read(child.id.clone(), false)
         .await
         .unwrap()
         .thread;
     assert!(
-        child_read.turns.is_empty(),
+        child_read.turns.is_empty()
+            && crate::app_server_session::thread_turns_page_with_handle(
+                session.request_handle(),
+                child.id.clone(),
+                None,
+            )
+            .await
+            .unwrap()
+            .data
+            .is_empty(),
         "switching and editing never create a child Turn"
     );
     let ledger = std::fs::read_to_string(cwd.join("ledger.jsonl")).unwrap();

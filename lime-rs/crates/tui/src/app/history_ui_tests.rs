@@ -87,6 +87,7 @@ fn reasoning_entry(id: &str, scope: Option<&str>, text: &str) -> TranscriptEntry
         activity_group: None,
         activity_detail: scope.map(|scope| ActivityDetail::Reasoning {
             scope: scope.to_string(),
+            summary: crate::projection::ReasoningSummary::from_parts(&[text.into()]),
         }),
     }
 }
@@ -936,6 +937,7 @@ fn streamed_reasoning_keeps_scope_when_canonical_item_replaces_it() {
         app.projection.entries()[1].activity_detail,
         Some(ActivityDetail::Reasoning {
             scope: "turn-1".to_string(),
+            summary: crate::projection::ReasoningSummary::from_parts(&["Inspecting a.rs".into()]),
         })
     );
 
@@ -958,6 +960,7 @@ fn streamed_reasoning_keeps_scope_when_canonical_item_replaces_it() {
         app.projection.entries()[1].activity_detail,
         Some(ActivityDetail::Reasoning {
             scope: "turn-1".to_string(),
+            summary: crate::projection::ReasoningSummary::from_parts(&["Inspecting a.rs".into()]),
         })
     );
     let rendered = render_transcript_content_lines(&app, 80, false)

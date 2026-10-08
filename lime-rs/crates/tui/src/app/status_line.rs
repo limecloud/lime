@@ -40,6 +40,11 @@ impl App {
                 .thread_id
                 .as_deref()
                 .and_then(|id| self.projection.plan_progress(id)),
+            token_usage: self
+                .thread_id
+                .as_deref()
+                .and_then(|id| self.projection.token_usage(id))
+                .cloned(),
         }
     }
 

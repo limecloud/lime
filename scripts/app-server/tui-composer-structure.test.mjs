@@ -12,6 +12,214 @@ const sourcePath = (file) =>
   path.resolve(process.cwd(), "lime-rs/crates/tui/src", file);
 
 describe("Codex structured mention owners", () => {
+  it("owns provisional reasoning replay in history without a second backend or hydration implementation", () => {
+    const history = source("projection/history.rs");
+    for (const owner of [
+      "hydrate_thread",
+      "restore_active_reasoning_item",
+      "recover_resumed_reasoning",
+    ]) {
+      expect(history).toContain(`fn ${owner}`);
+      expect(source("projection.rs")).not.toContain(`fn ${owner}`);
+    }
+    expect(source("projection.rs")).toContain(
+      "self.recover_resumed_reasoning(&notification)",
+    );
+    expect(history).toContain("latest.items.last()");
+    expect(history).toContain("latest.status == TurnStatus::InProgress");
+    expect(source("runtime.rs")).toContain("app.projection.on_reconnected()");
+    expect(history).not.toMatch(/std::fs|RequestHandle|ConfigManager/);
+    for (const owner of [
+      "projection/history.rs",
+      "projection/history_tests.rs",
+      "projection/reasoning_stdio_tests.rs",
+    ]) {
+      expect(source(owner).split("\n").length).toBeLessThan(800);
+    }
+  });
+  it("keeps the shared reasoning notification owner and split tests out of the large router", () => {
+    const serverSource = (file) =>
+      readFileSync(
+        path.resolve(
+          process.cwd(),
+          "lime-rs/crates/app-server/src/processor",
+          file,
+        ),
+        "utf8",
+      );
+    expect(serverSource("v2_notifications.rs")).not.toMatch(
+      /fn project_reasoning_|mod tests \{/,
+    );
+    for (const file of [
+      "v2_notifications.rs",
+      "v2_notifications/reasoning.rs",
+      "v2_notifications/tests.rs",
+      "v2_notifications/model_tests.rs",
+      "v2_notifications/reasoning_tests.rs",
+    ]) {
+      expect(serverSource(file).split("\n").length, file).toBeLessThan(800);
+    }
+  });
+  it("keeps default reasoning summaries separate from raw content and splits canonical lowering from streaming", () => {
+    const projection = source("projection.rs");
+    expect(projection).toContain(
+      "ServerNotification::ReasoningTextDelta(_) => {}",
+    );
+    expect(projection).not.toMatch(
+      /fn project_item_with_scope|fn append_delta|fn latest_summary_line/,
+    );
+    expect(source("projection/items.rs")).toContain(
+      "ReasoningSummary::from_parts(summary).content()",
+    );
+    expect(source("projection/items.rs")).not.toContain(
+      "if summary.is_empty() { content }",
+    );
+    expect(source("projection/streaming.rs")).toContain("fn append_delta");
+    expect(projection.split("\n").length).toBeLessThan(1000);
+    for (const file of [
+      "projection/items.rs",
+      "projection/streaming.rs",
+      "projection/streaming_tests.rs",
+      "projection/reasoning.rs",
+      "projection/reasoning_stdio_tests.rs",
+      "history_cell/reasoning.rs",
+      "history_cell/reasoning_tests.rs",
+      "runtime_pty_tests/reasoning.rs",
+    ]) {
+      expect(source(file).split("\n").length).toBeLessThan(800);
+    }
+  });
+  it("routes structured reasoning bodies to the actual transcript-only cell", () => {
+    expect(source("history_cell/messages.rs")).not.toContain(
+      "struct ReasoningSummaryCell",
+    );
+    expect(source("entry.rs")).toContain("ReasoningSummaryCell::new");
+    expect(source("projection/streaming.rs")).toContain(
+      "summary.append(index, &delta)",
+    );
+    expect(source("projection/streaming.rs")).not.toContain(
+      "append_reasoning_section_break",
+    );
+    expect(source("projection.rs")).toContain("params.summary_index");
+  });
+  it("uses the same canonical paging for every stored history mode without full-read or flat fallbacks", () => {
+    for (const file of [
+      "thread_transcript.rs",
+      "resume_picker_transcript_preview.rs",
+      "app/startup.rs",
+      "app/session_lifecycle.rs",
+      "app/reconnect.rs",
+    ]) {
+      expect(source(file)).not.toContain("ThreadHistoryMode::Legacy");
+      expect(source(file)).not.toContain("paginated_history");
+      expect(source(file)).not.toContain("include_turns: true");
+    }
+    expect(source("thread_transcript.rs")).not.toMatch(
+      /load_legacy_transcript|load_session_transcript_with_handle|\.ok\(\)|allow\(dead_code\)/,
+    );
+    expect(source("resume_picker_transcript_preview.rs")).not.toMatch(
+      /load_paginated_preview|load_transcript_preview_with_handle|\.ok\(\)|METHOD_THREAD_READ/,
+    );
+    expect(source("app_server_session/history.rs")).toContain(
+      "Nonempty pages require complete Turn metadata",
+    );
+    for (const file of [
+      "app/history_pagination.rs",
+      "app_server_session/history.rs",
+      "bottom_pane/chat_composer_history.rs",
+    ]) {
+      expect(source(file)).not.toMatch(/turns: Option<|\.ok\(\)/);
+    }
+    expect(source("app_event.rs")).toContain(
+      "Result<(ThreadItemsListResponse, Vec<Turn>), String>",
+    );
+    expect(source("app/history_pagination.rs")).toContain(
+      "self.projection.restore_history_turns(turns)",
+    );
+    expect(source("app/reconnect.rs")).toContain(
+      "history_page: InitialHistoryPage",
+    );
+    expect(source("projection/history.rs")).toContain(
+      "self.closed_turn_ids.contains(&latest.id)",
+    );
+    expect(source("projection/history.rs")).not.toMatch(
+      /std::fs|RequestHandle|ConfigManager/,
+    );
+  });
+  it("keeps previous-prompt editing on bounded canonical history and shared typed restoration", () => {
+    const backtrack = source("app_backtrack.rs");
+    const io = source("app_backtrack/io.rs");
+    const replacement = source("app/history_replacement.rs");
+    expect(io).toContain("METHOD_THREAD_REVERT");
+    expect(io).toContain("thread_turns_page_with_handle");
+    expect(backtrack).toContain("TurnItemsView::Full");
+    expect(backtrack).toContain("generation != self.backtrack.generation");
+    expect(backtrack).toContain("restore_user_inputs(&selection.prompt)");
+    expect(source("chatwidget/input.rs")).toContain(
+      "restore_user_inputs(&submission.input)",
+    );
+    expect(replacement).toContain("include_turns: false");
+    expect(replacement).toContain(
+      "self.take_thread_event_snapshot(thread_id, false)",
+    );
+    expect(replacement).toContain("self.replay_thread_snapshot(snapshot)");
+    expect(replacement).not.toMatch(
+      /VecDeque|ConfigManager|std::fs|include_turns: true/,
+    );
+    expect(source("app_server_session.rs")).toContain(
+      "ThreadHistoryMode::Paginated",
+    );
+    expect(
+      source("app/startup.rs").match(
+        /app\.hydrate_thread\(response\.thread\)/g,
+      ),
+    ).toHaveLength(2);
+    expect(source("bottom_pane/chat_composer_history/user_input.rs")).toContain(
+      "fn from_user_inputs(",
+    );
+    for (const file of [
+      "app_backtrack.rs",
+      "app_backtrack/io.rs",
+      "app/history_replacement.rs",
+      "pager_overlay.rs",
+      "pager_overlay/render.rs",
+    ]) {
+      expect(source(file).split("\n").length).toBeLessThan(800);
+    }
+    expect(source("pager_overlay.rs")).not.toContain("mod tests {");
+  });
+  it("projects canonical token snapshots once and shares display semantics across all status surfaces", () => {
+    const projection = source("projection/token_usage.rs");
+    expect(source("projection.rs")).toContain(
+      "self.token_usage.update(params)",
+    );
+    expect(projection).toContain("latest_turn_id");
+    expect(projection).toContain("self.usage = Some(notification.token_usage)");
+    expect(projection).not.toMatch(
+      /std::fs|ConfigManager|provider\.usage|regex|add_assign/,
+    );
+    for (const file of [
+      "bottom_pane/status_surface_preview.rs",
+      "status/mod.rs",
+    ]) {
+      expect(source(file)).toContain("token_usage_value(");
+    }
+    expect(source("app/status_line.rs")).toContain(
+      "self.projection.token_usage(id)",
+    );
+    expect(source("app.rs")).toContain("self.projection.token_usage(id)");
+    expect(source("bottom_pane/title_setup.rs")).toContain(
+      "Some(StatusLineItem::ContextRemaining)",
+    );
+    expect(source("status/mod.rs").match(/fn fields\(/g)).toHaveLength(1);
+    for (const file of [
+      "projection/token_usage.rs",
+      "status/helpers.rs",
+      "locale/token_usage.rs",
+    ]) {
+      expect(source(file).split("\n").length).toBeLessThan(800);
+    }
+  });
   it("projects task progress from one typed checklist owner instead of transcript parsing", () => {
     const projection = source("projection.rs");
     expect(projection).toContain(
@@ -489,6 +697,17 @@ describe("Codex composer, modal and incremental history owners", () => {
     expect(shortcuts).toContain("let content = inset_footer_hint_area(area)");
     expect(shortcuts).toContain("first_fitting_line(");
   });
+  it("keeps ordinary context on the same typed facts and pure bottom-pane footer owner", () => {
+    const footer = source("bottom_pane/footer.rs");
+    expect(footer).toContain('#[path = "footer_tests.rs"]');
+    expect(footer).not.toMatch(
+      /ThreadStore|AppServerSession|ConfigManager|std::fs|provider\.usage/,
+    );
+    expect(footer.split("\n").length).toBeLessThan(800);
+    expect(source("view.rs")).toContain("usage.total.total_tokens.max(0)");
+    expect(source("chatwidget/footer.rs")).not.toContain("blended_total");
+    expect(existsSync(sourcePath("status/token_usage.rs"))).toBe(false);
+  });
   it("uses complete styled hints for picker and Agent Center footers", () => {
     const shared = source("footer_hint.rs");
     expect(shared).toContain("fn shortcut(");
@@ -759,7 +978,7 @@ describe("Codex composer, modal and incremental history owners", () => {
     expect(source("app/history_pagination.rs")).toContain(
       "record_replayed_history_page(&items, turns, prepend_replay)",
     );
-    expect(history).toContain("let Some(turns) = turns else {");
+    expect(history).toContain("turns: &[Turn]");
     expect(source("app/startup.rs")).not.toContain("load_history");
     for (const symbol of [
       "LookupMessageHistoryEntry",
@@ -1274,9 +1493,9 @@ describe("ChatWidget live composer ownership", () => {
     expect(source("app/session_lifecycle.rs")).toContain(
       "set_scrollback_has_older_history(",
     );
-    expect(source("bottom_pane/footer.rs")).toContain(
-      "app.chat_widget.agent_navigation",
-    );
+    expect(source("chatwidget/footer.rs")).toContain(".agent_navigation");
+    expect(source("chatwidget/footer.rs")).toContain(".active_agent_label(");
+    expect(source("bottom_pane/footer.rs")).not.toContain("app.chat_widget");
     for (const deadSurface of [
       "fn is_empty(",
       "fn set_agent_path(",

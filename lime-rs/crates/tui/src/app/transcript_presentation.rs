@@ -9,6 +9,7 @@ impl App {
     }
 
     pub(super) fn dismiss_pager_overlay(&mut self) {
+        self.reset_backtrack_state();
         self.chat_widget.dismiss_pager_overlay();
     }
 

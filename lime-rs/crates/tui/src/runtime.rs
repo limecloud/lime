@@ -219,6 +219,9 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
             tokio::sync::mpsc::unbounded_channel::<crate::app::mcp_login::McpLoginStarted>();
         let mut pending_copy: Option<PendingCopy> = None;
         loop {
+            if let Some(active_session) = session.as_mut() {
+                app.poll_backtrack_io(active_session, &app_event_tx);
+            }
             if session.is_none() && reconnect.is_none() && !reconnect_failed {
                 if let Some(thread_id) = reconnect_thread_id.as_deref() {
                     reconnect = Some(Box::pin(reconnect_session(
@@ -300,11 +303,16 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
                 app_event = app_event_rx.recv() => {
                     if let Some(event) = app_event {
                         match event {
+                            crate::app_event::AppEvent::Backtrack(event) => app.handle_backtrack_event(event),
+                            crate::app_event::AppEvent::ThreadHistoryReplaced { thread_id, generation, result } => {
+                                if let Some(active_session) = session.as_mut() {
+                                    app.handle_history_replaced(active_session, &thread_id, generation, result);
+                                }
+                            },
                             crate::app_event::AppEvent::OlderThreadHistoryLoaded {
                                 thread_id,
                                 cursor,
                                 result,
-                                turns,
                                 mode,
                             } => {
                                 let page_result = session.as_mut().map(|active_session| {
@@ -313,7 +321,6 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
                                         &thread_id,
                                         &cursor,
                                         result,
-                                        turns,
                                     )
                                 });
                                 match page_result {
@@ -1166,9 +1173,7 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
                                 &mut app,
                                 reconnected.cwd,
                             );
-                            if let Some(history_page) = reconnected.history_page {
-                                app.prepend_initial_history_page(history_page);
-                            }
+                            app.prepend_initial_history_page(reconnected.history_page);
                             app.chat_widget.set_scrollback_has_older_history(
                                 reconnected.scrollback_has_older_history,
                             );
@@ -1190,7 +1195,7 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
                             session = Some(reconnected.session);
                             reconnect_thread_id = None;
                             reconnect_failed = false;
-                            app.projection.set_status("reconnected");
+                            app.projection.on_reconnected();
                             history_top_up_requested = true;
                         }
                         Err(error) => {
@@ -1579,7 +1584,7 @@ async fn prepare_export_transcript(
 ) -> Option<String> {
     let live_entries = app.projection.entries();
     let entries = match session.thread_id() {
-        Ok(thread_id) => match crate::thread_transcript::load_session_transcript_with_handle(
+        Ok(thread_id) => match crate::thread_transcript::load_session_transcript(
             session.request_handle(),
             thread_id.to_string(),
         )

@@ -52,7 +52,9 @@ export async function launchExpertSkillsRuntimeFromExpertPlaza(page, options) {
   let lastSnapshot = null;
 
   await page.locator('[data-testid="app-sidebar-nav-plugins"]').click();
-  await page.locator('[data-testid="plugin-workspace-tab-experts"]').click();
+  await page
+    .locator('[data-testid="app-sidebar-customization-experts"]')
+    .click();
 
   while (Date.now() - startedAt < options.timeoutMs) {
     const snapshot = await evaluatePageSnapshot(

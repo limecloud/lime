@@ -3,7 +3,8 @@ mod history;
 
 pub(crate) use history::{
     thread_items_page_params, thread_items_page_with_handle, thread_turns_for_items_with_handle,
-    InitialHistoryPage, HISTORY_ITEM_PAGE_LIMIT, HISTORY_ITEM_SCAN_LIMIT,
+    thread_turns_page_with_handle, InitialHistoryPage, HISTORY_ITEM_PAGE_LIMIT,
+    HISTORY_ITEM_SCAN_LIMIT,
 };
 
 use std::collections::{HashMap, HashSet};
@@ -232,6 +233,9 @@ impl AppServerSession {
                     model,
                     model_provider,
                     session_start_source,
+                    history_mode: Some(
+                        app_server_protocol::protocol::v2::ThreadHistoryMode::Paginated,
+                    ),
                     experimental_raw_events: false,
                     ..ThreadStartParams::default()
                 },
@@ -244,7 +248,7 @@ impl AppServerSession {
         &mut self,
         thread_id: String,
     ) -> Result<ThreadResumeResponse> {
-        let mut response: ThreadResumeResponse = self
+        let response: ThreadResumeResponse = self
             .request_handle
             .request(
                 METHOD_THREAD_RESUME,
@@ -256,16 +260,6 @@ impl AppServerSession {
             )
             .await
             .context("failed to resume App Server thread")?;
-        if response.thread.history_mode
-            == app_server_protocol::protocol::v2::ThreadHistoryMode::Legacy
-            && response.thread.turns.is_empty()
-        {
-            response.thread = self
-                .thread_read(thread_id, true)
-                .await
-                .context("failed to hydrate legacy App Server thread history")?
-                .thread;
-        }
         self.thread_id = Some(response.thread.id.clone());
         self.active_permission_profile = response
             .active_permission_profile

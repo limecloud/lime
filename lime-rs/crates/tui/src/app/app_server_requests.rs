@@ -28,7 +28,9 @@ impl App {
                     !crate::bottom_pane::BottomPane::supports_request(&request);
                 let thread_id = server_request_thread_id(&request).map(str::to_owned);
                 if let Some(thread_id) = thread_id {
-                    if self.thread_id.as_deref() != Some(thread_id.as_str()) {
+                    if self.thread_id.as_deref() != Some(thread_id.as_str())
+                        || self.history_replacement.is_pending()
+                    {
                         if !unsupported_request {
                             match self.enqueue_thread_request(&thread_id, request) {
                                 Ok(()) => return,

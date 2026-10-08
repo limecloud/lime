@@ -30,10 +30,16 @@ pub(crate) enum StatusLineItem {
     ThreadName,
     RawOutput,
     TaskProgress,
+    UsedTokens,
+    TotalInputTokens,
+    TotalOutputTokens,
+    ContextWindowSize,
+    ContextRemaining,
+    ContextUsed,
 }
 
 impl StatusLineItem {
-    pub(crate) const ALL: [Self; 10] = [
+    pub(crate) const ALL: [Self; 16] = [
         Self::ModelName,
         Self::ModelWithReasoning,
         Self::Reasoning,
@@ -44,6 +50,12 @@ impl StatusLineItem {
         Self::ThreadName,
         Self::RawOutput,
         Self::TaskProgress,
+        Self::UsedTokens,
+        Self::TotalInputTokens,
+        Self::TotalOutputTokens,
+        Self::ContextWindowSize,
+        Self::ContextRemaining,
+        Self::ContextUsed,
     ];
     pub(crate) fn id(self) -> &'static str {
         match self {
@@ -51,17 +63,27 @@ impl StatusLineItem {
             Self::ModelWithReasoning => "model-with-reasoning",
             Self::Reasoning => "reasoning",
             Self::CurrentDir => "current-dir",
-            Self::Status => "status",
+            Self::Status => "run-state",
             Self::Permissions => "permissions",
-            Self::SessionId => "session-id",
+            Self::SessionId => "thread-id",
             Self::ThreadName => "thread-name",
             Self::RawOutput => "raw-output",
             Self::TaskProgress => "task-progress",
+            Self::UsedTokens => "used-tokens",
+            Self::TotalInputTokens => "total-input-tokens",
+            Self::TotalOutputTokens => "total-output-tokens",
+            Self::ContextWindowSize => "context-window-size",
+            Self::ContextRemaining => "context-remaining",
+            Self::ContextUsed => "context-used",
         }
     }
     pub(crate) fn from_id(id: &str) -> Option<Self> {
-        if id == "model-name" {
-            return Some(Self::ModelName);
+        match id {
+            "model-name" => return Some(Self::ModelName),
+            "status" => return Some(Self::Status),
+            "session-id" => return Some(Self::SessionId),
+            "context-usage" => return Some(Self::ContextUsed),
+            _ => {}
         }
         Self::ALL.into_iter().find(|item| item.id() == id)
     }

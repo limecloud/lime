@@ -8,23 +8,15 @@ use std::io;
 
 use app_server_client::RequestHandle;
 use app_server_protocol::protocol::v2::{
-    SortDirection, Thread, ThreadHistoryMode, ThreadItem, ThreadItemEntry, ThreadItemsListResponse,
-    ThreadReadParams, ThreadReadResponse, ThreadTurnsListParams, ThreadTurnsListResponse, Turn,
-    TurnItemsView, METHOD_THREAD_ITEMS_LIST, METHOD_THREAD_READ, METHOD_THREAD_TURNS_LIST,
+    SortDirection, Thread, ThreadItemEntry, ThreadItemsListResponse, ThreadReadParams,
+    ThreadReadResponse, ThreadTurnsListParams, ThreadTurnsListResponse, Turn, TurnItemsView,
+    METHOD_THREAD_ITEMS_LIST, METHOD_THREAD_READ, METHOD_THREAD_TURNS_LIST,
 };
 
-use crate::app_server_session::{thread_items_page_params, AppServerSession};
+use crate::app_server_session::thread_items_page_params;
 use crate::projection::{ConversationProjection, TranscriptEntry};
 
-#[allow(dead_code)]
 pub(crate) async fn load_session_transcript(
-    app_server: &AppServerSession,
-    thread_id: impl Into<String>,
-) -> io::Result<Vec<TranscriptEntry>> {
-    load_session_transcript_with_handle(app_server.request_handle(), thread_id).await
-}
-
-pub(crate) async fn load_session_transcript_with_handle(
     request_handle: RequestHandle,
     thread_id: impl Into<String>,
 ) -> io::Result<Vec<TranscriptEntry>> {
@@ -40,47 +32,15 @@ pub(crate) async fn load_session_transcript_with_handle(
         .await
         .map_err(io::Error::other)?;
 
-    if metadata.thread.history_mode == ThreadHistoryMode::Legacy {
-        return load_legacy_transcript(request_handle, thread_id, metadata.thread).await;
+    if metadata.thread.id != thread_id {
+        return Err(io::ErrorKind::InvalidData.into());
     }
 
-    let turns = load_paginated_turns(request_handle.clone(), thread_id.clone())
-        .await
-        .ok();
+    let turns = load_paginated_turns(request_handle.clone(), thread_id.clone()).await?;
     let items = load_paginated_items(request_handle, thread_id).await?;
-    if let Some(turns) = turns {
-        if let Some(thread) = hydrate_paginated_thread(&metadata.thread, turns, &items) {
-            return Ok(thread_to_transcript_entries(thread));
-        }
-    }
-
-    // Older App Servers may expose item paging without turn paging. Keep the
-    // existing flat projection in that case; it only applies page-local
-    // review boundaries and therefore cannot hide data based on guessed state.
-    Ok(items_to_transcript_entries(
-        items.into_iter().map(|entry| entry.item).collect(),
-    ))
-}
-
-async fn load_legacy_transcript(
-    request_handle: RequestHandle,
-    thread_id: String,
-    thread: Thread,
-) -> io::Result<Vec<TranscriptEntry>> {
-    if !thread.turns.is_empty() {
-        return Ok(thread_to_transcript_entries(thread));
-    }
-    let response: ThreadReadResponse = request_handle
-        .request(
-            METHOD_THREAD_READ,
-            ThreadReadParams {
-                thread_id,
-                include_turns: true,
-            },
-        )
-        .await
-        .map_err(io::Error::other)?;
-    Ok(thread_to_transcript_entries(response.thread))
+    let thread = hydrate_paginated_thread(&metadata.thread, turns, &items)
+        .ok_or_else(|| io::Error::from(io::ErrorKind::InvalidData))?;
+    Ok(thread_to_transcript_entries(thread))
 }
 
 async fn load_paginated_items(
@@ -213,20 +173,6 @@ fn hydrate_paginated_thread(
     Some(thread)
 }
 
-#[cfg(test)]
-fn prepend_page_items(items: &mut Vec<ThreadItem>, page_items: Vec<ThreadItem>) {
-    if page_items.is_empty() {
-        return;
-    }
-    items.splice(0..0, page_items);
-}
-
-fn items_to_transcript_entries(items: Vec<ThreadItem>) -> Vec<TranscriptEntry> {
-    let mut projection = ConversationProjection::default();
-    projection.prepend_items(items);
-    projection.entries().to_vec()
-}
-
 pub(crate) fn thread_to_transcript_entries(thread: Thread) -> Vec<TranscriptEntry> {
     let mut projection = ConversationProjection::default();
     projection.hydrate_thread(thread);
@@ -308,19 +254,17 @@ mod tests {
 
     #[test]
     fn paginated_pages_are_reassembled_in_transcript_order() {
+        let entry = |id| ThreadItemEntry {
+            turn_id: "turn-1".into(),
+            item: agent_message(id),
+        };
         let mut items = Vec::new();
-        prepend_page_items(
-            &mut items,
-            vec![agent_message("middle"), agent_message("newest")],
-        );
-        prepend_page_items(
-            &mut items,
-            vec![agent_message("oldest"), agent_message("older")],
-        );
+        prepend_page_entries(&mut items, vec![entry("middle"), entry("newest")]);
+        prepend_page_entries(&mut items, vec![entry("oldest"), entry("older")]);
 
         let ids = items
             .into_iter()
-            .map(|item| match item {
+            .map(|entry| match entry.item {
                 ThreadItem::AgentMessage { id, .. } => id,
                 item => panic!("unexpected item: {item:?}"),
             })

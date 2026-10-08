@@ -1,10 +1,12 @@
 mod agents;
+mod backtrack;
 mod composer;
 mod pickers;
 mod reasoning;
 mod shortcuts;
 mod status_line;
 mod title;
+mod token_usage;
 pub(crate) use shortcuts::ShortcutLabel;
 
 use std::borrow::Cow;

@@ -4,13 +4,11 @@
 //! pending interaction and per-thread input snapshots remain a single ChatWidget owner.
 
 use super::ChatWidget;
-use std::path::PathBuf;
 
-use app_server_protocol::protocol::v2::{QueuedSubmission, ServerNotification, UserInput};
+use app_server_protocol::protocol::v2::{QueuedSubmission, ServerNotification};
 
 use crate::app::right_click_paste::PendingPaste;
 use crate::bottom_pane::pending_input_preview::can_restore_submission;
-use crate::bottom_pane::{LocalImageAttachment, MentionBinding, RemoteImageAttachment};
 use crate::clipboard_paste::ClipboardTextSource;
 
 impl ChatWidget {
@@ -64,110 +62,11 @@ impl ChatWidget {
             return false;
         }
         let submission_id = submission.id.clone();
-        let mut text = String::new();
-        let mut text_elements = Vec::new();
-        let mut local_images = Vec::new();
-        let mut remote_images = Vec::new();
-        let mut mention_bindings = Vec::new();
-        for input in submission.input {
-            match input {
-                UserInput::Text {
-                    text: value,
-                    text_elements: elements,
-                } => {
-                    let offset = text.len();
-                    text.push_str(&value);
-                    text_elements.extend(elements.into_iter().map(|mut element| {
-                        element.byte_range.start += offset;
-                        element.byte_range.end += offset;
-                        element
-                    }));
-                }
-                UserInput::LocalImage { path, detail } => {
-                    local_images.push((PathBuf::from(path), detail))
-                }
-                UserInput::Image { url, detail } => {
-                    remote_images.push(RemoteImageAttachment { url, detail })
-                }
-                UserInput::Skill { name, path } => mention_bindings.push(MentionBinding {
-                    sigil: '$',
-                    mention: name,
-                    path,
-                }),
-                _ => return false,
-            }
+        if !self.bottom_pane.restore_user_inputs(&submission.input) {
+            return false;
         }
         self.queued_submissions
             .retain(|queued| queued.id != submission_id);
-
-        // Reuse existing canonical mention elements; only prepend skills absent from text.
-        let mut available = std::collections::HashMap::<&str, usize>::new();
-        for element in &text_elements {
-            if let Some(token) = text.get(element.byte_range.start..element.byte_range.end) {
-                *available.entry(token).or_default() += 1;
-            }
-        }
-        let mut present = Vec::new();
-        let mut missing = Vec::new();
-        for binding in mention_bindings {
-            let token = format!("${}", binding.mention);
-            if let Some(count) = available
-                .get_mut(token.as_str())
-                .filter(|count| **count > 0)
-            {
-                *count -= 1;
-                present.push(binding);
-            } else {
-                missing.push(binding);
-            }
-        }
-        if !missing.is_empty() {
-            let prefix = missing
-                .iter()
-                .map(|binding| format!("${}", binding.mention))
-                .collect::<Vec<_>>()
-                .join(" ");
-            let offset = prefix.len() + usize::from(!text.is_empty());
-            for element in &mut text_elements {
-                element.byte_range.start += offset;
-                element.byte_range.end += offset;
-            }
-            let mut start = 0;
-            let mut prefix_elements = Vec::new();
-            for binding in &missing {
-                let token = format!("${}", binding.mention);
-                prefix_elements.push(agent_protocol::TextElement::new(
-                    start..start + token.len(),
-                    Some(token.clone()),
-                ));
-                start += token.len() + 1;
-            }
-            prefix_elements.extend(text_elements);
-            text_elements = prefix_elements;
-            text = if text.is_empty() {
-                prefix
-            } else {
-                format!("{prefix} {text}")
-            };
-        }
-        let mention_bindings = missing.into_iter().chain(present).collect();
-        let local_images = local_images
-            .into_iter()
-            .enumerate()
-            .map(|(index, (path, detail))| LocalImageAttachment {
-                placeholder: format!("[Image #{}]", remote_images.len() + index + 1),
-                path,
-                detail,
-            })
-            .collect();
-        self.bottom_pane.set_composer_text_with_mention_bindings(
-            text,
-            text_elements,
-            local_images,
-            remote_images,
-            mention_bindings,
-        );
-        self.bottom_pane.clear_completion_popup();
         true
     }
 

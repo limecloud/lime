@@ -8,6 +8,7 @@ mod app_server_events;
 pub(crate) mod app_server_requests;
 pub(crate) mod event_dispatch;
 pub(crate) mod history_pagination;
+pub(crate) mod history_replacement;
 pub(crate) mod history_ui;
 mod input_flow;
 pub(crate) mod input_submission;
@@ -141,12 +142,15 @@ pub(crate) enum AppAction {
 
 #[derive(Debug, Default)]
 pub(crate) struct App {
+    pub(crate) backtrack: crate::app_backtrack::BacktrackState,
+    pub(crate) history_replacement: history_replacement::HistoryReplacementState,
     pub(crate) chat_widget: ChatWidget,
     pub(crate) projection: ConversationProjection,
     pending_mcp_login_start: Option<mcp_login::PendingMcpLoginStart>,
     active_mcp_login_ids: HashMap<String, mcp_login::ActiveMcpLogin>,
     mcp_login_generation: u64,
     pub(crate) thread_id: Option<String>,
+    pub(crate) thread_history_mode: app_server_protocol::protocol::v2::ThreadHistoryMode,
     pub(crate) primary_thread_id: Option<String>,
     thread_event_channels: HashMap<String, self::thread_events::ThreadEventChannel>,
     pub(crate) cwd: PathBuf,
@@ -240,6 +244,8 @@ impl App {
 
     pub(crate) fn set_thread_id(&mut self, thread_id: String) {
         if self.thread_id.as_deref() != Some(thread_id.as_str()) {
+            self.reset_backtrack_state();
+            self.history_replacement.reset();
             self.chat_widget
                 .bottom_pane
                 .set_history_thread_id(&thread_id);
@@ -278,6 +284,9 @@ impl App {
     }
 
     pub(crate) fn hydrate_thread(&mut self, thread: Thread) {
+        self.thread_history_mode = thread.history_mode.clone();
+        self.reset_backtrack_state();
+        self.history_replacement.reset();
         self.chat_widget.reset_for_hydrated_thread();
         self.chat_widget
             .set_status_thread_name(thread.id.clone(), thread.name.clone());
@@ -313,6 +322,9 @@ impl App {
     }
 
     pub(crate) fn can_accept_direct_input(&mut self) -> bool {
+        if self.backtrack_revert_pending() || self.history_replacement.is_pending() {
+            return false;
+        }
         if self
             .thread_id
             .as_deref()
@@ -502,6 +514,9 @@ impl App {
             permissions: permissions.as_deref(),
             cwd: &cwd,
             status: &status,
+            token_usage: thread_id
+                .as_deref()
+                .and_then(|id| self.projection.token_usage(id)),
         });
     }
 

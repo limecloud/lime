@@ -10,6 +10,9 @@ use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 
 impl App {
     pub(crate) fn handle_key_event(&mut self, key_event: KeyEvent) -> AppAction {
+        if let Some(action) = self.handle_backtrack_main_key(key_event) {
+            return action;
+        }
         if crate::key_hint::is_altgr(key_event.modifiers)
             && matches!(key_event.code, KeyCode::Char(_))
         {

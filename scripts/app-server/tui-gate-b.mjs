@@ -77,6 +77,24 @@ async function main() {
     assertBinaryExists(cliBinaryPath, "lime"),
     assertBinaryExists(appServerBinaryPath, "app-server"),
   ]);
+  // Compile before timing PTY scenarios so Cargo lock waits cannot consume interaction deadlines.
+  await execFileAsync(
+    process.env.CARGO || "cargo",
+    [
+      "test",
+      "--manifest-path",
+      path.join(rootDir, "lime-rs", "Cargo.toml"),
+      "-p",
+      "tui",
+      "--no-run",
+    ],
+    {
+      cwd: rootDir,
+      encoding: "utf8",
+      env: process.env,
+      maxBuffer: 2 * 1024 * 1024,
+    },
+  );
 
   const tempDir = await mkdtemp(path.join(tmpdir(), "tui-gate-b-"));
   try {
@@ -130,6 +148,8 @@ async function main() {
     );
     const scenarioDirs = new Map();
     let typedInputEvidence = null;
+    let backtrackEvidence = null;
+    let backtrackStdioEvidence = null;
     let threadInputEvidence = null;
     for (const scenario of scenarios) {
       const scenarioDir = path.join(tempDir, scenario);
@@ -162,8 +182,20 @@ async function main() {
           scenario === "complete" ? scrollableCompletedText : completedText,
         command: "printf tui-gate-b",
         reasoningText,
+        ...(scenario === "complete"
+          ? {
+              reasoningParts: [
+                "**PTY_EMPTY_STATUS**\n\n<!-- -->",
+                `**PTY_BODY_HEADER**\n\n${reasoningText}`,
+                "PTY_SECOND_PARAGRAPH use `<!-- -->`.",
+                "**PTY_EMPTY_TAIL**\n<!-- -->",
+              ],
+              reasoningContent: ["PTY_RAW_REASONING_MUST_STAY_HIDDEN"],
+            }
+          : {}),
         scenario,
         taskProgress: scenario === "complete",
+        tokenUsage: scenario === "complete",
       });
 
       const testOptions = {
@@ -191,10 +223,11 @@ async function main() {
           LIME_TEST_PERMISSION_PROFILE: "named-fixture",
         },
         maxBuffer: 2 * 1024 * 1024,
-        timeout: 60_000,
+        // Complete exercises the full editor/history/status/title flow; predicates stay bounded.
+        timeout: scenario === "complete" ? 120_000 : 60_000,
         windowsHide: true,
       };
-      await execFileAsync(
+      const ptyEvidence = await execFileAsync(
         process.env.CARGO || "cargo",
         [
           "test",
@@ -210,6 +243,120 @@ async function main() {
 
         testOptions,
       );
+      if (scenario === "complete") {
+        if (
+          !`${ptyEvidence.stdout}\n${ptyEvidence.stderr}`.includes(
+            "TUI_REASONING_PARTS_OK",
+          )
+        ) {
+          throw new Error(
+            "reasoning PTY fixture did not prove body, paragraph and placeholder rendering",
+          );
+        }
+        const reasoningStdio = await execFileAsync(
+          process.env.CARGO || "cargo",
+          [
+            "test",
+            "--manifest-path",
+            path.join(rootDir, "lime-rs", "Cargo.toml"),
+            "-p",
+            "tui",
+            "projection::reasoning::stdio_tests::real_stdio_reasoning_snapshot_matches_notifications_and_cold_read",
+            "--",
+            "--exact",
+            "--nocapture",
+          ],
+          testOptions,
+        );
+        if (
+          !`${reasoningStdio.stdout}\n${reasoningStdio.stderr}`.includes(
+            "STDIO_REASONING_PARTS_OK",
+          )
+        ) {
+          throw new Error(
+            "reasoning stdio fixture did not prove notification and cold canonical parts",
+          );
+        }
+        console.log(
+          reasoningStdio.stdout.match(/STDIO_REASONING_PARTS_OK[^\n]+/u)?.[0],
+        );
+        const resumeBackendPath = path.join(
+          tempDir,
+          "reasoning-resume-backend.mjs",
+        );
+        await writeTerminalExternalBackend(resumeBackendPath, {
+          completedText,
+          command: "printf reasoning-resume",
+          scenario: "reasoning-resume",
+          reasoningParts: [
+            "**Body**\n\nSTDIO_RESUMED_BODY",
+            "**STDIO_RESUMED_STATUS**\n<!-- -->",
+          ],
+          reasoningContent: ["STDIO_RAW_MUST_STAY_HIDDEN"],
+        });
+        const resumedReasoning = await execFileAsync(
+          process.env.CARGO || "cargo",
+          [
+            "test",
+            "--manifest-path",
+            path.join(rootDir, "lime-rs", "Cargo.toml"),
+            "-p",
+            "tui",
+            "projection::reasoning::stdio_tests::real_stdio_running_reasoning_resumes_indexed_parts_without_started",
+            "--",
+            "--exact",
+            "--nocapture",
+          ],
+          {
+            ...testOptions,
+            env: {
+              ...testOptions.env,
+              LIME_TEST_TERMINAL_SCENARIO: "reasoning-resume",
+              LIME_TEST_TERMINAL_BACKEND: resumeBackendPath,
+            },
+          },
+        );
+        const resumedMarker = resumedReasoning.stdout.match(
+          /STDIO_REASONING_RESUME_OK[^\n]+/u,
+        )?.[0];
+        if (!resumedMarker)
+          throw new Error(
+            "reasoning resume stdio fixture did not prove a live delta without started",
+          );
+        console.log(resumedMarker);
+        backtrackEvidence =
+          `${ptyEvidence.stdout}\n${ptyEvidence.stderr}`.match(
+            /TUI_BACKTRACK_OK thread=(\S+) removed-turn=(\S+) cold-resume=ok new-turns=0/u,
+          );
+        if (!backtrackEvidence) {
+          throw new Error(
+            "backtrack PTY fixture did not prove canonical revert and cold resume",
+          );
+        }
+        const evidence = await execFileAsync(
+          process.env.CARGO || "cargo",
+          [
+            "test",
+            "--manifest-path",
+            path.join(rootDir, "lime-rs", "Cargo.toml"),
+            "-p",
+            "tui",
+            "app_backtrack::stdio_tests::real_stdio_backtrack_retains_prefix_and_replays_live_refresh",
+            "--",
+            "--exact",
+            "--nocapture",
+          ],
+          testOptions,
+        );
+        backtrackStdioEvidence = evidence.stdout.match(
+          /STDIO_BACKTRACK_OK thread=(\S+) preserved-turn=(\S+) removed-turns=(\S+),(\S+) metadata=ok files=unchanged cold-resume=ok live-replay=ok retry=ok/u,
+        );
+        if (!backtrackStdioEvidence) {
+          throw new Error(
+            "backtrack stdio fixture did not prove prefix, typed input, files and live refresh",
+          );
+        }
+      }
       if (scenario === "queue-edit") {
         const evidence = await execFileAsync(
           process.env.CARGO || "cargo",
@@ -307,7 +454,7 @@ async function main() {
 
     const reconnectScenarioDir = path.join(tempDir, "reconnect");
     await mkdir(reconnectScenarioDir, { recursive: true });
-    await execFileAsync(
+    const reconnectEvidence = await execFileAsync(
       process.env.CARGO || "cargo",
       [
         "test",
@@ -336,6 +483,14 @@ async function main() {
         windowsHide: true,
       },
     );
+    const reconnectMarker = reconnectEvidence.stdout.match(
+      /TUI_REASONING_RESUME_OK[^\n]+/u,
+    )?.[0];
+    if (!reconnectMarker)
+      throw new Error(
+        "reconnect PTY fixture did not prove resumed reasoning status and detail",
+      );
+    console.log(reconnectMarker);
 
     const resizeScenarioDir = path.join(tempDir, "resize-reflow");
     await mkdir(resizeScenarioDir, { recursive: true });
@@ -400,7 +555,7 @@ async function main() {
     });
     const expectedSequences = {
       complete:
-        "turn.started,turn.plan.updated,message.delta,item.started,item.completed,item.started,item.completed,turn.completed",
+        "turn.started,turn.plan.updated,message.delta,item.started,item.completed,item.started,item.completed,provider.usage,turn.completed",
       approval: "turn.started,item.started,action.required",
       "user-input": "turn.started,item.started,action.required",
       interrupt: "turn.started,message.delta",
@@ -590,6 +745,12 @@ async function main() {
         typedInputEvidence
           ? `typed-input-stdio=ok typed-thread=${typedInputEvidence[1]} typed-turn=${typedInputEvidence[2]} typed-queue=${typedInputEvidence[3]}`
           : null,
+        backtrackEvidence
+          ? `backtrack=ok backtrack-thread=${backtrackEvidence[1]} removed-turn=${backtrackEvidence[2]} cold-revert-resume=ok`
+          : null,
+        backtrackStdioEvidence
+          ? `backtrack-stdio=ok backtrack-prefix-thread=${backtrackStdioEvidence[1]} preserved-turn=${backtrackStdioEvidence[2]} typed-revert=ok files=unchanged live-refresh=ok refresh-retry=ok`
+          : null,
         scenarios.includes("queue-edit") ? "queue-edit=ok" : null,
         scenarios.includes("agents-overview") ? "agents-overview=ok" : null,
         scenarios.includes("agents-overview") ? "thread-draft=ok" : null,
@@ -611,6 +772,11 @@ async function main() {
           : null,
         scenarios.includes("user-input") ? "notes-keymap=ok" : null,
         scenarios.includes("complete") ? "task-progress=ok" : null,
+        scenarios.includes("complete") ? "token-usage=ok" : null,
+        scenarios.includes("complete") ? "reasoning-parts=ok" : null,
+        scenarios.includes("complete")
+          ? "context-footer=ok canonical-status-ids=ok"
+          : null,
         scenarios.includes("images") ? "images=ok" : null,
         scenarios.includes("skills") ? "skill-mentions=ok" : null,
         scenarios.includes("images") && scenarios.includes("large-paste")

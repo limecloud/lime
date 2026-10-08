@@ -6,6 +6,7 @@ use unicode_width::UnicodeWidthStr;
 
 use crate::diff_render;
 use crate::exec_cell::{output_lines, CommandOutput, OutputLinesParams};
+use crate::history_cell::{HistoryCell, ReasoningSummaryCell};
 use crate::locale::Locale;
 use crate::markdown_render;
 use crate::projection::{EntryKind, EntryStatus, TranscriptEntry};
@@ -30,16 +31,21 @@ pub(crate) fn hyperlink_lines_with_locale(
     width: Option<usize>,
     cwd: &Path,
 ) -> Vec<HyperlinkLine> {
+    if entry.kind == EntryKind::Reasoning {
+        return ReasoningSummaryCell::new(entry.text.clone(), cwd).transcript_hyperlink_lines(
+            width
+                .unwrap_or(usize::from(u16::MAX))
+                .min(usize::from(u16::MAX)) as u16,
+        );
+    }
     let (prefix, prefix_style, text_style) = styles(entry.kind);
     let rich_lines = match entry.kind {
-        EntryKind::Assistant | EntryKind::Reasoning => {
-            Some(markdown_render::render_markdown_lines_with_width_and_cwd(
-                &entry.text,
-                text_style,
-                width,
-                cwd,
-            ))
-        }
+        EntryKind::Assistant => Some(markdown_render::render_markdown_lines_with_width_and_cwd(
+            &entry.text,
+            text_style,
+            width,
+            cwd,
+        )),
         EntryKind::Warning | EntryKind::Error => Some(notice_content_lines(
             &entry.text,
             text_style,

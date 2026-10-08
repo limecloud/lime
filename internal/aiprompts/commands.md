@@ -50,6 +50,18 @@ transport foundation，不会启用默认远端 App Server，也不替代 App Se
 
 ## TUI/CLI 与 Cloud transport 边界
 
+TUI 推理显示只消费同一协议的 summary/summaryIndex；原始 content 默认隐藏。摘要
+分段 facts 归 `projection/reasoning`，正文拆分/详情绘制归 `history_cell/reasoning`，
+status 从原始 parts 提取，pager/export 从同源 body 读取。独立空注释与首段活动标题
+不重复绘制，canonical completion/历史快照保持既有 item identity；不新增私有配置、
+method 或第二 read model。显式 raw reasoning 配置仍未接入。
+
+运行中摘要恢复只由 TUI `projection/history` 暂存 host-owned recovery intent：同一
+InProgress Turn 的 full snapshot 尾部 Reasoning 恢复 parts/status，后续首个增量可没有
+item/started；不同 non-user item/Turn terminal 收尾，旧页不覆盖 live 进度，非尾部或
+closed item 不重开。它继续消费同一 metadata-only resume 与 canonical items/turns 分页，
+不新增 protocol 字段、IPC、GUI 私有策略或持久化完成标记。
+
 `app-server-client` 是所有非 Renderer Rust surface 的会话 owner。它负责 JSON-RPC request id、并发 pending request、notification、reverse server request、断线与关闭；`tui` 和 `cli` 只能消费其 typed facade。当前 production transport 支持本地 stdio 与受控 authenticated WebSocket foundation。transport trait 是两种实现共用的依赖倒置边界；远端 token 仅允许 `wss://` 或 loopback `ws://`，remote 默认固定 `app-server` 身份和 `appserver.v0` 协议版本，生产 Cloud endpoint 仍需在租户、重连和审计策略明确后单独启用，不增加假 endpoint 或 fallback。
 
 CLI surface 使用 Codex 风格命名：`lime`（无子命令）和 `lime tui` 进入 TUI，`lime resume [thread-id]` 通过 `thread/resume` 恢复 canonical 历史；省略 id 时先用 `thread/list` 打开 TUI session picker，再复用同一 resume 流程。`lime exec` 执行一次非交互回合；`lime execpolicy check --rules <path> <command...>` 由 CLI 的 `ExecpolicyCommand` / `ExecPolicyCheckCommand` 读取 prefix-rule 文件并输出 Codex 形状的 `matchedRules` 与最严格 `decision`，不参与实际执行和权限 lowering；`lime mcp list` 和 `lime skills list` 分别读取 current MCP/Skill catalog。TUI 的 `/model` 使用 `model/list` 可见 catalog，选择后统一写入 `thread/settings/update`；模型目录的 authority 仍在 App Server。这些入口都复用 `app-server-client` session owner，不得引入旧的 TUI 命名或平行历史/runtime 后端。TUI 连接断开时只允许 bounded reconnect + 原 Thread `thread/resume`，保留 composer draft，清理失效审批请求；重连失败必须显式退出。旧 `task`、`media`、单数 `skill` 与旧 `doctor` 命令已判定为 `dead / deleted / forbidden-to-restore`；媒体和诊断能力必须由 App Server current owner 承接，不得回填 CLI 直连入口。视频生成的 Agent surface 只允许使用 current typed `video_generate` 工具，经 `tool-runtime` gateway 委托 App Server `mediaTaskArtifact/video/create`；旧 `lime_create_video_generation_task` 不提供 alias 或 compat。
@@ -112,6 +124,8 @@ current-dir / thread-name，显式空列表关闭。preview/footer 共享 `statu
 settings/cwd/Thread facts，未知或不可用项目省略，不填静态额度或 usage。Space 为多选固定键，
 不得被 list 配置截获；左右排序只在空 query 生效。配置 schema 仍由共享 core TuiConfig 校验，
 App Server config wire 保持现有 JSON value，GUI gateway/Host 无新增命令或平行配置。
+状态栏运行状态/线程标识的 canonical ID 为 run-state/thread-id；Codex 自身的 status/
+session-id alias 只在解析时识别，选择器确认直接保存去重后的 canonical 列表。
 
 `/title` 对齐 Codex `bottom_pane/title_setup::TerminalTitleSetupView`，复用同一 MultiSelectPicker
 的 state、布局、ListSelectionView geometry、preview 行与 resolved controls。临时 selection
@@ -119,6 +133,35 @@ App Server config wire 保持现有 JSON value，GUI gateway/Host 无新增命�
 `tui.terminal_title`；标题和状态栏统一由 `app/status_controls::write_tui_preferences` 做
 版本校验、config/batchWrite 与失败重读，不复制 transport 或建立私有存储。None 默认
 activity/thread-name/project-name，[] 关闭；App facts renderer 同时用于窗口标题和配置预览。
+
+状态栏/标题与 `/status` 的 token facts 只消费既有 `thread/tokenUsage/updated`，累计取
+typed `total`、上下文取 `last` 与服务端 window；五语言显示和百分比算法统一在
+`status/helpers`。没有用量来源时省略，未知 window 不补默认 100%。历史 read model
+当前不含 token snapshot，因此原 bounded ThreadEventStore 在 session refresh 时保留
+最后一份已观察 usage，继续按 current Thread/最后 Turn 校验；不新建 method、缓存文件、
+provider 调用或第二套累计 owner。GUI 继续使用同一现有通知，不复制 TUI 交互组件。
+普通 composer footer 同样从上述 typed usage lowering 出 immutable FooterProps：有真实
+window 时显示剩余百分比，无有效 window 时 fallback 为 server total.total_tokens，未知为空。
+bottom_pane/footer 独占左右布局和窄屏优先级；passive status 不再重复 context，右侧为
+模式/Vim；其它输入 modes/overlay 的展示边界不变。无新增命令或私有用量累计状态。
+
+TUI 空输入两次 Esc 使用 `app_backtrack -> thread/turns/list` 读取 Full Turn，Enter 只请求
+现有 `thread/revert {threadId,beforeTurnId}`。新建 CLI/TUI Thread 明确使用 Paginated，
+fresh startup 与 resume 共用服务端 Thread hydration；Legacy 的回退显式不可用。目标
+只能为已结束 Turn 的首条用户输入，steer/隐藏 review/残缺 typed input 不可独立回退。
+取消恢复原 pager bookmark，不发 mutation；回退不回滚工作区文件。response 与
+`thread/reverted` 共用 metadata-only read + bounded item paging 替换同一 projection，
+刷新中的新通知与未决请求由既有 ThreadEventStore 保存重放，失败禁止提交且 Esc 重试。
+恢复输入委托同一 HistoryEntry typed conversion，保留 TextElement、图片 detail 和
+Skill/Mention path，不从 transcript 文本重建。GUI 继续使用同一既有 thread/revert 合同。
+
+历史读取不以 historyMode 分流：resume/reconnect 请求 `excludeTurns=true`，所有存量
+Thread 都经既有 `thread/items/list` 与 `thread/turns/list` 分页读取。非空页必须取得
+对应 Turn facts；失败保留原 cursor/retry，不回退 `thread/read(includeTurns=true)` 或
+item-only 展示。picker preview 先过滤 canonical review 再取六行，最多扫描 400 items；
+完整 transcript/导出校验 Thread identity 与 item/Turn 对应关系。生命周期同样从 Turn
+facts 恢复，存量 Legacy 的读取能力不改变其 thread/revert 限制。无 method/schema/
+GUI gateway/backend 改动。
 
 `editor` 的 17 个 Codex 同义动作由 `TuiEditorKeymap -> RuntimeKeymap.editor ->
 TextArea::set_keymap_bindings/input_with_keymap` 消费，composer 普通/Insert/Replace 不再维护

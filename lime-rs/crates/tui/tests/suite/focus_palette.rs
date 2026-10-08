@@ -346,7 +346,19 @@ impl PtyLime {
         let deadline = Instant::now() + Duration::from_secs(5);
         while Instant::now() < deadline {
             if self.child.try_wait()?.is_some() {
-                return Ok(());
+                // Process exit can precede delivery of the reader thread's final PTY chunk.
+                // Drain to EOF before assertions inspect terminal-restoration sequences.
+                while Instant::now() < deadline {
+                    match self.reader.recv_timeout(Duration::from_millis(20)) {
+                        Ok(chunk) => {
+                            self.output.extend_from_slice(&chunk);
+                            self.parser.process(&chunk);
+                        }
+                        Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => return Ok(()),
+                        Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
+                    }
+                }
+                break;
             }
             self.read_output(Duration::from_millis(20))?;
         }

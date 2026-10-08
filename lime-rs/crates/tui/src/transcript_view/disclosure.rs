@@ -153,6 +153,17 @@ impl TranscriptDisclosure {
         width: u16,
         shortcut: Option<&str>,
     ) -> MaterializedTranscript {
+        self.materialize_with_presentation(content, locale, width, shortcut, None)
+    }
+
+    pub(crate) fn materialize_with_presentation(
+        &self,
+        content: &TranscriptContent,
+        locale: Locale,
+        width: u16,
+        shortcut: Option<&str>,
+        detailed: Option<bool>,
+    ) -> MaterializedTranscript {
         let mut lines = Vec::new();
         let mut excluded_lines = HashSet::new();
         let mut anchor_ranges = Vec::new();
@@ -177,7 +188,7 @@ impl TranscriptDisclosure {
                     disclosure,
                 } => {
                     let start = lines.len();
-                    let is_expanded = self.is_expanded(ids);
+                    let is_expanded = detailed.unwrap_or_else(|| self.is_expanded(ids));
                     lines.extend(if is_expanded { expanded } else { compact }.iter().cloned());
                     let focused = self
                         .focused

@@ -161,8 +161,11 @@ pub(super) fn assert_canonical_input(app_server: &Path, cwd: &Path, ledger: &Pat
             })
             .await
             .unwrap();
-            let thread = session.thread_read(thread_id, true).await.unwrap().thread;
+            let mut thread = session.thread_read(thread_id, false).await.unwrap().thread;
             assert_eq!(thread.id, thread_id);
+            thread.turns = crate::app_server_session::thread_turns_page_with_handle(
+                session.request_handle(), thread_id, None,
+            ).await.unwrap().data.into_iter().rev().collect();
             let turn = thread.turns.iter().find(|turn| turn.id == turn_id).unwrap();
             assert_eq!(turn.status, TurnStatus::Completed);
             let messages = turn
