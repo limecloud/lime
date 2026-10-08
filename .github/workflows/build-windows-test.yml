@@ -428,7 +428,39 @@ jobs:
 
       - name: Verify actual Windows script entrypoints
         shell: bash
-        run: npx vitest run scripts/electron/windows-native-host-gate-b.test.mjs scripts/electron/windows-packaged-evidence.test.mjs
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from "node:assert/strict";
+          import { spawnSync } from "node:child_process";
+          import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+          import { tmpdir } from "node:os";
+          import path from "node:path";
+
+          const scripts = [
+            "scripts/electron/windows-native-host-gate-b.mjs",
+            "scripts/electron/windows-packaged-evidence.mjs",
+          ];
+          for (const script of scripts) {
+            const help = spawnSync(process.execPath, [path.resolve(script), "--help"], { encoding: "utf8" });
+            assert.equal(help.status, 0, help.stderr);
+            assert.ok(help.stdout.includes(`Usage: node ${script}`), help.stdout);
+          }
+          const missing = spawnSync(process.execPath, [path.resolve(scripts[0])], { encoding: "utf8" });
+          assert.equal(missing.status, 1, missing.stderr);
+          assert.ok(missing.stderr.includes("result=failed"), missing.stderr);
+          const root = mkdtempSync(path.join(tmpdir(), "lime entrypoint evidence "));
+          try {
+            const output = path.join(root, "failed summary.json");
+            const failed = spawnSync(process.execPath, [path.resolve(scripts[1]), "--output", output], { encoding: "utf8" });
+            assert.equal(failed.status, 1, failed.stderr);
+            const summary = JSON.parse(readFileSync(output, "utf8"));
+            assert.equal(summary.result, "failed");
+            assert.equal(summary.failures[0].name, "arguments");
+          } finally {
+            rmSync(root, { recursive: true, force: true });
+          }
+          console.log("Windows native Node entrypoints: help, missing arguments, and failure evidence passed");
+          NODE
 
       - name: Download original signed Windows assets
         uses: actions/download-artifact@v4

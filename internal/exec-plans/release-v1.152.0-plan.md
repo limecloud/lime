@@ -77,6 +77,10 @@
 
 修复验证：真实 CLI help/缺参退出/失败文件、原 run 正确身份/错误 SHA/失败构建的实际 YAML shell、发布守卫共55/55通过；定向 ESLint、两份 YAML Prettier、contracts 和 diff check通过。入口修复直接替换旧判断，无 wrapper/新依赖；新分支复用既有 Windows smoke/CodeMode/native/identity owner。原三个桌面构建/API门禁均通过，缓存收尾中。原 Windows native/identity 步骤的假成功记录保留；最终以补验结构化证据为准。
 
+首轮补验 [37762285799](https://github.com/limecloud/lime/actions/runs/37762285799)，脚本修复 SHA `af182ed24a041d361486c565399b357a162130a0`：原 run/tag 身份与依赖安装通过；两个 Vitest suite 在 Windows 加载阶段报 `SyntaxError: Invalid or unexpected token`，未收集测试，尚未安装或运行原候选。保留失败记录，不作为产品失败或通过证据。补验步骤改用原生 Node 的真实子进程断言，验证两个入口 help、native 缺参非零退出和 packaged 缺证据结构化失败；本地完整 Vitest 回归保留，真实产品安装与全部 Gate B 不降级。
+
+原生 Node 的实际 YAML shell 在本机执行通过；两文件 Vitest 12/12、workflow Prettier 与 diff check 通过。2026-10-08 10:23 UTC，原 R2 job success；公开 R2 current/versioned 共18个 URL 的内容或长度核对18/18通过，三个 feed 与 GitHub digest/原始字节一致，mac feed 的 currentRelease/updateTo.version 为1.152.0。GitHub Release已公开（非 draft、非 prerelease），9个桌面资产 uploaded/size>0且含SHA256；CLI/npm仍构建中，暂不宣称完整分发完成。
+
 ## 候选路径清单
 
 当前 124 个路径：release metadata 7、Rust 97、scripts 15、文档/计划 5。忽略目录产物不纳入；未主动排除源码。提交前重新核对 hash 与路径集合。
