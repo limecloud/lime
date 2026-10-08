@@ -81,6 +81,8 @@
 
 原生 Node 的实际 YAML shell 在本机执行通过；两文件 Vitest 12/12、workflow Prettier 与 diff check 通过。2026-10-08 10:23 UTC，原 R2 job success；公开 R2 current/versioned 共18个 URL 的内容或长度核对18/18通过，三个 feed 与 GitHub digest/原始字节一致，mac feed 的 currentRelease/updateTo.version 为1.152.0。GitHub Release已公开（非 draft、非 prerelease），9个桌面资产 uploaded/size>0且含SHA256；CLI/npm仍构建中，暂不宣称完整分发完成。
 
+第二轮补验 [37763248438](https://github.com/limecloud/lime/actions/runs/37763248438)，脚本 SHA `278fb5522d9e28ef033e01d6c9eb4aa55a22b56e`：Windows 原生 Node 入口全部通过；下载原 artifact 的SHA256为 `111a82a1184a7e2c7c1c06147d9ab86d92ea1df0ba9a84fa206e062b6fe6c8fc`，与原 run artifact一致。Squirrel前置报候选feed缺RELEASES：原 workflow上传整个 `release-assets`，artifact保留 `x86_64-pc-windows-msvc` 子目录，补验误用了平铺目录。修正两个消费路径并在安装前要求feed/full nupkg/Setup三文件非空；尚未形成产品Gate B结果。本机对默认自定义更新域名 `updates.limecloud.com` 的HTTPS连接超时，公开R2入口通过；不将前者扩张成全球可用/不可用判断。
+
 ## 候选路径清单
 
 当前 124 个路径：release metadata 7、Rust 97、scripts 15、文档/计划 5。忽略目录产物不纳入；未主动排除源码。提交前重新核对 hash 与路径集合。

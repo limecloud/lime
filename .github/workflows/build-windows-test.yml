@@ -470,6 +470,15 @@ jobs:
           github-token: ${{ github.token }}
           run-id: ${{ github.event.inputs.release_run_id }}
 
+      - name: Validate original signed Windows asset layout
+        shell: bash
+        run: |
+          set -euo pipefail
+          ASSET_DIR="windows-release-package/x86_64-pc-windows-msvc"
+          test -s "$ASSET_DIR/RELEASES"
+          test -s "$ASSET_DIR/lime-$RELEASE_VERSION-full.nupkg"
+          test -s "$ASSET_DIR/Lime-$RELEASE_VERSION Setup.exe"
+
       - name: Install original release candidate
         shell: bash
         env:
@@ -480,7 +489,8 @@ jobs:
           mkdir -p windows-n-minus-one-package
           gh release download "v$N_MINUS_ONE_VERSION" --repo "$GITHUB_REPOSITORY" --pattern "Lime-$N_MINUS_ONE_VERSION.Setup.exe" --dir windows-n-minus-one-package
           node scripts/electron/windows-squirrel-rc-smoke.mjs \
-            --installer-dir windows-release-package --candidate-feed-dir windows-release-package \
+            --installer-dir "windows-release-package/x86_64-pc-windows-msvc" \
+            --candidate-feed-dir "windows-release-package/x86_64-pc-windows-msvc" \
             --evidence-dir ".lime/qc/windows-squirrel-rc/$RELEASE_VERSION" \
             --n-minus-one-installer-dir windows-n-minus-one-package --n-minus-one-version "$N_MINUS_ONE_VERSION" \
             --version "$RELEASE_VERSION" --candidate-sha "$LIME_CANDIDATE_SHA" --run-id "$LIME_GATE_RUN_ID"
