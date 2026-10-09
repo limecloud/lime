@@ -24,7 +24,7 @@
 - [x] CLI stdio、TUI PTY、Agent runtime fixture与GUI smoke取得本版风险匹配证据。
 - [x] 用户明确授权完整发布，无需再次确认。
 - [x] 创建Release v1.153.0提交与v1.153.0，推送main/tag并复核SHA。
-- [ ] 核验Release workflow、GitHub Release、CLI/npm与updater实际分发。
+- [x] 核验Release workflow、GitHub Release、CLI/npm与updater实际分发。
 
 ## 架构确认与分类
 
@@ -63,9 +63,10 @@
 
 ## 发布状态
 
-- 本地与远端main/tag均为`3528a3c721ad4417ea6bf0378421c43014b42bda`，GitHub Release已创建draft。
-- release commit/tag/main与tag显式push已连续完成；Release workflow `37932726668`的event=push、headBranch=v1.153.0、headSha匹配本版。
-- 当前退出条件7/8（87.5%）；CI构建与公开分发核验继续执行。
+- 发布退出条件8/8（100%）；GitHub Release已公开、latest、稳定版，14项资产全部uploaded。Release workflow `37932726668`全部success。
+- 公开tag保持`3528a3c721ad4417ea6bf0378421c43014b42bda`；main另有Docs/CI与MCP通知修复，最新生产修复为`8e50db2f73524dd33c94ceadf763fff13a44dbe3`。发布后修复没有纳入既有tag或暗改产物。
+- R2的18个current/versioned端点、npm五包/provenance/四平台包结构、macOS arm64公开npm真实CLI/TUI安装使用均通过。自定义更新域名仍保留本机TLS超时限制，非本机npm平台只声明结构验证。
+- 发布后Actions修复完成：Docs公开部署成功；Quality `37946892531`整体success，Frontend Full、GUI Smoke、Integrity、Rust Full、Windows Shell Runtime与Quality汇总全部success。发布与失败修复总完成度100%。
 
 ## 隔离验证收尾（2026-10-09）
 
@@ -131,3 +132,18 @@
 - `npm run test:contracts`完整exit0（`contracts-mcp-normalized.log`），`npm run verify:app-version`通过=1.153.0；本轮没有新App Server/IPC方法或schema变化。现有progress隔离断言及有界诊断全部保留。
 - 公开npm TUI续验已完成complete PTY、输入/导航/补全/推理、stdio reasoning/cold resume、focus/reconnect；最后resize四项中一项未观察到启动输入，原日志保留（`npm-tui-public-retry.log`）。原四项未改代码/超时定向重验4/4通过（`npm-tui-resize-retry.log` exit0），完整入口再次收口以保留最终ledger/event序列断言。
 - 本次提交仅MCP client_service、MCP dev-dependency manifest与发布计划三文件；之前的bridge_client测试修改已在main。current为唯一MCP服务的标准通知解析，test-only为生产feature图回归，compat/deprecated/dead无新增。用户授权继续完整发布，窄提交/推送沿用既有授权；v1.153.0公开tag保持`3528a3c7`，生产修复进入main，不暗改已发布binary。
+
+- MCP完整workspace关键特性组合（arbitrary_precision + preserve_order）库172/172再次通过（`mcp-workspace-features-tests.log`）；修复提交`8e50db2f73524dd33c94ceadf763fff13a44dbe3`正常hook3/3通过，独立index窄提交推送main，远端main与tag分别实读匹配修复SHA与原发布SHA。新Quality run为 https://github.com/limecloud/lime/actions/runs/37946892531 。
+- 公开npm实际TUI最终完整exit0（`npm-tui-public-highload.log`）：thread `01a12124-f51b-70f1-b1b8-506a23fd336e`、turn `turn_25a9d208d65d4b6aa1e995c898c69977`，全部原complete/stdio/focus/reconnect/resize及ledger事件序列断言通过。保留两次原180秒总预算超时与一次resize启动输入失败；本机load约42时，隔离验证runner只把complete进程总预算改为600秒，未改每步等待上限、源码业务行为或任何断言，也未改CI配置。原fixture源码保持不变，另生成验证专用副本；完整成功证据不伪称原180秒入口全绿。
+- 发布最终分发已完成：GitHub Release latest稳定版、14/14资产、三平台原run桌面安装/native证据、R2 18/18端点、npm5/5包及provenance/四平台tarball完整性均成功；公开registry实际安装后的macOS arm64 CLI/TUI使用通过（`npm-public-gate-b-summary.json`）。历史Quality `37942348723`的Windows最终success，整体failure仅为已定位的旧MCP错误；新修复SHA的完整CI继续核验。
+
+- 修复SHA的Quality `37946892531`已确认Frontend Full、GUI Smoke、Integrity与Rust Full全部success。Rust原job `113875522286`日志已下载实读：134组test result，7010 passed / 0 failed / 26 ignored；原progress并发隔离用例与新增浮点wire、非法标准参数、custom/extensions三个回归均明确`ok`（`quality-rust-normalized-job.log`与`quality-rust-normalized-summary.json`）。原169项等待失败已由同CI矩阵闭环，不再仅依赖本地通过。Windows最后合同组继续运行。
+
+## 最终验收结果
+
+- 发布与CI修复完成度100%。Release `37932726668`、Docs `37942348705`和Quality `37946892531`均为success；公开GitHub latest、R2与npm实际分发核验完成。版本事实源与双语说明为v1.153.0，release commit/tag/push已完成。
+- Quality完整CI结束于2026-10-09 15:39 UTC；Windows五组安全矩阵、shell fallback、canonical timeout、平台目录创建和Agent Plugin MCP parity全部success，Quality results最终success。修复后的源码SHA为`8e50db2f73524dd33c94ceadf763fff13a44dbe3`，完整成功链接：https://github.com/limecloud/lime/actions/runs/37946892531 。
+- Docs修复提交`8e45bf773`、MCP生产修复提交`8e50db2f7`均已推送main；仅最终验收记录追加文档提交。公开tag仍固定`3528a3c721ad4417ea6bf0378421c43014b42bda`，发布后main修复不属于已经发布的v1.153.0二进制。
+- current：唯一MCP客户端服务的标准进度通知解析与Docs生成配置；test-only：有界进度夹具、生产feature图回归和外部受控provider/stdio/PTY验证。CI修复无新增compat/deprecated入口、无文件删除；本版产品的已删除旧TUI exec及重复入口分类见前述架构确认。KISS/DRY复用标准method和现有handler，SOLID保持服务边界单一责任，无新dispatcher、runtime或fallback。
+- 实际修复写集：Docs四文件（含独立锁文件）、Pages workflow、MCP bridge_client测试、MCP client_service与dev-dependency manifest、发布计划；其余CLI/TUI/架构/ops并行开发继续避让。后续生产演进由各current owner负责，本轮没有遗留待修复CI项。
+- 验证限制明确保留：非本机npm平台只有结构/provenance证据；macOS arm64公开npm CLI/TUI为真实执行，TUI高负载验证仅放宽进程总预算至600秒，原180秒失败保留。自定义更新域名本机TLS超时仍未核实，公开R2 18/18端点及feed完整性通过；受控provider不等于live provider验证。
