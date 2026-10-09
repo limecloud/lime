@@ -231,7 +231,6 @@ mod tests {
     use rmcp::model::{Content, ProgressNotificationParam, ServerCapabilities, ServerInfo};
     use rmcp::service::{RequestContext, RoleServer, RunningServiceCancellationToken};
     use rmcp::{ServerHandler, ServiceExt};
-    use tokio::sync::Notify;
 
     #[derive(Clone)]
     struct CancellationAwareToolServer {
@@ -383,8 +382,8 @@ mod tests {
 
     #[derive(Clone)]
     struct ProgressToolServer {
-        release_a: Arc<Notify>,
-        release_b: Arc<Notify>,
+        release_a: CancellationToken,
+        release_b: CancellationToken,
     }
 
     impl ServerHandler for ProgressToolServer {
@@ -407,11 +406,11 @@ mod tests {
                 .and_then(serde_json::Value::as_str)
                 .ok_or_else(|| rmcp::ErrorData::invalid_params("missing label", None))?;
             let release = match label {
-                "A" => Arc::clone(&self.release_a),
-                "B" => Arc::clone(&self.release_b),
+                "A" => self.release_a.clone(),
+                "B" => self.release_b.clone(),
                 _ => return Err(rmcp::ErrorData::invalid_params("unknown label", None)),
             };
-            release.notified().await;
+            release.cancelled().await;
             let progress_token = context
                 .meta
                 .get_progress_token()
@@ -435,7 +434,7 @@ mod tests {
     async fn run_progress_call(
         client: McpBridgeClient,
         label: &'static str,
-        release: Arc<Notify>,
+        release: CancellationToken,
     ) -> (
         ProgressToken,
         ProgressNotificationParam,
@@ -448,33 +447,37 @@ mod tests {
             progress_token,
             mut progress,
             response,
-        } = client
-            .start_tool_call(
+        } = tokio::time::timeout(
+            Duration::from_secs(10),
+            client.start_tool_call(
                 "progress",
                 Some(arguments),
                 Default::default(),
                 None,
                 CancellationToken::new(),
-            )
-            .await
-            .expect("start progress tool call");
-        release.notify_one();
-        let (response, notification) = tokio::join!(response, progress.next());
-        (
-            progress_token,
-            notification.expect("call-scoped progress notification"),
-            response.expect("progress tool result"),
-            progress,
+            ),
         )
+        .await
+        .unwrap_or_else(|_| panic!("call {label}: timed out acquiring the request lease"))
+        .unwrap_or_else(|error| panic!("call {label}: failed to start: {error}"));
+        release.cancel();
+        let response = response
+            .await
+            .unwrap_or_else(|error| panic!("call {label}: tool request failed: {error}"));
+        let notification = tokio::time::timeout(Duration::from_secs(5), progress.next())
+            .await
+            .unwrap_or_else(|_| panic!("call {label}: no progress for token {progress_token:?}"))
+            .unwrap_or_else(|| panic!("call {label}: progress stream closed before notification"));
+        (progress_token, notification, response, progress)
     }
 
     #[tokio::test]
     async fn concurrent_callers_receive_only_their_request_progress() {
-        let release_a = Arc::new(Notify::new());
-        let release_b = Arc::new(Notify::new());
+        let release_a = CancellationToken::new();
+        let release_b = CancellationToken::new();
         let server = ProgressToolServer {
-            release_a: Arc::clone(&release_a),
-            release_b: Arc::clone(&release_b),
+            release_a: release_a.clone(),
+            release_b: release_b.clone(),
         };
         let (server_transport, client_transport) = tokio::io::duplex(4096);
         let server_task = tokio::spawn(async move {

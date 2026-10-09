@@ -8,12 +8,14 @@ on:
     branches: [main]
     paths:
       - "docs/**"
+      - ".github/workflows/deploy-docs.yml"
 
   # PR 到 main 分支且 docs 目录有变更时触发（仅构建，不部署）
   pull_request:
     branches: [main]
     paths:
       - "docs/**"
+      - ".github/workflows/deploy-docs.yml"
 
   # 允许手动触发
   workflow_dispatch:
@@ -61,13 +63,16 @@ jobs:
             ${{ runner.os }}-pnpm-store-
 
       - name: Setup Pages
+        id: pages
         uses: actions/configure-pages@v5
 
       - name: Install dependencies
-        run: pnpm install --ignore-workspace --no-frozen-lockfile
+        run: pnpm install --ignore-workspace --frozen-lockfile
         working-directory: docs
 
       - name: Build
+        env:
+          NUXT_SITE_URL: ${{ steps.pages.outputs.origin }}${{ steps.pages.outputs.base_path }}
         run: pnpm run generate
         working-directory: docs
 

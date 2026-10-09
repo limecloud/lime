@@ -2,12 +2,12 @@ export default {
   docus: {
     title: "Lime",
     description: "把你的 AI 客户端额度用到任何地方",
-    url: "https://aiclientproxy.github.io/lime",
+    url: "https://limecloud.github.io/lime",
 
     image: "/images/logo-banner.svg",
 
     socials: {
-      github: "aiclientproxy/lime",
+      github: "limecloud/lime",
     },
 
     header: {
@@ -26,12 +26,12 @@ export default {
       credits: {
         icon: "",
         text: "Made with 💜 by Lime Team",
-        href: "https://github.com/aiclientproxy",
+        href: "https://github.com/limecloud",
       },
       textLinks: [
         {
           text: "GitHub",
-          href: "https://github.com/aiclientproxy/lime",
+          href: "https://github.com/limecloud/lime",
           target: "_blank",
         },
       ],

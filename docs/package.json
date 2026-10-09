@@ -9,9 +9,14 @@
     "generate": "nuxt generate --extends docus"
   },
   "dependencies": {
-    "docus": "latest",
+    "docus": "5.13.0",
     "better-sqlite3": "^12.2.0",
     "nuxt": "^4.2.1",
     "mermaid": "^11.4.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "mdast-util-to-markdown": "2.1.2"
+    }
   }
 }

@@ -1,6 +1,6 @@
 # Lime v1.153.0 发布执行计划
 
-状态：冻结候选与必要验证完成，执行commit/tag/push及分发核验。
+状态：commit/tag/main与tag推送完成，Release workflow运行中，等待产物与公开分发核验。
 日期：2026-10-09
 基线：`v1.152.0` / `26b14f43939d575f9132e58191cd9bb3aa8865fd`
 起点：`main` / `b594644086b3dc4097d2ffc17568601292d277de`
@@ -23,7 +23,7 @@
 - [x] typecheck、contracts、受影响回归与必要环境失败补验完成并匹配冻结候选；原环境失败如实保留。
 - [x] CLI stdio、TUI PTY、Agent runtime fixture与GUI smoke取得本版风险匹配证据。
 - [x] 用户明确授权完整发布，无需再次确认。
-- [ ] 创建Release v1.153.0提交与v1.153.0，推送main/tag并复核SHA。
+- [x] 创建Release v1.153.0提交与v1.153.0，推送main/tag并复核SHA。
 - [ ] 核验Release workflow、GitHub Release、CLI/npm与updater实际分发。
 
 ## 架构确认与分类
@@ -63,9 +63,9 @@
 
 ## 发布状态
 
-- 本地与远端main仍为起点，目标tag/GitHub Release尚不存在。
-- release commit/tag/push尚未执行，必要门禁与冻结结果确认后连续执行。
-- 当前退出条件6/8（75%）；必要验证闭环，接续commit/tag/push与CI/公开分发。
+- 本地与远端main/tag均为`3528a3c721ad4417ea6bf0378421c43014b42bda`，GitHub Release已创建draft。
+- release commit/tag/main与tag显式push已连续完成；Release workflow `37932726668`的event=push、headBranch=v1.153.0、headSha匹配本版。
+- 当前退出条件7/8（87.5%）；CI构建与公开分发核验继续执行。
 
 ## 隔离验证收尾（2026-10-09）
 
@@ -90,3 +90,32 @@
 
 - TUI其余10个原始场景最终exit0（`tui-gate-b-remaining-retry.log`），thread `01a120b4-fa31-78a1-902f-49dc20153c69`、turn `turn_d2ea3fefe8c24013b8091c5842a083fd`。approval/user-input/interrupt/failure/queue-edit/agents-overview/large-paste/diff-display/images/skills全部真实PTY通过，typed input/thread input stdio、图片/skill结构化历史、effort动画、focus/resize/reconnect/terminal restore通过。一次启动10s超时保留诊断，后续成功重验未改产品或断言；与npm complete形成原11场景完整证据。
 - 提交前范围：冻结165路径，最终仅双语导航条目、本发布计划、suggestions清空光标与config逐次按键两个测试助手为冻结后修正。其余阶段83源码/文档/脚本开发保持未提交。正式release commit直接以`b594644086b3dc4097d2ffc17568601292d277de`为父，独立验证快照不进入main/tag历史。
+
+- Release commit `3528a3c721ad4417ea6bf0378421c43014b42bda`，tree `31e0a155d37ee8afc741a594ee1a47836dc92745`，唯一父为起点main；165文件纳入。远端main/tag已实读匹配，工作区后续开发保留为未提交，未用add-A/reset覆盖。
+- 独立检出缺少忽略目录`.husky/_`，正常commit自动hook未执行；提交前已明确运行原AI静态验证162/162通过，提交后按release实际变更列表对最终冻结文件再次运行同一验证器163/163通过，`precommit-release-files.log`保留。此处如实区分显式验证与自动hook，不声称自动hook运行。
+- 发布工作流：https://github.com/limecloud/lime/actions/runs/37932726668 。Prepare GitHub release通过，三平台桌面开始构建；GitHub Release目前draft，尚未宣称公开分发完成。
+
+- CI macOS arm64已构建/签名/公证并通过打包后native Gate B，8/8结构化检查passed；已下载实读summary，candidate version=1.153.0、SHA=`3528a3c721ad4417ea6bf0378421c43014b42bda`、runId=`release-37932726668-1-darwin-arm64`逐项匹配。Windows安装/更新步骤已完成，证据下载核验继续；macOS x64仍构建中。
+- 自定义更新域名本机TLS连接再次超时（`default-updater-endpoint.stderr`）；公开R2、CI回读与版本feed待本次上传后单独核对，不据本机网络推断全球客户端可用性。
+
+- Windows原run证据下载实读：Squirrel真实N-1更新/卸载21/21、已安装GUI壳24/24、CodeMode21项、native6项和packaged identity4项全部通过；candidate version=1.153.0、SHA与runId=`release-37932726668-1-win32-x64`一致，resource manifest涵盖App Server、CodeMode、native host和两个sandbox helper。没有沿用上版补验或只取job颜色作为本版证据。
+
+- macOS x64打包后native证据已实读8/8 passed，version/SHA/runId=`release-37932726668-1-darwin-x64`一致。三平台桌面产品验证全部成功，等待最后缓存收尾后汇总上传GitHub/R2并构建CLI平台包。
+
+- 三平台桌面build及GitHub资产publish全部success。GitHub Release已公开且latest稳定版，非draft/prerelease；9/9桌面资产uploaded、size>0、SHA256完整，中文body与本版RELEASE_NOTES逐字匹配。公开地址：https://github.com/limecloud/lime/releases/tag/v1.153.0 。R2上传和四平台CLI/npm构建继续运行，尚未将桌面公开扩张为完整分发完成。
+
+## 发布后 CI 修复（2026-10-09）
+
+- 用户要求修复截图中的Actions失败并继续发布。Docs run `37932718112` 在 `sitemap.xml` 预渲染失败：新版 `@nuxt/sitemap` 要求公开 `site.url`；不是Pages部署权限故障。Pages API实读地址为 `https://limecloud.github.io/lime/`，无自定义域名。
+- 本轮窄写集为 `docs/nuxt.config.ts`、`docs/app.config.ts` 和本计划：补齐站点URL、让llms消费同一URL并同步旧GitHub链接。采用全新依赖、原CI安装/生成命令验证sitemap、canonical与baseURL；避免旧本地Docus依赖掩盖问题。退出条件为新Docs构建和部署成功、公开页面可访问。
+- 历史Quality run `37763816405` 的13项unused lint已在本版修复，当前run `37932718117` 的Frontend Full、Integrity、GUI Smoke与Windows Shell Runtime成功，Rust Full仍运行。历史Windows run `37763248438` 的artifact层级问题已修复，恢复run `37763827153` 和本版Windows打包证据均成功；不重跑旧SHA冒充修复。
+- Docs修复独立提交，不移动已发布 `v1.153.0` tag，不纳入冻结后的CLI/TUI并行开发。current为Docs站点配置，compat/deprecated/dead无新增；KISS/DRY复用站点URL，不引入新模块或主题迁移。
+- 全新安装确认 `docus: latest` 已解析到5.14.0。该版新增 `nuxt-agent-discovery` 明确拒绝带路径的站点URL；仅配置origin虽能生成，却产生缺少 `/lime` 的canonical和错误llms链接，未作为合格修复。扩展窄写集至 `docs/package.json` 与独立 `docs/pnpm-lock.yaml`：固定到最后不含该模块的5.13.0，锁定独立依赖，继续以Nuxt4.6.0验证真实生成结果。根workspace依赖与并行文档不纳入。
+- R2 job已success；公开R2的18个current/versioned地址全部通过HTTP、size核验，feed逐字节内容、SHA256与版本均匹配本版GitHub资产（`r2-public-summary.json`）。自定义更新域名的本机TLS限制仍单独保留。
+- Docs最终写集另含 `.github/workflows/deploy-docs.yml`：`configure-pages` 的origin/base_path输出形成 `NUXT_SITE_URL`，供5.13.0 sitemap的既有环境读取入口使用；Nuxt站点配置读取同一变量，本地默认真实Pages地址。CI使用独立锁文件的frozen安装，并监听自身workflow改动。
+- Node22.23.3、pnpm9.15.9、Docus5.13.0、Nuxt4.6.0的冻结安装后生成exit0、59条route完成；实读13/13 sitemap URL与canonical/og:url正确。但Docus默认 `failOnError:false` 掩盖了 `llms-full.txt` 的500，未把该exit0当作完整通过。启用 `nitro.prerender.failOnError:true` 后该错误正确阻断生成。
+- llms递归根因已定位：`mdast-util-to-markdown` 2.2.0 的strong handler改为把自身节点送回containerPhrasing，依赖handler的attention元数据；`remark-mdc` 3.11.1包装strong时没有保留该元数据，造成无限递归。将Docs独立依赖图的该包固定到2.1.2；Content/MDC版本回退未修复问题，已撤回该无效override，继续使用当前Content版本。所有失败日志保留。
+- MCP原测试的新源码定向与完整库169项均通过，未本地复现CI时序。修正仅在test-only区域：一次性释放信号用CancellationToken，调用失败先报告错误，再有界等待progress并携带label/token诊断；保留原隔离/结果/不串流断言。修正后库169/169与8进程并行100次重复全部通过；不声称已证明原通知丢失机制，不改production或增加CI时限。
+- Docs最终生成exit0且无预渲染错误，60条route完成；13/13 sitemap、canonical与og:url一致（主页仅标准化尾斜杠），14/14 llms公开链接均有实际文件，`llms-full.txt` 34661 bytes；无重复base path。证据为 `docs-ci/docs-mdast-fixed-generate.log`、`docs-ci/docs-validation-summary.json`。独立锁文件保留解析后的Content3.15.2/MDC0.22.2，不再额外覆盖其版本；只有Markdown序列化依赖的2.1.2 override。Docs边界检查通过、既有守卫24/24通过、静态验证7/7通过。
+- 修复提交写集仅为Docs四文件（含独立生成锁文件）、Pages workflow、MCP现有测试和本计划，共7文件；用户全局gitignore忽略pnpm-lock.yaml，显式纳入这一个必要锁文件，不修改全局规则。其余CLI/TUI/架构/运维文档开发均保留。使用独立索引复核及正常hook提交，不重打tag。
+- 当前Quality run `37932718117` 最终cancelled：MCP并发进度测试从13:13:36至13:51:24持续等待，触发60分钟job预算；其余任务成功。新增认领 `lime-rs/crates/mcp/src/bridge_client.rs` 的现有测试区，先复现、定位无限等待，再定向验证，不以提高作业timeout掩盖卡死。
