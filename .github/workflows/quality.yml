@@ -389,7 +389,7 @@ jobs:
             "fs::tests::exact_fs_round_trip_covers_binary_metadata_directory_copy_and_remove"
           )
           foreach ($contractTest in $contractTests) {
-            $testOutput = cargo test --manifest-path lime-rs/Cargo.toml -p app-server --lib $contractTest -- --exact --test-threads=1
+            $testOutput = cargo test --manifest-path "lime-rs/Cargo.toml" -p app-server --lib $contractTest -- --exact --test-threads=1
             $testExitCode = $LASTEXITCODE
             $testOutput | Write-Output
             if ($testExitCode -ne 0) { exit $testExitCode }
