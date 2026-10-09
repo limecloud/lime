@@ -127,6 +127,32 @@ impl BottomPane {
         self.composer.set_agents_navigation_enabled(enabled)
     }
 
+    pub(crate) fn set_active_reasoning_effort(
+        &mut self,
+        effort: Option<&str>,
+        animations_enabled: bool,
+    ) {
+        self.composer
+            .set_active_reasoning_effort(effort, animations_enabled);
+    }
+
+    pub(crate) fn set_active_reasoning_effort_baseline(&mut self, effort: Option<&str>) {
+        self.composer.set_active_reasoning_effort_baseline(effort);
+    }
+
+    pub(crate) fn set_frame_requester(&mut self, requester: crate::tui::FrameRequester) {
+        self.composer.set_frame_requester(requester);
+    }
+
+    pub(crate) fn render_footer(
+        &self,
+        frame: &mut ratatui::Frame<'_>,
+        area: ratatui::layout::Rect,
+        props: &super::FooterProps,
+    ) {
+        self.composer.render_footer(frame, area, props);
+    }
+
     pub(crate) fn set_skills(&mut self, skills: Vec<SkillMetadata>) {
         self.composer.set_skills(skills)
     }

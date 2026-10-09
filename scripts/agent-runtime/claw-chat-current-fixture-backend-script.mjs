@@ -4,6 +4,7 @@ import {
   renderApprovalRequestResumeTurnStartScript,
 } from "./claw-chat-current-fixture-approval-backend-events.mjs";
 import { renderBackendToolAndSkillEventScript } from "./claw-chat-current-fixture-backend-tool-skill-events.mjs";
+import { renderReasoningBackendEvents } from "./reasoning-backend.mjs";
 import { renderUnknownItemBackendEventsExpression } from "./claw-chat-current-fixture-unknown-item.mjs";
 import {
   APPROVAL_REQUEST_RESUME_PROMPT,
@@ -45,11 +46,9 @@ import {
   PLAN_PROMPT,
   PLAN_STEPS,
   PROPOSED_PLAN_BLOCK,
-  REASONING_FIRST_VISIBLE_CONTENT_TEXT,
   REASONING_FIRST_VISIBLE_DONE_TEXT,
   REASONING_FIRST_VISIBLE_FINAL_TEXT,
   REASONING_FIRST_VISIBLE_PROMPT,
-  REASONING_FIRST_VISIBLE_TEXT,
   TERMINAL_CANCELED_AFTER_ANSWER_CANCELED_TEXT,
   TERMINAL_CANCELED_AFTER_ANSWER_PARTIAL_TEXT,
   TERMINAL_CANCELED_AFTER_ANSWER_PROMPT,
@@ -969,131 +968,7 @@ ${renderUnknownItemBackendEventsExpression()}
     });
     await sleep(250);
   }
-  if (isReasoningFirstVisiblePrompt) {
-    const reasoningStartedAt = new Date().toISOString();
-    const reasoningItemId = \`\${currentTurnId() || "turn"}:reasoning:first-visible\`;
-    emitEvents([
-      {
-        type: "reasoning.started",
-        payload: {
-          reasoningId: reasoningItemId,
-          reasoning_id: reasoningItemId,
-          status: "in_progress",
-          started_at: reasoningStartedAt,
-          startedAt: reasoningStartedAt
-        }
-      },
-      {
-        type: "reasoning.final",
-        payload: {
-          reasoningId: reasoningItemId,
-          reasoning_id: reasoningItemId,
-          text: "${REASONING_FIRST_VISIBLE_TEXT}",
-          providerMetadata: {
-            backend: "reasoning_first_visible_fixture",
-            signature: "reasoning-first-visible-final-signature"
-          },
-          provider_metadata: {
-            backend: "reasoning_first_visible_fixture",
-            signature: "reasoning-first-visible-final-signature"
-          }
-        }
-      },
-      {
-        type: "item.updated",
-        payload: {
-          itemType: "reasoning",
-          itemId: reasoningItemId,
-          status: "in_progress",
-          canonicalLifecycle: "runtime_message_reasoning.v1",
-          item: {
-            id: reasoningItemId,
-            thread_id: currentThreadId(),
-            threadId: currentThreadId(),
-            turn_id: currentTurnId(),
-            turnId: currentTurnId(),
-            type: "reasoning",
-            text: "${REASONING_FIRST_VISIBLE_TEXT}",
-            summary: ["${REASONING_FIRST_VISIBLE_TEXT}"],
-            sequence: 1,
-            status: "in_progress",
-            started_at: reasoningStartedAt,
-            startedAt: reasoningStartedAt,
-            updated_at: reasoningStartedAt,
-            updatedAt: reasoningStartedAt,
-            metadata: {
-              provider_metadata: {
-                backend: "reasoning_first_visible_fixture",
-                signature: "reasoning-first-visible-item-signature"
-              }
-            }
-          }
-        }
-      }
-    ]);
-    await sleep(5000);
-    emitEvents([
-      {
-        type: "item.updated",
-        payload: {
-          itemType: "reasoning",
-          itemId: reasoningItemId,
-          status: "in_progress",
-          canonicalLifecycle: "runtime_message_reasoning.v1",
-          item: {
-            id: reasoningItemId,
-            thread_id: currentThreadId(),
-            threadId: currentThreadId(),
-            turn_id: currentTurnId(),
-            turnId: currentTurnId(),
-            type: "reasoning",
-            text: "${REASONING_FIRST_VISIBLE_TEXT}",
-            summary: ["${REASONING_FIRST_VISIBLE_TEXT}"],
-            content: ["${REASONING_FIRST_VISIBLE_CONTENT_TEXT}"],
-            sequence: 1,
-            status: "in_progress",
-            started_at: reasoningStartedAt,
-            startedAt: reasoningStartedAt,
-            updated_at: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-            metadata: {
-              provider_metadata: {
-                backend: "reasoning_first_visible_fixture",
-                signature: "reasoning-first-visible-item-signature"
-              }
-            }
-          }
-        }
-      },
-      {
-        type: "reasoning.ended",
-        payload: {
-          reasoningId: reasoningItemId,
-          reasoning_id: reasoningItemId,
-          status: "completed"
-        }
-      },
-      {
-        type: "provider.first_text_delta.received",
-        payload: providerTracePayload("first_text_delta_received", 5200, "running", {
-          text_chars: followupText.length,
-          textChars: followupText.length
-        })
-      },
-      {
-        type: "message.delta",
-        payload: messageDeltaPayload(followupText, "final_answer", finalAnswerItemId)
-      },
-      {
-        type: "turn.completed",
-        payload: {
-          status: "completed",
-          text: "${REASONING_FIRST_VISIBLE_FINAL_TEXT}\\n${REASONING_FIRST_VISIBLE_DONE_TEXT}"
-        }
-      }
-    ]);
-    process.exit(0);
-  }
+${renderReasoningBackendEvents()}
   if (isLiveTailCommitPrompt) {
     await sleep(1400);
     const completedMessageText = (initialMessageText + followupText).trim();

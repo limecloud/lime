@@ -18,7 +18,9 @@ fn rendered_text_at_width(app: &App, width: u16) -> String {
 fn rendered_props_at_width(props: &FooterProps, width: u16) -> String {
     let mut terminal = Terminal::new(TestBackend::new(width, 1)).expect("terminal");
     terminal
-        .draw(|frame| render_footer(frame, frame.area(), props))
+        .draw(|frame| {
+            render_footer(frame, frame.area(), props, None);
+        })
         .expect("draw footer");
     let buffer = terminal.backend().buffer();
     (0..buffer.area.width)
@@ -157,7 +159,9 @@ fn explicit_empty_interaction_hints_clear_the_outer_footer() {
 
     let mut terminal = Terminal::new(TestBackend::new(64, 1)).expect("terminal");
     terminal
-        .draw(|frame| render_footer(frame, frame.area(), &props))
+        .draw(|frame| {
+            render_footer(frame, frame.area(), &props, None);
+        })
         .expect("draw footer");
     let text = terminal
         .backend()

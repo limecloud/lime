@@ -7,6 +7,59 @@ import { expect, it } from "vitest";
 
 import { writeTerminalExternalBackend } from "./terminal-gate-fixture.mjs";
 
+it("closes assistant identity for fork evidence only when explicitly enabled and successful", async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "terminal-message-lifecycle-"));
+  try {
+    const backend = path.join(dir, "backend.mjs");
+    for (const [completeAgentMessage, terminalStatus, expected] of [
+      [false, "completed", false],
+      [true, "completed", true],
+      [true, "failed", false],
+      [true, "interrupted", false],
+    ]) {
+      await writeTerminalExternalBackend(backend, {
+        completedText: "answer",
+        command: "test-only",
+        completeAgentMessage,
+        terminalStatus,
+      });
+      const events = JSON.parse(
+        execFileSync(
+          process.execPath,
+          [backend, path.join(dir, "ledger.jsonl")],
+          {
+            input: JSON.stringify({
+              kind: "turnStart",
+              request: {
+                session: { threadId: "thread" },
+                turn: { turnId: "turn" },
+              },
+            }),
+            encoding: "utf8",
+          },
+        ),
+      ).events;
+      const completed = events.filter(
+        (event) => event.type === "message.completed",
+      );
+      expect(completed).toHaveLength(expected ? 1 : 0);
+      if (expected) {
+        expect(completed[0].payload).toEqual({
+          itemId: events.find((event) => event.type === "message.delta").payload
+            .itemId,
+          role: "assistant",
+          phase: "final_answer",
+          status: "completed",
+        });
+        expect(events.at(-2)).toEqual(completed[0]);
+        expect(events.at(-1).type).toBe("turn.completed");
+      }
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 it("scopes every completed reasoning and command identity to its canonical Turn", async () => {
   const dir = mkdtempSync(path.join(tmpdir(), "terminal-multiple-turns-"));
   try {

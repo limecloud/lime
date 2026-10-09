@@ -59,6 +59,15 @@ async fn config_control_plane_uses_the_single_desktop_yaml_layer() {
     )
     .await;
     assert_eq!(read["result"]["config"]["language"], "zh-CN");
+    assert_eq!(read["result"]["config"]["show_raw_agent_reasoning"], false);
+    assert_eq!(read["result"]["config"]["hide_agent_reasoning"], false);
+    assert!(
+        serde_json::from_value::<lime_core::config::TuiConfig>(
+            read["result"]["config"]["tui"].clone()
+        )
+        .unwrap()
+        .animations
+    );
     assert_eq!(
         read["result"]["config"]["tui"]["keymap"]["global"]["find_transcript"],
         "ctrl-x f"
@@ -93,6 +102,14 @@ async fn config_control_plane_uses_the_single_desktop_yaml_layer() {
         METHOD_CONFIG_BATCH_WRITE,
         json!({
             "edits": [{
+                "keyPath": "show_raw_agent_reasoning",
+                "value": true,
+                "mergeStrategy": "replace"
+            }, {
+                "keyPath": "hide_agent_reasoning",
+                "value": true,
+                "mergeStrategy": "replace"
+            }, {
                 "keyPath": "language",
                 "value": "en-US",
                 "mergeStrategy": "replace"
@@ -111,6 +128,10 @@ async fn config_control_plane_uses_the_single_desktop_yaml_layer() {
             }, {
                 "keyPath": "tui.status_line",
                 "value": ["session-id", "model-with-reasoning", "current-dir"],
+                "mergeStrategy": "replace"
+            }, {
+                "keyPath": "tui.animations",
+                "value": false,
                 "mergeStrategy": "replace"
             }, {
                 "keyPath": "tui.status_line_use_colors",
@@ -137,6 +158,11 @@ async fn config_control_plane_uses_the_single_desktop_yaml_layer() {
         .to_string();
 
     let vim_read = request(&server, 30, METHOD_CONFIG_READ, json!({})).await;
+    assert_eq!(vim_read["result"]["config"]["tui"]["animations"], false);
+    assert_eq!(
+        vim_read["result"]["config"]["show_raw_agent_reasoning"],
+        true
+    );
     assert_eq!(
         vim_read["result"]["config"]["tui"]["terminal_title"],
         json!(["project-name", "activity", "thread-title"])
@@ -175,6 +201,8 @@ async fn config_control_plane_uses_the_single_desktop_yaml_layer() {
     .await;
     assert_eq!(value_write["result"]["status"], "ok");
     let persisted = ConfigManager::load(&config_path).expect("load persisted config");
+    assert!(persisted.config().show_raw_agent_reasoning);
+    assert!(persisted.config().hide_agent_reasoning);
     assert_eq!(
         persisted.config().tui.status_line.as_deref(),
         Some(
@@ -187,6 +215,7 @@ async fn config_control_plane_uses_the_single_desktop_yaml_layer() {
         )
     );
     assert!(!persisted.config().tui.status_line_use_colors);
+    assert!(!persisted.config().tui.animations);
     assert_eq!(
         persisted.config().tui.terminal_title,
         Some(vec![
@@ -305,6 +334,12 @@ async fn config_control_plane_uses_the_single_desktop_yaml_layer() {
         (17, "tui.status_line_use_colors", json!("false")),
         (18, "tui.terminal_title", json!([1])),
         (19, "tui.terminal_title", json!("activity")),
+        (20, "show_raw_agent_reasoning", json!("true")),
+        (21, "show_raw_agent_reasoning", json!(1)),
+        (22, "hide_agent_reasoning", json!("true")),
+        (23, "hide_agent_reasoning", json!(1)),
+        (24, "tui.animations", json!("false")),
+        (26, "tui.animations", json!(1)),
     ] {
         let invalid = request_error(
             &server,
@@ -320,7 +355,49 @@ async fn config_control_plane_uses_the_single_desktop_yaml_layer() {
             "invalid TUI config: {invalid}"
         );
     }
+    // Public config writes use null to remove an override, unlike a literal null in core YAML.
+    let reset = request(
+        &server,
+        25,
+        METHOD_CONFIG_VALUE_WRITE,
+        json!({
+            "keyPath": "tui.animations", "value": null, "mergeStrategy": "replace"
+        }),
+    )
+    .await;
+    assert_eq!(reset["result"]["status"], "ok");
+    let reset_read = request(&server, 27, METHOD_CONFIG_READ, json!({})).await;
+    assert!(
+        serde_json::from_value::<lime_core::config::TuiConfig>(
+            reset_read["result"]["config"]["tui"].clone()
+        )
+        .unwrap()
+        .animations
+    );
+    assert!(
+        ConfigManager::load(&config_path)
+            .unwrap()
+            .config()
+            .tui
+            .animations
+    );
+    let disabled = request(
+        &server,
+        28,
+        METHOD_CONFIG_VALUE_WRITE,
+        json!({
+            "keyPath": "tui.animations", "value": false, "mergeStrategy": "replace"
+        }),
+    )
+    .await;
+    assert_eq!(disabled["result"]["status"], "ok");
     let final_read = request(&server, 11, METHOD_CONFIG_READ, json!({})).await;
+    assert_eq!(final_read["result"]["config"]["tui"]["animations"], false);
+    assert_eq!(final_read["result"]["config"]["hide_agent_reasoning"], true);
+    assert_eq!(
+        final_read["result"]["config"]["show_raw_agent_reasoning"],
+        true
+    );
     assert_eq!(
         final_read["result"]["config"]["tui"]["terminal_title"],
         json!(["project-name", "activity", "thread-title"])
@@ -350,7 +427,11 @@ async fn config_control_plane_uses_the_single_desktop_yaml_layer() {
         31,
         METHOD_CONFIG_BATCH_WRITE,
         json!({
-            "edits": [{"keyPath": "tui.terminal_title", "value": [], "mergeStrategy": "replace"}],
+            "edits": [
+                {"keyPath": "tui.terminal_title", "value": [], "mergeStrategy": "replace"},
+                {"keyPath": "show_raw_agent_reasoning", "value": null, "mergeStrategy": "replace"},
+                {"keyPath": "hide_agent_reasoning", "value": null, "mergeStrategy": "replace"}
+            ],
             "reloadUserConfig": true
         }),
     )
@@ -365,6 +446,10 @@ async fn config_control_plane_uses_the_single_desktop_yaml_layer() {
         Some(vec![])
     );
     let empty_read = request(&server, 32, METHOD_CONFIG_READ, json!({})).await;
+    assert_eq!(
+        empty_read["result"]["config"]["show_raw_agent_reasoning"], false,
+        "null removes the key and restores the shared default; it is not a literal bool value"
+    );
     assert_eq!(
         empty_read["result"]["config"]["tui"]["terminal_title"],
         json!([])

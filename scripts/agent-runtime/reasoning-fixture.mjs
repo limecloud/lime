@@ -5,12 +5,21 @@ import {
   REASONING_FIRST_VISIBLE_FINAL_TEXT,
   REASONING_FIRST_VISIBLE_PROMPT,
   REASONING_FIRST_VISIBLE_TEXT,
+  SESSION_TITLE,
 } from "./claw-chat-current-fixture-constants.mjs";
-import { evaluatePageSnapshot } from "./claw-chat-current-fixture-rpc.mjs";
 import {
-  collectReadModelItems,
-  readModelLatestTurnStatus,
-} from "./claw-chat-current-fixture-read-model-core.mjs";
+  evaluatePageSnapshot,
+  reloadRendererDocument,
+  waitForRendererReady,
+  updateConfigFromPage,
+} from "./claw-chat-current-fixture-rpc.mjs";
+import { sendPromptFromGui } from "./claw-chat-current-fixture-gui-actions.mjs";
+import { waitForSessionReadCompleted } from "./claw-chat-current-fixture-read-model-waits.mjs";
+import {
+  openFixtureSessionFromSidebar,
+  waitForGuiSessionVisible,
+} from "./claw-chat-current-fixture-session.mjs";
+import { readModelLatestTurnStatus } from "./claw-chat-current-fixture-read-model-core.mjs";
 import {
   assert,
   sanitizeJson,
@@ -19,36 +28,41 @@ import {
 
 export function summarizeReasoningFirstVisibleReadModel(readModel) {
   const serialized = JSON.stringify(readModel || {});
-  const items = collectReadModelItems(readModel);
+  // Use the public v2 response once; aggregating aliases can repeat the same collection.
+  const thread = readModel?.thread;
+  const turns = Array.isArray(thread?.turns) ? thread.turns : [];
+  const promptTurns = turns.filter((turn) =>
+    turn.items?.some(
+      (item) =>
+        item.type === "userMessage" &&
+        JSON.stringify(item).includes(REASONING_FIRST_VISIBLE_PROMPT),
+    ),
+  );
+  const turn = promptTurns.length === 1 ? promptTurns[0] : null;
+  const items = Array.isArray(turn?.items) ? turn.items : [];
   const reasoningItems = items.filter((item) => item?.type === "reasoning");
-  const reasoningItem = reasoningItems.find((item) =>
-    JSON.stringify(item || {}).includes(REASONING_FIRST_VISIBLE_TEXT),
+  const reasoningItem = reasoningItems.length === 1 ? reasoningItems[0] : null;
+  const reasoningSequence = reasoningItem ? items.indexOf(reasoningItem) : null;
+  const finalItems = items.filter(
+    (item) =>
+      item?.type === "agentMessage" &&
+      item.text?.includes(REASONING_FIRST_VISIBLE_FINAL_TEXT),
   );
-  const reasoningSequence =
-    typeof reasoningItem?.sequence === "number"
-      ? reasoningItem.sequence
-      : reasoningItem
-        ? items.indexOf(reasoningItem)
-        : null;
-  const finalItem = items.find((item) =>
-    JSON.stringify(item || {}).includes(REASONING_FIRST_VISIBLE_FINAL_TEXT),
-  );
-  const finalSequence =
-    typeof finalItem?.sequence === "number"
-      ? finalItem.sequence
-      : finalItem
-        ? items.indexOf(finalItem)
-        : null;
+  const finalItem = finalItems.length === 1 ? finalItems[0] : null;
+  const finalSequence = finalItem ? items.indexOf(finalItem) : null;
 
   return {
-    detailItemCount: Array.isArray(readModel?.detail?.items)
-      ? readModel.detail.items.length
-      : null,
-    threadReadItemCount: Array.isArray(
-      readModel?.detail?.thread_read?.thread_items,
-    )
-      ? readModel.detail.thread_read.thread_items.length
-      : null,
+    threadId: thread?.id ?? null,
+    turnId: turn?.id ?? null,
+    promptTurnCount: promptTurns.length,
+    itemCount: items.length,
+    itemIds: items.map((item) => item.id ?? null),
+    itemIdentitiesUnique:
+      items.length > 0 &&
+      items.every(
+        (item) => typeof item.id === "string" && item.id.length > 0,
+      ) &&
+      new Set(items.map((item) => item.id)).size === items.length,
     latestTurnStatus: readModelLatestTurnStatus(readModel),
     includesPrompt: serialized.includes(REASONING_FIRST_VISIBLE_PROMPT),
     includesAssistantDone: serialized.includes(
@@ -61,7 +75,17 @@ export function summarizeReasoningFirstVisibleReadModel(readModel) {
     ),
     includesReasoningItem: Boolean(reasoningItem),
     reasoningItemCount: reasoningItems.length,
-    reasoningItemStatus: reasoningItem?.status ?? null,
+    reasoningItemIds: reasoningItems.map((item) => item.id ?? null),
+    reasoningItemId: reasoningItem?.id ?? null,
+    reasoningTurnStatus: turn?.status ?? null,
+    reasoningSummaryExact:
+      JSON.stringify(reasoningItem?.summary) ===
+      JSON.stringify([REASONING_FIRST_VISIBLE_TEXT]),
+    reasoningContentExact:
+      JSON.stringify(reasoningItem?.content) ===
+      JSON.stringify([REASONING_FIRST_VISIBLE_CONTENT_TEXT]),
+    finalItemCount: finalItems.length,
+    finalItemId: finalItem?.id ?? null,
     reasoningSequence,
     finalSequence,
     reasoningSequenceBeforeFinal:
@@ -69,6 +93,142 @@ export function summarizeReasoningFirstVisibleReadModel(readModel) {
       finalSequence != null &&
       reasoningSequence < finalSequence,
   };
+}
+
+export function isCanonicalReasoningReadModelReady(snapshot) {
+  return (
+    Boolean(snapshot?.threadId) &&
+    Boolean(snapshot?.turnId) &&
+    snapshot.promptTurnCount === 1 &&
+    snapshot.itemIdentitiesUnique === true &&
+    snapshot.reasoningItemCount === 1 &&
+    snapshot.reasoningItemId === `${snapshot.turnId}:reasoning:first-visible` &&
+    snapshot.reasoningTurnStatus === "completed" &&
+    snapshot.reasoningSummaryExact === true &&
+    snapshot.reasoningContentExact === true &&
+    snapshot.finalItemCount === 1 &&
+    snapshot.reasoningSequenceBeforeFinal === true
+  );
+}
+
+export function isReasoningHistoryPreserved(before, after) {
+  return (
+    isCanonicalReasoningReadModelReady(before) &&
+    isCanonicalReasoningReadModelReady(after) &&
+    before.threadId === after.threadId &&
+    before.turnId === after.turnId &&
+    before.reasoningItemId === after.reasoningItemId &&
+    before.finalItemId === after.finalItemId &&
+    JSON.stringify(before.itemIds) === JSON.stringify(after.itemIds) &&
+    before.reasoningSequence === after.reasoningSequence &&
+    before.finalSequence === after.finalSequence
+  );
+}
+
+export async function runReasoningFirstVisibleScenario({
+  page,
+  options,
+  summary,
+  appServerRequests,
+  logStage,
+  recordPerformanceTrace,
+}) {
+  logStage("send-reasoning-first-visible-prompt-from-gui");
+  summary.reasoningFirstVisibleInputSend = sanitizeJson(
+    await sendPromptFromGui(page, options, REASONING_FIRST_VISIBLE_PROMPT),
+  );
+  logStage("wait-gui-reasoning-first-visible-before-answer");
+  summary.guiReasoningFirstVisibleBeforeAnswer = sanitizeJson(
+    await waitForGuiReasoningFirstVisibleBeforeAnswer(page, options),
+  );
+  logStage("wait-gui-reasoning-first-visible-completed");
+  summary.guiReasoningFirstVisibleCompleted = sanitizeJson(
+    await waitForGuiReasoningFirstVisibleCompleted(page, options),
+  );
+
+  const readCompleted = async () =>
+    summarizeReasoningFirstVisibleReadModel(
+      await waitForSessionReadCompleted(page, options, appServerRequests, {
+        prompt: REASONING_FIRST_VISIBLE_PROMPT,
+        doneText: REASONING_FIRST_VISIBLE_DONE_TEXT,
+        summaryText: REASONING_FIRST_VISIBLE_FINAL_TEXT,
+      }),
+    );
+  logStage("wait-read-model-reasoning-first-visible-completed");
+  summary.readModelReasoningFirstVisibleCompleted = sanitizeJson(
+    await readCompleted(),
+  );
+  assert(
+    isCanonicalReasoningReadModelReady(
+      summary.readModelReasoningFirstVisibleCompleted,
+    ),
+    `推理 canonical Item 身份、内容或顺序不一致: ${JSON.stringify(summary.readModelReasoningFirstVisibleCompleted)}`,
+  );
+  await recordPerformanceTrace();
+
+  logStage("verify-reasoning-history-hydrate-from-sidebar");
+  summary.reasoningHistoryReload = await reloadRendererDocument(page, options);
+  summary.reasoningHistoryRendererReady = sanitizeJson(
+    await waitForRendererReady(page, options),
+  );
+  summary.reasoningHistorySessionVisible = sanitizeJson(
+    await waitForGuiSessionVisible(page, options, SESSION_TITLE),
+  );
+  summary.reasoningHistorySessionOpened = sanitizeJson(
+    await openFixtureSessionFromSidebar(page, options, appServerRequests),
+  );
+  summary.guiReasoningHistoryRestored = sanitizeJson(
+    await waitForGuiReasoningFirstVisibleCompleted(page, options),
+  );
+  summary.readModelReasoningHistoryRestored = sanitizeJson(
+    await readCompleted(),
+  );
+  assert(
+    isReasoningHistoryPreserved(
+      summary.readModelReasoningFirstVisibleCompleted,
+      summary.readModelReasoningHistoryRestored,
+    ),
+    `推理历史恢复后 canonical 身份或内容漂移: ${JSON.stringify({ before: summary.readModelReasoningFirstVisibleCompleted, after: summary.readModelReasoningHistoryRestored })}`,
+  );
+
+  logStage("verify-shared-raw-reasoning-config-and-history");
+  summary.rawReasoningConfigEnabled = sanitizeJson(
+    await updateConfigFromPage(
+      page,
+      (config) => ({ ...config, show_raw_agent_reasoning: true }),
+      appServerRequests,
+    ),
+  );
+  await reloadRendererDocument(page, options);
+  await waitForRendererReady(page, options);
+  await waitForGuiSessionVisible(page, options, SESSION_TITLE);
+  await openFixtureSessionFromSidebar(page, options, appServerRequests);
+  summary.guiRawReasoningHistory = sanitizeJson(
+    await waitForGuiReasoningFirstVisibleCompleted(page, options, true),
+  );
+  summary.readModelRawReasoningHistory = sanitizeJson(await readCompleted());
+  assert(
+    isReasoningHistoryPreserved(
+      summary.readModelReasoningFirstVisibleCompleted,
+      summary.readModelRawReasoningHistory,
+    ),
+    "显示原文不得改变 canonical identity/content",
+  );
+
+  summary.rawReasoningConfigDisabled = sanitizeJson(
+    await updateConfigFromPage(
+      page,
+      (config) => ({ ...config, show_raw_agent_reasoning: false }),
+      appServerRequests,
+    ),
+  );
+  await reloadRendererDocument(page, options);
+  await waitForRendererReady(page, options);
+  await waitForGuiSessionVisible(page, options, SESSION_TITLE);
+  await openFixtureSessionFromSidebar(page, options, appServerRequests);
+  summary.guiRawReasoningDisabled = sanitizeJson(
+    await waitForGuiReasoningFirstVisibleCompleted(page, options),
+  );
 }
 
 function reasoningFirstVisibleSnapshotFromDom({
@@ -159,6 +319,7 @@ function reasoningFirstVisibleSnapshotFromDom({
       ""
     ).includes(reasoningContentText),
     reasoningSummaryOccurrences: scopedText.split(reasoningText).length - 1,
+    rawReasoningOccurrences: scopedText.split(reasoningContentText).length - 1,
     reasoningProcessOpen: processBlocks.some(
       (block) => block.open === true && block.text.includes(reasoningText),
     ),
@@ -240,17 +401,22 @@ export async function waitForGuiReasoningFirstVisibleBeforeAnswer(
   );
 }
 
-export function isExpandedReasoningSnapshotReady(snapshot) {
+export function isExpandedReasoningSnapshotReady(snapshot, showRaw = false) {
   return (
     snapshot?.hasReasoningText === true &&
     snapshot?.reasoningSummaryOccurrences === 1 &&
     snapshot?.reasoningProcessOpen === true &&
-    snapshot?.hasReasoningContentText === false &&
-    snapshot?.rawReasoningInDom === false
+    snapshot?.hasReasoningContentText === showRaw &&
+    snapshot?.rawReasoningInDom === showRaw &&
+    (!showRaw || snapshot?.rawReasoningOccurrences === 1)
   );
 }
 
-export async function waitForGuiReasoningFirstVisibleCompleted(page, options) {
+export async function waitForGuiReasoningFirstVisibleCompleted(
+  page,
+  options,
+  showRaw = false,
+) {
   const startedAt = Date.now();
   let lastSnapshot = null;
   while (Date.now() - startedAt < options.timeoutMs) {
@@ -265,7 +431,7 @@ export async function waitForGuiReasoningFirstVisibleCompleted(page, options) {
       snapshot.hasReasoningText &&
       snapshot.hasFinalText &&
       snapshot.hasReasoningBeforeFinalAnswer &&
-      snapshot.hasReasoningContentText === false &&
+      (showRaw || snapshot.hasReasoningContentText === false) &&
       snapshot.startupNoteVisible === false &&
       snapshot.textareaVisible &&
       snapshot.textareaDisabled === false &&
@@ -327,7 +493,7 @@ export async function waitForGuiReasoningFirstVisibleCompleted(page, options) {
         Math.min(options.timeoutMs, 20_000)
       ) {
         expandedSnapshot = await evaluateReasoningFirstVisibleSnapshot(page);
-        if (isExpandedReasoningSnapshotReady(expandedSnapshot)) {
+        if (isExpandedReasoningSnapshotReady(expandedSnapshot, showRaw)) {
           return sanitizeJson({
             ...expandedSnapshot,
             historicalReasoningPreviewExpanded: historicalPreviewCount > 0,

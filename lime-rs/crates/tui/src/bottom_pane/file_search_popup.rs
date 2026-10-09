@@ -1,6 +1,6 @@
-use super::super::picker_rows::render_rows_single_line;
-use super::super::scroll_state::ScrollState;
-use super::super::selection_row_layout::{SelectionRow, MAX_POPUP_ROWS};
+use super::picker_rows::render_rows_single_line;
+use super::scroll_state::ScrollState;
+use super::selection_row_layout::{SelectionRow, MAX_POPUP_ROWS};
 use crate::fuzzy_match::fuzzy_match;
 use crate::line_truncation::{line_width, truncate_line_with_ellipsis_if_overflow};
 use crate::locale::Locale;
@@ -80,23 +80,24 @@ impl FileSearchPopup {
         let Event::Key(key) = event else {
             return FileSearchPopupAction::Pass;
         };
-        if key.kind != KeyEventKind::Press {
+        if key.kind == KeyEventKind::Release {
             return FileSearchPopupAction::Pass;
         }
         match key.code {
             KeyCode::Up | KeyCode::Char('p')
-                if key.code == KeyCode::Up || key.modifiers.contains(KeyModifiers::CONTROL) =>
+                if key.code == KeyCode::Up || key.modifiers == KeyModifiers::CONTROL =>
             {
                 self.state.move_up_wrap(self.matches.len());
                 FileSearchPopupAction::Consumed
             }
             KeyCode::Down | KeyCode::Char('n')
-                if key.code == KeyCode::Down || key.modifiers.contains(KeyModifiers::CONTROL) =>
+                if key.code == KeyCode::Down || key.modifiers == KeyModifiers::CONTROL =>
             {
                 self.state.move_down_wrap(self.matches.len());
                 FileSearchPopupAction::Consumed
             }
             KeyCode::Esc => FileSearchPopupAction::Cancel,
+            KeyCode::Enter if !key.modifiers.is_empty() => FileSearchPopupAction::Pass,
             KeyCode::Enter | KeyCode::Tab if self.selected_path().is_some() => {
                 FileSearchPopupAction::Complete
             }
@@ -219,6 +220,43 @@ mod tests {
         popup.set_matches("src", vec![result("src/lib.rs"), result("src/main.rs")]);
         popup.handle_event(&Event::Key(KeyEvent::new(KeyCode::Up, KeyModifiers::NONE)));
         assert_eq!(popup.selected_path(), Some("src/main.rs"));
+    }
+
+    #[test]
+    fn repeated_navigation_wraps_but_altgr_and_release_do_not_navigate() {
+        let mut popup = FileSearchPopup::new("src");
+        popup.set_matches("src", vec![result("src/lib.rs"), result("src/main.rs")]);
+        let key =
+            |code, modifiers, kind| Event::Key(KeyEvent::new_with_kind(code, modifiers, kind));
+        assert_eq!(
+            popup.handle_event(&key(
+                KeyCode::Down,
+                KeyModifiers::NONE,
+                KeyEventKind::Repeat
+            )),
+            FileSearchPopupAction::Consumed
+        );
+        assert_eq!(popup.selected_path(), Some("src/main.rs"));
+        for event in [
+            key(KeyCode::Up, KeyModifiers::NONE, KeyEventKind::Release),
+            key(
+                KeyCode::Char('p'),
+                KeyModifiers::CONTROL | KeyModifiers::ALT,
+                KeyEventKind::Press,
+            ),
+        ] {
+            assert_eq!(popup.handle_event(&event), FileSearchPopupAction::Pass);
+            assert_eq!(popup.selected_path(), Some("src/main.rs"));
+        }
+        assert_eq!(
+            popup.handle_event(&key(
+                KeyCode::Char('n'),
+                KeyModifiers::CONTROL,
+                KeyEventKind::Repeat
+            )),
+            FileSearchPopupAction::Consumed
+        );
+        assert_eq!(popup.selected_path(), Some("src/lib.rs"));
     }
 
     #[test]

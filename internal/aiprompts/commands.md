@@ -54,7 +54,8 @@ TUI 推理显示只消费同一协议的 summary/summaryIndex；原始 content �
 分段 facts 归 `projection/reasoning`，正文拆分/详情绘制归 `history_cell/reasoning`，
 status 从原始 parts 提取，pager/export 从同源 body 读取。独立空注释与首段活动标题
 不重复绘制，canonical completion/历史快照保持既有 item identity；不新增私有配置、
-method 或第二 read model。显式 raw reasoning 配置仍未接入。
+method 或第二 read model。显式 raw reasoning 由下方共享
+`show_raw_agent_reasoning` 策略承接，summary/content 保持独立索引。
 
 运行中摘要恢复只由 TUI `projection/history` 暂存 host-owned recovery intent：同一
 InProgress Turn 的 full snapshot 尾部 Reasoning 恢复 parts/status，后续首个增量可没有
@@ -94,10 +95,15 @@ modal/popup、未完成 startup 和 parent-owned thread 禁止穿透；当前服
 effort override，因此 Plan 快捷键显式 fail closed，不把普通 durable settings 更新冒充该 scope。
 普通模式只经既有 thread/settings/update 修改当前 Thread，成功后再更新本地投影，不写全局默认。
 
-TUI 偏好只允许位于同一 Lime 用户配置的 `tui.right_click_paste`、`tui.keymap`、`tui.status_line`
-与 `tui.status_line_use_colors`，由启动期
+TUI 偏好只允许位于同一 Lime 用户配置的 `tui.right_click_paste`、`tui.keymap`、`tui.status_line`、
+`tui.status_line_use_colors`、`tui.terminal_title` 与 `tui.animations`，由启动期
 `config/read -> LocalSettings -> RuntimeKeymap` 解析为进程内不可变 snapshot；主 TUI 与独立 resume
-picker 都必须在进入 alternate screen 前完成读取。当前真实 consumer 只包括
+picker 都必须在进入 alternate screen 前完成读取。`tui.animations` 默认true，false关闭
+effort ignition、status-line transition及运行状态shimmer；低色终端仍保留静态accent。
+Max/Ultra真实变化使用Composer内Wave/Aurora/Pulse（不连续重复），首次观察/启动/resume/
+hydrate只建立baseline；效果首次可见render起算，popup不消耗ignition时钟，缺palette取消。
+status-line outgoing、tier label和fade使用同一FooterProps投影与FrameRequester，无私有timer。
+其余当前真实 consumer 包括
 `tui.right_click_paste=auto|on|off`（右键 CLIPBOARD；中键 PRIMARY 仍要求本地 X11）以及
 `global.open_agents|open_transcript|find_transcript`、pager 的
 `scroll_up|scroll_down|page_up|page_down|half_page_up|half_page_down|jump_top|jump_bottom|close|close_transcript|find`
@@ -140,6 +146,82 @@ typed `total`、上下文取 `last` 与服务端 window；五语言显示和百�
 当前不含 token snapshot，因此原 bounded ThreadEventStore 在 session refresh 时保留
 最后一份已观察 usage，继续按 current Thread/最后 Turn 校验；不新建 method、缓存文件、
 provider 调用或第二套累计 owner。GUI 继续使用同一现有通知，不复制 TUI 交互组件。
+
+顶层 `show_raw_agent_reasoning` 是 GUI/TUI 共享显示策略，默认 false；只通过现有
+config/read 与 config/value/write、config/batchWrite 读写，由 core Config 校验 bool。
+TUI LocalSettings 在进入终端前读取，live、hydrate、分页、完整记录及 export 均传递同一
+snapshot。GUI ReasoningVisibility 消费同一 gateway/config changed，canonical reducer 保留
+summary/content 独立索引，仅 renderer 决定原文是否显示；不得另建 stream buffer 或私有开关。
+默认隐藏原文，不以 raw-only content 回退摘要。显式开启时按 summary 后 content 顺序显示，
+不修改 canonical 身份/内容。顶层 hide_agent_reasoning 默认 false，仅由 CLI exec human
+output 消费：隐藏优先于 raw 开关，未隐藏时 raw 有内容则选 content，否则选 summary。
+CLI exec owner 在 cli/src/exec，直接使用共享 app-server-client transport 与 typed canonical
+notifications；不得恢复 tui::run_exec、TUI projection 依赖或第二业务后端。
+`exec --json`由同名`exec/exec_events`与`exec/event_processor_with_jsonl_output`输出
+Codex形状逐事件JSONL，每条即时flush；只创建一个human或JSON renderer。
+thread.started携带canonical Thread ID，Item生命周期使用本次输出内稳定的递增编号；
+重复/迟到start不重开，terminal补漏，canonical正文变化以item.updated修复。
+machine Reasoning只消费summary，不输出content；todo_list来自typed plan notification。
+turn.completed使用最后usage.total五字段，failed为error/turn.failed和exit1，interrupted
+无成功终态且exit130，连接前失败仅error。旧jsonl flag、render_json_envelope与single
+result serializer已删除且禁止恢复；schema由Rust合同生成并随npm根包分发。
+exec参数归同名`exec/cli.rs`，human输出归`exec/event_processor_with_human_output.rs`。
+同名Command/ResumeArgs/ForkArgs/ExecSharedCliOptions承接exec resume/fork；shared连接参数仍由
+ConnectionArgs唯一声明，root/exec/resume/fork逐层继承，显式子级权限组覆盖父级。
+resolve_resume_thread_id只消费typed thread/list，updated_at倒序、未归档、默认cwd筛选，
+all取消cwd筛选，UUID优先、名称精确匹配；找到后走thread/resume再turn/start。
+last/name无匹配沿Codex语义新建，实际resume失败不fallback；不读取私有DB或rollout。
+exec/thread的start_thread统一start/resume/fork生命周期。fork查源始终跨cwd，UUID优先、
+名称精确匹配；缺源直接失败。thread/fork沿用canonical history/lineage与新Thread身份，
+显式cwd/模型/权限在既有fork/settings合同设置。无PROMPT为ForkOnly，不读取pipe或
+启动Turn，JSON仅thread.started，human五语言标签显示新会话ID；图片或-o要求PROMPT。
+显式PROMPT或-为UserTurn，继续走共享turn/start与同一输出processor。
+root/resume/fork的-i/--image为单参数、逗号列表、可重复；root图片先于子级图片，
+最终Text排在图片之后。仅lower到typed LocalImage，读取/媒体lowering仍由共享runtime拥有。
+App Server transport对thread/fork成功响应与start/resume使用同一SubscribeAndSend，
+订阅响应里的target Thread，先回应再发thread/started；其后Turn通知供所有surface消费。
+resume与fork source共用runtime/thread_fork/hydration的恢复选择；public fork的forkSequence
+走canonical history与event log恢复，cold nested fork不进入generic全局Turn repair，不改
+历史Turn/Item ID、source Thread或lineage。普通与AgentControl会话继续使用原恢复owner。
+ExecCli.output_schema为global FILE参数，load_output_schema只读取/解析UTF-8 JSON，
+InitialOperation::UserTurn将其传给既有TurnStartParams.output_schema；不校验/解释schema、
+不更新Thread/global设置。fork-only携带schema或文件读取/JSON错误在连接前显式失败。
+同名Command::Review/ReviewArgs/build_review_request只选择typed ReviewTarget：
+--uncommitted/--base/--commit/custom互斥，--title要求commit且不能附到其它target；
+没有target或custom空指令在连接前报错，custom '-'复用stdin解码并trim，显式指令忽略pipe。
+InitialOperation::Review只走review/start；provider prompt与审查边界由共享runtime构造，
+CLI不读取git或实现review loop。输出沿用同一EventProcessor及最后消息文件owner。
+PROMPT为单参数，root+pipe追加stdin块、省略/-读取stdin；resume显式prompt不追加pipe。
+prompt owner统一InitialOperation选择、UTF-8 BOM/UTF-16 decoding与空输入检查。output-last-message由共享
+EventProcessor按成功canonical最终答案写入，失败/中断保留文件，写失败显式报错。
+当前Thread/Turn的工具开始/终态/聚合输出、plan/diff、warning/error、model reroute和
+hook均只进入stderr；canonical Item ID去重，terminal快照修复遗漏的最终回答。
+用量只显示最后一次服务端累计快照的`max(0,input-cached)+max(0,output)`，不自行累加，
+排除cached input且饱和运算；结束时输出`tokens used`和千位分隔数。
+`--color auto|always|never`仅控制human标签，auto要求stderr TTY且无NO_COLOR/dumb终端，
+always显式覆盖；机器模式不消费human renderer。`--locale`（含root继承）优先于
+LIME_LOCALE/LC_ALL/LANG，覆盖五语言；两端都是TTY时只在stderr展示最终回答，任一端
+被重定向时stdout输出成功最终答案，failed/interrupted保持空stdout及1/130退出码。
+
+composer 常驻推理档位提示由 `bottom_pane/effort_ignition::EffortTier` 承接：Max 为金色 ›，
+Ultra 为紫色 »，其它/未知档位普通 ›，禁用输入为 dim ›。ChatWidget/settings 统一刷新
+当前 effective collaboration/settings 投影；未指定普通档位保留已有 mode override，
+显式 mode clear 才撤掉该 override，沿用已有协作设置语义。
+提示符不进入 ComposerDraft 或用户消息，不改变一列 prompt gutter、cursor 或附件几何。
+颜色通过已有 terminal_palette/style，NO_COLOR 不加色，ANSI16 使用 yellow/magenta。
+一次性 ignition 动画/状态栏过渡复用同一FrameRequester与共享tui.animations，配置与
+baseline规则见下方动画合同；不建立平行模型策略。
+文件/技能补全列表分别由 `bottom_pane/file_search_popup` 与 `bottom_pane/skill_popup`
+拥有绘制、选择和列表按键，直接消费既有 picker_rows/scroll_state/selection_row_layout。
+ChatComposer 仅持有同一popup state并负责token替换/显示生命周期；旧composer子目录
+模块与action re-export已删除，禁止恢复路径别名或第二列表实现。
+命令/文件/技能补全处理Press和Repeat，忽略Release；Ctrl+P/N只匹配CONTROL。
+command旧Ctrl+J/K导航已删除，二者继续由editor换行/删行绑定消费，不截获Ctrl+Alt。
+AltGr文本沿同一key_hint/textarea的Windows规则；Unix Ctrl+Alt保持控制chord。
+空输入Left导航由ChatComposer.handle_empty_prompt_shortcut独占，仅Press触发。
+agents_navigation_key_available从当前editor/Vim move_left动作判断：Left重绑或解绑后
+导航与footer提示同时失效；Repeat仍归editor，Release忽略。paste burst、pending chord、
+search、附件、disabled输入与remote会话均不抢导航，不保留fallback或editor bypass。
 普通 composer footer 同样从上述 typed usage lowering 出 immutable FooterProps：有真实
 window 时显示剩余百分比，无有效 window 时 fallback 为 server total.total_tokens，未知为空。
 bottom_pane/footer 独占左右布局和窄屏优先级；passive status 不再重复 context，右侧为

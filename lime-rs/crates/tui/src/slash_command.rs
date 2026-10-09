@@ -65,6 +65,13 @@ impl SlashCommand {
         matches!(self, Self::Effort | Self::Permissions)
     }
 
+    pub(crate) const fn supports_inline_args(self) -> bool {
+        matches!(
+            self,
+            Self::Model | Self::Effort | Self::Permissions | Self::Mcp | Self::Export | Self::Pwd
+        )
+    }
+
     pub(crate) fn description(self, locale: Locale) -> &'static str {
         locale.slash_command_description(self)
     }

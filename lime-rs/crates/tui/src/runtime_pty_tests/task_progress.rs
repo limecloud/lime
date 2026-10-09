@@ -26,7 +26,7 @@ pub(super) fn exercise_shared_progress(
         |screen| screen.contains("Configure status line"),
     );
     // Move progress first through the product ordering keys so a long real cwd cannot hide it.
-    config::toggle_setup_item(writer, "Task progress", true);
+    config::toggle_setup_item(writer, output_rx, output, "Task progress", true);
     wait_for_screen(
         output_rx,
         output,
@@ -56,7 +56,7 @@ pub(super) fn exercise_shared_progress(
         "canonical checklist is selectable in the title setup",
         |screen| screen.contains("Configure terminal title"),
     );
-    config::toggle_setup_item(writer, "Task progress", false);
+    config::toggle_setup_item(writer, output_rx, output, "Task progress", false);
     terminal_title::wait_for_title(
         output_rx,
         output,
@@ -85,7 +85,7 @@ pub(super) fn exercise_shared_progress(
         "reopen task-progress title setup",
         |screen| screen.contains("Configure terminal title"),
     );
-    config::toggle_setup_item(writer, "Task progress", false);
+    config::toggle_setup_item(writer, output_rx, output, "Task progress", false);
     writer.write_all(b"\x1b[20~").unwrap();
     writer.flush().unwrap();
     wait_for_screen(
@@ -143,7 +143,7 @@ pub(super) fn exercise_shared_progress(
             "remove task-progress selection through current setup",
             |screen| screen.contains(title),
         );
-        config::toggle_setup_item(writer, "Task progress", false);
+        config::toggle_setup_item(writer, output_rx, output, "Task progress", false);
         writer.write_all(b"\x1b[20~").unwrap();
         writer.flush().unwrap();
         wait_for_screen(

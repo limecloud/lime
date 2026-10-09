@@ -1,15 +1,16 @@
-//! Indexed summary facts are retained beside their renderable body, never mixed with raw content.
+//! Indexed summary and explicitly visible raw content retain separate canonical part boundaries.
 
 use std::collections::BTreeMap;
 
 use crate::history_cell::split_reasoning_summary_parts;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub(crate) struct ReasoningSummary {
+pub(crate) struct ReasoningText {
     parts: BTreeMap<i64, String>,
+    raw_parts: BTreeMap<i64, String>,
 }
 
-impl ReasoningSummary {
+impl ReasoningText {
     pub(crate) fn from_parts(parts: &[String]) -> Self {
         Self {
             parts: parts
@@ -17,22 +18,45 @@ impl ReasoningSummary {
                 .enumerate()
                 .map(|(index, part)| (index as i64, part.clone()))
                 .collect(),
+            raw_parts: BTreeMap::new(),
         }
+    }
+
+    pub(super) fn from_item(summary: &[String], content: &[String], show_raw: bool) -> Self {
+        let mut text = Self::from_parts(summary);
+        if show_raw {
+            text.raw_parts = content
+                .iter()
+                .enumerate()
+                .map(|(index, part)| (index as i64, part.clone()))
+                .collect();
+        }
+        text
     }
 
     pub(super) fn append(&mut self, index: i64, delta: &str) {
         self.parts.entry(index).or_default().push_str(delta);
     }
 
+    pub(super) fn append_raw(&mut self, index: i64, delta: &str) {
+        self.raw_parts.entry(index).or_default().push_str(delta);
+    }
+
     pub(super) fn content(&self) -> String {
-        let parts = self.parts.values().cloned().collect::<Vec<_>>();
+        let parts = self
+            .parts
+            .values()
+            .chain(self.raw_parts.values())
+            .cloned()
+            .collect::<Vec<_>>();
         split_reasoning_summary_parts(&parts).1
     }
 
     pub(super) fn latest_status(&self) -> Option<String> {
-        self.parts
+        self.raw_parts
             .values()
             .rev()
+            .chain(self.parts.values().rev())
             .find_map(|part| latest_summary_line(part))
     }
 }

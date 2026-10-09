@@ -12,6 +12,72 @@ const sourcePath = (file) =>
   path.resolve(process.cwd(), "lime-rs/crates/tui/src", file);
 
 describe("Codex structured mention owners", () => {
+  it("keeps effort effects in the composer with one frame requester and explicit restore baselines", () => {
+    const effort = source("bottom_pane/chat_composer/effort.rs");
+    expect(effort).toContain("fn set_active_reasoning_effort_baseline");
+    expect(effort).toContain("self.frame_requester");
+    expect(effort).not.toMatch(
+      /tokio::spawn|tokio::time|std::thread|ConfigManager|std::fs/,
+    );
+    expect(source("bottom_pane/chat_composer/render.rs")).not.toContain(
+      "fn set_active_reasoning_effort",
+    );
+    expect(source("runtime.rs")).toContain(
+      ".set_frame_requester(frame_requester.clone())",
+    );
+    for (const file of [
+      "app/startup.rs",
+      "app/session_lifecycle.rs",
+      "chatwidget/transcript.rs",
+    ]) {
+      expect(source(file), file).toContain(
+        "set_active_reasoning_effort_baseline()",
+      );
+    }
+    for (const file of [
+      "bottom_pane/effort_ignition.rs",
+      "bottom_pane/effort_ignition_styles.rs",
+      "bottom_pane/effort_status_line.rs",
+      "bottom_pane/chat_composer/effort.rs",
+    ]) {
+      expect(source(file).split("\n").length, file).toBeLessThan(800);
+    }
+  });
+
+  it("keeps slash draft edits in the composer and removes the pane's whole-draft replacement", () => {
+    const paneInput = source("bottom_pane/input.rs");
+    const slashInput = source("bottom_pane/chat_composer/slash_input.rs");
+    expect(paneInput).not.toContain("fn complete_slash_command");
+    expect(paneInput).not.toContain('self.composer.replace(format!("/');
+    expect(paneInput).toContain(
+      "self.composer.complete_slash_command(command)",
+    );
+    expect(slashInput).toContain("fn complete_slash_command");
+    expect(slashInput).toContain(
+      "fn complete_selected_slash_command_preserving_existing_draft_tail_as_inline_args",
+    );
+    expect(slashInput).toContain("command.supports_inline_args()");
+  });
+
+  it("owns file and skill lists directly in bottom pane without restoring composer module aliases", () => {
+    const pane = source("bottom_pane/mod.rs");
+    const composer = source("bottom_pane/chat_composer.rs");
+    for (const name of ["file_search_popup", "skill_popup"]) {
+      expect(pane).toContain(`mod ${name};`);
+      expect(composer).not.toContain(`mod ${name};`);
+      expect(composer).not.toContain(`self::${name}`);
+      expect(composer).toContain(`use super::${name}::`);
+      expect(source(`bottom_pane/${name}.rs`)).toContain(
+        "render_rows_single_line",
+      );
+      expect(
+        existsSync(sourcePath(`bottom_pane/chat_composer/${name}.rs`)),
+      ).toBe(false);
+    }
+    expect(pane).not.toContain("chat_composer::FileSearchPopupAction");
+    expect(pane).not.toContain("chat_composer::SkillPopupAction");
+  });
+
   it("owns provisional reasoning replay in history without a second backend or hydration implementation", () => {
     const history = source("projection/history.rs");
     for (const owner of [
@@ -62,14 +128,16 @@ describe("Codex structured mention owners", () => {
   });
   it("keeps default reasoning summaries separate from raw content and splits canonical lowering from streaming", () => {
     const projection = source("projection.rs");
-    expect(projection).toContain(
-      "ServerNotification::ReasoningTextDelta(_) => {}",
-    );
+    expect(projection).toContain("if self.show_raw_agent_reasoning");
     expect(projection).not.toMatch(
       /fn project_item_with_scope|fn append_delta|fn latest_summary_line/,
     );
     expect(source("projection/items.rs")).toContain(
-      "ReasoningSummary::from_parts(summary).content()",
+      "ReasoningText::from_item(summary, content, show_raw_agent_reasoning)",
+    );
+    expect(projection).toContain("self.append_reasoning_raw(");
+    expect(projection).not.toContain(
+      "ServerNotification::ReasoningTextDelta(_) => {}",
     );
     expect(source("projection/items.rs")).not.toContain(
       "if summary.is_empty() { content }",

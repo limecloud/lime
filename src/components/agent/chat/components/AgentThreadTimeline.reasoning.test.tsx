@@ -10,6 +10,52 @@ import {
 } from "./AgentThreadTimeline.testFixtures";
 
 describe("AgentThreadTimeline", () => {
+  it("显式开启后可显示只有 canonical content 的历史推理", () => {
+    const item: AgentThreadItem = {
+      ...createBaseItem("raw-only-visible", 1),
+      type: "reasoning",
+      text: "",
+      summary: [],
+      content: ["原文标题\n\n原文正文"],
+    };
+    const container = renderTimeline([item], { showRawReasoning: true });
+    act(() =>
+      container
+        .querySelector("summary")
+        ?.dispatchEvent(new MouseEvent("click", { bubbles: true })),
+    );
+    expect(container.textContent).toContain("原文正文");
+    expect(container.textContent?.split("原文正文").length).toBe(2);
+  });
+  it.each(["in_progress", "completed"] as const)(
+    "显式 raw 配置消费 canonical content：%s",
+    (status) => {
+      const item: AgentThreadItem = {
+        ...createBaseItem("raw-visible", 1),
+        type: "reasoning",
+        status,
+        text: "摘要",
+        summary: ["摘要"],
+        content: ["原始推理第一段", "原始推理第二段"],
+      };
+      const container = renderTimeline([item], {
+        showRawReasoning: true,
+        isCurrentTurn: status === "in_progress",
+        turn: { status: status === "in_progress" ? "running" : "completed" },
+      });
+      if (status === "completed") {
+        act(() =>
+          container
+            .querySelector("summary")
+            ?.dispatchEvent(new MouseEvent("click", { bubbles: true })),
+        );
+      }
+      expect(container.textContent).toContain("摘要");
+      expect(container.textContent).toContain("原始推理第一段");
+      expect(container.textContent).toContain("原始推理第二段");
+      expect(container.textContent?.split("原始推理第一段").length).toBe(2);
+    },
+  );
   it("思考摘要中的 A2UI 代码块应切换为结构化预览", () => {
     parseAIResponseMock.mockReturnValue(createStructuredA2UIParseResult());
 

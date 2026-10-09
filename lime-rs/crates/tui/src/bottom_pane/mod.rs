@@ -6,6 +6,9 @@ mod chat_composer_history;
 pub(crate) mod command_popup;
 mod composer;
 pub(crate) mod custom_prompt_view;
+mod effort_ignition;
+mod effort_status_line;
+mod file_search_popup;
 mod footer;
 mod input;
 mod input_state;
@@ -22,6 +25,7 @@ mod selection_popup_common;
 pub(crate) mod selection_row_layout;
 mod selection_tabs;
 pub(crate) mod shortcut_overlay;
+mod skill_popup;
 pub(crate) mod status_line_setup;
 pub(crate) mod status_surface_preview;
 mod textarea;
@@ -41,10 +45,9 @@ use std::collections::VecDeque;
 use std::time::{Duration, Instant};
 
 use app_server_protocol::protocol::v2::{
-    CommandExecutionApprovalDecision, CommandExecutionRequestApprovalResponse,
-    FileChangeApprovalDecision, FileChangeRequestApprovalResponse, GrantedPermissionProfile,
-    McpServerElicitationRequestResponse, PermissionGrantScope, PermissionsRequestApprovalResponse,
-    ServerRequest, ToolRequestUserInputResponse,
+    CommandExecutionRequestApprovalResponse, FileChangeRequestApprovalResponse,
+    McpServerElicitationRequestResponse, PermissionsRequestApprovalResponse, ServerRequest,
+    ToolRequestUserInputResponse,
 };
 use app_server_protocol::RequestId;
 use crossterm::event::{Event, KeyEvent};
@@ -54,14 +57,14 @@ use action_required_title::{
 };
 use approval_overlay::ApprovalOverlay;
 use chat_composer::ChatComposer;
-pub(crate) use chat_composer::{
-    ComposerDraft, FileSearchPopupAction, FileSearchRequest, InputResult, SkillPopupAction,
-};
+pub(crate) use chat_composer::{ComposerDraft, FileSearchRequest, InputResult};
+use file_search_popup::FileSearchPopupAction;
 use mcp_server_elicitation::McpServerElicitationOverlay;
 use request_user_input::RequestUserInputOverlay;
+use skill_popup::SkillPopupAction;
 pub(crate) use textarea::{TextArea, TextAreaState};
 
-pub(crate) use footer::{inset_footer_hint_area, render_footer, FooterMode, FooterProps};
+pub(crate) use footer::{inset_footer_hint_area, FooterMode, FooterProps};
 pub(crate) use input::ChatWidgetAction;
 pub(crate) use input_state::BottomPaneInputState;
 pub(crate) use render::{desired_height_with_locale_for_width, render_with_locale};
@@ -102,40 +105,6 @@ pub(crate) enum AppServerResponse {
         id: RequestId,
         response: McpServerElicitationRequestResponse,
     },
-}
-
-impl AppServerResponse {
-    pub(crate) fn fail_closed(request: ServerRequest) -> Result<Self, Box<ServerRequest>> {
-        match request {
-            ServerRequest::ItemCommandExecutionRequestApproval { id, .. } => Ok(Self::Command {
-                id,
-                response: CommandExecutionRequestApprovalResponse {
-                    decision: CommandExecutionApprovalDecision::Cancel,
-                },
-            }),
-            ServerRequest::ItemFileChangeRequestApproval { id, .. } => Ok(Self::FileChange {
-                id,
-                response: FileChangeRequestApprovalResponse {
-                    decision: FileChangeApprovalDecision::Cancel,
-                },
-            }),
-            ServerRequest::ItemPermissionsRequestApproval { id, .. } => Ok(Self::Permissions {
-                id,
-                response: PermissionsRequestApprovalResponse {
-                    permissions: GrantedPermissionProfile::default(),
-                    scope: PermissionGrantScope::Turn,
-                    strict_auto_review: None,
-                },
-            }),
-            ServerRequest::ItemToolRequestUserInput { id, .. } => Ok(Self::UserInput {
-                id,
-                response: ToolRequestUserInputResponse {
-                    answers: Default::default(),
-                },
-            }),
-            request => Err(Box::new(request)),
-        }
-    }
 }
 
 #[derive(Debug)]
@@ -400,11 +369,8 @@ mod keymap_tests;
 mod tests {
     use super::*;
     use app_server_protocol::protocol::v2::{
-        CommandExecutionApprovalDecision, CommandExecutionRequestApprovalParams,
-        DynamicToolCallParams, DynamicToolCallPhase, FileChangeApprovalDecision,
-        FileChangeRequestApprovalParams, PermissionsRequestApprovalParams,
-        RequestPermissionProfile, ToolRequestUserInputOption, ToolRequestUserInputParams,
-        ToolRequestUserInputQuestion,
+        CommandExecutionRequestApprovalParams, DynamicToolCallParams, DynamicToolCallPhase,
+        ToolRequestUserInputOption, ToolRequestUserInputParams, ToolRequestUserInputQuestion,
     };
     use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
     use serde_json::json;
@@ -638,111 +604,5 @@ mod tests {
         .expect("supported MCP elicitation request");
         assert!(pane.enqueue(supported_mcp_elicitation).is_ok());
         assert!(pane.is_active());
-    }
-
-    #[test]
-    fn non_interactive_responses_fail_closed_for_every_supported_interaction() {
-        let command =
-            AppServerResponse::fail_closed(ServerRequest::ItemCommandExecutionRequestApproval {
-                id: RequestId::Integer(1),
-                params: CommandExecutionRequestApprovalParams {
-                    thread_id: "thread-1".to_string(),
-                    turn_id: "turn-1".to_string(),
-                    item_id: "command-1".to_string(),
-                    started_at_ms: 1,
-                    approval_id: None,
-                    reason: None,
-                    network_approval_context: None,
-                    command: None,
-                    cwd: None,
-                    available_decisions: None,
-                },
-            })
-            .expect("command response");
-        assert!(matches!(
-            command,
-            AppServerResponse::Command {
-                response: CommandExecutionRequestApprovalResponse {
-                    decision: CommandExecutionApprovalDecision::Cancel,
-                },
-                ..
-            }
-        ));
-
-        let file_change =
-            AppServerResponse::fail_closed(ServerRequest::ItemFileChangeRequestApproval {
-                id: RequestId::Integer(2),
-                params: FileChangeRequestApprovalParams {
-                    thread_id: "thread-1".to_string(),
-                    turn_id: "turn-1".to_string(),
-                    item_id: "patch-1".to_string(),
-                    started_at_ms: 1,
-                    reason: None,
-                    grant_root: None,
-                },
-            })
-            .expect("file change response");
-        assert!(matches!(
-            file_change,
-            AppServerResponse::FileChange {
-                response: FileChangeRequestApprovalResponse {
-                    decision: FileChangeApprovalDecision::Cancel,
-                },
-                ..
-            }
-        ));
-
-        let permissions =
-            AppServerResponse::fail_closed(ServerRequest::ItemPermissionsRequestApproval {
-                id: RequestId::Integer(3),
-                params: PermissionsRequestApprovalParams {
-                    thread_id: "thread-1".to_string(),
-                    turn_id: "turn-1".to_string(),
-                    item_id: "permissions-1".to_string(),
-                    environment_id: None,
-                    started_at_ms: 1,
-                    cwd: "/workspace".to_string(),
-                    reason: None,
-                    permissions: RequestPermissionProfile {
-                        network: None,
-                        file_system: None,
-                    },
-                },
-            })
-            .expect("permissions response");
-        assert!(matches!(
-            permissions,
-            AppServerResponse::Permissions {
-                response: PermissionsRequestApprovalResponse {
-                    permissions: GrantedPermissionProfile {
-                        network: None,
-                        file_system: None,
-                    },
-                    scope: PermissionGrantScope::Turn,
-                    strict_auto_review: None,
-                },
-                ..
-            }
-        ));
-
-        let user_input = AppServerResponse::fail_closed(ServerRequest::ItemToolRequestUserInput {
-            id: RequestId::Integer(4),
-            params: ToolRequestUserInputParams {
-                thread_id: "thread-1".to_string(),
-                turn_id: "turn-1".to_string(),
-                item_id: "question-1".to_string(),
-                questions: Vec::new(),
-                is_blocking: true,
-                auto_resolution_ms: None,
-            },
-        })
-        .expect("user input response");
-        assert!(matches!(
-            user_input,
-            AppServerResponse::UserInput {
-                response: ToolRequestUserInputResponse { answers },
-                ..
-            } if answers.is_empty()
-        ));
     }
 }

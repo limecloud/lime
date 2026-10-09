@@ -638,7 +638,7 @@ fn reasoning_summary_parts_keep_streamed_section_boundaries() {
         projection.entries()[0].activity_detail,
         Some(ActivityDetail::Reasoning {
             scope: "turn-1".to_string(),
-            summary: ReasoningSummary::from_parts(&["检查输入".into(), "准备回答".into()]),
+            summary: ReasoningText::from_parts(&["检查输入".into(), "准备回答".into()]),
         })
     );
 }
@@ -1551,6 +1551,7 @@ fn activity_group_requires_canonical_kind_and_turn_scope() {
         false,
         WebSearchLifecycle::Historical,
         Some("turn-1"),
+        false,
     )
     .expect("exploration projection");
     assert_eq!(
@@ -1609,9 +1610,14 @@ fn activity_group_requires_canonical_kind_and_turn_scope() {
         error: None,
         duration_ms: None,
     };
-    let entry =
-        project_item_with_scope(&computer, true, WebSearchLifecycle::Started, Some("turn-1"))
-            .expect("computer projection");
+    let entry = project_item_with_scope(
+        &computer,
+        true,
+        WebSearchLifecycle::Started,
+        Some("turn-1"),
+        false,
+    )
+    .expect("computer projection");
     assert_eq!(
         entry.activity_group,
         Some(ActivityGroupKey::new(ActivityGroupKind::Computer, "turn-1"))
@@ -1636,13 +1642,14 @@ fn activity_group_requires_canonical_kind_and_turn_scope() {
         false,
         WebSearchLifecycle::Historical,
         Some("turn-1"),
+        false,
     )
     .expect("reasoning projection");
     assert_eq!(
         scoped.activity_detail,
         Some(ActivityDetail::Reasoning {
             scope: "turn-1".to_string(),
-            summary: ReasoningSummary::from_parts(&["Inspect the result".into()]),
+            summary: ReasoningText::from_parts(&["Inspect the result".into()]),
         })
     );
     assert_eq!(

@@ -60,6 +60,56 @@ fn input_is_a_borderless_filled_band_with_top_bottom_and_right_padding() {
 }
 
 #[test]
+fn effort_prompt_preserves_the_attachment_gutter_and_disabled_input_priority() {
+    crate::terminal_palette::with_test_default_colors(
+        DefaultColors {
+            fg: (255, 255, 255),
+            bg: (0, 0, 0),
+        },
+        || {
+            let mut composer = ChatComposer::default();
+            composer.set_remote_image_urls(vec!["https://example.test/image.png".into()]);
+            composer.insert("draft");
+            let mut terminal = Terminal::new(TestBackend::new(40, 5)).unwrap();
+            for (effort, glyph, color) in [
+                (Some("max"), "›", ratatui::style::Color::Rgb(255, 188, 92)),
+                (
+                    Some("ultra"),
+                    "»",
+                    ratatui::style::Color::Rgb(195, 147, 255),
+                ),
+                (Some("high"), "›", ratatui::style::Color::Reset),
+                (Some("unknown"), "›", ratatui::style::Color::Reset),
+                (None, "›", ratatui::style::Color::Reset),
+            ] {
+                composer.set_active_reasoning_effort_baseline(effort);
+                terminal
+                    .draw(|frame| composer.render(frame, frame.area(), Locale::EnUs))
+                    .unwrap();
+                let buffer = terminal.backend().buffer();
+                assert_eq!(buffer[(0, 3)].symbol(), glyph);
+                assert_eq!(buffer[(0, 3)].fg, color);
+                assert_eq!(buffer[(1, 3)].symbol(), " ");
+                assert_eq!(buffer[(2, 3)].symbol(), "d");
+                assert_eq!(terminal.backend().cursor_position(), Position::new(7, 3));
+                assert_eq!(composer.text(), "draft");
+                assert_eq!(composer.remote_images().len(), 1);
+            }
+            composer.set_active_reasoning_effort_baseline(Some("ultra"));
+            composer.set_input_enabled(false, Some("Waiting".into()));
+            terminal
+                .draw(|frame| composer.render(frame, frame.area(), Locale::EnUs))
+                .unwrap();
+            let prompt = &terminal.backend().buffer()[(0, 3)];
+            assert_eq!(prompt.symbol(), "›");
+            assert_eq!(prompt.fg, ratatui::style::Color::Reset);
+            assert!(prompt.modifier.contains(Modifier::DIM));
+            assert_eq!(composer.cursor_pos(terminal.backend().buffer().area), None);
+        },
+    );
+}
+
+#[test]
 fn attachments_share_the_text_inset_and_have_a_blank_separator_before_prompt() {
     let mut composer = ChatComposer::default();
     composer.set_remote_image_urls(vec!["https://example.test/image.png".into()]);

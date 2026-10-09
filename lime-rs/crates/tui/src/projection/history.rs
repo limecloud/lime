@@ -44,6 +44,7 @@ impl ConversationProjection {
                         false,
                         WebSearchLifecycle::Historical,
                         Some(&turn.id),
+                        self.show_raw_agent_reasoning,
                     )
                     .map(|entry| entry.id)
                 });
@@ -58,6 +59,7 @@ impl ConversationProjection {
                     false,
                     WebSearchLifecycle::Historical,
                     Some(&turn.id),
+                    self.show_raw_agent_reasoning,
                 ) {
                     self.replace_entry(entry);
                 }
@@ -113,9 +115,13 @@ impl ConversationProjection {
     }
 
     fn restore_active_reasoning_item(&mut self, turn_id: &str, item: &ThreadItem) {
-        let Some(entry) =
-            project_item_with_scope(item, true, WebSearchLifecycle::Historical, Some(turn_id))
-        else {
+        let Some(entry) = project_item_with_scope(
+            item,
+            true,
+            WebSearchLifecycle::Historical,
+            Some(turn_id),
+            self.show_raw_agent_reasoning,
+        ) else {
             return;
         };
         if let Some(resumed) = &mut self.resumed_reasoning {
@@ -135,6 +141,7 @@ impl ConversationProjection {
             ServerNotification::ReasoningSummaryTextDelta(delta) => {
                 (&delta.turn_id, &delta.item_id)
             }
+            ServerNotification::ReasoningTextDelta(delta) => (&delta.turn_id, &delta.item_id),
             ServerNotification::ReasoningSummaryPartAdded(part) => (&part.turn_id, &part.item_id),
             ServerNotification::ItemCompleted(completed) => {
                 let ThreadItem::Reasoning { id, .. } = &completed.item else {

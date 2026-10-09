@@ -15,6 +15,7 @@ import {
 } from "../utils/agentThreadGrouping";
 import type { AgentRuntimeThreadReadModel } from "@/lib/api/agentRuntime/sessionTypes";
 import { cn } from "@/lib/utils";
+import { useRawReasoningVisibility } from "./reasoningVisibilityContext";
 import {
   AgentThreadTimelineFileChangesCard,
   hasTimelineFileChangeEvidence,
@@ -534,6 +535,7 @@ export const AgentThreadTimeline: React.FC<AgentThreadTimelineProps> = ({
   showOperationalDetails = true,
   showInlineStatusHint = true,
 }) => {
+  const showRaw = useRawReasoningVisibility();
   const pendingRuntimeConfirmationPrompt = useMemo(
     () => resolvePendingRuntimeConfirmationPrompt({ items, actionRequests }),
     [actionRequests, items],
@@ -548,8 +550,8 @@ export const AgentThreadTimeline: React.FC<AgentThreadTimelineProps> = ({
   );
 
   const displayModel = useMemo(
-    () => buildAgentThreadDisplayModel(visibleItems),
-    [visibleItems],
+    () => buildAgentThreadDisplayModel(visibleItems, showRaw),
+    [visibleItems, showRaw],
   );
   const activeBlockIndex = resolveActiveBlockIndex(displayModel.orderedBlocks);
   const focusBlockIndex = resolveFocusBlockIndex({

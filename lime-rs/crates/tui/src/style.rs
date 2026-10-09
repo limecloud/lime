@@ -179,7 +179,7 @@ fn secondary_text_style_for(
     Style::default().fg(foreground).not_dim().not_bold()
 }
 
-fn user_message_bg_rgb(background: (u8, u8, u8)) -> (u8, u8, u8) {
+pub(crate) fn user_message_bg_rgb(background: (u8, u8, u8)) -> (u8, u8, u8) {
     let (foreground, alpha) = if is_light(background) {
         ((0, 0, 0), 0.04)
     } else {

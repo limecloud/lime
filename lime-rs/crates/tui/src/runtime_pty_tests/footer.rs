@@ -31,7 +31,7 @@ pub(super) fn exercise_context_and_canonical_config(
         |screen| screen.contains("Configure status line"),
     );
     for name in ["Model with reasoning", "working directory", "Thread name"] {
-        config::toggle_setup_item(writer, name, false);
+        config::toggle_setup_item(writer, output_rx, output, name, false);
     }
     writer.write_all(b"\x1b[20~").unwrap();
     writer.flush().unwrap();
@@ -185,7 +185,13 @@ pub(super) fn exercise_context_and_canonical_config(
         |screen| screen.contains("Configure status line"),
     );
     for item in [StatusLineItem::Status, StatusLineItem::SessionId] {
-        config::toggle_setup_item(writer, Locale::EnUs.status_line_item_name(item), false);
+        config::toggle_setup_item(
+            writer,
+            output_rx,
+            output,
+            Locale::EnUs.status_line_item_name(item),
+            false,
+        );
     }
     writer.write_all(b"\x1b[20~").unwrap();
     writer.flush().unwrap();
@@ -220,7 +226,13 @@ pub(super) fn exercise_context_and_canonical_config(
         |screen| screen.contains("Configure status line"),
     );
     for item in [StatusLineItem::Status, StatusLineItem::SessionId] {
-        config::toggle_setup_item(writer, Locale::EnUs.status_line_item_name(item), false);
+        config::toggle_setup_item(
+            writer,
+            output_rx,
+            output,
+            Locale::EnUs.status_line_item_name(item),
+            false,
+        );
         let checkbox = format!("[ ] {}", Locale::EnUs.status_line_item_name(item));
         wait_for_screen(
             output_rx,
@@ -230,7 +242,7 @@ pub(super) fn exercise_context_and_canonical_config(
         );
     }
     for name in ["Thread name", "working directory", "Model with reasoning"] {
-        config::toggle_setup_item(writer, name, true);
+        config::toggle_setup_item(writer, output_rx, output, name, true);
         let checkbox = format!("[x] {name}");
         wait_for_screen(
             output_rx,

@@ -9,6 +9,156 @@ use app_server_protocol::protocol::v2::{ServerNotification, ThreadItem};
 use std::path::Path;
 use std::time::Duration;
 
+#[tokio::test]
+async fn real_stdio_raw_reasoning_uses_shared_config_live_resume_and_cold_history() {
+    if std::env::var_os("LIME_TEST_TUI_GATE_B").is_none() {
+        return;
+    }
+    use crate::local_settings::LocalSettings;
+    use app_server_protocol::protocol::v2::{ConfigBatchWriteParams, ConfigEdit, MergeStrategy};
+    assert_eq!(
+        std::env::var("LIME_TEST_TERMINAL_SCENARIO").unwrap(),
+        "reasoning-raw"
+    );
+    for show_raw in [false, true] {
+        let cwd = tempfile::tempdir().unwrap();
+        let mut session = AppServerSession::connect(transport(cwd.path(), true))
+            .await
+            .unwrap();
+        let config = session.read_config().await.unwrap();
+        session
+            .write_config_batch(ConfigBatchWriteParams {
+                edits: vec![ConfigEdit {
+                    key_path: "show_raw_agent_reasoning".into(),
+                    value: serde_json::json!(show_raw),
+                    merge_strategy: MergeStrategy::Replace,
+                }],
+                file_path: None,
+                expected_version: Some(config.layers.unwrap()[0].version.clone()),
+                reload_user_config: true,
+            })
+            .await
+            .unwrap();
+        let settings = LocalSettings::read(&session).await.unwrap();
+        assert_eq!(settings.show_raw_agent_reasoning, show_raw);
+        let thread = session
+            .start_thread(
+                cwd.path().into(),
+                Some("fixture-model".into()),
+                Some("fixture-provider".into()),
+            )
+            .await
+            .unwrap()
+            .thread;
+        let turn_id = session
+            .start_turn("raw reasoning fixture".into())
+            .await
+            .unwrap();
+        let mut projection = ConversationProjection::default();
+        projection.set_show_raw_agent_reasoning(settings.show_raw_agent_reasoning);
+        tokio::time::timeout(Duration::from_secs(15), async {
+            loop {
+                let Some(AppServerEvent::ServerNotification(notification)) =
+                    session.next_event().await
+                else {
+                    continue;
+                };
+                let raw = matches!(
+                    notification.as_ref(),
+                    ServerNotification::ReasoningTextDelta(_)
+                );
+                projection.apply(*notification);
+                if raw {
+                    break;
+                }
+            }
+        })
+        .await
+        .unwrap();
+        let live = projection
+            .entries()
+            .iter()
+            .find(|item| item.kind == EntryKind::Reasoning)
+            .unwrap();
+        assert!(live.text.contains("RAW_SUMMARY"));
+        assert_eq!(live.text.contains("RAW_BODY"), show_raw);
+        let item_id = live.id.clone();
+        let page = session
+            .hydrate_initial_thread_history(&thread.id, None)
+            .await
+            .unwrap();
+        let resumed = session.resume_thread(thread.id.clone()).await.unwrap();
+        let mut app = App::default();
+        app.projection.set_show_raw_agent_reasoning(show_raw);
+        app.hydrate_thread(resumed.thread);
+        app.prepend_initial_history_page(page);
+        assert_eq!(
+            app.projection
+                .entries()
+                .iter()
+                .find(|item| item.id == item_id)
+                .unwrap()
+                .text,
+            live.text
+        );
+        tokio::fs::write(cwd.path().join("ledger.jsonl.continue"), b"continue")
+            .await
+            .unwrap();
+        tokio::time::timeout(Duration::from_secs(15), async {
+            loop {
+                let Some(AppServerEvent::ServerNotification(notification)) = session.next_event().await else { continue; };
+                let terminal = matches!(notification.as_ref(), ServerNotification::TurnCompleted(p) if p.turn.id == turn_id);
+                app.projection.apply(*notification);
+                if terminal { break; }
+            }
+        }).await.unwrap();
+        let final_text = app
+            .projection
+            .entries()
+            .iter()
+            .find(|item| item.id == item_id)
+            .unwrap()
+            .text
+            .clone();
+        assert_eq!(final_text.contains("RAW_BODY RAW_CONTINUED"), show_raw);
+        let exported =
+            crate::app::transcript_export::render_markdown_transcript(app.projection.entries())
+                .unwrap();
+        assert_eq!(exported.contains("RAW_BODY RAW_CONTINUED"), show_raw);
+        session.shutdown().await.unwrap();
+        session = AppServerSession::connect(transport(cwd.path(), false))
+            .await
+            .unwrap();
+        let settings = LocalSettings::read(&session).await.unwrap();
+        assert_eq!(settings.show_raw_agent_reasoning, show_raw);
+        let entries = crate::thread_transcript::load_session_transcript(
+            session.request_handle(),
+            &thread.id,
+            settings.show_raw_agent_reasoning,
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            entries.iter().find(|item| item.id == item_id).unwrap().text,
+            final_text
+        );
+        let page = session
+            .hydrate_initial_thread_history(&thread.id, None)
+            .await
+            .unwrap();
+        let item = page
+            .items
+            .iter()
+            .find(|item| matches!(item, ThreadItem::Reasoning { id, .. } if id == &item_id))
+            .unwrap();
+        assert!(
+            matches!(item, ThreadItem::Reasoning { summary, content, .. } if summary == &vec!["RAW_SUMMARY".to_string()] && content == &vec!["RAW_BODY RAW_CONTINUED".to_string()])
+        );
+        session.shutdown().await.unwrap();
+        println!("STDIO_RAW_REASONING_OK visible={show_raw} thread={} turn={turn_id} item={item_id} config=ok live=ok resume=ok cold=ok export=ok canonical=ok", thread.id);
+    }
+}
+
 fn transport(cwd: &Path, external: bool) -> StdioTransportConfig {
     let mut args = vec![
         "--stdio".into(),

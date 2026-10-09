@@ -81,6 +81,19 @@ impl TextArea {
         self.add_element_range_with_placeholder(range, placeholder)
     }
 
+    /// Remove only the matching atomic marker, retaining its text and neighboring identities.
+    pub(crate) fn remove_element_range(&mut self, range: Range<usize>) -> bool {
+        let start = self.nearest_char_boundary(range.start.min(self.text.len()));
+        let end = self.nearest_char_boundary(range.end.min(self.text.len()));
+        if start >= end {
+            return false;
+        }
+        let len_before = self.elements.len();
+        self.elements
+            .retain(|element| element.range.start != start || element.range.end != end);
+        len_before != self.elements.len()
+    }
+
     fn add_element_range_with_placeholder(
         &mut self,
         range: Range<usize>,

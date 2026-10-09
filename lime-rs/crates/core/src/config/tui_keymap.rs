@@ -242,6 +242,9 @@ impl TuiKeymap {
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(default, deny_unknown_fields)]
 pub struct TuiConfig {
+    /// 是否播放终端显示动画；低色终端仍保持静态展示。
+    #[serde(skip_serializing_if = "is_true")]
+    pub animations: bool,
     /// Mouse right-click paste policy. `auto` follows terminal safety guards.
     #[serde(skip_serializing_if = "RightClickPaste::is_default")]
     pub right_click_paste: RightClickPaste,
@@ -250,20 +253,21 @@ pub struct TuiConfig {
     /// 有序状态栏 item ID；None 使用默认项，Some([]) 显式关闭。
     #[serde(skip_serializing_if = "Option::is_none")]
     pub status_line: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "use_status_line_colors")]
+    #[serde(skip_serializing_if = "is_true")]
     pub status_line_use_colors: bool,
     /// 有序终端标题 item ID；None 使用默认项，Some([]) 显式关闭。
     #[serde(skip_serializing_if = "Option::is_none")]
     pub terminal_title: Option<Vec<String>>,
 }
 
-fn use_status_line_colors(value: &bool) -> bool {
+fn is_true(value: &bool) -> bool {
     *value
 }
 
 impl Default for TuiConfig {
     fn default() -> Self {
         Self {
+            animations: true,
             right_click_paste: RightClickPaste::default(),
             keymap: TuiKeymap::default(),
             status_line: None,
@@ -504,6 +508,31 @@ mod tests {
             serde_yaml::to_string(&TuiConfig::default()).expect("serialize default TUI config"),
             "{}\n"
         );
+    }
+
+    #[test]
+    fn animations_default_enabled_roundtrip_false_and_reject_non_boolean() {
+        assert!(TuiConfig::default().animations);
+        let config: TuiConfig = serde_yaml::from_str("animations: false\n").unwrap();
+        assert!(!config.animations);
+        assert_eq!(
+            serde_json::to_value(&config).unwrap(),
+            serde_json::json!({"animations": false})
+        );
+        assert_eq!(
+            serde_yaml::from_str::<TuiConfig>(&serde_yaml::to_string(&config).unwrap()).unwrap(),
+            config
+        );
+        for value in [
+            serde_json::json!("false"),
+            serde_json::json!(null),
+            serde_json::json!(0),
+        ] {
+            assert!(
+                serde_json::from_value::<TuiConfig>(serde_json::json!({"animations": value}))
+                    .is_err()
+            );
+        }
     }
 
     #[test]

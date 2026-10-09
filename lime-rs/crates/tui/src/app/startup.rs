@@ -158,6 +158,7 @@ pub(crate) async fn initialize_session(
         effort.clone(),
         permissions.clone(),
     );
+    app.chat_widget.set_active_reasoning_effort_baseline();
     match session.read_prompt_history(1).await {
         Ok(history) => apply_prompt_history_response(app, history),
         Err(error) => app

@@ -1,7 +1,7 @@
 # TUI/CLI 继续同步 Codex 执行计划
 
 状态：in-progress（当前切片已验证；总体对齐仍有明确 defer/partial）
-日期：2026-09-08（最新续跑 2026-10-07）
+日期：2026-09-08（最新续跑 2026-10-09）
 参考实现：`/Users/coso/Documents/dev/rust/codex`
 当前基线：Rust commit `4aaee872e31abefe0d32e91faab23b09b6968824`（参考目录当前 checkout）
 
@@ -7420,7 +7420,7 @@ resize；预览零配置写、取消恢复 saved selection，Enter 只产出 hos
 实现完成：`TerminalTitleItem/TerminalTitleSetupView` 对齐 Codex 同名 owner，开放 11 个有
 真实来源的项目，保留 Codex canonical ID/alias、configured order 优先/去重、None 默认和
 [] 关闭。未命名 thread-title 使用 canonical Thread ID，thread-name 继续省略；普通项目
-用 ` | `，activity 两侧空格，等待操作且选中 activity 时前置五语言提醒并省略重复 run-state。
+用 `|`，activity 两侧空格，等待操作且选中 activity 时前置五语言提醒并省略重复 run-state。
 长 project/thread/其它 segment 分别按 Unicode 字素限制 24/48/32，最终仍走既有 240 字符
 managed OSC sanitizer。无 Git/usage/额度伪造，无项目根合同时明示 cwd basename 来源。
 
@@ -8004,3 +8004,906 @@ DOM 摘要一次冒充“仅一条 canonical Reasoning Item”已被证明。显
 治理扫描2068/Rust1810、test1356/Rust-test198，零引用候选/分类漂移/边界违规均0。
 本轮技能分别约束 current/dead 分类、按风险续验与 Gate B claim boundary；没有扩张为
 生产 mock、私有配置或第二业务后端。
+
+## 第六十六阶段：桌面推理 canonical Item 身份与历史恢复（验收完成）
+
+主目标仍为 Codex CLI/TUI 全方面对齐、GUI/TUI 共享后端。本轮将 reasoning-first-visible
+external fixture 的 reasoning.started/final/ended 与 flat item.updated 双入口直接替换为
+canonical typed Item 生命周期。Codex HEAD 仍为 4aaee872e31abefe0d32e91faab23b09b6968824，
+其 protocol/replay 以同一 Item ID 处理 started、摘要增量与 completed；raw content 默认隐藏。
+
+窄写集：scripts/agent-runtime 的 reasoning backend/observations、scenario-flow 最小委托、
+runtime-surface assertions、constants assertion keys、smoke guard、专用回归与本计划。
+共享产品 GUI/Rust/protocol/config/manifest/锁文件只读。唯一业务事实源仍是 App Server
+canonical Thread/Turn/Item；新模块只承接 test-only producer/观察，不建立兼容包装。
+
+先用公共 thread/read 记录 canonical turns/items 的真实 ID 与顺序，核实第65阶段计数2
+是否源自 collector 重复或实际不同 Item；不得文本去重、选取一条掩盖重复或降低断言。
+producer 从超1000行 backend-script 迁出，旧分支直接删除；当前 v2 typed Reasoning 没有
+status/sequence wire，终态从所属 Turn 与同 ID lifecycle 验证，顺序使用 canonical Item 排列。
+增加真实 Electron renderer 重载、侧栏恢复与 fresh thread/read，核对同一 Thread/Turn/Item、
+summary/content 原样保持、摘要一次且展开后 DOM 无 raw。
+
+退出条件：无旧 reasoning lifecycle producer；每个 canonical Turn 恰好一个推理 Item、
+同 ID started/indexed summary delta/raw delta/completed；冷 renderer 恢复身份/顺序/内容
+与 live 完成一致。v2 没有 item/updated 通知，不能用 snapshot update 冒充 live 摘要；
+增量只使用现有 reasoning.summary/reasoning.delta lowering，终态用完整 typed snapshot。
+定向 fixture/结构守卫、真实 Electron 专项、contracts/scripts governance/legacy-report 通过，
+按风险补 local/GUI smoke。该切片验收前不标完成；总体仍 partial/in-progress。
+
+当前环境为1.152.0，已不同于第65阶段1.151.0历史证据。初次fresh基线因官方V8产物
+下载120秒超时/retry失败，未到达Electron，不判定旧canonical计数根因。使用同一官方URL
+完整下载后，通过仓库resolveRustyV8CargoEnv的SHA256校验；未改下载实现/依赖/锁文件。
+随后fresh sidecar触发仓库1.95.0工具链准备，持续验收中。92项定向回归、ESLint/Prettier、
+contracts与legacy-report通过。verify:local smart成功但为脚本改动选中0项任务，只算入口
+通过，不冒充额外Rust/GUI测试。backend原1257 -> 1130行、router965 -> 938行；新业务已
+迁出大文件，backend余下场景待后续按owner继续拆，不宣称整个文件结构已收口。
+
+最终验收（2026-10-08，1.152.0）：旧 producer 隔离重放证明计数2是实际两个不同
+canonical ID，非 collector aliases 重复：`turn_31ba9723fea547d79d04d448baebb8c4:reasoning:first-visible`
+与 `reasoning-turn_31ba9723fea547d79d04d448baebb8c4`。原 reasoning.final 仅传 reasoningId，
+materializer explicit_item_id 不消费该旧字段，落到 family fallback；flat item.updated 又
+提供另一条显式 ID。诊断从 git history 只读提取旧 producer 到隔离 external fixture，
+current 源码未恢复旧入口。严格断言按预期拒绝该4-Item历史，证据
+`.lime/qc/gui-evidence/claw-chat-current-fixture/claw-chat-current-fixture-reasoning-stage66-old-producer-diagnostic-summary.json`；
+日志 `/tmp/lime-tui-stage66-old-producer-diagnostic-v2.log`。该失败为有意重现，不计为current通过。
+
+新 test-only reasoning-backend 110行：typed item.started、明确 itemId/summaryIndex 的
+reasoning.summary、明确 itemId/contentIndex 的 reasoning.delta、完整 typed item.completed。
+这些增量直接 lowering 到 current v2 indexed通知，不使用旧 reasoning.started/final/ended
+或 flat item.updated，不添加 compat。canonical completion snapshot 原样保留 summary/content；
+raw delta 实际经过通知链，GUI默认仍隐藏。reasoning-fixture474行，原backend1257 -> 1130、
+router965 -> 938；旧 inline producer与正向guard已删除，归属单一领域owner。
+
+最终真实 Electron Gate B controlled fixture 通过，Thread
+`01a11c08-469f-7ba0-9f26-0dfdab7315ea`、Turn `turn_94711233509d44ba87782d17e403c928`。
+公共 thread/read 的唯一目标Turn恰好3个Item（user/reasoning/final），Reasoning ID为
+`turn_94711233509d44ba87782d17e403c928:reasoning:first-visible`；身份与GUI Thread/backend Turn
+逐项匹配，summary/content精确相等，顺序1/2。Renderer document reload后从真实侧栏恢复，
+fresh thread/read的Thread/Turn/Item IDs、顺序与完整内容保持不变；真实点击展开、摘要一次、
+rawVisible=false/rawInDom=false，console/page/mock/legacy命中为0。8项scenario assertions
+全通过，截图已视读。证据
+`.lime/qc/gui-evidence/claw-chat-current-fixture/claw-chat-current-fixture-reasoning-stage66-final-v4-summary.json`，
+日志 `/tmp/lime-tui-stage66-reasoning-electron-final-v4.log`。该恢复为Renderer冷hydrate，
+未重启App Server，不冒充后端进程冷恢复或live provider证据。
+
+验收继续使用freshness检查，未设置BUILD_READY跳过；renderer/host重建，sidecar复用
+检查确认fresh的1.152.0 packaged App Server/code-mode-host，显式APP_SERVER_BIN只选同一
+current二进制。第一次源码target构建因隔离HOME重复下载Rust而中止；随后使用host Cargo/
+Rustup缓存的target构建也需补缺失crates，已中止，未改变依赖/锁文件或产品配置。
+标准npm verify:gui-smoke的强制target重建路径因此未完成；经同一ensureElectronFixtureBuild
+重新确认所有packaged artifacts fresh后，直接执行该入口的scripts/electron/smoke.mjs通过：
+run `standalone-shell-01-20261008145831-46292`，shell/Claw reload/三viewport/memory settings
+全部pass，日志 `/tmp/lime-tui-stage66-gui-smoke-fresh-artifacts.log`。不把中止的标准命令写成通过。
+
+最终11项专用回归（含真实generated backend JSON stdin/stdout）、83项fixture结构守卫，
+94/94通过，日志 `/tmp/lime-tui-stage66-reasoning-tests-final.log`。contracts（含docs boundary）、
+scripts governance、legacy-report、ESLint/Prettier/diff check通过；治理零引用候选/分类漂移/
+边界违规0。verify:local smart为0项任务，产品Rust/GUI/protocol未改，不重跑无关crate或
+22项聚合配方。未新增用户文案、配置/schema、版本、manifest、依赖或锁文件。
+
+current 产品owner/GUI-TUI共享架构不变；新producer/观察/identity predicates为test-only；
+旧双入口及guard为dead/deleted，无新增compat/deprecated。KISS单一生命周期，DRY复用
+同一观察与内容验证，SOLID分开producer/GUI观察/通用router；属于测试边界迁移，未变更
+public owner或架构依赖方向。本切片100%；总体partial/in-progress，无可信总体百分比分母。
+下一刀回到TUI推理显示的显式raw配置与实时/replay消费对齐，必须落共享配置owner并验证
+GUI/TUI兼容，不预建私有开关。桌面运行中摘要恢复、Windows/live provider/panic以及其余
+输入框/显示/命名/目录差异仍待推进。未提交、推送或建分支。
+
+## 第六十七阶段：共享原始推理显示策略（专项验收完成；全量前端续跑完成）
+
+主目标仍为 Codex CLI/TUI 全方面对齐。本轮对齐 Codex 的全局
+`show_raw_agent_reasoning`：默认 false，显式 true 才把 canonical content 接入实时、
+历史恢复、分页和导出；摘要与原文保留各自索引，不混成另一套 canonical Item。
+核准 Codex 的 `hide_agent_reasoning` 只被 exec human-output 消费，本轮不预建无消费者字段。
+
+窄写集：core Config 字段/default、App Server config 根字段与公开协议测试、TS Config
+与 GUI display policy/真实消费者、TUI LocalSettings/projection/history/streaming、相关
+stdio/PTY 与 Electron fixture，以及 commands/ops/本计划。第66阶段已知改动保留。
+唯一事实源为共享 core Config 和 canonical Thread/Turn/Item；已有 config/read、
+config/value/write、config/batchWrite 承接，不新增命令、Host 白名单或私有偏好存储。
+
+超1000行的 core/config/types.rs 只同步字段/default，不追加业务分支；后续按配置领域
+迁出类型/default 为退出条件。runtime.rs 只接入启动期已解析 snapshot，不堆逻辑，
+后续运行循环与 exec owner 拆分仍为退出条件。GUI 大 handler 仅更新过时注释，raw 增量
+已由 current conversationProjection reducer 保留，不另写一套流状态。
+
+退出条件：默认 GUI/TUI/raw-only/恢复不泄漏；显式配置在 live indexed raw delta、
+completed canonical snapshot、运行中恢复、旧页与 export 一致；非法配置 fail closed。
+先跑定向 Rust/TS、公开 config JSON-RPC，再补真实 stdio/PTY 和 Electron current fixture、
+contracts/治理/本地门禁。切片证据分级记录，总体仍 partial/in-progress。
+
+2026-10-09续跑：共享配置/GUI/TUI实施完成。旧ReasoningSummary原位改为ReasoningText，
+summary/raw独立索引，默认隐藏、显式允许才展示；live、canonical completion、运行中
+resume、旧页、完整记录和导出共用同一策略。GUI仅用显示context消费既有canonical
+projection；异步revision防旧读取覆盖，读取失败隐藏，不创建流缓冲或第二store。
+config/read、value/write、batchWrite继续承接；公开write的null是删除键、恢复false默认，
+非法string/number被拒绝。GUIgateway形状校验不宽松转换boolean。
+
+本轮target源码构建成功，真实stdio双策略标记通过，日志
+`/tmp/lime-tui-stage67-raw-gate-b-v3.log`。false Thread
+`01a11e9e-cadc-7830-a426-7ac3ef2e7ced`/Turn `turn_7b329ec6bf254687b5766bf088178066`；
+true Thread `01a11e9e-ceb2-70d3-ae71-6de76b2c55b4`/Turn
+`turn_7492d4482b0b491db7a935fbb16fc46f`；Item为`item_terminal-reasoning-<turnId>`。
+live/resume/cold/export/canonical全部ok，raw通知实际到达。真实PTY的false/true均完成
+live/Ctrl+T记录页唯一显示/alternate screen恢复/退出；前两轮失败仅为测试对记录页的
+开关等待错误，已改用真实screen predicate，没有改产品按键、固定sleep或降低内容断言。
+
+真实Electron Gate B使用本轮fresh App Server通过，Thread
+`01a11e96-4c29-75a2-9c01-b9e99523b8c4`、Turn `turn_ba68b63c8d73416e8edfe0865abbea36`，
+唯一Reasoning为`turn_ba68b63c8d73416e8edfe0865abbea36:reasoning:first-visible`。
+默认摘要先可见、展开无raw；公共config/batchWrite开启raw后renderer重载/真实侧栏恢复，
+summary/raw各一次，canonical IDs/顺序/完整内容保持；关闭再恢复后raw DOM/visible均false。
+console/page/mock/legacy命中0，证据
+`.lime/qc/gui-evidence/claw-chat-current-fixture/claw-chat-current-fixture-reasoning-stage67-summary.json`，
+最终关闭raw截图已视读。日志`/tmp/lime-tui-stage67-electron.log`。开启raw的GUI证据是
+历史恢复，未冒充另一轮GUI live输入。controlled external backend，不冒充live provider。
+
+Agent Runtime聚合current fixture通过；标准`npm run verify:gui-smoke`通过，run
+`standalone-shell-01-20261009030543-72836`，shell/Claw reload/三viewport/memory settings
+全部pass，日志`/tmp/lime-tui-stage67-runtime-fixture.log`、`/tmp/lime-tui-stage67-gui-smoke.log`。
+未设置BUILD_READY绕过，renderer/host与App Server/code-mode-host均检查fresh或重建。
+完整TUI首次1595通过；最终reasoning41、配置公开JSON-RPC1、前端cleanup33通过。
+contracts/typecheck/legacy/scripts governance通过；context/hook已从component拆出，
+消除两项react-refresh警告，后续严格门禁重新验证。
+
+标准verify:local发现既有13项unused错误，目标文件原为干净基线；窄补丁仅删除侧栏三份
+tests中的12个unused imports及任务页已无UI consumer的formErrors镜像state/write/type，
+现有纯validation与toast保留，Dialog仍拥有可见field errors。不新建规则/disable/假消费者。
+相关已有测试和local门禁待最终结果；首次失败日志仍保留为`/tmp/lime-tui-stage67-local.log`。
+
+## 第六十八阶段：非交互 exec owner 与推理输出（专项验收完成）
+
+主目标继续为全维度Codex对齐。核准当前Lime CLI经`tui::run_exec`进入近2000行的
+interactive runtime，再使用TUI ConversationProjection选择结果；human stdout只有最终
+回答、stderr从不消费Reasoning。Codex exec有独立event processor，completed Reasoning
+按hide_agent_reasoning/show_raw_agent_reasoning选择输出，raw允许时优先content，否则summary。
+该语义与TUI的summary后接raw不同，不应复用TUI renderer。
+
+窄写集：cli现有owner内的exec/event_processor/human_output与main最小接线；直接删除
+tui runtime中的非交互实现、types/exports及迁走其专用gated测试；core Config追加有真实
+exec consumer的hide_agent_reasoning、App Server config根字段/公共测试、TS shape与保留
+回归；既有CLI Gate的真实双策略/隐藏/JSON/stdin证据及结构守卫；architecture/commands/ops
+和本计划。不新增crate、外部依赖、method或GUI后端，不保留tui::run_exec委托包装。
+phase-aware输出从TUI迁来，CLI新增对现有agent-protocol的直接workspace依赖，Cargo.lock
+仅同步CLI依赖边，不更新任何版本。非交互fail-closed回应独立于BottomPane视图。
+
+唯一业务事实源仍App Server canonical Thread/Turn/Item；exec只拥有单Turn输出状态，
+直接使用app-server-client的共享stdio/remote transport。服务器继续决策权限、执行与
+持久化；非交互client仅发送typed拒绝/空输入响应，不自动批准。本轮不把现有JSON/JSONL
+envelope改动冒充Codex完整event JSON输出，后者仍单独待办。
+
+退出条件：旧TUI exec owner/exports无生产consumer；默认stderr摘要、raw优先content、
+hide覆盖raw、raw为空回摘要；stdout仅最终答案，JSON/JSONL不混入human文本；当前
+Thread/Turn精确隔离，completed快照替换增量，不重复打印Reasoning，同Item ID保持；
+failed/interrupted退出码与shutdown回收不回归。定向crate、共享配置协议、真实fresh CLI
+stdio Gate、结构/契约/治理验证后才能关闭；GUI/TUI第67证据不冒充本阶段CLI证据。
+
+2026-10-09最终接续：真实标准 `npm run smoke:cli-gate-b` 通过，日志
+`/tmp/lime-tui-stage68-cli-gate-b-v4.log`。本轮 fresh CLI/App Server 双进程，七个 human
+场景均核对真实 stdin/stdout/stderr/exit 与结束后另一进程 cold canonical thread/read。
+default Thread `01a11ec0-c64a-7b73-b157-425bcc6f127a`，Turn
+`turn_3021c1bc776b4917977947f1e75209b3`；raw Thread
+`01a11ec0-d03c-7be1-9d14-4f3f0b84161b`，Turn `turn_86be75e581464f35962cb11e40b6fbae`。
+hidden/hidden-raw/raw-empty 同样通过，Reasoning ID 恒为
+`item_terminal-reasoning-<turnId>`，summary/content 顺序与完整内容保持。failed exit1、
+interrupted exit130，stdout 不泄漏 partial answer；JSON/JSONL human stderr 为空，
+unavailable 明确失败/exit1。前三轮真实失败日志保留；只修测试侧的 stdin 尾换行断言、
+终态 event type（turn.failed/turn.canceled）及独立 backend 参数，不更改 runtime 终态。
+
+完整 CLI/TUI crate 为 CLI lib8 + bin61（含新exec8/请求拒绝2）+ integration2，TUI
+lib1595 + integration23 + dependency guard1，全通过，日志
+`/tmp/lime-tui-stage68-terminal-crates-final.log`。最终 shared config JSON-RPC1 通过，
+`/tmp/lime-tui-stage68-config-jsonrpc-final.log`；先前 direct cargo V8 默认下载404只算
+环境失败。标准 resolver 校验缓存官方archive/binding后构建，不绕过freshness/更新版本。
+CLI/TUI all-target Clippy/no-deps/-D warnings通过，
+`/tmp/lime-tui-stage68-clippy-current-owners-v2.log`。广义含依赖Clippy遇到既有
+agent-protocol large_enum_variant/derivable_impls，仍保留失败，不冒充workspace全绿；
+本刀修了raw delta分支的collapsible_match，随后对应reasoning/full TUI由第69续验。
+
+第67本地失败已按原状态继续：29～56通过后57遇到Codex source-origin gate漂移。
+核准4aa中的StableEnvironmentTools OR has_environment及apply_patch model gate，
+只迁移来源守卫，未修改生产tool authority或宣称新environment feature已实现。
+57定向通过后，57～120全部续跑通过，状态文件120/120 passed，日志
+`/tmp/lime-tui-stage68-test-resume-v2.log`，ESLint零warning和renderer/node typecheck通过。
+相关侧栏22、任务页8与第67前端33通过。两次verify:local的失败不改写为标准整轮通过；
+本次以同一全量状态续跑完成前端，再补受影响Rust、契约与真实产品证据。
+contracts（含新增CLI boundary）通过，`/tmp/lime-tui-stage68-contracts-final.log`；
+此前legacy/scripts治理0漂移/违规，最终第69同时重验。
+
+标准 `npm run verify:gui-smoke` 使用fresh renderer/host/sidecars再次通过，
+run `standalone-shell-01-20261009034415-73654`，shell/Claw reload/三viewport/memory settings
+全部pass，日志`/tmp/lime-tui-stage68-gui-smoke.log`。第67raw专项Electron、真实PTY/stdio
+证据仍有效；本轮不重复冒充GUI live raw、live provider或Windows。CLI/TUI共享App Server/
+canonical read model，原TUI exec types/exports/runtime实现与BottomPane非交互拒绝均为
+dead/deleted，CLI exec为current，没有新增compat/deprecated。架构图root已确认2026-10-09。
+本切片退出条件100%；总体partial/in-progress，无可信总百分比分母。exec完整human
+工具/错误/usage、event JSON、exec resume与更多输入/显示/动画差异继续待办。
+
+## 第六十九阶段：输入框推理强度提示符（专项验收完成）
+
+主目标继续为 Codex CLI/TUI 全维度对齐。当前 Codex 的 effort_ignition/EffortTier 在
+Max 显示金色 ›、Ultra 显示紫色 »，其它档位为普通 ›；Lime composer 始终显示普通 ›。
+本刀先直接对齐常驻提示符，消费已有 App Server settings snapshot，不推测模型能力或
+改 provider 策略。一次性 ignition 动画和状态栏过渡仍单独待办，不把静态效果冒充完整动画。
+
+窄写集：bottom_pane/effort_ignition、ChatComposer/render 与 BottomPane 接线、
+ChatWidget/settings 的显示刷新、独立渲染/恢复回归、既有真实 PTY/model picker 验收、
+结构inventory、commands/本计划。共享 GUI/protocol/core config/runtime/provider 只读。
+不新增配置、依赖、业务后端、命令或用户文案。Max/Ultra 只读取服务端实际档位；未知
+档位和未声明档位保持普通提示符，禁用输入恢复 dim ›。提示符宽度仍为一列，草稿、
+附件、换行、cursor 和用户消息历史不承接 effort 状态。
+
+退出条件：light/dark、truecolor/256/16/NO_COLOR 提示符符合 Codex 静态语义；settings
+成功更新、model/collaboration 选择、启动及历史恢复消费同一刷新入口；草稿恢复不能
+覆盖当前档位；完整 TUI crate、Clippy、结构守卫与 fresh PTY 输入/选择/终端恢复通过。
+本刀仅改变已有 TUI presentation，owner 与架构依赖方向不变；root，2026-10-09。
+
+2026-10-09最终：current EffortTier 位于 Codex 同名 bottom_pane/effort_ignition；
+ChatWidget/settings -> BottomPane -> ChatComposer 为唯一刷新链，旧固定普通箭头选择
+分支已原位替换，无compat/deprecated、私有配置或第二backend。提示符采用Codex的
+Max/Ultra light/dark RGB、0.86前景混合、ANSI256量化与ANSI16/NO_COLOR降级。
+测试覆盖实际Buffer颜色/字形/单列宽度、附件基线/cursor/禁用输入、settings/model与
+mode override、rich draft handoff不复活旧档位。普通settings中的None沿用既有“保留
+mode override”语义，首次full crate发现错误清除后已修正产品分支，保留旧正向回归，
+新增显式mode clear回归；未通过改断言掩盖该行为。
+
+完整TUI最终1599 library +23 integration +1 dependency guard通过，日志
+`/tmp/lime-tui-stage69-tui-crate-final.log`。CLI/TUI strict all-target/no-deps Clippy通过，
+`/tmp/lime-tui-stage69-clippy.log`；fmt/diff check、边界ESLint/Prettier与97项
+结构/config回归通过。inventory最终1511 src文件；legacy-report分类漂移/边界违规/
+零引用候选0、scripts治理通过，日志`/tmp/lime-tui-stage69-governance.log`、
+`/tmp/lime-tui-stage69-scripts.log`、`/tmp/lime-tui-stage69-guards-final.log`。
+
+标准fresh `smoke:tui-gate-b` 的complete场景通过，明确要求并打印
+`TUI_EFFORT_PROMPT_OK ultra=double-arrow max=single-arrow status=preserved keyboard=ok`，
+日志`/tmp/lime-tui-stage69-tui-gate-b-final.log`。真实/model picker/Alt按键选择Ultra、
+/status核对档位、关页保持»、降档Max为›，随后还原High，未凭普通gated return冒充
+PTY验收。Thread `01a11ece-6721-7f20-9387-8c74a9731f6b`/Turn
+`turn_d783ba0984614ba6ae47034436a1b2d2`；同fresh binary的stdio推理/cold read/运行中
+resume/backtrack、PTY输入/editor/history/附件布局相关主链、alternate screen与终端恢复
+保持通过。本轮只选择受影响complete，未冒充重跑其它10个场景。
+
+第68完整120批前端与桌面/CLI Gate证据仍有效，本刀无GUI/protocol/config/schema/文案
+生产改动，因此不重复22项聚合GUI或前端全量。KISS保留单列几何，DRY单一settings刷新，
+SRP档位样式与editor draft分离。本切片100%；总体partial/in-progress，没有总分母，
+一次性ignition/状态栏过渡、其余输入/显示/目录、exec事件输出继续待办。
+
+## 第七十阶段：文件/技能补全弹窗 owner 目录（专项验收完成）
+
+主目标继续为功能/UI/命名/目录/设计模式全维度Codex对齐。当前file_search_popup与
+skill_popup各自已有真实列表/key/render职责，却被定义在chat_composer子模块并经其
+re-export供BottomPane使用。Codex对应owner直接位于bottom_pane，composer只拥有
+token/lifecycle state。本刀直接迁移两个文件及全部imports，不保留旧路径或包装。
+
+窄写集：两个popup文件迁到bottom_pane根；bottom_pane/mod、chat_composer模块声明/
+imports、popup_state消费者；既有结构守卫/inventory、commands/本计划。主runtime/
+GUI/shared protocol/provider/config/锁文件只读。保留原有行为和全部已有popup回归，
+不复制keymap/render或引入新业务API。旧路径为dead/deleted/forbidden-to-restore，
+新路径为current，同一state实例继续由composer持有。
+
+退出条件：旧文件/模块/re-export无消费者，当前模块唯一；既有文件/技能列表和
+completion/mentions回归、strict Clippy与结构守卫通过；真实fresh PTY complete/files
+输入路径与skills场景继续保持canonical输入/附件/terminal恢复。本刀presentation内部
+目录移动，不改变业务主链或public依赖方向；root，2026-10-09。
+
+2026-10-09最终：两个文件直接迁移，旧chat_composer/file_search_popup.rs及skill_popup.rs
+物理删除，action不再经composer转出；imports已迁至同一current模块，无path alias或
+compat。原有popup回归61/61、结构守卫81/81、CLI/TUI strict Clippy all-target/no-deps、
+fmt/diff、边界ESLint、contracts、legacy治理（漂移/违规0）通过。inventory1511更新真实
+路径/源码digest，历史snapshot evidence保持不可变，不伪造同路径实现全量等价。
+
+标准fresh `smoke:tui-gate-b` 选择complete,skills通过，日志
+`/tmp/lime-tui-stage70-tui-gate-b.log`。真实文件搜索结果上下选择/Tab插入未截短完整路径，
+技能结果滚动/Tab选择/原子delete/cancel/history recall/提交和cold canonical内容通过，
+skill-mentions=ok；同fresh binary的前序Ultra/Max prompt、stdio推理/resume/backtrack与
+alternate screen/终端恢复保持通过。主complete Thread
+`01a11ed5-f829-7063-a876-9334524710b5`/Turn `turn_10556f2f740143b1aabe0a79e2be18c0`。
+gate实际核对另一个skills Thread/Turn/Item的typed输入/Skill路径，stdout聚合未另印其ID，
+不把主complete身份冒充skills身份。受控external backend，无live provider/Windows。
+本刀未无理由重跑全TUI或前端120批；保留第69full crate1599+23+1与本刀贴边界回归。
+
+分类current两列表owner，dead旧模块/re-export已删，无新增compat/deprecated；SRP由
+列表owner持有scroll/render，composer持有token/lifecycle，DRY继续消费同一shared rows。
+本切片100%；总体partial/in-progress。下一刀是popup抢占带修饰键Enter：当前三个
+popup把Shift/Alt/Ctrl+Enter都当选择，偏离Codex普通Enter才接纳结果、其余走编辑器语义。
+
+## 第七十一阶段：补全弹窗的修饰 Enter 路由（专项验收完成）
+
+Codex file/skill popup 与 chat_composer/slash_input 均明确限定普通 Enter 才接纳选择，
+其它 Enter 交给已有编辑器/keymap。Lime 三个列表当前仅检查 key.code，会把换行或
+未绑定的组合键误当成补全/执行命令。本刀在 current 列表 key routing 原位替换，
+不新增平行 composer、keymap 或兼容入口。
+
+窄写集：bottom_pane 三个 popup、input_tests、既有 runtime_pty_tests/suggestions 与
+tui-gate-b marker、结构 inventory/本计划。GUI、shared protocol/config/runtime/provider
+只读。保持 Tab、普通 Enter、文件无匹配 Enter 关闭并继续提交的既有语义；Ctrl+Enter
+默认无绑定时不改稿、不选择，显式绑定换行时消费相同 editor。附件/已选 mention 不丢失。
+
+退出条件：真实 BottomPane 接线回归覆盖 Shift/Alt 换行、Ctrl 默认与自定义 keymap、
+有/无文件结果及普通选择；fresh PTY 实际 CSI-u 修饰键在三种 popup 中换行，草稿清理
+和无额外 canonical turn 可观察；TUI crate、strict Clippy、fmt/结构守卫通过。
+本刀只改 TUI presentation 输入路由，业务边界与架构依赖不变；root，2026-10-09。
+
+2026-10-09最终：三个 current popup 原位限定普通 Enter；修饰 Enter 直接交还已有
+editor，无包装/compat/deprecated。BottomPane实际接线覆盖四种状态（文件有/无结果、
+技能、命令）、Shift/Alt换行、Ctrl默认无绑定与显式绑定，以及普通Enter选择和附件。
+测试首次读取私有草稿字段导致编译失败，已改为opaque完整快照比较，未扩大生产可见性。
+最终10项input回归、完整TUI1602 library +23 integration +1依赖守卫、81结构守卫与
+CLI/TUI strict all-target/no-deps Clippy通过。日志`/tmp/lime-tui-stage71-input-tests-v2.log`、
+`/tmp/lime-tui-stage71-tui-crate.log`、`/tmp/lime-tui-stage71-guards.log`、
+`/tmp/lime-tui-stage71-clippy.log`；fmt、diff、ESLint通过。
+
+fresh标准TUI Gate B complete通过，`/tmp/lime-tui-stage71-tui-gate-b.log`强制消费
+`TUI_POPUP_ENTER_OK slash=ok file=ok skill=ok shift-alt=newline turns=none`。
+三种popup各自经真实CSI-u Shift/Alt+Enter保持原token、出现新行、关闭popup；Ctrl-C
+清整段多行草稿，ledger无额外turnStart。已有文件Tab、技能选择、effort/model、
+canonical/stdio恢复、backtrack和terminal恢复仍通过。Thread
+`01a11ee5-0d1f-7f40-8dff-2d8d130f537b`/Turn `turn_549b88e789064de5a8e6b59950775d96`。
+受控external fixture，不冒充live provider/Windows/Desktop；无GUI/shared边界改动，
+不无理由重跑120批前端。本切片100%；总体partial，无可信总体百分比分母。
+
+## 第七十二阶段：斜杠补全的编辑 owner 与参数保留（专项验收完成）
+
+Codex slash_input 在Tab或第二个普通 `/` 接纳选中命令，并在支持inline args的命令
+中只替换前缀、保留draft tail/text elements。Lime缺少 `/` 接纳；BottomPane直接
+replace整个草稿，已输入的参数/图片/skill/paste identity被清除。本刀直接迁移编辑
+职责到ChatComposer/slash_input，BottomPane仅派发popup动作，不留旧编辑实现。
+
+窄写集：slash_command的既有参数能力声明、command_popup、BottomPane/input、
+ChatComposer/slash_input与独立回归、既有PTY suggestions/gate marker、结构guard/
+inventory/本计划。仅对实际已有参数消费者（model/effort/permissions/mcp/export/pwd）
+保留tail；不让无参数命令自动新增参数能力，不改变模型/权限业务决策或公开协议。
+退出条件：Tab与 `/` 可补全文本且不执行，普通Enter沿用已有命令派发；UTF-8 cursor、
+参数尾部、多行、图片/已选skill/折叠paste和Vim undo identity稳定；旧BottomPane编辑
+helper删除；定向与full TUI、Clippy/结构守卫及fresh PTY的真实args补全通过。
+presentation内部owner收敛，业务架构不变；root，2026-10-09。
+
+实施时发现TextArea尚无Codex同名remove_element_range，前缀跨原子元素时不能安全
+解除标记。因此窄写集补入既有textarea/elements与独立回归：只取消精确range的标记，
+保留文本/cursor/其它ID，UTF-8边界按同一editor clamp；不复制editor或放宽atomic删除。
+
+2026-10-09最终：current slash_input唯一负责命令前缀编辑，BottomPane旧编辑helper
+物理删除，popup只选择动作，catalog声明实际参数能力。第二个普通 `/` 与Tab接纳
+文本、不执行；Enter保持既有dispatch合同。支持参数的命令保留tail及原子ID，未给
+其它命令新增参数语义。新增textarea同名unmark消费链已覆盖UTF-8 clamp与相邻ID。
+rich回归验证图片、已选技能、折叠paste的range平移/identity/typed提交，以及Vim完整
+undo/redo快照；首轮因TextArea缺失API与旧import编译失败，补入current owner并清掉
+旧import后验证通过，无compat/deprecated或第二backend。
+
+460项BottomPane定向回归、完整TUI1607 library +23 integration +1依赖守卫、82结构
+守卫、contracts、legacy治理（0漂移/违规/零引用候选）、CLI/TUI strict all-target/
+no-deps Clippy、fmt/diff/ESLint/Prettier通过。日志`/tmp/lime-tui-stage72-pane-tests-v2.log`、
+`/tmp/lime-tui-stage72-tui-crate.log`、`/tmp/lime-tui-stage72-guards.log`、
+`/tmp/lime-tui-stage72-contracts.log`、`/tmp/lime-tui-stage72-governance.log`、
+`/tmp/lime-tui-stage72-clippy.log`。inventory1512 src文件，新增独立slash输入测试owner。
+
+fresh标准Gate B complete通过：真实PTY编辑`/effo high`的prefix，Tab、`/`、Enter
+均保留`/effort high`，关闭popup且无额外turnStart；强制marker
+`TUI_SLASH_COMPLETION_OK tab=ok slash=ok enter=ok args=preserved turns=none`。
+第71修饰Enter、model effort、真实stdio/read model/resume/backtrack与终端恢复仍通过，
+日志`/tmp/lime-tui-stage72-tui-gate-b.log`，Thread
+`01a11ef1-80e8-7452-8302-cd9b69541b7c`/Turn `turn_7e149716ddab47dc91ec47164cf8d915`。
+无live provider/Windows/Desktop本轮证据；本切片100%，总体partial/in-progress。
+
+## 第七十三阶段：空补全列表的接纳与关闭（专项验收完成）
+
+Codex文件列表无选择时Tab关闭且不提交，普通Enter关闭并继续普通提交；技能列表
+无选择时Tab/普通Enter关闭且不提交。Lime文件空结果Tab和技能空结果的接纳键仍
+保留popup。本刀在唯一completion lifecycle owner修正，不增加dismiss wrapper或
+重写selection/render。窄写集：chat_composer/completion、BottomPane/input_tests、
+既有PTY suggestions/gate marker、inventory/本计划。退出条件：空文件/技能接纳键
+保持原draft/附件，普通Enter的两种提交差异不混同，修饰Enter保持第71语义；迟到
+file响应不复活已关闭popup；定向/完整TUI、Clippy/结构守卫和真实PTY空列表Tab通过。
+业务架构不变；root，2026-10-09。
+
+2026-10-09最终：current completion lifecycle 在文件空列表Tab、技能空列表Tab/普通
+Enter时关闭popup，保留同一rich draft；文件普通Enter继续原提交路径，修饰Enter
+沿用第71editor语义。未新增wrapper/compat/deprecated。BottomPane回归精确区分
+提交与关闭、保持图片与草稿，并验证取消file generation后迟到响应不能重开列表。
+PTY经真实文件搜索与skills catalog得到空结果，真实Tab（文件/技能）和Enter（技能）
+关闭列表，保留token并清理草稿，ledger无额外turnStart；不把普通文件Enter刻意
+新增canonical回合塞进“无额外回合”证据，已由真实pane提交action与既有PTY提交链覆盖。
+
+仓库标准related-first入口通过：`test:rust:related`为CLI lib8 +TUI1609；
+`test:rust:integration:related`扩展CLI bin61 +integration2、TUI integration23 +依赖
+守卫1（并重复库测试），最终唯一测试数1704，未把两次库运行重复累计。日志
+`/tmp/lime-tui-stage73-related-crates.log`、`/tmp/lime-tui-stage73-related-integration.log`。
+82结构守卫、strict CLI/TUI all-target/no-deps Clippy、legacy治理（漂移/违规/零引用
+候选0）、fmt/diff/ESLint/Prettier通过，日志`/tmp/lime-tui-stage73-guards.log`、
+`/tmp/lime-tui-stage73-clippy.log`、`/tmp/lime-tui-stage73-governance.log`。
+inventory1512保持最新；Gate脚本将四组重复marker检查合为唯一循环并保留fail closed，
+未添加平级runner或新脚本目录。
+
+fresh标准`smoke:tui-gate-b` complete通过，强制marker
+`TUI_EMPTY_COMPLETION_OK file-tab=closed skill-tab-enter=closed draft=preserved turns=none`，
+第71/72及原有effort、stdio、cold read、reconnect、backtrack、canonical状态与terminal
+恢复均保持通过。日志`/tmp/lime-tui-stage73-tui-gate-b.log`，Thread
+`01a11efa-36d8-7613-997c-8929332f5850`/Turn `turn_4ac6e1c347ee4c4e83802500e60c4587`。
+第72contracts继续有效，本刀未改变公开协议/GUI/shared config；不无理由重复前端
+120批或Desktop smoke。本轮全部使用受控external fixture，未验收live Provider/Windows。
+本切片100%；总体partial/in-progress，不虚报总对齐率。
+
+下一主线回到显示层：effort_ignition一次性Wave/Aurora/Pulse、status-line transition，
+需要补齐首帧起算、baseline（启动/resume/thread handoff不重放）、取消与reduced
+animation/color capability、保护draft glyph和单一frame requester。当前只有常驻prompt
+accent，不能标为完成动画；Lime尚无共享tui.animations配置，后续如引入必须同步core/
+public config/GUI消费者/schema/文档与契约，不能偷偷放进TUI私有配置。exec完整human
+tool/error/usage、event JSON、resume及其它输入/显示/目录差异继续在主计划待办。
+
+## 第七十四阶段：推理档位一次性动画与状态栏过渡（专项验收完成）
+
+主目标仍是CLI/TUI功能、显示、输入与owner结构完整对齐Codex。当前静态effort accent
+直接替换为Codex同名effort_ignition/styles与effort_status_line；Composer拥有效果状态，
+view仅提供canonical状态栏props，复用现有FrameRequester，禁止第二timer或业务后端。
+共享tui.animations默认true，由core TuiConfig校验、config/read/batchWrite持久化，GUI
+类型/gateway保留同一字段；animations=false与低色能力只保留静态accent。
+
+窄写集：TUI既有bottom_pane/composer/footer/render、effort动画模块与独立回归；
+ChatWidget settings、startup/resume/hydrate基线、runtime帧调度注入；core TuiConfig、
+公共config JSON-RPC回归、GUI appConfig类型/回归；TUI manifest/lock、既有PTY/gate、
+结构inventory/guard、commands/ops/本计划。已有脏写集沿用前序任务，避让无关GUI改动。
+退出条件：三style不连续重复、首个可见render起算、draft/附件glyph保护、modal隐藏不
+提前消耗、palette缺失取消、降档/重复/baseline取消；status outgoing/label/fade和单帧
+调度真实消费；启动/resume/thread handoff不重放；共享配置默认/false/非法值/冷读取
+通过；定向TUI/core/App Server/GUI回归、契约/治理/Clippy与fresh真实PTY通过。
+本刀仅增加presentation状态与既有共享配置字段，业务架构不变；root，2026-10-09。
+
+实施补入既有status_indicator_widget/shimmer配置消费，避免animations=false仍播放运行
+文字效果；Agents Overview改为fullscreen早返回，避免被遮挡的Composer提前起算。
+runtime_pty_tests.rs为既有1740+行host夹具，本刀仅追加palette probe接线；新交互断言
+继续放在独立reasoning_shortcuts，不堆入host文件，后续按既有场景模块持续拆分。
+
+验收接线核准：公共config写入null表示删除覆盖，恢复animations=true；字面YAML/JSON
+null仍由core拒绝。首轮公共回归错误地将reset当非法值，现按既有合同补reset/冷读/再次
+false保存。related前端入口遇到electron目录EISDIR解析错误，使用同一API测试文件定向
+运行；新增GUI fixture首轮漏default_provider，补完整公共配置形状后18项通过。
+标准Rust integration runner同时选中了巨大App Server lib test；中止该超范围编译，改用
+同一config_jsonrpc独立target+仓库V8 env resolver，未降低公共协议/持久化验收。
+
+首轮complete接入palette后，vt100投影在既有export ZWJ emoji重排断言丢失末尾laptop
+glyph，未判为产品已修复或放宽原回归。本轮将palette/真实tint/Ultra标签/恢复状态断言
+接到已有diff-display富色场景；complete保持原综合编辑条件，两组分别fail closed。
+仅回应实际cursor/OSC10/11探测，不额外宣称keyboard capability；目录/runner数量不增加。
+
+2026-10-09最终：current effort_ignition/styles、effort_status_line和Composer/effort为
+唯一效果owner，Wave/Aurora/Pulse随机且不连续重复，首个可见render起算；背景穿过文本，
+glyph避开草稿/附件保护区。passive footer保留原样快照，旧状态右滑、MAX/ULTRA收拢、
+淡出及新状态淡入统一复用FrameRequester。启动/resume/hydrate显式baseline，modal/
+fullscreen不提前启动，降档、palette缺失和animations=false取消。旧静态效果选择已原位
+替换，无新增compat/deprecated或第二timer/runtime。共享animations配置经core、公共
+config/read/batchWrite和GUI shape保留；TUI仅声明既有workspace rand 0.8，不升级依赖。
+
+实际唯一Rust回归2314项：core library583、TUI library1635 +integration23 +依赖守卫1、
+CLI library8 +binary61 +integration2、公共config JSON-RPC1；未重复累计初轮定向41或
+旧TUI1633。GUI API18、结构/快照守卫83、contracts、typecheck、strict CLI/TUI
+all-target/no-deps Clippy/-D warnings、fmt/diff、ESLint/Prettier全部通过。治理零分类漂移/
+边界违规/零引用候选；inventory1517 src文件。有效日志：
+`/tmp/lime-tui-stage74-crates.log`、`/tmp/lime-tui-stage74-related-integration.log`、
+`/tmp/lime-tui-stage74-config-jsonrpc-v2.log`、`/tmp/lime-tui-stage74-frontend-v2.log`、
+`/tmp/lime-tui-stage74-guards-final.log`、`/tmp/lime-tui-stage74-contracts.log`、
+`/tmp/lime-tui-stage74-governance.log`、`/tmp/lime-tui-stage74-typecheck.log`、
+`/tmp/lime-tui-stage74-clippy-final.log`、`/tmp/lime-tui-stage74-eslint-v2.log`。
+
+fresh标准Gate B选择complete,diff-display通过，日志
+`/tmp/lime-tui-stage74-tui-gate-b-v5.log`强制消费
+`TUI_EFFORT_ANIMATION_OK palette=probed ignition=tinted ultra=assembled status=restored frames=shared`。
+真实PTY回应实际cursor/OSC10/11探测，经真实catalog/F9选择Ultra，检查输入框RGB变化、
+ULTRA收拢标签和恢复状态，随后降为High；cold thread/resume核对同一model/provider/
+effort且仅一个Turn。complete Thread `01a11f23-5da6-7573-8218-c40b6d57fe2f`、Turn
+`turn_b91ac87c1032444ea9ad0d42ef479ff4`；backtrack prefix Thread
+`01a11f25-3a4a-7bd0-9bde-8fb28d96d4d7`、preserved Turn
+`turn_f72dc0338a744b4982a14720d821b06e`。原reasoning通知/冷恢复、reconnect/backtrack、
+输入/历史/Vim、title/status、focus/resize和terminal恢复仍通过。
+
+complete综合场景120秒超时后，整体预算改180秒，单步10秒predicate与断言保持原值；
+只读sample确认时间主要消耗于VT100全量解析，未扩大本刀为缓存/增量projection改造。
+尝试diff-display优先执行触发旧composer fixture共享ledger“尚无turn”假设，最终沿用
+原complete先、diff-display后的顺序验收通过。前序失败日志保留，不把它们改写为通过。
+
+本切片100%；总体partial/in-progress，goal active，无可信总体百分比分母。证据使用
+受控external backend；本轮没有live Provider、Windows或Desktop GUI Gate B，未重跑
+完整verify:local及前端120批。下一刀回到CLI human tool/error/usage显示和owner命名；
+event JSON/resume及其它输入/显示差异继续待办。
+
+## 第七十五阶段：exec 工具、错误、计划与用量输出（专项验收完成）
+
+主目标继续为Codex功能、UI/UX、目录/命名及设计模式完整对齐。当前CLI human owner
+只消费completed Reasoning，忽略CommandExecution/FileChange/MCP/WebSearch、运行错误、
+plan/diff和token usage，失败退出只剩空stdout。本刀迁到Codex同名
+exec/event_processor_with_human_output，消费既有typed notifications，不扩展业务协议。
+
+窄写集：cli/src/exec内的参数/人类输出/locale/事件隔离与独立回归，main最小导入和
+locale继承；CLI manifest/lock仅声明既有workspace终端样式依赖；既有CLI Gate reasoning
+矩阵和terminal fixture，CLI boundary/inventory、architecture/commands/ops/本计划。
+TUI、GUI、App Server/protocol/runtime/provider生产源码只读，前序脏改动保留。
+
+退出条件：同Thread/Turn隔离的工具开始/终态/输出、错误/中断、plan/diff、warning与
+最后一次canonical usage真实可见；duplicate Item通知与terminal快照不重复打印，漏通知
+可由terminal修复；stdout仅成功最终答案，双TTY避免重复，JSON/JSONL无human文本；
+--color auto/always/never和五语言文案有真实consumer/回归；旧human_output路径直接
+删除且补禁止恢复守卫；CLI crate/strict Clippy、contracts/治理及fresh stdio Gate B通过。
+不把本刀视为完整event JSON、exec resume、配置摘要或全部Codex feature已完成。
+presentation owner与共享业务依赖方向不变；root，2026-10-09。
+
+2026-10-09最终：current为同名exec/cli、event_processor_with_human_output及CLI
+presentation locale。旧main内ExecCli声明与human_output路径直接迁出/删除，CLI boundary
+禁止旧路径恢复，无新增compat/deprecated。EventProcessor唯一执行Thread/Turn过滤；
+human renderer消费CommandExecution开始/终态/exit/duration/聚合输出、FileChange、
+MCP错误、WebSearch、collab开始、compaction、plan/diff、config/runtime/Guardian warning、
+error、hook和model reroute。Item ID去重，terminal补漏，canonical最终正文优先于增量；
+失败/中断不把partial snapshot变成最终回答。usage仅保留最后服务端累计快照，排除
+cached input并以饱和运算显示千位分隔数，不新建usage累计owner。
+
+--color auto/always/never与五语言实际接线，root locale被exec继承；pipe stdout仅成功
+最终答案，双TTY只显示一次，JSON/JSONL仍是原envelope且human renderer不创建。
+crossterm只新增既有workspace直接依赖，不升级版本；ANSI使用Codex对应基础色、
+dim/italic/bold，不把工作目录一起加粗。CLI结构inventory补入Codex exec与Lime exec
+真实源树，8树独立记录路径/digest；只在comparison中使用owner-relative路径，未把
+Lime exec.rs伪装成上游lib.rs。JSON event owner、exec_events和ResumeArgs缺口保持显式。
+Codex来源HEAD `4aaee872e31abefe0d32e91faab23b09b6968824`，human output SHA-256
+`cc3a4cb49aeaf02556b16ea565f16e5ecef0fe70ae2f2c8bf3447bd00301f06e`，cli SHA-256
+`66643e8b3d5964b70cb8f231fb309312376272fb3ea87bcb6849f44cf112f8f6`。
+
+Rust related-first入口library8通过；integration related完整library8 +binary74 +integration2
+通过，唯一84项，不重复累计最后exec23定向重验。日志
+`/tmp/lime-tui-stage75-related-crates.log`、`/tmp/lime-tui-stage75-cli-tests-final.log`、
+`/tmp/lime-tui-stage75-exec-tests-final.log`。结构/Gate/inventory回归11项、contracts、
+strict CLI all-target/no-deps Clippy/-D warnings、ESLint零warning、Prettier、fmt/diff
+通过；legacy治理2070文件、1828 Rust文件，零引用候选/分类漂移/边界违规均0。
+日志`/tmp/lime-tui-stage75-guards-final.log`、`/tmp/lime-tui-stage75-contracts.log`、
+`/tmp/lime-tui-stage75-clippy-final.log`、`/tmp/lime-tui-stage75-eslint-final.log`、
+`/tmp/lime-tui-stage75-governance.log`。首次编译发现Rust2021不能使用let-chain与Lime
+query为Option，已按既有edition/协议修正；测试fixture补started/completed时间戳。
+Clippy指出stdout boolean非最简后原位改写，再重验exec23及fresh Gate，未加allow。
+
+fresh标准CLI Gate B最终通过，日志`/tmp/lime-tui-stage75-cli-gate-b-pty-v2.log`。
+主Thread `01a11f3c-9632-76d1-a835-dc92f37f91a0`、Turn
+`turn_7c234abce8a74452b9bf8238931e8a7d`；7个human矩阵均核对实际stdin/stdout/stderr/
+exit并从另一进程cold thread/read核对唯一Reasoning和CommandExecution身份、状态、
+cwd/output/exitCode/durationMs。failed为exit1、interrupted为exit130，stdout空；2个
+JSON格式stderr空，5个locale实际root继承，3个color在管道及NO_COLOR下验证，
+unavailable继续fail closed。即时Error及终态Error分别输出，与Codex一致；首轮夹具
+只预期一次而失败，改正期望后通过，未改变runtime错误/重试语义。
+
+真实macOS原生script PTY强制标记
+`CLI_HUMAN_TTY_OK platform=darwin real-pty=ok both-streams=tty final-answer=once tools=visible`，
+stdout/stderr都接同一TTY，最终答案仅一次且工具仍可见。原生script由参数直接启动，
+无shell拼接；SIP清除DYLD_LIBRARY_PATH曾令App Server transport关闭，验收helper
+通过既有isolatedEnvironment解析同一库路径，再经env参数在PTY内恢复，仅改测试host，
+不修假生产fallback。非macOS或外层stdin非TTY明确打印NOT_RUN，不冒充TTY证据。
+前序失败日志保留为stage75 CLI gate v1/final/pty-final，不改写为通过。
+
+root已核对architecture传递图；KISS不新建事件协议/输出backend，SRP参数与presentation
+归各自owner，DRY复用同一过滤/通知/配置事实源与同一isolatedEnvironment。
+本切片100%；总体partial/in-progress，goal active，无可信总体分母。TUI生产源码、GUI、
+App Server/protocol/runtime/provider只读，前序dirty写集保留。本轮未重跑完整TUI/GUI
+Gate B、verify:local/120批前端，也未验收Windows/live Provider；第74受影响边界证据
+保持独立，不冒充本刀。下一刀为Codex exec event JSON/exec_events与resume，必须同步
+实际脚本消费者，删除旧single-envelope入口，不建立第二套runtime或兼容输出双轨。
+
+## 第七十六阶段：exec JSONL 事件输出与旧 envelope 清理（专项验收完成）
+
+上一goal turn为progress：第75 current CLI owner、真实stdio/cold read/macOS PTY和
+仓库证据均已落地。本轮核准Codex exec_events与event_processor_with_jsonl_output，
+直接把--json改成逐事件JSONL，删除--jsonl及旧render_json_envelope，不保留双格式兼容。
+CLI业务继续通过同一App Server，不迁出/复制runtime或canonical持久化。
+
+窄写集：cli/src/exec的typed exec_events、JSON owner/Item lowering/独立回归、既有
+EventProcessor scope/typed terminal result、main删除旧helper/专属测试；CLI manifest/lock
+只追加现有schemars版本以同步机器schema；packages/cli内生成schema及npm staging/文档/
+回归；CLI Gate及reasoning矩阵、surface Gate种子consumer、CLI boundary/inventory，
+architecture/commands/governance/ops/scripts导航/本计划。GUI/TUI及App Server/protocol/
+runtime/provider生产源码只读，保留前序dirty改动。
+
+退出条件：thread/turn开始、命令/文件/MCP/协作/搜索/摘要/计划Item、warning/error及
+usage终态符合Codex snake_case合同；每条即时flush，单一renderer不混human/envelope；
+逐Item ID在生命周期内稳定，重复/迟到通知不重开，canonical terminal修复漏通知；
+failed输出error/turn.failed且exit1，中断无成功终态且exit130，preflight输出error；
+全部真实消费者迁移，旧flag/helper/serializer及DTO仅测试字段删除并禁止回流；schema
+与npm实际tarball同步、CLI/crate/Clippy/契约/治理与fresh真实stdio输出验收通过。
+event编号映射属于CLI presentation，cold read继续核对原canonical identity，不能把
+item_0等显示编号当持久化ID。exec resume、output-last-message、其余feature下一刀继续。
+root，2026-10-09；业务架构方向不变，JSON输出owner图需同步并确认。
+
+2026-10-09：current为同名exec_events、event_processor_with_jsonl_output及typed Item
+lowering，human/JSON enum互斥，共用EventProcessor scope。旧jsonl flag、envelope helper、
+DTO的single-result序列化与仅服务envelope的identity字段已删除，无compat/deprecated。
+机器摘要始终可见、原文不输出；todo来自typed plan，usage取最后total五字段，不自行
+累加。display编号稳定，duplicate/late start不重开，terminal补漏/正文修复；失败
+error/turn.failed+exit1，中断无成功终态+exit130，preflight单error。Lime canonical Plan
+正文投影为agent_message；WebSearch v2没有typed results，保持省略，不猜metadata；
+flatten Item只输出一个id，避免上游样例重复key。ResumeAgent按上游lower为wait。
+
+所有exec JSON消费者已迁：CLI Gate、reasoning矩阵、surface queue seed与npm launcher
+安装态fixture。schema按schemars serialize方向生成；最初required attribute误去掉
+nullable类型，被实际event/schema测试发现并修正，未放宽测试。每种Item/事件roundtrip、
+null/可选字段、unknown search action闭合与schema drift有回归，npm真实tarball包含
+同源schema；安装态helper也复制并检查schema，不只声明package files。
+
+Rust related library8先通过；integration related最终library8+binary84+integration2，
+唯一94项，不重复累计中间exec34定向验证。strict all-target/no-deps Clippy/-D warnings、
+13脚本回归、npm9项、contracts、ESLint零warning、fmt/diff、app-version通过；legacy
+扫描2070文件/1833Rust文件，零引用候选/分类漂移/违规均0。日志为
+`/tmp/lime-tui-stage76-cli-tests-final.log`、`/tmp/lime-tui-stage76-clippy.log`、
+`/tmp/lime-tui-stage76-guards.log`、`/tmp/lime-tui-stage76-npm-tests.log`、
+`/tmp/lime-tui-stage76-contracts.log`、`/tmp/lime-tui-stage76-governance.log`。
+前序失败日志exec-tests/v2保留；旧constructor/flag测试、schema nullable与io错误kind
+均原位修正，不加allow、不写fallback。仅声明已有schemars/jsonschema版本并同步lock。
+
+fresh CLI Gate B日志`/tmp/lime-tui-stage76-cli-gate-b-pty.log`：主Thread
+`01a11f5d-9a97-78f1-b614-423455476145`、Turn
+`turn_4cdda3e303e445e994369486ee089cc3`。external backend屏障在收到command item.started
+之前绝不完成，证明逐事件flush；cold read核对原canonical identity/output。7human+4JSON
+矩阵、five-locale/color、错误/中断/不可用、stdin/completion和原生macOS双流PTY均通过。
+真实surface Gate日志`/tmp/lime-tui-stage76-cli-surface-gate-b.log`通过，queue消费新事件。
+npm安装态CLI与既有packaged Gate的TUI complete均通过，日志
+`/tmp/lime-tui-stage76-cli-npm-gate-b.log`，aarch64-apple-darwin，sibling App Server；
+alternate-screen/键盘/恢复来自该Gate，不提升其它平台结论。
+root已确认architecture输出owner图，KISS/SRP/DRY仍共用
+App Server协议/runtime，不新增业务后端。CLI JSON切片100%，整体partial/in-progress，
+无可信总体分母；Windows/live Provider、Desktop GUI与完整verify:local未重跑。
+
+## 第七十七阶段：exec resume、stdin 与最终消息文件（专项验收完成）
+
+下一刀对齐同名Command/ResumeArgs/ExecSharedCliOptions、resolve_resume_thread_id和
+handle_last_message：exec resume通过thread/list/resume恢复同一canonical Thread，再
+发起新Turn；--last按updated_at倒序、默认cwd筛选，--all取消cwd筛选，UUID优先、名称
+精确匹配，不直接读取数据库或rollout。未找到last/name沿用Codex新建线程语义，实际
+thread/resume失败不fallback。root/exec/resume共享连接与权限参数，旧variadic prompt
+迁为Codex单PROMPT；root参数+pipe stdin追加stdin块，省略/-读取stdin，resume显式
+prompt不追加pipe。UTF-8 BOM/UTF-16输入解码按上游，不复用错误的字符串read_to_string。
+
+窄写集：exec/cli、exec/prompt、exec/thread及各自测试、exec orchestration与输出
+processor的last-message helper，main只删旧read_prompt/旧test及修调用；真实CLI Gate
+既有fixture补resume/stdin/file矩阵，结构inventory/守卫、commands/ops/architecture/npm
+文档/本计划。GUI/TUI、App Server/protocol/runtime生产只读，保留前序dirty改动。
+退出条件：参数同前后位置均有效，跨进程resume保持Thread并新增Turn，last/all/name
+选择与cold canonical一致；成功最终消息文件不含工具/推理或JSON，failed/interrupted
+保留旧文件，写失败显式报错；binary回归、Clippy/契约/治理与fresh stdio验收。
+不把exec fork/review、图片输入、output-schema或完整交互UI宣称已完成；继续保持总goal。
+
+安装态首次CLI矩阵全部通过，随后TUI complete在usage setup预览超时：实际只有Context
+remaining被勾选并移到首位，Used tokens未观察到。保留stage77-cli-npm-gate-b失败日志，
+不能沿用第76通过结论。本轮增加窄测试写集runtime_pty_tests/{config,token_usage,
+status_line,footer,task_progress}：将批量键盘写入改为筛选/勾选/清空/排序逐步screen predicate，
+每步仍为既有10秒预算，不加sleep、不放宽业务断言。TUI生产owner暂时只读；如发现真实
+事件/状态错误，先在对应owner补回归再修。最终必须重新取得安装态CLI+TUI完整证据。
+
+逐步观察首次仍失败，实际query为Task progress且checkbox已启用，但选中箭头丢失；
+不放宽选中断言。审计发现PTY reader发送任意字节chunk，所有observer逐chunk lossy
+decode，Unicode跨read边界会被替换并改变VT100几何。增加test-only output reader owner
+与分片回归，复用两个既有PTY reader；不改生产终端/选择器。runtime_pty_tests host仅
+替换reader实现并导入模块，reasoning fixture复用同一reader，禁止第二UTF8解析策略。
+
+2026-10-09最终：current为同名exec/cli参数、exec/prompt、exec/thread和共享
+EventProcessor last-message owner。旧main read_prompt/variadic prompt及专属测试原位
+删除，CLI boundary禁止恢复；无新增compat/deprecated。只有model/provider和输出参数
+global化，权限仍逐层inherit_from，保留显式子组覆盖。真实v2 thread/resume不接受
+model/cwd override，因此恢复仅thread_id/exclude_turns，模型/权限走既有settings/update，
+cwd/roots走turn/start；不扩展App Server/protocol，也不恢复私有DB/rollout读入口。
+last按更新时间倒序且默认cwd，all取消cwd；UUID优先、精确名称、跨provider名称检索、
+分页重复cursor拒绝均有回归。last/name无匹配新建，实际UUID恢复失败不fallback。
+stdin行为及UTF-8 BOM/UTF-16双端序与非法编码拒绝由同一prompt owner承接。
+成功最终消息文件仅canonical正文；failed/interrupted不覆盖。文件写失败在runtime
+turn.completed之后输出本地artifact error并exit1，不改canonical Turn终态；Codex上游
+此处仅stderr报错，Lime显式失败是已记录差异，机器消费者不可把先前completed当进程成功。
+
+Rust CLI唯一103项（library8/binary93/integration2）、picker8与UTF8 reader分片1通过；
+不将ordinary gated PTY early return或中间重跑重复累计。CLI/TUI strict all-target/
+no-deps Clippy/-D warnings、123结构/PTY/CLI脚本守卫、contracts、ESLint零warning、
+Prettier、fmt/diff通过。治理2070 source/1838 Rust，候选/分类漂移/违规均0。
+有效日志stage77-cli-tests-final、clippy-final、tui-clippy、guards-final、contracts、eslint、
+governance、picker-tests、output-tests、prettier-final均在/tmp/lime-tui-前缀下；失败日志
+cli-tests/v2、cli-gate-b-pty与cli-npm-gate-b/v2保留，不改写为成功。
+
+fresh源码CLI日志`/tmp/lime-tui-stage77-cli-gate-b-pty-v2.log`：主Thread
+`01a11f73-a6c9-7603-8b48-407166dcb157`、Turn `turn_e48ab7c5bf694efb9ffd5bb4e8f7519a`；
+resume Thread `01a11f73-e89f-77b3-9641-86344e199ef7`，原Turn
+`turn_303709317ef84718b3bd9f5a7c08ec8d`、新Turn `turn_b4048fb0560e4ad9b8195907b6a3be50`。
+UUID/title/cold、last/all、stdin/BOM/UTF16、文件保护/写失败以及原human/JSON/macOS
+双流PTY均通过；all真实backend ledger另核对workingDir/workspaceRoot。
+TUI源码complete日志`/tmp/lime-tui-stage77-tui-gate-b-v3.log`通过：Thread
+`01a11f89-374d-7fd3-a95a-807388a84935`、Turn `turn_83eb3d9cf1f74ae5973835410d1b3c79`。
+选择器helper逐步观察与同一UTF8 reader保留原选中/排序/usage断言，未加sleep/延长预算；
+每个字节分片回归覆盖箭头/中文/ZWJ/ANSI/OSC和VT100屏幕/游标，真实完整场景含
+task/usage/title/status、编辑/历史/backtrack、focus/resize/reconnect与terminal恢复。
+
+最终npm安装态日志`/tmp/lime-tui-stage77-cli-npm-gate-b-v3.log`通过，aarch64-apple-darwin，
+真正根包launcher+optional平台包+sibling App Server，CLI和TUI complete均通过。
+CLI主Thread `01a11f8b-a8f2-7303-a54e-9f7495fe053a`、Turn
+`turn_be1ae212350a4c7faf3e089fe354b943`；TUI Thread
+`01a11f8c-a231-71b0-a56f-cc668971af69`、Turn `turn_727a6f662ee64b36a246b8d2e7b71d17`。
+安装态resume Thread `01a11f8c-1938-7090-8070-71092a0480b5`，原Turn
+`turn_9e801d7993624485adbd24c20e0dfccc`、新Turn `turn_d30c166021a04ffe972c513e236db176`。
+该安装态使用第77binary与第78新键盘断言引入前已编译fixture，不冒充第78验收。
+root已确认architecture输入/恢复/输出图；KISS/DRY共用参数、协议、runtime、canonical
+投影与文件行为，SRP将prompt/thread迁出main。切片100%，总体partial/in-progress，
+goal active，无可信总体百分比分母。本轮未验收Windows/live Provider/Desktop GUI或
+完整verify:local/前端120批。下一刀回到补全列表键盘UI/UX；exec fork/review、图片输入、
+output-schema和其余全维度差异仍为明确未完成项。
+
+## 第七十八阶段：补全列表 Repeat 与修饰键输入（已完成）
+
+继续服务输入框UI/UX对齐。公开Codex ChatComposer忽略Release但处理Repeat；三个补全
+popup的Ctrl+P/N仅匹配CONTROL。Lime现有owner只处理Press，Ctrl+Alt+P/N被误吞；
+command popup还将Ctrl+J/K当导航，抢占既有editor newline/kill-line。直接修三个owner，
+删除无上游依据的J/K导航，不保留别名或compat层。
+窄写集：bottom_pane/{command_popup,file_search_popup,skill_popup,input_tests}、既有
+PTY suggestions场景/接线守卫、commands/ops与本计划、结构inventory。GUI和共享业务
+后端只读；无schema、依赖、配置、文案或协议变化，保留前序脏写集。
+退出条件：Press/Repeat导航/确认同义，Release不改变draft/selection；Windows AltGr文本、
+Unix Ctrl+Alt控制chord均不抢Ctrl+P/N，Ctrl+J/K到达既有editor，无错误执行/提交；owner/pane回归、TUI crate/Clippy/结构守卫
+与fresh真实PTY的Repeat/release/编辑证据通过。架构方向不变，root，2026-10-09。
+
+首次bottom_pane回归490通过/1失败为本刀fixture错误地把Unix Ctrl+Alt当成AltGr，
+公开Codex与Lime既有key_hint均仅Windows启用AltGr。保留失败日志并按平台语义修正：
+Windows插入字符、Unix保持控制chord，三popup均不误当Ctrl+P/N。PTY在Unix用组合
+控制键+后续实际选择/完成确认没有导航；不宣称macOS证据证明Windows AltGr实机。
+
+安装态stage78-cli-npm-gate-b首次CLI全矩阵和新TUI_POPUP_KEYBOARD_OK通过，随后
+既有resize/reflow退出检查失败，进程仍显示draft且未恢复alternate screen；保留日志，
+不能将局部marker当完整验收。扩展窄测试写集suite/resize_reflow：删除连续三次Ctrl-C
+盲发，改为第一键清draft、观察placeholder、第二键退出，保持既有5秒预算与恢复断言。
+若单步仍失败再定位生产owner；不加sleep、不延长timeout、不改quit语义。
+
+## 第七十九阶段：exec fork 与共享图片输入（功能/终端验收完成）
+
+对齐公开Codex Command::Fork/ForkArgs和InitialOperation::ForkOnly/UserTurn：UUID优先、
+名称精确匹配且跨cwd查源，未找到源显式失败；thread/fork生成新Thread，沿用canonical
+history/lineage。无PROMPT仅分叉，不读取pipe、不启动Turn；显式PROMPT或-才继续，
+无PROMPT携带图片/最终消息文件显式拒绝。root/resume/fork的-i/--image使用同一
+LocalImage输入合同，图片先于Text，不增加CLI私有媒体或runtime后端。
+窄写集：exec/cli、prompt、thread及其测试、exec orchestration/locale；既有CLI session
+Gate/守卫、commands/ops/npm文档/architecture/结构inventory及本计划。main仅保留现有
+root参数继承，GUI/TUI与App Server/protocol/runtime生产只读；保留前序dirty改动。
+退出条件：参数前后位置与权限覆盖有效；跨进程fork-only/UUID/name/stdin/image/cold
+canonical/source不变均有证据；缺源不fallback，fork-only无合成Turn事件；crate定向测试、
+Clippy、contracts、治理和真实stdio/安装态Gate通过。review/output-schema/worktree与
+完整UI对齐仍未完成，整体继续in-progress。架构主链不变，root，2026-10-09。
+
+首次stage79-cli-gate-b-pty在fork fail closed：旧terminal fixture仅message.delta+
+turn.completed，canonical assistant Item保持非terminal，共享fork正确拒绝复制。没有放宽
+生产fork校验；扩展test-only terminal-gate-fixture可选completeAgentMessage（默认false），
+本刀exec session显式启用真实message.completed lifecycle，保留原缺通知修复场景不变。
+修正后重跑真实Gate，失败日志保留。
+
+v2/v3进一步证明fork成功、turn/start回应已到，但transport没有后续notification：
+App Server spawn_request_task的subscription_method只包含start/resume，漏掉fork。
+扩展窄生产写集app-server/src/lib.rs仅为既有判定补METHOD_THREAD_FORK，不在超长root
+堆叠新逻辑；测试放thread_listener_tests/fork.rs并只在旧test host注册模块。退出条件是
+通过真实transport证明fork响应先到、订阅target非source、首个Turn通知可见及终态闭合；
+执行App Server定向测试/strict Clippy/契约/治理和fresh CLI Gate。该共享修复同时服务
+GUI/TUI，禁止CLI私有resume绕行。public fork复制历史只改thread/session身份，保留原
+历史Turn/Item ID；纠正fixture错误的全局ID重建假设，不改既有canonical合同。
+
+v4真实Gate已通过fork订阅与初次继续，cold fork再次fork触发Projection turn identity
+conflict：fork_source无条件进入generic repair，重放保留原Turn ID的fork seed到旧全局
+projection。扩展窄写集runtime/thread_fork.rs、thread_fork/hydration.rs、thread_read.rs及
+thread_fork_jsonrpc/nested.rs；既有超长fork root仅迁出约125行恢复实现并替换调用，
+resume与fork统一由hydrate_thread_session选择canonical public-fork恢复，普通及AgentControl
+仍走原owner，不改Turn/Item ID或放宽projection约束。integration root仅注册子模块，不
+堆新测试；退出条件为nested cold fork保留历史/lineage、source不变、无多余Turn及继续
+provider history无重复，并通过共享JSON-RPC/源码/安装态/GUI回归。失败日志保留。
+App Server严格Clippy当前158条既有问题阻断（stage79-shared-clippy.log），不得宣称通过；
+CLI/TUI严格检查已通过。大文件后续退出条件为继续按fork media/history职责拆分到<800行。
+
+## 第八十阶段：exec output-schema（已完成）
+
+对齐Codex ExecCli.output_schema与InitialOperation::UserTurn.output_schema及load_output_schema：
+root/resume/fork前后参数位置均有效，读取UTF-8 JSON文件后lower到既有TurnStartParams
+output_schema，由共享runtime/provider处理。不新增CLI schema解释器、后端或全局设置。
+无PROMPT的fork携带schema在建立连接前拒绝；缺文件/非法JSON显式error，不能默默忽略。
+窄写集exec/{cli,prompt及测试}、exec.rs接线、既有exec Gate/守卫、文档和inventory；
+共享生产backend只读，沿用第79独立恢复修复与回归。退出条件：参数、读取/错误、
+fork-only拒绝及root/resume/fork真实stdio到external backend合同验证；crate/strict CLI
+Clippy/守卫/安装态Gate通过。结构差异仍显式记录，review与全面UI对齐继续未完成。
+
+stage80源码Gate先通过第79全部fork矩阵，随后image夹具错误读取RuntimeReplyInputImage.url
+导致startsWith失败；真实共享合同为uri/media_type/provider_data。只修test-only断言为
+sidecar引用、精确PNG字节与canonical URL一致性，不修改生产媒体路径或放宽断言。
+共享nested fork JSON-RPC最终5/5通过（含两history mode、冷分叉/重启继续/前缀唯一）。
+
+2026-10-09最终验收记录：
+
+- CLI全crate唯一110项通过（lib 8、bin 100、integration 2），日志
+  `/tmp/lime-tui-stage80-cli-tests.log`；第79的108项为此前版本，不重复累加。
+- 共享listener 10项通过（`stage79-listener-tests.log`），fork JSON-RPC 5项通过
+  （`stage79-fork-jsonrpc-tests-v5.log`），fork单元5项及compaction/midturn各1项通过
+  （`stage79-fork-related-final.log`）。新增nested回归实际覆盖legacy/paginated两模式。
+- CLI/TUI strict Clippy通过（`stage80-clippy.log`）；App Server最新窄scope普通Clippy通过，
+  122条既有lib警告，新增hydration/nested文件无诊断（`stage80-app-server-clippy.log`）。
+  早期all-target strict Clippy的158条基线错误未治理，不伪称仓库strict通过。
+- 7文件128项守卫通过（`stage80-guards.log`）；image夹具修正后再跑2文件9项通过
+  （`stage80-guards-v2.log`），后者包含于128项，不重复累加。ESLint/fmt/diff通过。
+- contracts与legacy-report通过（`stage80-contracts.log`、`stage80-governance.log`），
+  scripts/doc/CLI/App Server current边界通过，治理违规0。
+- 最新源码CLI真实stdio/PTY全矩阵通过（`stage80-cli-gate-b-pty-v2.log`）：主Thread
+  `01a11ffa-6b1f-7ce1-9b7f-51035a35c998`，Turn `turn_0cec0855b743499291e8f22788d70b11`；
+  fork源Thread `01a11ffb-0266-71c3-9052-d6757f4ae3e9`，fork-only
+  `01a11ffb-369d-7851-a62e-8dacc12aa833`，continued Thread
+  `01a11ffb-3d55-72f2-8950-0969b1ba635b`，Turn `turn_c6d88473c71d422cb89120ef3f3e5d76`。
+  root/resume/fork图片字节、canonical引用、outputSchema精确值及下一Turn无schema均通过。
+- Agent Runtime current aggregate通过（`stage79-runtime-fixture.log`，external fixture，
+  liveProviderUsed=false）；latest GUI smoke重新构建共享sidecar后通过
+  （`stage80-gui-smoke.log`），run_id `standalone-shell-01-20261009092444-35670`，
+  summary `.lime/qc/project-gates/standalone-shell-01-20261009092444-35670/shell-01-electron-smoke/summary.json`。
+
+分类：exec fork/images/output-schema和共享transport/hydration是current；旧无条件fork
+source generic repair路径、重复resume恢复选择为dead/deleted；没有新增compat/deprecated。
+SRP迁出125行恢复到155行hydration owner，DRY让fork/resume只用一个选择，KISS/YAGNI
+复用既有协议/runtime/media，不增加wrapper或schema解释器。其余前序dirty写集保留，
+本进程没有提交、推送或建分支。Windows/live Provider、完整verify:local与前端全量未跑；
+本轮证据不升格为跨平台、live输出约束或全局Codex完成度。整体partial/in-progress，
+无可信总体百分比分母。下一刀已只读核准exec ReviewArgs、ReviewTarget和review/start
+current owner；尚未实现，不计为对齐完成。
+
+最终安装态Gate B完整通过（`/tmp/lime-tui-stage80-cli-npm-gate-b-pty.log`，exit 0）：
+真实npm root launcher+optional darwin-arm64 platform package，App Server为同目录sibling；
+CLI主Thread `01a11ffc-e595-74c2-af88-90c3cc16399b`，Turn
+`turn_8941f3d093fe4fbcadfd6e0101c509ef`；fork源Thread
+`01a11ffd-af46-7e93-94b7-ac3828ca2cfd`，fork-only
+`01a11ffd-d39c-7160-8cee-55f49692264e`，continued Thread
+`01a11ffd-d757-72f0-b90f-fdc246227797`，Turn `turn_1c8afdba1820401c8adfdbf9121c3e04`。
+同一安装态CLI包含CLI_EXEC_FORK/IMAGES/OUTPUT_SCHEMA_OK与真实macOS双TTY证据。
+TUI主Thread `01a11ffe-c568-7b10-80ed-dedc8f08aa33`，Turn
+`turn_fbd3999bf07140a3a1f4151e2b9c4375`；TUI_POPUP_KEYBOARD_OK实际证明Repeat导航/
+完成、Release忽略、精确CONTROL、Ctrl+J换行、Ctrl+K到editor，无额外Turn；整套
+backtrack/typed revert/草稿/find/history/Vim/工具进度/用量/reasoning/footer/focus/
+resize-reflow/reconnect均通过，terminal=restored。第78原安装态resize失败已由真实
+状态驱动的两次Ctrl-C退出修复闭环；没有延长timeout或合成终态。
+
+第78输入框交互与第80CLI输出合同切片退出条件100%；第79功能/共享恢复与终端退出
+条件100%，仓库App Server all-target strict基线仍阻断，明确保留而非假称交付全绿。
+总体仍partial/in-progress，无可信总体百分比分母。安装态为macOS受控external backend
+fixture，不等于Windows/live Provider或正式发布证据；未执行commit/push/branch/release。
+
+## 第八十一阶段：exec review（实施中）
+
+继续对齐Codex Command::Review/ReviewArgs/build_review_request与InitialOperation::Review：
+--uncommitted/--base/--commit/custom互斥，--title要求commit；不指定target显式失败，
+custom '-'经同一stdin解码并trim，空指令拒绝。只请求既有review/start，选择review target/
+构造provider prompt/EnteredReviewMode与ExitedReviewMode仍由共享runtime拥有。输出沿同一
+EventProcessor、JSONL/human renderer及output-last-message，不建立CLI审查后端或git读取。
+窄写集exec/{cli,prompt,thread及其测试}、exec.rs接线，既有exec Gate/结构守卫、文档与
+inventory；App Server/GUI/TUI生产只读。保持第78—80最新通过证据，不计为第81验收。
+退出条件：CLI参数/target/stdin回归、canonical review边界及目标、cold read/最终文件、
+真实stdio/安装态CLI Gate、全CLI/strict Clippy/contract/guard通过。root已确认
+Product Surface -> review/start -> RuntimeCore -> canonical投影方向，2026-10-09。
+
+首轮CLI回归发现Clap对--base+--title会因commit与base冲突而豁免requires(commit)，
+造成title被静默忽略。保留失败日志，title显式声明与uncommitted/base/custom冲突，
+落实既定“title要求commit”语义；不新增参数兼容或恢复私有审查入口。
+
+第81编译期间检测到并行workspace/package版本更新1.152.0 -> 1.153.0，未覆盖/回滚
+该变更。第78—80完成证据仍对应1.152.0；第81采用current 1.153.0源码重建并检查
+版本一致性，不能复用旧binary冒称fresh，也不能将前一轮GUI/安装态证据升格为新版本。
+
+## 第八十二阶段：空输入导航与编辑按键 owner（实施中）
+
+继续输入框UI/UX主线。Codex handle_empty_prompt_shortcut仅Press打开Agents Overview，
+agents_navigation_key_available同时尊重editor/Vim move_left绑定。Lime原先在普通输入
+fallback及editor bypass两处重复判断Left，Repeat误触导航、重绑/解绑后footer仍提示。
+直接把Left移到空输入快捷键owner，删除两处重复分支；navigation availability读取当前
+textarea的已解析动作，复用相同判定给footer，不建立第二套keymap或compat层。
+窄写集chat_composer/{input,footer_state,agents_navigation及测试}、既有PTY suggestions与
+tui Gate/守卫、commands/ops/inventory及本计划；GUI/App Server/runtime/版本文件只读，
+保留其它dirty写集。退出条件：Press打开、Repeat/Release不打开；editor/Vim重绑与解绑
+保留编辑语义且无失效hint，pending chord/paste/search/附件/disabled/remote不抢导航；
+composer/host回归、TUI crate/strict Clippy、真实PTY与fresh安装态CLI/TUI Gate通过。
+架构主链不变，root，2026-10-09。第81真实review marker已到，整套与安装态仍待收齐。
+
+第81源码验收已通过：CLI唯一113项（lib8/bin103/integration2，stage81-cli-tests-final.log），
+strict CLI Clippy（stage81-clippy.log，exit0），16项守卫、contracts、legacy-report、
+fmt/ESLint/Prettier/diff及verify:app-version通过。current 1.153.0源码Gate完整exit0
+（stage81-cli-gate-b-pty.log），Thread `01a1201c-bb69-7763-9d7d-4f94532525fc`、Turn
+`turn_c162f152c0bc4b4b94284df518308f70`；CLI_EXEC_REVIEW_OK证明四类target、BOM stdin、
+显式prompt忽略pipe、canonical Entered/Exited review、cold读取及plain最终文件，错误在
+连接前fail closed。安装态将在第82fresh TUI binary完成后同时验收，尚不关闭此退出条件。
+
+第82删除普通input fallback与editor bypass两处Left导航，统一空输入shortcut返回typed
+InputResult，editor/Vim绑定、pending chord、disabled及paste burst共用availability。
+没有新增协议/依赖/全局状态；footer复用原消费链。114项结构/PTY夹具守卫通过
+（stage82-guards.log），Rust crate与真实PTY仍等待共享artifact锁，不用1.152或未重建
+binary冒称证据。既有超长tui Gate root仅增加marker注册，guard仅扩展已有同一场景断言；
+后续逻辑继续迁入现有领域helper，root退出条件是按scenario/验证职责拆到<800行。

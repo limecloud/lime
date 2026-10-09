@@ -191,15 +191,21 @@ describe("Codex model native tool policy origin", () => {
       return;
     }
 
-    expect(
-      codexSpecPlanSource.includes(
-        "environment_mode.has_environment() && turn_context.model_info.apply_patch_tool_type.is_some()",
-      ) ||
-        codexSpecPlanSource.includes(
-          "environment_mode.has_environment() && context.model_info.apply_patch_tool_type.is_some()",
-        ),
-    ).toBe(true);
-    expect(codexSpecPlanSource).toContain(
+    const utilityToolSource = sourceBetween(
+      codexSpecPlanSource,
+      "fn add_core_utility_tools(",
+      "fn add_collaboration_tools(",
+    );
+    expect(utilityToolSource).toContain(
+      "let stable_environment_tools = features.enabled(Feature::StableEnvironmentTools);",
+    );
+    expect(utilityToolSource).toMatch(
+      /let advertise_environment_tools =\s*stable_environment_tools \|\| environment_mode\.has_environment\(\);/u,
+    );
+    expect(utilityToolSource).toContain(
+      "if advertise_environment_tools && context.model_info.apply_patch_tool_type.is_some() {",
+    );
+    expect(utilityToolSource).toContain(
       "registry.add(ApplyPatchHandler::new(include_environment_id));",
     );
     expect(codexSpecPlanSource).toContain(".experimental_supported_tools");

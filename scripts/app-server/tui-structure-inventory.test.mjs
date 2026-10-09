@@ -670,6 +670,7 @@ describe("Codex TUI structure inventory", () => {
       "CwdSelection",
       "CwdPromptOutcome",
       "set_model_catalog",
+      "agents_navigation_key_available",
     ]) {
       expect(symbols.has(name), name).toBe(true);
     }
@@ -828,20 +829,16 @@ describe("Codex TUI structure inventory", () => {
       ),
       "utf8",
     );
-    const interactiveRuntime = runtime.slice(
-      0,
-      runtime.indexOf("pub async fn run_exec"),
-    );
 
     expect(appServerEvents).toContain("fn handle_app_server_event");
     expect(appServerEvents).toContain("fn handle_server_notification_event");
     expect(appServerEvents).not.toContain("fn handle_server_request_event");
     expect(appServerRequests).toContain("fn handle_server_request_event");
     expect(runtime).toContain("app.handle_app_server_event(");
-    expect(interactiveRuntime).not.toContain(
-      "AppServerEvent::ServerNotification",
-    );
-    expect(interactiveRuntime).not.toContain("AppServerEvent::ServerRequest");
+    expect(runtime).not.toContain("AppServerEvent::ServerNotification");
+    expect(runtime).not.toContain("AppServerEvent::ServerRequest");
+    expect(runtime).not.toContain("fn run_exec");
+    expect(runtime).not.toContain("ExecOptions");
     expect(appServerClient).toContain("pub enum AppServerEvent");
     expect(appServerClient).not.toContain("pub enum SessionEvent");
     expect(appServerClient).not.toContain("RawNotification(");

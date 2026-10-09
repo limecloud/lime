@@ -127,9 +127,11 @@ fn start_terminal() -> Result<PtyLime> {
 }
 
 fn quit_terminal(terminal: &mut PtyLime) -> Result<()> {
-    // Ctrl-C is the connected TUI quit path when no turn is active. Repeat it so a resize event
-    // already queued in the PTY cannot consume the only quit key before the app handles it.
-    terminal.write_input(&[3, 3, 3])?;
+    // The first Ctrl-C cancels the draft; observe that edit before asking the idle host to quit.
+    terminal.write_input(&[3])?;
+    terminal.wait_for_screen_without(DRAFT, RESIZE_TIMEOUT)?;
+    terminal.wait_for_screen_compact_contains("Ask Lime to do anything", RESIZE_TIMEOUT)?;
+    terminal.write_input(&[3])?;
     terminal.wait_for_exit()?;
     ensure!(
         terminal.output_contains(b"\x1b[?1049l"),

@@ -7,10 +7,8 @@ import {
   changeLimeLocale,
   cleanupAppSidebarTest,
   flushEffects,
-  mockCheckForUpdates,
   mockGetConfig,
   mockGetUpdateInstallSession,
-  mockOpenUpdateWindow,
   mountSidebarContainer,
   resetAppSidebarTest,
 } from "./AppSidebar.testFixtures";

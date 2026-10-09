@@ -346,6 +346,7 @@ export interface EnvironmentPreview {
 
 /** Shared user-config preferences; validation remains in core TuiConfig. */
 export interface TuiConfig {
+  animations?: boolean;
   right_click_paste?: "auto" | "on" | "off";
   keymap?: Record<string, Record<string, string | string[]>>;
   status_line?: string[] | null;
@@ -354,6 +355,9 @@ export interface TuiConfig {
 }
 
 export interface Config {
+  /** Explicit raw reasoning visibility shared by GUI and TUI; defaults to false. */
+  show_raw_agent_reasoning?: boolean;
+  hide_agent_reasoning?: boolean;
   tui?: TuiConfig;
   server: {
     host: string;

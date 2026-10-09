@@ -117,9 +117,11 @@ def stage_sources(staging_dir: Path, version: str, package: str) -> None:
         bin_dir = staging_dir / "bin"
         bin_dir.mkdir(parents=True, exist_ok=True)
         shutil.copy2(CLI_ROOT / "bin" / "lime.js", bin_dir / "lime.js")
+        # The schema is generated from the Rust exec event owner and must ship with the root package.
+        shutil.copy2(CLI_ROOT / "exec-events.schema.json", staging_dir / "exec-events.schema.json")
         package_json = dict(root_package_json)
         package_json["version"] = version
-        package_json["files"] = ["bin/lime.js"]
+        package_json["files"] = ["bin/lime.js", "exec-events.schema.json"]
         package_json.pop("scripts", None)
         package_json["optionalDependencies"] = {
             config["npm_name"]: compute_platform_package_version(

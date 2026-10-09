@@ -34,7 +34,6 @@ import {
   scheduledTaskToForm,
   validateScheduledTaskForm,
   type ScheduledTaskFilter,
-  type ScheduledTaskFormErrors,
   type ScheduledTaskFormState,
 } from "./scheduledTaskViewModel";
 
@@ -68,7 +67,6 @@ export function ScheduledTasksPage({
   const [form, setForm] = useState<ScheduledTaskFormState>(() =>
     defaultScheduledTaskForm(),
   );
-  const [formErrors, setFormErrors] = useState<ScheduledTaskFormErrors>({});
   const currentProjectId =
     pageParams?.projectId?.trim() ||
     loadPersistedProjectId(LAST_PROJECT_ID_KEY) ||
@@ -229,7 +227,6 @@ export function ScheduledTasksPage({
       next.projectId = currentProjectId;
       next.sourceThreadId = pageParams?.threadId ?? "";
       setForm(next);
-      setFormErrors({});
       setEditorMode("create");
     },
     [currentProjectId, pageParams?.threadId, t],
@@ -238,7 +235,6 @@ export function ScheduledTasksPage({
   const startEdit = useCallback(() => {
     if (!selectedTask) return;
     setForm(scheduledTaskFormWithCurrentModel(selectedTask, currentProjectId));
-    setFormErrors({});
     setEditorMode("edit");
   }, [currentProjectId, selectedTask]);
 
@@ -264,7 +260,6 @@ export function ScheduledTasksPage({
               nextForm.title,
           };
       const errors = validateScheduledTaskForm(normalizedForm);
-      setFormErrors(errors);
       if (Object.keys(errors).length) {
         toast.error(t("scheduledTasks.editor.validation.fix"));
         return;

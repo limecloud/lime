@@ -67,6 +67,7 @@ describe("appConfig API", () => {
 
   it("GUI 配置编辑保留同一用户层的 TUI 状态栏，不生成覆盖写入", async () => {
     const tui = {
+      animations: false,
       status_line: ["current-dir", "model-with-reasoning"],
       status_line_use_colors: false,
       terminal_title: ["project-name", "activity", "thread-title"],
@@ -77,6 +78,8 @@ describe("appConfig API", () => {
         configReadResult({
           default_provider: "openai",
           language: "zh-CN",
+          show_raw_agent_reasoning: true,
+          hide_agent_reasoning: true,
           tui,
         }),
       )
@@ -86,6 +89,8 @@ describe("appConfig API", () => {
       language: "en-US",
     }));
     expect(updated.tui).toEqual(tui);
+    expect(updated.show_raw_agent_reasoning).toBe(true);
+    expect(updated.hide_agent_reasoning).toBe(true);
     expect(appServerRequest).toHaveBeenLastCalledWith(
       METHOD_CONFIG_BATCH_WRITE,
       {
@@ -106,6 +111,7 @@ describe("appConfig API", () => {
           language: "en-US",
           default_provider: "openai",
           tui: {
+            animations: false,
             status_line: [],
             status_line_use_colors: false,
             terminal_title: [],
@@ -115,10 +121,43 @@ describe("appConfig API", () => {
       ),
     );
     expect((await getConfig()).tui).toEqual({
+      animations: false,
       status_line: [],
       terminal_title: [],
       status_line_use_colors: false,
     });
+  });
+
+  it("GUI 写入动画偏好走共享配置且保留其它 TUI 字段", async () => {
+    const tui = {
+      animations: true,
+      status_line: ["model"],
+      keymap: { list: { accept: "f9" } },
+    };
+    appServerRequest
+      .mockResolvedValueOnce(
+        configReadResult({ default_provider: "openai", tui }),
+      )
+      .mockResolvedValueOnce(configWriteResult());
+    const updated = await updateConfig((current) => ({
+      ...current,
+      tui: { ...current.tui, animations: false },
+    }));
+    expect(updated.tui).toEqual({ ...tui, animations: false });
+    expect(appServerRequest).toHaveBeenLastCalledWith(
+      METHOD_CONFIG_BATCH_WRITE,
+      {
+        edits: [
+          {
+            keyPath: "tui",
+            value: { ...tui, animations: false },
+            mergeStrategy: "replace",
+          },
+        ],
+        expectedVersion: "version-1",
+        reloadUserConfig: true,
+      },
+    );
   });
 
   it("配置读取走 App Server，宿主环境能力保持 Electron owner", async () => {
@@ -148,6 +187,20 @@ describe("appConfig API", () => {
       2,
       "get_default_provider",
     );
+  });
+
+  it.each(
+    ["show_raw_agent_reasoning", "hide_agent_reasoning"].flatMap((key) =>
+      ["true", 1, null].map((value) => [key, value]),
+    ),
+  )("推理配置 %s 的非法值 %s 不得被宽松转换", async (key, value) => {
+    appServerRequest.mockResolvedValueOnce(
+      configReadResult({
+        default_provider: "fixture",
+        [String(key)]: value,
+      }),
+    );
+    await expect(getConfig()).rejects.toThrow(`invalid ${key}`);
   });
 
   it("环境预览应接收 Electron Host current 返回的局部 Shell 导入状态", async () => {

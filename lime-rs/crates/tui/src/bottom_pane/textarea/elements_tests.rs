@@ -4,6 +4,32 @@ use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
 use ratatui::style::{Color, Modifier};
 
 #[test]
+fn unmarking_one_atomic_range_retains_text_cursor_and_neighbor_identity() {
+    let mut area = TextArea::default();
+    area.set_text_with_elements(
+        "界token [image]",
+        &[
+            agent_protocol::TextElement::new(0..8, None),
+            agent_protocol::TextElement::new(9..16, Some("[image]".into())),
+        ],
+    );
+    area.set_cursor(8);
+    let neighbor = area.text_element_snapshots()[1].clone();
+    assert!(!area.remove_element_range(0..7));
+    assert!(!area.remove_element_range(8..8));
+    assert!(area.remove_element_range(1..8));
+    assert_eq!(area.text(), "界token [image]");
+    assert_eq!(area.cursor(), 8);
+    assert_eq!(area.text_element_snapshots(), vec![neighbor.clone()]);
+    area.replace_range(0..3, "X");
+    assert_eq!(area.text(), "Xtoken [image]");
+    let rebased = area.text_element_snapshots();
+    assert_eq!(rebased[0].id, neighbor.id);
+    assert_eq!(rebased[0].range, 7..14);
+    assert!(!area.remove_element_range(0..8));
+}
+
+#[test]
 fn canonical_none_placeholder_survives_utf8_edit_rename_snapshot_and_atomic_delete() {
     let mut area = TextArea::default();
     area.set_text_with_elements(

@@ -447,6 +447,12 @@ export const REASONING_FIRST_VISIBLE_ASSERTION_KEYS = [
   "guiReasoningFirstVisibleCompleted",
   "readModelReasoningFirstVisibleCompleted",
   "readModelReasoningFirstVisibleItemObserved",
+  "guiReasoningHistoryRestored",
+  "readModelReasoningHistoryPreserved",
+  "sharedRawReasoningConfigWritten",
+  "guiRawReasoningHistoryVisible",
+  "rawReasoningCanonicalHistoryPreserved",
+  "guiRawReasoningDisabled",
 ];
 export const LIVE_TAIL_COMMIT_ASSERTION_KEYS = [
   "liveTailCommitPromptReachedBackend",

@@ -1987,6 +1987,7 @@ fn spawn_transport_request(
         let subscription_method = match &message {
             JsonRpcMessage::Request(request)
                 if request.method == METHOD_THREAD_START
+                    || request.method == app_server_protocol::protocol::v2::METHOD_THREAD_FORK
                     || request.method
                         == app_server_protocol::protocol::v2::METHOD_THREAD_RESUME =>
             {

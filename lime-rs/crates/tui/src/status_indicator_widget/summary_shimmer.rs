@@ -60,7 +60,7 @@ pub(crate) fn summary_shimmer(text: &str, elapsed: Duration) -> Vec<Span<'static
         .collect()
 }
 
-fn static_spans(text: &str) -> Vec<Span<'static>> {
+pub(super) fn static_spans(text: &str) -> Vec<Span<'static>> {
     vec![Span::styled(
         text.to_owned(),
         Style::default().dim().add_modifier(Modifier::BOLD),

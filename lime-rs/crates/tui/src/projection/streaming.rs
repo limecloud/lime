@@ -1,8 +1,7 @@
 //! Provisional transcript deltas are settled by canonical item and Turn facts.
 
 use super::{
-    ActivityDetail, ConversationProjection, EntryKind, EntryStatus, ReasoningSummary,
-    TranscriptEntry,
+    ActivityDetail, ConversationProjection, EntryKind, EntryStatus, ReasoningText, TranscriptEntry,
 };
 
 impl ConversationProjection {
@@ -53,6 +52,27 @@ impl ConversationProjection {
         index: i64,
         delta: String,
     ) {
+        self.append_reasoning_part(turn_id, id, index, delta, false);
+    }
+
+    pub(super) fn append_reasoning_raw(
+        &mut self,
+        turn_id: String,
+        id: String,
+        index: i64,
+        delta: String,
+    ) {
+        self.append_reasoning_part(turn_id, id, index, delta, true);
+    }
+
+    fn append_reasoning_part(
+        &mut self,
+        turn_id: String,
+        id: String,
+        index: i64,
+        delta: String,
+        raw: bool,
+    ) {
         if index < 0 || self.closed_turn_ids.contains(&turn_id) {
             return;
         }
@@ -70,7 +90,7 @@ impl ConversationProjection {
                 activity_group: None,
                 activity_detail: Some(ActivityDetail::Reasoning {
                     scope: turn_id.clone(),
-                    summary: ReasoningSummary::default(),
+                    summary: ReasoningText::default(),
                 }),
             });
             self.entries.len() - 1
@@ -86,7 +106,11 @@ impl ConversationProjection {
         if scope != &turn_id {
             return;
         }
-        summary.append(index, &delta);
+        if raw {
+            summary.append_raw(index, &delta);
+        } else {
+            summary.append(index, &delta);
+        }
         entry.text = summary.content();
         if self.active_turn_id.as_deref() == Some(turn_id.as_str()) {
             if let Some(status) = summary.latest_status() {

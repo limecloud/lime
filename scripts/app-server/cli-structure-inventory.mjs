@@ -26,12 +26,20 @@ async function main() {
       path.join(codexRoot, "codex-rs/cli"),
       "rust",
     ),
+    "codex-rs/exec": await inspectTree(
+      path.join(codexRoot, "codex-rs/exec"),
+      "rust",
+    ),
     "codex-rs/execpolicy": await inspectTree(
       path.join(codexRoot, "codex-rs/execpolicy"),
       "rust",
     ),
     "codex-cli": await inspectTree(path.join(codexRoot, "codex-cli"), "node"),
     "lime-rs/crates/cli": await inspectTree(limeRustRoot, "rust"),
+    "lime-rs/crates/cli/src/exec": await inspectTree(
+      path.join(limeRustRoot, "src/exec"),
+      "rust",
+    ),
     "lime-rs/crates/execpolicy": await inspectTree(limeExecpolicyRoot, "rust"),
     "packages/cli": await inspectTree(limeNpmRoot, "node"),
   };
@@ -50,6 +58,30 @@ async function main() {
       rustFilesOnlyInLime: difference(
         trees["lime-rs/crates/cli"].files,
         trees["codex-rs/cli"].files,
+      ),
+      execFilesMissingInLime: difference(
+        trees["codex-rs/exec"].files
+          .filter((file) => file.startsWith("src/"))
+          .map((file) => file.slice(4)),
+        trees["lime-rs/crates/cli/src/exec"].files,
+      ),
+      execFilesOnlyInLime: difference(
+        trees["lime-rs/crates/cli/src/exec"].files,
+        trees["codex-rs/exec"].files
+          .filter((file) => file.startsWith("src/"))
+          .map((file) => file.slice(4)),
+      ),
+      execSymbolNamesMissingInLime: difference(
+        trees["codex-rs/exec"].symbols.map((symbol) => symbol.name),
+        trees["lime-rs/crates/cli/src/exec"].symbols.map(
+          (symbol) => symbol.name,
+        ),
+      ),
+      execSymbolNamesOnlyInLime: difference(
+        trees["lime-rs/crates/cli/src/exec"].symbols.map(
+          (symbol) => symbol.name,
+        ),
+        trees["codex-rs/exec"].symbols.map((symbol) => symbol.name),
       ),
       execpolicyFilesMissingInLime: difference(
         trees["codex-rs/execpolicy"].files,
@@ -94,6 +126,7 @@ async function main() {
     },
     rules: [
       "Codex directory, module, type and function names are the baseline.",
+      "Exec comparisons use owner-relative source paths; cli/src/exec.rs remains recorded in the CLI tree, not relabeled as upstream lib.rs.",
       "Product-only account, marketplace, updater, desktop and Cloud runtime code stays excluded or deferred with an owner.",
       "Lime CLI and npm launcher must retain the current App Server JSON-RPC chain; no direct runtime or config-file bypass is allowed.",
       "Cloud remains an authenticated app-server-client transport foundation only; production Cloud behavior stays deferred.",

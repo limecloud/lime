@@ -4,7 +4,87 @@
 //! [`crate::slash_command`], while lifecycle and rendering stay in the popup owner.
 
 use super::super::command_popup::CommandPopup;
+use super::ChatComposer;
 use crate::slash_command::command_from_prompt as parse_command_from_prompt;
+use crate::slash_command::SlashCommand;
+
+impl ChatComposer {
+    pub(crate) fn complete_slash_command(&mut self, command: SlashCommand) {
+        if !self
+            .complete_selected_slash_command_preserving_existing_draft_tail_as_inline_args(command)
+        {
+            let suffix = if command.requires_argument() { " " } else { "" };
+            self.replace(format!("/{}{suffix}", command.command()));
+        }
+        self.clear_completion_popup();
+    }
+
+    fn complete_selected_slash_command_preserving_existing_draft_tail_as_inline_args(
+        &mut self,
+        command: SlashCommand,
+    ) -> bool {
+        if !command.supports_inline_args() {
+            return false;
+        }
+        let text = self.text();
+        let first_line_end = text.find('\n').unwrap_or(text.len());
+        let cursor = self.cursor();
+        if cursor > first_line_end || !text.starts_with('/') || !text.is_char_boundary(cursor) {
+            return false;
+        }
+        let command_token_end = text[1..first_line_end]
+            .find(char::is_whitespace)
+            .map(|index| 1 + index)
+            .unwrap_or(first_line_end);
+        let typed_command_name = &text[1..command_token_end];
+        let rest_after_token_is_empty = text[command_token_end..].trim().is_empty();
+        if rest_after_token_is_empty && (cursor <= 1 || cursor >= command_token_end) {
+            return false;
+        }
+        let replace_end = if cursor <= 1
+            || (typed_command_name == command.command() && rest_after_token_is_empty)
+        {
+            command_token_end
+        } else {
+            cursor
+        };
+        let tail_starts_with_whitespace = text[replace_end..]
+            .chars()
+            .next()
+            .is_some_and(char::is_whitespace);
+        let replacement = if tail_starts_with_whitespace {
+            format!("/{}", command.command())
+        } else {
+            format!("/{} ", command.command())
+        };
+        let started = self.begin_direct_vim_edit();
+        let elements_before = self.draft.textarea.element_payloads();
+        let ranges_to_unmark = self
+            .draft
+            .textarea
+            .text_elements()
+            .into_iter()
+            .filter_map(|element| {
+                let range = element.byte_range.start..element.byte_range.end;
+                (range.start < replace_end && replace_end < range.end).then_some(range)
+            })
+            .collect::<Vec<_>>();
+        for range in ranges_to_unmark {
+            self.draft.textarea.remove_element_range(range);
+        }
+        self.draft
+            .textarea
+            .replace_range(0..replace_end, &replacement);
+        self.draft.textarea.set_cursor(self.text().len());
+        self.reconcile_deleted_elements(elements_before);
+        self.reconcile_pending_pastes();
+        self.reset_history_navigation();
+        if started {
+            self.finish_vim_edit();
+        }
+        true
+    }
+}
 
 pub(super) fn command_popup(text: &str) -> super::ActivePopup {
     CommandPopup::for_composer(text)
@@ -50,6 +130,10 @@ fn command_under_cursor(first_line: &str, cursor: usize) -> Option<(&str, &str)>
 pub(super) fn command_from_prompt(prompt: &str) -> Option<crate::slash_command::SlashCommand> {
     parse_command_from_prompt(prompt)
 }
+
+#[cfg(test)]
+#[path = "slash_input_tests.rs"]
+mod completion_tests;
 
 #[cfg(test)]
 mod tests {

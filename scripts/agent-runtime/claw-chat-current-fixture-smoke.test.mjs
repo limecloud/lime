@@ -85,6 +85,7 @@ const fixtureSourceFiles = [
   "scripts/agent-runtime/claw-chat-current-fixture-session.mjs",
   "scripts/agent-runtime/claw-chat-current-fixture-gui-completion-waits.mjs",
   "scripts/agent-runtime/reasoning-fixture.mjs",
+  "scripts/agent-runtime/reasoning-backend.mjs",
   "scripts/agent-runtime/claw-chat-current-fixture-gui-input-modes.mjs",
   "scripts/agent-runtime/claw-chat-current-fixture-gui-tool-waits.mjs",
   "scripts/agent-runtime/claw-chat-current-fixture-gui-web-tools-waits.mjs",
@@ -2417,16 +2418,9 @@ describe("claw chat current Electron fixture smoke guard", () => {
       "scripts/agent-runtime/claw-chat-current-fixture-backend-script.mjs",
       "utf8",
     );
-    const reasoningBranchStart = backendContent.indexOf(
-      "if (isReasoningFirstVisiblePrompt)",
-    );
-    const reasoningBranchEnd = backendContent.indexOf(
-      "if (isLiveTailCommitPrompt)",
-      reasoningBranchStart,
-    );
-    const reasoningBranch = backendContent.slice(
-      reasoningBranchStart,
-      reasoningBranchEnd,
+    const reasoningBackend = fs.readFileSync(
+      "scripts/agent-runtime/reasoning-backend.mjs",
+      "utf8",
     );
 
     expect(content).toContain("reasoning-first-visible");
@@ -2453,25 +2447,28 @@ describe("claw chat current Electron fixture smoke guard", () => {
     expect(content).toContain('status: "in_progress"');
     expect(content).toContain('type: "message.delta"');
     expect(content).not.toContain("agent_runtime_");
-    expect(reasoningBranchStart).toBeGreaterThan(-1);
-    expect(reasoningBranchEnd).toBeGreaterThan(reasoningBranchStart);
-    expect(
-      reasoningBranch.indexOf('type: "reasoning.started"'),
-    ).toBeGreaterThan(-1);
-    expect(reasoningBranch.indexOf('type: "reasoning.final"')).toBeGreaterThan(
-      reasoningBranch.indexOf('type: "reasoning.started"'),
+    expect(backendContent).toContain("${renderReasoningBackendEvents()}");
+    expect(backendContent).not.toContain("if (isReasoningFirstVisiblePrompt)");
+    for (const retired of [
+      "reasoning.started",
+      "reasoning.final",
+      "reasoning.ended",
+      "runtime_message_reasoning.v1",
+    ])
+      expect(reasoningBackend).not.toContain(retired);
+    expect(reasoningBackend).toContain('kind: "reasoning"');
+    expect(reasoningBackend).toContain('type: "item.started"');
+    expect(reasoningBackend).toContain('type: "reasoning.summary"');
+    expect(reasoningBackend).toContain('type: "reasoning.delta"');
+    expect(reasoningBackend).not.toContain('type: "item.updated"');
+    expect(reasoningBackend).toContain('type: "item.completed"');
+    expect(reasoningBackend).toContain(
+      'payload: { type: "reasoning", summary, content }',
     );
-    expect(reasoningBranch.indexOf('type: "reasoning.ended"')).toBeGreaterThan(
-      reasoningBranch.indexOf('type: "reasoning.final"'),
-    );
-    expect(reasoningBranch).toContain('type: "item.updated"');
-    expect(reasoningBranch).toContain(
-      'content: ["${REASONING_FIRST_VISIBLE_CONTENT_TEXT}"]',
-    );
-    expect(reasoningBranch).toContain(
-      'canonicalLifecycle: "runtime_message_reasoning.v1"',
-    );
-    expect(reasoningBranch).not.toContain('type: "item.completed"');
+    expect(content).toContain("isCanonicalReasoningReadModelReady");
+    expect(content).toContain("verify-reasoning-history-hydrate-from-sidebar");
+    expect(content).toContain("guiReasoningHistoryRestored");
+    expect(content).toContain("readModelReasoningHistoryPreserved");
   });
 
   it("covers live-tail commit in a dedicated real Electron fixture", () => {

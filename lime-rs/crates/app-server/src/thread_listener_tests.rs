@@ -3,6 +3,9 @@ use serde_json::json;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, Lines};
 use tokio::time::{sleep, timeout, Duration};
 
+#[path = "thread_listener_tests/fork.rs"]
+mod fork;
+
 fn notification_method(message: &JsonRpcMessage) -> Option<&str> {
     match message {
         JsonRpcMessage::Notification(notification) => Some(notification.method.as_str()),

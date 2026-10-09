@@ -118,6 +118,289 @@ fn command_popup_completion_is_owned_by_the_pane_but_execution_is_a_host_action(
     assert_eq!(pane.composer_text(), "/effort ");
 }
 
+fn pane_with_completion(kind: &str) -> (BottomPane, &'static str) {
+    use app_server_protocol::protocol::v2::{FuzzyFileSearchMatchType, FuzzyFileSearchResult};
+    let mut pane = BottomPane::default();
+    pane.set_skills(vec![serde_json::from_value(json!({
+        "name": "deploy", "description": "Deployment skill", "enabled": true,
+        "path": "/skills/deploy/SKILL.md", "scope": "user"
+    }))
+    .unwrap()]);
+    let token = match kind {
+        "file" | "empty-file" => "@src",
+        "skill" => "$dep",
+        "empty-skill" => "$zzzz-unmatched",
+        "command" => "/sta",
+        _ => unreachable!(),
+    };
+    pane.set_composer_text(format!("{token} suffix"));
+    pane.attach_image("draft.png".into());
+    pane.handle_key_event(KeyEvent::new(KeyCode::Home, KeyModifiers::NONE));
+    for _ in token.chars() {
+        pane.handle_key_event(KeyEvent::new(KeyCode::Right, KeyModifiers::NONE));
+    }
+    if let Some(request) = pane.take_file_search_request() {
+        let matches = if kind == "file" {
+            vec![FuzzyFileSearchResult {
+                root: "/workspace".into(),
+                path: "src/main.rs".into(),
+                match_type: FuzzyFileSearchMatchType::File,
+                file_name: "main.rs".into(),
+                score: 1,
+                indices: None,
+            }]
+        } else {
+            vec![]
+        };
+        pane.on_file_search_result(request.generation, &request.query, matches);
+    }
+    assert!(pane.popup_active(), "{kind}: completion must be visible");
+    (pane, token)
+}
+
+#[test]
+fn modified_enter_in_completion_edits_the_draft_without_selecting_or_executing() {
+    for kind in ["command", "file", "empty-file", "skill"] {
+        for modifiers in [KeyModifiers::SHIFT, KeyModifiers::ALT] {
+            let (mut pane, token) = pane_with_completion(kind);
+            let before = pane.composer_snapshot();
+            assert_eq!(
+                pane.handle_key_event(KeyEvent::new(KeyCode::Enter, modifiers)),
+                ChatWidgetAction::Input(InputResult::Changed),
+                "{kind}: {modifiers:?} must reach the editor"
+            );
+            let after = pane.composer_snapshot();
+            assert_eq!(pane.composer_text(), format!("{token}\n suffix[Image #1]"));
+            assert!(!pane.popup_active(), "newline ends the completion token");
+            // Compare the complete opaque draft with the same editor chord outside a popup.
+            pane.composer.restore_draft(before);
+            pane.clear_completion_popup();
+            pane.handle_key_event(KeyEvent::new(KeyCode::Enter, modifiers));
+            assert_eq!(after, pane.composer_snapshot());
+        }
+    }
+}
+
+#[test]
+fn ctrl_enter_in_completion_uses_the_current_editor_binding() {
+    for kind in ["command", "file", "empty-file", "skill"] {
+        let (mut pane, token) = pane_with_completion(kind);
+        let before = pane.composer_snapshot();
+        assert_eq!(
+            pane.handle_key_event(KeyEvent::new(KeyCode::Enter, KeyModifiers::CONTROL)),
+            ChatWidgetAction::Input(InputResult::None),
+            "{kind}: an unbound Ctrl+Enter must not select a completion"
+        );
+        assert_eq!(pane.composer_snapshot(), before);
+        assert!(pane.popup_active());
+
+        let keymap = crate::keymap::RuntimeKeymap::from_config(
+            &serde_json::from_value(json!({"editor": {"insert_newline": "ctrl-enter"}})).unwrap(),
+        )
+        .unwrap();
+        pane.set_keymap_bindings(&keymap);
+        assert_eq!(
+            pane.handle_key_event(KeyEvent::new(KeyCode::Enter, KeyModifiers::CONTROL)),
+            ChatWidgetAction::Input(InputResult::Changed)
+        );
+        assert_eq!(pane.composer_text(), format!("{token}\n suffix[Image #1]"));
+        assert_eq!(
+            pane.composer_local_image_paths(),
+            vec![std::path::PathBuf::from("draft.png")]
+        );
+    }
+}
+
+#[test]
+fn plain_enter_still_selects_file_and_skill_completions_through_the_pane() {
+    for (kind, replacement) in [("file", "src/main.rs"), ("skill", "$deploy")] {
+        let (mut pane, _) = pane_with_completion(kind);
+        assert_eq!(
+            pane.handle_key_event(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE)),
+            ChatWidgetAction::Input(InputResult::None)
+        );
+        assert_eq!(
+            pane.composer_text(),
+            format!("{replacement}  suffix[Image #1]")
+        );
+        assert_eq!(
+            pane.composer_local_image_paths(),
+            vec![std::path::PathBuf::from("draft.png")]
+        );
+        assert!(!pane.popup_active());
+    }
+}
+
+#[test]
+fn repeat_confirmation_matches_press_and_release_preserves_the_complete_draft() {
+    for kind in ["command", "file", "skill", "empty-file", "empty-skill"] {
+        for code in [KeyCode::Enter, KeyCode::Tab] {
+            let (mut pressed, _) = pane_with_completion(kind);
+            let (mut repeated, _) = pane_with_completion(kind);
+            let before = repeated.composer_snapshot();
+            repeated.handle_key_event(KeyEvent::new_with_kind(
+                code,
+                KeyModifiers::NONE,
+                KeyEventKind::Release,
+            ));
+            assert_eq!(
+                repeated.composer_snapshot(),
+                before,
+                "{kind}: release must preserve rich draft"
+            );
+            assert!(repeated.popup_active());
+            let expected = pressed.handle_key_event(KeyEvent::new(code, KeyModifiers::NONE));
+            assert_eq!(
+                repeated.handle_key_event(KeyEvent::new_with_kind(
+                    code,
+                    KeyModifiers::NONE,
+                    KeyEventKind::Repeat
+                )),
+                expected,
+                "{kind}: {code:?}"
+            );
+            assert_eq!(
+                repeated.composer_snapshot(),
+                pressed.composer_snapshot(),
+                "{kind}: {code:?}"
+            );
+            assert_eq!(
+                repeated.popup_active(),
+                pressed.popup_active(),
+                "{kind}: {code:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn completion_does_not_steal_altgr_text_or_editor_control_j_and_k() {
+    for kind in ["command", "file", "skill"] {
+        for ch in ['p', 'n'] {
+            let (mut pane, _) = pane_with_completion(kind);
+            let before = pane.composer_snapshot();
+            pane.handle_key_event(KeyEvent::new(
+                KeyCode::Char(ch),
+                KeyModifiers::CONTROL | KeyModifiers::ALT,
+            ));
+            let after = pane.composer_snapshot();
+            if cfg!(windows) {
+                assert_ne!(after, before, "{kind}: Windows AltGr must edit the draft");
+            } else {
+                assert_eq!(
+                    after, before,
+                    "{kind}: Unix Ctrl+Alt remains a control chord"
+                );
+            }
+            pane.composer.restore_draft(before);
+            pane.clear_completion_popup();
+            pane.handle_key_event(KeyEvent::new(
+                KeyCode::Char(ch),
+                KeyModifiers::CONTROL | KeyModifiers::ALT,
+            ));
+            assert_eq!(
+                after,
+                pane.composer_snapshot(),
+                "{kind}: popup must use the same editor"
+            );
+        }
+    }
+    for ch in ['j', 'k'] {
+        let (mut pane, _) = pane_with_completion("command");
+        let before = pane.composer_snapshot();
+        pane.handle_key_event(KeyEvent::new(KeyCode::Char(ch), KeyModifiers::CONTROL));
+        let after = pane.composer_snapshot();
+        assert_ne!(after, before, "Ctrl+{ch} must reach the editor");
+        pane.composer.restore_draft(before);
+        pane.clear_completion_popup();
+        pane.handle_key_event(KeyEvent::new(KeyCode::Char(ch), KeyModifiers::CONTROL));
+        assert_eq!(
+            after,
+            pane.composer_snapshot(),
+            "Ctrl+{ch}: identical editor mutation"
+        );
+    }
+}
+
+#[test]
+fn slash_completion_keys_preserve_arguments_before_host_dispatch() {
+    for code in [KeyCode::Tab, KeyCode::Char('/'), KeyCode::Enter] {
+        for (draft, cursor, expected, executes) in [
+            ("/effo high", 5, "/effort high", false),
+            ("/exp result.md", 4, "/export result.md", true),
+        ] {
+            let mut pane = BottomPane::default();
+            pane.set_composer_text(draft.into());
+            pane.handle_key_event(KeyEvent::new(KeyCode::Home, KeyModifiers::NONE));
+            for _ in 0..cursor {
+                pane.handle_key_event(KeyEvent::new(KeyCode::Right, KeyModifiers::NONE));
+            }
+            assert!(pane.popup_active());
+            assert_eq!(
+                pane.handle_key_event(KeyEvent::new(code, KeyModifiers::NONE)),
+                if code == KeyCode::Enter && executes {
+                    ChatWidgetAction::ExecuteCommand
+                } else {
+                    ChatWidgetAction::Input(InputResult::None)
+                }
+            );
+            assert_eq!(pane.composer_text(), expected);
+            assert!(!pane.popup_active());
+        }
+    }
+}
+
+#[test]
+fn empty_completion_acceptance_closes_the_list_with_distinct_enter_semantics() {
+    for kind in ["empty-file", "empty-skill"] {
+        for code in [KeyCode::Tab, KeyCode::Enter] {
+            let (mut pane, token) = pane_with_completion(kind);
+            let before = pane.composer_snapshot();
+            let action = pane.handle_key_event(KeyEvent::new(code, KeyModifiers::NONE));
+            if kind == "empty-file" && code == KeyCode::Enter {
+                let ChatWidgetAction::Input(InputResult::Submitted {
+                    text,
+                    text_elements,
+                }) = action
+                else {
+                    panic!("empty file Enter must continue ordinary submission");
+                };
+                assert_eq!(text, format!("{token} suffix[Image #1]"));
+                assert_eq!(text_elements.len(), 1);
+                assert!(pane.composer_text().is_empty());
+            } else {
+                assert_eq!(action, ChatWidgetAction::Input(InputResult::None));
+                assert_eq!(pane.composer_snapshot(), before);
+            }
+            assert!(
+                !pane.popup_active(),
+                "{kind}: {code:?} must close the empty list"
+            );
+            assert_eq!(
+                pane.composer_local_image_paths(),
+                vec![std::path::PathBuf::from("draft.png")]
+            );
+        }
+    }
+}
+
+#[test]
+fn empty_file_tab_cancels_search_generation_so_a_late_reply_cannot_reopen_it() {
+    let mut pane = BottomPane::default();
+    pane.set_composer_text("@missing".into());
+    let request = pane.take_file_search_request().unwrap();
+    pane.on_file_search_result(request.generation, &request.query, vec![]);
+    assert_eq!(
+        pane.handle_key_event(KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE)),
+        ChatWidgetAction::Input(InputResult::None)
+    );
+    assert!(!pane.popup_active());
+    pane.on_file_search_result(request.generation, &request.query, vec![]);
+    assert!(!pane.popup_active());
+    assert_eq!(pane.composer_text(), "@missing");
+    assert!(pane.take_file_search_request().is_none());
+}
+
 #[test]
 fn history_query_paste_cannot_open_a_popup_from_the_preview() {
     let mut pane = BottomPane::default();

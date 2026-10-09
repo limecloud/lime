@@ -1,9 +1,5 @@
 import process from "node:process";
-import {
-  summarizeReasoningFirstVisibleReadModel,
-  waitForGuiReasoningFirstVisibleBeforeAnswer,
-  waitForGuiReasoningFirstVisibleCompleted,
-} from "./reasoning-fixture.mjs";
+import { runReasoningFirstVisibleScenario } from "./reasoning-fixture.mjs";
 
 import {
   APPROVAL_REQUEST_CANCEL_SCENARIO,
@@ -35,9 +31,6 @@ import {
   PLAN_DONE_TEXT,
   PLAN_PROMPT,
   PLAN_STEPS,
-  REASONING_FIRST_VISIBLE_DONE_TEXT,
-  REASONING_FIRST_VISIBLE_FINAL_TEXT,
-  REASONING_FIRST_VISIBLE_PROMPT,
   REASONING_FIRST_VISIBLE_SCENARIO,
   RIGHT_SURFACE_VISUAL_MATRIX_SCENARIO,
   THREAD_ACTIVITY_PANEL_SCENARIO,
@@ -593,35 +586,15 @@ export async function executeScenarioFlow({
       }),
     );
   } else if (options.scenario === REASONING_FIRST_VISIBLE_SCENARIO) {
-    logStage("send-reasoning-first-visible-prompt-from-gui");
-    summary.reasoningFirstVisibleInputSend = sanitizeJson(
-      await sendPromptFromGui(page, options, REASONING_FIRST_VISIBLE_PROMPT),
-    );
-
-    logStage("wait-gui-reasoning-first-visible-before-answer");
-    summary.guiReasoningFirstVisibleBeforeAnswer = sanitizeJson(
-      await waitForGuiReasoningFirstVisibleBeforeAnswer(page, options),
-    );
-
-    logStage("wait-gui-reasoning-first-visible-completed");
-    summary.guiReasoningFirstVisibleCompleted = sanitizeJson(
-      await waitForGuiReasoningFirstVisibleCompleted(page, options),
-    );
-
-    logStage("wait-read-model-reasoning-first-visible-completed");
-    const readModelReasoningFirstVisibleCompleted =
-      await waitForSessionReadCompleted(page, options, appServerRequests, {
-        prompt: REASONING_FIRST_VISIBLE_PROMPT,
-        doneText: REASONING_FIRST_VISIBLE_DONE_TEXT,
-        summaryText: REASONING_FIRST_VISIBLE_FINAL_TEXT,
-      });
-    summary.readModelReasoningFirstVisibleCompleted = sanitizeJson(
-      summarizeReasoningFirstVisibleReadModel(
-        readModelReasoningFirstVisibleCompleted,
-      ),
-    );
-
-    await recordAgentUiPerformanceTraceEvidence(summary, page);
+    await runReasoningFirstVisibleScenario({
+      page,
+      options,
+      summary,
+      appServerRequests,
+      logStage,
+      recordPerformanceTrace: () =>
+        recordAgentUiPerformanceTraceEvidence(summary, page),
+    });
   } else if (options.scenario === LIVE_TAIL_COMMIT_SCENARIO) {
     Object.assign(
       summary,

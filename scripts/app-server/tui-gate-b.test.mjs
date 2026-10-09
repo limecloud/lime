@@ -800,6 +800,25 @@ describe("TUI Gate B", () => {
       '"suggestion navigation/completion must not start a canonical turn"',
     );
     expect(suggestionTestSource).not.toContain("thread::sleep");
+    const keyboardMarker =
+      "TUI_POPUP_KEYBOARD_OK repeat=navigation-completion release=ignored modifiers=exact-control ctrl-j=newline ctrl-k=editor turns=none";
+    expect(gateSource).toContain(keyboardMarker);
+    expect(suggestionTestSource).toContain(keyboardMarker);
+    const navigationMarker =
+      "TUI_EMPTY_NAVIGATION_OK left=press-only repeat=editor release=ignored overview=cancelled turns=none";
+    expect(gateSource).toContain(navigationMarker);
+    expect(suggestionTestSource).toContain(navigationMarker);
+    expect(suggestionTestSource).toContain("PTY_LEFT_EVENT_BARRIER");
+    for (const sequence of [
+      "\\x1b[1;1:2A",
+      "\\x1b[1;1:2B",
+      "\\x1b[1;1:3B",
+      "\\x1b[9;1:2u",
+      "\\x1b[1;1:2D",
+      "\\x1b[1;1:3D",
+    ]) {
+      expect(suggestionTestSource).toContain(sequence);
+    }
   });
   it("drives the real TUI through a portable PTY and current App Server", () => {
     expect(gateSource).toContain('LIME_TEST_TUI_GATE_B: "1"');
@@ -840,6 +859,10 @@ describe("TUI Gate B", () => {
       "tmux_scrolled_composer_resize_preserves_visible_draft_text",
     );
     expect(resizeTestSource).toContain("terminal.resize(");
+    expect(resizeTestSource).toContain(
+      "terminal.wait_for_screen_without(DRAFT, RESIZE_TIMEOUT)",
+    );
+    expect(resizeTestSource).not.toContain("&[3, 3, 3]");
     expect(focusTestSource).toContain("self.master.resize");
     expect(gateSource).toContain(
       "suite::reconnect::automatic_reconnect_restores_draft_and_routes_new_notifications",

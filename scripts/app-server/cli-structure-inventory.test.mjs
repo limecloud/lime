@@ -13,13 +13,15 @@ const inventory = JSON.parse(
 );
 
 describe("Codex CLI structure inventory", () => {
-  it("records both upstream directories and both Lime owners", () => {
+  it("records CLI, exec and execpolicy source owners", () => {
     expect(inventory.schemaVersion).toBe(1);
     expect(Object.keys(inventory.trees)).toEqual([
       "codex-rs/cli",
+      "codex-rs/exec",
       "codex-rs/execpolicy",
       "codex-cli",
       "lime-rs/crates/cli",
+      "lime-rs/crates/cli/src/exec",
       "lime-rs/crates/execpolicy",
       "packages/cli",
     ]);
@@ -28,6 +30,38 @@ describe("Codex CLI structure inventory", () => {
       expect(tree.symbolCount).toBeGreaterThan(0);
       expect(tree.treeSha256).toMatch(/^[a-f0-9]{64}$/u);
     }
+  });
+
+  it("records exec output, session and review owners with upstream source names", () => {
+    const exec = inventory.trees["lime-rs/crates/cli/src/exec"];
+    for (const file of [
+      "cli.rs",
+      "event_processor.rs",
+      "event_processor_with_human_output.rs",
+      "event_processor_with_human_output_tests.rs",
+      "event_processor_with_jsonl_output.rs",
+      "exec_events.rs",
+      "cli_tests.rs",
+    ]) {
+      expect(exec.files).toContain(file);
+      expect(inventory.comparisons.execFilesMissingInLime).not.toContain(file);
+    }
+    expect(exec.files).not.toContain("human_output.rs");
+    expect(inventory.comparisons.execSymbolNamesMissingInLime).not.toContain(
+      "ResumeArgs",
+    );
+    expect(inventory.comparisons.execSymbolNamesMissingInLime).not.toContain(
+      "ForkArgs",
+    );
+    expect(inventory.comparisons.execSymbolNamesMissingInLime).not.toContain(
+      "load_output_schema",
+    );
+    expect(inventory.comparisons.execSymbolNamesMissingInLime).not.toContain(
+      "ReviewArgs",
+    );
+    expect(inventory.comparisons.execSymbolNamesMissingInLime).not.toContain(
+      "build_review_request",
+    );
   });
 
   it("locks Codex-shaped current names in the Lime command owner", () => {
@@ -102,7 +136,9 @@ describe("Codex CLI structure inventory", () => {
 
   it("records the independent execpolicy owner", () => {
     expect(inventory.trees["codex-rs/execpolicy"].fileCount).toBeGreaterThan(0);
-    expect(inventory.trees["lime-rs/crates/execpolicy"].fileCount).toBeGreaterThan(0);
+    expect(
+      inventory.trees["lime-rs/crates/execpolicy"].fileCount,
+    ).toBeGreaterThan(0);
     expect(inventory.comparisons.execpolicyFilesMissingInLime).toEqual([]);
     const symbols = new Set(
       inventory.trees["lime-rs/crates/execpolicy"].symbols.map(
@@ -120,8 +156,8 @@ describe("Codex CLI structure inventory", () => {
     ]) {
       expect(symbols.has(name), name).toBe(true);
     }
-    expect(inventory.comparisons.execpolicySymbolNamesMissingInLime).not.toContain(
-      "RequirementsExecPolicy",
-    );
+    expect(
+      inventory.comparisons.execpolicySymbolNamesMissingInLime,
+    ).not.toContain("RequirementsExecPolicy");
   });
 });

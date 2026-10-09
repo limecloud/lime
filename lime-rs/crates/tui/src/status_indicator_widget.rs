@@ -46,6 +46,7 @@ pub(crate) struct StatusIndicatorWidget {
     details_max_lines: usize,
     inline_message: Option<String>,
     hook_status_message: Option<String>,
+    animations_enabled: bool,
 }
 
 impl StatusIndicatorWidget {
@@ -58,7 +59,12 @@ impl StatusIndicatorWidget {
             details_max_lines: STATUS_DETAILS_DEFAULT_MAX_LINES,
             inline_message: None,
             hook_status_message: None,
+            animations_enabled: true,
         }
+    }
+
+    pub(crate) fn set_animations_enabled(&mut self, enabled: bool) {
+        self.animations_enabled = enabled;
     }
 
     #[cfg(test)]
@@ -126,7 +132,11 @@ impl StatusIndicatorWidget {
         let elapsed = fmt_elapsed_compact(self.elapsed.as_secs());
         let header_style = muted_style().add_modifier(Modifier::BOLD);
         let mut spans = vec![Span::styled("• ", header_style)];
-        spans.extend(summary_shimmer::summary_shimmer(&self.header, self.elapsed));
+        spans.extend(if self.animations_enabled {
+            summary_shimmer::summary_shimmer(&self.header, self.elapsed)
+        } else {
+            summary_shimmer::static_spans(&self.header)
+        });
         spans.push(Span::styled(
             format!(" ({elapsed} • {})", self.interrupt_hint),
             header_style,
@@ -219,8 +229,10 @@ pub(crate) fn render_with_messages(
     elapsed: Duration,
     inline_message: Option<&str>,
     hook_status_message: Option<&str>,
+    animations_enabled: bool,
 ) {
     let mut widget = StatusIndicatorWidget::new(locale, elapsed);
+    widget.set_animations_enabled(animations_enabled);
     widget.update_inline_message(inline_message.map(ToOwned::to_owned));
     widget.update_hook_status_message(hook_status_message.map(ToOwned::to_owned));
     widget.render(area, frame);
@@ -298,9 +310,33 @@ mod tests {
 
     #[test]
     fn renders_without_spinner_when_animations_disabled() {
-        let widget = StatusIndicatorWidget::new(Locale::EnUs, Duration::ZERO);
+        let mut widget = StatusIndicatorWidget::new(Locale::EnUs, Duration::ZERO);
+        widget.set_animations_enabled(false);
         let line = widget.status_line(80).to_string();
         assert!(line.starts_with("• Working (0s • esc to interrupt)"));
+    }
+
+    #[test]
+    fn disabled_motion_keeps_the_live_header_static_with_a_real_color_palette() {
+        crate::terminal_palette::with_test_default_colors(
+            crate::terminal_probe::DefaultColors {
+                fg: (240, 240, 240),
+                bg: (10, 10, 10),
+            },
+            || {
+                let mut widget = StatusIndicatorWidget::new(Locale::EnUs, Duration::from_secs(1));
+                let animated = widget.status_line(80);
+                widget.set_animations_enabled(false);
+                let static_line = widget.status_line(80);
+                assert_eq!(animated.to_string(), static_line.to_string());
+                assert_eq!(static_line.spans[1].content, "Working");
+                assert!(static_line.spans[1]
+                    .style
+                    .add_modifier
+                    .contains(Modifier::DIM));
+                assert_ne!(animated.spans[1].style, static_line.spans[1].style);
+            },
+        );
     }
 
     #[test]

@@ -19,6 +19,7 @@ use crate::projection::{ConversationProjection, TranscriptEntry};
 pub(crate) async fn load_session_transcript(
     request_handle: RequestHandle,
     thread_id: impl Into<String>,
+    show_raw_agent_reasoning: bool,
 ) -> io::Result<Vec<TranscriptEntry>> {
     let thread_id = thread_id.into();
     let metadata: ThreadReadResponse = request_handle
@@ -40,7 +41,10 @@ pub(crate) async fn load_session_transcript(
     let items = load_paginated_items(request_handle, thread_id).await?;
     let thread = hydrate_paginated_thread(&metadata.thread, turns, &items)
         .ok_or_else(|| io::Error::from(io::ErrorKind::InvalidData))?;
-    Ok(thread_to_transcript_entries(thread))
+    Ok(thread_to_transcript_entries(
+        thread,
+        show_raw_agent_reasoning,
+    ))
 }
 
 async fn load_paginated_items(
@@ -173,8 +177,12 @@ fn hydrate_paginated_thread(
     Some(thread)
 }
 
-pub(crate) fn thread_to_transcript_entries(thread: Thread) -> Vec<TranscriptEntry> {
+pub(crate) fn thread_to_transcript_entries(
+    thread: Thread,
+    show_raw_agent_reasoning: bool,
+) -> Vec<TranscriptEntry> {
     let mut projection = ConversationProjection::default();
+    projection.set_show_raw_agent_reasoning(show_raw_agent_reasoning);
     projection.hydrate_thread(thread);
     projection.entries().to_vec()
 }
@@ -233,14 +241,17 @@ mod tests {
 
     #[test]
     fn persisted_items_share_the_live_projection_shape() {
-        let entries = thread_to_transcript_entries(thread(vec![ThreadItem::AgentMessage {
-            id: "assistant-1".into(),
-            metadata: None,
-            text: "done".into(),
-            phase: None,
-            memory_citation: None,
-            delivery: None,
-        }]));
+        let entries = thread_to_transcript_entries(
+            thread(vec![ThreadItem::AgentMessage {
+                id: "assistant-1".into(),
+                metadata: None,
+                text: "done".into(),
+                phase: None,
+                memory_citation: None,
+                delivery: None,
+            }]),
+            false,
+        );
 
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].id, "assistant-1");
@@ -249,7 +260,7 @@ mod tests {
 
     #[test]
     fn empty_threads_produce_an_empty_canonical_transcript() {
-        assert!(thread_to_transcript_entries(thread(Vec::new())).is_empty());
+        assert!(thread_to_transcript_entries(thread(Vec::new()), false).is_empty());
     }
 
     #[test]
@@ -336,7 +347,7 @@ mod tests {
         metadata.history_mode = ThreadHistoryMode::Paginated;
         let hydrated = hydrate_paginated_thread(&metadata, vec![previous, current], &items)
             .expect("all item turn ids should resolve");
-        let entries = thread_to_transcript_entries(hydrated);
+        let entries = thread_to_transcript_entries(hydrated, false);
 
         assert_eq!(
             entries

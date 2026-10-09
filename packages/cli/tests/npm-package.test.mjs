@@ -15,6 +15,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import { gunzipSync } from "node:zlib";
 
 const PACKAGE_ROOT = path.resolve(
   fileURLToPath(new URL("..", import.meta.url)),
@@ -268,6 +269,39 @@ test("staging creates Lime root platform dependencies and a real npm tarball", (
     "@limecloud/lime-win32-x64": "1.2.3-win32-x64",
   });
   assert.ok(existsSync(tarball));
+  const schema = readFileSync(
+    path.join(PACKAGE_ROOT, "exec-events.schema.json"),
+    "utf8",
+  );
+  assert.equal(
+    readFileSync(path.join(staging, "exec-events.schema.json"), "utf8"),
+    schema,
+  );
+  assert.deepEqual(packageJson.files, [
+    "bin/lime.js",
+    "exec-events.schema.json",
+  ]);
+  const archive = gunzipSync(readFileSync(tarball));
+  let packagedSchema;
+  for (let offset = 0; offset + 512 <= archive.length; ) {
+    const header = archive.subarray(offset, offset + 512);
+    const name = header
+      .subarray(0, 100)
+      .toString("utf8")
+      .replace(/\0.*$/su, "");
+    const size = parseInt(header.subarray(124, 136).toString("utf8"), 8) || 0;
+    if (name === "package/exec-events.schema.json") {
+      packagedSchema = archive
+        .subarray(offset + 512, offset + 512 + size)
+        .toString("utf8");
+    }
+    offset += 512 + Math.ceil(size / 512) * 512;
+  }
+  assert.equal(
+    packagedSchema,
+    schema,
+    "real npm tarball contains the Rust event schema",
+  );
 });
 
 test("platform staging requires the complete App Server runtime payload", (t) => {

@@ -135,6 +135,96 @@ fn reasoning(summary: &[&str]) -> ThreadItem {
 }
 
 #[test]
+fn explicit_raw_visibility_preserves_indexes_across_live_resume_completion_and_export() {
+    let mut projection = ConversationProjection::default();
+    projection.set_show_raw_agent_reasoning(true);
+    projection.start_turn("live".into());
+    projection.apply(summary_delta(0, "Summary body"));
+    projection.apply(raw_delta("live", "reasoning"));
+    let expected = "Summary body\n\nRAW_REASONING_MUST_STAY_HIDDEN";
+    assert_eq!(projection.entries()[0].text, expected);
+    assert_eq!(projection.status(), "RAW_REASONING_MUST_STAY_HIDDEN");
+    let snapshot = reasoning(&["Summary body"]);
+    projection.hydrate_thread(test_thread(vec![test_turn(
+        "live",
+        TurnStatus::InProgress,
+        vec![snapshot.clone()],
+    )]));
+    assert_eq!(projection.entries()[0].text, expected);
+    assert!(projection.entries()[0].streaming);
+    projection.apply(ServerNotification::ReasoningTextDelta(
+        ReasoningTextDeltaNotification {
+            thread_id: "thread-review-filter".into(),
+            turn_id: "other".into(),
+            item_id: "reasoning".into(),
+            content_index: 0,
+            delta: "unrelated".into(),
+        },
+    ));
+    assert_eq!(projection.entries()[0].text, expected);
+    projection.apply(ServerNotification::ReasoningTextDelta(
+        ReasoningTextDeltaNotification {
+            thread_id: "thread-review-filter".into(),
+            turn_id: "live".into(),
+            item_id: "reasoning".into(),
+            content_index: 0,
+            delta: " continued".into(),
+        },
+    ));
+    assert_eq!(
+        projection.entries()[0].text,
+        format!("{expected} continued")
+    );
+    projection.apply(ServerNotification::ItemCompleted(
+        ItemCompletedNotification {
+            thread_id: "thread-review-filter".into(),
+            turn_id: "live".into(),
+            item: snapshot.clone(),
+            completed_at_ms: 1,
+        },
+    ));
+    let settled = projection.entries()[0].clone();
+    assert_eq!(settled.text, expected);
+    assert!(!settled.streaming);
+    projection.apply(raw_delta("live", "reasoning"));
+    assert_eq!(projection.entries()[0], settled);
+    let markdown =
+        crate::app::transcript_export::render_markdown_transcript(projection.entries()).unwrap();
+    assert!(markdown.contains(expected));
+    projection.hydrate_thread(test_thread(vec![test_turn(
+        "live",
+        TurnStatus::Completed,
+        vec![snapshot],
+    )]));
+    assert_eq!(projection.entries()[0], settled);
+    let mut paginated = ConversationProjection::default();
+    paginated.set_show_raw_agent_reasoning(true);
+    paginated.prepend_items([reasoning(&["Summary body"])]);
+    assert_eq!(paginated.entries()[0].text, expected);
+}
+
+#[test]
+fn explicit_raw_only_parts_render_without_creating_summary_parts() {
+    let mut projection = ConversationProjection::default();
+    projection.set_show_raw_agent_reasoning(true);
+    projection.start_turn("live".into());
+    for (index, text) in [(i64::MAX, "last"), (0, "first"), (-1, "invalid")] {
+        projection.apply(ServerNotification::ReasoningTextDelta(
+            ReasoningTextDeltaNotification {
+                thread_id: "thread-review-filter".into(),
+                turn_id: "live".into(),
+                item_id: "reasoning".into(),
+                content_index: index,
+                delta: text.into(),
+            },
+        ));
+    }
+    assert_eq!(projection.entries()[0].text, "first\n\nlast");
+    assert_eq!(projection.status(), "last");
+    assert!(!crate::entry::lines(&projection.entries()[0]).is_empty());
+}
+
+#[test]
 fn raw_deltas_do_not_create_summary_entries_or_change_the_running_status() {
     let mut projection = ConversationProjection::default();
     projection.hydrate_thread(test_thread(Vec::new()));

@@ -384,6 +384,12 @@ pub struct Config {
     /// 当前默认 Provider
     #[serde(default = "default_provider")]
     pub default_provider: String,
+    /// 显式显示原始推理；GUI/TUI 共用，默认仅显示摘要。
+    #[serde(default)]
+    pub show_raw_agent_reasoning: bool,
+    /// 隐藏非交互 exec 的推理输出；不影响 GUI/TUI 摘要。
+    #[serde(default)]
+    pub hide_agent_reasoning: bool,
     /// Codex-compatible default named permission profile.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub default_permissions: Option<String>,
@@ -2200,6 +2206,8 @@ impl Default for Config {
             server: ServerConfig::default(),
             providers: ProvidersConfig::default(),
             default_provider: default_provider(),
+            show_raw_agent_reasoning: false,
+            hide_agent_reasoning: false,
             default_permissions: None,
             permissions: BTreeMap::new(),
             tui: super::TuiConfig::default(),

@@ -8,6 +8,8 @@ use super::super::footer::FooterMode;
 #[derive(Debug, Default)]
 pub(super) struct FooterState {
     pub(super) mode: FooterMode,
+    // Presentation-only snapshot used to animate the outgoing passive status row.
+    pub(super) passive_status_line: std::cell::RefCell<Option<ratatui::text::Line<'static>>>,
 }
 
 impl super::ChatComposer {
@@ -80,16 +82,27 @@ impl super::ChatComposer {
         true
     }
 
-    pub(super) fn handle_empty_prompt_shortcut(&mut self, key: crossterm::event::KeyEvent) -> bool {
+    pub(super) fn handle_empty_prompt_shortcut(
+        &mut self,
+        key: crossterm::event::KeyEvent,
+    ) -> Option<super::InputResult> {
         use crossterm::event::{KeyCode, KeyEventKind};
         if key.kind != KeyEventKind::Press {
-            return false;
+            return None;
         }
         if self.key_chord_pending() {
-            return false;
+            return None;
         }
         if self.shortcut_overlay_visible() && key.code == KeyCode::Esc && key.modifiers.is_empty() {
-            return self.dismiss_shortcut_overlay();
+            return self
+                .dismiss_shortcut_overlay()
+                .then_some(super::InputResult::Changed);
+        }
+        if key.code == KeyCode::Left
+            && key.modifiers.is_empty()
+            && self.agents_navigation_available()
+        {
+            return Some(super::InputResult::OpenAgentsOverview);
         }
         if key.code == KeyCode::Char('?')
             && crate::key_hint::is_plain_text_key_event(key)
@@ -105,12 +118,12 @@ impl super::ChatComposer {
             } else {
                 FooterMode::ShortcutOverlay
             };
-            return true;
+            return Some(super::InputResult::Changed);
         }
         // Any editor activity resumes the base footer; paste insertion uses the same reset path.
         self.show_esc_backtrack_hint(false);
         self.dismiss_shortcut_overlay();
-        false
+        None
     }
 }
 

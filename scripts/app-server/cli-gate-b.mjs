@@ -8,6 +8,7 @@ import {
   readFile,
   readdir,
   rm,
+  writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -16,6 +17,8 @@ import { fileURLToPath } from "node:url";
 import { localAppServerBinaryPath } from "../lib/electron-dev-sidecar.mjs";
 import { buildTerminalGateBinaries } from "./terminal-gate-binaries.mjs";
 import { writeTerminalExternalBackend } from "./terminal-gate-fixture.mjs";
+import { runExecReasoningGateB } from "./cli-reasoning-gate-b.mjs";
+import { runExecSessionGateB } from "./cli-exec-gate-b.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -65,6 +68,10 @@ async function main() {
     await writeTerminalExternalBackend(backendPath, {
       completedText,
       command: "printf cli-gate-b",
+      commandItems: true,
+      scenario: "exec-json-stream",
+      taskProgress: true,
+      tokenUsage: true,
     });
 
     const args = [
@@ -97,17 +104,65 @@ async function main() {
       const appServerArgIndex = args.indexOf("--app-server-arg=--backend");
       args.splice(appServerArgIndex, 0, "--app-server", appServerBinaryPath);
     }
-    const { stdout, stderr } = await runCli(cliBinaryPath, args, tempDir);
+    let buffered = "";
+    let streamReleased = false;
+    const { stdout, stderr } = await runCli(cliBinaryPath, args, tempDir, {
+      async onStdout(chunk) {
+        buffered += chunk;
+        const lines = buffered.split(/\r?\n/u);
+        buffered = lines.pop();
+        for (const line of lines.filter(Boolean)) {
+          const event = JSON.parse(line);
+          if (
+            event.type === "item.started" &&
+            event.item.type === "command_execution"
+          ) {
+            if (streamReleased)
+              throw new Error("duplicate streamed command start");
+            streamReleased = true;
+            await writeFile(
+              `${ledgerPath}.continue`,
+              "observed item.started\n",
+            );
+          }
+        }
+      },
+    });
+    assertEqual(streamReleased, true, "JSONL flushed before turn completion");
     if (stderr.trim()) {
       throw new Error(`lime wrote unexpected stderr: ${stderr.trim()}`);
     }
 
-    const envelope = JSON.parse(stdout);
-    assertEqual(envelope.ok, true, "CLI envelope ok");
-    assertEqual(envelope.result?.status, "ready", "turn status");
-    assertEqual(envelope.result?.output, completedText, "CLI output");
-    assertNonEmptyString(envelope.result?.thread_id, "thread id");
-    assertNonEmptyString(envelope.result?.turn_id, "turn id");
+    const events = parseEvents(stdout);
+    assertEqual(events[0]?.type, "thread.started", "first JSONL event");
+    const threadId = events[0].thread_id;
+    assertNonEmptyString(threadId, "thread id");
+    assertEqual(events[1]?.type, "turn.started", "turn start event");
+    assertEqual(events.at(-1)?.type, "turn.completed", "turn terminal event");
+    assertEqual(finalAnswer(events), completedText, "CLI output");
+    const commands = events.filter(
+      (event) => event.item?.type === "command_execution",
+    );
+    assertEqual(commands.length, 2, "command lifecycle event count");
+    assertEqual(commands[0].type, "item.started", "command started");
+    assertEqual(commands[1].type, "item.completed", "command completed");
+    assertEqual(
+      commands[0].item.id,
+      commands[1].item.id,
+      "stable display item id",
+    );
+    assertEqual(commands[1].item.status, "completed", "command status");
+    assertEqual(
+      commands[1].item.aggregated_output,
+      "terminal-gate-b",
+      "command output",
+    );
+    assertEqual(events.at(-1).usage.input_tokens, 155000, "latest total usage");
+    assertEqual(
+      events.at(-1).usage.cache_write_input_tokens,
+      500,
+      "cache write usage",
+    );
 
     const ledger = await readJsonLines(ledgerPath);
     const turnStart = ledger.find((entry) => entry?.kind === "turnStart");
@@ -115,15 +170,35 @@ async function main() {
       throw new Error("external backend did not record turnStart");
     }
     assertEqual(turnStart.inputText, prompt, "backend input");
-    assertEqual(
-      turnStart.threadId,
-      envelope.result.thread_id,
-      "canonical thread identity",
+    assertEqual(turnStart.threadId, threadId, "canonical thread identity");
+    const cold = await runCli(
+      cliBinaryPath,
+      [
+        "thread",
+        "show",
+        threadId,
+        "--include-turns",
+        ...args.slice(2).filter((arg) => arg !== "--json"),
+      ],
+      tempDir,
+    );
+    const canonicalTurn = JSON.parse(cold.stdout).thread.turns.find(
+      (turn) => turn.id === turnStart.turnId,
+    );
+    assertNonEmptyString(canonicalTurn?.id, "canonical turn identity");
+    assertEqual(canonicalTurn.status, "completed", "cold canonical status");
+    const canonicalCommand = canonicalTurn.items.find(
+      (item) => item.type === "commandExecution",
     );
     assertEqual(
-      turnStart.turnId,
-      envelope.result.turn_id,
-      "canonical turn identity",
+      canonicalCommand?.id,
+      `item_terminal-command-${turnStart.turnId}`,
+      "canonical command identity",
+    );
+    assertEqual(
+      canonicalCommand.command,
+      commands[1].item.command,
+      "canonical command projection",
     );
     const runtimeRequest = turnStart.runtimeOptions?.runtimeRequest;
     assertEqual(
@@ -143,34 +218,26 @@ async function main() {
     );
     assertEqual(
       turnStart.eventTypes.join(","),
-      "turn.started,message.delta,item.started,item.completed,item.started,item.completed,turn.completed",
+      "turn.started,turn.plan.updated,provider.usage,item.started",
       "runtime event sequence",
     );
 
-    const jsonlArgs = args.map((argument) =>
-      argument === "--json" ? "--jsonl" : argument,
+    console.log(
+      `CLI_EXEC_JSON_STREAM_OK thread=${threadId} turn=${turnStart.turnId} realtime=ok stable-id=ok cold=ok usage=total`,
     );
-    const jsonl = await runCli(cliBinaryPath, jsonlArgs, tempDir);
-    if (jsonl.stderr.trim()) {
-      throw new Error(
-        `jsonl exec wrote unexpected stderr: ${jsonl.stderr.trim()}`,
-      );
-    }
-    assertEqual(
-      jsonl.stdout.trim().split(/\r?\n/u).length,
-      1,
-      "single-line JSONL envelope",
+    const removedFlag = await runCliResult(
+      cliBinaryPath,
+      ["exec", prompt, "--jsonl"],
+      tempDir,
     );
-    const jsonlEnvelope = JSON.parse(jsonl.stdout);
-    assertEqual(jsonlEnvelope.ok, true, "JSONL envelope ok");
-    assertEqual(jsonlEnvelope.result?.output, completedText, "JSONL output");
+    assertEqual(removedFlag.code, 2, "removed jsonl flag exit");
 
     const stdinArgs = ["exec", ...args.slice(2)];
     const stdin = await runCli(cliBinaryPath, stdinArgs, tempDir, {
       input: `${prompt}\n`,
     });
     assertEqual(
-      JSON.parse(stdin.stdout).result?.output,
+      finalAnswer(parseEvents(stdin.stdout)),
       completedText,
       "stdin output",
     );
@@ -181,8 +248,17 @@ async function main() {
       tempDir,
     );
     assertEqual(invalid.code, 1, "empty prompt exit code");
-    assertEqual(JSON.parse(invalid.stdout).ok, false, "error envelope");
-    assertEqual(invalid.stderr.trim(), "", "error envelope stderr");
+    assertEqual(
+      parseEvents(invalid.stdout).length,
+      1,
+      "single preflight error",
+    );
+    assertEqual(
+      parseEvents(invalid.stdout)[0].type,
+      "error",
+      "preflight error event",
+    );
+    assertEqual(invalid.stderr.trim(), "", "error event stderr");
 
     const completion = await runCli(
       cliBinaryPath,
@@ -198,16 +274,38 @@ async function main() {
       );
     }
 
+    await runExecReasoningGateB({
+      cliBinaryPath,
+      appServerBinaryPath,
+      args,
+      tempDir,
+      backendPath,
+      ledgerPath,
+      runCliResult,
+      terminalEnvironment: await isolatedEnvironment(tempDir),
+    });
+    await runExecSessionGateB({
+      repoRoot: rootDir,
+      cliBinaryPath,
+      appServerBinaryPath,
+      args,
+      tempDir,
+      backendPath,
+      ledgerPath,
+      runCliResult,
+      terminalEnvironment: await isolatedEnvironment(tempDir),
+    });
+
     console.log(
       [
         "[smoke:cli-gate-b] ok",
         `cli=${cliBinaryPath}`,
         `appServer=${appServerBinaryPath}`,
-        `thread=${envelope.result.thread_id}`,
-        `turn=${envelope.result.turn_id}`,
-        `status=${envelope.result.status}`,
+        `thread=${threadId}`,
+        `turn=${turnStart.turnId}`,
+        `status=${canonicalTurn.status}`,
         `events=${turnStart.eventTypes.join(",")}`,
-        "jsonl=ok",
+        "json=event-jsonl",
         "stdin=ok",
         "error-exit=1",
         "completion=zsh",
@@ -237,23 +335,45 @@ async function runCliResult(cliBinaryPath, args, tempDir, options = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(cliBinaryPath, args, {
       cwd: rootDir,
-      env: environment,
+      env: { ...environment, ...options.env },
       windowsHide: true,
-      stdio: ["pipe", "pipe", "pipe"],
+      stdio: [options.inheritStdin ? "inherit" : "pipe", "pipe", "pipe"],
       signal: AbortSignal.timeout(options.timeoutMs ?? 20_000),
     });
     let stdout = "";
     let stderr = "";
+    const callbacks = [];
     child.stdout.setEncoding("utf8");
     child.stderr.setEncoding("utf8");
     child.stdout.on("data", (chunk) => {
       stdout += chunk;
+      if (options.onStdout) {
+        const callback = Promise.resolve().then(() => options.onStdout(chunk));
+        callbacks.push(callback);
+        callback.catch((error) => {
+          child.kill();
+          reject(error);
+        });
+      }
     });
     child.stderr.on("data", (chunk) => {
       stderr += chunk;
     });
-    child.once("error", reject);
-    child.once("close", (code, signal) => {
+    child.once("error", (error) =>
+      reject(
+        new Error(
+          `${args.join(" ")}: ${error.message}\nstdout:\n${stdout}\nstderr:\n${stderr}`,
+          { cause: error },
+        ),
+      ),
+    );
+    child.once("close", async (code, signal) => {
+      try {
+        await Promise.all(callbacks);
+      } catch (error) {
+        reject(error);
+        return;
+      }
       resolve({
         code: typeof code === "number" ? code : 1,
         signal,
@@ -261,10 +381,8 @@ async function runCliResult(cliBinaryPath, args, tempDir, options = {}) {
         stderr,
       });
     });
-    if (options.input != null) {
-      child.stdin.end(options.input);
-    } else {
-      child.stdin.end();
+    if (child.stdin) {
+      child.stdin.end(options.input ?? undefined);
     }
   });
 }
@@ -335,6 +453,20 @@ function assertEqual(actual, expected, label) {
       `unexpected ${label}: expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`,
     );
   }
+}
+
+function parseEvents(stdout) {
+  return stdout
+    .split(/\r?\n/u)
+    .filter(Boolean)
+    .map((line) => JSON.parse(line));
+}
+
+function finalAnswer(events) {
+  return events.findLast(
+    (event) =>
+      event.type === "item.completed" && event.item?.type === "agent_message",
+  )?.item.text;
 }
 
 function assertNonEmptyString(value, label) {

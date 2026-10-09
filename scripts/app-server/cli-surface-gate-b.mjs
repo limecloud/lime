@@ -362,9 +362,7 @@ async function main() {
       execpolicyPayload.matchedRules?.[0]?.prefixRuleMatch?.justification !==
         "pushing is blocked in this repo"
     ) {
-      throw new Error(
-        `execpolicy check output mismatch: ${execpolicy.stdout}`,
-      );
+      throw new Error(`execpolicy check output mismatch: ${execpolicy.stdout}`);
     }
 
     const invalidLogout = await runCliResult(
@@ -442,7 +440,11 @@ async function main() {
       ],
       tempDir,
     );
-    const threadId = JSON.parse(exec.stdout).result?.thread_id;
+    const threadId = exec.stdout
+      .split(/\r?\n/u)
+      .filter(Boolean)
+      .map((line) => JSON.parse(line))
+      .find((event) => event.type === "thread.started")?.thread_id;
     if (typeof threadId !== "string" || !threadId) {
       throw new Error(
         `queue seed did not return a canonical thread id: ${exec.stdout}`,

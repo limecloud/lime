@@ -410,7 +410,70 @@ Thread/Turn 生命周期。原宿主内的重复位置直接迁出，根文件�
 `Reasoning.content` 与 `ReasoningTextDelta`，不把原文补成缺失摘要或混入 status。
 raw-only canonical item 保留身份事实，但 entry renderer 不显示空 bullet，export 不输出
 空内容。rich/raw 是终端排版方式，不能借此开启 raw reasoning。显式 raw reasoning 配置
-尚未接入，不增加无消费者的 Visible enum/config stub。
+由共享core Config的show_raw_agent_reasoning接入，默认false；TUI启动时经公共config/read
+冻结snapshot，summary/raw保留独立索引，显式开启时summary后接content；GUI仅将同一策略
+施加于既有canonical projection，读取失败隐藏，不新增流缓冲或私有存储。
+
+非交互exec属于CLI owner，已从TUI runtime直接迁入`cli/src/exec`：
+
+```text
+CLI exec -> app-server-client (stdio / remote) -> App Server -> RuntimeCore
+         <- canonical Thread / Turn / Item notifications
+         -> EventProcessor (Thread/Turn scope)
+                           -> EventProcessorWithHumanOutput -> lifecycle / diagnostics stderr + final stdout
+                           -> EventProcessorWithJsonOutput -> typed exec_events JSONL stdout (flush per event)
+```
+
+exec只保留当前Turn的临时输出状态，按完整Thread/Turn identity处理通知，canonical
+completion替换增量；不依赖TUI ConversationProjection、BottomPane或终端绘制。共享配置
+hide_agent_reasoning默认false且仅在exec human output消费；隐藏优先于raw，raw允许且
+content非空时选content，否则summary，与TUI全文展示规则分别由各surface承接。
+业务执行、权限决策与持久化仍归App Server/shared runtime；无新后端、crate或public method。
+旧tui::run_exec、ExecOptions/ExecResult exports与main大文件实现为dead/deleted，不留包装。
+参数直接迁至同名exec/cli；旧exec/human_output路径为dead/deleted/forbidden-to-restore，
+current为exec/event_processor_with_human_output。它按同Thread/Turn消费typed工具、
+plan/diff、warning/error、hook/model-reroute与usage，只持有临时Item去重与最后usage
+快照。canonical terminal可修复漏通知，stderr呈现生命周期/最终回答和cached-excluded
+用量；管道stdout只成功最终回答，双TTY不重复显示，JSON路径不创建human renderer。
+locale与ANSI是CLI presentation状态；不读取配置文件、推测工具类型或直接调用provider。
+责任开发者root已确认上述架构图与owner，2026-10-09；第75真实stdio/cold canonical和
+macOS双流PTY专项已验收，Windows/live provider与完整exec feature仍为未验收/partial。
+第76机器输出直接替换旧single envelope，typed exec_events是CLI presentation合同，
+schema按serialize方向生成并随npm分发；temporary Item编号只在CLI owner内映射，不修改
+App Server canonical身份。两个renderer由enum互斥选择，同一EventProcessor统一过滤scope；
+JSON只消费摘要、plan与最后usage.total，terminal补漏并修复正文，无第二后端或持久化。
+Lime v2 WebSearch没有typed results，JSON不从raw metadata猜结果；flatten Item只输出一个id。
+责任开发者root核对上述输出owner与架构图，2026-10-09。
+第77exec/thread只通过App Server thread/list/resume/start选择或恢复会话；同名
+ResumeArgs与ExecSharedCliOptions只投影参数，不持有第二历史/配置库。prompt owner
+统一stdin解码，旧main variadic reader删除；EventProcessor按canonical最终答案写
+output-last-message，两个renderer共享同一文件行为，失败/中断不覆盖旧文件。
+权限参数声明仍唯一，子级显式权限组覆盖父级；不能把全部permission bool global化
+而破坏root/exec覆盖语义。root已核对上述输入/恢复/输出方向，2026-10-09。
+第79在相同exec/thread owner统一start/resume/fork。ForkArgs只投影参数；查源复用
+resolve_resume_thread_id的UUID/精确名称逻辑且取消cwd筛选，随后只请求public thread/fork，
+不复制canonical历史或重建业务状态。InitialOperation::ForkOnly不启动Turn或合成终态，
+UserTurn沿用turn/start与现有EventProcessor。root/resume/fork图片先于Text传递typed
+LocalImage；媒体读取/处理仍归共享runtime，同一合同同时服务GUI/TUI。root确认上述
+架构图依赖方向与owner不变，2026-10-09；review/worktree仍为后续缺口。
+App Server transport沿既有SubscribeAndSend为start/resume/fork成功响应中的target Thread
+注册连接订阅，并在同一listener FIFO先送response、再送thread/started；fork后的Turn通知
+走同一canonical event bridge。fork请求的source threadId不用于新Thread订阅，不添加CLI
+私有resume或第二transport路由。公共fork保留历史Turn/Item ID，只改thread/session scope。
+`thread_fork/hydration::hydrate_thread_session`是resume与fork source共同的恢复选择owner：
+带forkSequence的public fork直接由完整canonical Thread恢复fork seed与event log；普通及
+AgentControl Thread沿用generic session hydration。fork seed不得送入全局Turn projection
+repair以重建历史身份，cold nested fork同样保留原历史ID。此职责从fork大文件迁出，
+不改变GUI/TUI共享App Server/runtime/存储边界；root确认依赖方向，2026-10-09。
+第80复用同一InitialOperation::UserTurn.output_schema，exec/prompt::load_output_schema
+读取JSON文件后由typed turn/start.outputSchema交给共享runtime/provider owner；不建立
+CLI schema解释器或配置副本，fork-only输出选项在连接前拒绝。root确认同一依赖方向，
+2026-10-09；worktree与其它结构/UI差异仍为后续缺口。
+第81的exec ReviewArgs通过build_review_request选择typed ReviewTarget，InitialOperation::Review
+只请求review/start；共享RuntimeCore构造provider prompt、canonical EnteredReviewMode/
+ExitedReviewMode，CLI沿同一EventProcessor消费结果与最终文件。没有CLI git读取、review
+业务后端或平行Loop；root确认Product Surface -> App Server -> RuntimeCore -> canonical
+projection依赖方向，2026-10-09。root review快捷入口/worktree与其余结构/UI差异仍未完成。
 
 `history_cell/reasoning::split_reasoning_summary_parts` 是摘要正文转换的唯一 owner：
 以空行连接有效 parts，只去除独立 `<!-- -->` 占位；首个带换行的 bold 标题留给状态，
@@ -3674,6 +3737,11 @@ Thread/Turn/Item。`RequestUserInputOverlay.composer` 仍是独立 notes editor�
 `chatwidget/settings.rs` 单一持有；启动、重连和 App Server 返回的快照直接调用 ChatWidget
 setter，不保留第二套协作模式选择或 catalog 归一化逻辑。旧 `app/thread_settings.rs` 已删除，
 由结构守卫防止回流。
+Max/Ultra的effort ignition与status-line transition由同一ChatComposer presentation owner持有，
+同名effort_ignition/styles、effort_status_line消费terminal palette及FooterProps，复用Host的
+FrameRequester；不创建timer、settings副本或业务runtime。首次可见render起算，startup/
+resume/hydrate显式baseline不重放；共享core TuiConfig的animations同时控制档位效果和
+运行状态shimmer，经既有config/read/batchWrite读取与保存，GUI gateway保留同一字段。
 右键粘贴的 native clipboard worker 继续由 runtime/host 驱动，ChatWidget 只校验 thread/draft identity 并接收完成态；
 queued submissions 继续由 App Server `thread/list_queued_submissions` 提供事实源，ChatWidget 仅作可见投影与编辑接线。
 

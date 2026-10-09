@@ -11,6 +11,11 @@ import {
   MEDIA_REFERENCE_TITLE,
   MEDIA_REFERENCE_URI,
 } from "./claw-chat-current-fixture-media-reference.mjs";
+import {
+  isCanonicalReasoningReadModelReady,
+  isExpandedReasoningSnapshotReady,
+  isReasoningHistoryPreserved,
+} from "./reasoning-fixture.mjs";
 
 export function buildReasoningFirstVisibleScenarioAssertions({
   reasoningFirstVisibleTurnStart,
@@ -72,12 +77,47 @@ export function buildReasoningFirstVisibleScenarioAssertions({
       summary.readModelReasoningFirstVisibleCompleted
         ?.includesReasoningContentText === true,
     readModelReasoningFirstVisibleItemObserved:
-      summary.readModelReasoningFirstVisibleCompleted?.includesReasoningItem ===
+      isCanonicalReasoningReadModelReady(
+        summary.readModelReasoningFirstVisibleCompleted,
+      ) &&
+      summary.readModelReasoningFirstVisibleCompleted.threadId ===
+        summary.threadId &&
+      summary.readModelReasoningFirstVisibleCompleted.turnId ===
+        reasoningFirstVisibleTurnStart?.turnId,
+    guiReasoningHistoryRestored:
+      summary.reasoningHistoryReload?.reloaded === true &&
+      summary.reasoningHistoryRendererReady?.electron === true &&
+      summary.reasoningHistoryRendererReady?.hasInvokeBridge === true &&
+      summary.reasoningHistorySessionOpened?.clicked?.clicked === true &&
+      isExpandedReasoningSnapshotReady(summary.guiReasoningHistoryRestored) &&
+      summary.guiReasoningHistoryRestored?.hasPrompt === true &&
+      summary.guiReasoningHistoryRestored?.hasFinalText === true &&
+      summary.guiReasoningHistoryRestored?.hasReasoningBeforeFinalAnswer ===
         true &&
-      summary.readModelReasoningFirstVisibleCompleted?.reasoningItemCount >=
-        1 &&
-      summary.readModelReasoningFirstVisibleCompleted
-        ?.reasoningSequenceBeforeFinal === true,
+      summary.guiReasoningHistoryRestored?.textareaDisabled === false &&
+      summary.guiReasoningHistoryRestored?.stopButtonVisible === false,
+    readModelReasoningHistoryPreserved: isReasoningHistoryPreserved(
+      summary.readModelReasoningFirstVisibleCompleted,
+      summary.readModelReasoningHistoryRestored,
+    ),
+    sharedRawReasoningConfigWritten:
+      summary.rawReasoningConfigEnabled?.write?.result?.status === "ok" &&
+      summary.rawReasoningConfigEnabled?.config?.show_raw_agent_reasoning ===
+        true &&
+      summary.rawReasoningConfigDisabled?.write?.result?.status === "ok" &&
+      summary.rawReasoningConfigDisabled?.config?.show_raw_agent_reasoning ===
+        false,
+    guiRawReasoningHistoryVisible: isExpandedReasoningSnapshotReady(
+      summary.guiRawReasoningHistory,
+      true,
+    ),
+    rawReasoningCanonicalHistoryPreserved: isReasoningHistoryPreserved(
+      summary.readModelReasoningFirstVisibleCompleted,
+      summary.readModelRawReasoningHistory,
+    ),
+    guiRawReasoningDisabled: isExpandedReasoningSnapshotReady(
+      summary.guiRawReasoningDisabled,
+    ),
   };
 }
 

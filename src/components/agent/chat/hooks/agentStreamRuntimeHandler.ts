@@ -1038,8 +1038,8 @@ export function handleTurnStreamEvent({
       break;
 
     case "reasoning_content_delta":
-      // Raw reasoning remains protocol-only unless an explicit Codex-style
-      // show_raw_agent_reasoning product policy is introduced.
+      // The canonical reducer already retains indexed content. Visibility is resolved from
+      // shared show_raw_agent_reasoning at the render boundary, never by another stream buffer.
       activateStream();
       break;
 

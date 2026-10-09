@@ -603,6 +603,7 @@ impl AppServerSession {
             .ok_or_else(|| anyhow!("App Server thread has not been started"))
     }
 
+    #[cfg(test)]
     pub(crate) async fn start_turn(&self, prompt: String) -> Result<String> {
         self.start_turn_input(vec![UserInput::Text {
             text: prompt,

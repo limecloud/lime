@@ -18,7 +18,7 @@ mod reasoning;
 mod streaming;
 mod token_usage;
 
-pub(crate) use reasoning::ReasoningSummary;
+pub(crate) use reasoning::ReasoningText;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum EntryKind {
@@ -73,7 +73,7 @@ pub(crate) enum ActivityDetail {
     /// is the renderable body derived from these facts.
     Reasoning {
         scope: String,
-        summary: ReasoningSummary,
+        summary: ReasoningText,
     },
 }
 
@@ -151,6 +151,7 @@ pub(crate) struct ConversationProjection {
     status: String,
     /// Latest usable reasoning summary while the active turn is still running.
     reasoning_status: Option<String>,
+    show_raw_agent_reasoning: bool,
     /// Host-owned recovery intent, never a canonical item completion fact.
     resumed_reasoning: Option<history::ResumedReasoning>,
     review_mode: bool,
@@ -170,6 +171,15 @@ struct ActiveHook {
 }
 
 impl ConversationProjection {
+    /// Resolve once from shared config/read before loading any live or historical items.
+    pub(crate) fn set_show_raw_agent_reasoning(&mut self, show_raw: bool) {
+        self.show_raw_agent_reasoning = show_raw;
+    }
+
+    pub(crate) fn show_raw_agent_reasoning(&self) -> bool {
+        self.show_raw_agent_reasoning
+    }
+
     pub(crate) fn entries(&self) -> &[TranscriptEntry] {
         &self.entries
     }
@@ -297,7 +307,13 @@ impl ConversationProjection {
         let mut older = Vec::new();
         for item in items {
             self.record_assistant_phase(&item);
-            if let Some(entry) = project_item(&item, false) {
+            if let Some(entry) = project_item_with_scope(
+                &item,
+                false,
+                WebSearchLifecycle::Historical,
+                None,
+                self.show_raw_agent_reasoning,
+            ) {
                 if !self.entries.iter().any(|current| current.id == entry.id) {
                     older.push(entry);
                 }
@@ -338,6 +354,7 @@ impl ConversationProjection {
                     false,
                     WebSearchLifecycle::Historical,
                     activity_scope.as_deref(),
+                    self.show_raw_agent_reasoning,
                 ) {
                     if !self.entries.iter().any(|current| current.id == entry.id)
                         && !older
@@ -446,6 +463,7 @@ impl ConversationProjection {
                     true,
                     WebSearchLifecycle::Started,
                     Some(&params.turn_id),
+                    self.show_raw_agent_reasoning,
                 ) {
                     self.remember_reasoning_status(&params.turn_id, &entry);
                     self.record_assistant_phase(&params.item);
@@ -461,6 +479,7 @@ impl ConversationProjection {
                     false,
                     WebSearchLifecycle::Completed,
                     Some(&params.turn_id),
+                    self.show_raw_agent_reasoning,
                 ) {
                     self.remember_reasoning_status(&params.turn_id, &entry);
                     self.record_assistant_phase(&params.item);
@@ -491,8 +510,14 @@ impl ConversationProjection {
                     String::new(),
                 );
             }
-            // Codex hides raw reasoning by default; only typed summary deltas drive this surface.
-            ServerNotification::ReasoningTextDelta(_) => {}
+            ServerNotification::ReasoningTextDelta(params) if self.show_raw_agent_reasoning => {
+                self.append_reasoning_raw(
+                    params.turn_id,
+                    params.item_id,
+                    params.content_index,
+                    params.delta,
+                );
+            }
             ServerNotification::PlanDelta(params) => {
                 self.append_delta(
                     params.turn_id,
@@ -651,7 +676,13 @@ impl ConversationProjection {
         let projected = filtered
             .iter()
             .filter_map(|item| {
-                project_item_with_scope(item, false, web_search_lifecycle, Some(activity_scope))
+                project_item_with_scope(
+                    item,
+                    false,
+                    web_search_lifecycle,
+                    Some(activity_scope),
+                    self.show_raw_agent_reasoning,
+                )
             })
             .collect::<Vec<_>>();
 

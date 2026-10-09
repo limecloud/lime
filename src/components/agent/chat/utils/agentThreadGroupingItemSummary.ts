@@ -684,7 +684,10 @@ function summarizeOtherItem(item: AgentThreadItem): string | null {
   return null;
 }
 
-export function summarizeThinkingItem(item: AgentThreadItem): string | null {
+export function summarizeThinkingItem(
+  item: AgentThreadItem,
+  showRaw = false,
+): string | null {
   if (item.type === "turn_summary") {
     if (shouldHideTurnSummaryFromConversation(item)) {
       return null;
@@ -707,9 +710,12 @@ export function summarizeThinkingItem(item: AgentThreadItem): string | null {
 
   if (item.type === "reasoning") {
     return (
-      extractThinkingPreviewLine(resolveVisibleReasoningSourceText(item), {
-        flattenFragments: true,
-      }) || (item.status === "in_progress" ? "思考中" : "已完成思考")
+      extractThinkingPreviewLine(
+        resolveVisibleReasoningSourceText(item, showRaw),
+        {
+          flattenFragments: true,
+        },
+      ) || (item.status === "in_progress" ? "思考中" : "已完成思考")
     );
   }
 
@@ -723,6 +729,7 @@ export function summarizeThinkingItem(item: AgentThreadItem): string | null {
 function summarizeGroupPreviewLine(
   kind: Exclude<AgentThreadGroupKind, "other">,
   item: AgentThreadItem,
+  showRaw: boolean,
 ): string | null {
   switch (kind) {
     case "process":
@@ -742,7 +749,7 @@ function summarizeGroupPreviewLine(
         item.type === "turn_summary" ||
         item.type === "context_compaction"
       ) {
-        return summarizeThinkingItem(item);
+        return summarizeThinkingItem(item, showRaw);
       }
       {
         const collaborationSummary = summarizeCollaborationItem(item);
@@ -799,22 +806,24 @@ function summarizeGroupPreviewLine(
 function summarizeBlockPreviewLine(
   kind: AgentThreadGroupKind,
   item: AgentThreadItem,
+  showRaw: boolean,
 ): string | null {
   if (kind === "other") {
     return summarizeOtherItem(item);
   }
 
-  return summarizeGroupPreviewLine(kind, item);
+  return summarizeGroupPreviewLine(kind, item, showRaw);
 }
 
 export function buildPreviewLines(
   kind: AgentThreadGroupKind,
   items: AgentThreadItem[],
+  showRaw = false,
 ): string[] {
   const lines: string[] = [];
 
   for (const item of items) {
-    const summary = summarizeBlockPreviewLine(kind, item);
+    const summary = summarizeBlockPreviewLine(kind, item, showRaw);
     if (!summary || lines.includes(summary)) {
       continue;
     }

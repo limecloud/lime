@@ -24,11 +24,16 @@
 
 ### TUI 按键配置
 
-TUI 只从上述 Lime 用户配置读取 `tui.keymap`、`tui.right_click_paste`、`tui.status_line` 与
-`tui.status_line_use_colors` 与 `tui.terminal_title`。启动时会经 App Server `config/read` 生成不可变按键 snapshot；
+TUI 只从上述 Lime 用户配置读取 `tui.keymap`、`tui.right_click_paste`、`tui.status_line`、
+`tui.status_line_use_colors`、`tui.terminal_title` 和 `tui.animations`。启动时会经 App Server `config/read` 生成不可变按键 snapshot；
 修改按键配置后需重启当前 TUI 进程。不要创建 TUI 专用
 配置文件或按键环境变量。`right_click_paste` 支持 `auto`（默认，遵循 SSH/WSL/VS Code 安全护栏）、
 `on` 和 `off`；中键 PRIMARY 仅在本地 X11 可用时启用。
+
+`animations` 默认开启；设置 `tui.animations: false` 并重启即可关闭推理档位动画、状态栏
+过渡和运行状态文字闪光。真实切换到 Max/Ultra 时播放一次动画，之后保留档位箭头；
+启动、恢复或切换线程只显示当前档位。ANSI-16/无颜色终端使用静态展示；未取得终端
+背景色时取消输入框动画，不会不断请求刷新。草稿和附件文字始终保留。
 
 `/statusline` 打开状态栏选择器：Space 勾选、左右键调整顺序、输入文字搜索；搜索中不排序。
 确认和取消使用当前 `tui.keymap.list.accept|cancel`，默认 Enter/Esc。预览使用当前线程真实数据，
@@ -76,7 +81,7 @@ rich/raw 切换只改变终端排版，仍保持这一显示策略；当前未�
 `tui.terminal_title`。省略配置默认 `[activity, thread-name, project-name]`，显式 `[]` 关闭。
 可选应用名、工作目录/项目名、活动/运行状态、线程名称/标题/标识、模型/推理强度；
 线程标题在未命名时显示标识。活动项被取消时不显示 spinner 或“需要操作”。
-普通项目用 ` | ` 分隔，活动项两侧用空格；不可用项目省略，长项目按 Unicode 字素截断。
+普通项目用 `|` 分隔，活动项两侧用空格；不可用项目省略，长项目按 Unicode 字素截断。
 
 两种配置器都提供 `task-progress`，显示最近一次结构化计划的完成数/总数。计数直接来自
 App Server `turn/plan/updated` 的状态字段，空计划会清除；没有观察到结构化计划时省略。
@@ -117,6 +122,46 @@ tui:
       forward: ["/", "z /"]
 ```
 
+原始推理显示使用同一用户配置中的顶层 `show_raw_agent_reasoning: true`，默认 false。
+GUI/TUI 均只在显式开启后将 canonical `content` 接在摘要之后；实时增量、运行中恢复、
+分页记录、完整记录与 TUI 导出遵守同一策略。它只影响显示，不改变服务端保存的
+summary/content 或 Thread/Turn/Item 身份。TUI 在启动时读取配置，修改后重新启动；
+GUI 经共享配置网关保存后更新当前展示，冷恢复也读取同一设置。无有效配置时保持隐藏。
+
+非交互 `lime exec` 在 stderr 默认输出已完成 Item 的推理摘要；开启
+`show_raw_agent_reasoning` 后优先输出原文，无原文时回到摘要。顶层
+`hide_agent_reasoning: true` 可关闭 exec 的全部推理输出，优先于原文开关，默认 false。
+这项隐藏策略仅作用于 exec human output；GUI/TUI 仍按前述摘要与原文规则显示。
+工具的开始、结果和输出、计划、差异、警告/错误及结束时的 token 用量同样输出到 stderr。
+token 用量排除缓存输入，使用最后一次服务端累计快照；失败/中断会显示原因，并分别以
+1/130退出。stdout在管道中仅保留成功的最终回答；stdout/stderr都连接终端时最终回答
+只在stderr展示一次。`exec --json`逐行实时输出Codex形状事件，无human文本或ANSI；
+机器输出始终只保留推理摘要，不受raw/hide显示开关影响。`thread.started.thread_id`是
+canonical身份，Item显示编号仅在本次输出内稳定。成功`turn.completed.usage`使用最后
+服务端累计total，含缓存输入、cache write与reasoning output；失败输出error/turn.failed，
+中断不输出成功终态。旧单结果envelope与独立jsonl参数已删除，事件schema随CLI npm包分发。
+`lime exec --color auto|always|never`控制标签颜色；auto在支持颜色的stderr终端启用，
+遵循NO_COLOR，always可显式覆盖。`--locale zh-CN|zh-TW|en-US|ja-JP|ko-KR`选择标签语言，
+也可在root命令上指定；其次读取LIME_LOCALE、LC_ALL、LANG，默认英文。
+
+`lime exec resume <thread-id|exact-name> "prompt"`恢复同一Thread并新建Turn；
+`resume --last "prompt"`按最后更新时间选择当前cwd的未归档记录，`--all`取消cwd筛选。
+UUID优先，名称精确匹配；last/name无匹配新建，实际恢复失败显式报错。
+PROMPT是一个参数，多个单词加引号；省略或`-`从stdin读取，新会话同时给PROMPT/pipe
+时追加stdin块，resume显式PROMPT不追加。支持UTF-8 BOM/UTF-16，不接受非法编码。
+`--output-last-message`/`-o`只写成功最终消息，失败/中断保留旧文件，写失败返回1。
+`lime exec fork <thread-id|exact-name>`分叉为新Thread，保留共享canonical历史和来源；
+查源不限制cwd，未找到显式失败。无PROMPT仅分叉，不读取pipe，不启动Turn；JSON仅输出
+thread.started，human显示新会话ID。显式PROMPT或`-`才发起新Turn；图片/-o/output-schema要求PROMPT。
+`exec`/`exec resume`/`exec fork`均接受`-i/--image <FILE>`，单参数支持逗号列表及重复选项；
+root图片先于子级图片，Text最后，由共享App Server/runtime读取和处理图片。
+`--output-schema <FILE>`读取UTF-8 JSON，经既有turn/start.outputSchema只传给当前Turn；
+resume/fork前后均可使用。文件不可读/非法JSON在连接前报错，无PROMPT的fork拒绝此选项。
+`lime exec review --uncommitted|--base <BRANCH>|--commit <SHA>`或一条自定义指令走
+共享review/start；target互斥，--title只能配commit，无target/空指令在连接前拒绝。
+custom '-'读取stdin并trim；显式指令忽略pipe。审查复用同一JSON/human/最终文件输出，
+review按Codex语义不消费root PROMPT、图片或output-schema。
+
 每个 action 可使用单个按键、按优先级排列的数组、最多两段且以空格分隔的 chord，或用空数组
 显式解除绑定。当前 context/action 为：
 
@@ -138,7 +183,11 @@ tui:
 
 编辑默认键位按 Codex：Alt+B/F 移动单词、Ctrl+D/Delete 删除后一个字符、Ctrl+H/Backspace
 删除前一个字符；`kill_whole_line` 默认无绑定。普通 Enter 由 composer 提交，Shift/Alt+Enter
-和 Ctrl+J/M 由 `insert_newline` 插入换行，解绑不会回退硬编码换行。默认 Up/Down 在满足历史
+和 Ctrl+J/M 由 `insert_newline` 插入换行，解绑不会回退硬编码换行。补全列表支持长按方向键与
+Ctrl+P/N，松开按键不改变选择；Ctrl+J/K交回编辑器，Windows AltGr不触发列表导航。
+本地会话空输入框按下 Left 打开 Agent Center；长按仍归编辑器，松开忽略。
+只有当前 editor/Vim 的 `move_left` 仍绑定 Left 才显示和启用导航；重绑或解绑后同步关闭。
+默认 Up/Down 在满足历史
 导航条件时调用同一 recall owner；解绑也会关闭该入口。pending editor chord 的完成/取消键
 归编辑 owner，不会提交、终止任务或触发全局快捷键。Vim `.` 录制语义动作，不随重新改绑改变。
 editor 与 global 共用输入路径，绑定或 chord prefix 冲突会拒绝启动；例如 global.open_agents

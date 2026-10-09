@@ -37,6 +37,7 @@ import {
   type ThreadRevertStatus,
 } from "./ThreadRevertDialog";
 import type { ThreadRevertTarget } from "./ThreadRevertTrigger";
+import { ReasoningVisibility } from "./ReasoningVisibility";
 
 function findLastMessage(
   messages: readonly Message[],
@@ -423,7 +424,7 @@ const MessageListInner: React.FC<MessageListProps> = ({
   );
 
   return (
-    <>
+    <ReasoningVisibility>
       <MessageListFrame
         data-testid="message-list-frame"
         data-session-id={sessionId || ""}
@@ -635,7 +636,7 @@ const MessageListInner: React.FC<MessageListProps> = ({
       >
         {threadRevertStatusText}
       </span>
-    </>
+    </ReasoningVisibility>
   );
 };
 

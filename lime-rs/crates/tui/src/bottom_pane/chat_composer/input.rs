@@ -34,8 +34,8 @@ impl ChatComposer {
         if matches!(key.kind, KeyEventKind::Release) {
             return InputResult::None;
         }
-        if self.handle_empty_prompt_shortcut(key) {
-            return InputResult::Changed;
+        if let Some(result) = self.handle_empty_prompt_shortcut(key) {
+            return result;
         }
         let flushed = self.flush_paste_burst_before_modified_input(key, now);
         if self.handle_vim_history_key(key) {
@@ -131,13 +131,6 @@ impl ChatComposer {
             return InputResult::Changed;
         }
 
-        if key.code == KeyCode::Left
-            && key.modifiers.is_empty()
-            && self.agents_navigation_available()
-        {
-            return InputResult::OpenAgentsOverview;
-        }
-
         if key.modifiers.contains(KeyModifiers::CONTROL) {
             return match key.code {
                 KeyCode::Char('c') => InputResult::Interrupt,
@@ -197,13 +190,6 @@ impl ChatComposer {
             && self.is_empty()
         {
             return Some(InputResult::Quit);
-        }
-        if !pending
-            && key.code == KeyCode::Left
-            && key.modifiers.is_empty()
-            && self.agents_navigation_available()
-        {
-            return None;
         }
         let altgr_text = crate::key_hint::is_altgr(key.modifiers)
             && matches!(key.code, KeyCode::Char(_))

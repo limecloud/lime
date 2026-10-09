@@ -14,7 +14,7 @@ use crate::history_cell::{
 use crate::multi_agents;
 
 use super::{
-    ActivityDetail, ActivityGroupKey, ActivityGroupKind, EntryKind, EntryStatus, ReasoningSummary,
+    ActivityDetail, ActivityGroupKey, ActivityGroupKind, EntryKind, EntryStatus, ReasoningText,
     TranscriptEntry,
 };
 
@@ -34,7 +34,7 @@ fn project_item_with_lifecycle(
     streaming: bool,
     web_search_lifecycle: WebSearchLifecycle,
 ) -> Option<TranscriptEntry> {
-    project_item_with_scope(item, streaming, web_search_lifecycle, None)
+    project_item_with_scope(item, streaming, web_search_lifecycle, None, false)
 }
 
 pub(super) fn project_item_with_scope(
@@ -42,6 +42,7 @@ pub(super) fn project_item_with_scope(
     streaming: bool,
     web_search_lifecycle: WebSearchLifecycle,
     activity_scope: Option<&str>,
+    show_raw_agent_reasoning: bool,
 ) -> Option<TranscriptEntry> {
     let activity_group = activity_scope
         .and_then(|scope| activity_group_kind(item).map(|kind| ActivityGroupKey::new(kind, scope)));
@@ -49,12 +50,15 @@ pub(super) fn project_item_with_scope(
         .as_ref()
         .and_then(|_| project_activity_detail(item))
         .or_else(|| match (item, activity_scope) {
-            (ThreadItem::Reasoning { summary, .. }, Some(scope)) => {
-                Some(ActivityDetail::Reasoning {
-                    scope: scope.to_string(),
-                    summary: ReasoningSummary::from_parts(summary),
-                })
-            }
+            (
+                ThreadItem::Reasoning {
+                    summary, content, ..
+                },
+                Some(scope),
+            ) => Some(ActivityDetail::Reasoning {
+                scope: scope.to_string(),
+                summary: ReasoningText::from_item(summary, content, show_raw_agent_reasoning),
+            }),
             _ => None,
         });
     let (id, kind, text, status, summary) = match item {
@@ -98,9 +102,15 @@ pub(super) fn project_item_with_scope(
             Some(EntryStatus::Completed),
             Vec::new(),
         ),
-        ThreadItem::Reasoning { id, summary, .. } => {
+        ThreadItem::Reasoning {
+            id,
+            summary,
+            content,
+            ..
+        } => {
             // Raw content is distinct from the user-facing summary and hidden by default.
-            let text = ReasoningSummary::from_parts(summary).content();
+            let text =
+                ReasoningText::from_item(summary, content, show_raw_agent_reasoning).content();
             (id.clone(), EntryKind::Reasoning, text, None, Vec::new())
         }
         ThreadItem::CommandExecution {

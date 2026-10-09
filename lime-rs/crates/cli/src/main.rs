@@ -1,3 +1,4 @@
+mod exec;
 mod mcp_cmd;
 mod plugin_cmd;
 mod queue_cmd;
@@ -9,7 +10,7 @@ use std::collections::{BTreeMap, HashSet};
 use std::env;
 use std::ffi::OsString;
 use std::future::Future;
-use std::io::{self, IsTerminal, Read, Write};
+use std::io::{self, Write};
 use std::path::PathBuf;
 use std::process::{Command, ExitCode};
 
@@ -30,9 +31,9 @@ use app_server_protocol::protocol::v2::{
 use app_server_protocol::{ClientCapabilities, ClientInfo, InitializeParams};
 use clap::{Args, CommandFactory, Parser, Subcommand as ClapSubcommand, ValueEnum};
 use clap_complete::{generate, Shell};
+use exec::cli::ExecCli;
 use execpolicy::ExecPolicyCheckCommand;
-use serde_json::json;
-use tui::{ExecOptions, TuiOptions};
+use tui::TuiOptions;
 
 const APP_SERVER_BIN_ENV: &str = "LIME_APP_SERVER_BIN";
 
@@ -277,20 +278,6 @@ pub(crate) struct TuiCli {
     connection: ConnectionArgs,
     #[arg(long, value_name = "LOCALE")]
     locale: Option<String>,
-}
-
-#[derive(Debug, Args)]
-pub(crate) struct ExecCli {
-    #[arg(value_name = "PROMPT")]
-    prompt: Vec<String>,
-    /// 输出稳定 JSON envelope。
-    #[arg(long, conflicts_with = "jsonl")]
-    json: bool,
-    /// 输出稳定单行 JSONL envelope，便于脚本逐行消费。
-    #[arg(long, conflicts_with = "json")]
-    jsonl: bool,
-    #[command(flatten)]
-    connection: ConnectionArgs,
 }
 
 #[derive(Debug, Args)]
@@ -710,57 +697,6 @@ pub(crate) fn cli_initialize_params() -> InitializeParams {
     }
 }
 
-pub(crate) async fn run_exec(args: ExecCli) -> ExitCode {
-    let json_output = args.json;
-    let jsonl_output = args.jsonl;
-    let result = read_prompt(args.prompt).and_then(|prompt| {
-        tui_options(args.connection, None, None).map(|tui| ExecOptions { tui, prompt })
-    });
-    let result = match result {
-        Ok(options) => tui::run_exec(options).await,
-        Err(error) => Err(error),
-    };
-
-    match result {
-        Ok(output) => {
-            if json_output || jsonl_output {
-                let value = json!({ "ok": true, "result": output });
-                println!("{}", render_json_envelope(&value, jsonl_output));
-            } else {
-                println!("{}", output.output);
-            }
-            match output.status.as_str() {
-                "ready" => ExitCode::SUCCESS,
-                "interrupted" => ExitCode::from(130),
-                _ => ExitCode::FAILURE,
-            }
-        }
-        Err(error) => {
-            if json_output || jsonl_output {
-                let value = json!({
-                    "ok": false,
-                    "error": {
-                        "kind": "runtime",
-                        "message": format!("{error:#}"),
-                    }
-                });
-                println!("{}", render_json_envelope(&value, jsonl_output));
-            } else {
-                eprintln!("{error:#}");
-            }
-            ExitCode::FAILURE
-        }
-    }
-}
-
-fn render_json_envelope(value: &serde_json::Value, jsonl: bool) -> String {
-    if jsonl {
-        serde_json::to_string(value).unwrap_or_else(|_| "{}".to_string())
-    } else {
-        serde_json::to_string_pretty(value).unwrap_or_else(|_| "{}".to_string())
-    }
-}
-
 fn tui_options(
     args: ConnectionArgs,
     resume_thread: Option<String>,
@@ -825,23 +761,6 @@ pub(crate) fn resolve_app_server_bin(explicit: Option<PathBuf>) -> PathBuf {
     } else {
         "app-server"
     })
-}
-
-fn read_prompt(parts: Vec<String>) -> Result<String> {
-    if !parts.is_empty() {
-        return Ok(parts.join(" "));
-    }
-    if io::stdin().is_terminal() {
-        bail!("prompt is required when stdin is a terminal");
-    }
-    let mut prompt = String::new();
-    io::stdin()
-        .read_to_string(&mut prompt)
-        .context("failed to read prompt from stdin")?;
-    if prompt.trim().is_empty() {
-        bail!("prompt must not be empty");
-    }
-    Ok(prompt)
 }
 
 #[derive(Debug, Args)]
@@ -1251,7 +1170,10 @@ async fn cli_main(cli: MultitoolCli) -> ExitCode {
         }
         Some(Subcommand::Exec(mut args)) => {
             args.connection.inherit_from(&root_connection);
-            run_exec(args).await
+            if args.locale.is_none() {
+                args.locale = root_locale;
+            }
+            exec::run(args).await
         }
         Some(Subcommand::Resume(mut args)) => {
             args.connection.inherit_from(&root_connection);
@@ -1368,7 +1290,6 @@ mod command_tests {
     use std::path::PathBuf;
 
     use clap::Parser;
-    use serde_json::json;
 
     use super::*;
 
@@ -1379,20 +1300,11 @@ mod command_tests {
     }
 
     #[test]
-    fn prompt_parts_preserve_shell_token_boundaries() {
-        assert_eq!(
-            read_prompt(vec!["review".to_string(), "this diff".to_string()]).unwrap(),
-            "review this diff"
-        );
-    }
-
-    #[test]
     fn exec_parser_keeps_options_out_of_multi_word_prompt() {
         let cli = crate::MultitoolCli::try_parse_from([
             "lime",
             "exec",
-            "review",
-            "this diff",
+            "review this diff",
             "--json",
             "--cd",
             "/tmp/worktree",
@@ -1412,9 +1324,8 @@ mod command_tests {
             panic!("expected exec command");
         };
 
-        assert_eq!(args.prompt, vec!["review", "this diff"]);
+        assert_eq!(args.prompt.as_deref(), Some("review this diff"));
         assert!(args.json);
-        assert!(!args.jsonl);
         assert_eq!(args.connection.cwd, Some(PathBuf::from("/tmp/worktree")));
         assert_eq!(args.connection.model.as_deref(), Some("gpt-test"));
         assert_eq!(args.connection.provider.as_deref(), Some("openai-test"));
@@ -1434,7 +1345,8 @@ mod command_tests {
             let Some(crate::Subcommand::Exec(args)) = cli.subcommand else {
                 panic!("expected exec command");
             };
-            let options = tui_options(args.connection, None, None).expect("lower policy");
+            let options =
+                tui_options(args.connection.into_inner(), None, None).expect("lower policy");
             assert_eq!(options.approval_policy.as_deref(), Some("on-request"));
             assert_eq!(options.approvals_reviewer.as_deref(), Some("auto_review"));
             assert_eq!(options.sandbox_policy.as_deref(), Some("workspace-write"));
@@ -1459,7 +1371,7 @@ mod command_tests {
         let Some(crate::Subcommand::Exec(args)) = cli.subcommand else {
             panic!("expected exec command");
         };
-        let options = tui_options(args.connection, None, None).expect("lower policy");
+        let options = tui_options(args.connection.into_inner(), None, None).expect("lower policy");
         assert_eq!(options.approval_policy.as_deref(), Some("never"));
         assert_eq!(options.approvals_reviewer, None);
         assert_eq!(
@@ -1825,32 +1737,17 @@ mod command_tests {
     }
 
     #[test]
-    fn exec_parser_supports_jsonl_as_a_mutually_exclusive_format() {
-        let cli = crate::MultitoolCli::try_parse_from(["lime", "exec", "check", "--jsonl"])
+    fn exec_parser_uses_codex_json_events_flag_and_rejects_retired_jsonl() {
+        let cli = crate::MultitoolCli::try_parse_from(["lime", "exec", "check", "--json"])
             .expect("parse exec");
         let Some(crate::Subcommand::Exec(args)) = cli.subcommand else {
             panic!("expected exec command");
         };
-        assert!(args.jsonl);
-        assert!(!args.json);
+        assert!(args.json);
 
-        let error =
-            crate::MultitoolCli::try_parse_from(["lime", "exec", "check", "--json", "--jsonl"])
-                .expect_err("JSON and JSONL must not be combined");
-        assert_eq!(error.kind(), clap::error::ErrorKind::ArgumentConflict);
-    }
-
-    #[test]
-    fn jsonl_envelope_is_single_line_while_json_remains_pretty() {
-        let value = json!({"ok": true, "result": {"output": "done"}});
-        let jsonl = render_json_envelope(&value, true);
-        let pretty = render_json_envelope(&value, false);
-        assert!(!jsonl.contains('\n'));
-        assert!(pretty.contains('\n'));
-        assert_eq!(
-            serde_json::from_str::<serde_json::Value>(&jsonl).unwrap(),
-            value
-        );
+        let error = crate::MultitoolCli::try_parse_from(["lime", "exec", "check", "--jsonl"])
+            .expect_err("retired flag must not remain as an alias");
+        assert_eq!(error.kind(), clap::error::ErrorKind::UnknownArgument);
     }
 
     #[test]

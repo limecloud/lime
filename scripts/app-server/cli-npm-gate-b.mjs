@@ -69,6 +69,10 @@ async function main() {
 
     const executableSuffix = process.platform === "win32" ? ".exe" : "";
     const launcherPath = path.join(installedRoot, "bin", "lime.js");
+    await assertFile(
+      path.join(installedRoot, "exec-events.schema.json"),
+      "installed exec event schema",
+    );
     const packagedAppServer = path.join(
       platformStage,
       "vendor",
@@ -175,6 +179,10 @@ async function copyPackageRoot(source, destination) {
     copyFile(
       path.join(source, "bin", "lime.js"),
       path.join(destination, "bin", "lime.js"),
+    ),
+    copyFile(
+      path.join(source, "exec-events.schema.json"),
+      path.join(destination, "exec-events.schema.json"),
     ),
   ]);
 }

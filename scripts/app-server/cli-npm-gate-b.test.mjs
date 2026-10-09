@@ -21,6 +21,10 @@ describe("CLI npm Gate B", () => {
     expect(source).toContain('"windows-sandbox-setup.exe"');
     expect(source).toContain('"windows-sandbox-runner.exe"');
     expect(source).toContain("runtimeLibraries");
+    expect(source).toContain('"installed exec event schema"');
+    expect(source).toContain(
+      'path.join(destination, "exec-events.schema.json")',
+    );
   });
 
   it("enters CLI Gate B through the Node launcher and sibling App Server", () => {

@@ -158,6 +158,15 @@ function assertConfigShape(value: unknown): asserts value is Config {
   ) {
     throw new Error("config/read 未返回有效配置");
   }
+  for (const key of [
+    "show_raw_agent_reasoning",
+    "hide_agent_reasoning",
+  ] as const) {
+    const flag = (value as Record<string, unknown>)[key];
+    if (flag !== undefined && typeof flag !== "boolean") {
+      throw new Error(`config/read returned invalid ${key}`);
+    }
+  }
 }
 
 function readConfigVersion(response: ConfigReadResponse): string {

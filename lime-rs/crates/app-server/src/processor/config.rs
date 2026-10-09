@@ -18,6 +18,8 @@ const CONFIG_ROOT_KEYS: &[&str] = &[
     "server",
     "providers",
     "default_provider",
+    "show_raw_agent_reasoning",
+    "hide_agent_reasoning",
     "tui",
     "routing",
     "retry",

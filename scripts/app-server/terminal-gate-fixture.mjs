@@ -8,11 +8,21 @@ export async function writeTerminalExternalBackend(
     reasoningText = "TUI_GATE_B_REASONING_DETAIL",
     reasoningParts = [reasoningText],
     reasoningContent = [],
+    terminalStatus = "completed",
     scenario = "complete",
     taskProgress = false,
     tokenUsage = false,
+    commandItems = false,
+    commandStatus = "completed",
+    completeAgentMessage = false,
   },
 ) {
+  const terminalEvent =
+    terminalStatus === "failed"
+      ? { type: "turn.failed", payload: { message: "CLI_TEST_FAILURE" } }
+      : terminalStatus === "interrupted"
+        ? { type: "turn.canceled", payload: { status: "canceled" } }
+        : { type: "turn.completed", payload: { status: "completed" } };
   await writeFile(
     backendPath,
     `#!/usr/bin/env node
@@ -27,6 +37,7 @@ const questionRequestId = "terminal-user-input-" + turn.turnId;
 const assistantItemId = "terminal-assistant-" + turn.turnId;
 const commandCallId = "terminal-command-" + turn.turnId;
 const summaryParts = ${JSON.stringify(reasoningParts)};
+const contentParts = ${JSON.stringify(reasoningContent)};
 const toolItem = (
   status,
   output,
@@ -74,10 +85,23 @@ const reasoningItem = (status) => ({
   payload: {
     type: "reasoning",
     summary: summaryParts,
-    content: ${JSON.stringify(reasoningContent)},
+    content: contentParts,
   },
   metadata: {},
 });
+const commandItem = (status, output) => ({
+  ...toolItem(status),
+  kind: "command",
+  payload: {
+    type: "command",
+    command: ${JSON.stringify(command)},
+    cwd: "/tmp",
+    output: output?.text ?? null,
+    exit_code: status === "completed" ? 0 : status === "failed" ? 7 : null,
+  },
+  metadata: { duration_ms: 42 },
+});
+const executionItem = ${JSON.stringify(commandItems)} ? commandItem : toolItem;
 const patchItem = (status) => ({
   ...toolItem(status, undefined, { callId: "terminal-patch" }),
   kind: "file",
@@ -93,13 +117,23 @@ const patchItem = (status) => ({
 });
 let events = [];
 if (input.kind === "turnStart") {
-  if (${JSON.stringify(scenario)} === "reasoning-resume") {
+  if (${JSON.stringify(scenario)} === "reasoning-raw") {
+    const item = reasoningItem("inProgress");
+    item.payload = { type: "reasoning", summary: [], content: [] };
+    events = [
+      { type: "item.started", payload: { item } },
+      ...summaryParts.map((summary, summaryIndex) => ({ type: "reasoning.summary", payload: { itemId: item.itemId, summary, summaryIndex } })),
+      ...contentParts.map((delta, contentIndex) => ({ type: "reasoning.delta", payload: { itemId: item.itemId, delta, contentIndex } })),
+    ];
+  } else if (${JSON.stringify(scenario)} === "exec-json-stream") {
+    events = [{ type: "item.started", payload: { item: commandItem("inProgress") } }];
+  } else if (${JSON.stringify(scenario)} === "reasoning-resume") {
     events = [{ type: "item.started", payload: { item: reasoningItem("inProgress") } }];
   } else if (${JSON.stringify(scenario)} === "approval") {
     events = [
       {
         type: "item.started",
-        payload: { item: toolItem("inProgress") },
+        payload: { item: executionItem("inProgress") },
       },
       {
         type: "action.required",
@@ -204,15 +238,15 @@ if (input.kind === "turnStart") {
       },
       {
         type: "item.started",
-        payload: { item: toolItem("inProgress") },
+        payload: { item: executionItem("inProgress") },
       },
       {
         type: "item.completed",
         payload: {
-          item: toolItem("completed", { text: "terminal-gate-b" }),
+          item: executionItem(${JSON.stringify(commandStatus)}, { text: "terminal-gate-b" }),
         },
       },
-      { type: "turn.completed", payload: { status: "completed" } },
+      ${JSON.stringify(terminalEvent)},
     ];
   }
   if (${JSON.stringify(scenario)} === "diff-display") {
@@ -283,6 +317,13 @@ if (input.kind === "turnStart") {
 } else if (input.kind === "turnCancel") {
   events = [{ type: "turn.canceled", payload: { status: "canceled" } }];
 }
+if (${JSON.stringify(completeAgentMessage)} && events.at(-1)?.type === "turn.completed" &&
+    events.some((event) => event.type === "message.delta")) {
+  events.splice(events.length - 1, 0, {
+    type: "message.completed",
+    payload: { itemId: assistantItemId, role: "assistant", phase: "final_answer", status: "completed" },
+  });
+}
 appendFileSync(
   ledgerPath,
   JSON.stringify({
@@ -297,13 +338,14 @@ appendFileSync(
     decision: input.request.decision ?? null,
     userData: input.request.userData ?? null,
     runtimeOptions: input.request.runtimeOptions ?? null,
+    outputSchema: input.request.runtimeOptions?.outputSchema ?? null,
     scenario: ${JSON.stringify(scenario)},
     eventTypes: events.map((event) => event.type),
   }) + "\\n",
 );
 console.log(JSON.stringify({ events }));
-if (input.kind === "turnStart" && ${JSON.stringify(scenario)} === "reasoning-resume") {
-  // The reader releases this barrier only after canonical resume and page hydration.
+if (input.kind === "turnStart" && ["reasoning-resume", "reasoning-raw", "exec-json-stream"].includes(${JSON.stringify(scenario)})) {
+  // The reader releases this barrier only after observing the required canonical output.
   const continuePath = ledgerPath + ".continue";
   await new Promise((resolve) => {
     const check = () => {
@@ -314,6 +356,21 @@ if (input.kind === "turnStart" && ${JSON.stringify(scenario)} === "reasoning-res
     watchFile(continuePath, { interval: 10 }, check);
     check();
   });
+  if (${JSON.stringify(scenario)} === "exec-json-stream") {
+    console.log(JSON.stringify({ events: [
+      { type: "item.completed", payload: { item: commandItem("completed", { text: "terminal-gate-b" }) } },
+      { type: "message.delta", payload: { itemId: assistantItemId, text: ${JSON.stringify(completedText)} } },
+      { type: "turn.completed", payload: { status: "completed" } },
+    ] }));
+  } else if (${JSON.stringify(scenario)} === "reasoning-raw") {
+    contentParts[0] += " RAW_CONTINUED";
+    console.log(JSON.stringify({ events: [
+      { type: "reasoning.delta", payload: { itemId: "item_terminal-reasoning-" + turn.turnId, contentIndex: 0, delta: " RAW_CONTINUED" } },
+      { type: "item.completed", payload: { item: reasoningItem("completed") } },
+      { type: "message.delta", payload: { itemId: assistantItemId, text: ${JSON.stringify(completedText)} } },
+      { type: "turn.completed", payload: { status: "completed" } },
+    ] }));
+  } else {
   const index = 0;
   summaryParts[index] += " STDIO_RESUMED_DELTA";
   console.log(JSON.stringify({ events: [
@@ -324,6 +381,7 @@ if (input.kind === "turnStart" && ${JSON.stringify(scenario)} === "reasoning-res
     { type: "item.completed", payload: { item: reasoningItem("completed") } },
     { type: "turn.completed", payload: { status: "completed" } },
   ] }));
+  }
 }
 if (
   input.kind === "turnStart" &&

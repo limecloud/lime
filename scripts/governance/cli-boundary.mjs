@@ -13,22 +13,36 @@ const RETIRED_PATHS = [
   "packages/cli/scripts/run.js",
   "packages/cli/scripts/release-meta.js",
   "packages/cli/scripts/build-release.js",
+  "lime-rs/crates/cli/src/exec/human_output.rs",
 ];
 
 const CURRENT_PATHS = [
   "lime-rs/crates/cli/Cargo.toml",
   "lime-rs/crates/cli/src/main.rs",
+  "lime-rs/crates/cli/src/exec.rs",
+  "lime-rs/crates/cli/src/exec/event_processor.rs",
+  "lime-rs/crates/cli/src/exec/cli.rs",
+  "lime-rs/crates/cli/src/exec/event_processor_with_human_output.rs",
+  "lime-rs/crates/cli/src/exec/event_processor_with_jsonl_output.rs",
+  "lime-rs/crates/cli/src/exec/event_processor_with_jsonl_output/items.rs",
+  "lime-rs/crates/cli/src/exec/exec_events.rs",
+  "lime-rs/crates/cli/src/exec/locale.rs",
+  "lime-rs/crates/cli/src/exec/prompt.rs",
+  "lime-rs/crates/cli/src/exec/thread.rs",
+  "lime-rs/crates/cli/src/exec/server_requests.rs",
   "lime-rs/crates/cli/src/mcp_cmd.rs",
   "lime-rs/crates/cli/src/plugin_cmd.rs",
   "lime-rs/crates/cli/src/queue_cmd.rs",
   "lime-rs/crates/tui/Cargo.toml",
   "packages/cli/package.json",
+  "packages/cli/exec-events.schema.json",
   "packages/cli/.gitignore",
   "packages/cli/bin/lime.js",
   "packages/cli/scripts/build_npm_package.py",
   "packages/cli/scripts/README.md",
   "packages/cli/tests/npm-package.test.mjs",
   "scripts/app-server/cli-npm-gate-b.mjs",
+  "scripts/app-server/cli-exec-gate-b.mjs",
   "scripts/app-server/cli-npm-gate-b.test.mjs",
   "scripts/app-server/cli-surface-gate-b.mjs",
   "scripts/app-server/cli-surface-gate-b.test.mjs",
@@ -101,6 +115,49 @@ export function checkCliBoundary(repoRoot = process.cwd()) {
     }
   }
 
+  if (mainSource.includes("tui::run_exec")) {
+    failures.push("CLI exec must not restore the retired TUI exec entry");
+  }
+  if (/\bfn read_prompt\b/u.test(mainSource)) {
+    failures.push(
+      "CLI main must not restore the retired variadic prompt reader",
+    );
+  }
+  const tuiExports = read(repoRoot, "lime-rs/crates/tui/src/lib.rs");
+  if (/\b(?:run_exec|ExecOptions|ExecResult)\b/u.test(tuiExports)) {
+    failures.push(
+      "TUI must not export the retired non-interactive exec surface",
+    );
+  }
+  const execSource = read(repoRoot, "lime-rs/crates/cli/src/exec.rs");
+  const execArgs = read(repoRoot, "lime-rs/crates/cli/src/exec/cli.rs");
+  if (
+    /\bjsonl\s*:/u.test(execArgs) ||
+    /"jsonl"/u.test(execArgs.split("#[cfg(test)]", 1)[0])
+  ) {
+    failures.push("CLI exec must not restore the retired --jsonl flag");
+  }
+  if (
+    [mainSource, execSource].some((source) =>
+      source.includes("render_json_envelope"),
+    )
+  ) {
+    failures.push("CLI exec must not restore the retired result envelope");
+  }
+  for (const retired of [
+    "tui::",
+    "ConversationProjection",
+    "BottomPane",
+    "RuntimeCore",
+    "lime_core::",
+  ]) {
+    if (execSource.includes(retired)) {
+      failures.push(
+        `CLI exec must consume canonical App Server events without ${retired}`,
+      );
+    }
+  }
+
   const npmPackage = JSON.parse(read(repoRoot, "packages/cli/package.json"));
   if (npmPackage.name !== "@limecloud/lime") {
     failures.push('CLI npm package must be named "@limecloud/lime"');
@@ -124,10 +181,13 @@ export function checkCliBoundary(repoRoot = process.cwd()) {
   }
   if (
     !Array.isArray(npmPackage.files) ||
-    npmPackage.files.length !== 1 ||
-    npmPackage.files[0] !== "bin/lime.js"
+    npmPackage.files.length !== 2 ||
+    npmPackage.files[0] !== "bin/lime.js" ||
+    npmPackage.files[1] !== "exec-events.schema.json"
   ) {
-    failures.push("CLI npm root package must publish only the launcher");
+    failures.push(
+      "CLI npm root package must publish the launcher and exec event schema",
+    );
   }
 
   const launcher = read(repoRoot, "packages/cli/bin/lime.js");

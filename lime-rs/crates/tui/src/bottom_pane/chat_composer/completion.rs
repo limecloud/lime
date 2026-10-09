@@ -90,7 +90,16 @@ impl ChatComposer {
                 }
                 self.popups.clear();
             }
-            SkillPopupAction::Consumed | SkillPopupAction::Pass => {}
+            SkillPopupAction::Consumed => {
+                if matches!(
+                    event,
+                    crossterm::event::Event::Key(key)
+                        if matches!(key.code, crossterm::event::KeyCode::Enter | crossterm::event::KeyCode::Tab)
+                ) {
+                    self.popups.clear();
+                }
+            }
+            SkillPopupAction::Pass => {}
         }
         action
     }
@@ -143,7 +152,7 @@ impl ChatComposer {
                 if matches!(
                     event,
                     crossterm::event::Event::Key(key)
-                        if key.code == crossterm::event::KeyCode::Enter
+                        if matches!(key.code, crossterm::event::KeyCode::Enter | crossterm::event::KeyCode::Tab)
                             && !self.file_search_popup_has_selection()
                 ) {
                     self.popups.clear();

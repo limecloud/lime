@@ -41,14 +41,15 @@ impl ChatComposer {
                 })
                 .collect::<Vec<_>>();
             let prompt_width = layout::PROMPT_GUTTER_COLS.min(layout.inner.width);
-            let prompt_style = if self.input_enabled() {
-                Style::default().add_modifier(Modifier::BOLD)
+            let prompt = if !self.input_enabled() {
+                Span::styled("›", crate::style::muted_style())
+            } else if let Some(tier) = self.effort_tier {
+                tier.prompt(self.effort_charge_alpha())
             } else {
-                crate::style::muted_style()
+                Span::styled("›", Style::default().add_modifier(Modifier::BOLD))
             };
-            let prompt = Line::from(Span::styled("› ", prompt_style));
             frame.render_widget(
-                Paragraph::new(prompt),
+                Paragraph::new(Line::from(prompt)),
                 Rect::new(layout.inner.x, text_area.y, prompt_width, 1),
             );
             if self.input_enabled() && highlights.is_empty() {
@@ -92,6 +93,21 @@ impl ChatComposer {
                 text_area,
             );
         }
+        let protected_top = if layout.attachments.is_empty() {
+            text_area.y
+        } else {
+            layout.attachments.y
+        };
+        self.render_effort_ignition(
+            frame,
+            area,
+            Rect::new(
+                area.x,
+                protected_top,
+                area.width,
+                text_area.bottom().saturating_sub(protected_top),
+            ),
+        );
     }
 }
 

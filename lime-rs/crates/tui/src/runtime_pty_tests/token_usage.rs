@@ -48,7 +48,7 @@ pub(super) fn exercise_shared_usage(
         |screen| screen.contains("Configure status line"),
     );
     for name in ["Context remaining", "Used tokens"] {
-        config::toggle_setup_item(writer, name, true);
+        config::toggle_setup_item(writer, output_rx, output, name, true);
     }
     wait_for_screen(
         output_rx,
@@ -79,7 +79,7 @@ pub(super) fn exercise_shared_usage(
             screen.contains("Configure terminal title")
         });
         for name in ["Used tokens", "Context remaining"] {
-            config::toggle_setup_item(writer, name, false);
+            config::toggle_setup_item(writer, output_rx, output, name, false);
         }
         terminal_title::wait_for_title(
             output_rx,
@@ -131,7 +131,7 @@ pub(super) fn exercise_shared_usage(
             |screen| screen.contains(title),
         );
         for name in ["Used tokens", "Context remaining"] {
-            config::toggle_setup_item(writer, name, false);
+            config::toggle_setup_item(writer, output_rx, output, name, false);
         }
         writer.write_all(b"\x1b[20~").unwrap();
         writer.flush().unwrap();

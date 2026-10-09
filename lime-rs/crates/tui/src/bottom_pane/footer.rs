@@ -8,6 +8,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Clear, Paragraph};
 use ratatui::Frame;
 
+use super::effort_status_line::EffortStatusLineTransition;
 use crate::footer_hint::first_fitting_line;
 use crate::line_truncation::{line_width, truncate_line_with_ellipsis_if_overflow};
 use crate::locale::Locale;
@@ -32,11 +33,17 @@ pub(crate) enum FooterMode {
     ShortcutOverlay,
 }
 
-pub(crate) fn render_footer(frame: &mut Frame<'_>, area: Rect, props: &FooterProps) {
+/// Returns whether a visible transition requested another animation frame.
+pub(crate) fn render_footer(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    props: &FooterProps,
+    transition: Option<&EffortStatusLineTransition>,
+) -> bool {
     frame.render_widget(Clear, area);
     let content = inset_footer_hint_area(area);
     if content.is_empty() {
-        return;
+        return false;
     }
     if let Some(hints) = props.interaction_hint_lines.as_ref() {
         let lines = hints
@@ -53,14 +60,14 @@ pub(crate) fn render_footer(frame: &mut Frame<'_>, area: Rect, props: &FooterPro
             })
             .collect::<Vec<_>>();
         frame.render_widget(Paragraph::new(lines), content);
-        return;
+        return false;
     }
     if !props.input_enabled {
-        return;
+        return false;
     }
     if props.mode == FooterMode::ShortcutOverlay {
         render_shortcut_close_hint(frame, content, props.shortcut_close_hint.as_deref());
-        return;
+        return false;
     }
     if props.mode == FooterMode::EscHint {
         frame.render_widget(
@@ -76,7 +83,7 @@ pub(crate) fn render_footer(frame: &mut Frame<'_>, area: Rect, props: &FooterPro
             )),
             content,
         );
-        return;
+        return false;
     }
     let vim_indicator = props.vim_mode_indicator.clone();
     if let Some(line) = props.history_search_line.clone() {
@@ -88,11 +95,11 @@ pub(crate) fn render_footer(frame: &mut Frame<'_>, area: Rect, props: &FooterPro
                 .min(area.x.saturating_add(area.width.saturating_sub(1)));
             frame.set_cursor_position(Position::new(x, area.y));
         }
-        return;
+        return false;
     }
     if let Some(line) = props.vim_search_line.clone() {
         render_line(frame, content, line, vim_indicator);
-        return;
+        return false;
     }
     let mut right = right_footer_line(props);
     let (mut left, show_right) = single_line_footer_layout(props, content, &right);
@@ -113,8 +120,17 @@ pub(crate) fn render_footer(frame: &mut Frame<'_>, area: Rect, props: &FooterPro
             right = Line::default();
         }
     }
+    let transition = transition.filter(|_| uses_passive_footer_status_layout(props));
+    if let Some(effect) = transition {
+        let width = max_left_width_for_right(content, line_width(&right))
+            .unwrap_or(usize::from(content.width));
+        left = effect
+            .render_line(Some(&left), width as u16)
+            .unwrap_or_default();
+    }
     frame.render_widget(Paragraph::new(left), content);
     render_context_right(frame, content, &right);
+    transition.is_some()
 }
 
 /// Measurement and painting share one content rectangle; indentation is never part of the hint.
@@ -412,7 +428,7 @@ fn single_line_footer_layout(
 }
 
 /// Contextual status and agent identity yield to queue prompts and active input modes.
-fn passive_footer_status_line(props: &FooterProps) -> Option<Line<'static>> {
+pub(super) fn passive_footer_status_line(props: &FooterProps) -> Option<Line<'static>> {
     if !matches!(
         props.mode,
         FooterMode::ComposerEmpty | FooterMode::ComposerHasDraft

@@ -74,19 +74,19 @@ impl CommandPopup {
         let Event::Key(key) = event else {
             return CommandPopupAction::Pass;
         };
-        if key.kind != KeyEventKind::Press {
+        if key.kind == KeyEventKind::Release {
             return CommandPopupAction::Pass;
         }
         match key.code {
-            KeyCode::Up | KeyCode::Char('p') | KeyCode::Char('k')
-                if key.code == KeyCode::Up || key.modifiers.contains(KeyModifiers::CONTROL) =>
+            KeyCode::Up | KeyCode::Char('p')
+                if key.code == KeyCode::Up || key.modifiers == KeyModifiers::CONTROL =>
             {
                 let len = self.matches().len();
                 self.state.move_up_wrap(len);
                 CommandPopupAction::Consumed
             }
-            KeyCode::Down | KeyCode::Char('n') | KeyCode::Char('j')
-                if key.code == KeyCode::Down || key.modifiers.contains(KeyModifiers::CONTROL) =>
+            KeyCode::Down | KeyCode::Char('n')
+                if key.code == KeyCode::Down || key.modifiers == KeyModifiers::CONTROL =>
             {
                 let len = self.matches().len();
                 self.state.move_down_wrap(len);
@@ -97,7 +97,11 @@ impl CommandPopup {
                 .selected()
                 .map(CommandPopupAction::Complete)
                 .unwrap_or(CommandPopupAction::Consumed),
-            KeyCode::Enter => self
+            KeyCode::Char('/') if key.modifiers.is_empty() => self
+                .selected()
+                .map(CommandPopupAction::Complete)
+                .unwrap_or(CommandPopupAction::Pass),
+            KeyCode::Enter if key.modifiers.is_empty() => self
                 .selected()
                 .map(|command| {
                     if command.requires_argument() {
@@ -227,14 +231,49 @@ mod tests {
         )));
         assert_eq!(popup.selected(), Some(first));
 
-        popup.handle_event(&Event::Key(KeyEvent::new(
-            KeyCode::Char('k'),
-            KeyModifiers::CONTROL,
-        )));
+        for ch in ['j', 'k'] {
+            assert_eq!(
+                popup.handle_event(&Event::Key(KeyEvent::new(
+                    KeyCode::Char(ch),
+                    KeyModifiers::CONTROL,
+                ))),
+                CommandPopupAction::Pass
+            );
+            assert_eq!(popup.selected(), Some(first));
+        }
+    }
+
+    #[test]
+    fn repeated_navigation_wraps_but_altgr_does_not_navigate() {
+        let mut popup = CommandPopup::for_composer("/").unwrap();
+        let first = popup.selected();
+        let repeat = |code, modifiers| {
+            Event::Key(KeyEvent::new_with_kind(
+                code,
+                modifiers,
+                KeyEventKind::Repeat,
+            ))
+        };
         assert_eq!(
-            popup.selected(),
-            Some(popup.commands().last().copied().expect("last"))
+            popup.handle_event(&repeat(KeyCode::Up, KeyModifiers::NONE)),
+            CommandPopupAction::Consumed
         );
+        assert_eq!(popup.selected(), popup.commands().last().copied());
+        assert_eq!(
+            popup.handle_event(&repeat(KeyCode::Char('n'), KeyModifiers::CONTROL)),
+            CommandPopupAction::Consumed
+        );
+        assert_eq!(popup.selected(), first);
+        for ch in ['p', 'n'] {
+            assert_eq!(
+                popup.handle_event(&repeat(
+                    KeyCode::Char(ch),
+                    KeyModifiers::CONTROL | KeyModifiers::ALT
+                )),
+                CommandPopupAction::Pass
+            );
+            assert_eq!(popup.selected(), first);
+        }
     }
 
     #[test]

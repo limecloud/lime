@@ -13,8 +13,8 @@ mod completion;
 mod completion_target;
 mod draft;
 mod draft_state;
+mod effort;
 mod external_edit;
-mod file_search_popup;
 mod footer_state;
 mod history;
 mod history_search;
@@ -27,7 +27,6 @@ mod pending_paste;
 mod popup_state;
 mod reconnect;
 mod render;
-mod skill_popup;
 mod slash_input;
 mod submission;
 
@@ -40,16 +39,16 @@ mod vim_search;
 use self::attachment_state::AttachmentState;
 pub(crate) use self::draft_state::ComposerDraft;
 use self::draft_state::{ComposerMentionBinding, DraftState};
-use self::file_search_popup::FileSearchPopup;
-pub(crate) use self::file_search_popup::FileSearchPopupAction;
 use self::footer_state::FooterState;
 use self::history_search::HistorySearchSession;
 use self::popup_state::{ActivePopup, DismissedToken, PopupState};
-use self::skill_popup::SkillPopup;
-pub(crate) use self::skill_popup::SkillPopupAction;
 use self::vim_history::VimHistory;
 use super::command_popup::{CommandPopup, CommandPopupAction};
+use super::effort_ignition::{EffortIgnition, EffortTier, IgnitionStyle};
+use super::effort_status_line::EffortStatusLineTransition;
+use super::file_search_popup::{FileSearchPopup, FileSearchPopupAction};
 use super::footer::FooterMode;
+use super::skill_popup::{SkillPopup, SkillPopupAction};
 use super::MentionBinding;
 use crate::app_event_sender::AppEventSender;
 use crate::bottom_pane::chat_composer_history::{
@@ -102,6 +101,12 @@ pub(crate) struct ChatComposer {
     history_search: Option<HistorySearchSession>,
     vim_history: VimHistory,
     agents_navigation_enabled: bool,
+    effort_tier: Option<EffortTier>,
+    effort_observed: bool,
+    effort_ignition: Option<EffortIgnition>,
+    effort_animation_style: Option<IgnitionStyle>,
+    effort_status_line_transition: Option<EffortStatusLineTransition>,
+    frame_requester: Option<crate::tui::FrameRequester>,
 }
 
 #[cfg(test)]

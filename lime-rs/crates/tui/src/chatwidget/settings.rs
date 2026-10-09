@@ -142,21 +142,45 @@ impl ChatWidget {
         collaboration_mode: agent_protocol::CollaborationMode,
     ) {
         self.collaboration_mode = Some(collaboration_mode);
+        self.refresh_model_display();
+    }
+
+    fn refresh_model_display(&mut self) {
+        let effort = self
+            .collaboration_mode
+            .as_ref()
+            .map_or(self.reasoning_effort.as_deref(), |mode| {
+                mode.settings.reasoning_effort.as_deref()
+            });
+        self.bottom_pane
+            .set_active_reasoning_effort(effort, self.tui_config.animations);
+    }
+
+    /// A restored thread establishes display state without replaying a user-initiated change.
+    pub(crate) fn set_active_reasoning_effort_baseline(&mut self) {
+        let effort = self
+            .collaboration_mode
+            .as_ref()
+            .map_or(self.reasoning_effort.as_deref(), |mode| {
+                mode.settings.reasoning_effort.as_deref()
+            });
+        self.bottom_pane
+            .set_active_reasoning_effort_baseline(effort);
     }
 
     fn sync_default_collaboration_mode(&mut self) {
-        if self.collaboration_mode.is_some() {
-            return;
+        if self.collaboration_mode.is_none() {
+            let mask = collaboration_modes::default_mode_mask(&self.model_catalog)
+                .or_else(|| collaboration_modes::default_mask(&self.model_catalog));
+            self.collaboration_mode = mask.and_then(|mask| {
+                collaboration_modes::to_mode(
+                    &mask,
+                    self.model.as_deref(),
+                    self.reasoning_effort.as_deref(),
+                )
+            });
         }
-        let mask = collaboration_modes::default_mode_mask(&self.model_catalog)
-            .or_else(|| collaboration_modes::default_mask(&self.model_catalog));
-        self.collaboration_mode = mask.and_then(|mask| {
-            collaboration_modes::to_mode(
-                &mask,
-                self.model.as_deref(),
-                self.reasoning_effort.as_deref(),
-            )
-        });
+        self.refresh_model_display();
     }
 
     pub(crate) fn next_collaboration_mode(&self) -> Option<agent_protocol::CollaborationMode> {
@@ -185,3 +209,7 @@ impl ChatWidget {
         )
     }
 }
+
+#[cfg(test)]
+#[path = "settings_tests.rs"]
+mod tests;

@@ -4,8 +4,8 @@
 //! current projection, which keeps slash completion state from being duplicated across hosts.
 
 use super::super::command_popup::CommandPopup;
-use super::file_search_popup::FileSearchPopup;
-use super::skill_popup::SkillPopup;
+use super::super::file_search_popup::FileSearchPopup;
+use super::super::skill_popup::SkillPopup;
 use super::FileSearchRequest;
 use app_server_protocol::protocol::v2::SkillMetadata;
 use std::ops::Range;

@@ -11,9 +11,9 @@ use ratatui::text::Line;
 use ratatui::widgets::Paragraph;
 use ratatui::Frame;
 
-use super::super::picker_rows::render_rows_single_line;
-use super::super::scroll_state::ScrollState;
-use super::super::selection_row_layout::{SelectionRow, MAX_POPUP_ROWS};
+use super::picker_rows::render_rows_single_line;
+use super::scroll_state::ScrollState;
+use super::selection_row_layout::{SelectionRow, MAX_POPUP_ROWS};
 use crate::fuzzy_match::fuzzy_match;
 use crate::line_truncation::truncate_line_with_ellipsis_if_overflow;
 use crate::locale::Locale;
@@ -69,25 +69,26 @@ impl SkillPopup {
         let Event::Key(key) = event else {
             return SkillPopupAction::Pass;
         };
-        if key.kind != KeyEventKind::Press {
+        if key.kind == KeyEventKind::Release {
             return SkillPopupAction::Pass;
         }
         match key.code {
             KeyCode::Up | KeyCode::Char('p')
-                if key.code == KeyCode::Up || key.modifiers.contains(KeyModifiers::CONTROL) =>
+                if key.code == KeyCode::Up || key.modifiers == KeyModifiers::CONTROL =>
             {
                 let len = self.matches().len();
                 self.state.move_up_wrap(len);
                 SkillPopupAction::Consumed
             }
             KeyCode::Down | KeyCode::Char('n')
-                if key.code == KeyCode::Down || key.modifiers.contains(KeyModifiers::CONTROL) =>
+                if key.code == KeyCode::Down || key.modifiers == KeyModifiers::CONTROL =>
             {
                 let len = self.matches().len();
                 self.state.move_down_wrap(len);
                 SkillPopupAction::Consumed
             }
             KeyCode::Esc => SkillPopupAction::Cancel,
+            KeyCode::Enter if !key.modifiers.is_empty() => SkillPopupAction::Pass,
             KeyCode::Enter | KeyCode::Tab if self.selected_skill().is_some() => {
                 SkillPopupAction::Complete
             }
@@ -288,6 +289,38 @@ mod tests {
             ))),
             SkillPopupAction::Complete
         );
+    }
+
+    #[test]
+    fn repeated_navigation_wraps_but_altgr_and_release_do_not_navigate() {
+        let mut popup = SkillPopup::new(vec![skill("one", ""), skill("two", "")], "");
+        let key =
+            |code, modifiers, kind| Event::Key(KeyEvent::new_with_kind(code, modifiers, kind));
+        assert_eq!(
+            popup.handle_event(&key(KeyCode::Up, KeyModifiers::NONE, KeyEventKind::Repeat)),
+            SkillPopupAction::Consumed
+        );
+        assert_eq!(popup.selected_skill().unwrap().name, "two");
+        for event in [
+            key(KeyCode::Down, KeyModifiers::NONE, KeyEventKind::Release),
+            key(
+                KeyCode::Char('n'),
+                KeyModifiers::CONTROL | KeyModifiers::ALT,
+                KeyEventKind::Press,
+            ),
+        ] {
+            assert_eq!(popup.handle_event(&event), SkillPopupAction::Pass);
+            assert_eq!(popup.selected_skill().unwrap().name, "two");
+        }
+        assert_eq!(
+            popup.handle_event(&key(
+                KeyCode::Char('n'),
+                KeyModifiers::CONTROL,
+                KeyEventKind::Repeat
+            )),
+            SkillPopupAction::Consumed
+        );
+        assert_eq!(popup.selected_skill().unwrap().name, "one");
     }
 
     #[test]

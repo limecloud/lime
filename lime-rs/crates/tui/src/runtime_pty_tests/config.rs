@@ -7,13 +7,65 @@ pub(super) fn open_setup(writer: &mut Box<dyn Write + Send>, command: &str) {
     writer.flush().unwrap();
 }
 
-pub(super) fn toggle_setup_item(writer: &mut Box<dyn Write + Send>, name: &str, move_first: bool) {
+pub(super) fn toggle_setup_item(
+    writer: &mut Box<dyn Write + Send>,
+    output_rx: &mpsc::Receiver<Vec<u8>>,
+    output: &mut String,
+    name: &str,
+    move_first: bool,
+) {
+    let unchecked = format!("› [ ] {name}");
+    let checked = format!("› [x] {name}");
     writer
-        .write_all(format!("\x1b[200~{name}\x1b[201~ ").as_bytes())
+        .write_all(format!("\x1b[200~{name}\x1b[201~").as_bytes())
         .unwrap();
-    for _ in name.chars() {
+    writer.flush().unwrap();
+    let screen = wait_for_screen(
+        output_rx,
+        output,
+        &format!("filter setup item {name}"),
+        |screen| {
+            screen.lines().any(|line| line.trim() == name)
+                && screen
+                    .lines()
+                    .any(|line| line.starts_with(&unchecked) || line.starts_with(&checked))
+        },
+    );
+    let toggled = if screen.lines().any(|line| line.starts_with(&checked)) {
+        &unchecked
+    } else {
+        &checked
+    };
+    writer.write_all(b" ").unwrap();
+    writer.flush().unwrap();
+    wait_for_screen(
+        output_rx,
+        output,
+        &format!("toggle setup item {name}"),
+        |screen| screen.lines().any(|line| line.starts_with(toggled)),
+    );
+    for remaining in (0..name.chars().count()).rev() {
         writer.write_all(b"\x7f").unwrap();
+        writer.flush().unwrap();
+        if remaining > 0 {
+            let filter = name.chars().take(remaining).collect::<String>();
+            wait_for_screen(
+                output_rx,
+                output,
+                &format!("delete setup filter character {name}"),
+                |screen| screen.lines().any(|line| line.trim() == filter.trim()),
+            );
+        }
     }
+    writer.flush().unwrap();
+    wait_for_screen(
+        output_rx,
+        output,
+        &format!("clear setup filter {name}"),
+        |screen| {
+            screen.contains("←/→ reorder") && screen.lines().any(|line| line.starts_with(toggled))
+        },
+    );
     if move_first {
         let item_count = crate::bottom_pane::status_line_setup::StatusLineItem::ALL
             .len()
@@ -21,8 +73,19 @@ pub(super) fn toggle_setup_item(writer: &mut Box<dyn Write + Send>, name: &str, 
         for _ in 0..item_count {
             writer.write_all(b"\x1b[D").unwrap();
         }
+        writer.flush().unwrap();
+        wait_for_screen(
+            output_rx,
+            output,
+            &format!("move setup item {name} first"),
+            |screen| {
+                screen
+                    .lines()
+                    .find(|line| line.contains("[x] ") || line.contains("[ ] "))
+                    .is_some_and(|line| line.starts_with(toggled))
+            },
+        );
     }
-    writer.flush().unwrap();
 }
 
 pub(super) fn assert_fresh_stdio_settings(expected: &lime_core::config::TuiConfig) {

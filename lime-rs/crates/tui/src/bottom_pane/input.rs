@@ -5,7 +5,6 @@ use std::time::Instant;
 
 use super::command_popup::CommandPopupAction;
 use super::{AppServerResponse, BottomPane, FileSearchPopupAction, InputResult, SkillPopupAction};
-use crate::slash_command::SlashCommand;
 
 #[derive(Debug, PartialEq)]
 pub(crate) enum ChatWidgetAction {
@@ -84,12 +83,11 @@ impl BottomPane {
                     return Some(ChatWidgetAction::Input(InputResult::None));
                 }
                 CommandPopupAction::Complete(command) => {
-                    self.complete_slash_command(command);
+                    self.composer.complete_slash_command(command);
                     return Some(ChatWidgetAction::Input(InputResult::None));
                 }
                 CommandPopupAction::Execute(command) => {
-                    self.composer.replace(format!("/{}", command.command()));
-                    self.composer.clear_completion_popup();
+                    self.composer.complete_slash_command(command);
                     return Some(ChatWidgetAction::ExecuteCommand);
                 }
             }
@@ -170,13 +168,6 @@ impl BottomPane {
 
     pub(crate) fn handle_disconnected_key(&mut self, key: KeyEvent) {
         self.composer.handle_disconnected_key(key);
-        self.composer.clear_completion_popup();
-    }
-
-    fn complete_slash_command(&mut self, command: SlashCommand) {
-        let suffix = if command.requires_argument() { " " } else { "" };
-        self.composer
-            .replace(format!("/{}{suffix}", command.command()));
         self.composer.clear_completion_popup();
     }
 

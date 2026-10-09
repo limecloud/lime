@@ -116,11 +116,11 @@ function shouldMergeImportedPatchIntoProcess(
 ): boolean {
   return Boolean(
     current &&
-      current.kind === "process" &&
-      kind === "artifact" &&
-      item.type === "patch" &&
-      isImportedHistoryItem(item) &&
-      current.items.some(isImportedHistoryItem),
+    current.kind === "process" &&
+    kind === "artifact" &&
+    item.type === "patch" &&
+    isImportedHistoryItem(item) &&
+    current.items.some(isImportedHistoryItem),
   );
 }
 
@@ -173,7 +173,10 @@ function shouldDefaultExpand(
   return status !== "completed";
 }
 
-function buildSummaryText(items: AgentThreadItem[]): string | null {
+function buildSummaryText(
+  items: AgentThreadItem[],
+  showRaw: boolean,
+): string | null {
   const sortedThinking = items
     .filter(
       (item) =>
@@ -185,7 +188,7 @@ function buildSummaryText(items: AgentThreadItem[]): string | null {
     .sort(compareItems);
 
   for (let index = sortedThinking.length - 1; index >= 0; index -= 1) {
-    const candidate = summarizeThinkingItem(sortedThinking[index]);
+    const candidate = summarizeThinkingItem(sortedThinking[index], showRaw);
     if (candidate) {
       return candidate;
     }
@@ -196,6 +199,7 @@ function buildSummaryText(items: AgentThreadItem[]): string | null {
 
 export function buildAgentThreadDisplayModel(
   items: AgentThreadItem[],
+  showRaw = false,
 ): AgentThreadDisplayModel {
   const sortedItems = [...items].sort(compareItems);
   const thinkingItems = sortedItems.filter(
@@ -240,7 +244,7 @@ export function buildAgentThreadDisplayModel(
       items: current.items,
       previewLines:
         processBatchSummary?.supportingLines ||
-        buildPreviewLines(current.kind, current.items),
+        buildPreviewLines(current.kind, current.items, showRaw),
       countLabel:
         processBatchSummary?.countLabel ||
         resolveCountLabel(current.kind, current.items.length),
@@ -324,7 +328,7 @@ export function buildAgentThreadDisplayModel(
   }
 
   return {
-    summaryText: buildSummaryText(sortedItems),
+    summaryText: buildSummaryText(sortedItems, showRaw),
     thinkingItems,
     groups,
     orderedBlocks,

@@ -188,12 +188,13 @@ pub(super) fn assert_cold_settings(
     backend: &Path,
     ledger: &Path,
     provider: &str,
+    scenario: &str,
 ) {
     let entries = std::fs::read_to_string(ledger).expect("canonical backend ledger");
     let starts = entries
         .lines()
         .filter_map(|line| serde_json::from_str::<Value>(line).ok())
-        .filter(|entry| entry["scenario"] == "complete" && entry["kind"] == "turnStart")
+        .filter(|entry| entry["scenario"] == scenario && entry["kind"] == "turnStart")
         .collect::<Vec<_>>();
     assert_eq!(
         starts.len(),

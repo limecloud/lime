@@ -29,6 +29,9 @@ use tempfile::TempDir;
 use tokio::sync::Notify;
 use tokio::time::timeout;
 
+#[path = "thread_fork_jsonrpc/nested.rs"]
+mod nested;
+
 struct ForkBackend {
     calls: AtomicUsize,
     first_completed: Notify,

@@ -28,6 +28,8 @@ mod footer;
 mod images;
 #[path = "runtime_pty_tests/model_picker.rs"]
 mod model_picker;
+#[path = "runtime_pty_tests/output.rs"]
+mod output;
 #[path = "runtime_pty_tests/pending_paste.rs"]
 mod pending_paste;
 #[path = "runtime_pty_tests/reasoning.rs"]
@@ -106,8 +108,8 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
     if scenario == "complete" {
         composer::seed_persistent_history(&data_dir);
     }
-    let picker_provider =
-        (scenario == "complete").then(|| model_picker::seed_catalog(&app_server_bin, &cwd));
+    let picker_provider = matches!(scenario.as_str(), "complete" | "diff-display")
+        .then(|| model_picker::seed_catalog(&app_server_bin, &cwd));
 
     let mut command = CommandBuilder::new(cli_bin);
     for argument in [
@@ -172,30 +174,13 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
             pixel_height: 0,
         })
         .expect("open PTY");
-    let mut reader = pair.master.try_clone_reader().expect("clone PTY reader");
+    let reader = pair.master.try_clone_reader().expect("clone PTY reader");
     let mut writer = pair.master.take_writer().expect("take PTY writer");
     let mut child = pair.slave.spawn_command(command).expect("spawn lime TUI");
     drop(pair.slave);
     let master = pair.master;
     let (output_tx, output_rx) = mpsc::channel();
-    let reader_thread = thread::spawn(move || {
-        let mut buffer = [0_u8; 4096];
-        loop {
-            match reader.read(&mut buffer) {
-                Ok(0) => break,
-                Ok(read) => {
-                    if output_tx.send(buffer[..read].to_vec()).is_err() {
-                        break;
-                    }
-                }
-                Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
-                Err(error) => {
-                    let _ = output_tx.send(format!("PTY_READER_ERROR: {error}\n").into_bytes());
-                    break;
-                }
-            }
-        }
-    });
+    let reader_thread = thread::spawn(move || output::read_output(reader, output_tx));
     let mut output = String::new();
     let mut agents_overview_screen = None;
     let mut agents_overview_renamed_screen = None;
@@ -211,6 +196,10 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
     let mut follow_control_visible = false;
     let mut sticky_prompt_header_visible = false;
     let mut main_transcript_find_visible = false;
+
+    if scenario == "diff-display" {
+        reasoning_shortcuts::respond_to_palette_probes(&mut writer, &output_rx, &mut output);
+    }
 
     wait_for_marker(
         &output_rx,
@@ -641,6 +630,7 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
         }
         if scenario == "diff-display" {
             diff_display::assert_painted_patch(&output_rx, &mut output);
+            reasoning_shortcuts::exercise_animation(&mut writer, &output_rx, &mut output);
         }
         if scenario == "complete" {
             // The assistant marker arrives before the following tool and turn terminal events.
@@ -1254,6 +1244,7 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
             &backend_path,
             &ledger_path,
             provider,
+            &scenario,
         );
     }
     assert!(

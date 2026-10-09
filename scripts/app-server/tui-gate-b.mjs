@@ -19,6 +19,7 @@ import { fileURLToPath } from "node:url";
 import { localAppServerBinaryPath } from "../lib/electron-dev-sidecar.mjs";
 import { buildTerminalGateBinaries } from "./terminal-gate-binaries.mjs";
 import { writeTerminalExternalBackend } from "./terminal-gate-fixture.mjs";
+import { runRawReasoningGateB } from "./reasoning-gate-b.mjs";
 
 const execFileAsync = promisify(execFile);
 const __filename = fileURLToPath(import.meta.url);
@@ -96,6 +97,15 @@ async function main() {
     },
   );
 
+  if (scenarios.includes("reasoning-raw")) {
+    await runRawReasoningGateB({
+      repoRoot: rootDir,
+      cliBinaryPath,
+      appServerBinaryPath,
+    });
+    if (scenarios.length === 1) return;
+  }
+
   const tempDir = await mkdtemp(path.join(tmpdir(), "tui-gate-b-"));
   try {
     const backendPath = path.join(tempDir, "tui-backend.mjs");
@@ -151,7 +161,9 @@ async function main() {
     let backtrackEvidence = null;
     let backtrackStdioEvidence = null;
     let threadInputEvidence = null;
-    for (const scenario of scenarios) {
+    for (const scenario of scenarios.filter(
+      (value) => value !== "reasoning-raw",
+    )) {
       const scenarioDir = path.join(tempDir, scenario);
       await mkdir(scenarioDir, { recursive: true });
       scenarioDirs.set(scenario, scenarioDir);
@@ -224,7 +236,7 @@ async function main() {
         },
         maxBuffer: 2 * 1024 * 1024,
         // Complete exercises the full editor/history/status/title flow; predicates stay bounded.
-        timeout: scenario === "complete" ? 120_000 : 60_000,
+        timeout: scenario === "complete" ? 180_000 : 60_000,
         windowsHide: true,
       };
       const ptyEvidence = await execFileAsync(
@@ -243,12 +255,30 @@ async function main() {
 
         testOptions,
       );
+      if (scenario === "diff-display") {
+        const marker =
+          "TUI_EFFORT_ANIMATION_OK palette=probed ignition=tinted ultra=assembled status=restored frames=shared";
+        if (!`${ptyEvidence.stdout}\n${ptyEvidence.stderr}`.includes(marker)) {
+          throw new Error(`diff-display PTY evidence missing: ${marker}`);
+        }
+        console.log(marker);
+      }
       if (scenario === "complete") {
-        if (
-          !`${ptyEvidence.stdout}\n${ptyEvidence.stderr}`.includes(
-            "TUI_REASONING_PARTS_OK",
-          )
-        ) {
+        const ptyOutput = `${ptyEvidence.stdout}\n${ptyEvidence.stderr}`;
+        for (const marker of [
+          "TUI_EFFORT_PROMPT_OK ultra=double-arrow max=single-arrow status=preserved keyboard=ok",
+          "TUI_POPUP_ENTER_OK slash=ok file=ok skill=ok shift-alt=newline turns=none",
+          "TUI_SLASH_COMPLETION_OK tab=ok slash=ok enter=ok args=preserved turns=none",
+          "TUI_EMPTY_COMPLETION_OK file-tab=closed skill-tab-enter=closed draft=preserved turns=none",
+          "TUI_POPUP_KEYBOARD_OK repeat=navigation-completion release=ignored modifiers=exact-control ctrl-j=newline ctrl-k=editor turns=none",
+          "TUI_EMPTY_NAVIGATION_OK left=press-only repeat=editor release=ignored overview=cancelled turns=none",
+        ]) {
+          if (!ptyOutput.includes(marker)) {
+            throw new Error(`complete PTY evidence missing: ${marker}`);
+          }
+          console.log(marker);
+        }
+        if (!ptyOutput.includes("TUI_REASONING_PARTS_OK")) {
           throw new Error(
             "reasoning PTY fixture did not prove body, paragraph and placeholder rendering",
           );
@@ -857,5 +887,7 @@ main().catch((error) => {
   console.error(
     `[smoke:tui-gate-b] failed: ${error instanceof Error ? error.message : String(error)}`,
   );
+  if (error?.stdout) console.error(error.stdout);
+  if (error?.killed) console.error("TUI_GATE_COMMAND_TIMEOUT killed=true");
   process.exitCode = 1;
 });

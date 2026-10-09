@@ -16,13 +16,24 @@ Agent 业务主链固定为：
 当前 surface 有两条 current host 链，但没有两套业务后端：
 
 - `Electron Desktop Host -> Renderer GUI` 负责桌面宿主与图形交互。
-- `CLI/TUI Host -> tui` 负责终端参数、终端生命周期与文本交互。
+- `CLI/TUI Host -> cli (exec) / tui (interactive)` 负责终端参数、非交互输出、终端生命周期与文本交互。
 
 两条链必须共享 `app-server-protocol`、`app-server-client`、RuntimeCore、ThreadStore、provider、工具和 canonical projection。未来 Cloud 只能在 `app-server-client` transport 边界增加经过认证的远端连接，并继续消费同一 JSON-RPC 与 read model；不得复制 runtime、状态机、工具 registry 或持久化。
 
 其中 provider request/lowering 归 `model-provider`，工具定义、权限和执行归 `tool-runtime`，回合编排归 `agent-runtime` 与 App Server，持久化/read model 归 App Server、`thread-store` 与 repository。Electron 只负责 desktop host，CLI/TUI 只负责 terminal host，两者都不成为第二套 runtime。
 
 CLI/TUI 当前 owner 分为 Rust 产品面与 npm 分发面：`lime-rs/crates/cli`、`lime-rs/crates/tui`、`app-server-client` 负责 current 产品行为，`packages/cli/bin/lime.js` 与 `packages/cli/scripts/build_npm_package.py` 只负责 Codex 风格平台选择和交付。旧 `lime-cli`、`terminal-ui` 命名、npm `postinstall` 下载、同步 Node wrapper、源码 `cargo run` fallback 和只携带 `lime` 的 release asset 均为 `dead / deleted / forbidden-to-restore`；对应的 `packages/cli/scripts/{install,run,release-meta,build-release}.js` 已物理删除并由 CLI 边界守卫禁止恢复。平台包不允许裁掉 `app-server`、`code-mode-host`、Windows sandbox helper 或必需动态库后宣称 CLI/TUI 可交付。
+
+非交互输出的 current owner 是 `cli/src/exec/event_processor_with_human_output.rs` 与
+`exec/event_processor_with_jsonl_output.rs`，机器合同归 `exec/exec_events.rs`，参数归
+同名 `exec/cli.rs`；旧 `exec/human_output.rs` 与 `tui::run_exec` 为
+`dead / deleted / forbidden-to-restore`，CLI boundary 直接禁止旧路径恢复，无兼容包装。
+旧jsonl flag、render_json_envelope与single result serializer为dead/deleted/forbidden-to-restore；
+JSON renderer逐事件flush、只输出摘要、terminal补漏、显示编号不改变canonical身份。
+schema由Rust serialize合同生成并随npm根包分发；human/JSON只消费同Thread/Turn通知。
+human renderer消费canonical通知及最后usage快照；工具执行、
+权限、重试和持久化仍归 App Server/shared runtime。CLI inventory 必须同时记录 Codex
+cli/exec/execpolicy 源树，不能用同名文件数量宣称事件输出、resume 或整产品完全对齐。
 
 运行时项目指令的 current 入口是标准 `CODEX_HOME/AGENTS.md` 与项目层 `AGENTS.md` / `AGENTS.override.md`；`lime-rs/crates/agent/src/prompt/runtime_agents.rs` 可继续读取 `.lime/AGENTS.md` / `.lime/AGENTS.override.md` 作为只委托旧文件位置的 `compat` fallback。该 fallback 不得扩散到其它 owner，也不得承接新语义。
 

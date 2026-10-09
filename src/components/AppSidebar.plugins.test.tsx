@@ -5,7 +5,6 @@ import {
   flushEffects,
   mountSidebarContainer,
   mockListInstalledPluginCatalog,
-  openAccountMenu,
   resetAppSidebarTest,
 } from "./AppSidebar.testFixtures";
 

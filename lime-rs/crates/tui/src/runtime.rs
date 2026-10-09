@@ -4,22 +4,22 @@ use std::path::PathBuf;
 use std::pin::Pin;
 use std::time::Duration;
 
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{bail, Context, Result};
 use app_server_client::{AppServerEvent, RemoteTransportConfig, StdioTransportConfig};
-use app_server_protocol::protocol::v2::{ServerNotification, ServerRequest};
+#[cfg(test)]
+use app_server_protocol::protocol::v2::ServerNotification;
 use futures::StreamExt;
-use serde::Serialize;
 
 use crate::app::event_dispatch::{EventContext, EventDispatch};
 use crate::app::reconnect::{reconnect_session, ReconnectedSession};
 use crate::app::{App, AppAction};
-use crate::app_server_session::{AppServerSession, ThreadSettingsPatch};
-use crate::bottom_pane::{AppServerResponse, FileSearchRequest};
+use crate::app_server_session::AppServerSession;
+use crate::bottom_pane::FileSearchRequest;
 use crate::chatwidget::ExternalEditorState;
 use crate::clipboard_paste::paste_image_to_temp_png;
 use crate::external_editor::edit_draft;
 use crate::locale::Locale;
-use crate::projection::{ConversationProjection, TranscriptEntry};
+use crate::projection::TranscriptEntry;
 use crate::resume_picker::{
     run_resume_picker_with_app_server, PickerAction, PickerLoadEvent, PickerState,
     SessionPickerAction, SessionStatus,
@@ -45,20 +45,6 @@ pub struct TuiOptions {
     pub sandbox_policy: Option<String>,
     pub locale: Option<String>,
     pub resume_thread: Option<String>,
-}
-
-#[derive(Debug, Clone)]
-pub struct ExecOptions {
-    pub tui: TuiOptions,
-    pub prompt: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub struct ExecResult {
-    pub thread_id: String,
-    pub turn_id: String,
-    pub status: String,
-    pub output: String,
 }
 
 #[derive(Debug)]
@@ -157,6 +143,8 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
         .set_app_event_tx(app_event_tx.clone());
     let mut message_history = crate::app::message_history::MessageHistory::default();
     app.set_right_click_paste(local_settings.tui.right_click_paste);
+    app.projection
+        .set_show_raw_agent_reasoning(local_settings.show_raw_agent_reasoning);
     app.chat_widget.tui_config = local_settings.tui;
     app.chat_widget.config_version = local_settings.config_version;
     app.set_runtime_keymap(local_settings.keymap);
@@ -200,6 +188,9 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
     };
     let mut input = terminal.event_stream();
     let frame_requester = terminal.frame_requester();
+    app.chat_widget
+        .bottom_pane
+        .set_frame_requester(frame_requester.clone());
     frame_requester.schedule_frame();
     let mut status_tick = tokio::time::interval(Duration::from_secs(1));
     status_tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
@@ -1039,6 +1030,7 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
                                                 request_handle,
                                                 sender,
                                                 thread_id,
+                                                app.projection.show_raw_agent_reasoning(),
                                             );
                                         }
                                     }
@@ -1052,6 +1044,7 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
                                                 request_handle,
                                                 sender,
                                                 thread_id,
+                                                app.projection.show_raw_agent_reasoning(),
                                             );
                                         }
                                     }
@@ -1587,6 +1580,7 @@ async fn prepare_export_transcript(
         Ok(thread_id) => match crate::thread_transcript::load_session_transcript(
             session.request_handle(),
             thread_id.to_string(),
+            app.projection.show_raw_agent_reasoning(),
         )
         .await
         {
@@ -1633,17 +1627,6 @@ fn merge_export_entries(
     persisted
 }
 
-pub async fn run_exec(options: ExecOptions) -> Result<ExecResult> {
-    validate_model_route(&options.tui)?;
-    if let Some(remote) = options.tui.remote.clone() {
-        let session = AppServerSession::connect_remote(remote).await?;
-        run_exec_with_session(options, session).await
-    } else {
-        let config = stdio_config(&options.tui)?;
-        run_exec_with_config(options, config).await
-    }
-}
-
 pub(crate) async fn connect_session(options: &TuiOptions) -> Result<AppServerSession> {
     if let Some(remote) = options.remote.clone() {
         AppServerSession::connect_remote(remote).await
@@ -1657,107 +1640,6 @@ pub(crate) fn stdio_config(options: &TuiOptions) -> Result<StdioTransportConfig>
     let mut config = StdioTransportConfig::runtime(&options.app_server_bin);
     config.args.extend(options.app_server_args.iter().cloned());
     Ok(config)
-}
-
-async fn run_exec_with_config(
-    options: ExecOptions,
-    config: StdioTransportConfig,
-) -> Result<ExecResult> {
-    let session = AppServerSession::connect(config).await?;
-    run_exec_with_session(options, session).await
-}
-
-async fn run_exec_with_session(
-    options: ExecOptions,
-    mut session: AppServerSession,
-) -> Result<ExecResult> {
-    if options.prompt.trim().is_empty() {
-        bail!("prompt must not be empty");
-    }
-    let execution = async {
-        let thread_id = if let Some(thread_id) = options.tui.resume_thread.clone() {
-            let response = session.resume_thread(thread_id).await?;
-            let thread_id = response.thread.id.clone();
-            let mut projection = ConversationProjection::default();
-            projection.hydrate_thread(response.thread);
-            (thread_id, projection)
-        } else {
-            let response = session
-                .start_thread(
-                    options.tui.cwd.clone(),
-                    options.tui.model.clone(),
-                    options.tui.model_provider.clone(),
-                )
-                .await?;
-            (
-                response.thread.id.clone(),
-                ConversationProjection::default(),
-            )
-        };
-        session
-            .update_settings_with_policy(
-                ThreadSettingsPatch::new(
-                    options.tui.model.clone(),
-                    options.tui.model_provider.clone(),
-                    options.tui.reasoning_effort.clone(),
-                    options.tui.permissions.clone(),
-                )
-                .with_policy(
-                    options.tui.approval_policy.clone(),
-                    options.tui.approvals_reviewer.clone(),
-                    options.tui.sandbox_policy.clone(),
-                ),
-            )
-            .await?;
-        let (thread_id, mut projection) = thread_id;
-        let turn_id = session.start_turn(options.prompt).await?;
-
-        loop {
-            let event = session
-                .next_event()
-                .await
-                .ok_or_else(|| anyhow!("App Server disconnected before turn completion"))?;
-            match event {
-                AppServerEvent::ServerNotification(notification) => {
-                    let completed = matches!(
-                        notification.as_ref(),
-                        ServerNotification::TurnCompleted(params) if params.turn.id == turn_id
-                    );
-                    projection.apply(*notification);
-                    if completed {
-                        break;
-                    }
-                }
-                AppServerEvent::ServerRequest(request) => match *request {
-                    ServerRequest::CurrentTimeRead { id, .. } => {
-                        session.respond_current_time(id).await?;
-                    }
-                    request => match AppServerResponse::fail_closed(request) {
-                        Ok(response) => session.respond(response).await?,
-                        Err(request) => session.reject_server_request(request).await?,
-                    },
-                },
-                AppServerEvent::Disconnected { message } => bail!(message),
-                AppServerEvent::Lagged { .. } => {}
-            }
-        }
-
-        Ok(ExecResult {
-            thread_id,
-            turn_id,
-            status: projection.status().to_string(),
-            output: projection.final_answer(),
-        })
-    };
-    let execution = execution.await;
-    let shutdown = session.shutdown().await;
-    match execution {
-        Ok(result) => {
-            shutdown?;
-            Ok(result)
-        }
-        Err(error) => Err(error),
-    }
 }
 
 #[cfg(test)]
@@ -1876,56 +1758,6 @@ mod tests {
         assert_eq!(merged[1].text, "streaming");
         assert_eq!(merged[1].status, Some(EntryStatus::Running));
         assert_eq!(merged[2], live[1]);
-    }
-
-    #[tokio::test]
-    async fn real_stdio_unavailable_backend_fails_closed_without_provider() {
-        let Some(app_server_bin) = std::env::var_os("LIME_TEST_APP_SERVER_BIN") else {
-            return;
-        };
-        let temp_dir = tempfile::tempdir().expect("temp data directory");
-        let tui = TuiOptions {
-            app_server_bin: PathBuf::from(&app_server_bin),
-            app_server_args: Vec::new(),
-            remote: None,
-            cwd: temp_dir.path().to_path_buf(),
-            model: None,
-            model_provider: None,
-            reasoning_effort: None,
-            permissions: None,
-            approval_policy: None,
-            approvals_reviewer: None,
-            sandbox_policy: None,
-            locale: None,
-            resume_thread: None,
-        };
-        let config = StdioTransportConfig {
-            app_server_bin: PathBuf::from(app_server_bin),
-            args: vec![
-                OsString::from("--stdio"),
-                OsString::from("--backend"),
-                OsString::from("unavailable"),
-                OsString::from("--data-dir"),
-                temp_dir.path().as_os_str().to_os_string(),
-            ],
-        };
-
-        let error = run_exec_with_config(
-            ExecOptions {
-                tui,
-                prompt: "stdio contract probe".to_string(),
-            },
-            config,
-        )
-        .await
-        .expect_err("unavailable backend must reject turn/start");
-
-        let rendered = format!("{error:#}");
-        assert!(
-            rendered.contains("failed to start App Server thread")
-                && rendered.contains("runtime model route is not executable"),
-            "unexpected fail-closed error: {rendered}"
-        );
     }
 
     #[test]

@@ -150,7 +150,7 @@ pub(super) fn exercise_selection_save_and_cancel(
     );
     writer.write_all(b" ").unwrap();
     for name in ["Thread name", "working directory", "Model with reasoning"] {
-        config::toggle_setup_item(writer, name, true);
+        config::toggle_setup_item(writer, output_rx, output, name, true);
     }
     writer.write_all(b"\x1b[F \x1b[20~").unwrap();
     writer.flush().unwrap();

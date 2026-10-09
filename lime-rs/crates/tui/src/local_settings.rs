@@ -14,6 +14,7 @@ use crate::keymap::RuntimeKeymap;
 pub(crate) struct LocalSettings {
     pub(crate) keymap: RuntimeKeymap,
     pub(crate) tui: TuiConfig,
+    pub(crate) show_raw_agent_reasoning: bool,
     pub(crate) config_version: Option<String>,
 }
 
@@ -39,9 +40,19 @@ impl LocalSettings {
         let keymap = RuntimeKeymap::from_config(&tui.keymap)
             .map_err(anyhow::Error::msg)
             .context("invalid TUI keymap")?;
+        let show_raw_agent_reasoning = serde_json::from_value(
+            config
+                .get("show_raw_agent_reasoning")
+                .cloned()
+                .unwrap_or(Value::Bool(false)),
+        )
+        .context(
+            "App Server config/read returned an invalid `show_raw_agent_reasoning` configuration",
+        )?;
         Ok(Self {
             keymap,
             tui,
+            show_raw_agent_reasoning,
             config_version: None,
         })
     }
@@ -106,6 +117,53 @@ mod tests {
         }))
         .expect("valid local settings");
         assert_eq!(settings.tui.right_click_paste, RightClickPaste::Off);
+    }
+
+    #[test]
+    fn config_read_resolves_shared_animations_and_rejects_invalid_values() {
+        assert!(
+            LocalSettings::from_config_value(&json!({}))
+                .unwrap()
+                .tui
+                .animations
+        );
+        for value in [true, false] {
+            assert_eq!(
+                LocalSettings::from_config_value(&json!({"tui": {"animations": value}}))
+                    .unwrap()
+                    .tui
+                    .animations,
+                value
+            );
+        }
+        for value in [json!("false"), json!(null), json!(0)] {
+            assert!(
+                LocalSettings::from_config_value(&json!({"tui": {"animations": value}})).is_err()
+            );
+        }
+    }
+
+    #[test]
+    fn config_read_resolves_shared_raw_visibility_and_rejects_invalid_values() {
+        assert!(
+            !LocalSettings::from_config_value(&json!({}))
+                .unwrap()
+                .show_raw_agent_reasoning
+        );
+        for value in [true, false] {
+            assert_eq!(
+                LocalSettings::from_config_value(&json!({"show_raw_agent_reasoning": value}))
+                    .unwrap()
+                    .show_raw_agent_reasoning,
+                value
+            );
+        }
+        for value in [json!("true"), json!(null), json!(1)] {
+            assert!(
+                LocalSettings::from_config_value(&json!({"show_raw_agent_reasoning": value}))
+                    .is_err()
+            );
+        }
     }
 
     #[test]

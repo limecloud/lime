@@ -89,6 +89,7 @@ impl ChatWidget {
     }
 
     pub(crate) fn reset_for_hydrated_thread(&mut self) {
+        self.set_active_reasoning_effort_baseline();
         self.status_line_setup = None;
         self.terminal_title_setup = None;
         self.primary_clipboard_lease = None;

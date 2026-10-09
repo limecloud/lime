@@ -4,6 +4,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, vi } from "vitest";
 
 import { AgentThreadTimeline } from "./AgentThreadTimeline";
+import { RawReasoningVisibility } from "./reasoningVisibilityContext";
 import type {
   ActionRequired,
   AgentThreadItem,
@@ -242,6 +243,7 @@ export function createBaseItem(
 export function renderTimeline(
   items: AgentThreadItem[],
   props?: {
+    showRawReasoning?: boolean;
     isCurrentTurn?: boolean;
     turn?: Partial<AgentThreadTurn>;
     threadRead?: AgentRuntimeThreadReadModel | null;
@@ -274,24 +276,26 @@ export function renderTimeline(
 
   act(() => {
     root.render(
-      <AgentThreadTimeline
-        turn={createTurn(props?.turn)}
-        items={items}
-        threadRead={props?.threadRead}
-        actionRequests={props?.actionRequests}
-        isCurrentTurn={props?.isCurrentTurn}
-        onOpenArtifactFromTimeline={props?.onOpenArtifactFromTimeline}
-        sourceMessageId={props?.sourceMessageId}
-        onSaveFileArtifactAsKnowledge={props?.onSaveFileArtifactAsKnowledge}
-        onOpenSavedSiteContent={props?.onOpenSavedSiteContent}
-        onOpenSubagentSession={props?.onOpenSubagentSession}
-        focusedItemId={props?.focusedItemId}
-        focusRequestKey={props?.focusRequestKey}
-        deferCompletedSingleDetails={props?.deferCompletedSingleDetails}
-        collapseInactiveDetails={props?.collapseInactiveDetails}
-        showOperationalDetails={props?.showOperationalDetails}
-        showInlineStatusHint={props?.showInlineStatusHint}
-      />,
+      <RawReasoningVisibility.Provider value={props?.showRawReasoning === true}>
+        <AgentThreadTimeline
+          turn={createTurn(props?.turn)}
+          items={items}
+          threadRead={props?.threadRead}
+          actionRequests={props?.actionRequests}
+          isCurrentTurn={props?.isCurrentTurn}
+          onOpenArtifactFromTimeline={props?.onOpenArtifactFromTimeline}
+          sourceMessageId={props?.sourceMessageId}
+          onSaveFileArtifactAsKnowledge={props?.onSaveFileArtifactAsKnowledge}
+          onOpenSavedSiteContent={props?.onOpenSavedSiteContent}
+          onOpenSubagentSession={props?.onOpenSubagentSession}
+          focusedItemId={props?.focusedItemId}
+          focusRequestKey={props?.focusRequestKey}
+          deferCompletedSingleDetails={props?.deferCompletedSingleDetails}
+          collapseInactiveDetails={props?.collapseInactiveDetails}
+          showOperationalDetails={props?.showOperationalDetails}
+          showInlineStatusHint={props?.showInlineStatusHint}
+        />
+      </RawReasoningVisibility.Provider>,
     );
   });
 

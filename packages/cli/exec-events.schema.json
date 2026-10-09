@@ -1,0 +1,624 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ThreadEvent",
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "thread.started"
+        }
+      },
+      "$ref": "#/$defs/ThreadStartedEvent",
+      "required": ["type"]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "turn.started"
+        }
+      },
+      "$ref": "#/$defs/TurnStartedEvent",
+      "required": ["type"]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "turn.completed"
+        }
+      },
+      "$ref": "#/$defs/TurnCompletedEvent",
+      "required": ["type"]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "turn.failed"
+        }
+      },
+      "$ref": "#/$defs/TurnFailedEvent",
+      "required": ["type"]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "item.started"
+        }
+      },
+      "$ref": "#/$defs/ItemStartedEvent",
+      "required": ["type"]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "item.updated"
+        }
+      },
+      "$ref": "#/$defs/ItemUpdatedEvent",
+      "required": ["type"]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "item.completed"
+        }
+      },
+      "$ref": "#/$defs/ItemCompletedEvent",
+      "required": ["type"]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "error"
+        }
+      },
+      "$ref": "#/$defs/ThreadErrorEvent",
+      "required": ["type"]
+    }
+  ],
+  "$defs": {
+    "ThreadStartedEvent": {
+      "type": "object",
+      "properties": {
+        "thread_id": {
+          "type": "string"
+        }
+      },
+      "required": ["thread_id"]
+    },
+    "TurnStartedEvent": {
+      "type": "object"
+    },
+    "Usage": {
+      "type": "object",
+      "properties": {
+        "input_tokens": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "cached_input_tokens": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "cache_write_input_tokens": {
+          "type": "integer",
+          "format": "int64",
+          "default": 0
+        },
+        "output_tokens": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "reasoning_output_tokens": {
+          "type": "integer",
+          "format": "int64"
+        }
+      },
+      "required": [
+        "input_tokens",
+        "cached_input_tokens",
+        "cache_write_input_tokens",
+        "output_tokens",
+        "reasoning_output_tokens"
+      ]
+    },
+    "TurnCompletedEvent": {
+      "type": "object",
+      "properties": {
+        "usage": {
+          "$ref": "#/$defs/Usage"
+        }
+      },
+      "required": ["usage"]
+    },
+    "ThreadErrorEvent": {
+      "type": "object",
+      "properties": {
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": ["message"]
+    },
+    "TurnFailedEvent": {
+      "type": "object",
+      "properties": {
+        "error": {
+          "$ref": "#/$defs/ThreadErrorEvent"
+        }
+      },
+      "required": ["error"]
+    },
+    "ThreadItem": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": ["id"],
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "agent_message"
+            }
+          },
+          "$ref": "#/$defs/AgentMessageItem",
+          "required": ["type"]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "reasoning"
+            }
+          },
+          "$ref": "#/$defs/ReasoningItem",
+          "required": ["type"]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "command_execution"
+            }
+          },
+          "$ref": "#/$defs/CommandExecutionItem",
+          "required": ["type"]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "file_change"
+            }
+          },
+          "$ref": "#/$defs/FileChangeItem",
+          "required": ["type"]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "mcp_tool_call"
+            }
+          },
+          "$ref": "#/$defs/McpToolCallItem",
+          "required": ["type"]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "collab_tool_call"
+            }
+          },
+          "$ref": "#/$defs/CollabToolCallItem",
+          "required": ["type"]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "web_search"
+            }
+          },
+          "$ref": "#/$defs/WebSearchItem",
+          "required": ["type"]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "todo_list"
+            }
+          },
+          "$ref": "#/$defs/TodoListItem",
+          "required": ["type"]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "error"
+            }
+          },
+          "$ref": "#/$defs/ErrorItem",
+          "required": ["type"]
+        }
+      ]
+    },
+    "AgentMessageItem": {
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": ["text"]
+    },
+    "ReasoningItem": {
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": ["text"]
+    },
+    "CommandExecutionStatus": {
+      "type": "string",
+      "enum": ["in_progress", "completed", "failed", "declined"]
+    },
+    "CommandExecutionItem": {
+      "type": "object",
+      "properties": {
+        "command": {
+          "type": "string"
+        },
+        "aggregated_output": {
+          "type": "string"
+        },
+        "exit_code": {
+          "type": ["integer", "null"],
+          "format": "int32"
+        },
+        "status": {
+          "$ref": "#/$defs/CommandExecutionStatus"
+        }
+      },
+      "required": ["command", "aggregated_output", "exit_code", "status"]
+    },
+    "FileUpdateChange": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/PatchChangeKind"
+        }
+      },
+      "required": ["path", "kind"]
+    },
+    "PatchChangeKind": {
+      "type": "string",
+      "enum": ["add", "delete", "update"]
+    },
+    "PatchApplyStatus": {
+      "type": "string",
+      "enum": ["in_progress", "completed", "failed"]
+    },
+    "FileChangeItem": {
+      "type": "object",
+      "properties": {
+        "changes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/FileUpdateChange"
+          }
+        },
+        "status": {
+          "$ref": "#/$defs/PatchApplyStatus"
+        }
+      },
+      "required": ["changes", "status"]
+    },
+    "McpToolCallItemResult": {
+      "type": "object",
+      "properties": {
+        "content": {
+          "type": "array",
+          "items": true
+        },
+        "_meta": true,
+        "structured_content": true
+      },
+      "required": ["content", "structured_content"]
+    },
+    "McpToolCallItemError": {
+      "type": "object",
+      "properties": {
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": ["message"]
+    },
+    "McpToolCallStatus": {
+      "type": "string",
+      "enum": ["in_progress", "completed", "failed"]
+    },
+    "McpToolCallItem": {
+      "type": "object",
+      "properties": {
+        "server": {
+          "type": "string"
+        },
+        "tool": {
+          "type": "string"
+        },
+        "arguments": {
+          "default": null
+        },
+        "result": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/McpToolCallItemResult"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "error": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/McpToolCallItemError"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "status": {
+          "$ref": "#/$defs/McpToolCallStatus"
+        }
+      },
+      "required": ["server", "tool", "arguments", "result", "error", "status"]
+    },
+    "CollabTool": {
+      "type": "string",
+      "enum": ["spawn_agent", "send_input", "wait", "close_agent"]
+    },
+    "CollabAgentState": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "$ref": "#/$defs/CollabAgentStatus"
+        },
+        "message": {
+          "type": ["string", "null"]
+        }
+      },
+      "required": ["status", "message"]
+    },
+    "CollabAgentStatus": {
+      "type": "string",
+      "enum": [
+        "pending_init",
+        "running",
+        "interrupted",
+        "completed",
+        "errored",
+        "shutdown",
+        "not_found"
+      ]
+    },
+    "CollabToolCallStatus": {
+      "type": "string",
+      "enum": ["in_progress", "completed", "failed"]
+    },
+    "CollabToolCallItem": {
+      "type": "object",
+      "properties": {
+        "tool": {
+          "$ref": "#/$defs/CollabTool"
+        },
+        "sender_thread_id": {
+          "type": "string"
+        },
+        "receiver_thread_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "prompt": {
+          "type": ["string", "null"]
+        },
+        "agents_states": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/CollabAgentState"
+          }
+        },
+        "status": {
+          "$ref": "#/$defs/CollabToolCallStatus"
+        }
+      },
+      "required": [
+        "tool",
+        "sender_thread_id",
+        "receiver_thread_ids",
+        "prompt",
+        "agents_states",
+        "status"
+      ]
+    },
+    "WebSearchAction": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": ["string", "null"]
+            },
+            "queries": {
+              "type": ["array", "null"],
+              "items": {
+                "type": "string"
+              }
+            },
+            "type": {
+              "type": "string",
+              "const": "search"
+            }
+          },
+          "required": ["type"]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "url": {
+              "type": ["string", "null"]
+            },
+            "type": {
+              "type": "string",
+              "const": "open_page"
+            }
+          },
+          "required": ["type"]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "url": {
+              "type": ["string", "null"]
+            },
+            "pattern": {
+              "type": ["string", "null"]
+            },
+            "type": {
+              "type": "string",
+              "const": "find_in_page"
+            }
+          },
+          "required": ["type"]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "other"
+            }
+          },
+          "required": ["type"]
+        }
+      ]
+    },
+    "WebSearchItem": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string"
+        },
+        "action": {
+          "$ref": "#/$defs/WebSearchAction"
+        },
+        "results": {
+          "type": ["array", "null"],
+          "items": true
+        }
+      },
+      "required": ["query", "action"]
+    },
+    "TodoItem": {
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string"
+        },
+        "completed": {
+          "type": "boolean"
+        }
+      },
+      "required": ["text", "completed"]
+    },
+    "TodoListItem": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TodoItem"
+          }
+        }
+      },
+      "required": ["items"]
+    },
+    "ErrorItem": {
+      "type": "object",
+      "properties": {
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": ["message"]
+    },
+    "ItemStartedEvent": {
+      "type": "object",
+      "properties": {
+        "item": {
+          "$ref": "#/$defs/ThreadItem"
+        }
+      },
+      "required": ["item"]
+    },
+    "ItemUpdatedEvent": {
+      "type": "object",
+      "properties": {
+        "item": {
+          "$ref": "#/$defs/ThreadItem"
+        }
+      },
+      "required": ["item"]
+    },
+    "ItemCompletedEvent": {
+      "type": "object",
+      "properties": {
+        "item": {
+          "$ref": "#/$defs/ThreadItem"
+        }
+      },
+      "required": ["item"]
+    }
+  }
+}

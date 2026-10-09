@@ -435,25 +435,7 @@ impl RuntimeCore {
             })
             .await?;
         let session_id = response.thread.session_id.clone();
-        if response.thread.forked_from_id.is_some()
-            && response
-                .thread
-                .metadata
-                .get("forkSequence")
-                .and_then(serde_json::Value::as_u64)
-                .is_some()
-        {
-            let canonical = self
-                .read_thread(ThreadReadParams {
-                    thread_id: response.thread.thread_id.clone(),
-                    turns_view: agent_protocol::ThreadTurnsView::Full,
-                })
-                .await?;
-            self.hydrate_fork_session_from_canonical(&canonical.thread)?;
-        } else {
-            self.ensure_current_session_hydrated(session_id.as_str())
-                .await?;
-        }
+        self.hydrate_thread_session(&response.thread).await?;
         let active_turn_id = self
             .session_loops
             .snapshot(session_id.as_str())

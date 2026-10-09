@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "source": {
     "codexRoot": "/Users/coso/Documents/dev/rust/codex",
-    "codexRsCliCommit": "c4017a87aacc7558002b7cb510025e967c1d765e"
+    "codexRsCliCommit": "4aaee872e31abefe0d32e91faab23b09b6968824"
   },
   "trees": {
     "codex-rs/cli": {
       "root": "/Users/coso/Documents/dev/rust/codex/codex-rs/cli",
-      "fileCount": 97,
+      "fileCount": 128,
       "files": [
         "BUILD.bazel",
         "Cargo.toml",
@@ -16,6 +16,10 @@
         "src/app_cmd.rs",
         "src/bin/logs_client.rs",
         "src/cloud_config.rs",
+        "src/daemon_install.rs",
+        "src/daemon_install_tests.rs",
+        "src/daemon_telemetry.rs",
+        "src/daemon_update_tests.rs",
         "src/debug_sandbox.rs",
         "src/debug_sandbox/cloud_config.rs",
         "src/debug_sandbox/cloud_config_tests.rs",
@@ -35,6 +39,8 @@
         "src/doctor/desktop_tests.rs",
         "src/doctor/disk.rs",
         "src/doctor/disk_tests.rs",
+        "src/doctor/filesystem_paths.rs",
+        "src/doctor/filesystem_paths_tests.rs",
         "src/doctor/git.rs",
         "src/doctor/network.rs",
         "src/doctor/network_tests.rs",
@@ -47,7 +53,10 @@
         "src/doctor/security.rs",
         "src/doctor/security_tests.rs",
         "src/doctor/snapshots/codex__doctor__background__tests__configured_updater.snap",
+        "src/doctor/snapshots/codex__doctor__filesystem_paths__tests__doctor_read_restricted_filesystem_paths.snap",
         "src/doctor/snapshots/codex__doctor__git__tests__reports_git_candidates_and_repo_metadata.snap",
+        "src/doctor/snapshots/codex__doctor__output__tests__copyable_items_color.snap",
+        "src/doctor/snapshots/codex__doctor__output__tests__copyable_items_color_windows.snap",
         "src/doctor/snapshots/codex__doctor__output__tests__doctor_human_report_environment_rows.snap",
         "src/doctor/snapshots/codex__doctor__output__tests__missing_env_diagnostics.snap",
         "src/doctor/system.rs",
@@ -56,17 +65,21 @@
         "src/doctor/updates.rs",
         "src/doctor/windows_dev_drive.rs",
         "src/doctor/windows_dev_drive_tests.rs",
+        "src/exec_args_tests.rs",
         "src/exec_server_args_tests.rs",
         "src/exec_server_auth.rs",
         "src/exec_server_auth_tests.rs",
+        "src/exec_server_command.rs",
         "src/exec_server_telemetry.rs",
         "src/exec_server_telemetry_tests.rs",
         "src/exit_status.rs",
         "src/lib.rs",
         "src/login.rs",
+        "src/login_storage_tests.rs",
         "src/main.rs",
         "src/marketplace_cmd.rs",
         "src/mcp_cmd.rs",
+        "src/mcp_cmd_tests.rs",
         "src/mcp_login.rs",
         "src/mcp_login_tests.rs",
         "src/migrate_rollouts.rs",
@@ -74,22 +87,29 @@
         "src/queue_cmd.rs",
         "src/remote_control_cmd.rs",
         "src/sandbox_setup.rs",
+        "src/sandbox_uninstall.rs",
         "src/snapshots/codex__doctor__tests__doctor_dumb_non_interactive_human.snap",
         "src/snapshots/codex__doctor__tests__terminal_check_prioritizes_unreadable_terminfo_over_warnings.snap",
         "src/snapshots/codex__exec_server_args_tests__exec_server_help_documents_remote_options.snap",
         "src/snapshots/codex__tests__unsupported_worktree_commands.snap",
+        "src/snapshots/codex_cli__login__storage_tests__login_default_filter_records_sanitized_storage_fallback.snap",
+        "src/snapshots/codex_cli__login__storage_tests__login_storage_error_displays_context_and_cause.snap",
         "src/state_db_recovery.rs",
         "src/wsl_paths.rs",
         "tests/app_server.rs",
         "tests/app_server_daemon.rs",
         "tests/cloud_auth.rs",
         "tests/cloud_config.rs",
+        "tests/daemon_startup.rs",
+        "tests/daemon_telemetry.rs",
         "tests/debug_clear_memories.rs",
         "tests/debug_models.rs",
         "tests/delete.rs",
         "tests/doctor_enterprise_network.rs",
         "tests/doctor_path_safety.rs",
         "tests/exec_server.rs",
+        "tests/exec_server/pid_namespace_tests.rs",
+        "tests/exec_server_websocket_auth.rs",
         "tests/execpolicy.rs",
         "tests/features.rs",
         "tests/login.rs",
@@ -104,10 +124,21 @@
         "tests/sandbox_cloud_config.rs",
         "tests/sandbox_network_proxy.rs",
         "tests/sandbox_tty.rs",
+        "tests/sandbox_uninstall.rs",
+        "tests/snapshots/daemon_startup__restrictive_launcher_warning.snap",
+        "tests/snapshots/doctor_path_safety__doctor_config_error_location.snap",
+        "tests/snapshots/doctor_path_safety__doctor_config_invalid_data.snap",
+        "tests/snapshots/doctor_path_safety__doctor_config_not_found.snap",
+        "tests/snapshots/doctor_path_safety__doctor_configured_filesystem_paths.snap",
+        "tests/snapshots/doctor_path_safety__doctor_configured_filesystem_paths_windows.snap",
+        "tests/snapshots/doctor_path_safety__doctor_failed_log_database.snap",
+        "tests/snapshots/doctor_path_safety__doctor_failed_multiple_databases.snap",
+        "tests/snapshots/features__mcp_list_reports_invalid_keybinding_reason.snap",
+        "tests/snapshots/features__remote_start_rejects_add_dir_before_connecting.snap",
         "tests/update.rs",
         "tests/worktree.rs"
       ],
-      "symbolCount": 955,
+      "symbolCount": 1032,
       "symbols": [
         {
           "path": "build.rs",
@@ -212,6 +243,31 @@
         {
           "path": "src/cloud_config.rs",
           "name": "load_config",
+          "kind": "function"
+        },
+        {
+          "path": "src/daemon_install.rs",
+          "name": "confirm_install",
+          "kind": "function"
+        },
+        {
+          "path": "src/daemon_install.rs",
+          "name": "describe_install",
+          "kind": "function"
+        },
+        {
+          "path": "src/daemon_install_tests.rs",
+          "name": "running_daemon_replacement_prompt",
+          "kind": "function"
+        },
+        {
+          "path": "src/daemon_telemetry.rs",
+          "name": "record_command",
+          "kind": "function"
+        },
+        {
+          "path": "src/daemon_update_tests.rs",
+          "name": "daemon_handoff_uses_selected_executable_and_propagates_failure",
           "kind": "function"
         },
         {
@@ -1415,6 +1471,66 @@
           "kind": "function"
         },
         {
+          "path": "src/doctor/filesystem_paths.rs",
+          "name": "check",
+          "kind": "function"
+        },
+        {
+          "path": "src/doctor/filesystem_paths.rs",
+          "name": "literal_paths",
+          "kind": "function"
+        },
+        {
+          "path": "src/doctor/filesystem_paths.rs",
+          "name": "probe",
+          "kind": "function"
+        },
+        {
+          "path": "src/doctor/filesystem_paths.rs",
+          "name": "probe_exit_code",
+          "kind": "function"
+        },
+        {
+          "path": "src/doctor/filesystem_paths.rs",
+          "name": "ProbeResult",
+          "kind": "type"
+        },
+        {
+          "path": "src/doctor/filesystem_paths.rs",
+          "name": "source",
+          "kind": "function"
+        },
+        {
+          "path": "src/doctor/filesystem_paths_tests.rs",
+          "name": "attributes_home_relative_subtree_paths_to_their_config_layer",
+          "kind": "function"
+        },
+        {
+          "path": "src/doctor/filesystem_paths_tests.rs",
+          "name": "attributes_paths_inherited_through_managed_profiles_to_their_config_layer",
+          "kind": "function"
+        },
+        {
+          "path": "src/doctor/filesystem_paths_tests.rs",
+          "name": "blocked_probe_fixture",
+          "kind": "function"
+        },
+        {
+          "path": "src/doctor/filesystem_paths_tests.rs",
+          "name": "deduplicates_literal_paths_without_expanding_globs_or_special_paths",
+          "kind": "function"
+        },
+        {
+          "path": "src/doctor/filesystem_paths_tests.rs",
+          "name": "excludes_scoped_origins_replaced_by_a_scalar_grant",
+          "kind": "function"
+        },
+        {
+          "path": "src/doctor/filesystem_paths_tests.rs",
+          "name": "returns_when_a_probe_process_does_not_exit",
+          "kind": "function"
+        },
+        {
           "path": "src/doctor/git.rs",
           "name": "git_candidates",
           "kind": "function"
@@ -1576,7 +1692,7 @@
         },
         {
           "path": "src/doctor/output.rs",
-          "name": "highlight_flags",
+          "name": "highlight_plain_text",
           "kind": "function"
         },
         {
@@ -2435,6 +2551,11 @@
           "kind": "function"
         },
         {
+          "path": "src/exec_args_tests.rs",
+          "name": "exec_help_documents_cyber_access_program",
+          "kind": "function"
+        },
+        {
           "path": "src/exec_server_args_tests.rs",
           "name": "exec_server_defaults_preserve_local_and_noise_modes",
           "kind": "function"
@@ -2502,6 +2623,46 @@
         {
           "path": "src/exec_server_auth_tests.rs",
           "name": "test_provider",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec_server_command.rs",
+          "name": "ExecServerCommand",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec_server_command.rs",
+          "name": "ExecServerRemoteTransport",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec_server_command.rs",
+          "name": "ExecServerSubcommand",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec_server_command.rs",
+          "name": "is_supported_exec_server_remote_auth",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec_server_command.rs",
+          "name": "load_exec_server_config",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec_server_command.rs",
+          "name": "load_exec_server_remote_auth",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec_server_command.rs",
+          "name": "load_exec_server_remote_auth_provider",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec_server_command.rs",
+          "name": "validate_api_key_remote_host",
           "kind": "function"
         },
         {
@@ -2685,6 +2846,16 @@
           "kind": "function"
         },
         {
+          "path": "src/login_storage_tests.rs",
+          "name": "login_default_filter_records_sanitized_storage_fallback",
+          "kind": "function"
+        },
+        {
+          "path": "src/login_storage_tests.rs",
+          "name": "login_storage_error_displays_context_and_cause",
+          "kind": "function"
+        },
+        {
           "path": "src/main.rs",
           "name": "AgentsCommand",
           "kind": "type"
@@ -2811,21 +2982,6 @@
         },
         {
           "path": "src/main.rs",
-          "name": "ExecServerCommand",
-          "kind": "type"
-        },
-        {
-          "path": "src/main.rs",
-          "name": "ExecServerRemoteTransport",
-          "kind": "type"
-        },
-        {
-          "path": "src/main.rs",
-          "name": "ExecServerSubcommand",
-          "kind": "type"
-        },
-        {
-          "path": "src/main.rs",
           "name": "FeaturesCli",
           "kind": "type"
         },
@@ -2912,26 +3068,6 @@
         {
           "path": "src/main.rs",
           "name": "is_remote_auth_usage_error",
-          "kind": "function"
-        },
-        {
-          "path": "src/main.rs",
-          "name": "is_supported_exec_server_remote_auth",
-          "kind": "function"
-        },
-        {
-          "path": "src/main.rs",
-          "name": "load_exec_server_config",
-          "kind": "function"
-        },
-        {
-          "path": "src/main.rs",
-          "name": "load_exec_server_remote_auth",
-          "kind": "function"
-        },
-        {
-          "path": "src/main.rs",
-          "name": "load_exec_server_remote_auth_provider",
           "kind": "function"
         },
         {
@@ -3096,11 +3232,6 @@
         },
         {
           "path": "src/main.rs",
-          "name": "run_exec_server_command",
-          "kind": "function"
-        },
-        {
-          "path": "src/main.rs",
           "name": "run_execpolicycheck",
           "kind": "function"
         },
@@ -3128,6 +3259,16 @@
           "path": "src/main.rs",
           "name": "run_update_command",
           "kind": "function"
+        },
+        {
+          "path": "src/main.rs",
+          "name": "SandboxCommand",
+          "kind": "type"
+        },
+        {
+          "path": "src/main.rs",
+          "name": "SandboxSubcommand",
+          "kind": "type"
         },
         {
           "path": "src/main.rs",
@@ -3172,11 +3313,6 @@
         {
           "path": "src/main.rs",
           "name": "updater_http_client_factory",
-          "kind": "function"
-        },
-        {
-          "path": "src/main.rs",
-          "name": "validate_api_key_remote_host",
           "kind": "function"
         },
         {
@@ -3387,6 +3523,16 @@
         {
           "path": "src/mcp_cmd.rs",
           "name": "validate_server_name",
+          "kind": "function"
+        },
+        {
+          "path": "src/mcp_cmd_tests.rs",
+          "name": "oauth_client_secret_is_redacted_in_parsed_command_debug",
+          "kind": "function"
+        },
+        {
+          "path": "src/mcp_cmd_tests.rs",
+          "name": "oauth_client_secret_requires_url_and_client_id_without_disclosure",
           "kind": "function"
         },
         {
@@ -3671,6 +3817,11 @@
         },
         {
           "path": "src/remote_control_cmd.rs",
+          "name": "daemon_eligible",
+          "kind": "function"
+        },
+        {
+          "path": "src/remote_control_cmd.rs",
           "name": "ensure_remote_control_startable",
           "kind": "function"
         },
@@ -3825,6 +3976,11 @@
           "kind": "type"
         },
         {
+          "path": "src/sandbox_uninstall.rs",
+          "name": "SandboxUninstallCommand",
+          "kind": "type"
+        },
+        {
           "path": "src/state_db_recovery.rs",
           "name": "backup_files_for_fresh_start",
           "kind": "function"
@@ -3842,11 +3998,6 @@
         {
           "path": "src/state_db_recovery.rs",
           "name": "is_auto_backup_recoverable",
-          "kind": "function"
-        },
-        {
-          "path": "src/state_db_recovery.rs",
-          "name": "is_corruption",
           "kind": "function"
         },
         {
@@ -3921,6 +4072,21 @@
         },
         {
           "path": "tests/app_server_daemon.rs",
+          "name": "InitialDaemon",
+          "kind": "type"
+        },
+        {
+          "path": "tests/app_server_daemon.rs",
+          "name": "managed_daemon_restarts_from_deleted_working_directory",
+          "kind": "function"
+        },
+        {
+          "path": "tests/app_server_daemon.rs",
+          "name": "managed_identity_survives_locale_and_timezone_changes",
+          "kind": "function"
+        },
+        {
+          "path": "tests/app_server_daemon.rs",
           "name": "managed_start_keeps_updater_on_marker_mismatch_but_stops_it_for_pin",
           "kind": "function"
         },
@@ -3937,6 +4103,36 @@
         {
           "path": "tests/app_server_daemon.rs",
           "name": "manual_update_rejects_an_unowned_installation",
+          "kind": "function"
+        },
+        {
+          "path": "tests/app_server_daemon.rs",
+          "name": "package_ownership_check_does_not_start_an_updater",
+          "kind": "function"
+        },
+        {
+          "path": "tests/app_server_daemon.rs",
+          "name": "packaged_daemon_bootstrap_seeds_local_package",
+          "kind": "function"
+        },
+        {
+          "path": "tests/app_server_daemon.rs",
+          "name": "packaged_daemon_explicit_replacement_migrates_running_legacy",
+          "kind": "function"
+        },
+        {
+          "path": "tests/app_server_daemon.rs",
+          "name": "packaged_daemon_launch",
+          "kind": "function"
+        },
+        {
+          "path": "tests/app_server_daemon.rs",
+          "name": "packaged_daemon_restart_seeds_local_package",
+          "kind": "function"
+        },
+        {
+          "path": "tests/app_server_daemon.rs",
+          "name": "packaged_daemon_start_and_explicit_replacement",
           "kind": "function"
         },
         {
@@ -3965,6 +4161,11 @@
           "kind": "function"
         },
         {
+          "path": "tests/app_server_daemon.rs",
+          "name": "wall_clock_shift_keeps_server_and_updater_managed",
+          "kind": "function"
+        },
+        {
           "path": "tests/cloud_auth.rs",
           "name": "cloud_list_only_allows_trusted_credential_destinations",
           "kind": "function"
@@ -3987,6 +4188,76 @@
         {
           "path": "tests/cloud_config.rs",
           "name": "login_and_logout_persist_only_cloud_managed_mcp_oauth_credentials",
+          "kind": "function"
+        },
+        {
+          "path": "tests/daemon_startup.rs",
+          "name": "auto_daemon_start_attaches_to_shared_server",
+          "kind": "function"
+        },
+        {
+          "path": "tests/daemon_startup.rs",
+          "name": "bedrock_onboarding_leaves_a_running_daemon_untouched",
+          "kind": "function"
+        },
+        {
+          "path": "tests/daemon_startup.rs",
+          "name": "daemon_auto_start_preserves_bedrock_onboarding",
+          "kind": "function"
+        },
+        {
+          "path": "tests/daemon_startup.rs",
+          "name": "daemon_exclusion_survives_fork_picker",
+          "kind": "function"
+        },
+        {
+          "path": "tests/daemon_startup.rs",
+          "name": "daemon_exclusion_survives_resume_picker",
+          "kind": "function"
+        },
+        {
+          "path": "tests/daemon_startup.rs",
+          "name": "daemon_startup",
+          "kind": "function"
+        },
+        {
+          "path": "tests/daemon_startup.rs",
+          "name": "elevated_local_tui_uses_embedded_without_starting_daemon",
+          "kind": "function"
+        },
+        {
+          "path": "tests/daemon_startup.rs",
+          "name": "fresh_daemon_requires_confirmation_to_disable_shared_features",
+          "kind": "function"
+        },
+        {
+          "path": "tests/daemon_startup.rs",
+          "name": "incompatible_daemon_can_cancel",
+          "kind": "function"
+        },
+        {
+          "path": "tests/daemon_startup.rs",
+          "name": "incompatible_daemon_can_restart_with_confirmed_settings",
+          "kind": "function"
+        },
+        {
+          "path": "tests/daemon_startup.rs",
+          "name": "incompatible_daemon_can_run_embedded",
+          "kind": "function"
+        },
+        {
+          "path": "tests/daemon_startup.rs",
+          "name": "restrictive_launcher_uses_embedded_if_daemon_cannot_start",
+          "kind": "function"
+        },
+        {
+          "path": "tests/daemon_startup.rs",
+          "name": "stopped_daemon_requires_confirmation_to_disable_persisted_features",
+          "kind": "function"
+        },
+        {
+          "path": "tests/daemon_telemetry.rs",
+          "name": "foreground_update_respects_consent_and_reports_unconfirmed",
           "kind": "function"
         },
         {
@@ -4046,7 +4317,37 @@
         },
         {
           "path": "tests/doctor_path_safety.rs",
+          "name": "doctor_redacts_failed_database_paths_in_json",
+          "kind": "function"
+        },
+        {
+          "path": "tests/doctor_path_safety.rs",
+          "name": "doctor_reports_configured_filesystem_paths",
+          "kind": "function"
+        },
+        {
+          "path": "tests/doctor_path_safety.rs",
+          "name": "doctor_reports_configured_tui_mode",
+          "kind": "function"
+        },
+        {
+          "path": "tests/doctor_path_safety.rs",
+          "name": "doctor_reports_failed_database_paths",
+          "kind": "function"
+        },
+        {
+          "path": "tests/doctor_path_safety.rs",
+          "name": "doctor_reports_only_safe_config_error_metadata",
+          "kind": "function"
+        },
+        {
+          "path": "tests/doctor_path_safety.rs",
           "name": "feedback_with_logs_does_not_execute_path_helpers",
+          "kind": "function"
+        },
+        {
+          "path": "tests/doctor_path_safety.rs",
+          "name": "filesystem_probe_does_not_load_configuration",
           "kind": "function"
         },
         {
@@ -4111,6 +4412,11 @@
         },
         {
           "path": "tests/exec_server.rs",
+          "name": "local_exec_server_projects_global_mxc_preference",
+          "kind": "function"
+        },
+        {
+          "path": "tests/exec_server.rs",
           "name": "proxy_parent_lifetime_relay",
           "kind": "function"
         },
@@ -4137,6 +4443,36 @@
         {
           "path": "tests/exec_server.rs",
           "name": "wait_for_response",
+          "kind": "function"
+        },
+        {
+          "path": "tests/exec_server/pid_namespace_tests.rs",
+          "name": "pid_inheritance_is_startup_only_for_process_and_filesystem_helpers",
+          "kind": "function"
+        },
+        {
+          "path": "tests/exec_server_websocket_auth.rs",
+          "name": "app_server_executor_auth_supports_tokens_and_legacy_configuration",
+          "kind": "function"
+        },
+        {
+          "path": "tests/exec_server_websocket_auth.rs",
+          "name": "AuthMode",
+          "kind": "type"
+        },
+        {
+          "path": "tests/exec_server_websocket_auth.rs",
+          "name": "exec_server_websocket_auth_gates_rpc_connections",
+          "kind": "function"
+        },
+        {
+          "path": "tests/exec_server_websocket_auth.rs",
+          "name": "exec_server_websocket_auth_rejects_inapplicable_transports",
+          "kind": "function"
+        },
+        {
+          "path": "tests/exec_server_websocket_auth.rs",
+          "name": "exec_server_websocket_auth_rejects_invalid_configuration",
           "kind": "function"
         },
         {
@@ -4191,6 +4527,31 @@
         },
         {
           "path": "tests/features.rs",
+          "name": "mcp_list_reports_invalid_keybinding_reason",
+          "kind": "function"
+        },
+        {
+          "path": "tests/features.rs",
+          "name": "no_daemon_rejects_agents_and_explicit_remote_targets",
+          "kind": "function"
+        },
+        {
+          "path": "tests/features.rs",
+          "name": "remote_start_allows_network_access_overrides_before_requiring_terminal",
+          "kind": "function"
+        },
+        {
+          "path": "tests/features.rs",
+          "name": "remote_start_rejects_add_dir_before_connecting",
+          "kind": "function"
+        },
+        {
+          "path": "tests/features.rs",
+          "name": "remote_start_rejects_writable_root_overrides_before_connecting",
+          "kind": "function"
+        },
+        {
+          "path": "tests/features.rs",
           "name": "strict_config_is_not_supported_for_cloud_command",
           "kind": "function"
         },
@@ -4237,6 +4598,11 @@
         {
           "path": "tests/login.rs",
           "name": "logout_clears_only_the_selected_bedrock_provider",
+          "kind": "function"
+        },
+        {
+          "path": "tests/login.rs",
+          "name": "logout_survives_enterprise_cleanup_failure_with_xaa_disabled",
           "kind": "function"
         },
         {
@@ -4356,6 +4722,11 @@
         },
         {
           "path": "tests/mcp_add_remove.rs",
+          "name": "add_rejects_blank_client_credentials_before_saving",
+          "kind": "function"
+        },
+        {
+          "path": "tests/mcp_add_remove.rs",
           "name": "add_streamable_http_rejects_removed_flag",
           "kind": "function"
         },
@@ -4446,6 +4817,16 @@
         },
         {
           "path": "tests/mcp_login.rs",
+          "name": "add_persists_client_secret_for_subsequent_login_without_disclosure",
+          "kind": "function"
+        },
+        {
+          "path": "tests/mcp_login.rs",
+          "name": "assert_no_browser_exchanges_pasted_callback_and_saves_credentials",
+          "kind": "function"
+        },
+        {
+          "path": "tests/mcp_login.rs",
           "name": "Fixture",
           "kind": "type"
         },
@@ -4462,6 +4843,11 @@
         {
           "path": "tests/mcp_login.rs",
           "name": "no_browser_exchanges_pasted_callback_and_saves_credentials",
+          "kind": "function"
+        },
+        {
+          "path": "tests/mcp_login.rs",
+          "name": "no_browser_exchanges_pasted_callback_with_client_secret",
           "kind": "function"
         },
         {
@@ -4816,12 +5202,27 @@
         },
         {
           "path": "tests/queue.rs",
+          "name": "remote_session_commands_validate_config",
+          "kind": "function"
+        },
+        {
+          "path": "tests/queue.rs",
+          "name": "remote_session_commands_with_workload_identity_use_server_auth",
+          "kind": "function"
+        },
+        {
+          "path": "tests/queue.rs",
           "name": "respond_to_queue_request",
           "kind": "function"
         },
         {
           "path": "tests/queue.rs",
           "name": "run_remote_queue_command",
+          "kind": "function"
+        },
+        {
+          "path": "tests/queue.rs",
+          "name": "socket_test_home",
           "kind": "function"
         },
         {
@@ -4850,6 +5251,11 @@
           "kind": "function"
         },
         {
+          "path": "tests/sandbox_uninstall.rs",
+          "name": "uninstall_help_and_invalid_arguments_preserve_user_data",
+          "kind": "function"
+        },
+        {
           "path": "tests/update.rs",
           "name": "codex_command",
           "kind": "function"
@@ -4857,6 +5263,11 @@
         {
           "path": "tests/update.rs",
           "name": "update_does_not_start_interactive_prompt",
+          "kind": "function"
+        },
+        {
+          "path": "tests/worktree.rs",
+          "name": "daemon_worktree_start_and_fork_bind_owner_before_turn",
           "kind": "function"
         },
         {
@@ -4883,9 +5294,1623 @@
           "path": "tests/worktree.rs",
           "name": "TerminalQueries",
           "kind": "type"
+        },
+        {
+          "path": "tests/worktree.rs",
+          "name": "worktree_start_and_fork",
+          "kind": "function"
         }
       ],
-      "treeSha256": "9ed7950a081dbdc6d1b87fd766173d850b1f2fb902df44cca826010d9f6c199f"
+      "treeSha256": "e03aec71281897f17f88be09ef21945ff5dff07cda7f8a9c65e70d224495a3fe"
+    },
+    "codex-rs/exec": {
+      "root": "/Users/coso/Documents/dev/rust/codex/codex-rs/exec",
+      "fileCount": 39,
+      "files": [
+        "BUILD.bazel",
+        "Cargo.toml",
+        "src/cli.rs",
+        "src/cli_tests.rs",
+        "src/daybreak.rs",
+        "src/event_processor.rs",
+        "src/event_processor_with_human_output.rs",
+        "src/event_processor_with_human_output_tests.rs",
+        "src/event_processor_with_jsonl_output.rs",
+        "src/event_processor_with_jsonl_output_tests.rs",
+        "src/exec_events.rs",
+        "src/lib.rs",
+        "src/lib_tests.rs",
+        "src/main.rs",
+        "src/main_tests.rs",
+        "src/worktree.rs",
+        "tests/all.rs",
+        "tests/event_processor_with_json_output.rs",
+        "tests/fixtures/apply_patch_freeform_final.txt",
+        "tests/suite/add_dir.rs",
+        "tests/suite/agents_md.rs",
+        "tests/suite/apply_patch.rs",
+        "tests/suite/approval_policy.rs",
+        "tests/suite/auth_env.rs",
+        "tests/suite/completion_backfill_tests.rs",
+        "tests/suite/cyber_access_program_tests.rs",
+        "tests/suite/daybreak.rs",
+        "tests/suite/ephemeral.rs",
+        "tests/suite/hooks.rs",
+        "tests/suite/mcp_required_exit.rs",
+        "tests/suite/mod.rs",
+        "tests/suite/originator.rs",
+        "tests/suite/output_schema.rs",
+        "tests/suite/prompt_stdin.rs",
+        "tests/suite/resume.rs",
+        "tests/suite/sandbox.rs",
+        "tests/suite/seatbelt.rs",
+        "tests/suite/server_error_exit.rs",
+        "tests/suite/worktree.rs"
+      ],
+      "symbolCount": 312,
+      "symbols": [
+        {
+          "path": "src/cli.rs",
+          "name": "Cli",
+          "kind": "type"
+        },
+        {
+          "path": "src/cli.rs",
+          "name": "Color",
+          "kind": "type"
+        },
+        {
+          "path": "src/cli.rs",
+          "name": "Command",
+          "kind": "type"
+        },
+        {
+          "path": "src/cli.rs",
+          "name": "CyberAccessProgramCliArg",
+          "kind": "type"
+        },
+        {
+          "path": "src/cli.rs",
+          "name": "ExecSharedCliOptions",
+          "kind": "type"
+        },
+        {
+          "path": "src/cli.rs",
+          "name": "ForkArgs",
+          "kind": "type"
+        },
+        {
+          "path": "src/cli.rs",
+          "name": "mark_exec_global_args",
+          "kind": "function"
+        },
+        {
+          "path": "src/cli.rs",
+          "name": "ResumeArgs",
+          "kind": "type"
+        },
+        {
+          "path": "src/cli.rs",
+          "name": "ResumeArgsRaw",
+          "kind": "type"
+        },
+        {
+          "path": "src/cli.rs",
+          "name": "ReviewArgs",
+          "kind": "type"
+        },
+        {
+          "path": "src/cli_tests.rs",
+          "name": "approve_for_me_flag_applies_to_resume_when_passed_at_exec_root",
+          "kind": "function"
+        },
+        {
+          "path": "src/cli_tests.rs",
+          "name": "approve_for_me_flag_conflicts_with_other_sandbox_modes",
+          "kind": "function"
+        },
+        {
+          "path": "src/cli_tests.rs",
+          "name": "fork_parses_prompt_after_global_flags",
+          "kind": "function"
+        },
+        {
+          "path": "src/cli_tests.rs",
+          "name": "parses_config_isolation_flags",
+          "kind": "function"
+        },
+        {
+          "path": "src/cli_tests.rs",
+          "name": "resume_accepts_output_flags_after_subcommand",
+          "kind": "function"
+        },
+        {
+          "path": "src/cli_tests.rs",
+          "name": "resume_parses_prompt_after_global_flags",
+          "kind": "function"
+        },
+        {
+          "path": "src/cli_tests.rs",
+          "name": "worktree_flag_is_accepted_after_fork_subcommand",
+          "kind": "function"
+        },
+        {
+          "path": "src/cli_tests.rs",
+          "name": "worktree_flag_is_accepted_before_fork_subcommand",
+          "kind": "function"
+        },
+        {
+          "path": "src/daybreak.rs",
+          "name": "has_chatgpt_account",
+          "kind": "function"
+        },
+        {
+          "path": "src/daybreak.rs",
+          "name": "program_for_turn",
+          "kind": "function"
+        },
+        {
+          "path": "src/event_processor.rs",
+          "name": "CodexStatus",
+          "kind": "type"
+        },
+        {
+          "path": "src/event_processor.rs",
+          "name": "EventProcessor",
+          "kind": "type"
+        },
+        {
+          "path": "src/event_processor.rs",
+          "name": "handle_last_message",
+          "kind": "function"
+        },
+        {
+          "path": "src/event_processor.rs",
+          "name": "write_last_message_file",
+          "kind": "function"
+        },
+        {
+          "path": "src/event_processor_with_human_output.rs",
+          "name": "blended_total",
+          "kind": "function"
+        },
+        {
+          "path": "src/event_processor_with_human_output.rs",
+          "name": "config_summary_entries",
+          "kind": "function"
+        },
+        {
+          "path": "src/event_processor_with_human_output.rs",
+          "name": "EventProcessorWithHumanOutput",
+          "kind": "type"
+        },
+        {
+          "path": "src/event_processor_with_human_output.rs",
+          "name": "final_message_from_turn_items",
+          "kind": "function"
+        },
+        {
+          "path": "src/event_processor_with_human_output.rs",
+          "name": "reasoning_text",
+          "kind": "function"
+        },
+        {
+          "path": "src/event_processor_with_human_output.rs",
+          "name": "should_print_final_message_to_stdout",
+          "kind": "function"
+        },
+        {
+          "path": "src/event_processor_with_human_output.rs",
+          "name": "should_print_final_message_to_tty",
+          "kind": "function"
+        },
+        {
+          "path": "src/event_processor_with_human_output_tests.rs",
+          "name": "config_summary_entries_include_runtime_workspace_roots",
+          "kind": "function"
+        },
+        {
+          "path": "src/event_processor_with_human_output_tests.rs",
+          "name": "final_message_from_turn_items_falls_back_to_latest_plan",
+          "kind": "function"
+        },
+        {
+          "path": "src/event_processor_with_human_output_tests.rs",
+          "name": "final_message_from_turn_items_uses_latest_agent_message",
+          "kind": "function"
+        },
+        {
+          "path": "src/event_processor_with_human_output_tests.rs",
+          "name": "prints_final_stdout_message_when_stderr_is_not_terminal",
+          "kind": "function"
+        },
+        {
+          "path": "src/event_processor_with_human_output_tests.rs",
+          "name": "prints_final_stdout_message_when_stdout_is_not_terminal",
+          "kind": "function"
+        },
+        {
+          "path": "src/event_processor_with_human_output_tests.rs",
+          "name": "prints_final_tty_message_when_not_yet_rendered",
+          "kind": "function"
+        },
+        {
+          "path": "src/event_processor_with_human_output_tests.rs",
+          "name": "reasoning_text_prefers_summary_when_raw_reasoning_is_hidden",
+          "kind": "function"
+        },
+        {
+          "path": "src/event_processor_with_human_output_tests.rs",
+          "name": "reasoning_text_uses_raw_content_when_enabled",
+          "kind": "function"
+        },
+        {
+          "path": "src/event_processor_with_human_output_tests.rs",
+          "name": "summarizes_disabled_permission_profile_as_danger_full_access",
+          "kind": "function"
+        },
+        {
+          "path": "src/event_processor_with_human_output_tests.rs",
+          "name": "summarizes_external_permission_profile",
+          "kind": "function"
+        },
+        {
+          "path": "src/event_processor_with_human_output_tests.rs",
+          "name": "summarizes_managed_read_only_permission_profile",
+          "kind": "function"
+        },
+        {
+          "path": "src/event_processor_with_human_output_tests.rs",
+          "name": "summarizes_managed_workspace_write_permission_profile",
+          "kind": "function"
+        },
+        {
+          "path": "src/event_processor_with_human_output_tests.rs",
+          "name": "suppresses_final_stdout_message_when_both_streams_are_terminals",
+          "kind": "function"
+        },
+        {
+          "path": "src/event_processor_with_human_output_tests.rs",
+          "name": "suppresses_final_stdout_message_when_missing",
+          "kind": "function"
+        },
+        {
+          "path": "src/event_processor_with_human_output_tests.rs",
+          "name": "suppresses_final_tty_message_when_already_rendered",
+          "kind": "function"
+        },
+        {
+          "path": "src/event_processor_with_human_output_tests.rs",
+          "name": "turn_completed_overwrites_stale_final_message_from_turn_items",
+          "kind": "function"
+        },
+        {
+          "path": "src/event_processor_with_human_output_tests.rs",
+          "name": "turn_completed_preserves_streamed_final_message_when_turn_items_are_empty",
+          "kind": "function"
+        },
+        {
+          "path": "src/event_processor_with_human_output_tests.rs",
+          "name": "turn_completed_recovers_final_message_from_turn_items",
+          "kind": "function"
+        },
+        {
+          "path": "src/event_processor_with_human_output_tests.rs",
+          "name": "turn_failed_clears_stale_final_message",
+          "kind": "function"
+        },
+        {
+          "path": "src/event_processor_with_human_output_tests.rs",
+          "name": "turn_interrupted_clears_stale_final_message",
+          "kind": "function"
+        },
+        {
+          "path": "src/event_processor_with_jsonl_output.rs",
+          "name": "CollectedThreadEvents",
+          "kind": "type"
+        },
+        {
+          "path": "src/event_processor_with_jsonl_output.rs",
+          "name": "EventProcessorWithJsonOutput",
+          "kind": "type"
+        },
+        {
+          "path": "src/event_processor_with_jsonl_output.rs",
+          "name": "RunningTodoList",
+          "kind": "type"
+        },
+        {
+          "path": "src/event_processor_with_jsonl_output_tests.rs",
+          "name": "failed_turn_does_not_overwrite_output_last_message_file",
+          "kind": "function"
+        },
+        {
+          "path": "src/event_processor_with_jsonl_output_tests.rs",
+          "name": "mcp_tool_call_result_preserves_meta_in_jsonl_event",
+          "kind": "function"
+        },
+        {
+          "path": "src/event_processor_with_jsonl_output_tests.rs",
+          "name": "runtime_warning_emits_a_non_fatal_error_item",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec_events.rs",
+          "name": "AgentMessageItem",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec_events.rs",
+          "name": "CollabAgentState",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec_events.rs",
+          "name": "CollabAgentStatus",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec_events.rs",
+          "name": "CollabTool",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec_events.rs",
+          "name": "CollabToolCallItem",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec_events.rs",
+          "name": "CollabToolCallStatus",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec_events.rs",
+          "name": "CommandExecutionItem",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec_events.rs",
+          "name": "CommandExecutionStatus",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec_events.rs",
+          "name": "ErrorItem",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec_events.rs",
+          "name": "FileChangeItem",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec_events.rs",
+          "name": "FileUpdateChange",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec_events.rs",
+          "name": "ItemCompletedEvent",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec_events.rs",
+          "name": "ItemStartedEvent",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec_events.rs",
+          "name": "ItemUpdatedEvent",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec_events.rs",
+          "name": "McpToolCallItem",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec_events.rs",
+          "name": "McpToolCallItemError",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec_events.rs",
+          "name": "McpToolCallItemResult",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec_events.rs",
+          "name": "McpToolCallStatus",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec_events.rs",
+          "name": "PatchApplyStatus",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec_events.rs",
+          "name": "PatchChangeKind",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec_events.rs",
+          "name": "ReasoningItem",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec_events.rs",
+          "name": "ThreadErrorEvent",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec_events.rs",
+          "name": "ThreadEvent",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec_events.rs",
+          "name": "ThreadItem",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec_events.rs",
+          "name": "ThreadItemDetails",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec_events.rs",
+          "name": "ThreadStartedEvent",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec_events.rs",
+          "name": "TodoItem",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec_events.rs",
+          "name": "TodoListItem",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec_events.rs",
+          "name": "TurnCompletedEvent",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec_events.rs",
+          "name": "TurnFailedEvent",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec_events.rs",
+          "name": "TurnStartedEvent",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec_events.rs",
+          "name": "Usage",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec_events.rs",
+          "name": "WebSearchItem",
+          "kind": "type"
+        },
+        {
+          "path": "src/lib.rs",
+          "name": "all_thread_source_kinds",
+          "kind": "function"
+        },
+        {
+          "path": "src/lib.rs",
+          "name": "build_exec_config",
+          "kind": "function"
+        },
+        {
+          "path": "src/lib.rs",
+          "name": "build_review_request",
+          "kind": "function"
+        },
+        {
+          "path": "src/lib.rs",
+          "name": "canceled_mcp_server_elicitation_response",
+          "kind": "function"
+        },
+        {
+          "path": "src/lib.rs",
+          "name": "cwds_match",
+          "kind": "function"
+        },
+        {
+          "path": "src/lib.rs",
+          "name": "decode_prompt_bytes",
+          "kind": "function"
+        },
+        {
+          "path": "src/lib.rs",
+          "name": "decode_utf16",
+          "kind": "function"
+        },
+        {
+          "path": "src/lib.rs",
+          "name": "exec_root_span",
+          "kind": "function"
+        },
+        {
+          "path": "src/lib.rs",
+          "name": "exec_stderr_env_filter",
+          "kind": "function"
+        },
+        {
+          "path": "src/lib.rs",
+          "name": "ExecRunArgs",
+          "kind": "type"
+        },
+        {
+          "path": "src/lib.rs",
+          "name": "handle_server_request",
+          "kind": "function"
+        },
+        {
+          "path": "src/lib.rs",
+          "name": "InitialOperation",
+          "kind": "type"
+        },
+        {
+          "path": "src/lib.rs",
+          "name": "lagged_event_warning_message",
+          "kind": "function"
+        },
+        {
+          "path": "src/lib.rs",
+          "name": "latest_thread_cwd",
+          "kind": "function"
+        },
+        {
+          "path": "src/lib.rs",
+          "name": "load_bootstrap_config_or_exit",
+          "kind": "function"
+        },
+        {
+          "path": "src/lib.rs",
+          "name": "load_output_schema",
+          "kind": "function"
+        },
+        {
+          "path": "src/lib.rs",
+          "name": "ManagedExecWorktree",
+          "kind": "type"
+        },
+        {
+          "path": "src/lib.rs",
+          "name": "maybe_backfill_turn_completed_items",
+          "kind": "function"
+        },
+        {
+          "path": "src/lib.rs",
+          "name": "parse_latest_turn_context_cwd",
+          "kind": "function"
+        },
+        {
+          "path": "src/lib.rs",
+          "name": "permission_profile_id_from_active_profile",
+          "kind": "function"
+        },
+        {
+          "path": "src/lib.rs",
+          "name": "permissions_selection_from_config",
+          "kind": "function"
+        },
+        {
+          "path": "src/lib.rs",
+          "name": "prompt_with_stdin_context",
+          "kind": "function"
+        },
+        {
+          "path": "src/lib.rs",
+          "name": "PromptDecodeError",
+          "kind": "type"
+        },
+        {
+          "path": "src/lib.rs",
+          "name": "read_prompt_from_stdin",
+          "kind": "function"
+        },
+        {
+          "path": "src/lib.rs",
+          "name": "reject_server_request",
+          "kind": "function"
+        },
+        {
+          "path": "src/lib.rs",
+          "name": "request_shutdown",
+          "kind": "function"
+        },
+        {
+          "path": "src/lib.rs",
+          "name": "RequestIdSequencer",
+          "kind": "type"
+        },
+        {
+          "path": "src/lib.rs",
+          "name": "resolve_prompt",
+          "kind": "function"
+        },
+        {
+          "path": "src/lib.rs",
+          "name": "resolve_resume_thread_id",
+          "kind": "function"
+        },
+        {
+          "path": "src/lib.rs",
+          "name": "resolve_root_prompt",
+          "kind": "function"
+        },
+        {
+          "path": "src/lib.rs",
+          "name": "resolve_server_request",
+          "kind": "function"
+        },
+        {
+          "path": "src/lib.rs",
+          "name": "resume_lookup_model_providers",
+          "kind": "function"
+        },
+        {
+          "path": "src/lib.rs",
+          "name": "review_target_to_api",
+          "kind": "function"
+        },
+        {
+          "path": "src/lib.rs",
+          "name": "run_exec_session",
+          "kind": "function"
+        },
+        {
+          "path": "src/lib.rs",
+          "name": "run_main",
+          "kind": "function"
+        },
+        {
+          "path": "src/lib.rs",
+          "name": "sandbox_mode_from_permission_profile",
+          "kind": "function"
+        },
+        {
+          "path": "src/lib.rs",
+          "name": "send_request_with_response",
+          "kind": "function"
+        },
+        {
+          "path": "src/lib.rs",
+          "name": "server_request_method_name",
+          "kind": "function"
+        },
+        {
+          "path": "src/lib.rs",
+          "name": "session_configured_from_thread_response",
+          "kind": "function"
+        },
+        {
+          "path": "src/lib.rs",
+          "name": "session_configured_from_thread_resume_response",
+          "kind": "function"
+        },
+        {
+          "path": "src/lib.rs",
+          "name": "session_configured_from_thread_start_response",
+          "kind": "function"
+        },
+        {
+          "path": "src/lib.rs",
+          "name": "should_backfill_turn_completed_items",
+          "kind": "function"
+        },
+        {
+          "path": "src/lib.rs",
+          "name": "should_process_notification",
+          "kind": "function"
+        },
+        {
+          "path": "src/lib.rs",
+          "name": "start_thread",
+          "kind": "function"
+        },
+        {
+          "path": "src/lib.rs",
+          "name": "StdinPromptBehavior",
+          "kind": "type"
+        },
+        {
+          "path": "src/lib.rs",
+          "name": "thread_config_overrides_from_config",
+          "kind": "function"
+        },
+        {
+          "path": "src/lib.rs",
+          "name": "thread_resume_params_from_config",
+          "kind": "function"
+        },
+        {
+          "path": "src/lib.rs",
+          "name": "thread_start_params_from_config",
+          "kind": "function"
+        },
+        {
+          "path": "src/lib.rs",
+          "name": "turn_items_for_thread",
+          "kind": "function"
+        },
+        {
+          "path": "src/lib_tests.rs",
+          "name": "active_profile_selection_uses_profile_id_only",
+          "kind": "function"
+        },
+        {
+          "path": "src/lib_tests.rs",
+          "name": "build_exec_config_preserves_headless_error_when_retry_fails",
+          "kind": "function"
+        },
+        {
+          "path": "src/lib_tests.rs",
+          "name": "build_exec_config_retries_without_invalid_headless_policy_for_auto_review",
+          "kind": "function"
+        },
+        {
+          "path": "src/lib_tests.rs",
+          "name": "builds_commit_review_request_with_title",
+          "kind": "function"
+        },
+        {
+          "path": "src/lib_tests.rs",
+          "name": "builds_custom_review_request_trims_prompt",
+          "kind": "function"
+        },
+        {
+          "path": "src/lib_tests.rs",
+          "name": "builds_uncommitted_review_request",
+          "kind": "function"
+        },
+        {
+          "path": "src/lib_tests.rs",
+          "name": "canceled_mcp_server_elicitation_response_uses_cancel_action",
+          "kind": "function"
+        },
+        {
+          "path": "src/lib_tests.rs",
+          "name": "decode_prompt_bytes_decodes_utf16be_bom",
+          "kind": "function"
+        },
+        {
+          "path": "src/lib_tests.rs",
+          "name": "decode_prompt_bytes_decodes_utf16le_bom",
+          "kind": "function"
+        },
+        {
+          "path": "src/lib_tests.rs",
+          "name": "decode_prompt_bytes_rejects_invalid_utf8",
+          "kind": "function"
+        },
+        {
+          "path": "src/lib_tests.rs",
+          "name": "decode_prompt_bytes_rejects_utf32be_bom",
+          "kind": "function"
+        },
+        {
+          "path": "src/lib_tests.rs",
+          "name": "decode_prompt_bytes_rejects_utf32le_bom",
+          "kind": "function"
+        },
+        {
+          "path": "src/lib_tests.rs",
+          "name": "decode_prompt_bytes_strips_utf8_bom",
+          "kind": "function"
+        },
+        {
+          "path": "src/lib_tests.rs",
+          "name": "exec_default_stderr_filter_suppresses_otel_self_diagnostics",
+          "kind": "function"
+        },
+        {
+          "path": "src/lib_tests.rs",
+          "name": "exec_root_span_can_be_parented_from_trace_context",
+          "kind": "function"
+        },
+        {
+          "path": "src/lib_tests.rs",
+          "name": "lagged_event_warning_message_is_explicit",
+          "kind": "function"
+        },
+        {
+          "path": "src/lib_tests.rs",
+          "name": "prompt_with_stdin_context_preserves_trailing_newline",
+          "kind": "function"
+        },
+        {
+          "path": "src/lib_tests.rs",
+          "name": "prompt_with_stdin_context_wraps_stdin_block",
+          "kind": "function"
+        },
+        {
+          "path": "src/lib_tests.rs",
+          "name": "resume_lookup_model_providers_filters_only_last_lookup",
+          "kind": "function"
+        },
+        {
+          "path": "src/lib_tests.rs",
+          "name": "runtime_warnings_are_filtered_to_the_primary_thread",
+          "kind": "function"
+        },
+        {
+          "path": "src/lib_tests.rs",
+          "name": "sample_thread_start_response",
+          "kind": "function"
+        },
+        {
+          "path": "src/lib_tests.rs",
+          "name": "session_configured_from_thread_response_preserves_parent_thread_id",
+          "kind": "function"
+        },
+        {
+          "path": "src/lib_tests.rs",
+          "name": "session_configured_from_thread_response_preserves_thread_source",
+          "kind": "function"
+        },
+        {
+          "path": "src/lib_tests.rs",
+          "name": "session_configured_from_thread_response_uses_permission_profile_from_config",
+          "kind": "function"
+        },
+        {
+          "path": "src/lib_tests.rs",
+          "name": "session_configured_from_thread_response_uses_review_policy_from_response",
+          "kind": "function"
+        },
+        {
+          "path": "src/lib_tests.rs",
+          "name": "should_backfill_turn_completed_items_backfills_persisted_summaries_only",
+          "kind": "function"
+        },
+        {
+          "path": "src/lib_tests.rs",
+          "name": "test_tracing_subscriber",
+          "kind": "function"
+        },
+        {
+          "path": "src/lib_tests.rs",
+          "name": "TestLogSink",
+          "kind": "type"
+        },
+        {
+          "path": "src/lib_tests.rs",
+          "name": "TestLogWriter",
+          "kind": "type"
+        },
+        {
+          "path": "src/lib_tests.rs",
+          "name": "thread_lifecycle_params_include_legacy_sandbox_when_no_active_profile",
+          "kind": "function"
+        },
+        {
+          "path": "src/lib_tests.rs",
+          "name": "thread_lifecycle_params_preserve_hook_trust_bypass",
+          "kind": "function"
+        },
+        {
+          "path": "src/lib_tests.rs",
+          "name": "thread_resume_params_only_include_explicit_review_policy_override",
+          "kind": "function"
+        },
+        {
+          "path": "src/lib_tests.rs",
+          "name": "thread_start_params_include_review_policy_when_auto_review_is_enabled",
+          "kind": "function"
+        },
+        {
+          "path": "src/lib_tests.rs",
+          "name": "thread_start_params_include_review_policy_when_review_policy_is_manual_only",
+          "kind": "function"
+        },
+        {
+          "path": "src/lib_tests.rs",
+          "name": "thread_start_params_match_history_to_persistence",
+          "kind": "function"
+        },
+        {
+          "path": "src/lib_tests.rs",
+          "name": "turn_items_for_thread_returns_matching_turn_items",
+          "kind": "function"
+        },
+        {
+          "path": "src/main.rs",
+          "name": "main",
+          "kind": "function"
+        },
+        {
+          "path": "src/main.rs",
+          "name": "TopCli",
+          "kind": "type"
+        },
+        {
+          "path": "src/main_tests.rs",
+          "name": "top_cli_parses_resume_prompt_after_config_flag",
+          "kind": "function"
+        },
+        {
+          "path": "src/worktree.rs",
+          "name": "fork_source",
+          "kind": "function"
+        },
+        {
+          "path": "src/worktree.rs",
+          "name": "ForkNetwork",
+          "kind": "type"
+        },
+        {
+          "path": "tests/event_processor_with_json_output.rs",
+          "name": "agent_message_item_started_is_ignored",
+          "kind": "function"
+        },
+        {
+          "path": "tests/event_processor_with_json_output.rs",
+          "name": "agent_message_item_updates_final_message",
+          "kind": "function"
+        },
+        {
+          "path": "tests/event_processor_with_json_output.rs",
+          "name": "collab_spawn_begin_and_end_emit_item_events",
+          "kind": "function"
+        },
+        {
+          "path": "tests/event_processor_with_json_output.rs",
+          "name": "command_execution_started_and_completed_translate_to_thread_events",
+          "kind": "function"
+        },
+        {
+          "path": "tests/event_processor_with_json_output.rs",
+          "name": "empty_reasoning_items_are_ignored",
+          "kind": "function"
+        },
+        {
+          "path": "tests/event_processor_with_json_output.rs",
+          "name": "failed_turn_clears_stale_final_message",
+          "kind": "function"
+        },
+        {
+          "path": "tests/event_processor_with_json_output.rs",
+          "name": "file_change_completion_maps_change_kinds",
+          "kind": "function"
+        },
+        {
+          "path": "tests/event_processor_with_json_output.rs",
+          "name": "file_change_declined_maps_to_failed_status",
+          "kind": "function"
+        },
+        {
+          "path": "tests/event_processor_with_json_output.rs",
+          "name": "map_todo_items_preserves_text_and_completion_state",
+          "kind": "function"
+        },
+        {
+          "path": "tests/event_processor_with_json_output.rs",
+          "name": "mcp_tool_call_begin_and_end_emit_item_events",
+          "kind": "function"
+        },
+        {
+          "path": "tests/event_processor_with_json_output.rs",
+          "name": "mcp_tool_call_defaults_arguments_and_preserves_structured_content",
+          "kind": "function"
+        },
+        {
+          "path": "tests/event_processor_with_json_output.rs",
+          "name": "mcp_tool_call_failure_sets_failed_status",
+          "kind": "function"
+        },
+        {
+          "path": "tests/event_processor_with_json_output.rs",
+          "name": "model_reroute_surfaces_as_error_item",
+          "kind": "function"
+        },
+        {
+          "path": "tests/event_processor_with_json_output.rs",
+          "name": "plan_update_after_completion_starts_new_todo_list_with_new_id",
+          "kind": "function"
+        },
+        {
+          "path": "tests/event_processor_with_json_output.rs",
+          "name": "plan_update_emits_started_then_updated_then_completed",
+          "kind": "function"
+        },
+        {
+          "path": "tests/event_processor_with_json_output.rs",
+          "name": "reasoning_item_completed_uses_synthetic_id",
+          "kind": "function"
+        },
+        {
+          "path": "tests/event_processor_with_json_output.rs",
+          "name": "reasoning_items_emit_summary_not_raw_content",
+          "kind": "function"
+        },
+        {
+          "path": "tests/event_processor_with_json_output.rs",
+          "name": "session_configured_produces_thread_started_event",
+          "kind": "function"
+        },
+        {
+          "path": "tests/event_processor_with_json_output.rs",
+          "name": "token_usage_update_is_emitted_on_turn_completion",
+          "kind": "function"
+        },
+        {
+          "path": "tests/event_processor_with_json_output.rs",
+          "name": "turn_completion_falls_back_to_final_plan_text",
+          "kind": "function"
+        },
+        {
+          "path": "tests/event_processor_with_json_output.rs",
+          "name": "turn_completion_overwrites_stale_final_message_from_turn_items",
+          "kind": "function"
+        },
+        {
+          "path": "tests/event_processor_with_json_output.rs",
+          "name": "turn_completion_preserves_streamed_final_message_when_turn_items_are_empty",
+          "kind": "function"
+        },
+        {
+          "path": "tests/event_processor_with_json_output.rs",
+          "name": "turn_completion_reconciles_started_items_from_turn_items",
+          "kind": "function"
+        },
+        {
+          "path": "tests/event_processor_with_json_output.rs",
+          "name": "turn_completion_recovers_final_message_from_turn_items",
+          "kind": "function"
+        },
+        {
+          "path": "tests/event_processor_with_json_output.rs",
+          "name": "turn_failure_prefers_structured_error_message",
+          "kind": "function"
+        },
+        {
+          "path": "tests/event_processor_with_json_output.rs",
+          "name": "turn_started_emits_turn_started_event",
+          "kind": "function"
+        },
+        {
+          "path": "tests/event_processor_with_json_output.rs",
+          "name": "unsupported_items_do_not_consume_synthetic_ids",
+          "kind": "function"
+        },
+        {
+          "path": "tests/event_processor_with_json_output.rs",
+          "name": "warning_event_produces_error_item",
+          "kind": "function"
+        },
+        {
+          "path": "tests/event_processor_with_json_output.rs",
+          "name": "web_search_completion_preserves_query_and_action",
+          "kind": "function"
+        },
+        {
+          "path": "tests/event_processor_with_json_output.rs",
+          "name": "web_search_page_actions_and_results_survive_json_output",
+          "kind": "function"
+        },
+        {
+          "path": "tests/event_processor_with_json_output.rs",
+          "name": "web_search_start_and_completion_reuse_item_id",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/add_dir.rs",
+          "name": "accepts_add_dir_flag",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/add_dir.rs",
+          "name": "accepts_multiple_add_dir_flags",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/agents_md.rs",
+          "name": "exec_includes_workspace_agents_md_in_request",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/agents_md.rs",
+          "name": "exec_prefers_workspace_agents_override_md",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/apply_patch.rs",
+          "name": "shutdown_flushes_completed_turn_and_file_diff",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/apply_patch.rs",
+          "name": "test_apply_patch_freeform_tool",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/apply_patch.rs",
+          "name": "test_apply_patch_tool",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/apply_patch.rs",
+          "name": "test_standalone_exec_cli_can_use_apply_patch",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/approval_policy.rs",
+          "name": "exec_approve_for_me_flag_sets_approval_mode_and_sandbox",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/approval_policy.rs",
+          "name": "exec_bypass_preserves_never_for_auto_review_config",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/approval_policy.rs",
+          "name": "exec_preserves_on_request_for_auto_review_config",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/approval_policy.rs",
+          "name": "run_exec_with_auto_review_config",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/approval_policy.rs",
+          "name": "run_exec_with_config",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/auth_env.rs",
+          "name": "exec_api_key_cannot_discard_stored_workspace_network_policy",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/auth_env.rs",
+          "name": "exec_bootstrap_rejects_redirected_oauth_and_cloud_policy",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/auth_env.rs",
+          "name": "exec_uses_codex_api_key_env_var",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/completion_backfill_tests.rs",
+          "name": "body_contains",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/completion_backfill_tests.rs",
+          "name": "ignores_unrelated_turn_completion_before_backfilling_primary_turn",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/cyber_access_program_tests.rs",
+          "name": "cyber_access_program_is_selected_per_turn",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/cyber_access_program_tests.rs",
+          "name": "cyber_access_program_requires_a_supported_turn",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/daybreak.rs",
+          "name": "configured_daybreak_exec",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/daybreak.rs",
+          "name": "exec_explicit_cyber_program_overrides_daybreak_for_one_turn",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/daybreak.rs",
+          "name": "exec_rejects_daybreak_for_api_keys_and_allows_an_override",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/daybreak.rs",
+          "name": "exec_rejects_daybreak_for_non_openai_provider",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/daybreak.rs",
+          "name": "exec_resume_override_does_not_change_a_standard_thread",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/daybreak.rs",
+          "name": "exec_resumes_and_forks_the_saved_daybreak_choice",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/daybreak.rs",
+          "name": "started_thread",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/ephemeral.rs",
+          "name": "does_not_persist_rollout_file_in_ephemeral_mode",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/ephemeral.rs",
+          "name": "exec_sse_response",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/ephemeral.rs",
+          "name": "persists_rollout_file_by_default",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/ephemeral.rs",
+          "name": "session_rollout_count",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/hooks.rs",
+          "name": "exec_hook_trust_bypass_runs_session_start_hook",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/mcp_required_exit.rs",
+          "name": "exits_non_zero_when_required_mcp_server_fails_to_initialize",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/originator.rs",
+          "name": "send_codex_exec_originator",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/originator.rs",
+          "name": "supports_originator_override",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/output_schema.rs",
+          "name": "exec_includes_output_schema_in_request",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/prompt_stdin.rs",
+          "name": "exec_appends_piped_stdin_to_prompt_argument",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/prompt_stdin.rs",
+          "name": "exec_dash_prompt_reads_stdin_as_the_prompt",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/prompt_stdin.rs",
+          "name": "exec_dash_prompt_rejects_empty_piped_stdin",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/prompt_stdin.rs",
+          "name": "exec_ignores_empty_piped_stdin_when_prompt_argument_is_present",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/prompt_stdin.rs",
+          "name": "exec_without_prompt_argument_reads_piped_stdin_as_the_prompt",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/prompt_stdin.rs",
+          "name": "exec_without_prompt_argument_rejects_empty_piped_stdin",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/resume.rs",
+          "name": "exec_falls_back_to_legacy_history_when_thread_store_cannot_paginate",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/resume.rs",
+          "name": "exec_fork_creates_distinct_threads_with_and_without_a_prompt",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/resume.rs",
+          "name": "exec_repo_root",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/resume.rs",
+          "name": "exec_resume_accepts_global_flags_after_subcommand",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/resume.rs",
+          "name": "exec_resume_accepts_images_after_subcommand",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/resume.rs",
+          "name": "exec_resume_by_id_appends_to_existing_file",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/resume.rs",
+          "name": "exec_resume_includes_output_schema_in_request",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/resume.rs",
+          "name": "exec_resume_last_accepts_prompt_after_flag_in_json_mode",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/resume.rs",
+          "name": "exec_resume_last_appends_to_existing_file",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/resume.rs",
+          "name": "exec_resume_last_repairs_rollout_missing_from_state_db",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/resume.rs",
+          "name": "exec_resume_last_respects_cwd_filter_and_all_flag",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/resume.rs",
+          "name": "exec_resume_last_skips_mismatched_state_db_candidate",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/resume.rs",
+          "name": "exec_resume_last_trusts_usable_state_db_candidate",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/resume.rs",
+          "name": "exec_resume_preserves_cli_configuration_overrides",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/resume.rs",
+          "name": "exec_sse_response",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/resume.rs",
+          "name": "extract_conversation_id",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/resume.rs",
+          "name": "find_session_file_containing_marker",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/resume.rs",
+          "name": "last_user_image_count",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/resume.rs",
+          "name": "mount_exec_responses",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/sandbox.rs",
+          "name": "allow_unix_socketpair_recvfrom",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/sandbox.rs",
+          "name": "can_apply_linux_sandbox_policy",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/sandbox.rs",
+          "name": "linux_sandbox_test_env",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/sandbox.rs",
+          "name": "python_getpwuid_works_under_sandbox",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/sandbox.rs",
+          "name": "python_multiprocessing_lock_works_under_sandbox",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/sandbox.rs",
+          "name": "run_code_under_sandbox",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/sandbox.rs",
+          "name": "sandbox_blocks_first_time_dot_codex_creation",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/sandbox.rs",
+          "name": "sandbox_distinguishes_command_and_policy_cwds",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/sandbox.rs",
+          "name": "spawn_command_under_sandbox",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/sandbox.rs",
+          "name": "unix_sock_body",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/seatbelt.rs",
+          "name": "assert_denied_read",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/seatbelt.rs",
+          "name": "assert_file_contents",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/seatbelt.rs",
+          "name": "codex_home_symlink_opt_out_uses_loaded_user_config",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/seatbelt.rs",
+          "name": "denied_glob_profile",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/seatbelt.rs",
+          "name": "permission_profile",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/seatbelt.rs",
+          "name": "run_after_policy_applied",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/seatbelt.rs",
+          "name": "run_path_command",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/seatbelt.rs",
+          "name": "run_sandboxed_command",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/seatbelt.rs",
+          "name": "run_shell_command",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/seatbelt.rs",
+          "name": "seatbelt_ancestor_protection_does_not_block_unlinking_regular_files",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/seatbelt.rs",
+          "name": "seatbelt_blocks_atomic_rename_exchange_and_destination_replacement",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/seatbelt.rs",
+          "name": "seatbelt_blocks_creating_files_matched_by_denied_globs",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/seatbelt.rs",
+          "name": "seatbelt_blocks_protected_ancestor_moves_across_writable_roots",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/seatbelt.rs",
+          "name": "seatbelt_blocks_protected_reads_and_writes_through_symlink_aliases",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/seatbelt.rs",
+          "name": "seatbelt_blocks_renaming_ancestors_of_explicit_protected_files",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/seatbelt.rs",
+          "name": "seatbelt_blocks_renaming_dynamic_glob_ancestors",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/seatbelt.rs",
+          "name": "seatbelt_blocks_renaming_protected_workspace_into_another_writable_root",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/seatbelt.rs",
+          "name": "seatbelt_brace_alternatives_with_slashes_protect_each_branch",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/seatbelt.rs",
+          "name": "seatbelt_deny_globs_block_writes_to_existing_and_new_files",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/seatbelt.rs",
+          "name": "seatbelt_enforces_brace_alternation_and_escaped_deny_globs",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/seatbelt.rs",
+          "name": "seatbelt_globstar_protects_files_and_ancestors_at_every_depth",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/seatbelt.rs",
+          "name": "seatbelt_protects_directory_trees_created_after_policy_application",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/seatbelt.rs",
+          "name": "seatbelt_standard_profiles_preserve_expected_filesystem_access",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/seatbelt.rs",
+          "name": "workspace_fixture",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/server_error_exit.rs",
+          "name": "exits_non_zero_when_server_reports_error",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/worktree.rs",
+          "name": "git",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/worktree.rs",
+          "name": "started_thread",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/worktree.rs",
+          "name": "worktree_rejects_disabled_features_and_ignored_config_before_allocation",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/worktree.rs",
+          "name": "worktree_rejects_remote_defaults_before_allocation",
+          "kind": "function"
+        },
+        {
+          "path": "tests/suite/worktree.rs",
+          "name": "worktree_start_and_fork_use_host_pool_and_preserve_legacy_resume",
+          "kind": "function"
+        }
+      ],
+      "treeSha256": "3eb92ba7aa9b05970a920943dafb65abc5defd8beb0ee0b380212e9f9f000b41"
     },
     "codex-rs/execpolicy": {
       "root": "/Users/coso/Documents/dev/rust/codex/codex-rs/execpolicy",
@@ -5528,10 +7553,29 @@
     },
     "lime-rs/crates/cli": {
       "root": "/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/crates/cli",
-      "fileCount": 11,
+      "fileCount": 30,
       "files": [
         "Cargo.toml",
         "src/debug_sandbox.rs",
+        "src/exec.rs",
+        "src/exec/cli.rs",
+        "src/exec/cli_tests.rs",
+        "src/exec/event_processor.rs",
+        "src/exec/event_processor_tests.rs",
+        "src/exec/event_processor_with_human_output.rs",
+        "src/exec/event_processor_with_human_output_tests.rs",
+        "src/exec/event_processor_with_jsonl_output.rs",
+        "src/exec/event_processor_with_jsonl_output/items.rs",
+        "src/exec/event_processor_with_jsonl_output_tests.rs",
+        "src/exec/exec_events.rs",
+        "src/exec/exec_events_tests.rs",
+        "src/exec/locale.rs",
+        "src/exec/prompt.rs",
+        "src/exec/prompt_tests.rs",
+        "src/exec/server_requests.rs",
+        "src/exec/server_requests_tests.rs",
+        "src/exec/thread.rs",
+        "src/exec/thread_tests.rs",
         "src/exit_status.rs",
         "src/lib.rs",
         "src/main.rs",
@@ -5542,7 +7586,7 @@
         "src/wsl_paths.rs",
         "tests/execpolicy.rs"
       ],
-      "symbolCount": 158,
+      "symbolCount": 316,
       "symbols": [
         {
           "path": "src/debug_sandbox.rs",
@@ -5625,6 +7669,791 @@
           "kind": "type"
         },
         {
+          "path": "src/exec.rs",
+          "name": "execute",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec.rs",
+          "name": "InitialOperation",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec.rs",
+          "name": "run",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec.rs",
+          "name": "validate_model_route",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/cli.rs",
+          "name": "Color",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec/cli.rs",
+          "name": "Command",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec/cli.rs",
+          "name": "ExecCli",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec/cli.rs",
+          "name": "ExecSharedCliOptions",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec/cli.rs",
+          "name": "ForkArgs",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec/cli.rs",
+          "name": "mark_exec_global_args",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/cli.rs",
+          "name": "ResumeArgs",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec/cli.rs",
+          "name": "ResumeArgsRaw",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec/cli.rs",
+          "name": "ReviewArgs",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec/cli_tests.rs",
+          "name": "auto_color_requires_capable_tty_and_explicit_modes_override_environment",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/cli_tests.rs",
+          "name": "exec_color_and_locale_leave_quoted_prompt_and_connection_intact",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/cli_tests.rs",
+          "name": "fork_requires_source_and_keeps_optional_prompt_and_child_overrides",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/cli_tests.rs",
+          "name": "images_use_single_argument_comma_lists_and_accumulate_across_exec_levels",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/cli_tests.rs",
+          "name": "output_schema_is_global_across_root_resume_and_fork",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/cli_tests.rs",
+          "name": "parse",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/cli_tests.rs",
+          "name": "resume_last_reinterprets_single_positional_and_keeps_explicit_second_prompt",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/cli_tests.rs",
+          "name": "resume_options_before_and_after_subcommand_use_one_global_contract",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/cli_tests.rs",
+          "name": "resume_permissions_and_transport_do_not_bypass_conflict_checks",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/cli_tests.rs",
+          "name": "review_args_match_codex_targets_and_global_output_options",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/cli_tests.rs",
+          "name": "review_targets_conflict_and_title_requires_commit",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/event_processor.rs",
+          "name": "AgentText",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec/event_processor.rs",
+          "name": "EventProcessor",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec/event_processor.rs",
+          "name": "ExecResult",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec/event_processor.rs",
+          "name": "final_answer_from_items",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/event_processor.rs",
+          "name": "handle_last_message",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/event_processor.rs",
+          "name": "OutputProcessor",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec/event_processor_tests.rs",
+          "name": "canonical_item_order_wins_over_notification_arrival_order",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/event_processor_tests.rs",
+          "name": "commentary_is_not_a_final_answer_and_plan_is_a_terminal_fallback",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/event_processor_tests.rs",
+          "name": "completed_reasoning_matrix_keeps_human_output_out_of_final_answer",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/event_processor_tests.rs",
+          "name": "failed_and_interrupted_turns_discard_partial_answer_without_synthetic_completion",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/event_processor_tests.rs",
+          "name": "failed_and_interrupted_turns_preserve_last_message_file_and_write_errors_propagate",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/event_processor_tests.rs",
+          "name": "invalid_shared_reasoning_flags_fail_closed",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/event_processor_tests.rs",
+          "name": "item_completed",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/event_processor_tests.rs",
+          "name": "last_message_file_uses_canonical_final_answer_in_both_output_modes",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/event_processor_tests.rs",
+          "name": "message",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/event_processor_tests.rs",
+          "name": "notification",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/event_processor_tests.rs",
+          "name": "other_thread_or_turn_cannot_emit_reasoning_or_finish_current_turn",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/event_processor_tests.rs",
+          "name": "processor",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/event_processor_tests.rs",
+          "name": "raw_enabled_with_no_content_falls_back_to_summary",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/event_processor_tests.rs",
+          "name": "reasoning",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/event_processor_tests.rs",
+          "name": "terminal",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/event_processor_tests.rs",
+          "name": "terminal_snapshot_repairs_stream_and_late_delta_cannot_reopen_completed_item",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/event_processor_with_human_output.rs",
+          "name": "blended_total",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/event_processor_with_human_output.rs",
+          "name": "EventProcessorWithHumanOutput",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec/event_processor_with_human_output.rs",
+          "name": "format_with_separators",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/event_processor_with_human_output.rs",
+          "name": "ReasoningPolicy",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec/event_processor_with_human_output.rs",
+          "name": "should_print_final_message_to_stdout",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/event_processor_with_human_output_tests.rs",
+          "name": "blended_tokens_exclude_cached_input_and_saturate_malformed_counters",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/event_processor_with_human_output_tests.rs",
+          "name": "command",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/event_processor_with_human_output_tests.rs",
+          "name": "command_start_result_and_output_are_visible_once_across_notifications_and_snapshot",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/event_processor_with_human_output_tests.rs",
+          "name": "every_scoped_output_ignores_foreign_thread_and_foreign_turn",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/event_processor_with_human_output_tests.rs",
+          "name": "explicit_ansi_styles_labels_without_changing_canonical_output",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/event_processor_with_human_output_tests.rs",
+          "name": "failed_and_interrupted_turns_report_diagnostics_and_never_print_partial_snapshot",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/event_processor_with_human_output_tests.rs",
+          "name": "final_answer_uses_stdout_when_either_stream_is_redirected",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/event_processor_with_human_output_tests.rs",
+          "name": "five_locales_keep_user_content",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/event_processor_with_human_output_tests.rs",
+          "name": "human",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/event_processor_with_human_output_tests.rs",
+          "name": "item_notification",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/event_processor_with_human_output_tests.rs",
+          "name": "notification",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/event_processor_with_human_output_tests.rs",
+          "name": "patch_mcp_search_compaction_and_collab_use_typed_current_items",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/event_processor_with_human_output_tests.rs",
+          "name": "plan_diff_warning_errors_and_latest_usage_do_not_become_final_stdout",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/event_processor_with_human_output_tests.rs",
+          "name": "snapshot_only_command_keeps_identity_and_all_result_statuses",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/event_processor_with_human_output_tests.rs",
+          "name": "terminal",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/event_processor_with_human_output_tests.rs",
+          "name": "usage",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/event_processor_with_jsonl_output.rs",
+          "name": "emit",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/event_processor_with_jsonl_output.rs",
+          "name": "EventProcessorWithJsonOutput",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec/event_processor_with_jsonl_output.rs",
+          "name": "RunningTodoList",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec/event_processor_with_jsonl_output.rs",
+          "name": "TrackedItem",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec/event_processor_with_jsonl_output.rs",
+          "name": "with_details",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/event_processor_with_jsonl_output/items.rs",
+          "name": "map_item",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/event_processor_with_jsonl_output_tests.rs",
+          "name": "command",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/event_processor_with_jsonl_output_tests.rs",
+          "name": "command_lifecycle_uses_one_display_id_and_snapshot_repairs_without_reopening",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/event_processor_with_jsonl_output_tests.rs",
+          "name": "events",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/event_processor_with_jsonl_output_tests.rs",
+          "name": "every_event_flushes_and_write_failures_propagate",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/event_processor_with_jsonl_output_tests.rs",
+          "name": "failed_and_interrupted_turns_do_not_emit_success_or_partial_answers",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/event_processor_with_jsonl_output_tests.rs",
+          "name": "foreign_notifications_cannot_change_output_item_numbering_or_usage",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/event_processor_with_jsonl_output_tests.rs",
+          "name": "item_notification",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/event_processor_with_jsonl_output_tests.rs",
+          "name": "notification",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/event_processor_with_jsonl_output_tests.rs",
+          "name": "raw_only_reasoning_never_becomes_machine_output_and_plan_text_is_preserved",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/event_processor_with_jsonl_output_tests.rs",
+          "name": "terminal",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/event_processor_with_jsonl_output_tests.rs",
+          "name": "terminal_backfills_missing_items_and_reasoning_only_contains_summary",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/event_processor_with_jsonl_output_tests.rs",
+          "name": "todo_updates_keep_id_and_usage_uses_latest_total_including_cache_write",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/event_processor_with_jsonl_output_tests.rs",
+          "name": "typed_tool_lowering_keeps_payloads_and_closes_web_actions",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/exec_events.rs",
+          "name": "AgentMessageItem",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec/exec_events.rs",
+          "name": "CollabAgentState",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec/exec_events.rs",
+          "name": "CollabAgentStatus",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec/exec_events.rs",
+          "name": "CollabTool",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec/exec_events.rs",
+          "name": "CollabToolCallItem",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec/exec_events.rs",
+          "name": "CollabToolCallStatus",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec/exec_events.rs",
+          "name": "CommandExecutionItem",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec/exec_events.rs",
+          "name": "CommandExecutionStatus",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec/exec_events.rs",
+          "name": "ErrorItem",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec/exec_events.rs",
+          "name": "FileChangeItem",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec/exec_events.rs",
+          "name": "FileUpdateChange",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec/exec_events.rs",
+          "name": "ItemCompletedEvent",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec/exec_events.rs",
+          "name": "ItemStartedEvent",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec/exec_events.rs",
+          "name": "ItemUpdatedEvent",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec/exec_events.rs",
+          "name": "McpToolCallItem",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec/exec_events.rs",
+          "name": "McpToolCallItemError",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec/exec_events.rs",
+          "name": "McpToolCallItemResult",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec/exec_events.rs",
+          "name": "McpToolCallStatus",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec/exec_events.rs",
+          "name": "PatchApplyStatus",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec/exec_events.rs",
+          "name": "PatchChangeKind",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec/exec_events.rs",
+          "name": "ReasoningItem",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec/exec_events.rs",
+          "name": "schema",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/exec_events.rs",
+          "name": "ThreadErrorEvent",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec/exec_events.rs",
+          "name": "ThreadEvent",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec/exec_events.rs",
+          "name": "ThreadItem",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec/exec_events.rs",
+          "name": "ThreadItemDetails",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec/exec_events.rs",
+          "name": "ThreadStartedEvent",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec/exec_events.rs",
+          "name": "TodoItem",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec/exec_events.rs",
+          "name": "TodoListItem",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec/exec_events.rs",
+          "name": "TurnCompletedEvent",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec/exec_events.rs",
+          "name": "TurnFailedEvent",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec/exec_events.rs",
+          "name": "TurnStartedEvent",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec/exec_events.rs",
+          "name": "Usage",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec/exec_events.rs",
+          "name": "WebSearchAction",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec/exec_events.rs",
+          "name": "WebSearchItem",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec/exec_events_tests.rs",
+          "name": "event_examples_round_trip_and_validate_against_the_schema",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/exec_events_tests.rs",
+          "name": "optional_mcp_meta_and_search_results_do_not_create_duplicate_item_ids",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/exec_events_tests.rs",
+          "name": "published_schema_matches_the_rust_event_contract",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/locale.rs",
+          "name": "Label",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec/locale.rs",
+          "name": "Locale",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec/prompt.rs",
+          "name": "build_review_request",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/prompt.rs",
+          "name": "decode_prompt_bytes",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/prompt.rs",
+          "name": "decode_utf16",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/prompt.rs",
+          "name": "load_output_schema",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/prompt.rs",
+          "name": "prompt_with_stdin_context",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/prompt.rs",
+          "name": "read_prompt_from_stdin",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/prompt.rs",
+          "name": "resolve_initial_operation",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/prompt.rs",
+          "name": "resolve_prompt",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/prompt.rs",
+          "name": "resolve_prompt_with_stdin",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/prompt.rs",
+          "name": "resolve_root_prompt",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/prompt_tests.rs",
+          "name": "bom_decoding_preserves_unicode_and_rejects_malformed_utf16_or_utf32",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/prompt_tests.rs",
+          "name": "fork",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/prompt_tests.rs",
+          "name": "fork_only_never_needs_stdin_and_rejects_turn_only_options",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/prompt_tests.rs",
+          "name": "fork_prompt_preserves_root_then_child_images_before_the_text",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/prompt_tests.rs",
+          "name": "missing_or_dash_reads_stdin_and_empty_or_invalid_input_fails_closed",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/prompt_tests.rs",
+          "name": "output_schema_reads_json_and_fails_closed_before_fork_only_connects",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/prompt_tests.rs",
+          "name": "review_request_keeps_typed_targets_and_requires_explicit_instructions",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/prompt_tests.rs",
+          "name": "root_appends_piped_context_while_resume_explicit_prompt_keeps_its_input",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/server_requests.rs",
+          "name": "reply",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/server_requests.rs",
+          "name": "respond",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/server_requests.rs",
+          "name": "response_for",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/server_requests.rs",
+          "name": "ServerResponse",
+          "kind": "type"
+        },
+        {
+          "path": "src/exec/server_requests_tests.rs",
+          "name": "typed_interactions_never_grant_consent_or_invent_user_answers",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/server_requests_tests.rs",
+          "name": "unsupported_mcp_request_is_rejected_with_same_id",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/thread.rs",
+          "name": "fork_params",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/thread.rs",
+          "name": "resolve_resume_thread_id",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/thread.rs",
+          "name": "resume_list_params",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/thread.rs",
+          "name": "start_thread",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/thread_tests.rs",
+          "name": "all_removes_cwd_and_title_lookup_is_not_limited_by_the_active_provider",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/thread_tests.rs",
+          "name": "fork_overrides_model_environment_and_permission_group_at_the_canonical_boundary",
+          "kind": "function"
+        },
+        {
+          "path": "src/exec/thread_tests.rs",
+          "name": "last_uses_updated_desc_unarchived_provider_and_cwd_without_private_storage",
+          "kind": "function"
+        },
+        {
           "path": "src/exit_status.rs",
           "name": "handle_exit_status",
           "kind": "function"
@@ -5652,6 +8481,11 @@
         {
           "path": "src/lib.rs",
           "name": "WindowsCommand",
+          "kind": "type"
+        },
+        {
+          "path": "src/main.rs",
+          "name": "ApprovalPolicyCliArg",
           "kind": "type"
         },
         {
@@ -5702,11 +8536,6 @@
         {
           "path": "src/main.rs",
           "name": "DeleteCommand",
-          "kind": "type"
-        },
-        {
-          "path": "src/main.rs",
-          "name": "ExecCli",
           "kind": "type"
         },
         {
@@ -5791,8 +8620,13 @@
         },
         {
           "path": "src/main.rs",
-          "name": "read_prompt",
+          "name": "permission_settings",
           "kind": "function"
+        },
+        {
+          "path": "src/main.rs",
+          "name": "PermissionSettings",
+          "kind": "type"
         },
         {
           "path": "src/main.rs",
@@ -5807,11 +8641,6 @@
         {
           "path": "src/main.rs",
           "name": "render_features",
-          "kind": "function"
-        },
-        {
-          "path": "src/main.rs",
-          "name": "render_json_envelope",
           "kind": "function"
         },
         {
@@ -5881,11 +8710,6 @@
         },
         {
           "path": "src/main.rs",
-          "name": "run_exec",
-          "kind": "function"
-        },
-        {
-          "path": "src/main.rs",
           "name": "run_execpolicycheck",
           "kind": "function"
         },
@@ -5948,6 +8772,11 @@
           "path": "src/main.rs",
           "name": "run_unarchive",
           "kind": "function"
+        },
+        {
+          "path": "src/main.rs",
+          "name": "SandboxModeCliArg",
+          "kind": "type"
         },
         {
           "path": "src/main.rs",
@@ -6161,6 +8990,11 @@
         },
         {
           "path": "src/plugin_cmd.rs",
+          "name": "marketplace_paths_for_cwds",
+          "kind": "function"
+        },
+        {
+          "path": "src/plugin_cmd.rs",
           "name": "PluginCli",
           "kind": "type"
         },
@@ -6335,7 +9169,800 @@
           "kind": "function"
         }
       ],
-      "treeSha256": "671c94f227a790c916aa03c84a85a24de2900681a59a0e5c5025c6e9022229ed"
+      "treeSha256": "266977be083684b9e3dbf8694d597d2b0b9744c1871b65103d265b94a70f02ba"
+    },
+    "lime-rs/crates/cli/src/exec": {
+      "root": "/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/crates/cli/src/exec",
+      "fileCount": 18,
+      "files": [
+        "cli.rs",
+        "cli_tests.rs",
+        "event_processor.rs",
+        "event_processor_tests.rs",
+        "event_processor_with_human_output.rs",
+        "event_processor_with_human_output_tests.rs",
+        "event_processor_with_jsonl_output.rs",
+        "event_processor_with_jsonl_output/items.rs",
+        "event_processor_with_jsonl_output_tests.rs",
+        "exec_events.rs",
+        "exec_events_tests.rs",
+        "locale.rs",
+        "prompt.rs",
+        "prompt_tests.rs",
+        "server_requests.rs",
+        "server_requests_tests.rs",
+        "thread.rs",
+        "thread_tests.rs"
+      ],
+      "symbolCount": 153,
+      "symbols": [
+        {
+          "path": "cli.rs",
+          "name": "Color",
+          "kind": "type"
+        },
+        {
+          "path": "cli.rs",
+          "name": "Command",
+          "kind": "type"
+        },
+        {
+          "path": "cli.rs",
+          "name": "ExecCli",
+          "kind": "type"
+        },
+        {
+          "path": "cli.rs",
+          "name": "ExecSharedCliOptions",
+          "kind": "type"
+        },
+        {
+          "path": "cli.rs",
+          "name": "ForkArgs",
+          "kind": "type"
+        },
+        {
+          "path": "cli.rs",
+          "name": "mark_exec_global_args",
+          "kind": "function"
+        },
+        {
+          "path": "cli.rs",
+          "name": "ResumeArgs",
+          "kind": "type"
+        },
+        {
+          "path": "cli.rs",
+          "name": "ResumeArgsRaw",
+          "kind": "type"
+        },
+        {
+          "path": "cli.rs",
+          "name": "ReviewArgs",
+          "kind": "type"
+        },
+        {
+          "path": "cli_tests.rs",
+          "name": "auto_color_requires_capable_tty_and_explicit_modes_override_environment",
+          "kind": "function"
+        },
+        {
+          "path": "cli_tests.rs",
+          "name": "exec_color_and_locale_leave_quoted_prompt_and_connection_intact",
+          "kind": "function"
+        },
+        {
+          "path": "cli_tests.rs",
+          "name": "fork_requires_source_and_keeps_optional_prompt_and_child_overrides",
+          "kind": "function"
+        },
+        {
+          "path": "cli_tests.rs",
+          "name": "images_use_single_argument_comma_lists_and_accumulate_across_exec_levels",
+          "kind": "function"
+        },
+        {
+          "path": "cli_tests.rs",
+          "name": "output_schema_is_global_across_root_resume_and_fork",
+          "kind": "function"
+        },
+        {
+          "path": "cli_tests.rs",
+          "name": "parse",
+          "kind": "function"
+        },
+        {
+          "path": "cli_tests.rs",
+          "name": "resume_last_reinterprets_single_positional_and_keeps_explicit_second_prompt",
+          "kind": "function"
+        },
+        {
+          "path": "cli_tests.rs",
+          "name": "resume_options_before_and_after_subcommand_use_one_global_contract",
+          "kind": "function"
+        },
+        {
+          "path": "cli_tests.rs",
+          "name": "resume_permissions_and_transport_do_not_bypass_conflict_checks",
+          "kind": "function"
+        },
+        {
+          "path": "cli_tests.rs",
+          "name": "review_args_match_codex_targets_and_global_output_options",
+          "kind": "function"
+        },
+        {
+          "path": "cli_tests.rs",
+          "name": "review_targets_conflict_and_title_requires_commit",
+          "kind": "function"
+        },
+        {
+          "path": "event_processor.rs",
+          "name": "AgentText",
+          "kind": "type"
+        },
+        {
+          "path": "event_processor.rs",
+          "name": "EventProcessor",
+          "kind": "type"
+        },
+        {
+          "path": "event_processor.rs",
+          "name": "ExecResult",
+          "kind": "type"
+        },
+        {
+          "path": "event_processor.rs",
+          "name": "final_answer_from_items",
+          "kind": "function"
+        },
+        {
+          "path": "event_processor.rs",
+          "name": "handle_last_message",
+          "kind": "function"
+        },
+        {
+          "path": "event_processor.rs",
+          "name": "OutputProcessor",
+          "kind": "type"
+        },
+        {
+          "path": "event_processor_tests.rs",
+          "name": "canonical_item_order_wins_over_notification_arrival_order",
+          "kind": "function"
+        },
+        {
+          "path": "event_processor_tests.rs",
+          "name": "commentary_is_not_a_final_answer_and_plan_is_a_terminal_fallback",
+          "kind": "function"
+        },
+        {
+          "path": "event_processor_tests.rs",
+          "name": "completed_reasoning_matrix_keeps_human_output_out_of_final_answer",
+          "kind": "function"
+        },
+        {
+          "path": "event_processor_tests.rs",
+          "name": "failed_and_interrupted_turns_discard_partial_answer_without_synthetic_completion",
+          "kind": "function"
+        },
+        {
+          "path": "event_processor_tests.rs",
+          "name": "failed_and_interrupted_turns_preserve_last_message_file_and_write_errors_propagate",
+          "kind": "function"
+        },
+        {
+          "path": "event_processor_tests.rs",
+          "name": "invalid_shared_reasoning_flags_fail_closed",
+          "kind": "function"
+        },
+        {
+          "path": "event_processor_tests.rs",
+          "name": "item_completed",
+          "kind": "function"
+        },
+        {
+          "path": "event_processor_tests.rs",
+          "name": "last_message_file_uses_canonical_final_answer_in_both_output_modes",
+          "kind": "function"
+        },
+        {
+          "path": "event_processor_tests.rs",
+          "name": "message",
+          "kind": "function"
+        },
+        {
+          "path": "event_processor_tests.rs",
+          "name": "notification",
+          "kind": "function"
+        },
+        {
+          "path": "event_processor_tests.rs",
+          "name": "other_thread_or_turn_cannot_emit_reasoning_or_finish_current_turn",
+          "kind": "function"
+        },
+        {
+          "path": "event_processor_tests.rs",
+          "name": "processor",
+          "kind": "function"
+        },
+        {
+          "path": "event_processor_tests.rs",
+          "name": "raw_enabled_with_no_content_falls_back_to_summary",
+          "kind": "function"
+        },
+        {
+          "path": "event_processor_tests.rs",
+          "name": "reasoning",
+          "kind": "function"
+        },
+        {
+          "path": "event_processor_tests.rs",
+          "name": "terminal",
+          "kind": "function"
+        },
+        {
+          "path": "event_processor_tests.rs",
+          "name": "terminal_snapshot_repairs_stream_and_late_delta_cannot_reopen_completed_item",
+          "kind": "function"
+        },
+        {
+          "path": "event_processor_with_human_output.rs",
+          "name": "blended_total",
+          "kind": "function"
+        },
+        {
+          "path": "event_processor_with_human_output.rs",
+          "name": "EventProcessorWithHumanOutput",
+          "kind": "type"
+        },
+        {
+          "path": "event_processor_with_human_output.rs",
+          "name": "format_with_separators",
+          "kind": "function"
+        },
+        {
+          "path": "event_processor_with_human_output.rs",
+          "name": "ReasoningPolicy",
+          "kind": "type"
+        },
+        {
+          "path": "event_processor_with_human_output.rs",
+          "name": "should_print_final_message_to_stdout",
+          "kind": "function"
+        },
+        {
+          "path": "event_processor_with_human_output_tests.rs",
+          "name": "blended_tokens_exclude_cached_input_and_saturate_malformed_counters",
+          "kind": "function"
+        },
+        {
+          "path": "event_processor_with_human_output_tests.rs",
+          "name": "command",
+          "kind": "function"
+        },
+        {
+          "path": "event_processor_with_human_output_tests.rs",
+          "name": "command_start_result_and_output_are_visible_once_across_notifications_and_snapshot",
+          "kind": "function"
+        },
+        {
+          "path": "event_processor_with_human_output_tests.rs",
+          "name": "every_scoped_output_ignores_foreign_thread_and_foreign_turn",
+          "kind": "function"
+        },
+        {
+          "path": "event_processor_with_human_output_tests.rs",
+          "name": "explicit_ansi_styles_labels_without_changing_canonical_output",
+          "kind": "function"
+        },
+        {
+          "path": "event_processor_with_human_output_tests.rs",
+          "name": "failed_and_interrupted_turns_report_diagnostics_and_never_print_partial_snapshot",
+          "kind": "function"
+        },
+        {
+          "path": "event_processor_with_human_output_tests.rs",
+          "name": "final_answer_uses_stdout_when_either_stream_is_redirected",
+          "kind": "function"
+        },
+        {
+          "path": "event_processor_with_human_output_tests.rs",
+          "name": "five_locales_keep_user_content",
+          "kind": "function"
+        },
+        {
+          "path": "event_processor_with_human_output_tests.rs",
+          "name": "human",
+          "kind": "function"
+        },
+        {
+          "path": "event_processor_with_human_output_tests.rs",
+          "name": "item_notification",
+          "kind": "function"
+        },
+        {
+          "path": "event_processor_with_human_output_tests.rs",
+          "name": "notification",
+          "kind": "function"
+        },
+        {
+          "path": "event_processor_with_human_output_tests.rs",
+          "name": "patch_mcp_search_compaction_and_collab_use_typed_current_items",
+          "kind": "function"
+        },
+        {
+          "path": "event_processor_with_human_output_tests.rs",
+          "name": "plan_diff_warning_errors_and_latest_usage_do_not_become_final_stdout",
+          "kind": "function"
+        },
+        {
+          "path": "event_processor_with_human_output_tests.rs",
+          "name": "snapshot_only_command_keeps_identity_and_all_result_statuses",
+          "kind": "function"
+        },
+        {
+          "path": "event_processor_with_human_output_tests.rs",
+          "name": "terminal",
+          "kind": "function"
+        },
+        {
+          "path": "event_processor_with_human_output_tests.rs",
+          "name": "usage",
+          "kind": "function"
+        },
+        {
+          "path": "event_processor_with_jsonl_output.rs",
+          "name": "emit",
+          "kind": "function"
+        },
+        {
+          "path": "event_processor_with_jsonl_output.rs",
+          "name": "EventProcessorWithJsonOutput",
+          "kind": "type"
+        },
+        {
+          "path": "event_processor_with_jsonl_output.rs",
+          "name": "RunningTodoList",
+          "kind": "type"
+        },
+        {
+          "path": "event_processor_with_jsonl_output.rs",
+          "name": "TrackedItem",
+          "kind": "type"
+        },
+        {
+          "path": "event_processor_with_jsonl_output.rs",
+          "name": "with_details",
+          "kind": "function"
+        },
+        {
+          "path": "event_processor_with_jsonl_output/items.rs",
+          "name": "map_item",
+          "kind": "function"
+        },
+        {
+          "path": "event_processor_with_jsonl_output_tests.rs",
+          "name": "command",
+          "kind": "function"
+        },
+        {
+          "path": "event_processor_with_jsonl_output_tests.rs",
+          "name": "command_lifecycle_uses_one_display_id_and_snapshot_repairs_without_reopening",
+          "kind": "function"
+        },
+        {
+          "path": "event_processor_with_jsonl_output_tests.rs",
+          "name": "events",
+          "kind": "function"
+        },
+        {
+          "path": "event_processor_with_jsonl_output_tests.rs",
+          "name": "every_event_flushes_and_write_failures_propagate",
+          "kind": "function"
+        },
+        {
+          "path": "event_processor_with_jsonl_output_tests.rs",
+          "name": "failed_and_interrupted_turns_do_not_emit_success_or_partial_answers",
+          "kind": "function"
+        },
+        {
+          "path": "event_processor_with_jsonl_output_tests.rs",
+          "name": "foreign_notifications_cannot_change_output_item_numbering_or_usage",
+          "kind": "function"
+        },
+        {
+          "path": "event_processor_with_jsonl_output_tests.rs",
+          "name": "item_notification",
+          "kind": "function"
+        },
+        {
+          "path": "event_processor_with_jsonl_output_tests.rs",
+          "name": "notification",
+          "kind": "function"
+        },
+        {
+          "path": "event_processor_with_jsonl_output_tests.rs",
+          "name": "raw_only_reasoning_never_becomes_machine_output_and_plan_text_is_preserved",
+          "kind": "function"
+        },
+        {
+          "path": "event_processor_with_jsonl_output_tests.rs",
+          "name": "terminal",
+          "kind": "function"
+        },
+        {
+          "path": "event_processor_with_jsonl_output_tests.rs",
+          "name": "terminal_backfills_missing_items_and_reasoning_only_contains_summary",
+          "kind": "function"
+        },
+        {
+          "path": "event_processor_with_jsonl_output_tests.rs",
+          "name": "todo_updates_keep_id_and_usage_uses_latest_total_including_cache_write",
+          "kind": "function"
+        },
+        {
+          "path": "event_processor_with_jsonl_output_tests.rs",
+          "name": "typed_tool_lowering_keeps_payloads_and_closes_web_actions",
+          "kind": "function"
+        },
+        {
+          "path": "exec_events.rs",
+          "name": "AgentMessageItem",
+          "kind": "type"
+        },
+        {
+          "path": "exec_events.rs",
+          "name": "CollabAgentState",
+          "kind": "type"
+        },
+        {
+          "path": "exec_events.rs",
+          "name": "CollabAgentStatus",
+          "kind": "type"
+        },
+        {
+          "path": "exec_events.rs",
+          "name": "CollabTool",
+          "kind": "type"
+        },
+        {
+          "path": "exec_events.rs",
+          "name": "CollabToolCallItem",
+          "kind": "type"
+        },
+        {
+          "path": "exec_events.rs",
+          "name": "CollabToolCallStatus",
+          "kind": "type"
+        },
+        {
+          "path": "exec_events.rs",
+          "name": "CommandExecutionItem",
+          "kind": "type"
+        },
+        {
+          "path": "exec_events.rs",
+          "name": "CommandExecutionStatus",
+          "kind": "type"
+        },
+        {
+          "path": "exec_events.rs",
+          "name": "ErrorItem",
+          "kind": "type"
+        },
+        {
+          "path": "exec_events.rs",
+          "name": "FileChangeItem",
+          "kind": "type"
+        },
+        {
+          "path": "exec_events.rs",
+          "name": "FileUpdateChange",
+          "kind": "type"
+        },
+        {
+          "path": "exec_events.rs",
+          "name": "ItemCompletedEvent",
+          "kind": "type"
+        },
+        {
+          "path": "exec_events.rs",
+          "name": "ItemStartedEvent",
+          "kind": "type"
+        },
+        {
+          "path": "exec_events.rs",
+          "name": "ItemUpdatedEvent",
+          "kind": "type"
+        },
+        {
+          "path": "exec_events.rs",
+          "name": "McpToolCallItem",
+          "kind": "type"
+        },
+        {
+          "path": "exec_events.rs",
+          "name": "McpToolCallItemError",
+          "kind": "type"
+        },
+        {
+          "path": "exec_events.rs",
+          "name": "McpToolCallItemResult",
+          "kind": "type"
+        },
+        {
+          "path": "exec_events.rs",
+          "name": "McpToolCallStatus",
+          "kind": "type"
+        },
+        {
+          "path": "exec_events.rs",
+          "name": "PatchApplyStatus",
+          "kind": "type"
+        },
+        {
+          "path": "exec_events.rs",
+          "name": "PatchChangeKind",
+          "kind": "type"
+        },
+        {
+          "path": "exec_events.rs",
+          "name": "ReasoningItem",
+          "kind": "type"
+        },
+        {
+          "path": "exec_events.rs",
+          "name": "schema",
+          "kind": "function"
+        },
+        {
+          "path": "exec_events.rs",
+          "name": "ThreadErrorEvent",
+          "kind": "type"
+        },
+        {
+          "path": "exec_events.rs",
+          "name": "ThreadEvent",
+          "kind": "type"
+        },
+        {
+          "path": "exec_events.rs",
+          "name": "ThreadItem",
+          "kind": "type"
+        },
+        {
+          "path": "exec_events.rs",
+          "name": "ThreadItemDetails",
+          "kind": "type"
+        },
+        {
+          "path": "exec_events.rs",
+          "name": "ThreadStartedEvent",
+          "kind": "type"
+        },
+        {
+          "path": "exec_events.rs",
+          "name": "TodoItem",
+          "kind": "type"
+        },
+        {
+          "path": "exec_events.rs",
+          "name": "TodoListItem",
+          "kind": "type"
+        },
+        {
+          "path": "exec_events.rs",
+          "name": "TurnCompletedEvent",
+          "kind": "type"
+        },
+        {
+          "path": "exec_events.rs",
+          "name": "TurnFailedEvent",
+          "kind": "type"
+        },
+        {
+          "path": "exec_events.rs",
+          "name": "TurnStartedEvent",
+          "kind": "type"
+        },
+        {
+          "path": "exec_events.rs",
+          "name": "Usage",
+          "kind": "type"
+        },
+        {
+          "path": "exec_events.rs",
+          "name": "WebSearchAction",
+          "kind": "type"
+        },
+        {
+          "path": "exec_events.rs",
+          "name": "WebSearchItem",
+          "kind": "type"
+        },
+        {
+          "path": "exec_events_tests.rs",
+          "name": "event_examples_round_trip_and_validate_against_the_schema",
+          "kind": "function"
+        },
+        {
+          "path": "exec_events_tests.rs",
+          "name": "optional_mcp_meta_and_search_results_do_not_create_duplicate_item_ids",
+          "kind": "function"
+        },
+        {
+          "path": "exec_events_tests.rs",
+          "name": "published_schema_matches_the_rust_event_contract",
+          "kind": "function"
+        },
+        {
+          "path": "locale.rs",
+          "name": "Label",
+          "kind": "type"
+        },
+        {
+          "path": "locale.rs",
+          "name": "Locale",
+          "kind": "type"
+        },
+        {
+          "path": "prompt.rs",
+          "name": "build_review_request",
+          "kind": "function"
+        },
+        {
+          "path": "prompt.rs",
+          "name": "decode_prompt_bytes",
+          "kind": "function"
+        },
+        {
+          "path": "prompt.rs",
+          "name": "decode_utf16",
+          "kind": "function"
+        },
+        {
+          "path": "prompt.rs",
+          "name": "load_output_schema",
+          "kind": "function"
+        },
+        {
+          "path": "prompt.rs",
+          "name": "prompt_with_stdin_context",
+          "kind": "function"
+        },
+        {
+          "path": "prompt.rs",
+          "name": "read_prompt_from_stdin",
+          "kind": "function"
+        },
+        {
+          "path": "prompt.rs",
+          "name": "resolve_initial_operation",
+          "kind": "function"
+        },
+        {
+          "path": "prompt.rs",
+          "name": "resolve_prompt",
+          "kind": "function"
+        },
+        {
+          "path": "prompt.rs",
+          "name": "resolve_prompt_with_stdin",
+          "kind": "function"
+        },
+        {
+          "path": "prompt.rs",
+          "name": "resolve_root_prompt",
+          "kind": "function"
+        },
+        {
+          "path": "prompt_tests.rs",
+          "name": "bom_decoding_preserves_unicode_and_rejects_malformed_utf16_or_utf32",
+          "kind": "function"
+        },
+        {
+          "path": "prompt_tests.rs",
+          "name": "fork",
+          "kind": "function"
+        },
+        {
+          "path": "prompt_tests.rs",
+          "name": "fork_only_never_needs_stdin_and_rejects_turn_only_options",
+          "kind": "function"
+        },
+        {
+          "path": "prompt_tests.rs",
+          "name": "fork_prompt_preserves_root_then_child_images_before_the_text",
+          "kind": "function"
+        },
+        {
+          "path": "prompt_tests.rs",
+          "name": "missing_or_dash_reads_stdin_and_empty_or_invalid_input_fails_closed",
+          "kind": "function"
+        },
+        {
+          "path": "prompt_tests.rs",
+          "name": "output_schema_reads_json_and_fails_closed_before_fork_only_connects",
+          "kind": "function"
+        },
+        {
+          "path": "prompt_tests.rs",
+          "name": "review_request_keeps_typed_targets_and_requires_explicit_instructions",
+          "kind": "function"
+        },
+        {
+          "path": "prompt_tests.rs",
+          "name": "root_appends_piped_context_while_resume_explicit_prompt_keeps_its_input",
+          "kind": "function"
+        },
+        {
+          "path": "server_requests.rs",
+          "name": "reply",
+          "kind": "function"
+        },
+        {
+          "path": "server_requests.rs",
+          "name": "respond",
+          "kind": "function"
+        },
+        {
+          "path": "server_requests.rs",
+          "name": "response_for",
+          "kind": "function"
+        },
+        {
+          "path": "server_requests.rs",
+          "name": "ServerResponse",
+          "kind": "type"
+        },
+        {
+          "path": "server_requests_tests.rs",
+          "name": "typed_interactions_never_grant_consent_or_invent_user_answers",
+          "kind": "function"
+        },
+        {
+          "path": "server_requests_tests.rs",
+          "name": "unsupported_mcp_request_is_rejected_with_same_id",
+          "kind": "function"
+        },
+        {
+          "path": "thread.rs",
+          "name": "fork_params",
+          "kind": "function"
+        },
+        {
+          "path": "thread.rs",
+          "name": "resolve_resume_thread_id",
+          "kind": "function"
+        },
+        {
+          "path": "thread.rs",
+          "name": "resume_list_params",
+          "kind": "function"
+        },
+        {
+          "path": "thread.rs",
+          "name": "start_thread",
+          "kind": "function"
+        },
+        {
+          "path": "thread_tests.rs",
+          "name": "all_removes_cwd_and_title_lookup_is_not_limited_by_the_active_provider",
+          "kind": "function"
+        },
+        {
+          "path": "thread_tests.rs",
+          "name": "fork_overrides_model_environment_and_permission_group_at_the_canonical_boundary",
+          "kind": "function"
+        },
+        {
+          "path": "thread_tests.rs",
+          "name": "last_uses_updated_desc_unarchived_provider_and_cwd_without_private_storage",
+          "kind": "function"
+        }
+      ],
+      "treeSha256": "d5835d642a5014d77e4c7324a60cad9c1fe8288a93460e54ec2d288126f83e02"
     },
     "lime-rs/crates/execpolicy": {
       "root": "/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/crates/execpolicy",
@@ -6841,11 +10468,12 @@
     },
     "packages/cli": {
       "root": "/Users/coso/Documents/dev/ai/aiclientproxy/lime/packages/cli",
-      "fileCount": 7,
+      "fileCount": 8,
       "files": [
         ".gitignore",
         "README.md",
         "bin/lime.js",
+        "exec-events.schema.json",
         "package.json",
         "scripts/README.md",
         "scripts/build_npm_package.py",
@@ -7019,7 +10647,7 @@
           "kind": "symbol"
         }
       ],
-      "treeSha256": "9e4a6deea2e7a104ee73d4d0ca1f859a27a695f19e01b62f6cecf62ffdc6a17a"
+      "treeSha256": "8ea2903717c0b9d31f004d49a7871784043b3cec7574d683ad7804546817bbda"
     }
   },
   "comparisons": {
@@ -7030,6 +10658,10 @@
       "src/app_cmd.rs",
       "src/bin/logs_client.rs",
       "src/cloud_config.rs",
+      "src/daemon_install.rs",
+      "src/daemon_install_tests.rs",
+      "src/daemon_telemetry.rs",
+      "src/daemon_update_tests.rs",
       "src/debug_sandbox/cloud_config.rs",
       "src/debug_sandbox/cloud_config_tests.rs",
       "src/debug_sandbox/pid_tracker.rs",
@@ -7048,6 +10680,8 @@
       "src/doctor/desktop_tests.rs",
       "src/doctor/disk.rs",
       "src/doctor/disk_tests.rs",
+      "src/doctor/filesystem_paths.rs",
+      "src/doctor/filesystem_paths_tests.rs",
       "src/doctor/git.rs",
       "src/doctor/network.rs",
       "src/doctor/network_tests.rs",
@@ -7060,7 +10694,10 @@
       "src/doctor/security.rs",
       "src/doctor/security_tests.rs",
       "src/doctor/snapshots/codex__doctor__background__tests__configured_updater.snap",
+      "src/doctor/snapshots/codex__doctor__filesystem_paths__tests__doctor_read_restricted_filesystem_paths.snap",
       "src/doctor/snapshots/codex__doctor__git__tests__reports_git_candidates_and_repo_metadata.snap",
+      "src/doctor/snapshots/codex__doctor__output__tests__copyable_items_color.snap",
+      "src/doctor/snapshots/codex__doctor__output__tests__copyable_items_color_windows.snap",
       "src/doctor/snapshots/codex__doctor__output__tests__doctor_human_report_environment_rows.snap",
       "src/doctor/snapshots/codex__doctor__output__tests__missing_env_diagnostics.snap",
       "src/doctor/system.rs",
@@ -7069,32 +10706,43 @@
       "src/doctor/updates.rs",
       "src/doctor/windows_dev_drive.rs",
       "src/doctor/windows_dev_drive_tests.rs",
+      "src/exec_args_tests.rs",
       "src/exec_server_args_tests.rs",
       "src/exec_server_auth.rs",
       "src/exec_server_auth_tests.rs",
+      "src/exec_server_command.rs",
       "src/exec_server_telemetry.rs",
       "src/exec_server_telemetry_tests.rs",
       "src/login.rs",
+      "src/login_storage_tests.rs",
       "src/marketplace_cmd.rs",
+      "src/mcp_cmd_tests.rs",
       "src/mcp_login.rs",
       "src/mcp_login_tests.rs",
       "src/migrate_rollouts.rs",
       "src/remote_control_cmd.rs",
+      "src/sandbox_uninstall.rs",
       "src/snapshots/codex__doctor__tests__doctor_dumb_non_interactive_human.snap",
       "src/snapshots/codex__doctor__tests__terminal_check_prioritizes_unreadable_terminfo_over_warnings.snap",
       "src/snapshots/codex__exec_server_args_tests__exec_server_help_documents_remote_options.snap",
       "src/snapshots/codex__tests__unsupported_worktree_commands.snap",
+      "src/snapshots/codex_cli__login__storage_tests__login_default_filter_records_sanitized_storage_fallback.snap",
+      "src/snapshots/codex_cli__login__storage_tests__login_storage_error_displays_context_and_cause.snap",
       "src/state_db_recovery.rs",
       "tests/app_server.rs",
       "tests/app_server_daemon.rs",
       "tests/cloud_auth.rs",
       "tests/cloud_config.rs",
+      "tests/daemon_startup.rs",
+      "tests/daemon_telemetry.rs",
       "tests/debug_clear_memories.rs",
       "tests/debug_models.rs",
       "tests/delete.rs",
       "tests/doctor_enterprise_network.rs",
       "tests/doctor_path_safety.rs",
       "tests/exec_server.rs",
+      "tests/exec_server/pid_namespace_tests.rs",
+      "tests/exec_server_websocket_auth.rs",
       "tests/features.rs",
       "tests/login.rs",
       "tests/marketplace_add.rs",
@@ -7108,10 +10756,406 @@
       "tests/sandbox_cloud_config.rs",
       "tests/sandbox_network_proxy.rs",
       "tests/sandbox_tty.rs",
+      "tests/sandbox_uninstall.rs",
+      "tests/snapshots/daemon_startup__restrictive_launcher_warning.snap",
+      "tests/snapshots/doctor_path_safety__doctor_config_error_location.snap",
+      "tests/snapshots/doctor_path_safety__doctor_config_invalid_data.snap",
+      "tests/snapshots/doctor_path_safety__doctor_config_not_found.snap",
+      "tests/snapshots/doctor_path_safety__doctor_configured_filesystem_paths.snap",
+      "tests/snapshots/doctor_path_safety__doctor_configured_filesystem_paths_windows.snap",
+      "tests/snapshots/doctor_path_safety__doctor_failed_log_database.snap",
+      "tests/snapshots/doctor_path_safety__doctor_failed_multiple_databases.snap",
+      "tests/snapshots/features__mcp_list_reports_invalid_keybinding_reason.snap",
+      "tests/snapshots/features__remote_start_rejects_add_dir_before_connecting.snap",
       "tests/update.rs",
       "tests/worktree.rs"
     ],
-    "rustFilesOnlyInLime": [],
+    "rustFilesOnlyInLime": [
+      "src/exec.rs",
+      "src/exec/cli.rs",
+      "src/exec/cli_tests.rs",
+      "src/exec/event_processor.rs",
+      "src/exec/event_processor_tests.rs",
+      "src/exec/event_processor_with_human_output.rs",
+      "src/exec/event_processor_with_human_output_tests.rs",
+      "src/exec/event_processor_with_jsonl_output.rs",
+      "src/exec/event_processor_with_jsonl_output/items.rs",
+      "src/exec/event_processor_with_jsonl_output_tests.rs",
+      "src/exec/exec_events.rs",
+      "src/exec/exec_events_tests.rs",
+      "src/exec/locale.rs",
+      "src/exec/prompt.rs",
+      "src/exec/prompt_tests.rs",
+      "src/exec/server_requests.rs",
+      "src/exec/server_requests_tests.rs",
+      "src/exec/thread.rs",
+      "src/exec/thread_tests.rs"
+    ],
+    "execFilesMissingInLime": [
+      "daybreak.rs",
+      "lib.rs",
+      "lib_tests.rs",
+      "main.rs",
+      "main_tests.rs",
+      "worktree.rs"
+    ],
+    "execFilesOnlyInLime": [
+      "event_processor_tests.rs",
+      "event_processor_with_jsonl_output/items.rs",
+      "exec_events_tests.rs",
+      "locale.rs",
+      "prompt.rs",
+      "prompt_tests.rs",
+      "server_requests.rs",
+      "server_requests_tests.rs",
+      "thread.rs",
+      "thread_tests.rs"
+    ],
+    "execSymbolNamesMissingInLime": [
+      "Cli",
+      "CodexStatus",
+      "CollectedThreadEvents",
+      "CyberAccessProgramCliArg",
+      "ExecRunArgs",
+      "ForkNetwork",
+      "InitialOperation",
+      "ManagedExecWorktree",
+      "PromptDecodeError",
+      "RequestIdSequencer",
+      "StdinPromptBehavior",
+      "TestLogSink",
+      "TestLogWriter",
+      "TopCli",
+      "accepts_add_dir_flag",
+      "accepts_multiple_add_dir_flags",
+      "active_profile_selection_uses_profile_id_only",
+      "agent_message_item_started_is_ignored",
+      "agent_message_item_updates_final_message",
+      "all_thread_source_kinds",
+      "allow_unix_socketpair_recvfrom",
+      "approve_for_me_flag_applies_to_resume_when_passed_at_exec_root",
+      "approve_for_me_flag_conflicts_with_other_sandbox_modes",
+      "assert_denied_read",
+      "assert_file_contents",
+      "body_contains",
+      "build_exec_config",
+      "build_exec_config_preserves_headless_error_when_retry_fails",
+      "build_exec_config_retries_without_invalid_headless_policy_for_auto_review",
+      "builds_commit_review_request_with_title",
+      "builds_custom_review_request_trims_prompt",
+      "builds_uncommitted_review_request",
+      "can_apply_linux_sandbox_policy",
+      "canceled_mcp_server_elicitation_response",
+      "canceled_mcp_server_elicitation_response_uses_cancel_action",
+      "codex_home_symlink_opt_out_uses_loaded_user_config",
+      "collab_spawn_begin_and_end_emit_item_events",
+      "command_execution_started_and_completed_translate_to_thread_events",
+      "config_summary_entries",
+      "config_summary_entries_include_runtime_workspace_roots",
+      "configured_daybreak_exec",
+      "cwds_match",
+      "cyber_access_program_is_selected_per_turn",
+      "cyber_access_program_requires_a_supported_turn",
+      "decode_prompt_bytes_decodes_utf16be_bom",
+      "decode_prompt_bytes_decodes_utf16le_bom",
+      "decode_prompt_bytes_rejects_invalid_utf8",
+      "decode_prompt_bytes_rejects_utf32be_bom",
+      "decode_prompt_bytes_rejects_utf32le_bom",
+      "decode_prompt_bytes_strips_utf8_bom",
+      "denied_glob_profile",
+      "does_not_persist_rollout_file_in_ephemeral_mode",
+      "empty_reasoning_items_are_ignored",
+      "exec_api_key_cannot_discard_stored_workspace_network_policy",
+      "exec_appends_piped_stdin_to_prompt_argument",
+      "exec_approve_for_me_flag_sets_approval_mode_and_sandbox",
+      "exec_bootstrap_rejects_redirected_oauth_and_cloud_policy",
+      "exec_bypass_preserves_never_for_auto_review_config",
+      "exec_dash_prompt_reads_stdin_as_the_prompt",
+      "exec_dash_prompt_rejects_empty_piped_stdin",
+      "exec_default_stderr_filter_suppresses_otel_self_diagnostics",
+      "exec_explicit_cyber_program_overrides_daybreak_for_one_turn",
+      "exec_falls_back_to_legacy_history_when_thread_store_cannot_paginate",
+      "exec_fork_creates_distinct_threads_with_and_without_a_prompt",
+      "exec_hook_trust_bypass_runs_session_start_hook",
+      "exec_ignores_empty_piped_stdin_when_prompt_argument_is_present",
+      "exec_includes_output_schema_in_request",
+      "exec_includes_workspace_agents_md_in_request",
+      "exec_prefers_workspace_agents_override_md",
+      "exec_preserves_on_request_for_auto_review_config",
+      "exec_rejects_daybreak_for_api_keys_and_allows_an_override",
+      "exec_rejects_daybreak_for_non_openai_provider",
+      "exec_repo_root",
+      "exec_resume_accepts_global_flags_after_subcommand",
+      "exec_resume_accepts_images_after_subcommand",
+      "exec_resume_by_id_appends_to_existing_file",
+      "exec_resume_includes_output_schema_in_request",
+      "exec_resume_last_accepts_prompt_after_flag_in_json_mode",
+      "exec_resume_last_appends_to_existing_file",
+      "exec_resume_last_repairs_rollout_missing_from_state_db",
+      "exec_resume_last_respects_cwd_filter_and_all_flag",
+      "exec_resume_last_skips_mismatched_state_db_candidate",
+      "exec_resume_last_trusts_usable_state_db_candidate",
+      "exec_resume_override_does_not_change_a_standard_thread",
+      "exec_resume_preserves_cli_configuration_overrides",
+      "exec_resumes_and_forks_the_saved_daybreak_choice",
+      "exec_root_span",
+      "exec_root_span_can_be_parented_from_trace_context",
+      "exec_sse_response",
+      "exec_stderr_env_filter",
+      "exec_uses_codex_api_key_env_var",
+      "exec_without_prompt_argument_reads_piped_stdin_as_the_prompt",
+      "exec_without_prompt_argument_rejects_empty_piped_stdin",
+      "exits_non_zero_when_required_mcp_server_fails_to_initialize",
+      "exits_non_zero_when_server_reports_error",
+      "extract_conversation_id",
+      "failed_turn_clears_stale_final_message",
+      "failed_turn_does_not_overwrite_output_last_message_file",
+      "file_change_completion_maps_change_kinds",
+      "file_change_declined_maps_to_failed_status",
+      "final_message_from_turn_items",
+      "final_message_from_turn_items_falls_back_to_latest_plan",
+      "final_message_from_turn_items_uses_latest_agent_message",
+      "find_session_file_containing_marker",
+      "fork_parses_prompt_after_global_flags",
+      "fork_source",
+      "git",
+      "handle_server_request",
+      "has_chatgpt_account",
+      "ignores_unrelated_turn_completion_before_backfilling_primary_turn",
+      "lagged_event_warning_message",
+      "lagged_event_warning_message_is_explicit",
+      "last_user_image_count",
+      "latest_thread_cwd",
+      "linux_sandbox_test_env",
+      "load_bootstrap_config_or_exit",
+      "main",
+      "map_todo_items_preserves_text_and_completion_state",
+      "maybe_backfill_turn_completed_items",
+      "mcp_tool_call_begin_and_end_emit_item_events",
+      "mcp_tool_call_defaults_arguments_and_preserves_structured_content",
+      "mcp_tool_call_failure_sets_failed_status",
+      "mcp_tool_call_result_preserves_meta_in_jsonl_event",
+      "model_reroute_surfaces_as_error_item",
+      "mount_exec_responses",
+      "parse_latest_turn_context_cwd",
+      "parses_config_isolation_flags",
+      "permission_profile",
+      "permission_profile_id_from_active_profile",
+      "permissions_selection_from_config",
+      "persists_rollout_file_by_default",
+      "plan_update_after_completion_starts_new_todo_list_with_new_id",
+      "plan_update_emits_started_then_updated_then_completed",
+      "prints_final_stdout_message_when_stderr_is_not_terminal",
+      "prints_final_stdout_message_when_stdout_is_not_terminal",
+      "prints_final_tty_message_when_not_yet_rendered",
+      "program_for_turn",
+      "prompt_with_stdin_context_preserves_trailing_newline",
+      "prompt_with_stdin_context_wraps_stdin_block",
+      "python_getpwuid_works_under_sandbox",
+      "python_multiprocessing_lock_works_under_sandbox",
+      "reasoning_item_completed_uses_synthetic_id",
+      "reasoning_items_emit_summary_not_raw_content",
+      "reasoning_text",
+      "reasoning_text_prefers_summary_when_raw_reasoning_is_hidden",
+      "reasoning_text_uses_raw_content_when_enabled",
+      "reject_server_request",
+      "request_shutdown",
+      "resolve_server_request",
+      "resume_accepts_output_flags_after_subcommand",
+      "resume_lookup_model_providers",
+      "resume_lookup_model_providers_filters_only_last_lookup",
+      "resume_parses_prompt_after_global_flags",
+      "review_target_to_api",
+      "run_after_policy_applied",
+      "run_code_under_sandbox",
+      "run_exec_session",
+      "run_exec_with_auto_review_config",
+      "run_exec_with_config",
+      "run_main",
+      "run_path_command",
+      "run_sandboxed_command",
+      "run_shell_command",
+      "runtime_warning_emits_a_non_fatal_error_item",
+      "runtime_warnings_are_filtered_to_the_primary_thread",
+      "sample_thread_start_response",
+      "sandbox_blocks_first_time_dot_codex_creation",
+      "sandbox_distinguishes_command_and_policy_cwds",
+      "sandbox_mode_from_permission_profile",
+      "seatbelt_ancestor_protection_does_not_block_unlinking_regular_files",
+      "seatbelt_blocks_atomic_rename_exchange_and_destination_replacement",
+      "seatbelt_blocks_creating_files_matched_by_denied_globs",
+      "seatbelt_blocks_protected_ancestor_moves_across_writable_roots",
+      "seatbelt_blocks_protected_reads_and_writes_through_symlink_aliases",
+      "seatbelt_blocks_renaming_ancestors_of_explicit_protected_files",
+      "seatbelt_blocks_renaming_dynamic_glob_ancestors",
+      "seatbelt_blocks_renaming_protected_workspace_into_another_writable_root",
+      "seatbelt_brace_alternatives_with_slashes_protect_each_branch",
+      "seatbelt_deny_globs_block_writes_to_existing_and_new_files",
+      "seatbelt_enforces_brace_alternation_and_escaped_deny_globs",
+      "seatbelt_globstar_protects_files_and_ancestors_at_every_depth",
+      "seatbelt_protects_directory_trees_created_after_policy_application",
+      "seatbelt_standard_profiles_preserve_expected_filesystem_access",
+      "send_codex_exec_originator",
+      "send_request_with_response",
+      "server_request_method_name",
+      "session_configured_from_thread_response",
+      "session_configured_from_thread_response_preserves_parent_thread_id",
+      "session_configured_from_thread_response_preserves_thread_source",
+      "session_configured_from_thread_response_uses_permission_profile_from_config",
+      "session_configured_from_thread_response_uses_review_policy_from_response",
+      "session_configured_from_thread_resume_response",
+      "session_configured_from_thread_start_response",
+      "session_configured_produces_thread_started_event",
+      "session_rollout_count",
+      "should_backfill_turn_completed_items",
+      "should_backfill_turn_completed_items_backfills_persisted_summaries_only",
+      "should_print_final_message_to_tty",
+      "should_process_notification",
+      "shutdown_flushes_completed_turn_and_file_diff",
+      "spawn_command_under_sandbox",
+      "started_thread",
+      "summarizes_disabled_permission_profile_as_danger_full_access",
+      "summarizes_external_permission_profile",
+      "summarizes_managed_read_only_permission_profile",
+      "summarizes_managed_workspace_write_permission_profile",
+      "supports_originator_override",
+      "suppresses_final_stdout_message_when_both_streams_are_terminals",
+      "suppresses_final_stdout_message_when_missing",
+      "suppresses_final_tty_message_when_already_rendered",
+      "test_apply_patch_freeform_tool",
+      "test_apply_patch_tool",
+      "test_standalone_exec_cli_can_use_apply_patch",
+      "test_tracing_subscriber",
+      "thread_config_overrides_from_config",
+      "thread_lifecycle_params_include_legacy_sandbox_when_no_active_profile",
+      "thread_lifecycle_params_preserve_hook_trust_bypass",
+      "thread_resume_params_from_config",
+      "thread_resume_params_only_include_explicit_review_policy_override",
+      "thread_start_params_from_config",
+      "thread_start_params_include_review_policy_when_auto_review_is_enabled",
+      "thread_start_params_include_review_policy_when_review_policy_is_manual_only",
+      "thread_start_params_match_history_to_persistence",
+      "token_usage_update_is_emitted_on_turn_completion",
+      "top_cli_parses_resume_prompt_after_config_flag",
+      "turn_completed_overwrites_stale_final_message_from_turn_items",
+      "turn_completed_preserves_streamed_final_message_when_turn_items_are_empty",
+      "turn_completed_recovers_final_message_from_turn_items",
+      "turn_completion_falls_back_to_final_plan_text",
+      "turn_completion_overwrites_stale_final_message_from_turn_items",
+      "turn_completion_preserves_streamed_final_message_when_turn_items_are_empty",
+      "turn_completion_reconciles_started_items_from_turn_items",
+      "turn_completion_recovers_final_message_from_turn_items",
+      "turn_failed_clears_stale_final_message",
+      "turn_failure_prefers_structured_error_message",
+      "turn_interrupted_clears_stale_final_message",
+      "turn_items_for_thread",
+      "turn_items_for_thread_returns_matching_turn_items",
+      "turn_started_emits_turn_started_event",
+      "unix_sock_body",
+      "unsupported_items_do_not_consume_synthetic_ids",
+      "warning_event_produces_error_item",
+      "web_search_completion_preserves_query_and_action",
+      "web_search_page_actions_and_results_survive_json_output",
+      "web_search_start_and_completion_reuse_item_id",
+      "workspace_fixture",
+      "worktree_flag_is_accepted_after_fork_subcommand",
+      "worktree_flag_is_accepted_before_fork_subcommand",
+      "worktree_rejects_disabled_features_and_ignored_config_before_allocation",
+      "worktree_rejects_remote_defaults_before_allocation",
+      "worktree_start_and_fork_use_host_pool_and_preserve_legacy_resume",
+      "write_last_message_file"
+    ],
+    "execSymbolNamesOnlyInLime": [
+      "AgentText",
+      "ExecCli",
+      "ExecResult",
+      "Label",
+      "Locale",
+      "OutputProcessor",
+      "ReasoningPolicy",
+      "ServerResponse",
+      "TrackedItem",
+      "WebSearchAction",
+      "all_removes_cwd_and_title_lookup_is_not_limited_by_the_active_provider",
+      "auto_color_requires_capable_tty_and_explicit_modes_override_environment",
+      "blended_tokens_exclude_cached_input_and_saturate_malformed_counters",
+      "bom_decoding_preserves_unicode_and_rejects_malformed_utf16_or_utf32",
+      "canonical_item_order_wins_over_notification_arrival_order",
+      "command",
+      "command_lifecycle_uses_one_display_id_and_snapshot_repairs_without_reopening",
+      "command_start_result_and_output_are_visible_once_across_notifications_and_snapshot",
+      "commentary_is_not_a_final_answer_and_plan_is_a_terminal_fallback",
+      "completed_reasoning_matrix_keeps_human_output_out_of_final_answer",
+      "emit",
+      "event_examples_round_trip_and_validate_against_the_schema",
+      "events",
+      "every_event_flushes_and_write_failures_propagate",
+      "every_scoped_output_ignores_foreign_thread_and_foreign_turn",
+      "exec_color_and_locale_leave_quoted_prompt_and_connection_intact",
+      "explicit_ansi_styles_labels_without_changing_canonical_output",
+      "failed_and_interrupted_turns_discard_partial_answer_without_synthetic_completion",
+      "failed_and_interrupted_turns_do_not_emit_success_or_partial_answers",
+      "failed_and_interrupted_turns_preserve_last_message_file_and_write_errors_propagate",
+      "failed_and_interrupted_turns_report_diagnostics_and_never_print_partial_snapshot",
+      "final_answer_from_items",
+      "final_answer_uses_stdout_when_either_stream_is_redirected",
+      "five_locales_keep_user_content",
+      "foreign_notifications_cannot_change_output_item_numbering_or_usage",
+      "fork",
+      "fork_only_never_needs_stdin_and_rejects_turn_only_options",
+      "fork_overrides_model_environment_and_permission_group_at_the_canonical_boundary",
+      "fork_params",
+      "fork_prompt_preserves_root_then_child_images_before_the_text",
+      "fork_requires_source_and_keeps_optional_prompt_and_child_overrides",
+      "format_with_separators",
+      "human",
+      "images_use_single_argument_comma_lists_and_accumulate_across_exec_levels",
+      "invalid_shared_reasoning_flags_fail_closed",
+      "item_completed",
+      "item_notification",
+      "last_message_file_uses_canonical_final_answer_in_both_output_modes",
+      "last_uses_updated_desc_unarchived_provider_and_cwd_without_private_storage",
+      "map_item",
+      "message",
+      "missing_or_dash_reads_stdin_and_empty_or_invalid_input_fails_closed",
+      "notification",
+      "optional_mcp_meta_and_search_results_do_not_create_duplicate_item_ids",
+      "other_thread_or_turn_cannot_emit_reasoning_or_finish_current_turn",
+      "output_schema_is_global_across_root_resume_and_fork",
+      "output_schema_reads_json_and_fails_closed_before_fork_only_connects",
+      "parse",
+      "patch_mcp_search_compaction_and_collab_use_typed_current_items",
+      "plan_diff_warning_errors_and_latest_usage_do_not_become_final_stdout",
+      "processor",
+      "published_schema_matches_the_rust_event_contract",
+      "raw_enabled_with_no_content_falls_back_to_summary",
+      "raw_only_reasoning_never_becomes_machine_output_and_plan_text_is_preserved",
+      "reasoning",
+      "reply",
+      "resolve_initial_operation",
+      "resolve_prompt_with_stdin",
+      "respond",
+      "response_for",
+      "resume_last_reinterprets_single_positional_and_keeps_explicit_second_prompt",
+      "resume_list_params",
+      "resume_options_before_and_after_subcommand_use_one_global_contract",
+      "resume_permissions_and_transport_do_not_bypass_conflict_checks",
+      "review_args_match_codex_targets_and_global_output_options",
+      "review_request_keeps_typed_targets_and_requires_explicit_instructions",
+      "review_targets_conflict_and_title_requires_commit",
+      "root_appends_piped_context_while_resume_explicit_prompt_keeps_its_input",
+      "schema",
+      "snapshot_only_command_keeps_identity_and_all_result_statuses",
+      "terminal",
+      "terminal_backfills_missing_items_and_reasoning_only_contains_summary",
+      "terminal_snapshot_repairs_stream_and_late_delta_cannot_reopen_completed_item",
+      "todo_updates_keep_id_and_usage_uses_latest_total_including_cache_write",
+      "typed_interactions_never_grant_consent_or_invent_user_answers",
+      "typed_tool_lowering_keeps_payloads_and_closes_web_actions",
+      "unsupported_mcp_request_is_rejected_with_same_id",
+      "usage",
+      "with_details"
+    ],
     "execpolicyFilesMissingInLime": [],
     "execpolicyFilesOnlyInLime": [],
     "npmFilesMissingInLime": [
@@ -7122,6 +11166,7 @@
     "npmFilesOnlyInLime": [
       "README.md",
       "bin/lime.js",
+      "exec-events.schema.json",
       "tests/npm-package.test.mjs"
     ],
     "rustSymbolNamesMissingInLime": [
@@ -7134,6 +11179,7 @@
       "AppServerProxyCommand",
       "AppServerSubcommand",
       "Args",
+      "AuthMode",
       "AwsSigV4AuthProvider",
       "Channel",
       "CheckStatus",
@@ -7174,6 +11220,7 @@
       "HandshakeOutcome",
       "HumanDetail",
       "HumanOutputOptions",
+      "InitialDaemon",
       "InstalledApp",
       "JsonDetailValue",
       "JsonDoctorCheck",
@@ -7213,6 +11260,7 @@
       "PluginListEntry",
       "PluginListMarketplace",
       "PluginSelection",
+      "ProbeResult",
       "ProgressOutput",
       "ProjectTitleRoot",
       "ProviderAuthReachabilityMode",
@@ -7235,7 +11283,10 @@
       "RolloutStats",
       "RolloutThreadId",
       "RouteProbeOutcome",
+      "SandboxCommand",
       "SandboxDenial",
+      "SandboxSubcommand",
+      "SandboxUninstallCommand",
       "SessionArchiveConfigOverrides",
       "SessionTuiCli",
       "ShutdownBehavior",
@@ -7263,8 +11314,10 @@
       "add_and_remove_preserve_cloud_managed_resources",
       "add_and_remove_server_updates_global_config",
       "add_cant_add_command_and_url",
+      "add_persists_client_secret_for_subsequent_login_without_disclosure",
       "add_persists_issuer_bound_callback_before_starting_oauth",
       "add_pid_watch",
+      "add_rejects_blank_client_credentials_before_saving",
       "add_streamable_http_rejects_removed_flag",
       "add_streamable_http_with_custom_env_var",
       "add_streamable_http_with_oauth_options",
@@ -7276,6 +11329,7 @@
       "an_unavailable_reader_is_not_reported_as_clean",
       "api_key_auth_exposes_api_curated_plugin_mcp_servers",
       "app_server_emits_json_info_events",
+      "app_server_executor_auth_supports_tokens_and_legacy_configuration",
       "app_server_subcommand_name",
       "app_server_summary",
       "append_desktop_update",
@@ -7284,16 +11338,22 @@
       "assert_configured_marketplace_snapshot_failure",
       "assert_marketplace_failure",
       "assert_metric_point",
+      "assert_no_browser_exchanges_pasted_callback_and_saves_credentials",
       "attach_issue_metadata",
+      "attributes_home_relative_subtree_paths_to_their_config_layer",
+      "attributes_paths_inherited_through_managed_profiles_to_their_config_layer",
       "auth_check",
       "auth_mode_name",
       "auth_policy_label",
       "auth_reachability_note",
+      "auto_daemon_start_attaches_to_shared_server",
       "available_space",
       "aws_sigv4_auth_provider",
       "background_server_check",
       "backup_files_for_fresh_start",
       "backup_folder",
+      "bedrock_onboarding_leaves_a_running_daemon_untouched",
+      "blocked_probe_fixture",
       "bold",
       "bootstrap_cloud_config_bundle",
       "build_commit",
@@ -7340,6 +11400,7 @@
       "configured_marketplace_update",
       "confirm",
       "confirm_fresh_start_rebuild",
+      "confirm_install",
       "copy_app_bundle",
       "count_label",
       "count_or_skipped",
@@ -7348,6 +11409,13 @@
       "cyan",
       "daemon_app_server_human_lines",
       "daemon_app_server_identity",
+      "daemon_auto_start_preserves_bedrock_onboarding",
+      "daemon_eligible",
+      "daemon_exclusion_survives_fork_picker",
+      "daemon_exclusion_survives_resume_picker",
+      "daemon_handoff_uses_selected_executable_and_propagates_failure",
+      "daemon_startup",
+      "daemon_worktree_start_and_fork_bind_owner_before_turn",
       "data_value",
       "debug_clear_memories_resets_memories_db_without_state_db",
       "debug_clear_memories_resets_state_and_removes_memory_dir",
@@ -7355,10 +11423,12 @@
       "debug_models_default_prints_json_without_auth",
       "debug_prompt_input_follows_authenticated_attribution_setting",
       "debug_sandbox_bootstraps_cloud_managed_permission_profile_from_backend",
+      "deduplicates_literal_paths_without_expanding_globs_or_special_paths",
       "default_reachability_plan",
       "defender_action",
       "defender_distinguishes_detection_and_remediation",
       "delete_action",
+      "describe_install",
       "describe_install_context",
       "describe_method_with_package_layout",
       "desktop_check",
@@ -7387,9 +11457,14 @@
       "doctor_install_context",
       "doctor_managed_by_npm",
       "doctor_progress",
+      "doctor_redacts_failed_database_paths_in_json",
       "doctor_report",
       "doctor_reports_cloud_filesystem_policy_and_rejects_invalid_requirements",
+      "doctor_reports_configured_filesystem_paths",
+      "doctor_reports_configured_tui_mode",
+      "doctor_reports_failed_database_paths",
       "doctor_reports_macos_system_proxy_configuration_and_policy",
+      "doctor_reports_only_safe_config_error_metadata",
       "download_and_install_codex_to_user_applications",
       "download_dmg",
       "duplicate_db_paths",
@@ -7397,6 +11472,7 @@
       "each_endpoint_product_requires_vendor_specific_app_exclusions",
       "effective_locale",
       "element",
+      "elevated_local_tui_uses_embedded_without_starting_daemon",
       "enable_feature_in_config",
       "endpoint_check",
       "endpoint_product_guidance_preserves_structured_json_contract",
@@ -7408,6 +11484,8 @@
       "event_target",
       "every_source_distinguishes_audits_from_blocks",
       "evidence_is_bounded_redacted_and_correctly_classified",
+      "excludes_scoped_origins_replaced_by_a_scalar_grant",
+      "exec_help_documents_cyber_access_program",
       "exec_server_defaults_preserve_local_and_noise_modes",
       "exec_server_direct_forwarding_remains_rejected",
       "exec_server_from_args",
@@ -7416,6 +11494,9 @@
       "exec_server_rejects_missing_or_conflicting_remote_options",
       "exec_server_sigv4_does_not_enable_aws_auth_for_noise",
       "exec_server_transport_and_aws_options_require_registration_arguments",
+      "exec_server_websocket_auth_gates_rpc_connections",
+      "exec_server_websocket_auth_rejects_inapplicable_transports",
+      "exec_server_websocket_auth_rejects_invalid_configuration",
       "executable_file_permission",
       "executable_path_exists",
       "exhaustion_and_unavailable_history_have_actionable_warnings",
@@ -7435,6 +11516,7 @@
       "fetch_max_id",
       "fetch_new_rows",
       "fetch_remote_marketplaces",
+      "filesystem_probe_does_not_load_configuration",
       "finalize_fork_interactive",
       "finalize_resume_interactive",
       "finalize_session_archive_interactive",
@@ -7445,6 +11527,7 @@
       "fixture",
       "foreground_app_server_exited_before_ready",
       "foreground_stop_signal",
+      "foreground_update_respects_consent_and_reports_unconfirmed",
       "format_bytes",
       "format_capacity",
       "format_count",
@@ -7452,6 +11535,7 @@
       "format_mcp_status",
       "format_remote_control_pairing_output",
       "format_row",
+      "fresh_daemon_requires_confirmation_to_disable_shared_features",
       "gatekeeper_failures_require_actionable_security_evidence",
       "generated_at",
       "generic_details",
@@ -7469,7 +11553,7 @@
       "header_suffix",
       "heuristic_formatting",
       "highlight_actions",
-      "highlight_flags",
+      "highlight_plain_text",
       "home_shortened_path",
       "http_get_json",
       "http_get_probe_status_with_timeout",
@@ -7479,6 +11563,9 @@
       "humanize_detail",
       "humanize_timestamp",
       "humanize_value",
+      "incompatible_daemon_can_cancel",
+      "incompatible_daemon_can_restart_with_confirmed_settings",
+      "incompatible_daemon_can_run_embedded",
       "inherited_managed_env_for_cargo_binary",
       "init",
       "init_login_file_logging",
@@ -7504,7 +11591,6 @@
       "is_apple_silicon_mac",
       "is_auto_backup_recoverable",
       "is_codex_app_bundle",
-      "is_corruption",
       "is_falsy",
       "is_implicit_system_marketplace_root",
       "is_locked",
@@ -7530,6 +11616,7 @@
       "list_reports_unknown_auth_status_when_oauth_discovery_is_rate_limited",
       "list_shows_empty_state",
       "list_with_macos_proxy_resolution_does_not_panic",
+      "literal_paths",
       "load_cli_auth_manager",
       "load_config",
       "load_config_or_exit",
@@ -7547,17 +11634,23 @@
       "local_exec_server_exits_successfully_on_sigterm",
       "local_exec_server_flushes_telemetry_on_stdio_disconnect",
       "local_exec_server_ignores_invalid_config_without_strict_config",
+      "local_exec_server_projects_global_mxc_preference",
       "log_field",
       "login_and_logout_persist_only_cloud_managed_mcp_oauth_credentials",
+      "login_default_filter_records_sanitized_storage_fallback",
       "login_status_reports_auth_storage_errors",
       "login_status_validates_configured_workload_identity",
+      "login_storage_error_displays_context_and_cause",
       "login_with_access_token_rejects_invalid_jwt",
       "login_with_api_key_reads_stdin_and_writes_auth_json",
       "login_with_chatgpt",
       "logout_clears_only_the_selected_bedrock_provider",
+      "logout_survives_enterprise_cleanup_failure_with_xaa_disabled",
       "looks_copyable",
       "looks_like_path",
       "macos_desktop_update_url",
+      "managed_daemon_restarts_from_deleted_working_directory",
+      "managed_identity_survives_locale_and_timezone_changes",
       "managed_start_keeps_updater_on_marker_mismatch_but_stops_it_for_pin",
       "managed_start_succeeds_when_updater_record_is_invalid",
       "managed_starts_ensure_one_updater_and_recover_a_missing_one",
@@ -7590,6 +11683,7 @@
       "mcp_check_from_servers",
       "mcp_http_probe_url",
       "mcp_http_probe_url_with_timeout",
+      "mcp_list_reports_invalid_keybinding_reason",
       "mcp_summary",
       "merge_interactive_cli_flags",
       "middle_truncate",
@@ -7602,9 +11696,11 @@
       "network_summary",
       "no_browser_accepts_http_callback_while_terminal_input_remains_open",
       "no_browser_exchanges_pasted_callback_and_saves_credentials",
+      "no_browser_exchanges_pasted_callback_with_client_secret",
       "no_browser_rejects_invalid_callbacks_without_exchanging_tokens",
       "no_browser_retries_rejected_discovered_scopes_with_pasteback",
       "no_browser_sigint_cancels_token_exchange_after_pasted_or_http_callback",
+      "no_daemon_rejects_agents_and_explicit_remote_targets",
       "no_endpoint_products_require_no_remediation",
       "non_interactive_dumb_terminal_preserves_other_doctor_failures",
       "non_ok_notes",
@@ -7612,6 +11708,8 @@
       "notes_for_report",
       "npm_server_names_round_trip_through_cli",
       "numbered_values",
+      "oauth_client_secret_is_redacted_in_parsed_command_debug",
+      "oauth_client_secret_requires_url_and_client_id_without_disclosure",
       "only_matching_enforced_apple_security_events_are_failures",
       "only_trusted_codex_executables_are_reported",
       "open_codex_app",
@@ -7620,6 +11718,12 @@
       "overall_status",
       "overall_status_label",
       "override_names",
+      "package_ownership_check_does_not_start_an_updater",
+      "packaged_daemon_bootstrap_seeds_local_package",
+      "packaged_daemon_explicit_replacement_migrates_running_legacy",
+      "packaged_daemon_launch",
+      "packaged_daemon_restart_seeds_local_package",
+      "packaged_daemon_start_and_explicit_replacement",
       "parent_disconnect_still_stops_executor_after_signal_listener_error",
       "parity_check_from_scan_and_rows",
       "parse_events",
@@ -7636,6 +11740,7 @@
       "path_key",
       "path_readiness",
       "perform_oauth_login_retry_without_scopes",
+      "pid_inheritance_is_startup_only_for_process_and_filesystem_helpers",
       "pid_is_alive",
       "plugin_add_and_remove_updates_installed_plugin_config",
       "plugin_add_fails_when_configured_marketplace_snapshot_is_malformed",
@@ -7676,6 +11781,8 @@
       "print_technical_details",
       "print_upgrade_outcome",
       "print_upgrade_outcome_json",
+      "probe",
+      "probe_exit_code",
       "probe_status",
       "process_executable_path",
       "process_package_family",
@@ -7730,6 +11837,7 @@
       "read_probe_file",
       "read_stdin_secret",
       "read_terminal_callback",
+      "record_command",
       "red",
       "redact_detail",
       "redact_identifier",
@@ -7761,6 +11869,11 @@
       "remote_plugin_listing_preserves_local_curated_only_when_fetch_fails",
       "remote_plugin_listing_replaces_local_curated_catalog",
       "remote_plugin_listing_uses_collection_when_remote_catalog_is_disabled",
+      "remote_session_commands_validate_config",
+      "remote_session_commands_with_workload_identity_use_server_auth",
+      "remote_start_allows_network_access_overrides_before_requiring_terminal",
+      "remote_start_rejects_add_dir_before_connecting",
+      "remote_start_rejects_writable_root_overrides_before_connecting",
       "remove_installed_plugin_config",
       "render_human_report",
       "reports_malformed_setup_failure_reports",
@@ -7772,6 +11885,8 @@
       "resolve_windows_update_command_from_path",
       "respond_to_queue_request",
       "restart_applies_saved_updater_preference",
+      "restrictive_launcher_uses_embedded_if_daemon_cannot_start",
+      "returns_when_a_probe_process_does_not_exit",
       "rollout_files_and_bytes",
       "rollout_note",
       "rollout_path_key",
@@ -7787,7 +11902,6 @@
       "run_debug_prompt_input_command",
       "run_debug_trace_reduce_command",
       "run_doctor",
-      "run_exec_server_command",
       "run_foreground_remote_control",
       "run_login_status",
       "run_login_with_access_token",
@@ -7807,6 +11921,7 @@
       "run_update_command",
       "run_upgrade",
       "run_windows_app_open_or_install",
+      "running_daemon_replacement_prompt",
       "runtime_check",
       "runtime_details",
       "runtime_summary",
@@ -7844,6 +11959,8 @@
       "signal",
       "signs_requests_without_changing_payload_or_metadata",
       "socket_status",
+      "socket_test_home",
+      "source",
       "source_category",
       "spawn_debug_sandbox_child",
       "sqlite_home_is_blocking_file",
@@ -7859,6 +11976,7 @@
       "status_marker_slot",
       "stderr_env_filter",
       "stdio_command_resolves",
+      "stopped_daemon_requires_confirmation_to_disable_persisted_features",
       "stopped_desktop_check",
       "stopped_desktop_does_not_report_a_failure",
       "stored_auth_issues",
@@ -7908,6 +12026,7 @@
       "truncate_title_part",
       "unavailable",
       "unavailable_endpoint_inspection_does_not_require_remediation",
+      "uninstall_help_and_invalid_arguments_preserve_user_data",
       "unmanaged_app_server_does_not_launch_updater",
       "unsupported_subcommand_name_for_strict_config",
       "update_action_label",
@@ -7929,6 +12048,7 @@
       "wait_for_response",
       "wait_for_shutdown_signal",
       "wait_for_stop_signal",
+      "wall_clock_shift_keeps_server_and_updater_managed",
       "watch_children",
       "watch_pid",
       "websocket_error_detail",
@@ -7938,6 +12058,7 @@
       "windows_console_details",
       "windows_store_update",
       "with_system_proxy_remediation",
+      "worktree_start_and_fork",
       "write_check_row",
       "write_detail_line",
       "write_file_auth_config",
@@ -7952,49 +12073,186 @@
       "yes_no"
     ],
     "rustSymbolNamesOnlyInLime": [
+      "AgentMessageItem",
+      "AgentText",
+      "ApprovalPolicyCliArg",
+      "CollabAgentState",
+      "CollabAgentStatus",
+      "CollabTool",
+      "CollabToolCallItem",
+      "CollabToolCallStatus",
+      "Color",
+      "Command",
+      "CommandExecutionItem",
+      "CommandExecutionStatus",
       "ConnectionArgs",
       "DebugClearMemoriesCommand",
+      "ErrorItem",
+      "EventProcessor",
+      "EventProcessorWithHumanOutput",
+      "EventProcessorWithJsonOutput",
       "ExecCli",
+      "ExecResult",
+      "ExecSharedCliOptions",
       "FeatureListArgs",
+      "FileChangeItem",
+      "FileUpdateChange",
+      "ForkArgs",
+      "InitialOperation",
+      "ItemCompletedEvent",
+      "ItemStartedEvent",
+      "ItemUpdatedEvent",
+      "Label",
+      "Locale",
+      "McpToolCallItem",
+      "McpToolCallItemError",
+      "McpToolCallItemResult",
+      "McpToolCallStatus",
+      "OutputProcessor",
+      "PatchApplyStatus",
+      "PatchChangeKind",
+      "PermissionSettings",
       "PluginIdArgs",
       "PluginSearchArgs",
       "QueueListArgs",
       "QueueSubcommand",
+      "ReasoningItem",
+      "ReasoningPolicy",
+      "ResumeArgs",
+      "ResumeArgsRaw",
+      "ReviewArgs",
+      "RunningTodoList",
+      "SandboxModeCliArg",
       "SearchScope",
       "ServerNameArgs",
+      "ServerResponse",
       "SkillsCli",
       "SkillsListArgs",
       "SkillsSubcommand",
       "ThreadCommand",
+      "ThreadErrorEvent",
+      "ThreadEvent",
+      "ThreadItem",
+      "ThreadItemDetails",
       "ThreadListArgs",
       "ThreadReadArgs",
+      "ThreadStartedEvent",
       "ThreadSubcommand",
+      "TodoItem",
+      "TodoListItem",
+      "TrackedItem",
       "TuiCli",
+      "TurnCompletedEvent",
+      "TurnFailedEvent",
+      "TurnStartedEvent",
+      "Usage",
+      "WebSearchAction",
+      "WebSearchItem",
+      "all_removes_cwd_and_title_lookup_is_not_limited_by_the_active_provider",
+      "auto_color_requires_capable_tty_and_explicit_modes_override_environment",
+      "blended_tokens_exclude_cached_input_and_saturate_malformed_counters",
+      "blended_total",
+      "bom_decoding_preserves_unicode_and_rejects_malformed_utf16_or_utf32",
+      "build_review_request",
+      "canonical_item_order_wins_over_notification_arrival_order",
       "cli_initialize_params",
+      "command",
       "command_exec_params",
+      "command_lifecycle_uses_one_display_id_and_snapshot_repairs_without_reopening",
+      "command_start_result_and_output_are_visible_once_across_notifications_and_snapshot",
+      "commentary_is_not_a_final_answer_and_plan_is_a_terminal_fallback",
+      "completed_reasoning_matrix_keeps_human_output_out_of_final_answer",
       "decode_output_delta",
+      "decode_prompt_bytes",
+      "decode_utf16",
+      "emit",
       "enable_inherited_stdio",
       "ensure_host_sandbox",
+      "event_examples_round_trip_and_validate_against_the_schema",
+      "events",
+      "every_event_flushes_and_write_failures_propagate",
+      "every_scoped_output_ignores_foreign_thread_and_foreign_turn",
+      "exec_color_and_locale_leave_quoted_prompt_and_connection_intact",
+      "execute",
+      "explicit_ansi_styles_labels_without_changing_canonical_output",
+      "failed_and_interrupted_turns_discard_partial_answer_without_synthetic_completion",
+      "failed_and_interrupted_turns_do_not_emit_success_or_partial_answers",
+      "failed_and_interrupted_turns_preserve_last_message_file_and_write_errors_propagate",
+      "failed_and_interrupted_turns_report_diagnostics_and_never_print_partial_snapshot",
+      "final_answer_from_items",
+      "final_answer_uses_stdout_when_either_stream_is_redirected",
+      "five_locales_keep_user_content",
+      "foreign_notifications_cannot_change_output_item_numbering_or_usage",
+      "fork",
+      "fork_only_never_needs_stdin_and_rejects_turn_only_options",
+      "fork_overrides_model_environment_and_permission_group_at_the_canonical_boundary",
+      "fork_params",
+      "fork_prompt_preserves_root_then_child_images_before_the_text",
+      "fork_requires_source_and_keeps_optional_prompt_and_child_overrides",
+      "format_with_separators",
+      "handle_last_message",
+      "human",
+      "images_use_single_argument_comma_lists_and_accumulate_across_exec_levels",
+      "invalid_shared_reasoning_flags_fail_closed",
       "is_wsl",
+      "item_completed",
+      "item_notification",
+      "last_message_file_uses_canonical_final_answer_in_both_output_modes",
+      "last_uses_updated_desc_unarchived_provider_and_cwd_without_private_storage",
       "lime_command",
       "list_features",
       "list_models",
-      "read_prompt",
+      "load_output_schema",
+      "map_item",
+      "mark_exec_global_args",
+      "marketplace_paths_for_cwds",
+      "message",
+      "missing_or_dash_reads_stdin_and_empty_or_invalid_input_fails_closed",
+      "notification",
+      "optional_mcp_meta_and_search_results_do_not_create_duplicate_item_ids",
+      "other_thread_or_turn_cannot_emit_reasoning_or_finish_current_turn",
+      "output_schema_is_global_across_root_resume_and_fork",
+      "output_schema_reads_json_and_fails_closed_before_fork_only_connects",
+      "parse",
+      "patch_mcp_search_compaction_and_collab_use_typed_current_items",
+      "permission_settings",
+      "plan_diff_warning_errors_and_latest_usage_do_not_become_final_stdout",
+      "processor",
+      "prompt_with_stdin_context",
+      "published_schema_matches_the_rust_event_contract",
+      "raw_enabled_with_no_content_falls_back_to_summary",
+      "raw_only_reasoning_never_becomes_machine_output_and_plan_text_is_preserved",
+      "read_prompt_from_stdin",
+      "reasoning",
       "reject_unexpected_server_request",
       "render_features",
-      "render_json_envelope",
       "render_plugin_table",
       "render_server",
+      "reply",
       "report_json_result",
       "request",
       "request_thread_value",
       "request_value",
       "resolve_app_server_bin",
+      "resolve_initial_operation",
+      "resolve_prompt",
+      "resolve_prompt_with_stdin",
+      "resolve_resume_thread_id",
+      "resolve_root_prompt",
+      "respond",
+      "response_for",
+      "resume_last_reinterprets_single_positional_and_keeps_explicit_second_prompt",
+      "resume_list_params",
+      "resume_options_before_and_after_subcommand_use_one_global_contract",
+      "resume_permissions_and_transport_do_not_bypass_conflict_checks",
+      "review_args_match_codex_targets_and_global_output_options",
+      "review_request_keeps_typed_targets_and_requires_explicit_instructions",
+      "review_targets_conflict_and_title_requires_commit",
+      "root_appends_piped_context_while_resume_explicit_prompt_keeps_its_input",
       "run_archive",
       "run_async",
       "run_debug_command",
       "run_delete",
-      "run_exec",
       "run_features_command",
       "run_features_inner",
       "run_fork",
@@ -8011,12 +12269,26 @@
       "run_thread_request",
       "run_unarchive",
       "run_with_inherited_stdio",
+      "schema",
       "server_name",
       "set_enabled",
       "set_feature",
+      "should_print_final_message_to_stdout",
+      "snapshot_only_command_keeps_identity_and_all_result_statuses",
       "start_session",
+      "start_thread",
+      "terminal",
+      "terminal_backfills_missing_items_and_reasoning_only_contains_summary",
+      "terminal_snapshot_repairs_stream_and_late_delta_cannot_reopen_completed_item",
       "thread_stdio_config",
-      "tui_options"
+      "todo_updates_keep_id_and_usage_uses_latest_total_including_cache_write",
+      "tui_options",
+      "typed_interactions_never_grant_consent_or_invent_user_answers",
+      "typed_tool_lowering_keeps_payloads_and_closes_web_actions",
+      "unsupported_mcp_request_is_rejected_with_same_id",
+      "usage",
+      "validate_model_route",
+      "with_details"
     ],
     "execpolicySymbolNamesMissingInLime": [],
     "execpolicySymbolNamesOnlyInLime": [],
@@ -8048,6 +12320,7 @@
   },
   "rules": [
     "Codex directory, module, type and function names are the baseline.",
+    "Exec comparisons use owner-relative source paths; cli/src/exec.rs remains recorded in the CLI tree, not relabeled as upstream lib.rs.",
     "Product-only account, marketplace, updater, desktop and Cloud runtime code stays excluded or deferred with an owner.",
     "Lime CLI and npm launcher must retain the current App Server JSON-RPC chain; no direct runtime or config-file bypass is allowed.",
     "Cloud remains an authenticated app-server-client transport foundation only; production Cloud behavior stays deferred."

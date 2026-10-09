@@ -10,6 +10,7 @@ name = "lime"
 path = "src/main.rs"
 
 [dependencies]
+agent-protocol.workspace = true
 anyhow.workspace = true
 app-server-client.workspace = true
 app-server-protocol.workspace = true
@@ -17,11 +18,14 @@ execpolicy.workspace = true
 base64.workspace = true
 clap.workspace = true
 clap_complete.workspace = true
+crossterm.workspace = true
 serde_json.workspace = true
 serde.workspace = true
+schemars = { version = "1.2.1", features = ["derive"] }
 tui.workspace = true
 tokio.workspace = true
 uuid.workspace = true
 
 [dev-dependencies]
+jsonschema.workspace = true
 tempfile.workspace = true

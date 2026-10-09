@@ -121,9 +121,26 @@ Knowledge release scope 审计入口已迁到 `scripts/knowledge/`。对外继�
 
 App Server release manifest 与 sidecar smoke 脚本已迁到 `scripts/app-server/`。对外继续使用 `package.json` 里的 `app-server:*` 与 `smoke:app-server-*` npm scripts，不直接依赖根目录脚本路径。所有会创建 session/turn 的 stdio、external 与 packaged smoke 必须把 `dataDir` 指向本轮临时目录；固定 fixture identity 不得写入真实用户 App Server data root。
 
-`npm run smoke:cli-gate-b` 使用真实 `lime exec`、真实 App Server stdio 进程和测试专用 external backend，核对同一 canonical Thread/Turn identity、Item 事件序列、JSON/JSONL、pipe stdin、失败退出码与 shell completion；它不调用正式 Provider，也不允许 mock backend 或固定 timer 合成完成态。交互式 alternate-screen/PTY 证据归独立的 TUI Gate B，不用该 CLI smoke 冒充。
+`npm run smoke:cli-gate-b` 使用真实 `lime exec`、真实 App Server stdio 进程和测试专用 external backend，核对同一 canonical Thread/Turn identity、Item 事件序列、`--json`逐事件JSONL、pipe stdin、失败/中断退出码与 shell completion。后端屏障只在CLI读到command item.started后放行，证明结束前flush；cold thread/read核对原canonical身份、摘要/原文隔离和最后usage.total。旧jsonl参数仅保留负向断言。它不调用正式 Provider，也不允许 mock backend 或固定 timer 合成完成态。交互式 alternate-screen/PTY 证据归独立的 TUI Gate B，不用该 CLI smoke 冒充。
+
+同一入口的 `cli-reasoning-gate-b.mjs` 覆盖默认摘要、显式原文、隐藏与原文同时开启、
+原文缺失回到摘要、failed/interrupted退出码、JSONL摘要可见/原文不输出，以及unavailable
+backend拒绝。每种human策略都从真实stdin进入、区分stdout/stderr，并在exec结束后
+启动另一App Server经公共thread/read校验同一Turn/Reasoning ID及完整summary/content。
+临时用户配置只用于fixture，不写真实用户目录。
+
+同一入口的`cli-exec-gate-b.mjs`复用真实CLI与stdio App Server，覆盖跨进程UUID/精确名称
+resume、last按cwd选择/all跨cwd、cold Thread/Turn身份、单PROMPT/pipe追加/显式resume
+不追加、UTF-8 BOM/UTF-16、最后消息文件与失败/中断保留。名称通过公共thread/name/set
+创建，不直接改DB；无匹配新建与实际resume失败不fallback均有真实断言。
 
 `npm run smoke:tui-gate-b` 使用 `portable-pty` 启动真实 `lime tui` 与真实 App Server stdio 进程，在可见 ready 状态后输入 prompt，等待 canonical `turn.completed` 投影出的完成文本，再通过 Ctrl-C 退出；`complete` 场景还通过 Ctrl-G 启动继承前台 PTY 的 external editor，验证草稿回写、标准 DSR 恢复与 alternate screen 重新进入；独立 `focus-palette` 场景验证启动期 OSC 10/11 查询只执行一次、FocusGained 后立即输入和延迟输入均不丢失，并恢复 alternate screen；`reconnect` 场景通过真实 PTY 启动 `lime tui --remote`，让 loopback App Server JSON-RPC WebSocket 断线并恢复，验证草稿保留、`thread/resume` 路由、恢复后的通知和终端恢复。该测试不调用正式 Provider，也不使用生产 mock backend。
+
+`LIME_TUI_GATE_B_SCENARIOS=reasoning-raw npm run smoke:tui-gate-b` 由
+`scripts/app-server/reasoning-gate-b.mjs` 编排显式原始推理显示矩阵：同一共享配置 false/true，
+真实 stdio config 读写、indexed live deltas、运行中 resume、App Server 进程冷恢复、分页完整
+记录与导出，以及真实 PTY 键盘、完整记录一次显示和 alternate screen 恢复。受控 external
+backend 只属于测试夹具，不调用正式 Provider。
 
 `npm run inventory:tui-codex` 从 `CODEX_TUI_REFERENCE`（默认本机 `/Users/coso/Documents/dev/rust/codex/codex-rs/tui`）读取上游 snapshot，刷新 `internal/exec-plans/tui-codex-snapshot-inventory.json`。账本为每个 snapshot 保存相对路径、SHA-256 和 `direct/merge/contract/defer/dead` 分类；CI 只校验已提交账本，不要求存在外部 Codex checkout。
 

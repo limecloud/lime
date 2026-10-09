@@ -54,6 +54,7 @@ impl App {
             response.reasoning_effort,
             permissions,
         );
+        self.chat_widget.set_active_reasoning_effort_baseline();
         self.refresh_queued_submissions(session).await;
         Ok(())
     }

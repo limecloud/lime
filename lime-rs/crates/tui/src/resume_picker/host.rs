@@ -115,12 +115,16 @@ pub(crate) fn spawn_transcript_load(
     request_handle: RequestHandle,
     sender: &mpsc::UnboundedSender<PickerLoadEvent>,
     thread_id: String,
+    show_raw_agent_reasoning: bool,
 ) {
     let sender = sender.clone();
     tokio::spawn(async move {
-        let result =
-            crate::thread_transcript::load_session_transcript(request_handle, thread_id.clone())
-                .await;
+        let result = crate::thread_transcript::load_session_transcript(
+            request_handle,
+            thread_id.clone(),
+            show_raw_agent_reasoning,
+        )
+        .await;
         let _ = sender.send(PickerLoadEvent::Transcript { thread_id, result });
     });
 }
@@ -364,12 +368,12 @@ async fn run_session_picker_with_action(
                     }
                     PickerAction::ToggleExpanded => {
                         if let Some(thread_id) = picker.toggle_selected_expansion() {
-                            spawn_transcript_load(request_handle.clone(), &load_tx, thread_id);
+                            spawn_transcript_load(request_handle.clone(), &load_tx, thread_id, local_settings.show_raw_agent_reasoning);
                         }
                     }
                     PickerAction::OpenTranscript => {
                         if let Some(thread_id) = picker.open_transcript_pager(locale) {
-                            spawn_transcript_load(request_handle.clone(), &load_tx, thread_id);
+                            spawn_transcript_load(request_handle.clone(), &load_tx, thread_id, local_settings.show_raw_agent_reasoning);
                         }
                     }
                     PickerAction::Cancel => break None,

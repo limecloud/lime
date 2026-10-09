@@ -56,6 +56,19 @@ pub(crate) fn render(frame: &mut Frame<'_>, app: &App) {
         }
         return;
     }
+    if let Some(overview) = app.chat_widget.agents_overview.as_ref() {
+        // A fullscreen surface must not start or schedule effects hidden underneath it.
+        app.chat_widget.transcript_follow_control.clear();
+        let notice = transient_status(app).map(|status| app.chat_widget.locale.status(&status));
+        crate::app::agents_overview_view::render(
+            frame,
+            area,
+            &overview.view,
+            app.chat_widget.locale,
+            notice.as_deref(),
+        );
+        return;
+    }
     let active_elapsed = app.active_turn_elapsed(Instant::now());
     let chunks = screen_chunks(area, app, active_elapsed);
     let picker_active = app.chat_widget.model_picker.is_some()
@@ -75,6 +88,7 @@ pub(crate) fn render(frame: &mut Frame<'_>, app: &App) {
                 elapsed,
                 inline_status.as_deref(),
                 app.projection.hook_status_message(),
+                app.chat_widget.tui_config.animations,
             );
         } else if let Some(status) = transient_status(app) {
             render_transient_status(frame, chunks.status, app.chat_widget.locale, &status);
@@ -192,7 +206,9 @@ pub(crate) fn render(frame: &mut Frame<'_>, app: &App) {
             app.chat_widget.tui_config.status_line_use_colors,
             app.chat_widget.locale,
         );
-        bottom_pane::render_footer(frame, chunks.footer, &footer_props);
+        app.chat_widget
+            .bottom_pane
+            .render_footer(frame, chunks.footer, &footer_props);
     }
     if !app.chat_widget.bottom_pane.is_active() && !picker_active {
         app.chat_widget.bottom_pane.render_popups(
@@ -200,17 +216,6 @@ pub(crate) fn render(frame: &mut Frame<'_>, app: &App) {
             chunks.input,
             app.chat_widget.locale,
             chunks.transcript.y,
-        );
-    }
-    if let Some(overview) = app.chat_widget.agents_overview.as_ref() {
-        // The fullscreen owner reserves notice and controls separately; do not overpaint hints.
-        let notice = transient_status(app).map(|status| app.chat_widget.locale.status(&status));
-        crate::app::agents_overview_view::render(
-            frame,
-            area,
-            &overview.view,
-            app.chat_widget.locale,
-            notice.as_deref(),
         );
     }
 }

@@ -1,4 +1,5 @@
 import React, { useMemo } from "react";
+import { useRawReasoningVisibility } from "./reasoningVisibilityContext";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import {
@@ -142,12 +143,13 @@ function ThinkingItemCard({
   item: Extract<AgentThreadItem, { type: "reasoning" | "turn_summary" }>;
 }) {
   const { t } = useTranslation("agent");
+  const showRaw = useRawReasoningVisibility();
   const displayText = useMemo(
     () =>
       item.type === "reasoning"
-        ? resolveThinkingDisplayText(item)
+        ? resolveThinkingDisplayText(item, showRaw)
         : resolveTurnSummaryDisplayText(item),
-    [item],
+    [item, showRaw],
   );
   const parsedContent = useMemo(
     () => parseAIResponse(displayText, false),

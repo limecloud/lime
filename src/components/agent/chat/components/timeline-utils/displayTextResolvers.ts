@@ -5,6 +5,7 @@ import { normalizeTurnSummaryDisplayText } from "../../utils/turnSummaryPresenta
 
 export function resolveReasoningDisplayText(
   item: Extract<AgentThreadItem, { type: "reasoning" }>,
+  showRaw = false,
 ): {
   summaryText: string;
   bodyText: string;
@@ -18,17 +19,20 @@ export function resolveReasoningDisplayText(
   );
   return {
     summaryText,
-    bodyText: "",
+    bodyText: showRaw
+      ? normalizeProcessDisplayText((item.content || []).join("\n\n"))
+      : "",
     combinedText: normalizeProcessDisplayText(
-      resolveVisibleReasoningSourceText(item),
+      resolveVisibleReasoningSourceText(item, showRaw),
     ),
   };
 }
 
 export function resolveThinkingDisplayText(
   item: Extract<AgentThreadItem, { type: "reasoning" }>,
+  showRaw = false,
 ): string {
-  return resolveReasoningDisplayText(item).combinedText;
+  return resolveReasoningDisplayText(item, showRaw).combinedText;
 }
 
 export function resolveTurnSummaryDisplayText(
