@@ -31,3 +31,5 @@ libc = "0.2"
 [dev-dependencies]
 futures.workspace = true
 tempfile.workspace = true
+# Match the CLI/workspace feature graph when testing the real MCP wire.
+serde_json = { workspace = true, features = ["arbitrary_precision"] }
