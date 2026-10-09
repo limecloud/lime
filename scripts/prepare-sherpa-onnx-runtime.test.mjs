@@ -205,7 +205,7 @@ version = "1.13.0"
       "Build Windows app-server, code-mode-host, and sandbox sidecars",
     );
     const timeoutContractOffset = windowsJob.indexOf(
-      "Test Windows command timeout contract",
+      "Test Windows App Server contracts",
     );
     expect(securityMatrixOffset).toBeGreaterThanOrEqual(0);
     expect(securityEvidenceUploadOffset).toBeGreaterThan(securityMatrixOffset);
@@ -230,6 +230,42 @@ version = "1.13.0"
       "scripts/lib/windows-restricted-execution-evidence.mjs",
     );
     expect(windowsJob).toContain("actions/upload-artifact@v4");
+  });
+
+  it("Windows 合同只运行 current App Server 用例并拒绝零测试成功", () => {
+    const windowsJob = fs
+      .readFileSync(".github/workflows/quality.yml", "utf8")
+      .split("\n  windows_shell_runtime:\n")[1]
+      ?.split("\n  quality_gate:\n")[0];
+    const contracts = [
+      [
+        "lime-rs/crates/app-server/src/command_exec/tests.rs",
+        "command_exec::tests::windows_timeout_returns_canonical_exit_code",
+      ],
+      [
+        "lime-rs/crates/app-server/src/fs/tests.rs",
+        "fs::tests::exact_fs_round_trip_covers_binary_metadata_directory_copy_and_remove",
+      ],
+    ];
+    for (const [sourcePath, testName] of contracts) {
+      expect(windowsJob).toContain(`"${testName}"`);
+      expect(fs.readFileSync(sourcePath, "utf8")).toContain(
+        `async fn ${testName.split("::").at(-1)}()`,
+      );
+    }
+    expect(windowsJob).toContain(
+      "-p app-server --lib $contractTest -- --exact --test-threads=1",
+    );
+    expect(windowsJob).toContain("if ($testExitCode -ne 0)");
+    expect(windowsJob).toContain(
+      "if (-not ($testOutput -match '^test result: ok\\. 1 passed; 0 failed;'))",
+    );
+    expect(windowsJob).toContain(
+      'throw "Expected one passing App Server test for $contractTest"',
+    );
+    expect(windowsJob).not.toContain(
+      "create_directory_creates_nested_directory_from_platform_path",
+    );
   });
 
   it("支持显式 Rust workspace 目录，不再暴露旧目录参数口径", () => {

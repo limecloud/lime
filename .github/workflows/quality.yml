@@ -381,11 +381,22 @@ jobs:
       - name: Test Windows shell runtime fallback
         run: cargo test --manifest-path lime-rs/Cargo.toml -p lime-agent --test windows_shell_runtime -- --test-threads=1
 
-      - name: Test Windows command timeout contract
-        run: cargo test --manifest-path lime-rs/Cargo.toml -p app-server windows_timeout_returns_canonical_exit_code -- --test-threads=1
-
-      - name: Test Windows file browser directory creation
-        run: cargo test --manifest-path lime-rs/Cargo.toml -p lime-services create_directory_creates_nested_directory_from_platform_path -- --test-threads=1
+      - name: Test Windows App Server contracts
+        shell: pwsh
+        run: |
+          $contractTests = @(
+            "command_exec::tests::windows_timeout_returns_canonical_exit_code",
+            "fs::tests::exact_fs_round_trip_covers_binary_metadata_directory_copy_and_remove"
+          )
+          foreach ($contractTest in $contractTests) {
+            $testOutput = cargo test --manifest-path lime-rs/Cargo.toml -p app-server --lib $contractTest -- --exact --test-threads=1
+            $testExitCode = $LASTEXITCODE
+            $testOutput | Write-Output
+            if ($testExitCode -ne 0) { exit $testExitCode }
+            if (-not ($testOutput -match '^test result: ok\. 1 passed; 0 failed;')) {
+              throw "Expected one passing App Server test for $contractTest"
+            }
+          }
 
       - name: Test Windows Agent Plugin MCP parity
         run: cargo test --manifest-path lime-rs/Cargo.toml -p lime-mcp agent_plugin_config --lib -- --test-threads=1

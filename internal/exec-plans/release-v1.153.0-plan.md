@@ -66,7 +66,7 @@
 - 发布退出条件8/8（100%）；GitHub Release已公开、latest、稳定版，14项资产全部uploaded。Release workflow `37932726668`全部success。
 - 公开tag保持`3528a3c721ad4417ea6bf0378421c43014b42bda`；main另有Docs/CI与MCP通知修复，最新生产修复为`8e50db2f73524dd33c94ceadf763fff13a44dbe3`。发布后修复没有纳入既有tag或暗改产物。
 - R2的18个current/versioned端点、npm五包/provenance/四平台包结构、macOS arm64公开npm真实CLI/TUI安装使用均通过。自定义更新域名仍保留本机TLS超时限制，非本机npm平台只声明结构验证。
-- 发布后Actions修复完成：Docs公开部署成功；Quality `37946892531`整体success，Frontend Full、GUI Smoke、Integrity、Rust Full、Windows Shell Runtime与Quality汇总全部success。发布与失败修复总完成度100%。
+- Docs/MCP与首轮Quality `37946892531`整体success；最终日志复核发现Windows旧目录测试匹配0项，新增窄修复将验证迁至current App Server fs。发布完成度100%，CI验证范围更正与后续Windows真实用例核验继续执行。
 
 ## 隔离验证收尾（2026-10-09）
 
@@ -139,11 +139,21 @@
 
 - 修复SHA的Quality `37946892531`已确认Frontend Full、GUI Smoke、Integrity与Rust Full全部success。Rust原job `113875522286`日志已下载实读：134组test result，7010 passed / 0 failed / 26 ignored；原progress并发隔离用例与新增浮点wire、非法标准参数、custom/extensions三个回归均明确`ok`（`quality-rust-normalized-job.log`与`quality-rust-normalized-summary.json`）。原169项等待失败已由同CI矩阵闭环，不再仅依赖本地通过。Windows最后合同组继续运行。
 
-## 最终验收结果
+## 首轮验收结果（Windows目录测试范围见后续更正）
 
-- 发布与CI修复完成度100%。Release `37932726668`、Docs `37942348705`和Quality `37946892531`均为success；公开GitHub latest、R2与npm实际分发核验完成。版本事实源与双语说明为v1.153.0，release commit/tag/push已完成。
-- Quality完整CI结束于2026-10-09 15:39 UTC；Windows五组安全矩阵、shell fallback、canonical timeout、平台目录创建和Agent Plugin MCP parity全部success，Quality results最终success。修复后的源码SHA为`8e50db2f73524dd33c94ceadf763fff13a44dbe3`，完整成功链接：https://github.com/limecloud/lime/actions/runs/37946892531 。
+- 发布完成度100%。Release `37932726668`、Docs `37942348705`和首轮Quality `37946892531`均为success；公开GitHub latest、R2与npm实际分发核验完成。版本事实源与双语说明为v1.153.0，release commit/tag/push已完成。
+- Quality完整CI结束于2026-10-09 15:39 UTC；Windows五个检查步骤均exit0，Quality results最终success；目录创建步骤的0测试范围已在下节更正，不能将其记为真实Windows目录测试通过。修复后的源码SHA为`8e50db2f73524dd33c94ceadf763fff13a44dbe3`，完整成功链接：https://github.com/limecloud/lime/actions/runs/37946892531 。
 - Docs修复提交`8e45bf773`、MCP生产修复提交`8e50db2f7`均已推送main；仅最终验收记录追加文档提交。公开tag仍固定`3528a3c721ad4417ea6bf0378421c43014b42bda`，发布后main修复不属于已经发布的v1.153.0二进制。
 - current：唯一MCP客户端服务的标准进度通知解析与Docs生成配置；test-only：有界进度夹具、生产feature图回归和外部受控provider/stdio/PTY验证。CI修复无新增compat/deprecated入口、无文件删除；本版产品的已删除旧TUI exec及重复入口分类见前述架构确认。KISS/DRY复用标准method和现有handler，SOLID保持服务边界单一责任，无新dispatcher、runtime或fallback。
 - 实际修复写集：Docs四文件（含独立锁文件）、Pages workflow、MCP bridge_client测试、MCP client_service与dev-dependency manifest、发布计划；其余CLI/TUI/架构/ops并行开发继续避让。后续生产演进由各current owner负责，本轮没有遗留待修复CI项。
 - 验证限制明确保留：非本机npm平台只有结构/provenance证据；macOS arm64公开npm CLI/TUI为真实执行，TUI高负载验证仅放宽进程总预算至600秒，原180秒失败保留。自定义更新域名本机TLS超时仍未核实，公开R2 18/18端点及feed完整性通过；受控provider不等于live provider验证。
+
+## Windows 零测试门禁更正
+
+- 最终实读Windows job `113875522160`日志发现目录创建步骤虽exit0，实际为0 passed / 224 filtered。此前“Windows五组测试全部通过”的表述对该步骤不准确，以本节更正为准；Quality workflow整体success状态本身真实，canonical timeout用例及13项Agent Plugin MCP parity已在日志明确`ok`。验收记录提交`24f445f68`仅改本文档，其docs-only Quality `37953636506`为success。
+- 事实源确认旧`lime-services/file_browser_service`与旧目录测试已删除，current owner为App Server `fs`，现有`fs::tests::exact_fs_round_trip_covers_binary_metadata_directory_copy_and_remove`覆盖真实目录创建、二进制读写、复制、删除；同用例已在本次Rust Full实跑通过，但尚不据此声称Windows通过。
+- 新窄写集仅`.github/workflows/quality.yml`、既有`scripts/prepare-sherpa-onnx-runtime.test.mjs`和本文档。Windows统一运行两个明确App Server lib用例：canonical timeout与current fs round trip，检查cargo退出码并要求每个filter恰好1 passed / 0 failed，避免名称迁移后0测试伪绿；现有workflow守卫同时核对Rust用例存在。
+- 超时合同原命令为31分钟，额外编译了大量无匹配的integration target；改用`--lib`和完整test path的`--exact`，保留同一Windows专有用例及所有断言，避免无关target消耗预算。无生产代码变更，不恢复旧services facade，也不提高作业timeout。后续以新SHA真实Windows日志确认两个用例均执行通过后再标最终CI完成。
+
+- Windows current合同守卫17/17通过（`windows-current-contract-guard-exact.log`）；Prettier/YAML解析与diff检查通过。首轮Vitest按子串同时收集忽略目录中的冻结快照，根目录17项均通过、旧快照守卫因读取新workflow失败；已明确排除`.lime/**`后定向入口exit0，不修改历史快照或产品断言。
+- 新workflow使用明确pwsh shell、同一App Server lib target和完整test path；共享foreach统一核对native退出码与“1 passed / 0 failed”结果，避免重复执行器。生产源码与已通过的7010项Rust矩阵不变，后续CI仍按仓库workflow风险策略执行完整矩阵及真实Windows当前合同。
