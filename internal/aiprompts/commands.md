@@ -191,6 +191,9 @@ InitialOperation::UserTurn将其传给既有TurnStartParams.output_schema；不�
 没有target或custom空指令在连接前报错，custom '-'复用stdin解码并trim，显式指令忽略pipe。
 InitialOperation::Review只走review/start；provider prompt与审查边界由共享runtime构造，
 CLI不读取git或实现review loop。输出沿用同一EventProcessor及最后消息文件owner。
+顶层Subcommand::Review/ReviewCommand由review_cmd委托同一ExecCli Review，不保留另一套
+target解析。连接、权限与locale继承root；顶层默认human stdout最终回答/stderr过程，
+JSON与-o仍由exec review入口提供。root main仅做类型注册与委托，不承接审查业务。
 PROMPT为单参数，root+pipe追加stdin块、省略/-读取stdin；resume显式prompt不追加pipe。
 prompt owner统一InitialOperation选择、UTF-8 BOM/UTF-16 decoding与空输入检查。output-last-message由共享
 EventProcessor按成功canonical最终答案写入，失败/中断保留文件，写失败显式报错。
@@ -222,6 +225,8 @@ AltGr文本沿同一key_hint/textarea的Windows规则；Unix Ctrl+Alt保持控�
 agents_navigation_key_available从当前editor/Vim move_left动作判断：Left重绑或解绑后
 导航与footer提示同时失效；Repeat仍归editor，Release忽略。paste burst、pending chord、
 search、附件、disabled输入与remote会话均不抢导航，不保留fallback或editor bypass。
+Vim Normal的空草稿在plain '/'解析为search且无query/popup/pending operator/chord时
+进入Insert并交给同一slash补全；非空草稿、搜索chord和显式remap/unbind仍由Vim动作拥有。
 普通 composer footer 同样从上述 typed usage lowering 出 immutable FooterProps：有真实
 window 时显示剩余百分比，无有效 window 时 fallback 为 server total.total_tokens，未知为空。
 bottom_pane/footer 独占左右布局和窄屏优先级；passive status 不再重复 context，右侧为
@@ -299,6 +304,58 @@ RuntimeCore admission 使用同一 validator；服务端不 trim GUI 文本、�
 TUI `chat_composer/submission` 在展开 pending paste 后 trim/rebase，再执行同一长度校验；
 失败保留完整 rich draft，主 transcript 与嵌入式 notes footer 显示五语言错误，不新建业务
 method、Electron 命令、私有配置或 mock fallback。
+
+备注输入使用 `ChatComposerConfig::plain_text()` 和主输入同一 `handle_paste`，不启用命令/
+file/skill补全或image-path attachment。Markdown blockquote与长粘贴原子范围共用当前owner，
+每题保存 `ComposerDraft`；导航恢复游标与完整payload，提交时按登记范围展开，不能把显示
+placeholder作为答案。提交前snapshot只在composer成功接受后保存，返回前题可继续编辑已
+接受的备注；query或超限拒绝不清草稿。locale在enqueue、host切换和thread恢复时更新。普通主输入保留默认
+配置；shell/slash执行与权限仍在原host/App Server边界，不复制到备注或新增业务协议。
+
+每题AnswerState独占草稿、选项焦点和接受状态；修改正文或选项后需再次明确接受，单纯
+移动cursor不撤销接受。末题有未回答项时，confirm_unanswered复用list绑定提供继续或返回
+首个未回答问题；最终response只投影已接受内容，未接受问题为空数组，不提交旧答案。
+确认期间不透传输入到notes，退出确认后恢复同一rich draft/cursor。不存在第二答案缓存。
+同一response投影将所有已接受备注统一编码为user_note，合成选项固定None of the above；
+仅本地合成选项使用该wire label，作者label保持原样，App Server不重写任意用户答案。
+非bracketed的快速按键粘贴经同一PasteBurst检测；Enter/Tab归完整正文，空闲flush经现有
+FrameRequester和active notes pre_draw_tick完成。navigation先落入草稿再保存逐题snapshot；
+修改接受答案时暂存字符也撤销接受，不提前回复App Server或把placeholder发送为正文。
+混合ASCII/IME输入先落入held ASCII再即时插入IME；既有burst续写刷新idle时间，
+保证正文与canonical答案的字符顺序，主输入/notes/MCP字段复用同一composer规则。
+常规runtime仅在消费TuiEvent::Draw后绘制，键盘和异步投影更新只请求FrameRequester；
+Ratatui复用与Codex一致的layout-cache，避免每帧重复求解布局放大粘贴识别间隔。
+常规geometry同步同样归Tui::draw，runtime不再每次键盘/Paste/通知loop无条件查询backend
+尺寸；Resize用事件携带尺寸立即更新viewport，普通帧与editor handoff复用同一draw。
+Windows Terminal显式`sendInput`的`ESC[13;2u`由`tui/windows_key_sequence`在现有
+event source内还原为Shift+Enter，再进入同一BottomPane/ChatComposer换行逻辑；不把Esc
+透传为取消操作或把序列尾部写入正文。只有完整无修饰Press序列接受映射，配对Release
+合并；普通文字、Paste与失败候选原序保留，固定50ms候选deadline不因分片延长。
+`tui/windows_console`在进入TUI与editor返回后清除继承的VT input位，crossterm poll前和
+Pending后重申input-record mode；交接、退出、panic和失败初始化仅恢复原VT位，保留
+其它console client的mode变化。无console时no-op，SetConsoleMode失败不消费snapshot。
+该能力属于terminal host，不增加App Server方法、GUI配置或第二业务后端。
+外部编辑器入口为App::launch_external_editor；VISUAL优先于EDITOR，包括空VISUAL直接
+报EmptyCommand而不fallback。resolve_editor_command在终端交接前完成，Unix shlex/
+Windows winsplit分别遵循本平台参数规则，Windows程序通过PATH/PATHEXT定位shim。
+run_editor返回完整String，App清理尾部空白并回写同一BottomPane，空文本可清空输入；
+失败保留rich draft并显示五语言错误。旧edit_draft/command_parts/optional draft已删除。
+命令是terminal host本地交互，不新增App Server方法、配置或GUI业务后端。Codex的
+policy-aware editor_directory需共享文件系统policy owner，真实Windows editor仍待验收。
+App编辑器入口只读取当前App.cwd，runtime不再注入options.cwd；该值由服务端startup/
+resume/thread handoff/reconnect同步。完整有效filesystem/grantedPermissions尚未进入
+公开start/resume/settings策略投影，不能按active profile id在TUI猜测权限或读取本地YAML。
+KeepScreen交接由Tui唯一承接：App经既有view/draw捕获一次当前帧，with_restored消费并释放，
+恢复两屏输入模式、重绘并交出stdin；editor返回时强制回主屏，再恢复模式、flush并重新
+进入alternate screen。普通draw无额外复制，不新增custom_terminal包装或第二renderer。
+complete/images真实PTY使用阻塞editor，确认草稿可见后释放，检查editor主动退出与TUI
+重新进入；源码守卫不能替代Windows平台验收，也不关闭历史首键稳定性缺口。
+
+MCP form文本字段复用同一plain_text composer、rich draft、paste clock和active-view flush，
+不再持有独立TextArea/String草稿或直接insert路径。逐字段恢复cursor/atomic payload；
+接受后回访可继续编辑，cursor-only不撤销接受，正文改动需再次接受。渲染直接使用共享
+textarea viewport，删除通用边框入口和手算cursor；超限保留草稿并显示同一五语言错误。
+MCP response仍只有原mcpServer/elicitation/request一次typed回应；不新增协议或runtime。
 
 TUI canonical queue/edit 与传输失败恢复继续消费原 `UserInput`：TextElement 的 optional
 placeholder、Image/LocalImage 的各档 typed detail 必须保留。范围、顺序、UTF-8 边界和重叠

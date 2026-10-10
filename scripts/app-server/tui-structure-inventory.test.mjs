@@ -253,8 +253,8 @@ describe("Codex TUI structure inventory", () => {
     expect(source("bottom_pane/chat_composer/submission.rs")).toContain(
       "Self::expand_pending_pastes(",
     );
-    expect(source("runtime.rs")).toContain(
-      "let draft = app.chat_widget.bottom_pane.composer_text_with_pending()",
+    expect(source("app/input.rs")).toContain(
+      "let seed = self.chat_widget.bottom_pane.composer_text_with_pending()",
     );
     expect(source("bottom_pane/chat_composer/pending_paste.rs")).not.toMatch(
       /\bexpanded_text(?:_with_elements)?\b/u,
@@ -273,7 +273,9 @@ describe("Codex TUI structure inventory", () => {
     expect(source("bottom_pane/chat_composer/paste_input.rs")).toContain(
       "handle_paste_image_path",
     );
-    expect(source("runtime.rs")).toContain("app.apply_external_edit(text)");
+    expect(source("app/input.rs")).toContain(
+      ".apply_external_edit(text.trim_end().to_string())",
+    );
     expect(source("bottom_pane/chat_composer.rs")).toContain(
       "history: ChatComposerHistory",
     );

@@ -1,6 +1,6 @@
 {
   "name": "@limecloud/lime",
-  "version": "1.153.0",
+  "version": "1.154.0",
   "packageManager": "pnpm@9.15.9",
   "description": "Lime CLI is an agent that runs in your terminal.",
   "bin": {

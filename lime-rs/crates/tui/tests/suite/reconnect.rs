@@ -95,7 +95,11 @@ async fn automatic_reconnect_restores_draft_and_routes_new_notifications() -> Re
     );
     terminal.write_input(&[20])?;
     terminal.wait_for_screen("PTY_RESUMED_DELTA_STATUS", RECONNECT_TIMEOUT)?;
-    terminal.write_typed_input(b"/pwd\r")?;
+    terminal.write_typed_input(b"/pwd")?;
+    terminal.wait_for_screen("› /pwd", RECONNECT_TIMEOUT)?;
+    terminal.write_input(b"\r")?;
+    // The restored cwd is already in the header; wait for the command to consume its draft.
+    terminal.wait_for_screen_absent("› /pwd", RECONNECT_TIMEOUT)?;
     terminal.wait_for_screen(RESTORED_CWD, RECONNECT_TIMEOUT)?;
 
     terminal.write_input(&[4])?;
@@ -493,6 +497,20 @@ impl PtyReconnect {
         }
         bail!(
             "terminal did not render {text:?}; screen:\n{}",
+            self.screen_contents()
+        )
+    }
+
+    fn wait_for_screen_absent(&mut self, text: &str, timeout: Duration) -> Result<()> {
+        let deadline = Instant::now() + timeout;
+        while Instant::now() < deadline {
+            if !self.screen_contains(text) {
+                return Ok(());
+            }
+            self.read_output(Duration::from_millis(20))?;
+        }
+        bail!(
+            "terminal still renders {text:?}; screen:\n{}",
             self.screen_contents()
         )
     }

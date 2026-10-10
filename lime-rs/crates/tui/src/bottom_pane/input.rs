@@ -23,7 +23,7 @@ impl BottomPane {
     fn handle_event_at(&mut self, event: Event, now: Instant) -> Option<ChatWidgetAction> {
         if self.is_active() {
             return Some(
-                self.handle_interaction_event(event)
+                self.handle_interaction_event_at(event, now)
                     .map(ChatWidgetAction::Respond)
                     .unwrap_or(ChatWidgetAction::Input(InputResult::None)),
             );
@@ -48,7 +48,7 @@ impl BottomPane {
         }
         if self.composer.completion_popup_active() {
             if let Event::Key(key) = &event {
-                if self.composer.prepare_popup_key_event(*key, now) {
+                if self.composer.prepare_key_event(*key, now) {
                     return Some(ChatWidgetAction::Input(
                         self.finish_input(InputResult::Changed),
                     ));

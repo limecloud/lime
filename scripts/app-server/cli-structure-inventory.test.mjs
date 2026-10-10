@@ -76,6 +76,7 @@ describe("Codex CLI structure inventory", () => {
       "TuiCli",
       "ExecCli",
       "ResumeCommand",
+      "ReviewCommand",
       "McpCli",
       "PluginCli",
       "FeaturesCli",

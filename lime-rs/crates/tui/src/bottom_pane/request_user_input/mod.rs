@@ -8,18 +8,23 @@ use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use ratatui::text::Line;
 use std::time::{Duration, Instant};
 
-use super::{AppServerResponse, ChatComposer, InputResult};
+use super::{AppServerResponse, ChatComposer, ChatComposerConfig, ComposerDraft, InputResult};
 use crate::bottom_pane::selection_row_layout::MAX_POPUP_ROWS;
 use crate::footer_hint::{display_key_label, primary_action_hint, wrap_hint_rows, ShortcutHint};
 use crate::keymap::{KeyChordMatcher, KeymapMatch, ListAction, ListKeymap};
 use crate::line_truncation::truncate_line_with_ellipsis_if_overflow;
 use crate::width::display_width;
 
+mod confirmation;
 mod layout;
+mod state;
+use crate::bottom_pane::scroll_state::ScrollState;
+use state::{AnswerState, Focus};
 pub(super) mod render;
 
 const AUTO_RESOLUTION_HIDDEN_GRACE: Duration = Duration::from_secs(60);
 const AUTO_RESOLUTION_VISIBLE_COUNTDOWN: Duration = Duration::from_secs(60);
+const OTHER_OPTION_LABEL: &str = "None of the above";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum AutoResolutionTiming {
@@ -49,16 +54,10 @@ pub(super) struct RequestUserInputOverlay {
     pub(super) id: RequestId,
     pub(super) params: ToolRequestUserInputParams,
     pub(super) question_index: usize,
-    pub(super) selected: usize,
-    pub(super) editing: bool,
     pub(super) composer: ChatComposer,
-    answers: BTreeMap<String, ToolRequestUserInputAnswer>,
-    /// Stores one notes draft per question so navigation does not lose input.
-    question_drafts: Vec<String>,
-    /// Stores option selection per question for reversible focus changes.
-    question_selections: Vec<usize>,
-    /// Stores the Options/Notes focus per question.
-    question_editing: Vec<bool>,
+    answers: Vec<AnswerState>,
+    pending_submission_draft: Option<ComposerDraft>,
+    confirm_unanswered: Option<ScrollState>,
     list_keymap: ListKeymap,
     list_key_chord_matcher: KeyChordMatcher,
     request_started_at: Instant,
@@ -68,28 +67,26 @@ pub(super) struct RequestUserInputOverlay {
 
 impl RequestUserInputOverlay {
     pub(super) fn new(id: RequestId, params: ToolRequestUserInputParams) -> Self {
-        let question_count = params.questions.len();
-        let question_editing = params
+        let answers = params
             .questions
             .iter()
-            .map(|question| question.options.as_ref().is_none_or(Vec::is_empty))
+            .map(|question| {
+                AnswerState::new(
+                    question
+                        .options
+                        .as_ref()
+                        .is_some_and(|options| !options.is_empty()),
+                )
+            })
             .collect();
-        let editing = params
-            .questions
-            .first()
-            .and_then(|question| question.options.as_ref())
-            .is_none_or(Vec::is_empty);
         Self {
             id,
             params,
             question_index: 0,
-            selected: 0,
-            editing,
-            composer: ChatComposer::default(),
-            answers: BTreeMap::new(),
-            question_drafts: vec![String::new(); question_count],
-            question_selections: vec![0; question_count],
-            question_editing,
+            composer: ChatComposer::new_with_config(ChatComposerConfig::plain_text()),
+            answers,
+            pending_submission_draft: None,
+            confirm_unanswered: None,
             list_keymap: ListKeymap::default(),
             list_key_chord_matcher: KeyChordMatcher::default(),
             request_started_at: Instant::now(),
@@ -140,17 +137,26 @@ impl RequestUserInputOverlay {
     }
 
     pub(super) fn next_frame_delay(&self, now: Instant) -> Option<Duration> {
-        match self.auto_resolution_timing_at(now) {
+        let auto_resolution = match self.auto_resolution_timing_at(now) {
             AutoResolutionTiming::Disabled => None,
             AutoResolutionTiming::HiddenGrace { remaining } => Some(remaining),
             AutoResolutionTiming::VisibleCountdown { remaining } => {
                 Some(remaining.min(Duration::from_secs(1)))
             }
             AutoResolutionTiming::Due => Some(Duration::ZERO),
-        }
+        };
+        auto_resolution
+            .into_iter()
+            .chain(
+                self.composer
+                    .paste_burst_needs_frame()
+                    .then_some(crate::tui::TARGET_FRAME_INTERVAL),
+            )
+            .min()
     }
 
     pub(super) fn pre_draw_tick(&mut self, now: Instant) -> Option<AppServerResponse> {
+        self.flush_paste_burst_if_due(now);
         if !matches!(
             self.auto_resolution_timing_at(now),
             AutoResolutionTiming::Due
@@ -185,7 +191,7 @@ impl RequestUserInputOverlay {
         if let Some(position) = self.option_position_hint(locale) {
             hints.push(fit_footer_hint(position, width));
         }
-        if self.has_options() && !self.editing {
+        if self.has_options() && !self.editing() {
             if let (Some(up), Some(down)) = (
                 self.list_keymap.primary_hint(ListAction::MoveUp),
                 self.list_keymap.primary_hint(ListAction::MoveDown),
@@ -202,7 +208,7 @@ impl RequestUserInputOverlay {
         if self.has_options() {
             hints.push(ShortcutHint::new("tab", locale.request_notes_hint("tab")).fit(width));
         }
-        if self.params.questions.len() > 1 && !self.editing {
+        if self.params.questions.len() > 1 && !self.editing() {
             if let (Some(left), Some(right)) = (
                 self.list_keymap.primary_hint(ListAction::MoveLeft),
                 self.list_keymap.primary_hint(ListAction::MoveRight),
@@ -226,6 +232,9 @@ impl RequestUserInputOverlay {
     ) -> Vec<String> {
         if width == 0 {
             return Vec::new();
+        }
+        if self.confirm_unanswered.is_some() {
+            return self.confirmation_footer_hints(locale, width);
         }
 
         let tips = std::iter::once(self.primary_footer_hint_for_width(locale, width))
@@ -260,7 +269,7 @@ impl RequestUserInputOverlay {
     }
 
     fn action_hint_keys(&self) -> (Option<String>, Option<String>) {
-        if self.has_options() && !self.editing {
+        if self.has_options() && !self.editing() {
             (
                 self.list_keymap.primary_hint(ListAction::Accept),
                 self.list_keymap.primary_hint(ListAction::Cancel),
@@ -275,81 +284,44 @@ impl RequestUserInputOverlay {
         if total <= MAX_POPUP_ROWS {
             return None;
         }
-        let selected = self.selected.min(total.saturating_sub(1)) + 1;
+        let selected = self.selected().min(total.saturating_sub(1)) + 1;
         Some(locale.request_option_position_hint(selected, total))
     }
 
-    fn save_current_state(&mut self) {
-        if let Some(draft) = self.question_drafts.get_mut(self.question_index) {
-            *draft = self.composer.text().to_owned();
-        }
-        if let Some(selection) = self.question_selections.get_mut(self.question_index) {
-            *selection = self.selected;
-        }
-        if let Some(editing) = self.question_editing.get_mut(self.question_index) {
-            *editing = self.editing;
-        }
-    }
-
-    fn restore_current_state(&mut self) {
-        self.selected = self
-            .question_selections
-            .get(self.question_index)
-            .copied()
-            .unwrap_or(0);
-        let draft = self
-            .question_drafts
-            .get(self.question_index)
-            .cloned()
-            .unwrap_or_default();
-        self.composer.replace(draft);
-        self.editing = self
-            .question_editing
-            .get(self.question_index)
-            .copied()
-            .unwrap_or_else(|| !self.has_options());
-    }
-
-    fn move_question(&mut self, next: bool) {
-        let count = self.params.questions.len();
-        if count < 2 {
-            return;
-        }
-        self.list_key_chord_matcher.reset();
-        self.save_current_state();
-        self.question_index = if next {
-            (self.question_index + 1) % count
-        } else {
-            (self.question_index + count - 1) % count
-        };
-        self.restore_current_state();
-    }
-
-    /// Move through the current question's choices with the same wrapping list semantics as
-    /// Codex. Notes editing remains a separate mode, so this is only called while options are
-    /// focused.
-    fn move_option(&mut self, next: bool) {
-        let count = self.option_count();
-        if count == 0 {
-            return;
-        }
-        let selected = self.selected.min(count - 1);
-        self.selected = if next {
-            (selected + 1) % count
-        } else {
-            selected.checked_sub(1).unwrap_or(count - 1)
-        };
-        self.save_current_state();
-    }
-
+    #[cfg(test)]
     pub(super) fn handle_key_event(&mut self, key: KeyEvent) -> Option<AppServerResponse> {
+        self.handle_key_event_at(key, Instant::now())
+    }
+
+    pub(super) fn handle_key_event_at(
+        &mut self,
+        key: KeyEvent,
+        now: Instant,
+    ) -> Option<AppServerResponse> {
+        if key.kind == KeyEventKind::Release {
+            return None;
+        }
         if self.params.questions.is_empty() {
             return Some(self.finish());
         }
         self.snooze_auto_resolution();
         self.submission_error = None;
-        if self.editing && self.composer.key_chord_pending() {
-            self.composer.handle_key_event(key);
+        if self.confirm_unanswered.is_some() {
+            return self.handle_confirm_unanswered_key_event(key);
+        }
+        if self.editing()
+            && (self.composer.key_chord_pending()
+                || self.composer.vim_search_active()
+                || self.composer.history_search_active()
+                || self.composer.vim_search_wants_key(key)
+                || self.composer.should_handle_vim_insert_escape(key))
+        {
+            self.pending_submission_draft = None;
+            let result = self.composer.handle_key_event_at(key, now);
+            return self.handle_composer_input_result(result);
+        }
+        if self.editing() && self.composer.prepare_key_event(key, now) {
+            self.pending_submission_draft = None;
             self.save_current_state();
             return None;
         }
@@ -361,7 +333,7 @@ impl RequestUserInputOverlay {
                 // Match Codex's overlay boundary: while editing notes, the first Ctrl-C
                 // clears the local draft; only an empty draft cancels the request. This keeps
                 // cancellation explicit and never fabricates a partial answer response.
-                if self.editing && !self.composer.is_empty() {
+                if self.editing() && !self.composer.is_empty() {
                     self.composer.replace(String::new());
                     self.save_current_state();
                     None
@@ -370,7 +342,7 @@ impl RequestUserInputOverlay {
                 }
             }
             key if key.kind == KeyEventKind::Press => {
-                if !self.editing {
+                if !self.editing() {
                     match self
                         .list_keymap
                         .dispatch(&mut self.list_key_chord_matcher, key, false)
@@ -414,32 +386,32 @@ impl RequestUserInputOverlay {
                     }
                 }
                 match key.code {
-                    KeyCode::Esc if self.editing && self.has_options() => {
+                    KeyCode::Esc if self.editing() && self.has_options() => {
                         self.clear_notes_and_focus_options();
                         None
                     }
-                    KeyCode::Esc if self.editing => Some(self.cancel()),
+                    KeyCode::Esc if self.editing() => Some(self.cancel()),
                     KeyCode::Char('p')
-                        if self.editing && key.modifiers.contains(KeyModifiers::CONTROL) =>
+                        if self.editing() && key.modifiers.contains(KeyModifiers::CONTROL) =>
                     {
                         self.move_question(false);
                         None
                     }
                     KeyCode::Char('n')
-                        if self.editing && key.modifiers.contains(KeyModifiers::CONTROL) =>
+                        if self.editing() && key.modifiers.contains(KeyModifiers::CONTROL) =>
                     {
                         self.move_question(true);
                         None
                     }
-                    KeyCode::PageUp if self.editing => {
+                    KeyCode::PageUp if self.editing() => {
                         self.move_question(false);
                         None
                     }
-                    KeyCode::PageDown if self.editing => {
+                    KeyCode::PageDown if self.editing() => {
                         self.move_question(true);
                         None
                     }
-                    KeyCode::Tab if self.has_options() && self.editing => {
+                    KeyCode::Tab if self.has_options() && self.editing() => {
                         self.list_key_chord_matcher.reset();
                         self.clear_notes_and_focus_options();
                         None
@@ -447,70 +419,45 @@ impl RequestUserInputOverlay {
                     KeyCode::Tab if self.has_options() => {
                         self.list_key_chord_matcher.reset();
                         self.restore_current_state();
-                        self.editing = true;
+                        self.set_focus(Focus::Notes);
                         self.save_current_state();
                         None
                     }
                     KeyCode::Char(' ')
-                        if !self.editing && self.has_options() && key.modifiers.is_empty() =>
+                        if !self.editing() && self.has_options() && key.modifiers.is_empty() =>
                     {
                         self.save_current_state();
                         None
                     }
                     KeyCode::Backspace
-                        if self.editing && self.has_options() && self.composer.is_empty() =>
+                        if self.editing() && self.has_options() && self.composer.is_empty() =>
                     {
                         self.clear_notes_and_focus_options();
                         None
                     }
-                    _ if self.editing && key.code == KeyCode::Enter && self.composer.is_empty() => {
-                        let answer = self.selected_option_label().into_iter().collect();
-                        self.commit(answer)
+                    _ if self.editing()
+                        && key.code == KeyCode::Enter
+                        && key.modifiers.is_empty()
+                        && self.composer.is_empty()
+                        && !self.composer.vim_search_active()
+                        && !self.composer.history_search_active()
+                        && !self.composer.vim_key_event_is_owned(key) =>
+                    {
+                        self.commit()
                     }
-                    _ if self.editing => match self.composer.handle_key_event(key) {
-                        InputResult::Submitted { text, .. } => {
-                            let mut answers =
-                                self.selected_option_label().into_iter().collect::<Vec<_>>();
-                            let note = text.trim();
-                            if !note.is_empty() {
-                                if self.has_options() {
-                                    answers.push(format!("user_note: {note}"));
-                                } else {
-                                    answers.push(note.to_string());
-                                }
-                            }
-                            self.commit(answers)
-                        }
-                        InputResult::Interrupt | InputResult::Quit => Some(self.cancel()),
-                        InputResult::Queued { text, .. } => {
-                            self.composer.insert(&text);
-                            self.save_current_state();
-                            None
-                        }
-                        InputResult::SubmissionRejected { actual_chars } => {
-                            self.submission_error = Some(actual_chars);
-                            self.save_current_state();
-                            None
-                        }
-                        InputResult::None
-                        | InputResult::Changed
-                        | InputResult::DecreaseEffort
-                        | InputResult::IncreaseEffort
-                        | InputResult::PreviousPermissions
-                        | InputResult::NextPermissions
-                        | InputResult::OpenExternalEditor
-                        | InputResult::OpenAgentsOverview => {
-                            self.save_current_state();
-                            None
-                        }
-                    },
+                    _ if self.editing() => {
+                        self.pending_submission_draft = (key.code == KeyCode::Enter
+                            && key.modifiers.is_empty())
+                        .then(|| self.composer.snapshot_draft());
+                        let result = self.composer.handle_key_event_at(key, now);
+                        self.handle_composer_input_result(result)
+                    }
                     KeyCode::Char(ch) if ch.is_ascii_digit() && ch != '0' => {
                         let index = ch.to_digit(10).unwrap_or_default() as usize - 1;
                         if index < self.option_count() {
-                            self.selected = index;
+                            self.set_selected(index);
                             self.save_current_state();
-                            let answer = self.selected_option_label().into_iter().collect();
-                            self.commit(answer)
+                            self.commit()
                         } else {
                             None
                         }
@@ -522,39 +469,59 @@ impl RequestUserInputOverlay {
         }
     }
 
+    fn handle_composer_input_result(&mut self, result: InputResult) -> Option<AppServerResponse> {
+        if !matches!(result, InputResult::Submitted { .. }) {
+            self.pending_submission_draft = None;
+        }
+        match result {
+            InputResult::Submitted { .. } => self.commit(),
+            InputResult::Interrupt | InputResult::Quit => Some(self.cancel()),
+            InputResult::Queued { text, .. } => {
+                self.composer.insert(&text);
+                self.save_current_state();
+                None
+            }
+            InputResult::SubmissionRejected { actual_chars } => {
+                self.submission_error = Some(actual_chars);
+                self.save_current_state();
+                None
+            }
+            InputResult::None
+            | InputResult::Changed
+            | InputResult::DecreaseEffort
+            | InputResult::IncreaseEffort
+            | InputResult::PreviousPermissions
+            | InputResult::NextPermissions
+            | InputResult::OpenExternalEditor
+            | InputResult::OpenAgentsOverview => {
+                self.save_current_state();
+                None
+            }
+        }
+    }
+
+    pub(super) fn flush_paste_burst_if_due(&mut self, now: Instant) -> bool {
+        if self.composer.handle_paste_burst_flush(now) {
+            self.save_current_state();
+            true
+        } else {
+            false
+        }
+    }
+
+    pub(super) fn is_in_paste_burst(&self) -> bool {
+        self.composer.paste_burst_needs_frame()
+    }
+
     fn commit_selected_or_open_notes(&mut self) -> Option<AppServerResponse> {
-        if self.selected == self.current_options().map_or(usize::MAX, <[_]>::len)
+        if self.selected() == self.current_options().map_or(usize::MAX, <[_]>::len)
             && self.other_option_enabled()
         {
-            self.editing = true;
+            self.set_focus(Focus::Notes);
             self.save_current_state();
             return None;
         }
-        let answer = self.selected_option_label().into_iter().collect();
-        self.commit(answer)
-    }
-
-    fn commit(&mut self, answers: Vec<String>) -> Option<AppServerResponse> {
-        self.save_current_state();
-        if let Some(question) = self.params.questions.get(self.question_index) {
-            self.answers
-                .insert(question.id.clone(), ToolRequestUserInputAnswer { answers });
-        }
-        if self.question_index + 1 >= self.params.questions.len() {
-            return Some(self.finish());
-        }
-        self.question_index += 1;
-        self.restore_current_state();
-        None
-    }
-
-    fn clear_notes_and_focus_options(&mut self) {
-        if let Some(draft) = self.question_drafts.get_mut(self.question_index) {
-            draft.clear();
-        }
-        self.composer.replace(String::new());
-        self.editing = false;
-        self.save_current_state();
+        self.commit()
     }
 
     fn current_options(
@@ -587,23 +554,6 @@ impl RequestUserInputOverlay {
             .is_some_and(|question| question.is_other && self.has_options())
     }
 
-    fn selected_option_label(&self) -> Option<String> {
-        let options = self.current_options()?;
-        if let Some(option) = options.get(self.selected) {
-            return Some(option.label.clone());
-        }
-        (self.selected == options.len() && self.other_option_enabled()).then(|| "Other".to_string())
-    }
-
-    fn finish(&self) -> AppServerResponse {
-        AppServerResponse::UserInput {
-            id: self.id.clone(),
-            response: ToolRequestUserInputResponse {
-                answers: self.answers.clone(),
-            },
-        }
-    }
-
     fn cancel(&self) -> AppServerResponse {
         AppServerResponse::UserInput {
             id: self.id.clone(),
@@ -619,8 +569,11 @@ impl RequestUserInputOverlay {
         }
         self.snooze_auto_resolution();
         self.submission_error = None;
-        self.editing = true;
-        self.composer.insert(text);
+        if self.confirm_unanswered.is_some() {
+            return;
+        }
+        self.set_focus(Focus::Notes);
+        self.composer.handle_paste(text);
         self.save_current_state();
     }
 }
@@ -628,3 +581,12 @@ impl RequestUserInputOverlay {
 #[cfg(test)]
 #[path = "tests.rs"]
 mod tests;
+
+#[cfg(test)]
+mod paste_tests;
+
+#[cfg(test)]
+mod state_tests;
+
+#[cfg(test)]
+mod burst_tests;

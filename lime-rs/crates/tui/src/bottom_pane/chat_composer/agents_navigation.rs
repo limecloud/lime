@@ -93,6 +93,7 @@ mod tests {
         let mut composer = ChatComposer::default();
         composer.set_agents_navigation_enabled(true);
         composer.set_vim_enabled(true);
+        composer.insert("draft");
 
         composer.handle_key_event(KeyEvent::new(KeyCode::Char('/'), KeyModifiers::NONE));
 

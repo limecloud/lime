@@ -17,8 +17,10 @@ use crossterm::execute;
 use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
 };
+use crossterm::SynchronizedUpdate;
 use ratatui::backend::Backend;
 use ratatui::backend::CrosstermBackend;
+use ratatui::buffer::Buffer;
 use ratatui::layout::{Position, Size};
 use ratatui::Terminal as RatatuiTerminal;
 use tokio::sync::broadcast;
@@ -29,6 +31,10 @@ use crate::viewport::ViewportState;
 pub(crate) mod event_stream;
 mod frame_rate_limiter;
 mod frame_requester;
+#[cfg(any(windows, test))]
+mod windows_console;
+#[cfg(any(windows, test))]
+mod windows_key_sequence;
 
 pub(crate) use event_stream::{EventBroker, TuiEventStream};
 pub(crate) use frame_requester::FrameRequester;
@@ -50,6 +56,21 @@ pub enum TuiEvent {
 }
 
 pub(crate) type Terminal = RatatuiTerminal<CrosstermBackend<Stdout>>;
+
+#[derive(Clone, Copy)]
+pub(crate) enum TerminalHandoff {
+    Restore,
+    KeepScreen,
+}
+
+fn repaint_visible_frame(frame: &mut ratatui::Frame<'_>, visible_frame: &Buffer) {
+    let area = frame.area().intersection(visible_frame.area);
+    for y in area.top()..area.bottom() {
+        for x in area.left()..area.right() {
+            frame.buffer_mut()[(x, y)] = visible_frame[(x, y)].clone();
+        }
+    }
+}
 
 static PANIC_HOOK: Once = Once::new();
 static TERMINAL_ACTIVE: AtomicBool = AtomicBool::new(false);
@@ -94,6 +115,10 @@ fn restore_terminal_state() -> io::Result<()> {
     if let Err(error) = disable_raw_mode() {
         first_error.get_or_insert(error);
     }
+    #[cfg(windows)]
+    if let Err(error) = windows_console::restore_input_mode() {
+        first_error.get_or_insert(error);
+    }
     match first_error {
         Some(error) => Err(error),
         None => Ok(()),
@@ -110,7 +135,10 @@ fn set_modes() -> io::Result<()> {
     )?;
     #[cfg(windows)]
     execute!(stdout(), EnableBracketedPaste, EnableMouseCapture)?;
-    enable_raw_mode()
+    enable_raw_mode()?;
+    #[cfg(windows)]
+    windows_console::set_input_record_mode()?;
+    Ok(())
 }
 
 fn restore_keep_raw() -> io::Result<()> {
@@ -123,6 +151,10 @@ fn restore_keep_raw() -> io::Result<()> {
     )
     .err();
     if let Err(error) = execute!(output, SetCursorStyle::DefaultUserShape, Show) {
+        first_error.get_or_insert(error);
+    }
+    #[cfg(windows)]
+    if let Err(error) = windows_console::restore_input_mode() {
         first_error.get_or_insert(error);
     }
     match first_error {
@@ -141,6 +173,8 @@ fn cleanup_failed_enter(output: &mut Stdout) {
     let _ = execute!(output, SetCursorStyle::DefaultUserShape, Show);
     let _ = execute!(output, LeaveAlternateScreen);
     let _ = disable_raw_mode();
+    #[cfg(windows)]
+    let _ = windows_console::restore_input_mode();
 }
 
 #[cfg(unix)]
@@ -175,6 +209,7 @@ fn flush_terminal_input_buffer() {}
 
 pub(crate) struct Tui {
     terminal: Terminal,
+    visible_frame: Option<Buffer>,
     terminal_title: ManagedTerminalTitle,
     viewport: ViewportState,
     restored: bool,
@@ -190,6 +225,11 @@ impl Tui {
     pub(crate) fn enter() -> io::Result<Self> {
         install_panic_hook();
         enable_raw_mode()?;
+        #[cfg(windows)]
+        if let Err(error) = windows_console::set_input_record_mode() {
+            let _ = disable_raw_mode();
+            return Err(error);
+        }
         let mut output = stdout();
         #[cfg(not(windows))]
         let mode_result = execute!(
@@ -218,7 +258,14 @@ impl Tui {
                 return Err(error);
             }
         };
-        let size = terminal.size()?;
+        let size = match terminal.size() {
+            Ok(size) => size,
+            Err(error) => {
+                let mut output = stdout();
+                cleanup_failed_enter(&mut output);
+                return Err(error);
+            }
+        };
         #[cfg(unix)]
         let startup_probe = match crate::terminal_probe::startup(
             crate::terminal_probe::DEFAULT_TIMEOUT,
@@ -269,6 +316,7 @@ impl Tui {
         TERMINAL_ACTIVE.store(true, Ordering::Release);
         Ok(Self {
             terminal,
+            visible_frame: None,
             terminal_title: ManagedTerminalTitle::default(),
             viewport,
             restored: false,
@@ -292,12 +340,30 @@ impl Tui {
         terminal_title: Option<&str>,
         render: impl FnOnce(&mut ratatui::Frame<'_>),
     ) -> io::Result<()> {
+        self.sync_viewport()?;
         self.terminal.draw(render)?;
         execute!(self.terminal.backend_mut(), cursor_style)?;
         // A tab-title failure must not stop the canonical conversation or frame drawing.
         if let Err(error) = self.refresh_terminal_title(terminal_title) {
             tracing::debug!(%error, "failed to refresh terminal title");
         }
+        Ok(())
+    }
+
+    /// Capture only the frame needed for the next terminal handoff through the normal renderer.
+    pub(crate) fn draw_for_handoff(
+        &mut self,
+        cursor_style: SetCursorStyle,
+        terminal_title: Option<&str>,
+        render: impl FnOnce(&mut ratatui::Frame<'_>),
+    ) -> io::Result<()> {
+        self.visible_frame = None;
+        let mut visible_frame = None;
+        self.draw(cursor_style, terminal_title, |frame| {
+            render(frame);
+            visible_frame = Some(frame.buffer_mut().clone());
+        })?;
+        self.visible_frame = visible_frame;
         Ok(())
     }
 
@@ -376,7 +442,7 @@ impl Tui {
     }
 
     /// Temporarily restore terminal state while an external interactive program runs.
-    pub(crate) async fn with_restored<R, F, Fut>(&mut self, f: F) -> R
+    pub(crate) async fn with_restored<R, F, Fut>(&mut self, handoff: TerminalHandoff, f: F) -> R
     where
         F: FnOnce() -> Fut,
         Fut: Future<Output = R>,
@@ -388,15 +454,53 @@ impl Tui {
         }
 
         let was_alt_screen = self.viewport.is_alt_screen_active();
-        if was_alt_screen {
-            let _ = self.leave_alt_screen();
-        }
-
-        if let Err(error) = restore_keep_raw() {
+        let handoff = if was_alt_screen {
+            handoff
+        } else {
+            TerminalHandoff::Restore
+        };
+        let visible_frame = self
+            .visible_frame
+            .take()
+            .filter(|_| matches!(handoff, TerminalHandoff::KeepScreen));
+        let restore_result = if let Some(visible_frame) = visible_frame {
+            stdout()
+                .sync_update(|_| {
+                    // Restore input on both screens, then leave the captured surface visible.
+                    let leave_result = self.leave_alt_screen();
+                    let main_result = restore_keep_raw();
+                    let enter_result = self.enter_alt_screen();
+                    let draw_result = if enter_result.is_ok() {
+                        self.terminal
+                            .draw(|frame| repaint_visible_frame(frame, &visible_frame))
+                            .map(|_| ())
+                    } else {
+                        Ok(())
+                    };
+                    let input_result = restore_keep_raw();
+                    leave_result
+                        .and(main_result)
+                        .and(enter_result)
+                        .and(draw_result)
+                        .and(input_result)
+                })
+                .and_then(std::convert::identity)
+        } else {
+            if was_alt_screen {
+                let _ = self.leave_alt_screen();
+            }
+            restore_keep_raw()
+        };
+        if let Err(error) = restore_result {
             tracing::warn!(%error, "failed to restore terminal modes before external program");
         }
 
         let output = f().await;
+
+        if was_alt_screen && matches!(handoff, TerminalHandoff::KeepScreen) {
+            // The editor may have already left the alternate screen; restore main input first.
+            let _ = self.leave_alt_screen();
+        }
 
         if let Err(error) = set_modes() {
             tracing::warn!(%error, "failed to re-enable terminal modes after external program");
@@ -441,6 +545,10 @@ impl Tui {
         if let Err(error) = disable_raw_mode() {
             first_error.get_or_insert(error);
         }
+        #[cfg(windows)]
+        if let Err(error) = windows_console::restore_input_mode() {
+            first_error.get_or_insert(error);
+        }
         match first_error {
             Some(error) => Err(error),
             None => Ok(()),
@@ -451,11 +559,11 @@ impl Tui {
     /// Enter alternate screen and expand the viewport to full terminal size, saving the current
     /// inline viewport for restoration when leaving.
     pub(crate) fn enter_alt_screen(&mut self) -> io::Result<()> {
-        let _ = execute!(
+        execute!(
             self.terminal.backend_mut(),
             EnterAlternateScreen,
             EnableMouseCapture
-        );
+        )?;
         if let Ok(size) = self.terminal.size() {
             self.viewport.enter_alternate_screen(size);
             self.terminal
@@ -466,11 +574,11 @@ impl Tui {
 
     /// Leave alternate screen and restore the previously saved inline viewport, if any.
     pub(crate) fn leave_alt_screen(&mut self) -> io::Result<()> {
-        let _ = execute!(
+        execute!(
             self.terminal.backend_mut(),
             DisableMouseCapture,
             LeaveAlternateScreen
-        );
+        )?;
         self.viewport.leave_alternate_screen();
         Ok(())
     }
@@ -481,3 +589,6 @@ impl Drop for Tui {
         let _ = self.restore();
     }
 }
+
+#[cfg(test)]
+mod tests;

@@ -2,6 +2,7 @@ mod exec;
 mod mcp_cmd;
 mod plugin_cmd;
 mod queue_cmd;
+mod review_cmd;
 mod sandbox_setup;
 #[cfg(not(windows))]
 mod wsl_paths;
@@ -1094,6 +1095,9 @@ enum Subcommand {
     #[command(visible_alias = "e")]
     Exec(ExecCli),
 
+    /// Run a code review non-interactively.
+    Review(review_cmd::ReviewCommand),
+
     /// Resume a previous interactive thread.
     Resume(ResumeCommand),
 
@@ -1181,6 +1185,9 @@ async fn cli_main(cli: MultitoolCli) -> ExitCode {
                 args.locale = root_locale;
             }
             run_resume(args).await
+        }
+        Some(Subcommand::Review(args)) => {
+            review_cmd::run_review_command(args, root_connection, root_locale).await
         }
         Some(Subcommand::Queue(args)) => queue_cmd::run_queue_command(args).await,
         Some(Subcommand::Archive(args)) => run_archive(args).await,

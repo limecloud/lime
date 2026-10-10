@@ -55,6 +55,7 @@ pub(super) fn exercise_preview_save_and_cancel(
         initial,
         "preview must never persist preferences"
     );
+    terminal_observer::resize(output, 24, 12);
     master
         .resize(PtySize {
             rows: 24,
@@ -69,6 +70,7 @@ pub(super) fn exercise_preview_save_and_cancel(
         "narrow title setup keeps the full cancel chord",
         |screen| screen.lines().any(|line| line.trim() == "ctrl+x q"),
     );
+    terminal_observer::resize(output, 24, 100);
     master
         .resize(PtySize {
             rows: 24,

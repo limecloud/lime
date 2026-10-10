@@ -12,6 +12,22 @@ use crate::bottom_pane::pending_input_preview::can_restore_submission;
 use crate::clipboard_paste::ClipboardTextSource;
 
 impl ChatWidget {
+    pub(crate) fn handle_paste_burst_tick(
+        &mut self,
+        frame_requester: &crate::tui::FrameRequester,
+        now: std::time::Instant,
+    ) -> bool {
+        if self.bottom_pane.flush_paste_burst_if_due(now) {
+            frame_requester.schedule_frame();
+            true
+        } else if self.bottom_pane.is_in_paste_burst() {
+            frame_requester.schedule_frame_in(crate::tui::TARGET_FRAME_INTERVAL);
+            true
+        } else {
+            false
+        }
+    }
+
     pub(crate) fn set_pending_clipboard_paste(&mut self, pending: PendingPaste) {
         self.pending_clipboard_paste = Some(pending);
     }

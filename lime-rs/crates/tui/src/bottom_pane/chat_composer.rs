@@ -11,6 +11,7 @@ mod agents_navigation;
 mod attachment_state;
 mod completion;
 mod completion_target;
+mod config;
 mod draft;
 mod draft_state;
 mod effort;
@@ -37,6 +38,7 @@ mod vim_history;
 mod vim_search;
 
 use self::attachment_state::AttachmentState;
+pub(crate) use self::config::ChatComposerConfig;
 pub(crate) use self::draft_state::ComposerDraft;
 use self::draft_state::{ComposerMentionBinding, DraftState};
 use self::footer_state::FooterState;
@@ -91,6 +93,7 @@ pub(crate) enum InputResult {
 
 #[derive(Debug, Default)]
 pub(crate) struct ChatComposer {
+    config: ChatComposerConfig,
     app_event_tx: AppEventSender,
     locale: crate::locale::Locale,
     draft: DraftState,
@@ -107,6 +110,15 @@ pub(crate) struct ChatComposer {
     effort_animation_style: Option<IgnitionStyle>,
     effort_status_line_transition: Option<EffortStatusLineTransition>,
     frame_requester: Option<crate::tui::FrameRequester>,
+}
+
+impl ChatComposer {
+    pub(crate) fn new_with_config(config: ChatComposerConfig) -> Self {
+        Self {
+            config,
+            ..Self::default()
+        }
+    }
 }
 
 #[cfg(test)]

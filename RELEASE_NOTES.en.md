@@ -1,41 +1,39 @@
-## Lime v1.153.0
+## Lime v1.154.0
 
-Simplified Chinese release notes are the primary version.
+Simplified Chinese release notes are the primary version; this English companion summarizes the same release.
 
-### New Features
+### Features
 
-- CLI `exec` now supports resuming and forking sessions by ID, exact name, or most recent session, preserving shared history and lineage. It also supports image input, `--output-schema`, and saving the final successful message.
-- CLI `exec review` supports uncommitted changes, branch comparisons, specific commits, and custom instructions through shared `review/start` and the same terminal-output contracts.
-- Added a shared raw-reasoning preference. GUI and TUI show summaries by default and display raw content when explicitly enabled; CLI reasoning output can be hidden independently.
-- Added reasoning-effort indicators, one-time animations, and status-line transitions to the TUI composer, with an option to disable animations.
+- Add top-level `lime review` for uncommitted changes, a base branch, a specific commit, or custom instructions, using the shared `review/start` and terminal output.
+- Give TUI questions and MCP forms shared text editing with per-question/field drafts, cursor positions, full paste content, revision, unanswered confirmation, and complete notes.
+- Keep the TUI screen visible while an external editor waits, restore input/cursor/terminal modes on return, and allow successful edits to clear a draft.
 
 ### Fixes
 
-- Fixed missing notifications after session forks and projection identity conflicts when forking restored sessions. Historical Turn/Item identities and source-session content are preserved.
-- Removed duplicate reasoning Items from the desktop fixture. Live display, renderer reloads, and history restoration retain the same identities and complete content, with separate summary and raw-content policies.
-- Fixed modified Enter, repeated key events, and control-key handling in completion popups to prevent unintended submission or interception of editor actions. Empty completion lists now accept and close correctly.
-- Fixed empty-composer Left navigation to respect editor and Vim key rebinding or removal, with matching footer hints.
-- Fixed fragmented multibyte decoding in terminal tests and made selection, ordering, and exit checks observe actual screen state.
+- Preserve ASCII/IME input order and Enter/Tab in rapid question-note pastes, expand full text on submission, and save input before changing questions.
+- Correct external editor parsing of empty arguments, quotes, and backslashes with platform parsers and errors in all five supported languages.
+- Use the current thread directory for the external editor buffer after resuming a thread from a different launch directory.
+- Dispatch standard MCP progress notifications with arbitrary-precision JSON; retain form ownership and call scope for explicit tool calls on thread-owned connections.
+- Correct Windows Terminal Shift+Enter decoding and Console input-mode restoration. Platform-specific behavior still requires Windows machine validation.
 
 ### Improvements and Refactoring
 
-- Moved non-interactive CLI execution into a dedicated exec owner and unified tool, plan, error, usage, and reasoning output. JSONL uses machine events with distinct stdout and stderr responsibilities.
-- Resume, fork, stdin decoding, and final-message output share existing contracts. Failed or interrupted runs preserve existing output files, and file-write failures return an explicit error.
-- Moved file and Skill completion popups to their domain directories and separated reasoning animations, projection, and fork hydration. Desktop, CLI, and TUI continue to share App Server and canonical Thread/Turn/Item facts.
-- Carries forward the previous release's Windows gate fixes to execute real entrypoints and require essential release evidence uploads.
+- Improve terminal draw scheduling and enable layout caching without duplicate input wiring or a second persistent screen state.
+- Unify question-note encoding, fallback options, and confirmation key bindings; `/` on an empty main Vim composer can open command completion.
+- Consolidate external editor, MCP form, and question owners by replacing obsolete parsing/handoff paths while keeping the shared GUI/CLI/TUI backend.
 
-### Testing and Quality
+### Tests and Quality
 
-- Expanded shared-config, reasoning-display, CLI machine-event and packaged-schema, session-fork, and TUI completion/animation regressions.
-- Extended real stdio, PTY, npm-launcher, and Electron fixtures for identity, cold restoration, image bytes, structured-output contracts, and terminal restoration.
-- Actual release-gate results and unverified platform scope are recorded in this version's release execution plan.
+- Extend real CLI stdio, TUI PTY, MCP form, and external editor screen regressions for canonical identities, exactly-once responses, text/images, and terminal restoration.
+- Snapshot locally built terminal gate binaries with runtime siblings to avoid shared-target rebuild interference, and correct combined MCP scenario routing.
+- Run exact current App Server filesystem/timeout contracts in Windows CI and reject zero-test false positives.
 
 ### Documentation
 
-- Updated CLI/TUI operations, npm-package documentation, shared configuration, command boundaries, architecture diagrams, and Codex-alignment structure inventories.
+- Update CLI/TUI operations, architecture, command boundaries, structure inventories, and execution plans; fix Docs/Pages generation and deployment configuration.
 
 ### Other
 
-- Unified the release version at `1.153.0`. Historical release notes remain available through Git history and GitHub Releases.
+- Align the desktop app, CLI npm package, and Rust workspace at `1.154.0`.
 
-**Full changes**: `v1.152.0` -> `v1.153.0`
+**Full Changelog**: `v1.153.0` -> `v1.154.0`

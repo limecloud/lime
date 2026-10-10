@@ -406,9 +406,8 @@ impl ElicitationRequestRouter {
             let mut pending = lock_pending(&self.state);
             let request_ids = pending
                 .iter()
-                .filter_map(|(request_id, request)| {
-                    (request.session_id == session_id).then(|| request_id.clone())
-                })
+                .filter(|(_, request)| request.session_id == session_id)
+                .map(|(request_id, _)| request_id.clone())
                 .collect::<Vec<_>>();
             let mut queued = Vec::new();
             let mut forwarded = Vec::new();
@@ -451,61 +450,11 @@ impl ElicitationRequestRouter {
         true
     }
 
-    #[cfg(test)]
-    pub(crate) async fn request(
-        &self,
-        server_name: String,
-        runtime_owner: McpRuntimeOwner,
-        turn_id: Option<String>,
-        params: CreateElicitationRequestParam,
-        meta: Option<Value>,
-        cancellation: CancellationToken,
-    ) -> Result<ElicitationResponse, ElicitationRouterError> {
-        self.request_with_provenance(
-            server_name,
-            runtime_owner,
-            turn_id,
-            None,
-            None,
-            None,
-            params,
-            meta,
-            cancellation,
-        )
-        .await
-    }
-
     pub(crate) async fn request_with_scope(
         &self,
         server_name: String,
         runtime_owner: McpRuntimeOwner,
         scope: McpCallScope,
-        params: CreateElicitationRequestParam,
-        meta: Option<Value>,
-        cancellation: CancellationToken,
-    ) -> Result<ElicitationResponse, ElicitationRouterError> {
-        self.request_with_provenance(
-            server_name,
-            runtime_owner,
-            scope.turn_id().map(ToOwned::to_owned),
-            scope.environment_id().map(ToOwned::to_owned),
-            scope.snapshot_generation(),
-            scope.auth_scopes().map(ToOwned::to_owned),
-            params,
-            meta,
-            cancellation,
-        )
-        .await
-    }
-
-    async fn request_with_provenance(
-        &self,
-        server_name: String,
-        runtime_owner: McpRuntimeOwner,
-        turn_id: Option<String>,
-        environment_id: Option<String>,
-        snapshot_generation: Option<u64>,
-        auth_scopes: Option<Vec<String>>,
         params: CreateElicitationRequestParam,
         meta: Option<Value>,
         cancellation: CancellationToken,
@@ -533,10 +482,10 @@ impl ElicitationRequestRouter {
             id: request_id.clone(),
             server_name,
             thread_id: runtime_owner.thread_id,
-            turn_id,
-            environment_id,
-            snapshot_generation,
-            auth_scopes,
+            turn_id: scope.turn_id().map(ToOwned::to_owned),
+            environment_id: scope.environment_id().map(ToOwned::to_owned),
+            snapshot_generation: scope.snapshot_generation(),
+            auth_scopes: scope.auth_scopes().map(ToOwned::to_owned),
             meta,
             message: params.message,
             requested_schema: params.requested_schema,
@@ -591,13 +540,13 @@ impl ElicitationRequestRouter {
         meta: Option<Value>,
         cancellation: CancellationToken,
     ) -> Result<ElicitationResponse, ElicitationRouterError> {
-        self.request(
+        self.request_with_scope(
             server_name,
             McpRuntimeOwner {
                 session_id: "test-session".to_string(),
                 thread_id: "test-thread".to_string(),
             },
-            scope.turn_id().map(ToOwned::to_owned),
+            scope,
             params,
             meta,
             cancellation,

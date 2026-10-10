@@ -402,6 +402,8 @@ describe("TUI Gate B", () => {
       "linewise register pastes below the current logical line",
       "modal chord cancellation does not submit and rebound undo remains one edit",
       "configured Vim flow leaves no canonical turn or residual draft",
+      "empty Vim slash opens command completion in Insert mode",
+      "nonempty Vim slash stays in the search owner",
     ]) {
       expect(source).toContain(symbol);
     }
@@ -414,6 +416,10 @@ describe("TUI Gate B", () => {
       expect(gateSource).toContain(context);
     }
     expect(source).not.toContain("thread::sleep");
+    const emptySlashMarker =
+      "TUI_VIM_EMPTY_SLASH_OK empty=command nonempty=search chord=search completion=draft turns=none";
+    expect(source).toContain(emptySlashMarker);
+    expect(gateSource).toContain(emptySlashMarker);
     expect(gateSource).toContain(
       "vim-keymap=ok vim-linewise=ok vim-modal-chord=ok",
     );
@@ -515,6 +521,57 @@ describe("TUI Gate B", () => {
     );
     expect(gateSource).toContain("images=ok");
     expect(gateSource).toContain("structured-history=ok");
+  });
+  it("requires KeepScreen PTY evidence for both text and image editor handoffs", () => {
+    const editor = readFileSync(
+      path.resolve(
+        process.cwd(),
+        "lime-rs/crates/tui/src/runtime_pty_tests/external_editor.rs",
+      ),
+      "utf8",
+    );
+    expect(gateSource).toContain(
+      'scenario === "complete" || scenario === "images"',
+    );
+    const marker =
+      "TUI_EDITOR_KEEP_SCREEN_OK alternate=preserved composer=visible stdin=foreground editor-exit=main";
+    expect(gateSource).toContain(marker);
+    expect(editor).toContain(marker);
+    expect(editor).toContain(
+      "terminal_observer::with_screen(&output[..marker]",
+    );
+    expect(editor).toContain("screen.contents().contains(draft)");
+    expect(editor.indexOf("TUI_EDITOR_KEEP_SCREEN_OK")).toBeGreaterThan(
+      editor.indexOf("TUI must re-enter the alternate screen"),
+    );
+    expect(gateSource).toContain('scenario === "complete" ? 180_000 : 60_000');
+  });
+  it("requires cross-directory resume, editor buffer and cold canonical evidence", () => {
+    const editor = readFileSync(
+      path.resolve(
+        process.cwd(),
+        "lime-rs/crates/tui/src/runtime_pty_tests/external_editor.rs",
+      ),
+      "utf8",
+    );
+    expect(gateSource).toContain(
+      "runtime::pty_tests::external_editor::real_pty_external_editor_uses_resumed_thread_cwd",
+    );
+    expect(gateSource).toContain(
+      "resume=canonical launch=different buffer=canonical draft=unicode first-arrow=preserved cold-read=exact terminal=restored",
+    );
+    for (const boundary of [
+      ".start_thread(",
+      "CommandBuilder::new(cli_bin)",
+      'OsString::from("resume")',
+      'root.join("resumed thread 界")',
+      "std::fs::read_to_string(&buffer_probe)",
+      "std::fs::canonicalize(buffer.parent().unwrap())",
+      "session.thread_read(&thread_id, false)",
+      "thread_turns_page_with_handle(",
+    ]) {
+      expect(editor.replace(/\s+/gu, " "), boundary).toContain(boundary);
+    }
   });
   it("retains folded drafts and cursors across real root/background-thread handoff", () => {
     const source = readFileSync(
@@ -755,7 +812,28 @@ describe("TUI Gate B", () => {
       '"notes focus/return must not resolve the canonical question"',
     );
     expect(gateSource).toContain(
-      'mode: ["Safe", "user_note: PTY_NOTE_ANSWER"]',
+      'mode: ["Safe", `user_note: ${notesAnswer} REVISED`]',
+    );
+    expect(gateSource).toContain("followup: `user_note: ${followupAnswer}`");
+    expect(gateSource).toContain(
+      "TUI_NOTES_RESPONSE_OK thread=${notesTurn.threadId} turn=${notesTurn.turnId} encoding=user_note response=complete exactly-once=true",
+    );
+    expect(gateSource).toContain(
+      "TUI_NOTES_UNANSWERED_OK edited=uncommitted confirm=explicit return=first draft=rich cursor=restored response=once",
+    );
+    expect(gateSource).toContain(
+      "TUI_NOTES_BURST_OK framing=raw enter-tab=draft idle=atomic cancel=explicit response=none",
+    );
+    const imeOrderMarker =
+      "TUI_NOTES_IME_ORDER_OK ascii-prefix=preserved unicode=immediate cancel=explicit";
+    expect(gateSource).toContain(imeOrderMarker);
+    expect(requestInputTestSource).toContain(imeOrderMarker);
+    expect(requestInputTestSource).toContain(
+      "raw paste Enter and Tab must not accept or resolve the question",
+    );
+    expect(runtimeSource).toContain("handle_paste_burst_tick");
+    expect(requestInputTestSource).toContain(
+      "unanswered confirmation must not submit a stale accepted answer",
     );
     expect(terminalFixtureSource).toContain(
       "userData: input.request.userData ?? null",
@@ -768,6 +846,24 @@ describe("TUI Gate B", () => {
       "notes chord cancellation does not submit or lose selected option",
     );
     expect(gateSource).toContain("notes-keymap=ok");
+    expect(gateSource).toContain(
+      "LIME_TEST_TERMINAL_NOTES_ANSWER: notesAnswer",
+    );
+    expect(requestInputTestSource).toContain(
+      "long notes stay compact in the actual editor without command UI",
+    );
+    expect(requestInputTestSource).toContain(
+      "long notes remain a draft until explicit acceptance",
+    );
+    expect(gateSource).toContain(
+      "TUI_NOTES_PASTE_OK compact=atomic unicode=preserved answer=expanded commands=literal submit=explicit",
+    );
+    expect(gateSource).toContain(
+      "TUI_NOTES_REVISIT_OK accepted=rich cursor=restored revision=exact followup=preserved response=once",
+    );
+    expect(requestInputTestSource).toContain(
+      "revisiting accepted notes must not resolve the request before the last explicit answer",
+    );
   });
   it("views approval details without resolving the protected request", () => {
     expect(ptyTestSource).toContain("approval::exercise_read_only_details");
@@ -823,6 +919,7 @@ describe("TUI Gate B", () => {
   it("drives the real TUI through a portable PTY and current App Server", () => {
     expect(gateSource).toContain('LIME_TEST_TUI_GATE_B: "1"');
     expect(gateSource).toContain("buildTerminalGateBinaries");
+    expect(gateSource).toContain("snapshotTerminalGateBinaries");
     expect(gateSource).toContain("LIME_TEST_TERMINAL_CWD: scenarioDir");
     expect(gateSource).toContain('"--exact"');
     expect(gateSource).toContain("writeTerminalExternalBackend");
@@ -860,7 +957,10 @@ describe("TUI Gate B", () => {
     );
     expect(resizeTestSource).toContain("terminal.resize(");
     expect(resizeTestSource).toContain(
-      "terminal.wait_for_screen_without(DRAFT, RESIZE_TIMEOUT)",
+      "!screen.contains(&compact_text(DRAFT))",
+    );
+    expect(resizeTestSource).toContain(
+      "!screen.contains(&compact_text(DRAFT_INPUT_TAIL))",
     );
     expect(resizeTestSource).not.toContain("&[3, 3, 3]");
     expect(focusTestSource).toContain("self.master.resize");
@@ -1004,7 +1104,16 @@ describe("TUI Gate B", () => {
     expect(ptyTestSource).toContain('"Rename ›"');
     expect(ptyTestSource).toContain('"Search ›"');
     expect(ptyTestSource).toContain('"Agent command center"');
-    expect(ptyTestSource).toContain("vt100::Parser::new(24, 100, 0)");
+    expect(ptyTestSource).toContain("terminal_observer");
+    expect(
+      readFileSync(
+        path.resolve(
+          process.cwd(),
+          "lime-rs/crates/tui/src/runtime_pty_tests/terminal_observer.rs",
+        ),
+        "utf8",
+      ),
+    ).toContain("vt100::Parser::new(24, 100, 0)");
     expect(ptyTestSource).toContain('"background task started"');
     expect(ptyTestSource).toContain('"Working 1"');
     expect(ptyTestSource).toContain('"Gate B background"');

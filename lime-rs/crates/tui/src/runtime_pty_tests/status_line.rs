@@ -68,6 +68,7 @@ pub(super) fn exercise_selection_save_and_cancel(
         "reopened setup keeps explicit empty selection",
         |screen| screen.contains("Configure status line") && screen.contains("[ ] model"),
     );
+    terminal_observer::resize(output, 24, 12);
     master
         .resize(PtySize {
             rows: 24,
@@ -82,6 +83,7 @@ pub(super) fn exercise_selection_save_and_cancel(
         "narrow setup keeps the complete configured cancel chord",
         |screen| screen.lines().any(|line| line.trim() == "ctrl+x q"),
     );
+    terminal_observer::resize(output, 24, 100);
     master
         .resize(PtySize {
             rows: 24,

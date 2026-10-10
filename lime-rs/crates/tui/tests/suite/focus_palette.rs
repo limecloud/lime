@@ -379,6 +379,9 @@ impl PtyLime {
 
     pub(super) fn resize(&mut self, rows: u16, cols: u16) -> Result<()> {
         let output_len = self.output.len();
+        // The terminal adopts its new geometry before the application can repaint. Parsing
+        // that repaint at the old size clamps cursor moves and wraps text into stale rows.
+        self.parser.screen_mut().set_size(rows, cols);
         self.master.resize(PtySize {
             rows,
             cols,
@@ -389,7 +392,6 @@ impl PtyLime {
         while Instant::now() < deadline {
             self.read_output(Duration::from_millis(20))?;
             if self.output.len() > output_len {
-                self.parser.screen_mut().set_size(rows, cols);
                 return Ok(());
             }
         }

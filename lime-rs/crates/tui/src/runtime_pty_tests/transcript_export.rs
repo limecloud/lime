@@ -26,6 +26,7 @@ pub(super) fn exercise_destination_filename_and_cancel(
                 && screen.contains(completed_text)
         },
     );
+    terminal_observer::resize(output, 24, 14);
     master
         .resize(PtySize {
             rows: 24,
@@ -45,6 +46,7 @@ pub(super) fn exercise_destination_filename_and_cancel(
                 .is_some_and(|line| line.trim() == "ctrl+x q")
         },
     );
+    terminal_observer::resize(output, 24, 100);
     master
         .resize(PtySize {
             rows: 24,
@@ -120,6 +122,7 @@ pub(super) fn exercise_destination_filename_and_cancel(
                 && !screen.contains("PTY_EXPORT_ROW_00_")
         },
     );
+    terminal_observer::resize(output, 24, 24);
     master
         .resize(PtySize {
             rows: 24,
@@ -132,8 +135,16 @@ pub(super) fn exercise_destination_filename_and_cancel(
         output_rx,
         output,
         "export prompt keeps its cursor tail after narrow resize",
-        |screen| screen.contains("PTY_EXPORT_ROW_11_") && screen.contains("Save conversation"),
+        |screen| {
+            screen.contains("PTY_EXPORT_ROW_11_")
+                && screen.contains("Save conversation")
+                && screen
+                    .lines()
+                    .last()
+                    .is_some_and(|line| line.trim() == "enter · esc")
+        },
     );
+    terminal_observer::resize(output, 24, 100);
     master
         .resize(PtySize {
             rows: 24,

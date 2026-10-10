@@ -34,6 +34,18 @@ impl ChatComposer {
         if matches!(key.kind, KeyEventKind::Release) {
             return InputResult::None;
         }
+        if self.config.slash_commands_enabled
+            && self.history_search.is_none()
+            && !self.popups.active()
+            && self.is_empty()
+            && self.draft.textarea.wants_vim_search_key(key)
+            && !self.draft.textarea.is_vim_operator_pending()
+            && !self.key_chord_pending()
+            && key.code == KeyCode::Char('/')
+            && key.modifiers.is_empty()
+        {
+            self.draft.textarea.enter_vim_insert_mode();
+        }
         if let Some(result) = self.handle_empty_prompt_shortcut(key) {
             return result;
         }

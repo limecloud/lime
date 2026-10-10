@@ -3,12 +3,21 @@
 use super::*;
 use crate::footer_hint::{display_key_label, wrap_hint_rows, ShortcutHint};
 use crate::keymap::{ListAction, ListKeymap};
+use ratatui::text::Span;
+use ratatui::widgets::{Clear, Paragraph};
 
 pub(in super::super) fn lines_with_locale(
     overlay: &McpServerElicitationOverlay,
     locale: Locale,
 ) -> Vec<Line<'static>> {
-    lines_with_locale_inner(overlay, locale, None)
+    let mut lines = lines_with_locale_inner(overlay, locale);
+    lines.extend(footer_control_lines(
+        locale,
+        overlay.is_select_field(),
+        None,
+        &overlay.list_keymap,
+    ));
+    lines
 }
 
 pub(in super::super) fn lines_with_locale_with_width(
@@ -20,23 +29,24 @@ pub(in super::super) fn lines_with_locale_with_width(
     if width == usize::MAX {
         return lines_with_locale(overlay, locale);
     }
-    let lines = lines_with_locale_inner(overlay, locale, Some(width));
-
-    let footer_index = lines.len().saturating_sub(1);
+    let mut lines = content_lines_with_width(overlay, locale, width);
+    lines.extend(footer_control_lines(
+        locale,
+        overlay.is_select_field(),
+        Some(width),
+        &overlay.list_keymap,
+    ));
     lines
+}
+
+fn content_lines_with_width(
+    overlay: &McpServerElicitationOverlay,
+    locale: Locale,
+    width: usize,
+) -> Vec<Line<'static>> {
+    lines_with_locale_inner(overlay, locale)
         .into_iter()
-        .enumerate()
-        .flat_map(|(index, line)| {
-            if index == footer_index {
-                return vec![line].into_iter();
-            }
-            if is_input_line(&line) {
-                return split_input_lines(line)
-                    .into_iter()
-                    .map(|line| truncate_line_with_ellipsis_if_overflow(line, width))
-                    .collect::<Vec<_>>()
-                    .into_iter();
-            }
+        .flat_map(|line| {
             if is_option_line(&line) {
                 return vec![truncate_line_with_ellipsis_if_overflow(line, width)].into_iter();
             }
@@ -52,7 +62,6 @@ pub(in super::super) fn lines_with_locale_with_width(
 pub(super) fn lines_with_locale_inner(
     overlay: &McpServerElicitationOverlay,
     locale: Locale,
-    width: Option<usize>,
 ) -> Vec<Line<'static>> {
     let Some(field) = overlay.fields.get(overlay.current_field) else {
         return vec![Line::from(locale.mcp_elicitation_invalid())];
@@ -83,25 +92,7 @@ pub(super) fn lines_with_locale_inner(
     }
 
     match &field.input {
-        McpFieldInput::Text { .. } => {
-            let value = overlay.text_area.text();
-            let value = if value.is_empty() {
-                locale
-                    .mcp_elicitation_text_placeholder(field.required)
-                    .to_string()
-            } else {
-                value.to_string()
-            };
-            let style = if overlay.text_area.text().is_empty() {
-                Style::default().fg(Color::DarkGray)
-            } else {
-                Style::default()
-            };
-            lines.push(Line::from(vec![
-                Span::styled("› ", accent_style()),
-                Span::styled(value, style),
-            ]));
-        }
+        McpFieldInput::Text { .. } => {}
         McpFieldInput::Select { options, .. } => {
             let selected = match overlay.states.get(overlay.current_field) {
                 Some(McpFieldState::Select { selected, .. }) => *selected,
@@ -150,12 +141,12 @@ pub(super) fn lines_with_locale_inner(
             Style::default().fg(Color::Red),
         ));
     }
-    lines.extend(footer_control_lines(
-        locale,
-        overlay.is_select_field(),
-        width,
-        &overlay.list_keymap,
-    ));
+    if let Some(actual_chars) = overlay.submission_error {
+        lines.push(Line::styled(
+            locale.user_input_too_large_message(actual_chars),
+            Style::default().fg(Color::Red),
+        ));
+    }
     lines
 }
 
@@ -163,45 +154,6 @@ pub(super) fn is_option_line(line: &Line<'_>) -> bool {
     let text = line.to_string();
     let text = text.trim_start_matches(['›', '>', ' ']);
     text.as_bytes().first().is_some_and(u8::is_ascii_digit) && text.contains(". ")
-}
-
-pub(super) fn is_input_line(line: &Line<'_>) -> bool {
-    line.to_string().starts_with(['›', '>'])
-}
-
-/// Split the editable line at explicit newlines before applying the width projection.
-///
-/// `Line` may contain a newline inside a span, but ratatui lays out each physical row
-/// independently. Keeping the split here makes the rendered rows and cursor calculation share
-/// the same source of truth, including continuation rows that do not carry the `›` prompt.
-pub(super) fn split_input_lines(line: Line<'static>) -> Vec<Line<'static>> {
-    let Line {
-        style,
-        alignment,
-        spans,
-    } = line;
-    let mut rows = vec![Vec::<Span<'static>>::new()];
-    for span in spans {
-        let content = span.content.into_owned();
-        let mut segments = content.split('\n').peekable();
-        while let Some(segment) = segments.next() {
-            if !segment.is_empty() {
-                rows.last_mut()
-                    .expect("input row exists")
-                    .push(Span::styled(segment.to_string(), span.style));
-            }
-            if segments.peek().is_some() {
-                rows.push(Vec::new());
-            }
-        }
-    }
-    rows.into_iter()
-        .map(|spans| Line {
-            style,
-            alignment,
-            spans,
-        })
-        .collect()
 }
 
 pub(super) fn line_to_owned(line: Line<'_>) -> Line<'static> {
@@ -299,32 +251,113 @@ pub(super) fn footer_control_lines(
         .collect()
 }
 
-pub(in super::super) fn set_cursor_position(
-    frame: &mut Frame<'_>,
-    inner: Rect,
+fn content_area(area: Rect) -> Rect {
+    let horizontal = if area.width > 4 { 2 } else { 0 };
+    let vertical = u16::from(area.height > 3);
+    Rect::new(
+        area.x + horizontal,
+        area.y + vertical,
+        area.width.saturating_sub(2 * horizontal),
+        area.height.saturating_sub(2 * vertical),
+    )
+}
+
+fn input_area(area: Rect) -> Rect {
+    let prefix = 2.min(area.width.saturating_sub(1));
+    Rect::new(area.x + prefix, area.y, area.width - prefix, area.height)
+}
+
+fn input_height(overlay: &McpServerElicitationOverlay, width: u16) -> u16 {
+    if overlay.is_select_field() {
+        return 0;
+    }
+    overlay
+        .composer
+        .desired_height(input_area(Rect::new(0, 0, width, 1)).width.max(1))
+        .clamp(1, 6)
+}
+
+pub(in super::super) fn desired_height(
     overlay: &McpServerElicitationOverlay,
-    content: &[Line<'static>],
+    locale: Locale,
+    width: u16,
+) -> u16 {
+    let width = content_area(Rect::new(0, 0, width, u16::MAX)).width.max(1);
+    u16::try_from(lines_with_locale_with_width(overlay, locale, usize::from(width)).len())
+        .unwrap_or(u16::MAX)
+        .saturating_add(input_height(overlay, width))
+        .saturating_add(2)
+        .clamp(5, 18)
+}
+
+pub(in super::super) fn render(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    overlay: &McpServerElicitationOverlay,
+    locale: Locale,
 ) {
-    if !overlay.is_text_field() || inner.is_empty() {
+    frame.render_widget(Clear, area);
+    let inner = content_area(area);
+    if inner.is_empty() {
         return;
     }
-    let before = &overlay.text_area.text()[..overlay.text_area.cursor()];
-    let current_line = before.rsplit('\n').next().unwrap_or(before);
-    let input_row = content
-        .iter()
-        .position(is_input_line)
-        .unwrap_or_else(|| content.len().saturating_sub(1));
-    let prefix_width = if before.contains('\n') { 0 } else { 2 };
-    let x = inner
-        .x
-        .saturating_add(prefix_width)
-        .saturating_add(u16::try_from(display_width(current_line)).unwrap_or(u16::MAX))
-        .min(inner.right().saturating_sub(1));
-    let input_row = input_row.saturating_add(before.matches('\n').count());
-    let y = inner.y.saturating_add(
-        u16::try_from(input_row)
-            .unwrap_or(u16::MAX)
-            .min(inner.height.saturating_sub(1)),
+    let content = content_lines_with_width(overlay, locale, usize::from(inner.width));
+    let footer = footer_control_lines(
+        locale,
+        overlay.is_select_field(),
+        Some(usize::from(inner.width)),
+        &overlay.list_keymap,
     );
-    frame.set_cursor_position(Position::new(x, y));
+    let minimum_input = u16::from(overlay.is_text_field()).min(inner.height);
+    let footer_height = u16::try_from(footer.len())
+        .unwrap_or(u16::MAX)
+        .min(inner.height.saturating_sub(minimum_input));
+    let available = inner.height - footer_height;
+    let input_height = input_height(overlay, inner.width).min(available);
+    let content_height = available - input_height;
+    frame.render_widget(
+        Paragraph::new(content),
+        Rect::new(inner.x, inner.y, inner.width, content_height),
+    );
+    frame.render_widget(
+        Paragraph::new(footer),
+        Rect::new(
+            inner.x,
+            inner.bottom() - footer_height,
+            inner.width,
+            footer_height,
+        ),
+    );
+    if input_height == 0 {
+        return;
+    }
+    let area = Rect::new(inner.x, inner.y + content_height, inner.width, input_height);
+    let input = input_area(area);
+    frame.render_widget(
+        Paragraph::new("› ").style(accent_style()),
+        Rect::new(area.x, area.y, area.width.min(2), 1),
+    );
+    let textarea = overlay.composer.textarea();
+    let mut state = overlay.composer.textarea_state_mut();
+    textarea.render_ref_styled_with_highlights(
+        input,
+        frame.buffer_mut(),
+        &mut state,
+        Style::default(),
+        &[],
+    );
+    if overlay.composer.is_empty() {
+        let required = overlay
+            .fields
+            .get(overlay.current_field)
+            .is_some_and(|field| field.required);
+        frame.render_widget(
+            Paragraph::new(locale.mcp_elicitation_text_placeholder(required))
+                .style(Style::default().fg(Color::DarkGray)),
+            input,
+        );
+    }
+    if let Some(position) = textarea.cursor_pos_with_state(input, *state) {
+        frame.set_cursor_position(position);
+    }
 }

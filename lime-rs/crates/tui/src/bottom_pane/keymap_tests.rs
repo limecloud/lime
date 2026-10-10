@@ -88,7 +88,7 @@ fn startup_snapshot_reaches_existing_queued_and_new_notes_editors() {
             panic!("expected notes response");
         };
         assert_eq!(response_id, RequestId::Integer(id));
-        assert_eq!(response.answers["answer"].answers, ["ab\nc"]);
+        assert_eq!(response.answers["answer"].answers, ["user_note: ab\nc"]);
     }
     assert!(!pane.is_active());
 }
@@ -120,7 +120,10 @@ fn restoring_thread_views_reapplies_current_bindings_to_all_queued_editors() {
         };
         assert_eq!(actual, RequestId::Integer(id));
         let expected = if id == 1 { "restored\ntail" } else { "tail" };
-        assert_eq!(response.answers["answer"].answers, [expected]);
+        assert_eq!(
+            response.answers["answer"].answers,
+            [format!("user_note: {expected}")]
+        );
     }
     assert!(!pane.is_active());
 }

@@ -7553,7 +7553,7 @@
     },
     "lime-rs/crates/cli": {
       "root": "/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/crates/cli",
-      "fileCount": 30,
+      "fileCount": 31,
       "files": [
         "Cargo.toml",
         "src/debug_sandbox.rs",
@@ -7582,11 +7582,12 @@
         "src/mcp_cmd.rs",
         "src/plugin_cmd.rs",
         "src/queue_cmd.rs",
+        "src/review_cmd.rs",
         "src/sandbox_setup.rs",
         "src/wsl_paths.rs",
         "tests/execpolicy.rs"
       ],
-      "symbolCount": 316,
+      "symbolCount": 318,
       "symbols": [
         {
           "path": "src/debug_sandbox.rs",
@@ -9099,6 +9100,16 @@
           "kind": "function"
         },
         {
+          "path": "src/review_cmd.rs",
+          "name": "ReviewCommand",
+          "kind": "type"
+        },
+        {
+          "path": "src/review_cmd.rs",
+          "name": "run_review_command",
+          "kind": "function"
+        },
+        {
           "path": "src/sandbox_setup.rs",
           "name": "parse_setup_command",
           "kind": "function"
@@ -9169,7 +9180,7 @@
           "kind": "function"
         }
       ],
-      "treeSha256": "266977be083684b9e3dbf8694d597d2b0b9744c1871b65103d265b94a70f02ba"
+      "treeSha256": "3f79c68beabc9e39c6560b93752511843ceb2d90e0c0814ef23326da4139f2da"
     },
     "lime-rs/crates/cli/src/exec": {
       "root": "/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/crates/cli/src/exec",
@@ -9962,7 +9973,7 @@
           "kind": "function"
         }
       ],
-      "treeSha256": "d5835d642a5014d77e4c7324a60cad9c1fe8288a93460e54ec2d288126f83e02"
+      "treeSha256": "7f9e17599621df82a4dd4b332460311f5f5ca7c19d5de5e4c850ef14d30d4a64"
     },
     "lime-rs/crates/execpolicy": {
       "root": "/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/crates/execpolicy",
@@ -10647,7 +10658,7 @@
           "kind": "symbol"
         }
       ],
-      "treeSha256": "8ea2903717c0b9d31f004d49a7871784043b3cec7574d683ad7804546817bbda"
+      "treeSha256": "ac43237e3a94cc1967a76d7b0ef09c33b6c33a68b2231c1fbc6615c15e6201f4"
     }
   },
   "comparisons": {
@@ -10789,7 +10800,8 @@
       "src/exec/server_requests.rs",
       "src/exec/server_requests_tests.rs",
       "src/exec/thread.rs",
-      "src/exec/thread_tests.rs"
+      "src/exec/thread_tests.rs",
+      "src/review_cmd.rs"
     ],
     "execFilesMissingInLime": [
       "daybreak.rs",
@@ -11276,7 +11288,6 @@
       "RemoteMarketplaceFixture",
       "RemoteMarketplaceListing",
       "RemoveMarketplaceArgs",
-      "ReviewCommand",
       "RolloutAuditFile",
       "RolloutLineType",
       "RolloutScan",
@@ -12262,6 +12273,7 @@
       "run_plugin_search",
       "run_queue_list",
       "run_resume",
+      "run_review_command",
       "run_skills",
       "run_skills_request",
       "run_thread",

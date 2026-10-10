@@ -24,6 +24,8 @@
 //!
 //! - For each text-producing `KeyCode::Char`, call [`PasteBurst::on_plain_char`] (ASCII) or
 //!   [`PasteBurst::on_plain_char_no_hold`] (non-ASCII/IME).
+//!   Before the no-hold path, try [`PasteBurst::try_append_char_if_active`]; otherwise settle
+//!   a held ASCII character with [`PasteBurst::flush_before_modified_input`] to preserve order.
 //! - If the decision indicates buffering, the caller appends to `PasteBurst.buffer` via
 //!   [`PasteBurst::append_char_to_buffer`].
 //! - On Enter or Tab, [`PasteBurst::append_control_char_if_active`] promotes a held first character
@@ -375,6 +377,16 @@ impl PasteBurst {
         self.burst_window_until = Some(now + PASTE_ENTER_SUPPRESS_WINDOW);
     }
 
+    /// Continue an existing burst without holding an IME character on its own.
+    pub fn try_append_char_if_active(&mut self, ch: char, now: Instant) -> bool {
+        if !self.is_active_internal() {
+            return false;
+        }
+        self.note_plain_char(now);
+        self.append_char_to_buffer(ch, now);
+        true
+    }
+
     /// Decide whether to begin buffering by retroactively capturing recent
     /// chars from the slice before the cursor.
     ///
@@ -506,6 +518,30 @@ mod tests {
         assert!(matches!(
             burst.flush_if_due(t2),
             FlushResult::Paste(ref s) if s == "ab"
+        ));
+    }
+
+    #[test]
+    fn non_ascii_appends_refresh_the_active_burst_idle_deadline() {
+        let mut burst = PasteBurst::default();
+        let start = Instant::now();
+        burst.on_plain_char('a', start);
+        assert!(!burst.try_append_char_if_active('界', start));
+        assert_eq!(burst.flush_before_modified_input(), Some("a".into()));
+
+        burst.on_plain_char('a', start);
+        burst.on_plain_char('b', start + Duration::from_millis(1));
+        burst.append_char_to_buffer('b', start + Duration::from_millis(1));
+        let text = "界🙂".repeat(10);
+        let mut last = start;
+        for (index, ch) in text.chars().enumerate() {
+            last = start + Duration::from_millis(index as u64 + 2);
+            assert!(matches!(burst.flush_if_due(last), FlushResult::None));
+            assert!(burst.try_append_char_if_active(ch, last));
+        }
+        assert!(matches!(
+            burst.flush_if_due(last + PasteBurst::recommended_active_flush_delay()),
+            FlushResult::Paste(actual) if actual == format!("ab{text}")
         ));
     }
 

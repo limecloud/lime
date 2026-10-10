@@ -15,6 +15,7 @@ export async function writeTerminalExternalBackend(
     commandItems = false,
     commandStatus = "completed",
     completeAgentMessage = false,
+    followupQuestion = false,
   },
 ) {
   const terminalEvent =
@@ -190,6 +191,7 @@ if (input.kind === "turnStart") {
                 { value: "safe", label: "Safe", description: "Review every step" },
               ],
             },
+            ...${JSON.stringify(followupQuestion ? [{ id: "followup", header: "Follow-up", question: "Add a follow-up note" }] : [])},
           ],
         },
       },

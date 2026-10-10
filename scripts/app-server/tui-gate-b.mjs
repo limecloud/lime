@@ -17,9 +17,13 @@ import process from "node:process";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 import { localAppServerBinaryPath } from "../lib/electron-dev-sidecar.mjs";
-import { buildTerminalGateBinaries } from "./terminal-gate-binaries.mjs";
+import {
+  buildTerminalGateBinaries,
+  snapshotTerminalGateBinaries,
+} from "./terminal-gate-binaries.mjs";
 import { writeTerminalExternalBackend } from "./terminal-gate-fixture.mjs";
 import { runRawReasoningGateB } from "./reasoning-gate-b.mjs";
+import { runMcpElicitationFixture } from "./mcp-elicitation-gate-b.mjs";
 
 const execFileAsync = promisify(execFile);
 const __filename = fileURLToPath(import.meta.url);
@@ -37,6 +41,12 @@ const prompt = "tui gate b prompt";
 const largePastePrompt = `PTY_LARGE_PASTE_BODY\n${"界🙂".repeat(501)}\nPTY_LARGE_PASTE_END`;
 const imagePrompt = "PTY_IMAGE_EDIT [Image #1] literal [Image #2]";
 const skillPrompt = "PTY_SKILL $gate-skill-09";
+const notesAnswer = [
+  "PTY_NOTE_ANSWER",
+  "/model\t@parser $gate-skill",
+  "界🙂".repeat(501),
+].join("\n");
+const followupAnswer = "PTY_FOLLOWUP_ANSWER";
 const scenarioPrompt = (scenario) =>
   scenario === "large-paste"
     ? largePastePrompt
@@ -57,20 +67,24 @@ const scrollableCompletedText = [
   `**${rawText}**`,
   completedText,
 ].join("\n");
-const scenarios = (
+const selectedScenarios = (
   process.env.LIME_TUI_GATE_B_SCENARIOS ||
   "complete,approval,user-input,interrupt,failure,queue-edit,agents-overview,large-paste,diff-display,images,skills"
 )
   .split(",")
   .map((scenario) => scenario.trim())
   .filter(Boolean);
+const scenarios = selectedScenarios.filter(
+  (scenario) =>
+    !["reasoning-raw", "mcp-stdio", "mcp-elicitation"].includes(scenario),
+);
 
 async function main() {
   await buildTerminalGateBinaries({ env: process.env, repoRoot: rootDir });
-  const cliBinaryPath = path.resolve(
+  let cliBinaryPath = path.resolve(
     process.env.LIME_CLI_BIN || defaultCliBinaryPath,
   );
-  const appServerBinaryPath = path.resolve(
+  let appServerBinaryPath = path.resolve(
     process.env.APP_SERVER_BIN ||
       localAppServerBinaryPath({ repoRoot: rootDir }),
   );
@@ -78,36 +92,54 @@ async function main() {
     assertBinaryExists(cliBinaryPath, "lime"),
     assertBinaryExists(appServerBinaryPath, "app-server"),
   ]);
-  // Compile before timing PTY scenarios so Cargo lock waits cannot consume interaction deadlines.
-  await execFileAsync(
-    process.env.CARGO || "cargo",
-    [
-      "test",
-      "--manifest-path",
-      path.join(rootDir, "lime-rs", "Cargo.toml"),
-      "-p",
-      "tui",
-      "--no-run",
-    ],
-    {
-      cwd: rootDir,
-      encoding: "utf8",
-      env: process.env,
-      maxBuffer: 2 * 1024 * 1024,
-    },
-  );
-
-  if (scenarios.includes("reasoning-raw")) {
-    await runRawReasoningGateB({
-      repoRoot: rootDir,
-      cliBinaryPath,
-      appServerBinaryPath,
-    });
-    if (scenarios.length === 1) return;
-  }
-
   const tempDir = await mkdtemp(path.join(tmpdir(), "tui-gate-b-"));
   try {
+    ({ cliBinaryPath, appServerBinaryPath } =
+      await snapshotTerminalGateBinaries({
+        env: process.env,
+        cliBinaryPath,
+        appServerBinaryPath,
+        directory: path.join(tempDir, "binaries"),
+      }));
+    // Compile before timing PTY scenarios so Cargo lock waits cannot consume interaction deadlines.
+    await execFileAsync(
+      process.env.CARGO || "cargo",
+      [
+        "test",
+        "--manifest-path",
+        path.join(rootDir, "lime-rs", "Cargo.toml"),
+        "-p",
+        "tui",
+        "--no-run",
+      ],
+      {
+        cwd: rootDir,
+        encoding: "utf8",
+        env: process.env,
+        maxBuffer: 2 * 1024 * 1024,
+      },
+    );
+
+    if (
+      selectedScenarios.includes("mcp-stdio") ||
+      selectedScenarios.includes("mcp-elicitation")
+    ) {
+      await runMcpElicitationFixture({
+        repoRoot: rootDir,
+        cliBinaryPath,
+        appServerBinaryPath,
+        pty: selectedScenarios.includes("mcp-elicitation"),
+      });
+    }
+    if (selectedScenarios.includes("reasoning-raw")) {
+      await runRawReasoningGateB({
+        repoRoot: rootDir,
+        cliBinaryPath,
+        appServerBinaryPath,
+      });
+    }
+    if (scenarios.length === 0) return;
+
     const backendPath = path.join(tempDir, "tui-backend.mjs");
     const ledgerPath = path.join(tempDir, "tui-backend.jsonl");
     const permissionConfigPath = path.join(tempDir, "permission-profile.yaml");
@@ -161,9 +193,7 @@ async function main() {
     let backtrackEvidence = null;
     let backtrackStdioEvidence = null;
     let threadInputEvidence = null;
-    for (const scenario of scenarios.filter(
-      (value) => value !== "reasoning-raw",
-    )) {
+    for (const scenario of scenarios) {
       const scenarioDir = path.join(tempDir, scenario);
       await mkdir(scenarioDir, { recursive: true });
       scenarioDirs.set(scenario, scenarioDir);
@@ -189,7 +219,7 @@ async function main() {
           );
         }
       }
-      await writeTerminalExternalBackend(backendPath, {
+      const backendOptions = {
         completedText:
           scenario === "complete" ? scrollableCompletedText : completedText,
         command: "printf tui-gate-b",
@@ -208,7 +238,9 @@ async function main() {
         scenario,
         taskProgress: scenario === "complete",
         tokenUsage: scenario === "complete",
-      });
+        followupQuestion: scenario === "user-input",
+      };
+      await writeTerminalExternalBackend(backendPath, backendOptions);
 
       const testOptions = {
         cwd: rootDir,
@@ -225,6 +257,8 @@ async function main() {
           LIME_TEST_NODE_BIN: process.execPath,
           LIME_TEST_TERMINAL_PROMPT: scenarioPrompt(scenario),
           LIME_TEST_TERMINAL_QUEUE_PROMPT: queuePrompt,
+          LIME_TEST_TERMINAL_NOTES_ANSWER: notesAnswer,
+          LIME_TEST_TERMINAL_FOLLOWUP_ANSWER: followupAnswer,
           LIME_TEST_TERMINAL_COMPLETED_TEXT: completedText,
           LIME_TEST_TERMINAL_REASONING_TEXT: reasoningText,
           LIME_TEST_TERMINAL_RAW_TEXT: rawText,
@@ -263,6 +297,30 @@ async function main() {
         }
         console.log(marker);
       }
+      if (scenario === "user-input") {
+        for (const marker of [
+          "TUI_NOTES_PASTE_OK compact=atomic unicode=preserved answer=expanded commands=literal submit=explicit",
+          "TUI_NOTES_REVISIT_OK accepted=rich cursor=restored revision=exact followup=preserved response=once",
+          "TUI_NOTES_UNANSWERED_OK edited=uncommitted confirm=explicit return=first draft=rich cursor=restored response=once",
+          "TUI_NOTES_IME_ORDER_OK ascii-prefix=preserved unicode=immediate cancel=explicit",
+          "TUI_NOTES_BURST_OK framing=raw enter-tab=draft idle=atomic cancel=explicit response=none",
+        ]) {
+          if (
+            !`${ptyEvidence.stdout}\n${ptyEvidence.stderr}`.includes(marker)
+          ) {
+            throw new Error(`user-input PTY evidence missing: ${marker}`);
+          }
+          console.log(marker);
+        }
+      }
+      if (scenario === "complete" || scenario === "images") {
+        const marker =
+          "TUI_EDITOR_KEEP_SCREEN_OK alternate=preserved composer=visible stdin=foreground editor-exit=main";
+        if (!`${ptyEvidence.stdout}\n${ptyEvidence.stderr}`.includes(marker)) {
+          throw new Error(`${scenario} PTY evidence missing: ${marker}`);
+        }
+        console.log(marker);
+      }
       if (scenario === "complete") {
         const ptyOutput = `${ptyEvidence.stdout}\n${ptyEvidence.stderr}`;
         for (const marker of [
@@ -272,12 +330,38 @@ async function main() {
           "TUI_EMPTY_COMPLETION_OK file-tab=closed skill-tab-enter=closed draft=preserved turns=none",
           "TUI_POPUP_KEYBOARD_OK repeat=navigation-completion release=ignored modifiers=exact-control ctrl-j=newline ctrl-k=editor turns=none",
           "TUI_EMPTY_NAVIGATION_OK left=press-only repeat=editor release=ignored overview=cancelled turns=none",
+          "TUI_VIM_EMPTY_SLASH_OK empty=command nonempty=search chord=search completion=draft turns=none",
         ]) {
           if (!ptyOutput.includes(marker)) {
             throw new Error(`complete PTY evidence missing: ${marker}`);
           }
           console.log(marker);
         }
+        const editorCwdEvidence = await execFileAsync(
+          process.env.CARGO || "cargo",
+          [
+            "test",
+            "--manifest-path",
+            path.join(rootDir, "lime-rs", "Cargo.toml"),
+            "-p",
+            "tui",
+            "runtime::pty_tests::external_editor::real_pty_external_editor_uses_resumed_thread_cwd",
+            "--",
+            "--exact",
+            "--nocapture",
+          ],
+          { ...testOptions, timeout: 60_000 },
+        );
+        const editorCwdMarker =
+          `${editorCwdEvidence.stdout}\n${editorCwdEvidence.stderr}`.match(
+            /TUI_EDITOR_CWD_OK thread=\S+ resume=canonical launch=different buffer=canonical draft=unicode first-arrow=preserved cold-read=exact terminal=restored/u,
+          )?.[0];
+        if (!editorCwdMarker) {
+          throw new Error(
+            "editor PTY fixture did not prove canonical cwd after cross-directory resume",
+          );
+        }
+        console.log(editorCwdMarker);
         if (!ptyOutput.includes("TUI_REASONING_PARTS_OK")) {
           throw new Error(
             "reasoning PTY fixture did not prove body, paragraph and placeholder rendering",
@@ -413,6 +497,10 @@ async function main() {
         }
       }
       if (scenario === "user-input") {
+        await writeTerminalExternalBackend(backendPath, {
+          ...backendOptions,
+          followupQuestion: false,
+        });
         const evidence = await execFileAsync(
           process.env.CARGO || "cargo",
           [
@@ -656,18 +744,29 @@ async function main() {
       );
     }
     if (scenarios.includes("user-input")) {
-      const userInputResponse = ledger.find(
+      const userInputResponses = ledger.filter(
         (entry) =>
           entry?.kind === "actionRespond" && entry.scenario === "user-input",
       );
-      if (!userInputResponse)
-        throw new Error(
-          "request_user_input response did not reach App Server backend",
-        );
+      assertEqual(
+        userInputResponses.length,
+        1,
+        "request_user_input must resolve exactly once through App Server backend",
+      );
+      const [userInputResponse] = userInputResponses;
       deepStrictEqual(
         userInputResponse.userData,
-        { mode: ["Safe", "user_note: PTY_NOTE_ANSWER"] },
+        {
+          mode: ["Safe", `user_note: ${notesAnswer} REVISED`],
+          followup: `user_note: ${followupAnswer}`,
+        },
         "selected option and notes preserve the canonical question answer",
+      );
+      const notesTurn = turnStarts.find(
+        (entry) => entry.scenario === "user-input",
+      );
+      console.log(
+        `TUI_NOTES_RESPONSE_OK thread=${notesTurn.threadId} turn=${notesTurn.turnId} encoding=user_note response=complete exactly-once=true`,
       );
     }
     if (scenarios.includes("interrupt")) {

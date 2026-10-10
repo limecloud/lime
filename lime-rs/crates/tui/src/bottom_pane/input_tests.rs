@@ -20,6 +20,57 @@ fn question() -> ServerRequest {
 }
 
 #[test]
+fn mcp_text_field_uses_active_view_burst_clock_and_keeps_main_draft() {
+    let mut pane = BottomPane::default();
+    pane.insert_str("main");
+    pane.enqueue(
+        serde_json::from_value(json!({
+            "method": "mcpServer/elicitation/request", "id": 89,
+            "params": {
+                "threadId": "root", "serverName": "fixture", "mode": "form",
+                "message": "MCP form",
+                "requestedSchema": {
+                    "type": "object", "properties": {"answer": {"type": "string"}},
+                    "required": ["answer"]
+                }
+            }
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+    let now = Instant::now();
+    for code in [
+        KeyCode::Char('a'),
+        KeyCode::Enter,
+        KeyCode::Tab,
+        KeyCode::Char('界'),
+    ] {
+        pane.handle_event_at(Event::Key(KeyEvent::new(code, KeyModifiers::NONE)), now);
+    }
+    assert!(pane.is_in_paste_burst());
+    assert_eq!(
+        pane.next_frame_delay(now),
+        Some(crate::tui::TARGET_FRAME_INTERVAL)
+    );
+    let idle = now + Duration::from_secs(1);
+    assert!(pane.pre_draw_tick(idle).is_none());
+    assert!(!pane.is_in_paste_burst());
+    assert_eq!(pane.next_frame_delay(idle), None);
+    let Some(ChatWidgetAction::Respond(AppServerResponse::McpElicitation { id, response })) = pane
+        .handle_event_at(
+            Event::Key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE)),
+            idle,
+        )
+    else {
+        panic!("idle Enter must submit the active MCP field")
+    };
+    assert_eq!(id, app_server_protocol::RequestId::Integer(89));
+    assert_eq!(response.content, Some(json!({"answer": "a\n\t界"})));
+    assert!(!pane.is_active());
+    assert_eq!(pane.composer_text(), "main");
+}
+
+#[test]
 fn main_paste_timer_keeps_running_behind_an_interaction_without_editing_notes() {
     let now = Instant::now();
     let mut pane = BottomPane::default();
@@ -51,8 +102,75 @@ fn main_paste_timer_keeps_running_behind_an_interaction_without_editing_notes() 
     else {
         panic!("expected the active question response");
     };
-    assert_eq!(response.answers["answer"].answers, vec!["notes"]);
+    assert_eq!(response.answers["answer"].answers, vec!["user_note: notes"]);
     assert_eq!(pane.composer_text(), "r");
+}
+
+#[test]
+fn active_notes_idle_tick_draws_held_typing_without_touching_the_main_draft() {
+    let mut pane = BottomPane::default();
+    pane.insert_str("main");
+    pane.enqueue(question()).unwrap();
+    assert!(matches!(
+        pane.handle_event(Event::Key(KeyEvent::new(
+            KeyCode::Char('x'),
+            KeyModifiers::NONE
+        ))),
+        Some(ChatWidgetAction::Input(InputResult::None))
+    ));
+    let now = Instant::now();
+    assert_eq!(
+        pane.next_frame_delay(now),
+        Some(crate::tui::TARGET_FRAME_INTERVAL)
+    );
+    assert!(pane.pre_draw_tick(now + Duration::from_secs(1)).is_none());
+    assert_eq!(pane.next_frame_delay(now + Duration::from_secs(1)), None);
+    let Some(ChatWidgetAction::Respond(AppServerResponse::UserInput { response, .. })) = pane
+        .handle_event(Event::Key(KeyEvent::new(
+            KeyCode::Enter,
+            KeyModifiers::NONE,
+        )))
+    else {
+        panic!("idle Enter must submit the active note")
+    };
+    assert_eq!(response.answers["answer"].answers, ["user_note: x"]);
+    assert_eq!(pane.composer_text(), "main");
+}
+
+#[test]
+fn chat_widget_defers_burst_frames_then_submits_the_complete_idle_note() {
+    let now = Instant::now();
+    let mut app = crate::app::App::default();
+    let requester = crate::tui::FrameRequester::test_dummy();
+    app.chat_widget.bottom_pane.insert_str("main");
+    app.chat_widget.bottom_pane.enqueue(question()).unwrap();
+    for code in [
+        KeyCode::Char('a'),
+        KeyCode::Enter,
+        KeyCode::Tab,
+        KeyCode::Char('界'),
+    ] {
+        app.chat_widget
+            .bottom_pane
+            .handle_event_at(Event::Key(KeyEvent::new(code, KeyModifiers::NONE)), now);
+    }
+    assert!(app.chat_widget.handle_paste_burst_tick(&requester, now));
+    assert!(app.chat_widget.bottom_pane.is_active());
+    let idle = now + Duration::from_secs(1);
+    assert!(app.chat_widget.handle_paste_burst_tick(&requester, idle));
+    assert!(!app.chat_widget.handle_paste_burst_tick(&requester, idle));
+    assert!(app.chat_widget.bottom_pane.is_active());
+    let Some(ChatWidgetAction::Respond(AppServerResponse::UserInput { response, .. })) =
+        app.chat_widget.bottom_pane.handle_event_at(
+            Event::Key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE)),
+            idle,
+        )
+    else {
+        panic!("only the explicit idle Enter may resolve the note")
+    };
+    assert_eq!(response.answers["answer"].answers, ["user_note: a\n\t界"]);
+    assert_eq!(app.chat_widget.bottom_pane.composer_text(), "main");
+    assert!(!app.chat_widget.bottom_pane.is_active());
 }
 
 #[test]
@@ -93,7 +211,10 @@ fn pane_capture_restores_the_main_draft_and_same_question_view_atomically() {
     else {
         panic!("expected restored question response");
     };
-    assert_eq!(response.answers["answer"].answers, vec!["retained notes"]);
+    assert_eq!(
+        response.answers["answer"].answers,
+        vec!["user_note: retained notes"]
+    );
 }
 
 #[test]
@@ -443,6 +564,6 @@ fn direct_key_api_edits_the_active_question_not_the_hidden_main_draft() {
     else {
         panic!("expected active question response");
     };
-    assert_eq!(response.answers["answer"].answers, vec!["note"]);
+    assert_eq!(response.answers["answer"].answers, vec!["user_note: note"]);
     assert_eq!(pane.composer_text(), "main");
 }

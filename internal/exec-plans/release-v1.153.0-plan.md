@@ -157,3 +157,5 @@
 
 - Windows current合同守卫17/17通过（`windows-current-contract-guard-exact.log`）；Prettier/YAML解析与diff检查通过。首轮Vitest按子串同时收集忽略目录中的冻结快照，根目录17项均通过、旧快照守卫因读取新workflow失败；已明确排除`.lime/**`后定向入口exit0，不修改历史快照或产品断言。
 - 新workflow使用明确pwsh shell、同一App Server lib target和完整test path；共享foreach统一核对native退出码与“1 passed / 0 failed”结果，避免重复执行器。生产源码与已通过的7010项Rust矩阵不变，后续CI仍按仓库workflow风险策略执行完整矩阵及真实Windows当前合同。
+
+- Windows门禁修复提交`ac5d449ab`与路径引用规范提交`287a64efc`已窄提交推送main；前者正常hook2/2通过，workflow另有YAML/Prettier与17项守卫验证。后者仅对manifest路径加引号，未更改测试范围/断言。取消本进程已被后续提交取代的run `37955030160`，以新SHA完整run https://github.com/limecloud/lime/actions/runs/37955471643 核验；不取消其他进程的CI，不移动公开tag。

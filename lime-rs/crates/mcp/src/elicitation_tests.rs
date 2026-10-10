@@ -255,10 +255,10 @@ async fn same_server_requests_keep_thread_scopes_and_waiters_exact() {
     let first_router = router.clone();
     let first = tokio::spawn(async move {
         first_router
-            .request(
+            .request_with_scope(
                 "same-server".to_string(),
                 runtime_owner("session-a", "thread-a"),
-                Some("turn-a".to_string()),
+                call_scope_for("turn-a"),
                 form_request(),
                 None,
                 CancellationToken::new(),
@@ -270,10 +270,10 @@ async fn same_server_requests_keep_thread_scopes_and_waiters_exact() {
     let second_router = router.clone();
     let second = tokio::spawn(async move {
         second_router
-            .request(
+            .request_with_scope(
                 "same-server".to_string(),
                 runtime_owner("session-b", "thread-b"),
-                Some("turn-b".to_string()),
+                call_scope_for("turn-b"),
                 form_request(),
                 None,
                 CancellationToken::new(),
@@ -336,10 +336,10 @@ async fn session_cancel_keeps_other_session_and_forwarded_waiter_is_adapter_owne
     let request_router = router.clone();
     let session_a = tokio::spawn(async move {
         request_router
-            .request(
+            .request_with_scope(
                 "same-server".to_string(),
                 runtime_owner("session-a", "thread-a"),
-                Some("turn-a".to_string()),
+                call_scope_for("turn-a"),
                 form_request(),
                 None,
                 CancellationToken::new(),
@@ -349,10 +349,10 @@ async fn session_cancel_keeps_other_session_and_forwarded_waiter_is_adapter_owne
     let request_router = router.clone();
     let session_b = tokio::spawn(async move {
         request_router
-            .request(
+            .request_with_scope(
                 "same-server".to_string(),
                 runtime_owner("session-b", "thread-b"),
-                Some("turn-b".to_string()),
+                call_scope_for("turn-b"),
                 form_request(),
                 None,
                 CancellationToken::new(),

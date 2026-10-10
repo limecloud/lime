@@ -39,6 +39,7 @@ tokio.workspace = true
 tokio-stream = { workspace = true, features = ["sync"] }
 tokio-util = { workspace = true, features = ["time"] }
 tempfile.workspace = true
+thiserror.workspace = true
 tracing.workspace = true
 two-face = { version = "0.5", default-features = false, features = ["syntect-default-onig"] }
 unicode-segmentation.workspace = true
@@ -59,6 +60,7 @@ windows-sys = { version = "0.52", features = [
     "Win32_System_IO",
 ] }
 which.workspace = true
+winsplit = "0.1"
 
 [dev-dependencies]
 app-server-transport.workspace = true

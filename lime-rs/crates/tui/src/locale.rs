@@ -1,8 +1,10 @@
 mod agents;
 mod backtrack;
 mod composer;
+mod external_editor;
 mod pickers;
 mod reasoning;
+mod request_user_input;
 mod shortcuts;
 mod status_line;
 mod title;
@@ -1582,13 +1584,6 @@ impl Locale {
                 Self::JaJp => "中断中",
                 Self::KoKr => "중단 중",
             },
-            "editor draft empty" => match self {
-                Self::ZhCn => "编辑器草稿为空",
-                Self::ZhTw => "編輯器草稿為空",
-                Self::EnUs => "editor draft empty",
-                Self::JaJp => "エディターの下書きが空です",
-                Self::KoKr => "편집기 초안이 비어 있음",
-            },
             "copied last response" => match self {
                 Self::ZhCn => "已复制上一条回复",
                 Self::ZhTw => "已複製上一則回覆",
@@ -1688,13 +1683,6 @@ impl Locale {
                 Self::EnUs => "prompt history unavailable",
                 Self::JaJp => "プロンプト履歴を利用できません",
                 Self::KoKr => "프롬프트 기록을 사용할 수 없음",
-            },
-            "editor unavailable" => match self {
-                Self::ZhCn => "编辑器不可用",
-                Self::ZhTw => "編輯器不可用",
-                Self::EnUs => "editor unavailable",
-                Self::JaJp => "エディターを利用できません",
-                Self::KoKr => "편집기를 사용할 수 없음",
             },
             _ => return status.to_string(),
         };
@@ -2640,16 +2628,6 @@ impl Locale {
             Self::EnUs => "No questions",
             Self::JaJp => "質問はありません",
             Self::KoKr => "질문 없음",
-        }
-    }
-
-    pub(crate) fn other_option(self) -> &'static str {
-        match self {
-            Self::ZhCn => "其他  输入自定义答案",
-            Self::ZhTw => "其他  輸入自訂答案",
-            Self::EnUs => "Other  Type a custom answer",
-            Self::JaJp => "その他  カスタム回答を入力",
-            Self::KoKr => "기타  사용자 지정 답변 입력",
         }
     }
 

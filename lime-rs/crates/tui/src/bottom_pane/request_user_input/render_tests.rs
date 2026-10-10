@@ -4,6 +4,7 @@ use app_server_protocol::protocol::v2::{
     ToolRequestUserInputOption, ToolRequestUserInputParams, ToolRequestUserInputQuestion,
 };
 use app_server_protocol::RequestId;
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::backend::TestBackend;
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
@@ -159,7 +160,7 @@ fn narrow_options_stack_without_losing_the_label() {
 fn long_questions_yield_space_to_the_last_selected_option() {
     let mut request = request(12);
     request.params.questions[0].question = "Long question with many wrapped words. ".repeat(100);
-    request.selected = 11;
+    request.set_selected(11);
     for height in [1, 2, 4, 8, 18] {
         let terminal = draw(&request, Locale::EnUs, 40, height);
         let text = screen(&terminal);
@@ -232,8 +233,8 @@ fn secret_multiline_unicode_uses_the_same_masked_viewport_and_cursor() {
 #[test]
 fn notes_focus_keeps_options_actionable_and_shows_the_editor() {
     let mut request = request(12);
-    request.selected = 11;
-    request.editing = true;
+    request.set_selected(11);
+    request.set_focus(super::super::Focus::Notes);
     request.composer.replace("edited note".into());
     request.params.questions[0].question = "Long question. ".repeat(100);
     let terminal = draw(&request, Locale::EnUs, 40, 8);
@@ -248,6 +249,7 @@ fn notes_focus_keeps_options_actionable_and_shows_the_editor() {
 fn progress_and_other_labels_cover_every_product_locale() {
     let mut request = request(1);
     request.params.questions[0].is_other = true;
+    request.handle_key_event(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE));
     for locale in [
         Locale::ZhCn,
         Locale::ZhTw,
@@ -255,13 +257,85 @@ fn progress_and_other_labels_cover_every_product_locale() {
         Locale::JaJp,
         Locale::KoKr,
     ] {
-        let terminal = draw(&request, locale, 80, 12);
-        let text = screen(&terminal);
+        for width in [40, 80] {
+            let terminal = draw(&request, locale, width, 24);
+            let text = screen(&terminal);
+            assert!(
+                text.contains(&locale.request_question_progress(1, 1)),
+                "{locale:?}/{width}: {text}"
+            );
+            let compact = |text: &str| {
+                text.chars()
+                    .filter(|ch| !ch.is_whitespace())
+                    .collect::<String>()
+            };
+            let actual = compact(&text);
+            for expected in [
+                locale.other_option_label(),
+                locale.other_option_description(),
+            ] {
+                assert!(
+                    actual.contains(&compact(expected)),
+                    "{locale:?}/{width}: {text}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn unanswered_count_and_confirmation_cover_all_product_locales() {
+    let mut request = request(2);
+    let mut followup = request.params.questions[0].clone();
+    followup.id = "followup".into();
+    followup.options = None;
+    request.params.questions.push(followup);
+    request
+        .answers
+        .push(super::super::state::AnswerState::new(false));
+    for locale in [
+        Locale::ZhCn,
+        Locale::ZhTw,
+        Locale::EnUs,
+        Locale::JaJp,
+        Locale::KoKr,
+    ] {
+        let text = screen(&draw(&request, locale, 100, 12));
         assert!(
-            text.contains(&locale.request_question_progress(1, 1)),
+            text.contains(&locale.request_unanswered_count(2)),
             "{locale:?}: {text}"
         );
-        assert!(text.contains(locale.other_option()), "{locale:?}: {text}");
+        request.open_unanswered_confirmation();
+        let text = screen(&draw(&request, locale, 100, 12));
+        for expected in [
+            locale.unanswered_confirm_title(),
+            locale.unanswered_confirm_submit(),
+            locale.unanswered_confirm_go_back(),
+            locale.unanswered_go_back_description(),
+        ] {
+            assert!(
+                text.contains(expected),
+                "{locale:?}: expected {expected:?}; {text}"
+            );
+        }
+        assert!(
+            text.contains(&locale.unanswered_submit_description(2)),
+            "{locale:?}: {text}"
+        );
+        request.confirm_unanswered = None;
+    }
+}
+
+#[test]
+fn unanswered_confirmation_handles_narrow_and_empty_surfaces_without_showing_a_notes_cursor() {
+    let mut request = request(2);
+    request.set_focus(super::super::Focus::Notes);
+    request.open_unanswered_confirmation();
+    assert!(!request.editing());
+    for width in [0, 1, 2, 8, 24, 40] {
+        for height in [0, 1, 3, 8, 12] {
+            let _ = draw(&request, Locale::JaJp, width, height);
+        }
     }
 }
 

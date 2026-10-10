@@ -247,10 +247,10 @@ fn merge_loopback_no_proxy_hosts_preserves_existing_entries() {
     let merged =
         merge_loopback_no_proxy_hosts("example.com, localhost").expect("NO_PROXY should change");
     let parts = merged.split(',').collect::<Vec<_>>();
-    assert!(parts.iter().any(|part| *part == "example.com"));
+    assert!(parts.contains(&"example.com"));
     assert_eq!(parts.iter().filter(|part| **part == "localhost").count(), 1);
-    assert!(parts.iter().any(|part| *part == "127.0.0.1"));
-    assert!(parts.iter().any(|part| *part == "::1"));
+    assert!(parts.contains(&"127.0.0.1"));
+    assert!(parts.contains(&"::1"));
 }
 
 #[test]
@@ -358,15 +358,17 @@ async fn start_login_uses_discovered_scopes_when_config_has_no_scopes() {
         "callback page should be successful"
     );
 
-    let queries = provider
-        .authorize_queries
-        .lock()
-        .expect("authorize queries lock");
-    let scope = queries
-        .last()
-        .and_then(|query| query.get("scope"))
-        .expect("authorize URL should include discovered scopes");
-    assert_eq!(scope, "search.read search.write");
+    {
+        let queries = provider
+            .authorize_queries
+            .lock()
+            .expect("authorize queries lock");
+        let scope = queries
+            .last()
+            .and_then(|query| query.get("scope"))
+            .expect("authorize URL should include discovered scopes");
+        assert_eq!(scope, "search.read search.write");
+    }
     login.wait().await.expect("OAuth completion should succeed");
 }
 

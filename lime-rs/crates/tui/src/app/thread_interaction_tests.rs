@@ -141,7 +141,7 @@ fn questions_keep_each_notes_draft_selection_focus_and_the_main_rich_draft() {
             serde_json::to_value(response).unwrap(),
             json!({"answers":{
                 "mode":{"answers":["Safe", "user_note: ROOT_MODE_界🙂"]},
-                "details":{"answers":["ROOT_DETAILS"]}
+                "details":{"answers":["user_note: ROOT_DETAILS"]}
             }})
         );
         assert!(!app.chat_widget.bottom_pane.is_active());

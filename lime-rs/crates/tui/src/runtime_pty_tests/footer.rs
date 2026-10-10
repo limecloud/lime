@@ -55,6 +55,7 @@ pub(super) fn exercise_context_and_canonical_config(
         Some(vec![])
     );
 
+    terminal_observer::resize(output, 24, 16);
     master
         .resize(PtySize {
             rows: 24,
@@ -72,6 +73,7 @@ pub(super) fn exercise_context_and_canonical_config(
                 && !screen.contains("84% context left")
         },
     );
+    terminal_observer::resize(output, 24, 100);
     master
         .resize(PtySize {
             rows: 24,
@@ -139,6 +141,16 @@ pub(super) fn exercise_context_and_canonical_config(
                 .ends_with("84% context left | Vim: Normal")
         },
     );
+    writer.write_all(b"i\x1b[200~usage\x1b[201~\x1b").unwrap();
+    writer.flush().unwrap();
+    wait_for_screen(
+        output_rx,
+        output,
+        "nonempty Vim draft is ready for footer search",
+        |screen| {
+            screen.lines().any(|line| line.trim() == "› usage") && screen.contains("Vim: Normal")
+        },
+    );
     writer.write_all(b"/usage").unwrap();
     writer.flush().unwrap();
     wait_for_screen(
@@ -164,6 +176,14 @@ pub(super) fn exercise_context_and_canonical_config(
                 .trim_end()
                 .ends_with("84% context left | Vim: Normal")
         },
+    );
+    writer.write_all(b"i\x05\x15\x1b").unwrap();
+    writer.flush().unwrap();
+    wait_for_screen(
+        output_rx,
+        output,
+        "footer search draft is cleared without submission",
+        |screen| screen.contains("Ask Lime to do anything") && screen.contains("Vim: Normal"),
     );
     config::open_setup(writer, "vim");
     wait_for_screen(

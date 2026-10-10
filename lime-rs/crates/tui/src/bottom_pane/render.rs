@@ -1,14 +1,10 @@
 use ratatui::layout::Rect;
-use ratatui::text::Line;
-use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
 use ratatui::Frame;
-use std::time::Instant;
 
 use super::mcp_server_elicitation;
 use super::request_user_input::render as request_user_input_render;
 use super::{BottomPane, PendingInteraction};
 use crate::locale::Locale;
-use crate::style::attention_style;
 
 pub(crate) fn desired_height_with_locale_for_width(
     pane: &BottomPane,
@@ -24,16 +20,12 @@ pub(crate) fn desired_height_with_locale_for_width(
     if let Some(PendingInteraction::UserInput(request)) = pane.current() {
         return request_user_input_render::desired_height(request, locale, width);
     }
-    // The interaction surface only has top/bottom borders, so its text width is the full
-    // terminal width. Measuring with a narrower width would under-allocate the pane and clip
-    // wrapped CJK/emoji content on narrow terminals.
-    let content_width = width.max(1);
-    let content = lines_with_locale(pane, locale, usize::from(content_width), Instant::now());
-    let lines = Paragraph::new(content)
-        .wrap(Wrap { trim: false })
-        .line_count(content_width)
-        .saturating_add(2);
-    u16::try_from(lines).unwrap_or(u16::MAX).clamp(5, 18)
+    match pane.current() {
+        Some(PendingInteraction::McpElicitation(request)) => {
+            mcp_server_elicitation::render::desired_height(request, locale, width)
+        }
+        _ => 0,
+    }
 }
 
 pub(crate) fn render_with_locale(
@@ -54,20 +46,8 @@ pub(crate) fn render_with_locale(
         request_user_input_render::render(frame, area, request, locale);
         return;
     }
-    let block = Block::default()
-        .borders(Borders::TOP | Borders::BOTTOM)
-        .border_style(attention_style());
-    let inner = block.inner(area);
-    let content = lines_with_locale(pane, locale, inner.width as usize, Instant::now());
-    frame.render_widget(
-        Paragraph::new(content.clone())
-            .block(block)
-            .wrap(Wrap { trim: false }),
-        area,
-    );
-
     if let Some(PendingInteraction::McpElicitation(request)) = pane.current() {
-        mcp_server_elicitation::render::set_cursor_position(frame, inner, request, &content);
+        mcp_server_elicitation::render::render(frame, area, request, locale);
     }
 }
 
@@ -75,7 +55,10 @@ impl BottomPane {
     pub(crate) fn cursor_style(&self) -> crossterm::cursor::SetCursorStyle {
         match self.current() {
             None => self.composer.cursor_style(),
-            Some(PendingInteraction::UserInput(request)) if request.editing => {
+            Some(PendingInteraction::UserInput(request)) if request.editing() => {
+                request.composer.cursor_style()
+            }
+            Some(PendingInteraction::McpElicitation(request)) if request.is_text_field() => {
                 request.composer.cursor_style()
             }
             Some(_) => crossterm::cursor::SetCursorStyle::DefaultUserShape,
@@ -103,26 +86,6 @@ impl BottomPane {
             popup.render_with_clip_top(frame, area, locale, clip_top);
         }
     }
-}
-
-fn lines_with_locale(
-    pane: &BottomPane,
-    locale: Locale,
-    width: usize,
-    _now: Instant,
-) -> Vec<Line<'static>> {
-    let mut lines = match pane.current() {
-        Some(PendingInteraction::McpElicitation(request)) => {
-            mcp_server_elicitation::render::lines_with_locale_with_width(request, locale, width)
-        }
-        Some(PendingInteraction::Approval(_) | PendingInteraction::UserInput(_)) | None => {
-            Vec::new()
-        }
-    };
-    if let Some(title) = pane.action_required_title(locale) {
-        lines.insert(0, Line::styled(title, crate::style::attention_style()));
-    }
-    lines
 }
 
 #[cfg(test)]

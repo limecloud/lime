@@ -34,6 +34,7 @@ pub(super) fn exercise_open_cancel_and_current_root(
             },
         );
         if cancel {
+            terminal_observer::resize(output, 24, 16);
             master
                 .resize(PtySize {
                     rows: 24,
@@ -54,6 +55,7 @@ pub(super) fn exercise_open_cancel_and_current_root(
                             .is_some_and(|line| line.trim() == "ctrl+x q")
                 },
             );
+            terminal_observer::resize(output, 24, 100);
             master
                 .resize(PtySize {
                     rows: 24,

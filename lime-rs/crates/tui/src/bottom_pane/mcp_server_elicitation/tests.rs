@@ -7,7 +7,7 @@ use ratatui::layout::Rect;
 use ratatui::Terminal;
 use serde_json::json;
 
-fn key(code: KeyCode) -> KeyEvent {
+pub(super) fn key(code: KeyCode) -> KeyEvent {
     KeyEvent::new(code, KeyModifiers::NONE)
 }
 
@@ -31,7 +31,7 @@ fn params_with_meta(schema: Value, meta: Option<Value>) -> McpServerElicitationR
     }
 }
 
-fn overlay(schema: Value) -> McpServerElicitationOverlay {
+pub(super) fn overlay(schema: Value) -> McpServerElicitationOverlay {
     McpServerElicitationOverlay::from_server_request(RequestId::Integer(7), &params(schema))
         .expect("supported MCP form")
 }
@@ -166,13 +166,12 @@ fn ctrl_c_clears_text_draft_before_cancelling_elicitation() {
             "token": { "type": "string" }
         }
     }));
-    overlay.text_area.insert("sensitive draft");
-    overlay.mark_text_changed();
+    overlay.handle_paste("sensitive draft");
 
     assert!(overlay
         .handle_key_event(KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL))
         .is_none());
-    assert!(overlay.text_area.is_empty());
+    assert!(overlay.composer.is_empty());
     assert!(!overlay.done);
 
     let response = overlay
@@ -650,24 +649,25 @@ fn narrow_multiline_text_keeps_physical_rows_and_cursor_aligned() {
     overlay.handle_paste("你好\n👩🏽‍💻");
 
     let width = 12usize;
-    let lines = lines_with_locale_with_width(&overlay, Locale::ZhCn, width);
-    let input_index = lines.iter().position(is_input_line).expect("editable row");
-    assert_eq!(lines[input_index].to_string(), "› 你好");
-    assert_eq!(lines[input_index + 1].to_string(), "👩🏽‍💻");
-    assert!(lines
-        .iter()
-        .all(|line| display_width(&line.to_string()) <= width));
-
     let mut terminal = Terminal::new(TestBackend::new(width as u16, 16)).expect("terminal");
     terminal
         .draw(|frame| {
-            set_cursor_position(frame, Rect::new(0, 0, width as u16, 16), &overlay, &lines)
+            render(
+                frame,
+                Rect::new(0, 0, width as u16, 16),
+                &overlay,
+                Locale::ZhCn,
+            )
         })
         .expect("draw");
+    let buffer = terminal.backend().buffer();
+    let input_index = (0..16)
+        .find(|y| buffer[(2, *y)].symbol() == "›")
+        .expect("editable row");
+    assert_eq!(buffer[(4, input_index)].symbol(), "你");
+    assert_eq!(buffer[(6, input_index)].symbol(), "好");
+    assert_eq!(buffer[(4, input_index + 1)].symbol(), "👩🏽‍💻");
     let cursor = terminal.backend().cursor_position();
-    assert_eq!(
-        cursor.y,
-        u16::try_from(input_index + 1).expect("cursor row")
-    );
-    assert_eq!(cursor.x, display_width("👩🏽‍💻") as u16);
+    assert_eq!(cursor.y, input_index + 1);
+    assert_eq!(cursor.x, 4 + display_width("👩🏽‍💻") as u16);
 }

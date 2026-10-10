@@ -21,6 +21,51 @@ pub(super) fn exercise_modal_keymap(
         0,
         "main Vim Normal uses the user's default cursor",
     );
+    writer.write_all(b"/").unwrap();
+    writer.flush().unwrap();
+    wait_for_screen(
+        output_rx,
+        output,
+        "empty Vim slash opens command completion in Insert mode",
+        |screen| {
+            screen.contains("› /model")
+                && screen.contains("Vim: Insert")
+                && !screen.contains("Vim /:")
+        },
+    );
+    write_typed_text(writer, b"stat");
+    wait_for_screen(
+        output_rx,
+        output,
+        "typed Vim command query and highlighted completion are both ready",
+        |screen| {
+            screen.lines().any(|line| line.trim() == "› /stat") && screen.contains("› /status")
+        },
+    );
+    writer.write_all(b"\t").unwrap();
+    writer.flush().unwrap();
+    wait_for_screen(
+        output_rx,
+        output,
+        "empty Vim command completion remains a draft without dispatch",
+        |screen| {
+            screen.lines().any(|line| line.trim() == "› /status")
+                && !screen.contains("/statusline")
+                && screen.contains("Vim: Insert")
+        },
+    );
+    writer.write_all(b"\x05\x15\x1b").unwrap();
+    writer.flush().unwrap();
+    wait_for_screen(
+        output_rx,
+        output,
+        "cancel empty Vim command draft returns to Normal",
+        |screen| {
+            screen.contains("Ask Lime to do anything")
+                && screen.contains("Vim: Normal")
+                && !screen.contains("› /status")
+        },
+    );
     writer.write_all(b"i").unwrap();
     writer.flush().unwrap();
     cursor_style::wait_for_style(
@@ -48,6 +93,22 @@ pub(super) fn exercise_modal_keymap(
         0,
         "main Vim Escape restores the default cursor",
     );
+    writer.write_all(b"/\x1b[200~tail\x1b[201~\r").unwrap();
+    writer.flush().unwrap();
+    wait_for_screen(
+        output_rx,
+        output,
+        "nonempty Vim slash stays in the search owner",
+        |screen| {
+            screen.contains("› one two tail")
+                && screen.contains("Vim: Normal")
+                && !screen.contains("Vim /:")
+                && !screen.contains("› /model")
+        },
+    );
+    let (row, column) =
+        terminal_marker_position(output, "tail").expect("Vim search match position");
+    wait_for_cursor_position(output_rx, output, row, column, Duration::from_secs(10));
     writer.write_all(b"0x").unwrap();
     writer.flush().unwrap();
     wait_for_screen(
@@ -173,4 +234,5 @@ pub(super) fn exercise_modal_keymap(
         "configured Vim flow leaves no canonical turn or residual draft",
         |screen| screen.contains("Ask Lime to do anything") && !screen.contains("Vim:"),
     );
+    eprintln!("TUI_VIM_EMPTY_SLASH_OK empty=command nonempty=search chord=search completion=draft turns=none");
 }

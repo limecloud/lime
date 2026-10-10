@@ -188,7 +188,7 @@ impl ChatComposer {
     }
 
     pub(crate) fn sync_completion_popup(&mut self) {
-        if self.history.is_navigating() {
+        if !self.config.popups_enabled || self.history.is_navigating() {
             self.popups.clear();
             return;
         }

@@ -18,10 +18,15 @@ const sessionGateSource = readFileSync(
   path.resolve(process.cwd(), "scripts/app-server/cli-exec-gate-b.mjs"),
   "utf8",
 );
+const reviewGateSource = readFileSync(
+  path.resolve(process.cwd(), "scripts/app-server/cli-review-gate-b.mjs"),
+  "utf8",
+);
 
 describe("CLI Gate B", () => {
   it("runs the real CLI and App Server through the current stdio boundary", () => {
     expect(source).toContain("buildTerminalGateBinaries");
+    expect(source).toContain("snapshotTerminalGateBinaries");
     expect(source).toContain("spawn(cliBinaryPath");
     expect(source).toContain('"--app-server"');
     expect(source).toContain('"--app-server-arg=--backend"');
@@ -87,7 +92,6 @@ describe("CLI Gate B", () => {
       "CLI_EXEC_FORK_OK",
       "CLI_EXEC_IMAGES_OK",
       "CLI_EXEC_OUTPUT_SCHEMA_OK",
-      "CLI_EXEC_REVIEW_OK",
     ]) {
       expect(sessionGateSource).toContain(marker);
     }
@@ -100,6 +104,13 @@ describe("CLI Gate B", () => {
     expect(sessionGateSource).toContain("source canonical Turns untouched");
     expect(sessionGateSource).toContain('"--output-schema"');
     expect(sessionGateSource).toContain("structured.outputSchema");
+    expect(sessionGateSource).toContain("runReviewGateB");
+    expect(reviewGateSource).toContain("CLI_EXEC_REVIEW_OK");
+    expect(reviewGateSource).toContain("CLI_REVIEW_ROOT_OK");
+    expect(reviewGateSource).toContain(
+      "review/start closes its canonical boundary",
+    );
+    expect(reviewGateSource).not.toContain("setTimeout(");
     expect(sessionGateSource).not.toContain("setTimeout(");
   });
 });

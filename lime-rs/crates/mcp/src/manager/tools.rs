@@ -363,12 +363,20 @@ impl McpClientManager {
 
         // 4. 复用 connection-local active-time timeout，避免第二套 wall-clock timer。
         let client = crate::bridge_client::McpBridgeClient::new(service, tool_timeout);
+        // 线程所属连接的显式调用仍有 owner；没有 Turn 只表示不关联回合。
+        // 管理连接不拥有线程，继续不允许触发表单交互。
+        let scope = self
+            .runtime_owner
+            .as_ref()
+            .map(|_| tool_runtime::mcp_connection::McpCallScope::new(None::<String>))
+            .transpose()
+            .map_err(|field| McpError::ConfigError(field.to_string()))?;
         let result = client
             .call_tool(
                 &actual_tool_name,
                 args,
                 Default::default(),
-                None,
+                scope.as_ref(),
                 tokio_util::sync::CancellationToken::new(),
             )
             .await

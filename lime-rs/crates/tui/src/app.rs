@@ -10,6 +10,7 @@ pub(crate) mod event_dispatch;
 pub(crate) mod history_pagination;
 pub(crate) mod history_replacement;
 pub(crate) mod history_ui;
+mod input;
 mod input_flow;
 pub(crate) mod input_submission;
 mod interaction;
@@ -335,10 +336,6 @@ impl App {
             return false;
         }
         true
-    }
-
-    pub(crate) fn apply_external_edit(&mut self, text: String) {
-        self.chat_widget.bottom_pane.apply_external_edit(text);
     }
 
     pub(crate) fn pre_draw_tick(&mut self, now: Instant) -> AppAction {

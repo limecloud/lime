@@ -49,6 +49,7 @@ pub(super) fn prepare_submission(
         .write_all(b"\x07")
         .expect("open real external editor over image draft");
     writer.flush().unwrap();
+    external_editor::assert_preserved_screen_then_release(writer, output_rx, output, "[Image #2]");
     wait_for_screen(
         output_rx,
         output,
@@ -56,6 +57,14 @@ pub(super) fn prepare_submission(
         |screen| screen.contains(&format!("› {prompt}")),
     );
     let (row, column) = terminal_marker_position(output, prompt).unwrap();
+    external_editor::assert_editor_exit_and_reentry(output);
+    wait_for_cursor_position(
+        output_rx,
+        output,
+        row,
+        column + prompt.len() as u16,
+        Duration::from_secs(10),
+    );
     writer.write_all(b"\x1b[D").unwrap();
     writer.flush().unwrap();
     wait_for_cursor_position(

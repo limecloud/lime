@@ -40,7 +40,7 @@ fn option_rows(request: &RequestUserInputOverlay, locale: Locale) -> Vec<Selecti
                 (!option.description.is_empty()).then(|| option.description.clone()),
                 vec![format!(
                     "{}{}. ",
-                    if index == request.selected {
+                    if index == request.selected() {
                         "› "
                     } else {
                         "  "
@@ -54,11 +54,11 @@ fn option_rows(request: &RequestUserInputOverlay, locale: Locale) -> Vec<Selecti
     if request.other_option_enabled() {
         let index = rows.len();
         rows.push(SelectionRow::new(
-            locale.other_option(),
-            None,
+            locale.other_option_label(),
+            Some(locale.other_option_description().into()),
             vec![format!(
                 "{}{}. ",
-                if index == request.selected {
+                if index == request.selected() {
                     "› "
                 } else {
                     "  "
@@ -72,10 +72,11 @@ fn option_rows(request: &RequestUserInputOverlay, locale: Locale) -> Vec<Selecti
 }
 
 fn options_state(request: &RequestUserInputOverlay) -> ScrollState {
-    ScrollState {
-        selected_idx: Some(request.selected),
-        scroll_top: 0,
-    }
+    request
+        .answers
+        .get(request.question_index)
+        .map(|answer| answer.options_state)
+        .unwrap_or_default()
 }
 
 fn question_lines(
@@ -111,7 +112,7 @@ fn notes_input_area(area: Rect) -> Rect {
 }
 
 fn notes_height(request: &RequestUserInputOverlay, width: u16) -> u16 {
-    if !request.editing {
+    if !request.editing() {
         return 0;
     }
     request
@@ -140,6 +141,9 @@ pub(in crate::bottom_pane) fn desired_height(
     locale: Locale,
     width: u16,
 ) -> u16 {
+    if request.confirm_unanswered.is_some() {
+        return request.confirmation_desired_height(locale, width);
+    }
     let inner = menu_surface_inset(Rect::new(0, 0, width, u16::MAX));
     let rows = option_rows(request, locale);
     let options_height = if rows.is_empty() {
@@ -174,6 +178,11 @@ fn render_ui_at(
     if area.is_empty() {
         return;
     }
+    if request.confirm_unanswered.is_some() {
+        frame.render_widget(Clear, area);
+        request.render_unanswered_confirmation(frame, area, locale);
+        return;
+    }
     frame.render_widget(Clear, area);
     let inner = menu_surface_inset(area);
     if inner.is_empty() {
@@ -185,6 +194,15 @@ fn render_ui_at(
             .request_question_progress(request.question_index + 1, request.params.questions.len()),
         muted_style(),
     )];
+    if request.unanswered_count() > 0 {
+        progress.push(Span::styled(
+            format!(
+                " ({})",
+                locale.request_unanswered_count(request.unanswered_count())
+            ),
+            muted_style(),
+        ));
+    }
     if let Some(countdown) = request.auto_resolution_countdown_text(now, locale) {
         progress.extend([
             Span::raw(" · "),
@@ -220,7 +238,7 @@ fn render_ui_at(
         &options_state(request),
         OPTIONS_LAYOUT,
     );
-    if request.editing && !sections.notes_area.is_empty() {
+    if request.editing() && !sections.notes_area.is_empty() {
         render_notes_input(frame, sections.notes_area, request);
     }
 }

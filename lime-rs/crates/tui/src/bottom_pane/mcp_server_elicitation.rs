@@ -1,9 +1,10 @@
-//! Minimal MCP form elicitation interaction for the TUI.
+//! MCP form elicitation interaction for the TUI.
 //!
 //! The App Server owns the request contract. This module only translates the supported form
 //! schema into a focused terminal editor and emits the typed v2 response.
 
 use std::collections::HashSet;
+use std::time::{Duration, Instant};
 
 use app_server_protocol::protocol::v2::{
     McpServerElicitationAction, McpServerElicitationRequest, McpServerElicitationRequestParams,
@@ -11,13 +12,13 @@ use app_server_protocol::protocol::v2::{
 };
 use app_server_protocol::RequestId;
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
-use ratatui::layout::{Position, Rect};
+use ratatui::layout::Rect;
 use ratatui::style::{Color, Modifier, Style};
-use ratatui::text::{Line, Span};
+use ratatui::text::Line;
 use ratatui::Frame;
 use serde_json::{Map, Value};
 
-use super::{AppServerResponse, TextArea, TextAreaState};
+use super::{AppServerResponse, ChatComposer, ChatComposerConfig, ComposerDraft, InputResult};
 use crate::bottom_pane::selection_row_layout::{visible_item_window, MAX_POPUP_ROWS};
 use crate::keymap::{KeyChordMatcher, KeymapMatch, ListAction, ListKeymap};
 use crate::line_truncation::truncate_line_with_ellipsis_if_overflow;
@@ -86,7 +87,7 @@ struct McpToolApprovalDisplayParam {
 #[derive(Debug, Clone, PartialEq)]
 enum McpFieldState {
     Text {
-        draft: String,
+        draft: ComposerDraft,
         committed: bool,
     },
     Select {
@@ -105,11 +106,11 @@ pub(super) struct McpServerElicitationOverlay {
     fields: Vec<McpField>,
     states: Vec<McpFieldState>,
     current_field: usize,
-    text_area: TextArea,
-    text_area_state: TextAreaState,
+    pub(super) composer: ChatComposer,
     list_keymap: ListKeymap,
     list_key_chord_matcher: KeyChordMatcher,
     validation_error: bool,
+    submission_error: Option<usize>,
     done: bool,
 }
 
@@ -148,7 +149,12 @@ impl McpServerElicitationOverlay {
             .iter()
             .map(|field| match &field.input {
                 McpFieldInput::Text { default } => McpFieldState::Text {
-                    draft: default.clone().unwrap_or_default(),
+                    draft: {
+                        let mut composer =
+                            ChatComposer::new_with_config(ChatComposerConfig::plain_text());
+                        composer.replace(default.clone().unwrap_or_default());
+                        composer.snapshot_draft()
+                    },
                     committed: default
                         .as_deref()
                         .is_some_and(|value| !value.trim().is_empty()),
@@ -175,11 +181,11 @@ impl McpServerElicitationOverlay {
             fields,
             states,
             current_field: 0,
-            text_area: TextArea::default(),
-            text_area_state: TextAreaState::default(),
+            composer: ChatComposer::new_with_config(ChatComposerConfig::plain_text()),
             list_keymap: ListKeymap::default(),
             list_key_chord_matcher: KeyChordMatcher::default(),
             validation_error: false,
+            submission_error: None,
             done: false,
         };
         overlay.restore_text_field();
@@ -191,62 +197,9 @@ impl McpServerElicitationOverlay {
     }
 
     pub(super) fn set_keymap_bindings(&mut self, keymap: &crate::keymap::RuntimeKeymap) {
-        self.text_area.set_keymap_bindings(keymap);
+        self.composer.set_keymap_bindings(keymap);
         self.list_keymap = keymap.list().clone();
         self.list_key_chord_matcher.reset();
-    }
-
-    pub(super) fn handle_key_event(&mut self, key: KeyEvent) -> Option<AppServerResponse> {
-        if !matches!(key.kind, KeyEventKind::Press | KeyEventKind::Repeat) {
-            return None;
-        }
-        if self.is_text_field() && self.text_area.editor_key_chord_pending() {
-            self.handle_text_key(key);
-            return None;
-        }
-        if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') {
-            // Ctrl-C clears an in-progress text draft before it cancels the elicitation, matching
-            // Codex's bottom-pane request boundary. Selection fields and empty drafts cancel.
-            if self.is_text_field() && !self.text_area.is_empty() {
-                self.text_area.replace(String::new());
-                self.save_text_draft();
-                self.mark_text_changed();
-                return None;
-            }
-            return Some(self.cancel_response());
-        }
-        if self.is_select_field() {
-            return self.handle_select_key(key);
-        }
-        if key.code == KeyCode::Esc {
-            return Some(self.cancel_response());
-        }
-
-        if self.handle_field_navigation(key) {
-            return None;
-        }
-        if key.code == KeyCode::Enter && key.modifiers.is_empty() {
-            self.commit_current_field();
-            return self.advance_or_submit();
-        }
-        self.handle_text_key(key);
-        None
-    }
-
-    fn handle_text_key(&mut self, key: KeyEvent) {
-        let before = (self.text_area.text().to_string(), self.text_area.cursor());
-        self.text_area.input(key);
-        if before != (self.text_area.text().to_string(), self.text_area.cursor()) {
-            self.mark_text_changed();
-        }
-    }
-
-    pub(super) fn handle_paste(&mut self, text: &str) {
-        if self.is_select_field() || text.is_empty() {
-            return;
-        }
-        self.text_area.insert(text);
-        self.mark_text_changed();
     }
 
     fn handle_select_key(&mut self, key: KeyEvent) -> Option<AppServerResponse> {
@@ -372,20 +325,21 @@ impl McpServerElicitationOverlay {
             return;
         }
         self.list_key_chord_matcher.reset();
+        self.composer.flush_paste_burst_before_handoff();
         self.save_text_draft();
         let offset = if next { 1 } else { self.fields.len() - 1 };
         self.current_field = (self.current_field + offset) % self.fields.len();
         self.validation_error = false;
+        self.submission_error = None;
         self.restore_text_field();
     }
 
     fn commit_current_field(&mut self) {
         let index = self.current_field;
         if self.is_text_field() {
-            let text = self.text_area.text().to_string();
+            self.save_text_draft();
             if let Some(McpFieldState::Text { draft, committed }) = self.states.get_mut(index) {
-                *draft = text;
-                *committed = !draft.trim().is_empty();
+                *committed = !draft.text_with_pending().trim().is_empty();
             }
         } else if let Some(McpFieldState::Select {
             selected,
@@ -401,32 +355,24 @@ impl McpServerElicitationOverlay {
         if !self.is_text_field() {
             return;
         }
-        let text = self.text_area.text().to_string();
         if let Some(McpFieldState::Text { draft, committed }) =
             self.states.get_mut(self.current_field)
         {
-            if *draft != text {
+            if self.composer.paste_burst_needs_frame() || !self.composer.draft_content_equals(draft)
+            {
                 *committed = false;
+                self.validation_error = false;
             }
-            *draft = text;
+            *draft = self.composer.snapshot_draft();
         }
     }
 
     fn restore_text_field(&mut self) {
-        let text = match self.states.get(self.current_field) {
+        let draft = match self.states.get(self.current_field) {
             Some(McpFieldState::Text { draft, .. }) => draft.clone(),
-            _ => String::new(),
+            _ => ComposerDraft::default(),
         };
-        self.text_area.replace(text);
-        self.text_area_state = TextAreaState::default();
-    }
-
-    fn mark_text_changed(&mut self) {
-        if let Some(McpFieldState::Text { committed, .. }) = self.states.get_mut(self.current_field)
-        {
-            *committed = false;
-        }
-        self.validation_error = false;
+        self.composer.replace_draft(draft);
     }
 
     fn advance_or_submit(&mut self) -> Option<AppServerResponse> {
@@ -532,7 +478,7 @@ impl McpServerElicitationOverlay {
         let state = self.states.get(index)?;
         match (&field.input, state) {
             (McpFieldInput::Text { .. }, McpFieldState::Text { draft, committed }) => committed
-                .then(|| draft.trim().to_string())
+                .then(|| draft.text_with_pending().trim().to_string())
                 .filter(|value| !value.is_empty())
                 .map(Value::String),
             (
@@ -580,7 +526,7 @@ impl McpServerElicitationOverlay {
         )
     }
 
-    fn is_text_field(&self) -> bool {
+    pub(super) fn is_text_field(&self) -> bool {
         !self.is_select_field()
     }
 
@@ -590,6 +536,7 @@ impl McpServerElicitationOverlay {
     }
 }
 
+mod input;
 pub(super) mod render;
 mod schema;
 use schema::*;
@@ -597,3 +544,15 @@ use schema::*;
 #[cfg(test)]
 #[path = "mcp_server_elicitation/tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "mcp_server_elicitation/input_tests.rs"]
+mod input_tests;
+
+#[cfg(test)]
+#[path = "mcp_server_elicitation/stdio_tests.rs"]
+mod stdio_tests;
+
+#[cfg(all(test, unix))]
+#[path = "mcp_server_elicitation/pty_tests.rs"]
+mod pty_tests;

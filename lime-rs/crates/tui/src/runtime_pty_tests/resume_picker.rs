@@ -50,6 +50,7 @@ pub(super) fn exercise_open_and_cancel(
         "canonical row reloaded after toolbar round trip",
         |screen| screen.contains("› ") && screen.contains("f9 resume"),
     );
+    terminal_observer::resize(output, 8, 100);
     master
         .resize(PtySize {
             rows: 8,
@@ -69,6 +70,7 @@ pub(super) fn exercise_open_and_cancel(
                 && visible.contains("ctrl+x q close")
         },
     );
+    terminal_observer::resize(output, 8, 10);
     master
         .resize(PtySize {
             rows: 8,
@@ -88,6 +90,7 @@ pub(super) fn exercise_open_and_cancel(
                 .is_some_and(|line| line.trim_end() == " ctrl+x q")
         },
     );
+    terminal_observer::resize(output, 8, 100);
     master
         .resize(PtySize {
             rows: 8,
@@ -109,6 +112,7 @@ pub(super) fn exercise_open_and_cancel(
         .write_all(b"\x04\x15")
         .expect("page in the actual resume viewport");
     writer.flush().unwrap();
+    terminal_observer::resize(output, 24, 100);
     master
         .resize(PtySize {
             rows: 24,

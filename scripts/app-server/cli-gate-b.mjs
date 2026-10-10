@@ -15,7 +15,10 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { localAppServerBinaryPath } from "../lib/electron-dev-sidecar.mjs";
-import { buildTerminalGateBinaries } from "./terminal-gate-binaries.mjs";
+import {
+  buildTerminalGateBinaries,
+  snapshotTerminalGateBinaries,
+} from "./terminal-gate-binaries.mjs";
 import { writeTerminalExternalBackend } from "./terminal-gate-fixture.mjs";
 import { runExecReasoningGateB } from "./cli-reasoning-gate-b.mjs";
 import { runExecSessionGateB } from "./cli-exec-gate-b.mjs";
@@ -36,10 +39,10 @@ const completedText = "cli gate b completed";
 
 async function main() {
   await buildTerminalGateBinaries({ env: process.env, repoRoot: rootDir });
-  const cliBinaryPath = path.resolve(
+  let cliBinaryPath = path.resolve(
     process.env.LIME_CLI_BIN || defaultCliBinaryPath,
   );
-  const appServerBinaryPath = path.resolve(
+  let appServerBinaryPath = path.resolve(
     process.env.APP_SERVER_BIN ||
       localAppServerBinaryPath({ repoRoot: rootDir }),
   );
@@ -50,6 +53,13 @@ async function main() {
 
   const tempDir = await mkdtemp(path.join(tmpdir(), "cli-gate-b-"));
   try {
+    ({ cliBinaryPath, appServerBinaryPath } =
+      await snapshotTerminalGateBinaries({
+        env: process.env,
+        cliBinaryPath,
+        appServerBinaryPath,
+        directory: path.join(tempDir, "binaries"),
+      }));
     const backendPath = path.join(tempDir, "cli-backend.mjs");
     const ledgerPath = path.join(tempDir, "cli-backend.jsonl");
     const dataDir = path.join(tempDir, "data");
@@ -312,7 +322,11 @@ async function main() {
       ].join(" "),
     );
   } finally {
-    await rm(tempDir, { recursive: true, force: true });
+    if (process.env.LIME_KEEP_CLI_GATE_B_TMP !== "1") {
+      await rm(tempDir, { recursive: true, force: true });
+    } else {
+      console.error(`[smoke:cli-gate-b] kept temp dir ${tempDir}`);
+    }
   }
 }
 

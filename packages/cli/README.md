@@ -37,6 +37,7 @@ lime exec fork <thread-id> "continue on the fork"
 lime exec -i screenshot.png "inspect this image"
 lime exec --output-schema response.schema.json "return a structured response"
 lime exec review --uncommitted
+lime review --uncommitted
 lime exec review --base main
 lime exec review --commit <sha> --title "commit subject"
 lime exec review "check error handling"
@@ -83,6 +84,8 @@ PROMPT 与 Codex 一致，是一个参数，多个单词请加引号。省略 PR
 `--output-schema <FILE>` 读取 UTF-8 JSON，并通过共享 `turn/start.outputSchema` 约束当前 Turn 的最终响应。选项可放在 resume/fork 前后；文件不可读或 JSON 非法时在建立连接前报错，不创建 Thread，不改全局设置。模型是否支持该约束由共享 provider owner 决定。
 
 `exec review` 必须指定 `--uncommitted`、`--base <BRANCH>`、`--commit <SHA>` 或一条自定义审查指令；这些目标互斥，`--title` 只用于 commit。指令为 `-` 时读取 stdin 并去除首尾空白；显式指令忽略 pipe，空指令报错。审查通过共享 `review/start` 执行，CLI 不读取 git 或构建独立审查后端；JSON、human 和 `-o` 复用已有输出行为。按 Codex 语义，review 不消费 root PROMPT、图片或 output-schema。
+顶层 `lime review` 复用同一目标、stdin 和审查执行，默认 human 输出；连接、权限与 locale
+继承 root 参数。需要 JSON 或最后消息文件时使用 `lime exec review`。
 
 Plugin 管理只通过 App Server JSON-RPC 的当前 Plugin v3 catalog。`plugin list` 默认发现用户目录、
 当前工作目录和已配置的本地 marketplace；`--plugin-cwd <DIR>` 显式发现指定目录下的

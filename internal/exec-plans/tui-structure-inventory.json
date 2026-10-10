@@ -79411,7 +79411,7 @@
     },
     "lime-rs/crates/tui/src": {
       "root": "/Users/coso/Documents/dev/ai/aiclientproxy/lime/lime-rs/crates/tui/src",
-      "fileCount": 434,
+      "fileCount": 455,
       "files": [
         "app.rs",
         "app/agent_center/hints.rs",
@@ -79446,6 +79446,7 @@
         "app/input_flow.rs",
         "app/input_submission.rs",
         "app/input_submission_tests.rs",
+        "app/input_tests.rs",
         "app/interaction.rs",
         "app/interrupts.rs",
         "app/mcp_login.rs",
@@ -79503,6 +79504,7 @@
         "bottom_pane/chat_composer/completion_target.rs",
         "bottom_pane/chat_composer/completion_target_tests.rs",
         "bottom_pane/chat_composer/completion_tests.rs",
+        "bottom_pane/chat_composer/config.rs",
         "bottom_pane/chat_composer/draft.rs",
         "bottom_pane/chat_composer/draft_state.rs",
         "bottom_pane/chat_composer/effort.rs",
@@ -79566,8 +79568,12 @@
         "bottom_pane/keymap_tests.rs",
         "bottom_pane/list_selection_view.rs",
         "bottom_pane/mcp_server_elicitation.rs",
+        "bottom_pane/mcp_server_elicitation/input.rs",
+        "bottom_pane/mcp_server_elicitation/input_tests.rs",
+        "bottom_pane/mcp_server_elicitation/pty_tests.rs",
         "bottom_pane/mcp_server_elicitation/render.rs",
         "bottom_pane/mcp_server_elicitation/schema.rs",
+        "bottom_pane/mcp_server_elicitation/stdio_tests.rs",
         "bottom_pane/mcp_server_elicitation/tests.rs",
         "bottom_pane/mod.rs",
         "bottom_pane/multi_select_picker.rs",
@@ -79575,10 +79581,15 @@
         "bottom_pane/pending_input_preview.rs",
         "bottom_pane/picker_rows.rs",
         "bottom_pane/render.rs",
+        "bottom_pane/request_user_input/burst_tests.rs",
+        "bottom_pane/request_user_input/confirmation.rs",
         "bottom_pane/request_user_input/layout.rs",
         "bottom_pane/request_user_input/mod.rs",
+        "bottom_pane/request_user_input/paste_tests.rs",
         "bottom_pane/request_user_input/render.rs",
         "bottom_pane/request_user_input/render_tests.rs",
+        "bottom_pane/request_user_input/state.rs",
+        "bottom_pane/request_user_input/state_tests.rs",
         "bottom_pane/request_user_input/tests.rs",
         "bottom_pane/scroll_state.rs",
         "bottom_pane/selection_popup_common.rs",
@@ -79642,6 +79653,7 @@
         "exec_cell/model.rs",
         "exec_cell/render.rs",
         "external_editor.rs",
+        "external_editor_tests.rs",
         "footer_hint.rs",
         "fuzzy_match.rs",
         "history_cell/activity_preview.rs",
@@ -79684,8 +79696,10 @@
         "locale/agents.rs",
         "locale/backtrack.rs",
         "locale/composer.rs",
+        "locale/external_editor.rs",
         "locale/pickers.rs",
         "locale/reasoning.rs",
+        "locale/request_user_input.rs",
         "locale/shortcuts.rs",
         "locale/status_line.rs",
         "locale/title.rs",
@@ -79759,6 +79773,7 @@
         "runtime_pty_tests/config.rs",
         "runtime_pty_tests/cursor_style.rs",
         "runtime_pty_tests/diff_display.rs",
+        "runtime_pty_tests/external_editor.rs",
         "runtime_pty_tests/footer.rs",
         "runtime_pty_tests/images.rs",
         "runtime_pty_tests/model_picker.rs",
@@ -79772,6 +79787,7 @@
         "runtime_pty_tests/status_line.rs",
         "runtime_pty_tests/suggestions.rs",
         "runtime_pty_tests/task_progress.rs",
+        "runtime_pty_tests/terminal_observer.rs",
         "runtime_pty_tests/terminal_title.rs",
         "runtime_pty_tests/thread_input.rs",
         "runtime_pty_tests/title_setup.rs",
@@ -79835,6 +79851,11 @@
         "tui/event_stream.rs",
         "tui/frame_rate_limiter.rs",
         "tui/frame_requester.rs",
+        "tui/tests.rs",
+        "tui/windows_console.rs",
+        "tui/windows_console_tests.rs",
+        "tui/windows_key_sequence.rs",
+        "tui/windows_key_sequence_tests.rs",
         "view.rs",
         "view/tests.rs",
         "view/tests/composer.rs",
@@ -79848,7 +79869,7 @@
         "width.rs",
         "wrapping.rs"
       ],
-      "symbolCount": 5531,
+      "symbolCount": 5695,
       "symbols": [
         {
           "path": "app.rs",
@@ -79864,11 +79885,6 @@
           "path": "app.rs",
           "name": "AppAction",
           "kind": "type"
-        },
-        {
-          "path": "app.rs",
-          "name": "apply_external_edit",
-          "kind": "function"
         },
         {
           "path": "app.rs",
@@ -81426,6 +81442,16 @@
           "kind": "function"
         },
         {
+          "path": "app/input.rs",
+          "name": "finish_external_editor",
+          "kind": "function"
+        },
+        {
+          "path": "app/input.rs",
+          "name": "launch_external_editor",
+          "kind": "function"
+        },
+        {
           "path": "app/input_flow.rs",
           "name": "handle_key_event",
           "kind": "function"
@@ -81558,6 +81584,16 @@
         {
           "path": "app/input_submission_tests.rs",
           "name": "typed_punctuation_linked_paths_and_environment_variables_follow_codex_scanning",
+          "kind": "function"
+        },
+        {
+          "path": "app/input_tests.rs",
+          "name": "external_editor_failure_preserves_the_rich_draft_and_adds_a_visible_localized_error",
+          "kind": "function"
+        },
+        {
+          "path": "app/input_tests.rs",
+          "name": "external_editor_success_trims_only_the_tail_and_allows_clearing_owned_input",
           "kind": "function"
         },
         {
@@ -84186,6 +84222,11 @@
           "kind": "type"
         },
         {
+          "path": "bottom_pane/chat_composer.rs",
+          "name": "new_with_config",
+          "kind": "function"
+        },
+        {
           "path": "bottom_pane/chat_composer/agents_navigation.rs",
           "name": "agents_navigation_available",
           "kind": "function"
@@ -84651,6 +84692,16 @@
           "kind": "function"
         },
         {
+          "path": "bottom_pane/chat_composer/config.rs",
+          "name": "ChatComposerConfig",
+          "kind": "type"
+        },
+        {
+          "path": "bottom_pane/chat_composer/config.rs",
+          "name": "default",
+          "kind": "function"
+        },
+        {
           "path": "bottom_pane/chat_composer/draft.rs",
           "name": "attach_image",
           "kind": "function"
@@ -84722,6 +84773,11 @@
         },
         {
           "path": "bottom_pane/chat_composer/draft.rs",
+          "name": "locale",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/chat_composer/draft.rs",
           "name": "rebuild_text_content",
           "kind": "function"
         },
@@ -84748,6 +84804,11 @@
         {
           "path": "bottom_pane/chat_composer/draft.rs",
           "name": "replace",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/chat_composer/draft.rs",
+          "name": "replace_draft",
           "kind": "function"
         },
         {
@@ -84864,6 +84925,11 @@
           "path": "bottom_pane/chat_composer/draft_state.rs",
           "name": "DraftState",
           "kind": "type"
+        },
+        {
+          "path": "bottom_pane/chat_composer/draft_state.rs",
+          "name": "text_with_pending",
+          "kind": "function"
         },
         {
           "path": "bottom_pane/chat_composer/draft_state.rs",
@@ -85632,6 +85698,11 @@
         },
         {
           "path": "bottom_pane/chat_composer/paste_input.rs",
+          "name": "held_ascii_precedes_immediate_unicode_input",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/chat_composer/paste_input.rs",
           "name": "is_text_key",
           "kind": "function"
         },
@@ -85652,7 +85723,7 @@
         },
         {
           "path": "bottom_pane/chat_composer/paste_input.rs",
-          "name": "prepare_popup_key_event",
+          "name": "prepare_key_event",
           "kind": "function"
         },
         {
@@ -86383,6 +86454,21 @@
         {
           "path": "bottom_pane/chat_composer/vim_search_tests.rs",
           "name": "empty_vim_search_backspace_cancels_without_submission",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/chat_composer/vim_search_tests.rs",
+          "name": "empty_vim_search_chord_keeps_its_query_owner_when_completed_by_slash",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/chat_composer/vim_search_tests.rs",
+          "name": "empty_vim_slash_enters_insert_and_opens_the_command_popup_through_the_host",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/chat_composer/vim_search_tests.rs",
+          "name": "empty_vim_slash_respects_release_disabled_input_and_explicit_search_bindings",
           "kind": "function"
         },
         {
@@ -88217,6 +88303,16 @@
         },
         {
           "path": "bottom_pane/input_tests.rs",
+          "name": "active_notes_idle_tick_draws_held_typing_without_touching_the_main_draft",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/input_tests.rs",
+          "name": "chat_widget_defers_burst_frames_then_submits_the_complete_idle_note",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/input_tests.rs",
           "name": "command_popup_completion_is_owned_by_the_pane_but_execution_is_a_host_action",
           "kind": "function"
         },
@@ -88258,6 +88354,11 @@
         {
           "path": "bottom_pane/input_tests.rs",
           "name": "main_paste_timer_keeps_running_behind_an_interaction_without_editing_notes",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/input_tests.rs",
+          "name": "mcp_text_field_uses_active_view_burst_clock_and_keeps_main_draft",
           "kind": "function"
         },
         {
@@ -88462,22 +88563,7 @@
         },
         {
           "path": "bottom_pane/mcp_server_elicitation.rs",
-          "name": "handle_key_event",
-          "kind": "function"
-        },
-        {
-          "path": "bottom_pane/mcp_server_elicitation.rs",
-          "name": "handle_paste",
-          "kind": "function"
-        },
-        {
-          "path": "bottom_pane/mcp_server_elicitation.rs",
           "name": "handle_select_key",
-          "kind": "function"
-        },
-        {
-          "path": "bottom_pane/mcp_server_elicitation.rs",
-          "name": "handle_text_key",
           "kind": "function"
         },
         {
@@ -88493,11 +88579,6 @@
         {
           "path": "bottom_pane/mcp_server_elicitation.rs",
           "name": "is_text_field",
-          "kind": "function"
-        },
-        {
-          "path": "bottom_pane/mcp_server_elicitation.rs",
-          "name": "mark_text_changed",
           "kind": "function"
         },
         {
@@ -88571,13 +88652,138 @@
           "kind": "function"
         },
         {
+          "path": "bottom_pane/mcp_server_elicitation/input.rs",
+          "name": "flush_paste_burst_if_due",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/mcp_server_elicitation/input.rs",
+          "name": "handle_key_event",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/mcp_server_elicitation/input.rs",
+          "name": "handle_key_event_at",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/mcp_server_elicitation/input.rs",
+          "name": "handle_paste",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/mcp_server_elicitation/input.rs",
+          "name": "handle_text_key_at",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/mcp_server_elicitation/input.rs",
+          "name": "is_in_paste_burst",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/mcp_server_elicitation/input.rs",
+          "name": "next_frame_delay",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/mcp_server_elicitation/input_tests.rs",
+          "name": "accepted_field_revisit_preserves_acceptance_until_content_changes",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/mcp_server_elicitation/input_tests.rs",
+          "name": "field_navigation_restores_atomic_payload_cursor_and_full_response",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/mcp_server_elicitation/input_tests.rs",
+          "name": "held_typing_is_saved_on_handoff_and_cleared_before_cancellation",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/mcp_server_elicitation/input_tests.rs",
+          "name": "multiline_viewport_keeps_wrapped_tail_and_cursor_visible_in_all_locales",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/mcp_server_elicitation/input_tests.rs",
+          "name": "plain_text_image_paths_remain_literal_and_bracketed_pastes_normalize",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/mcp_server_elicitation/input_tests.rs",
+          "name": "query_and_editor_chords_own_enter_escape_and_navigation",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/mcp_server_elicitation/input_tests.rs",
+          "name": "raw_burst_enter_and_tab_remain_text_until_idle_flush",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/mcp_server_elicitation/input_tests.rs",
+          "name": "rejected_expanded_input_retains_draft_and_localizes_the_error",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/mcp_server_elicitation/input_tests.rs",
+          "name": "text_fields",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/mcp_server_elicitation/pty_tests.rs",
+          "name": "drop",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/mcp_server_elicitation/pty_tests.rs",
+          "name": "Pty",
+          "kind": "type"
+        },
+        {
+          "path": "bottom_pane/mcp_server_elicitation/pty_tests.rs",
+          "name": "real_pty_mcp_form_uses_stdio_rich_drafts_and_restores_terminal",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/mcp_server_elicitation/pty_tests.rs",
+          "name": "wait",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/mcp_server_elicitation/pty_tests.rs",
+          "name": "write",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/mcp_server_elicitation/render.rs",
+          "name": "content_area",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/mcp_server_elicitation/render.rs",
+          "name": "content_lines_with_width",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/mcp_server_elicitation/render.rs",
+          "name": "desired_height",
+          "kind": "function"
+        },
+        {
           "path": "bottom_pane/mcp_server_elicitation/render.rs",
           "name": "footer_control_lines",
           "kind": "function"
         },
         {
           "path": "bottom_pane/mcp_server_elicitation/render.rs",
-          "name": "is_input_line",
+          "name": "input_area",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/mcp_server_elicitation/render.rs",
+          "name": "input_height",
           "kind": "function"
         },
         {
@@ -88607,12 +88813,7 @@
         },
         {
           "path": "bottom_pane/mcp_server_elicitation/render.rs",
-          "name": "set_cursor_position",
-          "kind": "function"
-        },
-        {
-          "path": "bottom_pane/mcp_server_elicitation/render.rs",
-          "name": "split_input_lines",
+          "name": "render",
           "kind": "function"
         },
         {
@@ -88698,6 +88899,21 @@
         {
           "path": "bottom_pane/mcp_server_elicitation/schema.rs",
           "name": "string_property",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/mcp_server_elicitation/stdio_tests.rs",
+          "name": "configure_form",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/mcp_server_elicitation/stdio_tests.rs",
+          "name": "connect",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/mcp_server_elicitation/stdio_tests.rs",
+          "name": "real_stdio_mcp_form_preserves_rich_drafts_and_resolves_once",
           "kind": "function"
         },
         {
@@ -88862,6 +89078,11 @@
         },
         {
           "path": "bottom_pane/mod.rs",
+          "name": "flush_paste_burst_if_due",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/mod.rs",
           "name": "footer_hint_lines",
           "kind": "function"
         },
@@ -88882,17 +89103,32 @@
         },
         {
           "path": "bottom_pane/mod.rs",
+          "name": "handle_interaction_event_at",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/mod.rs",
           "name": "handle_interaction_key",
           "kind": "function"
         },
         {
           "path": "bottom_pane/mod.rs",
-          "name": "handle_key_event",
+          "name": "handle_interaction_key_at",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/mod.rs",
+          "name": "handle_key_event_at",
           "kind": "function"
         },
         {
           "path": "bottom_pane/mod.rs",
           "name": "is_active",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/mod.rs",
+          "name": "is_in_paste_burst",
           "kind": "function"
         },
         {
@@ -88958,6 +89194,11 @@
         {
           "path": "bottom_pane/mod.rs",
           "name": "set_keymap_bindings",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/mod.rs",
+          "name": "set_locale",
           "kind": "function"
         },
         {
@@ -89132,6 +89373,11 @@
         },
         {
           "path": "bottom_pane/paste_burst.rs",
+          "name": "non_ascii_appends_refresh_the_active_burst_idle_deadline",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/paste_burst.rs",
           "name": "note_plain_char",
           "kind": "function"
         },
@@ -89169,6 +89415,11 @@
           "path": "bottom_pane/paste_burst.rs",
           "name": "RetroGrab",
           "kind": "type"
+        },
+        {
+          "path": "bottom_pane/paste_burst.rs",
+          "name": "try_append_char_if_active",
+          "kind": "function"
         },
         {
           "path": "bottom_pane/pending_input_preview.rs",
@@ -89257,11 +89508,6 @@
         },
         {
           "path": "bottom_pane/render.rs",
-          "name": "lines_with_locale",
-          "kind": "function"
-        },
-        {
-          "path": "bottom_pane/render.rs",
           "name": "narrow_height_uses_the_same_width_as_rendered_content",
           "kind": "function"
         },
@@ -89283,6 +89529,101 @@
         {
           "path": "bottom_pane/render.rs",
           "name": "request_with_options",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/request_user_input/burst_tests.rs",
+          "name": "explicit_paste_joins_held_typing_and_modified_navigation_keeps_the_complete_draft",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/request_user_input/burst_tests.rs",
+          "name": "held_ascii_followed_by_ime_input_keeps_notes_order_through_question_handoff",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/request_user_input/burst_tests.rs",
+          "name": "held_edits_revoke_acceptance_before_the_next_draw_and_never_submit_old_text",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/request_user_input/burst_tests.rs",
+          "name": "held_typing_is_drawn_on_idle_without_accepting_the_question",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/request_user_input/burst_tests.rs",
+          "name": "key",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/request_user_input/burst_tests.rs",
+          "name": "question_handoff_materializes_held_text_and_preserves_submission_snapshot",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/request_user_input/burst_tests.rs",
+          "name": "rapid_multiline_unicode_notes_keep_enter_tab_and_expand_only_on_submission",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/request_user_input/burst_tests.rs",
+          "name": "release_enter_neither_snoozes_auto_resolution_nor_consumes_a_burst",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/request_user_input/burst_tests.rs",
+          "name": "request",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/request_user_input/burst_tests.rs",
+          "name": "response",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/request_user_input/burst_tests.rs",
+          "name": "type_burst",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/request_user_input/confirmation.rs",
+          "name": "confirmation_desired_height",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/request_user_input/confirmation.rs",
+          "name": "confirmation_footer_hints",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/request_user_input/confirmation.rs",
+          "name": "confirmation_rows",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/request_user_input/confirmation.rs",
+          "name": "handle_confirm_unanswered_key_event",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/request_user_input/confirmation.rs",
+          "name": "open_unanswered_confirmation",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/request_user_input/confirmation.rs",
+          "name": "render_unanswered_confirmation",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/request_user_input/confirmation.rs",
+          "name": "return_to_unanswered",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/request_user_input/confirmation.rs",
+          "name": "title_lines",
           "kind": "function"
         },
         {
@@ -89332,16 +89673,6 @@
         },
         {
           "path": "bottom_pane/request_user_input/mod.rs",
-          "name": "clear_notes_and_focus_options",
-          "kind": "function"
-        },
-        {
-          "path": "bottom_pane/request_user_input/mod.rs",
-          "name": "commit",
-          "kind": "function"
-        },
-        {
-          "path": "bottom_pane/request_user_input/mod.rs",
           "name": "commit_selected_or_open_notes",
           "kind": "function"
         },
@@ -89352,12 +89683,12 @@
         },
         {
           "path": "bottom_pane/request_user_input/mod.rs",
-          "name": "finish",
+          "name": "fit_footer_hint",
           "kind": "function"
         },
         {
           "path": "bottom_pane/request_user_input/mod.rs",
-          "name": "fit_footer_hint",
+          "name": "flush_paste_burst_if_due",
           "kind": "function"
         },
         {
@@ -89377,7 +89708,17 @@
         },
         {
           "path": "bottom_pane/request_user_input/mod.rs",
+          "name": "handle_composer_input_result",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/request_user_input/mod.rs",
           "name": "handle_key_event",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/request_user_input/mod.rs",
+          "name": "handle_key_event_at",
           "kind": "function"
         },
         {
@@ -89392,12 +89733,7 @@
         },
         {
           "path": "bottom_pane/request_user_input/mod.rs",
-          "name": "move_option",
-          "kind": "function"
-        },
-        {
-          "path": "bottom_pane/request_user_input/mod.rs",
-          "name": "move_question",
+          "name": "is_in_paste_burst",
           "kind": "function"
         },
         {
@@ -89442,22 +89778,7 @@
         },
         {
           "path": "bottom_pane/request_user_input/mod.rs",
-          "name": "restore_current_state",
-          "kind": "function"
-        },
-        {
-          "path": "bottom_pane/request_user_input/mod.rs",
-          "name": "save_current_state",
-          "kind": "function"
-        },
-        {
-          "path": "bottom_pane/request_user_input/mod.rs",
           "name": "secondary_footer_hints",
-          "kind": "function"
-        },
-        {
-          "path": "bottom_pane/request_user_input/mod.rs",
-          "name": "selected_option_label",
           "kind": "function"
         },
         {
@@ -89468,6 +89789,71 @@
         {
           "path": "bottom_pane/request_user_input/mod.rs",
           "name": "snooze_auto_resolution",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/request_user_input/paste_tests.rs",
+          "name": "accepted_long_note_can_be_revisited_edited_and_accepted_without_losing_other_drafts",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/request_user_input/paste_tests.rs",
+          "name": "empty_slash_stays_vim_search_in_plain_notes",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/request_user_input/paste_tests.rs",
+          "name": "expanded_limit_rejection_preserves_the_note_across_question_navigation",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/request_user_input/paste_tests.rs",
+          "name": "image_path_remains_literal_in_notes_while_main_composer_attaches_it",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/request_user_input/paste_tests.rs",
+          "name": "key",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/request_user_input/paste_tests.rs",
+          "name": "modified_enter_in_an_empty_note_inserts_a_newline_without_accepting_an_answer",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/request_user_input/paste_tests.rs",
+          "name": "notes_paste_uses_current_host_locale_when_enqueued_updated_and_restored",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/request_user_input/paste_tests.rs",
+          "name": "notes_share_normalization_and_markdown_blockquote_paste",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/request_user_input/paste_tests.rs",
+          "name": "notes_submit_literal_command_file_and_skill_text_without_popups",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/request_user_input/paste_tests.rs",
+          "name": "question_navigation_restores_cursor_atomic_paste_and_exact_expanded_answers",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/request_user_input/paste_tests.rs",
+          "name": "rejected_or_vim_search_enter_does_not_leave_a_pending_submission_snapshot",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/request_user_input/paste_tests.rs",
+          "name": "request",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/request_user_input/paste_tests.rs",
+          "name": "switching_questions_starts_a_new_vim_edit_lifetime",
           "kind": "function"
         },
         {
@@ -89602,12 +89988,157 @@
         },
         {
           "path": "bottom_pane/request_user_input/render_tests.rs",
+          "name": "unanswered_confirmation_handles_narrow_and_empty_surfaces_without_showing_a_notes_cursor",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/request_user_input/render_tests.rs",
+          "name": "unanswered_count_and_confirmation_cover_all_product_locales",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/request_user_input/render_tests.rs",
           "name": "wrapped_options_preserve_secondary_text_and_fill_selection",
           "kind": "function"
         },
         {
           "path": "bottom_pane/request_user_input/render_tests.rs",
           "name": "zero_and_tiny_surfaces_do_not_underflow",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/request_user_input/state.rs",
+          "name": "AnswerState",
+          "kind": "type"
+        },
+        {
+          "path": "bottom_pane/request_user_input/state.rs",
+          "name": "clear_notes_and_focus_options",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/request_user_input/state.rs",
+          "name": "commit",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/request_user_input/state.rs",
+          "name": "editing",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/request_user_input/state.rs",
+          "name": "finish",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/request_user_input/state.rs",
+          "name": "first_unanswered_index",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/request_user_input/state.rs",
+          "name": "Focus",
+          "kind": "type"
+        },
+        {
+          "path": "bottom_pane/request_user_input/state.rs",
+          "name": "jump_to_question",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/request_user_input/state.rs",
+          "name": "move_option",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/request_user_input/state.rs",
+          "name": "move_question",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/request_user_input/state.rs",
+          "name": "new",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/request_user_input/state.rs",
+          "name": "restore_current_state",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/request_user_input/state.rs",
+          "name": "save_current_state",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/request_user_input/state.rs",
+          "name": "selected",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/request_user_input/state.rs",
+          "name": "set_focus",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/request_user_input/state.rs",
+          "name": "set_selected",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/request_user_input/state.rs",
+          "name": "unanswered_count",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/request_user_input/state_tests.rs",
+          "name": "changing_an_accepted_option_requires_accepting_it_again",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/request_user_input/state_tests.rs",
+          "name": "confirmation_consumes_remapped_chords_and_ignores_release_and_unbound_enter",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/request_user_input/state_tests.rs",
+          "name": "cursor_and_focus_navigation_preserve_acceptance_but_content_changes_revoke_it",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/request_user_input/state_tests.rs",
+          "name": "editing_an_accepted_note_then_skipping_it_never_submits_the_old_answer",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/request_user_input/state_tests.rs",
+          "name": "key",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/request_user_input/state_tests.rs",
+          "name": "request",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/request_user_input/state_tests.rs",
+          "name": "response_keeps_authored_labels_and_encodes_freeform_and_secret_notes_uniformly",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/request_user_input/state_tests.rs",
+          "name": "skipped_and_empty_freeform_answers_require_confirmation_and_return_to_the_first_unanswered",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/request_user_input/state_tests.rs",
+          "name": "synthetic_choice_keeps_its_wire_label_with_an_unanswered_freeform_question",
+          "kind": "function"
+        },
+        {
+          "path": "bottom_pane/request_user_input/state_tests.rs",
+          "name": "vim_query_owns_escape_and_question_navigation_without_revoking_accepted_content",
           "kind": "function"
         },
         {
@@ -92092,6 +92623,11 @@
         },
         {
           "path": "chatwidget/input.rs",
+          "name": "handle_paste_burst_tick",
+          "kind": "function"
+        },
+        {
+          "path": "chatwidget/input.rs",
           "name": "observe_thread_input_notification",
           "kind": "function"
         },
@@ -93932,47 +94468,67 @@
         },
         {
           "path": "external_editor.rs",
-          "name": "command_parts",
+          "name": "EditorError",
+          "kind": "type"
+        },
+        {
+          "path": "external_editor.rs",
+          "name": "resolve_editor_command",
           "kind": "function"
         },
         {
           "path": "external_editor.rs",
-          "name": "edit_draft",
+          "name": "resolve_editor_command_from",
           "kind": "function"
         },
         {
           "path": "external_editor.rs",
-          "name": "edit_draft_with_command",
+          "name": "resolve_windows_program",
           "kind": "function"
         },
         {
           "path": "external_editor.rs",
-          "name": "editor_failure_is_returned_without_leaking_the_tempfile",
+          "name": "run_editor",
           "kind": "function"
         },
         {
-          "path": "external_editor.rs",
-          "name": "edits_draft_after_closing_the_tempfile_handle",
+          "path": "external_editor_tests.rs",
+          "name": "editor_arguments_preserve_empty_values_and_literal_backslashes",
           "kind": "function"
         },
         {
-          "path": "external_editor.rs",
-          "name": "rejects_unterminated_quotes",
+          "path": "external_editor_tests.rs",
+          "name": "resolve_editor_prefers_visual_and_rejects_empty_visual_without_fallback",
           "kind": "function"
         },
         {
-          "path": "external_editor.rs",
-          "name": "resolve_editor_executable",
+          "path": "external_editor_tests.rs",
+          "name": "resolve_editor_preserves_windows_paths_and_empty_arguments",
           "kind": "function"
         },
         {
-          "path": "external_editor.rs",
-          "name": "resolve_editor_executable",
+          "path": "external_editor_tests.rs",
+          "name": "resolve_editor_rejects_unterminated_quotes_and_escapes",
           "kind": "function"
         },
         {
-          "path": "external_editor.rs",
-          "name": "splits_editor_command_without_losing_quotes",
+          "path": "external_editor_tests.rs",
+          "name": "run_editor_failure_and_spawn_error_do_not_leak_the_buffer",
+          "kind": "function"
+        },
+        {
+          "path": "external_editor_tests.rs",
+          "name": "run_editor_receives_exact_arguments_and_returns_untrimmed_content",
+          "kind": "function"
+        },
+        {
+          "path": "external_editor_tests.rs",
+          "name": "run_editor_rejects_an_empty_command_before_creating_a_buffer",
+          "kind": "function"
+        },
+        {
+          "path": "external_editor_tests.rs",
+          "name": "run_editor_returns_empty_content_to_clear_the_draft",
           "kind": "function"
         },
         {
@@ -96572,11 +97128,6 @@
         },
         {
           "path": "locale.rs",
-          "name": "other_option",
-          "kind": "function"
-        },
-        {
-          "path": "locale.rs",
           "name": "output_omitted_bytes",
           "kind": "function"
         },
@@ -97211,6 +97762,16 @@
           "kind": "function"
         },
         {
+          "path": "locale/external_editor.rs",
+          "name": "editor_errors_keep_localized_guidance_and_process_details_in_all_five_languages",
+          "kind": "function"
+        },
+        {
+          "path": "locale/external_editor.rs",
+          "name": "external_editor_failed",
+          "kind": "function"
+        },
+        {
           "path": "locale/pickers.rs",
           "name": "agent_picker_empty",
           "kind": "function"
@@ -97398,6 +97959,46 @@
         {
           "path": "locale/reasoning.rs",
           "name": "reasoning_updated_message",
+          "kind": "function"
+        },
+        {
+          "path": "locale/request_user_input.rs",
+          "name": "other_option_description",
+          "kind": "function"
+        },
+        {
+          "path": "locale/request_user_input.rs",
+          "name": "other_option_label",
+          "kind": "function"
+        },
+        {
+          "path": "locale/request_user_input.rs",
+          "name": "request_unanswered_count",
+          "kind": "function"
+        },
+        {
+          "path": "locale/request_user_input.rs",
+          "name": "unanswered_confirm_go_back",
+          "kind": "function"
+        },
+        {
+          "path": "locale/request_user_input.rs",
+          "name": "unanswered_confirm_submit",
+          "kind": "function"
+        },
+        {
+          "path": "locale/request_user_input.rs",
+          "name": "unanswered_confirm_title",
+          "kind": "function"
+        },
+        {
+          "path": "locale/request_user_input.rs",
+          "name": "unanswered_go_back_description",
+          "kind": "function"
+        },
+        {
+          "path": "locale/request_user_input.rs",
+          "name": "unanswered_submit_description",
           "kind": "function"
         },
         {
@@ -101947,37 +102548,12 @@
         },
         {
           "path": "runtime_pty_tests.rs",
-          "name": "configure_external_editor",
-          "kind": "function"
-        },
-        {
-          "path": "runtime_pty_tests.rs",
-          "name": "configure_external_editor",
-          "kind": "function"
-        },
-        {
-          "path": "runtime_pty_tests.rs",
           "name": "real_pty_restores_terminal_after_visible_turn_completion",
           "kind": "function"
         },
         {
           "path": "runtime_pty_tests.rs",
           "name": "required_test_path",
-          "kind": "function"
-        },
-        {
-          "path": "runtime_pty_tests.rs",
-          "name": "terminal_cursor_position",
-          "kind": "function"
-        },
-        {
-          "path": "runtime_pty_tests.rs",
-          "name": "terminal_marker_position",
-          "kind": "function"
-        },
-        {
-          "path": "runtime_pty_tests.rs",
-          "name": "terminal_screen_text",
           "kind": "function"
         },
         {
@@ -102133,6 +102709,41 @@
         {
           "path": "runtime_pty_tests/diff_display.rs",
           "name": "assert_painted_patch",
+          "kind": "function"
+        },
+        {
+          "path": "runtime_pty_tests/external_editor.rs",
+          "name": "assert_editor_exit_and_reentry",
+          "kind": "function"
+        },
+        {
+          "path": "runtime_pty_tests/external_editor.rs",
+          "name": "assert_preserved_screen_then_release",
+          "kind": "function"
+        },
+        {
+          "path": "runtime_pty_tests/external_editor.rs",
+          "name": "configure_external_editor",
+          "kind": "function"
+        },
+        {
+          "path": "runtime_pty_tests/external_editor.rs",
+          "name": "configure_external_editor",
+          "kind": "function"
+        },
+        {
+          "path": "runtime_pty_tests/external_editor.rs",
+          "name": "drop",
+          "kind": "function"
+        },
+        {
+          "path": "runtime_pty_tests/external_editor.rs",
+          "name": "EditorChild",
+          "kind": "type"
+        },
+        {
+          "path": "runtime_pty_tests/external_editor.rs",
+          "name": "real_pty_external_editor_uses_resumed_thread_cwd",
           "kind": "function"
         },
         {
@@ -102313,6 +102924,66 @@
         {
           "path": "runtime_pty_tests/task_progress.rs",
           "name": "exercise_shared_progress",
+          "kind": "function"
+        },
+        {
+          "path": "runtime_pty_tests/terminal_observer.rs",
+          "name": "assert_fresh_projection",
+          "kind": "function"
+        },
+        {
+          "path": "runtime_pty_tests/terminal_observer.rs",
+          "name": "default",
+          "kind": "function"
+        },
+        {
+          "path": "runtime_pty_tests/terminal_observer.rs",
+          "name": "every_unicode_and_escape_boundary_matches_a_fresh_terminal",
+          "kind": "function"
+        },
+        {
+          "path": "runtime_pty_tests/terminal_observer.rs",
+          "name": "observe",
+          "kind": "function"
+        },
+        {
+          "path": "runtime_pty_tests/terminal_observer.rs",
+          "name": "replaced_prefix_and_rewound_trace_start_fresh_lifetimes",
+          "kind": "function"
+        },
+        {
+          "path": "runtime_pty_tests/terminal_observer.rs",
+          "name": "resize",
+          "kind": "function"
+        },
+        {
+          "path": "runtime_pty_tests/terminal_observer.rs",
+          "name": "resize_and_unicode_repaint_match_a_terminal_with_the_real_pty_geometry",
+          "kind": "function"
+        },
+        {
+          "path": "runtime_pty_tests/terminal_observer.rs",
+          "name": "terminal_cursor_position",
+          "kind": "function"
+        },
+        {
+          "path": "runtime_pty_tests/terminal_observer.rs",
+          "name": "terminal_marker_position",
+          "kind": "function"
+        },
+        {
+          "path": "runtime_pty_tests/terminal_observer.rs",
+          "name": "terminal_screen_text",
+          "kind": "function"
+        },
+        {
+          "path": "runtime_pty_tests/terminal_observer.rs",
+          "name": "TerminalObserver",
+          "kind": "type"
+        },
+        {
+          "path": "runtime_pty_tests/terminal_observer.rs",
+          "name": "with_screen",
           "kind": "function"
         },
         {
@@ -105987,6 +106658,11 @@
         },
         {
           "path": "tui.rs",
+          "name": "draw_for_handoff",
+          "kind": "function"
+        },
+        {
+          "path": "tui.rs",
           "name": "drop",
           "kind": "function"
         },
@@ -106062,6 +106738,11 @@
         },
         {
           "path": "tui.rs",
+          "name": "repaint_visible_frame",
+          "kind": "function"
+        },
+        {
+          "path": "tui.rs",
           "name": "restore",
           "kind": "function"
         },
@@ -106109,6 +106790,11 @@
           "path": "tui.rs",
           "name": "terminal_mut",
           "kind": "function"
+        },
+        {
+          "path": "tui.rs",
+          "name": "TerminalHandoff",
+          "kind": "type"
         },
         {
           "path": "tui.rs",
@@ -106453,6 +107139,161 @@
         {
           "path": "tui/frame_requester.rs",
           "name": "test_schedule_frame_in_triggers_at_delay",
+          "kind": "function"
+        },
+        {
+          "path": "tui/tests.rs",
+          "name": "handoff_repaint_clips_a_smaller_terminal_without_moving_the_saved_viewport",
+          "kind": "function"
+        },
+        {
+          "path": "tui/tests.rs",
+          "name": "handoff_repaint_leaves_newly_visible_cells_empty_after_terminal_growth",
+          "kind": "function"
+        },
+        {
+          "path": "tui/tests.rs",
+          "name": "handoff_repaint_preserves_styled_unicode_and_atomic_composer_labels",
+          "kind": "function"
+        },
+        {
+          "path": "tui/windows_console.rs",
+          "name": "current_input_mode",
+          "kind": "function"
+        },
+        {
+          "path": "tui/windows_console.rs",
+          "name": "ensure_input_record_mode",
+          "kind": "function"
+        },
+        {
+          "path": "tui/windows_console.rs",
+          "name": "input_record_mode",
+          "kind": "function"
+        },
+        {
+          "path": "tui/windows_console.rs",
+          "name": "restore_input_mode",
+          "kind": "function"
+        },
+        {
+          "path": "tui/windows_console.rs",
+          "name": "restored_input_mode",
+          "kind": "function"
+        },
+        {
+          "path": "tui/windows_console.rs",
+          "name": "set_input_record_mode",
+          "kind": "function"
+        },
+        {
+          "path": "tui/windows_console.rs",
+          "name": "VirtualTerminalInput",
+          "kind": "type"
+        },
+        {
+          "path": "tui/windows_console_tests.rs",
+          "name": "input_record_mode_round_trips_all_console_flag_combinations",
+          "kind": "function"
+        },
+        {
+          "path": "tui/windows_console_tests.rs",
+          "name": "restoring_disabled_vt_input_preserves_external_console_changes",
+          "kind": "function"
+        },
+        {
+          "path": "tui/windows_console_tests.rs",
+          "name": "restoring_enabled_vt_input_preserves_external_console_changes",
+          "kind": "function"
+        },
+        {
+          "path": "tui/windows_key_sequence.rs",
+          "name": "accept",
+          "kind": "function"
+        },
+        {
+          "path": "tui/windows_key_sequence.rs",
+          "name": "flush",
+          "kind": "function"
+        },
+        {
+          "path": "tui/windows_key_sequence.rs",
+          "name": "Item",
+          "kind": "type"
+        },
+        {
+          "path": "tui/windows_key_sequence.rs",
+          "name": "new",
+          "kind": "function"
+        },
+        {
+          "path": "tui/windows_key_sequence.rs",
+          "name": "poll_next",
+          "kind": "function"
+        },
+        {
+          "path": "tui/windows_key_sequence.rs",
+          "name": "WindowsKeySequence",
+          "kind": "type"
+        },
+        {
+          "path": "tui/windows_key_sequence_tests.rs",
+          "name": "continuously_ready_mappings_yield_one_newline_at_a_time",
+          "kind": "function"
+        },
+        {
+          "path": "tui/windows_key_sequence_tests.rs",
+          "name": "decoded",
+          "kind": "function"
+        },
+        {
+          "path": "tui/windows_key_sequence_tests.rs",
+          "name": "delayed_poll_consumes_queued_suffix_without_waiting_for_more_input",
+          "kind": "function"
+        },
+        {
+          "path": "tui/windows_key_sequence_tests.rs",
+          "name": "errors_follow_pending_input_and_do_not_keep_partial_state",
+          "kind": "function"
+        },
+        {
+          "path": "tui/windows_key_sequence_tests.rs",
+          "name": "fragmented_mapping_waits_without_leaking_escape",
+          "kind": "function"
+        },
+        {
+          "path": "tui/windows_key_sequence_tests.rs",
+          "name": "keys",
+          "kind": "function"
+        },
+        {
+          "path": "tui/windows_key_sequence_tests.rs",
+          "name": "literal_text_paste_native_keys_and_failed_prefixes_are_unchanged",
+          "kind": "function"
+        },
+        {
+          "path": "tui/windows_key_sequence_tests.rs",
+          "name": "mapped_shift_enter_renders_newlines_and_submits_only_on_explicit_enter",
+          "kind": "function"
+        },
+        {
+          "path": "tui/windows_key_sequence_tests.rs",
+          "name": "mismatch_can_start_another_mapping_and_eof_replays_partial_input",
+          "kind": "function"
+        },
+        {
+          "path": "tui/windows_key_sequence_tests.rs",
+          "name": "modifiers_and_non_press_records_do_not_form_a_mapping",
+          "kind": "function"
+        },
+        {
+          "path": "tui/windows_key_sequence_tests.rs",
+          "name": "repeated_mappings_decode_with_or_without_key_releases",
+          "kind": "function"
+        },
+        {
+          "path": "tui/windows_key_sequence_tests.rs",
+          "name": "standalone_escape_and_partial_prefix_wake_at_fixed_deadline",
           "kind": "function"
         },
         {
@@ -107506,7 +108347,7 @@
           "kind": "function"
         }
       ],
-      "treeSha256": "a501df5ac9c0ebbcab6849cac8415e1e7d8b967e06cb7c9f3e36c0927edee837"
+      "treeSha256": "80a104eeb8d190b64d141c99daef519acdc03cfc7d6e589258710c1168d3d21b"
     },
     "codex-rs/tui/tests": {
       "root": "/Users/coso/Documents/dev/rust/codex/codex-rs/tui/tests",
@@ -107883,7 +108724,7 @@
         "suite/vt100_live_commit.rs",
         "test_backend.rs"
       ],
-      "symbolCount": 120,
+      "symbolCount": 121,
       "symbols": [
         {
           "path": "manager_dependency_regression.rs",
@@ -108277,6 +109118,11 @@
         },
         {
           "path": "suite/reconnect.rs",
+          "name": "wait_for_screen_absent",
+          "kind": "function"
+        },
+        {
+          "path": "suite/reconnect.rs",
           "name": "wait_for_startup",
           "kind": "function"
         },
@@ -108486,7 +109332,7 @@
           "kind": "function"
         }
       ],
-      "treeSha256": "d85b11b7e2cf83aa6f5c451fb82dd21b0c290934ab0bd6213932458c3a03756d"
+      "treeSha256": "02a89f3174bfc9d0ec2eb0ac4082cbf7a137892683c798b6b3ae52f265fa80f0"
     }
   },
   "comparisons": {
@@ -109044,7 +109890,6 @@
       "external_agent_config_migration/render.rs",
       "external_agent_config_migration/source.rs",
       "external_agent_config_migration/source_tests.rs",
-      "external_editor_tests.rs",
       "file_search.rs",
       "footer_hint_tests.rs",
       "get_git_diff.rs",
@@ -109323,9 +110168,6 @@
       "tui/test_support.rs",
       "tui/tmux.rs",
       "tui/tmux_tests.rs",
-      "tui/windows_console.rs",
-      "tui/windows_key_sequence.rs",
-      "tui/windows_key_sequence_tests.rs",
       "tui/windows_term_program_tests.rs",
       "tui_panic_tests.rs",
       "tui_startup_tests.rs",
@@ -109359,6 +110201,7 @@
       "app/input_flow.rs",
       "app/input_submission.rs",
       "app/input_submission_tests.rs",
+      "app/input_tests.rs",
       "app/interaction.rs",
       "app/interrupts.rs",
       "app/mcp_login.rs",
@@ -109390,6 +110233,7 @@
       "bottom_pane/chat_composer/attachment_state_tests.rs",
       "bottom_pane/chat_composer/completion.rs",
       "bottom_pane/chat_composer/completion_tests.rs",
+      "bottom_pane/chat_composer/config.rs",
       "bottom_pane/chat_composer/draft.rs",
       "bottom_pane/chat_composer/effort.rs",
       "bottom_pane/chat_composer/effort_tests.rs",
@@ -109422,10 +110266,19 @@
       "bottom_pane/input_state.rs",
       "bottom_pane/input_tests.rs",
       "bottom_pane/keymap_tests.rs",
+      "bottom_pane/mcp_server_elicitation/input.rs",
+      "bottom_pane/mcp_server_elicitation/input_tests.rs",
+      "bottom_pane/mcp_server_elicitation/pty_tests.rs",
       "bottom_pane/mcp_server_elicitation/render.rs",
       "bottom_pane/mcp_server_elicitation/schema.rs",
+      "bottom_pane/mcp_server_elicitation/stdio_tests.rs",
       "bottom_pane/mcp_server_elicitation/tests.rs",
       "bottom_pane/render.rs",
+      "bottom_pane/request_user_input/burst_tests.rs",
+      "bottom_pane/request_user_input/confirmation.rs",
+      "bottom_pane/request_user_input/paste_tests.rs",
+      "bottom_pane/request_user_input/state.rs",
+      "bottom_pane/request_user_input/state_tests.rs",
       "bottom_pane/request_user_input/tests.rs",
       "bottom_pane/selection_popup_common_tests.rs",
       "bottom_pane/status_line_setup_tests.rs",
@@ -109468,8 +110321,10 @@
       "locale/agents.rs",
       "locale/backtrack.rs",
       "locale/composer.rs",
+      "locale/external_editor.rs",
       "locale/pickers.rs",
       "locale/reasoning.rs",
+      "locale/request_user_input.rs",
       "locale/shortcuts.rs",
       "locale/status_line.rs",
       "locale/title.rs",
@@ -109523,6 +110378,7 @@
       "runtime_pty_tests/config.rs",
       "runtime_pty_tests/cursor_style.rs",
       "runtime_pty_tests/diff_display.rs",
+      "runtime_pty_tests/external_editor.rs",
       "runtime_pty_tests/footer.rs",
       "runtime_pty_tests/images.rs",
       "runtime_pty_tests/model_picker.rs",
@@ -109536,6 +110392,7 @@
       "runtime_pty_tests/status_line.rs",
       "runtime_pty_tests/suggestions.rs",
       "runtime_pty_tests/task_progress.rs",
+      "runtime_pty_tests/terminal_observer.rs",
       "runtime_pty_tests/terminal_title.rs",
       "runtime_pty_tests/thread_input.rs",
       "runtime_pty_tests/title_setup.rs",
@@ -109550,6 +110407,8 @@
       "terminal_hyperlinks/paragraph_tests.rs",
       "terminal_palette/perceptual.rs",
       "terminal_title_tests.rs",
+      "tui/tests.rs",
+      "tui/windows_console_tests.rs",
       "view.rs",
       "view/tests.rs",
       "view/tests/composer.rs",
@@ -109625,7 +110484,6 @@
       "AnnouncementTipDocument",
       "AnnouncementTipRaw",
       "AnnouncementTips",
-      "AnswerState",
       "ApiKeyInputState",
       "AppCommand",
       "AppExitInfo",
@@ -109697,7 +110555,6 @@
       "ChangeCallBack",
       "Chart",
       "Chat",
-      "ChatComposerConfig",
       "ChatComposerPresentation",
       "ChatKeymap",
       "ChatWidgetInit",
@@ -109785,7 +110642,6 @@
       "DynamicToolMcpHandler",
       "DynamicToolMcpServer",
       "EditTarget",
-      "EditorError",
       "EditorPaths",
       "EffectiveConfig",
       "ElicitationRequestKey",
@@ -109836,7 +110692,6 @@
       "FileSearch",
       "FileSearchManager",
       "FinalizedEvent",
-      "Focus",
       "FocusArea",
       "FollowControl",
       "FooterFlash",
@@ -110373,7 +111228,6 @@
       "TargetOs",
       "TaskMention",
       "TemporaryStructuredThreadOptions",
-      "TerminalHandoff",
       "TerminalInitializationGuard",
       "TerminalRestoreGuard",
       "TerminalStderrGuard",
@@ -110492,7 +111346,6 @@
       "VimOperatorKeymap",
       "VimSearchKeymap",
       "VimTextObjectKeymap",
-      "VirtualTerminalInput",
       "VisibleRow",
       "VoiceAmplitudeHistory",
       "VoiceControl",
@@ -110512,7 +111365,6 @@
       "WebSearchCell",
       "WelcomeWidget",
       "WidthCell",
-      "WindowsKeySequence",
       "WindowsPipeStream",
       "WindowsSandboxConfig",
       "WindowsSandboxEnableMode",
@@ -112185,7 +113037,6 @@
       "contains_server_request",
       "contains_tab_id",
       "contains_text",
-      "content_area",
       "content_from_ranges",
       "content_height",
       "content_line",
@@ -112208,7 +113059,6 @@
       "continue_search_if_needed",
       "continue_search_if_token_matches",
       "continued_typing_resets_delayed_approval_idle_deadline",
-      "continuously_ready_mappings_yield_one_newline_at_a_time",
       "control_available",
       "control_b_and_f_move_cursor",
       "control_b_f_fallback_control_chars_move_cursor",
@@ -112378,7 +113228,6 @@
       "current_head_sha",
       "current_hint",
       "current_index",
-      "current_input_mode",
       "current_layout",
       "current_mention_target",
       "current_mentions_v2_token",
@@ -112542,7 +113391,6 @@
       "decode_history_mentions_without_at_mentions_uses_legacy_plugin_fallback",
       "decode_mcp_image",
       "decode_task_links",
-      "decoded",
       "decorate_workspace_sandbox_label",
       "decorated_hyperlinks_preserve_joined_emoji_columns",
       "decorates_a_contiguous_web_link_with_one_osc8_pair",
@@ -112589,7 +113437,6 @@
       "del_line_bg",
       "delayed_approval_shortcut_works_after_idle_deadline",
       "delayed_enter_after_typing_submits",
-      "delayed_poll_consumes_queued_suffix_without_waiting_for_more_input",
       "delayed_user_transcript_suppresses_old_audio_after_microphone_mute",
       "delayed_voice_transcript_preserves_unspoken_text_fallback",
       "delegated_analysis_never_enters_history_on_completion_overflow_or_stop",
@@ -113057,7 +113904,6 @@
       "ensure_focus_available",
       "ensure_goal_output_dir",
       "ensure_identity",
-      "ensure_input_record_mode",
       "ensure_line",
       "ensure_minimum_rows_does_not_prefetch_when_comfortable_cards_fill_view",
       "ensure_minimum_rows_for_view",
@@ -113118,7 +113964,6 @@
       "error_notification",
       "error_preview",
       "error_summary_spans",
-      "errors_follow_pending_input_and_do_not_keep_partial_state",
       "errors_for_cwd",
       "esc_cancels_mcp_elicitation",
       "esc_dismisses_slash_command_popup_without_interrupting_task",
@@ -113630,7 +114475,6 @@
       "first_screen_composer",
       "first_screen_single_click_replays_the_visible_blossom",
       "first_screen_stage_ignores_notices_and_hides_instead_of_shrinking",
-      "first_unanswered_index",
       "first_viewport_change_clears_from_new_viewport_when_old_viewport_is_empty",
       "fit_footer_hint_refs",
       "fit_footer_hints",
@@ -113655,7 +114499,6 @@
       "flush_interrupt_activity",
       "flush_interrupt_queue",
       "flush_native_history",
-      "flush_paste_burst_if_due",
       "flush_pending_events",
       "flush_pending_history_lines",
       "flush_pending_input",
@@ -113797,7 +114640,6 @@
       "format_unified_exec_interaction",
       "format_warning",
       "fractional_mouse_scroll_does_not_pause_following_until_a_row_moves",
-      "fragmented_mapping_waits_without_leaking_escape",
       "fragmented_terminal_response_cannot_grant_directory_trust",
       "fragmented_terminal_response_cannot_grant_startup_hook_trust",
       "fragmented_terminal_response_cannot_select_non_admin_windows_sandbox",
@@ -114018,10 +114860,8 @@
       "handle_command_execution_completed_now",
       "handle_command_execution_started_now",
       "handle_composer_copy_event",
-      "handle_composer_input_result",
       "handle_composer_mouse",
       "handle_configured_pet_loaded",
-      "handle_confirm_unanswered_key_event",
       "handle_consolidate_agent_message",
       "handle_copy_mode_key",
       "handle_disclosure_key",
@@ -114082,7 +114922,6 @@
       "handle_owned_backtrack_event",
       "handle_owned_transcript_event",
       "handle_parent_owned_submission",
-      "handle_paste_burst_tick",
       "handle_paste_enter",
       "handle_paste_large_uses_placeholder_and_replaces_on_submit",
       "handle_paste_small_inserts_text",
@@ -114486,12 +115325,9 @@
       "inline_visualization_directive_survives_raw_to_rich_render_mode_switch",
       "inline_visualizations_use_canonical_full_render",
       "inline_visualizations_without_context_use_canonical_full_render",
-      "input_area",
       "input_disabled_ignores_keypresses_and_hides_cursor",
-      "input_height",
       "input_history_search_uses_the_final_row",
       "input_probe_targets_the_containing_pane_and_only_disables_confirmed_mouse_off",
-      "input_record_mode",
       "insert_and_replace_update_cursor_and_text",
       "insert_cell",
       "insert_element_at_target",
@@ -114650,7 +115486,6 @@
       "is_history_search_key",
       "is_idle",
       "is_image_path",
-      "is_in_paste_burst",
       "is_in_progress_connect_error",
       "is_inside_element",
       "is_iterm2_terminal",
@@ -114751,7 +115586,6 @@
       "jump_to_entry",
       "jump_to_field",
       "jump_to_latest",
-      "jump_to_question",
       "jump_top",
       "jump_top_holds_the_visible_page_until_all_history_arrives",
       "jump_top_requests_older_history_from_the_bottom",
@@ -114861,7 +115695,6 @@
       "latest_tag_without_prefix_is_invalid",
       "latest_thread_cwd",
       "latest_version",
-      "launch_external_editor",
       "launch_permissions_preserve_server_owned_constrained_profile",
       "launch_screen_mode_survives_configuration_reload",
       "layout_allocates_all_wrapped_options_when_space_allows",
@@ -114987,7 +115820,6 @@
       "lists_preserve_layout",
       "literal_punctuation_is_not_reinterpreted_and_selected_breaks_survive",
       "literal_selection",
-      "literal_text_paste_native_keys_and_failed_prefixes_are_unchanged",
       "live",
       "live_account_identity_is_visible_and_closing_aborts_pending_loads",
       "live_agent_message_renders_during_review_mode",
@@ -115395,7 +116227,6 @@
       "misalignment_replay_blocks_when_turn_start_was_evicted",
       "misalignment_review_requires_current_findings",
       "misalignment_turn_end_discards_history_search_and_question_drafts",
-      "mismatch_can_start_another_mapping_and_eof_replays_partial_input",
       "missed_resize_recovers_and_slow_query_does_not_block_input",
       "missing_breakdowns_remain_unavailable",
       "missing_frame_is_an_asset_error",
@@ -115623,7 +116454,6 @@
       "new_with_app_event",
       "new_with_at_mentions",
       "new_with_composer_config",
-      "new_with_config",
       "new_with_inline_visualizations",
       "new_with_op_target",
       "new_with_session",
@@ -116033,7 +116863,6 @@
       "open_thread_goal_editor",
       "open_thread_goal_menu",
       "open_transcript_overlay",
-      "open_unanswered_confirmation",
       "open_url_in_browser",
       "open_usage_menu",
       "open_warnings",
@@ -117736,7 +118565,6 @@
       "render_transcript_loading_overlay",
       "render_transcript_preview_lines",
       "render_two_messages",
-      "render_unanswered_confirmation",
       "render_undelivered_realtime_speech",
       "render_uses_wrapping_for_long_url_like_line",
       "render_view_lines",
@@ -117811,7 +118639,6 @@
       "repeated_colors_follow_palette_changes_and_remain_bounded",
       "repeated_focus_loss_does_not_restart_recap_delay",
       "repeated_generic_warning_is_not_hidden",
-      "repeated_mappings_decode_with_or_without_key_releases",
       "repeated_model_metadata_warning_is_hidden_for_same_slug",
       "repeated_prompt_matching_removes_only_the_hidden_occurrence",
       "repeated_resize_preserves_plain_and_markdown_passages_before_the_next_draw",
@@ -118068,7 +118895,6 @@
       "resolve_cwd_for_resume_or_fork",
       "resolve_diff_backgrounds",
       "resolve_diff_backgrounds_for",
-      "resolve_editor_command",
       "resolve_editor_errors_when_unset",
       "resolve_editor_prefers_visual",
       "resolve_elicitation",
@@ -118092,7 +118918,6 @@
       "resolve_theme_by_name",
       "resolve_theme_with_override",
       "resolve_user_verification",
-      "resolve_windows_program",
       "resolved_buffered_approval_does_not_become_actionable_after_drain",
       "resolved_current_request_advances_to_next_same_turn_prompt",
       "resolved_queued_request_removes_only_that_prompt",
@@ -118108,7 +118933,6 @@
       "resolves_patch_approval_through_app_server_request_id",
       "resolves_permissions_and_user_input_through_app_server_request_id",
       "resource_link_block",
-      "response",
       "response_chunks",
       "response_json",
       "response_with_banner",
@@ -118122,7 +118946,6 @@
       "restore_current_draft",
       "restore_env",
       "restore_inline_draft",
-      "restore_input_mode",
       "restore_keyboard_enhancement_stack",
       "restore_locked",
       "restore_pre_review_token_info",
@@ -118153,7 +118976,6 @@
       "restored_conversation_ultra_remains_selected_after_switching_to_plan",
       "restored_history_counts_only_completed_turns",
       "restored_history_never_reduces_observed_completed_turns",
-      "restored_input_mode",
       "restored_message_preserves_existing_composer_draft_and_attachments",
       "restored_partial_caption_accepts_late_completion_without_duplicate_history",
       "restored_queued_goal_slash_command_emits_set_goal_event",
@@ -118309,7 +119131,6 @@
       "run_commit_tick",
       "run_commit_tick_with_scope",
       "run_cwd_selection_prompt",
-      "run_editor",
       "run_editor_returns_updated_content",
       "run_external_agent_config_migration_prompt",
       "run_external_agent_config_source_prompt",
@@ -118756,7 +119577,6 @@
       "set_image_support_for_tests",
       "set_initial_user_message_submit_suppressed",
       "set_inline_banner",
-      "set_input_record_mode",
       "set_interrupt_binding",
       "set_interrupt_hint_visible",
       "set_interrupted_turn_notice_mode",
@@ -119386,7 +120206,6 @@
       "stale_voice_handoff_after_newer_typed_input_is_never_spoken",
       "stale_voice_handoff_longer_than_the_display_limit_cannot_be_revived",
       "stalled_voice_stop_leaves_time_for_shutdown_unsubscribe",
-      "standalone_escape_and_partial_prefix_wake_at_fixed_deadline",
       "standalone_resize_draw_rechecks_settled_screen_size_once",
       "standalone_unix_update_available_history_cell_snapshot",
       "standalone_update_commands_rerun_latest_installer",
@@ -120199,7 +121018,6 @@
       "text_preserves_whitespace_and_rejects_late_or_oversized_reads",
       "text_rendering_does_not_overwrite_cells_outside_the_textarea",
       "text_selection_temporarily_replaces_the_rendered_backtrack_highlight",
-      "text_with_pending",
       "the_first_buffered_character_and_empty_escape_clear_visible_stars",
       "theme_accents",
       "theme_accents_respect_terminal_color_depth",
@@ -120536,7 +121354,6 @@
       "trusted_workspace_file",
       "trusted_workspace_files_require_confined_regular_inert_sources",
       "trusts_sqlite_name_over_legacy_index_for_delete",
-      "try_append_char_if_active",
       "try_consume_approval_request",
       "try_consume_mcp_server_elicitation_request",
       "try_consume_user_input_request",
@@ -120623,9 +121440,7 @@
       "unanswered_confirmation_height",
       "unanswered_confirmation_layout",
       "unanswered_confirmation_rows",
-      "unanswered_count",
       "unanswered_question_count",
-      "unanswered_submit_description",
       "unarchives_by_sqlite_name",
       "unavailable_artifact_has_explicit_fallback",
       "unavailable_chat_batches_bound_requests_during_an_outage",
@@ -121417,6 +122232,7 @@
       "DiffLine",
       "DiffLineKind",
       "EditorAction",
+      "EditorChild",
       "EffortMenu",
       "EntryKind",
       "EntryStatus",
@@ -121480,6 +122296,7 @@
       "PromptHeaderLayout",
       "PromptHeaderSource",
       "PromptLabels",
+      "Pty",
       "ReadResult",
       "Reader",
       "ReasoningStep",
@@ -121511,6 +122328,7 @@
       "SubmissionOutcome",
       "SuppressStderr",
       "TableRow",
+      "TerminalObserver",
       "ThreadPage",
       "ThreadSettingsPatch",
       "TokenUsageState",
@@ -121549,6 +122367,8 @@
       "accept_hint",
       "accept_input",
       "accept_mcp_login_completion",
+      "accepted_field_revisit_preserves_acceptance_until_content_changes",
+      "accepted_long_note_can_be_revisited_edited_and_accepted_without_losing_other_drafts",
       "accepted_model_migration_updates_model_and_effort",
       "accepting_match_discards_background_edits_and_image_ownership",
       "action_for_key",
@@ -121561,6 +122381,7 @@
       "actions",
       "active_bottom_pane_receives_input_before_the_chat_composer",
       "active_draft_prefers_queue_hint_and_hides_context_when_narrow",
+      "active_notes_idle_tick_draws_held_typing_without_touching_the_main_draft",
       "active_permission_profile",
       "active_permission_profile_requires_a_non_empty_id",
       "active_status_height_and_width_are_bounded_for_supported_locales",
@@ -121709,10 +122530,13 @@
       "assert_default_before_editor",
       "assert_default_restored",
       "assert_draft_cursor",
+      "assert_editor_exit_and_reentry",
       "assert_external_editor_handoff",
+      "assert_fresh_projection",
       "assert_fresh_stdio_settings",
       "assert_gallery",
       "assert_painted_patch",
+      "assert_preserved_screen_then_release",
       "assert_summary_body",
       "assert_turn_count",
       "assistant_item",
@@ -121827,7 +122651,9 @@
       "changed_query_coalesces_the_probe_and_matches_only_the_current_query",
       "changed_query_explicit_restart_and_history_mutation_reset_unique_traversal",
       "changed_width_is_debounced_and_due_is_observable",
+      "changing_an_accepted_option_requires_accepting_it_again",
       "chars",
+      "chat_widget_defers_burst_frames_then_submits_the_complete_idle_note",
       "choices",
       "chord_ownership_resets_on_resize_paste_and_release_never_confirms",
       "chord_resets_at_non_keyboard_boundaries_and_release_never_accepts",
@@ -121902,7 +122728,6 @@
       "command_from_prompt",
       "command_output_deltas_follow_the_command_without_splitting_chunks",
       "command_output_omission_markers_cover_all_product_locales",
-      "command_parts",
       "command_popup_active",
       "command_popup_completion_is_owned_by_the_pane_but_execution_is_a_host_action",
       "command_text",
@@ -121976,6 +122801,7 @@
       "config_read_value_resolves_list_bindings_and_hints_from_one_snapshot",
       "config_read_value_resolves_right_click_paste_policy",
       "configure_external_editor",
+      "configure_form",
       "configure_vim",
       "configured",
       "configured_accept_cancel_and_paging_have_no_hidden_defaults",
@@ -121987,7 +122813,11 @@
       "configured_pages_jumps_and_options_replace_default_keys",
       "configured_printable_edit_key_and_chord_completion_bypass_paste_burst_detection",
       "confirm_transcript_copy",
+      "confirmation_consumes_remapped_chords_and_ignores_release_and_unbound_enter",
+      "confirmation_desired_height",
+      "confirmation_footer_hints",
       "confirmation_restores_all_typed_inputs_and_failure_keeps_original_history",
+      "confirmation_rows",
       "conflicting_prefixes_and_unreachable_picker_bindings_fail_closed",
       "conflicts_and_plain_chord_prefixes_fail_closed",
       "connect_remote",
@@ -121995,6 +122825,7 @@
       "connected_history_search_routes_paste_to_query_not_draft_or_turn",
       "constrained_halfwidth_table_keeps_display_width_bounded",
       "constrained_tables_wrap_without_exceeding_available_width",
+      "content_lines_with_width",
       "content_previews",
       "content_previews_cap_items_and_length",
       "content_spans",
@@ -122065,6 +122896,7 @@
       "current_working_directory_message",
       "cursor_anchor",
       "cursor_and_backspace_respect_extended_graphemes",
+      "cursor_and_focus_navigation_preserve_acceptance_but_content_changes_revoke_it",
       "cursor_at_display_column",
       "cursor_style_belongs_to_export_focus_and_restores_the_retained_composer",
       "cursor_style_of_a_hidden_insert_composer_does_not_leak_into_approval",
@@ -122168,6 +123000,7 @@
       "draft_content_equals",
       "dragging_or_scrolling_cancels_link_activation",
       "drain_snapshot",
+      "draw_for_handoff",
       "draw_lines",
       "draw_until_search_idle",
       "drive_until",
@@ -122180,20 +123013,20 @@
       "dynamic_text_previews_are_compact_bounded_and_ignore_media_urls",
       "each_interactive_request_is_pending_until_resolved",
       "edge_scroll_direction",
-      "edit_draft",
-      "edit_draft_with_command",
       "edit_hint_requires_a_lossless_composer_projection",
       "edit_queued_input_hint",
+      "editing",
+      "editing_an_accepted_note_then_skipping_it_never_submits_the_old_answer",
       "editor_action_for_key",
       "editor_alternatives_chords_and_unbind_have_no_default_backdoor",
+      "editor_arguments_preserve_empty_values_and_literal_backslashes",
       "editor_conflicts_include_main_surface_shadowing_and_reserved_host_keys",
       "editor_display_width",
-      "editor_failure_is_returned_without_leaking_the_tempfile",
+      "editor_errors_keep_localized_guidance_and_process_details_in_all_five_languages",
       "editor_key_chord_pending",
       "editor_key_event_is_owned",
       "editor_newline_help_renders_actual_binding_and_omits_unbound_action_in_all_locales",
       "editor_word_and_kill_shortcuts_share_textarea_semantics",
-      "edits_draft_after_closing_the_tempfile_handle",
       "effort_charge_alpha",
       "effort_label",
       "effort_prompt_preserves_the_attachment_gutter_and_disabled_input_priority",
@@ -122224,6 +123057,7 @@
       "empty_repeat_search_is_a_noop_and_backward_search_finds_previous_match",
       "empty_schema_decline_and_persisted_accept_are_typed",
       "empty_schema_uses_generic_approval_actions",
+      "empty_slash_stays_vim_search_in_plain_notes",
       "empty_surface_and_zero_area_do_not_leak_fill_into_following_lines",
       "empty_terminal_batch_exhausts_without_refetching_and_errors_keep_an_existing_match",
       "empty_thread_escape_does_not_advertise_a_nonexistent_prompt",
@@ -122233,6 +123067,9 @@
       "empty_undo_and_redo_are_consumed_in_normal_mode",
       "empty_values_do_not_create_trailing_separators",
       "empty_vim_search_backspace_cancels_without_submission",
+      "empty_vim_search_chord_keeps_its_query_owner_when_completed_by_slash",
+      "empty_vim_slash_enters_insert_and_opens_the_command_popup_through_the_host",
+      "empty_vim_slash_respects_release_disabled_input_and_explicit_search_bindings",
       "encode_rgba_as_png",
       "end",
       "end_interaction_drag",
@@ -122259,6 +123096,7 @@
       "every_configured_action_dispatches_through_the_real_modal_snapshot",
       "every_locale_uses_an_atomic_label_but_submits_the_same_content",
       "every_pty_read_split_preserves_unicode_ansi_and_terminal_geometry",
+      "every_unicode_and_escape_boundary_matches_a_fresh_terminal",
       "evicted_request_does_not_replay",
       "exercise_animation",
       "exercise_context_and_canonical_config",
@@ -122291,6 +123129,7 @@
       "exercise_ultra_prompt",
       "exercise_vim_command_state",
       "exited",
+      "expanded_limit_rejection_preserves_the_note_across_question_navigation",
       "expanded_pastes_rebase_image_elements_by_utf8_bytes_for_queue",
       "expanded_transcript_uses_canonical_entries_and_stays_bounded",
       "expanded_unicode_limit_accepts_boundary_after_trim",
@@ -122303,6 +123142,7 @@
       "explicit_empty_interaction_hints_clear_the_outer_footer",
       "explicit_fresh_replacement_ends_search_and_discards_saved_draft",
       "explicit_paste_and_editor_navigation_clear_burst_submission_protection",
+      "explicit_paste_joins_held_typing_and_modified_navigation_keeps_the_complete_draft",
       "explicit_paste_preserves_a_pending_typed_prefix",
       "explicit_raw_only_parts_render_without_creating_summary_parts",
       "explicit_raw_visibility_preserves_indexes_across_live_resume_completion_and_export",
@@ -122345,6 +123185,9 @@
       "external_edit_drops_missing_images_and_renumbers_only_owned_occurrence",
       "external_edit_preserves_owned_image_metadata_but_does_not_infer_literal_duplicates",
       "external_edit_preserves_reordered_owned_images_and_leaves_duplicates_literal",
+      "external_editor_failed",
+      "external_editor_failure_preserves_the_rich_draft_and_adds_a_visible_localized_error",
+      "external_editor_success_trims_only_the_tail_and_allows_clearing_owned_input",
       "facts",
       "fail_history_load",
       "fail_load_more",
@@ -122360,6 +123203,7 @@
       "fence_helpers_reject_short_or_indented_markers",
       "fence_tracker_tracks_markdown_other_and_blockquotes",
       "fenced_code_uses_the_first_info_token_for_syntax_highlighting",
+      "field_navigation_restores_atomic_payload_cursor_and_full_response",
       "file_and_skill_completion_share_suffix_cursor_and_attachment_preservation",
       "file_blocks_show_counts_relative_paths_renames_and_unscoped_line_numbers",
       "file_change_counts",
@@ -122395,6 +123239,7 @@
       "finish_block",
       "finish_cell",
       "finish_clipboard_paste",
+      "finish_external_editor",
       "finish_highlighted_code_block",
       "finish_input",
       "finish_line",
@@ -122492,7 +123337,9 @@
       "handle_filename_event",
       "handle_history_replaced",
       "handle_interaction_event",
+      "handle_interaction_event_at",
       "handle_interaction_key",
+      "handle_interaction_key_at",
       "handle_key_event_inner_at",
       "handle_list_action",
       "handle_main_transcript_selection",
@@ -122508,13 +123355,16 @@
       "handle_status_line_setup_event",
       "handle_task_action",
       "handle_terminal_title_setup_event",
-      "handle_text_key",
+      "handle_text_key_at",
       "handle_transcript_follow_mouse",
       "handle_transcript_pager_event",
       "handle_transcript_search_event",
       "handle_tui_event_impl",
       "handle_tui_event_runtime",
       "handoff",
+      "handoff_repaint_clips_a_smaller_terminal_without_moving_the_saved_viewport",
+      "handoff_repaint_leaves_newly_visible_cells_empty_after_terminal_growth",
+      "handoff_repaint_preserves_styled_unicode_and_atomic_composer_labels",
       "hard_wrap",
       "hard_wrap_spans",
       "has_controls",
@@ -122528,7 +123378,12 @@
       "has_transcript_selection",
       "header_sanitizes_bounds_and_truncates_prompt_by_display_width",
       "header_tracks_the_nearest_visible_prompt_without_entering_source_lines",
+      "held_ascii_followed_by_ime_input_keeps_notes_order_through_question_handoff",
+      "held_ascii_precedes_immediate_unicode_input",
+      "held_edits_revoke_acceptance_before_the_next_draw_and_never_submit_old_text",
+      "held_typing_is_drawn_on_idle_without_accepting_the_question",
       "held_typing_is_materialized_before_capture_and_never_flushed_into_the_new_thread",
+      "held_typing_is_saved_on_handoff_and_cleared_before_cancellation",
       "help_and_all_locale_footers_share_custom_confirmation_keys",
       "help_app",
       "help_columns_follow_available_width_and_keep_every_bound_action",
@@ -122597,6 +123452,7 @@
       "image_clipboard_statuses_cover_all_product_locales",
       "image_generation_status",
       "image_label",
+      "image_path_remains_literal_in_notes_while_main_composer_attaches_it",
       "image_shortcut_attaches_and_allows_image_only_submission",
       "image_view_paths_are_relative_to_the_current_working_directory",
       "informative_foregrounds_meet_contrast_on_light_dark_and_mid_tone_surfaces",
@@ -122610,6 +123466,7 @@
       "input_insert_mode",
       "input_is_a_borderless_filled_band_with_top_bottom_and_right_padding",
       "input_mode",
+      "input_record_mode_round_trips_all_console_flag_combinations",
       "insert_large_paste",
       "insert_repeat_uses_semantic_actions_after_rebinding_and_undo_is_one_transaction",
       "insert_session_is_one_undo_transaction",
@@ -122637,7 +123494,6 @@
       "is_filename_prompt",
       "is_focused",
       "is_horizontal_whitespace",
-      "is_input_line",
       "is_managed",
       "is_no_active_turn_error",
       "is_option_line",
@@ -122742,6 +123598,7 @@
       "local_file_links_collapse_matching_labels_and_keep_descriptions",
       "local_file_links_preserve_tilde_unc_and_invalid_percent_spelling",
       "local_history_ignores_empty_and_collapses_only_identical_adjacent_rich_entries",
+      "locale",
       "localized_context_is_complete_right_aligned_and_yields_when_it_cannot_fit",
       "localized_placeholder_uses_the_same_prompt_baseline_in_every_product_locale",
       "localized_status_keeps_interrupt_hint_and_width_bound",
@@ -122770,9 +123627,9 @@
       "many",
       "map_chat_widget_action",
       "map_input_result",
+      "mapped_shift_enter_renders_newlines_and_submits_only_on_explicit_enter",
       "maps_windows_temp_paths_for_wsl",
       "mark_preview_loading",
-      "mark_text_changed",
       "markdown_transcript_exports_patch_status_and_file_count",
       "markdown_transcript_includes_activity_details_without_terminal_controls",
       "markdown_transcript_keeps_summary_only_activity",
@@ -122840,6 +123697,7 @@
       "mcp_startup_warning_state_clears_only_the_ready_server",
       "mcp_status",
       "mcp_text_field_consumes_snapshot_without_ctrl_j_newline_fallback_or_chord_submission",
+      "mcp_text_field_uses_active_view_burst_clock_and_keeps_main_draft",
       "mcp_text_previews_are_compact_bounded_and_capped",
       "mcp_tool_unit",
       "mcp_tools_label",
@@ -122880,10 +123738,12 @@
       "model_rows",
       "model_upgrade_target",
       "modified_enter_adds_a_newline_and_plain_enter_submits",
+      "modified_enter_in_an_empty_note_inserts_a_newline_without_accepting_an_answer",
       "modified_enter_in_completion_edits_the_draft_without_selecting_or_executing",
       "modified_left_stays_in_the_editor",
       "modified_same_button_does_not_keep_pending",
       "modifier_enter_uses_the_configured_editor_and_release_does_not_submit",
+      "modifiers_and_non_press_records_do_not_form_a_mapping",
       "more_reasoning_label",
       "mouse_and_key_events_are_forwarded_in_order",
       "mouse_drag_selection_renders_and_is_replaced_atomically",
@@ -122917,6 +123777,7 @@
       "multiline_paste_continues_markdown_blockquote_and_leaves_next_block",
       "multiline_paste_is_literal_outside_a_markdown_blockquote",
       "multiline_python_preserves_content",
+      "multiline_viewport_keeps_wrapped_tail_and_cursor_visible_in_all_locales",
       "multiline_wrap_returns_owned_lines",
       "multiple_hunks_use_a_vertical_ellipsis_instead_of_protocol_headers",
       "multiple_running_hooks_use_shared_message_or_plural_status",
@@ -122963,6 +123824,7 @@
       "no_color_disables_semantic_colors_without_mutating_process_env",
       "no_pending_paste_preserves_the_complete_canonical_element_object",
       "no_questions",
+      "non_ascii_appends_refresh_the_active_burst_idle_deadline",
       "non_blocking_request",
       "non_blocking_request_expires_with_empty_answers",
       "non_blocking_request_is_snoozed_by_user_input",
@@ -122994,7 +123856,10 @@
       "notes_focus_returns_to_options_without_submitting_on_escape_or_empty_backspace",
       "notes_height",
       "notes_input_area",
+      "notes_paste_uses_current_host_locale_when_enqueued_updated_and_restored",
       "notes_scroll_to_the_cursor_instead_of_ellipsizing_the_draft",
+      "notes_share_normalization_and_markdown_blockquote_paste",
+      "notes_submit_literal_command_file_and_skill_text_without_popups",
       "notice_content_lines",
       "numbered_image_label",
       "observe_item",
@@ -123047,9 +123912,10 @@
       "osc_payload_is_bounded_visible_unicode_and_cannot_escape_its_framing",
       "other_enter_opens_notes_before_submitting_custom_answer",
       "other_navigation_and_query_mutation_cancel_pending_paging",
-      "other_option",
+      "other_option_description",
       "other_option_enabled",
       "other_option_is_only_added_when_the_contract_enables_it",
+      "other_option_label",
       "outbound_response_clears_only_the_matching_request",
       "output_details",
       "output_line_disclosure_uses_localized_count_and_optional_shortcut",
@@ -123178,6 +124044,7 @@
       "placeholder_only_summary_updates_status_without_visible_or_exported_body",
       "plain_char",
       "plain_enter_still_selects_file_and_skill_completions_through_the_pane",
+      "plain_text_image_paths_remain_literal_and_bracketed_pastes_normalize",
       "plan_and_diff_notifications_replace_stable_projection_entries",
       "plan_marker",
       "plan_mode",
@@ -123203,7 +124070,7 @@
       "popup_state_has_single_active_command_popup",
       "prefixed_candidate",
       "prepare_export_transcript",
-      "prepare_popup_key_event",
+      "prepare_key_event",
       "prepare_reasoning_shortcut",
       "prepare_root",
       "prepare_submission",
@@ -123273,15 +124140,18 @@
       "push_transcript_group",
       "pwd_usage",
       "query",
+      "query_and_editor_chords_own_enter_escape_and_navigation",
       "query_cap_and_backspace_preserve_grapheme_boundaries",
       "query_changes_keep_previous_rows_visible_while_waiting",
       "query_footer_keeps_end_and_caret_visible_on_narrow_widths",
       "query_mutation_invalidates_a_previous_page_cursor",
       "query_paste_does_not_consume_draft_redo",
       "query_truncated",
+      "question_handoff_materializes_held_text_and_preserves_submission_snapshot",
       "question_lines",
       "question_mark_in_draft_and_bracketed_paste_remains_literal",
       "question_navigation_preserves_each_question_draft_and_selection",
+      "question_navigation_restores_cursor_atomic_paste_and_exact_expanded_answers",
       "questions_keep_each_notes_draft_selection_focus_and_the_main_rich_draft",
       "queue_and_idle_plan_cycle_hints_outlive_context_on_narrow_screens",
       "queue_copy",
@@ -123305,7 +124175,9 @@
       "queues_requests_and_resolves_them_in_arrival_order",
       "quoted_selection_omits_rendered_markers_but_preserves_literal_markers_and_mixed_content",
       "range_start",
+      "rapid_multiline_unicode_notes_keep_enter_tab_and_expand_only_on_submission",
       "rapid_normal_mode_commands_are_not_reclassified_as_paste_bursts",
+      "raw_burst_enter_and_tab_remain_text_until_idle_flush",
       "raw_control_aliases_and_releases_use_the_same_matcher",
       "raw_ctrl_e_keycode_matches_codex_resume_shortcut",
       "raw_ctrl_t_keycode_matches_codex_resume_shortcut",
@@ -123324,9 +124196,12 @@
       "readable",
       "reader",
       "ready_label",
+      "real_pty_external_editor_uses_resumed_thread_cwd",
+      "real_pty_mcp_form_uses_stdio_rich_drafts_and_restores_terminal",
       "real_pty_restores_terminal_after_visible_turn_completion",
       "real_pty_shared_raw_visibility_live_transcript_and_terminal_restore",
       "real_stdio_backtrack_retains_prefix_and_replays_live_refresh",
+      "real_stdio_mcp_form_preserves_rich_drafts_and_resolves_once",
       "real_stdio_queue_and_rejected_submission_preserve_typed_metadata",
       "real_stdio_raw_reasoning_uses_shared_config_live_resume_and_cold_history",
       "real_stdio_reasoning_snapshot_matches_notifications_and_cold_read",
@@ -123367,9 +124242,11 @@
       "record_replayed_history_page",
       "refresh_queued_submissions",
       "rejected_composer_input_stays_local_and_projects_a_visible_error_without_a_submit_action",
+      "rejected_expanded_input_retains_draft_and_localizes_the_error",
+      "rejected_or_vim_search_enter_does_not_leave_a_pending_submission_snapshot",
       "rejected_submission",
       "rejected_submit_and_queue_preserve_complete_folded_draft_cursor_and_history",
-      "rejects_unterminated_quotes",
+      "release_enter_neither_snoozes_auto_resolution_nor_consumes_a_burst",
       "release_startup_input_boundary_if_ready",
       "reload_skills",
       "remap_transcript_anchor",
@@ -123433,6 +124310,7 @@
       "renders_vim_mode_indicator_and_truncates_it_in_a_narrow_terminal",
       "renders_vim_search_query_before_submission",
       "reorder",
+      "repaint_visible_frame",
       "repeat_confirmation_matches_press_and_release_preserves_the_complete_draft",
       "repeat_omits_ineffective_deletions_and_aborts_failed_motion",
       "repeat_records_pasted_insertions_movement_and_effective_deletion",
@@ -123442,6 +124320,7 @@
       "repeated_navigation_wraps_but_altgr_does_not_navigate",
       "repeated_page_down_during_loading_preserves_its_target",
       "replace",
+      "replace_draft",
       "replace_entry",
       "replace_paste_skips_atomic_attachment_and_backspace_retraces_original_cursor",
       "replace_queued_submissions",
@@ -123450,6 +124329,7 @@
       "replace_text",
       "replace_threads",
       "replace_threads_page",
+      "replaced_prefix_and_rewound_trace_start_fresh_lifetimes",
       "replacement_retains_live_bindings_but_retires_old_editor_chord_and_query",
       "replay_entries_from_items",
       "replay_entries_from_turns",
@@ -123480,6 +124360,7 @@
       "request_select_label",
       "request_submit_hint",
       "request_submit_label",
+      "request_unanswered_count",
       "request_unarchive_for_selected_session",
       "request_user_input",
       "request_user_input_footer_and_select_dispatch_share_the_current_list_keymap",
@@ -123504,9 +124385,13 @@
       "reset_transcript_anchor_at_top",
       "reset_transcript_presentation",
       "resize_and_render_update_the_same_paging_geometry",
+      "resize_and_unicode_repaint_match_a_terminal_with_the_real_pty_geometry",
       "resize_keeps_non_bottom_aligned_viewport_position",
       "resize_recomputes_scroll_bounds_and_tiny_areas_do_not_panic",
-      "resolve_editor_executable",
+      "resolve_editor_command_from",
+      "resolve_editor_prefers_visual_and_rejects_empty_visual_without_fallback",
+      "resolve_editor_preserves_windows_paths_and_empty_arguments",
+      "resolve_editor_rejects_unterminated_quotes_and_escapes",
       "resolve_frozen_anchor",
       "resolve_main_scroll",
       "resolve_vim_key",
@@ -123517,6 +124402,7 @@
       "respond_to_palette_probes",
       "response_for_a_nonawaited_cursor_only_fills_cache_and_does_not_change_search_status",
       "response_for_selected",
+      "response_keeps_authored_labels_and_encodes_freeform_and_secret_notes_uniformly",
       "responsive_approval_footer_keeps_submit_and_cancel_keys_together",
       "restart_scan",
       "restart_scan_shared",
@@ -123535,6 +124421,8 @@
       "restore_thread_input",
       "restore_user_inputs",
       "restored_baseline_cancels_pending_effects_and_preserves_the_rich_draft",
+      "restoring_disabled_vt_input_preserves_external_console_changes",
+      "restoring_enabled_vt_input_preserves_external_console_changes",
       "restoring_thread_views_reapplies_current_bindings_to_all_queued_editors",
       "resume_action_label",
       "resume_cancel_label",
@@ -123583,6 +124471,7 @@
       "resumed_tail_keeps_indexed_parts_and_accepts_the_first_delta_without_started",
       "retain_pending",
       "retry_history_replacement",
+      "return_to_unanswered",
       "reveal_focused",
       "reveal_main_selection_row",
       "reveal_row",
@@ -123600,6 +124489,10 @@
       "route_modal_transcript_wheel",
       "row_for_anchor",
       "row_range_lowering_preserves_malformed_holes_and_maps_exclusive_cursor",
+      "run_editor_failure_and_spawn_error_do_not_leak_the_buffer",
+      "run_editor_receives_exact_arguments_and_returns_untrimmed_content",
+      "run_editor_rejects_an_empty_command_before_creating_a_buffer",
+      "run_editor_returns_empty_content_to_clear_the_draft",
       "run_local_command",
       "run_resume",
       "run_session_picker_with_action",
@@ -123655,7 +124548,6 @@
       "selected_is_load_more",
       "selected_line",
       "selected_model",
-      "selected_option_label",
       "selected_path",
       "selected_paths_precede_typed_names_and_never_fall_back_after_catalog_refresh",
       "selected_remote_image_delete_is_undoable_with_text_unchanged",
@@ -123698,6 +124590,7 @@
       "set_collaboration_mode",
       "set_collaboration_modes",
       "set_cwd",
+      "set_focus",
       "set_history_thread_id",
       "set_interrupt_hint",
       "set_list_keymap",
@@ -123716,6 +124609,7 @@
       "set_right_click_paste",
       "set_runtime_keymap",
       "set_scrollback_has_older_history",
+      "set_selected",
       "set_selected_row",
       "set_settings",
       "set_show_raw_agent_reasoning",
@@ -123772,6 +124666,7 @@
       "skill_query_is_candidate",
       "skill_warning_messages_cover_all_product_locales",
       "skills_list_projection_keeps_only_enabled_catalog_entries",
+      "skipped_and_empty_freeform_answers_require_confirmation_and_return_to_the_first_unanswered",
       "skipped_skills_message",
       "slash_command_description",
       "slash_command_descriptions_cover_all_product_locales",
@@ -123800,8 +124695,6 @@
       "spawn_transcript_load",
       "spawn_unarchive_request",
       "split_colon_location",
-      "split_input_lines",
-      "splits_editor_command_without_losing_quotes",
       "ssh_attempts_native_and_terminal_while_local_prefers_native",
       "stacked_description",
       "stale_completion_preserves_new_cursor_and_failed_page_can_retry",
@@ -123914,6 +124807,7 @@
       "suppressed_boundary_is_held_only_for_the_same_viewport_and_top_row",
       "suspend_transcript_interaction",
       "swapping_bindings_preserves_draft_elements_and_kill_buffer_but_cancels_old_chord",
+      "switching_questions_starts_a_new_vim_edit_lifetime",
       "switching_threads_discards_the_detailed_bookmark",
       "switching_threads_resets_the_main_transcript_to_the_tail",
       "sync_backtrack_presentation",
@@ -123928,6 +124822,7 @@
       "syntax_highlighted_diff_wraps_without_losing_text_or_width",
       "syntax_highlighted_insert_wraps",
       "syntax_highlighted_insert_wraps_text",
+      "synthetic_choice_keeps_its_wire_label_with_an_unanswered_freeform_question",
       "systemic_compact_fragmentation_uses_stacked_records",
       "tab_cycles_controls_without_mutating_history_or_query",
       "tab_queues_a_follow_up_without_submitting_the_active_turn",
@@ -123987,6 +124882,7 @@
       "test_format_and_truncate_tool_result",
       "test_skill",
       "text_clipboard_statuses_cover_all_product_locales",
+      "text_fields",
       "text_message",
       "textarea",
       "textarea_state_mut",
@@ -124018,6 +124914,7 @@
       "title_copy",
       "title_ctrl_c_disconnect_and_hydrate_restore_saved_selection_without_inventing_activity",
       "title_default_empty_and_ordered_aliases_preserve_distinct_preferences",
+      "title_lines",
       "title_preview_uses_real_facts_order_separators_and_unnamed_fallback",
       "title_search_reorder_toggle_and_resolved_controls_share_selection_state",
       "title_segments_sanitize_controls_and_truncate_unicode_without_losing_following_items",
@@ -124179,11 +125076,18 @@
       "turn_status",
       "turn_terminal_clears_permissions_but_mcp_waits_for_its_own_resolved_identity",
       "turn_terminal_status_settles_in_progress_items",
+      "type_burst",
       "typed_metadata_enables_edit_hint_but_invalid_ranges_remain_fail_closed",
       "typed_punctuation_linked_paths_and_environment_variables_follow_codex_scanning",
       "typed_warning_and_error_notifications_keep_distinct_visual_kinds",
       "typing_from_overlay_resumes_editor_and_popup_owner",
       "ultra_narrow_footer_keeps_cancel_action_visible_without_overflow",
+      "unanswered_confirm_go_back",
+      "unanswered_confirm_submit",
+      "unanswered_confirm_title",
+      "unanswered_confirmation_handles_narrow_and_empty_surfaces_without_showing_a_notes_cursor",
+      "unanswered_count_and_confirmation_cover_all_product_locales",
+      "unanswered_go_back_description",
       "unavailable_directory_filter_does_not_reload_or_claim_current_cwd",
       "unavailable_or_ambiguous_catalog_never_guesses_an_effort",
       "unbinding_either_primary_action_keeps_independent_request_navigation_visible",
@@ -124279,6 +125183,7 @@
       "vim_normal_up_and_down_do_not_replace_the_draft_with_history",
       "vim_operator_pending_supports_word_delete_and_escape_cancel",
       "vim_query_editor_inherits_the_current_snapshot_and_rebinding_preserves_query",
+      "vim_query_owns_escape_and_question_navigation_without_revoking_accepted_content",
       "vim_replace_mode_backspace_restores_original_graphemes",
       "vim_replace_mode_enter_is_inserted_and_restored_as_one_step",
       "vim_replace_mode_overwrites_one_grapheme_and_returns_to_normal",
@@ -124306,6 +125211,7 @@
       "visible_terminal_text",
       "visible_terminal_text_ignores_cursor_controls",
       "visible_window",
+      "wait",
       "wait_for_action_required",
       "wait_for_any_marker",
       "wait_for_cursor_position",
@@ -124343,6 +125249,7 @@
       "with_locale",
       "with_palette",
       "with_policy",
+      "with_screen",
       "word_and_line_selection_stay_on_utf8_boundaries",
       "word_end_motion_never_splits_unicode_graphemes",
       "word_wrap_cells",

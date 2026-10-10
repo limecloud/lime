@@ -6,7 +6,7 @@ exclude = [
 resolver = "2"
 
 [workspace.package]
-version = "1.153.0"
+version = "1.154.0"
 edition = "2021"
 authors = ["coso"]
 repository = "https://github.com/aiclientproxy/lime"
@@ -147,7 +147,7 @@ scopeguard = "1"
 sysinfo = "0.32"
 whoami = "1"
 jsonschema = "0.30.0"
-ratatui = { version = "0.30.2", default-features = false, features = ["crossterm"] }
+ratatui = { version = "0.30.2", default-features = false, features = ["crossterm", "layout-cache"] }
 ansi-to-tui = "8.0.1"
 unicode-segmentation = "1.12"
 unicode-width = "0.2"

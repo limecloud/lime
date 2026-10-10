@@ -23,6 +23,23 @@ pub(crate) struct ComposerDraft {
 }
 
 impl ComposerDraft {
+    pub(crate) fn text_with_pending(&self) -> String {
+        super::ChatComposer::expand_pending_pastes(
+            &self.text,
+            self.text_elements
+                .iter()
+                .map(|element| {
+                    agent_protocol::TextElement::new(
+                        element.range.clone(),
+                        element.placeholder.clone(),
+                    )
+                })
+                .collect(),
+            &self.pending_pastes,
+        )
+        .0
+    }
+
     pub(super) fn bytes(&self) -> usize {
         self.text.len()
             + self

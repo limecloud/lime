@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 
 import { spawn } from "node:child_process";
+import { constants } from "node:fs";
 import {
   access,
   copyFile,
-  link,
   mkdir,
   mkdtemp,
   readdir,
@@ -26,7 +26,10 @@ const PLATFORM = resolvePlatform();
 async function main() {
   const tempDir = await mkdtemp(path.join(tmpdir(), "cli-npm-gate-b-"));
   try {
-    const profileDir = path.join(rootDir, "lime-rs", "target", "debug");
+    const profileDir = path.resolve(
+      process.env.LIME_CLI_GATE_B_PROFILE_DIR ||
+        path.join(rootDir, "lime-rs", "target", "debug"),
+    );
     const vendorRoot = path.join(tempDir, "vendor");
     const vendorBin = path.join(vendorRoot, PLATFORM.targetTriple, "bin");
     await mkdir(vendorBin, { recursive: true });
@@ -95,12 +98,12 @@ async function main() {
       {
         APP_SERVER_BIN: packagedAppServer,
         LIME_CLI_BIN: launcherPath,
-        LIME_TUI_GATE_B_SCENARIOS: "complete",
+        LIME_TUI_GATE_B_SCENARIOS: "complete,user-input",
       },
     );
 
     console.log(
-      `[smoke:cli-npm-gate-b] ok target=${PLATFORM.targetTriple} launcher=${launcherPath} appServer=sibling tui=complete`,
+      `[smoke:cli-npm-gate-b] ok target=${PLATFORM.targetTriple} launcher=${launcherPath} appServer=sibling tui=complete,user-input`,
     );
   } finally {
     await rm(tempDir, { recursive: true, force: true });
@@ -161,11 +164,7 @@ async function stageRuntimePayload(profileDir, vendorBin) {
     const source = path.join(profileDir, name);
     const destination = path.join(vendorBin, name);
     await assertFile(source, name);
-    try {
-      await link(source, destination);
-    } catch {
-      await copyFile(source, destination);
-    }
+    await copyFile(source, destination, constants.COPYFILE_FICLONE);
   }
 }
 

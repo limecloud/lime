@@ -116,7 +116,10 @@ impl BottomPane {
     }
 
     pub(crate) fn set_locale(&mut self, locale: crate::locale::Locale) {
-        self.composer.set_locale(locale)
+        self.composer.set_locale(locale);
+        for request in &mut self.queue {
+            request.set_locale(locale);
+        }
     }
 
     pub(crate) fn set_app_event_tx(&mut self, app_event_tx: AppEventSender) {

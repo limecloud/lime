@@ -46,6 +46,7 @@ impl BottomPane {
         // to every restored editor, including requests that are not at the front of the queue.
         for request in &mut self.queue {
             request.set_keymap_bindings(&self.keymap);
+            request.set_locale(self.composer.locale());
         }
         self.composer.sync_completion_popup();
     }

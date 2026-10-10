@@ -57,6 +57,14 @@ impl ChatComposer {
         }
     }
 
+    /// Replace a complete draft and start a fresh edit lifetime for its owner.
+    pub(crate) fn replace_draft(&mut self, draft: ComposerDraft) {
+        self.replace_text(String::new());
+        self.vim_history = VimHistory::default();
+        self.reset_history_navigation();
+        self.restore_draft(draft);
+    }
+
     pub(crate) fn restore_draft(&mut self, draft: ComposerDraft) {
         self.draft.textarea.set_text_clearing_elements(&draft.text);
         self.draft
@@ -77,7 +85,7 @@ impl ChatComposer {
         self.sync_completion_popup();
     }
 
-    pub(super) fn draft_content_equals(&self, draft: &ComposerDraft) -> bool {
+    pub(crate) fn draft_content_equals(&self, draft: &ComposerDraft) -> bool {
         self.text() == draft.text
             && self.attachments == draft.attachments
             && self.draft.textarea.text_element_snapshots() == draft.text_elements
@@ -99,6 +107,10 @@ impl ChatComposer {
 
     pub(crate) fn set_locale(&mut self, locale: crate::locale::Locale) {
         self.locale = locale;
+    }
+
+    pub(crate) fn locale(&self) -> crate::locale::Locale {
+        self.locale
     }
 
     pub(crate) fn cursor(&self) -> usize {

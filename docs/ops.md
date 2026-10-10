@@ -159,6 +159,8 @@ root图片先于子级图片，Text最后，由共享App Server/runtime读取和
 resume/fork前后均可使用。文件不可读/非法JSON在连接前报错，无PROMPT的fork拒绝此选项。
 `lime exec review --uncommitted|--base <BRANCH>|--commit <SHA>`或一条自定义指令走
 共享review/start；target互斥，--title只能配commit，无target/空指令在连接前拒绝。
+顶层`lime review`接受同一目标和指令，默认human输出；root连接/权限/locale可放在
+review前继承。`--json`与`-o`使用`lime exec review`入口。
 custom '-'读取stdin并trim；显式指令忽略pipe。审查复用同一JSON/human/最终文件输出，
 review按Codex语义不消费root PROMPT、图片或output-schema。
 
@@ -187,6 +189,19 @@ review按Codex语义不消费root PROMPT、图片或output-schema。
 Ctrl+P/N，松开按键不改变选择；Ctrl+J/K交回编辑器，Windows AltGr不触发列表导航。
 本地会话空输入框按下 Left 打开 Agent Center；长按仍归编辑器，松开忽略。
 只有当前 editor/Vim 的 `move_left` 仍绑定 Left 才显示和启用导航；重绑或解绑后同步关闭。
+Vim Normal的空输入框按`/`进入Insert并显示命令补全；非空草稿继续Vim搜索。
+若将Vim forward search显式改绑或解绑，旧`/`不会触发命令兼容回退；搜索chord保持搜索。
+问答备注按纯文本编辑，命令、文件和技能文本保留原意；图片路径不会自动变成附件。
+长粘贴显示紧凑占位符，提交发送完整正文；返回已接受问题可继续编辑，每题草稿和游标保留。
+修改已接受的正文或选项后，需要再次按确认键接受；最后一题仍有未回答项时，可选择继续
+提交或返回第一个未回答问题，未接受的草稿不会进入答案。确认页使用当前列表键位。
+“以上都不是”可附加备注；选项名称与说明分别排版。所有已接受的备注（含自由输入）
+按 Codex 使用 `user_note:` 编码，兜底选项发送 `None of the above`，服务端提供的选项名称保留原样。
+备注和主输入共用换行规范化与Markdown引用粘贴，Vim备注的空`/`仍进入搜索。
+终端未提供粘贴标记时，备注也检测快速输入；粘贴中的Enter/Tab保留在正文，长正文在空闲
+刷新后显示紧凑占位符。切题前保存完整输入，提交时发送展开后的原文。
+MCP 表单文本字段使用相同输入框，保留各字段草稿、游标和长粘贴原文；修改已确认字段后
+需再次确认。窄屏长文本在编辑视口中换行并跟随游标，第一次 Ctrl+C 清空草稿，再次取消表单。
 默认 Up/Down 在满足历史
 导航条件时调用同一 recall owner；解绑也会关闭该入口。pending editor chord 的完成/取消键
 归编辑 owner，不会提交、终止任务或触发全局快捷键。Vim `.` 录制语义动作，不随重新改绑改变。

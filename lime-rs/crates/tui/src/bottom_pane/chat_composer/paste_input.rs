@@ -61,6 +61,9 @@ impl ChatComposer {
     }
 
     pub(crate) fn handle_paste_image_path(&mut self, pasted: &str) -> bool {
+        if !self.config.image_paste_enabled {
+            return false;
+        }
         let Some(path) = crate::clipboard_paste::normalize_pasted_path(pasted) else {
             return false;
         };
@@ -77,7 +80,7 @@ impl ChatComposer {
     /// matching the range that `TextArea::insert` will replace. The extra unquoted blank lines
     /// leave the cursor in the next Markdown block after the pasted content.
     fn continue_blockquote_paste(&self, text: &str) -> String {
-        if !text.contains('\n') {
+        if !self.config.blockquote_paste_enabled || !text.contains('\n') {
             return text.to_string();
         }
         let target = self
@@ -136,9 +139,9 @@ impl ChatComposer {
         }
     }
 
-    /// Settle draft input before a popup consumes a navigation or completion key.
+    /// Settle draft input before a surface consumes a navigation or completion key.
     /// A control character inside an active paste still belongs to the draft.
-    pub(crate) fn prepare_popup_key_event(&mut self, key: KeyEvent, now: Instant) -> bool {
+    pub(crate) fn prepare_key_event(&mut self, key: KeyEvent, now: Instant) -> bool {
         self.flush_paste_burst_before_modified_input(key, now);
         if !key.modifiers.is_empty() {
             return false;
@@ -189,6 +192,13 @@ impl ChatComposer {
         let decision = if ch.is_ascii() {
             Some(self.draft.paste_burst.on_plain_char(ch, now))
         } else {
+            if self.draft.paste_burst.try_append_char_if_active(ch, now) {
+                return Some(InputResult::Changed);
+            }
+            // IME input is inserted immediately; settle a held ASCII prefix first.
+            if let Some(text) = self.draft.paste_burst.flush_before_modified_input() {
+                self.handle_paste(&text);
+            }
             self.draft.paste_burst.on_plain_char_no_hold(now)
         };
         let Some(decision) = decision else {
@@ -287,6 +297,30 @@ mod tests {
     use std::time::Duration;
 
     #[test]
+    fn held_ascii_precedes_immediate_unicode_input() {
+        for text in ["a界", "a界b", "a🙂"] {
+            let mut composer = ChatComposer::default();
+            let start = Instant::now();
+            for (index, ch) in text.chars().enumerate() {
+                let code = match ch {
+                    '\t' => KeyCode::Tab,
+                    '\n' => KeyCode::Enter,
+                    ch => KeyCode::Char(ch),
+                };
+                composer.handle_key_event_at(
+                    KeyEvent::new(code, KeyModifiers::NONE),
+                    start + Duration::from_micros(index as u64 * 100),
+                );
+                if index == 1 {
+                    assert_eq!(composer.text(), &text[..1 + ch.len_utf8()]);
+                }
+            }
+            composer.handle_paste_burst_flush(start + Duration::from_secs(1));
+            assert_eq!(composer.current_text_with_pending(), text);
+        }
+    }
+
+    #[test]
     fn status_popup_execution_does_not_restore_a_pending_character() {
         let mut app = App::default();
         app.chat_widget.bottom_pane.composer.insert("/statu");
@@ -330,7 +364,7 @@ mod tests {
                 KeyEvent::new(KeyCode::Char('t'), KeyModifiers::NONE),
                 start + Duration::from_millis(1),
             );
-            assert!(composer.prepare_popup_key_event(
+            assert!(composer.prepare_key_event(
                 KeyEvent::new(code, KeyModifiers::NONE),
                 start + Duration::from_millis(2),
             ));

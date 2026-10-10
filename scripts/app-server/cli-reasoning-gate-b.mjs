@@ -353,7 +353,11 @@ export async function runExecReasoningGateB({
         env: { LIME_CONFIG_PATH: configPath, NO_COLOR: "1" },
       },
     );
-    assert.equal(result.code, 0, `${color}: exit`);
+    assert.equal(
+      result.code,
+      0,
+      `${color}: exit\n${result.stdout}\n${result.stderr}`,
+    );
     assert.equal(result.stdout, `${answer}\n`, `${color}: plain stdout`);
     assert.equal(
       result.stderr.includes("\x1b["),

@@ -4,7 +4,7 @@ use clap::{Args, FromArgMatches, ValueEnum};
 
 use crate::ConnectionArgs;
 
-#[derive(Debug, Args)]
+#[derive(Debug, Default, Args)]
 pub(crate) struct ExecCli {
     #[command(subcommand)]
     pub(crate) command: Option<Command>,

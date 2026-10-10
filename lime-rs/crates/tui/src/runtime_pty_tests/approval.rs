@@ -43,6 +43,7 @@ pub(super) fn exercise_read_only_details(
         .write_all(b"\r")
         .expect("old Enter binding does not approve");
     writer.flush().unwrap();
+    terminal_observer::resize(output, 24, 14);
     master
         .resize(PtySize {
             rows: 24,
@@ -59,6 +60,7 @@ pub(super) fn exercise_read_only_details(
             screen.contains("f9 · ctrl+x q") && !screen.contains("Enter") && !screen.contains("Esc")
         },
     );
+    terminal_observer::resize(output, 24, 100);
     master
         .resize(PtySize {
             rows: 24,

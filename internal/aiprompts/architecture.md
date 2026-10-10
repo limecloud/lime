@@ -55,13 +55,53 @@ Future Cloud -> authenticated transport ----> LimeCore gateway
 
 TUI 的终端输入与绘制调度 owner 对齐 Codex `tui`：`tui::EventBroker` 统一持有可暂停/恢复的 crossterm 输入源，`tui::TuiEventStream` 将 key、paste、resize、focus 和 draw 归一化后交给 runtime；`tui::FrameRequester` 与 `frame_rate_limiter` 合并异步重绘并限制频率。workspace 级 crossterm 固定使用 Codex 同源的 `openai-oss-forks/crossterm` revision `45fecb9508105988f42fe6ff0441783ed3717f92`，其 terminal readiness 和外部消费输入修复是 external editor 交接的唯一依赖事实源。`tui::Tui` 只负责 terminal mode 生命周期，并在外部编辑器或恢复流程中暂停 broker，确保 stdin 不被后台 reader 占用。该层不得承接 App Server 请求、Thread 状态或第二套业务事件总线。真实 TUI Gate B 使用 PTY 驱动键盘和 alternate screen，并按 Codex 测试依赖使用 `vt100::Parser` 还原关闭前的实际屏幕；不能用删除 ANSI 后的字节拼接冒充用户可见状态。
 
+外部编辑器的terminal surface入口为`app/input.rs::App::launch_external_editor`，
+`ChatWidget`持有Requested/Active/Closed状态，`external_editor::resolve_editor_command`
+在交接终端前解析VISUAL/EDITOR。Unix只用shlex，Windows只用Codex同源winsplit并通过
+resolve_windows_program处理PATH/PATHEXT shim；`run_editor`继承stdio、关闭tempfile句柄
+后启动进程，返回完整文本。App将成功内容trim_end后交给同一BottomPane external-edit
+owner，包括清空；失败保留rich draft并增加五语言可见错误。旧edit_draft/command_parts/
+optional-draft及空正文拒绝已删除，不保留兼容入口。当前workspace/system temp位置仍是
+未对齐项：Codex policy-aware editor_directory需共享文件系统policy事实源，不能在TUI
+复制权限策略。现有App Server公开start/resume/settings只投影profile id与sandbox标签，
+完整named filesystem/grantedPermissions仍在server metadata；共享策略查询/投影合同是
+目录保护的前置条件。编辑器只消费当前`App.cwd`（startup/thread handoff/reconnect从
+server同步），runtime不再传入启动时options.cwd，防止跨目录resume后仍使用旧目录。
+`Tui::with_restored(TerminalHandoff::KeepScreen, ...)`恢复两屏输入模式，
+重绘可见帧后交出输入，editor返回时强制回主屏，再恢复模式并重新进入alternate screen。
+Ratatui没有公开previous_buffer，`draw_for_handoff`经同一draw/view入口在交接前捕获一次
+Buffer，随后take并释放；普通draw零复制，不建立长期第二帧或第二renderer/projection owner。
+常规viewport同步归Tui::draw，在实际绘制前查询geometry；runtime输入循环不再无条件
+逐事件查询backend。Resize仍立即用事件尺寸更新viewport，外部editor帧捕获复用同一draw。
+该收敛减少host输入路径的同步IO，不改变PasteBurst阈值，不作为历史分段的已证实唯一根因。
+真实PTY夹具阻塞等待stdin，观察编辑期间alternate screen与草稿可见，再释放editor；editor
+主动退出alternate screen后检查TUI重新进入。Windows实机与历史首Left稳定性仍未验收。
+架构图确认：ChatWidget -> App editor launch -> Tui terminal handoff -> external editor ->
+BottomPane draft，业务链仍Product Surface -> App Server -> shared runtime -> canonical
+Thread/Turn/Item；责任root，2026-10-10。
+
+Windows Terminal的显式Shift+Enter `sendInput`映射由同名`tui::windows_key_sequence`在
+`CrosstermEventSource`内解码；仅完整`ESC[13;2u`无修饰Press及配对Release合并为
+Shift+Enter，其余文字、Paste和失败前缀按原事件顺序转发。单次50ms候选deadline不续期，
+已就绪后缀优先消费，partial状态随event source在pause/handoff时销毁。非Windows生产源
+直接消费crossterm；不新增reader、composer特判、业务协议或GUI输入分支。
+同名`tui::windows_console`是Windows Console VT输入位的唯一owner：进入TUI和editor
+返回时清除VT输入位，event source在poll前与Pending后重申Win32 input-record mode，
+external editor keep-raw、正常退出、panic和失败初始化按保存的原VT位恢复。只保存该位，
+其它console flags以当前系统状态为准；恢复API失败保留snapshot，无console时no-op。
+终端构造成功但size查询失败也进入同一cleanup。Windows/MSVC及Windows Terminal实际
+交互仍需对应平台证据，不由纯解码/模式位测试或macOS PTY替代。
+
 终端历史回放继续以 Codex `insert_history` 为唯一算法基线：`tui::insert_history` 负责 scroll region、full-screen raw replay、软换行、OSC 8 和 viewport 上方 history rows；`HistoryTerminal` 只抽象终端写入与 viewport bookkeeping，具体宿主仍是 `tui::Tui`，测试宿主使用真实 `vt100::Parser`。`ViewportState` 只记录几何、cursor anchor、alternate-screen round trip 和 visible history rows，不复制 Thread/Turn/Item 或 history DB。任何需要恢复 transcript 的能力必须从 App Server canonical projection 生成 `Line`，再进入该 owner；不得在 TUI 另建 Codex `custom_terminal` 或持久化滚动缓冲。
 
 光标形态也只归 current terminal presentation/host：`TextArea::uses_vim_insert_cursor` 是
 唯一 mode 判定，ChatComposer 与 CustomPromptView 将 Insert lowering 为 SteadyBar，Normal/
 Replace 为 DefaultUserShape。`view::cursor_style` 选择当前可见 input owner，BottomPane 的
 active notes 使用自身 composer，picker/pager/approval 不读取隐藏主 editor 的形状。
-`Tui::draw` 统一绘制并向同一 backend 发送 SetCursorStyle；runtime 的常规/断线重绘和
+常规runtime绘制只消费`FrameRequester -> TuiEvent::Draw`，键盘及异步投影变化仅请求帧，
+不在每个输入事件后直接draw。workspace Ratatui启用与Codex一致的`layout-cache`，复用库内
+有界布局缓存，不建立自有缓存或修改布局结果；暂停/恢复与disconnect-before-shutdown的
+显式绘制保持同一terminal owner。`Tui::draw` 统一绘制并向同一 backend 发送 SetCursorStyle；runtime 的常规/断线重绘和
 Resume 独立 host 都直接消费它，不绕过为 `terminal_mut().draw`。Ratatui Frame 无 Codex
 custom Frame 的 style 字段，因此只在当前 Tui host 注入 presentation 参数，不复制终端库。
 普通退出、panic、失败初始化与 external editor handoff 均恢复 DefaultUserShape。
@@ -203,8 +243,47 @@ TUI 的唯一输入 surface owner 为 Codex 对齐的 `ChatWidget`；其嵌入�
 `ChatComposer` 与交互 views。App 只负责 host/global navigation、Thread/transport action 与
 canonical transcript。领域 API
 通过 `bottom_pane/composer` 注入 config/history/file-search 回包和完整附件/mentions，不公开
-editor 字段、Deref 或旧 App composer getter。独立问答 notes composer 保持每题状态，不与主
-草稿混用。`bottom_pane/input` 统一 modal、Vim/history query、popup、paste/mouse 与 chord
+editor 字段、Deref 或旧 App composer getter。独立问答 notes composer 使用同名
+`ChatComposerConfig::plain_text()`，禁用补全、slash转换和图片粘贴，复用相同Markdown/长粘贴
+管线。每题只保存统一 `ComposerDraft`（游标、atomic elements、pending payload），切题开启
+新编辑生命周期，不能flatten为字符串或保留跨题undo。locale随host配置注入新建、排队和
+恢复后的notes；配置不进入per-thread draft。`pending_submission_draft`仅保存composer消费
+提交前的临时快照，接受后恢复到同一每题draft；query/rejected不消费，返回已接受问题可以
+继续编辑。逐题`AnswerState`统一draft、ScrollState、focus和answer_committed，删除镜像数组与
+预生成答案map。正文/option变化撤销接受，cursor/query导航保留；末题有未接受项时由
+confirm_unanswered使用同一list keymap确认提交或返回首个未回答项。仅显式接受的draft
+通过共享pending-paste展开生成最终答案；未接受项为空数组，取消仍为空map。确认布局复用
+同一SelectionRow/viewport，五语言标题与说明按宽度换行，确认态不显示notes cursor。
+最终response统一将已接受的option/freeform/secret备注编码为user_note，合成选项使用
+Codex OTHER_OPTION_LABEL（None of the above）；作者提供的label与输入原文不做别名替换。
+五语言合成选项name/description独立进入SelectionRow，删除旧混合文案与自由文本裸值分支。
+这是TUI response投影，App Server继续透明消费同一typed answers合同，GUI后端不分叉。
+notes的普通快速粘贴也消费同一ChatComposer/PasteBurst计时输入；共享prepare_key_event先
+处理burst中的Enter/Tab，再允许surface导航。active-view next_frame_delay/pre_draw_tick通过
+同一FrameRequester落入草稿，尚未落入的输入也撤销acceptance；question handoff先flush再保存
+ComposerDraft，不新增检测器、timer线程或输入后端。
+ASCII/IME交接也在同一paste_input：未形成burst时先落入held ASCII，再立即插入IME字符，
+保证混合输入顺序；既有burst由同名try_append_char_if_active续写并刷新idle时间。
+主输入、notes与MCP文本字段共用该规则，不新增surface或平台专用检测器。
+ChatWidget同名handle_paste_burst_tick聚合主输入与active notes的idle flush；捕获期间runtime
+暂缓本帧draw，flush完成后请求下一帧。每个surface仍消费同一FrameRequester，不在每个
+暂存字符后反复渲染；计时输入从BottomPane贯通notes owner，协议与业务状态不参与计时。
+最终答案仍经原App Server request响应一次。root确认该输入投影调整，2026-10-09；GUI/TUI
+共享App Server/runtime/持久化方向不变。
+MCP form文本字段也直接使用同一plain_text ChatComposer、ComposerDraft与active-view
+PasteBurst/FrameRequester，逐字段保留cursor与atomic payload，提交消费后恢复rich draft供回访。
+正文变化撤销接受，cursor/query导航不撤销；expanded limit拒绝保留草稿与五语言消息。
+mcp_server_elicitation/input只拥有surface输入路由，render使用共享textarea viewport与cursor
+布局；旧独立TextArea/String草稿、insert旁路、手算cursor和通用边框入口已删除，无compat。
+MCP schema/typed response/router仍归App Server，GUI/TUI共用同一业务owner。显式
+mcpServer/tool/call沿既有线程所属McpClientManager建立turn_id=None的McpCallScope，复用
+McpBridgeClient的connection-local lease；无runtime_owner的管理连接仍无scope，表单fail closed。
+router唯一request_with_scope直接消费完整McpCallScope，不再拆散provenance后调用另一入口；
+旧request与request_with_provenance已删除，测试也通过同一scope入口验证线程与取消隔离。
+不从请求meta猜测owner，不创建额外Turn或平行工具执行器。真实stdio MCP fixture记录为
+integration，另以真实PTY/stdio relay证明键盘与终端恢复，不冒充Desktop Gate B。
+root确认架构图仍为Product Surface -> App Server -> shared runtime，2026-10-10。
+`bottom_pane/input` 统一 modal、Vim/history query、popup、paste/mouse 与 chord
 优先级；命令执行返回 host action，权限/turn authority 仍归 App Server。主 paste burst 与交互
 倒计时由同一 pre_draw_tick/next_frame_delay 调度，隐藏主 editor 的 held typing 仍会 flush；
 断线状态也继续调度草稿，不依赖 session 连接。高度、主输入及 popup 绘制归
@@ -473,7 +552,9 @@ CLI schema解释器或配置副本，fork-only输出选项在连接前拒绝。r
 只请求review/start；共享RuntimeCore构造provider prompt、canonical EnteredReviewMode/
 ExitedReviewMode，CLI沿同一EventProcessor消费结果与最终文件。没有CLI git读取、review
 业务后端或平行Loop；root确认Product Surface -> App Server -> RuntimeCore -> canonical
-projection依赖方向，2026-10-09。root review快捷入口/worktree与其余结构/UI差异仍未完成。
+projection依赖方向，2026-10-09。第83顶层ReviewCommand直接委托同一ExecCli Review，
+root只注册/路由，连接与locale复用既有继承，provider/review loop/投影owner不变。
+worktree与其余结构/UI差异仍未完成，顶层入口真实验收见执行计划。
 
 `history_cell/reasoning::split_reasoning_summary_parts` 是摘要正文转换的唯一 owner：
 以空行连接有效 parts，只去除独立 `<!-- -->` 占位；首个带换行的 bold 标题留给状态，

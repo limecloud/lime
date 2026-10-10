@@ -119,6 +119,12 @@ Knowledge release scope 审计入口已迁到 `scripts/knowledge/`。对外继�
 
 ### App Server 脚本
 
+TUI 的绘制入口和 Ratatui 布局缓存由 `scripts/app-server/tui-render-scheduling.test.mjs`
+独立守卫；该 test-only 文件通过既有 Vitest 入口运行，真实交互仍由 TUI Gate B 验证。
+Windows Console 输入模式接管/恢复、editor handoff 和 reader 启动边界由
+`scripts/app-server/tui-terminal-modes.test.mjs` 独立守卫；portable 模式位回归归 Rust
+`tui/windows_console_tests.rs`，Windows 实际交互必须补对应平台证据。
+
 App Server release manifest 与 sidecar smoke 脚本已迁到 `scripts/app-server/`。对外继续使用 `package.json` 里的 `app-server:*` 与 `smoke:app-server-*` npm scripts，不直接依赖根目录脚本路径。所有会创建 session/turn 的 stdio、external 与 packaged smoke 必须把 `dataDir` 指向本轮临时目录；固定 fixture identity 不得写入真实用户 App Server data root。
 
 `npm run smoke:cli-gate-b` 使用真实 `lime exec`、真实 App Server stdio 进程和测试专用 external backend，核对同一 canonical Thread/Turn identity、Item 事件序列、`--json`逐事件JSONL、pipe stdin、失败/中断退出码与 shell completion。后端屏障只在CLI读到command item.started后放行，证明结束前flush；cold thread/read核对原canonical身份、摘要/原文隔离和最后usage.total。旧jsonl参数仅保留负向断言。它不调用正式 Provider，也不允许 mock backend 或固定 timer 合成完成态。交互式 alternate-screen/PTY 证据归独立的 TUI Gate B，不用该 CLI smoke 冒充。
@@ -133,8 +139,41 @@ backend拒绝。每种human策略都从真实stdin进入、区分stdout/stderr�
 resume、last按cwd选择/all跨cwd、cold Thread/Turn身份、单PROMPT/pipe追加/显式resume
 不追加、UTF-8 BOM/UTF-16、最后消息文件与失败/中断保留。名称通过公共thread/name/set
 创建，不直接改DB；无匹配新建与实际resume失败不fallback均有真实断言。
+审查矩阵由同一入口的`cli-review-gate-b.mjs`拥有，覆盖`exec review`与顶层`review`的
+四类target、BOM stdin/显式prompt忽略pipe、root连接与locale继承、canonical Entered/Exited
+边界和cold读取；错误在连接前失败，顶层输出沿原human owner。
+源码CLI/TUI门禁将本地构建的可执行文件与可用runtime sibling/loader library复制到场景
+临时目录，避免并行构建覆盖共享target造成产物串用；显式指定的安装包launcher/sidecar
+路径保持原包上下文。`LIME_KEEP_CLI_GATE_B_TMP=1`或`LIME_KEEP_TUI_GATE_B_TMP=1`保留
+受控场景目录用于失败诊断，默认清理；这些仅为test fixture行为。
+安装态门禁可用`LIME_CLI_GATE_B_PROFILE_DIR`选择已验收的冻结binary目录，payload采用
+独立复制而非共享target的硬链接，随后仍经真实npm launcher与sibling App Server执行。
 
-`npm run smoke:tui-gate-b` 使用 `portable-pty` 启动真实 `lime tui` 与真实 App Server stdio 进程，在可见 ready 状态后输入 prompt，等待 canonical `turn.completed` 投影出的完成文本，再通过 Ctrl-C 退出；`complete` 场景还通过 Ctrl-G 启动继承前台 PTY 的 external editor，验证草稿回写、标准 DSR 恢复与 alternate screen 重新进入；独立 `focus-palette` 场景验证启动期 OSC 10/11 查询只执行一次、FocusGained 后立即输入和延迟输入均不丢失，并恢复 alternate screen；`reconnect` 场景通过真实 PTY 启动 `lime tui --remote`，让 loopback App Server JSON-RPC WebSocket 断线并恢复，验证草稿保留、`thread/resume` 路由、恢复后的通知和终端恢复。该测试不调用正式 Provider，也不使用生产 mock backend。
+`npm run smoke:tui-gate-b` 使用 `portable-pty` 启动真实 `lime tui` 与真实 App Server stdio 进程，在可见 ready 状态后输入 prompt，等待 canonical `turn.completed` 投影出的完成文本，再通过 Ctrl-C 退出；`complete` 场景还通过 Ctrl-G 启动继承前台 PTY 的 external editor，验证草稿回写、标准 DSR 恢复与 alternate screen 重新进入；`complete`/`images` 共用阻塞editor，按原始OSC握手在编辑期间用VT观察alternate screen和草稿可见，释放stdin后确认editor主动退出主屏与TUI重新进入，强制消费`TUI_EDITOR_KEEP_SCREEN_OK`证据；独立 `focus-palette` 场景验证启动期 OSC 10/11 查询只执行一次、FocusGained 后立即输入和延迟输入均不丢失，并恢复 alternate screen；`reconnect` 场景通过真实 PTY 启动 `lime tui --remote`，让 loopback App Server JSON-RPC WebSocket 断线并恢复，验证草稿保留、`thread/resume` 路由、恢复后的通知和终端恢复。该测试不调用正式 Provider，也不使用生产 mock backend。
+
+`user-input` 场景还验证长 Unicode 备注的原子占位符、显式提交与 App Server 收到的完整
+canonical 答案，命令/文件/技能文本保持原意。npm 安装态 Gate 同时执行 `complete,user-input`，
+其中两题往返验证已接受长备注的回访修改、另一题draft/cursor恢复与exactly-once响应；
+不能仅用主输入完成态证明嵌入式备注可用。
+
+`scripts/app-server/tui-external-editor.test.mjs` 守住Codex同名editor入口、解析先于终端交接、
+Unix shlex/Windows winsplit与PATH/PATHEXT接线，以及旧optional draft/parser入口禁止回流。
+Rust独立editor测试覆盖空参数/反斜杠、VISUAL优先级、真实子进程回写/清空/失败清理与
+五语言可见错误；守卫同时禁止普通draw复制可见帧，并约束KeepScreen两屏恢复/重绘/输入
+交接顺序。真实交互由`complete`/`images` PTY场景验证，不能把源码守卫当平台验收。
+`complete`另执行同owner的跨目录resume PTY：从不同启动cwd恢复真实App Server thread，
+fixture记录实际editor buffer路径，断言当前canonical cwd、Unicode回写、首Left/Right、
+exactly-one Turn与冷读，强制消费`TUI_EDITOR_CWD_OK`。该证据只证明cwd消费一致，
+不把workspace/system temp位置当作Codex完整policy-aware editor_directory。
+
+`LIME_TUI_GATE_B_SCENARIOS=mcp-elicitation npm run smoke:tui-gate-b` 通过临时真实 MCP peer、
+真实 App Server runtime/stdio 与 PTY 验证表单快速粘贴、字段草稿/游标恢复、完整唯一响应和
+终端恢复。test-only stdio relay 只转发产品消息并发起真实 `mcpServer/tool/call`，不合成
+reverse request、答案或 canonical 状态。`mcp-stdio` 只执行 stdio integration，不算 PTY Gate B。
+专用场景可组合或与普通场景混用，例如`mcp-stdio,mcp-elicitation`及`mcp-stdio,user-input`。
+专用runner完成后仅有普通场景才创建并验收普通ledger；`user-input`还要求真实PTY证明
+ASCII前缀与立即中文/emoji输入顺序，不能用原子粘贴标签掩盖字符错序。
+夹具使用隔离目录与无网络的 keyless catalog，不调用正式模型；当前 PTY 夹具仅覆盖 Unix。
 
 `LIME_TUI_GATE_B_SCENARIOS=reasoning-raw npm run smoke:tui-gate-b` 由
 `scripts/app-server/reasoning-gate-b.mjs` 编排显式原始推理显示矩阵：同一共享配置 false/true，

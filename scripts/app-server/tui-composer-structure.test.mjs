@@ -697,15 +697,19 @@ describe("Codex composer, modal and incremental history owners", () => {
     expect(approval).toContain("KeymapMatch::Completed(ListAction::Accept)");
     expect(approval).toContain(".dispatch(");
     const mcp = source("bottom_pane/mcp_server_elicitation.rs");
-    expect(mcp).toContain("self.text_area.editor_key_chord_pending()");
+    expect(mcp).toContain("ChatComposerConfig::plain_text()");
+    expect(mcp).toContain("draft: ComposerDraft");
+    expect(mcp).not.toContain("text_area:");
+    expect(mcp).not.toContain("draft: String");
     expect(mcp).toContain("list_keymap: ListKeymap");
     expect(mcp).toContain(".list_keymap");
     expect(mcp).toContain(".dispatch(");
     expect(mcp).not.toContain("mcp_elicitation_controls(");
-    const textInput = source("bottom_pane/mcp_server_elicitation.rs")
-      .split("fn handle_text_key(")[1]
-      .split("pub(super) fn handle_paste(")[0];
-    expect(textInput).toContain("self.text_area.input(key)");
+    const textInput = source("bottom_pane/mcp_server_elicitation/input.rs");
+    expect(textInput).toContain("self.composer.key_chord_pending()");
+    expect(textInput).toContain("self.composer.handle_key_event_at(key, now)");
+    expect(textInput).toContain("self.composer.handle_paste(text)");
+    expect(textInput).toContain("self.composer.handle_paste_burst_flush(now)");
     expect(textInput).not.toContain("KeyCode::Char('j')");
     expect(source("bottom_pane/render.rs")).toContain(
       "mcp_server_elicitation::render::",
@@ -715,6 +719,7 @@ describe("Codex composer, modal and incremental history owners", () => {
       "bottom_pane/textarea/vim/input.rs",
       "bottom_pane/textarea/vim_register.rs",
       "bottom_pane/mcp_server_elicitation.rs",
+      "bottom_pane/mcp_server_elicitation/input.rs",
       "bottom_pane/mcp_server_elicitation/render.rs",
       "bottom_pane/mcp_server_elicitation/schema.rs",
       "bottom_pane/mcp_server_elicitation/tests.rs",
@@ -1173,7 +1178,7 @@ describe("ChatWidget live composer ownership", () => {
       "self.chat_widget.bottom_pane.handle_event(event.clone())",
     );
     expect(source("bottom_pane/input.rs")).toContain(
-      "self.handle_interaction_event(event)",
+      "self.handle_interaction_event_at(event, now)",
     );
     expect(source("bottom_pane/input.rs")).toContain(
       "self.handle_event_at(Event::Key(key), now)",

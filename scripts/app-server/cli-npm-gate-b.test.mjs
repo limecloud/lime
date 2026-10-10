@@ -21,6 +21,9 @@ describe("CLI npm Gate B", () => {
     expect(source).toContain('"windows-sandbox-setup.exe"');
     expect(source).toContain('"windows-sandbox-runner.exe"');
     expect(source).toContain("runtimeLibraries");
+    expect(source).toContain("LIME_CLI_GATE_B_PROFILE_DIR");
+    expect(source).toContain("constants.COPYFILE_FICLONE");
+    expect(source).not.toContain("await link(source, destination)");
     expect(source).toContain('"installed exec event schema"');
     expect(source).toContain(
       'path.join(destination, "exec-events.schema.json")',
@@ -32,7 +35,9 @@ describe("CLI npm Gate B", () => {
     expect(source).toContain('LIME_CLI_GATE_B_USE_SIBLING_APP_SERVER: "1"');
     expect(source).toContain("APP_SERVER_BIN: packagedAppServer");
     expect(source).toContain('"tui-gate-b.mjs"');
-    expect(source).toContain('LIME_TUI_GATE_B_SCENARIOS: "complete"');
+    expect(source).toContain(
+      'LIME_TUI_GATE_B_SCENARIOS: "complete,user-input"',
+    );
     expect(cliGateSource).toContain(
       'process.env.LIME_CLI_GATE_B_USE_SIBLING_APP_SERVER !== "1"',
     );

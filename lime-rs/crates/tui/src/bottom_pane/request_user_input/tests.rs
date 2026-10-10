@@ -41,14 +41,16 @@ fn collects_option_and_freeform_questions_before_responding() {
     );
 
     assert_eq!(request.handle_key_event(key(KeyCode::Enter)), None);
-    request.handle_key_event(key(KeyCode::Char('好')));
-    let response = request.handle_key_event(key(KeyCode::Enter));
+    let now = Instant::now();
+    request.handle_key_event_at(key(KeyCode::Char('好')), now);
+    request.pre_draw_tick(now + Duration::from_secs(1));
+    let response = request.handle_key_event_at(key(KeyCode::Enter), now + Duration::from_secs(1));
 
     let Some(AppServerResponse::UserInput { response, .. }) = response else {
         panic!("expected user input response");
     };
     assert_eq!(response.answers["mode"].answers, ["Fast"]);
-    assert_eq!(response.answers["note"].answers, ["好"]);
+    assert_eq!(response.answers["note"].answers, ["user_note: 好"]);
 }
 
 #[test]
@@ -92,7 +94,7 @@ fn ctrl_c_clears_notes_before_cancelling_request() {
             auto_resolution_ms: None,
         },
     );
-    request.editing = true;
+    request.set_focus(super::Focus::Notes);
     request.composer.insert("sensitive");
 
     let first = request.handle_key_event(KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL));
@@ -132,7 +134,7 @@ fn option_notes_follow_codex_answer_shape() {
     );
 
     assert_eq!(request.handle_key_event(key(KeyCode::Tab)), None);
-    assert!(request.editing);
+    assert!(request.editing());
     request.composer.insert("keep logs");
     let response = request.handle_key_event(key(KeyCode::Enter));
 
@@ -204,13 +206,13 @@ fn other_option_is_only_added_when_the_contract_enables_it() {
 
     request.handle_key_event(key(KeyCode::Down));
     assert_eq!(request.handle_key_event(key(KeyCode::Enter)), None);
-    assert!(request.editing);
+    assert!(request.editing());
     let response = request.handle_key_event(key(KeyCode::Enter));
 
     let Some(AppServerResponse::UserInput { response, .. }) = response else {
         panic!("expected user input response");
     };
-    assert_eq!(response.answers["mode"].answers, ["Other"]);
+    assert_eq!(response.answers["mode"].answers, ["None of the above"]);
 }
 
 #[test]
@@ -290,7 +292,7 @@ fn other_enter_opens_notes_before_submitting_custom_answer() {
 
     request.handle_key_event(key(KeyCode::Down));
     assert_eq!(request.handle_key_event(key(KeyCode::Enter)), None);
-    assert!(request.editing);
+    assert!(request.editing());
     request.composer.insert("custom");
     let Some(AppServerResponse::UserInput { response, .. }) =
         request.handle_key_event(key(KeyCode::Enter))
@@ -299,7 +301,7 @@ fn other_enter_opens_notes_before_submitting_custom_answer() {
     };
     assert_eq!(
         response.answers["mode"].answers,
-        ["Other", "user_note: custom"]
+        ["None of the above", "user_note: custom"]
     );
 }
 
@@ -330,12 +332,12 @@ fn notes_focus_returns_to_options_without_submitting_on_escape_or_empty_backspac
     request.handle_key_event(key(KeyCode::Tab));
     request.composer.insert("discarded");
     assert_eq!(request.handle_key_event(key(KeyCode::Esc)), None);
-    assert!(!request.editing);
+    assert!(!request.editing());
     assert!(request.composer.is_empty());
 
     request.handle_key_event(key(KeyCode::Tab));
     assert_eq!(request.handle_key_event(key(KeyCode::Backspace)), None);
-    assert!(!request.editing);
+    assert!(!request.editing());
     assert!(request.composer.is_empty());
 }
 
@@ -370,15 +372,15 @@ fn options_typing_does_not_open_notes() {
     );
 
     assert_eq!(request.handle_key_event(key(KeyCode::Char('x'))), None);
-    assert!(!request.editing);
+    assert!(!request.editing());
     assert!(request.composer.is_empty());
     assert_eq!(request.handle_key_event(key(KeyCode::Char('j'))), None);
-    assert_eq!(request.selected, 1);
-    assert!(!request.editing);
+    assert_eq!(request.selected(), 1);
+    assert!(!request.editing());
     assert_eq!(request.handle_key_event(key(KeyCode::Char('k'))), None);
-    assert_eq!(request.selected, 0);
+    assert_eq!(request.selected(), 0);
     assert_eq!(request.handle_key_event(key(KeyCode::Char(' '))), None);
-    assert!(!request.editing);
+    assert!(!request.editing());
 }
 
 #[test]
@@ -411,12 +413,12 @@ fn control_j_and_k_navigate_options_without_opening_notes() {
         },
     );
 
-    assert_eq!(request.selected, 0);
+    assert_eq!(request.selected(), 0);
     request.handle_key_event(KeyEvent::new(KeyCode::Char('j'), KeyModifiers::CONTROL));
-    assert_eq!(request.selected, 1);
+    assert_eq!(request.selected(), 1);
     request.handle_key_event(KeyEvent::new(KeyCode::Char('k'), KeyModifiers::CONTROL));
-    assert_eq!(request.selected, 0);
-    assert!(!request.editing);
+    assert_eq!(request.selected(), 0);
+    assert!(!request.editing());
 }
 
 #[test]
@@ -450,9 +452,9 @@ fn option_navigation_wraps_at_both_ends() {
     );
 
     request.handle_key_event(key(KeyCode::Up));
-    assert_eq!(request.selected, 1);
+    assert_eq!(request.selected(), 1);
     request.handle_key_event(key(KeyCode::Down));
-    assert_eq!(request.selected, 0);
+    assert_eq!(request.selected(), 0);
 }
 
 fn non_blocking_request() -> ToolRequestUserInputParams {
@@ -572,7 +574,7 @@ fn long_option_lists_expose_the_hidden_selection_position() {
             .collect(),
     );
     let mut request = RequestUserInputOverlay::new(RequestId::Integer(24), params);
-    request.selected = 10;
+    request.set_selected(10);
 
     let lines = request.footer_hint_lines(crate::locale::Locale::EnUs, 80);
     let footer = lines.join(" · ");

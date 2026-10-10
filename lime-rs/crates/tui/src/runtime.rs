@@ -17,7 +17,6 @@ use crate::app_server_session::AppServerSession;
 use crate::bottom_pane::FileSearchRequest;
 use crate::chatwidget::ExternalEditorState;
 use crate::clipboard_paste::paste_image_to_temp_png;
-use crate::external_editor::edit_draft;
 use crate::locale::Locale;
 use crate::projection::TranscriptEntry;
 use crate::resume_picker::{
@@ -209,6 +208,7 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
         let (mcp_login_tx, mut mcp_login_rx) =
             tokio::sync::mpsc::unbounded_channel::<crate::app::mcp_login::McpLoginStarted>();
         let mut pending_copy: Option<PendingCopy> = None;
+        let mut draw_requested = false;
         loop {
             if let Some(active_session) = session.as_mut() {
                 app.poll_backtrack_io(active_session, &app_event_tx);
@@ -246,9 +246,6 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
             if let Some(delay) = app.chat_widget.bottom_pane.next_frame_delay(std::time::Instant::now()) {
                 frame_requester.schedule_frame_in(delay);
             }
-            terminal
-                .sync_viewport()
-                .context("failed to synchronize terminal viewport")?;
             if let Some(active_session) = session.as_ref() {
                 if let (Some(picker), Some(sender)) =
                     (app.chat_widget.resume_picker_mut(), resume_picker_load_tx.as_ref())
@@ -263,27 +260,20 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
                     }
                 }
             }
-            terminal
-                .draw(
-                    view::cursor_style(&app),
-                    app.terminal_title_text(std::time::Instant::now()).as_deref(),
-                    |frame| view::render(frame, &app),
-                )
-                .context("failed to render terminal")?;
+            if std::mem::take(&mut draw_requested)
+                && !app.chat_widget.handle_paste_burst_tick(&frame_requester, std::time::Instant::now())
+            {
+                terminal
+                    .draw(
+                        view::cursor_style(&app),
+                        app.terminal_title_text(std::time::Instant::now()).as_deref(),
+                        |frame| view::render(frame, &app),
+                    )
+                    .context("failed to render terminal")?;
+            }
 
             if app.chat_widget.external_editor_state() == ExternalEditorState::Requested {
-                app.chat_widget
-                    .set_external_editor_state(ExternalEditorState::Active);
-                let draft = app.chat_widget.bottom_pane.composer_text_with_pending();
-                let edited = terminal
-                    .with_restored(|| edit_draft(&draft, &options.cwd))
-                    .await;
-                app.chat_widget.reset_external_editor_state();
-                match edited {
-                    Ok(Some(text)) => app.apply_external_edit(text),
-                    Ok(None) => app.projection.set_status("editor draft empty"),
-                    Err(error) => app.projection.set_status(error.to_string()),
-                }
+                app.launch_external_editor(&mut terminal).await;
                 // Recreate crossterm input only from the normal async event loop. Eagerly polling
                 // here races the previous reader's shutdown after an external editor and can
                 // surface a transient EOF as the end of the TUI input stream.
@@ -403,6 +393,7 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
                         None => std::future::pending::<Option<PickerLoadEvent>>().await,
                     }
                 }, if resume_picker_load_rx.is_some() => {
+                    frame_requester.schedule_frame();
                     let Some(resume_event) = resume_event else {
                         resume_picker_load_rx = None;
                         resume_picker_load_tx = None;
@@ -494,6 +485,11 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
                     };
                     let connected = session.is_some();
                     let is_draw = matches!(&event, TuiEvent::Draw);
+                    if is_draw {
+                        draw_requested = true;
+                    } else {
+                        frame_requester.schedule_frame();
+                    }
                     let event_for_clipboard = event.clone();
                     if let Some(id) = app.invalidate_clipboard_paste(&event_for_clipboard) {
                         terminal.clipboard.cancel(Some(id));
@@ -1114,6 +1110,7 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
                         None => std::future::pending::<Option<AppServerEvent>>().await,
                     }
                 }, if session.is_some() => {
+                    frame_requester.schedule_frame();
                     let event = event.unwrap_or_else(|| AppServerEvent::Disconnected {
                         message: "app-server event stream closed".to_string(),
                     });
@@ -1153,6 +1150,7 @@ pub async fn run_tui(options: TuiOptions) -> Result<()> {
                         None => std::future::pending::<Result<ReconnectedSession>>().await,
                     }
                 }, if reconnect.is_some() => {
+                    frame_requester.schedule_frame();
                     reconnect = None;
                     match result {
                         Ok(reconnected) => {

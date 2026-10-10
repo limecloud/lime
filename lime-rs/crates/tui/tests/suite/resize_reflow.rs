@@ -6,10 +6,10 @@
 //! process and checks the VT100 projection after each resize.
 
 use std::path::PathBuf;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use super::focus_palette::PtyLime;
-use anyhow::{ensure, Result};
+use anyhow::{bail, ensure, Result};
 
 const RESIZE_TIMEOUT: Duration = Duration::from_secs(5);
 const DRAFT: &str = "resize reflow draft sentinel";
@@ -129,8 +129,23 @@ fn start_terminal() -> Result<PtyLime> {
 fn quit_terminal(terminal: &mut PtyLime) -> Result<()> {
     // The first Ctrl-C cancels the draft; observe that edit before asking the idle host to quit.
     terminal.write_input(&[3])?;
-    terminal.wait_for_screen_without(DRAFT, RESIZE_TIMEOUT)?;
-    terminal.wait_for_screen_compact_contains("Ask Lime to do anything", RESIZE_TIMEOUT)?;
+    let deadline = Instant::now() + RESIZE_TIMEOUT;
+    loop {
+        let screen = compact_text(&terminal.screen_contents());
+        if screen.contains(&compact_text("Ask Lime to do anything"))
+            && !screen.contains(&compact_text(DRAFT))
+            && !screen.contains(&compact_text(DRAFT_INPUT_TAIL))
+        {
+            break;
+        }
+        if Instant::now() >= deadline {
+            bail!(
+                "composer did not clear its complete draft after resize within {RESIZE_TIMEOUT:?}; screen:\n{}",
+                terminal.screen_contents()
+            );
+        }
+        terminal.read_output(Duration::from_millis(20))?;
+    }
     terminal.write_input(&[3])?;
     terminal.wait_for_exit()?;
     ensure!(

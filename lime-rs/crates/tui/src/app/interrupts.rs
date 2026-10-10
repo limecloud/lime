@@ -33,6 +33,7 @@ mod tests {
         let mut app = App::default();
         app.start_turn("turn-1".to_string());
         app.chat_widget.bottom_pane.set_vim_enabled(true);
+        app.chat_widget.bottom_pane.insert_str("searchable draft");
         app.chat_widget
             .bottom_pane
             .handle_key_event(KeyEvent::new(KeyCode::Char('/'), KeyModifiers::NONE));

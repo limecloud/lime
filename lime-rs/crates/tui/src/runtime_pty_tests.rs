@@ -22,6 +22,8 @@ mod config;
 mod cursor_style;
 #[path = "runtime_pty_tests/diff_display.rs"]
 mod diff_display;
+#[path = "runtime_pty_tests/external_editor.rs"]
+mod external_editor;
 #[path = "runtime_pty_tests/footer.rs"]
 mod footer;
 #[path = "runtime_pty_tests/images.rs"]
@@ -48,8 +50,11 @@ mod status_line;
 mod suggestions;
 #[path = "runtime_pty_tests/task_progress.rs"]
 mod task_progress;
+#[path = "runtime_pty_tests/terminal_observer.rs"]
+mod terminal_observer;
 #[path = "runtime_pty_tests/terminal_title.rs"]
 mod terminal_title;
+use terminal_observer::{terminal_cursor_position, terminal_marker_position, terminal_screen_text};
 #[path = "runtime_pty_tests/thread_input.rs"]
 mod thread_input;
 #[path = "runtime_pty_tests/title_setup.rs"]
@@ -161,9 +166,9 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
         command.env("LIME_CONFIG_PATH", permission_config);
     }
     if scenario == "complete" {
-        configure_external_editor(&mut command, &cwd, &prompt);
+        external_editor::configure_external_editor(&mut command, &cwd, &prompt);
     } else if scenario == "images" {
-        configure_external_editor(&mut command, &cwd, images::EDITOR_TEXT);
+        external_editor::configure_external_editor(&mut command, &cwd, images::EDITOR_TEXT);
     }
 
     let pair = native_pty_system()
@@ -418,6 +423,7 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
         );
         assert!(!terminal_screen_text(&output).contains("Select Model and Effort"));
         suggestions::exercise_suggestion_menus(&mut writer, &output_rx, &mut output, &ledger_path);
+        eprintln!("TUI_COMPLETE phase=local-status bytes={}", output.len());
         write_typed_text(&mut writer, b"/status");
         writer
             .write_all(b"\x05")
@@ -443,8 +449,15 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
             Duration::from_secs(10),
         );
         write_typed_text(&mut writer, b"before external edit");
+        eprintln!("TUI_COMPLETE phase=external-editor bytes={}", output.len());
         writer.write_all(&[7]).expect("open external editor");
         writer.flush().expect("flush editor shortcut");
+        external_editor::assert_preserved_screen_then_release(
+            &mut writer,
+            &output_rx,
+            &mut output,
+            "before external edit",
+        );
         wait_for_marker(
             &output_rx,
             &mut output,
@@ -455,6 +468,8 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
         // draw is responsible for reconciling the restored surface and showing the composer.
         wait_for_screen_marker(&output_rx, &mut output, &prompt, Duration::from_secs(10));
 
+        eprintln!("TUI_COMPLETE phase=restored-editor bytes={}", output.len());
+        external_editor::assert_editor_exit_and_reentry(&output);
         let (cursor_row, prompt_col) =
             terminal_marker_position(&output, &prompt).expect("external editor prompt position");
         let prompt_width = u16::try_from(crate::width::display_width(&prompt)).unwrap_or(u16::MAX);
@@ -1389,37 +1404,6 @@ fn real_pty_restores_terminal_after_visible_turn_completion() {
     }
 }
 
-#[cfg(unix)]
-fn configure_external_editor(command: &mut CommandBuilder, cwd: &Path, prompt: &str) {
-    use std::os::unix::fs::PermissionsExt;
-
-    let script = cwd.join("tui-editor.sh");
-    std::fs::write(
-        &script,
-        "#!/bin/sh\ntest -t 0 && test -t 1 && test -t 2 || exit 9\nprintf '%s' \"$LIME_TEST_EDITOR_REPLACEMENT\" > \"$1\"\nprintf 'EDITOR_JOB_CONTROL_OK\\n'\n",
-    )
-    .expect("write editor fixture");
-    let mut permissions = std::fs::metadata(&script)
-        .expect("editor fixture metadata")
-        .permissions();
-    permissions.set_mode(0o755);
-    std::fs::set_permissions(&script, permissions).expect("editor fixture permissions");
-    command.env("VISUAL", script);
-    command.env("LIME_TEST_EDITOR_REPLACEMENT", prompt);
-}
-
-#[cfg(windows)]
-fn configure_external_editor(command: &mut CommandBuilder, cwd: &Path, prompt: &str) {
-    let script = cwd.join("tui-editor.cmd");
-    std::fs::write(
-        &script,
-        "@echo off\r\n<nul set /p \"=%LIME_TEST_EDITOR_REPLACEMENT%\" > \"%~1\"\r\necho EDITOR_JOB_CONTROL_OK\r\n",
-    )
-    .expect("write editor fixture");
-    command.env("VISUAL", script);
-    command.env("LIME_TEST_EDITOR_REPLACEMENT", prompt);
-}
-
 fn required_test_path(name: &str) -> PathBuf {
     std::env::var_os(name)
         .filter(|value| !value.is_empty())
@@ -1545,18 +1529,6 @@ fn wait_for_screen(
     }
 }
 
-fn terminal_screen_text(output: &str) -> String {
-    let mut parser = vt100::Parser::new(24, 100, 0);
-    parser.process(output.as_bytes());
-    parser.screen().contents()
-}
-
-fn terminal_cursor_position(output: &str) -> (u16, u16) {
-    let mut parser = vt100::Parser::new(24, 100, 0);
-    parser.process(output.as_bytes());
-    parser.screen().cursor_position()
-}
-
 fn wait_for_cursor_position(
     output_rx: &mpsc::Receiver<Vec<u8>>,
     output: &mut String,
@@ -1581,21 +1553,6 @@ fn wait_for_cursor_position(
     }
 }
 
-fn terminal_marker_position(output: &str, marker: &str) -> Option<(u16, u16)> {
-    let mut parser = vt100::Parser::new(24, 100, 0);
-    parser.process(output.as_bytes());
-    let position = parser
-        .screen()
-        .rows(0, 100)
-        .enumerate()
-        .find_map(|(row, text)| {
-            let offset = text.find(marker)?;
-            let column = crate::width::display_width(&text[..offset]);
-            Some((u16::try_from(row).ok()?, u16::try_from(column).ok()?))
-        });
-    position
-}
-
 fn wait_for_inverse_cells(
     output_rx: &mpsc::Receiver<Vec<u8>>,
     output: &mut String,
@@ -1606,13 +1563,9 @@ fn wait_for_inverse_cells(
 ) {
     let deadline = Instant::now() + timeout;
     loop {
-        let mut parser = vt100::Parser::new(24, 100, 0);
-        parser.process(output.as_bytes());
-        let selected = (column..column.saturating_add(width)).all(|column| {
-            parser
-                .screen()
-                .cell(row, column)
-                .is_some_and(vt100::Cell::inverse)
+        let selected = terminal_observer::with_screen(output, |screen| {
+            (column..column.saturating_add(width))
+                .all(|column| screen.cell(row, column).is_some_and(vt100::Cell::inverse))
         });
         if selected {
             return;
@@ -1640,13 +1593,9 @@ fn wait_for_non_inverse_cells(
 ) {
     let deadline = Instant::now() + timeout;
     loop {
-        let mut parser = vt100::Parser::new(24, 100, 0);
-        parser.process(output.as_bytes());
-        let cleared = (column..column.saturating_add(width)).all(|column| {
-            !parser
-                .screen()
-                .cell(row, column)
-                .is_some_and(vt100::Cell::inverse)
+        let cleared = terminal_observer::with_screen(output, |screen| {
+            (column..column.saturating_add(width))
+                .all(|column| !screen.cell(row, column).is_some_and(vt100::Cell::inverse))
         });
         if cleared {
             return;

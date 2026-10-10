@@ -57,7 +57,7 @@ use action_required_title::{
 };
 use approval_overlay::ApprovalOverlay;
 use chat_composer::ChatComposer;
-pub(crate) use chat_composer::{ComposerDraft, FileSearchRequest, InputResult};
+pub(crate) use chat_composer::{ChatComposerConfig, ComposerDraft, FileSearchRequest, InputResult};
 use file_search_popup::FileSearchPopupAction;
 use mcp_server_elicitation::McpServerElicitationOverlay;
 use request_user_input::RequestUserInputOverlay;
@@ -116,6 +116,14 @@ enum PendingInteraction {
 }
 
 impl PendingInteraction {
+    fn set_locale(&mut self, locale: crate::locale::Locale) {
+        match self {
+            Self::UserInput(request) => request.composer.set_locale(locale),
+            Self::McpElicitation(request) => request.composer.set_locale(locale),
+            Self::Approval(_) => {}
+        }
+    }
+
     fn set_keymap_bindings(&mut self, keymap: &crate::keymap::RuntimeKeymap) {
         match self {
             Self::UserInput(request) => request.set_keymap_bindings(keymap),
@@ -145,11 +153,11 @@ impl PendingInteraction {
         }
     }
 
-    fn handle_key_event(&mut self, key: KeyEvent) -> Option<AppServerResponse> {
+    fn handle_key_event_at(&mut self, key: KeyEvent, now: Instant) -> Option<AppServerResponse> {
         match self {
             Self::Approval(approval) => approval.handle_key_event(key),
-            Self::UserInput(request) => request.handle_key_event(key),
-            Self::McpElicitation(request) => request.handle_key_event(key),
+            Self::UserInput(request) => request.handle_key_event_at(key, now),
+            Self::McpElicitation(request) => request.handle_key_event_at(key, now),
         }
     }
 
@@ -163,7 +171,8 @@ impl PendingInteraction {
     fn next_frame_delay(&self, now: Instant) -> Option<Duration> {
         match self {
             Self::UserInput(request) => request.next_frame_delay(now),
-            Self::Approval(_) | Self::McpElicitation(_) => None,
+            Self::McpElicitation(request) => request.next_frame_delay(),
+            Self::Approval(_) => None,
         }
     }
 
@@ -228,6 +237,7 @@ impl BottomPane {
     pub(crate) fn enqueue(&mut self, request: ServerRequest) -> Result<(), Box<ServerRequest>> {
         let mut interaction = PendingInteraction::from_server_request(request)?;
         interaction.set_keymap_bindings(&self.keymap);
+        interaction.set_locale(self.composer.locale());
         self.queue.push_back(interaction);
         Ok(())
     }
@@ -313,8 +323,16 @@ impl BottomPane {
     }
 
     fn handle_interaction_event(&mut self, event: Event) -> Option<AppServerResponse> {
+        self.handle_interaction_event_at(event, Instant::now())
+    }
+
+    fn handle_interaction_event_at(
+        &mut self,
+        event: Event,
+        now: Instant,
+    ) -> Option<AppServerResponse> {
         match event {
-            Event::Key(key) => self.handle_interaction_key(key),
+            Event::Key(key) => self.handle_interaction_key_at(key, now),
             Event::Paste(text) => {
                 match self.queue.front_mut() {
                     Some(PendingInteraction::UserInput(request)) => {
@@ -331,19 +349,50 @@ impl BottomPane {
         }
     }
 
-    fn handle_interaction_key(&mut self, key: KeyEvent) -> Option<AppServerResponse> {
-        let response = self.queue.front_mut()?.handle_key_event(key)?;
+    fn handle_interaction_key_at(
+        &mut self,
+        key: KeyEvent,
+        now: Instant,
+    ) -> Option<AppServerResponse> {
+        let response = self.queue.front_mut()?.handle_key_event_at(key, now)?;
         self.queue.pop_front();
         Some(response)
     }
 
+    #[cfg(test)]
+    fn handle_interaction_key(&mut self, key: KeyEvent) -> Option<AppServerResponse> {
+        self.handle_interaction_key_at(key, Instant::now())
+    }
+
     pub(crate) fn pre_draw_tick(&mut self, now: Instant) -> Option<AppServerResponse> {
-        if self.composer.handle_paste_burst_flush(now) {
-            self.composer.sync_completion_popup();
-        }
+        self.flush_paste_burst_if_due(now);
         let response = self.queue.front_mut()?.pre_draw_tick(now)?;
         self.queue.pop_front();
         Some(response)
+    }
+
+    pub(crate) fn flush_paste_burst_if_due(&mut self, now: Instant) -> bool {
+        let mut flushed = self.composer.handle_paste_burst_flush(now);
+        if flushed {
+            self.composer.sync_completion_popup();
+        }
+        flushed |= match self.queue.front_mut() {
+            Some(PendingInteraction::UserInput(request)) => request.flush_paste_burst_if_due(now),
+            Some(PendingInteraction::McpElicitation(request)) => {
+                request.flush_paste_burst_if_due(now)
+            }
+            _ => false,
+        };
+        flushed
+    }
+
+    pub(crate) fn is_in_paste_burst(&self) -> bool {
+        self.composer.paste_burst_needs_frame()
+            || match self.queue.front() {
+                Some(PendingInteraction::UserInput(request)) => request.is_in_paste_burst(),
+                Some(PendingInteraction::McpElicitation(request)) => request.is_in_paste_burst(),
+                _ => false,
+            }
     }
 
     pub(crate) fn next_frame_delay(&self, now: Instant) -> Option<Duration> {
