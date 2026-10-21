@@ -10,6 +10,9 @@ const ids = [
   "MiniMax-M3",
   "MiniMax-M3.1-Flash-Preview",
   "MiniMax-M3.1-Flash",
+  "abab6.5s-chat",
+  "abab5.5-chat",
+  "MiniMax-Text-01",
   "speech-2.8-hd",
 ];
 
@@ -36,7 +39,12 @@ describe("MiniMax discovered catalog choices", () => {
       key: "minimax",
       label: "MiniMax",
       registryId: "minimax",
-      models: ["MiniMax-M2.7", "my-custom-model"],
+      models: [
+        "MiniMax-M2.7",
+        "abab6.5s-chat",
+        "MiniMax-Text-01",
+        "my-custom-model",
+      ],
     };
     const registry = buildProviderModelsFromBackendModelIds(provider, [], ids);
     const ordinary = buildProviderModelsFromRegistry(
@@ -52,9 +60,21 @@ describe("MiniMax discovered catalog choices", () => {
     const saved = buildProviderModelsFromRegistry(provider, registry, null);
     expect(saved.modelIds).toEqual([
       "MiniMax-M2.7",
+      "abab6.5s-chat",
+      "MiniMax-Text-01",
       "my-custom-model",
       ...ordinary.modelIds,
     ]);
-    expect(provider.models).toEqual(["MiniMax-M2.7", "my-custom-model"]);
+    expect(provider.models).toEqual([
+      "MiniMax-M2.7",
+      "abab6.5s-chat",
+      "MiniMax-Text-01",
+      "my-custom-model",
+    ]);
+    for (const id of provider.models.filter((id) => id !== "my-custom-model")) {
+      expect(saved.models.find((model) => model.id === id)).toBe(
+        registry.find((model) => model.id === id),
+      );
+    }
   });
 });

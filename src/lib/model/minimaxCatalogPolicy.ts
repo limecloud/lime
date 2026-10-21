@@ -9,7 +9,7 @@ export function filterMiniMaxCatalogModels<T extends { id: string }>(
   return models
     .filter(
       (model) =>
-        !/^MiniMax-M\d/i.test(model.id) ||
+        !/^(?:MiniMax-M\d|abab.*-chat$|MiniMax-Text-01$)/i.test(model.id) ||
         current.includes(model.id) ||
         configuredModelIds.some(
           (id) => id.toLowerCase() === model.id.toLowerCase(),
