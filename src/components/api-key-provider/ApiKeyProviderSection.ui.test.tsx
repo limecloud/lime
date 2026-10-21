@@ -899,7 +899,7 @@ describe("ApiKeyProviderSection 模型管理布局", () => {
     expect(text).toContain("Kimi Code 会员（订阅）");
     expect(text).toContain("Kimi API（海外按量）");
     expect(text).toContain("Z.AI Coding Plan（海外）");
-    expect(text).toContain("MiniMax Coding Plan（海外）");
+    expect(text).toContain("MiniMax M Plan (Global)");
     expect(text).toContain("Alibaba Coding Plan（海外）");
     expect(text).not.toContain("GLM Coding Plan（国内）");
     expect(
@@ -926,6 +926,66 @@ describe("ApiKeyProviderSection 模型管理布局", () => {
     expect(container.textContent ?? "").toContain(
       "https://api.kimi.com/coding/",
     );
+  });
+
+  it.each([
+    ["cn", "minimax-coding-plan", "minimax.cn"],
+    ["overseas", "minimax-coding-plan-global", "minimax.io"],
+  ])(
+    "activates the %s MiniMax subscription with Flash",
+    async (category, id, host) => {
+      const hookState = createHookState();
+      const container = renderSection();
+      await clickByTestId("add-model-button", 4);
+      await clickByTestId(`model-catalog-category-${category}`);
+      await act(async () => {
+        maybeTemplateCard(container, id)?.click();
+        await Promise.resolve();
+      });
+      expect(
+        findByTestId<HTMLAnchorElement>("provider-api-key-link").href,
+      ).toBe(`https://platform.${host}/console/plan`);
+      await act(async () => {
+        setInputValue(
+          findByTestId<HTMLInputElement>("model-api-key-input"),
+          "fixture-key",
+        );
+      });
+      await clickByTestId("model-activate-button", 3);
+      expect(hookState.addCustomProvider).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "anthropic-compatible",
+          api_host: `https://api.${host}/anthropic`,
+        }),
+      );
+      expect(hookState.updateProvider).toHaveBeenCalledWith(
+        "custom-1",
+        expect.objectContaining({
+          models: [{ id: "MiniMax-M3.1-Flash" }],
+          enabled: true,
+        }),
+      );
+      expect(mockTestConnection).toHaveBeenCalledWith(
+        "custom-1",
+        "MiniMax-M3.1-Flash",
+      );
+    },
+  );
+
+  it("preserves an explicitly entered legacy MiniMax model", async () => {
+    const hookState = createHookState();
+    renderSection();
+    await openCustomProviderForm();
+    await submitCustomProviderDraft({
+      name: "Saved MiniMax route",
+      apiHost: "https://api.minimax.io/anthropic",
+      model: "MiniMax-M2.7",
+    });
+    expect(hookState.updateProvider).toHaveBeenCalledWith(
+      "custom-1",
+      expect.objectContaining({ models: [{ id: "MiniMax-M2.7" }] }),
+    );
+    expect(mockTestConnection).toHaveBeenCalledWith("custom-1", "MiniMax-M2.7");
   });
 
   it("自定义供应商可在添加流程内完成创建、加 Key、写入模型并激活", async () => {

@@ -33,6 +33,10 @@
       "contains": "minimax.io/anthropic"
     },
     {
+      "provider": "minimax-cn",
+      "contains": "minimax.cn/anthropic"
+    },
+    {
       "provider": "alibaba-cn",
       "contains": "coding.dashscope.aliyuncs.com/apps/anthropic"
     },

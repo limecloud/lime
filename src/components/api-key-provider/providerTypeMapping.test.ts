@@ -124,6 +124,17 @@ describe("providerTypeMapping", () => {
     expect(resolved).toBe("minimax");
   });
 
+  it("maps the current China MiniMax subscription host to its regional catalog", () => {
+    expect(
+      resolveRegistryProviderId("custom-minimax-provider", {
+        providerType: "anthropic-compatible",
+        apiHost: "https://api.minimax.cn/anthropic",
+        catalogAliasMap: null,
+        validRegistryProviders: ["anthropic", "minimax", "minimax-cn"],
+      }),
+    ).toBe("minimax-cn");
+  });
+
   it("Z.AI 海外 Anthropic 兼容 Host 应映射到 Z.AI 目录", () => {
     const resolved = resolveRegistryProviderId("custom-zai-provider", {
       providerType: "anthropic-compatible",

@@ -401,6 +401,63 @@ async fn anthropic_capture_proves_native_request_and_terminal_stream() {
     )));
 }
 
+#[tokio::test]
+async fn minimax_capture_preserves_model_and_anthropic_defaults() {
+    let response_body = concat!(
+        "data: {\"type\":\"message_start\",\"message\":{\"id\":\"msg-minimax\",\"type\":\"message\",\"role\":\"assistant\",\"model\":\"MiniMax-M3.1-Flash\",\"usage\":{\"input_tokens\":2,\"output_tokens\":0}}}\n\n",
+        "data: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\"},\"usage\":{\"output_tokens\":1}}\n\n",
+        "data: {\"type\":\"message_stop\"}\n\n"
+    );
+    // Explicit models remain usable independently of subscription preset eligibility.
+    for provider in ["minimax", "minimax-cn"] {
+        for model in ["MiniMax-M3.1-Flash", "MiniMax-M3", "MiniMax-M2.7"] {
+            let (base_url, captured, server) = spawn_http_capture_fixture(response_body).await;
+            let mut config = capture_config(
+                provider,
+                model,
+                RuntimeProviderProtocol::AnthropicMessages,
+                format!("{base_url}/anthropic"),
+            );
+            config.reasoning_effort = None;
+            let client = CurrentProviderClient::with_client(
+                config,
+                reqwest::Client::builder()
+                    .no_proxy()
+                    .build()
+                    .expect("fixture client"),
+            );
+            let mut stream = client
+                .stream(capture_request())
+                .await
+                .expect("MiniMax fixture stream");
+            let mut events = Vec::new();
+            while let Some(event) = stream.next().await {
+                events.push(event.expect("MiniMax fixture event"));
+            }
+            let capture = captured.await.expect("captured MiniMax request");
+            server.await.expect("MiniMax fixture server");
+            assert_eq!(capture.path, "/anthropic/v1/messages");
+            assert_eq!(capture.body["model"], model);
+            assert_eq!(capture.body["max_tokens"], 128);
+            assert_eq!(capture.body["messages"][0]["content"][1]["type"], "image");
+            assert_eq!(capture.body["tools"][0]["name"], "read_file");
+            // Omission preserves the server's always-on thinking default.
+            for field in [
+                "thinking",
+                "reasoning_effort",
+                "output_config",
+                "service_tier",
+            ] {
+                assert!(capture.body.get(field).is_none(), "unexpected {field}");
+            }
+            let headers = capture.headers.to_ascii_lowercase();
+            assert!(headers.contains("\r\nx-api-key: capture-key\r\n"));
+            assert!(headers.contains("\r\nanthropic-version: 2023-06-01\r\n"));
+            assert!(terminal_matches(&events, "msg-minimax", None));
+        }
+    }
+}
+
 fn terminal_matches(
     events: &[CanonicalLlmEvent],
     response_id: &str,
