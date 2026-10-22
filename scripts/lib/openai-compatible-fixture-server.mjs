@@ -635,6 +635,9 @@ export async function startOpenAiCompatibleFixtureServer(options = {}) {
     String(options.apiKey || DEFAULT_FIXTURE_API_KEY).trim() ||
     DEFAULT_FIXTURE_API_KEY;
   const content = String(options.content || "MO_OK");
+  const modelInputModalities = Array.isArray(options.modelInputModalities)
+    ? options.modelInputModalities.map(String)
+    : ["text"];
   const modelRuntimeFeatures = Array.isArray(options.modelRuntimeFeatures)
     ? options.modelRuntimeFeatures.map(String)
     : ["streaming", "tool_calling"];
@@ -734,7 +737,7 @@ export async function startOpenAiCompatibleFixtureServer(options = {}) {
             created: 1_770_000_000,
             owned_by: "lime-fixture",
             task_families: ["chat"],
-            input_modalities: ["text"],
+            input_modalities: modelInputModalities,
             output_modalities: ["text"],
             runtime_features: modelRuntimeFeatures,
             ...(options.modelServiceTiers
@@ -745,6 +748,7 @@ export async function startOpenAiCompatibleFixtureServer(options = {}) {
               : {}),
             ...(modelToolMode ? { tool_mode: modelToolMode } : {}),
             capabilities: {
+              vision: modelInputModalities.includes("image"),
               tools: true,
               streaming: true,
               function_calling: true,

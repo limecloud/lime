@@ -104,6 +104,7 @@ export function summarizeBrowserAnnotationSubmission({
       : [];
   const user = users.length === 1 ? users[0] : null;
   const inputImage = input.filter((part) => part.type === "image");
+  const submittedImage = annotationImageSummary(inputImage[0]?.url);
   const storedImage = (user?.item.content ?? []).filter(
     (part) => part.type === "image",
   );
@@ -148,7 +149,9 @@ export function summarizeBrowserAnnotationSubmission({
       inputImage.length === 1 &&
       storedImage.length === 1 &&
       !!expectedUri &&
-      inputImage[0].url === expectedUri &&
+      (inputImage[0].url === expectedUri ||
+        (submittedImage !== null &&
+          submittedImage.sha256 === delivered[0]?.sha256)) &&
       storedImage[0].url === expectedUri,
     imageDeliveredToProvider:
       delivered.length === 1 && delivered[0].byteLength > 24,

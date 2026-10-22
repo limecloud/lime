@@ -427,6 +427,7 @@ async function createBrowserProviderFixture({
     model: MODEL_NAME,
     apiKey: PROVIDER_API_KEY,
     modelRuntimeFeatures: ["streaming", "tool_calling", "custom_tools"],
+    ...(annotationScenario ? { modelInputModalities: ["text", "image"] } : {}),
     connectionDiagnostics,
     scriptedResponses,
   });
@@ -1434,7 +1435,9 @@ export async function run(options) {
       pageErrors.push(sanitizeText(error.message)),
     );
     page.setDefaultTimeout(options.timeoutMs);
-    await page.setViewportSize({ width: 1440, height: 1000 });
+    await (await app.browserWindow(page)).evaluate((window) => {
+      window.setContentSize(1440, 1000);
+    });
     await captureBrowserScreenshot(page, options, "renderer-loading");
     await waitForRendererReady(page, options, () => undefined);
     await setRendererLocale(page, options);

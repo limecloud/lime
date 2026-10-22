@@ -3,7 +3,6 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { invokeAppServerFromPage } from "./claw-chat-current-fixture-rpc.mjs";
 import { sendPromptFromGui } from "./claw-chat-current-fixture-gui-actions.mjs";
-import { openFixtureSessionFromSidebar } from "./claw-chat-current-fixture-session.mjs";
 import {
   appServerCallFromPage,
   readConfigFromPage,
@@ -417,15 +416,17 @@ export async function runBrowserAnnotationScenario(ctx) {
       "Screenshot preference did not persist",
     );
     const read = await readConfigFromPage(page);
-    await openFixtureSessionFromSidebar(
-      page,
-      {
-        ...options,
-        sessionId: identity.sessionId,
-        threadId: identity.threadId,
-      },
-      ctx.requestLog,
-    );
+    await page.getByTestId("settings-back-button").click();
+    // The first annotation turn can rename the thread; reopen its canonical identity.
+    await page.locator(
+      `[data-testid="app-sidebar-conversation-open"][data-session-id="${identity.sessionId}"]`,
+    ).click();
+    await page.locator(
+      `[data-testid="composer-editor"][data-session-id="${identity.sessionId}"]`,
+    ).waitFor({ state: "visible", timeout: options.timeoutMs });
+    stage("reopen-browser-panel-after-settings");
+    await page.getByTestId("thread-side-panel-toggle").click();
+    await page.getByTestId("side-panel-new-tab-browser").click();
     await page
       .locator('[data-testid="browser-annotation-select"]')
       .waitFor({ state: "visible", timeout: options.timeoutMs });

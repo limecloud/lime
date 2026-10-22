@@ -137,9 +137,10 @@ describe("openai-compatible-fixture-server", () => {
     });
   });
 
-  it("模型发现应保留显式 CodeMode 与 custom_tools capability", async () => {
+  it("模型发现应保留显式 image、CodeMode 与 custom_tools capability", async () => {
     const fixture = await startFixture({
       model: "fixture-code-mode",
+      modelInputModalities: ["text", "image"],
       modelRuntimeFeatures: [
         "streaming",
         "tool_calling",
@@ -155,6 +156,8 @@ describe("openai-compatible-fixture-server", () => {
       data: [
         {
           id: "fixture-code-mode",
+          input_modalities: ["text", "image"],
+          capabilities: { vision: true },
           runtime_features: [
             "streaming",
             "tool_calling",

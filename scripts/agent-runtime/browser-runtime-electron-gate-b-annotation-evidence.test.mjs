@@ -159,6 +159,23 @@ describe("Browser annotation Gate B evidence", () => {
     });
   });
 
+  it("joins data URL input only when its bytes match canonical storage and delivery", () => {
+    const state = submission();
+    rewriteRequest(state, (request) => {
+      request.params.input[1].url = pngUrl();
+    });
+    expect(
+      summarizeBrowserAnnotationSubmission(state).failedAssertions,
+    ).toEqual([]);
+    rewriteRequest(state, (request) => {
+      request.params.input[1].url = pngUrl(180, 112, "different-input");
+    });
+    expect(
+      summarizeBrowserAnnotationSubmission(state).checks
+        .oneImageInSameCanonicalItem,
+    ).toBe(false);
+  });
+
   it("rejects a foreign canonical thread even when its text and image match", () => {
     const state = submission();
     state.canonical.thread.id = "thread-other";
