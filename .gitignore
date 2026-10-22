@@ -665,3 +665,6 @@ benchmarks/*
 packages/cli/bin/*
 !packages/cli/bin/lime.js
 .gstack/
+
+!internal/exec-plans/artifacts/release-v1.166.0/windows-code-mode-previous-toast.png
+!internal/exec-plans/artifacts/release-v1.166.0/windows-code-mode-current-toast.png

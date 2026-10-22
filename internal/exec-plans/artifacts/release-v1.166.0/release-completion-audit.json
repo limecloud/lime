@@ -1,0 +1,93 @@
+{
+  "recordedAt": "2026-10-22T01:44:47.825742+00:00",
+  "sourceCommit": "a7429000993b1516a3a58fd1b0e531f7974e13e5",
+  "tag": "v1.166.0",
+  "completionPercent": 100,
+  "requirements": [
+    {
+      "requirement": "Version and notes consistency",
+      "result": "passed",
+      "evidence": [
+        "typecheck-r2.json",
+        "verification-summary.json",
+        "RELEASE_NOTES.md",
+        "RELEASE_NOTES.en.md"
+      ]
+    },
+    {
+      "requirement": "Frozen full candidate, later additions deferred",
+      "result": "passed",
+      "evidence": [
+        "candidate-manifest.json",
+        "tag-source-parity.json"
+      ],
+      "laterDirtyPathsExcluded": 115
+    },
+    {
+      "requirement": "Local risk-matched gates",
+      "result": "passed",
+      "evidence": [
+        "contracts.json",
+        "agent-final-r2.json",
+        "settings-final-r4.json",
+        "cli-final.json"
+      ]
+    },
+    {
+      "requirement": "Source commit and explicit remote tag push",
+      "result": "passed",
+      "evidence": [
+        "tag-push.json"
+      ]
+    },
+    {
+      "requirement": "Exact tagged-source Quality",
+      "result": "passed",
+      "evidence": [
+        "quality-tag.json",
+        "quality-tag-rust-tests.json"
+      ]
+    },
+    {
+      "requirement": "All release jobs at unchanged SHA",
+      "result": "passed",
+      "evidence": [
+        "release.json",
+        "release-arm64-runner-capacity.json",
+        "release-arm64-rerun.json"
+      ]
+    },
+    {
+      "requirement": "Public GitHub stable, 14 assets, 5 npm packages, 3 updater feeds/downloads",
+      "result": "passed",
+      "evidence": [
+        "public-channels.json",
+        "github-release.json"
+      ]
+    },
+    {
+      "requirement": "Fresh public npm install, real CLI Gate B and original archive/shutdown regression",
+      "result": "passed",
+      "evidence": [
+        "published-npm-gate-b.json",
+        "published-npm-gate-b.log.gz",
+        "published-npm-shutdown-summary.json"
+      ]
+    },
+    {
+      "requirement": "Record limitations and pre-existing visible issue",
+      "result": "recorded",
+      "evidence": [
+        "verification-summary.json",
+        "windows-code-mode-toast-observation.json"
+      ]
+    }
+  ],
+  "evidencePersistence": "This audit and its receipts are included in the following evidence-only main commit; the published tag remains fixed.",
+  "classification": {
+    "current": "Existing Desktop/CLI -> App Server -> RuntimeCore -> canonical Thread/Turn/Item owners; public npm/updater channels.",
+    "compat": "No new compatibility owner.",
+    "deprecated": "No new deprecated entry.",
+    "deleted": "Frozen candidate duplicate Workbench and retired metadata/unarchive branches remain deleted; no restoration."
+  }
+}

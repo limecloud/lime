@@ -1,0 +1,160 @@
+{
+  "threads": [
+    {
+      "id": "01a16144-b18c-7bb3-b80e-48d29b38d3d1",
+      "command": {
+        "aggregatedOutput": "SHUTDOWN_PARTIAL_0",
+        "command": "printf '%s %s\\n' \"$$\" \"$PPID\" > 'process-0.pid'; printf 'SHUTDOWN_PARTIAL_0'; read answer",
+        "commandActions": [
+          {
+            "command": "printf '%s %s\\n' \"$$\" \"$PPID\" > 'process-0.pid'; printf 'SHUTDOWN_PARTIAL_0'; read answer",
+            "type": "unknown"
+          }
+        ],
+        "cwd": "/private/var/folders/87/s6cpr7hd1_v43cs833x4s_900000gn/T/command-shutdown-oarTy1/work dir",
+        "durationMs": 695,
+        "id": "item_shutdown-0",
+        "processId": "unified-exec-1000",
+        "source": "unifiedExecStartup",
+        "status": "failed",
+        "type": "commandExecution"
+      }
+    }
+  ],
+  "processes": [
+    {
+      "pid": 34499,
+      "serverPid": 33753
+    }
+  ],
+  "cold": [
+    {
+      "canAcceptDirectInput": true,
+      "cliVersion": "1.166.0",
+      "createdAt": 1792633254,
+      "cwd": "/private/var/folders/87/s6cpr7hd1_v43cs833x4s_900000gn/T/command-shutdown-oarTy1/work dir",
+      "ephemeral": false,
+      "extra": {
+        "allowProviderModelFallback": false,
+        "approvalPolicy": "never",
+        "approvalsReviewer": "user",
+        "baseInstructions": null,
+        "cliVersion": "1.166.0",
+        "collaborationMode": {
+          "mode": "default",
+          "settings": {
+            "developer_instructions": null,
+            "model": "command-shutdown-fixture",
+            "reasoning_effort": null
+          }
+        },
+        "config": null,
+        "developerInstructions": null,
+        "dynamicTools": null,
+        "environments": null,
+        "ephemeral": false,
+        "experimentalRawEvents": false,
+        "historyMode": "paginated",
+        "modelName": "command-shutdown-fixture",
+        "personality": null,
+        "projectId": null,
+        "providerName": "custom-68397b47-5bed-4c8e-8b68-270cf0c07e4d",
+        "providerSelector": "custom-68397b47-5bed-4c8e-8b68-270cf0c07e4d",
+        "runtimeWorkspaceRoots": [
+          "/private/var/folders/87/s6cpr7hd1_v43cs833x4s_900000gn/T/command-shutdown-oarTy1/work dir"
+        ],
+        "sandbox": null,
+        "sandboxPolicy": "danger-full-access",
+        "selectedCapabilityRoots": null,
+        "serviceTier": null,
+        "sessionStartSource": null,
+        "source": "appServer",
+        "threadSource": null,
+        "workingDir": "/private/var/folders/87/s6cpr7hd1_v43cs833x4s_900000gn/T/command-shutdown-oarTy1/work dir"
+      },
+      "historyMode": "paginated",
+      "id": "01a16144-b18c-7bb3-b80e-48d29b38d3d1",
+      "modelProvider": "custom-68397b47-5bed-4c8e-8b68-270cf0c07e4d",
+      "preview": "",
+      "projectId": null,
+      "recencyAt": 1792633254,
+      "sessionId": "01a16144-b18c-7bb3-b80e-48d29b38d3d1",
+      "source": "appServer",
+      "status": {
+        "type": "notLoaded"
+      },
+      "turns": [
+        {
+          "completedAt": 1792633255,
+          "id": "turn_365efe3875204ccf9b969d376aaeabf7",
+          "items": [
+            {
+              "content": [
+                {
+                  "text": "start a background command",
+                  "type": "text"
+                }
+              ],
+              "id": "user-turn_365efe3875204ccf9b969d376aaeabf7",
+              "type": "userMessage"
+            },
+            {
+              "aggregatedOutput": "SHUTDOWN_PARTIAL_0",
+              "command": "printf '%s %s\\n' \"$$\" \"$PPID\" > 'process-0.pid'; printf 'SHUTDOWN_PARTIAL_0'; read answer",
+              "commandActions": [
+                {
+                  "command": "printf '%s %s\\n' \"$$\" \"$PPID\" > 'process-0.pid'; printf 'SHUTDOWN_PARTIAL_0'; read answer",
+                  "type": "unknown"
+                }
+              ],
+              "cwd": "/private/var/folders/87/s6cpr7hd1_v43cs833x4s_900000gn/T/command-shutdown-oarTy1/work dir",
+              "durationMs": 695,
+              "id": "item_shutdown-0",
+              "processId": "unified-exec-1000",
+              "source": "unifiedExecStartup",
+              "status": "failed",
+              "type": "commandExecution"
+            },
+            {
+              "id": "provider:turn_365efe3875204ccf9b969d376aaeabf7:2:text:text-0",
+              "text": "BACKGROUND_STARTED_0",
+              "type": "agentMessage"
+            }
+          ],
+          "itemsView": "full",
+          "status": "completed"
+        }
+      ],
+      "updatedAt": 1792633254
+    }
+  ],
+  "notifications": [
+    {
+      "method": "model/list/updated",
+      "params": {
+        "generation": 1,
+        "providerId": "custom-68397b47-5bed-4c8e-8b68-270cf0c07e4d"
+      }
+    },
+    {
+      "method": "model/list/updated",
+      "params": {
+        "generation": 2,
+        "providerId": "custom-68397b47-5bed-4c8e-8b68-270cf0c07e4d"
+      }
+    },
+    {
+      "method": "model/list/updated",
+      "params": {
+        "generation": 4,
+        "providerId": "custom-68397b47-5bed-4c8e-8b68-270cf0c07e4d"
+      }
+    }
+  ],
+  "providerRequests": 3,
+  "userProviderRequests": 2,
+  "backend": "runtime",
+  "transport": "stdio",
+  "host": "CLI",
+  "active": false
+}

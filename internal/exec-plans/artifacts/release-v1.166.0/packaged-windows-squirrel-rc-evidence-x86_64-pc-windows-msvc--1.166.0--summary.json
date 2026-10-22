@@ -1,0 +1,258 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "PLT-02-windows-squirrel-rc",
+  "proofLevel": "L8 platform/packaged",
+  "claimBoundary": "Windows Squirrel N-1 Setup install, Electron autoUpdater download/install from an isolated candidate feed, candidate version path, shortcut/permissions, and installed candidate Lime.exe SHELL-01 Gate B. Uninstall cleanup is included. Long-duration soak is not exercised.",
+  "candidateRunId": "release-39628179175-1-win32-x64",
+  "candidateSha": "a7429000993b1516a3a58fd1b0e531f7974e13e5",
+  "platform": {
+    "os": "win32",
+    "arch": "x64",
+    "appVersion": "1.166.0"
+  },
+  "startedAt": "2026-10-21T16:03:30.733Z",
+  "completedAt": "2026-10-21T16:04:47.741Z",
+  "result": "pass",
+  "failedStage": null,
+  "error": null,
+  "blockers": [],
+  "assertions": {
+    "total": 21,
+    "passed": 21,
+    "failed": [],
+    "details": {
+      "windowsRunner": true,
+      "candidateInstallerPresent": true,
+      "installerExitZero": true,
+      "installedExecutablePresent": true,
+      "updateExecutablePresent": true,
+      "installRootReadable": true,
+      "installRootWritable": true,
+      "shortcutCreated": true,
+      "shell01Passed": true,
+      "shell01VersionMatched": true,
+      "nMinusOneVersionOlder": true,
+      "nMinusOneInstalled": true,
+      "candidateFeedServed": true,
+      "updateDownloaded": true,
+      "updateInstallRequested": true,
+      "candidateInstalledByUpdater": true,
+      "uninstallCommandAccepted": true,
+      "uninstalledUpdateExecutableAbsent": true,
+      "uninstalledAppDirectoryRemoved": true,
+      "uninstalledExecutableAbsent": true,
+      "shortcutsRemoved": true
+    }
+  },
+  "evidence": {
+    "candidateInstaller": {
+      "path": "D:\\a\\lime\\lime\\release-assets\\x86_64-pc-windows-msvc\\Lime-1.166.0 Setup.exe"
+    },
+    "installer": {
+      "path": "D:\\a\\lime\\lime\\windows-n-minus-one-package\\Lime-1.165.0.Setup.exe",
+      "version": "1.165.0",
+      "args": [
+        "--silent"
+      ],
+      "exitCode": 0
+    },
+    "installation": {
+      "appDirectory": "C:\\Users\\runneradmin\\AppData\\Local\\lime\\app-1.166.0",
+      "executable": "C:\\Users\\runneradmin\\AppData\\Local\\lime\\app-1.166.0\\Lime.exe",
+      "packageRoot": "C:\\Users\\runneradmin\\AppData\\Local\\lime",
+      "updateExecutable": "C:\\Users\\runneradmin\\AppData\\Local\\lime\\Update.exe",
+      "baselineStop": {
+        "executable": "C:\\Users\\runneradmin\\AppData\\Local\\lime\\app-1.165.0\\Lime.exe",
+        "exitCode": 0
+      },
+      "shortcutRoots": [
+        "C:\\Users\\runneradmin\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs",
+        "C:\\Users\\runneradmin\\Desktop"
+      ],
+      "shortcuts": [
+        "C:\\Users\\runneradmin\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Lime\\Lime.lnk",
+        "C:\\Users\\runneradmin\\Desktop\\Lime.lnk"
+      ],
+      "candidateStop": {
+        "executable": "C:\\Users\\runneradmin\\AppData\\Local\\lime\\app-1.166.0\\Lime.exe",
+        "exitCode": 0
+      }
+    },
+    "nMinusOneUpdate": {
+      "baselineUpdaterQuiescence": {
+        "executable": "C:\\Users\\runneradmin\\AppData\\Local\\lime\\Update.exe",
+        "exitCode": 0,
+        "timeoutMs": 60000
+      },
+      "candidateFeedServed": true,
+      "candidateInstalledByUpdater": true,
+      "candidateVersion": "1.166.0",
+      "cdpUrl": "http://127.0.0.1:58841",
+      "downloadedSession": {
+        "sessionId": "electron-update-1792598635701",
+        "stage": "completed",
+        "currentVersion": "1.165.0",
+        "latestVersion": "1.166.0",
+        "downloadUrl": "http://127.0.0.1:58840",
+        "downloadedBytes": 0,
+        "totalBytes": null,
+        "percent": 1,
+        "message": "更新已下载，准备安装",
+        "error": null,
+        "startedAt": 1792598635701,
+        "updatedAt": 1792598657364,
+        "completedAt": 1792598657364,
+        "canCloseWindow": true,
+        "isActive": false
+      },
+      "feed": {
+        "entries": [
+          {
+            "fileName": "lime-1.166.0-full.nupkg",
+            "sha1": "8cef43bbb9148fc9549eae7fda12eb395784551e",
+            "size": 412633335
+          }
+        ],
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/RELEASES",
+            "size": 77,
+            "status": 200
+          },
+          {
+            "method": "GET",
+            "path": "/RELEASES",
+            "size": 77,
+            "status": 200
+          },
+          {
+            "method": "GET",
+            "path": "/lime-1.166.0-full.nupkg",
+            "size": 412633335,
+            "status": 200
+          }
+        ],
+        "url": "http://127.0.0.1:58840"
+      },
+      "initialSession": {
+        "sessionId": "electron-update-1792598635701",
+        "stage": "checking",
+        "currentVersion": "1.165.0",
+        "latestVersion": null,
+        "downloadUrl": null,
+        "downloadedBytes": 0,
+        "totalBytes": null,
+        "percent": 0,
+        "message": "正在检查更新",
+        "error": null,
+        "startedAt": 1792598635701,
+        "updatedAt": 1792598638287,
+        "completedAt": null,
+        "canCloseWindow": true,
+        "isActive": true
+      },
+      "installSession": {
+        "sessionId": "electron-update-1792598635701",
+        "stage": "restarting",
+        "currentVersion": "1.165.0",
+        "latestVersion": "1.166.0",
+        "downloadUrl": "http://127.0.0.1:58840",
+        "downloadedBytes": 0,
+        "totalBytes": null,
+        "percent": 1,
+        "message": "正在重启并安装更新",
+        "error": null,
+        "startedAt": 1792598635701,
+        "updatedAt": 1792598657783,
+        "completedAt": 1792598657364,
+        "canCloseWindow": false,
+        "isActive": true
+      },
+      "nMinusOneVersion": "1.165.0",
+      "updateDownloaded": true,
+      "updateInstallRequested": true,
+      "userDataDir": "C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\lime-windows-n-minus-one-updater-nDxYHB"
+    },
+    "shell01": {
+      "exitCode": 0,
+      "summaryPath": "D:\\a\\lime\\lime\\.lime\\qc\\windows-squirrel-rc\\1.166.0\\shell-01\\summary.json",
+      "result": "pass",
+      "scenarioId": "SHELL-01-electron-smoke",
+      "proofLevel": "Gate B-F",
+      "appVersion": "1.166.0",
+      "bridge": {
+        "electron": true,
+        "preloadInvoke": true,
+        "transport": "electron-ipc",
+        "command": "app_server_handle_json_lines",
+        "appServerIpcHitCount": 49,
+        "methods": [
+          "account/read",
+          "config/read",
+          "diagnostics/windowsStartup/read",
+          "memoryStore/health",
+          "memoryStore/index/rebuild",
+          "memoryStore/list",
+          "memoryStore/review/list",
+          "model/list",
+          "modelPreferences/list",
+          "modelProvider/list",
+          "modelProvider/update",
+          "modelProviderAlias/list",
+          "modelSyncState/read",
+          "promptHistory/read",
+          "soulStylePack/list",
+          "thread/list",
+          "threadSection/list",
+          "workspace/default/ensure",
+          "workspace/default/read",
+          "workspace/ensureReady"
+        ],
+        "hostInitialized": true,
+        "hostProtocol": "appserver.v0"
+      },
+      "artifacts": {
+        "summary": "summary.json",
+        "trace": "trace-summary.json",
+        "screenshot": "settings-memory.png"
+      }
+    },
+    "uninstall": {
+      "updateExecutable": "C:\\Users\\runneradmin\\AppData\\Local\\lime\\Update.exe",
+      "appDirectory": "C:\\Users\\runneradmin\\AppData\\Local\\lime\\app-1.166.0",
+      "executable": "C:\\Users\\runneradmin\\AppData\\Local\\lime\\app-1.166.0\\Lime.exe",
+      "shortcutPaths": [
+        "C:\\Users\\runneradmin\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Lime\\Lime.lnk",
+        "C:\\Users\\runneradmin\\Desktop\\Lime.lnk"
+      ],
+      "commandAccepted": true,
+      "exitCode": 0,
+      "warning": null,
+      "productRemoval": {
+        "executableAbsent": true,
+        "shortcutsAbsent": true
+      },
+      "retainedPathCleanup": {
+        "retainedBeforeCleanup": {
+          "appDirectory": true,
+          "updateExecutable": true
+        },
+        "updaterQuiescence": {
+          "executable": "C:\\Users\\runneradmin\\AppData\\Local\\lime\\Update.exe",
+          "exitCode": 0,
+          "timeoutMs": 60000
+        }
+      },
+      "updateExecutableAbsent": true,
+      "appDirectoryAbsent": true,
+      "executableAbsent": true,
+      "shortcutsAbsent": true
+    }
+  },
+  "remainingClaims": {
+    "nMinusOneUpdate": "passed",
+    "longDurationSoak": "not-exercised",
+    "uninstallCleanup": "passed"
+  }
+}

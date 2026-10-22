@@ -1,0 +1,54 @@
+{
+  "result": "passed",
+  "evidenceLevel": "gate-b",
+  "platform": "win32",
+  "arch": "x64",
+  "candidateRunId": "release-39628179175-1-win32-x64",
+  "candidateSha": "a7429000993b1516a3a58fd1b0e531f7974e13e5",
+  "electronExecutable": "C:\\Users\\runneradmin\\AppData\\Local\\lime\\app-1.166.0\\Lime.exe",
+  "checks": [
+    {
+      "name": "capabilities",
+      "status": "passed"
+    },
+    {
+      "name": "window.read",
+      "count": 5,
+      "status": "passed"
+    },
+    {
+      "name": "display.read",
+      "count": 1,
+      "status": "passed"
+    },
+    {
+      "name": "uiAutomation.read",
+      "nodeCount": 16,
+      "status": "passed"
+    },
+    {
+      "name": "displayWatcher.start-stop",
+      "status": "passed"
+    },
+    {
+      "name": "rawInput.start-stop",
+      "status": "passed"
+    }
+  ],
+  "helper": {
+    "path": "C:\\Users\\runneradmin\\AppData\\Local\\lime\\app-1.166.0\\resources\\native\\windows\\windows-native-host.exe",
+    "resourcesRoot": "C:\\Users\\runneradmin\\AppData\\Local\\lime\\app-1.166.0\\resources",
+    "manifestSha256": "db6f92bf483a479af85f7c3862a86ee62bfa470a99c70c56ecd8ec036cba63de",
+    "packagedSha256": "db6f92bf483a479af85f7c3862a86ee62bfa470a99c70c56ecd8ec036cba63de",
+    "digestMatches": true,
+    "api": [
+      "UIAutomation",
+      "RawInput",
+      "WindowEnumeration",
+      "DisplayEnumeration",
+      "DisplayWatcher"
+    ],
+    "readOnly": true
+  },
+  "observedEventTypes": []
+}

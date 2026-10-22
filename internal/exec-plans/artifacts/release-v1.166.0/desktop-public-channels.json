@@ -1,0 +1,102 @@
+{
+  "version": "1.166.0",
+  "recordedAt": "2026-10-21T16:35:47.291629+00:00",
+  "github": {
+    "url": "https://github.com/limecloud/lime/releases/tag/v1.166.0",
+    "publishedAt": "2026-10-21T16:31:16Z",
+    "targetCommit": "a7429000993b1516a3a58fd1b0e531f7974e13e5",
+    "assets": [
+      {
+        "name": "lime-1.166.0-full.nupkg",
+        "size": 412633335,
+        "digest": "sha256:8841c29471b3d26e6448cd00b94488d389f10f508fa1851c336360fdb5688dd8"
+      },
+      {
+        "name": "Lime-1.166.0.Setup.exe",
+        "size": 412347904,
+        "digest": "sha256:d05213785a38d4f772514de1ab80542dcb114abfc4c017f6be1c28089e915fb8"
+      },
+      {
+        "name": "Lime-darwin-arm64-1.166.0.zip",
+        "size": 378261958,
+        "digest": "sha256:a3f4ba623dd237da0ae300e8e0e83ff289fe5bca94b2f6b8b90269dbf8427d20"
+      },
+      {
+        "name": "Lime-darwin-x64-1.166.0.zip",
+        "size": 387908483,
+        "digest": "sha256:664e7fa9e663afff9575b1108db7887f17e1bf9c49ddcf54bd4fdbfea7e66068"
+      },
+      {
+        "name": "macos-arm64-Lime-1.166.0.dmg",
+        "size": 377155407,
+        "digest": "sha256:1b9a02121d4b09feed07055e8ff8d63cbc9f562f44507384e5b1ab0f82f6d17f"
+      },
+      {
+        "name": "macos-arm64-RELEASES.json",
+        "size": 26260,
+        "digest": "sha256:5bd3125680c0a07fd52a02e79836f540e2f81e3fb1eedd521974c1a3111e0a18"
+      },
+      {
+        "name": "macos-x64-Lime-1.166.0.dmg",
+        "size": 386511716,
+        "digest": "sha256:d033de73be3198caef585db7d6750281093c9c3b83d42e62f14aee7d296b8a7a"
+      },
+      {
+        "name": "macos-x64-RELEASES.json",
+        "size": 25824,
+        "digest": "sha256:50fcd14c2ca364973daa8fb565b59da7628ac02f776dc21746fb9acfc9528549"
+      },
+      {
+        "name": "RELEASES",
+        "size": 77,
+        "digest": "sha256:ebffe1d29eee80e3526812545562d29c1b8ea52a11cdf6c83643b3e372a9df3e"
+      }
+    ]
+  },
+  "updater": [
+    {
+      "platform": "darwin-arm64",
+      "base": "https://pub-fa568bd8496349bcafe04091e2b02e1e.r2.dev",
+      "feed": {
+        "url": "https://pub-fa568bd8496349bcafe04091e2b02e1e.r2.dev/lime/stable/darwin-arm64/RELEASES.json",
+        "httpStatus": 200,
+        "sha256": "5bd3125680c0a07fd52a02e79836f540e2f81e3fb1eedd521974c1a3111e0a18"
+      },
+      "download": {
+        "url": "https://pub-fa568bd8496349bcafe04091e2b02e1e.r2.dev/lime/stable/darwin-arm64/Lime-darwin-arm64-1.166.0.zip",
+        "httpStatus": 200,
+        "headersSha256": "0280f3b2910b48d1a264aa4035be44af8cc399d556c988d4f823c080e05423ce"
+      }
+    },
+    {
+      "platform": "darwin-x64",
+      "base": "https://pub-fa568bd8496349bcafe04091e2b02e1e.r2.dev",
+      "feed": {
+        "url": "https://pub-fa568bd8496349bcafe04091e2b02e1e.r2.dev/lime/stable/darwin-x64/RELEASES.json",
+        "httpStatus": 200,
+        "sha256": "50fcd14c2ca364973daa8fb565b59da7628ac02f776dc21746fb9acfc9528549"
+      },
+      "download": {
+        "url": "https://pub-fa568bd8496349bcafe04091e2b02e1e.r2.dev/lime/stable/darwin-x64/Lime-darwin-x64-1.166.0.zip",
+        "httpStatus": 200,
+        "headersSha256": "9eb9c0fb86e05ef54207ca21489ad0e5a08347d3dc59027d03abde770da6627e"
+      }
+    },
+    {
+      "platform": "win32-x64",
+      "base": "https://pub-fa568bd8496349bcafe04091e2b02e1e.r2.dev",
+      "feed": {
+        "url": "https://pub-fa568bd8496349bcafe04091e2b02e1e.r2.dev/lime/stable/win32-x64/RELEASES",
+        "httpStatus": 200,
+        "sha256": "ebffe1d29eee80e3526812545562d29c1b8ea52a11cdf6c83643b3e372a9df3e"
+      },
+      "download": {
+        "url": "https://pub-fa568bd8496349bcafe04091e2b02e1e.r2.dev/lime/stable/win32-x64/lime-1.166.0-full.nupkg",
+        "httpStatus": 200,
+        "headersSha256": "edafdd77bfa843f621eea82d34b6c352af3d88898d494502a6e39ed718e829be"
+      }
+    }
+  ],
+  "npm": [],
+  "npmLatest": null
+}

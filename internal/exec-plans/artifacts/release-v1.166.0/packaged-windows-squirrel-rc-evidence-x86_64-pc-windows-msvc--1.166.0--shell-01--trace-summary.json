@@ -1,0 +1,595 @@
+{
+  "schemaVersion": 1,
+  "candidateRunId": "release-39628179175-1-win32-x64",
+  "command": "app_server_handle_json_lines",
+  "methods": [
+    "account/read",
+    "config/read",
+    "diagnostics/windowsStartup/read",
+    "memoryStore/health",
+    "memoryStore/index/rebuild",
+    "memoryStore/list",
+    "memoryStore/review/list",
+    "model/list",
+    "modelPreferences/list",
+    "modelProvider/list",
+    "modelProvider/update",
+    "modelProviderAlias/list",
+    "modelSyncState/read",
+    "promptHistory/read",
+    "soulStylePack/list",
+    "thread/list",
+    "threadSection/list",
+    "workspace/default/ensure",
+    "workspace/default/read",
+    "workspace/ensureReady"
+  ],
+  "traceFacts": [
+    {
+      "command": "report_frontend_debug_log",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": []
+    },
+    {
+      "command": "report_frontend_debug_log",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": []
+    },
+    {
+      "command": "take_pending_skill_package_open_requests",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": []
+    },
+    {
+      "command": "persisted_atom_read",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": []
+    },
+    {
+      "command": "persisted_atom_read",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": []
+    },
+    {
+      "command": "app_server_drain_events",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": []
+    },
+    {
+      "command": "app_server_handle_json_lines",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": [
+        "threadSection/list"
+      ]
+    },
+    {
+      "command": "report_frontend_debug_log",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": []
+    },
+    {
+      "command": "report_frontend_debug_log",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": []
+    },
+    {
+      "command": "app_server_handle_json_lines",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": [
+        "account/read"
+      ]
+    },
+    {
+      "command": "take_pending_skill_package_open_requests",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": []
+    },
+    {
+      "command": "app_server_drain_events",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": []
+    },
+    {
+      "command": "app_server_handle_json_lines",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": [
+        "threadSection/list"
+      ]
+    },
+    {
+      "command": "app_server_handle_json_lines",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": [
+        "diagnostics/windowsStartup/read"
+      ]
+    },
+    {
+      "command": "app_server_handle_json_lines",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": [
+        "config/read"
+      ]
+    },
+    {
+      "command": "app_server_handle_json_lines",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": [
+        "modelProvider/list"
+      ]
+    },
+    {
+      "command": "app_server_handle_json_lines",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": [
+        "workspace/default/ensure"
+      ]
+    },
+    {
+      "command": "app_server_handle_json_lines",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": [
+        "workspace/default/ensure"
+      ]
+    },
+    {
+      "command": "app_server_handle_json_lines",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": [
+        "threadSection/list"
+      ]
+    },
+    {
+      "command": "app_server_handle_json_lines",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": [
+        "modelProvider/list"
+      ]
+    },
+    {
+      "command": "app_server_handle_json_lines",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": [
+        "diagnostics/windowsStartup/read"
+      ]
+    },
+    {
+      "command": "app_server_handle_json_lines",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": [
+        "modelProvider/list"
+      ]
+    },
+    {
+      "command": "app_server_handle_json_lines",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": [
+        "workspace/ensureReady"
+      ]
+    },
+    {
+      "command": "take_pending_skill_package_open_requests",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": []
+    },
+    {
+      "command": "app_server_handle_json_lines",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": [
+        "modelProvider/list"
+      ]
+    },
+    {
+      "command": "app_server_handle_json_lines",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": [
+        "thread/list"
+      ]
+    },
+    {
+      "command": "app_server_handle_json_lines",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": [
+        "thread/list"
+      ]
+    },
+    {
+      "command": "app_server_handle_json_lines",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": [
+        "account/read"
+      ]
+    },
+    {
+      "command": "app_server_handle_json_lines",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": [
+        "threadSection/list"
+      ]
+    },
+    {
+      "command": "app_server_handle_json_lines",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": [
+        "diagnostics/windowsStartup/read"
+      ]
+    },
+    {
+      "command": "app_server_handle_json_lines",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": [
+        "modelProvider/list"
+      ]
+    },
+    {
+      "command": "app_server_handle_json_lines",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": [
+        "workspace/default/ensure"
+      ]
+    },
+    {
+      "command": "app_server_handle_json_lines",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": [
+        "workspace/ensureReady"
+      ]
+    },
+    {
+      "command": "app_server_handle_json_lines",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": [
+        "modelProvider/update"
+      ]
+    },
+    {
+      "command": "app_server_handle_json_lines",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": [
+        "modelProvider/list"
+      ]
+    },
+    {
+      "command": "app_server_handle_json_lines",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": [
+        "modelSyncState/read"
+      ]
+    },
+    {
+      "command": "app_server_handle_json_lines",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": [
+        "promptHistory/read"
+      ]
+    },
+    {
+      "command": "app_server_handle_json_lines",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": [
+        "modelPreferences/list"
+      ]
+    },
+    {
+      "command": "app_server_handle_json_lines",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": [
+        "modelProvider/list"
+      ]
+    },
+    {
+      "command": "persisted_atom_read",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": []
+    },
+    {
+      "command": "persisted_atom_read",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": []
+    },
+    {
+      "command": "app_server_handle_json_lines",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": [
+        "model/list"
+      ]
+    },
+    {
+      "command": "app_server_drain_events",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": []
+    },
+    {
+      "command": "app_server_drain_events",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": []
+    },
+    {
+      "command": "app_server_drain_events",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": []
+    },
+    {
+      "command": "report_frontend_debug_log",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": []
+    },
+    {
+      "command": "app_server_drain_events",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": []
+    },
+    {
+      "command": "app_server_handle_json_lines",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": [
+        "threadSection/list"
+      ]
+    },
+    {
+      "command": "app_server_handle_json_lines",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": [
+        "threadSection/list"
+      ]
+    },
+    {
+      "command": "app_server_handle_json_lines",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": [
+        "thread/list"
+      ]
+    },
+    {
+      "command": "app_server_handle_json_lines",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": [
+        "thread/list"
+      ]
+    },
+    {
+      "command": "app_server_handle_json_lines",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": [
+        "thread/list"
+      ]
+    },
+    {
+      "command": "app_server_handle_json_lines",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": [
+        "thread/list"
+      ]
+    },
+    {
+      "command": "app_server_drain_events",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": []
+    },
+    {
+      "command": "app_server_drain_events",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": []
+    },
+    {
+      "command": "app_server_drain_events",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": []
+    },
+    {
+      "command": "app_server_drain_events",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": []
+    },
+    {
+      "command": "app_server_drain_events",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": []
+    },
+    {
+      "command": "app_server_drain_events",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": []
+    },
+    {
+      "command": "app_server_handle_json_lines",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": [
+        "threadSection/list"
+      ]
+    },
+    {
+      "command": "app_server_handle_json_lines",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": [
+        "modelProviderAlias/list"
+      ]
+    },
+    {
+      "command": "sync_tray_model_shortcuts",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": []
+    },
+    {
+      "command": "app_server_handle_json_lines",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": [
+        "thread/list"
+      ]
+    },
+    {
+      "command": "app_server_handle_json_lines",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": [
+        "thread/list"
+      ]
+    },
+    {
+      "command": "app_server_drain_events",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": []
+    },
+    {
+      "command": "app_server_handle_json_lines",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": [
+        "workspace/default/read"
+      ]
+    },
+    {
+      "command": "app_server_handle_json_lines",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": [
+        "memoryStore/health"
+      ]
+    },
+    {
+      "command": "app_server_handle_json_lines",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": [
+        "memoryStore/review/list"
+      ]
+    },
+    {
+      "command": "app_server_handle_json_lines",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": [
+        "memoryStore/list"
+      ]
+    },
+    {
+      "command": "app_server_drain_events",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": []
+    },
+    {
+      "command": "app_server_handle_json_lines",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": [
+        "memoryStore/review/list"
+      ]
+    },
+    {
+      "command": "app_server_handle_json_lines",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": [
+        "memoryStore/index/rebuild"
+      ]
+    },
+    {
+      "command": "app_server_handle_json_lines",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": [
+        "memoryStore/health"
+      ]
+    },
+    {
+      "command": "app_server_handle_json_lines",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": [
+        "workspace/default/read"
+      ]
+    },
+    {
+      "command": "app_server_handle_json_lines",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": [
+        "memoryStore/list"
+      ]
+    },
+    {
+      "command": "app_server_drain_events",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": []
+    },
+    {
+      "command": "app_server_handle_json_lines",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": [
+        "soulStylePack/list"
+      ]
+    },
+    {
+      "command": "app_server_drain_events",
+      "transport": "electron-ipc",
+      "status": "success",
+      "methods": []
+    }
+  ]
+}

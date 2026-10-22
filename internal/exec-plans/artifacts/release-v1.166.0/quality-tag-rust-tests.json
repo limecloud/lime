@@ -1,0 +1,14 @@
+{
+  "runId": 39628117773,
+  "jobId": 119318920365,
+  "headSha": "a7429000993b1516a3a58fd1b0e531f7974e13e5",
+  "conclusion": "success",
+  "passed": 8040,
+  "ignored": 27,
+  "testBinaryResults": 156,
+  "specificRegressionResults": [
+    "test runtime::projection_rebuild::queue_tests::real_rollout_rebuild_preserves_pending_queue_after_cold_hydration ... ok",
+    "test runtime::canonical_rollout::tests::digest::float_command_timings_survive_append_archive_and_cold_scan ... ok"
+  ],
+  "rawLog": "quality-tag-job-119318920365.log.gz"
+}

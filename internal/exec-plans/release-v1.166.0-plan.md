@@ -1,6 +1,6 @@
 # v1.166.0 发布执行计划
 
-状态：候选已冻结，本地最终门禁通过，准备 tag；负责人：root；日期：2026-10-21。
+状态：v1.166.0 全渠道已发布并验证，完成度 100%；负责人：root；完成日期：2026-10-22。
 
 ## 目标与范围
 
@@ -67,3 +67,30 @@
 - 原树后续 document-preview、office lifecycle、Electron localAsset 等其他 owner 改动保持工作树，按冻结规则留下一版；不进入本版 tag。
 
 - 最终标准 `npm run smoke:agent-runtime-current-fixture` exit 0，用时 399 秒：全部 22 个真实 Electron 场景通过，包括 Coding 业务与正常退出；没有诊断 wrapper 或人为 build-ready override。原失败完整保留。总结见 agent-final-scenarios.json；本地发布门禁完成，远端 Rust 全量与公开发布渠道仍待后继终态。
+
+
+## 标签与远端终态进展
+
+- 最终产品/测试候选提交 `a7429000993b1516a3a58fd1b0e531f7974e13e5`，tree `6cbf390d8676ee77383bd494db664f4dbed5c4fc`；正常 hooks 75 passed / 0 failed。main 已推送，annotated `v1.166.0` 已显式推送，远端 peeled ref 与该 SHA 一致。冻结副本 444 个存在的变更文件逐一与 tag Git 对象精确核对，删除路径也保持删除；后续并行产品改动未混入。
+- Quality `39623362323` 全部成功；Rust Full 日志汇总 8,040 passed / 27 ignored、156 个测试程序。精确 tag SHA 的 Quality `39628117773` 也已全成功（Frontend Full、Rust Full、GUI Smoke、总门禁）。原首轮失败仍保留。
+- Release `39628179175` 使用同一 SHA。Windows-x64 与 macOS-arm64 构建、打包验证通过；macOS-x64 仍在构建。未提前声称 GitHub stable、npm 或 R2 发布完成。
+- 已下载实际 packaged evidence。Windows CodeMode 截图显示最终文本及工具完成，但同时有“模型未输出最终答复”toast；对照 v1.165.0 的相同截图也存在。两版 canonical turn 均 completed，final assistant 可见，Gate B 断言均通过。该既有可见问题记录为下一版 owner 待复现，不声称已修复、无 UI 错误或 live 正确性；对照 PNG 和候选身份见 windows-code-mode-toast-observation.json。
+- 发布收尾仍需全部 Release jobs 成功、14 个资产/5 个 npm 包/3 个 feeds 的公开 HTTP 核验及公开 npm fresh-install CLI Gate B。后继纯证据提交不移动版本标签。
+
+- 2026-10-22：三个桌面构建 job 与 R2 job 全成功，GitHub stable 9 个桌面资产已公开；desktop-public-channels.json 对 3 个公开 feeds、版本与实际下载链接逐一核验，全部 HTTP 200。四平台 CLI npm 仍在编译/runner 排队，尚未声称 npm 完成。
+
+- macOS arm64 CLI job `119344747409` 在 runner 队列约 15 分钟后被 GitHub 自动 cancelled，runner_name 为空、steps 为空。官方 annotation 明确 hosted runner 多次分配失败和 macOS arm64 capacity constraints。其余编译继续；即时重试被 GitHub 以 job cannot be rerun 拒绝，待矩阵终态后仅重试该 job 和依赖发布，不改变源 SHA/tag。见 release-arm64-runner-capacity.json。
+
+- Release attempt 1 收口为 failure，仅因 macOS arm64 CLI 在未分配 runner 前被取消；其他桌面、R2 与三平台 CLI jobs 均 success。矩阵结束后按原 SHA 成功 rerun 仅 arm64 job，attempt 2 已立即分配 runner 并开始执行。未重建已成功的资产、未移动 tag；npm 发布待该 job 与依赖发布终态。
+
+
+## 最终交付与完成审计
+
+- Release `39628179175` attempt 2 已全部 success，共 11 个 job；源 SHA 始终为 `a7429000993b1516a3a58fd1b0e531f7974e13e5`。arm64 runner 容量问题只重试缺失 job 和其依赖发布，其他成功资产复用；版本 tag 未移动。
+- GitHub stable release 的 14 个资产全部 uploaded 且非空；5 个 npm 包的精确版本、四个平台 optionalDependencies、各自 dist-tag 与 root latest 均正确，registry tarballs 可下载；macOS 两架构与 Windows 共 3 个 R2 feeds 均为 1.166.0，feed 与下载链接全部 HTTP 200。见 public-channels.json 与 github-release.json。
+- 在全新依赖目录从公开 registry 安装 `@limecloud/lime@1.166.0`，launcher 输出 `lime 1.166.0`；使用随包 sibling App Server，完整 CLI Gate B exit 0，fixture 源与 tag 精确一致，记录 launcher/CLI/App Server 的 SHA-256。覆盖流式 JSON、reasoning、五语言 human、interrupt、resume/fork/review、images/schema/stdin/output-file、unavailable fail closed。
+- 公开产物的默认 stdio、active stdio、实际 CLI 命令 shutdown 三场景均证明真实 OS 进程退出、原线程 identity 与 terminal 冷读；上一版浮点摘要导致归档失败不再重现。三份原始 JSON 和完整 log 已入库，见 published-npm-shutdown-summary.json。该项至此以正式安装包证据关闭。
+- 精确 tag 的 Quality 全成功；Rust 8,040 passed / 27 ignored。完整 typecheck/contracts、329 项改动定向、标准 GUI smoke、22 个真实 Electron 聚合、Settings 全场与 macOS/Windows packaged gates 均有独立证据。既有 SDK all-path ESLint 基线错误单列，标准 CI lint 成功；不声称所有额外诊断全绿。
+- 本次发布完成度 100%（分母为版本/候选冻结、最低门禁、commit/tag/push、精确源码 CI、所有公开渠道、公开 npm 真进程回归和仓库证据）。完整 Codex/Memory 路线图、live provider、outer human TTY、TUI PTY 不在本次发布验收内；Windows CodeMode 的既有 toast 对照问题保持下一版待处理，不计作本版修复。
+- 分类：current 仍为既有 Desktop/CLI、App Server、RuntimeCore、canonical Thread/Turn/Item 与公开发布渠道；compat/deprecated 不新增；冻结候选的重复 Workbench 与旧 metadata/unarchive 分支保持 deleted。本轮发布后仅提交 `.gitignore` 的两条精确 PNG 例外、此计划与本版本 evidence；其他 owner 后续文件保留原树且不夹写、不进入 v1.166.0。
+- 发布后事实提交只是留存成功渠道和原始证据，不改变发布源码或标签。最终验证方法源码与边界见 public-verification-method.json；主摘要见 verification-summary.json。

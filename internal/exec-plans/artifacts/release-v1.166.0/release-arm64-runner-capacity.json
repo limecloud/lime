@@ -1,0 +1,87 @@
+{
+  "recordedAt": "2026-10-21T16:47:48.714696+00:00",
+  "runId": 39628179175,
+  "candidateSha": "a7429000993b1516a3a58fd1b0e531f7974e13e5",
+  "job": {
+    "id": 119344747409,
+    "run_id": 39628179175,
+    "workflow_name": "Release",
+    "head_branch": "v1.166.0",
+    "run_url": "https://api.github.com/repos/limecloud/lime/actions/runs/39628179175",
+    "run_attempt": 1,
+    "node_id": "CR_kwDOQoKJSM8AAAAbyYBTkQ",
+    "head_sha": "a7429000993b1516a3a58fd1b0e531f7974e13e5",
+    "url": "https://api.github.com/repos/limecloud/lime/actions/jobs/119344747409",
+    "html_url": "https://github.com/limecloud/lime/actions/runs/39628179175/job/119344747409",
+    "status": "completed",
+    "conclusion": "cancelled",
+    "created_at": "2026-10-21T16:31:19Z",
+    "started_at": "2026-10-21T16:31:19Z",
+    "completed_at": "2026-10-21T16:46:21Z",
+    "name": "Build CLI npm darwin-arm64",
+    "steps": [],
+    "check_run_url": "https://api.github.com/repos/limecloud/lime/check-runs/119344747409",
+    "labels": [
+      "macos-latest"
+    ],
+    "runner_id": 0,
+    "runner_name": "",
+    "runner_group_id": 0,
+    "runner_group_name": ""
+  },
+  "annotations": [
+    {
+      "path": ".github",
+      "blob_href": "https://github.com/limecloud/lime/blob/a7429000993b1516a3a58fd1b0e531f7974e13e5/.github",
+      "start_line": 1,
+      "start_column": null,
+      "end_line": 1,
+      "end_column": null,
+      "annotation_level": "failure",
+      "title": "",
+      "message": "The job was not acquired by Runner of type hosted even after multiple attempts",
+      "raw_details": ""
+    },
+    {
+      "path": ".github",
+      "blob_href": "https://github.com/limecloud/lime/blob/a7429000993b1516a3a58fd1b0e531f7974e13e5/.github",
+      "start_line": 1,
+      "start_column": null,
+      "end_line": 1,
+      "end_column": null,
+      "annotation_level": "notice",
+      "title": "",
+      "message": "Due to capacity constraints, jobs targeting macOS arm64 runners may experience longer queue times.",
+      "raw_details": ""
+    },
+    {
+      "path": ".github",
+      "blob_href": "https://github.com/limecloud/lime/blob/a7429000993b1516a3a58fd1b0e531f7974e13e5/.github",
+      "start_line": 1,
+      "start_column": null,
+      "end_line": 1,
+      "end_column": null,
+      "annotation_level": "notice",
+      "title": "",
+      "message": "Due to capacity constraints, jobs targeting macOS arm64 runners may experience longer queue times.",
+      "raw_details": ""
+    },
+    {
+      "path": ".github",
+      "blob_href": "https://github.com/limecloud/lime/blob/a7429000993b1516a3a58fd1b0e531f7974e13e5/.github",
+      "start_line": 1,
+      "start_column": null,
+      "end_line": 1,
+      "end_column": null,
+      "annotation_level": "notice",
+      "title": "",
+      "message": "Due to capacity constraints, jobs targeting macOS arm64 runners may experience longer queue times.",
+      "raw_details": ""
+    }
+  ],
+  "classification": "hosted-runner-capacity-before-any-build",
+  "recovery": {
+    "immediateJobRerun": "GitHub refused while remaining matrix jobs are still running: job cannot be rerun",
+    "nextAction": "Let remaining builds complete, then rerun only the cancelled arm64 job and dependent npm publication at unchanged SHA. No tag rewrite or replacement source."
+  }
+}

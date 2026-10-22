@@ -1,0 +1,25 @@
+{
+  "version": "1.166.0",
+  "sourceCommit": "a7429000993b1516a3a58fd1b0e531f7974e13e5",
+  "records": [
+    {
+      "host": "App Server",
+      "active": false,
+      "receipt": "published-npm-command-shutdown-0.json",
+      "result": "passed"
+    },
+    {
+      "host": "App Server",
+      "active": true,
+      "receipt": "published-npm-command-shutdown-1.json",
+      "result": "passed"
+    },
+    {
+      "host": "CLI",
+      "active": false,
+      "receipt": "published-npm-command-shutdown-2.json",
+      "result": "passed"
+    }
+  ],
+  "qualification": "Actual public packaged App Server and CLI; original thread identity, terminal cold read and actual OS process exit asserted. Prior archive-integrity failure did not recur."
+}

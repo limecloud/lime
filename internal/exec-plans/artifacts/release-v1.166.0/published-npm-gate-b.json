@@ -1,0 +1,33 @@
+{
+  "version": "1.166.0",
+  "recordedAt": "2026-10-22T01:40:56.079709+00:00",
+  "source": "npm public registry exact published versions",
+  "installPrefix": "/Users/coso/Documents/dev/ai/aiclientproxy/lime/.lime/release-v11660/npm-installed",
+  "launcherVersion": "lime 1.166.0",
+  "packages": [
+    {
+      "name": "@limecloud/lime",
+      "version": "1.166.0"
+    },
+    {
+      "name": "@limecloud/lime-darwin-arm64",
+      "version": "1.166.0-darwin-arm64"
+    }
+  ],
+  "gateExitCode": 0,
+  "boundary": "Installed npm launcher -> sibling packaged App Server -> real stdio JSON-RPC -> canonical projection and visible CLI output; controlled external backend, no live provider.",
+  "fixtureSourceCommit": "a7429000993b1516a3a58fd1b0e531f7974e13e5",
+  "verifiedFixtureSourceHashes": {
+    "scripts/app-server/cli-gate-b.mjs": "7777e4576f9ed9ff90ec4aa7ba1699f1ac31f4d260995b821b0fa6cb27ebfa8d",
+    "scripts/app-server/cli-exec-gate-b.mjs": "4108addb5236a2591c1390a2961dcca841ac360e551a2ed04f7fa67e88852cf7",
+    "scripts/app-server/cli-reasoning-gate-b.mjs": "9fa66afaf59acc7320b12fba5dcab082bdecfe78b8349a2449e7215ffebb6817",
+    "scripts/app-server/cli-interrupt-gate-b.mjs": "368c5cc5b9ee883ba47b4aba40fa676ff1cf716aa0fdef8de278c565e81f7777",
+    "scripts/app-server/terminal-gate-binaries.mjs": "3cf79a6cbb37c53a9843d5b02229645ac65b469a5211aab16ed1f27b1b4d182c",
+    "scripts/app-server/terminal-gate-fixture.mjs": "5b11f567db2c25f94e14881f1e22998ff3074a3967452deabbdac83af106eb24"
+  },
+  "payload": {
+    "lime.js": "4f8f8a76087e6de9ce4e8a3f249e01c74fad86bf6aecb634a7c2b5157fa5e639",
+    "app-server": "55b82bd4e1d486a5287849e7132aada0114db921b17cdd79ec4d7a255e7aa455",
+    "lime": "f4332d2552eef62661171cddd7f89e718e0fa2a19e6f337036a80a6cdfeaf84b"
+  }
+}

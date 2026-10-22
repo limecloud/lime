@@ -1,0 +1,55 @@
+{
+  "recordedAt": "2026-10-21T16:12:26.873175+00:00",
+  "classification": "existing-visible-issue-next-version",
+  "observation": "Both v1.165.0 and v1.166.0 Windows CodeMode packaged screenshots show a no-final-reply toast alongside the visible final assistant marker. Both canonical turns completed and their Gate B assertions passed.",
+  "qualification": "Visual observation only; root cause and generality not established. Do not claim absence of UI errors or resolution in v1.166.0.",
+  "nextAction": "Next-version owner should reproduce the toast against the same real packaged chain and cover absence of stale error notification when canonical final text is projected.",
+  "evidence": [
+    {
+      "version": "1.165.0",
+      "artifactId": 12344365791,
+      "candidateSha": "30d59ae8754a717756821d0323a74beba8ade986",
+      "image": "windows-code-mode-previous-toast.png",
+      "imageSha256": "09afb615498a1025e3da84f14f5fba8539764125af96449fb498de20edd093b5",
+      "canonical": {
+        "turnStatus": "completed",
+        "outerExec": {
+          "id": "item_call-code-mode-gate-b",
+          "type": "dynamicToolCall",
+          "name": "exec",
+          "status": "completed"
+        },
+        "publicItemTypes": [
+          "userMessage",
+          "dynamicToolCall",
+          "agentMessage"
+        ]
+      },
+      "finalAssistantTextVisible": true,
+      "failedAssertions": []
+    },
+    {
+      "version": "1.166.0",
+      "artifactId": 12360410017,
+      "candidateSha": "a7429000993b1516a3a58fd1b0e531f7974e13e5",
+      "image": "windows-code-mode-current-toast.png",
+      "imageSha256": "fe0c8bb7a818a2a40618e4a2f7be6d7999dbf7b5ca1a5c28a842d53f1507f4e2",
+      "canonical": {
+        "turnStatus": "completed",
+        "outerExec": {
+          "id": "item_call-code-mode-gate-b",
+          "type": "dynamicToolCall",
+          "name": "exec",
+          "status": "completed"
+        },
+        "publicItemTypes": [
+          "userMessage",
+          "dynamicToolCall",
+          "agentMessage"
+        ]
+      },
+      "finalAssistantTextVisible": true,
+      "failedAssertions": []
+    }
+  ]
+}

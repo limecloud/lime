@@ -1,0 +1,271 @@
+{
+  "schemaVersion": "v1",
+  "scenarioId": "code-mode-electron-gate-b",
+  "status": "pass",
+  "generatedAt": "2026-10-21T16:04:42.526Z",
+  "proofLevel": "Gate B",
+  "claimBoundary": "installed packaged Electron host/preload/IPC/App Server runtime/standalone code-mode-host process/read model/visible DOM with a controlled Responses fixture; not a live-provider or cross-platform packaged parity claim",
+  "candidateRunId": "release-39628179175-1-win32-x64",
+  "candidateSha": "a7429000993b1516a3a58fd1b0e531f7974e13e5",
+  "packagedExecutable": true,
+  "packagedExecutablePath": "C:\\Users\\runneradmin\\AppData\\Local\\lime\\app-1.166.0\\Lime.exe",
+  "url": "file:///C:/Users/runneradmin/AppData/Local/lime/app-1.166.0/resources/app.asar/dist/index.html?nativeStartup=1",
+  "identity": {
+    "sessionId": "01a15f35-1464-7671-bcf7-bde156fc8bb1",
+    "threadId": "01a15f35-1464-7671-bcf7-bde156fc8bb1",
+    "turnId": "turn_c41f47ab9e2b4f6983a021ae877a2338"
+  },
+  "model": {
+    "id": "fixture-code-mode",
+    "source": "Api",
+    "toolMode": "code_mode",
+    "runtimeFeatures": [
+      "streaming",
+      "tool_calling",
+      "custom_tools",
+      "responses_api"
+    ]
+  },
+  "provider": {
+    "discoveryRequestCount": 1,
+    "discoveryUsedOfficialHost": true,
+    "responsesRequestCount": 2,
+    "memoryRequestCount": 1,
+    "responsesUsedOfficialHost": true,
+    "firstRequestAdvertisedExec": true,
+    "execToolType": "custom",
+    "execFormatType": "grammar",
+    "execFormatSyntax": "lark",
+    "secondRequestHasCustomToolOutput": true,
+    "customToolOutputContainsMarker": true,
+    "customToolOutput": "Script completed\nOutput:\nCODE_MODE_GATE_B_OK",
+    "requestErrors": []
+  },
+  "codeCellTrace": {
+    "available": true,
+    "traceId": "code-cell-01a15f35-1464-7671-bcf7-bde156fc8bb1",
+    "eventTypes": [
+      "code_cell.source_item_observed",
+      "code_cell.started",
+      "code_cell.initial_response",
+      "code_cell.ended",
+      "code_cell.output_item_observed"
+    ],
+    "lifecycleOrdered": true,
+    "runtimeCellId": "1",
+    "source": {
+      "modelVisibleCallId": "call-code-mode-gate-b",
+      "itemId": "item_call-code-mode-gate-b"
+    },
+    "output": {
+      "itemId": "item_call-code-mode-gate-b"
+    },
+    "initialStatus": "completed",
+    "endedStatus": "completed",
+    "sourceJsChars": 28,
+    "sourceJsSha256": "5d63a93802c318c29e42c7e0bb23c3d1dc0d9cdebbcf924c62ec4c4526b74124",
+    "sourceSummaryOnly": true,
+    "redaction": {
+      "mode": "summary_only",
+      "promptText": false,
+      "providerPayload": false,
+      "rawAgentEventPayload": false
+    },
+    "bridgeCall": {
+      "command": "app_server_handle_json_lines",
+      "method": "diagnostics/trace/read",
+      "transport": "electron-ipc",
+      "status": "success"
+    }
+  },
+  "processes": {
+    "electronPid": 4840,
+    "appServerPid": 984,
+    "appServerParentPid": 6448,
+    "codeModeHostPid": 5040,
+    "codeModeHostParentPid": 984,
+    "appServerCommand": "C:\\Users\\runneradmin\\AppData\\Local\\lime\\app-1.166.0\\resources\\app-server\\win32-x64\\app-server.exe --stdio --backend runtime --data-dir C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\mcp-config-GYCcUM\\electron-user-data\\app-server",
+    "codeModeHostCommand": "\"C:\\Users\\runneradmin\\AppData\\Local\\lime\\app-1.166.0\\resources\\app-server\\win32-x64\\code-mode-host.exe\""
+  },
+  "canonical": {
+    "turnStatus": "completed",
+    "outerExec": {
+      "id": "item_call-code-mode-gate-b",
+      "type": "dynamicToolCall",
+      "name": "exec",
+      "status": "completed"
+    },
+    "publicItemTypes": [
+      "userMessage",
+      "dynamicToolCall",
+      "agentMessage"
+    ]
+  },
+  "gui": {
+    "electron": true,
+    "activeSessionId": "01a15f35-1464-7671-bcf7-bde156fc8bb1",
+    "finalAssistantTextVisible": true,
+    "toolRows": [
+      {
+        "name": "exec",
+        "status": "completed",
+        "visible": true,
+        "text": "•已运行"
+      }
+    ],
+    "consoleErrors": [],
+    "pageErrors": [],
+    "screenshotPath": ".lime\\qc\\gui-evidence\\code-mode-electron-gate-b-windows\\code-mode-electron-gate-b.png"
+  },
+  "bridge": {
+    "calls": [
+      {
+        "method": "thread/queue/list",
+        "threadId": "01a15f35-1464-7671-bcf7-bde156fc8bb1",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "method": "thread/read",
+        "threadId": "01a15f35-1464-7671-bcf7-bde156fc8bb1",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "method": "model/list",
+        "threadId": "",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "method": "thread/list",
+        "threadId": "",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "method": "permissionProfile/list",
+        "threadId": "",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "method": "turn/start",
+        "threadId": "01a15f35-1464-7671-bcf7-bde156fc8bb1",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "method": "promptHistory/append",
+        "threadId": "01a15f35-1464-7671-bcf7-bde156fc8bb1",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "method": "thread/list",
+        "threadId": "",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "method": "thread/list",
+        "threadId": "",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "method": "thread/list",
+        "threadId": "",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "method": "thread/list",
+        "threadId": "",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "method": "workspaceRightSurface/pending/list",
+        "threadId": "",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "method": "modelProvider/list",
+        "threadId": "",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "method": "thread/read",
+        "threadId": "01a15f35-1464-7671-bcf7-bde156fc8bb1",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "method": "thread/items/list",
+        "threadId": "01a15f35-1464-7671-bcf7-bde156fc8bb1",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "method": "thread/turns/list",
+        "threadId": "01a15f35-1464-7671-bcf7-bde156fc8bb1",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "method": "thread/list",
+        "threadId": "",
+        "transport": "electron-ipc",
+        "status": "success"
+      }
+    ],
+    "invokeErrorCount": 0,
+    "mockFallbackHitCount": 0
+  },
+  "requestMethods": [
+    "initialize",
+    "initialized",
+    "workspace/default/ensure",
+    "modelProvider/create",
+    "modelProvider/update",
+    "modelProviderKey/create",
+    "modelProvider/fetchModels",
+    "thread/start",
+    "thread/read",
+    "thread/read",
+    "thread/read",
+    "thread/read",
+    "thread/read",
+    "thread/read",
+    "thread/read",
+    "thread/read",
+    "diagnostics/trace/read"
+  ],
+  "assertions": {
+    "realElectronHost": true,
+    "standaloneCodeModeHost": true,
+    "codeModeHostOwnedByAppServer": true,
+    "explicitCodeModeModel": true,
+    "officialHostCapabilityPath": true,
+    "providerAdvertisedCustomExec": true,
+    "providerReceivedCustomToolOutput": true,
+    "canonicalOuterExecCompleted": true,
+    "codeCellTraceLifecycleComplete": true,
+    "codeCellTraceCanonicalItems": true,
+    "codeCellTraceSummaryOnly": true,
+    "codeCellTraceReadViaCurrentBridge": true,
+    "publicCodeCellAbsent": true,
+    "turnCompleted": true,
+    "finalAssistantProjected": true,
+    "execToolVisibleAndCompleted": true,
+    "guiTurnUsedCurrentElectronBridge": true,
+    "productionMockFallbackZero": true,
+    "invokeErrorsZero": true,
+    "consoleErrorsZero": true,
+    "providerRequestErrorsZero": true
+  },
+  "failedAssertions": []
+}

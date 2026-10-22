@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "PLT-02-windows-packaged-evidence",
+  "proofLevel": "Gate B",
+  "claimBoundary": "The Windows Squirrel-installed Lime.exe, packaged app-server/code-mode-host processes, installed desktop resource manifest, and read-only native host Gate B all refer to one candidate installation; this does not replace real Windows GUI visual comparison with Codex Desktop.",
+  "result": "passed",
+  "candidate": {
+    "version": "1.166.0",
+    "sha": "a7429000993b1516a3a58fd1b0e531f7974e13e5",
+    "runId": "release-39628179175-1-win32-x64",
+    "executable": "C:\\Users\\runneradmin\\AppData\\Local\\lime\\app-1.166.0\\Lime.exe",
+    "resourcesRoot": "C:\\Users\\runneradmin\\AppData\\Local\\lime\\app-1.166.0\\resources"
+  },
+  "checks": [
+    {
+      "name": "squirrel-summary",
+      "status": "passed",
+      "candidateRunId": "release-39628179175-1-win32-x64",
+      "executable": "C:\\Users\\runneradmin\\AppData\\Local\\lime\\app-1.166.0\\Lime.exe",
+      "resourcesRoot": "C:\\Users\\runneradmin\\AppData\\Local\\lime\\app-1.166.0\\resources"
+    },
+    {
+      "name": "installed-resource-manifest",
+      "status": "passed",
+      "resourceIds": [
+        "app-server",
+        "code-mode-host",
+        "windows-native-host",
+        "windows-sandbox-runner",
+        "windows-sandbox-setup"
+      ]
+    },
+    {
+      "name": "code-mode-summary",
+      "status": "passed"
+    },
+    {
+      "name": "native-host-summary",
+      "status": "passed"
+    }
+  ],
+  "sources": {
+    "squirrelSummary": "D:\\a\\lime\\lime\\.lime\\qc\\windows-squirrel-rc\\1.166.0\\summary.json",
+    "codeModeSummary": "D:\\a\\lime\\lime\\.lime\\qc\\gui-evidence\\code-mode-electron-gate-b-windows\\code-mode-electron-gate-b-summary.json",
+    "nativeHostSummary": "D:\\a\\lime\\lime\\.lime\\qc\\gui-evidence\\windows-native-host-gate-b\\summary.json"
+  }
+}

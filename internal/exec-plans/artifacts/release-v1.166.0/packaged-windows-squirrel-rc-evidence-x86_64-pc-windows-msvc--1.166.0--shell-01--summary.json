@@ -1,0 +1,557 @@
+{
+  "schemaVersion": 1,
+  "scenarioId": "SHELL-01-electron-smoke",
+  "priority": "P0",
+  "proofLevel": "Gate B-F",
+  "claimBoundary": "Real Electron startup, renderer reload, preload/IPC, App Server JSON-RPC, Workbench readiness, Settings route, and three-size responsive layout contract; no provider turn, Thread/Turn/Item identity, live-provider, packaged-app, or Codex Desktop pixel-parity claim.",
+  "candidateRunId": "release-39628179175-1-win32-x64",
+  "platform": {
+    "os": "win32",
+    "arch": "x64",
+    "appVersion": "1.166.0"
+  },
+  "backendMode": "default-runtime",
+  "startedAt": "2026-10-21T16:04:25.054Z",
+  "completedAt": "2026-10-21T16:04:32.616Z",
+  "result": "pass",
+  "failedStage": null,
+  "failureClass": null,
+  "nextAction": null,
+  "surfaceProof": {
+    "surfaceId": "SHELL-01",
+    "proof": "gate-b-f",
+    "complete": true
+  },
+  "routes": [
+    {
+      "stage": "startup",
+      "ready": true,
+      "location": "file:///main-window-startup.html",
+      "title": ""
+    },
+    {
+      "stage": "workbench",
+      "ready": true,
+      "location": "file:///index.html?nativeStartup",
+      "title": "Lime"
+    },
+    {
+      "stage": "workbench-reload",
+      "ready": true,
+      "location": "file:///index.html?nativeStartup",
+      "title": "Lime"
+    },
+    {
+      "stage": "settings-memory",
+      "ready": true,
+      "location": "file:///index.html?nativeStartup",
+      "title": "Lime"
+    }
+  ],
+  "layout": {
+    "proofLevel": "electron-responsive-layout-contract",
+    "claimBoundary": "Real Electron BrowserWindow setSize/getSize and renderer geometry across 1536x960, 1280x800, and 980x680; this is a responsive layout contract, not Codex Desktop pixel-level visual parity or Windows packaged evidence.",
+    "viewports": [
+      {
+        "requested": {
+          "width": 1536,
+          "height": 960
+        },
+        "window": {
+          "width": 1536,
+          "height": 960
+        },
+        "viewport": {
+          "width": 1520,
+          "height": 895
+        },
+        "document": {
+          "scrollWidth": 1520,
+          "scrollHeight": 895
+        },
+        "nodes": {
+          "workspaceShell": {
+            "testId": "workspace-shell-scene",
+            "present": true,
+            "visible": true,
+            "rect": {
+              "x": 340,
+              "y": 44,
+              "width": 1176,
+              "height": 847,
+              "right": 1516,
+              "bottom": 891
+            },
+            "withinViewport": true,
+            "required": true
+          },
+          "workspaceMainArea": {
+            "testId": "workspace-main-area",
+            "present": true,
+            "visible": true,
+            "rect": {
+              "x": 340,
+              "y": 44,
+              "width": 1176,
+              "height": 847,
+              "right": 1516,
+              "bottom": 891
+            },
+            "withinViewport": true,
+            "required": true
+          },
+          "inputbarCore": {
+            "testId": "inputbar-core-container",
+            "present": true,
+            "visible": true,
+            "rect": {
+              "x": 545,
+              "y": 629,
+              "width": 766,
+              "height": 188,
+              "right": 1311,
+              "bottom": 817
+            },
+            "withinViewport": true,
+            "required": true
+          },
+          "composerInput": {
+            "testId": "composer-editor",
+            "present": true,
+            "visible": true,
+            "rect": {
+              "x": 553,
+              "y": 637,
+              "width": 750,
+              "height": 136,
+              "right": 1303,
+              "bottom": 773
+            },
+            "withinViewport": true,
+            "required": true
+          },
+          "messageListColumn": {
+            "testId": "message-list-column",
+            "present": false,
+            "visible": false,
+            "rect": null,
+            "withinViewport": false,
+            "required": false
+          },
+          "emptyStateFirstScreen": {
+            "testId": "empty-state-first-screen",
+            "present": true,
+            "visible": true,
+            "rect": {
+              "x": 340,
+              "y": 44,
+              "width": 1176,
+              "height": 847,
+              "right": 1516,
+              "bottom": 891
+            },
+            "withinViewport": true,
+            "required": false
+          },
+          "threadHeader": {
+            "testId": "thread-workspace-header",
+            "present": false,
+            "visible": false,
+            "rect": null,
+            "withinViewport": false,
+            "required": false
+          },
+          "threadHeaderTitle": {
+            "testId": "thread-workspace-header-title",
+            "present": false,
+            "visible": false,
+            "rect": null,
+            "withinViewport": false,
+            "required": false
+          },
+          "threadHeaderActions": {
+            "testId": "thread-workspace-header-actions",
+            "present": false,
+            "visible": false,
+            "rect": null,
+            "withinViewport": false,
+            "required": false
+          }
+        },
+        "assertions": {
+          "windowSizeMatchesRequest": true,
+          "requiredNodesVisible": true,
+          "requiredNodesWithinViewport": true,
+          "contentSurfacePresent": true,
+          "noHorizontalOverflow": true,
+          "headerTitleVisible": true,
+          "headerActionsDoNotOverlap": true
+        }
+      },
+      {
+        "requested": {
+          "width": 1280,
+          "height": 800
+        },
+        "window": {
+          "width": 1280,
+          "height": 800
+        },
+        "viewport": {
+          "width": 1264,
+          "height": 735
+        },
+        "document": {
+          "scrollWidth": 1264,
+          "scrollHeight": 735
+        },
+        "nodes": {
+          "workspaceShell": {
+            "testId": "workspace-shell-scene",
+            "present": true,
+            "visible": true,
+            "rect": {
+              "x": 340,
+              "y": 44,
+              "width": 920,
+              "height": 687,
+              "right": 1260,
+              "bottom": 731
+            },
+            "withinViewport": true,
+            "required": true
+          },
+          "workspaceMainArea": {
+            "testId": "workspace-main-area",
+            "present": true,
+            "visible": true,
+            "rect": {
+              "x": 340,
+              "y": 44,
+              "width": 920,
+              "height": 687,
+              "right": 1260,
+              "bottom": 731
+            },
+            "withinViewport": true,
+            "required": true
+          },
+          "inputbarCore": {
+            "testId": "inputbar-core-container",
+            "present": true,
+            "visible": true,
+            "rect": {
+              "x": 417,
+              "y": 469,
+              "width": 766,
+              "height": 188,
+              "right": 1183,
+              "bottom": 657
+            },
+            "withinViewport": true,
+            "required": true
+          },
+          "composerInput": {
+            "testId": "composer-editor",
+            "present": true,
+            "visible": true,
+            "rect": {
+              "x": 425,
+              "y": 477,
+              "width": 750,
+              "height": 136,
+              "right": 1175,
+              "bottom": 613
+            },
+            "withinViewport": true,
+            "required": true
+          },
+          "messageListColumn": {
+            "testId": "message-list-column",
+            "present": false,
+            "visible": false,
+            "rect": null,
+            "withinViewport": false,
+            "required": false
+          },
+          "emptyStateFirstScreen": {
+            "testId": "empty-state-first-screen",
+            "present": true,
+            "visible": true,
+            "rect": {
+              "x": 340,
+              "y": 44,
+              "width": 920,
+              "height": 687,
+              "right": 1260,
+              "bottom": 731
+            },
+            "withinViewport": true,
+            "required": false
+          },
+          "threadHeader": {
+            "testId": "thread-workspace-header",
+            "present": false,
+            "visible": false,
+            "rect": null,
+            "withinViewport": false,
+            "required": false
+          },
+          "threadHeaderTitle": {
+            "testId": "thread-workspace-header-title",
+            "present": false,
+            "visible": false,
+            "rect": null,
+            "withinViewport": false,
+            "required": false
+          },
+          "threadHeaderActions": {
+            "testId": "thread-workspace-header-actions",
+            "present": false,
+            "visible": false,
+            "rect": null,
+            "withinViewport": false,
+            "required": false
+          }
+        },
+        "assertions": {
+          "windowSizeMatchesRequest": true,
+          "requiredNodesVisible": true,
+          "requiredNodesWithinViewport": true,
+          "contentSurfacePresent": true,
+          "noHorizontalOverflow": true,
+          "headerTitleVisible": true,
+          "headerActionsDoNotOverlap": true
+        }
+      },
+      {
+        "requested": {
+          "width": 980,
+          "height": 680
+        },
+        "window": {
+          "width": 980,
+          "height": 680
+        },
+        "viewport": {
+          "width": 964,
+          "height": 615
+        },
+        "document": {
+          "scrollWidth": 964,
+          "scrollHeight": 615
+        },
+        "nodes": {
+          "workspaceShell": {
+            "testId": "workspace-shell-scene",
+            "present": true,
+            "visible": true,
+            "rect": {
+              "x": 340,
+              "y": 44,
+              "width": 620,
+              "height": 567,
+              "right": 960,
+              "bottom": 611
+            },
+            "withinViewport": true,
+            "required": true
+          },
+          "workspaceMainArea": {
+            "testId": "workspace-main-area",
+            "present": true,
+            "visible": true,
+            "rect": {
+              "x": 340,
+              "y": 44,
+              "width": 620,
+              "height": 567,
+              "right": 960,
+              "bottom": 611
+            },
+            "withinViewport": true,
+            "required": true
+          },
+          "inputbarCore": {
+            "testId": "inputbar-core-container",
+            "present": true,
+            "visible": true,
+            "rect": {
+              "x": 365,
+              "y": 349,
+              "width": 570,
+              "height": 188,
+              "right": 935,
+              "bottom": 537
+            },
+            "withinViewport": true,
+            "required": true
+          },
+          "composerInput": {
+            "testId": "composer-editor",
+            "present": true,
+            "visible": true,
+            "rect": {
+              "x": 373,
+              "y": 357,
+              "width": 554,
+              "height": 136,
+              "right": 927,
+              "bottom": 493
+            },
+            "withinViewport": true,
+            "required": true
+          },
+          "messageListColumn": {
+            "testId": "message-list-column",
+            "present": false,
+            "visible": false,
+            "rect": null,
+            "withinViewport": false,
+            "required": false
+          },
+          "emptyStateFirstScreen": {
+            "testId": "empty-state-first-screen",
+            "present": true,
+            "visible": true,
+            "rect": {
+              "x": 340,
+              "y": 44,
+              "width": 620,
+              "height": 567,
+              "right": 960,
+              "bottom": 611
+            },
+            "withinViewport": true,
+            "required": false
+          },
+          "threadHeader": {
+            "testId": "thread-workspace-header",
+            "present": false,
+            "visible": false,
+            "rect": null,
+            "withinViewport": false,
+            "required": false
+          },
+          "threadHeaderTitle": {
+            "testId": "thread-workspace-header-title",
+            "present": false,
+            "visible": false,
+            "rect": null,
+            "withinViewport": false,
+            "required": false
+          },
+          "threadHeaderActions": {
+            "testId": "thread-workspace-header-actions",
+            "present": false,
+            "visible": false,
+            "rect": null,
+            "withinViewport": false,
+            "required": false
+          }
+        },
+        "assertions": {
+          "windowSizeMatchesRequest": true,
+          "requiredNodesVisible": true,
+          "requiredNodesWithinViewport": true,
+          "contentSurfacePresent": true,
+          "noHorizontalOverflow": true,
+          "headerTitleVisible": true,
+          "headerActionsDoNotOverlap": true
+        }
+      }
+    ],
+    "screenshots": [
+      "layout-1536x960.png",
+      "layout-1280x800.png",
+      "layout-980x680.png"
+    ],
+    "assertions": {
+      "expectedViewportCount": 3,
+      "capturedViewportCount": 3,
+      "allViewportsPass": true,
+      "composerHeightStable": true,
+      "composerHeightRange": 0
+    }
+  },
+  "bridge": {
+    "electron": true,
+    "preloadInvoke": true,
+    "transport": "electron-ipc",
+    "command": "app_server_handle_json_lines",
+    "appServerIpcHitCount": 49,
+    "methods": [
+      "account/read",
+      "config/read",
+      "diagnostics/windowsStartup/read",
+      "memoryStore/health",
+      "memoryStore/index/rebuild",
+      "memoryStore/list",
+      "memoryStore/review/list",
+      "model/list",
+      "modelPreferences/list",
+      "modelProvider/list",
+      "modelProvider/update",
+      "modelProviderAlias/list",
+      "modelSyncState/read",
+      "promptHistory/read",
+      "soulStylePack/list",
+      "thread/list",
+      "threadSection/list",
+      "workspace/default/ensure",
+      "workspace/default/read",
+      "workspace/ensureReady"
+    ],
+    "hostInitialized": true,
+    "hostProtocol": "appserver.v0"
+  },
+  "errors": {
+    "consoleErrorCount": 0,
+    "rendererCrashCount": 0,
+    "rendererUnresponsiveCount": 0,
+    "preloadErrorCount": 0,
+    "rendererLoadErrorCount": 0,
+    "invokeErrorCount": 0,
+    "traceErrorCount": 0,
+    "pageErrorCount": 0,
+    "legacyCommandHitCount": 0,
+    "legacyCommands": [],
+    "mockFallbackHitCount": 0
+  },
+  "assertions": {
+    "total": 24,
+    "passed": 24,
+    "failed": [],
+    "details": {
+      "startupVisible": true,
+      "workbenchReady": true,
+      "workbenchReloadReady": true,
+      "settingsMemoryReady": true,
+      "electronRenderer": true,
+      "electronPreloadInvokeAvailable": true,
+      "appServerCommandSupported": true,
+      "electronIpcAppServerBridgeUsed": true,
+      "currentAppServerMethodObserved": true,
+      "hostAppServerInitialized": true,
+      "noConsoleErrors": true,
+      "noPageErrors": true,
+      "noInvokeErrors": true,
+      "noRendererCrashes": true,
+      "noRendererUnresponsiveEvents": true,
+      "noPreloadErrors": true,
+      "noRendererLoadErrors": true,
+      "noLegacyCommandHits": true,
+      "noMockFallbackHits": true,
+      "traceCaptured": true,
+      "screenshotCaptured": true,
+      "layoutViewportsCaptured": true,
+      "layoutGeometryStable": true,
+      "layoutScreenshotsCaptured": true
+    }
+  },
+  "artifacts": {
+    "summary": "summary.json",
+    "trace": "trace-summary.json",
+    "screenshot": "settings-memory.png"
+  }
+}

@@ -1,0 +1,165 @@
+{
+  "total_count": 8,
+  "artifacts": [
+    {
+      "id": 12360427506,
+      "node_id": "MDg6QXJ0aWZhY3QxMjM2MDQyNzUwNg==",
+      "name": "macos-native-host-gate-b-evidence-x64",
+      "size_in_bytes": 199759,
+      "url": "https://api.github.com/repos/limecloud/lime/actions/artifacts/12360427506",
+      "archive_download_url": "https://api.github.com/repos/limecloud/lime/actions/artifacts/12360427506/zip",
+      "expired": false,
+      "digest": "sha256:84a412a008376de7032cfef165b4641fe2abb32aa37197bf49f5b58d209b57e2",
+      "created_at": "2026-10-21T16:23:07Z",
+      "updated_at": "2026-10-21T16:23:07Z",
+      "expires_at": "2026-10-28T16:23:05Z",
+      "workflow_run": {
+        "id": 39628179175,
+        "repository_id": 1115851080,
+        "head_repository_id": 1115851080,
+        "head_branch": "v1.166.0",
+        "head_sha": "a7429000993b1516a3a58fd1b0e531f7974e13e5"
+      }
+    },
+    {
+      "id": 12360410017,
+      "node_id": "MDg6QXJ0aWZhY3QxMjM2MDQxMDAxNw==",
+      "name": "windows-code-mode-gate-b-evidence-x86_64-pc-windows-msvc",
+      "size_in_bytes": 111230,
+      "url": "https://api.github.com/repos/limecloud/lime/actions/artifacts/12360410017",
+      "archive_download_url": "https://api.github.com/repos/limecloud/lime/actions/artifacts/12360410017/zip",
+      "expired": false,
+      "digest": "sha256:d457b60f7becea672aecf0e2570233afda7c61a841055c8df438f86ef0dd991a",
+      "created_at": "2026-10-21T16:04:51Z",
+      "updated_at": "2026-10-21T16:04:51Z",
+      "expires_at": "2026-10-28T16:04:50Z",
+      "workflow_run": {
+        "id": 39628179175,
+        "repository_id": 1115851080,
+        "head_repository_id": 1115851080,
+        "head_branch": "v1.166.0",
+        "head_sha": "a7429000993b1516a3a58fd1b0e531f7974e13e5"
+      }
+    },
+    {
+      "id": 12359921010,
+      "node_id": "MDg6QXJ0aWZhY3QxMjM1OTkyMTAxMA==",
+      "name": "release-assets-x86_64-pc-windows-msvc",
+      "size_in_bytes": 823986793,
+      "url": "https://api.github.com/repos/limecloud/lime/actions/artifacts/12359921010",
+      "archive_download_url": "https://api.github.com/repos/limecloud/lime/actions/artifacts/12359921010/zip",
+      "expired": false,
+      "digest": "sha256:975beebf5ef5e79071cacbc3eceefe837618e5b75bdaf158bca3353ddd1940ef",
+      "created_at": "2026-10-21T16:05:18Z",
+      "updated_at": "2026-10-21T16:05:18Z",
+      "expires_at": "2026-10-28T16:04:53Z",
+      "workflow_run": {
+        "id": 39628179175,
+        "repository_id": 1115851080,
+        "head_repository_id": 1115851080,
+        "head_branch": "v1.166.0",
+        "head_sha": "a7429000993b1516a3a58fd1b0e531f7974e13e5"
+      }
+    },
+    {
+      "id": 12359841395,
+      "node_id": "MDg6QXJ0aWZhY3QxMjM1OTg0MTM5NQ==",
+      "name": "windows-packaged-evidence-x86_64-pc-windows-msvc",
+      "size_in_bytes": 819,
+      "url": "https://api.github.com/repos/limecloud/lime/actions/artifacts/12359841395",
+      "archive_download_url": "https://api.github.com/repos/limecloud/lime/actions/artifacts/12359841395/zip",
+      "expired": false,
+      "digest": "sha256:6858de49438bb1c6297a82d492e996a5537b9fa2ed279c5aa129cd70825663a1",
+      "created_at": "2026-10-21T16:04:53Z",
+      "updated_at": "2026-10-21T16:04:53Z",
+      "expires_at": "2026-10-28T16:04:52Z",
+      "workflow_run": {
+        "id": 39628179175,
+        "repository_id": 1115851080,
+        "head_repository_id": 1115851080,
+        "head_branch": "v1.166.0",
+        "head_sha": "a7429000993b1516a3a58fd1b0e531f7974e13e5"
+      }
+    },
+    {
+      "id": 12359616799,
+      "node_id": "MDg6QXJ0aWZhY3QxMjM1OTYxNjc5OQ==",
+      "name": "windows-squirrel-rc-evidence-x86_64-pc-windows-msvc",
+      "size_in_bytes": 1321344,
+      "url": "https://api.github.com/repos/limecloud/lime/actions/artifacts/12359616799",
+      "archive_download_url": "https://api.github.com/repos/limecloud/lime/actions/artifacts/12359616799/zip",
+      "expired": false,
+      "digest": "sha256:d660163c82697994b89691c22242e6a5e5256eed0646f3d0bd5257a50b4c7e51",
+      "created_at": "2026-10-21T16:04:49Z",
+      "updated_at": "2026-10-21T16:04:49Z",
+      "expires_at": "2026-10-28T16:04:48Z",
+      "workflow_run": {
+        "id": 39628179175,
+        "repository_id": 1115851080,
+        "head_repository_id": 1115851080,
+        "head_branch": "v1.166.0",
+        "head_sha": "a7429000993b1516a3a58fd1b0e531f7974e13e5"
+      }
+    },
+    {
+      "id": 12359426110,
+      "node_id": "MDg6QXJ0aWZhY3QxMjM1OTQyNjExMA==",
+      "name": "release-assets-aarch64-apple-darwin",
+      "size_in_bytes": 751637501,
+      "url": "https://api.github.com/repos/limecloud/lime/actions/artifacts/12359426110",
+      "archive_download_url": "https://api.github.com/repos/limecloud/lime/actions/artifacts/12359426110/zip",
+      "expired": false,
+      "digest": "sha256:2c71685b9f4e38aed0ddb8d4c451e802273272657e89f2c215fd66d81532149c",
+      "created_at": "2026-10-21T16:03:02Z",
+      "updated_at": "2026-10-21T16:03:02Z",
+      "expires_at": "2026-10-28T16:02:37Z",
+      "workflow_run": {
+        "id": 39628179175,
+        "repository_id": 1115851080,
+        "head_repository_id": 1115851080,
+        "head_branch": "v1.166.0",
+        "head_sha": "a7429000993b1516a3a58fd1b0e531f7974e13e5"
+      }
+    },
+    {
+      "id": 12358564591,
+      "node_id": "MDg6QXJ0aWZhY3QxMjM1ODU2NDU5MQ==",
+      "name": "windows-native-host-gate-b-evidence-x86_64-pc-windows-msvc",
+      "size_in_bytes": 684,
+      "url": "https://api.github.com/repos/limecloud/lime/actions/artifacts/12358564591",
+      "archive_download_url": "https://api.github.com/repos/limecloud/lime/actions/artifacts/12358564591/zip",
+      "expired": false,
+      "digest": "sha256:dea89ad5dbdf7b5a3eb24faf90c5e8b6939a3d0ee8db2247731d1eb6b5a956f8",
+      "created_at": "2026-10-21T16:04:52Z",
+      "updated_at": "2026-10-21T16:04:52Z",
+      "expires_at": "2026-10-28T16:04:51Z",
+      "workflow_run": {
+        "id": 39628179175,
+        "repository_id": 1115851080,
+        "head_repository_id": 1115851080,
+        "head_branch": "v1.166.0",
+        "head_sha": "a7429000993b1516a3a58fd1b0e531f7974e13e5"
+      }
+    },
+    {
+      "id": 12358379474,
+      "node_id": "MDg6QXJ0aWZhY3QxMjM1ODM3OTQ3NA==",
+      "name": "macos-native-host-gate-b-evidence-arm64",
+      "size_in_bytes": 191127,
+      "url": "https://api.github.com/repos/limecloud/lime/actions/artifacts/12358379474",
+      "archive_download_url": "https://api.github.com/repos/limecloud/lime/actions/artifacts/12358379474/zip",
+      "expired": false,
+      "digest": "sha256:a8adcb7a673d2cb7ffba88ba9bca541774f58c166a75e57915dbf67c521c758c",
+      "created_at": "2026-10-21T16:02:36Z",
+      "updated_at": "2026-10-21T16:02:36Z",
+      "expires_at": "2026-10-28T16:02:35Z",
+      "workflow_run": {
+        "id": 39628179175,
+        "repository_id": 1115851080,
+        "head_repository_id": 1115851080,
+        "head_branch": "v1.166.0",
+        "head_sha": "a7429000993b1516a3a58fd1b0e531f7974e13e5"
+      }
+    }
+  ]
+}

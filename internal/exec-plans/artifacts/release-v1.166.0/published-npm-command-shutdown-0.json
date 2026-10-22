@@ -1,0 +1,2404 @@
+{
+  "threads": [
+    {
+      "id": "01a16144-a01c-7db1-8f33-b237c18b35dd",
+      "command": {
+        "aggregatedOutput": "SHUTDOWN_PARTIAL_0",
+        "command": "printf '%s %s\\n' \"$$\" \"$PPID\" > 'process-0.pid'; printf 'SHUTDOWN_PARTIAL_0'; read answer",
+        "commandActions": [
+          {
+            "command": "printf '%s %s\\n' \"$$\" \"$PPID\" > 'process-0.pid'; printf 'SHUTDOWN_PARTIAL_0'; read answer",
+            "type": "unknown"
+          }
+        ],
+        "cwd": "/private/var/folders/87/s6cpr7hd1_v43cs833x4s_900000gn/T/command-shutdown-qGXhyv/work dir",
+        "durationMs": 268,
+        "id": "item_shutdown-0",
+        "processId": "unified-exec-1000",
+        "source": "unifiedExecStartup",
+        "status": "inProgress",
+        "type": "commandExecution"
+      }
+    },
+    {
+      "id": "01a16144-a4e6-74d1-a0d0-0effa5675236",
+      "command": {
+        "aggregatedOutput": "SHUTDOWN_PARTIAL_1",
+        "command": "printf '%s %s\\n' \"$$\" \"$PPID\" > 'process-1.pid'; printf 'SHUTDOWN_PARTIAL_1'; read answer",
+        "commandActions": [
+          {
+            "command": "printf '%s %s\\n' \"$$\" \"$PPID\" > 'process-1.pid'; printf 'SHUTDOWN_PARTIAL_1'; read answer",
+            "type": "unknown"
+          }
+        ],
+        "cwd": "/private/var/folders/87/s6cpr7hd1_v43cs833x4s_900000gn/T/command-shutdown-qGXhyv/work dir",
+        "durationMs": 285,
+        "id": "item_shutdown-1",
+        "processId": "unified-exec-1001",
+        "source": "unifiedExecStartup",
+        "status": "inProgress",
+        "type": "commandExecution"
+      }
+    }
+  ],
+  "processes": [
+    {
+      "pid": 31428,
+      "serverPid": 30814
+    },
+    {
+      "pid": 32086,
+      "serverPid": 30814
+    }
+  ],
+  "cold": [
+    {
+      "canAcceptDirectInput": true,
+      "cliVersion": "1.166.0",
+      "createdAt": 1792633249,
+      "cwd": "/private/var/folders/87/s6cpr7hd1_v43cs833x4s_900000gn/T/command-shutdown-qGXhyv/work dir",
+      "ephemeral": false,
+      "extra": {
+        "activePermissionProfile": null,
+        "allowProviderModelFallback": false,
+        "approvalPolicy": null,
+        "approvalsReviewer": "user",
+        "baseInstructions": null,
+        "cliVersion": "1.166.0",
+        "collaborationMode": {
+          "mode": "default",
+          "settings": {
+            "developer_instructions": null,
+            "model": "command-shutdown-fixture",
+            "reasoning_effort": null
+          }
+        },
+        "config": null,
+        "developerInstructions": null,
+        "dynamicTools": null,
+        "environments": null,
+        "ephemeral": false,
+        "experimentalRawEvents": false,
+        "historyMode": "paginated",
+        "modelName": "command-shutdown-fixture",
+        "permissions": null,
+        "personality": null,
+        "projectId": null,
+        "providerName": "custom-14471ddc-e6ab-465e-8b29-5a1dc1e99acc",
+        "providerSelector": "custom-14471ddc-e6ab-465e-8b29-5a1dc1e99acc",
+        "runtimeWorkspaceRoots": [
+          "/private/var/folders/87/s6cpr7hd1_v43cs833x4s_900000gn/T/command-shutdown-qGXhyv/work dir"
+        ],
+        "sandbox": null,
+        "sandboxPolicy": null,
+        "selectedCapabilityRoots": null,
+        "serviceTier": null,
+        "sessionStartSource": null,
+        "source": "appServer",
+        "threadSource": "appServer",
+        "workingDir": "/private/var/folders/87/s6cpr7hd1_v43cs833x4s_900000gn/T/command-shutdown-qGXhyv/work dir"
+      },
+      "historyMode": "paginated",
+      "id": "01a16144-a01c-7db1-8f33-b237c18b35dd",
+      "modelProvider": "custom-14471ddc-e6ab-465e-8b29-5a1dc1e99acc",
+      "name": "shutdown 0",
+      "preview": "shutdown 0",
+      "projectId": null,
+      "recencyAt": 1792633249,
+      "sessionId": "01a16144-a01c-7db1-8f33-b237c18b35dd",
+      "source": "appServer",
+      "status": {
+        "type": "notLoaded"
+      },
+      "threadSource": "appServer",
+      "turns": [
+        {
+          "completedAt": 1792633251,
+          "id": "turn_22cae832c5354ac38616bcfdd2f5e1a4",
+          "items": [
+            {
+              "clientId": "shutdown-user-0",
+              "content": [
+                {
+                  "text": "start background 0",
+                  "type": "text"
+                }
+              ],
+              "id": "user-turn_22cae832c5354ac38616bcfdd2f5e1a4",
+              "type": "userMessage"
+            },
+            {
+              "aggregatedOutput": "SHUTDOWN_PARTIAL_0",
+              "command": "printf '%s %s\\n' \"$$\" \"$PPID\" > 'process-0.pid'; printf 'SHUTDOWN_PARTIAL_0'; read answer",
+              "commandActions": [
+                {
+                  "command": "printf '%s %s\\n' \"$$\" \"$PPID\" > 'process-0.pid'; printf 'SHUTDOWN_PARTIAL_0'; read answer",
+                  "type": "unknown"
+                }
+              ],
+              "cwd": "/private/var/folders/87/s6cpr7hd1_v43cs833x4s_900000gn/T/command-shutdown-qGXhyv/work dir",
+              "durationMs": 2069,
+              "id": "item_shutdown-0",
+              "processId": "unified-exec-1000",
+              "source": "unifiedExecStartup",
+              "status": "failed",
+              "type": "commandExecution"
+            },
+            {
+              "id": "provider:turn_22cae832c5354ac38616bcfdd2f5e1a4:2:text:text-0",
+              "text": "BACKGROUND_STARTED_0",
+              "type": "agentMessage"
+            }
+          ],
+          "itemsView": "full",
+          "status": "completed"
+        }
+      ],
+      "updatedAt": 1792633252
+    },
+    {
+      "canAcceptDirectInput": true,
+      "cliVersion": "1.166.0",
+      "createdAt": 1792633251,
+      "cwd": "/private/var/folders/87/s6cpr7hd1_v43cs833x4s_900000gn/T/command-shutdown-qGXhyv/work dir",
+      "ephemeral": false,
+      "extra": {
+        "activePermissionProfile": null,
+        "allowProviderModelFallback": false,
+        "approvalPolicy": null,
+        "approvalsReviewer": "user",
+        "baseInstructions": null,
+        "cliVersion": "1.166.0",
+        "collaborationMode": {
+          "mode": "default",
+          "settings": {
+            "developer_instructions": null,
+            "model": "command-shutdown-fixture",
+            "reasoning_effort": null
+          }
+        },
+        "config": null,
+        "developerInstructions": null,
+        "dynamicTools": null,
+        "environments": null,
+        "ephemeral": false,
+        "experimentalRawEvents": false,
+        "historyMode": "paginated",
+        "modelName": "command-shutdown-fixture",
+        "permissions": null,
+        "personality": null,
+        "projectId": null,
+        "providerName": "custom-14471ddc-e6ab-465e-8b29-5a1dc1e99acc",
+        "providerSelector": "custom-14471ddc-e6ab-465e-8b29-5a1dc1e99acc",
+        "runtimeWorkspaceRoots": [
+          "/private/var/folders/87/s6cpr7hd1_v43cs833x4s_900000gn/T/command-shutdown-qGXhyv/work dir"
+        ],
+        "sandbox": null,
+        "sandboxPolicy": null,
+        "selectedCapabilityRoots": null,
+        "serviceTier": null,
+        "sessionStartSource": null,
+        "source": "appServer",
+        "threadSource": "appServer",
+        "workingDir": "/private/var/folders/87/s6cpr7hd1_v43cs833x4s_900000gn/T/command-shutdown-qGXhyv/work dir"
+      },
+      "historyMode": "paginated",
+      "id": "01a16144-a4e6-74d1-a0d0-0effa5675236",
+      "modelProvider": "custom-14471ddc-e6ab-465e-8b29-5a1dc1e99acc",
+      "name": "shutdown 1",
+      "preview": "shutdown 1",
+      "projectId": null,
+      "recencyAt": 1792633251,
+      "sessionId": "01a16144-a4e6-74d1-a0d0-0effa5675236",
+      "source": "appServer",
+      "status": {
+        "type": "notLoaded"
+      },
+      "threadSource": "appServer",
+      "turns": [
+        {
+          "completedAt": 1792633252,
+          "id": "turn_0d679fefc26c466aa41c866bdbb239da",
+          "items": [
+            {
+              "clientId": "shutdown-user-1",
+              "content": [
+                {
+                  "text": "start background 1",
+                  "type": "text"
+                }
+              ],
+              "id": "user-turn_0d679fefc26c466aa41c866bdbb239da",
+              "type": "userMessage"
+            },
+            {
+              "aggregatedOutput": "SHUTDOWN_PARTIAL_1",
+              "command": "printf '%s %s\\n' \"$$\" \"$PPID\" > 'process-1.pid'; printf 'SHUTDOWN_PARTIAL_1'; read answer",
+              "commandActions": [
+                {
+                  "command": "printf '%s %s\\n' \"$$\" \"$PPID\" > 'process-1.pid'; printf 'SHUTDOWN_PARTIAL_1'; read answer",
+                  "type": "unknown"
+                }
+              ],
+              "cwd": "/private/var/folders/87/s6cpr7hd1_v43cs833x4s_900000gn/T/command-shutdown-qGXhyv/work dir",
+              "durationMs": 700,
+              "id": "item_shutdown-1",
+              "processId": "unified-exec-1001",
+              "source": "unifiedExecStartup",
+              "status": "failed",
+              "type": "commandExecution"
+            },
+            {
+              "id": "provider:turn_0d679fefc26c466aa41c866bdbb239da:2:text:text-0",
+              "text": "BACKGROUND_STARTED_1",
+              "type": "agentMessage"
+            }
+          ],
+          "itemsView": "full",
+          "status": "completed"
+        }
+      ],
+      "updatedAt": 1792633251
+    }
+  ],
+  "notifications": [
+    {
+      "method": "model/list/updated",
+      "params": {
+        "generation": 1,
+        "providerId": "custom-14471ddc-e6ab-465e-8b29-5a1dc1e99acc"
+      }
+    },
+    {
+      "method": "model/list/updated",
+      "params": {
+        "generation": 2,
+        "providerId": "custom-14471ddc-e6ab-465e-8b29-5a1dc1e99acc"
+      }
+    },
+    {
+      "method": "model/list/updated",
+      "params": {
+        "generation": 4,
+        "providerId": "custom-14471ddc-e6ab-465e-8b29-5a1dc1e99acc"
+      }
+    },
+    {
+      "method": "thread/started",
+      "params": {
+        "thread": {
+          "canAcceptDirectInput": true,
+          "cliVersion": "1.166.0",
+          "createdAt": 1792633249,
+          "cwd": "/private/var/folders/87/s6cpr7hd1_v43cs833x4s_900000gn/T/command-shutdown-qGXhyv/work dir",
+          "ephemeral": false,
+          "extra": {
+            "activePermissionProfile": null,
+            "allowProviderModelFallback": false,
+            "approvalPolicy": null,
+            "approvalsReviewer": "user",
+            "baseInstructions": null,
+            "cliVersion": "1.166.0",
+            "config": null,
+            "developerInstructions": null,
+            "dynamicTools": null,
+            "environments": null,
+            "ephemeral": false,
+            "experimentalRawEvents": false,
+            "historyMode": "paginated",
+            "modelName": "command-shutdown-fixture",
+            "permissions": null,
+            "personality": null,
+            "projectId": null,
+            "providerName": "custom-14471ddc-e6ab-465e-8b29-5a1dc1e99acc",
+            "providerSelector": "custom-14471ddc-e6ab-465e-8b29-5a1dc1e99acc",
+            "runtimeWorkspaceRoots": [
+              "/private/var/folders/87/s6cpr7hd1_v43cs833x4s_900000gn/T/command-shutdown-qGXhyv/work dir"
+            ],
+            "sandbox": null,
+            "sandboxPolicy": null,
+            "selectedCapabilityRoots": null,
+            "serviceTier": null,
+            "sessionStartSource": null,
+            "source": "appServer",
+            "threadSource": "appServer",
+            "workingDir": "/private/var/folders/87/s6cpr7hd1_v43cs833x4s_900000gn/T/command-shutdown-qGXhyv/work dir"
+          },
+          "historyMode": "paginated",
+          "id": "01a16144-a01c-7db1-8f33-b237c18b35dd",
+          "modelProvider": "custom-14471ddc-e6ab-465e-8b29-5a1dc1e99acc",
+          "name": "shutdown 0",
+          "preview": "shutdown 0",
+          "projectId": null,
+          "recencyAt": 1792633249,
+          "sessionId": "01a16144-a01c-7db1-8f33-b237c18b35dd",
+          "source": "appServer",
+          "status": {
+            "type": "idle"
+          },
+          "threadSource": "appServer",
+          "turns": [],
+          "updatedAt": 1792633249
+        }
+      }
+    },
+    {
+      "method": "item/started",
+      "params": {
+        "item": {
+          "clientId": "shutdown-user-0",
+          "content": [
+            {
+              "text": "start background 0",
+              "type": "text"
+            }
+          ],
+          "id": "user-turn_22cae832c5354ac38616bcfdd2f5e1a4",
+          "type": "userMessage"
+        },
+        "startedAtMs": 1792633249898,
+        "threadId": "01a16144-a01c-7db1-8f33-b237c18b35dd",
+        "turnId": "turn_22cae832c5354ac38616bcfdd2f5e1a4"
+      }
+    },
+    {
+      "method": "agentSession/event",
+      "params": {
+        "event": {
+          "eventId": "evt_d71065ea316d492489c4a449e835c8f2",
+          "payload": {
+            "clientId": "shutdown-user-0",
+            "content": {
+              "kind": "inline_text",
+              "text": "start background 0"
+            },
+            "input": [
+              {
+                "text": "start background 0",
+                "type": "text"
+              }
+            ],
+            "item": {
+              "completedAtMs": 1792633249898,
+              "createdAtMs": 1792633249898,
+              "itemId": "user-turn_22cae832c5354ac38616bcfdd2f5e1a4",
+              "kind": "userMessage",
+              "metadata": {
+                "source_event_id": "evt_d71065ea316d492489c4a449e835c8f2",
+                "source_event_type": "message.created"
+              },
+              "ordinal": 2,
+              "payload": {
+                "client_id": "shutdown-user-0",
+                "content": [
+                  {
+                    "text": "start background 0",
+                    "type": "text"
+                  }
+                ],
+                "type": "userMessage"
+              },
+              "sequence": 3,
+              "sessionId": "01a16144-a01c-7db1-8f33-b237c18b35dd",
+              "status": "completed",
+              "threadId": "01a16144-a01c-7db1-8f33-b237c18b35dd",
+              "turnId": "turn_22cae832c5354ac38616bcfdd2f5e1a4",
+              "updatedAtMs": 1792633249898
+            },
+            "role": "user",
+            "session": {
+              "appId": "agent-chat",
+              "createdAt": "2026-10-22T01:40:49.825Z",
+              "metadata": {
+                "activePermissionProfile": null,
+                "allowProviderModelFallback": false,
+                "approvalPolicy": null,
+                "approvalsReviewer": "user",
+                "baseInstructions": null,
+                "cliVersion": "1.166.0",
+                "collaborationMode": {
+                  "mode": "default",
+                  "settings": {
+                    "developer_instructions": null,
+                    "model": "command-shutdown-fixture",
+                    "reasoning_effort": null
+                  }
+                },
+                "config": null,
+                "developerInstructions": null,
+                "dynamicTools": null,
+                "environments": null,
+                "ephemeral": false,
+                "experimentalRawEvents": false,
+                "historyMode": "paginated",
+                "modelName": "command-shutdown-fixture",
+                "permissions": null,
+                "personality": null,
+                "projectId": null,
+                "providerName": "custom-14471ddc-e6ab-465e-8b29-5a1dc1e99acc",
+                "providerSelector": "custom-14471ddc-e6ab-465e-8b29-5a1dc1e99acc",
+                "runtimeWorkspaceRoots": [
+                  "/private/var/folders/87/s6cpr7hd1_v43cs833x4s_900000gn/T/command-shutdown-qGXhyv/work dir"
+                ],
+                "sandbox": null,
+                "sandboxPolicy": null,
+                "selectedCapabilityRoots": null,
+                "serviceTier": null,
+                "sessionStartSource": null,
+                "source": "appServer",
+                "threadSource": "appServer",
+                "workingDir": "/private/var/folders/87/s6cpr7hd1_v43cs833x4s_900000gn/T/command-shutdown-qGXhyv/work dir"
+              },
+              "model": "command-shutdown-fixture",
+              "title": "shutdown 0",
+              "updatedAt": "2026-10-22T01:40:49.891Z",
+              "workingDir": "/private/var/folders/87/s6cpr7hd1_v43cs833x4s_900000gn/T/command-shutdown-qGXhyv/work dir"
+            },
+            "visibility": "user_visible"
+          },
+          "sequence": 3,
+          "sessionId": "01a16144-a01c-7db1-8f33-b237c18b35dd",
+          "threadId": "01a16144-a01c-7db1-8f33-b237c18b35dd",
+          "timestamp": "2026-10-22T01:40:49.898Z",
+          "turnId": "turn_22cae832c5354ac38616bcfdd2f5e1a4",
+          "type": "message.created"
+        }
+      }
+    },
+    {
+      "method": "thread/settings/updated",
+      "params": {
+        "threadId": "01a16144-a01c-7db1-8f33-b237c18b35dd",
+        "threadSettings": {
+          "activePermissionProfile": null,
+          "approvalPolicy": null,
+          "approvalsReviewer": "user",
+          "collaborationMode": {
+            "mode": "default",
+            "settings": {
+              "developer_instructions": null,
+              "model": "command-shutdown-fixture",
+              "reasoning_effort": null
+            }
+          },
+          "cwd": "/private/var/folders/87/s6cpr7hd1_v43cs833x4s_900000gn/T/command-shutdown-qGXhyv/work dir",
+          "model": "command-shutdown-fixture",
+          "modelProvider": "custom-14471ddc-e6ab-465e-8b29-5a1dc1e99acc",
+          "personality": null,
+          "sandboxPolicy": null
+        }
+      }
+    },
+    {
+      "method": "item/completed",
+      "params": {
+        "completedAtMs": 1792633249898,
+        "item": {
+          "clientId": "shutdown-user-0",
+          "content": [
+            {
+              "text": "start background 0",
+              "type": "text"
+            }
+          ],
+          "id": "user-turn_22cae832c5354ac38616bcfdd2f5e1a4",
+          "type": "userMessage"
+        },
+        "threadId": "01a16144-a01c-7db1-8f33-b237c18b35dd",
+        "turnId": "turn_22cae832c5354ac38616bcfdd2f5e1a4"
+      }
+    },
+    {
+      "method": "agentSession/event",
+      "params": {
+        "event": {
+          "eventId": "evt_38f7eeeac5854dd1a7055d584a5a4886",
+          "payload": {
+            "attempt": 1,
+            "backend": "runtime",
+            "elapsed_ms": 0,
+            "model": "command-shutdown-fixture",
+            "provider": "openai",
+            "runtimeEvent": {
+              "attempt": 1,
+              "elapsed_ms": 0,
+              "model": "command-shutdown-fixture",
+              "provider": "openai",
+              "runtime_provider_active_model": "command-shutdown-fixture",
+              "runtime_provider_backend": "current",
+              "runtime_provider_protocol": "chat_completions",
+              "runtime_provider_selector": "custom-14471ddc-e6ab-465e-8b29-5a1dc1e99acc",
+              "stage": "request_started",
+              "status": "running",
+              "tool_names": [
+                "Glob",
+                "Grep",
+                "Read",
+                "WebFetch",
+                "WebSearch",
+                "apply_patch",
+                "curr_time",
+                "exec_command",
+                "followup_task",
+                "interrupt_agent",
+                "lime_create_image_generation_task",
+                "list_agents",
+                "list_mcp_resources",
+                "memory_add_note",
+                "memory_list",
+                "memory_read",
+                "memory_search",
+                "read_mcp_resource",
+                "request_permissions",
+                "request_user_input",
+                "send_message",
+                "skill_search",
+                "sleep",
+                "spawn_agent",
+                "tool_search",
+                "video_generate",
+                "view_image",
+                "wait_agent",
+                "write_stdin"
+              ],
+              "type": "provider_trace"
+            },
+            "runtime_provider_active_model": "command-shutdown-fixture",
+            "runtime_provider_backend": "current",
+            "runtime_provider_protocol": "chat_completions",
+            "runtime_provider_selector": "custom-14471ddc-e6ab-465e-8b29-5a1dc1e99acc",
+            "session": {
+              "appId": "agent-chat",
+              "createdAt": "2026-10-22T01:40:49.825Z",
+              "metadata": {
+                "activePermissionProfile": null,
+                "allowProviderModelFallback": false,
+                "approvalPolicy": null,
+                "approvalsReviewer": "user",
+                "baseInstructions": null,
+                "cliVersion": "1.166.0",
+                "collaborationMode": {
+                  "mode": "default",
+                  "settings": {
+                    "developer_instructions": null,
+                    "model": "command-shutdown-fixture",
+                    "reasoning_effort": null
+                  }
+                },
+                "config": null,
+                "developerInstructions": null,
+                "dynamicTools": null,
+                "environments": null,
+                "ephemeral": false,
+                "experimentalRawEvents": false,
+                "historyMode": "paginated",
+                "modelName": "command-shutdown-fixture",
+                "permissions": null,
+                "personality": null,
+                "projectId": null,
+                "providerName": "custom-14471ddc-e6ab-465e-8b29-5a1dc1e99acc",
+                "providerSelector": "custom-14471ddc-e6ab-465e-8b29-5a1dc1e99acc",
+                "runtimeWorkspaceRoots": [
+                  "/private/var/folders/87/s6cpr7hd1_v43cs833x4s_900000gn/T/command-shutdown-qGXhyv/work dir"
+                ],
+                "sandbox": null,
+                "sandboxPolicy": null,
+                "selectedCapabilityRoots": null,
+                "serviceTier": null,
+                "sessionStartSource": null,
+                "source": "appServer",
+                "threadSource": "appServer",
+                "workingDir": "/private/var/folders/87/s6cpr7hd1_v43cs833x4s_900000gn/T/command-shutdown-qGXhyv/work dir"
+              },
+              "model": "command-shutdown-fixture",
+              "title": "shutdown 0",
+              "updatedAt": "2026-10-22T01:40:49.891Z",
+              "workingDir": "/private/var/folders/87/s6cpr7hd1_v43cs833x4s_900000gn/T/command-shutdown-qGXhyv/work dir"
+            },
+            "stage": "request_started",
+            "status": "running",
+            "tool_names": [
+              "Glob",
+              "Grep",
+              "Read",
+              "WebFetch",
+              "WebSearch",
+              "apply_patch",
+              "curr_time",
+              "exec_command",
+              "followup_task",
+              "interrupt_agent",
+              "lime_create_image_generation_task",
+              "list_agents",
+              "list_mcp_resources",
+              "memory_add_note",
+              "memory_list",
+              "memory_read",
+              "memory_search",
+              "read_mcp_resource",
+              "request_permissions",
+              "request_user_input",
+              "send_message",
+              "skill_search",
+              "sleep",
+              "spawn_agent",
+              "tool_search",
+              "video_generate",
+              "view_image",
+              "wait_agent",
+              "write_stdin"
+            ],
+            "type": "provider_trace"
+          },
+          "sequence": 7,
+          "sessionId": "01a16144-a01c-7db1-8f33-b237c18b35dd",
+          "threadId": "01a16144-a01c-7db1-8f33-b237c18b35dd",
+          "timestamp": "2026-10-22T01:40:50.052Z",
+          "turnId": "turn_22cae832c5354ac38616bcfdd2f5e1a4",
+          "type": "provider.request.started"
+        }
+      }
+    },
+    {
+      "method": "agentSession/event",
+      "params": {
+        "event": {
+          "eventId": "evt_3f9528d68ad94fe8906f5311095fc4a3",
+          "payload": {
+            "attempt": 1,
+            "backend": "runtime",
+            "elapsed_ms": 3,
+            "model": "command-shutdown-fixture",
+            "provider": "openai",
+            "runtimeEvent": {
+              "attempt": 1,
+              "elapsed_ms": 3,
+              "model": "command-shutdown-fixture",
+              "provider": "openai",
+              "runtime_provider_active_model": "command-shutdown-fixture",
+              "runtime_provider_backend": "current",
+              "runtime_provider_protocol": "chat_completions",
+              "runtime_provider_selector": "custom-14471ddc-e6ab-465e-8b29-5a1dc1e99acc",
+              "stage": "first_event_received",
+              "status": "running",
+              "type": "provider_trace"
+            },
+            "runtime_provider_active_model": "command-shutdown-fixture",
+            "runtime_provider_backend": "current",
+            "runtime_provider_protocol": "chat_completions",
+            "runtime_provider_selector": "custom-14471ddc-e6ab-465e-8b29-5a1dc1e99acc",
+            "session": {
+              "appId": "agent-chat",
+              "createdAt": "2026-10-22T01:40:49.825Z",
+              "metadata": {
+                "activePermissionProfile": null,
+                "allowProviderModelFallback": false,
+                "approvalPolicy": null,
+                "approvalsReviewer": "user",
+                "baseInstructions": null,
+                "cliVersion": "1.166.0",
+                "collaborationMode": {
+                  "mode": "default",
+                  "settings": {
+                    "developer_instructions": null,
+                    "model": "command-shutdown-fixture",
+                    "reasoning_effort": null
+                  }
+                },
+                "config": null,
+                "developerInstructions": null,
+                "dynamicTools": null,
+                "environments": null,
+                "ephemeral": false,
+                "experimentalRawEvents": false,
+                "historyMode": "paginated",
+                "modelName": "command-shutdown-fixture",
+                "permissions": null,
+                "personality": null,
+                "projectId": null,
+                "providerName": "custom-14471ddc-e6ab-465e-8b29-5a1dc1e99acc",
+                "providerSelector": "custom-14471ddc-e6ab-465e-8b29-5a1dc1e99acc",
+                "runtimeWorkspaceRoots": [
+                  "/private/var/folders/87/s6cpr7hd1_v43cs833x4s_900000gn/T/command-shutdown-qGXhyv/work dir"
+                ],
+                "sandbox": null,
+                "sandboxPolicy": null,
+                "selectedCapabilityRoots": null,
+                "serviceTier": null,
+                "sessionStartSource": null,
+                "source": "appServer",
+                "threadSource": "appServer",
+                "workingDir": "/private/var/folders/87/s6cpr7hd1_v43cs833x4s_900000gn/T/command-shutdown-qGXhyv/work dir"
+              },
+              "model": "command-shutdown-fixture",
+              "title": "shutdown 0",
+              "updatedAt": "2026-10-22T01:40:49.891Z",
+              "workingDir": "/private/var/folders/87/s6cpr7hd1_v43cs833x4s_900000gn/T/command-shutdown-qGXhyv/work dir"
+            },
+            "stage": "first_event_received",
+            "status": "running",
+            "type": "provider_trace"
+          },
+          "sequence": 8,
+          "sessionId": "01a16144-a01c-7db1-8f33-b237c18b35dd",
+          "threadId": "01a16144-a01c-7db1-8f33-b237c18b35dd",
+          "timestamp": "2026-10-22T01:40:50.063Z",
+          "turnId": "turn_22cae832c5354ac38616bcfdd2f5e1a4",
+          "type": "provider.first_event.received"
+        }
+      }
+    },
+    {
+      "method": "thread/tokenUsage/updated",
+      "params": {
+        "threadId": "01a16144-a01c-7db1-8f33-b237c18b35dd",
+        "tokenUsage": {
+          "last": {
+            "cacheWriteInputTokens": 0,
+            "cachedInputTokens": 0,
+            "inputTokens": 1,
+            "outputTokens": 1,
+            "reasoningOutputTokens": 0,
+            "totalTokens": 2
+          },
+          "modelContextWindow": null,
+          "total": {
+            "cacheWriteInputTokens": 0,
+            "cachedInputTokens": 0,
+            "inputTokens": 1,
+            "outputTokens": 1,
+            "reasoningOutputTokens": 0,
+            "totalTokens": 2
+          }
+        },
+        "turnId": "turn_22cae832c5354ac38616bcfdd2f5e1a4"
+      }
+    },
+    {
+      "method": "item/started",
+      "params": {
+        "item": {
+          "command": "printf '%s %s\\n' \"$$\" \"$PPID\" > 'process-0.pid'; printf 'SHUTDOWN_PARTIAL_0'; read answer",
+          "commandActions": [
+            {
+              "command": "printf '%s %s\\n' \"$$\" \"$PPID\" > 'process-0.pid'; printf 'SHUTDOWN_PARTIAL_0'; read answer",
+              "type": "unknown"
+            }
+          ],
+          "cwd": "/private/var/folders/87/s6cpr7hd1_v43cs833x4s_900000gn/T/command-shutdown-qGXhyv/work dir",
+          "id": "item_shutdown-0",
+          "processId": "unified-exec-1000",
+          "source": "unifiedExecStartup",
+          "status": "inProgress",
+          "type": "commandExecution"
+        },
+        "startedAtMs": 1792633250098,
+        "threadId": "01a16144-a01c-7db1-8f33-b237c18b35dd",
+        "turnId": "turn_22cae832c5354ac38616bcfdd2f5e1a4"
+      }
+    },
+    {
+      "method": "thread/tokenUsage/updated",
+      "params": {
+        "threadId": "01a16144-a01c-7db1-8f33-b237c18b35dd",
+        "tokenUsage": {
+          "last": {
+            "cacheWriteInputTokens": 0,
+            "cachedInputTokens": 0,
+            "inputTokens": 1,
+            "outputTokens": 1,
+            "reasoningOutputTokens": 0,
+            "totalTokens": 2
+          },
+          "modelContextWindow": null,
+          "total": {
+            "cacheWriteInputTokens": 0,
+            "cachedInputTokens": 0,
+            "inputTokens": 1,
+            "outputTokens": 1,
+            "reasoningOutputTokens": 0,
+            "totalTokens": 2
+          }
+        },
+        "turnId": "turn_22cae832c5354ac38616bcfdd2f5e1a4"
+      }
+    },
+    {
+      "method": "item/commandExecution/outputDelta",
+      "params": {
+        "delta": "SHUTDOWN_PARTIAL_0",
+        "itemId": "item_shutdown-0",
+        "threadId": "01a16144-a01c-7db1-8f33-b237c18b35dd",
+        "turnId": "turn_22cae832c5354ac38616bcfdd2f5e1a4"
+      }
+    },
+    {
+      "method": "agentSession/event",
+      "params": {
+        "event": {
+          "eventId": "evt_8d4779989736467f9ae738efb0c4489b",
+          "payload": {
+            "attempt": 2,
+            "backend": "runtime",
+            "elapsed_ms": 0,
+            "model": "command-shutdown-fixture",
+            "provider": "openai",
+            "runtimeEvent": {
+              "attempt": 2,
+              "elapsed_ms": 0,
+              "model": "command-shutdown-fixture",
+              "provider": "openai",
+              "runtime_provider_active_model": "command-shutdown-fixture",
+              "runtime_provider_backend": "current",
+              "runtime_provider_protocol": "chat_completions",
+              "runtime_provider_selector": "custom-14471ddc-e6ab-465e-8b29-5a1dc1e99acc",
+              "stage": "request_started",
+              "status": "running",
+              "tool_names": [
+                "Glob",
+                "Grep",
+                "Read",
+                "WebFetch",
+                "WebSearch",
+                "apply_patch",
+                "curr_time",
+                "exec_command",
+                "followup_task",
+                "interrupt_agent",
+                "lime_create_image_generation_task",
+                "list_agents",
+                "list_mcp_resources",
+                "memory_add_note",
+                "memory_list",
+                "memory_read",
+                "memory_search",
+                "read_mcp_resource",
+                "request_permissions",
+                "request_user_input",
+                "send_message",
+                "skill_search",
+                "sleep",
+                "spawn_agent",
+                "tool_search",
+                "video_generate",
+                "view_image",
+                "wait_agent",
+                "write_stdin"
+              ],
+              "type": "provider_trace"
+            },
+            "runtime_provider_active_model": "command-shutdown-fixture",
+            "runtime_provider_backend": "current",
+            "runtime_provider_protocol": "chat_completions",
+            "runtime_provider_selector": "custom-14471ddc-e6ab-465e-8b29-5a1dc1e99acc",
+            "session": {
+              "appId": "agent-chat",
+              "createdAt": "2026-10-22T01:40:49.825Z",
+              "metadata": {
+                "activePermissionProfile": null,
+                "allowProviderModelFallback": false,
+                "approvalPolicy": null,
+                "approvalsReviewer": "user",
+                "baseInstructions": null,
+                "cliVersion": "1.166.0",
+                "collaborationMode": {
+                  "mode": "default",
+                  "settings": {
+                    "developer_instructions": null,
+                    "model": "command-shutdown-fixture",
+                    "reasoning_effort": null
+                  }
+                },
+                "config": null,
+                "developerInstructions": null,
+                "dynamicTools": null,
+                "environments": null,
+                "ephemeral": false,
+                "experimentalRawEvents": false,
+                "historyMode": "paginated",
+                "modelName": "command-shutdown-fixture",
+                "permissions": null,
+                "personality": null,
+                "projectId": null,
+                "providerName": "custom-14471ddc-e6ab-465e-8b29-5a1dc1e99acc",
+                "providerSelector": "custom-14471ddc-e6ab-465e-8b29-5a1dc1e99acc",
+                "runtimeWorkspaceRoots": [
+                  "/private/var/folders/87/s6cpr7hd1_v43cs833x4s_900000gn/T/command-shutdown-qGXhyv/work dir"
+                ],
+                "sandbox": null,
+                "sandboxPolicy": null,
+                "selectedCapabilityRoots": null,
+                "serviceTier": null,
+                "sessionStartSource": null,
+                "source": "appServer",
+                "threadSource": "appServer",
+                "workingDir": "/private/var/folders/87/s6cpr7hd1_v43cs833x4s_900000gn/T/command-shutdown-qGXhyv/work dir"
+              },
+              "model": "command-shutdown-fixture",
+              "title": "shutdown 0",
+              "updatedAt": "2026-10-22T01:40:49.891Z",
+              "workingDir": "/private/var/folders/87/s6cpr7hd1_v43cs833x4s_900000gn/T/command-shutdown-qGXhyv/work dir"
+            },
+            "stage": "request_started",
+            "status": "running",
+            "tool_names": [
+              "Glob",
+              "Grep",
+              "Read",
+              "WebFetch",
+              "WebSearch",
+              "apply_patch",
+              "curr_time",
+              "exec_command",
+              "followup_task",
+              "interrupt_agent",
+              "lime_create_image_generation_task",
+              "list_agents",
+              "list_mcp_resources",
+              "memory_add_note",
+              "memory_list",
+              "memory_read",
+              "memory_search",
+              "read_mcp_resource",
+              "request_permissions",
+              "request_user_input",
+              "send_message",
+              "skill_search",
+              "sleep",
+              "spawn_agent",
+              "tool_search",
+              "video_generate",
+              "view_image",
+              "wait_agent",
+              "write_stdin"
+            ],
+            "type": "provider_trace"
+          },
+          "sequence": 18,
+          "sessionId": "01a16144-a01c-7db1-8f33-b237c18b35dd",
+          "threadId": "01a16144-a01c-7db1-8f33-b237c18b35dd",
+          "timestamp": "2026-10-22T01:40:50.649Z",
+          "turnId": "turn_22cae832c5354ac38616bcfdd2f5e1a4",
+          "type": "provider.request.started"
+        }
+      }
+    },
+    {
+      "method": "agentSession/event",
+      "params": {
+        "event": {
+          "eventId": "evt_8cb4c820d7fc478e947cb1c3665ba76c",
+          "payload": {
+            "attempt": 2,
+            "backend": "runtime",
+            "elapsed_ms": 2,
+            "model": "command-shutdown-fixture",
+            "provider": "openai",
+            "runtimeEvent": {
+              "attempt": 2,
+              "elapsed_ms": 2,
+              "model": "command-shutdown-fixture",
+              "provider": "openai",
+              "runtime_provider_active_model": "command-shutdown-fixture",
+              "runtime_provider_backend": "current",
+              "runtime_provider_protocol": "chat_completions",
+              "runtime_provider_selector": "custom-14471ddc-e6ab-465e-8b29-5a1dc1e99acc",
+              "stage": "first_event_received",
+              "status": "running",
+              "type": "provider_trace"
+            },
+            "runtime_provider_active_model": "command-shutdown-fixture",
+            "runtime_provider_backend": "current",
+            "runtime_provider_protocol": "chat_completions",
+            "runtime_provider_selector": "custom-14471ddc-e6ab-465e-8b29-5a1dc1e99acc",
+            "session": {
+              "appId": "agent-chat",
+              "createdAt": "2026-10-22T01:40:49.825Z",
+              "metadata": {
+                "activePermissionProfile": null,
+                "allowProviderModelFallback": false,
+                "approvalPolicy": null,
+                "approvalsReviewer": "user",
+                "baseInstructions": null,
+                "cliVersion": "1.166.0",
+                "collaborationMode": {
+                  "mode": "default",
+                  "settings": {
+                    "developer_instructions": null,
+                    "model": "command-shutdown-fixture",
+                    "reasoning_effort": null
+                  }
+                },
+                "config": null,
+                "developerInstructions": null,
+                "dynamicTools": null,
+                "environments": null,
+                "ephemeral": false,
+                "experimentalRawEvents": false,
+                "historyMode": "paginated",
+                "modelName": "command-shutdown-fixture",
+                "permissions": null,
+                "personality": null,
+                "projectId": null,
+                "providerName": "custom-14471ddc-e6ab-465e-8b29-5a1dc1e99acc",
+                "providerSelector": "custom-14471ddc-e6ab-465e-8b29-5a1dc1e99acc",
+                "runtimeWorkspaceRoots": [
+                  "/private/var/folders/87/s6cpr7hd1_v43cs833x4s_900000gn/T/command-shutdown-qGXhyv/work dir"
+                ],
+                "sandbox": null,
+                "sandboxPolicy": null,
+                "selectedCapabilityRoots": null,
+                "serviceTier": null,
+                "sessionStartSource": null,
+                "source": "appServer",
+                "threadSource": "appServer",
+                "workingDir": "/private/var/folders/87/s6cpr7hd1_v43cs833x4s_900000gn/T/command-shutdown-qGXhyv/work dir"
+              },
+              "model": "command-shutdown-fixture",
+              "title": "shutdown 0",
+              "updatedAt": "2026-10-22T01:40:49.891Z",
+              "workingDir": "/private/var/folders/87/s6cpr7hd1_v43cs833x4s_900000gn/T/command-shutdown-qGXhyv/work dir"
+            },
+            "stage": "first_event_received",
+            "status": "running",
+            "type": "provider_trace"
+          },
+          "sequence": 19,
+          "sessionId": "01a16144-a01c-7db1-8f33-b237c18b35dd",
+          "threadId": "01a16144-a01c-7db1-8f33-b237c18b35dd",
+          "timestamp": "2026-10-22T01:40:50.665Z",
+          "turnId": "turn_22cae832c5354ac38616bcfdd2f5e1a4",
+          "type": "provider.first_event.received"
+        }
+      }
+    },
+    {
+      "method": "agentSession/event",
+      "params": {
+        "event": {
+          "eventId": "evt_88d7bcad07544e4ebc9d2d09f3d485a6",
+          "payload": {
+            "attempt": 2,
+            "backend": "runtime",
+            "elapsed_ms": 2,
+            "model": "command-shutdown-fixture",
+            "provider": "openai",
+            "runtimeEvent": {
+              "attempt": 2,
+              "elapsed_ms": 2,
+              "model": "command-shutdown-fixture",
+              "provider": "openai",
+              "runtime_provider_active_model": "command-shutdown-fixture",
+              "runtime_provider_backend": "current",
+              "runtime_provider_protocol": "chat_completions",
+              "runtime_provider_selector": "custom-14471ddc-e6ab-465e-8b29-5a1dc1e99acc",
+              "stage": "first_text_delta_received",
+              "status": "running",
+              "text_chars": 20,
+              "type": "provider_trace"
+            },
+            "runtime_provider_active_model": "command-shutdown-fixture",
+            "runtime_provider_backend": "current",
+            "runtime_provider_protocol": "chat_completions",
+            "runtime_provider_selector": "custom-14471ddc-e6ab-465e-8b29-5a1dc1e99acc",
+            "session": {
+              "appId": "agent-chat",
+              "createdAt": "2026-10-22T01:40:49.825Z",
+              "metadata": {
+                "activePermissionProfile": null,
+                "allowProviderModelFallback": false,
+                "approvalPolicy": null,
+                "approvalsReviewer": "user",
+                "baseInstructions": null,
+                "cliVersion": "1.166.0",
+                "collaborationMode": {
+                  "mode": "default",
+                  "settings": {
+                    "developer_instructions": null,
+                    "model": "command-shutdown-fixture",
+                    "reasoning_effort": null
+                  }
+                },
+                "config": null,
+                "developerInstructions": null,
+                "dynamicTools": null,
+                "environments": null,
+                "ephemeral": false,
+                "experimentalRawEvents": false,
+                "historyMode": "paginated",
+                "modelName": "command-shutdown-fixture",
+                "permissions": null,
+                "personality": null,
+                "projectId": null,
+                "providerName": "custom-14471ddc-e6ab-465e-8b29-5a1dc1e99acc",
+                "providerSelector": "custom-14471ddc-e6ab-465e-8b29-5a1dc1e99acc",
+                "runtimeWorkspaceRoots": [
+                  "/private/var/folders/87/s6cpr7hd1_v43cs833x4s_900000gn/T/command-shutdown-qGXhyv/work dir"
+                ],
+                "sandbox": null,
+                "sandboxPolicy": null,
+                "selectedCapabilityRoots": null,
+                "serviceTier": null,
+                "sessionStartSource": null,
+                "source": "appServer",
+                "threadSource": "appServer",
+                "workingDir": "/private/var/folders/87/s6cpr7hd1_v43cs833x4s_900000gn/T/command-shutdown-qGXhyv/work dir"
+              },
+              "model": "command-shutdown-fixture",
+              "title": "shutdown 0",
+              "updatedAt": "2026-10-22T01:40:49.891Z",
+              "workingDir": "/private/var/folders/87/s6cpr7hd1_v43cs833x4s_900000gn/T/command-shutdown-qGXhyv/work dir"
+            },
+            "stage": "first_text_delta_received",
+            "status": "running",
+            "text_chars": 20,
+            "type": "provider_trace"
+          },
+          "sequence": 20,
+          "sessionId": "01a16144-a01c-7db1-8f33-b237c18b35dd",
+          "threadId": "01a16144-a01c-7db1-8f33-b237c18b35dd",
+          "timestamp": "2026-10-22T01:40:50.874Z",
+          "turnId": "turn_22cae832c5354ac38616bcfdd2f5e1a4",
+          "type": "provider.first_text_delta.received"
+        }
+      }
+    },
+    {
+      "method": "item/started",
+      "params": {
+        "item": {
+          "id": "provider:turn_22cae832c5354ac38616bcfdd2f5e1a4:2:text:text-0",
+          "text": "",
+          "type": "agentMessage"
+        },
+        "startedAtMs": 1792633250904,
+        "threadId": "01a16144-a01c-7db1-8f33-b237c18b35dd",
+        "turnId": "turn_22cae832c5354ac38616bcfdd2f5e1a4"
+      }
+    },
+    {
+      "method": "item/agentMessage/delta",
+      "params": {
+        "delta": "BACKGROUND_STARTED_0",
+        "itemId": "provider:turn_22cae832c5354ac38616bcfdd2f5e1a4:2:text:text-0",
+        "threadId": "01a16144-a01c-7db1-8f33-b237c18b35dd",
+        "turnId": "turn_22cae832c5354ac38616bcfdd2f5e1a4"
+      }
+    },
+    {
+      "method": "thread/tokenUsage/updated",
+      "params": {
+        "threadId": "01a16144-a01c-7db1-8f33-b237c18b35dd",
+        "tokenUsage": {
+          "last": {
+            "cacheWriteInputTokens": 0,
+            "cachedInputTokens": 0,
+            "inputTokens": 2,
+            "outputTokens": 2,
+            "reasoningOutputTokens": 0,
+            "totalTokens": 4
+          },
+          "modelContextWindow": null,
+          "total": {
+            "cacheWriteInputTokens": 0,
+            "cachedInputTokens": 0,
+            "inputTokens": 2,
+            "outputTokens": 2,
+            "reasoningOutputTokens": 0,
+            "totalTokens": 4
+          }
+        },
+        "turnId": "turn_22cae832c5354ac38616bcfdd2f5e1a4"
+      }
+    },
+    {
+      "method": "thread/tokenUsage/updated",
+      "params": {
+        "threadId": "01a16144-a01c-7db1-8f33-b237c18b35dd",
+        "tokenUsage": {
+          "last": {
+            "cacheWriteInputTokens": 0,
+            "cachedInputTokens": 0,
+            "inputTokens": 2,
+            "outputTokens": 2,
+            "reasoningOutputTokens": 0,
+            "totalTokens": 4
+          },
+          "modelContextWindow": null,
+          "total": {
+            "cacheWriteInputTokens": 0,
+            "cachedInputTokens": 0,
+            "inputTokens": 2,
+            "outputTokens": 2,
+            "reasoningOutputTokens": 0,
+            "totalTokens": 4
+          }
+        },
+        "turnId": "turn_22cae832c5354ac38616bcfdd2f5e1a4"
+      }
+    },
+    {
+      "method": "item/completed",
+      "params": {
+        "completedAtMs": 1792633250942,
+        "item": {
+          "id": "provider:turn_22cae832c5354ac38616bcfdd2f5e1a4:2:text:text-0",
+          "text": "BACKGROUND_STARTED_0",
+          "type": "agentMessage"
+        },
+        "threadId": "01a16144-a01c-7db1-8f33-b237c18b35dd",
+        "turnId": "turn_22cae832c5354ac38616bcfdd2f5e1a4"
+      }
+    },
+    {
+      "method": "thread/tokenUsage/updated",
+      "params": {
+        "threadId": "01a16144-a01c-7db1-8f33-b237c18b35dd",
+        "tokenUsage": {
+          "last": {
+            "cacheWriteInputTokens": 0,
+            "cachedInputTokens": 0,
+            "inputTokens": 2,
+            "outputTokens": 2,
+            "reasoningOutputTokens": 0,
+            "totalTokens": 4
+          },
+          "modelContextWindow": null,
+          "total": {
+            "cacheWriteInputTokens": 0,
+            "cachedInputTokens": 0,
+            "inputTokens": 2,
+            "outputTokens": 2,
+            "reasoningOutputTokens": 0,
+            "totalTokens": 4
+          }
+        },
+        "turnId": "turn_22cae832c5354ac38616bcfdd2f5e1a4"
+      }
+    },
+    {
+      "method": "turn/completed",
+      "params": {
+        "threadId": "01a16144-a01c-7db1-8f33-b237c18b35dd",
+        "turn": {
+          "completedAt": 1792633251,
+          "id": "turn_22cae832c5354ac38616bcfdd2f5e1a4",
+          "items": [
+            {
+              "clientId": "shutdown-user-0",
+              "content": [
+                {
+                  "text": "start background 0",
+                  "type": "text"
+                }
+              ],
+              "id": "user-turn_22cae832c5354ac38616bcfdd2f5e1a4",
+              "type": "userMessage"
+            },
+            {
+              "aggregatedOutput": "SHUTDOWN_PARTIAL_0",
+              "command": "printf '%s %s\\n' \"$$\" \"$PPID\" > 'process-0.pid'; printf 'SHUTDOWN_PARTIAL_0'; read answer",
+              "commandActions": [
+                {
+                  "command": "printf '%s %s\\n' \"$$\" \"$PPID\" > 'process-0.pid'; printf 'SHUTDOWN_PARTIAL_0'; read answer",
+                  "type": "unknown"
+                }
+              ],
+              "cwd": "/private/var/folders/87/s6cpr7hd1_v43cs833x4s_900000gn/T/command-shutdown-qGXhyv/work dir",
+              "durationMs": 268,
+              "id": "item_shutdown-0",
+              "processId": "unified-exec-1000",
+              "source": "unifiedExecStartup",
+              "status": "inProgress",
+              "type": "commandExecution"
+            },
+            {
+              "id": "provider:turn_22cae832c5354ac38616bcfdd2f5e1a4:2:text:text-0",
+              "text": "BACKGROUND_STARTED_0",
+              "type": "agentMessage"
+            }
+          ],
+          "itemsView": "full",
+          "status": "completed"
+        }
+      }
+    },
+    {
+      "method": "thread/started",
+      "params": {
+        "thread": {
+          "canAcceptDirectInput": true,
+          "cliVersion": "1.166.0",
+          "createdAt": 1792633251,
+          "cwd": "/private/var/folders/87/s6cpr7hd1_v43cs833x4s_900000gn/T/command-shutdown-qGXhyv/work dir",
+          "ephemeral": false,
+          "extra": {
+            "activePermissionProfile": null,
+            "allowProviderModelFallback": false,
+            "approvalPolicy": null,
+            "approvalsReviewer": "user",
+            "baseInstructions": null,
+            "cliVersion": "1.166.0",
+            "config": null,
+            "developerInstructions": null,
+            "dynamicTools": null,
+            "environments": null,
+            "ephemeral": false,
+            "experimentalRawEvents": false,
+            "historyMode": "paginated",
+            "modelName": "command-shutdown-fixture",
+            "permissions": null,
+            "personality": null,
+            "projectId": null,
+            "providerName": "custom-14471ddc-e6ab-465e-8b29-5a1dc1e99acc",
+            "providerSelector": "custom-14471ddc-e6ab-465e-8b29-5a1dc1e99acc",
+            "runtimeWorkspaceRoots": [
+              "/private/var/folders/87/s6cpr7hd1_v43cs833x4s_900000gn/T/command-shutdown-qGXhyv/work dir"
+            ],
+            "sandbox": null,
+            "sandboxPolicy": null,
+            "selectedCapabilityRoots": null,
+            "serviceTier": null,
+            "sessionStartSource": null,
+            "source": "appServer",
+            "threadSource": "appServer",
+            "workingDir": "/private/var/folders/87/s6cpr7hd1_v43cs833x4s_900000gn/T/command-shutdown-qGXhyv/work dir"
+          },
+          "historyMode": "paginated",
+          "id": "01a16144-a4e6-74d1-a0d0-0effa5675236",
+          "modelProvider": "custom-14471ddc-e6ab-465e-8b29-5a1dc1e99acc",
+          "name": "shutdown 1",
+          "preview": "shutdown 1",
+          "projectId": null,
+          "recencyAt": 1792633251,
+          "sessionId": "01a16144-a4e6-74d1-a0d0-0effa5675236",
+          "source": "appServer",
+          "status": {
+            "type": "idle"
+          },
+          "threadSource": "appServer",
+          "turns": [],
+          "updatedAt": 1792633251
+        }
+      }
+    },
+    {
+      "method": "item/started",
+      "params": {
+        "item": {
+          "clientId": "shutdown-user-1",
+          "content": [
+            {
+              "text": "start background 1",
+              "type": "text"
+            }
+          ],
+          "id": "user-turn_0d679fefc26c466aa41c866bdbb239da",
+          "type": "userMessage"
+        },
+        "startedAtMs": 1792633251195,
+        "threadId": "01a16144-a4e6-74d1-a0d0-0effa5675236",
+        "turnId": "turn_0d679fefc26c466aa41c866bdbb239da"
+      }
+    },
+    {
+      "method": "agentSession/event",
+      "params": {
+        "event": {
+          "eventId": "evt_a61dd8736ebe49058876bb19cadb2209",
+          "payload": {
+            "clientId": "shutdown-user-1",
+            "content": {
+              "kind": "inline_text",
+              "text": "start background 1"
+            },
+            "input": [
+              {
+                "text": "start background 1",
+                "type": "text"
+              }
+            ],
+            "item": {
+              "completedAtMs": 1792633251195,
+              "createdAtMs": 1792633251195,
+              "itemId": "user-turn_0d679fefc26c466aa41c866bdbb239da",
+              "kind": "userMessage",
+              "metadata": {
+                "source_event_id": "evt_a61dd8736ebe49058876bb19cadb2209",
+                "source_event_type": "message.created"
+              },
+              "ordinal": 2,
+              "payload": {
+                "client_id": "shutdown-user-1",
+                "content": [
+                  {
+                    "text": "start background 1",
+                    "type": "text"
+                  }
+                ],
+                "type": "userMessage"
+              },
+              "sequence": 3,
+              "sessionId": "01a16144-a4e6-74d1-a0d0-0effa5675236",
+              "status": "completed",
+              "threadId": "01a16144-a4e6-74d1-a0d0-0effa5675236",
+              "turnId": "turn_0d679fefc26c466aa41c866bdbb239da",
+              "updatedAtMs": 1792633251195
+            },
+            "role": "user",
+            "session": {
+              "appId": "agent-chat",
+              "createdAt": "2026-10-22T01:40:51.051Z",
+              "metadata": {
+                "activePermissionProfile": null,
+                "allowProviderModelFallback": false,
+                "approvalPolicy": null,
+                "approvalsReviewer": "user",
+                "baseInstructions": null,
+                "cliVersion": "1.166.0",
+                "collaborationMode": {
+                  "mode": "default",
+                  "settings": {
+                    "developer_instructions": null,
+                    "model": "command-shutdown-fixture",
+                    "reasoning_effort": null
+                  }
+                },
+                "config": null,
+                "developerInstructions": null,
+                "dynamicTools": null,
+                "environments": null,
+                "ephemeral": false,
+                "experimentalRawEvents": false,
+                "historyMode": "paginated",
+                "modelName": "command-shutdown-fixture",
+                "permissions": null,
+                "personality": null,
+                "projectId": null,
+                "providerName": "custom-14471ddc-e6ab-465e-8b29-5a1dc1e99acc",
+                "providerSelector": "custom-14471ddc-e6ab-465e-8b29-5a1dc1e99acc",
+                "runtimeWorkspaceRoots": [
+                  "/private/var/folders/87/s6cpr7hd1_v43cs833x4s_900000gn/T/command-shutdown-qGXhyv/work dir"
+                ],
+                "sandbox": null,
+                "sandboxPolicy": null,
+                "selectedCapabilityRoots": null,
+                "serviceTier": null,
+                "sessionStartSource": null,
+                "source": "appServer",
+                "threadSource": "appServer",
+                "workingDir": "/private/var/folders/87/s6cpr7hd1_v43cs833x4s_900000gn/T/command-shutdown-qGXhyv/work dir"
+              },
+              "model": "command-shutdown-fixture",
+              "title": "shutdown 1",
+              "updatedAt": "2026-10-22T01:40:51.180Z",
+              "workingDir": "/private/var/folders/87/s6cpr7hd1_v43cs833x4s_900000gn/T/command-shutdown-qGXhyv/work dir"
+            },
+            "visibility": "user_visible"
+          },
+          "sequence": 3,
+          "sessionId": "01a16144-a4e6-74d1-a0d0-0effa5675236",
+          "threadId": "01a16144-a4e6-74d1-a0d0-0effa5675236",
+          "timestamp": "2026-10-22T01:40:51.195Z",
+          "turnId": "turn_0d679fefc26c466aa41c866bdbb239da",
+          "type": "message.created"
+        }
+      }
+    },
+    {
+      "method": "item/completed",
+      "params": {
+        "completedAtMs": 1792633251195,
+        "item": {
+          "clientId": "shutdown-user-1",
+          "content": [
+            {
+              "text": "start background 1",
+              "type": "text"
+            }
+          ],
+          "id": "user-turn_0d679fefc26c466aa41c866bdbb239da",
+          "type": "userMessage"
+        },
+        "threadId": "01a16144-a4e6-74d1-a0d0-0effa5675236",
+        "turnId": "turn_0d679fefc26c466aa41c866bdbb239da"
+      }
+    },
+    {
+      "method": "thread/settings/updated",
+      "params": {
+        "threadId": "01a16144-a4e6-74d1-a0d0-0effa5675236",
+        "threadSettings": {
+          "activePermissionProfile": null,
+          "approvalPolicy": null,
+          "approvalsReviewer": "user",
+          "collaborationMode": {
+            "mode": "default",
+            "settings": {
+              "developer_instructions": null,
+              "model": "command-shutdown-fixture",
+              "reasoning_effort": null
+            }
+          },
+          "cwd": "/private/var/folders/87/s6cpr7hd1_v43cs833x4s_900000gn/T/command-shutdown-qGXhyv/work dir",
+          "model": "command-shutdown-fixture",
+          "modelProvider": "custom-14471ddc-e6ab-465e-8b29-5a1dc1e99acc",
+          "personality": null,
+          "sandboxPolicy": null
+        }
+      }
+    },
+    {
+      "method": "agentSession/event",
+      "params": {
+        "event": {
+          "eventId": "evt_5a8c9edc5cbb423bb228c2ce1f4f8e16",
+          "payload": {
+            "attempt": 1,
+            "backend": "runtime",
+            "elapsed_ms": 0,
+            "model": "command-shutdown-fixture",
+            "provider": "openai",
+            "runtimeEvent": {
+              "attempt": 1,
+              "elapsed_ms": 0,
+              "model": "command-shutdown-fixture",
+              "provider": "openai",
+              "runtime_provider_active_model": "command-shutdown-fixture",
+              "runtime_provider_backend": "current",
+              "runtime_provider_protocol": "chat_completions",
+              "runtime_provider_selector": "custom-14471ddc-e6ab-465e-8b29-5a1dc1e99acc",
+              "stage": "request_started",
+              "status": "running",
+              "tool_names": [
+                "Glob",
+                "Grep",
+                "Read",
+                "WebFetch",
+                "WebSearch",
+                "apply_patch",
+                "curr_time",
+                "exec_command",
+                "followup_task",
+                "interrupt_agent",
+                "lime_create_image_generation_task",
+                "list_agents",
+                "list_mcp_resources",
+                "memory_add_note",
+                "memory_list",
+                "memory_read",
+                "memory_search",
+                "read_mcp_resource",
+                "request_permissions",
+                "request_user_input",
+                "send_message",
+                "skill_search",
+                "sleep",
+                "spawn_agent",
+                "tool_search",
+                "video_generate",
+                "view_image",
+                "wait_agent",
+                "write_stdin"
+              ],
+              "type": "provider_trace"
+            },
+            "runtime_provider_active_model": "command-shutdown-fixture",
+            "runtime_provider_backend": "current",
+            "runtime_provider_protocol": "chat_completions",
+            "runtime_provider_selector": "custom-14471ddc-e6ab-465e-8b29-5a1dc1e99acc",
+            "session": {
+              "appId": "agent-chat",
+              "createdAt": "2026-10-22T01:40:51.051Z",
+              "metadata": {
+                "activePermissionProfile": null,
+                "allowProviderModelFallback": false,
+                "approvalPolicy": null,
+                "approvalsReviewer": "user",
+                "baseInstructions": null,
+                "cliVersion": "1.166.0",
+                "collaborationMode": {
+                  "mode": "default",
+                  "settings": {
+                    "developer_instructions": null,
+                    "model": "command-shutdown-fixture",
+                    "reasoning_effort": null
+                  }
+                },
+                "config": null,
+                "developerInstructions": null,
+                "dynamicTools": null,
+                "environments": null,
+                "ephemeral": false,
+                "experimentalRawEvents": false,
+                "historyMode": "paginated",
+                "modelName": "command-shutdown-fixture",
+                "permissions": null,
+                "personality": null,
+                "projectId": null,
+                "providerName": "custom-14471ddc-e6ab-465e-8b29-5a1dc1e99acc",
+                "providerSelector": "custom-14471ddc-e6ab-465e-8b29-5a1dc1e99acc",
+                "runtimeWorkspaceRoots": [
+                  "/private/var/folders/87/s6cpr7hd1_v43cs833x4s_900000gn/T/command-shutdown-qGXhyv/work dir"
+                ],
+                "sandbox": null,
+                "sandboxPolicy": null,
+                "selectedCapabilityRoots": null,
+                "serviceTier": null,
+                "sessionStartSource": null,
+                "source": "appServer",
+                "threadSource": "appServer",
+                "workingDir": "/private/var/folders/87/s6cpr7hd1_v43cs833x4s_900000gn/T/command-shutdown-qGXhyv/work dir"
+              },
+              "model": "command-shutdown-fixture",
+              "title": "shutdown 1",
+              "updatedAt": "2026-10-22T01:40:51.180Z",
+              "workingDir": "/private/var/folders/87/s6cpr7hd1_v43cs833x4s_900000gn/T/command-shutdown-qGXhyv/work dir"
+            },
+            "stage": "request_started",
+            "status": "running",
+            "tool_names": [
+              "Glob",
+              "Grep",
+              "Read",
+              "WebFetch",
+              "WebSearch",
+              "apply_patch",
+              "curr_time",
+              "exec_command",
+              "followup_task",
+              "interrupt_agent",
+              "lime_create_image_generation_task",
+              "list_agents",
+              "list_mcp_resources",
+              "memory_add_note",
+              "memory_list",
+              "memory_read",
+              "memory_search",
+              "read_mcp_resource",
+              "request_permissions",
+              "request_user_input",
+              "send_message",
+              "skill_search",
+              "sleep",
+              "spawn_agent",
+              "tool_search",
+              "video_generate",
+              "view_image",
+              "wait_agent",
+              "write_stdin"
+            ],
+            "type": "provider_trace"
+          },
+          "sequence": 7,
+          "sessionId": "01a16144-a4e6-74d1-a0d0-0effa5675236",
+          "threadId": "01a16144-a4e6-74d1-a0d0-0effa5675236",
+          "timestamp": "2026-10-22T01:40:51.528Z",
+          "turnId": "turn_0d679fefc26c466aa41c866bdbb239da",
+          "type": "provider.request.started"
+        }
+      }
+    },
+    {
+      "method": "agentSession/event",
+      "params": {
+        "event": {
+          "eventId": "evt_84c3aa92bf0545529d4ad587f7635ffa",
+          "payload": {
+            "attempt": 1,
+            "backend": "runtime",
+            "elapsed_ms": 3,
+            "model": "command-shutdown-fixture",
+            "provider": "openai",
+            "runtimeEvent": {
+              "attempt": 1,
+              "elapsed_ms": 3,
+              "model": "command-shutdown-fixture",
+              "provider": "openai",
+              "runtime_provider_active_model": "command-shutdown-fixture",
+              "runtime_provider_backend": "current",
+              "runtime_provider_protocol": "chat_completions",
+              "runtime_provider_selector": "custom-14471ddc-e6ab-465e-8b29-5a1dc1e99acc",
+              "stage": "first_event_received",
+              "status": "running",
+              "type": "provider_trace"
+            },
+            "runtime_provider_active_model": "command-shutdown-fixture",
+            "runtime_provider_backend": "current",
+            "runtime_provider_protocol": "chat_completions",
+            "runtime_provider_selector": "custom-14471ddc-e6ab-465e-8b29-5a1dc1e99acc",
+            "session": {
+              "appId": "agent-chat",
+              "createdAt": "2026-10-22T01:40:51.051Z",
+              "metadata": {
+                "activePermissionProfile": null,
+                "allowProviderModelFallback": false,
+                "approvalPolicy": null,
+                "approvalsReviewer": "user",
+                "baseInstructions": null,
+                "cliVersion": "1.166.0",
+                "collaborationMode": {
+                  "mode": "default",
+                  "settings": {
+                    "developer_instructions": null,
+                    "model": "command-shutdown-fixture",
+                    "reasoning_effort": null
+                  }
+                },
+                "config": null,
+                "developerInstructions": null,
+                "dynamicTools": null,
+                "environments": null,
+                "ephemeral": false,
+                "experimentalRawEvents": false,
+                "historyMode": "paginated",
+                "modelName": "command-shutdown-fixture",
+                "permissions": null,
+                "personality": null,
+                "projectId": null,
+                "providerName": "custom-14471ddc-e6ab-465e-8b29-5a1dc1e99acc",
+                "providerSelector": "custom-14471ddc-e6ab-465e-8b29-5a1dc1e99acc",
+                "runtimeWorkspaceRoots": [
+                  "/private/var/folders/87/s6cpr7hd1_v43cs833x4s_900000gn/T/command-shutdown-qGXhyv/work dir"
+                ],
+                "sandbox": null,
+                "sandboxPolicy": null,
+                "selectedCapabilityRoots": null,
+                "serviceTier": null,
+                "sessionStartSource": null,
+                "source": "appServer",
+                "threadSource": "appServer",
+                "workingDir": "/private/var/folders/87/s6cpr7hd1_v43cs833x4s_900000gn/T/command-shutdown-qGXhyv/work dir"
+              },
+              "model": "command-shutdown-fixture",
+              "title": "shutdown 1",
+              "updatedAt": "2026-10-22T01:40:51.180Z",
+              "workingDir": "/private/var/folders/87/s6cpr7hd1_v43cs833x4s_900000gn/T/command-shutdown-qGXhyv/work dir"
+            },
+            "stage": "first_event_received",
+            "status": "running",
+            "type": "provider_trace"
+          },
+          "sequence": 8,
+          "sessionId": "01a16144-a4e6-74d1-a0d0-0effa5675236",
+          "threadId": "01a16144-a4e6-74d1-a0d0-0effa5675236",
+          "timestamp": "2026-10-22T01:40:51.542Z",
+          "turnId": "turn_0d679fefc26c466aa41c866bdbb239da",
+          "type": "provider.first_event.received"
+        }
+      }
+    },
+    {
+      "method": "thread/tokenUsage/updated",
+      "params": {
+        "threadId": "01a16144-a4e6-74d1-a0d0-0effa5675236",
+        "tokenUsage": {
+          "last": {
+            "cacheWriteInputTokens": 0,
+            "cachedInputTokens": 0,
+            "inputTokens": 1,
+            "outputTokens": 1,
+            "reasoningOutputTokens": 0,
+            "totalTokens": 2
+          },
+          "modelContextWindow": null,
+          "total": {
+            "cacheWriteInputTokens": 0,
+            "cachedInputTokens": 0,
+            "inputTokens": 1,
+            "outputTokens": 1,
+            "reasoningOutputTokens": 0,
+            "totalTokens": 2
+          }
+        },
+        "turnId": "turn_0d679fefc26c466aa41c866bdbb239da"
+      }
+    },
+    {
+      "method": "item/started",
+      "params": {
+        "item": {
+          "command": "printf '%s %s\\n' \"$$\" \"$PPID\" > 'process-1.pid'; printf 'SHUTDOWN_PARTIAL_1'; read answer",
+          "commandActions": [
+            {
+              "command": "printf '%s %s\\n' \"$$\" \"$PPID\" > 'process-1.pid'; printf 'SHUTDOWN_PARTIAL_1'; read answer",
+              "type": "unknown"
+            }
+          ],
+          "cwd": "/private/var/folders/87/s6cpr7hd1_v43cs833x4s_900000gn/T/command-shutdown-qGXhyv/work dir",
+          "id": "item_shutdown-1",
+          "processId": "unified-exec-1001",
+          "source": "unifiedExecStartup",
+          "status": "inProgress",
+          "type": "commandExecution"
+        },
+        "startedAtMs": 1792633251600,
+        "threadId": "01a16144-a4e6-74d1-a0d0-0effa5675236",
+        "turnId": "turn_0d679fefc26c466aa41c866bdbb239da"
+      }
+    },
+    {
+      "method": "thread/tokenUsage/updated",
+      "params": {
+        "threadId": "01a16144-a4e6-74d1-a0d0-0effa5675236",
+        "tokenUsage": {
+          "last": {
+            "cacheWriteInputTokens": 0,
+            "cachedInputTokens": 0,
+            "inputTokens": 1,
+            "outputTokens": 1,
+            "reasoningOutputTokens": 0,
+            "totalTokens": 2
+          },
+          "modelContextWindow": null,
+          "total": {
+            "cacheWriteInputTokens": 0,
+            "cachedInputTokens": 0,
+            "inputTokens": 1,
+            "outputTokens": 1,
+            "reasoningOutputTokens": 0,
+            "totalTokens": 2
+          }
+        },
+        "turnId": "turn_0d679fefc26c466aa41c866bdbb239da"
+      }
+    },
+    {
+      "method": "item/commandExecution/outputDelta",
+      "params": {
+        "delta": "SHUTDOWN_PARTIAL_1",
+        "itemId": "item_shutdown-1",
+        "threadId": "01a16144-a4e6-74d1-a0d0-0effa5675236",
+        "turnId": "turn_0d679fefc26c466aa41c866bdbb239da"
+      }
+    },
+    {
+      "method": "agentSession/event",
+      "params": {
+        "event": {
+          "eventId": "evt_283b86eee4f84c48a6171e4185110dc2",
+          "payload": {
+            "attempt": 2,
+            "backend": "runtime",
+            "elapsed_ms": 0,
+            "model": "command-shutdown-fixture",
+            "provider": "openai",
+            "runtimeEvent": {
+              "attempt": 2,
+              "elapsed_ms": 0,
+              "model": "command-shutdown-fixture",
+              "provider": "openai",
+              "runtime_provider_active_model": "command-shutdown-fixture",
+              "runtime_provider_backend": "current",
+              "runtime_provider_protocol": "chat_completions",
+              "runtime_provider_selector": "custom-14471ddc-e6ab-465e-8b29-5a1dc1e99acc",
+              "stage": "request_started",
+              "status": "running",
+              "tool_names": [
+                "Glob",
+                "Grep",
+                "Read",
+                "WebFetch",
+                "WebSearch",
+                "apply_patch",
+                "curr_time",
+                "exec_command",
+                "followup_task",
+                "interrupt_agent",
+                "lime_create_image_generation_task",
+                "list_agents",
+                "list_mcp_resources",
+                "memory_add_note",
+                "memory_list",
+                "memory_read",
+                "memory_search",
+                "read_mcp_resource",
+                "request_permissions",
+                "request_user_input",
+                "send_message",
+                "skill_search",
+                "sleep",
+                "spawn_agent",
+                "tool_search",
+                "video_generate",
+                "view_image",
+                "wait_agent",
+                "write_stdin"
+              ],
+              "type": "provider_trace"
+            },
+            "runtime_provider_active_model": "command-shutdown-fixture",
+            "runtime_provider_backend": "current",
+            "runtime_provider_protocol": "chat_completions",
+            "runtime_provider_selector": "custom-14471ddc-e6ab-465e-8b29-5a1dc1e99acc",
+            "session": {
+              "appId": "agent-chat",
+              "createdAt": "2026-10-22T01:40:51.051Z",
+              "metadata": {
+                "activePermissionProfile": null,
+                "allowProviderModelFallback": false,
+                "approvalPolicy": null,
+                "approvalsReviewer": "user",
+                "baseInstructions": null,
+                "cliVersion": "1.166.0",
+                "collaborationMode": {
+                  "mode": "default",
+                  "settings": {
+                    "developer_instructions": null,
+                    "model": "command-shutdown-fixture",
+                    "reasoning_effort": null
+                  }
+                },
+                "config": null,
+                "developerInstructions": null,
+                "dynamicTools": null,
+                "environments": null,
+                "ephemeral": false,
+                "experimentalRawEvents": false,
+                "historyMode": "paginated",
+                "modelName": "command-shutdown-fixture",
+                "permissions": null,
+                "personality": null,
+                "projectId": null,
+                "providerName": "custom-14471ddc-e6ab-465e-8b29-5a1dc1e99acc",
+                "providerSelector": "custom-14471ddc-e6ab-465e-8b29-5a1dc1e99acc",
+                "runtimeWorkspaceRoots": [
+                  "/private/var/folders/87/s6cpr7hd1_v43cs833x4s_900000gn/T/command-shutdown-qGXhyv/work dir"
+                ],
+                "sandbox": null,
+                "sandboxPolicy": null,
+                "selectedCapabilityRoots": null,
+                "serviceTier": null,
+                "sessionStartSource": null,
+                "source": "appServer",
+                "threadSource": "appServer",
+                "workingDir": "/private/var/folders/87/s6cpr7hd1_v43cs833x4s_900000gn/T/command-shutdown-qGXhyv/work dir"
+              },
+              "model": "command-shutdown-fixture",
+              "title": "shutdown 1",
+              "updatedAt": "2026-10-22T01:40:51.180Z",
+              "workingDir": "/private/var/folders/87/s6cpr7hd1_v43cs833x4s_900000gn/T/command-shutdown-qGXhyv/work dir"
+            },
+            "stage": "request_started",
+            "status": "running",
+            "tool_names": [
+              "Glob",
+              "Grep",
+              "Read",
+              "WebFetch",
+              "WebSearch",
+              "apply_patch",
+              "curr_time",
+              "exec_command",
+              "followup_task",
+              "interrupt_agent",
+              "lime_create_image_generation_task",
+              "list_agents",
+              "list_mcp_resources",
+              "memory_add_note",
+              "memory_list",
+              "memory_read",
+              "memory_search",
+              "read_mcp_resource",
+              "request_permissions",
+              "request_user_input",
+              "send_message",
+              "skill_search",
+              "sleep",
+              "spawn_agent",
+              "tool_search",
+              "video_generate",
+              "view_image",
+              "wait_agent",
+              "write_stdin"
+            ],
+            "type": "provider_trace"
+          },
+          "sequence": 18,
+          "sessionId": "01a16144-a4e6-74d1-a0d0-0effa5675236",
+          "threadId": "01a16144-a4e6-74d1-a0d0-0effa5675236",
+          "timestamp": "2026-10-22T01:40:51.946Z",
+          "turnId": "turn_0d679fefc26c466aa41c866bdbb239da",
+          "type": "provider.request.started"
+        }
+      }
+    },
+    {
+      "method": "agentSession/event",
+      "params": {
+        "event": {
+          "eventId": "evt_a13fadd074b04a0f900ef82d9b0ba0d8",
+          "payload": {
+            "attempt": 2,
+            "backend": "runtime",
+            "elapsed_ms": 1,
+            "model": "command-shutdown-fixture",
+            "provider": "openai",
+            "runtimeEvent": {
+              "attempt": 2,
+              "elapsed_ms": 1,
+              "model": "command-shutdown-fixture",
+              "provider": "openai",
+              "runtime_provider_active_model": "command-shutdown-fixture",
+              "runtime_provider_backend": "current",
+              "runtime_provider_protocol": "chat_completions",
+              "runtime_provider_selector": "custom-14471ddc-e6ab-465e-8b29-5a1dc1e99acc",
+              "stage": "first_event_received",
+              "status": "running",
+              "type": "provider_trace"
+            },
+            "runtime_provider_active_model": "command-shutdown-fixture",
+            "runtime_provider_backend": "current",
+            "runtime_provider_protocol": "chat_completions",
+            "runtime_provider_selector": "custom-14471ddc-e6ab-465e-8b29-5a1dc1e99acc",
+            "session": {
+              "appId": "agent-chat",
+              "createdAt": "2026-10-22T01:40:51.051Z",
+              "metadata": {
+                "activePermissionProfile": null,
+                "allowProviderModelFallback": false,
+                "approvalPolicy": null,
+                "approvalsReviewer": "user",
+                "baseInstructions": null,
+                "cliVersion": "1.166.0",
+                "collaborationMode": {
+                  "mode": "default",
+                  "settings": {
+                    "developer_instructions": null,
+                    "model": "command-shutdown-fixture",
+                    "reasoning_effort": null
+                  }
+                },
+                "config": null,
+                "developerInstructions": null,
+                "dynamicTools": null,
+                "environments": null,
+                "ephemeral": false,
+                "experimentalRawEvents": false,
+                "historyMode": "paginated",
+                "modelName": "command-shutdown-fixture",
+                "permissions": null,
+                "personality": null,
+                "projectId": null,
+                "providerName": "custom-14471ddc-e6ab-465e-8b29-5a1dc1e99acc",
+                "providerSelector": "custom-14471ddc-e6ab-465e-8b29-5a1dc1e99acc",
+                "runtimeWorkspaceRoots": [
+                  "/private/var/folders/87/s6cpr7hd1_v43cs833x4s_900000gn/T/command-shutdown-qGXhyv/work dir"
+                ],
+                "sandbox": null,
+                "sandboxPolicy": null,
+                "selectedCapabilityRoots": null,
+                "serviceTier": null,
+                "sessionStartSource": null,
+                "source": "appServer",
+                "threadSource": "appServer",
+                "workingDir": "/private/var/folders/87/s6cpr7hd1_v43cs833x4s_900000gn/T/command-shutdown-qGXhyv/work dir"
+              },
+              "model": "command-shutdown-fixture",
+              "title": "shutdown 1",
+              "updatedAt": "2026-10-22T01:40:51.180Z",
+              "workingDir": "/private/var/folders/87/s6cpr7hd1_v43cs833x4s_900000gn/T/command-shutdown-qGXhyv/work dir"
+            },
+            "stage": "first_event_received",
+            "status": "running",
+            "type": "provider_trace"
+          },
+          "sequence": 19,
+          "sessionId": "01a16144-a4e6-74d1-a0d0-0effa5675236",
+          "threadId": "01a16144-a4e6-74d1-a0d0-0effa5675236",
+          "timestamp": "2026-10-22T01:40:51.958Z",
+          "turnId": "turn_0d679fefc26c466aa41c866bdbb239da",
+          "type": "provider.first_event.received"
+        }
+      }
+    },
+    {
+      "method": "agentSession/event",
+      "params": {
+        "event": {
+          "eventId": "evt_1f33a4896f974aba885b7793ebc589eb",
+          "payload": {
+            "attempt": 2,
+            "backend": "runtime",
+            "elapsed_ms": 1,
+            "model": "command-shutdown-fixture",
+            "provider": "openai",
+            "runtimeEvent": {
+              "attempt": 2,
+              "elapsed_ms": 1,
+              "model": "command-shutdown-fixture",
+              "provider": "openai",
+              "runtime_provider_active_model": "command-shutdown-fixture",
+              "runtime_provider_backend": "current",
+              "runtime_provider_protocol": "chat_completions",
+              "runtime_provider_selector": "custom-14471ddc-e6ab-465e-8b29-5a1dc1e99acc",
+              "stage": "first_text_delta_received",
+              "status": "running",
+              "text_chars": 20,
+              "type": "provider_trace"
+            },
+            "runtime_provider_active_model": "command-shutdown-fixture",
+            "runtime_provider_backend": "current",
+            "runtime_provider_protocol": "chat_completions",
+            "runtime_provider_selector": "custom-14471ddc-e6ab-465e-8b29-5a1dc1e99acc",
+            "session": {
+              "appId": "agent-chat",
+              "createdAt": "2026-10-22T01:40:51.051Z",
+              "metadata": {
+                "activePermissionProfile": null,
+                "allowProviderModelFallback": false,
+                "approvalPolicy": null,
+                "approvalsReviewer": "user",
+                "baseInstructions": null,
+                "cliVersion": "1.166.0",
+                "collaborationMode": {
+                  "mode": "default",
+                  "settings": {
+                    "developer_instructions": null,
+                    "model": "command-shutdown-fixture",
+                    "reasoning_effort": null
+                  }
+                },
+                "config": null,
+                "developerInstructions": null,
+                "dynamicTools": null,
+                "environments": null,
+                "ephemeral": false,
+                "experimentalRawEvents": false,
+                "historyMode": "paginated",
+                "modelName": "command-shutdown-fixture",
+                "permissions": null,
+                "personality": null,
+                "projectId": null,
+                "providerName": "custom-14471ddc-e6ab-465e-8b29-5a1dc1e99acc",
+                "providerSelector": "custom-14471ddc-e6ab-465e-8b29-5a1dc1e99acc",
+                "runtimeWorkspaceRoots": [
+                  "/private/var/folders/87/s6cpr7hd1_v43cs833x4s_900000gn/T/command-shutdown-qGXhyv/work dir"
+                ],
+                "sandbox": null,
+                "sandboxPolicy": null,
+                "selectedCapabilityRoots": null,
+                "serviceTier": null,
+                "sessionStartSource": null,
+                "source": "appServer",
+                "threadSource": "appServer",
+                "workingDir": "/private/var/folders/87/s6cpr7hd1_v43cs833x4s_900000gn/T/command-shutdown-qGXhyv/work dir"
+              },
+              "model": "command-shutdown-fixture",
+              "title": "shutdown 1",
+              "updatedAt": "2026-10-22T01:40:51.180Z",
+              "workingDir": "/private/var/folders/87/s6cpr7hd1_v43cs833x4s_900000gn/T/command-shutdown-qGXhyv/work dir"
+            },
+            "stage": "first_text_delta_received",
+            "status": "running",
+            "text_chars": 20,
+            "type": "provider_trace"
+          },
+          "sequence": 20,
+          "sessionId": "01a16144-a4e6-74d1-a0d0-0effa5675236",
+          "threadId": "01a16144-a4e6-74d1-a0d0-0effa5675236",
+          "timestamp": "2026-10-22T01:40:51.968Z",
+          "turnId": "turn_0d679fefc26c466aa41c866bdbb239da",
+          "type": "provider.first_text_delta.received"
+        }
+      }
+    },
+    {
+      "method": "item/started",
+      "params": {
+        "item": {
+          "id": "provider:turn_0d679fefc26c466aa41c866bdbb239da:2:text:text-0",
+          "text": "",
+          "type": "agentMessage"
+        },
+        "startedAtMs": 1792633251980,
+        "threadId": "01a16144-a4e6-74d1-a0d0-0effa5675236",
+        "turnId": "turn_0d679fefc26c466aa41c866bdbb239da"
+      }
+    },
+    {
+      "method": "item/agentMessage/delta",
+      "params": {
+        "delta": "BACKGROUND_STARTED_1",
+        "itemId": "provider:turn_0d679fefc26c466aa41c866bdbb239da:2:text:text-0",
+        "threadId": "01a16144-a4e6-74d1-a0d0-0effa5675236",
+        "turnId": "turn_0d679fefc26c466aa41c866bdbb239da"
+      }
+    },
+    {
+      "method": "thread/tokenUsage/updated",
+      "params": {
+        "threadId": "01a16144-a4e6-74d1-a0d0-0effa5675236",
+        "tokenUsage": {
+          "last": {
+            "cacheWriteInputTokens": 0,
+            "cachedInputTokens": 0,
+            "inputTokens": 2,
+            "outputTokens": 2,
+            "reasoningOutputTokens": 0,
+            "totalTokens": 4
+          },
+          "modelContextWindow": null,
+          "total": {
+            "cacheWriteInputTokens": 0,
+            "cachedInputTokens": 0,
+            "inputTokens": 2,
+            "outputTokens": 2,
+            "reasoningOutputTokens": 0,
+            "totalTokens": 4
+          }
+        },
+        "turnId": "turn_0d679fefc26c466aa41c866bdbb239da"
+      }
+    },
+    {
+      "method": "thread/tokenUsage/updated",
+      "params": {
+        "threadId": "01a16144-a4e6-74d1-a0d0-0effa5675236",
+        "tokenUsage": {
+          "last": {
+            "cacheWriteInputTokens": 0,
+            "cachedInputTokens": 0,
+            "inputTokens": 2,
+            "outputTokens": 2,
+            "reasoningOutputTokens": 0,
+            "totalTokens": 4
+          },
+          "modelContextWindow": null,
+          "total": {
+            "cacheWriteInputTokens": 0,
+            "cachedInputTokens": 0,
+            "inputTokens": 2,
+            "outputTokens": 2,
+            "reasoningOutputTokens": 0,
+            "totalTokens": 4
+          }
+        },
+        "turnId": "turn_0d679fefc26c466aa41c866bdbb239da"
+      }
+    },
+    {
+      "method": "item/completed",
+      "params": {
+        "completedAtMs": 1792633252011,
+        "item": {
+          "id": "provider:turn_0d679fefc26c466aa41c866bdbb239da:2:text:text-0",
+          "text": "BACKGROUND_STARTED_1",
+          "type": "agentMessage"
+        },
+        "threadId": "01a16144-a4e6-74d1-a0d0-0effa5675236",
+        "turnId": "turn_0d679fefc26c466aa41c866bdbb239da"
+      }
+    },
+    {
+      "method": "thread/tokenUsage/updated",
+      "params": {
+        "threadId": "01a16144-a4e6-74d1-a0d0-0effa5675236",
+        "tokenUsage": {
+          "last": {
+            "cacheWriteInputTokens": 0,
+            "cachedInputTokens": 0,
+            "inputTokens": 2,
+            "outputTokens": 2,
+            "reasoningOutputTokens": 0,
+            "totalTokens": 4
+          },
+          "modelContextWindow": null,
+          "total": {
+            "cacheWriteInputTokens": 0,
+            "cachedInputTokens": 0,
+            "inputTokens": 2,
+            "outputTokens": 2,
+            "reasoningOutputTokens": 0,
+            "totalTokens": 4
+          }
+        },
+        "turnId": "turn_0d679fefc26c466aa41c866bdbb239da"
+      }
+    },
+    {
+      "method": "turn/completed",
+      "params": {
+        "threadId": "01a16144-a4e6-74d1-a0d0-0effa5675236",
+        "turn": {
+          "completedAt": 1792633252,
+          "id": "turn_0d679fefc26c466aa41c866bdbb239da",
+          "items": [
+            {
+              "clientId": "shutdown-user-1",
+              "content": [
+                {
+                  "text": "start background 1",
+                  "type": "text"
+                }
+              ],
+              "id": "user-turn_0d679fefc26c466aa41c866bdbb239da",
+              "type": "userMessage"
+            },
+            {
+              "aggregatedOutput": "SHUTDOWN_PARTIAL_1",
+              "command": "printf '%s %s\\n' \"$$\" \"$PPID\" > 'process-1.pid'; printf 'SHUTDOWN_PARTIAL_1'; read answer",
+              "commandActions": [
+                {
+                  "command": "printf '%s %s\\n' \"$$\" \"$PPID\" > 'process-1.pid'; printf 'SHUTDOWN_PARTIAL_1'; read answer",
+                  "type": "unknown"
+                }
+              ],
+              "cwd": "/private/var/folders/87/s6cpr7hd1_v43cs833x4s_900000gn/T/command-shutdown-qGXhyv/work dir",
+              "durationMs": 285,
+              "id": "item_shutdown-1",
+              "processId": "unified-exec-1001",
+              "source": "unifiedExecStartup",
+              "status": "inProgress",
+              "type": "commandExecution"
+            },
+            {
+              "id": "provider:turn_0d679fefc26c466aa41c866bdbb239da:2:text:text-0",
+              "text": "BACKGROUND_STARTED_1",
+              "type": "agentMessage"
+            }
+          ],
+          "itemsView": "full",
+          "status": "completed"
+        }
+      }
+    },
+    {
+      "method": "item/completed",
+      "params": {
+        "completedAtMs": 1792633252164,
+        "item": {
+          "aggregatedOutput": "SHUTDOWN_PARTIAL_0",
+          "command": "printf '%s %s\\n' \"$$\" \"$PPID\" > 'process-0.pid'; printf 'SHUTDOWN_PARTIAL_0'; read answer",
+          "commandActions": [
+            {
+              "command": "printf '%s %s\\n' \"$$\" \"$PPID\" > 'process-0.pid'; printf 'SHUTDOWN_PARTIAL_0'; read answer",
+              "type": "unknown"
+            }
+          ],
+          "cwd": "/private/var/folders/87/s6cpr7hd1_v43cs833x4s_900000gn/T/command-shutdown-qGXhyv/work dir",
+          "durationMs": 2069,
+          "id": "item_shutdown-0",
+          "processId": "unified-exec-1000",
+          "source": "unifiedExecStartup",
+          "status": "failed",
+          "type": "commandExecution"
+        },
+        "threadId": "01a16144-a01c-7db1-8f33-b237c18b35dd",
+        "turnId": "turn_22cae832c5354ac38616bcfdd2f5e1a4"
+      }
+    },
+    {
+      "method": "thread/archived",
+      "params": {
+        "threadId": "01a16144-a01c-7db1-8f33-b237c18b35dd"
+      }
+    }
+  ],
+  "providerRequests": 5,
+  "userProviderRequests": 4,
+  "backend": "runtime",
+  "transport": "stdio",
+  "host": "App Server",
+  "active": false
+}

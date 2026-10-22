@@ -1,0 +1,333 @@
+{
+  "result": "passed",
+  "evidenceLevel": "gate-b",
+  "platform": "darwin",
+  "arch": "arm64",
+  "permissionMode": "observe",
+  "candidateRunId": "release-39628179175-1-darwin-arm64",
+  "candidateSha": "a7429000993b1516a3a58fd1b0e531f7974e13e5",
+  "candidate": {
+    "platform": "darwin",
+    "arch": "arm64",
+    "version": "1.166.0",
+    "sha": "a7429000993b1516a3a58fd1b0e531f7974e13e5",
+    "runId": "release-39628179175-1-darwin-arm64"
+  },
+  "electronExecutable": "/Users/runner/work/lime/lime/release-electron/Lime-darwin-arm64/Lime.app/Contents/MacOS/Lime",
+  "application": {
+    "appBundlePath": "/Users/runner/work/lime/lime/release-electron/Lime-darwin-arm64/Lime.app",
+    "infoPlistPath": "/Users/runner/work/lime/lime/release-electron/Lime-darwin-arm64/Lime.app/Contents/Info.plist",
+    "bundleIdentifier": "com.limecloud.lime",
+    "executableName": "Lime",
+    "version": "1.166.0",
+    "signed": true
+  },
+  "releaseTrust": {
+    "status": "passed",
+    "developerId": true,
+    "gatekeeperAccepted": true,
+    "stapleValid": true,
+    "teamIdentifier": "93RF7VQ26C",
+    "applicationAuthority": "Developer ID Application: Digital Easy Inc. (93RF7VQ26C)",
+    "helperAuthority": "Developer ID Application: Digital Easy Inc. (93RF7VQ26C)"
+  },
+  "checks": [
+    {
+      "name": "capabilities.read",
+      "status": "passed"
+    },
+    {
+      "name": "window.read",
+      "count": 5,
+      "status": "passed"
+    },
+    {
+      "name": "display.read",
+      "count": 1,
+      "status": "passed"
+    },
+    {
+      "name": "display.watch.start-stop",
+      "status": "passed"
+    },
+    {
+      "name": "window.anchor-stack-hideForTask",
+      "status": "passed",
+      "windowIds": [
+        30,
+        29
+      ],
+      "ownerPid": 56756
+    },
+    {
+      "name": "bookmark.create-resolve-start-stop",
+      "stale": false,
+      "status": "passed"
+    },
+    {
+      "name": "permissions.read",
+      "statuses": {
+        "accessibility": "ready",
+        "inputMonitoring": "ready",
+        "screenCapture": "ready",
+        "appleEvents": "observed"
+      },
+      "strict": false,
+      "status": "passed"
+    },
+    {
+      "name": "launchServices.bundleIdentifier",
+      "status": "passed"
+    }
+  ],
+  "permissions": {
+    "accessibility": {
+      "status": "ready",
+      "reason": "macOS Accessibility permission is granted."
+    },
+    "inputMonitoring": {
+      "status": "ready",
+      "reason": "macOS Input Monitoring permission is granted."
+    },
+    "screenCapture": {
+      "status": "ready",
+      "reason": "macOS Screen Recording permission is granted."
+    },
+    "appleEvents": {
+      "status": "observed",
+      "targetCount": 29
+    }
+  },
+  "helper": {
+    "id": "macos-native-host",
+    "path": "/Users/runner/work/lime/lime/release-electron/Lime-darwin-arm64/Lime.app/Contents/Resources/native/macos/macos-native-host.app/Contents/MacOS/macos-native-host",
+    "bundlePath": "/Users/runner/work/lime/lime/release-electron/Lime-darwin-arm64/Lime.app/Contents/Resources/native/macos/macos-native-host.app",
+    "resourcesRoot": "/Users/runner/work/lime/lime/release-electron/Lime-darwin-arm64/Lime.app/Contents/Resources",
+    "manifestSha256": "2ce737f033a65db48077ba365df015d91c2814001e941c0c0bf51bda2e300038",
+    "packagedSha256": "8abb0a2a1e66b7c23e9b26e4c8ba2503b93d56488290802c48b25cc24cd60f2c",
+    "digestMatches": false,
+    "signed": true,
+    "protocolVersion": 1
+  },
+  "electron": {
+    "result": "passed",
+    "renderer": {
+      "url": "file:///Users/runner/work/lime/lime/release-electron/Lime-darwin-arm64/Lime.app/Contents/Resources/app.asar/dist/index.html?nativeStartup=1",
+      "electron": true,
+      "hasInvokeBridge": true,
+      "supportsAppServer": true,
+      "startupVisible": false,
+      "appSidebarVisible": true,
+      "bodyText": "进入项目工作\n打开位置\n已安排任务\n插件\n设置\nLime\n新聊天\n项目\n最近\n暂无聊天\nDREAM BLOSSOM\n让灵感在花幕里慢慢展开。\n花境在线\n创作\n青柠一下，灵感即来\n\n说一句目标，Lime 就接着帮你做。\n\n\n\n\n只读\n按需确认\n完全访问\n选择模型\n正在输出\n进入项目工作\n本地模式\n\n正在恢复草稿…"
+    },
+    "appServer": {
+      "command": "app_server_handle_json_lines",
+      "transport": "electron-ipc",
+      "traceCount": 10,
+      "methods": [
+        "initialize",
+        "initialized",
+        "workspace/default/ensure"
+      ],
+      "workspaceId": "967222f5-19f7-4454-b596-bb26e996d6ec"
+    },
+    "nativeHost": {
+      "command": "macos_native_host_invoke",
+      "transport": "electron-ipc",
+      "methods": [
+        "capabilities.read",
+        "window.read",
+        "display.read",
+        "accessibility.read",
+        "inputMonitoring.read",
+        "screenCapture.read",
+        "bookmark.create",
+        "bookmark.resolve",
+        "bookmark.resolve",
+        "bookmark.start",
+        "bookmark.revoke",
+        "bookmark.start",
+        "bookmark.create",
+        "bookmark.start",
+        "bookmark.stop"
+      ],
+      "capabilities": {
+        "protocolVersion": 1,
+        "helperId": "macos-native-host",
+        "platform": "darwin",
+        "applicationId": "com.limecloud.lime.native-host"
+      },
+      "windowCount": 7,
+      "displayCount": 1,
+      "permissions": {
+        "accessibility": {
+          "status": "ready",
+          "reason": "macOS Accessibility permission is granted."
+        },
+        "inputMonitoring": {
+          "status": "ready",
+          "reason": "macOS Input Monitoring permission is granted."
+        },
+        "screenCapture": {
+          "status": "ready",
+          "reason": "macOS Screen Recording permission is granted."
+        }
+      },
+      "bookmarkRecovery": {
+        "bookmarkId": "gate-b-workspace",
+        "initialPersisted": true,
+        "coldRestartResolved": true,
+        "activeLeaseRevoked": true,
+        "revokedRestartRejected": true,
+        "rejectedCode": "bookmark_unavailable",
+        "transportErrorCode": "invoke_failed",
+        "regranted": true
+      }
+    },
+    "gui": {
+      "url": "file:///Users/runner/work/lime/lime/release-electron/Lime-darwin-arm64/Lime.app/Contents/Resources/app.asar/dist/index.html?nativeStartup=1",
+      "appSidebarVisible": false,
+      "startupVisible": false,
+      "settingsHeaderVisible": true,
+      "screenshot": ".lime/qc/gui-evidence/macos-native-host-gate-b-arm64/electron-gate-b.png"
+    },
+    "trace": [
+      {
+        "command": "app_server_drain_events",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "app_server_handle_json_lines",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "app_server_handle_json_lines",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "app_server_handle_json_lines",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "app_server_handle_json_lines",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "app_server_handle_json_lines",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "app_server_drain_events",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "app_server_handle_json_lines",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "app_server_drain_events",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "app_server_drain_events",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "app_server_drain_events",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "app_server_handle_json_lines",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "app_server_handle_json_lines",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "sync_tray_model_shortcuts",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "app_server_handle_json_lines",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "app_server_handle_json_lines",
+        "transport": "electron-ipc",
+        "status": "success"
+      }
+    ],
+    "errors": {
+      "console": [],
+      "page": [],
+      "invoke": []
+    },
+    "checks": [
+      {
+        "name": "electron.renderer-preload",
+        "status": "passed"
+      },
+      {
+        "name": "app-server.json-rpc",
+        "status": "passed",
+        "command": "app_server_handle_json_lines",
+        "methods": [
+          "initialize",
+          "initialized",
+          "workspace/default/ensure"
+        ]
+      },
+      {
+        "name": "native-host.electron-ipc",
+        "status": "passed",
+        "command": "macos_native_host_invoke",
+        "methods": [
+          "capabilities.read",
+          "window.read",
+          "display.read",
+          "accessibility.read",
+          "inputMonitoring.read",
+          "screenCapture.read",
+          "bookmark.create",
+          "bookmark.resolve"
+        ],
+        "windowCount": 7,
+        "displayCount": 1
+      },
+      {
+        "name": "gui.visible-state",
+        "status": "passed",
+        "screenshot": ".lime/qc/gui-evidence/macos-native-host-gate-b-arm64/electron-gate-b.png"
+      },
+      {
+        "name": "bookmark.persist-cold-restart-revoke-regrant",
+        "status": "passed",
+        "bookmarkId": "gate-b-workspace",
+        "initialPersisted": true,
+        "coldRestartResolved": true,
+        "activeLeaseRevoked": true,
+        "revokedRestartRejected": true,
+        "rejectedCode": "bookmark_unavailable",
+        "transportErrorCode": "invoke_failed",
+        "regranted": true
+      }
+    ]
+  },
+  "observedEventTypes": []
+}

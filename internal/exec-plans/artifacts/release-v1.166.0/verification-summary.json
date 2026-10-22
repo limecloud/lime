@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "version": "1.166.0",
-  "status": "pre-tag-local-gates-passed-remote-rust-pending",
-  "recordedAt": "2026-10-21T15:41:26.946215+00:00",
+  "status": "published-and-verified",
+  "recordedAt": "2026-10-22T01:43:46.594463+00:00",
   "sourceFreezeTree": "29e1ab860dc77bab85a12fd4ac9a10792ca0ec29",
   "baseCommit": "85dcb9930a1a0b7f75a1666d94225558caae2501",
   "candidateFiles": 337,
@@ -110,34 +110,108 @@
     },
     {
       "command": "Remote Quality",
-      "status": "running",
+      "status": "passed",
       "runId": 39623362323,
       "headSha": "3eea646e7330b4a39d85e6786914d8332f4bc9a2",
       "completed": [
         "Frontend Full",
+        "Rust Full",
         "GUI Smoke",
         "Windows Shell Runtime",
-        "Integrity"
+        "Integrity",
+        "Quality results"
       ],
-      "pending": [
-        "Rust Full"
-      ]
+      "receipt": "quality-r2.json",
+      "rustPassed": 8040,
+      "rustIgnored": 27
+    },
+    {
+      "command": "Quality at exact tag source",
+      "status": "passed",
+      "runId": 39628117773,
+      "headSha": "a7429000993b1516a3a58fd1b0e531f7974e13e5",
+      "receipt": "quality-tag.json",
+      "completed": [
+        "Frontend Full",
+        "Rust Full",
+        "GUI Smoke",
+        "Quality results"
+      ],
+      "rustPassed": 8040,
+      "rustIgnored": 27,
+      "rustReceipt": "quality-tag-rust-tests.json"
+    },
+    {
+      "command": "Public desktop and updater verification",
+      "status": "passed",
+      "receipt": "desktop-public-channels.json",
+      "desktopAssets": 9,
+      "updaterFeeds": 3,
+      "feedAndDownloadHTTP": 200
+    },
+    {
+      "command": "Release workflow at exact tag source",
+      "status": "passed",
+      "runId": 39628179175,
+      "attempt": 2,
+      "headSha": "a7429000993b1516a3a58fd1b0e531f7974e13e5",
+      "receipt": "release.json",
+      "jobs": 11,
+      "recovery": "Attempt 1 arm64 hosted runner capacity cancellation; reran only that job and dependent npm publication at unchanged SHA."
+    },
+    {
+      "command": "All public release channels",
+      "status": "passed",
+      "receipt": "public-channels.json",
+      "githubAssets": 14,
+      "npmPackages": 5,
+      "npmLatest": "1.166.0",
+      "updaterFeeds": 3,
+      "downloadsHTTP": 200
+    },
+    {
+      "command": "Fresh public npm installed CLI Gate B",
+      "status": "passed",
+      "receipt": "published-npm-gate-b.json",
+      "log": "published-npm-gate-b.log.gz",
+      "shutdownReceipts": "published-npm-shutdown-summary.json",
+      "qualification": "Real macOS arm64 packaged CLI/App Server; controlled external backend plus runtime command shutdown; no live provider or TUI."
     }
   ],
   "publication": {
     "committed": true,
     "mainPushed": true,
     "checkpointCommit": "3eea646e7330b4a39d85e6786914d8332f4bc9a2",
-    "fixtureRepairCommitted": false,
-    "tagged": false,
-    "tagPushed": false,
-    "channelsVerified": false
+    "fixtureRepairCommitted": true,
+    "tagged": true,
+    "tagPushed": true,
+    "channelsVerified": true,
+    "sourceCommit": "a7429000993b1516a3a58fd1b0e531f7974e13e5",
+    "tag": "v1.166.0",
+    "releaseRunId": 39628179175,
+    "githubStable": true,
+    "desktopAssetCount": 9,
+    "updaterVerified": true,
+    "githubAssetCount": 14,
+    "npmPackagesPublished": 5,
+    "npmLatest": "1.166.0",
+    "installedNpmGateB": true,
+    "releaseConclusion": "success",
+    "releaseAttempt": 2
   },
   "limitations": [
     "Full Codex/Memory roadmap acceptance remains open.",
-    "No live provider or TUI PTY claim; public npm fresh-install verification pending.",
+    "No live provider, outer human TTY or TUI PTY claim; public npm fresh-install CLI Gate B passed on macOS arm64.",
     "Normal quit transient failure was observed and retained; no production quit fix claimed.",
-    "Additional all-path ESLint retains the separately reproduced SDK baseline failure."
+    "Additional all-path ESLint retains the separately reproduced SDK baseline failure.",
+    "Existing Windows CodeMode no-final-reply toast remains visible alongside the final text in both 1.165.0 and 1.166.0; paired screenshots and canonical completion evidence recorded, root cause not claimed."
   ],
-  "necessaryPostFreezeFix": "float-roundtrip-fix.json"
+  "necessaryPostFreezeFix": "float-roundtrip-fix.json",
+  "completionPercent": 100,
+  "classification": {
+    "current": "Existing Desktop/CLI -> App Server -> RuntimeCore -> canonical Thread/Turn/Item owners; public npm/updater channels.",
+    "compat": "No new compatibility owner.",
+    "deprecated": "No new deprecated entry.",
+    "deleted": "Frozen candidate duplicate Workbench and retired metadata/unarchive branches remain deleted; no restoration."
+  }
 }

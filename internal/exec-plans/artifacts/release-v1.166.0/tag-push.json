@@ -1,0 +1,11 @@
+{
+  "version": "1.166.0",
+  "tag": "v1.166.0",
+  "sourceCommit": "a7429000993b1516a3a58fd1b0e531f7974e13e5",
+  "recordedAt": "2026-10-21T15:42:52.560641+00:00",
+  "remoteRefs": {
+    "refs/heads/main": "a7429000993b1516a3a58fd1b0e531f7974e13e5",
+    "refs/tags/v1.166.0": "71b87c36c1e5afb4b1d1d90f034d906e8fc0a759",
+    "refs/tags/v1.166.0^{}": "a7429000993b1516a3a58fd1b0e531f7974e13e5"
+  }
+}
