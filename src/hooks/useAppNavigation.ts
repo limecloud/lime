@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   buildClawAgentParams,
   buildHomeAgentParams,
@@ -27,7 +27,11 @@ interface UseAppNavigationResult {
   navigationRequestId: number;
   isNavigating: boolean;
   handleNavigate: (page: Page, params?: PageParams) => void;
+  /** 需要先准备资源的导航读取同步回执；被守卫阻塞时不排队。 */
+  tryNavigate: (page: Page, params?: PageParams) => boolean;
   returnFromSettings: () => void;
+  /** 设置导航保存的明确会话来处；不代表当前已挂载的 Agent。 */
+  settingsReturnLocation: Readonly<AgentLocation> | null;
   agentLocation: AgentLocation | null;
   reportAgentLocation: (location: AgentLocation) => void;
   navigationGuard: NavigationGuard;
@@ -359,6 +363,15 @@ export function useAppNavigation(): UseAppNavigationResult {
     );
   }, []);
 
+  const tryNavigate = useCallback((page: Page, params?: PageParams) => {
+    if (
+      [...guards.current.values()].some((state) => state.dirty || state.saving)
+    )
+      return false;
+    setNavigationState((current) => requestNavigation(current, page, params));
+    return true;
+  }, []);
+
   const returnFromSettings = useCallback(() => {
     const blocked = [...guards.current.values()].some(
       (state) => state.dirty || state.saving,
@@ -475,6 +488,19 @@ export function useAppNavigation(): UseAppNavigationResult {
     navigationState.currentPage !== navigationState.requestedPage ||
     navigationState.currentPageParamsKey !==
       navigationState.requestedPageParamsKey;
+  const settingsReturnLocation = useMemo(() => {
+    const target = navigationState.settingsReturn;
+    if (
+      navigationState.requestedPage !== "settings" ||
+      target?.page !== "agent"
+    )
+      return null;
+    const params = target.params as AgentPageParams;
+    const sessionId = readString(params.initialSessionId);
+    return sessionId
+      ? { sessionId, workspaceId: readString(params.projectId) ?? null }
+      : null;
+  }, [navigationState.requestedPage, navigationState.settingsReturn]);
 
   return {
     currentPage: navigationState.currentPage,
@@ -484,8 +510,10 @@ export function useAppNavigation(): UseAppNavigationResult {
     navigationRequestId: navigationState.navigationRequestId,
     isNavigating,
     handleNavigate,
+    tryNavigate,
     startNewConversation,
     returnFromSettings,
+    settingsReturnLocation,
     reportAgentLocation,
     agentLocation:
       navigationState.agentLocation?.requestId === requestId

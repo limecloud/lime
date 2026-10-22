@@ -1,4 +1,6 @@
 import { ArtifactAnnotationComposerAccessory } from "@/components/artifact/annotations/ArtifactAnnotationComposerAccessory";
+import { BrowserAnnotationAccessory } from "../../workspace/right-surface/browser/BrowserAnnotationAccessory";
+import { useBrowserAnnotationDrafts } from "../../workspace/right-surface/browser/useBrowserAnnotationDrafts";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import type {
   ComposerDraftCoordinator,
@@ -167,6 +169,9 @@ export const Inputbar: React.FC<InputbarProps> = ({
   submitTarget,
 }) => {
   const { t } = useTranslation("agent");
+  const browserDrafts = useBrowserAnnotationDrafts(sessionId, threadId);
+  const hasAdditionalContent =
+    browserDrafts.hasContent && !browserDrafts.pending;
   const inputbarCopy = React.useMemo(
     () => buildInputbarCoreCopy((key, values) => t(key, values ?? {})),
     [t],
@@ -227,6 +232,7 @@ export const Inputbar: React.FC<InputbarProps> = ({
     composerDraftCoordinator,
     onComposerDraftAccepted,
     input,
+    hasAdditionalContent,
     setInput,
     onSend,
     onStop,
@@ -279,6 +285,7 @@ export const Inputbar: React.FC<InputbarProps> = ({
         </SecondaryControlsRow>
       ) : null}
       <ArtifactAnnotationComposerAccessory />
+      <BrowserAnnotationAccessory />
       <ConfirmDialog
         isOpen={goalComposer.goalReplacementConfirmation !== null}
         title={t("agentChat.threadGoal.composer.replaceTitle")}
@@ -300,6 +307,7 @@ export const Inputbar: React.FC<InputbarProps> = ({
         workflowProgressLabel={workflowProgressLabel}
         workflowSummaryLabel={workflowSummaryLabel}
         inputAdapter={inputAdapter}
+        hasAdditionalContent={hasAdditionalContent}
         composerController={composerController}
         skillSelection={skillSelection}
         onSkillSuggestionsNeeded={onSkillSuggestionsNeeded}

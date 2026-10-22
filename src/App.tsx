@@ -42,6 +42,9 @@ import { useClawTraceRegressionAlertMonitor } from "./hooks/useClawTraceRegressi
 import { useOemLimeHubProviderSync } from "./hooks/useOemLimeHubProviderSync";
 import { useSkillPackageOpenRequests } from "./hooks/useSkillPackageOpenRequests";
 import { ComponentDebugProvider } from "./contexts/ComponentDebugContext";
+import { AppNavigationContext } from "./contexts/AppNavigationContext";
+import { BrowserHistoryNavigationContext } from "./contexts/BrowserHistoryNavigationContext";
+import { useBrowserHistoryNavigation } from "./hooks/useBrowserHistoryNavigation";
 import { ComponentDebugOverlay } from "./components/dev";
 import {
   useResourceManagerNavigationIntents,
@@ -148,13 +151,25 @@ function AppContent() {
     pageParams,
     requestedPage,
     requestedPageParams,
+    navigationRequestId,
     handleNavigate,
+    tryNavigate,
     startNewConversation,
     returnFromSettings,
+    settingsReturnLocation,
     reportAgentLocation,
     agentLocation,
     navigationGuard,
   } = useAppNavigation();
+  const { navigateFromBrowser, openHistoryUrl } = useBrowserHistoryNavigation({
+    page: requestedPage,
+    pageParams: requestedPageParams,
+    navigationRequestId,
+    agentLocation,
+    settingsReturnLocation,
+    navigate: handleNavigate,
+    tryNavigate,
+  });
   const [agentHasMessages, setAgentHasMessages] = useState(false);
   const activeAgentSessionId = agentLocation?.sessionId ?? null;
   const [activeAgentStreaming, setActiveAgentStreaming] = useState(false);
@@ -501,22 +516,28 @@ function AppContent() {
             }}
           >
             <Suspense fallback={pageLoadingFallback}>
-              <AppPageContent
-                currentPage={currentPage}
-                pageParams={pageParams}
-                requestedPage={requestedPage}
-                requestedPageParams={requestedPageParams}
-                onNavigate={handleNavigate}
-                onStartNewConversation={startNewConversation}
-                onAgentHasMessagesChange={setAgentHasMessages}
-                onAgentLocationChange={reportAgentLocation}
-                onSettingsBack={returnFromSettings}
-                navigationGuard={navigationGuard}
-                onAgentStreamingChange={setActiveAgentStreaming}
-                onBackgroundSessionRuntimeChange={
-                  handleBackgroundSessionRuntimeChange
-                }
-              />
+              <AppNavigationContext.Provider value={navigateFromBrowser}>
+                <BrowserHistoryNavigationContext.Provider
+                  value={openHistoryUrl}
+                >
+                  <AppPageContent
+                    currentPage={currentPage}
+                    pageParams={pageParams}
+                    requestedPage={requestedPage}
+                    requestedPageParams={requestedPageParams}
+                    onNavigate={handleNavigate}
+                    onStartNewConversation={startNewConversation}
+                    onAgentHasMessagesChange={setAgentHasMessages}
+                    onAgentLocationChange={reportAgentLocation}
+                    onSettingsBack={returnFromSettings}
+                    navigationGuard={navigationGuard}
+                    onAgentStreamingChange={setActiveAgentStreaming}
+                    onBackgroundSessionRuntimeChange={
+                      handleBackgroundSessionRuntimeChange
+                    }
+                  />
+                </BrowserHistoryNavigationContext.Provider>
+              </AppNavigationContext.Provider>
             </Suspense>
           </AppShellContent>
           <Suspense fallback={null}>

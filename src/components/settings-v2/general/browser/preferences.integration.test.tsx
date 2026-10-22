@@ -4,13 +4,21 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { changeLimeLocale } from "@/i18n/createI18n";
 import { invalidateAppConfigCache } from "@/lib/api/appConfig";
 import { updateDesktopPreference } from "@/lib/api/desktopPreferences";
+import {
+  effectiveBrowserSettings,
+  updateBrowserSetting,
+} from "@/lib/api/browserSettings";
 import { SettingsTabs } from "@/types/settings";
 import { isSettingsSearchTarget } from "../../settingsSearch";
 import { useSettingsSearchTarget } from "../../_layout/useSettingsSearchTarget";
 import { BrowserUseSettings } from "./index";
 import { KeyboardShortcutsSettings } from "../keyboard-shortcuts";
 
-const { request } = vi.hoisted(() => ({ request: vi.fn() }));
+const { request, pickFiles } = vi.hoisted(() => ({
+  request: vi.fn(),
+  pickFiles: vi.fn(),
+}));
+vi.mock("@/lib/api/filePicker", () => ({ pickFilesFromDialog: pickFiles }));
 vi.mock("@/lib/api/appServer", () => ({
   AppServerClient: class {
     request = request;
@@ -35,6 +43,7 @@ beforeEach(async () => {
   };
   version = 1;
   rejectWrite = false;
+  pickFiles.mockReset().mockResolvedValue([]);
   request.mockReset().mockImplementation(async (method, params) => {
     if (method === "config/read")
       return {
@@ -205,6 +214,218 @@ it("serializes concurrent preference updates without overwriting another key", a
     "external-browser-link-shortcut": "alt",
   });
   expect(version).toBe(3);
+});
+
+it("persists browser preferences independently of desktop link settings and restores them on remount", async () => {
+  await renderPage();
+  await act(async () =>
+    container
+      .querySelector<HTMLButtonElement>("#browser-full-url [role=switch]")!
+      .click(),
+  );
+  await act(async () =>
+    container
+      .querySelector<HTMLButtonElement>("#browser-ask-download [role=switch]")!
+      .click(),
+  );
+  await choose("browser-history-access", "Do not allow access");
+  expect(persisted.browser).toEqual({
+    ...effectiveBrowserSettings(),
+    show_full_url: true,
+    ask_download_location: true,
+    history_access: "disabled",
+  });
+  expect(persisted.desktop).toBeUndefined();
+  expect(persisted.tui).toEqual({ animations: false });
+  invalidateAppConfigCache();
+  await renderPage(true);
+  await renderPage();
+  expect(
+    container
+      .querySelector("#browser-full-url [role=switch]")
+      ?.getAttribute("aria-checked"),
+  ).toBe("true");
+  expect(
+    container.querySelector("#browser-history-access-value")?.textContent,
+  ).toBe("Do not allow access");
+});
+
+it("rolls an optimistic browser toggle back after rejected persistence", async () => {
+  await renderPage();
+  rejectWrite = true;
+  await act(async () =>
+    container
+      .querySelector<HTMLButtonElement>("#browser-enabled [role=switch]")!
+      .click(),
+  );
+  expect(
+    container
+      .querySelector("#browser-enabled [role=switch]")
+      ?.getAttribute("aria-checked"),
+  ).toBe("true");
+  expect(container.querySelector("[role=alert]")?.textContent).toContain(
+    "Could not save browser settings",
+  );
+  expect(persisted.browser).toBeUndefined();
+});
+
+it("changes download folder through the native picker and keeps cancellation non-mutating", async () => {
+  await renderPage();
+  const changeDirectory = () =>
+    container.querySelector<HTMLButtonElement>(
+      "#browser-download-directory button",
+    )!;
+  await act(async () => changeDirectory().click());
+  expect(pickFiles).toHaveBeenCalledWith({
+    kind: "directory",
+    allowMultiple: false,
+    title: "Choose download folder",
+  });
+  expect(persisted.browser).toBeUndefined();
+  pickFiles.mockResolvedValue([
+    {
+      fsPath: "C:\\Downloads\\work",
+      path: "C:\\Downloads\\work\\",
+      label: "work",
+    },
+  ]);
+  await act(async () => changeDirectory().click());
+  expect(persisted.browser).toMatchObject({
+    download_directory: "C:\\Downloads\\work",
+  });
+  expect(
+    container.querySelector("#browser-download-directory")?.textContent,
+  ).toContain("C:\\Downloads\\work");
+  await act(async () =>
+    container
+      .querySelector<HTMLButtonElement>("#browser-download-directory button")!
+      .click(),
+  );
+  expect(persisted.browser).toMatchObject({ download_directory: null });
+});
+
+it("edits all agent permission categories, normalizes a site exception, and rejects duplicate patterns", async () => {
+  await renderPage();
+  const section = container.querySelector("#browser-agent-permissions")!;
+  const setSelect = async (label: string, value: string) => {
+    const select = section.querySelector<HTMLSelectElement>(
+      `select[aria-label="${label}"]`,
+    )!;
+    await act(async () => {
+      select.value = value;
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+  };
+  await setSelect("Default · Browsing", "deny");
+  await act(async () =>
+    section
+      .querySelector<HTMLButtonElement>(
+        "button[aria-label='Next permissions']",
+      )!
+      .click(),
+  );
+  await setSelect("Default · Uploads", "allow");
+  await act(async () =>
+    section
+      .querySelector<HTMLButtonElement>(
+        "button[aria-label='Next permissions']",
+      )!
+      .click(),
+  );
+  await setSelect("Default · Site tools", "deny");
+  expect(persisted.browser).toMatchObject({
+    agent_permissions: {
+      default: { browse: "deny", upload: "allow", site_tools: "deny" },
+    },
+  });
+  const addSite = async () => {
+    await act(async () =>
+      section.querySelector<HTMLButtonElement>("button")!.click(),
+    );
+    const input = section.querySelector<HTMLInputElement>("input")!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value",
+      )!.set!.call(input, "HTTPS://*.EXAMPLE.COM/");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () =>
+      section
+        .querySelector("form")!
+        .dispatchEvent(
+          new Event("submit", { bubbles: true, cancelable: true }),
+        ),
+    );
+  };
+  await addSite();
+  expect(persisted.browser).toMatchObject({
+    agent_permissions: {
+      sites: [
+        { pattern: "https://*.example.com", permissions: { browse: "deny" } },
+      ],
+    },
+  });
+  await addSite();
+  expect(section.querySelector("[role=alert]")?.textContent).toContain(
+    "valid, unique",
+  );
+  await act(async () =>
+    section
+      .querySelector<HTMLButtonElement>(
+        "button[aria-label='Edit permission exception for https://*.example.com']",
+      )!
+      .click(),
+  );
+  const editedInput = section.querySelector<HTMLInputElement>("input")!;
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(
+      HTMLInputElement.prototype,
+      "value",
+    )!.set!.call(editedInput, "http://localhost:3000");
+    editedInput.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  await act(async () =>
+    section
+      .querySelector("form")!
+      .dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })),
+  );
+  expect(persisted.browser).toMatchObject({
+    agent_permissions: {
+      sites: [
+        { pattern: "http://localhost:3000", permissions: { browse: "deny" } },
+      ],
+    },
+  });
+  await act(async () =>
+    section
+      .querySelector<HTMLButtonElement>(
+        "button[aria-label='Remove permission exception for http://localhost:3000']",
+      )!
+      .click(),
+  );
+  expect(persisted.browser).toMatchObject({ agent_permissions: { sites: [] } });
+});
+
+it("serializes Browser and Desktop saves through the same CAS config owner", async () => {
+  await act(async () =>
+    Promise.all([
+      updateBrowserSetting("show_full_url", true),
+      updateDesktopPreference(
+        "open-link-in-target-preference",
+        "in-app-browser",
+      ),
+      updateBrowserSetting("enabled", false),
+    ]),
+  );
+  expect(persisted.browser).toMatchObject({
+    show_full_url: true,
+    enabled: false,
+  });
+  expect(persisted.desktop).toEqual({
+    "open-link-in-target-preference": "in-app-browser",
+  });
+  expect(version).toBe(4);
 });
 
 it.each(["MacIntel", "Win32"])(

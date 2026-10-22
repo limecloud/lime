@@ -1,0 +1,1859 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-10-22T05:42:35.601172+00:00",
+  "task": "普通文件点击迁入 Files",
+  "status": "shared-slice-applied-and-verified",
+  "candidateRoot": "/Users/coso/Documents/dev/ai/aiclientproxy/lime/.lime/verification/annotation-files-20261022-r2",
+  "completion": {
+    "candidateImplementationAndScopedAcceptancePercent": 100,
+    "sharedProductPatchAppliedPercent": 100,
+    "overallGuiAlignment": "partial",
+    "overallPercent": null,
+    "overallReason": "九类总体无可信完成度分母"
+  },
+  "reference": {
+    "path": "/Applications/ChatGPT.app",
+    "bundleId": "com.openai.codex",
+    "version": "26.1007.30912",
+    "build": "20156",
+    "asarSha256": "75e397e2280dde93b70a85aa926f4282c728eacc84dfeb15ba7fb6ddd84628af",
+    "observation": "installed-artifact-static-only",
+    "semanticUnknowns": 222,
+    "evidenceIds": [
+      "ev_1c6a04b3789e56ec539909a4f938180793e9e0643dbb900058d49c47ff3eebcd",
+      "ev_614a2ee900e9efc766a559d2096c8915a9b61d75fae9efbd6f65134d458f66dc",
+      "ev_547464efaa688bbb1e9c689f47b7ed26eaa78af0f875c21fbe054ce492e911a7"
+    ]
+  },
+  "implementation": {
+    "entry": "handleWorkspaceFileClick -> handleFileClick -> useWorkspaceFileOpen -> openWorkspaceFile -> Files -> FileTabLifecycle",
+    "storedFileAuthority": "sessionId -> sessionFile/resolvePath; exact full-name identity",
+    "invalidation": [
+      "new click",
+      "threadId change",
+      "sessionId change",
+      "projectRootPath change",
+      "unmount"
+    ],
+    "principles": "窄 hook 单一职责；复用既有 Files/sessionFile owner；删除无人调用链路，不新增状态、兼容层、协议或依赖",
+    "files": [
+      {
+        "path": "src/components/agent/chat/workspace/useWorkspaceArtifactPreviewActions.ts",
+        "beforeSha256": "aa3ce0846042965d194eacfcbe7f220af40e2733d5b23e06b3122a4ff1d487d5",
+        "afterSha256": "e0825f0edcf8a6cb1f100493a3cc258497fe53bbb7723cd286452e125422d6d0",
+        "linesBefore": 764,
+        "linesAfter": 425
+      },
+      {
+        "path": "src/components/agent/chat/workspace/useWorkspaceArtifactPreviewActions.test.tsx",
+        "beforeSha256": "6e04ed239fe21b85bcd26e0e590681897c90636d0a51aaae8ef6319a30d9e025",
+        "afterSha256": "2e445b8e47707e88290972729f09fe9974fed819d8eb2ac00c78214e639bb912",
+        "linesBefore": 1305,
+        "linesAfter": 564
+      },
+      {
+        "path": "src/components/agent/chat/workspace/useWorkspaceArtifactOpenRuntime.tsx",
+        "beforeSha256": "7da74415b511ebbebe32d2c98860030c5974343ac43691604f0b913d6c5a0315",
+        "afterSha256": "339bf36723690addeb8fa76ecd6b265f5eb173730e6fac17dc7341392227c9d3",
+        "linesBefore": 688,
+        "linesAfter": 637
+      },
+      {
+        "path": "src/components/agent/chat/workspace/useWorkspaceArtifactOpenRuntime.component.test.tsx",
+        "beforeSha256": "bae5ce92c99af213617ac2793144a7e1b62e7a364843b33375aa7d86bf685393",
+        "afterSha256": "687cf5f5240984c1b188bc0e0950d62339ba48bf940d618e2f21281ad8cbbeec",
+        "linesBefore": 352,
+        "linesAfter": 349
+      },
+      {
+        "path": "src/components/agent/chat/workspace/useWorkspaceArtifactActionRuntime.ts",
+        "beforeSha256": "01968e11938f0d2cb01135733d815cd7723d52d1d4b657f386147d37bfca1171",
+        "afterSha256": "4c95f9c5f8e6668d66d4c4e6182fc306d5b4092d92b521060a78a0c449f550de",
+        "linesBefore": 140,
+        "linesAfter": 137
+      },
+      {
+        "path": "src/components/agent/chat/index.workbench03.test.tsx",
+        "beforeSha256": "4fed2bcb6b4b765e743057ff13dd26070245e62c1c0a87259ec4ce88827d6ba5",
+        "afterSha256": "b853039bde75792f3a9973a3a4157c942f8610e2d432e079b6c043ca9e809740",
+        "linesBefore": 421,
+        "linesAfter": 403
+      },
+      {
+        "path": "src/components/agent/chat/components/ToolCallDisplay.tsx",
+        "beforeSha256": "fd0fb7ef16b58bd447f53c081bcb0bd87d7db27f7a083bcb2f353a7d11085b4b",
+        "afterSha256": "5e843f2fccb9402b4991e051a7ffa7d571576ec65a60a275687bd69ba60332f4",
+        "linesBefore": 987,
+        "linesAfter": 959
+      },
+      {
+        "path": "src/components/agent/chat/components/ToolCallDisplayResultPanel.tsx",
+        "beforeSha256": "f6ef2ab18e43f3ae5687075032183332d0a6a63b58a01fd54d12564b325cc450",
+        "afterSha256": "df9ab12fa92258673692db18ff0da4d2a1948ae5e3485ec8fcd9a688e76e1035",
+        "linesBefore": 474,
+        "linesAfter": 468
+      },
+      {
+        "path": "src/components/agent/chat/components/ToolCallDisplay.commandOutput.test.tsx",
+        "beforeSha256": "52e7cef3c96158a0d6d7c5fa0a1373bb17cc3607fa09f87d7981787f40b928d1",
+        "afterSha256": "6ee0702c0ed0d83c784847f3bb623e018cd96718346000e6de795bec82625554",
+        "linesBefore": 617,
+        "linesAfter": 607
+      },
+      {
+        "path": "src/i18n/resources/zh-CN/agentMessageList.json",
+        "beforeSha256": "783a1c393dfa9546c7341e2856501dcc88c1977a85a2a5890d163bf2bafb79d4",
+        "afterSha256": "aa70570bb343bd9090d01ea9b8d0f414c276db0b4e1df44553a64f346c3975e5",
+        "linesBefore": 491,
+        "linesAfter": 487
+      },
+      {
+        "path": "src/i18n/resources/zh-TW/agentMessageList.json",
+        "beforeSha256": "e293f1f37cad2d0ff65c6348f9f47b663c19f53ce8300de909f79533223af8df",
+        "afterSha256": "36b099bacc7d498214e94e05cedb747468589e5876bbc7db2afa0dcfea94cc91",
+        "linesBefore": 491,
+        "linesAfter": 487
+      },
+      {
+        "path": "src/i18n/resources/en-US/agentMessageList.json",
+        "beforeSha256": "41f962cf91e3aeb1857003f42746164607d2e2fcb21bfd0b3e6674a20941752f",
+        "afterSha256": "ddb02b619f77e1567451d55e3cd3b5d07c49f1c601b9a46568ea1cd4f0969f2a",
+        "linesBefore": 491,
+        "linesAfter": 487
+      },
+      {
+        "path": "src/i18n/resources/ja-JP/agentMessageList.json",
+        "beforeSha256": "cda518e4e4f40b3947184426d68b6fe53881758419f9f9e782a585e69fbb053d",
+        "afterSha256": "2f6a99f31c345d8abb0fbdbe2746ecf91686b1e712308e7b0a640161704cf17b",
+        "linesBefore": 491,
+        "linesAfter": 487
+      },
+      {
+        "path": "src/i18n/resources/ko-KR/agentMessageList.json",
+        "beforeSha256": "c231b756bfb7c53a72470aae24ff197a65d3416e4e3d15866f992456cad83e51",
+        "afterSha256": "ad1c30b9af3a754117942232da7c55dfe893732dce56645dbe394673b4a425dd",
+        "linesBefore": 491,
+        "linesAfter": 487
+      },
+      {
+        "path": "src/i18n/resources/zh-CN/agent.json",
+        "beforeSha256": "964b85ba972b43001798de4184aed0273876a36880728e740d99d1d8a7ac94c9",
+        "afterSha256": "fd56aef65d223510643a1be24689bd262e0613d585924aabb01e355e8c42aa7e",
+        "linesBefore": 1876,
+        "linesAfter": 1874
+      },
+      {
+        "path": "src/i18n/resources/zh-TW/agent.json",
+        "beforeSha256": "ca3d69015782bdd58fba8700c3aa626eaa3dce15fbeec05810839d1af93dcdaf",
+        "afterSha256": "0c57360bc086eec142576ff8974b7c32cc21b3c677fd87d69271723443678253",
+        "linesBefore": 1876,
+        "linesAfter": 1874
+      },
+      {
+        "path": "src/i18n/resources/en-US/agent.json",
+        "beforeSha256": "4224975e9a2e047b920e9796c5c7834e20eb0983539ccef56b945b2bb591b731",
+        "afterSha256": "48a44423a09216fd817b6df2c6d0316fee98d68d4588250217f085e89e90753c",
+        "linesBefore": 1876,
+        "linesAfter": 1874
+      },
+      {
+        "path": "src/i18n/resources/ja-JP/agent.json",
+        "beforeSha256": "2b6f09277606ea19b726446493c54bcd2a964b6b5a930ca3a6247d92717957d5",
+        "afterSha256": "f898a10e7a0b24e95a3d815c5fdfcc6b7b16da46b5dd0d727fe6f82e968861fe",
+        "linesBefore": 1876,
+        "linesAfter": 1874
+      },
+      {
+        "path": "src/i18n/resources/ko-KR/agent.json",
+        "beforeSha256": "cda3a88d1eabb2a8f28f6cdf8729527ecb854a7c45290585629dbd3a7c6b6129",
+        "afterSha256": "c627b355a3c7d008def5a58c894482b9158db182a761b7a526e1826d9492960a",
+        "linesBefore": 1876,
+        "linesAfter": 1874
+      },
+      {
+        "path": "src/components/agent/chat/components/InlineToolProcessStep.tsx",
+        "beforeSha256": "779714126244fc17cae6c8be40b74f222fe9496ce8e60be8b5d470dc4e86efbf",
+        "afterSha256": "c74b2ed425e2090547e53b7db192f35eeccc08561f82fdaae75134322e109bd1",
+        "linesBefore": 993,
+        "linesAfter": 991
+      },
+      {
+        "path": "src/components/agent/chat/components/InlineToolProcessStep.test.tsx",
+        "beforeSha256": "2507d3fe6b460514a2484578fcc45cca7c4002418283e86012cd1216a9335595",
+        "afterSha256": "fcaa380551e2719992ef841c7f2cb6c3695342367e8dff296228d4d69bbeadfc",
+        "linesBefore": 1145,
+        "linesAfter": 1146
+      },
+      {
+        "path": "src/lib/governance/appServerRuntimeBoundary.testSupport.ts",
+        "beforeSha256": "d8d56f3df00266230b8c5e99823adea635a58832593c3dc86fbeb2192e854067",
+        "afterSha256": "28f33c833842ed8fb1f0d2e6615fa26858ea80e4d003edfd94f3bb193719d672",
+        "linesBefore": 297,
+        "linesAfter": 298
+      },
+      {
+        "path": "src/components/agent/chat/workspace/useWorkspaceFileOpen.ts",
+        "beforeSha256": null,
+        "afterSha256": "0e5badf37182eeaece08d320d80cc4b11949dcf3729916aeddfb5cfab107714d",
+        "linesBefore": 0,
+        "linesAfter": 83
+      },
+      {
+        "path": "src/components/agent/chat/workspace/fileClick.component.test.tsx",
+        "beforeSha256": null,
+        "afterSha256": "5f6caf26863a12365622fdaa89cde7c62b47ca4363b96d0941e68322d7bb94e6",
+        "linesBefore": 0,
+        "linesAfter": 260
+      },
+      {
+        "path": "scripts/electron/file-click-fixture-smoke.mjs",
+        "beforeSha256": null,
+        "afterSha256": "d15abfad3e3fe089e9f260dbe7ac6d62c297bba7dbb58b615821d3a1e04e856e",
+        "linesBefore": 0,
+        "linesAfter": 543
+      }
+    ]
+  },
+  "classification": {
+    "current": [
+      "Files",
+      "FileTabLifecycle",
+      "sessionFile/resolvePath"
+    ],
+    "deadDeletedInCandidate": [
+      "unused handleTaskFileClick and hydration",
+      "ordinary-file temporary Artifact and Canvas/LayeredDesign branches",
+      "virtual .diff.md opener"
+    ],
+    "newCompatCount": 0,
+    "newDeprecatedCount": 0,
+    "remainingOwners": [
+      "formal Artifact",
+      "Canvas TaskFile entries",
+      "other media consumers"
+    ]
+  },
+  "validation": {
+    "frontend": {
+      "receipt": "frontend-resume-r6-receipt.json",
+      "state": "final-frontend-state.json",
+      "status": "passed",
+      "files": 1940,
+      "batches": {
+        "passed": 141
+      },
+      "liveExcluded": 0,
+      "node": "24.21.0 injected only into validation subprocess PATH"
+    },
+    "contracts": {
+      "receipt": "final-contracts-receipt.json",
+      "exitCode": 0,
+      "appServerClientChecks": 296
+    },
+    "types": {
+      "finalRendererReceipt": "final-types-receipt.json",
+      "rendererAndNodeTypes": "passed in verify-local-r4 before full frontend continuation"
+    },
+    "lintAndFormat": {
+      "lintReceipt": "final-lint-r2-receipt.json",
+      "prettierReceipt": "final-format-r2-receipt.json",
+      "warnings": 0,
+      "globalLintAndI18n": "passed in verify-local-r4 before full frontend continuation"
+    },
+    "gui": {
+      "receipt": "gui-smoke-receipt.json",
+      "raw": "gui-smoke-raw/summary.json",
+      "result": "pass",
+      "assertions": {
+        "total": 24,
+        "passed": 24,
+        "failed": [],
+        "details": {
+          "startupVisible": true,
+          "workbenchReady": true,
+          "workbenchReloadReady": true,
+          "settingsMemoryReady": true,
+          "electronRenderer": true,
+          "electronPreloadInvokeAvailable": true,
+          "appServerCommandSupported": true,
+          "electronIpcAppServerBridgeUsed": true,
+          "currentAppServerMethodObserved": true,
+          "hostAppServerInitialized": true,
+          "noConsoleErrors": true,
+          "noPageErrors": true,
+          "noInvokeErrors": true,
+          "noRendererCrashes": true,
+          "noRendererUnresponsiveEvents": true,
+          "noPreloadErrors": true,
+          "noRendererLoadErrors": true,
+          "noLegacyCommandHits": true,
+          "noMockFallbackHits": true,
+          "traceCaptured": true,
+          "screenshotCaptured": true,
+          "layoutViewportsCaptured": true,
+          "layoutGeometryStable": true,
+          "layoutScreenshotsCaptured": true
+        }
+      },
+      "backendMode": "default-runtime",
+      "bridge": {
+        "electron": true,
+        "preloadInvoke": true,
+        "transport": "electron-ipc",
+        "command": "app_server_handle_json_lines",
+        "appServerIpcHitCount": 38,
+        "methods": [
+          "account/read",
+          "config/read",
+          "memoryStore/health",
+          "memoryStore/index/rebuild",
+          "memoryStore/list",
+          "memoryStore/review/list",
+          "model/list",
+          "modelPreferences/list",
+          "modelProvider/list",
+          "modelProvider/update",
+          "modelProviderAlias/list",
+          "modelSyncState/read",
+          "promptHistory/read",
+          "soulStylePack/list",
+          "thread/list",
+          "threadSection/list",
+          "workspace/default/ensure",
+          "workspace/default/read",
+          "workspace/ensureReady"
+        ],
+        "hostInitialized": true,
+        "hostProtocol": "appserver.v0"
+      },
+      "errors": {
+        "consoleErrorCount": 0,
+        "rendererCrashCount": 0,
+        "rendererUnresponsiveCount": 0,
+        "preloadErrorCount": 0,
+        "rendererLoadErrorCount": 0,
+        "invokeErrorCount": 0,
+        "traceErrorCount": 0,
+        "pageErrorCount": 0,
+        "legacyCommandHitCount": 0,
+        "legacyCommands": [],
+        "mockFallbackHitCount": 0
+      },
+      "boundary": "Real Electron startup, renderer reload, preload/IPC, App Server JSON-RPC, Workbench readiness, Settings route, and three-size responsive layout contract; no provider turn, Thread/Turn/Item identity, live-provider, packaged-app, or Codex Desktop pixel-parity claim."
+    },
+    "fileClicks": {
+      "receipt": "electron-r9-receipt.json",
+      "raw": "electron-runs/file-click-20261022-r9/summary.json",
+      "ok": true,
+      "proofLevel": "macOS Desktop Gate B, controlled external backend",
+      "usesFinalGuiBuild": true,
+      "canonicalIdentity": {
+        "threadId": "01a1621b-b519-71e3-8bf5-d0dfb8873931",
+        "sessionId": "01a1621b-b519-71e3-8bf5-d0dfb8873931",
+        "turns": [
+          {
+            "id": "turn_80926dcff4fa476db6be26b7a045b6e2",
+            "items": [
+              "user-turn_80926dcff4fa476db6be26b7a045b6e2",
+              "file-click-0",
+              "file-click-1",
+              "file-click-2",
+              "file-click-3",
+              "file-click-4",
+              "agent-message-final-turn_80926dcff4fa476db6be26b7a045b6e2"
+            ]
+          }
+        ]
+      },
+      "textCases": [
+        {
+          "name": "reports/original.md",
+          "canonicalItemId": "file-click-0",
+          "expectedText": "DISK_ORIGINAL",
+          "samePathReused": true
+        },
+        {
+          "name": "reports/empty.md",
+          "canonicalItemId": "file-click-1",
+          "expectedText": "",
+          "samePathReused": true
+        },
+        {
+          "name": "stored-note.md",
+          "canonicalItemId": "file-click-3",
+          "expectedText": "SESSION_ORIGINAL",
+          "samePathReused": true
+        },
+        {
+          "name": "reports/stored-note.md",
+          "canonicalItemId": "file-click-4",
+          "expectedText": "DIRECTORY_ORIGINAL",
+          "samePathReused": true
+        }
+      ],
+      "pdf": {
+        "width": 608,
+        "height": 811,
+        "text": "PDF_PREVIEW_01"
+      },
+      "ipc": 117,
+      "methods": [
+        "modelProvider/list",
+        "thread/list",
+        "projectGit/status",
+        "workspaceRightSurface/pending/list",
+        "threadSection/list",
+        "promptHistory/read",
+        "model/list",
+        "thread/start",
+        "thread/read",
+        "thread/items/list",
+        "thread/turns/list",
+        "project/list",
+        "thread/goal/get",
+        "permissionProfile/list",
+        "thread/queue/list",
+        "turn/start",
+        "promptHistory/append",
+        "thread/name/set",
+        "fs/readDirectory",
+        "fs/readFile",
+        "fs/getMetadata",
+        "fs/watch",
+        "sessionFile/getOrCreate",
+        "sessionFile/updateMeta",
+        "sessionFile/list",
+        "thread/resume",
+        "sessionFile/resolvePath"
+      ],
+      "traceErrors": 0,
+      "mockHits": 0,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "normalMainExit": {
+        "pid": 48100,
+        "exited": true,
+        "exitCode": 0,
+        "signal": null,
+        "mode": "normal"
+      },
+      "freshnessBefore": true,
+      "freshnessAfter": true,
+      "postTestsIntegrity": {
+        "sourcesBefore": {
+          "count": 288,
+          "mismatches": []
+        },
+        "artifactsBefore": {
+          "count": 1270,
+          "mismatches": []
+        }
+      },
+      "screenshotsVisuallyReviewed": [
+        "pdf.png",
+        "click-2.png"
+      ],
+      "identityBoundary": "本 Electron 场景 threadId 与 sessionId 相同；二者不同及各自失效的行为由组件回归覆盖"
+    },
+    "defaultLocalGate": {
+      "result": "combined-steps-passed",
+      "singleWrapperExitZero": false,
+      "wrapperReceipts": [
+        "verify-local-receipt.json",
+        "verify-local-r2-receipt.json",
+        "verify-local-r3-receipt.json",
+        "verify-local-r4-receipt.json"
+      ],
+      "explanation": "保留所有 wrapper exit 1；r4 前置版本/i18n/lint/硬编码/types 通过，沿状态完成全部前端，再以独立 contracts/GUI/最终文件点击收据组合结算；不重置批次或宣称共享根全仓通过"
+    },
+    "sharedIntegrity": {
+      "capturedAt": "2026-10-22T05:41:24.434421+00:00",
+      "sharedBaselineChecks": [
+        {
+          "path": "src/components/agent/chat/workspace/useWorkspaceArtifactPreviewActions.ts",
+          "matches": true
+        },
+        {
+          "path": "src/components/agent/chat/workspace/useWorkspaceArtifactPreviewActions.test.tsx",
+          "matches": true
+        },
+        {
+          "path": "src/components/agent/chat/workspace/useWorkspaceArtifactOpenRuntime.tsx",
+          "matches": true
+        },
+        {
+          "path": "src/components/agent/chat/workspace/useWorkspaceArtifactOpenRuntime.component.test.tsx",
+          "matches": true
+        },
+        {
+          "path": "src/components/agent/chat/workspace/useWorkspaceArtifactActionRuntime.ts",
+          "matches": true
+        },
+        {
+          "path": "src/components/agent/chat/index.workbench03.test.tsx",
+          "matches": true
+        },
+        {
+          "path": "src/components/agent/chat/components/ToolCallDisplay.tsx",
+          "matches": true
+        },
+        {
+          "path": "src/components/agent/chat/components/ToolCallDisplayResultPanel.tsx",
+          "matches": true
+        },
+        {
+          "path": "src/components/agent/chat/components/ToolCallDisplay.commandOutput.test.tsx",
+          "matches": true
+        },
+        {
+          "path": "src/i18n/resources/zh-CN/agentMessageList.json",
+          "matches": true
+        },
+        {
+          "path": "src/i18n/resources/zh-TW/agentMessageList.json",
+          "matches": true
+        },
+        {
+          "path": "src/i18n/resources/en-US/agentMessageList.json",
+          "matches": true
+        },
+        {
+          "path": "src/i18n/resources/ja-JP/agentMessageList.json",
+          "matches": true
+        },
+        {
+          "path": "src/i18n/resources/ko-KR/agentMessageList.json",
+          "matches": true
+        },
+        {
+          "path": "src/i18n/resources/zh-CN/agent.json",
+          "matches": true
+        },
+        {
+          "path": "src/i18n/resources/zh-TW/agent.json",
+          "matches": true
+        },
+        {
+          "path": "src/i18n/resources/en-US/agent.json",
+          "matches": true
+        },
+        {
+          "path": "src/i18n/resources/ja-JP/agent.json",
+          "matches": true
+        },
+        {
+          "path": "src/i18n/resources/ko-KR/agent.json",
+          "matches": true
+        },
+        {
+          "path": "src/components/agent/chat/components/InlineToolProcessStep.tsx",
+          "matches": true
+        },
+        {
+          "path": "src/components/agent/chat/components/InlineToolProcessStep.test.tsx",
+          "matches": true
+        },
+        {
+          "path": "src/lib/governance/appServerRuntimeBoundary.testSupport.ts",
+          "matches": true
+        }
+      ],
+      "candidateChecks": [
+        {
+          "path": "src/components/agent/chat/workspace/useWorkspaceArtifactPreviewActions.ts",
+          "matches": true,
+          "snapshotMatches": true
+        },
+        {
+          "path": "src/components/agent/chat/workspace/useWorkspaceArtifactPreviewActions.test.tsx",
+          "matches": true,
+          "snapshotMatches": true
+        },
+        {
+          "path": "src/components/agent/chat/workspace/useWorkspaceArtifactOpenRuntime.tsx",
+          "matches": true,
+          "snapshotMatches": true
+        },
+        {
+          "path": "src/components/agent/chat/workspace/useWorkspaceArtifactOpenRuntime.component.test.tsx",
+          "matches": true,
+          "snapshotMatches": true
+        },
+        {
+          "path": "src/components/agent/chat/workspace/useWorkspaceArtifactActionRuntime.ts",
+          "matches": true,
+          "snapshotMatches": true
+        },
+        {
+          "path": "src/components/agent/chat/index.workbench03.test.tsx",
+          "matches": true,
+          "snapshotMatches": true
+        },
+        {
+          "path": "src/components/agent/chat/components/ToolCallDisplay.tsx",
+          "matches": true,
+          "snapshotMatches": true
+        },
+        {
+          "path": "src/components/agent/chat/components/ToolCallDisplayResultPanel.tsx",
+          "matches": true,
+          "snapshotMatches": true
+        },
+        {
+          "path": "src/components/agent/chat/components/ToolCallDisplay.commandOutput.test.tsx",
+          "matches": true,
+          "snapshotMatches": true
+        },
+        {
+          "path": "src/i18n/resources/zh-CN/agentMessageList.json",
+          "matches": true,
+          "snapshotMatches": true
+        },
+        {
+          "path": "src/i18n/resources/zh-TW/agentMessageList.json",
+          "matches": true,
+          "snapshotMatches": true
+        },
+        {
+          "path": "src/i18n/resources/en-US/agentMessageList.json",
+          "matches": true,
+          "snapshotMatches": true
+        },
+        {
+          "path": "src/i18n/resources/ja-JP/agentMessageList.json",
+          "matches": true,
+          "snapshotMatches": true
+        },
+        {
+          "path": "src/i18n/resources/ko-KR/agentMessageList.json",
+          "matches": true,
+          "snapshotMatches": true
+        },
+        {
+          "path": "src/i18n/resources/zh-CN/agent.json",
+          "matches": true,
+          "snapshotMatches": true
+        },
+        {
+          "path": "src/i18n/resources/zh-TW/agent.json",
+          "matches": true,
+          "snapshotMatches": true
+        },
+        {
+          "path": "src/i18n/resources/en-US/agent.json",
+          "matches": true,
+          "snapshotMatches": true
+        },
+        {
+          "path": "src/i18n/resources/ja-JP/agent.json",
+          "matches": true,
+          "snapshotMatches": true
+        },
+        {
+          "path": "src/i18n/resources/ko-KR/agent.json",
+          "matches": true,
+          "snapshotMatches": true
+        },
+        {
+          "path": "src/components/agent/chat/components/InlineToolProcessStep.tsx",
+          "matches": true,
+          "snapshotMatches": true
+        },
+        {
+          "path": "src/components/agent/chat/components/InlineToolProcessStep.test.tsx",
+          "matches": true,
+          "snapshotMatches": true
+        },
+        {
+          "path": "src/lib/governance/appServerRuntimeBoundary.testSupport.ts",
+          "matches": true,
+          "snapshotMatches": true
+        },
+        {
+          "path": "src/components/agent/chat/workspace/useWorkspaceFileOpen.ts",
+          "matches": true,
+          "snapshotMatches": true
+        },
+        {
+          "path": "src/components/agent/chat/workspace/fileClick.component.test.tsx",
+          "matches": true,
+          "snapshotMatches": true
+        },
+        {
+          "path": "scripts/electron/file-click-fixture-smoke.mjs",
+          "matches": true,
+          "snapshotMatches": true
+        }
+      ],
+      "newPaths": [
+        {
+          "path": "src/components/agent/chat/workspace/useWorkspaceFileOpen.ts",
+          "absent": true
+        },
+        {
+          "path": "src/components/agent/chat/workspace/fileClick.component.test.tsx",
+          "absent": true
+        },
+        {
+          "path": "scripts/electron/file-click-fixture-smoke.mjs",
+          "absent": true
+        }
+      ],
+      "patchSha256": "c0eeccc06e7294080f16a742b7dda16d2e2227330a50249ec24920124d285859"
+    },
+    "sharedChecks": [
+      {
+        "command": [
+          "git",
+          "apply",
+          "--check",
+          "/Users/coso/Documents/dev/ai/aiclientproxy/lime/internal/exec-plans/artifacts/codex-file-clicks-20261022/implementation.patch"
+        ],
+        "exitCode": 0,
+        "durationSeconds": 0.031038999557495117
+      },
+      {
+        "command": [
+          "git",
+          "diff",
+          "--check",
+          "--",
+          ".gitignore",
+          "internal/exec-plans/README.md"
+        ],
+        "exitCode": 0,
+        "durationSeconds": 0.0308530330657959
+      },
+      {
+        "command": [
+          "node",
+          "scripts/check-docs-boundary.mjs"
+        ],
+        "exitCode": 0,
+        "durationSeconds": 2.8741328716278076
+      }
+    ],
+    "sharedApplication": {
+      "schemaVersion": 1,
+      "at": "2026-10-22T07:11:25.032309+00:00",
+      "status": "shared-slice-applied-and-verified",
+      "authorization": "用户针对25文件补丁与8个脏文件接管请求回复：继续",
+      "productFileCount": 25,
+      "productFilesMatchCandidate": true,
+      "sharedPatchAppliedPercent": 100,
+      "scopedAcceptancePercent": 100,
+      "overallAlignment": "partial",
+      "overallPercent": null,
+      "globalGateClaim": false,
+      "fullFrontendRerun": false,
+      "fullFrontendReason": "候选1940文件/141批终态已保存；应用后25文件SHA一致，另跑共享定向/合同/GUI/文件点击。不以候选全量替代共享全仓结论。",
+      "focused": {
+        "receipt": "focused-r2-receipt.json",
+        "files": 8,
+        "testsPassed": 162
+      },
+      "contracts": {
+        "receipt": "contracts-receipt.json",
+        "appServerClientChecks": 296
+      },
+      "gui": {
+        "receipt": "gui-smoke-receipt.json",
+        "summary": "gui-smoke-raw/summary.json",
+        "result": "pass",
+        "assertionsPassed": 24,
+        "backendMode": "default-runtime",
+        "bridge": {
+          "electron": true,
+          "preloadInvoke": true,
+          "transport": "electron-ipc",
+          "command": "app_server_handle_json_lines",
+          "appServerIpcHitCount": 37,
+          "methods": [
+            "account/read",
+            "config/read",
+            "memoryStore/health",
+            "memoryStore/index/rebuild",
+            "memoryStore/list",
+            "memoryStore/review/list",
+            "model/list",
+            "modelPreferences/list",
+            "modelProvider/list",
+            "modelProvider/update",
+            "modelProviderAlias/list",
+            "modelSyncState/read",
+            "promptHistory/read",
+            "soulStylePack/list",
+            "thread/list",
+            "threadSection/list",
+            "workspace/default/ensure",
+            "workspace/default/read",
+            "workspace/ensureReady"
+          ],
+          "hostInitialized": true,
+          "hostProtocol": "appserver.v0"
+        },
+        "claimBoundary": "Real Electron startup, renderer reload, preload/IPC, App Server JSON-RPC, Workbench readiness, Settings route, and three-size responsive layout contract; no provider turn, Thread/Turn/Item identity, live-provider, packaged-app, or Codex Desktop pixel-parity claim."
+      },
+      "fileClicks": {
+        "receipt": "electron-file-click-receipt.json",
+        "summary": "electron-file-click-raw/summary.json",
+        "ok": true,
+        "runId": "file-click-shared-20261022-r1",
+        "scope": "Real file click -> Files through Electron/preload/IPC/current JSON-RPC and canonical Tool items. External backend bypasses production runtime/provider execution. No live/Windows/packaged claim.",
+        "canonicalIdentity": {
+          "threadId": "01a16271-03a8-7f62-82d2-a4e396b3a676",
+          "sessionId": "01a16271-03a8-7f62-82d2-a4e396b3a676",
+          "turns": [
+            {
+              "id": "turn_b625997480c14f4e94f9e6346d5aaf84",
+              "items": [
+                "user-turn_b625997480c14f4e94f9e6346d5aaf84",
+                "file-click-0",
+                "file-click-1",
+                "file-click-2",
+                "file-click-3",
+                "file-click-4",
+                "agent-message-final-turn_b625997480c14f4e94f9e6346d5aaf84"
+              ]
+            }
+          ]
+        },
+        "ipc": 126,
+        "methods": [
+          "modelProvider/list",
+          "workspace/ensureReady",
+          "promptHistory/read",
+          "threadSection/list",
+          "thread/list",
+          "projectGit/status",
+          "workspaceRightSurface/pending/list",
+          "model/list",
+          "thread/start",
+          "thread/read",
+          "thread/items/list",
+          "thread/turns/list",
+          "project/list",
+          "thread/goal/get",
+          "thread/queue/list",
+          "permissionProfile/list",
+          "turn/start",
+          "promptHistory/append",
+          "fs/readDirectory",
+          "fs/readFile",
+          "fs/getMetadata",
+          "fs/watch",
+          "thread/name/set",
+          "sessionFile/getOrCreate",
+          "sessionFile/updateMeta",
+          "sessionFile/list",
+          "thread/resume",
+          "sessionFile/resolvePath"
+        ],
+        "traceErrors": 0,
+        "mockHits": 0,
+        "consoleErrors": [],
+        "pageErrors": [],
+        "sourceCount": 288,
+        "artifactCount": 4456,
+        "freshnessBefore": true,
+        "freshnessAfter": true,
+        "textCases": [
+          {
+            "name": "reports/original.md",
+            "canonicalItemId": "file-click-0",
+            "expectedText": "DISK_ORIGINAL",
+            "samePathReused": true
+          },
+          {
+            "name": "reports/empty.md",
+            "canonicalItemId": "file-click-1",
+            "expectedText": "",
+            "samePathReused": true
+          },
+          {
+            "name": "stored-note.md",
+            "canonicalItemId": "file-click-3",
+            "expectedText": "SESSION_ORIGINAL",
+            "samePathReused": true
+          },
+          {
+            "name": "reports/stored-note.md",
+            "canonicalItemId": "file-click-4",
+            "expectedText": "DIRECTORY_ORIGINAL",
+            "samePathReused": true
+          }
+        ],
+        "pdf": {
+          "width": 608,
+          "height": 811,
+          "text": "PDF_PREVIEW_01"
+        },
+        "normalMainExit": {
+          "pid": 90091,
+          "exited": true,
+          "exitCode": 0,
+          "signal": null,
+          "mode": "normal"
+        },
+        "screenshotsReviewed": [
+          "pdf.png",
+          "click-2.png"
+        ],
+        "identityBoundary": "本Electron场景sessionId与threadId相同；二者不同的路径选择与失效由组件回归覆盖"
+      },
+      "globalI18nUnused": {
+        "receipt": "i18n-unused-receipt.json",
+        "exitCode": 1,
+        "total": 29,
+        "outsideWriteSet": {
+          "browserChrome": 24,
+          "browserHistory": 4,
+          "settings": 1
+        },
+        "affectedNamespaces": {
+          "agent": 0,
+          "agentMessageList": 0
+        },
+        "action": "记录并避让并行脏/未跟踪热区，未修改其源文件"
+      },
+      "history": {
+        "firstFocusedExitCode": 1,
+        "firstFocusedActualProductTests": {
+          "filesPassed": 8,
+          "testsPassed": 162
+        },
+        "failureReason": "Vitest also discovered 11 raw source snapshots stored under own evidence directory.",
+        "correction": "Move own baseline/candidate snapshots byte-for-byte into .lime/verification/file-click-evidence-20261022; original archive preserved; no test config or timeout changes.",
+        "relocationReceipt": "snapshot-relocation.json",
+        "referenceSourceDifference": "reference-source-difference.json"
+      },
+      "classification": {
+        "current": [
+          "Files",
+          "FileTabLifecycle",
+          "sessionFile/resolvePath"
+        ],
+        "deadDeleted": [
+          "unused TaskFile click/hydration",
+          "ordinary file temporary Artifact/Canvas branches",
+          "virtual .diff.md opener"
+        ],
+        "newCompat": 0,
+        "newDeprecated": 0
+      },
+      "unverified": [
+        "Windows",
+        "installer",
+        "live provider",
+        "reference app runtime",
+        "remaining Artifact / Canvas TaskFile / media consumers"
+      ],
+      "finalIntegrity": "final-integrity.json",
+      "checks": "final-checks.json",
+      "receipts": [
+        {
+          "path": "contracts-receipt.json",
+          "command": [
+            "npm",
+            "run",
+            "test:contracts"
+          ],
+          "exitCode": 0,
+          "durationSeconds": 19.999422073364258,
+          "cwd": "/Users/coso/Documents/dev/ai/aiclientproxy/lime"
+        },
+        {
+          "path": "electron-file-click-receipt.json",
+          "command": [
+            "node",
+            "scripts/electron/file-click-fixture-smoke.mjs",
+            "file-click-shared-20261022-r1"
+          ],
+          "exitCode": 0,
+          "durationSeconds": 18.911336183547974,
+          "cwd": "/Users/coso/Documents/dev/ai/aiclientproxy/lime"
+        },
+        {
+          "path": "focused-r2-receipt.json",
+          "command": [
+            "npm",
+            "test",
+            "--",
+            "src/components/agent/chat/workspace/fileClick.component.test.tsx",
+            "src/components/agent/chat/workspace/useWorkspaceArtifactPreviewActions.test.tsx",
+            "src/components/agent/chat/workspace/useWorkspaceArtifactOpenRuntime.component.test.tsx",
+            "src/components/agent/chat/index.workbench03.test.tsx",
+            "src/components/agent/chat/AgentChatWorkspace.workspaceBoundaryGuard.test.ts",
+            "src/components/agent/chat/components/InlineToolProcessStep.test.tsx",
+            "src/components/agent/chat/components/ToolCallDisplay.commandOutput.test.tsx",
+            "src/lib/governance/appServerRuntimeBoundary.test.ts"
+          ],
+          "exitCode": 0,
+          "durationSeconds": 16.82734990119934,
+          "cwd": "/Users/coso/Documents/dev/ai/aiclientproxy/lime"
+        },
+        {
+          "path": "focused-receipt.json",
+          "command": [
+            "npm",
+            "test",
+            "--",
+            "src/components/agent/chat/workspace/fileClick.component.test.tsx",
+            "src/components/agent/chat/workspace/useWorkspaceArtifactPreviewActions.test.tsx",
+            "src/components/agent/chat/workspace/useWorkspaceArtifactOpenRuntime.component.test.tsx",
+            "src/components/agent/chat/index.workbench03.test.tsx",
+            "src/components/agent/chat/AgentChatWorkspace.workspaceBoundaryGuard.test.ts",
+            "src/components/agent/chat/components/InlineToolProcessStep.test.tsx",
+            "src/components/agent/chat/components/ToolCallDisplay.commandOutput.test.tsx",
+            "src/lib/governance/appServerRuntimeBoundary.test.ts"
+          ],
+          "exitCode": 1,
+          "durationSeconds": 16.83932900428772,
+          "cwd": "/Users/coso/Documents/dev/ai/aiclientproxy/lime"
+        },
+        {
+          "path": "format-receipt.json",
+          "command": [
+            "node",
+            "node_modules/prettier/bin/prettier.cjs",
+            "--check",
+            "src/components/agent/chat/workspace/useWorkspaceArtifactPreviewActions.ts",
+            "src/components/agent/chat/workspace/useWorkspaceArtifactPreviewActions.test.tsx",
+            "src/components/agent/chat/workspace/useWorkspaceArtifactOpenRuntime.tsx",
+            "src/components/agent/chat/workspace/useWorkspaceArtifactOpenRuntime.component.test.tsx",
+            "src/components/agent/chat/workspace/useWorkspaceArtifactActionRuntime.ts",
+            "src/components/agent/chat/index.workbench03.test.tsx",
+            "src/components/agent/chat/components/ToolCallDisplay.tsx",
+            "src/components/agent/chat/components/ToolCallDisplayResultPanel.tsx",
+            "src/components/agent/chat/components/ToolCallDisplay.commandOutput.test.tsx",
+            "src/i18n/resources/zh-CN/agentMessageList.json",
+            "src/i18n/resources/zh-TW/agentMessageList.json",
+            "src/i18n/resources/en-US/agentMessageList.json",
+            "src/i18n/resources/ja-JP/agentMessageList.json",
+            "src/i18n/resources/ko-KR/agentMessageList.json",
+            "src/i18n/resources/zh-CN/agent.json",
+            "src/i18n/resources/zh-TW/agent.json",
+            "src/i18n/resources/en-US/agent.json",
+            "src/i18n/resources/ja-JP/agent.json",
+            "src/i18n/resources/ko-KR/agent.json",
+            "src/components/agent/chat/components/InlineToolProcessStep.tsx",
+            "src/components/agent/chat/components/InlineToolProcessStep.test.tsx",
+            "src/lib/governance/appServerRuntimeBoundary.testSupport.ts",
+            "src/components/agent/chat/workspace/useWorkspaceFileOpen.ts",
+            "src/components/agent/chat/workspace/fileClick.component.test.tsx",
+            "scripts/electron/file-click-fixture-smoke.mjs"
+          ],
+          "exitCode": 0,
+          "durationSeconds": 1.4607298374176025,
+          "cwd": "/Users/coso/Documents/dev/ai/aiclientproxy/lime"
+        },
+        {
+          "path": "gui-smoke-receipt.json",
+          "command": [
+            "npm",
+            "run",
+            "verify:gui-smoke"
+          ],
+          "exitCode": 0,
+          "durationSeconds": 143.26456594467163,
+          "cwd": "/Users/coso/Documents/dev/ai/aiclientproxy/lime"
+        },
+        {
+          "path": "i18n-check-receipt.json",
+          "command": [
+            "npm",
+            "run",
+            "i18n:check"
+          ],
+          "exitCode": 0,
+          "durationSeconds": 1.5465068817138672,
+          "cwd": "/Users/coso/Documents/dev/ai/aiclientproxy/lime"
+        },
+        {
+          "path": "i18n-unused-receipt.json",
+          "command": [
+            "npm",
+            "run",
+            "i18n:unused",
+            "--",
+            "--check"
+          ],
+          "exitCode": 1,
+          "durationSeconds": 5.375946998596191,
+          "cwd": "/Users/coso/Documents/dev/ai/aiclientproxy/lime"
+        },
+        {
+          "path": "legacy-report-receipt.json",
+          "command": [
+            "npm",
+            "run",
+            "governance:legacy-report"
+          ],
+          "exitCode": 0,
+          "durationSeconds": 8.186835050582886,
+          "cwd": "/Users/coso/Documents/dev/ai/aiclientproxy/lime"
+        },
+        {
+          "path": "lint-receipt.json",
+          "command": [
+            "node",
+            "node_modules/eslint/bin/eslint.js",
+            "--max-warnings",
+            "0",
+            "src/components/agent/chat/workspace/useWorkspaceArtifactPreviewActions.ts",
+            "src/components/agent/chat/workspace/useWorkspaceArtifactPreviewActions.test.tsx",
+            "src/components/agent/chat/workspace/useWorkspaceArtifactOpenRuntime.tsx",
+            "src/components/agent/chat/workspace/useWorkspaceArtifactOpenRuntime.component.test.tsx",
+            "src/components/agent/chat/workspace/useWorkspaceArtifactActionRuntime.ts",
+            "src/components/agent/chat/index.workbench03.test.tsx",
+            "src/components/agent/chat/components/ToolCallDisplay.tsx",
+            "src/components/agent/chat/components/ToolCallDisplayResultPanel.tsx",
+            "src/components/agent/chat/components/ToolCallDisplay.commandOutput.test.tsx",
+            "src/components/agent/chat/components/InlineToolProcessStep.tsx",
+            "src/components/agent/chat/components/InlineToolProcessStep.test.tsx",
+            "src/lib/governance/appServerRuntimeBoundary.testSupport.ts",
+            "src/components/agent/chat/workspace/useWorkspaceFileOpen.ts",
+            "src/components/agent/chat/workspace/fileClick.component.test.tsx"
+          ],
+          "exitCode": 0,
+          "durationSeconds": 1.6338245868682861,
+          "cwd": "/Users/coso/Documents/dev/ai/aiclientproxy/lime"
+        }
+      ]
+    }
+  },
+  "failureHistory": [
+    {
+      "runs": [
+        "red",
+        "red-r2"
+      ],
+      "reason": "22 fail / 5 pass 红测；修正夹具 null 读取后仍为同样终态，无 unhandled error"
+    },
+    {
+      "runs": [
+        "lint"
+      ],
+      "reason": "删分支后 unused 符号和旧 hook 依赖；清退符号与依赖后最终零警告"
+    },
+    {
+      "runs": [
+        "verify-local",
+        "verify-local-r3"
+      ],
+      "reason": "移除旧分支及按钮后遗留未引用 i18n key；五语言同步清退"
+    },
+    {
+      "runs": [
+        "verify-local-r2"
+      ],
+      "reason": "第45批无关1ms剪贴板测试的wheel visibility timeout；不改测试/时限，原样续跑通过"
+    },
+    {
+      "runs": [
+        "verify-local-r4"
+      ],
+      "reason": "第67批检测新增external fixture未登记；精确登记该路径后续跑通过"
+    },
+    {
+      "runs": [
+        "frontend-resume-r5"
+      ],
+      "reason": "第113批入口提示关闭文案断言失败；单独15项与原样续跑该批均通过，未改测试/文案/时限"
+    },
+    {
+      "runs": [
+        "electron-r1"
+      ],
+      "reason": "构建期间identity修正导致freshness拒绝，无产品取证"
+    },
+    {
+      "runs": [
+        "electron-r2",
+        "electron-r3",
+        "electron-r4"
+      ],
+      "reason": "未展开历史、错误工具选择器、误选隐藏CodeMirror；修正实际UI操作与可见内容断言"
+    },
+    {
+      "runs": [
+        "electron-r5",
+        "electron-r6",
+        "electron-r7"
+      ],
+      "reason": "刷新未从侧栏恢复、观察器未处理无args trace、恢复历史未加载即检查；修正夹具交互和等待，无产品改动或放宽超时"
+    }
+  ],
+  "takeover": {
+    "required": false,
+    "dirtyFiles": [
+      "src/components/agent/chat/workspace/useWorkspaceArtifactOpenRuntime.tsx",
+      "src/components/agent/chat/workspace/useWorkspaceArtifactOpenRuntime.component.test.tsx",
+      "src/components/agent/chat/index.workbench03.test.tsx",
+      "src/i18n/resources/zh-CN/agent.json",
+      "src/i18n/resources/zh-TW/agent.json",
+      "src/i18n/resources/en-US/agent.json",
+      "src/i18n/resources/ja-JP/agent.json",
+      "src/i18n/resources/ko-KR/agent.json"
+    ],
+    "rule": "internal/aiprompts/parallel-agent-collaboration.md:26",
+    "instruction": "目标文件已脏时不夹写……除非用户明确要求接管该文件。",
+    "patch": "implementation.patch",
+    "patchSha256": "c0eeccc06e7294080f16a742b7dda16d2e2227330a50249ec24920124d285859",
+    "fileCount": 25,
+    "applyCheckPassed": true,
+    "sharedProductFilesWritten": true,
+    "gitActions": [],
+    "completed": true,
+    "explicitAuthorization": "用户针对本片具体补丁与接管清单回复：继续",
+    "all25FilesMatchVerifiedCandidate": true,
+    "sharedRegressionFiles": 8,
+    "sharedRegressionTestsPassed": 162,
+    "sharedGuiAssertionsPassed": 24,
+    "sharedElectronFileClickRunId": "file-click-shared-20261022-r1",
+    "globalGateClaim": false
+  },
+  "unverified": [
+    "Windows",
+    "installer or packaged application",
+    "live provider or production runtime/provider execution in file-click external fixture",
+    "reference application runtime",
+    "remaining formal Artifact / Canvas TaskFile / media consumers"
+  ],
+  "receipts": [
+    {
+      "path": "candidate-format-receipt.json",
+      "result": {
+        "command": [
+          "node",
+          "node_modules/prettier/bin/prettier.cjs",
+          "--check",
+          "src/components/agent/chat/workspace/useWorkspaceArtifactPreviewActions.ts",
+          "src/components/agent/chat/workspace/useWorkspaceArtifactPreviewActions.test.tsx",
+          "src/components/agent/chat/workspace/useWorkspaceArtifactOpenRuntime.tsx",
+          "src/components/agent/chat/workspace/useWorkspaceArtifactOpenRuntime.component.test.tsx",
+          "src/components/agent/chat/workspace/useWorkspaceArtifactActionRuntime.ts",
+          "src/components/agent/chat/index.workbench03.test.tsx",
+          "src/components/agent/chat/components/ToolCallDisplay.tsx",
+          "src/components/agent/chat/components/ToolCallDisplayResultPanel.tsx",
+          "src/components/agent/chat/components/ToolCallDisplay.commandOutput.test.tsx",
+          "src/i18n/resources/zh-CN/agentMessageList.json",
+          "src/i18n/resources/zh-TW/agentMessageList.json",
+          "src/i18n/resources/en-US/agentMessageList.json",
+          "src/i18n/resources/ja-JP/agentMessageList.json",
+          "src/i18n/resources/ko-KR/agentMessageList.json",
+          "src/i18n/resources/zh-CN/agent.json",
+          "src/i18n/resources/zh-TW/agent.json",
+          "src/i18n/resources/en-US/agent.json",
+          "src/i18n/resources/ja-JP/agent.json",
+          "src/i18n/resources/ko-KR/agent.json",
+          "src/components/agent/chat/components/InlineToolProcessStep.tsx",
+          "src/components/agent/chat/components/InlineToolProcessStep.test.tsx",
+          "src/components/agent/chat/workspace/useWorkspaceFileOpen.ts",
+          "src/components/agent/chat/workspace/fileClick.component.test.tsx",
+          "scripts/electron/file-click-fixture-smoke.mjs"
+        ],
+        "exitCode": 0,
+        "durationSeconds": 4.122069835662842
+      }
+    },
+    {
+      "path": "contracts-receipt.json",
+      "result": {
+        "command": [
+          "npm",
+          "run",
+          "test:contracts"
+        ],
+        "exitCode": 0,
+        "durationSeconds": 70.53236413002014
+      }
+    },
+    {
+      "path": "diff-focused-receipt.json",
+      "result": {
+        "command": [
+          "npm",
+          "test",
+          "--",
+          "src/components/agent/chat/components/ToolCallDisplay.commandOutput.test.tsx",
+          "src/components/agent/chat/workspace/useWorkspaceArtifactPreviewActions.test.tsx"
+        ],
+        "exitCode": 0,
+        "durationSeconds": 6.919665813446045
+      }
+    },
+    {
+      "path": "electron-r1-receipt.json",
+      "result": {
+        "command": [
+          "node",
+          "scripts/electron/file-click-fixture-smoke.mjs",
+          "file-click-20261022-r1"
+        ],
+        "exitCode": 1,
+        "durationSeconds": 138.46200394630432
+      }
+    },
+    {
+      "path": "electron-r2-receipt.json",
+      "result": {
+        "command": [
+          "node",
+          "scripts/electron/file-click-fixture-smoke.mjs",
+          "file-click-20261022-r2"
+        ],
+        "exitCode": 1,
+        "durationSeconds": 210.6161539554596
+      }
+    },
+    {
+      "path": "electron-r3-receipt.json",
+      "result": {
+        "command": [
+          "node",
+          "scripts/electron/file-click-fixture-smoke.mjs",
+          "file-click-20261022-r3"
+        ],
+        "exitCode": 1,
+        "durationSeconds": 272.52616906166077
+      }
+    },
+    {
+      "path": "electron-r4-receipt.json",
+      "result": {
+        "command": [
+          "node",
+          "scripts/electron/file-click-fixture-smoke.mjs",
+          "file-click-20261022-r4"
+        ],
+        "exitCode": 1,
+        "durationSeconds": 129.76628828048706
+      }
+    },
+    {
+      "path": "electron-r5-receipt.json",
+      "result": {
+        "command": [
+          "node",
+          "scripts/electron/file-click-fixture-smoke.mjs",
+          "file-click-20261022-r5"
+        ],
+        "exitCode": 1,
+        "durationSeconds": 218.84529995918274
+      }
+    },
+    {
+      "path": "electron-r6-receipt.json",
+      "result": {
+        "command": [
+          "node",
+          "scripts/electron/file-click-fixture-smoke.mjs",
+          "file-click-20261022-r6"
+        ],
+        "exitCode": 1,
+        "durationSeconds": 9.212893962860107
+      }
+    },
+    {
+      "path": "electron-r7-receipt.json",
+      "result": {
+        "command": [
+          "node",
+          "scripts/electron/file-click-fixture-smoke.mjs",
+          "file-click-20261022-r7"
+        ],
+        "exitCode": 1,
+        "durationSeconds": 199.9221329689026
+      }
+    },
+    {
+      "path": "electron-r8-receipt.json",
+      "result": {
+        "command": [
+          "node",
+          "scripts/electron/file-click-fixture-smoke.mjs",
+          "file-click-20261022-r8"
+        ],
+        "exitCode": 0,
+        "durationSeconds": 14.526615619659424
+      }
+    },
+    {
+      "path": "electron-r9-receipt.json",
+      "result": {
+        "command": [
+          "node",
+          "scripts/electron/file-click-fixture-smoke.mjs",
+          "file-click-20261022-r9"
+        ],
+        "exitCode": 0,
+        "durationSeconds": 21.100593090057373
+      }
+    },
+    {
+      "path": "file-label-focused-receipt.json",
+      "result": {
+        "command": [
+          "npm",
+          "test",
+          "--",
+          "src/components/agent/chat/components/InlineToolProcessStep.test.tsx",
+          "src/components/agent/chat/components/ToolCallDisplay.commandOutput.test.tsx"
+        ],
+        "exitCode": 0,
+        "durationSeconds": 15.667383909225464
+      }
+    },
+    {
+      "path": "file-scope-focused-receipt.json",
+      "result": {
+        "command": [
+          "npm",
+          "test",
+          "--",
+          "src/components/agent/chat/workspace/fileClick.component.test.tsx",
+          "src/components/agent/chat/workspace/useWorkspaceArtifactOpenRuntime.component.test.tsx"
+        ],
+        "exitCode": 0,
+        "durationSeconds": 10.896970987319946
+      }
+    },
+    {
+      "path": "final-contracts-receipt.json",
+      "result": {
+        "command": [
+          "npm",
+          "run",
+          "test:contracts"
+        ],
+        "exitCode": 0,
+        "durationSeconds": 35.738572120666504
+      }
+    },
+    {
+      "path": "final-format-r2-receipt.json",
+      "result": {
+        "command": [
+          "node",
+          "node_modules/prettier/bin/prettier.cjs",
+          "--check",
+          "src/components/agent/chat/workspace/useWorkspaceArtifactPreviewActions.ts",
+          "src/components/agent/chat/workspace/useWorkspaceArtifactPreviewActions.test.tsx",
+          "src/components/agent/chat/workspace/useWorkspaceArtifactOpenRuntime.tsx",
+          "src/components/agent/chat/workspace/useWorkspaceArtifactOpenRuntime.component.test.tsx",
+          "src/components/agent/chat/workspace/useWorkspaceArtifactActionRuntime.ts",
+          "src/components/agent/chat/index.workbench03.test.tsx",
+          "src/components/agent/chat/components/ToolCallDisplay.tsx",
+          "src/components/agent/chat/components/ToolCallDisplayResultPanel.tsx",
+          "src/components/agent/chat/components/ToolCallDisplay.commandOutput.test.tsx",
+          "src/i18n/resources/zh-CN/agentMessageList.json",
+          "src/i18n/resources/zh-TW/agentMessageList.json",
+          "src/i18n/resources/en-US/agentMessageList.json",
+          "src/i18n/resources/ja-JP/agentMessageList.json",
+          "src/i18n/resources/ko-KR/agentMessageList.json",
+          "src/i18n/resources/zh-CN/agent.json",
+          "src/i18n/resources/zh-TW/agent.json",
+          "src/i18n/resources/en-US/agent.json",
+          "src/i18n/resources/ja-JP/agent.json",
+          "src/i18n/resources/ko-KR/agent.json",
+          "src/components/agent/chat/components/InlineToolProcessStep.tsx",
+          "src/components/agent/chat/components/InlineToolProcessStep.test.tsx",
+          "src/lib/governance/appServerRuntimeBoundary.testSupport.ts",
+          "src/components/agent/chat/workspace/useWorkspaceFileOpen.ts",
+          "src/components/agent/chat/workspace/fileClick.component.test.tsx",
+          "scripts/electron/file-click-fixture-smoke.mjs"
+        ],
+        "exitCode": 0,
+        "durationSeconds": 3.327721357345581
+      }
+    },
+    {
+      "path": "final-lint-r2-receipt.json",
+      "result": {
+        "command": [
+          "node",
+          "node_modules/eslint/bin/eslint.js",
+          "--max-warnings",
+          "0",
+          "src/components/agent/chat/workspace/useWorkspaceArtifactPreviewActions.ts",
+          "src/components/agent/chat/workspace/useWorkspaceArtifactPreviewActions.test.tsx",
+          "src/components/agent/chat/workspace/useWorkspaceArtifactOpenRuntime.tsx",
+          "src/components/agent/chat/workspace/useWorkspaceArtifactOpenRuntime.component.test.tsx",
+          "src/components/agent/chat/workspace/useWorkspaceArtifactActionRuntime.ts",
+          "src/components/agent/chat/index.workbench03.test.tsx",
+          "src/components/agent/chat/components/ToolCallDisplay.tsx",
+          "src/components/agent/chat/components/ToolCallDisplayResultPanel.tsx",
+          "src/components/agent/chat/components/ToolCallDisplay.commandOutput.test.tsx",
+          "src/components/agent/chat/components/InlineToolProcessStep.tsx",
+          "src/components/agent/chat/components/InlineToolProcessStep.test.tsx",
+          "src/lib/governance/appServerRuntimeBoundary.testSupport.ts",
+          "src/components/agent/chat/workspace/useWorkspaceFileOpen.ts",
+          "src/components/agent/chat/workspace/fileClick.component.test.tsx"
+        ],
+        "exitCode": 0,
+        "durationSeconds": 6.80390191078186
+      }
+    },
+    {
+      "path": "final-lint-receipt.json",
+      "result": {
+        "command": [
+          "node",
+          "node_modules/eslint/bin/eslint.js",
+          "--max-warnings",
+          "0",
+          "src/components/agent/chat/workspace/useWorkspaceArtifactPreviewActions.ts",
+          "src/components/agent/chat/workspace/useWorkspaceArtifactPreviewActions.test.tsx",
+          "src/components/agent/chat/workspace/useWorkspaceArtifactOpenRuntime.tsx",
+          "src/components/agent/chat/workspace/useWorkspaceArtifactOpenRuntime.component.test.tsx",
+          "src/components/agent/chat/workspace/useWorkspaceArtifactActionRuntime.ts",
+          "src/components/agent/chat/index.workbench03.test.tsx",
+          "src/components/agent/chat/components/ToolCallDisplay.tsx",
+          "src/components/agent/chat/components/ToolCallDisplayResultPanel.tsx",
+          "src/components/agent/chat/components/ToolCallDisplay.commandOutput.test.tsx",
+          "src/components/agent/chat/components/InlineToolProcessStep.tsx",
+          "src/components/agent/chat/components/InlineToolProcessStep.test.tsx",
+          "src/components/agent/chat/workspace/useWorkspaceFileOpen.ts",
+          "src/components/agent/chat/workspace/fileClick.component.test.tsx"
+        ],
+        "exitCode": 0,
+        "durationSeconds": 3.4825987815856934
+      }
+    },
+    {
+      "path": "final-types-receipt.json",
+      "result": {
+        "command": [
+          "node",
+          "node_modules/typescript/bin/tsc",
+          "--noEmit",
+          "--project",
+          "tsconfig.renderer.json"
+        ],
+        "exitCode": 0,
+        "durationSeconds": 135.5664336681366
+      }
+    },
+    {
+      "path": "focused-receipt.json",
+      "result": {
+        "command": [
+          "npm",
+          "test",
+          "--",
+          "src/components/agent/chat/workspace/fileClick.component.test.tsx",
+          "src/components/agent/chat/workspace/useWorkspaceArtifactPreviewActions.test.tsx",
+          "src/components/agent/chat/workspace/useWorkspaceArtifactOpenRuntime.component.test.tsx",
+          "src/components/agent/chat/index.workbench03.test.tsx",
+          "src/components/agent/chat/AgentChatWorkspace.workspaceBoundaryGuard.test.ts"
+        ],
+        "exitCode": 0,
+        "durationSeconds": 59.60783505439758
+      }
+    },
+    {
+      "path": "frontend-resume-r5-receipt.json",
+      "result": {
+        "command": [
+          "npm",
+          "run",
+          "test:resume"
+        ],
+        "exitCode": 1,
+        "durationSeconds": 422.7305450439453
+      }
+    },
+    {
+      "path": "frontend-resume-r6-receipt.json",
+      "result": {
+        "command": [
+          "npm",
+          "run",
+          "test:resume"
+        ],
+        "exitCode": 0,
+        "durationSeconds": 240.3714723587036
+      }
+    },
+    {
+      "path": "gui-smoke-receipt.json",
+      "result": {
+        "command": [
+          "npm",
+          "run",
+          "verify:gui-smoke"
+        ],
+        "exitCode": 0,
+        "durationSeconds": 173.69669198989868
+      }
+    },
+    {
+      "path": "legacy-guard-receipt.json",
+      "result": {
+        "command": [
+          "npm",
+          "run",
+          "governance:legacy-report"
+        ],
+        "exitCode": 0,
+        "durationSeconds": 16.90705680847168
+      }
+    },
+    {
+      "path": "lint-receipt.json",
+      "result": {
+        "command": [
+          "node",
+          "node_modules/eslint/bin/eslint.js",
+          "src/components/agent/chat/workspace/useWorkspaceFileOpen.ts",
+          "src/components/agent/chat/workspace/fileClick.component.test.tsx",
+          "src/components/agent/chat/workspace/useWorkspaceArtifactPreviewActions.ts",
+          "src/components/agent/chat/workspace/useWorkspaceArtifactPreviewActions.test.tsx",
+          "src/components/agent/chat/workspace/useWorkspaceArtifactOpenRuntime.tsx",
+          "src/components/agent/chat/workspace/useWorkspaceArtifactOpenRuntime.component.test.tsx",
+          "src/components/agent/chat/workspace/useWorkspaceArtifactActionRuntime.ts",
+          "src/components/agent/chat/index.workbench03.test.tsx"
+        ],
+        "exitCode": 1,
+        "durationSeconds": 5.104511022567749
+      }
+    },
+    {
+      "path": "red-r2-receipt.json",
+      "result": {
+        "command": [
+          "npm",
+          "test",
+          "--",
+          "src/components/agent/chat/workspace/fileClick.component.test.tsx"
+        ],
+        "exitCode": 1,
+        "durationSeconds": 12.443566083908081
+      }
+    },
+    {
+      "path": "red-receipt.json",
+      "result": {
+        "command": [
+          "npm",
+          "test",
+          "--",
+          "src/components/agent/chat/workspace/fileClick.component.test.tsx"
+        ],
+        "exitCode": 1,
+        "durationSeconds": 17.74229884147644
+      }
+    },
+    {
+      "path": "renderer-types-receipt.json",
+      "result": {
+        "command": [
+          "node",
+          "node_modules/typescript/bin/tsc",
+          "--noEmit",
+          "--project",
+          "tsconfig.renderer.json"
+        ],
+        "exitCode": 0,
+        "durationSeconds": 113.35861897468567
+      }
+    },
+    {
+      "path": "scene-diagnostic-receipt.json",
+      "result": {
+        "command": [
+          "npx",
+          "vitest",
+          "run",
+          "src/components/agent/chat/workspace/WorkspaceConversationScene.test.tsx"
+        ],
+        "exitCode": 0,
+        "durationSeconds": 11.748752117156982
+      }
+    },
+    {
+      "path": "scripts-guard-receipt.json",
+      "result": {
+        "command": [
+          "npm",
+          "run",
+          "governance:scripts"
+        ],
+        "exitCode": 0,
+        "durationSeconds": 0.860454797744751
+      }
+    },
+    {
+      "path": "shared-final-checks-receipt.json",
+      "result": [
+        {
+          "command": [
+            "git",
+            "apply",
+            "--check",
+            "/Users/coso/Documents/dev/ai/aiclientproxy/lime/internal/exec-plans/artifacts/codex-file-clicks-20261022/implementation.patch"
+          ],
+          "exitCode": 0,
+          "durationSeconds": 0.031038999557495117
+        },
+        {
+          "command": [
+            "git",
+            "diff",
+            "--check",
+            "--",
+            ".gitignore",
+            "internal/exec-plans/README.md"
+          ],
+          "exitCode": 0,
+          "durationSeconds": 0.0308530330657959
+        },
+        {
+          "command": [
+            "node",
+            "scripts/check-docs-boundary.mjs"
+          ],
+          "exitCode": 0,
+          "durationSeconds": 2.8741328716278076
+        }
+      ]
+    },
+    {
+      "path": "verify-local-r2-receipt.json",
+      "result": {
+        "command": [
+          "npm",
+          "run",
+          "verify:local"
+        ],
+        "exitCode": 1,
+        "durationSeconds": 843.120894908905
+      }
+    },
+    {
+      "path": "verify-local-r3-receipt.json",
+      "result": {
+        "command": [
+          "npm",
+          "run",
+          "verify:local"
+        ],
+        "exitCode": 1,
+        "durationSeconds": 7.6937830448150635
+      }
+    },
+    {
+      "path": "verify-local-r4-receipt.json",
+      "result": {
+        "command": [
+          "npm",
+          "run",
+          "verify:local"
+        ],
+        "exitCode": 1,
+        "durationSeconds": 261.3310420513153
+      }
+    },
+    {
+      "path": "verify-local-receipt.json",
+      "result": {
+        "command": [
+          "npm",
+          "run",
+          "verify:local"
+        ],
+        "exitCode": 1,
+        "durationSeconds": 5.011654853820801
+      }
+    }
+  ],
+  "archive": {
+    "path": "evidence.tar.gz",
+    "includes": "all raw evidence, failures, receipts, baseline/candidate bytes, manifests, final frontend state and build receipt, GUI/Electron summaries and screenshots",
+    "excludes": [
+      "summary.json (external index to avoid circular digest)",
+      "evidence.tar.gz itself",
+      "reference application code"
+    ],
+    "sha256": "2ceb5328c239a4b7bfffd5b7bfe119b1e436b55f94b85c99a2b20d623db7c1c4",
+    "bytes": 14420808,
+    "manifestSha256": "78f085afeedd7ea1eae9b9d556dbc081951ac1257e934e1fef2c2a53ec75ab09",
+    "payloadFiles": 164,
+    "verification": {
+      "payloadFilesVerified": 164,
+      "archiveMembersVerified": 165,
+      "allSha256AndByteLengthsMatch": true
+    }
+  },
+  "finalReview": {
+    "at": "2026-10-22T07:12:42.693539+00:00",
+    "planSha256": "5354e7f539c31dc182a2270d58591c8caeac6f9d8ebd72fe4a86a04197301bf5",
+    "allProductFilesStillMatchCandidate": true,
+    "bothArchivesAndPatchDigestsMatch": true,
+    "checks": [
+      {
+        "command": [
+          "git",
+          "diff",
+          "--check",
+          "--",
+          ".gitignore",
+          "internal/exec-plans/codex-file-clicks-20261022.md",
+          "src/components/agent/chat/workspace/useWorkspaceArtifactPreviewActions.ts",
+          "src/components/agent/chat/workspace/useWorkspaceArtifactPreviewActions.test.tsx",
+          "src/components/agent/chat/workspace/useWorkspaceArtifactOpenRuntime.tsx",
+          "src/components/agent/chat/workspace/useWorkspaceArtifactOpenRuntime.component.test.tsx",
+          "src/components/agent/chat/workspace/useWorkspaceArtifactActionRuntime.ts",
+          "src/components/agent/chat/index.workbench03.test.tsx",
+          "src/components/agent/chat/components/ToolCallDisplay.tsx",
+          "src/components/agent/chat/components/ToolCallDisplayResultPanel.tsx",
+          "src/components/agent/chat/components/ToolCallDisplay.commandOutput.test.tsx",
+          "src/i18n/resources/zh-CN/agentMessageList.json",
+          "src/i18n/resources/zh-TW/agentMessageList.json",
+          "src/i18n/resources/en-US/agentMessageList.json",
+          "src/i18n/resources/ja-JP/agentMessageList.json",
+          "src/i18n/resources/ko-KR/agentMessageList.json",
+          "src/i18n/resources/zh-CN/agent.json",
+          "src/i18n/resources/zh-TW/agent.json",
+          "src/i18n/resources/en-US/agent.json",
+          "src/i18n/resources/ja-JP/agent.json",
+          "src/i18n/resources/ko-KR/agent.json",
+          "src/components/agent/chat/components/InlineToolProcessStep.tsx",
+          "src/components/agent/chat/components/InlineToolProcessStep.test.tsx",
+          "src/lib/governance/appServerRuntimeBoundary.testSupport.ts",
+          "src/components/agent/chat/workspace/useWorkspaceFileOpen.ts",
+          "src/components/agent/chat/workspace/fileClick.component.test.tsx",
+          "scripts/electron/file-click-fixture-smoke.mjs"
+        ],
+        "exitCode": 0,
+        "output": ""
+      },
+      {
+        "command": [
+          "node",
+          "scripts/check-docs-boundary.mjs"
+        ],
+        "exitCode": 0,
+        "output": "docs 边界检查通过\n"
+      }
+    ]
+  },
+  "updatedAt": "2026-10-22T07:11:53.777554+00:00",
+  "takeoverArchive": {
+    "path": "takeover-evidence.tar.gz",
+    "sha256": "349084617d20c213cb68b99adf9bd0fdab3bb04e414d7b9ddd0f9d94c91a8a9a",
+    "bytes": 6045399,
+    "payloadFiles": 43,
+    "manifestSha256": "f48e9bec052fae8258da5e264b8eb1c50ed42c4a852268b6bc8091f85ccd8b50",
+    "verification": "all archived payload byte lengths and SHA256 verified"
+  },
+  "sourceSnapshots": {
+    "originalArchivePaths": [
+      "baseline/",
+      "candidate/"
+    ],
+    "looseCopiesRelocatedTo": ".lime/verification/file-click-evidence-20261022/",
+    "reason": "Avoid Vitest collecting evidence source snapshots; all 47 file bytes preserved."
+  }
+}

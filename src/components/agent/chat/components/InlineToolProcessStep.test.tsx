@@ -466,6 +466,7 @@ describe("InlineToolProcessStep", () => {
       "/tmp/imported-local-history/docs/imported-preview.docx",
     );
 
+    expect(button?.getAttribute("aria-label")).toBe("打开文件");
     act(() => {
       button?.click();
     });

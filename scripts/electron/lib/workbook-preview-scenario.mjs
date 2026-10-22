@@ -1,3 +1,7 @@
+import {
+  replaceFileTab,
+  selectThreadSidePanelTool,
+} from "./thread-side-panel-navigation.mjs";
 import fs from "node:fs";
 import path from "node:path";
 import assert from "node:assert/strict";
@@ -105,7 +109,7 @@ export async function runWorkbookPreviewScenario({
   assert.equal(await position.getAttribute("aria-invalid"), "true");
   await at("B4");
   await page.setViewportSize({ width: 980, height: 760 });
-  await page.getByTestId("layout-compact-canvas-tab").click();
+  await selectThreadSidePanelTool(page, "files");
   await at("B4");
   await page.screenshot({
     path: path.join(evidenceDir, "workbook-narrow.png"),
@@ -113,15 +117,7 @@ export async function runWorkbookPreviewScenario({
   await page.setViewportSize({ width: 1440, height: 1000 });
 
   const open = async (filename) => {
-    await page.getByTestId("canvas-workbench-tab-menu-trigger").click();
-    await page
-      .getByRole("menuitem", { name: "新建工作台标签-文件", exact: true })
-      .click();
-    await page
-      .locator(
-        `[data-testid="canvas-workbench-panel-workspace"] button[title="${filename}"]`,
-      )
-      .click();
+    await replaceFileTab(page, path.join(path.dirname(filePath), filename));
   };
   await open("Values.csv");
   await ready("Values.csv");
@@ -204,6 +200,20 @@ export async function runWorkbookPreviewScenario({
     await history.nth(index).click();
   await file.first().click();
   await ready("Preview-report.xlsx");
+  const activeFiles = page
+    .getByTestId("workspace-right-surface-active-pane")
+    .getByTestId("workspace-files-surface");
+  await activeFiles.getByTestId("workbook-preview-panel").waitFor({
+    state: "visible",
+    timeout: options.timeoutMs,
+  });
+  const selectedFileTab = page.locator(
+    '[data-testid="workspace-right-surface-tab-files"][aria-selected="true"]',
+  );
+  assert.equal(await selectedFileTab.count(), 1);
+  assert.ok(
+    (await selectedFileTab.textContent()).includes("Preview-report.xlsx"),
+  );
   assert.equal(await cell("A1").innerText(), "年度预算");
   const read = await invokeAppServerFromPage(page, "thread/read", {
     threadId: identity.threadId,
@@ -255,6 +265,7 @@ export async function runWorkbookPreviewScenario({
     artifactRef,
     artifactEventId: written.result.eventId,
     artifactItemId: change.id,
+    artifactOpenedInFiles: true,
     timeoutMs: options.timeoutMs,
   };
 }

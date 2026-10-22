@@ -1,4 +1,4 @@
-import { memo, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type {
   BrowserTabHistoricalProjection,
@@ -8,6 +8,7 @@ import type { BrowserWorkspaceOwner } from "@/lib/api/browserWorkspace";
 import { resolveWorkspaceBrowserControlPresentation } from "../../workspaceBrowserControlMode";
 import { BrowserWorkspace } from "./BrowserWorkspace";
 import { BrowserWorkspaceHistorical } from "./BrowserWorkspaceHistorical";
+import { useRightSurfaceTab } from "../rightSurfaceTabContext";
 
 export interface RightSurfaceBrowserPanelProps {
   ensureOwner?: () => Promise<BrowserWorkspaceOwner | null>;
@@ -39,6 +40,8 @@ export const RightSurfaceBrowserPanel = memo(function RightSurfaceBrowserPanel({
   historicalProjection = null,
 }: RightSurfaceBrowserPanelProps) {
   const { t } = useTranslation("agent");
+  const presentation = useRightSurfaceTab();
+  const paneActive = active && (presentation?.active ?? true);
   const [selectedState, setSelectedState] = useState<BrowserTabState | null>(
     null,
   );
@@ -57,9 +60,11 @@ export const RightSurfaceBrowserPanel = memo(function RightSurfaceBrowserPanel({
     [controlMode, lifecycleState, selectedState?.controlOwner],
   );
 
-  if (!active) {
-    return null;
-  }
+  useEffect(() => {
+    if (paneActive && historicalProjection && launchRequestId) {
+      onLaunchApplied?.(launchRequestId);
+    }
+  }, [historicalProjection, launchRequestId, onLaunchApplied, paneActive]);
 
   if (historicalProjection) {
     return <BrowserWorkspaceHistorical projection={historicalProjection} />;
@@ -98,7 +103,8 @@ export const RightSurfaceBrowserPanel = memo(function RightSurfaceBrowserPanel({
         </div>
       ) : null}
       <BrowserWorkspace
-        active={active}
+        active={paneActive}
+        tabId={presentation?.tab.browser?.tabId}
         ensureOwner={ensureOwner}
         initialUrl={initialUrl}
         launchTabId={launchTabId}

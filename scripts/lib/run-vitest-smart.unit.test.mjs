@@ -17,10 +17,16 @@ import {
   updateRunState,
 } from "../run-vitest-smart.mjs";
 
-function withResumeFixture({ batches, files, allowLive = false }, check) {
-  const directory = fs.realpathSync(
+function withResumeFixture(
+  { batches, files, allowLive = false, nestedCandidate = false },
+  check,
+) {
+  const fixtureRoot = fs.realpathSync(
     fs.mkdtempSync(path.join(os.tmpdir(), "lime-vitest-resume-")),
   );
+  const directory = nestedCandidate
+    ? path.join(fixtureRoot, ".lime", "candidate")
+    : fixtureRoot;
   const scriptsDirectory = path.join(directory, "scripts");
   const stateFile = path.join(directory, "state.json");
   const callsFile = path.join(directory, "calls.jsonl");
@@ -119,11 +125,28 @@ if (process.argv[2] === "list") {
         ),
     });
   } finally {
-    fs.rmSync(directory, { recursive: true, force: true });
+    fs.rmSync(fixtureRoot, { recursive: true, force: true });
   }
 }
 
 describe("run-vitest-smart", () => {
+  it("冻结候选位于祖先 .lime 时仍收集真实测试，排除候选自身证据", () => {
+    withResumeFixture(
+      {
+        batches: [],
+        files: ["src/current.test.ts", ".lime/qc/foreign.test.ts"],
+        nestedCandidate: true,
+      },
+      ({ run, calls, savedState }) => {
+        const result = run();
+        expect(result.status, result.stderr).toBe(0);
+        expect(calls()).toEqual([["src/current.test.ts"]]);
+        expect(savedState().status).toBe("passed");
+        expect(savedState().batches).toHaveLength(1);
+      },
+    );
+  });
+
   it("resume 保留已通过批次，从原失败处继续并执行追加的新测试", () => {
     const files = [
       "src/passed.test.ts",

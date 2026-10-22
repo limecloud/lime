@@ -1,0 +1,105 @@
+import { useEffect } from "react";
+import {
+  isBrowserTabHostAvailable,
+  listBrowserTabs,
+  listenBrowserTabClosed,
+  listenBrowserTabState,
+  type BrowserTabState,
+} from "@/lib/api/browserTab";
+import { openBrowserWorkspaceIdentity } from "@/lib/api/browserWorkspace";
+import {
+  projectBrowserTabChanges,
+  type BrowserTabChange,
+} from "./right-surface/browser/browserTabHydration";
+
+/** Subscribe before reading so a background popup or close cannot be lost to the snapshot. */
+export function useWorkspaceBrowserTabProjection({
+  enabled,
+  runtimeSessionId,
+  threadId,
+  onProjection,
+}: {
+  enabled: boolean;
+  runtimeSessionId: string | null;
+  threadId: string | null;
+  onProjection: (states: readonly BrowserTabState[]) => void;
+}) {
+  useEffect(() => {
+    if (
+      !enabled ||
+      !runtimeSessionId ||
+      !threadId ||
+      !isBrowserTabHostAvailable()
+    )
+      return;
+    let disposed = false;
+    let pending = true;
+    let anchor: BrowserTabState | null = null;
+    let states: BrowserTabState[] = [];
+    let changes: BrowserTabChange[] = [];
+    const closedViews = new Set<string>();
+    const cleanup: Array<() => void> = [];
+    const publish = () => {
+      if (!disposed) onProjection(states);
+    };
+    const receive = (change: BrowserTabChange) => {
+      const state = change.kind === "state" ? change.state : change.event;
+      if (disposed || state.threadId !== threadId) return;
+      if (pending) {
+        changes.push(change);
+        return;
+      }
+      if (!anchor && change.kind === "state") anchor = change.state;
+      if (!anchor) return;
+      states = projectBrowserTabChanges(states, [change], anchor, closedViews);
+      publish();
+    };
+    const register = async (subscription: Promise<() => void>) => {
+      const stop = await subscription;
+      if (disposed) stop();
+      else cleanup.push(stop);
+    };
+    void (async () => {
+      await Promise.all([
+        register(
+          listenBrowserTabState((state) => receive({ kind: "state", state })),
+        ),
+        register(
+          listenBrowserTabClosed((event) => receive({ kind: "closed", event })),
+        ),
+      ]);
+      if (disposed) return;
+      const identity = await openBrowserWorkspaceIdentity({
+        runtimeSessionId,
+        threadId,
+      });
+      if (disposed) return;
+      const snapshot = await listBrowserTabs({
+        browserSessionId: identity.browserSessionId,
+        threadId,
+      });
+      if (disposed) return;
+      const first = changes.find(
+        (change) =>
+          change.kind === "state" &&
+          change.state.browserSessionId === identity.browserSessionId,
+      );
+      anchor = snapshot[0] ?? (first?.kind === "state" ? first.state : null);
+      states = anchor
+        ? projectBrowserTabChanges(snapshot, changes, anchor, closedViews)
+        : [];
+      changes = [];
+      pending = false;
+      publish();
+    })().catch((reason: unknown) => {
+      cleanup.splice(0).forEach((stop) => stop());
+      // BrowserWorkspace presents the same bridge error with its retry controls.
+      if (!disposed)
+        console.error("Browser tab strip projection failed", reason);
+    });
+    return () => {
+      disposed = true;
+      cleanup.forEach((stop) => stop());
+    };
+  }, [enabled, runtimeSessionId, threadId, onProjection]);
+}

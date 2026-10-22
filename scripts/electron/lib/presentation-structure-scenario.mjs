@@ -1,3 +1,4 @@
+import { replaceFileTab } from "./thread-side-panel-navigation.mjs";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
@@ -568,15 +569,7 @@ export async function runPresentationStructureScenario({
   const previous = await panel.elementHandle(),
     beforeReopen = await counts();
   assert.ok(previous);
-  await page.getByTestId("canvas-workbench-tab-menu-trigger").click();
-  await page
-    .getByRole("menuitem", { name: "新建工作台标签-文件", exact: true })
-    .click();
-  await page
-    .locator(
-      `[data-testid="canvas-workbench-panel-workspace"] button[title="${path.basename(filePath)}"]`,
-    )
-    .click();
+  await replaceFileTab(page, filePath);
   await waitForArtifactFileRead(
     async () => (await counts()).read,
     beforeReopen.read,

@@ -1,5 +1,11 @@
 import { useTranslation } from "react-i18next";
-import { Plus, X } from "lucide-react";
+import { useEffect } from "react";
+import {
+  isBrowserTabHostAvailable,
+  listenBrowserTabCommand,
+} from "@/lib/api/browserTab";
+import { LoaderCircle, Plus, VolumeX, X } from "lucide-react";
+import { BrowserTabIcon } from "./browser/BrowserTabIcon";
 import { cn } from "@/lib/utils";
 import { useSidePanelTabActive } from "@/components/app-shell/unifiedTabStripContext";
 import type { ThreadSidePanelTab } from "./threadSidePanelTabs";
@@ -83,6 +89,38 @@ export function RightSurfaceTabStrip({
 }: RightSurfaceTabStripProps) {
   const { t } = useTranslation("agent");
   const panelActive = useSidePanelTabActive();
+  useEffect(() => {
+    if (!panelActive || !isBrowserTabHostAvailable()) return;
+    let disposed = false;
+    let stop: (() => void) | undefined;
+    void listenBrowserTabCommand((event) => {
+      const tab = tabs.find((tab) => tab.tabId === activeTabId)?.browser;
+      if (
+        !tab ||
+        tab.tabId !== event.tabId ||
+        tab.viewId !== event.viewId ||
+        tab.browserSessionId !== event.browserSessionId ||
+        tab.threadId !== event.threadId ||
+        tab.webContentsId !== event.webContentsId ||
+        tab.ownerWebContentsId !== event.ownerWebContentsId ||
+        tab.windowId !== event.windowId
+      )
+        return;
+      if (event.command === "new-tab") onNewTab();
+      if (event.command === "close-tab") onCloseTab(activeTabId!);
+    })
+      .then((unsubscribe) => {
+        if (disposed) unsubscribe();
+        else stop = unsubscribe;
+      })
+      .catch((reason: unknown) =>
+        console.error("Browser workspace shortcuts unavailable", reason),
+      );
+    return () => {
+      disposed = true;
+      stop?.();
+    };
+  }, [activeTabId, onCloseTab, onNewTab, panelActive, tabs]);
   const byKind = new Map(definitions.map((item) => [item.kind, item]));
   return (
     <div
@@ -123,7 +161,11 @@ export function RightSurfaceTabStrip({
                 data-tab-preview={previewTabId === tabId || undefined}
                 tabIndex={active ? 0 : -1}
                 data-testid={`workspace-right-surface-tab-${kind}`}
-                className="h-8 max-w-48 truncate rounded-lg px-2.5 text-xs text-[color:var(--lime-text-strong)] hover:bg-[color:var(--lime-chrome-tab-hover)]"
+                data-browser-tab-id={tab.browser?.tabId}
+                data-browser-url={tab.browser?.url}
+                data-browser-session-id={tab.browser?.browserSessionId}
+                data-browser-thread-id={tab.browser?.threadId}
+                className="flex h-8 max-w-48 items-center gap-1.5 rounded-lg px-2.5 text-xs text-[color:var(--lime-text-strong)] hover:bg-[color:var(--lime-chrome-tab-hover)]"
                 onClick={() => onSelectTab(tabId)}
                 onKeyDown={(event) => {
                   if (event.key === "Delete") {
@@ -133,7 +175,20 @@ export function RightSurfaceTabStrip({
                   }
                 }}
               >
-                {label}
+                {tab.browser ? (
+                  tab.browser.isLoading ? (
+                    <LoaderCircle
+                      aria-hidden="true"
+                      className="h-3.5 w-3.5 shrink-0 animate-spin"
+                    />
+                  ) : (
+                    <BrowserTabIcon url={tab.browser.faviconUrl} />
+                  )
+                ) : null}
+                <span className="truncate">{label}</span>
+                {tab.browser?.audioMuted ? (
+                  <VolumeX size={12} aria-hidden="true" className="shrink-0" />
+                ) : null}
               </button>
               {onCloseTab ? (
                 <button

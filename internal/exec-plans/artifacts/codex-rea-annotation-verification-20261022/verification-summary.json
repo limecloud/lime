@@ -1,0 +1,461 @@
+{
+  "status": "slice acceptance and shared test migration complete; overall GUI alignment partial",
+  "updatedAt": "2026-10-22T04:39:08.965637+00:00",
+  "scope": "Composer annotation review uses current Files, preserves content instance and drafts; four-format shared-hook validation",
+  "overallComplete": false,
+  "overallPercentage": null,
+  "desktopCases": {
+    "passed": 4,
+    "total": 4,
+    "percentage": 100
+  },
+  "classification": {
+    "current": [
+      "openWorkspaceFile -> Files -> FileTabLifecycle",
+      "ArtifactAnnotationDraftStore",
+      "ArtifactNavigationContext (navigation identity only)"
+    ],
+    "newCompat": 0,
+    "newDeprecated": 0,
+    "deadDeletedInPriorImplementation": [
+      "openProjectFilePreviewInCanvas and its exports/callers"
+    ],
+    "productChangesThisVerificationTurn": [],
+    "testOnlyChangesThisContinuation": [
+      "Two stale Canvas assertion migrations and explicit Files storage fixtures in index.workbench03.test.tsx"
+    ]
+  },
+  "reference": {
+    "version": "26.1007.30912",
+    "build": "20156",
+    "bundleId": "com.openai.codex",
+    "asarSha256": "75e397e2280dde93b70a85aa926f4282c728eacc84dfeb15ba7fb6ddd84628af",
+    "parentEvidenceId": "ev_614a2ee900e9efc766a559d2096c8915a9b61d75fae9efbd6f65134d458f66dc",
+    "summaryViewEvidenceId": "ev_547464efaa688bbb1e9c689f47b7ed26eaa78af0f875c21fbe054ce492e911a7",
+    "semanticUnknowns": 222,
+    "runtimeObserved": false
+  },
+  "product": {
+    "renderer": {
+      "sha256": "5cc3e963786fdce77256ffdffd5877397ee067a28b3fbc1336bc3a3982c5d743",
+      "files": 2765
+    },
+    "host": {
+      "sha256": "fbe412faf22c2e7c35c493502e544cdd8820db9da7c44fbba595dd6e5b72f39e",
+      "files": 154
+    },
+    "appServer": {
+      "sha256": "63ce2537a01bc131f5a12e5fef29bf1b68dd37af10768591a5ff7cd6f34714fa",
+      "files": 3398
+    },
+    "artifacts": {
+      "files": 640,
+      "r5AndR6ByteIdentical": true,
+      "finalSnapshot": "final-snapshot-r6.json",
+      "integrityReceipt": "final-integrity-r6.json"
+    }
+  },
+  "verificationBoundary": "macOS real Electron/preload/IPC/current JSON-RPC/canonical read model. External fixture backend bypasses real provider and production runtime execution. Workbook proves same-instance and cold reopen; no cold-reopen claim for the other three formats. Not Windows/live/packaged/global GUI parity.",
+  "sharedTestPatch": {
+    "path": "internal/exec-plans/artifacts/codex-rea-annotation-verification-20261022/workbench03-current.patch",
+    "rootApplied": true,
+    "candidateTestsPassed": 5,
+    "candidateTestsTotal": 5,
+    "patchSha256": "47e20418cee12c07ec7978a8e14e1c3414405ab961153c4dea65c97a9bc5e0a9",
+    "candidateSha256": "4fed2bcb6b4b765e743057ff13dd26070245e62c1c0a87259ec4ce88827d6ba5",
+    "gitApplyCheckPassed": true,
+    "baselineMatchedBeforeApply": true,
+    "takeoverAuthorization": "User replied 继续 to the concrete request to take over and apply workbench03-current.patch.",
+    "applicationReceipt": "takeover-r7/application.json",
+    "rootTestsPassed": 5,
+    "rootTestsTotal": 5,
+    "rootTestReceipt": "takeover-r7/workbench03-root.result.json",
+    "rootSourceSha256": "4fed2bcb6b4b765e743057ff13dd26070245e62c1c0a87259ec4ce88827d6ba5",
+    "rootMatchesCandidate": true,
+    "preExistingEditsPreserved": true
+  },
+  "defaultLocalGate": {
+    "status": "passed as composite steps in isolated candidate",
+    "singleVerifyLocalWrapperExitZero": false,
+    "retainedLastWrapper": {
+      "receipt": "local-r4.result.json",
+      "exitCode": 1
+    },
+    "prechecks": "version, i18n, lint, hardcoded scan and types passed in original wrapper",
+    "frontend": {
+      "status": "passed",
+      "files": 1939,
+      "batchesPassed": 141,
+      "batchesTotal": 141,
+      "failed": 0,
+      "pending": 0,
+      "running": 0,
+      "liveExcluded": 0,
+      "state": "frontend-final-state-r4.json",
+      "nodeHistory": "Successful batches 1-44 include Node 23.4.0; continuation from batch45 used existing Node 24.21.0. No all-Node24 claim."
+    },
+    "contracts": {
+      "status": "passed",
+      "receipt": "contracts-r5.result.json",
+      "appServerClientChecks": 296
+    },
+    "gui": {
+      "status": "passed",
+      "receipt": "gui-r5.result.json",
+      "summary": "standard-gui-r5/summary.json",
+      "assertionsPassed": 24,
+      "assertionsTotal": 24,
+      "claimBoundary": "Real Electron startup, renderer reload, preload/IPC, App Server JSON-RPC, Workbench readiness, Settings route, and three-size responsive layout contract; no provider turn, Thread/Turn/Item identity, live-provider, packaged-app, or Codex Desktop pixel-parity claim."
+    },
+    "originalFailuresRetained": [
+      "local-r1.result.json",
+      "local-r2.result.json",
+      "local-r3.result.json",
+      "local-r4.result.json",
+      "workbench03-r1.log"
+    ],
+    "resolvedFailures": [
+      "Two stale Canvas assertions migrated in isolated candidate, then applied to shared root after explicit takeover authorization; shared root targeted regression passed 5/5. Full local gate still refers only to the isolated candidate.",
+      "Original Rust log runner timeout; independent 18/18 and resumed complete batch passed without source/timeout changes.",
+      "Node23 lacks node:module.registerHooks; existing Node24 used for subprocesses, independent worker fixtures 14/14 and resumed batch passed.",
+      "Candidate .gitignore missed two exact PNG exceptions already present in shared root; copied only those rules, full contracts rerun passed."
+    ],
+    "continuation": "Original smart state retained; no skip/reset/timeout increase; frontend not rerun after all batches passed."
+  },
+  "notVerified": [
+    "Reference application runtime",
+    "Shared working-tree full local gate",
+    "Other Canvas/Artifact consumers",
+    "All nine GUI areas",
+    "Live provider / Windows / packaged build / restart durability"
+  ],
+  "historicalDesktop": [
+    {
+      "name": "workbook-r1",
+      "ok": true,
+      "durationSeconds": 35.62,
+      "summary": {
+        "path": "internal/exec-plans/artifacts/codex-rea-annotation-verification-20261022/workbook-r1/summary.json",
+        "sha256": "d1b65a10f9090b1505eb073cd393a394abb1cc4a8dc14110a3543fcce0dc2295"
+      },
+      "sourceCount": 271,
+      "artifactCount": 514,
+      "sourcesStable": true,
+      "freshnessBefore": true,
+      "freshnessAfter": true,
+      "threadId": "01a161aa-bfdb-7fa1-92c3-b0bbe385813a",
+      "ipc": 230,
+      "traceErrors": 0,
+      "mockHits": 0,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "mainExit": {
+        "pid": 95799,
+        "exited": true,
+        "exitCode": 0,
+        "signal": null,
+        "mode": "normal"
+      },
+      "forcedCleanup": null
+    },
+    {
+      "name": "pdf-r1",
+      "ok": true,
+      "durationSeconds": 15.367,
+      "summary": {
+        "path": "internal/exec-plans/artifacts/codex-rea-annotation-verification-20261022/pdf-r1/summary.json",
+        "sha256": "af5255063f06aa294e36e1125e39aff8fb95f17bc8ef3f8ee849a6ff0b639248"
+      },
+      "sourceCount": 271,
+      "artifactCount": 514,
+      "sourcesStable": true,
+      "freshnessBefore": true,
+      "freshnessAfter": true,
+      "threadId": "01a161ad-4ef5-76c1-b7ed-670fc4d64b04",
+      "ipc": 96,
+      "traceErrors": 0,
+      "mockHits": 0,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "mainExit": {
+        "pid": 690,
+        "exited": true,
+        "exitCode": 0,
+        "signal": null,
+        "mode": "normal"
+      },
+      "forcedCleanup": null
+    },
+    {
+      "name": "docx-r1",
+      "ok": true,
+      "durationSeconds": 22.038,
+      "summary": {
+        "path": "internal/exec-plans/artifacts/codex-rea-annotation-verification-20261022/docx-r1/summary.json",
+        "sha256": "4c5f30f7b40ce8e0473dd78e658fa494d76e8f9a02e0dacafb1e45ed742d3f92"
+      },
+      "sourceCount": 271,
+      "artifactCount": 514,
+      "sourcesStable": true,
+      "freshnessBefore": true,
+      "freshnessAfter": true,
+      "threadId": "01a161ad-85eb-70c1-88e4-1c9cdc75d963",
+      "ipc": 119,
+      "traceErrors": 0,
+      "mockHits": 0,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "mainExit": {
+        "pid": 1075,
+        "exited": true,
+        "exitCode": 0,
+        "signal": null,
+        "mode": "normal"
+      },
+      "forcedCleanup": null
+    },
+    {
+      "name": "presentation-r1",
+      "ok": true,
+      "durationSeconds": 19.413,
+      "summary": {
+        "path": "internal/exec-plans/artifacts/codex-rea-annotation-verification-20261022/presentation-r1/summary.json",
+        "sha256": "025f2291e0160ebcfa6fc680dbbe547b7c14ff3d8f953f659b71a7776e2cff34"
+      },
+      "sourceCount": 271,
+      "artifactCount": 514,
+      "sourcesStable": true,
+      "freshnessBefore": true,
+      "freshnessAfter": true,
+      "threadId": "01a161ad-ed73-7e90-908e-2de348029801",
+      "ipc": 103,
+      "traceErrors": 0,
+      "mockHits": 0,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "mainExit": {
+        "pid": 1905,
+        "exited": true,
+        "exitCode": 0,
+        "signal": null,
+        "mode": "normal"
+      },
+      "forcedCleanup": null
+    }
+  ],
+  "desktop": [
+    {
+      "name": "workbook-r6",
+      "ok": true,
+      "durationSeconds": 27.627,
+      "summary": {
+        "path": "internal/exec-plans/artifacts/codex-rea-annotation-verification-20261022/workbook-r6/summary.json",
+        "sha256": "1fc7f93b443e798e0249043728f527fbd51c43bbf734986dbd07f3f54fa358ef"
+      },
+      "sourceCount": 271,
+      "artifactCount": 640,
+      "sourcesStable": true,
+      "artifactsMatchFinalSnapshot": true,
+      "freshnessBefore": true,
+      "freshnessAfter": true,
+      "threadId": "01a161da-8ce8-75c0-8b06-e0afc248b47e",
+      "ipc": 234,
+      "traceErrors": 0,
+      "mockHits": 0,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "mainExit": {
+        "pid": 77116,
+        "exited": true,
+        "exitCode": 0,
+        "signal": null,
+        "mode": "normal"
+      },
+      "forcedCleanup": null
+    },
+    {
+      "name": "pdf-r6",
+      "ok": true,
+      "durationSeconds": 22.569,
+      "summary": {
+        "path": "internal/exec-plans/artifacts/codex-rea-annotation-verification-20261022/pdf-r6/summary.json",
+        "sha256": "3dc5752b8420aa8dead67d6d423b0f5afb1b8756cb4107feaeee49f192e54890"
+      },
+      "sourceCount": 271,
+      "artifactCount": 640,
+      "sourcesStable": true,
+      "artifactsMatchFinalSnapshot": true,
+      "freshnessBefore": true,
+      "freshnessAfter": true,
+      "threadId": "01a161da-fbac-7d00-8f0c-5be60336c091",
+      "ipc": 91,
+      "traceErrors": 0,
+      "mockHits": 0,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "mainExit": {
+        "pid": 78623,
+        "exited": true,
+        "exitCode": 0,
+        "signal": null,
+        "mode": "normal"
+      },
+      "forcedCleanup": null
+    },
+    {
+      "name": "docx-r6",
+      "ok": true,
+      "durationSeconds": 33.446,
+      "summary": {
+        "path": "internal/exec-plans/artifacts/codex-rea-annotation-verification-20261022/docx-r6/summary.json",
+        "sha256": "ad5455429c317df1442c40b603139e7798c7ab4d96ba50360fa598fdcb9ee09f"
+      },
+      "sourceCount": 271,
+      "artifactCount": 640,
+      "sourcesStable": true,
+      "artifactsMatchFinalSnapshot": true,
+      "freshnessBefore": true,
+      "freshnessAfter": true,
+      "threadId": "01a161db-6d70-7b90-9d57-54549cb50494",
+      "ipc": 117,
+      "traceErrors": 0,
+      "mockHits": 0,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "mainExit": {
+        "pid": 79227,
+        "exited": true,
+        "exitCode": 0,
+        "signal": null,
+        "mode": "normal"
+      },
+      "forcedCleanup": null
+    },
+    {
+      "name": "presentation-r6",
+      "ok": true,
+      "durationSeconds": 28.085,
+      "summary": {
+        "path": "internal/exec-plans/artifacts/codex-rea-annotation-verification-20261022/presentation-r6/summary.json",
+        "sha256": "386da2ca6c8a40fa6b5e2f2f0acb5a902e7d6fc02c2246efe549c6b47e152899"
+      },
+      "sourceCount": 271,
+      "artifactCount": 640,
+      "sourcesStable": true,
+      "artifactsMatchFinalSnapshot": true,
+      "freshnessBefore": true,
+      "freshnessAfter": true,
+      "threadId": "01a161db-e1d6-75b3-b4d9-1dfc7b06f5c0",
+      "ipc": 113,
+      "traceErrors": 0,
+      "mockHits": 0,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "mainExit": {
+        "pid": 79906,
+        "exited": true,
+        "exitCode": 0,
+        "signal": null,
+        "mode": "normal"
+      },
+      "forcedCleanup": null
+    }
+  ],
+  "candidate": "/Users/coso/Documents/dev/ai/aiclientproxy/lime/.lime/verification/annotation-files-20261022-r2",
+  "standardGuiFinalLocation": {
+    "url": "file:///index.html?nativeStartup",
+    "page": "settings-memory",
+    "process": "normal exit; no live verification window"
+  },
+  "completion": {
+    "fourFormatAcceptance": {
+      "passed": 4,
+      "total": 4,
+      "percentage": 100
+    },
+    "sharedTestPatchApplication": {
+      "applied": 1,
+      "total": 1
+    },
+    "overallGui": "partial",
+    "overallGuiPercentage": null,
+    "reason": "No trustworthy denominator across all nine GUI areas.",
+    "sharedTestRegression": {
+      "passed": 5,
+      "total": 5,
+      "percentage": 100
+    }
+  },
+  "writingScope": [
+    ".gitignore exact allowlist for this slice",
+    "internal/exec-plans/README.md single navigation line",
+    "internal/exec-plans/codex-rea-annotation-verification-20261022.md",
+    "internal/exec-plans/artifacts/codex-rea-annotation-verification-20261022/",
+    "src/components/agent/chat/index.workbench03.test.tsx"
+  ],
+  "nextSlice": "Migrate remaining useWorkspaceArtifactPreviewActions.handleFileClick / TaskFile / Artifact and Canvas file consumers to current Files, after claiming caller ownership.",
+  "archive": {
+    "path": "internal/exec-plans/artifacts/codex-rea-annotation-verification-20261022/evidence.tar.gz",
+    "status": "complete and contents re-read/verified",
+    "sha256": "23b37776c6faeb20ebd99f06fa70f7ca99a8dc8c9744efa1db9a86a11734d8ee",
+    "bytes": 25863642,
+    "fileCount": 157,
+    "manifest": {
+      "path": "evidence-manifest.json",
+      "sha256": "0798e0fbac979c8d10c647c9a27ad22ee749003e8c52ccc60b1584df466cc0b0",
+      "files": 156,
+      "selfHashExcluded": true
+    },
+    "excluded": ["verification-summary.json", "evidence.tar.gz"],
+    "referenceCodeIncluded": false,
+    "boundary": "Immutable original isolated candidate evidence through r6; historical sharedPatchApplied=false receipts describe their original capture time."
+  },
+  "closureChecks": {
+    "historicalReceipt": "closure-checks-r1.json",
+    "receipt": "takeover-r7/closure-checks.json",
+    "status": "passed",
+    "prettier": true,
+    "eslint": true,
+    "docsBoundary": true,
+    "diffCheck": true,
+    "rootPatchMatchesCandidate": true,
+    "originalArchiveUnchanged": true
+  },
+  "rootVerification": {
+    "scope": "Shared root targeted test migration only",
+    "component": {
+      "receipt": "takeover-r7/workbench03-root.result.json",
+      "files": 1,
+      "passed": 5,
+      "total": 5,
+      "exitCode": 0,
+      "durationSeconds": 41.018
+    },
+    "lint": {
+      "command": "eslint src/components/agent/chat/index.workbench03.test.tsx",
+      "exitCode": 0
+    },
+    "format": {
+      "command": "prettier --check src/components/agent/chat/index.workbench03.test.tsx",
+      "exitCode": 0
+    },
+    "consoleLimitation": "Existing JSDOM Range.getClientRects absence produces CodeMirror geometry errors; logs retained. No zero-console-error claim for this component test.",
+    "fullGateRerun": false,
+    "electronRerun": false,
+    "reason": "Only the exact already-tested assertion/fixture patch was applied; product sources unchanged in this continuation. Historical isolated gate and Electron evidence are not promoted to shared-root full-gate claims."
+  },
+  "supplementArchive": {
+    "path": "internal/exec-plans/artifacts/codex-rea-annotation-verification-20261022/takeover-evidence.tar.gz",
+    "status": "complete and contents re-read/verified",
+    "scope": "r7 explicit takeover, exact patch application, shared-root targeted test and closure checks",
+    "sha256": "9b4438dd2dc229437d1c42119cef66bb25d4b058f247143b34ac3dbcae61d452",
+    "bytes": 7095,
+    "fileCount": 6,
+    "manifest": {
+      "path": "takeover-r7/manifest.json",
+      "sha256": "c9dcaedc59bac213a5db9e3a946bdb60fe12ea23f13595612fb1df5b9d0a84b3",
+      "selfHashExcluded": true
+    },
+    "referenceCodeIncluded": false
+  }
+}

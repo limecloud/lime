@@ -62,9 +62,7 @@ export async function waitForApprovalPrompt(
         ),
       );
       const layer = layers.at(-1) || null;
-      const prompt = layer?.querySelector(
-        '[data-testid="approval-card"]',
-      );
+      const prompt = layer?.querySelector('[data-testid="approval-card"]');
       const buttons = Array.from(layer?.querySelectorAll("button") || []).map(
         (button) => ({
           decision: button.getAttribute("data-decision") || "",
@@ -231,6 +229,7 @@ export async function runBrowserApprovalScenario({
   options,
   page,
   pageErrors,
+  onFirstPrompt,
   providerFixture,
   readBrowserDebuggerState,
   readBrowserWorkspaceState,
@@ -245,6 +244,7 @@ export async function runBrowserApprovalScenario({
     agentControlled.webContentsId,
   );
   const firstPrompt = await waitForApprovalPrompt(page, options);
+  await onFirstPrompt?.(firstPrompt);
   const firstDecision = await clickApprovalDecision(
     page,
     firstPrompt.interactionId,

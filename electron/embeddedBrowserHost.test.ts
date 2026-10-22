@@ -60,6 +60,7 @@ const {
   const getSessionUserAgentMock = vi.fn();
   const setSessionUserAgentMock = vi.fn();
   const sessionFromPartitionMock = vi.fn(() => ({
+    webRequest: { onBeforeRequest: vi.fn() },
     getUserAgent: getSessionUserAgentMock,
     on: vi.fn((eventName: string, handler: (...args: unknown[]) => void) => {
       const handlers = sessionEventHandlers.get(eventName) || [];
@@ -277,6 +278,29 @@ describe("ElectronEmbeddedBrowserHost", () => {
     sessionEventHandlers.clear();
     webContentsEventHandlers.clear();
   }
+
+  it("emits history visits only for committed main-frame navigation and keeps title updates separate", async () => {
+    resetMocks();
+    const emitted: Array<{ event: string; payload?: unknown }> = [];
+    const host = new ElectronEmbeddedBrowserHost((event, payload) => emitted.push({ event, payload }));
+    await host.invoke(createWindow() as never, "embedded_browser_view_mount", { viewId: "browser-1", url: "https://example.com/", bounds: { x: 0, y: 0, width: 800, height: 600 } });
+    const fire = (event: string, ...args: unknown[]) => webContentsEventHandlers.get(event)?.forEach(handler => handler(...args));
+    emitted.length = 0;
+    fire("did-start-loading");
+    fire("did-start-navigation", {}, "https://child.example/", false, false);
+    fire("did-navigate-in-page", {}, "https://child.example/#part", false);
+    fire("did-fail-load", {}, -105, "ERR_NAME_NOT_RESOLVED", "https://failed.example/", true);
+    expect(emitted.filter(item => item.event.includes("navigation-committed"))).toEqual([]);
+    fire("did-navigate", {}, "https://example.com/");
+    fire("did-navigate-in-page", {}, "https://example.com/#part", true);
+    fire("page-title-updated");
+    expect(emitted.filter(item => item.event === "embedded-browser-view-navigation-committed").map(item => item.payload)).toEqual([
+      { viewId: "browser-1", url: "https://example.com/", title: "Example" },
+      { viewId: "browser-1", url: "https://example.com/#part", title: "Example" },
+    ]);
+    expect(emitted.filter(item => item.event === "embedded-browser-view-title-updated").map(item => item.payload)).toEqual([{ viewId: "browser-1", url: "https://example.com/", title: "Example" }]);
+    host.dispose();
+  });
 
   it("通过 WebContentsView 挂载、导航和销毁内嵌浏览器", async () => {
     resetMocks();
@@ -956,38 +980,60 @@ describe("ElectronEmbeddedBrowserHost", () => {
     });
   });
 
-  it("target blank 应留在内嵌浏览器内导航，不弹系统浏览器", async () => {
+  it("target blank 通过同 session 原生子页面保留 opener，等待 canonical 身份后交给 Browser Host", async () => {
     resetMocks();
-    const emitted: Array<{ event: string; payload?: unknown }> = [];
-    const host = new ElectronEmbeddedBrowserHost((event, payload) => {
-      emitted.push({ event, payload });
-    });
+    const host = new ElectronEmbeddedBrowserHost();
     const window = createWindow();
-
     await host.invoke(window as never, "embedded_browser_view_mount", {
       viewId: "browser-1",
       url: "https://example.com",
       bounds: { x: 10, y: 20, width: 300, height: 200 },
     });
     loadUrlMock.mockClear();
-
-    const handler = setWindowOpenHandlerMock.mock.calls[0]?.[0] as
-      | ((details: { url: string }) => { action: string })
-      | undefined;
-    expect(handler).toBeTypeOf("function");
-    expect(handler?.({ url: "https://example.com/new" })).toEqual({
-      action: "deny",
-    });
-
-    expect(shellOpenExternalMock).not.toHaveBeenCalled();
-    expect(loadUrlMock).toHaveBeenCalledWith("https://example.com/new");
+    const handler = setWindowOpenHandlerMock.mock.calls[0]?.[0] as (details: {
+      url: string;
+      disposition: string;
+    }) => {
+      action: string;
+      createWindow?: (options: {
+        webPreferences: { openerId: number };
+      }) => unknown;
+    };
     expect(
-      emitted.find(
-        (item) =>
-          item.event === "embedded-browser-view-state" &&
-          (item.payload as { url?: string }).url === "https://example.com/new",
-      ),
-    ).toBeTruthy();
+      handler({
+        url: "https://example.com/new",
+        disposition: "foreground-tab",
+      }),
+    ).toEqual({ action: "deny" });
+    const adopt = vi.fn(async () => undefined);
+    host.setPopupHandler(adopt);
+    const response = handler({
+      url: "https://example.com/new",
+      disposition: "background-tab",
+    });
+    expect(response.action).toBe("allow");
+    const native = response.createWindow?.({
+      webPreferences: { openerId: 99 },
+    });
+    expect(native).toBeTruthy();
+    expect(adopt).toHaveBeenCalledWith({
+      openerViewId: "browser-1",
+      viewId: expect.stringMatching(/^browser_popup_/),
+      url: "https://example.com/new",
+      background: true,
+    });
+    expect(webContentsViewCtorMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        webPreferences: expect.objectContaining({
+          openerId: 99,
+          partition: "persist:embedded-browser",
+          sandbox: true,
+          nodeIntegration: false,
+        }),
+      }),
+    );
+    expect(shellOpenExternalMock).not.toHaveBeenCalled();
+    expect(loadUrlMock).not.toHaveBeenCalled();
   });
 
   it("右键链接和图片时显示受控菜单，不弹出系统浏览器", async () => {

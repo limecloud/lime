@@ -1,3 +1,4 @@
+import { replaceFileTab } from "./thread-side-panel-navigation.mjs";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
@@ -584,10 +585,7 @@ export async function runPresentationTableScenario({
 
   await controls.getByRole("button", { name: "结束编辑", exact: true }).click();
   const beforeReopen = await counts();
-  await page
-    .getByTestId("canvas-workbench-panel-workspace")
-    .getByTitle(path.basename(filePath), { exact: true })
-    .click();
+  await replaceFileTab(page, filePath);
   await waitForArtifactFileRead(
     async () => (await counts()).read,
     beforeReopen.read,

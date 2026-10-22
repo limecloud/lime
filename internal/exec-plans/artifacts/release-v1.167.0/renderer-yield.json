@@ -1,0 +1,8 @@
+{
+  "startedAt": "2026-10-22T10:44:07.780999+00:00",
+  "pid": 57424,
+  "command": "node /Users/coso/Documents/dev/ai/aiclientproxy/lime/.lime/release-v11670/source/node_modules/.bin/../vite/bin/vite.js build --base ./",
+  "reason": "Temporarily serialize this task renderer compilation behind full typecheck; no source, timer, guard, or user process modified.",
+  "resumedAt": "2026-10-22T10:46:08.073941+00:00",
+  "typecheckCompleted": false
+}

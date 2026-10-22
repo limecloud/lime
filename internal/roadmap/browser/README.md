@@ -1,8 +1,10 @@
 # Browser Workspace 同页控制路线图
 
-更新时间：2026-08-23
+更新时间：2026-10-22
 
 状态：Active。本文只记录稳定的产品目标、架构边界、阶段和验收合同；逐刀写集、当前进度、验证日志与阻塞统一记录在 `internal/exec-plans/browser-runtime-right-surface-plan.md`。
+
+2026-10-22 范围更新：用户要求完整复刻 Codex 会话内置浏览器，包括完整 UI/UX、设置、批注、设备视口、历史、导入、密码/自动填充、扩展和 Agent 同页能力。当前处于方案评审；完整行为、S01-S19 设置、E0-E7 实施依赖与 G01-G12 验收以[唯一执行计划](../../exec-plans/browser-runtime-right-surface-plan.md)为准。本文下方 P0-P5 与 2026-08 checkpoint 是旧纵切历史，完成不代表本次完整产品完成；原 P6 冻结不能继续缩小用户最新范围。新的宿主/原生集成仍须先验证与确认，不新增第二业务 runtime。
 
 ## 1. 主目标
 
@@ -104,7 +106,7 @@ DNS 错误详情会保留，其他 tab 的失败事件会被丢弃；Browser 定
 Host/IPC 操作异常则单独投影为 `host-error`，并已通过 SHELL-01 真实 Electron smoke（退出码 `0`）；本轮仍不把组件
 级多语言断言已扩大为五语言真实 Electron 生命周期截图矩阵。
 
-### 1.4 2026-08-23 最新 checkpoint
+### 1.4 2026-08-23 历史 checkpoint
 
 - `npm run smoke:browser-runtime-locale-matrix` 已生成 `.lime/qc/gui-evidence/browser-runtime-electron-gate-b/browser-runtime-locale-matrix-summary.json`。
 - 五语言真实 Electron renderer 的 `document.documentElement.lang` 与目标 locale 全部相等；每种语言均有 renderer-loading、renderer-ready、browser-loaded、agent-controlled、user-takeover、released、destroyed 七张截图，共 35 张。
@@ -165,7 +167,7 @@ Chromium: 151.0.7922.137
 | 页面内容和 WebMCP 描述均是不可信输入                        | 高风险动作在 action-time 确认，页面文字不能替代用户授权                                    |
 | 用户接管会中断 Agent 控制                                   | 用户操作必须使旧 turn 控制权失效；Agent 重新 claim/observe 后才能继续                      |
 | screenshot、file chooser、download 都绑定当前 tab           | 截图、上传和下载必须返回受控 artifact ref，不暴露本机绝对路径                              |
-| history 高隐私，WebMCP handle 可 stale                      | 两者均是 current tab 的受控能力，不能成为第二个 Browser owner；P6 前冻结                   |
+| history 高隐私，WebMCP handle 可 stale                      | 两者均是 current tab 的受控能力，不能成为第二个 Browser owner；本次完整复刻已纳入范围      |
 
 ## 3. 唯一架构与 Owner
 
@@ -429,9 +431,9 @@ Dead 路径不得改名为 compat。最终只允许在 owner negative guard 或�
 
 退出条件：Gate B evidence 可追溯到 Electron Host、preload/IPC、App Server method、RuntimeCore/read model、action lifecycle 和 GUI 可见终态。
 
-### P6：后台 Browser、WebMCP 与高级工具
+### P6：后台 Browser、WebMCP 与高级工具（旧阶段，完整范围已更新）
 
-P0-P5 全部完成后才能解冻 hidden background host、temporary content tabs、WebMCP 页面工具发现、device toolbar、history/settings、screenshot 区域评论和元素批注。所有高级能力仍绑定 current tab/evidence，不得引入第二 Browser owner。
+2026-08 的 P6 曾冻结 hidden background host、temporary content tabs、WebMCP 页面工具发现、device toolbar、history/settings、screenshot 区域评论和元素批注。2026-10-22 用户已明确全部纳入完整复刻，当前依赖与验收由执行计划 E0-E7 和 G01-G12 取代；所有能力仍绑定 current tab/evidence，不得引入第二 Browser owner。
 
 建议执行依赖顺序：`P3 -> P0 -> P1 -> P4 -> P2 Gate A -> P5 Gate B -> P6`。物理清退先消除双轨，identity 与 Host 稳定后再扩展动作能力，Gate A 与 Gate B 分别证明投影和真实主链。
 
@@ -497,7 +499,7 @@ Agent action.turnId             == active turnId
 
 Browser 只有在以下条件全部满足后才能标记完成：
 
-1. P0-P5 的退出条件全部满足，P6 保持冻结或作为独立后续范围。
+1. 历史纵切按 P0-P5 退出条件结算；本次完整复刻必须通过执行计划 G01-G12，不再以 P6 冻结作为完成条件。
 2. Current owner 之外的 Browser 生产、mock、fixture 和 active docs 正向路径全部删除。
 3. Gate A 与 Gate B 都有可复现证据，且 Gate B 明确证明用户与 Agent 操作同一个 WebContents。
 4. stale identity、用户接管、审批、cancel、disconnect、window close 和历史恢复均有唯一可观察终态。

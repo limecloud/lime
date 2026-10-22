@@ -1,0 +1,17 @@
+{
+  "browserAnnotation.title": "Page annotation",
+  "browserAnnotation.placeholder": "Add a comment…",
+  "browserAnnotation.save": "Save annotation",
+  "browserAnnotation.send": "Send now",
+  "browserAnnotation.close": "Close and keep annotation",
+  "browserAnnotation.element": "Page element",
+  "browserAnnotation.region": "Selected region",
+  "browserAnnotation.captureFailed": "Screenshot unavailable. Your comment will be kept.",
+  "browserAnnotation.sending": "Sending…",
+  "browserAnnotation.sendFailed": "Could not send. Your annotation is kept. Try again.",
+  "browserAnnotation.select": "Select an element or drag over a region to add an annotation",
+  "browserAnnotation.count": "{{count}} page annotations",
+  "browserAnnotation.remove": "Delete annotation",
+  "browserAnnotation.sendAll": "Send page annotations",
+  "browserAnnotation.openFailed": "Could not open the annotation. Your draft is kept."
+}

@@ -5,6 +5,7 @@ import {
   workbookControllersAtom,
 } from "./WorkbookController";
 import type { WorkbookSnapshot } from "./workbookSnapshot";
+import { useFileEditLifecycle } from "../fileEditLifecycle";
 
 const subscribeEmpty = () => () => {};
 const empty = () => undefined;
@@ -22,6 +23,7 @@ export function useWorkbookController(
   useLayoutEffect(() => {
     if (document) controller?.receiveDocument(document);
   }, [controller, document]);
+  useFileEditLifecycle(path, controller);
   const state = useSyncExternalStore(
     controller?.subscribe ?? subscribeEmpty,
     controller?.getSnapshot ?? empty,

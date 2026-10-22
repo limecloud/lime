@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import path from "node:path";
 
 const TEST_FIXTURE_FILE_PATTERN =
   /(?:^|[._-])test[-_]?fixtures?\.(?:[cm]?[jt]sx?)$/i;
@@ -15,7 +16,9 @@ function readTestFileSource(filePath) {
 }
 
 export function isVitestRunnableTestFile(filePath, source = undefined) {
-  const normalized = String(filePath || "").replaceAll("\\", "/");
+  const normalized = path
+    .relative(process.cwd(), path.resolve(String(filePath || "")))
+    .replaceAll("\\", "/");
   const fileName = normalized.split("/").pop() ?? normalized;
   if (normalized.startsWith(".lime/") || normalized.includes("/.lime/")) {
     return false;

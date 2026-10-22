@@ -1,0 +1,17 @@
+{
+  "browserAnnotation.title": "페이지 주석",
+  "browserAnnotation.placeholder": "댓글 추가…",
+  "browserAnnotation.save": "주석 저장",
+  "browserAnnotation.send": "바로 보내기",
+  "browserAnnotation.close": "주석을 유지하고 닫기",
+  "browserAnnotation.element": "페이지 요소",
+  "browserAnnotation.region": "선택한 영역",
+  "browserAnnotation.captureFailed": "스크린샷을 사용할 수 없습니다. 댓글은 유지됩니다.",
+  "browserAnnotation.sending": "보내는 중…",
+  "browserAnnotation.sendFailed": "보내지 못했습니다. 주석은 유지됩니다. 다시 시도하세요.",
+  "browserAnnotation.select": "요소를 선택하거나 영역을 드래그해 주석 추가",
+  "browserAnnotation.count": "페이지 주석 {{count}}개",
+  "browserAnnotation.remove": "주석 삭제",
+  "browserAnnotation.sendAll": "페이지 주석 보내기",
+  "browserAnnotation.openFailed": "주석을 열지 못했습니다. 초안은 유지됩니다."
+}

@@ -7,7 +7,7 @@ use app_server_protocol::protocol::v2::{
     DynamicToolCallApproval, DynamicToolCallOutputContentItem, DynamicToolCallPhase,
     DynamicToolCallResponse,
 };
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use tokio::sync::mpsc::UnboundedSender;
 use tool_runtime::tool_executor::{
     RuntimeToolExecutionError, RuntimeToolExecutionRequest, RuntimeToolExecutionResult,
@@ -16,6 +16,7 @@ use tool_runtime::tool_executor::{
 
 const CONTENT_ITEMS_METADATA_KEY: &str = "dynamic_tool_content_items";
 const ROUTE_METADATA_KEY: &str = "dynamic_tool";
+const MAX_BROWSER_APPROVAL_STAGES: usize = 4;
 
 pub(super) async fn call_dynamic_tool(
     request: RuntimeToolExecutionRequest<'_>,
@@ -59,7 +60,8 @@ pub(super) async fn call_dynamic_tool(
         None,
     )
     .await?;
-    if let Some(approval) = response.approval.take() {
+    let mut approval_tokens = HashSet::new();
+    while let Some(approval) = response.approval.take() {
         if route.namespace.as_deref() != Some("browser") {
             return Err(dynamic_tool_error(
                 "dynamic tool approval is only supported for Browser actions",
@@ -67,6 +69,18 @@ pub(super) async fn call_dynamic_tool(
             ));
         }
         validate_approval(&approval)?;
+        if approval_tokens.len() >= MAX_BROWSER_APPROVAL_STAGES {
+            return Err(dynamic_tool_error(
+                "dynamic tool exceeded the Browser approval stage limit",
+                "dynamic_tool_approval_limit",
+            ));
+        }
+        if !approval_tokens.insert(approval.approval_token.clone()) {
+            return Err(dynamic_tool_error(
+                "dynamic tool reused a Browser approval token",
+                "dynamic_tool_approval_repeated",
+            ));
+        }
         approval::wait_for_browser_action_approval(
             state,
             event_sender,
@@ -85,12 +99,6 @@ pub(super) async fn call_dynamic_tool(
             Some(approval.approval_token),
         )
         .await?;
-        if response.approval.is_some() {
-            return Err(dynamic_tool_error(
-                "approved dynamic tool execution cannot request another approval",
-                "dynamic_tool_approval_repeated",
-            ));
-        }
     }
     validate_content_items(&response.content_items)?;
     project_dynamic_tool_response(route, response)
@@ -273,3 +281,7 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+#[path = "dynamic_tool_bridge_tests.rs"]
+mod approval_tests;

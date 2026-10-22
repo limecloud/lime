@@ -4,12 +4,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { changeLimeLocale } from "@/i18n/createI18n";
 import { SettingsTabs } from "@/types/settings";
 import type {
+  BrowserHistoryReturnOwner,
   ExecutionPolicyFocusContext,
   Page,
   PageParams,
   ProviderSettingsFocusContext,
   SettingsPageParams,
 } from "@/types/page";
+import type { SettingsSearchResult } from "../settingsSearch";
 
 const {
   mockSettingsSidebar,
@@ -132,6 +134,11 @@ interface Mounted {
 
 const mounted: Mounted[] = [];
 
+type SidebarNavigation = {
+  onTabChange: (tab: SettingsTabs) => void;
+  onSearchSelect: (result: SettingsSearchResult) => void;
+};
+
 function renderComponent(
   initialTab: SettingsTabs,
   onNavigate?: (page: Page, params?: PageParams) => void,
@@ -139,6 +146,7 @@ function renderComponent(
   initialProviderFocus?: ProviderSettingsFocusContext | null,
   initialExecutionPolicyFocus?: ExecutionPolicyFocusContext | null,
   onBack = vi.fn(),
+  initialBrowserReturnOwner?: BrowserHistoryReturnOwner,
 ) {
   const container = document.createElement("div");
   document.body.appendChild(container);
@@ -150,6 +158,7 @@ function renderComponent(
       providerView: initialProviderView,
       providerFocus: initialProviderFocus ?? undefined,
       executionPolicyFocus: initialExecutionPolicyFocus ?? undefined,
+      browserReturnOwner: initialBrowserReturnOwner,
     });
     return (
       <SettingsPage
@@ -261,6 +270,52 @@ describe("SettingsPage Skills Tab", () => {
     await flushEffects();
 
     expect(container.textContent).toContain("skills");
+  });
+});
+
+describe("SettingsPage browser return owner", () => {
+  it("在分组与搜索跳转后保留原canonical会话，普通子页参数不随之复制", async () => {
+    const owner = {
+      runtimeSessionId: "browser-runtime",
+      threadId: "browser-thread",
+      workspaceId: "browser-workspace",
+    };
+    const onNavigate = vi.fn();
+    renderComponent(
+      SettingsTabs.Home,
+      onNavigate,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      owner,
+    );
+    await flushEffects();
+    const sidebar = () =>
+      mockSettingsSidebar.mock.calls.at(-1)![0] as SidebarNavigation;
+    await act(async () => sidebar().onTabChange(SettingsTabs.Appearance));
+    expect(onNavigate).toHaveBeenLastCalledWith("settings", {
+      tab: SettingsTabs.Appearance,
+      browserReturnOwner: owner,
+    });
+    await act(async () =>
+      sidebar().onSearchSelect({
+        section: SettingsTabs.Memory,
+        targetId: "memory-auto-inject",
+        label: "Memory",
+        panelLabel: "Memory",
+      }),
+    );
+    expect(onNavigate).toHaveBeenLastCalledWith("settings", {
+      tab: SettingsTabs.Memory,
+      searchFocus: { targetId: "memory-auto-inject", requestKey: 1 },
+      browserReturnOwner: owner,
+    });
+    await act(async () => sidebar().onTabChange(SettingsTabs.Home));
+    expect(onNavigate).toHaveBeenLastCalledWith("settings", {
+      tab: SettingsTabs.Home,
+      browserReturnOwner: owner,
+    });
   });
 });
 

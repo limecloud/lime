@@ -35,7 +35,6 @@ import {
 } from "../utils/siteToolResultSummary";
 import { normalizeToolSearchResultSummary } from "../utils/toolSearchResultSummary";
 import {
-  buildDiffFileCanvasContent,
   buildDiffReviewScopeItems,
   resolveDiffReviewSummaryFromCandidates,
   type DiffReviewFile,
@@ -555,12 +554,7 @@ export const ToolCallDisplay: React.FC<ToolCallDisplayProps> = ({
   const skillContentTitle = skillInvocationContentInfo.snapshotContent
     ? t("agentChat.toolCall.skillContent.title.snapshot")
     : t("agentChat.toolCall.skillContent.title.current");
-  const openInCanvasTitle = t("agentChat.toolCall.openInCanvas");
-  const openInCanvasAriaLabel = openableFilePath
-    ? t("agentChat.toolCall.openInCanvasWithTarget", {
-        target: openableFilePath,
-      })
-    : openInCanvasTitle;
+  const openFileTitle = t("agentChat.fileChangesSummary.openFile");
   const resultImageAlt = t("agentChat.toolCall.resultImage.alt");
   const resultImageOpenTitle = t("agentChat.markdown.image.openTitle");
   const openExternalUnsupportedMessage = t(
@@ -664,31 +658,9 @@ export const ToolCallDisplay: React.FC<ToolCallDisplayProps> = ({
     }));
   }, []);
 
-  const handleOpenDiffFileInCanvas = useCallback(
-    (file: DiffReviewFile) => {
-      if (!onFileClick) return;
-      const title = t("agentChat.toolCall.diffReview.canvasTitle", {
-        path: file.path,
-      });
-      const content = buildDiffFileCanvasContent({
-        file,
-        title,
-        statusLabel: t("agentChat.toolCall.diffReview.canvasStatus", {
-          status: t(`agentChat.toolCall.diffReview.status.${file.status}`),
-        }),
-        additionsLabel: t("agentChat.toolCall.diffReview.additions", {
-          count: file.additions,
-        }),
-        deletionsLabel: t("agentChat.toolCall.diffReview.deletions", {
-          count: file.deletions,
-        }),
-        hunksLabel: t("agentChat.toolCall.diffReview.hunks", {
-          count: file.hunks,
-        }),
-      });
-      onFileClick(`${file.path}.diff.md`, content);
-    },
-    [onFileClick, t],
+  const handleOpenChangedFile = useCallback(
+    (file: DiffReviewFile) => onFileClick?.(file.path, ""),
+    [onFileClick],
   );
 
   const handleToggleSkillContent = useCallback(async () => {
@@ -778,8 +750,8 @@ export const ToolCallDisplay: React.FC<ToolCallDisplayProps> = ({
               <button
                 onClick={handleOpenFile}
                 className="rounded-md p-1 transition-colors hover:bg-slate-100"
-                title={openInCanvasTitle}
-                aria-label={openInCanvasAriaLabel}
+                title={openFileTitle}
+                aria-label={openFileTitle}
               >
                 <ExternalLink className="h-3.5 w-3.5 text-slate-500 hover:text-slate-900" />
               </button>
@@ -843,8 +815,8 @@ export const ToolCallDisplay: React.FC<ToolCallDisplayProps> = ({
               <button
                 onClick={handleOpenFile}
                 className="rounded-md p-1 transition-colors hover:bg-slate-100"
-                title={openInCanvasTitle}
-                aria-label={openInCanvasAriaLabel}
+                title={openFileTitle}
+                aria-label={openFileTitle}
               >
                 <ExternalLink className="h-3.5 w-3.5 text-slate-500 hover:text-slate-900" />
               </button>
@@ -951,8 +923,8 @@ export const ToolCallDisplay: React.FC<ToolCallDisplayProps> = ({
           diffReviewScopeItems={diffReviewScopeItems}
           expandedDiffFileIds={expandedDiffFileIds}
           onToggleDiffFileExpanded={handleToggleDiffFileExpanded}
-          onOpenDiffFileInCanvas={handleOpenDiffFileInCanvas}
-          canOpenDiffFileInCanvas={Boolean(onFileClick)}
+          onOpenChangedFile={handleOpenChangedFile}
+          canOpenChangedFile={Boolean(onFileClick)}
           resultMetaItems={resultMetaItems}
           siteResultNotices={siteResultNotices}
           showOpenSavedSiteContent={Boolean(

@@ -241,13 +241,25 @@ describe("Agent runtime export boundary", () => {
       );
     }
   });
+  it("批注重开不得恢复已删除的 Canvas 入口或导出", () => {
+    const workspace = "src/components/agent/chat/workspace";
+    for (const name of [
+      "useWorkspaceArtifactOpenRuntime.tsx",
+      "useAgentChatWorkspaceCommandRuntime.ts",
+      "useAgentChatWorkspaceSceneRuntime.tsx",
+    ]) {
+      expect(readRepoFile(`${workspace}/${name}`)).not.toContain(
+        "openProjectFilePreviewInCanvas",
+      );
+    }
+  });
   it("文件树与路径菜单共享目录owner，已删除的产物隐藏策略不得回流", () => {
     const workspace = "src/components/agent/chat/workspace";
     expect(
       existsSync(join(REPO_ROOT, workspace, "workspaceTreeVisibility.ts")),
     ).toBe(false);
     const treeOwner = readRepoFile(
-      "src/components/agent/chat/components/canvas-workbench/files/useCanvasWorkbenchFileTreeState.ts",
+      "src/components/agent/chat/workspace/right-surface/useFileTreeState.ts",
     );
     expect(treeOwner).not.toMatch(
       /filterWorkspaceDirectoryListing|shouldHideWorkspaceTreeEntry|ROOT_HIDDEN_/,

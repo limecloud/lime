@@ -82,7 +82,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     if (protocol === "file") {
       return `file://${filePath}`;
     }
-    return `${protocol}://${encodeURIComponent(filePath)}`;
+    return `${protocol}://localhost/${encodeURIComponent(filePath)}`;
   },
   dialog: {
     open: (options?: unknown) =>

@@ -3,6 +3,11 @@ import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkspaceFileThreadSidePanelTab } from "./WorkspaceFileThreadSidePanelTab";
+import zhCN from "@/i18n/resources/zh-CN/agent.json";
+import zhTW from "@/i18n/resources/zh-TW/agent.json";
+import enUS from "@/i18n/resources/en-US/agent.json";
+import jaJP from "@/i18n/resources/ja-JP/agent.json";
+import koKR from "@/i18n/resources/ko-KR/agent.json";
 
 const atomGateway = vi.hoisted(() => ({
   read: vi.fn(),
@@ -18,6 +23,7 @@ const boundary = vi.hoisted(() => ({
   list: vi.fn(),
   read: vi.fn(),
   search: vi.fn(),
+  translations: null as Record<string, string> | null,
 }));
 vi.mock("@/lib/api/fileBrowser", () => ({
   listDirectory: boundary.list,
@@ -27,7 +33,7 @@ vi.mock("@/lib/api/fuzzyFileSearch", () => ({
   searchProjectFiles: boundary.search,
 }));
 vi.mock("react-i18next", () => {
-  const t = (key: string) => key;
+  const t = (key: string) => boundary.translations?.[key] ?? key;
   return { useTranslation: () => ({ t }) };
 });
 vi.mock("./text-file-editor/TextFileEditorTabContent", () => ({
@@ -35,31 +41,28 @@ vi.mock("./text-file-editor/TextFileEditorTabContent", () => ({
     <div data-testid="file-editor" data-path={path} />
   ),
 }));
-vi.mock(
-  "../components/canvas-workbench/CanvasWorkbenchPreviewModePanel",
-  () => ({
-    CanvasWorkbenchPreviewModePanel: ({
-      context,
-      mode,
-    }: {
-      context: {
-        selectionPath: string;
-        content: string;
-        target: { kind: string };
-      };
-      mode: string;
-    }) => (
-      <div
-        data-testid="file-preview"
-        data-path={context.selectionPath}
-        data-mode={mode}
-        data-target-kind={context.target.kind}
-      >
-        {context.content}
-      </div>
-    ),
-  }),
-);
+vi.mock("./FilePreviewPanel", () => ({
+  FilePreviewPanel: ({
+    context,
+    mode,
+  }: {
+    context: {
+      selectionPath: string;
+      content: string;
+      target: { kind: string };
+    };
+    mode: string;
+  }) => (
+    <div
+      data-testid="file-preview"
+      data-path={context.selectionPath}
+      data-mode={mode}
+      data-target-kind={context.target.kind}
+    >
+      {context.content}
+    </div>
+  ),
+}));
 const roots: Array<{ root: Root; container: HTMLDivElement }> = [];
 const entry = (name: string) => ({
   name,
@@ -74,6 +77,7 @@ async function flush() {
   });
 }
 beforeEach(() => {
+  boundary.translations = null;
   configureBooleanGateway(atomGateway, { "app-shell-file-tree-open": true });
   (
     globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -135,6 +139,25 @@ function fileButton(container: HTMLElement, name: string) {
   ).find((button) => button.textContent === name)!;
 }
 describe("Workspace file tab", () => {
+  it.each([
+    ["zh-CN", zhCN, "调整文件列表宽度"],
+    ["zh-TW", zhTW, "調整檔案列表寬度"],
+    ["en-US", enUS, "Resize file list"],
+    ["ja-JP", jaJP, "ファイル一覧の幅を調整"],
+    ["ko-KR", koKR, "파일 목록 너비 조정"],
+  ] as const)(
+    "%s 文件树宽度拖柄提供已翻译的可访问名称",
+    async (_locale, translations, label) => {
+      boundary.translations = translations;
+      const container = render("/work/README.md");
+      await flush();
+      const separator = container.querySelector('[role="separator"]');
+      expect(separator).not.toBeNull();
+      expect(separator?.getAttribute("aria-label")).toBe(label);
+      expect(separator?.getAttribute("aria-orientation")).toBe("vertical");
+    },
+  );
+
   it("没有项目目录时不发起目录读取，打开文件保持禁用", async () => {
     const container = render(null, vi.fn(), null);
     await flush();

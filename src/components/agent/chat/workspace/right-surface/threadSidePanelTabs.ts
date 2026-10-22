@@ -7,6 +7,20 @@ export interface ThreadSidePanelTab {
   contentInstance?: string;
   dndId?: string;
   title?: string;
+  browser?: {
+    tabId: string;
+    viewId: string;
+    browserSessionId: string;
+    threadId: string;
+    webContentsId: number;
+    ownerWebContentsId: number;
+    windowId: number;
+    url: string;
+    faviconUrl: string | null;
+    isLoading: boolean;
+    audioMuted: boolean;
+    selected: boolean;
+  };
   backgroundTerminal?: { threadId: string; turnId: string; itemId: string };
 }
 
@@ -56,6 +70,7 @@ export function openSidePanelTab(
       : state.tabs.find((item) =>
           tab.kind === "files" ||
           tab.kind === "shell" ||
+          tab.kind === "browser" ||
           tab.kind === "background-terminal"
             ? item.tabId === tab.tabId
             : item.kind === tab.kind,

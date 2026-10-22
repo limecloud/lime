@@ -272,7 +272,7 @@ describe("ToolCallDisplay command output", () => {
     ).toBeNull();
   });
 
-  it("文件级变更审阅应可作为 diff 审阅内容打开到画布", () => {
+  it("文件级变更审阅打开实际源文件，不生成虚拟 Markdown", () => {
     const onFileClick = vi.fn();
     const { container } = renderTool(
       {
@@ -309,25 +309,15 @@ describe("ToolCallDisplay command output", () => {
 
     act(() => {
       const openButton = container.querySelector(
-        'button[aria-label="在画布中打开变更审阅：src/components/App.tsx"]',
+        'button[aria-label="打开文件"]',
       ) as HTMLButtonElement | null;
       openButton?.click();
     });
 
-    expect(onFileClick).toHaveBeenCalledTimes(1);
-    expect(onFileClick.mock.calls[0]?.[0]).toBe(
-      "src/components/App.tsx.diff.md",
+    expect(onFileClick).toHaveBeenCalledExactlyOnceWith(
+      "src/components/App.tsx",
+      "",
     );
-    expect(onFileClick.mock.calls[0]?.[1]).toContain(
-      "# src/components/App.tsx 的变更审阅",
-    );
-    expect(onFileClick.mock.calls[0]?.[1]).toContain("- 状态：修改");
-    expect(onFileClick.mock.calls[0]?.[1]).toContain("- +2 行");
-    expect(onFileClick.mock.calls[0]?.[1]).toContain("- -1 行");
-    expect(onFileClick.mock.calls[0]?.[1]).toContain("- 1 处变更");
-    expect(onFileClick.mock.calls[0]?.[1]).toContain("````diff");
-    expect(onFileClick.mock.calls[0]?.[1]).toContain('-const title = "Old";');
-    expect(onFileClick.mock.calls[0]?.[1]).toContain('+const title = "New";');
   });
 
   it("长补丁应默认保留文件级预览，并支持展开完整变更", () => {

@@ -1,0 +1,18 @@
+{
+  "label": "static-final-r2",
+  "startedAt": "2026-10-22T10:32:21.517641+00:00",
+  "recordedAt": "2026-10-22T10:47:13.148221+00:00",
+  "results": [
+    {
+      "command": [
+        "npm",
+        "run",
+        "typecheck"
+      ],
+      "exitCode": 0,
+      "seconds": 891.6
+    }
+  ],
+  "log": "static-final-r2.log",
+  "exitCode": 0
+}

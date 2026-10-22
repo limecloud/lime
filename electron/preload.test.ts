@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import process from "node:process";
 import { buildAgentRootArgument } from "./agentRoot";
+import { decodeLocalAssetFilePath } from "./localAsset";
 
 import {
   ELECTRON_HOST_COMMANDS,
@@ -431,7 +432,22 @@ describe("electron/preload", () => {
     );
     expect(api.convertFileSrc("/tmp/a.png")).toBe("file:///tmp/a.png");
     expect(api.convertFileSrc("/tmp/a b.png", "asset")).toBe(
-      "asset://%2Ftmp%2Fa%20b.png",
+      "asset://localhost/%2Ftmp%2Fa%20b.png",
     );
+  });
+
+  it.each([
+    "/Users/Case/中文图片 #1?%.png",
+    "C:\\Users\\Case\\图片 #1?%.png",
+    "\\\\Server\\Share\\图片 #1.png",
+  ])("asset URL 经标准解析仍保留完整文件路径：%s", async (filePath) => {
+    const api = await loadPreloadApi();
+    const url = new URL(api.convertFileSrc(filePath, "asset"));
+    expect(url.protocol).toBe("asset:");
+    expect(url.hostname).toBe("localhost");
+    expect(decodeURIComponent(url.pathname.slice(1))).toBe(filePath);
+    expect(decodeLocalAssetFilePath(url.href)).toBe(filePath);
+    expect(url.search).toBe("");
+    expect(url.hash).toBe("");
   });
 });

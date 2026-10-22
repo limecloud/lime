@@ -1,3 +1,4 @@
+import { replaceFileTab } from "./thread-side-panel-navigation.mjs";
 import { withNativeClipboard } from "./native-clipboard.mjs";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -506,10 +507,7 @@ export async function runPresentationRichTextScenario({
   const final = await history("重做", { shape: "edited", cell: "pasted" });
   await controls.getByRole("button", { name: "结束编辑", exact: true }).click();
   const beforeReopen = await io();
-  await page
-    .getByTestId("canvas-workbench-panel-workspace")
-    .getByTitle(path.basename(filePath), { exact: true })
-    .click();
+  await replaceFileTab(page, filePath);
   await waitForArtifactFileRead(
     async () => (await io()).read,
     beforeReopen.read,

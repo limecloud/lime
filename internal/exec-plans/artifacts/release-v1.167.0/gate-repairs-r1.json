@@ -1,0 +1,20 @@
+{
+  "recordedAt": "2026-10-22T10:31:08.322505+00:00",
+  "changes": [
+    {
+      "path": "src/components/agent/chat/workspace/right-surface/browser/useBrowserAnnotations.ts",
+      "frozenSha256": "9b069c83f2e82f8426a1ec0b8e2d0c0cdd3df47131a4ebfaf4f3887de8255d7e",
+      "sharedBeforeSha256": "3c55b554ef630d6d92e61f9c1bfe56963b53f1eca28d199dd8a9fd8d7dd45d09",
+      "candidateAfterSha256": "6e061f00c7372330f8c43726559a8f41fa1b785bdf42cf8a26c8af2768e1ea72",
+      "sharedUpdated": false
+    },
+    {
+      "path": "electron/browserPagePreload.test.ts",
+      "frozenSha256": "2681a48b92db74ed3015d7081662c1cee3eb217fe2954ac39e2a4970143b29a3",
+      "sharedBeforeSha256": "2681a48b92db74ed3015d7081662c1cee3eb217fe2954ac39e2a4970143b29a3",
+      "candidateAfterSha256": "3231e76153ca7b1eef8b871dbca7d58af5820844402e9adc658bdb622a493ee2",
+      "sharedUpdated": true
+    }
+  ],
+  "reason": "Explicit typed annotation labels and complete page-preload fixture DOM/descriptor cleanup; no guard or assertion weakening."
+}

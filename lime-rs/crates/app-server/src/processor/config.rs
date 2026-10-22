@@ -22,6 +22,7 @@ const CONFIG_ROOT_KEYS: &[&str] = &[
     "hide_agent_reasoning",
     "tui",
     "desktop",
+    "browser",
     "routing",
     "retry",
     "logging",
@@ -508,5 +509,72 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec!["f6", "ctrl-x f"]
         );
+    }
+
+    #[test]
+    fn browser_preferences_persist_with_cas_and_reject_invalid_policy_without_writing() {
+        assert!(CONFIG_ROOT_KEYS.contains(&"browser"));
+        let directory = tempfile::tempdir().expect("temporary configuration directory");
+        let path = directory.path().join("config.yaml");
+        let initial = read_snapshot(&path).expect("default configuration");
+        let edit = |value| ConfigEdit {
+            key_path: "browser".to_string(),
+            value,
+            merge_strategy: MergeStrategy::Replace,
+        };
+        let saved = write_edits(
+            &path,
+            None,
+            Some(initial.version.clone()),
+            vec![edit(json!({
+                "show_full_url": true,
+                "ask_download_location": true,
+                "history_access": "disabled",
+                "agent_permissions": {"default": {"download": "deny"}, "sites": [{
+                    "pattern": "https://*.EXAMPLE.COM/", "permissions": {"browse": "allow"}
+                }]}
+            }))],
+        )
+        .expect("persist Browser preferences through current control plane");
+        let restored = read_snapshot(&path).expect("reload persisted Browser preferences");
+        assert_eq!(restored.version, saved.version);
+        assert_ne!(restored.version, initial.version);
+        assert_eq!(
+            restored.config.pointer("/browser/show_full_url"),
+            Some(&json!(true))
+        );
+        assert_eq!(
+            restored.config.pointer("/browser/history_access"),
+            Some(&json!("disabled"))
+        );
+        assert_eq!(
+            restored
+                .config
+                .pointer("/browser/agent_permissions/sites/0/pattern"),
+            Some(&json!("https://*.example.com"))
+        );
+        assert_eq!(
+            restored
+                .config
+                .pointer("/browser/agent_permissions/default/download"),
+            Some(&json!("deny"))
+        );
+        let persisted = std::fs::read(&path).expect("persisted YAML bytes");
+
+        let conflict = write_edits(
+            &path,
+            None,
+            Some(initial.version),
+            vec![edit(json!({"enabled": false}))],
+        )
+        .expect_err("stale version must not overwrite Browser preferences");
+        assert!(conflict.message.contains("modified since last read"));
+        assert_eq!(std::fs::read(&path).unwrap(), persisted);
+
+        let invalid = write_edits(&path, None, Some(saved.version), vec![edit(json!({
+            "agent_permissions": {"sites": [{"pattern": "https://user:secret@example.com/private", "permissions": {"browse": "allow"}}]}
+        }))]).expect_err("invalid Browser permission pattern must not be persisted");
+        assert!(invalid.message.contains("Invalid configuration"));
+        assert_eq!(std::fs::read(&path).unwrap(), persisted);
     }
 }

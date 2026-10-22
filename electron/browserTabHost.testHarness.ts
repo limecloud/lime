@@ -1,6 +1,11 @@
+import {
+  effectiveBrowserSettings,
+  type BrowserSettings,
+} from "../src/lib/api/browserSettingsTypes";
 import { vi } from "vitest";
 import process from "node:process";
 import { ElectronBrowserTabHost, type BrowserToolCall } from "./browserTabHost";
+import type { BrowserHistoryHost } from "./browserHistoryHost";
 export { isBrowserTabCommand } from "./browserTabHost";
 
 const {
@@ -41,7 +46,7 @@ vi.mock("./electronRuntime", async () => {
   };
 });
 
-export function createHarness() {
+export function createHarness(options: { history?: BrowserHistoryHost } = {}) {
   clipboardReadTextMock.mockClear();
   clipboardWriteTextMock.mockClear();
   shellOpenPathMock.mockClear();
@@ -60,6 +65,12 @@ export function createHarness() {
     },
   }));
   const embeddedHost = {
+    setSettings: vi.fn(),
+    setPopupHandler: vi.fn(),
+    setAgentPermissionResolver: vi.fn(),
+    setDownloadPermissionResolver: vi.fn(),
+    takeBlockedNavigation: vi.fn(() => null),
+    resolvePopupOpener: vi.fn(() => null),
     invoke: vi.fn(async (window, command: string, args) => {
       const viewId = String(args?.viewId ?? "");
       if (command === "embedded_browser_view_destroy") {
@@ -106,8 +117,16 @@ export function createHarness() {
   const browserHost = new ElectronBrowserTabHost(
     embeddedHost as never,
     (event, payload) => events.push({ event, payload }),
+    options,
   );
   browserHost.setArtifactWriter(artifactWriter);
+  const defaults = effectiveBrowserSettings();
+  // Existing lifecycle fixtures explicitly allow browsing; permission scenarios opt into ask.
+  let settings = effectiveBrowserSettings({ agent_permissions: {
+    ...defaults.agent_permissions,
+    default: { ...defaults.agent_permissions.default, browse: "allow" },
+  } });
+  browserHost.setSettingsProvider(async () => settings);
   const host = {
     connectionLost: browserHost.connectionLost.bind(browserHost),
     executeTool: (
@@ -119,6 +138,13 @@ export function createHarness() {
     setTurnInterruptHandler:
       browserHost.setTurnInterruptHandler.bind(browserHost),
     setArtifactWriter: browserHost.setArtifactWriter.bind(browserHost),
+    setSettings: (next: BrowserSettings) => {
+      settings = next;
+      browserHost.setSettings(next);
+    },
+    setSettingsProvider: browserHost.setSettingsProvider.bind(browserHost),
+    setPopupIdentityHandler:
+      browserHost.setPopupIdentityHandler.bind(browserHost),
     turnEnded: browserHost.turnEnded.bind(browserHost),
   };
   return { artifactWriter, embeddedHost, events, host, views, window };
@@ -172,6 +198,12 @@ function createNativeView(
         if (method === "Page.getNavigationHistory") {
           return { currentIndex: 0 };
         }
+        if (method === "Page.navigate") {
+          webContents.url = String(params?.url);
+          queueMicrotask(() => emit("did-stop-loading"));
+          return {};
+        }
+        if (method === "Page.captureScreenshot") return { data: "cGl4ZWxz" };
         if (method === "Accessibility.getFullAXTree") {
           return {
             nodes: [
@@ -222,7 +254,15 @@ function createNativeView(
       eventListeners.add(listener);
       listeners.set(event, eventListeners);
     }),
-    once: vi.fn(),
+    once: vi.fn((event: string, listener: (...args: unknown[]) => void) => {
+      const once = (...args: unknown[]) => {
+        listeners.get(event)?.delete(once);
+        listener(...args);
+      };
+      const eventListeners = listeners.get(event) ?? new Set();
+      eventListeners.add(once);
+      listeners.set(event, eventListeners);
+    }),
     url,
   };
   const view = {

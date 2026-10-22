@@ -5,11 +5,18 @@ import {
   isElectronHostCommandAvailable,
 } from "@/lib/electron-host";
 import type {
+  BrowserPrintResult,
+  BrowserScreenshot,
+  EmbeddedBrowserDeviceState,
   EmbeddedBrowserBounds,
   EmbeddedBrowserDownloadEvent,
   EmbeddedBrowserPermissionRequestEvent,
   EmbeddedBrowserViewLoadFailedEvent,
   EmbeddedBrowserViewState,
+} from "./embeddedBrowser";
+import {
+  assertBrowserPrintResult,
+  assertBrowserScreenshot,
 } from "./embeddedBrowser";
 
 export type BrowserTabOrigin = "agent" | "user";
@@ -185,6 +192,25 @@ export interface BrowserTabClosedEvent {
   viewId: string;
 }
 
+export type BrowserTabPageCommand =
+  | "focus-address"
+  | "find"
+  | "new-tab"
+  | "close-tab"
+  | "reload"
+  | "go-back"
+  | "go-forward"
+  | "zoom-in"
+  | "zoom-out"
+  | "zoom-reset"
+  | "print"
+  | "annotate";
+
+export interface BrowserTabCommandEvent extends BrowserTabEventIdentity {
+  viewId: string;
+  command: BrowserTabPageCommand;
+}
+
 const BROWSER_TAB_REQUIRED_COMMANDS = [
   "browser_tab_list",
   "browser_tab_mount",
@@ -199,6 +225,10 @@ const BROWSER_TAB_REQUIRED_COMMANDS = [
   "browser_tab_go_forward",
   "browser_tab_select",
   "browser_tab_close",
+  "browser_tab_print",
+  "browser_tab_capture_screenshot",
+  "browser_tab_set_audio_muted",
+  "browser_tab_set_device",
 ] as const;
 
 export function isBrowserTabHostAvailable(): boolean {
@@ -332,6 +362,76 @@ export async function goBackBrowserTab(
   tabId: string,
 ): Promise<BrowserTabState> {
   return await invokeBrowserTab("browser_tab_go_back", { tabId });
+}
+
+export async function printBrowserTab(
+  tabId: string,
+): Promise<BrowserPrintResult & { state: BrowserTabState }> {
+  const result = await safeInvoke<unknown>("browser_tab_print", { tabId });
+  assertBrowserPrintResult(result);
+  const state = asRecord(result)?.state;
+  assertBrowserTabState(state);
+  return { ...result, state };
+}
+
+export async function captureBrowserTabScreenshot(
+  tabId: string,
+  copyToClipboard = false,
+): Promise<BrowserScreenshot & { state: BrowserTabState }> {
+  const result = await safeInvoke<unknown>("browser_tab_capture_screenshot", {
+    tabId,
+    copyToClipboard,
+  });
+  assertBrowserScreenshot(result);
+  const state = asRecord(result)?.state;
+  assertBrowserTabState(state);
+  return { ...result, state };
+}
+
+export async function setBrowserTabAudioMuted(
+  tabId: string,
+  muted: boolean,
+): Promise<BrowserTabState> {
+  return invokeBrowserTab("browser_tab_set_audio_muted", { tabId, muted });
+}
+
+export async function setBrowserTabDevice(
+  tabId: string,
+  device: EmbeddedBrowserDeviceState | null,
+): Promise<BrowserTabState> {
+  return invokeBrowserTab("browser_tab_set_device", { tabId, device });
+}
+
+export function listenBrowserTabCommand(
+  handler: (event: BrowserTabCommandEvent) => void,
+): Promise<() => void> {
+  return listenValidated(
+    "browser-tab-command",
+    (value): asserts value is BrowserTabCommandEvent => {
+      assertBrowserTabEventIdentity(value);
+      const record = asRecord(value);
+      const commands = [
+        "focus-address",
+        "find",
+        "new-tab",
+        "close-tab",
+        "reload",
+        "go-back",
+        "go-forward",
+        "zoom-in",
+        "zoom-out",
+        "zoom-reset",
+        "print",
+        "annotate",
+      ];
+      if (
+        typeof record?.viewId !== "string" ||
+        !commands.includes(String(record.command))
+      )
+        throw new Error("Browser page command is invalid");
+    },
+    handler,
+  );
 }
 
 export async function goForwardBrowserTab(

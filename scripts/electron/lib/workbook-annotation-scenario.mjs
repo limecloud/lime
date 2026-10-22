@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { createHash } from "node:crypto";
 import { invokeAppServerFromPage } from "../../agent-runtime/claw-chat-current-fixture-rpc.mjs";
+import { closeThreadSidePanelTab } from "./thread-side-panel-navigation.mjs";
 import {
   fillComposerEditor,
   readComposerEditorText,
@@ -134,6 +135,8 @@ export async function runWorkbookAnnotationScenario({
   await add("明细", "A1:B1", bodies[1]);
   await close();
   assert.equal(starts().length, before + 1, "drafts do not create Turns");
+  const originalPanel = await panel.elementHandle();
+  assert.ok(originalPanel);
   await accessory
     .getByRole("button", {
       name: "Preview-report.xlsx · 2 条批注",
@@ -142,6 +145,19 @@ export async function runWorkbookAnnotationScenario({
     .click();
   await accessory.locator("li button").filter({ hasText: bodies[0] }).click();
   await editor.waitFor({ state: "visible" });
+  assert.equal(
+    await originalPanel.evaluate((node) => node.isConnected),
+    true,
+    "review reuses the existing file content instance",
+  );
+  assert.equal(
+    await page
+      .getByTestId("workspace-right-surface-active-pane")
+      .getByTestId("workbook-preview-panel")
+      .count(),
+    1,
+    "Composer review opens the current Files surface",
+  );
   assert.equal(await editor.getByRole("textbox").inputValue(), bodies[0]);
   assert.equal(
     await panel
@@ -167,6 +183,32 @@ export async function runWorkbookAnnotationScenario({
       target.left >= viewport.left + 46 &&
       target.right <= viewport.right
     );
+  });
+  await close();
+
+  await closeThreadSidePanelTab(page, "files");
+  await panel.waitFor({ state: "detached" });
+  assert.equal(await originalPanel.evaluate((node) => node.isConnected), false);
+  await accessory.locator("li button").filter({ hasText: bodies[0] }).click();
+  await ready();
+  await editor.waitFor({ state: "visible" });
+  assert.equal(await editor.getByRole("textbox").inputValue(), bodies[0]);
+  assert.equal(
+    await panel
+      .getByRole("textbox", { name: "单元格位置", exact: true })
+      .inputValue(),
+    "B2:B4",
+  );
+  assert.equal(
+    await page
+      .getByTestId("workspace-right-surface-active-pane")
+      .getByTestId("workbook-preview-panel")
+      .count(),
+    1,
+  );
+  assert.equal(await readComposerEditorText(composer), mainDraft);
+  await page.screenshot({
+    path: path.join(evidenceDir, "workbook-annotation-files-cold-reopen.png"),
   });
   await close();
 
@@ -316,6 +358,8 @@ export async function runWorkbookAnnotationScenario({
     turnId: thread.turns.at(-1).id,
     sourceChangeRejected: true,
     workspaceRemountPreserved: true,
+    filesSameInstanceReused: true,
+    filesColdReopenLocated: true,
     mainComposerPreserved: true,
     providerRequests: starts().length,
   };

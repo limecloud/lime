@@ -9,6 +9,46 @@ const input = (...flags) => [
 ];
 
 describe("独立专业文件场景的启动合同", () => {
+  it("媒体场景使用独立的图片、音频和视频源稿", () => {
+    expect(parseDocumentPreviewOptions(input("--media-preview"))).toMatchObject(
+      {
+        format: "media",
+        filename: "Preview-image.png",
+        withMediaPreview: true,
+        withAnnotations: false,
+        withOfficeLifecycle: false,
+      },
+    );
+  });
+  it.each([
+    "--annotations",
+    "--office-lifecycle",
+    "--workbook",
+    "--docx",
+    "--presentation",
+    "--delimited-editing",
+  ])("媒体源稿拒绝混入%s", (flag) => {
+    expect(() =>
+      parseDocumentPreviewOptions(input("--media-preview", flag)),
+    ).toThrow();
+  });
+  it.each(["--workbook", "--presentation"])(
+    "%s关闭生命周期使用独立源稿",
+    (format) => {
+      expect(
+        parseDocumentPreviewOptions(input(format, "--office-lifecycle")),
+      ).toMatchObject({ withOfficeLifecycle: true, withAnnotations: false });
+    },
+  );
+  it.each([
+    ["--office-lifecycle"],
+    ["--docx", "--office-lifecycle"],
+    ["--workbook", "--office-lifecycle", "--annotations"],
+    ["--workbook", "--office-lifecycle", "--workbook-editing"],
+    ["--presentation", "--office-lifecycle", "--presentation-editing"],
+  ])("创建资源前拒绝冲突的Office生命周期 %j", (...flags) => {
+    expect(() => parseDocumentPreviewOptions(input(...flags))).toThrow();
+  });
   it("工作表剪贴板使用独立的三格式源稿", () => {
     expect(
       parseDocumentPreviewOptions(input("--workbook", "--workbook-clipboard")),

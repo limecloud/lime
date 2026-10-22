@@ -1,4 +1,41 @@
 import type { BrowserTabState } from "@/lib/api/browserTab";
+import { act, type ReactNode } from "react";
+import { createRoot } from "react-dom/client";
+
+export function createBrowserComponentHarness() {
+  (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+  const container = document.createElement("div");
+  document.body.appendChild(container);
+  const root = createRoot(container);
+  return {
+    async render(node: ReactNode) {
+      await act(async () => root.render(node));
+    },
+    query<T extends HTMLElement = HTMLElement>(testId: string) {
+      const element = container.querySelector<T>(`[data-testid="${testId}"]`);
+      if (!element) throw new Error(`Missing Browser test element: ${testId}`);
+      return element;
+    },
+    async dispatch(element: Element, event: Event) {
+      await act(async () => {
+        element.dispatchEvent(event);
+      });
+    },
+    async change(element: HTMLInputElement, value: string) {
+      await act(async () => {
+        Object.getOwnPropertyDescriptor(
+          HTMLInputElement.prototype,
+          "value",
+        )!.set!.call(element, value);
+        element.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+    },
+    async unmount() {
+      await act(async () => root.unmount());
+      container.remove();
+    },
+  };
+}
 
 export function browserState(
   overrides: Partial<BrowserTabState> = {},

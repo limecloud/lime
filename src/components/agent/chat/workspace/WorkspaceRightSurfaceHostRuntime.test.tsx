@@ -72,7 +72,16 @@ vi.mock("./WorkspacePluginSurface", () => ({
 }));
 vi.mock("./WorkspaceTraceTab", () => ({ WorkspaceTraceTab: () => null }));
 vi.mock("./right-surface/browser/RightSurfaceBrowserPanel", () => ({
-  RightSurfaceBrowserPanel: () => null,
+  RightSurfaceBrowserPanel: ({
+    launchRequestId,
+  }: {
+    launchRequestId?: string | null;
+  }) => (
+    <div
+      data-testid="browser-launch-probe"
+      data-launch-request={launchRequestId ?? ""}
+    />
+  ),
 }));
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
@@ -114,6 +123,60 @@ afterEach(() => {
 });
 
 describe("Recents production Host routing", () => {
+  it.each([
+    { historical: false, applied: false, expected: "browser-request" },
+    { historical: true, applied: false, expected: "browser-request" },
+    { historical: true, applied: true, expected: "" },
+  ])(
+    "无导航URL的Browser请求仍转发展示确认：%j",
+    async ({ historical, applied, expected }) => {
+      const tabs = {
+        open: true,
+        activeTabId: "browser-tab",
+        tabs: [{ tabId: "browser-tab", kind: "browser" }],
+      };
+      const params = {
+        canvasWorkbenchRootPath: "/project",
+        runtimeWorkspaceId: "workspace",
+        sceneSessionId: "session",
+        sceneThreadId: "thread",
+        rightSurfaceRuntime: {
+          sidePanelTabs: tabs,
+          rightSurfaceState: {
+            activeSurface: "browser",
+            previousSurface: null,
+            openSurfaces: ["browser"],
+            source: "user",
+            layoutVariant: "docked",
+          },
+          browserRightSurfaceAvailable: true,
+          browserRightSurfaceIntent: {
+            sourceRequestId: "browser-request",
+            launchApplied: applied,
+            historicalProjection: historical ? { readOnly: true } : null,
+          },
+          rightSurfaceLaunchers: [],
+          outputs: [],
+          getFileDraft: () => null,
+          setFileDraft: vi.fn(),
+          handleCloseSidePanelTab: vi.fn(),
+        },
+        handleSendRef: { current: vi.fn() },
+        restoreInput: vi.fn(),
+        setLayoutMode: vi.fn(),
+      } as unknown as Parameters<typeof useWorkspaceRightSurfaceHostRuntime>[0];
+      function Probe() {
+        return useWorkspaceRightSurfaceHostRuntime(params).content;
+      }
+      await act(async () => root.render(<Probe />));
+      expect(
+        container
+          .querySelector('[data-testid="browser-launch-probe"]')
+          ?.getAttribute("data-launch-request"),
+      ).toBe(expected);
+    },
+  );
+
   it.each([
     [{ type: "website", target: "http://localhost:4317/demo" }, null],
     [{ type: "website", target: "out/index.html" }, "/project/out/index.html"],

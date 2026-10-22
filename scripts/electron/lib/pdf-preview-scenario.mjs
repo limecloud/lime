@@ -1,3 +1,4 @@
+import { selectThreadSidePanelTool } from "./thread-side-panel-navigation.mjs";
 import fs from "node:fs";
 import assert from "node:assert/strict";
 import path from "node:path";
@@ -143,7 +144,7 @@ export async function runPdfPreviewScenario({
   result.pages.push(landscape);
   await screenshot("pdf-landscape");
   await page.setViewportSize({ width: 780, height: 900 });
-  await page.getByTestId("layout-compact-canvas-tab").click();
+  await selectThreadSidePanelTool(page, "files");
   await panel.getByRole("button", { name: "适合宽度", exact: true }).click();
   await ready(2);
   result.narrow = await panel.evaluate((element) => ({

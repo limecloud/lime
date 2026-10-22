@@ -4,6 +4,7 @@ import type {
   ToolCallingConfig,
 } from "./experimentalFeatureTypes";
 import type { MemoryConfig } from "./memoryConfigTypes";
+import type { BrowserSettings } from "./browserSettingsTypes";
 
 export type { ToolCallingConfig } from "./experimentalFeatureTypes";
 
@@ -388,6 +389,7 @@ export interface Config {
   >;
   tui?: TuiConfig;
   desktop?: DesktopConfig;
+  browser?: Partial<BrowserSettings>;
   server: {
     host: string;
     port: number;

@@ -219,14 +219,10 @@ export function useWorkspaceRightSurfaceActionRuntime({
       pendingBrowserRightSurfaceIntent.title?.trim() || null,
     );
     setManualRightSurface("browser");
-    void refreshRightSurfacePendingRequests();
-    void consumePendingRequestsForSurface("browser");
   }, [
     activeBrowserRightSurfaceIntent?.sourceRequestId,
     closeCompetingRightSurfaces,
-    consumePendingRequestsForSurface,
     pendingBrowserRightSurfaceIntent,
-    refreshRightSurfacePendingRequests,
     setActiveBrowserRightSurfaceIntent,
     setManualRightSurface,
     setRightSurfaceBrowserTitle,
@@ -312,7 +308,6 @@ export function useWorkspaceRightSurfaceActionRuntime({
         );
       }
       void refreshRightSurfacePendingRequests();
-      void consumePendingRequestsForSurface("browser");
     } else {
       void dismissPendingRequestsForSurface("browser", "user_closed_surface");
     }
@@ -320,7 +315,6 @@ export function useWorkspaceRightSurfaceActionRuntime({
     closeRightSurface,
     browserRightSurfaceAvailable,
     closeCompetingRightSurfaces,
-    consumePendingRequestsForSurface,
     dismissPendingRequestsForSurface,
     manualRightSurface,
     pendingBrowserRightSurfaceIntent,
@@ -516,7 +510,7 @@ export function useWorkspaceRightSurfaceActionRuntime({
       }
       openSidePanelTab(kind, replaceTabId);
       void refreshRightSurfacePendingRequests();
-      void consumePendingRequestsForSurface(kind);
+      if (kind !== "browser") void consumePendingRequestsForSurface(kind);
     },
     [
       articleEditorRightSurface,

@@ -1,4 +1,11 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import {
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
+import { ArtifactNavigationContext } from "./ArtifactNavigationContext";
 import { useArtifactCommentSubmission } from "../ArtifactCommentSubmissionContext";
 import { submitArtifactAnnotationBatch } from "./artifactAnnotationSubmission";
 import type { ArtifactAnnotationDraft } from "./ArtifactAnnotationDraftStore";
@@ -29,6 +36,9 @@ export function useArtifactAnnotations({
   previewRequestKey?: string;
 }) {
   const submission = useArtifactCommentSubmission();
+  const navigation = useContext(ArtifactNavigationContext);
+  const previewId = navigation?.tabId ?? previewRequestKey;
+  const active = navigation?.active ?? true;
   const drafts = useSyncExternalStore(
     submission?.drafts.subscribe ?? emptySubscribe,
     submission?.drafts.getSnapshot ?? emptySnapshot,
@@ -76,11 +86,12 @@ export function useArtifactAnnotations({
   useEffect(() => {
     if (
       !focusRequest ||
+      !active ||
       !sourceSha256 ||
       !requestedId ||
       !requestedComment ||
       (focusRequest.previewRequestKey !== undefined &&
-        focusRequest.previewRequestKey !== previewRequestKey) ||
+        focusRequest.previewRequestKey !== previewId) ||
       loadedIdentity !== identity
     )
       return;
@@ -95,7 +106,8 @@ export function useArtifactAnnotations({
     identity,
     loadedIdentity,
     sourceSha256,
-    previewRequestKey,
+    previewId,
+    active,
     draftStore,
   ]);
   const activeDraft =

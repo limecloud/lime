@@ -17,6 +17,7 @@ import {
   type RuntimeSubmissionAcceptance,
 } from "../hooks/agentSendResult";
 import type { InputbarSendHandler } from "../components/Inputbar/inputbarSendPayload";
+import { fileTabId } from "./right-surface/openWorkspaceFile";
 
 interface Params {
   sessionId?: string | null;
@@ -27,11 +28,7 @@ interface Params {
   activeSessionIdRef: { readonly current: string | null | undefined };
   getNavigationEpoch: () => number;
   send: InputbarSendHandler;
-  openFile?: (
-    path: string,
-    isCurrent: () => boolean,
-    previewRequestKey: string,
-  ) => Promise<boolean>;
+  openFile?: (path: string, isCurrent: () => boolean) => Promise<boolean>;
 }
 
 const scopeKey = (params: Params) =>
@@ -186,7 +183,6 @@ export function useWorkspaceArtifactCommentSubmission(
           )
             return;
           const request = ++openRequest.current;
-          const previewRequestKey = crypto.randomUUID();
           const capturedScope = scopeKey(current);
           const isCurrent = () =>
             mounted.current &&
@@ -198,9 +194,9 @@ export function useWorkspaceArtifactCommentSubmission(
             const opened = await current.openFile(
               draft.comment.path,
               isCurrent,
-              previewRequestKey,
             );
-            if (opened && isCurrent()) drafts.focus(id, previewRequestKey);
+            if (opened && isCurrent())
+              drafts.focus(id, fileTabId(draft.comment.path));
           } catch {
             // File opening owns its visible error; the existing draft stays intact.
           }

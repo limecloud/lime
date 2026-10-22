@@ -33,8 +33,8 @@ interface ToolCallDisplayResultPanelProps {
   diffReviewScopeItems: DiffReviewScopeItem[];
   expandedDiffFileIds: Record<string, boolean>;
   onToggleDiffFileExpanded: (fileId: string) => void;
-  onOpenDiffFileInCanvas: (file: DiffReviewFile) => void;
-  canOpenDiffFileInCanvas: boolean;
+  onOpenChangedFile: (file: DiffReviewFile) => void;
+  canOpenChangedFile: boolean;
   resultMetaItems: string[];
   siteResultNotices: ToolResultNotice[];
   showOpenSavedSiteContent: boolean;
@@ -60,8 +60,8 @@ export function ToolCallDisplayResultPanel({
   diffReviewScopeItems,
   expandedDiffFileIds,
   onToggleDiffFileExpanded,
-  onOpenDiffFileInCanvas,
-  canOpenDiffFileInCanvas,
+  onOpenChangedFile,
+  canOpenChangedFile,
   resultMetaItems,
   siteResultNotices,
   showOpenSavedSiteContent,
@@ -323,19 +323,13 @@ export function ToolCallDisplayResultPanel({
                         <Copy className="h-3.5 w-3.5" />
                       )}
                     </button>
-                    {canOpenDiffFileInCanvas ? (
+                    {canOpenChangedFile ? (
                       <button
                         type="button"
                         className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-white hover:text-slate-900"
-                        title={t(
-                          "agentChat.toolCall.diffReview.openInCanvasWithTarget",
-                          { target: file.path },
-                        )}
-                        aria-label={t(
-                          "agentChat.toolCall.diffReview.openInCanvasWithTarget",
-                          { target: file.path },
-                        )}
-                        onClick={() => onOpenDiffFileInCanvas(file)}
+                        title={t("agentChat.fileChangesSummary.openFile")}
+                        aria-label={t("agentChat.fileChangesSummary.openFile")}
+                        onClick={() => onOpenChangedFile(file)}
                       >
                         <ExternalLink className="h-3.5 w-3.5" />
                       </button>

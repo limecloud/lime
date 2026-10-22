@@ -2,6 +2,12 @@ import fs from "node:fs";
 import path from "node:path";
 import assert from "node:assert/strict";
 import { parseDocumentPreviewOptions } from "./lib/document-preview-options.mjs";
+import { runOfficeFileLifecycleScenario } from "./lib/office-file-lifecycle-scenario.mjs";
+import { openFileTab } from "./lib/thread-side-panel-navigation.mjs";
+import {
+  writeMediaPreviewFixtures,
+  runMediaFilePreviewScenario,
+} from "./lib/media-file-preview-scenario.mjs";
 
 const previewOptions = parseDocumentPreviewOptions(process.argv);
 
@@ -81,6 +87,8 @@ const [
 const {
   runId,
   withAnnotations,
+  withOfficeLifecycle,
+  withMediaPreview,
   withWorkbookEditing,
   withWorkbookClipboard,
   withPresentationEditing,
@@ -248,7 +256,8 @@ try {
       path.join(workspace.rootPath, name),
     ),
   ];
-  if (withWorkbookClipboard)
+  if (withMediaPreview) await writeMediaPreviewFixtures(page, filePath);
+  else if (withWorkbookClipboard)
     for (const target of clipboardFiles)
       await writeWorkbookClipboardFixture(target);
   else if (format === "presentation")
@@ -264,7 +273,10 @@ try {
   await reloadRendererDocument(page, options);
   collector = await installInvokeTraceCollector(page);
   await page.getByTestId("app-sidebar-home-button").click();
-  await page.getByTestId("composer-utility-project-trigger").click();
+  await page
+    .getByTestId("home-composer-page")
+    .getByTestId("composer-utility-project-trigger")
+    .click();
   await page
     .locator(
       `[data-testid="composer-utility-opened-project"][data-project-id="${workspace.workspaceId}"]`,
@@ -311,34 +323,26 @@ try {
     })),
   };
   stage("open-workspace-file");
-  const workbenchToggle = page.getByTestId("task-center-workbench-toggle");
-  summary.workbenchBeforeOpen =
-    await workbenchToggle.getAttribute("aria-label");
-  assert.ok(["打开工作台", "关闭工作台"].includes(summary.workbenchBeforeOpen));
-  if (summary.workbenchBeforeOpen === "打开工作台")
-    await workbenchToggle.click();
-  assert.equal(await workbenchToggle.getAttribute("aria-label"), "关闭工作台");
   if (!withWorkbookClipboard) {
-    await page.getByTestId("canvas-workbench-tab-menu-trigger").click();
-    await page
-      .getByRole("menuitem", { name: "新建工作台标签-文件", exact: true })
-      .click();
-    await page
-      .locator(
-        `[data-testid="canvas-workbench-panel-workspace"] button[title="${filename}"]`,
-      )
-      .click();
+    await openFileTab(page, filePath, options.timeoutMs);
   }
   stage(`${format}-pages`);
-  summary.assetFetchProbe = await page.evaluate(async (filePath) => {
-    try {
-      const response = await fetch(`asset://${encodeURIComponent(filePath)}`);
-      return { ok: response.ok, status: response.status };
-    } catch (error) {
-      return { ok: false, name: error.name, message: error.message };
-    }
-  }, filePath);
-  if (format === "presentation")
+  if (withMediaPreview)
+    summary.mediaFilePreview = await runMediaFilePreviewScenario({
+      page,
+      evidenceDir,
+      filePath,
+      options,
+    });
+  else if (withOfficeLifecycle)
+    summary.officeFileLifecycle = await runOfficeFileLifecycleScenario({
+      page,
+      evidenceDir,
+      filePath,
+      format,
+      options,
+    });
+  else if (format === "presentation")
     summary.presentation = await runPresentationPreviewScenario({
       page,
       evidenceDir,
@@ -570,6 +574,7 @@ try {
   assert.ok(summary.trace.ipc > 0);
   assert.ok(summary.trace.methods.includes("fs/readFile"));
   if (
+    withOfficeLifecycle ||
     withWorkbookEditing ||
     withWorkbookClipboard ||
     withDelimitedEditing ||

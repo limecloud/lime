@@ -19,10 +19,9 @@ import {
 } from "@/lib/api/fileSystem";
 import type { Artifact } from "@/lib/artifact/types";
 import { ImageTaskViewer } from "../components/ImageTaskViewer";
-import type {
-  CanvasWorkbenchDefaultPreview,
-  CanvasWorkbenchPreviewTarget,
-} from "../components/CanvasWorkbenchLayout";
+import type { CanvasWorkbenchDefaultPreview } from "../components/CanvasWorkbenchLayout";
+import { type FilePreviewTarget } from "./filePreviewTarget";
+
 import type { TaskFile } from "../components/TaskFiles";
 import type { AgentThreadItem } from "../types";
 import {
@@ -198,7 +197,7 @@ export interface WorkspaceCanvasPreviewRuntimeResult {
   liveCanvasPreview: ReactNode;
   hasLiveCanvasPreviewContent: boolean;
   renderCanvasWorkbenchPreview: (
-    target: CanvasWorkbenchPreviewTarget,
+    target: FilePreviewTarget,
     options?: { stackedWorkbenchTrigger?: ReactNode },
   ) => ReactNode;
 }
@@ -540,7 +539,7 @@ export function useWorkspaceCanvasPreviewRuntime({
 
   const renderGeneralCanvasPreviewTarget = useCallback(
     (
-      target: Extract<CanvasWorkbenchPreviewTarget, { kind: "default-canvas" }>,
+      target: Extract<FilePreviewTarget, { kind: "text" }>,
       stackedWorkbenchTrigger?: ReactNode,
     ) => (
       <GeneralCanvasPanel
@@ -578,7 +577,7 @@ export function useWorkspaceCanvasPreviewRuntime({
 
   const renderCanvasWorkbenchPreview = useCallback(
     (
-      target: CanvasWorkbenchPreviewTarget,
+      target: FilePreviewTarget,
       options?: {
         stackedWorkbenchTrigger?: ReactNode;
       },
@@ -599,7 +598,7 @@ export function useWorkspaceCanvasPreviewRuntime({
         );
 
       switch (target.kind) {
-        case "default-canvas":
+        case "text":
           return renderGeneralCanvasPreviewTarget(
             target,
             stackedWorkbenchTrigger,

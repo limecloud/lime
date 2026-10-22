@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { isAppServerBridgeAvailable } from "@/lib/api/appServerBridgeAvailability";
 import {
   consumeWorkspaceRightSurfacePending,
@@ -72,6 +79,7 @@ export interface WorkspaceRightSurfacePendingRuntime {
   refreshPendingRequests: () => Promise<void>;
   consumePendingRequestsForSurface: (
     surfaceKind: WorkspaceRightSurfaceKind,
+    requestIds?: readonly string[],
   ) => Promise<void>;
   dismissPendingRequestsForSurface: (
     surfaceKind: WorkspaceRightSurfaceKind,
@@ -103,7 +111,7 @@ export function buildWorkspaceRightSurfacePendingListParams({
   return {
     limit,
     ...(normalizedWorkspaceId ? { workspaceId: normalizedWorkspaceId } : {}),
-    ...(normalizedWorkspaceRoot
+    ...(!normalizedWorkspaceId && normalizedWorkspaceRoot
       ? { workspaceRoot: normalizedWorkspaceRoot }
       : {}),
     ...(!normalizedWorkspaceId &&
@@ -132,10 +140,6 @@ export function useWorkspaceRightSurfacePendingRuntime({
   drainPendingChanges,
   now = Date.now,
 }: UseWorkspaceRightSurfacePendingRuntimeOptions): WorkspaceRightSurfacePendingRuntime {
-  const [pendingRequests, setPendingRequests] = useState<
-    WorkspaceRightSurfacePendingRequest[]
-  >([]);
-  const [lastError, setLastError] = useState<Error | null>(null);
   const listParams = useMemo(
     () =>
       buildWorkspaceRightSurfacePendingListParams({
@@ -146,41 +150,139 @@ export function useWorkspaceRightSurfacePendingRuntime({
       }),
     [limit, sessionId, workspaceId, workspaceRoot],
   );
+  const scopeKey = JSON.stringify(listParams);
+  const scope = useMemo(
+    () => ({
+      enabled,
+      key: scopeKey,
+      active: false,
+      epoch: 0,
+      listRevision: 0,
+      changeRevision: 0,
+    }),
+    [enabled, scopeKey],
+  );
+  const currentScope = useRef(scope);
+  currentScope.current = scope;
+  const normalizedSessionId = normalizeOptionalString(sessionId);
+  const browserOwner = useMemo(
+    () => ({ sessionId: normalizedSessionId }),
+    [normalizedSessionId],
+  );
+  const currentBrowserOwner = useRef(browserOwner);
+  currentBrowserOwner.current = browserOwner;
+  const emptySnapshot = useMemo(
+    () => ({
+      scope,
+      pendingRequests: [] as WorkspaceRightSurfacePendingRequest[],
+      lastError: null as Error | null,
+    }),
+    [scope],
+  );
+  const [snapshot, setSnapshot] = useState(emptySnapshot);
+  const { pendingRequests, lastError } =
+    snapshot.scope === scope ? snapshot : emptySnapshot;
+  useLayoutEffect(() => {
+    scope.active = true;
+    return () => {
+      scope.active = false;
+      scope.epoch += 1;
+    };
+  }, [scope]);
+  const isCurrent = useCallback(
+    (epoch: number) =>
+      currentScope.current === scope && scope.active && scope.epoch === epoch,
+    [scope],
+  );
+  const updateSnapshot = useCallback(
+    (epoch: number, update: (current: typeof snapshot) => typeof snapshot) => {
+      if (!isCurrent(epoch)) return;
+      setSnapshot((current) =>
+        isCurrent(epoch)
+          ? update(current.scope === scope ? current : emptySnapshot)
+          : current,
+      );
+    },
+    [emptySnapshot, isCurrent, scope],
+  );
+  const isCurrentSurface = useCallback(
+    (epoch: number, surfaceKind: WorkspaceRightSurfaceKind) =>
+      isCurrent(epoch) &&
+      (surfaceKind !== "browser" ||
+        (browserOwner.sessionId !== null &&
+          currentBrowserOwner.current === browserOwner)),
+    [browserOwner, isCurrent],
+  );
 
   const refreshPendingRequests = useCallback(async () => {
+    const epoch = scope.epoch;
+    if (!isCurrent(epoch)) return;
+    const listRevision = ++scope.listRevision;
+    const changeRevision = scope.changeRevision;
+    const canApply = () =>
+      isCurrent(epoch) &&
+      scope.listRevision === listRevision &&
+      scope.changeRevision === changeRevision;
     if (!enabled || !listParams || !isBridgeAvailable()) {
-      setPendingRequests((current) => (current.length === 0 ? current : []));
-      setLastError((current) => (current === null ? current : null));
+      updateSnapshot(epoch, () => emptySnapshot);
       return;
     }
 
     try {
       const response = await listPending(listParams);
-      const nextPending = response.pending ?? [];
-      setPendingRequests((current) =>
-        current.length === 0 && nextPending.length === 0
-          ? current
-          : nextPending,
+      if (!canApply()) return;
+      updateSnapshot(epoch, (current) =>
+        canApply()
+          ? {
+              ...current,
+              pendingRequests: response.pending ?? [],
+              lastError: null,
+            }
+          : current,
       );
-      setLastError((current) => (current === null ? current : null));
     } catch (error) {
-      setPendingRequests((current) => (current.length === 0 ? current : []));
-      setLastError(error instanceof Error ? error : new Error(String(error)));
+      if (!canApply()) return;
+      updateSnapshot(epoch, (current) =>
+        canApply()
+          ? { ...current, pendingRequests: [], lastError: asError(error) }
+          : current,
+      );
     }
-  }, [enabled, isBridgeAvailable, listParams, listPending]);
+  }, [
+    emptySnapshot,
+    enabled,
+    isBridgeAvailable,
+    isCurrent,
+    listParams,
+    listPending,
+    scope,
+    updateSnapshot,
+  ]);
 
   const consumePendingRequestsForSurface = useCallback(
-    async (surfaceKind: WorkspaceRightSurfaceKind) => {
-      if (!enabled || !isBridgeAvailable()) {
+    async (
+      surfaceKind: WorkspaceRightSurfaceKind,
+      requestedIds?: readonly string[],
+    ) => {
+      const epoch = scope.epoch;
+      if (
+        !enabled ||
+        !isCurrentSurface(epoch, surfaceKind) ||
+        !isBridgeAvailable()
+      ) {
         return;
       }
 
+      const selectedIds = requestedIds ? new Set(requestedIds) : null;
       const requestIds = pendingRequests
         .filter(
           (request) =>
             request.status === "pending" &&
             normalizeWorkspaceRightSurfaceKind(request.surfaceKind) ===
-              surfaceKind,
+              surfaceKind &&
+            (surfaceKind !== "browser" ||
+              matchesBrowserSession(request, normalizedSessionId)) &&
+            (!selectedIds || selectedIds.has(request.requestId)),
         )
         .map((request) => request.requestId)
         .filter((requestId) => requestId.trim().length > 0);
@@ -191,23 +293,48 @@ export function useWorkspaceRightSurfacePendingRuntime({
 
       try {
         const response = await consumePending({ requestIds });
+        if (!isCurrentSurface(epoch, surfaceKind)) return;
+        scope.changeRevision += 1;
         const consumedIds = new Set(response.consumedRequestIds ?? []);
-        if (consumedIds.size > 0) {
-          setPendingRequests((current) =>
-            current.filter((request) => !consumedIds.has(request.requestId)),
-          );
-        }
-        setLastError((current) => (current === null ? current : null));
+        updateSnapshot(epoch, (current) =>
+          isCurrentSurface(epoch, surfaceKind)
+            ? {
+                ...current,
+                pendingRequests: current.pendingRequests.filter(
+                  (request) => !consumedIds.has(request.requestId),
+                ),
+                lastError: null,
+              }
+            : current,
+        );
       } catch (error) {
-        setLastError(error instanceof Error ? error : new Error(String(error)));
+        updateSnapshot(epoch, (current) =>
+          isCurrentSurface(epoch, surfaceKind)
+            ? { ...current, lastError: asError(error) }
+            : current,
+        );
       }
     },
-    [consumePending, enabled, isBridgeAvailable, pendingRequests],
+    [
+      consumePending,
+      enabled,
+      isBridgeAvailable,
+      isCurrentSurface,
+      normalizedSessionId,
+      pendingRequests,
+      scope,
+      updateSnapshot,
+    ],
   );
 
   const dismissPendingRequestsForSurface = useCallback(
     async (surfaceKind: WorkspaceRightSurfaceKind, reason?: string) => {
-      if (!enabled || !isBridgeAvailable()) {
+      const epoch = scope.epoch;
+      if (
+        !enabled ||
+        !isCurrentSurface(epoch, surfaceKind) ||
+        !isBridgeAvailable()
+      ) {
         return;
       }
 
@@ -216,7 +343,9 @@ export function useWorkspaceRightSurfacePendingRuntime({
           (request) =>
             request.status === "pending" &&
             normalizeWorkspaceRightSurfaceKind(request.surfaceKind) ===
-              surfaceKind,
+              surfaceKind &&
+            (surfaceKind !== "browser" ||
+              matchesBrowserSession(request, normalizedSessionId)),
         )
         .map((request) => request.requestId)
         .filter((requestId) => requestId.trim().length > 0);
@@ -231,18 +360,38 @@ export function useWorkspaceRightSurfacePendingRuntime({
           requestIds,
           ...(normalizedReason ? { reason: normalizedReason } : {}),
         });
+        if (!isCurrentSurface(epoch, surfaceKind)) return;
+        scope.changeRevision += 1;
         const dismissedIds = new Set(response.dismissedRequestIds ?? []);
-        if (dismissedIds.size > 0) {
-          setPendingRequests((current) =>
-            current.filter((request) => !dismissedIds.has(request.requestId)),
-          );
-        }
-        setLastError((current) => (current === null ? current : null));
+        updateSnapshot(epoch, (current) =>
+          isCurrentSurface(epoch, surfaceKind)
+            ? {
+                ...current,
+                pendingRequests: current.pendingRequests.filter(
+                  (request) => !dismissedIds.has(request.requestId),
+                ),
+                lastError: null,
+              }
+            : current,
+        );
       } catch (error) {
-        setLastError(error instanceof Error ? error : new Error(String(error)));
+        updateSnapshot(epoch, (current) =>
+          isCurrentSurface(epoch, surfaceKind)
+            ? { ...current, lastError: asError(error) }
+            : current,
+        );
       }
     },
-    [dismissPending, enabled, isBridgeAvailable, pendingRequests],
+    [
+      dismissPending,
+      enabled,
+      isBridgeAvailable,
+      isCurrentSurface,
+      normalizedSessionId,
+      pendingRequests,
+      scope,
+      updateSnapshot,
+    ],
   );
 
   useEffect(() => {
@@ -278,16 +427,29 @@ export function useWorkspaceRightSurfacePendingRuntime({
       return undefined;
     }
 
+    const epoch = scope.epoch;
+    let disposed = false;
+    const isActive = () => !disposed && isCurrent(epoch);
     const applyChanges = (
       changes: readonly WorkspaceRightSurfacePendingChangedParams[],
     ) => {
-      if (changes.length === 0) {
+      if (!isActive() || changes.length === 0) {
         return;
       }
-      setPendingRequests((current) =>
-        applyWorkspaceRightSurfacePendingChanges(current, changes, listParams),
+      scope.changeRevision += 1;
+      updateSnapshot(epoch, (current) =>
+        isActive()
+          ? {
+              ...current,
+              pendingRequests: applyWorkspaceRightSurfacePendingChanges(
+                current.pendingRequests,
+                changes,
+                listParams,
+              ),
+              lastError: null,
+            }
+          : current,
       );
-      setLastError((current) => (current === null ? current : null));
     };
 
     if (!drainPendingChanges) {
@@ -295,12 +457,12 @@ export function useWorkspaceRightSurfacePendingRuntime({
         return undefined;
       }
 
-      return subscribePendingChanges(
+      const unsubscribe = subscribePendingChanges(
         {
           onChanges: applyChanges,
           onError: (error) => {
-            setLastError(
-              error instanceof Error ? error : new Error(String(error)),
+            updateSnapshot(epoch, (current) =>
+              isActive() ? { ...current, lastError: asError(error) } : current,
             );
           },
         },
@@ -310,29 +472,30 @@ export function useWorkspaceRightSurfacePendingRuntime({
           limit: eventDrainLimit,
         },
       );
+      return () => {
+        disposed = true;
+        unsubscribe();
+      };
     }
 
-    let disposed = false;
     let draining = false;
 
     const drainOnce = async () => {
-      if (disposed || draining || !isBridgeAvailable()) {
+      if (!isActive() || draining || !isBridgeAvailable()) {
         return;
       }
 
       draining = true;
       try {
         const changes = await drainPendingChanges(eventDrainLimit);
-        if (disposed || changes.length === 0) {
+        if (!isActive() || changes.length === 0) {
           return;
         }
         applyChanges(changes);
       } catch (error) {
-        if (!disposed) {
-          setLastError(
-            error instanceof Error ? error : new Error(String(error)),
-          );
-        }
+        updateSnapshot(epoch, (current) =>
+          isActive() ? { ...current, lastError: asError(error) } : current,
+        );
       } finally {
         draining = false;
       }
@@ -354,8 +517,11 @@ export function useWorkspaceRightSurfacePendingRuntime({
     eventDrainIntervalMs,
     eventDrainLimit,
     isBridgeAvailable,
+    isCurrent,
     listParams,
+    scope,
     subscribePendingChanges,
+    updateSnapshot,
   ]);
 
   const pendingIntents = useMemo(() => {
@@ -374,8 +540,13 @@ export function useWorkspaceRightSurfacePendingRuntime({
     [pendingRequests],
   );
   const pendingBrowserIntent = useMemo(
-    () => buildWorkspaceRightSurfacePendingBrowserIntent(pendingRequests),
-    [pendingRequests],
+    () =>
+      buildWorkspaceRightSurfacePendingBrowserIntent(
+        pendingRequests.filter((request) =>
+          matchesBrowserSession(request, normalizedSessionId),
+        ),
+      ),
+    [normalizedSessionId, pendingRequests],
   );
 
   return {
@@ -389,6 +560,21 @@ export function useWorkspaceRightSurfacePendingRuntime({
     consumePendingRequestsForSurface,
     dismissPendingRequestsForSurface,
   };
+}
+
+function asError(error: unknown): Error {
+  return error instanceof Error ? error : new Error(String(error));
+}
+
+function matchesBrowserSession(
+  request: WorkspaceRightSurfacePendingRequest,
+  sessionId: string | null,
+): boolean {
+  const requestedSessionId = normalizeOptionalString(request.sessionId);
+  return (
+    sessionId !== null &&
+    (!requestedSessionId || requestedSessionId === sessionId)
+  );
 }
 
 export function applyWorkspaceRightSurfacePendingChanges(

@@ -48,6 +48,7 @@ interface InputbarComposerSectionProps {
   workflowProgressLabel: string;
   workflowSummaryLabel: string;
   inputAdapter: ChatInputAdapter;
+  hasAdditionalContent?: boolean;
   composerController: ComposerController;
   skillSelection: SkillSelectionProps;
   onSkillSuggestionsNeeded?: () => void;
@@ -108,6 +109,7 @@ export const InputbarComposerSection: React.FC<
   workflowProgressLabel,
   workflowSummaryLabel,
   inputAdapter,
+  hasAdditionalContent,
   composerController,
   skillSelection,
   onSkillSuggestionsNeeded,
@@ -353,6 +355,7 @@ export const InputbarComposerSection: React.FC<
         controller={composerController}
         editorRef={editorRef}
         text={inputAdapter.state.text}
+        hasAdditionalContent={hasAdditionalContent}
         setText={inputAdapter.actions.setText}
         onSend={onSend}
         onHistoryRecall={onHistoryRecall}

@@ -1,5 +1,4 @@
 import {
-  startTransition,
   useCallback,
   useEffect,
   useRef,
@@ -19,7 +18,7 @@ import type { Artifact } from "@/lib/artifact/types";
 import { requestWorkspaceRightSurface } from "@/lib/api/workspaceRightSurface";
 import { createPreviewArtifact } from "@/lib/artifact/previewArtifact";
 import type { ArtifactDocumentV1 } from "@/lib/artifact-document";
-import type { LayoutMode, ThemeType } from "@/lib/workspace/workbenchContract";
+import type { LayoutMode } from "@/lib/workspace/workbenchContract";
 import type { AgentChatWorkspaceProps } from "../agentChatWorkspaceContract";
 import type { CanvasWorkbenchLayoutMode } from "../components/CanvasWorkbenchLayout";
 import type { TaskFile } from "../components/TaskFiles";
@@ -74,9 +73,7 @@ export interface UseWorkspaceArtifactOpenRuntimeParams {
   handleWriteFile: WorkspaceArtifactWriteFile;
   initialProjectFileOpenTarget?: AgentChatWorkspaceProps["initialProjectFileOpenTarget"];
   isInitialContentLoading: boolean;
-  isThemeWorkbench: boolean;
   layoutMode: LayoutMode;
-  mappedTheme: ThemeType;
   messages: Message[];
   onNavigate?: AgentChatWorkspaceProps["onNavigate"];
   openArticleWorkspaceRightSurface: (
@@ -88,6 +85,7 @@ export interface UseWorkspaceArtifactOpenRuntimeParams {
   readSessionFile: (fileName: string) => Promise<string | null>;
   sessionFiles: SessionFile[];
   threadId?: string | null;
+  sessionId?: string | null;
   setArtifactViewMode: ApplyArtifactViewMode;
   setCanvasState: Dispatch<SetStateAction<CanvasStateUnion | null>>;
   setCanvasWorkbenchLayoutMode: Dispatch<
@@ -98,8 +96,6 @@ export interface UseWorkspaceArtifactOpenRuntimeParams {
   setHarnessPanelVisible: SetBoolean;
   setLayoutMode: Dispatch<SetStateAction<LayoutMode>>;
   setSelectedArtifactId: (artifactId: string | null) => void;
-  setSelectedFileId: (fileId: string) => void;
-  setTaskFiles: Dispatch<SetStateAction<TaskFile[]>>;
   syncGeneralArtifactToResource: (input: {
     rawFilePath: string;
     preferredName?: string;
@@ -121,9 +117,7 @@ export function useWorkspaceArtifactOpenRuntime({
   handleWriteFile,
   initialProjectFileOpenTarget,
   isInitialContentLoading,
-  isThemeWorkbench,
   layoutMode,
-  mappedTheme,
   messages,
   onNavigate,
   openArticleWorkspaceRightSurface,
@@ -133,6 +127,7 @@ export function useWorkspaceArtifactOpenRuntime({
   readSessionFile,
   sessionFiles,
   threadId,
+  sessionId,
   setArtifactViewMode,
   setCanvasState,
   setCanvasWorkbenchLayoutMode,
@@ -141,8 +136,6 @@ export function useWorkspaceArtifactOpenRuntime({
   setHarnessPanelVisible,
   setLayoutMode,
   setSelectedArtifactId,
-  setSelectedFileId,
-  setTaskFiles,
   syncGeneralArtifactToResource,
   taskFiles,
   updateCurrentImageWorkbenchState,
@@ -172,33 +165,30 @@ export function useWorkspaceArtifactOpenRuntime({
   const {
     handleHarnessLoadFilePreview,
     openArtifactInWorkbench: openWorkspaceArtifactInWorkbench,
-    openFilePreviewArtifact,
     handleArtifactClick,
     handleFileClick,
     handleCodeBlockClick,
     shouldCollapseCodeBlocks,
     shouldCollapseCodeBlockInChat,
-    handleTaskFileClick,
   } = useWorkspaceArtifactPreviewActions({
     activeTheme,
-    mappedTheme,
     layoutMode,
-    isThemeWorkbench,
     isGeneralCanvasOpen: generalCanvasState.isOpen,
     artifacts,
     currentCanvasArtifact,
     taskFiles,
     sessionFiles,
+    threadId,
+    sessionId,
+    projectRootPath,
+    openWorkspaceFile,
     readSessionFile,
     onRequestCanvasPreviewOpen: requestCanvasWorkbenchPreviewOpen,
     upsertGeneralArtifact,
     setSelectedArtifactId,
     setArtifactViewMode,
     setLayoutMode,
-    setTaskFiles,
-    setSelectedFileId,
     setGeneralCanvasState,
-    setCanvasState,
   });
 
   const {
@@ -216,109 +206,15 @@ export function useWorkspaceArtifactOpenRuntime({
   const handleWorkspaceFileClick = useCallback(
     (fileName: string, content: string) => {
       clearFocusedArtifactBlock();
-      const normalizedFileName = fileName.trim();
-      if (content.trim() || !normalizedFileName) {
-        handleFileClick(fileName, content);
-        return;
-      }
-
-      void (async () => {
-        const absolutePath =
-          resolveAbsoluteWorkspacePath(projectRootPath, normalizedFileName) ||
-          normalizedFileName;
-        const preview = await handleHarnessLoadFilePreview(absolutePath);
-        if (preview.error) {
-          toast.error(
-            t("agentChat.filePreview.openFailed", {
-              message: preview.error,
-            }),
-          );
-          return;
-        }
-        const nextContent =
-          !preview.isBinary && typeof preview.content === "string"
-            ? preview.content
-            : "";
-        const nextFilePath = isAbsoluteWorkspacePath(normalizedFileName)
-          ? preview.path || normalizedFileName
-          : normalizedFileName;
-        startTransition(() => {
-          if (activeTheme === "general") {
-            void openFilePreviewArtifact({
-              fileName: nextFilePath,
-              content: nextContent,
-              sourcePath: preview.path || absolutePath,
-              isBinary: preview.isBinary,
-              size: preview.size,
-            });
-            return;
-          }
-          handleFileClick(nextFilePath, nextContent);
-        });
-      })();
+      setHarnessPanelVisible(false);
+      setExpertInfoPanelCollapsed(true);
+      handleFileClick(fileName, content);
     },
     [
-      activeTheme,
       clearFocusedArtifactBlock,
       handleFileClick,
-      handleHarnessLoadFilePreview,
-      openFilePreviewArtifact,
-      projectRootPath,
-      t,
-    ],
-  );
-
-  const openProjectFilePreviewInCanvas = useCallback(
-    async ({
-      relativePath,
-      absolutePath,
-      isCancelled,
-      previewRequestKey,
-    }: {
-      relativePath?: string | null;
-      absolutePath: string;
-      isCancelled?: () => boolean;
-      previewRequestKey?: string;
-    }) => {
-      const preview = await handleHarnessLoadFilePreview(absolutePath);
-      if (isCancelled?.()) {
-        return false;
-      }
-
-      if (preview.error) {
-        toast.error(
-          t("agentChat.filePreview.openFailed", { message: preview.error }),
-        );
-        return false;
-      }
-
-      const nextContent =
-        !preview.isBinary && typeof preview.content === "string"
-          ? preview.content
-          : "";
-      const nextFilePath = relativePath?.trim() || preview.path || absolutePath;
-      clearFocusedArtifactBlock();
-      if (activeTheme === "general") {
-        await openFilePreviewArtifact({
-          fileName: nextFilePath,
-          content: nextContent,
-          sourcePath: preview.path || absolutePath,
-          isBinary: preview.isBinary,
-          size: preview.size,
-          previewRequestKey,
-        });
-      } else {
-        handleFileClick(nextFilePath, nextContent);
-      }
-      return true;
-    },
-    [
-      activeTheme,
-      clearFocusedArtifactBlock,
-      handleFileClick,
-      handleHarnessLoadFilePreview,
-      openFilePreviewArtifact,
-      t,
+      setExpertInfoPanelCollapsed,
+      setHarnessPanelVisible,
     ],
   );
 
@@ -343,13 +239,8 @@ export function useWorkspaceArtifactOpenRuntime({
           relativePath,
         );
         if (absolutePath) {
-          const opened = await openProjectFilePreviewInCanvas({
-            relativePath,
-            absolutePath,
-          });
-          if (opened) {
-            return;
-          }
+          openWorkspaceFile(absolutePath);
+          return;
         }
       }
 
@@ -368,7 +259,7 @@ export function useWorkspaceArtifactOpenRuntime({
           : {}),
       });
     },
-    [onNavigate, openProjectFilePreviewInCanvas, projectId, projectRootPath],
+    [onNavigate, openWorkspaceFile, projectId, projectRootPath],
   );
 
   const openMessageAttachmentPreview = useCallback(
@@ -611,24 +502,15 @@ export function useWorkspaceArtifactOpenRuntime({
             path: sourcePath,
           });
           if (
-            target.openMode === "file_preview" &&
-            ["text", "code", "markdown"].includes(projection.contentKind)
+            target.openMode === "file_preview" ||
+            projection.renderMode === "document_pages" ||
+            projection.renderMode === "workbook" ||
+            projection.renderMode === "presentation"
           ) {
             clearFocusedArtifactBlock();
             setHarnessPanelVisible(false);
             setExpertInfoPanelCollapsed(true);
             openWorkspaceFile(sourcePath);
-            return;
-          }
-          if (
-            projection.renderMode === "document_pages" ||
-            projection.renderMode === "workbook" ||
-            projection.renderMode === "presentation"
-          ) {
-            await openProjectFilePreviewInCanvas({
-              absolutePath: sourcePath,
-              relativePath: target.filePath,
-            });
             return;
           }
         }
@@ -668,7 +550,6 @@ export function useWorkspaceArtifactOpenRuntime({
       focusArtifactBlock,
       handleHarnessLoadFilePreview,
       handleWorkspaceFileClick,
-      openProjectFilePreviewInCanvas,
       openWorkspaceFile,
       projectRootPath,
       setExpertInfoPanelCollapsed,
@@ -683,7 +564,7 @@ export function useWorkspaceArtifactOpenRuntime({
     currentTurnId,
     effectiveThreadItems,
     handleWorkspaceFileClick,
-    openProjectFilePreviewInCanvas,
+    openWorkspaceFile,
     projectRootPath,
     taskFiles,
   });
@@ -722,23 +603,12 @@ export function useWorkspaceArtifactOpenRuntime({
     }
     handledInitialProjectFileOpenSignatureRef.current = signature;
 
-    let cancelled = false;
-    void (async () => {
-      await openProjectFilePreviewInCanvas({
-        relativePath,
-        absolutePath,
-        isCancelled: () => cancelled,
-      });
-    })();
-
-    return () => {
-      cancelled = true;
-    };
+    openWorkspaceFile(absolutePath);
   }, [
     contentId,
     initialProjectFileOpenTarget,
     isInitialContentLoading,
-    openProjectFilePreviewInCanvas,
+    openWorkspaceFile,
     projectRootPath,
     projectId,
   ]);
@@ -756,10 +626,8 @@ export function useWorkspaceArtifactOpenRuntime({
     handleOpenServiceSkillResultFile,
     handleOpenUrlPreview,
     handleSaveArtifactDocument,
-    handleTaskFileClick,
     handleWorkspaceArtifactClick,
     handleWorkspaceFileClick,
-    openProjectFilePreviewInCanvas,
     openWorkspaceArtifactInWorkbench,
     preferredServiceSkillResultFileTarget,
     renderArtifactWorkbenchToolbarActions,

@@ -402,6 +402,9 @@ pub struct Config {
     /// Desktop 链接偏好；由同一 App Server 用户配置层持久化。
     #[serde(default, skip_serializing_if = "super::DesktopConfig::is_default")]
     pub desktop: super::DesktopConfig,
+    /// 内置浏览器偏好；用户浏览与 Agent 同页操作共享配置。
+    #[serde(default, skip_serializing_if = "super::BrowserConfig::is_default")]
+    pub browser: super::BrowserConfig,
     /// 路由辅助配置
     #[serde(default)]
     pub routing: RoutingConfig,
@@ -2225,6 +2228,7 @@ impl Default for Config {
             permissions: BTreeMap::new(),
             tui: super::TuiConfig::default(),
             desktop: super::DesktopConfig::default(),
+            browser: super::BrowserConfig::default(),
             routing: RoutingConfig::default(),
             retry: RetrySettings::default(),
             logging: LoggingConfig::default(),

@@ -147,6 +147,7 @@ function renderSettingsContent(
         : undefined,
     developerLabTab:
       params.tab === SettingsTabs.Experimental ? "experimental" : "developer",
+    browserPage: tab === SettingsTabs.Browser ? params.browserPage : undefined,
   });
   return section.loadingKey
     ? withSettingsContentFallback(content, t(section.loadingKey))
@@ -179,9 +180,14 @@ export function SettingsPage({
   const handleTabChange = useCallback(
     (tab: SettingsTabs) => {
       if (tab === (pageParams.tab ?? SettingsTabs.Home)) return;
-      onNavigate("settings", { tab });
+      onNavigate("settings", {
+        tab,
+        ...(pageParams.browserReturnOwner
+          ? { browserReturnOwner: pageParams.browserReturnOwner }
+          : {}),
+      });
     },
-    [onNavigate, pageParams.tab],
+    [onNavigate, pageParams.browserReturnOwner, pageParams.tab],
   );
 
   const handleSearchSelect = useCallback(
@@ -197,13 +203,21 @@ export function SettingsPage({
         ) + 1;
       onNavigate("settings", {
         tab: result.section,
+        ...(pageParams.browserReturnOwner
+          ? { browserReturnOwner: pageParams.browserReturnOwner }
+          : {}),
         searchFocus: {
           targetId: result.targetId,
           requestKey: searchRequestRef.current,
         },
       });
     },
-    [handleTabChange, onNavigate, pageParams.searchFocus?.requestKey],
+    [
+      handleTabChange,
+      onNavigate,
+      pageParams.browserReturnOwner,
+      pageParams.searchFocus?.requestKey,
+    ],
   );
 
   const handleTabPrefetch = useCallback((tab: SettingsTabs) => {

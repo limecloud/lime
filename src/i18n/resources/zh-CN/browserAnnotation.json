@@ -1,0 +1,17 @@
+{
+  "browserAnnotation.title": "网页批注",
+  "browserAnnotation.placeholder": "添加评论…",
+  "browserAnnotation.save": "保存批注",
+  "browserAnnotation.send": "直接发送",
+  "browserAnnotation.close": "关闭并保留批注",
+  "browserAnnotation.element": "页面元素",
+  "browserAnnotation.region": "选中区域",
+  "browserAnnotation.captureFailed": "截图暂不可用，批注正文会保留。",
+  "browserAnnotation.sending": "正在发送…",
+  "browserAnnotation.sendFailed": "发送失败，批注已保留，请重试。",
+  "browserAnnotation.select": "选择元素或拖选区域以添加批注",
+  "browserAnnotation.count": "{{count}} 条网页批注",
+  "browserAnnotation.remove": "删除批注",
+  "browserAnnotation.sendAll": "发送网页批注",
+  "browserAnnotation.openFailed": "无法打开批注，草稿已保留。"
+}

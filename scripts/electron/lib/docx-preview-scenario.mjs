@@ -1,3 +1,4 @@
+import { selectThreadSidePanelTool } from "./thread-side-panel-navigation.mjs";
 import fs from "node:fs";
 import path from "node:path";
 import assert from "node:assert/strict";
@@ -87,7 +88,7 @@ export async function runDocxPreviewScenario({ page, evidenceDir, options }) {
   assert.ok((await frame.text("body")).includes("DELETED_REVISION"));
   await page.screenshot({ path: path.join(evidenceDir, "docx-redlines.png") });
   await page.setViewportSize({ width: 780, height: 900 });
-  await page.getByTestId("layout-compact-canvas-tab").click();
+  await selectThreadSidePanelTool(page, "files");
   await panel.getByRole("button", { name: "适合宽度", exact: true }).click();
   await waitForDocumentReady(page);
   await frame.visible('[data-docx-page="1"]');

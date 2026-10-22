@@ -5,17 +5,18 @@ import { readFilePreview } from "@/lib/api/fileBrowser";
 import { ReviewThreadSidePanelProjectionContext } from "./ReviewThreadSidePanelProjection";
 import {
   resolvePreviewContent,
-  type CanvasWorkbenchResolvedSelection,
-} from "../components/CanvasWorkbenchLayoutViewModel";
-import { useCanvasWorkbenchFileTreeState } from "../components/canvas-workbench/files/useCanvasWorkbenchFileTreeState";
-import { resolveWorkspaceFilePreviewTarget } from "../components/canvas-workbench/files/workspaceFilePreview";
-import { useFileTreeResize } from "../components/canvas-workbench/files/useFileTreeResize";
-import { CanvasWorkbenchPreviewModePanel } from "../components/canvas-workbench/CanvasWorkbenchPreviewModePanel";
+  type FilePreviewContext,
+} from "./filePreviewTarget";
+
+import { useFileTreeState } from "./right-surface/useFileTreeState";
+import { resolveFilePreviewTarget } from "./filePreviewTarget";
+import { useFileTreeResize } from "./right-surface/useFileTreeResize";
+import { FilePreviewTabContent } from "./FilePreviewTabContent";
 import {
-  resolveCanvasWorkbenchPreviewModeState,
-  resolveCanvasWorkbenchPreferredPreviewModeFromPath,
-  type CanvasWorkbenchPreviewMode,
-} from "../components/canvas-workbench/CanvasWorkbenchPreviewModeViewModel";
+  resolveFilePreviewModeState,
+  resolvePreferredFilePreviewMode,
+  type FilePreviewMode,
+} from "./filePreviewModel";
 import { WorkspaceFileTree } from "./right-surface/WorkspaceFileTree";
 import type {
   FileSelectionOptions,
@@ -29,11 +30,13 @@ import type { FileEditorDraft } from "./text-file-editor/FileEditorController";
 export function WorkspaceFileThreadSidePanelTab({
   filePath,
   tab,
+  active = true,
   onSelectFile,
   projectRootPath,
 }: {
   filePath: string | null;
   tab: ThreadSidePanelTab;
+  active?: boolean;
   onSelectFile: (path: string, options?: FileSelectionOptions) => void;
   projectRootPath?: string | null;
 }) {
@@ -67,17 +70,17 @@ export function WorkspaceFileThreadSidePanelTab({
     },
     [projectedLoadFilePreview],
   );
-  const tree = useCanvasWorkbenchFileTreeState({
+  const tree = useFileTreeState({
     loadFilePreview,
-    translateWorkbench: translate,
+    translate,
   });
   const { selectWorkspaceFile, loadDirectory } = tree;
   const selectedPath = filePath;
   const fileTree = useFileTreePanel();
   const treeOpen = fileTree.isOpen && Boolean(root);
   const setTreeOpen = fileTree.setOpen;
-  const [mode, setMode] = useState<CanvasWorkbenchPreviewMode>(() =>
-    resolveCanvasWorkbenchPreferredPreviewModeFromPath(filePath),
+  const [mode, setMode] = useState<FilePreviewMode>(() =>
+    resolvePreferredFilePreviewMode(filePath),
   );
   useEffect(() => {
     if (root) void loadDirectory(root);
@@ -87,9 +90,9 @@ export function WorkspaceFileThreadSidePanelTab({
   }, [filePath, selectWorkspaceFile]);
   const selectionKey = selectedPath ? `workspace-file:${selectedPath}` : null;
   const file = selectionKey ? tree.workspaceFileSelections[selectionKey] : null;
-  const context = useMemo<CanvasWorkbenchResolvedSelection | null>(() => {
+  const context = useMemo<FilePreviewContext | null>(() => {
     if (!file) return null;
-    const target = resolveWorkspaceFilePreviewTarget(file, {
+    const target = resolveFilePreviewTarget(file, {
       workspaceFile: {
         readFailed: t("agentChat.canvasWorkbench.workspaceFile.readFailed"),
         binaryUnsupported: t(
@@ -99,17 +102,16 @@ export function WorkspaceFileThreadSidePanelTab({
     });
     return {
       selectionKey,
-      entrySource: "workspace-file",
+
       title: file.title,
-      tabLabel: file.title,
-      kindLabel: t("agentChat.rightSurface.tabs.files"),
+
       selectionPath: file.path,
       content: resolvePreviewContent(target),
-      previousContent: null,
+
       target,
     };
   }, [file, selectionKey, t]);
-  const modeState = resolveCanvasWorkbenchPreviewModeState(context);
+  const modeState = resolveFilePreviewModeState(context);
   const resize = useFileTreeResize(treeOpen, () => setTreeOpen(false));
   const toggle = (
     <button
@@ -142,7 +144,7 @@ export function WorkspaceFileThreadSidePanelTab({
             role="separator"
             tabIndex={0}
             aria-orientation="vertical"
-            aria-label={t("agentChat.canvasWorkbench.changes.resizeFilesPanel")}
+            aria-label={t("agentChat.filePreview.resizeFilesPanel")}
             aria-valuenow={resize.filesPanelWidth}
             className="absolute right-0 top-0 z-10 h-full w-1 cursor-col-resize hover:bg-[color:var(--lime-brand)] focus-visible:bg-[color:var(--lime-brand)]"
             onPointerDown={resize.handleFilesPanelResizeStart}
@@ -154,7 +156,7 @@ export function WorkspaceFileThreadSidePanelTab({
             onDoubleClick={resize.resetFilesPanelWidth}
           />
         ) : null}
-        {filePath && file && context?.target.kind === "default-canvas" ? (
+        {filePath && file && context?.target.kind === "text" ? (
           <TextFileEditorTabContent
             key={filePath}
             path={filePath}
@@ -167,12 +169,14 @@ export function WorkspaceFileThreadSidePanelTab({
             onDraftChange={onDraftChange}
           />
         ) : context ? (
-          <CanvasWorkbenchPreviewModePanel
+          <FilePreviewTabContent
+            tab={tab}
+            active={active}
             context={context}
             mode={modeState.modes[mode]?.enabled ? mode : modeState.defaultMode}
             modeState={modeState}
             onSelectMode={setMode}
-            translateWorkbench={translate}
+            translate={translate}
             toolbarActions={toggle}
           />
         ) : (

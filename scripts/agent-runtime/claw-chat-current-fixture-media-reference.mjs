@@ -196,8 +196,8 @@ export async function summarizeGuiMediaReferenceSnapshot(
         [
           '[data-testid="artifact-workbench-shell"]',
           '[data-testid="canvas-workbench-shell"]',
-          '[data-testid="canvas-workbench-preview-mode-panel"]',
-          '[data-testid="canvas-workbench-markdown-preview"]',
+          '[data-testid="file-preview-panel"]',
+          '[data-testid="file-preview-markdown"]',
         ].join(", "),
       );
       const shellRect = shell?.getBoundingClientRect();
@@ -237,7 +237,7 @@ export async function summarizeGuiMediaReferenceSnapshot(
         previewImageStyle?.display !== "none",
       );
       const markdownPreview = document.querySelector(
-        '[data-testid="canvas-workbench-markdown-preview"]',
+        '[data-testid="file-preview-markdown"]',
       );
       const markdownPreviewRect = markdownPreview?.getBoundingClientRect();
       const markdownPreviewStyle = markdownPreview

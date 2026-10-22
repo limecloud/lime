@@ -2,7 +2,7 @@ import { act, useEffect, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DirectoryListing } from "@/lib/api/fileBrowser";
-import { useCanvasWorkbenchFileTreeState } from "../../components/canvas-workbench/files/useCanvasWorkbenchFileTreeState";
+import { useFileTreeState } from "../right-surface/useFileTreeState";
 import { FileSourceBreadcrumb } from "./FileSourceBreadcrumb";
 import { WorkspaceFileTree } from "../right-surface/WorkspaceFileTree";
 
@@ -56,9 +56,9 @@ afterEach(async () => {
 async function render(path = "/work/src/one.ts") {
   function Probe() {
     const [selected, setSelected] = useState(path);
-    const tree = useCanvasWorkbenchFileTreeState({
+    const tree = useFileTreeState({
       loadFilePreview: preview,
-      translateWorkbench: translate,
+      translate: translate,
     });
     const { loadDirectory } = tree;
     useEffect(() => {

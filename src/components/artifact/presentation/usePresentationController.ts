@@ -5,6 +5,7 @@ import {
   presentationControllersAtom,
 } from "./PresentationController";
 import type { PresentationSnapshot } from "./presentationDocument";
+import { useFileEditLifecycle } from "../fileEditLifecycle";
 
 const emptySubscribe = () => () => {};
 const empty = () => undefined;
@@ -21,6 +22,7 @@ export function usePresentationController(
   useLayoutEffect(() => {
     if (document) controller?.receiveDocument(document);
   }, [controller, document]);
+  useFileEditLifecycle(path, controller);
   const state = useSyncExternalStore(
     controller?.subscribe ?? emptySubscribe,
     controller?.getSnapshot ?? empty,

@@ -160,12 +160,21 @@ export interface SettingsSearchFocusContext {
   requestKey?: number;
 }
 
+/** 浏览器菜单进入设置时保留的 canonical 会话与工作区。 */
+export interface BrowserHistoryReturnOwner {
+  runtimeSessionId: string;
+  threadId: string;
+  workspaceId?: string | null;
+}
+
 export interface SettingsPageParams {
   tab?: SettingsTabs;
   providerView?: SettingsProviderView;
   providerFocus?: ProviderSettingsFocusContext;
   executionPolicyFocus?: ExecutionPolicyFocusContext;
   searchFocus?: SettingsSearchFocusContext;
+  browserPage?: "history";
+  browserReturnOwner?: BrowserHistoryReturnOwner;
 }
 
 export interface SkillScaffoldDraft extends Record<string, unknown> {

@@ -23,7 +23,7 @@ Agent 聊天界面的 UI 组件集合。
 - Summary、Sources、Subagents 与后台进程由现有页头 Summary owner 展示，Canvas 不再有 Summary slot、tab 或独立状态分支。
 - 当存在默认文件时聚焦文件预览；空面板收到新文件后按同一投影身份切换，保存前导航继续经过原文件 controller。
 - 旧目录fallback、结果目录表格、目录读取/缓存接线及专用copy producer已删除；无文档时显示已有审阅空态，文件浏览统一使用New tab → Files。
-- current Files的目录读取与缓存统一归 `useCanvasWorkbenchFileTreeState`；文件树和路径面包屑菜单共享该 owner，显示真实目录及隐藏文件，不按 Lime 内部产物名称排除入口。
+- current Files 的目录读取与缓存统一归 `workspace/right-surface/useFileTreeState`；文件树和路径面包屑菜单共享该 owner，显示真实目录及隐藏文件，不按 Lime 内部产物名称排除入口。预览投影和模式归 `workspace/filePreviewTarget`、`filePreviewModel`，Files 不反向依赖 Canvas selection。
 
 ### ToolCallDisplay
 

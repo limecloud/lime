@@ -1,0 +1,17 @@
+{
+  "browserAnnotation.title": "ページの注釈",
+  "browserAnnotation.placeholder": "コメントを追加…",
+  "browserAnnotation.save": "注釈を保存",
+  "browserAnnotation.send": "今すぐ送信",
+  "browserAnnotation.close": "注釈を保持して閉じる",
+  "browserAnnotation.element": "ページの要素",
+  "browserAnnotation.region": "選択した領域",
+  "browserAnnotation.captureFailed": "スクリーンショットを利用できません。コメントは保持されます。",
+  "browserAnnotation.sending": "送信中…",
+  "browserAnnotation.sendFailed": "送信できませんでした。注釈は保持されています。もう一度お試しください。",
+  "browserAnnotation.select": "要素を選択するか、ドラッグで領域を選択して注釈を追加",
+  "browserAnnotation.count": "ページの注釈 {{count}} 件",
+  "browserAnnotation.remove": "注釈を削除",
+  "browserAnnotation.sendAll": "ページの注釈を送信",
+  "browserAnnotation.openFailed": "注釈を開けませんでした。下書きは保持されています。"
+}

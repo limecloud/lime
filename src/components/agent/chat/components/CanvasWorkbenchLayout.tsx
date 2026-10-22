@@ -19,16 +19,18 @@ import type { HarnessFilePreviewResult } from "./HarnessStatusPanel";
 import { buildCanvasWorkbenchDiff } from "../utils/canvasWorkbenchDiff";
 import { extractFileNameFromPath } from "../workspace/workspacePath";
 import { useFileTreePanel } from "../workspace/useFileTreePanel";
-import {
-  type CanvasWorkbenchCopy,
-  type CanvasWorkbenchPreviewTarget,
-} from "./CanvasWorkbenchLayoutViewModel";
+import { type CanvasWorkbenchCopy } from "./CanvasWorkbenchLayoutViewModel";
+import { type FilePreviewTarget } from "../workspace/filePreviewTarget";
+
 import {
   CanvasWorkbenchShell,
-  isCanvasWorkbenchPreviewMode,
-  resolveCanvasWorkbenchPreviewModeState,
   type CanvasWorkbenchChangeView,
 } from "./canvas-workbench";
+import {
+  isFilePreviewMode,
+  resolveFilePreviewModeState,
+} from "../workspace/filePreviewModel";
+
 import {
   WORKBENCH_GHOST_BUTTON_CLASSNAME,
   WORKBENCH_MUTED_PANEL_CLASSNAME,
@@ -51,8 +53,6 @@ export type {
   CanvasWorkbenchTab,
 };
 
-export type { CanvasWorkbenchPreviewTarget };
-
 export interface CanvasWorkbenchPreviewOpenRequest {
   requestKey: string | number;
   selectionKey?: string | null;
@@ -60,7 +60,7 @@ export interface CanvasWorkbenchPreviewOpenRequest {
 }
 
 function getPreviewTargetPath(
-  target: CanvasWorkbenchPreviewTarget | null | undefined,
+  target: FilePreviewTarget | null | undefined,
   key: "filePath" | "absolutePath",
 ): string | undefined {
   if (!target || target.kind === "empty") {
@@ -400,9 +400,7 @@ export const CanvasWorkbenchLayout = memo(function CanvasWorkbenchLayout({
           previewOpenAttemptRef.current!.launched = false;
           return;
         }
-        applyActiveTab(
-          resolveCanvasWorkbenchPreviewModeState(nextContext).defaultMode,
-        );
+        applyActiveTab(resolveFilePreviewModeState(nextContext).defaultMode);
         setPreviewOnlyFilePath(previewOpenRequest.filePath?.trim() || null);
         handledPreviewOpenRequestRef.current = identity;
         onPreviewOpenRequestHandled?.(previewOpenRequest.requestKey);
@@ -413,7 +411,7 @@ export const CanvasWorkbenchLayout = memo(function CanvasWorkbenchLayout({
     if (
       fileActionBusy ||
       documentTransitionPending ||
-      (isCanvasWorkbenchPreviewMode(activeTab) &&
+      (isFilePreviewMode(activeTab) &&
         !previewModeState.modes[activeTab].enabled)
     )
       return;

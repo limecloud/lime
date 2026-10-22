@@ -1,3 +1,4 @@
+import { replaceFileTab } from "./thread-side-panel-navigation.mjs";
 import { withNativeClipboard } from "./native-clipboard.mjs";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -118,6 +119,24 @@ export async function runWorkbookClipboardScenario({
     exact: true,
   });
   const io = async () => workbookClipboardIo(await readTrace(), filePath);
+  const fileReads = async () =>
+    (await readTrace())
+      .flatMap((row, ledgerIndex) =>
+        (row.command === "app_server_handle_json_lines" &&
+        row.transport === "electron-ipc" &&
+        row.status === "success"
+          ? (row.args_preview?.request?.lines ?? [])
+          : []
+        ).map((line, requestIndex) => ({
+          ...JSON.parse(line),
+          ledgerIndex,
+          requestIndex,
+        })),
+      )
+      .filter(
+        (request) =>
+          request.method === "fs/readFile" && request.params?.path === filePath,
+      );
   const initialIo = await io();
   const evidence = {
     format,
@@ -133,7 +152,19 @@ export async function runWorkbookClipboardScenario({
     );
   const diskSha = () => workbookClipboardDigest(fs.readFileSync(filePath));
   const waitState = async (expected) => {
-    await page.waitForFunction(workbookClipboardDom, expected, { timeout });
+    try {
+      await page.waitForFunction(workbookClipboardDom, expected, { timeout });
+    } catch (error) {
+      const actual = await page.evaluate(workbookClipboardDom);
+      fs.writeFileSync(
+        path.join(
+          evidenceDir,
+          `workbook-clipboard-${format}-wait-failure.json`,
+        ),
+        JSON.stringify({ expected, actual }, null, 2) + "\n",
+      );
+      throw error;
+    }
     return page.evaluate(workbookClipboardDom);
   };
   const state = () => page.evaluate(workbookClipboardDom);
@@ -149,20 +180,8 @@ export async function runWorkbookClipboardScenario({
   };
   const open = async (sha256) => {
     const before = await io();
-    const toggle = page.getByTestId("task-center-workbench-toggle");
-    if (
-      (await toggle.count()) &&
-      (await toggle.getAttribute("aria-label")) === "打开工作台"
-    )
-      await toggle.click();
-    await page.getByTestId("canvas-workbench-tab-menu-trigger").click();
-    await page
-      .getByRole("menuitem", { name: "新建工作台标签-文件", exact: true })
-      .click();
-    await page
-      .getByTestId("canvas-workbench-panel-workspace")
-      .getByTitle(filename, { exact: true })
-      .click();
+    const previousReadCount = (await fileReads()).length;
+    await replaceFileTab(page, filePath, timeout);
     await waitForArtifactFileRead(
       async () => (await io()).read,
       before.read,
@@ -184,15 +203,29 @@ export async function runWorkbookClipboardScenario({
     const delta = assertWorkbookClipboardIo(
       before,
       await io(),
-      { read: 1, write: 0 },
-      "real file tree open/reopen",
+      // current Files 的文件投影与 Workbook 导入分别读取原件。
+      { read: 2, write: 0 },
+      "current Files cold open/reopen",
+    );
+    const requests = (await fileReads())
+      .slice(previousReadCount)
+      .map(({ id, ledgerIndex, requestIndex }) => ({
+        id,
+        ledgerIndex,
+        requestIndex,
+      }));
+    assert.equal(requests.length, 2, "two successful reads in the IPC ledger");
+    assert.equal(
+      new Set(requests.map(({ ledgerIndex }) => ledgerIndex)).size,
+      2,
+      "two distinct successful IPC invocations",
     );
     assert.equal(
       await panel.getByTitle(filename, { exact: true }).textContent(),
       filename,
       "visible source title stays unchanged",
     );
-    return delta;
+    return { ...delta, requests };
   };
   const quiet = async (label, before, expected) => {
     await waitState(expected);
@@ -369,9 +402,33 @@ export async function runWorkbookClipboardScenario({
           dirty: true,
           focused: true,
           position: before.state.position,
-          cells: before.state.cells,
         },
       );
+      // 错误提示会改变虚拟窗口；用真实位置输入补验已离屏的单元格。
+      let observed = await state();
+      const revealedCells = [];
+      for (const [address, text] of Object.entries(before.state.cells)) {
+        if (!(address in observed.cells)) {
+          await at(address);
+          await waitState({ cells: { [address]: text } });
+          observed = await state();
+          revealedCells.push(address);
+        }
+        assert.equal(observed.cells[address], text, `${name}: ${address}`);
+      }
+      await at(before.state.position);
+      assertWorkbookClipboardIo(
+        before.io,
+        await io(),
+        { read: 0, write: 0 },
+        `${name}: full visible draft verification`,
+      );
+      evidence.stages.push({
+        name: `${name}: all captured draft cells verified`,
+        verifiedCells: Object.keys(before.state.cells).length,
+        revealedCells,
+        selectionRestored: before.state.position,
+      });
       evidence.rejected.push(name);
     };
     await reject("ragged", "two\tcolumns\none");

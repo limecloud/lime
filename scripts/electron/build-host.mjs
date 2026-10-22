@@ -46,13 +46,25 @@ async function buildPreload() {
     ssr: ssrBundleRuntimeDependencies,
     build: {
       target: "node22",
-      ssr: "electron/preload.ts",
+      ssr: true,
       outDir: "dist-electron/preload",
       emptyOutDir: true,
       rollupOptions: {
+        input: {
+          preload: path.resolve(repoRoot, "electron/preload.ts"),
+          browserOverlay: path.resolve(
+            repoRoot,
+            "electron/browserOverlayPreload.ts",
+          ),
+          browserPage: path.resolve(repoRoot, "electron/browserPagePreload.ts"),
+          browserAnnotationEditor: path.resolve(
+            repoRoot,
+            "electron/browserAnnotationEditorPreload.ts",
+          ),
+        },
         external: ["electron", /^node:/],
         output: {
-          entryFileNames: "preload.cjs",
+          entryFileNames: "[name].cjs",
           format: "cjs",
         },
       },

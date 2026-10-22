@@ -29,6 +29,9 @@ import {
 import type { WorkspaceArticleWorkspace } from "./workspaceArticleWorkspaceModel";
 import type { WorkspacePluginSurfaceDescriptor } from "./workspacePluginSurfaceModel";
 import type { WorkspaceRightSurfaceBrowserIntent } from "./workspaceRightSurfaceBrowserIntent";
+import type { BrowserTabState } from "@/lib/api/browserTab";
+import type { BrowserWorkspaceOwner } from "@/lib/api/browserWorkspace";
+import { projectWorkspaceBrowserTabs } from "./right-surface/browser/workspaceBrowserTabs";
 
 export interface WorkspaceRightSurfaceOwner {
   workspaceId: string | null;
@@ -95,12 +98,20 @@ function openSurface(
   active = true,
 ): RightSurfaceLocalState {
   if (!canOpenWorkspaceRightSurface(kind, "user")) return current;
+  const existingBrowser =
+    kind === "browser"
+      ? (current.sidePanelTabs.tabs.find(
+          (tab) =>
+            tab.kind === "browser" && tab.browser?.tabId ===
+            current.activeBrowserRightSurfaceIntent?.tabId,
+        ) ?? current.sidePanelTabs.tabs.find((tab) => tab.kind === "browser"))
+      : undefined;
   const sidePanelTabs =
     kind === "files"
       ? openWorkspaceFile(current.sidePanelTabs, null, { replaceTabId })
       : openSidePanelTab(
           current.sidePanelTabs,
-          { tabId: crypto.randomUUID(), kind },
+          existingBrowser ?? { tabId: crypto.randomUUID(), kind },
           replaceTabId,
         );
   return sidePanelTabs === current.sidePanelTabs
@@ -211,6 +222,18 @@ export function useWorkspaceRightSurfaceLocalStateRuntime({
         else fileDrafts.current.delete(tab);
       },
       setActiveArticleWorkspace: setter("activeArticleWorkspace"),
+      synchronizeBrowserTabs: (states: readonly BrowserTabState[]) =>
+        update((current) => {
+          if (states.some((state) => state.threadId !== current.owner.threadId))
+            return current;
+          const sidePanelTabs = projectWorkspaceBrowserTabs(
+            current.sidePanelTabs,
+            states,
+          );
+          return sidePanelTabs === current.sidePanelTabs
+            ? current
+            : { ...current, sidePanelTabs };
+        }),
       setActiveBrowserRightSurfaceIntent: setter(
         "activeBrowserRightSurfaceIntent",
       ),
@@ -240,6 +263,31 @@ export function useWorkspaceRightSurfaceLocalStateRuntime({
         stateRef.current.sidePanelTabs.tabs.some(
           (tab) => tab.tabId === tabId && tab.kind === "workspace-new-tab",
         ),
+      captureBrowserAddressSource: (sourceTabId: string) => {
+        const source = ownerRef.current.version === version ? stateRef.current.sidePanelTabs.tabs.find((tab) =>
+          tab.tabId === sourceTabId && tab.kind === "workspace-new-tab")
+          : undefined;
+        const workspaceId = stateRef.current.owner.workspaceId;
+        const initialOwner = stateRef.current.owner;
+        const accepts = (current: RightSurfaceLocalState, resolved?: BrowserWorkspaceOwner | null) => {
+          if (!source || current.owner.workspaceId !== workspaceId || !current.sidePanelTabs.tabs.includes(source)) return false;
+          if (ownerKey(current.owner) === ownerKey(initialOwner)) return true;
+          return Boolean(!initialOwner.sessionId && !initialOwner.threadId && resolved &&
+            current.owner.sessionId === resolved.runtimeSessionId && current.owner.threadId === resolved.threadId);
+        };
+        return {
+          isCurrent: (resolved?: BrowserWorkspaceOwner | null) => accepts(stateRef.current, resolved),
+          replace: (resolved: BrowserWorkspaceOwner, browserTabId: string) => {
+            setStored((stored) => {
+              const current = stateForOwner(stored, stateRef.current.owner);
+              return accepts(current, resolved) ? { ...current,
+                sidePanelTabs: openSidePanelTab(current.sidePanelTabs,
+                  { tabId: browserTabId, kind: "browser" }, sourceTabId),
+              } : stored;
+            });
+          },
+        };
+      },
       openSidePanelTab: (
         kind: WorkspaceRightSurfaceKind,
         replaceTabId?: string,

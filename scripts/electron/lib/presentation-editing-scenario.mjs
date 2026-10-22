@@ -1,3 +1,7 @@
+import {
+  openFileTab,
+  replaceFileTab,
+} from "./thread-side-panel-navigation.mjs";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
@@ -92,21 +96,11 @@ export async function runPresentationEditingScenario({
     });
     return bytes;
   };
-  const open = async (expectedSha, withPrevious = true) => {
+  const open = async (expectedSha, withPrevious = true, readsBeforeRemount) => {
     const previous = withPrevious ? await panel.elementHandle() : null;
-    const before = await reads();
-    const toggle = page.getByTestId("task-center-workbench-toggle");
-    if ((await toggle.getAttribute("aria-label")) === "打开工作台")
-      await toggle.click();
-    await page.getByTestId("canvas-workbench-tab-menu-trigger").click();
-    await page
-      .getByRole("menuitem", { name: "新建工作台标签-文件", exact: true })
-      .click();
-    await page
-      .locator(
-        `[data-testid="canvas-workbench-panel-workspace"] button[title="${path.basename(filePath)}"]`,
-      )
-      .click();
+    const before = readsBeforeRemount ?? (await reads());
+    if (withPrevious) await replaceFileTab(page, filePath);
+    else await openFileTab(page, filePath);
     await waitForArtifactFileRead(reads, before);
     const panelReplaced = previous
       ? !(await previous.evaluate((node) => node.isConnected))
@@ -279,9 +273,10 @@ export async function runPresentationEditingScenario({
   await panel.waitFor({ state: "detached" });
   assert.equal(await previous.evaluate((node) => node.isConnected), false);
   await previous.dispose();
+  const readsBeforeRemount = await reads();
   await page.getByTestId("settings-back-button").click();
   // dirty application-scope projection仍绑定旧文件版本，不能用磁盘SHA冒充草稿已接受外部内容。
-  await open(sha(saved), false);
+  await open(sha(saved), false, readsBeforeRemount);
   assert.ok(
     (await frame.text("[data-slide-id]")).includes(
       "PPTX_LOCAL_CONFLICT_MUST_SURVIVE",

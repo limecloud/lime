@@ -66,6 +66,7 @@ interface UseInputbarControllerParams {
     result: AcceptedRuntimeSubmissionResult,
   ) => Promise<void> | void;
   input: string;
+  hasAdditionalContent?: boolean;
   setInput: (value: string) => void;
   onSend: InputbarSendHandler;
   onStop?: () => void;
@@ -102,6 +103,7 @@ export function useInputbarController({
   composerDraftCoordinator,
   onComposerDraftAccepted,
   input,
+  hasAdditionalContent,
   setInput,
   onSend,
   onStop,
@@ -346,6 +348,7 @@ export function useInputbarController({
   const [isNewGoalSubmitting, setIsNewGoalSubmitting] = useState(false);
   const handleSend = useInputbarSend({
     input,
+    hasAdditionalContent,
     isLoading,
     pendingImages,
     pathReferences,

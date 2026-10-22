@@ -1,4 +1,9 @@
-import type { DownloadItem, Session, WebContents } from "electron";
+import type {
+  DownloadItem,
+  SaveDialogOptions,
+  Session,
+  WebContents,
+} from "electron";
 
 type HostEventEmitter = (event: string, payload?: unknown) => void;
 
@@ -31,7 +36,9 @@ interface EmbeddedBrowserDownloadController {
     webContents: WebContents,
   ): EmbeddedBrowserDownloadEntry | null;
   onCompletedDownload?: (downloadId: string, savePath: string) => void;
-  resolveSavePath?: (filename: string) => string;
+  resolveSavePath?: (filename: string) => string | null;
+  resolveSaveDialogOptions?: (filename: string) => SaveDialogOptions | null;
+  canDownload?: (viewId: string, url: string) => boolean | Promise<boolean>;
 }
 
 const downloadIds = new WeakMap<DownloadItem, string>();
@@ -50,6 +57,10 @@ export function installEmbeddedBrowserDownloadHandling(
     if (savePath && typeof item.setSavePath === "function") {
       item.setSavePath(savePath);
     }
+    const dialogOptions = controller.resolveSaveDialogOptions?.(
+      item.getFilename(),
+    );
+    if (dialogOptions) item.setSaveDialogOptions(dialogOptions);
     const emitDownload = (state: EmbeddedBrowserDownloadState) => {
       emit(
         "embedded-browser-view-download",
@@ -60,7 +71,9 @@ export function installEmbeddedBrowserDownloadHandling(
     item.on("updated", (_event, state) => {
       emitDownload(state === "interrupted" ? "interrupted" : "progressing");
     });
+    let finished = false;
     item.once("done", (_event, state) => {
+      finished = true;
       const finalState =
         state === "completed"
           ? "completed"
@@ -76,6 +89,23 @@ export function installEmbeddedBrowserDownloadHandling(
       }
       emitDownload(finalState);
     });
+    try {
+      const allowed = controller.canDownload?.(entry.viewId, item.getURL());
+      if (allowed instanceof Promise) {
+        item.pause();
+        void allowed
+          .then((granted) => {
+            if (finished) return;
+            if (granted) item.resume();
+            else item.cancel();
+          })
+          .catch(() => {
+            if (!finished) item.cancel();
+          });
+      } else if (allowed === false) item.cancel();
+    } catch {
+      item.cancel();
+    }
   });
 }
 

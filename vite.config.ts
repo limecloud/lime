@@ -116,6 +116,10 @@ export default defineConfig(({ command, mode }) => {
       emptyOutDir: keepExistingOutDir ? false : undefined,
       chunkSizeWarningLimit: 12000,
       rollupOptions: {
+        input: {
+          main: path.resolve(__dirname, "index.html"),
+          browserAnnotation: path.resolve(__dirname, "browser-annotation.html"),
+        },
         onwarn(warning, defaultHandler) {
           const isMixedImportWarning =
             warning.message.includes("dynamically imported by") &&

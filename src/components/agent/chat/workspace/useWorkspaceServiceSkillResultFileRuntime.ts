@@ -13,11 +13,7 @@ interface UseWorkspaceServiceSkillResultFileRuntimeParams {
   currentTurnId?: string | null;
   effectiveThreadItems: AgentThreadItem[];
   handleWorkspaceFileClick: (fileName: string, content: string) => void;
-  openProjectFilePreviewInCanvas: (params: {
-    relativePath?: string | null;
-    absolutePath: string;
-    isCancelled?: () => boolean;
-  }) => Promise<boolean>;
+  openWorkspaceFile: (path: string) => void;
   projectRootPath?: string | null;
   taskFiles: TaskFile[];
 }
@@ -26,7 +22,7 @@ export function useWorkspaceServiceSkillResultFileRuntime({
   currentTurnId,
   effectiveThreadItems,
   handleWorkspaceFileClick,
-  openProjectFilePreviewInCanvas,
+  openWorkspaceFile,
   projectRootPath,
   taskFiles,
 }: UseWorkspaceServiceSkillResultFileRuntimeParams) {
@@ -64,13 +60,8 @@ export function useWorkspaceServiceSkillResultFileRuntime({
         normalizedPath,
       );
       if (absolutePath) {
-        const opened = await openProjectFilePreviewInCanvas({
-          relativePath: normalizedPath,
-          absolutePath,
-        });
-        if (opened) {
-          return;
-        }
+        openWorkspaceFile(absolutePath);
+        return;
       }
 
       const matchedTaskFile = taskFiles.find((file) =>
@@ -84,18 +75,9 @@ export function useWorkspaceServiceSkillResultFileRuntime({
         return;
       }
 
-      if (absolutePath) {
-        return;
-      }
-
       toast.error("打开结果文件失败：当前工作区里还没有同步到这份文件");
     },
-    [
-      handleWorkspaceFileClick,
-      openProjectFilePreviewInCanvas,
-      projectRootPath,
-      taskFiles,
-    ],
+    [handleWorkspaceFileClick, openWorkspaceFile, projectRootPath, taskFiles],
   );
 
   return {

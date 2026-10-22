@@ -3,7 +3,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { changeLimeLocale, getLimeI18n } from "@/i18n/createI18n";
 import type { ProjectFileSearchResult } from "@/lib/api/fuzzyFileSearch";
-import type { CanvasWorkbenchFileTreeState } from "../../components/canvas-workbench/files/useCanvasWorkbenchFileTreeState";
+import type { FileTreeState } from "./useFileTreeState";
 import { WorkspaceFileTree } from "./WorkspaceFileTree";
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
@@ -13,7 +13,7 @@ let root: Root;
 let container: HTMLDivElement;
 const select = vi.fn();
 const toggleDirectory = vi.fn();
-const state: CanvasWorkbenchFileTreeState = {
+const state: FileTreeState = {
   directoryCache: {
     "/work": {
       path: "/work",

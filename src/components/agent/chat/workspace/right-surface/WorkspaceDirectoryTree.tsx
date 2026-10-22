@@ -1,11 +1,11 @@
 import { useMemo } from "react";
-import type { CanvasWorkbenchFileTreeState } from "../../components/canvas-workbench/files/useCanvasWorkbenchFileTreeState";
+import type { FileTreeState } from "./useFileTreeState";
 import { FileTree } from "./FileTree";
 import { getDirectoryTreeRows } from "./fileTreeRows";
 import type { FileSelectionOptions } from "./threadSidePanelTabs";
 
 type DirectoryTreeState = Pick<
-  CanvasWorkbenchFileTreeState,
+  FileTreeState,
   "directoryCache" | "loadingDirectories"
 >;
 

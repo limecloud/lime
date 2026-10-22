@@ -1,15 +1,51 @@
+import process from "node:process";
+import { randomUUID } from "node:crypto";
+import {
+  effectiveBrowserSettings,
+  type BrowserSettings,
+} from "../src/lib/api/browserSettingsTypes";
+import {
+  applyBrowserDevice,
+  browserCommandForInput,
+  captureBrowserPage,
+  printBrowserPage,
+  readBrowserDevice,
+  type EmbeddedBrowserDeviceState,
+} from "./embeddedBrowserPageActions";
+import {
+  readState,
+  createEmptyFindState,
+  readFindResult,
+  readViewId,
+  readUrl,
+  readOptionalUrl,
+  readBounds,
+  readOptionalBounds,
+  applyBounds,
+  attachEntryToWindow,
+  detachEntryFromWindow,
+  closeEntryView,
+  readOptionalBoolean,
+  readString,
+  readZoomFactor,
+  readStopFindAction,
+  normalizeHttpUrl,
+  sanitizeDownloadFilename,
+  classifyLoadFailure,
+} from "./embeddedBrowserState";
 import {
   app,
   session,
   WebContentsView,
   type BrowserWindow,
-  type Rectangle,
 } from "./electronRuntime";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { mkdirSync } from "node:fs";
 import { installEmbeddedBrowserContextMenu } from "./embeddedBrowserContextMenu";
 import { installEmbeddedBrowserDownloadHandling } from "./embeddedBrowserDownloads";
 import { installEmbeddedBrowserPermissionHandling } from "./embeddedBrowserPermissions";
+import { BrowserPermissionRequests } from "./browserPermissionRequests";
 import {
   buildEmbeddedBrowserHtmlDataUrl,
   readEmbeddedBrowserHtmlPayload,
@@ -17,6 +53,7 @@ import {
 import type {
   Session as ElectronSession,
   WebContents as ElectronWebContents,
+  WebPreferences,
 } from "electron";
 
 type HostArgs = Record<string, unknown> | null | undefined;
@@ -41,6 +78,10 @@ export const EMBEDDED_BROWSER_COMMANDS = [
   "embedded_browser_view_go_back",
   "embedded_browser_view_go_forward",
   "embedded_browser_view_destroy",
+  "embedded_browser_view_print",
+  "embedded_browser_view_capture_screenshot",
+  "embedded_browser_view_set_audio_muted",
+  "embedded_browser_view_set_device",
 ] as const;
 
 export type EmbeddedBrowserCommand = (typeof EMBEDDED_BROWSER_COMMANDS)[number];
@@ -56,6 +97,9 @@ export interface EmbeddedBrowserViewState {
   loadProgress: number;
   zoomFactor: number;
   find: EmbeddedBrowserFindState;
+  audioMuted: boolean;
+  audible: boolean;
+  device: EmbeddedBrowserDeviceState | null;
 }
 
 export type EmbeddedBrowserLoadFailureCategory =
@@ -72,7 +116,7 @@ export interface EmbeddedBrowserFindState {
   finalUpdate: boolean;
 }
 
-interface EmbeddedBrowserEntry {
+export interface EmbeddedBrowserEntry {
   viewId: string;
   view: WebContentsView;
   window: BrowserWindow;
@@ -93,12 +137,21 @@ interface EmbeddedBrowserEntry {
   loadProgress: number;
   find: EmbeddedBrowserFindState;
   findRequestId: number | null;
+  device: EmbeddedBrowserDeviceState | null;
+  openerViewId?: string;
 }
 
 type PendingPermission = {
   viewId: string;
   callback: (allowed: boolean) => void;
 };
+
+export interface EmbeddedBrowserPopupRequest {
+  openerViewId: string;
+  viewId: string;
+  url: string;
+  background: boolean;
+}
 
 export interface EmbeddedBrowserNativeView {
   state: EmbeddedBrowserViewState;
@@ -123,6 +176,24 @@ export class ElectronEmbeddedBrowserHost {
   #emit: HostEventEmitter;
   #sessionHandlersInstalled = false;
   readonly #downloadDirectory: string;
+  #settings = effectiveBrowserSettings();
+  #downloadPermission:
+    | ((viewId: string, url: string) => Promise<boolean>)
+    | null = null;
+  #popupHandler:
+    | ((request: EmbeddedBrowserPopupRequest) => Promise<void>)
+    | null = null;
+  #agentPermission:
+    | ((viewId: string, url: string, action: "browse" | "download") => boolean)
+    | null = null;
+  readonly #requestPermissions = new BrowserPermissionRequests({
+    viewId: webContentsId => [...this.#entries.values()].find(entry => entry.view.webContents.id === webContentsId)?.viewId ?? null,
+    allows: (viewId, url) => this.#agentPermission?.(viewId, url, "browse") !== false,
+    blocked: (viewId, url, reason) => {
+      const entry = this.#entries.get(viewId);
+      if (entry) this.#emitLoadFailed(entry, -20, reason, url);
+    },
+  });
 
   constructor(
     emit: HostEventEmitter = () => undefined,
@@ -130,12 +201,44 @@ export class ElectronEmbeddedBrowserHost {
   ) {
     this.#emit = emit;
     this.#deferPermissions = options.deferPermissions === true;
-    const userDataRoot =
+    const downloadRoot =
       typeof app.getPath === "function"
-        ? app.getPath("userData")
+        ? app.getPath("downloads")
         : process.env.TMPDIR || process.cwd();
-    this.#downloadDirectory = path.join(userDataRoot, "browser-downloads");
+    this.#downloadDirectory = downloadRoot;
     mkdirSync(this.#downloadDirectory, { recursive: true });
+  }
+
+  setSettings(settings: BrowserSettings): void {
+    if (
+      settings.download_directory &&
+      !path.isAbsolute(settings.download_directory)
+    ) {
+      throw new Error("Browser download directory must be an absolute path");
+    }
+    this.#settings = effectiveBrowserSettings(settings);
+  }
+
+  setPopupHandler(
+    handler: ((request: EmbeddedBrowserPopupRequest) => Promise<void>) | null,
+  ): void {
+    this.#popupHandler = handler;
+  }
+
+  setAgentPermissionResolver(
+    handler: (
+      viewId: string,
+      url: string,
+      action: "browse" | "download",
+    ) => boolean,
+  ): void {
+    this.#agentPermission = handler;
+  }
+
+  setDownloadPermissionResolver(
+    handler: (viewId: string, url: string) => Promise<boolean>,
+  ): void {
+    this.#downloadPermission = handler;
   }
 
   async invoke(
@@ -174,8 +277,31 @@ export class ElectronEmbeddedBrowserHost {
         return this.#goBack(window, args);
       case "embedded_browser_view_go_forward":
         return this.#goForward(window, args);
+      case "embedded_browser_view_print":
+        return printBrowserPage(
+          this.#requireEntry(window, args).view.webContents,
+        );
+      case "embedded_browser_view_capture_screenshot":
+        return captureBrowserPage(
+          this.#requireEntry(window, args).view.webContents,
+          args?.copyToClipboard === true,
+        );
+      case "embedded_browser_view_set_audio_muted": {
+        const entry = this.#requireEntry(window, args);
+        if (typeof args?.muted !== "boolean")
+          throw new Error("Browser muted must be a boolean");
+        entry.view.webContents.setAudioMuted(args.muted);
+        return this.#emitState(entry);
+      }
+      case "embedded_browser_view_set_device": {
+        const entry = this.#requireEntry(window, args);
+        const device = readBrowserDevice(args?.device);
+        applyBrowserDevice(entry.view.webContents, device);
+        entry.device = device;
+        return this.#emitState(entry);
+      }
       default:
-        return {};
+        throw new Error(`Unsupported embedded browser command: ${command}`);
     }
   }
 
@@ -183,6 +309,11 @@ export class ElectronEmbeddedBrowserHost {
     for (const viewId of [...this.#entries.keys()]) {
       this.#destroy({ viewId }, "host-dispose");
     }
+    this.#requestPermissions.dispose();
+  }
+
+  takeBlockedNavigation(viewId: string): string | null {
+    return this.#requestPermissions.takeFailure(viewId);
   }
 
   resolveNativeView(viewId: string): EmbeddedBrowserNativeView | null {
@@ -199,6 +330,10 @@ export class ElectronEmbeddedBrowserHost {
       view: entry.view,
       window: entry.window,
     };
+  }
+
+  resolvePopupOpener(viewId: string): string | null {
+    return this.#entries.get(viewId)?.openerViewId ?? null;
   }
 
   /** 仅供 Browser Host 以受控 downloadId 解析完成下载，不暴露给 Renderer。 */
@@ -394,6 +529,7 @@ export class ElectronEmbeddedBrowserHost {
     }
 
     this.#entries.delete(viewId);
+    this.#requestPermissions.forget(viewId);
     for (const [requestId, pending] of this.#pendingPermissions) {
       if (pending.viewId === viewId) {
         pending.callback(false);
@@ -411,7 +547,25 @@ export class ElectronEmbeddedBrowserHost {
     return {};
   }
 
-  #ensureEntry(window: BrowserWindow, viewId: string): EmbeddedBrowserEntry {
+  #requireEntry(window: BrowserWindow, args?: HostArgs): EmbeddedBrowserEntry {
+    const entry = this.#entries.get(readViewId(args));
+    if (
+      !entry ||
+      entry.window !== window ||
+      entry.view.webContents.isDestroyed()
+    ) {
+      throw new Error(
+        "Browser native view is stale or owned by another window",
+      );
+    }
+    return entry;
+  }
+
+  #ensureEntry(
+    window: BrowserWindow,
+    viewId: string,
+    webPreferences?: WebPreferences,
+  ): EmbeddedBrowserEntry {
     const existing = this.#entries.get(viewId);
     if (existing) {
       if (existing.window !== window) {
@@ -433,12 +587,16 @@ export class ElectronEmbeddedBrowserHost {
     this.#installSessionHandlers(embeddedSession);
     const view = new WebContentsView({
       webPreferences: {
+        ...webPreferences,
+        session: embeddedSession,
         contextIsolation: true,
         javascript: true,
         nodeIntegration: false,
         partition: EMBEDDED_BROWSER_PARTITION,
         sandbox: true,
         webSecurity: true,
+        preload: path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../preload/browserPage.cjs"),
+        nodeIntegrationInSubFrames: false,
       },
     });
     view.setBackgroundColor("#ffffff");
@@ -460,18 +618,64 @@ export class ElectronEmbeddedBrowserHost {
       loadProgress: 1,
       find: createEmptyFindState(),
       findRequestId: null,
+      device: null,
     };
-    view.webContents.setWindowOpenHandler(({ url }) => {
-      if (entry.sourceUri) {
+    view.webContents.setWindowOpenHandler(({ url, disposition }) => {
+      const popupHandler = this.#popupHandler;
+      const normalizedUrl =
+        url === "" || url === "about:blank"
+          ? "about:blank"
+          : normalizeHttpUrl(url);
+      const permissionUrl =
+        normalizedUrl === "about:blank"
+          ? entry.view.webContents.getURL()
+          : normalizedUrl;
+      if (
+        entry.sourceUri ||
+        !popupHandler ||
+        !normalizedUrl ||
+        this.#agentPermission?.(entry.viewId, permissionUrl || "", "browse") ===
+          false
+      ) {
+        if (normalizedUrl && this.#agentPermission?.(entry.viewId, permissionUrl || "", "browse") === false)
+          this.#emitLoadFailed(entry, -20, `Browser Agent popup to ${permissionUrl} is blocked without a turn browsing grant; retry newTab to request access`, permissionUrl || undefined);
         return { action: "deny" };
       }
-      const normalizedUrl = normalizeHttpUrl(url);
-      if (normalizedUrl) {
-        this.#startNavigation(entry, normalizedUrl);
-        this.#emitState(entry);
-      }
-      return { action: "deny" };
+      return {
+        action: "allow",
+        createWindow: (options) => {
+          const popupId = `browser_popup_${randomUUID()}`;
+          const popup = this.#ensureEntry(
+            entry.window,
+            popupId,
+            options.webPreferences,
+          );
+          popup.openerViewId = entry.viewId;
+          popup.view.setVisible(false);
+          void popupHandler({
+            openerViewId: entry.viewId,
+            viewId: popupId,
+            url: normalizedUrl,
+            background: disposition === "background-tab",
+          }).catch((error) => {
+            this.#destroy({ viewId: popupId }, "renderer-cleanup");
+            this.#emit("embedded-browser-view-popup-failed", {
+              viewId: entry.viewId,
+              error: error instanceof Error ? error.message : String(error),
+            });
+          });
+          return popup.view.webContents;
+        },
+      };
     });
+    view.webContents.on("before-input-event", (event, input) => {
+      const command = browserCommandForInput(input, process.platform);
+      if (!command || entry.sourceUri) return;
+      event.preventDefault();
+      entry.window.webContents.focus();
+      this.#emit("embedded-browser-view-command", { viewId, command });
+    });
+    view.webContents.on("audio-state-changed", () => this.#emitState(entry));
     view.webContents.on("will-navigate", (event, url) => {
       if (entry.sourceUri && normalizeHttpUrl(url)) {
         event.preventDefault();
@@ -487,14 +691,20 @@ export class ElectronEmbeddedBrowserHost {
     });
     attachEntryToWindow(entry, window);
     this.#entries.set(viewId, entry);
+    view.webContents.on("did-start-navigation", (_event, url, _isInPlace, isMainFrame) => {
+      if (isMainFrame) this.#emit("embedded-browser-view-navigation-started", { viewId, url });
+    });
     view.webContents.on("did-navigate", (_event, url) => {
       this.#clearPendingNavigation(entry, url);
       entry.loadProgress = Math.max(entry.loadProgress, 0.7);
       this.#emitState(entry);
+      this.#emit("embedded-browser-view-navigation-committed", { viewId, url, title: view.webContents.getTitle() });
     });
-    view.webContents.on("did-navigate-in-page", (_event, url) => {
+    view.webContents.on("did-navigate-in-page", (_event, url, isMainFrame) => {
+      if (!isMainFrame) return;
       this.#clearPendingNavigation(entry, url);
       this.#emitState(entry);
+      this.#emit("embedded-browser-view-navigation-committed", { viewId, url, title: view.webContents.getTitle() });
     });
     view.webContents.on("did-start-loading", () => {
       entry.loadProgress = 0.35;
@@ -505,7 +715,10 @@ export class ElectronEmbeddedBrowserHost {
       entry.loadProgress = 1;
       this.#emitState(entry);
     });
-    view.webContents.on("page-title-updated", () => this.#emitState(entry));
+    view.webContents.on("page-title-updated", () => {
+      this.#emitState(entry);
+      this.#emit("embedded-browser-view-title-updated", { viewId, url: view.webContents.getURL(), title: view.webContents.getTitle() });
+    });
     view.webContents.on("page-favicon-updated", (_event, favicons) => {
       entry.faviconUrl = Array.isArray(favicons)
         ? (favicons.find((item) => typeof item === "string" && item.trim()) ??
@@ -562,14 +775,33 @@ export class ElectronEmbeddedBrowserHost {
       return;
     }
     this.#sessionHandlersInstalled = true;
+    this.#requestPermissions.install(embeddedSession);
     const controller = {
       findEntryByWebContents: (webContents: ElectronWebContents) =>
         this.#findEntryByWebContents(webContents),
       onCompletedDownload: (downloadId: string, savePath: string) => {
         this.#downloadPaths.set(downloadId, savePath);
       },
-      resolveSavePath: (filename: string) =>
-        path.join(this.#downloadDirectory, sanitizeDownloadFilename(filename)),
+      resolveSavePath: (filename: string) => {
+        if (this.#settings.ask_download_location) return null;
+        const directory =
+          this.#settings.download_directory || this.#downloadDirectory;
+        mkdirSync(directory, { recursive: true });
+        return path.join(directory, sanitizeDownloadFilename(filename));
+      },
+      resolveSaveDialogOptions: (filename: string) =>
+        this.#settings.ask_download_location
+          ? {
+              defaultPath: path.join(
+                this.#settings.download_directory || this.#downloadDirectory,
+                sanitizeDownloadFilename(filename),
+              ),
+            }
+          : null,
+      canDownload: (viewId: string, url: string) =>
+        this.#downloadPermission
+          ? this.#downloadPermission(viewId, url)
+          : this.#agentPermission?.(viewId, url, "download") !== false,
       deferPermissionRequest: this.#deferPermissions,
       onPendingPermission: (
         requestId: string,
@@ -726,290 +958,4 @@ function normalizeEmbeddedBrowserUserAgent(value: string): string {
     .replace(/\s+/g, " ")
     .trim();
   return normalized || value;
-}
-
-function readState(entry: EmbeddedBrowserEntry): EmbeddedBrowserViewState {
-  const webContents = entry.view.webContents;
-  return {
-    viewId: entry.viewId,
-    url: entry.pendingUrl || entry.sourceUri || webContents.getURL(),
-    title: webContents.getTitle(),
-    faviconUrl: entry.faviconUrl,
-    canGoBack: webContents.navigationHistory.canGoBack(),
-    canGoForward: webContents.navigationHistory.canGoForward(),
-    isLoading: webContents.isLoading() || Boolean(entry.pendingUrl),
-    loadProgress: normalizeLoadProgress(entry),
-    zoomFactor: normalizeZoomFactor(webContents.getZoomFactor()),
-    find: entry.find,
-  };
-}
-
-function createEmptyFindState(): EmbeddedBrowserFindState {
-  return {
-    text: "",
-    activeMatchOrdinal: 0,
-    matches: 0,
-    finalUpdate: true,
-  };
-}
-
-function readFindResult(
-  value: unknown,
-  fallbackText: string,
-): EmbeddedBrowserFindState & { requestId: number | null } {
-  const record = readRecord(value);
-  return {
-    text: fallbackText,
-    requestId: readInteger(record?.requestId),
-    activeMatchOrdinal: Math.max(
-      0,
-      readInteger(record?.activeMatchOrdinal) ?? 0,
-    ),
-    matches: Math.max(0, readInteger(record?.matches) ?? 0),
-    finalUpdate:
-      typeof record?.finalUpdate === "boolean" ? record.finalUpdate : false,
-  };
-}
-
-function normalizeLoadProgress(entry: EmbeddedBrowserEntry): number {
-  const loading =
-    entry.view.webContents.isLoading() || Boolean(entry.pendingUrl);
-  if (!loading) {
-    return 1;
-  }
-  return clampNumber(entry.loadProgress, 0.05, 0.95);
-}
-
-function normalizeZoomFactor(value: number): number {
-  return Math.round(clampNumber(value, 0.5, 3) * 100) / 100;
-}
-
-function readViewId(args?: HostArgs): string {
-  const value = readString(args, "viewId");
-  if (!value) {
-    throw new Error("embedded browser viewId 不能为空。");
-  }
-  return value;
-}
-
-function readUrl(args?: HostArgs): string {
-  const value = readOptionalUrl(args);
-  if (!value) {
-    throw new Error("embedded browser url 不能为空。");
-  }
-  return value;
-}
-
-function readOptionalUrl(args?: HostArgs): string | null {
-  const value = readString(args, "url");
-  if (!value) {
-    return null;
-  }
-  const normalized = normalizeHttpUrl(value);
-  if (!normalized) {
-    throw new Error("内嵌浏览器只支持 http/https 地址。");
-  }
-  return normalized;
-}
-
-function readBounds(args?: HostArgs): Rectangle {
-  const bounds = readOptionalBounds(args);
-  if (!bounds) {
-    throw new Error("embedded browser bounds 不能为空。");
-  }
-  return bounds;
-}
-
-function readOptionalBounds(args?: HostArgs): Rectangle | null {
-  const source = readRecord(args)?.bounds;
-  if (!source || typeof source !== "object" || Array.isArray(source)) {
-    return null;
-  }
-  const record = source as Record<string, unknown>;
-  const x = readInteger(record.x);
-  const y = readInteger(record.y);
-  const width = readInteger(record.width);
-  const height = readInteger(record.height);
-  if (x === null || y === null || width === null || height === null) {
-    throw new Error("embedded browser bounds 必须包含整数 x/y/width/height。");
-  }
-  return {
-    x: Math.max(0, x),
-    y: Math.max(0, y),
-    width: Math.max(0, width),
-    height: Math.max(0, height),
-  };
-}
-
-function applyBounds(
-  view: WebContentsView,
-  bounds: Rectangle,
-  visible: boolean,
-): void {
-  view.setBounds(bounds);
-  view.setVisible(visible && bounds.width > 0 && bounds.height > 0);
-}
-
-function attachEntryToWindow(
-  entry: EmbeddedBrowserEntry,
-  window: BrowserWindow,
-): void {
-  window.on("closed", entry.closeListener);
-  window.webContents.on(
-    "did-start-navigation",
-    entry.rendererNavigationListener,
-  );
-  entry.view.webContents.on("destroyed", entry.webContentsDestroyedListener);
-  entry.view.webContents.on(
-    "render-process-gone",
-    entry.webContentsGoneListener,
-  );
-  window.contentView.addChildView(entry.view);
-}
-
-function detachEntryFromWindow(entry: EmbeddedBrowserEntry): void {
-  try {
-    if (!entry.window.isDestroyed()) {
-      entry.window.off("closed", entry.closeListener);
-      entry.window.webContents.off(
-        "did-start-navigation",
-        entry.rendererNavigationListener,
-      );
-      entry.window.contentView.removeChildView(entry.view);
-    }
-    entry.view.webContents.off("destroyed", entry.webContentsDestroyedListener);
-    entry.view.webContents.off(
-      "render-process-gone",
-      entry.webContentsGoneListener,
-    );
-  } catch (error) {
-    ignoreElectronDestroyedObject(error);
-  }
-}
-
-function closeEntryView(entry: EmbeddedBrowserEntry): void {
-  try {
-    if (!entry.view.webContents.isDestroyed()) {
-      entry.view.webContents.close();
-    }
-  } catch (error) {
-    ignoreElectronDestroyedObject(error);
-  }
-}
-
-function ignoreElectronDestroyedObject(error: unknown): void {
-  if (
-    error instanceof Error &&
-    /Object has been destroyed/i.test(error.message)
-  ) {
-    return;
-  }
-  throw error;
-}
-
-function readOptionalBoolean(args: HostArgs, key: string): boolean | null {
-  const value = readRecord(args)?.[key];
-  return typeof value === "boolean" ? value : null;
-}
-
-function readString(args: HostArgs, key: string): string | null {
-  const value = readRecord(args)?.[key];
-  return typeof value === "string" && value.trim() ? value.trim() : null;
-}
-
-function readRecord(args: unknown): Record<string, unknown> | null {
-  return args && typeof args === "object" && !Array.isArray(args)
-    ? (args as Record<string, unknown>)
-    : null;
-}
-
-function readInteger(value: unknown): number | null {
-  return typeof value === "number" && Number.isFinite(value)
-    ? Math.round(value)
-    : null;
-}
-
-function readNumber(args: HostArgs, key: string): number | null {
-  const value = readRecord(args)?.[key];
-  return typeof value === "number" && Number.isFinite(value) ? value : null;
-}
-
-function readZoomFactor(args: HostArgs): number {
-  const value = readNumber(args, "zoomFactor");
-  if (value === null) {
-    throw new Error("embedded browser zoomFactor 必须是有效数字。");
-  }
-  return normalizeZoomFactor(value);
-}
-
-function readStopFindAction(
-  args: HostArgs,
-): "clearSelection" | "keepSelection" | "activateSelection" {
-  const value = readString(args, "action");
-  if (
-    value === "clearSelection" ||
-    value === "keepSelection" ||
-    value === "activateSelection"
-  ) {
-    return value;
-  }
-  return "clearSelection";
-}
-
-function clampNumber(value: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, value));
-}
-
-function normalizeHttpUrl(value: string): string | null {
-  try {
-    const url = new URL(value.trim());
-    return url.protocol === "http:" || url.protocol === "https:"
-      ? url.href
-      : null;
-  } catch {
-    return null;
-  }
-}
-
-function sanitizeDownloadFilename(value: string): string {
-  const normalized = value.trim().replace(/[^a-zA-Z0-9._-]+/g, "_");
-  return normalized || "download";
-}
-
-function classifyLoadFailure(
-  errorCode: number | null,
-  errorDescription: string,
-): EmbeddedBrowserLoadFailureCategory {
-  const description = errorDescription.toUpperCase();
-  if (errorCode === -3 || description.includes("ABORTED")) {
-    return "aborted";
-  }
-  if (
-    errorCode === -105 ||
-    errorCode === -137 ||
-    description.includes("NAME_NOT_RESOLVED") ||
-    description.includes("DNS") ||
-    description.includes("HOST_RESOLVER")
-  ) {
-    return "dns";
-  }
-  if (
-    (typeof errorCode === "number" && errorCode <= -200 && errorCode >= -299) ||
-    description.includes("CERT") ||
-    description.includes("SSL") ||
-    description.includes("TLS")
-  ) {
-    return "tls";
-  }
-  if (
-    errorCode === -20 ||
-    errorCode === -27 ||
-    errorCode === -30 ||
-    description.includes("BLOCKED") ||
-    description.includes("CSP") ||
-    description.includes("POLICY")
-  ) {
-    return "blocked";
-  }
-  return "load_failed";
 }

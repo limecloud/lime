@@ -29,6 +29,20 @@ describe("Right Surface active pane observation", () => {
     expect(isRightSurfaceSelected({ kind: "changes", both: true })).toBe(false);
   });
 
+  it("observes the selected canonical Browser tab after an earlier Browser tab", () => {
+    renderPanes();
+    const selected = document.querySelector(
+      '[data-testid="workspace-right-surface-tab-browser"]',
+    );
+    const earlier = selected.cloneNode(true);
+    earlier.setAttribute("aria-selected", "false");
+    earlier.setAttribute("aria-controls", "earlier-browser-panel");
+    selected.before(earlier);
+    expect(isRightSurfaceSelected({ kind: "browser", both: true })).toBe(true);
+    selected.setAttribute("aria-controls", "earlier-browser-panel");
+    expect(isRightSurfaceSelected({ kind: "browser", both: true })).toBe(false);
+  });
+
   it.each(["hidden", "controls", "selection", "surface", "missing-tab"])(
     "rejects an invalid active pane association: %s",
     (defect) => {

@@ -111,14 +111,11 @@ vi.mock("react-i18next", () => ({
         "agentChat.canvasWorkbench.coding.tabs.html": "HTML",
         "agentChat.canvasWorkbench.coding.tabs.code": "Code",
         "agentChat.canvasWorkbench.coding.preview.htmlBadge": "HTML",
-        "agentChat.canvasWorkbench.coding.preview.mode.empty":
-          "还没有可预览的文件内容。",
-        "agentChat.canvasWorkbench.coding.preview.mode.loading":
-          "正在读取文件预览...",
-        "agentChat.canvasWorkbench.coding.preview.mode.htmlTitle": "HTML 预览",
-        "agentChat.canvasWorkbench.coding.preview.mode.viewSource":
-          "查看源代码",
-        "agentChat.canvasWorkbench.coding.preview.mode.viewPreview": "查看预览",
+        "agentChat.filePreview.empty": "还没有可预览的文件内容。",
+        "agentChat.filePreview.loading": "正在读取文件预览...",
+        "agentChat.filePreview.htmlTitle": "HTML 预览",
+        "agentChat.filePreview.viewSource": "查看源代码",
+        "agentChat.filePreview.viewPreview": "查看预览",
         "agentChat.canvasWorkbench.coding.changes.empty":
           "还没有可对比的文件变更。",
         "agentChat.canvasWorkbench.coding.changes.afterLabel": "当前",
@@ -172,7 +169,7 @@ vi.mock("react-i18next", () => ({
         "agentChat.canvasWorkbench.coding.changes.status.inProgress": "写入中",
         "agentChat.canvasWorkbench.coding.changes.status.failed": "失败",
         "agentChat.canvasWorkbench.coding.changes.more": "更多审查操作",
-        "agentChat.canvasWorkbench.coding.changes.resizeFilesPanel":
+        "agentChat.filePreview.resizeFilesPanel":
           "调整文件列表宽度",
         "agentChat.canvasWorkbench.coding.changes.refresh": "刷新",
         "agentChat.canvasWorkbench.coding.changes.reviewTitle": "审查",

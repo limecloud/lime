@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { normalizeCanvasWorkbenchPath } from "../../CanvasWorkbenchLayoutViewModel";
+import { normalizeWorkspacePath } from "../../../workspace/workspacePath";
+
 import { collapseCanvasWorkbenchDiffContext } from "../../../utils/canvasWorkbenchDiff";
 import type { HarnessFilePreviewResult } from "../../HarnessStatusPanel";
 import { resolveLatestReviewBoundary } from "../../CodeReviewSummaryPanelViewModel";
@@ -25,7 +26,7 @@ import { CanvasWorkbenchChangeDiffList } from "./CanvasWorkbenchChangeDiffList";
 import type { CanvasWorkbenchChangesToolbarProps } from "./CanvasWorkbenchChangesToolbar";
 import { CanvasWorkbenchEmptyDiffPanel } from "./CanvasWorkbenchEmptyDiffPanel";
 import { CanvasWorkbenchReviewSurface } from "./CanvasWorkbenchReviewSurface";
-import { useFileTreeResize } from "../files/useFileTreeResize";
+import { useFileTreeResize } from "../../../workspace/right-surface/useFileTreeResize";
 import { useCanvasWorkbenchReviewState } from "./useCanvasWorkbenchReviewState";
 import type {
   CanvasWorkbenchReviewBase,
@@ -140,13 +141,13 @@ export function CanvasWorkbenchChangesPanel({
     invalidateFileRequest();
   }, [invalidateFileRequest, selectedChangeItem?.id]);
   useEffect(() => {
-    const path = normalizeCanvasWorkbenchPath(selectedPath ?? "");
+    const path = normalizeWorkspacePath(selectedPath ?? "");
     if (!path) return;
     const request = `${workspaceRoot ?? ""}:${changeView?.reviewThreadId ?? ""}:${path}`;
     if (requestedPathRef.current === request) return;
     const item = changeItems.find((item) =>
       [item.path, item.absolutePath, item.destinationPath].some((candidate) => {
-        const normalized = normalizeCanvasWorkbenchPath(candidate ?? "");
+        const normalized = normalizeWorkspacePath(candidate ?? "");
         return normalized === path || normalized.endsWith(`/${path}`);
       }),
     );
@@ -345,7 +346,7 @@ export function CanvasWorkbenchChangesPanel({
       role="separator"
       aria-orientation="vertical"
       aria-label={translateWorkbench(
-        "agentChat.canvasWorkbench.coding.changes.resizeFilesPanel",
+        "agentChat.filePreview.resizeFilesPanel",
       )}
       tabIndex={0}
       data-testid="canvas-workbench-changes-files-resizer"

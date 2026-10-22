@@ -181,7 +181,7 @@ afterEach(() => {
 });
 
 describe("buildWorkspaceRightSurfacePendingListParams", () => {
-  it("有 workspace 过滤时应优先按 workspace 查询，不把 session 作为唯一范围", () => {
+  it("明确 workspaceId 时只按 ID 查询，不叠加 root 或 session 过滤", () => {
     expect(
       buildWorkspaceRightSurfacePendingListParams({
         workspaceId: " workspace-main ",
@@ -191,8 +191,17 @@ describe("buildWorkspaceRightSurfacePendingListParams", () => {
     ).toEqual({
       limit: 50,
       workspaceId: "workspace-main",
-      workspaceRoot: "/workspace/project",
     });
+  });
+
+  it("无明确 workspaceId 时按 root 查询，再退到 session", () => {
+    expect(
+      buildWorkspaceRightSurfacePendingListParams({
+        workspaceId: " ",
+        workspaceRoot: " /workspace/project ",
+        sessionId: "session-main",
+      }),
+    ).toEqual({ limit: 50, workspaceRoot: "/workspace/project" });
   });
 
   it("没有 workspace 过滤时可按 session 查询；没有上下文时返回 null", () => {
@@ -319,7 +328,6 @@ describe("useWorkspaceRightSurfacePendingRuntime", () => {
     expect(listPending).toHaveBeenCalledWith({
       limit: 50,
       workspaceId: "workspace-main",
-      workspaceRoot: "/workspace/project",
     });
     expect(getValue().pendingRequests).toEqual([pendingRequest]);
   });
@@ -334,7 +342,6 @@ describe("useWorkspaceRightSurfacePendingRuntime", () => {
       expect(listPending).toHaveBeenCalledWith({
         limit: 50,
         workspaceId: "workspace-main",
-        workspaceRoot: "/workspace/project",
       });
     });
     await vi.waitFor(() => {

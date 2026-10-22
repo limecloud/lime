@@ -11,6 +11,24 @@ interface SettingsSearchDocument {
 
 // 只登记 current 页面上的静态消息；不索引用户资料、配置值或凭证。
 export const settingsSearchDocuments: readonly SettingsSearchDocument[] = [
+  ...(
+    [
+      ["enabled", "enabledDescription"],
+      ["full-url", "showFullUrl"],
+      ["annotation-screenshot", "annotationScreenshot"],
+      ["download-directory", "downloadDirectory"],
+      ["ask-download", "askDownloadLocation"],
+      ["history-access", "historyAccess"],
+      ["site-tools", "siteTools"],
+      ["agent-permissions", "agentPermissions"],
+      ["full-cdp", "fullCdp"],
+    ] as const
+  ).map(([target, label]) => ({
+    section: SettingsTabs.Browser,
+    targetId: `browser-${target}`,
+    labelKey: `settings.browser.${label}`,
+    termKeys: [],
+  })),
   {
     section: SettingsTabs.Browser,
     targetId: "browser-web-target",

@@ -1,8 +1,7 @@
-import {
-  normalizeCanvasWorkbenchPath,
-  resolvePreviewPath,
-  type CanvasWorkbenchSelectionContextLike,
-} from "../../CanvasWorkbenchLayoutViewModel";
+import { type CanvasWorkbenchSelectionContextLike } from "../../CanvasWorkbenchLayoutViewModel";
+import { normalizeWorkspacePath } from "../../../workspace/workspacePath";
+import { resolvePreviewPath } from "../../../workspace/filePreviewTarget";
+
 import { extractFileNameFromPath } from "../../../workspace/workspacePath";
 import {
   buildCanvasWorkbenchDiff,
@@ -116,7 +115,7 @@ export function resolveChangeItemDisplayName(
 }
 
 function normalizeChangeItemPathForMatch(value: string | null | undefined) {
-  return normalizeCanvasWorkbenchPath(value || "")
+  return normalizeWorkspacePath(value || "")
     .trim()
     .toLowerCase();
 }
@@ -506,10 +505,7 @@ function buildCanvasWorkbenchGitApplyPatchForItem(
     return "";
   }
 
-  const normalizedPath = normalizeCanvasWorkbenchPath(item.path).replace(
-    /^\/+/,
-    "",
-  );
+  const normalizedPath = normalizeWorkspacePath(item.path).replace(/^\/+/, "");
   if (!normalizedPath) {
     return "";
   }
@@ -550,7 +546,7 @@ function formatCanvasWorkbenchPatchLine(line: CanvasWorkbenchDiffLine): string {
 }
 
 function splitChangeItemPath(path: string): string[] {
-  return normalizeCanvasWorkbenchPath(path)
+  return normalizeWorkspacePath(path)
     .split("/")
     .map((segment) => segment.trim())
     .filter(Boolean);

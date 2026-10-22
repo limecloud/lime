@@ -8,6 +8,7 @@ import {
 } from "./RightSurfaceTabStrip";
 import { ThreadSidePanelNewTab } from "./ThreadSidePanelNewTab";
 import type { RightSurfaceDefinition } from "./rightSurfaceTypes";
+import { useRightSurfaceTab } from "./rightSurfaceTabContext";
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
@@ -58,6 +59,63 @@ const defaults: RightSurfaceTabStripProps = {
   previewTabId: null,
 };
 describe("Thread side panel presentation", () => {
+  it("reuses one Browser presenter across canonical tabs and hides it on Files", () => {
+    const tabs = [
+      { tabId: "b1", kind: "browser" as const },
+      { tabId: "b2", kind: "browser" as const },
+      { tabId: "f1", kind: "files" as const },
+    ];
+    const unmount = vi.fn();
+    function BrowserContent() {
+      const context = useRightSurfaceTab();
+      React.useEffect(() => unmount, []);
+      return (
+        <input
+          data-browser-presenter
+          data-tab={context?.tab.tabId}
+          data-active={context?.active}
+          defaultValue="draft"
+        />
+      );
+    }
+    const browserDefinitions: RightSurfaceDefinition[] = [
+      { kind: "browser", render: () => <BrowserContent /> },
+      { kind: "files", render: () => <div>Files</div> },
+    ];
+    const render = (active: string) => (
+      <RightSurfaceHost
+        idPrefix="fixture"
+        tabId={active}
+        tabs={tabs}
+        definitions={browserDefinitions}
+        activeSurface={active === "f1" ? "files" : "browser"}
+        onPinTab={vi.fn()}
+        previewTabId={null}
+      />
+    );
+    const container = mount(render("b1"));
+    const presenter = container.querySelector<HTMLInputElement>(
+      "[data-browser-presenter]",
+    )!;
+    presenter.value = "retained draft";
+    act(() => roots.at(-1)!.root.render(render("b2")));
+    expect(container.querySelectorAll("[data-browser-presenter]")).toHaveLength(
+      1,
+    );
+    expect(container.querySelector("[data-browser-presenter]")).toBe(presenter);
+    expect(presenter.dataset.tab).toBe("b2");
+    expect(presenter.value).toBe("retained draft");
+    act(() => roots.at(-1)!.root.render(render("f1")));
+    expect(presenter.dataset.active).toBe("false");
+    expect(presenter.closest<HTMLElement>('[role="tabpanel"]')?.hidden).toBe(
+      true,
+    );
+    act(() => roots.at(-1)!.root.render(render("b1")));
+    expect(presenter.closest<HTMLElement>('[role="tabpanel"]')?.hidden).toBe(
+      false,
+    );
+    expect(unmount).not.toHaveBeenCalled();
+  });
   it("Files与Changes的标签及pane分别映射，ARIA按真实tabId关联", () => {
     const container = mount(
       <>

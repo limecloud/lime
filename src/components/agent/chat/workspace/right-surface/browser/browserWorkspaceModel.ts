@@ -13,8 +13,9 @@ export const BROWSER_ZOOM_STEP = 0.1;
 export function normalizeBrowserAddress(value: string): string {
   const trimmed = value.trim();
   if (!trimmed) {
-    return DEFAULT_BROWSER_URL;
+    return "";
   }
+  if (/^https?:\/\//i.test(trimmed)) return new URL(trimmed).href;
   try {
     const parsed = new URL(trimmed);
     if (parsed.protocol === "http:" || parsed.protocol === "https:") {
@@ -23,7 +24,10 @@ export function normalizeBrowserAddress(value: string): string {
   } catch {
     // Continue with domain/search normalization.
   }
-  if (DOMAIN_PATTERN.test(trimmed) || LOCAL_PATTERN.test(trimmed)) {
+  if (LOCAL_PATTERN.test(trimmed)) {
+    return new URL(`http://${trimmed}`).href;
+  }
+  if (DOMAIN_PATTERN.test(trimmed)) {
     return new URL(`https://${trimmed}`).href;
   }
   return `https://www.google.com/search?q=${encodeURIComponent(trimmed)}`;

@@ -16,6 +16,12 @@ import { useWorkspaceRightSurfaceDerivedRuntime } from "./useWorkspaceRightSurfa
 import type { WorkspaceRightSurfaceLocalStateRuntime } from "./useWorkspaceRightSurfaceLocalStateRuntime";
 import { useWorkspaceRightSurfacePendingBridgeRuntime } from "./useWorkspaceRightSurfacePendingBridgeRuntime";
 import { useWorkspaceRightSurfaceProjectionRuntime } from "./useWorkspaceRightSurfaceProjectionRuntime";
+import { closeBrowserTab } from "@/lib/api/browserTab";
+import { useWorkspaceBrowserTabProjection } from "./useWorkspaceBrowserTabProjection";
+import {
+  createBrowserWorkspaceLinkTab,
+  type BrowserWorkspaceOwner,
+} from "@/lib/api/browserWorkspace";
 import {
   buildWorkspacePluginSurfacesFromThreadItems,
   resolveWorkspacePluginSurfaceSessionEpoch,
@@ -91,6 +97,14 @@ export function useWorkspaceRightSurfaceCoordinatorRuntime({
     sceneThreadId,
     threadItems,
   );
+  useWorkspaceBrowserTabProjection({
+    enabled: localState.sidePanelTabs.tabs.some(
+      (tab) => tab.kind === "browser",
+    ),
+    runtimeSessionId: effectiveSessionId,
+    threadId: effectiveSceneThreadId,
+    onProjection: localState.synchronizeBrowserTabs,
+  });
   const outputs = useThreadOutputs(
     {
       threadId: effectiveSceneThreadId,
@@ -261,13 +275,53 @@ export function useWorkspaceRightSurfaceCoordinatorRuntime({
     outputs,
     openBrowserInBackground: localState.openBrowserInBackground,
     handleBrowserLaunchApplied: (requestId: string) => {
+      if (
+        localState.activeBrowserRightSurfaceIntent?.sourceRequestId !==
+          requestId ||
+        localState.activeBrowserRightSurfaceIntent.launchApplied
+      )
+        return;
       localState.setActiveBrowserRightSurfaceIntent((current) =>
         current?.sourceRequestId === requestId && !current.launchApplied
           ? { ...current, launchApplied: true }
           : current,
       );
+      void pendingRuntime.consumePendingRequestsForSurface("browser", [
+        requestId,
+      ]);
     },
     sidePanelTabs: localState.sidePanelTabs,
+    handleOpenBrowserAddress: async (
+      sourceTabId: string,
+      url: string,
+      ensureOwner?: () => Promise<BrowserWorkspaceOwner | null>,
+    ) => {
+      const source = localState.captureBrowserAddressSource(sourceTabId);
+      let resolvedOwner: BrowserWorkspaceOwner | null = null;
+      const isCurrent = () => source.isCurrent(resolvedOwner);
+      if (!isCurrent()) return;
+      const owner =
+        effectiveSessionId && effectiveSceneThreadId
+          ? {
+              runtimeSessionId: effectiveSessionId,
+              threadId: effectiveSceneThreadId,
+            }
+          : await ensureOwner?.();
+      resolvedOwner = owner ?? null;
+      if (!isCurrent()) return;
+      if (!owner)
+        throw new Error("Browser workspace requires a canonical conversation");
+      const identity = await createBrowserWorkspaceLinkTab({
+        owner,
+        url,
+        background: false,
+        isCurrent,
+      });
+      if (!identity || !isCurrent()) return;
+      source.replace(owner, identity.tabId);
+      setHarnessPanelVisible(false);
+      setExpertInfoPanelCollapsed(true);
+    },
     getFileDraft: localState.getFileDraft,
     setFileDraft: localState.setFileDraft,
     openWorkspaceFile: localState.openWorkspaceFile,
@@ -304,7 +358,8 @@ export function useWorkspaceRightSurfaceCoordinatorRuntime({
         tab.kind !== "workspace-new-tab" &&
         tab.kind !== "files" &&
         tab.kind !== "background-terminal" &&
-        tab.kind !== "shell"
+        tab.kind !== "shell" &&
+        tab.kind !== "browser"
       )
         actionRuntime.handleSelectRightSurfaceTab(tab.kind);
       else {
@@ -318,6 +373,12 @@ export function useWorkspaceRightSurfaceCoordinatorRuntime({
         (item) => item.tabId === tabId,
       );
       if (!tab) return;
+      if (tab.browser) {
+        void closeBrowserTab(tab.browser.tabId).catch((reason: unknown) =>
+          console.error("Browser tab close failed", reason),
+        );
+        return;
+      }
       if (tab.kind === "background-terminal") {
         localState.closeSidePanelTab(tabId);
         return;

@@ -3,7 +3,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { changeLimeLocale } from "@/i18n/createI18n";
 import { openInQueryClient } from "@/lib/openInTargets";
-import { useCanvasWorkbenchFileTreeState } from "../../components/canvas-workbench/files/useCanvasWorkbenchFileTreeState";
+import { useFileTreeState } from "../right-surface/useFileTreeState";
 import { FileSourceBreadcrumb } from "./FileSourceBreadcrumb";
 const boundary = vi.hoisted(() => ({
   open: vi.fn(),
@@ -72,14 +72,14 @@ afterEach(async () => {
 });
 async function render() {
   function Probe() {
-    const tree = useCanvasWorkbenchFileTreeState({
+    const tree = useFileTreeState({
       loadFilePreview: async (path) => ({
         path,
         content: "",
         size: 0,
         isBinary: false,
       }),
-      translateWorkbench: (key) => key,
+      translate: (key) => key,
     });
     return (
       <FileSourceBreadcrumb

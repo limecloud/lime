@@ -3,15 +3,17 @@ import type { Artifact } from "@/lib/artifact/types";
 import {
   buildEntries,
   isHtmlPreviewContext,
-  normalizeCanvasWorkbenchPath,
   resolveCodingPreviewTabLabel,
-  resolvePreviewContent,
-  resolvePreviewPath,
   resolveSelectionContext,
   resolveWorkspaceRelativeDisplayPath,
   type CanvasWorkbenchTaskFile,
   type CanvasWorkbenchCopy,
 } from "./CanvasWorkbenchLayoutViewModel";
+import { normalizeWorkspacePath } from "../workspace/workspacePath";
+import {
+  resolvePreviewContent,
+  resolvePreviewPath,
+} from "../workspace/filePreviewTarget";
 
 function createArtifact(
   id: string,
@@ -73,10 +75,10 @@ const taskDocType = ["doc", "ument"].join(
 
 describe("CanvasWorkbenchLayoutViewModel", () => {
   it("应归一化 macOS 与 Windows 路径分隔符", () => {
-    expect(normalizeCanvasWorkbenchPath("/workspace/src/index.md")).toBe(
+    expect(normalizeWorkspacePath("/workspace/src/index.md")).toBe(
       "/workspace/src/index.md",
     );
-    expect(normalizeCanvasWorkbenchPath("C:\\workspace\\src\\index.md")).toBe(
+    expect(normalizeWorkspacePath("C:\\workspace\\src\\index.md")).toBe(
       "C:/workspace/src/index.md",
     );
   });
@@ -99,7 +101,7 @@ describe("CanvasWorkbenchLayoutViewModel", () => {
   it("应从 preview target 解析内容和可操作路径", () => {
     expect(
       resolvePreviewContent({
-        kind: "default-canvas",
+        kind: "text",
         title: "index.md",
         content: "# 正文",
         filePath: "index.md",
@@ -122,7 +124,7 @@ describe("CanvasWorkbenchLayoutViewModel", () => {
     ).toBe("");
     expect(
       resolvePreviewPath({
-        kind: "default-canvas",
+        kind: "text",
         title: "draft.md",
         content: "",
         filePath: "draft.md",

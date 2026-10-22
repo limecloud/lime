@@ -5,7 +5,7 @@ import {
   searchProjectFiles,
   type ProjectFileSearchResult,
 } from "@/lib/api/fuzzyFileSearch";
-import type { CanvasWorkbenchFileTreeState } from "../../components/canvas-workbench/files/useCanvasWorkbenchFileTreeState";
+import type { FileTreeState } from "./useFileTreeState";
 import { WorkspaceDirectoryTree } from "./WorkspaceDirectoryTree";
 import type { FileSelectionOptions } from "./threadSidePanelTabs";
 import { FileTree } from "./FileTree";
@@ -65,7 +65,7 @@ export function WorkspaceFileTree({
   onSelectFile,
 }: {
   root: string;
-  state: CanvasWorkbenchFileTreeState;
+  state: FileTreeState;
   selectedPath: string | null;
   onSelectFile: (path: string, options?: FileSelectionOptions) => void;
 }) {

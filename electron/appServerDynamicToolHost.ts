@@ -18,6 +18,10 @@ import type {
   ElectronBrowserTabHost,
 } from "./browserTabHost";
 import process from "node:process";
+import {
+  DynamicToolCalls,
+  type DynamicToolCallAttempt,
+} from "./dynamicToolCalls";
 
 const THREAD_START_METHOD = "thread/start";
 const THREAD_RESUME_METHOD = "thread/resume";
@@ -58,8 +62,6 @@ type ThreadHostBinding = {
   ownerWebContentsId: number;
   tools: Map<string, DynamicToolBinding>;
 };
-
-type DynamicToolCallState = "awaitingApproval" | "completed";
 
 const APP_INFO_BINDING = Object.freeze<DynamicToolBinding>({
   namespace: DESKTOP_NAMESPACE,
@@ -257,7 +259,7 @@ const BROWSER_BINDINGS = new Map<string, DynamicToolBinding>(
 export class AppServerDynamicToolHost {
   readonly #bindingsByThread = new Map<string, ThreadHostBinding>();
   readonly #browserHost: ElectronBrowserTabHost | null;
-  readonly #callStates = new Map<string, DynamicToolCallState>();
+  readonly #calls = new DynamicToolCalls();
   readonly #readAppInfo: () => AppInfo;
 
   constructor(
@@ -315,7 +317,6 @@ export class AppServerDynamicToolHost {
 
   observeServerMessage(message: JsonRpcMessage): void {
     if (
-      !this.#browserHost ||
       !isJsonRpcNotification(message) ||
       message.method !== METHOD_TURN_COMPLETED
     ) {
@@ -327,13 +328,8 @@ export class AppServerDynamicToolHost {
     const turnId = nonEmptyString(params?.turnId) ?? nonEmptyString(turn?.id);
     const status = nonEmptyString(turn?.status);
     if (threadId && turnId && status && TERMINAL_TURN_STATUSES.has(status)) {
-      const prefix = `${threadId}\u0000${turnId}\u0000`;
-      for (const key of this.#callStates.keys()) {
-        if (key.startsWith(prefix)) {
-          this.#callStates.delete(key);
-        }
-      }
-      this.#browserHost.turnEnded(threadId, turnId);
+      this.#calls.turnEnded(threadId, turnId);
+      this.#browserHost?.turnEnded(threadId, turnId);
     }
   }
 
@@ -379,24 +375,16 @@ export class AppServerDynamicToolHost {
       });
       return true;
     }
-    const callKey = [
-      params.value.threadId,
-      params.value.turnId,
-      params.value.callId,
-    ].join("\u0000");
-    const callState = this.#callStates.get(callKey);
-    const validTransition =
-      (params.value.phase === "preflight" && callState === undefined) ||
-      (params.value.phase === "approvedExecute" &&
-        callState === "awaitingApproval");
-    if (!validTransition) {
+    let attempt: DynamicToolCallAttempt;
+    try {
+      attempt = this.#calls.begin(params.value);
+    } catch (error) {
       connection.rejectServerRequest(message.id, {
         code: ERROR_CODES.invalidParams,
-        message: "item/tool/call phase is stale or already consumed",
+        message: errorMessage(error),
       });
       return true;
     }
-    this.#callStates.set(callKey, "completed");
 
     try {
       if (
@@ -411,23 +399,19 @@ export class AppServerDynamicToolHost {
         binding.namespace === BROWSER_NAMESPACE
           ? await this.#executeBrowserTool(
               threadBinding.ownerWebContentsId,
-              params.value,
+              attempt.params,
             )
           : appInfoResponse(this.#readAppInfo());
-      if (response.approval) {
-        if (
-          binding.namespace !== BROWSER_NAMESPACE ||
-          params.value.phase !== "preflight"
-        ) {
-          throw new Error("Host returned approval outside Browser preflight");
-        }
-        this.#callStates.set(callKey, "awaitingApproval");
+      if (response.approval && binding.namespace !== BROWSER_NAMESPACE) {
+        throw new Error("Host returned approval outside Browser execution");
       }
+      this.#calls.complete(attempt, response.approval);
       connection.respondServerRequest<DynamicToolCallResponse>(
         message.id,
         response,
       );
     } catch (error) {
+      this.#calls.fail(attempt);
       connection.respondServerRequest<DynamicToolCallResponse>(message.id, {
         contentItems: [
           {
@@ -443,7 +427,7 @@ export class AppServerDynamicToolHost {
 
   reset(): void {
     this.#bindingsByThread.clear();
-    this.#callStates.clear();
+    this.#calls.reset();
   }
 
   connectionLost(reason?: string): void {
@@ -485,10 +469,10 @@ function parseCallParams(value: unknown): ParsedCallParams {
   const threadId = nonEmptyString(params?.threadId);
   const turnId = nonEmptyString(params?.turnId);
   const callId = nonEmptyString(params?.callId);
-  const tool = nonEmptyString(params?.tool);
-  const namespace = nonEmptyString(params?.namespace);
+  const tool = exactNonEmptyString(params?.tool);
+  const namespace = exactNonEmptyString(params?.namespace);
   const phase = dynamicToolCallPhase(params?.phase);
-  const approvalToken = optionalNonEmptyString(params?.approvalToken);
+  const approvalToken = exactNonEmptyString(params?.approvalToken);
   const argumentsValue = asRecord(params?.arguments);
   if (
     !threadId ||
@@ -506,7 +490,7 @@ function parseCallParams(value: unknown): ParsedCallParams {
     };
   }
   if (
-    (phase === "preflight" && approvalToken !== null) ||
+    (phase === "preflight" && params?.approvalToken != null) ||
     (phase === "approvedExecute" && approvalToken === null)
   ) {
     return {
@@ -623,11 +607,8 @@ function dynamicToolCallPhase(value: unknown): DynamicToolCallPhase | null {
   return value === "preflight" || value === "approvedExecute" ? value : null;
 }
 
-function optionalNonEmptyString(value: unknown): string | null {
-  if (value === undefined || value === null) {
-    return null;
-  }
-  return nonEmptyString(value);
+function exactNonEmptyString(value: unknown): string | null {
+  return typeof value === "string" && value.trim().length > 0 ? value : null;
 }
 
 function tool(

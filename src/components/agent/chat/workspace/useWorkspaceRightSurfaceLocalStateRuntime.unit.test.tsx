@@ -66,6 +66,24 @@ afterEach(() => {
 });
 
 describe("Right Surface 本地显示状态", () => {
+  it("New tab地址在首次canonical owner接管后仍可原位替换，跨会话结果不能复活源标签", async () => {
+    const view = mount({ workspaceId: owner.workspaceId, sessionId: null, threadId: null });
+    await flush();
+    act(() => view.get().openSidePanelTab("workspace-new-tab"));
+    const tab = view.get().sidePanelTabs.tabs[0];
+    const source = view.get().captureBrowserAddressSource(tab.tabId);
+    view.render(owner);
+    const resolved = { runtimeSessionId: owner.sessionId!, threadId: owner.threadId! };
+    expect(source.isCurrent(resolved)).toBe(true);
+    expect(source.isCurrent({ ...resolved, threadId: "other" })).toBe(false);
+    act(() => source.replace(resolved, "canonical-tab"));
+    expect(view.get().sidePanelTabs.tabs.map((tab) => tab.tabId)).toEqual(["canonical-tab"]);
+    expect(view.get().sidePanelTabs.activeTabId).toBe("canonical-tab");
+    view.render({ ...owner, threadId: "thread-b", sessionId: "session-b" });
+    view.render(owner);
+    act(() => source.replace(resolved, "stale-tab"));
+    expect(view.get().sidePanelTabs.tabs).toEqual([]);
+  });
   it("正文后台打开Browser保持关闭的侧栏和空选择，随后可显式选择同一标签", async () => {
     const view = mount();
     await flush();

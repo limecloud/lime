@@ -411,7 +411,7 @@ export async function collectThreadSidePanelNewTabEvidence(
     file,
   );
   await markdownPane
-    .getByTestId("canvas-workbench-markdown-preview")
+    .getByTestId("file-preview-markdown")
     .waitFor({ state: "visible", timeout: options.timeoutMs });
   assert.equal(await markdownTree.evaluate((node) => node.isConnected), true);
   await capture("markdown-preview");

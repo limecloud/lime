@@ -207,17 +207,15 @@ describe("CanvasWorkbenchLayout", () => {
     clickByAriaLabel(container, "切换画布标签-draft.md");
     await flushEffects();
     expect(
-      container.querySelector(
-        '[data-testid="canvas-workbench-markdown-preview"]',
-      ),
+      container.querySelector('[data-testid="file-preview-markdown"]'),
     ).not.toBeNull();
     toggleFilePreview(container);
     await flushEffects();
     expect(
-      container.querySelector('[data-testid="canvas-workbench-code-preview"]'),
+      container.querySelector('[data-testid="file-preview-code"]'),
     ).not.toBeNull();
     const documentPreviewRegion = container.querySelector(
-      '[data-testid="canvas-workbench-preview-mode-panel"]',
+      '[data-testid="file-preview-panel"]',
     ) as HTMLElement | null;
     expect(documentPreviewRegion?.className).toContain("bg-background");
     expect(documentPreviewRegion?.className).not.toContain("bg-white");
@@ -287,7 +285,7 @@ describe("CanvasWorkbenchLayout", () => {
     await flushEffects();
 
     expect(
-      container.querySelector('[data-testid="canvas-workbench-code-preview"]'),
+      container.querySelector('[data-testid="file-preview-code"]'),
     ).not.toBeNull();
     expect(container.textContent).toContain("董事会季度复盘");
     expect(container.textContent).toContain("需要优先补齐来源与版本线索。");
@@ -297,14 +295,12 @@ describe("CanvasWorkbenchLayout", () => {
     toggleFilePreview(container);
     await flushEffects();
     expect(
-      container.querySelector(
-        '[data-testid="canvas-workbench-markdown-preview"]',
-      ),
+      container.querySelector('[data-testid="file-preview-markdown"]'),
     ).not.toBeNull();
     toggleFilePreview(container);
     await flushEffects();
     expect(
-      container.querySelector('[data-testid="canvas-workbench-code-preview"]'),
+      container.querySelector('[data-testid="file-preview-code"]'),
     ).not.toBeNull();
   });
 
@@ -342,9 +338,7 @@ describe("CanvasWorkbenchLayout", () => {
     await flushEffects();
 
     expect(
-      container.querySelector(
-        '[data-testid="canvas-workbench-markdown-preview"]',
-      ),
+      container.querySelector('[data-testid="file-preview-markdown"]'),
     ).not.toBeNull();
     expect(container.textContent).toContain("渠道预览稿");
     const previewTab = container.querySelector(
@@ -412,9 +406,8 @@ describe("CanvasWorkbenchLayout", () => {
     expect(image).not.toBeNull();
     expect(image?.getAttribute("src")).toBe("asset://imported-attachment.png");
     expect(
-      container.querySelector(
-        '[data-testid="canvas-workbench-preview-mode-panel"]',
-      )?.textContent,
+      container.querySelector('[data-testid="file-preview-panel"]')
+        ?.textContent,
     ).toContain("imported-attachment.png");
   });
 
@@ -491,19 +484,15 @@ describe("CanvasWorkbenchLayout", () => {
 
     expect(onPreviewOpenRequestHandled).toHaveBeenCalledWith(12);
     expect(
-      container.querySelector(
-        '[data-testid="canvas-workbench-markdown-preview"]',
-      ),
+      container.querySelector('[data-testid="file-preview-markdown"]'),
     ).not.toBeNull();
     expect(
-      container.querySelector(
-        '[data-testid="canvas-workbench-preview-mode-panel"]',
-      )?.textContent,
+      container.querySelector('[data-testid="file-preview-panel"]')
+        ?.textContent,
     ).toContain("导入会话 Markdown 预览内容");
     expect(
-      container.querySelector(
-        '[data-testid="canvas-workbench-preview-mode-panel"]',
-      )?.textContent,
+      container.querySelector('[data-testid="file-preview-panel"]')
+        ?.textContent,
     ).not.toContain("attachment-1.png");
   });
 
@@ -583,14 +572,11 @@ describe("CanvasWorkbenchLayout", () => {
 
     expect(onPreviewOpenRequestHandled).toHaveBeenCalledWith(13);
     expect(
-      harness.container.querySelector(
-        '[data-testid="canvas-workbench-markdown-preview"]',
-      ),
+      harness.container.querySelector('[data-testid="file-preview-markdown"]'),
     ).not.toBeNull();
     expect(
-      harness.container.querySelector(
-        '[data-testid="canvas-workbench-preview-mode-panel"]',
-      )?.textContent,
+      harness.container.querySelector('[data-testid="file-preview-panel"]')
+        ?.textContent,
     ).toContain("来自工作区文件预览");
     expect(
       harness.container.querySelector('[data-testid="preview-artifact-image"]'),
@@ -635,9 +621,7 @@ describe("CanvasWorkbenchLayout", () => {
     await flushEffects();
 
     expect(
-      harness.container.querySelector(
-        '[data-testid="canvas-workbench-markdown-preview"]',
-      ),
+      harness.container.querySelector('[data-testid="file-preview-markdown"]'),
     ).not.toBeNull();
 
     const htmlSelectionKey = "default-preview:/tmp/imported-preview.html";
@@ -662,9 +646,7 @@ describe("CanvasWorkbenchLayout", () => {
 
     expect(onPreviewOpenRequestHandled).toHaveBeenCalledWith(14);
     expect(
-      harness.container.querySelector(
-        '[data-testid="canvas-workbench-html-preview"]',
-      ),
+      harness.container.querySelector('[data-testid="file-preview-html"]'),
     ).not.toBeNull();
     const shell = harness.container.querySelector(
       '[data-testid="canvas-workbench-shell"]',
@@ -756,13 +738,11 @@ describe("CanvasWorkbenchLayout", () => {
 
     expect(onPreviewOpenRequestHandled).toHaveBeenCalledWith(11);
     expect(
-      harness.container.querySelector(
-        '[data-testid="canvas-workbench-html-preview"]',
-      ),
+      harness.container.querySelector('[data-testid="file-preview-html"]'),
     ).not.toBeNull();
     expect(
       harness.container
-        .querySelector('[data-testid="canvas-workbench-preview-mode-panel"]')
+        .querySelector('[data-testid="file-preview-panel"]')
         ?.getAttribute("data-preview-mode"),
     ).toBe("html");
     expect(harness.container.textContent).toContain("imported-preview.html");
@@ -824,9 +804,7 @@ describe("CanvasWorkbenchLayout", () => {
     clickByAriaLabel(container, "切换画布标签-draft.md");
     await flushEffects();
     expect(
-      container.querySelector(
-        '[data-testid="canvas-workbench-markdown-preview"]',
-      ),
+      container.querySelector('[data-testid="file-preview-markdown"]'),
     ).not.toBeNull();
   });
 });

@@ -10,12 +10,12 @@ import type { HarnessFilePreviewResult } from "../HarnessStatusPanel";
 import type { CanvasWorkbenchResolvedSelection } from "../CanvasWorkbenchLayoutViewModel";
 import { CanvasWorkbenchChangesPanel } from "./changes/CanvasWorkbenchChangesPanel";
 import type { CanvasWorkbenchChangeView } from "./changes/CanvasWorkbenchChangesPanelViewModel";
-import { CanvasWorkbenchPreviewModePanel } from "./CanvasWorkbenchPreviewModePanel";
+import { FilePreviewPanel } from "../../workspace/FilePreviewPanel";
 import {
-  isCanvasWorkbenchPreviewMode,
-  type CanvasWorkbenchPreviewMode,
-  type CanvasWorkbenchPreviewModeState,
-} from "./CanvasWorkbenchPreviewModeViewModel";
+  isFilePreviewMode,
+  type FilePreviewMode,
+  type FilePreviewModeState,
+} from "../../workspace/filePreviewModel";
 import {
   CanvasWorkbenchTopTabs,
   type CanvasWorkbenchTopTab,
@@ -49,7 +49,7 @@ interface CanvasWorkbenchShellProps {
   onDownload: () => void;
   documentContext: CanvasWorkbenchResolvedSelection | null;
   documentDiffLines: CanvasWorkbenchDiffLine[];
-  previewModeState: CanvasWorkbenchPreviewModeState;
+  previewModeState: FilePreviewModeState;
   changeView?: CanvasWorkbenchChangeView | null;
   changesFilesPanelOpen: boolean;
   loadFilePreview?: (path: string) => Promise<HarnessFilePreviewResult>;
@@ -58,7 +58,7 @@ interface CanvasWorkbenchShellProps {
   panelClassName: string;
   mutedPanelClassName: string;
   ghostButtonClassName: string;
-  onSelectPreviewMode: (mode: CanvasWorkbenchPreviewMode) => void;
+  onSelectPreviewMode: (mode: FilePreviewMode) => void;
   onToggleChangesFilesPanel?: () => void;
 }
 
@@ -256,12 +256,12 @@ export const CanvasWorkbenchShell = memo(function CanvasWorkbenchShell({
         data-panel-placement="canvas"
         className="relative z-0 min-h-0 flex-1 overflow-hidden bg-[image:var(--lime-stage-surface-soft)]"
       >
-        {isCanvasWorkbenchPreviewMode(contentTab) ? (
-          <CanvasWorkbenchPreviewModePanel
+        {isFilePreviewMode(contentTab) ? (
+          <FilePreviewPanel
             context={documentContext}
             mode={contentTab}
             modeState={previewModeState}
-            translateWorkbench={translateWorkbench}
+            translate={translateWorkbench}
             onSelectMode={onSelectPreviewMode}
           />
         ) : (

@@ -1,0 +1,19 @@
+{
+  "label": "test-layer-budget-r1",
+  "startedAt": "2026-10-22T10:49:48.743633+00:00",
+  "recordedAt": "2026-10-22T10:49:58.986924+00:00",
+  "results": [
+    {
+      "command": [
+        "node",
+        "scripts/check-vitest-layer-budget.mjs",
+        "--max-component-candidates",
+        "38"
+      ],
+      "exitCode": 0,
+      "seconds": 10.24
+    }
+  ],
+  "log": "test-layer-budget-r1.log",
+  "exitCode": 0
+}

@@ -8,7 +8,7 @@ import {
 } from "./mcp-config-fixture-evidence.mjs";
 
 const TABS = '[data-testid="workspace-right-surface-tabs"]';
-const BROWSER = '[data-testid="right-surface-browser-panel"]';
+const BROWSER = '[data-testid="browser-workspace"]';
 
 // 可直接序列化到真实 Renderer；保留的隐藏面板不能满足活动标签合同。
 export function isRightSurfaceSelected({ kind, both }) {
@@ -19,7 +19,7 @@ export function isRightSurfaceSelected({ kind, both }) {
     '[data-testid="workspace-right-surface-tabs"]',
   );
   const selected = tabs?.querySelector(
-    `[data-testid="workspace-right-surface-tab-${kind}"]`,
+    `[data-testid="workspace-right-surface-tab-${kind}"][aria-selected="true"]`,
   );
   const active = host?.querySelector(
     '[data-testid="workspace-right-surface-active-pane"][role="tabpanel"]',
@@ -184,8 +184,8 @@ export async function collectRightSurfaceLifecycleEvidence(
         element.getAttribute("data-browser-web-contents-id"),
       ),
       tabIds: Array.from(
-        element.querySelectorAll(
-          '[data-testid="browser-workspace-tabs"] [data-browser-tab-id]',
+        document.querySelectorAll(
+          '[data-testid="workspace-right-surface-tab-browser"][data-browser-tab-id]',
         ),
       ).map((tab) => tab.getAttribute("data-browser-tab-id")),
     }));
@@ -229,7 +229,7 @@ export async function collectRightSurfaceLifecycleEvidence(
       () =>
         Number(
           document
-            .querySelector('[data-testid="right-surface-browser-panel"]')
+            .querySelector('[data-testid="browser-workspace"]')
             ?.getAttribute("data-browser-web-contents-id"),
         ) > 0,
       undefined,
@@ -238,17 +238,25 @@ export async function collectRightSurfaceLifecycleEvidence(
     const primary = await readBrowser();
     await page.waitForFunction(
       (url) =>
-        document.querySelector('[data-testid="browser-workspace-address"]')
-          ?.value === url,
+        document
+          .querySelector('[data-testid="browser-workspace"]')
+          ?.getAttribute("data-browser-url") === url,
       url,
       { timeout: timeoutMs },
     );
     // Both tabs use the local HTTP fixture; no provider or remote browser page is needed.
-    await page.locator('[data-testid="browser-workspace-new-tab"]').click();
+    await page
+      .locator('[data-testid="workspace-right-surface-new-tab"]')
+      .click();
+    const address = page.locator(
+      '[data-testid="browser-new-tab-address"]:visible',
+    );
+    await address.fill(url);
+    await address.press("Enter");
     await page.waitForFunction(
       (primary) => {
         const panel = document.querySelector(
-          '[data-testid="right-surface-browser-panel"]',
+          '[data-testid="browser-workspace"]',
         );
         return (
           panel?.getAttribute("data-browser-tab-id") &&
@@ -258,13 +266,11 @@ export async function collectRightSurfaceLifecycleEvidence(
       primary.tabId,
       { timeout: timeoutMs },
     );
-    const address = page.locator('[data-testid="browser-workspace-address"]');
-    await address.fill(url);
-    await address.press("Enter");
     await page.waitForFunction(
       (url) =>
-        document.querySelector('[data-testid="browser-workspace-address"]')
-          ?.value === url,
+        document
+          .querySelector('[data-testid="browser-workspace"]')
+          ?.getAttribute("data-browser-url") === url,
       url,
       { timeout: timeoutMs },
     );
@@ -285,14 +291,16 @@ export async function collectRightSurfaceLifecycleEvidence(
     stages.changesSelected = true;
     onStage("changes-selected");
     await page
-      .locator('[data-testid="workspace-right-surface-tab-browser"]')
+      .locator(
+        `[data-testid="workspace-right-surface-tab-browser"][data-browser-tab-id="${first.tabId}"]`,
+      )
       .click();
     await waitSurface("browser", true);
     await page.waitForFunction(
       (id) =>
         Number(
           document
-            .querySelector('[data-testid="right-surface-browser-panel"]')
+            .querySelector('[data-testid="browser-workspace"]')
             ?.getAttribute("data-browser-web-contents-id"),
         ) === id,
       first.webContentsId,
@@ -304,14 +312,16 @@ export async function collectRightSurfaceLifecycleEvidence(
     onStage("browser-restored");
     await page
       .locator(
-        `[data-testid="browser-workspace-tabs"] [data-browser-tab-id="${primary.tabId}"] [data-testid="browser-workspace-tab-close"]`,
+        `[data-testid="workspace-right-surface-tab-browser"][data-browser-tab-id="${primary.tabId}"]`,
       )
+      .locator("..")
+      .locator('[data-testid="workspace-right-surface-tab-close"]')
       .click();
     await page.waitForFunction(
       (primary) =>
         !Array.from(
           document.querySelectorAll(
-            '[data-testid="browser-workspace-tabs"] [data-browser-tab-id]',
+            '[data-testid="workspace-right-surface-tab-browser"][data-browser-tab-id]',
           ),
         ).some((tab) => tab.getAttribute("data-browser-tab-id") === primary),
       primary.tabId,
@@ -322,14 +332,16 @@ export async function collectRightSurfaceLifecycleEvidence(
       .click();
     await waitSurface("changes", true);
     await page
-      .locator('[data-testid="workspace-right-surface-tab-browser"]')
+      .locator(
+        `[data-testid="workspace-right-surface-tab-browser"][data-browser-tab-id="${first.tabId}"]`,
+      )
       .click();
     await waitSurface("browser", true);
     await page.waitForFunction(
       (id) =>
         Number(
           document
-            .querySelector('[data-testid="right-surface-browser-panel"]')
+            .querySelector('[data-testid="browser-workspace"]')
             ?.getAttribute("data-browser-web-contents-id"),
         ) === id,
       first.webContentsId,

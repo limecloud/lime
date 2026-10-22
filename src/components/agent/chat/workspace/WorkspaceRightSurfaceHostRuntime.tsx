@@ -224,6 +224,9 @@ export function renderWorkspaceRightSurfaceHostRuntime({
           files: ({ tab }) => (
             <WorkspaceFileThreadSidePanelTab
               tab={tab}
+              active={
+                sidePanelTabs.open && sidePanelTabs.activeTabId === tab.tabId
+              }
               filePath={tab.filePath ?? null}
               onSelectFile={(path, options) =>
                 onOpenWorkspaceFile(path, tab, options)

@@ -1,3 +1,10 @@
+import {
+  resolvePreviewContent,
+  resolvePreviewPath,
+  type FilePreviewTarget,
+  type FilePreviewContext,
+} from "../workspace/filePreviewTarget";
+import { normalizeWorkspacePath } from "../workspace/workspacePath";
 import { resolveArtifactProtocolFilePath } from "@/lib/artifact-protocol";
 import type { Artifact } from "@/lib/artifact/types";
 import type { CanvasStateUnion } from "@/components/workspace/canvas/canvasUtils";
@@ -81,75 +88,24 @@ export interface CanvasWorkbenchCopy {
   };
 }
 
-export interface WorkspaceFileSelection {
-  path: string;
-  title: string;
-  status: "loading" | "ready" | "error" | "binary";
-  content?: string;
-  error?: string | null;
-  size?: number;
-}
-
-export type CanvasWorkbenchPreviewTarget =
-  | {
-      kind: "default-canvas";
-      title: string;
-      content: string;
-      filePath?: string;
-      absolutePath?: string;
-    }
-  | {
-      kind: "artifact" | "synthetic-artifact";
-      title: string;
-      artifact: Artifact;
-      filePath?: string;
-      absolutePath?: string;
-    }
-  | {
-      kind: "loading";
-      title: string;
-      filePath?: string;
-      absolutePath?: string;
-    }
-  | {
-      kind: "unsupported";
-      title: string;
-      reason: string;
-      filePath?: string;
-      absolutePath?: string;
-    }
-  | {
-      kind: "empty";
-      title: string;
-    };
-
 export interface CanvasWorkbenchSelectionContextLike {
   selectionPath?: string;
   subtitle?: string;
   title?: string;
   tabLabel?: string;
-  target: CanvasWorkbenchPreviewTarget;
+  target: FilePreviewTarget;
 }
 
-export interface CanvasWorkbenchResolvedSelection {
+export interface CanvasWorkbenchResolvedSelection extends FilePreviewContext {
   selectionKey: string | null;
   entrySource:
     | CanvasWorkbenchEntry["source"]
     | "workspace-file"
     | "default-preview";
-  title: string;
   tabLabel: string;
-  subtitle?: string;
   kindLabel: string;
   badgeLabel?: string;
-  target: CanvasWorkbenchPreviewTarget;
-  content: string;
   previousContent: string | null;
-  selectionPath?: string;
-}
-
-export function normalizeCanvasWorkbenchPath(value: string): string {
-  return value.replace(/\\/g, "/");
 }
 
 function extractFileNameFromNormalizedPath(value: string): string {
@@ -164,14 +120,12 @@ export function resolveWorkspaceRelativeDisplayPath(
   workspaceRoot: string | null | undefined,
   path: string | null | undefined,
 ): string | undefined {
-  const normalizedPath = normalizeCanvasWorkbenchPath(path?.trim() || "");
+  const normalizedPath = normalizeWorkspacePath(path?.trim() || "");
   if (!normalizedPath) {
     return undefined;
   }
 
-  const normalizedRoot = normalizeCanvasWorkbenchPath(
-    workspaceRoot?.trim() || "",
-  );
+  const normalizedRoot = normalizeWorkspacePath(workspaceRoot?.trim() || "");
   if (!normalizedRoot) {
     return normalizedPath;
   }
@@ -230,7 +184,7 @@ function resolvePreviousArtifactContent(
   artifact: Artifact,
   artifacts: Artifact[],
 ): string | null {
-  const currentPath = normalizeCanvasWorkbenchPath(
+  const currentPath = normalizeWorkspacePath(
     resolveArtifactProtocolFilePath(artifact),
   );
 
@@ -239,7 +193,7 @@ function resolvePreviousArtifactContent(
     if (candidate.id === artifact.id) {
       continue;
     }
-    const candidatePath = normalizeCanvasWorkbenchPath(
+    const candidatePath = normalizeWorkspacePath(
       resolveArtifactProtocolFilePath(candidate),
     );
     if (candidatePath === currentPath && candidate.content.trim()) {
@@ -262,7 +216,7 @@ function resolveMappedPreviousContentForPath(
   artifacts: Artifact[],
   workspaceRoot?: string | null,
 ): string | null {
-  const normalizedTarget = normalizeCanvasWorkbenchPath(absolutePath);
+  const normalizedTarget = normalizeWorkspacePath(absolutePath);
   if (isDocumentCanvasState(canvasState)) {
     const matchedVersion = canvasState.versions.find((version) => {
       const versionPath = resolveAbsoluteWorkspacePath(
@@ -270,7 +224,7 @@ function resolveMappedPreviousContentForPath(
         version.metadata?.sourceFileName,
       );
       return versionPath
-        ? normalizeCanvasWorkbenchPath(versionPath) === normalizedTarget
+        ? normalizeWorkspacePath(versionPath) === normalizedTarget
         : false;
     });
     if (matchedVersion) {
@@ -287,7 +241,7 @@ function resolveMappedPreviousContentForPath(
       resolveArtifactProtocolFilePath(artifact),
     );
     return artifactPath
-      ? normalizeCanvasWorkbenchPath(artifactPath) === normalizedTarget
+      ? normalizeWorkspacePath(artifactPath) === normalizedTarget
       : false;
   });
 
@@ -328,9 +282,7 @@ export function buildEntries(
   const taskFilePathSet = new Set(
     taskFileEntries
       .map((entry) =>
-        normalizeCanvasWorkbenchPath(
-          entry.absolutePath || entry.filePath || "",
-        ),
+        normalizeWorkspacePath(entry.absolutePath || entry.filePath || ""),
       )
       .filter(Boolean),
   );
@@ -346,9 +298,7 @@ export function buildEntries(
         workspaceRoot,
         filePath,
       );
-      const pathKey = normalizeCanvasWorkbenchPath(
-        absolutePath || filePath || "",
-      );
+      const pathKey = normalizeWorkspacePath(absolutePath || filePath || "");
       if (pathKey) {
         if (taskFilePathSet.has(pathKey) || seenArtifactPaths.has(pathKey)) {
           return [];
@@ -421,36 +371,6 @@ export function buildEntries(
   });
 }
 
-export function resolvePreviewContent(
-  target: CanvasWorkbenchPreviewTarget,
-): string {
-  if (target.kind === "default-canvas") {
-    return target.content;
-  }
-
-  if (target.kind === "artifact" || target.kind === "synthetic-artifact") {
-    return target.artifact.content;
-  }
-
-  return "";
-}
-
-export function resolvePreviewPath(
-  target: CanvasWorkbenchPreviewTarget,
-): string | undefined {
-  if (
-    target.kind === "default-canvas" ||
-    target.kind === "artifact" ||
-    target.kind === "synthetic-artifact" ||
-    target.kind === "loading" ||
-    target.kind === "unsupported"
-  ) {
-    return target.absolutePath || target.filePath;
-  }
-
-  return undefined;
-}
-
 export function isHtmlPreviewContext(
   context: CanvasWorkbenchSelectionContextLike | null | undefined,
 ): boolean {
@@ -477,8 +397,8 @@ export function buildDefaultPreviewSelection(
   defaultPreview: CanvasWorkbenchDefaultPreview,
   copy: CanvasWorkbenchCopy,
 ): CanvasWorkbenchResolvedSelection {
-  const target: CanvasWorkbenchPreviewTarget = {
-    kind: "default-canvas",
+  const target: FilePreviewTarget = {
+    kind: "text",
     title: defaultPreview.title,
     content: defaultPreview.content,
     filePath: defaultPreview.filePath,
@@ -541,7 +461,7 @@ export function resolveSelectionContext({
       : null;
   }
 
-  let target: CanvasWorkbenchPreviewTarget;
+  let target: FilePreviewTarget;
   if (entry.source === "artifact") {
     target = {
       kind: "artifact",

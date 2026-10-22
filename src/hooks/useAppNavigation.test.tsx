@@ -144,6 +144,99 @@ describe("useAppNavigation", () => {
     expect(latestNavigation!.navigationRequestId).toBe(requestId + 1);
   });
 
+  it.each([
+    { dirty: true, saving: false },
+    { dirty: false, saving: true },
+  ])("tryNavigate 同步读取现有守卫且拒绝时不排队：%j", async (guard) => {
+    await renderProbe();
+    await act(async () =>
+      latestNavigation!.handleNavigate("settings", {
+        tab: SettingsTabs.Browser,
+      }),
+    );
+    const requestId = latestNavigation!.navigationRequestId;
+    let accepted: boolean | undefined;
+    let unregister = () => {};
+    await act(async () => {
+      unregister = latestNavigation!.navigationGuard.register(guard);
+      // 注册与尝试发生在同次调用栈，不能读取上一帧的 dirty/saving 快照。
+      accepted = latestNavigation!.tryNavigate("agent", {
+        initialSessionId: "history-session",
+      });
+    });
+    expect(accepted).toBe(false);
+    expect(latestNavigation!.currentPage).toBe("settings");
+    expect(latestNavigation!.navigationRequestId).toBe(requestId);
+    expect(latestNavigation!.navigationGuard.pendingNavigation).toBe(false);
+    await act(async () => {
+      unregister();
+      accepted = latestNavigation!.tryNavigate("agent", {
+        initialSessionId: "history-session",
+      });
+    });
+    expect(accepted).toBe(true);
+    expect(latestNavigation!.currentPage).toBe("agent");
+    expect(latestNavigation!.pageParams).toEqual({
+      initialSessionId: "history-session",
+    });
+    expect(latestNavigation!.navigationRequestId).toBe(requestId + 1);
+  });
+
+  it("tryNavigate 被拒绝时保留既有待确认目标，不覆盖原导航用户意图", async () => {
+    await renderProbe();
+    await act(async () =>
+      latestNavigation!.handleNavigate("settings", {
+        tab: SettingsTabs.Browser,
+      }),
+    );
+    let unregister = () => {};
+    await act(async () => {
+      unregister = latestNavigation!.navigationGuard.register({
+        dirty: true,
+        saving: false,
+      });
+      latestNavigation!.handleNavigate("skills", {
+        initialSearchQuery: "retained",
+      });
+    });
+    let accepted: boolean | undefined;
+    await act(async () => {
+      accepted = latestNavigation!.tryNavigate("agent", {
+        initialSessionId: "history-session",
+      });
+    });
+    expect(accepted).toBe(false);
+    expect(latestNavigation!.navigationGuard.pendingNavigation).toBe(true);
+    await act(async () => {
+      unregister();
+      latestNavigation!.navigationGuard.discardPendingNavigation();
+    });
+    expect(latestNavigation!.currentPage).toBe("skills");
+    expect(latestNavigation!.pageParams).toEqual({
+      initialSearchQuery: "retained",
+    });
+  });
+
+  it("tryNavigate 接受设置目标时沿用现有返回会话，不引入第二套返回路由", async () => {
+    await renderProbe();
+    const params = buildClawAgentParams({
+      initialSessionId: "original",
+      projectId: "workspace",
+    });
+    await act(async () => latestNavigation!.handleNavigate("agent", params));
+    let accepted: boolean | undefined;
+    await act(async () => {
+      accepted = latestNavigation!.tryNavigate("settings", {
+        tab: SettingsTabs.Browser,
+      });
+    });
+    expect(accepted).toBe(true);
+    expect(latestNavigation!.currentPage).toBe("settings");
+    await act(async () => latestNavigation!.returnFromSettings());
+    expect(latestNavigation!.currentPage).toBe("agent");
+    expect(latestNavigation!.pageParams).toEqual(params);
+  });
+
   it("取消 pending 返回后保留原会话来处，不重放首发 intent", async () => {
     await renderProbe();
     await act(async () =>
@@ -429,9 +522,16 @@ describe("useAppNavigation", () => {
     await act(async () => {
       navigate("settings", { tab: SettingsTabs.Providers });
     });
+    const returnLocation = latestNavigation!.settingsReturnLocation;
+    expect(returnLocation).toEqual({
+      sessionId: "materialized-thread",
+      workspaceId: "actual-workspace",
+    });
+    expect(latestNavigation!.agentLocation).toBeNull();
     await act(async () => {
       navigate("settings", { tab: SettingsTabs.Appearance });
     });
+    expect(latestNavigation!.settingsReturnLocation).toBe(returnLocation);
     await act(async () => {
       back();
     });
@@ -444,6 +544,7 @@ describe("useAppNavigation", () => {
     );
     expect(latestNavigation!.handleNavigate).toBe(navigate);
     expect(latestNavigation!.returnFromSettings).toBe(back);
+    expect(latestNavigation!.settingsReturnLocation).toBeNull();
     const persisted = JSON.parse(
       window.sessionStorage.getItem(NAVIGATION_RESTORE_STORAGE_KEY)!,
     );
@@ -473,6 +574,10 @@ describe("useAppNavigation", () => {
     });
     await act(async () => {
       latestNavigation!.handleNavigate("settings");
+    });
+    expect(latestNavigation!.settingsReturnLocation).toEqual({
+      sessionId: "thread",
+      workspaceId: "workspace",
     });
     await act(async () => {
       latestNavigation!.handleNavigate("settings", { tab: SettingsTabs.About });
@@ -515,6 +620,10 @@ describe("useAppNavigation", () => {
       });
       departing({ sessionId: "late-thread", workspaceId: "late-workspace" });
     });
+    expect(latestNavigation!.settingsReturnLocation).toEqual({
+      sessionId: "new-thread",
+      workspaceId: "visible-workspace",
+    });
     await act(async () => {
       latestNavigation!.returnFromSettings();
     });
@@ -556,6 +665,7 @@ describe("useAppNavigation", () => {
     await act(async () => {
       latestNavigation!.handleNavigate("settings", { tab: SettingsTabs.About });
     });
+    expect(latestNavigation!.settingsReturnLocation).toBeNull();
     await act(async () => {
       latestNavigation!.returnFromSettings();
     });
@@ -572,6 +682,7 @@ describe("useAppNavigation", () => {
     await act(async () => {
       latestNavigation!.handleNavigate("settings");
     });
+    expect(latestNavigation!.settingsReturnLocation).toBeNull();
     await act(async () => {
       latestNavigation!.returnFromSettings();
     });

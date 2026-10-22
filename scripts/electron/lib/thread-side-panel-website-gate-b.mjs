@@ -463,8 +463,9 @@ export async function collectThreadSidePanelWebsiteEvidence(
           return (
             browser?.getAttribute("data-browser-thread-id") === threadId &&
             Number(browser.getAttribute("data-browser-web-contents-id")) > 0 &&
-            pane?.querySelector('[data-testid="browser-workspace-address"]')
-              ?.value === url
+            pane
+              ?.querySelector('[data-testid="browser-workspace"]')
+              ?.getAttribute("data-browser-url") === url
           );
         },
         { url, threadId },
@@ -557,7 +558,7 @@ export async function collectThreadSidePanelWebsiteEvidence(
     );
     await page
       .getByTestId("workspace-right-surface-active-pane")
-      .frameLocator('[data-testid="canvas-workbench-html-preview"]')
+      .frameLocator('[data-testid="file-preview-html"]')
       .getByText("RECENTS_CANONICAL_HTML", { exact: true })
       .waitFor({ state: "visible", timeout: timeoutMs });
     assert(

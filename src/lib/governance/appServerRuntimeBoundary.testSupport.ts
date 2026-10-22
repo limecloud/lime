@@ -193,6 +193,7 @@ export const ALLOWED_EXTERNAL_BACKEND_LAUNCH_FILES = new Set([
   "packages/app-server-client/tests/client.test.mjs",
   "scripts/agent-runtime/claw-chat-current-fixture-smoke.mjs",
   "scripts/electron/document-preview-fixture-smoke.mjs",
+  "scripts/electron/file-click-fixture-smoke.mjs",
   "scripts/agent-runtime/claw-chat-current-fixture-smoke.test.mjs",
   "scripts/agent-runtime/claw-image-live-smoke.test.mjs",
   "scripts/agent-runtime/reopen-running-turn-cdp-gate.mjs",

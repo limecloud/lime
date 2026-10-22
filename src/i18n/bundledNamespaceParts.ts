@@ -19,8 +19,11 @@ export const BUNDLED_NAMESPACE_RESOURCE_PARTS = {
     "agentSkills",
     "agentExperts",
     "agentTeamWorkspace",
+    "browserChrome",
+    "browserAnnotation",
   ],
   workspace: ["workspace", "scheduledTasks"],
+  settings: ["settings", "browserHistory"],
 } as const satisfies Partial<Record<LimeNamespace, readonly string[]>>;
 
 function hasResourceParts(

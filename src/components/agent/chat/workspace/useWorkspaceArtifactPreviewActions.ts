@@ -6,41 +6,25 @@ import {
 } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { createInitialDocumentState } from "@/components/workspace/canvas/canvasUtils";
-import type { CanvasStateUnion } from "@/components/workspace/canvas/canvasUtils";
-import type { LayoutMode, ThemeType } from "@/lib/workspace/workbenchContract";
+import type { LayoutMode } from "@/lib/workspace/workbenchContract";
 import {
   hasAgentRuntimeArtifactPreviewScope,
   readAgentRuntimeArtifactPreviewContent,
 } from "@/lib/api/agentRuntime/appServerArtifactClient";
 import { readFilePreview } from "@/lib/api/fileBrowser";
 import type { SessionFile } from "@/lib/api/session-files";
-import { createPreviewArtifactFromFile } from "@/lib/artifact/previewArtifact";
 import type { Artifact } from "@/lib/artifact/types";
 import { resolveArtifactProtocolFilePath } from "@/lib/artifact-protocol";
-import {
-  createLayeredDesignArtifact,
-  type LayeredDesignDocumentInput,
-} from "@/lib/layered-design";
 import type { TaskFile } from "../components/TaskFiles";
 import type { HarnessFilePreviewResult } from "../components/HarnessStatusPanel";
 import { useArtifactAutoPreviewSync } from "../hooks/useArtifactAutoPreviewSync";
 import { resolveDefaultArtifactViewMode } from "../utils/messageArtifacts";
 import { openCanvasForReason } from "./canvasOpenPolicy";
 import type { ApplyArtifactViewMode } from "./useWorkspaceArtifactViewModeControl";
-import {
-  isRenderableTaskFile,
-  looksLikeSocialPublishPayload,
-  normalizeSessionTaskFileType,
-  resolveTaskFileType,
-} from "./generalWorkbenchHelpers";
 import { doesWorkspaceFileCandidateMatch } from "./workspaceFilePathMatch";
 import { extractFileNameFromPath } from "./workspacePath";
+import { useWorkspaceFileOpen } from "./useWorkspaceFileOpen";
 import type { CanvasState as GeneralCanvasState } from "@/components/general-chat/bridge";
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
 
 function readNonEmptyString(value: unknown): string | null {
   return typeof value === "string" && value.trim().length > 0 ? value : null;
@@ -93,97 +77,18 @@ function shouldRequestCanvasDocumentSelection(artifact: Artifact): boolean {
   return !shouldUseProjectedPreviewArtifact(artifact);
 }
 
-function hasLayeredDesignDocumentShape(
-  value: unknown,
-): value is LayeredDesignDocumentInput {
-  if (!isRecord(value)) {
-    return false;
-  }
-
-  const canvas = value.canvas;
-  return (
-    typeof value.id === "string" &&
-    typeof value.title === "string" &&
-    isRecord(canvas) &&
-    typeof canvas.width === "number" &&
-    typeof canvas.height === "number" &&
-    Array.isArray(value.layers)
-  );
-}
-
-function createWorkspaceLayeredDesignArtifactId(fileName: string): string {
-  const normalized = fileName.trim() || "design.json";
-  let hash = 0;
-  for (let index = 0; index < normalized.length; index += 1) {
-    hash = (hash * 31 + normalized.charCodeAt(index)) >>> 0;
-  }
-
-  return `artifact-workspace-layered-design-${hash.toString(36)}`;
-}
-
-function createLayeredDesignArtifactFromWorkspaceFile(
-  fileName: string,
-  content: string,
-): Artifact | null {
-  const trimmed = content.trim();
-  if (!trimmed.startsWith("{")) {
-    return null;
-  }
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(trimmed);
-  } catch {
-    return null;
-  }
-
-  if (!hasLayeredDesignDocumentShape(parsed)) {
-    return null;
-  }
-
-  const filename = extractFileNameFromPath(fileName) || "design.json";
-  try {
-    return createLayeredDesignArtifact(parsed, {
-      artifactId: createWorkspaceLayeredDesignArtifactId(fileName),
-      artifactTitle: parsed.title.trim() || filename,
-      meta: {
-        filePath: fileName,
-        filename,
-        openedFrom: "general-workbench-file",
-      },
-    });
-  } catch {
-    return null;
-  }
-}
-
-function buildCanvasStateFromContent(params: {
-  previous: CanvasStateUnion | null;
-  mappedTheme: ThemeType;
-  content: string;
-}): CanvasStateUnion {
-  const { previous, mappedTheme: _mappedTheme, content } = params;
-
-  if (!previous || previous.type !== "document") {
-    return createInitialDocumentState(content);
-  }
-
-  return {
-    ...previous,
-    content,
-  };
-}
-
 interface UseWorkspaceArtifactPreviewActionsParams {
   activeTheme: string;
-  mappedTheme: ThemeType;
   layoutMode: LayoutMode;
-  isThemeWorkbench: boolean;
   isGeneralCanvasOpen: boolean;
   artifacts: Artifact[];
   currentCanvasArtifact: Artifact | null;
   taskFiles: TaskFile[];
   sessionFiles: SessionFile[];
+  threadId?: string | null;
+  sessionId?: string | null;
+  projectRootPath?: string | null;
+  openWorkspaceFile: (path: string) => void;
   readSessionFile: (fileName: string) => Promise<string | null>;
   onRequestCanvasPreviewOpen?: (request: {
     filePath?: string | null;
@@ -193,20 +98,7 @@ interface UseWorkspaceArtifactPreviewActionsParams {
   setSelectedArtifactId: (artifactId: string | null) => void;
   setArtifactViewMode: ApplyArtifactViewMode;
   setLayoutMode: Dispatch<SetStateAction<LayoutMode>>;
-  setTaskFiles: Dispatch<SetStateAction<TaskFile[]>>;
-  setSelectedFileId: (fileId: string) => void;
   setGeneralCanvasState: Dispatch<SetStateAction<GeneralCanvasState>>;
-  setCanvasState: Dispatch<SetStateAction<CanvasStateUnion | null>>;
-}
-
-interface FilePreviewInput {
-  fileName: string;
-  content: string;
-  sourcePath?: string | null;
-  isBinary?: boolean | null;
-  size?: number | null;
-  error?: string | null;
-  previewRequestKey?: string;
 }
 
 interface WorkspaceArtifactPreviewActionsResult {
@@ -215,35 +107,32 @@ interface WorkspaceArtifactPreviewActionsResult {
     artifact?: Artifact,
   ) => Promise<HarnessFilePreviewResult>;
   openArtifactInWorkbench: (artifact: Artifact) => Promise<void>;
-  openFilePreviewArtifact: (params: FilePreviewInput) => Promise<void>;
   handleArtifactClick: (artifact: Artifact) => void;
   handleFileClick: (fileName: string, content: string) => void;
   handleCodeBlockClick: (language: string, code: string) => void;
   shouldCollapseCodeBlocks: boolean;
   shouldCollapseCodeBlockInChat: (language: string, code: string) => boolean;
-  handleTaskFileClick: (file: TaskFile) => void;
 }
 
 export function useWorkspaceArtifactPreviewActions({
   activeTheme,
-  mappedTheme,
   layoutMode,
-  isThemeWorkbench,
   isGeneralCanvasOpen,
   artifacts,
   currentCanvasArtifact,
   taskFiles,
   sessionFiles,
+  threadId,
+  sessionId,
+  projectRootPath,
+  openWorkspaceFile,
   readSessionFile,
   onRequestCanvasPreviewOpen,
   upsertGeneralArtifact,
   setSelectedArtifactId,
   setArtifactViewMode,
   setLayoutMode,
-  setTaskFiles,
-  setSelectedFileId,
   setGeneralCanvasState,
-  setCanvasState,
 }: UseWorkspaceArtifactPreviewActionsParams): WorkspaceArtifactPreviewActionsResult {
   const { t } = useTranslation("agent");
   const handleHarnessLoadFilePreview = useCallback(
@@ -466,183 +355,14 @@ export function useWorkspaceArtifactPreviewActions({
     [artifacts],
   );
 
-  const applyContentToCanvas = useCallback(
-    (content: string) => {
-      setCanvasState((previous) =>
-        buildCanvasStateFromContent({
-          previous,
-          mappedTheme,
-          content,
-        }),
-      );
-      openCanvasForReason("user_open_file", setLayoutMode);
-    },
-    [mappedTheme, setCanvasState, setLayoutMode],
-  );
-
-  const openFilePreviewArtifact = useCallback(
-    (params: FilePreviewInput) => {
-      const projection = createPreviewArtifactFromFile({
-        filePath: params.fileName,
-        path: params.sourcePath || params.fileName,
-        content: params.content,
-        isBinary: params.isBinary,
-        size: params.size,
-        error: params.error,
-        meta: {
-          openedFrom: "general-workbench-file",
-          previewRequestKey: params.previewRequestKey ?? crypto.randomUUID(),
-        },
-      });
-      return openArtifactInWorkbench(projection.artifact);
-    },
-    [openArtifactInWorkbench],
-  );
-
-  const handleFileClick = useCallback(
-    (fileName: string, content: string) => {
-      if (activeTheme === "general") {
-        const layeredDesignArtifact =
-          createLayeredDesignArtifactFromWorkspaceFile(fileName, content);
-        if (layeredDesignArtifact) {
-          void openArtifactInWorkbench(layeredDesignArtifact);
-          return;
-        }
-
-        if (!content.trim()) {
-          void (async () => {
-            const preview = await handleHarnessLoadFilePreview(fileName);
-            const nextContent =
-              !preview.error && !preview.isBinary && preview.content !== null
-                ? preview.content || ""
-                : content;
-            openFilePreviewArtifact({
-              fileName,
-              content: nextContent,
-              sourcePath: !preview.error ? preview.path || fileName : fileName,
-              isBinary: preview.isBinary,
-              size: preview.size,
-              error: preview.error,
-            });
-          })();
-          return;
-        }
-
-        openFilePreviewArtifact({ fileName, content });
-        return;
-      }
-
-      const nextFileType = resolveTaskFileType(fileName, content);
-      const fallbackTaskFileId = crypto.randomUUID();
-      const existingTaskFile = taskFiles.find((file) => file.name === fileName);
-      const selectedTaskFileId = existingTaskFile?.id ?? fallbackTaskFileId;
-      setSelectedFileId(selectedTaskFileId);
-      setTaskFiles((previous) => {
-        const existingFile = previous.find((file) => file.name === fileName);
-        if (existingFile) {
-          return previous;
-        }
-
-        const nextFile: TaskFile = {
-          id: fallbackTaskFileId,
-          name: fileName,
-          type: nextFileType,
-          content,
-          version: 1,
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
-        };
-        return [...previous, nextFile];
-      });
-
-      if (
-        !isRenderableTaskFile(
-          { name: fileName, type: nextFileType },
-          isThemeWorkbench,
-        )
-      ) {
-        toast.info(
-          t("agentChat.workspace.artifactPreview.toast.auxiliaryNotRendered"),
-        );
-        return;
-      }
-
-      onRequestCanvasPreviewOpen?.({
-        filePath: fileName,
-        selectionKey: `task:${selectedTaskFileId}`,
-      });
-      applyContentToCanvas(content);
-    },
-    [
-      activeTheme,
-      applyContentToCanvas,
-      handleHarnessLoadFilePreview,
-      isThemeWorkbench,
-      onRequestCanvasPreviewOpen,
-      openFilePreviewArtifact,
-      openArtifactInWorkbench,
-      setSelectedFileId,
-      setTaskFiles,
-      taskFiles,
-      t,
-    ],
-  );
-
-  const hydrateTaskFileContent = useCallback(
-    async (file: TaskFile): Promise<TaskFile | null> => {
-      if (typeof file.content === "string") {
-        return file;
-      }
-
-      const matchedSessionFile = sessionFiles.find((candidate) =>
-        doesWorkspaceFileCandidateMatch(candidate.name, file.name),
-      );
-      if (!matchedSessionFile) {
-        return file;
-      }
-
-      const content = await readSessionFile(matchedSessionFile.name);
-      if (content === null) {
-        return null;
-      }
-
-      const hydratedFile: TaskFile = {
-        ...file,
-        name: matchedSessionFile.name,
-        type: normalizeSessionTaskFileType(
-          matchedSessionFile.fileType ?? file.type,
-          matchedSessionFile.name,
-          content,
-        ),
-        content,
-        metadata: file.metadata ?? matchedSessionFile.metadata,
-        createdAt: file.createdAt || matchedSessionFile.createdAt || Date.now(),
-        updatedAt:
-          matchedSessionFile.updatedAt ||
-          file.updatedAt ||
-          matchedSessionFile.createdAt ||
-          Date.now(),
-      };
-
-      setTaskFiles((previous) => {
-        const matchedIndex = previous.findIndex(
-          (item) =>
-            item.id === file.id ||
-            doesWorkspaceFileCandidateMatch(item.name, matchedSessionFile.name),
-        );
-        if (matchedIndex < 0) {
-          return [...previous, hydratedFile];
-        }
-
-        const next = [...previous];
-        next[matchedIndex] = hydratedFile;
-        return next;
-      });
-
-      return hydratedFile;
-    },
-    [readSessionFile, sessionFiles, setTaskFiles],
-  );
+  const handleFileClick = useWorkspaceFileOpen({
+    threadId,
+    sessionId,
+    projectRootPath,
+    sessionFiles,
+    taskFiles,
+    openWorkspaceFile,
+  });
 
   const handleCodeBlockClick = useCallback(
     (language: string, code: string) => {
@@ -693,72 +413,13 @@ export function useWorkspaceArtifactPreviewActions({
     [findArtifactForCodeBlock, shouldCollapseCodeBlocks],
   );
 
-  const handleTaskFileClick = useCallback(
-    (file: TaskFile) => {
-      void (async () => {
-        const resolvedFile = await hydrateTaskFileContent(file);
-        if (!resolvedFile) {
-          toast.error(
-            t(
-              "agentChat.workspace.artifactPreview.toast.sessionFileReadFailed",
-            ),
-          );
-          return;
-        }
-
-        if (activeTheme === "general") {
-          if (!resolvedFile.content?.trim()) {
-            toast.info(
-              t(
-                "agentChat.workspace.artifactPreview.toast.auxiliaryNotRendered",
-              ),
-            );
-            return;
-          }
-
-          openFilePreviewArtifact({
-            fileName: resolvedFile.name,
-            content: resolvedFile.content ?? "",
-          });
-          return;
-        }
-
-        setSelectedFileId(resolvedFile.id);
-
-        if (
-          !isRenderableTaskFile(resolvedFile, isThemeWorkbench) ||
-          looksLikeSocialPublishPayload(resolvedFile.content || "") ||
-          !resolvedFile.content?.trim()
-        ) {
-          toast.info(
-            t("agentChat.workspace.artifactPreview.toast.auxiliaryNotRendered"),
-          );
-          return;
-        }
-
-        applyContentToCanvas(resolvedFile.content ?? "");
-      })();
-    },
-    [
-      activeTheme,
-      applyContentToCanvas,
-      hydrateTaskFileContent,
-      isThemeWorkbench,
-      openFilePreviewArtifact,
-      setSelectedFileId,
-      t,
-    ],
-  );
-
   return {
     handleHarnessLoadFilePreview,
     openArtifactInWorkbench,
-    openFilePreviewArtifact,
     handleArtifactClick,
     handleFileClick,
     handleCodeBlockClick,
     shouldCollapseCodeBlocks,
     shouldCollapseCodeBlockInChat,
-    handleTaskFileClick,
   };
 }

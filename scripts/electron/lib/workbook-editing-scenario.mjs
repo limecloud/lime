@@ -1,3 +1,7 @@
+import {
+  openFileTab,
+  replaceFileTab,
+} from "./thread-side-panel-navigation.mjs";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
@@ -28,32 +32,15 @@ export async function runWorkbookEditingScenario({
       );
     }, expectedSha);
   };
-  const reopen = async () => {
-    const previousRequest = (await panel.count())
-      ? await panel.getAttribute("data-preview-request")
-      : null;
-    const toggle = page.getByTestId("task-center-workbench-toggle");
-    if ((await toggle.getAttribute("aria-label")) === "打开工作台")
-      await toggle.click();
-    await page.getByTestId("canvas-workbench-tab-menu-trigger").click();
-    await page
-      .getByRole("menuitem", { name: "新建工作台标签-文件", exact: true })
-      .click();
-    await page
-      .locator(
-        '[data-testid="canvas-workbench-panel-workspace"] button[title="Preview-report.xlsx"]',
-      )
-      .click();
-    await page.waitForFunction((previousRequest) => {
-      const panel = document.querySelector(
-        '[data-testid="workbook-preview-panel"]',
-      );
-      return (
-        panel?.getAttribute("data-preview-request") !== previousRequest &&
-        panel?.getAttribute("data-status") === "ready"
-      );
-    }, previousRequest);
+  const reopen = async (freshRead = true) => {
+    const previous = freshRead ? await panel.elementHandle() : null;
+    if (freshRead) await replaceFileTab(page, filePath);
+    else await openFileTab(page, filePath);
     await ready();
+    if (previous) {
+      assert.equal(await previous.evaluate((node) => node.isConnected), false);
+      await previous.dispose();
+    }
   };
   const edit = async (value) => {
     await cell("A6").dblclick();
@@ -152,8 +139,8 @@ export async function runWorkbookEditingScenario({
   await panel.waitFor({ state: "detached" });
   assert.equal(await originalPanel.evaluate((node) => node.isConnected), false);
   await page.getByTestId("settings-back-button").click();
-  // 设置返回恢复会话；通过真实文件树重新打开原路径，再验证应用 scope 草稿。
-  await reopen();
+  // 设置返回已经重新挂载原标签；选择同路径保留应用scope草稿，不触发关闭。
+  await reopen(false);
   await ready();
   assert.equal(
     await cell("A6").innerText(),
@@ -226,15 +213,7 @@ export async function runDelimitedWorkbookEditingScenario({
     const readsBefore = await sourceReads(sourcePath);
     const previousPanel = await panel.elementHandle();
     assert.ok(previousPanel, "reopen starts with an existing workbook panel");
-    await page.getByTestId("canvas-workbench-tab-menu-trigger").click();
-    await page
-      .getByRole("menuitem", { name: "新建工作台标签-文件", exact: true })
-      .click();
-    await page
-      .locator(
-        `[data-testid="canvas-workbench-panel-workspace"] button[title="${filename}"]`,
-      )
-      .click();
+    await replaceFileTab(page, sourcePath);
     // 文件树的本地投影没有 previewRequestKey；读取经过 loading 卸载旧面板。
     await page.waitForFunction((node) => !node.isConnected, previousPanel);
     await previousPanel.dispose();

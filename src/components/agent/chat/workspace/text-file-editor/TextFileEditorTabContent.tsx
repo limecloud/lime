@@ -27,7 +27,7 @@ import {
 } from "./InlineFileDiffReview";
 import { useFileTabLifecycle } from "./fileTabLifecycleContext";
 import { FileSourceBreadcrumb } from "./FileSourceBreadcrumb";
-import type { CanvasWorkbenchFileTreeState } from "../../components/canvas-workbench/files/useCanvasWorkbenchFileTreeState";
+import type { FileTreeState } from "../right-surface/useFileTreeState";
 
 export function TextFileEditorTabContent({
   path,
@@ -45,7 +45,7 @@ export function TextFileEditorTabContent({
   initialDraft?: FileEditorDraft | null;
   onDraftChange?: (draft: FileEditorDraft | null) => void;
   workspaceRoot?: string | null;
-  tree?: CanvasWorkbenchFileTreeState;
+  tree?: FileTreeState;
   onSelectFile?: (path: string) => void;
 }) {
   const register = useFileTabLifecycle()?.register;
@@ -120,7 +120,7 @@ function FileEditorContent({
   path: string;
   toolbarActions?: ReactNode;
   workspaceRoot?: string | null;
-  tree?: CanvasWorkbenchFileTreeState;
+  tree?: FileTreeState;
   onSelectFile?: (path: string) => void;
 }) {
   const { t } = useTranslation("agent");
@@ -179,8 +179,8 @@ function FileEditorContent({
                 data-testid="file-preview-mode-toggle"
                 aria-label={t(
                   mode === "code"
-                    ? "agentChat.canvasWorkbench.coding.preview.mode.viewPreview"
-                    : "agentChat.canvasWorkbench.coding.preview.mode.viewSource",
+                    ? "agentChat.filePreview.viewPreview"
+                    : "agentChat.filePreview.viewSource",
                 )}
                 className="flex h-7 items-center gap-1 rounded-lg px-2 hover:bg-[color:var(--lime-chrome-tab-hover)]"
                 onClick={() => {
@@ -190,8 +190,8 @@ function FileEditorContent({
                 {mode === "code" ? <Eye size={14} /> : <Code2 size={14} />}
                 {t(
                   mode === "code"
-                    ? "agentChat.canvasWorkbench.coding.preview.mode.viewPreview"
-                    : "agentChat.canvasWorkbench.coding.preview.mode.viewSource",
+                    ? "agentChat.filePreview.viewPreview"
+                    : "agentChat.filePreview.viewSource",
                 )}
               </button>
             ) : null}
@@ -209,9 +209,7 @@ function FileEditorContent({
           {t("agentChat.fileEditor.loadError")}
         </p>
       ) : state.loadState === "loading" ? (
-        <p className="p-4 text-sm">
-          {t("agentChat.canvasWorkbench.coding.preview.mode.loading")}
-        </p>
+        <p className="p-4 text-sm">{t("agentChat.filePreview.loading")}</p>
       ) : (
         <>
           {state.isReadOnly ? (
@@ -242,7 +240,7 @@ function FileEditorContent({
               </div>
               {mode === "markdown" ? (
                 <div
-                  data-testid="canvas-workbench-markdown-preview"
+                  data-testid="file-preview-markdown"
                   className="h-full min-h-0 overflow-auto px-6 py-5"
                 >
                   <MarkdownRenderer
@@ -253,7 +251,7 @@ function FileEditorContent({
               ) : null}
               {mode === "html" ? (
                 <iframe
-                  data-testid="canvas-workbench-html-preview"
+                  data-testid="file-preview-html"
                   title={filename}
                   srcDoc={state.content}
                   sandbox="allow-scripts allow-forms allow-popups allow-modals"

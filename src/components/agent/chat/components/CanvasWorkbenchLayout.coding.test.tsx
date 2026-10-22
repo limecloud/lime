@@ -81,13 +81,12 @@ describe("CanvasWorkbenchLayout coding mode", () => {
     expect(onPreviewOpenRequestHandled).toHaveBeenCalledWith(1);
     expect(
       harness.container.querySelector(
-        '[data-testid="canvas-workbench-preview-mode-panel"][data-preview-mode="markdown"]',
+        '[data-testid="file-preview-panel"][data-preview-mode="markdown"]',
       ),
     ).not.toBeNull();
     expect(
-      harness.container.querySelector(
-        '[data-testid="canvas-workbench-markdown-preview"]',
-      )?.textContent,
+      harness.container.querySelector('[data-testid="file-preview-markdown"]')
+        ?.textContent,
     ).toContain("今日国际新闻分析");
     expect(
       harness.container.querySelector(
@@ -106,9 +105,7 @@ describe("CanvasWorkbenchLayout coding mode", () => {
     toggleFilePreview(harness.container);
     await flushEffects();
     expect(
-      harness.container.querySelector(
-        '[data-testid="canvas-workbench-code-preview"]',
-      ),
+      harness.container.querySelector('[data-testid="file-preview-code"]'),
     ).not.toBeNull();
     expect(fileTab?.getAttribute("aria-selected")).toBe("true");
     clickWorkbenchTab(harness.container, "审查");

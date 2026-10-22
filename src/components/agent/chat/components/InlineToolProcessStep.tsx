@@ -773,10 +773,8 @@ export const InlineToolProcessStep: React.FC<InlineToolProcessStepProps> = ({
                   data-testid="inline-tool-open-file"
                   data-file-path={filePath || undefined}
                   className="rounded-md p-1 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
-                  title={t("agentChat.toolCall.openInCanvas")}
-                  aria-label={t("agentChat.toolCall.openInCanvasWithTarget", {
-                    target: filePath,
-                  })}
+                  title={t("agentChat.fileChangesSummary.openFile")}
+                  aria-label={t("agentChat.fileChangesSummary.openFile")}
                   onClick={() => {
                     if (filePath && onFileClick) {
                       onFileClick(filePath, fileContent);

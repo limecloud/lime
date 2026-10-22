@@ -51,6 +51,7 @@ vi.mock("@/lib/api/browserTab", () => ({
   goForwardBrowserTab: mocks.goForward,
   isBrowserTabHostAvailable: () => true,
   listenBrowserTabClosed: vi.fn(async () => () => undefined),
+  listenBrowserTabCommand: vi.fn(async () => () => undefined),
   listenBrowserTabDownload: vi.fn(async (handler) => {
     mocks.downloadHandler = handler;
     return () => {
@@ -225,6 +226,25 @@ describe("BrowserWorkspace", () => {
     expect(ack).toHaveBeenCalledExactlyOnceWith("explicit-tab");
   });
 
+  it("acknowledges a show-only request without navigating the restored page", async () => {
+    const tab = browserState({ url: "https://example.com/current" });
+    mocks.list.mockResolvedValue([tab]);
+    mocks.setBounds.mockResolvedValue(tab);
+    const ack = vi.fn();
+    await act(async () =>
+      root.render(
+        <BrowserWorkspace
+          runtimeSessionId="session-1"
+          threadId="thread-1"
+          launchRequestId="show-only"
+          onLaunchApplied={ack}
+        />,
+      ),
+    );
+    expect(mocks.navigate).not.toHaveBeenCalled();
+    expect(ack).toHaveBeenCalledExactlyOnceWith("show-only");
+  });
+
   it("applies a new launch request to a restored native tab and ignores an older navigation result", async () => {
     const onLaunchApplied = vi.fn();
     const tab = browserState();
@@ -264,7 +284,12 @@ describe("BrowserWorkspace", () => {
       container.querySelector<HTMLInputElement>(
         'input[data-testid="browser-workspace-address"]',
       )?.value,
-    ).toBe("http://localhost:4317/second");
+    ).toBe("localhost:4317");
+    expect(
+      container
+        .querySelector('[data-testid="browser-workspace"]')
+        ?.getAttribute("data-browser-tab-id"),
+    ).toBe(browserState().tabId);
     await render("request-b", "http://localhost:4317/second");
     expect(mocks.navigate).toHaveBeenCalledTimes(2);
     expect(onLaunchApplied).toHaveBeenCalledExactlyOnceWith("request-b");
@@ -292,19 +317,35 @@ describe("BrowserWorkspace", () => {
         await new Promise((resolve) => setTimeout(resolve, 0));
       });
     await render();
-    expect(container.querySelectorAll('[role="tab"]')).toHaveLength(2);
+    expect(
+      container.querySelector('[data-testid="browser-workspace-tabs"]'),
+    ).toBeNull();
     await act(async () => root.render(null));
     expect(mocks.setBounds).toHaveBeenCalledWith(
       expect.objectContaining({ tabId: "second", visible: false }),
     );
     await render();
-    expect(container.querySelectorAll('[role="tab"]')).toHaveLength(2);
+    expect(
+      container.querySelector('[data-testid="browser-workspace-tabs"]'),
+    ).toBeNull();
     const workspace = container.querySelector(
       '[data-testid="browser-workspace"]',
     );
     expect(workspace?.getAttribute("data-browser-tab-id")).toBe("second");
     expect(workspace?.getAttribute("data-browser-view-id")).toBe("second-view");
     expect(workspace?.getAttribute("data-browser-web-contents-id")).toBe("202");
+    expect(
+      container.querySelector<HTMLInputElement>(
+        '[data-testid="browser-workspace-address"]',
+      )?.value,
+    ).toBe("example.com");
+    await act(async () =>
+      container
+        .querySelector<HTMLInputElement>(
+          '[data-testid="browser-workspace-address"]',
+        )
+        ?.focus(),
+    );
     expect(
       container.querySelector<HTMLInputElement>(
         '[data-testid="browser-workspace-address"]',
@@ -327,7 +368,9 @@ describe("BrowserWorkspace", () => {
       );
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
-    expect(container.querySelectorAll('[role="tab"]')).toHaveLength(1);
+    expect(
+      container.querySelector('[data-testid="browser-workspace-tabs"]'),
+    ).toBeNull();
     expect(
       container
         .querySelector('[data-testid="browser-workspace"]')
@@ -364,7 +407,9 @@ describe("BrowserWorkspace", () => {
         }),
       ),
     );
-    expect(container.querySelectorAll('[role="tab"]')).toHaveLength(1);
+    expect(
+      container.querySelector('[data-testid="browser-workspace-tabs"]'),
+    ).toBeNull();
     expect(container.textContent).not.toContain("Stale");
     const failed = deferred<BrowserTabState>();
     mocks.setBounds.mockReturnValueOnce(failed.promise);

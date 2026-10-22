@@ -41,6 +41,7 @@ import type {
 
 interface UseInputbarSendParams {
   input: string;
+  hasAdditionalContent?: boolean;
   pendingImages: MessageImage[];
   pathReferences: MessagePathReference[];
   activeCapability: InputCapabilitySelection | null;
@@ -73,6 +74,7 @@ interface UseInputbarSendParams {
 
 export function useInputbarSend({
   input,
+  hasAdditionalContent = false,
   pendingImages,
   pathReferences,
   activeCapability,
@@ -179,7 +181,19 @@ export function useInputbarSend({
         },
       });
       const composerReceipt = settlement.receipt;
-      if (composerReceipt?.kind === "empty") return;
+      if (composerReceipt?.kind === "empty") {
+        if (!hasAdditionalContent) return;
+        try {
+          return await onSend({
+            sendOptions: {
+              composerTarget: resolvedSubmitTarget,
+              targetSessionId: sessionId ?? undefined,
+            },
+          });
+        } catch (error) {
+          return { kind: "rejected" as const, error };
+        }
+      }
       const composerDraft = composerReceipt?.draft;
       const submittedInput = composerReceipt?.submission.text ?? input;
       const composerSubmission = composerReceipt?.submission;
@@ -456,6 +470,7 @@ export function useInputbarSend({
       clearPathReferences,
       getInputRestoreEpoch,
       input,
+      hasAdditionalContent,
       isLoading,
       onComposerAccepted,
       onComposerCommitted,

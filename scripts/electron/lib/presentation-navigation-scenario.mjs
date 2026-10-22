@@ -13,6 +13,11 @@ import {
   waitForPresentationSlide,
 } from "./presentation-preview-scenario.mjs";
 import { presentationTextEditorMatches } from "./presentation-text-editor-dom.mjs";
+import { openFileTab } from "./thread-side-panel-navigation.mjs";
+import {
+  observeNativeSaveDialogs,
+  captureNativeSaveDialog,
+} from "./native-save-dialog-observer.mjs";
 
 const p = "http://schemas.openxmlformats.org/presentationml/2006/main";
 const a = "http://schemas.openxmlformats.org/drawingml/2006/main";
@@ -139,131 +144,7 @@ export function presentationNavigationIo(trace, filePath) {
   return counts;
 }
 
-/** 捕获目标窗口的真实 DownloadItem；输出只写证据目录，监听器始终原样撤销。 */
-async function capturePresentationDownload({ app, page, savePath }, action) {
-  assert.ok(app, "download evidence requires the real ElectronApplication");
-  assert.equal(
-    fs.existsSync(savePath),
-    false,
-    "download evidence has no stale file",
-  );
-  const captureKey = "__limePresentationNavigationDownload";
-  const window = await app.browserWindow(page);
-  let contentsId;
-  try {
-    contentsId = await window.evaluate((window) => window.webContents.id);
-  } finally {
-    await window.dispose();
-  }
-  await app.evaluate(
-    ({ webContents }, { captureKey, contentsId, savePath, timeout }) => {
-      if (globalThis[captureKey])
-        throw new Error("download capture already exists");
-      const contents = webContents.fromId(contentsId);
-      if (!contents || contents.isDestroyed())
-        throw new Error("download target is unavailable");
-      const session = contents.session;
-      const capture = {
-        session,
-        count: 0,
-        item: null,
-        listenerCount: session.listenerCount("will-download"),
-        finished: false,
-      };
-      capture.done = new Promise((resolve) => {
-        capture.resolve = resolve;
-      });
-      capture.finish = (result) => {
-        if (capture.finished) return;
-        capture.finished = true;
-        clearTimeout(capture.timer);
-        capture.resolve(result);
-      };
-      capture.listener = (_event, item, source) => {
-        if (source?.id !== contentsId) return;
-        capture.count++;
-        if (capture.item) {
-          item.cancel();
-          capture.finish({ state: "duplicate", count: capture.count });
-          return;
-        }
-        capture.item = item;
-        try {
-          item.setSavePath(savePath);
-          capture.onDone = (_event, state) => {
-            capture.itemDone = true;
-            capture.finish({
-              state,
-              filename: item.getFilename(),
-              savePath: item.getSavePath(),
-              receivedBytes: item.getReceivedBytes(),
-              totalBytes: item.getTotalBytes(),
-              sourceScheme: item.getURL().split(":", 1)[0],
-              contentsId,
-            });
-          };
-          item.once("done", capture.onDone);
-        } catch (error) {
-          item.cancel();
-          capture.finish({ state: "capture-failed", message: String(error) });
-        }
-      };
-      capture.timer = setTimeout(
-        () => capture.finish({ state: "timed-out" }),
-        timeout,
-      );
-      globalThis[captureKey] = capture;
-      session.on("will-download", capture.listener);
-    },
-    { captureKey, contentsId, savePath, timeout },
-  );
-  let result;
-  let cleanup;
-  try {
-    await action();
-    result = await app.evaluate(async (_electron, captureKey) => {
-      const capture = globalThis[captureKey];
-      if (!capture) throw new Error("download capture is missing");
-      return capture.done;
-    }, captureKey);
-    assert.equal(
-      result.state,
-      "completed",
-      "the actual Electron download completed",
-    );
-    assert.equal(result.savePath, savePath);
-  } finally {
-    cleanup = await app.evaluate((_electron, captureKey) => {
-      const capture = globalThis[captureKey];
-      if (!capture) throw new Error("download capture cleanup is missing");
-      clearTimeout(capture.timer);
-      capture.session.removeListener("will-download", capture.listener);
-      if (capture.item && capture.onDone)
-        capture.item.removeListener("done", capture.onDone);
-      if (capture.item && !capture.itemDone) capture.item.cancel();
-      const result = {
-        capturedDownloads: capture.count,
-        listenerRemoved: !capture.session
-          .listeners("will-download")
-          .includes(capture.listener),
-        listenerCountBefore: capture.listenerCount,
-        listenerCountAfter: capture.session.listenerCount("will-download"),
-      };
-      delete globalThis[captureKey];
-      return result;
-    }, captureKey);
-    assert.equal(cleanup.listenerRemoved, true);
-    assert.equal(cleanup.listenerCountAfter, cleanup.listenerCountBefore);
-  }
-  assert.equal(
-    cleanup.capturedDownloads,
-    1,
-    "one native download belongs to this action",
-  );
-  return { ...result, ...cleanup };
-}
-
-/** 保持原生编辑器活动后离开，证明保存门禁与真实文件/IPC 的闭环。 */
+/** current Files 的标签身份、保存门禁与真实原生保存副本。 */
 export async function runPresentationNavigationScenario({
   app,
   page,
@@ -273,15 +154,35 @@ export async function runPresentationNavigationScenario({
 }) {
   const panel = page.getByTestId("presentation-panel");
   const controls = panel.getByTestId("presentation-editing-controls");
-  const toggle = page.getByTestId("task-center-workbench-toggle");
-  const close = page.getByTestId("canvas-workbench-header-row").locator("..");
+  const toggle = page.getByTestId("thread-side-panel-toggle");
   const frame = createArtifactFrameDriver(page, presentationFrameSelector);
   const counts = async () =>
     presentationNavigationIo(await readTrace(), filePath);
-  const fileButton = () =>
-    page
-      .getByTestId("canvas-workbench-panel-workspace")
-      .getByTitle(path.basename(filePath), { exact: true });
+  const copyRequests = async () =>
+    (await readTrace()).flatMap((row) => {
+      if (
+        row.transport !== "electron-ipc" ||
+        row.command !== "app_server_handle_json_lines" ||
+        row.status !== "success"
+      )
+        return [];
+      return (row.args_preview?.request?.lines ?? [])
+        .map((line) => JSON.parse(line))
+        .filter(
+          (request) =>
+            request.method === "fs/copy" &&
+            request.params?.sourcePath === filePath,
+        );
+    });
+  const selectedTab = () =>
+    page.locator(
+      '[data-testid="workspace-right-surface-tab-files"][aria-selected="true"]',
+    );
+  const closeSelected = () =>
+    selectedTab()
+      .locator("..")
+      .getByTestId("workspace-right-surface-tab-close")
+      .click();
   const waitReady = async (sha256, value) => {
     await waitForPresentationSlide(page, "512");
     const state = await page.waitForFunction(
@@ -307,78 +208,17 @@ export async function runPresentationNavigationScenario({
     );
     await state.dispose();
   };
-  const selectFile = async (minimumReads = 1) => {
-    const before = await counts();
-    const previous = (await panel.count()) ? await panel.elementHandle() : null;
-    await fileButton().click();
-    const after = await waitForArtifactFileRead(
-      async () => (await counts()).read,
-      before.read + minimumReads - 1,
-      timeout,
-    );
-    const panelReplaced = previous
-      ? !(await previous.evaluate((node) => node.isConnected))
-      : null;
-    await previous?.dispose();
-    return { panelReplaced, sourceReads: after - before.read };
-  };
-  const newFileTab = async () => {
-    const previousTab = await currentTab();
-    await page.getByTestId("canvas-workbench-tab-menu-trigger").click();
-    await page
-      .getByRole("menuitem", { name: "新建工作台标签-文件", exact: true })
-      .click();
-    const selected = await page.waitForFunction(
-      (previousTab) => {
-        const node = document.querySelector(
-          '[data-testid="canvas-workbench-top-tabs"] [role="tab"][aria-selected="true"]',
-        );
-        const key = node
-          ?.closest("[data-canvas-tab-key]")
-          ?.getAttribute("data-canvas-tab-key");
-        return !!key && key !== previousTab;
-      },
-      previousTab,
-      { timeout },
-    );
-    await selected.dispose();
-  };
-  const open = async (saved, value) => {
-    const before = await counts();
-    if ((await toggle.getAttribute("aria-label")) === "打开工作台")
-      await toggle.click();
-    await newFileTab();
-    await selectFile();
-    await waitReady(saved.sha256, value);
-    const after = await counts();
-    assert.ok(
-      after.read > before.read,
-      "reopening performs a real source read IPC",
-    );
-    assert.equal(
-      after.write,
-      before.write,
-      "reopening a saved file adds no write",
-    );
-    return { sourceReads: after.read - before.read, sha256: saved.sha256 };
-  };
   const editActive = async (value) => {
     const before = await readPresentationNavigationFile(filePath);
     const beforeIo = await counts();
-    if (
-      await controls.getByRole("button", { name: "编辑", exact: true }).count()
-    )
-      await controls.getByRole("button", { name: "编辑", exact: true }).click();
-    const elements = await frame.read(
-      '[data-slide-id="512"] > button[data-presentation-element-id]',
-    );
-    assert.equal(elements[0]?.attributes["data-presentation-element-id"], "2");
+    const edit = controls.getByRole("button", { name: "编辑", exact: true });
+    if (await edit.isVisible()) await edit.click();
     await frame.click('[data-presentation-element-id="2"]');
     await controls
       .getByRole("button", { name: "编辑文字", exact: true })
       .click();
     await frame.click("[data-presentation-text-editor]");
-    await page.keyboard.press("Meta+A");
+    await page.keyboard.press("ControlOrMeta+A");
     await page.keyboard.insertText(value);
     const active = await page.waitForFunction(
       presentationTextEditorMatches,
@@ -393,12 +233,12 @@ export async function runPresentationNavigationScenario({
     assert.equal(await controls.getAttribute("data-dirty"), "true");
     assert.equal(await controls.getAttribute("data-saving"), "false");
     assert.equal(digest(fs.readFileSync(filePath)), before.sha256);
-    assert.equal(
-      (await counts()).write,
-      beforeIo.write,
-      "active text has not auto-saved",
+    assert.deepEqual(
+      await counts(),
+      beforeIo,
+      "active editor performs no file IO",
     );
-    return { before, beforeIo, activeTextEditor: true };
+    return { before, beforeIo };
   };
   const savedAfter = async (captured, value) => {
     const saved = await readPresentationNavigationFile(filePath);
@@ -408,38 +248,37 @@ export async function runPresentationNavigationScenario({
       value,
     );
     const afterIo = await counts();
-    const fileIoDelta = {
+    const delta = {
       read: afterIo.read - captured.beforeIo.read,
       write: afterIo.write - captured.beforeIo.write,
     };
     assert.ok(
-      fileIoDelta.read >= 2,
-      "save checks source SHA through real read IPC twice",
+      delta.read >= 2,
+      "save verifies the source revision through real IPC",
     );
-    assert.ok(
-      fileIoDelta.write > 0,
-      "navigation writes the original source through IPC",
-    );
+    assert.equal(delta.write, 1, "one source save belongs to this edit");
     return {
       saved,
       evidence: {
-        activeTextEditor: true,
+        activeTextSaved: true,
         sha256: saved.sha256,
         preservedParts,
-        fileIoDelta,
+        fileIoDelta: delta,
       },
     };
   };
-  const currentTab = () =>
-    page
-      .getByTestId("canvas-workbench-top-tabs")
-      .locator('[role="tab"][aria-selected="true"]')
-      .evaluate((node) =>
-        node
-          .closest("[data-canvas-tab-key]")
-          ?.getAttribute("data-canvas-tab-key"),
-      );
-
+  const open = async (saved, value) => {
+    const before = await counts();
+    await openFileTab(page, filePath);
+    await waitReady(saved.sha256, value);
+    const after = await counts();
+    assert.ok(
+      after.read > before.read,
+      "closed content performs fresh source reads",
+    );
+    assert.equal(after.write, before.write, "reopen adds no write");
+    return { sourceReads: after.read - before.read, sha256: saved.sha256 };
+  };
   const initial = await readPresentationNavigationFile(filePath);
   assert.deepEqual(
     initial.slides.map((slide) => slide.id),
@@ -448,254 +287,342 @@ export async function runPresentationNavigationScenario({
   const originalText = initial.slides[0].text;
   assert.ok(originalText.includes("SLIDE_PREVIEW_01"));
   await waitReady(initial.sha256, originalText);
-  assert.equal(
-    await controls.getByRole("button", { name: "编辑", exact: true }).count(),
-    1,
-  );
   const evidence = { initialSha256: initial.sha256, slideIds: originalIds };
 
-  let value = "PPTX_NAVIGATION_CLOSE_中文 <&>";
+  let value = "PPTX_FILE_CLOSE_中文 <&>";
   let captured = await editActive(value);
-  await close
-    .getByRole("button", { name: "关闭画布工作台", exact: true })
-    .click();
-  await panel.waitFor({ state: "hidden", timeout });
-  assert.equal(await toggle.getAttribute("aria-label"), "打开工作台");
+  const closedTabId = await selectedTab().getAttribute("id");
+  const closedPanel = await panel.elementHandle();
+  await closeSelected();
+  await page
+    .locator(`[id="${closedTabId}"]`)
+    .waitFor({ state: "detached", timeout });
   let result = await savedAfter(captured, value);
   evidence.close = {
     ...result.evidence,
     reopen: await open(result.saved, value),
   };
+  assert.equal(await closedPanel.evaluate((node) => node.isConnected), false);
+  await closedPanel.dispose();
 
-  value = "PPTX_NAVIGATION_COLLAPSE_中文 <&>";
+  value = "PPTX_FILE_REUSED_DRAFT_中文 <&>";
   captured = await editActive(value);
+  const content = await panel.elementHandle();
+  const sourceTabId = await selectedTab().getAttribute("id");
+  const assertDraftPreserved = async () => {
+    assert.equal(await content.evaluate((node) => node.isConnected), true);
+    assert.equal(await selectedTab().getAttribute("id"), sourceTabId);
+    assert.equal(await controls.getAttribute("data-dirty"), "true");
+    assert.equal(await controls.getAttribute("data-saving"), "false");
+    assert.ok((await frame.text('[data-slide-id="512"]')).includes(value));
+    assert.equal(digest(fs.readFileSync(filePath)), captured.before.sha256);
+    assert.deepEqual(
+      await counts(),
+      captured.beforeIo,
+      "display-only navigation has no source read/write",
+    );
+  };
   await toggle.click();
   await panel.waitFor({ state: "hidden", timeout });
-  assert.equal(await toggle.getAttribute("aria-label"), "打开工作台");
-  result = await savedAfter(captured, value);
-  evidence.collapse = {
-    ...result.evidence,
-    reopen: await open(result.saved, value),
+  assert.equal(await toggle.getAttribute("aria-expanded"), "false");
+  assert.equal(await content.evaluate((node) => node.isConnected), true);
+  await toggle.click();
+  await panel.waitFor({ state: "visible", timeout });
+  await assertDraftPreserved();
+  evidence.hide = {
+    sameContentInstance: true,
+    draftPreserved: true,
+    sourceIoDelta: { read: 0, write: 0 },
   };
 
-  value = "PPTX_NAVIGATION_SAME_PATH_中文 <&>";
-  captured = await editActive(value);
-  const samePath = await selectFile(3);
-  result = await savedAfter(captured, value);
-  await waitReady(result.saved.sha256, value);
-  assert.ok(
-    result.evidence.fileIoDelta.read >= 3,
-    "same-path selection rereads saved bytes",
-  );
-  evidence.samePath = { ...result.evidence, ...samePath };
-
-  value = "PPTX_NAVIGATION_DOWNLOAD_中文 <&>";
-  captured = await editActive(value);
-  const downloadPath = path.resolve(
-    evidenceDir,
-    "presentation-navigation-download.pptx",
-  );
-  const nativeDownload = await capturePresentationDownload(
-    { app, page, savePath: downloadPath },
+  const tree = page
+    .getByTestId("workspace-right-surface-active-pane")
+    .getByTestId("workspace-file-tree");
+  await tree.getByRole("textbox").fill(path.basename(filePath));
+  await tree.getByTitle(filePath, { exact: true }).dblclick();
+  // 文件树接管焦点会提交活动编辑，current Office 自动保存可随后正常完成。
+  await page.waitForFunction(
     () =>
-      page
-        .getByTestId("canvas-workbench-header-actions")
-        .getByRole("button", { name: "下载", exact: true })
-        .click(),
+      document
+        .querySelector('[data-testid="presentation-editing-controls"]')
+        ?.getAttribute("data-dirty") === "false",
+    undefined,
+    { timeout },
   );
+  assert.equal(await content.evaluate((node) => node.isConnected), true);
+  assert.equal(await selectedTab().getAttribute("id"), sourceTabId);
   result = await savedAfter(captured, value);
   await waitReady(result.saved.sha256, value);
-  assert.ok(
-    result.evidence.fileIoDelta.read >= 3,
-    "download reads the newly saved source through IPC",
-  );
-  const downloaded = await readPresentationNavigationFile(downloadPath);
-  const downloadedBytes = fs.readFileSync(downloadPath);
-  assert.equal(
-    nativeDownload.filename,
-    path.basename(filePath),
-    "download retains the original PPTX filename",
-  );
-  assert.equal(nativeDownload.sourceScheme, "blob");
-  assert.equal(nativeDownload.receivedBytes, downloadedBytes.length);
-  assert.equal(nativeDownload.totalBytes, downloadedBytes.length);
-  assert.equal(downloaded.sha256, result.saved.sha256);
-  assert.deepEqual(
-    downloadedBytes,
-    fs.readFileSync(filePath),
-    "the native download contains the exact saved PPTX bytes",
-  );
-  assertPresentationNavigationSave(captured.before, downloaded, value);
-  const downloadEvidence = {
-    verified: true,
+  evidence.samePath = {
     ...result.evidence,
-    ...nativeDownload,
-    downloadedSha256: downloaded.sha256,
-    filenamePreserved: true,
-    sourceBytesIdentical: true,
+    sameContentInstance: true,
+    fullContentPreserved: true,
+    saveOwner: "current controller autosave after editor blur",
   };
 
-  // 最后一次正常导航用真实文字编辑恢复原页，供后续批注场景继续使用。
-  value = originalText;
+  await page.getByTestId("workspace-right-surface-new-tab").click();
+  await page.getByTestId("side-panel-new-tab-open-file").click();
+  const emptyTabId = await selectedTab().getAttribute("id");
+  assert.notEqual(emptyTabId, sourceTabId);
+  assert.equal(await content.evaluate((node) => node.isConnected), true);
+  await page.locator(`[id="${sourceTabId}"]`).click();
+  await waitReady(result.saved.sha256, value);
+  assert.equal(await content.evaluate((node) => node.isConnected), true);
+  await page
+    .locator(`[id="${emptyTabId}"]`)
+    .locator("..")
+    .getByTestId("workspace-right-surface-tab-close")
+    .click();
+  await waitReady(result.saved.sha256, value);
+  assert.equal(await content.evaluate((node) => node.isConnected), true);
+  evidence.newFileTab = {
+    sourceTabId,
+    emptyTabId,
+    sameContentInstance: true,
+    fullContentPreserved: true,
+  };
+  assert.deepEqual(
+    await counts(),
+    {
+      read: captured.beforeIo.read + result.evidence.fileIoDelta.read,
+      write: captured.beforeIo.write + result.evidence.fileIoDelta.write,
+    },
+    "new and background tabs add no source IO",
+  );
+  await content.dispose();
+  value = "PPTX_NATIVE_SAVE_ACTIVE_中文 <&>";
   captured = await editActive(value);
-  const previousTab = await currentTab();
-  assert.ok(previousTab);
-  await newFileTab();
-  const selectedTab = await currentTab();
-  assert.ok(
-    selectedTab && selectedTab !== previousTab,
-    "new file tab becomes active after saving",
-  );
-  result = await savedAfter(captured, value);
-  await waitReady(result.saved.sha256, value);
-  const beforeSelect = await counts();
-  await selectFile();
-  await waitReady(result.saved.sha256, value);
-  assert.ok(
-    (await counts()).read > beforeSelect.read,
-    "new tab reads the saved source",
-  );
-  evidence.newFileTab = { ...result.evidence, previousTab, selectedTab };
 
-  const conflictValue = "PPTX_NAVIGATION_CONFLICT_DRAFT_MUST_SURVIVE";
-  captured = await editActive(conflictValue);
-  const externalZip = await JSZip.loadAsync(fs.readFileSync(filePath));
-  externalZip.file(
-    "customXml/navigation-external-change.xml",
-    "external fixture modification",
-  );
-  const externalBytes = await externalZip.generateAsync({ type: "nodebuffer" });
-  fs.writeFileSync(filePath, externalBytes);
-  const external = await readPresentationNavigationFile(filePath);
-  assert.notEqual(external.sha256, captured.before.sha256);
-  const beforeConflict = await counts();
-  const originalPanel = await panel.elementHandle();
-  assert.ok(originalPanel);
-  const assertBlocked = async (action) => {
-    await action();
-    await controls.getByRole("alert").waitFor({ state: "visible", timeout });
-    const finished = await page.waitForFunction(
-      () => {
-        const controls = document.querySelector(
-          '[data-testid="presentation-editing-controls"]',
-        );
-        const alert = controls?.querySelector('[role="alert"]');
-        return (
-          controls?.getAttribute("data-saving") === "false" &&
-          alert?.textContent?.includes("文件已被外部修改")
-        );
+  const observer = await observeNativeSaveDialogs(app);
+  try {
+    const download = () =>
+      page
+        .getByTestId("workspace-right-surface-active-pane")
+        .getByRole("button", { name: "下载文件", exact: true });
+    const destination = path.resolve(
+      evidenceDir,
+      "presentation-save-copy.pptx",
+    );
+    assert.equal(fs.existsSync(destination), false);
+    const beforeCopy = (await copyRequests()).length;
+    const nativeSave = await captureNativeSaveDialog(
+      {
+        observer,
+        evidenceDir,
+        label: "copy",
+        sourcePath: filePath,
+        destination,
+        onPending: async () => {
+          const saved = await readPresentationNavigationFile(filePath);
+          assertPresentationNavigationSave(captured.before, saved, value);
+          assert.equal(await controls.getAttribute("data-dirty"), "false");
+          assert.equal(await download().getAttribute("aria-busy"), "true");
+          assert.equal(await download().isDisabled(), true);
+          assert.equal(
+            (await copyRequests()).length,
+            beforeCopy,
+            "no copy before actual destination selection",
+          );
+          return {
+            sha256: saved.sha256,
+            fullText: saved.slides[0].text,
+            io: await counts(),
+          };
+        },
       },
+      () => download().click(),
+    );
+    await waitForArtifactFileRead(
+      async () => Number(fs.existsSync(destination)),
+      0,
+      timeout,
+    );
+    await waitForArtifactFileRead(
+      async () => (await copyRequests()).length,
+      beforeCopy,
+      timeout,
+    );
+    result = await savedAfter(captured, value);
+    const copied = await readPresentationNavigationFile(destination);
+    assertPresentationNavigationSave(captured.before, copied, value);
+    assert.deepEqual(fs.readFileSync(destination), fs.readFileSync(filePath));
+    const copies = await copyRequests();
+    assert.equal(copies.length, beforeCopy + 1);
+    assert.equal(copies.at(-1).params.destinationPath, destination);
+    assert.equal(copies.at(-1).params.recursive, false);
+    evidence.saveCopy = {
+      ...result.evidence,
+      nativeSave,
+      destination,
+      copiedSha256: copied.sha256,
+      sourceBytesIdentical: true,
+      actualCopyRpc: copies.at(-1),
+    };
+    await waitReady(result.saved.sha256, value);
+
+    value = "PPTX_SAVE_COPY_CANCEL_中文 <&>";
+    captured = await editActive(value);
+    const beforeCancel = (await copyRequests()).length;
+    const nativeCancel = await captureNativeSaveDialog(
+      {
+        observer,
+        evidenceDir,
+        label: "cancel",
+        sourcePath: filePath,
+        destination: null,
+        onPending: async () => {
+          const saved = await readPresentationNavigationFile(filePath);
+          assertPresentationNavigationSave(captured.before, saved, value);
+          assert.equal((await copyRequests()).length, beforeCancel);
+          return { sha256: saved.sha256, fullText: saved.slides[0].text };
+        },
+      },
+      () => download().click(),
+    );
+    await page.waitForFunction(
+      () =>
+        document
+          .querySelector(
+            '[data-testid="workspace-right-surface-active-pane"] button[aria-label="下载文件"]',
+          )
+          ?.getAttribute("aria-busy") === "false",
       undefined,
       { timeout },
     );
-    await finished.dispose();
-    assert.equal(await panel.isVisible(), true);
+    result = await savedAfter(captured, value);
     assert.equal(
-      await originalPanel.evaluate((node) => node.isConnected),
-      true,
-    );
-    assert.equal(await toggle.getAttribute("aria-label"), "关闭工作台");
-    assert.equal(await currentTab(), selectedTab);
-    assert.equal(await controls.getAttribute("data-dirty"), "true");
-    assert.equal(
-      await panel.getAttribute("data-source-sha256"),
-      captured.before.sha256,
-    );
-    assert.ok(
-      (await frame.text('[data-slide-id="512"]')).includes(conflictValue),
+      (await copyRequests()).length,
+      beforeCancel,
+      "native cancellation copies nothing",
     );
     assert.equal(
-      digest(fs.readFileSync(filePath)),
-      external.sha256,
-      "conflict does not overwrite disk",
+      digest(fs.readFileSync(destination)),
+      copied.sha256,
+      "cancel does not overwrite prior export",
     );
-    assert.equal(
-      (await counts()).write,
-      beforeConflict.write,
-      "conflict performs zero write IPC",
+    evidence.cancel = { ...result.evidence, nativeCancel, copyRpcDelta: 0 };
+
+    captured = await editActive(originalText);
+    await controls.getByRole("button", { name: "保存", exact: true }).click();
+    await page.waitForFunction(
+      () =>
+        document
+          .querySelector('[data-testid="presentation-editing-controls"]')
+          ?.getAttribute("data-dirty") === "false",
+      undefined,
+      { timeout },
     );
-  };
-  try {
-    await assertBlocked(() =>
-      close
-        .getByRole("button", { name: "关闭画布工作台", exact: true })
-        .click(),
+    result = await savedAfter(captured, originalText);
+    await waitReady(result.saved.sha256, originalText);
+
+    const conflictValue = "PPTX_FILE_CONFLICT_DRAFT_MUST_SURVIVE";
+    captured = await editActive(conflictValue);
+    const externalZip = await JSZip.loadAsync(fs.readFileSync(filePath));
+    externalZip.file(
+      "customXml/navigation-external-change.xml",
+      "external fixture modification",
     );
-    await assertBlocked(() => toggle.click());
+    const externalBytes = await externalZip.generateAsync({
+      type: "nodebuffer",
+    });
+    fs.writeFileSync(filePath, externalBytes);
+    const external = await readPresentationNavigationFile(filePath);
+    const beforeConflict = await counts();
+    const dialogsBeforeConflict = (await observer.snapshot()).length;
+    const copiesBeforeConflict = (await copyRequests()).length;
+    const originalPanel = await panel.elementHandle();
+    const assertConflictPreserved = async () => {
+      assert.equal(
+        await originalPanel.evaluate((node) => node.isConnected),
+        true,
+      );
+      assert.equal(await selectedTab().getAttribute("id"), sourceTabId);
+      assert.equal(await controls.getAttribute("data-dirty"), "true");
+      assert.equal(
+        await panel.getAttribute("data-source-sha256"),
+        captured.before.sha256,
+      );
+      assert.ok(
+        (await frame.text('[data-slide-id="512"]')).includes(conflictValue),
+      );
+      assert.equal(digest(fs.readFileSync(filePath)), external.sha256);
+      assert.equal(
+        (await counts()).write,
+        beforeConflict.write,
+        "conflict never overwrites disk",
+      );
+      assert.equal((await copyRequests()).length, copiesBeforeConflict);
+      assert.equal(
+        (await observer.snapshot()).length,
+        dialogsBeforeConflict,
+        "blocked save never opens a native chooser",
+      );
+    };
+    await download().click();
+    await controls.getByRole("alert").waitFor({ state: "visible", timeout });
+    await page.waitForFunction(
+      () =>
+        document
+          .querySelector(
+            '[data-testid="workspace-right-surface-active-pane"] button[aria-label="下载文件"]',
+          )
+          ?.getAttribute("aria-busy") === "false",
+      undefined,
+      { timeout },
+    );
+    await assertConflictPreserved();
+    await closeSelected();
+    const dialog = page.getByTestId("discard-file-changes-dialog");
+    await dialog.waitFor({ state: "visible", timeout });
+    await page.getByTestId("discard-file-changes-cancel").click();
+    await assertConflictPreserved();
+    await closeSelected();
+    await dialog.waitFor({ state: "visible", timeout });
     await page.screenshot({
       path: path.join(evidenceDir, "presentation-navigation-conflict.png"),
     });
-  } finally {
+    await page.getByTestId("discard-file-changes-confirm").click();
+    await page
+      .locator(`[id="${sourceTabId}"]`)
+      .waitFor({ state: "detached", timeout });
+    assert.equal(
+      await originalPanel.evaluate((node) => node.isConnected),
+      false,
+    );
     await originalPanel.dispose();
+    const beforeReopen = await counts();
+    await open(external, originalText);
+    assert.equal((await counts()).write, beforeReopen.write);
+    assert.equal(digest(fs.readFileSync(filePath)), external.sha256);
+    assert.equal(
+      (await frame.text('[data-slide-id="512"]')).includes(conflictValue),
+      false,
+    );
+    evidence.conflict = {
+      saveCopyBlocked: true,
+      closeCancelPreservesDraft: true,
+      explicitDiscardCloses: true,
+      reopenReadsExternalBytes: true,
+      writeIpcDelta: 0,
+      copyRpcDelta: 0,
+      nativeDialogDelta: 0,
+      externalSha256: external.sha256,
+    };
+  } finally {
+    const observation = await observer.stop();
+    evidence.nativeObservation = observation;
+    fs.writeFileSync(
+      path.join(evidenceDir, "native-save-observation.json"),
+      JSON.stringify(observation, null, 2) + "\n",
+    );
+    assert.equal(observation.originalRestored, true);
   }
-  const afterConflict = await counts();
-  assert.ok(
-    afterConflict.read > beforeConflict.read,
-    "conflict reads external bytes through IPC",
-  );
-
-  await controls.getByRole("button", { name: "放弃更改", exact: true }).click();
-  const dialog = page.getByRole("alertdialog");
-  await dialog.getByRole("button", { name: "继续编辑", exact: true }).click();
-  assert.equal(await controls.getAttribute("data-dirty"), "true");
-  assert.ok(
-    (await frame.text('[data-slide-id="512"]')).includes(conflictValue),
-  );
-  await controls.getByRole("button", { name: "放弃更改", exact: true }).click();
-  const beforeDiscard = await counts();
-  await dialog.getByRole("button", { name: "放弃更改", exact: true }).click();
-  await dialog.waitFor({ state: "detached", timeout });
-  await waitReady(external.sha256, originalText);
-  const afterDiscard = await counts();
-  assert.ok(
-    afterDiscard.read > beforeDiscard.read,
-    "explicit discard reads the actual disk version",
-  );
-  assert.equal(afterDiscard.write, beforeConflict.write);
-  assert.equal(digest(fs.readFileSync(filePath)), external.sha256);
-  assert.equal(
-    (await frame.text('[data-slide-id="512"]')).includes(conflictValue),
-    false,
-  );
-  if (
-    await controls
-      .getByRole("button", { name: "结束编辑", exact: true })
-      .count()
-  )
-    await controls
-      .getByRole("button", { name: "结束编辑", exact: true })
-      .click();
-  assert.equal(
-    await controls.getByRole("button", { name: "编辑", exact: true }).count(),
-    1,
-  );
   assert.equal(
     await panel.locator("iframe").getAttribute("sandbox"),
     "allow-same-origin",
   );
   assert.equal(await frame.count("script,iframe,a[href],[onclick]"), 0);
-  evidence.conflict = {
-    shellCloseBlocked: true,
-    collapseBlocked: true,
-    draftPreserved: true,
-    writeIpcDelta: afterConflict.write - beforeConflict.write,
-    readIpcDelta: afterConflict.read - beforeConflict.read,
-    externalSha256: external.sha256,
-    explicitDiscard: true,
-    discardSourceReads: afterDiscard.read - beforeDiscard.read,
-  };
-  evidence.publicActions = {
-    sourceSwitch: {
-      verified: false,
-      reason: "PPTX uses the direct presentation preview without a source tab",
-    },
-    download: downloadEvidence,
-    systemOpen: {
-      verified: false,
-      reason: "opening the OS application would create an external side effect",
-    },
-  };
-  evidence.finalSha256 = external.sha256;
+  evidence.finalSha256 = digest(fs.readFileSync(filePath));
   evidence.restoredOriginalSlideText = true;
   evidence.scriptsAllowed = false;
   await page.screenshot({
@@ -703,7 +630,7 @@ export async function runPresentationNavigationScenario({
   });
   fs.writeFileSync(
     path.join(evidenceDir, "presentation-navigation.json"),
-    `${JSON.stringify(evidence, null, 2)}\n`,
+    JSON.stringify(evidence, null, 2) + "\n",
   );
   return evidence;
 }

@@ -23,6 +23,29 @@ export interface EmbeddedBrowserViewState {
   loadProgress?: number;
   zoomFactor?: number;
   find?: EmbeddedBrowserFindState;
+  audioMuted?: boolean;
+  audible?: boolean;
+  device?: EmbeddedBrowserDeviceState | null;
+}
+
+export interface EmbeddedBrowserDeviceState {
+  width: number;
+  height: number;
+  deviceScaleFactor: number;
+  scale: number;
+  mobile: boolean;
+}
+
+export interface BrowserScreenshot {
+  dataUrl: string;
+  width: number;
+  height: number;
+  copiedToClipboard: boolean;
+}
+
+export interface BrowserPrintResult {
+  printed: boolean;
+  failureReason: string | null;
 }
 
 export interface EmbeddedBrowserFindState {
@@ -112,6 +135,10 @@ const EMBEDDED_BROWSER_REQUIRED_COMMANDS = [
   "embedded_browser_view_go_back",
   "embedded_browser_view_go_forward",
   "embedded_browser_view_destroy",
+  "embedded_browser_view_print",
+  "embedded_browser_view_capture_screenshot",
+  "embedded_browser_view_set_audio_muted",
+  "embedded_browser_view_set_device",
 ] as const;
 
 export function isEmbeddedBrowserHostAvailable(): boolean {
@@ -219,6 +246,79 @@ export async function goBackEmbeddedBrowserView(
   viewId: string,
 ): Promise<EmbeddedBrowserViewState> {
   return invokeEmbeddedBrowser("embedded_browser_view_go_back", { viewId });
+}
+
+export async function printEmbeddedBrowserView(
+  viewId: string,
+): Promise<BrowserPrintResult> {
+  const result = await safeInvoke<unknown>("embedded_browser_view_print", {
+    viewId,
+  });
+  assertBrowserPrintResult(result);
+  return result;
+}
+
+export async function captureEmbeddedBrowserView(
+  viewId: string,
+  copyToClipboard = false,
+): Promise<BrowserScreenshot> {
+  const result = await safeInvoke<unknown>(
+    "embedded_browser_view_capture_screenshot",
+    { viewId, copyToClipboard },
+  );
+  assertBrowserScreenshot(result);
+  return result;
+}
+
+export async function setEmbeddedBrowserViewAudioMuted(
+  viewId: string,
+  muted: boolean,
+): Promise<EmbeddedBrowserViewState> {
+  return invokeEmbeddedBrowser("embedded_browser_view_set_audio_muted", {
+    viewId,
+    muted,
+  });
+}
+
+export async function setEmbeddedBrowserViewDevice(
+  viewId: string,
+  device: EmbeddedBrowserDeviceState | null,
+): Promise<EmbeddedBrowserViewState> {
+  return invokeEmbeddedBrowser("embedded_browser_view_set_device", {
+    viewId,
+    device,
+  });
+}
+
+export function assertBrowserPrintResult(
+  value: unknown,
+): asserts value is BrowserPrintResult {
+  const result = value as Partial<BrowserPrintResult> | null;
+  if (
+    !result ||
+    typeof result.printed !== "boolean" ||
+    (result.failureReason !== null && typeof result.failureReason !== "string")
+  ) {
+    throw new Error("Browser print returned an invalid result");
+  }
+}
+
+export function assertBrowserScreenshot(
+  value: unknown,
+): asserts value is BrowserScreenshot {
+  const result = value as Partial<BrowserScreenshot> | null;
+  if (
+    !result ||
+    typeof result.dataUrl !== "string" ||
+    !result.dataUrl.startsWith("data:image/png;base64,") ||
+    !Number.isInteger(result.width) ||
+    Number(result.width) <= 0 ||
+    !Number.isInteger(result.height) ||
+    Number(result.height) <= 0 ||
+    typeof result.copiedToClipboard !== "boolean"
+  ) {
+    throw new Error("Browser capture returned an invalid PNG screenshot");
+  }
 }
 
 export async function goForwardEmbeddedBrowserView(
@@ -365,10 +465,7 @@ function assertEmbeddedBrowserPermissionRequestEvent(
       typeof record.embeddingOrigin === "string" ||
       record.embeddingOrigin === null
     ) ||
-    !(
-      record.decision === "blocked" ||
-      record.decision === "pending"
-    )
+    !(record.decision === "blocked" || record.decision === "pending")
   ) {
     throw new Error("embedded browser 权限事件字段不完整。");
   }

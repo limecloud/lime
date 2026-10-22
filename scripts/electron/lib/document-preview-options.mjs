@@ -4,6 +4,8 @@ import assert from "node:assert/strict";
 export function parseDocumentPreviewOptions(argv) {
   const runId = argv[2];
   const withAnnotations = argv.includes("--annotations");
+  const withOfficeLifecycle = argv.includes("--office-lifecycle");
+  const withMediaPreview = argv.includes("--media-preview");
   const withWorkbookEditing = argv.includes("--workbook-editing");
   const withWorkbookClipboard = argv.includes("--workbook-clipboard");
   const withPresentationEditing = argv.includes("--presentation-editing");
@@ -51,13 +53,15 @@ export function parseDocumentPreviewOptions(argv) {
     !withBatchAnnotations || withAnnotations,
     "batch extends the annotation scenario",
   );
-  const format = argv.includes("--presentation")
-    ? "presentation"
-    : argv.includes("--workbook")
-      ? "workbook"
-      : argv.includes("--docx")
-        ? "docx"
-        : "pdf";
+  const format = withMediaPreview
+    ? "media"
+    : argv.includes("--presentation")
+      ? "presentation"
+      : argv.includes("--workbook")
+        ? "workbook"
+        : argv.includes("--docx")
+          ? "docx"
+          : "pdf";
   assert.ok(
     !withWorkbookClipboard ||
       (format === "workbook" &&
@@ -75,13 +79,15 @@ export function parseDocumentPreviewOptions(argv) {
     "DOCX Composer scenario extends batch annotations",
   );
   const filename =
-    format === "presentation"
-      ? "Preview-report.pptx"
-      : format === "workbook"
-        ? "Preview-report.xlsx"
-        : format === "docx"
-          ? "Preview-report.docx"
-          : "Preview-report.pdf";
+    format === "media"
+      ? "Preview-image.png"
+      : format === "presentation"
+        ? "Preview-report.pptx"
+        : format === "workbook"
+          ? "Preview-report.xlsx"
+          : format === "docx"
+            ? "Preview-report.docx"
+            : "Preview-report.pdf";
   assert.ok(
     !(
       withPresentationStructure ||
@@ -112,9 +118,50 @@ export function parseDocumentPreviewOptions(argv) {
     "table scenario uses its independent source fixture",
   );
   assert.match(runId ?? "", /^[a-zA-Z0-9_-]+$/, "provide a fresh run id");
+  assert.ok(
+    !withMediaPreview ||
+      !(
+        withAnnotations ||
+        withOfficeLifecycle ||
+        withWorkbookEditing ||
+        withWorkbookClipboard ||
+        withDelimitedEditing ||
+        withPresentationEditing ||
+        withPresentationStructure ||
+        withPresentationNavigation ||
+        withPresentationTable ||
+        withPresentationTableFormat ||
+        withPresentationTableBuiltin ||
+        withPresentationElements ||
+        withPresentationRichText ||
+        ["--presentation", "--workbook", "--docx"].some((flag) =>
+          argv.includes(flag),
+        )
+      ),
+    "media preview requires independent image/audio/video source fixtures",
+  );
+  assert.ok(
+    !withOfficeLifecycle ||
+      (["workbook", "presentation"].includes(format) &&
+        !withAnnotations &&
+        !withWorkbookEditing &&
+        !withWorkbookClipboard &&
+        !withDelimitedEditing &&
+        !withPresentationEditing &&
+        !withPresentationStructure &&
+        !withPresentationNavigation &&
+        !withPresentationTable &&
+        !withPresentationTableFormat &&
+        !withPresentationTableBuiltin &&
+        !withPresentationElements &&
+        !withPresentationRichText),
+    "Office close lifecycle requires an independent workbook or presentation source",
+  );
   return {
     runId,
     withAnnotations,
+    withOfficeLifecycle,
+    withMediaPreview,
     withWorkbookEditing,
     withWorkbookClipboard,
     withPresentationEditing,

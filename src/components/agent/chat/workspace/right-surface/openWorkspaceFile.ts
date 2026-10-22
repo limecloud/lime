@@ -7,6 +7,8 @@ import {
   type ThreadSidePanelTabs,
 } from "./threadSidePanelTabs";
 
+export const fileTabId = (path: string | null) => `file:${path ?? ""}`;
+
 export function openWorkspaceFile(
   state: ThreadSidePanelTabs,
   path: string | null,
@@ -33,7 +35,7 @@ export function openWorkspaceFile(
     )
   )
     return state;
-  const tabId = `file:${path ?? ""}`;
+  const tabId = fileTabId(path);
   const existing = state.tabs.some((tab) => tab.tabId === tabId);
   const preview = isPreview && path !== null;
   const previousPreview =

@@ -25,6 +25,15 @@ import {
 import { runBrowserPermissionScenario } from "./browser-runtime-electron-gate-b-permission.mjs";
 import { runBrowserWindowCloseScenario } from "./browser-runtime-electron-gate-b-window-close.mjs";
 import { runBrowserProjectionGateA } from "./browser-runtime-gate-a.mjs";
+import { runBrowserHistoryScenario } from "./browser-runtime-electron-gate-b-history.mjs";
+import { startBrowserFixturePages } from "./browser-runtime-electron-gate-b-pages.mjs";
+import {
+  approveBrowserBrowse,
+  captureBrowserActionApproval,
+  configureBrowserFixturePermissions,
+  joinBrowserBrowseEvidence,
+  prepareBrowserBrowseApproval,
+} from "./browser-runtime-electron-gate-b-browse.mjs";
 import {
   bindGuiWorkspaceAndModelPreferences,
   ensureDefaultWorkspace,
@@ -55,8 +64,6 @@ import {
 const LOG_PREFIX = "[smoke:browser-runtime-electron-gate-b]";
 const MODEL_NAME = "fixture-browser-runtime";
 const PROVIDER_API_KEY = "fixture-browser-runtime-key";
-const BROWSER_URL = "https://example.com/browser-runtime-gate-b";
-const USER_NAVIGATION_URL = "https://example.com/browser-runtime-gate-b-user";
 const FINAL_MARKER = "BROWSER_RUNTIME_GATE_B_DONE";
 const DEFAULT_OUTPUT = path.resolve(
   ".lime/qc/gui-evidence/browser-runtime-electron-gate-b/browser-runtime-electron-gate-b-summary.json",
@@ -90,8 +97,10 @@ const DEFAULT_PROJECTION_OUTPUT = path.resolve(
 );
 const SCENARIOS = new Set([
   "projection",
+  "history",
   "lifecycle",
   "approval",
+  "browse-approval",
   "user-control",
   "cancel",
   "window-close",
@@ -191,7 +200,7 @@ export function parseArgs(argv) {
   }
   if (!SCENARIOS.has(options.scenario)) {
     throw new Error(
-      `--scenario 必须是 projection、lifecycle、approval、user-control、cancel、window-close、disconnect、permission、download 或 artifact，收到: ${options.scenario || "<empty>"}`,
+      `--scenario 必须是 projection、history、lifecycle、approval、browse-approval、user-control、cancel、window-close、disconnect、permission、download 或 artifact，收到: ${options.scenario || "<empty>"}`,
     );
   }
   if (!SUPPORTED_LOCALES.has(options.locale)) {
@@ -220,11 +229,20 @@ export function parseArgs(argv) {
   if (!outputExplicit && options.scenario === "approval") {
     options.output = DEFAULT_APPROVAL_OUTPUT;
   }
+  if (!outputExplicit && options.scenario === "browse-approval") {
+    options.output = DEFAULT_APPROVAL_OUTPUT.replace(
+      "approval-summary",
+      "browse-approval-summary",
+    );
+  }
   if (!outputExplicit && options.scenario === "user-control") {
     options.output = DEFAULT_USER_CONTROL_OUTPUT;
   }
   if (!outputExplicit && options.scenario === "projection") {
     options.output = DEFAULT_PROJECTION_OUTPUT;
+  }
+  if (!outputExplicit && options.scenario === "history") {
+    options.output = DEFAULT_OUTPUT.replace("-summary", "-history-summary");
   }
   return options;
 }
@@ -773,7 +791,7 @@ function createBrowserApprovalResponses(
         arguments: { tabId: state.tabId },
       };
     },
-    ({ body }) => {
+    async ({ body }) => {
       const result = toolResultFromRequest(body);
       const observed = extractBrowserState(result);
       const observation = extractBrowserObservation(result);
@@ -801,6 +819,7 @@ function createBrowserApprovalResponses(
         throw new Error("observe 未返回 Delete account 危险按钮 node identity");
       }
       scenario.initial = { observation, state: observed, target };
+      await scenario.beforeSensitiveAction?.();
       return {
         type: "tool_call",
         id: "call-browser-sensitive-click-approved",
@@ -966,7 +985,8 @@ async function readBrowserWorkspaceState(page) {
       activeTurnId:
         workspace?.getAttribute("data-browser-active-turn-id") || null,
       address:
-        address instanceof HTMLInputElement ? address.value || null : null,
+        workspace?.getAttribute("data-browser-url") ||
+        (address instanceof HTMLInputElement ? address.value || null : null),
       controlOwner:
         workspace?.getAttribute("data-browser-control-owner") || null,
       pageRevision:
@@ -1049,6 +1069,24 @@ async function readBrowserDebuggerState(app, webContentsId) {
   }, webContentsId);
 }
 
+async function waitForNativeBrowserCommit(app, options, webContentsId, url) {
+  const deadline = Date.now() + options.timeoutMs;
+  let last = null;
+  while (Date.now() < deadline) {
+    last = await app.evaluate(({ webContents }, id) => {
+      const target = webContents.fromId(id);
+      return target && !target.isDestroyed()
+        ? { url: target.getURL(), loading: target.isLoading() }
+        : null;
+    }, webContentsId);
+    if (last?.url === url && !last.loading) return;
+    await sleep(options.intervalMs);
+  }
+  throw new Error(
+    `Native Browser navigation did not commit: ${JSON.stringify(last)}`,
+  );
+}
+
 async function destroyBrowserWebContents(app, webContentsId) {
   return await app.evaluate(({ webContents }, targetId) => {
     const target = webContents.fromId(targetId);
@@ -1092,12 +1130,12 @@ async function waitForTerminalThread(page, options, threadId, requestLog) {
   );
 }
 
-async function navigateVisibleBrowserTab(page, options, tabId) {
+async function navigateVisibleBrowserTab(page, options, tabId, targetUrl) {
   const address = page
     .locator('[data-testid="browser-workspace"] form input')
     .first();
   assert((await address.count()) === 1, "Browser workspace 地址栏不可用");
-  await address.fill(USER_NAVIGATION_URL);
+  await address.fill(targetUrl);
   await address.press("Enter");
 
   const startedAt = Date.now();
@@ -1117,7 +1155,7 @@ async function navigateVisibleBrowserTab(page, options, tabId) {
         entry.command === "browser_tab_navigate" &&
         entry.status === "success" &&
         entry.args?.tabId === tabId &&
-        entry.args?.url === USER_NAVIGATION_URL,
+        entry.args?.url === targetUrl,
     );
     if (navigation) return { navigation, trace: lastTrace };
     await sleep(options.intervalMs);
@@ -1303,7 +1341,7 @@ Browser Electron Gate B
 
 选项:
   --output <path>       证据 JSON 路径
-  --scenario <name>     projection（Gate A）、lifecycle（默认）、approval、user-control、cancel、window-close、disconnect、permission、download 或 artifact
+  --scenario <name>     projection（Gate A）、history、lifecycle（默认）、approval、browse-approval、user-control、cancel、window-close、disconnect、permission、download 或 artifact
   --locale <locale>     zh-CN、zh-TW、en-US、ja-JP 或 ko-KR
   --screenshot-dir <dir> 采集 renderer/browser/agent/takeover/released/destroyed 截图
   --app-url <url>       可选 renderer dev server
@@ -1323,10 +1361,13 @@ export async function run(options) {
   const runtimeEnv = createTempRuntimeEnv();
   runtimeEnv.writeFixtureConfig({ language: options.locale });
   const providerFixture = await createBrowserProviderFixture({
-    approvalScenario: ["approval", "user-control"].includes(options.scenario),
+    approvalScenario: ["approval", "browse-approval", "user-control"].includes(
+      options.scenario,
+    ),
     userControlScenario: options.scenario === "user-control",
     artifactScenario: options.scenario === "artifact",
     connectionDiagnostics: [
+      "lifecycle",
       "cancel",
       "disconnect",
       "permission",
@@ -1347,6 +1388,7 @@ export async function run(options) {
   let disconnectMainDiagnosticCount = 0;
   let app = null;
   let invokeTraceCollector = null;
+  const fixturePages = await startBrowserFixturePages();
   try {
     logStage("launch-electron");
     app = await electron.launch({
@@ -1393,6 +1435,7 @@ export async function run(options) {
 
     logStage("initialize-app-server");
     await initializeAppServer(page, requestLog);
+    await configureBrowserFixturePermissions(page, options, requestLog);
     const workspace = await ensureDefaultWorkspace(page, requestLog);
     const provider = await invokeAppServerFromPage(
       page,
@@ -1492,7 +1535,7 @@ export async function run(options) {
         ttlMs: 120_000,
         metadata: {
           browser: {
-            launchUrl: BROWSER_URL,
+            launchUrl: fixturePages.initialUrl,
             title: "Browser Runtime Gate B",
           },
         },
@@ -1505,10 +1548,17 @@ export async function run(options) {
         () => document.documentElement.lang || null,
       ),
     };
+    await waitForNativeBrowserCommit(
+      app,
+      options,
+      guiBeforeTurn.webContentsId,
+      fixturePages.initialUrl,
+    );
     await captureBrowserScreenshot(page, options, "browser-loaded");
     if (options.scenario === "projection") {
       logStage("run-browser-projection-gate-a");
       const gateAEvidence = await runBrowserProjectionGateA({
+        app,
         guiBeforeTurn,
         identity,
         options,
@@ -1538,7 +1588,34 @@ export async function run(options) {
       }
       return gateAEvidence;
     }
-    if (["approval", "user-control"].includes(options.scenario)) {
+    if (options.scenario === "history") {
+      logStage("run-browser-history");
+      const historyEvidence = await runBrowserHistoryScenario({
+        app,
+        page,
+        options,
+        identity,
+        workspaceId: workspace.workspaceId,
+        guiBeforeTurn,
+        readBrowserWorkspaceState,
+        readInvokeTrace: () => invokeTraceCollector.snapshot(),
+      });
+      historyEvidence.diagnostics.harness = { consoleErrors, pageErrors };
+      fs.writeFileSync(
+        options.output,
+        `${JSON.stringify(historyEvidence, null, 2)}\n`,
+      );
+      assert(
+        historyEvidence.failedAssertions.length === 0 &&
+          consoleErrors.length === 0 &&
+          pageErrors.length === 0,
+        `Browser history 断言失败: ${historyEvidence.failedAssertions.join(", ")}`,
+      );
+      return historyEvidence;
+    }
+    if (
+      ["approval", "browse-approval", "user-control"].includes(options.scenario)
+    ) {
       await installBrowserApprovalPage(app, guiBeforeTurn.webContentsId);
     }
     if (options.scenario === "artifact") {
@@ -1552,6 +1629,15 @@ export async function run(options) {
       providerFixture.scenario.artifact = artifactDownload.artifact;
     }
 
+    const browseApproval =
+      options.scenario === "browse-approval"
+        ? prepareBrowserBrowseApproval({
+            page,
+            providerFixture,
+            requestLog,
+            origin: new URL(fixturePages.initialUrl).origin,
+          })
+        : null;
     logStage("run-browser-dynamic-tools");
     await sendPromptFromGui(
       page,
@@ -1559,6 +1645,18 @@ export async function run(options) {
       "请使用当前 Browser 打开标签并观察页面，然后返回结果。",
       { expectedSessionId: identity.sessionId },
     );
+    if (browseApproval) {
+      logStage("approve-initial-browser-browse");
+      await approveBrowserBrowse({
+        app,
+        page,
+        options,
+        record: browseApproval,
+        initial: true,
+        readBrowserDebuggerState,
+        readBrowserWorkspaceState,
+      });
+    }
     logStage("wait-initial-agent-observation");
     let initial;
     try {
@@ -1635,8 +1733,20 @@ export async function run(options) {
     );
     await captureBrowserScreenshot(page, options, "agent-controlled");
 
-    if (options.scenario === "approval") {
-      const approvalEvidence = await runBrowserApprovalScenario({
+    if (options.scenario === "approval" || browseApproval) {
+      if (browseApproval) {
+        logStage("approve-browse-after-policy-change");
+        await approveBrowserBrowse({
+          app,
+          page,
+          options,
+          record: browseApproval,
+          initial: false,
+          readBrowserDebuggerState,
+          readBrowserWorkspaceState,
+        });
+      }
+      let approvalEvidence = await runBrowserApprovalScenario({
         activeTurnId,
         agentControlled,
         app,
@@ -1649,6 +1759,10 @@ export async function run(options) {
         options,
         page,
         pageErrors,
+        onFirstPrompt: browseApproval
+          ? (prompt) =>
+              captureBrowserActionApproval(app, prompt, browseApproval)
+          : undefined,
         providerFixture,
         readBrowserDebuggerState,
         readBrowserWorkspaceState,
@@ -1657,6 +1771,11 @@ export async function run(options) {
         waitForScenarioValue,
         waitForTerminalThread,
       });
+      if (browseApproval)
+        approvalEvidence = joinBrowserBrowseEvidence(
+          approvalEvidence,
+          browseApproval,
+        );
       fs.writeFileSync(
         options.output,
         `${JSON.stringify(approvalEvidence, null, 2)}\n`,
@@ -1897,6 +2016,7 @@ export async function run(options) {
       page,
       options,
       agentControlled.tabId,
+      fixturePages.userUrl,
     );
     const latestAfterUserNavigation = await waitForBrowserWorkspaceState(
       page,
@@ -1906,20 +2026,27 @@ export async function run(options) {
         state.activeTurnId === null &&
         state.webContentsId === initial.state.webContentsId &&
         state.pageRevision > initial.observation.pageRevision &&
-        state.address === USER_NAVIGATION_URL,
+        state.address === fixturePages.userUrl,
       "用户导航后 Browser Workspace 未释放 Agent 控制",
     );
     await captureBrowserScreenshot(page, options, "user-takeover");
+    await waitForNativeBrowserCommit(
+      app,
+      options,
+      initial.state.webContentsId,
+      fixturePages.userUrl,
+    );
     providerFixture.scenario.releaseUserNavigation();
 
     logStage("reclaim-reject-stale-and-reobserve");
-    const recovered = await waitForScenarioValue(
-      options,
-      () => providerFixture.scenario.recovered,
-      "Agent 重新 claim/observe",
-    );
+    let recovered;
     let reclaimed;
     try {
+      recovered = await waitForScenarioValue(
+        options,
+        () => providerFixture.scenario.recovered,
+        "Agent 重新 claim/observe",
+      );
       reclaimed = await waitForBrowserWorkspaceState(
         page,
         options,
@@ -1933,25 +2060,48 @@ export async function run(options) {
         "Browser Workspace 未投影重新 claim 状态",
       );
     } catch (error) {
+      const read = await invokeAppServerFromPage(
+        page,
+        APP_SERVER_METHOD_SESSION_READ,
+        { threadId: identity.threadId, includeTurns: true },
+        requestLog,
+      ).catch(() => null);
+      const turns = read?.result?.thread?.turns ?? read?.result?.turns ?? [];
+      const diagnostics = sanitizeJson({
+        initial: providerFixture.scenario.initial?.state,
+        latestAfterUserNavigation:
+          providerFixture.scenario.latestAfterUserNavigation,
+        recovered: providerFixture.scenario.recovered?.state,
+        staleMutationFailure: providerFixture.scenario.staleMutationFailure,
+        providerRequests: summarizeProviderRequests(providerFixture.requests),
+        connectionDiagnostics: providerFixture.connectionDiagnostics,
+        browserWorkspace: await readBrowserWorkspaceState(page),
+        pendingApprovals: await app.evaluate(
+          () => globalThis.__appServerE2E?.pendingBrowserApprovals?.() ?? [],
+        ),
+        turns: turns.map((turn) => ({
+          id: turn.id ?? turn.turnId,
+          status: turn.status,
+          error: turn.error,
+          itemTypes: (turn.items ?? []).map((item) => ({
+            type: item.type,
+            status: item.status,
+            name: item.name,
+          })),
+        })),
+      });
+      const diagnosticPath = options.output.replace(
+        /\.json$/u,
+        "-failure.json",
+      );
+      fs.writeFileSync(
+        diagnosticPath,
+        `${JSON.stringify(diagnostics, null, 2)}\n`,
+      );
       throw new Error(
         `${error instanceof Error ? error.message : String(error)}; ` +
-          `scenario=${JSON.stringify(
-            sanitizeJson({
-              initial: providerFixture.scenario.initial,
-              latestAfterUserNavigation:
-                providerFixture.scenario.latestAfterUserNavigation,
-              recovered: providerFixture.scenario.recovered,
-              staleMutationFailure:
-                providerFixture.scenario.staleMutationFailure,
-            }),
-          )}; ` +
-          `providerRequests=${JSON.stringify(
-            providerFixture.requests.map((request) => ({
-              path: request.path,
-              responseError: request.responseError || null,
-              lastMessage: request.body?.messages?.at(-1) || null,
-            })),
-          )}`,
+          `diagnostics=${diagnosticPath}; ` +
+          `lastRequests=${JSON.stringify(diagnostics.providerRequests.slice(-2))}`,
       );
     }
     const debuggerBeforeTerminal = await readBrowserDebuggerState(
@@ -2154,6 +2304,7 @@ export async function run(options) {
     providerFixture.scenario.releaseAll();
     await closeFixtureElectron(app);
     await providerFixture.close().catch(() => undefined);
+    await fixturePages.close();
     if (!options.keepTemp) cleanupTempRoot(runtimeEnv.tempRoot);
   }
 }

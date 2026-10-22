@@ -1,4 +1,4 @@
-import { resolveCanvasWorkbenchPreferredPreviewModeFromPath } from "./CanvasWorkbenchPreviewModeViewModel";
+import { resolvePreferredFilePreviewMode } from "../../workspace/filePreviewModel";
 import type { CanvasWorkbenchDefaultPreview } from "../CanvasWorkbenchLayoutViewModel";
 
 export type { CanvasWorkbenchDefaultPreview } from "../CanvasWorkbenchLayoutViewModel";
@@ -39,7 +39,7 @@ export function resolveInitialCanvasWorkbenchTab(
   }
 
   if (defaultPreview || initialDocumentPath) {
-    return resolveCanvasWorkbenchPreferredPreviewModeFromPath(
+    return resolvePreferredFilePreviewMode(
       defaultPreview?.filePath ||
         defaultPreview?.absolutePath ||
         defaultPreview?.title ||

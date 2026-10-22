@@ -4,6 +4,7 @@ import { useCallback } from "react";
 import { ComposerModeContext } from "./ComposerModeContext";
 import { ArtifactCommentSubmissionContext } from "@/components/artifact/ArtifactCommentSubmissionContext";
 import { useWorkspaceArtifactCommentSubmission } from "./useWorkspaceArtifactCommentSubmission";
+import { BrowserAnnotationContext } from "./right-surface/browser/BrowserAnnotationContext";
 import { useWorkspaceCanvasSceneRuntime } from "./useWorkspaceCanvasSceneRuntime";
 import { useWorkspaceInputbarSceneRuntime } from "./useWorkspaceInputbarSceneRuntime";
 import { useWorkspaceTaskCenterSendRuntime } from "./useWorkspaceTaskCenterSendRuntime";
@@ -86,7 +87,7 @@ export function useAgentChatWorkspaceSceneRuntime({
  handleToggleCanvas, hasDisplayMessages, hasMessages, homePendingPreviewMessages, isTaskCenterDraftSendPending, recentSessionTopic, resolvedCanvasState, shouldRenderTaskCenterEmbeddedHome, shouldRestoreImageTasksFromWorkspace, shouldSuppressTaskCenterDraftContent,
     suppressHomeNavbarUtilityActions, taskCenterHomeSurfaceState, bindArticleEditorRightSurface, bindRightSurfacePendingActions, handleCodeBlockClick,
     handleHarnessLoadFilePreview, handleOpenArtifactFromTimeline, handleOpenMessagePreview, handleOpenSavedSiteContent, handleOpenServiceSkillResultFile, handleOpenUrlPreview, handleSaveArtifactDocument, handleWorkspaceArtifactClick,
-    handleWorkspaceFileClick, openProjectFilePreviewInCanvas, openWorkspaceArtifactInWorkbench, preferredServiceSkillResultFileTarget, renderArtifactWorkbenchToolbarActions, shouldCollapseCodeBlockInChat, shouldCollapseCodeBlocks, handleWriteFile,
+    handleWorkspaceFileClick, openWorkspaceArtifactInWorkbench, preferredServiceSkillResultFileTarget, renderArtifactWorkbenchToolbarActions, shouldCollapseCodeBlockInChat, shouldCollapseCodeBlocks, handleWriteFile,
     handleJumpToTimelineItem, serviceSkillExecutionCard, generalWorkbenchActivityLogs,
     generalWorkbenchWorkflowSteps, handleExpandGeneralWorkbenchSidebar, renderGeneralWorkbenchSidebarNode, planComposerPendingActions, planDecisionAccessory, handleSaveMessageAsSkill,
   } = commandRuntime;
@@ -620,19 +621,20 @@ export function useAgentChatWorkspaceSceneRuntime({
     activeSessionIdRef,
     getNavigationEpoch: getComposerDraftNavigationEpoch,
     send: inputbarScene.handleInputbarSend,
-    openFile: (absolutePath, isCurrent, previewRequestKey) =>
-      openProjectFilePreviewInCanvas({
-        absolutePath,
-        isCancelled: () => !isCurrent(),
-        previewRequestKey,
-      }),
+    openFile: async (absolutePath, isCurrent) => {
+      if (!isCurrent()) return false;
+      rightSurfaceLocalState.openWorkspaceFile(absolutePath);
+      return true;
+    },
   });
   return (
     <ComposerModeContext.Provider value={{ composerMode, setComposerMode }}>
       <ArtifactCommentSubmissionContext.Provider
         value={artifactCommentSubmission}
       >
-        {workspaceSceneNode}
+        <BrowserAnnotationContext.Provider value={sessionId && threadRead?.thread_id ? { sessionId, threadId: threadRead.thread_id, send: inputbarScene.handleInputbarSend, isSending, workspaceId: runtimeWorkspaceId ?? projectId ?? null } : null}>
+          {workspaceSceneNode}
+        </BrowserAnnotationContext.Provider>
         <ScheduledTaskDialog
           open={workspaceServiceSkillEntryActions.automationDialogOpen}
           mode="create"

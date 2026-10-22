@@ -330,7 +330,8 @@ export function useAgentChatWorkspaceCommandRuntime({
         messages,
         onNavigate: _onNavigate,
         openArticleWorkspaceRightSurface,
-        openWorkspaceFile: contextSurfaceRuntime.rightSurfaceLocalState.openWorkspaceFile,
+        openWorkspaceFile:
+          contextSurfaceRuntime.rightSurfaceLocalState.openWorkspaceFile,
         projectId,
         projectRootPath: project?.rootPath || null,
         readSessionFile,
@@ -377,7 +378,6 @@ export function useAgentChatWorkspaceCommandRuntime({
     handleSaveArtifactDocument,
     handleWorkspaceArtifactClick,
     handleWorkspaceFileClick,
-    openProjectFilePreviewInCanvas,
     openWorkspaceArtifactInWorkbench,
     preferredServiceSkillResultFileTarget,
     renderArtifactWorkbenchToolbarActions,
@@ -600,7 +600,7 @@ export function useAgentChatWorkspaceCommandRuntime({
     handleOpenTaskTopic, handleToggleCanvas, hasDisplayMessages, hasMessages, homePendingPreviewMessages, isTaskCenterDraftSendPending, recentSessionTopic, resolvedCanvasState, shouldRenderTaskCenterEmbeddedHome, shouldRestoreImageTasksFromWorkspace, shouldSuppressTaskCenterDraftContent,
     suppressHomeNavbarUtilityActions, taskCenterHomeSurfaceState, bindArticleEditorRightSurface, bindRightSurfacePendingActions, handleCodeBlockClick,
     handleHarnessLoadFilePreview, handleOpenArtifactFromTimeline, handleOpenMessagePreview, handleOpenSavedSiteContent, handleOpenServiceSkillResultFile, handleOpenUrlPreview, handleSaveArtifactDocument, handleWorkspaceArtifactClick,
-    handleWorkspaceFileClick, openProjectFilePreviewInCanvas, openWorkspaceArtifactInWorkbench, preferredServiceSkillResultFileTarget, renderArtifactWorkbenchToolbarActions, shouldCollapseCodeBlockInChat, shouldCollapseCodeBlocks, handleWriteFile,
+    handleWorkspaceFileClick, openWorkspaceArtifactInWorkbench, preferredServiceSkillResultFileTarget, renderArtifactWorkbenchToolbarActions, shouldCollapseCodeBlockInChat, shouldCollapseCodeBlocks, handleWriteFile,
     handleJumpToTimelineItem, serviceSkillExecutionCard, generalWorkbenchActivityLogs,
     generalWorkbenchWorkflowSteps, handleExpandGeneralWorkbenchSidebar, renderGeneralWorkbenchSidebarNode, planComposerPendingActions, planDecisionAccessory, handleSaveMessageAsSkill,
   };

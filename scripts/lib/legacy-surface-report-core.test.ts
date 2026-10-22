@@ -53,6 +53,74 @@ function scanFixture(
 
 describe("legacy-surface-report-core", () => {
   it.each([
+    "export { FilePreviewMode as CanvasWorkbenchPreviewMode } from './filePreviewModel';",
+    "export { useFileTreeState as useCanvasWorkbenchFileTreeState } from './right-surface/useFileTreeState';",
+    "export const panel = 'canvas-workbench-preview-mode-panel';",
+  ])("真实 report 拒绝旧 Canvas 文件合同回流：%s", (source) => {
+    const owner = "src/components/agent/chat/workspace/Preview.tsx";
+    const result = scanFixture(
+      { [owner]: source },
+      "retired-canvas-file-model-contract",
+    );
+    expect(result.monitor.violations).toEqual([owner]);
+    expect(result.status).toBe(1);
+  });
+
+  it("真实 report 拒绝 Files 重新消费 Canvas selection 投影", () => {
+    const owner = "src/components/agent/chat/workspace/FilePreviewPanel.tsx";
+    const result = scanFixture(
+      {
+        [owner]:
+          "import type { CanvasWorkbenchResolvedSelection } from '../components/CanvasWorkbenchLayoutViewModel';",
+      },
+      "files-preview-no-canvas-projection",
+    );
+    expect(result.monitor.violations).toEqual([owner]);
+    expect(result.status).toBe(1);
+  });
+
+  it("Files 守卫允许唯一文件预览与目录 owner", () => {
+    const source =
+      "import type { FilePreviewContext } from './filePreviewTarget'; import { useFileTreeState } from './right-surface/useFileTreeState';";
+    for (const monitor of [
+      "retired-canvas-file-model-contract",
+      "files-preview-no-canvas-projection",
+    ]) {
+      const result = scanFixture(
+        { "src/components/agent/chat/workspace/FilePreviewPanel.tsx": source },
+        monitor,
+      );
+      expect(result.monitor.violations).toEqual([]);
+      expect(result.status).toBe(0);
+    }
+  });
+
+  it("真实 report 拒绝恢复旧 Canvas 文件预览组件或包装", () => {
+    const owner = "src/components/agent/chat/workspace/Preview.tsx";
+    const result = scanFixture(
+      {
+        [owner]:
+          "export { FilePreviewPanel as CanvasWorkbenchPreviewModePanel } from './FilePreviewPanel';",
+      },
+      "retired-canvas-file-preview-panel",
+    );
+    expect(result.monitor.violations).toEqual([owner]);
+    expect(result.status).toBe(1);
+  });
+
+  it("文件预览守卫允许 current 面板与单一保存 owner", () => {
+    const result = scanFixture(
+      {
+        "src/components/agent/chat/workspace/FilePreviewTabContent.tsx":
+          "import { FilePreviewPanel } from './FilePreviewPanel'; export const download = useWorkspaceFileActions(tab, path, isCurrent).saveAs;",
+      },
+      "retired-canvas-file-preview-panel",
+    );
+    expect(result.monitor.violations).toEqual([]);
+    expect(result.status).toBe(0);
+  });
+
+  it.each([
     "import { CodingWorkbenchRecoveryPanel } from './CodingWorkbenchRecoveryPanel';",
     "export const submit = { onSubmitRecoveryPrompt: send };",
     "export const metadata = { harness: { coding_workbench_recovery: context } };",

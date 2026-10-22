@@ -28,7 +28,7 @@
 - 路线图主线：`internal/roadmap/`
 - Runtime 当前对齐入口：`internal/aiprompts/architecture.md` 与 `internal/exec-plans/codex-alignment-v1-coordination-plan.md`
 - Refactor v2 全项目 Gate A/B 验收计划：`internal/exec-plans/project-gate-a-b-acceptance-plan.md`
-- 当前发布执行计划：`internal/exec-plans/release-v1.164.0-plan.md`；上一版本记录：`release-v1.163.0-recovery-plan.md`。
+- 当前发布执行计划：[v1.167.0](./release-v1.167.0-plan.md)；上一版本记录：[v1.166.0](./release-v1.166.0-plan.md)。
 - 已结束版本的发布过程不保留在 active tree；结果以 Git tag、GitHub Release、Release Notes 与 Git history 为准。
 - Codex App GUI 历史基线及领域计划索引：`internal/exec-plans/codex-app-gui-alignment-plan.md`；GUI current 实施统一见下方全面对齐计划。
 - Codex Desktop 跨平台底层对比与对齐计划：`internal/exec-plans/codex-desktop-platform-parity-plan.md`
@@ -66,6 +66,8 @@
 - Soul Style 输出面收敛计划：`internal/exec-plans/soul-style-output-surface-convergence-plan.md`
 - Browser Runtime / Right Surface 骨架实施计划：`internal/exec-plans/browser-runtime-right-surface-plan.md`
 - Codex GUI 全面对齐 current 计划（行为、结构/命名、清理、测试与护栏）：`internal/exec-plans/codex-gui-alignment-current-plan.md`
+- Composer 批注重开迁入 Files 的四格式 Electron 与本地门禁验收：[验证接续](./codex-rea-annotation-verification-20261022.md)。
+- 普通文件点击迁入 Files、会话文件路径解析及无人调用入口清退：[文件点击](./codex-file-clicks-20261022.md)。
 - Codex 专业文件预览、位置反馈与会话提交：[专业文件计划](./codex-professional-files-alignment.md)；工作表的预览、范围反馈与编辑保存：[工作表计划](./codex-workbook-alignment.md)；幻灯片本地编辑与保存：[Presentation 计划](./codex-presentation-alignment.md)。
 - Codex 设置与队列接续：[MCP 草稿](./codex-settings-mcp-draft.md)、[Experimental 草稿](./codex-settings-experimental-draft.md)、[Media 草稿](./codex-settings-media-draft.md)、[Developer/Media 搜索](./codex-settings-search-developer-media.md)、[真实设置导航验收](./codex-settings-draft-native.md)、[Queue 拖拽](./codex-queue-drag-alignment.md)。
 - Agent Phase 6 Provider Reply Backend 执行计划：`internal/exec-plans/agent-phase6-provider-reply-backend-plan.md`

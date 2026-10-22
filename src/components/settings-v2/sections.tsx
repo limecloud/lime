@@ -23,6 +23,7 @@ import type {
   ExecutionPolicyFocusContext,
   ProviderSettingsFocusContext,
   SettingsProviderView,
+  SettingsPageParams,
 } from "@/types/page";
 import { resolveOemCloudRuntimeContext } from "@/lib/api/oemCloudRuntime";
 
@@ -33,6 +34,7 @@ export interface SettingsSectionContext {
   executionPolicyFocus?: ExecutionPolicyFocusContext | null;
   searchPath?: string;
   developerLabTab: "developer" | "experimental";
+  browserPage?: SettingsPageParams["browserPage"];
 }
 
 export interface SettingsSection {
@@ -193,7 +195,7 @@ export const settingsSections: readonly SettingsSection[] = [
     icon: Globe,
     loadingKey: "settings.layout.loading.browser",
     preload: loadBrowser,
-    render: () => <BrowserUseSettings />,
+    render: (context) => <BrowserUseSettings page={context.browserPage} />,
   },
   {
     key: SettingsTabs.KeyboardShortcuts,

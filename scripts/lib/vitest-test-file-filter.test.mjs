@@ -1,8 +1,27 @@
-import { describe, expect, it } from "vitest";
+import path from "node:path";
+import { describe, expect, it, vi } from "vitest";
 
 import { isVitestRunnableTestFile } from "./vitest-test-file-filter.mjs";
 
 describe("vitest-test-file-filter", () => {
+  it("证据目录相对当前仓库判断，不误排祖先目录名中的 .lime", () => {
+    const candidate = path.resolve(".lime/gui-candidates/isolated");
+    const cwd = vi.spyOn(process, "cwd").mockReturnValue(candidate);
+    try {
+      expect(
+        isVitestRunnableTestFile(path.join(candidate, "src/Foo.test.ts"), ""),
+      ).toBe(true);
+      expect(
+        isVitestRunnableTestFile(
+          path.join(candidate, ".lime/qc/external.spec.mjs"),
+          "",
+        ),
+      ).toBe(false);
+    } finally {
+      cwd.mockRestore();
+    }
+  });
+
   it("应保留真实 Vitest 测试文件", () => {
     expect(isVitestRunnableTestFile("src/Foo.test.tsx")).toBe(true);
     expect(isVitestRunnableTestFile("src/Foo.unit.test.ts")).toBe(true);
@@ -16,7 +35,9 @@ describe("vitest-test-file-filter", () => {
 
   it("应排除本地 .lime 证据目录里的外部测试产物", () => {
     expect(
-      isVitestRunnableTestFile(".lime/qc/playwright-cli/codex-rendering.spec.mjs"),
+      isVitestRunnableTestFile(
+        ".lime/qc/playwright-cli/codex-rendering.spec.mjs",
+      ),
     ).toBe(false);
     expect(
       isVitestRunnableTestFile(

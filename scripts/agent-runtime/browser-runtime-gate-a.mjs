@@ -8,7 +8,51 @@ import {
 
 const NAVIGATION_URL = "https://example.com/browser-runtime-gate-a-nav";
 
+// Native overlay is a separate trusted WCV, outside the workspace renderer DOM.
+async function nativeMenuOperation(app, operation) {
+  return app.evaluate(async ({ webContents }, input) => {
+    const views = webContents
+      .getAllWebContents()
+      .filter((contents) => contents.getURL().startsWith("data:text/html"));
+    for (const view of views) {
+      if (view.isDestroyed()) continue;
+      const result = await view.executeJavaScript(
+        `(() => { const menu = document.querySelector('[role="menu"]'); if (!menu || !window.browserMenu) return null; const input = ${JSON.stringify(input)}; if (input.kind === 'dismiss') { document.dispatchEvent(new KeyboardEvent('keydown', {key:'Escape',bubbles:true})); return true; } const item = menu.querySelector('[data-id="' + input.id + '"]'); if (!item) return null; if (input.kind === 'click') { if (item.disabled) return null; item.click(); return true; } return item.textContent; })()`,
+      );
+      if (result !== null) return result;
+    }
+    return null;
+  }, operation);
+}
+
+export async function clickNativeMenuItem(app, id) {
+  const deadline = Date.now() + 10000;
+  while (Date.now() < deadline) {
+    if (await nativeMenuOperation(app, { kind: "click", id })) return;
+    await sleep(100);
+  }
+  throw new Error(`Native Browser menu action unavailable: ${id}`);
+}
+
+async function waitForNativeMenuLabel(app, id, expected) {
+  const deadline = Date.now() + 10000;
+  while (Date.now() < deadline) {
+    if ((await nativeMenuOperation(app, { kind: "label", id })) === expected)
+      return;
+    await sleep(100);
+  }
+  throw new Error(`Native Browser menu did not update ${id} to ${expected}`);
+}
+
+async function dismissNativeMenu(app) {
+  assert(
+    await nativeMenuOperation(app, { kind: "dismiss" }),
+    "Native Browser menu did not dismiss",
+  );
+}
+
 export async function runBrowserProjectionGateA({
+  app,
   guiBeforeTurn,
   identity,
   options,
@@ -45,7 +89,8 @@ export async function runBrowserProjectionGateA({
   );
 
   stage("find");
-  await page.locator('[data-testid="browser-workspace-find"]').click();
+  await page.locator('[data-testid="browser-workspace-options"]').click();
+  await clickNativeMenuItem(app, "find");
   const findInput = page.locator(
     '[data-testid="browser-workspace-find-input"]',
   );
@@ -56,7 +101,8 @@ export async function runBrowserProjectionGateA({
 
   stage("zoom");
   const zoomBefore = await readProjection(page);
-  await page.locator('[data-testid="browser-workspace-zoom-in"]').click();
+  await page.locator('[data-testid="browser-workspace-options"]').click();
+  await clickNativeMenuItem(app, "zoom-in");
   const zoomed = await waitForProjection(
     page,
     (state) => state.zoomLabel !== zoomBefore.zoomLabel,
@@ -65,14 +111,22 @@ export async function runBrowserProjectionGateA({
     zoomed.zoomLabel === "110%",
     `缩放步进不稳定: ${zoomBefore.zoomLabel} -> ${zoomed.zoomLabel}`,
   );
-  await page.locator('[data-testid="browser-workspace-zoom-reset"]').click();
+  await waitForNativeMenuLabel(app, "zoom-reset", "110%");
+  await clickNativeMenuItem(app, "zoom-reset");
   const zoomReset = await waitForProjection(
     page,
     (state) => state.zoomLabel === "100%",
   );
+  await waitForNativeMenuLabel(app, "zoom-reset", "100%");
+  await dismissNativeMenu(app);
 
   stage("new-tab");
-  await page.locator('[data-testid="browser-workspace-new-tab"]').click();
+  await page.locator('[data-testid="workspace-right-surface-new-tab"]').click();
+  const newAddress = page.locator(
+    '[data-testid="browser-new-tab-address"]:visible',
+  );
+  await newAddress.fill("https://example.com/second-tab");
+  await newAddress.press("Enter");
   const secondTab = await waitForProjection(
     page,
     (state) => state.tabs.length === 2,
@@ -93,7 +147,7 @@ export async function runBrowserProjectionGateA({
   stage("select-primary");
   await page
     .locator(
-      `[data-browser-tab-id="${initial.selectedTabId}"] [data-testid="browser-workspace-tab-select"]`,
+      `[data-testid="workspace-right-surface-tab-browser"][data-browser-tab-id="${initial.selectedTabId}"]`,
     )
     .click();
   const selectedFirst = await waitForProjection(
@@ -108,8 +162,10 @@ export async function runBrowserProjectionGateA({
   stage("close-secondary");
   await page
     .locator(
-      `[data-browser-tab-id="${secondaryTabId}"] [data-testid="browser-workspace-tab-close"]`,
+      `[data-testid="workspace-right-surface-tab-browser"][data-browser-tab-id="${secondaryTabId}"]`,
     )
+    .locator("..")
+    .locator('[data-testid="workspace-right-surface-tab-close"]')
     .click();
   const closed = await waitForProjection(
     page,
@@ -122,7 +178,7 @@ export async function runBrowserProjectionGateA({
 
   stage("collapse-restore");
   const browserToggle = page.locator(
-    '[data-testid="task-center-browser-toggle"]',
+    '[data-testid="thread-side-panel-toggle"]',
   );
   assert(
     (await browserToggle.count()) === 1,
@@ -308,23 +364,17 @@ async function readProjection(page) {
     const address = document.querySelector(
       '[data-testid="browser-workspace-address"]',
     );
-    const zoom = document.querySelector(
-      '[data-testid="browser-workspace-zoom-reset"]',
-    );
     const error = document.querySelector(
       '[data-testid="browser-workspace-error"]',
     );
     const tabs = Array.from(
       document.querySelectorAll(
-        '[data-testid="browser-workspace-tabs"] [data-browser-tab-id]',
+        '[data-testid="workspace-right-surface-tab-browser"][data-browser-tab-id]',
       ),
     ).map((tab) => ({
       tabId: tab.getAttribute("data-browser-tab-id"),
-      selected:
-        tab
-          .querySelector('[data-testid="browser-workspace-tab-select"]')
-          ?.getAttribute("aria-selected") === "true",
-      browserSessionId: tab.getAttribute("data-browser-tab-session-id") || null,
+      selected: tab.getAttribute("aria-selected") === "true",
+      browserSessionId: tab.getAttribute("data-browser-session-id") || null,
     }));
     const selected = tabs.find((tab) => tab.selected) ?? null;
     const workspaceRect = workspace?.getBoundingClientRect();
@@ -346,9 +396,11 @@ async function readProjection(page) {
         selected?.tabId ??
         workspace?.getAttribute("data-browser-tab-id") ??
         null,
-      address: address instanceof HTMLInputElement ? address.value : null,
-      zoomLabel: zoom?.textContent?.trim() || null,
-      zoomDisabled: zoom instanceof HTMLButtonElement ? zoom.disabled : null,
+      address:
+        workspace?.getAttribute("data-browser-url") ||
+        (address instanceof HTMLInputElement ? address.value : null),
+      zoomLabel: `${Math.round(Number(workspace?.getAttribute("data-browser-zoom-factor") || 1) * 100)}%`,
+      zoomDisabled: !workspace?.getAttribute("data-browser-tab-id"),
       errorText: error?.textContent?.trim() || null,
       tabs,
       viewport: viewportRect

@@ -31,6 +31,7 @@ import { ElectronHostCommands } from "./hostCommands";
 import { PersistedAtomHost } from "./persistedAtomHost";
 import { registerRendererEventHandler } from "./rendererEventPolicy";
 import { normalizeOpenDialogOptions } from "./dialogOptions";
+import { decodeLocalAssetFilePath } from "./localAsset";
 import { ElectronSecureCredentialStore } from "./secureCredentialStore";
 import {
   buildMainWindowChromeOptions,
@@ -331,25 +332,6 @@ function registerLocalAssetProtocol(): void {
 
     return net.fetch(pathToFileURL(filePath).toString());
   });
-}
-
-function decodeLocalAssetFilePath(requestUrl: string): string | null {
-  try {
-    const url = new URL(requestUrl);
-    const encodedPath = url.host ? `${url.host}${url.pathname}` : url.pathname;
-    const filePath = decodeURIComponent(encodedPath);
-    return isAbsoluteLocalAssetPath(filePath) ? filePath : null;
-  } catch {
-    return null;
-  }
-}
-
-function isAbsoluteLocalAssetPath(filePath: string): boolean {
-  return (
-    filePath.startsWith("/") ||
-    /^[a-zA-Z]:[\\/]/.test(filePath) ||
-    filePath.startsWith("\\\\")
-  );
 }
 
 async function showStartupScreenBeforeRenderer(

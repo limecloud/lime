@@ -1,6 +1,21 @@
 {
   "imports": [
     {
+      "id": "retired-canvas-file-modules",
+      "classification": "dead",
+      "description": "文件预览/模式/目录与resize已迁 current Files，旧Canvas owner和未消费display helper不得恢复；无兼容导出。",
+      "targets": [
+        "src/components/agent/chat/components/canvas-workbench/CanvasWorkbenchPreviewModeViewModel.ts",
+        "src/components/agent/chat/components/canvas-workbench/CanvasWorkbenchPreviewModeViewModel.unit.test.ts",
+        "src/components/agent/chat/components/canvas-workbench/files/useCanvasWorkbenchFileTreeState.ts",
+        "src/components/agent/chat/components/canvas-workbench/files/useFileTreeResize.ts",
+        "src/components/agent/chat/components/canvas-workbench/files/useFileTreeResize.test.tsx",
+        "src/components/agent/chat/components/canvas-workbench/files/workspaceFilePreview.ts",
+        "src/components/agent/chat/components/canvas-workbench/files/workspaceFileDisplay.ts"
+      ],
+      "allowedPaths": []
+    },
+    {
       "id": "retired-recents-file-only",
       "classification": "dead",
       "description": "Recents 已迁入统一 threadOutputs 产物 union；旧 file-only selector/hook 与专用测试不得恢复为第二条目录链。",
@@ -3286,6 +3301,52 @@
     }
   ],
   "frontendText": [
+    {
+      "id": "retired-canvas-file-model-contract",
+      "classification": "dead",
+      "description": "current Files持有共享预览/目录合同，禁止恢复旧Canvas类型、hook、selector或旧预览文案key。",
+      "patterns": [
+        "CanvasWorkbenchPreviewMode",
+        "CanvasWorkbenchPreviewTarget",
+        "CanvasWorkbenchFileTreeState",
+        "useCanvasWorkbenchFileTreeState",
+        "normalizeCanvasWorkbenchPath",
+        "canvas-workbench/files/",
+        "canvas-workbench-preview-mode-panel",
+        "canvas-workbench-preview-loading",
+        "canvas-workbench-preview-unsupported",
+        "canvas-workbench-markdown-preview",
+        "canvas-workbench-html-preview",
+        "canvas-workbench-code-preview",
+        "agentChat.canvasWorkbench.coding.preview.mode."
+      ],
+      "includePathPrefixes": ["src/components/"],
+      "allowedPaths": []
+    },
+    {
+      "id": "files-preview-no-canvas-projection",
+      "classification": "dead",
+      "description": "Files预览、模式与目录仅消费current文件投影，不得反向依赖Canvas selection owner。",
+      "patterns": [
+        "CanvasWorkbenchLayoutViewModel",
+        "CanvasWorkbenchResolvedSelection"
+      ],
+      "includePathPrefixes": [
+        "src/components/agent/chat/workspace/FilePreview",
+        "src/components/agent/chat/workspace/filePreview",
+        "src/components/agent/chat/workspace/WorkspaceFileThreadSidePanelTab",
+        "src/components/agent/chat/workspace/right-surface/useFileTree"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "retired-canvas-file-preview-panel",
+      "classification": "dead",
+      "description": "共享文件预览已迁入 workspace/FilePreviewPanel 与 FilePreviewHeader；禁止恢复旧 Canvas 组件或同名包装，预览与保存继续委托 current 文件 owner。",
+      "patterns": ["CanvasWorkbenchPreviewModePanel"],
+      "includePathPrefixes": ["src/"],
+      "allowedPaths": []
+    },
     {
       "id": "retired-workbench-recovery-contract",
       "classification": "dead",

@@ -1,4 +1,5 @@
-import { normalizeCanvasWorkbenchPath } from "../../CanvasWorkbenchLayoutViewModel";
+import { normalizeWorkspacePath } from "../../../workspace/workspacePath";
+
 import { extractFileNameFromPath } from "../../../workspace/workspacePath";
 import type { CanvasWorkbenchDiffLine } from "../../../utils/canvasWorkbenchDiff";
 import type {
@@ -212,7 +213,7 @@ function normalizeGitPatchPath(value: string | null | undefined): string {
   if (!trimmed || trimmed === "/dev/null" || trimmed === "NUL") {
     return "";
   }
-  return normalizeCanvasWorkbenchPath(
+  return normalizeWorkspacePath(
     trimmed.replace(/^"|"$/g, "").replace(/^[ab]\//, ""),
   ).replace(/^\/+/, "");
 }

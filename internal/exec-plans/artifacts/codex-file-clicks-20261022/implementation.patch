@@ -1,0 +1,2942 @@
+--- a/src/components/agent/chat/workspace/useWorkspaceArtifactPreviewActions.ts
++++ b/src/components/agent/chat/workspace/useWorkspaceArtifactPreviewActions.ts
+@@ -6,41 +6,25 @@
+ } from "react";
+ import { useTranslation } from "react-i18next";
+ import { toast } from "sonner";
+-import { createInitialDocumentState } from "@/components/workspace/canvas/canvasUtils";
+-import type { CanvasStateUnion } from "@/components/workspace/canvas/canvasUtils";
+-import type { LayoutMode, ThemeType } from "@/lib/workspace/workbenchContract";
++import type { LayoutMode } from "@/lib/workspace/workbenchContract";
+ import {
+   hasAgentRuntimeArtifactPreviewScope,
+   readAgentRuntimeArtifactPreviewContent,
+ } from "@/lib/api/agentRuntime/appServerArtifactClient";
+ import { readFilePreview } from "@/lib/api/fileBrowser";
+ import type { SessionFile } from "@/lib/api/session-files";
+-import { createPreviewArtifactFromFile } from "@/lib/artifact/previewArtifact";
+ import type { Artifact } from "@/lib/artifact/types";
+ import { resolveArtifactProtocolFilePath } from "@/lib/artifact-protocol";
+-import {
+-  createLayeredDesignArtifact,
+-  type LayeredDesignDocumentInput,
+-} from "@/lib/layered-design";
+ import type { TaskFile } from "../components/TaskFiles";
+ import type { HarnessFilePreviewResult } from "../components/HarnessStatusPanel";
+ import { useArtifactAutoPreviewSync } from "../hooks/useArtifactAutoPreviewSync";
+ import { resolveDefaultArtifactViewMode } from "../utils/messageArtifacts";
+ import { openCanvasForReason } from "./canvasOpenPolicy";
+ import type { ApplyArtifactViewMode } from "./useWorkspaceArtifactViewModeControl";
+-import {
+-  isRenderableTaskFile,
+-  looksLikeSocialPublishPayload,
+-  normalizeSessionTaskFileType,
+-  resolveTaskFileType,
+-} from "./generalWorkbenchHelpers";
+ import { doesWorkspaceFileCandidateMatch } from "./workspaceFilePathMatch";
+ import { extractFileNameFromPath } from "./workspacePath";
++import { useWorkspaceFileOpen } from "./useWorkspaceFileOpen";
+ import type { CanvasState as GeneralCanvasState } from "@/components/general-chat/bridge";
+-
+-function isRecord(value: unknown): value is Record<string, unknown> {
+-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+-}
+ 
+ function readNonEmptyString(value: unknown): string | null {
+   return typeof value === "string" && value.trim().length > 0 ? value : null;
+@@ -93,97 +77,18 @@
+   return !shouldUseProjectedPreviewArtifact(artifact);
+ }
+ 
+-function hasLayeredDesignDocumentShape(
+-  value: unknown,
+-): value is LayeredDesignDocumentInput {
+-  if (!isRecord(value)) {
+-    return false;
+-  }
+-
+-  const canvas = value.canvas;
+-  return (
+-    typeof value.id === "string" &&
+-    typeof value.title === "string" &&
+-    isRecord(canvas) &&
+-    typeof canvas.width === "number" &&
+-    typeof canvas.height === "number" &&
+-    Array.isArray(value.layers)
+-  );
+-}
+-
+-function createWorkspaceLayeredDesignArtifactId(fileName: string): string {
+-  const normalized = fileName.trim() || "design.json";
+-  let hash = 0;
+-  for (let index = 0; index < normalized.length; index += 1) {
+-    hash = (hash * 31 + normalized.charCodeAt(index)) >>> 0;
+-  }
+-
+-  return `artifact-workspace-layered-design-${hash.toString(36)}`;
+-}
+-
+-function createLayeredDesignArtifactFromWorkspaceFile(
+-  fileName: string,
+-  content: string,
+-): Artifact | null {
+-  const trimmed = content.trim();
+-  if (!trimmed.startsWith("{")) {
+-    return null;
+-  }
+-
+-  let parsed: unknown;
+-  try {
+-    parsed = JSON.parse(trimmed);
+-  } catch {
+-    return null;
+-  }
+-
+-  if (!hasLayeredDesignDocumentShape(parsed)) {
+-    return null;
+-  }
+-
+-  const filename = extractFileNameFromPath(fileName) || "design.json";
+-  try {
+-    return createLayeredDesignArtifact(parsed, {
+-      artifactId: createWorkspaceLayeredDesignArtifactId(fileName),
+-      artifactTitle: parsed.title.trim() || filename,
+-      meta: {
+-        filePath: fileName,
+-        filename,
+-        openedFrom: "general-workbench-file",
+-      },
+-    });
+-  } catch {
+-    return null;
+-  }
+-}
+-
+-function buildCanvasStateFromContent(params: {
+-  previous: CanvasStateUnion | null;
+-  mappedTheme: ThemeType;
+-  content: string;
+-}): CanvasStateUnion {
+-  const { previous, mappedTheme: _mappedTheme, content } = params;
+-
+-  if (!previous || previous.type !== "document") {
+-    return createInitialDocumentState(content);
+-  }
+-
+-  return {
+-    ...previous,
+-    content,
+-  };
+-}
+-
+ interface UseWorkspaceArtifactPreviewActionsParams {
+   activeTheme: string;
+-  mappedTheme: ThemeType;
+   layoutMode: LayoutMode;
+-  isThemeWorkbench: boolean;
+   isGeneralCanvasOpen: boolean;
+   artifacts: Artifact[];
+   currentCanvasArtifact: Artifact | null;
+   taskFiles: TaskFile[];
+   sessionFiles: SessionFile[];
++  threadId?: string | null;
++  sessionId?: string | null;
++  projectRootPath?: string | null;
++  openWorkspaceFile: (path: string) => void;
+   readSessionFile: (fileName: string) => Promise<string | null>;
+   onRequestCanvasPreviewOpen?: (request: {
+     filePath?: string | null;
+@@ -193,20 +98,7 @@
+   setSelectedArtifactId: (artifactId: string | null) => void;
+   setArtifactViewMode: ApplyArtifactViewMode;
+   setLayoutMode: Dispatch<SetStateAction<LayoutMode>>;
+-  setTaskFiles: Dispatch<SetStateAction<TaskFile[]>>;
+-  setSelectedFileId: (fileId: string) => void;
+   setGeneralCanvasState: Dispatch<SetStateAction<GeneralCanvasState>>;
+-  setCanvasState: Dispatch<SetStateAction<CanvasStateUnion | null>>;
+-}
+-
+-interface FilePreviewInput {
+-  fileName: string;
+-  content: string;
+-  sourcePath?: string | null;
+-  isBinary?: boolean | null;
+-  size?: number | null;
+-  error?: string | null;
+-  previewRequestKey?: string;
+ }
+ 
+ interface WorkspaceArtifactPreviewActionsResult {
+@@ -215,35 +107,32 @@
+     artifact?: Artifact,
+   ) => Promise<HarnessFilePreviewResult>;
+   openArtifactInWorkbench: (artifact: Artifact) => Promise<void>;
+-  openFilePreviewArtifact: (params: FilePreviewInput) => Promise<void>;
+   handleArtifactClick: (artifact: Artifact) => void;
+   handleFileClick: (fileName: string, content: string) => void;
+   handleCodeBlockClick: (language: string, code: string) => void;
+   shouldCollapseCodeBlocks: boolean;
+   shouldCollapseCodeBlockInChat: (language: string, code: string) => boolean;
+-  handleTaskFileClick: (file: TaskFile) => void;
+ }
+ 
+ export function useWorkspaceArtifactPreviewActions({
+   activeTheme,
+-  mappedTheme,
+   layoutMode,
+-  isThemeWorkbench,
+   isGeneralCanvasOpen,
+   artifacts,
+   currentCanvasArtifact,
+   taskFiles,
+   sessionFiles,
++  threadId,
++  sessionId,
++  projectRootPath,
++  openWorkspaceFile,
+   readSessionFile,
+   onRequestCanvasPreviewOpen,
+   upsertGeneralArtifact,
+   setSelectedArtifactId,
+   setArtifactViewMode,
+   setLayoutMode,
+-  setTaskFiles,
+-  setSelectedFileId,
+   setGeneralCanvasState,
+-  setCanvasState,
+ }: UseWorkspaceArtifactPreviewActionsParams): WorkspaceArtifactPreviewActionsResult {
+   const { t } = useTranslation("agent");
+   const handleHarnessLoadFilePreview = useCallback(
+@@ -466,183 +355,14 @@
+     [artifacts],
+   );
+ 
+-  const applyContentToCanvas = useCallback(
+-    (content: string) => {
+-      setCanvasState((previous) =>
+-        buildCanvasStateFromContent({
+-          previous,
+-          mappedTheme,
+-          content,
+-        }),
+-      );
+-      openCanvasForReason("user_open_file", setLayoutMode);
+-    },
+-    [mappedTheme, setCanvasState, setLayoutMode],
+-  );
+-
+-  const openFilePreviewArtifact = useCallback(
+-    (params: FilePreviewInput) => {
+-      const projection = createPreviewArtifactFromFile({
+-        filePath: params.fileName,
+-        path: params.sourcePath || params.fileName,
+-        content: params.content,
+-        isBinary: params.isBinary,
+-        size: params.size,
+-        error: params.error,
+-        meta: {
+-          openedFrom: "general-workbench-file",
+-          previewRequestKey: params.previewRequestKey ?? crypto.randomUUID(),
+-        },
+-      });
+-      return openArtifactInWorkbench(projection.artifact);
+-    },
+-    [openArtifactInWorkbench],
+-  );
+-
+-  const handleFileClick = useCallback(
+-    (fileName: string, content: string) => {
+-      if (activeTheme === "general") {
+-        const layeredDesignArtifact =
+-          createLayeredDesignArtifactFromWorkspaceFile(fileName, content);
+-        if (layeredDesignArtifact) {
+-          void openArtifactInWorkbench(layeredDesignArtifact);
+-          return;
+-        }
+-
+-        if (!content.trim()) {
+-          void (async () => {
+-            const preview = await handleHarnessLoadFilePreview(fileName);
+-            const nextContent =
+-              !preview.error && !preview.isBinary && preview.content !== null
+-                ? preview.content || ""
+-                : content;
+-            openFilePreviewArtifact({
+-              fileName,
+-              content: nextContent,
+-              sourcePath: !preview.error ? preview.path || fileName : fileName,
+-              isBinary: preview.isBinary,
+-              size: preview.size,
+-              error: preview.error,
+-            });
+-          })();
+-          return;
+-        }
+-
+-        openFilePreviewArtifact({ fileName, content });
+-        return;
+-      }
+-
+-      const nextFileType = resolveTaskFileType(fileName, content);
+-      const fallbackTaskFileId = crypto.randomUUID();
+-      const existingTaskFile = taskFiles.find((file) => file.name === fileName);
+-      const selectedTaskFileId = existingTaskFile?.id ?? fallbackTaskFileId;
+-      setSelectedFileId(selectedTaskFileId);
+-      setTaskFiles((previous) => {
+-        const existingFile = previous.find((file) => file.name === fileName);
+-        if (existingFile) {
+-          return previous;
+-        }
+-
+-        const nextFile: TaskFile = {
+-          id: fallbackTaskFileId,
+-          name: fileName,
+-          type: nextFileType,
+-          content,
+-          version: 1,
+-          createdAt: Date.now(),
+-          updatedAt: Date.now(),
+-        };
+-        return [...previous, nextFile];
+-      });
+-
+-      if (
+-        !isRenderableTaskFile(
+-          { name: fileName, type: nextFileType },
+-          isThemeWorkbench,
+-        )
+-      ) {
+-        toast.info(
+-          t("agentChat.workspace.artifactPreview.toast.auxiliaryNotRendered"),
+-        );
+-        return;
+-      }
+-
+-      onRequestCanvasPreviewOpen?.({
+-        filePath: fileName,
+-        selectionKey: `task:${selectedTaskFileId}`,
+-      });
+-      applyContentToCanvas(content);
+-    },
+-    [
+-      activeTheme,
+-      applyContentToCanvas,
+-      handleHarnessLoadFilePreview,
+-      isThemeWorkbench,
+-      onRequestCanvasPreviewOpen,
+-      openFilePreviewArtifact,
+-      openArtifactInWorkbench,
+-      setSelectedFileId,
+-      setTaskFiles,
+-      taskFiles,
+-      t,
+-    ],
+-  );
+-
+-  const hydrateTaskFileContent = useCallback(
+-    async (file: TaskFile): Promise<TaskFile | null> => {
+-      if (typeof file.content === "string") {
+-        return file;
+-      }
+-
+-      const matchedSessionFile = sessionFiles.find((candidate) =>
+-        doesWorkspaceFileCandidateMatch(candidate.name, file.name),
+-      );
+-      if (!matchedSessionFile) {
+-        return file;
+-      }
+-
+-      const content = await readSessionFile(matchedSessionFile.name);
+-      if (content === null) {
+-        return null;
+-      }
+-
+-      const hydratedFile: TaskFile = {
+-        ...file,
+-        name: matchedSessionFile.name,
+-        type: normalizeSessionTaskFileType(
+-          matchedSessionFile.fileType ?? file.type,
+-          matchedSessionFile.name,
+-          content,
+-        ),
+-        content,
+-        metadata: file.metadata ?? matchedSessionFile.metadata,
+-        createdAt: file.createdAt || matchedSessionFile.createdAt || Date.now(),
+-        updatedAt:
+-          matchedSessionFile.updatedAt ||
+-          file.updatedAt ||
+-          matchedSessionFile.createdAt ||
+-          Date.now(),
+-      };
+-
+-      setTaskFiles((previous) => {
+-        const matchedIndex = previous.findIndex(
+-          (item) =>
+-            item.id === file.id ||
+-            doesWorkspaceFileCandidateMatch(item.name, matchedSessionFile.name),
+-        );
+-        if (matchedIndex < 0) {
+-          return [...previous, hydratedFile];
+-        }
+-
+-        const next = [...previous];
+-        next[matchedIndex] = hydratedFile;
+-        return next;
+-      });
+-
+-      return hydratedFile;
+-    },
+-    [readSessionFile, sessionFiles, setTaskFiles],
+-  );
++  const handleFileClick = useWorkspaceFileOpen({
++    threadId,
++    sessionId,
++    projectRootPath,
++    sessionFiles,
++    taskFiles,
++    openWorkspaceFile,
++  });
+ 
+   const handleCodeBlockClick = useCallback(
+     (language: string, code: string) => {
+@@ -693,72 +413,13 @@
+     [findArtifactForCodeBlock, shouldCollapseCodeBlocks],
+   );
+ 
+-  const handleTaskFileClick = useCallback(
+-    (file: TaskFile) => {
+-      void (async () => {
+-        const resolvedFile = await hydrateTaskFileContent(file);
+-        if (!resolvedFile) {
+-          toast.error(
+-            t(
+-              "agentChat.workspace.artifactPreview.toast.sessionFileReadFailed",
+-            ),
+-          );
+-          return;
+-        }
+-
+-        if (activeTheme === "general") {
+-          if (!resolvedFile.content?.trim()) {
+-            toast.info(
+-              t(
+-                "agentChat.workspace.artifactPreview.toast.auxiliaryNotRendered",
+-              ),
+-            );
+-            return;
+-          }
+-
+-          openFilePreviewArtifact({
+-            fileName: resolvedFile.name,
+-            content: resolvedFile.content ?? "",
+-          });
+-          return;
+-        }
+-
+-        setSelectedFileId(resolvedFile.id);
+-
+-        if (
+-          !isRenderableTaskFile(resolvedFile, isThemeWorkbench) ||
+-          looksLikeSocialPublishPayload(resolvedFile.content || "") ||
+-          !resolvedFile.content?.trim()
+-        ) {
+-          toast.info(
+-            t("agentChat.workspace.artifactPreview.toast.auxiliaryNotRendered"),
+-          );
+-          return;
+-        }
+-
+-        applyContentToCanvas(resolvedFile.content ?? "");
+-      })();
+-    },
+-    [
+-      activeTheme,
+-      applyContentToCanvas,
+-      hydrateTaskFileContent,
+-      isThemeWorkbench,
+-      openFilePreviewArtifact,
+-      setSelectedFileId,
+-      t,
+-    ],
+-  );
+-
+   return {
+     handleHarnessLoadFilePreview,
+     openArtifactInWorkbench,
+-    openFilePreviewArtifact,
+     handleArtifactClick,
+     handleFileClick,
+     handleCodeBlockClick,
+     shouldCollapseCodeBlocks,
+     shouldCollapseCodeBlockInChat,
+-    handleTaskFileClick,
+   };
+ }
+--- a/src/components/agent/chat/workspace/useWorkspaceArtifactPreviewActions.test.tsx
++++ b/src/components/agent/chat/workspace/useWorkspaceArtifactPreviewActions.test.tsx
+@@ -4,7 +4,6 @@
+ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+ import type { Artifact } from "@/lib/artifact/types";
+ import * as fileBrowserModule from "@/lib/api/fileBrowser";
+-import { toast } from "sonner";
+ import { useWorkspaceArtifactPreviewActions } from "./useWorkspaceArtifactPreviewActions";
+ 
+ const { mockHasArtifactPreviewScope, mockReadArtifactPreviewContent } =
+@@ -64,23 +63,19 @@
+ 
+   const defaultProps: HookProps = {
+     activeTheme: "general",
+-    mappedTheme: "general",
+     layoutMode: "chat-canvas",
+-    isThemeWorkbench: false,
+     isGeneralCanvasOpen: true,
+     artifacts: [],
+     currentCanvasArtifact: null,
+     taskFiles: [],
+     sessionFiles: [],
++    openWorkspaceFile: vi.fn(),
+     readSessionFile: vi.fn(async () => null),
+     upsertGeneralArtifact: vi.fn(),
+     setSelectedArtifactId: vi.fn(),
+     setArtifactViewMode: vi.fn(),
+     setLayoutMode: vi.fn(),
+-    setTaskFiles: vi.fn(),
+-    setSelectedFileId: vi.fn(),
+     setGeneralCanvasState: vi.fn(),
+-    setCanvasState: vi.fn(),
+   };
+ 
+   function Probe(currentProps: HookProps) {
+@@ -120,12 +115,6 @@
+   mockReadArtifactPreviewContent.mockReset();
+ });
+ 
+-async function flushAsyncWork(times = 4) {
+-  for (let index = 0; index < times; index += 1) {
+-    await Promise.resolve();
+-  }
+-}
+-
+ afterEach(() => {
+   while (mountedRoots.length > 0) {
+     const mounted = mountedRoots.pop();
+@@ -141,44 +130,6 @@
+ });
+ 
+ describe("useWorkspaceArtifactPreviewActions", () => {
+-  it.each(["pdf", "docx", "xlsx", "pptx"])(
+-    "%s 原字节面板拥有读取，不重读空内容或弹出二进制不支持提示",
+-    async (extension) => {
+-      const path = `/workspace/report.${extension}`;
+-      const read = vi
+-        .spyOn(fileBrowserModule, "readFilePreview")
+-        .mockResolvedValue({
+-          path,
+-          content: null,
+-          isBinary: true,
+-          size: 2048,
+-          error: null,
+-        });
+-      vi.mocked(toast.info).mockClear();
+-      const upsertGeneralArtifact = vi.fn();
+-      const onRequestCanvasPreviewOpen = vi.fn();
+-      const { render, getValue } = renderHook({
+-        upsertGeneralArtifact,
+-        onRequestCanvasPreviewOpen,
+-      });
+-      await render();
+-      await act(async () =>
+-        getValue().openFilePreviewArtifact({
+-          fileName: path,
+-          content: "",
+-          isBinary: true,
+-        }),
+-      );
+-      expect(read).not.toHaveBeenCalled();
+-      expect(toast.info).not.toHaveBeenCalled();
+-      expect(upsertGeneralArtifact).toHaveBeenCalledOnce();
+-      expect(onRequestCanvasPreviewOpen).toHaveBeenCalledWith({
+-        filePath: null,
+-        selectionKey: expect.stringMatching(/^artifact:/),
+-      });
+-    },
+-  );
+-
+   it("打开普通 artifact 时应进入工作台预览", async () => {
+     const setSelectedArtifactId = vi.fn();
+     const setArtifactViewMode = vi.fn();
+@@ -240,142 +191,6 @@
+     expect(setArtifactViewMode).toHaveBeenCalledWith("preview", {
+       artifactId: "preview-article-workspace-2",
+     });
+-    expect(setLayoutMode).toHaveBeenCalledWith("chat-canvas");
+-  });
+-
+-  it("通用模式打开文件预览时应投影为 source-backed preview artifact", async () => {
+-    const upsertGeneralArtifact = vi.fn();
+-    const setGeneralCanvasState = vi.fn();
+-    const setSelectedArtifactId = vi.fn();
+-    const setArtifactViewMode = vi.fn();
+-    const setLayoutMode = vi.fn();
+-    const onRequestCanvasPreviewOpen = vi.fn();
+-    const { render, getValue } = renderHook({
+-      upsertGeneralArtifact,
+-      setGeneralCanvasState,
+-      setSelectedArtifactId,
+-      setArtifactViewMode,
+-      setLayoutMode,
+-      onRequestCanvasPreviewOpen,
+-    });
+-
+-    await render();
+-
+-    act(() => {
+-      getValue().handleFileClick(
+-        ".lime/artifacts/thread-1/report.md",
+-        "# 研究简报\n\n这里是预览内容。",
+-      );
+-    });
+-
+-    expect(upsertGeneralArtifact).toHaveBeenCalledTimes(1);
+-    const artifact = upsertGeneralArtifact.mock.calls[0]?.[0] as Artifact;
+-    expect(artifact).toEqual(
+-      expect.objectContaining({
+-        id: expect.stringMatching(/^preview-file-/),
+-        type: "document",
+-        title: "report.md",
+-        content: "# 研究简报\n\n这里是预览内容。",
+-        meta: expect.objectContaining({
+-          previewArtifact: true,
+-          isSourceBacked: true,
+-          source: "file",
+-          sourceRef: ".lime/artifacts/thread-1/report.md",
+-          sourcePath: ".lime/artifacts/thread-1/report.md",
+-          filePath: ".lime/artifacts/thread-1/report.md",
+-          filename: "report.md",
+-          contentKind: "markdown",
+-          renderMode: "canvas",
+-          lifecycle: "transient",
+-        }),
+-      }),
+-    );
+-    expect(setSelectedArtifactId).toHaveBeenCalledWith(artifact.id);
+-    expect(onRequestCanvasPreviewOpen).toHaveBeenCalledWith({
+-      filePath: ".lime/artifacts/thread-1/report.md",
+-      selectionKey: `artifact:${artifact.id}`,
+-    });
+-    expect(setArtifactViewMode).toHaveBeenCalledWith("preview", {
+-      artifactId: artifact.id,
+-    });
+-    expect(setLayoutMode).toHaveBeenCalledWith("chat-canvas");
+-    expect(setGeneralCanvasState).toHaveBeenCalledWith(expect.any(Function));
+-  });
+-
+-  it("明确重开同一文件使用新的预览请求，批注回原文保留指定请求", async () => {
+-    const upsertGeneralArtifact = vi.fn();
+-    const { render, getValue } = renderHook({ upsertGeneralArtifact });
+-    await render();
+-    const input = { fileName: "/tmp/report.xlsx", content: "", isBinary: true };
+-    await act(async () => {
+-      await getValue().openFilePreviewArtifact(input);
+-      await getValue().openFilePreviewArtifact(input);
+-      await getValue().openFilePreviewArtifact({
+-        ...input,
+-        previewRequestKey: "comment-focus",
+-      });
+-    });
+-    const artifacts = upsertGeneralArtifact.mock.calls.map(
+-      ([artifact]) => artifact as Artifact,
+-    );
+-    expect(artifacts).toHaveLength(3);
+-    expect(artifacts[0].id).toBe(artifacts[1].id);
+-    expect(artifacts[0].meta.previewRequestKey).toEqual(expect.any(String));
+-    expect(artifacts[1].meta.previewRequestKey).not.toBe(
+-      artifacts[0].meta.previewRequestKey,
+-    );
+-    expect(artifacts[2].meta.previewRequestKey).toBe("comment-focus");
+-  });
+-
+-  it("非通用模式打开带文本的 PDF 文件时应作为文档切到工作台预览", async () => {
+-    const setTaskFiles = vi.fn();
+-    const setSelectedFileId = vi.fn();
+-    const setCanvasState = vi.fn();
+-    const setLayoutMode = vi.fn();
+-    const onRequestCanvasPreviewOpen = vi.fn();
+-    const { render, getValue } = renderHook({
+-      activeTheme: "coding",
+-      isThemeWorkbench: false,
+-      setTaskFiles,
+-      setSelectedFileId,
+-      setCanvasState,
+-      setLayoutMode,
+-      onRequestCanvasPreviewOpen,
+-    });
+-    const filePath = "/tmp/imported-local-history/docs/imported-preview.pdf";
+-    const content = "导入会话 PDF 预览内容：可解析文本流应进入文档预览。";
+-
+-    await render();
+-
+-    act(() => {
+-      getValue().handleFileClick(filePath, content);
+-    });
+-
+-    expect(setSelectedFileId).toHaveBeenCalledTimes(1);
+-    const selectedFileId = setSelectedFileId.mock.calls[0]?.[0] as string;
+-    expect(selectedFileId).toEqual(expect.any(String));
+-    expect(setTaskFiles).toHaveBeenCalledTimes(1);
+-    const updater = setTaskFiles.mock.calls[0]?.[0] as (
+-      files: Array<{
+-        id: string;
+-        name: string;
+-        type: string;
+-        content?: string;
+-      }>,
+-    ) => unknown;
+-    expect(updater([])).toEqual([
+-      expect.objectContaining({
+-        id: selectedFileId,
+-        name: filePath,
+-        type: "document",
+-        content,
+-      }),
+-    ]);
+-    expect(onRequestCanvasPreviewOpen).toHaveBeenCalledWith({
+-      filePath,
+-      selectionKey: `task:${selectedFileId}`,
+-    });
+-    expect(setCanvasState).toHaveBeenCalledWith(expect.any(Function));
+     expect(setLayoutMode).toHaveBeenCalledWith("chat-canvas");
+   });
+ 
+@@ -541,132 +356,6 @@
+     expect(setLayoutMode).toHaveBeenCalledWith("chat-canvas");
+   });
+ 
+-  it("通用模式打开 LayeredDesignDocument 工程文件应进入 canvas:design 主链", async () => {
+-    const upsertGeneralArtifact = vi.fn();
+-    const setGeneralCanvasState = vi.fn();
+-    const setSelectedArtifactId = vi.fn();
+-    const setArtifactViewMode = vi.fn();
+-    const setLayoutMode = vi.fn();
+-    const designJson = JSON.stringify({
+-      id: "main-app-layered-design",
+-      title: "主应用图层设计",
+-      canvas: { width: 1080, height: 1440 },
+-      layers: [
+-        {
+-          id: "headline",
+-          name: "标题层",
+-          type: "text",
+-          text: "真实主应用入口",
+-          x: 96,
+-          y: 120,
+-          width: 888,
+-          height: 120,
+-          zIndex: 10,
+-        },
+-      ],
+-      assets: [],
+-      editHistory: [],
+-      createdAt: "2026-05-08T00:00:00.000Z",
+-      updatedAt: "2026-05-08T00:00:00.000Z",
+-    });
+-    const { render, getValue } = renderHook({
+-      upsertGeneralArtifact,
+-      setGeneralCanvasState,
+-      setSelectedArtifactId,
+-      setArtifactViewMode,
+-      setLayoutMode,
+-    });
+-
+-    await render();
+-
+-    act(() => {
+-      getValue().handleFileClick(
+-        ".lime/layered-designs/main-app.layered-design/design.json",
+-        designJson,
+-      );
+-    });
+-
+-    await act(async () => {
+-      await Promise.resolve();
+-    });
+-
+-    expect(upsertGeneralArtifact).toHaveBeenCalledTimes(1);
+-    const artifact = upsertGeneralArtifact.mock.calls[0]?.[0] as Artifact;
+-    expect(artifact).toEqual(
+-      expect.objectContaining({
+-        type: "canvas:design",
+-        title: "主应用图层设计",
+-        content: expect.stringContaining('"id": "main-app-layered-design"'),
+-        meta: expect.objectContaining({
+-          filePath: ".lime/layered-designs/main-app.layered-design/design.json",
+-          filename: "design.json",
+-          platform: "layered-design",
+-          designId: "main-app-layered-design",
+-          openedFrom: "general-workbench-file",
+-        }),
+-      }),
+-    );
+-    expect(setSelectedArtifactId).toHaveBeenCalledWith(artifact.id);
+-    expect(setSelectedArtifactId).not.toHaveBeenCalledWith(null);
+-    expect(setArtifactViewMode).toHaveBeenCalledWith("preview", {
+-      artifactId: artifact.id,
+-    });
+-    expect(setLayoutMode).toHaveBeenCalledWith("chat-canvas");
+-    expect(setGeneralCanvasState).toHaveBeenCalledTimes(1);
+-  });
+-
+-  it("非通用模式点击文件时应显式请求工作台切到新任务文件预览", async () => {
+-    const randomUUIDSpy = vi
+-      .spyOn(crypto, "randomUUID")
+-      .mockReturnValue("11111111-1111-4111-8111-111111111111");
+-    const setTaskFiles = vi.fn();
+-    const setSelectedFileId = vi.fn();
+-    const setCanvasState = vi.fn();
+-    const setLayoutMode = vi.fn();
+-    const onRequestCanvasPreviewOpen = vi.fn();
+-    const { render, getValue } = renderHook({
+-      activeTheme: "article",
+-      mappedTheme: "general",
+-      isThemeWorkbench: true,
+-      setTaskFiles,
+-      setSelectedFileId,
+-      setCanvasState,
+-      setLayoutMode,
+-      onRequestCanvasPreviewOpen,
+-    });
+-
+-    await render();
+-
+-    act(() => {
+-      getValue().handleFileClick(
+-        "imported-preview.md",
+-        "# 导入会话 Markdown 预览内容",
+-      );
+-    });
+-
+-    expect(randomUUIDSpy).toHaveBeenCalledTimes(1);
+-    expect(setSelectedFileId).toHaveBeenCalledWith(
+-      "11111111-1111-4111-8111-111111111111",
+-    );
+-    expect(setTaskFiles).toHaveBeenCalledTimes(1);
+-    const updateTaskFiles = setTaskFiles.mock.calls[0]?.[0];
+-    expect(typeof updateTaskFiles).toBe("function");
+-    expect(updateTaskFiles([])).toEqual([
+-      expect.objectContaining({
+-        id: "11111111-1111-4111-8111-111111111111",
+-        name: "imported-preview.md",
+-        type: "document",
+-        content: "# 导入会话 Markdown 预览内容",
+-      }),
+-    ]);
+-    expect(onRequestCanvasPreviewOpen).toHaveBeenCalledWith({
+-      filePath: "imported-preview.md",
+-      selectionKey: "task:11111111-1111-4111-8111-111111111111",
+-    });
+-    expect(setCanvasState).toHaveBeenCalledWith(expect.any(Function));
+-    expect(setLayoutMode).toHaveBeenCalledWith("chat-canvas");
+-  });
+-
+   it("读取带 App Server scope 的 artifact 时应走 artifact/read current 主链", async () => {
+     const readFilePreviewSpy = vi.spyOn(fileBrowserModule, "readFilePreview");
+     mockHasArtifactPreviewScope.mockReturnValue(true);
+@@ -872,434 +561,4 @@
+       error: null,
+     });
+   });
+-
+-  it("点击占位任务文件时应按需读取会话内容并打开 preview artifact", async () => {
+-    const readSessionFile = vi.fn(async () => "# 会话主稿\n\n按需恢复");
+-    const setTaskFiles = vi.fn();
+-    const setGeneralCanvasState = vi.fn();
+-    const setSelectedArtifactId = vi.fn();
+-    const setArtifactViewMode = vi.fn();
+-    const setLayoutMode = vi.fn();
+-    const upsertGeneralArtifact = vi.fn();
+-    const placeholderFile = {
+-      id: "session-file:content-posts/draft.md",
+-      name: "content-posts/draft.md",
+-      type: "document" as const,
+-      version: 1,
+-      createdAt: 100,
+-      updatedAt: 100,
+-    };
+-    const { render, getValue } = renderHook({
+-      taskFiles: [placeholderFile],
+-      sessionFiles: [
+-        {
+-          name: "content-posts/draft.md",
+-          fileType: "document",
+-          metadata: {
+-            contentPostIntent: "draft",
+-          },
+-          size: 20,
+-          createdAt: 100,
+-          updatedAt: 200,
+-        },
+-      ],
+-      readSessionFile,
+-      upsertGeneralArtifact,
+-      setTaskFiles,
+-      setGeneralCanvasState,
+-      setSelectedArtifactId,
+-      setArtifactViewMode,
+-      setLayoutMode,
+-    });
+-
+-    await render();
+-
+-    await act(async () => {
+-      getValue().handleTaskFileClick(placeholderFile);
+-      await flushAsyncWork();
+-    });
+-
+-    expect(readSessionFile).toHaveBeenCalledWith("content-posts/draft.md");
+-    expect(setTaskFiles).toHaveBeenCalledTimes(1);
+-
+-    const taskFilesUpdater = setTaskFiles.mock.calls[0]?.[0];
+-    expect(typeof taskFilesUpdater).toBe("function");
+-    expect(taskFilesUpdater([placeholderFile])).toEqual([
+-      expect.objectContaining({
+-        id: "session-file:content-posts/draft.md",
+-        name: "content-posts/draft.md",
+-        type: "document",
+-        content: "# 会话主稿\n\n按需恢复",
+-        metadata: expect.objectContaining({
+-          contentPostIntent: "draft",
+-        }),
+-        createdAt: 100,
+-        updatedAt: 200,
+-      }),
+-    ]);
+-    expect(upsertGeneralArtifact).toHaveBeenCalledTimes(1);
+-    const openedArtifact = upsertGeneralArtifact.mock.calls[0]?.[0] as Artifact;
+-    expect(openedArtifact).toEqual(
+-      expect.objectContaining({
+-        id: expect.stringMatching(/^preview-file-/),
+-        title: "draft.md",
+-        content: "# 会话主稿\n\n按需恢复",
+-        meta: expect.objectContaining({
+-          previewArtifact: true,
+-          sourceRef: "content-posts/draft.md",
+-          contentKind: "markdown",
+-        }),
+-      }),
+-    );
+-    expect(setSelectedArtifactId).toHaveBeenCalledWith(openedArtifact?.id);
+-    expect(setArtifactViewMode).toHaveBeenCalledWith("preview", {
+-      artifactId: openedArtifact?.id,
+-    });
+-    expect(setLayoutMode).toHaveBeenCalledWith("chat-canvas");
+-    expect(setGeneralCanvasState).toHaveBeenCalledWith(expect.any(Function));
+-  });
+-
+-  it("通用模式打开真实 HTML 路径时应读取文件并投影为支持 Desktop Host 预览的 artifact", async () => {
+-    const readFilePreviewSpy = vi
+-      .spyOn(fileBrowserModule, "readFilePreview")
+-      .mockResolvedValue({
+-        path: "/tmp/project/prototype.html",
+-        content: "<!doctype html><html><body>Lime</body></html>",
+-        isBinary: false,
+-        size: 44,
+-        error: null,
+-      });
+-    const setGeneralCanvasState = vi.fn();
+-    const setSelectedArtifactId = vi.fn();
+-    const setArtifactViewMode = vi.fn();
+-    const setLayoutMode = vi.fn();
+-    const upsertGeneralArtifact = vi.fn();
+-    const onRequestCanvasPreviewOpen = vi.fn();
+-    const { render, getValue } = renderHook({
+-      upsertGeneralArtifact,
+-      setGeneralCanvasState,
+-      setSelectedArtifactId,
+-      setArtifactViewMode,
+-      setLayoutMode,
+-      onRequestCanvasPreviewOpen,
+-    });
+-
+-    await render();
+-
+-    await act(async () => {
+-      getValue().handleFileClick("/tmp/project/prototype.html", "");
+-      await flushAsyncWork();
+-    });
+-
+-    expect(readFilePreviewSpy).toHaveBeenCalledWith(
+-      "/tmp/project/prototype.html",
+-      64 * 1024,
+-    );
+-    expect(upsertGeneralArtifact).toHaveBeenCalledTimes(1);
+-    const artifact = upsertGeneralArtifact.mock.calls[0]?.[0] as Artifact;
+-    expect(artifact).toEqual(
+-      expect.objectContaining({
+-        type: "html",
+-        title: "prototype.html",
+-        content: "<!doctype html><html><body>Lime</body></html>",
+-        meta: expect.objectContaining({
+-          previewArtifact: true,
+-          sourcePath: "/tmp/project/prototype.html",
+-          filePath: "/tmp/project/prototype.html",
+-          contentKind: "html",
+-          renderMode: "external_window",
+-          capabilities: expect.objectContaining({
+-            externalWindow: true,
+-          }),
+-        }),
+-      }),
+-    );
+-    expect(setSelectedArtifactId).toHaveBeenCalledWith(artifact.id);
+-    expect(onRequestCanvasPreviewOpen).toHaveBeenCalledWith({
+-      filePath: "/tmp/project/prototype.html",
+-      selectionKey: `artifact:${artifact.id}`,
+-    });
+-    expect(setArtifactViewMode).toHaveBeenCalledWith("preview", {
+-      artifactId: artifact.id,
+-    });
+-    expect(setLayoutMode).toHaveBeenCalledWith("chat-canvas");
+-    expect(setGeneralCanvasState).toHaveBeenCalledWith(expect.any(Function));
+-  });
+-
+-  it("通用模式打开真实 DOCX 路径时应保留源路径并投影为 document_pages artifact", async () => {
+-    const docxPath =
+-      "/Users/coso/Documents/other/谢晶_个人IP知识库v1.0_深澜智能.docx";
+-    const readFilePreviewSpy = vi
+-      .spyOn(fileBrowserModule, "readFilePreview")
+-      .mockResolvedValue({
+-        path: docxPath,
+-        content: "个人 IP 知识库\n\n深澜智能",
+-        isBinary: false,
+-        size: 55007,
+-        error: null,
+-      });
+-    const setGeneralCanvasState = vi.fn();
+-    const setSelectedArtifactId = vi.fn();
+-    const setArtifactViewMode = vi.fn();
+-    const setLayoutMode = vi.fn();
+-    const upsertGeneralArtifact = vi.fn();
+-    const onRequestCanvasPreviewOpen = vi.fn();
+-    const { render, getValue } = renderHook({
+-      upsertGeneralArtifact,
+-      setGeneralCanvasState,
+-      setSelectedArtifactId,
+-      setArtifactViewMode,
+-      setLayoutMode,
+-      onRequestCanvasPreviewOpen,
+-    });
+-
+-    await render();
+-
+-    await act(async () => {
+-      getValue().handleFileClick(docxPath, "");
+-      await flushAsyncWork();
+-    });
+-
+-    expect(readFilePreviewSpy).toHaveBeenCalledWith(docxPath, 64 * 1024);
+-    expect(upsertGeneralArtifact).toHaveBeenCalledTimes(1);
+-    const artifact = upsertGeneralArtifact.mock.calls[0]?.[0] as Artifact;
+-    expect(artifact).toEqual(
+-      expect.objectContaining({
+-        type: "document",
+-        title: "谢晶_个人IP知识库v1.0_深澜智能.docx",
+-        content: "个人 IP 知识库\n\n深澜智能",
+-        meta: expect.objectContaining({
+-          previewArtifact: true,
+-          isSourceBacked: true,
+-          source: "file",
+-          sourceRef: docxPath,
+-          sourcePath: docxPath,
+-          filePath: docxPath,
+-          filename: "谢晶_个人IP知识库v1.0_深澜智能.docx",
+-          fileKind: "docx",
+-          contentKind: "document",
+-          renderMode: "document_pages",
+-          lifecycle: "transient",
+-        }),
+-      }),
+-    );
+-    expect(setSelectedArtifactId).toHaveBeenCalledWith(artifact.id);
+-    expect(onRequestCanvasPreviewOpen).toHaveBeenCalledWith({
+-      filePath: null,
+-      selectionKey: `artifact:${artifact.id}`,
+-    });
+-    expect(setArtifactViewMode).toHaveBeenCalledWith("preview", {
+-      artifactId: artifact.id,
+-    });
+-    expect(setLayoutMode).toHaveBeenCalledWith("chat-canvas");
+-    expect(setGeneralCanvasState).toHaveBeenCalledWith(expect.any(Function));
+-  });
+-
+-  it("通用模式打开可抽取文本的 PDF 路径时应打开真实 PDF 页面", async () => {
+-    const pdfPath = "/Users/coso/Documents/other/汇报材料.pdf";
+-    const readFilePreviewSpy = vi
+-      .spyOn(fileBrowserModule, "readFilePreview")
+-      .mockResolvedValue({
+-        path: pdfPath,
+-        content: "PDF 正文预览\n\n关键结论",
+-        isBinary: false,
+-        size: 55007,
+-        error: null,
+-      });
+-    const setGeneralCanvasState = vi.fn();
+-    const setSelectedArtifactId = vi.fn();
+-    const setArtifactViewMode = vi.fn();
+-    const setLayoutMode = vi.fn();
+-    const upsertGeneralArtifact = vi.fn();
+-    const onRequestCanvasPreviewOpen = vi.fn();
+-    const { render, getValue } = renderHook({
+-      upsertGeneralArtifact,
+-      setGeneralCanvasState,
+-      setSelectedArtifactId,
+-      setArtifactViewMode,
+-      setLayoutMode,
+-      onRequestCanvasPreviewOpen,
+-    });
+-
+-    await render();
+-
+-    await act(async () => {
+-      getValue().handleFileClick(pdfPath, "");
+-      await flushAsyncWork();
+-    });
+-
+-    expect(readFilePreviewSpy).toHaveBeenCalledWith(pdfPath, 64 * 1024);
+-    expect(upsertGeneralArtifact).toHaveBeenCalledTimes(1);
+-    const artifact = upsertGeneralArtifact.mock.calls[0]?.[0] as Artifact;
+-    expect(artifact).toEqual(
+-      expect.objectContaining({
+-        type: "document",
+-        title: "汇报材料.pdf",
+-        content: "PDF 正文预览\n\n关键结论",
+-        meta: expect.objectContaining({
+-          previewArtifact: true,
+-          isSourceBacked: true,
+-          source: "file",
+-          sourceRef: pdfPath,
+-          sourcePath: pdfPath,
+-          filePath: pdfPath,
+-          filename: "汇报材料.pdf",
+-          fileKind: "pdf",
+-          contentKind: "document",
+-          renderMode: "document_pages",
+-          lifecycle: "transient",
+-          capabilities: expect.objectContaining({
+-            preview: true,
+-            systemOpen: true,
+-          }),
+-        }),
+-      }),
+-    );
+-    expect(setSelectedArtifactId).toHaveBeenCalledWith(artifact.id);
+-    expect(onRequestCanvasPreviewOpen).toHaveBeenCalledWith({
+-      filePath: null,
+-      selectionKey: `artifact:${artifact.id}`,
+-    });
+-    expect(setArtifactViewMode).toHaveBeenCalledWith("preview", {
+-      artifactId: artifact.id,
+-    });
+-    expect(setLayoutMode).toHaveBeenCalledWith("chat-canvas");
+-    expect(setGeneralCanvasState).toHaveBeenCalledWith(expect.any(Function));
+-  });
+-
+-  it("通用模式打开 Excel 保留绝对源路径，抽取文本不替代真实工作表", async () => {
+-    const xlsxPath = "/Users/coso/Documents/other/导入验收矩阵.xlsx";
+-    const readFilePreviewSpy = vi
+-      .spyOn(fileBrowserModule, "readFilePreview")
+-      .mockResolvedValue({
+-        path: xlsxPath,
+-        content: "能力\t状态\nWebSearch\tcurrent",
+-        isBinary: false,
+-        size: 12048,
+-        error: null,
+-      });
+-    const setGeneralCanvasState = vi.fn();
+-    const setSelectedArtifactId = vi.fn();
+-    const setArtifactViewMode = vi.fn();
+-    const setLayoutMode = vi.fn();
+-    const upsertGeneralArtifact = vi.fn();
+-    const onRequestCanvasPreviewOpen = vi.fn();
+-    const { render, getValue } = renderHook({
+-      upsertGeneralArtifact,
+-      setGeneralCanvasState,
+-      setSelectedArtifactId,
+-      setArtifactViewMode,
+-      setLayoutMode,
+-      onRequestCanvasPreviewOpen,
+-    });
+-
+-    await render();
+-
+-    await act(async () => {
+-      getValue().handleFileClick(xlsxPath, "");
+-      await flushAsyncWork();
+-    });
+-
+-    expect(readFilePreviewSpy).toHaveBeenCalledWith(xlsxPath, 64 * 1024);
+-    const artifact = upsertGeneralArtifact.mock.calls[0]?.[0] as Artifact;
+-    expect(artifact).toEqual(
+-      expect.objectContaining({
+-        type: "document",
+-        title: "导入验收矩阵.xlsx",
+-        content: "能力\t状态\nWebSearch\tcurrent",
+-        meta: expect.objectContaining({
+-          previewArtifact: true,
+-          source: "file",
+-          sourceRef: xlsxPath,
+-          filename: "导入验收矩阵.xlsx",
+-          fileKind: "xlsx",
+-          contentKind: "workbook",
+-          renderMode: "workbook",
+-        }),
+-      }),
+-    );
+-    expect(onRequestCanvasPreviewOpen).toHaveBeenCalledWith({
+-      filePath: null,
+-      selectionKey: `artifact:${artifact.id}`,
+-    });
+-  });
+-
+-  it("点击占位任务文件时应按需读取会话内容并更新主题工作台画布", async () => {
+-    const readSessionFile = vi.fn(async () => "# 主题工作台内容");
+-    const setTaskFiles = vi.fn();
+-    const setSelectedFileId = vi.fn();
+-    const setCanvasState = vi.fn();
+-    const setLayoutMode = vi.fn();
+-    const placeholderFile = {
+-      id: "session-file:result.md",
+-      name: "result.md",
+-      type: "document" as const,
+-      version: 1,
+-      createdAt: 10,
+-      updatedAt: 10,
+-    };
+-    const { render, getValue } = renderHook({
+-      activeTheme: "article",
+-      mappedTheme: "general",
+-      layoutMode: "chat",
+-      isThemeWorkbench: true,
+-      taskFiles: [placeholderFile],
+-      sessionFiles: [
+-        {
+-          name: "result.md",
+-          fileType: "document",
+-          size: 20,
+-          createdAt: 10,
+-          updatedAt: 30,
+-        },
+-      ],
+-      readSessionFile,
+-      setTaskFiles,
+-      setSelectedFileId,
+-      setCanvasState,
+-      setLayoutMode,
+-    });
+-
+-    await render();
+-
+-    await act(async () => {
+-      getValue().handleTaskFileClick(placeholderFile);
+-      await flushAsyncWork();
+-    });
+-
+-    expect(readSessionFile).toHaveBeenCalledWith("result.md");
+-    expect(setSelectedFileId).toHaveBeenCalledWith("session-file:result.md");
+-    expect(setLayoutMode).toHaveBeenCalledWith("chat-canvas");
+-
+-    const taskFilesUpdater = setTaskFiles.mock.calls[0]?.[0];
+-    expect(typeof taskFilesUpdater).toBe("function");
+-    expect(taskFilesUpdater([placeholderFile])).toEqual([
+-      expect.objectContaining({
+-        id: "session-file:result.md",
+-        name: "result.md",
+-        content: "# 主题工作台内容",
+-        updatedAt: 30,
+-      }),
+-    ]);
+-
+-    const canvasStateUpdater = setCanvasState.mock.calls[0]?.[0];
+-    expect(typeof canvasStateUpdater).toBe("function");
+-    expect(
+-      canvasStateUpdater({
+-        type: "document",
+-        content: "旧内容",
+-        platform: "markdown",
+-        versions: [],
+-        currentVersionId: "version-1",
+-        isEditing: true,
+-      }),
+-    ).toEqual(
+-      expect.objectContaining({
+-        type: "document",
+-        content: "# 主题工作台内容",
+-        platform: "markdown",
+-        currentVersionId: "version-1",
+-      }),
+-    );
+-  });
+ });
+--- a/src/components/agent/chat/workspace/useWorkspaceArtifactOpenRuntime.tsx
++++ b/src/components/agent/chat/workspace/useWorkspaceArtifactOpenRuntime.tsx
+@@ -1,5 +1,4 @@
+ import {
+-  startTransition,
+   useCallback,
+   useEffect,
+   useRef,
+@@ -19,7 +18,7 @@
+ import { requestWorkspaceRightSurface } from "@/lib/api/workspaceRightSurface";
+ import { createPreviewArtifact } from "@/lib/artifact/previewArtifact";
+ import type { ArtifactDocumentV1 } from "@/lib/artifact-document";
+-import type { LayoutMode, ThemeType } from "@/lib/workspace/workbenchContract";
++import type { LayoutMode } from "@/lib/workspace/workbenchContract";
+ import type { AgentChatWorkspaceProps } from "../agentChatWorkspaceContract";
+ import type { CanvasWorkbenchLayoutMode } from "../components/CanvasWorkbenchLayout";
+ import type { TaskFile } from "../components/TaskFiles";
+@@ -74,9 +73,7 @@
+   handleWriteFile: WorkspaceArtifactWriteFile;
+   initialProjectFileOpenTarget?: AgentChatWorkspaceProps["initialProjectFileOpenTarget"];
+   isInitialContentLoading: boolean;
+-  isThemeWorkbench: boolean;
+   layoutMode: LayoutMode;
+-  mappedTheme: ThemeType;
+   messages: Message[];
+   onNavigate?: AgentChatWorkspaceProps["onNavigate"];
+   openArticleWorkspaceRightSurface: (
+@@ -88,6 +85,7 @@
+   readSessionFile: (fileName: string) => Promise<string | null>;
+   sessionFiles: SessionFile[];
+   threadId?: string | null;
++  sessionId?: string | null;
+   setArtifactViewMode: ApplyArtifactViewMode;
+   setCanvasState: Dispatch<SetStateAction<CanvasStateUnion | null>>;
+   setCanvasWorkbenchLayoutMode: Dispatch<
+@@ -98,8 +96,6 @@
+   setHarnessPanelVisible: SetBoolean;
+   setLayoutMode: Dispatch<SetStateAction<LayoutMode>>;
+   setSelectedArtifactId: (artifactId: string | null) => void;
+-  setSelectedFileId: (fileId: string) => void;
+-  setTaskFiles: Dispatch<SetStateAction<TaskFile[]>>;
+   syncGeneralArtifactToResource: (input: {
+     rawFilePath: string;
+     preferredName?: string;
+@@ -121,9 +117,7 @@
+   handleWriteFile,
+   initialProjectFileOpenTarget,
+   isInitialContentLoading,
+-  isThemeWorkbench,
+   layoutMode,
+-  mappedTheme,
+   messages,
+   onNavigate,
+   openArticleWorkspaceRightSurface,
+@@ -133,6 +127,7 @@
+   readSessionFile,
+   sessionFiles,
+   threadId,
++  sessionId,
+   setArtifactViewMode,
+   setCanvasState,
+   setCanvasWorkbenchLayoutMode,
+@@ -141,8 +136,6 @@
+   setHarnessPanelVisible,
+   setLayoutMode,
+   setSelectedArtifactId,
+-  setSelectedFileId,
+-  setTaskFiles,
+   syncGeneralArtifactToResource,
+   taskFiles,
+   updateCurrentImageWorkbenchState,
+@@ -172,33 +165,30 @@
+   const {
+     handleHarnessLoadFilePreview,
+     openArtifactInWorkbench: openWorkspaceArtifactInWorkbench,
+-    openFilePreviewArtifact,
+     handleArtifactClick,
+     handleFileClick,
+     handleCodeBlockClick,
+     shouldCollapseCodeBlocks,
+     shouldCollapseCodeBlockInChat,
+-    handleTaskFileClick,
+   } = useWorkspaceArtifactPreviewActions({
+     activeTheme,
+-    mappedTheme,
+     layoutMode,
+-    isThemeWorkbench,
+     isGeneralCanvasOpen: generalCanvasState.isOpen,
+     artifacts,
+     currentCanvasArtifact,
+     taskFiles,
+     sessionFiles,
++    threadId,
++    sessionId,
++    projectRootPath,
++    openWorkspaceFile,
+     readSessionFile,
+     onRequestCanvasPreviewOpen: requestCanvasWorkbenchPreviewOpen,
+     upsertGeneralArtifact,
+     setSelectedArtifactId,
+     setArtifactViewMode,
+     setLayoutMode,
+-    setTaskFiles,
+-    setSelectedFileId,
+     setGeneralCanvasState,
+-    setCanvasState,
+   });
+ 
+   const {
+@@ -216,55 +206,15 @@
+   const handleWorkspaceFileClick = useCallback(
+     (fileName: string, content: string) => {
+       clearFocusedArtifactBlock();
+-      const normalizedFileName = fileName.trim();
+-      if (content.trim() || !normalizedFileName) {
+-        handleFileClick(fileName, content);
+-        return;
+-      }
+-
+-      void (async () => {
+-        const absolutePath =
+-          resolveAbsoluteWorkspacePath(projectRootPath, normalizedFileName) ||
+-          normalizedFileName;
+-        const preview = await handleHarnessLoadFilePreview(absolutePath);
+-        if (preview.error) {
+-          toast.error(
+-            t("agentChat.filePreview.openFailed", {
+-              message: preview.error,
+-            }),
+-          );
+-          return;
+-        }
+-        const nextContent =
+-          !preview.isBinary && typeof preview.content === "string"
+-            ? preview.content
+-            : "";
+-        const nextFilePath = isAbsoluteWorkspacePath(normalizedFileName)
+-          ? preview.path || normalizedFileName
+-          : normalizedFileName;
+-        startTransition(() => {
+-          if (activeTheme === "general") {
+-            void openFilePreviewArtifact({
+-              fileName: nextFilePath,
+-              content: nextContent,
+-              sourcePath: preview.path || absolutePath,
+-              isBinary: preview.isBinary,
+-              size: preview.size,
+-            });
+-            return;
+-          }
+-          handleFileClick(nextFilePath, nextContent);
+-        });
+-      })();
++      setHarnessPanelVisible(false);
++      setExpertInfoPanelCollapsed(true);
++      handleFileClick(fileName, content);
+     },
+     [
+-      activeTheme,
+       clearFocusedArtifactBlock,
+       handleFileClick,
+-      handleHarnessLoadFilePreview,
+-      openFilePreviewArtifact,
+-      projectRootPath,
+-      t,
++      setExpertInfoPanelCollapsed,
++      setHarnessPanelVisible,
+     ],
+   );
+ 
+@@ -676,7 +626,6 @@
+     handleOpenServiceSkillResultFile,
+     handleOpenUrlPreview,
+     handleSaveArtifactDocument,
+-    handleTaskFileClick,
+     handleWorkspaceArtifactClick,
+     handleWorkspaceFileClick,
+     openWorkspaceArtifactInWorkbench,
+--- a/src/components/agent/chat/workspace/useWorkspaceArtifactOpenRuntime.component.test.tsx
++++ b/src/components/agent/chat/workspace/useWorkspaceArtifactOpenRuntime.component.test.tsx
+@@ -36,9 +36,7 @@
+     generalCanvasState: { isOpen: false, contentType: "empty", content: "" },
+     handleWriteFile: vi.fn(),
+     isInitialContentLoading: false,
+-    isThemeWorkbench: false,
+     layoutMode: "chat",
+-    mappedTheme: "general",
+     messages: [],
+     openArticleWorkspaceRightSurface: vi.fn(),
+     openWorkspaceFile: vi.fn(),
+@@ -53,8 +51,6 @@
+     setHarnessPanelVisible: vi.fn(),
+     setLayoutMode: vi.fn(),
+     setSelectedArtifactId: vi.fn(),
+-    setSelectedFileId: vi.fn(),
+-    setTaskFiles: vi.fn(),
+     syncGeneralArtifactToResource: vi.fn(),
+     taskFiles: [],
+     updateCurrentImageWorkbenchState: vi.fn(),
+@@ -327,26 +323,27 @@
+       ).not.toHaveBeenCalled();
+     },
+   );
+-  it("空内容文件入口复用同一个专业预览 owner", async () => {
+-    const path = "/workspace/reports/report.docx";
+-    vi.mocked(readFilePreview).mockResolvedValue({
+-      path,
+-      content: "extracted text",
+-      isBinary: false,
+-      size: 1728,
+-      error: null,
+-    });
+-    const params = mount();
+-    await act(async () => {
+-      runtime.handleWorkspaceFileClick("reports/report.docx", "");
+-      await Promise.resolve();
+-    });
+-    expect(params.upsertGeneralArtifact).toHaveBeenCalledOnce();
+-    expect(
+-      vi.mocked(params.upsertGeneralArtifact).mock.calls[0][0],
+-    ).toMatchObject({
+-      meta: { filePath: path, sourcePath: path, renderMode: "document_pages" },
+-    });
+-    expect(readFilePreview).toHaveBeenCalledTimes(1);
+-  });
++  it.each(["", "stale cached text"])(
++    "文件入口直接打开原件，缓存正文为 %j",
++    async (content) => {
++      const params = mount();
++      await act(async () => {
++        runtime.handleWorkspaceFileClick("reports/report.docx", content);
++      });
++      expect(params.openWorkspaceFile).toHaveBeenCalledExactlyOnceWith(
++        "/workspace/reports/report.docx",
++      );
++      expect(
++        params.workbenchRequests.clearFocusedArtifactBlock,
++      ).toHaveBeenCalledOnce();
++      expect(params.setHarnessPanelVisible).toHaveBeenCalledWith(false);
++      expect(params.setExpertInfoPanelCollapsed).toHaveBeenCalledWith(true);
++      expect(params.upsertGeneralArtifact).not.toHaveBeenCalled();
++      expect(params.setCanvasState).not.toHaveBeenCalled();
++      expect(
++        params.workbenchRequests.requestCanvasWorkbenchPreviewOpen,
++      ).not.toHaveBeenCalled();
++      expect(readFilePreview).not.toHaveBeenCalled();
++    },
++  );
+ });
+--- a/src/components/agent/chat/workspace/useWorkspaceArtifactActionRuntime.ts
++++ b/src/components/agent/chat/workspace/useWorkspaceArtifactActionRuntime.ts
+@@ -104,9 +104,7 @@
+     handleWriteFile,
+     initialProjectFileOpenTarget,
+     isInitialContentLoading,
+-    isThemeWorkbench,
+     layoutMode,
+-    mappedTheme,
+     messages,
+     onNavigate,
+     openArticleWorkspaceRightSurface,
+@@ -116,6 +114,7 @@
+     readSessionFile,
+     sessionFiles,
+     threadId,
++    sessionId,
+     setArtifactViewMode,
+     setCanvasState,
+     setCanvasWorkbenchLayoutMode,
+@@ -124,8 +123,6 @@
+     setHarnessPanelVisible,
+     setLayoutMode,
+     setSelectedArtifactId,
+-    setSelectedFileId,
+-    setTaskFiles,
+     syncGeneralArtifactToResource,
+     taskFiles,
+     updateCurrentImageWorkbenchState,
+--- a/src/components/agent/chat/index.workbench03.test.tsx
++++ b/src/components/agent/chat/index.workbench03.test.tsx
+@@ -10,7 +10,6 @@
+ } from "./index.testFixtures";
+ import * as fileBrowserModule from "@/lib/api/fileBrowser";
+ import * as textFileStorageModule from "@/lib/api/textFileStorage";
+-import type { Artifact } from "@/lib/artifact/types";
+ 
+ const {
+   mockCanvasWorkbenchLayout,
+@@ -18,39 +17,6 @@
+   mockMessageList,
+   mockUseAgentChatUnified,
+ } = getIndexTestMocks();
+-
+-function expectSelectedFilePreview(expected: {
+-  filePath: string;
+-  absolutePath: string;
+-  contentKind: "markdown" | "code";
+-  content: string;
+-}) {
+-  const props = mockCanvasWorkbenchLayout.mock.calls.at(-1)?.[0] as
+-    | {
+-        artifacts: Artifact[];
+-        previewOpenRequest?: {
+-          filePath?: string | null;
+-          selectionKey?: string | null;
+-        };
+-      }
+-    | undefined;
+-  const matches = props?.artifacts.filter(
+-    (artifact) => artifact.meta.sourceRef === expected.filePath,
+-  );
+-  expect(matches).toHaveLength(1);
+-  const artifact = matches![0];
+-  expect(artifact.meta).toMatchObject({
+-    previewArtifact: true,
+-    contentKind: expected.contentKind,
+-    filePath: expected.absolutePath,
+-    sourcePath: expected.absolutePath,
+-  });
+-  expect(artifact.content).toContain(expected.content);
+-  expect(props?.previewOpenRequest).toMatchObject({
+-    filePath: expected.absolutePath,
+-    selectionKey: `artifact:${artifact.id}`,
+-  });
+-}
+ 
+ describe("AgentChatPage 通用工作台", { timeout: 20_000 }, () => {
+   it("历史旧导出结果与同会话新到的 saved_content 都不应自动打开画布，应等待用户手动点开", async () => {
+@@ -310,8 +276,13 @@
+     ).toBeNull();
+   });
+ 
+-  it("工具结果只提供文件路径时应读取真实文件预览再打开通用画布", async () => {
++  it("工具结果文件点击在 Files 读取原件并激活代码编辑器", async () => {
+     mockCanvasWorkbenchLayoutState.renderPreviewProbe = true;
++    const content = "export function App() {\n  return <main>Lime</main>;\n}\n";
++    vi.spyOn(textFileStorageModule, "createTextFileStorage").mockReturnValue({
++      read: vi.fn().mockResolvedValue({ content, mtimeMs: 1, sizeBytes: 56 }),
++      write: vi.fn().mockRejectedValue(new Error("unexpected write")),
++    });
+     vi.spyOn(fileBrowserModule, "readFilePreview").mockResolvedValue({
+       path: "/tmp/project-tool-file/src/components/App.tsx",
+       content: "export function App() {\n  return <main>Lime</main>;\n}\n",
+@@ -348,12 +319,23 @@
+         ?.getAttribute("data-mode"),
+     ).toBe("chat-canvas");
+ 
+-    expectSelectedFilePreview({
+-      filePath: "src/components/App.tsx",
+-      absolutePath: "/tmp/project-tool-file/src/components/App.tsx",
+-      contentKind: "code",
+-      content: "return <main>Lime</main>;",
+-    });
++    expect(
++      container.querySelector(
++        '[data-testid="text-file-editor"][data-file-path="/tmp/project-tool-file/src/components/App.tsx"]',
++      ),
++    ).not.toBeNull();
++    expect(textFileStorageModule.createTextFileStorage).toHaveBeenCalledWith(
++      "/tmp/project-tool-file/src/components/App.tsx",
++    );
++    expect(
++      container.querySelector(
++        '[data-testid="workspace-right-surface-tab-files"][aria-selected="true"]',
++      ),
++    ).not.toBeNull();
++    expect(
++      mockCanvasWorkbenchLayout.mock.calls.at(-1)?.[0]?.previewOpenRequest ??
++        null,
++    ).toBeNull();
+   });
+ 
+   it("时间线HTML文件直接激活同路径Files编辑器，不发布旧Canvas请求", async () => {
+--- a/src/components/agent/chat/components/ToolCallDisplay.tsx
++++ b/src/components/agent/chat/components/ToolCallDisplay.tsx
+@@ -35,7 +35,6 @@
+ } from "../utils/siteToolResultSummary";
+ import { normalizeToolSearchResultSummary } from "../utils/toolSearchResultSummary";
+ import {
+-  buildDiffFileCanvasContent,
+   buildDiffReviewScopeItems,
+   resolveDiffReviewSummaryFromCandidates,
+   type DiffReviewFile,
+@@ -555,12 +554,7 @@
+   const skillContentTitle = skillInvocationContentInfo.snapshotContent
+     ? t("agentChat.toolCall.skillContent.title.snapshot")
+     : t("agentChat.toolCall.skillContent.title.current");
+-  const openInCanvasTitle = t("agentChat.toolCall.openInCanvas");
+-  const openInCanvasAriaLabel = openableFilePath
+-    ? t("agentChat.toolCall.openInCanvasWithTarget", {
+-        target: openableFilePath,
+-      })
+-    : openInCanvasTitle;
++  const openFileTitle = t("agentChat.fileChangesSummary.openFile");
+   const resultImageAlt = t("agentChat.toolCall.resultImage.alt");
+   const resultImageOpenTitle = t("agentChat.markdown.image.openTitle");
+   const openExternalUnsupportedMessage = t(
+@@ -664,31 +658,9 @@
+     }));
+   }, []);
+ 
+-  const handleOpenDiffFileInCanvas = useCallback(
+-    (file: DiffReviewFile) => {
+-      if (!onFileClick) return;
+-      const title = t("agentChat.toolCall.diffReview.canvasTitle", {
+-        path: file.path,
+-      });
+-      const content = buildDiffFileCanvasContent({
+-        file,
+-        title,
+-        statusLabel: t("agentChat.toolCall.diffReview.canvasStatus", {
+-          status: t(`agentChat.toolCall.diffReview.status.${file.status}`),
+-        }),
+-        additionsLabel: t("agentChat.toolCall.diffReview.additions", {
+-          count: file.additions,
+-        }),
+-        deletionsLabel: t("agentChat.toolCall.diffReview.deletions", {
+-          count: file.deletions,
+-        }),
+-        hunksLabel: t("agentChat.toolCall.diffReview.hunks", {
+-          count: file.hunks,
+-        }),
+-      });
+-      onFileClick(`${file.path}.diff.md`, content);
+-    },
+-    [onFileClick, t],
++  const handleOpenChangedFile = useCallback(
++    (file: DiffReviewFile) => onFileClick?.(file.path, ""),
++    [onFileClick],
+   );
+ 
+   const handleToggleSkillContent = useCallback(async () => {
+@@ -778,8 +750,8 @@
+               <button
+                 onClick={handleOpenFile}
+                 className="rounded-md p-1 transition-colors hover:bg-slate-100"
+-                title={openInCanvasTitle}
+-                aria-label={openInCanvasAriaLabel}
++                title={openFileTitle}
++                aria-label={openFileTitle}
+               >
+                 <ExternalLink className="h-3.5 w-3.5 text-slate-500 hover:text-slate-900" />
+               </button>
+@@ -843,8 +815,8 @@
+               <button
+                 onClick={handleOpenFile}
+                 className="rounded-md p-1 transition-colors hover:bg-slate-100"
+-                title={openInCanvasTitle}
+-                aria-label={openInCanvasAriaLabel}
++                title={openFileTitle}
++                aria-label={openFileTitle}
+               >
+                 <ExternalLink className="h-3.5 w-3.5 text-slate-500 hover:text-slate-900" />
+               </button>
+@@ -951,8 +923,8 @@
+           diffReviewScopeItems={diffReviewScopeItems}
+           expandedDiffFileIds={expandedDiffFileIds}
+           onToggleDiffFileExpanded={handleToggleDiffFileExpanded}
+-          onOpenDiffFileInCanvas={handleOpenDiffFileInCanvas}
+-          canOpenDiffFileInCanvas={Boolean(onFileClick)}
++          onOpenChangedFile={handleOpenChangedFile}
++          canOpenChangedFile={Boolean(onFileClick)}
+           resultMetaItems={resultMetaItems}
+           siteResultNotices={siteResultNotices}
+           showOpenSavedSiteContent={Boolean(
+--- a/src/components/agent/chat/components/ToolCallDisplayResultPanel.tsx
++++ b/src/components/agent/chat/components/ToolCallDisplayResultPanel.tsx
+@@ -33,8 +33,8 @@
+   diffReviewScopeItems: DiffReviewScopeItem[];
+   expandedDiffFileIds: Record<string, boolean>;
+   onToggleDiffFileExpanded: (fileId: string) => void;
+-  onOpenDiffFileInCanvas: (file: DiffReviewFile) => void;
+-  canOpenDiffFileInCanvas: boolean;
++  onOpenChangedFile: (file: DiffReviewFile) => void;
++  canOpenChangedFile: boolean;
+   resultMetaItems: string[];
+   siteResultNotices: ToolResultNotice[];
+   showOpenSavedSiteContent: boolean;
+@@ -60,8 +60,8 @@
+   diffReviewScopeItems,
+   expandedDiffFileIds,
+   onToggleDiffFileExpanded,
+-  onOpenDiffFileInCanvas,
+-  canOpenDiffFileInCanvas,
++  onOpenChangedFile,
++  canOpenChangedFile,
+   resultMetaItems,
+   siteResultNotices,
+   showOpenSavedSiteContent,
+@@ -323,19 +323,13 @@
+                         <Copy className="h-3.5 w-3.5" />
+                       )}
+                     </button>
+-                    {canOpenDiffFileInCanvas ? (
++                    {canOpenChangedFile ? (
+                       <button
+                         type="button"
+                         className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-white hover:text-slate-900"
+-                        title={t(
+-                          "agentChat.toolCall.diffReview.openInCanvasWithTarget",
+-                          { target: file.path },
+-                        )}
+-                        aria-label={t(
+-                          "agentChat.toolCall.diffReview.openInCanvasWithTarget",
+-                          { target: file.path },
+-                        )}
+-                        onClick={() => onOpenDiffFileInCanvas(file)}
++                        title={t("agentChat.fileChangesSummary.openFile")}
++                        aria-label={t("agentChat.fileChangesSummary.openFile")}
++                        onClick={() => onOpenChangedFile(file)}
+                       >
+                         <ExternalLink className="h-3.5 w-3.5" />
+                       </button>
+--- a/src/components/agent/chat/components/ToolCallDisplay.commandOutput.test.tsx
++++ b/src/components/agent/chat/components/ToolCallDisplay.commandOutput.test.tsx
+@@ -272,7 +272,7 @@
+     ).toBeNull();
+   });
+ 
+-  it("文件级变更审阅应可作为 diff 审阅内容打开到画布", () => {
++  it("文件级变更审阅打开实际源文件，不生成虚拟 Markdown", () => {
+     const onFileClick = vi.fn();
+     const { container } = renderTool(
+       {
+@@ -309,25 +309,15 @@
+ 
+     act(() => {
+       const openButton = container.querySelector(
+-        'button[aria-label="在画布中打开变更审阅：src/components/App.tsx"]',
++        'button[aria-label="打开文件"]',
+       ) as HTMLButtonElement | null;
+       openButton?.click();
+     });
+ 
+-    expect(onFileClick).toHaveBeenCalledTimes(1);
+-    expect(onFileClick.mock.calls[0]?.[0]).toBe(
+-      "src/components/App.tsx.diff.md",
++    expect(onFileClick).toHaveBeenCalledExactlyOnceWith(
++      "src/components/App.tsx",
++      "",
+     );
+-    expect(onFileClick.mock.calls[0]?.[1]).toContain(
+-      "# src/components/App.tsx 的变更审阅",
+-    );
+-    expect(onFileClick.mock.calls[0]?.[1]).toContain("- 状态：修改");
+-    expect(onFileClick.mock.calls[0]?.[1]).toContain("- +2 行");
+-    expect(onFileClick.mock.calls[0]?.[1]).toContain("- -1 行");
+-    expect(onFileClick.mock.calls[0]?.[1]).toContain("- 1 处变更");
+-    expect(onFileClick.mock.calls[0]?.[1]).toContain("````diff");
+-    expect(onFileClick.mock.calls[0]?.[1]).toContain('-const title = "Old";');
+-    expect(onFileClick.mock.calls[0]?.[1]).toContain('+const title = "New";');
+   });
+ 
+   it("长补丁应默认保留文件级预览，并支持展开完整变更", () => {
+--- a/src/i18n/resources/zh-CN/agentMessageList.json
++++ b/src/i18n/resources/zh-CN/agentMessageList.json
+@@ -430,15 +430,11 @@
+   "agentChat.toolCall.diffReview.scopeRoot": "仓库根目录",
+   "agentChat.toolCall.diffReview.expandFile": "展开其余 {{count}} 行",
+   "agentChat.toolCall.diffReview.collapseFile": "收起完整变更",
+-  "agentChat.toolCall.diffReview.openInCanvasWithTarget": "在画布中打开变更审阅：{{target}}",
+-  "agentChat.toolCall.diffReview.canvasTitle": "{{path}} 的变更审阅",
+-  "agentChat.toolCall.diffReview.canvasStatus": "状态：{{status}}",
+   "agentChat.toolCall.diffReview.status.added": "新增",
+   "agentChat.toolCall.diffReview.status.modified": "修改",
+   "agentChat.toolCall.diffReview.status.deleted": "删除",
+   "agentChat.toolCall.diffReview.status.unknown": "变更",
+   "agentChat.toolCall.openInCanvas": "在画布中打开",
+-  "agentChat.toolCall.openInCanvasWithTarget": "在画布中打开：{{target}}",
+   "agentChat.toolCall.resultImage.alt": "工具结果图片",
+   "agentChat.toolCall.result.empty": "（无输出）",
+   "agentChat.toolCall.result.collapse": "收起结果",
+--- a/src/i18n/resources/zh-TW/agentMessageList.json
++++ b/src/i18n/resources/zh-TW/agentMessageList.json
+@@ -430,15 +430,11 @@
+   "agentChat.toolCall.diffReview.scopeRoot": "倉庫根目錄",
+   "agentChat.toolCall.diffReview.expandFile": "展開其餘 {{count}} 行",
+   "agentChat.toolCall.diffReview.collapseFile": "收起完整變更",
+-  "agentChat.toolCall.diffReview.openInCanvasWithTarget": "在畫布中打開變更審閱：{{target}}",
+-  "agentChat.toolCall.diffReview.canvasTitle": "{{path}} 的變更審閱",
+-  "agentChat.toolCall.diffReview.canvasStatus": "狀態：{{status}}",
+   "agentChat.toolCall.diffReview.status.added": "新增",
+   "agentChat.toolCall.diffReview.status.modified": "修改",
+   "agentChat.toolCall.diffReview.status.deleted": "刪除",
+   "agentChat.toolCall.diffReview.status.unknown": "變更",
+   "agentChat.toolCall.openInCanvas": "在畫布中打開",
+-  "agentChat.toolCall.openInCanvasWithTarget": "在畫布中打開：{{target}}",
+   "agentChat.toolCall.resultImage.alt": "工具結果圖片",
+   "agentChat.toolCall.result.empty": "（無輸出）",
+   "agentChat.toolCall.result.collapse": "收起結果",
+--- a/src/i18n/resources/en-US/agentMessageList.json
++++ b/src/i18n/resources/en-US/agentMessageList.json
+@@ -430,15 +430,11 @@
+   "agentChat.toolCall.diffReview.scopeRoot": "Repository root",
+   "agentChat.toolCall.diffReview.expandFile": "Show {{count}} more lines",
+   "agentChat.toolCall.diffReview.collapseFile": "Collapse full change",
+-  "agentChat.toolCall.diffReview.openInCanvasWithTarget": "Open change review in canvas: {{target}}",
+-  "agentChat.toolCall.diffReview.canvasTitle": "Change review for {{path}}",
+-  "agentChat.toolCall.diffReview.canvasStatus": "Status: {{status}}",
+   "agentChat.toolCall.diffReview.status.added": "Added",
+   "agentChat.toolCall.diffReview.status.modified": "Modified",
+   "agentChat.toolCall.diffReview.status.deleted": "Deleted",
+   "agentChat.toolCall.diffReview.status.unknown": "Changed",
+   "agentChat.toolCall.openInCanvas": "Open in canvas",
+-  "agentChat.toolCall.openInCanvasWithTarget": "Open in canvas: {{target}}",
+   "agentChat.toolCall.resultImage.alt": "Tool result image",
+   "agentChat.toolCall.result.empty": "(No output)",
+   "agentChat.toolCall.result.collapse": "Collapse result",
+--- a/src/i18n/resources/ja-JP/agentMessageList.json
++++ b/src/i18n/resources/ja-JP/agentMessageList.json
+@@ -430,15 +430,11 @@
+   "agentChat.toolCall.diffReview.scopeRoot": "リポジトリルート",
+   "agentChat.toolCall.diffReview.expandFile": "残り {{count}} 行を表示",
+   "agentChat.toolCall.diffReview.collapseFile": "変更全体を閉じる",
+-  "agentChat.toolCall.diffReview.openInCanvasWithTarget": "キャンバスで変更レビューを開く: {{target}}",
+-  "agentChat.toolCall.diffReview.canvasTitle": "{{path}} の変更レビュー",
+-  "agentChat.toolCall.diffReview.canvasStatus": "状態: {{status}}",
+   "agentChat.toolCall.diffReview.status.added": "追加",
+   "agentChat.toolCall.diffReview.status.modified": "変更",
+   "agentChat.toolCall.diffReview.status.deleted": "削除",
+   "agentChat.toolCall.diffReview.status.unknown": "変更",
+   "agentChat.toolCall.openInCanvas": "キャンバスで開く",
+-  "agentChat.toolCall.openInCanvasWithTarget": "キャンバスで開く: {{target}}",
+   "agentChat.toolCall.resultImage.alt": "ツール結果画像",
+   "agentChat.toolCall.result.empty": "（出力なし）",
+   "agentChat.toolCall.result.collapse": "結果を閉じる",
+--- a/src/i18n/resources/ko-KR/agentMessageList.json
++++ b/src/i18n/resources/ko-KR/agentMessageList.json
+@@ -430,15 +430,11 @@
+   "agentChat.toolCall.diffReview.scopeRoot": "저장소 루트",
+   "agentChat.toolCall.diffReview.expandFile": "나머지 {{count}}줄 보기",
+   "agentChat.toolCall.diffReview.collapseFile": "전체 변경 접기",
+-  "agentChat.toolCall.diffReview.openInCanvasWithTarget": "캔버스에서 변경 검토 열기: {{target}}",
+-  "agentChat.toolCall.diffReview.canvasTitle": "{{path}} 변경 검토",
+-  "agentChat.toolCall.diffReview.canvasStatus": "상태: {{status}}",
+   "agentChat.toolCall.diffReview.status.added": "추가",
+   "agentChat.toolCall.diffReview.status.modified": "수정",
+   "agentChat.toolCall.diffReview.status.deleted": "삭제",
+   "agentChat.toolCall.diffReview.status.unknown": "변경",
+   "agentChat.toolCall.openInCanvas": "캔버스에서 열기",
+-  "agentChat.toolCall.openInCanvasWithTarget": "캔버스에서 열기: {{target}}",
+   "agentChat.toolCall.resultImage.alt": "도구 결과 이미지",
+   "agentChat.toolCall.result.empty": "(출력 없음)",
+   "agentChat.toolCall.result.collapse": "결과 접기",
+--- a/src/i18n/resources/zh-CN/agent.json
++++ b/src/i18n/resources/zh-CN/agent.json
+@@ -342,7 +342,6 @@
+   "agentChat.fileChangesSummary.undoSuccess": "已撤销 {{count}} 个文件改动",
+   "agentChat.fileChangesSummary.undoUnavailable": "没有可用的文件快照",
+   "agentChat.fileChangesSummary.writing": "正在写入文件…",
+-  "agentChat.filePreview.openFailed": "打开文件失败：{{message}}",
+   "agentChat.harness.approvals.action.askUser": "补充信息",
+   "agentChat.harness.approvals.action.elicitation": "结构化输入",
+   "agentChat.harness.approvals.action.tool": "工具确认",
+@@ -1244,7 +1243,6 @@
+   "agentChat.taskPreview.video.status.partial.waitingResult": "视频已返回部分结果，工作区正在补齐剩余结果。",
+   "agentChat.taskPreview.video.status.queued": "视频任务已进入排队队列，稍后会自动开始生成。",
+   "agentChat.taskPreview.video.status.running": "视频任务正在生成中，工作区会继续同步最新状态。",
+-  "agentChat.workspace.artifactPreview.toast.auxiliaryNotRendered": "该文件为辅助产物，暂不在主稿画布渲染",
+   "agentChat.workspace.artifactPreview.toast.binaryUnsupported": "该产物为二进制文件，暂不支持在工作台预览",
+   "agentChat.workspace.artifactPreview.toast.readFailed": "读取产物失败：{{error}}",
+   "agentChat.workspace.artifactPreview.toast.sessionFileReadFailed": "读取会话文件失败，请稍后重试",
+--- a/src/i18n/resources/zh-TW/agent.json
++++ b/src/i18n/resources/zh-TW/agent.json
+@@ -342,7 +342,6 @@
+   "agentChat.fileChangesSummary.undoSuccess": "已撤銷 {{count}} 個檔案改動",
+   "agentChat.fileChangesSummary.undoUnavailable": "沒有可用的檔案快照",
+   "agentChat.fileChangesSummary.writing": "正在寫入檔案…",
+-  "agentChat.filePreview.openFailed": "打開檔案失敗：{{message}}",
+   "agentChat.harness.approvals.action.askUser": "補充資訊",
+   "agentChat.harness.approvals.action.elicitation": "結構化輸入",
+   "agentChat.harness.approvals.action.tool": "工具確認",
+@@ -1244,7 +1243,6 @@
+   "agentChat.taskPreview.video.status.partial.waitingResult": "影片已返回部分結果，工作區正在補齊剩餘結果。",
+   "agentChat.taskPreview.video.status.queued": "影片任務已進入排隊佇列，稍後會自動開始生成。",
+   "agentChat.taskPreview.video.status.running": "影片任務正在生成中，工作區會繼續同步最新狀態。",
+-  "agentChat.workspace.artifactPreview.toast.auxiliaryNotRendered": "該檔案為輔助產物，暫不在主稿畫布渲染",
+   "agentChat.workspace.artifactPreview.toast.binaryUnsupported": "該產物為二進位檔案，暫不支援在工作台預覽",
+   "agentChat.workspace.artifactPreview.toast.readFailed": "讀取產物失敗：{{error}}",
+   "agentChat.workspace.artifactPreview.toast.sessionFileReadFailed": "讀取會話檔案失敗，請稍後再試",
+--- a/src/i18n/resources/en-US/agent.json
++++ b/src/i18n/resources/en-US/agent.json
+@@ -342,7 +342,6 @@
+   "agentChat.fileChangesSummary.undoSuccess": "Undid changes for {{count}} file(s)",
+   "agentChat.fileChangesSummary.undoUnavailable": "No file checkpoint is available",
+   "agentChat.fileChangesSummary.writing": "Writing files…",
+-  "agentChat.filePreview.openFailed": "Failed to open file: {{message}}",
+   "agentChat.harness.approvals.action.askUser": "More input",
+   "agentChat.harness.approvals.action.elicitation": "Structured input",
+   "agentChat.harness.approvals.action.tool": "Tool approval",
+@@ -1244,7 +1243,6 @@
+   "agentChat.taskPreview.video.status.partial.waitingResult": "Partial video results returned. The workspace is completing the remaining results.",
+   "agentChat.taskPreview.video.status.queued": "The video task is queued and will start automatically.",
+   "agentChat.taskPreview.video.status.running": "The video task is generating. The workspace will keep syncing status.",
+-  "agentChat.workspace.artifactPreview.toast.auxiliaryNotRendered": "This file is an auxiliary artifact and will not render on the main canvas.",
+   "agentChat.workspace.artifactPreview.toast.binaryUnsupported": "This artifact is a binary file and cannot be previewed in the workbench yet.",
+   "agentChat.workspace.artifactPreview.toast.readFailed": "Failed to read artifact: {{error}}",
+   "agentChat.workspace.artifactPreview.toast.sessionFileReadFailed": "Failed to read the session file. Try again later.",
+--- a/src/i18n/resources/ja-JP/agent.json
++++ b/src/i18n/resources/ja-JP/agent.json
+@@ -342,7 +342,6 @@
+   "agentChat.fileChangesSummary.undoSuccess": "{{count}} 個のファイル変更を元に戻しました",
+   "agentChat.fileChangesSummary.undoUnavailable": "利用できるファイルチェックポイントがありません",
+   "agentChat.fileChangesSummary.writing": "ファイルを書き込み中…",
+-  "agentChat.filePreview.openFailed": "ファイルを開けませんでした: {{message}}",
+   "agentChat.harness.approvals.action.askUser": "追加情報",
+   "agentChat.harness.approvals.action.elicitation": "構造化入力",
+   "agentChat.harness.approvals.action.tool": "ツール確認",
+@@ -1244,7 +1243,6 @@
+   "agentChat.taskPreview.video.status.partial.waitingResult": "動画の一部結果を返しました。ワークスペースが残りの結果を補完しています。",
+   "agentChat.taskPreview.video.status.queued": "動画タスクはキューに入り、後ほど自動で生成を開始します。",
+   "agentChat.taskPreview.video.status.running": "動画タスクを生成中です。ワークスペースは最新状態を引き続き同期します。",
+-  "agentChat.workspace.artifactPreview.toast.auxiliaryNotRendered": "このファイルは補助成果物のため、メインキャンバスには表示しません。",
+   "agentChat.workspace.artifactPreview.toast.binaryUnsupported": "この成果物はバイナリファイルのため、まだワークベンチでプレビューできません。",
+   "agentChat.workspace.artifactPreview.toast.readFailed": "成果物の読み取りに失敗しました：{{error}}",
+   "agentChat.workspace.artifactPreview.toast.sessionFileReadFailed": "セッションファイルの読み取りに失敗しました。後でもう一度お試しください。",
+--- a/src/i18n/resources/ko-KR/agent.json
++++ b/src/i18n/resources/ko-KR/agent.json
+@@ -342,7 +342,6 @@
+   "agentChat.fileChangesSummary.undoSuccess": "{{count}}개 파일 변경을 실행 취소했습니다",
+   "agentChat.fileChangesSummary.undoUnavailable": "사용 가능한 파일 체크포인트가 없습니다",
+   "agentChat.fileChangesSummary.writing": "파일 쓰는 중…",
+-  "agentChat.filePreview.openFailed": "파일 열기 실패: {{message}}",
+   "agentChat.harness.approvals.action.askUser": "추가 입력",
+   "agentChat.harness.approvals.action.elicitation": "구조화 입력",
+   "agentChat.harness.approvals.action.tool": "도구 확인",
+@@ -1244,7 +1243,6 @@
+   "agentChat.taskPreview.video.status.partial.waitingResult": "비디오 일부 결과가 반환되었습니다. 워크스페이스가 남은 결과를 보완하고 있습니다.",
+   "agentChat.taskPreview.video.status.queued": "비디오 작업이 대기열에 들어갔으며 곧 자동으로 생성을 시작합니다.",
+   "agentChat.taskPreview.video.status.running": "비디오 작업을 생성하는 중입니다. 워크스페이스가 최신 상태를 계속 동기화합니다.",
+-  "agentChat.workspace.artifactPreview.toast.auxiliaryNotRendered": "이 파일은 보조 산출물이어서 기본 원고 캔버스에 렌더링하지 않습니다.",
+   "agentChat.workspace.artifactPreview.toast.binaryUnsupported": "이 산출물은 바이너리 파일이라 아직 워크벤치에서 미리 볼 수 없습니다.",
+   "agentChat.workspace.artifactPreview.toast.readFailed": "산출물을 읽지 못했습니다: {{error}}",
+   "agentChat.workspace.artifactPreview.toast.sessionFileReadFailed": "세션 파일을 읽지 못했습니다. 잠시 후 다시 시도하세요.",
+--- a/src/components/agent/chat/components/InlineToolProcessStep.tsx
++++ b/src/components/agent/chat/components/InlineToolProcessStep.tsx
+@@ -773,10 +773,8 @@
+                   data-testid="inline-tool-open-file"
+                   data-file-path={filePath || undefined}
+                   className="rounded-md p-1 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
+-                  title={t("agentChat.toolCall.openInCanvas")}
+-                  aria-label={t("agentChat.toolCall.openInCanvasWithTarget", {
+-                    target: filePath,
+-                  })}
++                  title={t("agentChat.fileChangesSummary.openFile")}
++                  aria-label={t("agentChat.fileChangesSummary.openFile")}
+                   onClick={() => {
+                     if (filePath && onFileClick) {
+                       onFileClick(filePath, fileContent);
+--- a/src/components/agent/chat/components/InlineToolProcessStep.test.tsx
++++ b/src/components/agent/chat/components/InlineToolProcessStep.test.tsx
+@@ -466,6 +466,7 @@
+       "/tmp/imported-local-history/docs/imported-preview.docx",
+     );
+ 
++    expect(button?.getAttribute("aria-label")).toBe("打开文件");
+     act(() => {
+       button?.click();
+     });
+--- a/src/lib/governance/appServerRuntimeBoundary.testSupport.ts
++++ b/src/lib/governance/appServerRuntimeBoundary.testSupport.ts
+@@ -193,6 +193,7 @@
+   "packages/app-server-client/tests/client.test.mjs",
+   "scripts/agent-runtime/claw-chat-current-fixture-smoke.mjs",
+   "scripts/electron/document-preview-fixture-smoke.mjs",
++  "scripts/electron/file-click-fixture-smoke.mjs",
+   "scripts/agent-runtime/claw-chat-current-fixture-smoke.test.mjs",
+   "scripts/agent-runtime/claw-image-live-smoke.test.mjs",
+   "scripts/agent-runtime/reopen-running-turn-cdp-gate.mjs",
+--- /dev/null
++++ b/src/components/agent/chat/workspace/useWorkspaceFileOpen.ts
+@@ -0,0 +1,83 @@
++import { useCallback, useLayoutEffect, useRef } from "react";
++import { useTranslation } from "react-i18next";
++import { toast } from "sonner";
++import { resolveFilePath, type SessionFile } from "@/lib/api/session-files";
++import type { TaskFile } from "../components/TaskFiles";
++import {
++  isAbsoluteWorkspacePath,
++  resolveAbsoluteWorkspacePath,
++} from "./workspacePath";
++
++interface WorkspaceFileOpenParams {
++  threadId?: string | null;
++  sessionId?: string | null;
++  projectRootPath?: string | null;
++  sessionFiles: SessionFile[];
++  taskFiles: TaskFile[];
++  openWorkspaceFile: (path: string) => void;
++}
++
++export function useWorkspaceFileOpen({
++  threadId,
++  sessionId,
++  projectRootPath,
++  sessionFiles,
++  taskFiles,
++  openWorkspaceFile,
++}: WorkspaceFileOpenParams) {
++  const { t } = useTranslation("agent");
++  const generation = useRef(0);
++  useLayoutEffect(() => {
++    generation.current += 1;
++    return () => {
++      generation.current += 1;
++    };
++  }, [sessionId, threadId, projectRootPath]);
++
++  return useCallback(
++    (fileName: string) => {
++      const request = ++generation.current;
++      const name = fileName.trim();
++      if (!name || /^[a-z][a-z\d+.-]*:\/\//i.test(name)) {
++        return;
++      }
++
++      const isSessionFile =
++        sessionFiles.some((file) => file.name === name) ||
++        taskFiles.some(
++          (file) => file.name === name && file.id.startsWith("session-file:"),
++        );
++      if (!isSessionFile) {
++        const path = resolveAbsoluteWorkspacePath(projectRootPath, name);
++        if (path && isAbsoluteWorkspacePath(path)) {
++          openWorkspaceFile(path);
++        }
++        return;
++      }
++
++      void (async () => {
++        try {
++          if (!sessionId) {
++            throw new Error("Missing session identity");
++          }
++          const path = (await resolveFilePath(sessionId, name)).trim();
++          if (!isAbsoluteWorkspacePath(path)) {
++            throw new Error("Session file path must be absolute");
++          }
++          if (generation.current === request) {
++            openWorkspaceFile(path);
++          }
++        } catch {
++          if (generation.current === request) {
++            toast.error(
++              t(
++                "agentChat.workspace.artifactPreview.toast.sessionFileReadFailed",
++              ),
++            );
++          }
++        }
++      })();
++    },
++    [openWorkspaceFile, projectRootPath, sessionFiles, taskFiles, sessionId, t],
++  );
++}
+--- /dev/null
++++ b/src/components/agent/chat/workspace/fileClick.component.test.tsx
+@@ -0,0 +1,260 @@
++import { act } from "react";
++import { createRoot, type Root } from "react-dom/client";
++import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
++import { toast } from "sonner";
++import { resolveFilePath } from "@/lib/api/session-files";
++import { readFilePreview } from "@/lib/api/fileBrowser";
++import { useWorkspaceArtifactPreviewActions } from "./useWorkspaceArtifactPreviewActions";
++
++vi.mock("sonner", () => ({ toast: { error: vi.fn(), info: vi.fn() } }));
++vi.mock("@/lib/api/session-files", () => ({ resolveFilePath: vi.fn() }));
++vi.mock("@/lib/api/fileBrowser", () => ({ readFilePreview: vi.fn() }));
++vi.mock("../hooks/useArtifactAutoPreviewSync", () => ({
++  useArtifactAutoPreviewSync: vi.fn(),
++}));
++
++type Props = Parameters<typeof useWorkspaceArtifactPreviewActions>[0];
++let root: Root;
++let container: HTMLDivElement;
++let current: ReturnType<typeof useWorkspaceArtifactPreviewActions>;
++function mount(overrides: Partial<Props> = {}) {
++  const props = {
++    activeTheme: "general",
++    layoutMode: "chat",
++    isGeneralCanvasOpen: false,
++    artifacts: [],
++    currentCanvasArtifact: null,
++    taskFiles: [],
++    sessionFiles: [],
++    threadId: "thread-1",
++    sessionId: "session-1",
++    projectRootPath: "/workspace",
++    openWorkspaceFile: vi.fn(),
++    readSessionFile: vi.fn(async () => null),
++    upsertGeneralArtifact: vi.fn(),
++    setSelectedArtifactId: vi.fn(),
++    setArtifactViewMode: vi.fn(),
++    setLayoutMode: vi.fn(),
++    setGeneralCanvasState: vi.fn(),
++    onRequestCanvasPreviewOpen: vi.fn(),
++    ...overrides,
++  } satisfies Props;
++  function Probe() {
++    current = useWorkspaceArtifactPreviewActions(props);
++    return null;
++  }
++  const render = (next: Partial<Props> = {}) => {
++    Object.assign(props, next);
++    act(() => root.render(<Probe />));
++  };
++  render();
++  return { props, render };
++}
++async function click(name: string, content = "stale cached content") {
++  await act(async () => {
++    current.handleFileClick(name, content);
++    await Promise.resolve();
++  });
++}
++function deferred() {
++  let resolve!: (value: string) => void;
++  let reject!: (reason: Error) => void;
++  const promise = new Promise<string>((yes, no) => {
++    resolve = yes;
++    reject = no;
++  });
++  return { promise, resolve, reject };
++}
++const stored = {
++  name: "draft.md",
++  fileType: "document",
++  size: 0,
++  createdAt: 1,
++  updatedAt: 1,
++};
++beforeEach(() => {
++  (
++    globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
++  ).IS_REACT_ACT_ENVIRONMENT = true;
++  vi.clearAllMocks();
++  vi.mocked(resolveFilePath).mockReset();
++  container = document.createElement("div");
++  document.body.append(container);
++  root = createRoot(container);
++});
++afterEach(() => {
++  act(() => root.unmount());
++  container.remove();
++});
++
++describe("生产文件点击进入 Files", () => {
++  it.each(["general", "coding", "article"])(
++    "%s 文件点击只选择原件，不投影缓存正文",
++    async (activeTheme) => {
++      const { props } = mount({ activeTheme });
++      await click("reports/result.md");
++      expect(props.openWorkspaceFile).toHaveBeenCalledExactlyOnceWith(
++        "/workspace/reports/result.md",
++      );
++      expect(readFilePreview).not.toHaveBeenCalled();
++      expect(props.readSessionFile).not.toHaveBeenCalled();
++      expect(props.upsertGeneralArtifact).not.toHaveBeenCalled();
++      expect(props.onRequestCanvasPreviewOpen).not.toHaveBeenCalled();
++    },
++  );
++  it.each(["pdf", "docx", "xlsx", "pptx", "html", "json"])(
++    "空内容 %s 仍打开真实文件",
++    async (ext) => {
++      const { props } = mount();
++      await click(`empty.${ext}`, "");
++      expect(props.openWorkspaceFile).toHaveBeenCalledExactlyOnceWith(
++        `/workspace/empty.${ext}`,
++      );
++      expect(readFilePreview).not.toHaveBeenCalled();
++      expect(props.upsertGeneralArtifact).not.toHaveBeenCalled();
++    },
++  );
++  it.each([
++    "C:/work/report.md",
++    String.raw`D:\work\report.md`,
++    String.raw`\\server\share\report.md`,
++  ])("保留 Windows 路径 %s", async (path) => {
++    const { props } = mount();
++    await click(path);
++    expect(props.openWorkspaceFile).toHaveBeenCalledExactlyOnceWith(path);
++  });
++  it("空路径不打开文件或请求解析", async () => {
++    const { props } = mount();
++    await click("  ");
++    expect(props.openWorkspaceFile).not.toHaveBeenCalled();
++    expect(resolveFilePath).not.toHaveBeenCalled();
++  });
++  it("没有项目根时不将相对路径解释为进程工作目录", async () => {
++    const { props } = mount({ projectRootPath: null });
++    await click("report.md");
++    expect(props.openWorkspaceFile).not.toHaveBeenCalled();
++  });
++  it("会话文件通过 canonical 路径打开，空文件和缓存内容均不改变 authority", async () => {
++    vi.mocked(resolveFilePath).mockResolvedValue(
++      "/session/thread-1/files/draft.md",
++    );
++    const { props } = mount({ sessionFiles: [stored] });
++    await click("draft.md", "");
++    expect(resolveFilePath).toHaveBeenCalledExactlyOnceWith(
++      "session-1",
++      "draft.md",
++    );
++    expect(props.openWorkspaceFile).toHaveBeenCalledExactlyOnceWith(
++      "/session/thread-1/files/draft.md",
++    );
++    expect(props.readSessionFile).not.toHaveBeenCalled();
++    expect(props.onRequestCanvasPreviewOpen).not.toHaveBeenCalled();
++  });
++  it("不同目录同名文件不能绑定会话摘要", async () => {
++    const { props } = mount({ sessionFiles: [stored] });
++    await click("reports/draft.md");
++    expect(resolveFilePath).not.toHaveBeenCalled();
++    expect(props.openWorkspaceFile).toHaveBeenCalledExactlyOnceWith(
++      "/workspace/reports/draft.md",
++    );
++  });
++  it("会话摘要尚未刷新时依据 TaskFile 的 session-file 身份解析", async () => {
++    vi.mocked(resolveFilePath).mockResolvedValue(
++      "/session/thread-1/files/draft.md",
++    );
++    const { props } = mount({
++      taskFiles: [
++        {
++          id: "session-file:draft.md",
++          name: "draft.md",
++          type: "document",
++          version: 1,
++          createdAt: 1,
++          updatedAt: 1,
++        },
++      ],
++    });
++    await click("draft.md");
++    expect(resolveFilePath).toHaveBeenCalledExactlyOnceWith(
++      "session-1",
++      "draft.md",
++    );
++    expect(props.openWorkspaceFile).toHaveBeenCalledExactlyOnceWith(
++      "/session/thread-1/files/draft.md",
++    );
++  });
++  it("缺少存储会话身份时不把会话文件重定向到项目同名文件", async () => {
++    const { props } = mount({ sessionId: null, sessionFiles: [stored] });
++    await click("draft.md");
++    expect(resolveFilePath).not.toHaveBeenCalled();
++    expect(props.openWorkspaceFile).not.toHaveBeenCalled();
++    expect(toast.error).toHaveBeenCalledOnce();
++  });
++  it.each(["relative/draft.md", "https://example.test/draft.md", ""])(
++    "拒绝非法 canonical 路径 %s",
++    async (path) => {
++      vi.mocked(resolveFilePath).mockResolvedValue(path);
++      const { props } = mount({ sessionFiles: [stored] });
++      await click("draft.md");
++      expect(props.openWorkspaceFile).not.toHaveBeenCalled();
++      expect(toast.error).toHaveBeenCalledOnce();
++    },
++  );
++  it("解析失败暴露已有错误状态且不恢复 Canvas", async () => {
++    vi.mocked(resolveFilePath).mockRejectedValue(
++      new Error("storage unavailable"),
++    );
++    const { props } = mount({ sessionFiles: [stored] });
++    await click("draft.md");
++    expect(props.openWorkspaceFile).not.toHaveBeenCalled();
++    expect(props.onRequestCanvasPreviewOpen).not.toHaveBeenCalled();
++    expect(toast.error).toHaveBeenCalledOnce();
++  });
++  it.each(["success", "failure"])("新点击使旧解析 %s 失效", async (outcome) => {
++    const pending = deferred();
++    vi.mocked(resolveFilePath).mockReturnValue(pending.promise);
++    const { props } = mount({ sessionFiles: [stored] });
++    await click("draft.md");
++    await click("new.md");
++    await act(async () => {
++      if (outcome === "success") pending.resolve("/old/draft.md");
++      else pending.reject(new Error("stale"));
++      await pending.promise.catch(() => undefined);
++    });
++    expect(props.openWorkspaceFile).toHaveBeenCalledExactlyOnceWith(
++      "/workspace/new.md",
++    );
++    expect(toast.error).not.toHaveBeenCalled();
++  });
++  it.each([
++    { sessionId: "session-2" },
++    { threadId: "thread-2" },
++    { projectRootPath: "/other" },
++  ])("切换 scope 使旧解析失效 %j", async (next) => {
++    const pending = deferred();
++    vi.mocked(resolveFilePath).mockReturnValue(pending.promise);
++    const { props, render } = mount({ sessionFiles: [stored] });
++    await click("draft.md");
++    render(next);
++    await act(async () => {
++      pending.resolve("/old/draft.md");
++      await pending.promise;
++    });
++    expect(props.openWorkspaceFile).not.toHaveBeenCalled();
++    expect(toast.error).not.toHaveBeenCalled();
++  });
++  it("卸载后旧成功与错误不回流", async () => {
++    const pending = deferred();
++    vi.mocked(resolveFilePath).mockReturnValue(pending.promise);
++    const { props } = mount({ sessionFiles: [stored] });
++    await click("draft.md");
++    act(() => root.unmount());
++    root = createRoot(container);
++    await act(async () => {
++      pending.reject(new Error("unmounted"));
++      await pending.promise.catch(() => undefined);
++    });
++    expect(props.openWorkspaceFile).not.toHaveBeenCalled();
++    expect(toast.error).not.toHaveBeenCalled();
++  });
++});
+--- /dev/null
++++ b/scripts/electron/file-click-fixture-smoke.mjs
+@@ -0,0 +1,543 @@
++import fs from "node:fs";
++import path from "node:path";
++import assert from "node:assert/strict";
++import {
++  ensureElectronFixtureBuild,
++  inspectElectronFixtureBuildFreshness,
++} from "../lib/electron-fixture-build.mjs";
++import {
++  manifest,
++  hash,
++  sourcePaths as previewSourcePaths,
++} from "./lib/document-preview-provenance.mjs";
++import { launchElectronFixture } from "./mcp-config-fixture-smoke.mjs";
++import { captureMainProcessExit } from "./lib/persisted-atom-fixture-driver.mjs";
++import {
++  createTempRuntimeEnv,
++  startTextProviderFixtureServer,
++} from "../agent-runtime/claw-chat-current-fixture-backend-file.mjs";
++import {
++  initializeAppServer,
++  ensureDefaultWorkspace,
++  ensureFixtureTextProvider,
++  bindGuiWorkspaceAndModelPreferences,
++  reloadRendererDocument,
++  invokeAppServerFromPage,
++  collectTraceRequestMethods,
++} from "../agent-runtime/claw-chat-current-fixture-rpc.mjs";
++import { sendPromptFromGui } from "../agent-runtime/claw-chat-current-fixture-gui-actions.mjs";
++import {
++  GREETING_PROMPT,
++  GREETING_DONE_TEXT,
++  GREETING_SUMMARY_TEXT,
++} from "../agent-runtime/claw-chat-current-fixture-constants.mjs";
++import { waitForSessionReadCompleted } from "../agent-runtime/claw-chat-current-fixture-read-model-waits.mjs";
++import { settleFixtureResources } from "../agent-runtime/claw-chat-current-fixture-teardown.mjs";
++import {
++  readJsonl,
++  sanitizeText,
++} from "../agent-runtime/claw-chat-current-fixture-utils.mjs";
++import {
++  electronAppServerBinaryDestination,
++  resolveElectronAppServerRuntimeEnv,
++} from "../lib/electron-app-server-assets.mjs";
++import {
++  installInvokeTraceCollector,
++  captureInvokeTraceCollector,
++  stopInvokeTraceCollector,
++  validateInvokeTraceCollectorCapture,
++} from "../lib/invoke-trace-collector.mjs";
++import { writePdfPreviewFixture } from "./lib/pdf-preview-scenario.mjs";
++import { observePreviewConsoleError } from "./lib/document-preview-diagnostics.mjs";
++
++const runId = process.argv[2];
++assert.match(runId ?? "", /^[a-z0-9-]+$/, "unique run id required");
++ensureElectronFixtureBuild({ rootDir: process.cwd(), logPrefix: "file-click" });
++const filename = "Preview-report.pdf";
++const sourcePaths = [
++  ...previewSourcePaths,
++  "src/components/agent/chat/workspace/useWorkspaceFileOpen.ts",
++  "src/components/agent/chat/workspace/useWorkspaceArtifactActionRuntime.ts",
++  "src/components/agent/chat/components/ToolCallDisplay.tsx",
++  "src/components/agent/chat/components/ToolCallDisplayResultPanel.tsx",
++  "scripts/electron/file-click-fixture-smoke.mjs",
++  "src/lib/api/session-files.ts",
++  "src/components/agent/chat/components/InlineToolProcessStep.tsx",
++  ...["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"].flatMap((locale) => [
++    "src/i18n/resources/" + locale + "/agent.json",
++    "src/i18n/resources/" + locale + "/agentMessageList.json",
++  ]),
++];
++const evidenceDir = path.resolve(".lime/qc/file-clicks", runId);
++assert.equal(
++  fs.existsSync(evidenceDir),
++  false,
++  "never overwrite previous evidence",
++);
++fs.mkdirSync(evidenceDir, { recursive: true });
++const options = { timeoutMs: 120_000, intervalMs: 250 };
++const runtimeEnv = createTempRuntimeEnv();
++const clickedNames = [
++  "reports/original.md",
++  "reports/empty.md",
++  "Preview-report.pdf",
++  "stored-note.md",
++  "reports/stored-note.md",
++];
++const marker = 'if (input.kind === "turnStart") {';
++const backend = fs.readFileSync(runtimeEnv.backendPath, "utf8");
++assert.equal(backend.split(marker).length, 2);
++const toolEvents =
++  "for (const [index, name] of " +
++  JSON.stringify(clickedNames) +
++  ".entries()) { const facts = {sessionId: input.request?.session?.sessionId, threadId: currentThreadId(), turnId: currentTurnId(), itemId: 'file-click-' + index, ordinal: index + 2, callId: 'file-click-' + index, name: 'read_file', arguments: {file_path: name}}; emitEvents([{type: 'item.started', payload: buildCanonicalToolItem(facts)}, {type: 'item.completed', payload: buildCanonicalToolItem({...facts, status: 'completed', output: {text: index === 1 || index === 2 ? '' : 'STALE_CACHE_COPY'}})}]); }";
++fs.writeFileSync(
++  runtimeEnv.backendPath,
++  backend.replace(marker, marker + toolEvents),
++);
++const summary = {
++  runId,
++  ok: false,
++  scope:
++    "Real file click -> Files through Electron/preload/IPC/current JSON-RPC and canonical Tool items. External backend bypasses production runtime/provider execution. No live/Windows/packaged claim.",
++  consoleErrors: [],
++  consoleErrorDetails: [],
++  pageErrors: [],
++  mainLifecycle: [],
++  sourcesBefore: manifest(sourcePaths),
++};
++let handle, provider, mainExit, collector, failure;
++const consoleObservations = [];
++const fresh = () => {
++  const value = inspectElectronFixtureBuildFreshness({
++    rootDir: process.cwd(),
++  });
++  assert.equal(value.ready, true, `current build freshness: ${value.reason}`);
++  return value;
++};
++const stage = (name) => {
++  summary.stage = name;
++  console.log(`[document-preview] ${name}`);
++};
++try {
++  stage("freshness");
++  summary.freshnessBefore = fresh();
++  summary.artifactsBefore = manifest([
++    "dist",
++    "dist-electron",
++    "packages/app-server-client/dist",
++  ]);
++  const packagedBinary = electronAppServerBinaryDestination();
++  const binary = runtimeEnv.env.APP_SERVER_BIN?.trim() || packagedBinary;
++  assert.equal(
++    hash(binary),
++    hash(packagedBinary),
++    "fixture App Server must match the fresh packaged sidecar",
++  );
++  summary.sidecarBefore = { path: binary, sha256: hash(binary) };
++  provider = await startTextProviderFixtureServer();
++  stage("launch");
++  handle = await launchElectronFixture({
++    options,
++    runtimeEnv,
++    consoleErrors: summary.consoleErrors,
++    pageErrors: summary.pageErrors,
++    backendMode: "external",
++    appServerEnv: {
++      ...resolveElectronAppServerRuntimeEnv({
++        env: { ...runtimeEnv.env, APP_SERVER_BIN: binary },
++      }),
++      APP_SERVER_BACKEND_COMMAND: process.execPath,
++      APP_SERVER_BACKEND_ARGS: JSON.stringify([
++        runtimeEnv.backendPath,
++        runtimeEnv.backendLedgerPath,
++        runtimeEnv.cancelSignalPath,
++        runtimeEnv.typedErrorSignalPath,
++      ]),
++      APP_SERVER_BACKEND_TIMEOUT_MS: "10000",
++      LIME_ALLOW_LIVE_PROVIDER_SMOKE: "0",
++      LIME_REAL_API_TEST: "0",
++    },
++  });
++  mainExit = captureMainProcessExit(handle.app.process());
++  summary.renderer = handle.rendererSnapshot;
++  assert.equal(summary.renderer.electron, true);
++  assert.equal(summary.renderer.hasInvokeBridge, true);
++  assert.equal(summary.renderer.supportsAppServer, true);
++  const lifecyclePrefix = "[document-preview-main] ";
++  let lifecycleBuffer = "";
++  handle.app.process().stdout?.on("data", (chunk) => {
++    lifecycleBuffer += chunk.toString();
++    const lines = lifecycleBuffer.split("\n");
++    lifecycleBuffer = lines.pop();
++    for (const line of lines) {
++      if (line.startsWith(lifecyclePrefix))
++        summary.mainLifecycle.push(
++          JSON.parse(line.slice(lifecyclePrefix.length)),
++        );
++    }
++  });
++  handle.app.process().stderr?.on("data", (chunk) => {
++    if (chunk.toString().includes("Waiting for the debugger to disconnect"))
++      summary.mainLifecycle.push({
++        event: "waiting-for-debugger-disconnect",
++        at: new Date().toISOString(),
++      });
++  });
++  handle.app.on("close", () =>
++    summary.mainLifecycle.push({
++      event: "playwright-app-closed",
++      at: new Date().toISOString(),
++    }),
++  );
++  await handle.app.evaluate(({ app, BrowserWindow }, prefix) => {
++    for (const event of ["before-quit", "will-quit", "quit"])
++      app.on(event, () => {
++        process.stdout.write(
++          prefix +
++            JSON.stringify({
++              event,
++              at: new Date().toISOString(),
++              windows: BrowserWindow.getAllWindows().length,
++              activeResources: process.getActiveResourcesInfo(),
++            }) +
++            "\n",
++        );
++      });
++  }, lifecyclePrefix);
++  handle.app.on("console", (message) => {
++    if (message.type() === "error")
++      summary.consoleErrorDetails.push({
++        stage: summary.stage,
++        source: "main",
++        location: message.location(),
++        text: sanitizeText(message.text()),
++      });
++  });
++  const { page } = handle;
++  page.on("console", (message) => {
++    if (message.type() === "error") {
++      summary.consoleErrors.push(sanitizeText(message.text()));
++      observePreviewConsoleError(
++        message,
++        summary.stage,
++        summary.consoleErrorDetails,
++        consoleObservations,
++      );
++    }
++  });
++  await initializeAppServer(page);
++  const workspace = await ensureDefaultWorkspace(page);
++  const preference = await ensureFixtureTextProvider(page, undefined, {
++    apiHost: provider.baseUrl,
++  });
++  await bindGuiWorkspaceAndModelPreferences(page, workspace.workspaceId, {
++    provider: preference.providerId,
++    model: preference.modelId,
++  });
++  const filePath = path.join(workspace.rootPath, filename);
++  writePdfPreviewFixture(filePath, 2);
++  fs.mkdirSync(path.join(workspace.rootPath, "reports"), { recursive: true });
++  fs.writeFileSync(
++    path.join(workspace.rootPath, "reports/original.md"),
++    "# DISK_ORIGINAL\n",
++  );
++  fs.writeFileSync(path.join(workspace.rootPath, "reports/empty.md"), "");
++  fs.writeFileSync(
++    path.join(workspace.rootPath, "stored-note.md"),
++    "# WRONG_PROJECT_FILE\n",
++  );
++  fs.writeFileSync(
++    path.join(workspace.rootPath, "reports/stored-note.md"),
++    "# DIRECTORY_ORIGINAL\n",
++  );
++  await reloadRendererDocument(page, options);
++  collector = await installInvokeTraceCollector(page);
++  await page.getByTestId("app-sidebar-home-button").click();
++  await page
++    .getByTestId("home-composer-page")
++    .getByTestId("composer-utility-project-trigger")
++    .click();
++  await page
++    .locator(
++      `[data-testid="composer-utility-opened-project"][data-project-id="${workspace.workspaceId}"]`,
++    )
++    .press("Enter");
++  await sendPromptFromGui(page, options, GREETING_PROMPT, {
++    allowTaskCenterHomeInput: true,
++  });
++  stage("canonical-thread");
++  await page
++    .getByText(GREETING_SUMMARY_TEXT, { exact: false })
++    .first()
++    .waitFor();
++  const starts = () =>
++    readJsonl(runtimeEnv.backendLedgerPath).filter(
++      (entry) => entry.kind === "turnStart",
++    );
++  assert.equal(starts().length, 1);
++  const list = await invokeAppServerFromPage(page, "thread/list", {
++    archived: false,
++    limit: 100,
++  });
++  const thread = list.result.data.find(
++    (item) => item.sessionId === starts()[0].sessionId,
++  );
++  assert.ok(thread);
++  const completed = await waitForSessionReadCompleted(
++    page,
++    options,
++    undefined,
++    {
++      threadId: thread.id,
++      prompt: GREETING_PROMPT,
++      doneText: GREETING_DONE_TEXT,
++      summaryText: GREETING_SUMMARY_TEXT,
++    },
++  );
++  summary.identity = {
++    threadId: thread.id,
++    sessionId: starts()[0].sessionId,
++    turns: completed.thread.turns.map((turn) => ({
++      id: turn.id,
++      items: turn.items.map((item) => item.id),
++    })),
++  };
++  summary.clicks = [];
++  const click = async (name) => {
++    stage("click:" + name);
++    await page
++      .getByTestId("conversation-turn-process-segment")
++      .first()
++      .waitFor();
++    const historical = page.locator(
++      '[data-testid="message-list-historical-timeline-preview:leading"][aria-expanded="false"]',
++    );
++    if (await historical.count()) await historical.first().click();
++    await page.getByTestId("agent-thread-flow").first().waitFor();
++    const item = page.locator(
++      '[data-thread-item-id="file-click-' + clickedNames.indexOf(name) + '"]',
++    );
++    const closed = page.locator(
++      '[data-testid="conversation-turn-process-segment"] details[data-details-available="true"]:not([open]) > summary',
++    );
++    for (const summary of await closed.all()) await summary.click();
++    await item.getByRole("button", { name: "打开文件", exact: true }).click();
++    await page
++      .locator(
++        '[data-testid="workspace-right-surface-tab-files"][aria-selected="true"]',
++      )
++      .waitFor();
++  };
++  const inspectText = async (name, expectedPath, expectedText) => {
++    await click(name);
++    const editor = page.locator(
++      '[data-testid="text-file-editor"][data-file-path="' + expectedPath + '"]',
++    );
++    await editor.waitFor();
++    const preview = editor.getByTestId("file-preview-markdown");
++    await preview.waitFor();
++    if (expectedText)
++      await preview.getByText(expectedText, { exact: false }).waitFor();
++    else assert.equal((await preview.innerText()).trim(), "");
++
++    const content = await editor.innerText();
++    assert.equal(content.includes("STALE_CACHE_COPY"), false);
++    assert.equal(content.includes("WRONG_PROJECT_FILE"), false);
++    const selected = page.locator(
++      '[data-testid="workspace-right-surface-tab-files"][aria-selected="true"]',
++    );
++    const tabId = await selected.getAttribute("id");
++    const count = await page
++      .getByTestId("workspace-right-surface-tab-files")
++      .count();
++    await click(name);
++    assert.equal(await selected.getAttribute("id"), tabId);
++    assert.equal(
++      await page.getByTestId("workspace-right-surface-tab-files").count(),
++      count,
++    );
++    const screenshot = path.join(
++      evidenceDir,
++      "click-" + summary.clicks.length + ".png",
++    );
++    await page.screenshot({ path: screenshot });
++    summary.clicks.push({
++      name,
++      canonicalItemId: "file-click-" + clickedNames.indexOf(name),
++      path: expectedPath,
++      expectedText,
++      tabId,
++      samePathReused: true,
++      screenshot,
++    });
++  };
++  await inspectText(
++    clickedNames[0],
++    path.join(workspace.rootPath, clickedNames[0]),
++    "DISK_ORIGINAL",
++  );
++  await inspectText(
++    clickedNames[1],
++    path.join(workspace.rootPath, clickedNames[1]),
++    "",
++  );
++  await click(clickedNames[2]);
++  await page.waitForFunction(
++    () =>
++      document
++        .querySelector('[data-testid="pdf-preview-panel"]')
++        ?.getAttribute("data-status") === "ready",
++  );
++  const pdfPage = page.locator(
++    '[data-testid="pdf-preview-panel"] [data-pdf-page="1"][data-rendered="true"]',
++  );
++  await pdfPage.waitFor();
++  const pdf = await pdfPage.evaluate((element) => {
++    const canvas = element.querySelector("canvas");
++    return {
++      width: canvas.width,
++      height: canvas.height,
++      text: element.querySelector(".textLayer")?.textContent,
++    };
++  });
++  assert.ok(
++    pdf.width > 0 && pdf.height > 0 && pdf.text.includes("PDF_PREVIEW_01"),
++  );
++  await page.screenshot({ path: path.join(evidenceDir, "pdf.png") });
++  summary.pdf = pdf;
++  const sessionId = summary.identity.sessionId;
++  await invokeAppServerFromPage(page, "sessionFile/save", {
++    sessionId,
++    fileName: "stored-note.md",
++    content: "# SESSION_ORIGINAL\n",
++  });
++  const resolved = await invokeAppServerFromPage(
++    page,
++    "sessionFile/resolvePath",
++    { sessionId, fileName: "stored-note.md" },
++  );
++  const storedPath = resolved.result.path;
++  assert.notEqual(storedPath, path.join(workspace.rootPath, "stored-note.md"));
++  const firstTrace = validateInvokeTraceCollectorCapture(
++    await captureInvokeTraceCollector(page, collector),
++    collector,
++  );
++  assert.equal(firstTrace.complete, true);
++  await stopInvokeTraceCollector(page, collector);
++  collector = null;
++  stage("restore-session-from-sidebar");
++  await reloadRendererDocument(page, options);
++  collector = await installInvokeTraceCollector(page);
++  await page
++    .locator(
++      '[data-testid="app-sidebar-conversation-open"][data-session-id="' +
++        sessionId +
++        '"]',
++    )
++    .click();
++  await page
++    .locator(
++      '[data-testid="composer-editor"][data-session-id="' + sessionId + '"]',
++    )
++    .waitFor();
++  await page.waitForFunction(() =>
++    JSON.parse(
++      localStorage.getItem("lime_invoke_trace_buffer_v1") || "[]",
++    ).some(
++      (entry) =>
++        entry.status === "success" &&
++        (JSON.stringify(entry.args_preview) ?? "").includes("sessionFile/list"),
++    ),
++  );
++  await inspectText(clickedNames[3], storedPath, "SESSION_ORIGINAL");
++  await inspectText(
++    clickedNames[4],
++    path.join(workspace.rootPath, clickedNames[4]),
++    "DIRECTORY_ORIGINAL",
++  );
++  const after = await invokeAppServerFromPage(page, "thread/read", {
++    threadId: thread.id,
++    includeTurns: true,
++  });
++  assert.deepEqual(
++    after.result.thread.turns.map((turn) => ({
++      id: turn.id,
++      items: turn.items.map((item) => item.id),
++    })),
++    summary.identity.turns,
++  );
++  assert.equal(starts().length, 1);
++  summary.url = page.url();
++  const finalTrace = validateInvokeTraceCollectorCapture(
++    await captureInvokeTraceCollector(page, collector),
++    collector,
++  );
++  assert.equal(finalTrace.complete, true);
++  const entries = [...firstTrace.ledgerEntries, ...finalTrace.ledgerEntries];
++  summary.trace = {
++    methods: [...new Set(collectTraceRequestMethods(entries))],
++    ipc: entries.filter(
++      (entry) =>
++        entry.transport === "electron-ipc" &&
++        entry.command === "app_server_handle_json_lines",
++    ).length,
++    errors: entries.filter((entry) => entry.status === "error").length,
++    mockHits: entries.filter((entry) => /mock/i.test(entry.transport ?? ""))
++      .length,
++    provenance: [firstTrace.provenance, finalTrace.provenance],
++  };
++  for (const method of [
++    "thread/start",
++    "turn/start",
++    "thread/read",
++    "sessionFile/resolvePath",
++    "fs/readFile",
++  ])
++    assert.ok(summary.trace.methods.includes(method), method);
++  assert.ok(summary.trace.ipc > 0);
++  assert.equal(summary.trace.errors, 0);
++  assert.equal(summary.trace.mockHits, 0);
++  summary.sourcesAfter = manifest(sourcePaths);
++  assert.deepEqual(summary.sourcesAfter, summary.sourcesBefore);
++  assert.deepEqual(
++    manifest(["dist", "dist-electron", "packages/app-server-client/dist"]),
++    summary.artifactsBefore,
++  );
++  assert.deepEqual(
++    { path: binary, sha256: hash(binary) },
++    summary.sidecarBefore,
++  );
++  summary.freshnessAfter = fresh();
++  assert.deepEqual(summary.consoleErrors, []);
++  assert.deepEqual(summary.pageErrors, []);
++} catch (error) {
++  failure = error;
++  summary.error = sanitizeText(error.stack ?? String(error));
++  if (handle) {
++    summary.failureBody = await handle.page
++      .locator("body")
++      .innerText()
++      .catch(() => null);
++    await handle.page
++      .screenshot({ path: path.join(evidenceDir, "failure.png") })
++      .catch(() => undefined);
++  }
++} finally {
++  await Promise.allSettled(consoleObservations);
++  summary.teardown = await settleFixtureResources({
++    app: handle?.app,
++    mainExit,
++    invokeTraceCollector: collector
++      ? { stop: () => stopInvokeTraceCollector(handle.page, collector) }
++      : undefined,
++    textProviderFixtureServer: provider,
++  });
++  summary.ok = !failure && summary.teardown.ok;
++  fs.writeFileSync(
++    path.join(evidenceDir, "summary.json"),
++    JSON.stringify(summary, null, 2) + "\n",
++  );
++}
++assert.equal(summary.ok, true, summary.error ?? "fixture teardown failed");
++console.log("[file-click] passed: " + evidenceDir);

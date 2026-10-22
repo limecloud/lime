@@ -1,3 +1,7 @@
+import {
+  replaceFileTab,
+  selectThreadSidePanelTool,
+} from "./thread-side-panel-navigation.mjs";
 import fs from "node:fs";
 import path from "node:path";
 import assert from "node:assert/strict";
@@ -182,7 +186,7 @@ export async function runPresentationPreviewScenario({
   await number.press("Enter");
   await waitForPresentationSlide(page, "512");
   await page.setViewportSize({ width: 980, height: 760 });
-  await page.getByTestId("layout-compact-canvas-tab").click();
+  await selectThreadSidePanelTool(page, "files");
   await waitForPresentationSlide(page, "512");
   await page.waitForFunction(() => {
     const panel = document.querySelector('[data-testid="presentation-panel"]');
@@ -204,15 +208,7 @@ export async function runPresentationPreviewScenario({
   await page.setViewportSize({ width: 1440, height: 1000 });
 
   const open = async (filename) => {
-    await page.getByTestId("canvas-workbench-tab-menu-trigger").click();
-    await page
-      .getByRole("menuitem", { name: "新建工作台标签-文件", exact: true })
-      .click();
-    await page
-      .locator(
-        `[data-testid="canvas-workbench-panel-workspace"] button[title="${filename}"]`,
-      )
-      .click();
+    await replaceFileTab(page, path.join(path.dirname(filePath), filename));
   };
   await open("Broken.pptx");
   await panel.getByRole("alert").waitFor();

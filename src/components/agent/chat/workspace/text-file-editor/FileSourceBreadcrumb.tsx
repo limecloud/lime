@@ -8,7 +8,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import type { CanvasWorkbenchFileTreeState } from "../../components/canvas-workbench/files/useCanvasWorkbenchFileTreeState";
+import type { FileTreeState } from "../right-surface/useFileTreeState";
 import { WorkspaceDirectoryTree } from "../right-surface/WorkspaceDirectoryTree";
 import { WorkspaceFileContextMenu } from "../right-surface/WorkspaceFileContextMenu";
 import {
@@ -29,7 +29,7 @@ function DirectoryContents({
   root: string;
   target: FilePathBreadcrumbTarget;
   expandActive: boolean;
-  state: CanvasWorkbenchFileTreeState;
+  state: FileTreeState;
   onSelectFile: (path: string) => void;
 }) {
   const directoryPath = joinFileBreadcrumbPath(root, target.directoryPath);
@@ -80,7 +80,7 @@ function DirectoryBreadcrumb({
   last: boolean;
   root: string;
   target: FilePathBreadcrumbTarget;
-  state: CanvasWorkbenchFileTreeState;
+  state: FileTreeState;
   onSelectFile: (path: string) => void;
   cwd?: string | null;
 }) {
@@ -135,7 +135,7 @@ export function FileSourceBreadcrumb({
   pathActions,
   trailingContent,
 }: FilePathBreadcrumbInput & {
-  tree?: CanvasWorkbenchFileTreeState;
+  tree?: FileTreeState;
   onSelectFile?: (path: string) => void;
   pathActions?: ReactNode;
   trailingContent?: ReactNode;

@@ -29,6 +29,7 @@ import { submitWorkspaceArticleEditorActionIntent } from "./workspaceArticleEdit
 import type { WorkspaceArticleWorkspaceActionIntent } from "./workspaceArticleWorkspaceModel";
 import { useWorkspaceLinkOpening } from "./useWorkspaceLinkOpening";
 import type { OpenLink } from "../components/LinkOpeningContext";
+import { WorkspaceBrowserNavigationContext } from "./right-surface/browser/workspaceBrowserNavigationContext";
 
 type RightSurfaceHostRuntimeProjection = Pick<
   WorkspaceRightSurfaceCoordinatorRuntime,
@@ -36,6 +37,7 @@ type RightSurfaceHostRuntimeProjection = Pick<
   | "browserRightSurfaceAvailable"
   | "browserRightSurfaceIntent"
   | "handleBrowserLaunchApplied"
+  | "handleOpenBrowserAddress"
   | "openBrowserInBackground"
   | "filesRightSurfaceAvailable"
   | "filesRightSurfaceTarget"
@@ -272,12 +274,11 @@ export function useWorkspaceRightSurfaceHostRuntime({
       rightSurfaceRuntime.browserRightSurfaceIntent?.launchUrl ?? null,
     browserRightSurfaceLaunchTabId:
       rightSurfaceRuntime.browserRightSurfaceIntent?.tabId ?? null,
-    browserRightSurfaceLaunchRequestId:
-      rightSurfaceRuntime.browserRightSurfaceIntent?.launchApplied ||
-      !rightSurfaceRuntime.browserRightSurfaceIntent?.launchUrl
-        ? null
-        : (rightSurfaceRuntime.browserRightSurfaceIntent?.sourceRequestId ??
-          null),
+    browserRightSurfaceLaunchRequestId: rightSurfaceRuntime
+      .browserRightSurfaceIntent?.launchApplied
+      ? null
+      : (rightSurfaceRuntime.browserRightSurfaceIntent?.sourceRequestId ??
+        null),
     onBrowserLaunchApplied: rightSurfaceRuntime.handleBrowserLaunchApplied,
     browserRightSurfaceIntentTitle:
       rightSurfaceRuntime.browserRightSurfaceIntent?.title ?? null,
@@ -313,9 +314,19 @@ export function useWorkspaceRightSurfaceHostRuntime({
       children: createElement(
         "div",
         { className: "contents" },
-        createElement(FileTabDraftContext.Provider, {
-          value: fileTabDrafts,
-          children: surfaces.content,
+        createElement(WorkspaceBrowserNavigationContext.Provider, {
+          value: {
+            openAddress: (sourceTabId: string, url: string) =>
+              rightSurfaceRuntime.handleOpenBrowserAddress(
+                sourceTabId,
+                url,
+                hostRuntimeParams.ensureBrowserWorkspaceOwner,
+              ),
+          },
+          children: createElement(FileTabDraftContext.Provider, {
+            value: fileTabDrafts,
+            children: surfaces.content,
+          }),
         }),
         fileTabLifecycle.confirmation,
       ),

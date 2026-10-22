@@ -9,7 +9,7 @@ import {
   renderPage,
 } from "./index.testFixtures";
 import * as fileBrowserModule from "@/lib/api/fileBrowser";
-import type { Artifact } from "@/lib/artifact/types";
+import * as textFileStorageModule from "@/lib/api/textFileStorage";
 
 const {
   mockCanvasWorkbenchLayout,
@@ -17,39 +17,6 @@ const {
   mockMessageList,
   mockUseAgentChatUnified,
 } = getIndexTestMocks();
-
-function expectSelectedFilePreview(expected: {
-  filePath: string;
-  absolutePath: string;
-  contentKind: "markdown" | "code";
-  content: string;
-}) {
-  const props = mockCanvasWorkbenchLayout.mock.calls.at(-1)?.[0] as
-    | {
-        artifacts: Artifact[];
-        previewOpenRequest?: {
-          filePath?: string | null;
-          selectionKey?: string | null;
-        };
-      }
-    | undefined;
-  const matches = props?.artifacts.filter(
-    (artifact) => artifact.meta.sourceRef === expected.filePath,
-  );
-  expect(matches).toHaveLength(1);
-  const artifact = matches![0];
-  expect(artifact.meta).toMatchObject({
-    previewArtifact: true,
-    contentKind: expected.contentKind,
-    filePath: expected.absolutePath,
-    sourcePath: expected.absolutePath,
-  });
-  expect(artifact.content).toContain(expected.content);
-  expect(props?.previewOpenRequest).toMatchObject({
-    filePath: expected.absolutePath,
-    selectionKey: `artifact:${artifact.id}`,
-  });
-}
 
 describe("AgentChatPage 通用工作台", { timeout: 20_000 }, () => {
   it("历史旧导出结果与同会话新到的 saved_content 都不应自动打开画布，应等待用户手动点开", async () => {
@@ -167,11 +134,16 @@ describe("AgentChatPage 通用工作台", { timeout: 20_000 }, () => {
     ).toBe("chat");
   });
 
-  it("历史任务携带 initialProjectFileOpenTarget 时应直接恢复真实 Markdown 文件预览", async () => {
+  it("历史任务携带 initialProjectFileOpenTarget 时应在 Files 恢复 Markdown 文件", async () => {
     mockCanvasWorkbenchLayoutState.renderPreviewProbe = true;
+    const content = "# 历史导出\n\n![插图](images/history-cover.png)";
+    vi.spyOn(textFileStorageModule, "createTextFileStorage").mockReturnValue({
+      read: vi.fn().mockResolvedValue({ content, mtimeMs: 1, sizeBytes: 52 }),
+      write: vi.fn().mockRejectedValue(new Error("unexpected write")),
+    });
     vi.spyOn(fileBrowserModule, "readFilePreview").mockResolvedValue({
       path: "/tmp/project-history-export/exports/x-article-export/history/index.md",
-      content: "# 历史导出\n\n![插图](images/history-cover.png)",
+      content,
       isBinary: false,
       size: 52,
       error: null,
@@ -200,29 +172,41 @@ describe("AgentChatPage 通用工作台", { timeout: 20_000 }, () => {
         ?.getAttribute("data-mode"),
     ).toBe("chat-canvas");
 
-    const preview = container.querySelector<HTMLDivElement>(
-      '[data-testid="artifact-renderer"]',
+    const preview = container.querySelector<HTMLElement>(
+      '[data-testid="text-file-editor"][data-file-path="/tmp/project-history-export/exports/x-article-export/history/index.md"]',
     );
-    expect(preview?.dataset.sourceRef).toBe(
-      "exports/x-article-export/history/index.md",
-    );
-    expect(preview?.dataset.filePath).toBe(
+    expect(preview?.dataset.previewMode).toBe("markdown");
+    expect(preview?.textContent).toContain(content);
+    expect(textFileStorageModule.createTextFileStorage).toHaveBeenCalledWith(
       "/tmp/project-history-export/exports/x-article-export/history/index.md",
     );
-    expect(preview?.dataset.contentKind).toBe("markdown");
-    expect(preview?.dataset.content).toContain(
-      "![插图](images/history-cover.png)",
-    );
+    expect(
+      container.querySelector(
+        '[data-testid="workspace-right-surface-tab-files"][aria-selected="true"]',
+      ),
+    ).not.toBeNull();
+    expect(
+      mockCanvasWorkbenchLayout.mock.calls.at(-1)?.[0]?.previewOpenRequest ??
+        null,
+    ).toBeNull();
+    expect(
+      container.querySelector('[data-testid="artifact-renderer"]'),
+    ).toBeNull();
     expect(
       container.querySelector('[data-testid="general-canvas"]'),
     ).toBeNull();
   });
 
-  it("同项目内打开 saved site content 时应直接恢复真实 Markdown 文件预览", async () => {
+  it("同项目内打开 saved site content 时应在 Files 恢复 Markdown 文件", async () => {
     mockCanvasWorkbenchLayoutState.renderPreviewProbe = true;
+    const content = "# 当前导出\n\n![封面](images/cover.png)";
+    vi.spyOn(textFileStorageModule, "createTextFileStorage").mockReturnValue({
+      read: vi.fn().mockResolvedValue({ content, mtimeMs: 1, sizeBytes: 43 }),
+      write: vi.fn().mockRejectedValue(new Error("unexpected write")),
+    });
     vi.spyOn(fileBrowserModule, "readFilePreview").mockResolvedValue({
       path: "/tmp/project-inline-export/exports/x-article-export/latest/index.md",
-      content: "# 当前导出\n\n![封面](images/cover.png)",
+      content,
       isBinary: false,
       size: 43,
       error: null,
@@ -273,17 +257,32 @@ describe("AgentChatPage 通用工作台", { timeout: 20_000 }, () => {
         ?.getAttribute("data-mode"),
     ).toBe("chat-canvas");
 
-    expectSelectedFilePreview({
-      filePath: "exports/x-article-export/latest/index.md",
-      absolutePath:
-        "/tmp/project-inline-export/exports/x-article-export/latest/index.md",
-      contentKind: "markdown",
-      content: "![封面](images/cover.png)",
-    });
+    const preview = container.querySelector<HTMLElement>(
+      '[data-testid="text-file-editor"][data-file-path="/tmp/project-inline-export/exports/x-article-export/latest/index.md"]',
+    );
+    expect(preview?.dataset.previewMode).toBe("markdown");
+    expect(preview?.textContent).toContain(content);
+    expect(textFileStorageModule.createTextFileStorage).toHaveBeenCalledWith(
+      "/tmp/project-inline-export/exports/x-article-export/latest/index.md",
+    );
+    expect(
+      container.querySelector(
+        '[data-testid="workspace-right-surface-tab-files"][aria-selected="true"]',
+      ),
+    ).not.toBeNull();
+    expect(
+      mockCanvasWorkbenchLayout.mock.calls.at(-1)?.[0]?.previewOpenRequest ??
+        null,
+    ).toBeNull();
   });
 
-  it("工具结果只提供文件路径时应读取真实文件预览再打开通用画布", async () => {
+  it("工具结果文件点击在 Files 读取原件并激活代码编辑器", async () => {
     mockCanvasWorkbenchLayoutState.renderPreviewProbe = true;
+    const content = "export function App() {\n  return <main>Lime</main>;\n}\n";
+    vi.spyOn(textFileStorageModule, "createTextFileStorage").mockReturnValue({
+      read: vi.fn().mockResolvedValue({ content, mtimeMs: 1, sizeBytes: 56 }),
+      write: vi.fn().mockRejectedValue(new Error("unexpected write")),
+    });
     vi.spyOn(fileBrowserModule, "readFilePreview").mockResolvedValue({
       path: "/tmp/project-tool-file/src/components/App.tsx",
       content: "export function App() {\n  return <main>Lime</main>;\n}\n",
@@ -320,15 +319,26 @@ describe("AgentChatPage 通用工作台", { timeout: 20_000 }, () => {
         ?.getAttribute("data-mode"),
     ).toBe("chat-canvas");
 
-    expectSelectedFilePreview({
-      filePath: "src/components/App.tsx",
-      absolutePath: "/tmp/project-tool-file/src/components/App.tsx",
-      contentKind: "code",
-      content: "return <main>Lime</main>;",
-    });
+    expect(
+      container.querySelector(
+        '[data-testid="text-file-editor"][data-file-path="/tmp/project-tool-file/src/components/App.tsx"]',
+      ),
+    ).not.toBeNull();
+    expect(textFileStorageModule.createTextFileStorage).toHaveBeenCalledWith(
+      "/tmp/project-tool-file/src/components/App.tsx",
+    );
+    expect(
+      container.querySelector(
+        '[data-testid="workspace-right-surface-tab-files"][aria-selected="true"]',
+      ),
+    ).not.toBeNull();
+    expect(
+      mockCanvasWorkbenchLayout.mock.calls.at(-1)?.[0]?.previewOpenRequest ??
+        null,
+    ).toBeNull();
   });
 
-  it("时间线文件预览不应以无 selection 的旧请求覆盖目标 artifact", async () => {
+  it("时间线HTML文件直接激活同路径Files编辑器，不发布旧Canvas请求", async () => {
     vi.spyOn(fileBrowserModule, "readFilePreview").mockResolvedValue({
       path: "/tmp/project-imported-file/docs/imported-preview.html",
       content:
@@ -338,7 +348,7 @@ describe("AgentChatPage 通用工作台", { timeout: 20_000 }, () => {
       error: null,
     });
 
-    renderPage({
+    const container = renderPage({
       projectId: "project-imported-file",
       theme: "general",
       lockTheme: true,
@@ -378,9 +388,16 @@ describe("AgentChatPage 通用工作台", { timeout: 20_000 }, () => {
           } | null;
         }
       | undefined;
-    expect(workbenchProps?.previewOpenRequest).toMatchObject({
-      filePath: "docs/imported-preview.html",
-      selectionKey: expect.stringMatching(/^artifact:preview-file-/),
-    });
+    expect(
+      container.querySelector(
+        '[data-testid="text-file-editor"][data-file-path="/tmp/project-imported-file/docs/imported-preview.html"]',
+      ),
+    ).not.toBeNull();
+    expect(
+      container.querySelector(
+        '[data-testid="workspace-right-surface-tab-files"][aria-selected="true"]',
+      ),
+    ).not.toBeNull();
+    expect(workbenchProps?.previewOpenRequest ?? null).toBeNull();
   });
 });

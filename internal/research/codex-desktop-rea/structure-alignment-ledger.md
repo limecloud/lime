@@ -4,9 +4,15 @@
 
 状态：current / partial。校准日期：2026-10-20。本页归并已有 REA 审计与正式实现映射，不新增参考应用运行结论，也不是全量符号清单。
 
+2026-10-22 批注重开：同成员有界 REA `ev_614a2ee900e9efc766a559d2096c8915a9b61d75fae9efbd6f65134d458f66dc` 的 Zq/ola/ula/dla/lla 仅作为压缩定位符，确认同实例复用及按标签交付/暂存导航的静态合同。Lime current 为 `openWorkspaceFile`、`threadSidePanelTabs`、原 `ArtifactAnnotationDraftStore` 和无状态 `ArtifactNavigationContext`；旧 `openProjectFilePreviewInCanvas` 及出口/消费者已删除，没有同名 alias 或第二业务 Store。两组 180 项与红回归见[切片计划](../../exec-plans/codex-annotation-files-20261022.md)。新冻结候选被外部删除，GUI/default 当前验证未结算；不据组件结果声称真实 Desktop 或整体完成。
+
 参考为 Codex Desktop `26.1007.30912` / build `20156`，Bundle ID `com.openai.codex`，ASAR SHA-256 `75e397e2280dde93b70a85aa926f4282c728eacc84dfeb15ba7fb6ddd84628af`。版本、Evidence ID、原成员摘要和锚点分别由链接的领域审计及[证据索引](evidence-index.json)持有。公开 Rust checkout 只用于共享协议/runtime；不能补出 Desktop 前端原文件名。
 
 ## 已确认名称与 current owner
+
+2026-10-22 文件入口：复用下列 Files 迁移的同摘要 REA 共享侧面板 opener 合同，将 PDF/DOCX/XLSX/CSV/TSV/PPTX 的默认与 artifact_review 导航，以及同项目已保存站点、初始项目文件和服务结果文件直接交给既有 openWorkspaceFile，不再先读副本、创建临时 Artifact 或请求 Canvas。新增名称为 0，未改 runtime/Host/协议；跨项目路由和恢复等待保留。组件回归及真实 Electron 边界见 [本片证据](../../exec-plans/artifacts/codex-gui-followthrough-20261021/timeline-professional-files/)。其余 artifact_review、批注 Composer 定位与其他 Artifact/Canvas 消费者仍开放，不以这批路径替代完整清退。
+
+2026-10-22 Files 职责迁移：复用 REA `ev_1c6a04b3789e56ec539909a4f938180793e9e0643dbb900058d49c47ff3eebcd` 的统一文件 opener、同路径 contentInstance 与 onBeforeClose 合同。`workspace/filePreviewTarget.ts`、`filePreviewModel.ts` 和 `right-surface/useFileTreeState.ts`、`useFileTreeResize.ts` 承接共享投影、模式、目录与宽度；`workspacePath.ts` 唯一归一路径。Files 不再反向依赖 Canvas selection，剩余 Canvas 消费 Files 投影。直接删除七份旧模块/测试及无人消费的 display helper，迁移五语言 key、selector、provenance 与消费者，并补回流守卫。以上为本地职责命名，不把 qBi/JG/TJ 等压缩定位符当成原始名称。定向回归和新产品字节验收分别记录在[当前执行片](../../exec-plans/codex-gui-alignment-followthrough-20261021.md#当前清退files-预览与目录-owner)；完整 Canvas/Artifact 和九类目标仍开放。
 
 2026-10-20侧栏更新：REA `ev_06897fd3c273c7d856bbe452f07615486591d2ce1bdceac0a1cac5cd1101f28d`从实际ASAR的iPo→ZNo→QNo定位到明确导出`ProfileDropdownItems`。Lime直接使用同名组件，`SidebarProfileFooter`仅作为本地presentation职责，账号读取/登录/退出继续委托共享owner；旧AppSidebarAccountMenu与Account卡片样式删除。nSs/g2分组合同迁到AppSidebarSection/useSidebarSections，删除先合计截10及旧split helper。跨产品导入链、referral、旧import timeout和fixture专用分支已退役，canonical历史/图片/流式/失败/分页风险迁到current回归；不新增alias。完整映射、证据、验证与剩余范围见[本轮计划](../../exec-plans/codex-sidebar-cleanup-20261020.md)。参考包具有条件性invite/Help，不能将Lime旧referral删除解释为目标没有这些能力；完整菜单和参考运行分支仍待验收。
 
@@ -282,9 +288,7 @@ Sources65/66沿实际`composer.addFiles`命令、active scope、当前Composer p
 
 父79 recovery已认证，当前建议源码尚待独立冻结与真实Electron；不继承父版本Gate B。完整分类、gap和证据见[上下文计划](../../exec-plans/codex-composer-context-suggestions-20261019.md)。
 
-
 技能atom90：REA88/89/90将wrapper、显示fallback、PM attrs与prompt序列化分别校准。current catalog保留display_name，共享skillDisplayName；ComposerController/PM唯一文档保留displayName而canonical label=$name，DOM/history/restore/UTF8 fixture同步迁移。清除建议目录对service请求与主题reset的耦合；无新增compat/deprecated。87矩阵/rich/Sources/Plan及89typed Goal为各自冻结字节证据，90新生产字节必须另验。旧installed_skill dispatch加slash前缀和外围service/Knowledge/curated路由仍待直接迁移，不能记完整对齐。
-
 
 92映射：getText/getPersistedText/mentioned paths→既有ComposerController/serializer；eFi inline-flow→composerMentionDOM/schema与composite样式；SV/LE/Hki默认glyph→同一mention DOM。压缩符号仍仅定位，composerMentionDOM不是声称恢复的上游原名。删除installed_skill SendRoute、slash执行key/前缀、假Skill fallback/宽松匹配、重复初始化effects和route消息徽标；保留选择事件至canonical atom，导航查唯一runtime Skill。旧正向测试迁移到current输入/恢复，generic route测试使用命令合同；新增compat/deprecated为0。62文件初始写集另含后继事实源，真实产品验证待92冻结。
 
@@ -296,7 +300,6 @@ Sources65/66沿实际`composer.addFiles`命令、active scope、当前Composer p
 
 95实施：REA96/97的Skill consumer→skillPromptLink、PromptLinks既有useLimeSkills目录接线、SkillPromptLink与Markdown的remarkPromptLinks；canonical用户正文和MessageUserBody共用。composerMention glyph与inlineMentionStyles共享，删除原Composer重复样式，无alias/第二目录store/backend。保留原label/path属性、只接受唯一目录、loading/缺失/歧义只读，只有current本地已识别定义文件可经现有artifact/file owner打开并带原itemId。原路径先于Markdown URL transform保留；普通HTTP、code、危险URI不绑定。根首轮77项通过；新增资源路径原2失败/26通过保留，修正HAST属性名称后28项通过，独立新Renderer/桌面待验。完整链接serializer、plugin/app、gallery/custom icon、remote/原生平台与全GUI仍partial。
 
-
 ### 96：正文引用词法校准
 
 95已结算failed：风险测试、完整预检、新Renderer、标准GUI和真实rich通过；54项Composer观察后，新增真实提交回合interrupted，模型收据只有GET models。截图另暴露多条$Skill被remarkMath吞入数学节点；两项均不算通过。sourceDrift空、Main正常exit0/signalnull且无强杀，325产物manifest SHA 5b2ec7c6664c61b27f5395a861c6eff3d3aa556cf3bb356fa7f9ab43ea1a39ff，原截图/收据不可变。启动器源码确认backendMode默认unavailable，Rust UnavailableBackend拒绝start_turn；不是provider端口已被证实故障。
@@ -307,22 +310,17 @@ REA98/99补证：RH的composerLink在词法阶段优先于Math，原始label独�
 
 current仍是既有Markdown/Skill catalog/文件owner；新增compat/deprecated为0，旧AST-only引用遍历与inline anchor重复分支已替换。全GUI仍partial，真实新字节验证归Composer计划Contract96。
 
-
 96独立候选已结算failed-before-build：13套风险测试和strict lint通过；正式types发现remark插件的Processor<Root> this与Pluggable不兼容，以及缺失remark-parse的Data类型扩展。sourceDrift空；没有Renderer/Host产物，不伪造artifact manifest或GUI通过。原类型日志及收据SHA保全在candidate-context-types-failure-96.json。97只修this为项目统一Processor并补type-only remark-parse导入，不改变运行行为或放宽tsconfig；从failed96/sourceDrift0精确叠加该文件及六事实源。Contract96全部产品/退出要求继续有效。
-
 
 REA100补查提交转换：Evidence ev_74cb2596e3f2d7ec0a59e811e829e9ae7861602d0d68a7b424fd4a148a0e40a7，4完整声明2040bytes/594AST、parse0，gzip SHA 4d15859af49e6f80d4de89cbc4fb982d0ac968d791d86a2b2d99862b9077485c，原字节回读保全。Dle普通分支输出context prompt和空text_elements；untrusted/MCP分支另有整段byteRange与placeholder合同，不能混同普通mention；Osn追加image/comment输入。联合REA89 GB、92 WB、95 Put/Zs/fut/Ccn/Eln可确认正常Skill label/path经过Markdown格式化进入prompt，而本地optimistic plain text独立。尚未穷尽特殊附件/全部wire分支，未运行参考。Lime当前serializeComposerDocument仍发送裸label及typed元素；下一刀必须保持canonical路径身份、UTF8范围、失败保稿和恢复，并验证共享runtime对带空格/转义路径的解析，不能凭TUI推断Desktop。当前Rust explicit_candidates的空白拆分是只读发现，尚未迁移；不先删typed身份造成绑定回退到名称。
 
-
 97结算：13套161项、strict lint、完整types/contracts/i18n/unused/scripts/legacy及新Renderer通过。原runner在复用Host时误将95产物的sourceManifest与96源码比较，失败收据保留；recovery1认证原10步日志/源码/Renderer且改为95自身摘要，从未跳过失败产品门禁。标准GUI通过，rich全部business/assertions通过且零console/page错误，但Main原15秒正常退出超时，失败回收SIGKILL；整轮仍failed，不能称正常退出。10144源/325产物冻结manifest SHA 3ca5b1abcae5cf283e6f05a8c8a265acb453cd3aa79c11b4743fa4ab3e882239，sourceDrift空。尚未执行的matrix另立独立收据执行；其结果不能覆盖原rich退出失败。退出根因尚未定位，不归因于本次词法变更，也不放宽deadline。
-
 
 97独立matrix的54项Composer观察已完成，真实截图显示4条引用和助手完成文本；随后采集器错误使用requests().body（实际API只返回bodySummary），finally再次Buffer.byteLength(undefined)导致原错误与正常退出收据未落盘。independent-context-matrix-verification-97.json明确failed；原summary的running只是最后检查点，不是存活或通过证据，原日志/截图保留。不能从截图推断后续copy/file或正常Main通过。98在原fixture增加显式requestMarkers布尔摘要，真实HTTP回归证明不暴露payload/凭证；finally前保存原错误并保证始终进入既有teardown。原prompt/身份/54项、零mock与15秒退出合同不变。
 
 REA101退出补证：认证同ASAR与main成员09d19386e1f23cf4ccbc950fc40d85a1e8a064a08be588b2a4be6a89f6ada9e6，4完整声明2345bytes/671AST、parse0，Evidence ev_ce638abaf49a49db7d0fd9ed7bef81e46f79d79bb8869d1577376980c6ea1c97，gzip SHA fb079856960b9a96edc36c52be63388d21664b26a898e253f8ab8b8df7e14946。eZe先allSettled(global/settings/tracing等flush)，再u7(flushAndDisposeContext,5000)，最后dispose与第二次quit；5秒仅约束后一个context drain，不是整个退出期限。不能据此给Lime加总超时或声称修复当前Main阻塞；实际根因仍unknown。全部静态，未执行参考。
 
 2026-10-19 后继99：98真实runtime marker POST、同一Thread/Turn/UserItem completed、54项Composer观察、四引用和原生全文复制通过；点击Skill误走通用产物链，SKILL.md标签出现但右侧Terminal保持active，文件breadcrumb超时。98整轮failed，Main正常code0/signalnull、sourceDrift空；325产物manifest SHA `02d76b67bc369fe2a86daa8bc4d1ed4dcf349c46fabd3eebe8ce19794e1e0e96`，原错误/截图不覆盖。按既有REA96 J3c/e6c openInSidePanel与文件owner合同，99把文本类file_preview直接接到openWorkspaceFile；删除该路径的产物副本读取/注册与canvas选择，沿同一LocalState复用空Files、路径tab/contentInstance与owner epoch。无需新store/backend/兼容层；Office/媒体格式owner仍独立承接。根回归先复现1失败/17通过；初次修复误截Office六例已保全，后继按现有contentKind路由限定文本类。
-
 
 2026-10-19 结算：99原轮matrix因未hover展开复制footer而被正文拦截，整轮failed且原收据/截图/325产物保留（manifest SHA a3d17d7b7cd098da1fdbda2b6a9a8df9126122ae9521c2c7529b631746e7a3c8）。同一冻结源/产物的99 recovery1只改外部采集器，复用既有prepareCopyAction真实hover/geometry后click，无force或产品注入；认证原18套212项与11步已完成门禁，重验matrix60观察及rich均passed。四引用/三主题重载、原生全文复制、click/Enter/Space进入Files及原文件不变通过；rich保留完整同一Thread/Turn/UserItem与四输入、图片原字节、取消/草稿恢复。matrix Main39255、rich Main51767均正常code0/signalnull，无强制回收，原15秒/identity/mock0/freshness不放宽；10145源/325产物冻结manifest SHA db3e1ce11fd6d103707ae84774f30da775beb583237b482851f0459e2f528586，sourceDrift空。预览区仍偏窄；97退出根因、真正atom→Markdown提交与全GUI保持partial。
 

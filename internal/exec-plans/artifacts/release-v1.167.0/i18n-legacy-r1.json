@@ -1,0 +1,29 @@
+{
+  "label": "i18n-legacy-r1",
+  "startedAt": "2026-10-22T10:26:24.565286+00:00",
+  "recordedAt": "2026-10-22T10:27:03.022121+00:00",
+  "results": [
+    {
+      "command": [
+        "npm",
+        "run",
+        "detect-translations"
+      ],
+      "exitCode": 0,
+      "seconds": 2.58
+    },
+    {
+      "command": [
+        "npm",
+        "run",
+        "i18n:unused",
+        "--",
+        "--check"
+      ],
+      "exitCode": 1,
+      "seconds": 35.87
+    }
+  ],
+  "log": "i18n-legacy-r1.log",
+  "exitCode": 1
+}

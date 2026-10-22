@@ -800,9 +800,7 @@ async function openPrimaryArtifactPreview(page, options, fixture) {
   await row.waitFor({ state: "visible", timeout: options.timeoutMs });
   await row.click();
 
-  const renderer = page
-    .locator('[data-testid="canvas-workbench-code-preview"]')
-    .last();
+  const renderer = page.locator('[data-testid="file-preview-code"]').last();
   await renderer.waitFor({ state: "visible", timeout: options.timeoutMs });
   const startedAt = Date.now();
   let last = null;

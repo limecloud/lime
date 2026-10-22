@@ -543,9 +543,11 @@ describe("批注复用真实 Composer settlement 与 typed acceptance", () => {
     expect(openFile).toHaveBeenCalledExactlyOnceWith(
       comment.path,
       expect.any(Function),
-      expect.any(String),
     );
-    expect(drafts.getFocusSnapshot()).toMatchObject({ id: comment.id });
+    expect(drafts.getFocusSnapshot()).toMatchObject({
+      id: comment.id,
+      previewRequestKey: `file:${comment.path}`,
+    });
     expect(send).not.toHaveBeenCalled();
   });
 
@@ -563,7 +565,7 @@ describe("批注复用真实 Composer settlement 与 typed acceptance", () => {
     await request;
     expect(drafts.getFocusSnapshot()).toMatchObject({
       id: comment.id,
-      previewRequestKey: openFile.mock.calls[0][2],
+      previewRequestKey: `file:${comment.path}`,
     });
   });
 

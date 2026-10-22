@@ -5,6 +5,7 @@
 
 #![allow(unused_imports)]
 
+mod browser;
 mod desktop;
 mod export;
 mod file_lock;
@@ -19,6 +20,10 @@ mod tui_keymap;
 mod types;
 mod yaml;
 
+pub use browser::{
+    BrowserAgentPermissions, BrowserAnnotationScreenshot, BrowserConfig, BrowserHistoryAccess,
+    BrowserPermission, BrowserPermissions, BrowserSitePermissions,
+};
 pub use desktop::{DesktopConfig, ExternalBrowserLinkShortcut, LinkOpenTarget};
 pub use export::{ExportBundle, ExportOptions, ExportService, REDACTED_PLACEHOLDER};
 pub use file_lock::config_file_lock;

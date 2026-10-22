@@ -3,6 +3,7 @@ import type {
   ComposerDraftStatus as DraftStatus,
 } from "@/components/input-kit/ComposerDraftCoordinator";
 import { ComposerDraftStatus } from "./ComposerDraftStatus";
+import { useBrowserAnnotationSend } from "./useBrowserAnnotationSend";
 import { submitWorkspaceQueue } from "./workspaceQueueSubmission";
 import {
   useCallback,
@@ -276,7 +277,7 @@ export function useWorkspaceInputbarSceneRuntime({
   );
   const inputbarTargetSessionId = sessionId?.trim() || undefined;
   const sendPendingRef = useRef(false);
-  const handleInputbarSend = useCallback<InputbarSendHandler>(
+  const handleInputbarSendBase = useCallback<InputbarSendHandler>(
     async (payload = {}) => {
       if (
         directInputBlocked ||
@@ -371,6 +372,7 @@ export function useWorkspaceInputbarSceneRuntime({
       threadId,
     ],
   );
+  const handleInputbarSend = useBrowserAnnotationSend(handleInputbarSendBase, sessionId, threadId);
   const handleInputbarToolStatesChange = useCallback(
     (nextToolStates: WorkspaceInputbarToolStates) => {
       if (directInputBlocked) {

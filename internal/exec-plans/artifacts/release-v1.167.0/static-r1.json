@@ -1,0 +1,36 @@
+{
+  "label": "static-r1",
+  "startedAt": "2026-10-22T10:24:44.311977+00:00",
+  "recordedAt": "2026-10-22T10:30:42.400871+00:00",
+  "results": [
+    {
+      "command": [
+        "npm",
+        "run",
+        "verify:app-version"
+      ],
+      "exitCode": 0,
+      "seconds": 0.74
+    },
+    {
+      "command": [
+        "npm",
+        "run",
+        "typecheck"
+      ],
+      "exitCode": 0,
+      "seconds": 345.89
+    },
+    {
+      "command": [
+        "npm",
+        "run",
+        "typecheck:electron"
+      ],
+      "exitCode": 0,
+      "seconds": 11.45
+    }
+  ],
+  "log": "static-r1.log",
+  "exitCode": 0
+}

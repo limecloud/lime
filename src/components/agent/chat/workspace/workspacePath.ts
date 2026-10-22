@@ -1,4 +1,4 @@
-function normalizeWorkspacePath(value: string): string {
+export function normalizeWorkspacePath(value: string): string {
   return value.replace(/\\/g, "/");
 }
 

@@ -102,6 +102,7 @@ interface InputbarCoreProps {
   controller?: ComposerController;
   onHistoryRecall?: (draft: ComposerDraftSnapshot) => void;
   text: string;
+  hasAdditionalContent?: boolean;
   setText: (text: string) => void;
   onSend: (metadata?: BaseComposerSendMetadata) => void;
   /** 停止生成回调 */
@@ -149,6 +150,7 @@ export const InputbarCore: React.FC<InputbarCoreProps> = ({
   uiCopy,
   controller: externalController,
   text,
+  hasAdditionalContent = false,
   setText,
   onSend,
   onHistoryRecall,
@@ -300,7 +302,9 @@ export const InputbarCore: React.FC<InputbarCoreProps> = ({
       isFullscreen={isFullscreen}
       fillHeightWhenFullscreen
       hasAdditionalContent={
-        pendingImages.length > 0 || pathReferences.length > 0
+        hasAdditionalContent ||
+        pendingImages.length > 0 ||
+        pathReferences.length > 0
       }
       maxAutoHeight={isEditorExpanded ? 360 : isFloatingVariant ? 240 : 120}
       editorRef={resolvedEditorRef}

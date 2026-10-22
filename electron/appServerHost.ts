@@ -38,6 +38,7 @@ import { resolveCurrentDesktopStorageRoots } from "./appDataPaths";
 import { appendFileSync, readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
+import process from "node:process";
 import { tryHandleCurrentTimeRead } from "./appServerCurrentTimeHost";
 import {
   parsePositiveInteger,
@@ -48,6 +49,7 @@ import {
   type DynamicToolOwnerContext,
 } from "./appServerDynamicToolHost";
 import type { ElectronBrowserTabHost } from "./browserTabHost";
+import { BrowserAppServerBridge } from "./browserAppServerBridge";
 
 const APP_SERVER_PROXY_REQUEST_ID_PREFIX = "electron-host";
 const APP_SERVER_CANCEL_REQUEST_METHOD = "$/cancelRequest";
@@ -216,8 +218,14 @@ export class ElectronAppServerHost {
   #lastFailure: AppServerHostFailure | null = null;
   #stopping = false;
   readonly #dynamicToolHost: AppServerDynamicToolHost;
+  readonly #browserBridge: BrowserAppServerBridge | null;
 
   constructor(browserHost: ElectronBrowserTabHost | null = null) {
+    this.#browserBridge = browserHost
+      ? new BrowserAppServerBridge(browserHost, (method, params) =>
+          this.request(method, params),
+        )
+      : null;
     this.#dynamicToolHost = new AppServerDynamicToolHost(
       undefined,
       browserHost,
@@ -226,6 +234,7 @@ export class ElectronAppServerHost {
 
   async warmup(): Promise<InitializeResponse> {
     const connected = await this.#connect();
+    await this.#browserBridge?.refreshSettings();
     return connected.initializeResponse;
   }
 
@@ -297,6 +306,7 @@ export class ElectronAppServerHost {
       },
     );
     this.#dynamicToolHost.observeClientResult(method, response.result);
+    await this.#browserBridge?.observeResult(method, params, response.result);
     return response.result;
   }
 
@@ -350,6 +360,12 @@ export class ElectronAppServerHost {
             proxiedMessage.message.method,
             result.result,
             owner,
+          );
+          await this.#browserBridge?.observeResult(
+            proxiedMessage.message.method,
+            proxiedMessage.message.params,
+            result.result,
+            owner?.ownerWebContentsId,
           );
           responses.push(
             ...result.messages.map((response) =>
@@ -446,6 +462,7 @@ export class ElectronAppServerHost {
   async stop(): Promise<void> {
     this.#stage = "stopping";
     this.#stopping = true;
+    this.#browserBridge?.reset();
     this.#dynamicToolHost.connectionLost("app-server-stopped");
     this.#rejectRestartWaiter(this.#lifecycle, appServerHostStoppingError());
     await this.#lifecycle?.stop();
@@ -669,6 +686,7 @@ export class ElectronAppServerHost {
             this.#stage = "restarting";
             this.#lastFailure = failure;
             this.#dynamicToolHost.connectionLost("app-server-disconnected");
+            this.#browserBridge?.reset();
             this.#connected = null;
             this.#waitForRestart(lifecycle);
           }
@@ -1123,8 +1141,8 @@ async function resolveLaunchConfig(): Promise<ElectronAppServerLaunchConfig> {
 async function resolveAppServerSidecarEnv(
   binaryPath: string,
   agentRoot: string,
-): Promise<NodeJS.ProcessEnv | undefined> {
-  const env: NodeJS.ProcessEnv = {
+): Promise<typeof process.env | undefined> {
+  const env: typeof process.env = {
     ...resolveAppServerRuntimeLibraryEnv(binaryPath),
     LIME_AGENT_RUNTIME_ROOT: agentRoot,
     // AppDataRoot 由 Host 显式解析后下发；App Server 的叶子 writer 不再自行猜平台根。
@@ -1184,8 +1202,8 @@ function resolveBundledPluginMarketplacePath(): string | undefined {
 
 function resolveAppServerRuntimeLibraryEnv(
   binaryPath: string,
-): NodeJS.ProcessEnv {
-  const env: NodeJS.ProcessEnv = {
+): typeof process.env {
+  const env: typeof process.env = {
     LIME_CONFIG_PATH: resolveAppServerConfigPath(),
   };
   const binaryDir = path.dirname(binaryPath);
@@ -1251,7 +1269,7 @@ function prependPathEnv(
   return result.join(path.delimiter);
 }
 
-function hasExplicitProxyEnv(env: NodeJS.ProcessEnv): boolean {
+function hasExplicitProxyEnv(env: typeof process.env): boolean {
   return APP_SERVER_PROXY_ENV_KEYS.some((key) => Boolean(env[key]?.trim()));
 }
 

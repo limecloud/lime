@@ -64,6 +64,8 @@ internal/exec-plans/*
 !internal/exec-plans/codex-method-scope-reassessment.md
 !internal/exec-plans/rea-codex-desktop-analysis-plan.md
 !internal/exec-plans/codex-gui-alignment-current-plan.md
+!internal/exec-plans/codex-rea-annotation-verification-20261022.md
+!internal/exec-plans/codex-file-clicks-20261022.md
 !internal/exec-plans/codex-sidebar-cleanup-20261020.md
 !internal/exec-plans/codex-sidebar-sections-20261020.md
 !internal/exec-plans/conversation-projection-cleanup-20261020.md
@@ -82,6 +84,18 @@ internal/exec-plans/*
 !internal/exec-plans/agnes-model-recovery-20261020.json
 !internal/exec-plans/artifacts/
 internal/exec-plans/artifacts/*
+!internal/exec-plans/artifacts/codex-file-clicks-20261022/
+internal/exec-plans/artifacts/codex-file-clicks-20261022/*
+!internal/exec-plans/artifacts/codex-file-clicks-20261022/summary.json
+!internal/exec-plans/artifacts/codex-file-clicks-20261022/implementation.patch
+!internal/exec-plans/artifacts/codex-file-clicks-20261022/evidence.tar.gz
+!internal/exec-plans/artifacts/codex-file-clicks-20261022/takeover-evidence.tar.gz
+!internal/exec-plans/artifacts/codex-rea-annotation-verification-20261022/
+internal/exec-plans/artifacts/codex-rea-annotation-verification-20261022/*
+!internal/exec-plans/artifacts/codex-rea-annotation-verification-20261022/verification-summary.json
+!internal/exec-plans/artifacts/codex-rea-annotation-verification-20261022/evidence.tar.gz
+!internal/exec-plans/artifacts/codex-rea-annotation-verification-20261022/takeover-evidence.tar.gz
+!internal/exec-plans/artifacts/codex-rea-annotation-verification-20261022/workbench03-current.patch
 !internal/exec-plans/artifacts/release-v1.165.0/
 internal/exec-plans/artifacts/release-v1.165.0/*
 !internal/exec-plans/artifacts/release-v1.165.0/*.json
@@ -668,3 +682,9 @@ packages/cli/bin/*
 
 !internal/exec-plans/artifacts/release-v1.166.0/windows-code-mode-previous-toast.png
 !internal/exec-plans/artifacts/release-v1.166.0/windows-code-mode-current-toast.png
+
+!internal/exec-plans/release-v1.167.0-plan.md
+!internal/exec-plans/artifacts/release-v1.167.0/
+internal/exec-plans/artifacts/release-v1.167.0/*
+!internal/exec-plans/artifacts/release-v1.167.0/*.json
+!internal/exec-plans/artifacts/release-v1.167.0/*.gz

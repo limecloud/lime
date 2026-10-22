@@ -4,9 +4,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { changeLimeLocale } from "@/i18n/createI18n";
 import { createPreviewArtifactFromFile } from "@/lib/artifact/previewArtifact";
 import { ArtifactRenderer } from "../ArtifactRenderer";
-import { resolveWorkspaceFilePreviewTarget } from "@/components/agent/chat/components/canvas-workbench/files/workspaceFilePreview";
-import { CanvasWorkbenchPreviewModePanel } from "@/components/agent/chat/components/canvas-workbench/CanvasWorkbenchPreviewModePanel";
-import { resolveCanvasWorkbenchPreviewModeState } from "@/components/agent/chat/components/canvas-workbench/CanvasWorkbenchPreviewModeViewModel";
+import { resolveFilePreviewTarget } from "../../agent/chat/workspace/filePreviewTarget";
+import { FilePreviewPanel } from "@/components/agent/chat/workspace/FilePreviewPanel";
+import { resolveFilePreviewModeState } from "../../agent/chat/workspace/filePreviewModel";
 import type { CanvasWorkbenchResolvedSelection } from "@/components/agent/chat/components/CanvasWorkbenchLayoutViewModel";
 
 vi.mock("./PdfPreviewPanel", () => ({
@@ -46,6 +46,63 @@ const copy = {
     binaryUnsupported: "binary unsupported",
   },
 };
+
+describe("Files 媒体与二进制分发", () => {
+  it.each([
+    ["png", "img"],
+    ["wav", "audio"],
+    ["mp4", "video"],
+  ])(
+    "%s 使用原路径的真实媒体renderer，不进入文本或不可用面",
+    async (format, tag) => {
+      const filePath = `/workspace/media/report.${format}`;
+      const target = resolveFilePreviewTarget(
+        {
+          path: filePath,
+          title: `report.${format}`,
+          status: "binary",
+          content: "",
+        },
+        copy,
+      );
+      const context = {
+        title: `report.${format}`,
+        content: "",
+        selectionPath: filePath,
+        target,
+      } as CanvasWorkbenchResolvedSelection;
+      const modeState = resolveFilePreviewModeState(context);
+      const container = document.createElement("div");
+      document.body.appendChild(container);
+      const root = createRoot(container);
+      cleanups.push(() => {
+        act(() => root.unmount());
+        container.remove();
+      });
+      await act(async () => {
+        root.render(
+          <FilePreviewPanel
+            context={context}
+            mode={modeState.defaultMode}
+            modeState={modeState}
+            onSelectMode={vi.fn()}
+            translate={(key) => key}
+          />,
+        );
+      });
+      expect(container.querySelector(tag)).not.toBeNull();
+      expect(container.querySelector(tag)?.getAttribute("src")).toContain(
+        "report.",
+      );
+      expect(container.querySelector("textarea")).toBeNull();
+      expect(
+        container.querySelector(
+          '[data-testid="preview-artifact-fallback-surface"]',
+        ),
+      ).toBeNull();
+    },
+  );
+});
 
 describe.each(["pdf", "docx", "xlsx"])("%s 的两条真实组件分发", (format) => {
   it("空正文的会话文件进入页面面板而非空文档或系统打开", async () => {
@@ -87,7 +144,7 @@ describe.each(["pdf", "docx", "xlsx"])("%s 的两条真实组件分发", (format
   it.each(["binary", "ready"] as const)(
     "文件树 %s 选择进入同一页面面板",
     async (status) => {
-      const target = resolveWorkspaceFilePreviewTarget(
+      const target = resolveFilePreviewTarget(
         {
           path: `/workspace/report.${format}`,
           title: `report.${format}`,
@@ -103,7 +160,7 @@ describe.each(["pdf", "docx", "xlsx"])("%s 的两条真实组件分发", (format
         selectionPath: `/workspace/report.${format}`,
         target,
       } as CanvasWorkbenchResolvedSelection;
-      const modeState = resolveCanvasWorkbenchPreviewModeState(context);
+      const modeState = resolveFilePreviewModeState(context);
       const container = document.createElement("div");
       document.body.appendChild(container);
       const root = createRoot(container);
@@ -113,11 +170,11 @@ describe.each(["pdf", "docx", "xlsx"])("%s 的两条真实组件分发", (format
       });
       await act(async () =>
         root.render(
-          <CanvasWorkbenchPreviewModePanel
+          <FilePreviewPanel
             context={context}
             mode="markdown"
             modeState={modeState}
-            translateWorkbench={(key) => key}
+            translate={(key) => key}
           />,
         ),
       );
@@ -127,9 +184,7 @@ describe.each(["pdf", "docx", "xlsx"])("%s 的两条真实组件分发", (format
         ).not.toBeNull(),
       );
       expect(
-        container.querySelector(
-          "[data-testid=canvas-workbench-markdown-preview]",
-        ),
+        container.querySelector("[data-testid=file-preview-markdown]"),
       ).toBeNull();
       expect(
         container.querySelector("[data-testid=file-preview-mode-toggle]"),
@@ -139,7 +194,7 @@ describe.each(["pdf", "docx", "xlsx"])("%s 的两条真实组件分发", (format
 
   it("文件树读取错误保留失败终态，不以后缀强行恢复", () => {
     expect(
-      resolveWorkspaceFilePreviewTarget(
+      resolveFilePreviewTarget(
         {
           path: `/workspace/private.${format}`,
           title: `private.${format}`,

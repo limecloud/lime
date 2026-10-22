@@ -4,6 +4,9 @@ import { ChevronDown, MessageSquare, Shapes } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { ThreadSidePanelRecents } from "./ThreadSidePanelRecents";
 import type { ThreadOutput } from "./threadOutputs";
+import { useRightSurfaceTab } from "./rightSurfaceTabContext";
+import { useWorkspaceBrowserNavigation } from "./browser/workspaceBrowserNavigationContext";
+import { BrowserNewTabAddress } from "./browser/BrowserNewTabAddress";
 import styles from "./ThreadSidePanelNewTab.module.css";
 import {
   projectNewTabTools,
@@ -32,6 +35,8 @@ export function ThreadSidePanelNewTab({
 }: ThreadSidePanelNewTabProps) {
   const { t } = useTranslation("agent");
   const pending = useRef<ThreadSidePanelAction | null>(null);
+  const presentation = useRightSurfaceTab();
+  const browserNavigation = useWorkspaceBrowserNavigation();
   const { primary, overflow, extensions } = projectNewTabTools(
     actions,
     Boolean(onChatSelect),
@@ -63,6 +68,15 @@ export function ThreadSidePanelNewTab({
       data-testid="thread-side-panel-new-tab"
     >
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-10">
+        {browserNavigation && presentation ? (
+          <BrowserNewTabAddress
+            key={presentation.tab.tabId}
+            sourceTabId={presentation.tab.tabId}
+            active={presentation.active}
+            onOpenAddress={browserNavigation.openAddress}
+            translate={t}
+          />
+        ) : null}
         {!actions.length && !onChatSelect && !outputs.length ? (
           <p className="rounded-lg border border-[color:var(--lime-surface-border)] p-3 text-sm text-[color:var(--lime-text-muted)]">
             {t("agentChat.rightSurface.newTab.empty")}

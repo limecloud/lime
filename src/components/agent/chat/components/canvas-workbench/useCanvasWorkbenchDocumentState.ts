@@ -20,10 +20,10 @@ import {
   type CanvasWorkbenchResolvedSelection,
 } from "../CanvasWorkbenchLayoutViewModel";
 import {
-  isCanvasWorkbenchPreviewMode,
-  resolveCanvasWorkbenchPreviewModeState,
-  type CanvasWorkbenchPreviewModeState,
-} from "./CanvasWorkbenchPreviewModeViewModel";
+  isFilePreviewMode,
+  resolveFilePreviewModeState,
+  type FilePreviewModeState,
+} from "../../workspace/filePreviewModel";
 import {
   resolveInitialCanvasWorkbenchTab,
   type CanvasWorkbenchDefaultPreview,
@@ -52,7 +52,7 @@ interface UseCanvasWorkbenchDocumentStateResult {
   documentContext: CanvasWorkbenchResolvedSelection | null;
   documentSelectionKey: string | null;
   documentTransitionPending: boolean;
-  previewModeState: CanvasWorkbenchPreviewModeState;
+  previewModeState: FilePreviewModeState;
   fileAction: ReturnType<typeof usePublicFileAction>;
   publicFilePath: string | null;
   resolveDocumentSelection: (
@@ -250,11 +250,11 @@ export function useCanvasWorkbenchDocumentState({
   ]);
 
   const previewModeState = useMemo(
-    () => resolveCanvasWorkbenchPreviewModeState(documentContext),
+    () => resolveFilePreviewModeState(documentContext),
     [documentContext],
   );
 
-  const activePreviewContext = isCanvasWorkbenchPreviewMode(activeTab)
+  const activePreviewContext = isFilePreviewMode(activeTab)
     ? documentContext
     : null;
   const publicFilePath = resolvePublicFilePath(
@@ -279,7 +279,7 @@ export function useCanvasWorkbenchDocumentState({
       if (context?.selectionKey !== selectionKey) return null;
       setSelection({ workspaceKey, key: selectionKey });
       setAcceptedSelection({ workspaceKey, context });
-      setActiveTab(resolveCanvasWorkbenchPreviewModeState(context).defaultMode);
+      setActiveTab(resolveFilePreviewModeState(context).defaultMode);
       return context;
     },
     [workspaceKey],
@@ -299,8 +299,7 @@ export function useCanvasWorkbenchDocumentState({
       projectedIdentity !== acceptedIdentity &&
       projectedContext?.selectionKey === nextSelectionKey;
     const nextTab =
-      isCanvasWorkbenchPreviewMode(activeTab) &&
-      !previewModeState.modes[activeTab].enabled
+      isFilePreviewMode(activeTab) && !previewModeState.modes[activeTab].enabled
         ? previewModeState.defaultMode
         : activeTab;
     if (!unknownSelection && !canAcceptProjection && nextTab === activeTab) {

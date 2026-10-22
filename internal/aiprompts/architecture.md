@@ -37,6 +37,34 @@ Codex 是唯一主对标。Agent loop、Thread/Turn/Item、App Server、状态�
 
 根目录的 `package.json`、`forge.config.mjs`、`vite.config.*`、`tsconfig*.json`、`eslint.config.*` 和 `lime-rs/Cargo.toml` 是构建与发布边界。变更它们必须同步锁文件、相关验证和架构图中受影响的边界。
 
+### Files 预览与目录职责
+
+Files 的预览投影与模式归 `agent/chat/workspace/filePreviewTarget.ts`、
+`filePreviewModel.ts`，目录缓存与宽度交互归 `right-surface/useFileTreeState.ts`、
+`useFileTreeResize.ts`；路径归一复用 `workspacePath.ts`。依赖方向为：
+
+```text
+Timeline professional / saved-site / initial project / service result files
+  -> existing openWorkspaceFile -> Files tabs/lifecycle
+Files / FilePreviewPanel -> filePreviewTarget + filePreviewModel -> existing ArtifactRenderer
+Files tree / FileSourceBreadcrumb -> useFileTreeState -> current file API
+remaining Canvas consumers -> Files preview projection
+```
+
+Files 不依赖 Canvas selection 或旧工作台 ViewModel；旧 Canvas 只能消费上述共享投影。
+时间线专业文件直接交给 Files，不先读取内容或创建临时 Artifact；其他尚存 Canvas
+入口仍由执行计划列明，不能将本片迁移解释为整条旧链已删除。
+同项目已保存站点、初始项目文件和服务结果文件复用该入口；跨项目保留路由，初始
+内容恢复完成后才激活文件。Composer 批注重开也直接进入 Files；现有草稿 Store 的
+pending focus 绑定 Files 标签 ID，`ArtifactNavigationContext` 仅传递标签身份与激活状态，
+源文件 SHA 就绪且标签激活后由原格式适配器定位，不新建 Artifact 或重挂编辑器。
+文件标签实例与关闭/保存仍归既有 FileTabLifecycle、格式 Controller 和 public file action，
+不建立第二套业务状态、协议或持久化 owner。旧 Canvas 预览模式、目录 hook、resize、
+文件投影与无人消费的 display helper 已直接删除，不保留 alias。结构依据同摘要 REA
+统一文件 opener/contentInstance/onBeforeClose 合同；新本地职责名不代表 Codex 原始名称。
+Architecture impact: minor；责任 root，2026-10-22，确认主链不变。
+本次迁移的产品验收与完整 Canvas/Artifact 清退状态由执行计划持有。
+
 ### 2.1 多 Surface 主链
 
 ```text
@@ -1257,7 +1285,6 @@ Architecture impact: major（Renderer owner/data flow 接线）；责任开发�
 `presentation_package_editing`，2026-10-18，确认目录归属、数据流、依赖方向、协议边界
 和验证门禁。root 于 2026-10-18 核对依赖方向、同 scope identity 与现有 owner 后进行窄段集成；真实 Electron Gate B 和最终类型检查通过前不进入 release evidence。
 
-
 ## 4. Electron Desktop Host 规范
 
 | 路径/模块                              | 职责                                                                                                   |
@@ -1440,7 +1467,6 @@ flowchart LR
 ```
 
 旧 manualRightSurface/openedRightSurfaces 不再单独存储，仅从 tabs 派生供既有 coordinator 消费；New tab 多实例按 tabId 替换，迟到动作先校验仍存活身份，关闭、隐藏和 Chat 保留同一 Composer owner。Files 与 Changes 分工，文件树尺寸统一到 useFileTreeResize。旧独立工具按钮、Scene 底部 Shell 与无人消费的 bottom variant/height/maximize 常量直接删除，不留 compat props。主题、多模型与首页 Banner 边界不变。完整 Files 路径 tabs、外层 Browser/Terminal 多实例和扩展工具仍 gap。Architecture impact: minor；责任 root 于 2026-10-19 确认此图与唯一业务链依赖方向；后继产品验证按执行计划独立结算。
-
 
 Architecture impact: major; Desktop UI persistence owner and IPC boundary added. Architecture diagram confirmation: root, 2026-10-14; Host/gateway/parser/file/event/diagnostic ownership and separation from the canonical App Server chain checked. Product verification remains recorded in the current execution plan.
 
@@ -5485,7 +5511,7 @@ mismatch、destroyed view、stale turn、重复 call identity 和未知 tab 全�
 `threadId/turnId/sessionId/tabId/viewId/webContentsId/actionId/status`，使 Thread/Turn/Item、evidence 和 GUI 能以同一
 identity join。
 
-高风险 Browser action 使用同一个 `item/tool/call` reverse-request owner 的两阶段合同。第一阶段
+Browser 浏览许可与高风险 action 使用同一个 `item/tool/call` reverse-request owner 的有界多阶段合同。第一阶段
 `phase=preflight` 由 Electron BrowserTabHost 读取真实 AX/DOM 目标并返回 typed approval descriptor；安全动作可以直接
 完成。需要审批时，`agent/current_provider_turn` 必须通过现有 `agent-runtime::action_required` 和
 `tool-runtime::execution_approval` 发出 `toolFamily=browser_action`、`contractKey=browser_action` 的 canonical
@@ -5494,6 +5520,67 @@ session/thread/turn/call/tool 发起 `phase=approvedExecute`，携带 Host 生�
 tab/view/WebContents/snapshot/backendNode lineage 全部仍匹配时执行一次并消费 token。decline 不发第二阶段 mutation，
 cancel 走既有 turn/action cancellation。Electron 不保存用户决策，Renderer 不解析或伪造 approval descriptor，
 filesystem/network permission grant 也不得代替 Browser action approval。
+
+同一 call 最多接受四个新 token 的审批阶段，参数与 route 在整个调用内冻结；重复 token、第五阶段、
+迟到响应或已结束 turn 均拒绝。浏览许可绑定精确 origin、owner/window/thread/session/turn；批准 browse
+后须重新 preflight，危险 action 仍有独立审批。`BrowserTabPolicy` 保留 ask/allow/deny 三态，不能将 ask
+当成 allow。`BrowserPermissions` 只持有 turn 内 grant 和一次性恢复校验，canonical 决策仍归现有 runtime。
+读取页面内容的异步 CDP 返回前再次核验控制权与授权。主框架网络请求由 `BrowserPermissionRequests`
+检查；尚未接通的异步导航审批暂拒绝目标，不重放 loadURL。该门禁不等同于跨 origin frame 的内容授权。
+
+2026-10-22 完整会话浏览器扩展的已实现结构：
+
+```mermaid
+flowchart LR
+  TABS[统一工作区标签 / Browser UI] --> GW[typed gateway / preload / IPC]
+  GW --> HOST[BrowserTabHost]
+  HOST --> PAGE[同一 WebContentsView]
+  HOST --> OVERLAY[BrowserOverlayHost / 可信 sandbox preload]
+  HOST --> SELECTION[BrowserAnnotationHost / 主进程选区与截图]
+  SELECTION --> PAGEPRELOAD[同一 WCV / 受限 main-frame preload]
+  OVERLAY --> EDITOR[BrowserAnnotationEditorHost / 独立可信 Composer]
+  EDITOR --> DRAFT[Desktop BrowserAnnotationDraftStore]
+  DRAFT --> LOWER[单一 text / image lowerer]
+  LOWER --> SUBMIT[现有 InputbarSendHandler / start·steer·queue]
+  SUBMIT --> RUNTIME
+  HOST --> HISTORY[BrowserHistoryHost / BrowserHistoryStore]
+  SETTINGS[现有 App Server config / CAS] --> POLICY[BrowserTabPolicy / turn grant]
+  POLICY --> HOST
+  RUNTIME[RuntimeCore / canonical approval] --> RPC[item/tool/call]
+  RPC --> HOST
+  HOST -. 待实现的版本化绑定 .-> SERVICES[同一引擎 Profile 原生服务]
+```
+
+每个 canonical browserTabId 对应一个工作区顶部标签，Browser 内层标签条已替换。Renderer 仅投影原生
+状态与管理输入，可信菜单覆盖层由 Host 管理 generation/sender/token/焦点；普通 DOM z-index 不承接
+WCV 上方的交互。Cookie 使用应用级持久 Browser partition，会话/回合隔离依赖 route 授权。用户历史
+的唯一数据 owner 为 `BrowserHistoryStore`，设置 UI 经 typed gateway/IPC 委托，不建立 Renderer store；
+用户管理历史与 Agent 读取历史的授权是不同能力。
+
+网页批注仍复用该 Browser owner。`BrowserAnnotationHost` 绑定完整原生 identity、page revision、文档与
+viewport token，只接受当前 main frame 的 page preload 选择；捕获从 Host 保存的选区执行
+prepare/ready/capture/clear，Renderer 不传截图裁剪坐标。iframe 当前仅选容器，加载中的文档不能启动选择。
+可信编辑器使用独立固定本地 renderer 与窄 preload，复用 `ComposerController`，不暴露通用 bridge 或
+App Server；`BrowserOverlayHost` 统一协调菜单与编辑器的互斥、焦点和销毁。关闭先撤权，再最多等待250ms
+最后正文快照；旧 editor/generation 的回传可以保存旧稿，不得向新会话发送或关闭后继浮层。
+
+`BrowserAnnotationDraftStore` 只拥有 Desktop 待提交草稿，不拥有 canonical 消息或业务历史。单一 lowerer
+把页面上下文、正文和真实截图附件送入既有 typed input，start/steer/queue 共用原 acceptance；仅同
+session/thread 的接受结果消费捕获 revision，失败保留正文和图片，新编辑不被旧 receipt 清除。参考静态证据
+已确认 text/image lowering，rich 草稿持久化、跨设备及完整历史回显仍 unknown，不预设扩第二套 runtime wire。
+元素/区域、编辑与发送当前为实施中切片，尚不结算 G03；Design Tweaks、多选、附图预览等仍按执行计划补齐。
+
+右侧面待办按明确 workspace ID、无 ID 时的 root、最后 session 依次选择查询范围，不把 ID 与 root
+叠加为恢复门槛。Browser 投影及 consume/dismiss 再校验当前 runtime session；前台与手动打开均在
+当前请求挂载/历史展示 ACK 后只消费对应 request ID，旧 scope、乱序列表和迟到 ACK 不得复活已处理请求。
+
+参考安装包的静态身份为 Codex 26.1007.30912/build20156、Owl/Chromium155.0.8059.40，ASAR
+SHA-256 `75e397e2280dde93b70a85aa926f4282c728eacc84dfeb15ba7fb6ddd84628af`；其 electron42.3.0
+开发依赖不是实际运行时身份。参考实际采用 webview 与私有 adoption/transfer API，不能声称参考使用 WCV。
+当前 Lime 的 stock Electron42.3.3 E0 未提供完整密码、Autofill、资料导入、扩展工具栏与管理页服务。
+完整原生等价的实施路线是维护一个锁定源码/补丁的 Electron/Chromium 引擎，在同一 Profile 内集成服务；
+不增加第二引擎、daemon 或 Agent runtime。源码/补丁固定、实际编译与 Forge archive 接入均尚未完成，
+现阶段没有替换 npm 引擎依赖。原生路线 N0–N6 与完整 G01–G12 以 Browser 执行计划为验收事实源。
 
 用户在同一个 native `WebContentsView` 中产生 `mouseDown`、`contextMenu`、`mouseWheel` 或 `keyDown` 时，
 `BrowserTabHost` 必须立即让用户优先：detach debugger、递增 page revision、清除 snapshot 与该 tab 的 pending
@@ -5538,6 +5625,14 @@ Responsible developer confirmation: root, 2026-08-20. Confirmation content: 已�
 `before-mouse-event` / `before-input-event` 与 CDP input 的触发边界；确认 native 用户输入由 BrowserTabHost 直接撤销
 Agent lease、snapshot 和 approval token，Agent CDP input 只通过 scoped suppression 排除自触发，不改变 canonical
 Thread/Turn/Item 与 approval owner。
+
+Responsible developer confirmation: root, 2026-10-22. Confirmation content: 确认上图已实现的统一标签、
+可信覆盖层、配置/历史 owner 与有界多阶段审批的依赖方向；原生 Profile 服务为明确待实现边，未宣称
+完整复刻或平台验收通过。仅修改本节 Browser 边界，未改并行文件预览领域。
+
+Responsible developer confirmation: root, 2026-10-22. Confirmation content: 已复核本节新增的选择/截图 Host、
+可信编辑器、Desktop typed 草稿与单一 lowerer 依赖方向，canonical 提交仍由现有 App Server/RuntimeCore
+负责；未改通用文件批注 owner，G03 真实 Electron 与完整 UI/UX 仍待对应证据结算。
 
 ## 46. TUI ChatWidget session-local owner 收敛
 
@@ -5691,7 +5786,6 @@ flowchart LR
 
 原文件预览不进入生成文档的 `useArtifactAutoPreviewSync` 文本轮询或文本 merge；已有 `isPreviewArtifact` 合同直接区分该边界。PDF/DOCX/Workbook/PPTX 的 bytes、readiness 与重试由对应格式面板持有，禁止文本抽取更新 timestamp 后重建正在审阅的面板。生成文档的 streaming 文本同步继续由原 owner 负责。
 
-
 ## 幻灯片只读预览与源 slideId 反馈（2026-10-17）
 
 `previewArtifact` 的 `presentation` 分发只服务 OOXML PPTX；旧二进制 PPT 明确 system_open。REA确认公开导出 `PresentationPanel`；内部 snapshot、解析和定位 helper 为 Lime 职责名，不声称还原压缩前源码。`presentationDocument` 沿既有 `fs/readFile` 读取原字节并绑定 SHA，有界解析ZIP/XML，使用真实 OOXML slideId（不是页码）与原尺寸坐标。固定渲染库为 Lime 实现选择，参考库版本 unknown。外部关系先剔除，渲染节点清洗后才采用到受限同源 iframe；CSP/sandbox 禁止脚本、表单、导航和主动网络。父文档以原生 DOM/event listener 管理定位和 marker，未开放iframe脚本或另建业务后端。
@@ -5768,7 +5862,6 @@ flowchart LR
 
 `presentationTableFormatPackage`修改原包边框和表头options，`presentationTableStyle`解析真实OPC样式/主题关系，`presentationTableBorderStyle`为原包与选区snapshot共用resolved reader；未知继承明确unavailable，不以explicit-only假装完整样式。五语言控件仍委托同一Controller，border unavailable不阻止独立表头编辑。custom格式与themeOverride已由候选4独立验证；74种builtin定义已接线，独立builtin/对象Electron与富文本仍待各自终态。group/ungroup producer保持unknown。此变更未新增runtime、协议、read model或文件owner。Architecture impact: minor；Responsible developer confirmation: root, 2026-10-18，确认上图与调用链；定向/候选验证只按Presentation计划及独立收据结算，不能据此标记完整GUI完成。
 
-
 ### Presentation 原包文本与集合编辑接续
 
 `selectedElementIds`/`primarySelectedElementId`是对象选区唯一状态；`presentationElementController`协调preview/commit/cancel，`presentationElementOverlay`只接真实指针/键盘。preview不修改文档、历史或dirty；commit把所有frame（含table tracks）作为同一Controller事务，cancel无历史。四种z-order按原序移动完整spTree绘制节点，不被Map合并。框选SAT为本地策略，group/ungroup producer未证实。
@@ -5810,7 +5903,6 @@ flowchart LR
 ```
 
 路径身份、内容实例与标签开闭只属于 renderer local state；不另建文件业务后端或历史存储。空 Files 打开具体路径后移除空标签并固定；已有路径激活原内容实例。已有文件页单击替换同面板唯一预览，双击固定；固定仅改变外层 preview identity，保留 tab 对象、草稿及 controller。替换预览时新建 contentInstance、沿用 dndId 保留 pane/文件树 DOM，文件编辑内容按路径重建。Host 捕获键盘/指针固定预览，按 native composedPath 豁免文件树。Changes 的 canonical review target 继续独立消费，不能再把它当 Files 选中路径。责任 root 确认此为 renderer 显示状态的 minor 变更，既有 owner、协议与依赖方向不变；REA60/61 静态合同及桌面验证边界见消费者审计。面板折叠资源寿命尚未包含在本切片完成证据内。
-
 
 ### 33.2 Workspace File Editor
 
@@ -5965,7 +6057,6 @@ CodeMirror Compartment -> localized phrases/contentAttributes (same EditorView/h
 
 后台opener身份后继（root，2026-10-19）：Summary传递canonical完整item；Coordinator按thread/turn/item匹配当前投影，拒绝未加载/跨线程目标后委托localState。已删除itemId-only与processId前置门槛，不接受影子输出。ExecutionProcessServer公开后台列表时使用既有canonical ItemId构造，工具执行仍持原call ID；不让renderer猜前缀。单个终止/停止全部必须保留既有exit watcher，待supervisor最终输出进入同一Command Item后由watcher移除session；提前forget的helper/export与冗余registration wrapper直接删除。后台列表按最近turn优先，关闭输出不终止任务。runtime26/27失败原件证明身份及终态缺口，后继28/29按真实进程收据结算；架构方向由root确认，业务owner不变。
 
-
 Memory phase-2 共享内部 Agent（2026-10-20，实施中）：
 
 ```text
@@ -5982,7 +6073,6 @@ RuntimeCore memory startup / memoryStore/consolidate
 ```
 
 责任开发者 root 确认上述 owner、数据流与依赖方向。LocalMemoryBackend 继续持有 root、租约、来源与 baseline；RuntimeCore 继续持有唯一会话/回合/关闭 owner，model-provider 继续持有多模型、多协议网络边界。Memory 使用单一内存会话与原工具 continuation；MCP、Apps、插件和递归 Agent 不进入其快照或执行器，本地 Skills、AGENTS 与全局 hooks 保留。插件 hooks 单独关闭；Memory Stop block/abort 沿既有明确失败语义处理。父 Disabled/External 原样保留，managed 仅 Memory root 可写且禁网/排除临时写根。原生文件 helper 的 owned task 复用现有 OS process supervisor；会话 actor 停止后，同一 shutdown owner 取消并等待 helper drain，防止 100ms task abort 留下写者。进程 wait 可在取消后重新等待实际退出。shutdown 未完成时保留租约至过期。phase-2 direct sampling、strict JSON proposal 与相应解析器已删除，无兼容/fallback。该图是实现确认，验证及未闭合义务记入 Memory harness 执行计划，尚未标记完成。
-
 
 Memory phase-1 单次采样（2026-10-21，root 架构确认）：
 
@@ -6068,7 +6158,6 @@ MemoryConsolidation 沿既有 `RuntimeStopHookTarget` 排除。输入/输出遵�
 root，2026-10-21；Codex 事实源为 `core/src/hook_runtime.rs`、`hooks/src/events/interrupt.rs`
 和 `hooks/src/engine/output_parser.rs`。真实 transcript flush、stdio/PTY/Electron Gate B
 与 packaged/Windows evidence 尚未关闭，不能将本图视为完整产品验收。
-
 
 ## Portable rollout 的模型上下文（2026-10-21）
 

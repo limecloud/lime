@@ -21,6 +21,8 @@ export type InputbarSendTriggerSource =
   | "adapter";
 
 export interface InputbarSendPayload {
+  /** Desktop-only draft selection; lowered before the canonical runtime call. */
+  browserAnnotationIds?: readonly string[];
   onRuntimeAccepted?: (receipt: RuntimeSubmissionAcceptance) => void;
   composerRestoreToken?: ComposerSubmissionRestoreToken;
   composerDraftCapture?: ComposerDraftCapture;

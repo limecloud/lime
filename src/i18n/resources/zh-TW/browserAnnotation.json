@@ -1,0 +1,17 @@
+{
+  "browserAnnotation.title": "網頁註解",
+  "browserAnnotation.placeholder": "新增評論…",
+  "browserAnnotation.save": "儲存註解",
+  "browserAnnotation.send": "直接傳送",
+  "browserAnnotation.close": "關閉並保留註解",
+  "browserAnnotation.element": "頁面元素",
+  "browserAnnotation.region": "選取區域",
+  "browserAnnotation.captureFailed": "螢幕擷取暫時無法使用，註解內容會保留。",
+  "browserAnnotation.sending": "正在傳送…",
+  "browserAnnotation.sendFailed": "傳送失敗，註解已保留，請重試。",
+  "browserAnnotation.select": "選取元素或拖曳選取區域以新增註解",
+  "browserAnnotation.count": "{{count}} 則網頁註解",
+  "browserAnnotation.remove": "刪除註解",
+  "browserAnnotation.sendAll": "傳送網頁註解",
+  "browserAnnotation.openFailed": "無法開啟註解，草稿已保留。"
+}

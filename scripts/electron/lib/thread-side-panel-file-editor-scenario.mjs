@@ -554,7 +554,7 @@ export async function collectMarkdownSaveBeforePreview(
     .locator('[data-testid="file-preview-mode-toggle"]:visible')
     .click();
   await page
-    .locator('[data-testid="canvas-workbench-markdown-preview"]:visible')
+    .locator('[data-testid="file-preview-markdown"]:visible')
     .waitFor({ state: "visible", timeout: options.timeoutMs });
   assert.equal(fs.readFileSync(filePath, "utf8"), content);
   return { savedBeforePreview: true };

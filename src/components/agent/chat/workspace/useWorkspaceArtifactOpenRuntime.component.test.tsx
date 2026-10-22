@@ -3,7 +3,6 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { readFilePreview } from "@/lib/api/fileBrowser";
 import { readAgentThreadItemFromPayload } from "@/lib/api/agentRuntime/appServerEventTimelineReaders";
-import type { Artifact } from "@/lib/artifact/types";
 import type { AgentThreadItem } from "../types";
 import { resolveTimelineArtifactNavigation } from "../utils/artifactTimelineNavigation";
 import {
@@ -37,9 +36,7 @@ function mount(overrides: Partial<UseWorkspaceArtifactOpenRuntimeParams> = {}) {
     generalCanvasState: { isOpen: false, contentType: "empty", content: "" },
     handleWriteFile: vi.fn(),
     isInitialContentLoading: false,
-    isThemeWorkbench: false,
     layoutMode: "chat",
-    mappedTheme: "general",
     messages: [],
     openArticleWorkspaceRightSurface: vi.fn(),
     openWorkspaceFile: vi.fn(),
@@ -54,8 +51,6 @@ function mount(overrides: Partial<UseWorkspaceArtifactOpenRuntimeParams> = {}) {
     setHarnessPanelVisible: vi.fn(),
     setLayoutMode: vi.fn(),
     setSelectedArtifactId: vi.fn(),
-    setSelectedFileId: vi.fn(),
-    setTaskFiles: vi.fn(),
     syncGeneralArtifactToResource: vi.fn(),
     taskFiles: [],
     updateCurrentImageWorkbenchState: vi.fn(),
@@ -91,14 +86,97 @@ afterEach(() => {
 });
 
 describe("Workspace 文件重新打开", () => {
+  it("已保存站点的项目文件直接进入当前 Files", async () => {
+    const params = mount({ projectId: "project-1", onNavigate: vi.fn() });
+    await act(async () => {
+      await runtime.handleOpenSavedSiteContent({
+        projectId: "project-1",
+        contentId: "site-1",
+        preferredTarget: "project_file",
+        projectFile: { relativePath: "site/index.html" },
+      });
+    });
+    expect(params.openWorkspaceFile).toHaveBeenCalledExactlyOnceWith(
+      "/workspace/site/index.html",
+    );
+    expect(params.onNavigate).not.toHaveBeenCalled();
+    expect(readFilePreview).not.toHaveBeenCalled();
+    expect(params.upsertGeneralArtifact).not.toHaveBeenCalled();
+  });
+
+  it("其他项目的站点文件保留真实路由与初始文件目标", async () => {
+    const params = mount({ projectId: "project-1", onNavigate: vi.fn() });
+    await act(async () => {
+      await runtime.handleOpenSavedSiteContent({
+        projectId: "project-2",
+        contentId: "site-2",
+        preferredTarget: "project_file",
+        projectFile: { relativePath: "site/index.html" },
+      });
+    });
+    expect(params.openWorkspaceFile).not.toHaveBeenCalled();
+    expect(params.onNavigate).toHaveBeenCalledExactlyOnceWith(
+      "agent",
+      expect.objectContaining({
+        projectId: "project-2",
+        contentId: "site-2",
+        initialProjectFileOpenTarget: {
+          relativePath: "site/index.html",
+          requestKey: expect.any(Number),
+        },
+      }),
+    );
+  });
+
+  it("初始项目文件目标直接激活 Files，不先读取或生成 Artifact", () => {
+    const params = mount({
+      initialProjectFileOpenTarget: {
+        relativePath: "reports/report.pdf",
+        requestKey: 7,
+      },
+    });
+    expect(params.openWorkspaceFile).toHaveBeenCalledExactlyOnceWith(
+      "/workspace/reports/report.pdf",
+    );
+    expect(readFilePreview).not.toHaveBeenCalled();
+    expect(params.upsertGeneralArtifact).not.toHaveBeenCalled();
+  });
+
+  it("初始内容尚未恢复时不提前打开文件", () => {
+    const params = mount({
+      contentId: "content-1",
+      isInitialContentLoading: true,
+      initialProjectFileOpenTarget: {
+        relativePath: "reports/report.pdf",
+        requestKey: 7,
+      },
+    });
+    expect(params.openWorkspaceFile).not.toHaveBeenCalled();
+    expect(readFilePreview).not.toHaveBeenCalled();
+  });
+
+  it("服务结果文件进入同一个 Files owner", async () => {
+    const params = mount();
+    await act(async () => {
+      await runtime.handleOpenServiceSkillResultFile("reports/report.xlsx");
+    });
+    expect(params.openWorkspaceFile).toHaveBeenCalledExactlyOnceWith(
+      "/workspace/reports/report.xlsx",
+    );
+    expect(readFilePreview).not.toHaveBeenCalled();
+    expect(params.upsertGeneralArtifact).not.toHaveBeenCalled();
+  });
+
   it("正文资源引用直接激活文件 owner，不进入产物预览或读取副本", () => {
     const params = mount();
-    act(() => runtime.handleOpenArtifactFromTimeline({
-      timelineItemId: "user-item-1",
-      filePath: "/skills/Review work/SKILL.md",
-      content: "",
-      openMode: "file_preview",
-    }));
+    act(() =>
+      runtime.handleOpenArtifactFromTimeline({
+        timelineItemId: "user-item-1",
+        filePath: "/skills/Review work/SKILL.md",
+        content: "",
+        openMode: "file_preview",
+      }),
+    );
     expect(params.openWorkspaceFile).toHaveBeenCalledExactlyOnceWith(
       "/skills/Review work/SKILL.md",
     );
@@ -106,10 +184,28 @@ describe("Workspace 文件重新打开", () => {
     expect(params.setExpertInfoPanelCollapsed).toHaveBeenCalledWith(true);
     expect(readFilePreview).not.toHaveBeenCalled();
     expect(params.upsertGeneralArtifact).not.toHaveBeenCalled();
-    expect(params.workbenchRequests.requestCanvasWorkbenchPreviewOpen).not.toHaveBeenCalled();
+    expect(
+      params.workbenchRequests.requestCanvasWorkbenchPreviewOpen,
+    ).not.toHaveBeenCalled();
   });
 
-  it.each(["pdf", "docx", "xlsx", "csv", "tsv", "pptx"])(
+  it.each([
+    "pdf",
+    "docx",
+    "xlsx",
+    "csv",
+    "tsv",
+    "pptx",
+    "png",
+    "jpg",
+    "svg",
+    "wav",
+    "mp3",
+    "mp4",
+    "webm",
+    "html",
+    "bin",
+  ])(
     "canonical file-read 历史 %s 经时间线打开时保留原文件路径",
     async (extension) => {
       const fileName = `report.${extension}`;
@@ -173,20 +269,26 @@ describe("Workspace 文件重新打开", () => {
         runtime.handleOpenArtifactFromTimeline(navigation!.rootTarget);
         await Promise.resolve();
       });
-      expect(readFilePreview).toHaveBeenCalledExactlyOnceWith(path, 64 * 1024);
+      expect(params.openWorkspaceFile).toHaveBeenCalledExactlyOnceWith(path);
+      expect(readFilePreview).not.toHaveBeenCalled();
       expect(params.readSessionFile).not.toHaveBeenCalled();
-      expect(params.upsertGeneralArtifact).toHaveBeenCalledExactlyOnceWith(
-        expect.objectContaining({
-          content: "",
-          meta: expect.objectContaining({ filePath: path, sourcePath: path }),
-        }),
-      );
+      expect(params.upsertGeneralArtifact).not.toHaveBeenCalled();
+      expect(
+        params.workbenchRequests.requestCanvasWorkbenchPreviewOpen,
+      ).not.toHaveBeenCalled();
     },
   );
 
-  it.each(["pdf", "docx", "xlsx", "csv", "tsv", "pptx"])(
-    "时间线 %s 打开原文件，二进制不会提前拒绝或使用抽取文本",
-    async (extension) => {
+  it.each(
+    ["pdf", "docx", "xlsx", "csv", "tsv", "pptx"].flatMap((extension) =>
+      ([undefined, "artifact_review"] as const).map((openMode) => ({
+        extension,
+        openMode,
+      })),
+    ),
+  )(
+    "时间线 $extension ($openMode) 直接打开 Files，不创建 Canvas 投影或读取副本",
+    async ({ extension, openMode }) => {
       const path = `/workspace/report.${extension}`;
       vi.mocked(readFilePreview).mockResolvedValue({
         path,
@@ -201,139 +303,47 @@ describe("Workspace 文件重新打开", () => {
           timelineItemId: "canonical-item-1",
           filePath: `report.${extension}`,
           content: "# Extracted text",
+          openMode,
         });
         await Promise.resolve();
       });
-      expect(readFilePreview).toHaveBeenCalledExactlyOnceWith(path, 64 * 1024);
-      expect(params.upsertGeneralArtifact).toHaveBeenCalledOnce();
-      expect(
-        vi.mocked(params.upsertGeneralArtifact).mock.calls[0][0],
-      ).toMatchObject({
-        meta: {
-          filePath: path,
-          sourcePath: path,
-          renderMode:
-            extension === "pptx"
-              ? "presentation"
-              : ["pdf", "docx"].includes(extension)
-                ? "document_pages"
-                : "workbook",
-        },
-      });
+      expect(params.openWorkspaceFile).toHaveBeenCalledExactlyOnceWith(path);
+      expect(params.setHarnessPanelVisible).toHaveBeenCalledWith(false);
+      expect(params.setExpertInfoPanelCollapsed).toHaveBeenCalledWith(true);
+      expect(readFilePreview).not.toHaveBeenCalled();
+      expect(params.readSessionFile).not.toHaveBeenCalled();
+      expect(params.upsertGeneralArtifact).not.toHaveBeenCalled();
+      expect(params.setGeneralCanvasState).not.toHaveBeenCalled();
+      expect(params.setCanvasState).not.toHaveBeenCalled();
       expect(
         params.workbenchRequests.requestCanvasWorkbenchPreviewOpen,
-      ).toHaveBeenCalledWith({
-        filePath: null,
-        selectionKey: expect.stringMatching(/^artifact:/),
-      });
+      ).not.toHaveBeenCalled();
       expect(
         params.workbenchRequests.focusArtifactBlock,
       ).not.toHaveBeenCalled();
     },
   );
-  it.each(["pdf", "docx", "pptx"])(
-    "主 Composer 打开 %s 保留版式预览和源路径",
-    async (extension) => {
-      const path = `/workspace/reports/report.${extension}`;
-      vi.mocked(readFilePreview).mockResolvedValue({
-        path,
-        content: null,
-        isBinary: true,
-        size: 1728,
-        error: null,
-      });
+  it.each(["", "stale cached text"])(
+    "文件入口直接打开原件，缓存正文为 %j",
+    async (content) => {
       const params = mount();
-      let opened = false;
       await act(async () => {
-        opened = await runtime.openProjectFilePreviewInCanvas({
-          relativePath: `reports/report.${extension}`,
-          absolutePath: path,
-          previewRequestKey: "reopen-2",
-        });
+        runtime.handleWorkspaceFileClick("reports/report.docx", content);
       });
-      expect(opened).toBe(true);
-      expect(readFilePreview).toHaveBeenCalledExactlyOnceWith(path, 64 * 1024);
-      const artifact = vi.mocked(params.upsertGeneralArtifact).mock
-        .calls[0][0] as Artifact;
-      expect(artifact.meta).toMatchObject({
-        filePath: path,
-        sourcePath: path,
-        sourceRef: `reports/report.${extension}`,
-        fileKind: extension,
-        renderMode: extension === "pptx" ? "presentation" : "document_pages",
-        previewArtifact: true,
-        previewRequestKey: "reopen-2",
-      });
-      expect(artifact.content).toBe("");
-      expect(params.setSelectedArtifactId).toHaveBeenCalledExactlyOnceWith(
-        artifact.id,
+      expect(params.openWorkspaceFile).toHaveBeenCalledExactlyOnceWith(
+        "/workspace/reports/report.docx",
       );
       expect(
-        params.workbenchRequests.requestCanvasWorkbenchPreviewOpen,
-      ).toHaveBeenCalledWith({
-        filePath: null,
-        selectionKey: `artifact:${artifact.id}`,
-      });
-      // 旧文本画布只允许被清空，不能成为当前选中的文件。
-      expect(params.setGeneralCanvasState).toHaveBeenCalledExactlyOnceWith(
-        expect.any(Function),
-      );
+        params.workbenchRequests.clearFocusedArtifactBlock,
+      ).toHaveBeenCalledOnce();
+      expect(params.setHarnessPanelVisible).toHaveBeenCalledWith(false);
+      expect(params.setExpertInfoPanelCollapsed).toHaveBeenCalledWith(true);
+      expect(params.upsertGeneralArtifact).not.toHaveBeenCalled();
       expect(params.setCanvasState).not.toHaveBeenCalled();
+      expect(
+        params.workbenchRequests.requestCanvasWorkbenchPreviewOpen,
+      ).not.toHaveBeenCalled();
+      expect(readFilePreview).not.toHaveBeenCalled();
     },
   );
-
-  it("空内容文件入口复用同一个专业预览 owner", async () => {
-    const path = "/workspace/reports/report.docx";
-    vi.mocked(readFilePreview).mockResolvedValue({
-      path,
-      content: "extracted text",
-      isBinary: false,
-      size: 1728,
-      error: null,
-    });
-    const params = mount();
-    await act(async () => {
-      runtime.handleWorkspaceFileClick("reports/report.docx", "");
-      await Promise.resolve();
-    });
-    expect(params.upsertGeneralArtifact).toHaveBeenCalledOnce();
-    expect(
-      vi.mocked(params.upsertGeneralArtifact).mock.calls[0][0],
-    ).toMatchObject({
-      meta: { filePath: path, sourcePath: path, renderMode: "document_pages" },
-    });
-    expect(readFilePreview).toHaveBeenCalledTimes(1);
-  });
-
-  it("取消的迟到读取不替换当前预览", async () => {
-    let resolve!: (value: Awaited<ReturnType<typeof readFilePreview>>) => void;
-    vi.mocked(readFilePreview).mockReturnValue(
-      new Promise((done) => {
-        resolve = done;
-      }),
-    );
-    const params = mount();
-    let canceled = false;
-    const opening = runtime.openProjectFilePreviewInCanvas({
-      absolutePath: "/workspace/old.pdf",
-      isCancelled: () => canceled,
-    });
-    canceled = true;
-    let opened = true;
-    await act(async () => {
-      resolve({
-        path: "/workspace/old.pdf",
-        content: null,
-        isBinary: true,
-        size: 10,
-        error: null,
-      });
-      opened = await opening;
-    });
-    expect(opened).toBe(false);
-    expect(params.upsertGeneralArtifact).not.toHaveBeenCalled();
-    expect(
-      params.workbenchRequests.requestCanvasWorkbenchPreviewOpen,
-    ).not.toHaveBeenCalled();
-  });
 });
