@@ -688,3 +688,6 @@ packages/cli/bin/*
 internal/exec-plans/artifacts/release-v1.167.0/*
 !internal/exec-plans/artifacts/release-v1.167.0/*.json
 !internal/exec-plans/artifacts/release-v1.167.0/*.gz
+
+# Dependency directories may be local symlinks in isolated verification copies.
+**/node_modules

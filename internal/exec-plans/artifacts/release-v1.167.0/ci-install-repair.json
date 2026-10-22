@@ -1,0 +1,14 @@
+{
+  "recordedAt": "2026-10-22T11:02:14.483160+00:00",
+  "failedRun": 39766929023,
+  "sourceCommit": "757fee07d51cdd4eeb7c1f6a3a6bf85f46932e72",
+  "rootCause": "Five local dependency symlinks were mistakenly staged from the isolated source. A trailing-slash directory ignore does not ignore a symlink.",
+  "paths": [
+    "packages/agent-runtime-client/node_modules",
+    "packages/agent-runtime-projection/node_modules",
+    "packages/agent-runtime-ui/node_modules",
+    "packages/agent-workbench-adapter/node_modules",
+    "packages/app-server-client/node_modules"
+  ],
+  "fix": "Remove only tracked index entries, retain local dependency links, ignore node_modules with or without directory type. No dependency or lockfile change."
+}

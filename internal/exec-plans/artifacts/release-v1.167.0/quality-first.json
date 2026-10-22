@@ -1,0 +1,803 @@
+{
+  "conclusion": "",
+  "headSha": "757fee07d51cdd4eeb7c1f6a3a6bf85f46932e72",
+  "jobs": [
+    {
+      "completedAt": "2026-10-22T10:57:33Z",
+      "conclusion": "success",
+      "databaseId": 119784585172,
+      "name": "Detect changed areas",
+      "startedAt": "2026-10-22T10:57:15Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-22T10:57:16Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-22T10:57:16Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-22T10:57:30Z",
+          "conclusion": "success",
+          "name": "Checkout",
+          "number": 2,
+          "startedAt": "2026-10-22T10:57:17Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-22T10:57:31Z",
+          "conclusion": "success",
+          "name": "Setup Node.js",
+          "number": 3,
+          "startedAt": "2026-10-22T10:57:30Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-22T10:57:31Z",
+          "conclusion": "success",
+          "name": "Detect tasks",
+          "number": 4,
+          "startedAt": "2026-10-22T10:57:31Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-22T10:57:31Z",
+          "conclusion": "success",
+          "name": "Post Setup Node.js",
+          "number": 7,
+          "startedAt": "2026-10-22T10:57:31Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-22T10:57:32Z",
+          "conclusion": "success",
+          "name": "Post Checkout",
+          "number": 8,
+          "startedAt": "2026-10-22T10:57:31Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-22T10:57:32Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 9,
+          "startedAt": "2026-10-22T10:57:32Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/limecloud/lime/actions/runs/39766929023/job/119784585172"
+    },
+    {
+      "completedAt": "2026-10-22T10:57:12Z",
+      "conclusion": "skipped",
+      "databaseId": 119784586674,
+      "name": "Architecture Confirmation",
+      "startedAt": "2026-10-22T10:57:13Z",
+      "status": "completed",
+      "steps": [],
+      "url": "https://github.com/limecloud/lime/actions/runs/39766929023/job/119784586674"
+    },
+    {
+      "completedAt": "2026-10-22T10:58:02Z",
+      "conclusion": "failure",
+      "databaseId": 119784727394,
+      "name": "Frontend Full",
+      "startedAt": "2026-10-22T10:57:36Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-22T10:57:38Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-22T10:57:37Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-22T10:57:47Z",
+          "conclusion": "success",
+          "name": "Checkout",
+          "number": 2,
+          "startedAt": "2026-10-22T10:57:38Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-22T10:57:48Z",
+          "conclusion": "success",
+          "name": "Setup pnpm",
+          "number": 3,
+          "startedAt": "2026-10-22T10:57:47Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-22T10:57:55Z",
+          "conclusion": "success",
+          "name": "Setup Node.js",
+          "number": 4,
+          "startedAt": "2026-10-22T10:57:48Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-22T10:57:59Z",
+          "conclusion": "failure",
+          "name": "Install dependencies",
+          "number": 5,
+          "startedAt": "2026-10-22T10:57:55Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-22T10:57:59Z",
+          "conclusion": "skipped",
+          "name": "Lint",
+          "number": 6,
+          "startedAt": "2026-10-22T10:57:59Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-22T10:57:59Z",
+          "conclusion": "skipped",
+          "name": "Typecheck",
+          "number": 7,
+          "startedAt": "2026-10-22T10:57:59Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-22T10:57:59Z",
+          "conclusion": "skipped",
+          "name": "Test layer budget",
+          "number": 8,
+          "startedAt": "2026-10-22T10:57:59Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-22T10:57:59Z",
+          "conclusion": "skipped",
+          "name": "Full frontend Vitest",
+          "number": 9,
+          "startedAt": "2026-10-22T10:57:59Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-22T10:57:59Z",
+          "conclusion": "skipped",
+          "name": "Post Setup Node.js",
+          "number": 16,
+          "startedAt": "2026-10-22T10:57:59Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-22T10:57:59Z",
+          "conclusion": "success",
+          "name": "Post Setup pnpm",
+          "number": 17,
+          "startedAt": "2026-10-22T10:57:59Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-22T10:57:59Z",
+          "conclusion": "success",
+          "name": "Post Checkout",
+          "number": 18,
+          "startedAt": "2026-10-22T10:57:59Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-22T10:57:59Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 19,
+          "startedAt": "2026-10-22T10:57:59Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/limecloud/lime/actions/runs/39766929023/job/119784727394"
+    },
+    {
+      "completedAt": "2026-10-22T10:58:01Z",
+      "conclusion": "failure",
+      "databaseId": 119784727435,
+      "name": "Integrity",
+      "startedAt": "2026-10-22T10:57:36Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-22T10:57:37Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-22T10:57:37Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-22T10:57:46Z",
+          "conclusion": "success",
+          "name": "Checkout",
+          "number": 2,
+          "startedAt": "2026-10-22T10:57:37Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-22T10:57:47Z",
+          "conclusion": "success",
+          "name": "Setup pnpm",
+          "number": 3,
+          "startedAt": "2026-10-22T10:57:46Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-22T10:57:55Z",
+          "conclusion": "success",
+          "name": "Setup Node.js",
+          "number": 4,
+          "startedAt": "2026-10-22T10:57:47Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-22T10:57:59Z",
+          "conclusion": "failure",
+          "name": "Install dependencies",
+          "number": 5,
+          "startedAt": "2026-10-22T10:57:55Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-22T10:57:59Z",
+          "conclusion": "skipped",
+          "name": "Verify app version consistency",
+          "number": 6,
+          "startedAt": "2026-10-22T10:57:59Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-22T10:57:59Z",
+          "conclusion": "skipped",
+          "name": "Post Setup Node.js",
+          "number": 10,
+          "startedAt": "2026-10-22T10:57:59Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-22T10:57:59Z",
+          "conclusion": "success",
+          "name": "Post Setup pnpm",
+          "number": 11,
+          "startedAt": "2026-10-22T10:57:59Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-22T10:58:00Z",
+          "conclusion": "success",
+          "name": "Post Checkout",
+          "number": 12,
+          "startedAt": "2026-10-22T10:57:59Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-22T10:58:00Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 13,
+          "startedAt": "2026-10-22T10:58:00Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/limecloud/lime/actions/runs/39766929023/job/119784727435"
+    },
+    {
+      "completedAt": "2026-10-22T10:57:58Z",
+      "conclusion": "failure",
+      "databaseId": 119784727450,
+      "name": "Bridge & Contracts",
+      "startedAt": "2026-10-22T10:57:36Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-22T10:57:38Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-22T10:57:37Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-22T10:57:47Z",
+          "conclusion": "success",
+          "name": "Checkout",
+          "number": 2,
+          "startedAt": "2026-10-22T10:57:38Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-22T10:57:48Z",
+          "conclusion": "success",
+          "name": "Setup pnpm",
+          "number": 3,
+          "startedAt": "2026-10-22T10:57:47Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-22T10:57:53Z",
+          "conclusion": "success",
+          "name": "Setup Node.js",
+          "number": 4,
+          "startedAt": "2026-10-22T10:57:48Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-22T10:57:56Z",
+          "conclusion": "failure",
+          "name": "Install dependencies",
+          "number": 5,
+          "startedAt": "2026-10-22T10:57:53Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-22T10:57:56Z",
+          "conclusion": "skipped",
+          "name": "Bridge tests",
+          "number": 6,
+          "startedAt": "2026-10-22T10:57:56Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-22T10:57:56Z",
+          "conclusion": "skipped",
+          "name": "Command contracts",
+          "number": 7,
+          "startedAt": "2026-10-22T10:57:56Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-22T10:57:56Z",
+          "conclusion": "skipped",
+          "name": "Post Setup Node.js",
+          "number": 12,
+          "startedAt": "2026-10-22T10:57:56Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-22T10:57:56Z",
+          "conclusion": "success",
+          "name": "Post Setup pnpm",
+          "number": 13,
+          "startedAt": "2026-10-22T10:57:56Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-22T10:57:56Z",
+          "conclusion": "success",
+          "name": "Post Checkout",
+          "number": 14,
+          "startedAt": "2026-10-22T10:57:56Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-22T10:57:57Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 15,
+          "startedAt": "2026-10-22T10:57:56Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/limecloud/lime/actions/runs/39766929023/job/119784727450"
+    },
+    {
+      "completedAt": "2026-10-22T10:59:05Z",
+      "conclusion": "failure",
+      "databaseId": 119784727461,
+      "name": "GUI Smoke",
+      "startedAt": "2026-10-22T10:57:37Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-22T10:57:39Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-22T10:57:37Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-22T10:57:49Z",
+          "conclusion": "success",
+          "name": "Checkout",
+          "number": 2,
+          "startedAt": "2026-10-22T10:57:39Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-22T10:57:50Z",
+          "conclusion": "success",
+          "name": "Setup pnpm",
+          "number": 3,
+          "startedAt": "2026-10-22T10:57:49Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-22T10:58:04Z",
+          "conclusion": "success",
+          "name": "Setup Node.js",
+          "number": 4,
+          "startedAt": "2026-10-22T10:57:50Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-22T10:58:12Z",
+          "conclusion": "success",
+          "name": "Setup Rust",
+          "number": 5,
+          "startedAt": "2026-10-22T10:58:04Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-22T10:58:38Z",
+          "conclusion": "success",
+          "name": "Setup Rust cache",
+          "number": 6,
+          "startedAt": "2026-10-22T10:58:12Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-22T10:58:44Z",
+          "conclusion": "success",
+          "name": "Refresh sandboxed rusty_v8 artifacts",
+          "number": 7,
+          "startedAt": "2026-10-22T10:58:38Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-22T10:58:59Z",
+          "conclusion": "failure",
+          "name": "Install dependencies",
+          "number": 8,
+          "startedAt": "2026-10-22T10:58:44Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-22T10:58:59Z",
+          "conclusion": "skipped",
+          "name": "Prepare sherpa-onnx runtime",
+          "number": 9,
+          "startedAt": "2026-10-22T10:58:59Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-22T10:58:59Z",
+          "conclusion": "skipped",
+          "name": "Run headless GUI smoke",
+          "number": 10,
+          "startedAt": "2026-10-22T10:58:59Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-22T10:59:00Z",
+          "conclusion": "success",
+          "name": "Upload GUI smoke evidence",
+          "number": 11,
+          "startedAt": "2026-10-22T10:58:59Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-22T10:59:00Z",
+          "conclusion": "success",
+          "name": "Post Setup Rust cache",
+          "number": 19,
+          "startedAt": "2026-10-22T10:59:00Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-22T10:59:00Z",
+          "conclusion": "skipped",
+          "name": "Post Setup Node.js",
+          "number": 20,
+          "startedAt": "2026-10-22T10:59:00Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-22T10:59:00Z",
+          "conclusion": "success",
+          "name": "Post Setup pnpm",
+          "number": 21,
+          "startedAt": "2026-10-22T10:59:00Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-22T10:59:01Z",
+          "conclusion": "success",
+          "name": "Post Checkout",
+          "number": 22,
+          "startedAt": "2026-10-22T10:59:00Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-22T10:59:03Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 23,
+          "startedAt": "2026-10-22T10:59:01Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/limecloud/lime/actions/runs/39766929023/job/119784727461"
+    },
+    {
+      "completedAt": "0001-01-01T00:00:00Z",
+      "conclusion": "",
+      "databaseId": 119784727472,
+      "name": "Rust Full",
+      "startedAt": "2026-10-22T10:57:37Z",
+      "status": "in_progress",
+      "steps": [
+        {
+          "completedAt": "2026-10-22T10:57:39Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-22T10:57:37Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-22T10:57:53Z",
+          "conclusion": "success",
+          "name": "Checkout",
+          "number": 2,
+          "startedAt": "2026-10-22T10:57:39Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-22T10:57:53Z",
+          "conclusion": "success",
+          "name": "Setup Node.js",
+          "number": 3,
+          "startedAt": "2026-10-22T10:57:53Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-22T10:58:01Z",
+          "conclusion": "success",
+          "name": "Setup Rust",
+          "number": 4,
+          "startedAt": "2026-10-22T10:57:53Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-22T10:58:33Z",
+          "conclusion": "success",
+          "name": "Setup Rust cache",
+          "number": 5,
+          "startedAt": "2026-10-22T10:58:01Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-22T10:58:39Z",
+          "conclusion": "success",
+          "name": "Refresh sandboxed rusty_v8 artifacts",
+          "number": 6,
+          "startedAt": "2026-10-22T10:58:33Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-22T10:58:42Z",
+          "conclusion": "success",
+          "name": "Prepare sherpa-onnx runtime",
+          "number": 7,
+          "startedAt": "2026-10-22T10:58:39Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "0001-01-01T00:00:00Z",
+          "conclusion": "",
+          "name": "Build standalone Code Mode host and Windows sandbox setup helper",
+          "number": 8,
+          "startedAt": "2026-10-22T10:58:42Z",
+          "status": "in_progress"
+        },
+        {
+          "completedAt": "0001-01-01T00:00:00Z",
+          "conclusion": "",
+          "name": "Test Rust workspace",
+          "number": 9,
+          "startedAt": "0001-01-01T00:00:00Z",
+          "status": "pending"
+        },
+        {
+          "completedAt": "0001-01-01T00:00:00Z",
+          "conclusion": "",
+          "name": "Post Setup Rust cache",
+          "number": 16,
+          "startedAt": "0001-01-01T00:00:00Z",
+          "status": "pending"
+        },
+        {
+          "completedAt": "0001-01-01T00:00:00Z",
+          "conclusion": "",
+          "name": "Post Setup Node.js",
+          "number": 17,
+          "startedAt": "0001-01-01T00:00:00Z",
+          "status": "pending"
+        },
+        {
+          "completedAt": "0001-01-01T00:00:00Z",
+          "conclusion": "",
+          "name": "Post Checkout",
+          "number": 18,
+          "startedAt": "0001-01-01T00:00:00Z",
+          "status": "pending"
+        }
+      ],
+      "url": "https://github.com/limecloud/lime/actions/runs/39766929023/job/119784727472"
+    },
+    {
+      "completedAt": "0001-01-01T00:00:00Z",
+      "conclusion": "",
+      "databaseId": 119784727503,
+      "name": "Windows Shell Runtime",
+      "startedAt": "2026-10-22T10:57:37Z",
+      "status": "in_progress",
+      "steps": [
+        {
+          "completedAt": "2026-10-22T10:57:38Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-22T10:57:37Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-22T10:57:53Z",
+          "conclusion": "success",
+          "name": "Checkout",
+          "number": 2,
+          "startedAt": "2026-10-22T10:57:38Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-22T10:57:59Z",
+          "conclusion": "success",
+          "name": "Setup Node.js",
+          "number": 3,
+          "startedAt": "2026-10-22T10:57:53Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-22T10:58:11Z",
+          "conclusion": "success",
+          "name": "Setup Rust",
+          "number": 4,
+          "startedAt": "2026-10-22T10:57:59Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-22T10:58:18Z",
+          "conclusion": "success",
+          "name": "Configure Windows MSVC linker",
+          "number": 5,
+          "startedAt": "2026-10-22T10:58:11Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-22T10:58:32Z",
+          "conclusion": "success",
+          "name": "Setup Rust cache",
+          "number": 6,
+          "startedAt": "2026-10-22T10:58:18Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-22T10:58:56Z",
+          "conclusion": "success",
+          "name": "Refresh sandboxed rusty_v8 artifacts",
+          "number": 7,
+          "startedAt": "2026-10-22T10:58:32Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "0001-01-01T00:00:00Z",
+          "conclusion": "",
+          "name": "Test Windows restricted execution security matrix",
+          "number": 8,
+          "startedAt": "2026-10-22T10:58:56Z",
+          "status": "in_progress"
+        },
+        {
+          "completedAt": "0001-01-01T00:00:00Z",
+          "conclusion": "",
+          "name": "Upload Windows restricted execution evidence",
+          "number": 9,
+          "startedAt": "0001-01-01T00:00:00Z",
+          "status": "pending"
+        },
+        {
+          "completedAt": "0001-01-01T00:00:00Z",
+          "conclusion": "",
+          "name": "Prepare sherpa-onnx runtime",
+          "number": 10,
+          "startedAt": "0001-01-01T00:00:00Z",
+          "status": "pending"
+        },
+        {
+          "completedAt": "0001-01-01T00:00:00Z",
+          "conclusion": "",
+          "name": "Build Windows app-server, code-mode-host, and sandbox sidecars",
+          "number": 11,
+          "startedAt": "0001-01-01T00:00:00Z",
+          "status": "pending"
+        },
+        {
+          "completedAt": "0001-01-01T00:00:00Z",
+          "conclusion": "",
+          "name": "Test Windows shell runtime fallback",
+          "number": 12,
+          "startedAt": "0001-01-01T00:00:00Z",
+          "status": "pending"
+        },
+        {
+          "completedAt": "0001-01-01T00:00:00Z",
+          "conclusion": "",
+          "name": "Test Windows App Server contracts",
+          "number": 13,
+          "startedAt": "0001-01-01T00:00:00Z",
+          "status": "pending"
+        },
+        {
+          "completedAt": "0001-01-01T00:00:00Z",
+          "conclusion": "",
+          "name": "Test Windows Agent Plugin MCP parity",
+          "number": 14,
+          "startedAt": "0001-01-01T00:00:00Z",
+          "status": "pending"
+        },
+        {
+          "completedAt": "0001-01-01T00:00:00Z",
+          "conclusion": "",
+          "name": "Post Setup Rust cache",
+          "number": 26,
+          "startedAt": "0001-01-01T00:00:00Z",
+          "status": "pending"
+        },
+        {
+          "completedAt": "0001-01-01T00:00:00Z",
+          "conclusion": "",
+          "name": "Post Setup Node.js",
+          "number": 27,
+          "startedAt": "0001-01-01T00:00:00Z",
+          "status": "pending"
+        },
+        {
+          "completedAt": "0001-01-01T00:00:00Z",
+          "conclusion": "",
+          "name": "Post Checkout",
+          "number": 28,
+          "startedAt": "0001-01-01T00:00:00Z",
+          "status": "pending"
+        }
+      ],
+      "url": "https://github.com/limecloud/lime/actions/runs/39766929023/job/119784727503"
+    },
+    {
+      "completedAt": "2026-10-22T10:57:33Z",
+      "conclusion": "skipped",
+      "databaseId": 119784729077,
+      "name": "Rust Quick",
+      "startedAt": "2026-10-22T10:57:34Z",
+      "status": "completed",
+      "steps": [],
+      "url": "https://github.com/limecloud/lime/actions/runs/39766929023/job/119784729077"
+    },
+    {
+      "completedAt": "2026-10-22T10:57:33Z",
+      "conclusion": "skipped",
+      "databaseId": 119784729163,
+      "name": "Frontend Quick",
+      "startedAt": "2026-10-22T10:57:34Z",
+      "status": "completed",
+      "steps": [],
+      "url": "https://github.com/limecloud/lime/actions/runs/39766929023/job/119784729163"
+    }
+  ],
+  "status": "in_progress",
+  "url": "https://github.com/limecloud/lime/actions/runs/39766929023"
+}

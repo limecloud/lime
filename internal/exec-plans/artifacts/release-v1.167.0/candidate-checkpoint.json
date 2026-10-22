@@ -1,0 +1,2229 @@
+{
+  "recordedAt": "2026-10-22T10:54:53.913489+00:00",
+  "tree": "ca7115248b1cbe631f1136df4ec830e5e1ce814d",
+  "baseCommit": "416673da28f4166578a099e53a0d4aafc5d807cd",
+  "files": [
+    {
+      "path": ".gitignore",
+      "exists": true,
+      "sha256": "43854dee96397d60effb80fdecd0b4d1c7b6163871afcb1e49527dbe450f52e0",
+      "size": 36034
+    },
+    {
+      "path": "RELEASE_NOTES.en.md",
+      "exists": true,
+      "sha256": "801a27678e8a3bc502c88a08f41b9eb956b5548f2a61bc591e560bc7ef0506a2",
+      "size": 1880
+    },
+    {
+      "path": "RELEASE_NOTES.md",
+      "exists": true,
+      "sha256": "759048802c7d8b3d088843092c55202c61a5456e24522a75f57a800cc50f6663",
+      "size": 1610
+    },
+    {
+      "path": "browser-annotation.html",
+      "exists": true,
+      "sha256": "fcacdd6e23603a7b1494a85f6c206fc60919ad9e2bbdc715279906dd1dfa6d3e",
+      "size": 594
+    },
+    {
+      "path": "electron/appServerDynamicToolHost.approval.test.ts",
+      "exists": true,
+      "sha256": "a3374dd31d74e140a25830cb4f46b4033cab1e105cd04e11bf7fe2eb323ef7a8",
+      "size": 14411
+    },
+    {
+      "path": "electron/appServerDynamicToolHost.ts",
+      "exists": true,
+      "sha256": "397a5ee0b6536042f7bd5504f00ab3dcbb8bce263c6373da57c3506cd641c2c5",
+      "size": 19132
+    },
+    {
+      "path": "electron/appServerHost.ts",
+      "exists": true,
+      "sha256": "a59995a3e618562c3f04056b32f03b1eb6f92e38789228117db88f62ad596c87",
+      "size": 45309
+    },
+    {
+      "path": "electron/browserAnnotationEditorHost.test.ts",
+      "exists": true,
+      "sha256": "3c69d01bcdd298a936740b50987effa87b7af9d4932dd625eb37bd4d97fec821",
+      "size": 16106
+    },
+    {
+      "path": "electron/browserAnnotationEditorHost.ts",
+      "exists": true,
+      "sha256": "28faa3f53e1af82aa5b954553af47d4d6e8d03dc599ac5b6b3251f0e4b50a57c",
+      "size": 19736
+    },
+    {
+      "path": "electron/browserAnnotationEditorPreload.test.ts",
+      "exists": true,
+      "sha256": "d536692f63f793c65b2f716ae9d3aa35cbf6fad45791cc5f4ea3d640f7f470db",
+      "size": 5595
+    },
+    {
+      "path": "electron/browserAnnotationEditorPreload.ts",
+      "exists": true,
+      "sha256": "60581d8fca3924293314563ecba680c374c1d5ddb27d82f4b031f428213d7171",
+      "size": 4236
+    },
+    {
+      "path": "electron/browserAnnotationHost.test.ts",
+      "exists": true,
+      "sha256": "4535e9d4073d93c521b0879a961b003b12e04769ebde05f3e199fb58ce34760b",
+      "size": 16007
+    },
+    {
+      "path": "electron/browserAnnotationHost.ts",
+      "exists": true,
+      "sha256": "419fd0cfb0658aad9df72909040765a75ac23aa49488ac5ba1fabc64dd2beaf7",
+      "size": 15867
+    },
+    {
+      "path": "electron/browserAnnotationModel.test.ts",
+      "exists": true,
+      "sha256": "aca88e7530808ddec82cee9c5ee07825b480f5a4e25cb358c1e16462bdfb84f4",
+      "size": 1574
+    },
+    {
+      "path": "electron/browserAnnotationModel.ts",
+      "exists": true,
+      "sha256": "1e981f4583717040bb934c24606b175ccecef3c458fa937c7144b1b8d1e983c1",
+      "size": 4771
+    },
+    {
+      "path": "electron/browserAppServerBridge.test.ts",
+      "exists": true,
+      "sha256": "1ef6d4bd05754c215d26cf7d0b39ea8d73d31b55654f5266da4830864a4ba206",
+      "size": 5647
+    },
+    {
+      "path": "electron/browserAppServerBridge.ts",
+      "exists": true,
+      "sha256": "d46f21722af3fa6173f98bd7e8009e88aa4387f432ceac769360dfdbd8954adc",
+      "size": 5556
+    },
+    {
+      "path": "electron/browserHistoryHost.test.ts",
+      "exists": true,
+      "sha256": "3465a08e901a0ba3e04f51bac0df586a1447e73197dce8dde0bffa27ae464a07",
+      "size": 3577
+    },
+    {
+      "path": "electron/browserHistoryHost.ts",
+      "exists": true,
+      "sha256": "b5dedc9f4161da2a0b782b1503e750945cc5f5ab7dd2e11e944f13c35b4faf07",
+      "size": 3382
+    },
+    {
+      "path": "electron/browserHistoryStore.test.ts",
+      "exists": true,
+      "sha256": "ce58b8f54e2772ddfc6dd38fc2c56b37f2b63c011027440ecae9c33714590b2f",
+      "size": 12192
+    },
+    {
+      "path": "electron/browserHistoryStore.ts",
+      "exists": true,
+      "sha256": "6f16c2c9e263ab61bec730bc0efb876940c9bf762aee566748f0e2944ef60837",
+      "size": 14376
+    },
+    {
+      "path": "electron/browserOverlayDocument.test.ts",
+      "exists": true,
+      "sha256": "f1e51b884e896184dd878b7ef68ba19141e237563e9fdf4c8cc5274dd5245cf7",
+      "size": 5270
+    },
+    {
+      "path": "electron/browserOverlayDocument.ts",
+      "exists": true,
+      "sha256": "03bdbace3e8d7717d1316c21e895661ec4ea1e26d62b5ad20675f485ff7fff35",
+      "size": 9086
+    },
+    {
+      "path": "electron/browserOverlayHost.test.ts",
+      "exists": true,
+      "sha256": "4775a0e29bc67403c508df65ec43262058adcce26d652958d0b16a40c30310ec",
+      "size": 12656
+    },
+    {
+      "path": "electron/browserOverlayHost.ts",
+      "exists": true,
+      "sha256": "ef126fa5ae67da848fd600df17b33fa8d575863990b39bca8d03d3c8dfd2d5cf",
+      "size": 10933
+    },
+    {
+      "path": "electron/browserOverlayModel.test.ts",
+      "exists": true,
+      "sha256": "7cb42913a9ebc8102c12374f9ee432aba507862a6a48af4ef00864c3bd28d912",
+      "size": 2772
+    },
+    {
+      "path": "electron/browserOverlayModel.ts",
+      "exists": true,
+      "sha256": "bf66cff7c821a5c3135823b7ab1f3ff065dd9ea7e65f6b18433f5c6eb166952a",
+      "size": 6117
+    },
+    {
+      "path": "electron/browserOverlayPreload.ts",
+      "exists": true,
+      "sha256": "b9aba0ee630c20e42fa34eadd29ef0243d9b23726d87d53c62a6a337092e0596",
+      "size": 1124
+    },
+    {
+      "path": "electron/browserPagePreload.test.ts",
+      "exists": true,
+      "sha256": "bf2c47921b09c24d63e95c797c7e9619d7cb6fd2007eb675d93616a5705487d7",
+      "size": 9074
+    },
+    {
+      "path": "electron/browserPagePreload.ts",
+      "exists": true,
+      "sha256": "ddbe5ea72987d6dccf421e6080ebe5f736461d723277abf95e9a9801630faaa6",
+      "size": 12959
+    },
+    {
+      "path": "electron/browserPermissionRequests.test.ts",
+      "exists": true,
+      "sha256": "ad9f3323c7b873c4c7b64dd24db4838a8daf855029b6b5ee92b3bd8be9d35725",
+      "size": 2587
+    },
+    {
+      "path": "electron/browserPermissionRequests.ts",
+      "exists": true,
+      "sha256": "b867c66f299aa31d241f9024932dd6caf62b598fcb6d34b5354d8ece086511d6",
+      "size": 3082
+    },
+    {
+      "path": "electron/browserPermissions.integration.test.ts",
+      "exists": true,
+      "sha256": "272c409c4afacdfd89c78069d7b15ea7976309a6b16c45d9938c1ae1f1ff1831",
+      "size": 10872
+    },
+    {
+      "path": "electron/browserPermissions.test.ts",
+      "exists": true,
+      "sha256": "db938477bb29618faeb5927dc39cdc2f94f95d4e310fbcb75b1f66cf5301541f",
+      "size": 4443
+    },
+    {
+      "path": "electron/browserPermissions.ts",
+      "exists": true,
+      "sha256": "2201b9132106b383acf6d56976cafcc321b3c5a2165ad33bbc0d7cbaf110a873",
+      "size": 5699
+    },
+    {
+      "path": "electron/browserTabAnnotationEditor.ts",
+      "exists": true,
+      "sha256": "8839bef113660367ff218d7b6ffeeb692f7917deab61716ebb47e1f6e8f4e05d",
+      "size": 2289
+    },
+    {
+      "path": "electron/browserTabCommands.test.ts",
+      "exists": true,
+      "sha256": "d3e5d89cb18e5dd271aa90cb982c8ec048a7f99427edd5c03ea66068b9135e77",
+      "size": 616
+    },
+    {
+      "path": "electron/browserTabCommands.ts",
+      "exists": true,
+      "sha256": "1d17ae033ead5032689e731eb8f44a7747649199e67736b7a7e258cad07640b6",
+      "size": 2710
+    },
+    {
+      "path": "electron/browserTabHistory.test.ts",
+      "exists": true,
+      "sha256": "79aa96e45f89c44d0b91f215f122c63ab96deb6305fc4fb6819a4490006e976e",
+      "size": 2610
+    },
+    {
+      "path": "electron/browserTabHost.testHarness.ts",
+      "exists": true,
+      "sha256": "1cd3bf868e9a1aefdf5fbcb7b0048fc8dd5854f53e7443c2fee936cada6acde8",
+      "size": 9593
+    },
+    {
+      "path": "electron/browserTabHost.ts",
+      "exists": true,
+      "sha256": "050036e99d0c21a3720d0e90788db5e26d11fdf1ec0b25331ea93b7df9e00eba",
+      "size": 66614
+    },
+    {
+      "path": "electron/browserTabMenu.test.ts",
+      "exists": true,
+      "sha256": "4c294eeb275190ac289bfe2b3065d4cbf845e32ca5733307c18f14b760843ef9",
+      "size": 4140
+    },
+    {
+      "path": "electron/browserTabPageCommands.test.ts",
+      "exists": true,
+      "sha256": "488e3160ea7589b98b2cc5fecec1f78061e83509dcf853fe8de7e0df9d7a89e2",
+      "size": 11188
+    },
+    {
+      "path": "electron/browserTabPolicy.ts",
+      "exists": true,
+      "sha256": "f5b15b50e999e5edcbff9308ae2edfbccd652a5a429ffc3372cfdf3b61331b20",
+      "size": 1729
+    },
+    {
+      "path": "electron/browserTabPopups.ts",
+      "exists": true,
+      "sha256": "9ba7e437e57f9b3d31616d7ff5c200135d03c0f3ab84a3da08363b1c760820bb",
+      "size": 2218
+    },
+    {
+      "path": "electron/browserTabState.ts",
+      "exists": true,
+      "sha256": "d92bb7f8ba0ec4952d7dd03ff0f3990cb5ed4b9433f6e7ef7fc835e5cf8fc67b",
+      "size": 8036
+    },
+    {
+      "path": "electron/dynamicToolCalls.ts",
+      "exists": true,
+      "sha256": "72f9549b4c920b3abc22fbe9fe6a0f85cd9ef6b244c252f33bc5c41b030e4570",
+      "size": 3936
+    },
+    {
+      "path": "electron/embeddedBrowserDownloads.test.ts",
+      "exists": true,
+      "sha256": "83ea60909526b5452b1951df90e35b13eb988faab5f58382eb5a58b9ffa70dca",
+      "size": 3165
+    },
+    {
+      "path": "electron/embeddedBrowserDownloads.ts",
+      "exists": true,
+      "sha256": "c3068e3f929a374a98ab1c460a6d256ed9c0c5f370d1acd3430afc46f9dd80c3",
+      "size": 4445
+    },
+    {
+      "path": "electron/embeddedBrowserHost.test.ts",
+      "exists": true,
+      "sha256": "1fca79adb334890f9b0ba33910818934c4f32678b34666e053da0c91f3934cec",
+      "size": 40429
+    },
+    {
+      "path": "electron/embeddedBrowserHost.ts",
+      "exists": true,
+      "sha256": "e4fd6673c4b58e6fbb90c70934b5b0492a75d7bc2d0c34a91d73d30646c6faf9",
+      "size": 30080
+    },
+    {
+      "path": "electron/embeddedBrowserPageActions.test.ts",
+      "exists": true,
+      "sha256": "d59dfb1a61004b5bc2beab9286d79f13c47d347b6665ba2d8cf4f839e57ec470",
+      "size": 4817
+    },
+    {
+      "path": "electron/embeddedBrowserPageActions.ts",
+      "exists": true,
+      "sha256": "d5e764ae5ffd5dae6dd25e2526c300ad4ec16f5744e1ed3452e5286ce7540385",
+      "size": 4321
+    },
+    {
+      "path": "electron/embeddedBrowserState.ts",
+      "exists": true,
+      "sha256": "e9be2174b317df98b3c64f255642f8a17162a0772603511a2f3f3457c1b5cc8d",
+      "size": 8903
+    },
+    {
+      "path": "electron/ipcChannels.ts",
+      "exists": true,
+      "sha256": "e1aa3fc51eb73ea60b8630a8fce77bfd1124983ec85eb6bfa6e5a98283399a9a",
+      "size": 6462
+    },
+    {
+      "path": "electron/localAsset.test.ts",
+      "exists": true,
+      "sha256": "1625f626c091e24cfdbb3b84247e357abb4212d6fe515aa9709c11d4a8f0a378",
+      "size": 1041
+    },
+    {
+      "path": "electron/localAsset.ts",
+      "exists": true,
+      "sha256": "c2905da1576baaff76457572dda7986f1969cd934f8d654d84fd1c8d0183d5bd",
+      "size": 535
+    },
+    {
+      "path": "electron/main.ts",
+      "exists": true,
+      "sha256": "88082799399613835b88014a0f69e824605d73772b9602ba59c48490569633c1",
+      "size": 46106
+    },
+    {
+      "path": "electron/preload.test.ts",
+      "exists": true,
+      "sha256": "0bbe8bfb449753b4623662dbbf959f8abb3e06ba41ec5ce3336d5de0672d2599",
+      "size": 14719
+    },
+    {
+      "path": "electron/preload.ts",
+      "exists": true,
+      "sha256": "edb79df3d7f03b7e1514413e2ca0dac6b0a651b0f44079069b1fd76c5623570e",
+      "size": 5724
+    },
+    {
+      "path": "internal/aiprompts/architecture.md",
+      "exists": true,
+      "sha256": "897ae921ec9fcf381bca5852b3792bb2b334af99951df2630e19dec4fcacb6ae",
+      "size": 615690
+    },
+    {
+      "path": "internal/exec-plans/README.md",
+      "exists": true,
+      "sha256": "8fe3a243170ac1be345fb3537110823d1fed627e8f055a4f17c8aa217dbe2ffa",
+      "size": 10294
+    },
+    {
+      "path": "internal/exec-plans/artifacts/codex-file-clicks-20261022/evidence.tar.gz",
+      "exists": true,
+      "sha256": "2ceb5328c239a4b7bfffd5b7bfe119b1e436b55f94b85c99a2b20d623db7c1c4",
+      "size": 14420808
+    },
+    {
+      "path": "internal/exec-plans/artifacts/codex-file-clicks-20261022/implementation.patch",
+      "exists": true,
+      "sha256": "c0eeccc06e7294080f16a742b7dda16d2e2227330a50249ec24920124d285859",
+      "size": 110344
+    },
+    {
+      "path": "internal/exec-plans/artifacts/codex-file-clicks-20261022/summary.json",
+      "exists": true,
+      "sha256": "16099f31c9c9cac4f9d648f0fc93c7272c977d906361c37deeb0461752045932",
+      "size": 65839
+    },
+    {
+      "path": "internal/exec-plans/artifacts/codex-file-clicks-20261022/takeover-evidence.tar.gz",
+      "exists": true,
+      "sha256": "349084617d20c213cb68b99adf9bd0fdab3bb04e414d7b9ddd0f9d94c91a8a9a",
+      "size": 6045399
+    },
+    {
+      "path": "internal/exec-plans/artifacts/codex-rea-annotation-verification-20261022/evidence.tar.gz",
+      "exists": true,
+      "sha256": "23b37776c6faeb20ebd99f06fa70f7ca99a8dc8c9744efa1db9a86a11734d8ee",
+      "size": 25863642
+    },
+    {
+      "path": "internal/exec-plans/artifacts/codex-rea-annotation-verification-20261022/takeover-evidence.tar.gz",
+      "exists": true,
+      "sha256": "9b4438dd2dc229437d1c42119cef66bb25d4b058f247143b34ac3dbcae61d452",
+      "size": 7095
+    },
+    {
+      "path": "internal/exec-plans/artifacts/codex-rea-annotation-verification-20261022/verification-summary.json",
+      "exists": true,
+      "sha256": "d73ae78c7064f73072e2324aa743bc72cbf4c427c180f3188fc6ebb15c45b62e",
+      "size": 16580
+    },
+    {
+      "path": "internal/exec-plans/artifacts/codex-rea-annotation-verification-20261022/workbench03-current.patch",
+      "exists": true,
+      "sha256": "47e20418cee12c07ec7978a8e14e1c3414405ab961153c4dea65c97a9bc5e0a9",
+      "size": 4973
+    },
+    {
+      "path": "internal/exec-plans/artifacts/release-v1.167.0/candidate-freeze.json",
+      "exists": true,
+      "sha256": "73a43f8df31b9e17b23216bed8ecc46fc2d8c014f67ce7a426ba7c25c7265b7d",
+      "size": 73338
+    },
+    {
+      "path": "internal/exec-plans/artifacts/release-v1.167.0/contracts-r1.json",
+      "exists": true,
+      "sha256": "896893dcc9b604406a1f31caffcc9cba2aa50c27d89eef95d8eb418b68bd9aab",
+      "size": 338
+    },
+    {
+      "path": "internal/exec-plans/artifacts/release-v1.167.0/contracts-r1.log.gz",
+      "exists": true,
+      "sha256": "4951401dcdc1f6aca7e6f82db7fee42aa682e37e945e21febd3540daf06a9f95",
+      "size": 1682
+    },
+    {
+      "path": "internal/exec-plans/artifacts/release-v1.167.0/directed-tests-r1.json",
+      "exists": true,
+      "sha256": "72614fba25948879f5c52259d32023154afa9ae34033bfac1b9478393143119c",
+      "size": 6659
+    },
+    {
+      "path": "internal/exec-plans/artifacts/release-v1.167.0/directed-tests-r1.log.gz",
+      "exists": true,
+      "sha256": "053abfc019d3be760b4d231a72b0f32a08110cf2d338d8cde2a954022c72b07f",
+      "size": 7973
+    },
+    {
+      "path": "internal/exec-plans/artifacts/release-v1.167.0/gate-repairs-r1.json",
+      "exists": true,
+      "sha256": "3969ca5ebb54502e643505a10a422b732ef84e2c80c12c7c3f152cac19926e1f",
+      "size": 1017
+    },
+    {
+      "path": "internal/exec-plans/artifacts/release-v1.167.0/i18n-legacy-r1.json",
+      "exists": true,
+      "sha256": "602c0bdf497f52b81a33733a475d8d72545c005edc73ad7f47808d88d2759c3c",
+      "size": 516
+    },
+    {
+      "path": "internal/exec-plans/artifacts/release-v1.167.0/i18n-legacy-r1.log.gz",
+      "exists": true,
+      "sha256": "69237adeab6bc4e22860d3878f18baabaa11042b87c78f3d5a6839f2b534c77d",
+      "size": 1460
+    },
+    {
+      "path": "internal/exec-plans/artifacts/release-v1.167.0/renderer-yield.json",
+      "exists": true,
+      "sha256": "ffeaa7e37a489f64b90bdd2964ae384c7da7d85d4eb194d68c2e1786f8976ff7",
+      "size": 445
+    },
+    {
+      "path": "internal/exec-plans/artifacts/release-v1.167.0/repairs-regression-r2.json",
+      "exists": true,
+      "sha256": "dbbb7ea6dff25fc1cfa8a300457e2acd461e2027c1e061fed87b9ba71230667f",
+      "size": 494
+    },
+    {
+      "path": "internal/exec-plans/artifacts/release-v1.167.0/repairs-regression-r2.log.gz",
+      "exists": true,
+      "sha256": "6294af6155201267708030c4f3abeffc83d5ee304af9fa001bb608ca7afe705b",
+      "size": 240
+    },
+    {
+      "path": "internal/exec-plans/artifacts/release-v1.167.0/repairs-regression-r3.json",
+      "exists": true,
+      "sha256": "d4d850712a66f0c1a0aebc7614911e55360ba135cf7f349a14918dc06656dbab",
+      "size": 7263
+    },
+    {
+      "path": "internal/exec-plans/artifacts/release-v1.167.0/repairs-regression-r3.log.gz",
+      "exists": true,
+      "sha256": "7e55780aa21cdbca2388523255b622b8f8efd36c432cbf67ce2db6716d81bd46",
+      "size": 67069
+    },
+    {
+      "path": "internal/exec-plans/artifacts/release-v1.167.0/scoped-eslint-r1.json",
+      "exists": true,
+      "sha256": "2e668912287dab82eaaa68fba00a8ca466d522a64e9465335877af6bdd757098",
+      "size": 19508
+    },
+    {
+      "path": "internal/exec-plans/artifacts/release-v1.167.0/scoped-eslint-r1.log.gz",
+      "exists": true,
+      "sha256": "24bd2f11a2f4df923ce2eccec608a2f8cc46fee3c643559891ca86d98d439742",
+      "size": 2251
+    },
+    {
+      "path": "internal/exec-plans/artifacts/release-v1.167.0/source-whitespace-r1.json",
+      "exists": true,
+      "sha256": "91a935be14e6c9408af6fccaedba184ccbd9b61108b61cfb6e612c243ec55e23",
+      "size": 104
+    },
+    {
+      "path": "internal/exec-plans/artifacts/release-v1.167.0/static-final-r2.json",
+      "exists": true,
+      "sha256": "c9787a39d15e292ee8a00dfaa0937beacbdc4dc6f059c57ef167c74c02a6fd33",
+      "size": 339
+    },
+    {
+      "path": "internal/exec-plans/artifacts/release-v1.167.0/static-final-r2.log.gz",
+      "exists": true,
+      "sha256": "2231d1bd9518295de494cd65147f3e864690acc9450950f9080c0364ba739dab",
+      "size": 142
+    },
+    {
+      "path": "internal/exec-plans/artifacts/release-v1.167.0/static-r1.json",
+      "exists": true,
+      "sha256": "b50bf460d3606f91a4be9961ded34d3345a05767ac14f49c8b4b0b85407dc08a",
+      "size": 615
+    },
+    {
+      "path": "internal/exec-plans/artifacts/release-v1.167.0/static-r1.log.gz",
+      "exists": true,
+      "sha256": "d9dc40f87fa57b0c343ad122fde0bc8f7857979f8060b838a118d2bfaffa2369",
+      "size": 256
+    },
+    {
+      "path": "internal/exec-plans/artifacts/release-v1.167.0/test-layer-budget-r1.json",
+      "exists": true,
+      "sha256": "ad8d7a81ec796eb1a2911061f4bf056e7f829135a725807f0710b161457326e0",
+      "size": 415
+    },
+    {
+      "path": "internal/exec-plans/browser-runtime-right-surface-plan.md",
+      "exists": true,
+      "sha256": "9fcd7d554282d71ed56bcdb9ec4ab5e8e0adff683b518582348691bd256062db",
+      "size": 114929
+    },
+    {
+      "path": "internal/exec-plans/codex-file-clicks-20261022.md",
+      "exists": true,
+      "sha256": "5354e7f539c31dc182a2270d58591c8caeac6f9d8ebd72fe4a86a04197301bf5",
+      "size": 18797
+    },
+    {
+      "path": "internal/exec-plans/codex-gui-alignment-current-plan.md",
+      "exists": true,
+      "sha256": "3d5262f3011a4c52b88f4cc2557582059670c98defa38e752ecf85129e1fc2e6",
+      "size": 78546
+    },
+    {
+      "path": "internal/exec-plans/codex-rea-annotation-verification-20261022.md",
+      "exists": true,
+      "sha256": "aae969ec658e4575e8cee99e67b72bf6b58a20bfeb39dc9c0d3294cfa5d9aad3",
+      "size": 13035
+    },
+    {
+      "path": "internal/exec-plans/release-v1.167.0-plan.md",
+      "exists": true,
+      "sha256": "fac4cb7b9989fd68c6c33eee87f342ae20963b7618a5f418079dc2020c9d2d3a",
+      "size": 5905
+    },
+    {
+      "path": "internal/research/codex-desktop-rea/structure-alignment-ledger.md",
+      "exists": true,
+      "sha256": "981a8cd74efd311041b6f48346259c7f2edcc12aa2329aea202af2c4940b387b",
+      "size": 104420
+    },
+    {
+      "path": "internal/roadmap/browser/README.md",
+      "exists": true,
+      "sha256": "414294960b3b2706dad4ff1b5295c573289db5a567e8326012e553972f228eb4",
+      "size": 46963
+    },
+    {
+      "path": "lime-rs/Cargo.lock",
+      "exists": true,
+      "sha256": "34ec293531df0bdc709c61edd72e0e54f6b53c85c7681033d3e0453caca3e6e8",
+      "size": 236443
+    },
+    {
+      "path": "lime-rs/Cargo.toml",
+      "exists": true,
+      "sha256": "f0efbe620020a022ae03c25fd2bd2c841e27e081c1b1a7bf23adebee35441817",
+      "size": 6766
+    },
+    {
+      "path": "lime-rs/crates/agent/src/current_provider_turn/dynamic_tool_bridge.rs",
+      "exists": true,
+      "sha256": "d3123218676811008c0dd6e85b9c178c05b51ea120df2ad13480936cf8361f80",
+      "size": 10084
+    },
+    {
+      "path": "lime-rs/crates/agent/src/current_provider_turn/dynamic_tool_bridge_tests.rs",
+      "exists": true,
+      "sha256": "492ca51514e20dd7d4064e8ae33c261950a4601d83f7349712cb03948a418b4d",
+      "size": 8849
+    },
+    {
+      "path": "lime-rs/crates/app-server/src/processor/config.rs",
+      "exists": true,
+      "sha256": "1e24d257c444aa816e94424f4b56bfed0b211e948f819c2ef8935544009d1897",
+      "size": 18978
+    },
+    {
+      "path": "lime-rs/crates/core/src/config/browser.rs",
+      "exists": true,
+      "sha256": "747f1f29e49972591253111aa04ae766e3ac29477471400f09996e34cb4af518",
+      "size": 9429
+    },
+    {
+      "path": "lime-rs/crates/core/src/config/mod.rs",
+      "exists": true,
+      "sha256": "f9d202f33de256f61800e18d4230e630cd4397be0c3805b05a1a00ea18b33e16",
+      "size": 4490
+    },
+    {
+      "path": "lime-rs/crates/core/src/config/types.rs",
+      "exists": true,
+      "sha256": "8b992789762de16aa4a8c20cc4c4f0f4821c9aa9245e4dc53f822f200bc7e039",
+      "size": 171955
+    },
+    {
+      "path": "package.json",
+      "exists": true,
+      "sha256": "f0d7b55aa1c2b21a0df12c45ad399253aea4ecfdbaba71757e5abda756db8cba",
+      "size": 30119
+    },
+    {
+      "path": "packages/agent-runtime-client/node_modules",
+      "exists": true,
+      "sha256": null,
+      "size": 96
+    },
+    {
+      "path": "packages/agent-runtime-projection/node_modules",
+      "exists": true,
+      "sha256": null,
+      "size": 96
+    },
+    {
+      "path": "packages/agent-runtime-ui/node_modules",
+      "exists": true,
+      "sha256": null,
+      "size": 160
+    },
+    {
+      "path": "packages/agent-workbench-adapter/node_modules",
+      "exists": true,
+      "sha256": null,
+      "size": 96
+    },
+    {
+      "path": "packages/app-server-client/node_modules",
+      "exists": true,
+      "sha256": null,
+      "size": 128
+    },
+    {
+      "path": "packages/cli/package.json",
+      "exists": true,
+      "sha256": "21f8ee6c470a3eb9704ffac63f83cece28ea0989084042e44e808cb7e77820bd",
+      "size": 598
+    },
+    {
+      "path": "scripts/agent-runtime/browser-runtime-electron-gate-b-annotation.mjs",
+      "exists": true,
+      "sha256": "463bd5357212e86f01f883445f7fe72fdc67c969d906836a2ec1ea022ba4afa4",
+      "size": 26715
+    },
+    {
+      "path": "scripts/agent-runtime/browser-runtime-electron-gate-b-annotation.test.mjs",
+      "exists": true,
+      "sha256": "6a66b74f00cb38d60907ac699104d29d30484b9a61b6cc7846345bdaf9425748",
+      "size": 8858
+    },
+    {
+      "path": "scripts/agent-runtime/browser-runtime-electron-gate-b-approval.mjs",
+      "exists": true,
+      "sha256": "b3bfa2c55b522ae7ebcb1aee99f6ba760dcc84c4d10be21b9a36cf36adea21c9",
+      "size": 12222
+    },
+    {
+      "path": "scripts/agent-runtime/browser-runtime-electron-gate-b-browse.mjs",
+      "exists": true,
+      "sha256": "4da57b039ec57fcddab6d69a79c9ad17121c583219688a99561ac88ec96acaab",
+      "size": 7417
+    },
+    {
+      "path": "scripts/agent-runtime/browser-runtime-electron-gate-b-history.mjs",
+      "exists": true,
+      "sha256": "01435c87ec19e81e6d4def714a2aba48341a8430fc57540e8945ec8737787fbd",
+      "size": 24486
+    },
+    {
+      "path": "scripts/agent-runtime/browser-runtime-electron-gate-b-pages.mjs",
+      "exists": true,
+      "sha256": "b9c771256ea61a0b7bfc4a07c69f406bfc384da3bf9bb494a289409f982d3749",
+      "size": 1473
+    },
+    {
+      "path": "scripts/agent-runtime/browser-runtime-electron-gate-b.mjs",
+      "exists": true,
+      "sha256": "008215b7ad5324407d3abaf9afeaaaf5cfc3b429eac5e1a065ceb53a99036e52",
+      "size": 76218
+    },
+    {
+      "path": "scripts/agent-runtime/browser-runtime-electron-gate-b.test.mjs",
+      "exists": true,
+      "sha256": "e04c560a2a7d4d967bcfb0f12a333db92fae88b440201cc5bb6eaa22ee485b2f",
+      "size": 22321
+    },
+    {
+      "path": "scripts/agent-runtime/browser-runtime-gate-a.mjs",
+      "exists": true,
+      "sha256": "7363283ecee0313e39ef38e9b095f96eb52bb39b00942cfb1bdd7ea49033a890",
+      "size": 13907
+    },
+    {
+      "path": "scripts/agent-runtime/browser-runtime-history-navigation.mjs",
+      "exists": true,
+      "sha256": "6b0e76a80a3d7346d33f95080449bbbb14587a8d506ecb37ddf495ccdeb08fda",
+      "size": 9988
+    },
+    {
+      "path": "scripts/agent-runtime/claw-chat-current-fixture-media-reference.mjs",
+      "exists": true,
+      "sha256": "89e62b65bf7cb9319fb19d1463048bbcf3aa1b7cee6d2b0ff88587bcfd2d1e9e",
+      "size": 20002
+    },
+    {
+      "path": "scripts/electron/build-host.mjs",
+      "exists": true,
+      "sha256": "39e88ff446a818b3e879dd95c9b7e143f656fa140064993f62fdd254310ca140",
+      "size": 1940
+    },
+    {
+      "path": "scripts/electron/document-preview-fixture-smoke.mjs",
+      "exists": true,
+      "sha256": "0651d08f114ad388278e3b4f45c979e9b37ab486957c4328e479020d3722a69b",
+      "size": 22452
+    },
+    {
+      "path": "scripts/electron/file-click-fixture-smoke.mjs",
+      "exists": true,
+      "sha256": "d15abfad3e3fe089e9f260dbe7ac6d62c297bba7dbb58b615821d3a1e04e856e",
+      "size": 18914
+    },
+    {
+      "path": "scripts/electron/lib/document-preview-options.mjs",
+      "exists": true,
+      "sha256": "7a251b2d72fe51a50788c478c0e468a15180bb8d743d67c5d62fd852683ae422",
+      "size": 6068
+    },
+    {
+      "path": "scripts/electron/lib/document-preview-options.test.mjs",
+      "exists": true,
+      "sha256": "0dcdafa83c915c02d32bc8aeed35506121f151fdb80dafd31d81687dc165f8e2",
+      "size": 5238
+    },
+    {
+      "path": "scripts/electron/lib/document-preview-provenance.mjs",
+      "exists": true,
+      "sha256": "36e9fa82e54f8363a65663a1ea7cbd13b6ae7db7894591e3605fd4672c3c7b4d",
+      "size": 6693
+    },
+    {
+      "path": "scripts/electron/lib/docx-preview-scenario.mjs",
+      "exists": true,
+      "sha256": "2fab7bc11a6f1a7039b1a151c83dee105a2549d0e134d47f6eaab1748889f0e8",
+      "size": 4734
+    },
+    {
+      "path": "scripts/electron/lib/media-file-preview-scenario.mjs",
+      "exists": true,
+      "sha256": "1e99e3cb5eb23fc7878961f37ab99a84b83f5e33fbdab71c4e8108174890920f",
+      "size": 7636
+    },
+    {
+      "path": "scripts/electron/lib/native-save-dialog-observer.mjs",
+      "exists": true,
+      "sha256": "7c46d559fe3ddd193b86a2a2883b3ca2c612b35e27badc0195ba927a2e7bbf6c",
+      "size": 4211
+    },
+    {
+      "path": "scripts/electron/lib/office-file-lifecycle-scenario.mjs",
+      "exists": true,
+      "sha256": "28789e79056ad8e3c1ee66befd8e5523f8ab52ebb3b5325088d42a02bcea5ede",
+      "size": 5793
+    },
+    {
+      "path": "scripts/electron/lib/pdf-preview-scenario.mjs",
+      "exists": true,
+      "sha256": "99d31f8d7e13b010f7cd234071f79841fb42f5e70cd7f94fc139efb8840f11cf",
+      "size": 5630
+    },
+    {
+      "path": "scripts/electron/lib/presentation-editing-scenario.mjs",
+      "exists": true,
+      "sha256": "c36bee4b0a84df93cb334a11c261af1d3aba3e9f43e55c3e26ebe8a2280226d3",
+      "size": 12429
+    },
+    {
+      "path": "scripts/electron/lib/presentation-element-scenario.mjs",
+      "exists": true,
+      "sha256": "16fbcfb24538219e4882319ce478fe85edfa81b71871af33bb8b126ff8079626",
+      "size": 31675
+    },
+    {
+      "path": "scripts/electron/lib/presentation-navigation-scenario.mjs",
+      "exists": true,
+      "sha256": "343f67a94393995077a19071ee0e4be3c60225a75e4803dd5991ac9a362be0ac",
+      "size": 23016
+    },
+    {
+      "path": "scripts/electron/lib/presentation-preview-scenario.mjs",
+      "exists": true,
+      "sha256": "8e7fbe90692ffe555f8c9c3c7122cacd63648b2dbd31f1c77798c36b8a9de4bf",
+      "size": 8307
+    },
+    {
+      "path": "scripts/electron/lib/presentation-rich-text-scenario.mjs",
+      "exists": true,
+      "sha256": "0bd13aca40c8c83b65d9d3a41dfba8652280aeb08e789f5547a0a893817fea96",
+      "size": 19349
+    },
+    {
+      "path": "scripts/electron/lib/presentation-structure-scenario.mjs",
+      "exists": true,
+      "sha256": "b62c30aafd62fc5a2bb3ccd141299e556d542e1c1a43384c60cce0406670863e",
+      "size": 24225
+    },
+    {
+      "path": "scripts/electron/lib/presentation-table-advanced-scenario.mjs",
+      "exists": true,
+      "sha256": "808dba1d96cbea97b0e95b9af592551ba2c73a15cb906f09cd38048089fa0fc6",
+      "size": 25739
+    },
+    {
+      "path": "scripts/electron/lib/presentation-table-builtin-scenario.mjs",
+      "exists": true,
+      "sha256": "19c3079e1b24117e69ce5e403c78cf7c0fa67e5707ff610c35e54df701f70613",
+      "size": 25201
+    },
+    {
+      "path": "scripts/electron/lib/presentation-table-format-scenario.mjs",
+      "exists": true,
+      "sha256": "a93d4ad0f2886d2e93dbb0fb0a624f5e61ad299ca9203c1fe7e3bfd9ee48f639",
+      "size": 23647
+    },
+    {
+      "path": "scripts/electron/lib/presentation-table-reorder-scenario.mjs",
+      "exists": true,
+      "sha256": "804b96646b9785b9b9319a9fafb1f4a30acdec2495089862c38209caf26cd03c",
+      "size": 21863
+    },
+    {
+      "path": "scripts/electron/lib/presentation-table-row-resize-scenario.mjs",
+      "exists": true,
+      "sha256": "9c943d3f443560e65c6ce063ce16fac23aacd867a8b222cee35eca310edf7364",
+      "size": 21006
+    },
+    {
+      "path": "scripts/electron/lib/presentation-table-scenario.mjs",
+      "exists": true,
+      "sha256": "323d6ab7685cccdea8d8f2623a050f259780f138d654ae35499f1a545667623e",
+      "size": 21031
+    },
+    {
+      "path": "scripts/electron/lib/presentation-table-structure-scenario.mjs",
+      "exists": true,
+      "sha256": "c3e6b7e803078c9bd0a5393b85d558b761b04397c899108996ec38e56ab922bd",
+      "size": 21057
+    },
+    {
+      "path": "scripts/electron/lib/right-surface-lifecycle-gate-b.mjs",
+      "exists": true,
+      "sha256": "2cb24738b543bb390255c77d4f9c87c6da4e65631d53efd12b0993b5976ad609",
+      "size": 13316
+    },
+    {
+      "path": "scripts/electron/lib/right-surface-lifecycle-gate-b.test.mjs",
+      "exists": true,
+      "sha256": "0408e709ebdb512d95eada61007471fb5131b2e805fb6cf2cc6954c51b0a20db",
+      "size": 7765
+    },
+    {
+      "path": "scripts/electron/lib/thread-side-panel-file-editor-scenario.mjs",
+      "exists": true,
+      "sha256": "16c2683524c5f773ec1d507b7d12dc9c679bc48340ea55096adf1c535b64e5a2",
+      "size": 19442
+    },
+    {
+      "path": "scripts/electron/lib/thread-side-panel-navigation.mjs",
+      "exists": true,
+      "sha256": "be683e1b24588d996250aa733a8b3fef8ef7095c6c1c02bb10c270f3887b1469",
+      "size": 2986
+    },
+    {
+      "path": "scripts/electron/lib/thread-side-panel-new-tab-scenario.mjs",
+      "exists": true,
+      "sha256": "2ffbf7b3e33a6641969f408cfa06f7fcfd5c37329dc346a7890124406a325974",
+      "size": 23522
+    },
+    {
+      "path": "scripts/electron/lib/thread-side-panel-website-gate-b.mjs",
+      "exists": true,
+      "sha256": "05b3b6d1b6f41033f907544158ad90348856ff81793fd7157ac8800ad5fc93cb",
+      "size": 21223
+    },
+    {
+      "path": "scripts/electron/lib/workbook-annotation-scenario.mjs",
+      "exists": true,
+      "sha256": "11c5b66f77ded8fe104fdec901c8224b26a70a72b7591e6d0866e738c31c25c2",
+      "size": 12948
+    },
+    {
+      "path": "scripts/electron/lib/workbook-clipboard-scenario.mjs",
+      "exists": true,
+      "sha256": "70496e9c1fc32606a66ad7e05f6e3f56b80e47ce5ecd5a3c12f1b8f1784054ec",
+      "size": 19603
+    },
+    {
+      "path": "scripts/electron/lib/workbook-editing-scenario.mjs",
+      "exists": true,
+      "sha256": "a72c0e0bf23b7773417a41b11f1f2d5e7dd552ddcaa5851dce98c11ea4815881",
+      "size": 11273
+    },
+    {
+      "path": "scripts/electron/lib/workbook-preview-scenario.mjs",
+      "exists": true,
+      "sha256": "29c34bb56265d1118a0b6f05d775a7820ed2e7a20c185ae50c94d647e7f61e43",
+      "size": 10143
+    },
+    {
+      "path": "scripts/harness/deepswe-desktop-controlled-smoke.mjs",
+      "exists": true,
+      "sha256": "fe6c96131221b42fd2ae59c6d634553fa2d9c1cbc6dbda7ff9f45bbd97dd86a8",
+      "size": 56361
+    },
+    {
+      "path": "scripts/lib/legacy-surface-report-core.test.ts",
+      "exists": true,
+      "sha256": "a482c7689994bca4e82f2a7450cf1335e7dc11304fa29b2602db1597377cf04c",
+      "size": 10920
+    },
+    {
+      "path": "scripts/lib/run-vitest-smart.unit.test.mjs",
+      "exists": true,
+      "sha256": "86db99c2453c8d6ebf5d0d93059da3af6028ee0a99a3d5cc3066d2e2746831bd",
+      "size": 14846
+    },
+    {
+      "path": "scripts/lib/vitest-test-file-filter.mjs",
+      "exists": true,
+      "sha256": "235d1eb7768533063b9d01c7b6af188201154c6b9eabb9b09a616b50f7becfeb",
+      "size": 1088
+    },
+    {
+      "path": "scripts/lib/vitest-test-file-filter.test.mjs",
+      "exists": true,
+      "sha256": "4e11dab5d07e52dfc88fd33ed829974610e519e3b86715e8d0d87d0f9c29b40d",
+      "size": 2171
+    },
+    {
+      "path": "src/App.tsx",
+      "exists": true,
+      "sha256": "68a8fc45f2cfee1b77a41f56bf4ddb762f384c6c53dc9419c90cbbe64fc126c3",
+      "size": 19313
+    },
+    {
+      "path": "src/browserAnnotation.tsx",
+      "exists": true,
+      "sha256": "2bafb5008b83d9adeac150afacc2062037e7806b7efebc71309b92110df63c14",
+      "size": 565
+    },
+    {
+      "path": "src/components/agent/chat/components/CanvasWorkbenchLayout.coding.test.tsx",
+      "exists": true,
+      "sha256": "53cc0e15d116a3bbbfd96d8431eba4b91662f15287d51ff44c7489c04f50dea7",
+      "size": 42256
+    },
+    {
+      "path": "src/components/agent/chat/components/CanvasWorkbenchLayout.test.tsx",
+      "exists": true,
+      "sha256": "a921dfcb487dffbbfe82cdec17c4b3ac4b69743dc4a3afec6a7193e66dbe1a2f",
+      "size": 26854
+    },
+    {
+      "path": "src/components/agent/chat/components/CanvasWorkbenchLayout.testFixtures.tsx",
+      "exists": true,
+      "sha256": "52dc8f460cbd9712dec2eaf6ee6918b3baba91fbe5f4d6235ec244da553e369f",
+      "size": 18954
+    },
+    {
+      "path": "src/components/agent/chat/components/CanvasWorkbenchLayout.tsx",
+      "exists": true,
+      "sha256": "d8c6510c1bf4a346978717c3919eec8e8ab56b5d2ec96ce0fd97f9cf6a90f103",
+      "size": 19632
+    },
+    {
+      "path": "src/components/agent/chat/components/CanvasWorkbenchLayoutViewModel.ts",
+      "exists": true,
+      "sha256": "4569b9c1c301bbfb70cc6f10b3c6d78068826f26173d92976f6e0be1e957d178",
+      "size": 14821
+    },
+    {
+      "path": "src/components/agent/chat/components/CanvasWorkbenchLayoutViewModel.unit.test.ts",
+      "exists": true,
+      "sha256": "fc967ad74bb6d6ba5d6981fc6cac11e9878896a229e41cbdde0e490e56e131c6",
+      "size": 6901
+    },
+    {
+      "path": "src/components/agent/chat/components/InlineToolProcessStep.test.tsx",
+      "exists": true,
+      "sha256": "fcaa380551e2719992ef841c7f2cb6c3695342367e8dff296228d4d69bbeadfc",
+      "size": 39786
+    },
+    {
+      "path": "src/components/agent/chat/components/InlineToolProcessStep.tsx",
+      "exists": true,
+      "sha256": "c74b2ed425e2090547e53b7db192f35eeccc08561f82fdaae75134322e109bd1",
+      "size": 35571
+    },
+    {
+      "path": "src/components/agent/chat/components/Inputbar/components/InputbarComposerSection.tsx",
+      "exists": true,
+      "sha256": "29ebc77917e5bedac2162440856b0b232bba29f08940d03aeb3f8432f88eb021",
+      "size": 13547
+    },
+    {
+      "path": "src/components/agent/chat/components/Inputbar/components/InputbarCore.tsx",
+      "exists": true,
+      "sha256": "d495964244c4419c75b479adf48b6f57e56a27d7f477ea510182229d581a980e",
+      "size": 22876
+    },
+    {
+      "path": "src/components/agent/chat/components/Inputbar/hooks/useInputbarController.ts",
+      "exists": true,
+      "sha256": "7198fe05ba06fe56ae7e988bdb7768716e9984bd6b5d555fc797cc8a6cfc5754",
+      "size": 14528
+    },
+    {
+      "path": "src/components/agent/chat/components/Inputbar/hooks/useInputbarSend.additionalContent.component.test.tsx",
+      "exists": true,
+      "sha256": "f47eaaf849f4d85e2a717bfa4021bcaff0633ef7cde027fc88bf14e76388da70",
+      "size": 11991
+    },
+    {
+      "path": "src/components/agent/chat/components/Inputbar/hooks/useInputbarSend.ts",
+      "exists": true,
+      "sha256": "8f79d0b8c1e29c56d5938efae60c45f4e022ad72ee5dfe7b9243ef037521e42b",
+      "size": 17634
+    },
+    {
+      "path": "src/components/agent/chat/components/Inputbar/index.tsx",
+      "exists": true,
+      "sha256": "b0fee554e4f85a826a2a02b5b045fa6f456a997ac11cb6565825639c5fb0576f",
+      "size": 12119
+    },
+    {
+      "path": "src/components/agent/chat/components/Inputbar/inputbarSendPayload.ts",
+      "exists": true,
+      "sha256": "1a19e613ededcfa9bfbe00375bb73e888296e5c7826cfe0e573a32c3cd86faae",
+      "size": 2828
+    },
+    {
+      "path": "src/components/agent/chat/components/README.md",
+      "exists": true,
+      "sha256": "a0ba5366a463184cd6758a9ce248266292780c725724a34c2fe13b8d26c6e999",
+      "size": 3345
+    },
+    {
+      "path": "src/components/agent/chat/components/ToolCallDisplay.commandOutput.test.tsx",
+      "exists": true,
+      "sha256": "6ee0702c0ed0d83c784847f3bb623e018cd96718346000e6de795bec82625554",
+      "size": 19872
+    },
+    {
+      "path": "src/components/agent/chat/components/ToolCallDisplay.tsx",
+      "exists": true,
+      "sha256": "5e843f2fccb9402b4991e051a7ffa7d571576ec65a60a275687bd69ba60332f4",
+      "size": 31789
+    },
+    {
+      "path": "src/components/agent/chat/components/ToolCallDisplayResultPanel.tsx",
+      "exists": true,
+      "sha256": "df9ab12fa92258673692db18ff0da4d2a1948ae5e3485ec8fcd9a688e76e1035",
+      "size": 18861
+    },
+    {
+      "path": "src/components/agent/chat/components/canvas-workbench/CanvasWorkbenchLayoutState.ts",
+      "exists": true,
+      "sha256": "ed406c175f0dcecec983e9e46b4141217e03d97e07f990644469c99f8d63a7e8",
+      "size": 2563
+    },
+    {
+      "path": "src/components/agent/chat/components/canvas-workbench/CanvasWorkbenchPreviewModePanel.test.tsx",
+      "exists": false,
+      "sha256": null,
+      "size": null
+    },
+    {
+      "path": "src/components/agent/chat/components/canvas-workbench/CanvasWorkbenchPreviewModePanel.tsx",
+      "exists": false,
+      "sha256": null,
+      "size": null
+    },
+    {
+      "path": "src/components/agent/chat/components/canvas-workbench/CanvasWorkbenchPreviewModeViewModel.ts",
+      "exists": false,
+      "sha256": null,
+      "size": null
+    },
+    {
+      "path": "src/components/agent/chat/components/canvas-workbench/CanvasWorkbenchPreviewModeViewModel.unit.test.ts",
+      "exists": false,
+      "sha256": null,
+      "size": null
+    },
+    {
+      "path": "src/components/agent/chat/components/canvas-workbench/CanvasWorkbenchShell.tsx",
+      "exists": true,
+      "sha256": "e7782b2f37499164256bfd64f0c4505fae3d9d116cac777aa59697af700e50db",
+      "size": 9703
+    },
+    {
+      "path": "src/components/agent/chat/components/canvas-workbench/changes/CanvasWorkbenchChangesPanel.tsx",
+      "exists": true,
+      "sha256": "1f0ddc9b5212bc115141005da652e251b8e39213ca122337b842fe330b818711",
+      "size": 19107
+    },
+    {
+      "path": "src/components/agent/chat/components/canvas-workbench/changes/CanvasWorkbenchChangesPanelViewModel.ts",
+      "exists": true,
+      "sha256": "22cdef725038d155ffa2f06be6cc9407b5bd2e568567f98a40bc5321c1b46b1a",
+      "size": 19342
+    },
+    {
+      "path": "src/components/agent/chat/components/canvas-workbench/changes/canvasWorkbenchPatch.ts",
+      "exists": true,
+      "sha256": "69642b045318577a8cffde697acca744eeb4cd245bcee7273cc04737cbbb320d",
+      "size": 8117
+    },
+    {
+      "path": "src/components/agent/chat/components/canvas-workbench/files/useCanvasWorkbenchFileTreeState.ts",
+      "exists": false,
+      "sha256": null,
+      "size": null
+    },
+    {
+      "path": "src/components/agent/chat/components/canvas-workbench/files/useFileTreeResize.test.tsx",
+      "exists": false,
+      "sha256": null,
+      "size": null
+    },
+    {
+      "path": "src/components/agent/chat/components/canvas-workbench/files/useFileTreeResize.ts",
+      "exists": false,
+      "sha256": null,
+      "size": null
+    },
+    {
+      "path": "src/components/agent/chat/components/canvas-workbench/files/workspaceFileDisplay.ts",
+      "exists": false,
+      "sha256": null,
+      "size": null
+    },
+    {
+      "path": "src/components/agent/chat/components/canvas-workbench/files/workspaceFilePreview.ts",
+      "exists": false,
+      "sha256": null,
+      "size": null
+    },
+    {
+      "path": "src/components/agent/chat/components/canvas-workbench/index.ts",
+      "exists": true,
+      "sha256": "3123f1cf69e962e52e113d07282c7e666ec001b3be515360568133dd690d6ae3",
+      "size": 265
+    },
+    {
+      "path": "src/components/agent/chat/components/canvas-workbench/useCanvasWorkbenchDocumentState.ts",
+      "exists": true,
+      "sha256": "970a4b8d087d29d45cf1e9cee52e74a23dc5c63f3621df8cee19dcba3033fdae",
+      "size": 10926
+    },
+    {
+      "path": "src/components/agent/chat/index.workbench03.test.tsx",
+      "exists": true,
+      "sha256": "b853039bde75792f3a9973a3a4157c942f8610e2d432e079b6c043ca9e809740",
+      "size": 13531
+    },
+    {
+      "path": "src/components/agent/chat/workspace/FilePreviewHeader.tsx",
+      "exists": true,
+      "sha256": "0cce0aa603815e74cb117bc7d4e0b0ccce359b24db35746ee9ef87cfa1a73b0f",
+      "size": 1309
+    },
+    {
+      "path": "src/components/agent/chat/workspace/FilePreviewPanel.test.tsx",
+      "exists": true,
+      "sha256": "b19a1e9be1e362a9c606e860b311815dfe0c8a23c9e6e714c1aba466a8bb2fd9",
+      "size": 4488
+    },
+    {
+      "path": "src/components/agent/chat/workspace/FilePreviewPanel.tsx",
+      "exists": true,
+      "sha256": "b7c750febe1313bc2936d8b5f438a92c8e675fc462cebe7e67a9f88bed243539",
+      "size": 7025
+    },
+    {
+      "path": "src/components/agent/chat/workspace/FilePreviewTabContent.actions.test.tsx",
+      "exists": true,
+      "sha256": "a87e79376aaa9cb33a69497e1299240546f5498ecf8d67d6ed1394cab174c4a1",
+      "size": 6884
+    },
+    {
+      "path": "src/components/agent/chat/workspace/FilePreviewTabContent.annotations.test.tsx",
+      "exists": true,
+      "sha256": "3dc4eb4f1bc575adbc55b7f7a71393b9332d7dea3948be9d1cff5cbabd74e51c",
+      "size": 5337
+    },
+    {
+      "path": "src/components/agent/chat/workspace/FilePreviewTabContent.test.tsx",
+      "exists": true,
+      "sha256": "959c84100a9279974d1955e89eb0530e0a1f1505c043928d92b41fe958ddeace",
+      "size": 11786
+    },
+    {
+      "path": "src/components/agent/chat/workspace/FilePreviewTabContent.tsx",
+      "exists": true,
+      "sha256": "6d8249c4a196ee89b471f7e1be59e131eead59275c86802f9ccc4e727846403c",
+      "size": 2621
+    },
+    {
+      "path": "src/components/agent/chat/workspace/WorkspaceFileThreadSidePanelTab.test.tsx",
+      "exists": true,
+      "sha256": "f64a45846a150d69e90451bbafe589fd9a1be2f4a9ba031bcbaed6e3e9f7c4d7",
+      "size": 12206
+    },
+    {
+      "path": "src/components/agent/chat/workspace/WorkspaceFileThreadSidePanelTab.tsx",
+      "exists": true,
+      "sha256": "0a3e041ceb7cce01050e719d69f7ebfc3a23390c55eed6631d51d9dfd6dcdfc1",
+      "size": 8304
+    },
+    {
+      "path": "src/components/agent/chat/workspace/WorkspaceRightSurfaceHostRuntime.test.tsx",
+      "exists": true,
+      "sha256": "bc1a4d68faa88fe24fa5d161417242fd8a9f9b75ae05ee820b525351f4b0e8ac",
+      "size": 14149
+    },
+    {
+      "path": "src/components/agent/chat/workspace/WorkspaceRightSurfaceHostRuntime.tsx",
+      "exists": true,
+      "sha256": "e14bccf684bebb1fde82a9b02a1c4f8c9f78f964a11bb29f34adf0ad0ef24cd7",
+      "size": 12915
+    },
+    {
+      "path": "src/components/agent/chat/workspace/fileClick.component.test.tsx",
+      "exists": true,
+      "sha256": "5f6caf26863a12365622fdaa89cde7c62b47ca4363b96d0941e68322d7bb94e6",
+      "size": 9332
+    },
+    {
+      "path": "src/components/agent/chat/workspace/filePreviewModel.ts",
+      "exists": true,
+      "sha256": "e36a8c973a76bc8cd9ed140e5a11b892c9de60667ae507ed48e01f0e731c9c76",
+      "size": 6255
+    },
+    {
+      "path": "src/components/agent/chat/workspace/filePreviewModel.unit.test.ts",
+      "exists": true,
+      "sha256": "bf3c8e7e9b588cf7a2223eb48565e80a9786149b29fe2711013b8566454febab",
+      "size": 5382
+    },
+    {
+      "path": "src/components/agent/chat/workspace/filePreviewTarget.ts",
+      "exists": true,
+      "sha256": "c506e15dc6a94be9d588b9ba2342f71da9e471d00fadbf1062c45e31121dee40",
+      "size": 3086
+    },
+    {
+      "path": "src/components/agent/chat/workspace/right-surface/RightSurfaceHost.tsx",
+      "exists": true,
+      "sha256": "b358a10d33df4dcc10d24c36dba53780e24ffbfe6b7102b2bd11acd2ad31e4c7",
+      "size": 2908
+    },
+    {
+      "path": "src/components/agent/chat/workspace/right-surface/RightSurfaceHost.unit.test.tsx",
+      "exists": true,
+      "sha256": "6718297ca624df100f808f5c3ee682a8d79aebfed52789f3965ad70b3f4a39db",
+      "size": 13098
+    },
+    {
+      "path": "src/components/agent/chat/workspace/right-surface/RightSurfaceTabStrip.tsx",
+      "exists": true,
+      "sha256": "3c94017bea5a60e0791d75480bdec3391d2da527f8f9c5f24f809378ae42f3e6",
+      "size": 7995
+    },
+    {
+      "path": "src/components/agent/chat/workspace/right-surface/ThreadSidePanelNewTab.browser.component.test.tsx",
+      "exists": true,
+      "sha256": "9b937c06ff870dd13027df6f93f684a8834b49dc25ae336350415e12e7fd0f14",
+      "size": 3464
+    },
+    {
+      "path": "src/components/agent/chat/workspace/right-surface/ThreadSidePanelNewTab.tsx",
+      "exists": true,
+      "sha256": "d283e85017180a4f72fd100555868b07feedb3621e2745a708033e37a59f3ab3",
+      "size": 7413
+    },
+    {
+      "path": "src/components/agent/chat/workspace/right-surface/WorkspaceDirectoryTree.tsx",
+      "exists": true,
+      "sha256": "a7df815041a6e351dcca03f389e9a5aa24ac35a29c3f51dc9a1da2e7a082629d",
+      "size": 1612
+    },
+    {
+      "path": "src/components/agent/chat/workspace/right-surface/WorkspaceFileTree.component.test.tsx",
+      "exists": true,
+      "sha256": "6af3bf6e52d1360f19add547eecd5d595850235916ebdc85c81aa525452e1560",
+      "size": 10038
+    },
+    {
+      "path": "src/components/agent/chat/workspace/right-surface/WorkspaceFileTree.tsx",
+      "exists": true,
+      "sha256": "752a096a8d8ce159715b0f66c45e8a2a7167123f921b91fc1a6f7a17e750dad7",
+      "size": 5609
+    },
+    {
+      "path": "src/components/agent/chat/workspace/right-surface/browser/BrowserAnnotationAccessory.tsx",
+      "exists": true,
+      "sha256": "020e5c2f2e3a8f0dc2c633ee8d759434543bb8ffa0f37aaff8fbd2f74eb7c30c",
+      "size": 4680
+    },
+    {
+      "path": "src/components/agent/chat/workspace/right-surface/browser/BrowserAnnotationContext.ts",
+      "exists": true,
+      "sha256": "03697bb1a7369c17fbe32e038dd71423b19be0806fdce8c8714df811ffd032f6",
+      "size": 499
+    },
+    {
+      "path": "src/components/agent/chat/workspace/right-surface/browser/BrowserAnnotationEditor.component.test.tsx",
+      "exists": true,
+      "sha256": "bb6c6d8186deab0bbc08c5be320092953a853adfb02d08cd73f2dc9a23502f69",
+      "size": 15699
+    },
+    {
+      "path": "src/components/agent/chat/workspace/right-surface/browser/BrowserAnnotationEditor.tsx",
+      "exists": true,
+      "sha256": "5a7de5318fd42b5b0d359700e7301623916dabde99998d707ba0f198cd5a924e",
+      "size": 11639
+    },
+    {
+      "path": "src/components/agent/chat/workspace/right-surface/browser/BrowserDeviceToolbar.component.test.tsx",
+      "exists": true,
+      "sha256": "b8be5dc2f972ea790e7ad9a8e441691369ff172ca64a2a032bb5a407b3e6f856",
+      "size": 4538
+    },
+    {
+      "path": "src/components/agent/chat/workspace/right-surface/browser/BrowserDeviceToolbar.tsx",
+      "exists": true,
+      "sha256": "b6706f0218866d58a8da45b44b9be6071563e6d306d174a7ea855e1edb850350",
+      "size": 6116
+    },
+    {
+      "path": "src/components/agent/chat/workspace/right-surface/browser/BrowserFindBar.component.test.tsx",
+      "exists": true,
+      "sha256": "6058a8c348c254cf7208fe5cfcbd5d9373e68f113a2eb858d25a2b06ca7cc2ab",
+      "size": 3005
+    },
+    {
+      "path": "src/components/agent/chat/workspace/right-surface/browser/BrowserFindBar.tsx",
+      "exists": true,
+      "sha256": "51397a2602e6f8e4dbfd9faa5af26ac71efd37fd2c476ef3e1dcfa669bb015c2",
+      "size": 3261
+    },
+    {
+      "path": "src/components/agent/chat/workspace/right-surface/browser/BrowserNavigationBar.component.test.tsx",
+      "exists": true,
+      "sha256": "2f1671ffff8b5f0aafad3b9871eaeef8323ca3b6a5c38806c5dc45aec03d68d5",
+      "size": 7540
+    },
+    {
+      "path": "src/components/agent/chat/workspace/right-surface/browser/BrowserNavigationBar.tsx",
+      "exists": true,
+      "sha256": "a8acbb9be05ba5a1648d14256a9dfbcf7e617f6fe72ef190c4f95ebd684cabcb",
+      "size": 6874
+    },
+    {
+      "path": "src/components/agent/chat/workspace/right-surface/browser/BrowserNewTabAddress.component.test.tsx",
+      "exists": true,
+      "sha256": "0d784e544ebd67fe8df8c06fecfc0a5ed55b59f1a7487e159a8b228e1ea9c16b",
+      "size": 6839
+    },
+    {
+      "path": "src/components/agent/chat/workspace/right-surface/browser/BrowserNewTabAddress.tsx",
+      "exists": true,
+      "sha256": "94710f124b5a9e176a5a91e089c1d11513e43341eaf7fdbd9a91c0860add9fec",
+      "size": 5318
+    },
+    {
+      "path": "src/components/agent/chat/workspace/right-surface/browser/BrowserOptionsMenu.component.test.tsx",
+      "exists": true,
+      "sha256": "5273b2c03cef93e48b2b48057542fbcf2f320a837d06db4ef8ff0732d95fb6cb",
+      "size": 3374
+    },
+    {
+      "path": "src/components/agent/chat/workspace/right-surface/browser/BrowserOptionsMenu.tsx",
+      "exists": true,
+      "sha256": "602e1ba1752ad98fdbdb36d7eea94859d37902ba62a8be28ae72afb5f85f969b",
+      "size": 5062
+    },
+    {
+      "path": "src/components/agent/chat/workspace/right-surface/browser/BrowserTabIcon.tsx",
+      "exists": true,
+      "sha256": "021bb48055679781717862326a5e8f3acf7eab8b94c8d9bf6ca2b583aacff69f",
+      "size": 534
+    },
+    {
+      "path": "src/components/agent/chat/workspace/right-surface/browser/BrowserWorkspace.test.tsx",
+      "exists": true,
+      "sha256": "c37069ac0ee67753425133cd10497b998d41406e04726d40982b7a47d25b43e5",
+      "size": 22485
+    },
+    {
+      "path": "src/components/agent/chat/workspace/right-surface/browser/BrowserWorkspace.tsx",
+      "exists": true,
+      "sha256": "fc5bd69c2ae2ffd1abe83956e54edc90589ec1fbc8e18bec75e386a6f29d02e9",
+      "size": 16678
+    },
+    {
+      "path": "src/components/agent/chat/workspace/right-surface/browser/RightSurfaceBrowserPanel.test.tsx",
+      "exists": true,
+      "sha256": "85a1c33c0ef55c4c9535c0836581cdd900e23ab2b73715f8de22bfbb657dcac5",
+      "size": 6189
+    },
+    {
+      "path": "src/components/agent/chat/workspace/right-surface/browser/RightSurfaceBrowserPanel.tsx",
+      "exists": true,
+      "sha256": "7cd88483eed593404a8f0b89144487f7baa053e5af3645844660c46dcdad4234",
+      "size": 4338
+    },
+    {
+      "path": "src/components/agent/chat/workspace/right-surface/browser/browserAnnotationDrafts.ts",
+      "exists": true,
+      "sha256": "b4440ebccc4bda9e1948406ee85268434fbaea394c27714af331055c18a9db4b",
+      "size": 4921
+    },
+    {
+      "path": "src/components/agent/chat/workspace/right-surface/browser/browserAnnotationSubmission.ts",
+      "exists": true,
+      "sha256": "840374ff3e24e0e59e4099a319e3c73c5b73c29d68613bf727c0c08e9e3e8bde",
+      "size": 4961
+    },
+    {
+      "path": "src/components/agent/chat/workspace/right-surface/browser/browserAnnotationSubmission.unit.test.ts",
+      "exists": true,
+      "sha256": "7518b2beb5e408b457af2ab5c338fda1f80cd346f68e45e8cff3262be8f538ce",
+      "size": 8083
+    },
+    {
+      "path": "src/components/agent/chat/workspace/right-surface/browser/browserTabEventIdentity.ts",
+      "exists": true,
+      "sha256": "c49acefd41a73a1543b9cf049ffb8e8959f25a2110c34ad979cb856364b8930c",
+      "size": 562
+    },
+    {
+      "path": "src/components/agent/chat/workspace/right-surface/browser/browserWorkspace.testFixtures.ts",
+      "exists": true,
+      "sha256": "b1e03732ecbc4038a2c73b563878ac8d09917d840957af1c1a644a585f12aa1a",
+      "size": 2319
+    },
+    {
+      "path": "src/components/agent/chat/workspace/right-surface/browser/browserWorkspaceModel.ts",
+      "exists": true,
+      "sha256": "225e68f8d3ec69938690555370a98ff5941019e63b2ca4e9a56add9e12fc9297",
+      "size": 2032
+    },
+    {
+      "path": "src/components/agent/chat/workspace/right-surface/browser/browserWorkspaceModel.unit.test.ts",
+      "exists": true,
+      "sha256": "50df5672780d6677fdc824159a1076a67c7d4be0709a69fd8900faa793862e6f",
+      "size": 679
+    },
+    {
+      "path": "src/components/agent/chat/workspace/right-surface/browser/useBrowserAnnotationDrafts.ts",
+      "exists": true,
+      "sha256": "eff87e988f2acdda7f65cde5e7df211cf141b164a70430b63414c5bb98f64db8",
+      "size": 944
+    },
+    {
+      "path": "src/components/agent/chat/workspace/right-surface/browser/useBrowserAnnotations.component.test.tsx",
+      "exists": true,
+      "sha256": "32aa801c7bc77b7ce400f3a4a0748a33d5c58d78fe624aed2df8b51681bab08c",
+      "size": 11352
+    },
+    {
+      "path": "src/components/agent/chat/workspace/right-surface/browser/useBrowserAnnotations.ts",
+      "exists": true,
+      "sha256": "6e061f00c7372330f8c43726559a8f41fa1b785bdf42cf8a26c8af2768e1ea72",
+      "size": 15166
+    },
+    {
+      "path": "src/components/agent/chat/workspace/right-surface/browser/useBrowserNativeMenu.component.test.tsx",
+      "exists": true,
+      "sha256": "775794993d80c7b0c37c3ece4bd79ad7b58de2b0f67aa5f9bacb2aa37ce5117e",
+      "size": 9432
+    },
+    {
+      "path": "src/components/agent/chat/workspace/right-surface/browser/useBrowserNativeMenu.ts",
+      "exists": true,
+      "sha256": "b05085d54702b4a5d44d2083d6cebdff8fd1cdd2a8fee38655554e3d865d2d15",
+      "size": 4936
+    },
+    {
+      "path": "src/components/agent/chat/workspace/right-surface/browser/workspaceBrowserNavigationContext.ts",
+      "exists": true,
+      "sha256": "49a2b0246de95c51f8213c6ca73a56183e491117e7cb7ac84261db93051db33d",
+      "size": 301
+    },
+    {
+      "path": "src/components/agent/chat/workspace/right-surface/browser/workspaceBrowserTabs.ts",
+      "exists": true,
+      "sha256": "6c7067768a7fdc4cf648523053552aad6c318792144875d87e4a7b891857f866",
+      "size": 2780
+    },
+    {
+      "path": "src/components/agent/chat/workspace/right-surface/browser/workspaceBrowserTabs.unit.test.ts",
+      "exists": true,
+      "sha256": "ff469805e50e83254bba50fe1678340c6e95a688771030d24a5d2276542f9412",
+      "size": 3088
+    },
+    {
+      "path": "src/components/agent/chat/workspace/right-surface/openWorkspaceFile.ts",
+      "exists": true,
+      "sha256": "d53ce5f6a16ffaf1b736230b741b6f3eed6af4482a964e5753a5c6db49b6ff8c",
+      "size": 2127
+    },
+    {
+      "path": "src/components/agent/chat/workspace/right-surface/rightSurfaceTabContext.ts",
+      "exists": true,
+      "sha256": "9c366bf0c3535c200b791e57a9f362a9b94a79047d62827b5117c45629056213",
+      "size": 311
+    },
+    {
+      "path": "src/components/agent/chat/workspace/right-surface/threadSidePanelTabs.ts",
+      "exists": true,
+      "sha256": "b32c0d0caa65264f5aa5cddc45c7c6deb78af1f7a6d0c962671d014bd9084246",
+      "size": 3378
+    },
+    {
+      "path": "src/components/agent/chat/workspace/right-surface/useFileTreeResize.test.tsx",
+      "exists": true,
+      "sha256": "cf0c63ffd48ee665b6933e69d59c6d045a43b7326739466d9e0cb387db3f589c",
+      "size": 5977
+    },
+    {
+      "path": "src/components/agent/chat/workspace/right-surface/useFileTreeResize.ts",
+      "exists": true,
+      "sha256": "a11ad48773009adce91a7aef0fa2722a8a70ad0b2ebc6a76cdb8bb273173e3d6",
+      "size": 5033
+    },
+    {
+      "path": "src/components/agent/chat/workspace/right-surface/useFileTreeState.ts",
+      "exists": true,
+      "sha256": "3c20e8b57f0ee8c4e54dbfce30270a1c6f9f3068e9c16936e505c776e28cc2ce",
+      "size": 5476
+    },
+    {
+      "path": "src/components/agent/chat/workspace/text-file-editor/FileSourceBreadcrumb.contextMenu.test.tsx",
+      "exists": true,
+      "sha256": "a01e34b38cf53bcb00d328d5045a57a4689e969155e175fa51684c8920f3c8b0",
+      "size": 5048
+    },
+    {
+      "path": "src/components/agent/chat/workspace/text-file-editor/FileSourceBreadcrumb.test.tsx",
+      "exists": true,
+      "sha256": "3a8f0a065b8b4a8ab0ca81830fa297d8100f2431c4c55202300b8681b69dec3a",
+      "size": 6449
+    },
+    {
+      "path": "src/components/agent/chat/workspace/text-file-editor/FileSourceBreadcrumb.tsx",
+      "exists": true,
+      "sha256": "486ee214b4f2133fca0ee2c7098b76433ad136fd1307f258b3432129b1280034",
+      "size": 6546
+    },
+    {
+      "path": "src/components/agent/chat/workspace/text-file-editor/TextFileEditorTabContent.tsx",
+      "exists": true,
+      "sha256": "d41ad955ee28f79dd23f5953b97ed5bc61d3caf1fa31054b6dd555ac23b01302",
+      "size": 8955
+    },
+    {
+      "path": "src/components/agent/chat/workspace/useAgentChatWorkspaceCommandRuntime.ts",
+      "exists": true,
+      "sha256": "69ac88bc9fefd502ab0105cef69fe4cecf347654d528db0bc55e9cdeb1e1eb98",
+      "size": 26002
+    },
+    {
+      "path": "src/components/agent/chat/workspace/useAgentChatWorkspaceSceneRuntime.tsx",
+      "exists": true,
+      "sha256": "f22bf596377ab0bce80992d5bb18cd0f0256f3ec66ae12594f681e108440b91a",
+      "size": 28519
+    },
+    {
+      "path": "src/components/agent/chat/workspace/useBrowserAnnotationSend.ts",
+      "exists": true,
+      "sha256": "3f176919df07c0340e81ea2ffa6e09ba3de07e8435b19e955e47106d8f261ef1",
+      "size": 1911
+    },
+    {
+      "path": "src/components/agent/chat/workspace/useWorkspaceArtifactActionRuntime.ts",
+      "exists": true,
+      "sha256": "4c95f9c5f8e6668d66d4c4e6182fc306d5b4092d92b521060a78a0c449f550de",
+      "size": 3353
+    },
+    {
+      "path": "src/components/agent/chat/workspace/useWorkspaceArtifactCommentSubmission.test.tsx",
+      "exists": true,
+      "sha256": "37e2d3b075f85739a9de87264c2a06aa6822b675bdee4f531abab95ffbaac6cf",
+      "size": 31368
+    },
+    {
+      "path": "src/components/agent/chat/workspace/useWorkspaceArtifactCommentSubmission.ts",
+      "exists": true,
+      "sha256": "89659489116aee077c3deaf0099d6bb721f7db6cc9dd9df70ee54f9540c13b13",
+      "size": 8263
+    },
+    {
+      "path": "src/components/agent/chat/workspace/useWorkspaceArtifactOpenRuntime.component.test.tsx",
+      "exists": true,
+      "sha256": "687cf5f5240984c1b188bc0e0950d62339ba48bf940d618e2f21281ad8cbbeec",
+      "size": 11674
+    },
+    {
+      "path": "src/components/agent/chat/workspace/useWorkspaceArtifactOpenRuntime.tsx",
+      "exists": true,
+      "sha256": "339bf36723690addeb8fa76ecd6b265f5eb173730e6fac17dc7341392227c9d3",
+      "size": 20276
+    },
+    {
+      "path": "src/components/agent/chat/workspace/useWorkspaceArtifactPreviewActions.test.tsx",
+      "exists": true,
+      "sha256": "2e445b8e47707e88290972729f09fe9974fed819d8eb2ac00c78214e639bb912",
+      "size": 16537
+    },
+    {
+      "path": "src/components/agent/chat/workspace/useWorkspaceArtifactPreviewActions.ts",
+      "exists": true,
+      "sha256": "e0825f0edcf8a6cb1f100493a3cc258497fe53bbb7723cd286452e125422d6d0",
+      "size": 13191
+    },
+    {
+      "path": "src/components/agent/chat/workspace/useWorkspaceBrowserTabProjection.ts",
+      "exists": true,
+      "sha256": "db89612c07ff1d1224f1125235e15988a1d49adbc0b1585994aeaddd63f9e37f",
+      "size": 3319
+    },
+    {
+      "path": "src/components/agent/chat/workspace/useWorkspaceCanvasPreviewRuntime.tsx",
+      "exists": true,
+      "sha256": "f19dc6bc5645d73cddb25c84bf5ab60900e97737a85424b122860cafdf91a5b1",
+      "size": 24602
+    },
+    {
+      "path": "src/components/agent/chat/workspace/useWorkspaceFileOpen.ts",
+      "exists": true,
+      "sha256": "0e5badf37182eeaece08d320d80cc4b11949dcf3729916aeddfb5cfab107714d",
+      "size": 2423
+    },
+    {
+      "path": "src/components/agent/chat/workspace/useWorkspaceInputbarSceneRuntime.tsx",
+      "exists": true,
+      "sha256": "f6a91e5be8995f0ff194ec845623f64d1afb7ebff8baa6ff781ed71812509671",
+      "size": 22176
+    },
+    {
+      "path": "src/components/agent/chat/workspace/useWorkspaceRightSurfaceActionRuntime.ts",
+      "exists": true,
+      "sha256": "a8a7e7c221083c1bcb8a989f7fde8b5b3b599e0fdda23bd2ec18eacbab608e53",
+      "size": 20804
+    },
+    {
+      "path": "src/components/agent/chat/workspace/useWorkspaceRightSurfaceCoordinatorRuntime.browser.component.test.tsx",
+      "exists": true,
+      "sha256": "39d640c93d6f75641671c6b1d1ab163dfb1ae8bc2f39ec29c5d0486416cafac5",
+      "size": 5835
+    },
+    {
+      "path": "src/components/agent/chat/workspace/useWorkspaceRightSurfaceCoordinatorRuntime.ts",
+      "exists": true,
+      "sha256": "901937062f9a675cccc16d1abaf3c4c28a63ac4c17d1ab59a8cb397fba6dcfbe",
+      "size": 16585
+    },
+    {
+      "path": "src/components/agent/chat/workspace/useWorkspaceRightSurfaceHostRuntime.ts",
+      "exists": true,
+      "sha256": "be8c7b012ae3d100bd363cd01843cc58696d473d4c01137084c188421a11c5ce",
+      "size": 12443
+    },
+    {
+      "path": "src/components/agent/chat/workspace/useWorkspaceRightSurfaceLocalStateRuntime.ts",
+      "exists": true,
+      "sha256": "a9c123ab462df1f0b78d015d16b64827ab297adee4751370a11a72c76cff9bdc",
+      "size": 15234
+    },
+    {
+      "path": "src/components/agent/chat/workspace/useWorkspaceRightSurfaceLocalStateRuntime.unit.test.tsx",
+      "exists": true,
+      "sha256": "639b39a71c4686440b4bf3355035d44b890aedaff2ed36550ae9438456918e6a",
+      "size": 16536
+    },
+    {
+      "path": "src/components/agent/chat/workspace/useWorkspaceRightSurfacePendingRuntime.race.component.test.tsx",
+      "exists": true,
+      "sha256": "76843db512a86dd8c8da3f41669dcfe294f32b4bc051ff27289e24ebad201919",
+      "size": 20724
+    },
+    {
+      "path": "src/components/agent/chat/workspace/useWorkspaceRightSurfacePendingRuntime.ts",
+      "exists": true,
+      "sha256": "567d1be811931e62a382308d2c7a9add4a02e939de4a931fa0e144278330b2d7",
+      "size": 21326
+    },
+    {
+      "path": "src/components/agent/chat/workspace/useWorkspaceRightSurfacePendingRuntime.unit.test.tsx",
+      "exists": true,
+      "sha256": "0953ad26134efcc8b57d68523c331275a60483ef1fc797d911cf3343829bae86",
+      "size": 22060
+    },
+    {
+      "path": "src/components/agent/chat/workspace/useWorkspaceServiceSkillResultFileRuntime.ts",
+      "exists": true,
+      "sha256": "9738b84ec816d8ce106914f67de443b9d900868ec66540cf69b3fd713f6c3a33",
+      "size": 2652
+    },
+    {
+      "path": "src/components/agent/chat/workspace/workspacePath.ts",
+      "exists": true,
+      "sha256": "075af82ed7e98bc82c00d11de6f3b60a7073e5d4a04c44203b934bde5abcc0bb",
+      "size": 3174
+    },
+    {
+      "path": "src/components/artifact/annotations/ArtifactNavigationContext.ts",
+      "exists": true,
+      "sha256": "1baedeb9840b6a3cc10cde691530214dd36d3964db31cde37271180311d5d2b6",
+      "size": 233
+    },
+    {
+      "path": "src/components/artifact/annotations/useArtifactAnnotations.ts",
+      "exists": true,
+      "sha256": "dc16a0b837c996c1d60d4c17101868eb15a33d5ddafd1511d519f00c0b5c1f1b",
+      "size": 6353
+    },
+    {
+      "path": "src/components/artifact/document/DocumentPreview.integration.test.tsx",
+      "exists": true,
+      "sha256": "83b99366d1673daf654905442bf064b94304f1869be828fc5f552f635bcba313",
+      "size": 6531
+    },
+    {
+      "path": "src/components/artifact/fileEditLifecycle.ts",
+      "exists": true,
+      "sha256": "198e59e5884c762c128551ca0c9fa4b932a12e9a32516c5d29cee81f8da367fc",
+      "size": 768
+    },
+    {
+      "path": "src/components/artifact/presentation/usePresentationController.ts",
+      "exists": true,
+      "sha256": "8daf57d0bac280a2cfd11b75b256bf5d6485ce6ffc07112c01142b847893c970",
+      "size": 1566
+    },
+    {
+      "path": "src/components/artifact/workbook/useWorkbookController.ts",
+      "exists": true,
+      "sha256": "cbf4d564becc26fffb5a19f919d2baa596a1087eaf12ec1554cd5d59947522ac",
+      "size": 1024
+    },
+    {
+      "path": "src/components/settings-v2/_layout/index.test.tsx",
+      "exists": true,
+      "sha256": "9e9a4357e2ee8b3ccb266d08dbed10e98213ec600392e6f55150fd9ddcb09d3c",
+      "size": 19797
+    },
+    {
+      "path": "src/components/settings-v2/_layout/index.tsx",
+      "exists": true,
+      "sha256": "9bfcb9475ee30a535297a6fb2b20fe35016f63b5426f7a4412288486e9ee5b6f",
+      "size": 8050
+    },
+    {
+      "path": "src/components/settings-v2/general/browser/BrowserAgentPermissions.tsx",
+      "exists": true,
+      "sha256": "0c62b519a259ac19aee16b11105e269d4e0eb2f67e81950e4bde8726dc43937d",
+      "size": 11185
+    },
+    {
+      "path": "src/components/settings-v2/general/browser/BrowserHistoryPage.component.test.tsx",
+      "exists": true,
+      "sha256": "182d81d07401dc44490287a92328e785bef0e131c6cba104c67c83673869947d",
+      "size": 15103
+    },
+    {
+      "path": "src/components/settings-v2/general/browser/BrowserHistoryPage.tsx",
+      "exists": true,
+      "sha256": "c9dd53fe0488203035df458ca7ff270ca724238b63b61788143ec14322b29777",
+      "size": 11960
+    },
+    {
+      "path": "src/components/settings-v2/general/browser/BrowserSettingsFields.tsx",
+      "exists": true,
+      "sha256": "d6fc8fdcd06ad8b13fb054fb3666b22d1d6ea2e77e2c542abb35623039456436",
+      "size": 2486
+    },
+    {
+      "path": "src/components/settings-v2/general/browser/index.tsx",
+      "exists": true,
+      "sha256": "4c0679eaab234ac72826eac3528040a15348603c9189c32e6a72124c7f6c575d",
+      "size": 10314
+    },
+    {
+      "path": "src/components/settings-v2/general/browser/preferences.integration.test.tsx",
+      "exists": true,
+      "sha256": "d0b0f6567832fb1f9e1638311d141f763cb097bd55c87ace79554cdfe1be5443",
+      "size": 15476
+    },
+    {
+      "path": "src/components/settings-v2/general/browser/useBrowserSettings.ts",
+      "exists": true,
+      "sha256": "2d63a373be07b54e5272894bdf7a5194bd437393a567dd1cfc26b93ec060c971",
+      "size": 2295
+    },
+    {
+      "path": "src/components/settings-v2/sections.tsx",
+      "exists": true,
+      "sha256": "01e7b48c522f8de570b0cc870b2c0c4ed96fe4f33e7bb7c84fbfc44caab7ac19",
+      "size": 10301
+    },
+    {
+      "path": "src/components/settings-v2/settingsSearchDocuments.ts",
+      "exists": true,
+      "sha256": "74c72ca547284c36b7a939784146b97ed0b8ccbe7537b2bebd4f0d409bcf43e9",
+      "size": 6890
+    },
+    {
+      "path": "src/contexts/AppNavigationContext.ts",
+      "exists": true,
+      "sha256": "769ca924a71c81033ceb1d50d3efd17efed8dcff7fe67728c140afb830e3634e",
+      "size": 387
+    },
+    {
+      "path": "src/contexts/BrowserHistoryNavigationContext.ts",
+      "exists": true,
+      "sha256": "c72526771346c6a38abc673fd0fc81213aaaf1a1448c98c948398181be930d45",
+      "size": 246
+    },
+    {
+      "path": "src/hooks/useAppNavigation.test.tsx",
+      "exists": true,
+      "sha256": "2814abbe214746a3e1464266901ea2ab592d7d70903b15b5c9da517f472a7603",
+      "size": 22774
+    },
+    {
+      "path": "src/hooks/useAppNavigation.ts",
+      "exists": true,
+      "sha256": "ab989cf9f686ab0b5c57f80e686aa59a510313e9052db91b4f5e20c6bae0fbd0",
+      "size": 15322
+    },
+    {
+      "path": "src/hooks/useBrowserHistoryNavigation.component.test.tsx",
+      "exists": true,
+      "sha256": "fdb991035f4ed7b8c74d09bb1302f22b6684fa154af6665789c9a87e7db23080",
+      "size": 27274
+    },
+    {
+      "path": "src/hooks/useBrowserHistoryNavigation.ts",
+      "exists": true,
+      "sha256": "772e8302d64abe44d8ea9c449416614f293d45cd94a5855a75f525b6e2b43a95",
+      "size": 8335
+    },
+    {
+      "path": "src/hooks/useBrowserPreferences.ts",
+      "exists": true,
+      "sha256": "82c3bd654ac80e32e47e2e48a6115663599778391cd5bbef5365c6f4465999b2",
+      "size": 1004
+    },
+    {
+      "path": "src/i18n/browserResources.unit.test.ts",
+      "exists": true,
+      "sha256": "68b47c908d232f4a830764764d833ef76aebc9f5e939dd5865a2efbdbd50d23f",
+      "size": 1988
+    },
+    {
+      "path": "src/i18n/bundledNamespaceParts.ts",
+      "exists": true,
+      "sha256": "a9bec54bc15d371cf8e1240bf9a41d4f1877eb9d2d249a9a96100b7a9197387b",
+      "size": 1011
+    },
+    {
+      "path": "src/i18n/resources/en-US/agent.json",
+      "exists": true,
+      "sha256": "48a44423a09216fd817b6df2c6d0316fee98d68d4588250217f085e89e90753c",
+      "size": 152056
+    },
+    {
+      "path": "src/i18n/resources/en-US/agentMessageList.json",
+      "exists": true,
+      "sha256": "ddb02b619f77e1567451d55e3cd3b5d07c49f1c601b9a46568ea1cd4f0969f2a",
+      "size": 41204
+    },
+    {
+      "path": "src/i18n/resources/en-US/browserAnnotation.json",
+      "exists": true,
+      "sha256": "f34edfff90c81740125af3662334a0503bc10950549cac36b51c822eae29dfda",
+      "size": 920
+    },
+    {
+      "path": "src/i18n/resources/en-US/browserChrome.json",
+      "exists": true,
+      "sha256": "b57544e1245c6853740f982b07d6f8b95f91cb55a2f0d3efccbffccd7d278df1",
+      "size": 1001
+    },
+    {
+      "path": "src/i18n/resources/en-US/browserHistory.json",
+      "exists": true,
+      "sha256": "1b8ab95a847daa297634b9d3f48839f882b6177a4e4a069fb3bb7f76d2f8a4a3",
+      "size": 1232
+    },
+    {
+      "path": "src/i18n/resources/en-US/settings.json",
+      "exists": true,
+      "sha256": "024aa651dd90a3d7653c27127fc1d094b0f243bcff2e964fc73f9558a68ae8c1",
+      "size": 202992
+    },
+    {
+      "path": "src/i18n/resources/ja-JP/agent.json",
+      "exists": true,
+      "sha256": "f898a10e7a0b24e95a3d815c5fdfcc6b7b16da46b5dd0d727fe6f82e968861fe",
+      "size": 173058
+    },
+    {
+      "path": "src/i18n/resources/ja-JP/agentMessageList.json",
+      "exists": true,
+      "sha256": "2f6a99f31c345d8abb0fbdbe2746ecf91686b1e712308e7b0a640161704cf17b",
+      "size": 46458
+    },
+    {
+      "path": "src/i18n/resources/ja-JP/browserAnnotation.json",
+      "exists": true,
+      "sha256": "97daa0e50c505cbdd73a64ede467fea4f6a904da3934a4cbd34ccff5af2302e8",
+      "size": 1101
+    },
+    {
+      "path": "src/i18n/resources/ja-JP/browserChrome.json",
+      "exists": true,
+      "sha256": "b1d915a35574a3775272a5a07031b0108eeb911c252719faae7a1f98106a0adb",
+      "size": 1193
+    },
+    {
+      "path": "src/i18n/resources/ja-JP/browserHistory.json",
+      "exists": true,
+      "sha256": "8ba60220c378833269825fa1a64533499b14ed0ca46d040b4f8ce1e5f6d1b957",
+      "size": 1494
+    },
+    {
+      "path": "src/i18n/resources/ja-JP/settings.json",
+      "exists": true,
+      "sha256": "5c988f55b2e42c657996b2ea8c20398663001b93420a9ccfbe50d1ec6d17b667",
+      "size": 232828
+    },
+    {
+      "path": "src/i18n/resources/ko-KR/agent.json",
+      "exists": true,
+      "sha256": "c627b355a3c7d008def5a58c894482b9158db182a761b7a526e1826d9492960a",
+      "size": 164515
+    },
+    {
+      "path": "src/i18n/resources/ko-KR/agentMessageList.json",
+      "exists": true,
+      "sha256": "ad1c30b9af3a754117942232da7c55dfe893732dce56645dbe394673b4a425dd",
+      "size": 43448
+    },
+    {
+      "path": "src/i18n/resources/ko-KR/browserAnnotation.json",
+      "exists": true,
+      "sha256": "863dd71cdc3fd9a82bbbcc8620c7f3005e9353c37ed538ee19ed97415ca5f4f9",
+      "size": 1004
+    },
+    {
+      "path": "src/i18n/resources/ko-KR/browserChrome.json",
+      "exists": true,
+      "sha256": "3d11bc2f969dd7f0c17d64aaee3c365cab359c3584f937b7c814751d8192c41c",
+      "size": 1105
+    },
+    {
+      "path": "src/i18n/resources/ko-KR/browserHistory.json",
+      "exists": true,
+      "sha256": "e048bb4160263b32896a701a624045278589008aa0eb12e3e96f283f252ac138",
+      "size": 1465
+    },
+    {
+      "path": "src/i18n/resources/ko-KR/settings.json",
+      "exists": true,
+      "sha256": "f8c8cf98badc904fb0277d91c9eee4070dc0a2fa2146259c4364666f1b1b5aa7",
+      "size": 220795
+    },
+    {
+      "path": "src/i18n/resources/zh-CN/agent.json",
+      "exists": true,
+      "sha256": "fd56aef65d223510643a1be24689bd262e0613d585924aabb01e355e8c42aa7e",
+      "size": 149000
+    },
+    {
+      "path": "src/i18n/resources/zh-CN/agentMessageList.json",
+      "exists": true,
+      "sha256": "aa70570bb343bd9090d01ea9b8d0f414c276db0b4e1df44553a64f346c3975e5",
+      "size": 40110
+    },
+    {
+      "path": "src/i18n/resources/zh-CN/browserAnnotation.json",
+      "exists": true,
+      "sha256": "69a65af9f1f49bbad1b51e17ad9f2a2d18beeb90a0109797196032163fe5dd61",
+      "size": 866
+    },
+    {
+      "path": "src/i18n/resources/zh-CN/browserChrome.json",
+      "exists": true,
+      "sha256": "3f00ca3811f71d73ffa29226baa773de0f39b0152db0d246ca2bc079963eb2d5",
+      "size": 1015
+    },
+    {
+      "path": "src/i18n/resources/zh-CN/browserHistory.json",
+      "exists": true,
+      "sha256": "9238d0b8bedd7c45561f47342c3fc650f55c4cee1920cf6f6c30dcc312143ea4",
+      "size": 1254
+    },
+    {
+      "path": "src/i18n/resources/zh-CN/settings.json",
+      "exists": true,
+      "sha256": "2e5b037f7f2040d608b2e3389bfef58ff97abad776e0735567990331824b6eeb",
+      "size": 196765
+    },
+    {
+      "path": "src/i18n/resources/zh-TW/agent.json",
+      "exists": true,
+      "sha256": "0c57360bc086eec142576ff8974b7c32cc21b3c677fd87d69271723443678253",
+      "size": 149400
+    },
+    {
+      "path": "src/i18n/resources/zh-TW/agentMessageList.json",
+      "exists": true,
+      "sha256": "36b099bacc7d498214e94e05cedb747468589e5876bbc7db2afa0dcfea94cc91",
+      "size": 40146
+    },
+    {
+      "path": "src/i18n/resources/zh-TW/browserAnnotation.json",
+      "exists": true,
+      "sha256": "47551348fab833a42f8e91e26b70c39f5ef78c76896bc5d0043e4338bd41b7a1",
+      "size": 884
+    },
+    {
+      "path": "src/i18n/resources/zh-TW/browserChrome.json",
+      "exists": true,
+      "sha256": "ccdeda266fb5a368cadf48a9dc3fb602e2e6b1018ee944487c5eceded0a6411d",
+      "size": 1015
+    },
+    {
+      "path": "src/i18n/resources/zh-TW/browserHistory.json",
+      "exists": true,
+      "sha256": "4492d3aa36616f08c3319078e08f2227c8e501a4bd71e2ce0190992673914678",
+      "size": 1257
+    },
+    {
+      "path": "src/i18n/resources/zh-TW/settings.json",
+      "exists": true,
+      "sha256": "26fe1c0fb4e8f7319db1388f34557047aebfef0d3740a40bf5b1b8629963acf0",
+      "size": 197252
+    },
+    {
+      "path": "src/lib/api/appConfigTypes.ts",
+      "exists": true,
+      "sha256": "86f2e26616afc478fca24fdfffcd8c9eafa10ea205c4f81f95f20d482a4216a6",
+      "size": 12086
+    },
+    {
+      "path": "src/lib/api/browserAnnotation.ts",
+      "exists": true,
+      "sha256": "312cbcd158da475ef9da67cf445d5db9e19fcae84957ce54df7a8c7eecff6cd0",
+      "size": 6376
+    },
+    {
+      "path": "src/lib/api/browserAnnotationEditorTypes.ts",
+      "exists": true,
+      "sha256": "cfcda7e66bea9ce5a2501a1da9095329c535c1f8836b90eeab14cd10ec41e225",
+      "size": 1639
+    },
+    {
+      "path": "src/lib/api/browserAnnotationTypes.ts",
+      "exists": true,
+      "sha256": "6a08c412f7a4e2d1b9c297595de1df9e3fababe6ea1253b16e80d5d651029d60",
+      "size": 2044
+    },
+    {
+      "path": "src/lib/api/browserHistory.ts",
+      "exists": true,
+      "sha256": "f7f876716319c410ac7e2ca9dc741f8d713449dd60841dbfab4900d733897f36",
+      "size": 1564
+    },
+    {
+      "path": "src/lib/api/browserHistoryTypes.ts",
+      "exists": true,
+      "sha256": "f291eb260a25aa5776639e2e9a9eb327e6ad80ea2866295c541b5ec2b854ea8b",
+      "size": 6529
+    },
+    {
+      "path": "src/lib/api/browserMenu.ts",
+      "exists": true,
+      "sha256": "b8a6785d47bda99d4b88ffe44fdd01655a084bd9eddbaed7db3ad910e220f9b6",
+      "size": 3494
+    },
+    {
+      "path": "src/lib/api/browserNative.contract.test.ts",
+      "exists": true,
+      "sha256": "418b9b1d0f0f797a928c1328fad5037495efaa4ee828cb55ec7760122bce319e",
+      "size": 4048
+    },
+    {
+      "path": "src/lib/api/browserSettings.ts",
+      "exists": true,
+      "sha256": "1cea51ac951109194dd7d3ebfd1de507cfe6ea682b0b9c4ca0926366041c0eca",
+      "size": 725
+    },
+    {
+      "path": "src/lib/api/browserSettingsTypes.ts",
+      "exists": true,
+      "sha256": "e9ee7a3c9df09ccad9260f344167420e29d192c40e37bd211ff5c88dfee217a8",
+      "size": 7411
+    },
+    {
+      "path": "src/lib/api/browserSettingsTypes.unit.test.ts",
+      "exists": true,
+      "sha256": "3f5bc312ae4281a14efdf717c86031f8cc7ecfcfeb4c327893ba0d92756d03fb",
+      "size": 5328
+    },
+    {
+      "path": "src/lib/api/browserTab.ts",
+      "exists": true,
+      "sha256": "e52ea676e1613e9cd129a92f771ec6125e23d3f3a72c053934bba382ca3568d2",
+      "size": 17727
+    },
+    {
+      "path": "src/lib/api/embeddedBrowser.ts",
+      "exists": true,
+      "sha256": "e82f221a67999244fbf36af62b6367451d145d37e8d63b671b133f60884bc08f",
+      "size": 13895
+    },
+    {
+      "path": "src/lib/governance/agentCommandCatalog.json",
+      "exists": true,
+      "sha256": "835b91bcd74bfbf7989fdf0701d0303d3f30afeb22830765d04e14404c8609b0",
+      "size": 8460
+    },
+    {
+      "path": "src/lib/governance/agentRuntimeExportBoundary.test.ts",
+      "exists": true,
+      "sha256": "e547df4cb875c457db25d6c17eed677852062f667c98d54373964ce10fc3546c",
+      "size": 9994
+    },
+    {
+      "path": "src/lib/governance/appServerRuntimeBoundary.testSupport.ts",
+      "exists": true,
+      "sha256": "28f33c833842ed8fb1f0d2e6615fa26858ea80e4d003edfd94f3bb193719d672",
+      "size": 13266
+    },
+    {
+      "path": "src/lib/governance/legacySurfaceCatalog.json",
+      "exists": true,
+      "sha256": "03e340ad642f007080c697966da134b26cc8bdaa049a5312ad29cfcd90682e65",
+      "size": 314115
+    },
+    {
+      "path": "src/lib/workspace/pathIdentity.ts",
+      "exists": true,
+      "sha256": "ad515d88cd701886afc0f4d18fbbd74993dafdc5316a83445fd03e9017e61603",
+      "size": 1056
+    },
+    {
+      "path": "src/lib/workspace/pathIdentity.unit.test.ts",
+      "exists": true,
+      "sha256": "faa85bfcd1afb3d67193c089c8623eb3212a2f59347818f9f8050dda76a366cb",
+      "size": 2037
+    },
+    {
+      "path": "src/types/page.ts",
+      "exists": true,
+      "sha256": "5942ce67898d4276dda205a2e67797572948bdbb9b7ce9df5eacf294fa930ebf",
+      "size": 8018
+    },
+    {
+      "path": "vite.config.ts",
+      "exists": true,
+      "sha256": "db04aaa85bba74d1849237c6a4e57be0267f8dbe2951497a6ab62279a8910537",
+      "size": 4725
+    }
+  ],
+  "candidatePaths": 370,
+  "qualification": "Checkpoint for remote Quality; real-process validation continues before tag."
+}
