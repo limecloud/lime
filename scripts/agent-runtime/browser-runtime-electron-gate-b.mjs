@@ -26,6 +26,7 @@ import { runBrowserPermissionScenario } from "./browser-runtime-electron-gate-b-
 import { runBrowserWindowCloseScenario } from "./browser-runtime-electron-gate-b-window-close.mjs";
 import { runBrowserProjectionGateA } from "./browser-runtime-gate-a.mjs";
 import { runBrowserHistoryScenario } from "./browser-runtime-electron-gate-b-history.mjs";
+import { createBrowserAnnotationResponses, runBrowserAnnotationScenario } from "./browser-runtime-electron-gate-b-annotation.mjs";
 import { startBrowserFixturePages } from "./browser-runtime-electron-gate-b-pages.mjs";
 import {
   approveBrowserBrowse,
@@ -98,6 +99,7 @@ const DEFAULT_PROJECTION_OUTPUT = path.resolve(
 const SCENARIOS = new Set([
   "projection",
   "history",
+  "annotation",
   "lifecycle",
   "approval",
   "browse-approval",
@@ -200,7 +202,7 @@ export function parseArgs(argv) {
   }
   if (!SCENARIOS.has(options.scenario)) {
     throw new Error(
-      `--scenario 必须是 projection、history、lifecycle、approval、browse-approval、user-control、cancel、window-close、disconnect、permission、download 或 artifact，收到: ${options.scenario || "<empty>"}`,
+      `--scenario 必须是 projection、history、annotation、lifecycle、approval、browse-approval、user-control、cancel、window-close、disconnect、permission、download 或 artifact，收到: ${options.scenario || "<empty>"}`,
     );
   }
   if (!SUPPORTED_LOCALES.has(options.locale)) {
@@ -243,6 +245,9 @@ export function parseArgs(argv) {
   }
   if (!outputExplicit && options.scenario === "history") {
     options.output = DEFAULT_OUTPUT.replace("-summary", "-history-summary");
+  }
+  if (!outputExplicit && options.scenario === "annotation") {
+    options.output = DEFAULT_OUTPUT.replace("-summary", "-annotation-summary");
   }
   return options;
 }
@@ -369,6 +374,7 @@ function toolResultFromRequest(body) {
 }
 
 async function createBrowserProviderFixture({
+  annotationScenario = false,
   approvalScenario = false,
   connectionDiagnostics = false,
   userControlScenario = false,
@@ -406,7 +412,7 @@ async function createBrowserProviderFixture({
       releaseFinalResponse?.();
     },
   };
-  const scriptedResponses = approvalScenario
+  const scriptedResponses = annotationScenario ? createBrowserAnnotationResponses() : approvalScenario
     ? createBrowserApprovalResponses(scenario, {
         userControl: userControlScenario,
       })
@@ -1341,7 +1347,7 @@ Browser Electron Gate B
 
 选项:
   --output <path>       证据 JSON 路径
-  --scenario <name>     projection（Gate A）、history、lifecycle（默认）、approval、browse-approval、user-control、cancel、window-close、disconnect、permission、download 或 artifact
+  --scenario <name>     projection（Gate A）、history、annotation、lifecycle（默认）、approval、browse-approval、user-control、cancel、window-close、disconnect、permission、download 或 artifact
   --locale <locale>     zh-CN、zh-TW、en-US、ja-JP 或 ko-KR
   --screenshot-dir <dir> 采集 renderer/browser/agent/takeover/released/destroyed 截图
   --app-url <url>       可选 renderer dev server
@@ -1361,6 +1367,7 @@ export async function run(options) {
   const runtimeEnv = createTempRuntimeEnv();
   runtimeEnv.writeFixtureConfig({ language: options.locale });
   const providerFixture = await createBrowserProviderFixture({
+    annotationScenario: options.scenario === "annotation",
     approvalScenario: ["approval", "browse-approval", "user-control"].includes(
       options.scenario,
     ),
@@ -1435,7 +1442,7 @@ export async function run(options) {
 
     logStage("initialize-app-server");
     await initializeAppServer(page, requestLog);
-    await configureBrowserFixturePermissions(page, options, requestLog);
+    if (options.scenario !== "annotation") await configureBrowserFixturePermissions(page, options, requestLog);
     const workspace = await ensureDefaultWorkspace(page, requestLog);
     const provider = await invokeAppServerFromPage(
       page,
@@ -1612,6 +1619,20 @@ export async function run(options) {
         `Browser history 断言失败: ${historyEvidence.failedAssertions.join(", ")}`,
       );
       return historyEvidence;
+    }
+    if (options.scenario === "annotation") {
+      logStage("run-browser-annotation");
+      const annotationEvidence = await runBrowserAnnotationScenario({
+        app, page, options, identity, workspaceId: workspace.workspaceId,
+        guiBeforeTurn, readBrowserWorkspaceState,
+        readInvokeTrace: () => invokeTraceCollector.snapshot(),
+        providerFixture, requestLog,
+      });
+      annotationEvidence.diagnostics.harness = { consoleErrors, pageErrors };
+      fs.writeFileSync(options.output, `${JSON.stringify(annotationEvidence, null, 2)}\n`);
+      assert(annotationEvidence.failedAssertions.length === 0 && consoleErrors.length === 0 && pageErrors.length === 0,
+        `Browser annotation 断言失败: ${annotationEvidence.failedAssertions.join(", ")}`);
+      return annotationEvidence;
     }
     if (
       ["approval", "browse-approval", "user-control"].includes(options.scenario)

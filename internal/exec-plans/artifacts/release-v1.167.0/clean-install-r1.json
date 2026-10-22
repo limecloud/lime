@@ -1,0 +1,10 @@
+{
+  "sourceCommit": "2e364905b3202b0f348654272f8e714d5c5b1380",
+  "command": [
+    "pnpm",
+    "install",
+    "--frozen-lockfile",
+    "--offline"
+  ],
+  "exitCode": 1
+}

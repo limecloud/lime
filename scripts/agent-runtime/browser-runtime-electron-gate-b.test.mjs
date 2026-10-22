@@ -65,8 +65,11 @@ describe("Browser Electron Gate B", () => {
     expect(parseArgs(["--scenario", "download"]).output).toContain(
       "browser-runtime-electron-gate-b-download-summary.json",
     );
+    expect(parseArgs(["--scenario", "annotation"]).output).toContain(
+      "browser-runtime-electron-gate-b-annotation-summary.json",
+    );
     expect(() => parseArgs(["--scenario", "unknown"])).toThrow(
-      "--scenario 必须是 projection、history、lifecycle、approval、browse-approval、user-control、cancel、window-close、disconnect、permission、download 或 artifact",
+      "--scenario 必须是 projection、history、annotation、lifecycle、approval、browse-approval、user-control、cancel、window-close、disconnect、permission、download 或 artifact",
     );
   });
 

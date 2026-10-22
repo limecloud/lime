@@ -1,0 +1,18 @@
+{
+  "label": "real-process-r1",
+  "startedAt": "2026-10-22T11:24:06.209172+00:00",
+  "recordedAt": "2026-10-22T11:28:12.708291+00:00",
+  "results": [
+    {
+      "command": [
+        "npm",
+        "run",
+        "smoke:agent-runtime-current-fixture"
+      ],
+      "exitCode": 1,
+      "seconds": 246.49
+    }
+  ],
+  "log": "real-process-r1.log",
+  "exitCode": 1
+}

@@ -1,0 +1,12 @@
+{
+  "recordedAt": "2026-10-22T11:04:11.309067+00:00",
+  "command": [
+    "node",
+    "/Users/coso/Library/pnpm/.tools/pnpm/9.15.9/node_modules/pnpm/bin/pnpm.cjs",
+    "install",
+    "--frozen-lockfile",
+    "--offline"
+  ],
+  "exitCode": 1,
+  "qualification": "Use installed exact pnpm9.15.9 directly; default Corepack has an outdated trust-key bundle and failed before pnpm startup."
+}

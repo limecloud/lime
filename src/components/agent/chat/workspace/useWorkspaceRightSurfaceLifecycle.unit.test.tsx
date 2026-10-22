@@ -380,7 +380,15 @@ describe("Right Surface 标签生命周期接线", () => {
     expect(view.get().coordinator.rightSurfaceState.activeSurface).toBe(
       "browser",
     );
-    expect(pending.consumePendingRequestsForSurface).toHaveBeenCalledTimes(1);
+    expect(pending.consumePendingRequestsForSurface).not.toHaveBeenCalled();
+    act(() =>
+      view
+        .get()
+        .coordinator.handleBrowserLaunchApplied("browser-request-first"),
+    );
+    expect(
+      pending.consumePendingRequestsForSurface,
+    ).toHaveBeenCalledExactlyOnceWith("browser", ["browser-request-first"]);
 
     act(() =>
       view.container
@@ -400,7 +408,7 @@ describe("Right Surface 标签生命周期接线", () => {
     );
     // 只有显式Files动作额外消费一次，旧Browser请求不能再消费或改变选择。
     expect(pending.consumePendingRequestsForSurface.mock.calls).toEqual([
-      ["browser"],
+      ["browser", ["browser-request-first"]],
       ["files"],
     ]);
 
@@ -416,6 +424,14 @@ describe("Right Surface 标签生命周期接线", () => {
     expect(
       view.get().local.activeBrowserRightSurfaceIntent?.sourceRequestId,
     ).toBe("browser-request-next");
+    expect(pending.consumePendingRequestsForSurface).toHaveBeenCalledTimes(2);
+    act(() =>
+      view.get().coordinator.handleBrowserLaunchApplied("browser-request-next"),
+    );
+    expect(pending.consumePendingRequestsForSurface).toHaveBeenLastCalledWith(
+      "browser",
+      ["browser-request-next"],
+    );
     expect(pending.consumePendingRequestsForSurface).toHaveBeenCalledTimes(3);
 
     act(() => view.get().coordinator.handleToggleRightSurfaceBrowser());
@@ -454,7 +470,13 @@ describe("Right Surface 标签生命周期接线", () => {
     expect(view.get().coordinator.rightSurfaceState.activeSurface).toBe(
       "browser",
     );
-    expect(pending.consumePendingRequestsForSurface).toHaveBeenCalledTimes(1);
+    expect(pending.consumePendingRequestsForSurface).not.toHaveBeenCalled();
+    act(() =>
+      view.get().coordinator.handleBrowserLaunchApplied("browser-request"),
+    );
+    expect(
+      pending.consumePendingRequestsForSurface,
+    ).toHaveBeenCalledExactlyOnceWith("browser", ["browser-request"]);
     view.render({
       owner: { ...owner, sessionId: "session-b", threadId: "thread-b" },
     });
@@ -462,7 +484,14 @@ describe("Right Surface 标签生命周期接线", () => {
     expect(view.get().coordinator.rightSurfaceState.activeSurface).toBe(
       "browser",
     );
-    expect(pending.consumePendingRequestsForSurface).toHaveBeenCalledTimes(2);
+    expect(pending.consumePendingRequestsForSurface).toHaveBeenCalledTimes(1);
+    act(() =>
+      view.get().coordinator.handleBrowserLaunchApplied("browser-request"),
+    );
+    expect(pending.consumePendingRequestsForSurface.mock.calls).toEqual([
+      ["browser", ["browser-request"]],
+      ["browser", ["browser-request"]],
+    ]);
   });
 
   it("Browser打开请求只确认当前身份，关闭重开保留已应用标记", () => {

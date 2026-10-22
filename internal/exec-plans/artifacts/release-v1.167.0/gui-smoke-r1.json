@@ -1,0 +1,18 @@
+{
+  "label": "gui-smoke-r1",
+  "startedAt": "2026-10-22T10:33:58.654782+00:00",
+  "recordedAt": "2026-10-22T11:23:57.589673+00:00",
+  "results": [
+    {
+      "command": [
+        "npm",
+        "run",
+        "verify:gui-smoke"
+      ],
+      "exitCode": 0,
+      "seconds": 2998.84
+    }
+  ],
+  "log": "gui-smoke-r1.log",
+  "exitCode": 0
+}

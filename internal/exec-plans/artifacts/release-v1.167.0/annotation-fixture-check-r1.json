@@ -1,0 +1,35 @@
+{
+  "label": "annotation-fixture-check-r1",
+  "startedAt": "2026-10-22T11:07:41.999903+00:00",
+  "recordedAt": "2026-10-22T11:08:17.428841+00:00",
+  "results": [
+    {
+      "command": [
+        "npm",
+        "test",
+        "--",
+        "scripts/agent-runtime/browser-runtime-electron-gate-b.test.mjs",
+        "scripts/agent-runtime/browser-runtime-electron-gate-b-annotation-evidence.test.mjs"
+      ],
+      "exitCode": 0,
+      "seconds": 28.44
+    },
+    {
+      "command": [
+        "npx",
+        "eslint",
+        "scripts/agent-runtime/browser-runtime-electron-gate-b.mjs",
+        "scripts/agent-runtime/browser-runtime-electron-gate-b.test.mjs",
+        "scripts/agent-runtime/browser-runtime-electron-gate-b-annotation.mjs",
+        "scripts/agent-runtime/browser-runtime-electron-gate-b-annotation-evidence.mjs",
+        "scripts/agent-runtime/browser-runtime-electron-gate-b-annotation-evidence.test.mjs",
+        "--max-warnings",
+        "0"
+      ],
+      "exitCode": 0,
+      "seconds": 6.98
+    }
+  ],
+  "log": "annotation-fixture-check-r1.log",
+  "exitCode": 0
+}

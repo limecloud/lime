@@ -48,3 +48,11 @@
 - 检查点 `757fee07d51cdd4eeb7c1f6a3a6bf85f46932e72`，tree `ca7115248b1cbe631f1136df4ec830e5e1ce814d`，共 370 个路径（rename 展示为 364 files）。完整 staged manifest 已留存。正常 hooks 成功，main 推送成功并精确核对远端 SHA；尚无版本标签，未宣称公开渠道完成。共享索引只在确认仍等于原基底 tree 后刷新，后续他人改动保留。
 
 - 首次 Quality `39766929023` 的四个 JS job 在 pnpm 安装阶段失败，根因是本轮隔离依赖链接被误纳入检查点（5 个 packages/*/node_modules symlink）。这是发布整理错误；产品测试尚未开始，不能写成测试失败或通过。已认领修正 `.gitignore` 精确匹配所有 node_modules 类型，仅从索引移除五条本地链接，保留工作文件与原 CI 日志，后继干净安装及 CI 独立收口。
+
+- 修正提交 `2e364905b3202b0f348654272f8e714d5c5b1380` 已推送；新的空目录从该 Git tree 导出，使用指定 pnpm9.15.9 正常 frozen-lockfile 安装成功（127.8 秒）。前面 Corepack 旧 keyid 与离线缓存缺包是环境失败，原件保留，未改全局配置、依赖版本或锁文件。后继 Quality `39767600594` 已通过安装并运行全量。
+- 初始冻结包含未接线的进行中 Browser annotation fixture；为本版必要产品验证，显式纳入该 owner 完成的 5 个脚本及测试拆分，产品源码保持冻结。27/27 夹具回归、窄 ESLint 通过；全 contracts 后继复验中，真实场景尚未执行，不记 Gate B 通过。
+
+- Rust 定向全部通过：lime-core Browser config 5、lime-agent dynamic approval 6、App Server config/warning 7，共18项；新配置的 CAS、invalid-policy 不写盘合同通过。完整 contracts 后继 exit0（131.85 秒）。远端 Quality r2 的 GUI Smoke success；Frontend/Rust Full 仍待终态。
+
+- 标准本地 GUI smoke exit0，证明真实 Electron/preload/IPC/App Server 1.167.0 与三尺寸。Agent 聚合首轮在审批拒绝场景业务断言全过后，正常 Main 退出超时；保持失败，正在定位生命周期，不以强制回收冒充通过。
+- Quality r2 全量前端发现两项过期 Browser 生命周期测试：仍期待挂载时立即 consume。已迁移为显式挂载 ACK 后按 request ID 消费，保留用户选择与 owner 隔离断言；三文件53项回归全部通过。生产消费合同不变。

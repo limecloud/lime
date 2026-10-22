@@ -1,0 +1,31 @@
+{
+  "label": "browser-ack-regression-r1",
+  "startedAt": "2026-10-22T11:31:47.689764+00:00",
+  "recordedAt": "2026-10-22T11:31:58.360791+00:00",
+  "results": [
+    {
+      "command": [
+        "node",
+        "node_modules/prettier/bin/prettier.cjs",
+        "--write",
+        "src/components/agent/chat/workspace/useWorkspaceRightSurfaceLifecycle.unit.test.tsx"
+      ],
+      "exitCode": 0,
+      "seconds": 0.88
+    },
+    {
+      "command": [
+        "node",
+        "node_modules/vitest/vitest.mjs",
+        "run",
+        "src/components/agent/chat/workspace/useWorkspaceRightSurfaceLifecycle.unit.test.tsx",
+        "src/components/agent/chat/workspace/useWorkspaceRightSurfaceCoordinatorRuntime.browser.component.test.tsx",
+        "src/components/agent/chat/workspace/useWorkspaceRightSurfacePendingRuntime.race.component.test.tsx"
+      ],
+      "exitCode": 0,
+      "seconds": 9.79
+    }
+  ],
+  "log": "browser-ack-regression-r1.log",
+  "exitCode": 0
+}

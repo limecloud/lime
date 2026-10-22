@@ -1,0 +1,18 @@
+{
+  "label": "contracts-final-r2",
+  "startedAt": "2026-10-22T11:09:20.032235+00:00",
+  "recordedAt": "2026-10-22T11:11:31.889655+00:00",
+  "results": [
+    {
+      "command": [
+        "npm",
+        "run",
+        "test:contracts"
+      ],
+      "exitCode": 0,
+      "seconds": 131.85
+    }
+  ],
+  "log": "contracts-final-r2.log",
+  "exitCode": 0
+}

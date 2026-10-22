@@ -1,0 +1,14 @@
+{
+  "recordedAt": "2026-10-22T11:05:17.361025+00:00",
+  "command": [
+    "node",
+    "/Users/coso/Library/pnpm/.tools/pnpm/9.15.9/node_modules/pnpm/bin/pnpm.cjs",
+    "install",
+    "--frozen-lockfile",
+    "--offline",
+    "--store-dir",
+    "/Users/coso/Library/pnpm/store/v3"
+  ],
+  "exitCode": 1,
+  "qualification": "Use the existing project pnpm store explicitly; no global configuration changes."
+}

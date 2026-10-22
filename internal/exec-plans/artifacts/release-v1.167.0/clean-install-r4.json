@@ -1,0 +1,14 @@
+{
+  "recordedAt": "2026-10-22T11:08:12.990261+00:00",
+  "command": [
+    "node",
+    "/Users/coso/Library/pnpm/.tools/pnpm/9.15.9/node_modules/pnpm/bin/pnpm.cjs",
+    "install",
+    "--frozen-lockfile",
+    "--prefer-offline",
+    "--store-dir",
+    "/Users/coso/Library/pnpm/store/v3"
+  ],
+  "exitCode": 0,
+  "sourceCommit": "2e364905b3202b0f348654272f8e714d5c5b1380"
+}

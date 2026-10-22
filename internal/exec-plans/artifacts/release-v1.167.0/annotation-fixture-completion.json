@@ -1,0 +1,32 @@
+{
+  "recordedAt": "2026-10-22T11:07:41.504504+00:00",
+  "reason": "Complete runnable annotation acceptance wiring from its current owner after discovering the initial freeze contained an unconnected in-progress fixture. Product sources stay frozen.",
+  "files": [
+    {
+      "path": "scripts/agent-runtime/browser-runtime-electron-gate-b.mjs",
+      "beforeSha256": "008215b7ad5324407d3abaf9afeaaaf5cfc3b429eac5e1a065ceb53a99036e52",
+      "afterSha256": "c16ba10ef6416dc6825e945c2b0b638c7ef0c113b286ccce0d8cb24e18ae1eaa"
+    },
+    {
+      "path": "scripts/agent-runtime/browser-runtime-electron-gate-b.test.mjs",
+      "beforeSha256": "e04c560a2a7d4d967bcfb0f12a333db92fae88b440201cc5bb6eaa22ee485b2f",
+      "afterSha256": "3cee0e7471929e5f5a86296e987dfce587482576514b1ebfe1e5b3c837600864"
+    },
+    {
+      "path": "scripts/agent-runtime/browser-runtime-electron-gate-b-annotation.mjs",
+      "beforeSha256": "463bd5357212e86f01f883445f7fe72fdc67c969d906836a2ec1ea022ba4afa4",
+      "afterSha256": "cb7f4553ad5108abeb976afd7e099a3f55ba8fe5ec0f4c90fda15f612a59ec8d"
+    },
+    {
+      "path": "scripts/agent-runtime/browser-runtime-electron-gate-b-annotation-evidence.mjs",
+      "beforeSha256": null,
+      "afterSha256": "54494251236ab9be4d0e1ebc47576b45b8c5562999c9266f111fbeb9e1b431a5"
+    },
+    {
+      "path": "scripts/agent-runtime/browser-runtime-electron-gate-b-annotation-evidence.test.mjs",
+      "beforeSha256": null,
+      "afterSha256": "77942c2ed24edf5d19a536033ec76b96da6738492ec2d4d8ff8d9f354724e8d5"
+    }
+  ],
+  "renamedTest": "scripts/agent-runtime/browser-runtime-electron-gate-b-annotation-evidence.test.mjs"
+}

@@ -10,5 +10,6 @@
     "packages/agent-workbench-adapter/node_modules",
     "packages/app-server-client/node_modules"
   ],
-  "fix": "Remove only tracked index entries, retain local dependency links, ignore node_modules with or without directory type. No dependency or lockfile change."
+  "fix": "Remove only tracked index entries, retain local dependency links, ignore node_modules with or without directory type. No dependency or lockfile change.",
+  "correctedCommit": "2e364905b3202b0f348654272f8e714d5c5b1380"
 }
