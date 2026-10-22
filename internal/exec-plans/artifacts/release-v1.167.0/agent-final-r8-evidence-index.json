@@ -1,0 +1,897 @@
+{
+  "sourceCommit": "dfd780294df6c460da374df1ea911577273e8038",
+  "aggregateExitCode": 0,
+  "seconds": 345.38,
+  "electronScenarioCount": 22,
+  "boundary": "Real Electron/preload/IPC/current App Server projections; controlled providers and explicit external backend per scenario, no live-provider claim.",
+  "scenarios": [
+    {
+      "artifact": "agent-r8-claw-chat-current-fixture-unknown-item-regression-summary.json.gz",
+      "sha256": "3896a34d0542c4b912e5b34b83802a60569eb046c3ca8860f51080d953c2e4a5",
+      "scenario": "unknown-item",
+      "ok": true,
+      "proofLevel": "Gate B controlled fixture",
+      "teardown": {
+        "ok": true,
+        "steps": [
+          {
+            "phase": "normal-main-exit",
+            "startedAt": "2026-10-22T12:04:06.446Z",
+            "completedAt": "2026-10-22T12:04:06.733Z",
+            "ok": true
+          },
+          {
+            "phase": "image-provider",
+            "startedAt": "2026-10-22T12:04:06.733Z",
+            "completedAt": "2026-10-22T12:04:06.734Z",
+            "ok": true
+          },
+          {
+            "phase": "temp-root",
+            "startedAt": "2026-10-22T12:04:06.734Z",
+            "completedAt": "2026-10-22T12:04:06.751Z",
+            "ok": true
+          }
+        ],
+        "normalMainExit": {
+          "pid": 58925,
+          "exited": true,
+          "exitCode": 0,
+          "signal": null,
+          "mode": "normal"
+        },
+        "forcedCleanup": null
+      },
+      "process": null
+    },
+    {
+      "artifact": "agent-r8-claw-chat-current-fixture-home-hotpath-regression-summary.json.gz",
+      "sha256": "3e1f51e22af713c095c929401b8ce0241b49ea8cefa60d53459f3e4a95ad5443",
+      "scenario": "home-hotpath",
+      "ok": true,
+      "proofLevel": "Gate B controlled fixture",
+      "teardown": {
+        "ok": true,
+        "steps": [
+          {
+            "phase": "normal-main-exit",
+            "startedAt": "2026-10-22T12:04:15.612Z",
+            "completedAt": "2026-10-22T12:04:15.793Z",
+            "ok": true
+          },
+          {
+            "phase": "image-provider",
+            "startedAt": "2026-10-22T12:04:15.793Z",
+            "completedAt": "2026-10-22T12:04:15.794Z",
+            "ok": true
+          },
+          {
+            "phase": "temp-root",
+            "startedAt": "2026-10-22T12:04:15.794Z",
+            "completedAt": "2026-10-22T12:04:15.807Z",
+            "ok": true
+          }
+        ],
+        "normalMainExit": {
+          "pid": 59504,
+          "exited": true,
+          "exitCode": 0,
+          "signal": null,
+          "mode": "normal"
+        },
+        "forcedCleanup": null
+      },
+      "process": null
+    },
+    {
+      "artifact": "agent-r8-claw-chat-current-fixture-home-hotpath-greeting-regression-summary.json.gz",
+      "sha256": "4b8b8454e464fb00dfe405d176c1f54b1da582ada6b249b55b610c3fbef1a6e2",
+      "scenario": "home-hotpath-greeting",
+      "ok": true,
+      "proofLevel": "Gate B controlled fixture",
+      "teardown": {
+        "ok": true,
+        "steps": [
+          {
+            "phase": "normal-main-exit",
+            "startedAt": "2026-10-22T12:04:23.477Z",
+            "completedAt": "2026-10-22T12:04:23.667Z",
+            "ok": true
+          },
+          {
+            "phase": "image-provider",
+            "startedAt": "2026-10-22T12:04:23.667Z",
+            "completedAt": "2026-10-22T12:04:23.667Z",
+            "ok": true
+          },
+          {
+            "phase": "temp-root",
+            "startedAt": "2026-10-22T12:04:23.667Z",
+            "completedAt": "2026-10-22T12:04:23.691Z",
+            "ok": true
+          }
+        ],
+        "normalMainExit": {
+          "pid": 59785,
+          "exited": true,
+          "exitCode": 0,
+          "signal": null,
+          "mode": "normal"
+        },
+        "forcedCleanup": null
+      },
+      "process": null
+    },
+    {
+      "artifact": "agent-r8-code-artifact-workbench-gui-coding-input-regression-summary.json.gz",
+      "sha256": "5660fad27f4dec9c6f93a62495e554145e4cfcf5cf21592f3b2a8aecf9a63d22",
+      "scenario": "gui-coding-input",
+      "ok": true,
+      "proofLevel": null,
+      "teardown": {
+        "ok": true,
+        "steps": [
+          {
+            "phase": "invoke-trace",
+            "startedAt": "2026-10-22T12:05:36.640Z",
+            "completedAt": "2026-10-22T12:05:36.878Z",
+            "ok": true
+          },
+          {
+            "phase": "normal-main-exit",
+            "startedAt": "2026-10-22T12:05:36.878Z",
+            "completedAt": "2026-10-22T12:05:37.101Z",
+            "ok": true
+          },
+          {
+            "phase": "temp-root",
+            "startedAt": "2026-10-22T12:05:37.101Z",
+            "completedAt": "2026-10-22T12:05:37.136Z",
+            "ok": true
+          }
+        ],
+        "normalMainExit": {
+          "pid": 60090,
+          "exited": true,
+          "exitCode": 0,
+          "signal": null,
+          "mode": "normal"
+        },
+        "forcedCleanup": null
+      },
+      "process": null
+    },
+    {
+      "artifact": "agent-r8-claw-chat-current-fixture-image-command-regression-summary.json.gz",
+      "sha256": "0d9599cad82d93e181e8f46a5f920fa7509d24b6953b0e0bd71146590e473dc9",
+      "scenario": "image-command",
+      "ok": true,
+      "proofLevel": "Gate B controlled fixture",
+      "teardown": {
+        "ok": true,
+        "steps": [
+          {
+            "phase": "normal-main-exit",
+            "startedAt": "2026-10-22T12:06:01.217Z",
+            "completedAt": "2026-10-22T12:06:01.403Z",
+            "ok": true
+          },
+          {
+            "phase": "image-provider",
+            "startedAt": "2026-10-22T12:06:01.403Z",
+            "completedAt": "2026-10-22T12:06:01.403Z",
+            "ok": true
+          },
+          {
+            "phase": "text-provider",
+            "startedAt": "2026-10-22T12:06:01.403Z",
+            "completedAt": "2026-10-22T12:06:01.403Z",
+            "ok": true
+          },
+          {
+            "phase": "temp-root",
+            "startedAt": "2026-10-22T12:06:01.403Z",
+            "completedAt": "2026-10-22T12:06:01.441Z",
+            "ok": true
+          }
+        ],
+        "normalMainExit": {
+          "pid": 62385,
+          "exited": true,
+          "exitCode": 0,
+          "signal": null,
+          "mode": "normal"
+        },
+        "forcedCleanup": null
+      },
+      "process": null
+    },
+    {
+      "artifact": "agent-r8-claw-chat-current-fixture-plain-image-intent-regression-summary.json.gz",
+      "sha256": "865bb9ed93f14f0357dc20384559579f01ec15ae219243a4b7341043227ef3c9",
+      "scenario": "plain-image-intent",
+      "ok": true,
+      "proofLevel": "Gate B controlled fixture",
+      "teardown": {
+        "ok": true,
+        "steps": [
+          {
+            "phase": "normal-main-exit",
+            "startedAt": "2026-10-22T12:06:24.877Z",
+            "completedAt": "2026-10-22T12:06:25.066Z",
+            "ok": true
+          },
+          {
+            "phase": "image-provider",
+            "startedAt": "2026-10-22T12:06:25.066Z",
+            "completedAt": "2026-10-22T12:06:25.066Z",
+            "ok": true
+          },
+          {
+            "phase": "text-provider",
+            "startedAt": "2026-10-22T12:06:25.066Z",
+            "completedAt": "2026-10-22T12:06:25.066Z",
+            "ok": true
+          },
+          {
+            "phase": "temp-root",
+            "startedAt": "2026-10-22T12:06:25.066Z",
+            "completedAt": "2026-10-22T12:06:25.120Z",
+            "ok": true
+          }
+        ],
+        "normalMainExit": {
+          "pid": 63066,
+          "exited": true,
+          "exitCode": 0,
+          "signal": null,
+          "mode": "normal"
+        },
+        "forcedCleanup": null
+      },
+      "process": null
+    },
+    {
+      "artifact": "agent-r8-claw-chat-current-fixture-cancel-then-continue-regression-summary.json.gz",
+      "sha256": "6e1a83b04bb0297cabe75e5364a040094d63fcae2fff2154b720bc3bfa62c969",
+      "scenario": "cancel-then-continue",
+      "ok": true,
+      "proofLevel": "Gate B controlled fixture",
+      "teardown": {
+        "ok": true,
+        "steps": [
+          {
+            "phase": "normal-main-exit",
+            "startedAt": "2026-10-22T12:06:32.395Z",
+            "completedAt": "2026-10-22T12:06:32.557Z",
+            "ok": true
+          },
+          {
+            "phase": "image-provider",
+            "startedAt": "2026-10-22T12:06:32.557Z",
+            "completedAt": "2026-10-22T12:06:32.558Z",
+            "ok": true
+          },
+          {
+            "phase": "temp-root",
+            "startedAt": "2026-10-22T12:06:32.558Z",
+            "completedAt": "2026-10-22T12:06:32.584Z",
+            "ok": true
+          }
+        ],
+        "normalMainExit": {
+          "pid": 63833,
+          "exited": true,
+          "exitCode": 0,
+          "signal": null,
+          "mode": "normal"
+        },
+        "forcedCleanup": null
+      },
+      "process": null
+    },
+    {
+      "artifact": "agent-r8-claw-chat-current-fixture-approval-request-resume-regression-summary.json.gz",
+      "sha256": "90572884ae461e128705e58e8f9094e1f276fd8927339b1bc0c47ba27bdca7fd",
+      "scenario": "approval-request-resume",
+      "ok": true,
+      "proofLevel": "Gate B controlled fixture",
+      "teardown": {
+        "ok": true,
+        "steps": [
+          {
+            "phase": "normal-main-exit",
+            "startedAt": "2026-10-22T12:06:40.137Z",
+            "completedAt": "2026-10-22T12:06:40.309Z",
+            "ok": true
+          },
+          {
+            "phase": "image-provider",
+            "startedAt": "2026-10-22T12:06:40.309Z",
+            "completedAt": "2026-10-22T12:06:40.309Z",
+            "ok": true
+          },
+          {
+            "phase": "temp-root",
+            "startedAt": "2026-10-22T12:06:40.309Z",
+            "completedAt": "2026-10-22T12:06:40.356Z",
+            "ok": true
+          }
+        ],
+        "normalMainExit": {
+          "pid": 64108,
+          "exited": true,
+          "exitCode": 0,
+          "signal": null,
+          "mode": "normal"
+        },
+        "forcedCleanup": null
+      },
+      "process": null
+    },
+    {
+      "artifact": "agent-r8-claw-chat-current-fixture-approval-request-decline-regression-summary.json.gz",
+      "sha256": "846bc6fa5d455ed175c221fc4f309e31551a6607ca7c97a3f468f0e37f5418e7",
+      "scenario": "approval-request-decline",
+      "ok": true,
+      "proofLevel": "Gate B controlled fixture",
+      "teardown": {
+        "ok": true,
+        "steps": [
+          {
+            "phase": "normal-main-exit",
+            "startedAt": "2026-10-22T12:06:47.446Z",
+            "completedAt": "2026-10-22T12:06:47.621Z",
+            "ok": true
+          },
+          {
+            "phase": "image-provider",
+            "startedAt": "2026-10-22T12:06:47.621Z",
+            "completedAt": "2026-10-22T12:06:47.622Z",
+            "ok": true
+          },
+          {
+            "phase": "temp-root",
+            "startedAt": "2026-10-22T12:06:47.622Z",
+            "completedAt": "2026-10-22T12:06:47.658Z",
+            "ok": true
+          }
+        ],
+        "normalMainExit": {
+          "pid": 64540,
+          "exited": true,
+          "exitCode": 0,
+          "signal": null,
+          "mode": "normal"
+        },
+        "forcedCleanup": null
+      },
+      "process": null
+    },
+    {
+      "artifact": "agent-r8-claw-chat-current-fixture-approval-request-cancel-regression-summary.json.gz",
+      "sha256": "fefe59feb9db86ef3c20e32eceba2fbbb5547695759034347bc6fdb245f3432c",
+      "scenario": "approval-request-cancel",
+      "ok": true,
+      "proofLevel": "Gate B controlled fixture",
+      "teardown": {
+        "ok": true,
+        "steps": [
+          {
+            "phase": "normal-main-exit",
+            "startedAt": "2026-10-22T12:06:53.397Z",
+            "completedAt": "2026-10-22T12:06:53.569Z",
+            "ok": true
+          },
+          {
+            "phase": "image-provider",
+            "startedAt": "2026-10-22T12:06:53.569Z",
+            "completedAt": "2026-10-22T12:06:53.569Z",
+            "ok": true
+          },
+          {
+            "phase": "temp-root",
+            "startedAt": "2026-10-22T12:06:53.569Z",
+            "completedAt": "2026-10-22T12:06:53.602Z",
+            "ok": true
+          }
+        ],
+        "normalMainExit": {
+          "pid": 64960,
+          "exited": true,
+          "exitCode": 0,
+          "signal": null,
+          "mode": "normal"
+        },
+        "forcedCleanup": null
+      },
+      "process": null
+    },
+    {
+      "artifact": "agent-r8-claw-chat-current-fixture-approval-request-full-access-regression-summary.json.gz",
+      "sha256": "3a20013a6dff9983043b85cf6574ea1ad64c7e5089aedec56a071a84c470aea4",
+      "scenario": "approval-request-full-access",
+      "ok": true,
+      "proofLevel": "Gate B controlled fixture",
+      "teardown": {
+        "ok": true,
+        "steps": [
+          {
+            "phase": "normal-main-exit",
+            "startedAt": "2026-10-22T12:06:59.492Z",
+            "completedAt": "2026-10-22T12:06:59.664Z",
+            "ok": true
+          },
+          {
+            "phase": "image-provider",
+            "startedAt": "2026-10-22T12:06:59.664Z",
+            "completedAt": "2026-10-22T12:06:59.665Z",
+            "ok": true
+          },
+          {
+            "phase": "temp-root",
+            "startedAt": "2026-10-22T12:06:59.665Z",
+            "completedAt": "2026-10-22T12:06:59.701Z",
+            "ok": true
+          }
+        ],
+        "normalMainExit": {
+          "pid": 65201,
+          "exited": true,
+          "exitCode": 0,
+          "signal": null,
+          "mode": "normal"
+        },
+        "forcedCleanup": null
+      },
+      "process": null
+    },
+    {
+      "artifact": "agent-r8-claw-chat-current-fixture-inputbar-rich-restore-regression-summary.json.gz",
+      "sha256": "3a874c2e72ba7414bf35af2554307f4cd20ea510306b7a5968911a57b380740c",
+      "scenario": "inputbar-rich-restore",
+      "ok": true,
+      "proofLevel": "Gate B controlled fixture",
+      "teardown": {
+        "ok": true,
+        "steps": [
+          {
+            "phase": "normal-main-exit",
+            "startedAt": "2026-10-22T12:07:09.461Z",
+            "completedAt": "2026-10-22T12:07:09.625Z",
+            "ok": true
+          },
+          {
+            "phase": "image-provider",
+            "startedAt": "2026-10-22T12:07:09.625Z",
+            "completedAt": "2026-10-22T12:07:09.625Z",
+            "ok": true
+          },
+          {
+            "phase": "text-provider",
+            "startedAt": "2026-10-22T12:07:09.625Z",
+            "completedAt": "2026-10-22T12:07:09.625Z",
+            "ok": true
+          },
+          {
+            "phase": "temp-root",
+            "startedAt": "2026-10-22T12:07:09.625Z",
+            "completedAt": "2026-10-22T12:07:09.648Z",
+            "ok": true
+          }
+        ],
+        "normalMainExit": {
+          "pid": 65567,
+          "exited": true,
+          "exitCode": 0,
+          "signal": null,
+          "mode": "normal"
+        },
+        "forcedCleanup": null
+      },
+      "process": null
+    },
+    {
+      "artifact": "agent-r8-claw-chat-current-fixture-active-steer-regression-summary.json.gz",
+      "sha256": "fc729bf081dd6b0ec7ef3194b09c1437d8ea1bdf13cd81404c47bec4e72ede4c",
+      "scenario": "inputbar-active-steer",
+      "ok": true,
+      "proofLevel": "Gate B controlled fixture",
+      "teardown": {
+        "ok": true,
+        "steps": [
+          {
+            "phase": "normal-main-exit",
+            "startedAt": "2026-10-22T12:07:44.691Z",
+            "completedAt": "2026-10-22T12:07:44.875Z",
+            "ok": true
+          },
+          {
+            "phase": "image-provider",
+            "startedAt": "2026-10-22T12:07:44.875Z",
+            "completedAt": "2026-10-22T12:07:44.876Z",
+            "ok": true
+          },
+          {
+            "phase": "text-provider",
+            "startedAt": "2026-10-22T12:07:44.876Z",
+            "completedAt": "2026-10-22T12:07:44.876Z",
+            "ok": true
+          },
+          {
+            "phase": "temp-root",
+            "startedAt": "2026-10-22T12:07:44.876Z",
+            "completedAt": "2026-10-22T12:07:44.904Z",
+            "ok": true
+          }
+        ],
+        "normalMainExit": {
+          "pid": 65955,
+          "exited": true,
+          "exitCode": 0,
+          "signal": null,
+          "mode": "normal"
+        },
+        "forcedCleanup": null
+      },
+      "process": null
+    },
+    {
+      "artifact": "agent-r8-claw-chat-current-fixture-plan-history-hydrate-regression-summary.json.gz",
+      "sha256": "bc55ae4fde091ac12d88faa47eb02eb4770560802cbf5e573eb5f2e6dbab5a68",
+      "scenario": "plan",
+      "ok": true,
+      "proofLevel": "Gate B controlled fixture",
+      "teardown": {
+        "ok": true,
+        "steps": [
+          {
+            "phase": "normal-main-exit",
+            "startedAt": "2026-10-22T12:07:51.091Z",
+            "completedAt": "2026-10-22T12:07:51.247Z",
+            "ok": true
+          },
+          {
+            "phase": "image-provider",
+            "startedAt": "2026-10-22T12:07:51.247Z",
+            "completedAt": "2026-10-22T12:07:51.247Z",
+            "ok": true
+          },
+          {
+            "phase": "temp-root",
+            "startedAt": "2026-10-22T12:07:51.247Z",
+            "completedAt": "2026-10-22T12:07:51.259Z",
+            "ok": true
+          }
+        ],
+        "normalMainExit": {
+          "pid": 66898,
+          "exited": true,
+          "exitCode": 0,
+          "signal": null,
+          "mode": "normal"
+        },
+        "forcedCleanup": null
+      },
+      "process": null
+    },
+    {
+      "artifact": "agent-r8-claw-chat-current-fixture-skills-runtime-regression-summary.json.gz",
+      "sha256": "763ddbfa32405f3f71d92590cf90ca302c239ab32465ee0b9ab54ba24cb62003",
+      "scenario": "skills-runtime",
+      "ok": true,
+      "proofLevel": "Gate B controlled fixture",
+      "teardown": {
+        "ok": true,
+        "steps": [
+          {
+            "phase": "normal-main-exit",
+            "startedAt": "2026-10-22T12:08:02.495Z",
+            "completedAt": "2026-10-22T12:08:02.650Z",
+            "ok": true
+          },
+          {
+            "phase": "image-provider",
+            "startedAt": "2026-10-22T12:08:02.650Z",
+            "completedAt": "2026-10-22T12:08:02.650Z",
+            "ok": true
+          },
+          {
+            "phase": "temp-root",
+            "startedAt": "2026-10-22T12:08:02.650Z",
+            "completedAt": "2026-10-22T12:08:02.665Z",
+            "ok": true
+          }
+        ],
+        "normalMainExit": {
+          "pid": 67260,
+          "exited": true,
+          "exitCode": 0,
+          "signal": null,
+          "mode": "normal"
+        },
+        "forcedCleanup": null
+      },
+      "process": null
+    },
+    {
+      "artifact": "agent-r8-claw-chat-current-fixture-mcp-structured-content-regression-summary.json.gz",
+      "sha256": "84d09d96985ee9f41c496a958cd00c2f4c24b69a6697dbfcc83047b12cc9c3c6",
+      "scenario": "mcp-structured-content",
+      "ok": true,
+      "proofLevel": "Gate B controlled fixture",
+      "teardown": {
+        "ok": true,
+        "steps": [
+          {
+            "phase": "normal-main-exit",
+            "startedAt": "2026-10-22T12:08:07.697Z",
+            "completedAt": "2026-10-22T12:08:07.864Z",
+            "ok": true
+          },
+          {
+            "phase": "image-provider",
+            "startedAt": "2026-10-22T12:08:07.864Z",
+            "completedAt": "2026-10-22T12:08:07.864Z",
+            "ok": true
+          },
+          {
+            "phase": "temp-root",
+            "startedAt": "2026-10-22T12:08:07.864Z",
+            "completedAt": "2026-10-22T12:08:07.880Z",
+            "ok": true
+          }
+        ],
+        "normalMainExit": {
+          "pid": 67664,
+          "exited": true,
+          "exitCode": 0,
+          "signal": null,
+          "mode": "normal"
+        },
+        "forcedCleanup": null
+      },
+      "process": null
+    },
+    {
+      "artifact": "agent-r8-claw-chat-current-fixture-media-reference-regression-summary.json.gz",
+      "sha256": "f385ec51f22b334d6e299b4b0efd45ce48376aebde86418d9969b63845df98dc",
+      "scenario": "media-reference",
+      "ok": true,
+      "proofLevel": "Gate B controlled fixture",
+      "teardown": {
+        "ok": true,
+        "steps": [
+          {
+            "phase": "normal-main-exit",
+            "startedAt": "2026-10-22T12:08:13.518Z",
+            "completedAt": "2026-10-22T12:08:13.694Z",
+            "ok": true
+          },
+          {
+            "phase": "image-provider",
+            "startedAt": "2026-10-22T12:08:13.694Z",
+            "completedAt": "2026-10-22T12:08:13.694Z",
+            "ok": true
+          },
+          {
+            "phase": "temp-root",
+            "startedAt": "2026-10-22T12:08:13.694Z",
+            "completedAt": "2026-10-22T12:08:13.720Z",
+            "ok": true
+          }
+        ],
+        "normalMainExit": {
+          "pid": 68036,
+          "exited": true,
+          "exitCode": 0,
+          "signal": null,
+          "mode": "normal"
+        },
+        "forcedCleanup": null
+      },
+      "process": null
+    },
+    {
+      "artifact": "agent-r8-claw-chat-current-fixture-expert-plaza-skills-runtime-regression-summary.json.gz",
+      "sha256": "26a032c9b871ba3002a4abf4fbd2455818a7f3e37e66c6fd5d8f52800e987051",
+      "scenario": "expert-plaza-skills-runtime",
+      "ok": true,
+      "proofLevel": "Gate B controlled fixture",
+      "teardown": {
+        "ok": true,
+        "steps": [
+          {
+            "phase": "normal-main-exit",
+            "startedAt": "2026-10-22T12:08:20.190Z",
+            "completedAt": "2026-10-22T12:08:20.446Z",
+            "ok": true
+          },
+          {
+            "phase": "image-provider",
+            "startedAt": "2026-10-22T12:08:20.446Z",
+            "completedAt": "2026-10-22T12:08:20.447Z",
+            "ok": true
+          },
+          {
+            "phase": "temp-root",
+            "startedAt": "2026-10-22T12:08:20.447Z",
+            "completedAt": "2026-10-22T12:08:20.480Z",
+            "ok": true
+          }
+        ],
+        "normalMainExit": {
+          "pid": 68652,
+          "exited": true,
+          "exitCode": 0,
+          "signal": null,
+          "mode": "normal"
+        },
+        "forcedCleanup": null
+      },
+      "process": null
+    },
+    {
+      "artifact": "agent-r8-claw-chat-current-fixture-expert-panel-skills-runtime-regression-summary.json.gz",
+      "sha256": "dccfcbe02d345ff40d118485c703120b8661bdd86bc67221c68a21fba80edf32",
+      "scenario": "expert-panel-skills-runtime",
+      "ok": true,
+      "proofLevel": "Gate B controlled fixture",
+      "teardown": {
+        "ok": true,
+        "steps": [
+          {
+            "phase": "normal-main-exit",
+            "startedAt": "2026-10-22T12:08:30.523Z",
+            "completedAt": "2026-10-22T12:08:30.735Z",
+            "ok": true
+          },
+          {
+            "phase": "image-provider",
+            "startedAt": "2026-10-22T12:08:30.735Z",
+            "completedAt": "2026-10-22T12:08:30.735Z",
+            "ok": true
+          },
+          {
+            "phase": "temp-root",
+            "startedAt": "2026-10-22T12:08:30.735Z",
+            "completedAt": "2026-10-22T12:08:30.774Z",
+            "ok": true
+          }
+        ],
+        "normalMainExit": {
+          "pid": 69258,
+          "exited": true,
+          "exitCode": 0,
+          "signal": null,
+          "mode": "normal"
+        },
+        "forcedCleanup": null
+      },
+      "process": null
+    },
+    {
+      "artifact": "agent-r8-claw-chat-current-fixture-typed-error-retry-success-regression-summary.json.gz",
+      "sha256": "2740d9b5a0bd44ec0dcc8bdf8e5b9620a9f29e95be979ddcbf397cfb859e914d",
+      "scenario": "typed-error-retry-success",
+      "ok": true,
+      "proofLevel": "Gate B controlled fixture",
+      "teardown": {
+        "ok": true,
+        "steps": [
+          {
+            "phase": "normal-main-exit",
+            "startedAt": "2026-10-22T12:08:36.705Z",
+            "completedAt": "2026-10-22T12:08:36.872Z",
+            "ok": true
+          },
+          {
+            "phase": "image-provider",
+            "startedAt": "2026-10-22T12:08:36.872Z",
+            "completedAt": "2026-10-22T12:08:36.872Z",
+            "ok": true
+          },
+          {
+            "phase": "temp-root",
+            "startedAt": "2026-10-22T12:08:36.872Z",
+            "completedAt": "2026-10-22T12:08:36.886Z",
+            "ok": true
+          }
+        ],
+        "normalMainExit": {
+          "pid": 69763,
+          "exited": true,
+          "exitCode": 0,
+          "signal": null,
+          "mode": "normal"
+        },
+        "forcedCleanup": null
+      },
+      "process": null
+    },
+    {
+      "artifact": "agent-r8-claw-chat-current-fixture-typed-error-retry-failure-regression-summary.json.gz",
+      "sha256": "ea7a456ff3aad908a965a33f693e27b1d79f84da661786b834b49d25ee0a86db",
+      "scenario": "typed-error-retry-failure",
+      "ok": true,
+      "proofLevel": "Gate B controlled fixture",
+      "teardown": {
+        "ok": true,
+        "steps": [
+          {
+            "phase": "normal-main-exit",
+            "startedAt": "2026-10-22T12:08:42.487Z",
+            "completedAt": "2026-10-22T12:08:42.651Z",
+            "ok": true
+          },
+          {
+            "phase": "image-provider",
+            "startedAt": "2026-10-22T12:08:42.651Z",
+            "completedAt": "2026-10-22T12:08:42.651Z",
+            "ok": true
+          },
+          {
+            "phase": "temp-root",
+            "startedAt": "2026-10-22T12:08:42.651Z",
+            "completedAt": "2026-10-22T12:08:42.667Z",
+            "ok": true
+          }
+        ],
+        "normalMainExit": {
+          "pid": 70011,
+          "exited": true,
+          "exitCode": 0,
+          "signal": null,
+          "mode": "normal"
+        },
+        "forcedCleanup": null
+      },
+      "process": null
+    },
+    {
+      "artifact": "agent-r8-claw-chat-current-fixture-content-factory-article-workspace-regression-summary.json.gz",
+      "sha256": "468c72459867a01eb5f6bdc692e1e5a7ef94ba7d6f066dc9033d04139ee67e7c",
+      "scenario": "content-factory-article-workspace",
+      "ok": true,
+      "proofLevel": "Gate B controlled fixture",
+      "teardown": {
+        "ok": true,
+        "steps": [
+          {
+            "phase": "normal-main-exit",
+            "startedAt": "2026-10-22T12:09:18.454Z",
+            "completedAt": "2026-10-22T12:09:18.650Z",
+            "ok": true
+          },
+          {
+            "phase": "image-provider",
+            "startedAt": "2026-10-22T12:09:18.650Z",
+            "completedAt": "2026-10-22T12:09:18.650Z",
+            "ok": true
+          },
+          {
+            "phase": "text-provider",
+            "startedAt": "2026-10-22T12:09:18.650Z",
+            "completedAt": "2026-10-22T12:09:18.650Z",
+            "ok": true
+          },
+          {
+            "phase": "temp-root",
+            "startedAt": "2026-10-22T12:09:18.650Z",
+            "completedAt": "2026-10-22T12:09:18.690Z",
+            "ok": true
+          }
+        ],
+        "normalMainExit": {
+          "pid": 70377,
+          "exited": true,
+          "exitCode": 0,
+          "signal": null,
+          "mode": "normal"
+        },
+        "forcedCleanup": null
+      },
+      "process": null
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "recordedAt": "2026-10-22T12:38:57.547031+00:00",
+  "sourceCommit": "dfd780294df6c460da374df1ea911577273e8038",
+  "tag": "v1.167.0",
+  "tagObject": "a8d8988a5b1755184e06ecaa94ec2a484484f912",
+  "remoteReferences": "a8d8988a5b1755184e06ecaa94ec2a484484f912\trefs/tags/v1.167.0\ndfd780294df6c460da374df1ea911577273e8038\trefs/tags/v1.167.0^{}",
+  "qualityRunId": "39775474871",
+  "qualityConclusion": "success"
+}

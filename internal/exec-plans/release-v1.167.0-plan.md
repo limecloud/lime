@@ -1,6 +1,6 @@
 # v1.167.0 发布执行计划
 
-状态：候选已推送，本地真实进程与远端 Quality 验证中；负责人：root；日期：2026-10-22。
+状态：标签已推送，最终 Quality 与本地真实进程已通过，公开构建与渠道发布中；负责人：root；日期：2026-10-22。
 
 ## 目标、授权与范围
 
@@ -62,3 +62,7 @@
 - file-click r7 Gate B 通过，原件/空文件/同名路径/磁盘和会话存储路径都经真实 Desktop/preload/App Server 验证；external backend 绕过 production runtime/provider。正常 Main 退出收据在 summary。
 - Agent 聚合先前暴露审批拒绝退出偶发超时、rich draft stop 偶发未发 cancel；原件保留，未改生产生命周期或放宽超时。两者原始独立场景后继分别通过，不能据此宣称已修复偶发性。r7 聚合在 Coding Workbench 网站场景因240条环形日志淘汰早期 `is_default_browser` 证据失败；后继改读既有连续采集器且要求 complete，75项相关回归与窄 lint通过，完整聚合继续验证。
 - Quality `39771593577` 的 Frontend Full 与 GUI Smoke 已成功，Rust Full待终态；`003d500f1` 对应 `39775081137` 已启动。尚未创建标签或公开发布。
+
+- 最终候选 `dfd780294df6c460da374df1ea911577273e8038` 的 Quality `39775474871` 全部成功：Frontend Full（含完整 typecheck/lint/Vitest）、Rust Full、GUI Smoke。Git对象核对证实产品源码、依赖锁和打包配置与前面全绿产品基线相同，后继仅测试夹具与证据变化。
+- `agent-current-final-r8` 完整聚合 exit0（345.38秒），22个真实Electron场景全部通过，22份正常Main退出码0/无signal/无强制清理。包括之前偶发失败的decline与rich-restore；保留原失败，不宣称已找到其确定根因或完成生产生命周期修复。各场景使用受控provider或明确external backend，边界以summary为准。
+- UTC 12:38:57 已推送annotated `v1.167.0`，tag对象 `a8d8988a5b1755184e06ecaa94ec2a484484f912`，远端peeled SHA精确指向最终候选；未移动或重建标签。Release `39780068499` 已启动，目前为draft，桌面/CLI/npm/R2及公开安装核验尚未完成。

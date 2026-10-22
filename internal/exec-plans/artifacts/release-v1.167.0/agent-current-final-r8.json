@@ -1,0 +1,40 @@
+{
+  "label": "agent-current-final-r8",
+  "startedAt": "2026-10-22T12:03:28.915521+00:00",
+  "recordedAt": "2026-10-22T12:09:18.754719+00:00",
+  "results": [
+    {
+      "command": [
+        "npx",
+        "vitest",
+        "run",
+        "scripts/electron/lib/thread-side-panel-website-gate-b.test.mjs",
+        "scripts/lib/invoke-trace-collector.test.mjs"
+      ],
+      "exitCode": 0,
+      "seconds": 3.33
+    },
+    {
+      "command": [
+        "npx",
+        "eslint",
+        "scripts/electron/lib/thread-side-panel-website-gate-b.mjs",
+        "--max-warnings",
+        "0"
+      ],
+      "exitCode": 0,
+      "seconds": 1.12
+    },
+    {
+      "command": [
+        "npm",
+        "run",
+        "smoke:agent-runtime-current-fixture"
+      ],
+      "exitCode": 0,
+      "seconds": 345.38
+    }
+  ],
+  "log": "agent-current-final-r8.log",
+  "exitCode": 0
+}
