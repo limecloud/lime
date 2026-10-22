@@ -1,0 +1,8 @@
+{
+  "reason": "Re-enter Browser through the real new-tab UI after Settings unmounts Workspace; validate data URL input by byte identity with canonical sidecar storage and provider delivery.",
+  "files": [
+    "scripts/agent-runtime/browser-runtime-electron-gate-b-annotation.mjs",
+    "scripts/agent-runtime/browser-runtime-electron-gate-b-annotation-evidence.mjs",
+    "scripts/agent-runtime/browser-runtime-electron-gate-b-annotation-evidence.test.mjs"
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "label": "file-agent-r7",
+  "startedAt": "2026-10-22T11:58:45.655361+00:00",
+  "recordedAt": "2026-10-22T12:02:27.391247+00:00",
+  "results": [
+    {
+      "command": [
+        "node",
+        "scripts/electron/file-click-fixture-smoke.mjs",
+        "release-v11670-file-click-r7"
+      ],
+      "exitCode": 0,
+      "seconds": 15.08
+    },
+    {
+      "command": [
+        "npm",
+        "run",
+        "smoke:agent-runtime-current-fixture"
+      ],
+      "exitCode": 1,
+      "seconds": 206.65
+    }
+  ],
+  "log": "file-agent-r7.log",
+  "exitCode": 1
+}

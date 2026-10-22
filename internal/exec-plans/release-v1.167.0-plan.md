@@ -56,3 +56,9 @@
 
 - 标准本地 GUI smoke exit0，证明真实 Electron/preload/IPC/App Server 1.167.0 与三尺寸。Agent 聚合首轮在审批拒绝场景业务断言全过后，正常 Main 退出超时；保持失败，正在定位生命周期，不以强制回收冒充通过。
 - Quality r2 全量前端发现两项过期 Browser 生命周期测试：仍期待挂载时立即 consume。已迁移为显式挂载 ACK 后按 request ID 消费，保留用户选择与 owner 隔离断言；三文件53项回归全部通过。生产消费合同不变。
+
+- 后继 fixture 提交 `003d500f111489938c4a14c6ab561863d03a36bb` 已推送：原生窗口尺寸由 Electron Main 设置，受控 provider 通过真实 models discovery 声明 image modality；请求 data URL 与 canonical sidecar/provider 按字节 SHA 关联，保留异图拒绝回归。32项相关测试、窄 ESLint、完整 contracts 均通过。全量产品 typecheck 证据保持有效，生产 TS/Rust 未再修改。
+- Browser projection、history、browse-approval 实际执行成功；projection 仍按 Gate A 报告。annotation r7 全部14项断言通过，证明真实原生主 frame/editor、保存重开编辑、直接/主 Composer 发送、同 Thread 不同完成 Turn、必要截图裁剪、删除与配置恢复。Browser runner 退出使用既有超时回收策略，未单列正常退出证明，不扩大此项声明。
+- file-click r7 Gate B 通过，原件/空文件/同名路径/磁盘和会话存储路径都经真实 Desktop/preload/App Server 验证；external backend 绕过 production runtime/provider。正常 Main 退出收据在 summary。
+- Agent 聚合先前暴露审批拒绝退出偶发超时、rich draft stop 偶发未发 cancel；原件保留，未改生产生命周期或放宽超时。两者原始独立场景后继分别通过，不能据此宣称已修复偶发性。r7 聚合在 Coding Workbench 网站场景因240条环形日志淘汰早期 `is_default_browser` 证据失败；后继改读既有连续采集器且要求 complete，75项相关回归与窄 lint通过，完整聚合继续验证。
+- Quality `39771593577` 的 Frontend Full 与 GUI Smoke 已成功，Rust Full待终态；`003d500f1` 对应 `39775081137` 已启动。尚未创建标签或公开发布。

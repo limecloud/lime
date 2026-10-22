@@ -1,0 +1,57 @@
+{
+  "label": "browser-file-gate-b-r1",
+  "startedAt": "2026-10-22T11:35:41.207320+00:00",
+  "recordedAt": "2026-10-22T11:39:43.359770+00:00",
+  "results": [
+    {
+      "command": [
+        "node",
+        "scripts/agent-runtime/browser-runtime-electron-gate-b.mjs",
+        "--scenario",
+        "projection",
+        "--output",
+        "/Users/coso/Documents/dev/ai/aiclientproxy/lime/.lime/release-v11670/browser-projection.json"
+      ],
+      "exitCode": 0,
+      "seconds": 12.93
+    },
+    {
+      "command": [
+        "node",
+        "scripts/agent-runtime/browser-runtime-electron-gate-b.mjs",
+        "--scenario",
+        "history",
+        "--output",
+        "/Users/coso/Documents/dev/ai/aiclientproxy/lime/.lime/release-v11670/browser-history.json"
+      ],
+      "exitCode": 0,
+      "seconds": 18.91
+    },
+    {
+      "command": [
+        "node",
+        "scripts/agent-runtime/browser-runtime-electron-gate-b.mjs",
+        "--scenario",
+        "browse-approval",
+        "--output",
+        "/Users/coso/Documents/dev/ai/aiclientproxy/lime/.lime/release-v11670/browser-browse-approval.json"
+      ],
+      "exitCode": 0,
+      "seconds": 18.33
+    },
+    {
+      "command": [
+        "node",
+        "scripts/agent-runtime/browser-runtime-electron-gate-b.mjs",
+        "--scenario",
+        "annotation",
+        "--output",
+        "/Users/coso/Documents/dev/ai/aiclientproxy/lime/.lime/release-v11670/browser-annotation.json"
+      ],
+      "exitCode": 1,
+      "seconds": 191.98
+    }
+  ],
+  "log": "browser-file-gate-b-r1.log",
+  "exitCode": 1
+}

@@ -1,0 +1,639 @@
+{
+  "schemaVersion": "lime.browser_runtime_electron_gate_b.history.v1",
+  "scenario": "history",
+  "status": "pass",
+  "generatedAt": "2026-10-22T11:36:07.774Z",
+  "proofLevel": "Desktop Host/history",
+  "claimBoundary": "真实 Electron 地址栏、原生菜单、preload/IPC、BrowserHistoryHost/store、设置历史 UI（菜单与普通设置入口）与原明确 session/workspace 的 canonical Browser tab 重开的本地闭环。磁盘仅只读核验；未验证进程重启、Agent history 访问权限、完整 G07、live provider 或其他平台。",
+  "identity": {
+    "threadId": "01a16365-8355-7c53-ad46-478e65655817",
+    "browserSessionId": "browser_session_b1553c9f47ec499eb10811424c477340",
+    "tabId": "browser_tab_3e537ced72c74ec3a9a36066a9e4e081",
+    "viewId": "browser_view_cdf7947f-850e-4ae8-aeff-5ec8e44be2e0",
+    "webContentsId": 2
+  },
+  "fixture": {
+    "pages": [
+      {
+        "pathname": "/history-fixture-41710401-b330-49e4-8b84-646bb6062a30/alpha",
+        "title": "history-fixture-41710401-b330-49e4-8b84-646bb6062a30 Alpha",
+        "url": "http://127.0.0.1:63116/history-fixture-41710401-b330-49e4-8b84-646bb6062a30/alpha"
+      },
+      {
+        "pathname": "/history-fixture-41710401-b330-49e4-8b84-646bb6062a30/beta",
+        "title": "history-fixture-41710401-b330-49e4-8b84-646bb6062a30 Beta",
+        "url": "http://127.0.0.1:63116/history-fixture-41710401-b330-49e4-8b84-646bb6062a30/beta"
+      }
+    ],
+    "requests": [
+      "/history-fixture-41710401-b330-49e4-8b84-646bb6062a30/alpha",
+      "/history-fixture-41710401-b330-49e4-8b84-646bb6062a30/beta",
+      "/history-fixture-41710401-b330-49e4-8b84-646bb6062a30/alpha",
+      "/history-fixture-41710401-b330-49e4-8b84-646bb6062a30/alpha"
+    ]
+  },
+  "captures": {
+    "navigations": [
+      {
+        "workspace": {
+          "activeTurnId": null,
+          "address": "http://127.0.0.1:63116/history-fixture-41710401-b330-49e4-8b84-646bb6062a30/alpha",
+          "controlOwner": "user",
+          "pageRevision": 8,
+          "sessionId": "browser_session_b1553c9f47ec499eb10811424c477340",
+          "tabId": "browser_tab_3e537ced72c74ec3a9a36066a9e4e081",
+          "threadId": "01a16365-8355-7c53-ad46-478e65655817",
+          "viewId": "browser_view_cdf7947f-850e-4ae8-aeff-5ec8e44be2e0",
+          "webContentsId": 2
+        },
+        "native": {
+          "webContentsId": 2,
+          "url": "http://127.0.0.1:63116/history-fixture-41710401-b330-49e4-8b84-646bb6062a30/alpha",
+          "title": "history-fixture-41710401-b330-49e4-8b84-646bb6062a30 Alpha",
+          "loading": false
+        }
+      },
+      {
+        "workspace": {
+          "activeTurnId": null,
+          "address": "http://127.0.0.1:63116/history-fixture-41710401-b330-49e4-8b84-646bb6062a30/beta",
+          "controlOwner": "user",
+          "pageRevision": 12,
+          "sessionId": "browser_session_b1553c9f47ec499eb10811424c477340",
+          "tabId": "browser_tab_3e537ced72c74ec3a9a36066a9e4e081",
+          "threadId": "01a16365-8355-7c53-ad46-478e65655817",
+          "viewId": "browser_view_cdf7947f-850e-4ae8-aeff-5ec8e44be2e0",
+          "webContentsId": 2
+        },
+        "native": {
+          "webContentsId": 2,
+          "url": "http://127.0.0.1:63116/history-fixture-41710401-b330-49e4-8b84-646bb6062a30/beta",
+          "title": "history-fixture-41710401-b330-49e4-8b84-646bb6062a30 Beta",
+          "loading": false
+        }
+      }
+    ],
+    "recorded": {
+      "revision": 6,
+      "total": 2,
+      "entries": [
+        {
+          "id": "4f1e54b4-34c7-45cb-88c3-76f38f552490",
+          "url": "http://127.0.0.1:63116/history-fixture-41710401-b330-49e4-8b84-646bb6062a30/beta",
+          "title": "history-fixture-41710401-b330-49e4-8b84-646bb6062a30 Beta",
+          "visitCount": 1,
+          "firstVisitedAt": 1792668961550,
+          "lastVisitedAt": 1792668961550
+        },
+        {
+          "id": "4a841833-143c-460d-92cc-d361dac9f1b2",
+          "url": "http://127.0.0.1:63116/history-fixture-41710401-b330-49e4-8b84-646bb6062a30/alpha",
+          "title": "history-fixture-41710401-b330-49e4-8b84-646bb6062a30 Alpha",
+          "visitCount": 1,
+          "firstVisitedAt": 1792668961483,
+          "lastVisitedAt": 1792668961483
+        }
+      ],
+      "disk": {
+        "schemaVersion": 1,
+        "revision": 6,
+        "totalEntries": 3,
+        "fixtureEntries": [
+          {
+            "id": "4f1e54b4-34c7-45cb-88c3-76f38f552490",
+            "url": "http://127.0.0.1:63116/history-fixture-41710401-b330-49e4-8b84-646bb6062a30/beta",
+            "title": "history-fixture-41710401-b330-49e4-8b84-646bb6062a30 Beta",
+            "visitCount": 1
+          },
+          {
+            "id": "4a841833-143c-460d-92cc-d361dac9f1b2",
+            "url": "http://127.0.0.1:63116/history-fixture-41710401-b330-49e4-8b84-646bb6062a30/alpha",
+            "title": "history-fixture-41710401-b330-49e4-8b84-646bb6062a30 Alpha",
+            "visitCount": 1
+          }
+        ]
+      }
+    },
+    "titleSearch": [
+      "history-fixture-41710401-b330-49e4-8b84-646bb6062a30 Alphahttp://127.0.0.1:63116/history-fixture-41710401-b330-49e4-8b84-646bb6062a30/alpha2026年10月22日 19:36"
+    ],
+    "urlSearch": [
+      "history-fixture-41710401-b330-49e4-8b84-646bb6062a30 Betahttp://127.0.0.1:63116/history-fixture-41710401-b330-49e4-8b84-646bb6062a30/beta2026年10月22日 19:36"
+    ],
+    "reopened": {
+      "workspace": {
+        "activeTurnId": null,
+        "address": "http://127.0.0.1:63116/history-fixture-41710401-b330-49e4-8b84-646bb6062a30/alpha",
+        "controlOwner": "user",
+        "pageRevision": 3,
+        "sessionId": "browser_session_b1553c9f47ec499eb10811424c477340",
+        "tabId": "browser_tab_167dd58f23a14b30b03969f6f4f1eaf0",
+        "threadId": "01a16365-8355-7c53-ad46-478e65655817",
+        "viewId": "browser_view_3b904868-c6b2-4b65-9a2c-4c6ee9d29d80",
+        "webContentsId": 4
+      },
+      "native": {
+        "webContentsId": 4,
+        "url": "http://127.0.0.1:63116/history-fixture-41710401-b330-49e4-8b84-646bb6062a30/alpha",
+        "title": "history-fixture-41710401-b330-49e4-8b84-646bb6062a30 Alpha",
+        "loading": false
+      },
+      "settings": {
+        "historyVisible": false,
+        "error": null,
+        "openUnavailable": false
+      },
+      "tabs": [
+        {
+          "tabId": "browser_tab_3e537ced72c74ec3a9a36066a9e4e081",
+          "threadId": "01a16365-8355-7c53-ad46-478e65655817",
+          "browserSessionId": "browser_session_b1553c9f47ec499eb10811424c477340",
+          "viewId": "browser_view_cdf7947f-850e-4ae8-aeff-5ec8e44be2e0",
+          "webContentsId": 2,
+          "selected": false,
+          "url": "http://127.0.0.1:63116/history-fixture-41710401-b330-49e4-8b84-646bb6062a30/beta",
+          "title": "history-fixture-41710401-b330-49e4-8b84-646bb6062a30 Beta",
+          "pageRevision": 13
+        },
+        {
+          "tabId": "browser_tab_167dd58f23a14b30b03969f6f4f1eaf0",
+          "threadId": "01a16365-8355-7c53-ad46-478e65655817",
+          "browserSessionId": "browser_session_b1553c9f47ec499eb10811424c477340",
+          "viewId": "browser_view_3b904868-c6b2-4b65-9a2c-4c6ee9d29d80",
+          "webContentsId": 4,
+          "selected": true,
+          "url": "http://127.0.0.1:63116/history-fixture-41710401-b330-49e4-8b84-646bb6062a30/alpha",
+          "title": "history-fixture-41710401-b330-49e4-8b84-646bb6062a30 Alpha",
+          "pageRevision": 3
+        }
+      ]
+    },
+    "reopenedHistory": {
+      "revision": 8,
+      "total": 2,
+      "entries": [
+        {
+          "id": "4a841833-143c-460d-92cc-d361dac9f1b2",
+          "url": "http://127.0.0.1:63116/history-fixture-41710401-b330-49e4-8b84-646bb6062a30/alpha",
+          "title": "history-fixture-41710401-b330-49e4-8b84-646bb6062a30 Alpha",
+          "visitCount": 2,
+          "firstVisitedAt": 1792668961483,
+          "lastVisitedAt": 1792668963717
+        },
+        {
+          "id": "4f1e54b4-34c7-45cb-88c3-76f38f552490",
+          "url": "http://127.0.0.1:63116/history-fixture-41710401-b330-49e4-8b84-646bb6062a30/beta",
+          "title": "history-fixture-41710401-b330-49e4-8b84-646bb6062a30 Beta",
+          "visitCount": 1,
+          "firstVisitedAt": 1792668961550,
+          "lastVisitedAt": 1792668961550
+        }
+      ],
+      "disk": {
+        "schemaVersion": 1,
+        "revision": 8,
+        "totalEntries": 3,
+        "fixtureEntries": [
+          {
+            "id": "4a841833-143c-460d-92cc-d361dac9f1b2",
+            "url": "http://127.0.0.1:63116/history-fixture-41710401-b330-49e4-8b84-646bb6062a30/alpha",
+            "title": "history-fixture-41710401-b330-49e4-8b84-646bb6062a30 Alpha",
+            "visitCount": 2
+          },
+          {
+            "id": "4f1e54b4-34c7-45cb-88c3-76f38f552490",
+            "url": "http://127.0.0.1:63116/history-fixture-41710401-b330-49e4-8b84-646bb6062a30/beta",
+            "title": "history-fixture-41710401-b330-49e4-8b84-646bb6062a30 Beta",
+            "visitCount": 1
+          }
+        ]
+      }
+    },
+    "beforeReopenTrace": {
+      "commands": [
+        {
+          "command": "browser_tab_list",
+          "transport": "electron-ipc",
+          "status": "success"
+        },
+        {
+          "command": "browser_tab_mount",
+          "transport": "electron-ipc",
+          "status": "success"
+        },
+        {
+          "command": "browser_tab_list",
+          "transport": "electron-ipc",
+          "status": "success"
+        },
+        {
+          "command": "browser_tab_show_menu",
+          "transport": "electron-ipc",
+          "status": "success"
+        },
+        {
+          "command": "browser_history_list",
+          "transport": "electron-ipc",
+          "status": "success"
+        },
+        {
+          "command": "browser_history_list",
+          "transport": "electron-ipc",
+          "status": "success"
+        },
+        {
+          "command": "browser_history_list",
+          "transport": "electron-ipc",
+          "status": "success"
+        },
+        {
+          "command": "browser_history_list",
+          "transport": "electron-ipc",
+          "status": "success"
+        }
+      ],
+      "mockFallbackHitCount": 0
+    },
+    "reopenedTrace": {
+      "commands": [
+        {
+          "command": "browser_tab_list",
+          "transport": "electron-ipc",
+          "status": "success"
+        },
+        {
+          "command": "browser_tab_mount",
+          "transport": "electron-ipc",
+          "status": "success"
+        },
+        {
+          "command": "browser_tab_list",
+          "transport": "electron-ipc",
+          "status": "success"
+        },
+        {
+          "command": "browser_tab_show_menu",
+          "transport": "electron-ipc",
+          "status": "success"
+        },
+        {
+          "command": "browser_history_list",
+          "transport": "electron-ipc",
+          "status": "success"
+        },
+        {
+          "command": "browser_history_list",
+          "transport": "electron-ipc",
+          "status": "success"
+        },
+        {
+          "command": "browser_history_list",
+          "transport": "electron-ipc",
+          "status": "success"
+        },
+        {
+          "command": "browser_history_list",
+          "transport": "electron-ipc",
+          "status": "success"
+        },
+        {
+          "command": "browser_tab_mount",
+          "transport": "electron-ipc",
+          "status": "success"
+        },
+        {
+          "command": "browser_tab_list",
+          "transport": "electron-ipc",
+          "status": "success"
+        },
+        {
+          "command": "browser_tab_list",
+          "transport": "electron-ipc",
+          "status": "success"
+        }
+      ],
+      "mockFallbackHitCount": 0
+    },
+    "settingsReopened": {
+      "workspace": {
+        "activeTurnId": null,
+        "address": "http://127.0.0.1:63116/history-fixture-41710401-b330-49e4-8b84-646bb6062a30/alpha",
+        "controlOwner": "user",
+        "pageRevision": 3,
+        "sessionId": "browser_session_b1553c9f47ec499eb10811424c477340",
+        "tabId": "browser_tab_a7ea049603ce4746a5a54f531ec085b2",
+        "threadId": "01a16365-8355-7c53-ad46-478e65655817",
+        "viewId": "browser_view_50c17214-417e-4cca-ad96-9f69fcc102ec",
+        "webContentsId": 5
+      },
+      "native": {
+        "webContentsId": 5,
+        "url": "http://127.0.0.1:63116/history-fixture-41710401-b330-49e4-8b84-646bb6062a30/alpha",
+        "title": "history-fixture-41710401-b330-49e4-8b84-646bb6062a30 Alpha",
+        "loading": false
+      },
+      "settings": {
+        "historyVisible": false,
+        "error": null,
+        "openUnavailable": false
+      },
+      "tabs": [
+        {
+          "tabId": "browser_tab_3e537ced72c74ec3a9a36066a9e4e081",
+          "threadId": "01a16365-8355-7c53-ad46-478e65655817",
+          "browserSessionId": "browser_session_b1553c9f47ec499eb10811424c477340",
+          "viewId": "browser_view_cdf7947f-850e-4ae8-aeff-5ec8e44be2e0",
+          "webContentsId": 2,
+          "selected": false,
+          "url": "http://127.0.0.1:63116/history-fixture-41710401-b330-49e4-8b84-646bb6062a30/beta",
+          "title": "history-fixture-41710401-b330-49e4-8b84-646bb6062a30 Beta",
+          "pageRevision": 13
+        },
+        {
+          "tabId": "browser_tab_167dd58f23a14b30b03969f6f4f1eaf0",
+          "threadId": "01a16365-8355-7c53-ad46-478e65655817",
+          "browserSessionId": "browser_session_b1553c9f47ec499eb10811424c477340",
+          "viewId": "browser_view_3b904868-c6b2-4b65-9a2c-4c6ee9d29d80",
+          "webContentsId": 4,
+          "selected": false,
+          "url": "http://127.0.0.1:63116/history-fixture-41710401-b330-49e4-8b84-646bb6062a30/alpha",
+          "title": "history-fixture-41710401-b330-49e4-8b84-646bb6062a30 Alpha",
+          "pageRevision": 3
+        },
+        {
+          "tabId": "browser_tab_a7ea049603ce4746a5a54f531ec085b2",
+          "threadId": "01a16365-8355-7c53-ad46-478e65655817",
+          "browserSessionId": "browser_session_b1553c9f47ec499eb10811424c477340",
+          "viewId": "browser_view_50c17214-417e-4cca-ad96-9f69fcc102ec",
+          "webContentsId": 5,
+          "selected": true,
+          "url": "http://127.0.0.1:63116/history-fixture-41710401-b330-49e4-8b84-646bb6062a30/alpha",
+          "title": "history-fixture-41710401-b330-49e4-8b84-646bb6062a30 Alpha",
+          "pageRevision": 3
+        }
+      ],
+      "proof": {
+        "canonicalRead": true,
+        "workspaceRead": true,
+        "workspaceReadSource": "history-open",
+        "sameOwnerRequest": true,
+        "traceComplete": true
+      }
+    },
+    "settingsReopenedHistory": {
+      "revision": 10,
+      "total": 2,
+      "entries": [
+        {
+          "id": "4a841833-143c-460d-92cc-d361dac9f1b2",
+          "url": "http://127.0.0.1:63116/history-fixture-41710401-b330-49e4-8b84-646bb6062a30/alpha",
+          "title": "history-fixture-41710401-b330-49e4-8b84-646bb6062a30 Alpha",
+          "visitCount": 3,
+          "firstVisitedAt": 1792668961483,
+          "lastVisitedAt": 1792668965159
+        },
+        {
+          "id": "4f1e54b4-34c7-45cb-88c3-76f38f552490",
+          "url": "http://127.0.0.1:63116/history-fixture-41710401-b330-49e4-8b84-646bb6062a30/beta",
+          "title": "history-fixture-41710401-b330-49e4-8b84-646bb6062a30 Beta",
+          "visitCount": 1,
+          "firstVisitedAt": 1792668961550,
+          "lastVisitedAt": 1792668961550
+        }
+      ],
+      "disk": {
+        "schemaVersion": 1,
+        "revision": 10,
+        "totalEntries": 3,
+        "fixtureEntries": [
+          {
+            "id": "4a841833-143c-460d-92cc-d361dac9f1b2",
+            "url": "http://127.0.0.1:63116/history-fixture-41710401-b330-49e4-8b84-646bb6062a30/alpha",
+            "title": "history-fixture-41710401-b330-49e4-8b84-646bb6062a30 Alpha",
+            "visitCount": 3
+          },
+          {
+            "id": "4f1e54b4-34c7-45cb-88c3-76f38f552490",
+            "url": "http://127.0.0.1:63116/history-fixture-41710401-b330-49e4-8b84-646bb6062a30/beta",
+            "title": "history-fixture-41710401-b330-49e4-8b84-646bb6062a30 Beta",
+            "visitCount": 1
+          }
+        ]
+      }
+    },
+    "deleted": {
+      "revision": 11,
+      "total": 1,
+      "entries": [
+        {
+          "id": "4f1e54b4-34c7-45cb-88c3-76f38f552490",
+          "url": "http://127.0.0.1:63116/history-fixture-41710401-b330-49e4-8b84-646bb6062a30/beta",
+          "title": "history-fixture-41710401-b330-49e4-8b84-646bb6062a30 Beta",
+          "visitCount": 1,
+          "firstVisitedAt": 1792668961550,
+          "lastVisitedAt": 1792668961550
+        }
+      ],
+      "disk": {
+        "schemaVersion": 1,
+        "revision": 11,
+        "totalEntries": 2,
+        "fixtureEntries": [
+          {
+            "id": "4f1e54b4-34c7-45cb-88c3-76f38f552490",
+            "url": "http://127.0.0.1:63116/history-fixture-41710401-b330-49e4-8b84-646bb6062a30/beta",
+            "title": "history-fixture-41710401-b330-49e4-8b84-646bb6062a30 Beta",
+            "visitCount": 1
+          }
+        ]
+      }
+    },
+    "beforeCancel": {
+      "revision": 11,
+      "total": 1,
+      "entries": [
+        {
+          "id": "4f1e54b4-34c7-45cb-88c3-76f38f552490",
+          "url": "http://127.0.0.1:63116/history-fixture-41710401-b330-49e4-8b84-646bb6062a30/beta",
+          "title": "history-fixture-41710401-b330-49e4-8b84-646bb6062a30 Beta",
+          "visitCount": 1,
+          "firstVisitedAt": 1792668961550,
+          "lastVisitedAt": 1792668961550
+        }
+      ],
+      "disk": {
+        "schemaVersion": 1,
+        "revision": 11,
+        "totalEntries": 2,
+        "fixtureEntries": [
+          {
+            "id": "4f1e54b4-34c7-45cb-88c3-76f38f552490",
+            "url": "http://127.0.0.1:63116/history-fixture-41710401-b330-49e4-8b84-646bb6062a30/beta",
+            "title": "history-fixture-41710401-b330-49e4-8b84-646bb6062a30 Beta",
+            "visitCount": 1
+          }
+        ]
+      }
+    },
+    "cancelled": {
+      "revision": 11,
+      "total": 1,
+      "entries": [
+        {
+          "id": "4f1e54b4-34c7-45cb-88c3-76f38f552490",
+          "url": "http://127.0.0.1:63116/history-fixture-41710401-b330-49e4-8b84-646bb6062a30/beta",
+          "title": "history-fixture-41710401-b330-49e4-8b84-646bb6062a30 Beta",
+          "visitCount": 1,
+          "firstVisitedAt": 1792668961550,
+          "lastVisitedAt": 1792668961550
+        }
+      ],
+      "disk": {
+        "schemaVersion": 1,
+        "revision": 11,
+        "totalEntries": 2,
+        "fixtureEntries": [
+          {
+            "id": "4f1e54b4-34c7-45cb-88c3-76f38f552490",
+            "url": "http://127.0.0.1:63116/history-fixture-41710401-b330-49e4-8b84-646bb6062a30/beta",
+            "title": "history-fixture-41710401-b330-49e4-8b84-646bb6062a30 Beta",
+            "visitCount": 1
+          }
+        ]
+      }
+    },
+    "cleared": {
+      "revision": 12,
+      "total": 0,
+      "entries": [],
+      "disk": {
+        "schemaVersion": 1,
+        "revision": 12,
+        "totalEntries": 0,
+        "fixtureEntries": []
+      }
+    }
+  },
+  "screenshots": [
+    "/Users/coso/Documents/dev/ai/aiclientproxy/lime/.lime/release-v11670/zh-CN-browser-history-search.png",
+    "/Users/coso/Documents/dev/ai/aiclientproxy/lime/.lime/release-v11670/zh-CN-browser-history-reopened.png",
+    "/Users/coso/Documents/dev/ai/aiclientproxy/lime/.lime/release-v11670/zh-CN-browser-history-settings-reopened.png",
+    "/Users/coso/Documents/dev/ai/aiclientproxy/lime/.lime/release-v11670/zh-CN-browser-history-confirmation.png",
+    "/Users/coso/Documents/dev/ai/aiclientproxy/lime/.lime/release-v11670/zh-CN-browser-history-cleared.png"
+  ],
+  "invoke": {
+    "commands": [
+      {
+        "command": "browser_tab_list",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "browser_tab_list",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "browser_history_list",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "browser_history_list",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "browser_tab_mount",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "browser_tab_list",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "browser_tab_list",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "browser_tab_show_menu",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "browser_history_list",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "browser_history_list",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "browser_history_remove",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "browser_history_list",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "browser_history_list",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "browser_history_clear",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "browser_history_list",
+        "transport": "electron-ipc",
+        "status": "success"
+      }
+    ],
+    "mockFallbackHitCount": 0
+  },
+  "assertions": {
+    "realElectronPreload": true,
+    "isolatedTemporaryProfile": true,
+    "bothPagesServedLocally": true,
+    "committedTitlesOnSameNativePage": true,
+    "committedHistoryPersisted": true,
+    "nativeMenuOpenedHistory": true,
+    "searchByTitle": true,
+    "searchByUrl": true,
+    "historyEntryOpensNewCanonicalTab": true,
+    "reopenedPageHasNewNativeViewAndCommittedTitle": true,
+    "reopeningPersistsAnotherHistoryVisit": true,
+    "reopeningMountsThroughRealPreloadIpc": true,
+    "settingsHistoryReturnsToExplicitSessionAndWorkspace": true,
+    "settingsHistoryCreatesAnotherCanonicalNativeTab": true,
+    "settingsHistoryReopeningPersistsAnotherVisit": true,
+    "reopenedTabMenuReturnsToHistory": true,
+    "singleDeleteRetainsOtherEntry": true,
+    "openingConfirmationDoesNotDelete": true,
+    "cancelKeepsDiskAndRevision": true,
+    "confirmedClearPersistsNewRevision": true,
+    "historyMutationsUseRealIpc": true,
+    "noProductionMockFallback": true,
+    "noRendererErrors": true
+  },
+  "failedAssertions": [],
+  "diagnostics": {
+    "consoleErrors": [],
+    "pageErrors": [],
+    "scope": "scenario renderer only; main-process diagnostics belong to the harness",
+    "harness": {
+      "consoleErrors": [],
+      "pageErrors": []
+    }
+  }
+}

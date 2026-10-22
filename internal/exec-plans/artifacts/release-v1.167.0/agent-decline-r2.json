@@ -1,0 +1,21 @@
+{
+  "label": "agent-decline-r2",
+  "startedAt": "2026-10-22T11:32:04.729027+00:00",
+  "recordedAt": "2026-10-22T11:32:34.877287+00:00",
+  "results": [
+    {
+      "command": [
+        "node",
+        "scripts/agent-runtime/claw-chat-current-fixture-smoke.mjs",
+        "--scenario",
+        "approval-request-decline",
+        "--prefix",
+        "release-v11670-decline-r2"
+      ],
+      "exitCode": 1,
+      "seconds": 30.15
+    }
+  ],
+  "log": "agent-decline-r2.log",
+  "exitCode": 1
+}

@@ -1,0 +1,1024 @@
+{
+  "schemaVersion": "browser_runtime_electron_gate_b.browse.v1",
+  "status": "pass",
+  "generatedAt": "2026-10-22T11:36:26.171Z",
+  "proofLevel": "Gate B",
+  "claimBoundary": "真实 Electron、preload/IPC、App Server/runtime 的 browse ask 与独立 action 审批；同一 click call 分阶段批准。未证明异步网页跳转审批、跨 origin iframe、live provider 或平台打包。",
+  "identity": {
+    "sessionId": "01a16365-c457-70d0-b577-b8ed419a8a6e",
+    "threadId": "01a16365-c457-70d0-b577-b8ed419a8a6e"
+  },
+  "browser": {
+    "beforeTurn": {
+      "panelVisible": true,
+      "sessionId": "browser_session_6d45c3806a19465fa7cc32ff38ebd7fa",
+      "tabId": "browser_tab_57fe68ef4f9849fa887aeed9c345227a",
+      "threadId": "01a16365-c457-70d0-b577-b8ed419a8a6e",
+      "webContentsId": 2,
+      "activeSurface": "browser",
+      "rendererLocale": "zh-CN"
+    },
+    "controlled": {
+      "activeTurnId": "turn_5b41679dbdbf48adb0945caff8ba40de",
+      "address": "http://127.0.0.1:63189/browser-runtime-gate-b",
+      "controlOwner": "agent",
+      "pageRevision": 4,
+      "sessionId": "browser_session_6d45c3806a19465fa7cc32ff38ebd7fa",
+      "tabId": "browser_tab_57fe68ef4f9849fa887aeed9c345227a",
+      "threadId": "01a16365-c457-70d0-b577-b8ed419a8a6e",
+      "viewId": "browser_view_2c7ae177-f3fc-4f6b-85e6-056d4e036cef",
+      "webContentsId": 2
+    },
+    "released": {
+      "activeTurnId": null,
+      "address": "http://127.0.0.1:63189/browser-runtime-gate-b",
+      "controlOwner": "released",
+      "pageRevision": 5,
+      "sessionId": "browser_session_6d45c3806a19465fa7cc32ff38ebd7fa",
+      "tabId": "browser_tab_57fe68ef4f9849fa887aeed9c345227a",
+      "threadId": "01a16365-c457-70d0-b577-b8ed419a8a6e",
+      "viewId": "browser_view_2c7ae177-f3fc-4f6b-85e6-056d4e036cef",
+      "webContentsId": 2
+    },
+    "afterTerminal": {
+      "activeTurnId": null,
+      "address": "http://127.0.0.1:63189/browser-runtime-gate-b",
+      "controlOwner": "released",
+      "pageRevision": 5,
+      "sessionId": "browser_session_6d45c3806a19465fa7cc32ff38ebd7fa",
+      "tabId": "browser_tab_57fe68ef4f9849fa887aeed9c345227a",
+      "threadId": "01a16365-c457-70d0-b577-b8ed419a8a6e",
+      "viewId": "browser_view_2c7ae177-f3fc-4f6b-85e6-056d4e036cef",
+      "webContentsId": 2
+    },
+    "mutationCountAfterApproval": 1,
+    "mutationCountAfterDecline": 1
+  },
+  "approval": {
+    "firstPrompt": {
+      "interactionId": "approval:01a16365-c457-70d0-b577-b8ed419a8a6e:turn_5b41679dbdbf48adb0945caff8ba40de:01a16365-dbee-7853-b458-975baab4f229",
+      "interactionKind": "approval",
+      "summary": "Sensitive click target: BUTTON button id browser-approval-target aria-label Delete account",
+      "decisions": [
+        "cancel",
+        "decline",
+        "allow_once"
+      ],
+      "buttons": [
+        {
+          "decision": "cancel",
+          "disabled": false,
+          "text": "取消任务"
+        },
+        {
+          "decision": "decline",
+          "disabled": false,
+          "text": "拒绝"
+        },
+        {
+          "decision": "allow_once",
+          "disabled": false,
+          "text": "允许一次"
+        }
+      ]
+    },
+    "firstDecision": {
+      "clicked": true,
+      "decision": "allow_once",
+      "interactionId": "approval:01a16365-c457-70d0-b577-b8ed419a8a6e:turn_5b41679dbdbf48adb0945caff8ba40de:01a16365-dbee-7853-b458-975baab4f229"
+    },
+    "secondPrompt": {
+      "interactionId": "approval:01a16365-c457-70d0-b577-b8ed419a8a6e:turn_5b41679dbdbf48adb0945caff8ba40de:01a16365-e263-7d51-b15d-42ca1df2326f",
+      "interactionKind": "approval",
+      "summary": "Sensitive click target: BUTTON button id browser-approval-target aria-label Delete account",
+      "decisions": [
+        "cancel",
+        "decline",
+        "allow_once"
+      ],
+      "buttons": [
+        {
+          "decision": "cancel",
+          "disabled": false,
+          "text": "取消任务"
+        },
+        {
+          "decision": "decline",
+          "disabled": false,
+          "text": "拒绝"
+        },
+        {
+          "decision": "allow_once",
+          "disabled": false,
+          "text": "允许一次"
+        }
+      ]
+    },
+    "secondDecision": {
+      "clicked": true,
+      "decision": "decline",
+      "interactionId": "approval:01a16365-c457-70d0-b577-b8ed419a8a6e:turn_5b41679dbdbf48adb0945caff8ba40de:01a16365-e263-7d51-b15d-42ca1df2326f"
+    },
+    "declinedMutationFailure": "\"用户拒绝工具执行\""
+  },
+  "terminal": {
+    "turn": {
+      "completedAt": 1792668985,
+      "id": "turn_5b41679dbdbf48adb0945caff8ba40de",
+      "items": [
+        {
+          "clientId": "3b47fcda-447f-44a0-bf07-32d22ca94a38",
+          "content": [
+            {
+              "text": "请使用当前 Browser 打开标签并观察页面，然后返回结果。",
+              "type": "text"
+            }
+          ],
+          "id": "user-turn_5b41679dbdbf48adb0945caff8ba40de",
+          "type": "userMessage"
+        },
+        {
+          "arguments": {},
+          "contentItems": [
+            {
+              "text": "{\"data\":[{\"activeTurnId\":null,\"audible\":false,\"audioMuted\":false,\"browserSessionId\":\"browser_session_6d45c3806a19465fa7cc32ff38ebd7fa\",\"canGoBack\":false,\"canGoForward\":false,\"controlOwner\":\"user\",\"device\":null,\"faviconUrl\":null,\"find\":{\"activeMatchOrdinal\":0,\"finalUpdate\":true,\"matches\":0,\"text\":\"\"},\"humanReason\":null,\"isLoading\":false,\"loadProgress\":1,\"mark\":null,\"origin\":\"user\",\"ownerWebContentsId\":1,\"pageRevision\":4,\"selected\":true,\"tabId\":\"browser_tab_57fe68ef4f9849fa887aeed9c345227a\",\"threadId\":\"01a16365-c457-70d0-b577-b8ed419a8a6e\",\"title\":\"Browser Approval Gate B\",\"url\":\"http://127.0.0.1:63189/browser-runtime-gate-b\",\"viewId\":\"browser_view_2c7ae177-f3fc-4f6b-85e6-056d4e036cef\",\"webContentsId\":2,\"windowId\":1,\"zoomFactor\":1}],\"status\":\"completed\"}",
+              "type": "inputText"
+            }
+          ],
+          "durationMs": 162,
+          "id": "item_call-browser-open-tabs",
+          "namespace": "browser",
+          "status": "completed",
+          "success": true,
+          "tool": "openTabs",
+          "type": "dynamicToolCall"
+        },
+        {
+          "arguments": {
+            "pageRevision": 4,
+            "tabId": "browser_tab_57fe68ef4f9849fa887aeed9c345227a",
+            "title": "Browser Approval Gate B",
+            "url": "http://127.0.0.1:63189/browser-runtime-gate-b"
+          },
+          "contentItems": [
+            {
+              "text": "{\"status\":\"completed\",\"tab\":{\"activeTurnId\":\"turn_5b41679dbdbf48adb0945caff8ba40de\",\"audible\":false,\"audioMuted\":false,\"browserSessionId\":\"browser_session_6d45c3806a19465fa7cc32ff38ebd7fa\",\"canGoBack\":false,\"canGoForward\":false,\"controlOwner\":\"agent\",\"device\":null,\"faviconUrl\":null,\"find\":{\"activeMatchOrdinal\":0,\"finalUpdate\":true,\"matches\":0,\"text\":\"\"},\"humanReason\":null,\"isLoading\":false,\"loadProgress\":1,\"mark\":null,\"origin\":\"user\",\"ownerWebContentsId\":1,\"pageRevision\":4,\"selected\":true,\"tabId\":\"browser_tab_57fe68ef4f9849fa887aeed9c345227a\",\"threadId\":\"01a16365-c457-70d0-b577-b8ed419a8a6e\",\"title\":\"Browser Approval Gate B\",\"url\":\"http://127.0.0.1:63189/browser-runtime-gate-b\",\"viewId\":\"browser_view_2c7ae177-f3fc-4f6b-85e6-056d4e036cef\",\"webContentsId\":2,\"windowId\":1,\"zoomFactor\":1}}",
+              "type": "inputText"
+            }
+          ],
+          "durationMs": 947,
+          "id": "item_call-browser-claim-tab",
+          "namespace": "browser",
+          "status": "completed",
+          "success": true,
+          "tool": "claimTab",
+          "type": "dynamicToolCall"
+        },
+        {
+          "arguments": {
+            "tabId": "browser_tab_57fe68ef4f9849fa887aeed9c345227a"
+          },
+          "contentItems": [
+            {
+              "text": "{\"data\":{\"currentIndex\":0,\"nodes\":[{\"backendNodeId\":1,\"childIds\":[\"3\"],\"ignored\":false,\"name\":\"Browser Approval Gate B\",\"nodeId\":\"1\",\"role\":\"RootWebArea\",\"value\":null},{\"backendNodeId\":3,\"childIds\":[\"7\"],\"ignored\":true,\"name\":null,\"nodeId\":\"3\",\"role\":\"none\",\"value\":null},{\"backendNodeId\":7,\"childIds\":[\"2\"],\"ignored\":true,\"name\":null,\"nodeId\":\"7\",\"role\":\"none\",\"value\":null},{\"backendNodeId\":2,\"childIds\":[\"8\",\"9\",\"10\"],\"ignored\":false,\"name\":\"\",\"nodeId\":\"2\",\"role\":\"main\",\"value\":null},{\"backendNodeId\":8,\"childIds\":[\"11\"],\"ignored\":false,\"name\":\"Account controls\",\"nodeId\":\"8\",\"role\":\"heading\",\"value\":null},{\"backendNodeId\":9,\"childIds\":[\"12\"],\"ignored\":false,\"name\":\"Delete account\",\"nodeId\":\"9\",\"role\":\"button\",\"value\":null},{\"backendNodeId\":10,\"childIds\":[\"13\"],\"ignored\":false,\"name\":\"\",\"nodeId\":\"10\",\"role\":\"status\",\"value\":null},{\"backendNodeId\":11,\"childIds\":[\"-1000000002\"],\"ignored\":false,\"name\":\"Account controls\",\"nodeId\":\"11\",\"role\":\"StaticText\",\"value\":null},{\"backendNodeId\":12,\"childIds\":[\"-1000000003\"],\"ignored\":false,\"name\":\"Delete account\",\"nodeId\":\"12\",\"role\":\"StaticText\",\"value\":null},{\"backendNodeId\":13,\"childIds\":[\"-1000000004\"],\"ignored\":false,\"name\":\"0\",\"nodeId\":\"13\",\"role\":\"StaticText\",\"value\":null},{\"backendNodeId\":null,\"childIds\":[],\"ignored\":false,\"name\":\"Account controls\",\"nodeId\":\"-1000000002\",\"role\":\"InlineTextBox\",\"value\":null},{\"backendNodeId\":null,\"childIds\":[],\"ignored\":false,\"name\":\"Delete account\",\"nodeId\":\"-1000000003\",\"role\":\"InlineTextBox\",\"value\":null},{\"backendNodeId\":null,\"childIds\":[],\"ignored\":false,\"name\":\"0\",\"nodeId\":\"-1000000004\",\"role\":\"InlineTextBox\",\"value\":null}],\"pageRevision\":4,\"snapshotId\":\"1855165e-eadd-4822-a594-0e08930ea687\",\"title\":\"Browser Approval Gate B\",\"truncated\":false,\"url\":\"http://127.0.0.1:63189/browser-runtime-gate-b\"},\"status\":\"completed\",\"tab\":{\"activeTurnId\":\"turn_5b41679dbdbf48adb0945caff8ba40de\",\"audible\":false,\"audioMuted\":false,\"browserSessionId\":\"browser_session_6d45c3806a19465fa7cc32ff38ebd7fa\",\"canG... [truncated 25 chars]",
+              "type": "inputText"
+            }
+          ],
+          "durationMs": 60,
+          "id": "item_call-browser-observe",
+          "namespace": "browser",
+          "status": "completed",
+          "success": true,
+          "tool": "observe",
+          "type": "dynamicToolCall"
+        },
+        {
+          "arguments": {
+            "backendNodeId": 9,
+            "snapshotId": "1855165e-eadd-4822-a594-0e08930ea687",
+            "tabId": "browser_tab_57fe68ef4f9849fa887aeed9c345227a"
+          },
+          "contentItems": [
+            {
+              "text": "{\"status\":\"completed\",\"tab\":{\"activeTurnId\":\"turn_5b41679dbdbf48adb0945caff8ba40de\",\"audible\":false,\"audioMuted\":false,\"browserSessionId\":\"browser_session_6d45c3806a19465fa7cc32ff38ebd7fa\",\"canGoBack\":false,\"canGoForward\":false,\"controlOwner\":\"agent\",\"device\":null,\"faviconUrl\":null,\"find\":{\"activeMatchOrdinal\":0,\"finalUpdate\":true,\"matches\":0,\"text\":\"\"},\"humanReason\":null,\"isLoading\":false,\"loadProgress\":1,\"mark\":null,\"origin\":\"user\",\"ownerWebContentsId\":1,\"pageRevision\":5,\"selected\":true,\"tabId\":\"browser_tab_57fe68ef4f9849fa887aeed9c345227a\",\"threadId\":\"01a16365-c457-70d0-b577-b8ed419a8a6e\",\"title\":\"Browser Approval Gate B\",\"url\":\"http://127.0.0.1:63189/browser-runtime-gate-b\",\"viewId\":\"browser_view_2c7ae177-f3fc-4f6b-85e6-056d4e036cef\",\"webContentsId\":2,\"windowId\":1,\"zoomFactor\":1}}",
+              "type": "inputText"
+            }
+          ],
+          "durationMs": 1263,
+          "id": "item_call-browser-sensitive-click-approved",
+          "namespace": "browser",
+          "status": "completed",
+          "success": true,
+          "tool": "click",
+          "type": "dynamicToolCall"
+        },
+        {
+          "arguments": {
+            "tabId": "browser_tab_57fe68ef4f9849fa887aeed9c345227a"
+          },
+          "contentItems": [
+            {
+              "text": "{\"data\":{\"currentIndex\":0,\"nodes\":[{\"backendNodeId\":1,\"childIds\":[\"3\"],\"ignored\":false,\"name\":\"Browser Approval Gate B\",\"nodeId\":\"1\",\"role\":\"RootWebArea\",\"value\":null},{\"backendNodeId\":3,\"childIds\":[\"7\"],\"ignored\":true,\"name\":null,\"nodeId\":\"3\",\"role\":\"none\",\"value\":null},{\"backendNodeId\":7,\"childIds\":[\"2\"],\"ignored\":true,\"name\":null,\"nodeId\":\"7\",\"role\":\"none\",\"value\":null},{\"backendNodeId\":2,\"childIds\":[\"8\",\"9\",\"10\"],\"ignored\":false,\"name\":\"\",\"nodeId\":\"2\",\"role\":\"main\",\"value\":null},{\"backendNodeId\":8,\"childIds\":[\"11\"],\"ignored\":false,\"name\":\"Account controls\",\"nodeId\":\"8\",\"role\":\"heading\",\"value\":null},{\"backendNodeId\":9,\"childIds\":[\"12\"],\"ignored\":false,\"name\":\"Delete account\",\"nodeId\":\"9\",\"role\":\"button\",\"value\":null},{\"backendNodeId\":10,\"childIds\":[\"14\"],\"ignored\":false,\"name\":\"\",\"nodeId\":\"10\",\"role\":\"status\",\"value\":null},{\"backendNodeId\":11,\"childIds\":[\"-1000000002\"],\"ignored\":false,\"name\":\"Account controls\",\"nodeId\":\"11\",\"role\":\"StaticText\",\"value\":null},{\"backendNodeId\":12,\"childIds\":[\"-1000000003\"],\"ignored\":false,\"name\":\"Delete account\",\"nodeId\":\"12\",\"role\":\"StaticText\",\"value\":null},{\"backendNodeId\":14,\"childIds\":[\"-1000000006\"],\"ignored\":false,\"name\":\"1\",\"nodeId\":\"14\",\"role\":\"StaticText\",\"value\":null},{\"backendNodeId\":null,\"childIds\":[],\"ignored\":false,\"name\":\"Account controls\",\"nodeId\":\"-1000000002\",\"role\":\"InlineTextBox\",\"value\":null},{\"backendNodeId\":null,\"childIds\":[],\"ignored\":false,\"name\":\"Delete account\",\"nodeId\":\"-1000000003\",\"role\":\"InlineTextBox\",\"value\":null},{\"backendNodeId\":null,\"childIds\":[],\"ignored\":false,\"name\":\"1\",\"nodeId\":\"-1000000006\",\"role\":\"InlineTextBox\",\"value\":null}],\"pageRevision\":5,\"snapshotId\":\"77156da2-5587-470a-a913-40d63d2312bc\",\"title\":\"Browser Approval Gate B\",\"truncated\":false,\"url\":\"http://127.0.0.1:63189/browser-runtime-gate-b\"},\"status\":\"completed\",\"tab\":{\"activeTurnId\":\"turn_5b41679dbdbf48adb0945caff8ba40de\",\"audible\":false,\"audioMuted\":false,\"browserSessionId\":\"browser_session_6d45c3806a19465fa7cc32ff38ebd7fa\",\"canG... [truncated 25 chars]",
+              "type": "inputText"
+            }
+          ],
+          "durationMs": 116,
+          "id": "item_call-browser-observe-before-decline",
+          "namespace": "browser",
+          "status": "completed",
+          "success": true,
+          "tool": "observe",
+          "type": "dynamicToolCall"
+        },
+        {
+          "arguments": {
+            "backendNodeId": 9,
+            "snapshotId": "77156da2-5587-470a-a913-40d63d2312bc",
+            "tabId": "browser_tab_57fe68ef4f9849fa887aeed9c345227a"
+          },
+          "durationMs": 977,
+          "id": "item_call-browser-sensitive-click-declined",
+          "namespace": "browser",
+          "status": "failed",
+          "success": false,
+          "tool": "click",
+          "type": "dynamicToolCall"
+        },
+        {
+          "id": "provider:turn_5b41679dbdbf48adb0945caff8ba40de:7:text:text-0",
+          "text": "BROWSER_RUNTIME_GATE_B_DONE:{\"approvalResumed\":true,\"declineTerminal\":true,\"tabId\":\"browser_tab_57fe68ef4f9849fa887aeed9c345227a\",\"threadId\":\"01a16365-c457-70d0-b577-b8ed419a8a6e\",\"webContentsId\":2}",
+          "type": "agentMessage"
+        }
+      ],
+      "itemsView": "full",
+      "status": "completed"
+    },
+    "read": {
+      "thread": {
+        "canAcceptDirectInput": true,
+        "cliVersion": "1.167.0",
+        "createdAt": 1792668976,
+        "cwd": "/var/folders/87/s6cpr7hd1_v43cs833x4s_900000gn/T/claw-chat-current-fixture-L129nH/home/Library/Application Support/lime/projects/default",
+        "ephemeral": false,
+        "extra": {
+          "activePermissionProfile": {
+            "id": ":danger-full-access"
+          },
+          "allowProviderModelFallback": false,
+          "approvalPolicy": "never",
+          "approvalsReviewer": "user",
+          "baseInstructions": null,
+          "cliVersion": "1.167.0",
+          "config": null,
+          "developerInstructions": null,
+          "dynamicTools": [
+            {
+              "description": "Read information exposed by the Lime desktop host.",
+              "name": "desktop",
+              "tools": [
+                {
+                  "description": "[truncated-depth]",
+                  "inputSchema": "[truncated-depth]",
+                  "name": "[truncated-depth]",
+                  "type": "[truncated-depth]"
+                }
+              ],
+              "type": "namespace"
+            },
+            {
+              "description": "Operate the same Browser workspace tab that is visible to the user.",
+              "name": "browser",
+              "tools": [
+                {
+                  "description": "[truncated-depth]",
+                  "inputSchema": "[truncated-depth]",
+                  "name": "[truncated-depth]",
+                  "type": "[truncated-depth]"
+                },
+                {
+                  "description": "[truncated-depth]",
+                  "inputSchema": "[truncated-depth]",
+                  "name": "[truncated-depth]",
+                  "type": "[truncated-depth]"
+                },
+                {
+                  "description": "[truncated-depth]",
+                  "inputSchema": "[truncated-depth]",
+                  "name": "[truncated-depth]",
+                  "type": "[truncated-depth]"
+                },
+                {
+                  "description": "[truncated-depth]",
+                  "inputSchema": "[truncated-depth]",
+                  "name": "[truncated-depth]",
+                  "type": "[truncated-depth]"
+                },
+                {
+                  "description": "[truncated-depth]",
+                  "inputSchema": "[truncated-depth]",
+                  "name": "[truncated-depth]",
+                  "type": "[truncated-depth]"
+                },
+                {
+                  "description": "[truncated-depth]",
+                  "inputSchema": "[truncated-depth]",
+                  "name": "[truncated-depth]",
+                  "type": "[truncated-depth]"
+                },
+                {
+                  "description": "[truncated-depth]",
+                  "inputSchema": "[truncated-depth]",
+                  "name": "[truncated-depth]",
+                  "type": "[truncated-depth]"
+                },
+                {
+                  "description": "[truncated-depth]",
+                  "inputSchema": "[truncated-depth]",
+                  "name": "[truncated-depth]",
+                  "type": "[truncated-depth]"
+                },
+                {
+                  "description": "[truncated-depth]",
+                  "inputSchema": "[truncated-depth]",
+                  "name": "[truncated-depth]",
+                  "type": "[truncated-depth]"
+                },
+                {
+                  "description": "[truncated-depth]",
+                  "inputSchema": "[truncated-depth]",
+                  "name": "[truncated-depth]",
+                  "type": "[truncated-depth]"
+                },
+                {
+                  "description": "[truncated-depth]",
+                  "inputSchema": "[truncated-depth]",
+                  "name": "[truncated-depth]",
+                  "type": "[truncated-depth]"
+                },
+                {
+                  "description": "[truncated-depth]",
+                  "inputSchema": "[truncated-depth]",
+                  "name": "[truncated-depth]",
+                  "type": "[truncated-depth]"
+                },
+                {
+                  "description": "[truncated-depth]",
+                  "inputSchema": "[truncated-depth]",
+                  "name": "[truncated-depth]",
+                  "type": "[truncated-depth]"
+                },
+                {
+                  "description": "[truncated-depth]",
+                  "inputSchema": "[truncated-depth]",
+                  "name": "[truncated-depth]",
+                  "type": "[truncated-depth]"
+                },
+                {
+                  "description": "[truncated-depth]",
+                  "inputSchema": "[truncated-depth]",
+                  "name": "[truncated-depth]",
+                  "type": "[truncated-depth]"
+                },
+                {
+                  "description": "[truncated-depth]",
+                  "inputSchema": "[truncated-depth]",
+                  "name": "[truncated-depth]",
+                  "type": "[truncated-depth]"
+                },
+                {
+                  "description": "[truncated-depth]",
+                  "inputSchema": "[truncated-depth]",
+                  "name": "[truncated-depth]",
+                  "type": "[truncated-depth]"
+                },
+                {
+                  "description": "[truncated-depth]",
+                  "inputSchema": "[truncated-depth]",
+                  "name": "[truncated-depth]",
+                  "type": "[truncated-depth]"
+                },
+                {
+                  "description": "[truncated-depth]",
+                  "inputSchema": "[truncated-depth]",
+                  "name": "[truncated-depth]",
+                  "type": "[truncated-depth]"
+                }
+              ],
+              "type": "namespace"
+            }
+          ],
+          "environments": null,
+          "ephemeral": false,
+          "experimentalRawEvents": false,
+          "historyMode": "paginated",
+          "modelName": "fixture-browser-runtime",
+          "permissions": ":danger-full-access",
+          "personality": null,
+          "projectId": null,
+          "providerName": "custom-6c7ea0e0-c237-4059-9d69-e5c90a6b1c05",
+          "providerSelector": "custom-6c7ea0e0-c237-4059-9d69-e5c90a6b1c05",
+          "runtimeWorkspaceRoots": [
+            "/var/folders/87/s6cpr7hd1_v43cs833x4s_900000gn/T/claw-chat-current-fixture-L129nH/home/Library/Application Support/lime/projects/default"
+          ],
+          "sandbox": null,
+          "sandboxPolicy": "danger-full-access",
+          "selectedCapabilityRoots": null,
+          "serviceTier": null,
+          "sessionStartSource": null,
+          "source": "appServer",
+          "threadSource": "appServer",
+          "workingDir": "/var/folders/87/s6cpr7hd1_v43cs833x4s_900000gn/T/claw-chat-current-fixture-L129nH/home/Library/Application Support/lime/projects/default"
+        },
+        "historyMode": "paginated",
+        "id": "01a16365-c457-70d0-b577-b8ed419a8a6e",
+        "modelProvider": "custom-6c7ea0e0-c237-4059-9d69-e5c90a6b1c05",
+        "name": "Claw 新闻输入 Electron fixture",
+        "preview": "Claw 新闻输入 Electron fixture",
+        "projectId": null,
+        "recencyAt": 1792668976,
+        "sessionId": "01a16365-c457-70d0-b577-b8ed419a8a6e",
+        "source": "appServer",
+        "status": {
+          "type": "idle"
+        },
+        "threadSource": "appServer",
+        "turns": [
+          {
+            "completedAt": 1792668985,
+            "id": "turn_5b41679dbdbf48adb0945caff8ba40de",
+            "items": [
+              {
+                "clientId": "3b47fcda-447f-44a0-bf07-32d22ca94a38",
+                "content": [
+                  "[truncated-depth]"
+                ],
+                "id": "user-turn_5b41679dbdbf48adb0945caff8ba40de",
+                "type": "userMessage"
+              },
+              {
+                "arguments": {},
+                "contentItems": [
+                  "[truncated-depth]"
+                ],
+                "durationMs": 162,
+                "id": "item_call-browser-open-tabs",
+                "namespace": "browser",
+                "status": "completed",
+                "success": true,
+                "tool": "openTabs",
+                "type": "dynamicToolCall"
+              },
+              {
+                "arguments": {
+                  "pageRevision": "[truncated-depth]",
+                  "tabId": "[truncated-depth]",
+                  "title": "[truncated-depth]",
+                  "url": "[truncated-depth]"
+                },
+                "contentItems": [
+                  "[truncated-depth]"
+                ],
+                "durationMs": 947,
+                "id": "item_call-browser-claim-tab",
+                "namespace": "browser",
+                "status": "completed",
+                "success": true,
+                "tool": "claimTab",
+                "type": "dynamicToolCall"
+              },
+              {
+                "arguments": {
+                  "tabId": "[truncated-depth]"
+                },
+                "contentItems": [
+                  "[truncated-depth]"
+                ],
+                "durationMs": 60,
+                "id": "item_call-browser-observe",
+                "namespace": "browser",
+                "status": "completed",
+                "success": true,
+                "tool": "observe",
+                "type": "dynamicToolCall"
+              },
+              {
+                "arguments": {
+                  "backendNodeId": "[truncated-depth]",
+                  "snapshotId": "[truncated-depth]",
+                  "tabId": "[truncated-depth]"
+                },
+                "contentItems": [
+                  "[truncated-depth]"
+                ],
+                "durationMs": 1263,
+                "id": "item_call-browser-sensitive-click-approved",
+                "namespace": "browser",
+                "status": "completed",
+                "success": true,
+                "tool": "click",
+                "type": "dynamicToolCall"
+              },
+              {
+                "arguments": {
+                  "tabId": "[truncated-depth]"
+                },
+                "contentItems": [
+                  "[truncated-depth]"
+                ],
+                "durationMs": 116,
+                "id": "item_call-browser-observe-before-decline",
+                "namespace": "browser",
+                "status": "completed",
+                "success": true,
+                "tool": "observe",
+                "type": "dynamicToolCall"
+              },
+              {
+                "arguments": {
+                  "backendNodeId": "[truncated-depth]",
+                  "snapshotId": "[truncated-depth]",
+                  "tabId": "[truncated-depth]"
+                },
+                "durationMs": 977,
+                "id": "item_call-browser-sensitive-click-declined",
+                "namespace": "browser",
+                "status": "failed",
+                "success": false,
+                "tool": "click",
+                "type": "dynamicToolCall"
+              },
+              {
+                "id": "provider:turn_5b41679dbdbf48adb0945caff8ba40de:7:text:text-0",
+                "text": "BROWSER_RUNTIME_GATE_B_DONE:{\"approvalResumed\":true,\"declineTerminal\":true,\"tabId\":\"browser_tab_57fe68ef4f9849fa887aeed9c345227a\",\"threadId\":\"01a16365-c457-70d0-b577-b8ed419a8a6e\",\"webContentsId\":2}",
+                "type": "agentMessage"
+              }
+            ],
+            "itemsView": "full",
+            "status": "completed"
+          }
+        ],
+        "updatedAt": 1792668985
+      }
+    }
+  },
+  "debugger": {
+    "beforeApproval": {
+      "attached": true,
+      "exists": true,
+      "webContentsId": 2
+    },
+    "afterTerminal": {
+      "attached": false,
+      "exists": true,
+      "webContentsId": 2
+    }
+  },
+  "invoke": {
+    "calls": [
+      {
+        "method": "thread/read",
+        "threadId": "01a16365-c457-70d0-b577-b8ed419a8a6e",
+        "turnId": "",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "method": "permissionProfile/list",
+        "threadId": "",
+        "turnId": "",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "method": "thread/list",
+        "threadId": "",
+        "turnId": "",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "method": "turn/start",
+        "threadId": "01a16365-c457-70d0-b577-b8ed419a8a6e",
+        "turnId": "",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "method": "promptHistory/append",
+        "threadId": "01a16365-c457-70d0-b577-b8ed419a8a6e",
+        "turnId": "",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "method": "thread/list",
+        "threadId": "",
+        "turnId": "",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "method": "thread/list",
+        "threadId": "",
+        "turnId": "",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "method": "thread/list",
+        "threadId": "",
+        "turnId": "",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "method": "thread/list",
+        "threadId": "",
+        "turnId": "",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "method": "thread/list",
+        "threadId": "",
+        "turnId": "",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "method": "thread/read",
+        "threadId": "01a16365-c457-70d0-b577-b8ed419a8a6e",
+        "turnId": "",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "method": "promptHistory/read",
+        "threadId": "",
+        "turnId": "",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "method": "thread/read",
+        "threadId": "01a16365-c457-70d0-b577-b8ed419a8a6e",
+        "turnId": "",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "method": "thread/list",
+        "threadId": "",
+        "turnId": "",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "method": "thread/list",
+        "threadId": "",
+        "turnId": "",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "method": "thread/list",
+        "threadId": "",
+        "turnId": "",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "method": "thread/list",
+        "threadId": "",
+        "turnId": "",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "method": "thread/read",
+        "threadId": "01a16365-c457-70d0-b577-b8ed419a8a6e",
+        "turnId": "",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "method": "promptHistory/read",
+        "threadId": "",
+        "turnId": "",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "method": "thread/read",
+        "threadId": "01a16365-c457-70d0-b577-b8ed419a8a6e",
+        "turnId": "",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "method": "thread/read",
+        "threadId": "01a16365-c457-70d0-b577-b8ed419a8a6e",
+        "turnId": "",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "method": "promptHistory/read",
+        "threadId": "",
+        "turnId": "",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "method": "thread/read",
+        "threadId": "01a16365-c457-70d0-b577-b8ed419a8a6e",
+        "turnId": "",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "method": "thread/list",
+        "threadId": "",
+        "turnId": "",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "method": "thread/list",
+        "threadId": "",
+        "turnId": "",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "method": "thread/list",
+        "threadId": "",
+        "turnId": "",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "method": "thread/read",
+        "threadId": "01a16365-c457-70d0-b577-b8ed419a8a6e",
+        "turnId": "",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "method": "thread/items/list",
+        "threadId": "01a16365-c457-70d0-b577-b8ed419a8a6e",
+        "turnId": "",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "method": "thread/list",
+        "threadId": "",
+        "turnId": "",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "method": "thread/turns/list",
+        "threadId": "01a16365-c457-70d0-b577-b8ed419a8a6e",
+        "turnId": "",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "method": "thread/read",
+        "threadId": "01a16365-c457-70d0-b577-b8ed419a8a6e",
+        "turnId": "",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "method": "promptHistory/read",
+        "threadId": "",
+        "turnId": "",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "method": "thread/read",
+        "threadId": "01a16365-c457-70d0-b577-b8ed419a8a6e",
+        "turnId": "",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "method": "thread/list",
+        "threadId": "",
+        "turnId": "",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "method": "thread/settings/update",
+        "threadId": "01a16365-c457-70d0-b577-b8ed419a8a6e",
+        "turnId": "",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "method": "thread/list",
+        "threadId": "",
+        "turnId": "",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "method": "thread/read",
+        "threadId": "01a16365-c457-70d0-b577-b8ed419a8a6e",
+        "turnId": "",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "method": "workspaceRightSurface/pending/list",
+        "threadId": "",
+        "turnId": "",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "method": "thread/list",
+        "threadId": "",
+        "turnId": "",
+        "transport": "electron-ipc",
+        "status": "success"
+      }
+    ],
+    "invokeErrorCount": 0,
+    "mockFallbackHitCount": 0,
+    "browserNavigateCount": 0
+  },
+  "diagnostics": {
+    "consoleErrors": [],
+    "pageErrors": []
+  },
+  "assertions": {
+    "dangerousTargetObserved": true,
+    "canonicalApprovalPromptVisible": true,
+    "browserApprovalIsOnceOnly": true,
+    "approvedWithAllowOnce": true,
+    "approvedActionResumedSameTab": true,
+    "approvedMutationExecutedOnce": true,
+    "freshSnapshotUsedForSecondAction": true,
+    "secondApprovalHasNewIdentity": true,
+    "declinedWithoutMutation": true,
+    "turnCompletedAfterDecline": true,
+    "browserReleasedAfterTerminal": true,
+    "debuggerLifecycleClosed": true,
+    "finalAssistantVisible": true,
+    "currentElectronBridgeOnly": true,
+    "noConsoleOrPageErrors": true,
+    "browseApprovalBeforeControl": true,
+    "noDebuggerBeforeBrowseApproval": true,
+    "sitePolicyChangeRevokedBrowseGrant": true,
+    "exactOriginShownInBothBrowsePrompts": true,
+    "noMutationBeforeIndependentActionApproval": true,
+    "browseThenActionSameCanonicalCall": true,
+    "eachStageUsesANewToken": true,
+    "separateCanonicalApprovalCards": true,
+    "independentActionStage": true
+  },
+  "failedAssertions": [],
+  "browse": {
+    "origin": "http://127.0.0.1:63189",
+    "initial": {
+      "prompt": {
+        "interactionId": "approval:01a16365-c457-70d0-b577-b8ed419a8a6e:turn_5b41679dbdbf48adb0945caff8ba40de:01a16365-d254-7450-8e96-05ce32bcf83c",
+        "interactionKind": "approval",
+        "summary": "Allow Agent browsing of http://127.0.0.1:63189 for this turn (turn_5b41679dbdbf48adb0945caff8ba40de)",
+        "decisions": [
+          "cancel",
+          "decline",
+          "allow_once"
+        ],
+        "buttons": [
+          {
+            "decision": "cancel",
+            "disabled": false,
+            "text": "取消任务"
+          },
+          {
+            "decision": "decline",
+            "disabled": false,
+            "text": "拒绝"
+          },
+          {
+            "decision": "allow_once",
+            "disabled": false,
+            "text": "允许一次"
+          }
+        ]
+      },
+      "decision": {
+        "clicked": true,
+        "decision": "allow_once",
+        "interactionId": "approval:01a16365-c457-70d0-b577-b8ed419a8a6e:turn_5b41679dbdbf48adb0945caff8ba40de:01a16365-d254-7450-8e96-05ce32bcf83c"
+      },
+      "lineage": {
+        "callId": "call-browser-claim-tab",
+        "tool": "claimTab",
+        "threadId": "01a16365-c457-70d0-b577-b8ed419a8a6e",
+        "turnId": "turn_5b41679dbdbf48adb0945caff8ba40de",
+        "browserSessionId": "browser_session_6d45c3806a19465fa7cc32ff38ebd7fa",
+        "tabId": "browser_tab_57fe68ef4f9849fa887aeed9c345227a",
+        "viewId": "browser_view_2c7ae177-f3fc-4f6b-85e6-056d4e036cef",
+        "webContentsId": 2,
+        "snapshotId": "page:4",
+        "pageRevision": 4
+      },
+      "debuggerAttached": false
+    },
+    "afterPolicyChange": {
+      "prompt": {
+        "interactionId": "approval:01a16365-c457-70d0-b577-b8ed419a8a6e:turn_5b41679dbdbf48adb0945caff8ba40de:01a16365-d97a-75a2-9293-00945b8e7ffa",
+        "interactionKind": "approval",
+        "summary": "Allow Agent browsing of http://127.0.0.1:63189 for this turn (turn_5b41679dbdbf48adb0945caff8ba40de)",
+        "decisions": [
+          "cancel",
+          "decline",
+          "allow_once"
+        ],
+        "buttons": [
+          {
+            "decision": "cancel",
+            "disabled": false,
+            "text": "取消任务"
+          },
+          {
+            "decision": "decline",
+            "disabled": false,
+            "text": "拒绝"
+          },
+          {
+            "decision": "allow_once",
+            "disabled": false,
+            "text": "允许一次"
+          }
+        ]
+      },
+      "decision": {
+        "clicked": true,
+        "decision": "allow_once",
+        "interactionId": "approval:01a16365-c457-70d0-b577-b8ed419a8a6e:turn_5b41679dbdbf48adb0945caff8ba40de:01a16365-d97a-75a2-9293-00945b8e7ffa"
+      },
+      "lineage": {
+        "callId": "call-browser-sensitive-click-approved",
+        "tool": "click",
+        "threadId": "01a16365-c457-70d0-b577-b8ed419a8a6e",
+        "turnId": "turn_5b41679dbdbf48adb0945caff8ba40de",
+        "browserSessionId": "browser_session_6d45c3806a19465fa7cc32ff38ebd7fa",
+        "tabId": "browser_tab_57fe68ef4f9849fa887aeed9c345227a",
+        "viewId": "browser_view_2c7ae177-f3fc-4f6b-85e6-056d4e036cef",
+        "webContentsId": 2,
+        "snapshotId": "page:4",
+        "pageRevision": 4
+      }
+    },
+    "action": {
+      "prompt": {
+        "interactionId": "approval:01a16365-c457-70d0-b577-b8ed419a8a6e:turn_5b41679dbdbf48adb0945caff8ba40de:01a16365-dbee-7853-b458-975baab4f229",
+        "interactionKind": "approval",
+        "summary": "Sensitive click target: BUTTON button id browser-approval-target aria-label Delete account",
+        "decisions": [
+          "cancel",
+          "decline",
+          "allow_once"
+        ],
+        "buttons": [
+          {
+            "decision": "cancel",
+            "disabled": false,
+            "text": "取消任务"
+          },
+          {
+            "decision": "decline",
+            "disabled": false,
+            "text": "拒绝"
+          },
+          {
+            "decision": "allow_once",
+            "disabled": false,
+            "text": "允许一次"
+          }
+        ]
+      },
+      "lineage": {
+        "callId": "call-browser-sensitive-click-approved",
+        "tool": "click",
+        "threadId": "01a16365-c457-70d0-b577-b8ed419a8a6e",
+        "turnId": "turn_5b41679dbdbf48adb0945caff8ba40de",
+        "browserSessionId": "browser_session_6d45c3806a19465fa7cc32ff38ebd7fa",
+        "tabId": "browser_tab_57fe68ef4f9849fa887aeed9c345227a",
+        "viewId": "browser_view_2c7ae177-f3fc-4f6b-85e6-056d4e036cef",
+        "webContentsId": 2,
+        "snapshotId": "1855165e-eadd-4822-a594-0e08930ea687",
+        "pageRevision": 4
+      }
+    }
+  }
+}

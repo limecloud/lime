@@ -1,0 +1,883 @@
+{
+  "schemaVersion": "lime.browser_runtime_electron_gate_b.annotation.v1",
+  "scenario": "annotation",
+  "status": "pass",
+  "generatedAt": "2026-10-22T12:02:57.741Z",
+  "proofLevel": "Gate B-F",
+  "claimBoundary": "真实 Lime Electron、原生网页元素/区域选择、capture、可信 Composer 编辑器、保存/重开/编辑/删除、direct start 与主 Composer send、preload/IPC、App Server JSON-RPC、RuntimeCore、canonical Thread/Turn/Item 和本地 provider 接收 text+image。provider 使用显式测试夹具；未验证 live provider、失败保留、queue、steer、Design Tweaks、进程重启或其他平台。",
+  "pending": [
+    "main/direct pre-accept failure preservation",
+    "queue",
+    "steer",
+    "Design Tweaks"
+  ],
+  "identity": {
+    "activeTurnId": null,
+    "address": "http://127.0.0.1:63594/browser-runtime-gate-b",
+    "controlOwner": "user",
+    "pageRevision": 3,
+    "sessionId": "browser_session_26ad845cc251429da07770aca95726a4",
+    "tabId": "browser_tab_5aeb5d67a6b04504a6fe8f5793259633",
+    "threadId": "01a1637d-e783-7f10-bb57-da8b66d136e0",
+    "viewId": "browser_view_b4f6c2f3-7939-415b-ba11-582d36603a74",
+    "webContentsId": 2,
+    "workspaceId": "88f85530-cb35-4bf7-9c10-7b75b75f9552",
+    "conversationSessionId": "01a1637d-e783-7f10-bb57-da8b66d136e0"
+  },
+  "captures": {
+    "saved": {
+      "bodyMarker": "annotation-c5ed33b6-721b-46ce-b400-028d84cc0a4d element saved",
+      "editor": {
+        "webContentsId": 3,
+        "url": "file:///Users/coso/Documents/dev/ai/aiclientproxy/lime/.lime/release-v11670/source/dist/browser-annotation.html",
+        "windowId": 1,
+        "ownerWebContentsId": 1,
+        "bounds": {
+          "x": 432,
+          "y": 105,
+          "width": 360,
+          "height": 264
+        }
+      },
+      "dialog": {
+        "editorId": "020838df-faa6-43da-8dc0-e585dd2ddefb",
+        "generation": 1
+      },
+      "chipVisible": true
+    },
+    "direct": {
+      "checks": {
+        "realTurnStart": true,
+        "canonicalThreadAndClientItem": true,
+        "canonicalTerminalTurn": true,
+        "textAndPageMetadataPreserved": true,
+        "canonicalTextPreserved": true,
+        "oneImageInSameCanonicalItem": true,
+        "imageDeliveredToProvider": true,
+        "storedImageBytesMatchProvider": true,
+        "realMediaRead": true,
+        "providerReceivedAnnotationText": true,
+        "providerFinalMarkerInCanonicalTurn": true
+      },
+      "failedAssertions": [],
+      "threadId": "01a1637d-e783-7f10-bb57-da8b66d136e0",
+      "turnId": "turn_a01c1b87ec8b4465bcbab1d3fcd7fc5e",
+      "userItemId": "user-turn_a01c1b87ec8b4465bcbab1d3fcd7fc5e",
+      "clientUserMessageId": "7c41ef65-44cb-4188-a9df-5fdd4087d060",
+      "requestId": 3,
+      "image": {
+        "mediaType": "image/png",
+        "byteLength": 51274,
+        "sha256": "c6aebebd72415fc9f9461290d7c697ae27a6af925848220b1556d1b268df3419",
+        "width": 1041,
+        "height": 1280
+      },
+      "screenshotKind": "viewport",
+      "screenshotCrop": null,
+      "providerPath": "/v1/chat/completions",
+      "newProviderRequests": 1
+    },
+    "reopened": {
+      "editor": {
+        "webContentsId": 4,
+        "url": "file:///Users/coso/Documents/dev/ai/aiclientproxy/lime/.lime/release-v11670/source/dist/browser-annotation.html",
+        "windowId": 1,
+        "ownerWebContentsId": 1,
+        "bounds": {
+          "x": 432,
+          "y": 105,
+          "width": 360,
+          "height": 264
+        }
+      },
+      "dialog": {
+        "editorId": "a325eeb8-4b98-4cd5-a073-093581afe259",
+        "generation": 2
+      },
+      "bodyPreserved": true
+    },
+    "necessaryScreenshotPreference": {
+      "selectedThroughSettings": true,
+      "value": "necessary",
+      "otherBrowserSettingsPreserved": true,
+      "realConfigRead": true,
+      "originalPreferenceRestored": true
+    },
+    "main": {
+      "checks": {
+        "realTurnStart": true,
+        "canonicalThreadAndClientItem": true,
+        "canonicalTerminalTurn": true,
+        "textAndPageMetadataPreserved": true,
+        "canonicalTextPreserved": true,
+        "oneImageInSameCanonicalItem": true,
+        "imageDeliveredToProvider": true,
+        "storedImageBytesMatchProvider": true,
+        "realMediaRead": true,
+        "providerReceivedAnnotationText": true,
+        "providerFinalMarkerInCanonicalTurn": true
+      },
+      "failedAssertions": [],
+      "threadId": "01a1637d-e783-7f10-bb57-da8b66d136e0",
+      "turnId": "turn_096e79e8ddf543abbe5dd4784f63db01",
+      "userItemId": "user-turn_096e79e8ddf543abbe5dd4784f63db01",
+      "clientUserMessageId": "abf2c7d7-26a5-4d5e-9722-ae42c6ce6ffb",
+      "requestId": 8,
+      "image": {
+        "mediaType": "image/png",
+        "byteLength": 17503,
+        "sha256": "d914f7a13f827ffb537bc4b589a7b12ca294dfa75d12533738104f288a95b1af",
+        "width": 448,
+        "height": 312
+      },
+      "screenshotKind": "crop",
+      "screenshotCrop": {
+        "x": 8,
+        "y": 10,
+        "width": 224,
+        "height": 156
+      },
+      "providerPath": "/v1/chat/completions"
+    },
+    "region": {
+      "rect": {
+        "x": 36,
+        "y": 38,
+        "width": 180,
+        "height": 112
+      },
+      "viewport": {
+        "width": 640,
+        "height": 787
+      },
+      "editor": {
+        "webContentsId": 5,
+        "url": "file:///Users/coso/Documents/dev/ai/aiclientproxy/lime/.lime/release-v11670/source/dist/browser-annotation.html",
+        "windowId": 1,
+        "ownerWebContentsId": 1,
+        "bounds": {
+          "x": 1024,
+          "y": 122,
+          "width": 360,
+          "height": 264
+        }
+      },
+      "dialog": {
+        "editorId": "7ee3d238-2094-4e4c-ae55-dd82dbe0f8c6",
+        "generation": 3
+      }
+    },
+    "deleted": {
+      "chipRemoved": true,
+      "providerRequestsUnchanged": true
+    }
+  },
+  "screenshots": [
+    {
+      "name": "element-original-page",
+      "file": "/Users/coso/Documents/dev/ai/aiclientproxy/lime/.lime/release-v11670/annotation-r7-screenshots/zh-CN-browser-annotation-element-original-page.png",
+      "webContentsId": 2,
+      "image": {
+        "mediaType": "image/png",
+        "byteLength": 32361,
+        "sha256": "180026cb051f02975bbcf8d8229fd7650c9a85c7ca7be7fb7d533ee799b3cbda",
+        "width": 1280,
+        "height": 1574
+      }
+    },
+    {
+      "name": "element-editor",
+      "file": "/Users/coso/Documents/dev/ai/aiclientproxy/lime/.lime/release-v11670/annotation-r7-screenshots/zh-CN-browser-annotation-element-editor.png",
+      "webContentsId": 3,
+      "image": {
+        "mediaType": "image/png",
+        "byteLength": 41852,
+        "sha256": "a99a4fb6c160cc1dfad1cf347d604b6f59dd64bc1396379c64e5758562f38142",
+        "width": 720,
+        "height": 528
+      }
+    },
+    {
+      "name": "element-reopened-edited",
+      "file": "/Users/coso/Documents/dev/ai/aiclientproxy/lime/.lime/release-v11670/annotation-r7-screenshots/zh-CN-browser-annotation-element-reopened-edited.png",
+      "webContentsId": 4,
+      "image": {
+        "mediaType": "image/png",
+        "byteLength": 41452,
+        "sha256": "a1c320044e6d54264b95e7ade967a9f7ac6db0d932873f1d24b67f0757b82117",
+        "width": 720,
+        "height": 528
+      }
+    },
+    {
+      "name": "region-original-page",
+      "file": "/Users/coso/Documents/dev/ai/aiclientproxy/lime/.lime/release-v11670/annotation-r7-screenshots/zh-CN-browser-annotation-region-original-page.png",
+      "webContentsId": 2,
+      "image": {
+        "mediaType": "image/png",
+        "byteLength": 32361,
+        "sha256": "180026cb051f02975bbcf8d8229fd7650c9a85c7ca7be7fb7d533ee799b3cbda",
+        "width": 1280,
+        "height": 1574
+      }
+    },
+    {
+      "name": "region-editor",
+      "file": "/Users/coso/Documents/dev/ai/aiclientproxy/lime/.lime/release-v11670/annotation-r7-screenshots/zh-CN-browser-annotation-region-editor.png",
+      "webContentsId": 5,
+      "image": {
+        "mediaType": "image/png",
+        "byteLength": 41166,
+        "sha256": "1a4783afce6187e09acf49af80eead35e9a1b08626b50370c0887a6c10ee638d",
+        "width": 720,
+        "height": 528
+      }
+    }
+  ],
+  "nativeInputs": [
+    {
+      "channel": "browser-annotation-page-event",
+      "senderId": 2,
+      "senderUrl": "http://127.0.0.1:63594/browser-runtime-gate-b",
+      "mainFrame": true,
+      "kind": "began",
+      "action": null,
+      "annotationId": "9bbbedd2-6dc8-4fcf-ba94-3b754cbfb0b9",
+      "editorId": null,
+      "generation": null,
+      "revision": null,
+      "bodyLength": null
+    },
+    {
+      "channel": "browser-annotation-page-event",
+      "senderId": 2,
+      "senderUrl": "http://127.0.0.1:63594/browser-runtime-gate-b",
+      "mainFrame": true,
+      "kind": "selection",
+      "action": null,
+      "annotationId": "9bbbedd2-6dc8-4fcf-ba94-3b754cbfb0b9",
+      "editorId": null,
+      "generation": null,
+      "revision": null,
+      "bodyLength": null
+    },
+    {
+      "channel": "browser-annotation-page-event",
+      "senderId": 2,
+      "senderUrl": "http://127.0.0.1:63594/browser-runtime-gate-b",
+      "mainFrame": true,
+      "kind": "ready",
+      "action": null,
+      "annotationId": "9bbbedd2-6dc8-4fcf-ba94-3b754cbfb0b9",
+      "editorId": null,
+      "generation": null,
+      "revision": null,
+      "bodyLength": null
+    },
+    {
+      "channel": "lime:browser-annotation-editor",
+      "senderId": 3,
+      "senderUrl": "file:///Users/coso/Documents/dev/ai/aiclientproxy/lime/.lime/release-v11670/source/dist/browser-annotation.html",
+      "mainFrame": true,
+      "kind": "ready",
+      "action": null,
+      "annotationId": null,
+      "editorId": "020838df-faa6-43da-8dc0-e585dd2ddefb",
+      "generation": 1,
+      "revision": null,
+      "bodyLength": null
+    },
+    {
+      "channel": "lime:browser-annotation-editor",
+      "senderId": 3,
+      "senderUrl": "file:///Users/coso/Documents/dev/ai/aiclientproxy/lime/.lime/release-v11670/source/dist/browser-annotation.html",
+      "mainFrame": true,
+      "kind": "action",
+      "action": "change",
+      "annotationId": null,
+      "editorId": "020838df-faa6-43da-8dc0-e585dd2ddefb",
+      "generation": 1,
+      "revision": 1,
+      "bodyLength": 61
+    },
+    {
+      "channel": "lime:browser-annotation-editor",
+      "senderId": 3,
+      "senderUrl": "file:///Users/coso/Documents/dev/ai/aiclientproxy/lime/.lime/release-v11670/source/dist/browser-annotation.html",
+      "mainFrame": true,
+      "kind": "action",
+      "action": "save",
+      "annotationId": null,
+      "editorId": "020838df-faa6-43da-8dc0-e585dd2ddefb",
+      "generation": 1,
+      "revision": 1,
+      "bodyLength": 61
+    },
+    {
+      "channel": "lime:browser-annotation-editor",
+      "senderId": 3,
+      "senderUrl": "file:///Users/coso/Documents/dev/ai/aiclientproxy/lime/.lime/release-v11670/source/dist/browser-annotation.html",
+      "mainFrame": true,
+      "kind": "flushed",
+      "action": null,
+      "annotationId": null,
+      "editorId": "020838df-faa6-43da-8dc0-e585dd2ddefb",
+      "generation": 1,
+      "revision": 1,
+      "bodyLength": 61
+    },
+    {
+      "channel": "lime:browser-annotation-editor",
+      "senderId": 4,
+      "senderUrl": "file:///Users/coso/Documents/dev/ai/aiclientproxy/lime/.lime/release-v11670/source/dist/browser-annotation.html",
+      "mainFrame": true,
+      "kind": "ready",
+      "action": null,
+      "annotationId": null,
+      "editorId": "a325eeb8-4b98-4cd5-a073-093581afe259",
+      "generation": 2,
+      "revision": null,
+      "bodyLength": null
+    },
+    {
+      "channel": "lime:browser-annotation-editor",
+      "senderId": 4,
+      "senderUrl": "file:///Users/coso/Documents/dev/ai/aiclientproxy/lime/.lime/release-v11670/source/dist/browser-annotation.html",
+      "mainFrame": true,
+      "kind": "action",
+      "action": "change",
+      "annotationId": null,
+      "editorId": "a325eeb8-4b98-4cd5-a073-093581afe259",
+      "generation": 2,
+      "revision": 2,
+      "bodyLength": 62
+    },
+    {
+      "channel": "lime:browser-annotation-editor",
+      "senderId": 4,
+      "senderUrl": "file:///Users/coso/Documents/dev/ai/aiclientproxy/lime/.lime/release-v11670/source/dist/browser-annotation.html",
+      "mainFrame": true,
+      "kind": "action",
+      "action": "send",
+      "annotationId": null,
+      "editorId": "a325eeb8-4b98-4cd5-a073-093581afe259",
+      "generation": 2,
+      "revision": 2,
+      "bodyLength": 62
+    },
+    {
+      "channel": "lime:browser-annotation-editor",
+      "senderId": 4,
+      "senderUrl": "file:///Users/coso/Documents/dev/ai/aiclientproxy/lime/.lime/release-v11670/source/dist/browser-annotation.html",
+      "mainFrame": true,
+      "kind": "flushed",
+      "action": null,
+      "annotationId": null,
+      "editorId": "a325eeb8-4b98-4cd5-a073-093581afe259",
+      "generation": 2,
+      "revision": 2,
+      "bodyLength": 62
+    },
+    {
+      "channel": "browser-annotation-page-event",
+      "senderId": 2,
+      "senderUrl": "http://127.0.0.1:63594/browser-runtime-gate-b",
+      "mainFrame": true,
+      "kind": "began",
+      "action": null,
+      "annotationId": "b857f161-df27-444f-84ae-7944b20f34e1",
+      "editorId": null,
+      "generation": null,
+      "revision": null,
+      "bodyLength": null
+    },
+    {
+      "channel": "browser-annotation-page-event",
+      "senderId": 2,
+      "senderUrl": "http://127.0.0.1:63594/browser-runtime-gate-b",
+      "mainFrame": true,
+      "kind": "selection",
+      "action": null,
+      "annotationId": "b857f161-df27-444f-84ae-7944b20f34e1",
+      "editorId": null,
+      "generation": null,
+      "revision": null,
+      "bodyLength": null
+    },
+    {
+      "channel": "browser-annotation-page-event",
+      "senderId": 2,
+      "senderUrl": "http://127.0.0.1:63594/browser-runtime-gate-b",
+      "mainFrame": true,
+      "kind": "ready",
+      "action": null,
+      "annotationId": "b857f161-df27-444f-84ae-7944b20f34e1",
+      "editorId": null,
+      "generation": null,
+      "revision": null,
+      "bodyLength": null
+    },
+    {
+      "channel": "lime:browser-annotation-editor",
+      "senderId": 5,
+      "senderUrl": "file:///Users/coso/Documents/dev/ai/aiclientproxy/lime/.lime/release-v11670/source/dist/browser-annotation.html",
+      "mainFrame": true,
+      "kind": "ready",
+      "action": null,
+      "annotationId": null,
+      "editorId": "7ee3d238-2094-4e4c-ae55-dd82dbe0f8c6",
+      "generation": 3,
+      "revision": null,
+      "bodyLength": null
+    },
+    {
+      "channel": "lime:browser-annotation-editor",
+      "senderId": 5,
+      "senderUrl": "file:///Users/coso/Documents/dev/ai/aiclientproxy/lime/.lime/release-v11670/source/dist/browser-annotation.html",
+      "mainFrame": true,
+      "kind": "action",
+      "action": "change",
+      "annotationId": null,
+      "editorId": "7ee3d238-2094-4e4c-ae55-dd82dbe0f8c6",
+      "generation": 3,
+      "revision": 1,
+      "bodyLength": 60
+    },
+    {
+      "channel": "lime:browser-annotation-editor",
+      "senderId": 5,
+      "senderUrl": "file:///Users/coso/Documents/dev/ai/aiclientproxy/lime/.lime/release-v11670/source/dist/browser-annotation.html",
+      "mainFrame": true,
+      "kind": "action",
+      "action": "save",
+      "annotationId": null,
+      "editorId": "7ee3d238-2094-4e4c-ae55-dd82dbe0f8c6",
+      "generation": 3,
+      "revision": 1,
+      "bodyLength": 60
+    },
+    {
+      "channel": "lime:browser-annotation-editor",
+      "senderId": 5,
+      "senderUrl": "file:///Users/coso/Documents/dev/ai/aiclientproxy/lime/.lime/release-v11670/source/dist/browser-annotation.html",
+      "mainFrame": true,
+      "kind": "flushed",
+      "action": null,
+      "annotationId": null,
+      "editorId": "7ee3d238-2094-4e4c-ae55-dd82dbe0f8c6",
+      "generation": 3,
+      "revision": 1,
+      "bodyLength": 60
+    },
+    {
+      "channel": "browser-annotation-page-event",
+      "senderId": 2,
+      "senderUrl": "http://127.0.0.1:63594/browser-runtime-gate-b",
+      "mainFrame": true,
+      "kind": "began",
+      "action": null,
+      "annotationId": "765f17c2-8aa6-4738-8f57-2f687d1d2816",
+      "editorId": null,
+      "generation": null,
+      "revision": null,
+      "bodyLength": null
+    },
+    {
+      "channel": "browser-annotation-page-event",
+      "senderId": 2,
+      "senderUrl": "http://127.0.0.1:63594/browser-runtime-gate-b",
+      "mainFrame": true,
+      "kind": "selection",
+      "action": null,
+      "annotationId": "765f17c2-8aa6-4738-8f57-2f687d1d2816",
+      "editorId": null,
+      "generation": null,
+      "revision": null,
+      "bodyLength": null
+    },
+    {
+      "channel": "browser-annotation-page-event",
+      "senderId": 2,
+      "senderUrl": "http://127.0.0.1:63594/browser-runtime-gate-b",
+      "mainFrame": true,
+      "kind": "ready",
+      "action": null,
+      "annotationId": "765f17c2-8aa6-4738-8f57-2f687d1d2816",
+      "editorId": null,
+      "generation": null,
+      "revision": null,
+      "bodyLength": null
+    },
+    {
+      "channel": "lime:browser-annotation-editor",
+      "senderId": 6,
+      "senderUrl": "file:///Users/coso/Documents/dev/ai/aiclientproxy/lime/.lime/release-v11670/source/dist/browser-annotation.html",
+      "mainFrame": true,
+      "kind": "ready",
+      "action": null,
+      "annotationId": null,
+      "editorId": "b3cce5aa-e145-4377-b99f-fd60d61117c5",
+      "generation": 4,
+      "revision": null,
+      "bodyLength": null
+    },
+    {
+      "channel": "lime:browser-annotation-editor",
+      "senderId": 6,
+      "senderUrl": "file:///Users/coso/Documents/dev/ai/aiclientproxy/lime/.lime/release-v11670/source/dist/browser-annotation.html",
+      "mainFrame": true,
+      "kind": "action",
+      "action": "change",
+      "annotationId": null,
+      "editorId": "b3cce5aa-e145-4377-b99f-fd60d61117c5",
+      "generation": 4,
+      "revision": 1,
+      "bodyLength": 60
+    },
+    {
+      "channel": "lime:browser-annotation-editor",
+      "senderId": 6,
+      "senderUrl": "file:///Users/coso/Documents/dev/ai/aiclientproxy/lime/.lime/release-v11670/source/dist/browser-annotation.html",
+      "mainFrame": true,
+      "kind": "action",
+      "action": "save",
+      "annotationId": null,
+      "editorId": "b3cce5aa-e145-4377-b99f-fd60d61117c5",
+      "generation": 4,
+      "revision": 1,
+      "bodyLength": 60
+    },
+    {
+      "channel": "lime:browser-annotation-editor",
+      "senderId": 6,
+      "senderUrl": "file:///Users/coso/Documents/dev/ai/aiclientproxy/lime/.lime/release-v11670/source/dist/browser-annotation.html",
+      "mainFrame": true,
+      "kind": "flushed",
+      "action": null,
+      "annotationId": null,
+      "editorId": "b3cce5aa-e145-4377-b99f-fd60d61117c5",
+      "generation": 4,
+      "revision": 1,
+      "bodyLength": 60
+    }
+  ],
+  "invoke": {
+    "commands": [
+      {
+        "command": "browser_tab_list",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "browser_tab_list",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "browser_tab_mount",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "browser_tab_set_bounds",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "browser_tab_set_bounds",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "browser_tab_set_bounds",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "browser_tab_set_bounds",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "browser_tab_set_bounds",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "browser_tab_set_bounds",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "browser_tab_set_bounds",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "browser_tab_set_bounds",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "browser_tab_set_bounds",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "browser_tab_set_bounds",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "browser_tab_set_bounds",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "browser_tab_set_bounds",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "browser_tab_set_bounds",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "browser_tab_begin_annotation",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "browser_tab_capture_annotation",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "browser_tab_cancel_annotation",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "browser_tab_show_annotation_editor",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "browser_tab_close_annotation_editor",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "browser_tab_show_annotation_editor",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "browser_tab_update_annotation_editor",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "browser_tab_close_annotation_editor",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "browser_tab_set_bounds",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "browser_tab_list",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "browser_tab_list",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "browser_tab_set_bounds",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "browser_tab_set_bounds",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "browser_tab_set_bounds",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "browser_tab_set_bounds",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "browser_tab_set_bounds",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "browser_tab_set_bounds",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "browser_tab_set_bounds",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "browser_tab_set_bounds",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "browser_tab_set_bounds",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "browser_tab_set_bounds",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "browser_tab_set_bounds",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "browser_tab_begin_annotation",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "browser_tab_capture_annotation",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "browser_tab_cancel_annotation",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "browser_tab_show_annotation_editor",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "browser_tab_close_annotation_editor",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "browser_tab_begin_annotation",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "browser_tab_capture_annotation",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "browser_tab_cancel_annotation",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "browser_tab_show_annotation_editor",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "browser_tab_close_annotation_editor",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "browser_tab_set_bounds",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "browser_tab_begin_annotation",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "browser_tab_capture_annotation",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "browser_tab_cancel_annotation",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "browser_tab_show_annotation_editor",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "browser_tab_close_annotation_editor",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "browser_tab_set_bounds",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "browser_tab_list",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "browser_tab_list",
+        "transport": "electron-ipc",
+        "status": "success"
+      },
+      {
+        "command": "browser_tab_set_bounds",
+        "transport": "electron-ipc",
+        "status": "success"
+      }
+    ]
+  },
+  "assertions": {
+    "realElectronAndPreload": true,
+    "sameCanonicalBrowserIdentity": true,
+    "nativeSelectionFromOriginalMainFrame": true,
+    "trustedEditorMainFrameActions": true,
+    "saveReopenAndEdit": true,
+    "directStartTextImageAccepted": true,
+    "mainSendTextImageAccepted": true,
+    "differentCanonicalTurnsSameThread": true,
+    "regionNecessaryScreenshotCropped": true,
+    "deleteSavedDraftWithoutSending": true,
+    "annotationCommandsUseRealIpc": true,
+    "noProductionMockFallback": true,
+    "noRendererErrors": true,
+    "separateOriginalPageAndEditorScreenshots": true
+  },
+  "failedAssertions": [],
+  "diagnostics": {
+    "consoleErrors": [],
+    "pageErrors": [],
+    "harness": {
+      "consoleErrors": [],
+      "pageErrors": []
+    }
+  }
+}

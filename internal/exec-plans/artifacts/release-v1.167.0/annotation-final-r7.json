@@ -1,0 +1,23 @@
+{
+  "label": "annotation-final-r7",
+  "startedAt": "2026-10-22T12:02:28.621217+00:00",
+  "recordedAt": "2026-10-22T12:03:03.027140+00:00",
+  "results": [
+    {
+      "command": [
+        "node",
+        "scripts/agent-runtime/browser-runtime-electron-gate-b.mjs",
+        "--scenario",
+        "annotation",
+        "--output",
+        "/Users/coso/Documents/dev/ai/aiclientproxy/lime/.lime/release-v11670/browser-annotation-r7.json",
+        "--screenshot-dir",
+        "/Users/coso/Documents/dev/ai/aiclientproxy/lime/.lime/release-v11670/annotation-r7-screenshots"
+      ],
+      "exitCode": 0,
+      "seconds": 34.4
+    }
+  ],
+  "log": "annotation-final-r7.log",
+  "exitCode": 0
+}

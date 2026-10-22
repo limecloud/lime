@@ -1,0 +1,45 @@
+{
+  "label": "fixture-contract-final-r7",
+  "startedAt": "2026-10-22T11:59:30.895366+00:00",
+  "recordedAt": "2026-10-22T12:01:02.337023+00:00",
+  "results": [
+    {
+      "command": [
+        "npx",
+        "vitest",
+        "run",
+        "scripts/agent-runtime/browser-runtime-electron-gate-b-annotation-evidence.test.mjs",
+        "scripts/lib/openai-compatible-fixture-server.test.mjs"
+      ],
+      "exitCode": 0,
+      "seconds": 3.89
+    },
+    {
+      "command": [
+        "npx",
+        "eslint",
+        "scripts/agent-runtime/browser-runtime-electron-gate-b-annotation.mjs",
+        "scripts/agent-runtime/browser-runtime-electron-gate-b-annotation-evidence.mjs",
+        "scripts/agent-runtime/browser-runtime-electron-gate-b-annotation-evidence.test.mjs",
+        "scripts/agent-runtime/browser-runtime-electron-gate-b.mjs",
+        "scripts/lib/openai-compatible-fixture-server.mjs",
+        "scripts/lib/openai-compatible-fixture-server.test.mjs",
+        "--max-warnings",
+        "0"
+      ],
+      "exitCode": 0,
+      "seconds": 3.36
+    },
+    {
+      "command": [
+        "npm",
+        "run",
+        "test:contracts"
+      ],
+      "exitCode": 0,
+      "seconds": 84.19
+    }
+  ],
+  "log": "fixture-contract-final-r7.log",
+  "exitCode": 0
+}

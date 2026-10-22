@@ -1,0 +1,21 @@
+{
+  "label": "annotation-file-gate-b-r2",
+  "startedAt": "2026-10-22T11:39:57.098314+00:00",
+  "recordedAt": "2026-10-22T11:40:05.887787+00:00",
+  "results": [
+    {
+      "command": [
+        "node",
+        "scripts/agent-runtime/browser-runtime-electron-gate-b.mjs",
+        "--scenario",
+        "annotation",
+        "--output",
+        "/Users/coso/Documents/dev/ai/aiclientproxy/lime/.lime/release-v11670/browser-annotation-r2.json"
+      ],
+      "exitCode": 1,
+      "seconds": 8.79
+    }
+  ],
+  "log": "annotation-file-gate-b-r2.log",
+  "exitCode": 1
+}

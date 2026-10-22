@@ -1,0 +1,18 @@
+{
+  "label": "agent-current-r2",
+  "startedAt": "2026-10-22T11:39:44.001000+00:00",
+  "recordedAt": "2026-10-22T11:44:46.760527+00:00",
+  "results": [
+    {
+      "command": [
+        "npm",
+        "run",
+        "smoke:agent-runtime-current-fixture"
+      ],
+      "exitCode": 1,
+      "seconds": 302.75
+    }
+  ],
+  "log": "agent-current-r2.log",
+  "exitCode": 1
+}

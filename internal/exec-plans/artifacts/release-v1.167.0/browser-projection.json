@@ -1,0 +1,284 @@
+{
+  "schemaVersion": "browser-runtime-gate-a.v1",
+  "scenarioId": "browser-runtime-gate-a",
+  "proofLevel": "Gate A",
+  "proofScope": "Renderer BrowserWorkspace projection and chrome only; does not prove Agent same-WebContents execution.",
+  "status": "pass",
+  "identity": {
+    "browserSessionId": "browser_session_000207f3de894b438b5dcb3a1aef9271",
+    "threadId": "01a16365-49b3-7f63-9357-adb001f745b8",
+    "primaryTabId": "browser_tab_ccf0c5dfa66b4d478ac799b528c345f0"
+  },
+  "captures": {
+    "initial": {
+      "panelVisible": true,
+      "workspaceVisible": true,
+      "sessionId": "browser_session_000207f3de894b438b5dcb3a1aef9271",
+      "threadId": "01a16365-49b3-7f63-9357-adb001f745b8",
+      "loading": false,
+      "selectedTabId": "browser_tab_ccf0c5dfa66b4d478ac799b528c345f0",
+      "address": "http://127.0.0.1:62985/browser-runtime-gate-b",
+      "zoomLabel": "100%",
+      "zoomDisabled": false,
+      "errorText": null,
+      "tabs": [
+        {
+          "tabId": "browser_tab_ccf0c5dfa66b4d478ac799b528c345f0",
+          "selected": true,
+          "browserSessionId": "browser_session_000207f3de894b438b5dcb3a1aef9271"
+        }
+      ],
+      "viewport": {
+        "width": 640,
+        "height": 912
+      },
+      "documentOverflow": false
+    },
+    "navigated": {
+      "panelVisible": true,
+      "workspaceVisible": true,
+      "sessionId": "browser_session_000207f3de894b438b5dcb3a1aef9271",
+      "threadId": "01a16365-49b3-7f63-9357-adb001f745b8",
+      "loading": false,
+      "selectedTabId": "browser_tab_ccf0c5dfa66b4d478ac799b528c345f0",
+      "address": "https://example.com/browser-runtime-gate-a-nav",
+      "zoomLabel": "100%",
+      "zoomDisabled": false,
+      "errorText": null,
+      "tabs": [
+        {
+          "tabId": "browser_tab_ccf0c5dfa66b4d478ac799b528c345f0",
+          "selected": true,
+          "browserSessionId": "browser_session_000207f3de894b438b5dcb3a1aef9271"
+        }
+      ],
+      "viewport": {
+        "width": 640,
+        "height": 912
+      },
+      "documentOverflow": false
+    },
+    "zoomed": {
+      "panelVisible": true,
+      "workspaceVisible": true,
+      "sessionId": "browser_session_000207f3de894b438b5dcb3a1aef9271",
+      "threadId": "01a16365-49b3-7f63-9357-adb001f745b8",
+      "loading": false,
+      "selectedTabId": "browser_tab_ccf0c5dfa66b4d478ac799b528c345f0",
+      "address": "https://example.com/browser-runtime-gate-a-nav",
+      "zoomLabel": "110%",
+      "zoomDisabled": false,
+      "errorText": null,
+      "tabs": [
+        {
+          "tabId": "browser_tab_ccf0c5dfa66b4d478ac799b528c345f0",
+          "selected": true,
+          "browserSessionId": "browser_session_000207f3de894b438b5dcb3a1aef9271"
+        }
+      ],
+      "viewport": {
+        "width": 640,
+        "height": 876
+      },
+      "documentOverflow": false
+    },
+    "zoomReset": {
+      "panelVisible": true,
+      "workspaceVisible": true,
+      "sessionId": "browser_session_000207f3de894b438b5dcb3a1aef9271",
+      "threadId": "01a16365-49b3-7f63-9357-adb001f745b8",
+      "loading": false,
+      "selectedTabId": "browser_tab_ccf0c5dfa66b4d478ac799b528c345f0",
+      "address": "https://example.com/browser-runtime-gate-a-nav",
+      "zoomLabel": "100%",
+      "zoomDisabled": false,
+      "errorText": null,
+      "tabs": [
+        {
+          "tabId": "browser_tab_ccf0c5dfa66b4d478ac799b528c345f0",
+          "selected": true,
+          "browserSessionId": "browser_session_000207f3de894b438b5dcb3a1aef9271"
+        }
+      ],
+      "viewport": {
+        "width": 640,
+        "height": 876
+      },
+      "documentOverflow": false
+    },
+    "secondTab": {
+      "panelVisible": true,
+      "workspaceVisible": true,
+      "sessionId": "browser_session_000207f3de894b438b5dcb3a1aef9271",
+      "threadId": "01a16365-49b3-7f63-9357-adb001f745b8",
+      "loading": false,
+      "selectedTabId": "browser_tab_2a77be4a36d84624832aca83adc85141",
+      "address": "https://example.com/second-tab",
+      "zoomLabel": "100%",
+      "zoomDisabled": false,
+      "errorText": null,
+      "tabs": [
+        {
+          "tabId": "browser_tab_ccf0c5dfa66b4d478ac799b528c345f0",
+          "selected": false,
+          "browserSessionId": "browser_session_000207f3de894b438b5dcb3a1aef9271"
+        },
+        {
+          "tabId": "browser_tab_2a77be4a36d84624832aca83adc85141",
+          "selected": true,
+          "browserSessionId": "browser_session_000207f3de894b438b5dcb3a1aef9271"
+        }
+      ],
+      "viewport": {
+        "width": 640,
+        "height": 912
+      },
+      "documentOverflow": false
+    },
+    "selectedFirst": {
+      "panelVisible": true,
+      "workspaceVisible": true,
+      "sessionId": "browser_session_000207f3de894b438b5dcb3a1aef9271",
+      "threadId": "01a16365-49b3-7f63-9357-adb001f745b8",
+      "loading": false,
+      "selectedTabId": "browser_tab_ccf0c5dfa66b4d478ac799b528c345f0",
+      "address": "https://example.com/browser-runtime-gate-a-nav",
+      "zoomLabel": "100%",
+      "zoomDisabled": false,
+      "errorText": null,
+      "tabs": [
+        {
+          "tabId": "browser_tab_ccf0c5dfa66b4d478ac799b528c345f0",
+          "selected": true,
+          "browserSessionId": "browser_session_000207f3de894b438b5dcb3a1aef9271"
+        },
+        {
+          "tabId": "browser_tab_2a77be4a36d84624832aca83adc85141",
+          "selected": false,
+          "browserSessionId": "browser_session_000207f3de894b438b5dcb3a1aef9271"
+        }
+      ],
+      "viewport": {
+        "width": 640,
+        "height": 912
+      },
+      "documentOverflow": false
+    },
+    "closed": {
+      "panelVisible": true,
+      "workspaceVisible": true,
+      "sessionId": "browser_session_000207f3de894b438b5dcb3a1aef9271",
+      "threadId": "01a16365-49b3-7f63-9357-adb001f745b8",
+      "loading": false,
+      "selectedTabId": "browser_tab_ccf0c5dfa66b4d478ac799b528c345f0",
+      "address": "https://example.com/browser-runtime-gate-a-nav",
+      "zoomLabel": "100%",
+      "zoomDisabled": false,
+      "errorText": null,
+      "tabs": [
+        {
+          "tabId": "browser_tab_ccf0c5dfa66b4d478ac799b528c345f0",
+          "selected": true,
+          "browserSessionId": "browser_session_000207f3de894b438b5dcb3a1aef9271"
+        }
+      ],
+      "viewport": {
+        "width": 640,
+        "height": 912
+      },
+      "documentOverflow": false
+    },
+    "collapsed": {
+      "panelVisible": false,
+      "workspaceVisible": false,
+      "sessionId": "browser_session_000207f3de894b438b5dcb3a1aef9271",
+      "threadId": "01a16365-49b3-7f63-9357-adb001f745b8",
+      "loading": false,
+      "selectedTabId": "browser_tab_ccf0c5dfa66b4d478ac799b528c345f0",
+      "address": "https://example.com/browser-runtime-gate-a-nav",
+      "zoomLabel": "100%",
+      "zoomDisabled": false,
+      "errorText": null,
+      "tabs": [],
+      "viewport": {
+        "width": 0,
+        "height": 0
+      },
+      "documentOverflow": false
+    },
+    "restored": {
+      "panelVisible": true,
+      "workspaceVisible": true,
+      "sessionId": "browser_session_000207f3de894b438b5dcb3a1aef9271",
+      "threadId": "01a16365-49b3-7f63-9357-adb001f745b8",
+      "loading": false,
+      "selectedTabId": "browser_tab_ccf0c5dfa66b4d478ac799b528c345f0",
+      "address": "https://example.com/browser-runtime-gate-a-nav",
+      "zoomLabel": "100%",
+      "zoomDisabled": false,
+      "errorText": null,
+      "tabs": [
+        {
+          "tabId": "browser_tab_ccf0c5dfa66b4d478ac799b528c345f0",
+          "selected": true,
+          "browserSessionId": "browser_session_000207f3de894b438b5dcb3a1aef9271"
+        }
+      ],
+      "viewport": {
+        "width": 470,
+        "height": 912
+      },
+      "documentOverflow": false
+    },
+    "resized": {
+      "panelVisible": true,
+      "workspaceVisible": true,
+      "sessionId": "browser_session_000207f3de894b438b5dcb3a1aef9271",
+      "threadId": "01a16365-49b3-7f63-9357-adb001f745b8",
+      "loading": false,
+      "selectedTabId": "browser_tab_ccf0c5dfa66b4d478ac799b528c345f0",
+      "address": "https://example.com/browser-runtime-gate-a-nav",
+      "zoomLabel": "100%",
+      "zoomDisabled": false,
+      "errorText": null,
+      "tabs": [
+        {
+          "tabId": "browser_tab_ccf0c5dfa66b4d478ac799b528c345f0",
+          "selected": true,
+          "browserSessionId": "browser_session_000207f3de894b438b5dcb3a1aef9271"
+        }
+      ],
+      "viewport": {
+        "width": 490,
+        "height": 812
+      },
+      "documentOverflow": false
+    }
+  },
+  "screenshots": [
+    "/Users/coso/Documents/dev/ai/aiclientproxy/lime/.lime/release-v11670/browser-runtime-gate-a.png"
+  ],
+  "assertions": {
+    "panelVisible": true,
+    "workspaceVisible": true,
+    "oneInitialTab": true,
+    "sameTabAfterNavigation": true,
+    "sameSessionAfterNavigation": true,
+    "findChromeVisible": true,
+    "zoomInAndReset": true,
+    "secondTabUsesCanonicalSession": true,
+    "oneSelectedTabAfterCreate": true,
+    "secondTabHasDistinctTabIds": true,
+    "selectAndCloseRestoresPrimary": true,
+    "collapseHidesRightSurface": true,
+    "restoreKeepsIdentity": true,
+    "resizeKeepsUsableViewport": true,
+    "resizeHasNoOverflow": true,
+    "stableFinalIdentity": true
+  },
+  "failedAssertions": [],
+  "diagnostics": {
+    "consoleErrors": [],
+    "pageErrors": []
+  }
+}

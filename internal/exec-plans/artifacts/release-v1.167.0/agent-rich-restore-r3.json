@@ -1,0 +1,23 @@
+{
+  "label": "agent-rich-restore-r3",
+  "startedAt": "2026-10-22T11:49:53.244106+00:00",
+  "recordedAt": "2026-10-22T11:50:23.320603+00:00",
+  "results": [
+    {
+      "command": [
+        "node",
+        "scripts/agent-runtime/claw-chat-current-fixture-smoke.mjs",
+        "--scenario",
+        "inputbar-rich-restore",
+        "--prefix",
+        "release-v11670-rich-restore-r3",
+        "--timeout-ms",
+        "240000"
+      ],
+      "exitCode": 0,
+      "seconds": 30.07
+    }
+  ],
+  "log": "agent-rich-restore-r3.log",
+  "exitCode": 0
+}
