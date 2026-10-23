@@ -103,7 +103,7 @@
   },
   "live_provider_inference": false,
   "evidence_boundary": "r8 typecheck/contracts/version/lint/207 targeted frontend checks passed; Rust exact regressions and final remote matrix pending. No live paid inference.",
-  "updated_at": "2026-10-23T14:55:38.452315+00:00",
+  "updated_at": "2026-10-23T15:19:02.691658+00:00",
   "revision_2_checks": [
     {
       "name": "storage-r2-unit",
@@ -466,8 +466,19 @@
     },
     {
       "name": "app-server-full-lib",
-      "status": "running",
-      "rust_min_stack": "unset"
+      "status": "not_completed",
+      "rust_min_stack": "unset",
+      "exit_code": 101,
+      "reason": "Entire local candidate source/target/log directory disappeared while compiling; final remote results authoritative."
     }
-  ]
+  ],
+  "remote_revision_11": {
+    "commit": "9753262c574520464ecba1617e5fc2f7afac2359",
+    "run": 39974008631,
+    "frontend": "passed",
+    "gui_smoke": "passed",
+    "integrity": "passed",
+    "rust": "2032 existing App Server library tests passed; new fixture failed because command.started was missing; corrected without changing product or assertions"
+  },
+  "revision_12_scope": "Test-only canonical lifecycle setup for controlled Shell output collection regression."
 }

@@ -126,3 +126,10 @@
 - 窄写集为runtime/session_shell.rs及其独立tests.rs和发布证据，避让并行execution_process、permissions、protocol等热区。架构影响minor：既有UserShell -> ExecutionProcessServer -> tool-runtime监督链不变，仅纠正输出/终态顺序；责任root确认。模块约650行，不继续叠加其他业务。
 - 新回归启动真实/bin/sh，经stdin精确释放子进程；在raw child已退出但collector尚未finish时断言poll仍Pending，再把真实stdout按129条合法sequence送入原store，finish后验证所有command.output和最终snapshot一致，覆盖128项分页边界。原3项真实Shell生命周期/持久化断言保持不变。完整App Server库定向扩大运行中，格式和diff检查已通过；最新TS沿用此前完整typecheck和远端Frontend Full通过结果。
 - r10独立model_providers库16/16通过，默认RUST_MIN_STACK未设置。更新域名公开GET在本机连接超时，发布后需结合R2上传远端结果和可达环境补核验，不把上传成功冒充本机HTTP成功。
+
+
+## r12 生命周期夹具前置条件与缓存丢失记录
+
+- 本地r11库测试编译期间，整个.lime/release-v11680目录被移除，进程最终101，源码/target/日志均不再存在；该运行明确未完成，不能计通过。旧已通过结果有此前提交的收据，最终候选以干净GitHub runner为准；后续临时记录转移到仓库缓存目录外。未主动停止或清理其他任务。
+- 39974008631 的Frontend Full、真实GUI Smoke、Integrity通过；Rust原有2032项全部通过，包括此前失败的idle Shell生命周期用例。新增受控回归在输出校验处被command_output_without_start拒绝：fixture缺少command.started。补齐既有turn.accepted/started与command.started helper载荷，保留Pending断言、129项分页与完整输出比较，生产修复不变。格式/diff检查通过，完整Rust验证继续由下一精确提交运行。
+- 当前窄写集仅新增Shell回归文件与发布证据，冻结后的permissions/Browser引擎等下一切片继续留给其原开发任务。此前完整typecheck、最终前端/GUI/Windows结果按对应提交记录，不把本地丢失的未完成编译写成成功。

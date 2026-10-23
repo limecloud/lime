@@ -53,6 +53,27 @@ async fn terminal_shell_waits_for_collector_and_drains_every_output_batch() {
         .status
         .is_terminal());
 
+    core.append_and_publish_shell_events(
+        "shell-output-session",
+        "shell-output-thread",
+        "shell-output-turn",
+        vec![
+            RuntimeEvent::new("turn.accepted", json!({"source": "thread/shellCommand"})),
+            RuntimeEvent::new("turn.started", json!({"source": "thread/shellCommand"})),
+            RuntimeEvent::new(
+                "command.started",
+                shell_event_payload(
+                    "shell-output-item",
+                    "shell-output-process",
+                    "printf output",
+                    workspace.path(),
+                    None,
+                ),
+            ),
+        ],
+    )
+    .expect("canonical command lifecycle precedes output");
+
     let polling = core.poll_shell_process(
         "shell-output-session",
         "shell-output-thread",
