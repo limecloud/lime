@@ -34,10 +34,14 @@ pub(super) fn validate_thread_settings(
     if let Some(Some(service_tier)) = params.service_tier.as_ref() {
         normalized_value(service_tier, "serviceTier")?;
     }
+    if let Some(summary) = params.summary.as_ref() {
+        serde_json::from_value::<lime_core::config::ReasoningSummary>(summary.clone()).map_err(
+            |error| RuntimeCoreError::InvalidRequest(format!("invalid reasoning summary: {error}")),
+        )?;
+    }
     for (name, value) in [
         ("approvalPolicy", params.approval_policy.as_ref()),
         ("sandboxPolicy", params.sandbox_policy.as_ref()),
-        ("summary", params.summary.as_ref()),
         ("personality", params.personality.as_ref()),
         ("toolPreferences", params.tool_preferences.as_ref()),
     ] {

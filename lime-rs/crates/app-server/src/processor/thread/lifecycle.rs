@@ -8,6 +8,10 @@ impl RequestProcessor {
     ) -> Result<RpcDispatch, JsonRpcError> {
         self.ensure_initialized()?;
         let params: ThreadStartParams = parse_params(params)?;
+        let output_defaults = output_defaults::read_output_defaults(
+            self.runtime.app_config_path(),
+            params.config.as_ref(),
+        )?;
         validate_dynamic_tools(params.dynamic_tools.as_deref())?;
         let host_connection = dynamic_tools::host_connection(
             params.dynamic_tools.as_deref(),
@@ -102,6 +106,10 @@ impl RequestProcessor {
             "experimentalRawEvents": params.experimental_raw_events,
             "cliVersion": env!("CARGO_PKG_VERSION"),
         });
+        metadata
+            .as_object_mut()
+            .expect("thread/start metadata object")
+            .extend(output_defaults);
         if let Some(roots) = workspace_roots {
             metadata["runtimeWorkspaceRoots"] = json!(roots);
         }

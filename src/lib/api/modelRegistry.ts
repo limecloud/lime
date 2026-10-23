@@ -233,6 +233,8 @@ function toSnakeModelInfo(model: ModelInfo): EnhancedModelMetadata {
       json_mode: Boolean(model.capabilities?.jsonMode),
       function_calling: Boolean(model.capabilities?.functionCalling),
       reasoning: Boolean(model.capabilities?.reasoning),
+      supports_reasoning_summaries: model.supportsReasoningSummaries,
+      support_verbosity: model.supportVerbosity,
       reasoning_effort: reasoningEffortSupportFromUnknown(
         model.capabilities?.reasoningEffort,
       ),
@@ -354,6 +356,9 @@ function toRegistryModel(model: Model): EnhancedModelMetadata {
       function_calling: snapshot.capabilities.functionCalling,
       reasoning: snapshot.capabilities.reasoning,
       reasoning_effort: reasoningEffort,
+      supports_reasoning_summaries:
+        snapshot.capabilities.supportsReasoningSummaries,
+      support_verbosity: snapshot.capabilities.supportVerbosity,
     },
     capability_provenance: capabilityProvenanceFromSnapshot(
       snapshot.source,

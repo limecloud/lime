@@ -250,6 +250,7 @@ export function checkMcpRuntimeCurrentContracts({ repoRoot, failures }) {
       [
         "lime-rs/crates/app-server/src/processor/mod.rs",
         "lime-rs/crates/app-server/src/processor/dispatch.rs",
+        "lime-rs/crates/app-server/src/processor/dispatch/requests.rs",
         "lime-rs/crates/app-server/src/processor/mcp.rs",
       ],
       [
@@ -602,6 +603,7 @@ export function checkMcpRuntimeCurrentContracts({ repoRoot, failures }) {
     "lime-rs/crates/app-server-protocol/src/protocol/v0/client_request.rs",
     "lime-rs/crates/app-server-protocol/src/protocol/v0/catalog.rs",
     "lime-rs/crates/app-server/src/processor/dispatch.rs",
+    "lime-rs/crates/app-server/src/processor/dispatch/requests.rs",
     "lime-rs/crates/app-server/src/processor/mcp.rs",
     "lime-rs/crates/app-server/src/runtime/mcp.rs",
     "packages/app-server-client/src/request-client.ts",

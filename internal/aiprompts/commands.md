@@ -711,6 +711,15 @@ Codex experimental `fuzzyFileSearch/sessionStart|sessionUpdate|sessionStop` 与
 
 ## Browser Workspace 主链
 
+浏览数据设置使用 `src/lib/api/browserData.ts` → `browser_data_settings/summary/clear` →
+同一 `BrowserTabHost` 的 `BrowserDataHost`。这是浏览器 Profile 的 Desktop Host 操作，
+不增加 App Server runtime 或持久化 owner。严格六类/五时段，最近4周为28天；删除前整体
+校验能力，不支持组合零删除。history/downloads 委托原 owner，按 visit/开始时间清理终态记录；
+下载文件、附件和 artifact 保留。Cookie domain/cache 摘要为当前总量，可选读取失败为 null。
+只操作 `persist:embedded-browser`；stock native mask 仅允许全时段 siteData/cache，
+formData/siteSettings 与原生范围绑定仍待完成，不把被忽略的 timeRange 或未知类型传给 Electron。
+失败结果区分已完成、可能部分生效的失败类与尚未执行类；不声称跨 store 事务或回滚。
+
 Browser 只有一个网页执行体：Right Surface 中用户可见的 Electron `WebContentsView`。用户操作与 Agent 动作分别从以下两条控制路径进入同一个 `BrowserTabHost` route：
 
 ```text

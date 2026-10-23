@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
+import { changeLimeLocale } from "@/i18n/createI18n";
 import type { Message } from "../types";
 import type { CanonicalAgentStatus } from "../projection/canonicalChildThreadSummary";
 import {
@@ -8,6 +9,10 @@ import {
 import { buildInputbarRuntimeStatusLineModel } from "./inputbarRuntimeStatusLine";
 
 describe("agentTaskRuntime", () => {
+  beforeEach(async () => {
+    await changeLimeLocale("zh-CN");
+  });
+
   it("应按 canonical child 七态统计子任务", () => {
     const statuses = [
       "pendingInit",

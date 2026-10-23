@@ -2,6 +2,7 @@ mod dynamic_tools;
 mod guardian;
 mod inject_items;
 mod lifecycle;
+mod output_defaults;
 pub(super) mod projection;
 
 use super::v2_notifications::{project_events, V2NotificationProjector};

@@ -290,6 +290,29 @@ describe("modelRegistry API", () => {
     expectAppServerRequest(2, "model/list", { includeHidden: true });
   });
 
+  it("model/list 保留每个已选路由明确声明的输出能力", async () => {
+    const models = [true, false].map((supported) => {
+      const model = createCatalogModel("openai", `output-${supported}`);
+      return {
+        ...model,
+        capabilitySnapshot: {
+          ...model.capabilitySnapshot,
+          capabilities: {
+            ...model.capabilitySnapshot.capabilities,
+            supportsReasoningSummaries: supported,
+            supportVerbosity: supported,
+          },
+        },
+      };
+    });
+    resolveAppServerRequest({ data: models, nextCursor: null });
+    const result = await getModelRegistry();
+    expect(result.map((model) => model.capabilities)).toMatchObject([
+      { supports_reasoning_summaries: true, support_verbosity: true },
+      { supports_reasoning_summaries: false, support_verbosity: false },
+    ]);
+  });
+
   it("model/list 应把 App Server Codex policy 字段归一到 registry metadata", async () => {
     resolveAppServerRequest({
       data: [

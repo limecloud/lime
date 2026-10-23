@@ -14,6 +14,8 @@ import { useBrowserSettings } from "./useBrowserSettings";
 import { BrowserAgentPermissions } from "./BrowserAgentPermissions";
 import { BrowserHistoryPage } from "./BrowserHistoryPage";
 import { BrowserDownloadsPage } from "./BrowserDownloadsPage";
+import { useBrowserClearBrowsingData } from "./useBrowserClearBrowsingData";
+import { BrowserClearBrowsingDataDialog } from "./BrowserClearBrowsingDataDialog";
 import {
   BROWSER_SETTINGS_BUTTON,
   BrowserSettingsRow,
@@ -48,6 +50,7 @@ function BrowserSettingsPage({
   const { t } = useTranslation("settings");
   const desktop = useDesktopPreferences();
   const browser = useBrowserSettings();
+  const browsingData = useBrowserClearBrowsingData();
   const [dialogError, setDialogError] = useState(false);
   const [choosingDirectory, setChoosingDirectory] = useState(false);
   const effective = effectiveDesktopPreferences(
@@ -181,6 +184,36 @@ function BrowserSettingsPage({
           }
         />
         <BrowserSettingsRow
+          id="browser-full-url"
+          label={t("settings.browser.showFullUrl")}
+          description={t("settings.browser.showFullUrlDescription")}
+        >
+          {toggle("show_full_url", "browser-full-url")}
+        </BrowserSettingsRow>
+        <BrowserSettingsRow
+          id="browser-browsing-data"
+          label={t("browserData.settingLabel")}
+          description={t("browserData.settingDescription")}
+        >
+          <button
+            ref={browsingData.triggerRef}
+            type="button"
+            className={BROWSER_SETTINGS_BUTTON}
+            disabled={browsingData.opening}
+            aria-busy={browsingData.opening}
+            onClick={() => void browsingData.open()}
+          >
+            {t(
+              browsingData.opening ? "browserData.opening" : "browserData.open",
+            )}
+          </button>
+        </BrowserSettingsRow>
+        {browsingData.error?.kind === "open" ? (
+          <p role="alert" className="py-2 text-sm text-destructive">
+            {t("browserData.error.open")}
+          </p>
+        ) : null}
+        <BrowserSettingsRow
           id="browser-history"
           label={t("browserHistory.title")}
           description={t("browserHistory.description")}
@@ -192,13 +225,6 @@ function BrowserSettingsPage({
           >
             {t("browserHistory.manage")}
           </button>
-        </BrowserSettingsRow>
-        <BrowserSettingsRow
-          id="browser-full-url"
-          label={t("settings.browser.showFullUrl")}
-          description={t("settings.browser.showFullUrlDescription")}
-        >
-          {toggle("show_full_url", "browser-full-url")}
         </BrowserSettingsRow>
         <PreferenceMenu
           label={t("settings.browser.annotationScreenshot")}
@@ -325,6 +351,7 @@ function BrowserSettingsPage({
           </div>
         </BrowserSettingsRow>
       </BrowserSettingsSection>
+      <BrowserClearBrowsingDataDialog controller={browsingData} />
     </div>
   );
 }

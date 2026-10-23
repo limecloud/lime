@@ -104,6 +104,10 @@ pub struct ModelCapabilitiesInfo {
     pub reasoning: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reasoning_effort: Option<ModelReasoningEffortSupportInfo>,
+    #[serde(default)]
+    pub supports_reasoning_summaries: bool,
+    #[serde(default)]
+    pub support_verbosity: bool,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]

@@ -6,6 +6,7 @@ use model_provider::provider_stream::{
 };
 use serde_json::Value;
 
+mod output;
 mod truncation;
 
 const REQUEST_METADATA_KEYS: [&str; 5] = [
@@ -112,6 +113,7 @@ pub fn model_request_policy_from_turn_context(
         .or_else(|| model_request_policy_value(&metadata).map(model_request_policy_from_value))
         .unwrap_or_default();
     snapshot.truncation_policy = truncation::resolve(&metadata);
+    output::apply(&mut snapshot, &metadata);
     snapshot.has_policy_payload().then_some(snapshot)
 }
 
@@ -120,6 +122,7 @@ pub fn model_request_policy_from_metadata(metadata: &Value) -> Option<ModelReque
         .map(model_request_policy_from_value)
         .unwrap_or_default();
     snapshot.truncation_policy = truncation::resolve(metadata);
+    output::apply(&mut snapshot, metadata);
     snapshot.has_policy_payload().then_some(snapshot)
 }
 

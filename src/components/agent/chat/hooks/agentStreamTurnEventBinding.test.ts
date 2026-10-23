@@ -1428,6 +1428,7 @@ describe("agentStreamTurnEventBinding", () => {
           source: "agent_text_delta",
           itemId: "agent-message-app-server",
           turnId: "turn-app-server",
+          sequence: 0,
         },
       },
     ]);
@@ -1764,6 +1765,13 @@ describe("agentStreamTurnEventBinding", () => {
       {
         type: "text",
         text: "网页搜索渲染结论：搜索来源已展开，读取页面已归入同一过程，最终正文继续输出。",
+        metadata: {
+          source: "agent_text_delta",
+          itemId: "agent-message-final-turn-app-server-web-tools",
+          phase: "final_answer",
+          sequence: 4,
+          turnId: "turn-app-server-web-tools",
+        },
       },
     ]);
     expect(threadItems.map((item) => item.type)).toEqual([

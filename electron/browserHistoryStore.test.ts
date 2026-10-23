@@ -30,6 +30,31 @@ afterEach(async () => {
 });
 
 describe("BrowserHistoryStore", () => {
+  it("summarizes unique hostnames by visits since the boundary and preserves earlier visits after clear", async () => {
+    await store.recordVisit({ url: "https://example.com/one", visitedAt: 9 });
+    await store.recordVisit({ url: "https://example.com/one", visitedAt: 10 });
+    await store.recordVisit({ url: "https://example.com/two", visitedAt: 11 });
+    await store.recordVisit({ url: "https://sub.example.com/", visitedAt: 12 });
+    await store.recordVisit({ url: "https://old.example/", visitedAt: 8 });
+    expect(await store.summarizeData(10)).toEqual({
+      firstSite: "sub.example.com",
+      siteCount: 2,
+    });
+    expect(await store.summarizeData(13)).toEqual({
+      firstSite: null,
+      siteCount: 0,
+    });
+    await store.clear({ since: 10 });
+    expect(await new BrowserHistoryStore(directory).summarizeData(0)).toEqual({
+      firstSite: "example.com",
+      siteCount: 2,
+    });
+    expect(
+      (await store.list()).entries.find(
+        (entry) => entry.url === "https://example.com/one",
+      ),
+    ).toMatchObject({ visitCount: 1, lastVisitedAt: 9 });
+  });
   it("starts empty without creating a file on a read", async () => {
     const page = await store.list();
     assertBrowserHistoryPage(page);

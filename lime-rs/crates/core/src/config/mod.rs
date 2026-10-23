@@ -10,9 +10,9 @@ mod desktop;
 mod export;
 mod file_lock;
 mod git;
-mod worktrees;
 mod hot_reload;
 mod import;
+mod output;
 mod path_utils;
 mod persistence;
 mod plugins;
@@ -20,6 +20,7 @@ mod tool_execution;
 mod tools;
 mod tui_keymap;
 mod types;
+mod worktrees;
 mod yaml;
 
 pub use browser::{
@@ -30,12 +31,12 @@ pub use desktop::{DesktopConfig, ExternalBrowserLinkShortcut, LinkOpenTarget};
 pub use export::{ExportBundle, ExportOptions, ExportService, REDACTED_PLACEHOLDER};
 pub use file_lock::config_file_lock;
 pub use git::{GitConfig, PullRequestMergeMethod, ReviewDeliveryPreference};
-pub use worktrees::{UpstreamRefreshMode, WorktreeConfig};
 pub use hot_reload::{
     ConfigChangeEvent as FileChangeEvent, ConfigChangeKind, FileWatcher, HotReloadManager,
     ReloadResult,
 };
 pub use import::{ImportOptions, ImportService, ValidationResult};
+pub use output::{ModelVerbosity, ReasoningSummary};
 pub use path_utils::{collapse_tilde, contains_tilde, expand_tilde};
 pub use plugins::{
     MarketplaceConfig, MarketplaceSourceType, PluginConfig, PluginsConfig, PluginsDefaultConfig,
@@ -83,4 +84,5 @@ pub use types::{
     WindowsSandboxMode, WorkspacePreferencesConfig, WorkspaceSandboxConfig, XunfeiConfig,
     DEFAULT_API_KEY,
 };
+pub use worktrees::{UpstreamRefreshMode, WorktreeConfig};
 pub use yaml::{load_config, save_config, ConfigError, ConfigManager, YamlService};

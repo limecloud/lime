@@ -39,7 +39,10 @@
     "browser_history_clear",
     "browser_downloads_list",
     "browser_downloads_action",
-    "browser_downloads_clear"
+    "browser_downloads_clear",
+    "browser_data_settings",
+    "browser_data_summary",
+    "browser_data_clear"
   ],
   "browserConnectorCommands": [
     "disconnect_browser_connector_session",

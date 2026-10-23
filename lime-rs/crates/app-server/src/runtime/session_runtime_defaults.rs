@@ -213,6 +213,7 @@ fn thread_settings_runtime_metadata(metadata: &Value) -> Value {
     compact_json(json!({
         DYNAMIC_TOOLS_METADATA_KEY: metadata.get(DYNAMIC_TOOLS_METADATA_KEY).cloned(),
         "serviceTier": metadata.get("serviceTier").cloned(),
+        "modelVerbosity": metadata.get("modelVerbosity").cloned(),
         "reasoningSummary": metadata
             .get("reasoningSummary")
             .or_else(|| metadata.get("summary"))

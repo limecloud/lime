@@ -317,6 +317,44 @@ export class BrowserDownloadsHost {
     this.#revision = state.revision;
     this.#historyRevision = state.revision;
   }
+  summarizeData(since: number): Promise<{ count: number }> {
+    return this.#dataOperation(since, async () => ({
+      count: [...this.#entries!.values()].filter((entry) =>
+        dataEntryInRange(entry, since),
+      ).length,
+    }));
+  }
+  clearData(since: number): Promise<void> {
+    return this.#dataOperation(since, async () => {
+      const next = new Map(this.#entries!);
+      const removedIds: string[] = [];
+      for (const [id, entry] of next) {
+        if (!dataEntryInRange(entry, since)) continue;
+        next.delete(id);
+        removedIds.push(id);
+      }
+      if (removedIds.length) await this.#save(next);
+      // Only controlled recovery metadata is removed; the user's downloaded file and artifacts remain.
+      const cleanup = await Promise.allSettled(
+        removedIds.map((id) => this.#files!.remove(id)),
+      );
+      if (cleanup.some((result) => result.status === "rejected"))
+        throw new Error(
+          "Browser download recovery metadata could not be cleared",
+        );
+    });
+  }
+  #dataOperation<T>(since: number, operation: () => Promise<T>): Promise<T> {
+    if (!Number.isSafeInteger(since) || since < 0)
+      return Promise.reject(new Error("Invalid Browser download time range"));
+    if (this.#shuttingDown)
+      return Promise.reject(new Error("Browser downloads are shutting down"));
+    return this.#run(async () => {
+      await this.#load();
+      await this.#flush();
+      return operation();
+    });
+  }
   prepareShutdown(): Promise<void> {
     this.#shuttingDown = true;
     const errors: unknown[] = [];
@@ -421,4 +459,17 @@ export class BrowserDownloadsHost {
     );
     return next;
   }
+}
+
+function dataEntryInRange(
+  entry: StoredBrowserDownload,
+  since: number,
+): boolean {
+  return (
+    entry.finished &&
+    entry.startedAt >= since &&
+    (entry.state === "completed" ||
+      entry.state === "cancelled" ||
+      entry.state === "interrupted")
+  );
 }

@@ -11202,6 +11202,14 @@
             "streaming": {
               "type": "boolean"
             },
+            "supportVerbosity": {
+              "default": false,
+              "type": "boolean"
+            },
+            "supportsReasoningSummaries": {
+              "default": false,
+              "type": "boolean"
+            },
             "tools": {
               "type": "boolean"
             },
@@ -11295,6 +11303,8 @@
             "jsonMode": false,
             "reasoning": false,
             "streaming": false,
+            "supportVerbosity": false,
+            "supportsReasoningSummaries": false,
             "tools": false,
             "vision": false
           }
@@ -37391,6 +37401,8 @@
                 "jsonMode": false,
                 "reasoning": false,
                 "streaming": false,
+                "supportVerbosity": false,
+                "supportsReasoningSummaries": false,
                 "tools": false,
                 "vision": false
               }
@@ -37478,6 +37490,14 @@
               ]
             },
             "streaming": {
+              "type": "boolean"
+            },
+            "supportVerbosity": {
+              "default": false,
+              "type": "boolean"
+            },
+            "supportsReasoningSummaries": {
+              "default": false,
               "type": "boolean"
             },
             "tools": {
@@ -37875,6 +37895,14 @@
         "streaming": {
           "type": "boolean"
         },
+        "supportVerbosity": {
+          "default": false,
+          "type": "boolean"
+        },
+        "supportsReasoningSummaries": {
+          "default": false,
+          "type": "boolean"
+        },
         "tools": {
           "type": "boolean"
         },
@@ -37917,6 +37945,14 @@
               ]
             },
             "streaming": {
+              "type": "boolean"
+            },
+            "supportVerbosity": {
+              "default": false,
+              "type": "boolean"
+            },
+            "supportsReasoningSummaries": {
+              "default": false,
               "type": "boolean"
             },
             "tools": {
@@ -38056,6 +38092,8 @@
             "jsonMode": false,
             "reasoning": false,
             "streaming": false,
+            "supportVerbosity": false,
+            "supportsReasoningSummaries": false,
             "tools": false,
             "vision": false
           }
@@ -38326,6 +38364,8 @@
                 "jsonMode": false,
                 "reasoning": false,
                 "streaming": false,
+                "supportVerbosity": false,
+                "supportsReasoningSummaries": false,
                 "tools": false,
                 "vision": false
               }
@@ -38546,6 +38586,14 @@
               ]
             },
             "streaming": {
+              "type": "boolean"
+            },
+            "supportVerbosity": {
+              "default": false,
+              "type": "boolean"
+            },
+            "supportsReasoningSummaries": {
+              "default": false,
               "type": "boolean"
             },
             "tools": {
@@ -38842,6 +38890,14 @@
             "streaming": {
               "type": "boolean"
             },
+            "supportVerbosity": {
+              "default": false,
+              "type": "boolean"
+            },
+            "supportsReasoningSummaries": {
+              "default": false,
+              "type": "boolean"
+            },
             "tools": {
               "type": "boolean"
             },
@@ -39092,6 +39148,8 @@
                 "jsonMode": false,
                 "reasoning": false,
                 "streaming": false,
+                "supportVerbosity": false,
+                "supportsReasoningSummaries": false,
                 "tools": false,
                 "vision": false
               }
@@ -39362,6 +39420,14 @@
             "streaming": {
               "type": "boolean"
             },
+            "supportVerbosity": {
+              "default": false,
+              "type": "boolean"
+            },
+            "supportsReasoningSummaries": {
+              "default": false,
+              "type": "boolean"
+            },
             "tools": {
               "type": "boolean"
             },
@@ -39413,6 +39479,8 @@
                 "jsonMode": false,
                 "reasoning": false,
                 "streaming": false,
+                "supportVerbosity": false,
+                "supportsReasoningSummaries": false,
                 "tools": false,
                 "vision": false
               }
@@ -39952,6 +40020,14 @@
             "streaming": {
               "type": "boolean"
             },
+            "supportVerbosity": {
+              "default": false,
+              "type": "boolean"
+            },
+            "supportsReasoningSummaries": {
+              "default": false,
+              "type": "boolean"
+            },
             "tools": {
               "type": "boolean"
             },
@@ -40202,6 +40278,8 @@
                 "jsonMode": false,
                 "reasoning": false,
                 "streaming": false,
+                "supportVerbosity": false,
+                "supportsReasoningSummaries": false,
                 "tools": false,
                 "vision": false
               }
@@ -40322,6 +40400,14 @@
             "streaming": {
               "type": "boolean"
             },
+            "supportVerbosity": {
+              "default": false,
+              "type": "boolean"
+            },
+            "supportsReasoningSummaries": {
+              "default": false,
+              "type": "boolean"
+            },
             "tools": {
               "type": "boolean"
             },
@@ -40572,6 +40658,8 @@
                 "jsonMode": false,
                 "reasoning": false,
                 "streaming": false,
+                "supportVerbosity": false,
+                "supportsReasoningSummaries": false,
                 "tools": false,
                 "vision": false
               }
@@ -40887,6 +40975,14 @@
             "streaming": {
               "type": "boolean"
             },
+            "supportVerbosity": {
+              "default": false,
+              "type": "boolean"
+            },
+            "supportsReasoningSummaries": {
+              "default": false,
+              "type": "boolean"
+            },
             "tools": {
               "type": "boolean"
             },
@@ -40979,6 +41075,8 @@
                 "jsonMode": false,
                 "reasoning": false,
                 "streaming": false,
+                "supportVerbosity": false,
+                "supportsReasoningSummaries": false,
                 "tools": false,
                 "vision": false
               }
@@ -41148,6 +41246,14 @@
               ]
             },
             "streaming": {
+              "type": "boolean"
+            },
+            "supportVerbosity": {
+              "default": false,
+              "type": "boolean"
+            },
+            "supportsReasoningSummaries": {
+              "default": false,
               "type": "boolean"
             },
             "tools": {
@@ -41400,6 +41506,8 @@
                 "jsonMode": false,
                 "reasoning": false,
                 "streaming": false,
+                "supportVerbosity": false,
+                "supportsReasoningSummaries": false,
                 "tools": false,
                 "vision": false
               }
@@ -53385,6 +53493,14 @@
             "streaming": {
               "type": "boolean"
             },
+            "supportVerbosity": {
+              "default": false,
+              "type": "boolean"
+            },
+            "supportsReasoningSummaries": {
+              "default": false,
+              "type": "boolean"
+            },
             "tools": {
               "type": "boolean"
             },
@@ -53526,6 +53642,8 @@
                 "jsonMode": false,
                 "reasoning": false,
                 "streaming": false,
+                "supportVerbosity": false,
+                "supportsReasoningSummaries": false,
                 "tools": false,
                 "vision": false
               }
@@ -54362,6 +54480,8 @@
                 "jsonMode": false,
                 "reasoning": false,
                 "streaming": false,
+                "supportVerbosity": false,
+                "supportsReasoningSummaries": false,
                 "tools": false,
                 "vision": false
               }
@@ -54490,6 +54610,14 @@
               ]
             },
             "streaming": {
+              "type": "boolean"
+            },
+            "supportVerbosity": {
+              "default": false,
+              "type": "boolean"
+            },
+            "supportsReasoningSummaries": {
+              "default": false,
               "type": "boolean"
             },
             "tools": {

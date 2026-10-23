@@ -375,6 +375,8 @@ export interface Config {
   /** Explicit raw reasoning visibility shared by GUI and TUI; defaults to false. */
   show_raw_agent_reasoning?: boolean;
   hide_agent_reasoning?: boolean;
+  model_verbosity?: "low" | "medium" | "high" | null;
+  model_reasoning_summary?: "auto" | "concise" | "detailed" | "none";
   marketplaces?: Record<
     string,
     {

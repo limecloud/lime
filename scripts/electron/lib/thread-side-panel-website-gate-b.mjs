@@ -53,6 +53,13 @@ function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
+export async function readWebsitePreloadTrace(page, traceCollector) {
+  const capture = await captureInvokeTraceCollector(page, traceCollector);
+  const trace = validateInvokeTraceCollectorCapture(capture, traceCollector);
+  assert(trace.complete, "website缺少连续preload trace来源证明");
+  return trace;
+}
+
 async function submitWebsiteOutput(
   page,
   { sessionId, threadId, timeoutMs },
@@ -181,15 +188,7 @@ async function collectLinkClickEvidence(page, app, context, origin, requests) {
       scope,
     );
   const readCreationRequests = async () => {
-    const capture = await captureInvokeTraceCollector(
-      page,
-      context.traceCollector,
-    );
-    const trace = validateInvokeTraceCollectorCapture(
-      capture,
-      context.traceCollector,
-    );
-    assert(trace.complete, "链接点击缺少连续preload trace来源证明");
+    const trace = await readWebsitePreloadTrace(page, context.traceCollector);
     return parseJsonRpcRequestsFromInvokeTrace(
       JSON.stringify(trace.ledgerEntries),
     ).filter(
@@ -485,10 +484,10 @@ export async function collectThreadSidePanelWebsiteEvidence(
         (await page.locator(`[id=${JSON.stringify(sourceId)}]`).count()) === 1,
         "website错误消费了源New tab",
       );
-      const trace = await page.evaluate(
-        () => localStorage.getItem("lime_invoke_trace_buffer_v1") || "[]",
-      );
-      const request = parseJsonRpcRequestsFromInvokeTrace(trace).find(
+      const trace = await readWebsitePreloadTrace(page, traceCollector);
+      const request = parseJsonRpcRequestsFromInvokeTrace(
+        JSON.stringify(trace.ledgerEntries),
+      ).find(
         (entry) =>
           entry.method === "workspaceRightSurface/request" &&
           entry.params?.reason === "open_thread_output" &&
@@ -565,10 +564,9 @@ export async function collectThreadSidePanelWebsiteEvidence(
       (await page.locator(`[id=${JSON.stringify(sourceId)}]`).count()) === 1,
       "本地HTML错误消费了源New tab",
     );
+    const trace = await readWebsitePreloadTrace(page, traceCollector);
     const htmlRead = parseJsonRpcRequestsFromInvokeTrace(
-      await page.evaluate(() =>
-        localStorage.getItem("lime_invoke_trace_buffer_v1"),
-      ),
+      JSON.stringify(trace.ledgerEntries),
     ).find(
       (entry) =>
         entry.method === "fs/readFile" &&
@@ -582,11 +580,9 @@ export async function collectThreadSidePanelWebsiteEvidence(
         path: htmlScreenshotPath,
         animations: "disabled",
       });
-    const defaultBrowserReads = await page.evaluate(() =>
-      JSON.parse(localStorage.getItem("lime_invoke_trace_buffer_v1") || "[]")
-        .filter((entry) => entry.command === "is_default_browser")
-        .map(({ transport, status }) => ({ transport, status })),
-    );
+    const defaultBrowserReads = trace.ledgerEntries
+      .filter((entry) => entry.command === "is_default_browser")
+      .map(({ transport, status }) => ({ transport, status }));
     assert(
       defaultBrowserReads.some(
         (entry) =>
@@ -603,6 +599,7 @@ export async function collectThreadSidePanelWebsiteEvidence(
         value: defaultBrowser,
         matchesNative: true,
         reads: defaultBrowserReads,
+        traceProvenance: trace.provenance,
       },
       rounds,
       html: {

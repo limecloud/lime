@@ -1647,7 +1647,7 @@ package 只在至少两个独立 consumer 需要稳定边界时创建。单一 R
 
 App Server 是 Renderer、Electron、CLI、Plugin 与 runtime 的唯一跨应用业务协议入口。它可以做 transport、鉴权/初始化、请求编排、host context、projection 和 repository 接线；不能持有 provider-specific wire payload 或把工具实现复制进 handler。
 
-App Server 的 request dispatcher 必须先把各 method handler future 装箱，再在单一 await 点执行；禁止让大型 async `match` 把所有分支 future 内联进同一个 poll 栈。 `processor/dispatch.rs` 仅组合分发表；model、skill 与 project_git command group 由各自既有领域模块构造 boxed future，未知 method 不消费 params。该拆分不改变公开方法、协议、owner 或业务调用流；root 确认 minor 架构影响（2026-10-23）。stdio transport 在 `initialize` 完成前保持顺序执行；初始化后每个 client request 由独立 transport task 调度，notification/response 继续内联，并由 request id 关联响应、由 serialization scope 保证同一资源的共享/独占顺序。长 turn、MCP 或宿主 I/O 不得阻塞无冲突的 list/read request。
+App Server 的 request dispatcher 必须先把各 method handler future 装箱再执行；禁止让大型 async `match` 把所有分支 future 内联进同一个 poll 栈。`processor/dispatch.rs` 组合分发表，并保留 queue/add、media/read、turn/start、turn/steer 四个 event callback 分支的原借用合同；其余分支由同步 `dispatch/requests.rs` 构造并返回 boxed future，构造临时值的栈帧必须在 await handler 之前释放，禁止内联回 async poll。model、skill 与 project_git command group 由各自既有领域模块构造 boxed future，未知 method 不消费 params。该拆分不改变公开方法、协议、owner 或业务调用流；root 确认 minor 架构影响（2026-10-23）。stdio transport 在 `initialize` 完成前保持顺序执行；初始化后每个 client request 由独立 transport task 调度，notification/response 继续内联，并由 request id 关联响应、由 serialization scope 保证同一资源的共享/独占顺序。长 turn、MCP 或宿主 I/O 不得阻塞无冲突的 list/read request。
 
 Desktop command/exec 与 Git 等宿主子进程必须有确定性测试注入和生产 deadline。测试不得读取真实用户 shell rc；
 plain directory 的 Git status 先通过 `.git` ancestor preflight 返回，仓库内 Git 命令使用异步 process、`kill_on_drop`

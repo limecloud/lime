@@ -23,6 +23,12 @@ pub struct ModelCapabilities {
     /// 是否支持可选推理强度；仅当模型接口明确声明时填充
     #[serde(default)]
     pub reasoning_effort: Option<ModelReasoningEffortSupport>,
+    /// 是否明确支持推理摘要参数；不得由模型名推断。
+    #[serde(default)]
+    pub supports_reasoning_summaries: bool,
+    /// 是否明确支持输出详细程度参数。
+    #[serde(default)]
+    pub support_verbosity: bool,
 }
 
 /// 模型能力快照的事实来源。
@@ -877,6 +883,7 @@ impl ModelsDevModel {
                 function_calling: self.tool_call,
                 reasoning: self.reasoning,
                 reasoning_effort: None,
+                ..ModelCapabilities::default()
             },
             capability_provenance: ModelCapabilityProvenance::ProviderExplicit,
             visibility: ModelVisibility::List,

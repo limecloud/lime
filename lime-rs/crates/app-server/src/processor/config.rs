@@ -20,6 +20,8 @@ const CONFIG_ROOT_KEYS: &[&str] = &[
     "default_provider",
     "show_raw_agent_reasoning",
     "hide_agent_reasoning",
+    "model_verbosity",
+    "model_reasoning_summary",
     "tui",
     "desktop",
     "git",

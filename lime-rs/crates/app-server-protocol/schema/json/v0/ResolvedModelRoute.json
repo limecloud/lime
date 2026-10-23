@@ -53,6 +53,8 @@
             "jsonMode": false,
             "reasoning": false,
             "streaming": false,
+            "supportVerbosity": false,
+            "supportsReasoningSummaries": false,
             "tools": false,
             "vision": false
           }
@@ -181,6 +183,14 @@
           ]
         },
         "streaming": {
+          "type": "boolean"
+        },
+        "supportVerbosity": {
+          "default": false,
+          "type": "boolean"
+        },
+        "supportsReasoningSummaries": {
+          "default": false,
           "type": "boolean"
         },
         "tools": {

@@ -118,6 +118,8 @@ const PROJECTED_NOTIFICATION_METHODS = new Set([
   "autoApprovalReview/strictReviewRequired",
   "mcpServer/event/stream/notification",
   "project/changed",
+  // The request dispatcher already settles the matching pending interaction.
+  "serverRequest/resolved",
   "thread/project/updated",
   "thread/queue/changed",
   "thread/reverted",

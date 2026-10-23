@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import { LoaderCircle } from "lucide-react";
 import type { StorageState } from "@/lib/api/storage";
 import { SettingsAction } from "../../SettingsPrimitives";
 import { formatStorageBytes } from "./formatStorageBytes";
@@ -52,13 +53,23 @@ export function StorageUsage({
     >
       <div className="mb-2 flex items-center justify-between gap-4">
         <div className="min-w-0 text-[13px] font-medium">
-          {t("settings.storage.dataDirectory")}
+          {usage
+            ? t(
+                state?.measuredAt == null && state?.status !== "ready"
+                  ? "settings.storage.measuredTotal"
+                  : "settings.storage.total",
+                { size: formatStorageBytes(usage.totalBytes, i18n.language) },
+              )
+            : t("settings.storage.dataDirectory")}
         </div>
         <SettingsAction
           type="button"
           disabled={pending || (scanning && !error)}
           onClick={onRefresh}
         >
+          {scanning && !error ? (
+            <LoaderCircle className="size-3 animate-spin" aria-hidden="true" />
+          ) : null}
           {t(
             scanning && !error
               ? "settings.storage.updating"
@@ -66,26 +77,32 @@ export function StorageUsage({
           )}
         </SettingsAction>
       </div>
-      <div
-        role="img"
-        aria-label={t("settings.storage.capacity", {
-          size: formatStorageBytes(usage?.totalBytes ?? 0, i18n.language),
-        })}
-        className="flex h-6 overflow-hidden rounded-lg bg-muted"
-      >
-        {categories.map((category, index) =>
-          category.bytes > 0 && usage && usage.totalBytes > 0 ? (
-            <div
-              key={category.name}
-              title={`${t(`settings.storage.category.${category.name}`)}: ${formatStorageBytes(category.bytes, i18n.language)}`}
-              style={{
-                width: `${(category.bytes / usage.totalBytes) * 100}%`,
-                background: colors[index],
-              }}
-            />
-          ) : null,
-        )}
-      </div>
+      {usage || (scanning && !error) ? (
+        <div
+          role={usage ? "img" : "progressbar"}
+          aria-label={
+            usage
+              ? t("settings.storage.capacity", {
+                  size: formatStorageBytes(usage.totalBytes, i18n.language),
+                })
+              : t("settings.storage.scanning")
+          }
+          className="flex h-6 overflow-hidden rounded-lg bg-muted"
+        >
+          {categories.map((category, index) =>
+            category.bytes > 0 && usage && usage.totalBytes > 0 ? (
+              <div
+                key={category.name}
+                title={`${t(`settings.storage.category.${category.name}`)}: ${formatStorageBytes(category.bytes, i18n.language)}`}
+                style={{
+                  width: `${(category.bytes / usage.totalBytes) * 100}%`,
+                  background: colors[index],
+                }}
+              />
+            ) : null,
+          )}
+        </div>
+      ) : null}
       {usage ? (
         <>
           <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-muted-foreground">
@@ -119,21 +136,12 @@ export function StorageUsage({
               </li>
             ))}
           </ul>
-          <p className="mt-3 select-text break-all text-[12px] text-muted-foreground">
+          <p
+            className="mt-3 select-text break-all text-[12px] text-muted-foreground"
+            title={usage.scannedRoots.join("\n")}
+          >
             {usage.dataRoot}
           </p>
-          <details className="mt-3 text-[12px] text-muted-foreground">
-            <summary className="cursor-pointer">
-              {t("settings.storage.measuredLocations")}
-            </summary>
-            <ul className="mt-1 space-y-1">
-              {usage.scannedRoots.map((root) => (
-                <li key={root} className="break-all">
-                  {root}
-                </li>
-              ))}
-            </ul>
-          </details>
         </>
       ) : null}
       <div
@@ -143,7 +151,7 @@ export function StorageUsage({
         {error ? (
           <p role="alert">{t("settings.storage.measureFailed")}</p>
         ) : scanning ? (
-          <p>
+          <p className="sr-only">
             {t(usage ? "settings.storage.cached" : "settings.storage.scanning")}
           </p>
         ) : null}

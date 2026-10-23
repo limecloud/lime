@@ -122,6 +122,23 @@ tui:
       forward: ["/", "z /"]
 ```
 
+新聊天的回复默认值使用同一用户配置中的两个顶层字段：
+
+```yaml
+model_verbosity: high # null（模型默认）、low、medium 或 high
+model_reasoning_summary: detailed # auto、concise、detailed 或 none
+```
+
+默认详细程度为模型默认，推理摘要为 `auto`。配置通过公共 `config/value/write` 或
+`config/batchWrite` 保存，可用 `expectedVersion` 防止覆盖其他写入。服务端在
+`thread/start` 时将默认值保存到 canonical Thread；修改全局默认值只影响之后创建的聊天，
+已有聊天及其冷恢复继续使用保存的值。`thread/start.config` 中同名字段可显式覆盖；
+详细程度 `null` 使用模型默认，摘要 `null` 使用 `auto`。`thread/settings/update.summary`
+和 `turn/start.summary` 更新当前聊天的摘要偏好，并保留到后续回合。
+
+这些偏好受所选模型的明确能力声明约束：不支持的模型不会收到对应请求字段；摘要为
+`none` 时省略请求的摘要字段。它们影响模型请求，与下面的推理显示开关各自独立。
+
 原始推理显示使用同一用户配置中的顶层 `show_raw_agent_reasoning: true`，默认 false。
 GUI/TUI 均只在显式开启后将 canonical `content` 接在摘要之后；实时增量、运行中恢复、
 分页记录、完整记录与 TUI 导出遵守同一策略。它只影响显示，不改变服务端保存的

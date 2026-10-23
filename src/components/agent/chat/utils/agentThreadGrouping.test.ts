@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
+import { changeLimeLocale } from "@/i18n/createI18n";
 
 import type { AgentThreadItem } from "../types";
 import { buildAgentThreadDisplayModel } from "./agentThreadGrouping";
@@ -35,6 +36,10 @@ function createBaseItem(
 }
 
 describe("agentThreadGrouping", () => {
+  beforeEach(async () => {
+    await changeLimeLocale("zh-CN");
+  });
+
   it("应按真实时序把连续执行项收成一个过程块", () => {
     const items: AgentThreadItem[] = [
       {

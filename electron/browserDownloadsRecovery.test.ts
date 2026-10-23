@@ -55,6 +55,24 @@ function fixture(recover = vi.fn(async () => {})) {
   return { host, list, file, item, event, action, recover };
 }
 describe("download history after native process restart", () => {
+  it("clears terminal browsing-data history and private checkpoints while retaining the user's partial file", async () => {
+    const original = fixture();
+    await writeFile(original.file, "part");
+    original.host.observe(original.item as never, original.event, false, true);
+    await original.host.prepareShutdown();
+    const restored = fixture();
+    expect((await restored.list()).entries[0]).toMatchObject({
+      state: "interrupted",
+      canResume: true,
+    });
+    expect(await restored.host.summarizeData(0)).toEqual({ count: 1 });
+    await restored.host.clearData(0);
+    expect((await restored.list()).total).toBe(0);
+    expect(await readdir(path.join(root, "browser", "partials"))).toEqual([]);
+    expect(await readFile(original.file, "utf8")).toBe("part");
+    expect((await fixture().list()).total).toBe(0);
+    expect(restored.recover).not.toHaveBeenCalled();
+  });
   it("changes progress and terminal state only when the recreated native item reports them", async () => {
     const original = fixture();
     await writeFile(original.file, "part");

@@ -1,4 +1,5 @@
 import type { EmbeddedBrowserCommand } from "./embeddedBrowserHost";
+import { BROWSER_DATA_COMMANDS } from "./browserDataHost";
 import { BROWSER_HISTORY_COMMANDS } from "./browserHistoryHost";
 import { BROWSER_DOWNLOADS_COMMANDS } from "./browserDownloadsHost";
 import { BROWSER_ANNOTATION_EDITOR_COMMANDS } from "./browserTabAnnotationEditor";
@@ -42,6 +43,7 @@ export const BROWSER_TAB_PAGE_COMMANDS = {
 export type BrowserTabPageCommand = keyof typeof BROWSER_TAB_PAGE_COMMANDS;
 
 export const BROWSER_TAB_COMMANDS = [
+  ...BROWSER_DATA_COMMANDS,
   ...BROWSER_ANNOTATION_EDITOR_COMMANDS,
   ...BROWSER_HISTORY_COMMANDS,
   ...BROWSER_DOWNLOADS_COMMANDS,

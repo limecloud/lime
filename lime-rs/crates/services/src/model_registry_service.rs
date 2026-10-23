@@ -32,6 +32,7 @@ use tokio::sync::RwLock;
 #[cfg(test)]
 mod agnes_tests;
 mod managed_model_fetch_access;
+mod output_metadata;
 mod runtime_metadata;
 #[cfg(test)]
 mod truncation_tests;
@@ -1267,6 +1268,7 @@ fn infer_model_capabilities(task_families: &[ModelTaskFamily]) -> ModelCapabilit
             && !task_families.contains(&ModelTaskFamily::Rerank),
         reasoning: task_families.contains(&ModelTaskFamily::Reasoning),
         reasoning_effort: None,
+        ..ModelCapabilities::default()
     }
 }
 
@@ -3149,6 +3151,7 @@ impl ModelRegistryService {
             .data
             .into_iter()
             .map(|model| ApiModelResponse {
+                output: Default::default(),
                 id: model.id.clone(),
                 display_name: model.display_name,
                 provider_name: None,
@@ -3257,6 +3260,7 @@ impl ModelRegistryService {
                     })
             })
             .map(|model| ApiModelResponse {
+                output: Default::default(),
                 id: model.name.trim_start_matches("models/").to_string(),
                 display_name: model.display_name,
                 provider_name: None,
@@ -3308,6 +3312,7 @@ impl ModelRegistryService {
             .models
             .into_iter()
             .map(|model| ApiModelResponse {
+                output: Default::default(),
                 id: model.name.clone(),
                 display_name: Some(model.name),
                 provider_name: None,
@@ -3459,6 +3464,9 @@ impl ModelRegistryService {
             capabilities.reasoning = true;
             capabilities.reasoning_effort = Some(reasoning_effort);
         }
+        model
+            .output
+            .apply(&mut capabilities, model.capabilities.as_ref());
         let taxonomy = infer_model_taxonomy(ModelTaxonomyInput {
             model_id: &model.id,
             provider_id: Some(provider_id),
@@ -3555,6 +3563,7 @@ impl ModelRegistryService {
         let mut metadata = self
             .convert_api_model_with_canonical_provider(
                 ApiModelResponse {
+                    output: Default::default(),
                     id: model_id.to_string(),
                     display_name: model.display_name.clone(),
                     provider_name: Some(provider_id.to_string()),
@@ -3751,6 +3760,8 @@ struct ApiModelModalitiesResponse {
 #[derive(Debug, Deserialize)]
 struct ApiModelResponse {
     id: String,
+    #[serde(flatten)]
+    output: output_metadata::OutputMetadata,
     #[serde(default)]
     display_name: Option<String>,
     #[serde(default, alias = "owned_by")]
@@ -4083,6 +4094,7 @@ mod tests {
             function_calling: true,
             reasoning: false,
             reasoning_effort: None,
+            ..ModelCapabilities::default()
         };
         let modality_taxonomy = infer_model_taxonomy(ModelTaxonomyInput {
             model_id: "provider-vlm-chat",

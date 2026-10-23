@@ -7,6 +7,7 @@ impl RequestProcessor {
         params: &TurnStartParams,
     ) -> Result<Option<JsonRpcNotification>, JsonRpcError> {
         if params.service_tier.is_none()
+            && params.summary.is_none()
             && params.approvals_reviewer.is_none()
             && params.cwd.is_none()
             && params.runtime_workspace_roots.is_none()
@@ -25,6 +26,7 @@ impl RequestProcessor {
                     effort: params.effort.clone(),
                     collaboration_mode: params.collaboration_mode.clone(),
                     service_tier: params.service_tier.clone(),
+                    summary: params.summary.clone().map(Value::String),
                     approvals_reviewer: params.approvals_reviewer,
                     ..ThreadSettingsUpdateParams::default()
                 },

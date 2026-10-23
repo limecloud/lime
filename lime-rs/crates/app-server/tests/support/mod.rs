@@ -46,6 +46,15 @@ pub fn runtime_core_with_chat_providers_at(
     temp: &TempDir,
     providers: &[(&str, &str, ApiProviderType, &str, &str)],
 ) -> RuntimeCore {
+    runtime_core_with_chat_providers_and_output_at(temp, providers, false)
+}
+
+#[allow(dead_code)]
+pub fn runtime_core_with_chat_providers_and_output_at(
+    temp: &TempDir,
+    providers: &[(&str, &str, ApiProviderType, &str, &str)],
+    output_support: bool,
+) -> RuntimeCore {
     let conn = Connection::open_in_memory().expect("open in-memory product db");
     create_tables(&conn).expect("create product schema");
     let db = Arc::new(Mutex::new(conn));
@@ -79,6 +88,8 @@ pub fn runtime_core_with_chat_providers_at(
                         tools: true,
                         streaming: true,
                         function_calling: true,
+                        supports_reasoning_summaries: output_support,
+                        support_verbosity: output_support,
                         ..ModelCapabilities::default()
                     },
                 }),

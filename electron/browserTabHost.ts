@@ -3,6 +3,7 @@ import { BrowserAnnotationHost } from "./browserAnnotationHost";
 import { BROWSER_ANNOTATION_COMMANDS, type BrowserAnnotationCommand } from "./browserAnnotationModel";
 import { BrowserHistoryHost, isBrowserHistoryCommand } from "./browserHistoryHost";
 import { BrowserDownloadsHost, isBrowserDownloadsCommand } from "./browserDownloadsHost";
+import { BrowserDataHost, isBrowserDataCommand } from "./browserDataHost";
 import { BROWSER_ANNOTATION_EDITOR_COMMANDS, invokeBrowserAnnotationEditor, type BrowserAnnotationEditorCommand } from "./browserTabAnnotationEditor";
 import { readBrowserMenuPresentation } from "./browserOverlayModel";
 import { BrowserTabPolicy } from "./browserTabPolicy";
@@ -213,6 +214,7 @@ export class ElectronBrowserTabHost {
   readonly #history: BrowserHistoryHost;
   readonly #historyTool: BrowserHistoryTool;
   readonly #downloads: BrowserDownloadsHost;
+  readonly #data: BrowserDataHost;
   readonly #annotations: BrowserAnnotationHost;
   #annotationScreenshotMode: "always" | "necessary" = "always";
   #settingsProvider: (() => Promise<BrowserSettings>) | null = null;
@@ -246,6 +248,7 @@ export class ElectronBrowserTabHost {
     this.#history = options.history ?? new BrowserHistoryHost(revision => this.#emit("browser-history-changed", { revision }));
     this.#historyTool = new BrowserHistoryTool({ history: this.#history, policy: this.#policy, refreshSettings: () => this.#refreshSettings(), anchor: call => this.#permissionAnchor(this.#permissionRoute(call), call.turnId) });
     this.#downloads = new BrowserDownloadsHost((change) => this.#emit("browser-downloads-changed", change), { recover: (request) => this.#embeddedHost.resumeDownload(request) });
+    this.#data = new BrowserDataHost({ history: this.#history, downloads: this.#downloads, session: () => this.#embeddedHost.getBrowsingDataSession() });
     this.#embeddedHost.setDownloadObserver?.((...args) => this.#downloads.observe(...args));
     this.#overlay = new BrowserOverlayHost((event) => {
       const tabId = this.#tabIdsByViewId.get(event.viewId);
@@ -369,6 +372,7 @@ export class ElectronBrowserTabHost {
     }
     if (isBrowserHistoryCommand(command)) return this.#history.invoke(command, args);
     if (isBrowserDownloadsCommand(command)) return this.#downloads.invoke(command, args);
+    if (isBrowserDataCommand(command)) return this.#data.invoke(command, args);
     if ((BROWSER_ANNOTATION_EDITOR_COMMANDS as readonly string[]).includes(command)) {
       const route = this.#routeForRenderer(window, args);
       if (command !== "browser_tab_close_annotation_editor" && !route.selected) {

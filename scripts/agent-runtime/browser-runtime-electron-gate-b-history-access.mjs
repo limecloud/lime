@@ -205,6 +205,7 @@ export async function runBrowserHistoryAccessScenario(ctx) {
     await page.evaluate((emptyFinalMessage) => {
       const ids = new Set();
       const emptyFinalToasts = new Set();
+      const resolvedRequestWarnings = new Set();
       const observe = () => {
         document
           .querySelectorAll(
@@ -214,6 +215,8 @@ export async function runBrowserHistoryAccessScenario(ctx) {
         document.querySelectorAll("[data-sonner-toast]").forEach((node) => {
           if (node.textContent?.includes(emptyFinalMessage))
             emptyFinalToasts.add(node.textContent);
+          if (node.textContent?.includes("serverRequest/resolved"))
+            resolvedRequestWarnings.add(node.textContent);
         });
       };
       const observer = new MutationObserver(observe);
@@ -222,7 +225,12 @@ export async function runBrowserHistoryAccessScenario(ctx) {
         childList: true,
         characterData: true,
       });
-      window.__historyAccessApprovals = { ids, observer, emptyFinalToasts };
+      window.__historyAccessApprovals = {
+        ids,
+        observer,
+        emptyFinalToasts,
+        resolvedRequestWarnings,
+      };
       observe();
     }, emptyFinalMessage);
     let previousPrompt = null;
@@ -416,9 +424,17 @@ export async function runBrowserHistoryAccessScenario(ctx) {
         },
       });
       completion.guiTerminal = guiTerminal.completionScope;
-      completion.gui.emptyFinalToasts = await page.evaluate(() => [
-        ...window.__historyAccessApprovals.emptyFinalToasts,
-      ]);
+      Object.assign(
+        completion.gui,
+        await page.evaluate(() => ({
+          emptyFinalToasts: [
+            ...window.__historyAccessApprovals.emptyFinalToasts,
+          ],
+          resolvedRequestWarnings: [
+            ...window.__historyAccessApprovals.resolvedRequestWarnings,
+          ],
+        })),
+      );
       await snapshot(`${entry.name}-completed`);
       check(`${entry.name}-visible-final`, completion.gui.visibleFinal);
       check(
@@ -428,6 +444,10 @@ export async function runBrowserHistoryAccessScenario(ctx) {
       check(
         `${entry.name}-no-empty-final-toast`,
         completion.gui.emptyFinalToasts.length === 0,
+      );
+      check(
+        `${entry.name}-no-unprojected-request-warning`,
+        completion.gui.resolvedRequestWarnings.length === 0,
       );
       const toolItems =
         terminal.turn.items?.filter(

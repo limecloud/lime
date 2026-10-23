@@ -1,6 +1,6 @@
 # v1.168.0 发布执行计划
 
-状态：PR 已合并，本地硬门禁通过，提交冻结候选等待远端验证；负责人：root；日期：2026-10-23。
+状态：PR 已合并，新增改动已纳入候选，本地硬门禁通过，待最终远端验证及发布；负责人：root；日期：2026-10-23。
 
 ## 目标与授权
 
@@ -11,7 +11,7 @@
 - 基底：`348e0a03a7dc61e34f984ae490e0a18e40367764`，即 PR #153 的 squash 提交；上一标签 v1.167.0。
 - 纳入冻结时全部产品、文档、测试、协议、生成客户端及五语资源，包含 Browser 批注/Design/下载、设置重组、记忆与指令、听写、Git/worktree、Storage 和模型更新。
 - release metadata：package.json、packages/cli/package.json、Rust workspace/Cargo.lock、两份当前版本单页发布说明。Forge 与 manifest 继续读取应用版本。
-- 排除生成缓存 tsconfig.node.tsbuildinfo；冻结后新增的并行文档更新保留在工作区。
+- 排除生成缓存 tsconfig.node.tsbuildinfo；用户后续明确要求其他当前修改一并纳入，本轮扩大候选覆盖该授权时的全部产品、文档、测试及未跟踪源码。
 - 冻结源码、独立 index 和最终 tree identity 位于本地 `.lime/release-v11680/`；逐文件 blob 校验确认冻结源码与候选 index 一致。提交仅使用该候选，避免隐式混入后续修改。
 
 ## PR #153 审查结论
@@ -87,3 +87,15 @@
 - 本地续跑批次 110 暴露恢复绑定测试仍期待增量正文覆盖 item/completed 的 canonical 权威快照；补齐终态前流式 overlay 的等待断言，终态正文改为权威快照，保持 raw reasoning 隐藏、summary、Item identity/排序和监听清理断言。恢复/完成/reducer 3 文件 43 项通过，不改生产实现。
 - 当前窄写集为两份测试和本计划/验证收据；后续并行 Browser 数据清理与模型输出配置不进入已冻结候选。共享 Rust target 曾受并行协议编译 metadata 污染，本地该次 worktree 回归编译失败不作候选缺陷或通过证据，最终以远端干净构建验证。
 - 本地完整 typecheck/contracts 已在上一修复通过；本轮仅测试/证据迁移。继续本地续跑和最终远端完整矩阵，通过后创建 tag，再验证桌面、CLI/npm 与 updater 公开产物。
+
+
+## 用户追加范围与最终候选 r8
+
+- 用户明确要求“还有修改也合并到 v1.168.0 递交”，覆盖上一阶段暂缓后续并行改动的范围决定。以 41b03bbee 为基底，重新捕获并逐文件 SHA 校验全部 100 个当前产品、文档、协议、测试与新增源码文件，并补充中英文发布说明；不排除浏览数据清理或模型输出默认值。tsconfig.node.tsbuildinfo 继续按生成缓存排除。
+- 新增浏览数据能力落在既有 BrowserTabHost/BrowserDataHost，history/downloads 委托原 owner，支持能力先整体校验，下载文件和 artifact 保留；五语、IPC/catalog、typed gateway、真实 Gate B fixture 与命令文档同步。未支持的原生时间范围/formData/siteSettings 明确拒绝，不把 fixture 定义当作真实验收。
+- 输出默认值沿 core Config -> Thread 创建快照 -> settings/turn -> RuntimeCore/Agent policy，reasoning summary 按 canonical Thread settings 持久化；显式模型能力同步 registry、protocol/schema、client 和 frontend 类型。当前未新增 Configuration UI 控件，不声明整个设置路线图完成。serverRequest/resolved 通知同步消费与集成回归。
+- 远端 39955087389/39958032534 的 Rust 原始 scheduled_task_crud_preview_run_and_history_use_public_jsonrpc 场景仍栈溢出。分发表改为同步构造 boxed future 后返回，释放构造临时值栈帧再轮询；四个借用 callback 的原分支留在 async 入口，避免扩大生命周期合同。两次中间编译失败已保留，当前修复尚待精确 Rust/最终远端验证，不计通过。root 确认 minor 架构影响，业务 owner、方法、参数及错误语义不变，architecture.md 与扫描守卫同步。
+- 新候选完整 typecheck、完整 contracts、版本检查、44 个受管 TS/TSX/MJS 文件 ESLint、全部新增/修改 Rust 文件 rustfmt 均通过；16 文件 207 项定向测试与测试分层预算 38/38 通过。前端续跑 148 批状态完成，其中 116 passed/32 skipped；与 CI 按文件比对补验，不能把本地 skipped 宣称全部执行。最终远端仍必须全量通过。
+- 远端 39958032534 的前端仅两处 metadata 旧预期失败，已补精确 canonical metadata 并包含在 207 项通过集合；GUI 因 Electron 二进制下载 fetch failed，属于获取依赖失败，最终候选重新跑真实 GUI。此前真实 GUI/Windows 通过作为历史证据，不替代本次候选门禁。
+- 当前分类为 current 产品修复及 test-only 护栏迁移；不新增 compat/deprecated 或第二业务事实源。同步构造模块约 680 行，避免继续向巨大 async match 堆叠逻辑。以独立 Rust target 隔离并行 metadata，精确验证 scheduled_tasks/worktree/output_defaults 公共 JSON-RPC 后，由最终远端 Quality 覆盖全量与 GUI/Windows。
+- 下一步：推送本候选，修复最终远端实际失败；Quality 全绿后创建 v1.168.0 标签，完成桌面、CLI/npm、updater 公开产物核验。未创建 tag，发布完成度不得记为 100%。

@@ -240,6 +240,10 @@ fn provider_model_config_to_core(
                         json_mode: capability.capabilities.json_mode,
                         function_calling: capability.capabilities.function_calling,
                         reasoning: capability.capabilities.reasoning,
+                        supports_reasoning_summaries: capability
+                            .capabilities
+                            .supports_reasoning_summaries,
+                        support_verbosity: capability.capabilities.support_verbosity,
                         reasoning_effort: capability
                             .capabilities
                             .reasoning_effort

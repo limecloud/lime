@@ -231,6 +231,13 @@ try {
   );
   await appearance("浅色");
   await screenshot("light");
+  check(
+    "visibleStorageTotal",
+    await page
+      .locator("#storage-usage")
+      .getByText(/Lime 已使用/)
+      .isVisible(),
+  );
   await page.getByRole("button", { name: "审阅", exact: true }).click();
   const dialog = page.getByRole("dialog");
   await dialog.getByText("Storage root", { exact: true }).waitFor();
@@ -273,10 +280,12 @@ try {
   await page.getByRole("button", { name: "审阅", exact: true }).click();
   await dialog.getByText("Storage root", { exact: true }).waitFor();
   await dialog.getByRole("button", { name: "继续", exact: true }).click();
+  await call("thread/unarchive", { threadId: ids["Storage changed"] });
   await call("thread/name/set", {
     threadId: ids["Storage changed"],
     name: "Changed after review",
   });
+  await call("thread/archive", { threadId: ids["Storage changed"] });
   await page
     .getByRole("alertdialog")
     .getByRole("button", { name: "永久删除", exact: true })

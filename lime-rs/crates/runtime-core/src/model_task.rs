@@ -84,6 +84,16 @@ pub fn capability_snapshot_from_model_capabilities(value: &Value) -> CapabilityS
             )
             .unwrap_or(false),
             reasoning: bool_field(capabilities_value, &["reasoning"]).unwrap_or(false),
+            supports_reasoning_summaries: bool_field(
+                capabilities_value,
+                &["supportsReasoningSummaries", "supports_reasoning_summaries"],
+            )
+            .unwrap_or(false),
+            support_verbosity: bool_field(
+                capabilities_value,
+                &["supportVerbosity", "support_verbosity"],
+            )
+            .unwrap_or(false),
             reasoning_effort: capabilities_value
                 .and_then(|capabilities| {
                     capabilities

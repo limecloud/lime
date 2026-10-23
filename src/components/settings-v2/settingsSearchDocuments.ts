@@ -11,6 +11,17 @@ interface SettingsSearchDocument {
 
 // 只登记 current 页面上的静态消息；不索引用户资料、配置值或凭证。
 export const settingsSearchDocuments: readonly SettingsSearchDocument[] = [
+  {
+    section: SettingsTabs.Browser,
+    targetId: "browser-browsing-data",
+    labelKey: "browserData.settingLabel",
+    termKeys: [
+      "browserData.settingDescription",
+      "browserData.type.siteData",
+      "browserData.type.cache",
+      "browserData.title",
+    ],
+  },
   ...(
     [
       ["usage", "dataDirectory", "description"],

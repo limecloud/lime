@@ -35,6 +35,8 @@ export interface ModelCapabilities {
   reasoning: boolean;
   /** 是否支持可选推理强度；仅当模型接口明确声明时填充 */
   reasoning_effort?: ModelReasoningEffortSupport | null;
+  supports_reasoning_summaries?: boolean;
+  support_verbosity?: boolean;
 }
 
 /** 模型能力快照来源；inferred_hint 只能用于目录展示。 */

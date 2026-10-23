@@ -9,6 +9,8 @@ Simplified Chinese release notes are the primary version.
 - Extend browser annotations with element, region, and text selection, attached images, marker visibility, original-page viewing, and CSS/text design previews submitted through conversations.
 - Add download management with search, pagination, progress, file actions, and recovery; let Agents query browser history under the configured history access policy.
 - Add storage usage reporting and category cleanup for local caches and historical data.
+- Add browsing data cleanup for supported history, download records, site data, and cache time ranges, with explicit unsupported and partial failure results.
+- Add reply verbosity and reasoning summary defaults for new chats, with thread and turn overrides gated by model capabilities.
 - Add Git and worktree preferences, managed worktree inventory and cleanup, and customizable keyboard shortcuts.
 - Add dictation dictionaries, history, and audio playback, with focused microphone, model, and processing preferences.
 - Default MiniMax M Plan to M3.1 Flash, refresh official subscription links and model choices, and recognize image input for Flash/M3.
@@ -18,6 +20,7 @@ Simplified Chinese release notes are the primary version.
 - Check configuration versions and previous field values when saving browser permissions, preventing stale views from overwriting newer policies while retaining drafts on failure.
 - Strengthen annotation page/editor identity, navigation invalidation, input focus, and draft revision checks to reject stale actions.
 - Honor conversation source preferences during memory extraction and consolidate global instruction reading and editing.
+- Recognize resolved server interaction notifications and reduce async request dispatch stack usage.
 
 ### Improvements and Refactoring
 

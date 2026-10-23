@@ -173,6 +173,9 @@ export function isEmbeddedBrowserCommand(
 }
 
 export class ElectronEmbeddedBrowserHost {
+  getBrowsingDataSession(): ElectronSession {
+    return configureEmbeddedBrowserSession().embeddedSession;
+  }
   #entries = new Map<string, EmbeddedBrowserEntry>();
   #downloadPaths = new Map<string, string>();
   #downloadObserver: EmbeddedBrowserDownloadController["onDownload"];

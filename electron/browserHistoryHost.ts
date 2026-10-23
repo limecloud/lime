@@ -54,6 +54,10 @@ export class BrowserHistoryHost {
 
   forget(viewId: string): void { this.#committedUrls.delete(viewId); }
 
+  summarizeData(since: number): Promise<{ firstSite: string | null; siteCount: number }> {
+    return this.#run(store => store.summarizeData(since));
+  }
+
   #publish(revision: number): void {
     if (revision === this.#lastRevision) return;
     this.#lastRevision = revision;

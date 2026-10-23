@@ -52,6 +52,9 @@ pub(super) fn model_info_from_value(value: &Value) -> ModelInfo {
             function_calling: bool_field(capabilities, "function_calling").unwrap_or(false),
             reasoning: bool_field(capabilities, "reasoning").unwrap_or(false),
             reasoning_effort,
+            supports_reasoning_summaries: bool_field(capabilities, "supports_reasoning_summaries")
+                .unwrap_or(false),
+            support_verbosity: bool_field(capabilities, "support_verbosity").unwrap_or(false),
         },
         capability_provenance: string_field(value, "capability_provenance")
             .unwrap_or_else(|| "inferred_hint".to_string()),
@@ -78,9 +81,12 @@ pub(super) fn model_info_from_value(value: &Value) -> ModelInfo {
             "supports_reasoning_summary_parameter",
         )
         .or_else(|| bool_field(Some(value), "supports_reasoning_summaries"))
+        .or_else(|| bool_field(capabilities, "supports_reasoning_summaries"))
         .unwrap_or(false),
         default_reasoning_summary: string_field(value, "default_reasoning_summary"),
-        support_verbosity: bool_field(Some(value), "support_verbosity").unwrap_or(false),
+        support_verbosity: bool_field(Some(value), "support_verbosity")
+            .or_else(|| bool_field(capabilities, "support_verbosity"))
+            .unwrap_or(false),
         default_verbosity: string_field(value, "default_verbosity"),
         use_responses_lite: bool_field(Some(value), "use_responses_lite").unwrap_or(false),
         truncation_policy: field_value(value, "truncation_policy").cloned(),
@@ -182,6 +188,9 @@ fn provider_model_capability_from_value(value: &Value) -> ProviderModelCapabilit
             reasoning_effort: capabilities
                 .and_then(|capabilities| field_value(capabilities, "reasoning_effort"))
                 .and_then(|support| serde_json::from_value(support.clone()).ok()),
+            supports_reasoning_summaries: bool_field(capabilities, "supports_reasoning_summaries")
+                .unwrap_or(false),
+            support_verbosity: bool_field(capabilities, "support_verbosity").unwrap_or(false),
         },
     }
 }
@@ -315,6 +324,26 @@ fn to_camel_case(key: &str) -> String {
 mod tests {
     use super::model_info_from_value;
     use super::provider_info_from_value;
+
+    #[test]
+    fn output_capabilities_survive_the_catalog_and_provider_config_projections() {
+        let capabilities = serde_json::json!({
+            "supports_reasoning_summaries": true, "support_verbosity": true
+        });
+        let info = model_info_from_value(&serde_json::json!({
+            "id": "fixture-model", "capabilities": capabilities
+        }));
+        assert!(info.supports_reasoning_summaries && info.support_verbosity);
+        assert!(
+            info.capabilities.supports_reasoning_summaries && info.capabilities.support_verbosity
+        );
+        let declared = super::provider_model_capability_from_value(&serde_json::json!({
+            "capabilities": capabilities
+        }));
+        let wire = serde_json::to_value(declared).unwrap();
+        assert_eq!(wire["capabilities"]["supportsReasoningSummaries"], true);
+        assert_eq!(wire["capabilities"]["supportVerbosity"], true);
+    }
 
     #[test]
     fn model_info_from_value_preserves_extended_policy_fields() {

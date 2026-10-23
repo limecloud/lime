@@ -26,6 +26,7 @@ import { runBrowserPermissionScenario } from "./browser-runtime-electron-gate-b-
 import { runBrowserWindowCloseScenario } from "./browser-runtime-electron-gate-b-window-close.mjs";
 import { runBrowserProjectionGateA } from "./browser-runtime-gate-a.mjs";
 import { runBrowserHistoryScenario } from "./browser-runtime-electron-gate-b-history.mjs";
+import { runBrowserDataScenario } from "./browser-runtime-electron-gate-b-data.mjs";
 import { runBrowserHistoryAccessScenario } from "./browser-runtime-electron-gate-b-history-access.mjs";
 import { createBrowserHistoryAccessResponses } from "./browser-history-access-provider.mjs";
 import { runBrowserDownloadHistoryScenario } from "./browser-runtime-electron-gate-b-download-history.mjs";
@@ -108,6 +109,7 @@ const DEFAULT_PROJECTION_OUTPUT = path.resolve(
 const SCENARIOS = new Set([
   "projection",
   "history",
+  "browser-data",
   "history-access",
   "download-history",
   "annotation",
@@ -253,6 +255,11 @@ export function parseArgs(argv) {
   }
   if (!outputExplicit && options.scenario === "history") {
     options.output = DEFAULT_OUTPUT.replace("-summary", "-history-summary");
+  }
+  if (!outputExplicit && options.scenario === "browser-data") {
+    options.output = path.resolve(
+      ".lime/qc/gui-evidence/browser-runtime-electron-gate-b/browser-runtime-electron-gate-b-data-summary.json",
+    );
   }
   if (!outputExplicit && options.scenario === "history-access") {
     options.output = DEFAULT_OUTPUT.replace(
@@ -1648,16 +1655,19 @@ export async function run(options) {
     }
     if (
       options.scenario === "history" ||
+      options.scenario === "browser-data" ||
       options.scenario === "history-access" ||
       options.scenario === "download-history"
     ) {
       logStage(`run-browser-${options.scenario}`);
       const historyEvidence = await (
-        options.scenario === "history-access"
-          ? runBrowserHistoryAccessScenario
-          : options.scenario === "history"
-            ? runBrowserHistoryScenario
-            : runBrowserDownloadHistoryScenario
+        options.scenario === "browser-data"
+          ? runBrowserDataScenario
+          : options.scenario === "history-access"
+            ? runBrowserHistoryAccessScenario
+            : options.scenario === "history"
+              ? runBrowserHistoryScenario
+              : runBrowserDownloadHistoryScenario
       )({
         app,
         page,

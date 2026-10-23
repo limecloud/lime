@@ -24,6 +24,14 @@
         "streaming": {
           "type": "boolean"
         },
+        "supportVerbosity": {
+          "default": false,
+          "type": "boolean"
+        },
+        "supportsReasoningSummaries": {
+          "default": false,
+          "type": "boolean"
+        },
         "tools": {
           "type": "boolean"
         },
@@ -117,6 +125,8 @@
         "jsonMode": false,
         "reasoning": false,
         "streaming": false,
+        "supportVerbosity": false,
+        "supportsReasoningSummaries": false,
         "tools": false,
         "vision": false
       }

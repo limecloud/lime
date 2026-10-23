@@ -390,6 +390,12 @@ pub struct Config {
     /// 隐藏非交互 exec 的推理输出；不影响 GUI/TUI 摘要。
     #[serde(default)]
     pub hide_agent_reasoning: bool,
+    /// 新聊天的输出详细程度，空值使用模型默认。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model_verbosity: Option<super::ModelVerbosity>,
+    /// 新聊天的推理摘要；在创建 Thread 时冻结。
+    #[serde(default)]
+    pub model_reasoning_summary: super::ReasoningSummary,
     /// Codex-compatible default named permission profile.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub default_permissions: Option<String>,
@@ -2176,6 +2182,8 @@ impl Default for Config {
             default_provider: default_provider(),
             show_raw_agent_reasoning: false,
             hide_agent_reasoning: false,
+            model_verbosity: None,
+            model_reasoning_summary: super::ReasoningSummary::default(),
             default_permissions: None,
             permissions: BTreeMap::new(),
             tui: super::TuiConfig::default(),

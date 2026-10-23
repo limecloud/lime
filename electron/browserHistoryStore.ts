@@ -226,6 +226,26 @@ export class BrowserHistoryStore {
     });
   }
 
+  summarizeData(
+    since: number,
+  ): Promise<{ firstSite: string | null; siteCount: number }> {
+    assertBrowserHistoryTimestamp(since);
+    return this.#run(async () => {
+      const sites = new Set<string>();
+      const entries = (await this.#load()).entries
+        .filter((entry) => entry.visits.some((visit) => visit >= since))
+        .sort(compareEntries);
+      for (const entry of entries) {
+        const hostname = new URL(entry.url).hostname;
+        if (hostname) sites.add(hostname);
+      }
+      return {
+        firstSite: sites.values().next().value ?? null,
+        siteCount: sites.size,
+      };
+    });
+  }
+
   getRevision(): Promise<number> {
     return this.#run(async () => (await this.#load()).revision);
   }

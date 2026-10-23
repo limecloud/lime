@@ -76,6 +76,38 @@ function fixture(options: { store?: BrowserDownloadsStore } = {}) {
   return { host, list, action, start, open, reveal, changed };
 }
 describe("native Browser download management", () => {
+  it("clears terminal data by start time, preserves active records and downloaded files, and survives reload", async () => {
+    let clock = 10;
+    vi.spyOn(Date, "now").mockImplementation(() => clock);
+    const f = fixture();
+    const old = f.start("old");
+    await f.list();
+    clock = 20;
+    const recent = f.start("recent");
+    const cancelled = f.start("cancelled");
+    const interrupted = f.start("interrupted");
+    const active = f.start("active");
+    await f.list();
+    clock = 30;
+    old.observe("completed", true);
+    recent.observe("completed", true);
+    cancelled.observe("cancelled", true);
+    interrupted.observe("interrupted", true);
+    await writeFile(recent.file, "retained user file");
+    await f.list();
+    expect(await f.host.summarizeData(20)).toEqual({ count: 3 });
+    expect(await f.host.summarizeData(21)).toEqual({ count: 0 });
+    await f.host.clearData(20);
+    expect((await f.list()).entries.map((entry) => entry.id).sort()).toEqual(
+      [active.id, old.id].sort(),
+    );
+    expect(await readFile(recent.file, "utf8")).toBe("retained user file");
+    expect(
+      (await fixture().list()).entries.map((entry) => entry.id).sort(),
+    ).toEqual([active.id, old.id].sort());
+    expect(active.item.cancel).not.toHaveBeenCalled();
+    vi.restoreAllMocks();
+  });
   it("advances durable progress without invalidating history offsets and emits only public deltas", async () => {
     const f = fixture();
     const download = f.start();

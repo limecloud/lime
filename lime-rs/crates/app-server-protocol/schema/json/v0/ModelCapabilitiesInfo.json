@@ -91,6 +91,14 @@
     "streaming": {
       "type": "boolean"
     },
+    "supportVerbosity": {
+      "default": false,
+      "type": "boolean"
+    },
+    "supportsReasoningSummaries": {
+      "default": false,
+      "type": "boolean"
+    },
     "tools": {
       "type": "boolean"
     },

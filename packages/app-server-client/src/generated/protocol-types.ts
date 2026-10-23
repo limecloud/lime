@@ -7845,6 +7845,8 @@ export interface ModelCapabilitiesInfo {
   reasoning: boolean;
   reasoningEffort?: ModelReasoningEffortSupportInfo | null;
   streaming: boolean;
+  supportVerbosity?: boolean;
+  supportsReasoningSummaries?: boolean;
   tools: boolean;
   vision: boolean;
 }

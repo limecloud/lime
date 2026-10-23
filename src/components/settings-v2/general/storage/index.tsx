@@ -43,13 +43,13 @@ export function DeviceStorageSettings({
             {t("settings.storage.description")}
           </p>
         </header>
-        <StorageUsage
-          state={state}
-          failed={failed}
-          pending={pending}
-          onRefresh={() => void refresh()}
-        />
-        <div className="pt-4">
+        <div className="flex flex-col gap-10">
+          <StorageUsage
+            state={state}
+            failed={failed}
+            pending={pending}
+            onRefresh={() => void refresh()}
+          />
           <SettingsGroup>
             <SettingsRow
               targetId="storage-cleanup"

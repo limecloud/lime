@@ -129,6 +129,23 @@ it("distinguishes completed category sizes from partial and failed measurements"
   expect(container.textContent).toContain("Chats 1 KB");
 });
 
+it("shows the visible total and distinguishes a first partial measurement", async () => {
+  await mount();
+  expect(container.querySelector("#storage-usage")?.textContent).toContain(
+    "2 KB used by Lime",
+  );
+  await act(async () => root.unmount());
+  root = createRoot(container);
+  api.readStorage.mockResolvedValue({
+    ...state("scanning", ["threads"]),
+    measuredAt: null,
+  });
+  await mount();
+  expect(container.querySelector("#storage-usage")?.textContent).toContain(
+    "2 KB measured so far",
+  );
+});
+
 it("defaults to archived chats older than 90 days, permits selection, and requires independent confirmation", async () => {
   await mount();
   await click("Review");

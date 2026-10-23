@@ -1,9 +1,71 @@
 import { spawnSync } from "node:child_process";
-import { describe, expect, it, vi } from "vitest";
+import { webcrypto } from "node:crypto";
+import { TextEncoder } from "node:util";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  readWebsitePreloadTrace,
   renderRecentsWebsiteBackendScript,
   waitForLinkTab,
 } from "./thread-side-panel-website-gate-b.mjs";
+import {
+  INVOKE_TRACE_COLLECTOR_KEY as KEY,
+  INVOKE_TRACE_COLLECTOR_LIMIT as LIMIT,
+  installInvokeTraceCollector,
+  stopInvokeTraceCollector,
+} from "../../lib/invoke-trace-collector.mjs";
+
+describe("website preload evidence across the native trace ring", () => {
+  const page = { evaluate: async (callback, argument) => callback(argument) };
+  let collector;
+  beforeEach(async () => {
+    localStorage.clear();
+    vi.stubGlobal("crypto", webcrypto);
+    vi.stubGlobal("TextEncoder", TextEncoder);
+    collector = await installInvokeTraceCollector(page);
+  });
+  afterEach(async () => {
+    try {
+      await stopInvokeTraceCollector(page, collector);
+    } finally {
+      vi.unstubAllGlobals();
+      localStorage.clear();
+    }
+  });
+  const entry = (index, command = "app_server_handle_json_lines") => ({
+    timestamp: new Date(1_800_000_000_000 + index).toISOString(),
+    command,
+    transport: "electron-ipc",
+    status: "success",
+    duration_ms: 1,
+  });
+  const append = (value) => {
+    const ring = JSON.parse(localStorage.getItem(KEY) || "[]");
+    localStorage.setItem(KEY, JSON.stringify([...ring, value].slice(-LIMIT)));
+  };
+
+  it("retains the actual default-browser receipt after later IPC has evicted it", async () => {
+    const receipt = entry(0, "is_default_browser");
+    append(receipt);
+    for (let index = 1; index <= LIMIT + 10; index += 1) append(entry(index));
+    expect(JSON.parse(localStorage.getItem(KEY))).not.toContainEqual(receipt);
+    const trace = await readWebsitePreloadTrace(page, collector);
+    expect(trace.ledgerEntries[0]).toEqual(receipt);
+    expect(trace.provenance).toMatchObject({
+      mode: "continuous-storage-append",
+      appendCount: LIMIT + 11,
+      currentRingCount: LIMIT,
+    });
+  });
+
+  it("rejects a broken observation interval even if the current ring has a success receipt", async () => {
+    append(entry(0, "is_default_browser"));
+    localStorage.removeItem(KEY);
+    append(entry(1, "is_default_browser"));
+    await expect(readWebsitePreloadTrace(page, collector)).rejects.toThrow(
+      "website缺少连续preload trace来源证明",
+    );
+  });
+});
 
 it("awaits asynchronous native snapshots until the new identity is present", async () => {
   vi.useFakeTimers();

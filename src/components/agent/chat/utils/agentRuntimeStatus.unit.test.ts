@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
+import { changeLimeLocale } from "@/i18n/createI18n";
 import { resolveSoulInteractionCopy } from "@/lib/soul/interactionCopy";
 import {
   buildFailedAgentMessageContent,
@@ -8,6 +9,10 @@ import {
 } from "./agentRuntimeStatus";
 
 describe("agentRuntimeStatus", () => {
+  beforeEach(async () => {
+    await changeLimeLocale("zh-CN");
+  });
+
   it("默认失败恢复文案保持中性前缀", () => {
     expect(buildFailedAgentMessageContent("provider failed")).toBe(
       "执行失败：provider failed",

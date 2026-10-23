@@ -2,6 +2,36 @@
 
 更新时间：2026-10-23
 
+### 原生窗口输入续验（2026-10-23，进行中）
+
+- 上轮分类为 progress：S05 产品切片、最终主树类型与30文件冻结一致审计、两轮18项专项已结算；完整目标仍是会话内置浏览器、S01–S19/N0–N6及全部UI/UX，G01–G12仍0/12。
+- 当前环境复核：约36.41 GiB可用；PATH仍无gclient/gn/ninja/autoninja/siso，`xcodebuild -version`仍因仅CLT退出1，不能编译或验证锁定引擎。既有硬编码Min/Max的清理原生缺口保持未完成，不以公共API传入被忽略的timeRange替代。
+- 下一刀改为补实际窗口输入：本次CUA应用清单已成功，不再预设此前native-pipe失败仍必然存在。使用已冻结且freshness通过的S05隔离副本，复用真实Main/preload/IPC/App Server；仅新建隔离验收Profile及受控页面。UI输入全部走CUA原生通道，Playwright只承担现有启动、readiness、公共RPC准备和只读观察。
+- 窄写集暂限本计划及独立 `artifacts/codex-in-app-browser-20261022/native-input-verification-20261023/`；生产文件先只读。如发现确定性产品缺陷，先登记最窄owner/回归/修复写集，避让并行Storage/Rust/protocol/architecture/settings.json。
+- Verification Contract：budget:normal / P1验证。真实窗口输入 → 已有设置/Browser UI → current gateway/preload/IPC → 同一Profile及canonical Browser身份 → 用户可见状态。验证设置导航、六类五时段、键盘/焦点/关闭和原生网页遮挡；不对个人Profile执行删除，不发送消息、不放宽权限。引擎构建、完整设置、live与macOS/Windows packaged仍独立未验收。
+- 退出条件：有明确输入记录、实际AX/截图、同进程和同Profile/read model/IPC对照，记录通过与失败及进程终态；工具失败必须保留原错误，不能以DOM合成输入冒充系统输入。此轮不启动相同失败入口重试，不重跑全量或改系统/依赖，不新增委派、commit或分支。
+
+### S05 续刀：浏览数据设置真实闭环（2026-10-23，已落地；完整 S05 未完成）
+
+- 主目标保持完整会话内置浏览器、S01–S19/N0–N6 和 UI/UX；G01–G12 仍为 0/12。当前阶段是 S05 产品接线，下一刀为原生范围清理绑定与联合验收，不能把开发期 unsupported 记为完整交付。
+- 窄写集：新增 `electron/browserDataHost.ts`、`src/lib/api/browserData{,Types}.ts`、浏览数据 dialog/controller/model 及定向测试；在现有 history/downloads owner 增加范围摘要/删除方法；BrowserTabHost、embeddedBrowserHost 仅机械委托；同步 Browser 命令集合、IPC/preload 共用白名单、catalog、设置入口/搜索、namespace 分片和独立 browserData 五语资源。本计划及独立证据目录记录结果。避让已脏 architecture、Storage、Rust/protocol、settings.json 和未知 workspace lifecycle 测试。
+- Verification Contract：budget:normal / P1（破坏性 profile 操作）。设置入口 → typed gateway → 真实 preload/IPC → 同一 BrowserTabHost 的 BrowserDataHost → 既有 history/downloads owner 与 `persist:embedded-browser` Session → revision/事件及用户可见成功或失败。不增加 Agent runtime、Profile、持久化副本或生产 mock。确定性测试证明边界、失败和交互；真实 Electron 另证 IPC/Session，不能由单测替代。
+- 输入/输出：严格六类、五时段，最近4周=28天；初始 lastHour/前四类按 policy 勾选；history hostname 去重、download 开始时间且仅终态；cookie/cache 为当前总量，可选摘要失败为 null。执行前校验整个组合；不支持则零删除；真实运行失败报告已完成、失败及未执行类型，不声称回滚。
+- 退出条件：完整时段和类别 UI、同步防重入、pending 禁止关闭/更改、迟到结果隔离、错误保留选择、成功关闭/焦点恢复、五语、唯一 owner 与真实文件保留；stock Electron 不支持的范围必须在任何删除前明确拒绝。全时段 stock 清理只调用锁定 C++ 认识的 mask，不传被忽略的 timeRange，不把 Promise resolve 当未知类型支持。
+- Evidence Layers：deterministic tests=yes；GUI trace/Host transcript=yes（仅下述 macOS 隔离 Profile 切片）；release artifact=no。相关定向、types/lint/format、contracts 已执行；正式 GUI smoke 因下述 Cargo 缺文件失败，正常退出问题仍按实际证据保留，不清共享缓存、不放宽断言。完整 S05 退出另需 native 六类五时段、时段内外数据、跨 Session 与 macOS/Windows packaged 实证。
+- 真实验收窄写集补充：在既有 `browser-runtime-electron-gate-b.mjs` 仅接入 `browser-data` 场景，职责落独立 `browser-runtime-electron-gate-b-data.mjs`（test-only）。复用原 launcher、隔离 Profile、freshness 与 canonical Browser identity；只给隔离 Profile 播种数据，不访问个人 Profile。runner 超1000行仅机械登记/分派，业务验证不堆入其主函数。验收同时记录 native WebContents Session 与桌面默认 Session 隔离、unsupported 零副作用、真实设置入口与真实清理回读；引擎范围缺口不被此切片掩盖。
+- 架构影响 minor：沿用 BrowserTabHost/Profile/history/downloads authority，拆出单职责协调 helper，未改变架构主链。`browserTabHost.ts` / `embeddedBrowserHost.ts` 已超过1000行，本轮只增加 import/字段/构造/委托接缝；退出条件为继续按独立职责拆分，禁止追加业务分支。根任务负责；不夹写已被并行任务修改的全局架构文件。
+- 已实现：`BrowserDataHost` 协调整组合预检、同步执行锁和分类型失败结果；history/downloads 继续使用原队列、持久化与事件 owner。历史按 visit 范围及 hostname 统计；下载按开始时间筛选 completed/cancelled/interrupted 终态，保留活动项和真实文件。浏览数据清理会移除冷恢复的 interrupted 记录及私有 checkpoint；下载管理页原有 clear 保留可恢复记录，两者只共享同一 store，语义差异已回归验证。
+- UI/UX：设置常规区按网页、本地、完整网址、浏览数据、浏览历史、批注排序；真实入口先读 settings 再开 Dialog。六类/五时段、默认选择、关联 label、同步防重入、pending 禁止关闭与更改、失败保留选择、迟到响应/卸载隔离、焦点恢复均已接入。`browserData` 沿既有 settings 分片提供五语，未夹写五个已脏 settings.json。Dialog 宽度/焦点规则为已记录的 Lime 实施选择，尚无参考打开弹窗的像素级运行证据。
+- 精确能力：stock Session 的 siteData/cache 仅提供 allTime；formData/siteSettings 及原生最近时段仍明确 unsupported，删除前整体拒绝，不把它们记为已交付。Native clear 只传已锁 C++ 认识的 masks，不传 timeRange。Cookie/cache 摘要来自实际 API，失败为 null；UI 区分当前总量与范围删除估算。没有新增密码、扩展或导入的假管理入口。
+- 验证：相关13文件按独立测试去重共191项通过；最终受影响5文件71/71（dialog13、恢复8、TabHost14、EmbeddedHost23、runner13），限定 Lint 与26文件格式检查通过，完整 contracts 和最终 scripts/docs boundary 通过。首轮 Electron 类型发现 nullable cookie domain 和测试 Promise 过窄，修正后通过；两处 ref cleanup Lint 警告以稳定 lifecycle 对象修正，未 suppress。一次最终测试误发现 frozen 证据源码（实际71断言通过、额外副本缺邻接 import 导致命令1），仅将自有证据副本改存 `.source` 后原5文件命令0，失败记录保留。
+- 构建/类型：隔离快照 Renderer v2 和 Host/preload 构建通过，三段 freshness ready；Host最终类型通过。主树 Renderer 首次及最终复核均退出0，最终见 `type-root-renderer-final-exit.json`。隔离 Renderer 类型退出2，仅因旧快照 SettingsTabs enum 没有当前主树 settingsSearchDocuments 已有的 Storage/Worktrees/Git 四处引用；不夹写并行导航或伪报隔离类型通过。快照基线为既有1.167，当前主树为1.168，验证只结算本刀冻结输入，不能当作当前整树 release。
+- 真实 Electron：`native-v3/summary.json` 与一次有界确认 `native-v3-confirmation/summary.json` 均18/18、脚本退出0、console/page error为0；真实设置入口、六类五时段、unsupported 零副作用、范围历史删除和磁盘 revision、未选原生数据保留、重开默认值/Escape焦点、allTime Cookie/localStorage删除、桌面默认 Session cookie 保留、实际摘要回读、current JSON-RPC/IPC与零生产mock均通过。原生8组mask独立空Profile探测也全部完成；没有据此声称已播种 HTTP/CacheStorage、IndexedDB、Autofill 或网站设置的完整清理。5张产品截图已目视检查，保留 Lime skin，未见原生页遮挡。
+- 中间失败：原始 v2 运行在 allTime 提交后等待 Dialog hidden 达90秒，退出1，未保存该时刻UI。只给test-only场景补失败截图/UI状态、可见错误即失败、步骤断言及JSON-RPC检查后，产品字节不变的 v3和确认均通过；首轮超时根因仍未知，不记“已修复”。精确Node资源查询后准备清理时它已自然退出，没有向任何进程发送信号。
+- 必需门禁：`npm run verify:gui-smoke` 已在独立APFS clone实际运行，Renderer/Host阶段成功，随后Cargo101缺 `libsqlite3-sys/out/bindgen.rs` 与 `tree-sitter/out/stdlib-symbols.txt`，未进入Electron smoke，故门禁失败；专项Native18项不替代此结果。`verify:local`未跑：当前默认规划含并行Storage/Rust改动，且必需GUI重建已实际失败；不清共享缓存或放宽检查。完整 S05、G01–G12（0/12，0%）、五语整屏对照、物理输入与macOS/Windows packaged仍未验收。
+- 证据入口：`artifacts/codex-in-app-browser-20261022/s05-verification-20261023/` 的 `source-frozen-v3.json`（30文件；v3仅test-only变更，产品仍v2）、`verification.json`、最终 source/process audit、types/tests/contracts/build/native日志与两份Native summary。current 为既有BrowserTabHost、history/downloads/Session和新协调/GUI接线；fixture/probe为test-only；compat/deprecated/dead与已删除生产入口均0。按KISS/DRY/SOLID复用owner和分片，不增第二Profile、后端、依赖或mock。下一刀仍归根任务：首轮超时线索、锁定引擎范围/表单/网站设置绑定及完整联合验收。
+- 最终审计：`source-audit-v3-final.json` 的30文件在主树、隔离副本与冻结来源三方SHA一致，限定diff检查退出0；两轮Native共10张PNG的尺寸与摘要见 `visual-index-final.json`，续验已复查确认轮设置页/全时段弹窗。自有验证作业均已收取终态，进程观察见 `process-audit-final.json`；本轮收尾未向任何进程发送信号。完整目标仍active，未执行commit、push、分支、依赖升级或系统安装。
+
 
 ### Browser 续刀：最终回复与空回复误报（2026-10-23，进行中）
 
@@ -17,9 +47,35 @@
 
 
 
-- 本轮当前结算（progress，未完成）：最终定向回归按不同测试去重为5文件154/154（首轮118、最终50，重叠14）；两轮限定lint、格式、完整contracts（含docs边界）通过。主树完整Renderer类型退出2，41条诊断均位于并行Storage客户端/设置/网关及其缺失协议导出，本刀6文件无诊断；不修改他人协议或Storage写集。新隔离副本完整类型 session15258/PID82540继续运行。
-- 构建与证据尚待结算：冻结副本Renderer构建session63454、runner97058/Vite98178仍在运行（已观察超过20分钟），没有错误输出；当前主机负载曾超过500，1秒进程采样仅7/8个有效tick，两者仍在Node/V8执行，不以此认定死锁或产品失败。不得重复启动构建、覆盖锁或将未结束作业算通过。6文件与冻结及实际副本hash匹配；对应`completion-verification-20261023/verification.json`、`jobs.json`与`source-audit.json`为持续索引，当前没有新版Electron或smoke通过声明。
+- v1阶段结算（已被v2回归替代，未完成）：当时定向回归按不同测试去重为5文件154/154（首轮118、最终50，重叠14）；两轮限定lint、格式、完整contracts（含docs边界）通过。主树完整Renderer类型退出2，41条诊断均位于并行Storage客户端/设置/网关及其缺失协议导出，本刀6文件无诊断；不修改他人协议或Storage写集。v1隔离类型session15258/PID82540后来随源码修正取消，退出143，见下文。
+- v1构建观察（后已取消，见下文）：当时冻结副本Renderer构建session63454、runner97058/Vite98178仍在运行（已观察超过20分钟），没有错误输出；当前主机负载曾超过500，1秒进程采样仅7/8个有效tick，两者仍在Node/V8执行，不以此认定死锁或产品失败。不得重复启动构建、覆盖锁或将未结束作业算通过。6文件与冻结及实际副本hash匹配；对应`completion-verification-20261023/verification.json`、`jobs.json`与`source-audit.json`为持续索引，当前没有新版Electron或smoke通过声明。
 - 后续步骤明确：先收取现有build和snapshot类型会话；构建成功后以冻结源码跑history-access严格版本，等待同一GUI terminal再检查Toast并看最终截图，补官方smoke和收尾源码/进程审计。若检查失败，只修本轮current owner并重新验证受影响边界。生产current、夹具test-only，无compat/deprecated/dead或删除项；本轮不提交、不创建分支，完整G01–G12保持0/12（0%，完整验收组），goal保持active。
+
+
+- 续验发现新的确定性缺陷（2026-10-23）：`late-phase-red.json` 16 pass / 2 fail，遗漏 `item/started` 时先到达的未知phase增量会在迟到commentary快照之后仍算final，且混入此前合法final。不能以先前154项通过掩盖这两个缺陷。扩大同一既有写集：在原snapshot helper按同一canonical projection重选已有效final，复用 `resolveFinalAgentMessageItemIds`；排除其他thread/turn、最新process之前与当前commentary，清理无效segment/overlay和其sequence，再恢复合法snapshot。无新完成状态机、计时兜底或协议。
+- 由于源码v1已被实际红测证明不完整，定点SIGTERM本轮PGID97058的4个构建进程及PID82540类型检查；两个工具句柄均退出143，非通过。停止原因是确认的源码修正，不是观察超时。确认所有自有PID终态、lock owner确为97058后，用既有invalidateRendererBuild标记隔离receipt invalid，并仅将自己的锁目录归档到`v1-stopped-build-lock`；未触碰其他构建或缓存。原v1源码/日志保留，新版本18→21项canonical回归连同原completion/lifecycle/handler/projector测试在session62232运行。最终snapshot与root当前有意不同，不能复用v1构建/类型或154项结论结算新版本；待本轮新回归通过后再冻结、构建和真实Electron验证。
+
+
+- v2收敛：新增边界全部通过，最终6文件166/166（canonical21、原projector47、handler57、completion26、lifecycle7、text lifecycle8），不与旧154叠加。修复只在原lifecycle helper恢复/清理同一projection的有效final，文件522行；超大RuntimeHandler未改。限定两文件lint和格式通过。6文件冻结为`source-frozen-v2.json`/`frozen-source-v2/`并同步原隔离副本，保留v1归档；最终snapshot类型session61164、Renderer构建session20677开始，真实Electron仍须等待最终构建后执行。主机负载已从500以上降至约62，此为观察，未清理用户进程/缓存或更改系统设置。
+
+- v2类型收取（2026-10-23 11:09 UTC）：session61164明确退出0，`type-renderer-snapshot-v2-exit.json`记录范围为隔离副本完整Renderer；主树Storage诊断仍独立保留。Renderer构建session20677/runner60652/Vite61032继续运行，不重复启动、不改输入或锁。另14个原历史授权依赖与原冻结及副本hash一致，见`browser-history-dependency-audit.json`；本次仍没有新版Electron/官方smoke通过声明。
+
+- v2构建/真实界面收取：Renderer构建session20677退出0（Vite 19m9s），`freshness-v2.json`三段均ready。`native-final-v2/summary.json`实际77/77，5个completed回合的同identity正文、GUI终态与无空回复Toast通过，另1个设置导航中断回合保持interrupted；不是物理输入/live或WCV合成显示证明。独立官方隐藏smoke session62610退出0，24/24。history-access runner在打印pass后仍未自然退出（session51678/PID51763、无子进程/网络socket），须独立保留清理问题，不能以断言pass冒充runner退出0。
+- 人工查看v2 `allowed-completed.png`、`declined-completed.png`确认最终正文与Composer已恢复；后者暴露另一条真实协议Toast：`serverRequest/resolved`。公开Codex通知仅有threadId/requestId；Lime现有EventBus已清理匹配replay，ServerRequestDispatcher已按typed requestId＋threadId abort，PendingInteractionController也已撤销匹配交互，但drift分类器遗漏该已消费通知。新增真实dispatcher＋pending controller＋stream projection接线回归，1 pass/2 fail且均在错误warning断言处失败，审批撤销/身份隔离已先通过；`request-resolution-red.json`留存。
+- 追加窄写集仅`appServerNotificationDrift.ts`、新`serverRequestResolution.integration.test.ts`及原history-access观察器（另既有计划/证据）；EventBus、dispatcher、pending owner保持只读。分类器登记现有消费者，不新增伪action_resolved或把transport id当领域id；新回归同时验证数字/字符串id隔离、跨thread隔离、迟到重复不可响应与真正未知通知仍告警。原生观察器追加记录该实际Toast并逐completed回合拒绝；须在新Renderer构建后复跑，旧v2 77项不结算新断言或新增生产改动。
+
+- v3验证状态：新增接线3项与原drift15、dispatcher16、EventBus13、pending22、sequence13共6文件82/82（`request-resolution-final.json`69＋`request-resolution-sequence-final.json`13），原completion6文件166项对应生产字节未改，不与重叠迭代重复计数。首两次82项有2条旧debug测试因Node25默认host WebStorage遮蔽jsdom而失败；仅测试命令加`--no-webstorage`后通过，未修改系统环境、DOM Storage或产品。一次后续过滤误写`eventSequenceGate.unit.test.ts`未匹配，实际5文件69项与随后正确文件13项分别记录，不宣称该次跑了6文件。scoped lint/格式/scripts治理/diff均通过。8文件冻结为`source-frozen-v3.json`/`frozen-source-v3/`并同步原隔离副本，Renderer类型session81820、构建session84328运行中；旧v2成果范围保持独立。
+- v2清理结算：确认仅自有PID51763且无子进程后SIGTERM未退出，随后精确SIGKILL，session51678实际退出137；`native-final-v2-runner-cleanup.json`记录，原因仍unknown，不写成runner通过或已修复leak。下一轮使用同一产品链保留退出后resource诊断，不新增生产后门；待v3构建通过再执行严格场景、截图和官方smoke/current-fixture，完整G01–G12仍0/12。
+
+- v3构建和桌面结果：类型session81820与构建session84328均退出0（Vite13m4s），`freshness-v3.json`三段ready。真实history-access 82/82，5个completed回合均同identity正文/GUI终态、空回复Toast=0、错误resolved-request Toast=0，另1个导航撤销仍interrupted；人工查看approved/declined completed两帧，9张PNG hash保存在`visual-review-v3.json`。本轮使用已安装且满足engines的Node23.4.0，调用相同exported run/parseArgs，未改变产品链。
+- v3退出观察：run/cleanup完成后最初仍有短时Server/ChildProcess资源，迟到只读诊断剩2个PipeWrap。仅对精确自有fixture PID88409临时启用localhost Node inspector，先确认9229空闲、进程及stdout日志身份，再核对Runtime PID后读取资源；随即关闭自身连接与inspector，端口无残留。随后`beforeExit`实际code0、resources/handles均空，工具session64493退出0，未强制退出/杀v3 runner。诊断介入可能影响生命周期，原因仍unknown，不能宣称已修复原v2或历史退出问题，也不能把该Node诊断算成Browser CDP能力证据。
+- 已实际运行必需`npm run verify:gui-smoke`：仅对fresh v3副本做APFS clone到独立`required-gui-copy-v3.json`路径，保留原可运行快照。session37870退出1；app-version、强制Renderer构建、client/Host类型与Host构建完成，Rust侧车编译实际因libsqlite3-sys缺`bindgen.rs`及tree-sitter缺`stdlib-symbols.txt`失败（Cargo101），未进入官方Electron smoke。此为本轮新观察，不沿用历史推断；不清共享/未知缓存，不把clone的失败产物覆盖原快照。独立官方direct smoke v3及current-fixture另行执行和结算。
+
+- v3聚合终态同步：独立官方direct smoke session70231退出0、24/24；`smoke:agent-runtime-current-fixture` session19475退出1。history/cache31、streaming34、terminal UI3、fixture guards303及unknown Item/home-hotpath/greeting子场景已执行；Coding Workbench业务断言全部通过、输入稳定、console/page error为零，但真实Main正常退出15秒超时，唯一失败项为`normalMainExit`，随后既有harness回收其自有PID40843（SIGKILL），后续聚合场景未执行。详见`current-fixture-v3-coding-failure.json`。不能以业务通过掩盖资源失败；所有上述句柄均终态，不再轮询。下一步只读定位quit/drain链，不延长宽限、不强制成功。完整产品仍0/12，`verify:local`尚未执行，不能宣称整树全绿。
+
+- 退出调查与测试证据修复（v4，进行中）：首个真实被动诊断观察到`before-quit -> window-closed -> will-quit -> quit`，windows/WebContents/sidecar ProcessWrap均归零，随后等待Node debugger断开；仍15秒超时，不能据此单独认定产品drain或Playwright根因。第一组最小host的3个退出均失败，独立standalone/Playwright原生对照却均退出0；第二次真实场景业务和正常退出通过（session57761退出0，Main退出0/无signal/无强制回收，未触发10秒采样），故原因仍unknown，不改生产quit代码、不延长超时。另一诊断暴露默认浏览器查询断言的确定性证据丢失：真实成功`is_default_browser`位于留存link-click trace第235项，随后被240条ring淘汰。只追加认领website Gate B helper及其测试，复用既有带哈希/连续性校验的collector ledger读取默认浏览器、Browser request与HTML读取收据，不扩大生产ring、不改IPC/产品/退出判定。2文件77/77（新website8＋原collector69）、限定lint/格式通过；首命令误给Node23传Node25专用`--no-webstorage`退出9，未执行测试，修正环境后通过。10个自有文件冻结为`source-frozen-v4.json`，仅新增2个test-only输入，原v3产品字节与产物未改，freshness三段ready。旧4份聚合summary归档`current-fixture-v3-preserved/`；原始无诊断聚合session9815运行中，结果待收。生产5个current、测试5个test-only，无新增compat/deprecated/dead或第二后端；整体0/12不变。
+
+- v4收取与限制：原始无诊断聚合session9815实际退出1。前4组定向检查与unknown/home/greeting通过，Coding Workbench业务、同tab lifecycle/Recents网站和正常Main退出全部通过（PID56739、exit0、无signal/强制回收，输入稳定，`current-fixture-v4-coding.json`）；随后图片命令业务断言全部通过、console/page error为零，但Main PID73632正常退出15秒超时，既有harness才SIGKILL回收，后续场景未跑，`current-fixture-v4-image-failure.json`。因此正常退出问题仍跨场景间歇复现，不能写已修复。图片被动诊断v1由于临时入口将计时器清理误插入原try/catch出现作用域错误（session46454退出1，单独留存），已仅在诊断v2修正；v2 session40318退出0，业务与正常Main退出通过、无强制回收，取得自有Main原生采样。两份sample中Electron导出符号残缺，仅能说明采样时Main在Mach消息等待，不能由nearest-symbol偏移推断具体函数/死锁。没有改生产quit或测试15秒判定。自有10文件三处摘要一致，77项新定向/限定lint与格式、scripts治理、docs边界、scoped diff均通过；所有工具作业已终态。`verify:local`未运行：默认规划包含并行Storage/Rust写集，且必需GUI重建已实际Cargo101失败；不重复全量以求表面全绿。完整G01–G12仍0/12（0%，完整验收组分母），设置S01–S19/原生N0–N6、完整UI/UX、物理输入与macOS/Windows packaged均未结算。下一刀继续定位退出连接/原生生命周期关联，再推进S05/S14及锁定引擎服务；不将测试通过率替代产品完成率。
 
 ### S15 续刀：Agent 浏览历史实际消费（2026-10-23，授权消费切片通过，完整 S15 未验收）
 

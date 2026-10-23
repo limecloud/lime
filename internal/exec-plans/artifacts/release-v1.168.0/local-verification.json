@@ -1,7 +1,7 @@
 {
   "recorded_at": "2026-10-23T11:14:35.163425+00:00",
   "base": "348e0a03a7dc61e34f984ae490e0a18e40367764",
-  "candidate_scope": "All frozen candidate changes; subsequent parallel edits and tsconfig.node.tsbuildinfo excluded.",
+  "candidate_scope": "All additional current modifications explicitly authorized for v1.168.0; 100-file r8 capture plus release metadata/evidence. Generated tsconfig.node.tsbuildinfo excluded.",
   "checks": [
     {
       "name": "model-and-storage-unit",
@@ -98,11 +98,12 @@
     }
   },
   "pending": {
-    "remote_quality": "Next exact revision must pass full frontend, Rust, Windows, and real GUI checks before tagging."
+    "remote_quality": "Final r8 candidate must pass exact-revision frontend, Rust, GUI and Windows before tagging.",
+    "release": "Not tagged; desktop, CLI/npm and updater publication remains."
   },
   "live_provider_inference": false,
-  "evidence_boundary": "Final local targeted tests, full typecheck/contracts, model-provider 299 tests, and unmodified host guard passed; final remote full matrix pending.",
-  "updated_at": "2026-10-23T13:02:29.030388+00:00",
+  "evidence_boundary": "r8 typecheck/contracts/version/lint/207 targeted frontend checks passed; Rust exact regressions and final remote matrix pending. No live paid inference.",
+  "updated_at": "2026-10-23T13:43:33.423375+00:00",
   "revision_2_checks": [
     {
       "name": "storage-r2-unit",
@@ -339,7 +340,66 @@
     "gui_smoke": "passed",
     "windows": "passed",
     "frontend": "old aggregate build guard failed; migrated to delegation and helper behavioral coverage",
-    "rust": "pending"
+    "rust": "failed: scheduled task CRUD stack overflow; synchronous dispatch construction fix under validation"
   },
-  "local_rust_shared_cache_limit": "A later worktree integration compile reused parallel protocol metadata from shared target; excluded as evidence. Candidate production Rust is verified in clean GitHub jobs."
+  "local_rust_shared_cache_limit": "A later worktree integration compile reused parallel protocol metadata from shared target; excluded as evidence. Candidate production Rust is verified in clean GitHub jobs.",
+  "revision_8_checks": [
+    {
+      "name": "full-typecheck",
+      "command": "npm run typecheck",
+      "exit_code": 0
+    },
+    {
+      "name": "full-contracts",
+      "command": "npm run test:contracts",
+      "exit_code": 0
+    },
+    {
+      "name": "version",
+      "command": "npm run verify:app-version",
+      "exit_code": 0
+    },
+    {
+      "name": "related-frontend",
+      "files": 16,
+      "tests_passed": 207,
+      "exit_code": 0
+    },
+    {
+      "name": "changed-eslint",
+      "files": 44,
+      "exit_code": 0
+    },
+    {
+      "name": "changed-rustfmt",
+      "exit_code": 0
+    },
+    {
+      "name": "test-layer-budget",
+      "actual": 38,
+      "allowed": 38,
+      "exit_code": 0
+    }
+  ],
+  "frontend_resumed": {
+    "state": "passed",
+    "batches": 148,
+    "passed": 116,
+    "skipped": 32,
+    "boundary": "Skipped batches are not reported as executed; uncovered script files separately tested and final full CI still required."
+  },
+  "remote_revision_6": {
+    "commit": "41b03bbee267b90bfd624c49338727afb9091447",
+    "run": 39958032534,
+    "integrity": "passed",
+    "frontend": "two stale metadata expectations; fixed and locally passed",
+    "gui_smoke": "Electron binary download fetch failed",
+    "rust": "failed; final dispatch stack fix pending validation"
+  },
+  "revision_8_rust": {
+    "status": "running",
+    "command": "cargo test --manifest-path lime-rs/Cargo.toml -p app-server --test scheduled_tasks_jsonrpc --test worktree_management_jsonrpc --test output_defaults_jsonrpc",
+    "rust_min_stack": "unset",
+    "target": "isolated release target; no shared metadata writes"
+  }
 }
