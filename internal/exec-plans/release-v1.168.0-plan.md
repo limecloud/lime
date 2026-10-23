@@ -63,3 +63,9 @@
 - 同一轮 Rust 在 host_boundary_guard 暴露工作树队列依赖带实现名的客户端标识。将已有 clientInfo.name 统一为短领域名 desktop，同步 Electron producer、App Server consumer 和真实 JSON-RPC cleanup fixture，直接迁移、不保留旧标识。仅标识值迁移，不改协议 schema、owner 或依赖方向；root 确认 minor 架构影响及上述调用流，不新增后端。
 
 - 第三候选：54 项 Host 回归、两项原始宿主边界守卫、完整 typecheck（109.22 秒）与 contracts（36.4 秒）通过；修复后的 model-provider 299/299 通过。准备推送最终修复等待完整远端矩阵。
+
+## 当前设置导航验证迁移
+
+- 远端 39949266868 的 Frontend Full 在批次 32/148 暴露 7 个过期 Sidebar 断言：设置页 current 行为是仅保留图标栏且入口为 General。会话场景迁移到同样没有 agent project 作用域的已安排任务页，导航结构场景使用 agent 页；保留会话标题、查询隔离、focus 刷新和导航动作断言。既有设置折叠偏好测试继续覆盖设置页。三文件 65/65 与定向 ESLint 通过。
+- 本地从批次 33 续跑，在 38/148 揭示 SETTINGS Gate A 清单仍含退休 home 且缺少当前章节；同步 21 个 current sections 与 general 关键页，保留对实际 sections 的完整相等守卫。该证据构造器 7/7 与定向 ESLint 通过，续跑继续。
+- 第四候选完整 npm run typecheck exit0。上一候选 Integrity、Bridge & Contracts、真实 GUI Smoke 已通过；Rust Full 和 Windows Shell Runtime 仍在运行。测试迁移仅修复验证与清单，不改运行时或协议。最终矩阵及公开产物完成前不标记发布成功。

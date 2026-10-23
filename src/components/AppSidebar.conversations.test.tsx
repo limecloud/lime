@@ -539,7 +539,7 @@ describe("AppSidebar conversations", () => {
     ]);
 
     const container = mountSidebarContainer({
-      currentPage: "settings",
+      currentPage: "scheduled-tasks",
     });
     await flushEffects(2);
 
@@ -804,7 +804,7 @@ describe("AppSidebar conversations", () => {
     ]);
 
     const container = mountSidebarContainer({
-      currentPage: "settings",
+      currentPage: "scheduled-tasks",
     });
     await flushEffects(2);
 
@@ -833,7 +833,7 @@ describe("AppSidebar conversations", () => {
 
     try {
       const container = mountSidebarContainer({
-        currentPage: "settings",
+        currentPage: "scheduled-tasks",
       });
       await flushEffects(3);
 
@@ -1106,7 +1106,7 @@ describe("AppSidebar conversations", () => {
     });
 
     mountSidebarContainer({
-      currentPage: "settings",
+      currentPage: "scheduled-tasks",
     });
     await flushEffects(2);
     mockScheduleMinimumDelayIdleTask.mockClear();

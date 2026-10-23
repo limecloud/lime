@@ -102,7 +102,7 @@
   },
   "live_provider_inference": false,
   "evidence_boundary": "Final local targeted tests, full typecheck/contracts, model-provider 299 tests, and unmodified host guard passed; final remote full matrix pending.",
-  "updated_at": "2026-10-23T11:53:05.496898+00:00",
+  "updated_at": "2026-10-23T12:12:28.766592+00:00",
   "revision_2_checks": [
     {
       "name": "storage-r2-unit",
@@ -213,5 +213,42 @@
     "exit_code": 0,
     "elapsed_seconds": 1568.97,
     "tests_passed": 299
+  },
+  "revision_4_checks": [
+    {
+      "name": "sidebar-current-navigation",
+      "files": 3,
+      "tests_passed": 65,
+      "exit_code": 0
+    },
+    {
+      "name": "settings-gate-current-coverage",
+      "tests_passed": 7,
+      "exit_code": 0
+    },
+    {
+      "name": "sidebar-and-settings-gate-eslint",
+      "exit_code": 0
+    },
+    {
+      "name": "full-typecheck",
+      "command": "npm run typecheck",
+      "exit_code": 0
+    },
+    {
+      "name": "contracts",
+      "command": "npm run test:contracts",
+      "exit_code": 0
+    }
+  ],
+  "remote_revision_3": {
+    "commit": "7ec1f009697ae1be562e70cb8a2fb83df36f669c",
+    "run": 39949266868,
+    "integrity": "passed",
+    "bridge_contracts": "passed",
+    "gui_smoke": "passed",
+    "frontend": "Sidebar outdated contexts fixed; local remainder reached settings gate coverage drift and fixed",
+    "rust": "pending",
+    "windows": "passed"
   }
 }

@@ -68,7 +68,7 @@ describe("AppSidebar navigation", () => {
     expect(settings).not.toBeNull();
     expect(getComputedStyle(settings).display).not.toBe("none");
     act(() => settings.click());
-    expect(onNavigate).toHaveBeenCalledWith("settings", { tab: "home" });
+    expect(onNavigate).toHaveBeenCalledWith("settings", { tab: "general" });
     act(() => buttons[0].click());
     expect(onNavigate).toHaveBeenCalledWith("scheduled-tasks", undefined);
   });
@@ -95,7 +95,7 @@ describe("AppSidebar navigation", () => {
       '[data-testid="app-sidebar-nav-settings"]',
     )!;
     act(() => settings.click());
-    expect(onNavigate).toHaveBeenCalledWith("settings", { tab: "home" });
+    expect(onNavigate).toHaveBeenCalledWith("settings", { tab: "general" });
     act(() =>
       container
         .querySelector<HTMLButtonElement>('[data-testid="app-sidebar-expand"]')
@@ -190,7 +190,7 @@ describe("AppSidebar navigation", () => {
 
   it("图标栏承接主入口与设置，只有新聊天留在上下文侧栏", async () => {
     const container = mountSidebarContainer({
-      currentPage: "settings",
+      currentPage: "agent",
     });
     await flushEffects(2);
 
