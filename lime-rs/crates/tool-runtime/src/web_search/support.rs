@@ -439,8 +439,17 @@ fn default_multi_search_engines() -> Vec<MultiSearchEngineEntry> {
         url_template: url_template.to_string(),
         enabled: true,
     })
+    // You.com 搜索 API 需要用户显式开启（opt-in）。
+    .chain(std::iter::once(MultiSearchEngineEntry {
+        name: "youcom".to_string(),
+        url_template: YOUCOM_KEYLESS_SEARCH_URL_TEMPLATE.to_string(),
+        enabled: false,
+    }))
     .collect()
 }
+
+const YOUCOM_KEYLESS_SEARCH_URL_TEMPLATE: &str =
+    "https://api.you.com/v1/agents/search?query={query}";
 
 fn sanitize_domain_filters(
     query: &str,

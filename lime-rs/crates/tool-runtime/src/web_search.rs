@@ -347,6 +347,38 @@ impl RuntimeWebSearchExecutor {
             let request_host = Url::parse(&request_url)
                 .ok()
                 .and_then(|url| url.host_str().map(str::to_string));
+            if request_host.as_deref().is_some_and(is_youcom_api_host) {
+                let api_key = std::env::var("YDC_API_KEY")
+                    .ok()
+                    .map(|value| value.trim().to_string())
+                    .filter(|value| !value.is_empty());
+                let request = self.youcom_request(
+                    &request_url,
+                    query,
+                    config.max_results_per_engine,
+                    api_key.as_deref(),
+                );
+                match tokio::time::timeout(
+                    timeout,
+                    self.search_with_youcom(request, api_key.is_some()),
+                )
+                .await
+                {
+                    Ok(Ok(mut engine_results)) => {
+                        raw_result_count += engine_results.len();
+                        if engine_results.is_empty() {
+                            failed_engines.push(format!("{}: no_results", engine.name));
+                        } else {
+                            successful_engines.push(engine.name.clone());
+                            aggregated_results.append(&mut engine_results);
+                        }
+                    }
+                    Ok(Err(error)) => failed_engines.push(format!("{}: {error}", engine.name)),
+                    Err(_) => failed_engines
+                        .push(format!("{}: timeout {}ms", engine.name, config.timeout_ms)),
+                }
+                continue;
+            }
             let send_result =
                 tokio::time::timeout(timeout, self.client.get(&request_url).send()).await;
             let response = match send_result {
@@ -402,6 +434,61 @@ impl RuntimeWebSearchExecutor {
                 "max_total_results": config.max_total_results,
             }),
         })
+    }
+
+    fn youcom_request(
+        &self,
+        request_url: &str,
+        query: &str,
+        count: usize,
+        api_key: Option<&str>,
+    ) -> reqwest::RequestBuilder {
+        let count = count.clamp(1, 20);
+        match api_key {
+            // 设置 YDC_API_KEY 后改用带密钥的端点。
+            Some(key) => self
+                .client
+                .post(YOUCOM_KEYED_SEARCH_URL)
+                .header("X-API-Key", key)
+                .header(reqwest::header::USER_AGENT, YOUCOM_USER_AGENT)
+                .json(&json!({ "query": query, "count": count })),
+            None => {
+                let separator = if request_url.contains('?') { '&' } else { '?' };
+                self.client
+                    .get(format!("{request_url}{separator}count={count}"))
+                    .header(reqwest::header::USER_AGENT, YOUCOM_USER_AGENT)
+            }
+        }
+    }
+
+    async fn search_with_youcom(
+        &self,
+        request: reqwest::RequestBuilder,
+        has_api_key: bool,
+    ) -> Result<Vec<SearchResult>, String> {
+        let response = request
+            .header(reqwest::header::ACCEPT, "application/json")
+            .send()
+            .await
+            .map_err(|error| format!("You.com Search API 请求失败: {error}"))?;
+        let status = response.status().as_u16();
+        if !response.status().is_success() {
+            let retry_after = response
+                .headers()
+                .get(reqwest::header::RETRY_AFTER)
+                .and_then(|value| value.to_str().ok())
+                .map(str::to_string);
+            return Err(youcom_error_message(
+                status,
+                has_api_key,
+                retry_after.as_deref(),
+            ));
+        }
+        let data = response
+            .json::<Value>()
+            .await
+            .map_err(|error| format!("解析 You.com 响应失败: {error}"))?;
+        Ok(extract_results_from_youcom_json(&data))
     }
 
     async fn search_with_duckduckgo(&self, query: &str) -> Result<Vec<SearchResult>, String> {
@@ -603,6 +690,68 @@ pub fn is_web_search_tool_name(tool_name: &str) -> bool {
 
 include!("web_search/support.rs");
 
+const YOUCOM_KEYED_SEARCH_URL: &str = "https://ydc-index.io/v1/search";
+const YOUCOM_USER_AGENT: &str = "youdotcom-integration/limecloud-lime";
+
+fn is_youcom_api_host(host: &str) -> bool {
+    matches!(
+        host.to_ascii_lowercase().as_str(),
+        "api.you.com" | "ydc-index.io" | "api.ydc-index.io"
+    )
+}
+
+fn youcom_error_message(status: u16, has_api_key: bool, retry_after: Option<&str>) -> String {
+    let retry = retry_after
+        .map(|value| format!("，Retry-After: {value}"))
+        .unwrap_or_default();
+    match status {
+        401 | 403 if has_api_key => format!("HTTP {status} YDC_API_KEY 无效或无权限"),
+        401 | 403 => format!("HTTP {status} 免密钥端点拒绝请求，可设置 YDC_API_KEY"),
+        402 => "HTTP 402 You.com API 额度已用尽".to_string(),
+        429 if has_api_key => format!("HTTP 429 You.com 请求过于频繁{retry}"),
+        429 => format!("HTTP 429 免密钥额度已用尽（每天 100 次），可设置 YDC_API_KEY{retry}"),
+        _ => format!("HTTP {status}"),
+    }
+}
+
+fn extract_results_from_youcom_json(data: &Value) -> Vec<SearchResult> {
+    let results = data.get("results");
+    ["web", "news"]
+        .iter()
+        .filter_map(|key| results?.get(*key)?.as_array())
+        .flatten()
+        .filter_map(|item| {
+            let url = item.get("url")?.as_str()?.to_string();
+            let title = item
+                .get("title")
+                .and_then(Value::as_str)
+                .unwrap_or(&url)
+                .to_string();
+            let mut parts = Vec::new();
+            if let Some(description) = item.get("description").and_then(Value::as_str) {
+                parts.push(description.to_string());
+            }
+            if let Some(snippets) = item.get("snippets").and_then(Value::as_array) {
+                parts.extend(
+                    snippets
+                        .iter()
+                        .filter_map(Value::as_str)
+                        .map(str::to_string),
+                );
+            }
+            Some(SearchResult {
+                title,
+                url,
+                snippet: (!parts.is_empty()).then(|| parts.join("\n")),
+                publish_date: item
+                    .get("page_age")
+                    .and_then(Value::as_str)
+                    .map(str::to_string),
+            })
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -659,6 +808,48 @@ mod tests {
         assert_eq!(results.len(), 2);
         assert_eq!(results[0].url, "https://example.com/post");
         assert_eq!(results[1].url, "https://docs.example.com/guide");
+    }
+
+    #[test]
+    fn youcom_engine_is_opt_in_and_parses_json_results() {
+        let engine = default_multi_search_engines()
+            .into_iter()
+            .find(|engine| engine.name == "youcom")
+            .expect("youcom engine");
+        assert!(!engine.enabled);
+        assert!(MultiSearchEngineConfig::default()
+            .engine_order()
+            .iter()
+            .all(|engine| engine.name != "youcom"));
+        assert!(is_youcom_api_host("api.you.com"));
+        assert!(!is_youcom_api_host("you.com"));
+
+        let data = json!({
+            "results": {
+                "web": [
+                    {
+                        "url": "https://example.com/a",
+                        "title": "A",
+                        "description": "desc",
+                        "snippets": ["s1"]
+                    },
+                    { "title": "missing url" }
+                ],
+                "news": [{ "url": "https://example.com/n", "title": "N" }]
+            }
+        });
+        let results = extract_results_from_youcom_json(&data);
+        assert_eq!(results.len(), 2);
+        assert_eq!(results[0].snippet.as_deref(), Some("desc\ns1"));
+        assert_eq!(results[1].url, "https://example.com/n");
+    }
+
+    #[test]
+    fn youcom_error_messages_cover_auth_credit_and_rate_limits() {
+        assert!(youcom_error_message(401, true, None).contains("YDC_API_KEY"));
+        assert!(youcom_error_message(403, false, None).contains("YDC_API_KEY"));
+        assert!(youcom_error_message(402, true, None).contains("402"));
+        assert!(youcom_error_message(429, false, Some("60")).contains("Retry-After: 60"));
     }
 
     #[tokio::test]

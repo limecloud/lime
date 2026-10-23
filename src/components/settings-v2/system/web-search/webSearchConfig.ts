@@ -92,6 +92,12 @@ const DEFAULT_MSE_ENGINES: MultiSearchEngineOption[] = [
     url_template: "https://www.dogpile.com/serp?q={query}",
     enabled: true,
   },
+  {
+    // You.com 搜索 API（JSON）。默认关闭；未设置 YDC_API_KEY 时走免密钥端点（每个 IP 每天 100 次）。
+    name: "youcom",
+    url_template: "https://api.you.com/v1/agents/search?query={query}",
+    enabled: false,
+  },
 ];
 
 const DEFAULT_MSE_ENGINE_NAMES = new Set(

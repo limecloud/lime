@@ -135,3 +135,24 @@ it("saving edited lists, credentials and numeric limits normalizes only owned ch
     },
   });
 });
+
+it("adding a custom engine keeps the opt-in youcom default disabled", () => {
+  const empty = { web_search: { engine: "google" } } as Config;
+  const snapshot = readWebSearchDraft(empty);
+  const result = mergeWebSearchDraft(
+    empty,
+    {
+      ...snapshot,
+      mseCustomEngineName: "custom",
+      mseCustomEngineTemplate: "https://c.invalid/?q={query}",
+    },
+    snapshot,
+  );
+  const engines = result.web_search?.multi_search?.engines ?? [];
+  expect(engines.find((engine) => engine.name === "youcom")).toEqual({
+    name: "youcom",
+    url_template: "https://api.you.com/v1/agents/search?query={query}",
+    enabled: false,
+  });
+  expect(engines.at(-1)?.name).toBe("custom");
+});
