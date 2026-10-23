@@ -480,5 +480,26 @@
     "integrity": "passed",
     "rust": "2032 existing App Server library tests passed; new fixture failed because command.started was missing; corrected without changing product or assertions"
   },
-  "revision_12_scope": "Test-only canonical lifecycle setup for controlled Shell output collection regression."
+  "revision_12_scope": "Test-only canonical lifecycle setup for controlled Shell output collection regression.",
+  "remote_revision_12": {
+    "commit": "9a0c7697458ee9ad6169605a8318c575fcccbfb5",
+    "run": 39977289846,
+    "frontend": "passed",
+    "gui_smoke": "passed",
+    "windows": "passed",
+    "integrity": "passed",
+    "app_server_lib_passed": 2033,
+    "rust": "worktree cleanup recovery fixture timeout; 11/12 integration cases passed; old and cold workers were not isolated by a real runtime shutdown"
+  },
+  "revision_13_scope": "Test-only isolate pre-restart Tokio runtime so old cleanup tasks stop before cold process simulation; preserve all safety assertions and timeout; add last queue state diagnostics.",
+  "revision_13_checks": [
+    {
+      "name": "rustfmt-and-diff",
+      "exit_code": 0
+    },
+    {
+      "name": "exact-candidate-remote-rust",
+      "status": "pending"
+    }
+  ]
 }

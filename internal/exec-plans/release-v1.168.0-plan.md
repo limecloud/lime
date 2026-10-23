@@ -133,3 +133,10 @@
 - 本地r11库测试编译期间，整个.lime/release-v11680目录被移除，进程最终101，源码/target/日志均不再存在；该运行明确未完成，不能计通过。旧已通过结果有此前提交的收据，最终候选以干净GitHub runner为准；后续临时记录转移到仓库缓存目录外。未主动停止或清理其他任务。
 - 39974008631 的Frontend Full、真实GUI Smoke、Integrity通过；Rust原有2032项全部通过，包括此前失败的idle Shell生命周期用例。新增受控回归在输出校验处被command_output_without_start拒绝：fixture缺少command.started。补齐既有turn.accepted/started与command.started helper载荷，保留Pending断言、129项分页与完整输出比较，生产修复不变。格式/diff检查通过，完整Rust验证继续由下一精确提交运行。
 - 当前窄写集仅新增Shell回归文件与发布证据，冻结后的permissions/Browser引擎等下一切片继续留给其原开发任务。此前完整typecheck、最终前端/GUI/Windows结果按对应提交记录，不把本地丢失的未完成编译写成成功。
+
+
+## r13 worktree 重启测试隔离
+
+- 39977289846 的 Frontend Full、真实 GUI Smoke、Windows Shell Runtime、Integrity 全部通过；App Server 2033/2033 库测试通过，scheduled_tasks 及此前 Shell 修复已通过。Rust workspace 推进至 worktree_management 时，11/12 通过，失败恢复场景等待队列超时。
+- 该夹具仅 drop AppServer 即创建新实例，旧 cleanup worker 在持有临时 Arc 或消费已保存 Notify permit 时仍可能执行；这不等价于真实进程重启，可能与新队列争写持久文件。将重启前阶段放入独立线程的 Tokio runtime，并在其完全关闭后启动 cold server，保留失败快照、其它候选继续清理、持久 pending 与恢复删除的全部断言。15秒等待预算不变，失败诊断增加目标pending及最后持久状态。
+- 窄写集仅 worktree cleanup 集成测试和两份发布证据，避让所有下一切片 permissions/Browser 并行改动。无产品/协议/架构变更。格式与diff检查通过，精确候选 Rust 全量等待干净远端验证。历史本地测试二进制仅用于诊断且结果不计当前候选验证。

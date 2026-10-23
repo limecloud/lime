@@ -22,8 +22,9 @@ async fn wait_queue(fixture: &Fixture, pending: bool) -> Value {
     let path = fixture.temp.path().join("worktree_cleanup.json");
     let start = Instant::now();
     loop {
-        if let Ok(bytes) = std::fs::read(&path) {
-            let value: Value = serde_json::from_slice(&bytes).unwrap();
+        let contents = std::fs::read_to_string(&path);
+        if let Ok(contents) = &contents {
+            let value: Value = serde_json::from_str(contents).unwrap();
             if (value["revision"] != value["completedRevision"]) == pending
                 && (!pending || value["retryAfterMs"].is_i64())
             {
@@ -32,7 +33,7 @@ async fn wait_queue(fixture: &Fixture, pending: bool) -> Value {
         }
         assert!(
             start.elapsed() < Duration::from_secs(15),
-            "cleanup queue did not settle"
+            "cleanup queue did not settle (pending={pending}, state={contents:?})"
         );
         tokio::time::sleep(Duration::from_millis(25)).await;
     }
@@ -316,17 +317,30 @@ async fn failed_automatic_snapshot_is_retained_and_pending_request_recovers_afte
     let nested = old.join("nested");
     std::fs::create_dir(&nested).unwrap();
     git(&nested, &["init", "--template=", "--initial-branch=main"]);
-    let first = desktop(fixture.runtime.clone()).await;
-    wait_queue(&fixture, false).await;
-    enable(&first, true, 1).await;
-    wait_queue(&fixture, true).await;
-    assert!(old.exists() && nested.join(".git").exists());
-    assert!(
-        !other.exists(),
-        "One snapshot failure must not block other candidates"
-    );
-    assert!(!fixture.archived("old").await);
-    drop(first);
+    // 真正重启会停止旧进程的后台任务；仅drop AppServer仍可能留下正在重试的清理任务。
+    std::thread::scope(|scope| {
+        scope
+            .spawn(|| {
+                tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                    .unwrap()
+                    .block_on(async {
+                        let first = desktop(fixture.runtime.clone()).await;
+                        wait_queue(&fixture, false).await;
+                        enable(&first, true, 1).await;
+                        wait_queue(&fixture, true).await;
+                        assert!(old.exists() && nested.join(".git").exists());
+                        assert!(
+                            !other.exists(),
+                            "One snapshot failure must not block other candidates"
+                        );
+                        assert!(!fixture.archived("old").await);
+                    });
+            })
+            .join()
+            .unwrap();
+    });
     std::fs::remove_dir_all(&nested).unwrap();
     let cold = desktop(
         RuntimeCore::with_backend(Arc::new(MockBackend))
