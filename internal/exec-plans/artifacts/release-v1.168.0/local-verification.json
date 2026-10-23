@@ -103,7 +103,7 @@
   },
   "live_provider_inference": false,
   "evidence_boundary": "r8 typecheck/contracts/version/lint/207 targeted frontend checks passed; Rust exact regressions and final remote matrix pending. No live paid inference.",
-  "updated_at": "2026-10-23T14:02:48.955902+00:00",
+  "updated_at": "2026-10-23T14:19:59.763258+00:00",
   "revision_2_checks": [
     {
       "name": "storage-r2-unit",
@@ -414,8 +414,8 @@
     "bridge_contracts": "passed",
     "gui_smoke": "passed",
     "frontend": "failed: duplicate manual output capability mapping outside existing policy owner; implementation migrated",
-    "rust": "running",
-    "windows": "running"
+    "rust": "failed: one stale typed capability JSON fixture, 2031 app-server lib tests passed",
+    "windows": "passed"
   },
   "revision_9_scope": "Remove duplicate capabilities fields and project output flags through existing reasoning policy owners; keep original governance guard and behavioral assertions.",
   "revision_9_checks": [
@@ -433,6 +433,18 @@
       "name": "changed-eslint",
       "files": 3,
       "exit_code": 0
+    }
+  ],
+  "revision_10_scope": "Test-only parameterization of typed model output flags: omitted/false/true; preserve full capability JSON assertions.",
+  "revision_10_checks": [
+    {
+      "name": "changed-rustfmt",
+      "exit_code": 0
+    },
+    {
+      "name": "model-providers-app-server-lib",
+      "status": "running",
+      "rust_min_stack": "unset"
     }
   ]
 }

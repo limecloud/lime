@@ -110,3 +110,10 @@
 - 后续按最终验证结果记录，不用前一候选通过代替最新前端全量；产品提交继续包含于 v1.168.0，发布标签尚未创建。
 
 - r9 本地最终验证：完整 typecheck 退出0；模型目录/推理策略与全部相关模型边界守卫16文件74项通过；受管三文件 ESLint 通过。原治理守卫未放宽，模型显式支持/不支持行为与未声明时的安全默认均已断言。
+
+
+## r10 Rust 输出能力 fixture 同步
+
+- 39963848932 的 Rust Full 失败为 model_providers 的 typed capability 完整 JSON 断言未包含新增字段，同组2031项通过；不是栈溢出复发。生产转换已正确传递 supports_reasoning_summaries/support_verbosity，保留实现与完整对象断言。
+- 窄写集仅原 model_providers 测试与发布证据。既有用例参数化缺省、显式false、显式true三种输入，同时检查所有既有 taxonomy/reasoning effort 字段，缺省严格false。文件785行，不再追加无关逻辑。rustfmt已通过，独立target定向App Server model_providers库测试运行中；完整typecheck沿用无TS变化的r9通过结果。
+- 编辑测试时一次括号错误已在rustfmt阶段纠正，未进入候选；此前按旧源码启动的自有编译已明确终止并重新启动，不计验证通过。最终按退出码与实际测试结果记录。最新f27ff4054真实GUI smoke已通过，前端全量仍运行，Rust旧期望仍会由本修复取代。

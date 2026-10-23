@@ -125,7 +125,7 @@ async fn declared_catalog_order_uses_discovered_metadata_like_runtime_routing() 
 
 #[test]
 fn provider_model_config_to_core_preserves_explicit_capability() {
-    let model: ProtocolProviderModelConfig = serde_json::from_value(serde_json::json!({
+    let input = serde_json::json!({
         "id": "grok-4.5",
         "displayName": "Grok 4.5",
         "capability": {
@@ -155,44 +155,55 @@ fn provider_model_config_to_core_preserves_explicit_capability() {
                 }
             }
         }
-    }))
-    .expect("deserialize typed provider model");
+    });
+    for declared in [None, Some(false), Some(true)] {
+        let mut input = input.clone();
+        if let Some(supported) = declared {
+            input["capability"]["capabilities"]["supportsReasoningSummaries"] =
+                serde_json::json!(supported);
+            input["capability"]["capabilities"]["supportVerbosity"] = serde_json::json!(supported);
+        }
+        let model: ProtocolProviderModelConfig =
+            serde_json::from_value(input).expect("deserialize typed provider model");
 
-    let model = provider_model_config_to_core(model).expect("convert provider model");
+        let model = provider_model_config_to_core(model).expect("convert provider model");
 
-    assert_eq!(model.id, "grok-4.5");
-    assert_eq!(model.display_name.as_deref(), Some("Grok 4.5"));
-    assert_eq!(
-        serde_json::to_value(model.capability.expect("explicit capability"))
-            .expect("serialize capability"),
-        serde_json::json!({
-            "task_families": ["chat", "reasoning"],
-            "input_modalities": ["text", "image"],
-            "output_modalities": ["text"],
-            "runtime_features": ["streaming", "tool_calling"],
-            "capabilities": {
-                "vision": true,
-                "tools": true,
-                "streaming": true,
-                "json_mode": true,
-                "function_calling": true,
-                "reasoning": true,
-                "reasoning_effort": {
-                    "supported": true,
-                    "levels": ["medium", "xhigh"],
-                    "options": [{
-                        "id": "deep",
-                        "value": "xhigh",
-                        "label": "Deep",
-                        "description": "Maximum reasoning",
-                        "default": true
-                    }],
-                    "default": "xhigh",
-                    "source": "api"
+        assert_eq!(model.id, "grok-4.5");
+        assert_eq!(model.display_name.as_deref(), Some("Grok 4.5"));
+        assert_eq!(
+            serde_json::to_value(model.capability.expect("explicit capability"))
+                .expect("serialize capability"),
+            serde_json::json!({
+                "task_families": ["chat", "reasoning"],
+                "input_modalities": ["text", "image"],
+                "output_modalities": ["text"],
+                "runtime_features": ["streaming", "tool_calling"],
+                "capabilities": {
+                    "vision": true,
+                    "tools": true,
+                    "streaming": true,
+                    "json_mode": true,
+                    "function_calling": true,
+                    "reasoning": true,
+                    "supports_reasoning_summaries": declared.unwrap_or(false),
+                    "support_verbosity": declared.unwrap_or(false),
+                    "reasoning_effort": {
+                        "supported": true,
+                        "levels": ["medium", "xhigh"],
+                        "options": [{
+                            "id": "deep",
+                            "value": "xhigh",
+                            "label": "Deep",
+                            "description": "Maximum reasoning",
+                            "default": true
+                        }],
+                        "default": "xhigh",
+                        "source": "api"
+                    }
                 }
-            }
-        })
-    );
+            })
+        );
+    }
 }
 
 #[test]
