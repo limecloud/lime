@@ -99,3 +99,14 @@
 - 远端 39958032534 的前端仅两处 metadata 旧预期失败，已补精确 canonical metadata 并包含在 207 项通过集合；GUI 因 Electron 二进制下载 fetch failed，属于获取依赖失败，最终候选重新跑真实 GUI。此前真实 GUI/Windows 通过作为历史证据，不替代本次候选门禁。
 - 当前分类为 current 产品修复及 test-only 护栏迁移；不新增 compat/deprecated 或第二业务事实源。同步构造模块约 680 行，避免继续向巨大 async match 堆叠逻辑。以独立 Rust target 隔离并行 metadata，精确验证 scheduled_tasks/worktree/output_defaults 公共 JSON-RPC 后，由最终远端 Quality 覆盖全量与 GUI/Windows。
 - 下一步：推送本候选，修复最终远端实际失败；Quality 全绿后创建 v1.168.0 标签，完成桌面、CLI/npm、updater 公开产物核验。未创建 tag，发布完成度不得记为 100%。
+
+
+## r8 结果及模型策略唯一 owner 修复
+
+- af6902eda 已推 main，提交前根工作树仅有生成缓存，用户追加范围完整纳入。随后新开始的 permissions 配置开发属于冻结之后的下一切片，仍由其原开发任务持有；不把正在形成的代码并入已验证候选，也不覆盖其工作树。
+- 本任务独立 target 的原始 Cargo 精确回归退出0：output_defaults 2/2、scheduled_tasks 7/7、worktree_management 12/12，共21项，RUST_MIN_STACK 未设置。此前溢出场景通过；中间生命周期方案的两次编译失败已由最终修复结果取代。
+- 39963848932 的 Integrity、Bridge/Contracts、真实 GUI smoke 已通过，Rust/Windows 仍运行；前端批次61暴露新输出能力在 registry capabilities 中手工映射，与既有策略唯一 owner 冲突。
+- 当前窄写集：modelRegistry API/测试及两份 registry 类型、发布计划与验证收据。删除新加的 capabilities 重复字段，将 capabilitySnapshot 明确值传给 buildModelReasoningPolicy/buildModelReasoningOutputPolicy；无声明时默认 false/auto，支持和不支持模型都由原测试覆盖。不修改协议、Rust 或网络边界。既有 guard 保持原断言，迁移实现并同步输出策略回归。
+- 后续按最终验证结果记录，不用前一候选通过代替最新前端全量；产品提交继续包含于 v1.168.0，发布标签尚未创建。
+
+- r9 本地最终验证：完整 typecheck 退出0；模型目录/推理策略与全部相关模型边界守卫16文件74项通过；受管三文件 ESLint 通过。原治理守卫未放宽，模型显式支持/不支持行为与未声明时的安全默认均已断言。

@@ -103,7 +103,7 @@
   },
   "live_provider_inference": false,
   "evidence_boundary": "r8 typecheck/contracts/version/lint/207 targeted frontend checks passed; Rust exact regressions and final remote matrix pending. No live paid inference.",
-  "updated_at": "2026-10-23T13:43:33.423375+00:00",
+  "updated_at": "2026-10-23T14:02:48.955902+00:00",
   "revision_2_checks": [
     {
       "name": "storage-r2-unit",
@@ -397,9 +397,42 @@
     "rust": "failed; final dispatch stack fix pending validation"
   },
   "revision_8_rust": {
-    "status": "running",
+    "status": "passed",
     "command": "cargo test --manifest-path lime-rs/Cargo.toml -p app-server --test scheduled_tasks_jsonrpc --test worktree_management_jsonrpc --test output_defaults_jsonrpc",
     "rust_min_stack": "unset",
-    "target": "isolated release target; no shared metadata writes"
-  }
+    "target": "isolated release target; no shared metadata writes",
+    "exit_code": 0,
+    "tests_passed": 21,
+    "output_defaults": 2,
+    "scheduled_tasks": 7,
+    "worktree_management": 12
+  },
+  "remote_revision_8": {
+    "commit": "af6902eda8e7ff2f148c944b632dbcbff4527bad",
+    "run": 39963848932,
+    "integrity": "passed",
+    "bridge_contracts": "passed",
+    "gui_smoke": "passed",
+    "frontend": "failed: duplicate manual output capability mapping outside existing policy owner; implementation migrated",
+    "rust": "running",
+    "windows": "running"
+  },
+  "revision_9_scope": "Remove duplicate capabilities fields and project output flags through existing reasoning policy owners; keep original governance guard and behavioral assertions.",
+  "revision_9_checks": [
+    {
+      "name": "full-typecheck",
+      "exit_code": 0
+    },
+    {
+      "name": "registry-policy-and-boundary-regressions",
+      "files": 16,
+      "tests_passed": 74,
+      "exit_code": 0
+    },
+    {
+      "name": "changed-eslint",
+      "files": 3,
+      "exit_code": 0
+    }
+  ]
 }

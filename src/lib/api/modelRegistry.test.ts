@@ -307,9 +307,15 @@ describe("modelRegistry API", () => {
     });
     resolveAppServerRequest({ data: models, nextCursor: null });
     const result = await getModelRegistry();
-    expect(result.map((model) => model.capabilities)).toMatchObject([
-      { supports_reasoning_summaries: true, support_verbosity: true },
-      { supports_reasoning_summaries: false, support_verbosity: false },
+    expect(result).toMatchObject([
+      {
+        reasoning_policy: { supports_reasoning_summaries: true },
+        reasoning_output_policy: { support_verbosity: true, can_set_verbosity: true },
+      },
+      {
+        reasoning_policy: { supports_reasoning_summaries: false },
+        reasoning_output_policy: { support_verbosity: false, can_set_verbosity: false },
+      },
     ]);
   });
 
@@ -503,7 +509,12 @@ describe("modelRegistry API", () => {
     expect(model).not.toHaveProperty("execution_policy");
     expect(model).not.toHaveProperty("context_policy");
     expect(model).not.toHaveProperty("tool_call_policy");
-    expect(model).not.toHaveProperty("reasoning_output_policy");
+    expect(model.reasoning_output_policy).toEqual({
+      default_reasoning_summary: "auto",
+      support_verbosity: false,
+      default_verbosity: null,
+      can_set_verbosity: false,
+    });
     expect(model).not.toHaveProperty("responses_policy");
     expect(model).not.toHaveProperty("truncation_policy");
     expect(model).not.toHaveProperty("native_tool_policy");

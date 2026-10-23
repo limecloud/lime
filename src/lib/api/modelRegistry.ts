@@ -233,8 +233,6 @@ function toSnakeModelInfo(model: ModelInfo): EnhancedModelMetadata {
       json_mode: Boolean(model.capabilities?.jsonMode),
       function_calling: Boolean(model.capabilities?.functionCalling),
       reasoning: Boolean(model.capabilities?.reasoning),
-      supports_reasoning_summaries: model.supportsReasoningSummaries,
-      support_verbosity: model.supportVerbosity,
       reasoning_effort: reasoningEffortSupportFromUnknown(
         model.capabilities?.reasoningEffort,
       ),
@@ -337,6 +335,8 @@ function toRegistryModel(model: Model): EnhancedModelMetadata {
     defaultServiceTier: model.defaultServiceTier,
     defaultReasoningLevel: model.defaultReasoningEffort,
     supportedReasoningLevels: reasoningOptions,
+    supportsReasoningSummaries: snapshot.capabilities.supportsReasoningSummaries,
+    supportVerbosity: snapshot.capabilities.supportVerbosity,
     inputModalities,
   };
 
@@ -356,9 +356,6 @@ function toRegistryModel(model: Model): EnhancedModelMetadata {
       function_calling: snapshot.capabilities.functionCalling,
       reasoning: snapshot.capabilities.reasoning,
       reasoning_effort: reasoningEffort,
-      supports_reasoning_summaries:
-        snapshot.capabilities.supportsReasoningSummaries,
-      support_verbosity: snapshot.capabilities.supportVerbosity,
     },
     capability_provenance: capabilityProvenanceFromSnapshot(
       snapshot.source,
@@ -366,6 +363,7 @@ function toRegistryModel(model: Model): EnhancedModelMetadata {
     ),
     picker_policy: buildCatalogModelPickerPolicy(model.hidden, policyInput),
     reasoning_policy: buildModelReasoningPolicy(policyInput),
+    reasoning_output_policy: buildModelReasoningOutputPolicy(policyInput),
     input_modality_policy: buildModelInputModalityPolicy(policyInput),
     task_families: taskFamilies,
     input_modalities: inputModalities,
