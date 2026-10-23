@@ -3,6 +3,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { changeLimeLocale } from "@/i18n/createI18n";
 import { SettingsGroupKey, SettingsTabs } from "@/types/settings";
+import { settingsSections } from "../sections";
 import { useSettingsCategory, type CategoryGroup } from "./useSettingsCategory";
 
 interface Mounted {
@@ -139,8 +140,10 @@ describe("current settings navigation translations", () => {
       });
       const items = groups.flatMap((group) => group.items);
       expect(groups).toHaveLength(3);
-      expect(items).toHaveLength(20);
-      expect(new Set(items.map((item) => item.key)).size).toBe(20);
+      expect(items).toHaveLength(settingsSections.length);
+      expect(new Set(items.map((item) => item.key)).size).toBe(
+        settingsSections.length,
+      );
       expect(items.map((item) => item.key)).toEqual(
         expect.arrayContaining([
           SettingsTabs.Browser,
@@ -150,11 +153,16 @@ describe("current settings navigation translations", () => {
         ]),
       );
       for (const group of groups) {
+        expect(group.items.map((item) => item.key)).toEqual(
+          settingsSections
+            .filter((section) => section.group === group.key)
+            .map((section) => section.key),
+        );
         expect(group.title.trim()).not.toBe("");
         expect(group.title).not.toContain("settings.group.");
         for (const item of group.items) {
           expect(item.label.trim()).not.toBe("");
-          expect(item.label).not.toContain("settings.tab.");
+          expect(item.label).not.toMatch(/^settings\./);
         }
       }
     },

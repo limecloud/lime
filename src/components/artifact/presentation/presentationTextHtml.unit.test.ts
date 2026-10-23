@@ -445,16 +445,15 @@ describe("Presentation detached HTML 与 DrawingML fragment 适配", () => {
     expect(parsePresentationTextHtml(html, document)).toBeUndefined();
   });
 
-  it("输入尺寸、节点、段落和嵌套上限先于递归转换，空输入明确fallback", () => {
-    for (const html of [
-      "",
-      " ",
-      "x".repeat(1024 * 1024 + 1),
-      "<span>x</span>".repeat(20001),
-      "<p>x</p>".repeat(10001),
-      "<span>".repeat(66) + "x" + "</span>".repeat(66),
-    ])
-      expect(parsePresentationTextHtml(html, document)).toBeUndefined();
+  it.each([
+    ["空输入", ""],
+    ["空白", " "],
+    ["输入尺寸", "x".repeat(1024 * 1024 + 1)],
+    ["节点", "<span>x</span>".repeat(20001)],
+    ["段落", "<p>x</p>".repeat(10001)],
+    ["嵌套", "<span>".repeat(66) + "x" + "</span>".repeat(66)],
+  ])("%s 上限先于递归转换，拒绝的输入明确fallback", (_scenario, html) => {
+    expect(parsePresentationTextHtml(html, document)).toBeUndefined();
   });
 
   it("实体属性不能通过CSS资源白名单，未知relationship只导出文本", () => {

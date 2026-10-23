@@ -36,6 +36,7 @@ describe("withI18nPatch", () => {
   beforeEach(async () => {
     setupReactActEnvironment();
     vi.clearAllMocks();
+    window.history.replaceState(null, "", "/");
     await changeLimeLocale("zh-CN");
     vi.useFakeTimers();
     vi.stubGlobal("requestAnimationFrame", ((
@@ -49,6 +50,7 @@ describe("withI18nPatch", () => {
     cleanupMountedRoots(mountedRoots);
     window.history.replaceState(null, "", "/");
     vi.unstubAllGlobals();
+    vi.restoreAllMocks();
     vi.useRealTimers();
   });
 

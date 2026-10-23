@@ -66,6 +66,8 @@ impl RequestProcessor {
             request.await
         } else if let Some(request) = self.dispatch_skill_request(method, &mut params) {
             request.await
+        } else if let Some(request) = self.dispatch_project_git_request(method, &mut params) {
+            request.await
         } else {
             match method {
                 v2::METHOD_ROLLOUT_COMPRESS => self.handle_rollout_compress().boxed(),
@@ -95,30 +97,10 @@ impl RequestProcessor {
                 v2::METHOD_FS_UNWATCH => self
                     .handle_fs_unwatch_impl(params, connection_request_id.clone())
                     .boxed(),
-                METHOD_PROJECT_GIT_STATUS => self.handle_project_git_status_impl(params).boxed(),
-                METHOD_PROJECT_GIT_DIFF => self.handle_project_git_diff_impl(params).boxed(),
-                METHOD_PROJECT_GIT_COMMITS_LIST => {
-                    self.handle_project_git_commits_list_impl(params).boxed()
-                }
-                METHOD_PROJECT_GIT_BRANCH_CHECKOUT => {
-                    self.handle_project_git_branch_checkout_impl(params).boxed()
-                }
-                METHOD_PROJECT_GIT_BRANCH_CREATE => {
-                    self.handle_project_git_branch_create_impl(params).boxed()
-                }
-                METHOD_PROJECT_GIT_WORKTREE_CREATE => {
-                    self.handle_project_git_worktree_create_impl(params).boxed()
-                }
-                METHOD_PROJECT_GIT_WORKTREE_LIST => {
-                    self.handle_project_git_worktree_list_impl(params).boxed()
-                }
                 METHOD_STORAGE_READ => self.handle_storage_read(params, false).boxed(),
                 METHOD_STORAGE_REFRESH => self.handle_storage_read(params, true).boxed(),
                 METHOD_STORAGE_REVIEW => self.handle_storage_review(params).boxed(),
                 METHOD_STORAGE_DELETE => self.handle_storage_delete(params).boxed(),
-                METHOD_PROJECT_GIT_WORKTREE_DELETE => {
-                    self.handle_project_git_worktree_delete_impl(params).boxed()
-                }
                 v2::METHOD_PROCESS_SPAWN => self
                     .handle_process_spawn_impl(params, connection_request_id.clone())
                     .boxed(),

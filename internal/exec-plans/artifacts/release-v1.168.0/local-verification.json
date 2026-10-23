@@ -102,7 +102,7 @@
   },
   "live_provider_inference": false,
   "evidence_boundary": "Final local targeted tests, full typecheck/contracts, model-provider 299 tests, and unmodified host guard passed; final remote full matrix pending.",
-  "updated_at": "2026-10-23T12:12:28.766592+00:00",
+  "updated_at": "2026-10-23T12:39:52.679737+00:00",
   "revision_2_checks": [
     {
       "name": "storage-r2-unit",
@@ -250,5 +250,65 @@
     "frontend": "Sidebar outdated contexts fixed; local remainder reached settings gate coverage drift and fixed",
     "rust": "pending",
     "windows": "passed"
+  },
+  "revision_5_checks": [
+    {
+      "name": "governance-batch-70",
+      "tests_passed": 114,
+      "exit_code": 0
+    },
+    {
+      "name": "method-product-scope-evidence",
+      "result": "passed in resumed batch 71"
+    },
+    {
+      "name": "scheduled-tasks-public-jsonrpc",
+      "command": "cargo test --manifest-path lime-rs/Cargo.toml -p app-server --test scheduled_tasks_jsonrpc",
+      "tests_passed": 7,
+      "exit_code": 0,
+      "rust_min_stack": "unset"
+    },
+    {
+      "name": "startup-isolation",
+      "files": 2,
+      "tests_passed": 6,
+      "exit_code": 0
+    },
+    {
+      "name": "html-boundary-scenarios",
+      "tests_passed": 58,
+      "batch_tests_passed": 384,
+      "exit_code": 0
+    },
+    {
+      "name": "settings-navigation-five-locales",
+      "tests_passed": 8,
+      "batch_tests_passed": 114,
+      "exit_code": 0
+    },
+    {
+      "name": "full-typecheck",
+      "command": "npm run typecheck",
+      "exit_code": 0
+    },
+    {
+      "name": "contracts",
+      "command": "npm run test:contracts",
+      "exit_code": 0
+    },
+    {
+      "name": "changed-tests-eslint",
+      "exit_code": 0
+    }
+  ],
+  "remote_revision_4": {
+    "commit": "42b970e99a5162647cdb89ebffaad7ffc4141b83",
+    "run": 39951976493,
+    "integrity": "passed",
+    "frontend_lint": "passed",
+    "frontend_typecheck": "passed",
+    "frontend": "startup URL test isolation failed; fixed and targeted tests passed",
+    "gui_smoke": "passed",
+    "rust": "pending"
   }
 }

@@ -768,7 +768,7 @@
         "lime-rs/crates/app-server/tests/session_archive_jsonrpc.rs",
         "packages/app-server-client/src/request-client-methods.ts",
         "src/lib/api/memoryStore.ts",
-        "src/components/settings-v2/general/memory/MemoryStoreStatusPanel.tsx"
+        "src/components/settings-v2/general/memory/DeleteMemoriesDialog.tsx"
       ],
       "methods": ["memory/reset"]
     },

@@ -5,10 +5,46 @@ use app_server_protocol::{
     JsonRpcError, ProjectGitBranchCheckoutParams, ProjectGitBranchCreateParams,
     ProjectGitCommitListParams, ProjectGitDiffParams, ProjectGitStatusParams,
     ProjectGitWorktreeCreateParams, ProjectGitWorktreeDeleteParams, ProjectGitWorktreeListParams,
+    METHOD_PROJECT_GIT_BRANCH_CHECKOUT, METHOD_PROJECT_GIT_BRANCH_CREATE,
+    METHOD_PROJECT_GIT_COMMITS_LIST, METHOD_PROJECT_GIT_DIFF, METHOD_PROJECT_GIT_STATUS,
+    METHOD_PROJECT_GIT_WORKTREE_CREATE, METHOD_PROJECT_GIT_WORKTREE_DELETE,
+    METHOD_PROJECT_GIT_WORKTREE_LIST,
 };
+use futures::{future::BoxFuture, FutureExt};
 use serde_json::Value;
 
 impl RequestProcessor {
+    pub(super) fn dispatch_project_git_request<'a>(
+        &'a self,
+        method: &str,
+        params: &mut Option<Value>,
+    ) -> Option<BoxFuture<'a, Result<RpcDispatch, JsonRpcError>>> {
+        let request = match method {
+            METHOD_PROJECT_GIT_STATUS => self.handle_project_git_status_impl(params.take()).boxed(),
+            METHOD_PROJECT_GIT_DIFF => self.handle_project_git_diff_impl(params.take()).boxed(),
+            METHOD_PROJECT_GIT_COMMITS_LIST => self
+                .handle_project_git_commits_list_impl(params.take())
+                .boxed(),
+            METHOD_PROJECT_GIT_BRANCH_CHECKOUT => self
+                .handle_project_git_branch_checkout_impl(params.take())
+                .boxed(),
+            METHOD_PROJECT_GIT_BRANCH_CREATE => self
+                .handle_project_git_branch_create_impl(params.take())
+                .boxed(),
+            METHOD_PROJECT_GIT_WORKTREE_CREATE => self
+                .handle_project_git_worktree_create_impl(params.take())
+                .boxed(),
+            METHOD_PROJECT_GIT_WORKTREE_LIST => self
+                .handle_project_git_worktree_list_impl(params.take())
+                .boxed(),
+            METHOD_PROJECT_GIT_WORKTREE_DELETE => self
+                .handle_project_git_worktree_delete_impl(params.take())
+                .boxed(),
+            _ => return None,
+        };
+        Some(request)
+    }
+
     pub(super) async fn handle_project_git_status_impl(
         &self,
         params: Option<Value>,

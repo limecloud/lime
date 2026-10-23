@@ -69,3 +69,13 @@
 - 远端 39949266868 的 Frontend Full 在批次 32/148 暴露 7 个过期 Sidebar 断言：设置页 current 行为是仅保留图标栏且入口为 General。会话场景迁移到同样没有 agent project 作用域的已安排任务页，导航结构场景使用 agent 页；保留会话标题、查询隔离、focus 刷新和导航动作断言。既有设置折叠偏好测试继续覆盖设置页。三文件 65/65 与定向 ESLint 通过。
 - 本地从批次 33 续跑，在 38/148 揭示 SETTINGS Gate A 清单仍含退休 home 且缺少当前章节；同步 21 个 current sections 与 general 关键页，保留对实际 sections 的完整相等守卫。该证据构造器 7/7 与定向 ESLint 通过，续跑继续。
 - 第四候选完整 npm run typecheck exit0。上一候选 Integrity、Bridge & Contracts、真实 GUI Smoke 已通过；Rust Full 和 Windows Shell Runtime 仍在运行。测试迁移仅修复验证与清单，不改运行时或协议。最终矩阵及公开产物完成前不标记发布成功。
+
+## 全量治理与异步分发修复
+
+- 本地续跑批次 70/148 暴露 dispatch 中央文件 818 行超过既有 800 行上限。将 8 个 Git/worktree method 的 boxed-future 构造搬入既有 processor/project_git.rs，仿照 model/skill 的 Option<BoxFuture> 分组；未知方法不消费 params。dispatch 现为 799 实际行（守卫 split 计 800），不提高门槛，不改公开方法、handler、参数或通知。architecture.md 已同步此 minor owner 调整，root 确认数据流和依赖方向。
+- 同批次两份隔离 Storage/Worktree Electron 夹具漏登记 ExternalBackend 的 test-only 例外；只补精确文件路径，生产默认 runtime 与全目录扫描保持原样。两份夹具明确受控 backend、隔离数据与证据范围；未修改正在并行开发的 fixture。批次 70 的 114/114 通过。
+- 批次 71/148 的方法证据仍指向已删除 MemoryStoreStatusPanel；更新为实际调用 memory/reset 的 DeleteMemoriesDialog，保持 implemented 状态与存在性守卫，批次重跑通过。
+- 远端 39949266868 的 Rust Full 在 scheduled_tasks_jsonrpc 的 paused_manual_run_is_allowed_and_does_not_shift_schedule_anchor 发生 stack overflow。上述 command group 拆分后，本机未设置 RUST_MIN_STACK，原始 7 项 public JSON-RPC 场景全部通过（含暂停手动运行/调度锚点/显式模型路由/通知）。直接请求 future 3208 字节、定时任务入口 33408 字节的类型诊断只用于排查，未作为产品通过证据。最终远端完整 Rust 仍需通过。
+- 远端 39951976493 真实 GUI Smoke 通过，前端批次 31/148 的启动页测试受继承 URL nativeStartup 状态影响：beforeEach 显式恢复 /，afterEach 恢复 spies，保留超时与原生启动页断言；两文件 6/6 通过。
+
+- 本地批次 83 的 HTML 限制测试将 6 个大输入放在同一 5 秒用例，本机并行 Rust 换页时聚合超时；迁移为逐输入具名参数化，不减少断言或延长单项 timeout。该文件 58/58、批次 83 的 384/384 通过。批次 84 的五语言导航仍写死 20 项，改为覆盖全部 current sections 并校验分组顺序、唯一项和所有 settings.* key 均已翻译；8/8、整批 114/114 通过。完整 typecheck、contracts、定向 ESLint 再次通过。Git/worktree 公共 JSON-RPC 定向回归正在等待外部 Cargo 锁，最终远端完整 Rust 未计通过。

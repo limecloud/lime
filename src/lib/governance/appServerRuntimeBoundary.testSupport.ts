@@ -209,6 +209,8 @@ export const ALLOWED_EXTERNAL_BACKEND_LAUNCH_FILES = new Set([
   "scripts/electron/lib/composer-draft-fixture-driver.mjs",
   "scripts/electron/session-history-fixture-smoke.test.mjs",
   "scripts/electron/settings-navigation-fixture-smoke.mjs",
+  "scripts/electron/lib/settings-storage-fixture.mjs",
+  "scripts/electron/lib/settings-worktree-management-fixture.mjs",
   "scripts/electron/strict-review-gate-b.mjs",
   "scripts/electron/strict-review-gate-b.test.mjs",
   "scripts/electron/thread-revert-gate-b.mjs",
