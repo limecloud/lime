@@ -102,7 +102,7 @@
   },
   "live_provider_inference": false,
   "evidence_boundary": "Final local targeted tests, full typecheck/contracts, model-provider 299 tests, and unmodified host guard passed; final remote full matrix pending.",
-  "updated_at": "2026-10-23T12:39:52.679737+00:00",
+  "updated_at": "2026-10-23T13:02:29.030388+00:00",
   "revision_2_checks": [
     {
       "name": "storage-r2-unit",
@@ -310,5 +310,36 @@
     "frontend": "startup URL test isolation failed; fixed and targeted tests passed",
     "gui_smoke": "passed",
     "rust": "pending"
-  }
+  },
+  "revision_6_checks": [
+    {
+      "name": "current-fixture-owner-and-uncovered-scripts",
+      "files": 8,
+      "tests_passed": 123,
+      "exit_code": 0
+    },
+    {
+      "name": "resume-binding-canonical-completion",
+      "files": 3,
+      "tests_passed": 43,
+      "exit_code": 0
+    },
+    {
+      "name": "changed-tests-eslint",
+      "exit_code": 0
+    }
+  ],
+  "remote_revision_5": {
+    "commit": "b98135b0e97328ca4259784fbc7602b94582a699",
+    "run": 39955087389,
+    "integrity": "passed",
+    "frontend_lint": "passed",
+    "frontend_typecheck": "passed",
+    "frontend_budget": "passed",
+    "gui_smoke": "passed",
+    "windows": "passed",
+    "frontend": "old aggregate build guard failed; migrated to delegation and helper behavioral coverage",
+    "rust": "pending"
+  },
+  "local_rust_shared_cache_limit": "A later worktree integration compile reused parallel protocol metadata from shared target; excluded as evidence. Candidate production Rust is verified in clean GitHub jobs."
 }

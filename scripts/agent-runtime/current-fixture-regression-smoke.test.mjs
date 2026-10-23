@@ -2,12 +2,10 @@ import fs from "node:fs";
 import { describe, expect, it } from "vitest";
 
 function readSmokeScript() {
-  return [
+  return fs.readFileSync(
     "scripts/agent-runtime/current-fixture-regression-smoke.mjs",
-    "scripts/lib/electron-fixture-build.mjs",
-  ]
-    .map((filePath) => fs.readFileSync(filePath, "utf8"))
-    .join("\n");
+    "utf8",
+  );
 }
 
 function readContentFactoryFixture() {
@@ -386,24 +384,14 @@ describe("agent runtime current fixture regression smoke guard", () => {
     expect(content).toContain(
       "function runElectronFixtureSmoke(label, args, options)",
     );
-    expect(content).toContain('path.join(rootDir, "dist", "index.html")');
     expect(content).toContain(
-      'path.join(rootDir, "dist-electron", "main", "main.js")',
+      "return ensurePackagedElectronFixtureBuild({\n    appUrl: options.appUrl,\n    logPrefix: LOG_PREFIX,\n    rootDir,\n  })",
     );
-    expect(content).toContain(
-      'path.join(rootDir, "dist-electron", "preload", "preload.cjs")',
-    );
-    expect(content).toContain(
-      'path.join(rootDir, "dist-electron", "app-server.release.json")',
-    );
-    expect(content).toContain("electronAppServerBinaryDestination");
-    expect(content).toContain('"build:renderer:electron:smoke"');
-    expect(content).toContain("reusing fresh packaged fixture assets");
-    expect(content).toContain("fresh-artifacts");
-    expect(content).toContain("stale-source");
-    expect(content).toContain("rebuilding stale packaged fixture assets");
     expect(content).toContain("ensureElectronFixtureBuild(options)");
-    expect(content).toContain("LIME_ELECTRON_FIXTURE_BUILD_READY");
+    expect(content).toContain(
+      "const buildReadyEnv = electronFixtureBuildReadyEnv()",
+    );
+    expect(content).toContain('[buildReadyEnv]: "1"');
     expect(content.indexOf("ensureElectronFixtureBuild(options)")).toBeLessThan(
       content.indexOf("Coding Workbench Electron fixture"),
     );

@@ -79,3 +79,11 @@
 - 远端 39951976493 真实 GUI Smoke 通过，前端批次 31/148 的启动页测试受继承 URL nativeStartup 状态影响：beforeEach 显式恢复 /，afterEach 恢复 spies，保留超时与原生启动页断言；两文件 6/6 通过。
 
 - 本地批次 83 的 HTML 限制测试将 6 个大输入放在同一 5 秒用例，本机并行 Rust 换页时聚合超时；迁移为逐输入具名参数化，不减少断言或延长单项 timeout。该文件 58/58、批次 83 的 384/384 通过。批次 84 的五语言导航仍写死 20 项，改为覆盖全部 current sections 并校验分组顺序、唯一项和所有 settings.* key 均已翻译；8/8、整批 114/114 通过。完整 typecheck、contracts、定向 ESLint 再次通过。Git/worktree 公共 JSON-RPC 定向回归正在等待外部 Cargo 锁，最终远端完整 Rust 未计通过。
+
+## 发布守卫与恢复流验证收口
+
+- 远端 39955087389 的真实 GUI Smoke、Integrity 与 Windows Shell Runtime 通过；Rust Full 尚在运行。前端批次 34 的旧聚合守卫仍要求内联 renderer/host 路径：迁移为 aggregate 对 electron-fixture-build 唯一 owner 的委托和 build-ready 接线守卫，保留 fixture 清单、删除项负向检查与顺序。共享 owner 的文件完整性、新鲜度和构建行为继续由原有 helper 测试覆盖；8 文件 123 项通过。
+- 本地与 CI 测试排序不同，按文件比较已执行清单，补跑原先跳过但 CI 尚未覆盖的 7 份脚本测试，均包含在上述通过集合中；不按相同批次号推定同一测试范围。
+- 本地续跑批次 110 暴露恢复绑定测试仍期待增量正文覆盖 item/completed 的 canonical 权威快照；补齐终态前流式 overlay 的等待断言，终态正文改为权威快照，保持 raw reasoning 隐藏、summary、Item identity/排序和监听清理断言。恢复/完成/reducer 3 文件 43 项通过，不改生产实现。
+- 当前窄写集为两份测试和本计划/验证收据；后续并行 Browser 数据清理与模型输出配置不进入已冻结候选。共享 Rust target 曾受并行协议编译 metadata 污染，本地该次 worktree 回归编译失败不作候选缺陷或通过证据，最终以远端干净构建验证。
+- 本地完整 typecheck/contracts 已在上一修复通过；本轮仅测试/证据迁移。继续本地续跑和最终远端完整矩阵，通过后创建 tag，再验证桌面、CLI/npm 与 updater 公开产物。

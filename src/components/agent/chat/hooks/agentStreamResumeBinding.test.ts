@@ -7,6 +7,7 @@ import { createConversationProjectionReducer } from "@/lib/api/agentRuntime/conv
 import type { ActionRequired, Message } from "../types";
 import type { ActiveStreamState } from "./agentStreamSubmissionLifecycle";
 import { bindRecoveredAgentStreamThread } from "./agentStreamResumeBinding";
+import { getAgentStreamTextOverlay } from "./agentStreamTextOverlayStore";
 import { mergeRecoveredAssistantProjectionText } from "./streamResumeProjection";
 import {
   rememberLocallyInterruptedAgentStreamBinding,
@@ -603,6 +604,11 @@ describe("agentStreamResumeBinding", () => {
         turn_id: "turn-1",
       },
     });
+    await vi.waitFor(() => {
+      expect(
+        getAgentStreamTextOverlay(messages.current[0]?.id)?.content,
+      ).toBe("继续输出");
+    });
     eventHandler?.({
       payload: {
         type: "item_completed",
@@ -642,7 +648,7 @@ describe("agentStreamResumeBinding", () => {
 
     expect(messages.current[0]).toMatchObject({
       role: "assistant",
-      content: "继续输出",
+      content: "live 权威快照",
       isThinking: false,
       runtimeTurnId: "turn-1",
     });
