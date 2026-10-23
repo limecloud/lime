@@ -1,4 +1,15 @@
 import { atom } from "jotai/vanilla";
+import {
+  readBrowserDesignChange,
+  sameBrowserDesignChange,
+  type BrowserDesignChange,
+} from "@/lib/api/browserDesign";
+import { cancelBrowserAnnotation } from "@/lib/api/browserAnnotation";
+import {
+  readBrowserAnnotationImages,
+  sameBrowserAnnotationImages,
+  type BrowserAnnotationImage,
+} from "@/lib/api/browserAnnotationImages";
 import type {
   BrowserAnnotationCaptureResult,
   BrowserAnnotationSelectionEvent,
@@ -10,9 +21,17 @@ export interface BrowserAnnotationDraft {
   readonly event: BrowserAnnotationSelectionEvent;
   readonly capture: BrowserAnnotationCaptureResult;
   readonly body: string;
+  readonly attachedImages: readonly BrowserAnnotationImage[];
   readonly revision: number;
+  readonly designChange?: BrowserDesignChange | null;
   readonly pending: boolean;
   readonly failure: boolean;
+}
+
+export function hasBrowserAnnotationContent(
+  draft: Pick<BrowserAnnotationDraft, "body" | "designChange">,
+): boolean {
+  return Boolean(draft.body.trim() || draft.designChange);
 }
 
 /** Desktop draft state; canonical messages and acceptance remain runtime-owned. */
@@ -21,6 +40,12 @@ export class BrowserAnnotationDraftStore {
   readonly #listeners = new Set<() => void>();
   #focus: { id: string; request: number } | null = null;
   #nextFocus = 0;
+  readonly #composerFocus = new Set<
+    (sessionId: string, threadId: string) => boolean
+  >();
+  constructor(
+    private readonly release?: (draft: BrowserAnnotationDraft) => void,
+  ) {}
   getFocusSnapshot = () => this.#focus;
   focus(id: string): void {
     if (!this.get(id)) return;
@@ -31,6 +56,19 @@ export class BrowserAnnotationDraftStore {
     if (this.#focus?.request !== request) return;
     this.#focus = null;
     for (const listener of this.#listeners) listener();
+  }
+  subscribeComposerFocus = (
+    listener: (sessionId: string, threadId: string) => boolean,
+  ) => {
+    this.#composerFocus.add(listener);
+    return () => {
+      this.#composerFocus.delete(listener);
+    };
+  };
+  focusComposer(sessionId: string, threadId: string): void {
+    // Delivery is immediate: an unmounted Composer must not replay old focus later.
+    for (const listener of this.#composerFocus)
+      if (listener(sessionId, threadId)) break;
   }
   getSnapshot = () => this.#snapshot;
   subscribe = (listener: () => void) => {
@@ -57,6 +95,7 @@ export class BrowserAnnotationDraftStore {
       event: structuredClone(event),
       capture: structuredClone(capture),
       body: "",
+      attachedImages: [],
       revision: 0,
       pending: false,
       failure: false,
@@ -69,19 +108,49 @@ export class BrowserAnnotationDraftStore {
     return this.#snapshot.find((draft) => draft.id === id);
   }
 
-  update(id: string, body: string, revision: number): boolean {
+  update(
+    id: string,
+    body: string,
+    revision: number,
+    images?: readonly BrowserAnnotationImage[],
+    design?: BrowserDesignChange | null,
+  ): boolean {
     const draft = this.get(id);
+    let attachedImages;
+    let designChange;
+    try {
+      attachedImages = readBrowserAnnotationImages(
+        images ?? draft?.attachedImages,
+      );
+      designChange = readBrowserDesignChange(
+        design === undefined ? draft?.designChange : design,
+        draft?.event.designSnapshot,
+      );
+      if (designChange && !draft?.event.designSnapshot) return false;
+    } catch {
+      return false;
+    }
     if (
       !draft ||
       typeof body !== "string" ||
       body.length > 100_000 ||
       !Number.isSafeInteger(revision) ||
       revision < draft.revision ||
-      (revision === draft.revision && body !== draft.body)
+      (revision === draft.revision &&
+        (body !== draft.body ||
+          !sameBrowserAnnotationImages(attachedImages, draft.attachedImages) ||
+          !sameBrowserDesignChange(designChange, draft.designChange)))
     )
       return false;
     if (body === draft.body && revision === draft.revision) return true;
-    this.#replace(id, { ...draft, body, revision, failure: false });
+    this.#replace(id, {
+      ...draft,
+      body,
+      attachedImages,
+      designChange,
+      revision,
+      failure: false,
+    });
     return true;
   }
 
@@ -97,7 +166,7 @@ export class BrowserAnnotationDraftStore {
       (draft) =>
         draft.sessionId === sessionId &&
         draft.event.threadId === threadId &&
-        draft.body.trim() &&
+        hasBrowserAnnotationContent(draft) &&
         (!included || included.has(draft.id)),
     );
     if (
@@ -129,7 +198,13 @@ export class BrowserAnnotationDraftStore {
         const original = captured.get(draft.id);
         if (!original) return [draft];
         const unchanged =
-          draft.revision === original.revision && draft.body === original.body;
+          draft.revision === original.revision &&
+          draft.body === original.body &&
+          sameBrowserDesignChange(draft.designChange, original.designChange) &&
+          sameBrowserAnnotationImages(
+            draft.attachedImages,
+            original.attachedImages,
+          );
         if (accepted && unchanged) return [];
         return [{ ...draft, pending: false, failure: !accepted }];
       }),
@@ -143,6 +218,18 @@ export class BrowserAnnotationDraftStore {
     return true;
   }
 
+  discard(drafts: readonly BrowserAnnotationDraft[]): boolean {
+    const included = new Set(drafts);
+    if (
+      included.size !== drafts.length ||
+      drafts.some((draft) => draft.pending || this.get(draft.id) !== draft)
+    )
+      return false;
+    if (drafts.length)
+      this.#publish(this.#snapshot.filter((draft) => !included.has(draft)));
+    return true;
+  }
+
   #replace(id: string, next: BrowserAnnotationDraft): void {
     this.#publish(
       this.#snapshot.map((draft) => (draft.id === id ? next : draft)),
@@ -150,11 +237,19 @@ export class BrowserAnnotationDraftStore {
   }
 
   #publish(snapshot: readonly BrowserAnnotationDraft[]): void {
+    const ids = new Set(snapshot.map((draft) => draft.id));
+    const removed = this.#snapshot.filter((draft) => !ids.has(draft.id));
     this.#snapshot = snapshot;
+    removed.forEach((draft) => this.release?.(draft));
     for (const listener of this.#listeners) listener();
   }
 }
 
 export const browserAnnotationDraftsAtom = atom(
-  new BrowserAnnotationDraftStore(),
+  new BrowserAnnotationDraftStore((draft) => {
+    void cancelBrowserAnnotation(
+      draft.event.tabId,
+      draft.event.annotationId,
+    ).catch(() => undefined);
+  }),
 );

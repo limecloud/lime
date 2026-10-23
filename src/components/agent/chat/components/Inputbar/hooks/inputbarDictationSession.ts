@@ -1,5 +1,7 @@
 import type { ComposerController } from "@/components/input-kit";
 import type { ComposerDraftSnapshot } from "@/components/input-kit/types";
+import type { DictationHistoryWriter } from "@/lib/dictationHistoryWriter";
+import type { DictationHistoryFinishStatus } from "@/lib/api/dictationHistory";
 import {
   captureDictationDraft,
   type DictationDraft,
@@ -26,6 +28,8 @@ export interface ActiveRecording {
   chunks: Blob[];
   startedAt: number;
   mimeType: string;
+  started: boolean;
+  stopObserved: boolean;
   finalizing: boolean;
   livePreviewInFlight: boolean;
   livePreviewSequence: number;
@@ -33,6 +37,7 @@ export interface ActiveRecording {
   liveTranscriptText: string;
   liveSampleCursor: number;
   sampler: LiveAudioSampler | null;
+  history: DictationHistoryWriter;
   onData: (event: BlobEvent) => void;
 }
 
@@ -43,6 +48,7 @@ export interface DictationSession {
   readonly originalDraft: ComposerDraftSnapshot;
   readonly draft: DictationDraft;
   phase: Exclude<InputbarDictationState, "idle">;
+  soundsEnabled: boolean;
   recording: ActiveRecording | null;
   decodingContexts: Set<AudioContext>;
   applied: boolean;
@@ -60,20 +66,36 @@ export function stopDictationSampler(sampler: LiveAudioSampler | null): void {
   void sampler.audioContext.close().catch(() => undefined);
 }
 
-export function disposeDictationRecording(session: DictationSession): void {
+export function disposeDictationRecording(
+  session: DictationSession,
+  status: DictationHistoryFinishStatus = "interrupted",
+): void {
   const recording = session.recording;
   session.recording = null;
   if (!recording) return;
-  recording.recorder.removeEventListener("dataavailable", recording.onData);
+  recording.finalizing = true;
+  const cleanup = () => {
+    recording.recorder.removeEventListener("dataavailable", recording.onData);
+    recording.recorder.removeEventListener("stop", cleanup);
+    recording.recorder.removeEventListener("error", handleError);
+    void recording.history.finish(status);
+  };
+  const handleError = () => {
+    status = "interrupted";
+    cleanup();
+  };
   stopDictationSampler(recording.sampler);
-  stopDictationStream(recording.stream);
-  if (recording.recorder.state !== "inactive") {
+  if (recording.started && !recording.stopObserved) {
+    // Keep dataavailable attached until stop delivers its final chunk.
+    recording.recorder.addEventListener("stop", cleanup, { once: true });
+    recording.recorder.addEventListener("error", handleError, { once: true });
     try {
-      recording.recorder.stop();
+      if (recording.recorder.state !== "inactive") recording.recorder.stop();
     } catch {
-      /* The session is already invalidated. */
+      handleError();
     }
-  }
+  } else cleanup();
+  stopDictationStream(recording.stream);
 }
 
 export function stopDictationRecording(
@@ -138,6 +160,7 @@ export class InputbarDictationSessionOwner {
       originalDraft: owner.captureDraft(),
       draft: captureDictationDraft(owner),
       phase: "starting",
+      soundsEnabled: false,
       recording: null,
       decodingContexts: new Set(),
       applied: false,
@@ -159,11 +182,14 @@ export class InputbarDictationSessionOwner {
     );
   }
 
-  finish(session: DictationSession): boolean {
+  finish(
+    session: DictationSession,
+    status: DictationHistoryFinishStatus = "interrupted",
+  ): boolean {
     if (this.current !== session) return false;
     this.current = null;
     this.generation += 1;
-    disposeDictationRecording(session);
+    disposeDictationRecording(session, status);
     for (const context of session.decodingContexts) {
       void context.close().catch(() => undefined);
     }
@@ -178,7 +204,7 @@ export class InputbarDictationSessionOwner {
     const restore =
       session.applied &&
       owner.getSnapshot().revision === session.draft.revision;
-    this.finish(session);
+    this.finish(session, "cancelled");
     if (restore) owner.restoreDraft(session.originalDraft);
     return true;
   }

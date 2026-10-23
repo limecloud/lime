@@ -86,23 +86,6 @@ struct CursorValue {
 }
 
 impl ProjectionStore {
-    pub(crate) fn rollout_path_for_thread_sync(
-        &self,
-        thread_id: &ThreadId,
-    ) -> Result<Option<String>, String> {
-        let conn = self
-            .open_thread_store()
-            .map_err(|error| error.to_string())?;
-        conn.query_row(
-            "SELECT rollout_path FROM canonical_threads WHERE thread_id = ?1",
-            params![thread_id.as_str()],
-            |row| row.get::<_, Option<String>>(0),
-        )
-        .optional()
-        .map(|value| value.flatten())
-        .map_err(|error| error.to_string())
-    }
-
     pub(super) fn ensure_canonical_thread_store(&self) -> Result<(), String> {
         let conn = self
             .open_thread_store()
@@ -640,6 +623,16 @@ fn apply_metadata_patch(thread: &mut Thread, patch: ThreadMetadataPatch) {
     }
     if let Some(metadata) = patch.metadata {
         thread.metadata = metadata.unwrap_or(serde_json::Value::Null);
+    }
+    if !patch.metadata_values.is_empty() {
+        if !thread.metadata.is_object() {
+            thread.metadata = serde_json::Value::Object(Default::default());
+        }
+        thread
+            .metadata
+            .as_object_mut()
+            .expect("metadata object")
+            .extend(patch.metadata_values);
     }
 }
 

@@ -50,10 +50,10 @@ export function BrowserOptionsMenu({
       const browserReturnOwner =
         owner?.threadId === tab.threadId ? owner : undefined;
       if (id === "find") onFind();
-      else if (id === "history")
+      else if (id === "history" || id === "downloads")
         navigate?.("settings", {
           tab: SettingsTabs.Browser,
-          browserPage: "history",
+          browserPage: id,
           browserReturnOwner,
         });
       else if (id === "settings")
@@ -134,6 +134,11 @@ export function BrowserOptionsMenu({
       {
         id: "history",
         label: t("browserChrome.history"),
+        enabled: Boolean(navigate),
+      },
+      {
+        id: "downloads",
+        label: t("settings:browserDownloads.title"),
         enabled: Boolean(navigate),
       },
       { separator: true },

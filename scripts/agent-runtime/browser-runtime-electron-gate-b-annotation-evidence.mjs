@@ -80,11 +80,13 @@ export function summarizeBrowserAnnotationSubmission({
   kind,
   mediaRead,
   mainPrompt = "",
+  method = "turn/start",
+  expectedTurnId = null,
 }) {
   const requests = parseJsonRpcRequestsFromInvokeTrace(JSON.stringify(trace));
   const request = requests.findLast(
     (entry) =>
-      entry.method === "turn/start" &&
+      entry.method === method &&
       entry.params.threadId === threadId &&
       entry.params.input?.some(
         (part) => part?.type === "text" && part.text?.includes(body),
@@ -126,12 +128,17 @@ export function summarizeBrowserAnnotationSubmission({
       ? `sidecar://media/input-${delivered[0].sha256}.png`
       : null;
   const checks = {
-    realTurnStart:
+    realSubmission:
       request?.transport === "electron-ipc" &&
       request.status === "success" &&
       !!request.id,
     canonicalThreadAndClientItem:
       !!user?.item.id && !!request?.params.clientUserMessageId,
+    expectedTurnIdentity:
+      expectedTurnId === null ||
+      (user?.turn.id === expectedTurnId &&
+        (method !== "turn/steer" ||
+          request?.params.expectedTurnId === expectedTurnId)),
     canonicalTerminalTurn: ["completed", "complete"].includes(
       String(user?.turn.status ?? "").toLowerCase(),
     ),
@@ -200,6 +207,7 @@ export function summarizeBrowserAnnotationSubmission({
     userItemId: user?.item.id ?? null,
     clientUserMessageId: request?.params.clientUserMessageId ?? null,
     requestId: request?.id ?? null,
+    method,
     image: delivered[0] ?? null,
     screenshotKind:
       /Attached screenshot: (crop|viewport)/u.exec(text)?.[1] ?? null,

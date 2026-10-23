@@ -26,7 +26,7 @@ const SidebarContainer = styled.div`
     var(--lime-surface-subtle, hsl(var(--card)))
   );
   overflow-y: auto;
-  padding: 4px 8px 8px;
+  padding: 4px 8px 16px;
 
   &::-webkit-scrollbar {
     width: 4px;
@@ -48,7 +48,7 @@ const GroupContainer = styled.div`
 
 const GroupHeader = styled.div`
   padding: 0 8px 4px;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 500;
   color: var(--lime-text-muted, hsl(var(--muted-foreground)));
 `;
@@ -70,7 +70,7 @@ const NavItem = styled.button<{ $active: boolean }>`
   background: ${({ $active }) =>
     $active ? "var(--lime-sidebar-active, hsl(var(--accent)))" : "transparent"};
   cursor: pointer;
-  font-size: 14px;
+  font-size: 13px;
   color: ${({ $active }) =>
     $active
       ? "var(--lime-sidebar-active-text, var(--lime-text-strong, hsl(var(--foreground))))"

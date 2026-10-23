@@ -168,6 +168,23 @@ pub fn resolve_user_memory_path() -> Result<PathBuf, String> {
     Ok(user_home_dir()?.join(USER_MEMORY_FILE_NAME))
 }
 
+/// 设置编辑器与运行时共用同一全局指令文件，不能各自猜测用户目录。
+pub fn resolve_user_instructions_path() -> Result<PathBuf, String> {
+    Ok(select_user_instructions_path(
+        resolve_codex_home_dir().as_deref(),
+        &user_home_dir()?,
+    ))
+}
+
+fn select_user_instructions_path(codex_home: Option<&Path>, lime_home: &Path) -> PathBuf {
+    if let Some(home) = codex_home {
+        if home.join(USER_MEMORY_FILE_NAME).is_file() || home.join("AGENTS.override.md").is_file() {
+            return home.join(USER_MEMORY_FILE_NAME);
+        }
+    }
+    lime_home.join(USER_MEMORY_FILE_NAME)
+}
+
 pub fn resolve_default_project_dir() -> Result<PathBuf, String> {
     resolve_default_project_dir_from_source_roots(&preferred_data_dir()?)
 }
@@ -388,6 +405,31 @@ fn resolve_subdir_under_root(preferred_root: &Path, subdir: &str) -> Result<Path
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn user_instructions_follow_existing_global_base_or_override() {
+        let temp = tempfile::tempdir().unwrap();
+        let codex = temp.path().join("codex");
+        let lime = temp.path().join("lime");
+        std::fs::create_dir_all(&codex).unwrap();
+        assert_eq!(
+            super::select_user_instructions_path(Some(&codex), &lime),
+            lime.join("AGENTS.md")
+        );
+        std::fs::write(codex.join("AGENTS.override.md"), "override").unwrap();
+        assert_eq!(
+            super::select_user_instructions_path(Some(&codex), &lime),
+            codex.join("AGENTS.md")
+        );
+        std::fs::write(codex.join("AGENTS.md"), "base").unwrap();
+        assert_eq!(
+            super::select_user_instructions_path(Some(&codex), &lime),
+            codex.join("AGENTS.md")
+        );
+        assert_eq!(
+            super::select_user_instructions_path(None, &lime),
+            lime.join("AGENTS.md")
+        );
+    }
     use super::*;
     use tempfile::tempdir;
 

@@ -5,6 +5,8 @@ import type {
 } from "./experimentalFeatureTypes";
 import type { MemoryConfig } from "./memoryConfigTypes";
 import type { BrowserSettings } from "./browserSettingsTypes";
+import type { GitPreferences } from "./gitPreferences";
+import type { WorktreePreferences } from "./worktreePreferences";
 
 export type { ToolCallingConfig } from "./experimentalFeatureTypes";
 
@@ -360,6 +362,7 @@ export type ExternalBrowserLinkShortcut =
   | "primary-shift";
 
 export interface DesktopConfig {
+  "keyboard-shortcuts"?: Record<string, string[]>;
   "open-link-in-target-preference"?: LinkOpenTarget | null;
   "open-local-url-in-target-preference"?: LinkOpenTarget | null;
   "external-browser-link-shortcut"?: ExternalBrowserLinkShortcut;
@@ -389,6 +392,8 @@ export interface Config {
   >;
   tui?: TuiConfig;
   desktop?: DesktopConfig;
+  git?: Partial<GitPreferences>;
+  worktrees?: Partial<WorktreePreferences>;
   browser?: Partial<BrowserSettings>;
   server: {
     host: string;

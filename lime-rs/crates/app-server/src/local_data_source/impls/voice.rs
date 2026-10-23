@@ -1,8 +1,85 @@
 use super::super::*;
+use app_server_protocol::*;
 use async_trait::async_trait;
 
 #[async_trait]
 impl VoiceAppDataSource for LocalAppDataSource {
+    async fn list_dictation_history(
+        &self,
+    ) -> Result<DictationHistoryListResponse, RuntimeCoreError> {
+        let store = self.dictation_history.clone();
+        tokio::task::spawn_blocking(move || store.list())
+            .await
+            .map_err(data_error)?
+            .map_err(data_error)
+    }
+
+    async fn start_dictation_history(
+        &self,
+        params: DictationHistoryStartParams,
+    ) -> Result<DictationHistoryWriteResponse, RuntimeCoreError> {
+        let store = self.dictation_history.clone();
+        tokio::task::spawn_blocking(move || store.start(params))
+            .await
+            .map_err(data_error)?
+            .map_err(data_error)
+    }
+
+    async fn append_dictation_history_audio(
+        &self,
+        params: DictationHistoryAppendAudioParams,
+    ) -> Result<DictationHistoryWriteResponse, RuntimeCoreError> {
+        let store = self.dictation_history.clone();
+        tokio::task::spawn_blocking(move || store.append_audio(params))
+            .await
+            .map_err(data_error)?
+            .map_err(data_error)
+    }
+
+    async fn finish_dictation_history(
+        &self,
+        params: DictationHistoryFinishParams,
+    ) -> Result<DictationHistoryWriteResponse, RuntimeCoreError> {
+        let store = self.dictation_history.clone();
+        tokio::task::spawn_blocking(move || store.finish(params))
+            .await
+            .map_err(data_error)?
+            .map_err(data_error)
+    }
+
+    async fn read_dictation_history_audio(
+        &self,
+        params: DictationHistoryIdParams,
+    ) -> Result<DictationHistoryReadAudioResponse, RuntimeCoreError> {
+        let store = self.dictation_history.clone();
+        tokio::task::spawn_blocking(move || store.read_audio(params))
+            .await
+            .map_err(data_error)?
+            .map_err(data_error)
+    }
+
+    async fn set_dictation_history_transcript(
+        &self,
+        params: DictationHistorySetTranscriptParams,
+    ) -> Result<DictationHistoryWriteResponse, RuntimeCoreError> {
+        let store = self.dictation_history.clone();
+        tokio::task::spawn_blocking(move || store.set_transcript(params))
+            .await
+            .map_err(data_error)?
+            .map_err(data_error)
+    }
+
+    async fn delete_dictation_history(
+        &self,
+        params: DictationHistoryIdParams,
+    ) -> Result<DictationHistoryDeleteResponse, RuntimeCoreError> {
+        let store = self.dictation_history.clone();
+        tokio::task::spawn_blocking(move || store.delete(params))
+            .await
+            .map_err(data_error)?
+            .map_err(data_error)
+    }
+
     async fn list_voice_asr_credentials(
         &self,
     ) -> Result<VoiceAsrCredentialListResponse, RuntimeCoreError> {

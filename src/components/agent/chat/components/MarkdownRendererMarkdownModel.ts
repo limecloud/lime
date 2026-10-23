@@ -521,7 +521,7 @@ function normalizeCollapsedMarkdownTextBlocks(markdown: string): string {
       "\n$1 ",
     )
     .replace(
-      /(?<=[\u3400-\u9fffA-Za-z0-9)）】》”’\]])(-|(?<!\*)\*(?!\*))(?=[\u3400-\u9fffA-Za-z][^，。！？；：,.!?;:\n]{0,24}[：:])/gu,
+      /(?<=[\u3400-\u9fff)）】》”’\]])(-|(?<!\*)\*(?!\*))(?=[\u3400-\u9fffA-Za-z][^，。！？；：,.!?;:\n]{0,24}[：:])/gu,
       "\n$1 ",
     )
     .replace(

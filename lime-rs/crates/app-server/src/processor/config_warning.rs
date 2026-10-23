@@ -29,6 +29,7 @@ impl RequestProcessor {
     ) -> Result<RpcDispatch, JsonRpcError> {
         let dispatch = RpcDispatch::single(self.initialize(params)?);
         self.refresh_plugin_skill_watch().await;
+        self.request_worktree_cleanup().await;
         Ok(dispatch
             .with_notifications(self.config_warning_notifications(ConfigWarningScope::Initialize)))
     }

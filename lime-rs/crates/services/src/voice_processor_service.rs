@@ -126,6 +126,7 @@ async fn call_local_llm(
         provider,
         model,
         instruction_id,
+        &config.experimental.voice_input.dictation_dictionary,
     )
     .await
 }

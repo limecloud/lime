@@ -164,7 +164,7 @@ describe("ArchivedConversationsSettings", () => {
       archivedOnly: true,
       limit: 80,
     });
-    expect(container.textContent).toContain("已归档对话");
+    expect(container.querySelector("h1")?.textContent).toBe("Archived chats");
     expect(container.textContent).toContain("归档会话");
     expect(container.textContent).toContain("project-1");
     expect(container.textContent).not.toContain("普通会话");

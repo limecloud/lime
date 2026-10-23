@@ -1,187 +1,257 @@
 // @vitest-environment node
-import { EventEmitter } from "node:events";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
-  BrowserAnnotationHost,
-  type BrowserAnnotationTarget,
-} from "./browserAnnotationHost";
+  fixture,
+  image,
+  nativeEvents,
+  selection,
+} from "./browserAnnotationHost.testFixture";
 import {
   BROWSER_ANNOTATION_PAGE_COMMAND,
   BROWSER_ANNOTATION_PAGE_EVENT,
 } from "./browserAnnotationModel";
 import type {
-  BrowserAnnotationCaptureResult,
   BrowserAnnotationSelection,
   BrowserAnnotationSession,
 } from "../src/lib/api/browserAnnotationTypes";
-
-const native = vi.hoisted(() => ({
-  ipc: undefined as EventEmitter | undefined,
-}));
-vi.mock("./electronRuntime", async () => {
-  const { EventEmitter } = await import("node:events");
-  native.ipc = new EventEmitter();
-  return { ipcMain: native.ipc };
-});
-
-function image(width = 1600, height = 1200) {
-  return {
-    isEmpty: () => false,
-    getSize: () => ({ width, height }),
-    toDataURL: () => "data:image/png;base64,cGFnZQ==",
-    crop: vi.fn((rect: { width: number; height: number }) =>
-      image(rect.width, rect.height),
-    ),
-    resize: vi.fn((size: { width: number; height: number }) =>
-      image(size.width, size.height),
-    ),
-  };
-}
-function selection(
-  kind: "element" | "region" = "element",
-): BrowserAnnotationSelection {
-  return {
-    kind,
-    pageUrl: "https://page.test/",
-    pageTitle: "Page",
-    frameUrl: "https://page.test/",
-    framePath: "main",
-    targetRect: { x: 100, y: 150, width: 200, height: 80 },
-    viewportSize: { width: 800, height: 600 },
-    scrollPosition: { x: 0, y: 20 },
-    devicePixelRatio: 3,
-    targetSelector: kind === "element" ? "#target" : null,
-    targetPath: null,
-    targetRole: "button",
-    targetText: "Save",
-    markerViewportPoint: { x: 100, y: 150 },
-  };
-}
-const hosts: BrowserAnnotationHost[] = [];
-function fixture(mode: "always" | "necessary" = "always") {
-  let visible = true;
-  let bounds = { x: 10, y: 40, width: 800, height: 600 };
-  const screenshot = image();
-  const frame = { send: vi.fn() };
-  const webContents = Object.assign(new EventEmitter(), {
-    id: 31,
-    mainFrame: frame,
-    isDestroyed: () => false,
-    isLoading: () => false,
-    focus: vi.fn(),
-    getURL: () => "https://page.test/",
-    getTitle: () => "Page",
-    capturePage: vi.fn(async () => screenshot),
-  });
-  const view = {
-    webContents,
-    getVisible: () => visible,
-    getBounds: () => bounds,
-  };
-  const owner = Object.assign(new EventEmitter(), { id: 21 });
-  const window = Object.assign(new EventEmitter(), {
-    id: 11,
-    webContents: owner,
-    isDestroyed: () => false,
-    contentView: { children: [view] },
-  });
-  const target = {
-    identity: {
-      browserSessionId: "browser-1",
-      threadId: "thread-1",
-      tabId: "tab-1",
-      viewId: "view-1",
-      ownerWebContentsId: 21,
-      webContentsId: 31,
-      windowId: 11,
-      pageRevision: 2,
-    },
-    selected: true,
-    view,
-    window,
-  };
-  const events: { event: string; payload: unknown }[] = [];
-  const host = new BrowserAnnotationHost({
-    resolveTarget: (tabId) =>
-      tabId === "tab-1" ? (target as unknown as BrowserAnnotationTarget) : null,
-    emit: (event, payload) => events.push({ event, payload }),
-    screenshotMode: () => mode,
-    timeoutMs: 10,
-  });
-  hosts.push(host);
-  const invoke = (
-    command:
-      | "browser_tab_begin_annotation"
-      | "browser_tab_cancel_annotation"
-      | "browser_tab_capture_annotation",
-    args: Record<string, unknown>,
-  ) => host.invoke(window as never, command, args);
-  let begin: Record<string, unknown>;
-  const message = (
-    payload: Record<string, unknown>,
-    event: Record<string, unknown> = {},
-  ) =>
-    native.ipc!.emit(
-      BROWSER_ANNOTATION_PAGE_EVENT,
-      { sender: webContents, senderFrame: frame, ...event },
-      { ...begin, documentToken: "document-1", ...payload },
-    );
-  const start = async (kind: "element" | "region" = "element") => {
-    const session = (await invoke("browser_tab_begin_annotation", {
-      tabId: "tab-1",
-      kind,
-    })) as BrowserAnnotationSession;
-    const call = frame.send.mock.calls.at(-1)!;
-    expect(call[0]).toBe(BROWSER_ANNOTATION_PAGE_COMMAND);
-    begin = call[1];
-    message({ type: "began" });
-    return session;
-  };
-  const capture = (annotationId: string) =>
-    invoke("browser_tab_capture_annotation", {
-      tabId: "tab-1",
-      annotationId,
-    }) as Promise<BrowserAnnotationCaptureResult>;
-  const ready = (source: BrowserAnnotationSelection) => {
-    const prepare = [...frame.send.mock.calls]
-      .reverse()
-      .find((call) => call[1].type === "prepare")![1];
-    message({
-      type: "ready",
-      requestId: prepare.requestId,
-      status: "ready",
-      selection: source,
-    });
-  };
-  return {
-    host,
-    target,
-    window,
-    owner,
-    view,
-    webContents,
-    frame,
-    screenshot,
-    events,
-    invoke,
-    start,
-    message,
-    ready,
-    capture,
-    hide: () => {
-      visible = false;
-    },
-    resize: () => {
-      bounds = { ...bounds, width: 700 };
-    },
-  };
-}
-afterEach(() => {
-  hosts.splice(0).forEach((host) => host.dispose());
-  vi.useRealTimers();
-});
-
 describe("Browser annotation native authority", () => {
+  it("pauses saved markers while hidden and restores the same document with a fresh read-only token", async () => {
+    const f = fixture();
+    const session = await f.start();
+    const source = selection();
+    f.message({ type: "selection", selection: source });
+    const capture = f.capture(session.annotationId);
+    f.ready(source);
+    const original = await capture;
+    const old = f.frame.send.mock.calls.at(-1)![1];
+    f.hide();
+    f.host.revalidateView("view-1");
+    const hidden = f.frame.send.mock.calls.at(-1)![1];
+    expect(hidden).toMatchObject({ type: "hide-marker", token: old.token });
+    expect(hidden.nextToken).not.toBe(old.token);
+    f.message({ ...old, type: "activate" });
+    f.message({ ...old, token: hidden.nextToken, type: "activate" });
+    expect(
+      f.events.filter((event) => event.event.endsWith("activate")),
+    ).toEqual([]);
+    await expect(f.capture(session.annotationId)).rejects.toThrow(
+      "unavailable",
+    );
+    f.show();
+    f.message({ ...old, token: hidden.nextToken, type: "marker-restored" });
+    f.message({ ...old, token: hidden.nextToken, type: "activate" });
+    expect(
+      f.events.filter((event) => event.event.endsWith("activate")),
+    ).toEqual([]);
+    f.host.revalidateView("view-1");
+    const restored = f.frame.send.mock.calls.at(-1)![1];
+    expect(restored).toMatchObject({
+      type: "restore-marker",
+      token: hidden.nextToken,
+      documentToken: "document-1",
+    });
+    for (const wrong of [
+      { token: old.token },
+      { documentToken: "new-document" },
+      { pageRevision: 0 },
+    ])
+      f.message({ ...restored, type: "marker-restored", ...wrong });
+    f.message({ ...restored, type: "marker-restored" }, { senderFrame: {} });
+    f.message({ ...restored, type: "activate" });
+    expect(
+      f.events.filter((event) => event.event.endsWith("activate")),
+    ).toEqual([]);
+    f.message({ ...restored, type: "marker-restored" });
+    f.message({ ...restored, type: "activate" });
+    expect(f.events.at(-1)).toEqual({
+      event: "browser-tab-annotation-activate",
+      payload: { ...session, presentationPageRevision: session.pageRevision },
+    });
+    expect(original.selection).toEqual(source);
+    expect(f.webContents.capturePage).toHaveBeenCalledTimes(1);
+    await expect(f.capture(session.annotationId)).rejects.toThrow(
+      "unavailable",
+    );
+    expect(f.webContents.listenerCount("did-start-navigation")).toBe(1);
+    vi.useFakeTimers();
+    f.hide();
+    f.host.revalidateView("view-1");
+    f.show();
+    f.host.revalidateView("view-1");
+    const interrupted = f.frame.send.mock.calls.at(-1)![1];
+    f.hide();
+    f.host.revalidateView("view-1");
+    const pausedAgain = f.frame.send.mock.calls.at(-1)![1];
+    expect(pausedAgain.nextToken).not.toBe(interrupted.token);
+    await vi.advanceTimersByTimeAsync(11);
+    f.message({ ...interrupted, type: "marker-restored" });
+    expect(
+      f.events.filter((event) => event.event.endsWith("cancelled")),
+    ).toEqual([]);
+    f.show();
+    f.host.revalidateView("view-1");
+    const resumedAgain = f.frame.send.mock.calls.at(-1)![1];
+    expect(resumedAgain.token).toBe(pausedAgain.nextToken);
+    f.message({ ...resumedAgain, type: "marker-restored" });
+    f.message({ ...resumedAgain, type: "activate" });
+    expect(
+      f.events.filter((event) => event.event.endsWith("activate")),
+    ).toHaveLength(2);
+  });
+
+  it("preserves saved markers on tab switching but retires them on revision changes, deletion or restore timeout", async () => {
+    vi.useFakeTimers();
+    const f = fixture();
+    const session = await f.start();
+    const source = selection();
+    f.message({ type: "selection", selection: source });
+    const capture = f.capture(session.annotationId);
+    f.ready(source);
+    await capture;
+    f.host.cancelWindow(f.window.id, "tab-switch");
+    expect(
+      f.events.filter((event) => event.event.endsWith("cancelled")),
+    ).toEqual([]);
+    f.target.identity.pageRevision += 1;
+    f.host.revalidateView("view-1");
+    expect(f.events.at(-1)).toMatchObject({
+      payload: { reason: "page-changed" },
+    });
+    const next = await f.start();
+    f.message({ type: "selection", selection: source });
+    const nextCapture = f.capture(next.annotationId);
+    f.ready(source);
+    await nextCapture;
+    f.host.cancelWindow(f.window.id, "tab-switch");
+    await f.invoke("browser_tab_cancel_annotation", {
+      tabId: "tab-1",
+      annotationId: next.annotationId,
+    });
+    expect(f.events.at(-1)).toMatchObject({
+      payload: { annotationId: next.annotationId, reason: "cancelled" },
+    });
+    const final = await f.start();
+    f.message({ type: "selection", selection: source });
+    const finalCapture = f.capture(final.annotationId);
+    f.ready(source);
+    await finalCapture;
+    f.host.cancelWindow(f.window.id, "tab-switch");
+    f.host.revalidateView("view-1");
+    await vi.advanceTimersByTimeAsync(11);
+    expect(f.events.at(-1)).toMatchObject({
+      payload: {
+        annotationId: final.annotationId,
+        reason: "marker-restore-timeout",
+      },
+    });
+    expect(f.window.listenerCount("resize")).toBe(0);
+  });
+  it("keeps captured anchors separate from a new picker and validates live layout without changing capture", async () => {
+    const f = fixture();
+    const session = await f.start();
+    const source = selection();
+    f.message({ type: "selection", selection: source });
+    const capture = f.capture(session.annotationId);
+    f.ready(source);
+    const result = await capture;
+    const credentials = f.frame.send.mock.calls.at(-1)![1];
+    await expect(f.capture(session.annotationId)).rejects.toThrow(
+      "unavailable",
+    );
+    const second = await f.start();
+    expect(f.webContents.listenerCount("did-start-navigation")).toBe(1);
+    expect(f.window.listenerCount("resize")).toBe(1);
+    expect(
+      f.events.filter((event) => event.event.endsWith("cancelled")),
+    ).toEqual([]);
+    const anchor = {
+      viewportSize: { width: 700, height: 600 },
+      targetRect: { x: 80, y: 20, width: 200, height: 80 },
+    };
+    f.resize();
+    for (const wrong of [
+      { token: "wrong" },
+      { documentToken: "old" },
+      { pageRevision: 0 },
+    ])
+      f.message({ ...credentials, type: "anchor", anchor, ...wrong });
+    f.message({ ...credentials, type: "anchor", anchor }, { senderFrame: {} });
+    expect(f.onAnchor).not.toHaveBeenCalled();
+    f.message({ ...credentials, type: "anchor", anchor });
+    expect(f.onAnchor).toHaveBeenCalledWith(
+      session,
+      anchor,
+      f.view.getBounds(),
+    );
+    f.onAnchor.mockClear();
+    f.host.revalidateView("view-1");
+    expect(f.onAnchor).toHaveBeenCalledWith(
+      session,
+      anchor,
+      f.view.getBounds(),
+    );
+    expect(result.selection).toEqual(source);
+    f.message({ ...credentials, type: "activate" });
+    expect(f.events.at(-1)).toEqual({
+      event: "browser-tab-annotation-activate",
+      payload: { ...session, presentationPageRevision: session.pageRevision },
+    });
+    await f.invoke("browser_tab_cancel_annotation", {
+      tabId: "tab-1",
+      annotationId: session.annotationId,
+    });
+    f.message({ ...credentials, type: "activate" });
+    expect(f.events.at(-1)).toMatchObject({
+      event: "browser-tab-annotation-cancelled",
+      payload: { annotationId: session.annotationId },
+    });
+    f.message({ type: "selection", selection: source });
+    // Revalidation already revoked the picking session; its delayed page input cannot revive it.
+    expect(f.events).toContainEqual(
+      expect.objectContaining({
+        event: "browser-tab-annotation-cancelled",
+        payload: expect.objectContaining({ annotationId: second.annotationId }),
+      }),
+    );
+  });
+  it("upgrades the element picker to text and preserves validated text metadata through capture", async () => {
+    const f = fixture("necessary");
+    const session = await f.start();
+    const source: BrowserAnnotationSelection = {
+      ...selection(),
+      kind: "text",
+      targetText: "a😀b",
+      targetRole: "text",
+      textLocator: {
+        kind: "dom",
+        selector: "#text",
+        shadowHosts: [],
+        direction: "forward",
+        rangeText: "a😀b",
+        startOffset: 1,
+        endOffset: 5,
+      },
+      selectionRects: [{ x: 100, y: 150, width: 50, height: 20 }],
+    };
+    f.message({ type: "selection", selection: source, token: "forged" });
+    expect(f.events).toEqual([]);
+    f.message({ type: "selection", selection: source });
+    expect(f.events.at(-1)).toMatchObject({
+      event: "browser-tab-annotation-selection",
+      payload: {
+        kind: "text",
+        annotationId: session.annotationId,
+        selection: source,
+      },
+    });
+    const captured = f.capture(session.annotationId);
+    f.ready(source);
+    expect(await captured).toMatchObject({
+      screenshotStatus: "captured",
+      selection: source,
+      screenshot: { kind: "crop" },
+    });
+  });
   it("fails closed when the page preload cannot acknowledge a begin", async () => {
     vi.useFakeTimers();
     const f = fixture();
@@ -283,6 +353,43 @@ describe("Browser annotation native authority", () => {
     },
   );
 
+  it("resumes only the current document on native view or window blur and retires its listeners", async () => {
+    const f = fixture();
+    const first = await f.start();
+    const obsolete = f.webContents.listeners("blur")[0];
+    for (const owner of [f.webContents, f.window]) {
+      f.frame.send.mockClear();
+      f.events.length = 0;
+      owner.emit("blur");
+      expect(f.frame.send).toHaveBeenCalledWith(
+        BROWSER_ANNOTATION_PAGE_COMMAND,
+        {
+          type: "resume",
+          annotationId: first.annotationId,
+          token: expect.any(String),
+          documentToken: "document-1",
+          pageRevision: first.pageRevision,
+        },
+      );
+      expect(f.events).toEqual([
+        {
+          event: "browser-tab-annotation-input-state",
+          payload: { ...first, suspended: false, addModifierPressed: false },
+        },
+      ]);
+    }
+    await f.start();
+    f.frame.send.mockClear();
+    obsolete();
+    expect(f.frame.send).not.toHaveBeenCalled();
+    f.target.identity.pageRevision += 1;
+    f.window.emit("blur");
+    expect(f.frame.send).not.toHaveBeenCalled();
+    f.host.revalidateView("view-1");
+    expect(f.window.listenerCount("blur")).toBe(0);
+    expect(f.webContents.listenerCount("blur")).toBe(0);
+  });
+
   it("revalidates viewport, route revision and tab visibility without trusting a cached target", async () => {
     const f = fixture();
     await f.start();
@@ -320,7 +427,7 @@ describe("Browser annotation native authority", () => {
       }),
     ).toEqual({ annotationId: second.annotationId, cancelled: true });
     f.host.dispose();
-    expect(native.ipc!.listenerCount(BROWSER_ANNOTATION_PAGE_EVENT)).toBe(0);
+    expect(nativeEvents().listenerCount(BROWSER_ANNOTATION_PAGE_EVENT)).toBe(0);
   });
 });
 
@@ -367,7 +474,7 @@ describe("Browser annotation screenshot handshake", () => {
       });
       expect(f.screenshot.crop).not.toHaveBeenCalled();
       expect(f.frame.send.mock.calls.at(-1)?.[1]).toMatchObject({
-        type: "clear",
+        type: "retain",
       });
     },
   );
@@ -397,7 +504,7 @@ describe("Browser annotation screenshot handshake", () => {
     });
   });
 
-  it("returns an explicit ready timeout with null screenshot and always clears page screenshot state", async () => {
+  it("returns an explicit ready timeout with null screenshot and releases the picker into a retained anchor", async () => {
     vi.useFakeTimers();
     const f = fixture();
     const session = await f.start();
@@ -410,7 +517,7 @@ describe("Browser annotation screenshot handshake", () => {
       failureReason: "page-ready-timeout",
     });
     expect(f.webContents.capturePage).not.toHaveBeenCalled();
-    expect(f.frame.send.mock.calls.at(-1)?.[1].type).toBe("clear");
+    expect(f.frame.send.mock.calls.at(-1)?.[1].type).toBe("retain");
   });
 
   it("bounds native capture time and ignores a late ready request from another capture", async () => {
@@ -436,10 +543,10 @@ describe("Browser annotation screenshot handshake", () => {
       screenshotStatus: "timeout",
       failureReason: "capture-timeout",
     });
-    expect(f.frame.send.mock.calls.at(-1)?.[1].type).toBe("clear");
+    expect(f.frame.send.mock.calls.at(-1)?.[1].type).toBe("retain");
   });
 
-  it("rejects a changed ready geometry and supports retry after a native capture failure", async () => {
+  it("rejects a changed ready geometry and retains a failed capture without granting recapture authority", async () => {
     const f = fixture();
     const session = await f.start();
     const source = selection();
@@ -461,7 +568,12 @@ describe("Browser annotation screenshot handshake", () => {
       screenshotStatus: "failed",
       failureReason: "capture-failed",
     });
-    const retried = f.capture(session.annotationId);
+    await expect(f.capture(session.annotationId)).rejects.toThrow(
+      "unavailable",
+    );
+    const next = await f.start();
+    f.message({ type: "selection", selection: source });
+    const retried = f.capture(next.annotationId);
     f.ready(source);
     expect((await retried).screenshotStatus).toBe("captured");
   });

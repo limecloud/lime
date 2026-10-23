@@ -1,0 +1,120 @@
+{
+  "$defs": {
+    "StorageCategory": {
+      "enum": [
+        "archived",
+        "other",
+        "subagents",
+        "threads",
+        "unclassified",
+        "worktrees"
+      ],
+      "type": "string"
+    },
+    "StorageCategoryUsage": {
+      "properties": {
+        "bytes": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "category": {
+          "$ref": "#/$defs/StorageCategory"
+        }
+      },
+      "required": [
+        "bytes",
+        "category"
+      ],
+      "type": "object"
+    },
+    "StorageStatus": {
+      "enum": [
+        "error",
+        "ready",
+        "scanning"
+      ],
+      "type": "string"
+    },
+    "StorageUsage": {
+      "properties": {
+        "categories": {
+          "items": {
+            "$ref": "#/$defs/StorageCategoryUsage"
+          },
+          "type": "array"
+        },
+        "dataRoot": {
+          "type": "string"
+        },
+        "scannedRoots": {
+          "description": "实际测量的互不重叠根；portable AgentRoot 和外置 checkout 也明确列出。",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "threadBytes": {
+          "additionalProperties": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": "object"
+        },
+        "totalBytes": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "worktreeRoot": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "categories",
+        "dataRoot",
+        "scannedRoots",
+        "threadBytes",
+        "totalBytes",
+        "worktreeRoot"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "completedCategories": {
+      "items": {
+        "$ref": "#/$defs/StorageCategory"
+      },
+      "type": "array"
+    },
+    "measuredAt": {
+      "format": "int64",
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "status": {
+      "$ref": "#/$defs/StorageStatus"
+    },
+    "usage": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/StorageUsage"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "completedCategories",
+    "status"
+  ],
+  "title": "StorageState",
+  "type": "object"
+}

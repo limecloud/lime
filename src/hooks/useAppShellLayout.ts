@@ -18,9 +18,7 @@ export function getAppShellLayoutState(params: {
       (params.agentHasMessages && Boolean(currentAgentParams.lockTheme)));
 
   const shouldShowAppSidebar =
-    params.currentPage !== "settings" &&
-    params.currentPage !== "resources" &&
-    !shouldHideSidebarForAgent;
+    params.currentPage !== "resources" && !shouldHideSidebarForAgent;
 
   return {
     shouldHideSidebarForAgent,

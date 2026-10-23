@@ -372,7 +372,11 @@ export function useWorkspaceInputbarSceneRuntime({
       threadId,
     ],
   );
-  const handleInputbarSend = useBrowserAnnotationSend(handleInputbarSendBase, sessionId, threadId);
+  const handleInputbarSend = useBrowserAnnotationSend(
+    handleInputbarSendBase,
+    sessionId,
+    threadId,
+  );
   const handleInputbarToolStatesChange = useCallback(
     (nextToolStates: WorkspaceInputbarToolStates) => {
       if (directInputBlocked) {

@@ -19,6 +19,14 @@ impl RuntimeCore {
         source_method: &str,
         copy: &RuntimeExportCopy,
     ) -> Result<(), RuntimeCoreError> {
+        if !crate::memory_store::MemorySourcePolicy::source_eligible(
+            self,
+            Some(&read.session.thread_id),
+        )
+        .await?
+        {
+            return Ok(());
+        }
         self.app_data_source
             .write_memory_rollout_summary(crate::RolloutSummaryWriteParams {
                 root: MemoryStoreRootParams {

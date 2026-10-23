@@ -279,6 +279,17 @@ impl RuntimeCore {
         thread_id: agent_protocol::ThreadId,
     ) -> Result<agent_protocol::Thread, RuntimeCoreError> {
         let store = self.canonical_thread_store()?;
+        let current = store
+            .read_thread(ReadThreadParams {
+                thread_id: thread_id.clone(),
+                include_archived: true,
+                turns_view: agent_protocol::ThreadTurnsView::NotLoaded,
+            })
+            .await
+            .map_err(store_error)?;
+        if let Some(thread) = current.filter(|thread| thread.archived) {
+            self.restore_thread_worktree(&thread).await?;
+        }
         store
             .unarchive_thread(ArchiveThreadParams { thread_id })
             .await
@@ -307,6 +318,7 @@ impl RuntimeCore {
                 .await?;
         }
         let session_id = response.thread.session_id.clone();
+        self.restore_thread_worktree(&response.thread).await?;
         self.hydrate_thread_session(&response.thread).await?;
         let active_turn_id = self
             .session_loops

@@ -43,7 +43,7 @@ function createDraft(
   const event: BrowserAnnotationSelectionEvent = {
     annotationId: id,
     kind: "element",
-    scope: "main-frame",
+    scope: "page",
     browserSessionId: "browser-1",
     threadId,
     tabId: "tab-1",
@@ -57,7 +57,7 @@ function createDraft(
       pageUrl: "https://example.test/page",
       pageTitle: "Example",
       frameUrl: "https://example.test/page",
-      framePath: "main",
+      framePath: [],
       targetRect: { x: 10, y: 20, width: 100, height: 30 },
       viewportSize: { width: 800, height: 600 },
       scrollPosition: { x: 0, y: 0 },

@@ -97,6 +97,75 @@ const developerMediaTargets = [
 
 describe("current settings search projection", () => {
   it.each(["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"])(
+    "%s finds worktree preferences without indexing a private directory",
+    (locale) => {
+      const { t, groups } = localize(locale);
+      for (const [message, targetId] of [
+        ["root", "worktrees-root"],
+        ["upstreamRefresh", "worktrees-upstream-refresh"],
+        ["managed", "worktrees-managed"],
+      ]) {
+        expect(
+          searchSettings(t(`settings.worktrees.${message}`), groups, t, true),
+        ).toContainEqual(
+          expect.objectContaining({
+            section: SettingsTabs.Worktrees,
+            targetId,
+          }),
+        );
+      }
+      expect(
+        searchSettings("/private/fixture-worktrees", groups, t, true),
+      ).toEqual([]);
+    },
+  );
+  it.each(["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"])(
+    "%s finds the current dictation sounds control",
+    (locale) => {
+      const { t, groups } = localize(locale);
+      expect(
+        searchSettings(t("settings.voice.sounds.label"), groups, t, true),
+      ).toContainEqual(
+        expect.objectContaining({
+          section: SettingsTabs.Voice,
+          targetId: "voice-sounds",
+        }),
+      );
+    },
+  );
+  it.each(["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"])(
+    "%s finds dictation dictionary without indexing user entries",
+    (locale) => {
+      const { t, groups } = localize(locale);
+      expect(
+        searchSettings(t("settings.voice.dictionary.label"), groups, t, true),
+      ).toContainEqual(
+        expect.objectContaining({
+          section: SettingsTabs.Voice,
+          targetId: "voice-dictionary",
+        }),
+      );
+      expect(
+        searchSettings("private-dictionary-fixture-entry", groups, t, true),
+      ).toEqual([]);
+    },
+  );
+  it.each(["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"])(
+    "%s finds the microphone field without indexing device names",
+    (locale) => {
+      const { t, groups } = localize(locale);
+      expect(
+        searchSettings(t("settings.voice.microphone.label"), groups, t, true),
+      ).toContainEqual(
+        expect.objectContaining({
+          section: SettingsTabs.Voice,
+          targetId: "voice-microphone",
+        }),
+      );
+      expect(searchSettings("fixture-usb", groups, t, true)).toEqual([]);
+    },
+  );
+  it.each(["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"])(
     "%s resolves the eleven independent Developer and Media expectations",
     (locale) => {
       const { t, groups } = localize(locale);

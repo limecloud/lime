@@ -31,6 +31,7 @@ mod context_auto_compaction;
 mod context_compaction;
 mod context_media;
 mod context_packet;
+mod device_storage;
 mod diagnostics;
 mod ephemeral;
 mod error;
@@ -44,10 +45,12 @@ mod exports;
 mod file_checkpoint_projection;
 mod gateway;
 mod gateway_runner;
+mod git_preferences;
 mod history_replacement;
 mod hooks;
 mod image_media;
 mod input_media;
+mod instructions;
 mod inter_agent_input;
 mod knowledge;
 mod load_context;
@@ -56,6 +59,7 @@ mod media_task_read_model;
 mod media_tasks;
 mod memory;
 mod memory_agent;
+mod memory_policy;
 pub(crate) mod memory_prompt;
 mod model_providers;
 mod output_media;
@@ -191,6 +195,7 @@ pub use sidecar_store::SidecarWriteRequest;
 pub use soul::install_style_pack_data_root;
 pub use storage_roots::product_db_path_for_agent_root;
 pub use storage_roots::StorageRoots;
+pub(crate) use thread_delete::DeletedThread;
 pub(crate) use trace_store::export_trace_events_from_store_to_path;
 pub(crate) use trace_store::summarize_trace_event_store;
 pub use trace_store::TraceEventWriter;
@@ -328,6 +333,10 @@ pub struct RuntimeCore {
     backend: Arc<dyn ExecutionBackend>,
     capability_source: Arc<dyn CapabilitySource>,
     app_config_path: PathBuf,
+    worktree_operations: Arc<tokio::sync::Mutex<()>>,
+    storage_roots: Option<StorageRoots>,
+    storage_scan: Arc<Mutex<device_storage::StorageScan>>,
+    instructions_path: Option<PathBuf>,
     account_manager: Option<Arc<crate::account::AccountManager>>,
     pub(in crate::runtime) artifact_content_provider: Arc<dyn ArtifactContentProvider>,
     pub(in crate::runtime) file_checkpoint_snapshot_store: Arc<dyn FileCheckpointSnapshotStore>,
@@ -445,6 +454,10 @@ impl RuntimeCore {
             backend,
             capability_source,
             app_config_path: lime_core::config::ConfigManager::default_config_path(),
+            worktree_operations: Arc::new(tokio::sync::Mutex::new(())),
+            storage_roots: None,
+            storage_scan: Arc::new(Mutex::new(device_storage::StorageScan::default())),
+            instructions_path: None,
             account_manager: None,
             artifact_content_provider,
             file_checkpoint_snapshot_store: Arc::new(NoopFileCheckpointSnapshotStore),
@@ -474,6 +487,11 @@ impl RuntimeCore {
 
     pub fn with_app_config_path(mut self, path: PathBuf) -> Self {
         self.app_config_path = path;
+        self
+    }
+
+    pub fn with_instructions_path(mut self, path: PathBuf) -> Self {
+        self.instructions_path = Some(path);
         self
     }
 

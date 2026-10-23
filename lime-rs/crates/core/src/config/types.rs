@@ -402,6 +402,12 @@ pub struct Config {
     /// Desktop 链接偏好；由同一 App Server 用户配置层持久化。
     #[serde(default, skip_serializing_if = "super::DesktopConfig::is_default")]
     pub desktop: super::DesktopConfig,
+    /// Git 工作流偏好；GUI 与 Agent 使用同一用户配置。
+    #[serde(default, skip_serializing_if = "super::GitConfig::is_default")]
+    pub git: super::GitConfig,
+    /// 托管工作树目录与创建前的上游刷新策略。
+    #[serde(default, skip_serializing_if = "super::WorktreeConfig::is_default")]
+    pub worktrees: super::WorktreeConfig,
     /// 内置浏览器偏好；用户浏览与 Agent 同页操作共享配置。
     #[serde(default, skip_serializing_if = "super::BrowserConfig::is_default")]
     pub browser: super::BrowserConfig,
@@ -1164,6 +1170,9 @@ pub struct VoiceInputConfig {
     /// 是否启用交互音效
     #[serde(default = "default_sound_enabled")]
     pub sound_enabled: bool,
+    /// 听写清理词典，保留条目的规范拼写、大小写和标点
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub dictation_dictionary: Vec<String>,
     /// 翻译模式使用的指令 ID
     #[serde(default = "default_translate_instruction_id")]
     pub translate_instruction_id: String,
@@ -1192,6 +1201,7 @@ impl Default for VoiceInputConfig {
             asr_credentials: Vec::new(),
             selected_device_id: None,
             sound_enabled: default_sound_enabled(),
+            dictation_dictionary: Vec::new(),
             translate_instruction_id: default_translate_instruction_id(),
         }
     }
@@ -1880,6 +1890,34 @@ fn default_cache_ttl_secs() -> u64 {
     3600
 }
 
+impl ModelsConfig {
+    /// 为 HTTP / WebSocket 目录共享配置中的模型列表。
+    pub fn model_list(&self) -> serde_json::Value {
+        let mut data = Vec::new();
+        for (provider, config) in &self.providers {
+            let owner = match provider.as_str() {
+                "claude" => "anthropic",
+                "qwen" => "alibaba",
+                "gemini" => "google",
+                value => value,
+            };
+            for model in config.models.iter().filter(|model| model.enabled) {
+                data.push(serde_json::json!({
+                    "id": model.id,
+                    "object": "model",
+                    "owned_by": owner,
+                }));
+            }
+        }
+        data.sort_by(|left, right| {
+            (left["id"].as_str(), left["owned_by"].as_str())
+                .cmp(&(right["id"].as_str(), right["owned_by"].as_str()))
+        });
+        data.dedup_by(|left, right| left["id"] == right["id"]);
+        serde_json::json!({ "object": "list", "data": data })
+    }
+}
+
 impl Default for ModelsConfig {
     fn default() -> Self {
         let mut providers = HashMap::new();
@@ -1891,17 +1929,17 @@ impl Default for ModelsConfig {
                 label: "Claude".to_string(),
                 models: vec![
                     ModelInfo {
-                        id: "claude-opus-4-5-20251101".to_string(),
+                        id: "claude-opus-5-5".to_string(),
                         name: None,
                         enabled: true,
                     },
                     ModelInfo {
-                        id: "claude-sonnet-4-5-20250929".to_string(),
+                        id: "claude-sonnet-5-5".to_string(),
                         name: None,
                         enabled: true,
                     },
                     ModelInfo {
-                        id: "claude-sonnet-4-20250514".to_string(),
+                        id: "claude-haiku-5-5".to_string(),
                         name: None,
                         enabled: true,
                     },
@@ -1916,17 +1954,17 @@ impl Default for ModelsConfig {
                 label: "Anthropic".to_string(),
                 models: vec![
                     ModelInfo {
-                        id: "claude-opus-4-5-20251101".to_string(),
+                        id: "claude-opus-5-5".to_string(),
                         name: None,
                         enabled: true,
                     },
                     ModelInfo {
-                        id: "claude-sonnet-4-5-20250929".to_string(),
+                        id: "claude-sonnet-5-5".to_string(),
                         name: None,
                         enabled: true,
                     },
                     ModelInfo {
-                        id: "claude-sonnet-4-20250514".to_string(),
+                        id: "claude-haiku-5-5".to_string(),
                         name: None,
                         enabled: true,
                     },
@@ -1941,37 +1979,17 @@ impl Default for ModelsConfig {
                 label: "OpenAI".to_string(),
                 models: vec![
                     ModelInfo {
-                        id: "gpt-4o".to_string(),
+                        id: "gpt-6.1-sol".to_string(),
                         name: None,
                         enabled: true,
                     },
                     ModelInfo {
-                        id: "gpt-4o-mini".to_string(),
+                        id: "gpt-6-luna".to_string(),
                         name: None,
                         enabled: true,
                     },
                     ModelInfo {
-                        id: "gpt-4-turbo".to_string(),
-                        name: None,
-                        enabled: true,
-                    },
-                    ModelInfo {
-                        id: "o1".to_string(),
-                        name: None,
-                        enabled: true,
-                    },
-                    ModelInfo {
-                        id: "o1-mini".to_string(),
-                        name: None,
-                        enabled: true,
-                    },
-                    ModelInfo {
-                        id: "o3".to_string(),
-                        name: None,
-                        enabled: true,
-                    },
-                    ModelInfo {
-                        id: "o3-mini".to_string(),
+                        id: "gpt-6-astra".to_string(),
                         name: None,
                         enabled: true,
                     },
@@ -1986,17 +2004,17 @@ impl Default for ModelsConfig {
                 label: "Gemini".to_string(),
                 models: vec![
                     ModelInfo {
-                        id: "gemini-2.0-flash-exp".to_string(),
+                        id: "gemini-3.8-flash".to_string(),
                         name: None,
                         enabled: true,
                     },
                     ModelInfo {
-                        id: "gemini-1.5-pro".to_string(),
+                        id: "gemini-4-argon".to_string(),
                         name: None,
                         enabled: true,
                     },
                     ModelInfo {
-                        id: "gemini-1.5-flash".to_string(),
+                        id: "gemini-3.5-flash-lite".to_string(),
                         name: None,
                         enabled: true,
                     },
@@ -2011,17 +2029,17 @@ impl Default for ModelsConfig {
                 label: "通义千问".to_string(),
                 models: vec![
                     ModelInfo {
-                        id: "qwen-max".to_string(),
+                        id: "qwen3.8-max".to_string(),
                         name: None,
                         enabled: true,
                     },
                     ModelInfo {
-                        id: "qwen-plus".to_string(),
+                        id: "qwen3.7-plus".to_string(),
                         name: None,
                         enabled: true,
                     },
                     ModelInfo {
-                        id: "qwen-turbo".to_string(),
+                        id: "qwen3.8-flash".to_string(),
                         name: None,
                         enabled: true,
                     },
@@ -2036,12 +2054,12 @@ impl Default for ModelsConfig {
                 label: "DeepSeek".to_string(),
                 models: vec![
                     ModelInfo {
-                        id: "deepseek-reasoner".to_string(),
+                        id: "deepseek-v4-pro".to_string(),
                         name: None,
                         enabled: true,
                     },
                     ModelInfo {
-                        id: "deepseek-chat".to_string(),
+                        id: "deepseek-flash".to_string(),
                         name: None,
                         enabled: true,
                     },
@@ -2058,78 +2076,12 @@ impl Default for ModelsConfig {
             },
         );
 
-        // Claude OAuth
-        providers.insert(
-            "claude_oauth".to_string(),
-            ProviderModelsConfig {
-                label: "Claude OAuth".to_string(),
-                models: vec![
-                    ModelInfo {
-                        id: "claude-sonnet-4-5-20250929".to_string(),
-                        name: None,
-                        enabled: true,
-                    },
-                    ModelInfo {
-                        id: "claude-3-5-sonnet-20241022".to_string(),
-                        name: None,
-                        enabled: true,
-                    },
-                ],
-            },
-        );
-
-        // Submodel
+        // Submodel：模型以账户实时目录或显式配置为准。
         providers.insert(
             "submodel".to_string(),
             ProviderModelsConfig {
                 label: "Submodel".to_string(),
-                models: vec![
-                    ModelInfo {
-                        id: "openai/gpt-oss-120b".to_string(),
-                        name: None,
-                        enabled: true,
-                    },
-                    ModelInfo {
-                        id: "Qwen/Qwen3-235B-A22B-Instruct-2507".to_string(),
-                        name: None,
-                        enabled: true,
-                    },
-                    ModelInfo {
-                        id: "Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8".to_string(),
-                        name: None,
-                        enabled: true,
-                    },
-                    ModelInfo {
-                        id: "Qwen/Qwen3-235B-A22B-Thinking-2507".to_string(),
-                        name: None,
-                        enabled: true,
-                    },
-                    ModelInfo {
-                        id: "deepseek-ai/DeepSeek-R1-0528".to_string(),
-                        name: None,
-                        enabled: true,
-                    },
-                    ModelInfo {
-                        id: "deepseek-ai/DeepSeek-V3.1".to_string(),
-                        name: None,
-                        enabled: true,
-                    },
-                    ModelInfo {
-                        id: "deepseek-ai/DeepSeek-V3-0324".to_string(),
-                        name: None,
-                        enabled: true,
-                    },
-                    ModelInfo {
-                        id: "zai-org/GLM-4.5-FP8".to_string(),
-                        name: None,
-                        enabled: true,
-                    },
-                    ModelInfo {
-                        id: "zai-org/GLM-4.5-Air".to_string(),
-                        name: None,
-                        enabled: true,
-                    },
-                ],
+                models: vec![],
             },
         );
 
@@ -2228,6 +2180,8 @@ impl Default for Config {
             permissions: BTreeMap::new(),
             tui: super::TuiConfig::default(),
             desktop: super::DesktopConfig::default(),
+            git: super::GitConfig::default(),
+            worktrees: super::WorktreeConfig::default(),
             browser: super::BrowserConfig::default(),
             routing: RoutingConfig::default(),
             retry: RetrySettings::default(),
@@ -2840,6 +2794,9 @@ pub struct MemoryConfig {
     /// 是否启用记忆功能
     #[serde(default)]
     pub enabled: bool,
+    /// 使用 MCP 或网页搜索的会话不作为自动记忆来源
+    #[serde(default)]
+    pub disable_on_external_context: bool,
     /// 最大记忆条数
     #[serde(default)]
     pub max_entries: Option<u32>,
@@ -3777,6 +3734,7 @@ memory:
         assert_eq!(config.processor.default_instruction_id, "default");
         assert_eq!(config.output.mode, VoiceOutputMode::Type);
         assert!(!config.instructions.is_empty());
+        assert!(config.dictation_dictionary.is_empty());
     }
 
     #[test]

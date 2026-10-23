@@ -13,6 +13,90 @@ interface SettingsSearchDocument {
 export const settingsSearchDocuments: readonly SettingsSearchDocument[] = [
   ...(
     [
+      ["usage", "dataDirectory", "description"],
+      ["cleanup", "cleanup", "cleanupDescription"],
+      ["worktrees", "worktrees", "worktreesDescription"],
+      ["archived", "archived", "archivedDescription"],
+    ] as const
+  ).map(([target, label, description]) => ({
+    section: SettingsTabs.Storage,
+    targetId: `storage-${target}`,
+    labelKey: `settings.storage.${label}`,
+    termKeys: [`settings.storage.${description}`],
+  })),
+  {
+    section: SettingsTabs.Worktrees,
+    targetId: "worktrees-managed",
+    labelKey: "settings.worktrees.managed",
+    termKeys: ["settings.worktrees.conversations", "settings.worktrees.delete"],
+  },
+  ...(
+    [
+      ["root", "root"],
+      ["upstream-refresh", "upstreamRefresh"],
+      ["auto-cleanup", "autoCleanup"],
+      ["keep-count", "keepCount"],
+    ] as const
+  ).map(([target, message]) => ({
+    section: SettingsTabs.Worktrees,
+    targetId: `worktrees-${target}`,
+    labelKey: `settings.worktrees.${message}`,
+    termKeys: [`settings.worktrees.${message}Description`],
+  })),
+  ...(
+    [
+      ["branch-prefix", "branchPrefix"],
+      ["forcePush", "forcePush"],
+      ["draftPr", "draftPr"],
+      ["merge-method", "mergeMethod"],
+      ["review-delivery", "reviewDelivery"],
+      ["commit-instructions", "commitInstructions"],
+      ["pr-instructions", "prInstructions"],
+    ] as const
+  ).map(([target, message]) => ({
+    section: SettingsTabs.Git,
+    targetId: `git-${target}`,
+    labelKey: `settings.git.${message}`,
+    termKeys: [`settings.git.${message}Description`],
+  })),
+  {
+    section: SettingsTabs.Voice,
+    targetId: "voice-history",
+    labelKey: "settings.voice.history.label",
+    termKeys: ["settings.voice.history.description"],
+  },
+  {
+    section: SettingsTabs.Voice,
+    targetId: "voice-sounds",
+    labelKey: "settings.voice.sounds.label",
+    termKeys: ["settings.voice.sounds.description"],
+  },
+  {
+    section: SettingsTabs.Voice,
+    targetId: "voice-dictionary",
+    labelKey: "settings.voice.dictionary.label",
+    termKeys: ["settings.voice.dictionary.description"],
+  },
+  {
+    section: SettingsTabs.Voice,
+    targetId: "voice-microphone",
+    labelKey: "settings.voice.microphone.label",
+    termKeys: ["settings.voice.microphone.description"],
+  },
+  ...(
+    [
+      ["file-target", "defaultFileTarget", "defaultFileTargetDescription"],
+      ["language", "language", "languageDescription"],
+      ["plugins", "plugins", "pluginsDescription"],
+    ] as const
+  ).map(([field, label, description]) => ({
+    section: SettingsTabs.General,
+    targetId: `general-${field}`,
+    labelKey: `settings.desktop.${label}`,
+    termKeys: [`settings.desktop.${description}`],
+  })),
+  ...(
+    [
       ["enabled", "enabledDescription"],
       ["full-url", "showFullUrl"],
       ["annotation-screenshot", "annotationScreenshot"],
@@ -104,46 +188,24 @@ export const settingsSearchDocuments: readonly SettingsSearchDocument[] = [
     labelKey: `settings.webSearch.${message}.label`,
     termKeys: hasHint ? [`settings.webSearch.${message}.hint`] : [],
   })),
-  ...(
-    [
-      ["memory", "enabled", "toggle.aria", "hero.description"],
-      ["memory", "store", "everyday.title", "everyday.description"],
-      [
-        "soul",
-        "style",
-        "soul.styleProfile.title",
-        "soul.styleProfile.description",
-      ],
-      ["soul", "templates", "soul.template.title", "soul.template.description"],
-      [
-        "advanced",
-        "embedding",
-        "embedding.providerSelect.title",
-        "embedding.providerSelect.description",
-      ],
-      ["advanced", "export", "soul.export.title", "soul.export.description"],
-      ["advanced", "import", "soul.import.title", "soul.import.description"],
-    ] as const
-  ).map(([path, field, label, description]) => ({
+  ...(["enabled", "tools", "delete", "instructions"] as const).map((field) => ({
     section: SettingsTabs.Memory,
     targetId: `memory-${field}`,
-    path,
-    labelKey: `settings.memory.${label}`,
-    termKeys: [`settings.memory.${description}`],
+    labelKey: `settings.personalization.${field}`,
+    termKeys: [
+      `settings.personalization.${field === "instructions" ? "instructionsDescription" : "memoryDescription"}`,
+    ],
   })),
   ...(
     [
       ["theme", "theme"],
       ["skin", "colorScheme"],
-      ["language", "language"],
-      ["response-language", "responseLanguage"],
-      ["recommendation", "recommendation.appendSelected"],
     ] as const
   ).map(([field, message]) => ({
     section: SettingsTabs.Appearance,
     targetId: `appearance-${field}`,
     labelKey: `settings.appearance.${message}.title`,
-    termKeys: [`settings.appearance.${message}.tip`],
+    termKeys: field === "theme" ? ["settings.desktop.mode"] : [],
   })),
   {
     section: SettingsTabs.Developer,

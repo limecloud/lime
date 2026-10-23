@@ -2,6 +2,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AppServerReviewStartResponse } from "./appServer";
 import { startReview } from "./review";
 
+vi.mock("./gitPreferences", () => ({
+  getGitPreferences: vi.fn(async () => ({ "review-delivery": "inline" })),
+}));
+
 function createResponse(): { result: AppServerReviewStartResponse } {
   return {
     result: {
@@ -27,6 +31,71 @@ describe("review gateway", () => {
     vi.useRealTimers();
   });
 
+  it("独立审查继承当前 Thread，监听新 Thread 后再发起 inline review", async () => {
+    const client = createClient();
+    client.startReview.mockResolvedValue({
+      result: {
+        ...createResponse().result,
+        reviewThreadId: "thread-review-child",
+      },
+    });
+    const forkThread = vi.fn(async () => ({
+      result: { thread: { id: "thread-review-child" } },
+    }));
+    const readPreferences = vi
+      .fn()
+      .mockResolvedValue({ "review-delivery": "detached" });
+    const listenRuntimeEvent = vi.fn(async () => () => {});
+    const result = await startReview(
+      { threadId: "thread-1", target: { type: "uncommittedChanges" } },
+      { onTerminal: vi.fn() },
+      { client, forkThread, readPreferences, listenRuntimeEvent },
+    );
+    expect(forkThread).toHaveBeenCalledWith({
+      threadId: "thread-1",
+      excludeTurns: true,
+      deferGoalContinuation: false,
+    });
+    expect(listenRuntimeEvent).toHaveBeenCalledWith(
+      "agentSession/event/thread-review-child",
+      expect.any(Function),
+    );
+    expect(client.startReview).toHaveBeenCalledWith({
+      threadId: "thread-review-child",
+      delivery: "inline",
+      target: { type: "uncommittedChanges" },
+    });
+    expect(result.reviewThreadId).toBe("thread-review-child");
+  });
+
+  it("显式 inline 优先于偏好；fork失败不向原会话提交审查", async () => {
+    const client = createClient();
+    const readPreferences = vi
+      .fn()
+      .mockResolvedValue({ "review-delivery": "detached" });
+    const forkThread = vi.fn().mockRejectedValue(new Error("fork unavailable"));
+    await startReview(
+      {
+        threadId: "thread-1",
+        delivery: "inline",
+        target: { type: "uncommittedChanges" },
+      },
+      {},
+      { client, readPreferences, forkThread },
+    );
+    expect(readPreferences).not.toHaveBeenCalled();
+    expect(forkThread).not.toHaveBeenCalled();
+    client.startReview.mockClear();
+    await expect(
+      startReview(
+        { threadId: "thread-1", target: { type: "uncommittedChanges" } },
+        {},
+        { client, readPreferences, forkThread },
+      ),
+    ).rejects.toThrow("fork unavailable");
+    expect(client.startReview).not.toHaveBeenCalled();
+  });
+
   it("通过 typed App Server client 启动 inline review", async () => {
     const client = createClient();
 
@@ -44,9 +113,7 @@ describe("review gateway", () => {
         {},
         { client },
       ),
-    ).resolves.toEqual(
-      expect.objectContaining({ reviewThreadId: "thread-1" }),
-    );
+    ).resolves.toEqual(expect.objectContaining({ reviewThreadId: "thread-1" }));
     expect(client.startReview).toHaveBeenCalledWith({
       threadId: "thread-1",
       delivery: "inline",
@@ -67,10 +134,7 @@ describe("review gateway", () => {
         target: { type: "baseBranch", branch: " " },
       },
     ],
-    [
-      "sha",
-      { threadId: "thread-1", target: { type: "commit", sha: " " } },
-    ],
+    ["sha", { threadId: "thread-1", target: { type: "commit", sha: " " } }],
     [
       "instructions",
       {
@@ -150,8 +214,9 @@ describe("review gateway", () => {
 
   it("应捕获 admission 响应前到达的快速终态", async () => {
     let eventHandler: ((event: { payload: unknown }) => void) | null = null;
-    let resolveRequest: ((value: ReturnType<typeof createResponse>) => void) | null =
-      null;
+    let resolveRequest:
+      | ((value: ReturnType<typeof createResponse>) => void)
+      | null = null;
     let markListenerReady: (() => void) | null = null;
     let markRequestReady: (() => void) | null = null;
     const listenerReady = new Promise<void>((resolve) => {
@@ -222,9 +287,7 @@ describe("review gateway", () => {
         { onTerminal: vi.fn() },
         {
           client: failingClient,
-          listenRuntimeEvent: vi
-            .fn()
-            .mockResolvedValue(requestFailureUnlisten),
+          listenRuntimeEvent: vi.fn().mockResolvedValue(requestFailureUnlisten),
         },
       ),
     ).rejects.toThrow("request failed");

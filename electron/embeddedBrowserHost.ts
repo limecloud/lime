@@ -43,7 +43,11 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { mkdirSync } from "node:fs";
 import { installEmbeddedBrowserContextMenu } from "./embeddedBrowserContextMenu";
-import { installEmbeddedBrowserDownloadHandling } from "./embeddedBrowserDownloads";
+import {
+  installEmbeddedBrowserDownloadHandling,
+  type EmbeddedBrowserDownloadController,
+} from "./embeddedBrowserDownloads";
+import type { BrowserDownloadRecoveryRequest } from "./browserDownloadResume";
 import { installEmbeddedBrowserPermissionHandling } from "./embeddedBrowserPermissions";
 import { BrowserPermissionRequests } from "./browserPermissionRequests";
 import {
@@ -171,6 +175,8 @@ export function isEmbeddedBrowserCommand(
 export class ElectronEmbeddedBrowserHost {
   #entries = new Map<string, EmbeddedBrowserEntry>();
   #downloadPaths = new Map<string, string>();
+  #downloadObserver: EmbeddedBrowserDownloadController["onDownload"];
+  #downloadHandling: ReturnType<typeof installEmbeddedBrowserDownloadHandling> | null = null;
   #pendingPermissions = new Map<string, PendingPermission>();
   #deferPermissions = false;
   #emit: HostEventEmitter;
@@ -187,8 +193,12 @@ export class ElectronEmbeddedBrowserHost {
     | ((viewId: string, url: string, action: "browse" | "download") => boolean)
     | null = null;
   readonly #requestPermissions = new BrowserPermissionRequests({
-    viewId: webContentsId => [...this.#entries.values()].find(entry => entry.view.webContents.id === webContentsId)?.viewId ?? null,
-    allows: (viewId, url) => this.#agentPermission?.(viewId, url, "browse") !== false,
+    viewId: (webContentsId) =>
+      [...this.#entries.values()].find(
+        (entry) => entry.view.webContents.id === webContentsId,
+      )?.viewId ?? null,
+    allows: (viewId, url) =>
+      this.#agentPermission?.(viewId, url, "browse") !== false,
     blocked: (viewId, url, reason) => {
       const entry = this.#entries.get(viewId);
       if (entry) this.#emitLoadFailed(entry, -20, reason, url);
@@ -306,6 +316,7 @@ export class ElectronEmbeddedBrowserHost {
   }
 
   dispose(): void {
+    this.#downloadHandling?.dispose();
     for (const viewId of [...this.#entries.keys()]) {
       this.#destroy({ viewId }, "host-dispose");
     }
@@ -339,6 +350,22 @@ export class ElectronEmbeddedBrowserHost {
   /** 仅供 Browser Host 以受控 downloadId 解析完成下载，不暴露给 Renderer。 */
   resolveDownloadPath(downloadId: string): string | null {
     return this.#downloadPaths.get(downloadId) ?? null;
+  }
+
+  setDownloadObserver(
+    observer: EmbeddedBrowserDownloadController["onDownload"],
+  ): void {
+    this.#downloadObserver = observer;
+  }
+
+  resumeDownload(request: BrowserDownloadRecoveryRequest): Promise<void> {
+    const { embeddedSession } = configureEmbeddedBrowserSession();
+    this.#installSessionHandlers(embeddedSession);
+    return this.#downloadHandling!.resume(request);
+  }
+
+  prepareDownloadShutdown(): void {
+    this.#downloadHandling?.prepareShutdown();
   }
 
   resolvePermission(
@@ -595,7 +622,10 @@ export class ElectronEmbeddedBrowserHost {
         partition: EMBEDDED_BROWSER_PARTITION,
         sandbox: true,
         webSecurity: true,
-        preload: path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../preload/browserPage.cjs"),
+        preload: path.resolve(
+          path.dirname(fileURLToPath(import.meta.url)),
+          "../preload/browserPage.cjs",
+        ),
         nodeIntegrationInSubFrames: false,
       },
     });
@@ -637,8 +667,20 @@ export class ElectronEmbeddedBrowserHost {
         this.#agentPermission?.(entry.viewId, permissionUrl || "", "browse") ===
           false
       ) {
-        if (normalizedUrl && this.#agentPermission?.(entry.viewId, permissionUrl || "", "browse") === false)
-          this.#emitLoadFailed(entry, -20, `Browser Agent popup to ${permissionUrl} is blocked without a turn browsing grant; retry newTab to request access`, permissionUrl || undefined);
+        if (
+          normalizedUrl &&
+          this.#agentPermission?.(
+            entry.viewId,
+            permissionUrl || "",
+            "browse",
+          ) === false
+        )
+          this.#emitLoadFailed(
+            entry,
+            -20,
+            `Browser Agent popup to ${permissionUrl} is blocked without a turn browsing grant; retry newTab to request access`,
+            permissionUrl || undefined,
+          );
         return { action: "deny" };
       }
       return {
@@ -691,20 +733,35 @@ export class ElectronEmbeddedBrowserHost {
     });
     attachEntryToWindow(entry, window);
     this.#entries.set(viewId, entry);
-    view.webContents.on("did-start-navigation", (_event, url, _isInPlace, isMainFrame) => {
-      if (isMainFrame) this.#emit("embedded-browser-view-navigation-started", { viewId, url });
-    });
+    view.webContents.on(
+      "did-start-navigation",
+      (_event, url, _isInPlace, isMainFrame) => {
+        if (isMainFrame)
+          this.#emit("embedded-browser-view-navigation-started", {
+            viewId,
+            url,
+          });
+      },
+    );
     view.webContents.on("did-navigate", (_event, url) => {
       this.#clearPendingNavigation(entry, url);
       entry.loadProgress = Math.max(entry.loadProgress, 0.7);
       this.#emitState(entry);
-      this.#emit("embedded-browser-view-navigation-committed", { viewId, url, title: view.webContents.getTitle() });
+      this.#emit("embedded-browser-view-navigation-committed", {
+        viewId,
+        url,
+        title: view.webContents.getTitle(),
+      });
     });
     view.webContents.on("did-navigate-in-page", (_event, url, isMainFrame) => {
       if (!isMainFrame) return;
       this.#clearPendingNavigation(entry, url);
       this.#emitState(entry);
-      this.#emit("embedded-browser-view-navigation-committed", { viewId, url, title: view.webContents.getTitle() });
+      this.#emit("embedded-browser-view-navigation-committed", {
+        viewId,
+        url,
+        title: view.webContents.getTitle(),
+      });
     });
     view.webContents.on("did-start-loading", () => {
       entry.loadProgress = 0.35;
@@ -717,7 +774,11 @@ export class ElectronEmbeddedBrowserHost {
     });
     view.webContents.on("page-title-updated", () => {
       this.#emitState(entry);
-      this.#emit("embedded-browser-view-title-updated", { viewId, url: view.webContents.getURL(), title: view.webContents.getTitle() });
+      this.#emit("embedded-browser-view-title-updated", {
+        viewId,
+        url: view.webContents.getURL(),
+        title: view.webContents.getTitle(),
+      });
     });
     view.webContents.on("page-favicon-updated", (_event, favicons) => {
       entry.faviconUrl = Array.isArray(favicons)
@@ -782,6 +843,13 @@ export class ElectronEmbeddedBrowserHost {
       onCompletedDownload: (downloadId: string, savePath: string) => {
         this.#downloadPaths.set(downloadId, savePath);
       },
+      onDownload: this.#downloadObserver
+        ? (
+            ...args: Parameters<
+              NonNullable<EmbeddedBrowserDownloadController["onDownload"]>
+            >
+          ) => this.#downloadObserver?.(...args)
+        : undefined,
       resolveSavePath: (filename: string) => {
         if (this.#settings.ask_download_location) return null;
         const directory =
@@ -814,7 +882,7 @@ export class ElectronEmbeddedBrowserHost {
         });
       },
     };
-    installEmbeddedBrowserDownloadHandling(
+    this.#downloadHandling = installEmbeddedBrowserDownloadHandling(
       embeddedSession,
       controller,
       this.#emit,

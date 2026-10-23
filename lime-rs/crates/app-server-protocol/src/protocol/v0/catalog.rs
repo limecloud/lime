@@ -73,6 +73,18 @@ pub enum AppServerRequestMethod {
     ProjectGitBranchCreate,
     #[serde(rename = "projectGit/worktree/create")]
     ProjectGitWorktreeCreate,
+    #[serde(rename = "projectGit/worktree/list")]
+    ProjectGitWorktreeList,
+    #[serde(rename = "storage/read")]
+    StorageRead,
+    #[serde(rename = "storage/refresh")]
+    StorageRefresh,
+    #[serde(rename = "storage/review")]
+    StorageReview,
+    #[serde(rename = "storage/delete")]
+    StorageDelete,
+    #[serde(rename = "projectGit/worktree/delete")]
+    ProjectGitWorktreeDelete,
     #[serde(rename = "agentSession/handoffBundle/export")]
     AgentSessionHandoffBundleExport,
     #[serde(rename = "agentSession/replayCase/export")]
@@ -289,6 +301,25 @@ pub enum AppServerRequestMethod {
     VoiceTranscriptionTranscribeAudio,
     #[serde(rename = "voiceTranscription/polishText")]
     VoiceTranscriptionPolishText,
+    #[serde(rename = "instructions/read")]
+    InstructionsRead,
+    #[serde(rename = "instructions/write")]
+    InstructionsWrite,
+    #[serde(rename = "dictationHistory/list")]
+    DictationHistoryList,
+    #[serde(rename = "dictationHistory/start")]
+    DictationHistoryStart,
+    #[serde(rename = "dictationHistory/appendAudio")]
+    DictationHistoryAppendAudio,
+    #[serde(rename = "dictationHistory/finish")]
+    DictationHistoryFinish,
+    #[serde(rename = "dictationHistory/readAudio")]
+    DictationHistoryReadAudio,
+    #[serde(rename = "dictationHistory/setTranscript")]
+    DictationHistorySetTranscript,
+    #[serde(rename = "dictationHistory/delete")]
+    DictationHistoryDelete,
+
     #[serde(rename = "workspaceSkillBindings/list")]
     WorkspaceSkillBindingsList,
     #[serde(rename = "workspaceRegisteredSkills/list")]
@@ -505,6 +536,12 @@ impl AppServerRequestMethod {
             Self::ProjectGitBranchCheckout => METHOD_PROJECT_GIT_BRANCH_CHECKOUT,
             Self::ProjectGitBranchCreate => METHOD_PROJECT_GIT_BRANCH_CREATE,
             Self::ProjectGitWorktreeCreate => METHOD_PROJECT_GIT_WORKTREE_CREATE,
+            Self::ProjectGitWorktreeList => METHOD_PROJECT_GIT_WORKTREE_LIST,
+            Self::StorageRead => METHOD_STORAGE_READ,
+            Self::StorageRefresh => METHOD_STORAGE_REFRESH,
+            Self::StorageReview => METHOD_STORAGE_REVIEW,
+            Self::StorageDelete => METHOD_STORAGE_DELETE,
+            Self::ProjectGitWorktreeDelete => METHOD_PROJECT_GIT_WORKTREE_DELETE,
             Self::AgentSessionHandoffBundleExport => METHOD_AGENT_SESSION_HANDOFF_BUNDLE_EXPORT,
             Self::AgentSessionReplayCaseExport => METHOD_AGENT_SESSION_REPLAY_CASE_EXPORT,
             Self::AgentSessionAnalysisHandoffExport => METHOD_AGENT_SESSION_ANALYSIS_HANDOFF_EXPORT,
@@ -621,6 +658,16 @@ impl AppServerRequestMethod {
             Self::VoiceModelTestTranscribeFile => METHOD_VOICE_MODEL_TEST_TRANSCRIBE_FILE,
             Self::VoiceTranscriptionTranscribeAudio => METHOD_VOICE_TRANSCRIPTION_TRANSCRIBE_AUDIO,
             Self::VoiceTranscriptionPolishText => METHOD_VOICE_TRANSCRIPTION_POLISH_TEXT,
+            Self::InstructionsRead => METHOD_INSTRUCTIONS_READ,
+            Self::InstructionsWrite => METHOD_INSTRUCTIONS_WRITE,
+            Self::DictationHistoryList => METHOD_DICTATION_HISTORY_LIST,
+            Self::DictationHistoryStart => METHOD_DICTATION_HISTORY_START,
+            Self::DictationHistoryAppendAudio => METHOD_DICTATION_HISTORY_APPEND_AUDIO,
+            Self::DictationHistoryFinish => METHOD_DICTATION_HISTORY_FINISH,
+            Self::DictationHistoryReadAudio => METHOD_DICTATION_HISTORY_READ_AUDIO,
+            Self::DictationHistorySetTranscript => METHOD_DICTATION_HISTORY_SET_TRANSCRIPT,
+            Self::DictationHistoryDelete => METHOD_DICTATION_HISTORY_DELETE,
+
             Self::WorkspaceSkillBindingsList => METHOD_WORKSPACE_SKILL_BINDINGS_LIST,
             Self::WorkspaceRegisteredSkillsList => METHOD_WORKSPACE_REGISTERED_SKILLS_LIST,
             Self::WorkspaceRightSurfaceRequest => METHOD_WORKSPACE_RIGHT_SURFACE_REQUEST,
@@ -740,6 +787,12 @@ impl AppServerRequestMethod {
             METHOD_PROJECT_GIT_BRANCH_CHECKOUT => Some(Self::ProjectGitBranchCheckout),
             METHOD_PROJECT_GIT_BRANCH_CREATE => Some(Self::ProjectGitBranchCreate),
             METHOD_PROJECT_GIT_WORKTREE_CREATE => Some(Self::ProjectGitWorktreeCreate),
+            METHOD_PROJECT_GIT_WORKTREE_LIST => Some(Self::ProjectGitWorktreeList),
+            METHOD_STORAGE_READ => Some(Self::StorageRead),
+            METHOD_STORAGE_REFRESH => Some(Self::StorageRefresh),
+            METHOD_STORAGE_REVIEW => Some(Self::StorageReview),
+            METHOD_STORAGE_DELETE => Some(Self::StorageDelete),
+            METHOD_PROJECT_GIT_WORKTREE_DELETE => Some(Self::ProjectGitWorktreeDelete),
             METHOD_AGENT_SESSION_HANDOFF_BUNDLE_EXPORT => {
                 Some(Self::AgentSessionHandoffBundleExport)
             }
@@ -866,6 +919,16 @@ impl AppServerRequestMethod {
                 Some(Self::VoiceTranscriptionTranscribeAudio)
             }
             METHOD_VOICE_TRANSCRIPTION_POLISH_TEXT => Some(Self::VoiceTranscriptionPolishText),
+            METHOD_INSTRUCTIONS_READ => Some(Self::InstructionsRead),
+            METHOD_INSTRUCTIONS_WRITE => Some(Self::InstructionsWrite),
+            METHOD_DICTATION_HISTORY_LIST => Some(Self::DictationHistoryList),
+            METHOD_DICTATION_HISTORY_START => Some(Self::DictationHistoryStart),
+            METHOD_DICTATION_HISTORY_APPEND_AUDIO => Some(Self::DictationHistoryAppendAudio),
+            METHOD_DICTATION_HISTORY_FINISH => Some(Self::DictationHistoryFinish),
+            METHOD_DICTATION_HISTORY_READ_AUDIO => Some(Self::DictationHistoryReadAudio),
+            METHOD_DICTATION_HISTORY_SET_TRANSCRIPT => Some(Self::DictationHistorySetTranscript),
+            METHOD_DICTATION_HISTORY_DELETE => Some(Self::DictationHistoryDelete),
+
             METHOD_WORKSPACE_SKILL_BINDINGS_LIST => Some(Self::WorkspaceSkillBindingsList),
             METHOD_WORKSPACE_REGISTERED_SKILLS_LIST => Some(Self::WorkspaceRegisteredSkillsList),
             METHOD_WORKSPACE_RIGHT_SURFACE_REQUEST => Some(Self::WorkspaceRightSurfaceRequest),
@@ -1050,6 +1113,30 @@ pub const APP_SERVER_METHODS: &[AppServerMethodSpec] = &[
     },
     AppServerMethodSpec {
         method: METHOD_PROJECT_GIT_WORKTREE_CREATE,
+        kind: AppServerMethodKind::Request,
+    },
+    AppServerMethodSpec {
+        method: METHOD_PROJECT_GIT_WORKTREE_LIST,
+        kind: AppServerMethodKind::Request,
+    },
+    AppServerMethodSpec {
+        method: METHOD_STORAGE_READ,
+        kind: AppServerMethodKind::Request,
+    },
+    AppServerMethodSpec {
+        method: METHOD_STORAGE_REFRESH,
+        kind: AppServerMethodKind::Request,
+    },
+    AppServerMethodSpec {
+        method: METHOD_STORAGE_REVIEW,
+        kind: AppServerMethodKind::Request,
+    },
+    AppServerMethodSpec {
+        method: METHOD_STORAGE_DELETE,
+        kind: AppServerMethodKind::Request,
+    },
+    AppServerMethodSpec {
+        method: METHOD_PROJECT_GIT_WORKTREE_DELETE,
         kind: AppServerMethodKind::Request,
     },
     AppServerMethodSpec {
@@ -1482,6 +1569,42 @@ pub const APP_SERVER_METHODS: &[AppServerMethodSpec] = &[
     },
     AppServerMethodSpec {
         method: METHOD_VOICE_TRANSCRIPTION_POLISH_TEXT,
+        kind: AppServerMethodKind::Request,
+    },
+    AppServerMethodSpec {
+        method: METHOD_DICTATION_HISTORY_LIST,
+        kind: AppServerMethodKind::Request,
+    },
+    AppServerMethodSpec {
+        method: METHOD_INSTRUCTIONS_READ,
+        kind: AppServerMethodKind::Request,
+    },
+    AppServerMethodSpec {
+        method: METHOD_INSTRUCTIONS_WRITE,
+        kind: AppServerMethodKind::Request,
+    },
+    AppServerMethodSpec {
+        method: METHOD_DICTATION_HISTORY_START,
+        kind: AppServerMethodKind::Request,
+    },
+    AppServerMethodSpec {
+        method: METHOD_DICTATION_HISTORY_APPEND_AUDIO,
+        kind: AppServerMethodKind::Request,
+    },
+    AppServerMethodSpec {
+        method: METHOD_DICTATION_HISTORY_FINISH,
+        kind: AppServerMethodKind::Request,
+    },
+    AppServerMethodSpec {
+        method: METHOD_DICTATION_HISTORY_READ_AUDIO,
+        kind: AppServerMethodKind::Request,
+    },
+    AppServerMethodSpec {
+        method: METHOD_DICTATION_HISTORY_SET_TRANSCRIPT,
+        kind: AppServerMethodKind::Request,
+    },
+    AppServerMethodSpec {
+        method: METHOD_DICTATION_HISTORY_DELETE,
         kind: AppServerMethodKind::Request,
     },
     AppServerMethodSpec {

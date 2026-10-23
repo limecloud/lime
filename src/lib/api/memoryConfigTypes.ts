@@ -72,6 +72,7 @@ export interface MemoryEmbeddingConfig {
 
 export interface MemoryConfig {
   enabled: boolean;
+  disable_on_external_context?: boolean;
   max_entries?: number;
   retention_days?: number;
   auto_cleanup?: boolean;

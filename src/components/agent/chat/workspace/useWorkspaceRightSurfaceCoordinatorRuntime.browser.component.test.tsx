@@ -4,6 +4,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useWorkspaceRightSurfaceCoordinatorRuntime } from "./useWorkspaceRightSurfaceCoordinatorRuntime";
 import { useWorkspaceRightSurfaceLocalStateRuntime } from "./useWorkspaceRightSurfaceLocalStateRuntime";
 import type { WorkspaceRightSurfaceBrowserIntent } from "./workspaceRightSurfaceBrowserIntent";
+import { rememberBrowserPresentation } from "./right-surface/browser/browserPresentation";
+import { browserState } from "./right-surface/browser/browserWorkspace.testFixtures";
+
+const projection = vi.hoisted(() => vi.fn());
 
 const pending = vi.hoisted(() => ({
   browser: null as WorkspaceRightSurfaceBrowserIntent | null,
@@ -23,7 +27,7 @@ vi.mock("./useWorkspaceRightSurfacePendingBridgeRuntime", () => ({
   }),
 }));
 vi.mock("./useWorkspaceBrowserTabProjection", () => ({
-  useWorkspaceBrowserTabProjection: () => {},
+  useWorkspaceBrowserTabProjection: projection,
 }));
 vi.mock("./right-surface/useThreadOutputs", () => ({
   useThreadOutputs: () => [],
@@ -97,6 +101,10 @@ describe("Browser 待办挂载确认", () => {
       globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
     ).IS_REACT_ACT_ENVIRONMENT = true;
     pending.browser = null;
+    rememberBrowserPresentation(
+      { sessionId: "session-a", threadId: "thread-a" },
+      null,
+    );
     vi.clearAllMocks();
     container = document.createElement("div");
     document.body.appendChild(container);
@@ -105,6 +113,23 @@ describe("Browser 待办挂载确认", () => {
   afterEach(() => {
     act(() => root.unmount());
     container.remove();
+    rememberBrowserPresentation(
+      { sessionId: "session-a", threadId: "thread-a" },
+      null,
+    );
+  });
+
+  it("设置返回时即使还没有Renderer页签也先读取真实Host，再恢复原Browser", () => {
+    const native = browserState({ threadId: "thread-a" });
+    rememberBrowserPresentation(
+      { sessionId: "session-a", threadId: "thread-a" },
+      native.tabId,
+    );
+    render();
+    expect(projection.mock.lastCall?.[0].enabled).toBe(true);
+    act(() => projection.mock.lastCall?.[0].onProjection([native]));
+    expect(latest!.rightSurfaceState.activeSurface).toBe("browser");
+    expect(pending.consume).not.toHaveBeenCalled();
   });
 
   it("前台请求保留到挂载确认，只消费被确认的请求", () => {

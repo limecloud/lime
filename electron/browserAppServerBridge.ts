@@ -58,7 +58,9 @@ export class BrowserAppServerBridge {
       const settings = effectiveBrowserSettings(
         config.browser as Partial<BrowserSettings> | undefined,
       );
-      this.host.setSettings(settings);
+      if (typeof config.language === "string")
+        this.host.setSettings(settings, config.language);
+      else this.host.setSettings(settings);
       return settings;
     })();
     this.#pending = pending;

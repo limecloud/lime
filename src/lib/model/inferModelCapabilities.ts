@@ -17,18 +17,21 @@ const NON_VISION_PATTERN =
 const IMAGE_EDIT_PATTERN =
   /\b(edit|inpaint|outpaint|img2img|image-edit|image_edit|image edits)\b/i;
 const OPENAI_VISION_PATTERN =
-  /\b(chatgpt-4o|gpt-5(?:[._/-]|\b)|gpt-4o(?:[._/-]|\b)|gpt-4\.1(?:[._/-]|\b)|gpt-4\.5(?:[._/-]|\b)|gpt-4-turbo(?:[._/-]|\b)|gpt-5.*codex|o1(?!-(?:mini|preview))(?:[._/-]|\b)|o3(?!-mini)(?:[._/-]|\b)|o4-mini(?:[._/-]|\b))\b/i;
+  /\b(chatgpt-4o|gpt-[56](?:[._/-]|\b)|gpt-4o(?:[._/-]|\b)|gpt-4\.1(?:[._/-]|\b)|gpt-4\.5(?:[._/-]|\b)|gpt-4-turbo(?:[._/-]|\b)|gpt-5.*codex|o1(?!-(?:mini|preview))(?:[._/-]|\b)|o3(?!-mini)(?:[._/-]|\b)|o4-mini(?:[._/-]|\b))\b/i;
 const GEMINI_VISION_PATTERN = /\bgemini(?:[._/-]|\b)/i;
 const CLAUDE_VISION_PATTERN = /\bclaude(?:[._/-]|\b)/i;
 const QWEN_VISION_PATTERN =
-  /\bqwen(?:[._/-]|\b).*(vl|vision)|\bqvq\b|\bqwen3[._-][56](?:[._/-]|\b)/i;
-const GLM_VISION_PATTERN = /\bglm-[\w.-]*v[\w.-]*\b/i;
+  /\bqwen(?:[._/-]|\b).*(vl|vision)|\bqvq\b|\bqwen3[._-][5-8](?:[._/-]|\b)/i;
+const GLM_VISION_PATTERN = /\bglm-[\w.-]*v[\w.-]*\b|\bglm-5\.3-flash(?:x)?$/i;
 const XAI_VISION_PATTERN =
-  /\bgrok-(?:vision|2-vision|4(?:-1|-fast|\.20|\.3))(?:[._/-]|\b)/i;
+  /\bgrok-(?:vision|2-vision|4(?:-1|-fast|\.20|\.(?:3|[5-7])))(?:[._/-]|\b)/i;
 const MISTRAL_VISION_PATTERN =
   /\b(pixtral|mistral-(?:small-latest|large-2512|medium-3\.1))(?:[._/-]|\b)/i;
 const GEMMA_VISION_PATTERN = /\bgemma-3(?!n)(?:[._/-]|\b)/i;
 const LLAMA_VISION_PATTERN = /\bllama-4-(?:maverick|scout)(?:[._/-]|\b)/i;
+const MINIMAX_VISION_PATTERN = /^minimax-(?:m3|m3\.1-flash)$/i;
+const CURRENT_MULTIMODAL_PATTERN =
+  /^(?:kimi-k3|kimi-for-coding(?:-highspeed)?|k3(?:-256k)?|mimo-v2\.6-(?:pro(?:-ultraspeed)?|flash)|deepseek-(?:flash|v4\.1-flash(?:-1017)?))$/i;
 const EMBEDDING_PATTERN =
   /\b(embedding|embed|text-embedding|voyage|jina-embeddings)\b/i;
 const RERANK_PATTERN = /\b(rerank|re-rank)\b/i;
@@ -194,6 +197,14 @@ export function inferVisionCapability(params: {
   }
 
   if (OPENAI_VISION_PATTERN.test(text)) {
+    return true;
+  }
+
+  const modelName = modelId.trim().split("/").at(-1) ?? "";
+  if (
+    MINIMAX_VISION_PATTERN.test(modelName) ||
+    CURRENT_MULTIMODAL_PATTERN.test(modelName)
+  ) {
     return true;
   }
 
@@ -605,8 +616,8 @@ export function inferModelCapabilities(
     vision: taskFamilies.includes("vision_understanding"),
     tools:
       params.capabilities?.tools ??
-      !["image_generation", "image_edit", "video_generation"].some(
-        (family) => taskFamilies.includes(family as ModelTaskFamily),
+      !["image_generation", "image_edit", "video_generation"].some((family) =>
+        taskFamilies.includes(family as ModelTaskFamily),
       ),
     streaming: params.capabilities?.streaming ?? true,
     json_mode:

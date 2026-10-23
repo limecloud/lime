@@ -15,6 +15,14 @@ import {
 import { readCanonicalThreadItem } from "./appServerCanonicalItemReader";
 import { readHookItemFromPayload } from "./appServerEventTimelineReaders";
 import { RENDER_PROJECTION_REFERENCE_REVISION } from "./conversationProjection";
+import {
+  clearDirectItemSequenceTurn,
+  directAgentMessagePhase,
+  directItemSequence,
+  noteDirectAgentMessagePhase,
+} from "./appServerDirectItemState";
+import { completedTurnFinalAnswerText } from "./appServerTurnFinalAnswer";
+export { resetAppServerV2NotificationProjectionState } from "./appServerDirectItemState";
 
 const DIRECT_V2_NOTIFICATION_METHODS = new Set([
   "error",
@@ -44,21 +52,8 @@ const DIRECT_V2_NOTIFICATION_METHODS = new Set([
   "item/reasoning/textDelta",
   "thread/tokenUsage/updated",
 ]);
-const MAX_DIRECT_ITEM_SEQUENCE_TURNS = 512;
-
-type DirectItemSequenceState = {
-  itemSequences: Map<string, number>;
-  nextSequence: number;
-};
-
-const directItemSequenceByTurn = new Map<string, DirectItemSequenceState>();
-
 export function isAppServerV2NotificationMethod(method: string): boolean {
   return DIRECT_V2_NOTIFICATION_METHODS.has(method);
-}
-
-export function resetAppServerV2NotificationProjectionState(): void {
-  directItemSequenceByTurn.clear();
 }
 
 export type AppServerV2NotificationRoute = {
@@ -456,9 +451,7 @@ export function projectAppServerV2NotificationPayload(
         ...(text ? { text } : {}),
       };
       if (notification.method === "turn/completed" && route.turnId) {
-        directItemSequenceByTurn.delete(
-          directItemSequenceTurnKey(route.threadId, route.turnId),
-        );
+        clearDirectItemSequenceTurn(route.threadId, route.turnId);
       }
       return payload;
     }
@@ -485,6 +478,9 @@ export function projectAppServerV2NotificationPayload(
       const item = readCanonicalThreadItem(itemRecord, event);
       if (!item) {
         return null;
+      }
+      if (item.type === "agent_message") {
+        noteDirectAgentMessagePhase(route, route.itemId!, item.phase);
       }
       return {
         ...basePayload,
@@ -530,14 +526,19 @@ export function projectAppServerV2NotificationPayload(
         item_id: route.itemId,
       };
     }
-    case "item/agentMessage/delta":
+    case "item/agentMessage/delta": {
+      const phase = directAgentMessagePhase(route, route.itemId);
       return {
         ...basePayload,
+        sequence: directItemSequence(route, route.itemId),
+        sequence_provenance: "notification_order",
         type: "text_delta",
         text: params.delta,
         itemId: route.itemId,
         item_id: route.itemId,
+        ...(phase ? { phase } : {}),
       };
+    }
     case "item/commandExecution/outputDelta":
       return {
         ...basePayload,
@@ -771,39 +772,6 @@ function readTurnPlan(value: unknown): Array<{
   return plan;
 }
 
-function directItemSequence(
-  route: AppServerV2NotificationRoute,
-  itemId: string | undefined,
-): number {
-  if (!route.turnId || !itemId) {
-    return 0;
-  }
-  const turnKey = directItemSequenceTurnKey(route.threadId, route.turnId);
-  let state = directItemSequenceByTurn.get(turnKey);
-  if (!state) {
-    if (directItemSequenceByTurn.size >= MAX_DIRECT_ITEM_SEQUENCE_TURNS) {
-      const oldestTurnKey = directItemSequenceByTurn.keys().next().value;
-      if (oldestTurnKey !== undefined) {
-        directItemSequenceByTurn.delete(oldestTurnKey);
-      }
-    }
-    state = { itemSequences: new Map(), nextSequence: 0 };
-    directItemSequenceByTurn.set(turnKey, state);
-  }
-  const existing = state.itemSequences.get(itemId);
-  if (existing !== undefined) {
-    return existing;
-  }
-  const sequence = state.nextSequence;
-  state.nextSequence += 1;
-  state.itemSequences.set(itemId, sequence);
-  return sequence;
-}
-
-function directItemSequenceTurnKey(threadId: string, turnId: string): string {
-  return `${threadId}\u001f${turnId}`;
-}
-
 function readReasoningNotificationRoute(
   params: Record<string, unknown>,
   indexKey: "summaryIndex" | "contentIndex",
@@ -977,27 +945,6 @@ function turnEventType(status: unknown): string {
     default:
       return "turn_started";
   }
-}
-
-function completedTurnFinalAnswerText(
-  turn: Record<string, unknown> | undefined,
-): string | undefined {
-  const items = Array.isArray(turn?.items) ? turn.items : [];
-  for (let index = items.length - 1; index >= 0; index -= 1) {
-    const item = asRecord(items[index]);
-    if (readString(item, "type") !== "agentMessage") {
-      continue;
-    }
-    const phase = readString(item, "phase")?.trim().toLowerCase();
-    if (phase !== "final_answer" && phase !== "final") {
-      continue;
-    }
-    const text = readString(item, "text");
-    if (text) {
-      return text;
-    }
-  }
-  return undefined;
 }
 
 function timestampFromUnixSeconds(

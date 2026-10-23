@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "audioBase64": {
+      "type": "string"
+    },
+    "mimeType": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "audioBase64",
+    "mimeType"
+  ],
+  "title": "DictationHistoryReadAudioResponse",
+  "type": "object"
+}

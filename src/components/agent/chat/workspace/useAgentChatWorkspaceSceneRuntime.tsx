@@ -632,7 +632,15 @@ export function useAgentChatWorkspaceSceneRuntime({
       <ArtifactCommentSubmissionContext.Provider
         value={artifactCommentSubmission}
       >
-        <BrowserAnnotationContext.Provider value={sessionId && threadRead?.thread_id ? { sessionId, threadId: threadRead.thread_id, send: inputbarScene.handleInputbarSend, isSending, workspaceId: runtimeWorkspaceId ?? projectId ?? null } : null}>
+        <BrowserAnnotationContext.Provider
+          value={sessionId && threadRead?.thread_id ? {
+            sessionId,
+            threadId: threadRead.thread_id,
+            send: inputbarScene.handleInputbarSend,
+            isSending,
+            workspaceId: runtimeWorkspaceId ?? projectId ?? null,
+          } : null}
+        >
           {workspaceSceneNode}
         </BrowserAnnotationContext.Provider>
         <ScheduledTaskDialog

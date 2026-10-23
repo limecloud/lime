@@ -10,16 +10,26 @@ import { isDeepStrictEqual } from "node:util";
 
 export class BrowserTabPolicy {
   #settings = effectiveBrowserSettings();
+  #revision = 0;
 
   setSettings(settings: BrowserSettings): boolean {
     const next = effectiveBrowserSettings(settings);
     if (isDeepStrictEqual(this.#settings, next)) return false;
     this.#settings = next;
+    this.#revision += 1;
     return true;
   }
 
   get enabled(): boolean {
     return this.#settings.enabled;
+  }
+
+  get revision(): number {
+    return this.#revision;
+  }
+
+  get historyAccess(): BrowserSettings["history_access"] {
+    return this.#settings.history_access;
   }
 
   decision(action: BrowserPermissionAction, url: string): BrowserPermission {
@@ -44,7 +54,10 @@ export class BrowserTabPolicy {
         : url;
     if (this.decision("browse", target) === "deny")
       throw new Error("Browser Agent browsing is denied for this site");
-    if (call.tool === "uploadArtifact" && this.decision("upload", target) === "deny")
+    if (
+      call.tool === "uploadArtifact" &&
+      this.decision("upload", target) === "deny"
+    )
       throw new Error("Browser Agent uploads are denied for this site");
   }
 }

@@ -19,11 +19,11 @@ const SearchField = styled.div`
   display: flex;
   align-items: center;
   gap: 7px;
-  min-height: 30px;
+  min-height: 36px;
   padding: 0 8px;
   border: 1px solid var(--lime-sidebar-border, hsl(var(--border)));
-  border-radius: 10px;
-  background: var(--lime-sidebar-search-bg, hsl(var(--background)));
+  border-radius: 18px;
+  background: var(--lime-sidebar-search-bg, hsl(var(--muted)));
   color: var(--lime-sidebar-muted, hsl(var(--muted-foreground)));
   &:focus-within {
     border-color: var(--lime-brand, hsl(var(--primary)));

@@ -3,6 +3,18 @@ use agent_protocol::ThreadTurnsView;
 use thread_store::ThreadHistoryBuilder;
 
 impl RolloutStore {
+    pub(in crate::runtime) fn absolute_path(&self, relative: &Path) -> Result<PathBuf, String> {
+        match relative.components().next() {
+            Some(Component::Normal(scope)) if scope == SESSIONS_DIR_NAME => {
+                self.resolve_active(relative)
+            }
+            Some(Component::Normal(scope)) if scope == ARCHIVED_SESSIONS_DIR_NAME => {
+                self.resolve_archived(relative)
+            }
+            _ => Err("rollout path must belong to active or archived sessions".into()),
+        }
+    }
+
     pub(in crate::runtime) fn read_requested_thread(
         &self,
         requested: &Path,

@@ -15,6 +15,7 @@ const messages = JSON.parse(
   ),
 );
 const targets = [
+  ["general-language", "settings.desktop.language"],
   ["profile-displayName", "settings.profile.field.displayName.label"],
   ["profile-bio", "settings.profile.field.bio.label"],
   ["environment-shell-enable", "settings.environment.shellImport.enable.label"],
@@ -48,28 +49,13 @@ const targets = [
     `settings.webSearch.${message}.label`,
     tab,
   ]),
-  ...[
-    ["memory", "enabled", "toggle.aria"],
-    ["memory", "store", "everyday.title"],
-    ["soul", "style", "soul.styleProfile.title"],
-    ["soul", "templates", "soul.template.title"],
-    ["advanced", "embedding", "embedding.providerSelect.title"],
-    ["advanced", "export", "soul.export.title"],
-    ["advanced", "import", "soul.import.title"],
-  ].map(([tab, field, message]) => [
+  ...["enabled", "tools", "delete", "instructions"].map((field) => [
     `memory-${field}`,
-    `settings.memory.${message}`,
-    tab,
-    field === "embedding"
-      ? "settings.memory.embedding.providerSelect.description"
-      : null,
+    `settings.personalization.${field}`,
   ]),
   ...[
     ["theme", "theme"],
     ["skin", "colorScheme"],
-    ["language", "language"],
-    ["response-language", "responseLanguage"],
-    ["recommendation", "recommendation.appendSelected"],
   ].map(([field, message]) => [
     `appearance-${field}`,
     `settings.appearance.${message}.title`,
@@ -169,14 +155,6 @@ export async function runSettingsSearchScenario({
           await page.locator(`#${id}`).getAttribute("type"),
           "password",
         );
-    }
-    if (tab && id.startsWith("memory-")) {
-      assert.equal(
-        await page
-          .getByTestId(`settings-memory-tab-${tab}`)
-          .getAttribute("aria-selected"),
-        "true",
-      );
     }
   }
   stage("settings-search-repeat-and-description");
@@ -297,37 +275,22 @@ export async function runSettingsSearchScenario({
     "hidden tab search/discard never persists credentials",
   );
 
-  stage("settings-search-memory-import-draft");
-  await search("memory-import", messages["settings.memory.soul.import.title"]);
-  const imported = page.getByTestId("settings-memory-soul-import-textarea");
-  await imported.fill("# SOUL.md\n\nsearch fixture private import draft");
-  await page
-    .getByRole("button", {
-      name: messages["settings.memory.soul.action.previewImport"],
-      exact: true,
-    })
-    .click();
-  await page.getByTestId("settings-memory-tab-soul").click();
-  await page.getByTestId("settings-memory-tab-advanced").click();
-  assert.match(
-    await imported.inputValue(),
-    /search fixture private import draft/,
+  stage("settings-search-instructions-draft");
+  await search(
+    "memory-instructions",
+    messages["settings.personalization.instructions"],
   );
-  await page
-    .getByText(messages["settings.memory.soul.import.preview"], { exact: true })
-    .waitFor({ state: "visible" });
+  await page.getByTestId("settings-instructions-open").click();
+  const imported = page.locator(
+    '[data-testid="settings-instructions-editor"] textarea',
+  );
+  await imported.fill("search fixture private instruction draft");
   const memoryParams = await page.evaluate(() =>
     sessionStorage.getItem("lime.appNavigation.restore.v1"),
   );
-  await desktop.fill(messages["settings.memory.soul.styleProfile.title"]);
+  await desktop.fill(messages["settings.personalization.tools"]);
   await desktop.press("Enter");
   await dialog.waitFor({ state: "visible" });
-  assert.equal(
-    await page
-      .getByTestId("settings-memory-tab-advanced")
-      .getAttribute("aria-selected"),
-    "true",
-  );
   assert.equal(
     await page.evaluate(() =>
       sessionStorage.getItem("lime.appNavigation.restore.v1"),
@@ -336,47 +299,30 @@ export async function runSettingsSearchScenario({
   );
   await keep.click();
   await dialog.waitFor({ state: "detached" });
-  assert.match(
+  assert.equal(
     await imported.inputValue(),
-    /search fixture private import draft/,
+    "search fixture private instruction draft",
   );
   await desktop.press("Enter");
   await dialog.waitFor({ state: "visible" });
   await discard.click();
-  const memorySoul = await locate("memory-style");
+  const memoryInstructions = await locate("memory-tools");
   await page.screenshot({
-    path: path.join(evidenceDir, "search-memory-soul.png"),
-  });
-  await page.getByTestId("settings-memory-tab-memory").click();
-  await search(
-    "memory-style",
-    messages["settings.memory.soul.styleProfile.title"],
-  );
-  await search("memory-import", messages["settings.memory.soul.import.title"]);
-  assert.equal(await imported.inputValue(), "");
-  assert.equal(
-    await page
-      .getByText(messages["settings.memory.soul.import.preview"], {
-        exact: true,
-      })
-      .count(),
-    0,
-  );
-  await page.screenshot({
-    path: path.join(evidenceDir, "search-memory-import.png"),
+    path: path.join(evidenceDir, "search-memory-tools.png"),
   });
   await search(
-    "appearance-recommendation",
-    messages["settings.appearance.recommendation.appendSelected.title"],
+    "memory-instructions",
+    messages["settings.personalization.instructions"],
   );
-  const appearance = await locate("appearance-recommendation");
+  await search("appearance-theme", messages["settings.appearance.theme.title"]);
+  const appearance = await locate("appearance-theme");
   await page.screenshot({
     path: path.join(evidenceDir, "search-appearance.png"),
   });
   assert.equal(
     isDeepStrictEqual(await read(), initial),
     true,
-    "memory search/discard never writes config or import draft",
+    "instruction search/discard never writes config",
   );
 
   const originalTheme = await page.evaluate(
@@ -384,18 +330,12 @@ export async function runSettingsSearchScenario({
   );
   const chooseTheme = async (mode) => {
     await page.getByTestId("settings-sidebar-tab-appearance").click();
-    const button =
-      mode === "system"
-        ? page.getByRole("button", {
-            name: "跟随系统 自动同步系统外观。",
-            exact: true,
-          })
-        : page.getByRole("button").filter({
-            has: page.getByText(mode === "light" ? "浅色" : "深色", {
-              exact: true,
-            }),
-          });
-    await button.click();
+    await page
+      .getByRole("radio", {
+        name: { light: "浅色", dark: "深色", system: "跟随系统" }[mode],
+        exact: true,
+      })
+      .click();
   };
   const themes = [];
   for (const [mode, system] of [
@@ -420,15 +360,12 @@ export async function runSettingsSearchScenario({
     );
     const webSearch = await locate("web-search-pexels-key");
     await search(
-      "memory-import",
-      messages["settings.memory.soul.import.title"],
+      "memory-instructions",
+      messages["settings.personalization.instructions"],
     );
-    const memory = await locate("memory-import");
-    await search(
-      "appearance-language",
-      messages["settings.appearance.language.title"],
-    );
-    const appearance = await locate("appearance-language");
+    const memory = await locate("memory-instructions");
+    await search("general-language", messages["settings.desktop.language"]);
+    const appearance = await locate("general-language");
     const effective = await page.evaluate(() =>
       document.documentElement.classList.contains("dark") ? "dark" : "light",
     );
@@ -542,20 +479,21 @@ export async function runSettingsSearchScenario({
   await page.keyboard.press(searchShortcut);
   await narrowSearch.waitFor({ state: "visible" });
   await search(
-    "memory-import",
-    messages["settings.memory.soul.import.title"],
+    "memory-instructions",
+    messages["settings.personalization.instructions"],
     narrowSearch,
   );
-  await imported.fill("narrow search fixture private import draft");
+  await page.getByTestId("settings-instructions-open").click();
+  await imported.fill("narrow search fixture private instruction draft");
   await page.keyboard.press(searchShortcut);
-  await narrowSearch.fill(messages["settings.appearance.language.title"]);
+  await narrowSearch.fill(messages["settings.desktop.language"]);
   await narrowSearch.press("Enter");
   await dialog.waitFor({ state: "visible" });
   await keep.click();
   await dialog.waitFor({ state: "detached" });
   assert.equal(
     await imported.inputValue(),
-    "narrow search fixture private import draft",
+    "narrow search fixture private instruction draft",
   );
   await waitForPageCondition(
     page,
@@ -568,7 +506,7 @@ export async function runSettingsSearchScenario({
   await narrowSearch.press("Enter");
   await dialog.waitFor({ state: "visible" });
   await discard.click();
-  const narrowAppearance = await locate("appearance-language");
+  const narrowAppearance = await locate("general-language");
   await page.screenshot({
     path: path.join(evidenceDir, "search-memory-appearance-narrow.png"),
   });
@@ -592,15 +530,13 @@ export async function runSettingsSearchScenario({
       noConfigWrite: true,
     },
     memoryAppearance: {
-      targets: 12,
-      memoryTargets: 7,
-      memoryTabs: 3,
-      appearanceTargets: 5,
-      localTabsRetainImportAndPreview: true,
-      pendingSearchRetainsTabAndDraft: true,
+      targets: 7,
+      memoryTargets: 4,
+      appearanceTargets: 3,
+      pendingSearchRetainsInstructionDraft: true,
       discardRemountsWithoutWrite: true,
-      repeatReopensTab: true,
-      memorySoul,
+      repeatFocusesRow: true,
+      memoryInstructions,
       appearance,
       narrowAppearance,
     },

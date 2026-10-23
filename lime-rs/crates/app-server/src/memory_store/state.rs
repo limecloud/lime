@@ -811,7 +811,7 @@ fn parse_source_timestamp(value: &str) -> Option<i64> {
     })
 }
 
-fn source_thread_id_from_content(content: &str) -> Option<String> {
+pub(super) fn source_thread_id_from_content(content: &str) -> Option<String> {
     content.lines().find_map(|line| {
         let (key, value) = line.split_once(':')?;
         let key = key.trim().trim_start_matches('-').trim();

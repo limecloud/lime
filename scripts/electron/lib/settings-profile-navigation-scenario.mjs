@@ -181,18 +181,12 @@ export async function runSettingsProfileNavigationScenario({
   );
   const chooseTheme = async (mode) => {
     await page.getByTestId("settings-sidebar-tab-appearance").click();
-    const button =
-      mode === "system"
-        ? page.getByRole("button", {
-            name: "跟随系统 自动同步系统外观。",
-            exact: true,
-          })
-        : page.getByRole("button").filter({
-            has: page.getByText(mode === "light" ? "浅色" : "深色", {
-              exact: true,
-            }),
-          });
-    await button.click();
+    await page
+      .getByRole("radio", {
+        name: { light: "浅色", dark: "深色", system: "跟随系统" }[mode],
+        exact: true,
+      })
+      .click();
     await page.getByTestId("settings-sidebar-tab-profile").click();
     await profile.waitFor({ state: "visible" });
   };

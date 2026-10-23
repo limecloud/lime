@@ -261,7 +261,7 @@ async fn delete_thread_removes_empty_canonical_thread_and_allows_recreate() {
     std::fs::rename(&database_path, &backup_path).expect("move database aside");
     std::fs::create_dir(&database_path).expect("block database path");
     assert!(matches!(
-        core.delete_thread(ThreadId::new("thread_empty_delete"))
+        core.delete_thread(ThreadId::new("thread_empty_delete"), None)
             .await,
         Err(RuntimeCoreError::Backend(_))
     ));
@@ -276,7 +276,7 @@ async fn delete_thread_removes_empty_canonical_thread_and_allows_recreate() {
     .expect("failed delete keeps memory session");
 
     let deleted = core
-        .delete_thread(ThreadId::new("thread_empty_delete"))
+        .delete_thread(ThreadId::new("thread_empty_delete"), None)
         .await
         .expect("delete thread");
     assert_eq!(deleted.len(), 1);
@@ -314,7 +314,7 @@ async fn delete_thread_closes_exact_runtime_owner_before_removal() {
     .expect("start session");
 
     let deleted = core
-        .delete_thread(ThreadId::new("thread_close_runtime"))
+        .delete_thread(ThreadId::new("thread_close_runtime"), None)
         .await
         .expect("delete thread");
 

@@ -6,6 +6,54 @@ use async_trait::async_trait;
 
 #[async_trait]
 pub trait VoiceAppDataSource: Send + Sync {
+    async fn list_dictation_history(
+        &self,
+    ) -> Result<DictationHistoryListResponse, RuntimeCoreError> {
+        Err(unavailable("dictationHistory/list"))
+    }
+
+    async fn start_dictation_history(
+        &self,
+        _params: DictationHistoryStartParams,
+    ) -> Result<DictationHistoryWriteResponse, RuntimeCoreError> {
+        Err(unavailable("dictationHistory/start"))
+    }
+
+    async fn append_dictation_history_audio(
+        &self,
+        _params: DictationHistoryAppendAudioParams,
+    ) -> Result<DictationHistoryWriteResponse, RuntimeCoreError> {
+        Err(unavailable("dictationHistory/appendAudio"))
+    }
+
+    async fn finish_dictation_history(
+        &self,
+        _params: DictationHistoryFinishParams,
+    ) -> Result<DictationHistoryWriteResponse, RuntimeCoreError> {
+        Err(unavailable("dictationHistory/finish"))
+    }
+
+    async fn read_dictation_history_audio(
+        &self,
+        _params: DictationHistoryIdParams,
+    ) -> Result<DictationHistoryReadAudioResponse, RuntimeCoreError> {
+        Err(unavailable("dictationHistory/readAudio"))
+    }
+
+    async fn set_dictation_history_transcript(
+        &self,
+        _params: DictationHistorySetTranscriptParams,
+    ) -> Result<DictationHistoryWriteResponse, RuntimeCoreError> {
+        Err(unavailable("dictationHistory/setTranscript"))
+    }
+
+    async fn delete_dictation_history(
+        &self,
+        _params: DictationHistoryIdParams,
+    ) -> Result<DictationHistoryDeleteResponse, RuntimeCoreError> {
+        Err(unavailable("dictationHistory/delete"))
+    }
+
     async fn list_voice_asr_credentials(
         &self,
     ) -> Result<VoiceAsrCredentialListResponse, RuntimeCoreError> {

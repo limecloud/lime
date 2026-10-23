@@ -246,7 +246,7 @@ async fn archive_unarchive_preserves_queue_and_delete_clears_it() {
         vec![queued.id]
     );
 
-    core.delete_thread(agent_protocol::ThreadId::new("thread_queue_lifecycle"))
+    core.delete_thread(agent_protocol::ThreadId::new("thread_queue_lifecycle"), None)
         .await
         .expect("delete queued thread");
     start_queue_session(

@@ -638,6 +638,14 @@ describe("ApiKeyProviderSection 模型管理布局", () => {
     });
 
     await act(async () => {
+      for (const button of container.querySelectorAll<HTMLButtonElement>(
+        '[data-testid="model-priority-list"] button',
+      )) {
+        if (button.textContent === "移除") button.click();
+      }
+    });
+
+    await act(async () => {
       setInputValue(
         findByTestId<HTMLInputElement>("model-api-key-input"),
         "sk-test",
@@ -823,7 +831,9 @@ describe("ApiKeyProviderSection 模型管理布局", () => {
     expect(container.textContent ?? "").toContain(
       "https://api.sensenova.cn/compatible-mode/v2",
     );
-    expect(container.textContent ?? "").toContain("SenseChat-5");
+    expect(findByTestId("model-priority-list").textContent ?? "").not.toContain(
+      "SenseChat-5",
+    );
   });
 
   it("推荐 Agnes 模板应使用 OpenAI 格式和官方图片模型", async () => {
@@ -968,6 +978,119 @@ describe("ApiKeyProviderSection 模型管理布局", () => {
       expect(mockTestConnection).toHaveBeenCalledWith(
         "custom-1",
         "MiniMax-M3.1-Flash",
+      );
+    },
+  );
+
+  it.each([
+    ["overseas", "kimi-code-subscription", "kimi-for-coding"],
+    ["cn", "kimi-api-cn", "kimi-k3"],
+    ["overseas", "kimi-api-global", "kimi-k3"],
+    ["cn", "glm-cn-coding-plan", "glm-5.3-flash"],
+    ["overseas", "zai-coding-plan", "glm-5.3-flash"],
+    ["cn", "mimo-coding-plan", "mimo-v2.6-flash"],
+    ["cn", "alibaba-coding-plan-cn", "qwen3.7-plus"],
+    ["overseas", "alibaba-coding-plan-global", "qwen3.7-plus"],
+    ["aggregator", "aihubmix-recommended", "claude-sonnet-5-5"],
+    ["overseas", "openrouter-recommended", "anthropic/claude-sonnet-5.5"],
+  ])(
+    "activates %s/%s with the supported model",
+    async (category, id, model) => {
+      const hookState = createHookState();
+      const container = renderSection();
+      await clickByTestId("add-model-button", 4);
+      await clickByTestId(`model-catalog-category-${category}`);
+      await act(async () => {
+        const card = maybeTemplateCard(container, id);
+        expect(card).not.toBeNull();
+        card?.click();
+        await Promise.resolve();
+      });
+      await act(async () => {
+        setInputValue(
+          findByTestId<HTMLInputElement>("model-api-key-input"),
+          "fixture-key",
+        );
+      });
+      await clickByTestId("model-activate-button", 3);
+      expect(hookState.updateProvider).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({ models: [{ id: model }], enabled: true }),
+      );
+      expect(mockTestConnection).toHaveBeenCalledWith(
+        expect.any(String),
+        model,
+      );
+    },
+  );
+
+  it.each(["catalog", "registry"])(
+    "uses Responses for current OpenAI defaults from %s",
+    async (source) => {
+      mockUseModelRegistry.mockReturnValue({
+        groupedByProvider: new Map([
+          ["openai", [{ id: "gpt-4o", provider_name: "OpenAI" }]],
+        ]),
+      });
+      if (source === "catalog") {
+        mockGetSystemProviderCatalog.mockResolvedValue([
+          {
+            id: "openai",
+            name: "OpenAI",
+            type: "openai-response",
+            api_host: "https://api.openai.com",
+            group: "mainstream",
+            sort_order: 1,
+            legacy_ids: [],
+          },
+        ]);
+      }
+      const hookState = createHookState();
+      const container = renderSection();
+      await clickByTestId("add-model-button", 4);
+      await clickByTestId("model-catalog-category-overseas");
+      await act(async () => {
+        const card = maybeTemplateCard(container, `${source}-openai`);
+        expect(card).not.toBeNull();
+        card?.click();
+        await Promise.resolve();
+      });
+      await act(async () => {
+        setInputValue(
+          findByTestId<HTMLInputElement>("model-api-key-input"),
+          "fixture-key",
+        );
+      });
+      await clickByTestId("model-activate-button", 3);
+      expect(hookState.updateProvider).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          models: [
+            { id: "gpt-6.1-sol" },
+            { id: "gpt-6-luna" },
+            { id: "gpt-6-astra" },
+          ],
+          enabled: true,
+        }),
+      );
+      const configureProvider =
+        source === "catalog"
+          ? hookState.updateProvider
+          : hookState.addCustomProvider;
+      const expectedProtocol = expect.objectContaining({
+        type: "openai-response",
+      });
+      if (source === "catalog") {
+        expect(configureProvider).toHaveBeenCalledWith(
+          "openai",
+          expectedProtocol,
+        );
+      } else {
+        expect(configureProvider).toHaveBeenCalledWith(expectedProtocol);
+      }
+      expect(mockTestConnection).toHaveBeenCalledWith(
+        expect.any(String),
+        "gpt-6.1-sol",
       );
     },
   );

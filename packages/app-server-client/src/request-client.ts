@@ -20,6 +20,10 @@ export class AppServerClient {
 }
 
 export interface AppServerClient {
+  readStorage(params: protocol.StorageReadParams): protocol.JsonRpcRequest;
+  refreshStorage(params: protocol.StorageReadParams): protocol.JsonRpcRequest;
+  reviewStorage(params: protocol.StorageReviewParams): protocol.JsonRpcRequest;
+  deleteStorage(params: protocol.StorageDeleteParams): protocol.JsonRpcRequest;
   requestCloud(params: protocol.CloudRequestParams): protocol.JsonRpcRequest;
   loginAccount(params: protocol.LoginAccountParams): protocol.JsonRpcRequest;
   readAccount(params?: protocol.GetAccountParams): protocol.JsonRpcRequest;
@@ -560,6 +564,29 @@ export interface AppServerClient {
   readProjectMaterialContent(
     params: protocol.ProjectMaterialLookupParams,
   ): protocol.JsonRpcRequest;
+  readInstructions(): protocol.JsonRpcRequest;
+  writeInstructions(
+    params: protocol.InstructionsWriteParams,
+  ): protocol.JsonRpcRequest;
+  listDictationHistory(): protocol.JsonRpcRequest;
+  startDictationHistory(
+    params: protocol.DictationHistoryStartParams,
+  ): protocol.JsonRpcRequest;
+  appendDictationHistoryAudio(
+    params: protocol.DictationHistoryAppendAudioParams,
+  ): protocol.JsonRpcRequest;
+  finishDictationHistory(
+    params: protocol.DictationHistoryFinishParams,
+  ): protocol.JsonRpcRequest;
+  readDictationHistoryAudio(
+    params: protocol.DictationHistoryIdParams,
+  ): protocol.JsonRpcRequest;
+  setDictationHistoryTranscript(
+    params: protocol.DictationHistorySetTranscriptParams,
+  ): protocol.JsonRpcRequest;
+  deleteDictationHistory(
+    params: protocol.DictationHistoryIdParams,
+  ): protocol.JsonRpcRequest;
   listVoiceAsrCredentials(): protocol.JsonRpcRequest;
   createVoiceAsrCredential(
     params: protocol.VoiceAsrCredentialCreateParams,
@@ -637,6 +664,12 @@ export interface AppServerClient {
   ): protocol.JsonRpcRequest;
   createProjectGitWorktree(
     params: protocol.ProjectGitWorktreeCreateParams,
+  ): protocol.JsonRpcRequest;
+  listProjectGitWorktrees(
+    params: protocol.ProjectGitWorktreeListParams,
+  ): protocol.JsonRpcRequest;
+  deleteProjectGitWorktree(
+    params: protocol.ProjectGitWorktreeDeleteParams,
   ): protocol.JsonRpcRequest;
   exportHandoffBundle(
     params: protocol.AgentSessionHandoffBundleExportParams,

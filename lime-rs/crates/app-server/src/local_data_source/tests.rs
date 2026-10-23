@@ -51,6 +51,9 @@ fn setup_data_source() -> LocalAppDataSource {
     .expect("insert workspace");
     LocalAppDataSource {
         db: Arc::new(Mutex::new(conn)),
+        dictation_history: Arc::new(dictation_history::DictationHistoryStore::new(
+            app_data_root.join("dictation-history"),
+        )),
         app_data_root,
         product_db_path: crate::runtime::product_db_path_for_agent_root(&agent_root),
         plugin_store: plugin_catalog::PluginStore::new(

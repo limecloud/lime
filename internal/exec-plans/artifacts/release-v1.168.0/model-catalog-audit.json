@@ -1,0 +1,202 @@
+{
+  "captured_at": "2026-10-23T10:47:00.226266+00:00",
+  "catalog": {
+    "before": 180,
+    "after": 253,
+    "updated": 83,
+    "added": 158,
+    "metadata_source": "OpenRouter public models API; GLM Flash output limit and file input corrected from official BigModel documentation",
+    "removed_default_route": "claude_oauth",
+    "removed_from_current_source": 85,
+    "retained_curated_agnes_entries": 12,
+    "unknown_context_policy": "Six unchanged curated Agnes entries use the existing zero sentinel for an unknown token window; no unverified context size is invented. All entries refreshed from the public source have a positive context window."
+  },
+  "sources": [
+    {
+      "url": "https://developers.openai.com/api/docs/guides/latest-model/gpt-6-astra.md",
+      "sha256": "ad1aeb3d87e2e61a91233447f7c54b7b18ebfecc4315eeefab15bf5861b3a5c7"
+    },
+    {
+      "url": "https://developers.openai.com/api/docs/models/gpt-6.1-sol.md",
+      "sha256": "acfe91d19882aaf7bb52877898684614035a947de02f2955c9de905a7efb1362"
+    },
+    {
+      "url": "https://developers.openai.com/api/docs/models/gpt-6-luna.md",
+      "sha256": "2e4861582095740f5ea84b14bb18fa476a49c426b397b779b964bc144397b451"
+    },
+    {
+      "url": "https://platform.claude.com/docs/en/models/overview.md",
+      "sha256": "0bee72dee7cbb689a714c14458091412889a24d64364843f1db2ecd1f7b93483"
+    },
+    {
+      "url": "https://ai.google.dev/gemini-api/docs/models",
+      "sha256": "3189d73b53c64e9a35737fdadbb6bdf16446fd878911b13b31016da87ba05241"
+    },
+    {
+      "url": "https://docs.bigmodel.cn/cn/coding-plan/overview.md",
+      "sha256": "39fa12c82e3b4b6652d77510d9c3b1091a4057ec8cde2c4c887ce904ae7e9be4"
+    },
+    {
+      "url": "https://docs.z.ai/devpack/overview.md",
+      "sha256": "223485f38403b875a4c727c51ab193e1667496dc0ac028335b7d681b037765db"
+    },
+    {
+      "url": "https://docs.bigmodel.cn/cn/guide/models/vlm/glm-5.3-flash.md",
+      "sha256": "ffdf6fc7d77a49e150cb58fbfe0477c1c853eae0faa37fdf7ebda05478f4ea73"
+    },
+    {
+      "url": "https://www.kimi.com/code/docs/kimi-code/models.html",
+      "sha256": "25ce5665c813be76673915d89cba18d93d6d7c05512b30a410d27fa2b0c21bb5"
+    },
+    {
+      "url": "https://platform.kimi.com/docs/api/messages.md",
+      "sha256": "0f089379c5d6960d53b2b719bd6845c271ebd06c95ff1ee865c331e860c7f4f5"
+    },
+    {
+      "url": "https://platform.kimi.ai/docs/api/messages.md",
+      "sha256": "18b50640229a2c044cbe97688832b08be21c7aea34d088c9a6b4ecb22235daac"
+    },
+    {
+      "url": "https://help.aliyun.com/zh/model-studio/coding-plan",
+      "sha256": "f94a8af4d4c2dfc9c86d45b1e437d50693d1b11d35ab2f58d068286abbd3f751"
+    },
+    {
+      "url": "https://www.alibabacloud.com/help/en/model-studio/coding-plan",
+      "sha256": "15c069edf7d850c937e1252de3e11cb31d3849265ea8fb8952c394801cedff00"
+    },
+    {
+      "url": "https://help.aliyun.com/zh/model-studio/models",
+      "sha256": "9ed59ad861b133edfd789067261c06f0a02ecec6e35aaf3bd445eeefc411cc85"
+    },
+    {
+      "url": "https://api-docs.deepseek.com/quick_start/pricing/",
+      "sha256": "b856a6e93fa4793ecc8f3fd03a01bb7d8f7572f78a4739da8ce6dbdb09328d66"
+    },
+    {
+      "url": "https://docs.x.ai/developers/models",
+      "sha256": "14f8308ca4eff71941a3d7862aeb3de22ac21e2b648ce6e4e6099787a528eb13"
+    },
+    {
+      "url": "https://mimo.mi.com/static/docs/quick-start/summary/model.md",
+      "sha256": "7a27a2c6726e9c966ab7272dfc887b30a570fa8d57c508748bbc70f13021ac96"
+    },
+    {
+      "url": "https://mimo.mi.com/static/docs/quick-start/faq/token-plan/Plans&Pricing.md",
+      "sha256": "70070d0a4ccefa93ddf6159684bd86f4b89e572a8d668be3c001b14cd8d05a7b"
+    },
+    {
+      "url": "https://openrouter.ai/api/v1/models",
+      "sha256": "704c3404fb01631e26acadefe13988d2a22726e12c6a7b46ff4a506286e7035a"
+    },
+    {
+      "url": "https://aihubmix.com/v1/models",
+      "sha256": "f784db68002e71010d21a2793c27157da775f46900bdad182df81424ff01f8dc"
+    },
+    {
+      "url": "https://platform.claude.com/docs/en/about-claude/model-deprecations.md",
+      "sha256": "d2fd9f71fed176557d5ed32e2bd212e72dce5dab836bf62b5a2b40dba2fda0d4"
+    },
+    {
+      "url": "https://developers.openai.com/api/docs/deprecations.md",
+      "sha256": "79a2e58476139c48e39bafa5f352f98c034bb4171f99c3aedff2e53368c0d33a"
+    },
+    {
+      "url": "https://ai.google.dev/gemini-api/docs/deprecations",
+      "sha256": "a8598c9ef7800091b2158b600f5b8458ab187485c23c9f3cf4b48396a7e9df36"
+    }
+  ],
+  "unverified": [
+    "Agnes: public models API requires authentication (401), documentation denied (403); retain independently curated metadata without claiming live verification",
+    "SenseNova: authenticated live discovery required; remove the unverified SenseChat-5 preset",
+    "Submodel: authenticated live discovery or explicit configuration required; remove the unverified static default model list"
+  ],
+  "live_inference": false,
+  "removed_model_ids": [
+    "ai21/jamba-large-1.7",
+    "ai21/jamba-mini-1.7",
+    "anthropic/claude-3-haiku",
+    "anthropic/claude-3.5-haiku",
+    "anthropic/claude-3.5-sonnet",
+    "anthropic/claude-3.7-sonnet",
+    "anthropic/claude-3.7-sonnet:thinking",
+    "anthropic/claude-opus-4",
+    "anthropic/claude-sonnet-4",
+    "cohere/command-r-08",
+    "cohere/command-r-plus-08",
+    "cohere/command-r7b-12",
+    "deepseek/deepseek",
+    "deepseek/deepseek-prover",
+    "deepseek/deepseek-r1",
+    "deepseek/deepseek-r1-0528-qwen3-8b",
+    "deepseek/deepseek-r1-distill-llama-70b",
+    "deepseek/deepseek-r1-distill-qwen-14b",
+    "deepseek/deepseek-r1-distill-qwen-32b",
+    "deepseek/deepseek-v3.2-speciale",
+    "google/gemini-2.0-flash",
+    "google/gemini-2.0-flash-lite",
+    "google/gemini-3-flash",
+    "google/gemini-3-pro",
+    "google/gemma-2-9b-it",
+    "google/gemma-3n-e4b-it",
+    "meta-llama/llama-3-70b-instruct",
+    "meta-llama/llama-3-8b-instruct",
+    "meta-llama/llama-3.1-405b",
+    "meta-llama/llama-3.1-405b-instruct",
+    "meta-llama/llama-3.2-11b-vision-instruct",
+    "meta-llama/llama-3.2-90b-vision-instruct",
+    "meta-llama/llama-guard-2-8b",
+    "meta-llama/llama-guard-3-8b",
+    "mistralai/codestral",
+    "mistralai/devstral",
+    "mistralai/devstral-medium",
+    "mistralai/devstral-small",
+    "mistralai/ministral-14b",
+    "mistralai/ministral-3b",
+    "mistralai/ministral-8b",
+    "mistralai/mistral-7b-instruct",
+    "mistralai/mistral-small-24b-instruct",
+    "mistralai/mistral-small-creative",
+    "mistralai/mistral-tiny",
+    "mistralai/mixtral-8x7b-instruct",
+    "mistralai/pixtral-12b",
+    "mistralai/pixtral-large",
+    "mistralai/voxtral-small-24b",
+    "openai/chatgpt-4o",
+    "openai/codex-mini",
+    "openai/gpt-4o-audio",
+    "openai/gpt-4o-mini-search",
+    "openai/gpt-4o-search",
+    "openai/gpt-4o:extended",
+    "openai/gpt-5-chat",
+    "openai/gpt-5-codex",
+    "openai/gpt-5.1-chat",
+    "openai/o3-deep-research",
+    "openai/o4-mini-deep-research",
+    "qwen/qwen-2.5-vl-7b-instruct",
+    "qwen/qwen-max",
+    "qwen/qwen-plus-2025-07-28:thinking",
+    "qwen/qwen-turbo",
+    "qwen/qwen-vl-max",
+    "qwen/qwen-vl-plus",
+    "qwen/qwen2.5-coder-7b-instruct",
+    "qwen/qwen2.5-vl-32b-instruct",
+    "qwen/qwen3-235b-a22b",
+    "qwen/qwen3-235b-a22b-thinking",
+    "qwen/qwen3-30b-a3b-instruct",
+    "qwen/qwen3-30b-a3b-thinking",
+    "qwen/qwen3-8b",
+    "qwen/qwen3-coder-plus",
+    "qwen/qwen3-max",
+    "qwen/qwen3-vl-235b-a22b-thinking",
+    "qwen/qwen3-vl-32b-instruct",
+    "qwen/qwen3-vl-8b-thinking",
+    "qwen/qwq-32b",
+    "x-ai/grok-3",
+    "x-ai/grok-3-mini",
+    "x-ai/grok-4",
+    "x-ai/grok-4-fast",
+    "x-ai/grok-4.1-fast",
+    "x-ai/grok-code-fast-1"
+  ],
+  "cleanup_reason": "User requested cleanup: remove entries absent from the current canonical OpenRouter source; keep the separate curated Agnes catalog. Absence is not a claim of global provider retirement."
+}

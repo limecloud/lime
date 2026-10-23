@@ -8,18 +8,17 @@
  * 设置分组 Key
  */
 export enum SettingsGroupKey {
-  Overview = "overview",
-  Account = "account",
-  General = "general",
-  Agent = "agent",
-  System = "system",
+  Personal = "personal",
+  Integrations = "integrations",
+  Coding = "coding",
 }
 
 /**
  * 设置标签页
  */
 export enum SettingsTabs {
-  Home = "home",
+  General = "general",
+  Voice = "voice",
   // 账号
   Profile = "profile",
   Stats = "stats",
@@ -30,6 +29,7 @@ export enum SettingsTabs {
   KeyboardShortcuts = "keyboard-shortcuts",
   Memory = "memory",
   ArchivedConversations = "archived-conversations",
+  Storage = "storage",
 
   // 智能体
   Providers = "providers",
@@ -40,6 +40,8 @@ export enum SettingsTabs {
   McpServer = "mcp-server",
   WebSearch = "web-search",
   Environment = "environment",
+  Git = "git",
+  Worktrees = "worktrees",
   ExecutionPolicy = "execution-policy",
 
   Experimental = "experimental",

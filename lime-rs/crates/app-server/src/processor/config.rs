@@ -22,6 +22,8 @@ const CONFIG_ROOT_KEYS: &[&str] = &[
     "hide_agent_reasoning",
     "tui",
     "desktop",
+    "git",
+    "worktrees",
     "browser",
     "routing",
     "retry",
@@ -108,6 +110,8 @@ impl RequestProcessor {
         self.ensure_initialized()?;
         let params: ConfigValueWriteParams = parse_params(params)?;
         let plugins_changed = plugin_key_path(&params.key_path);
+        let worktrees_changed =
+            params.key_path == "worktrees" || params.key_path.starts_with("worktrees.");
         let response = write_edits(
             self.runtime.app_config_path(),
             params.file_path,
@@ -118,6 +122,9 @@ impl RequestProcessor {
                 merge_strategy: params.merge_strategy,
             }],
         )?;
+        if worktrees_changed {
+            self.request_worktree_cleanup().await;
+        }
         self.dispatch_config_write(response, plugins_changed).await
     }
 
@@ -133,12 +140,19 @@ impl RequestProcessor {
             .edits
             .iter()
             .any(|edit| plugin_key_path(&edit.key_path));
+        let worktrees_changed = params
+            .edits
+            .iter()
+            .any(|edit| edit.key_path == "worktrees" || edit.key_path.starts_with("worktrees."));
         let response = write_edits(
             self.runtime.app_config_path(),
             params.file_path,
             params.expected_version,
             params.edits,
         )?;
+        if worktrees_changed {
+            self.request_worktree_cleanup().await;
+        }
         self.dispatch_config_write(response, plugins_changed).await
     }
 

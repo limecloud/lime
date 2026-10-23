@@ -227,12 +227,6 @@ describe("EnvironmentSettings", () => {
 
     const text = container.textContent ?? "";
     expect(text).toContain("Environment Variables");
-    expect(text).toContain(
-      "Manage Shell imports, explicit overrides, and the final environment preview.",
-    );
-    expect(text).toContain("Shell import: Imported");
-    expect(text).toContain("Overrides: 1/1");
-    expect(text).toContain("Preview variables: 2");
     expect(text).toContain("Shell Environment Import");
     expect(text).toContain("Environment Overrides");
     expect(text).toContain("Merge Rules");
@@ -333,19 +327,13 @@ describe("EnvironmentSettings", () => {
     );
   });
 
-  it("应把首屏说明和字段 hint 收进 tips", async () => {
+  it("移除重复总览说明并保留字段的帮助信息", async () => {
     renderComponent();
     await waitForLoad();
 
     expect(getBodyText()).not.toContain(
       "Manage Shell imports, explicit overrides, and the final environment preview. Sensitive values stay masked by default to reduce accidental exposure in Settings.",
     );
-
-    const heroTip = await hoverTip("Environment settings overview");
-    expect(getBodyText()).toContain(
-      "Manage Shell imports, explicit overrides, and the final environment preview. Sensitive values stay masked by default to reduce accidental exposure in Settings.",
-    );
-    await leaveTip(heroTip);
 
     const fieldTip = await hoverTip("Import timeout details");
     expect(getBodyText()).toContain(

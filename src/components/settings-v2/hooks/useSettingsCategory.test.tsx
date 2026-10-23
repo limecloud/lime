@@ -64,7 +64,7 @@ describe("useSettingsCategory", () => {
     });
 
     const agentGroup = groups.find(
-      (group) => group.key === SettingsGroupKey.Agent,
+      (group) => group.key === SettingsGroupKey.Integrations,
     );
     const skillsItem = agentGroup?.items.find(
       (item) => item.key === SettingsTabs.Skills,
@@ -82,14 +82,14 @@ describe("useSettingsCategory", () => {
     });
 
     const systemGroup = groups.find(
-      (group) => group.key === SettingsGroupKey.System,
+      (group) => group.key === SettingsGroupKey.Coding,
     );
     const systemKeys = systemGroup?.items.map((item) => item.key) ?? [];
     const developerItem = systemGroup?.items.find(
       (item) => item.key === SettingsTabs.Developer,
     );
 
-    expect(systemGroup?.title).toBe("System");
+    expect(systemGroup?.title).toBe("Coding");
     expect(systemKeys).toContain(SettingsTabs.Developer);
     expect(systemKeys).toContain(SettingsTabs.ExecutionPolicy);
     expect(systemKeys).not.toContain(SettingsTabs.Experimental);
@@ -112,14 +112,14 @@ describe("useSettingsCategory", () => {
     });
 
     const generalGroup = groups.find(
-      (group) => group.key === SettingsGroupKey.General,
+      (group) => group.key === SettingsGroupKey.Personal,
     );
     const archivedItem = generalGroup?.items.find(
       (item) => item.key === SettingsTabs.ArchivedConversations,
     );
 
-    expect(generalGroup?.title).toBe("General");
-    expect(archivedItem?.label).toBe("Archived Conversations");
+    expect(generalGroup?.title).toBe("Personal");
+    expect(archivedItem?.label).toBe("Archived chats");
     const generalKeys = generalGroup?.items.map((item) => item.key) ?? [];
 
     expect(generalKeys).toContain(SettingsTabs.Appearance);
@@ -138,13 +138,15 @@ describe("current settings navigation translations", () => {
         groups = nextGroups;
       });
       const items = groups.flatMap((group) => group.items);
-      expect(groups).toHaveLength(5);
-      expect(items).toHaveLength(17);
-      expect(new Set(items.map((item) => item.key)).size).toBe(17);
+      expect(groups).toHaveLength(3);
+      expect(items).toHaveLength(20);
+      expect(new Set(items.map((item) => item.key)).size).toBe(20);
       expect(items.map((item) => item.key)).toEqual(
         expect.arrayContaining([
           SettingsTabs.Browser,
           SettingsTabs.KeyboardShortcuts,
+          SettingsTabs.Git,
+          SettingsTabs.Worktrees,
         ]),
       );
       for (const group of groups) {

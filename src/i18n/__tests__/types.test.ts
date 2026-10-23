@@ -733,10 +733,7 @@ function assertI18nKeyTypes() {
     build: "1.10.0",
   });
   i18n.t("settings.about.update.errorDownload", { ns: "settings" });
-  i18n.t("settings.browserConnection.title", { ns: "settings" });
-  i18n.t("settings.browserConnection.action.check", { ns: "settings" });
-  i18n.t("settings.browserConnection.error.unavailable", { ns: "settings" });
-  i18n.t("settings.group.system", { ns: "settings" });
+  i18n.t("settings.group.coding", { ns: "settings" });
   i18n.t("settings.tab.developerLab", { ns: "settings" });
   i18n.t("settings.developerLab.title", { ns: "settings" });
   i18n.t("settings.developerLab.tabs.experimental", { ns: "settings" });
@@ -746,7 +743,7 @@ function assertI18nKeyTypes() {
   i18n.t("settings.appearance.colorScheme.options.lime-classic.label", {
     ns: "settings",
   });
-  i18n.t("settings.appearance.language.title", { ns: "settings" });
+  i18n.t("settings.desktop.language", { ns: "settings" });
   i18n.t("settings.experimental.updateCheck.title", { ns: "settings" });
   i18n.t("settings.experimental.updateCheck.autoCheck.title", {
     ns: "settings",
@@ -768,30 +765,26 @@ function assertI18nKeyTypes() {
     ns: "settings",
   });
   i18n.t("settings.environment.hero.title", { ns: "settings" });
-  i18n.t("settings.environment.summary.shellImport", {
-    ns: "settings",
-    status: "Imported",
-  });
   i18n.t("settings.environment.preview.overriddenSources", {
     ns: "settings",
     sources: "Shell environment import",
   });
-  i18n.t("settings.home.group.tipAria", { ns: "settings" });
-  i18n.t("settings.home.title", { ns: "settings" });
-  i18n.t("settings.home.summary.groups", { ns: "settings" });
-  i18n.t("settings.home.quickAccess.cardTipAria", { ns: "settings" });
-  i18n.t("settings.home.current.title", { ns: "settings" });
-  i18n.t("settings.memory.title", { ns: "settings" });
-  i18n.t("settings.memory.soul.title", { ns: "settings" });
+  i18n.t("settings.desktop.title", { ns: "settings" });
+  i18n.t("settings.desktop.general", { ns: "settings" });
+  i18n.t("settings.group.personal", { ns: "settings" });
+  i18n.t("settings.group.integrations", { ns: "settings" });
+  i18n.t("settings.group.coding", { ns: "settings" });
+  i18n.t("settings.desktop.personalization", { ns: "settings" });
+  i18n.t("settings.personalization.instructions", { ns: "settings" });
   i18n.t("settings.memory.soul.styleProfile.title", { ns: "settings" });
-  i18n.t("settings.memory.soul.import.warning.projectRules", {
+  i18n.t("settings.personalization.instructionsDescription", {
     ns: "settings",
   });
-  i18n.t("settings.memory.embedding.provider.ollama.label", {
+  i18n.t("settings.personalization.memory", {
     ns: "settings",
   });
-  i18n.t("settings.memory.embedding.status.configured", { ns: "settings" });
-  i18n.t("settings.memory.embedding.providerSelect.description", {
+  i18n.t("settings.personalization.enabled", { ns: "settings" });
+  i18n.t("settings.personalization.tools", {
     ns: "settings",
   });
   i18n.t("settings.webSearch.providers.googleEngine.label", {
@@ -951,7 +944,7 @@ function assertI18nKeyTypes() {
   i18n.t("settings.agent.skills.advancedEntry.title", { ns: "settings" });
   i18n.t("settings.agent.skills.advancedEntry.tipAria", { ns: "settings" });
   i18n.t("settings.voice.model.action.download", { ns: "settings" });
-  i18n.t("settings.voice.processing.title", { ns: "settings" });
+  i18n.t("settings.voice.page.dictation", { ns: "settings" });
   i18n.t("settings.voice.media.title", { ns: "settings" });
   i18n.t("settings.voice.model.message.downloaded", {
     ns: "settings",

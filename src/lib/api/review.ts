@@ -1,5 +1,5 @@
 import {
-  type AppServerClient,
+  AppServerClient,
   type AppServerReviewStartParams,
   type AppServerReviewStartResponse,
   type AppServerReviewTarget,
@@ -10,6 +10,7 @@ import {
   type AgentRuntimeEventListener,
 } from "./agentRuntimeEvents";
 import { submitAgentRuntimeReview } from "./agentRuntime/threadClient";
+import { getGitPreferences } from "./gitPreferences";
 
 export type ReviewClient = Pick<AppServerClient, "startReview">;
 export type ReviewTerminalEvent = Extract<
@@ -23,6 +24,8 @@ export interface ReviewStartOptions {
 
 export interface ReviewGatewayDeps {
   client?: ReviewClient;
+  forkThread?: AppServerClient["forkThread"];
+  readPreferences?: typeof getGitPreferences;
   listenRuntimeEvent?: AgentRuntimeEventListener;
   terminalTimeoutMs?: number;
 }
@@ -34,15 +37,26 @@ export async function startReview(
   options: ReviewStartOptions = {},
   deps: ReviewGatewayDeps = {},
 ): Promise<AppServerReviewStartResponse> {
-  const normalizedParams = normalizeReviewParams(params);
+  let normalizedParams = normalizeReviewParams(params);
+  const delivery =
+    normalizedParams.delivery ??
+    (await (deps.readPreferences ?? getGitPreferences)())["review-delivery"];
+  if (delivery === "detached") {
+    const client = new AppServerClient();
+    const fork = await (deps.forkThread ?? client.forkThread.bind(client))({
+      threadId: normalizedParams.threadId,
+      excludeTurns: true,
+      deferGoalContinuation: false,
+    });
+    normalizedParams = { ...normalizedParams, threadId: fork.result.thread.id };
+  }
+  normalizedParams = { ...normalizedParams, delivery: "inline" };
   const terminalObserver = options.onTerminal
     ? await createReviewTerminalObserver({
         threadId: normalizedParams.threadId,
         onTerminal: options.onTerminal,
-        listenRuntimeEvent:
-          deps.listenRuntimeEvent ?? listenAgentRuntimeEvent,
-        timeoutMs:
-          deps.terminalTimeoutMs ?? DEFAULT_REVIEW_TERMINAL_TIMEOUT_MS,
+        listenRuntimeEvent: deps.listenRuntimeEvent ?? listenAgentRuntimeEvent,
+        timeoutMs: deps.terminalTimeoutMs ?? DEFAULT_REVIEW_TERMINAL_TIMEOUT_MS,
       })
     : null;
 

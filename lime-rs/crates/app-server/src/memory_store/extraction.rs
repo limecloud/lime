@@ -42,6 +42,13 @@ impl LocalMemoryBackend {
             };
             let source_updated_at =
                 modified_at_seconds(&fs::metadata(&source).map_err(io_error)?).to_string();
+            let source_thread_id = state::source_thread_id_from_content(&content);
+            if !provider
+                .source_eligible(source_thread_id.as_deref())
+                .await?
+            {
+                continue;
+            }
             let owner = uuid::Uuid::new_v4().to_string();
             if !self
                 .state

@@ -970,7 +970,7 @@ describe("i18n namespace loader", () => {
         "settings.about.update.errorDownload",
       );
       expect(resources[locale].settings).toHaveProperty(
-        "settings.group.system",
+        "settings.group.coding",
       );
       expect(resources[locale].settings).toHaveProperty(
         "settings.tab.developerLab",
@@ -1011,42 +1011,39 @@ describe("i18n namespace loader", () => {
       expect(resources[locale].settings).toHaveProperty(
         "settings.experimental.updateCheck.remindLaterUntil",
       );
+      for (const key of [
+        "settings.desktop.title",
+        "settings.desktop.general",
+        "settings.group.personal",
+        "settings.group.integrations",
+        "settings.group.coding",
+        "settings.desktop.language",
+      ]) {
+        expect(resources[locale].settings).toHaveProperty(key);
+      }
       expect(resources[locale].settings).toHaveProperty(
-        "settings.home.group.tipAria",
-      );
-      expect(resources[locale].settings).toHaveProperty("settings.home.title");
-      expect(resources[locale].settings).toHaveProperty(
-        "settings.home.summary.groups",
-      );
-      expect(resources[locale].settings).toHaveProperty(
-        "settings.home.quickAccess.cardTipAria",
-      );
-      expect(resources[locale].settings).toHaveProperty(
-        "settings.home.current.title",
-      );
-      expect(resources[locale].settings).toHaveProperty(
-        "settings.memory.title",
+        "settings.desktop.personalization",
       );
       expect(resources[locale].settings).toHaveProperty(
-        "settings.memory.soul.title",
+        "settings.personalization.instructions",
       );
       expect(resources[locale].settings).toHaveProperty(
         "settings.memory.soul.styleProfile.title",
       );
       expect(resources[locale].settings).toHaveProperty(
-        "settings.memory.soul.import.warning.projectRules",
+        "settings.personalization.instructionsDescription",
       );
       expect(resources[locale].settings).toHaveProperty(
-        "settings.memory.embedding.provider.ollama.label",
+        "settings.personalization.memory",
       );
       expect(resources[locale].settings).toHaveProperty(
-        "settings.memory.embedding.status.configured",
+        "settings.personalization.enabled",
       );
       expect(resources[locale].settings).toHaveProperty(
-        "settings.memory.embedding.status.fullTextOnly",
+        "settings.personalization.delete",
       );
       expect(resources[locale].settings).toHaveProperty(
-        "settings.memory.embedding.providerSelect.description",
+        "settings.personalization.tools",
       );
       expect(resources[locale].settings).toHaveProperty(
         "settings.webSearch.providers.googleEngine.label",
@@ -1259,7 +1256,7 @@ describe("i18n namespace loader", () => {
         "settings.voice.model.action.download",
       );
       expect(resources[locale].settings).toHaveProperty(
-        "settings.voice.processing.title",
+        "settings.voice.page.dictation",
       );
       expect(resources[locale].settings).toHaveProperty(
         "settings.voice.media.title",
@@ -1581,9 +1578,9 @@ describe("i18n namespace loader", () => {
     ).toBe("环境变量");
     expect(
       loadNamespaceResource("fr-FR", "settings")[
-        "settings.environment.summary.shellImport"
+        "settings.environment.shellImport.imported.title"
       ],
-    ).toBe("Shell 导入：{{status}}");
+    ).toBe("已导入项");
     expect(
       loadNamespaceResource("fr-FR", "settings")[
         "settings.environment.preview.overriddenSources"
@@ -1655,9 +1652,9 @@ describe("i18n namespace loader", () => {
     ).toBe("下载模型");
     expect(
       loadNamespaceResource("fr-FR", "settings")[
-        "settings.voice.processing.title"
+        "settings.voice.page.dictation"
       ],
-    ).toBe("语音处理");
+    ).toBe("听写");
     expect(
       loadNamespaceResource("fr-FR", "settings")["settings.voice.media.title"],
     ).toBe("语音服务模型");

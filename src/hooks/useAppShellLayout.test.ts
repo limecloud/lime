@@ -45,7 +45,7 @@ describe("getAppShellLayoutState", () => {
     });
   });
 
-  it("settings 页应隐藏 sidebar", () => {
+  it("settings 页应保留全局图标导航", () => {
     expect(
       getAppShellLayoutState({
         currentPage: "settings",
@@ -54,7 +54,7 @@ describe("getAppShellLayoutState", () => {
       }),
     ).toEqual({
       shouldHideSidebarForAgent: false,
-      shouldShowAppSidebar: false,
+      shouldShowAppSidebar: true,
     });
   });
 

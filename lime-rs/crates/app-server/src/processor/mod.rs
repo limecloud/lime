@@ -11,6 +11,7 @@ mod config;
 mod config_warning;
 mod connect;
 mod diagnostics;
+mod dictation_history;
 mod dispatch;
 pub(crate) mod environment;
 pub(crate) mod environment_exec;
@@ -20,6 +21,7 @@ mod fuzzy_file_search;
 mod gallery;
 mod gateway;
 mod hook;
+mod instructions;
 mod knowledge;
 mod log;
 mod mcp;
@@ -42,6 +44,7 @@ mod rollout;
 mod session_operations;
 mod skill;
 mod soul;
+mod storage;
 mod thread;
 mod thread_fork;
 mod thread_goal;
@@ -55,6 +58,7 @@ mod wechat;
 mod windows_sandbox;
 mod workflow;
 mod workspace;
+mod worktree_cleanup;
 
 use crate::command_exec::CommandExecServer;
 use crate::fs::FsServer;
@@ -127,6 +131,7 @@ pub struct RequestProcessor {
     environment_execution_lowering: bool,
     selected_environment_threads: Arc<Mutex<HashMap<String, HashSet<String>>>>,
     prompt_history: Arc<PromptHistoryStore>,
+    worktree_cleanup: Arc<worktree_cleanup::CleanupQueue>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -205,6 +210,7 @@ impl RequestProcessor {
             environment_execution_lowering,
             selected_environment_threads: Arc::new(Mutex::new(HashMap::new())),
             prompt_history,
+            worktree_cleanup: Arc::new(worktree_cleanup::CleanupQueue::default()),
         }
     }
 

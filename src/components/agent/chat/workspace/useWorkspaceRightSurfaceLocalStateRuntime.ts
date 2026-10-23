@@ -32,6 +32,10 @@ import type { WorkspaceRightSurfaceBrowserIntent } from "./workspaceRightSurface
 import type { BrowserTabState } from "@/lib/api/browserTab";
 import type { BrowserWorkspaceOwner } from "@/lib/api/browserWorkspace";
 import { projectWorkspaceBrowserTabs } from "./right-surface/browser/workspaceBrowserTabs";
+import {
+  readBrowserPresentation,
+  rememberBrowserPresentation,
+} from "./right-surface/browser/browserPresentation";
 
 export interface WorkspaceRightSurfaceOwner {
   workspaceId: string | null;
@@ -42,6 +46,7 @@ export interface WorkspaceRightSurfaceOwner {
 interface RightSurfaceLocalState {
   owner: WorkspaceRightSurfaceOwner;
   sidePanelTabs: ThreadSidePanelTabs;
+  browserProjectionReady: boolean;
   activeFilesRightSurfaceTarget: ReviewThreadSidePanelTarget | null;
   activeArticleWorkspace: WorkspaceArticleWorkspace | null;
   rightSurfaceBrowserTitle: string | null;
@@ -55,6 +60,7 @@ function emptyState(owner: WorkspaceRightSurfaceOwner): RightSurfaceLocalState {
   return {
     owner,
     sidePanelTabs: { tabs: [], activeTabId: null, open: false },
+    browserProjectionReady: false,
     activeFilesRightSurfaceTarget: null,
     activeArticleWorkspace: null,
     rightSurfaceBrowserTitle: null,
@@ -102,8 +108,9 @@ function openSurface(
     kind === "browser"
       ? (current.sidePanelTabs.tabs.find(
           (tab) =>
-            tab.kind === "browser" && tab.browser?.tabId ===
-            current.activeBrowserRightSurfaceIntent?.tabId,
+            tab.kind === "browser" &&
+            tab.browser?.tabId ===
+              current.activeBrowserRightSurfaceIntent?.tabId,
         ) ?? current.sidePanelTabs.tabs.find((tab) => tab.kind === "browser"))
       : undefined;
   const sidePanelTabs =
@@ -169,6 +176,17 @@ export function useWorkspaceRightSurfaceLocalStateRuntime({
     setStored((current) => stateForOwner(current, owner));
   }, [owner]);
 
+  useEffect(() => {
+    if (!state.browserProjectionReady) return;
+    const selected = activeSidePanelTab(state.sidePanelTabs);
+    rememberBrowserPresentation(
+      owner,
+      state.sidePanelTabs.open && selected?.kind === "browser"
+        ? (selected.browser?.tabId ?? null)
+        : null,
+    );
+  }, [owner, state.browserProjectionReady, state.sidePanelTabs]);
+
   const actions = useMemo(() => {
     const update = (
       transform: (current: RightSurfaceLocalState) => RightSurfaceLocalState,
@@ -226,13 +244,24 @@ export function useWorkspaceRightSurfaceLocalStateRuntime({
         update((current) => {
           if (states.some((state) => state.threadId !== current.owner.threadId))
             return current;
-          const sidePanelTabs = projectWorkspaceBrowserTabs(
+          let sidePanelTabs = projectWorkspaceBrowserTabs(
             current.sidePanelTabs,
             states,
           );
-          return sidePanelTabs === current.sidePanelTabs
+          const restore =
+            !current.browserProjectionReady &&
+            !current.sidePanelTabs.tabs.length
+              ? readBrowserPresentation(current.owner)
+              : null;
+          if (
+            restore &&
+            sidePanelTabs.tabs.some((tab) => tab.browser?.tabId === restore)
+          )
+            sidePanelTabs = selectSidePanelTab(sidePanelTabs, restore);
+          return sidePanelTabs === current.sidePanelTabs &&
+            current.browserProjectionReady
             ? current
-            : { ...current, sidePanelTabs };
+            : { ...current, sidePanelTabs, browserProjectionReady: true };
         }),
       setActiveBrowserRightSurfaceIntent: setter(
         "activeBrowserRightSurfaceIntent",
@@ -264,26 +293,50 @@ export function useWorkspaceRightSurfaceLocalStateRuntime({
           (tab) => tab.tabId === tabId && tab.kind === "workspace-new-tab",
         ),
       captureBrowserAddressSource: (sourceTabId: string) => {
-        const source = ownerRef.current.version === version ? stateRef.current.sidePanelTabs.tabs.find((tab) =>
-          tab.tabId === sourceTabId && tab.kind === "workspace-new-tab")
-          : undefined;
+        const source =
+          ownerRef.current.version === version
+            ? stateRef.current.sidePanelTabs.tabs.find(
+                (tab) =>
+                  tab.tabId === sourceTabId && tab.kind === "workspace-new-tab",
+              )
+            : undefined;
         const workspaceId = stateRef.current.owner.workspaceId;
         const initialOwner = stateRef.current.owner;
-        const accepts = (current: RightSurfaceLocalState, resolved?: BrowserWorkspaceOwner | null) => {
-          if (!source || current.owner.workspaceId !== workspaceId || !current.sidePanelTabs.tabs.includes(source)) return false;
+        const accepts = (
+          current: RightSurfaceLocalState,
+          resolved?: BrowserWorkspaceOwner | null,
+        ) => {
+          if (
+            !source ||
+            current.owner.workspaceId !== workspaceId ||
+            !current.sidePanelTabs.tabs.includes(source)
+          )
+            return false;
           if (ownerKey(current.owner) === ownerKey(initialOwner)) return true;
-          return Boolean(!initialOwner.sessionId && !initialOwner.threadId && resolved &&
-            current.owner.sessionId === resolved.runtimeSessionId && current.owner.threadId === resolved.threadId);
+          return Boolean(
+            !initialOwner.sessionId &&
+            !initialOwner.threadId &&
+            resolved &&
+            current.owner.sessionId === resolved.runtimeSessionId &&
+            current.owner.threadId === resolved.threadId,
+          );
         };
         return {
-          isCurrent: (resolved?: BrowserWorkspaceOwner | null) => accepts(stateRef.current, resolved),
+          isCurrent: (resolved?: BrowserWorkspaceOwner | null) =>
+            accepts(stateRef.current, resolved),
           replace: (resolved: BrowserWorkspaceOwner, browserTabId: string) => {
             setStored((stored) => {
               const current = stateForOwner(stored, stateRef.current.owner);
-              return accepts(current, resolved) ? { ...current,
-                sidePanelTabs: openSidePanelTab(current.sidePanelTabs,
-                  { tabId: browserTabId, kind: "browser" }, sourceTabId),
-              } : stored;
+              return accepts(current, resolved)
+                ? {
+                    ...current,
+                    sidePanelTabs: openSidePanelTab(
+                      current.sidePanelTabs,
+                      { tabId: browserTabId, kind: "browser" },
+                      sourceTabId,
+                    ),
+                  }
+                : stored;
             });
           },
         };

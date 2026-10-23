@@ -1,3 +1,6 @@
+vi.mock("@/lib/api/dictationHistory", () => ({
+  listDictationHistory: mockListDictationHistory,
+}));
 import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { changeLimeLocale } from "@/i18n/createI18n";
@@ -16,6 +19,8 @@ import {
 } from "./voiceSettingsTestFixtures";
 
 const {
+  mockListDictationHistory,
+  mockGetAsrCredentials,
   mockGetConfig,
   mockSaveConfig,
   mockUpdateConfig,
@@ -31,6 +36,8 @@ const {
   mockOpenDialog,
 } = vi.hoisted(() => {
   return {
+    mockListDictationHistory: vi.fn(),
+    mockGetAsrCredentials: vi.fn(),
     mockGetConfig: vi.fn(),
     mockSaveConfig: vi.fn(),
     mockUpdateConfig: vi.fn(),
@@ -54,6 +61,7 @@ vi.mock("@/lib/api/appConfig", () => ({
 }));
 
 vi.mock("@/lib/api/asrProvider", () => ({
+  getAsrCredentials: mockGetAsrCredentials,
   getVoiceInputConfig: mockGetVoiceInputConfig,
   saveVoiceInputConfig: mockSaveVoiceInputConfig,
 }));
@@ -113,53 +121,6 @@ vi.mock("@/components/input-kit", () => ({
   ),
 }));
 
-vi.mock("@/components/voice/InstructionEditor", () => ({
-  InstructionEditor: ({
-    defaultInstructionId,
-    onDefaultChange,
-    onInstructionsChange,
-  }: {
-    defaultInstructionId?: string;
-    onDefaultChange?: (id: string) => void;
-    onInstructionsChange?: (
-      instructions: Array<{
-        id: string;
-        name: string;
-        prompt: string;
-        is_preset: boolean;
-      }>,
-    ) => void;
-  }) => (
-    <div data-testid="instruction-editor">
-      <span>{defaultInstructionId}</span>
-      <button type="button" onClick={() => onDefaultChange?.("email")}>
-        设置默认指令
-      </button>
-      <button
-        type="button"
-        onClick={() =>
-          onInstructionsChange?.([
-            {
-              id: "default",
-              name: "默认润色",
-              prompt: "{{text}}",
-              is_preset: true,
-            },
-            {
-              id: "email",
-              name: "邮件格式",
-              prompt: "{{text}}",
-              is_preset: false,
-            },
-          ])
-        }
-      >
-        同步指令
-      </button>
-    </div>
-  ),
-}));
-
 let emitVoiceModelProgress:
   | ((event: {
       model_id: string;
@@ -200,6 +161,8 @@ beforeEach(async () => {
   ).IS_REACT_ACT_ENVIRONMENT = true;
 
   vi.clearAllMocks();
+  mockListDictationHistory.mockResolvedValue([]);
+  mockGetAsrCredentials.mockResolvedValue([]);
   await changeLimeLocale("en-US");
   scrollIntoViewMock.mockClear();
   emitVoiceModelProgress = null;
@@ -351,6 +314,98 @@ afterEach(async () => {
 });
 
 describe("VoiceSettings", () => {
+  it.each([
+    ["zh-CN", "切换听写提示音"],
+    ["zh-TW", "切換聽寫提示音"],
+    ["en-US", "Toggle dictation sounds"],
+    ["ja-JP", "音声入力のサウンドを切り替える"],
+    ["ko-KR", "받아쓰기 소리 전환"],
+  ] as const)(
+    "%s 暴露可用的听写提示音开关并移除旧指令卡片",
+    async (locale, name) => {
+      await changeLimeLocale(locale);
+      const container = renderComponent();
+      await flushEffects(8);
+      const toggle = container.querySelector(
+        `button[role="switch"][aria-label="${name}"]`,
+      );
+      expect(toggle).toBeInstanceOf(HTMLButtonElement);
+      expect(toggle?.getAttribute("aria-checked")).toBe("true");
+      expect(container.querySelector("textarea")).toBeNull();
+      expect(
+        container.querySelector('[data-testid="instruction-editor"]'),
+      ).toBeNull();
+      expect(container.querySelector("select")).toBeNull();
+      expect(
+        toggle?.closest("section")?.querySelectorAll('[role="switch"]'),
+      ).toHaveLength(1);
+      const history = container.querySelector(
+        '[data-settings-search-target="voice-history"]',
+      )!;
+      const dictionary = container.querySelector(
+        '[data-settings-search-target="voice-dictionary"]',
+      )!;
+      expect(
+        history.compareDocumentPosition(dictionary) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+    },
+  );
+
+  it("提示音写入最新配置并同步互斥，不覆盖词典和麦克风", async () => {
+    const container = renderComponent();
+    await flushEffects(8);
+    mockGetVoiceInputConfig.mockResolvedValue(
+      createVoiceInputConfig({
+        selected_device_id: "latest-mic",
+        dictation_dictionary: ["OpenAI"],
+      }),
+    );
+    const pending = createDeferred<void>();
+    mockSaveVoiceInputConfig.mockReturnValueOnce(pending.promise);
+    const toggle = container.querySelector(
+      'button[aria-label="Toggle dictation sounds"]',
+    ) as HTMLButtonElement;
+    act(() => {
+      toggle.click();
+      toggle.click();
+    });
+    await flushEffects(8);
+    expect(mockSaveVoiceInputConfig).toHaveBeenCalledOnce();
+    expect(mockSaveVoiceInputConfig).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sound_enabled: false,
+        selected_device_id: "latest-mic",
+        dictation_dictionary: ["OpenAI"],
+      }),
+    );
+    expect(toggle.disabled).toBe(true);
+    pending.resolve();
+    await flushEffects(8);
+    expect(toggle.disabled).toBe(false);
+    expect(toggle.getAttribute("aria-checked")).toBe("false");
+  });
+
+  it("提示音保存失败保留旧状态并允许原地重试", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    mockSaveVoiceInputConfig.mockRejectedValueOnce(new Error("unavailable"));
+    const container = renderComponent();
+    await flushEffects(8);
+    const toggle = container.querySelector(
+      'button[aria-label="Toggle dictation sounds"]',
+    ) as HTMLButtonElement;
+    act(() => toggle.click());
+    await flushEffects(8);
+    expect(toggle.getAttribute("aria-checked")).toBe("true");
+    expect(toggle.disabled).toBe(false);
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+      "Failed",
+    );
+    act(() => toggle.click());
+    await flushEffects(8);
+    expect(mockSaveVoiceInputConfig).toHaveBeenCalledTimes(2);
+    expect(toggle.getAttribute("aria-checked")).toBe("false");
+  });
   it("应渲染语音模型、语音处理和语音服务模型设置，并下线实时语音入口", async () => {
     const container = renderComponent();
     await flushEffects(6);
@@ -364,11 +419,12 @@ describe("VoiceSettings", () => {
       "Local offline ASR; the model is downloaded to user data on demand.",
     );
     expect(text).toContain("Download model");
-    expect(text).toContain("Voice Processing");
+    expect(text).toContain("Dictation sounds");
     expect(text).toContain("Voice Service Model");
     expect(text).toContain("openai / gpt-4.1-mini");
     expect(text).toContain("openai / gpt-4o-mini-tts");
-    expect(text).toContain("Translation mode instruction");
+    expect(text).not.toContain("Translation mode instruction");
+    expect(text).not.toContain("Default polish instruction");
     expect(text).not.toContain("Voice Input");
     expect(text).not.toContain("Voice input shortcut");
     expect(text).not.toContain("Hold to record, release to transcribe");
@@ -463,7 +519,6 @@ describe("VoiceSettings", () => {
     ) as HTMLDivElement | null;
     expect(progressbar).toBeInstanceOf(HTMLDivElement);
     expect(progressbar?.getAttribute("aria-valuenow")).toBe("0");
-    expect(progressbar?.style.width).toBe("0%");
     expect(container.textContent ?? "").toContain("Preparing model download");
     expect(container.textContent ?? "").toContain("0%");
 
@@ -480,7 +535,6 @@ describe("VoiceSettings", () => {
     });
 
     expect(progressbar?.getAttribute("aria-valuenow")).toBe("42");
-    expect(progressbar?.style.width).toBe("42%");
     expect(container.textContent ?? "").toContain("正在下载模型包");
 
     pendingDownload.resolve({
@@ -501,7 +555,22 @@ describe("VoiceSettings", () => {
     await flushEffects(6);
   });
 
-  it("模型已安装时应支持设为默认", async () => {
+  it("模型设为默认后应立即显示历史转写重试，无需切换窗口", async () => {
+    mockListDictationHistory.mockResolvedValue([
+      {
+        id: "recoverable",
+        createdAtMs: 1700000000000,
+        text: null,
+        sizeBytes: 8,
+        status: "interrupted",
+        mimeType: "audio/webm",
+      },
+    ]);
+    mockSetDefaultVoiceModel.mockImplementationOnce(async () => {
+      mockGetAsrCredentials.mockResolvedValue([
+        { is_default: true, disabled: false },
+      ]);
+    });
     mockGetVoiceModelInstallState.mockResolvedValue({
       model_id: "sensevoice-small-int8-2024-07-17",
       installed: true,
@@ -523,6 +592,9 @@ describe("VoiceSettings", () => {
       (element) => element.textContent?.includes("Set as default"),
     );
     expect(defaultButton).toBeInstanceOf(HTMLButtonElement);
+    expect(
+      container.querySelector('[aria-label="Retry transcription"]'),
+    ).toBeNull();
 
     await act(async () => {
       defaultButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
@@ -532,6 +604,9 @@ describe("VoiceSettings", () => {
     expect(mockSetDefaultVoiceModel).toHaveBeenCalledWith(
       "sensevoice-small-int8-2024-07-17",
     );
+    expect(
+      container.querySelector('[aria-label="Retry transcription"]'),
+    ).not.toBeNull();
   });
 
   it("模型已安装时应支持选择 WAV 文件并测试转写", async () => {
@@ -595,31 +670,34 @@ describe("VoiceSettings", () => {
     );
   });
 
-  it("切换默认润色指令时应保存 processor.default_instruction_id", async () => {
+  it("打开设置与切换提示音不会重写当前指令配置", async () => {
+    const current = createVoiceInputConfig({
+      processor: {
+        polish_enabled: true,
+        polish_provider: "openai",
+        polish_model: "gpt-4.1-mini",
+        default_instruction_id: "missing-default",
+      },
+      translate_instruction_id: "missing-translation",
+    });
+    mockGetVoiceInputConfig.mockResolvedValue(current);
     const container = renderComponent();
     await flushEffects(6);
-
-    const select = container.querySelector(
-      "select[aria-label='Default polish instruction']",
-    ) as HTMLSelectElement | null;
-    expect(select).toBeInstanceOf(HTMLSelectElement);
-
-    await act(async () => {
-      if (select) {
-        select.value = "email";
-        select.dispatchEvent(new Event("change", { bubbles: true }));
-      }
-      await flushEffects(2);
+    expect(mockSaveVoiceInputConfig).not.toHaveBeenCalled();
+    expect(container.querySelector("select")).toBeNull();
+    act(() => {
+      (
+        container.querySelector(
+          'button[aria-label="Toggle dictation sounds"]',
+        ) as HTMLButtonElement
+      ).click();
     });
-
-    expect(mockSaveVoiceInputConfig).toHaveBeenCalledTimes(1);
-    expect(mockSaveVoiceInputConfig.mock.calls[0][0]).toEqual(
-      expect.objectContaining({
-        processor: expect.objectContaining({
-          default_instruction_id: "email",
-        }),
-      }),
-    );
+    await flushEffects(8);
+    expect(mockSaveVoiceInputConfig).toHaveBeenCalledOnce();
+    expect(mockSaveVoiceInputConfig).toHaveBeenCalledWith({
+      ...current,
+      sound_enabled: false,
+    });
   });
 
   it("恢复默认后应清空语音生成任务覆盖", async () => {

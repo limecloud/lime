@@ -4,6 +4,7 @@ import {
   registerCommand,
   runCommand,
   subscribeCommands,
+  setCommandBindingOverrides,
   type CommandRegistration,
 } from "./registry";
 
@@ -37,10 +38,44 @@ function key(
 }
 afterEach(() => {
   for (const release of releases.splice(0).reverse()) release();
+  setCommandBindingOverrides({});
   document.body.innerHTML = "";
 });
 
 describe("实际 UI command 注册", () => {
+  it("重绑立即改变现有handler，清除仍可在列表恢复，取消投影恢复默认值", () => {
+    const { handler } = mountCommand();
+    setCommandBindingOverrides({ testSearch: ["Control+J"] });
+    key(window);
+    expect(handler).not.toHaveBeenCalled();
+    key(window, { key: "j" });
+    expect(handler).toHaveBeenCalledOnce();
+    expect(getRegisteredCommands()[0]).toMatchObject({
+      bindings: ["Control+J"],
+      defaultBindings: ["CommandOrControl+K"],
+      customized: true,
+    });
+    setCommandBindingOverrides({ testSearch: [] });
+    key(window, { key: "j" });
+    expect(handler).toHaveBeenCalledOnce();
+    expect(getRegisteredCommands()[0].bindings).toEqual([]);
+    expect(runCommand("testSearch")).toBe(true);
+    setCommandBindingOverrides({});
+    key(window);
+    expect(handler).toHaveBeenCalledTimes(3);
+  });
+
+  it("捕获输入即使允许输入与弹窗也不触发全局命令", () => {
+    const input = document.createElement("input");
+    input.dataset.shortcutCapture = "";
+    document.body.append(input);
+    const { handler } = mountCommand({
+      allowInInput: true,
+      allowInDialog: true,
+    });
+    expect(key(input).defaultPrevented).toBe(false);
+    expect(handler).not.toHaveBeenCalled();
+  });
   it("菜单与键盘执行同一 handler，卸载同时撤销键盘和列表", () => {
     const { handler, release } = mountCommand();
     expect(getRegisteredCommands().map((command) => command.id)).toEqual([

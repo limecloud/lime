@@ -205,6 +205,7 @@ async fn build_app_server(config: &CliConfig) -> anyhow::Result<AppServer> {
     .with_account_store_root(&app_data_root);
     if let Some(storage_roots) = initialized.storage_roots {
         runtime = runtime
+            .with_storage_roots(storage_roots.clone())
             .with_prompt_history_path(&storage_roots.prompt_history_path)
             .with_file_checkpoint_snapshot_store(Arc::new(
                 FilesystemFileCheckpointSnapshotStore::with_sidecar_root(

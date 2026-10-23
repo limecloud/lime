@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "archivedOnly": {
+      "default": true,
+      "type": "boolean"
+    },
+    "days": {
+      "default": 90,
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    }
+  },
+  "title": "StorageReviewParams",
+  "type": "object"
+}

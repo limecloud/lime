@@ -18,9 +18,11 @@ export function SidebarResizeHandle({
   width,
   onWidthChange,
   minimumWidth = MIN_WIDTH,
+  defaultWidth = APP_SIDEBAR_WIDTH,
 }: {
   width: number;
   minimumWidth?: number;
+  defaultWidth?: number;
   onWidthChange: (width: number) => void;
 }) {
   const { t } = useTranslation("navigation");
@@ -73,7 +75,7 @@ export function SidebarResizeHandle({
       onPointerUp={(event) => finishDrag(event, false)}
       onPointerCancel={(event) => finishDrag(event, true)}
       onLostPointerCapture={(event) => finishDrag(event, true)}
-      onDoubleClick={() => commit(APP_SIDEBAR_WIDTH)}
+      onDoubleClick={() => commit(defaultWidth)}
       onKeyDown={(event) => {
         const next =
           event.key === "ArrowLeft"

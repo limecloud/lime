@@ -1,9 +1,11 @@
-import { lazy, Suspense, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { useCommand } from "@/lib/commands/useCommand";
+import { observeCommandBindings } from "@/lib/commands/preferences";
 
 const KeyboardShortcutsDialog = lazy(() => import("./KeyboardShortcutsDialog"));
 
 export function KeyboardShortcutsDialogHost() {
+  useEffect(observeCommandBindings, []);
   const [open, setOpen] = useState(false);
   const openRef = useRef(false);
   const returnFocusRef = useRef<HTMLElement | null>(null);

@@ -86,6 +86,18 @@ export function invokeArgsPreview(
             if (typeof line !== "string") return "[invalid JSON-RPC]";
             try {
               const request = JSON.parse(line);
+              if (
+                typeof request?.method === "string" &&
+                (request.method.startsWith("dictationHistory/") ||
+                  request.method.startsWith("voiceTranscription/"))
+              ) {
+                // 音频和听写文本只进入领域存储，不复制到诊断缓存。
+                return JSON.stringify({
+                  jsonrpc: request.jsonrpc,
+                  id: request.id,
+                  method: request.method,
+                });
+              }
               if (request?.method === "account/login/start") {
                 // 登录凭据不得经 JSON 字符串旁路进入本地诊断缓冲。
                 return JSON.stringify({

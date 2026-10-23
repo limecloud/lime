@@ -1,3 +1,4 @@
+import type * as history from "@limecloud/app-server-client/browser";
 import { APP_SERVER_CLIENT_METHODS } from "./appServerClientMethodSpecs";
 import type * as appServer from "./appServerTypes";
 
@@ -315,6 +316,36 @@ declare module "./appServerClient" {
       params: appServer.AppServerProjectGitWorktreeCreateParams,
     ): Promise<
       appServer.AppServerRequestResult<appServer.AppServerProjectGitWorktreeCreateResponse>
+    >;
+    readStorage(
+      params: appServer.AppServerStorageReadParams,
+    ): Promise<
+      appServer.AppServerRequestResult<appServer.AppServerStorageState>
+    >;
+    refreshStorage(
+      params: appServer.AppServerStorageReadParams,
+    ): Promise<
+      appServer.AppServerRequestResult<appServer.AppServerStorageState>
+    >;
+    reviewStorage(
+      params: appServer.AppServerStorageReviewParams,
+    ): Promise<
+      appServer.AppServerRequestResult<appServer.AppServerStorageReviewResponse>
+    >;
+    deleteStorage(
+      params: appServer.AppServerStorageDeleteParams,
+    ): Promise<
+      appServer.AppServerRequestResult<appServer.AppServerStorageDeleteResponse>
+    >;
+    listProjectGitWorktrees(
+      params: appServer.AppServerProjectGitWorktreeListParams,
+    ): Promise<
+      appServer.AppServerRequestResult<appServer.AppServerProjectGitWorktreeListResponse>
+    >;
+    deleteProjectGitWorktree(
+      params: appServer.AppServerProjectGitWorktreeDeleteParams,
+    ): Promise<
+      appServer.AppServerRequestResult<appServer.AppServerProjectGitWorktreeDeleteResponse>
     >;
     exportHandoffBundle(
       params: appServer.AppServerAgentSessionHandoffBundleExportParams,
@@ -868,6 +899,47 @@ declare module "./appServerClient" {
       params: appServer.AppServerProjectMaterialLookupParams,
     ): Promise<
       appServer.AppServerRequestResult<appServer.AppServerProjectMaterialContentResponse>
+    >;
+    readInstructions(): Promise<
+      appServer.AppServerRequestResult<history.InstructionsReadResponse>
+    >;
+    writeInstructions(
+      params: history.InstructionsWriteParams,
+    ): Promise<
+      appServer.AppServerRequestResult<history.InstructionsReadResponse>
+    >;
+    listDictationHistory(): Promise<
+      appServer.AppServerRequestResult<history.DictationHistoryListResponse>
+    >;
+    startDictationHistory(
+      params: history.DictationHistoryStartParams,
+    ): Promise<
+      appServer.AppServerRequestResult<history.DictationHistoryWriteResponse>
+    >;
+    appendDictationHistoryAudio(
+      params: history.DictationHistoryAppendAudioParams,
+    ): Promise<
+      appServer.AppServerRequestResult<history.DictationHistoryWriteResponse>
+    >;
+    finishDictationHistory(
+      params: history.DictationHistoryFinishParams,
+    ): Promise<
+      appServer.AppServerRequestResult<history.DictationHistoryWriteResponse>
+    >;
+    readDictationHistoryAudio(
+      params: history.DictationHistoryIdParams,
+    ): Promise<
+      appServer.AppServerRequestResult<history.DictationHistoryReadAudioResponse>
+    >;
+    setDictationHistoryTranscript(
+      params: history.DictationHistorySetTranscriptParams,
+    ): Promise<
+      appServer.AppServerRequestResult<history.DictationHistoryWriteResponse>
+    >;
+    deleteDictationHistory(
+      params: history.DictationHistoryIdParams,
+    ): Promise<
+      appServer.AppServerRequestResult<history.DictationHistoryDeleteResponse>
     >;
     listVoiceAsrCredentials(): Promise<
       appServer.AppServerRequestResult<appServer.AppServerVoiceAsrCredentialListResponse>

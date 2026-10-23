@@ -63,11 +63,64 @@ pub struct ProjectGitWorktreeCreateParams {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ProjectGitWorktreeListParams {}
+
+#[cfg(test)]
+mod worktree_management_contract {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn worktree_params_reject_force_discard_and_unknown_fields() {
+        assert!(serde_json::from_value::<ProjectGitWorktreeListParams>(json!({})).is_ok());
+        assert!(serde_json::from_value::<ProjectGitWorktreeListParams>(
+            json!({"rootPath": "/other"})
+        )
+        .is_err());
+        assert!(serde_json::from_value::<ProjectGitWorktreeDeleteParams>(
+            json!({"rootPath": "/managed/one"})
+        )
+        .is_ok());
+        assert!(serde_json::from_value::<ProjectGitWorktreeDeleteParams>(
+            json!({"rootPath": "/managed/one", "discardChanges": true})
+        )
+        .is_err());
+        assert!(serde_json::from_value::<ProjectGitWorktreeDeleteParams>(json!({})).is_err());
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
+pub struct ProjectGitWorktreeThread {
+    pub thread_id: String,
+    pub name: String,
+    pub archived: bool,
+    pub pinned: bool,
+    pub active: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectGitManagedWorktree {
+    pub worktree_path: String,
+    pub repository_root: String,
+    pub head_sha: String,
+    pub branch: Option<String>,
+    pub threads: Vec<ProjectGitWorktreeThread>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectGitWorktreeListResponse {
+    pub root_path: String,
+    pub worktrees: Vec<ProjectGitManagedWorktree>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ProjectGitWorktreeDeleteParams {
     pub root_path: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub discard_changes: Option<bool>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -140,4 +193,5 @@ pub struct ProjectGitWorktreeDeleteResponse {
     pub worktree_path: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub repository_root: Option<String>,
+    pub archived_thread_ids: Vec<String>,
 }

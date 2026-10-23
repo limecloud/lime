@@ -2,6 +2,50 @@ import { createHash } from "node:crypto";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 
+export const RENDERER_BUILD_ENTRIES = [
+  { name: "main", source: "index.html", output: "dist/index.html" },
+  {
+    name: "browserAnnotation",
+    source: "browser-annotation.html",
+    output: "dist/browser-annotation.html",
+  },
+];
+export const HOST_PRELOAD_BUILD_ENTRIES = [
+  {
+    name: "preload",
+    source: "electron/preload.ts",
+    output: "dist-electron/preload/preload.cjs",
+  },
+  {
+    name: "browserOverlay",
+    source: "electron/browserOverlayPreload.ts",
+    output: "dist-electron/preload/browserOverlay.cjs",
+  },
+  {
+    name: "browserPage",
+    source: "electron/browserPagePreload.ts",
+    output: "dist-electron/preload/browserPage.cjs",
+  },
+  {
+    name: "browserAnnotationEditor",
+    source: "electron/browserAnnotationEditorPreload.ts",
+    output: "dist-electron/preload/browserAnnotationEditor.cjs",
+  },
+];
+
+export function declaredBuildEntries(rootDir, entries) {
+  // A product root declares the whole build graph; isolated fixtures may omit it.
+  const declaresProduct = statFile(
+    path.join(rootDir, entries[0].source),
+  )?.isFile();
+  return declaresProduct
+    ? entries
+    : entries.filter(
+        (entry, index) =>
+          index === 0 || statFile(path.join(rootDir, entry.source))?.isFile(),
+      );
+}
+
 export const RENDERER_SOURCE_DIRS = [
   "src",
   "public",
@@ -12,7 +56,7 @@ export const RENDERER_SOURCE_DIRS = [
   "packages/agent-ui-contracts/src",
 ];
 export const RENDERER_SOURCE_FILES = [
-  "index.html",
+  ...RENDERER_BUILD_ENTRIES.map((entry) => entry.source),
   "pnpm-lock.yaml",
   "pnpm-workspace.yaml",
   "package.json",
@@ -34,6 +78,8 @@ export const HOST_SOURCE_DIRS = [
   "lime-rs/icons",
 ];
 export const HOST_SOURCE_FILES = [
+  ...HOST_PRELOAD_BUILD_ENTRIES.map((entry) => entry.source),
+  "src/lib/api/browserAnnotationEditorTypes.ts",
   "pnpm-lock.yaml",
   "pnpm-workspace.yaml",
   "package.json",
@@ -45,6 +91,7 @@ export const HOST_SOURCE_FILES = [
   "scripts/electron/build-host.mjs",
   "scripts/electron/copy-desktop-assets.mjs",
   "scripts/lib/electron-desktop-resources.mjs",
+  "scripts/lib/electron-build-inputs.mjs",
 ];
 export const APP_SERVER_SOURCE_DIRS = [
   "lime-rs/crates",

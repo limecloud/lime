@@ -49,6 +49,17 @@ const identity = {
 };
 
 describe("Browser App Server bridge", () => {
+  it("projects the current configuration language to history approval presentation", async () => {
+    const { bridge, host, request } = setup();
+    request.mockResolvedValue({
+      config: { browser: DEFAULT_BROWSER_SETTINGS, language: "ja-JP" },
+    });
+    await bridge.refreshSettings();
+    expect(host.setSettings).toHaveBeenCalledWith(
+      DEFAULT_BROWSER_SETTINGS,
+      "ja-JP",
+    );
+  });
   it("reads authoritative configuration and propagates failures to the execution provider", async () => {
     const { bridge, host, request } = setup();
     request.mockResolvedValueOnce({
@@ -133,10 +144,22 @@ describe("Browser App Server bridge", () => {
   });
   it("an Agent-created opener uses the canonical thread session without requiring a visible Browser pane", async () => {
     const { bridge, request } = setup();
-    await bridge.observeResult("thread/start", {}, { thread: { id: "thread-1", sessionId: "session-agent" } }, 41);
+    await bridge.observeResult(
+      "thread/start",
+      {},
+      { thread: { id: "thread-1", sessionId: "session-agent" } },
+      41,
+    );
     request.mockResolvedValueOnce(identity).mockResolvedValueOnce({});
-    await expect(bridge.createPopupIdentity(popup)).resolves.toEqual({ browserSessionId: "browser-1", tabId: "popup" });
-    expect(request).toHaveBeenNthCalledWith(1, "workspaceRightSurface/request", expect.objectContaining({ sessionId: "session-agent" }));
+    await expect(bridge.createPopupIdentity(popup)).resolves.toEqual({
+      browserSessionId: "browser-1",
+      tabId: "popup",
+    });
+    expect(request).toHaveBeenNthCalledWith(
+      1,
+      "workspaceRightSurface/request",
+      expect.objectContaining({ sessionId: "session-agent" }),
+    );
   });
   it("consumes an invalid identity without attaching a native popup", async () => {
     const { bridge, request } = setup();

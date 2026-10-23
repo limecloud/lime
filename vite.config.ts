@@ -6,6 +6,7 @@ import path from "path";
 import process from "node:process";
 import { fileURLToPath } from "url";
 import { readWorkspaceAppVersion } from "./scripts/app-version.mjs";
+import { RENDERER_BUILD_ENTRIES } from "./scripts/lib/electron-build-inputs.mjs";
 
 // ES 模块中获取 __dirname 的方式
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -116,10 +117,12 @@ export default defineConfig(({ command, mode }) => {
       emptyOutDir: keepExistingOutDir ? false : undefined,
       chunkSizeWarningLimit: 12000,
       rollupOptions: {
-        input: {
-          main: path.resolve(__dirname, "index.html"),
-          browserAnnotation: path.resolve(__dirname, "browser-annotation.html"),
-        },
+        input: Object.fromEntries(
+          RENDERER_BUILD_ENTRIES.map((entry) => [
+            entry.name,
+            path.resolve(__dirname, entry.source),
+          ]),
+        ),
         onwarn(warning, defaultHandler) {
           const isMixedImportWarning =
             warning.message.includes("dynamically imported by") &&

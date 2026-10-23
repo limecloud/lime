@@ -1311,6 +1311,9 @@ impl RuntimeCore {
                 callback(event)?;
             }
         }
+        if input_kind != TurnStartInputKind::Review {
+            self.prepare_git_prompt_context(&mut params)?;
+        }
         self.prepare_memory_prompt_context(&mut params).await;
         self.prepare_session_compaction_prompt_context(&mut params);
         if let Some(capability_id) = params

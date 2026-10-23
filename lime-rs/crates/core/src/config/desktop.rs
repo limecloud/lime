@@ -1,6 +1,7 @@
 //! Desktop 偏好；与其它 Surface 共享 App Server 用户配置层。
 
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -22,12 +23,85 @@ pub enum ExternalBrowserLinkShortcut {
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields, rename_all = "kebab-case")]
 pub struct DesktopConfig {
+    /// 缺项继承命令默认值，空数组显式解除绑定。
+    #[serde(
+        default,
+        skip_serializing_if = "BTreeMap::is_empty",
+        deserialize_with = "deserialize_shortcuts"
+    )]
+    pub keyboard_shortcuts: BTreeMap<String, Vec<String>>,
     // 空值保留未显式配置的身份，不能被schema默认值覆盖。
     #[serde(skip_serializing_if = "Option::is_none")]
     pub open_link_in_target_preference: Option<LinkOpenTarget>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub open_local_url_in_target_preference: Option<LinkOpenTarget>,
     pub external_browser_link_shortcut: ExternalBrowserLinkShortcut,
+}
+
+fn deserialize_shortcuts<'de, D>(deserializer: D) -> Result<BTreeMap<String, Vec<String>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let shortcuts = BTreeMap::<String, Vec<String>>::deserialize(deserializer)?;
+    for (id, bindings) in &shortcuts {
+        if id.trim().is_empty() || bindings.iter().any(|binding| !valid_binding(binding)) {
+            return Err(serde::de::Error::custom(
+                "Invalid desktop keyboard shortcut",
+            ));
+        }
+    }
+    Ok(shortcuts)
+}
+
+fn valid_binding(binding: &str) -> bool {
+    let mut parts: Vec<_> = binding.split('+').map(str::trim).collect();
+    let Some(key) = parts.pop() else {
+        return false;
+    };
+    let key = key.to_ascii_lowercase();
+    let named = [
+        "space",
+        "escape",
+        "enter",
+        "tab",
+        "backspace",
+        "delete",
+        "insert",
+        "home",
+        "end",
+        "pageup",
+        "pagedown",
+        "arrowup",
+        "arrowdown",
+        "arrowleft",
+        "arrowright",
+        "plus",
+    ];
+    let function = key
+        .strip_prefix('f')
+        .and_then(|number| {
+            number
+                .parse::<u8>()
+                .ok()
+                .filter(|value| value.to_string() == number)
+        })
+        .is_some_and(|number| (1..=24).contains(&number));
+    if !(key.len() == 1 && key.as_bytes()[0].is_ascii_graphic() && key != "+"
+        || named.contains(&key.as_str())
+        || function)
+    {
+        return false;
+    }
+    let mut seen = std::collections::BTreeSet::new();
+    for modifier in parts {
+        let modifier = modifier.to_ascii_lowercase();
+        if !["commandorcontrol", "command", "control", "alt", "shift"].contains(&modifier.as_str())
+            || !seen.insert(modifier)
+        {
+            return false;
+        }
+    }
+    !(seen.contains("commandorcontrol") && (seen.contains("command") || seen.contains("control")))
 }
 
 impl DesktopConfig {
@@ -90,6 +164,47 @@ mod tests {
             assert!(
                 serde_json::from_value::<DesktopConfig>(value.clone()).is_err(),
                 "{value}"
+            );
+        }
+    }
+
+    #[test]
+    fn keyboard_shortcuts_round_trip_preserves_unbound_and_defaults() {
+        let value = json!({"keyboard-shortcuts": {
+            "searchSettings": ["CommandOrControl+Shift+F", "Alt+F2"],
+            "showKeyboardShortcuts": []
+        }});
+        let config: DesktopConfig = serde_json::from_value(value.clone()).unwrap();
+        assert_eq!(
+            config.keyboard_shortcuts["showKeyboardShortcuts"],
+            Vec::<String>::new()
+        );
+        assert!(!config.keyboard_shortcuts.contains_key("saveDocument"));
+        let restored: DesktopConfig =
+            serde_yaml::from_str(&serde_yaml::to_string(&config).unwrap()).unwrap();
+        assert_eq!(config, restored);
+        assert_eq!(
+            serde_json::to_value(restored).unwrap()["keyboard-shortcuts"],
+            value["keyboard-shortcuts"]
+        );
+    }
+
+    #[test]
+    fn keyboard_shortcuts_reject_invalid_shapes_and_key_combinations() {
+        for value in [
+            json!({"": ["Control+K"]}),
+            json!({"search": null}),
+            json!({"search": [""]}),
+            json!({"search": ["Hyper+K"]}),
+            json!({"search": ["Control+Control+K"]}),
+            json!({"search": ["CommandOrControl+Control+K"]}),
+            json!({"search": ["F25"]}),
+            json!({"search": ["F01"]}),
+            json!({"search": ["Control+K Control+S"]}),
+        ] {
+            assert!(
+                serde_json::from_value::<DesktopConfig>(json!({"keyboard-shortcuts": value}))
+                    .is_err()
             );
         }
     }

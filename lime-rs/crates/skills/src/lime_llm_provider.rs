@@ -205,7 +205,7 @@ impl LlmProvider for LimeLlmProvider {
         let provider_type = self.preferred_provider.as_deref().unwrap_or("claude"); // 默认使用 Claude
 
         // 确定要使用的模型
-        let model_name = model.unwrap_or("claude-sonnet-4-5-20250514");
+        let model_name = model.unwrap_or("claude-sonnet-5-5");
 
         tracing::info!(
             "[LimeLlmProvider] chat 调用: provider_type={}, model={}",

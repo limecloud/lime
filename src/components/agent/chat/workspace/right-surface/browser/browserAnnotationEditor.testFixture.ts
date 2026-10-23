@@ -1,0 +1,58 @@
+import type {
+  BrowserAnnotationEditorLabels,
+  BrowserAnnotationEditorUpdate,
+} from "@/lib/api/browserAnnotationEditorTypes";
+
+export const labels: BrowserAnnotationEditorLabels = {
+  title: "Page annotation",
+  placeholder: "Add a comment",
+  save: "Save annotation",
+  send: "Send now",
+  close: "Keep and close",
+  element: "Page element",
+  region: "Selected region",
+  text: "Selected text",
+  captureFailed: "Screenshot unavailable; comment kept",
+  sending: "Sending",
+  sendFailed: "Could not send; retry",
+  imageAttachment: "Image attachment",
+  previewImage: "Preview image",
+  removeImage: "Remove image",
+  closePreview: "Close preview",
+  attachmentFailed: "Could not add image",
+  attachmentLoading: "Reading image",
+};
+
+export const initial: BrowserAnnotationEditorUpdate = {
+  layout: { width: 360, maxHeight: 584 },
+  generation: 3,
+  pending: false,
+  error: false,
+  presentation: {
+    editorId: "editor-one",
+    annotationId: "annotation-one",
+    draftId: "draft-one",
+    body: "Initial body",
+    attachedImages: [],
+    revision: 4,
+    screenshotStatus: "captured",
+    appearance: "light",
+    labels,
+    selection: {
+      kind: "element",
+      pageUrl: "https://example.com/page",
+      pageTitle: "Example",
+      frameUrl: "https://example.com/page",
+      framePath: [],
+      targetRect: { x: 21.2, y: 32.8, width: 120.4, height: 30.5 },
+      viewportSize: { width: 800, height: 600 },
+      scrollPosition: { x: 0, y: 0 },
+      devicePixelRatio: 2,
+      targetSelector: "button#checkout",
+      targetPath: "body > button",
+      targetRole: "button",
+      targetText: "Checkout",
+      markerViewportPoint: { x: 25, y: 35 },
+    },
+  },
+};

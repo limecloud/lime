@@ -3,6 +3,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { changeLimeLocale } from "@/i18n/createI18n";
 import { invalidateAppConfigCache } from "@/lib/api/appConfig";
+import { AppServerRpcError } from "@/lib/api/appServerResponse";
 import { updateDesktopPreference } from "@/lib/api/desktopPreferences";
 import {
   effectiveBrowserSettings,
@@ -30,6 +31,7 @@ let root: Root;
 let persisted: Record<string, unknown>;
 let version: number;
 let rejectWrite: boolean;
+let rejectRead: boolean;
 
 beforeEach(async () => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -43,19 +45,30 @@ beforeEach(async () => {
   };
   version = 1;
   rejectWrite = false;
+  rejectRead = false;
   pickFiles.mockReset().mockResolvedValue([]);
   request.mockReset().mockImplementation(async (method, params) => {
-    if (method === "config/read")
+    if (method === "config/read") {
+      if (rejectRead) throw new Error("fixture read rejected");
       return {
         result: {
           config: structuredClone(persisted),
           layers: [{ version: `v${version}` }],
         },
       };
+    }
     if (method !== "config/batchWrite")
       throw new Error(`Unexpected method ${method}`);
     if (rejectWrite) throw new Error("fixture write rejected");
-    expect(params.expectedVersion).toBe(`v${version}`);
+    if (params.expectedVersion !== `v${version}`)
+      throw new AppServerRpcError({
+        id: 1,
+        error: {
+          code: -32600,
+          message: "Configuration changed",
+          data: { config_write_error_code: "configVersionConflict" },
+        },
+      });
     for (const edit of params.edits)
       persisted[edit.keyPath] = structuredClone(edit.value);
     version += 1;
@@ -410,12 +423,12 @@ it("edits all agent permission categories, normalizes a site exception, and reje
 it("serializes Browser and Desktop saves through the same CAS config owner", async () => {
   await act(async () =>
     Promise.all([
-      updateBrowserSetting("show_full_url", true),
+      updateBrowserSetting("show_full_url", true, false),
       updateDesktopPreference(
         "open-link-in-target-preference",
         "in-app-browser",
       ),
-      updateBrowserSetting("enabled", false),
+      updateBrowserSetting("enabled", false, true),
     ]),
   );
   expect(persisted.browser).toMatchObject({
@@ -427,6 +440,210 @@ it("serializes Browser and Desktop saves through the same CAS config owner", asy
   });
   expect(version).toBe(4);
 });
+
+function currentBrowser() {
+  return effectiveBrowserSettings(
+    persisted.browser as Parameters<typeof effectiveBrowserSettings>[0],
+  );
+}
+
+function writes() {
+  return request.mock.calls.filter(([method]) => method === "config/batchWrite")
+    .length;
+}
+
+async function setPattern(pattern: string) {
+  const input = container.querySelector<HTMLInputElement>(
+    "#browser-site-pattern",
+  )!;
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(
+      HTMLInputElement.prototype,
+      "value",
+    )!.set!.call(input, pattern);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+}
+
+async function submitPattern() {
+  await act(async () =>
+    container
+      .querySelector("#browser-agent-permissions form")!
+      .dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })),
+  );
+}
+
+async function openAddPattern() {
+  await act(async () =>
+    container
+      .querySelector<HTMLButtonElement>("#browser-agent-permissions button")!
+      .click(),
+  );
+}
+
+it("restores remote permissions after CAS rejection, preserves the draft and retries only on explicit submit", async () => {
+  await renderPage();
+  await openAddPattern();
+  await setPattern("https://example.com");
+  const remote = currentBrowser();
+  remote.agent_permissions.default.browse = "deny";
+  persisted.browser = remote;
+  version += 1;
+  await submitPattern();
+  expect(container.querySelector("[role=alert]")?.textContent).toContain(
+    "changed elsewhere",
+  );
+  expect(
+    container.querySelector<HTMLInputElement>("#browser-site-pattern")!.value,
+  ).toBe("https://example.com");
+  expect(
+    container.querySelector<HTMLSelectElement>(
+      'select[aria-label="Default · Browsing"]',
+    )!.value,
+  ).toBe("deny");
+  expect(currentBrowser().agent_permissions.sites).toEqual([]);
+  expect(writes()).toBe(1);
+  await submitPattern();
+  expect(currentBrowser().agent_permissions.sites).toMatchObject([
+    { pattern: "https://example.com", permissions: { browse: "deny" } },
+  ]);
+  expect(container.querySelector("#browser-site-pattern")).toBeNull();
+  expect(container.querySelector("[role=alert]")).toBeNull();
+  expect(writes()).toBe(2);
+});
+
+it("keeps an editing baseline when another editor refreshes the matrix before submit", async () => {
+  await renderPage();
+  await openAddPattern();
+  await setPattern("example.com");
+  const baseline = currentBrowser();
+  const updated = structuredClone(baseline.agent_permissions);
+  updated.default.download = "deny";
+  await act(async () =>
+    updateBrowserSetting(
+      "agent_permissions",
+      updated,
+      baseline.agent_permissions,
+    ),
+  );
+  expect(writes()).toBe(1);
+  await submitPattern();
+  expect(writes()).toBe(1);
+  expect(container.querySelector("[role=alert]")?.textContent).toContain(
+    "changed elsewhere",
+  );
+  expect(
+    container.querySelector<HTMLInputElement>("#browser-site-pattern")!.value,
+  ).toBe("example.com");
+  await submitPattern();
+  expect(writes()).toBe(2);
+  expect(currentBrowser().agent_permissions.sites[0].permissions.download).toBe(
+    "deny",
+  );
+});
+
+it("does not silently recreate or report saving a site rule removed during editing", async () => {
+  const initial = currentBrowser();
+  initial.agent_permissions.sites = [
+    {
+      pattern: "example.com",
+      permissions: { ...initial.agent_permissions.default },
+    },
+  ];
+  persisted.browser = initial;
+  await renderPage();
+  await act(async () =>
+    container
+      .querySelector<HTMLButtonElement>(
+        'button[aria-label="Edit permission exception for example.com"]',
+      )!
+      .click(),
+  );
+  await setPattern("renamed.example.com");
+  await act(async () =>
+    updateBrowserSetting(
+      "agent_permissions",
+      { ...initial.agent_permissions, sites: [] },
+      initial.agent_permissions,
+    ),
+  );
+  await submitPattern();
+  await submitPattern();
+  expect(writes()).toBe(1);
+  expect(currentBrowser().agent_permissions.sites).toEqual([]);
+  expect(
+    container.querySelector("#browser-agent-permissions [role=alert]")
+      ?.textContent,
+  ).toContain("rule was removed");
+  expect(
+    container.querySelector<HTMLInputElement>("#browser-site-pattern")!.value,
+  ).toBe("renamed.example.com");
+});
+
+it("blocks further changes if authoritative reload fails and enables them after explicit reload", async () => {
+  await renderPage();
+  await openAddPattern();
+  await setPattern("example.com");
+  version += 1;
+  rejectRead = true;
+  await submitPattern();
+  expect(container.querySelector("[role=alert]")?.textContent).toContain(
+    "may be outdated",
+  );
+  expect(
+    container.querySelector<HTMLButtonElement>(
+      "#browser-enabled [role=switch]",
+    )!.disabled,
+  ).toBe(true);
+  await submitPattern();
+  expect(writes()).toBe(1);
+  await act(async () =>
+    container.querySelector<HTMLButtonElement>("[role=alert] button")!.click(),
+  );
+  expect(container.querySelector("[role=alert]")?.textContent).toContain(
+    "may be outdated",
+  );
+  expect(
+    container.querySelector<HTMLButtonElement>(
+      "#browser-enabled [role=switch]",
+    )!.disabled,
+  ).toBe(true);
+  rejectRead = false;
+  await act(async () =>
+    container.querySelector<HTMLButtonElement>("[role=alert] button")!.click(),
+  );
+  expect(
+    container.querySelector<HTMLButtonElement>(
+      "#browser-enabled [role=switch]",
+    )!.disabled,
+  ).toBe(false);
+  expect(
+    container.querySelector<HTMLInputElement>("#browser-site-pattern")!.value,
+  ).toBe("example.com");
+  await submitPattern();
+  expect(currentBrowser().agent_permissions.sites[0].pattern).toBe(
+    "example.com",
+  );
+});
+
+it.each(["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"] as const)(
+  "shows a translated conflict and preserves input in %s",
+  async (locale) => {
+    await changeLimeLocale(locale);
+    await renderPage();
+    await openAddPattern();
+    await setPattern("example.com");
+    version += 1;
+    await submitPattern();
+    const alert = container.querySelector("[role=alert]")!;
+    expect(alert.textContent!.length).toBeGreaterThan(20);
+    expect(alert.textContent).not.toContain("settings.");
+    expect(
+      container.querySelector<HTMLInputElement>("#browser-site-pattern")!.value,
+    ).toBe("example.com");
+    expect(writes()).toBe(1);
+  },
+);
 
 it.each(["MacIntel", "Win32"])(
   "renders platform modifier choices in order and saves the exact enum on %s",
@@ -463,7 +680,7 @@ it.each(["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"] as const)(
   async (locale) => {
     await changeLimeLocale(locale);
     await renderPage();
-    expect(container.textContent).not.toContain("settings.");
+    expect(container.textContent).not.toMatch(/(?:settings|browserDownloads)\./u);
     for (const target of ["browser-web-target", "browser-local-target"]) {
       expect(isSettingsSearchTarget(SettingsTabs.Browser, target, true)).toBe(
         true,

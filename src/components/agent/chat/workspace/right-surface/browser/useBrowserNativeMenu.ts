@@ -6,6 +6,7 @@ import {
   updateBrowserTabMenu,
   type BrowserMenuEvent,
   type BrowserMenuItem,
+  type BrowserMenuPresentation,
 } from "@/lib/api/browserMenu";
 import type { BrowserTabState } from "@/lib/api/browserTab";
 import { matchesBrowserTabEvent } from "./browserTabEventIdentity";
@@ -94,7 +95,11 @@ export function useBrowserNativeMenu({
       );
     }
   }, [active, selected]);
-  const show = async (element: HTMLElement, items: BrowserMenuItem[]) => {
+  const show = async (
+    element: HTMLElement,
+    items: BrowserMenuItem[],
+    confirmation?: BrowserMenuPresentation["confirmation"],
+  ) => {
     const tab = current.current.selected;
     if (!tab || !current.current.active) return;
     if (session.current) {
@@ -132,6 +137,7 @@ export function useBrowserNativeMenu({
           height: rect.height,
         },
         items,
+        ...(confirmation ? { confirmation } : {}),
         appearance: document.documentElement.classList.contains("dark")
           ? "dark"
           : "light",

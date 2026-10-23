@@ -365,6 +365,7 @@ describe("asrProvider API", () => {
         type_delay_ms: 10,
       },
       instructions: [],
+      dictation_dictionary: [" OpenAI ", "src/App.tsx", "  "],
       sound_enabled: true,
       translate_instruction_id: "default",
     };
@@ -415,7 +416,10 @@ describe("asrProvider API", () => {
     appServerMocks.deleteVoiceInstruction.mockResolvedValueOnce({ result: {} });
 
     await expect(getVoiceInputConfig()).resolves.toEqual(
-      expect.objectContaining({ enabled: true }),
+      expect.objectContaining({
+        enabled: true,
+        dictation_dictionary: ["OpenAI", "src/App.tsx"],
+      }),
     );
     await expect(saveVoiceInputConfig(config)).resolves.toBeUndefined();
     await expect(getVoiceInstructions()).resolves.toEqual([
@@ -431,16 +435,12 @@ describe("asrProvider API", () => {
     ).resolves.toBeUndefined();
     await expect(deleteVoiceInstruction("inst-2")).resolves.toBeUndefined();
 
-    expect(appServerMocks.request).toHaveBeenNthCalledWith(
-      1,
-      "config/read",
-      { includeLayers: true },
-    );
-    expect(appServerMocks.request).toHaveBeenNthCalledWith(
-      2,
-      "config/read",
-      { includeLayers: true },
-    );
+    expect(appServerMocks.request).toHaveBeenNthCalledWith(1, "config/read", {
+      includeLayers: true,
+    });
+    expect(appServerMocks.request).toHaveBeenNthCalledWith(2, "config/read", {
+      includeLayers: true,
+    });
     expect(appServerMocks.request).toHaveBeenNthCalledWith(
       3,
       "config/batchWrite",
@@ -450,8 +450,22 @@ describe("asrProvider API", () => {
         edits: expect.any(Array),
       }),
     );
+    expect(appServerMocks.request.mock.calls[2][1].edits).toContainEqual(
+      expect.objectContaining({
+        keyPath: "experimental",
+        value: expect.objectContaining({
+          voice_input: expect.objectContaining({
+            dictation_dictionary: ["OpenAI", "src/App.tsx"],
+            asr_credentials: [{ id: "cred-1" }],
+          }),
+        }),
+      }),
+    );
     expect(safeInvoke).not.toHaveBeenCalledWith("get_config");
-    expect(safeInvoke).not.toHaveBeenCalledWith("save_config", expect.anything());
+    expect(safeInvoke).not.toHaveBeenCalledWith(
+      "save_config",
+      expect.anything(),
+    );
     expect(safeInvoke).not.toHaveBeenCalledWith("get_voice_input_config");
     expect(safeInvoke).not.toHaveBeenCalledWith(
       "save_voice_input_config",

@@ -190,7 +190,7 @@ function currentElectronEntrypointFiles() {
 }
 
 function isElectronTestOnlyPath(filePath) {
-  return /\.(?:test|testHarness|test-support)(?:\.(?:ts|mjs|js))?$/i.test(
+  return /\.(?:test|testHarness|testFixtures?|test-support)(?:\.(?:ts|mjs|js))?$/i.test(
     filePath,
   );
 }
@@ -357,6 +357,27 @@ describe("Electron current package entrypoints", () => {
       "Forge package uses prune=true, so Electron production runtime imports must be root dependencies.",
     ).toEqual([]);
   });
+
+  it.each(["testFixture", "testFixtures"])(
+    "classifies .%s leaves while rejecting their production imports",
+    (suffix) => {
+      const file = `electron/browserAnnotationHost.${suffix}.ts`;
+      expect(
+        unpackagedRuntimeImports(
+          file,
+          'import { vi } from "vitest";',
+          new Set(["electron"]),
+        ),
+      ).toEqual([]);
+      const specifier = `./browserAnnotationHost.${suffix}`;
+      expect(
+        productionTestImports(
+          "electron/main.ts",
+          `import { fixture } from "${specifier}";`,
+        ),
+      ).toEqual([specifier]);
+    },
+  );
 
   it("test harness classification does not admit test dependencies in production sources", () => {
     const runtimeDependencies = new Set(["electron"]);
@@ -549,30 +570,17 @@ describe("Electron current package entrypoints", () => {
     expect(memorySmokeContent).toContain(
       '[data-testid="settings-sidebar-tab-memory"]',
     );
-    expect(memorySmokeContent).toContain(
-      '[data-testid="settings-memory-store-panel"]',
-    );
-    expect(memorySmokeContent).toContain(
-      '[data-testid="settings-memory-review-refresh"]',
-    );
-    expect(memorySmokeContent).toContain(
-      '[data-testid="settings-memory-index-rebuild"]',
-    );
-    expect(memorySmokeContent).toContain(
-      '[data-testid="settings-memory-consolidate"]',
-    );
-    expect(memorySmokeContent).toContain(
-      '[data-testid="settings-memory-rollout-refresh"]',
-    );
-    expect(memorySmokeContent).toContain(
-      '[data-testid="settings-memory-rollout-consolidate"]',
-    );
-    expect(memorySmokeContent).toContain(
-      '[data-testid="settings-memory-soul-panel"]',
-    );
-    expect(memorySmokeContent).toContain(
-      '[data-testid="settings-memory-advanced-panel"]',
-    );
+    for (const selector of [
+      "#memory-enabled",
+      "#memory-tools",
+      "#memory-delete",
+      "#memory-instructions",
+      '[data-testid="settings-instructions-open"]',
+      '[data-testid="settings-instructions-editor"]',
+    ]) {
+      expect(memorySmokeContent).toContain(selector);
+    }
+    expect(memorySmokeContent).not.toContain("settings-memory-tab-soul");
     expect(memorySmokeContent).toContain("/灵感库/");
     expect(memorySmokeContent).toContain("/MemoryPage/");
     expect(mainContent).not.toContain('"turn/start"');

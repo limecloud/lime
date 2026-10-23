@@ -29,6 +29,7 @@ pub(crate) use automation::is_scheduled_task_job;
 mod channels;
 mod connect;
 mod diagnostics;
+mod dictation_history;
 mod gallery_materials;
 mod impls;
 mod knowledge;
@@ -333,6 +334,7 @@ pub struct LocalAppDataSource {
     product_db_path: std::path::PathBuf,
     plugin_store: plugin_catalog::PluginStore,
     session_files_root: std::path::PathBuf,
+    dictation_history: Arc<dictation_history::DictationHistoryStore>,
     connect_registry_cache_path: std::path::PathBuf,
     logs: std::sync::Arc<tokio::sync::RwLock<lime_core::logger::LogStore>>,
     api_key_provider_service: ApiKeyProviderService,
@@ -384,6 +386,9 @@ impl LocalAppDataSource {
             lime_mcp::oauth_store::oauth_store_root_for_app_data_root(&app_data_root);
         Ok(Self {
             db,
+            dictation_history: Arc::new(dictation_history::DictationHistoryStore::new(
+                app_data_root.join("dictation-history"),
+            )),
             app_data_root,
             product_db_path,
             plugin_store,

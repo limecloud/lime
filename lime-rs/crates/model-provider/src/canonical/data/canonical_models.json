@@ -1,63 +1,12 @@
 [
   {
-    "id": "ai21/jamba-large-1.7",
-    "name": "AI21: Jamba Large 1.7",
-    "context_length": 256000,
-    "max_completion_tokens": 4096,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "supports_tools": true,
-    "pricing": {
-      "prompt": 2e-6,
-      "completion": 8e-6,
-      "request": 0.0,
-      "image": 0.0
-    }
-  },
-  {
-    "id": "ai21/jamba-mini-1.7",
-    "name": "AI21: Jamba Mini 1.7",
-    "context_length": 256000,
-    "max_completion_tokens": 4096,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "supports_tools": true,
-    "pricing": {
-      "prompt": 2e-7,
-      "completion": 4e-7,
-      "request": 0.0,
-      "image": 0.0
-    }
-  },
-  {
     "id": "agnes/agnes-2.0-flash",
     "name": "Agnes: Agnes 2.0 Flash",
     "context_length": 524288,
-    "task_families": [
-      "chat",
-      "reasoning",
-      "vision_understanding"
-    ],
-    "input_modalities": [
-      "text",
-      "image"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "runtime_features": [
-      "streaming",
-      "tool_calling",
-      "reasoning"
-    ],
+    "task_families": ["chat", "reasoning", "vision_understanding"],
+    "input_modalities": ["text", "image"],
+    "output_modalities": ["text"],
+    "runtime_features": ["streaming", "tool_calling", "reasoning"],
     "supports_tools": true,
     "supports_reasoning": true,
     "pricing": {
@@ -72,23 +21,10 @@
     "name": "Agnes: Agnes 2.5 Flash",
     "context_length": 524288,
     "max_completion_tokens": 65536,
-    "task_families": [
-      "chat",
-      "reasoning",
-      "vision_understanding"
-    ],
-    "input_modalities": [
-      "text",
-      "image"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "runtime_features": [
-      "streaming",
-      "tool_calling",
-      "reasoning"
-    ],
+    "task_families": ["chat", "reasoning", "vision_understanding"],
+    "input_modalities": ["text", "image"],
+    "output_modalities": ["text"],
+    "runtime_features": ["streaming", "tool_calling", "reasoning"],
     "supports_tools": true,
     "supports_reasoning": true,
     "pricing": {
@@ -103,23 +39,10 @@
     "name": "Agnes: Agnes 2.5 Pro",
     "context_length": 1048576,
     "max_completion_tokens": 65536,
-    "task_families": [
-      "chat",
-      "reasoning",
-      "vision_understanding"
-    ],
-    "input_modalities": [
-      "text",
-      "image"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "runtime_features": [
-      "streaming",
-      "tool_calling",
-      "reasoning"
-    ],
+    "task_families": ["chat", "reasoning", "vision_understanding"],
+    "input_modalities": ["text", "image"],
+    "output_modalities": ["text"],
+    "runtime_features": ["streaming", "tool_calling", "reasoning"],
     "supports_tools": true,
     "supports_reasoning": true,
     "pricing": {
@@ -134,23 +57,10 @@
     "name": "Agnes: Agnes 2.5 Pro Alpha",
     "context_length": 1048576,
     "max_completion_tokens": 65536,
-    "task_families": [
-      "chat",
-      "reasoning",
-      "vision_understanding"
-    ],
-    "input_modalities": [
-      "text",
-      "image"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "runtime_features": [
-      "streaming",
-      "tool_calling",
-      "reasoning"
-    ],
+    "task_families": ["chat", "reasoning", "vision_understanding"],
+    "input_modalities": ["text", "image"],
+    "output_modalities": ["text"],
+    "runtime_features": ["streaming", "tool_calling", "reasoning"],
     "supports_tools": true,
     "supports_reasoning": true,
     "pricing": {
@@ -165,23 +75,10 @@
     "name": "Agnes: Agnes 2.5 Pro Beta",
     "context_length": 1048576,
     "max_completion_tokens": 65536,
-    "task_families": [
-      "chat",
-      "reasoning",
-      "vision_understanding"
-    ],
-    "input_modalities": [
-      "text",
-      "image"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "runtime_features": [
-      "streaming",
-      "tool_calling",
-      "reasoning"
-    ],
+    "task_families": ["chat", "reasoning", "vision_understanding"],
+    "input_modalities": ["text", "image"],
+    "output_modalities": ["text"],
+    "runtime_features": ["streaming", "tool_calling", "reasoning"],
     "supports_tools": true,
     "supports_reasoning": true,
     "pricing": {}
@@ -191,23 +88,10 @@
     "name": "Agnes: Agnes 3.0 Flash",
     "context_length": 524288,
     "max_completion_tokens": 65536,
-    "task_families": [
-      "chat",
-      "reasoning",
-      "vision_understanding"
-    ],
-    "input_modalities": [
-      "text",
-      "image"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "runtime_features": [
-      "streaming",
-      "tool_calling",
-      "reasoning"
-    ],
+    "task_families": ["chat", "reasoning", "vision_understanding"],
+    "input_modalities": ["text", "image"],
+    "output_modalities": ["text"],
+    "runtime_features": ["streaming", "tool_calling", "reasoning"],
     "supports_tools": true,
     "supports_reasoning": true,
     "pricing": {
@@ -221,23 +105,10 @@
     "id": "agnes/agnes-3.0-pro",
     "name": "Agnes: Agnes 3.0 Pro",
     "context_length": 0,
-    "task_families": [
-      "chat",
-      "reasoning",
-      "vision_understanding"
-    ],
-    "input_modalities": [
-      "text",
-      "image"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "runtime_features": [
-      "streaming",
-      "tool_calling",
-      "reasoning"
-    ],
+    "task_families": ["chat", "reasoning", "vision_understanding"],
+    "input_modalities": ["text", "image"],
+    "output_modalities": ["text"],
+    "runtime_features": ["streaming", "tool_calling", "reasoning"],
     "supports_tools": true,
     "supports_reasoning": true,
     "pricing": {
@@ -251,17 +122,9 @@
     "id": "agnes/agnes-image-2.0-flash",
     "name": "Agnes: Agnes Image 2.0 Flash",
     "context_length": 0,
-    "task_families": [
-      "image_generation",
-      "image_edit"
-    ],
-    "input_modalities": [
-      "text",
-      "image"
-    ],
-    "output_modalities": [
-      "image"
-    ],
+    "task_families": ["image_generation", "image_edit"],
+    "input_modalities": ["text", "image"],
+    "output_modalities": ["image"],
     "runtime_features": [],
     "supports_tools": false,
     "pricing": {}
@@ -270,17 +133,9 @@
     "id": "agnes/agnes-image-2.1-flash",
     "name": "Agnes: Agnes Image 2.1 Flash",
     "context_length": 0,
-    "task_families": [
-      "image_generation",
-      "image_edit"
-    ],
-    "input_modalities": [
-      "text",
-      "image"
-    ],
-    "output_modalities": [
-      "image"
-    ],
+    "task_families": ["image_generation", "image_edit"],
+    "input_modalities": ["text", "image"],
+    "output_modalities": ["image"],
     "runtime_features": [],
     "supports_tools": false,
     "pricing": {}
@@ -289,17 +144,9 @@
     "id": "agnes/agnes-image-2.5-flash",
     "name": "Agnes: Agnes Image 2.5 Flash",
     "context_length": 0,
-    "task_families": [
-      "image_generation",
-      "image_edit"
-    ],
-    "input_modalities": [
-      "text",
-      "image"
-    ],
-    "output_modalities": [
-      "image"
-    ],
+    "task_families": ["image_generation", "image_edit"],
+    "input_modalities": ["text", "image"],
+    "output_modalities": ["image"],
     "runtime_features": [],
     "supports_tools": false,
     "pricing": {}
@@ -308,16 +155,9 @@
     "id": "agnes/agnes-video-2.5",
     "name": "Agnes: Agnes Video 2.5",
     "context_length": 0,
-    "task_families": [
-      "video_generation"
-    ],
-    "input_modalities": [
-      "text",
-      "image"
-    ],
-    "output_modalities": [
-      "video"
-    ],
+    "task_families": ["video_generation"],
+    "input_modalities": ["text", "image"],
+    "output_modalities": ["video"],
     "runtime_features": [],
     "supports_tools": false,
     "pricing": {}
@@ -326,121 +166,41 @@
     "id": "agnes/agnes-video-2.5-flash",
     "name": "Agnes: Agnes Video 2.5 Flash",
     "context_length": 0,
-    "task_families": [
-      "video_generation"
-    ],
-    "input_modalities": [
-      "text",
-      "image"
-    ],
-    "output_modalities": [
-      "video"
-    ],
+    "task_families": ["video_generation"],
+    "input_modalities": ["text", "image"],
+    "output_modalities": ["video"],
     "runtime_features": [],
     "supports_tools": false,
     "pricing": {}
   },
   {
-    "id": "anthropic/claude-3-haiku",
-    "name": "Anthropic: Claude 3 Haiku",
-    "context_length": 200000,
-    "max_completion_tokens": 4096,
-    "input_modalities": [
-      "text",
-      "image"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "id": "anthropic/claude-fable-5",
+    "name": "Anthropic: Claude Fable 5",
+    "context_length": 1000000,
+    "input_modalities": ["text", "image", "file"],
+    "output_modalities": ["text"],
     "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 128000,
     "pricing": {
-      "prompt": 2.5e-7,
-      "completion": 1.25e-6,
-      "request": 0.0,
-      "image": 0.0004
+      "prompt": 1e-5,
+      "completion": 5e-5
     }
   },
   {
-    "id": "anthropic/claude-3.5-haiku",
-    "name": "Anthropic: Claude 3.5 Haiku",
-    "context_length": 200000,
-    "max_completion_tokens": 8192,
-    "input_modalities": [
-      "text",
-      "image"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "id": "anthropic/claude-fable-5.1",
+    "name": "Anthropic: Claude Fable 5.1",
+    "context_length": 1000000,
+    "input_modalities": ["text", "image", "file"],
+    "output_modalities": ["text"],
     "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 128000,
     "pricing": {
-      "prompt": 8e-7,
-      "completion": 4e-6,
-      "request": 0.0,
-      "image": 0.0
-    }
-  },
-  {
-    "id": "anthropic/claude-3.5-sonnet",
-    "name": "Anthropic: Claude 3.5 Sonnet",
-    "context_length": 200000,
-    "max_completion_tokens": 8192,
-    "input_modalities": [
-      "text",
-      "image",
-      "file"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "supports_tools": true,
-    "pricing": {
-      "prompt": 6e-6,
-      "completion": 0.00003,
-      "request": 0.0,
-      "image": 0.0
-    }
-  },
-  {
-    "id": "anthropic/claude-3.7-sonnet",
-    "name": "Anthropic: Claude 3.7 Sonnet",
-    "context_length": 200000,
-    "max_completion_tokens": 64000,
-    "input_modalities": [
-      "text",
-      "image",
-      "file"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "supports_tools": true,
-    "pricing": {
-      "prompt": 3e-6,
-      "completion": 0.000015,
-      "request": 0.0,
-      "image": 0.0048
-    }
-  },
-  {
-    "id": "anthropic/claude-3.7-sonnet:thinking",
-    "name": "Anthropic: Claude 3.7 Sonnet (thinking)",
-    "context_length": 200000,
-    "max_completion_tokens": 64000,
-    "input_modalities": [
-      "text",
-      "image",
-      "file"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "supports_tools": true,
-    "pricing": {
-      "prompt": 3e-6,
-      "completion": 0.000015,
-      "request": 0.0,
-      "image": 0.0048
+      "prompt": 1e-5,
+      "completion": 5e-5
     }
   },
   {
@@ -448,102 +208,134 @@
     "name": "Anthropic: Claude Haiku 4.5",
     "context_length": 200000,
     "max_completion_tokens": 64000,
-    "input_modalities": [
-      "image",
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "input_modalities": ["text", "image", "file"],
+    "output_modalities": ["text"],
     "supports_tools": true,
     "pricing": {
       "prompt": 1e-6,
-      "completion": 5e-6,
-      "request": 0.0,
-      "image": 0.0
-    }
+      "completion": 5e-6
+    },
+    "supports_reasoning": true,
+    "supports_prompt_cache": true
   },
   {
-    "id": "anthropic/claude-opus-4",
-    "name": "Anthropic: Claude Opus 4",
-    "context_length": 200000,
-    "max_completion_tokens": 32000,
-    "input_modalities": [
-      "image",
-      "text",
-      "file"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "id": "anthropic/claude-haiku-5.5",
+    "name": "Anthropic: Claude Haiku 5.5",
+    "context_length": 1000000,
+    "input_modalities": ["text", "image", "file"],
+    "output_modalities": ["text"],
     "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 128000,
     "pricing": {
-      "prompt": 0.000015,
-      "completion": 0.000075,
-      "request": 0.0,
-      "image": 0.024
+      "prompt": 1e-7,
+      "completion": 5e-7
     }
   },
   {
     "id": "anthropic/claude-opus-4.1",
     "name": "Anthropic: Claude Opus 4.1",
     "context_length": 200000,
-    "input_modalities": [
-      "image",
-      "text",
-      "file"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "input_modalities": ["image", "text", "file"],
+    "output_modalities": ["text"],
     "supports_tools": true,
     "pricing": {
-      "prompt": 0.000015,
-      "completion": 0.000075,
-      "request": 0.0,
-      "image": 0.024
-    }
+      "prompt": 1.5e-5,
+      "completion": 7.5e-5
+    },
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 32000
   },
   {
     "id": "anthropic/claude-opus-4.5",
     "name": "Anthropic: Claude Opus 4.5",
     "context_length": 200000,
-    "max_completion_tokens": 32000,
-    "input_modalities": [
-      "file",
-      "image",
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "max_completion_tokens": 64000,
+    "input_modalities": ["file", "image", "text"],
+    "output_modalities": ["text"],
     "supports_tools": true,
     "pricing": {
       "prompt": 5e-6,
-      "completion": 0.000025,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 2.5e-5
+    },
+    "supports_reasoning": true,
+    "supports_prompt_cache": true
+  },
+  {
+    "id": "anthropic/claude-opus-4.6",
+    "name": "Anthropic: Claude Opus 4.6",
+    "context_length": 1000000,
+    "input_modalities": ["text", "image", "file"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 128000,
+    "pricing": {
+      "prompt": 5e-6,
+      "completion": 2.5e-5
     }
   },
   {
-    "id": "anthropic/claude-sonnet-4",
-    "name": "Anthropic: Claude Sonnet 4",
+    "id": "anthropic/claude-opus-4.7",
+    "name": "Anthropic: Claude Opus 4.7",
     "context_length": 1000000,
-    "max_completion_tokens": 64000,
-    "input_modalities": [
-      "image",
-      "text",
-      "file"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "input_modalities": ["text", "image", "file"],
+    "output_modalities": ["text"],
     "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 128000,
     "pricing": {
-      "prompt": 3e-6,
-      "completion": 0.000015,
-      "request": 0.0,
-      "image": 0.0048
+      "prompt": 5e-6,
+      "completion": 2.5e-5
+    }
+  },
+  {
+    "id": "anthropic/claude-opus-4.8",
+    "name": "Anthropic: Claude Opus 4.8",
+    "context_length": 1000000,
+    "input_modalities": ["text", "image", "file"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 128000,
+    "pricing": {
+      "prompt": 5e-6,
+      "completion": 2.5e-5
+    }
+  },
+  {
+    "id": "anthropic/claude-opus-5",
+    "name": "Anthropic: Claude Opus 5",
+    "context_length": 1000000,
+    "input_modalities": ["text", "image", "file"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 128000,
+    "pricing": {
+      "prompt": 5e-6,
+      "completion": 2.5e-5
+    }
+  },
+  {
+    "id": "anthropic/claude-opus-5.5",
+    "name": "Anthropic: Claude Opus 5.5",
+    "context_length": 1000000,
+    "input_modalities": ["text", "image", "file"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 128000,
+    "pricing": {
+      "prompt": 4e-6,
+      "completion": 2e-5
     }
   },
   {
@@ -551,20 +343,59 @@
     "name": "Anthropic: Claude Sonnet 4.5",
     "context_length": 1000000,
     "max_completion_tokens": 64000,
-    "input_modalities": [
-      "text",
-      "image",
-      "file"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "input_modalities": ["text", "image", "file"],
+    "output_modalities": ["text"],
     "supports_tools": true,
     "pricing": {
       "prompt": 3e-6,
-      "completion": 0.000015,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 1.5e-5
+    },
+    "supports_reasoning": true,
+    "supports_prompt_cache": true
+  },
+  {
+    "id": "anthropic/claude-sonnet-4.6",
+    "name": "Anthropic: Claude Sonnet 4.6",
+    "context_length": 1000000,
+    "input_modalities": ["text", "image", "file"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 128000,
+    "pricing": {
+      "prompt": 3e-6,
+      "completion": 1.5e-5
+    }
+  },
+  {
+    "id": "anthropic/claude-sonnet-5",
+    "name": "Anthropic: Claude Sonnet 5",
+    "context_length": 1000000,
+    "input_modalities": ["text", "image", "file"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 128000,
+    "pricing": {
+      "prompt": 2e-6,
+      "completion": 1e-5
+    }
+  },
+  {
+    "id": "anthropic/claude-sonnet-5.5",
+    "name": "Anthropic: Claude Sonnet 5.5",
+    "context_length": 1000000,
+    "input_modalities": ["text", "image", "file"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 128000,
+    "pricing": {
+      "prompt": 2e-6,
+      "completion": 1e-5
     }
   },
   {
@@ -572,308 +403,284 @@
     "name": "Cohere: Command A",
     "context_length": 256000,
     "max_completion_tokens": 8192,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "input_modalities": ["text"],
+    "output_modalities": ["text"],
     "supports_tools": false,
     "pricing": {
       "prompt": 2.5e-6,
-      "completion": 0.00001,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 1e-5
+    },
+    "supports_reasoning": false,
+    "supports_prompt_cache": false
+  },
+  {
+    "id": "cohere/command-a-plus",
+    "name": "Cohere: Command A+",
+    "context_length": 192000,
+    "input_modalities": ["text", "image"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 64000,
+    "pricing": {
+      "prompt": 3e-7,
+      "completion": 1.5e-6
     }
   },
   {
-    "id": "cohere/command-r-08",
+    "id": "cohere/command-r-08-2024",
     "name": "Cohere: Command R (08-2024)",
     "context_length": 128000,
-    "max_completion_tokens": 4000,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "input_modalities": ["text"],
+    "output_modalities": ["text"],
     "supports_tools": true,
+    "supports_reasoning": false,
+    "supports_prompt_cache": false,
+    "max_completion_tokens": 4000,
     "pricing": {
       "prompt": 1.5e-7,
-      "completion": 6e-7,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 6e-7
     }
   },
   {
-    "id": "cohere/command-r-plus-08",
+    "id": "cohere/command-r-plus-08-2024",
     "name": "Cohere: Command R+ (08-2024)",
     "context_length": 128000,
-    "max_completion_tokens": 4000,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "input_modalities": ["text"],
+    "output_modalities": ["text"],
     "supports_tools": true,
+    "supports_reasoning": false,
+    "supports_prompt_cache": false,
+    "max_completion_tokens": 4000,
     "pricing": {
       "prompt": 2.5e-6,
-      "completion": 0.00001,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 1e-5
     }
   },
   {
-    "id": "cohere/command-r7b-12",
+    "id": "cohere/command-r7b-12-2024",
     "name": "Cohere: Command R7B (12-2024)",
     "context_length": 128000,
-    "max_completion_tokens": 4000,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "input_modalities": ["text"],
+    "output_modalities": ["text"],
     "supports_tools": false,
+    "supports_reasoning": false,
+    "supports_prompt_cache": false,
+    "max_completion_tokens": 4000,
     "pricing": {
       "prompt": 3.75e-8,
-      "completion": 1.5e-7,
-      "request": 0.0,
-      "image": 0.0
-    }
-  },
-  {
-    "id": "deepseek/deepseek",
-    "name": "DeepSeek: DeepSeek V3.2",
-    "context_length": 163840,
-    "max_completion_tokens": 65536,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "supports_tools": true,
-    "pricing": {
-      "prompt": 2.5e-7,
-      "completion": 3.8e-7,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 1.5e-7
     }
   },
   {
     "id": "deepseek/deepseek-chat",
     "name": "DeepSeek: DeepSeek V3",
-    "context_length": 163840,
-    "max_completion_tokens": 163840,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "context_length": 128000,
+    "max_completion_tokens": 16000,
+    "input_modalities": ["text"],
+    "output_modalities": ["text"],
     "supports_tools": true,
     "pricing": {
-      "prompt": 3e-7,
-      "completion": 1.2e-6,
-      "request": 0.0,
-      "image": 0.0
+      "prompt": 2.574e-7,
+      "completion": 1.0287e-6
+    },
+    "supports_reasoning": false,
+    "supports_prompt_cache": false
+  },
+  {
+    "id": "deepseek/deepseek-chat-v3-0324",
+    "name": "DeepSeek: DeepSeek V3 0324",
+    "context_length": 128000,
+    "input_modalities": ["text"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": false,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 115200,
+    "pricing": {
+      "prompt": 2.9e-7,
+      "completion": 1.14e-6
     }
   },
   {
-    "id": "deepseek/deepseek-prover",
-    "name": "DeepSeek: DeepSeek Prover V2",
+    "id": "deepseek/deepseek-chat-v3.1",
+    "name": "DeepSeek: DeepSeek V3.1",
     "context_length": 163840,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "supports_tools": false,
+    "input_modalities": ["text"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 32768,
+    "pricing": {
+      "prompt": 2.5e-7,
+      "completion": 9.5e-7
+    }
+  },
+  {
+    "id": "deepseek/deepseek-r1-0528",
+    "name": "DeepSeek: R1 0528",
+    "context_length": 163840,
+    "input_modalities": ["text"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 32768,
     "pricing": {
       "prompt": 5e-7,
-      "completion": 2.18e-6,
-      "request": 0.0,
-      "image": 0.0
-    }
-  },
-  {
-    "id": "deepseek/deepseek-r1",
-    "name": "DeepSeek: R1",
-    "context_length": 163840,
-    "max_completion_tokens": 163840,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "supports_tools": true,
-    "pricing": {
-      "prompt": 7e-7,
-      "completion": 2.4e-6,
-      "request": 0.0,
-      "image": 0.0
-    }
-  },
-  {
-    "id": "deepseek/deepseek-r1-0528-qwen3-8b",
-    "name": "DeepSeek: DeepSeek R1 0528 Qwen3 8B",
-    "context_length": 128000,
-    "max_completion_tokens": 32000,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "supports_tools": false,
-    "pricing": {
-      "prompt": 6e-8,
-      "completion": 9e-8,
-      "request": 0.0,
-      "image": 0.0
-    }
-  },
-  {
-    "id": "deepseek/deepseek-r1-distill-llama-70b",
-    "name": "DeepSeek: R1 Distill Llama 70B",
-    "context_length": 131072,
-    "max_completion_tokens": 131072,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "supports_tools": true,
-    "pricing": {
-      "prompt": 3e-8,
-      "completion": 1.1e-7,
-      "request": 0.0,
-      "image": 0.0
-    }
-  },
-  {
-    "id": "deepseek/deepseek-r1-distill-qwen-14b",
-    "name": "DeepSeek: R1 Distill Qwen 14B",
-    "context_length": 32768,
-    "max_completion_tokens": 16384,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "supports_tools": false,
-    "pricing": {
-      "prompt": 1.5e-7,
-      "completion": 1.5e-7,
-      "request": 0.0,
-      "image": 0.0
-    }
-  },
-  {
-    "id": "deepseek/deepseek-r1-distill-qwen-32b",
-    "name": "DeepSeek: R1 Distill Qwen 32B",
-    "context_length": 131072,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "supports_tools": false,
-    "pricing": {
-      "prompt": 2.7e-7,
-      "completion": 2.7e-7,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 2.15e-6
     }
   },
   {
     "id": "deepseek/deepseek-v3.1-terminus",
     "name": "DeepSeek: DeepSeek V3.1 Terminus",
     "context_length": 163840,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "input_modalities": ["text"],
+    "output_modalities": ["text"],
     "supports_tools": true,
-    "pricing": {
-      "prompt": 2.1e-7,
-      "completion": 7.9e-7,
-      "request": 0.0,
-      "image": 0.0
-    }
-  },
-  {
-    "id": "deepseek/deepseek-v3.2-speciale",
-    "name": "DeepSeek: DeepSeek V3.2 Speciale",
-    "context_length": 163840,
-    "max_completion_tokens": 65536,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "supports_tools": false,
     "pricing": {
       "prompt": 2.7e-7,
-      "completion": 4.1e-7,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 1e-6
+    },
+    "supports_reasoning": true,
+    "supports_prompt_cache": false,
+    "max_completion_tokens": 147456
+  },
+  {
+    "id": "deepseek/deepseek-v3.2",
+    "name": "DeepSeek: DeepSeek V3.2",
+    "context_length": 131072,
+    "input_modalities": ["text"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 65536,
+    "pricing": {
+      "prompt": 2.8e-7,
+      "completion": 4.2e-7
     }
   },
   {
-    "id": "google/gemini-2.0-flash",
-    "name": "Google: Gemini 2.0 Flash",
-    "context_length": 1048576,
-    "max_completion_tokens": 8192,
-    "input_modalities": [
-      "text",
-      "image",
-      "file",
-      "audio",
-      "video"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "id": "deepseek/deepseek-v3.2-exp",
+    "name": "DeepSeek: DeepSeek V3.2 Exp",
+    "context_length": 163840,
+    "input_modalities": ["text"],
+    "output_modalities": ["text"],
     "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": false,
+    "max_completion_tokens": 147456,
     "pricing": {
-      "prompt": 1e-7,
-      "completion": 4e-7,
-      "request": 0.0,
-      "image": 0.0000258
+      "prompt": 2.7e-7,
+      "completion": 4.1e-7
     }
   },
   {
-    "id": "google/gemini-2.0-flash-lite",
-    "name": "Google: Gemini 2.0 Flash Lite",
-    "context_length": 1048576,
-    "max_completion_tokens": 8192,
-    "input_modalities": [
-      "text",
-      "image",
-      "file",
-      "audio",
-      "video"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "id": "deepseek/deepseek-v4-flash",
+    "name": "DeepSeek: DeepSeek V4 Flash 0423",
+    "context_length": 1048575,
+    "input_modalities": ["text"],
+    "output_modalities": ["text"],
     "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 943717,
     "pricing": {
-      "prompt": 7.5e-8,
-      "completion": 3e-7,
-      "request": 0.0,
-      "image": 0.0
+      "prompt": 9.1e-8,
+      "completion": 1.82e-7
+    }
+  },
+  {
+    "id": "deepseek/deepseek-v4-flash-0731",
+    "name": "DeepSeek: DeepSeek V4 Flash 0731",
+    "context_length": 1048576,
+    "input_modalities": ["text"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 131072,
+    "pricing": {
+      "prompt": 4.4e-7,
+      "completion": 1.32e-6
+    }
+  },
+  {
+    "id": "deepseek/deepseek-v4-flash-vision-exp",
+    "name": "DeepSeek: DeepSeek V4 Flash Vision Exp",
+    "context_length": 1048576,
+    "input_modalities": ["text", "image"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 262144,
+    "pricing": {
+      "prompt": 2.156e-7,
+      "completion": 6.468e-7
+    }
+  },
+  {
+    "id": "deepseek/deepseek-v4-pro",
+    "name": "DeepSeek: DeepSeek V4 Pro 0423",
+    "context_length": 1024000,
+    "input_modalities": ["text"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 384000,
+    "pricing": {
+      "prompt": 9.5526e-7,
+      "completion": 1.91052e-6
+    }
+  },
+  {
+    "id": "deepseek/deepseek-v4-pro-0813",
+    "name": "DeepSeek: DeepSeek V4 Pro 0813",
+    "context_length": 1048576,
+    "input_modalities": ["text"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 393216,
+    "pricing": {
+      "prompt": 6.6e-7,
+      "completion": 1.98e-6
+    }
+  },
+  {
+    "id": "deepseek/deepseek-v4.1-flash",
+    "name": "DeepSeek: DeepSeek V4.1 Flash",
+    "context_length": 1048576,
+    "input_modalities": ["text", "image"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 943718,
+    "pricing": {
+      "prompt": 3e-7,
+      "completion": 1.2e-6
+    }
+  },
+  {
+    "id": "deepseek/deepseek-v4.1-flash-1017",
+    "name": "DeepSeek: DeepSeek V4.1 Flash 1017",
+    "context_length": 1048576,
+    "input_modalities": ["text", "image"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 393216,
+    "pricing": {
+      "prompt": 1.5e-7,
+      "completion": 6e-7
     }
   },
   {
@@ -881,1040 +688,1127 @@
     "name": "Google: Gemini 2.5 Flash",
     "context_length": 1048576,
     "max_completion_tokens": 65535,
-    "input_modalities": [
-      "file",
-      "image",
-      "text",
-      "audio",
-      "video"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "input_modalities": ["file", "image", "text", "audio", "video"],
+    "output_modalities": ["text"],
     "supports_tools": true,
     "pricing": {
       "prompt": 3e-7,
       "completion": 2.5e-6,
-      "request": 0.0,
-      "image": 0.001238
-    }
+      "image": 3e-7
+    },
+    "supports_reasoning": true,
+    "supports_prompt_cache": true
   },
   {
     "id": "google/gemini-2.5-flash-image",
-    "name": "Google: Gemini 2.5 Flash Image (Nano Banana)",
+    "name": "Google: Nano Banana (Gemini 2.5 Flash Image)",
     "context_length": 32768,
-    "max_completion_tokens": 32768,
-    "input_modalities": [
-      "image",
-      "text"
-    ],
-    "output_modalities": [
-      "image",
-      "text"
-    ],
+    "max_completion_tokens": 8192,
+    "input_modalities": ["image", "text"],
+    "output_modalities": ["image", "text"],
     "supports_tools": false,
     "pricing": {
       "prompt": 3e-7,
       "completion": 2.5e-6,
-      "request": 0.0,
-      "image": 0.001238
-    }
+      "image": 3e-7
+    },
+    "supports_reasoning": false,
+    "supports_prompt_cache": true
   },
   {
     "id": "google/gemini-2.5-flash-lite",
     "name": "Google: Gemini 2.5 Flash Lite",
     "context_length": 1048576,
     "max_completion_tokens": 65535,
-    "input_modalities": [
-      "text",
-      "image",
-      "file",
-      "audio",
-      "video"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "input_modalities": ["text", "image", "file", "audio", "video"],
+    "output_modalities": ["text"],
     "supports_tools": true,
     "pricing": {
       "prompt": 1e-7,
       "completion": 4e-7,
-      "request": 0.0,
-      "image": 0.0
-    }
+      "image": 1e-7
+    },
+    "supports_reasoning": true,
+    "supports_prompt_cache": true
   },
   {
     "id": "google/gemini-2.5-pro",
     "name": "Google: Gemini 2.5 Pro",
     "context_length": 1048576,
     "max_completion_tokens": 65536,
-    "input_modalities": [
-      "text",
-      "image",
-      "file",
-      "audio",
-      "video"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "input_modalities": ["text", "image", "file", "audio", "video"],
+    "output_modalities": ["text"],
     "supports_tools": true,
     "pricing": {
       "prompt": 1.25e-6,
-      "completion": 0.00001,
-      "request": 0.0,
-      "image": 0.00516
+      "completion": 1e-5,
+      "image": 1.25e-6
+    },
+    "supports_reasoning": true,
+    "supports_prompt_cache": true
+  },
+  {
+    "id": "google/gemini-2.5-pro-preview",
+    "name": "Google: Gemini 2.5 Pro Preview 06-05",
+    "context_length": 1048576,
+    "input_modalities": ["file", "image", "text", "audio"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 65536,
+    "pricing": {
+      "prompt": 1.25e-6,
+      "completion": 1e-5,
+      "image": 1.25e-6
     }
   },
   {
-    "id": "google/gemini-3-flash",
+    "id": "google/gemini-3-flash-preview",
     "name": "Google: Gemini 3 Flash Preview",
     "context_length": 1048576,
-    "max_completion_tokens": 65535,
-    "input_modalities": [
-      "text",
-      "image",
-      "file",
-      "audio",
-      "video"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "input_modalities": ["text", "image", "file", "audio", "video"],
+    "output_modalities": ["text"],
     "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 65536,
     "pricing": {
       "prompt": 5e-7,
       "completion": 3e-6,
-      "request": 0.0,
-      "image": 0.0
-    }
-  },
-  {
-    "id": "google/gemini-3-pro",
-    "name": "Google: Gemini 3 Pro Preview",
-    "context_length": 1048576,
-    "max_completion_tokens": 65536,
-    "input_modalities": [
-      "text",
-      "image",
-      "file",
-      "audio",
-      "video"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "supports_tools": true,
-    "pricing": {
-      "prompt": 2e-6,
-      "completion": 0.000012,
-      "request": 0.0,
-      "image": 0.008256
+      "image": 5e-7
     }
   },
   {
     "id": "google/gemini-3-pro-image",
-    "name": "Google: Nano Banana Pro (Gemini 3 Pro Image Preview)",
+    "name": "Google: Nano Banana Pro (Gemini 3 Pro Image)",
     "context_length": 65536,
     "max_completion_tokens": 32768,
-    "input_modalities": [
-      "image",
-      "text"
-    ],
-    "output_modalities": [
-      "image",
-      "text"
-    ],
-    "supports_tools": false,
+    "input_modalities": ["image", "text"],
+    "output_modalities": ["image", "text"],
+    "supports_tools": true,
     "pricing": {
       "prompt": 2e-6,
-      "completion": 0.000012,
-      "request": 0.0,
-      "image": 0.067
+      "completion": 1.2e-5,
+      "image": 2e-6
+    },
+    "supports_reasoning": true,
+    "supports_prompt_cache": true
+  },
+  {
+    "id": "google/gemini-3-pro-image-preview",
+    "name": "Google: Nano Banana Pro (Gemini 3 Pro Image Preview)",
+    "context_length": 65536,
+    "input_modalities": ["image", "text"],
+    "output_modalities": ["image", "text"],
+    "supports_tools": false,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 32768,
+    "pricing": {
+      "prompt": 2e-6,
+      "completion": 1.2e-5,
+      "image": 2e-6
+    }
+  },
+  {
+    "id": "google/gemini-3.1-flash-image",
+    "name": "Google: Nano Banana 2 (Gemini 3.1 Flash Image)",
+    "context_length": 131072,
+    "input_modalities": ["image", "text"],
+    "output_modalities": ["image", "text"],
+    "supports_tools": false,
+    "supports_reasoning": true,
+    "supports_prompt_cache": false,
+    "max_completion_tokens": 32768,
+    "pricing": {
+      "prompt": 5e-7,
+      "completion": 3e-6
+    }
+  },
+  {
+    "id": "google/gemini-3.1-flash-image-preview",
+    "name": "Google: Nano Banana 2 (Gemini 3.1 Flash Image Preview)",
+    "context_length": 65536,
+    "input_modalities": ["image", "text"],
+    "output_modalities": ["image", "text"],
+    "supports_tools": false,
+    "supports_reasoning": true,
+    "supports_prompt_cache": false,
+    "max_completion_tokens": 58982,
+    "pricing": {
+      "prompt": 5e-7,
+      "completion": 3e-6
+    }
+  },
+  {
+    "id": "google/gemini-3.1-flash-lite",
+    "name": "Google: Gemini 3.1 Flash Lite",
+    "context_length": 1048576,
+    "input_modalities": ["text", "image", "video", "file", "audio"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 65536,
+    "pricing": {
+      "prompt": 2.5e-7,
+      "completion": 1.5e-6,
+      "image": 2.5e-7
+    }
+  },
+  {
+    "id": "google/gemini-3.1-flash-lite-image",
+    "name": "Google: Nano Banana 2 Lite (Gemini 3.1 Flash Lite Image)",
+    "context_length": 65536,
+    "input_modalities": ["image", "text"],
+    "output_modalities": ["image", "text"],
+    "supports_tools": false,
+    "supports_reasoning": true,
+    "supports_prompt_cache": false,
+    "max_completion_tokens": 58982,
+    "pricing": {
+      "prompt": 2.5e-7,
+      "completion": 1.5e-6
+    }
+  },
+  {
+    "id": "google/gemini-3.1-flash-lite-preview",
+    "name": "Google: Gemini 3.1 Flash Lite Preview",
+    "context_length": 1048576,
+    "input_modalities": ["text", "image", "video", "file", "audio"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 65536,
+    "pricing": {
+      "prompt": 2.5e-7,
+      "completion": 1.5e-6,
+      "image": 2.5e-7
+    }
+  },
+  {
+    "id": "google/gemini-3.1-pro-preview",
+    "name": "Google: Gemini 3.1 Pro Preview",
+    "context_length": 1048576,
+    "input_modalities": ["audio", "file", "image", "text", "video"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 65536,
+    "pricing": {
+      "prompt": 2e-6,
+      "completion": 1.2e-5,
+      "image": 2e-6
+    }
+  },
+  {
+    "id": "google/gemini-3.1-pro-preview-customtools",
+    "name": "Google: Gemini 3.1 Pro Preview Custom Tools",
+    "context_length": 1048576,
+    "input_modalities": ["text", "audio", "image", "video", "file"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 65536,
+    "pricing": {
+      "prompt": 2e-6,
+      "completion": 1.2e-5,
+      "image": 2e-6
+    }
+  },
+  {
+    "id": "google/gemini-3.5-flash",
+    "name": "Google: Gemini 3.5 Flash",
+    "context_length": 1048576,
+    "input_modalities": ["text", "image", "video", "file", "audio"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 65536,
+    "pricing": {
+      "prompt": 1.5e-6,
+      "completion": 9e-6,
+      "image": 1.5e-6
+    }
+  },
+  {
+    "id": "google/gemini-3.5-flash-lite",
+    "name": "Google: Gemini 3.5 Flash Lite",
+    "context_length": 1048576,
+    "input_modalities": ["text", "image", "video", "file", "audio"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 65536,
+    "pricing": {
+      "prompt": 3e-7,
+      "completion": 2.5e-6,
+      "image": 3e-7
+    }
+  },
+  {
+    "id": "google/gemini-3.6-flash",
+    "name": "Google: Gemini 3.6 Flash",
+    "context_length": 1048576,
+    "input_modalities": ["text", "image", "video", "file", "audio"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 65536,
+    "pricing": {
+      "prompt": 7.5e-7,
+      "completion": 3.75e-6,
+      "image": 7.5e-7
+    }
+  },
+  {
+    "id": "google/gemini-3.7-flash",
+    "name": "Google: Gemini 3.7 Flash",
+    "context_length": 1048576,
+    "input_modalities": ["text", "image", "video", "file", "audio"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 65536,
+    "pricing": {
+      "prompt": 7.5e-7,
+      "completion": 3.75e-6,
+      "image": 7.5e-7
+    }
+  },
+  {
+    "id": "google/gemini-3.8-flash",
+    "name": "Google: Gemini 3.8 Flash",
+    "context_length": 1048576,
+    "input_modalities": ["text", "image", "video", "file", "audio"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 65536,
+    "pricing": {
+      "prompt": 8.25e-7,
+      "completion": 4.125e-6,
+      "image": 8.25e-7
+    }
+  },
+  {
+    "id": "google/gemini-4-argon",
+    "name": "Google: Gemini 4 Argon",
+    "context_length": 1048576,
+    "input_modalities": ["audio", "file", "image", "text", "video"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 943718,
+    "pricing": {
+      "prompt": 2e-6,
+      "completion": 1e-5,
+      "image": 2e-6
+    }
+  },
+  {
+    "id": "google/gemini-nano-banana-2.1",
+    "name": "Google: Nano Banana 2.1",
+    "context_length": 65536,
+    "input_modalities": ["image", "text"],
+    "output_modalities": ["image", "text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": false,
+    "max_completion_tokens": 58982,
+    "pricing": {
+      "prompt": 1.5e-6,
+      "completion": 7.5e-6
     }
   },
   {
     "id": "google/gemma-2-27b-it",
     "name": "Google: Gemma 2 27B",
     "context_length": 8192,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "input_modalities": ["text"],
+    "output_modalities": ["text"],
     "supports_tools": false,
     "pricing": {
       "prompt": 6.5e-7,
-      "completion": 6.5e-7,
-      "request": 0.0,
-      "image": 0.0
-    }
-  },
-  {
-    "id": "google/gemma-2-9b-it",
-    "name": "Google: Gemma 2 9B",
-    "context_length": 8192,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "supports_tools": false,
-    "pricing": {
-      "prompt": 3e-8,
-      "completion": 9e-8,
-      "request": 0.0,
-      "image": 0.0
-    }
+      "completion": 6.5e-7
+    },
+    "supports_reasoning": false,
+    "supports_prompt_cache": false,
+    "max_completion_tokens": 2048
   },
   {
     "id": "google/gemma-3-12b-it",
     "name": "Google: Gemma 3 12B",
     "context_length": 131072,
-    "max_completion_tokens": 131072,
-    "input_modalities": [
-      "text",
-      "image"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "supports_tools": false,
+    "max_completion_tokens": 16384,
+    "input_modalities": ["text", "image"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
     "pricing": {
-      "prompt": 3e-8,
-      "completion": 1e-7,
-      "request": 0.0,
-      "image": 0.0
-    }
+      "prompt": 5e-8,
+      "completion": 1.5e-7
+    },
+    "supports_reasoning": false,
+    "supports_prompt_cache": false
   },
   {
     "id": "google/gemma-3-27b-it",
     "name": "Google: Gemma 3 27B",
     "context_length": 131072,
-    "input_modalities": [
-      "text",
-      "image"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "input_modalities": ["text", "image"],
+    "output_modalities": ["text"],
     "supports_tools": true,
     "pricing": {
-      "prompt": 3.6e-8,
-      "completion": 6.4e-8,
-      "request": 0.0,
-      "image": 0.0
-    }
+      "prompt": 8e-8,
+      "completion": 3.5e-7
+    },
+    "supports_reasoning": false,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 117964
   },
   {
     "id": "google/gemma-3-4b-it",
     "name": "Google: Gemma 3 4B",
-    "context_length": 96000,
-    "input_modalities": [
-      "text",
-      "image"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "context_length": 131072,
+    "input_modalities": ["text", "image"],
+    "output_modalities": ["text"],
     "supports_tools": false,
     "pricing": {
-      "prompt": 1.703012e-8,
-      "completion": 6.81536e-8,
-      "request": 0.0,
-      "image": 0.0
+      "prompt": 4e-8,
+      "completion": 5e-8
+    },
+    "supports_reasoning": false,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 117964
+  },
+  {
+    "id": "google/gemma-4-26b-a4b-it",
+    "name": "Google: Gemma 4 26B A4B ",
+    "context_length": 262144,
+    "input_modalities": ["image", "text", "video"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 235929,
+    "pricing": {
+      "prompt": 9e-8,
+      "completion": 3e-7
     }
   },
   {
-    "id": "google/gemma-3n-e4b-it",
-    "name": "Google: Gemma 3n 4B",
-    "context_length": 32768,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "supports_tools": false,
-    "pricing": {
-      "prompt": 2e-8,
-      "completion": 4e-8,
-      "request": 0.0,
-      "image": 0.0
-    }
-  },
-  {
-    "id": "meta-llama/llama-3-70b-instruct",
-    "name": "Meta: Llama 3 70B Instruct",
-    "context_length": 8192,
+    "id": "google/gemma-4-31b-it",
+    "name": "Google: Gemma 4 31B",
+    "context_length": 262144,
+    "input_modalities": ["image", "text", "video"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": false,
     "max_completion_tokens": 16384,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "supports_tools": true,
     "pricing": {
-      "prompt": 3e-7,
-      "completion": 4e-7,
-      "request": 0.0,
-      "image": 0.0
+      "prompt": 2e-7,
+      "completion": 4e-7
     }
   },
   {
-    "id": "meta-llama/llama-3-8b-instruct",
-    "name": "Meta: Llama 3 8B Instruct",
-    "context_length": 8192,
-    "max_completion_tokens": 16384,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "supports_tools": true,
-    "pricing": {
-      "prompt": 3e-8,
-      "completion": 6e-8,
-      "request": 0.0,
-      "image": 0.0
-    }
-  },
-  {
-    "id": "meta-llama/llama-3.1-405b",
-    "name": "Meta: Llama 3.1 405B (base)",
-    "context_length": 32768,
-    "max_completion_tokens": 32768,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "id": "google/lyria-3-clip-preview",
+    "name": "Google: Lyria 3 Clip Preview",
+    "context_length": 1048576,
+    "input_modalities": ["text", "image"],
+    "output_modalities": ["text", "audio"],
     "supports_tools": false,
+    "supports_reasoning": false,
+    "supports_prompt_cache": false,
+    "max_completion_tokens": 65536,
     "pricing": {
-      "prompt": 4e-6,
-      "completion": 4e-6,
-      "request": 0.0,
-      "image": 0.0
+      "prompt": 0.0,
+      "completion": 0.0
     }
   },
   {
-    "id": "meta-llama/llama-3.1-405b-instruct",
-    "name": "Meta: Llama 3.1 405B Instruct",
-    "context_length": 10000,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "supports_tools": true,
+    "id": "google/lyria-3-pro-preview",
+    "name": "Google: Lyria 3 Pro Preview",
+    "context_length": 1048576,
+    "input_modalities": ["text", "image"],
+    "output_modalities": ["text", "audio"],
+    "supports_tools": false,
+    "supports_reasoning": false,
+    "supports_prompt_cache": false,
+    "max_completion_tokens": 65536,
     "pricing": {
-      "prompt": 3.5e-6,
-      "completion": 3.5e-6,
-      "request": 0.0,
-      "image": 0.0
+      "prompt": 0.0,
+      "completion": 0.0
     }
   },
   {
     "id": "meta-llama/llama-3.1-70b-instruct",
     "name": "Meta: Llama 3.1 70B Instruct",
     "context_length": 131072,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "input_modalities": ["text"],
+    "output_modalities": ["text"],
     "supports_tools": true,
     "pricing": {
       "prompt": 4e-7,
-      "completion": 4e-7,
-      "request": 0.0,
-      "image": 0.0
-    }
+      "completion": 4e-7
+    },
+    "supports_reasoning": false,
+    "supports_prompt_cache": false,
+    "max_completion_tokens": 16384
   },
   {
     "id": "meta-llama/llama-3.1-8b-instruct",
     "name": "Meta: Llama 3.1 8B Instruct",
-    "context_length": 16384,
-    "max_completion_tokens": 16384,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "context_length": 131072,
+    "max_completion_tokens": 117964,
+    "input_modalities": ["text"],
+    "output_modalities": ["text"],
     "supports_tools": true,
     "pricing": {
-      "prompt": 2e-8,
-      "completion": 5e-8,
-      "request": 0.0,
-      "image": 0.0
-    }
-  },
-  {
-    "id": "meta-llama/llama-3.2-11b-vision-instruct",
-    "name": "Meta: Llama 3.2 11B Vision Instruct",
-    "context_length": 131072,
-    "max_completion_tokens": 16384,
-    "input_modalities": [
-      "text",
-      "image"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "supports_tools": false,
-    "pricing": {
-      "prompt": 4.9e-8,
-      "completion": 4.9e-8,
-      "request": 0.0,
-      "image": 0.00007948
-    }
+      "prompt": 5e-8,
+      "completion": 8e-8
+    },
+    "supports_reasoning": false,
+    "supports_prompt_cache": true
   },
   {
     "id": "meta-llama/llama-3.2-1b-instruct",
     "name": "Meta: Llama 3.2 1B Instruct",
     "context_length": 60000,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "input_modalities": ["text"],
+    "output_modalities": ["text"],
     "supports_tools": false,
     "pricing": {
       "prompt": 2.7e-8,
-      "completion": 2e-7,
-      "request": 0.0,
-      "image": 0.0
-    }
+      "completion": 2.01e-7
+    },
+    "supports_reasoning": false,
+    "supports_prompt_cache": false,
+    "max_completion_tokens": 54000
   },
   {
     "id": "meta-llama/llama-3.2-3b-instruct",
     "name": "Meta: Llama 3.2 3B Instruct",
-    "context_length": 131072,
-    "max_completion_tokens": 16384,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "supports_tools": true,
-    "pricing": {
-      "prompt": 2e-8,
-      "completion": 2e-8,
-      "request": 0.0,
-      "image": 0.0
-    }
-  },
-  {
-    "id": "meta-llama/llama-3.2-90b-vision-instruct",
-    "name": "Meta: Llama 3.2 90B Vision Instruct",
-    "context_length": 32768,
-    "max_completion_tokens": 16384,
-    "input_modalities": [
-      "text",
-      "image"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "context_length": 80000,
+    "max_completion_tokens": 72000,
+    "input_modalities": ["text"],
+    "output_modalities": ["text"],
     "supports_tools": false,
     "pricing": {
-      "prompt": 3.5e-7,
-      "completion": 4e-7,
-      "request": 0.0,
-      "image": 0.0005058
-    }
+      "prompt": 5.09e-8,
+      "completion": 3.35e-7
+    },
+    "supports_reasoning": false,
+    "supports_prompt_cache": false
   },
   {
     "id": "meta-llama/llama-3.3-70b-instruct",
     "name": "Meta: Llama 3.3 70B Instruct",
     "context_length": 131072,
     "max_completion_tokens": 16384,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "input_modalities": ["text"],
+    "output_modalities": ["text"],
     "supports_tools": true,
     "pricing": {
       "prompt": 1e-7,
-      "completion": 3.2e-7,
-      "request": 0.0,
-      "image": 0.0
-    }
+      "completion": 3.2e-7
+    },
+    "supports_reasoning": false,
+    "supports_prompt_cache": false
   },
   {
     "id": "meta-llama/llama-4-maverick",
     "name": "Meta: Llama 4 Maverick",
-    "context_length": 1048576,
+    "context_length": 128000,
     "max_completion_tokens": 16384,
-    "input_modalities": [
-      "text",
-      "image"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "input_modalities": ["text", "image"],
+    "output_modalities": ["text"],
     "supports_tools": true,
     "pricing": {
-      "prompt": 1.5e-7,
-      "completion": 6e-7,
-      "request": 0.0,
-      "image": 0.0006684
-    }
+      "prompt": 1.875e-7,
+      "completion": 6.525e-7
+    },
+    "supports_reasoning": false,
+    "supports_prompt_cache": true
   },
   {
     "id": "meta-llama/llama-4-scout",
     "name": "Meta: Llama 4 Scout",
     "context_length": 327680,
     "max_completion_tokens": 16384,
-    "input_modalities": [
-      "text",
-      "image"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "input_modalities": ["text", "image"],
+    "output_modalities": ["text"],
     "supports_tools": true,
     "pricing": {
-      "prompt": 8e-8,
-      "completion": 3e-7,
-      "request": 0.0,
-      "image": 0.0003342
-    }
-  },
-  {
-    "id": "meta-llama/llama-guard-2-8b",
-    "name": "Meta: LlamaGuard 2 8B",
-    "context_length": 8192,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "supports_tools": false,
-    "pricing": {
-      "prompt": 2e-7,
-      "completion": 2e-7,
-      "request": 0.0,
-      "image": 0.0
-    }
-  },
-  {
-    "id": "meta-llama/llama-guard-3-8b",
-    "name": "Llama Guard 3 8B",
-    "context_length": 131072,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "supports_tools": false,
-    "pricing": {
-      "prompt": 2e-8,
-      "completion": 6e-8,
-      "request": 0.0,
-      "image": 0.0
-    }
+      "prompt": 1e-7,
+      "completion": 3e-7
+    },
+    "supports_reasoning": false,
+    "supports_prompt_cache": false
   },
   {
     "id": "meta-llama/llama-guard-4-12b",
     "name": "Meta: Llama Guard 4 12B",
     "context_length": 163840,
-    "input_modalities": [
-      "image",
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "input_modalities": ["image", "text"],
+    "output_modalities": ["text"],
     "supports_tools": false,
     "pricing": {
       "prompt": 1.8e-7,
-      "completion": 1.8e-7,
-      "request": 0.0,
-      "image": 0.0
-    }
+      "completion": 1.8e-7
+    },
+    "supports_reasoning": false,
+    "supports_prompt_cache": false,
+    "max_completion_tokens": 16384
   },
   {
-    "id": "mistralai/codestral",
-    "name": "Mistral: Codestral 2508",
-    "context_length": 256000,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "supports_tools": true,
-    "pricing": {
-      "prompt": 3e-7,
-      "completion": 9e-7,
-      "request": 0.0,
-      "image": 0.0
-    }
-  },
-  {
-    "id": "mistralai/devstral",
-    "name": "Mistral: Devstral 2 2512",
-    "context_length": 262144,
-    "max_completion_tokens": 65536,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "supports_tools": true,
-    "pricing": {
-      "prompt": 5e-8,
-      "completion": 2.2e-7,
-      "request": 0.0,
-      "image": 0.0
-    }
-  },
-  {
-    "id": "mistralai/devstral-medium",
-    "name": "Mistral: Devstral Medium",
-    "context_length": 131072,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "supports_tools": true,
-    "pricing": {
-      "prompt": 4e-7,
-      "completion": 2e-6,
-      "request": 0.0,
-      "image": 0.0
-    }
-  },
-  {
-    "id": "mistralai/devstral-small",
-    "name": "Mistral: Devstral Small 1.1",
-    "context_length": 128000,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "supports_tools": true,
-    "pricing": {
-      "prompt": 7e-8,
-      "completion": 2.8e-7,
-      "request": 0.0,
-      "image": 0.0
-    }
-  },
-  {
-    "id": "mistralai/ministral-14b",
-    "name": "Mistral: Ministral 3 14B 2512",
-    "context_length": 262144,
-    "input_modalities": [
-      "text",
-      "image"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "supports_tools": true,
+    "id": "minimax/minimax-01",
+    "name": "MiniMax: MiniMax-01",
+    "context_length": 1000192,
+    "input_modalities": ["text", "image"],
+    "output_modalities": ["text"],
+    "supports_tools": false,
+    "supports_reasoning": false,
+    "supports_prompt_cache": false,
+    "max_completion_tokens": 900172,
     "pricing": {
       "prompt": 2e-7,
-      "completion": 2e-7,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 1.1e-6
     }
   },
   {
-    "id": "mistralai/ministral-3b",
-    "name": "Mistral: Ministral 3B",
-    "context_length": 131072,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "id": "minimax/minimax-m1",
+    "name": "MiniMax: MiniMax M1",
+    "context_length": 1000000,
+    "input_modalities": ["text"],
+    "output_modalities": ["text"],
     "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": false,
+    "max_completion_tokens": 40000,
     "pricing": {
-      "prompt": 4e-8,
-      "completion": 4e-8,
-      "request": 0.0,
-      "image": 0.0
+      "prompt": 5.5e-7,
+      "completion": 2.2e-6
     }
   },
   {
-    "id": "mistralai/ministral-8b",
-    "name": "Mistral: Ministral 8B",
-    "context_length": 131072,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "id": "minimax/minimax-m2",
+    "name": "MiniMax: MiniMax M2",
+    "context_length": 204800,
+    "input_modalities": ["text"],
+    "output_modalities": ["text"],
     "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": false,
+    "max_completion_tokens": 131072,
+    "pricing": {
+      "prompt": 2.55e-7,
+      "completion": 1.02e-6
+    }
+  },
+  {
+    "id": "minimax/minimax-m2-her",
+    "name": "MiniMax: MiniMax M2-her",
+    "context_length": 65536,
+    "input_modalities": ["text"],
+    "output_modalities": ["text"],
+    "supports_tools": false,
+    "supports_reasoning": false,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 2048,
+    "pricing": {
+      "prompt": 3e-7,
+      "completion": 1.2e-6
+    }
+  },
+  {
+    "id": "minimax/minimax-m2.1",
+    "name": "MiniMax: MiniMax M2.1",
+    "context_length": 204800,
+    "input_modalities": ["text"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 131072,
+    "pricing": {
+      "prompt": 3e-7,
+      "completion": 1.2e-6
+    }
+  },
+  {
+    "id": "minimax/minimax-m2.5",
+    "name": "MiniMax: MiniMax M2.5",
+    "context_length": 198000,
+    "input_modalities": ["text"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 32768,
+    "pricing": {
+      "prompt": 2.7e-7,
+      "completion": 9.5e-7
+    }
+  },
+  {
+    "id": "minimax/minimax-m2.7",
+    "name": "MiniMax: MiniMax M2.7",
+    "context_length": 204800,
+    "input_modalities": ["text"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 131072,
+    "pricing": {
+      "prompt": 3e-7,
+      "completion": 1.2e-6
+    }
+  },
+  {
+    "id": "minimax/minimax-m3",
+    "name": "MiniMax: MiniMax M3",
+    "context_length": 524288,
+    "input_modalities": ["text", "image", "video"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 512000,
+    "pricing": {
+      "prompt": 3e-7,
+      "completion": 1.2e-6
+    }
+  },
+  {
+    "id": "minimax/minimax-m3.1-flash",
+    "name": "MiniMax: MiniMax M3.1 Flash",
+    "context_length": 1048576,
+    "input_modalities": ["text", "image", "video"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 524288,
+    "pricing": {
+      "prompt": 1.5e-7,
+      "completion": 6e-7
+    }
+  },
+  {
+    "id": "mistralai/codestral-2508",
+    "name": "Mistral: Codestral 2508",
+    "context_length": 256000,
+    "input_modalities": ["text", "file"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": false,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 204800,
+    "pricing": {
+      "prompt": 3e-7,
+      "completion": 9e-7
+    }
+  },
+  {
+    "id": "mistralai/devstral-2512",
+    "name": "Mistral: Devstral 2 2512",
+    "context_length": 262144,
+    "input_modalities": ["text", "file"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": false,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 209715,
+    "pricing": {
+      "prompt": 4e-7,
+      "completion": 2e-6
+    }
+  },
+  {
+    "id": "mistralai/ministral-14b-2512",
+    "name": "Mistral: Ministral 3 14B 2512",
+    "context_length": 262144,
+    "input_modalities": ["text", "image"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": false,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 209715,
+    "pricing": {
+      "prompt": 2e-7,
+      "completion": 2e-7
+    }
+  },
+  {
+    "id": "mistralai/ministral-3b-2512",
+    "name": "Mistral: Ministral 3 3B 2512",
+    "context_length": 131072,
+    "input_modalities": ["text", "image"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": false,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 104857,
     "pricing": {
       "prompt": 1e-7,
-      "completion": 1e-7,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 1e-7
     }
   },
   {
-    "id": "mistralai/mistral-7b-instruct",
-    "name": "Mistral: Mistral 7B Instruct",
-    "context_length": 32768,
-    "max_completion_tokens": 16384,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "id": "mistralai/ministral-8b-2512",
+    "name": "Mistral: Ministral 3 8B 2512",
+    "context_length": 262144,
+    "input_modalities": ["text", "image"],
+    "output_modalities": ["text"],
     "supports_tools": true,
+    "supports_reasoning": false,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 209715,
     "pricing": {
-      "prompt": 2.8e-8,
-      "completion": 5.4e-8,
-      "request": 0.0,
-      "image": 0.0
+      "prompt": 1.5e-7,
+      "completion": 1.5e-7
     }
   },
   {
     "id": "mistralai/mistral-large",
     "name": "Mistral Large",
     "context_length": 128000,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "input_modalities": ["text", "file"],
+    "output_modalities": ["text"],
     "supports_tools": true,
     "pricing": {
       "prompt": 2e-6,
-      "completion": 6e-6,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 6e-6
+    },
+    "supports_reasoning": false,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 102400
+  },
+  {
+    "id": "mistralai/mistral-large-2407",
+    "name": "Mistral Large 2407",
+    "context_length": 131072,
+    "input_modalities": ["text", "file"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": false,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 104857,
+    "pricing": {
+      "prompt": 2e-6,
+      "completion": 6e-6
+    }
+  },
+  {
+    "id": "mistralai/mistral-large-2512",
+    "name": "Mistral: Mistral Large 3 2512",
+    "context_length": 262144,
+    "input_modalities": ["text", "image", "file"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": false,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 209715,
+    "pricing": {
+      "prompt": 5e-7,
+      "completion": 1.5e-6
+    }
+  },
+  {
+    "id": "mistralai/mistral-large-4-0",
+    "name": "Mistral: Mistral Large 4",
+    "context_length": 1048576,
+    "input_modalities": ["text", "image"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 262144,
+    "pricing": {
+      "prompt": 1.36e-6,
+      "completion": 4.18e-6
     }
   },
   {
     "id": "mistralai/mistral-medium-3",
     "name": "Mistral: Mistral Medium 3",
     "context_length": 131072,
-    "input_modalities": [
-      "text",
-      "image"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "input_modalities": ["text", "image", "file"],
+    "output_modalities": ["text"],
     "supports_tools": true,
     "pricing": {
       "prompt": 4e-7,
-      "completion": 2e-6,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 2e-6
+    },
+    "supports_reasoning": false,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 104857
+  },
+  {
+    "id": "mistralai/mistral-medium-3-5",
+    "name": "Mistral: Mistral Medium 3.5",
+    "context_length": 262144,
+    "input_modalities": ["text", "image", "file"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": false,
+    "max_completion_tokens": 209715,
+    "pricing": {
+      "prompt": 1.5e-6,
+      "completion": 7.5e-6
     }
   },
   {
     "id": "mistralai/mistral-medium-3.1",
     "name": "Mistral: Mistral Medium 3.1",
     "context_length": 131072,
-    "input_modalities": [
-      "text",
-      "image"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "input_modalities": ["text", "image", "file"],
+    "output_modalities": ["text"],
     "supports_tools": true,
     "pricing": {
       "prompt": 4e-7,
-      "completion": 2e-6,
-      "request": 0.0,
-      "image": 0.0
-    }
+      "completion": 2e-6
+    },
+    "supports_reasoning": false,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 104857
   },
   {
     "id": "mistralai/mistral-nemo",
     "name": "Mistral: Mistral Nemo",
     "context_length": 131072,
     "max_completion_tokens": 16384,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "input_modalities": ["text"],
+    "output_modalities": ["text"],
     "supports_tools": true,
     "pricing": {
-      "prompt": 2e-8,
-      "completion": 4e-8,
-      "request": 0.0,
-      "image": 0.0
-    }
+      "prompt": 2.9e-8,
+      "completion": 3e-8
+    },
+    "supports_reasoning": false,
+    "supports_prompt_cache": false
   },
   {
     "id": "mistralai/mistral-saba",
     "name": "Mistral: Saba",
     "context_length": 32768,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "input_modalities": ["text", "file"],
+    "output_modalities": ["text"],
     "supports_tools": true,
     "pricing": {
       "prompt": 2e-7,
-      "completion": 6e-7,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 6e-7
+    },
+    "supports_reasoning": false,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 26214
+  },
+  {
+    "id": "mistralai/mistral-small-24b-instruct-2501",
+    "name": "Mistral: Mistral Small 3",
+    "context_length": 32768,
+    "input_modalities": ["text"],
+    "output_modalities": ["text"],
+    "supports_tools": false,
+    "supports_reasoning": false,
+    "supports_prompt_cache": false,
+    "max_completion_tokens": 16384,
+    "pricing": {
+      "prompt": 5e-8,
+      "completion": 8e-8
     }
   },
   {
-    "id": "mistralai/mistral-small-24b-instruct",
-    "name": "Mistral: Mistral Small 3",
-    "context_length": 32768,
-    "max_completion_tokens": 32768,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "id": "mistralai/mistral-small-2603",
+    "name": "Mistral: Mistral Small 4",
+    "context_length": 262144,
+    "input_modalities": ["text", "image"],
+    "output_modalities": ["text"],
     "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 209715,
     "pricing": {
-      "prompt": 3e-8,
-      "completion": 1.1e-7,
-      "request": 0.0,
-      "image": 0.0
+      "prompt": 1.5e-7,
+      "completion": 6e-7
     }
   },
   {
     "id": "mistralai/mistral-small-3.1-24b-instruct",
     "name": "Mistral: Mistral Small 3.1 24B",
-    "context_length": 131072,
-    "max_completion_tokens": 131072,
-    "input_modalities": [
-      "text",
-      "image"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "context_length": 128000,
+    "max_completion_tokens": 102400,
+    "input_modalities": ["text", "image"],
+    "output_modalities": ["text"],
     "supports_tools": true,
     "pricing": {
-      "prompt": 3e-8,
-      "completion": 1.1e-7,
-      "request": 0.0,
-      "image": 0.0
-    }
+      "prompt": 3.51e-7,
+      "completion": 5.55e-7
+    },
+    "supports_reasoning": false,
+    "supports_prompt_cache": false
   },
   {
     "id": "mistralai/mistral-small-3.2-24b-instruct",
     "name": "Mistral: Mistral Small 3.2 24B",
-    "context_length": 131072,
-    "max_completion_tokens": 131072,
-    "input_modalities": [
-      "image",
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "context_length": 128000,
+    "max_completion_tokens": 16384,
+    "input_modalities": ["image", "text"],
+    "output_modalities": ["text"],
     "supports_tools": true,
     "pricing": {
-      "prompt": 6e-8,
-      "completion": 1.8e-7,
-      "request": 0.0,
-      "image": 0.0
-    }
-  },
-  {
-    "id": "mistralai/mistral-small-creative",
-    "name": "Mistral: Mistral Small Creative",
-    "context_length": 32768,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "supports_tools": true,
-    "pricing": {
-      "prompt": 1e-7,
-      "completion": 3e-7,
-      "request": 0.0,
-      "image": 0.0
-    }
-  },
-  {
-    "id": "mistralai/mistral-tiny",
-    "name": "Mistral Tiny",
-    "context_length": 32768,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "supports_tools": true,
-    "pricing": {
-      "prompt": 2.5e-7,
-      "completion": 2.5e-7,
-      "request": 0.0,
-      "image": 0.0
-    }
+      "prompt": 7.5e-8,
+      "completion": 2e-7
+    },
+    "supports_reasoning": false,
+    "supports_prompt_cache": false
   },
   {
     "id": "mistralai/mixtral-8x22b-instruct",
     "name": "Mistral: Mixtral 8x22B Instruct",
     "context_length": 65536,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "input_modalities": ["text", "file"],
+    "output_modalities": ["text"],
     "supports_tools": true,
     "pricing": {
       "prompt": 2e-6,
-      "completion": 6e-6,
-      "request": 0.0,
-      "image": 0.0
-    }
+      "completion": 6e-6
+    },
+    "supports_reasoning": false,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 52428
   },
   {
-    "id": "mistralai/mixtral-8x7b-instruct",
-    "name": "Mistral: Mixtral 8x7B Instruct",
-    "context_length": 32768,
-    "max_completion_tokens": 16384,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "supports_tools": true,
-    "pricing": {
-      "prompt": 5.4e-7,
-      "completion": 5.4e-7,
-      "request": 0.0,
-      "image": 0.0
-    }
-  },
-  {
-    "id": "mistralai/pixtral-12b",
-    "name": "Mistral: Pixtral 12B",
-    "context_length": 32768,
-    "input_modalities": [
-      "text",
-      "image"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "supports_tools": true,
-    "pricing": {
-      "prompt": 1e-7,
-      "completion": 1e-7,
-      "request": 0.0,
-      "image": 0.0001445
-    }
-  },
-  {
-    "id": "mistralai/pixtral-large",
-    "name": "Mistral: Pixtral Large 2411",
-    "context_length": 131072,
-    "input_modalities": [
-      "text",
-      "image"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "supports_tools": true,
-    "pricing": {
-      "prompt": 2e-6,
-      "completion": 6e-6,
-      "request": 0.0,
-      "image": 0.002888
-    }
-  },
-  {
-    "id": "mistralai/voxtral-small-24b",
+    "id": "mistralai/voxtral-small-24b-2507",
     "name": "Mistral: Voxtral Small 24B 2507",
-    "context_length": 32000,
-    "input_modalities": [
-      "text",
-      "audio"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "context_length": 32768,
+    "input_modalities": ["text", "audio", "file"],
+    "output_modalities": ["text"],
     "supports_tools": true,
+    "supports_reasoning": false,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 26214,
     "pricing": {
       "prompt": 1e-7,
-      "completion": 3e-7,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 3e-7
     }
   },
   {
-    "id": "openai/chatgpt-4o",
-    "name": "OpenAI: ChatGPT-4o",
-    "context_length": 128000,
-    "max_completion_tokens": 16384,
-    "input_modalities": [
-      "text",
-      "image"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "supports_tools": false,
-    "pricing": {
-      "prompt": 5e-6,
-      "completion": 0.000015,
-      "request": 0.0,
-      "image": 0.007225
-    }
-  },
-  {
-    "id": "openai/codex-mini",
-    "name": "OpenAI: Codex Mini",
-    "context_length": 200000,
-    "max_completion_tokens": 100000,
-    "input_modalities": [
-      "image",
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "id": "moonshotai/kimi-k2",
+    "name": "MoonshotAI: Kimi K2 0711",
+    "context_length": 131072,
+    "input_modalities": ["text"],
+    "output_modalities": ["text"],
     "supports_tools": true,
+    "supports_reasoning": false,
+    "supports_prompt_cache": false,
+    "max_completion_tokens": 98304,
     "pricing": {
-      "prompt": 1.5e-6,
-      "completion": 6e-6,
-      "request": 0.0,
-      "image": 0.0
+      "prompt": 5.7e-7,
+      "completion": 2.3e-6
+    }
+  },
+  {
+    "id": "moonshotai/kimi-k2-0905",
+    "name": "MoonshotAI: Kimi K2 0905",
+    "context_length": 262144,
+    "input_modalities": ["text"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": false,
+    "supports_prompt_cache": false,
+    "max_completion_tokens": 98304,
+    "pricing": {
+      "prompt": 6e-7,
+      "completion": 2.5e-6
+    }
+  },
+  {
+    "id": "moonshotai/kimi-k2-thinking",
+    "name": "MoonshotAI: Kimi K2 Thinking",
+    "context_length": 262144,
+    "input_modalities": ["text"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 98304,
+    "pricing": {
+      "prompt": 6e-7,
+      "completion": 2.5e-6
+    }
+  },
+  {
+    "id": "moonshotai/kimi-k2.5",
+    "name": "MoonshotAI: Kimi K2.5",
+    "context_length": 262144,
+    "input_modalities": ["text", "image"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 235929,
+    "pricing": {
+      "prompt": 5e-7,
+      "completion": 2.5e-6
+    }
+  },
+  {
+    "id": "moonshotai/kimi-k2.6",
+    "name": "MoonshotAI: Kimi K2.6",
+    "context_length": 262144,
+    "input_modalities": ["text", "image"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 235929,
+    "pricing": {
+      "prompt": 6.5e-7,
+      "completion": 3.41e-6
+    }
+  },
+  {
+    "id": "moonshotai/kimi-k2.7-code",
+    "name": "MoonshotAI: Kimi K2.7 Code",
+    "context_length": 262144,
+    "input_modalities": ["text", "image"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 235929,
+    "pricing": {
+      "prompt": 6.712e-7,
+      "completion": 3.35e-6
+    }
+  },
+  {
+    "id": "moonshotai/kimi-k3",
+    "name": "MoonshotAI: Kimi K3",
+    "context_length": 1048576,
+    "input_modalities": ["text", "image", "video"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 943718,
+    "pricing": {
+      "prompt": 2.39e-7,
+      "completion": 1.1936e-5
     }
   },
   {
@@ -1922,18 +1816,29 @@
     "name": "OpenAI: GPT-3.5 Turbo",
     "context_length": 16385,
     "max_completion_tokens": 4096,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "input_modalities": ["text"],
+    "output_modalities": ["text"],
     "supports_tools": true,
     "pricing": {
       "prompt": 5e-7,
-      "completion": 1.5e-6,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 1.5e-6
+    },
+    "supports_reasoning": false,
+    "supports_prompt_cache": false
+  },
+  {
+    "id": "openai/gpt-3.5-turbo-0613",
+    "name": "OpenAI: GPT-3.5 Turbo (older v0613)",
+    "context_length": 4095,
+    "input_modalities": ["text"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": false,
+    "supports_prompt_cache": false,
+    "max_completion_tokens": 3685,
+    "pricing": {
+      "prompt": 1e-6,
+      "completion": 2e-6
     }
   },
   {
@@ -1941,180 +1846,164 @@
     "name": "OpenAI: GPT-3.5 Turbo 16k",
     "context_length": 16385,
     "max_completion_tokens": 4096,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "input_modalities": ["text"],
+    "output_modalities": ["text"],
     "supports_tools": true,
     "pricing": {
       "prompt": 3e-6,
-      "completion": 4e-6,
-      "request": 0.0,
-      "image": 0.0
-    }
+      "completion": 4e-6
+    },
+    "supports_reasoning": false,
+    "supports_prompt_cache": false
   },
   {
     "id": "openai/gpt-3.5-turbo-instruct",
     "name": "OpenAI: GPT-3.5 Turbo Instruct",
     "context_length": 4095,
-    "max_completion_tokens": 4096,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "max_completion_tokens": 3685,
+    "input_modalities": ["text"],
+    "output_modalities": ["text"],
     "supports_tools": false,
     "pricing": {
       "prompt": 1.5e-6,
-      "completion": 2e-6,
-      "request": 0.0,
-      "image": 0.0
-    }
+      "completion": 2e-6
+    },
+    "supports_reasoning": false,
+    "supports_prompt_cache": false
   },
   {
     "id": "openai/gpt-4",
     "name": "OpenAI: GPT-4",
     "context_length": 8191,
     "max_completion_tokens": 4096,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "input_modalities": ["text"],
+    "output_modalities": ["text"],
     "supports_tools": true,
     "pricing": {
-      "prompt": 0.00003,
-      "completion": 0.00006,
-      "request": 0.0,
-      "image": 0.0
-    }
+      "prompt": 3e-5,
+      "completion": 6e-5
+    },
+    "supports_reasoning": false,
+    "supports_prompt_cache": false
   },
   {
     "id": "openai/gpt-4-turbo",
     "name": "OpenAI: GPT-4 Turbo",
     "context_length": 128000,
     "max_completion_tokens": 4096,
-    "input_modalities": [
-      "text",
-      "image"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "input_modalities": ["text", "image"],
+    "output_modalities": ["text"],
     "supports_tools": true,
     "pricing": {
-      "prompt": 0.00001,
-      "completion": 0.00003,
-      "request": 0.0,
-      "image": 0.01445
-    }
+      "prompt": 1e-5,
+      "completion": 3e-5
+    },
+    "supports_reasoning": false,
+    "supports_prompt_cache": false
   },
   {
     "id": "openai/gpt-4.1",
     "name": "OpenAI: GPT-4.1",
     "context_length": 1047576,
     "max_completion_tokens": 32768,
-    "input_modalities": [
-      "image",
-      "text",
-      "file"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "input_modalities": ["image", "text", "file"],
+    "output_modalities": ["text"],
     "supports_tools": true,
     "pricing": {
       "prompt": 2e-6,
-      "completion": 8e-6,
-      "request": 0.0,
-      "image": 0.0
-    }
+      "completion": 8e-6
+    },
+    "supports_reasoning": false,
+    "supports_prompt_cache": true
   },
   {
     "id": "openai/gpt-4.1-mini",
     "name": "OpenAI: GPT-4.1 Mini",
     "context_length": 1047576,
     "max_completion_tokens": 32768,
-    "input_modalities": [
-      "image",
-      "text",
-      "file"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "input_modalities": ["image", "text", "file"],
+    "output_modalities": ["text"],
     "supports_tools": true,
     "pricing": {
       "prompt": 4e-7,
-      "completion": 1.6e-6,
-      "request": 0.0,
-      "image": 0.0
-    }
+      "completion": 1.6e-6
+    },
+    "supports_reasoning": false,
+    "supports_prompt_cache": true
   },
   {
     "id": "openai/gpt-4.1-nano",
     "name": "OpenAI: GPT-4.1 Nano",
     "context_length": 1047576,
     "max_completion_tokens": 32768,
-    "input_modalities": [
-      "image",
-      "text",
-      "file"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "input_modalities": ["image", "text", "file"],
+    "output_modalities": ["text"],
     "supports_tools": true,
     "pricing": {
       "prompt": 1e-7,
-      "completion": 4e-7,
-      "request": 0.0,
-      "image": 0.0
-    }
+      "completion": 4e-7
+    },
+    "supports_reasoning": false,
+    "supports_prompt_cache": true
   },
   {
     "id": "openai/gpt-4o",
     "name": "OpenAI: GPT-4o",
     "context_length": 128000,
     "max_completion_tokens": 16384,
-    "input_modalities": [
-      "text",
-      "image",
-      "file"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "input_modalities": ["text", "image", "file"],
+    "output_modalities": ["text"],
     "supports_tools": true,
     "pricing": {
       "prompt": 2.5e-6,
-      "completion": 0.00001,
-      "request": 0.0,
-      "image": 0.003613
+      "completion": 1e-5
+    },
+    "supports_reasoning": false,
+    "supports_prompt_cache": true
+  },
+  {
+    "id": "openai/gpt-4o-2024-05-13",
+    "name": "OpenAI: GPT-4o (2024-05-13)",
+    "context_length": 128000,
+    "input_modalities": ["text", "image", "file"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": false,
+    "supports_prompt_cache": false,
+    "max_completion_tokens": 4096,
+    "pricing": {
+      "prompt": 5e-6,
+      "completion": 1.5e-5
     }
   },
   {
-    "id": "openai/gpt-4o-audio",
-    "name": "OpenAI: GPT-4o Audio",
+    "id": "openai/gpt-4o-2024-08-06",
+    "name": "OpenAI: GPT-4o (2024-08-06)",
     "context_length": 128000,
-    "max_completion_tokens": 16384,
-    "input_modalities": [
-      "audio",
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "input_modalities": ["text", "image", "file"],
+    "output_modalities": ["text"],
     "supports_tools": true,
+    "supports_reasoning": false,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 16384,
     "pricing": {
       "prompt": 2.5e-6,
-      "completion": 0.00001,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 1e-5
+    }
+  },
+  {
+    "id": "openai/gpt-4o-2024-11-20",
+    "name": "OpenAI: GPT-4o (2024-11-20)",
+    "context_length": 128000,
+    "input_modalities": ["text", "image", "file"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": false,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 16384,
+    "pricing": {
+      "prompt": 2.5e-6,
+      "completion": 1e-5
     }
   },
   {
@@ -2122,79 +2011,29 @@
     "name": "OpenAI: GPT-4o-mini",
     "context_length": 128000,
     "max_completion_tokens": 16384,
-    "input_modalities": [
-      "text",
-      "image",
-      "file"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "input_modalities": ["text", "image", "file"],
+    "output_modalities": ["text"],
     "supports_tools": true,
     "pricing": {
       "prompt": 1.5e-7,
-      "completion": 6e-7,
-      "request": 0.0,
-      "image": 0.000217
-    }
+      "completion": 6e-7
+    },
+    "supports_reasoning": false,
+    "supports_prompt_cache": true
   },
   {
-    "id": "openai/gpt-4o-mini-search",
-    "name": "OpenAI: GPT-4o-mini Search Preview",
+    "id": "openai/gpt-4o-mini-2024-07-18",
+    "name": "OpenAI: GPT-4o-mini (2024-07-18)",
     "context_length": 128000,
+    "input_modalities": ["text", "image", "file"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": false,
+    "supports_prompt_cache": true,
     "max_completion_tokens": 16384,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "supports_tools": false,
     "pricing": {
       "prompt": 1.5e-7,
-      "completion": 6e-7,
-      "request": 0.0275,
-      "image": 0.000217
-    }
-  },
-  {
-    "id": "openai/gpt-4o-search",
-    "name": "OpenAI: GPT-4o Search Preview",
-    "context_length": 128000,
-    "max_completion_tokens": 16384,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "supports_tools": false,
-    "pricing": {
-      "prompt": 2.5e-6,
-      "completion": 0.00001,
-      "request": 0.035,
-      "image": 0.003613
-    }
-  },
-  {
-    "id": "openai/gpt-4o:extended",
-    "name": "OpenAI: GPT-4o (extended)",
-    "context_length": 128000,
-    "max_completion_tokens": 64000,
-    "input_modalities": [
-      "text",
-      "image",
-      "file"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "supports_tools": true,
-    "pricing": {
-      "prompt": 6e-6,
-      "completion": 0.000018,
-      "request": 0.0,
-      "image": 0.007225
+      "completion": 6e-7
     }
   },
   {
@@ -2202,285 +2041,158 @@
     "name": "OpenAI: GPT-5",
     "context_length": 400000,
     "max_completion_tokens": 128000,
-    "input_modalities": [
-      "text",
-      "image",
-      "file"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "input_modalities": ["text", "image", "file"],
+    "output_modalities": ["text"],
     "supports_tools": true,
     "pricing": {
       "prompt": 1.25e-6,
-      "completion": 0.00001,
-      "request": 0.0,
-      "image": 0.0
-    }
-  },
-  {
-    "id": "openai/gpt-5-chat",
-    "name": "OpenAI: GPT-5 Chat",
-    "context_length": 128000,
-    "max_completion_tokens": 16384,
-    "input_modalities": [
-      "file",
-      "image",
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "supports_tools": false,
-    "pricing": {
-      "prompt": 1.25e-6,
-      "completion": 0.00001,
-      "request": 0.0,
-      "image": 0.0
-    }
-  },
-  {
-    "id": "openai/gpt-5-codex",
-    "name": "OpenAI: GPT-5 Codex",
-    "context_length": 400000,
-    "max_completion_tokens": 128000,
-    "input_modalities": [
-      "text",
-      "image"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "supports_tools": true,
-    "pricing": {
-      "prompt": 1.25e-6,
-      "completion": 0.00001,
-      "request": 0.0,
-      "image": 0.0
-    }
+      "completion": 1e-5
+    },
+    "supports_reasoning": true,
+    "supports_prompt_cache": true
   },
   {
     "id": "openai/gpt-5-image",
     "name": "OpenAI: GPT-5 Image",
     "context_length": 400000,
     "max_completion_tokens": 128000,
-    "input_modalities": [
-      "image",
-      "text",
-      "file"
-    ],
-    "output_modalities": [
-      "image",
-      "text"
-    ],
-    "supports_tools": true,
+    "input_modalities": ["image", "text", "file"],
+    "output_modalities": ["image", "text"],
+    "supports_tools": false,
     "pricing": {
-      "prompt": 0.00001,
-      "completion": 0.00001,
-      "request": 0.0,
-      "image": 0.00001
-    }
+      "prompt": 1e-5,
+      "completion": 1e-5
+    },
+    "supports_reasoning": true,
+    "supports_prompt_cache": true
   },
   {
     "id": "openai/gpt-5-image-mini",
     "name": "OpenAI: GPT-5 Image Mini",
     "context_length": 400000,
     "max_completion_tokens": 128000,
-    "input_modalities": [
-      "file",
-      "image",
-      "text"
-    ],
-    "output_modalities": [
-      "image",
-      "text"
-    ],
-    "supports_tools": true,
+    "input_modalities": ["file", "image", "text"],
+    "output_modalities": ["image", "text"],
+    "supports_tools": false,
     "pricing": {
       "prompt": 2.5e-6,
-      "completion": 2e-6,
-      "request": 0.0,
-      "image": 2.5e-6
-    }
+      "completion": 2e-6
+    },
+    "supports_reasoning": true,
+    "supports_prompt_cache": true
   },
   {
     "id": "openai/gpt-5-mini",
     "name": "OpenAI: GPT-5 Mini",
     "context_length": 400000,
     "max_completion_tokens": 128000,
-    "input_modalities": [
-      "text",
-      "image",
-      "file"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "input_modalities": ["text", "image", "file"],
+    "output_modalities": ["text"],
     "supports_tools": true,
     "pricing": {
       "prompt": 2.5e-7,
-      "completion": 2e-6,
-      "request": 0.0,
-      "image": 0.0
-    }
+      "completion": 2e-6
+    },
+    "supports_reasoning": true,
+    "supports_prompt_cache": true
   },
   {
     "id": "openai/gpt-5-nano",
     "name": "OpenAI: GPT-5 Nano",
     "context_length": 400000,
     "max_completion_tokens": 128000,
-    "input_modalities": [
-      "text",
-      "image",
-      "file"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "input_modalities": ["text", "image", "file"],
+    "output_modalities": ["text"],
     "supports_tools": true,
     "pricing": {
       "prompt": 5e-8,
-      "completion": 4e-7,
-      "request": 0.0,
-      "image": 0.0
-    }
+      "completion": 4e-7
+    },
+    "supports_reasoning": true,
+    "supports_prompt_cache": true
   },
   {
     "id": "openai/gpt-5-pro",
     "name": "OpenAI: GPT-5 Pro",
     "context_length": 400000,
     "max_completion_tokens": 128000,
-    "input_modalities": [
-      "image",
-      "text",
-      "file"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "input_modalities": ["image", "text", "file"],
+    "output_modalities": ["text"],
     "supports_tools": true,
     "pricing": {
-      "prompt": 0.000015,
-      "completion": 0.00012,
-      "request": 0.0,
-      "image": 0.0
-    }
+      "prompt": 1.5e-5,
+      "completion": 0.00012
+    },
+    "supports_reasoning": true,
+    "supports_prompt_cache": false
   },
   {
     "id": "openai/gpt-5.1",
     "name": "OpenAI: GPT-5.1",
     "context_length": 400000,
     "max_completion_tokens": 128000,
-    "input_modalities": [
-      "image",
-      "text",
-      "file"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "input_modalities": ["image", "text", "file"],
+    "output_modalities": ["text"],
     "supports_tools": true,
     "pricing": {
       "prompt": 1.25e-6,
-      "completion": 0.00001,
-      "request": 0.0,
-      "image": 0.0
-    }
-  },
-  {
-    "id": "openai/gpt-5.1-chat",
-    "name": "OpenAI: GPT-5.1 Chat",
-    "context_length": 128000,
-    "max_completion_tokens": 16384,
-    "input_modalities": [
-      "file",
-      "image",
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "supports_tools": true,
-    "pricing": {
-      "prompt": 1.25e-6,
-      "completion": 0.00001,
-      "request": 0.0,
-      "image": 0.0
-    }
+      "completion": 1e-5
+    },
+    "supports_reasoning": true,
+    "supports_prompt_cache": true
   },
   {
     "id": "openai/gpt-5.1-codex",
     "name": "OpenAI: GPT-5.1-Codex",
     "context_length": 400000,
     "max_completion_tokens": 128000,
-    "input_modalities": [
-      "text",
-      "image"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "input_modalities": ["text", "image"],
+    "output_modalities": ["text"],
     "supports_tools": true,
     "pricing": {
       "prompt": 1.25e-6,
-      "completion": 0.00001,
-      "request": 0.0,
-      "image": 0.0
-    }
+      "completion": 1e-5
+    },
+    "supports_reasoning": true,
+    "supports_prompt_cache": true
   },
   {
     "id": "openai/gpt-5.1-codex-max",
     "name": "OpenAI: GPT-5.1-Codex-Max",
     "context_length": 400000,
     "max_completion_tokens": 128000,
-    "input_modalities": [
-      "text",
-      "image"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "input_modalities": ["text", "image"],
+    "output_modalities": ["text"],
     "supports_tools": true,
     "pricing": {
       "prompt": 1.25e-6,
-      "completion": 0.00001,
-      "request": 0.0,
-      "image": 0.0
-    }
+      "completion": 1e-5
+    },
+    "supports_reasoning": true,
+    "supports_prompt_cache": true
   },
   {
     "id": "openai/gpt-5.1-codex-mini",
     "name": "OpenAI: GPT-5.1-Codex-Mini",
     "context_length": 400000,
-    "max_completion_tokens": 100000,
-    "input_modalities": [
-      "image",
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "max_completion_tokens": 128000,
+    "input_modalities": ["image", "text"],
+    "output_modalities": ["text"],
     "supports_tools": true,
     "pricing": {
       "prompt": 2.5e-7,
-      "completion": 2e-6,
-      "request": 0.0,
-      "image": 0.0
-    }
+      "completion": 2e-6
+    },
+    "supports_reasoning": true,
+    "supports_prompt_cache": true
   },
   {
     "id": "openai/gpt-5.2",
     "name": "OpenAI: GPT-5.2",
     "context_length": 400000,
     "max_completion_tokens": 128000,
-    "input_modalities": [
-      "file",
-      "image",
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "input_modalities": ["file", "image", "text"],
+    "output_modalities": ["text"],
     "runtime_features": [
       "custom_tools",
       "streaming",
@@ -2490,30 +2202,39 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 1.75e-6,
-      "completion": 0.000014,
-      "request": 0.0,
-      "image": 0.0
-    }
+      "completion": 1.4e-5
+    },
+    "supports_reasoning": true,
+    "supports_prompt_cache": true
   },
   {
     "id": "openai/gpt-5.2-chat",
     "name": "OpenAI: GPT-5.2 Chat",
     "context_length": 128000,
-    "max_completion_tokens": 16384,
-    "input_modalities": [
-      "file",
-      "image",
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "max_completion_tokens": 32000,
+    "input_modalities": ["file", "image", "text"],
+    "output_modalities": ["text"],
     "supports_tools": true,
     "pricing": {
       "prompt": 1.75e-6,
-      "completion": 0.000014,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 1.4e-5
+    },
+    "supports_reasoning": false,
+    "supports_prompt_cache": true
+  },
+  {
+    "id": "openai/gpt-5.2-codex",
+    "name": "OpenAI: GPT-5.2-Codex",
+    "context_length": 400000,
+    "input_modalities": ["text", "image"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 128000,
+    "pricing": {
+      "prompt": 1.75e-6,
+      "completion": 1.4e-5
     }
   },
   {
@@ -2521,1084 +2242,1574 @@
     "name": "OpenAI: GPT-5.2 Pro",
     "context_length": 400000,
     "max_completion_tokens": 128000,
-    "input_modalities": [
-      "image",
-      "text",
-      "file"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "input_modalities": ["image", "text", "file"],
+    "output_modalities": ["text"],
     "supports_tools": true,
     "pricing": {
-      "prompt": 0.000021,
-      "completion": 0.000168,
-      "request": 0.0,
-      "image": 0.0
+      "prompt": 2.1e-5,
+      "completion": 0.000168
+    },
+    "supports_reasoning": true,
+    "supports_prompt_cache": false
+  },
+  {
+    "id": "openai/gpt-5.3-codex",
+    "name": "OpenAI: GPT-5.3-Codex",
+    "context_length": 400000,
+    "input_modalities": ["text", "image", "file"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 128000,
+    "pricing": {
+      "prompt": 1.75e-6,
+      "completion": 1.4e-5
+    }
+  },
+  {
+    "id": "openai/gpt-5.4",
+    "name": "OpenAI: GPT-5.4",
+    "context_length": 1050000,
+    "input_modalities": ["text", "image", "file"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 128000,
+    "pricing": {
+      "prompt": 2.5e-6,
+      "completion": 1.5e-5
+    }
+  },
+  {
+    "id": "openai/gpt-5.4-image-2",
+    "name": "OpenAI: GPT-5.4 Image 2",
+    "context_length": 272000,
+    "input_modalities": ["image", "text", "file"],
+    "output_modalities": ["image", "text"],
+    "supports_tools": false,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 128000,
+    "pricing": {
+      "prompt": 8e-6,
+      "completion": 1.5e-5
+    }
+  },
+  {
+    "id": "openai/gpt-5.4-mini",
+    "name": "OpenAI: GPT-5.4 Mini",
+    "context_length": 400000,
+    "input_modalities": ["file", "image", "text"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 128000,
+    "pricing": {
+      "prompt": 7.5e-7,
+      "completion": 4.5e-6
+    }
+  },
+  {
+    "id": "openai/gpt-5.4-nano",
+    "name": "OpenAI: GPT-5.4 Nano",
+    "context_length": 400000,
+    "input_modalities": ["file", "image", "text"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 128000,
+    "pricing": {
+      "prompt": 2e-7,
+      "completion": 1.25e-6
+    }
+  },
+  {
+    "id": "openai/gpt-5.4-pro",
+    "name": "OpenAI: GPT-5.4 Pro",
+    "context_length": 1050000,
+    "input_modalities": ["text", "image", "file"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": false,
+    "max_completion_tokens": 128000,
+    "pricing": {
+      "prompt": 3e-5,
+      "completion": 0.00018
+    }
+  },
+  {
+    "id": "openai/gpt-5.5",
+    "name": "OpenAI: GPT-5.5",
+    "context_length": 1050000,
+    "input_modalities": ["file", "image", "text"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 128000,
+    "pricing": {
+      "prompt": 5e-6,
+      "completion": 3e-5
+    }
+  },
+  {
+    "id": "openai/gpt-5.5-pro",
+    "name": "OpenAI: GPT-5.5 Pro",
+    "context_length": 1050000,
+    "input_modalities": ["file", "image", "text"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": false,
+    "max_completion_tokens": 128000,
+    "pricing": {
+      "prompt": 3e-5,
+      "completion": 0.00018
+    }
+  },
+  {
+    "id": "openai/gpt-5.6-luna",
+    "name": "OpenAI: GPT-5.6 Luna",
+    "context_length": 1050000,
+    "input_modalities": ["file", "image", "text"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 128000,
+    "pricing": {
+      "prompt": 2e-7,
+      "completion": 1.2e-6
+    }
+  },
+  {
+    "id": "openai/gpt-5.6-luna-pro",
+    "name": "OpenAI: GPT-5.6 Luna Pro",
+    "context_length": 1050000,
+    "input_modalities": ["file", "image", "text"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 128000,
+    "pricing": {
+      "prompt": 2e-7,
+      "completion": 1.2e-6
+    }
+  },
+  {
+    "id": "openai/gpt-5.6-sol",
+    "name": "OpenAI: GPT-5.6 Sol",
+    "context_length": 1050000,
+    "input_modalities": ["file", "image", "text"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 128000,
+    "pricing": {
+      "prompt": 4e-6,
+      "completion": 2e-5
+    }
+  },
+  {
+    "id": "openai/gpt-5.6-sol-pro",
+    "name": "OpenAI: GPT-5.6 Sol Pro",
+    "context_length": 1050000,
+    "input_modalities": ["file", "image", "text"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 128000,
+    "pricing": {
+      "prompt": 4e-6,
+      "completion": 2e-5
+    }
+  },
+  {
+    "id": "openai/gpt-5.6-terra",
+    "name": "OpenAI: GPT-5.6 Terra",
+    "context_length": 1050000,
+    "input_modalities": ["file", "image", "text"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 128000,
+    "pricing": {
+      "prompt": 2e-6,
+      "completion": 1.2e-5
+    }
+  },
+  {
+    "id": "openai/gpt-5.6-terra-pro",
+    "name": "OpenAI: GPT-5.6 Terra Pro",
+    "context_length": 1050000,
+    "input_modalities": ["file", "image", "text"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 128000,
+    "pricing": {
+      "prompt": 2e-6,
+      "completion": 1.2e-5
+    }
+  },
+  {
+    "id": "openai/gpt-6-astra",
+    "name": "OpenAI: GPT-6 Astra",
+    "context_length": 1050000,
+    "input_modalities": ["file", "image", "text"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 128000,
+    "pricing": {
+      "prompt": 1e-5,
+      "completion": 5e-5
+    }
+  },
+  {
+    "id": "openai/gpt-6-astra-pro",
+    "name": "OpenAI: GPT-6 Astra Pro",
+    "context_length": 1050000,
+    "input_modalities": ["file", "image", "text"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 128000,
+    "pricing": {
+      "prompt": 1e-5,
+      "completion": 5e-5
+    }
+  },
+  {
+    "id": "openai/gpt-6-luna",
+    "name": "OpenAI: GPT-6 Luna",
+    "context_length": 1050000,
+    "input_modalities": ["file", "image", "text"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 128000,
+    "pricing": {
+      "prompt": 1e-7,
+      "completion": 5e-7
+    }
+  },
+  {
+    "id": "openai/gpt-6-luna-pro",
+    "name": "OpenAI: GPT-6 Luna Pro",
+    "context_length": 1050000,
+    "input_modalities": ["file", "image", "text"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 128000,
+    "pricing": {
+      "prompt": 1e-7,
+      "completion": 5e-7
+    }
+  },
+  {
+    "id": "openai/gpt-6-sol",
+    "name": "OpenAI: GPT-6 Sol",
+    "context_length": 1050000,
+    "input_modalities": ["file", "image", "text"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 128000,
+    "pricing": {
+      "prompt": 2e-6,
+      "completion": 1e-5
+    }
+  },
+  {
+    "id": "openai/gpt-6-sol-pro",
+    "name": "OpenAI: GPT-6 Sol Pro",
+    "context_length": 1050000,
+    "input_modalities": ["file", "image", "text"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 128000,
+    "pricing": {
+      "prompt": 2e-6,
+      "completion": 1e-5
+    }
+  },
+  {
+    "id": "openai/gpt-6.1-sol",
+    "name": "OpenAI: GPT-6.1 Sol",
+    "context_length": 1050000,
+    "input_modalities": ["file", "image", "text"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 128000,
+    "pricing": {
+      "prompt": 2e-6,
+      "completion": 1e-5
+    }
+  },
+  {
+    "id": "openai/gpt-6.1-sol-pro",
+    "name": "OpenAI: GPT-6.1 Sol Pro",
+    "context_length": 1050000,
+    "input_modalities": ["file", "image", "text"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 128000,
+    "pricing": {
+      "prompt": 2e-6,
+      "completion": 1e-5
+    }
+  },
+  {
+    "id": "openai/gpt-audio",
+    "name": "OpenAI: GPT Audio",
+    "context_length": 128000,
+    "input_modalities": ["text", "audio"],
+    "output_modalities": ["text", "audio"],
+    "supports_tools": true,
+    "supports_reasoning": false,
+    "supports_prompt_cache": false,
+    "max_completion_tokens": 16384,
+    "pricing": {
+      "prompt": 2.5e-6,
+      "completion": 1e-5
+    }
+  },
+  {
+    "id": "openai/gpt-audio-mini",
+    "name": "OpenAI: GPT Audio Mini",
+    "context_length": 128000,
+    "input_modalities": ["text", "audio"],
+    "output_modalities": ["text", "audio"],
+    "supports_tools": true,
+    "supports_reasoning": false,
+    "supports_prompt_cache": false,
+    "max_completion_tokens": 16384,
+    "pricing": {
+      "prompt": 6e-7,
+      "completion": 2.4e-6
+    }
+  },
+  {
+    "id": "openai/gpt-chat-latest",
+    "name": "OpenAI: GPT Chat Latest",
+    "context_length": 400000,
+    "input_modalities": ["text", "image", "file"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": false,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 128000,
+    "pricing": {
+      "prompt": 5e-6,
+      "completion": 3e-5
     }
   },
   {
     "id": "openai/gpt-oss-120b",
     "name": "OpenAI: gpt-oss-120b",
     "context_length": 131072,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "input_modalities": ["text"],
+    "output_modalities": ["text"],
     "supports_tools": true,
     "pricing": {
-      "prompt": 2e-8,
-      "completion": 1e-7,
-      "request": 0.0,
-      "image": 0.0
-    }
+      "prompt": 1.5e-7,
+      "completion": 6e-7
+    },
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 65536
   },
   {
     "id": "openai/gpt-oss-20b",
     "name": "OpenAI: gpt-oss-20b",
     "context_length": 131072,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "input_modalities": ["text"],
+    "output_modalities": ["text"],
     "supports_tools": true,
     "pricing": {
-      "prompt": 1.6e-8,
-      "completion": 6e-8,
-      "request": 0.0,
-      "image": 0.0
-    }
+      "prompt": 1.8e-8,
+      "completion": 9e-8
+    },
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 32768
   },
   {
     "id": "openai/gpt-oss-safeguard-20b",
     "name": "OpenAI: gpt-oss-safeguard-20b",
     "context_length": 131072,
     "max_completion_tokens": 65536,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "input_modalities": ["text"],
+    "output_modalities": ["text"],
     "supports_tools": true,
     "pricing": {
       "prompt": 7.5e-8,
-      "completion": 3e-7,
-      "request": 0.0,
-      "image": 0.0
-    }
+      "completion": 3e-7
+    },
+    "supports_reasoning": true,
+    "supports_prompt_cache": true
   },
   {
     "id": "openai/o1",
     "name": "OpenAI: o1",
     "context_length": 200000,
     "max_completion_tokens": 100000,
-    "input_modalities": [
-      "text",
-      "image",
-      "file"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "input_modalities": ["text", "image", "file"],
+    "output_modalities": ["text"],
     "supports_tools": true,
     "pricing": {
-      "prompt": 0.000015,
-      "completion": 0.00006,
-      "request": 0.0,
-      "image": 0.021675
-    }
+      "prompt": 1.5e-5,
+      "completion": 6e-5
+    },
+    "supports_reasoning": true,
+    "supports_prompt_cache": true
   },
   {
     "id": "openai/o1-pro",
     "name": "OpenAI: o1-pro",
     "context_length": 200000,
     "max_completion_tokens": 100000,
-    "input_modalities": [
-      "text",
-      "image",
-      "file"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "input_modalities": ["text", "image", "file"],
+    "output_modalities": ["text"],
     "supports_tools": false,
     "pricing": {
       "prompt": 0.00015,
-      "completion": 0.0006,
-      "request": 0.0,
-      "image": 0.21675
-    }
+      "completion": 0.0006
+    },
+    "supports_reasoning": true,
+    "supports_prompt_cache": false
   },
   {
     "id": "openai/o3",
     "name": "OpenAI: o3",
     "context_length": 200000,
     "max_completion_tokens": 100000,
-    "input_modalities": [
-      "image",
-      "text",
-      "file"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "input_modalities": ["image", "text", "file"],
+    "output_modalities": ["text"],
     "supports_tools": true,
     "pricing": {
       "prompt": 2e-6,
-      "completion": 8e-6,
-      "request": 0.0,
-      "image": 0.00153
-    }
-  },
-  {
-    "id": "openai/o3-deep-research",
-    "name": "OpenAI: o3 Deep Research",
-    "context_length": 200000,
-    "max_completion_tokens": 100000,
-    "input_modalities": [
-      "image",
-      "text",
-      "file"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "supports_tools": true,
-    "pricing": {
-      "prompt": 0.00001,
-      "completion": 0.00004,
-      "request": 0.0,
-      "image": 0.00765
-    }
+      "completion": 8e-6
+    },
+    "supports_reasoning": true,
+    "supports_prompt_cache": true
   },
   {
     "id": "openai/o3-mini",
     "name": "OpenAI: o3 Mini",
     "context_length": 200000,
     "max_completion_tokens": 100000,
-    "input_modalities": [
-      "text",
-      "file"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "input_modalities": ["text", "file"],
+    "output_modalities": ["text"],
     "supports_tools": true,
     "pricing": {
       "prompt": 1.1e-6,
-      "completion": 4.4e-6,
-      "request": 0.0,
-      "image": 0.0
-    }
+      "completion": 4.4e-6
+    },
+    "supports_reasoning": true,
+    "supports_prompt_cache": true
   },
   {
     "id": "openai/o3-mini-high",
     "name": "OpenAI: o3 Mini High",
     "context_length": 200000,
     "max_completion_tokens": 100000,
-    "input_modalities": [
-      "text",
-      "file"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "input_modalities": ["text", "file"],
+    "output_modalities": ["text"],
     "supports_tools": true,
     "pricing": {
       "prompt": 1.1e-6,
-      "completion": 4.4e-6,
-      "request": 0.0,
-      "image": 0.0
-    }
+      "completion": 4.4e-6
+    },
+    "supports_reasoning": true,
+    "supports_prompt_cache": true
   },
   {
     "id": "openai/o3-pro",
     "name": "OpenAI: o3 Pro",
     "context_length": 200000,
     "max_completion_tokens": 100000,
-    "input_modalities": [
-      "text",
-      "file",
-      "image"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "input_modalities": ["text", "file", "image"],
+    "output_modalities": ["text"],
     "supports_tools": true,
     "pricing": {
-      "prompt": 0.00002,
-      "completion": 0.00008,
-      "request": 0.0,
-      "image": 0.0153
-    }
+      "prompt": 2e-5,
+      "completion": 8e-5
+    },
+    "supports_reasoning": true,
+    "supports_prompt_cache": false
   },
   {
     "id": "openai/o4-mini",
     "name": "OpenAI: o4 Mini",
     "context_length": 200000,
     "max_completion_tokens": 100000,
-    "input_modalities": [
-      "image",
-      "text",
-      "file"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "input_modalities": ["image", "text", "file"],
+    "output_modalities": ["text"],
     "supports_tools": true,
     "pricing": {
       "prompt": 1.1e-6,
-      "completion": 4.4e-6,
-      "request": 0.0,
-      "image": 0.0008415
-    }
-  },
-  {
-    "id": "openai/o4-mini-deep-research",
-    "name": "OpenAI: o4 Mini Deep Research",
-    "context_length": 200000,
-    "max_completion_tokens": 100000,
-    "input_modalities": [
-      "file",
-      "image",
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "supports_tools": true,
-    "pricing": {
-      "prompt": 2e-6,
-      "completion": 8e-6,
-      "request": 0.0,
-      "image": 0.00153
-    }
+      "completion": 4.4e-6
+    },
+    "supports_reasoning": true,
+    "supports_prompt_cache": true
   },
   {
     "id": "openai/o4-mini-high",
     "name": "OpenAI: o4 Mini High",
     "context_length": 200000,
     "max_completion_tokens": 100000,
-    "input_modalities": [
-      "image",
-      "text",
-      "file"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "input_modalities": ["image", "text", "file"],
+    "output_modalities": ["text"],
     "supports_tools": true,
     "pricing": {
       "prompt": 1.1e-6,
-      "completion": 4.4e-6,
-      "request": 0.0,
-      "image": 0.0008415
-    }
+      "completion": 4.4e-6
+    },
+    "supports_reasoning": true,
+    "supports_prompt_cache": true
   },
   {
     "id": "qwen/qwen-2.5-72b-instruct",
     "name": "Qwen2.5 72B Instruct",
     "context_length": 32768,
     "max_completion_tokens": 16384,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "input_modalities": ["text"],
+    "output_modalities": ["text"],
     "supports_tools": true,
     "pricing": {
-      "prompt": 1.2e-7,
-      "completion": 3.9e-7,
-      "request": 0.0,
-      "image": 0.0
-    }
+      "prompt": 3.6e-7,
+      "completion": 4e-7
+    },
+    "supports_reasoning": false,
+    "supports_prompt_cache": false
   },
   {
     "id": "qwen/qwen-2.5-7b-instruct",
     "name": "Qwen: Qwen2.5 7B Instruct",
     "context_length": 32768,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "supports_tools": false,
+    "input_modalities": ["text"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
     "pricing": {
-      "prompt": 4e-8,
-      "completion": 1e-7,
-      "request": 0.0,
-      "image": 0.0
-    }
+      "prompt": 1e-7,
+      "completion": 2e-7
+    },
+    "supports_reasoning": false,
+    "supports_prompt_cache": false,
+    "max_completion_tokens": 29491
   },
   {
     "id": "qwen/qwen-2.5-coder-32b-instruct",
     "name": "Qwen2.5 Coder 32B Instruct",
     "context_length": 32768,
-    "max_completion_tokens": 32768,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "max_completion_tokens": 29491,
+    "input_modalities": ["text"],
+    "output_modalities": ["text"],
     "supports_tools": false,
     "pricing": {
-      "prompt": 3e-8,
-      "completion": 1.1e-7,
-      "request": 0.0,
-      "image": 0.0
-    }
-  },
-  {
-    "id": "qwen/qwen-2.5-vl-7b-instruct",
-    "name": "Qwen: Qwen2.5-VL 7B Instruct",
-    "context_length": 32768,
-    "input_modalities": [
-      "text",
-      "image"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "supports_tools": false,
-    "pricing": {
-      "prompt": 2e-7,
-      "completion": 2e-7,
-      "request": 0.0,
-      "image": 0.0001445
-    }
-  },
-  {
-    "id": "qwen/qwen-max",
-    "name": "Qwen: Qwen-Max ",
-    "context_length": 32768,
-    "max_completion_tokens": 8192,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "supports_tools": true,
-    "pricing": {
-      "prompt": 1.6e-6,
-      "completion": 6.4e-6,
-      "request": 0.0,
-      "image": 0.0
-    }
+      "prompt": 6.6e-7,
+      "completion": 1e-6
+    },
+    "supports_reasoning": false,
+    "supports_prompt_cache": false
   },
   {
     "id": "qwen/qwen-plus",
     "name": "Qwen: Qwen-Plus",
-    "context_length": 131072,
-    "max_completion_tokens": 8192,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "supports_tools": true,
-    "pricing": {
-      "prompt": 4e-7,
-      "completion": 1.2e-6,
-      "request": 0.0,
-      "image": 0.0
-    }
-  },
-  {
-    "id": "qwen/qwen-plus-2025-07-28:thinking",
-    "name": "Qwen: Qwen Plus 0728 (thinking)",
     "context_length": 1000000,
     "max_completion_tokens": 32768,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "input_modalities": ["text"],
+    "output_modalities": ["text"],
     "supports_tools": true,
     "pricing": {
-      "prompt": 4e-7,
-      "completion": 4e-6,
-      "request": 0.0,
-      "image": 0.0
-    }
-  },
-  {
-    "id": "qwen/qwen-turbo",
-    "name": "Qwen: Qwen-Turbo",
-    "context_length": 1000000,
-    "max_completion_tokens": 8192,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "supports_tools": true,
-    "pricing": {
-      "prompt": 5e-8,
-      "completion": 2e-7,
-      "request": 0.0,
-      "image": 0.0
-    }
-  },
-  {
-    "id": "qwen/qwen-vl-max",
-    "name": "Qwen: Qwen VL Max",
-    "context_length": 131072,
-    "max_completion_tokens": 8192,
-    "input_modalities": [
-      "text",
-      "image"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "supports_tools": true,
-    "pricing": {
-      "prompt": 8e-7,
-      "completion": 3.2e-6,
-      "request": 0.0,
-      "image": 0.001024
-    }
-  },
-  {
-    "id": "qwen/qwen-vl-plus",
-    "name": "Qwen: Qwen VL Plus",
-    "context_length": 7500,
-    "max_completion_tokens": 1500,
-    "input_modalities": [
-      "text",
-      "image"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "supports_tools": false,
-    "pricing": {
-      "prompt": 2.1e-7,
-      "completion": 6.3e-7,
-      "request": 0.0,
-      "image": 0.0002688
-    }
-  },
-  {
-    "id": "qwen/qwen2.5-coder-7b-instruct",
-    "name": "Qwen: Qwen2.5 Coder 7B Instruct",
-    "context_length": 32768,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "supports_tools": false,
-    "pricing": {
-      "prompt": 3e-8,
-      "completion": 9e-8,
-      "request": 0.0,
-      "image": 0.0
-    }
-  },
-  {
-    "id": "qwen/qwen2.5-vl-32b-instruct",
-    "name": "Qwen: Qwen2.5 VL 32B Instruct",
-    "context_length": 16384,
-    "max_completion_tokens": 16384,
-    "input_modalities": [
-      "text",
-      "image"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "supports_tools": false,
-    "pricing": {
-      "prompt": 5e-8,
-      "completion": 2.2e-7,
-      "request": 0.0,
-      "image": 0.0
-    }
+      "prompt": 2.6e-7,
+      "completion": 7.8e-7
+    },
+    "supports_reasoning": false,
+    "supports_prompt_cache": true
   },
   {
     "id": "qwen/qwen2.5-vl-72b-instruct",
     "name": "Qwen: Qwen2.5 VL 72B Instruct",
-    "context_length": 32768,
-    "max_completion_tokens": 32768,
-    "input_modalities": [
-      "text",
-      "image"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "context_length": 128000,
+    "max_completion_tokens": 115200,
+    "input_modalities": ["text", "image"],
+    "output_modalities": ["text"],
     "supports_tools": false,
     "pricing": {
-      "prompt": 1.5e-7,
-      "completion": 6e-7,
-      "request": 0.0,
-      "image": 0.0
-    }
+      "prompt": 8e-7,
+      "completion": 1e-6
+    },
+    "supports_reasoning": false,
+    "supports_prompt_cache": true
   },
   {
     "id": "qwen/qwen3-14b",
     "name": "Qwen: Qwen3 14B",
     "context_length": 40960,
-    "max_completion_tokens": 40960,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "max_completion_tokens": 16384,
+    "input_modalities": ["text"],
+    "output_modalities": ["text"],
     "supports_tools": true,
     "pricing": {
-      "prompt": 5e-8,
-      "completion": 2.2e-7,
-      "request": 0.0,
-      "image": 0.0
-    }
+      "prompt": 1.2e-7,
+      "completion": 2.4e-7
+    },
+    "supports_reasoning": true,
+    "supports_prompt_cache": false
   },
   {
-    "id": "qwen/qwen3-235b-a22b",
-    "name": "Qwen: Qwen3 235B A22B",
-    "context_length": 40960,
-    "max_completion_tokens": 40960,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "supports_tools": true,
-    "pricing": {
-      "prompt": 1.8e-7,
-      "completion": 5.4e-7,
-      "request": 0.0,
-      "image": 0.0
-    }
-  },
-  {
-    "id": "qwen/qwen3-235b-a22b-thinking",
-    "name": "Qwen: Qwen3 235B A22B Thinking 2507",
+    "id": "qwen/qwen3-235b-a22b-2507",
+    "name": "Qwen: Qwen3 235B A22B Instruct 2507",
     "context_length": 262144,
-    "max_completion_tokens": 262144,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "input_modalities": ["text"],
+    "output_modalities": ["text"],
     "supports_tools": true,
+    "supports_reasoning": false,
+    "supports_prompt_cache": false,
+    "max_completion_tokens": 16384,
     "pricing": {
-      "prompt": 1.1e-7,
-      "completion": 6e-7,
-      "request": 0.0,
-      "image": 0.0
+      "prompt": 9e-8,
+      "completion": 5.5e-7
+    }
+  },
+  {
+    "id": "qwen/qwen3-235b-a22b-thinking-2507",
+    "name": "Qwen: Qwen3 235B A22B Thinking 2507",
+    "context_length": 128000,
+    "input_modalities": ["text"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": false,
+    "max_completion_tokens": 16384,
+    "pricing": {
+      "prompt": 4.5e-7,
+      "completion": 3.5e-6
     }
   },
   {
     "id": "qwen/qwen3-30b-a3b",
     "name": "Qwen: Qwen3 30B A3B",
     "context_length": 40960,
-    "max_completion_tokens": 40960,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "max_completion_tokens": 16384,
+    "input_modalities": ["text"],
+    "output_modalities": ["text"],
     "supports_tools": true,
     "pricing": {
-      "prompt": 6e-8,
-      "completion": 2.2e-7,
-      "request": 0.0,
-      "image": 0.0
-    }
+      "prompt": 1.2e-7,
+      "completion": 5e-7
+    },
+    "supports_reasoning": true,
+    "supports_prompt_cache": false
   },
   {
-    "id": "qwen/qwen3-30b-a3b-instruct",
+    "id": "qwen/qwen3-30b-a3b-instruct-2507",
     "name": "Qwen: Qwen3 30B A3B Instruct 2507",
     "context_length": 262144,
-    "max_completion_tokens": 262144,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "input_modalities": ["text"],
+    "output_modalities": ["text"],
     "supports_tools": true,
+    "supports_reasoning": false,
+    "supports_prompt_cache": false,
+    "max_completion_tokens": 235929,
     "pricing": {
-      "prompt": 8e-8,
-      "completion": 3.3e-7,
-      "request": 0.0,
-      "image": 0.0
-    }
-  },
-  {
-    "id": "qwen/qwen3-30b-a3b-thinking",
-    "name": "Qwen: Qwen3 30B A3B Thinking 2507",
-    "context_length": 32768,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "supports_tools": true,
-    "pricing": {
-      "prompt": 5.1e-8,
-      "completion": 3.4e-7,
-      "request": 0.0,
-      "image": 0.0
+      "prompt": 9e-8,
+      "completion": 3e-7
     }
   },
   {
     "id": "qwen/qwen3-32b",
     "name": "Qwen: Qwen3 32B",
     "context_length": 40960,
-    "max_completion_tokens": 40960,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "max_completion_tokens": 16384,
+    "input_modalities": ["text"],
+    "output_modalities": ["text"],
     "supports_tools": true,
     "pricing": {
       "prompt": 8e-8,
-      "completion": 2.4e-7,
-      "request": 0.0,
-      "image": 0.0
-    }
-  },
-  {
-    "id": "qwen/qwen3-8b",
-    "name": "Qwen: Qwen3 8B",
-    "context_length": 128000,
-    "max_completion_tokens": 20000,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "supports_tools": true,
-    "pricing": {
-      "prompt": 3.5e-8,
-      "completion": 1.38e-7,
-      "request": 0.0,
-      "image": 0.0
-    }
+      "completion": 2.8e-7
+    },
+    "supports_reasoning": true,
+    "supports_prompt_cache": false
   },
   {
     "id": "qwen/qwen3-coder",
     "name": "Qwen: Qwen3 Coder 480B A35B",
     "context_length": 262144,
-    "max_completion_tokens": 262144,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "max_completion_tokens": 65536,
+    "input_modalities": ["text"],
+    "output_modalities": ["text"],
     "supports_tools": true,
     "pricing": {
-      "prompt": 2.2e-7,
-      "completion": 9.5e-7,
-      "request": 0.0,
-      "image": 0.0
-    }
+      "prompt": 3e-7,
+      "completion": 1e-6
+    },
+    "supports_reasoning": false,
+    "supports_prompt_cache": true
   },
   {
     "id": "qwen/qwen3-coder-30b-a3b-instruct",
     "name": "Qwen: Qwen3 Coder 30B A3B Instruct",
-    "context_length": 160000,
-    "max_completion_tokens": 32768,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "context_length": 262144,
+    "max_completion_tokens": 235929,
+    "input_modalities": ["text"],
+    "output_modalities": ["text"],
     "supports_tools": true,
     "pricing": {
       "prompt": 7e-8,
-      "completion": 2.7e-7,
-      "request": 0.0,
-      "image": 0.0
-    }
+      "completion": 2.8e-7
+    },
+    "supports_reasoning": false,
+    "supports_prompt_cache": false
   },
   {
     "id": "qwen/qwen3-coder-flash",
     "name": "Qwen: Qwen3 Coder Flash",
-    "context_length": 128000,
+    "context_length": 1000000,
     "max_completion_tokens": 65536,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "input_modalities": ["text"],
+    "output_modalities": ["text"],
     "supports_tools": true,
     "pricing": {
-      "prompt": 3e-7,
-      "completion": 1.5e-6,
-      "request": 0.0,
-      "image": 0.0
-    }
+      "prompt": 1.95e-7,
+      "completion": 9.75e-7
+    },
+    "supports_reasoning": false,
+    "supports_prompt_cache": true
   },
   {
-    "id": "qwen/qwen3-coder-plus",
-    "name": "Qwen: Qwen3 Coder Plus",
-    "context_length": 128000,
-    "max_completion_tokens": 65536,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "id": "qwen/qwen3-coder-next",
+    "name": "Qwen: Qwen3 Coder Next",
+    "context_length": 262144,
+    "input_modalities": ["text"],
+    "output_modalities": ["text"],
     "supports_tools": true,
+    "supports_reasoning": false,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 235929,
     "pricing": {
-      "prompt": 1e-6,
-      "completion": 5e-6,
-      "request": 0.0,
-      "image": 0.0
-    }
-  },
-  {
-    "id": "qwen/qwen3-max",
-    "name": "Qwen: Qwen3 Max",
-    "context_length": 256000,
-    "max_completion_tokens": 32768,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "supports_tools": true,
-    "pricing": {
-      "prompt": 1.2e-6,
-      "completion": 6e-6,
-      "request": 0.0,
-      "image": 0.0
+      "prompt": 1.2e-7,
+      "completion": 8e-7
     }
   },
   {
     "id": "qwen/qwen3-next-80b-a3b-instruct",
     "name": "Qwen: Qwen3 Next 80B A3B Instruct",
     "context_length": 262144,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "input_modalities": ["text"],
+    "output_modalities": ["text"],
     "supports_tools": true,
     "pricing": {
-      "prompt": 6e-8,
-      "completion": 6e-7,
-      "request": 0.0,
-      "image": 0.0
-    }
+      "prompt": 9e-8,
+      "completion": 1.1e-6
+    },
+    "supports_reasoning": false,
+    "supports_prompt_cache": false,
+    "max_completion_tokens": 16384
   },
   {
     "id": "qwen/qwen3-next-80b-a3b-thinking",
     "name": "Qwen: Qwen3 Next 80B A3B Thinking",
     "context_length": 262144,
-    "max_completion_tokens": 262144,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "max_completion_tokens": 235929,
+    "input_modalities": ["text"],
+    "output_modalities": ["text"],
     "supports_tools": true,
     "pricing": {
       "prompt": 1.5e-7,
-      "completion": 1.2e-6,
-      "request": 0.0,
-      "image": 0.0
-    }
+      "completion": 1.2e-6
+    },
+    "supports_reasoning": true,
+    "supports_prompt_cache": false
   },
   {
     "id": "qwen/qwen3-vl-235b-a22b-instruct",
     "name": "Qwen: Qwen3 VL 235B A22B Instruct",
-    "context_length": 262144,
-    "input_modalities": [
-      "text",
-      "image"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "context_length": 131072,
+    "input_modalities": ["text", "image"],
+    "output_modalities": ["text"],
     "supports_tools": true,
     "pricing": {
-      "prompt": 1.2e-7,
-      "completion": 5.6e-7,
-      "request": 0.0,
-      "image": 0.0
-    }
-  },
-  {
-    "id": "qwen/qwen3-vl-235b-a22b-thinking",
-    "name": "Qwen: Qwen3 VL 235B A22B Thinking",
-    "context_length": 262144,
-    "max_completion_tokens": 262144,
-    "input_modalities": [
-      "text",
-      "image"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "supports_tools": true,
-    "pricing": {
-      "prompt": 4.5e-7,
-      "completion": 3.5e-6,
-      "request": 0.0,
-      "image": 0.0
-    }
+      "prompt": 2.1e-7,
+      "completion": 1.9e-6
+    },
+    "supports_reasoning": false,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 32768
   },
   {
     "id": "qwen/qwen3-vl-30b-a3b-instruct",
     "name": "Qwen: Qwen3 VL 30B A3B Instruct",
     "context_length": 262144,
-    "input_modalities": [
-      "text",
-      "image"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "input_modalities": ["text", "image"],
+    "output_modalities": ["text"],
     "supports_tools": true,
     "pricing": {
       "prompt": 1.5e-7,
-      "completion": 6e-7,
-      "request": 0.0,
-      "image": 0.0
-    }
+      "completion": 6e-7
+    },
+    "supports_reasoning": false,
+    "supports_prompt_cache": false,
+    "max_completion_tokens": 16384
   },
   {
     "id": "qwen/qwen3-vl-30b-a3b-thinking",
     "name": "Qwen: Qwen3 VL 30B A3B Thinking",
-    "context_length": 131072,
-    "max_completion_tokens": 32768,
-    "input_modalities": [
-      "text",
-      "image"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "context_length": 262144,
+    "max_completion_tokens": 235929,
+    "input_modalities": ["text", "image"],
+    "output_modalities": ["text"],
     "supports_tools": true,
     "pricing": {
-      "prompt": 2e-7,
-      "completion": 1e-6,
-      "request": 0.0,
-      "image": 0.0
-    }
-  },
-  {
-    "id": "qwen/qwen3-vl-32b-instruct",
-    "name": "Qwen: Qwen3 VL 32B Instruct",
-    "context_length": 262144,
-    "input_modalities": [
-      "text",
-      "image"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "supports_tools": false,
-    "pricing": {
-      "prompt": 5e-7,
-      "completion": 1.5e-6,
-      "request": 0.0,
-      "image": 0.0
-    }
+      "prompt": 2.9e-7,
+      "completion": 1e-6
+    },
+    "supports_reasoning": true,
+    "supports_prompt_cache": false
   },
   {
     "id": "qwen/qwen3-vl-8b-instruct",
     "name": "Qwen: Qwen3 VL 8B Instruct",
-    "context_length": 131072,
-    "max_completion_tokens": 32768,
-    "input_modalities": [
-      "image",
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "context_length": 262144,
+    "max_completion_tokens": 235929,
+    "input_modalities": ["image", "text"],
+    "output_modalities": ["text"],
     "supports_tools": true,
     "pricing": {
-      "prompt": 8e-8,
-      "completion": 5e-7,
-      "request": 0.0,
-      "image": 0.0
+      "prompt": 2.5e-7,
+      "completion": 7.5e-7
+    },
+    "supports_reasoning": false,
+    "supports_prompt_cache": true
+  },
+  {
+    "id": "qwen/qwen3.5-122b-a10b",
+    "name": "Qwen: Qwen3.5-122B-A10B",
+    "context_length": 262144,
+    "input_modalities": ["text", "image", "video"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": false,
+    "max_completion_tokens": 65536,
+    "pricing": {
+      "prompt": 4e-7,
+      "completion": 3.2e-6
     }
   },
   {
-    "id": "qwen/qwen3-vl-8b-thinking",
-    "name": "Qwen: Qwen3 VL 8B Thinking",
-    "context_length": 256000,
-    "max_completion_tokens": 32768,
-    "input_modalities": [
-      "image",
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "id": "qwen/qwen3.5-27b",
+    "name": "Qwen: Qwen3.5-27B",
+    "context_length": 262144,
+    "input_modalities": ["text", "image", "video"],
+    "output_modalities": ["text"],
     "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 65536,
     "pricing": {
-      "prompt": 1.8e-7,
-      "completion": 2.1e-6,
-      "request": 0.0,
-      "image": 0.0
+      "prompt": 2.7e-7,
+      "completion": 2.16e-6
     }
   },
   {
-    "id": "qwen/qwq-32b",
-    "name": "Qwen: QwQ 32B",
-    "context_length": 32768,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "id": "qwen/qwen3.5-35b-a3b",
+    "name": "Qwen: Qwen3.5-35B-A3B",
+    "context_length": 262144,
+    "input_modalities": ["text", "image", "video"],
+    "output_modalities": ["text"],
     "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 81920,
     "pricing": {
-      "prompt": 1.5e-7,
-      "completion": 4e-7,
-      "request": 0.0,
-      "image": 0.0
+      "prompt": 1.4e-7,
+      "completion": 1e-6
     }
   },
   {
-    "id": "x-ai/grok-3",
-    "name": "xAI: Grok 3",
-    "context_length": 131072,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "id": "qwen/qwen3.5-397b-a17b",
+    "name": "Qwen: Qwen3.5 397B A17B",
+    "context_length": 262144,
+    "input_modalities": ["text", "image", "video"],
+    "output_modalities": ["text"],
     "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 235929,
     "pricing": {
-      "prompt": 3e-6,
-      "completion": 0.000015,
-      "request": 0.0,
-      "image": 0.0
+      "prompt": 5e-7,
+      "completion": 3.6e-6
     }
   },
   {
-    "id": "x-ai/grok-3-mini",
-    "name": "xAI: Grok 3 Mini",
-    "context_length": 131072,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "id": "qwen/qwen3.5-9b",
+    "name": "Qwen: Qwen3.5-9B",
+    "context_length": 262144,
+    "input_modalities": ["text", "image", "video"],
+    "output_modalities": ["text"],
     "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": false,
+    "max_completion_tokens": 235929,
+    "pricing": {
+      "prompt": 1.7e-7,
+      "completion": 2.5e-7
+    }
+  },
+  {
+    "id": "qwen/qwen3.5-flash-02-23",
+    "name": "Qwen: Qwen3.5-Flash",
+    "context_length": 1000000,
+    "input_modalities": ["text", "image", "video"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": false,
+    "max_completion_tokens": 65536,
+    "pricing": {
+      "prompt": 6.5e-8,
+      "completion": 2.6e-7
+    }
+  },
+  {
+    "id": "qwen/qwen3.5-plus-02-15",
+    "name": "Qwen: Qwen3.5 Plus 2026-02-15",
+    "context_length": 1000000,
+    "input_modalities": ["text", "image", "video"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": false,
+    "max_completion_tokens": 65536,
+    "pricing": {
+      "prompt": 2.6e-7,
+      "completion": 1.56e-6
+    }
+  },
+  {
+    "id": "qwen/qwen3.5-plus-20260420",
+    "name": "Qwen: Qwen3.5 Plus 2026-04-20",
+    "context_length": 1000000,
+    "input_modalities": ["text", "image", "video"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": false,
+    "max_completion_tokens": 65536,
     "pricing": {
       "prompt": 3e-7,
-      "completion": 5e-7,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 1.8e-6
     }
   },
   {
-    "id": "x-ai/grok-4",
-    "name": "xAI: Grok 4",
-    "context_length": 256000,
-    "input_modalities": [
-      "image",
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "id": "qwen/qwen3.6-27b",
+    "name": "Qwen: Qwen3.6 27B",
+    "context_length": 262144,
+    "input_modalities": ["text", "image", "video"],
+    "output_modalities": ["text"],
     "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 65536,
     "pricing": {
-      "prompt": 3e-6,
-      "completion": 0.000015,
-      "request": 0.0,
-      "image": 0.0
+      "prompt": 2.5e-7,
+      "completion": 2e-6
     }
   },
   {
-    "id": "x-ai/grok-4-fast",
-    "name": "xAI: Grok 4 Fast",
+    "id": "qwen/qwen3.6-35b-a3b",
+    "name": "Qwen: Qwen3.6 35B A3B",
+    "context_length": 262144,
+    "input_modalities": ["text", "image", "video"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 235929,
+    "pricing": {
+      "prompt": 1e-7,
+      "completion": 9.5e-7
+    }
+  },
+  {
+    "id": "qwen/qwen3.6-flash",
+    "name": "Qwen: Qwen3.6 Flash",
+    "context_length": 1000000,
+    "input_modalities": ["text", "image", "video"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": false,
+    "max_completion_tokens": 65536,
+    "pricing": {
+      "prompt": 1.875e-7,
+      "completion": 1.125e-6
+    }
+  },
+  {
+    "id": "qwen/qwen3.6-plus",
+    "name": "Qwen: Qwen3.6 Plus",
+    "context_length": 1000000,
+    "input_modalities": ["text", "image", "video"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": false,
+    "max_completion_tokens": 65536,
+    "pricing": {
+      "prompt": 3.25e-7,
+      "completion": 1.95e-6
+    }
+  },
+  {
+    "id": "qwen/qwen3.7-flash",
+    "name": "Qwen: Qwen3.7 Flash",
+    "context_length": 1000000,
+    "input_modalities": ["text", "image", "video"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 65536,
+    "pricing": {
+      "prompt": 3e-8,
+      "completion": 1.3e-7
+    }
+  },
+  {
+    "id": "qwen/qwen3.7-max",
+    "name": "Qwen: Qwen3.7 Max",
+    "context_length": 1000000,
+    "input_modalities": ["text"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 131072,
+    "pricing": {
+      "prompt": 1.475e-6,
+      "completion": 4.425e-6
+    }
+  },
+  {
+    "id": "qwen/qwen3.7-plus",
+    "name": "Qwen: Qwen3.7 Plus",
+    "context_length": 1000000,
+    "input_modalities": ["text", "image"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 131072,
+    "pricing": {
+      "prompt": 3.2e-7,
+      "completion": 1.28e-6
+    }
+  },
+  {
+    "id": "qwen/qwen3.8-2.4t-a95b",
+    "name": "Qwen: Qwen3.8 2.4T A95B",
+    "context_length": 1010000,
+    "input_modalities": ["text"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 909000,
+    "pricing": {
+      "prompt": 2e-6,
+      "completion": 6e-6
+    }
+  },
+  {
+    "id": "qwen/qwen3.8-27b",
+    "name": "Qwen: Qwen3.8 27B",
+    "context_length": 262144,
+    "input_modalities": ["text", "image", "video"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 235929,
+    "pricing": {
+      "prompt": 2e-7,
+      "completion": 2.5e-6
+    }
+  },
+  {
+    "id": "qwen/qwen3.8-flash",
+    "name": "Qwen: Qwen3.8 Flash",
+    "context_length": 1000000,
+    "input_modalities": ["text", "image", "video"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 131072,
+    "pricing": {
+      "prompt": 1.5e-7,
+      "completion": 4.7e-7
+    }
+  },
+  {
+    "id": "qwen/qwen3.8-max-0902",
+    "name": "Qwen: Qwen3.8 Max (0902)",
+    "context_length": 1000000,
+    "input_modalities": ["text", "image", "video"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 131072,
+    "pricing": {
+      "prompt": 2e-6,
+      "completion": 6e-6
+    }
+  },
+  {
+    "id": "qwen/qwen3.8-max-prime",
+    "name": "Qwen: Qwen3.8 Max Prime",
+    "context_length": 1000000,
+    "input_modalities": ["text", "image", "video"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 131072,
+    "pricing": {
+      "prompt": 4e-6,
+      "completion": 1.2e-5
+    }
+  },
+  {
+    "id": "qwen/qwen3.8-omni-flash",
+    "name": "Qwen: Qwen3.8 Omni Flash",
+    "context_length": 1000000,
+    "input_modalities": ["text", "image", "audio", "video"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 131072,
+    "pricing": {
+      "prompt": 1.5e-7,
+      "completion": 4.7e-7
+    }
+  },
+  {
+    "id": "x-ai/grok-4.20",
+    "name": "SpaceXAI: Grok 4.20",
     "context_length": 2000000,
-    "max_completion_tokens": 30000,
-    "input_modalities": [
-      "text",
-      "image"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "input_modalities": ["text", "image", "file"],
+    "output_modalities": ["text"],
     "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 1800000,
     "pricing": {
-      "prompt": 2e-7,
-      "completion": 5e-7,
-      "request": 0.0,
-      "image": 0.0
+      "prompt": 1.25e-6,
+      "completion": 2.5e-6
     }
   },
   {
-    "id": "x-ai/grok-4.1-fast",
-    "name": "xAI: Grok 4.1 Fast",
+    "id": "x-ai/grok-4.20-multi-agent",
+    "name": "SpaceXAI: Grok 4.20 Multi-Agent",
     "context_length": 2000000,
-    "max_completion_tokens": 30000,
-    "input_modalities": [
-      "text",
-      "image"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "supports_tools": true,
+    "input_modalities": ["text", "image", "file"],
+    "output_modalities": ["text"],
+    "supports_tools": false,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 1800000,
     "pricing": {
-      "prompt": 2e-7,
-      "completion": 5e-7,
-      "request": 0.0,
-      "image": 0.0
+      "prompt": 1.25e-6,
+      "completion": 2.5e-6
     }
   },
   {
-    "id": "x-ai/grok-code-fast-1",
-    "name": "xAI: Grok Code Fast 1",
-    "context_length": 256000,
-    "max_completion_tokens": 10000,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
+    "id": "x-ai/grok-4.3",
+    "name": "SpaceXAI: Grok 4.3",
+    "context_length": 1000000,
+    "input_modalities": ["text", "image", "file"],
+    "output_modalities": ["text"],
     "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 900000,
     "pricing": {
-      "prompt": 2e-7,
-      "completion": 1.5e-6,
-      "request": 0.0,
-      "image": 0.0
+      "prompt": 1.25e-6,
+      "completion": 2.5e-6
+    }
+  },
+  {
+    "id": "x-ai/grok-4.5",
+    "name": "SpaceXAI: Grok 4.5",
+    "context_length": 500000,
+    "input_modalities": ["text", "image", "file"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 450000,
+    "pricing": {
+      "prompt": 2e-6,
+      "completion": 6e-6
+    }
+  },
+  {
+    "id": "x-ai/grok-4.6",
+    "name": "SpaceXAI: Grok 4.6",
+    "context_length": 500000,
+    "input_modalities": ["text", "image", "file"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 450000,
+    "pricing": {
+      "prompt": 2e-6,
+      "completion": 6e-6
+    }
+  },
+  {
+    "id": "x-ai/grok-4.7",
+    "name": "SpaceXAI: Grok 4.7",
+    "context_length": 500000,
+    "input_modalities": ["text", "image", "file"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 450000,
+    "pricing": {
+      "prompt": 2e-6,
+      "completion": 6e-6
+    }
+  },
+  {
+    "id": "x-ai/grok-build-0.1",
+    "name": "SpaceXAI: Grok Build 0.1",
+    "context_length": 256000,
+    "input_modalities": ["text", "image", "file"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 230400,
+    "pricing": {
+      "prompt": 1e-6,
+      "completion": 2e-6
+    }
+  },
+  {
+    "id": "xiaomi/mimo-v2.6-flash",
+    "name": "Xiaomi: MiMo-V2.6-Flash",
+    "context_length": 1048576,
+    "input_modalities": ["text", "image", "video", "audio"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 131072,
+    "pricing": {
+      "prompt": 1.4e-7,
+      "completion": 2.8e-7
+    }
+  },
+  {
+    "id": "xiaomi/mimo-v2.6-pro",
+    "name": "Xiaomi: MiMo-V2.6-Pro",
+    "context_length": 1048576,
+    "input_modalities": ["text", "image", "video", "audio"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 131072,
+    "pricing": {
+      "prompt": 4.35e-7,
+      "completion": 8.7e-7
+    }
+  },
+  {
+    "id": "xiaomi/mimo-v2.6-pro-ultraspeed",
+    "name": "Xiaomi: MiMo-V2.6-Pro-UltraSpeed",
+    "context_length": 1048576,
+    "input_modalities": ["text", "image", "video", "audio"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 131072,
+    "pricing": {
+      "prompt": 4.35e-6,
+      "completion": 8.7e-6
+    }
+  },
+  {
+    "id": "z-ai/glm-4.5",
+    "name": "Z.ai: GLM 4.5",
+    "context_length": 131072,
+    "input_modalities": ["text"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 98304,
+    "pricing": {
+      "prompt": 6e-7,
+      "completion": 2.2e-6
+    }
+  },
+  {
+    "id": "z-ai/glm-4.5-air",
+    "name": "Z.ai: GLM 4.5 Air",
+    "context_length": 131072,
+    "input_modalities": ["text"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 98304,
+    "pricing": {
+      "prompt": 1.3e-7,
+      "completion": 8.5e-7
+    }
+  },
+  {
+    "id": "z-ai/glm-4.5v",
+    "name": "Z.ai: GLM 4.5V",
+    "context_length": 65536,
+    "input_modalities": ["text", "image"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 16384,
+    "pricing": {
+      "prompt": 6e-7,
+      "completion": 1.8e-6
+    }
+  },
+  {
+    "id": "z-ai/glm-4.6",
+    "name": "Z.ai: GLM 4.6",
+    "context_length": 204800,
+    "input_modalities": ["text"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 131072,
+    "pricing": {
+      "prompt": 5.5e-7,
+      "completion": 2.2e-6
+    }
+  },
+  {
+    "id": "z-ai/glm-4.6v",
+    "name": "Z.ai: GLM 4.6V",
+    "context_length": 131072,
+    "input_modalities": ["image", "text", "video"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 32768,
+    "pricing": {
+      "prompt": 3e-7,
+      "completion": 9e-7
+    }
+  },
+  {
+    "id": "z-ai/glm-4.7",
+    "name": "Z.ai: GLM 4.7",
+    "context_length": 204800,
+    "input_modalities": ["text"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 131072,
+    "pricing": {
+      "prompt": 5.4e-7,
+      "completion": 1.98e-6
+    }
+  },
+  {
+    "id": "z-ai/glm-4.7-flash",
+    "name": "Z.ai: GLM 4.7 Flash",
+    "context_length": 131072,
+    "input_modalities": ["text"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": false,
+    "max_completion_tokens": 117964,
+    "pricing": {
+      "prompt": 6.05e-8,
+      "completion": 4e-7
+    }
+  },
+  {
+    "id": "z-ai/glm-5",
+    "name": "Z.ai: GLM 5",
+    "context_length": 202752,
+    "input_modalities": ["text"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 131072,
+    "pricing": {
+      "prompt": 1e-6,
+      "completion": 3.2e-6
+    }
+  },
+  {
+    "id": "z-ai/glm-5-turbo",
+    "name": "Z.ai: GLM 5 Turbo",
+    "context_length": 202752,
+    "input_modalities": ["text"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 131072,
+    "pricing": {
+      "prompt": 1.2e-6,
+      "completion": 4e-6
+    }
+  },
+  {
+    "id": "z-ai/glm-5.1",
+    "name": "Z.ai: GLM 5.1",
+    "context_length": 202752,
+    "input_modalities": ["text"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 131072,
+    "pricing": {
+      "prompt": 1.4e-6,
+      "completion": 4.4e-6
+    }
+  },
+  {
+    "id": "z-ai/glm-5.2",
+    "name": "Z.ai: GLM 5.2",
+    "context_length": 1048576,
+    "input_modalities": ["text"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 943718,
+    "pricing": {
+      "prompt": 3.41e-8,
+      "completion": 7e-6
+    }
+  },
+  {
+    "id": "z-ai/glm-5.3",
+    "name": "Z.ai: GLM 5.3",
+    "context_length": 1048576,
+    "input_modalities": ["text"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 943718,
+    "pricing": {
+      "prompt": 7.9e-8,
+      "completion": 1.4e-6
+    }
+  },
+  {
+    "id": "z-ai/glm-5.3-flash",
+    "name": "Z.ai: GLM 5.3 Flash",
+    "context_length": 1048576,
+    "input_modalities": ["text", "image", "video", "file"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 131072,
+    "pricing": {
+      "prompt": 5.2e-9,
+      "completion": 1.985e-7
+    }
+  },
+  {
+    "id": "z-ai/glm-5.3-flashx",
+    "name": "Z.ai: GLM 5.3 FlashX",
+    "context_length": 1048576,
+    "input_modalities": ["text", "image", "video", "file"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 131072,
+    "pricing": {
+      "prompt": 3.7e-7,
+      "completion": 1.25e-6
+    }
+  },
+  {
+    "id": "z-ai/glm-5.3-prime",
+    "name": "Z.ai: GLM 5.3 Prime",
+    "context_length": 1000000,
+    "input_modalities": ["text"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 131072,
+    "pricing": {
+      "prompt": 2.8e-6,
+      "completion": 8.8e-6
+    }
+  },
+  {
+    "id": "z-ai/glm-5v-turbo",
+    "name": "Z.ai: GLM 5V Turbo",
+    "context_length": 202752,
+    "input_modalities": ["image", "text", "video"],
+    "output_modalities": ["text"],
+    "supports_tools": true,
+    "supports_reasoning": true,
+    "supports_prompt_cache": true,
+    "max_completion_tokens": 131072,
+    "pricing": {
+      "prompt": 1.2e-6,
+      "completion": 4e-6
     }
   }
 ]

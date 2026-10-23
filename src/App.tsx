@@ -466,10 +466,7 @@ function AppContent() {
   return (
     <ComponentDebugProvider>
       <AppShell>
-        <MainContentLayout
-          layout={currentPage === "settings" ? "full-bleed" : "default"}
-          fallback
-        />
+        <MainContentLayout layout="default" fallback />
         <AppContainer>
           <AppShellHeader reserveWindowControls={reserveMacWindowControls} />
           {hasDesktopHostRuntime ? (

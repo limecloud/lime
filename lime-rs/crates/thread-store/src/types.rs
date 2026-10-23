@@ -1,7 +1,7 @@
 // Adapted from Codex thread-store/types.rs
 // (5c19155cbd93bfa099016e7487259f61669823ff), Apache-2.0; see repository NOTICE.
 
-use std::fmt;
+use std::{collections::BTreeMap, fmt};
 
 use agent_protocol::{
     SessionId, SortDirection, Thread, ThreadHistoryChangeSet, ThreadId, ThreadItem,
@@ -323,6 +323,9 @@ pub struct ThreadMetadataPatch {
         with = "optional_option"
     )]
     pub metadata: ClearableField<Value>,
+    /// Atomically sets individual metadata keys without replacing unrelated values.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub metadata_values: BTreeMap<String, Value>,
 }
 
 impl ThreadMetadataPatch {
@@ -351,7 +354,9 @@ impl ThreadMetadataPatch {
         }
         if next.metadata.is_some() {
             self.metadata = next.metadata;
+            self.metadata_values.clear();
         }
+        self.metadata_values.extend(next.metadata_values);
     }
 
     pub fn is_empty(&self) -> bool {
@@ -363,6 +368,7 @@ impl ThreadMetadataPatch {
             && self.updated_at_ms.is_none()
             && self.advance_recency_at_ms.is_none()
             && self.metadata.is_none()
+            && self.metadata_values.is_empty()
     }
 }
 
@@ -484,5 +490,31 @@ mod tests {
         let decoded: AppendThreadItemsParams =
             serde_json::from_value(value).expect("deserialize append params");
         assert_eq!(decoded, params);
+    }
+
+    #[test]
+    fn metadata_key_updates_merge_in_order_and_full_replacement_resets_earlier_keys() {
+        let mut patch = ThreadMetadataPatch::default();
+        patch.merge(ThreadMetadataPatch {
+            metadata_values: [("snapshot".into(), json!(1))].into(),
+            ..Default::default()
+        });
+        assert!(!patch.is_empty());
+        patch.merge(ThreadMetadataPatch {
+            metadata_values: [("snapshot".into(), json!(2)), ("other".into(), json!(true))].into(),
+            ..Default::default()
+        });
+        assert_eq!(patch.metadata_values["snapshot"], 2);
+        patch.merge(ThreadMetadataPatch {
+            metadata: Some(Some(json!({"replacement": true}))),
+            metadata_values: [("after".into(), json!(3))].into(),
+            ..Default::default()
+        });
+        assert!(!patch.metadata_values.contains_key("snapshot"));
+        assert!(!patch.metadata_values.contains_key("other"));
+        assert_eq!(patch.metadata_values["after"], 3);
+        let decoded: ThreadMetadataPatch =
+            serde_json::from_value(serde_json::to_value(&patch).unwrap()).unwrap();
+        assert_eq!(decoded, patch);
     }
 }

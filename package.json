@@ -5,7 +5,7 @@
   "workspaces": [
     "packages/*"
   ],
-  "version": "1.167.0",
+  "version": "1.168.0",
   "description": "Open-source full-stack desktop AI agent for global users: coding, research, content, files, terminals, tools, multimodal work, and multi-agent workflows.",
   "keywords": [
     "ai",
@@ -264,7 +264,7 @@
     "smoke:settings-execution-policy-electron-fixture": "node scripts/electron/settings-execution-policy-fixture-smoke.mjs",
     "smoke:settings-mcp-lifecycle-electron-fixture": "node scripts/electron/settings-mcp-lifecycle-fixture-smoke.mjs",
     "smoke:settings-provider-crud-electron-fixture": "node scripts/electron/settings-provider-crud-fixture-smoke.mjs",
-    "smoke:settings-memory-soul-electron-fixture": "node scripts/electron/settings-memory-soul-fixture-smoke.mjs",
+    "smoke:settings-personalization-electron-fixture": "node scripts/electron/lib/settings-personalization-fixture.mjs",
     "smoke:settings-archived-lifecycle-electron-fixture": "node scripts/electron/settings-archived-lifecycle-fixture-smoke.mjs",
     "smoke:mcp-context7-live-electron-fixture": "node scripts/electron/mcp-context7-live-fixture-smoke.mjs",
     "smoke:mcp-elicitation-gate-b": "node scripts/electron/mcp-elicitation-gate-b.mjs",

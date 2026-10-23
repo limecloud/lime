@@ -28,12 +28,18 @@
     "browser_tab_begin_annotation",
     "browser_tab_cancel_annotation",
     "browser_tab_capture_annotation",
+    "browser_tab_set_annotation_markers",
+    "browser_tab_set_annotation_original",
+    "browser_tab_focus_annotation_composer",
     "browser_tab_show_annotation_editor",
     "browser_tab_update_annotation_editor",
     "browser_tab_close_annotation_editor",
     "browser_history_list",
     "browser_history_remove",
-    "browser_history_clear"
+    "browser_history_clear",
+    "browser_downloads_list",
+    "browser_downloads_action",
+    "browser_downloads_clear"
   ],
   "browserConnectorCommands": [
     "disconnect_browser_connector_session",

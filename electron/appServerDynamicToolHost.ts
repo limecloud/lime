@@ -72,6 +72,28 @@ const APP_INFO_BINDING = Object.freeze<DynamicToolBinding>({
 const BROWSER_TOOL_DEFINITIONS = Object.freeze([
   tool("openTabs", "List Browser tabs available to this conversation.", {}),
   tool(
+    "history",
+    "Search the user's browsing history. Requires history access permission; does not grant control of a web page.",
+    {
+      query: stringProperty(
+        "Text to search in visited URLs and titles; omit to list recent visits.",
+        { allowEmpty: true },
+      ),
+      cursor: stringProperty(
+        "nextCursor returned by the previous history query.",
+      ),
+      limit: {
+        ...integerProperty(
+          "Maximum entries to return, from 1 to 200; defaults to 50.",
+        ),
+        maximum: 200,
+      },
+      tabId: stringProperty(
+        "Visible tab anchoring this conversation's history permission request.",
+      ),
+    },
+  ),
+  tool(
     "newTab",
     "Open a new Agent-controlled tab in the visible Browser workspace.",
     { url: stringProperty("Initial http or https URL.") },
@@ -547,8 +569,8 @@ function validateArguments(
     const schema = asRecord(properties[key]);
     if (
       schema?.type === "string" &&
-      schema.allowEmpty !== true &&
-      nonEmptyString(value) === null
+      (typeof value !== "string" ||
+        (schema.allowEmpty !== true && nonEmptyString(value) === null))
     ) {
       return `${binding.runtimeName}.${key} must be a non-empty string`;
     }
@@ -559,6 +581,13 @@ function validateArguments(
           (typeof schema.minimum === "number" ? schema.minimum : 1))
     ) {
       return `${binding.runtimeName}.${key} must be an integer greater than or equal to ${typeof schema.minimum === "number" ? schema.minimum : 1}`;
+    }
+    if (
+      schema?.type === "integer" &&
+      typeof schema.maximum === "number" &&
+      Number(value) > schema.maximum
+    ) {
+      return `${binding.runtimeName}.${key} must be less than or equal to ${schema.maximum}`;
     }
   }
   return null;

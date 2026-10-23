@@ -9,6 +9,9 @@ import { getRegisteredCommands } from "@/lib/commands/registry";
 import { SettingsTabs } from "@/types/settings";
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+vi.mock("@/lib/commands/preferences", () => ({
+  observeCommandBindings: () => () => {},
+}));
 vi.mock("@/lib/cloudAccount", () => ({
   getCloudAccount: () => null,
   subscribeCloudAccount: () => () => {},

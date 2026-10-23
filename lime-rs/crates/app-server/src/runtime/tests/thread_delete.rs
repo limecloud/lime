@@ -85,7 +85,7 @@ async fn failed_atomic_delete_keeps_database_and_memory_then_retries_without_ext
     drop(conn);
 
     let error = core
-        .delete_thread(ThreadId::new(THREAD_ID))
+        .delete_thread(ThreadId::new(THREAD_ID), None)
         .await
         .expect_err("first delete must fail at atomic commit");
     assert!(error
@@ -125,7 +125,7 @@ async fn failed_atomic_delete_keeps_database_and_memory_then_retries_without_ext
     drop(conn);
 
     let deleted = core
-        .delete_thread(ThreadId::new(THREAD_ID))
+        .delete_thread(ThreadId::new(THREAD_ID), None)
         .await
         .expect("retry delete without external files");
     assert_eq!(deleted.len(), 1);
@@ -141,7 +141,7 @@ async fn failed_atomic_delete_keeps_database_and_memory_then_retries_without_ext
         .is_none());
 
     let second = core
-        .delete_thread(ThreadId::new(THREAD_ID))
+        .delete_thread(ThreadId::new(THREAD_ID), None)
         .await
         .expect_err("second delete must report missing thread");
     assert!(second.to_string().contains("thread not found"));

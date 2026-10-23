@@ -173,7 +173,7 @@ export interface SettingsPageParams {
   providerFocus?: ProviderSettingsFocusContext;
   executionPolicyFocus?: ExecutionPolicyFocusContext;
   searchFocus?: SettingsSearchFocusContext;
-  browserPage?: "history";
+  browserPage?: "history" | "downloads";
   browserReturnOwner?: BrowserHistoryReturnOwner;
 }
 

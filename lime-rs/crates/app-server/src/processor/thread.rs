@@ -92,6 +92,7 @@ impl RequestProcessor {
                 .await;
             self.forget_environment_selections(thread_id.as_str());
             self.thread_states.remove_thread(&thread_id).await;
+            self.request_worktree_cleanup().await;
             return dispatch_result(ThreadUnsubscribeResponse {
                 status: ThreadUnsubscribeStatus::NotLoaded,
             });
@@ -106,6 +107,7 @@ impl RequestProcessor {
         } else {
             ThreadUnsubscribeStatus::NotSubscribed
         };
+        self.request_worktree_cleanup().await;
         dispatch_result(ThreadUnsubscribeResponse { status })
     }
 
@@ -268,15 +270,23 @@ impl RequestProcessor {
         let thread_id = required_thread_value(&params.thread_id, "thread/delete")?;
         let deleted = self
             .runtime
-            .delete_thread(agent_protocol::ThreadId::new(thread_id.clone()))
+            .delete_thread(agent_protocol::ThreadId::new(thread_id.clone()), None)
             .await
             .map_err(to_jsonrpc_error)?;
+        let notifications = self.finish_thread_delete(deleted).await;
+        Ok(dispatch_result(ThreadDeleteResponse {})?.with_notifications(notifications))
+    }
+
+    pub(super) async fn finish_thread_delete(
+        &self,
+        deleted: Vec<crate::runtime::DeletedThread>,
+    ) -> Vec<JsonRpcNotification> {
         for deleted_thread in &deleted {
             self.close_mcp_event_streams_for_thread(&deleted_thread.thread_id)
                 .await;
             self.forget_environment_selections(&deleted_thread.thread_id);
         }
-        let notifications = deleted
+        deleted
             .into_iter()
             .map(|thread| {
                 let notification: JsonRpcNotification =
@@ -286,8 +296,7 @@ impl RequestProcessor {
                     .into();
                 notification
             })
-            .collect();
-        Ok(dispatch_result(ThreadDeleteResponse {})?.with_notifications(notifications))
+            .collect()
     }
 
     pub(super) async fn handle_thread_archive_v2(
@@ -306,11 +315,14 @@ impl RequestProcessor {
         if !changed {
             return Ok(dispatch);
         }
+        let notification = self.finish_thread_archive(thread_id).await;
+        Ok(dispatch.with_notification(notification.into()))
+    }
+
+    pub(super) async fn finish_thread_archive(&self, thread_id: String) -> ServerNotification {
         self.close_mcp_event_streams_for_thread(&thread_id).await;
         self.forget_environment_selections(&thread_id);
-        let notification: JsonRpcNotification =
-            ServerNotification::ThreadArchived(ThreadArchivedNotification { thread_id }).into();
-        Ok(dispatch.with_notification(notification))
+        ServerNotification::ThreadArchived(ThreadArchivedNotification { thread_id })
     }
 
     pub(super) async fn handle_thread_unarchive_v2(

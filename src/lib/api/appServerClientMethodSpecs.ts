@@ -283,6 +283,36 @@ export const APP_SERVER_CLIENT_METHODS: readonly AppServerClientMethodSpec[] = [
     params: "required",
   },
   {
+    name: "readStorage",
+    method: constants.APP_SERVER_METHOD_STORAGE_READ,
+    params: "required",
+  },
+  {
+    name: "refreshStorage",
+    method: constants.APP_SERVER_METHOD_STORAGE_REFRESH,
+    params: "required",
+  },
+  {
+    name: "reviewStorage",
+    method: constants.APP_SERVER_METHOD_STORAGE_REVIEW,
+    params: "required",
+  },
+  {
+    name: "deleteStorage",
+    method: constants.APP_SERVER_METHOD_STORAGE_DELETE,
+    params: "required",
+  },
+  {
+    name: "listProjectGitWorktrees",
+    method: constants.APP_SERVER_METHOD_PROJECT_GIT_WORKTREE_LIST,
+    params: "required",
+  },
+  {
+    name: "deleteProjectGitWorktree",
+    method: constants.APP_SERVER_METHOD_PROJECT_GIT_WORKTREE_DELETE,
+    params: "required",
+  },
+  {
     name: "exportHandoffBundle",
     method: constants.APP_SERVER_METHOD_AGENT_SESSION_HANDOFF_BUNDLE_EXPORT,
     params: "required",
@@ -893,6 +923,51 @@ export const APP_SERVER_CLIENT_METHODS: readonly AppServerClientMethodSpec[] = [
   {
     name: "readProjectMaterialContent",
     method: constants.APP_SERVER_METHOD_PROJECT_MATERIAL_CONTENT,
+    params: "required",
+  },
+  {
+    name: "readInstructions",
+    method: constants.APP_SERVER_METHOD_INSTRUCTIONS_READ,
+    params: "none",
+  },
+  {
+    name: "writeInstructions",
+    method: constants.APP_SERVER_METHOD_INSTRUCTIONS_WRITE,
+    params: "required",
+  },
+  {
+    name: "listDictationHistory",
+    method: constants.APP_SERVER_METHOD_DICTATION_HISTORY_LIST,
+    params: "none",
+  },
+  {
+    name: "startDictationHistory",
+    method: constants.APP_SERVER_METHOD_DICTATION_HISTORY_START,
+    params: "required",
+  },
+  {
+    name: "appendDictationHistoryAudio",
+    method: constants.APP_SERVER_METHOD_DICTATION_HISTORY_APPEND_AUDIO,
+    params: "required",
+  },
+  {
+    name: "finishDictationHistory",
+    method: constants.APP_SERVER_METHOD_DICTATION_HISTORY_FINISH,
+    params: "required",
+  },
+  {
+    name: "readDictationHistoryAudio",
+    method: constants.APP_SERVER_METHOD_DICTATION_HISTORY_READ_AUDIO,
+    params: "required",
+  },
+  {
+    name: "setDictationHistoryTranscript",
+    method: constants.APP_SERVER_METHOD_DICTATION_HISTORY_SET_TRANSCRIPT,
+    params: "required",
+  },
+  {
+    name: "deleteDictationHistory",
+    method: constants.APP_SERVER_METHOD_DICTATION_HISTORY_DELETE,
     params: "required",
   },
   {

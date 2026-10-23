@@ -138,16 +138,16 @@ export function createHarness(options: { history?: BrowserHistoryHost } = {}) {
     setTurnInterruptHandler:
       browserHost.setTurnInterruptHandler.bind(browserHost),
     setArtifactWriter: browserHost.setArtifactWriter.bind(browserHost),
-    setSettings: (next: BrowserSettings) => {
+    setSettings: (next: BrowserSettings, locale?: string) => {
       settings = next;
-      browserHost.setSettings(next);
+      browserHost.setSettings(next, locale);
     },
     setSettingsProvider: browserHost.setSettingsProvider.bind(browserHost),
     setPopupIdentityHandler:
       browserHost.setPopupIdentityHandler.bind(browserHost),
     turnEnded: browserHost.turnEnded.bind(browserHost),
   };
-  return { artifactWriter, embeddedHost, events, host, views, window };
+  return { artifactWriter, browserHost, embeddedHost, events, host, views, window };
 }
 
 function createNativeView(

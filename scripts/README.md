@@ -293,7 +293,7 @@ npm run smoke:scheduled-tasks-electron-fixture -- --timeout-ms 180000
 npm run smoke:settings-execution-policy-electron-fixture -- --run-id <run-id>
 npm run smoke:settings-mcp-lifecycle-electron-fixture -- --run-id <run-id>
 npm run smoke:settings-provider-crud-electron-fixture -- --run-id <run-id>
-npm run smoke:settings-memory-soul-electron-fixture -- --run-id <run-id>
+npm run smoke:settings-personalization-electron-fixture -- --run-id <run-id>
 npm run smoke:settings-archived-lifecycle-electron-fixture -- --run-id <run-id>
 npm run smoke:mcp-context7-live-electron-fixture
 npm run smoke:mcp-elicitation-gate-b
@@ -330,7 +330,7 @@ npm run smoke:orchestrator-skills-gate-b
 
 `npm run smoke:settings-provider-crud-electron-fixture -- --run-id <run-id>` 使用隔离 userData 与 localhost `/v1/models` fixture，从真实 Provider Settings GUI 创建自定义 Provider，先观察错误密钥导致的 401 可见状态，再从 GUI 修正密钥、获取并选择模型、完成连接测试、冷重启读回、从 GUI 删除并再次冷重启确认不存在。要求命中 `modelProvider/list|catalog/list|create|update|fetchModels|testConnection|delete` 与 `modelProviderKey/create`，且 Electron、preload、`electron-ipc`、`app_server_handle_json_lines`、零 legacy/mock/unexpected error 同时成立。该 Gate B-R claim 不访问 live Provider、不证明生产凭证或真实模型 Turn；JSON 与截图不保存 Provider 值、模型 ID、API Host、端口、密钥、路径、请求头或响应正文。
 
-`npm run smoke:settings-memory-soul-electron-fixture -- --run-id <run-id>` 在隔离 userData 中从真实 Memory/Soul Settings GUI 选择 canonical style profile、应用模板、保存并冷重启读回；同时以同一 profile 调用现有 isolated `soul-style` Electron runtime fixture，只提取 `hasInteractionSoul`、`hasMemorySoulSchema`、`hasSavedConfigSource` 等 marker booleans。GUI 侧要求 App Server `config/read|config/batchWrite`、`soulStylePack/list`、Electron/preload/IPC、零 legacy/mock/error；runtime 侧必须证明 prompt marker 完整。该 claim 不保存 Soul 文本、完整 prompt、用户内容、Provider request/response、路径或凭证，也明确不声称 GUI 与 runtime 两次启动共享同一进程或 app-data 目录。
+`npm run smoke:settings-personalization-electron-fixture -- --run-id <run-id>` 在隔离 userData 和用户目录中验证真实个性化设置：记忆与工具来源开关自动保存、AGENTS.md 键盘保存/冲突/重新加载/覆盖文件提示、删除记忆确认及两次 Electron 启动后的冷恢复。要求 current App Server `config/read|config/batchWrite`、`instructions/read|instructions/write`、`memory/reset`、Electron/preload/IPC 和零 legacy/mock/error，并生成明暗主题及窄窗口截图。证据为设置文件与存储的 Desktop Gate B-F；不包含 Agent/provider 回合。独立 `scripts/app-server/memory-agent-fixture.mjs` 验证真实 stdio runtime 的记忆注入/生成门控与指令到达本机 provider；后端 Soul runtime 场景仍由既有 `soul-style` 夹具覆盖。
 
 `npm run smoke:settings-archived-lifecycle-electron-fixture -- --run-id <run-id>` 复用 current session-history owner fixture，在隔离 userData 与 unavailable model backend 中从真实侧栏归档持久化对话、冷启动读回归档态、从 Settings 已归档对话页恢复，并再次冷启动读回恢复态。Settings adapter 只保留 `agentSession/list|read|update`、Electron/preload/IPC、生命周期布尔、独立 console/page/invoke/legacy/mock error 计数和归档/恢复截图，不保存对话正文、session/thread identity、数据库行、路径或 import payload。
 

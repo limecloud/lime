@@ -38,6 +38,30 @@ afterEach(async () => {
 });
 
 describe("openai-compatible-fixture-server", () => {
+  it("仅在夹具显式配置时接收超过1MB的累计图文请求，并保留容量上限", async () => {
+    const fixture = await startFixture({ maxRequestBodyBytes: 2_000_000 });
+    const send = (baseUrl, length) =>
+      fetch(`${baseUrl}/v1/chat/completions`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          model: DEFAULT_FIXTURE_MODEL,
+          messages: [{ role: "user", content: "x".repeat(length) }],
+        }),
+      });
+    const response = await send(fixture.baseUrl, 1_100_000);
+    expect(response.ok).toBe(true);
+    await response.json();
+    expect(fixture.requests[0].body.messages[0].content.length).toBe(1_100_000);
+    await expect(send(fixture.baseUrl, 2_100_000)).rejects.toThrow();
+    const standard = await startFixture();
+    await expect(send(standard.baseUrl, 1_100_000)).rejects.toThrow();
+    expect(standard.requests).toHaveLength(0);
+    await expect(
+      startFixture({ maxRequestBodyBytes: Infinity }),
+    ).rejects.toThrow(RangeError);
+  });
+
   it("可静默捕获连接诊断供失败 evidence 使用", async () => {
     const fixture = await startFixture({ captureConnectionDiagnostics: true });
     const response = await fetch(`${fixture.baseUrl}/v1/models`);
@@ -137,10 +161,23 @@ describe("openai-compatible-fixture-server", () => {
     });
   });
 
-  it("模型发现应保留显式 image、CodeMode 与 custom_tools capability", async () => {
+  it("图片夹具的模型发现与直接配置应声明同一输入能力", async () => {
+    const fixture = await startFixture({
+      modelInputModalities: ["text", "image"],
+    });
+    const response = await fetch(`${fixture.baseUrl}/v1/models`);
+    expect(response.ok).toBe(true);
+    const { data } = await response.json();
+    expect(data[0].input_modalities).toEqual(["text", "image"]);
+    expect(data[0].capabilities.vision).toBe(true);
+    expect(
+      fixture.provider.providerConfig.modelCapabilities.inputModalities,
+    ).toEqual(data[0].input_modalities);
+  });
+
+  it("模型发现应保留显式 CodeMode 与 custom_tools capability", async () => {
     const fixture = await startFixture({
       model: "fixture-code-mode",
-      modelInputModalities: ["text", "image"],
       modelRuntimeFeatures: [
         "streaming",
         "tool_calling",
@@ -156,8 +193,6 @@ describe("openai-compatible-fixture-server", () => {
       data: [
         {
           id: "fixture-code-mode",
-          input_modalities: ["text", "image"],
-          capabilities: { vision: true },
           runtime_features: [
             "streaming",
             "tool_calling",

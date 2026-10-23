@@ -17,7 +17,7 @@ const {
   mockSettingsSidebar,
   mockPreloadDeveloperDefaultSections,
   mockCloudProviderSettings,
-  mockSettingsHomePage,
+  mockGeneralSettings,
   mockDeveloperLabSettings,
   mockArchivedConversationsSettings,
   mockExecutionPolicySettings,
@@ -27,7 +27,7 @@ const {
   mockSettingsSidebar: vi.fn(),
   mockPreloadDeveloperDefaultSections: vi.fn(),
   mockCloudProviderSettings: vi.fn(),
-  mockSettingsHomePage: vi.fn(),
+  mockGeneralSettings: vi.fn(),
   mockDeveloperLabSettings: vi.fn(),
   mockArchivedConversationsSettings: vi.fn(),
   mockExecutionPolicySettings: vi.fn(),
@@ -116,9 +116,9 @@ vi.mock("../system/execution-policy", () => ({
 vi.mock("../system/web-search", () => ({
   WebSearchSettings: () => <div>web-search</div>,
 }));
-vi.mock("../home", () => ({
-  SettingsHomePage: (props: unknown) => {
-    mockSettingsHomePage(props);
+vi.mock("../general/GeneralSettings", () => ({
+  GeneralSettings: (props: unknown) => {
+    mockGeneralSettings(props);
     return <div>home</div>;
   },
 }));
@@ -213,7 +213,7 @@ afterEach(async () => {
   mockSettingsSidebar.mockReset();
   mockPreloadDeveloperDefaultSections.mockReset();
   mockCloudProviderSettings.mockReset();
-  mockSettingsHomePage.mockReset();
+  mockGeneralSettings.mockReset();
   mockDeveloperLabSettings.mockReset();
   mockArchivedConversationsSettings.mockReset();
   mockExecutionPolicySettings.mockReset();
@@ -282,7 +282,7 @@ describe("SettingsPage browser return owner", () => {
     };
     const onNavigate = vi.fn();
     renderComponent(
-      SettingsTabs.Home,
+      SettingsTabs.General,
       onNavigate,
       undefined,
       undefined,
@@ -311,16 +311,16 @@ describe("SettingsPage browser return owner", () => {
       searchFocus: { targetId: "memory-auto-inject", requestKey: 1 },
       browserReturnOwner: owner,
     });
-    await act(async () => sidebar().onTabChange(SettingsTabs.Home));
+    await act(async () => sidebar().onTabChange(SettingsTabs.General));
     expect(onNavigate).toHaveBeenLastCalledWith("settings", {
-      tab: SettingsTabs.Home,
+      tab: SettingsTabs.General,
       browserReturnOwner: owner,
     });
   });
 });
 
 describe("SettingsPage Experimental Tab", () => {
-  it("未知设置页应回退到当前首页", async () => {
+  it("未知设置页应回退到常规设置", async () => {
     const container = renderComponent(
       "unknown-settings-section" as SettingsTabs,
     );
@@ -352,12 +352,12 @@ describe("SettingsPage Experimental Tab", () => {
 });
 
 describe("SettingsPage Developer Tab", () => {
-  it("设置导航使用单侧栏，并返回进入设置前的页面", async () => {
+  it("设置 contextual 导航允许返回进入设置前的页面", async () => {
     vi.stubGlobal("navigator", { platform: "MacIntel", userAgent: "Mac OS X" });
     const onNavigate = vi.fn();
     const onBack = vi.fn();
     const container = renderComponent(
-      SettingsTabs.Home,
+      SettingsTabs.General,
       onNavigate,
       undefined,
       undefined,
@@ -378,7 +378,7 @@ describe("SettingsPage Developer Tab", () => {
       (navigation as HTMLElement).style.getPropertyValue(
         "--sidebar-preferred-width",
       ),
-    ).toBe("340px");
+    ).toBe("290px");
     expect(button?.getAttribute("aria-label")).toBe("Back");
     expect(navigation?.querySelector("h2")).toBeNull();
     expect(
@@ -416,7 +416,7 @@ describe("SettingsPage Developer Tab", () => {
   });
 
   it("预取开发者页时应连同延迟区块一起预热", async () => {
-    renderComponent(SettingsTabs.Home);
+    renderComponent(SettingsTabs.General);
     const sidebarProps = mockSettingsSidebar.mock.calls[0]?.[0] as
       | {
           onTabPrefetch?: (tab: SettingsTabs) => void;
@@ -433,11 +433,11 @@ describe("SettingsPage Developer Tab", () => {
     expect(mockPreloadDeveloperDefaultSections).toHaveBeenCalledTimes(1);
   });
 
-  it("设置首页不应收到打开桌宠的快捷入口", async () => {
-    renderComponent(SettingsTabs.Home);
+  it("常规设置应使用独立功能 owner", async () => {
+    renderComponent(SettingsTabs.General);
     await flushEffects();
 
-    expect(mockSettingsHomePage.mock.calls.at(-1)?.[0]).not.toHaveProperty(
+    expect(mockGeneralSettings.mock.calls.at(-1)?.[0]).not.toHaveProperty(
       "onOpenCompanion",
     );
   });
@@ -562,7 +562,7 @@ describe("SettingsPage current sections", () => {
     await changeLimeLocale(locale as Parameters<typeof changeLimeLocale>[0]);
     const onBack = vi.fn();
     const container = renderComponent(
-      SettingsTabs.Home,
+      SettingsTabs.General,
       undefined,
       undefined,
       undefined,
@@ -573,7 +573,7 @@ describe("SettingsPage current sections", () => {
     const button = container.querySelector<HTMLButtonElement>(
       '[data-testid="settings-back-button"]',
     )!;
-    expect(button.textContent).toBe(label);
+    expect(button.querySelector("svg")).not.toBeNull();
     expect(button.getAttribute("aria-label")).toBe(label);
     act(() => {
       button.click();
@@ -582,7 +582,7 @@ describe("SettingsPage current sections", () => {
   });
 
   it.each([
-    [SettingsTabs.Home, "home"],
+    [SettingsTabs.General, "home"],
     [SettingsTabs.Profile, "USER_CENTER_SESSION"],
     [SettingsTabs.Stats, "stats"],
     [SettingsTabs.Appearance, "appearance"],

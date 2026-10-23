@@ -84,7 +84,7 @@ export const FOOTER_SIDEBAR_NAV_ITEMS: SidebarNavItemDefinition[] = [
     icon: Settings,
     page: "settings",
     params: {
-      tab: SettingsTabs.Home,
+      tab: SettingsTabs.General,
     },
     isActive: (currentPage) => currentPage === "settings",
     configurable: false,

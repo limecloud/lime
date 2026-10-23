@@ -1,0 +1,60 @@
+{
+  "$defs": {
+    "DictationHistoryEntry": {
+      "properties": {
+        "createdAtMs": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "id": {
+          "type": "string"
+        },
+        "mimeType": {
+          "type": "string"
+        },
+        "sizeBytes": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "status": {
+          "$ref": "#/$defs/DictationHistoryStatus"
+        },
+        "text": {
+          "type": [
+            "null",
+            "string"
+          ]
+        }
+      },
+      "required": [
+        "createdAtMs",
+        "id",
+        "mimeType",
+        "sizeBytes",
+        "status"
+      ],
+      "type": "object"
+    },
+    "DictationHistoryStatus": {
+      "enum": [
+        "cancelled",
+        "interrupted",
+        "recording",
+        "saved"
+      ],
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "recording": {
+      "$ref": "#/$defs/DictationHistoryEntry"
+    }
+  },
+  "required": [
+    "recording"
+  ],
+  "title": "DictationHistoryWriteResponse",
+  "type": "object"
+}

@@ -61,7 +61,7 @@ vi.mock("../system/shared/WorkspaceRepairHistoryCard", () => ({
 vi.mock("../system/shared/ClipboardPermissionGuideCard", () => ({
   ClipboardPermissionGuideCard: () => null,
 }));
-vi.mock("../home", () => ({ SettingsHomePage: () => null }));
+vi.mock("../general/GeneralSettings", () => ({ GeneralSettings: () => null }));
 vi.mock("./SettingsNavigation", async () => {
   const { SettingsSidebar } = await import("./SettingsSidebar");
   return {

@@ -5,7 +5,7 @@ export const DEFAULT_DESKTOP_PREFERENCES = {
   "open-link-in-target-preference": "external-browser",
   "open-local-url-in-target-preference": "in-app-browser",
   "external-browser-link-shortcut": "primary",
-} as const satisfies Required<DesktopConfig>;
+} as const satisfies Required<Omit<DesktopConfig, "keyboard-shortcuts">>;
 
 export function effectiveDesktopPreferences(config?: DesktopConfig) {
   return {

@@ -61,6 +61,9 @@ if (stopMode !== "allow") {
 const markerA = "MEMORY_SHARED_HARNESS_A_20261020";
 const markerB = "MEMORY_SHARED_HARNESS_B_20261020";
 const agentsMarker = "MEMORY_LOCAL_AGENTS_INSTRUCTION_20261020";
+const globalAgentsMarker = "PERSONALIZATION_GLOBAL_INSTRUCTION_20261023";
+const revisedAgentsMarker = "PERSONALIZATION_REVISED_INSTRUCTION_20261023";
+await writeFile(path.join(hooksHome, "AGENTS.md"), globalAgentsMarker);
 const summary = `v1\n\n## User Profile\n\n## User preferences\n\nUse the selected model route.\n\n## General Tips\n\n## What's in Memory\n\n${markerA}\n`;
 let agentSamples = 0;
 let extractionSamples = 0;
@@ -72,6 +75,10 @@ const internalIdentities = [];
 let citationThreadId;
 let normalTurnSamples = 0;
 let normalContextSnapshot;
+let sourceThreadA;
+let sourceThreadB;
+let memoryExpected = true;
+let instructionExpected = globalAgentsMarker;
 const toolNames = (body) =>
   (body.tools ?? []).map((tool) => tool.function?.name ?? tool.name);
 const fixture = await startOpenAiCompatibleFixtureServer({
@@ -91,7 +98,11 @@ const fixture = await startOpenAiCompatibleFixtureServer({
           "provider request retains canonical Thread/Turn identity",
         );
         if (!internalIdentity) internalIdentity = identity;
-        if (!internalIdentities.some((entry) => entry.threadId === identity.threadId)) {
+        if (
+          !internalIdentities.some(
+            (entry) => entry.threadId === identity.threadId,
+          )
+        ) {
           internalIdentities.push(identity);
           const snapshot = await call("thread/read", {
             threadId: identity.threadId,
@@ -117,7 +128,10 @@ const fixture = await startOpenAiCompatibleFixtureServer({
             ].includes(name),
             `unexpected internal Agent tool: ${name}`,
           );
-        assert.ok(text.includes(agentsMarker), "local AGENTS instructions remain active");
+        assert.ok(
+          text.includes(agentsMarker),
+          "local AGENTS instructions remain active",
+        );
         const currentStep = phase2Step % 3 || 3;
         if (currentStep === 1)
           return {
@@ -131,7 +145,8 @@ const fixture = await startOpenAiCompatibleFixtureServer({
                   : `printf %b ${JSON.stringify(summary)} > memory_summary.md && cat raw_memories.md && pwd`,
               workdir: root,
               login: false,
-              shell: process.platform === "win32" ? "powershell.exe" : "/bin/sh",
+              shell:
+                process.platform === "win32" ? "powershell.exe" : "/bin/sh",
               yield_time_ms: 1000,
             },
           };
@@ -141,8 +156,14 @@ const fixture = await startOpenAiCompatibleFixtureServer({
               message.type === "function_call_output" &&
               message.call_id === `memory-cwd-${phase2Runs}`,
           );
-          assert.ok(result, "shell continuation retains the original tool call identity");
-          assert.ok(JSON.stringify(result.output).includes(root), "shell result is present in the continuation");
+          assert.ok(
+            result,
+            "shell continuation retains the original tool call identity",
+          );
+          assert.ok(
+            JSON.stringify(result.output).includes(root),
+            "shell result is present in the continuation",
+          );
           const resultText = JSON.stringify(result.output);
           phase2Orders.push(
             [markerA, markerB]
@@ -165,9 +186,14 @@ const fixture = await startOpenAiCompatibleFixtureServer({
             message.type === "function_call_output" &&
             message.call_id === `memory-patch-${phase2Runs}`,
         );
-        assert.ok(patchResult, "patch continuation retains the original tool call identity");
         assert.ok(
-          JSON.stringify(patchResult.output).includes(`harness-proof-${phase2Runs}.md`),
+          patchResult,
+          "patch continuation retains the original tool call identity",
+        );
+        assert.ok(
+          JSON.stringify(patchResult.output).includes(
+            `harness-proof-${phase2Runs}.md`,
+          ),
           "native patch result reaches the next sample",
         );
         phase2Step = 0;
@@ -184,36 +210,33 @@ const fixture = await startOpenAiCompatibleFixtureServer({
         assert.equal(body.text?.format?.strict, true);
         assert.ok(body.text?.format?.schema?.properties?.rollout_summary);
         assert.match(body.client_metadata?.turn_id ?? "", /^memory-stage1-/);
-        const marker = text.includes("source-thread-b") ? markerB : markerA;
+        const marker = text.includes(sourceThreadB) ? markerB : markerA;
         return {
           type: "text",
           content: JSON.stringify({
             rollout_summary: marker,
-            rollout_slug: marker === markerB ? "shared-harness-b" : "shared-harness-a",
+            rollout_slug:
+              marker === markerB ? "shared-harness-b" : "shared-harness-a",
           }),
         };
       }
       normalTurnSamples += 1;
       normalContextSnapshot = {
-        keys: Object.keys(body),
-        instructions:
-          typeof body.instructions === "string"
-            ? body.instructions.slice(0, 2_000)
-            : body.instructions,
-        input: (body.input ?? [])
-          .filter((message) => ["system", "developer"].includes(message.role))
-          .map((message) => ({ role: message.role, content: message.content }))
-          .slice(0, 4),
-        metadata: body.metadata,
+        hasMemory: text.includes(markerA),
+        hasCurrentInstructions: text.includes(instructionExpected),
+        memoryExpected,
       };
+      assert.equal(normalContextSnapshot.hasMemory, memoryExpected);
+      assert.equal(normalContextSnapshot.hasCurrentInstructions, true);
       assert.ok(
-        text.includes(markerA),
-        `normal turn receives the durable memory summary in its system context: ${JSON.stringify(normalContextSnapshot)}`,
+        citationThreadId,
+        "fixture selected a source for citation feedback",
       );
-      assert.ok(citationThreadId, "fixture selected a source for citation feedback");
       return {
         type: "text",
-        content: `Memory context used.\n<oai-mem-citation><rollout_ids>${citationThreadId}</rollout_ids></oai-mem-citation>`,
+        content: memoryExpected
+          ? `Memory context used.\n<oai-mem-citation><rollout_ids>${citationThreadId}</rollout_ids></oai-mem-citation>`
+          : "Memory disabled for this turn.",
       };
     },
   ],
@@ -328,6 +351,15 @@ try {
     fixture,
     invoke: (_, method, params) => call(method, params),
   });
+  await call("config/batchWrite", {
+    edits: [
+      {
+        keyPath: "memory",
+        value: { enabled: true, auto: { enabled: false } },
+        mergeStrategy: "replace",
+      },
+    ],
+  });
   // Responses carries canonical identity in client_metadata; Chat has no such wire field.
   await call("modelProvider/update", {
     providerId: provider.providerPreference,
@@ -338,7 +370,10 @@ try {
     const hook = listed.data
       .flatMap((entry) => entry.hooks)
       .find((entry) => entry.eventName.toLowerCase() === "stop");
-    assert.ok(hook, `global Stop hook is discoverable: ${JSON.stringify(listed)}`);
+    assert.ok(
+      hook,
+      `global Stop hook is discoverable: ${JSON.stringify(listed)}`,
+    );
     assert.equal(
       hook.source,
       "user",
@@ -349,17 +384,42 @@ try {
       `${hookConfig}\n[hooks.state.${JSON.stringify(hook.key)}]\nenabled = true\ntrusted_hash = ${JSON.stringify(hook.currentHash)}\n`,
     );
   }
+  sourceThreadA = (
+    await call(
+      "thread/start",
+      buildToolExecutionThreadStartParams({
+        provider,
+        title: "Memory source A",
+        workspaceRoot: workspace,
+      }),
+    )
+  ).thread.id;
+  sourceThreadB = (
+    await call(
+      "thread/start",
+      buildToolExecutionThreadStartParams({
+        provider,
+        title: "Memory source B",
+        workspaceRoot: workspace,
+      }),
+    )
+  ).thread.id;
   const note = await call("memoryStore/addNote", {
     scope: "global",
     slug: "harness",
-    content: "threadId: source-thread-a\nUse the selected model route A.",
+    content: `threadId: ${sourceThreadA}\nUse the selected model route A.`,
   });
   const noteB = await call("memoryStore/addNote", {
     scope: "global",
     slug: "harness-b",
-    content: "threadId: source-thread-b\nUse the selected model route B.",
+    content: `threadId: ${sourceThreadB}\nUse the selected model route B.`,
   });
   await writeFile(path.join(root, "AGENTS.md"), agentsMarker);
+  await call("config/batchWrite", {
+    edits: [
+      { keyPath: "memory.auto.enabled", value: true, mergeStrategy: "replace" },
+    ],
+  });
   const { thread } = await call(
     "thread/start",
     buildToolExecutionThreadStartParams({
@@ -406,17 +466,25 @@ try {
   assert.equal(phase2Orders[0].length, 2);
   if (stopMode === "allow") {
     const firstOrder = phase2Orders[0];
-    citationThreadId = firstOrder[1] === markerA ? "source-thread-a" : "source-thread-b";
+    citationThreadId =
+      firstOrder[1] === markerA ? sourceThreadA : sourceThreadB;
     const turnStart = await call("turn/start", {
       threadId: thread.id,
-      input: [{ type: "text", text: "Use the memory summary and cite the source." }],
+      input: [
+        { type: "text", text: "Use the memory summary and cite the source." },
+      ],
       approvalPolicy: "never",
       sandboxPolicy: "danger-full-access",
     });
     const turnDeadline = Date.now() + 60_000;
     while (Date.now() < turnDeadline) {
-      const read = await call("thread/read", { threadId: thread.id, includeTurns: true });
-      const current = read.thread.turns.find((entry) => entry.id === turnStart.turn.id);
+      const read = await call("thread/read", {
+        threadId: thread.id,
+        includeTurns: true,
+      });
+      const current = read.thread.turns.find(
+        (entry) => entry.id === turnStart.turn.id,
+      );
       if (current && current.status !== "inProgress") {
         assert.equal(current.status, "completed", JSON.stringify(current));
         break;
@@ -432,13 +500,17 @@ try {
       sources.length > 0 &&
         sources.every(
           (source) =>
-            source.status === "consolidated" && source.selected_for_phase2 === 1,
+            source.status === "consolidated" &&
+            source.selected_for_phase2 === 1,
         ),
     );
     const usageBefore = sources.find(
       (source) => source.source_thread_id === citationThreadId,
     );
-    assert.ok(usageBefore && usageBefore.usage_count >= 1, "citation updates durable usage feedback");
+    assert.ok(
+      usageBefore && usageBefore.usage_count >= 1,
+      "citation updates durable usage feedback",
+    );
     await call("memoryStore/consolidate", {
       sessionId: thread.id,
       scope: "global",
@@ -447,11 +519,16 @@ try {
     assert.equal(phase2Runs, 2);
     assert.deepEqual(
       phase2Orders[1],
-      [citationThreadId === "source-thread-a" ? markerA : markerB, citationThreadId === "source-thread-a" ? markerB : markerA],
+      [
+        citationThreadId === sourceThreadA ? markerA : markerB,
+        citationThreadId === sourceThreadA ? markerB : markerA,
+      ],
       "next phase-2 snapshot prioritizes the cited source",
     );
     assert.equal(
-      storageState().sources.find((source) => source.source_thread_id === citationThreadId)?.usage_count,
+      storageState().sources.find(
+        (source) => source.source_thread_id === citationThreadId,
+      )?.usage_count,
       usageBefore.usage_count,
       "phase-2 does not consume or reset citation usage",
     );
@@ -459,8 +536,78 @@ try {
       await readFile(path.join(root, "harness-proof-2.md"), "utf8"),
       `${markerA}\n`,
     );
+    const instructions = await call("instructions/read", {});
+    assert.equal(
+      path.resolve(instructions.path),
+      path.join(hooksHome, "AGENTS.md"),
+    );
+    await call("instructions/write", {
+      contents: revisedAgentsMarker,
+      expectedRevision: instructions.revision,
+    });
+    instructionExpected = revisedAgentsMarker;
+    await call("config/batchWrite", {
+      edits: [
+        { keyPath: "memory.enabled", value: false, mergeStrategy: "replace" },
+        {
+          keyPath: "memory.auto.enabled",
+          value: false,
+          mergeStrategy: "replace",
+        },
+      ],
+    });
+    const samplesBeforeDisabled = fixture.requests.length;
+    await assert.rejects(
+      call("memoryStore/consolidate", {
+        sessionId: thread.id,
+        scope: "global",
+      }),
+    );
+    assert.equal(
+      fixture.requests.length,
+      samplesBeforeDisabled,
+      "disabled generation must not sample a provider",
+    );
+    async function preferenceTurn() {
+      const started = await call("turn/start", {
+        threadId: thread.id,
+        input: [{ type: "text", text: "Check current preferences." }],
+        approvalPolicy: "never",
+        sandboxPolicy: "danger-full-access",
+      });
+      const deadline = Date.now() + 60_000;
+      while (Date.now() < deadline) {
+        const read = await call("thread/read", {
+          threadId: thread.id,
+          includeTurns: true,
+        });
+        const current = read.thread.turns.find(
+          (entry) => entry.id === started.turn.id,
+        );
+        if (current && current.status !== "inProgress") {
+          assert.equal(current.status, "completed");
+          return;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 25));
+      }
+      throw Error("preference turn did not complete");
+    }
+    memoryExpected = false;
+    await preferenceTurn();
+    await call("config/batchWrite", {
+      edits: [
+        { keyPath: "memory.enabled", value: true, mergeStrategy: "replace" },
+      ],
+    });
+    memoryExpected = true;
+    await preferenceTurn();
+    assert.equal(normalTurnSamples, 3);
   } else {
-    assert.equal(normalTurnSamples, 0, "stop hook fixture does not start a user turn");
+    assert.equal(
+      normalTurnSamples,
+      0,
+      "stop hook fixture does not start a user turn",
+    );
     assert.equal(phase2Runs, 1);
   }
   const internalIdentitiesOnDisk = internalIdentities.flatMap((identity) => [
@@ -491,9 +638,15 @@ try {
       normalTurnSamples,
       citationThreadId,
       normalContextSnapshot,
+      memoryDisabledNextTurn: stopMode === "allow",
+      memoryReenabledNextTurn: stopMode === "allow",
+      disabledGenerationNoProviderRequest: stopMode === "allow",
+      instructionsWriteReachesProvider: stopMode === "allow",
       parentThreadId: thread.id,
       internalThreadId: internalId,
-      internalThreadIds: internalIdentities.map((identity) => identity.threadId),
+      internalThreadIds: internalIdentities.map(
+        (identity) => identity.threadId,
+      ),
       toolContinuation: true,
       nativePatch: true,
       localAgentsRetained: true,
@@ -512,7 +665,10 @@ try {
     /* Storage may not exist if startup failed. */
   }
   try {
-    summaryContent = await readFile(path.join(root, "memory_summary.md"), "utf8");
+    summaryContent = await readFile(
+      path.join(root, "memory_summary.md"),
+      "utf8",
+    );
   } catch {
     /* The workspace may not have been initialized. */
   }
@@ -534,8 +690,12 @@ try {
         responseError: request.responseError,
         identity: request.body?.client_metadata,
         tools: toolNames(request.body),
-        extractionPrompt: JSON.stringify(request.body).includes("Read this immutable rollout record"),
-        consolidationPrompt: JSON.stringify(request.body).includes("Consolidate the supplied rollout summaries"),
+        extractionPrompt: JSON.stringify(request.body).includes(
+          "Read this immutable rollout record",
+        ),
+        consolidationPrompt: JSON.stringify(request.body).includes(
+          "Consolidate the supplied rollout summaries",
+        ),
       })),
       events: notifications.map(({ method, params }) => ({
         method,

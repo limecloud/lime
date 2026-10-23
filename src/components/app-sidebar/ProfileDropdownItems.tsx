@@ -99,7 +99,7 @@ export function ProfileDropdownItems({
       ) : null}
       <Menu.Item
         className={itemClassName}
-        onSelect={() => onNavigate(SettingsTabs.Home)}
+        onSelect={() => onNavigate(SettingsTabs.General)}
       >
         <Settings />
         {t("navigation.sidebar.items.settings")}

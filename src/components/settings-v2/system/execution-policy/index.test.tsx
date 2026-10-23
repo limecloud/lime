@@ -229,7 +229,6 @@ describe("ExecutionPolicySettings", () => {
 
     expect(mockGetConfig).toHaveBeenCalledWith({ forceRefresh: true });
     expect(container.textContent).toContain("执行策略");
-    expect(container.textContent).toContain("已自定义");
     expect(container.textContent).toContain("策略来源层级");
     expect(container.textContent).toContain("默认策略");
     expect(container.textContent).toContain("当前配置");

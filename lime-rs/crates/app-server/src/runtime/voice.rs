@@ -2,6 +2,60 @@ use super::{RuntimeCore, RuntimeCoreError};
 use app_server_protocol::*;
 
 impl RuntimeCore {
+    pub async fn list_dictation_history(
+        &self,
+    ) -> Result<DictationHistoryListResponse, RuntimeCoreError> {
+        self.app_data_source.list_dictation_history().await
+    }
+
+    pub async fn start_dictation_history(
+        &self,
+        params: DictationHistoryStartParams,
+    ) -> Result<DictationHistoryWriteResponse, RuntimeCoreError> {
+        self.app_data_source.start_dictation_history(params).await
+    }
+
+    pub async fn append_dictation_history_audio(
+        &self,
+        params: DictationHistoryAppendAudioParams,
+    ) -> Result<DictationHistoryWriteResponse, RuntimeCoreError> {
+        self.app_data_source
+            .append_dictation_history_audio(params)
+            .await
+    }
+
+    pub async fn finish_dictation_history(
+        &self,
+        params: DictationHistoryFinishParams,
+    ) -> Result<DictationHistoryWriteResponse, RuntimeCoreError> {
+        self.app_data_source.finish_dictation_history(params).await
+    }
+
+    pub async fn read_dictation_history_audio(
+        &self,
+        params: DictationHistoryIdParams,
+    ) -> Result<DictationHistoryReadAudioResponse, RuntimeCoreError> {
+        self.app_data_source
+            .read_dictation_history_audio(params)
+            .await
+    }
+
+    pub async fn set_dictation_history_transcript(
+        &self,
+        params: DictationHistorySetTranscriptParams,
+    ) -> Result<DictationHistoryWriteResponse, RuntimeCoreError> {
+        self.app_data_source
+            .set_dictation_history_transcript(params)
+            .await
+    }
+
+    pub async fn delete_dictation_history(
+        &self,
+        params: DictationHistoryIdParams,
+    ) -> Result<DictationHistoryDeleteResponse, RuntimeCoreError> {
+        self.app_data_source.delete_dictation_history(params).await
+    }
+
     pub async fn list_voice_asr_credentials(
         &self,
     ) -> Result<VoiceAsrCredentialListResponse, RuntimeCoreError> {

@@ -23,6 +23,7 @@ mod gateway_runner;
 mod input_commit;
 mod knowledge;
 mod media_context;
+mod memory_preferences;
 mod memory_prompt;
 mod pending_work_recovery;
 mod plugins;

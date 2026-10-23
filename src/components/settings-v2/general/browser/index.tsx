@@ -13,6 +13,7 @@ import { PreferenceMenu } from "./PreferenceMenu";
 import { useBrowserSettings } from "./useBrowserSettings";
 import { BrowserAgentPermissions } from "./BrowserAgentPermissions";
 import { BrowserHistoryPage } from "./BrowserHistoryPage";
+import { BrowserDownloadsPage } from "./BrowserDownloadsPage";
 import {
   BROWSER_SETTINGS_BUTTON,
   BrowserSettingsRow,
@@ -20,15 +21,30 @@ import {
   BrowserSettingsSwitch,
 } from "./BrowserSettingsFields";
 
-export function BrowserUseSettings({ page }: { page?: "history" } = {}) {
+export function BrowserUseSettings({
+  page,
+}: { page?: "history" | "downloads" } = {}) {
   const [currentPage, setCurrentPage] = useState(page);
   useEffect(() => setCurrentPage(page), [page]);
   if (currentPage === "history")
     return <BrowserHistoryPage onBack={() => setCurrentPage(undefined)} />;
-  return <BrowserSettingsPage onHistory={() => setCurrentPage("history")} />;
+  if (currentPage === "downloads")
+    return <BrowserDownloadsPage onBack={() => setCurrentPage(undefined)} />;
+  return (
+    <BrowserSettingsPage
+      onHistory={() => setCurrentPage("history")}
+      onDownloads={() => setCurrentPage("downloads")}
+    />
+  );
 }
 
-function BrowserSettingsPage({ onHistory }: { onHistory: () => void }) {
+function BrowserSettingsPage({
+  onHistory,
+  onDownloads,
+}: {
+  onHistory: () => void;
+  onDownloads: () => void;
+}) {
   const { t } = useTranslation("settings");
   const desktop = useDesktopPreferences();
   const browser = useBrowserSettings();
@@ -39,7 +55,11 @@ function BrowserSettingsPage({ onHistory }: { onHistory: () => void }) {
   );
   const preferences = browser.configured ?? DEFAULT_BROWSER_SETTINGS;
   const pending = browser.pending || desktop.pending || choosingDirectory;
-  const disabled = !browser.configured || pending;
+  const disabled =
+    !browser.configured ||
+    pending ||
+    browser.error === "reload" ||
+    browser.error === "load";
   const options: { value: LinkOpenTarget; label: string }[] = [
     { value: "in-app-browser", label: t("settings.browser.inApp") },
     { value: "external-browser", label: t("settings.browser.external") },
@@ -76,7 +96,7 @@ function BrowserSettingsPage({ onHistory }: { onHistory: () => void }) {
       setChoosingDirectory(false);
     }
   };
-  const error = desktop.error ?? browser.error;
+  const error = browser.error ?? desktop.error;
   return (
     <div
       className="mx-auto max-w-[640px] space-y-8 pb-8"
@@ -101,8 +121,12 @@ function BrowserSettingsPage({ onHistory }: { onHistory: () => void }) {
             ? t("settings.browser.error.directory")
             : error === "load"
               ? t("settings.browser.error.load")
-              : t("settings.browser.error.save")}
-          {error === "load" ? (
+              : error === "reload"
+                ? t("settings.browser.error.reload")
+                : error === "conflict"
+                  ? t("settings.browser.error.conflict")
+                  : t("settings.browser.error.save")}
+          {error === "load" || error === "reload" ? (
             <button
               type="button"
               className={BROWSER_SETTINGS_BUTTON}
@@ -231,6 +255,19 @@ function BrowserSettingsPage({ onHistory }: { onHistory: () => void }) {
         >
           {toggle("ask_download_location", "browser-ask-download")}
         </BrowserSettingsRow>
+        <BrowserSettingsRow
+          id="browser-download-history"
+          label={t("browserDownloads.historyTitle")}
+          description={t("settings.browser.downloadHistoryDescription")}
+        >
+          <button
+            type="button"
+            className={BROWSER_SETTINGS_BUTTON}
+            onClick={onDownloads}
+          >
+            {t("browserDownloads.manage")}
+          </button>
+        </BrowserSettingsRow>
       </BrowserSettingsSection>
       <BrowserSettingsSection
         id="browser-permissions"
@@ -266,7 +303,9 @@ function BrowserSettingsPage({ onHistory }: { onHistory: () => void }) {
       <BrowserAgentPermissions
         value={preferences.agent_permissions}
         disabled={disabled}
-        onChange={(value) => browser.save("agent_permissions", value)}
+        onChange={(value, expected) =>
+          browser.save("agent_permissions", value, expected)
+        }
       />
       <BrowserSettingsSection
         id="browser-developer"

@@ -898,6 +898,42 @@ declare module "./connection.js" {
       params: protocol.VoiceAsrCredentialIdParams,
       options?: AppServerRequestOptions,
     ): Promise<AppServerRequestResult<protocol.VoiceAsrCredentialTestResponse>>;
+    readInstructions(
+      options?: AppServerRequestOptions,
+    ): Promise<AppServerRequestResult<protocol.InstructionsReadResponse>>;
+    writeInstructions(
+      params: protocol.InstructionsWriteParams,
+      options?: AppServerRequestOptions,
+    ): Promise<AppServerRequestResult<protocol.InstructionsReadResponse>>;
+    listDictationHistory(
+      options?: AppServerRequestOptions,
+    ): Promise<AppServerRequestResult<protocol.DictationHistoryListResponse>>;
+    startDictationHistory(
+      params: protocol.DictationHistoryStartParams,
+      options?: AppServerRequestOptions,
+    ): Promise<AppServerRequestResult<protocol.DictationHistoryWriteResponse>>;
+    appendDictationHistoryAudio(
+      params: protocol.DictationHistoryAppendAudioParams,
+      options?: AppServerRequestOptions,
+    ): Promise<AppServerRequestResult<protocol.DictationHistoryWriteResponse>>;
+    finishDictationHistory(
+      params: protocol.DictationHistoryFinishParams,
+      options?: AppServerRequestOptions,
+    ): Promise<AppServerRequestResult<protocol.DictationHistoryWriteResponse>>;
+    readDictationHistoryAudio(
+      params: protocol.DictationHistoryIdParams,
+      options?: AppServerRequestOptions,
+    ): Promise<
+      AppServerRequestResult<protocol.DictationHistoryReadAudioResponse>
+    >;
+    setDictationHistoryTranscript(
+      params: protocol.DictationHistorySetTranscriptParams,
+      options?: AppServerRequestOptions,
+    ): Promise<AppServerRequestResult<protocol.DictationHistoryWriteResponse>>;
+    deleteDictationHistory(
+      params: protocol.DictationHistoryIdParams,
+      options?: AppServerRequestOptions,
+    ): Promise<AppServerRequestResult<protocol.DictationHistoryDeleteResponse>>;
     listVoiceInstructions(
       options?: AppServerRequestOptions,
     ): Promise<AppServerRequestResult<protocol.VoiceInstructionListResponse>>;
@@ -1026,6 +1062,32 @@ declare module "./connection.js" {
       options?: AppServerRequestOptions,
     ): Promise<
       AppServerRequestResult<protocol.ProjectGitWorktreeCreateResponse>
+    >;
+    readStorage(
+      params: protocol.StorageReadParams,
+      options?: AppServerRequestOptions,
+    ): Promise<AppServerRequestResult<protocol.StorageState>>;
+    refreshStorage(
+      params: protocol.StorageReadParams,
+      options?: AppServerRequestOptions,
+    ): Promise<AppServerRequestResult<protocol.StorageState>>;
+    reviewStorage(
+      params: protocol.StorageReviewParams,
+      options?: AppServerRequestOptions,
+    ): Promise<AppServerRequestResult<protocol.StorageReviewResponse>>;
+    deleteStorage(
+      params: protocol.StorageDeleteParams,
+      options?: AppServerRequestOptions,
+    ): Promise<AppServerRequestResult<protocol.StorageDeleteResponse>>;
+    listProjectGitWorktrees(
+      params: protocol.ProjectGitWorktreeListParams,
+      options?: AppServerRequestOptions,
+    ): Promise<AppServerRequestResult<protocol.ProjectGitWorktreeListResponse>>;
+    deleteProjectGitWorktree(
+      params: protocol.ProjectGitWorktreeDeleteParams,
+      options?: AppServerRequestOptions,
+    ): Promise<
+      AppServerRequestResult<protocol.ProjectGitWorktreeDeleteResponse>
     >;
     exportHandoffBundle(
       params: protocol.AgentSessionHandoffBundleExportParams,

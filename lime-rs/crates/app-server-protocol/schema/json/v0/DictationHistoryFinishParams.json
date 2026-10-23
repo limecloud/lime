@@ -1,0 +1,28 @@
+{
+  "$defs": {
+    "DictationHistoryFinishStatus": {
+      "enum": [
+        "cancelled",
+        "interrupted",
+        "saved"
+      ],
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "status": {
+      "$ref": "#/$defs/DictationHistoryFinishStatus"
+    }
+  },
+  "required": [
+    "id",
+    "status"
+  ],
+  "title": "DictationHistoryFinishParams",
+  "type": "object"
+}

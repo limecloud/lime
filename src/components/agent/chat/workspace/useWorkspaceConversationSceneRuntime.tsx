@@ -435,7 +435,6 @@ export function useWorkspaceConversationSceneRuntime({
     const result = await startReview(
       {
         threadId: reviewThreadId,
-        delivery: "inline",
         target: { type: "uncommittedChanges" },
       },
       {
@@ -445,8 +444,15 @@ export function useWorkspaceConversationSceneRuntime({
       },
     );
     await onRefreshSessionReadModel?.();
+    if (result.reviewThreadId !== reviewThreadId) {
+      onOpenSubagentSession?.(result.reviewThreadId);
+    }
     return result;
-  }, [onRefreshSessionReadModel, projectedThreadRead?.thread_id]);
+  }, [
+    onRefreshSessionReadModel,
+    onOpenSubagentSession,
+    projectedThreadRead?.thread_id,
+  ]);
   const onRevertThread = useCallback(
     async (request: ThreadRevertRequest) => {
       const activeThreadId = projectedThreadRead?.thread_id?.trim() || "";

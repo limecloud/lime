@@ -9,6 +9,8 @@ mod browser;
 mod desktop;
 mod export;
 mod file_lock;
+mod git;
+mod worktrees;
 mod hot_reload;
 mod import;
 mod path_utils;
@@ -27,6 +29,8 @@ pub use browser::{
 pub use desktop::{DesktopConfig, ExternalBrowserLinkShortcut, LinkOpenTarget};
 pub use export::{ExportBundle, ExportOptions, ExportService, REDACTED_PLACEHOLDER};
 pub use file_lock::config_file_lock;
+pub use git::{GitConfig, PullRequestMergeMethod, ReviewDeliveryPreference};
+pub use worktrees::{UpstreamRefreshMode, WorktreeConfig};
 pub use hot_reload::{
     ConfigChangeEvent as FileChangeEvent, ConfigChangeKind, FileWatcher, HotReloadManager,
     ReloadResult,

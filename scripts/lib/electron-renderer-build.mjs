@@ -3,8 +3,11 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import {
   fingerprintBuildInputs,
+  declaredBuildEntries,
+  RENDERER_BUILD_ENTRIES,
   RENDERER_SOURCE_DIRS,
   RENDERER_SOURCE_FILES,
+  statFile,
 } from "./electron-build-inputs.mjs";
 
 const inputs = {
@@ -13,10 +16,22 @@ const inputs = {
 };
 const receiptPath = (rootDir) =>
   path.join(rootDir, ".lime", "electron-renderer-build.json");
-const entryDigest = (rootDir) =>
-  createHash("sha256")
-    .update(readFileSync(path.join(rootDir, "dist", "index.html")))
-    .digest("hex");
+function entryDigests(rootDir) {
+  return declaredBuildEntries(rootDir, RENDERER_BUILD_ENTRIES).map(
+    (entry, index) => {
+      if (index > 0 && !statFile(path.join(rootDir, entry.source))?.isFile())
+        throw new Error(
+          `Renderer build entry source is missing: ${entry.source}`,
+        );
+      return {
+        ...entry,
+        sha256: createHash("sha256")
+          .update(readFileSync(path.join(rootDir, entry.output)))
+          .digest("hex"),
+      };
+    },
+  );
+}
 
 function writeReceipt(rootDir, receipt) {
   const filePath = receiptPath(rootDir);
@@ -31,7 +46,7 @@ export function beginRendererBuild(rootDir) {
     startedAt: new Date().toISOString(),
   };
   writeReceipt(rootDir, {
-    version: 1,
+    version: 2,
     status: "building",
     input: build.input,
     startedAt: build.startedAt,
@@ -41,7 +56,7 @@ export function beginRendererBuild(rootDir) {
 
 export function invalidateRendererBuild(build) {
   writeReceipt(build.rootDir, {
-    version: 1,
+    version: 2,
     status: "invalid",
     input: build.input,
     startedAt: build.startedAt,
@@ -54,10 +69,10 @@ export function completeRendererBuild(build) {
     if (input.sha256 !== build.input.sha256)
       throw new Error("Renderer build inputs changed during compilation");
     const receipt = {
-      version: 1,
+      version: 2,
       status: "ready",
       input,
-      entrySha256: entryDigest(build.rootDir),
+      entries: entryDigests(build.rootDir),
       startedAt: build.startedAt,
       completedAt: new Date().toISOString(),
     };
@@ -72,14 +87,16 @@ export function completeRendererBuild(build) {
 export function inspectRendererBuildReceipt(rootDir) {
   try {
     const receipt = JSON.parse(readFileSync(receiptPath(rootDir), "utf8"));
-    if (receipt.version !== 1 || receipt.status !== "ready")
+    if (receipt.version !== 2 || receipt.status !== "ready")
       return { ready: false, reason: "unfinished-renderer-build" };
     const input = fingerprintBuildInputs(rootDir, inputs);
     if (receipt.input?.sha256 !== input.sha256)
       return { ready: false, reason: "renderer-input-mismatch" };
-    if (receipt.entrySha256 !== entryDigest(rootDir))
+    if (
+      JSON.stringify(receipt.entries) !== JSON.stringify(entryDigests(rootDir))
+    )
       return { ready: false, reason: "renderer-entry-mismatch" };
-    return { ready: true, input, entrySha256: receipt.entrySha256 };
+    return { ready: true, input, entries: receipt.entries };
   } catch {
     return { ready: false, reason: "missing-or-invalid-renderer-receipt" };
   }

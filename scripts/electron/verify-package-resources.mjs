@@ -11,6 +11,7 @@ import {
   DESKTOP_RESOURCES_MANIFEST_NAME,
   DESKTOP_RESOURCES_SCHEMA_VERSION,
 } from "../lib/electron-desktop-resources.mjs";
+import { HOST_PRELOAD_BUILD_ENTRIES } from "../lib/electron-build-inputs.mjs";
 
 const DEFAULT_PACKAGE_ROOT = "release-electron";
 const MAC_PRODUCT_NAME = "Lime";
@@ -20,10 +21,10 @@ const ELECTRON_RUNTIME_BUNDLES = [
     label: "Electron main bundle",
     relativePath: "dist-electron/main/main.js",
   },
-  {
-    label: "Electron preload bundle",
-    relativePath: "dist-electron/preload/preload.cjs",
-  },
+  ...HOST_PRELOAD_BUILD_ENTRIES.map((entry) => ({
+    label: `Electron ${entry.name} bundle`,
+    relativePath: entry.output,
+  })),
 ];
 const ALLOWED_BARE_RUNTIME_IMPORTS = new Set([
   "electron",

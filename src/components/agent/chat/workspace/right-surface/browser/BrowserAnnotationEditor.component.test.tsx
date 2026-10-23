@@ -8,50 +8,8 @@ import type {
   BrowserAnnotationEditorUpdate,
 } from "@/lib/api/browserAnnotationEditorTypes";
 import { BrowserAnnotationEditor } from "./BrowserAnnotationEditor";
+import { labels, initial } from "./browserAnnotationEditor.testFixture";
 
-const labels: BrowserAnnotationEditorLabels = {
-  title: "Page annotation",
-  placeholder: "Add a comment",
-  save: "Save annotation",
-  send: "Send now",
-  close: "Keep and close",
-  element: "Page element",
-  region: "Selected region",
-  captureFailed: "Screenshot unavailable; comment kept",
-  sending: "Sending",
-  sendFailed: "Could not send; retry",
-};
-const initial: BrowserAnnotationEditorUpdate = {
-  generation: 3,
-  pending: false,
-  error: false,
-  presentation: {
-    editorId: "editor-one",
-    annotationId: "annotation-one",
-    draftId: "draft-one",
-    body: "Initial body",
-    revision: 4,
-    screenshotStatus: "captured",
-    appearance: "light",
-    labels,
-    selection: {
-      kind: "element",
-      pageUrl: "https://example.com/page",
-      pageTitle: "Example",
-      frameUrl: "https://example.com/page",
-      framePath: "main",
-      targetRect: { x: 21.2, y: 32.8, width: 120.4, height: 30.5 },
-      viewportSize: { width: 800, height: 600 },
-      scrollPosition: { x: 0, y: 0 },
-      devicePixelRatio: 2,
-      targetSelector: "button#checkout",
-      targetPath: "body > button",
-      targetRole: "button",
-      targetText: "Checkout",
-      markerViewportPoint: { x: 25, y: 35 },
-    },
-  },
-};
 let root: Root;
 let container: HTMLDivElement;
 let subscriber: ((update: BrowserAnnotationEditorUpdate) => void) | undefined;
@@ -125,6 +83,7 @@ beforeEach(() => {
       return unsubscribe;
     }),
     ready: vi.fn(),
+    resize: vi.fn(),
     act: vi.fn(),
   };
   container = document.createElement("div");
@@ -141,6 +100,24 @@ afterEach(() => {
 });
 
 describe("trusted Browser annotation Composer", () => {
+  it("keeps the current DOM selection and draft revision when only native layout constraints change", () => {
+    update();
+    const textbox = editor();
+    textbox.focus();
+    const text = textbox.querySelector("p")!.firstChild!;
+    const selection = window.getSelection()!;
+    const range = document.createRange();
+    range.setStart(text, 3);
+    range.collapse(true);
+    selection.removeAllRanges();
+    selection.addRange(range);
+    update({ layout: { width: 320, maxHeight: 300 } });
+    expect(editor()).toBe(textbox);
+    expect(selection.anchorNode).toBe(text);
+    expect(selection.anchorOffset).toBe(3);
+    expect(bridge.act).not.toHaveBeenCalled();
+  });
+
   it("subscribes before ready and waits for the trusted presentation", () => {
     expect(bridge.onUpdate).toHaveBeenCalledOnce();
     expect(bridge.ready).toHaveBeenCalledOnce();
@@ -165,12 +142,16 @@ describe("trusted Browser annotation Composer", () => {
       "change",
       "Initial body first",
       5,
+      [],
+      null,
     );
     paste(" second");
     expect(bridge.act).toHaveBeenLastCalledWith(
       "change",
       "Initial body first second",
       6,
+      [],
+      null,
     );
     key(editor(), "ArrowLeft");
     expect(bridge.act).toHaveBeenCalledTimes(2);
@@ -189,6 +170,8 @@ describe("trusted Browser annotation Composer", () => {
       "change",
       "authoritative next",
       9,
+      [],
+      null,
     );
   });
 
@@ -205,7 +188,7 @@ describe("trusted Browser annotation Composer", () => {
         vi
           .mocked(bridge.act)
           .mock.calls.filter(([value]) => value !== "change"),
-      ).toEqual([[action, "Initial body latest", 5]]);
+      ).toEqual([[action, "Initial body latest", 5, [], null]]);
       expect(editor().getAttribute("contenteditable")).toBe("false");
     },
   );
@@ -220,6 +203,8 @@ describe("trusted Browser annotation Composer", () => {
         "metaKey" in options || "ctrlKey" in options ? "send" : "save",
         "Initial body",
         4,
+        [],
+        null,
       );
     },
   );
@@ -233,6 +218,8 @@ describe("trusted Browser annotation Composer", () => {
       "change",
       "Initial body\nnext line",
       6,
+      [],
+      null,
     );
     expect(
       vi.mocked(bridge.act).mock.calls.every(([action]) => action === "change"),
@@ -282,6 +269,8 @@ describe("trusted Browser annotation Composer", () => {
         "close",
         "Initial body unsaved",
         5,
+        [],
+        null,
       );
       expect(editor().textContent).toBe("Initial body unsaved");
     },
@@ -316,8 +305,8 @@ describe("trusted Browser annotation Composer", () => {
     expect(
       vi.mocked(bridge.act).mock.calls.filter(([action]) => action === "send"),
     ).toEqual([
-      ["send", "Initial body retained", 5],
-      ["send", "Initial body retained", 5],
+      ["send", "Initial body retained", 5, [], null],
+      ["send", "Initial body retained", 5, [], null],
     ]);
   });
 
@@ -353,6 +342,8 @@ describe("trusted Browser annotation Composer", () => {
         "change",
         "Fresh draft new",
         3,
+        [],
+        null,
       );
     },
   );
@@ -394,6 +385,8 @@ describe("trusted Browser annotation Composer", () => {
       "change",
       "Initial body kept",
       5,
+      [],
+      null,
     );
     act(() =>
       window.dispatchEvent(new Event("browser-annotation-editor-flush")),
@@ -402,6 +395,8 @@ describe("trusted Browser annotation Composer", () => {
       "change",
       "Initial body kept",
       5,
+      [],
+      null,
     );
     expect(bridge.act).toHaveBeenCalledTimes(3);
   });
@@ -413,7 +408,13 @@ describe("trusted Browser annotation Composer", () => {
     act(() =>
       window.dispatchEvent(new Event("browser-annotation-editor-flush")),
     );
-    expect(bridge.act).toHaveBeenLastCalledWith("change", "Initial body", 4);
+    expect(bridge.act).toHaveBeenLastCalledWith(
+      "change",
+      "Initial body",
+      4,
+      [],
+      null,
+    );
     vi.mocked(bridge.act).mockClear();
     act(() => {
       subscriber!({ ...initial, generation: 4 });
@@ -444,6 +445,49 @@ describe("trusted Browser annotation Composer", () => {
     expect(document.documentElement.classList.contains("dark")).toBe(true);
     expect(document.documentElement.style.colorScheme).toBe("dark");
   });
+  it.each(["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"])(
+    "shows the localized text target in the existing editor without replacing its body: %s",
+    (locale) => {
+      const resources = import.meta.glob<Record<string, string>>(
+        "../../../../../../i18n/resources/*/browserAnnotation.json",
+        { eager: true, import: "default" },
+      );
+      const resource =
+        resources[
+          `../../../../../../i18n/resources/${locale}/browserAnnotation.json`
+        ];
+      const localized = Object.fromEntries(
+        Object.keys(labels).map((key) => [
+          key,
+          resource[`browserAnnotation.${key}`],
+        ]),
+      ) as unknown as BrowserAnnotationEditorLabels;
+      update(
+        {},
+        {
+          labels: localized,
+          selection: {
+            ...initial.presentation.selection,
+            kind: "text",
+            targetText: "Selected 😀 text",
+          },
+        },
+      );
+      expect(
+        container.querySelector('[data-testid="browser-annotation-selection"]')
+          ?.textContent,
+      ).toBe(`${localized.text} · Selected 😀 text`);
+      expect(editor().textContent).toBe("Initial body");
+      click(localized.save);
+      expect(bridge.act).toHaveBeenCalledWith(
+        "save",
+        "Initial body",
+        4,
+        [],
+        null,
+      );
+    },
+  );
 
   it("disables empty save/send while close still retains an empty draft", () => {
     update({}, { body: "" });
@@ -452,7 +496,13 @@ describe("trusted Browser annotation Composer", () => {
     key(editor(), "Enter");
     expect(bridge.act).not.toHaveBeenCalled();
     click(labels.close);
-    expect(bridge.act).toHaveBeenCalledExactlyOnceWith("close", "", 4);
+    expect(bridge.act).toHaveBeenCalledExactlyOnceWith(
+      "close",
+      "",
+      4,
+      [],
+      null,
+    );
   });
 
   it("retains the draft and unlocks retry if the narrow bridge fails synchronously", () => {

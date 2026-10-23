@@ -16,7 +16,10 @@ export function BrowserAgentPermissions({
 }: {
   value: BrowserSettings["agent_permissions"];
   disabled: boolean;
-  onChange: (next: BrowserSettings["agent_permissions"]) => Promise<boolean>;
+  onChange: (
+    next: BrowserSettings["agent_permissions"],
+    expected: BrowserSettings["agent_permissions"],
+  ) => Promise<boolean>;
 }) {
   const { t } = useTranslation("settings");
   const [page, setPage] = useState(0);
@@ -24,13 +27,25 @@ export function BrowserAgentPermissions({
   const [editingPattern, setEditingPattern] = useState<string | null>(null);
   const [pattern, setPattern] = useState("");
   const [invalid, setInvalid] = useState(false);
+  const [removed, setRemoved] = useState(false);
+  const [baseline, setBaseline] = useState<
+    BrowserSettings["agent_permissions"] | null
+  >(null);
   const actions = BROWSER_PERMISSION_ACTIONS.slice(page * 2, page * 2 + 2);
   const options = ["ask", "allow", "deny"] as const;
   const add = async () => {
+    const expected = baseline ?? value;
+    if (
+      editingPattern !== null &&
+      !expected.sites.some((site) => site.pattern === editingPattern)
+    ) {
+      setRemoved(true);
+      return;
+    }
     const normalized = normalizeBrowserSitePattern(pattern);
     if (
       !normalized ||
-      value.sites.some(
+      expected.sites.some(
         (site) =>
           site.pattern !== editingPattern &&
           normalizeBrowserSitePattern(site.pattern) === normalized,
@@ -42,19 +57,23 @@ export function BrowserAgentPermissions({
     const sites =
       editingPattern === null
         ? [
-            ...value.sites,
-            { pattern: normalized, permissions: { ...value.default } },
+            ...expected.sites,
+            { pattern: normalized, permissions: { ...expected.default } },
           ]
-        : value.sites.map((site) =>
+        : expected.sites.map((site) =>
             site.pattern === editingPattern
               ? { ...site, pattern: normalized }
               : site,
           );
-    if (await onChange({ ...value, sites })) {
+    if (await onChange({ ...expected, sites }, expected)) {
       setAdding(false);
       setEditingPattern(null);
       setPattern("");
       setInvalid(false);
+      setBaseline(null);
+    } else {
+      // 保留输入；下一次显式提交以已回读的当前矩阵为基准。
+      setBaseline(null);
     }
   };
   return (
@@ -86,6 +105,8 @@ export function BrowserAgentPermissions({
             setEditingPattern(null);
             setPattern("");
             setInvalid(false);
+            setRemoved(false);
+            setBaseline(value);
           }}
         >
           <Plus className="size-3" aria-hidden="true" />
@@ -108,9 +129,13 @@ export function BrowserAgentPermissions({
             autoFocus
             value={pattern}
             disabled={disabled}
-            aria-invalid={invalid}
+            aria-invalid={invalid || removed}
             aria-describedby={
-              invalid ? "browser-site-pattern-error" : undefined
+              invalid
+                ? "browser-site-pattern-error"
+                : removed
+                  ? "browser-site-rule-removed"
+                  : undefined
             }
             onChange={(event) => {
               setPattern(event.target.value);
@@ -148,6 +173,15 @@ export function BrowserAgentPermissions({
               className="w-full text-xs text-destructive"
             >
               {t("settings.browser.invalidPattern")}
+            </p>
+          ) : null}
+          {removed ? (
+            <p
+              id="browser-site-rule-removed"
+              role="alert"
+              className="w-full text-xs text-destructive"
+            >
+              {t("settings.browser.error.ruleRemoved")}
             </p>
           ) : null}
         </form>
@@ -231,6 +265,7 @@ export function BrowserAgentPermissions({
                                           : entry,
                                     ),
                                   },
+                              value,
                             );
                           }}
                         >
@@ -257,6 +292,8 @@ export function BrowserAgentPermissions({
                               setPattern(site.pattern);
                               setAdding(true);
                               setInvalid(false);
+                              setRemoved(false);
+                              setBaseline(value);
                             }}
                           >
                             <Pencil className="size-3.5" aria-hidden="true" />
@@ -269,12 +306,15 @@ export function BrowserAgentPermissions({
                               site: name,
                             })}
                             onClick={() =>
-                              void onChange({
-                                ...value,
-                                sites: value.sites.filter(
-                                  (_, siteIndex) => siteIndex !== index - 1,
-                                ),
-                              })
+                              void onChange(
+                                {
+                                  ...value,
+                                  sites: value.sites.filter(
+                                    (_, siteIndex) => siteIndex !== index - 1,
+                                  ),
+                                },
+                                value,
+                              )
                             }
                           >
                             <Trash2 className="size-3.5" />

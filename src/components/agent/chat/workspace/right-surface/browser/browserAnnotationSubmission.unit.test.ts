@@ -12,11 +12,12 @@ function createDraft(
   store: BrowserAnnotationDraftStore,
   id = "annotation-1",
   threadId = "thread-1",
+  designSnapshot?: import("@/lib/api/browserDesign").BrowserDesignSnapshot,
 ) {
   const event: BrowserAnnotationSelectionEvent = {
     annotationId: id,
     kind: "element",
-    scope: "main-frame",
+    scope: "page",
     browserSessionId: "browser-1",
     threadId,
     tabId: "tab-1",
@@ -30,7 +31,7 @@ function createDraft(
       pageUrl: "https://example.test/page",
       pageTitle: "Example",
       frameUrl: "https://example.test/page",
-      framePath: "main",
+      framePath: [],
       targetRect: { x: 10, y: 20, width: 100, height: 30 },
       viewportSize: { width: 800, height: 600 },
       scrollPosition: { x: 0, y: 200 },
@@ -41,6 +42,7 @@ function createDraft(
       targetText: "Example",
       markerViewportPoint: { x: 10, y: 20 },
     },
+    ...(designSnapshot ? { designSnapshot } : {}),
   };
   store.create("session-1", event, {
     annotationId: id,
@@ -68,7 +70,207 @@ const receipt = {
 };
 const accepted = { kind: "runtime-accepted" as const, receipt };
 
+it("submits a design-only draft through the existing canonical text/image path and retains rejected changes", async () => {
+  const store = new BrowserAnnotationDraftStore();
+  const seed = {
+    elementTagName: "h1",
+    declarations: [
+      { property: "font-size", previousValue: "16px", value: "16px" },
+    ],
+    text: { previousValue: "Original", value: "Original" },
+  };
+  createDraft(store, "design", "thread-1", seed);
+  const design = {
+    declarations: [
+      { property: "font-size", previousValue: "16px", value: "24px" },
+    ],
+    text: { previousValue: "Original", value: "Revised" },
+  };
+  expect(store.update("design", "", 2, [], design)).toBe(true);
+  expect(store.capture("session-1", "thread-1")).toHaveLength(1);
+  const lowered = lowerBrowserAnnotations(
+    store.capture("session-1", "thread-1"),
+  );
+  expect(lowered.text).toContain('CSS font-size: "16px" -> "24px"');
+  expect(lowered.text).toContain('Text: "Original" -> "Revised"');
+  expect(lowered.text).toContain("source code or design tokens");
+  expect(lowered.text).not.toContain("data-browser-design-");
+  const send = vi.fn(async (payload: InputbarSendPayload) => {
+    expect(payload.textOverride).toContain("Design changes");
+    return { kind: "rejected" as const };
+  });
+  const result = await submitBrowserAnnotations({
+    store,
+    sessionId: "session-1",
+    threadId: "thread-1",
+    payload: { browserAnnotationIds: ["design"] },
+    send,
+    isCurrent: () => true,
+  });
+  expect(result.kind).toBe("rejected");
+  expect(store.get("design")).toMatchObject({
+    designChange: design,
+    pending: false,
+    failure: true,
+  });
+  expect(send.mock.calls[0][0].textOverride).toContain(
+    'CSS font-size: "16px" -> "24px"',
+  );
+  expect(store.update("design", "", 2, [], null)).toBe(false);
+});
+
 describe("Browser drafts and canonical input acceptance", () => {
+  it("lowers Composer images, the original screenshot, then manual images through the same submission", async () => {
+    const store = new BrowserAnnotationDraftStore();
+    const draft = createDraft(store);
+    const images = [
+      {
+        id: "manual",
+        dataUrl: "data:image/gif;base64,YWJj",
+        filename: "参考.gif",
+      },
+    ];
+    store.update(draft.id, draft.body, 2, images);
+    const send = vi.fn(async (payload: InputbarSendPayload) => {
+      expect(payload.images).toEqual([
+        { data: "composer", mediaType: "image/jpeg" },
+        { data: "aGVsbG8=", mediaType: "image/png" },
+        { data: "YWJj", mediaType: "image/gif" },
+      ]);
+      expect(payload.textOverride).toContain('"参考.gif"');
+      payload.sendOptions?.observer?.onRuntimeAccepted?.(receipt);
+      return accepted;
+    });
+    expect(
+      await submitBrowserAnnotations({
+        store,
+        sessionId: "session-1",
+        threadId: "thread-1",
+        payload: {
+          browserAnnotationIds: [draft.id],
+          images: [{ data: "composer", mediaType: "image/jpeg" }],
+        },
+        send,
+        isCurrent: () => true,
+      }),
+    ).toEqual(accepted);
+    expect(send).toHaveBeenCalledOnce();
+    expect(store.getSnapshot()).toEqual([]);
+  });
+
+  it("keeps a newer image revision when an older image batch is accepted", async () => {
+    const store = new BrowserAnnotationDraftStore();
+    const draft = createDraft(store);
+    const oldImage = { id: "old-image", dataUrl: "data:image/png;base64,YQ==" };
+    const newImage = { id: "new-image", dataUrl: "data:image/png;base64,Yg==" };
+    store.update(draft.id, draft.body, 2, [oldImage]);
+    const send = vi.fn(async (payload: InputbarSendPayload) => {
+      expect(store.update(draft.id, draft.body, 2, [newImage])).toBe(false);
+      expect(store.update(draft.id, draft.body, 3, [newImage])).toBe(true);
+      payload.sendOptions?.observer?.onRuntimeAccepted?.(receipt);
+      return accepted;
+    });
+    await submitBrowserAnnotations({
+      store,
+      sessionId: "session-1",
+      threadId: "thread-1",
+      payload: { browserAnnotationIds: [draft.id] },
+      send,
+      isCurrent: () => true,
+    });
+    expect(store.get(draft.id)).toMatchObject({
+      revision: 3,
+      attachedImages: [newImage],
+      pending: false,
+      failure: false,
+    });
+    expect(
+      lowerBrowserAnnotations([store.get(draft.id)!]).attachments.at(-1),
+    ).toEqual({ data: "Yg==", mediaType: "image/png" });
+  });
+
+  it("keeps manual images on rejection and does not let a body-only edit erase them", async () => {
+    const store = new BrowserAnnotationDraftStore();
+    const draft = createDraft(store);
+    const images = [{ id: "manual", dataUrl: "data:image/webp;base64,YWJj" }];
+    store.update(draft.id, draft.body, 2, images);
+    store.update(draft.id, "Revised comment", 3);
+    const send = vi.fn(async () => ({ kind: "rejected" as const }));
+    await submitBrowserAnnotations({
+      store,
+      sessionId: "session-1",
+      threadId: "thread-1",
+      payload: {},
+      send,
+      isCurrent: () => true,
+    });
+    expect(store.get(draft.id)).toMatchObject({
+      body: "Revised comment",
+      revision: 3,
+      attachedImages: images,
+      pending: false,
+      failure: true,
+    });
+  });
+
+  it("discards only the confirmed immutable snapshot and releases its markers once", () => {
+    const release = vi.fn();
+    const store = new BrowserAnnotationDraftStore(release);
+    const first = createDraft(store);
+    const second = createDraft(store, "second");
+    expect(store.discard([first, first])).toBe(false);
+    store.update(second.id, "Updated during confirmation", 2);
+    expect(store.discard([first, second])).toBe(false);
+    expect(store.getSnapshot()).toHaveLength(2);
+    const updated = store.get(second.id)!;
+    expect(store.begin([updated])).toBe(true);
+    expect(store.discard([first, store.get(second.id)!])).toBe(false);
+    store.finish([updated], false);
+    const third = createDraft(store, "new-after-confirmation");
+    expect(store.discard([first, store.get(second.id)!])).toBe(true);
+    expect(store.getSnapshot()).toEqual([third]);
+    expect(release.mock.calls.map((call) => call[0].id)).toEqual([
+      first.id,
+      second.id,
+    ]);
+    expect(store.discard([first])).toBe(false);
+    expect(release).toHaveBeenCalledTimes(2);
+  });
+
+  it("releases native presentation exactly when removal or accepted consumption removes a draft", () => {
+    const release = vi.fn();
+    const store = new BrowserAnnotationDraftStore(release);
+    const first = createDraft(store);
+    const second = createDraft(store, "second");
+    expect(store.begin([first])).toBe(true);
+    expect(store.remove(first.id)).toBe(false);
+    store.finish([first], false);
+    expect(release).not.toHaveBeenCalled();
+    const retry = store.get(first.id)!;
+    store.begin([retry]);
+    store.finish([retry], true);
+    expect(release).toHaveBeenCalledTimes(1);
+    expect(release.mock.calls[0][0].id).toBe(first.id);
+    expect(store.remove(second.id)).toBe(true);
+    expect(release).toHaveBeenCalledTimes(2);
+    expect(store.remove(second.id)).toBe(false);
+    expect(release).toHaveBeenCalledTimes(2);
+  });
+
+  it("delivers nested frame and shadow locators through the existing text input", () => {
+    const store = new BrowserAnnotationDraftStore();
+    const draft = createDraft(store);
+    draft.event.selection.frameUrl = "https://example.test/frame";
+    draft.event.selection.framePath = [
+      { selector: "#outer", shadowHosts: [] },
+      { selector: "#inner", shadowHosts: ["#host"] },
+    ];
+    const lowered = lowerBrowserAnnotations([draft]);
+    expect(lowered.text).toContain(
+      'Frame: https://example.test/frame [{"selector":"#outer","shadowHosts":[]},{"selector":"#inner","shadowHosts":["#host"]}]',
+    );
+    expect(lowered.attachments).toHaveLength(1);
+  });
   it("lowers page context and a real image input while preserving the submitted Composer image", async () => {
     const store = new BrowserAnnotationDraftStore();
     createDraft(store);

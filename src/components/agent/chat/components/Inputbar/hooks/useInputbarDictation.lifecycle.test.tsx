@@ -1,244 +1,21 @@
-import React, { act } from "react";
-import { createRoot, type Root } from "react-dom/client";
-import { Blob as NodeBlob } from "node:buffer";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { act } from "react";
+import { describe, expect, it, vi } from "vitest";
 import { ComposerController } from "@/components/input-kit/ComposerController";
-import type { ComposerEditorHandle } from "@/components/input-kit/ComposerEditor";
-import { useInputbarDictation } from "./useInputbarDictation";
-
-const api = vi.hoisted(() => ({
-  transcribe: vi.fn(),
-  polish: vi.fn(),
-  toast: vi.fn(),
-}));
-vi.mock("@/lib/api/asrProvider", () => ({
-  transcribeVoiceInputAudio: api.transcribe,
-  polishVoiceInputText: api.polish,
-}));
-vi.mock("react-i18next", () => ({
-  useTranslation: () => ({ t: (key: string) => key }),
-}));
-vi.mock("sonner", () => ({ toast: { error: api.toast } }));
-
-function deferred<T>() {
-  let resolve!: (value: T) => void;
-  let reject!: (reason: unknown) => void;
-  const promise = new Promise<T>((yes, no) => {
-    resolve = yes;
-    reject = no;
-  });
-  return { promise, resolve, reject };
-}
-
-function stream() {
-  const stop = vi.fn();
-  return {
-    value: { getTracks: () => [{ stop }] } as unknown as MediaStream,
-    stop,
-  };
-}
-
-const recorders: FakeMediaRecorder[] = [];
-const processors: Array<{
-  onaudioprocess: ((event: AudioProcessingEvent) => void) | null;
-}> = [];
-const mounted: Array<{ root: Root; container: HTMLDivElement }> = [];
-let permission: ReturnType<typeof vi.fn>;
-
-class FakeMediaRecorder extends EventTarget {
-  static isTypeSupported() {
-    return true;
-  }
-  state: "inactive" | "recording" = "inactive";
-  mimeType = "audio/webm";
-  constructor(public readonly stream: MediaStream) {
-    super();
-    recorders.push(this);
-  }
-  start() {
-    this.state = "recording";
-  }
-  requestData() {
-    const event = new Event("dataavailable");
-    Object.defineProperty(event, "data", {
-      value: new Blob(["recorded-audio"], { type: this.mimeType }),
-    });
-    this.dispatchEvent(event);
-  }
-  stop() {
-    this.state = "inactive";
-    this.dispatchEvent(new Event("stop"));
-  }
-}
-
-class FakeAudioContext {
-  sampleRate = 16000;
-  destination = {};
-  createMediaStreamSource() {
-    return { connect: vi.fn(), disconnect: vi.fn() };
-  }
-  createScriptProcessor() {
-    const processor = {
-      onaudioprocess: null,
-      connect: vi.fn(),
-      disconnect: vi.fn(),
-    };
-    processors.push(processor);
-    return processor;
-  }
-  resume() {
-    return Promise.resolve();
-  }
-  close() {
-    return Promise.resolve();
-  }
-  decodeAudioData() {
-    return Promise.resolve({
-      numberOfChannels: 1,
-      length: 16000,
-      sampleRate: 16000,
-      getChannelData: () => new Float32Array(16000).fill(0.2),
-    } as unknown as AudioBuffer);
-  }
-}
-
-type LifecycleContract = ReturnType<typeof useInputbarDictation>;
-
-function mount(
-  controller = new ComposerController({ text: "原草稿", selectionStart: 3 }),
-) {
-  const container = document.createElement("div");
-  document.body.appendChild(container);
-  const root = createRoot(container);
-  mounted.push({ root, container });
-  const setText = vi.fn();
-  const focus = vi.fn();
-  const composition = { active: false };
-  const editorRef = {
-    current: {
-      focus,
-      isComposing: () => composition.active,
-    } as unknown as ComposerEditorHandle,
-  };
-  let result!: LifecycleContract;
-  function Harness({
-    owner,
-    sessionId,
-  }: {
-    owner: ComposerController;
-    sessionId: string | null;
-  }) {
-    const options = {
-      setText,
-      editorRef,
-      controller: owner,
-      sessionId,
-      disabled: false,
-      isComposing: () => composition.active,
-    };
-    result = useInputbarDictation(options) as LifecycleContract;
-    return <div>{result.dictationState}</div>;
-  }
-  const rerender = (
-    owner: ComposerController,
-    sessionId: string | null = "session-a",
-  ) => act(() => root.render(<Harness owner={owner} sessionId={sessionId} />));
-  rerender(controller);
-  const unmount = () => {
-    act(() => root.unmount());
-    mounted.splice(
-      mounted.findIndex((entry) => entry.root === root),
-      1,
-    );
-    container.remove();
-  };
-  return {
-    read: () => result,
-    rerender,
-    controller,
-    setText,
-    focus,
-    composition,
-    unmount,
-  };
-}
-
-async function settle() {
-  await act(async () => {
-    for (let count = 0; count < 12; count += 1) await Promise.resolve();
-  });
-}
-
-function start(harness: ReturnType<typeof mount>) {
-  let operation!: Promise<void>;
-  act(() => {
-    operation = harness.read().handleDictationToggle();
-  });
-  return operation;
-}
-
-async function startReady(harness: ReturnType<typeof mount>) {
-  const operation = start(harness);
-  await settle();
-  await operation;
-  expect(harness.read().dictationState).toBe("listening");
-}
-
-function beginFinish(harness: ReturnType<typeof mount>) {
-  act(() => {
-    vi.advanceTimersByTime(500);
-  });
-  return start(harness);
-}
-
-function sample() {
-  processors.at(-1)?.onaudioprocess?.({
-    inputBuffer: {
-      numberOfChannels: 1,
-      length: 16000,
-      getChannelData: () => new Float32Array(16000).fill(0.2),
-    },
-  } as unknown as AudioProcessingEvent);
-}
-
-beforeEach(() => {
-  (
-    globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
-  ).IS_REACT_ACT_ENVIRONMENT = true;
-  vi.useFakeTimers();
-  vi.spyOn(performance, "now").mockImplementation(() => Date.now());
-  const defaultStream = stream();
-  permission = vi.fn().mockResolvedValue(defaultStream.value);
-  vi.stubGlobal("navigator", {
-    mediaDevices: { getUserMedia: permission },
-    platform: "MacIntel",
-  });
-  vi.stubGlobal("MediaRecorder", FakeMediaRecorder);
-  vi.stubGlobal("AudioContext", FakeAudioContext);
-  vi.stubGlobal("Blob", NodeBlob);
-  api.transcribe.mockResolvedValue({
-    text: "听写结果",
-    provider: "openai",
-    durationSecs: 1,
-    sampleRate: 16000,
-  });
-  api.polish.mockImplementation(async ({ text }: { text: string }) => ({
-    text,
-  }));
-});
-
-afterEach(() => {
-  for (const entry of mounted.splice(0)) {
-    act(() => entry.root.unmount());
-    entry.container.remove();
-  }
-  recorders.length = 0;
-  processors.length = 0;
-  vi.restoreAllMocks();
-  vi.unstubAllGlobals();
-  vi.useRealTimers();
-  vi.resetAllMocks();
-});
+import {
+  api,
+  FakeAudioContext,
+  deferred,
+  stream,
+  recorders,
+  processors,
+  permission,
+  mount,
+  settle,
+  start,
+  startReady,
+  beginFinish,
+  sample,
+} from "./inputbarDictationLifecycle.testFixtures";
 
 describe("dictation lifecycle", () => {
   it("discard 未完成的音频 decode 立即关闭上下文，不向 ASR 派发旧数据", async () => {
@@ -282,6 +59,7 @@ describe("dictation lifecycle", () => {
     permission.mockReturnValueOnce(request.promise);
     const harness = mount();
     const operation = start(harness);
+    await settle();
     const original = harness.controller.getSnapshot();
     act(() => expect(harness.read().discardDictationSession()).toBe(true));
     expect(harness.controller.getSnapshot()).toBe(original);
@@ -356,6 +134,7 @@ describe("dictation lifecycle", () => {
       permission.mockReturnValueOnce(request.promise);
       const harness = mount();
       const operation = start(harness);
+      await settle();
       harness.rerender(harness.controller, "session-b");
       await startReady(harness);
       if (outcome === "resolve") request.resolve(stale.value);
@@ -405,6 +184,7 @@ describe("dictation lifecycle", () => {
     permission.mockReturnValue(request.promise);
     const harness = mount();
     const first = start(harness);
+    await settle();
     const second = start(harness);
     expect(permission).toHaveBeenCalledTimes(1);
     expect(harness.read().dictationState).toBe("starting");
@@ -424,6 +204,7 @@ describe("dictation lifecycle", () => {
       .mockResolvedValueOnce(newer.value);
     const harness = mount();
     const oldStart = start(harness);
+    await settle();
     harness.rerender(new ComposerController({ text: "新工作区" }));
     await startReady(harness);
     const denied = new Error("old denied");
@@ -442,6 +223,7 @@ describe("dictation lifecycle", () => {
     permission.mockReturnValueOnce(oldRequest.promise);
     const harness = mount();
     const operation = start(harness);
+    await settle();
     harness.rerender(new ComposerController({ text: "新草稿" }));
     oldRequest.resolve(obsolete.value);
     await settle();
@@ -591,6 +373,7 @@ describe("dictation lifecycle", () => {
       if (stage === "starting") {
         permission.mockReturnValueOnce(response.promise);
         operation = start(harness);
+        await settle();
       } else {
         await startReady(harness);
         api[stage].mockReturnValueOnce(response.promise);
@@ -629,6 +412,7 @@ describe("dictation lifecycle", () => {
     permission.mockReturnValueOnce(request.promise);
     const harness = mount();
     const operation = start(harness);
+    await settle();
     harness.unmount();
     request.reject(new Error("after unmount"));
     await settle();
@@ -792,5 +576,87 @@ describe("dictation lifecycle", () => {
     expect(harness.controller.getSnapshot()).toBe(provisional);
     expect(harness.focus).not.toHaveBeenCalled();
     expect(harness.read().discardDictationSession()).toBe(false);
+  });
+
+  it("每次录音读取最新麦克风，指定设备必须 exact 匹配", async () => {
+    const harness = mount();
+    api.config.mockResolvedValueOnce({ selected_device_id: "usb-mic" });
+    await startReady(harness);
+    expect(permission).toHaveBeenLastCalledWith({
+      audio: {
+        deviceId: { exact: "usb-mic" },
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+      },
+    });
+    act(() => harness.read().handleDictationCancel());
+    api.config.mockResolvedValueOnce({});
+    await startReady(harness);
+    expect(permission).toHaveBeenLastCalledWith({
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+      },
+    });
+    expect(api.config).toHaveBeenCalledTimes(2);
+  });
+
+  it("配置读取失败不申请权限，失败后可重试", async () => {
+    api.config.mockRejectedValueOnce(new Error("config unavailable"));
+    const harness = mount();
+    await act(async () => {
+      await start(harness);
+    });
+    await settle();
+    expect(permission).not.toHaveBeenCalled();
+    expect(api.toast).toHaveBeenCalledOnce();
+    expect(harness.read().dictationState).toBe("idle");
+    await startReady(harness);
+  });
+
+  it.each(["cancel", "discard", "session", "owner", "unmount"] as const)(
+    "配置迟到且 %s 后不申请权限，不启动旧录音",
+    async (reason) => {
+      const request = deferred<{ selected_device_id: string }>();
+      api.config.mockReturnValueOnce(request.promise);
+      const harness = mount();
+      const operation = start(harness);
+      expect(api.config).toHaveBeenCalledOnce();
+      expect(permission).not.toHaveBeenCalled();
+      if (reason === "cancel")
+        act(() => harness.read().handleDictationCancel());
+      if (reason === "discard")
+        act(() => {
+          harness.read().discardDictationSession();
+        });
+      if (reason === "session")
+        harness.rerender(harness.controller, "session-b");
+      if (reason === "owner")
+        harness.rerender(new ComposerController({ text: "新稿" }));
+      if (reason === "unmount") harness.unmount();
+      request.resolve({ selected_device_id: "stale-mic" });
+      await settle();
+      await operation;
+      expect(permission).not.toHaveBeenCalled();
+      expect(recorders).toHaveLength(0);
+      expect(api.toast).not.toHaveBeenCalled();
+      if (reason !== "unmount") await startReady(harness);
+    },
+  );
+
+  it("配置 pending 的同步重复点击只读取一次配置", async () => {
+    const request = deferred<Record<string, never>>();
+    api.config.mockReturnValueOnce(request.promise);
+    const harness = mount();
+    const first = start(harness);
+    const second = start(harness);
+    expect(api.config).toHaveBeenCalledOnce();
+    request.resolve({});
+    await settle();
+    await Promise.all([first, second]);
+    expect(permission).toHaveBeenCalledOnce();
+    expect(recorders).toHaveLength(1);
   });
 });

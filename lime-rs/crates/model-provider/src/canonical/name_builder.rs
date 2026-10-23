@@ -48,6 +48,24 @@ fn try_canonical(
     model: &str,
     registry: &super::CanonicalModelRegistry,
 ) -> Option<String> {
+    let provider = match provider {
+        "claude" => "anthropic",
+        "gemini" => "google",
+        "alibaba" | "alibaba-cn" => "qwen",
+        "moonshotai-cn" => "moonshotai",
+        "minimax-cn" => "minimax",
+        "zhipuai" | "zhipuai-coding-plan" | "zai-coding-plan" => "z-ai",
+        "xai" => "x-ai",
+        value => value,
+    };
+    let exact = if provider == "openrouter" {
+        model.to_ascii_lowercase()
+    } else {
+        format!("{provider}/{model}").to_ascii_lowercase()
+    };
+    if registry.contains(&exact) {
+        return Some(exact);
+    }
     let candidate = canonical_name(provider, model);
     registry.get(&candidate).map(|_| candidate)
 }
@@ -299,242 +317,100 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_map_to_canonical_model() {
-        let r = super::super::CanonicalModelRegistry::bundled().unwrap();
-
-        // === Direct provider (non-hosting) ===
-        assert_eq!(
-            map_to_canonical_model("anthropic", "claude-3-5-sonnet-20241022", r),
-            Some("anthropic/claude-3.5-sonnet".to_string())
-        );
-        assert_eq!(
-            map_to_canonical_model("openai", "gpt-4o-latest", r),
-            Some("openai/gpt-4o".to_string())
-        );
-        assert_eq!(
-            map_to_canonical_model("openai", "gpt-4-turbo-2024-04-09", r),
-            Some("openai/gpt-4-turbo".to_string())
-        );
-        assert_eq!(
-            map_to_canonical_model("agnes", "agnes-2.0-flash", r),
-            Some("agnes/agnes-2.0-flash".to_string())
-        );
-        assert_eq!(
-            map_to_canonical_model("agnes", "agnes-2.5-flash", r),
-            Some("agnes/agnes-2.5-flash".to_string())
-        );
-        assert_eq!(
-            map_to_canonical_model("agnes", "agnes-2.5-pro", r),
-            Some("agnes/agnes-2.5-pro".to_string())
-        );
-        assert_eq!(
-            map_to_canonical_model("agnes", "agnes-2.5-pro-alpha", r),
-            Some("agnes/agnes-2.5-pro-alpha".to_string())
-        );
-        assert_eq!(map_to_canonical_model("agnes", "agnes-video-v2.0", r), None);
-
-        // === OpenRouter (already canonical format) ===
-        assert_eq!(
-            map_to_canonical_model("openrouter", "anthropic/claude-3.5-sonnet", r),
-            Some("anthropic/claude-3.5-sonnet".to_string())
-        );
-
-        // === Product-owned hosting gateway ===
-        assert_eq!(
-            map_to_canonical_model("lime-hub", "gpt-5.2-pro", r),
-            Some("openai/gpt-5.2-pro".to_string())
-        );
-        assert_eq!(
-            map_to_canonical_model("lime-hub", "private-model-without-catalog-entry", r),
-            None
-        );
-
-        // === Anthropic Claude - basic ===
-        assert_eq!(
-            map_to_canonical_model("databricks", "claude-3-5-sonnet", r),
-            Some("anthropic/claude-3.5-sonnet".to_string())
-        );
-        assert_eq!(
-            map_to_canonical_model("databricks", "claude-3-5-sonnet-20241022", r),
-            Some("anthropic/claude-3.5-sonnet".to_string())
-        );
-        assert_eq!(
-            map_to_canonical_model("databricks", "claude-3-5-sonnet-latest", r),
-            Some("anthropic/claude-3.5-sonnet".to_string())
-        );
-
-        // 3.x: {model}-{version} → {version}-{model}
-        assert_eq!(
-            map_to_canonical_model("databricks", "claude-haiku-3-5", r),
-            Some("anthropic/claude-3.5-haiku".to_string())
-        );
-
-        // 4.x: {version}-{model} → {model}-{version}
-        assert_eq!(
-            map_to_canonical_model("databricks", "claude-4-sonnet", r),
-            Some("anthropic/claude-sonnet-4".to_string())
-        );
-
-        // 4.x with minor version + prefix stripping
-        assert_eq!(
-            map_to_canonical_model("databricks", "raml-claude-opus-4-5", r),
-            Some("anthropic/claude-opus-4.5".to_string())
-        );
-
-        // === Claude with platform suffixes ===
-        assert_eq!(
-            map_to_canonical_model("databricks", "claude-4-sonnet-bedrock", r),
-            Some("anthropic/claude-sonnet-4".to_string())
-        );
-        assert_eq!(
-            map_to_canonical_model("databricks", "agent-claude-4-sonnet-bedrock", r),
-            Some("anthropic/claude-sonnet-4".to_string())
-        );
-        assert_eq!(
-            map_to_canonical_model("bedrock", "claude-3-5-sonnet", r),
-            Some("anthropic/claude-3.5-sonnet".to_string())
-        );
-
-        // === OpenAI GPT ===
-        assert_eq!(
-            map_to_canonical_model("databricks", "gpt-4o", r),
-            Some("openai/gpt-4o".to_string())
-        );
-        assert_eq!(
-            map_to_canonical_model("databricks", "gpt-4o-2024-11-20", r),
-            Some("openai/gpt-4o".to_string())
-        );
-        assert_eq!(
-            map_to_canonical_model("databricks", "gpt-4o-latest", r),
-            Some("openai/gpt-4o".to_string())
-        );
-        assert_eq!(
-            map_to_canonical_model("databricks", "kaster-gpt-4o", r),
-            Some("openai/gpt-4o".to_string())
-        );
-        assert_eq!(
-            map_to_canonical_model("azure", "gpt-4o", r),
-            Some("openai/gpt-4o".to_string())
-        );
-
-        // === OpenAI O-series ===
-        assert_eq!(
-            map_to_canonical_model("databricks", "agent-o1", r),
-            Some("openai/o1".to_string())
-        );
-        assert_eq!(
-            map_to_canonical_model("databricks", "kaster-o3", r),
-            Some("openai/o3".to_string())
-        );
-        assert_eq!(
-            map_to_canonical_model("databricks", "headless-agent-o3-mini", r),
-            Some("openai/o3-mini".to_string())
-        );
-
-        // === Google Gemini ===
-        assert_eq!(
-            map_to_canonical_model("databricks", "gemini-2-5-flash", r),
-            Some("google/gemini-2.5-flash".to_string())
-        );
-
-        // === Meta Llama ===
-        assert_eq!(
-            map_to_canonical_model("databricks", "meta-llama-3-1-70b-instruct", r),
-            Some("meta-llama/llama-3.1-70b-instruct".to_string())
-        );
-
-        // === Mistral variants ===
-        assert_eq!(
-            map_to_canonical_model("databricks", "codestral", r),
-            Some("mistralai/codestral".to_string())
-        );
-        assert_eq!(
-            map_to_canonical_model("databricks", "ministral-8b", r),
-            Some("mistralai/ministral-8b".to_string())
-        );
-
-        // === DeepSeek ===
-        assert_eq!(
-            map_to_canonical_model("databricks", "databricks-deepseek-chat", r),
-            Some("deepseek/deepseek-chat".to_string())
-        );
-        assert_eq!(
-            map_to_canonical_model("databricks", "deepseek-r1", r),
-            Some("deepseek/deepseek-r1".to_string())
-        );
-
-        // === Qwen ===
-        assert_eq!(
-            map_to_canonical_model("databricks", "qwen-2-5-72b-instruct", r),
-            Some("qwen/qwen-2.5-72b-instruct".to_string())
-        );
-        assert_eq!(
-            map_to_canonical_model("databricks", "agent-qwen-2-5-72b-instruct", r),
-            Some("qwen/qwen-2.5-72b-instruct".to_string())
-        );
-
-        // === Grok (X.AI) ===
-        assert_eq!(
-            map_to_canonical_model("databricks", "grok-3", r),
-            Some("x-ai/grok-3".to_string())
-        );
-        assert_eq!(
-            map_to_canonical_model("databricks", "databricks-grok-4-fast", r),
-            Some("x-ai/grok-4-fast".to_string())
-        );
-        assert_eq!(
-            map_to_canonical_model("databricks", "kaster-grok-4-fast", r),
-            Some("x-ai/grok-4-fast".to_string())
-        );
-
-        // === Jamba (AI21) ===
-        assert_eq!(
-            map_to_canonical_model("databricks", "jamba-large-1-7", r),
-            Some("ai21/jamba-large-1.7".to_string())
-        );
-        assert_eq!(
-            map_to_canonical_model("databricks", "databricks-jamba-large-1-7", r),
-            Some("ai21/jamba-large-1.7".to_string())
-        );
-
-        // === Cohere Command ===
-        assert_eq!(
-            map_to_canonical_model("databricks", "command-r-plus-08", r),
-            Some("cohere/command-r-plus-08".to_string())
-        );
-        assert_eq!(
-            map_to_canonical_model("databricks", "agent-command-r-08", r),
-            Some("cohere/command-r-08".to_string())
-        );
-
-        // === Provider-prefixed extraction ===
-        assert_eq!(
-            map_to_canonical_model("databricks", "anthropic-claude-3-5-sonnet", r),
-            Some("anthropic/claude-3.5-sonnet".to_string())
-        );
-        assert_eq!(
-            map_to_canonical_model("databricks", "openai-gpt-4o", r),
-            Some("openai/gpt-4o".to_string())
-        );
-        assert_eq!(
-            map_to_canonical_model("databricks", "google-gemini-2-5-flash", r),
-            Some("google/gemini-2.5-flash".to_string())
-        );
-        assert_eq!(
-            map_to_canonical_model("databricks", "mistralai-mistral-large", r),
-            Some("mistralai/mistral-large".to_string())
-        );
-        assert_eq!(
-            map_to_canonical_model("databricks", "deepseek-deepseek-chat", r),
-            Some("deepseek/deepseek-chat".to_string())
-        );
-        assert_eq!(
-            map_to_canonical_model("databricks", "qwen-qwen-2-5-72b-instruct", r),
-            Some("qwen/qwen-2.5-72b-instruct".to_string())
-        );
-        assert_eq!(
-            map_to_canonical_model("databricks", "x-ai-grok-3", r),
-            Some("x-ai/grok-3".to_string())
-        );
+    fn current_catalog_mapping_preserves_identity_and_versions() {
+        let registry = super::super::CanonicalModelRegistry::bundled().unwrap();
+        for (provider, model, expected) in [
+            (
+                "anthropic",
+                "claude-sonnet-5-5",
+                "anthropic/claude-sonnet-5.5",
+            ),
+            ("claude", "claude-haiku-5-5", "anthropic/claude-haiku-5.5"),
+            (
+                "openrouter",
+                "anthropic/claude-sonnet-5.5",
+                "anthropic/claude-sonnet-5.5",
+            ),
+            ("openai", "gpt-6.1-sol", "openai/gpt-6.1-sol"),
+            ("openai", "gpt-4o-latest", "openai/gpt-4o"),
+            ("lime-hub", "gpt-6-astra", "openai/gpt-6-astra"),
+            (
+                "databricks",
+                "claude-5-5-sonnet",
+                "anthropic/claude-sonnet-5.5",
+            ),
+            (
+                "databricks",
+                "claude-sonnet-5-5-20260928",
+                "anthropic/claude-sonnet-5.5",
+            ),
+            (
+                "databricks",
+                "raml-claude-opus-5-5",
+                "anthropic/claude-opus-5.5",
+            ),
+            (
+                "bedrock",
+                "agent-claude-5-5-sonnet-bedrock",
+                "anthropic/claude-sonnet-5.5",
+            ),
+            ("databricks", "openai-gpt-6-luna", "openai/gpt-6-luna"),
+            ("databricks", "kaster-o3", "openai/o3"),
+            ("gemini", "gemini-4-argon", "google/gemini-4-argon"),
+            (
+                "databricks",
+                "google-gemini-3-8-flash",
+                "google/gemini-3.8-flash",
+            ),
+            (
+                "databricks",
+                "meta-llama-3-1-70b-instruct",
+                "meta-llama/llama-3.1-70b-instruct",
+            ),
+            ("databricks", "codestral-2508", "mistralai/codestral-2508"),
+            (
+                "mistralai",
+                "ministral-8b-2512",
+                "mistralai/ministral-8b-2512",
+            ),
+            (
+                "databricks",
+                "deepseek-deepseek-v4-pro-0813",
+                "deepseek/deepseek-v4-pro-0813",
+            ),
+            (
+                "databricks",
+                "qwen-qwen-2-5-72b-instruct",
+                "qwen/qwen-2.5-72b-instruct",
+            ),
+            ("alibaba-cn", "qwen3.7-plus", "qwen/qwen3.7-plus"),
+            ("xai", "grok-4.7", "x-ai/grok-4.7"),
+            (
+                "minimax-cn",
+                "MiniMax-M3.1-Flash",
+                "minimax/minimax-m3.1-flash",
+            ),
+            ("moonshotai-cn", "kimi-k3", "moonshotai/kimi-k3"),
+            ("zai-coding-plan", "glm-5.3-flash", "z-ai/glm-5.3-flash"),
+            (
+                "agnes",
+                "agnes-image-2.1-flash",
+                "agnes/agnes-image-2.1-flash",
+            ),
+        ] {
+            assert_eq!(
+                map_to_canonical_model(provider, model, registry).as_deref(),
+                Some(expected),
+                "{provider}/{model}"
+            );
+        }
+        for (provider, model) in [
+            ("lime-hub", "private-model-without-catalog-entry"),
+            ("anthropic", "claude-3-5-sonnet-20241022"),
+            ("ai21", "jamba-large-1-7"),
+            ("openrouter", "google/gemini-2.0-flash"),
+        ] {
+            assert_eq!(map_to_canonical_model(provider, model, registry), None);
+        }
     }
 }

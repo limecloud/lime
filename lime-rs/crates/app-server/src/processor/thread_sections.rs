@@ -59,6 +59,7 @@ impl RequestProcessor {
             .delete_thread_section(params)
             .await
             .map_err(to_jsonrpc_error)?;
+        self.request_worktree_cleanup().await;
         dispatch_result(response)
     }
 
@@ -73,6 +74,7 @@ impl RequestProcessor {
             .move_thread_to_section(params)
             .await
             .map_err(to_jsonrpc_error)?;
+        self.request_worktree_cleanup().await;
         dispatch_result(response)
     }
 }

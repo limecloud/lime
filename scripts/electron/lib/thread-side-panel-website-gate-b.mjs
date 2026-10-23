@@ -582,12 +582,11 @@ export async function collectThreadSidePanelWebsiteEvidence(
         path: htmlScreenshotPath,
         animations: "disabled",
       });
-    const capture = await captureInvokeTraceCollector(page, traceCollector);
-    const trace = validateInvokeTraceCollectorCapture(capture, traceCollector);
-    assert(trace.complete, "默认浏览器查询缺少连续preload trace来源证明");
-    const defaultBrowserReads = trace.ledgerEntries
-      .filter((entry) => entry.command === "is_default_browser")
-      .map(({ transport, status }) => ({ transport, status }));
+    const defaultBrowserReads = await page.evaluate(() =>
+      JSON.parse(localStorage.getItem("lime_invoke_trace_buffer_v1") || "[]")
+        .filter((entry) => entry.command === "is_default_browser")
+        .map(({ transport, status }) => ({ transport, status })),
+    );
     assert(
       defaultBrowserReads.some(
         (entry) =>

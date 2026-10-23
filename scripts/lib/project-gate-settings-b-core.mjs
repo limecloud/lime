@@ -7,7 +7,7 @@ export const SETTINGS_GATE_B_SCENARIOS = Object.freeze([
   { id: "appearance-persistence", tab: "appearance", owner: "settings" },
   { id: "memory-ready", tab: "memory", owner: "settings/app-server" },
   {
-    id: "memory-soul-persistence",
+    id: "memory-personalization-persistence",
     tab: "memory",
     owner: "settings/app-server",
   },

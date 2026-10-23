@@ -144,6 +144,9 @@ impl RuntimeCore {
     }
 
     pub(in crate::runtime) fn session_memory_enabled(&self, session_id: &str) -> bool {
+        if !self.memory_config().is_some_and(|config| config.enabled) {
+            return false;
+        }
         let state = self
             .state
             .lock()

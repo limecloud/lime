@@ -28,9 +28,14 @@ import {
   bindSubmissionMessagesToRuntimeTurn,
   extractVisibleTextFromAgentMessage,
 } from "./agentStreamRuntimeHandlerUtils";
-import { resolveAccumulatedFinalContentForCompletion } from "./agentStreamTextDeltaLifecycle";
+import {
+  clearActiveTextSegmentState,
+  resolveAccumulatedFinalContentForCompletion,
+} from "./agentStreamTextDeltaLifecycle";
+import { clearAgentStreamTextOverlay } from "./agentStreamTextOverlayStore";
 import {
   isAgentMessageFinalAnswerPhase,
+  resolveFinalAgentMessageItemIds,
   shouldUseAgentMessageAsFinalText,
 } from "../utils/agentMessagePhase";
 import { resolveAgentRuntimeErrorPresentation } from "../utils/agentRuntimeErrorPresentation";
@@ -71,18 +76,65 @@ function noteCompletedTextAsAssistantReplyIfNeeded(
 }
 
 function syncFinalAgentMessageSnapshotToRequestState(params: {
+  assistantMsgId: string;
   event: Extract<
     AgentEvent,
     { type: "item_started" | "item_completed" | "item_updated" }
   >;
   requestState: StreamRequestState;
+  projectedItems?: readonly AgentThreadItem[];
   shouldPreserveAssistantContent?: boolean;
 }): void {
   const item = params.event.item;
+  const latestProcessSequence =
+    params.requestState.maxFinalAnswerRequiredProcessEventSequence ??
+    params.requestState.maxProcessEventSequence;
+  if (params.shouldPreserveAssistantContent || item.type !== "agent_message") {
+    return;
+  }
+  if (!shouldUseAgentMessageAsFinalText(item.phase)) {
+    if (
+      params.requestState.activeTextSegmentItemId !== item.id ||
+      params.requestState.activeTextSegmentTurnId !== item.turn_id
+    ) {
+      return;
+    }
+    // A delta may arrive before its phase. Recover from the same canonical projection.
+    const candidates = (params.projectedItems ?? []).filter(
+      (
+        candidate,
+      ): candidate is Extract<AgentThreadItem, { type: "agent_message" }> =>
+        candidate.type === "agent_message" &&
+        candidate.thread_id === item.thread_id &&
+        candidate.turn_id === item.turn_id &&
+        candidate.id !== item.id &&
+        (!params.requestState.hasFinalAnswerRequiredProcessBoundary ||
+          (typeof latestProcessSequence === "number" &&
+            candidate.sequence > latestProcessSequence)),
+    );
+    const selected = resolveFinalAgentMessageItemIds(candidates);
+    const previousFinal = candidates
+      .filter((candidate) => selected.has(candidate.id))
+      .sort((left, right) => left.sequence - right.sequence)
+      .at(-1);
+    params.requestState.accumulatedContent = "";
+    params.requestState.renderedContent = "";
+    params.requestState.latestAssistantTextEventSequence = null;
+    params.requestState.hasAssistantTextAfterLatestFinalAnswerRequiredProcessBoundary = false;
+    clearActiveTextSegmentState(params.requestState);
+    clearAgentStreamTextOverlay(params.assistantMsgId);
+    if (previousFinal) {
+      syncFinalAgentMessageSnapshotToRequestState({
+        ...params,
+        event: { ...params.event, item: previousFinal },
+      });
+    }
+    return;
+  }
   if (
-    params.shouldPreserveAssistantContent ||
-    item.type !== "agent_message" ||
-    !isAgentMessageFinalAnswerPhase(item.phase) ||
+    (params.requestState.hasFinalAnswerRequiredProcessBoundary &&
+      (typeof latestProcessSequence !== "number" ||
+        item.sequence <= latestProcessSequence)) ||
     !item.text.trim()
   ) {
     return;
@@ -104,16 +156,16 @@ function syncFinalAgentMessageSnapshotToRequestState(params: {
   params.requestState.activeTextSegmentSequence = item.sequence;
   params.requestState.activeTextSegmentTurnId = item.turn_id;
   params.requestState.activeTextSegmentStartOffset = 0;
-  params.requestState.activeTextSegmentFinalEligibility = "explicit_final";
+  params.requestState.activeTextSegmentFinalEligibility =
+    isAgentMessageFinalAnswerPhase(item.phase)
+      ? "explicit_final"
+      : "item_scoped_legacy";
   params.requestState.latestAssistantTextEventSequence = Math.max(
     params.requestState.latestAssistantTextEventSequence ??
       Number.NEGATIVE_INFINITY,
     item.sequence,
   );
 
-  const latestProcessSequence =
-    params.requestState.maxFinalAnswerRequiredProcessEventSequence ??
-    params.requestState.maxProcessEventSequence;
   if (
     params.requestState.hasFinalAnswerRequiredProcessBoundary &&
     (typeof latestProcessSequence !== "number" ||

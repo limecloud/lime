@@ -1,7 +1,7 @@
 //! Lime 运行时 AGENTS 指令加载
 //!
 //! 仅用于 Lime 应用运行时会话：
-//! - 全局：优先 `CODEX_HOME/AGENTS.md`，缺失时回退 Lime 的 `~/.lime/AGENTS.md`
+//! - 全局：优先既有 CODEX_HOME 指令，否则使用 Lime 用户目录；同目录非空 AGENTS.override.md 优先
 //! - 工作区：从项目根到当前工作目录，优先标准 `AGENTS.override.md` / `AGENTS.md`，
 //!   缺失时回退 `.lime/AGENTS.override.md` / `.lime/AGENTS.md`
 
@@ -54,18 +54,28 @@ pub fn build_runtime_agents_prompt_for_project(
     working_dir: Option<&Path>,
     project_root: Option<&Path>,
 ) -> Option<String> {
-    let global_path = app_paths::resolve_codex_agents_path()
-        .filter(|path| path.is_file())
-        .or_else(|| match app_paths::resolve_user_memory_path() {
-            Ok(path) => Some(path),
-            Err(error) => {
-                tracing::warn!(
-                    "[AgentRuntime] 解析全局运行时 AGENTS 路径失败，跳过全局指令层: {}",
-                    error
-                );
-                None
-            }
-        });
+    let global_path = match app_paths::resolve_user_instructions_path() {
+        Ok(path) => {
+            let override_path = path.with_file_name(WORKSPACE_OVERRIDE_AGENTS_FILE_NAME);
+            Some(
+                if override_path
+                    .metadata()
+                    .is_ok_and(|metadata| metadata.is_file() && metadata.len() > 0)
+                {
+                    override_path
+                } else {
+                    path
+                },
+            )
+        }
+        Err(error) => {
+            tracing::warn!(
+                "[AgentRuntime] 解析全局运行时 AGENTS 路径失败，跳过全局指令层: {}",
+                error
+            );
+            None
+        }
+    };
     let workspace_paths = working_dir
         .map(|working_dir| discover_workspace_runtime_agents_paths(working_dir, project_root))
         .unwrap_or_default();

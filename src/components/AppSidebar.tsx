@@ -266,7 +266,7 @@ export function AppSidebar({
     activeAgentPageParams?.initialSessionId?.trim() || null;
   const currentSessionId =
     requestedAgentSessionId || liveAgentSessionId || routeAgentSessionId;
-  const [collapsed, setCollapsed] = useState<boolean>(() => {
+  const [preferredCollapsed, setCollapsed] = useState<boolean>(() => {
     if (typeof window === "undefined") {
       return false;
     }
@@ -275,6 +275,7 @@ export function AppSidebar({
       window.localStorage.getItem(APP_SIDEBAR_COLLAPSED_STORAGE_KEY) === "true"
     );
   });
+  const collapsed = activePage === "settings" || preferredCollapsed;
   const { width: sidebarWidth, setWidth: setSidebarWidth } = useSidebarWidth(
     APP_SIDEBAR_MIN_WIDTH,
   );
@@ -456,9 +457,9 @@ export function AppSidebar({
 
     window.localStorage.setItem(
       APP_SIDEBAR_COLLAPSED_STORAGE_KEY,
-      collapsed ? "true" : "false",
+      preferredCollapsed ? "true" : "false",
     );
-  }, [collapsed]);
+  }, [preferredCollapsed]);
 
   useEffect(() => {
     if (isNewTaskHome || isCustomizationPage) {
@@ -693,19 +694,21 @@ export function AppSidebar({
 
   return (
     <TooltipProvider>
-      <HeaderAction actionId="sidebar-trigger" slotPosition="left" order={1}>
-        <IconActionButton
-          type="button"
-          title={navigationToggleLabel}
-          aria-label={navigationToggleLabel}
-          data-testid={
-            collapsed ? "app-sidebar-expand" : "app-sidebar-collapse"
-          }
-          onClick={toggleSidebarCollapsed}
-        >
-          {collapsed ? <PanelLeftOpen /> : <PanelLeftClose />}
-        </IconActionButton>
-      </HeaderAction>
+      {activePage !== "settings" ? (
+        <HeaderAction actionId="sidebar-trigger" slotPosition="left" order={1}>
+          <IconActionButton
+            type="button"
+            title={navigationToggleLabel}
+            aria-label={navigationToggleLabel}
+            data-testid={
+              collapsed ? "app-sidebar-expand" : "app-sidebar-collapse"
+            }
+            onClick={toggleSidebarCollapsed}
+          >
+            {collapsed ? <PanelLeftOpen /> : <PanelLeftClose />}
+          </IconActionButton>
+        </HeaderAction>
+      ) : null}
       <Container
         $collapsed={collapsed}
         $themeMode={themeState.effectiveThemeMode}

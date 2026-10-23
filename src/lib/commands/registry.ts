@@ -2,6 +2,7 @@ import {
   isInputLikeTarget,
   resolveHotkeyPlatform,
 } from "@/lib/hotkeys/platform";
+import { matchesBinding, normalizeBinding } from "./bindings";
 
 export type CommandSection =
   | "thread"
@@ -30,12 +31,34 @@ export interface CommandRegistration {
 export type RegisteredCommand = Pick<
   CommandRegistration,
   "id" | "titleKey" | "descriptionKey" | "section" | "bindings"
->;
+> & { defaultBindings: readonly string[]; customized: boolean };
 
 type Entry = CommandRegistration & { target: EventTarget };
 const entries = new Set<Entry>();
 const subscribers = new Set<() => void>();
 let snapshot: readonly RegisteredCommand[] = [];
+let bindingOverrides: Record<string, readonly string[]> = {};
+
+function effectiveBindings(entry: Entry): readonly string[] {
+  return Object.prototype.hasOwnProperty.call(bindingOverrides, entry.id)
+    ? bindingOverrides[entry.id]
+    : entry.bindings;
+}
+
+// 配置投影可随时丢弃；handler与默认键位仍来自同一挂载记录。
+export function setCommandBindingOverrides(
+  overrides: Record<string, readonly string[]>,
+) {
+  const next = Object.fromEntries(
+    Object.entries(overrides).map(([id, bindings]) => [
+      id,
+      bindings.map((binding) => normalizeBinding(binding) ?? binding),
+    ]),
+  );
+  if (JSON.stringify(bindingOverrides) === JSON.stringify(next)) return;
+  bindingOverrides = next;
+  publish();
+}
 
 function publish() {
   const active = new Map<string, RegisteredCommand>();
@@ -46,7 +69,12 @@ function publish() {
         titleKey: entry.titleKey,
         descriptionKey: entry.descriptionKey,
         section: entry.section,
-        bindings: [...entry.bindings],
+        bindings: [...effectiveBindings(entry)],
+        defaultBindings: [...entry.bindings],
+        customized: Object.prototype.hasOwnProperty.call(
+          bindingOverrides,
+          entry.id,
+        ),
       });
     }
   }
@@ -63,35 +91,18 @@ export function getRegisteredCommands(): readonly RegisteredCommand[] {
   return snapshot;
 }
 
-function matchesBinding(event: KeyboardEvent, binding: string) {
-  const parts = binding.toLowerCase().split("+");
-  const key = parts.pop();
-  const primary = parts.includes("commandorcontrol");
-  const isMac = resolveHotkeyPlatform(navigator) === "mac";
-  if (
-    event.key.toLowerCase() !== key ||
-    event.shiftKey !== parts.includes("shift") ||
-    event.altKey !== parts.includes("alt")
-  ) {
-    return false;
-  }
-  return primary
-    ? isMac
-      ? event.metaKey && !event.ctrlKey
-      : event.ctrlKey && !event.metaKey
-    : event.metaKey === parts.includes("command") &&
-        event.ctrlKey === parts.includes("control");
-}
-
 function acceptsEvent(entry: Entry, event: KeyboardEvent) {
   if (
     entry.enabled === false ||
-    !entry.bindings.some((binding) => matchesBinding(event, binding))
+    !effectiveBindings(entry).some((binding) =>
+      matchesBinding(event, binding, resolveHotkeyPlatform(navigator)),
+    )
   ) {
     return false;
   }
   const target = event.target;
   if (target instanceof Element) {
+    if (target.closest("[data-shortcut-capture]")) return false;
     if (
       !entry.allowInDialog &&
       target.closest('[role="dialog"], [role="alertdialog"]')

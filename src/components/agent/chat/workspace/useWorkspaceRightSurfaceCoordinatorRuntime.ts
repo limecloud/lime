@@ -18,6 +18,7 @@ import { useWorkspaceRightSurfacePendingBridgeRuntime } from "./useWorkspaceRigh
 import { useWorkspaceRightSurfaceProjectionRuntime } from "./useWorkspaceRightSurfaceProjectionRuntime";
 import { closeBrowserTab } from "@/lib/api/browserTab";
 import { useWorkspaceBrowserTabProjection } from "./useWorkspaceBrowserTabProjection";
+import { readBrowserPresentation } from "./right-surface/browser/browserPresentation";
 import {
   createBrowserWorkspaceLinkTab,
   type BrowserWorkspaceOwner,
@@ -98,9 +99,12 @@ export function useWorkspaceRightSurfaceCoordinatorRuntime({
     threadItems,
   );
   useWorkspaceBrowserTabProjection({
-    enabled: localState.sidePanelTabs.tabs.some(
-      (tab) => tab.kind === "browser",
-    ),
+    enabled:
+      localState.sidePanelTabs.tabs.some((tab) => tab.kind === "browser") ||
+      readBrowserPresentation({
+        sessionId: effectiveSessionId,
+        threadId: effectiveSceneThreadId,
+      }) !== null,
     runtimeSessionId: effectiveSessionId,
     threadId: effectiveSceneThreadId,
     onProjection: localState.synchronizeBrowserTabs,

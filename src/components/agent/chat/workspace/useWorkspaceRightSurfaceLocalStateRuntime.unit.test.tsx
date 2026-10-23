@@ -2,6 +2,7 @@ import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { configureBooleanGateway } from "@/hooks/usePersistedBooleanAtom.testFixtures";
+import { browserState } from "./right-surface/browser/browserWorkspace.testFixtures";
 import {
   useWorkspaceRightSurfaceLocalStateRuntime,
   type WorkspaceRightSurfaceLocalStateRuntime,
@@ -48,7 +49,15 @@ function mount(initialOwner: WorkspaceRightSurfaceOwner = owner) {
     act(() => root.render(<Probe {...nextOwner} />));
   };
   render();
-  return { render, get: () => latest, observations };
+  const unmount = () => {
+    act(() => root.unmount());
+    container.remove();
+    mounted.splice(
+      mounted.findIndex((entry) => entry.root === root),
+      1,
+    );
+  };
+  return { render, get: () => latest, observations, unmount };
 }
 
 beforeEach(() => {
@@ -66,18 +75,120 @@ afterEach(() => {
 });
 
 describe("Right Surface 本地显示状态", () => {
+  it("设置往返卸载后从同一Host投影恢复原Browser，workspace暂缺不创建第二页签", async () => {
+    const scope = {
+      ...owner,
+      sessionId: "settings-return",
+      threadId: "settings-thread",
+    };
+    const native = browserState({ threadId: scope.threadId });
+    const first = mount(scope);
+    await flush();
+    act(() => first.get().setManualRightSurface("browser"));
+    act(() => first.get().synchronizeBrowserTabs([native]));
+    expect(first.get().sidePanelTabs.open).toBe(true);
+    first.unmount();
+    const returned = mount({ ...scope, workspaceId: null });
+    await flush();
+    act(() => returned.get().synchronizeBrowserTabs([native]));
+    expect(returned.get().sidePanelTabs.open).toBe(true);
+    expect(returned.get().sidePanelTabs.activeTabId).toBe(native.tabId);
+    expect(returned.get().sidePanelTabs.tabs).toHaveLength(1);
+    expect(returned.get().sidePanelTabs.tabs[0].browser?.webContentsId).toBe(
+      native.webContentsId,
+    );
+  });
+
+  it("用户主动收起后设置往返保持收起", async () => {
+    const scope = {
+      ...owner,
+      sessionId: "settings-hidden",
+      threadId: "hidden-thread",
+    };
+    const native = browserState({ threadId: scope.threadId });
+    const first = mount(scope);
+    await flush();
+    act(() => first.get().setManualRightSurface("browser"));
+    act(() => first.get().synchronizeBrowserTabs([native]));
+    act(() => first.get().clearActiveRightSurfaceTargets());
+    first.unmount();
+    const returned = mount(scope);
+    await flush();
+    act(() => returned.get().synchronizeBrowserTabs([native]));
+    expect(returned.get().sidePanelTabs.open).toBe(false);
+    expect(returned.get().sidePanelTabs.activeTabId).toBeNull();
+  });
+
+  it("原生页已关闭时不按旧展示记录打开新页", async () => {
+    const scope = {
+      ...owner,
+      sessionId: "settings-closed",
+      threadId: "closed-thread",
+    };
+    const native = browserState({ threadId: scope.threadId });
+    const first = mount(scope);
+    await flush();
+    act(() => first.get().setManualRightSurface("browser"));
+    act(() => first.get().synchronizeBrowserTabs([native]));
+    first.unmount();
+    const returned = mount(scope);
+    await flush();
+    act(() => returned.get().synchronizeBrowserTabs([]));
+    expect(returned.get().sidePanelTabs.tabs).toEqual([]);
+    expect(returned.get().sidePanelTabs.open).toBe(false);
+    act(() =>
+      returned
+        .get()
+        .synchronizeBrowserTabs([{ ...native, tabId: "new-background-tab" }]),
+    );
+    expect(returned.get().sidePanelTabs.open).toBe(false);
+  });
+
+  it("Browser恢复不跨会话且不覆盖用户在Host快照到达前选中的Files", async () => {
+    const scope = {
+      ...owner,
+      sessionId: "settings-source",
+      threadId: "source-thread",
+    };
+    const native = browserState({ threadId: scope.threadId });
+    const first = mount(scope);
+    await flush();
+    act(() => first.get().setManualRightSurface("browser"));
+    act(() => first.get().synchronizeBrowserTabs([native]));
+    first.unmount();
+    const foreign = mount({ ...scope, sessionId: "settings-foreign" });
+    await flush();
+    act(() => foreign.get().synchronizeBrowserTabs([native]));
+    expect(foreign.get().sidePanelTabs.open).toBe(false);
+    const returned = mount(scope);
+    await flush();
+    act(() => returned.get().openWorkspaceFile("/work/README.md"));
+    const file = returned.get().sidePanelTabs.activeTabId;
+    act(() => returned.get().synchronizeBrowserTabs([native]));
+    expect(returned.get().sidePanelTabs.activeTabId).toBe(file);
+    expect(returned.get().manualRightSurface).toBe("files");
+  });
   it("New tab地址在首次canonical owner接管后仍可原位替换，跨会话结果不能复活源标签", async () => {
-    const view = mount({ workspaceId: owner.workspaceId, sessionId: null, threadId: null });
+    const view = mount({
+      workspaceId: owner.workspaceId,
+      sessionId: null,
+      threadId: null,
+    });
     await flush();
     act(() => view.get().openSidePanelTab("workspace-new-tab"));
     const tab = view.get().sidePanelTabs.tabs[0];
     const source = view.get().captureBrowserAddressSource(tab.tabId);
     view.render(owner);
-    const resolved = { runtimeSessionId: owner.sessionId!, threadId: owner.threadId! };
+    const resolved = {
+      runtimeSessionId: owner.sessionId!,
+      threadId: owner.threadId!,
+    };
     expect(source.isCurrent(resolved)).toBe(true);
     expect(source.isCurrent({ ...resolved, threadId: "other" })).toBe(false);
     act(() => source.replace(resolved, "canonical-tab"));
-    expect(view.get().sidePanelTabs.tabs.map((tab) => tab.tabId)).toEqual(["canonical-tab"]);
+    expect(view.get().sidePanelTabs.tabs.map((tab) => tab.tabId)).toEqual([
+      "canonical-tab",
+    ]);
     expect(view.get().sidePanelTabs.activeTabId).toBe("canonical-tab");
     view.render({ ...owner, threadId: "thread-b", sessionId: "session-b" });
     view.render(owner);

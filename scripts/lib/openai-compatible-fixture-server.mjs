@@ -98,14 +98,14 @@ function jsonResponse(response, statusCode, payload) {
   response.end(`${JSON.stringify(payload)}\n`);
 }
 
-function readJsonBody(request) {
+function readJsonBody(request, maxBytes) {
   return new Promise((resolve, reject) => {
     const chunks = [];
     let totalBytes = 0;
     request.on("data", (chunk) => {
       totalBytes += chunk.length;
-      if (totalBytes > 1_000_000) {
-        reject(new Error("fixture request body exceeds 1MB"));
+      if (totalBytes > maxBytes) {
+        reject(new Error(`fixture request body exceeds ${maxBytes} bytes`));
         request.destroy();
         return;
       }
@@ -484,7 +484,12 @@ function sendScriptedResponses(response, { scripted, body }) {
   return false;
 }
 
-function buildProviderDescriptor({ baseUrl, model, apiKey }) {
+function buildProviderDescriptor({
+  baseUrl,
+  model,
+  apiKey,
+  modelInputModalities,
+}) {
   return {
     providerPreference: "fixture-openai",
     providerName: "openai",
@@ -508,7 +513,7 @@ function buildProviderDescriptor({ baseUrl, model, apiKey }) {
           reasoningEffort: null,
         },
         taskFamilies: ["chat"],
-        inputModalities: ["text"],
+        inputModalities: modelInputModalities,
         outputModalities: ["text"],
         runtimeFeatures: ["streaming", "tool_calling"],
       },
@@ -628,6 +633,15 @@ function sendScriptedChatCompletion(
 }
 
 export async function startOpenAiCompatibleFixtureServer(options = {}) {
+  const maxRequestBodyBytes = options.maxRequestBodyBytes ?? 1_000_000;
+  if (
+    !Number.isSafeInteger(maxRequestBodyBytes) ||
+    maxRequestBodyBytes < 1 ||
+    maxRequestBodyBytes > 64 * 1024 * 1024
+  )
+    throw new RangeError(
+      "fixture maxRequestBodyBytes must be between 1 and 64MiB",
+    );
   const model =
     String(options.model || DEFAULT_FIXTURE_MODEL).trim() ||
     DEFAULT_FIXTURE_MODEL;
@@ -748,7 +762,9 @@ export async function startOpenAiCompatibleFixtureServer(options = {}) {
               : {}),
             ...(modelToolMode ? { tool_mode: modelToolMode } : {}),
             capabilities: {
-              vision: modelInputModalities.includes("image"),
+              ...(modelInputModalities.includes("image")
+                ? { vision: true }
+                : {}),
               tools: true,
               streaming: true,
               function_calling: true,
@@ -773,7 +789,7 @@ export async function startOpenAiCompatibleFixtureServer(options = {}) {
     }
 
     try {
-      const body = await readJsonBody(request);
+      const body = await readJsonBody(request, maxRequestBodyBytes);
       requestRecord = {
         method: request.method,
         path: url.pathname,
@@ -897,7 +913,12 @@ export async function startOpenAiCompatibleFixtureServer(options = {}) {
     requests,
     modelRequests,
     connectionDiagnostics,
-    provider: buildProviderDescriptor({ baseUrl, model, apiKey }),
+    provider: buildProviderDescriptor({
+      baseUrl,
+      model,
+      apiKey,
+      modelInputModalities,
+    }),
     close: async () => {
       recordConnectionDiagnostic("server-close-start", {
         sockets: [...socketIds.keys()].map(socketSnapshot),

@@ -531,6 +531,50 @@ async fn desktop_link_preferences_persist_and_invalid_batches_are_atomic() {
     );
 }
 
+#[tokio::test]
+async fn dictation_dictionary_roundtrips_through_the_canonical_config_layer() {
+    let temp = TempDir::new().expect("dictionary config temp");
+    let config_path = temp.path().join("config.yaml");
+    std::fs::write(&config_path, "server:\n  api_key: dictionary-test-key\n").unwrap();
+    let server = AppServer::with_runtime(
+        RuntimeCore::with_backend(Arc::new(MockBackend)).with_app_config_path(config_path.clone()),
+    );
+    initialize(&server).await;
+    let read = request(
+        &server,
+        2,
+        METHOD_CONFIG_READ,
+        json!({"includeLayers": true}),
+    )
+    .await;
+    let entries = json!(["OpenAI", "src/App.tsx", "RuntimeCore::start"]);
+    let saved = request(&server, 3, METHOD_CONFIG_BATCH_WRITE, json!({
+        "edits": [{"keyPath": "experimental.voice_input.dictation_dictionary", "value": entries, "mergeStrategy": "replace"}],
+        "expectedVersion": read["result"]["layers"][0]["version"], "reloadUserConfig": true
+    })).await;
+    let invalid = request_error(&server, 4, METHOD_CONFIG_VALUE_WRITE, json!({
+        "keyPath": "experimental.voice_input.dictation_dictionary", "value": [42], "mergeStrategy": "replace",
+        "expectedVersion": saved["result"]["version"]
+    })).await;
+    assert!(
+        invalid.get("error").is_some(),
+        "non-string dictionary must fail"
+    );
+    let restored = AppServer::with_runtime(
+        RuntimeCore::with_backend(Arc::new(MockBackend)).with_app_config_path(config_path),
+    );
+    initialize(&restored).await;
+    let read = request(&restored, 2, METHOD_CONFIG_READ, json!({})).await;
+    assert_eq!(
+        read["result"]["config"]["experimental"]["voice_input"]["dictation_dictionary"],
+        entries
+    );
+    assert_eq!(
+        read["result"]["config"]["experimental"]["voice_input"]["processor"]["polish_enabled"],
+        true
+    );
+}
+
 async fn initialize(server: &AppServer) {
     let response = request(
         server,

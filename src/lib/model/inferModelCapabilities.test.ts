@@ -11,6 +11,15 @@ import {
 } from "./inferModelCapabilities";
 
 describe("inferModelCapabilities", () => {
+  it.each(["MiniMax-M2.7", "MiniMax-M3.1-Flash-Preview", "speech-2.8-hd"])(
+    "不将未声明的 MiniMax 模型 %s 扩展为视觉模型",
+    (modelId) => {
+      expect(inferVisionCapability({ modelId, providerId: "minimax-cn" })).toBe(
+        false,
+      );
+    },
+  );
+
   it("应将 gpt-5.4 识别为支持视觉的模型", () => {
     expect(
       inferVisionCapability({

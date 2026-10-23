@@ -3,6 +3,21 @@ import { describe, expect, it } from "vitest";
 import { renderMarkdown as render } from "./MarkdownRenderer.testHarness";
 
 describe("MarkdownRenderer normalization", () => {
+  it("保留浏览器批注的 CSS 属性和元素选择器，不把英文连字符拆成列表", () => {
+    const selector =
+      "html:nth-of-type(1) > body:nth-of-type(1) > h1:nth-of-type(1)";
+    const css = 'CSS font-size: "32px" -> "28px"';
+    const content = [
+      `Selector: ${selector}`,
+      `Element path: ${selector}`,
+      "Design changes (temporary browser preview):",
+      css,
+    ].join("\n");
+    const container = render(content);
+    expect(container.textContent).toContain(selector);
+    expect(container.textContent).toContain(css);
+    expect(container.querySelector("ul")).toBeNull();
+  });
   it("开发分析正文应渲染标题、表格、粗体和行内代码，而不是露出原始 Markdown", () => {
     const content = [
       "## BADOUCMS 架构分析",

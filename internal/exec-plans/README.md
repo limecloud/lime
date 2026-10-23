@@ -28,7 +28,7 @@
 - 路线图主线：`internal/roadmap/`
 - Runtime 当前对齐入口：`internal/aiprompts/architecture.md` 与 `internal/exec-plans/codex-alignment-v1-coordination-plan.md`
 - Refactor v2 全项目 Gate A/B 验收计划：`internal/exec-plans/project-gate-a-b-acceptance-plan.md`
-- 当前发布执行计划：[v1.167.0](./release-v1.167.0-plan.md)；上一版本记录：[v1.166.0](./release-v1.166.0-plan.md)。
+- 当前发布执行计划：[v1.168.0](./release-v1.168.0-plan.md)；上一版本记录：[v1.167.0](./release-v1.167.0-plan.md)。
 - 已结束版本的发布过程不保留在 active tree；结果以 Git tag、GitHub Release、Release Notes 与 Git history 为准。
 - Codex App GUI 历史基线及领域计划索引：`internal/exec-plans/codex-app-gui-alignment-plan.md`；GUI current 实施统一见下方全面对齐计划。
 - Codex Desktop 跨平台底层对比与对齐计划：`internal/exec-plans/codex-desktop-platform-parity-plan.md`

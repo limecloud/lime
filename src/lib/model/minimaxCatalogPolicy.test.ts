@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { filterMiniMaxCatalogModels } from "./minimaxCatalogPolicy";
+import { getModelCapabilitySummary } from "./inferModelCapabilities";
+import {
+  buildModelCapabilitySendGateInput,
+  evaluateModelInputCapability,
+} from "./modelCapabilitySendGate";
 import {
   buildProviderModelsFromBackendModelIds,
   buildProviderModelsFromRegistry,
@@ -17,6 +22,34 @@ const ids = [
 ];
 
 describe("MiniMax discovered catalog choices", () => {
+  it.each([
+    ["minimax", "MiniMax-M3.1-Flash"],
+    ["minimax-cn", "MiniMax-M3.1-Flash"],
+    ["minimax", "MiniMax-M3"],
+    ["minimax-cn", "MiniMax-M3"],
+  ])("allows screenshot input for configured %s/%s", (providerId, modelId) => {
+    const { models } = buildProviderModelsFromRegistry(
+      {
+        key: providerId,
+        label: "MiniMax",
+        registryId: providerId,
+        models: [modelId],
+      },
+      [],
+      null,
+    );
+    expect(models[0].input_modalities).toEqual(["text", "image"]);
+    expect(
+      evaluateModelInputCapability(
+        getModelCapabilitySummary(models[0]),
+        buildModelCapabilitySendGateInput({
+          text: "Describe screenshot",
+          imageCount: 1,
+        }),
+      ),
+    ).toMatchObject({ status: "allowed", missingInputModalities: [] });
+  });
+
   it.each(["minimax", "minimax-cn"])(
     "keeps current text first and preserves media for %s",
     (providerId) => {

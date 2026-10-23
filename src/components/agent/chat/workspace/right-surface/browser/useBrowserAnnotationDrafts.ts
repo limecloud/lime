@@ -2,6 +2,7 @@ import { useMemo, useSyncExternalStore } from "react";
 import { useAtomValue } from "jotai";
 import {
   browserAnnotationDraftsAtom,
+  hasBrowserAnnotationContent,
   type BrowserAnnotationDraft,
 } from "./browserAnnotationDrafts";
 
@@ -22,7 +23,7 @@ export function useBrowserAnnotationDrafts(
           Boolean(sessionId && threadId) &&
           draft.sessionId === sessionId &&
           draft.event.threadId === threadId &&
-          draft.body.trim().length > 0,
+          hasBrowserAnnotationContent(draft),
       ),
     [sessionId, snapshot, threadId],
   );

@@ -161,7 +161,7 @@ export function createSettingsAppearanceEvidence({
     priority: "P0",
     proofLevel: "Gate B-F",
     claimBoundary:
-      "Real Electron Appearance persistence across both current owners: theme mode in localStorage and recommendation behavior in app config. The fixture changes both, verifies cold-restart readback, restores both, and verifies final cold-restart readback in an isolated user-data directory. Structured evidence records no appearance values or full config.",
+      "Real Electron Appearance persistence across both current owners: theme mode in localStorage and the global plugin preference in app config. The fixture changes both, verifies cold-restart readback, restores both, and verifies final cold-restart readback in an isolated user-data directory. Structured evidence records no appearance values or full config.",
     candidateRunId: validateName(candidateRunId, "run-id"),
     testOnly: true,
     startedAt,

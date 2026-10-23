@@ -2,12 +2,14 @@ import { lazy, type ReactNode } from "react";
 import {
   Home,
   Archive,
+  HardDrive,
   User,
   BarChart3,
   Palette,
   Globe,
   Keyboard,
   Brain,
+  Mic,
   Image,
   Plug,
   Puzzle,
@@ -16,6 +18,7 @@ import {
   Variable,
   Code,
   Info,
+  GitBranch,
   type LucideIcon,
 } from "lucide-react";
 import { SettingsGroupKey, SettingsTabs } from "@/types/settings";
@@ -24,11 +27,13 @@ import type {
   ProviderSettingsFocusContext,
   SettingsProviderView,
   SettingsPageParams,
+  Page,
+  PageParams,
 } from "@/types/page";
 import { resolveOemCloudRuntimeContext } from "@/lib/api/oemCloudRuntime";
 
 export interface SettingsSectionContext {
-  renderHome: () => ReactNode;
+  onNavigate?: (page: Page, params?: PageParams) => void;
   providerView?: SettingsProviderView;
   providerFocus?: ProviderSettingsFocusContext | null;
   executionPolicyFocus?: ExecutionPolicyFocusContext | null;
@@ -47,6 +52,27 @@ export interface SettingsSection {
   preload: () => Promise<unknown> | null;
   render: (context: SettingsSectionContext) => ReactNode;
 }
+
+const loadGeneral = () => import("./general/GeneralSettings");
+const loadStorage = () => import("./general/storage");
+const DeviceStorageSettings = lazy(() =>
+  loadStorage().then((module) => ({ default: module.DeviceStorageSettings })),
+);
+const loadGit = () => import("./coding/git");
+const loadWorktrees = () => import("./coding/worktrees");
+const WorktreesSettings = lazy(() =>
+  loadWorktrees().then((module) => ({ default: module.WorktreesSettings })),
+);
+const GitSettings = lazy(() =>
+  loadGit().then((module) => ({ default: module.GitSettings })),
+);
+const GeneralSettings = lazy(() =>
+  loadGeneral().then((module) => ({ default: module.GeneralSettings })),
+);
+const loadVoice = () => import("./agent/voice");
+const VoiceSettings = lazy(() =>
+  loadVoice().then((module) => ({ default: module.VoiceSettings })),
+);
 
 const loadAppearance = () => import("./general/appearance");
 const AppearanceSettings = lazy(() =>
@@ -148,16 +174,129 @@ const WebSearchSettings = lazy(() =>
 // current 章节在此登记一次；导航、可用性、预取与渲染共享同一事实。
 export const settingsSections: readonly SettingsSection[] = [
   {
-    key: SettingsTabs.Home,
-    group: SettingsGroupKey.Overview,
-    labelKey: "settings.tab.home",
+    key: SettingsTabs.General,
+    group: SettingsGroupKey.Personal,
+    labelKey: "settings.desktop.general",
     icon: Home,
-    preload: () => null,
-    render: (context) => context.renderHome(),
+    loadingKey: "settings.layout.loading.general",
+    preload: loadGeneral,
+    render: () => <GeneralSettings />,
+  },
+  {
+    key: SettingsTabs.Appearance,
+    group: SettingsGroupKey.Personal,
+    labelKey: "settings.tab.appearance",
+    icon: Palette,
+    loadingKey: "settings.layout.loading.appearance",
+    preload: loadAppearance,
+    render: () => <AppearanceSettings />,
+  },
+  {
+    key: SettingsTabs.ArchivedConversations,
+    group: SettingsGroupKey.Personal,
+    labelKey: "settings.desktop.archivedChats",
+    icon: Archive,
+    loadingKey: "settings.layout.loading.archivedConversations",
+    preload: loadArchivedConversations,
+    render: () => <ArchivedConversationsSettings />,
+  },
+  {
+    key: SettingsTabs.Voice,
+    group: SettingsGroupKey.Personal,
+    labelKey: "settings.desktop.voice",
+    icon: Mic,
+    loadingKey: "settings.layout.loading.voice",
+    preload: loadVoice,
+    render: () => <VoiceSettings />,
+  },
+  {
+    key: SettingsTabs.Storage,
+    group: SettingsGroupKey.Personal,
+    labelKey: "settings.storage.title",
+    icon: HardDrive,
+    preload: loadStorage,
+    render: (context) => (
+      <DeviceStorageSettings onNavigate={context.onNavigate} />
+    ),
+  },
+  {
+    key: SettingsTabs.Memory,
+    group: SettingsGroupKey.Personal,
+    labelKey: "settings.desktop.personalization",
+    icon: Brain,
+    loadingKey: "settings.layout.loading.memory",
+    preload: loadMemory,
+    render: (context) => <MemorySettings initialTab={context.searchPath} />,
+  },
+  {
+    key: SettingsTabs.KeyboardShortcuts,
+    group: SettingsGroupKey.Personal,
+    labelKey: "settings.tab.keyboardShortcuts",
+    icon: Keyboard,
+    loadingKey: "settings.layout.loading.keyboardShortcuts",
+    preload: loadKeyboardShortcuts,
+    render: () => <KeyboardShortcutsSettings />,
+  },
+  {
+    key: SettingsTabs.Providers,
+    group: SettingsGroupKey.Personal,
+    labelKey: "settings.tab.providers",
+    icon: Brain,
+    loadingKey: "settings.layout.loading.providers",
+    preload: loadProviders,
+    render: (context) => (
+      <CloudProviderSettings
+        initialView={context.providerView}
+        initialFocus={context.providerFocus}
+      />
+    ),
+  },
+  {
+    key: SettingsTabs.MediaServices,
+    group: SettingsGroupKey.Personal,
+    labelKey: "settings.tab.mediaServices",
+    icon: Image,
+    loadingKey: "settings.layout.loading.mediaServices",
+    preload: loadMediaServices,
+    render: () => <MediaServicesSettings />,
+  },
+  {
+    key: SettingsTabs.Browser,
+    group: SettingsGroupKey.Integrations,
+    labelKey: "settings.tab.browser",
+    icon: Globe,
+    loadingKey: "settings.layout.loading.browser",
+    preload: loadBrowser,
+    render: (context) => <BrowserUseSettings page={context.browserPage} />,
+  },
+  {
+    key: SettingsTabs.Environment,
+    group: SettingsGroupKey.Coding,
+    labelKey: "settings.tab.environment",
+    icon: Variable,
+    loadingKey: "settings.layout.loading.environment",
+    preload: loadEnvironment,
+    render: () => <EnvironmentSettings />,
+  },
+  {
+    key: SettingsTabs.Git,
+    group: SettingsGroupKey.Coding,
+    labelKey: "settings.git.title",
+    icon: GitBranch,
+    preload: loadGit,
+    render: () => <GitSettings />,
+  },
+  {
+    key: SettingsTabs.Worktrees,
+    group: SettingsGroupKey.Coding,
+    labelKey: "settings.worktrees.title",
+    icon: GitBranch,
+    preload: loadWorktrees,
+    render: (context) => <WorktreesSettings onNavigate={context.onNavigate} />,
   },
   {
     key: SettingsTabs.Profile,
-    group: SettingsGroupKey.Account,
+    group: SettingsGroupKey.Personal,
     labelKey: "settings.tab.profile",
     icon: User,
     loadingKey: "settings.layout.loading.profile",
@@ -172,7 +311,7 @@ export const settingsSections: readonly SettingsSection[] = [
   },
   {
     key: SettingsTabs.Stats,
-    group: SettingsGroupKey.Account,
+    group: SettingsGroupKey.Personal,
     labelKey: "settings.tab.stats",
     icon: BarChart3,
     loadingKey: "settings.layout.loading.stats",
@@ -180,67 +319,8 @@ export const settingsSections: readonly SettingsSection[] = [
     render: () => <StatsSettings />,
   },
   {
-    key: SettingsTabs.Appearance,
-    group: SettingsGroupKey.General,
-    labelKey: "settings.tab.appearance",
-    icon: Palette,
-    loadingKey: "settings.layout.loading.appearance",
-    preload: loadAppearance,
-    render: () => <AppearanceSettings />,
-  },
-  {
-    key: SettingsTabs.Browser,
-    group: SettingsGroupKey.General,
-    labelKey: "settings.tab.browser",
-    icon: Globe,
-    loadingKey: "settings.layout.loading.browser",
-    preload: loadBrowser,
-    render: (context) => <BrowserUseSettings page={context.browserPage} />,
-  },
-  {
-    key: SettingsTabs.KeyboardShortcuts,
-    group: SettingsGroupKey.General,
-    labelKey: "settings.tab.keyboardShortcuts",
-    icon: Keyboard,
-    loadingKey: "settings.layout.loading.keyboardShortcuts",
-    preload: loadKeyboardShortcuts,
-    render: () => <KeyboardShortcutsSettings />,
-  },
-  {
-    key: SettingsTabs.Memory,
-    group: SettingsGroupKey.General,
-    labelKey: "settings.tab.memory",
-    icon: Brain,
-    loadingKey: "settings.layout.loading.memory",
-    preload: loadMemory,
-    render: (context) => <MemorySettings initialTab={context.searchPath} />,
-  },
-  {
-    key: SettingsTabs.ArchivedConversations,
-    group: SettingsGroupKey.General,
-    labelKey: "settings.tab.archivedConversations",
-    icon: Archive,
-    loadingKey: "settings.layout.loading.archivedConversations",
-    preload: loadArchivedConversations,
-    render: () => <ArchivedConversationsSettings />,
-  },
-  {
-    key: SettingsTabs.Providers,
-    group: SettingsGroupKey.Agent,
-    labelKey: "settings.tab.providers",
-    icon: Brain,
-    loadingKey: "settings.layout.loading.providers",
-    preload: loadProviders,
-    render: (context) => (
-      <CloudProviderSettings
-        initialView={context.providerView}
-        initialFocus={context.providerFocus}
-      />
-    ),
-  },
-  {
     key: SettingsTabs.Skills,
-    group: SettingsGroupKey.Agent,
+    group: SettingsGroupKey.Integrations,
     labelKey: "settings.tab.skills",
     icon: Puzzle,
     loadingKey: "settings.layout.loading.skills",
@@ -248,17 +328,8 @@ export const settingsSections: readonly SettingsSection[] = [
     render: () => <ExtensionsSettings />,
   },
   {
-    key: SettingsTabs.MediaServices,
-    group: SettingsGroupKey.Agent,
-    labelKey: "settings.tab.mediaServices",
-    icon: Image,
-    loadingKey: "settings.layout.loading.mediaServices",
-    preload: loadMediaServices,
-    render: () => <MediaServicesSettings />,
-  },
-  {
     key: SettingsTabs.McpServer,
-    group: SettingsGroupKey.System,
+    group: SettingsGroupKey.Integrations,
     labelKey: "settings.tab.mcpServer",
     icon: Plug,
     loadingKey: "settings.layout.loading.mcpServer",
@@ -267,7 +338,7 @@ export const settingsSections: readonly SettingsSection[] = [
   },
   {
     key: SettingsTabs.WebSearch,
-    group: SettingsGroupKey.System,
+    group: SettingsGroupKey.Coding,
     labelKey: "settings.tab.webSearch",
     icon: Search,
     loadingKey: "settings.layout.loading.webSearch",
@@ -275,17 +346,8 @@ export const settingsSections: readonly SettingsSection[] = [
     render: (context) => <WebSearchSettings initialTab={context.searchPath} />,
   },
   {
-    key: SettingsTabs.Environment,
-    group: SettingsGroupKey.System,
-    labelKey: "settings.tab.environment",
-    icon: Variable,
-    loadingKey: "settings.layout.loading.environment",
-    preload: loadEnvironment,
-    render: () => <EnvironmentSettings />,
-  },
-  {
     key: SettingsTabs.ExecutionPolicy,
-    group: SettingsGroupKey.System,
+    group: SettingsGroupKey.Coding,
     labelKey: "settings.tab.executionPolicy",
     icon: ShieldCheck,
     loadingKey: "settings.layout.loading.executionPolicy",
@@ -296,7 +358,7 @@ export const settingsSections: readonly SettingsSection[] = [
   },
   {
     key: SettingsTabs.Developer,
-    group: SettingsGroupKey.System,
+    group: SettingsGroupKey.Coding,
     labelKey: "settings.tab.developerLab",
     icon: Code,
     experimental: true,
@@ -320,7 +382,7 @@ export const settingsSections: readonly SettingsSection[] = [
   },
   {
     key: SettingsTabs.About,
-    group: SettingsGroupKey.System,
+    group: SettingsGroupKey.Personal,
     labelKey: "settings.tab.about",
     icon: Info,
     loadingKey: "settings.layout.loading.about",

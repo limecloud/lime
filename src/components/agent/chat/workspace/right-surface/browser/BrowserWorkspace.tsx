@@ -38,9 +38,13 @@ import {
   BrowserWorkspacePermissionBanner,
   type BrowserWorkspaceError,
 } from "./BrowserWorkspaceStatus";
-import { BrowserNavigationBar, browserIconButton } from "./BrowserNavigationBar";
+import {
+  BrowserNavigationBar,
+  browserIconButton,
+} from "./BrowserNavigationBar";
 import { SquareMousePointer } from "lucide-react";
 import { useBrowserAnnotations } from "./useBrowserAnnotations";
+import { BrowserAnnotationToolbar } from "./BrowserAnnotationToolbar";
 import { BrowserFindBar } from "./BrowserFindBar";
 import { useBrowserWorkspaceHydration } from "./useBrowserWorkspaceHydration";
 import { matchesBrowserTabEvent } from "./browserTabEventIdentity";
@@ -126,7 +130,13 @@ export const BrowserWorkspace = memo(function BrowserWorkspace({
   const selected =
     tabs.find((tab) => (tabId ? tab.tabId === tabId : tab.selected)) ?? null;
   selectedRef.current = selected;
-  const annotations = useBrowserAnnotations({ selected, active, onError: reportHostError });
+  const annotations = useBrowserAnnotations({
+    selected,
+    active,
+    onError: reportHostError,
+  });
+  const annotationsRef = useRef(annotations);
+  annotationsRef.current = annotations;
 
   useEffect(() => setFindVisible(false), [selected?.tabId, selected?.url]);
 
@@ -179,9 +189,18 @@ export const BrowserWorkspace = memo(function BrowserWorkspace({
       if (!activeRef.current || !tab || !matchesBrowserTabEvent(tab, event))
         return;
       const command = event.command;
-      if (command === "focus-address")
-        setAddressFocusRequest((value) => value + 1);
-      else if (command === "find") setFindVisible(true);
+      if (command === "focus-address") {
+        void (async () => {
+          const annotation = annotationsRef.current;
+          if (annotation.selecting) await annotation.exit();
+          if (
+            activeRef.current &&
+            matchesBrowserTabEvent(selectedRef.current, tab) &&
+            selectedRef.current?.pageRevision === tab.pageRevision
+          )
+            setAddressFocusRequest((value) => value + 1);
+        })().catch(reportHostError);
+      } else if (command === "find") setFindVisible(true);
       else if (command === "reload")
         void run(() => reloadBrowserTab(tab.tabId));
       else if (command === "go-back" && tab.canGoBack)
@@ -419,44 +438,65 @@ export const BrowserWorkspace = memo(function BrowserWorkspace({
       data-browser-url={selected?.url ?? ""}
       data-browser-zoom-factor={selected?.zoomFactor ?? 1}
     >
-      <BrowserNavigationBar
-        selected={selected}
-        translate={translate}
-        run={run}
-        annotationAction={
-          <button type="button" className={browserIconButton} disabled={!active || !annotations.available} aria-label={translate("browserAnnotation.select")} title={translate("browserAnnotation.select")} aria-pressed={annotations.selecting} data-testid="browser-annotation-select" onClick={() => void annotations.begin().catch(reportHostError)}>
-            <SquareMousePointer className="h-4 w-4" aria-hidden="true" />
-          </button>
-        }
-        actions={
-          <BrowserOptionsMenu
-            selected={selected}
-            owner={owner}
-            active={active}
-            run={run}
-            onFind={() => setFindVisible(true)}
-            onError={reportHostError}
-            onDeviceToggle={() => {
-              if (!selected) return;
-              void run(() =>
-                setBrowserTabDevice(
-                  selected.tabId,
-                  selected.device
-                    ? null
-                    : {
-                        width: 390,
-                        height: 844,
-                        deviceScaleFactor: 3,
-                        scale: 0.5,
-                        mobile: true,
-                      },
-                ),
-              );
-            }}
-          />
-        }
-        addressFocusRequest={addressFocusRequest}
-      />
+      {annotations.selecting ? (
+        <BrowserAnnotationToolbar
+          selected={selected}
+          active={active}
+          suspended={annotations.suspended}
+          addModifierPressed={annotations.addModifierPressed}
+          onExit={annotations.exit}
+          onAddToComposer={annotations.addToComposer}
+          onError={reportHostError}
+        />
+      ) : (
+        <BrowserNavigationBar
+          selected={selected}
+          translate={translate}
+          run={run}
+          annotationAction={
+            <button
+              type="button"
+              className={browserIconButton}
+              disabled={!active || !annotations.available}
+              aria-label={translate("browserAnnotation.select")}
+              title={translate("browserAnnotation.select")}
+              aria-pressed={annotations.selecting}
+              data-testid="browser-annotation-select"
+              onClick={() => void annotations.begin().catch(reportHostError)}
+            >
+              <SquareMousePointer className="h-4 w-4" aria-hidden="true" />
+            </button>
+          }
+          actions={
+            <BrowserOptionsMenu
+              selected={selected}
+              owner={owner}
+              active={active}
+              run={run}
+              onFind={() => setFindVisible(true)}
+              onError={reportHostError}
+              onDeviceToggle={() => {
+                if (!selected) return;
+                void run(() =>
+                  setBrowserTabDevice(
+                    selected.tabId,
+                    selected.device
+                      ? null
+                      : {
+                          width: 390,
+                          height: 844,
+                          deviceScaleFactor: 3,
+                          scale: 0.5,
+                          mobile: true,
+                        },
+                  ),
+                );
+              }}
+            />
+          }
+          addressFocusRequest={addressFocusRequest}
+        />
+      )}
       {selected?.device ? (
         <BrowserDeviceToolbar
           key={selected.tabId}

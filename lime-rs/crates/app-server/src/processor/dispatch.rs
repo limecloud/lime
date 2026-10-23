@@ -109,6 +109,16 @@ impl RequestProcessor {
                 METHOD_PROJECT_GIT_WORKTREE_CREATE => {
                     self.handle_project_git_worktree_create_impl(params).boxed()
                 }
+                METHOD_PROJECT_GIT_WORKTREE_LIST => {
+                    self.handle_project_git_worktree_list_impl(params).boxed()
+                }
+                METHOD_STORAGE_READ => self.handle_storage_read(params, false).boxed(),
+                METHOD_STORAGE_REFRESH => self.handle_storage_read(params, true).boxed(),
+                METHOD_STORAGE_REVIEW => self.handle_storage_review(params).boxed(),
+                METHOD_STORAGE_DELETE => self.handle_storage_delete(params).boxed(),
+                METHOD_PROJECT_GIT_WORKTREE_DELETE => {
+                    self.handle_project_git_worktree_delete_impl(params).boxed()
+                }
                 v2::METHOD_PROCESS_SPAWN => self
                     .handle_process_spawn_impl(params, connection_request_id.clone())
                     .boxed(),
@@ -477,6 +487,27 @@ impl RequestProcessor {
                 METHOD_VOICE_MODEL_TEST_TRANSCRIBE_FILE => self
                     .handle_voice_model_test_transcribe_file_impl(params)
                     .boxed(),
+                METHOD_INSTRUCTIONS_READ => self.handle_read_instructions_impl().boxed(),
+                METHOD_INSTRUCTIONS_WRITE => self.handle_write_instructions_impl(params).boxed(),
+                METHOD_DICTATION_HISTORY_LIST => self.handle_list_dictation_history_impl().boxed(),
+                METHOD_DICTATION_HISTORY_START => {
+                    self.handle_start_dictation_history_impl(params).boxed()
+                }
+                METHOD_DICTATION_HISTORY_APPEND_AUDIO => self
+                    .handle_append_dictation_history_audio_impl(params)
+                    .boxed(),
+                METHOD_DICTATION_HISTORY_FINISH => {
+                    self.handle_finish_dictation_history_impl(params).boxed()
+                }
+                METHOD_DICTATION_HISTORY_READ_AUDIO => self
+                    .handle_read_dictation_history_audio_impl(params)
+                    .boxed(),
+                METHOD_DICTATION_HISTORY_SET_TRANSCRIPT => self
+                    .handle_set_dictation_history_transcript_impl(params)
+                    .boxed(),
+                METHOD_DICTATION_HISTORY_DELETE => {
+                    self.handle_delete_dictation_history_impl(params).boxed()
+                }
                 METHOD_VOICE_TRANSCRIPTION_TRANSCRIBE_AUDIO => self
                     .handle_voice_transcription_transcribe_audio_impl(params)
                     .boxed(),

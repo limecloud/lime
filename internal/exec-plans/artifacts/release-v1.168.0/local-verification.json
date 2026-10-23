@@ -1,0 +1,107 @@
+{
+  "recorded_at": "2026-10-23T11:14:35.163425+00:00",
+  "base": "348e0a03a7dc61e34f984ae490e0a18e40367764",
+  "candidate_scope": "All frozen candidate changes; subsequent parallel edits and tsconfig.node.tsbuildinfo excluded.",
+  "checks": [
+    {
+      "name": "model-and-storage-unit",
+      "command": [
+        "npm",
+        "exec",
+        "--",
+        "vitest",
+        "run",
+        "src/components/api-key-provider/ApiKeyProviderSection.ui.test.tsx",
+        "src/lib/model/inferModelCapabilities.test.ts",
+        "src/lib/model/minimaxCatalogPolicy.test.ts",
+        "src/lib/model/currentProviderModelCapabilities.test.ts",
+        "src/components/settings-v2/general/storage/index.test.tsx",
+        "src/lib/api/storage.test.ts",
+        "--maxWorkers=1"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 111.02
+    },
+    {
+      "name": "model-eslint",
+      "command": [
+        "npm",
+        "exec",
+        "--",
+        "eslint",
+        "src/components/api-key-provider/ModelAddPanel.tsx",
+        "src/components/api-key-provider/ApiKeyProviderSection.ui.test.tsx",
+        "src/lib/model/inferModelCapabilities.ts",
+        "src/lib/model/currentProviderModelCapabilities.test.ts",
+        "--max-warnings",
+        "0"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 33.37
+    },
+    {
+      "name": "version",
+      "command": [
+        "npm",
+        "run",
+        "verify:app-version"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 3.51
+    },
+    {
+      "name": "contracts",
+      "command": [
+        "npm",
+        "run",
+        "test:contracts"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 344.69
+    },
+    {
+      "name": "typecheck",
+      "command": [
+        "npm",
+        "run",
+        "typecheck"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 465.95
+    }
+  ],
+  "additional_checks": [
+    {
+      "name": "canonical-data-integrity",
+      "result": "passed",
+      "models": 253,
+      "preexisting_curated_unknown_contexts": 6
+    },
+    {
+      "name": "candidate-diff-check",
+      "result": "passed"
+    },
+    {
+      "name": "model-rust-format",
+      "result": "passed"
+    }
+  ],
+  "frontend_tests": {
+    "final_model_and_storage": {
+      "files": 6,
+      "passed": 103
+    },
+    "earlier_candidate": {
+      "passed": 1235,
+      "failed": 3,
+      "followup": "i18n contracts and dictation terminal-state failures fixed and targeted regressions passed; not a final full-suite claim"
+    }
+  },
+  "pending": {
+    "local_model_provider": "Compiling after external Cargo lock; not yet a pass.",
+    "local_gui_smoke": "Running real build/fixture; not yet a pass.",
+    "remote_quality": "Will validate the exact pushed release commit before tagging."
+  },
+  "live_provider_inference": false,
+  "evidence_boundary": "Unit/contracts/typecheck prove their stated layers; real Desktop Gate B remains pending."
+}

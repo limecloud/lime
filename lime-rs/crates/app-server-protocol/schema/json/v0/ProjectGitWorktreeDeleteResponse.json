@@ -1,6 +1,12 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
+    "archivedThreadIds": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
     "repositoryRoot": {
       "type": [
         "null",
@@ -12,6 +18,7 @@
     }
   },
   "required": [
+    "archivedThreadIds",
     "worktreePath"
   ],
   "title": "ProjectGitWorktreeDeleteResponse",

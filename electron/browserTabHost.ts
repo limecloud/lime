@@ -2,9 +2,12 @@ import { BrowserOverlayHost } from "./browserOverlayHost";
 import { BrowserAnnotationHost } from "./browserAnnotationHost";
 import { BROWSER_ANNOTATION_COMMANDS, type BrowserAnnotationCommand } from "./browserAnnotationModel";
 import { BrowserHistoryHost, isBrowserHistoryCommand } from "./browserHistoryHost";
+import { BrowserDownloadsHost, isBrowserDownloadsCommand } from "./browserDownloadsHost";
 import { BROWSER_ANNOTATION_EDITOR_COMMANDS, invokeBrowserAnnotationEditor, type BrowserAnnotationEditorCommand } from "./browserTabAnnotationEditor";
 import { readBrowserMenuPresentation } from "./browserOverlayModel";
 import { BrowserTabPolicy } from "./browserTabPolicy";
+import { BrowserActionApprovals, type PendingBrowserApproval } from "./browserActionApprovals";
+import { BrowserHistoryTool } from "./browserHistoryTool";
 import { BrowserPermissions, type BrowserPermissionAnchor, type PendingBrowseApproval } from "./browserPermissions";
 import {
   adoptBrowserTabPopup,
@@ -27,7 +30,6 @@ export {
 } from "./browserTabCommands";
 export type { BrowserTabCommand } from "./browserTabCommands";
 import {
-  browserToolCallKey,
   readMountIdentity,
   assertSameRoute,
   enrichState,
@@ -50,7 +52,6 @@ import { randomUUID } from "node:crypto";
 import { readBrowserTabSnapshot } from "./browserTabSnapshot";
 import { selectBrowserRoutes } from "./browserTabSelection";
 import process from "node:process";
-import { isDeepStrictEqual } from "node:util";
 import { statSync } from "node:fs";
 import type { BrowserWindow } from "./electronRuntime";
 import { clipboard, shell } from "./electronRuntime";
@@ -135,27 +136,6 @@ export interface BrowserToolResult {
   status: "approval_required" | "completed" | "human_takeover";
 }
 
-interface PendingBrowserApproval {
-  kind: "action";
-  pageRevision: number;
-  actionKind: string;
-  approvalToken: string;
-  arguments: Record<string, unknown>;
-  backendNodeId: number | null;
-  browserSessionId: string;
-  callId: string;
-  ownerWebContentsId: number;
-  snapshotId: string | null;
-  tabId: string;
-  targetDescription: string | null;
-  threadId: string;
-  tool: string;
-  turnId: string;
-  viewId: string;
-  webContentsId: number;
-  windowId: number;
-}
-
 interface BrowserArtifactRecord {
   artifactRef: string;
   filename: string;
@@ -218,7 +198,7 @@ export class ElectronBrowserTabHost {
   readonly #emit: HostEventEmitter;
   readonly #routesByTabId = new Map<string, BrowserRoute>();
   readonly #tabIdsByViewId = new Map<string, string>();
-  readonly #pendingApprovals = new Map<string, PendingBrowserApproval>();
+  readonly #actionApprovals = new BrowserActionApprovals();
   readonly #pendingPermissions = new Map<string, PendingBrowserPermission>();
   readonly #artifactsByRef = new Map<string, BrowserArtifactRecord>();
   readonly #userControlObserversByViewId = new Map<
@@ -231,6 +211,8 @@ export class ElectronBrowserTabHost {
   readonly #permissions = new BrowserPermissions(this.#policy);
   readonly #overlay: BrowserOverlayHost;
   readonly #history: BrowserHistoryHost;
+  readonly #historyTool: BrowserHistoryTool;
+  readonly #downloads: BrowserDownloadsHost;
   readonly #annotations: BrowserAnnotationHost;
   #annotationScreenshotMode: "always" | "necessary" = "always";
   #settingsProvider: (() => Promise<BrowserSettings>) | null = null;
@@ -248,18 +230,29 @@ export class ElectronBrowserTabHost {
         if (!route) return null;
         const native = this.#nativeRoute(route);
         const { browserSessionId, threadId, viewId, ownerWebContentsId, windowId, pageRevision } = route;
-        return { ...native, selected: route.selected, identity: { browserSessionId, threadId, tabId, viewId, ownerWebContentsId, windowId, pageRevision, webContentsId: native.view.webContents.id } };
+        return { ...native, selected: route.selected, annotationAllowed: route.controlOwner !== "agent" && route.controlOwner !== "human_takeover", identity: { browserSessionId, threadId, tabId, viewId, ownerWebContentsId, windowId, pageRevision, webContentsId: native.view.webContents.id } };
       },
       emit: this.#emit,
       screenshotMode: () => this.#annotationScreenshotMode,
+      onActivate: (session) => {
+        const { annotationId, kind: _kind, scope: _scope, ...identity } = session;
+        this.#overlay.focusAnnotation(identity, annotationId);
+      },
+      onAnchor: (session, anchor, bounds) => {
+        const { annotationId, kind: _kind, scope: _scope, ...identity } = session;
+        this.#overlay.positionAnnotation(identity, annotationId, anchor, bounds);
+      },
     });
     this.#history = options.history ?? new BrowserHistoryHost(revision => this.#emit("browser-history-changed", { revision }));
+    this.#historyTool = new BrowserHistoryTool({ history: this.#history, policy: this.#policy, refreshSettings: () => this.#refreshSettings(), anchor: call => this.#permissionAnchor(this.#permissionRoute(call), call.turnId) });
+    this.#downloads = new BrowserDownloadsHost((change) => this.#emit("browser-downloads-changed", change), { recover: (request) => this.#embeddedHost.resumeDownload(request) });
+    this.#embeddedHost.setDownloadObserver?.((...args) => this.#downloads.observe(...args));
     this.#overlay = new BrowserOverlayHost((event) => {
       const tabId = this.#tabIdsByViewId.get(event.viewId);
       const route = tabId ? this.#routesByTabId.get(tabId) : null;
       if (!route) return;
       this.#emitBrowserEmbeddedEvent(event.itemId ? "browser-tab-menu-action" : "browser-tab-overlay-closed", route, event as unknown as Record<string, unknown>, this.#embeddedHost.resolveNativeView(route.viewId)?.view.webContents.id ?? null);
-    }, { onAnnotationEvent: (event) => this.#emit("browser-tab-annotation-editor", event), onCommand: (viewId, command) => {
+    }, { onAnnotationEvent: (event) => { this.#annotations.previewDesign(event); this.#emit("browser-tab-annotation-editor", event); }, onCommand: (viewId, command) => {
       this.observeEmbeddedEvent("embedded-browser-view-command", { viewId, command });
     } });
     this.#embeddedHost.setAgentPermissionResolver((viewId, url, action) => {
@@ -278,7 +271,8 @@ export class ElectronBrowserTabHost {
     });
   }
 
-  setSettings(settings: BrowserSettings): void {
+  setSettings(settings: BrowserSettings, locale?: string): void {
+    if (locale !== undefined) this.#historyTool.setLocale(locale);
     this.#embeddedHost.setSettings(settings);
     this.#annotationScreenshotMode = settings.annotation_screenshot;
     if (!this.#policy.setSettings(settings)) return;
@@ -374,12 +368,28 @@ export class ElectronBrowserTabHost {
       throw new Error("Browser tab owner window is unavailable");
     }
     if (isBrowserHistoryCommand(command)) return this.#history.invoke(command, args);
+    if (isBrowserDownloadsCommand(command)) return this.#downloads.invoke(command, args);
     if ((BROWSER_ANNOTATION_EDITOR_COMMANDS as readonly string[]).includes(command)) {
       const route = this.#routeForRenderer(window, args);
-      if (command !== "browser_tab_close_annotation_editor" && !route.selected) throw new Error("Browser annotation editor requires the selected tab");
+      if (command !== "browser_tab_close_annotation_editor" && !route.selected) {
+        throw new Error("Browser annotation editor requires the selected tab");
+      }
+      if (command !== "browser_tab_close_annotation_editor" && (route.controlOwner === "agent" || route.controlOwner === "human_takeover")) throw new Error("Browser annotation editor requires user control");
       const native = this.#nativeRoute(route);
       const { browserSessionId, threadId, tabId, viewId, ownerWebContentsId, windowId, pageRevision } = route;
-      return invokeBrowserAnnotationEditor(this.#overlay, window, command as BrowserAnnotationEditorCommand, asRecord(args) ?? {}, native.view, { browserSessionId, threadId, tabId, viewId, ownerWebContentsId, windowId, pageRevision, webContentsId: native.view.webContents.id });
+      const result = await invokeBrowserAnnotationEditor(
+        this.#overlay,
+        window,
+        command as BrowserAnnotationEditorCommand,
+        asRecord(args) ?? {},
+        native.view,
+        { browserSessionId, threadId, tabId, viewId, ownerWebContentsId, windowId, pageRevision, webContentsId: native.view.webContents.id },
+      );
+      if (command === "browser_tab_show_annotation_editor") {
+        const presentation = asRecord(asRecord(args)?.presentation);
+        if (typeof presentation?.annotationId === "string") this.#annotations.refresh(viewId, presentation.annotationId);
+      }
+      return result;
     }
     if (BROWSER_ANNOTATION_COMMANDS.includes(command as BrowserAnnotationCommand)) {
       const route = this.#routeForRenderer(window, args);
@@ -458,6 +468,11 @@ export class ElectronBrowserTabHost {
   }
 
   async #executePreflight(call: BrowserToolCall): Promise<BrowserToolResult> {
+    if (call.tool === "history") {
+      const route = this.#permissionRoute(call);
+      const result = await this.#historyTool.preflight(call, reason => this.#requireApproval(route, call, reason, "history_read"));
+      return { ...result, state: this.#emitState(route) };
+    }
     if (call.tool === "openTabs") {
       return {
         status: "completed",
@@ -488,7 +503,7 @@ export class ElectronBrowserTabHost {
       return { status: "completed", state };
     }
     if (call.tool === "claimTab") {
-      this.#annotations.cancelView(route.viewId, "agent-control");
+      this.#overlay.hide(route.viewId, "hidden");
       route.activeTurnId = call.turnId;
       route.controlOwner = "agent";
       route.humanReason = null;
@@ -639,7 +654,7 @@ export class ElectronBrowserTabHost {
     threadId: string,
     turnId: string,
   ): PendingBrowserApproval | PendingBrowseApproval | null {
-    for (const approval of [...this.#pendingApprovals.values(), ...this.#permissions.pending()]) {
+    for (const approval of [...this.#actionApprovals.list(), ...this.#permissions.pending()]) {
       if (approval.threadId === threadId && approval.turnId === turnId) {
         return structuredClone(approval);
       }
@@ -648,7 +663,7 @@ export class ElectronBrowserTabHost {
   }
 
   pendingApprovalsForE2e(): (PendingBrowserApproval | PendingBrowseApproval)[] {
-    return [...this.#pendingApprovals.values(), ...this.#permissions.pending()].map((approval) =>
+    return [...this.#actionApprovals.list(), ...this.#permissions.pending()].map((approval) =>
       structuredClone(approval),
     );
   }
@@ -928,7 +943,7 @@ export class ElectronBrowserTabHost {
     this.#permissions.revoke();
     this.#clearPendingPermissions(() => true);
     this.#embeddedHost.clearPendingPermissions?.();
-    this.#pendingApprovals.clear();
+    this.#clearPendingApprovals(() => true);
     for (const route of [...this.#routesByTabId.values()]) {
       if (
         route.activeTurnId === null &&
@@ -950,6 +965,8 @@ export class ElectronBrowserTabHost {
       }
     }
   }
+
+  prepareShutdown(): Promise<void> { this.#embeddedHost.prepareDownloadShutdown(); return this.#downloads.prepareShutdown(); }
 
   dispose(): void {
     this.#permissions.revoke();
@@ -1056,6 +1073,7 @@ export class ElectronBrowserTabHost {
         },
       );
       this.#emitState(route);
+      this.#annotations.revalidateView(route.viewId);
     }
     return this.#readState(selected);
   }
@@ -1241,7 +1259,6 @@ export class ElectronBrowserTabHost {
   }
 
   #invalidateSnapshot(route: BrowserRoute): void {
-    this.#annotations.cancelView(route.viewId, "page-changed");
     this.#permissions.clearPending(approval => approval.tabId === route.tabId);
     this.#clearPendingApprovals((approval) => approval.tabId === route.tabId);
     this.#clearPendingPermissions(
@@ -1252,6 +1269,7 @@ export class ElectronBrowserTabHost {
         permission.viewId === route.viewId,
     );
     route.pageRevision += 1;
+    this.#annotations.advanceView(route.viewId, route.pageRevision - 1);
     route.latestSnapshotId = null;
     route.latestSnapshotNodeIds.clear();
   }
@@ -1478,93 +1496,24 @@ export class ElectronBrowserTabHost {
     riskClass: string,
     targetDescription: string | null = null,
   ): BrowserToolResult {
-    const callKey = browserToolCallKey(call);
-    if (this.#pendingApprovals.has(callKey) || this.#permissions.hasPending(call)) {
-      throw new Error("Browser action approval is already pending");
-    }
-    const native = this.#nativeRoute(route);
-    const approvalToken = randomUUID();
-    const snapshotId =
-      call.tool === "click" || call.tool === "fill" || call.tool === "press"
-        ? readRequiredString(call.arguments, "snapshotId")
-        : readString(call.arguments, "snapshotId");
-    const backendNodeId =
-      call.tool === "click" || call.tool === "fill"
-        ? readPositiveInteger(call.arguments.backendNodeId)
-        : null;
-    const approval: PendingBrowserApproval = {
-      kind: "action",
-      pageRevision: route.pageRevision,
-      actionKind: call.tool,
-      approvalToken,
-      arguments: structuredClone(call.arguments),
-      backendNodeId,
-      browserSessionId: route.browserSessionId,
-      callId: call.callId,
-      ownerWebContentsId: call.ownerWebContentsId,
-      snapshotId,
-      tabId: route.tabId,
-      targetDescription,
-      threadId: call.threadId,
-      tool: call.tool,
-      turnId: call.turnId,
-      viewId: route.viewId,
-      webContentsId: native.view.webContents.id,
-      windowId: route.windowId,
-    };
-    this.#pendingApprovals.set(callKey, approval);
-    return {
-      status: "approval_required",
-      state: this.#emitState(route),
-      approval: {
-        actionKind: approval.actionKind,
-        approvalToken,
-        ...(backendNodeId === null ? {} : { backendNodeId }),
-        browserSessionId: approval.browserSessionId,
-        reason,
-        riskClass,
-        snapshotId: snapshotId ?? "none",
-        tabId: approval.tabId,
-        viewId: approval.viewId,
-        webContentsId: approval.webContentsId,
-      },
-    };
+    if (this.#permissions.hasPending(call)) throw new Error("Browser action approval is already pending");
+    return this.#actionApprovals.request(call, this.#permissionAnchor(route, call.turnId), this.#emitState(route), reason, riskClass, targetDescription);
   }
 
   async #executeApprovedTool(
     call: BrowserToolCall,
   ): Promise<BrowserToolResult> {
-    const callKey = browserToolCallKey(call);
-    const pending = this.#pendingApprovals.get(callKey);
-    if (!pending || call.approvalToken !== pending.approvalToken) {
-      throw new Error("Browser action approval token is stale or invalid");
-    }
-    this.#pendingApprovals.delete(callKey);
-    if (
-      call.tool !== pending.tool ||
-      call.threadId !== pending.threadId ||
-      call.turnId !== pending.turnId ||
-      call.callId !== pending.callId ||
-      call.ownerWebContentsId !== pending.ownerWebContentsId ||
-      !isDeepStrictEqual(call.arguments, pending.arguments)
-    ) {
-      throw new Error("Browser approved action identity mismatch");
-    }
+    const pending = this.#actionApprovals.consume(call);
     const route = this.#resolveToolRoute(call);
+    if (call.tool === "history") {
+      this.#actionApprovals.assertRoute(pending, this.#permissionAnchor(route, call.turnId));
+      return { ...await this.#historyTool.read(call), state: this.#emitState(route) };
+    }
     this.#assertAgentControl(route, call.turnId);
     this.#policy.assertTool(call, this.#readState(route).url);
     this.#permissions.assertAllowed(this.#permissionAnchor(route, call.turnId), this.#readState(route).url);
     const native = this.#nativeRoute(route);
-    if (
-      route.browserSessionId !== pending.browserSessionId ||
-      route.tabId !== pending.tabId ||
-      route.viewId !== pending.viewId ||
-      route.windowId !== pending.windowId ||
-      route.pageRevision !== pending.pageRevision ||
-      native.view.webContents.id !== pending.webContentsId
-    ) {
-      throw new Error("Browser approved action native route mismatch");
-    }
+    this.#actionApprovals.assertRoute(pending, this.#permissionAnchor(route, call.turnId));
     if (pending.snapshotId !== null) {
       this.#assertSnapshot(
         route,
@@ -1776,14 +1725,9 @@ export class ElectronBrowserTabHost {
     };
   }
 
-  #clearPendingApprovals(
-    predicate: (approval: PendingBrowserApproval) => boolean,
-  ): void {
-    for (const [key, approval] of this.#pendingApprovals) {
-      if (predicate(approval)) {
-        this.#pendingApprovals.delete(key);
-      }
-    }
+  #clearPendingApprovals(predicate: (approval: BrowserPermissionAnchor) => boolean): void {
+    this.#actionApprovals.clear(predicate);
+    this.#historyTool.cancel(predicate);
   }
 
   #clearArtifacts(
@@ -1873,6 +1817,7 @@ export class ElectronBrowserTabHost {
     );
     route.lastPageStateKey = browserPageStateKey(next);
     this.#emit("browser-tab-state", next);
+    this.#annotations.revalidateView(route.viewId);
     return next;
   }
 

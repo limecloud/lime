@@ -3,9 +3,12 @@ import {
   APP_SERVER_SOURCE_FILES,
   HOST_SOURCE_DIRS,
   HOST_SOURCE_FILES,
+  HOST_PRELOAD_BUILD_ENTRIES,
+  RENDERER_BUILD_ENTRIES,
   RENDERER_SOURCE_DIRS,
   RENDERER_SOURCE_FILES,
   createMtimeEntry,
+  declaredBuildEntries,
   findNewestBuildInput,
   pickNewer,
   statFile,
@@ -46,11 +49,21 @@ function nodeCommand() {
 }
 
 function electronFixtureBuildSegments({ rootDir }) {
+  const rendererEntries = declaredBuildEntries(rootDir, RENDERER_BUILD_ENTRIES);
+  const preloadEntries = declaredBuildEntries(
+    rootDir,
+    HOST_PRELOAD_BUILD_ENTRIES,
+  );
   return [
     {
       id: "renderer",
       label: "renderer",
-      requiredFiles: [path.join(rootDir, "dist", "index.html")],
+      requiredFiles: rendererEntries.map((entry) =>
+        path.join(rootDir, entry.output),
+      ),
+      entrySources: rendererEntries
+        .slice(1)
+        .map((entry) => path.join(rootDir, entry.source)),
       sourceDirs: RENDERER_SOURCE_DIRS,
       sourceFiles: RENDERER_SOURCE_FILES,
       buildSteps: [
@@ -66,7 +79,7 @@ function electronFixtureBuildSegments({ rootDir }) {
       label: "Electron host",
       requiredFiles: [
         path.join(rootDir, "dist-electron", "main", "main.js"),
-        path.join(rootDir, "dist-electron", "preload", "preload.cjs"),
+        ...preloadEntries.map((entry) => path.join(rootDir, entry.output)),
         path.join(
           rootDir,
           "dist-electron",
@@ -77,6 +90,9 @@ function electronFixtureBuildSegments({ rootDir }) {
           "marketplace.json",
         ),
       ],
+      entrySources: preloadEntries
+        .slice(1)
+        .map((entry) => path.join(rootDir, entry.source)),
       sourceDirs: HOST_SOURCE_DIRS,
       sourceFiles: HOST_SOURCE_FILES,
       buildSteps: [
@@ -178,10 +194,25 @@ function inspectElectronFixtureBuildSegmentFreshness(rootDir, segment) {
 
   const oldestArtifact = findOldestRequiredArtifact(rootDir, requiredFiles);
   const newestSource = findNewestBuildInput(rootDir, segment);
+  const missingSourceFiles = (segment.entrySources ?? []).filter(
+    (filePath) => !statFile(filePath)?.isFile(),
+  );
+  if (missingSourceFiles.length > 0) {
+    return {
+      id: segment.id,
+      label: segment.label,
+      ready: false,
+      reason: "stale-source",
+      requiredFiles,
+      missingFiles: [],
+      missingSourceFiles,
+      newestSource,
+      oldestArtifact,
+    };
+  }
   if (segment.id === "renderer") {
-    const invalidRendererAssets = inspectRendererEntryAssets(
-      rootDir,
-      requiredFiles[0],
+    const invalidRendererAssets = requiredFiles.flatMap((entryPath) =>
+      inspectRendererEntryAssets(rootDir, entryPath),
     );
     if (invalidRendererAssets.length > 0) {
       return {

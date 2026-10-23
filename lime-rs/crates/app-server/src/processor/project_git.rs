@@ -4,7 +4,7 @@ use super::{dispatch_result, parse_params, to_jsonrpc_error, RequestProcessor, R
 use app_server_protocol::{
     JsonRpcError, ProjectGitBranchCheckoutParams, ProjectGitBranchCreateParams,
     ProjectGitCommitListParams, ProjectGitDiffParams, ProjectGitStatusParams,
-    ProjectGitWorktreeCreateParams,
+    ProjectGitWorktreeCreateParams, ProjectGitWorktreeDeleteParams, ProjectGitWorktreeListParams,
 };
 use serde_json::Value;
 
@@ -90,6 +90,39 @@ impl RequestProcessor {
             .create_project_git_worktree(params)
             .await
             .map_err(to_jsonrpc_error)?;
+        self.request_worktree_cleanup().await;
         dispatch_result(response)
+    }
+
+    pub(super) async fn handle_project_git_worktree_list_impl(
+        &self,
+        params: Option<Value>,
+    ) -> Result<RpcDispatch, JsonRpcError> {
+        self.ensure_initialized()?;
+        let params: ProjectGitWorktreeListParams = parse_params(params)?;
+        dispatch_result(
+            self.runtime
+                .list_project_git_worktrees(params)
+                .await
+                .map_err(to_jsonrpc_error)?,
+        )
+    }
+
+    pub(super) async fn handle_project_git_worktree_delete_impl(
+        &self,
+        params: Option<Value>,
+    ) -> Result<RpcDispatch, JsonRpcError> {
+        self.ensure_initialized()?;
+        let params: ProjectGitWorktreeDeleteParams = parse_params(params)?;
+        let result = self
+            .runtime
+            .delete_project_git_worktree(params, |thread_id| async move {
+                let notification = self.finish_thread_archive(thread_id).await;
+                // 归档已经持久化；即使后续Git删除失败，客户端也必须收到真实状态。
+                self.publish_server_notification(notification).await;
+            })
+            .await;
+        self.request_worktree_cleanup().await;
+        dispatch_result(result.map_err(to_jsonrpc_error)?)
     }
 }

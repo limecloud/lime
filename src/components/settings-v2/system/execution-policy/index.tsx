@@ -9,7 +9,6 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { WorkbenchInfoTip } from "@/components/media/WorkbenchInfoTip";
-import { cn } from "@/lib/utils";
 import type {
   ToolExecutionCommandRuleConfig,
   ToolExecutionNetworkRuleConfig,
@@ -27,15 +26,13 @@ import {
 import { useExecutionPolicyDraft } from "./useExecutionPolicyDraft";
 import {
   buildPolicySourceLayers,
-  statusPillClassName,
-  PRIMARY_BUTTON_CLASS_NAME,
-  SECONDARY_BUTTON_CLASS_NAME,
   SELECT_CLASS_NAME,
 } from "./executionPolicyPresentation";
 import { InlineMessage, ToggleRow, RuleEditor } from "./ExecutionPolicyFields";
 import { PolicySourceLayerPanel } from "./PolicySourceLayerPanel";
 import { resolveExecutionPolicyNetworkRuleFocus } from "./executionPolicyFocus";
 import { ExecutionPolicyNetworkFocusPanel } from "./ExecutionPolicyNetworkFocusPanel";
+import { SettingsAction, SettingsPageHeader } from "../../SettingsPrimitives";
 import { WindowsSandboxReadinessStatus } from "./WindowsSandboxReadinessStatus";
 
 export function ExecutionPolicySettings({
@@ -125,13 +122,13 @@ export function ExecutionPolicySettings({
   if (loading) {
     return (
       <div className="space-y-6 pb-8" data-testid="execution-policy-settings">
-        <div className="h-[132px] animate-pulse rounded-[26px] border border-border bg-background" />
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="h-[132px] animate-pulse rounded-2xl border border-border bg-background" />
+        <div className="flex flex-col gap-10">
           <div className="space-y-6">
-            <div className="h-[220px] animate-pulse rounded-[26px] border border-border bg-background" />
-            <div className="h-[260px] animate-pulse rounded-[26px] border border-border bg-background" />
+            <div className="h-[220px] animate-pulse rounded-2xl border border-border bg-background" />
+            <div className="h-[260px] animate-pulse rounded-2xl border border-border bg-background" />
           </div>
-          <div className="h-[260px] animate-pulse rounded-[26px] border border-border bg-background" />
+          <div className="h-[260px] animate-pulse rounded-2xl border border-border bg-background" />
         </div>
       </div>
     );
@@ -139,68 +136,43 @@ export function ExecutionPolicySettings({
 
   return (
     <div className="space-y-6 pb-8" data-testid="execution-policy-settings">
-      <section className="rounded-[26px] border border-border bg-background px-5 py-4 shadow-sm ">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-          <div className="space-y-1.5">
-            <div className="flex flex-wrap items-center gap-2">
-              <ShieldCheck className="h-5 w-5 text-primary" />
-              <h1 className="text-[24px] font-semibold tracking-tight text-foreground">
-                {t("settings.executionPolicy.title")}
-              </h1>
-              <WorkbenchInfoTip
-                ariaLabel={t("settings.executionPolicy.hero.tipAria")}
-                content={t("settings.executionPolicy.hero.tip")}
-                tone="slate"
-              />
-            </div>
-            <p className="text-sm leading-6 text-muted-foreground">
-              {t("settings.executionPolicy.description")}
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2 xl:justify-end">
-            <span
-              className={cn(
-                "rounded-full border px-3 py-1.5 text-xs font-medium",
-                statusPillClassName(hasCustomPolicy),
-              )}
-            >
-              {hasCustomPolicy
-                ? t("settings.executionPolicy.status.custom")
-                : t("settings.executionPolicy.status.default")}
-            </span>
-            <button
+      <SettingsPageHeader
+        title={t("settings.executionPolicy.title")}
+        actions={
+          <div className="flex gap-2">
+            <SettingsAction
               type="button"
-              className={SECONDARY_BUTTON_CLASS_NAME}
               disabled={saving || dirty}
               onClick={reload}
             >
-              <RefreshCw className="h-4 w-4" />
+              <RefreshCw />
               {t("settings.executionPolicy.action.reload")}
-            </button>
-            <button
+            </SettingsAction>
+            <SettingsAction
               type="button"
               data-testid="execution-policy-save"
-              className={PRIMARY_BUTTON_CLASS_NAME}
               disabled={saving || !ready || !dirty}
               onClick={() => void save()}
             >
-              <Save className="h-4 w-4" />
-              {saving
-                ? t("settings.executionPolicy.action.saving")
-                : t("settings.executionPolicy.action.save")}
-            </button>
+              <Save />
+              {t(
+                saving
+                  ? "settings.executionPolicy.action.saving"
+                  : "settings.executionPolicy.action.save",
+              )}
+            </SettingsAction>
           </div>
-        </div>
-      </section>
+        }
+      />
 
       {message ? (
         <InlineMessage type={message.type} text={message.text} />
       ) : null}
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="flex flex-col gap-10">
         <div className="space-y-6">
           <section
-            className="rounded-[26px] border border-border bg-background p-5 shadow-sm "
+            className="rounded-2xl border border-border bg-background p-5 "
             data-settings-search-target="execution-policy-workspace"
             tabIndex={-1}
             aria-label={t("settings.executionPolicy.workspace.title")}
@@ -252,7 +224,7 @@ export function ExecutionPolicySettings({
           </section>
 
           <section
-            className="rounded-[26px] border border-border bg-background p-5 shadow-sm "
+            className="rounded-2xl border border-border bg-background p-5 "
             data-settings-search-target="execution-policy-plan"
             tabIndex={-1}
             aria-label={t("settings.executionPolicy.plan.title")}
@@ -283,7 +255,7 @@ export function ExecutionPolicySettings({
           </section>
 
           <section
-            className="rounded-[26px] border border-border bg-background p-5 shadow-sm "
+            className="rounded-2xl border border-border bg-background p-5 "
             data-settings-search-target="execution-policy-shell"
             tabIndex={-1}
             aria-label={t("settings.executionPolicy.shell.title")}
@@ -340,7 +312,7 @@ export function ExecutionPolicySettings({
           </section>
 
           <section
-            className="rounded-[26px] border border-border bg-background p-5 shadow-sm "
+            className="rounded-2xl border border-border bg-background p-5 "
             data-settings-search-target="execution-policy-network"
             tabIndex={-1}
             aria-label={t("settings.executionPolicy.network.title")}
@@ -377,7 +349,7 @@ export function ExecutionPolicySettings({
 
         <aside className="space-y-4">
           <PolicySourceLayerPanel layers={policySourceLayers} />
-          <section className="rounded-[26px] border border-border bg-background p-5 shadow-sm ">
+          <section className="rounded-2xl border border-border bg-background p-5 ">
             <div className="text-sm font-semibold text-foreground">
               {t("settings.executionPolicy.summary.title")}
             </div>
@@ -430,7 +402,7 @@ export function ExecutionPolicySettings({
               </div>
             </dl>
           </section>
-          <section className="rounded-[26px] border border-[color:var(--lime-warning-border)] bg-[color:var(--lime-warning-soft)] p-5 text-sm leading-6 text-[color:var(--lime-warning)]">
+          <section className="rounded-2xl border border-[color:var(--lime-warning-border)] bg-[color:var(--lime-warning-soft)] p-5 text-sm leading-6 text-[color:var(--lime-warning)]">
             {t("settings.executionPolicy.recoveryNote")}
           </section>
         </aside>

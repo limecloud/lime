@@ -116,6 +116,16 @@ describe("MessageImageAttachments", () => {
     );
 
     expect(container.querySelector("img")).toBeNull();
+    expect(
+      container.querySelector(
+        '[data-testid="message-image-attachment-loading-0"]',
+      ),
+    ).not.toBeNull();
+    expect(
+      container.querySelector(
+        '[data-testid="message-image-attachment-unavailable-0"]',
+      ),
+    ).toBeNull();
     expect(appServerMocks.readMedia).toHaveBeenCalledWith(
       expect.objectContaining({
         threadId: "thread-1",
@@ -147,5 +157,64 @@ describe("MessageImageAttachments", () => {
     expect(container.querySelector("img")?.getAttribute("src")).toBe(
       "data:image/png;base64,aW1hZ2U=",
     );
+  });
+
+  it("读取失败后才切换到不可用状态", async () => {
+    let rejectRead!: (error: Error) => void;
+    appServerMocks.readMedia.mockReturnValueOnce(
+      new Promise((_resolve, reject) => {
+        rejectRead = reject;
+      }),
+    );
+    const container = renderAttachments(
+      [
+        {
+          data: "",
+          mediaType: "image/png",
+          sourceUri: "sidecar://media/missing.png",
+        },
+      ],
+      "thread-1",
+    );
+    expect(container.querySelector('[role="status"]')).not.toBeNull();
+    expect(container.textContent).not.toContain("图片暂时无法显示");
+    await act(async () => {
+      rejectRead(new Error("media unavailable"));
+    });
+    expect(container.querySelector('[role="status"]')).toBeNull();
+    expect(
+      container.querySelector(
+        '[data-testid="message-image-attachment-unavailable-0"]',
+      ),
+    ).not.toBeNull();
+  });
+
+  it.each([
+    ["zh-CN", "加载中..."],
+    ["zh-TW", "載入中..."],
+    ["en-US", "Loading..."],
+    ["ja-JP", "読み込み中..."],
+    ["ko-KR", "불러오는 중..."],
+  ] as const)("%s 读取期间使用本地化加载状态", async (locale, label) => {
+    await changeLimeLocale(locale);
+    appServerMocks.readMedia.mockReturnValueOnce(new Promise(() => {}));
+    const container = renderAttachments(
+      [
+        {
+          data: "",
+          mediaType: "image/png",
+          sourceUri: "sidecar://media/pending.png",
+        },
+      ],
+      "thread-1",
+    );
+    expect(
+      container.querySelector('[role="status"]')?.getAttribute("aria-label"),
+    ).toBe(label);
+    expect(
+      container.querySelector(
+        '[data-testid="message-image-attachment-unavailable-0"]',
+      ),
+    ).toBeNull();
   });
 });

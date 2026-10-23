@@ -26,7 +26,16 @@ import { runBrowserPermissionScenario } from "./browser-runtime-electron-gate-b-
 import { runBrowserWindowCloseScenario } from "./browser-runtime-electron-gate-b-window-close.mjs";
 import { runBrowserProjectionGateA } from "./browser-runtime-gate-a.mjs";
 import { runBrowserHistoryScenario } from "./browser-runtime-electron-gate-b-history.mjs";
-import { createBrowserAnnotationResponses, runBrowserAnnotationScenario } from "./browser-runtime-electron-gate-b-annotation.mjs";
+import { runBrowserHistoryAccessScenario } from "./browser-runtime-electron-gate-b-history-access.mjs";
+import { createBrowserHistoryAccessResponses } from "./browser-history-access-provider.mjs";
+import { runBrowserDownloadHistoryScenario } from "./browser-runtime-electron-gate-b-download-history.mjs";
+import { setBrowserFixtureLocale } from "./browser-runtime-electron-gate-b-locale.mjs";
+import { runBrowserAnnotationScenario } from "./browser-runtime-electron-gate-b-annotation.mjs";
+import { runBrowserAnnotationDesignScenario } from "./browser-runtime-electron-gate-b-annotation-design.mjs";
+import {
+  assertBrowserAnnotationModel,
+  createBrowserAnnotationActiveResponses,
+} from "./browser-runtime-electron-gate-b-annotation-provider.mjs";
 import { startBrowserFixturePages } from "./browser-runtime-electron-gate-b-pages.mjs";
 import {
   approveBrowserBrowse,
@@ -99,7 +108,13 @@ const DEFAULT_PROJECTION_OUTPUT = path.resolve(
 const SCENARIOS = new Set([
   "projection",
   "history",
+  "history-access",
+  "download-history",
   "annotation",
+  "annotation-text",
+  "annotation-form-text",
+  "annotation-frames",
+  "annotation-design",
   "lifecycle",
   "approval",
   "browse-approval",
@@ -125,13 +140,6 @@ const SUPPORTED_LOCALES = new Set([
   "ja-JP",
   "ko-KR",
 ]);
-const LOCALE_MENU_INDEX = {
-  "zh-CN": 1,
-  "en-US": 2,
-  "zh-TW": 3,
-  "ja-JP": 4,
-  "ko-KR": 5,
-};
 
 export function parseArgs(argv) {
   const options = {
@@ -202,7 +210,7 @@ export function parseArgs(argv) {
   }
   if (!SCENARIOS.has(options.scenario)) {
     throw new Error(
-      `--scenario 必须是 projection、history、annotation、lifecycle、approval、browse-approval、user-control、cancel、window-close、disconnect、permission、download 或 artifact，收到: ${options.scenario || "<empty>"}`,
+      `--scenario 必须是 projection、history、history-access、download-history、annotation、annotation-text、annotation-form-text、annotation-frames、annotation-design、lifecycle、approval、browse-approval、user-control、cancel、window-close、disconnect、permission、download 或 artifact，收到: ${options.scenario || "<empty>"}`,
     );
   }
   if (!SUPPORTED_LOCALES.has(options.locale)) {
@@ -246,8 +254,32 @@ export function parseArgs(argv) {
   if (!outputExplicit && options.scenario === "history") {
     options.output = DEFAULT_OUTPUT.replace("-summary", "-history-summary");
   }
-  if (!outputExplicit && options.scenario === "annotation") {
-    options.output = DEFAULT_OUTPUT.replace("-summary", "-annotation-summary");
+  if (!outputExplicit && options.scenario === "history-access") {
+    options.output = DEFAULT_OUTPUT.replace(
+      "-summary",
+      "-history-access-summary",
+    );
+  }
+  if (!outputExplicit && options.scenario === "download-history") {
+    options.output = DEFAULT_OUTPUT.replace(
+      "-summary",
+      "-download-history-summary",
+    );
+  }
+  if (
+    !outputExplicit &&
+    [
+      "annotation",
+      "annotation-text",
+      "annotation-form-text",
+      "annotation-frames",
+      "annotation-design",
+    ].includes(options.scenario)
+  ) {
+    options.output = DEFAULT_OUTPUT.replace(
+      "-summary",
+      `-${options.scenario}-summary`,
+    );
   }
   return options;
 }
@@ -261,33 +293,6 @@ async function captureBrowserScreenshot(page, options, state) {
   );
   await page.screenshot({ path: filePath, fullPage: true });
   return filePath;
-}
-
-async function setRendererLocale(page, options) {
-  if (options.locale === "zh-CN") return;
-  const accountButton = page.locator(
-    '[data-testid="app-sidebar-account-button"]',
-  );
-  if ((await accountButton.count()) === 0) {
-    throw new Error("语言矩阵无法找到侧边栏账户入口");
-  }
-  await accountButton.click();
-  const languageMenuEntry = page.locator(
-    '[data-testid="app-sidebar-account-menu"] [aria-haspopup="menu"]',
-  );
-  if ((await languageMenuEntry.count()) === 0) {
-    throw new Error("语言矩阵无法找到语言菜单入口");
-  }
-  await languageMenuEntry.click();
-  const menu = page.locator('[data-testid="app-sidebar-language-menu"]');
-  await menu.waitFor({ state: "visible" });
-  const index = LOCALE_MENU_INDEX[options.locale];
-  await menu.locator('[role="menuitemradio"]').nth(index).click();
-  await page.waitForFunction(
-    (expected) => document.documentElement.lang === expected,
-    options.locale,
-    { timeout: options.timeoutMs },
-  );
 }
 
 export function extractBrowserState(value) {
@@ -374,6 +379,7 @@ function toolResultFromRequest(body) {
 }
 
 async function createBrowserProviderFixture({
+  historyAccessScenario = false,
   annotationScenario = false,
   approvalScenario = false,
   connectionDiagnostics = false,
@@ -410,24 +416,38 @@ async function createBrowserProviderFixture({
     releaseAll: () => {
       releaseUserNavigation?.();
       releaseFinalResponse?.();
+      scenario.annotation?.releaseAll();
     },
   };
-  const scriptedResponses = annotationScenario ? createBrowserAnnotationResponses() : approvalScenario
-    ? createBrowserApprovalResponses(scenario, {
-        userControl: userControlScenario,
-      })
-    : artifactScenario
-      ? createBrowserArtifactResponses(scenario)
-      : createBrowserLifecycleResponses(
-          scenario,
-          userNavigationCompleted,
-          finalResponseAllowed,
-        );
+  const scriptedResponses = historyAccessScenario
+    ? createBrowserHistoryAccessResponses(scenario, toolResultFromRequest)
+    : annotationScenario
+      ? createBrowserAnnotationActiveResponses(scenario, {
+          extractBrowserState,
+          extractBrowserObservation,
+          toolResultFromRequest,
+        })
+      : approvalScenario
+        ? createBrowserApprovalResponses(scenario, {
+            userControl: userControlScenario,
+          })
+        : artifactScenario
+          ? createBrowserArtifactResponses(scenario)
+          : createBrowserLifecycleResponses(
+              scenario,
+              userNavigationCompleted,
+              finalResponseAllowed,
+            );
   const server = await startOpenAiCompatibleFixtureServer({
     model: MODEL_NAME,
     apiKey: PROVIDER_API_KEY,
     modelRuntimeFeatures: ["streaming", "tool_calling", "custom_tools"],
-    ...(annotationScenario ? { modelInputModalities: ["text", "image"] } : {}),
+    ...(annotationScenario
+      ? {
+          modelInputModalities: ["text", "image"],
+          maxRequestBodyBytes: 16 * 1024 * 1024,
+        }
+      : {}),
     connectionDiagnostics,
     scriptedResponses,
   });
@@ -1348,7 +1368,7 @@ Browser Electron Gate B
 
 选项:
   --output <path>       证据 JSON 路径
-  --scenario <name>     projection（Gate A）、history、annotation、lifecycle（默认）、approval、browse-approval、user-control、cancel、window-close、disconnect、permission、download 或 artifact
+  --scenario <name>     projection（Gate A）、history、history-access（后台 Agent 历史权限）、download-history（真实 Electron 下载管理）、annotation、annotation-design（后台设计提交）、lifecycle（默认）、approval、browse-approval、user-control、cancel、window-close、disconnect、permission、download 或 artifact
   --locale <locale>     zh-CN、zh-TW、en-US、ja-JP 或 ko-KR
   --screenshot-dir <dir> 采集 renderer/browser/agent/takeover/released/destroyed 截图
   --app-url <url>       可选 renderer dev server
@@ -1359,6 +1379,13 @@ Browser Electron Gate B
 }
 
 export async function run(options) {
+  const annotationScenario = [
+    "annotation",
+    "annotation-text",
+    "annotation-form-text",
+    "annotation-frames",
+    "annotation-design",
+  ].includes(options.scenario);
   ensureElectronFixtureBuild({
     appUrl: options.appUrl,
     logPrefix: LOG_PREFIX,
@@ -1368,7 +1395,8 @@ export async function run(options) {
   const runtimeEnv = createTempRuntimeEnv();
   runtimeEnv.writeFixtureConfig({ language: options.locale });
   const providerFixture = await createBrowserProviderFixture({
-    annotationScenario: options.scenario === "annotation",
+    historyAccessScenario: options.scenario === "history-access",
+    annotationScenario,
     approvalScenario: ["approval", "browse-approval", "user-control"].includes(
       options.scenario,
     ),
@@ -1396,12 +1424,19 @@ export async function run(options) {
   let disconnectMainDiagnosticCount = 0;
   let app = null;
   let invokeTraceCollector = null;
-  const fixturePages = await startBrowserFixturePages();
+  const fixturePages = await startBrowserFixturePages({
+    annotationFrames: options.scenario === "annotation-frames",
+  });
   try {
     logStage("launch-electron");
     app = await electron.launch({
       executablePath: electronPath,
-      args: ["--use-mock-keychain", "."],
+      args: [
+        "--use-mock-keychain",
+        ["annotation-design", "history-access"].includes(options.scenario)
+          ? path.resolve("scripts/agent-runtime/browser-design-submit-host.mjs")
+          : ".",
+      ],
       cwd: process.cwd(),
       env: {
         ...runtimeEnv.env,
@@ -1412,6 +1447,9 @@ export async function run(options) {
         LIME_ELECTRON_BRAND_DEV_APP: "0",
         LIME_ELECTRON_CLEAR_RENDERER_CACHE: "1",
         LIME_ELECTRON_DEV_HTTP_BRIDGE: "0",
+        ...(["annotation-design", "history-access"].includes(options.scenario)
+          ? { LIME_BROWSER_DESIGN_ROOT: process.cwd() }
+          : {}),
         ...(options.appUrl ? { VITE_DEV_SERVER_URL: options.appUrl } : {}),
       },
       timeout: options.timeoutMs,
@@ -1435,17 +1473,20 @@ export async function run(options) {
       pageErrors.push(sanitizeText(error.message)),
     );
     page.setDefaultTimeout(options.timeoutMs);
-    await (await app.browserWindow(page)).evaluate((window) => {
+    await (
+      await app.browserWindow(page)
+    ).evaluate((window) => {
       window.setContentSize(1440, 1000);
     });
     await captureBrowserScreenshot(page, options, "renderer-loading");
     await waitForRendererReady(page, options, () => undefined);
-    await setRendererLocale(page, options);
+    await setBrowserFixtureLocale(page, options);
     await captureBrowserScreenshot(page, options, "renderer-ready");
 
     logStage("initialize-app-server");
     await initializeAppServer(page, requestLog);
-    if (options.scenario !== "annotation") await configureBrowserFixturePermissions(page, options, requestLog);
+    if (!annotationScenario)
+      await configureBrowserFixturePermissions(page, options, requestLog);
     const workspace = await ensureDefaultWorkspace(page, requestLog);
     const provider = await invokeAppServerFromPage(
       page,
@@ -1492,6 +1533,13 @@ export async function run(options) {
         fetched.result.models.some((model) => model?.id === MODEL_NAME),
       "Browser fixture provider 未返回可用模型",
     );
+    if (annotationScenario)
+      await assertBrowserAnnotationModel(
+        page,
+        requestLog,
+        providerId,
+        MODEL_NAME,
+      );
     await bindGuiWorkspaceAndModelPreferences(page, workspace.workspaceId, {
       provider: providerId,
       model: MODEL_NAME,
@@ -1598,17 +1646,30 @@ export async function run(options) {
       }
       return gateAEvidence;
     }
-    if (options.scenario === "history") {
-      logStage("run-browser-history");
-      const historyEvidence = await runBrowserHistoryScenario({
+    if (
+      options.scenario === "history" ||
+      options.scenario === "history-access" ||
+      options.scenario === "download-history"
+    ) {
+      logStage(`run-browser-${options.scenario}`);
+      const historyEvidence = await (
+        options.scenario === "history-access"
+          ? runBrowserHistoryAccessScenario
+          : options.scenario === "history"
+            ? runBrowserHistoryScenario
+            : runBrowserDownloadHistoryScenario
+      )({
         app,
         page,
         options,
         identity,
         workspaceId: workspace.workspaceId,
         guiBeforeTurn,
+        providerFixture,
+        waitForTerminalThread,
         readBrowserWorkspaceState,
         readInvokeTrace: () => invokeTraceCollector.snapshot(),
+        requestLog,
       });
       historyEvidence.diagnostics.harness = { consoleErrors, pageErrors };
       fs.writeFileSync(
@@ -1623,18 +1684,36 @@ export async function run(options) {
       );
       return historyEvidence;
     }
-    if (options.scenario === "annotation") {
+    if (annotationScenario) {
       logStage("run-browser-annotation");
-      const annotationEvidence = await runBrowserAnnotationScenario({
-        app, page, options, identity, workspaceId: workspace.workspaceId,
-        guiBeforeTurn, readBrowserWorkspaceState,
+      const runAnnotation =
+        options.scenario === "annotation-design"
+          ? runBrowserAnnotationDesignScenario
+          : runBrowserAnnotationScenario;
+      const annotationEvidence = await runAnnotation({
+        app,
+        page,
+        options,
+        identity,
+        workspaceId: workspace.workspaceId,
+        guiBeforeTurn,
+        readBrowserWorkspaceState,
         readInvokeTrace: () => invokeTraceCollector.snapshot(),
-        providerFixture, requestLog,
+        providerFixture,
+        providerId,
+        requestLog,
       });
       annotationEvidence.diagnostics.harness = { consoleErrors, pageErrors };
-      fs.writeFileSync(options.output, `${JSON.stringify(annotationEvidence, null, 2)}\n`);
-      assert(annotationEvidence.failedAssertions.length === 0 && consoleErrors.length === 0 && pageErrors.length === 0,
-        `Browser annotation 断言失败: ${annotationEvidence.failedAssertions.join(", ")}`);
+      fs.writeFileSync(
+        options.output,
+        `${JSON.stringify(annotationEvidence, null, 2)}\n`,
+      );
+      assert(
+        annotationEvidence.failedAssertions.length === 0 &&
+          consoleErrors.length === 0 &&
+          pageErrors.length === 0,
+        `Browser annotation 断言失败: ${annotationEvidence.failedAssertions.join(", ")}`,
+      );
       return annotationEvidence;
     }
     if (

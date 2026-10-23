@@ -1,0 +1,63 @@
+{
+  "$defs": {
+    "ProjectGitWorktreeThread": {
+      "properties": {
+        "active": {
+          "type": "boolean"
+        },
+        "archived": {
+          "type": "boolean"
+        },
+        "name": {
+          "type": "string"
+        },
+        "pinned": {
+          "type": "boolean"
+        },
+        "threadId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "active",
+        "archived",
+        "name",
+        "pinned",
+        "threadId"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "branch": {
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    "headSha": {
+      "type": "string"
+    },
+    "repositoryRoot": {
+      "type": "string"
+    },
+    "threads": {
+      "items": {
+        "$ref": "#/$defs/ProjectGitWorktreeThread"
+      },
+      "type": "array"
+    },
+    "worktreePath": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "headSha",
+    "repositoryRoot",
+    "threads",
+    "worktreePath"
+  ],
+  "title": "ProjectGitManagedWorktree",
+  "type": "object"
+}

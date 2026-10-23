@@ -23,6 +23,7 @@ import {
   type AppServerVoiceTranscriptionTranscribeAudioResponse,
 } from "./appServer";
 import { getConfig, saveConfig, type Config } from "./appConfig";
+import { normalizeDictationDictionary } from "../dictationDictionary";
 
 // ============ ASR Provider 类型 ============
 
@@ -128,6 +129,8 @@ export interface VoiceInputConfig {
   selected_device_id?: string;
   /** 是否启用交互音效 */
   sound_enabled: boolean;
+  /** 听写清理时优先使用的规范拼写；最多消费 100 条。 */
+  dictation_dictionary?: string[];
   /** 翻译模式使用的指令 ID */
   translate_instruction_id: string;
 }
@@ -175,6 +178,7 @@ const DEFAULT_VOICE_INPUT_CONFIG: VoiceInputConfig = {
   instructions: DEFAULT_VOICE_INSTRUCTIONS,
   selected_device_id: undefined,
   sound_enabled: true,
+  dictation_dictionary: [],
   translate_instruction_id: "translate_en",
 };
 
@@ -190,6 +194,9 @@ function cloneVoiceInputConfig(config: VoiceInputConfig): VoiceInputConfig {
     ...config,
     processor: { ...config.processor },
     output: { ...config.output },
+    dictation_dictionary: normalizeDictationDictionary(
+      config.dictation_dictionary,
+    ),
     instructions: config.instructions.map((instruction) => ({
       ...instruction,
     })),
@@ -215,6 +222,9 @@ function normalizeVoiceInputConfig(
         ? value.instructions.map((instruction) => ({ ...instruction }))
         : DEFAULT_VOICE_INSTRUCTIONS.map((instruction) => ({ ...instruction })),
     selected_device_id: value?.selected_device_id,
+    dictation_dictionary: normalizeDictationDictionary(
+      value?.dictation_dictionary,
+    ),
   };
 }
 

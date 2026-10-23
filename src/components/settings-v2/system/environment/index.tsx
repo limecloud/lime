@@ -11,7 +11,12 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { WorkbenchInfoTip } from "@/components/media/WorkbenchInfoTip";
-import { Switch } from "@/components/ui/switch";
+import {
+  SettingsAction,
+  SettingsPageBody,
+  SettingsPageHeader,
+  SettingsSwitch as Switch,
+} from "../../SettingsPrimitives";
 import { cn } from "@/lib/utils";
 import type { EnvironmentVariableOverride } from "@/lib/api/appConfig";
 import { useSettingsDraft } from "../../_layout/useSettingsDraft";
@@ -21,7 +26,6 @@ import { FieldBlock, LoadingSkeleton, SurfacePanel } from "./EnvironmentFields";
 import { EnvironmentPreviewPanel } from "./EnvironmentPreviewPanel";
 import {
   INPUT_CLASS_NAME,
-  PRIMARY_BUTTON_CLASS_NAME,
   SECONDARY_BUTTON_CLASS_NAME,
   formatDuration,
   formatShellImportMessage,
@@ -97,11 +101,11 @@ export function EnvironmentSettings() {
   }
 
   return (
-    <div className="space-y-6 pb-8">
+    <SettingsPageBody>
       {message ? (
         <div
           className={cn(
-            "flex items-center justify-between gap-4 rounded-[20px] border px-4 py-3 text-sm shadow-sm ",
+            "flex items-center justify-between gap-4 rounded-xl border px-4 py-3 text-sm ",
             message.type === "success"
               ? "border-primary/20 bg-primary/10 text-primary"
               : "border-destructive/20 bg-destructive/10 text-destructive",
@@ -123,104 +127,39 @@ export function EnvironmentSettings() {
         </div>
       ) : null}
 
-      <fieldset disabled={!ready} className="min-w-0 space-y-6">
-        <section className="rounded-[26px] border border-border bg-background px-5 py-4 shadow-sm ">
-          <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-            <div className="space-y-1.5">
-              <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-[24px] font-semibold tracking-tight text-foreground">
-                  {t("settings.environment.hero.title")}
-                </h1>
-                <WorkbenchInfoTip
-                  ariaLabel={t("settings.environment.hero.tipAria")}
-                  content={t("settings.environment.hero.tip")}
-                  tone="mint"
-                />
-              </div>
-              <p className="text-sm text-muted-foreground">
-                {t("settings.environment.hero.description")}
-              </p>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2 xl:justify-end">
-              <span
-                className={cn(
-                  "rounded-full border px-3 py-1.5 text-xs font-medium",
-                  summary.shellImportMeta.className,
-                )}
-              >
-                {t("settings.environment.summary.shellImport", {
-                  status: summary.shellImportMeta.label,
-                })}
-              </span>
-              <span className="rounded-full border border-border bg-muted px-3 py-1.5 text-xs font-medium text-muted-foreground">
-                {t("settings.environment.summary.overrides", {
-                  enabled: summary.enabledOverrides,
-                  total: summary.overrideCount,
-                })}
-              </span>
-              <span className="rounded-full border border-border bg-muted px-3 py-1.5 text-xs font-medium text-muted-foreground">
-                {t("settings.environment.summary.previewVariables", {
-                  count: summary.previewCount,
-                })}
-              </span>
-            </div>
-          </div>
-
-          <div className="mt-4 flex flex-col gap-4 rounded-[20px] border border-border bg-muted/60 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
-            <div className="space-y-2">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded-full border border-border bg-background px-3 py-1 text-xs font-medium text-muted-foreground">
-                  {t("settings.environment.summary.imported", {
-                    count: preview?.shellImport.importedCount ?? 0,
-                  })}
-                </span>
-                <span className="rounded-full border border-border bg-background px-3 py-1 text-xs font-medium text-muted-foreground">
-                  {t("settings.environment.summary.duration", {
-                    duration: formatDuration(
-                      t,
-                      preview?.shellImport.durationMs,
-                    ),
-                  })}
-                </span>
-              </div>
-              <p className="text-sm leading-6 text-muted-foreground">
-                {formatShellImportMessage(t, preview?.shellImport)}
-              </p>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-              <button
+      <fieldset disabled={!ready} className="min-w-0 space-y-10">
+        <SettingsPageHeader
+          title={t("settings.environment.hero.title")}
+          actions={
+            <div className="flex gap-2">
+              <SettingsAction
                 type="button"
                 onClick={() => void refreshPreview()}
                 disabled={refreshingPreview || saving}
-                className={SECONDARY_BUTTON_CLASS_NAME}
               >
                 <RefreshCw
-                  className={cn(
-                    "h-4 w-4",
-                    refreshingPreview ? "animate-spin" : "",
-                  )}
+                  className={cn(refreshingPreview && "animate-spin")}
                 />
                 {t("settings.environment.action.refreshPreview")}
-              </button>
-              <button
+              </SettingsAction>
+              <SettingsAction
                 type="button"
                 data-testid="environment-save"
                 onClick={() => void save()}
                 disabled={saving || !ready || !hasUnsavedChanges}
-                className={PRIMARY_BUTTON_CLASS_NAME}
               >
-                <Save className="h-4 w-4" />
-                {saving
-                  ? t("settings.environment.action.saving")
-                  : t("settings.environment.action.save")}
-              </button>
+                <Save />
+                {t(
+                  saving
+                    ? "settings.environment.action.saving"
+                    : "settings.environment.action.save",
+                )}
+              </SettingsAction>
             </div>
-          </div>
-        </section>
+          }
+        />
 
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,1.16fr)_minmax(320px,0.84fr)]">
+        <div className="flex flex-col gap-10">
           <div className="space-y-6">
             <SurfacePanel
               icon={Terminal}
@@ -240,7 +179,7 @@ export function EnvironmentSettings() {
             >
               <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
                 <div
-                  className="rounded-[22px] border border-border bg-muted/60 p-4"
+                  className="border-b border-border py-3"
                   data-settings-search-target="environment-shell-enable"
                   tabIndex={-1}
                   aria-label={t(
@@ -277,7 +216,7 @@ export function EnvironmentSettings() {
                 </div>
 
                 <div
-                  className="rounded-[22px] border border-border bg-muted/60 p-4"
+                  className="border-b border-border py-3"
                   data-settings-search-target="environment-shell-timeout"
                   tabIndex={-1}
                   aria-label={t(
@@ -375,7 +314,7 @@ export function EnvironmentSettings() {
                   {environment.variables.map((entry, index) => (
                     <article
                       key={index}
-                      className="rounded-[22px] border border-border bg-muted/60 p-4"
+                      className="border-b border-border py-3"
                     >
                       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)_180px_56px]">
                         <FieldBlock
@@ -496,7 +435,7 @@ export function EnvironmentSettings() {
               tipAriaLabel={t("settings.environment.merge.tipAria")}
             >
               <div className="space-y-3">
-                <div className="rounded-[22px] border border-border bg-muted/60 p-4">
+                <div className="border-b border-border py-3">
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2">
                       <p className="text-sm font-semibold text-foreground">
@@ -515,7 +454,7 @@ export function EnvironmentSettings() {
                     </span>
                   </div>
                 </div>
-                <div className="rounded-[22px] border border-border bg-muted/60 p-4">
+                <div className="border-b border-border py-3">
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2">
                       <p className="text-sm font-semibold text-foreground">
@@ -534,7 +473,7 @@ export function EnvironmentSettings() {
                     </span>
                   </div>
                 </div>
-                <div className="rounded-[22px] border border-border bg-muted/60 p-4">
+                <div className="border-b border-border py-3">
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2">
                       <p className="text-sm font-semibold text-foreground">
@@ -563,7 +502,7 @@ export function EnvironmentSettings() {
               tipAriaLabel={t("settings.environment.tips.tipAria")}
             >
               <div className="space-y-3">
-                <div className="rounded-[22px] border border-border bg-muted/60 p-4">
+                <div className="border-b border-border py-3">
                   <div className="flex items-center gap-2">
                     <p className="text-sm font-semibold text-foreground">
                       {t("settings.environment.tips.mask.title")}
@@ -575,7 +514,7 @@ export function EnvironmentSettings() {
                     />
                   </div>
                 </div>
-                <div className="rounded-[22px] border border-border bg-muted/60 p-4">
+                <div className="border-b border-border py-3">
                   <div className="flex items-center gap-2">
                     <p className="text-sm font-semibold text-foreground">
                       {t("settings.environment.tips.preview.title")}
@@ -587,7 +526,7 @@ export function EnvironmentSettings() {
                     />
                   </div>
                 </div>
-                <div className="rounded-[22px] border border-border bg-muted/60 p-4">
+                <div className="border-b border-border py-3">
                   <div className="flex items-center gap-2">
                     <p className="text-sm font-semibold text-foreground">
                       {t("settings.environment.tips.crossPlatform.title")}
@@ -608,6 +547,6 @@ export function EnvironmentSettings() {
 
         <EnvironmentPreviewPanel preview={preview} />
       </fieldset>
-    </div>
+    </SettingsPageBody>
   );
 }

@@ -65,6 +65,15 @@ export const METHOD_DIAGNOSTICS_TRACE_LIST = "diagnostics/trace/list";
 export const METHOD_DIAGNOSTICS_TRACE_READ = "diagnostics/trace/read";
 export const METHOD_DIAGNOSTICS_WINDOWS_STARTUP_READ =
   "diagnostics/windowsStartup/read";
+export const METHOD_DICTATION_HISTORY_APPEND_AUDIO =
+  "dictationHistory/appendAudio";
+export const METHOD_DICTATION_HISTORY_DELETE = "dictationHistory/delete";
+export const METHOD_DICTATION_HISTORY_FINISH = "dictationHistory/finish";
+export const METHOD_DICTATION_HISTORY_LIST = "dictationHistory/list";
+export const METHOD_DICTATION_HISTORY_READ_AUDIO = "dictationHistory/readAudio";
+export const METHOD_DICTATION_HISTORY_SET_TRANSCRIPT =
+  "dictationHistory/setTranscript";
+export const METHOD_DICTATION_HISTORY_START = "dictationHistory/start";
 export const METHOD_DISCORD_CHANNEL_PROBE = "discordChannel/probe";
 export const METHOD_ENVIRONMENT_ADD = "environment/add";
 export const METHOD_ENVIRONMENT_INFO = "environment/info";
@@ -121,6 +130,8 @@ export const METHOD_HOOK_STARTED = "hook/started";
 export const METHOD_HOOKS_LIST = "hooks/list";
 export const METHOD_INITIALIZE = "initialize";
 export const METHOD_INITIALIZED = "initialized";
+export const METHOD_INSTRUCTIONS_READ = "instructions/read";
+export const METHOD_INSTRUCTIONS_WRITE = "instructions/write";
 export const METHOD_AGENT_MESSAGE_DELTA = "item/agentMessage/delta";
 export const METHOD_ITEM_AUTO_APPROVAL_REVIEW_COMPLETED =
   "item/autoApprovalReview/completed";
@@ -293,6 +304,8 @@ export const METHOD_PROJECT_GIT_COMMITS_LIST = "projectGit/commits/list";
 export const METHOD_PROJECT_GIT_DIFF = "projectGit/diff";
 export const METHOD_PROJECT_GIT_STATUS = "projectGit/status";
 export const METHOD_PROJECT_GIT_WORKTREE_CREATE = "projectGit/worktree/create";
+export const METHOD_PROJECT_GIT_WORKTREE_DELETE = "projectGit/worktree/delete";
+export const METHOD_PROJECT_GIT_WORKTREE_LIST = "projectGit/worktree/list";
 export const METHOD_PROJECT_MATERIAL_CONTENT = "projectMaterial/content";
 export const METHOD_PROJECT_MATERIAL_COUNT = "projectMaterial/count";
 export const METHOD_PROJECT_MATERIAL_DELETE = "projectMaterial/delete";
@@ -358,6 +371,10 @@ export const METHOD_SOUL_STYLE_PACK_INSTALL = "soulStylePack/install";
 export const METHOD_SOUL_STYLE_PACK_LIST = "soulStylePack/list";
 export const METHOD_SOUL_STYLE_PACK_STATUS_SET = "soulStylePack/status/set";
 export const METHOD_SOUL_STYLE_PACK_UNINSTALL = "soulStylePack/uninstall";
+export const METHOD_STORAGE_DELETE = "storage/delete";
+export const METHOD_STORAGE_READ = "storage/read";
+export const METHOD_STORAGE_REFRESH = "storage/refresh";
+export const METHOD_STORAGE_REVIEW = "storage/review";
 export const METHOD_TELEGRAM_CHANNEL_PROBE = "telegramChannel/probe";
 export const METHOD_THREAD_APPROVE_GUARDIAN_DENIED_ACTION =
   "thread/approveGuardianDeniedAction";
@@ -693,6 +710,34 @@ export const GENERATED_APP_SERVER_METHODS = [
   },
   {
     kind: "request",
+    method: "dictationHistory/appendAudio",
+  },
+  {
+    kind: "request",
+    method: "dictationHistory/delete",
+  },
+  {
+    kind: "request",
+    method: "dictationHistory/finish",
+  },
+  {
+    kind: "request",
+    method: "dictationHistory/list",
+  },
+  {
+    kind: "request",
+    method: "dictationHistory/readAudio",
+  },
+  {
+    kind: "request",
+    method: "dictationHistory/setTranscript",
+  },
+  {
+    kind: "request",
+    method: "dictationHistory/start",
+  },
+  {
+    kind: "request",
     method: "discordChannel/probe",
   },
   {
@@ -870,6 +915,14 @@ export const GENERATED_APP_SERVER_METHODS = [
   {
     kind: "notification",
     method: "initialized",
+  },
+  {
+    kind: "request",
+    method: "instructions/read",
+  },
+  {
+    kind: "request",
+    method: "instructions/write",
   },
   {
     kind: "notification",
@@ -1445,6 +1498,14 @@ export const GENERATED_APP_SERVER_METHODS = [
   },
   {
     kind: "request",
+    method: "projectGit/worktree/delete",
+  },
+  {
+    kind: "request",
+    method: "projectGit/worktree/list",
+  },
+  {
+    kind: "request",
     method: "projectMaterial/content",
   },
   {
@@ -1686,6 +1747,22 @@ export const GENERATED_APP_SERVER_METHODS = [
   {
     kind: "request",
     method: "soulStylePack/uninstall",
+  },
+  {
+    kind: "request",
+    method: "storage/delete",
+  },
+  {
+    kind: "request",
+    method: "storage/read",
+  },
+  {
+    kind: "request",
+    method: "storage/refresh",
+  },
+  {
+    kind: "request",
+    method: "storage/review",
   },
   {
     kind: "request",
@@ -2907,6 +2984,36 @@ export type AppServerClientRequest =
     }
   | {
       id: number | string;
+      method: "projectGit/worktree/list";
+      params?: unknown;
+    }
+  | {
+      id: number | string;
+      method: "storage/read";
+      params?: unknown;
+    }
+  | {
+      id: number | string;
+      method: "storage/refresh";
+      params?: unknown;
+    }
+  | {
+      id: number | string;
+      method: "storage/review";
+      params?: unknown;
+    }
+  | {
+      id: number | string;
+      method: "storage/delete";
+      params?: unknown;
+    }
+  | {
+      id: number | string;
+      method: "projectGit/worktree/delete";
+      params?: unknown;
+    }
+  | {
+      id: number | string;
       method: "agentSession/handoffBundle/export";
       params?: unknown;
     }
@@ -3443,6 +3550,51 @@ export type AppServerClientRequest =
   | {
       id: number | string;
       method: "voiceTranscription/polishText";
+      params?: unknown;
+    }
+  | {
+      id: number | string;
+      method: "instructions/read";
+      params?: unknown;
+    }
+  | {
+      id: number | string;
+      method: "instructions/write";
+      params?: unknown;
+    }
+  | {
+      id: number | string;
+      method: "dictationHistory/list";
+      params?: unknown;
+    }
+  | {
+      id: number | string;
+      method: "dictationHistory/start";
+      params?: unknown;
+    }
+  | {
+      id: number | string;
+      method: "dictationHistory/appendAudio";
+      params?: unknown;
+    }
+  | {
+      id: number | string;
+      method: "dictationHistory/finish";
+      params?: unknown;
+    }
+  | {
+      id: number | string;
+      method: "dictationHistory/readAudio";
+      params?: unknown;
+    }
+  | {
+      id: number | string;
+      method: "dictationHistory/setTranscript";
+      params?: unknown;
+    }
+  | {
+      id: number | string;
+      method: "dictationHistory/delete";
       params?: unknown;
     }
   | {
@@ -3995,6 +4147,13 @@ export type AppServerRequestMethod =
   | "diagnostics/trace/list"
   | "diagnostics/trace/read"
   | "diagnostics/windowsStartup/read"
+  | "dictationHistory/appendAudio"
+  | "dictationHistory/delete"
+  | "dictationHistory/finish"
+  | "dictationHistory/list"
+  | "dictationHistory/readAudio"
+  | "dictationHistory/setTranscript"
+  | "dictationHistory/start"
   | "discordChannel/probe"
   | "feishuChannel/probe"
   | "galleryMaterial/get"
@@ -4018,6 +4177,8 @@ export type AppServerRequestMethod =
   | "gatewayTunnel/stop"
   | "gatewayTunnel/syncWebhookUrl"
   | "initialize"
+  | "instructions/read"
+  | "instructions/write"
   | "knowledgeContext/resolve"
   | "knowledgeContextRun/validate"
   | "knowledgePack/compile"
@@ -4095,6 +4256,8 @@ export type AppServerRequestMethod =
   | "projectGit/diff"
   | "projectGit/status"
   | "projectGit/worktree/create"
+  | "projectGit/worktree/delete"
+  | "projectGit/worktree/list"
   | "projectMaterial/content"
   | "projectMaterial/count"
   | "projectMaterial/delete"
@@ -4145,6 +4308,10 @@ export type AppServerRequestMethod =
   | "soulStylePack/list"
   | "soulStylePack/status/set"
   | "soulStylePack/uninstall"
+  | "storage/delete"
+  | "storage/read"
+  | "storage/refresh"
+  | "storage/review"
   | "telegramChannel/probe"
   | "usageStats/dailyTrends/list"
   | "usageStats/modelRanking/list"
@@ -5627,6 +5794,65 @@ export interface DiagnosticsTraceSummary {
   traceId: string;
 }
 
+export interface DictationHistoryAppendAudioParams {
+  audioBase64: string;
+  id: string;
+  offset: number;
+}
+
+export type DictationHistoryDeleteResponse = Record<string, unknown>;
+
+export interface DictationHistoryEntry {
+  createdAtMs: number;
+  id: string;
+  mimeType: string;
+  sizeBytes: number;
+  status: DictationHistoryStatus;
+  text?: null | string;
+}
+
+export interface DictationHistoryFinishParams {
+  id: string;
+  status: DictationHistoryFinishStatus;
+}
+
+export type DictationHistoryFinishStatus =
+  | "cancelled"
+  | "interrupted"
+  | "saved";
+
+export interface DictationHistoryIdParams {
+  id: string;
+}
+
+export interface DictationHistoryListResponse {
+  recordings: DictationHistoryEntry[];
+}
+
+export interface DictationHistoryReadAudioResponse {
+  audioBase64: string;
+  mimeType: string;
+}
+
+export interface DictationHistorySetTranscriptParams {
+  id: string;
+  text: string;
+}
+
+export interface DictationHistoryStartParams {
+  mimeType: string;
+}
+
+export type DictationHistoryStatus =
+  | "cancelled"
+  | "interrupted"
+  | "recording"
+  | "saved";
+
+export interface DictationHistoryWriteResponse {
+  recording: DictationHistoryEntry;
+}
+
 export type DynamicToolCallOutputContentItem =
   | {
       text: string;
@@ -6386,6 +6612,18 @@ export interface InstalledApp {
   enabled: boolean;
   id: string;
   runtimeName?: null | string;
+}
+
+export interface InstructionsReadResponse {
+  contents: string;
+  hasOverride: boolean;
+  path: string;
+  revision: string;
+}
+
+export interface InstructionsWriteParams {
+  contents: string;
+  expectedRevision: string;
 }
 
 export interface ItemCompletedNotification {
@@ -8540,6 +8778,14 @@ export interface ProjectGitDiffResponse {
   uncommittedFileCount?: number;
 }
 
+export interface ProjectGitManagedWorktree {
+  branch?: null | string;
+  headSha: string;
+  repositoryRoot: string;
+  threads: ProjectGitWorktreeThread[];
+  worktreePath: string;
+}
+
 export interface ProjectGitStatusParams {
   rootPath: string;
 }
@@ -8566,13 +8812,28 @@ export interface ProjectGitWorktreeCreateResponse {
 }
 
 export interface ProjectGitWorktreeDeleteParams {
-  discardChanges?: boolean | null;
   rootPath: string;
 }
 
 export interface ProjectGitWorktreeDeleteResponse {
+  archivedThreadIds: string[];
   repositoryRoot?: null | string;
   worktreePath: string;
+}
+
+export type ProjectGitWorktreeListParams = Record<string, never>;
+
+export interface ProjectGitWorktreeListResponse {
+  rootPath: string;
+  worktrees: ProjectGitManagedWorktree[];
+}
+
+export interface ProjectGitWorktreeThread {
+  active: boolean;
+  archived: boolean;
+  name: string;
+  pinned: boolean;
+  threadId: string;
 }
 
 export interface ProjectImportParams {
@@ -9982,6 +10243,38 @@ export interface SoulStylePackUninstallParams {
 export interface SoulStylePackUninstallResponse {
   packId: string;
   status: SoulStylePackInstallStatus;
+}
+
+export interface StorageDeleteParams {
+  archivedOnly: boolean;
+  candidates: StorageCleanupCandidate[];
+  cutoffMs: number;
+}
+
+export interface StorageDeleteResponse {
+  deleted: number;
+  failed: number;
+  skipped: number;
+}
+
+export type StorageReadParams = Record<string, never>;
+
+export interface StorageReviewParams {
+  archivedOnly?: boolean;
+  days?: number;
+}
+
+export interface StorageReviewResponse {
+  archivedOnly: boolean;
+  candidates: StorageCleanupCandidate[];
+  cutoffMs: number;
+}
+
+export interface StorageState {
+  completedCategories: StorageCategory[];
+  measuredAt?: number | null;
+  status: StorageStatus;
+  usage?: StorageUsage | null;
 }
 
 export interface StrictReviewRequiredNotification {
@@ -11843,3 +12136,40 @@ export type SessionSource =
   | {
       custom: string;
     };
+
+export interface StorageCleanupCandidate {
+  bytes: number;
+  descendants: StorageThreadSnapshot[];
+  name: string;
+  root: StorageThreadSnapshot;
+}
+
+export interface StorageThreadSnapshot {
+  archived: boolean;
+  threadId: string;
+  updatedAtMs: number;
+}
+
+export type StorageCategory =
+  | "archived"
+  | "other"
+  | "subagents"
+  | "threads"
+  | "unclassified"
+  | "worktrees";
+
+export interface StorageCategoryUsage {
+  bytes: number;
+  category: StorageCategory;
+}
+
+export type StorageStatus = "error" | "ready" | "scanning";
+
+export interface StorageUsage {
+  categories: StorageCategoryUsage[];
+  dataRoot: string;
+  scannedRoots: string[];
+  threadBytes: Record<string, unknown>;
+  totalBytes: number;
+  worktreeRoot: string;
+}

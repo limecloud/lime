@@ -1,23 +1,44 @@
-import { useState, useSyncExternalStore } from "react";
+import { useRef, useState, useSyncExternalStore } from "react";
 import { useTranslation } from "react-i18next";
 import {
   getRegisteredCommands,
   subscribeCommands,
 } from "@/lib/commands/registry";
+import { resolveHotkeyPlatform } from "@/lib/hotkeys/platform";
+import { bindingIdentity } from "@/lib/commands/bindings";
 import {
-  formatShortcutTokens,
-  resolveHotkeyPlatform,
-} from "@/lib/hotkeys/platform";
+  resetCommandBindings,
+  updateCommandBinding,
+} from "@/lib/commands/preferences";
+import type { RegisteredCommand } from "@/lib/commands/registry";
 import { useDesktopPreferences } from "@/hooks/useDesktopPreferences";
 import { effectiveDesktopPreferences } from "@/lib/api/desktopPreferences";
 import type { ExternalBrowserLinkShortcut } from "@/lib/api/appConfigTypes";
-import { PreferenceMenu } from "../browser/PreferenceMenu";
+import {
+  SettingsGroup,
+  SettingsAction,
+  SettingsEmptyState,
+  SettingsPageBody,
+  SettingsPageHeader,
+  SettingsRow,
+  SettingsValueMenu,
+} from "../../SettingsPrimitives";
+import { CommandRow } from "./CommandRow";
+import { ShortcutSearch } from "./ShortcutSearch";
+import { ResetShortcutsDialog } from "./ResetShortcutsDialog";
 
 export function KeyboardShortcutsSettings() {
   const { t } = useTranslation("settings");
   const { t: navigation } = useTranslation("navigation");
   const { configured, error, pending, refresh, save } = useDesktopPreferences();
   const [query, setQuery] = useState("");
+  const [byKeys, setByKeys] = useState(false);
+  const [changing, setChanging] = useState(false);
+  const mutationPending = useRef(false);
+  const [rowError, setRowError] = useState<{ id: string; text: string } | null>(
+    null,
+  );
+  const [resetOpen, setResetOpen] = useState(false);
   const commands = useSyncExternalStore(
     subscribeCommands,
     getRegisteredCommands,
@@ -44,22 +65,103 @@ export function KeyboardShortcutsSettings() {
   const title = t("settings.keyboardShortcuts.externalLink");
   const description = t("settings.keyboardShortcuts.externalLinkDescription");
   const filtered = commands.filter((command) =>
-    matches(
-      `${navigation(command.titleKey)} ${command.descriptionKey ? navigation(command.descriptionKey) : ""}`,
-    ),
+    byKeys && query
+      ? command.bindings.some(
+          (binding) =>
+            bindingIdentity(binding, platform) ===
+            bindingIdentity(query, platform),
+        )
+      : matches(
+          `${command.id} ${navigation(command.titleKey)} ${command.descriptionKey ? navigation(command.descriptionKey) : ""}`,
+        ),
   );
+  const showExternal = !byKeys && matches(`${title} ${description}`);
+  const disabled = !configured || pending || changing;
+  const hasCustom =
+    Object.keys(configured?.["keyboard-shortcuts"] ?? {}).length > 0 ||
+    (configured?.["external-browser-link-shortcut"] ?? "primary") !== "primary";
+  const mutate = async (id: string, action: () => Promise<unknown>) => {
+    if (mutationPending.current || !configured || pending) return false;
+    mutationPending.current = true;
+    setChanging(true);
+    setRowError(null);
+    try {
+      await action();
+      await refresh();
+      return true;
+    } catch {
+      await refresh();
+      setRowError({ id, text: t("settings.keyboardShortcuts.saveError") });
+      return false;
+    } finally {
+      mutationPending.current = false;
+      setChanging(false);
+    }
+  };
+  const changeBinding = async (
+    command: RegisteredCommand,
+    bindings: string[] | null,
+  ) => {
+    if (disabled || mutationPending.current) return false;
+    const next = bindings ?? [...command.defaultBindings];
+    const ids = next.map((binding) => bindingIdentity(binding, platform));
+    const conflict = getRegisteredCommands().find(
+      (other) =>
+        other.id !== command.id &&
+        other.bindings.some((binding) =>
+          ids.includes(bindingIdentity(binding, platform)),
+        ),
+    );
+    if (
+      conflict ||
+      new Set(ids).size !== ids.length ||
+      ids.some((id) => id === null)
+    ) {
+      setRowError({
+        id: command.id,
+        text: t("settings.keyboardShortcuts.conflict", {
+          title: navigation((conflict ?? command).titleKey),
+        }),
+      });
+      return false;
+    }
+    if (
+      bindings !== null &&
+      JSON.stringify(ids) ===
+        JSON.stringify(
+          command.bindings.map((binding) => bindingIdentity(binding, platform)),
+        )
+    ) {
+      setRowError(null);
+      return true;
+    }
+    return mutate(command.id, () => updateCommandBinding(command.id, bindings));
+  };
   return (
-    <div className="space-y-6 pb-8" aria-busy={pending}>
-      <h1 className="text-xl font-semibold">
-        {t("settings.tab.keyboardShortcuts")}
-      </h1>
-      <input
-        type="search"
-        value={query}
-        onChange={(event) => setQuery(event.target.value)}
-        aria-label={t("settings.keyboardShortcuts.search")}
-        placeholder={t("settings.keyboardShortcuts.search")}
-        className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    <SettingsPageBody aria-busy={pending || changing}>
+      <SettingsPageHeader
+        title={t("settings.tab.keyboardShortcuts")}
+        actions={
+          hasCustom ? (
+            <SettingsAction
+              type="button"
+              disabled={disabled}
+              onClick={() => {
+                setRowError(null);
+                setResetOpen(true);
+              }}
+            >
+              {t("settings.keyboardShortcuts.resetAll")}
+            </SettingsAction>
+          ) : null
+        }
+      />
+      <ShortcutSearch
+        query={query}
+        onQueryChange={setQuery}
+        byKeys={byKeys}
+        onModeChange={setByKeys}
+        platform={platform}
       />
       {error ? (
         <div role="alert" className="text-sm text-destructive">
@@ -79,43 +181,56 @@ export function KeyboardShortcutsSettings() {
           ) : null}
         </div>
       ) : null}
-      <div>
+      <SettingsGroup>
         {filtered.map((command) => (
-          <div
+          <CommandRow
             key={command.id}
-            className="flex min-h-14 items-center justify-between gap-6 border-b border-border py-3 text-sm"
-          >
-            <span>{navigation(command.titleKey)}</span>
-            <span className="flex gap-3">
-              {command.bindings.map((binding) => (
-                <kbd
-                  key={binding}
-                  className="rounded border border-border px-2 py-1 text-xs"
-                >
-                  {formatShortcutTokens(binding, platform).join(" ")}
-                </kbd>
-              ))}
-            </span>
-          </div>
+            command={command}
+            platform={platform}
+            disabled={disabled}
+            error={rowError?.id === command.id ? rowError.text : undefined}
+            onUpdate={(bindings) => changeBinding(command, bindings)}
+          />
         ))}
-        {matches(`${title} ${description}`) ? (
-          <PreferenceMenu
+        {showExternal ? (
+          <SettingsRow
             label={title}
             description={description}
             targetId="keyboard-external-browser-link"
-            value={
-              effectiveDesktopPreferences(configured ?? undefined)[
-                "external-browser-link-shortcut"
-              ]
-            }
-            options={options}
-            disabled={!configured || pending}
-            onChange={(value) =>
-              void save("external-browser-link-shortcut", value)
-            }
-          />
+          >
+            <SettingsValueMenu
+              targetId="keyboard-external-browser-link"
+              described
+              value={
+                effectiveDesktopPreferences(configured ?? undefined)[
+                  "external-browser-link-shortcut"
+                ]
+              }
+              disabled={disabled}
+              options={options}
+              onChange={(value) =>
+                void save("external-browser-link-shortcut", value)
+              }
+            />
+          </SettingsRow>
         ) : null}
-      </div>
-    </div>
+        {!filtered.length && !showExternal ? (
+          <SettingsEmptyState>
+            {t("settings.keyboardShortcuts.noMatches")}
+          </SettingsEmptyState>
+        ) : null}
+      </SettingsGroup>
+      <ResetShortcutsDialog
+        open={resetOpen}
+        onOpenChange={setResetOpen}
+        pending={changing}
+        error={rowError?.id === "__all__" ? rowError.text : null}
+        onConfirm={() =>
+          void mutate("__all__", resetCommandBindings).then((saved) => {
+            if (saved) setResetOpen(false);
+          })
+        }
+      />
+    </SettingsPageBody>
   );
 }

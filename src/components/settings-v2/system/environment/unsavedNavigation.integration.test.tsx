@@ -294,11 +294,14 @@ it("refreshes only the preview while retaining the draft", async () => {
   api.getEnvironmentPreview.mockResolvedValueOnce(preview(7));
   await click(button("Refresh preview"));
   expect(input().value).toBe("2700");
-  expect(container.textContent).toContain(
-    getLimeI18n().t("settings:settings.environment.summary.imported", {
-      count: 7,
-    }),
+  const imported = [...container.querySelectorAll("p")].find(
+    (node) =>
+      node.textContent ===
+      getLimeI18n().t(
+        "settings:settings.environment.shellImport.imported.title",
+      ),
   );
+  expect(imported?.nextElementSibling?.textContent).toBe("7");
   expect(api.saveConfig).not.toHaveBeenCalled();
 });
 
@@ -312,11 +315,14 @@ it("ignores an older preview response after saving a newer configuration", async
   await edit("2500");
   await click(button("Save and apply"));
   await act(async () => old.resolve(preview(2)));
-  expect(container.textContent).toContain(
-    getLimeI18n().t("settings:settings.environment.summary.imported", {
-      count: 9,
-    }),
+  const imported = [...container.querySelectorAll("p")].find(
+    (node) =>
+      node.textContent ===
+      getLimeI18n().t(
+        "settings:settings.environment.shellImport.imported.title",
+      ),
   );
+  expect(imported?.nextElementSibling?.textContent).toBe("9");
 });
 
 it("treats preview failure after persistence as a preview error with a clean draft", async () => {

@@ -202,7 +202,7 @@ const FEATURED_TEMPLATES: ProviderTemplate[] = [
     apiHost: "https://api.kimi.com/coding/",
     recommended: true,
     apiKeyUrl: "https://www.kimi.com/code",
-    defaultModels: ["k2p5"],
+    defaultModels: ["kimi-for-coding"],
     iconProviderId: "moonshotai",
     providerResourceId: "kimi-for-coding",
     region: "global",
@@ -217,7 +217,7 @@ const FEATURED_TEMPLATES: ProviderTemplate[] = [
     apiHost: "https://api.moonshot.cn/anthropic",
     recommended: true,
     apiKeyUrl: "https://platform.moonshot.cn/console/api-keys",
-    defaultModels: ["kimi-k2.5"],
+    defaultModels: ["kimi-k3"],
     iconProviderId: "moonshotai",
     providerResourceId: "moonshotai-cn",
     region: "cn",
@@ -232,7 +232,7 @@ const FEATURED_TEMPLATES: ProviderTemplate[] = [
     apiHost: "https://api.moonshot.ai/anthropic",
     recommended: true,
     apiKeyUrl: "https://platform.moonshot.ai/console/api-keys",
-    defaultModels: ["kimi-k2.5"],
+    defaultModels: ["kimi-k3"],
     iconProviderId: "moonshotai",
     providerResourceId: "moonshotai",
     region: "global",
@@ -279,7 +279,7 @@ const FEATURED_TEMPLATES: ProviderTemplate[] = [
     apiHost: "https://open.bigmodel.cn/api/anthropic",
     recommended: true,
     apiKeyUrl: "https://open.bigmodel.cn/usercenter/apikeys",
-    defaultModels: ["glm-4.7"],
+    defaultModels: ["glm-5.3-flash"],
     iconProviderId: "zhipuai",
     providerResourceId: "zhipuai-coding-plan",
     region: "cn",
@@ -294,7 +294,7 @@ const FEATURED_TEMPLATES: ProviderTemplate[] = [
     apiHost: "https://api.z.ai/api/anthropic",
     recommended: true,
     apiKeyUrl: "https://z.ai/manage-apikey/apikey-list",
-    defaultModels: ["glm-4.7"],
+    defaultModels: ["glm-5.3-flash"],
     iconProviderId: "zai",
     providerResourceId: "zai-coding-plan",
     region: "global",
@@ -309,7 +309,7 @@ const FEATURED_TEMPLATES: ProviderTemplate[] = [
     apiHost: "https://token-plan-cn.xiaomimimo.com/anthropic",
     recommended: true,
     apiKeyUrl: "https://mimo.mi.com/",
-    defaultModels: [],
+    defaultModels: ["mimo-v2.6-flash"],
     iconProviderId: "xiaomi",
     providerResourceId: "xiaomi",
     region: "cn",
@@ -324,7 +324,7 @@ const FEATURED_TEMPLATES: ProviderTemplate[] = [
     apiHost: "https://coding.dashscope.aliyuncs.com/apps/anthropic",
     recommended: true,
     apiKeyUrl: "https://bailian.console.aliyun.com/",
-    defaultModels: ["qwen3-coder-plus"],
+    defaultModels: ["qwen3.7-plus"],
     iconProviderId: "alibaba-cn",
     providerResourceId: "alibaba-cn",
     region: "cn",
@@ -340,7 +340,7 @@ const FEATURED_TEMPLATES: ProviderTemplate[] = [
     apiHost: "https://coding-intl.dashscope.aliyuncs.com/apps/anthropic",
     recommended: true,
     apiKeyUrl: "https://modelstudio.console.alibabacloud.com/",
-    defaultModels: ["qwen3-coder-plus"],
+    defaultModels: ["qwen3.7-plus"],
     iconProviderId: "alibaba",
     providerResourceId: "alibaba",
     region: "global",
@@ -369,7 +369,7 @@ const FEATURED_TEMPLATES: ProviderTemplate[] = [
     type: "openai",
     apiHost: "https://aihubmix.com",
     recommended: true,
-    defaultModels: ["claude-sonnet-4-5"],
+    defaultModels: ["claude-sonnet-5-5"],
     iconProviderId: "aihubmix",
     systemProviderId: "aihubmix",
   },
@@ -382,7 +382,7 @@ const FEATURED_TEMPLATES: ProviderTemplate[] = [
     apiHost: "https://openrouter.ai/api/v1/",
     recommended: true,
     apiKeyUrl: "https://openrouter.ai/keys",
-    defaultModels: ["anthropic/claude-sonnet-4.5"],
+    defaultModels: ["anthropic/claude-sonnet-5.5"],
     iconProviderId: "openrouter",
     systemProviderId: "openrouter",
   },
@@ -485,7 +485,7 @@ const RESOURCE_PROVIDER_API_HOSTS: Record<string, string> = {
   "kimi-for-coding": "https://api.kimi.com/coding/",
   lmstudio: "http://localhost:1234",
   minimax: "https://api.minimax.io/anthropic",
-  "minimax-cn": "https://api.minimaxi.com/anthropic",
+  "minimax-cn": "https://api.minimax.cn/anthropic",
   moonshotai: "https://api.moonshot.ai",
   "moonshotai-cn": "https://api.moonshot.cn",
   openai: "https://api.openai.com",
@@ -499,10 +499,22 @@ const RESOURCE_PROVIDER_API_HOSTS: Record<string, string> = {
 };
 
 const RESOURCE_PROVIDER_DEFAULT_MODELS: Record<string, string[]> = {
+  openai: ["gpt-6.1-sol", "gpt-6-luna", "gpt-6-astra"],
+  anthropic: ["claude-sonnet-5-5", "claude-haiku-5-5", "claude-opus-5-5"],
+  google: ["gemini-3.8-flash", "gemini-4-argon"],
+  gemini: ["gemini-3.8-flash", "gemini-4-argon"],
+  deepseek: ["deepseek-flash", "deepseek-v4-pro"],
+  moonshotai: ["kimi-k3"],
+  "moonshotai-cn": ["kimi-k3"],
+  "kimi-for-coding": ["kimi-for-coding"],
+  "alibaba-cn": ["qwen3.7-plus", "qwen3.8-flash", "qwen3.8-max"],
+  alibaba: ["qwen3.7-plus", "qwen3.8-flash", "qwen3.8-max"],
+  xiaomi: ["mimo-v2.6-flash", "mimo-v2.6-pro"],
+  xai: ["grok-4.7"],
   minimax: ["MiniMax-M3.1-Flash", "MiniMax-M3"],
   "minimax-cn": ["MiniMax-M3.1-Flash", "MiniMax-M3"],
   agnes: ["agnes-image-2.1-flash"],
-  sensenova: ["SenseChat-5"],
+  sensenova: [],
 };
 
 const ANTHROPIC_COMPATIBLE_REGISTRY_PROVIDER_IDS = new Set([
@@ -596,9 +608,12 @@ function buildRegistryTemplates(
         ? copy.registryDescriptionWithApiHost(apiHost)
         : copy.registryDescriptionWithoutApiHost,
       category: resolveProviderCategory(providerId),
-      type: ANTHROPIC_COMPATIBLE_REGISTRY_PROVIDER_IDS.has(providerId)
-        ? "anthropic-compatible"
-        : "openai",
+      type:
+        providerId === "openai"
+          ? "openai-response"
+          : ANTHROPIC_COMPATIBLE_REGISTRY_PROVIDER_IDS.has(providerId)
+            ? "anthropic-compatible"
+            : "openai",
       apiHost,
       defaultModels,
       iconProviderId: providerId,

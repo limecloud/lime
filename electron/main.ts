@@ -1504,7 +1504,13 @@ installAppQuitLifecycle(app, {
     hostCommands.dispose();
     persistedAtomHost.dispose();
   },
-  dispose: () => appServerHost.stop(),
+  dispose: async () => {
+    try {
+      await browserTabHost.prepareShutdown();
+    } finally {
+      await appServerHost.stop();
+    }
+  },
   onError: (error) => {
     console.error("[electron-host] App Server shutdown failed", error);
   },

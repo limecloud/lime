@@ -114,7 +114,6 @@ export function useWorkspaceGeneralWorkbenchHarnessSurfaceRuntime({
     const result = await startReview(
       {
         threadId: reviewThreadId,
-        delivery: "inline",
         target: { type: "uncommittedChanges" },
       },
       {
@@ -124,9 +123,13 @@ export function useWorkspaceGeneralWorkbenchHarnessSurfaceRuntime({
       },
     );
     await refreshSessionReadModel?.(sessionId || undefined);
+    if (result.reviewThreadId !== reviewThreadId) {
+      onOpenSubagentSession?.(result.reviewThreadId);
+    }
     return result;
   }, [
     injectedOnStartReview,
+    onOpenSubagentSession,
     refreshSessionReadModel,
     reviewThreadId,
     sessionId,

@@ -21,20 +21,20 @@ vi.mock("@/lib/api/appConfig", () => ({
     return config;
   },
 }));
-vi.mock("../home", () => ({ SettingsHomePage: () => null }));
+vi.mock("../general/GeneralSettings", () => ({ GeneralSettings: () => null }));
 vi.mock("../sections", async () => {
   const { SettingsTabs, SettingsGroupKey } = await import("@/types/settings");
   const { ProfileSettings } = await import("../account/profile");
   const sections = [
     {
       key: SettingsTabs.Profile,
-      group: SettingsGroupKey.Account,
+      group: SettingsGroupKey.Personal,
       labelKey: "settings.profile.title",
       render: () => <ProfileSettings />,
     },
     {
       key: SettingsTabs.Environment,
-      group: SettingsGroupKey.System,
+      group: SettingsGroupKey.Coding,
       labelKey: "settings.environment.title",
       render: () => (
         <div data-settings-search-target="environment-overrides" tabIndex={-1}>
@@ -44,7 +44,7 @@ vi.mock("../sections", async () => {
     },
     {
       key: SettingsTabs.About,
-      group: SettingsGroupKey.System,
+      group: SettingsGroupKey.Coding,
       labelKey: "settings.about.title",
       render: () => <p>About panel</p>,
     },

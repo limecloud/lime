@@ -146,19 +146,14 @@ export async function runSettingsEnvironmentNavigationScenario({
   const originalTheme = await page.evaluate(
     () => document.documentElement.dataset.limeTheme || "system",
   );
-  const themeLabel = { light: "浅色", dark: "深色", system: "跟随系统" };
   const chooseTheme = async (mode) => {
     await page.getByTestId("settings-sidebar-tab-appearance").click();
-    const button =
-      mode === "system"
-        ? page.getByRole("button", {
-            name: "跟随系统 自动同步系统外观。",
-            exact: true,
-          })
-        : page
-            .getByRole("button")
-            .filter({ has: page.getByText(themeLabel[mode], { exact: true }) });
-    await button.click();
+    await page
+      .getByRole("radio", {
+        name: { light: "浅色", dark: "深色", system: "跟随系统" }[mode],
+        exact: true,
+      })
+      .click();
     await page.getByTestId("settings-sidebar-tab-environment").click();
     await field.waitFor({ state: "visible" });
     await clean();

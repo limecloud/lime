@@ -129,7 +129,22 @@ pub trait MemoryAgent: Send + Sync {
 }
 
 #[async_trait]
+pub trait MemorySourcePolicy: Send + Sync {
+    async fn source_eligible(
+        &self,
+        source_thread_id: Option<&str>,
+    ) -> Result<bool, RuntimeCoreError>;
+}
+
+#[async_trait]
 pub trait MemoryStageOneProvider: Send + Sync {
+    async fn source_eligible(
+        &self,
+        _source_thread_id: Option<&str>,
+    ) -> Result<bool, RuntimeCoreError> {
+        Ok(true)
+    }
+
     async fn sample(
         &self,
         request: MemoryStageOneProviderRequest,

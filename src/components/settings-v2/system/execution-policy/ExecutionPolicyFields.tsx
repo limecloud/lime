@@ -1,6 +1,6 @@
 import { AlertCircle, Plus, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { Switch } from "@/components/ui/switch";
+import { SettingsRow, SettingsSwitch } from "../../SettingsPrimitives";
 import { cn } from "@/lib/utils";
 import type {
   ToolExecutionCommandRiskLevelConfig,
@@ -55,18 +55,14 @@ export function ToggleRow({
   onCheckedChange: (checked: boolean) => void;
 }) {
   return (
-    <div className="flex flex-col gap-4 rounded-[22px] border border-border bg-muted/40 p-4 sm:flex-row sm:items-center sm:justify-between">
-      <div className="space-y-1">
-        <p className="text-sm font-semibold text-foreground">{title}</p>
-        <p className="text-sm leading-6 text-muted-foreground">{description}</p>
-      </div>
-      <Switch
+    <SettingsRow label={title} description={description}>
+      <SettingsSwitch
         aria-label={ariaLabel}
         checked={checked}
         disabled={disabled}
         onCheckedChange={onCheckedChange}
       />
-    </div>
+    </SettingsRow>
   );
 }
 

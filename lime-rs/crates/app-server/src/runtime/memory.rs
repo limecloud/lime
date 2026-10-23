@@ -59,7 +59,7 @@ impl RuntimeCore {
         version: crate::MemoryStageOneVersion,
     ) -> Result<crate::MemoryStageOneRunResult, RuntimeCoreError> {
         self.ensure_current_session_hydrated(session_id).await?;
-        if !self.session_memory_enabled(session_id) {
+        if !self.session_memory_generation_enabled(session_id) {
             return Err(RuntimeCoreError::Backend(
                 "memory stage-1 is disabled for this session".to_string(),
             ));
@@ -75,7 +75,7 @@ impl RuntimeCore {
         root: MemoryStoreRootParams,
     ) -> Result<crate::MemoryStageOneRunResult, RuntimeCoreError> {
         self.ensure_current_session_hydrated(session_id).await?;
-        if !self.session_memory_enabled(session_id) {
+        if !self.session_memory_generation_enabled(session_id) {
             return Err(RuntimeCoreError::Backend(
                 "memory stage-2 is disabled for this session".to_string(),
             ));
@@ -164,7 +164,7 @@ impl RuntimeCore {
         route: crate::MemoryStageOneRoute,
     ) -> Result<crate::MemoryStageOneRunResult, RuntimeCoreError> {
         self.backend
-            .run_memory_stage1(root, version, route, self.app_data_source.clone())
+            .run_memory_stage1(root, version, route, self.app_data_source.clone(), self)
             .await
     }
 
@@ -225,7 +225,7 @@ impl RuntimeCore {
             session_id
         };
         self.ensure_current_session_hydrated(&session_id).await?;
-        if !self.session_memory_enabled(&session_id) {
+        if !self.session_memory_generation_enabled(&session_id) {
             return Err(RuntimeCoreError::Backend(
                 "memory consolidation is disabled for this session".to_string(),
             ));

@@ -1,9 +1,17 @@
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::process::Output;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use tokio::process::Command;
-use tokio::time::timeout;
+use std::time::Duration;
+
+mod process;
+use process::git_command_output_from;
+
+mod worktrees;
+pub use worktrees::{
+    create_worktree, list_worktrees, remove_worktree, validate_worktree_removal, worktree_contains,
+    ManagedWorktree, WorktreeOptions,
+};
+pub use worktrees::{restore_worktree, snapshot_worktree, WorktreeSnapshot};
 
 const GIT_COMMAND_TIMEOUT: Duration = Duration::from_secs(5);
 
@@ -449,57 +457,6 @@ pub async fn create_branch(root_path: &str, branch: &str) -> Result<ProjectGitSt
     read_status(root_path).await
 }
 
-pub async fn create_worktree(
-    root_path: &str,
-    name: Option<&str>,
-    base_branch: Option<&str>,
-) -> Result<ProjectGitWorktree, String> {
-    let status = read_status(root_path).await?;
-    if !status.has_git_repository {
-        return Err("当前项目不是 Git 仓库".to_string());
-    }
-
-    let repository_root = status
-        .repository_root
-        .as_deref()
-        .ok_or_else(|| "无法读取 Git 仓库根目录".to_string())?;
-    let repository_path = PathBuf::from(repository_root);
-    let parent = repository_path
-        .parent()
-        .ok_or_else(|| "无法解析 Git 仓库父目录".to_string())?;
-    let repository_name = repository_path
-        .file_name()
-        .and_then(|name| name.to_str())
-        .unwrap_or("project");
-    let slug = resolve_worktree_slug(name);
-    let branch = base_branch
-        .map(str::trim)
-        .filter(|branch| !branch.is_empty())
-        .or(status.current_branch.as_deref())
-        .unwrap_or("HEAD")
-        .to_string();
-    if branch != "HEAD" {
-        validate_branch_name(&branch)?;
-    }
-    let worktree_path = parent.join(format!("{repository_name}-{slug}"));
-
-    if worktree_path.exists() {
-        return Err(format!(
-            "工作树目录已存在: {}",
-            worktree_path.to_string_lossy()
-        ));
-    }
-
-    git_worktree_add(&repository_path, &branch, &worktree_path).await?;
-    let worktree_path_string = worktree_path.to_string_lossy().to_string();
-    let status = read_status(&worktree_path_string).await?;
-    Ok(ProjectGitWorktree {
-        worktree_path: worktree_path_string,
-        branch,
-        status,
-    })
-}
-
 fn required_root_path(root_path: &str) -> Result<PathBuf, String> {
     let trimmed = root_path.trim();
     if trimmed.is_empty() {
@@ -588,37 +545,6 @@ async fn git_diff_output(root: &Path, args: &[&str]) -> Result<String, String> {
     output_to_string(output)
 }
 
-async fn git_worktree_add(root: &Path, branch: &str, path: &Path) -> Result<(), String> {
-    let path = path.to_string_lossy();
-    let output = git_command_output_from(
-        Path::new("git"),
-        root,
-        &["worktree", "add", "--detach", path.as_ref(), branch],
-        GIT_COMMAND_TIMEOUT,
-    )
-    .await?;
-    output_to_string(output).map(|_| ())
-}
-
-async fn git_command_output_from(
-    git: &Path,
-    root: &Path,
-    args: &[&str],
-    command_timeout: Duration,
-) -> Result<Output, String> {
-    let mut command = Command::new(git);
-    command
-        .env("GIT_OPTIONAL_LOCKS", "0")
-        .args(args)
-        .current_dir(root)
-        .kill_on_drop(true);
-
-    match timeout(command_timeout, command.output()).await {
-        Ok(result) => result.map_err(|error| format!("无法执行 git: {error}")),
-        Err(_) => Err(format!("git 命令超时（{}ms）", command_timeout.as_millis())),
-    }
-}
-
 fn output_to_string(output: Output) -> Result<String, String> {
     if output.status.success() {
         return Ok(String::from_utf8_lossy(&output.stdout).trim().to_string());
@@ -659,36 +585,6 @@ fn validate_branch_name(branch: &str) -> Result<(), String> {
         return Err("分支名格式无效".to_string());
     }
     Ok(())
-}
-
-fn resolve_worktree_slug(name: Option<&str>) -> String {
-    let fallback = || {
-        let millis = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map(|duration| duration.as_millis())
-            .unwrap_or(0);
-        format!("worktree-{millis}")
-    };
-    let Some(name) = name.map(str::trim).filter(|value| !value.is_empty()) else {
-        return fallback();
-    };
-    let slug = name
-        .chars()
-        .map(|ch| {
-            if ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '.') {
-                ch.to_ascii_lowercase()
-            } else {
-                '-'
-            }
-        })
-        .collect::<String>()
-        .trim_matches(['-', '.', '_'])
-        .to_string();
-    if slug.is_empty() {
-        fallback()
-    } else {
-        slug
-    }
 }
 
 #[cfg(test)]
@@ -1039,9 +935,25 @@ mod tests {
             return;
         };
 
-        let worktree = create_worktree(&repo.to_string_lossy(), Some("agent-demo"), Some("main"))
-            .await
-            .expect("worktree");
+        let root = repo.parent().unwrap().join("Managed Worktrees");
+        run_git(
+            &repo,
+            &["remote", "add", "origin", "/missing/local-fixture-remote"],
+        );
+        let worktree = create_worktree(
+            &repo.to_string_lossy(),
+            Some("agent-demo"),
+            Some("main"),
+            &WorktreeOptions {
+                root: root.clone(),
+                refresh_upstream: true,
+            },
+        )
+        .await
+        .expect("best-effort refresh failure must not block creation");
+        assert!(
+            PathBuf::from(&worktree.worktree_path).starts_with(fs::canonicalize(&root).unwrap())
+        );
 
         assert!(PathBuf::from(&worktree.worktree_path).exists());
         assert_eq!(worktree.branch, "main");

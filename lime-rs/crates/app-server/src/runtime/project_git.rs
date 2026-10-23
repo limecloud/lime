@@ -5,6 +5,8 @@ use super::service_projection::{
 use super::{RuntimeCore, RuntimeCoreError};
 use app_server_protocol::*;
 
+mod worktrees;
+
 impl RuntimeCore {
     pub async fn read_project_git_status(
         &self,
@@ -79,10 +81,13 @@ impl RuntimeCore {
         let root_path = params.root_path;
         let name = params.name;
         let base_branch = params.base_branch;
+        let options = self.project_worktree_options()?;
+        let _guard = self.worktree_operations.lock().await;
         let worktree = lime_services::project_git_service::create_worktree(
             &root_path,
             name.as_deref(),
             base_branch.as_deref(),
+            &options,
         )
         .await
         .map_err(RuntimeCoreError::Backend)?;

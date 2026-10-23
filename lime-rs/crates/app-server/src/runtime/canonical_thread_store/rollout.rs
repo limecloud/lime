@@ -3,6 +3,31 @@ use serde_json::Value;
 use std::path::Path;
 
 impl ProjectionStore {
+    pub(crate) fn rollout_path_for_thread_sync(
+        &self,
+        thread_id: &ThreadId,
+    ) -> Result<Option<std::path::PathBuf>, String> {
+        let conn = self
+            .open_thread_store()
+            .map_err(|error| error.to_string())?;
+        let stored = conn
+            .query_row(
+                "SELECT rollout_path FROM canonical_threads WHERE thread_id = ?1",
+                params![thread_id.as_str()],
+                |row| row.get::<_, Option<String>>(0),
+            )
+            .optional()
+            .map_err(|error| error.to_string())?
+            .flatten();
+        stored
+            .map(|path| {
+                self.rollout_store()
+                    .ok_or("canonical rollout store is unavailable")?
+                    .absolute_path(Path::new(&path))
+            })
+            .transpose()
+    }
+
     pub(super) fn persist_rollout_metadata(
         &self,
         conn: &Connection,
@@ -63,8 +88,7 @@ impl ProjectionStore {
                 let current_path = self
                     .rollout_path_for_thread_sync(&current.thread_id)?
                     .ok_or_else(|| "paginated thread has no current rollout path".to_string())?;
-                let (current_path, _, _, _) =
-                    rollout.read_requested_thread(Path::new(&current_path))?;
+                let (current_path, _, _, _) = rollout.read_requested_thread(&current_path)?;
                 if requested_path != current_path {
                     return Err(format!("cannot fork paginated thread {} with stale path; omit path and use threadId", thread.thread_id));
                 }

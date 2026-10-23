@@ -1,214 +1,34 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import { invokeAppServerFromPage } from "./claw-chat-current-fixture-rpc.mjs";
 import { sendPromptFromGui } from "./claw-chat-current-fixture-gui-actions.mjs";
-import {
-  appServerCallFromPage,
-  readConfigFromPage,
-} from "../electron/mcp-config-fixture-smoke.mjs";
-import { APP_SERVER_METHOD_SESSION_READ } from "./claw-chat-current-fixture-constants.mjs";
-import {
-  assert,
-  sanitizeText,
-  sleep,
-} from "./claw-chat-current-fixture-utils.mjs";
-import {
-  isObservedPreloadAppServerResponse,
-  parseJsonRpcRequestsFromInvokeTrace,
-} from "../electron/lib/mcp-config-fixture-evidence.mjs";
+import { readConfigFromPage } from "../electron/mcp-config-fixture-smoke.mjs";
+import { assert, sanitizeText } from "./claw-chat-current-fixture-utils.mjs";
+import { isObservedPreloadAppServerResponse } from "../electron/lib/mcp-config-fixture-evidence.mjs";
 
-import {
-  annotationImageSummary,
-  annotationTextOf as textOf,
-  summarizeBrowserAnnotationSubmission,
-} from "./browser-runtime-electron-gate-b-annotation-evidence.mjs";
+import { annotationImageSummary } from "./browser-runtime-electron-gate-b-annotation-evidence.mjs";
 export {
   BROWSER_ANNOTATION_FINAL_MARKER,
   createBrowserAnnotationResponses,
 } from "./browser-runtime-electron-gate-b-annotation-evidence.mjs";
 const PAGE_CHANNEL = "browser-annotation-page-event";
 const EDITOR_CHANNEL = "lime:browser-annotation-editor";
-
-async function waitFor(options, read, predicate, description) {
-  const deadline = Date.now() + options.timeoutMs;
-  let last;
-  while (Date.now() < deadline) {
-    last = await read();
-    if (predicate(last)) return last;
-    await sleep(options.intervalMs);
-  }
-  throw new Error(`${description}: ${JSON.stringify(last)}`);
-}
-
-async function observeNativeInputs(app, key) {
-  await app.evaluate(
-    ({ ipcMain }, { key, channels }) => {
-      const records = [];
-      const listeners = channels.map((channel) => {
-        const listener = (event, value) => {
-          if (!value || typeof value !== "object") return;
-          records.push({
-            channel,
-            senderId: event.sender.id,
-            senderUrl: event.sender.getURL(),
-            mainFrame: event.senderFrame === event.sender.mainFrame,
-            kind: value.kind ?? value.type,
-            action: value.action ?? null,
-            annotationId: value.annotationId ?? null,
-            editorId: value.editorId ?? null,
-            generation: value.generation ?? null,
-            revision: value.revision ?? null,
-            bodyLength:
-              typeof value.body === "string" ? value.body.length : null,
-          });
-        };
-        ipcMain.on(channel, listener);
-        return { channel, listener };
-      });
-      globalThis[key] = {
-        records,
-        close: () =>
-          listeners.forEach(({ channel, listener }) =>
-            ipcMain.off(channel, listener),
-          ),
-      };
-    },
-    { key, channels: [PAGE_CHANNEL, EDITOR_CHANNEL] },
-  );
-}
-
-async function nativeIdentity(app, webContentsId) {
-  return app.evaluate(({ BrowserWindow, webContents }, id) => {
-    const target = webContents.fromId(id);
-    if (!target || target.isDestroyed()) return null;
-    const find = (view) =>
-      view.webContents?.id === id
-        ? view
-        : view.children.map(find).find(Boolean);
-    const window = BrowserWindow.getAllWindows().find((window) =>
-      find(window.contentView),
-    );
-    const view = window ? find(window.contentView) : null;
-    return {
-      webContentsId: target.id,
-      url: target.getURL(),
-      windowId: window?.id ?? null,
-      ownerWebContentsId: window?.webContents.id ?? null,
-      bounds: view?.getBounds() ?? null,
-    };
-  }, webContentsId);
-}
-
-async function nativePage(app, options, predicate, description) {
-  return waitFor(
-    options,
-    async () => {
-      for (const candidate of app.context().pages()) {
-        if (candidate.isClosed() || !predicate(candidate.url())) continue;
-        const cdp = await app.context().newCDPSession(candidate);
-        try {
-          const { targetInfo } = await cdp.send("Target.getTargetInfo");
-          const id = await app.evaluate(
-            ({ webContents }, targetId) =>
-              webContents.fromDevToolsTargetId(targetId)?.id ?? null,
-            targetInfo.targetId,
-          );
-          if (id)
-            return { page: candidate, native: await nativeIdentity(app, id) };
-        } finally {
-          await cdp.detach();
-        }
-      }
-      return null;
-    },
-    (value) => !!value?.native?.bounds,
-    description,
-  );
-}
-
-async function readCanonical(page, requestLog, threadId) {
-  return invokeAppServerFromPage(
-    page,
-    APP_SERVER_METHOD_SESSION_READ,
-    { threadId, includeTurns: true },
-    requestLog,
-  );
-}
-
-async function submissionEvidence(ctx, body, kind, mainPrompt = "") {
-  const {
-    page,
-    options,
-    identity,
-    requestLog,
-    providerFixture,
-    readInvokeTrace,
-    initial,
-  } = ctx;
-  const canonical = await waitFor(
-    options,
-    () => readCanonical(page, requestLog, identity.threadId),
-    (read) =>
-      read.result?.thread?.turns?.some(
-        (turn) =>
-          ["completed", "complete"].includes(
-            String(turn.status).toLowerCase(),
-          ) &&
-          turn.items?.some(
-            (item) =>
-              item.type === "userMessage" &&
-              textOf(item.content).includes(body),
-          ),
-      ),
-    "Annotation canonical turn did not complete",
-  );
-  const turn = canonical.result.thread.turns.findLast((turn) =>
-    turn.items?.some(
-      (item) =>
-        item.type === "userMessage" && textOf(item.content).includes(body),
-    ),
-  );
-  const item = turn.items.find(
-    (item) =>
-      item.type === "userMessage" && textOf(item.content).includes(body),
-  );
-  const uri = item.content.find((part) => part.type === "image")?.url;
-  assert(uri, "Annotation user item has no canonical image");
-  const mediaRead = await appServerCallFromPage(page, "media/read", {
-    threadId: identity.threadId,
-    uri,
-    offset: 0,
-    length: 8_388_608,
-  });
-  const trace = await waitFor(
-    options,
-    async () => {
-      const latest = await page.evaluate(() =>
-        JSON.parse(localStorage.getItem("lime_invoke_trace_buffer_v1") || "[]"),
-      );
-      return [...(readInvokeTrace?.() ?? []), ...latest];
-    },
-    (trace) =>
-      parseJsonRpcRequestsFromInvokeTrace(JSON.stringify(trace)).some(
-        (entry) =>
-          entry.method === "turn/start" &&
-          entry.params.input?.some((part) => part.text?.includes(body)),
-      ),
-    "Annotation turn/start trace missing",
-  );
-  return summarizeBrowserAnnotationSubmission({
-    trace,
-    canonical: canonical.result,
-    providerRequests: providerFixture.requests,
-    body,
-    threadId: identity.threadId,
-    pageUrl: initial.address,
-    kind,
-    mediaRead,
-    mainPrompt,
-  });
-}
+import {
+  observeBrowserAnnotationInputs,
+  readBrowserAnnotationCommands,
+  waitForBrowserAnnotationState as waitFor,
+  readBrowserAnnotationNativeIdentity as nativeIdentity,
+  waitForBrowserAnnotationNativePage as nativePage,
+} from "./browser-runtime-electron-gate-b-annotation-diagnostics.mjs";
+import {
+  runBrowserAnnotationDirectRejection,
+  runBrowserAnnotationMainRejection,
+} from "./browser-runtime-electron-gate-b-annotation-rejection.mjs";
+import { observeBrowserAnnotationSubmission as submissionEvidence } from "./browser-runtime-electron-gate-b-annotation-submission.mjs";
+import { runBrowserAnnotationActiveSubmissions } from "./browser-runtime-electron-gate-b-annotation-active.mjs";
+import { runBrowserAnnotationFormTextScenario } from "./browser-runtime-electron-gate-b-annotation-form-text.mjs";
+import { runBrowserAnnotationTextScenario } from "./browser-runtime-electron-gate-b-annotation-text.mjs";
+import { runBrowserAnnotationFramesScenario } from "./browser-runtime-electron-gate-b-annotation-frames.mjs";
 
 /** No permission rewrites, draft injection, bridge replacement or synthetic acceptance. */
 export async function runBrowserAnnotationScenario(ctx) {
@@ -266,6 +86,7 @@ export async function runBrowserAnnotationScenario(ctx) {
   const screenshots = [],
     captures = {},
     consoleErrors = [],
+    expectedConsoleErrors = [],
     pageErrors = [];
   const stage = (name) =>
     console.log(`[browser-runtime-annotation] stage=${name}`);
@@ -288,6 +109,10 @@ export async function runBrowserAnnotationScenario(ctx) {
       directory,
       `${locale}-browser-annotation-${name}.png`,
     );
+    assert(
+      !screenshots.some((shot) => shot.file === file),
+      `Duplicate annotation screenshot path: ${name}`,
+    );
     const shot = await app.evaluate(async ({ webContents }, id) => {
       const image = await webContents.fromId(id).capturePage();
       return image.toPNG().toString("base64");
@@ -305,7 +130,27 @@ export async function runBrowserAnnotationScenario(ctx) {
   );
   const chip = (body) =>
     accessory.getByRole("button", { name: body, exact: true });
+  const focusOwner = async () => {
+    await app.evaluate(({ app }) => app.focus({ steal: true }));
+    const window = await app.browserWindow(page);
+    await window.evaluate((owner) => {
+      owner.show();
+      owner.moveTop();
+      owner.focus();
+    });
+    let focusedSamples = 0;
+    await waitFor(
+      options,
+      () => window.evaluate((owner) => owner.isVisible() && owner.isFocused()),
+      (focused) => {
+        focusedSamples = focused ? focusedSamples + 1 : 0;
+        return focusedSamples >= 2;
+      },
+      "Native annotation owner did not retain foreground focus",
+    );
+  };
   const fill = async (editor, body) => {
+    await focusOwner();
     const input = editor.page.locator(
       '[data-testid="browser-annotation-composer"][role="textbox"]',
     );
@@ -317,6 +162,7 @@ export async function runBrowserAnnotationScenario(ctx) {
     await input.press("End");
   };
   const editor = async () => {
+    await focusOwner();
     const target = await nativePage(
       app,
       options,
@@ -358,24 +204,48 @@ export async function runBrowserAnnotationScenario(ctx) {
     return target;
   };
   let native;
-  await observeNativeInputs(app, observerKey);
-  const beginSelection = async () => {
-    const count = () =>
-      app.evaluate(
-        (_electron, key) =>
-          globalThis[key].records.filter(
-            (entry) =>
-              entry.channel === "browser-annotation-page-event" &&
-              entry.kind === "began",
-          ).length,
-        observerKey,
+  await observeBrowserAnnotationInputs(app, observerKey);
+  const hasPicker = () =>
+    native.page.evaluate(() => {
+      const element = document.elementFromPoint(2, 2);
+      return (
+        element?.parentElement === document.documentElement &&
+        element.style.cursor === "crosshair"
       );
-    const before = await count();
-    await page.locator('[data-testid="browser-annotation-select"]').click();
+    });
+  const browse = async () => {
+    const button = page.locator('[data-testid="browser-annotation-select"]');
+    if ((await button.getAttribute("aria-pressed")) === "true")
+      await button.click();
     await waitFor(
       options,
-      count,
-      (value) => value > before,
+      hasPicker,
+      (value) => !value,
+      "Annotation mode did not exit to browsing",
+    );
+  };
+  const beginSelection = async () => {
+    await focusOwner();
+    let lastBounds = "",
+      stableBounds = 0;
+    await waitFor(
+      options,
+      async () => (await nativeIdentity(app, initial.webContentsId))?.bounds,
+      (bounds) => {
+        const next = JSON.stringify(bounds);
+        stableBounds = next === lastBounds ? stableBounds + 1 : 0;
+        lastBounds = next;
+        return bounds?.width > 0 && bounds.height > 0 && stableBounds >= 2;
+      },
+      "Native Browser layout did not settle before selection",
+    );
+    const button = page.locator('[data-testid="browser-annotation-select"]');
+    if ((await button.getAttribute("aria-pressed")) !== "true")
+      await button.click();
+    await waitFor(
+      options,
+      hasPicker,
+      Boolean,
       "Native annotation selection shield did not start",
     );
   };
@@ -406,6 +276,7 @@ export async function runBrowserAnnotationScenario(ctx) {
     await page
       .getByRole("menuitemradio", { name: selectedLabel, exact: true })
       .click();
+    stage(`settings-${value}-selected`);
     await waitFor(
       options,
       async () => ({
@@ -416,17 +287,26 @@ export async function runBrowserAnnotationScenario(ctx) {
       "Screenshot preference did not persist",
     );
     const read = await readConfigFromPage(page);
+    stage(`settings-${value}-config-read`);
     await page.getByTestId("settings-back-button").click();
-    // The first annotation turn can rename the thread; reopen its canonical identity.
-    await page.locator(
-      `[data-testid="app-sidebar-conversation-open"][data-session-id="${identity.sessionId}"]`,
-    ).click();
-    await page.locator(
-      `[data-testid="composer-editor"][data-session-id="${identity.sessionId}"]`,
-    ).waitFor({ state: "visible", timeout: options.timeoutMs });
-    stage("reopen-browser-panel-after-settings");
-    await page.getByTestId("thread-side-panel-toggle").click();
-    await page.getByTestId("side-panel-new-tab-browser").click();
+    stage(`settings-${value}-back`);
+    const restoredWorkspace = await waitFor(
+      options,
+      () => readBrowserWorkspaceState(page),
+      (state) =>
+        ["sessionId", "tabId", "threadId", "viewId", "webContentsId"].every(
+          (key) => state[key] === initial[key],
+        ),
+      "Settings did not restore the original Browser identity",
+    );
+    captures.settingsReturns ??= [];
+    captures.settingsReturns.push({
+      preference: value,
+      workspace: restoredWorkspace,
+    });
+    await capture(`settings-${value}-returned-renderer`, {
+      native: { webContentsId: native.native.ownerWebContentsId },
+    });
     await page
       .locator('[data-testid="browser-annotation-select"]')
       .waitFor({ state: "visible", timeout: options.timeoutMs });
@@ -446,6 +326,34 @@ export async function runBrowserAnnotationScenario(ctx) {
     observePage(native.page);
     observePage(page);
     ctx = { ...ctx, initial };
+    if (
+      ["annotation-text", "annotation-form-text", "annotation-frames"].includes(
+        options.scenario,
+      )
+    ) {
+      const runTextScenario =
+        options.scenario === "annotation-frames"
+          ? runBrowserAnnotationFramesScenario
+          : options.scenario === "annotation-form-text"
+            ? runBrowserAnnotationFormTextScenario
+            : runBrowserAnnotationTextScenario;
+      return await runTextScenario(ctx, {
+        native,
+        observerKey,
+        beginSelection,
+        browse,
+        hasPicker,
+        editor,
+        fill,
+        chip,
+        label,
+        capture,
+        screenshots,
+        consoleErrors,
+        pageErrors,
+        verifySubmission: (...args) => submissionEvidence(ctx, ...args),
+      });
+    }
     stage("element-select-save-reopen");
     await beginSelection();
     await selectHeading();
@@ -483,6 +391,16 @@ export async function runBrowserAnnotationScenario(ctx) {
     );
     await fill(reopened, editedBody);
     await capture("element-reopened-edited", reopened);
+    stage("direct-send-preaccept-rejection");
+    captures.directRejection = await runBrowserAnnotationDirectRejection(ctx, {
+      editor: reopened.page,
+      chip: chip(editedBody),
+      body: editedBody,
+      label,
+      consoleErrors,
+      expectedConsoleErrors,
+    });
+    await capture("element-rejected-preserved", reopened);
     stage("direct-send-start");
     const requestsBeforeDirect = providerFixture.requests.length;
     await reopened.page
@@ -527,9 +445,10 @@ export async function runBrowserAnnotationScenario(ctx) {
       viewport.width > 160 && viewport.height > 160,
       "Native Browser viewport too small for a real region drag",
     );
+    // Start in whitespace; a drag beginning on text now follows the text-selection path.
     const rect = {
       x: 36,
-      y: 38,
+      y: Math.min(200, viewport.height - 148),
       width: Math.min(180, viewport.width - 72),
       height: Math.min(112, viewport.height - 76),
     };
@@ -559,6 +478,15 @@ export async function runBrowserAnnotationScenario(ctx) {
     await chip(regionBody).waitFor({
       state: "visible",
       timeout: options.timeoutMs,
+    });
+    captures.mainRejection = await runBrowserAnnotationMainRejection(ctx, {
+      chip: chip(regionBody),
+      prompt: mainPrompt,
+      consoleErrors,
+      expectedConsoleErrors,
+    });
+    await capture("main-rejected-preserved", {
+      native: { webContentsId: native.native.ownerWebContentsId },
     });
     await sendPromptFromGui(page, options, mainPrompt, {
       expectedSessionId: identity.sessionId,
@@ -607,6 +535,22 @@ export async function runBrowserAnnotationScenario(ctx) {
       providerRequestsUnchanged:
         providerFixture.requests.length === requestsBeforeDelete,
     };
+    stage("active-queue-and-steer");
+    captures.active = await runBrowserAnnotationActiveSubmissions(ctx, {
+      beginSelection,
+      browse,
+      hasPicker,
+      selectHeading,
+      editor,
+      fill,
+      chip,
+      label,
+      verifySubmission: (...args) => submissionEvidence(ctx, ...args),
+      captureRenderer: (name) =>
+        capture(name, {
+          native: { webContentsId: native.native.ownerWebContentsId },
+        }),
+    });
     stage("restore-original-screenshot-preference-and-check-config");
     const restoredSettings = await chooseScreenshotPreference(
       settingsBefore.config?.browser?.annotation_screenshot ?? "always",
@@ -651,7 +595,7 @@ export async function runBrowserAnnotationScenario(ctx) {
         nativeInputs.filter(
           (entry) =>
             entry.channel === PAGE_CHANNEL && entry.kind === "selection",
-        ).length === 3 &&
+        ).length === 5 &&
         nativeInputs
           .filter((entry) => entry.channel === PAGE_CHANNEL)
           .every(
@@ -674,7 +618,29 @@ export async function runBrowserAnnotationScenario(ctx) {
       directStartTextImageAccepted:
         captures.direct.failedAssertions.length === 0 &&
         captures.direct.newProviderRequests > 0,
+      directFailurePreservedAndRetryAccepted:
+        Object.values(captures.directRejection).every(
+          (value) => value === true,
+        ) && captures.direct.failedAssertions.length === 0,
       mainSendTextImageAccepted: captures.main.failedAssertions.length === 0,
+      mainFailurePreservedAndRetryAccepted:
+        Object.values(captures.mainRejection).every(
+          (value) => value === true,
+        ) && captures.main.failedAssertions.length === 0,
+      activeQueueAndSteerTextImageAccepted: [
+        captures.active.queue,
+        captures.active.steer,
+      ].every((value) => value.failedAssertions.length === 0),
+      visibleScreenshotMatchesAllSubmissionTargets: [
+        captures.direct,
+        captures.main,
+        captures.active.queue,
+        captures.active.steer,
+      ].every(
+        (value) =>
+          value.messagePreview.visible &&
+          value.messagePreview.image?.sha256 === value.image?.sha256,
+      ),
       differentCanonicalTurnsSameThread:
         !!captures.direct.turnId &&
         captures.direct.turnId !== captures.main.turnId &&
@@ -738,27 +704,35 @@ export async function runBrowserAnnotationScenario(ctx) {
       generatedAt: new Date().toISOString(),
       proofLevel: "Gate B-F",
       claimBoundary:
-        "真实 Lime Electron、原生网页元素/区域选择、capture、可信 Composer 编辑器、保存/重开/编辑/删除、direct start 与主 Composer send、preload/IPC、App Server JSON-RPC、RuntimeCore、canonical Thread/Turn/Item 和本地 provider 接收 text+image。provider 使用显式测试夹具；未验证 live provider、失败保留、queue、steer、Design Tweaks、进程重启或其他平台。",
+        "真实 Lime Electron、原生网页元素/区域选择、capture、可信 Composer 编辑器、保存/重开/编辑/删除、直接发送与主Composer拒绝/保留/恢复后重试、active queue/steer、preload/IPC、App Server JSON-RPC、RuntimeCore、canonical Thread/Turn/Item 和本地 provider 接收 text+image。provider 使用显式测试夹具；未验证 live provider、Design Tweaks、进程重启或其他平台。",
       pending: [
-        "main/direct pre-accept failure preservation",
-        "queue",
-        "steer",
+        "continuous selection and scroll following",
+        "multiple anchors",
         "Design Tweaks",
+        "manual image attachments",
+        "rich history recovery",
+        "five-locale visual comparison",
+        "packaged macOS/Windows",
       ],
       identity: {
         ...initial,
         workspaceId,
         conversationSessionId: identity.sessionId,
       },
+      returnedWorkspace: workspace,
       captures,
       screenshots,
       nativeInputs,
+      nativeCommands: await readBrowserAnnotationCommands(app, observerKey),
       invoke: { commands },
       assertions,
       failedAssertions,
-      diagnostics: { consoleErrors, pageErrors },
+      diagnostics: { consoleErrors, expectedConsoleErrors, pageErrors },
     };
   } catch (error) {
+    await capture("failure-renderer", {
+      native: { webContentsId: native?.native.ownerWebContentsId },
+    }).catch(() => undefined);
     const failure = {
       schemaVersion:
         "lime.browser_runtime_electron_gate_b.annotation.failure.v1",
@@ -766,11 +740,15 @@ export async function runBrowserAnnotationScenario(ctx) {
       error: sanitizeText(
         error instanceof Error ? error.message : String(error),
       ),
+      stack: error instanceof Error ? sanitizeText(error.stack) : null,
       identity: { ...initial, workspaceId },
       captures,
       screenshots,
       consoleErrors,
+      expectedConsoleErrors,
       pageErrors,
+      nativeCommands: await readBrowserAnnotationCommands(app, observerKey),
+      invokeTrace: readInvokeTrace?.() ?? [],
       nativeInputs: await app
         .evaluate(
           (_electron, key) => globalThis[key]?.records ?? [],

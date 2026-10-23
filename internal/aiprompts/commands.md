@@ -730,6 +730,17 @@ Electron start/resume 注入自己的不可变 catalog，断连同时撤销本�
 
 App Server 持有 Thread/Turn、动态工具生命周期、Browser read model 与 canonical identity；Electron 只持有 native view、window、`webContents.debugger`、下载和权限等宿主状态；Renderer 只消费 projection 并发送用户意图。Agent action 必须按 connection/thread/turn/session/tab/view/WebContents owner 精确路由，用户操作或 turn terminal 必须使旧控制权失效。
 
+`browser__history` 是原 frozen Browser namespace 的只读动态工具，不是新增 App Server 或 Desktop IPC
+方法。参数为可选 `query`（最多256字符，省略/空白查询最近记录）、原 `nextCursor`、`limit`（1–200，
+默认50）及审批 anchor 的可选 `tabId`；不接受路径、数据库或写入参数。复用原历史 parser 与
+`BrowserHistoryHost.invoke(browser_history_list)`。`history_access` 的 alwaysAsk/neverAsk/disabled
+分别表示每次查询审批、允许查询和禁用 Agent 查询；禁用不影响用户历史管理。历史工具不 claimTab、
+不取得页面控制或 browse grant。alwaysAsk 经原 `item/tool/call` preflight/approvedExecute 和
+RuntimeCore canonical approval，只返回一次性 descriptor，不夹带历史内容；批准后只执行原 query。
+工具调用及原生 anchor identity 必须精确匹配，设置撤销、导航/销毁、接管、turn terminal 和断连
+使 token 与 in-flight 结果失效；IO 后再次回读配置、核验同一 policy revision/route，错误不转空成功。
+审批 anchor 当前要求同 thread 的可用 canonical tab；这属于原 descriptor 的 route 前置条件。
+
 `browser_tab_list` 是既有 native tab owner 的只读 snapshot，不是新的 App Server 业务方法。
 Host 从实际 IPC sender 派生 window / ownerWebContents，并校验 browserSession / thread；身份不符必须
 拒绝，不能返回空列表。返回完整 live tabs、selected、URL 和 native identity；Renderer 验证 scope、
@@ -739,7 +750,37 @@ Host 从实际 IPC sender 派生 window / ownerWebContents，并校验 browserSe
 `useBrowserWorkspaceHydration` 是唯一恢复接线，使用单调 epoch、事件合并与 close tombstone 拒绝
 ABA、迟到 snapshot / event / mount；它只持有显示投影，不增加 tab store 或网页执行体。
 
+Browser 设置继续走 `updateConfig` 队列与 `config/batchWrite(expectedVersion)`。`updateBrowserSetting`
+必须携带界面看到的字段旧值，并在队列内部比较规范化结果；即使 cache 已刷新到新版本，也不能用旧权限矩阵覆盖。
+字段冲突与 App Server `configVersionConflict` 统一为可识别的冲突终态，不自动重放授权。
+UI 回读权威值并保留模式草稿；回读失败时禁止继续修改，显式重新加载成功后恢复。
+编辑开始的矩阵作为表单基准，冲突后的再次显式提交使用回读值；已删除的规则不可被重建或以空操作报告保存成功。
+这只是配置编辑合同，不替代网站设备权限或 canonical Agent 操作审批；不新增 Browser 配置 store、IPC 或 JSON-RPC method。
+
+下载管理复用 `browser_downloads_list/action/clear`。列表返回公开 entries、total、nextOffset、
+与磁盘一致的 durable `revision`，以及仅用于当前进程分页一致性的 `historyRevision`。
+`browser-downloads-changed` 只由 Main 发布 `{kind:"updated",revision,historyRevision,entries,removedIds}`
+或 `{kind:"invalidated"}`；typed gateway 校验完整字段与身份，非法通知只触发重新读取，私有路径/恢复参数不进入 Renderer。
+进度字节更新直接合并已加载行；成员、状态、排序或搜索元数据变化才使历史分页失效。
+消费者拒绝旧事件，保留历史文件可用性，翻页使用 historyRevision，不能要求 durable revision 在持续下载时不变。
+
 外部 Chrome/CDP `browserSession/*`、`BrowserRuntimeManager`、Settings Chrome relay、`BrowserSessionRef` adapter、Canvas Browser 和 `mcp__lime-browser__*` 正向工具均为 `dead / deleted / forbidden-to-restore`；只允许出现在负向回流守卫或不可变历史 evidence。Browser current command 变更必须同步 Electron Host/preload、Renderer typed gateway、App Server reverse-request/catalog、fixture、read model 与 `npm run test:contracts`。
+
+网页批注的 Design Tweaks CSS/纯文本预览复用现有 annotation selection/editor 事件，不新增通用网页 bridge 或 App Server method。
+受限 page preload 为已选元素读取有界 `designSnapshot`；Host 验证并绑定原 annotation/document/frame identity。
+可信 editor 的正文、图片、`designChange` 共用同一 revision，旧 revision 或伪造 previousValue 不得替换草稿。
+Editor Host 的事件由 BrowserTabHost 委托 Annotation Host，再以原 private token 发送到同一 PageAnnotation；
+CSS 使用局部临时 style，文本撤销恢复原节点。保存后保留预览，关闭未保存的临时预览恢复已保存组；
+隐藏、Agent 接管、导航、取消和销毁沿原 annotation 生命周期撤销。模型输入只投影 old→new 和源代码修改指引，
+不把临时属性当作应写入项目的源码。站点 controls/virtual 与完整 provenance 仍按执行计划继续实现。
+
+工具条按住原图使用 Desktop presentation 命令`browser_tab_set_annotation_original`，沿原共享IPC白名单/
+preload、BrowserTabHost命令委托和Annotation Host，不新增App Server业务方法、工具或通用网页bridge。
+请求为`{tabId,identity,gestureId,original}`，identity显式匹配session/thread/tab/view/WebContents/window/pageRevision；
+回执重复完整identity与gestureId/original。Host只对同页可用的原annotation发送私有`design-original`，
+旧gesture的释放不结束新hold，旧page identity拒绝。Renderer串行提交start/release，指针取消、键盘松开、
+失焦、禁用和卸载释放；Host窗口失焦、owner renderer销毁、导航和Agent暂停独立清理。标记偏好与原图分离，
+隐藏marker不撤销CSS/text，original不改草稿/revision/marker偏好；恢复同页时不继承旧hold。
 
 ## Review 主链
 
@@ -918,3 +959,17 @@ thread/unarchive 在未归档/不存在时返回 InvalidRequest，无成功或�
 r33 源码补核：Codex message_processor.rs、v2/rollout_compress_tests.rs 要求
 连接 initialize.capabilities.experimentalApi=true；rollout/compress 现在遵守该
 connection-local opt-in，无声明返回 -32600 和上游同文错误，且不调度 worker。
+
+## Managed Worktrees 主链
+
+Worktrees 设置清单与删除复用 `projectGit/worktree/list|delete`，沿 typed renderer gateway、
+现役 JSONL IPC、App Server project_git processor、RuntimeCore 与 Git service 执行。
+`list` 只读取当前全局 `worktrees.root` 中已注册的 linked checkout；不存在的根目录返回空清单，
+不创建目录、不写清单数据库。关联聊天来自 canonical ThreadStore 分页（包括归档），固定状态
+来自现役 section owner，活动状态来自 canonical projection 与 loaded runtime。
+
+`delete` 只接受 `rootPath`，不接受强制丢弃参数。服务端重新核对当前配置根、Git registration、
+common-dir、gitdir backlink 与本地文件状态；固定或活动聊天拒绝删除。归档关联聊天后再次检查
+聊天状态和 checkout，再执行无 force 的 targeted `git worktree remove`。失败可能已经归档聊天，
+客户端必须保留失败状态并明确说明。此流程不是跨进程事务；不声称具有快照恢复或自动清理能力。
+Electron 仅转发既有 IPC，不增加 Git 业务命令或生产 mock fallback。

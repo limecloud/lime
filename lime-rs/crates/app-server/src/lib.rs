@@ -151,7 +151,7 @@ pub use memory_store::LocalMemoryBackend;
 pub use memory_store::MemoryBackend;
 pub use memory_store::RolloutSummaryWriteParams;
 pub use memory_store::{
-    MemoryAgent, MemoryAgentError, MemoryAgentRequest, MemoryStageOneProvider,
+    MemoryAgent, MemoryAgentError, MemoryAgentRequest, MemorySourcePolicy, MemoryStageOneProvider,
     MemoryStageOneProviderRequest, MemoryStageOneRoute, MemoryStageOneRunResult,
     MemoryStageOneVersion,
 };

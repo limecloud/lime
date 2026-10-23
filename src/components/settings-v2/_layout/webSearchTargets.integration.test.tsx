@@ -12,7 +12,7 @@ import { resolveSettingsSection } from "../sections";
 
 const api = vi.hoisted(() => ({ getConfig: vi.fn(), saveConfig: vi.fn() }));
 vi.mock("@/lib/api/appConfig", () => api);
-vi.mock("../home", () => ({ SettingsHomePage: () => null }));
+vi.mock("../general/GeneralSettings", () => ({ GeneralSettings: () => null }));
 vi.mock("./SettingsNavigation", async () => {
   const { SettingsSidebar } = await import("./SettingsSidebar");
   return {
@@ -234,7 +234,7 @@ it("waits for target config and ignores a late result after another canonical se
   await search("providers.bing.label");
   await edit(
     searchInput(),
-    getLimeI18n().getFixedT("en-US", "settings")("settings.tab.home"),
+    getLimeI18n().getFixedT("en-US", "settings")("settings.desktop.general"),
   );
   await act(async () =>
     searchInput().dispatchEvent(

@@ -16,6 +16,7 @@ impl RuntimeCore {
     pub(crate) async fn delete_thread(
         &self,
         root_thread_id: ThreadId,
+        expected: Option<(&[app_server_protocol::StorageThreadSnapshot], i64)>,
     ) -> Result<Vec<DeletedThread>, RuntimeCoreError> {
         let store = self.projection_store.as_deref().ok_or_else(|| {
             RuntimeCoreError::Backend("canonical thread store is unavailable".to_string())
@@ -45,6 +46,10 @@ impl RuntimeCore {
         let snapshot = store
             .snapshot_thread_delete_subtree(&root_thread_id)
             .map_err(RuntimeCoreError::Backend)?;
+        if let Some((expected, cutoff_ms)) = expected {
+            self.ensure_storage_delete_unchanged(&root_thread_id, expected, cutoff_ms)
+                .await?;
+        }
         let identities = snapshot
             .persisted
             .iter()
@@ -73,6 +78,13 @@ impl RuntimeCore {
                 .map_err(|error| RuntimeCoreError::Backend(error.to_string()))?;
             self.backend
                 .close_session(session_id, thread_id.as_str())
+                .await?;
+        }
+
+        // Session shutdown yields: do not remove files if a background owner changed
+        // the reviewed tree or its metadata while the sessions were closing.
+        if let Some((expected, cutoff_ms)) = expected {
+            self.ensure_storage_delete_unchanged(&root_thread_id, expected, cutoff_ms)
                 .await?;
         }
 
@@ -149,5 +161,54 @@ impl RuntimeCore {
             }
         }
         Ok(deleted)
+    }
+
+    async fn ensure_storage_delete_unchanged(
+        &self,
+        root: &ThreadId,
+        expected: &[app_server_protocol::StorageThreadSnapshot],
+        cutoff_ms: i64,
+    ) -> Result<(), RuntimeCoreError> {
+        let store = self.canonical_projection_store()?;
+        let current = store
+            .snapshot_thread_delete_subtree(root)
+            .map_err(RuntimeCoreError::Backend)?;
+        if !current.pending_only.is_empty()
+            || current.persisted.len() != expected.len()
+            || current.persisted.iter().any(|entry| {
+                !expected
+                    .iter()
+                    .any(|item| item.thread_id == entry.thread_id.as_str())
+            })
+        {
+            return Err(RuntimeCoreError::InvalidRequest(
+                "reviewed thread subtree changed".into(),
+            ));
+        }
+        for expected in expected {
+            let thread = store
+                .read_thread(ReadThreadParams {
+                    thread_id: ThreadId::new(expected.thread_id.clone()),
+                    include_archived: true,
+                    turns_view: ThreadTurnsView::NotLoaded,
+                })
+                .await
+                .map_err(|e| RuntimeCoreError::Backend(e.to_string()))?
+                .ok_or_else(|| {
+                    RuntimeCoreError::InvalidRequest("reviewed thread disappeared".into())
+                })?;
+            if thread.updated_at_ms != expected.updated_at_ms
+                || thread.archived != expected.archived
+                || (thread.thread_id == *root && thread.parent_thread_id.is_some())
+                || !self
+                    .storage_thread_eligible(&thread, cutoff_ms, false)
+                    .await?
+            {
+                return Err(RuntimeCoreError::InvalidRequest(
+                    "reviewed thread changed".into(),
+                ));
+            }
+        }
+        Ok(())
     }
 }

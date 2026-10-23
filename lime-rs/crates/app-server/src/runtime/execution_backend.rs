@@ -81,6 +81,7 @@ pub trait ExecutionBackend: Send + Sync {
         _version: crate::MemoryStageOneVersion,
         _route: crate::MemoryStageOneRoute,
         _data_source: Arc<dyn AppDataSource>,
+        _source_policy: &dyn crate::memory_store::MemorySourcePolicy,
     ) -> Result<crate::MemoryStageOneRunResult, RuntimeCoreError> {
         Err(RuntimeCoreError::Backend(
             "runtime backend does not support memory stage-1".to_string(),

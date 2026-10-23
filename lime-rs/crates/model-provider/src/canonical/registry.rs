@@ -159,4 +159,32 @@ mod tests {
         assert_eq!(blank.to_string(), "Canonical model id must not be empty");
         assert_eq!(registry.count(), 1);
     }
+
+    #[test]
+    fn bundled_current_models_project_media_and_tool_capabilities() {
+        let registry = CanonicalModelRegistry::bundled().unwrap();
+        for id in [
+            "openai/gpt-6.1-sol",
+            "anthropic/claude-sonnet-5.5",
+            "google/gemini-4-argon",
+            "moonshotai/kimi-k3",
+            "z-ai/glm-5.3-flash",
+            "minimax/minimax-m3.1-flash",
+            "xiaomi/mimo-v2.6-flash",
+            "x-ai/grok-4.7",
+        ] {
+            let summary = registry.get(id).expect(id).capability_summary();
+            assert!(summary.supports_tools, "{id}");
+            assert!(summary.capabilities.vision, "{id}");
+            assert!(summary.context_length >= 500_000, "{id}");
+            assert!(
+                summary.input_modalities.iter().any(|m| m == "image"),
+                "{id}"
+            );
+            assert!(
+                summary.output_modalities.iter().any(|m| m == "text"),
+                "{id}"
+            );
+        }
+    }
 }

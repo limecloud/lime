@@ -3,12 +3,14 @@ import {
   mkdtempSync,
   mkdirSync,
   readFileSync,
+  unlinkSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { HOST_PRELOAD_BUILD_ENTRIES } from "../lib/electron-build-inputs.mjs";
 
 import {
   collectBareRuntimeImports,
@@ -51,6 +53,9 @@ function createRuntimeBundleRoot({ main, preload }) {
   mkdirSync(preloadDir, { recursive: true });
   writeFileSync(path.join(mainDir, "main.js"), main);
   writeFileSync(path.join(preloadDir, "preload.cjs"), preload);
+  for (const entry of HOST_PRELOAD_BUILD_ENTRIES.slice(1)) {
+    writeFileSync(path.join(root, entry.output), 'require("electron");\n');
+  }
   return root;
 }
 
@@ -276,6 +281,20 @@ afterEach(() => {
 });
 
 describe("verify-electron-package-resources runtime bundles", () => {
+  it.each(HOST_PRELOAD_BUILD_ENTRIES.slice(1))(
+    "requires and checks the $name preload bundle",
+    (entry) => {
+      const root = createRuntimeBundleRoot({
+        main: "export {};",
+        preload: 'require("electron");',
+      });
+      const output = path.join(root, entry.output);
+      writeFileSync(output, 'require("yaml");');
+      expect(() => verifyElectronRuntimeBundles(root)).toThrow(/yaml/);
+      unlinkSync(output);
+      expect(() => verifyElectronRuntimeBundles(root)).toThrow(/missing/);
+    },
+  );
   it("收集运行时裸依赖包名", () => {
     expect(
       collectBareRuntimeImports(`

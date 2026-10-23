@@ -9,12 +9,14 @@ import { createContextualSuggestionsFixture } from "./contextualSuggestions.test
 import { buildInputbarCoreCopy } from "./inputbarCoreCopy";
 
 const api = vi.hoisted(() => ({
+  config: vi.fn(),
   transcribe: vi.fn(),
   polish: vi.fn(),
   info: vi.fn(),
   error: vi.fn(),
 }));
 vi.mock("@/lib/api/asrProvider", () => ({
+  getVoiceInputConfig: api.config,
   transcribeVoiceInputAudio: api.transcribe,
   polishVoiceInputText: api.polish,
 }));
@@ -109,6 +111,7 @@ beforeEach(() => {
     configurable: true,
     value: () => new DOMRect(0, 0, 1, 1),
   });
+  api.config.mockResolvedValue({});
   permission = vi.fn().mockResolvedValue(microphone().value);
   vi.stubGlobal("navigator", {
     mediaDevices: { getUserMedia: permission },

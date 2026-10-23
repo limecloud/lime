@@ -1,234 +1,293 @@
-import { act, type ReactNode } from "react";
-import { createRoot } from "react-dom/client";
-import { Provider, createStore } from "jotai";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { act } from "react";
+import { Provider } from "jotai";
+import { describe, expect, it } from "vitest";
 import type { BrowserTabState } from "@/lib/api/browserTab";
-import type { BrowserAnnotationEditorNativeEvent } from "@/lib/api/browserAnnotation";
 import type { BrowserAnnotationSelectionEvent } from "@/lib/api/browserAnnotationTypes";
 import {
-  BrowserAnnotationContext,
-  type BrowserAnnotationRuntime,
-} from "./BrowserAnnotationContext";
-import {
-  BrowserAnnotationDraftStore,
-  browserAnnotationDraftsAtom,
-} from "./browserAnnotationDrafts";
-import { useBrowserAnnotations } from "./useBrowserAnnotations";
-
-const unmounts: Array<() => void> = [];
-function render(node: ReactNode) {
-  const container = document.createElement("div");
-  document.body.appendChild(container);
-  const root = createRoot(container);
-  let mounted = true;
-  const view = {
-    rerender(next: ReactNode) {
-      act(() => root.render(next));
-    },
-    unmount() {
-      if (mounted) {
-        act(() => root.unmount());
-        container.remove();
-        mounted = false;
-      }
-    },
-  };
-  view.rerender(node);
-  unmounts.push(view.unmount);
-  return view;
-}
-const screen = {
-  getByRole(_role: string, _options: { name: string }) {
-    const button = document.querySelector<HTMLButtonElement>("button");
-    if (!button) throw new Error("Missing annotation control");
-    return button;
-  },
-};
-const fireEvent = {
-  click(button: HTMLButtonElement) {
-    act(() => button.click());
-  },
-};
-async function waitFor(check: () => void) {
-  await act(async () => {
-    await Promise.resolve();
-  });
-  check();
-}
-afterEach(() => {
-  unmounts.splice(0).forEach((unmount) => unmount());
-});
-
-const api = vi.hoisted(() => ({
-  begin: vi.fn(),
-  cancel: vi.fn(async () => undefined),
-  capture: vi.fn(),
-  show: vi.fn(),
-  update: vi.fn(async () => undefined),
-  close: vi.fn(async () => undefined),
-  selection: undefined as
-    | ((event: BrowserAnnotationSelectionEvent) => void)
-    | undefined,
-  editor: undefined as
-    | ((event: BrowserAnnotationEditorNativeEvent) => void)
-    | undefined,
-  stopEditor: vi.fn(),
-}));
-vi.mock("@/lib/api/browserAnnotation", () => ({
-  beginBrowserAnnotation: api.begin,
-  cancelBrowserAnnotation: api.cancel,
-  captureBrowserAnnotation: api.capture,
-  showBrowserAnnotationEditor: api.show,
-  updateBrowserAnnotationEditor: api.update,
-  closeBrowserAnnotationEditor: api.close,
-  listenBrowserAnnotationSelection: vi.fn(async (callback) => {
-    api.selection = callback;
-    return () => undefined;
-  }),
-  listenBrowserAnnotationCancelled: vi.fn(async () => () => undefined),
-  listenBrowserAnnotationEditor: vi.fn(async (callback) => {
-    api.editor = callback;
-    return api.stopEditor;
-  }),
-}));
-vi.mock("react-i18next", () => ({
-  useTranslation: () => ({ t: (key: string) => key }),
-}));
-
-const tab = {
-  tabId: "tab-1",
-  threadId: "thread-1",
-  browserSessionId: "browser-1",
-  viewId: "view-1",
-  ownerWebContentsId: 1,
-  webContentsId: 2,
-  windowId: 3,
-  pageRevision: 4,
-  url: "https://example.test/",
-  title: "Example",
-  selected: true,
-} as BrowserTabState;
-const selected: BrowserAnnotationSelectionEvent = {
-  ...tab,
-  annotationId: "annotation-1",
-  kind: "element",
-  scope: "main-frame",
-  selection: {
-    kind: "element",
-    pageUrl: tab.url,
-    pageTitle: tab.title,
-    frameUrl: tab.url,
-    framePath: "main",
-    targetRect: { x: 10, y: 20, width: 100, height: 30 },
-    viewportSize: { width: 800, height: 600 },
-    scrollPosition: { x: 0, y: 0 },
-    devicePixelRatio: 1,
-    targetSelector: "#title",
-    targetPath: null,
-    targetRole: null,
-    targetText: "Example",
-    markerViewportPoint: { x: 10, y: 20 },
-  },
-};
-
-function Harness({
-  currentTab = tab,
-  runtime,
-}: {
-  currentTab?: BrowserTabState;
-  runtime: BrowserAnnotationRuntime;
-}) {
-  return (
-    <BrowserAnnotationContext.Provider value={runtime}>
-      <Controls currentTab={currentTab} />
-    </BrowserAnnotationContext.Provider>
-  );
-}
-function Controls({ currentTab }: { currentTab: BrowserTabState }) {
-  const state = useBrowserAnnotations({
-    selected: currentTab,
-    active: true,
-    onError: () => undefined,
-  });
-  return (
-    <button onClick={() => void state.begin()} aria-pressed={state.selecting}>
-      Annotate
-    </button>
-  );
-}
-function deferred<T>() {
-  let resolve!: (value: T) => void;
-  const promise = new Promise<T>((yes) => {
-    resolve = yes;
-  });
-  return { promise, resolve };
-}
-
-function setup() {
-  const state = createStore();
-  const drafts = new BrowserAnnotationDraftStore();
-  state.set(browserAnnotationDraftsAtom, drafts);
-  const runtime: BrowserAnnotationRuntime = {
-    sessionId: "session-1",
-    threadId: "thread-1",
-    workspaceId: "workspace-1",
-    isSending: false,
-    send: vi.fn(async () => ({ kind: "rejected" })),
-  };
-  const view = render(
-    <Provider store={state}>
-      <Harness runtime={runtime} />
-    </Provider>,
-  );
-  return { state, drafts, runtime, view };
-}
-
-async function select() {
-  fireEvent.click(screen.getByRole("button", { name: "Annotate" }));
-  await waitFor(() => expect(api.begin).toHaveBeenCalled());
-  await act(async () => {
-    api.selection!(selected);
-  });
-  await waitFor(() => expect(api.show).toHaveBeenCalled());
-}
-function editorEvent(
-  action: BrowserAnnotationEditorNativeEvent["action"],
-  body = "Make it larger",
-  revision = 1,
-): BrowserAnnotationEditorNativeEvent {
-  const presentation = api.show.mock.calls.at(-1)![1];
-  return {
-    ...tab,
-    editorId: presentation.editorId,
-    draftId: selected.annotationId,
-    annotationId: selected.annotationId,
-    generation: 5,
-    action,
-    body,
-    revision,
-  };
-}
-
-beforeEach(() => {
-  globalThis.IS_REACT_ACT_ENVIRONMENT = true;
-  vi.clearAllMocks();
-  api.begin.mockResolvedValue(selected);
-  api.capture.mockResolvedValue({
-    annotationId: selected.annotationId,
-    selection: selected.selection,
-    screenshot: null,
-    screenshotStatus: "failed",
-    failureReason: "capture failed",
-  });
-  api.show.mockImplementation(async (_tabId, presentation) => ({
-    editorId: presentation.editorId,
-    generation: 5,
-    visible: true,
-  }));
-  api.update.mockResolvedValue(undefined);
-});
+  api,
+  tab,
+  selected,
+  Harness,
+  render,
+  setup,
+  select,
+  screen,
+  fireEvent,
+  waitFor,
+  deferred,
+  editorEvent,
+} from "./browserAnnotationHook.testFixture";
 
 describe("Browser native selection and trusted editor wiring", () => {
+  it("keeps manual images with the original capture through native close and reopening", async () => {
+    const { drafts } = setup();
+    await select();
+    const originalCapture = drafts.get(selected.annotationId)!.capture;
+    const attachedImages = [
+      {
+        id: "manual-image",
+        dataUrl: "data:image/png;base64,YWJj",
+        filename: "reference.png",
+      },
+    ];
+    await act(async () => {
+      api.editor!({
+        ...editorEvent("change", "Comment with image", 1),
+        attachedImages,
+      });
+      api.editor!({
+        ...editorEvent("close", "Comment with image", 1),
+        attachedImages,
+      });
+    });
+    expect(drafts.get(selected.annotationId)).toMatchObject({
+      body: "Comment with image",
+      attachedImages,
+      revision: 1,
+    });
+    expect(drafts.get(selected.annotationId)!.capture).toBe(originalCapture);
+    act(() => drafts.focus(selected.annotationId));
+    await waitFor(() => expect(api.show).toHaveBeenCalledTimes(2));
+    expect(api.show.mock.calls.at(-1)![1]).toMatchObject({
+      body: "Comment with image",
+      attachedImages,
+      revision: 1,
+    });
+    expect(api.capture).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps mode after capture and restarts only after the trusted editor closes", async () => {
+    const { drafts } = setup();
+    await select();
+    expect(
+      screen
+        .getByRole("button", { name: "Annotate" })
+        .getAttribute("aria-pressed"),
+    ).toBe("true");
+    expect(api.begin).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      api.editor!(editorEvent("close", "Saved body", 2));
+    });
+    expect(api.begin).toHaveBeenCalledTimes(2);
+    expect(drafts.get(selected.annotationId)?.body).toBe("Saved body");
+  });
+
+  it("remains enabled through loading and acquires a fresh picker on the ready revision", async () => {
+    const { state, runtime, view } = setup();
+    fireEvent.click(screen.getByRole("button", { name: "Annotate" }));
+    await waitFor(() => expect(api.begin).toHaveBeenCalledTimes(1));
+    const next = { ...tab, pageRevision: 5, isLoading: true };
+    view.rerender(
+      <Provider store={state}>
+        <Harness runtime={runtime} currentTab={next} />
+      </Provider>,
+    );
+    expect(api.cancel).toHaveBeenCalledWith(tab.tabId, selected.annotationId);
+    expect(
+      screen
+        .getByRole("button", { name: "Annotate" })
+        .getAttribute("aria-pressed"),
+    ).toBe("true");
+    expect(api.begin).toHaveBeenCalledTimes(1);
+    await act(async () =>
+      view.rerender(
+        <Provider store={state}>
+          <Harness
+            runtime={runtime}
+            currentTab={{ ...next, pageRevision: 6, isLoading: false }}
+          />
+        </Provider>,
+      ),
+    );
+    expect(api.begin).toHaveBeenCalledTimes(2);
+    act(() => api.selection!(selected));
+    expect(api.capture).not.toHaveBeenCalled();
+  });
+
+  it("restores each tab's own intent after pane hiding and tab switching without stealing Agent control", async () => {
+    const { state, runtime, view } = setup();
+    const show = (currentTab = tab, active = true) =>
+      view.rerender(
+        <Provider store={state}>
+          <Harness runtime={runtime} currentTab={currentTab} active={active} />
+        </Provider>,
+      );
+    fireEvent.click(screen.getByRole("button", { name: "Annotate" }));
+    await waitFor(() => expect(api.begin).toHaveBeenCalledTimes(1));
+    await act(async () => show(tab, false));
+    await act(async () =>
+      show({ ...tab, tabId: "other", viewId: "other", webContentsId: 44 }),
+    );
+    expect(
+      screen
+        .getByRole("button", { name: "Annotate" })
+        .getAttribute("aria-pressed"),
+    ).toBe("false");
+    expect(api.begin).toHaveBeenCalledTimes(1);
+    await act(async () => show({ ...tab, controlOwner: "agent" }));
+    expect(api.begin).toHaveBeenCalledTimes(1);
+    await act(async () => show({ ...tab, controlOwner: "user" }));
+    expect(api.begin).toHaveBeenCalledTimes(2);
+    await act(async () => show(tab, false));
+    await act(async () => show(tab));
+    expect(api.begin).toHaveBeenCalledTimes(3);
+  });
+
+  it("exits on Escape and never restarts after a later page update", async () => {
+    const { state, runtime, view } = setup();
+    fireEvent.click(screen.getByRole("button", { name: "Annotate" }));
+    await waitFor(() => expect(api.begin).toHaveBeenCalledTimes(1));
+    await act(async () => api.cancelled!({ ...selected, reason: "escape" }));
+    expect(
+      screen
+        .getByRole("button", { name: "Annotate" })
+        .getAttribute("aria-pressed"),
+    ).toBe("false");
+    await act(async () =>
+      view.rerender(
+        <Provider store={state}>
+          <Harness runtime={runtime} currentTab={{ ...tab, pageRevision: 5 }} />
+        </Provider>,
+      ),
+    );
+    expect(api.begin).toHaveBeenCalledTimes(1);
+  });
+
+  it("retains only mode intent over an unmount and cancels the old pending begin receipt", async () => {
+    const pending = deferred<BrowserAnnotationSelectionEvent>();
+    api.begin.mockReturnValueOnce(pending.promise);
+    const { state, runtime, view } = setup();
+    fireEvent.click(screen.getByRole("button", { name: "Annotate" }));
+    await waitFor(() => expect(api.begin).toHaveBeenCalledTimes(1));
+    view.unmount();
+    await act(async () => pending.resolve(selected));
+    expect(api.cancel).toHaveBeenCalledWith(tab.tabId, selected.annotationId);
+    render(
+      <Provider store={state}>
+        <Harness runtime={runtime} />
+      </Provider>,
+    );
+    await waitFor(() => expect(api.begin).toHaveBeenCalledTimes(2));
+    expect(api.show).not.toHaveBeenCalled();
+  });
+
+  it("keeps original capture and body while accepting only a current presentation activation after Agent release", async () => {
+    const { view, state, runtime, drafts } = setup();
+    await select();
+    await act(async () => {
+      api.editor!(editorEvent("change"));
+      api.editor!(editorEvent("close"));
+    });
+    const original = structuredClone(drafts.get(selected.annotationId));
+    const showCount = api.show.mock.calls.length;
+    const currentTab = {
+      ...tab,
+      pageRevision: 6,
+      controlOwner: "agent" as const,
+    };
+    const rerender = (next: BrowserTabState) =>
+      view.rerender(
+        <Provider store={state}>
+          <Harness runtime={runtime} currentTab={next} />
+        </Provider>,
+      );
+    rerender(currentTab);
+    const activation = { ...selected, presentationPageRevision: 6 };
+    await act(async () => api.activate!(activation));
+    expect(api.show).toHaveBeenCalledTimes(showCount);
+    rerender({ ...currentTab, controlOwner: "released" });
+    await act(async () =>
+      api.activate!({ ...activation, presentationPageRevision: 4 }),
+    );
+    await act(async () => api.activate!({ ...activation, pageRevision: 5 }));
+    expect(api.show).toHaveBeenCalledTimes(showCount);
+    await act(async () => api.activate!(activation));
+    expect(api.show).toHaveBeenCalledTimes(showCount + 1);
+    expect(api.show.mock.calls.at(-1)![1]).toMatchObject({
+      body: "Make it larger",
+      revision: 1,
+    });
+    expect(drafts.get(selected.annotationId)).toEqual(original);
+    expect(api.capture).toHaveBeenCalledTimes(1);
+  });
+
+  it("retains a saved marker, reopens only its matching live draft and removes it with the draft", async () => {
+    const { drafts } = setup();
+    await select();
+    expect(api.cancel).not.toHaveBeenCalled();
+    const firstShowCount = api.show.mock.calls.length;
+    await act(async () =>
+      api.activate!({
+        ...selected,
+        presentationPageRevision: selected.pageRevision,
+      }),
+    );
+    expect(api.show).toHaveBeenCalledTimes(firstShowCount);
+    await act(async () => {
+      api.editor!(editorEvent("change"));
+      api.editor!(editorEvent("close"));
+    });
+    const shows = api.show.mock.calls.length;
+    await act(async () =>
+      api.activate!({
+        ...selected,
+        pageRevision: selected.pageRevision + 1,
+        presentationPageRevision: selected.pageRevision + 1,
+      }),
+    );
+    expect(api.show).toHaveBeenCalledTimes(shows);
+    await act(async () =>
+      api.activate!({
+        ...selected,
+        presentationPageRevision: selected.pageRevision,
+      }),
+    );
+    expect(api.show).toHaveBeenCalledTimes(shows + 1);
+    expect(api.show.mock.calls.at(-1)![1]).toMatchObject({
+      body: "Make it larger",
+      revision: 1,
+    });
+    act(() => {
+      drafts.remove(selected.annotationId);
+    });
+    expect(api.cancel).toHaveBeenCalledWith(tab.tabId, selected.annotationId);
+    await act(async () =>
+      api.activate!({
+        ...selected,
+        presentationPageRevision: selected.pageRevision,
+      }),
+    );
+    expect(api.show).toHaveBeenCalledTimes(shows + 1);
+  });
+  it("explicitly exits mode while keeping the final trusted editor flush and original capture", async () => {
+    const { drafts } = setup();
+    await select();
+    const original = structuredClone(
+      drafts.get(selected.annotationId)!.capture,
+    );
+    await act(async () => api.editor!(editorEvent("change", "Before exit", 1)));
+    await act(async () =>
+      document
+        .querySelector<HTMLButtonElement>('[data-testid="annotation-exit"]')!
+        .click(),
+    );
+    expect(
+      screen
+        .getByRole("button", { name: "Annotate" })
+        .getAttribute("aria-pressed"),
+    ).toBe("false");
+    expect(api.close).toHaveBeenCalledWith(tab.tabId, expect.any(String), 5);
+    await act(async () =>
+      api.editor!(editorEvent("close", "Final flushed body", 2)),
+    );
+    expect(drafts.get(selected.annotationId)).toMatchObject({
+      body: "Final flushed body",
+      revision: 2,
+      capture: original,
+    });
+    expect(api.begin).toHaveBeenCalledTimes(1);
+  });
+
   it("saves the selected page context and body, with an exact editor close", async () => {
     const { drafts } = setup();
     await select();
@@ -277,6 +336,67 @@ describe("Browser native selection and trusted editor wiring", () => {
     expect(api.show).not.toHaveBeenCalled();
   });
 
+  it("does not let an old runtime's pending capture block or clear the new runtime's picker", async () => {
+    const oldCapture = deferred<unknown>();
+    const newCapture = deferred<unknown>();
+    api.capture.mockImplementation((tabId: string) =>
+      tabId === tab.tabId ? oldCapture.promise : newCapture.promise,
+    );
+    const { state, drafts, runtime, view } = setup();
+    fireEvent.click(screen.getByRole("button", { name: "Annotate" }));
+    await waitFor(() => expect(api.begin).toHaveBeenCalledTimes(1));
+    act(() => api.selection!(selected));
+    const nextTab = {
+      ...tab,
+      threadId: "thread-2",
+      browserSessionId: "browser-2",
+      tabId: "tab-2",
+      viewId: "view-2",
+      webContentsId: 10,
+    };
+    const nextSelection = {
+      ...selected,
+      ...nextTab,
+      annotationId: "annotation-2",
+    };
+    api.begin.mockResolvedValue(nextSelection);
+    await act(async () =>
+      view.rerender(
+        <Provider store={state}>
+          <Harness
+            runtime={{
+              ...runtime,
+              sessionId: "session-2",
+              threadId: "thread-2",
+            }}
+            currentTab={nextTab}
+          />
+        </Provider>,
+      ),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Annotate" }));
+    await waitFor(() => expect(api.begin).toHaveBeenCalledTimes(2));
+    act(() => api.selection!(nextSelection));
+    const captureResult = (event: BrowserAnnotationSelectionEvent) => ({
+      annotationId: event.annotationId,
+      selection: event.selection,
+      screenshot: null,
+      screenshotStatus: "failed",
+      failureReason: "capture failed",
+    });
+    await act(async () => oldCapture.resolve(captureResult(selected)));
+    expect(drafts.getSnapshot()).toHaveLength(0);
+    expect(api.show).not.toHaveBeenCalled();
+    expect(api.begin).toHaveBeenCalledTimes(2);
+    await act(async () => newCapture.resolve(captureResult(nextSelection)));
+    expect(drafts.getSnapshot()).toHaveLength(1);
+    expect(api.show).toHaveBeenCalledTimes(1);
+    expect(api.show.mock.calls[0]).toMatchObject([
+      nextTab.tabId,
+      { annotationId: nextSelection.annotationId },
+    ]);
+  });
+
   it("rechecks the current session after the pending ACK before sending", async () => {
     const { state, runtime, view } = setup();
     await select();
@@ -305,6 +425,21 @@ describe("Browser native selection and trusted editor wiring", () => {
     act(() => api.editor!(close));
     expect(drafts.get(selected.annotationId)?.body).toBe(close.body);
     expect(api.stopEditor).toHaveBeenCalledTimes(1);
+  });
+
+  it("retains the saved marker on unmount and releases it if the draft is removed while the pane is absent", async () => {
+    const { drafts, view } = setup();
+    await select();
+    const close = editorEvent("close", "Saved while hidden", 2);
+    view.unmount();
+    expect(api.cancel).not.toHaveBeenCalled();
+    act(() => api.editor!(close));
+    expect(drafts.get(selected.annotationId)?.body).toBe(close.body);
+    act(() => {
+      drafts.remove(selected.annotationId);
+    });
+    expect(api.cancel).toHaveBeenCalledTimes(1);
+    expect(api.cancel).toHaveBeenCalledWith(tab.tabId, selected.annotationId);
   });
 
   it("retains the final close flush when the native route has already been revoked", async () => {

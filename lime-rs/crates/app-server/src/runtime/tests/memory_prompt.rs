@@ -16,6 +16,58 @@ fn read_response(content: &str, truncated: bool) -> MemoryStoreReadResponse {
     }
 }
 
+#[tokio::test]
+async fn disabling_memory_stops_context_injection_on_the_next_turn() {
+    let data = Arc::new(
+        TestSessionDataSource::new()
+            .with_memory_store_read_response(Ok(read_response("remember this", false))),
+    );
+    let (backend, core, _config) = start_memory_prompt_turn_with_core(data, None, |backend| {
+        RuntimeCore::with_backend(backend)
+    })
+    .await;
+    core.append_external_runtime_events(
+        "sess_memory_prompt",
+        Some("turn_memory_prompt"),
+        vec![crate::RuntimeEvent::new(
+            "turn.completed",
+            serde_json::json!({}),
+        )],
+    )
+    .unwrap();
+    std::fs::write(core.app_config_path(), "memory:\n  enabled: false\n").unwrap();
+    core.start_turn(
+        AgentSessionTurnStartParams {
+            session_id: "sess_memory_prompt".into(),
+            turn_id: Some("turn-memory-disabled".into()),
+            input: AgentInput {
+                text: "next".into(),
+                attachments: vec![],
+            },
+            runtime_options: None,
+            queue_if_busy: false,
+            skip_pre_submit_resume: false,
+        },
+        RuntimeHostContext::default(),
+    )
+    .await
+    .unwrap();
+    let requests = backend.requests.lock().unwrap();
+    assert!(requests[0]
+        .runtime_options
+        .as_ref()
+        .and_then(RuntimeOptions::runtime_metadata)
+        .unwrap()
+        .get(MEMORY_PROMPT_CONTEXT_KEY)
+        .is_some());
+    assert!(requests[1]
+        .runtime_options
+        .as_ref()
+        .and_then(RuntimeOptions::runtime_metadata)
+        .and_then(|metadata| metadata.get(MEMORY_PROMPT_CONTEXT_KEY))
+        .is_none());
+}
+
 async fn start_memory_prompt_turn(
     data_source: Arc<TestSessionDataSource>,
     runtime_options: Option<RuntimeOptions>,
@@ -34,7 +86,7 @@ async fn start_memory_prompt_turn_with_sidecar(
     let sidecar_root = tempfile::tempdir().expect("sidecar root");
     let sidecar_store = Arc::new(SidecarStore::new(sidecar_root.path()).expect("sidecar store"));
     let sidecar_store_for_core = sidecar_store.clone();
-    let (backend, _) =
+    let (backend, _, _config) =
         start_memory_prompt_turn_with_core(data_source, runtime_options, move |backend| {
             RuntimeCore::with_backend(backend).with_sidecar_store(sidecar_store_for_core.clone())
         })
@@ -47,9 +99,14 @@ async fn start_memory_prompt_turn_with_core(
     data_source: Arc<TestSessionDataSource>,
     runtime_options: Option<RuntimeOptions>,
     build_core: impl FnOnce(Arc<RecordingBackend>) -> RuntimeCore,
-) -> (Arc<RecordingBackend>, RuntimeCore) {
+) -> (Arc<RecordingBackend>, RuntimeCore, tempfile::TempDir) {
     let backend = Arc::new(RecordingBackend::default());
-    let core = build_core(backend.clone()).with_app_data_source(data_source);
+    let config = tempfile::tempdir().unwrap();
+    let config_path = config.path().join("config.yaml");
+    std::fs::write(&config_path, "memory:\n  enabled: true\n").unwrap();
+    let core = build_core(backend.clone())
+        .with_app_data_source(data_source)
+        .with_app_config_path(config_path);
     let session = core
         .start_session(AgentSessionStartParams {
             session_id: Some("sess_memory_prompt".to_string()),
@@ -79,7 +136,7 @@ async fn start_memory_prompt_turn_with_core(
     .await
     .expect("turn");
 
-    (backend, core)
+    (backend, core, config)
 }
 
 #[tokio::test]

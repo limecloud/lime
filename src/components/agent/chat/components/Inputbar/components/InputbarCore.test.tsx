@@ -15,6 +15,7 @@ import {
 } from "./inputbarCoreCopy";
 
 const asrProviderMocks = vi.hoisted(() => ({
+  getVoiceInputConfig: vi.fn().mockResolvedValue({}),
   polishVoiceInputText: vi.fn(),
   transcribeVoiceInputAudio: vi.fn(),
 }));
@@ -64,6 +65,7 @@ afterEach(() => {
   Object.values(asrProviderMocks).forEach((mock) => {
     mock.mockReset();
   });
+  asrProviderMocks.getVoiceInputConfig.mockResolvedValue({});
   vi.unstubAllGlobals();
   vi.useRealTimers();
 });

@@ -1,11 +1,10 @@
 import { type CSSProperties } from "react";
+import { SidebarResizeHandle } from "@/components/app-sidebar/SidebarResizeHandle";
+import { useSidebarWidth } from "@/components/app-sidebar/useSidebarWidth";
 import { ArrowLeft } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import styled from "styled-components";
 import type { SettingsTabs } from "@/types/settings";
-import { APP_SIDEBAR_WIDTH } from "@/components/app-sidebar/AppSidebar.constants";
-import { SidebarResizeHandle } from "@/components/app-sidebar/SidebarResizeHandle";
-import { useSidebarWidth } from "@/components/app-sidebar/useSidebarWidth";
 import { SettingsSidebar } from "./SettingsSidebar";
 import type { SettingsSearchResult } from "../settingsSearch";
 
@@ -24,14 +23,17 @@ const Navigation = styled.aside<{ $reserveWindowControls: boolean }>`
   position: relative;
   flex-direction: column;
   flex-shrink: 0;
-  width: clamp(
-    240px,
-    var(--sidebar-preferred-width, ${APP_SIDEBAR_WIDTH}px),
-    min(520px, calc(100vw - 320px))
+  width: calc(
+    clamp(
+        290px,
+        var(--sidebar-preferred-width, 275px),
+        min(520px, calc(100vw - 320px))
+      ) -
+      52px
   );
-  min-width: 240px;
+  min-width: 238px;
   min-height: 0;
-  padding-top: 46px;
+  padding-top: 12px;
   border-right: 1px solid var(--sidebar-divider);
   background: var(--sidebar-surface);
 `;
@@ -42,13 +44,13 @@ const BackButton = styled.button`
   gap: 8px;
   height: 30px;
   flex-shrink: 0;
-  margin: 0 8px 8px;
+  margin: 0;
   padding: 0 8px;
   border: none;
   border-radius: 10px;
   background: transparent;
   color: var(--sidebar-foreground);
-  font-size: 14px;
+  font-size: 13px;
   text-align: left;
   cursor: pointer;
   -webkit-app-region: no-drag;
@@ -83,7 +85,7 @@ export function SettingsNavigation({
   onBack,
 }: SettingsNavigationProps) {
   const { t } = useTranslation("settings");
-  const { width, setWidth } = useSidebarWidth();
+  const { width, setWidth } = useSidebarWidth(290, 275);
 
   return (
     <Navigation
@@ -93,15 +95,19 @@ export function SettingsNavigation({
       data-testid="settings-navigation"
       data-window-controls-reserved={String(reserveWindowControls)}
     >
-      <BackButton
-        type="button"
-        onClick={onBack}
-        aria-label={t("settings.layout.action.back")}
-        data-testid="settings-back-button"
-      >
-        <ArrowLeft />
-        {t("settings.layout.action.back")}
-      </BackButton>
+      <div className="flex h-9 shrink-0 items-center justify-between px-4 pb-2">
+        <h1 className="text-[18px] leading-6 font-semibold">
+          {t("settings.desktop.title")}
+        </h1>
+        <BackButton
+          type="button"
+          onClick={onBack}
+          aria-label={t("settings.layout.action.back")}
+          data-testid="settings-back-button"
+        >
+          <ArrowLeft />
+        </BackButton>
+      </div>
       <SettingsSidebar
         activeTab={activeTab}
         onTabChange={onTabChange}
@@ -110,7 +116,13 @@ export function SettingsNavigation({
         searchRequestKey={searchRequestKey}
         navigationPending={navigationPending}
       />
-      <SidebarResizeHandle width={width} onWidthChange={setWidth} />
+
+      <SidebarResizeHandle
+        width={width}
+        onWidthChange={setWidth}
+        minimumWidth={290}
+        defaultWidth={275}
+      />
     </Navigation>
   );
 }

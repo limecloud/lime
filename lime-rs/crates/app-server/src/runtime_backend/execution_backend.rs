@@ -26,6 +26,28 @@ use serde_json::{json, Value};
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 
+struct PolicyMemoryProvider<'a> {
+    backend: &'a RuntimeBackend,
+    policy: &'a dyn crate::memory_store::MemorySourcePolicy,
+}
+
+#[async_trait]
+impl crate::MemoryStageOneProvider for PolicyMemoryProvider<'_> {
+    async fn source_eligible(
+        &self,
+        source_thread_id: Option<&str>,
+    ) -> Result<bool, RuntimeCoreError> {
+        self.policy.source_eligible(source_thread_id).await
+    }
+
+    async fn sample(
+        &self,
+        request: crate::MemoryStageOneProviderRequest,
+    ) -> Result<String, RuntimeCoreError> {
+        crate::MemoryStageOneProvider::sample(self.backend, request).await
+    }
+}
+
 #[async_trait]
 impl crate::MemoryStageOneProvider for RuntimeBackend {
     async fn sample(
@@ -313,9 +335,18 @@ impl ExecutionBackend for RuntimeBackend {
         version: crate::MemoryStageOneVersion,
         route: crate::MemoryStageOneRoute,
         data_source: Arc<dyn AppDataSource>,
+        source_policy: &dyn crate::memory_store::MemorySourcePolicy,
     ) -> Result<crate::MemoryStageOneRunResult, RuntimeCoreError> {
         data_source
-            .run_memory_stage1(root, version, route, self)
+            .run_memory_stage1(
+                root,
+                version,
+                route,
+                &PolicyMemoryProvider {
+                    backend: self,
+                    policy: source_policy,
+                },
+            )
             .await
     }
 

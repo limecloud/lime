@@ -159,6 +159,48 @@ describe("Browser annotation Gate B evidence", () => {
     });
   });
 
+  it.each(["thread/queue/add", "turn/steer"])(
+    "joins %s to its canonical turn and rejects a different submission method or turn",
+    (method) => {
+      const state = submission();
+      state.method = method;
+      state.expectedTurnId = "turn-current";
+      rewriteRequest(state, (request) => {
+        request.method = method;
+        if (method === "turn/steer")
+          request.params.expectedTurnId = "turn-current";
+      });
+      expect(
+        summarizeBrowserAnnotationSubmission(state).failedAssertions,
+      ).toEqual([]);
+      expect(
+        summarizeBrowserAnnotationSubmission({
+          ...state,
+          expectedTurnId: "foreign-turn",
+        }).checks.expectedTurnIdentity,
+      ).toBe(false);
+      rewriteRequest(state, (request) => {
+        request.method = "turn/start";
+      });
+      expect(
+        summarizeBrowserAnnotationSubmission(state).checks.realSubmission,
+      ).toBe(false);
+    },
+  );
+
+  it("rejects a steer request aimed at another active turn", () => {
+    const state = submission();
+    state.method = "turn/steer";
+    state.expectedTurnId = "turn-current";
+    rewriteRequest(state, (request) => {
+      request.method = "turn/steer";
+      request.params.expectedTurnId = "foreign-turn";
+    });
+    expect(
+      summarizeBrowserAnnotationSubmission(state).checks.expectedTurnIdentity,
+    ).toBe(false);
+  });
+
   it("joins data URL input only when its bytes match canonical storage and delivery", () => {
     const state = submission();
     rewriteRequest(state, (request) => {
@@ -207,7 +249,7 @@ describe("Browser annotation Gate B evidence", () => {
     state.trace[0].transport = "mock";
     state.canonical.thread.turns[0].status = "inProgress";
     const evidence = summarizeBrowserAnnotationSubmission(state);
-    expect(evidence.checks.realTurnStart).toBe(false);
+    expect(evidence.checks.realSubmission).toBe(false);
     expect(evidence.checks.canonicalTerminalTurn).toBe(false);
   });
 
@@ -294,14 +336,14 @@ describe("Browser annotation Gate B evidence", () => {
     const state = submission();
     state.trace[0].args_preview.request.lines = ["not-json"];
     expect(
-      summarizeBrowserAnnotationSubmission(state).checks.realTurnStart,
+      summarizeBrowserAnnotationSubmission(state).checks.realSubmission,
     ).toBe(false);
     const other = submission();
     rewriteRequest(other, (request) => {
       request.method = "turn/steer";
     });
     expect(
-      summarizeBrowserAnnotationSubmission(other).checks.realTurnStart,
+      summarizeBrowserAnnotationSubmission(other).checks.realSubmission,
     ).toBe(false);
   });
 

@@ -1,0 +1,78 @@
+{
+  "$defs": {
+    "StorageCleanupCandidate": {
+      "additionalProperties": false,
+      "properties": {
+        "bytes": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "descendants": {
+          "items": {
+            "$ref": "#/$defs/StorageThreadSnapshot"
+          },
+          "type": "array"
+        },
+        "name": {
+          "type": "string"
+        },
+        "root": {
+          "$ref": "#/$defs/StorageThreadSnapshot"
+        }
+      },
+      "required": [
+        "bytes",
+        "descendants",
+        "name",
+        "root"
+      ],
+      "type": "object"
+    },
+    "StorageThreadSnapshot": {
+      "additionalProperties": false,
+      "properties": {
+        "archived": {
+          "type": "boolean"
+        },
+        "threadId": {
+          "type": "string"
+        },
+        "updatedAtMs": {
+          "format": "int64",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "archived",
+        "threadId",
+        "updatedAtMs"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "archivedOnly": {
+      "type": "boolean"
+    },
+    "candidates": {
+      "items": {
+        "$ref": "#/$defs/StorageCleanupCandidate"
+      },
+      "type": "array"
+    },
+    "cutoffMs": {
+      "format": "int64",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "archivedOnly",
+    "candidates",
+    "cutoffMs"
+  ],
+  "title": "StorageDeleteParams",
+  "type": "object"
+}

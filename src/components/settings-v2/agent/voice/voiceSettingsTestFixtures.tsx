@@ -51,7 +51,9 @@ export function createDeferred<T>() {
   return { promise, resolve, reject };
 }
 
-export function createVoiceInputConfig(overrides: Record<string, unknown> = {}) {
+export function createVoiceInputConfig(
+  overrides: Record<string, unknown> = {},
+) {
   return {
     enabled: true,
     shortcut: "CommandOrControl+Shift+V",
@@ -87,6 +89,7 @@ export function createVoiceInputConfig(overrides: Record<string, unknown> = {}) 
     ],
     selected_device_id: undefined,
     sound_enabled: true,
+    dictation_dictionary: [],
     translate_instruction_id: "translate_en",
     ...overrides,
   };

@@ -21,6 +21,27 @@ pub static MODEL_CONTEXT_WINDOWS: LazyLock<HashMap<&'static str, usize>> = LazyL
 });
 
 const MODEL_CONTEXT_WINDOW_PATTERNS: &[(&str, usize)] = &[
+    ("gpt-6", 1_050_000),
+    ("claude-sonnet-5-5", 1_000_000),
+    ("claude-sonnet-5.5", 1_000_000),
+    ("claude-opus-5-5", 1_000_000),
+    ("claude-opus-5.5", 1_000_000),
+    ("claude-haiku-5-5", 1_000_000),
+    ("claude-haiku-5.5", 1_000_000),
+    ("gemini-4-argon", 1_048_576),
+    ("gemini-3.8-flash", 1_048_576),
+    ("kimi-k3", 1_048_576),
+    ("kimi-for-coding-highspeed", 262_144),
+    ("kimi-for-coding", 1_048_576),
+    ("k3-256k", 262_144),
+    ("glm-5.3", 1_048_576),
+    ("mimo-v2.6", 1_048_576),
+    ("minimax-m3", 1_048_576),
+    ("deepseek-flash", 1_048_576),
+    ("deepseek-v4", 1_048_576),
+    ("qwen3.7-plus", 1_000_000),
+    ("qwen3.8-flash", 1_000_000),
+    ("grok-4.7", 500_000),
     ("gpt-5.2-codex", 400_000),
     ("gpt-5.2", 400_000),
     ("gpt-5.1-codex-max", 256_000),
@@ -108,6 +129,13 @@ mod tests {
             resolve_model_context_window("google/gemma-3-27b-it"),
             Some(128_000)
         );
+        assert_eq!(resolve_model_context_window("gpt-6.1-sol"), Some(1_050_000));
+        assert_eq!(
+            resolve_model_context_window("anthropic/claude-sonnet-5.5"),
+            Some(1_000_000)
+        );
+        assert_eq!(resolve_model_context_window("k3-256k"), Some(262_144));
+        assert_eq!(resolve_model_context_window("grok-4.7"), Some(500_000));
     }
 
     #[test]

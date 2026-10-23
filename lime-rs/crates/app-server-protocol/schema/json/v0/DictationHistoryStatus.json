@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "enum": [
+    "cancelled",
+    "interrupted",
+    "recording",
+    "saved"
+  ],
+  "title": "DictationHistoryStatus",
+  "type": "string"
+}

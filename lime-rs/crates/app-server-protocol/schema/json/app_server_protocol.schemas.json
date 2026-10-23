@@ -4701,6 +4701,120 @@
               "$ref": "#/$defs/RequestId"
             },
             "method": {
+              "const": "projectGit/worktree/list",
+              "type": "string"
+            },
+            "params": {
+              "default": null
+            }
+          },
+          "required": [
+            "id",
+            "method"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/RequestId"
+            },
+            "method": {
+              "const": "storage/read",
+              "type": "string"
+            },
+            "params": {
+              "default": null
+            }
+          },
+          "required": [
+            "id",
+            "method"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/RequestId"
+            },
+            "method": {
+              "const": "storage/refresh",
+              "type": "string"
+            },
+            "params": {
+              "default": null
+            }
+          },
+          "required": [
+            "id",
+            "method"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/RequestId"
+            },
+            "method": {
+              "const": "storage/review",
+              "type": "string"
+            },
+            "params": {
+              "default": null
+            }
+          },
+          "required": [
+            "id",
+            "method"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/RequestId"
+            },
+            "method": {
+              "const": "storage/delete",
+              "type": "string"
+            },
+            "params": {
+              "default": null
+            }
+          },
+          "required": [
+            "id",
+            "method"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/RequestId"
+            },
+            "method": {
+              "const": "projectGit/worktree/delete",
+              "type": "string"
+            },
+            "params": {
+              "default": null
+            }
+          },
+          "required": [
+            "id",
+            "method"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/RequestId"
+            },
+            "method": {
               "const": "agentSession/handoffBundle/export",
               "type": "string"
             },
@@ -6753,6 +6867,177 @@
               "$ref": "#/$defs/RequestId"
             },
             "method": {
+              "const": "instructions/read",
+              "type": "string"
+            },
+            "params": {
+              "default": null
+            }
+          },
+          "required": [
+            "id",
+            "method"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/RequestId"
+            },
+            "method": {
+              "const": "instructions/write",
+              "type": "string"
+            },
+            "params": {
+              "default": null
+            }
+          },
+          "required": [
+            "id",
+            "method"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/RequestId"
+            },
+            "method": {
+              "const": "dictationHistory/list",
+              "type": "string"
+            },
+            "params": {
+              "default": null
+            }
+          },
+          "required": [
+            "id",
+            "method"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/RequestId"
+            },
+            "method": {
+              "const": "dictationHistory/start",
+              "type": "string"
+            },
+            "params": {
+              "default": null
+            }
+          },
+          "required": [
+            "id",
+            "method"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/RequestId"
+            },
+            "method": {
+              "const": "dictationHistory/appendAudio",
+              "type": "string"
+            },
+            "params": {
+              "default": null
+            }
+          },
+          "required": [
+            "id",
+            "method"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/RequestId"
+            },
+            "method": {
+              "const": "dictationHistory/finish",
+              "type": "string"
+            },
+            "params": {
+              "default": null
+            }
+          },
+          "required": [
+            "id",
+            "method"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/RequestId"
+            },
+            "method": {
+              "const": "dictationHistory/readAudio",
+              "type": "string"
+            },
+            "params": {
+              "default": null
+            }
+          },
+          "required": [
+            "id",
+            "method"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/RequestId"
+            },
+            "method": {
+              "const": "dictationHistory/setTranscript",
+              "type": "string"
+            },
+            "params": {
+              "default": null
+            }
+          },
+          "required": [
+            "id",
+            "method"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/RequestId"
+            },
+            "method": {
+              "const": "dictationHistory/delete",
+              "type": "string"
+            },
+            "params": {
+              "default": null
+            }
+          },
+          "required": [
+            "id",
+            "method"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/RequestId"
+            },
+            "method": {
               "const": "workspaceSkillBindings/list",
               "type": "string"
             },
@@ -8778,6 +9063,13 @@
         "diagnostics/trace/list",
         "diagnostics/trace/read",
         "diagnostics/windowsStartup/read",
+        "dictationHistory/appendAudio",
+        "dictationHistory/delete",
+        "dictationHistory/finish",
+        "dictationHistory/list",
+        "dictationHistory/readAudio",
+        "dictationHistory/setTranscript",
+        "dictationHistory/start",
         "discordChannel/probe",
         "feishuChannel/probe",
         "galleryMaterial/get",
@@ -8801,6 +9093,8 @@
         "gatewayTunnel/stop",
         "gatewayTunnel/syncWebhookUrl",
         "initialize",
+        "instructions/read",
+        "instructions/write",
         "knowledgeContext/resolve",
         "knowledgeContextRun/validate",
         "knowledgePack/compile",
@@ -8878,6 +9172,8 @@
         "projectGit/diff",
         "projectGit/status",
         "projectGit/worktree/create",
+        "projectGit/worktree/delete",
+        "projectGit/worktree/list",
         "projectMaterial/content",
         "projectMaterial/count",
         "projectMaterial/delete",
@@ -8928,6 +9224,10 @@
         "soulStylePack/list",
         "soulStylePack/status/set",
         "soulStylePack/uninstall",
+        "storage/delete",
+        "storage/read",
+        "storage/refresh",
+        "storage/review",
         "telegramChannel/probe",
         "usageStats/dailyTrends/list",
         "usageStats/modelRanking/list",
@@ -21450,6 +21750,319 @@
       "title": "DiagnosticsTraceSummary",
       "type": "object"
     },
+    "DictationHistoryAppendAudioParams": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "audioBase64": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "offset": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "audioBase64",
+        "id",
+        "offset"
+      ],
+      "title": "DictationHistoryAppendAudioParams",
+      "type": "object"
+    },
+    "DictationHistoryDeleteResponse": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "title": "DictationHistoryDeleteResponse",
+      "type": "object"
+    },
+    "DictationHistoryEntry": {
+      "$defs": {
+        "DictationHistoryStatus": {
+          "enum": [
+            "cancelled",
+            "interrupted",
+            "recording",
+            "saved"
+          ],
+          "type": "string"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "createdAtMs": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "id": {
+          "type": "string"
+        },
+        "mimeType": {
+          "type": "string"
+        },
+        "sizeBytes": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "status": {
+          "$ref": "#/$defs/DictationHistoryStatus"
+        },
+        "text": {
+          "type": [
+            "null",
+            "string"
+          ]
+        }
+      },
+      "required": [
+        "createdAtMs",
+        "id",
+        "mimeType",
+        "sizeBytes",
+        "status"
+      ],
+      "title": "DictationHistoryEntry",
+      "type": "object"
+    },
+    "DictationHistoryFinishParams": {
+      "$defs": {
+        "DictationHistoryFinishStatus": {
+          "enum": [
+            "cancelled",
+            "interrupted",
+            "saved"
+          ],
+          "type": "string"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/DictationHistoryFinishStatus"
+        }
+      },
+      "required": [
+        "id",
+        "status"
+      ],
+      "title": "DictationHistoryFinishParams",
+      "type": "object"
+    },
+    "DictationHistoryFinishStatus": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "enum": [
+        "cancelled",
+        "interrupted",
+        "saved"
+      ],
+      "title": "DictationHistoryFinishStatus",
+      "type": "string"
+    },
+    "DictationHistoryIdParams": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "DictationHistoryIdParams",
+      "type": "object"
+    },
+    "DictationHistoryListResponse": {
+      "$defs": {
+        "DictationHistoryEntry": {
+          "properties": {
+            "createdAtMs": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "id": {
+              "type": "string"
+            },
+            "mimeType": {
+              "type": "string"
+            },
+            "sizeBytes": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "status": {
+              "$ref": "#/$defs/DictationHistoryStatus"
+            },
+            "text": {
+              "type": [
+                "null",
+                "string"
+              ]
+            }
+          },
+          "required": [
+            "createdAtMs",
+            "id",
+            "mimeType",
+            "sizeBytes",
+            "status"
+          ],
+          "type": "object"
+        },
+        "DictationHistoryStatus": {
+          "enum": [
+            "cancelled",
+            "interrupted",
+            "recording",
+            "saved"
+          ],
+          "type": "string"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "recordings": {
+          "items": {
+            "$ref": "#/$defs/DictationHistoryEntry"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "recordings"
+      ],
+      "title": "DictationHistoryListResponse",
+      "type": "object"
+    },
+    "DictationHistoryReadAudioResponse": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "audioBase64": {
+          "type": "string"
+        },
+        "mimeType": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "audioBase64",
+        "mimeType"
+      ],
+      "title": "DictationHistoryReadAudioResponse",
+      "type": "object"
+    },
+    "DictationHistorySetTranscriptParams": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "text"
+      ],
+      "title": "DictationHistorySetTranscriptParams",
+      "type": "object"
+    },
+    "DictationHistoryStartParams": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "mimeType": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "mimeType"
+      ],
+      "title": "DictationHistoryStartParams",
+      "type": "object"
+    },
+    "DictationHistoryStatus": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "enum": [
+        "cancelled",
+        "interrupted",
+        "recording",
+        "saved"
+      ],
+      "title": "DictationHistoryStatus",
+      "type": "string"
+    },
+    "DictationHistoryWriteResponse": {
+      "$defs": {
+        "DictationHistoryEntry": {
+          "properties": {
+            "createdAtMs": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "id": {
+              "type": "string"
+            },
+            "mimeType": {
+              "type": "string"
+            },
+            "sizeBytes": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "status": {
+              "$ref": "#/$defs/DictationHistoryStatus"
+            },
+            "text": {
+              "type": [
+                "null",
+                "string"
+              ]
+            }
+          },
+          "required": [
+            "createdAtMs",
+            "id",
+            "mimeType",
+            "sizeBytes",
+            "status"
+          ],
+          "type": "object"
+        },
+        "DictationHistoryStatus": {
+          "enum": [
+            "cancelled",
+            "interrupted",
+            "recording",
+            "saved"
+          ],
+          "type": "string"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "recording": {
+          "$ref": "#/$defs/DictationHistoryEntry"
+        }
+      },
+      "required": [
+        "recording"
+      ],
+      "title": "DictationHistoryWriteResponse",
+      "type": "object"
+    },
     "DynamicToolCallOutputContentItem": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "oneOf": [
@@ -27287,6 +27900,49 @@
         "id"
       ],
       "title": "InstalledApp",
+      "type": "object"
+    },
+    "InstructionsReadResponse": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "contents": {
+          "type": "string"
+        },
+        "hasOverride": {
+          "type": "boolean"
+        },
+        "path": {
+          "type": "string"
+        },
+        "revision": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "contents",
+        "hasOverride",
+        "path",
+        "revision"
+      ],
+      "title": "InstructionsReadResponse",
+      "type": "object"
+    },
+    "InstructionsWriteParams": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "contents": {
+          "type": "string"
+        },
+        "expectedRevision": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "contents",
+        "expectedRevision"
+      ],
+      "title": "InstructionsWriteParams",
       "type": "object"
     },
     "ItemCompletedNotification": {
@@ -51121,6 +51777,69 @@
       "title": "ProjectGitDiffResponse",
       "type": "object"
     },
+    "ProjectGitManagedWorktree": {
+      "$defs": {
+        "ProjectGitWorktreeThread": {
+          "properties": {
+            "active": {
+              "type": "boolean"
+            },
+            "archived": {
+              "type": "boolean"
+            },
+            "name": {
+              "type": "string"
+            },
+            "pinned": {
+              "type": "boolean"
+            },
+            "threadId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "active",
+            "archived",
+            "name",
+            "pinned",
+            "threadId"
+          ],
+          "type": "object"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "branch": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "headSha": {
+          "type": "string"
+        },
+        "repositoryRoot": {
+          "type": "string"
+        },
+        "threads": {
+          "items": {
+            "$ref": "#/$defs/ProjectGitWorktreeThread"
+          },
+          "type": "array"
+        },
+        "worktreePath": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "headSha",
+        "repositoryRoot",
+        "threads",
+        "worktreePath"
+      ],
+      "title": "ProjectGitManagedWorktree",
+      "type": "object"
+    },
     "ProjectGitStatusParams": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
@@ -51266,13 +51985,8 @@
     },
     "ProjectGitWorktreeDeleteParams": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
       "properties": {
-        "discardChanges": {
-          "type": [
-            "boolean",
-            "null"
-          ]
-        },
         "rootPath": {
           "type": "string"
         }
@@ -51286,6 +52000,12 @@
     "ProjectGitWorktreeDeleteResponse": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
+        "archivedThreadIds": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
         "repositoryRoot": {
           "type": [
             "null",
@@ -51297,9 +52017,126 @@
         }
       },
       "required": [
+        "archivedThreadIds",
         "worktreePath"
       ],
       "title": "ProjectGitWorktreeDeleteResponse",
+      "type": "object"
+    },
+    "ProjectGitWorktreeListParams": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "title": "ProjectGitWorktreeListParams",
+      "type": "object"
+    },
+    "ProjectGitWorktreeListResponse": {
+      "$defs": {
+        "ProjectGitManagedWorktree": {
+          "properties": {
+            "branch": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "headSha": {
+              "type": "string"
+            },
+            "repositoryRoot": {
+              "type": "string"
+            },
+            "threads": {
+              "items": {
+                "$ref": "#/$defs/ProjectGitWorktreeThread"
+              },
+              "type": "array"
+            },
+            "worktreePath": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "headSha",
+            "repositoryRoot",
+            "threads",
+            "worktreePath"
+          ],
+          "type": "object"
+        },
+        "ProjectGitWorktreeThread": {
+          "properties": {
+            "active": {
+              "type": "boolean"
+            },
+            "archived": {
+              "type": "boolean"
+            },
+            "name": {
+              "type": "string"
+            },
+            "pinned": {
+              "type": "boolean"
+            },
+            "threadId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "active",
+            "archived",
+            "name",
+            "pinned",
+            "threadId"
+          ],
+          "type": "object"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "rootPath": {
+          "type": "string"
+        },
+        "worktrees": {
+          "items": {
+            "$ref": "#/$defs/ProjectGitManagedWorktree"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "rootPath",
+        "worktrees"
+      ],
+      "title": "ProjectGitWorktreeListResponse",
+      "type": "object"
+    },
+    "ProjectGitWorktreeThread": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "active": {
+          "type": "boolean"
+        },
+        "archived": {
+          "type": "boolean"
+        },
+        "name": {
+          "type": "string"
+        },
+        "pinned": {
+          "type": "boolean"
+        },
+        "threadId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "active",
+        "archived",
+        "name",
+        "pinned",
+        "threadId"
+      ],
+      "title": "ProjectGitWorktreeThread",
       "type": "object"
     },
     "ProjectImportParams": {
@@ -69796,6 +70633,332 @@
         "status"
       ],
       "title": "SoulStylePackUninstallResponse",
+      "type": "object"
+    },
+    "StorageDeleteParams": {
+      "$defs": {
+        "StorageCleanupCandidate": {
+          "additionalProperties": false,
+          "properties": {
+            "bytes": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "descendants": {
+              "items": {
+                "$ref": "#/$defs/StorageThreadSnapshot"
+              },
+              "type": "array"
+            },
+            "name": {
+              "type": "string"
+            },
+            "root": {
+              "$ref": "#/$defs/StorageThreadSnapshot"
+            }
+          },
+          "required": [
+            "bytes",
+            "descendants",
+            "name",
+            "root"
+          ],
+          "type": "object"
+        },
+        "StorageThreadSnapshot": {
+          "additionalProperties": false,
+          "properties": {
+            "archived": {
+              "type": "boolean"
+            },
+            "threadId": {
+              "type": "string"
+            },
+            "updatedAtMs": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "archived",
+            "threadId",
+            "updatedAtMs"
+          ],
+          "type": "object"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "archivedOnly": {
+          "type": "boolean"
+        },
+        "candidates": {
+          "items": {
+            "$ref": "#/$defs/StorageCleanupCandidate"
+          },
+          "type": "array"
+        },
+        "cutoffMs": {
+          "format": "int64",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "archivedOnly",
+        "candidates",
+        "cutoffMs"
+      ],
+      "title": "StorageDeleteParams",
+      "type": "object"
+    },
+    "StorageDeleteResponse": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "deleted": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "failed": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "skipped": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "deleted",
+        "failed",
+        "skipped"
+      ],
+      "title": "StorageDeleteResponse",
+      "type": "object"
+    },
+    "StorageReadParams": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "title": "StorageReadParams",
+      "type": "object"
+    },
+    "StorageReviewParams": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "archivedOnly": {
+          "default": true,
+          "type": "boolean"
+        },
+        "days": {
+          "default": 90,
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "title": "StorageReviewParams",
+      "type": "object"
+    },
+    "StorageReviewResponse": {
+      "$defs": {
+        "StorageCleanupCandidate": {
+          "additionalProperties": false,
+          "properties": {
+            "bytes": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "descendants": {
+              "items": {
+                "$ref": "#/$defs/StorageThreadSnapshot"
+              },
+              "type": "array"
+            },
+            "name": {
+              "type": "string"
+            },
+            "root": {
+              "$ref": "#/$defs/StorageThreadSnapshot"
+            }
+          },
+          "required": [
+            "bytes",
+            "descendants",
+            "name",
+            "root"
+          ],
+          "type": "object"
+        },
+        "StorageThreadSnapshot": {
+          "additionalProperties": false,
+          "properties": {
+            "archived": {
+              "type": "boolean"
+            },
+            "threadId": {
+              "type": "string"
+            },
+            "updatedAtMs": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "archived",
+            "threadId",
+            "updatedAtMs"
+          ],
+          "type": "object"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "archivedOnly": {
+          "type": "boolean"
+        },
+        "candidates": {
+          "items": {
+            "$ref": "#/$defs/StorageCleanupCandidate"
+          },
+          "type": "array"
+        },
+        "cutoffMs": {
+          "format": "int64",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "archivedOnly",
+        "candidates",
+        "cutoffMs"
+      ],
+      "title": "StorageReviewResponse",
+      "type": "object"
+    },
+    "StorageState": {
+      "$defs": {
+        "StorageCategory": {
+          "enum": [
+            "archived",
+            "other",
+            "subagents",
+            "threads",
+            "unclassified",
+            "worktrees"
+          ],
+          "type": "string"
+        },
+        "StorageCategoryUsage": {
+          "properties": {
+            "bytes": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "category": {
+              "$ref": "#/$defs/StorageCategory"
+            }
+          },
+          "required": [
+            "bytes",
+            "category"
+          ],
+          "type": "object"
+        },
+        "StorageStatus": {
+          "enum": [
+            "error",
+            "ready",
+            "scanning"
+          ],
+          "type": "string"
+        },
+        "StorageUsage": {
+          "properties": {
+            "categories": {
+              "items": {
+                "$ref": "#/$defs/StorageCategoryUsage"
+              },
+              "type": "array"
+            },
+            "dataRoot": {
+              "type": "string"
+            },
+            "scannedRoots": {
+              "description": "实际测量的互不重叠根；portable AgentRoot 和外置 checkout 也明确列出。",
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "threadBytes": {
+              "additionalProperties": {
+                "format": "uint64",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "type": "object"
+            },
+            "totalBytes": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "worktreeRoot": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "categories",
+            "dataRoot",
+            "scannedRoots",
+            "threadBytes",
+            "totalBytes",
+            "worktreeRoot"
+          ],
+          "type": "object"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "completedCategories": {
+          "items": {
+            "$ref": "#/$defs/StorageCategory"
+          },
+          "type": "array"
+        },
+        "measuredAt": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "status": {
+          "$ref": "#/$defs/StorageStatus"
+        },
+        "usage": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StorageUsage"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "completedCategories",
+        "status"
+      ],
+      "title": "StorageState",
       "type": "object"
     },
     "StrictReviewRequiredNotification": {
@@ -119241,6 +120404,13 @@
               "diagnostics/trace/list",
               "diagnostics/trace/read",
               "diagnostics/windowsStartup/read",
+              "dictationHistory/appendAudio",
+              "dictationHistory/delete",
+              "dictationHistory/finish",
+              "dictationHistory/list",
+              "dictationHistory/readAudio",
+              "dictationHistory/setTranscript",
+              "dictationHistory/start",
               "discordChannel/probe",
               "environment/add",
               "environment/info",
@@ -119280,6 +120450,8 @@
               "gatewayTunnel/syncWebhookUrl",
               "hooks/list",
               "initialize",
+              "instructions/read",
+              "instructions/write",
               "knowledgeContext/resolve",
               "knowledgeContextRun/validate",
               "knowledgePack/compile",
@@ -119394,6 +120566,8 @@
               "projectGit/diff",
               "projectGit/status",
               "projectGit/worktree/create",
+              "projectGit/worktree/delete",
+              "projectGit/worktree/list",
               "projectMaterial/content",
               "projectMaterial/count",
               "projectMaterial/delete",
@@ -119451,6 +120625,10 @@
               "soulStylePack/list",
               "soulStylePack/status/set",
               "soulStylePack/uninstall",
+              "storage/delete",
+              "storage/read",
+              "storage/refresh",
+              "storage/review",
               "telegramChannel/probe",
               "thread/approveGuardianDeniedAction",
               "thread/archive",

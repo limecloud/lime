@@ -285,7 +285,9 @@ export const Inputbar: React.FC<InputbarProps> = ({
         </SecondaryControlsRow>
       ) : null}
       <ArtifactAnnotationComposerAccessory />
-      <BrowserAnnotationAccessory />
+      <BrowserAnnotationAccessory
+        onFocusComposer={() => editorRef.current?.focus()}
+      />
       <ConfirmDialog
         isOpen={goalComposer.goalReplacementConfirmation !== null}
         title={t("agentChat.threadGoal.composer.replaceTitle")}

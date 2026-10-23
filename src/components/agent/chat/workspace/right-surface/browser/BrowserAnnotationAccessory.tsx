@@ -1,22 +1,54 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { MessageSquare, X } from "lucide-react";
 import { requestWorkspaceRightSurface } from "@/lib/api/workspaceRightSurface";
-import type { BrowserAnnotationDraft } from "./browserAnnotationDrafts";
+import {
+  hasBrowserAnnotationContent,
+  type BrowserAnnotationDraft,
+} from "./browserAnnotationDrafts";
 import { useBrowserAnnotationRuntime } from "./BrowserAnnotationContext";
 import { useBrowserAnnotationDrafts } from "./useBrowserAnnotationDrafts";
 
-export function BrowserAnnotationAccessory() {
+export function BrowserAnnotationAccessory({
+  onFocusComposer,
+}: {
+  onFocusComposer?: () => void;
+}) {
   const { t } = useTranslation("agent");
   const runtime = useBrowserAnnotationRuntime();
   const latest = useRef(runtime);
   latest.current = runtime;
+  const focusComposer = useRef(onFocusComposer);
+  focusComposer.current = onFocusComposer;
   const { store, drafts, pending } = useBrowserAnnotationDrafts(
     runtime?.sessionId,
     runtime?.threadId,
   );
   const [openFailed, setOpenFailed] = useState(false);
   const opening = useRef(false);
+  useEffect(
+    () =>
+      store.subscribeComposerFocus((sessionId, threadId) => {
+        if (
+          !focusComposer.current ||
+          latest.current?.sessionId !== sessionId ||
+          latest.current.threadId !== threadId ||
+          !store
+            .getSnapshot()
+            .some(
+              (draft) =>
+                draft.sessionId === sessionId &&
+                draft.event.threadId === threadId &&
+                hasBrowserAnnotationContent(draft) &&
+                !draft.pending,
+            )
+        )
+          return false;
+        focusComposer.current();
+        return true;
+      }),
+    [store],
+  );
   if (!runtime || !drafts.length) return null;
   const open = async (draft: BrowserAnnotationDraft) => {
     if (opening.current) return;
@@ -107,7 +139,8 @@ export function BrowserAnnotationAccessory() {
               onClick={() => void open(draft)}
               title={draft.event.selection.pageUrl}
             >
-              {draft.body}
+              {draft.body ||
+                String(t("browserAnnotation.designTitle" as never))}
             </button>
             <button
               type="button"

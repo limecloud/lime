@@ -59,14 +59,16 @@ afterEach(async () => {
 });
 
 describe("Browser options canonical return owner", () => {
-  it.each(["history", "settings"])(
+  it.each(["history", "downloads", "settings"])(
     "captures the actual hydration owner for the %s settings route",
     async (item) => {
       await render();
       await choose(item);
       expect(navigate).toHaveBeenCalledExactlyOnceWith("settings", {
         tab: SettingsTabs.Browser,
-        ...(item === "history" ? { browserPage: "history" } : {}),
+        ...(item === "history" || item === "downloads"
+          ? { browserPage: item }
+          : {}),
         browserReturnOwner: owner,
       });
       expect(error).not.toHaveBeenCalled();

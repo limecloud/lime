@@ -34,7 +34,7 @@ use crate::middleware::request_dedup::{
 };
 use crate::middleware::response_cache::{CachedHttpResponse, ResponseCacheStore};
 use crate::{record_request_telemetry, record_token_usage, AppState};
-use agent_protocol::model_context::MODEL_CONTEXT_WINDOWS;
+use agent_protocol::model_context::resolve_model_context_window;
 use agent_protocol::session_context::{
     PENDING_REQUEST_ID_HEADER, QUEUED_TURN_ID_HEADER, SESSION_ID_HEADER,
     SUBAGENT_SESSION_ID_HEADER, THREAD_ID_HEADER, TURN_ID_HEADER,
@@ -1540,18 +1540,7 @@ fn load_model_capability_from_registry(
 }
 
 fn load_context_window_from_protocol(model: &str) -> Option<u32> {
-    let model_lower = model.to_lowercase();
-    if let Some(v) = MODEL_CONTEXT_WINDOWS.get(model_lower.as_str()) {
-        return Some(*v as u32);
-    }
-
-    MODEL_CONTEXT_WINDOWS.iter().find_map(|(pattern, value)| {
-        if model_lower.contains(*pattern) {
-            Some(*value as u32)
-        } else {
-            None
-        }
-    })
+    resolve_model_context_window(model).and_then(|limit| u32::try_from(limit).ok())
 }
 
 fn resolve_model_capability_snapshot(state: &AppState, model: &str) -> ModelCapabilitySnapshot {

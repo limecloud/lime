@@ -58,12 +58,12 @@ once_cell.workspace = true
 url.workspace = true
 urlencoding.workspace = true
 zip.workspace = true
+tempfile.workspace = true
 
 # 数据库
 rusqlite.workspace = true
 
 [dev-dependencies]
-tempfile.workspace = true
 proptest.workspace = true
 
 [target.'cfg(windows)'.dependencies]

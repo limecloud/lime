@@ -1,8 +1,18 @@
+import {
+  getAudioContextConstructor,
+  encodeAudioBufferToMonoPcm16WavBase64,
+  encodeMonoPcmFloat32ToWavBase64,
+} from "@/lib/dictationAudio";
 import type {
   ComposerController,
   ComposerEditorHandle,
 } from "@/components/input-kit";
 import { applyDictationTranscript } from "./composerDictationDraft";
+import { playDictationSound } from "./inputbarDictationSounds";
+import { DictationHistoryWriter } from "@/lib/dictationHistoryWriter";
+import { selectDictationHistory } from "@/lib/dictationHistoryRecovery";
+import { useAppNavigationRequest } from "@/contexts/AppNavigationContext";
+import { SettingsTabs } from "@/types/settings";
 import {
   InputbarDictationSessionOwner,
   disposeDictationRecording,
@@ -18,6 +28,7 @@ import type { RefObject } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import {
+  getVoiceInputConfig,
   polishVoiceInputText,
   transcribeVoiceInputAudio,
 } from "@/lib/api/asrProvider";
@@ -54,18 +65,6 @@ const RECORDER_MIME_TYPES = [
   "audio/ogg",
 ];
 const WAV_MIME_TYPE = "audio/wav";
-
-function getAudioContextConstructor(): typeof AudioContext | null {
-  return (
-    globalThis.AudioContext ??
-    (
-      globalThis as typeof globalThis & {
-        webkitAudioContext?: typeof AudioContext;
-      }
-    ).webkitAudioContext ??
-    null
-  );
-}
 
 function getPreferredRecorderMimeType(): string | undefined {
   const MediaRecorderCtor = globalThis.MediaRecorder;
@@ -115,76 +114,6 @@ function getMicrophonePermissionMessage(copy: InputbarDictationCopy): string {
     return copy.permissionDeniedWindows;
   }
   return copy.permissionDeniedDefault;
-}
-
-function bytesToBase64(bytes: Uint8Array): string {
-  let binary = "";
-  const chunkSize = 0x8000;
-  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
-    const chunk = bytes.subarray(offset, offset + chunkSize);
-    binary += String.fromCharCode(...chunk);
-  }
-  return globalThis.btoa(binary);
-}
-
-export function encodeAudioBufferToMonoPcm16WavBase64(
-  audioBuffer: AudioBuffer,
-): string {
-  const channelCount = Math.max(1, audioBuffer.numberOfChannels);
-  const frameCount = audioBuffer.length;
-  const sampleRate = audioBuffer.sampleRate;
-  const channels = Array.from({ length: channelCount }, (_, index) =>
-    audioBuffer.getChannelData(index),
-  );
-  const samples = new Float32Array(frameCount);
-  for (let frameIndex = 0; frameIndex < frameCount; frameIndex += 1) {
-    samples[frameIndex] =
-      channels.reduce((sum, channel) => sum + channel[frameIndex], 0) /
-      channelCount;
-  }
-  return encodeMonoPcmFloat32ToWavBase64(samples, sampleRate);
-}
-
-export function encodeMonoPcmFloat32ToWavBase64(
-  samples: Float32Array,
-  sampleRate: number,
-): string {
-  const frameCount = samples.length;
-  const bytesPerSample = 2;
-  const wavHeaderBytes = 44;
-  const dataBytes = frameCount * bytesPerSample;
-  const buffer = new ArrayBuffer(wavHeaderBytes + dataBytes);
-  const view = new DataView(buffer);
-
-  const writeAscii = (offset: number, value: string) => {
-    for (let index = 0; index < value.length; index += 1) {
-      view.setUint8(offset + index, value.charCodeAt(index));
-    }
-  };
-
-  writeAscii(0, "RIFF");
-  view.setUint32(4, 36 + dataBytes, true);
-  writeAscii(8, "WAVE");
-  writeAscii(12, "fmt ");
-  view.setUint32(16, 16, true);
-  view.setUint16(20, 1, true);
-  view.setUint16(22, 1, true);
-  view.setUint32(24, sampleRate, true);
-  view.setUint32(28, sampleRate * bytesPerSample, true);
-  view.setUint16(32, bytesPerSample, true);
-  view.setUint16(34, 16, true);
-  writeAscii(36, "data");
-  view.setUint32(40, dataBytes, true);
-
-  let writeOffset = wavHeaderBytes;
-  for (let frameIndex = 0; frameIndex < frameCount; frameIndex += 1) {
-    const clamped = Math.max(-1, Math.min(1, samples[frameIndex]));
-    const sample = clamped < 0 ? clamped * 0x8000 : clamped * 0x7fff;
-    view.setInt16(writeOffset, Math.round(sample), true);
-    writeOffset += bytesPerSample;
-  }
-
-  return bytesToBase64(new Uint8Array(buffer));
 }
 
 function shouldJoinWithoutSpace(left: string, right: string): boolean {
@@ -331,7 +260,8 @@ export function useInputbarDictation({
   disabled,
   isComposing,
 }: UseInputbarDictationArgs) {
-  const { t } = useTranslation("agent");
+  const { t } = useTranslation(["agent", "settings"]);
+  const navigate = useAppNavigationRequest();
   const copy = useMemo(() => buildInputbarDictationCopy((key) => t(key)), [t]);
   const [sessionOwner] = useState(() => new InputbarDictationSessionOwner());
   const [dictationState, setDictationState] =
@@ -345,6 +275,22 @@ export function useInputbarDictation({
   const compositionRef = useRef(isComposing);
   compositionRef.current = isComposing;
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const cancelCueRef = useRef<(() => void) | null>(null);
+  const cancelCue = useCallback(() => {
+    cancelCueRef.current?.();
+    cancelCueRef.current = null;
+  }, []);
+  const playCue = useCallback(
+    (enabled: boolean, cue: "start" | "stop") => {
+      cancelCue();
+      if (enabled)
+        cancelCueRef.current = playDictationSound(
+          cue,
+          getAudioContextConstructor(),
+        );
+    },
+    [cancelCue],
+  );
   const livePreviewTimerRef = useRef<ReturnType<typeof setInterval> | null>(
     null,
   );
@@ -368,8 +314,16 @@ export function useInputbarDictation({
     return () => {
       sessionOwner.dispose();
       clearRecordingTimer();
+      cancelCue();
     };
-  }, [controller, sessionId, sessionOwner, resetStatus, clearRecordingTimer]);
+  }, [
+    controller,
+    sessionId,
+    sessionOwner,
+    resetStatus,
+    clearRecordingTimer,
+    cancelCue,
+  ]);
 
   const ownsSession = useCallback(
     (session: DictationSession) =>
@@ -414,11 +368,14 @@ export function useInputbarDictation({
     )
       return;
     const previous = controller.getSnapshot();
+    const current = sessionOwner.getCurrent();
+    const stopped = current?.phase === "listening" && current.soundsEnabled;
     if (!sessionOwner.cancel(controller, sessionId)) return;
+    playCue(Boolean(stopped), "stop");
     resetStatus();
     if (controller.getSnapshot() !== previous)
       setText(controller.getDocument().text);
-  }, [controller, resetStatus, sessionId, sessionOwner, setText]);
+  }, [controller, resetStatus, sessionId, sessionOwner, setText, playCue]);
 
   const discardDictationSession = useCallback((): boolean => {
     if (
@@ -427,9 +384,10 @@ export function useInputbarDictation({
     )
       return false;
     if (!sessionOwner.discard(controller, sessionId)) return false;
+    cancelCue();
     resetStatus();
     return true;
-  }, [controller, resetStatus, sessionId, sessionOwner]);
+  }, [controller, resetStatus, sessionId, sessionOwner, cancelCue]);
 
   const transcribeBlob = useCallback(
     async (blob: Blob, session: DictationSession) => {
@@ -540,7 +498,8 @@ export function useInputbarDictation({
           copy.recognitionFailed,
         );
         if (!ownsSession(session)) return;
-        disposeDictationRecording(session);
+        disposeDictationRecording(session, "saved");
+        playCue(session.soundsEnabled, "stop");
         if (elapsedMs < MIN_RECORDING_DURATION_MS || blob.size === 0) {
           toast.error(copy.tooShort);
           return;
@@ -565,10 +524,37 @@ export function useInputbarDictation({
             );
         }
         if (!ownsSession(session)) return;
+        void activeRecording.history.setTranscript(transcript);
         applyTranscript(session, transcript, true);
       } catch (error) {
-        if (ownsSession(session))
-          toast.error(`${copy.recognitionFailed}: ${describeError(error)}`);
+        if (ownsSession(session)) {
+          if (session.recording)
+            disposeDictationRecording(session, "interrupted");
+          const id = await activeRecording.history.getId();
+          if (ownsSession(session))
+            toast.error(
+              `${copy.recognitionFailed}: ${describeError(error)}`,
+              id && navigate
+                ? {
+                    action: {
+                      label: t("settings.voice.history.open", {
+                        ns: "settings",
+                      }),
+                      onClick: () => {
+                        selectDictationHistory(id);
+                        navigate("settings", {
+                          tab: SettingsTabs.Voice,
+                          searchFocus: {
+                            targetId: "voice-history",
+                            requestKey: Date.now(),
+                          },
+                        });
+                      },
+                    },
+                  }
+                : undefined,
+            );
+        }
       } finally {
         if (ownsSession(session)) finishSession(session);
       }
@@ -578,8 +564,11 @@ export function useInputbarDictation({
       clearRecordingTimer,
       copy,
       finishSession,
+      navigate,
       ownsSession,
+      playCue,
       transcribeBlob,
+      t,
     ],
   );
 
@@ -601,8 +590,15 @@ export function useInputbarDictation({
     setLiveTranscript("");
     let stream: MediaStream | null = null;
     try {
+      const config = await getVoiceInputConfig();
+      if (!ownsSession(session)) return;
+      session.soundsEnabled = config.sound_enabled !== false;
+      const deviceId = config.selected_device_id?.trim();
       stream = await navigator.mediaDevices.getUserMedia({
         audio: {
+          ...(deviceId && deviceId !== "default"
+            ? { deviceId: { exact: deviceId } }
+            : {}),
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true,
@@ -622,6 +618,8 @@ export function useInputbarDictation({
         chunks: [],
         startedAt: performance.now(),
         mimeType: recorder.mimeType || mimeType || "",
+        started: false,
+        stopObserved: false,
         finalizing: false,
         livePreviewInFlight: false,
         livePreviewSequence: 0,
@@ -629,16 +627,33 @@ export function useInputbarDictation({
         liveTranscriptText: "",
         liveSampleCursor: 0,
         sampler: createLiveAudioSampler(stream),
+        history: new DictationHistoryWriter(
+          recorder.mimeType || mimeType || "audio/webm",
+          () =>
+            toast.error(
+              t("settings.voice.history.saveError", { ns: "settings" }),
+            ),
+        ),
         onData: (event) => {
-          if (!ownsSession(session) || event.data.size === 0) return;
+          if (event.data.size === 0) return;
           activeRecording.chunks.push(event.data);
-          void updateLiveTranscript(session);
+          activeRecording.history.append(event.data);
+          if (ownsSession(session)) void updateLiveTranscript(session);
         },
       };
       session.recording = activeRecording;
       recorder.addEventListener("dataavailable", activeRecording.onData);
+      recorder.addEventListener(
+        "stop",
+        () => {
+          activeRecording.stopObserved = true;
+        },
+        { once: true },
+      );
       recorder.start(LIVE_TRANSCRIPTION_TIMESLICE_MS);
+      activeRecording.started = true;
       session.phase = "listening";
+      playCue(session.soundsEnabled, "start");
       setDictationState("listening");
       timerRef.current = setInterval(() => {
         if (ownsSession(session))
@@ -667,8 +682,10 @@ export function useInputbarDictation({
     copy,
     finishSession,
     ownsSession,
+    playCue,
     sessionOwner,
     sessionId,
+    t,
     updateLiveTranscript,
   ]);
 

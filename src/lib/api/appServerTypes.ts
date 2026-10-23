@@ -1,4 +1,10 @@
 import type * as protocol from "../../../packages/app-server-client/src/protocol";
+export type AppServerStorageReadParams = protocol.StorageReadParams;
+export type AppServerStorageState = protocol.StorageState;
+export type AppServerStorageReviewParams = protocol.StorageReviewParams;
+export type AppServerStorageReviewResponse = protocol.StorageReviewResponse;
+export type AppServerStorageDeleteParams = protocol.StorageDeleteParams;
+export type AppServerStorageDeleteResponse = protocol.StorageDeleteResponse;
 
 export type AppServerCloudRequestParams = protocol.CloudRequestParams;
 export type AppServerCloudRequestResponse = protocol.CloudRequestResponse;
@@ -106,6 +112,16 @@ export type AppServerProjectGitWorktreeCreateParams =
   protocol.ProjectGitWorktreeCreateParams;
 export type AppServerProjectGitWorktreeCreateResponse =
   protocol.ProjectGitWorktreeCreateResponse;
+export type AppServerProjectGitWorktreeListResponse =
+  protocol.ProjectGitWorktreeListResponse;
+export type AppServerProjectGitWorktreeListParams =
+  protocol.ProjectGitWorktreeListParams;
+export type AppServerProjectGitWorktreeDeleteParams =
+  protocol.ProjectGitWorktreeDeleteParams;
+export type AppServerProjectGitWorktreeDeleteResponse =
+  protocol.ProjectGitWorktreeDeleteResponse;
+export type AppServerProjectGitManagedWorktree =
+  protocol.ProjectGitManagedWorktree;
 export type AppServerAgentSessionHandoffBundleExportParams =
   protocol.AgentSessionHandoffBundleExportParams;
 export type AppServerAgentSessionHandoffBundleExportResponse =

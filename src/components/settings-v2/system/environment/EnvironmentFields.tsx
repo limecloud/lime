@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import { WorkbenchInfoTip } from "@/components/media/WorkbenchInfoTip";
+import { SettingsGroup, SettingsSection } from "../../SettingsPrimitives";
 
 interface SurfacePanelProps {
   icon: LucideIcon;
@@ -21,40 +22,28 @@ interface FieldBlockProps {
 }
 
 export function SurfacePanel({
-  icon: Icon,
   title,
   description,
-  tipAriaLabel,
   aside,
   searchTarget,
   children,
 }: SurfacePanelProps) {
   return (
-    <article
-      className="rounded-[26px] border border-border bg-background p-5 shadow-sm "
+    <SettingsSection
+      title={title}
+      actions={aside}
       data-settings-search-target={searchTarget}
       tabIndex={searchTarget ? -1 : undefined}
-      aria-label={searchTarget ? title : undefined}
     >
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-            <Icon className="h-4 w-4 text-primary" />
-            {title}
-            <WorkbenchInfoTip
-              ariaLabel={tipAriaLabel}
-              content={description}
-              tone="slate"
-            />
-          </div>
+      <SettingsGroup>
+        <div className="py-4">
+          <p className="mb-4 text-xs leading-4 text-muted-foreground">
+            {description}
+          </p>
+          {children}
         </div>
-        {aside ? (
-          <div className="flex flex-wrap items-center gap-2">{aside}</div>
-        ) : null}
-      </div>
-
-      <div className="mt-5">{children}</div>
-    </article>
+      </SettingsGroup>
+    </SettingsSection>
   );
 }
 

@@ -1,5 +1,57 @@
 use super::*;
 
+#[test]
+fn metadata_values_preserve_unrelated_canonical_fields_across_archived_cold_recovery() {
+    let (_temp, agent_root, store) = store_with_rollout();
+    let mut source = thread("snapshot-metadata", 1_700_000_000_000);
+    source.metadata = json!({ "modelName": "keep", "custom": { "id": "keep-nested" } });
+    create(&store, &source);
+    block_on(store.archive_thread(ArchiveThreadParams {
+        thread_id: source.thread_id.clone(),
+    }))
+    .unwrap();
+    let archived = block_on(store.read_thread(ReadThreadParams {
+        thread_id: source.thread_id.clone(),
+        include_archived: true,
+        turns_view: ThreadTurnsView::NotLoaded,
+    }))
+    .unwrap()
+    .unwrap();
+    let changed = block_on(store.update_thread_metadata(UpdateThreadMetadataParams {
+        thread_id: source.thread_id.clone(),
+        include_archived: true,
+        patch: ThreadMetadataPatch {
+            metadata_values: [("worktreeSnapshot".to_owned(), json!({ "ref": "snapshot" }))].into(),
+            ..Default::default()
+        },
+    }))
+    .unwrap();
+    assert_eq!(changed.metadata["modelName"], "keep");
+    assert_eq!(changed.metadata["custom"]["id"], "keep-nested");
+    assert_eq!(changed.recency_at_ms, Some(source.updated_at_ms));
+    assert_eq!(changed.updated_at_ms, archived.updated_at_ms);
+    let file_time = modified_ms(&rollout_path(&store, &agent_root, &source.thread_id));
+    assert!(changed.archived);
+    drop(store);
+    let cold = ProjectionStore::initialize_with_agent_root(
+        agent_root.join("runtime/cold.sqlite"),
+        &agent_root,
+    )
+    .unwrap();
+    let recovered = block_on(cold.read_thread(ReadThreadParams {
+        thread_id: source.thread_id,
+        include_archived: true,
+        turns_view: ThreadTurnsView::NotLoaded,
+    }))
+    .unwrap()
+    .unwrap();
+    assert_eq!(recovered.metadata["worktreeSnapshot"]["ref"], "snapshot");
+    assert_eq!(recovered.metadata["modelName"], "keep");
+    assert_eq!(recovered.metadata["custom"]["id"], "keep-nested");
+    assert_eq!(recovered.updated_at_ms, file_time);
+    assert_eq!(recovered.recency_at_ms, changed.recency_at_ms);
+}
+
 fn physical_path(path: &Path, compressed: bool) -> PathBuf {
     if compressed {
         let mut name = path.as_os_str().to_owned();

@@ -1,5 +1,6 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
+import { LoaderCircle } from "lucide-react";
 import type { Message } from "../types";
 import { createAppServerClient } from "@/lib/api/appServer";
 import { resolveLocalFilePreviewUrl } from "@/lib/api/fileSystem";
@@ -73,7 +74,7 @@ function MessageImageAttachment({
   thumbnail?: boolean;
   onOpenImage?: MessageImageAttachmentsProps["onOpenImage"];
 }) {
-  const { t } = useTranslation("agent");
+  const { t } = useTranslation(["agent", "common"]);
   const directSrc = resolveMessageImageSrc(image);
   const sidecarUri = resolveMessageImageSidecarUri(image);
   const normalizedThreadId = threadId?.trim() || "";
@@ -127,40 +128,51 @@ function MessageImageAttachment({
   const src = directSrc || sidecarSrc;
   const isUnavailable =
     loadFailed || (!src && (!sidecarUri || !normalizedThreadId));
-  const imageNode =
-    isUnavailable || !src ? (
-      thumbnail ? (
-        <span
-          role="img"
-          aria-label={t("agentChat.messageImageAttachments.unavailable")}
-          className="inline-flex size-6 shrink-0 items-center justify-center rounded border border-border bg-muted/40"
-          data-testid={`message-image-attachment-unavailable-${index}`}
-        >
-          <span aria-hidden className="text-xs text-muted-foreground">
-            —
-          </span>
+  const imageNode = isUnavailable ? (
+    thumbnail ? (
+      <span
+        role="img"
+        aria-label={t("agentChat.messageImageAttachments.unavailable")}
+        className="inline-flex size-6 shrink-0 items-center justify-center rounded border border-border bg-muted/40"
+        data-testid={`message-image-attachment-unavailable-${index}`}
+      >
+        <span aria-hidden className="text-xs text-muted-foreground">
+          —
         </span>
-      ) : (
-        <ImageUnavailablePlaceholder
-          label={t("agentChat.messageImageAttachments.unavailable")}
-          testId={`message-image-attachment-unavailable-${index}`}
-          className="h-28 w-40 max-w-xs"
-        />
-      )
+      </span>
     ) : (
-      <img
-        src={src}
-        className={
-          thumbnail
-            ? "size-6 shrink-0 rounded border border-border object-cover"
-            : "max-h-64 max-w-xs rounded-lg border border-border object-contain"
-        }
-        draggable={!thumbnail}
-        alt={t("agentChat.messageImageAttachments.alt")}
-        data-testid={`message-image-attachment-${index}`}
-        onError={() => setLoadFailed(true)}
+      <ImageUnavailablePlaceholder
+        label={t("agentChat.messageImageAttachments.unavailable")}
+        testId={`message-image-attachment-unavailable-${index}`}
+        className="h-28 w-40 max-w-xs"
       />
-    );
+    )
+  ) : !src ? (
+    <span
+      role="status"
+      aria-label={t("common:common.loading")}
+      className={`inline-flex shrink-0 items-center justify-center rounded border border-border bg-muted/40 text-muted-foreground ${thumbnail ? "size-6" : "h-28 w-40 max-w-xs"}`}
+      data-testid={`message-image-attachment-loading-${index}`}
+    >
+      <LoaderCircle
+        className="size-4 animate-spin motion-reduce:animate-none"
+        aria-hidden="true"
+      />
+    </span>
+  ) : (
+    <img
+      src={src}
+      className={
+        thumbnail
+          ? "size-6 shrink-0 rounded border border-border object-cover"
+          : "max-h-64 max-w-xs rounded-lg border border-border object-contain"
+      }
+      draggable={!thumbnail}
+      alt={t("agentChat.messageImageAttachments.alt")}
+      data-testid={`message-image-attachment-${index}`}
+      onError={() => setLoadFailed(true)}
+    />
+  );
 
   if (!onOpenImage) {
     return imageNode;

@@ -5498,7 +5498,7 @@ Agent Browser capability
   -> App Server item/tool/call server request
   -> connection-owned Electron AppServerDynamicToolHost
   -> exact BrowserRoute (thread/turn/session/tab/view/webContents)
-  -> the same BrowserTabHost and debugger
+  -> the same BrowserTabHost (page tools: debugger; history: original history owner)
 ```
 
 `BrowserRoute` 的逻辑身份包含 `connectionId`、`threadId`、`turnId`、`windowId`、
@@ -5539,15 +5539,30 @@ flowchart LR
   HOST --> SELECTION[BrowserAnnotationHost / 主进程选区与截图]
   SELECTION --> PAGEPRELOAD[同一 WCV / 受限 main-frame preload]
   OVERLAY --> EDITOR[BrowserAnnotationEditorHost / 独立可信 Composer]
-  EDITOR --> DRAFT[Desktop BrowserAnnotationDraftStore]
+  TABS --> TOOLBAR[BrowserAnnotationToolbar / 同 scope 草稿投影]
+  TOOLBAR --> OVERLAY
+  TOOLBAR --> DRAFT
+  TOOLBAR --> FOCUS[同 identity 的 renderer 焦点交接]
+  FOCUS --> SELECTION
+  FOCUS --> COMPOSER[已挂载同 scope 主 Composer]
+  EDITOR --> DOC[ComposerController / 正文与手动图片]
+  DOC --> DRAFT[Desktop BrowserAnnotationDraftStore]
   DRAFT --> LOWER[单一 text / image lowerer]
   LOWER --> SUBMIT[现有 InputbarSendHandler / start·steer·queue]
   SUBMIT --> RUNTIME
   HOST --> HISTORY[BrowserHistoryHost / BrowserHistoryStore]
+  HOST --> DOWNLOADS[BrowserDownloadsHost / BrowserDownloadsStore]
+  PAGE --> NATIVE_DOWNLOAD[原生 DownloadItem 事件]
+  NATIVE_DOWNLOAD --> DOWNLOADS
   SETTINGS[现有 App Server config / CAS] --> POLICY[BrowserTabPolicy / turn grant]
   POLICY --> HOST
   RUNTIME[RuntimeCore / canonical approval] --> RPC[item/tool/call]
   RPC --> HOST
+  HOST --> APPROVALS[BrowserActionApprovals / 一次性参数与 route 校验]
+  HOST --> HISTORY_TOOL[BrowserHistoryTool / Agent 历史策略与有界查询]
+  POLICY --> HISTORY_TOOL
+  HISTORY_TOOL --> APPROVALS
+  HISTORY_TOOL --> HISTORY
   HOST -. 待实现的版本化绑定 .-> SERVICES[同一引擎 Profile 原生服务]
 ```
 
@@ -5557,18 +5572,173 @@ WCV 上方的交互。Cookie 使用应用级持久 Browser partition，会话/�
 的唯一数据 owner 为 `BrowserHistoryStore`，设置 UI 经 typed gateway/IPC 委托，不建立 Renderer store；
 用户管理历史与 Agent 读取历史的授权是不同能力。
 
+Agent 的 `browser__history` 复用既有 namespace、动态工具阶段和同一 `BrowserHistoryHost/Store`。
+`history_access=alwaysAsk` 对每次冻结查询请求 canonical 单次审批，`neverAsk` 跳过历史审批，
+`disabled` 在存储读取前拒绝；个人管理历史保持可用。历史读取不 claim 网页、不 attach debugger，
+也不受网站 browse grant 替代。现有审批 descriptor 要求 native route，当前使用同 thread 中可见
+canonical tab 作为审批 anchor；无此 anchor 时显式失败。设置、turn terminal、断连、用户接管和
+原生 route 变化撤销 pending 与异步读取；IO 后回读权威配置、核验 policy revision 与完整 route，
+成功结果才进入原 Tool Item/provider history。查询复用原 parser、cursor 和 1–200 上限，拒绝未知字段。
+`BrowserActionApprovals` 从超大 Host 迁出原 action token 冻结、一次消费与身份核验；canonical
+用户决定仍只归 RuntimeCore。App Server 配置语言仅投影历史审批文案，不成为另一份配置 authority。
+本次 Architecture impact: major；Responsible developer confirmation: root, 2026-10-23；
+已确认新增模块的依赖方向、原 history owner、原动态工具协议复用与生命周期撤销，不新增 IPC/RPC。
+
+下载管理继续由同一 `BrowserTabHost` 持有 `BrowserDownloadsHost`：只从所属 Browser 的原生
+`DownloadItem` 事件接收记录，活动句柄与落盘路径只留 Main；Renderer 经三个 `browser_downloads_*`
+命令查询或按 id 操作。`BrowserDownloadsStore` 使用统一 AppDataRoot 和平台文件封装原子写入。
+每次保存仍递增与磁盘一致的 durable revision；Host 另持有进程内 historyRevision，只在列表成员、
+状态、排序/搜索元数据改变时更新。typed changed 通知仅携带公开增量或 invalidated，
+`BrowserDownloadsProjection` 是有界 Renderer 合并投影，不能新增历史成员或成为持久 authority。
+正常字节增长不取消历史分页；结构变化才重读已加载范围，历史查询继续检查真实文件可用性。
+该通知/分页合同变更为 Architecture impact: major；Responsible developer confirmation: root, 2026-10-23；
+已核对唯一 Host/store owner、typed gateway 依赖方向、现有 IPC 白名单和定向/原生验证门禁。
+暂停/恢复/取消受原生能力与原 Agent 下载授权限制；清历史只删除终态记录，不删除文件或取消活动下载。
+正常退出沿现有异步quit drain先停止下载准入和迟到权限续接，再暂停原生句柄并保存私有部分文件。
+`BrowserDownloadFiles`只管理AppDataRoot下的检查点，以排他创建恢复缺失目标，不覆盖既有无效文件；
+`BrowserDownloadResume`校验原生URL chain/ETag/Last-Modified等元数据，Store v2迁移旧记录时不补造缺失事实。
+重启后先投影interrupted；只有真实部分文件或检查点有效时才提供恢复。受控id经同权限resolver委托
+`BrowserDownloadRecovery`在同一Session调用createInterruptedDownload，并关联无WebContents的原生item，
+继续使用同一事件绑定、进度和完成事实。Renderer不接收路径/恢复参数，清理保留仍可恢复记录。
+冷恢复的可续传项也可按原id直接取消：只持久化cancelled并清除私有检查点，不创建原生item、
+不发起网络请求或删除用户路径文件；取消后才允许移除或清除该记录。
+该宿主能力不增加App Server业务method、第二下载后端、runtime或生产fallback。Architecture impact: minor；
+Responsible developer confirmation: root, 2026-10-23；确认上图依赖方向，两个大Host只委托独立owner，
+main仅增加现有quit drain的await。真实恢复与完整设置/跨平台验证仍按执行计划结算。
+
 网页批注仍复用该 Browser owner。`BrowserAnnotationHost` 绑定完整原生 identity、page revision、文档与
 viewport token，只接受当前 main frame 的 page preload 选择；捕获从 Host 保存的选区执行
-prepare/ready/capture/clear，Renderer 不传截图裁剪坐标。iframe 当前仅选容器，加载中的文档不能启动选择。
+prepare/ready/capture/retain（失败或失效清理），Renderer 不传截图裁剪坐标。加载中的主文档不能启动选择。
+`browserAnnotationFrames` 在同一主frame输入盾内命中可访问的同源iframe，按文档对象身份、frame路径
+与shadow路径定位；元素和文本helper使用目标document，几何经边框/正向缩放及嵌套viewport裁剪后
+映射到顶层capture。跨源iframe停留在容器，不开放child IPC；frame导航/脱离/滚动等撤销陈旧选择。
+`browserAnnotationKeyboard`在同一isolated world监听可访问的同源document，物理Space暂时隐藏
+未提交选择的输入盾，松开或失焦恢复；输入目标、IME与修饰键保留原行为，脚本合成键不接管。
+暂停会撤销未完成拖动，暂停中的真实滚动不产生旧选区；已提交选择的失效/capture规则保持不变。
+frame加载、导航和脱离更新监听，退出批注时清理；child仍无preload、IPC或独立授权入口。
+原生view/window blur由同一`BrowserAnnotationHost`经已有page command恢复未提交输入盾，避免
+stock Electron的`document.hasFocus()`迟滞；仍校验当前entry/identity/revision/document token，旧回调
+不得恢复后继会话，已提交选区/capture不变。新文档加载仍撤销旧会话，持续模式仅以新的选择会话恢复。
+DOM 文本选择由同一 isolated-world preload 内的 `browserAnnotationText` 负责 caret/Range、UTF-16
+定位、行矩形和 open shadow 路径；批注工具按文本拖选、区域拖选、元素点击的实际输入分流，不增加第二入口。
+可信 Host 重校验 text kind、原文/定位偏移和有界几何；节点、正文或布局变化拒绝陈旧捕获，受保护文字不作为文本输出。
+表单文字由独立 `browserAnnotationFormText` 复用同一文本链：临时镜像命中并测量逐行几何，保留 value
+内 UTF-16 范围与方向；不修改页面原生选区、focus 或 value，输入盾继续抑制网页动作。镜像通过对象身份
+从 mutation 观察中排除，表单 value 的无事件写入通过有界轮询与 capture 重校验失效。密码/保护文字及
+旋转变换不输出表单文本。同源frame字段沿既有批注消费者迁移，主frame scope改为page描述选择范围，
+不改变sender/token authority。Architecture impact: minor；Responsible developer confirmation: root,
+2026-10-23；沿同一 Host/草稿/lowerer 演进，无新增 runtime、配置或业务历史 owner，验收见 Browser 执行计划。
 可信编辑器使用独立固定本地 renderer 与窄 preload，复用 `ComposerController`，不暴露通用 bridge 或
 App Server；`BrowserOverlayHost` 统一协调菜单与编辑器的互斥、焦点和销毁。关闭先撤权，再最多等待250ms
 最后正文快照；旧 editor/generation 的回传可以保存旧稿，不得向新会话发送或关闭后继浮层。
 
+捕获上下文和 live 展示位置分离：`BrowserAnnotationHost` 按 annotationId 保留多个临时锚点，同一 native
+view 仅注册一组生命周期监听；新 picker 只替换未捕获选择。`BrowserAnnotationAnchorLayer` 在原 isolated
+world 渲染不拦截页面的 highlight/marker，scroll、resize、mutation、transition 与 visualViewport 事件经 RAF
+合并。元素/文本重测并按 composed overflow 与 frame viewport 裁剪。`browserAnnotationRegion` 单独保存
+区域起始 frame 的文档坐标与结束点命中的 composed overflow 容器初值；滚动偏移经正向 scale 换算，
+再按容器/frame/viewport 裁剪。区域覆盖 fixed 像素时仍按文档坐标移动，fixed 元素批注仍由 live element
+geometry 跟随；区域 helper 不拥有截图或新的捕获 authority。
+页内只通过原 main-frame channel 回传有界布局；Host 重校验原 sender/token/document/revision 后，直接经
+`BrowserOverlayHost -> BrowserAnnotationEditorHost.position` 更新同一可信 WCV 的 bounds。离屏/目标丢失
+仅令 editor 回到 page top-left；布局不得改 capture/context/screenshot、正文 revision、generation 或 pending。
+真实 marker 点击经 typed activation 通知重开现有草稿；当前 editor 只恢复原生焦点，不重建输入文档。
+草稿删除/接受消费释放对应锚点，失败保留；导航、文档失效与销毁撤销原生锚点，
+旧 capture 不获得新文档授权。隐藏/切tab时retained marker只暂停展示并轮换token，未捕获picker仍撤销；
+同一native identity/frame/document/pageRevision重新visible/selected/ready后，经新token握手恢复只读marker。
+隐藏时、旧token、错误document与未请求的恢复ACK均无效；恢复不重新截图或创建草稿。page marker几何抽到
+`browserAnnotationMarkers`，与输入盾职责分开；跨文档locator重建与历史锚点恢复仍待实现。
+Agent/human_takeover期间同一Host拒绝选择与编辑器输入，并暂停saved marker；释放后重新握手。
+可信Host在使snapshot失效时，仅对仍属于同一native identity/frame/document/URL的retained marker推进
+presentation revision；连续版本变化不修改原capture identity、context、正文或截图。page preload只接受
+旧展示版本、新token及同一document的restore命令，将展示绑定到明确的next revision；ACK和后续geometry
+必须匹配当前展示版本。activation携带不可变capture pageRevision及独立presentationPageRevision，GUI分别
+校验原草稿与当前tab；旧capture不能取得新选择、截图或Agent执行authority。导航与跨文档仍硬撤销。
+`BrowserAnnotationModeStore`只保存按canonical session/thread与完整native tab隔离的Desktop内存模式意图，
+与picker/capture/editor分离。保存/关闭编辑器后继续选择；隐藏、切tab与加载先撤销旧picker，重新可见且
+ready后经原begin命令获取全新的annotationId/token/document/revision，旧捕获不能复活。Agent控制期间
+暂停自动选择，Escape或用户关闭模式清意图。此store不持有页面授权、截图、业务消息或持久化；
+hook的截图等待仅阻塞同一runtime epoch，旧会话迟到结果不能阻塞或清除新会话的等待。
+跨文档saved anchor重新定位与进程重启恢复仍待独立实现和验证。
+Architecture impact: minor；Responsible developer confirmation: root, 2026-10-23。确认新增 helper 仅拥有页内
+布局与同一 BrowserTabHost 的展示接线，无新业务后端、public method 或持久化 owner；原生验收按执行计划。
+
 `BrowserAnnotationDraftStore` 只拥有 Desktop 待提交草稿，不拥有 canonical 消息或业务历史。单一 lowerer
 把页面上下文、正文和真实截图附件送入既有 typed input，start/steer/queue 共用原 acceptance；仅同
-session/thread 的接受结果消费捕获 revision，失败保留正文和图片，新编辑不被旧 receipt 清除。参考静态证据
-已确认 text/image lowering，rich 草稿持久化、跨设备及完整历史回显仍 unknown，不预设扩第二套 runtime wire。
-元素/区域、编辑与发送当前为实施中切片，尚不结算 G03；Design Tweaks、多选、附图预览等仍按执行计划补齐。
+session/thread 的接受结果消费捕获 revision，失败保留正文和图片，新编辑不被旧 receipt 清除。
+原生marker释放由应用级草稿store的注入回调在实际remove/接受消费时触发，不依赖Browser面板挂载；面板卸载
+只关闭临时picker/editor并接收最后正文flush，不删除保留marker。
+批注工具条复用相同草稿store与runtime发送owner，按canonical session/thread和完整native tab identity投影计数，
+不创建另一条发送或业务历史链。退出模式关闭临时picker/editor并接收最后正文flush，保留草稿与原capture。
+批量丢弃只接受确认时的不可变草稿对象快照；任意正文revision或pending变化拒绝整批，后建草稿不删除。
+确认框复用BrowserOverlayHost的同一可信原生WCV，有限confirmation presentation只含title/description与两个
+纯文字动作，不允许HTML/URL、动态更新或页面快捷键；取消默认焦点、Tab循环、Escape/外部点击关闭。
+`browser_tab_set_annotation_markers`仅修改同一Host内view的saved marker展示偏好：window/tab ownership重验，
+不改变capture、草稿或选择authority；隐藏时拒绝activate，Agent/隐藏/恢复握手期间不提前恢复标记，ACK后
+按最新偏好校准。Renderer的同scope内存偏好等待精确receipt，迟到结果只更新原scope，不覆盖新标签。
+非floating批注工具条替换导航条，Space临时浏览与平台主修饰键仅投影为只读picker状态。页面输入经原有
+主frame/sender/token/document/revision校验；retained/capture/Agent/隐藏状态不得发布新picker状态。Renderer
+在begin回执前仅保存有界候选，精确annotationId匹配后显示；切页、退出和selection立即失效。
+`browser_tab_focus_annotation_composer`只校验完整原生identity/选中/可见/attached并聚焦owner renderer，
+不授权新选择、不接管Agent、不产生业务消息。加入输入框退出批注模式、保留原文原图，经精确回执再向
+已挂载的同session/thread主Composer发送一次即时焦点请求；不排队、不在后续挂载时重放，不复制草稿。
+Architecture impact: minor；Responsible developer confirmation: root, 2026-10-23；确认同一BrowserTabHost、
+原生overlay与runtime owner不变。工具条本刀不结算floating拖动、Design Tweaks或完整G03验收。
+参考静态证据已确认 text/image lowering，rich 草稿持久化、跨设备及完整历史回显仍 unknown，不预设扩第二套 runtime wire。
+手动图片由同一可信编辑器的`ComposerController`管理，粘贴/拖入经editor lifetime约束读取，文件路径不进入
+网页或新文件读取命令。窄preload/Host、typed事件与Desktop草稿在同一revision校验正文和有界内联图片；
+同revision更换附件拒绝，final flush与重开保留已提交图片，关闭后异步读取不得回流。图片读取期间拒绝发送，
+预览复用既有Dialog焦点圈定，Escape优先关闭预览。原lowerer按每条批注的原截图、手动图片顺序并入现有
+text/image输入；接受仅消费精确版本，失败或在途新版本保留。没有新媒体存储、通用网页bridge或发送后端。
+卡片内容尺寸沿同一可信Editor Host管理：独立model负责presentation/identity校验，layout负责原生范围和锚点几何；
+Renderer以ResizeObserver报告内容高度，窄preload和Host只接受当前ready主frame/token/editor/generation的有界数值。
+原生宽度、最大高度和位置始终由Host计算，窗口缩放重发约束，正文/附件revision和capture不因布局变化推进。
+图片预览临时展开同一view，关闭后恢复当前内容尺寸；长正文沿卡片内有界滚动，不新增窗口、图片store或网页权限。
+Architecture impact: minor；Responsible developer confirmation: root, 2026-10-23；本段确认现有图与依赖方向，
+不结算原生物理交互、参考视觉或完整G03。元素/区域/DOM与表单文本、编辑、手动图片与发送当前为实施中切片；
+Design Tweaks、多选、完整原生/视觉及历史恢复仍按执行计划补齐。
+
+Design Tweaks 的 CSS/纯文本切片沿上述 owner 接入：
+
+```mermaid
+flowchart LR
+  Page[受限 page preload / 原 PageAnnotation] -->|有界 designSnapshot| Annotation[BrowserAnnotationHost]
+  Annotation -->|原 selection 事件| Draft[原 BrowserAnnotationDraftStore]
+  Draft --> Trusted[可信 Annotation Editor / ComposerController]
+  Trusted -->|同 revision 正文 / 附图 / designChange| Editor[BrowserAnnotationEditorHost]
+  Editor --> Tab[BrowserTabHost 事件委托]
+  Original[工具条指针 / 键盘按住原图] --> Desktop[typed gateway / 原 Desktop IPC]
+  Desktop --> Tab
+  Tab --> Annotation
+  Annotation --> Presentation[临时 marker / 原图手势]
+  Presentation --> Annotation
+  Annotation -->|原 frame / token / document| Preview[BrowserDesignPreview 临时 CSS / 文本]
+  Preview --> Page
+  Draft --> Lower[原 lowerBrowserAnnotations]
+  Lower --> Canonical[原 App Server Thread / Turn / Item 提交链]
+```
+
+`BrowserAnnotationDesignHost` 仅持有 annotation 内的 baseline、展示 revision 和已保存预览；
+`BrowserDesignPreview` 仅持有原元素及可恢复 DOM/CSS，不增加业务后端、持久化 authority 或网页能力。
+临时 CSS 以 CSSOM 校验后的构造样式表加入原 Document/ShadowRoot 的 adoptedStyleSheets；
+不写内联 style、不改站点 CSP。原图、暂停与删除只移除本批注的 sheet，保留网页自己的 sheet；
+恢复继续使用同一 sheet 和原目标。严格 `default-src 'none'` 页面是原生回归边界。
+Architecture impact: minor；Responsible developer confirmation: root, 2026-10-23；
+确认唯一 BrowserTabHost/Annotation/Preview owner 与依赖方向不变，无协议或网页权限扩展。
+Desktop 构建分别生成四个独立 CJS preload，并在每个单入口内联动态依赖；sandbox preload
+不能 require 本地公共 chunk。真实构建回归在仅允许 require Electron 的 sandbox VM 中执行共享模块的两个入口。
+CSS 字段复用参考 19 项基础与 6 项 flex 字段；纯文本仅对直接文本、无有文案子元素的目标开放。
+只含 designChange 的草稿可沿同一 Composer/工具条提交；接受精确 revision 后才消费，拒绝保留完整变更。
+canonical 用户消息继续委托既有 MarkdownRenderer；松散列表归一化保留英文属性名与选择器中的连字符，
+不为 Browser 新建专用消息投影或第二显示层。
+截图像素仍来自原 capture；设计保存后的重新采集、站点 controls/virtual、provenance 与完整原生/参考视觉矩阵继续未完成。
+临时展示状态集中在`BrowserAnnotationPresentation`：marker偏好和原图手势独立，原图仅按view持有
+当前精确page identity/gestureId与生命周期监听。工具条`BrowserAnnotationOriginalButton`经typed gateway与
+既有Desktop IPC委托Annotation Host，再经原token/document/frame临时撤销CSS/text；释放显示当前变更。
+指针/Space/Enter按住、失焦与卸载由同一hook串行start/release；Host在窗口失焦、owner丢失、导航、隐藏或
+Agent暂停时独立清hold。旧手势/旧页面不可更改当前展示，原图不产生canonical turn，不改变草稿和marker偏好。
+Architecture impact: major；Responsible developer confirmation: root, 2026-10-23；已核对唯一 BrowserTabHost、
+annotation/page/editor/提交 owner、依赖方向与窄 IPC 边界；此确认不代表完整 G03 或参考 UI/UX 已验收。
 
 右侧面待办按明确 workspace ID、无 ID 时的 root、最后 session 依次选择查询范围，不把 ID 与 root
 叠加为恢复门槛。Browser 投影及 consume/dismiss 再校验当前 runtime session；前台与手动打开均在

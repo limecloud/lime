@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "mimeType": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "mimeType"
+  ],
+  "title": "DictationHistoryStartParams",
+  "type": "object"
+}

@@ -280,17 +280,7 @@ async fn handle_message(
 async fn handle_api_request(_state: &WsHandlerState, request: &WsApiRequest) -> WsMessage {
     match request.endpoint {
         WsEndpoint::Models => {
-            let models = serde_json::json!({
-                "object": "list",
-                "data": [
-                    {"id": "claude-sonnet-4-5", "object": "model", "owned_by": "anthropic"},
-                    {"id": "claude-sonnet-4-5-20250929", "object": "model", "owned_by": "anthropic"},
-                    {"id": "claude-3-7-sonnet-20250219", "object": "model", "owned_by": "anthropic"},
-                    {"id": "gemini-2.5-flash", "object": "model", "owned_by": "google"},
-                    {"id": "gemini-2.5-pro", "object": "model", "owned_by": "google"},
-                    {"id": "qwen3-coder-plus", "object": "model", "owned_by": "alibaba"},
-                ]
-            });
+            let models = lime_core::config::ModelsConfig::default().model_list();
             WsMessage::Response(WsApiResponse {
                 request_id: request.request_id.clone(),
                 payload: models,

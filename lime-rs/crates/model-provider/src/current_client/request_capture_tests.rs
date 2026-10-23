@@ -412,11 +412,11 @@ async fn minimax_capture_preserves_model_and_anthropic_defaults() {
     for provider in ["minimax", "minimax-cn"] {
         for model in ["MiniMax-M3.1-Flash", "MiniMax-M3", "MiniMax-M2.7"] {
             let (base_url, captured, server) = spawn_http_capture_fixture(response_body).await;
-            let mut config = capture_config(
+            let mut config = provider_config(
+                format!("{base_url}/anthropic"),
                 provider,
                 model,
                 RuntimeProviderProtocol::AnthropicMessages,
-                format!("{base_url}/anthropic"),
             );
             config.reasoning_effort = None;
             let client = CurrentProviderClient::with_client(
@@ -427,7 +427,7 @@ async fn minimax_capture_preserves_model_and_anthropic_defaults() {
                     .expect("fixture client"),
             );
             let mut stream = client
-                .stream(capture_request())
+                .stream(request_with_multimodal_tool_history())
                 .await
                 .expect("MiniMax fixture stream");
             let mut events = Vec::new();

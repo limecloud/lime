@@ -94,19 +94,11 @@ export async function waitForElectronSmokeMemorySettingsReady(
       const memoryTabNavigationReady = () =>
         interactable(document.querySelector(sidebarMemoryTabSelector));
       const memoryActionSelectors = [
-        '[data-testid="settings-memory-health-refresh"]',
-        '[data-testid="settings-memory-review-refresh"]',
-        '[data-testid="settings-memory-index-rebuild"]',
-        '[data-testid="settings-memory-consolidate"]',
-        '[data-testid="settings-memory-rollout-refresh"]',
-        '[data-testid="settings-memory-reset"]',
+        '#memory-enabled button',
+        '#memory-delete button',
+        '[data-testid="settings-instructions-open"]',
       ];
-      const memoryActionsReady = () =>
-        memoryActionSelectors.every((selector) => interactable(document.querySelector(selector)));
-      const rolloutCandidatesReady = () =>
-        displayed(document.querySelector('[data-testid="settings-memory-rollout-refresh"]')) &&
-        displayed(document.querySelector('[data-testid="settings-memory-rollout-consolidate"]'));
-      const waitForReactActionFlush = () => new Promise((flushResolve) => setTimeout(flushResolve, 100));
+      const memoryActionsReady = () => memoryActionSelectors.every((selector) => interactable(document.querySelector(selector)));
       const targetState = (selector) => {
         const element = document.querySelector(selector);
         if (!element) {
@@ -182,16 +174,9 @@ export async function waitForElectronSmokeMemorySettingsReady(
           })),
           targetStates: [
             '[data-testid="settings-memory-page"]',
-            '[data-testid="settings-memory-store-panel"]',
-            '[data-testid="settings-memory-review-refresh"]',
-            '[data-testid="settings-memory-index-rebuild"]',
-            '[data-testid="settings-memory-consolidate"]',
-            '[data-testid="settings-memory-rollout-refresh"]',
-            '[data-testid="settings-memory-rollout-consolidate"]',
-            '[data-testid="settings-memory-soul-panel"]',
-            '[data-testid="settings-memory-advanced-panel"]',
-            '[data-testid="settings-memory-soul-copy-export"]',
-            '[data-testid="settings-memory-soul-import-textarea"]',
+            '#memory-enabled', '#memory-tools', '#memory-delete', '#memory-instructions',
+            '[data-testid="settings-instructions-open"]',
+            '[data-testid="settings-instructions-editor"]',
             sidebarMemoryTabSelector,
           ].map(targetState),
           visibleButtons: Array.from(document.querySelectorAll("button"))
@@ -253,53 +238,13 @@ export async function waitForElectronSmokeMemorySettingsReady(
         if (!result.ok) return result;
         if (!click(sidebarMemoryTabSelector)) return summarize("open memory settings tab");
 
-        result = await waitFor(() =>
-          displayed(document.querySelector('[data-testid="settings-memory-page"]')) &&
-          displayed(document.querySelector('[data-testid="settings-memory-store-panel"]')) &&
-          displayed(document.querySelector('[data-testid="settings-memory-review-refresh"]')) &&
-          displayed(document.querySelector('[data-testid="settings-memory-index-rebuild"]')) &&
-          displayed(document.querySelector('[data-testid="settings-memory-consolidate"]')) &&
-          rolloutCandidatesReady(),
-          "wait memory settings panel",
-        );
+        result = await waitFor(() => displayed(document.querySelector('[data-testid="settings-memory-page"]')) && memoryActionsReady(), "wait personalization settings");
         if (!result.ok) return result;
-
-        result = await waitFor(memoryActionsReady, "wait memory actions ready");
+        if (!click('[data-testid="settings-instructions-open"]')) return summarize("open instructions");
+        result = await waitFor(() => displayed(document.querySelector('[data-testid="settings-instructions-editor"] textarea')) && !document.querySelector('[data-testid="settings-instructions-editor"] [role="alert"]'), "wait instructions read");
         if (!result.ok) return result;
-
-        if (!click('[data-testid="settings-memory-review-refresh"]')) return summarize("refresh review notes");
-        await waitForReactActionFlush();
-        result = await waitFor(memoryActionsReady, "wait review refresh");
-        if (!result.ok) return result;
-
-        if (!click('[data-testid="settings-memory-index-rebuild"]')) return summarize("rebuild memory index");
-        await waitForReactActionFlush();
-        result = await waitFor(memoryActionsReady, "wait memory index rebuild");
-        if (!result.ok) return result;
-
-        if (!click('[data-testid="settings-memory-rollout-refresh"]')) return summarize("refresh rollout candidates");
-        await waitForReactActionFlush();
-        result = await waitFor(() => memoryActionsReady() && rolloutCandidatesReady(), "wait rollout candidates refresh");
-        if (!result.ok) return result;
-
-        if (interactable(document.querySelector('[data-testid="settings-memory-rollout-consolidate"]'))) {
-          if (!click('[data-testid="settings-memory-rollout-consolidate"]')) return summarize("consolidate rollout candidates");
-          await waitForReactActionFlush();
-          result = await waitFor(() => memoryActionsReady() && rolloutCandidatesReady(), "wait rollout candidates consolidate");
-          if (!result.ok) return result;
-        }
-
-        if (!click('[data-testid="settings-memory-tab-soul"]')) return summarize("open soul tab");
-        result = await waitFor(() => displayed(document.querySelector('[data-testid="settings-memory-soul-panel"]')), "wait soul panel");
-        if (!result.ok) return result;
-
-        if (!click('[data-testid="settings-memory-tab-advanced"]')) return summarize("open advanced tab");
-        result = await waitFor(() =>
-          displayed(document.querySelector('[data-testid="settings-memory-advanced-panel"]')) &&
-          displayed(document.querySelector('[data-testid="settings-memory-soul-copy-export"]')) &&
-          displayed(document.querySelector('[data-testid="settings-memory-soul-import-textarea"]')),
-          "wait advanced memory panel",
-        );
+        if (!click('[data-testid="settings-instructions-back"]')) return summarize("return from instructions");
+        result = await waitFor(memoryActionsReady, "wait personalization return");
         if (!result.ok) return result;
 
         return { ...summarize("done"), ok: true, stage: "done" };

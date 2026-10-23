@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "active": {
+      "type": "boolean"
+    },
+    "archived": {
+      "type": "boolean"
+    },
+    "name": {
+      "type": "string"
+    },
+    "pinned": {
+      "type": "boolean"
+    },
+    "threadId": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "active",
+    "archived",
+    "name",
+    "pinned",
+    "threadId"
+  ],
+  "title": "ProjectGitWorktreeThread",
+  "type": "object"
+}

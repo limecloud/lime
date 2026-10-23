@@ -144,6 +144,7 @@ impl RequestProcessor {
             .update_workspace(params)
             .await
             .map_err(to_jsonrpc_error)?;
+        self.request_worktree_cleanup().await;
         dispatch_result(response)
     }
 
@@ -158,6 +159,7 @@ impl RequestProcessor {
             .delete_workspace(params)
             .await
             .map_err(to_jsonrpc_error)?;
+        self.request_worktree_cleanup().await;
         dispatch_result(response)
     }
 
@@ -186,6 +188,7 @@ impl RequestProcessor {
             .ensure_project_workspace(params)
             .await
             .map_err(to_jsonrpc_error)?;
+        self.request_worktree_cleanup().await;
         dispatch_result(response)
     }
 
@@ -210,6 +213,7 @@ impl RequestProcessor {
             .ensure_default_workspace()
             .await
             .map_err(to_jsonrpc_error)?;
+        self.request_worktree_cleanup().await;
         dispatch_result(response)
     }
 

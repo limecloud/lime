@@ -4,13 +4,14 @@ import { getLimeI18n } from "./createI18n";
 import type { SupportedLocale } from "./locales";
 
 const modules = import.meta.glob<Record<string, string>>(
-  "./resources/*/browser{Chrome,History,Annotation}.json",
+  "./resources/*/browser{Chrome,History,Annotation,Downloads}.json",
   { eager: true, import: "default" },
 );
 describe("Browser resource bundles", () => {
   for (const [file, namespace, prefix] of [
     ["browserChrome", "agent", "browserChrome."],
     ["browserHistory", "settings", "browserHistory."],
+    ["browserDownloads", "settings", "browserDownloads."],
     ["browserAnnotation", "agent", "browserAnnotation."],
   ] as const) {
     const baseline = modules[`./resources/en-US/${file}.json`];
@@ -36,7 +37,13 @@ describe("Browser resource bundles", () => {
           expect(interpolation(value), key).toEqual(
             interpolation(baseline[key]),
           );
-          const translated = t(key, { title: "History fixture", count: 2 });
+          const translated = t(key, {
+            title: "History fixture",
+            filename: "download.txt",
+            received: "1 KB",
+            total: "2 KB",
+            count: 2,
+          });
           expect(translated, key).not.toBe(key);
           expect(translated, key).not.toMatch(/\{\{[^}]+\}\}/u);
         }

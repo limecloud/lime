@@ -44,7 +44,7 @@ it("requires a completed build bound to both current source and entry bytes", ()
   expect(inspectRendererBuildReceipt(root)).toMatchObject({
     ready: true,
     input: receipt.input,
-    entrySha256: receipt.entrySha256,
+    entries: receipt.entries,
   });
   fs.writeFileSync(path.join(root, "dist", "index.html"), "different entry");
   expect(inspectRendererBuildReceipt(root)).toMatchObject({

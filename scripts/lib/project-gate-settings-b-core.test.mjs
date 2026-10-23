@@ -101,7 +101,7 @@ describe("project Gate SETTINGS-01 Gate B-F evidence", () => {
     expect(evidence.result).toBe("pass");
     expect(evidence.surfaceProof.complete).toBe(false);
     expect(evidence.coverage.completedScenarios).toEqual(["memory-ready"]);
-    expect(evidence.missingScenarios).toContain("memory-soul-persistence");
+    expect(evidence.missingScenarios).toContain("memory-personalization-persistence");
     expect(evidence.missingScenarios).toContain("provider-crud-model-auth");
   });
 

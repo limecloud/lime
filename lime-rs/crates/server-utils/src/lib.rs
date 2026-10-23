@@ -640,22 +640,7 @@ pub async fn health() -> impl IntoResponse {
 
 /// 模型列表端点响应
 pub async fn models() -> impl IntoResponse {
-    Json(serde_json::json!({
-        "object": "list",
-        "data": [
-            {"id": "claude-sonnet-4-5", "object": "model", "owned_by": "anthropic"},
-            {"id": "claude-sonnet-4-5-20250929", "object": "model", "owned_by": "anthropic"},
-            {"id": "gemini-3-pro-preview", "object": "model", "owned_by": "google"},
-            {"id": "gemini-3-pro-image-preview", "object": "model", "owned_by": "google"},
-            {"id": "gemini-3-flash-preview", "object": "model", "owned_by": "google"},
-            {"id": "gemini-2.5-computer-use-preview-10-2025", "object": "model", "owned_by": "google"},
-            {"id": "gemini-claude-sonnet-4-5", "object": "model", "owned_by": "google"},
-            {"id": "gemini-claude-sonnet-4-5-thinking", "object": "model", "owned_by": "google"},
-            {"id": "gemini-claude-opus-4-5-thinking", "object": "model", "owned_by": "google"},
-            {"id": "qwen3-coder-plus", "object": "model", "owned_by": "alibaba"},
-            {"id": "qwen3-coder-flash", "object": "model", "owned_by": "alibaba"}
-        ]
-    }))
+    Json(lime_core::config::ModelsConfig::default().model_list())
 }
 
 #[cfg(test)]
@@ -872,19 +857,10 @@ mod property_tests {
     }
 
     fn get_model_list_data() -> Vec<serde_json::Value> {
-        vec![
-            serde_json::json!({"id": "claude-sonnet-4-5", "object": "model", "owned_by": "anthropic"}),
-            serde_json::json!({"id": "claude-sonnet-4-5-20250929", "object": "model", "owned_by": "anthropic"}),
-            serde_json::json!({"id": "gemini-3-pro-preview", "object": "model", "owned_by": "google"}),
-            serde_json::json!({"id": "gemini-3-pro-image-preview", "object": "model", "owned_by": "google"}),
-            serde_json::json!({"id": "gemini-3-flash-preview", "object": "model", "owned_by": "google"}),
-            serde_json::json!({"id": "gemini-2.5-computer-use-preview-10-2025", "object": "model", "owned_by": "google"}),
-            serde_json::json!({"id": "gemini-claude-sonnet-4-5", "object": "model", "owned_by": "google"}),
-            serde_json::json!({"id": "gemini-claude-sonnet-4-5-thinking", "object": "model", "owned_by": "google"}),
-            serde_json::json!({"id": "gemini-claude-opus-4-5-thinking", "object": "model", "owned_by": "google"}),
-            serde_json::json!({"id": "qwen3-coder-plus", "object": "model", "owned_by": "alibaba"}),
-            serde_json::json!({"id": "qwen3-coder-flash", "object": "model", "owned_by": "alibaba"}),
-        ]
+        lime_core::config::ModelsConfig::default().model_list()["data"]
+            .as_array()
+            .unwrap()
+            .clone()
     }
 
     #[test]
@@ -919,29 +895,53 @@ mod property_tests {
     }
 
     #[test]
-    fn test_antigravity_models_present() {
+    fn model_list_has_unique_ids_and_excludes_retired_routes() {
         let models = get_model_list_data();
-        let model_ids: Vec<&str> = models
+        let ids: Vec<_> = models
             .iter()
-            .filter_map(|m| m.get("id").and_then(|v| v.as_str()))
+            .map(|model| model["id"].as_str().unwrap())
             .collect();
+        let unique: std::collections::HashSet<_> = ids.iter().collect();
+        assert_eq!(ids.len(), unique.len());
+        assert!(!ids.iter().any(|id| id.starts_with("gemini-claude-")));
+        assert!(!models
+            .iter()
+            .any(|model| model["owned_by"] == "claude_oauth"));
+    }
 
-        let required_models = [
-            "gemini-3-pro-preview",
-            "gemini-3-pro-image-preview",
-            "gemini-3-flash-preview",
-            "gemini-2.5-computer-use-preview-10-2025",
-            "gemini-claude-sonnet-4-5",
-            "gemini-claude-sonnet-4-5-thinking",
-            "gemini-claude-opus-4-5-thinking",
-        ];
-
-        for required in &required_models {
-            assert!(
-                model_ids.contains(required),
-                "Model {required} should be in the list"
-            );
-        }
+    #[test]
+    fn model_list_projects_enabled_configured_models() {
+        use lime_core::config::{ModelInfo, ModelsConfig, ProviderModelsConfig};
+        let config = ModelsConfig {
+            providers: std::collections::HashMap::from([(
+                "custom".to_string(),
+                ProviderModelsConfig {
+                    label: "Custom".to_string(),
+                    models: [
+                        ("z-model", true),
+                        ("disabled-model", false),
+                        ("a-model", true),
+                        ("z-model", true),
+                    ]
+                    .into_iter()
+                    .map(|(id, enabled)| ModelInfo {
+                        id: id.to_string(),
+                        name: None,
+                        enabled,
+                    })
+                    .collect(),
+                },
+            )]),
+            ..Default::default()
+        };
+        let list = config.model_list();
+        let models = list["data"].as_array().unwrap();
+        let ids: Vec<_> = models
+            .iter()
+            .map(|model| model["id"].as_str().unwrap())
+            .collect();
+        assert_eq!(ids, vec!["a-model", "z-model"]);
+        assert!(models.iter().all(|model| model["owned_by"] == "custom"));
     }
 
     #[allow(dead_code)]

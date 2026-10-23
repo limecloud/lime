@@ -58,6 +58,12 @@ impl RequestProcessor {
             .lock()
             .expect("app-server client contexts mutex poisoned")
             .remove(&connection_id);
+        if let Ok(handle) = tokio::runtime::Handle::try_current() {
+            let processor = self.clone();
+            handle.spawn(async move {
+                processor.request_worktree_cleanup().await;
+            });
+        }
     }
 
     pub(crate) fn clear_client_connections(&self) {

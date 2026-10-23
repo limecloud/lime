@@ -305,6 +305,16 @@ function readAppServerVoiceInstructionSources(): string {
 }
 
 describe("ASR / Voice current boundary", () => {
+  it("对齐后的语音设置不恢复旧指令卡片与未接通的逐指令快捷键编辑器", () => {
+    for (const path of [
+      "src/components/voice/InstructionEditor.tsx",
+      "src/components/voice/InstructionEditor.test.tsx",
+      "src/components/voice/InstructionShortcutRecorder.tsx",
+      "src/components/voice/instructionShortcut.ts",
+    ]) {
+      expect(repoFileExists(path), `${path} should stay deleted`).toBe(false);
+    }
+  });
   beforeAll(() => {
     const productionFiles = listProductionGuiTsFiles().filter(
       (path) => path !== "src/lib/api/asrProvider.ts",

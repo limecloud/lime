@@ -877,6 +877,7 @@ fn model_id_has_openai_vision_capability(model_id: &str, text: &str) -> bool {
         &[
             "chatgpt-4o",
             "gpt-5",
+            "gpt-6",
             "gpt-4o",
             "gpt-4.1",
             "gpt-4.5",
@@ -907,6 +908,10 @@ fn model_id_has_qwen_vision_capability(model_id: &str, text: &str) -> bool {
         || model_tail.starts_with("qwen3-5")
         || model_tail.starts_with("qwen3.6")
         || model_tail.starts_with("qwen3-6")
+        || model_tail.starts_with("qwen3.7")
+        || model_tail.starts_with("qwen3-7")
+        || model_tail.starts_with("qwen3.8")
+        || model_tail.starts_with("qwen3-8")
 }
 
 fn model_id_has_xai_vision_capability(model_id: &str) -> bool {
@@ -917,6 +922,9 @@ fn model_id_has_xai_vision_capability(model_id: &str) -> bool {
         || model.starts_with("grok-4-fast")
         || model.starts_with("grok-4.20")
         || model.starts_with("grok-4.3")
+        || model.starts_with("grok-4.5")
+        || model.starts_with("grok-4.6")
+        || model.starts_with("grok-4.7")
 }
 
 fn model_id_has_mistral_vision_capability(model_id: &str, text: &str) -> bool {
@@ -983,6 +991,29 @@ fn infer_vision_capability(
             "image-input",
             "image understanding",
         ],
+    ) {
+        return true;
+    }
+
+    let model = normalize_identifier(model_id);
+    let model_tail = model.rsplit('/').next().unwrap_or(model.as_str());
+    if matches!(
+        model_tail,
+        "minimax-m3"
+            | "minimax-m3.1-flash"
+            | "kimi-k3"
+            | "kimi-for-coding"
+            | "kimi-for-coding-highspeed"
+            | "k3"
+            | "k3-256k"
+            | "glm-5.3-flash"
+            | "glm-5.3-flashx"
+            | "mimo-v2.6-pro"
+            | "mimo-v2.6-pro-ultraspeed"
+            | "mimo-v2.6-flash"
+            | "deepseek-flash"
+            | "deepseek-v4.1-flash"
+            | "deepseek-v4.1-flash-1017"
     ) {
         return true;
     }
@@ -4803,6 +4834,16 @@ mod tests {
             ("mistral", "mistral-small-latest"),
             ("alibaba", "qwen3.5-27b"),
             ("google", "gemma-3-27b-it"),
+            ("openai", "gpt-6.1-sol"),
+            ("codex", "gpt-6-astra"),
+            ("kimi-for-coding", "kimi-for-coding"),
+            ("moonshotai", "kimi-k3"),
+            ("zhipuai", "glm-5.3-flash"),
+            ("alibaba-cn", "qwen3.7-plus"),
+            ("xiaomi", "mimo-v2.6-flash"),
+            ("deepseek", "deepseek-flash"),
+            ("minimax-cn", "MiniMax-M3.1-Flash"),
+            ("xai", "grok-4.7"),
         ] {
             assert!(
                 infer_vision_capability(model, Some(provider), None, None),
@@ -4821,6 +4862,10 @@ mod tests {
             ("custom-provider", "agnes-image-2.1-flash"),
             ("xai", "grok-3-mini"),
             ("google", "gemma-3n-e4b-it"),
+            ("deepseek", "deepseek-v4-pro"),
+            ("zhipuai", "glm-5.3"),
+            ("xiaomi", "mimo-v2.5-pro"),
+            ("minimax-cn", "MiniMax-M3.1-Flash-Preview"),
         ] {
             assert!(
                 !infer_vision_capability(model, Some(provider), None, None),

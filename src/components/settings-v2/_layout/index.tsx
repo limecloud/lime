@@ -20,7 +20,6 @@ import { SettingsTabs } from "@/types/settings";
 import { Page, PageParams, type SettingsPageParams } from "@/types/page";
 import { shouldReserveMacWindowControls } from "@/lib/windowControls";
 import { resolveSettingsSection } from "../sections";
-import { SettingsHomePage } from "../home";
 import type { NavigationGuard } from "@/lib/navigationGuard";
 import { SettingsNavigationGuard } from "./SettingsNavigationGuard";
 import { useSettingsSearchTarget } from "./useSettingsSearchTarget";
@@ -34,6 +33,8 @@ const LayoutContainer = styled.div`
   display: flex;
   flex: 1;
   min-height: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-weight: 430;
   background: var(--lime-app-bg, hsl(var(--background)));
 `;
 
@@ -44,11 +45,11 @@ const ContentArea = styled.div`
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  background: var(--lime-stage-surface-soft, hsl(var(--background)));
+  background: var(--lime-settings-surface, hsl(var(--background)));
 `;
 
 const Toolbar = styled.div`
-  height: 46px;
+  height: 0;
   flex-shrink: 0;
   padding-inline: var(--lime-panel-padding, 24px);
   -webkit-app-region: drag;
@@ -60,7 +61,10 @@ const ContentContainer = styled.main`
   min-height: 0;
   overflow-y: auto;
   scrollbar-gutter: stable;
-  padding: var(--lime-settings-panel-padding, 20px);
+  padding: 80px 32px 48px;
+  @media (max-width: 900px) {
+    padding: 40px 24px;
+  }
 
   [data-settings-search-active="true"] {
     outline: 2px solid var(--lime-brand, hsl(var(--primary)));
@@ -74,8 +78,9 @@ const ContentWrapper = styled.div<{ $wide?: boolean }>`
   flex-direction: column;
   width: 100%;
   min-width: min(100%, 320px);
-  max-width: ${({ $wide }) => ($wide ? "none" : "48rem")};
+  max-width: ${({ $wide }) => ($wide ? "none" : "768px")};
   margin-inline: auto;
+  padding-inline: 20px;
 `;
 
 const LoadingPanel = styled.div`
@@ -114,26 +119,18 @@ function withSettingsContentFallback(
 
 function renderSettingsContent(
   tab: SettingsTabs,
-  onTabChange: (tab: SettingsTabs) => void,
   t: TFunction<"settings", undefined>,
-  onTabPrefetch?: (tab: SettingsTabs) => void,
-  onNavigate?: (page: Page, params?: PageParams) => void,
   params: SettingsPageParams = {},
+  onNavigate?: (page: Page, params?: PageParams) => void,
 ): ReactNode {
   const section = resolveSettingsSection(tab);
   const content = section.render({
+    onNavigate,
     searchPath: getSettingsSearchDocument(
       tab,
       params.searchFocus?.targetId,
       !resolveOemCloudRuntimeContext(),
     )?.path,
-    renderHome: () => (
-      <SettingsHomePage
-        onTabChange={onTabChange}
-        onTabPrefetch={onTabPrefetch}
-        onNavigate={onNavigate}
-      />
-    ),
     providerView:
       tab === SettingsTabs.Providers
         ? (params.providerView ??
@@ -179,7 +176,7 @@ export function SettingsPage({
 
   const handleTabChange = useCallback(
     (tab: SettingsTabs) => {
-      if (tab === (pageParams.tab ?? SettingsTabs.Home)) return;
+      if (tab === (pageParams.tab ?? SettingsTabs.General)) return;
       onNavigate("settings", {
         tab,
         ...(pageParams.browserReturnOwner
@@ -270,14 +267,7 @@ export function SettingsPage({
               $wide={activeTab === SettingsTabs.Providers}
               key={`${activeTab}:${pageParams.searchFocus?.requestKey ?? ""}`}
             >
-              {renderSettingsContent(
-                activeTab,
-                handleTabChange,
-                t,
-                handleTabPrefetch,
-                onNavigate,
-                pageParams,
-              )}
+              {renderSettingsContent(activeTab, t, pageParams, onNavigate)}
             </ContentWrapper>
           </ContentContainer>
         </ContentArea>

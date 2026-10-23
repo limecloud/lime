@@ -65,11 +65,26 @@ describe("Browser Electron Gate B", () => {
     expect(parseArgs(["--scenario", "download"]).output).toContain(
       "browser-runtime-electron-gate-b-download-summary.json",
     );
+    expect(parseArgs(["--scenario", "download-history"]).output).toContain(
+      "browser-runtime-electron-gate-b-download-history-summary.json",
+    );
+    expect(parseArgs(["--scenario", "history-access"]).output).toContain(
+      "browser-runtime-electron-gate-b-history-access-summary.json",
+    );
     expect(parseArgs(["--scenario", "annotation"]).output).toContain(
       "browser-runtime-electron-gate-b-annotation-summary.json",
     );
+    expect(parseArgs(["--scenario", "annotation-text"]).output).toContain(
+      "browser-runtime-electron-gate-b-annotation-text-summary.json",
+    );
+    expect(parseArgs(["--scenario", "annotation-form-text"]).output).toContain(
+      "browser-runtime-electron-gate-b-annotation-form-text-summary.json",
+    );
+    expect(parseArgs(["--scenario", "annotation-design"]).output).toContain(
+      "browser-runtime-electron-gate-b-annotation-design-summary.json",
+    );
     expect(() => parseArgs(["--scenario", "unknown"])).toThrow(
-      "--scenario 必须是 projection、history、annotation、lifecycle、approval、browse-approval、user-control、cancel、window-close、disconnect、permission、download 或 artifact",
+      "--scenario 必须是 projection、history、history-access、download-history、annotation、annotation-text、annotation-form-text、annotation-frames、annotation-design、lifecycle、approval、browse-approval、user-control、cancel、window-close、disconnect、permission、download 或 artifact",
     );
   });
 

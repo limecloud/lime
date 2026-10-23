@@ -200,6 +200,34 @@
     },
     {
       "kind": "request",
+      "method": "dictationHistory/appendAudio"
+    },
+    {
+      "kind": "request",
+      "method": "dictationHistory/delete"
+    },
+    {
+      "kind": "request",
+      "method": "dictationHistory/finish"
+    },
+    {
+      "kind": "request",
+      "method": "dictationHistory/list"
+    },
+    {
+      "kind": "request",
+      "method": "dictationHistory/readAudio"
+    },
+    {
+      "kind": "request",
+      "method": "dictationHistory/setTranscript"
+    },
+    {
+      "kind": "request",
+      "method": "dictationHistory/start"
+    },
+    {
+      "kind": "request",
       "method": "discordChannel/probe"
     },
     {
@@ -377,6 +405,14 @@
     {
       "kind": "notification",
       "method": "initialized"
+    },
+    {
+      "kind": "request",
+      "method": "instructions/read"
+    },
+    {
+      "kind": "request",
+      "method": "instructions/write"
     },
     {
       "kind": "notification",
@@ -952,6 +988,14 @@
     },
     {
       "kind": "request",
+      "method": "projectGit/worktree/delete"
+    },
+    {
+      "kind": "request",
+      "method": "projectGit/worktree/list"
+    },
+    {
+      "kind": "request",
       "method": "projectMaterial/content"
     },
     {
@@ -1193,6 +1237,22 @@
     {
       "kind": "request",
       "method": "soulStylePack/uninstall"
+    },
+    {
+      "kind": "request",
+      "method": "storage/delete"
+    },
+    {
+      "kind": "request",
+      "method": "storage/read"
+    },
+    {
+      "kind": "request",
+      "method": "storage/refresh"
+    },
+    {
+      "kind": "request",
+      "method": "storage/review"
     },
     {
       "kind": "request",
@@ -1939,6 +1999,18 @@
       "DiagnosticsTraceReadResponse",
       "DiagnosticsTraceRedactionPolicy",
       "DiagnosticsTraceSummary",
+      "DictationHistoryAppendAudioParams",
+      "DictationHistoryDeleteResponse",
+      "DictationHistoryEntry",
+      "DictationHistoryFinishParams",
+      "DictationHistoryFinishStatus",
+      "DictationHistoryIdParams",
+      "DictationHistoryListResponse",
+      "DictationHistoryReadAudioResponse",
+      "DictationHistorySetTranscriptParams",
+      "DictationHistoryStartParams",
+      "DictationHistoryStatus",
+      "DictationHistoryWriteResponse",
       "EndpointInfo",
       "EndpointKind",
       "FramingKind",
@@ -1969,6 +2041,8 @@
       "ImageStoryboardSlotInput",
       "InitializeParams",
       "InitializeResponse",
+      "InstructionsReadResponse",
+      "InstructionsWriteParams",
       "KnowledgeCompilePackParams",
       "KnowledgeCompilePackResponse",
       "KnowledgeContextResolutionResponse",
@@ -2111,12 +2185,16 @@
       "ProjectGitDiffBase",
       "ProjectGitDiffParams",
       "ProjectGitDiffResponse",
+      "ProjectGitManagedWorktree",
       "ProjectGitStatusParams",
       "ProjectGitStatusResponse",
       "ProjectGitWorktreeCreateParams",
       "ProjectGitWorktreeCreateResponse",
       "ProjectGitWorktreeDeleteParams",
       "ProjectGitWorktreeDeleteResponse",
+      "ProjectGitWorktreeListParams",
+      "ProjectGitWorktreeListResponse",
+      "ProjectGitWorktreeThread",
       "ProjectMaterial",
       "ProjectMaterialContentResponse",
       "ProjectMaterialCountResponse",
@@ -2244,6 +2322,12 @@
       "SoulStylePackStatusSetResponse",
       "SoulStylePackUninstallParams",
       "SoulStylePackUninstallResponse",
+      "StorageDeleteParams",
+      "StorageDeleteResponse",
+      "StorageReadParams",
+      "StorageReviewParams",
+      "StorageReviewResponse",
+      "StorageState",
       "StructuredOutputContract",
       "SupportBundleExportParams",
       "SupportBundleExportResponse",

@@ -1,4 +1,6 @@
 import type { ComposerAttachment } from "@/components/input-kit/types";
+import { readBrowserAnnotationImages } from "@/lib/api/browserAnnotationImages";
+import { readBrowserDesignChange } from "@/lib/api/browserDesign";
 import {
   getInputbarSendOptions,
   type InputbarSendHandler,
@@ -31,11 +33,20 @@ export function lowerBrowserAnnotations(
         if (!match) throw new Error("Invalid browser annotation screenshot");
         attachments.push({ data: match[2], mediaType: match[1] });
       }
+      const attachedImages = readBrowserAnnotationImages(draft.attachedImages);
+      for (const image of attachedImages) {
+        const [header, data] = image.dataUrl.split(",", 2);
+        attachments.push({ data, mediaType: header.slice(5, -7) });
+      }
       const rect = selection.targetRect;
+      const design = readBrowserDesignChange(
+        draft.designChange,
+        draft.event.designSnapshot,
+      );
       return [
         `Browser comment ${index + 1}`,
         `Page: ${selection.pageTitle} (${selection.pageUrl})`,
-        `Frame: ${selection.frameUrl} [${selection.framePath}]`,
+        `Frame: ${selection.frameUrl} ${JSON.stringify(selection.framePath)}`,
         `Target: ${selection.kind}`,
         selection.targetSelector
           ? `Selector: ${selection.targetSelector}`
@@ -45,12 +56,36 @@ export function lowerBrowserAnnotations(
         selection.targetText
           ? `Selected page text: ${JSON.stringify(selection.targetText)}`
           : null,
+        selection.textLocator
+          ? `Text locator (UTF-16 offsets): ${JSON.stringify(selection.textLocator)}`
+          : null,
+        selection.selectionRects
+          ? `Selected line rectangles in viewport: ${JSON.stringify(selection.selectionRects)}`
+          : null,
         `Viewport: ${selection.viewportSize.width} x ${selection.viewportSize.height} CSS pixels`,
         `Target rectangle in viewport: ${JSON.stringify(rect)}`,
         screenshot
           ? `Attached screenshot: ${screenshot.kind}${screenshot.cropRect ? ` ${JSON.stringify(screenshot.cropRect)}` : ""}. Coordinates above are viewport CSS pixels.`
           : "No screenshot is attached.",
+        attachedImages.length
+          ? `User-attached images for this comment, in order: ${attachedImages.map((image) => JSON.stringify(image.filename ?? "image")).join(", ")}`
+          : null,
         `User comment:\n${draft.body}`,
+        ...(design
+          ? [
+              "Design changes (temporary browser preview):",
+              ...design.declarations.map(
+                (item) =>
+                  `CSS ${item.property}: ${JSON.stringify(item.previousValue)} -> ${JSON.stringify(item.value)}`,
+              ),
+              ...(design.text
+                ? [
+                    `Text: ${JSON.stringify(design.text.previousValue)} -> ${JSON.stringify(design.text.value)}`,
+                  ]
+                : []),
+              "Implement these changes in the source code or design tokens that own this UI. Preserve responsive behavior. Do not copy temporary browser preview attributes into source files.",
+            ]
+          : []),
       ]
         .filter((line) => line !== null)
         .join("\n");
