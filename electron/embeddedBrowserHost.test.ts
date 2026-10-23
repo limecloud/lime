@@ -67,6 +67,15 @@ const {
       handlers.push(handler);
       sessionEventHandlers.set(eventName, handlers);
     }),
+    removeListener: vi.fn(
+      (eventName: string, handler: (...args: unknown[]) => void) => {
+        const handlers = sessionEventHandlers.get(eventName) || [];
+        sessionEventHandlers.set(
+          eventName,
+          handlers.filter((item) => item !== handler),
+        );
+      },
+    ),
     setPermissionRequestHandler: setPermissionRequestHandlerMock,
     setUserAgent: setSessionUserAgentMock,
   }));

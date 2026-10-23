@@ -56,3 +56,10 @@
 - 旧候选 GUI 构建仅由本任务正常停止，不计通过；新候选重新进行类型、前端、contracts，Rust 与 GUI 继续按实际终态记录。
 
 - 追加候选完整 typecheck exit0（684.46 秒）；Storage UI/API 回归、定向 lint、Markdown 30 项和测试分层 38/38 通过。首候选远端 GUI smoke、全前端 lint/typecheck 通过。完整 contracts 用显式候选 Git 索引重跑中；最终远端 Quality 通过前不创建标签。
+
+## 全量验证追加修复
+
+- 远端 39947149402 全量前端在批次 25/148 暴露 embeddedBrowserHost 测试 Session 夹具缺失 removeListener，3 项 dispose 回归失败；补齐与真实 Session 一致的监听移除语义，不增加生产容错或降低断言。
+- 同一轮 Rust 在 host_boundary_guard 暴露工作树队列依赖带实现名的客户端标识。将已有 clientInfo.name 统一为短领域名 desktop，同步 Electron producer、App Server consumer 和真实 JSON-RPC cleanup fixture，直接迁移、不保留旧标识。仅标识值迁移，不改协议 schema、owner 或依赖方向；root 确认 minor 架构影响及上述调用流，不新增后端。
+
+- 第三候选：54 项 Host 回归、两项原始宿主边界守卫、完整 typecheck（109.22 秒）与 contracts（36.4 秒）通过；修复后的 model-provider 299/299 通过。准备推送最终修复等待完整远端矩阵。

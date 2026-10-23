@@ -49,7 +49,7 @@ impl RequestProcessor {
         let mut state = self.worktree_cleanup.state.lock().await;
         state.desktop_connected |= self
             .client_info()
-            .is_some_and(|client| client.name == "lime_desktop_electron");
+            .is_some_and(|client| client.name == "desktop");
         // 这是Desktop管理的后台工作，不因普通CLI/测试连接启动。
         if !state.desktop_connected {
             return;

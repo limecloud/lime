@@ -639,7 +639,7 @@ export class ElectronAppServerHost {
     );
     const initializeParams: InitializeParams = {
       clientInfo: {
-        name: "lime_desktop_electron",
+        name: "desktop",
         title: "Lime Desktop Electron",
         version: app.getVersion(),
       },

@@ -98,14 +98,11 @@
     }
   },
   "pending": {
-    "local_model_provider": "Revision 1: 298 pass/1 fail; official Anthropic root URL fixed, revision 2 waiting for external Cargo lock.",
-    "local_gui_smoke": "Initial local build stopped as superseded; initial commit remote GUI smoke passed. Final remote GUI required.",
-    "contracts_revision_2": "Full aggregate running against explicit candidate Git index/worktree; docs boundary passed.",
-    "remote_quality": "Final revision will validate before tagging."
+    "remote_quality": "Next exact revision must pass full frontend, Rust, Windows, and real GUI checks before tagging."
   },
   "live_provider_inference": false,
-  "evidence_boundary": "Unit/contracts/typecheck and real initial GUI are reported separately; final revision remote Rust/GUI acceptance remains pending.",
-  "updated_at": "2026-10-23T11:34:37.401972+00:00",
+  "evidence_boundary": "Final local targeted tests, full typecheck/contracts, model-provider 299 tests, and unmodified host guard passed; final remote full matrix pending.",
+  "updated_at": "2026-10-23T11:53:05.496898+00:00",
   "revision_2_checks": [
     {
       "name": "storage-r2-unit",
@@ -149,20 +146,14 @@
       "elapsed_seconds": 684.46
     },
     {
-      "name": "markdown-component-regroup",
-      "result": "passed",
-      "files": 2,
-      "tests": 30
-    },
-    {
-      "name": "vitest-layer-budget",
-      "result": "passed",
-      "candidates": 38,
-      "maximum": 38
-    },
-    {
-      "name": "docs-boundary-with-release-artifacts",
-      "result": "passed"
+      "name": "r2-contracts",
+      "command": [
+        "npm",
+        "run",
+        "test:contracts"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 207.32
     }
   ],
   "remote_initial_candidate": {
@@ -173,5 +164,54 @@
     "frontend_typecheck": "passed",
     "frontend_budget": "39/38; unchanged code-block preservation regression regrouped under existing code-block suite",
     "contracts": "Failed because two release JSON artifacts were ignored; precise release directory exception added and docs boundary passed."
+  },
+  "revision_3_checks": [
+    {
+      "name": "r3-host-unit",
+      "command": [
+        "npm",
+        "exec",
+        "--",
+        "vitest",
+        "run",
+        "electron/embeddedBrowserHost.test.ts",
+        "electron/appServerHost.test.ts",
+        "--maxWorkers=1"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 7.81
+    },
+    {
+      "name": "r3-typecheck",
+      "command": [
+        "npm",
+        "run",
+        "typecheck"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 109.22
+    },
+    {
+      "name": "r3-contracts",
+      "command": [
+        "npm",
+        "run",
+        "test:contracts"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 36.4
+    },
+    {
+      "name": "app-server-host-boundary-guard",
+      "result": "passed",
+      "tests": 2,
+      "execution": "rustc --test with candidate CARGO_MANIFEST_DIR; same unmodified guard source"
+    }
+  ],
+  "model_provider": {
+    "command": "cargo test --manifest-path lime-rs/Cargo.toml -p model-provider --lib",
+    "exit_code": 0,
+    "elapsed_seconds": 1568.97,
+    "tests_passed": 299
   }
 }

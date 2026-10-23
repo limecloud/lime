@@ -8,7 +8,7 @@ async fn desktop(runtime: RuntimeCore) -> AppServer {
     request(
         &server,
         METHOD_INITIALIZE,
-        json!({"clientInfo": {"name": "lime_desktop_electron", "version": "1"}}),
+        json!({"clientInfo": {"name": "desktop", "version": "1"}}),
     )
     .await;
     server
@@ -250,7 +250,7 @@ async fn releasing_a_transport_subscription_requests_cleanup_without_another_con
             &mut lines,
             1,
             METHOD_INITIALIZE,
-            json!({"clientInfo":{"name":"lime_desktop_electron","version":"1"}}),
+            json!({"clientInfo":{"name":"desktop","version":"1"}}),
         )
         .await;
         input
