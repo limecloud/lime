@@ -98,10 +98,80 @@
     }
   },
   "pending": {
-    "local_model_provider": "Compiling after external Cargo lock; not yet a pass.",
-    "local_gui_smoke": "Running real build/fixture; not yet a pass.",
-    "remote_quality": "Will validate the exact pushed release commit before tagging."
+    "local_model_provider": "Revision 1: 298 pass/1 fail; official Anthropic root URL fixed, revision 2 waiting for external Cargo lock.",
+    "local_gui_smoke": "Initial local build stopped as superseded; initial commit remote GUI smoke passed. Final remote GUI required.",
+    "contracts_revision_2": "Full aggregate running against explicit candidate Git index/worktree; docs boundary passed.",
+    "remote_quality": "Final revision will validate before tagging."
   },
   "live_provider_inference": false,
-  "evidence_boundary": "Unit/contracts/typecheck prove their stated layers; real Desktop Gate B remains pending."
+  "evidence_boundary": "Unit/contracts/typecheck and real initial GUI are reported separately; final revision remote Rust/GUI acceptance remains pending.",
+  "updated_at": "2026-10-23T11:34:37.401972+00:00",
+  "revision_2_checks": [
+    {
+      "name": "storage-r2-unit",
+      "command": [
+        "npm",
+        "exec",
+        "--",
+        "vitest",
+        "run",
+        "src/components/settings-v2/general/storage/index.test.tsx",
+        "src/lib/api/storage.test.ts",
+        "--maxWorkers=1"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 21.84
+    },
+    {
+      "name": "storage-r2-eslint",
+      "command": [
+        "npm",
+        "exec",
+        "--",
+        "eslint",
+        "src/components/settings-v2/general/storage/ReviewChatsDialog.tsx",
+        "src/components/settings-v2/general/storage/index.tsx",
+        "src/components/settings-v2/general/storage/index.test.tsx",
+        "--max-warnings",
+        "0"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 5.11
+    },
+    {
+      "name": "r2-typecheck",
+      "command": [
+        "npm",
+        "run",
+        "typecheck"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 684.46
+    },
+    {
+      "name": "markdown-component-regroup",
+      "result": "passed",
+      "files": 2,
+      "tests": 30
+    },
+    {
+      "name": "vitest-layer-budget",
+      "result": "passed",
+      "candidates": 38,
+      "maximum": 38
+    },
+    {
+      "name": "docs-boundary-with-release-artifacts",
+      "result": "passed"
+    }
+  ],
+  "remote_initial_candidate": {
+    "commit": "ad5ae600d4fde4de8785478e8b54c860e9676793",
+    "run": 39944874625,
+    "gui_smoke": "passed",
+    "frontend_lint": "passed",
+    "frontend_typecheck": "passed",
+    "frontend_budget": "39/38; unchanged code-block preservation regression regrouped under existing code-block suite",
+    "contracts": "Failed because two release JSON artifacts were ignored; precise release directory exception added and docs boundary passed."
+  }
 }

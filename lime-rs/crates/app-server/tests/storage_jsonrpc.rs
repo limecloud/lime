@@ -183,6 +183,18 @@ async fn review_excludes_recent_active_unknown_ephemeral_and_pending_descendants
         ("ordinary", false, json!({})),
         ("unknown", true, json!({"source":"future"})),
         (
+            "malformed-source",
+            true,
+            json!({"source":{"type":"future"}}),
+        ),
+        ("empty-feature", true, json!({"threadSource":""})),
+        ("cloud-parent", true, json!({})),
+        (
+            "cloud-child",
+            true,
+            json!({"thread_source":"cloud_threads.create"}),
+        ),
+        (
             "cloud",
             true,
             json!({"threadSource":"cloud_threads.create"}),
@@ -206,6 +218,14 @@ async fn review_excludes_recent_active_unknown_ephemeral_and_pending_descendants
         .set_times(FileTimes::new().set_modified(std::time::SystemTime::now()))
         .unwrap();
     f.store
+        .upsert_thread_spawn_edge(
+            ThreadId::new("cloud-parent"),
+            ThreadId::new("cloud-child"),
+            ThreadSpawnEdgeStatus::Closed,
+        )
+        .await
+        .unwrap();
+    f.store
         .create_pending_thread_spawn_edge(
             ThreadId::new("parent"),
             ThreadId::new("pending"),
@@ -221,8 +241,11 @@ async fn review_excludes_recent_active_unknown_ephemeral_and_pending_descendants
     .unwrap();
     f.measured().await;
     let archived = f.review(true).await;
-    assert_eq!(ids(&archived), vec!["old"]);
-    assert_eq!(ids(&f.review(false).await), vec!["old", "ordinary"]);
+    assert_eq!(ids(&archived), vec!["empty-feature", "old"]);
+    assert_eq!(
+        ids(&f.review(false).await),
+        vec!["empty-feature", "old", "ordinary"]
+    );
 }
 
 #[tokio::test]

@@ -103,6 +103,10 @@
     {
       "url": "https://ai.google.dev/gemini-api/docs/deprecations",
       "sha256": "a8598c9ef7800091b2158b600f5b8458ab187485c23c9f3cf4b48396a7e9df36"
+    },
+    {
+      "url": "https://platform.minimax.io/docs/api-reference/text-anthropic-api",
+      "sha256": "e384ccefb4d54834d04d856f6fd91e36cc9dde6f7a5b17e7c106b348ef77dcd5"
     }
   ],
   "unverified": [

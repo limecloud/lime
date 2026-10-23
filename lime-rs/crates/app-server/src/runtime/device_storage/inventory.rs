@@ -53,33 +53,40 @@ impl RuntimeCore {
 pub(super) fn local_source(thread: &Thread) -> bool {
     let source = ["source", "sourceKind", "source_kind"]
         .iter()
-        .find_map(|key| {
-            thread
-                .metadata
-                .get(*key)
-                .and_then(serde_json::Value::as_str)
-        })
-        .unwrap_or("appServer");
-    matches!(
-        source,
-        "appServer"
-            | "app-server"
-            | "app_server"
-            | "mcp"
-            | "cli"
-            | "exec"
-            | "vscode"
-            | "subAgent"
-            | "subagent"
-            | "subAgentReview"
-            | "subAgentCompact"
-            | "subAgentThreadSpawn"
-            | "subAgentOther"
-    ) && !thread
+        .find_map(|key| thread.metadata.get(*key));
+    let source = match source {
+        None | Some(serde_json::Value::Null) => "appServer",
+        Some(serde_json::Value::String(source)) => source.as_str(),
+        _ => return false,
+    };
+    let feature = thread
         .metadata
         .get("threadSource")
-        .and_then(serde_json::Value::as_str)
-        .is_some_and(|source| matches!(source, "cloud" | "cloud_threads.create"))
+        .or_else(|| thread.metadata.get("thread_source"));
+    let local_feature = match feature {
+        None | Some(serde_json::Value::Null) => true,
+        Some(serde_json::Value::String(source)) => {
+            !matches!(source.as_str(), "cloud" | "cloud_threads.create")
+        }
+        _ => false,
+    };
+    local_feature
+        && matches!(
+            source,
+            "appServer"
+                | "app-server"
+                | "app_server"
+                | "mcp"
+                | "cli"
+                | "exec"
+                | "vscode"
+                | "subAgent"
+                | "subagent"
+                | "subAgentReview"
+                | "subAgentCompact"
+                | "subAgentThreadSpawn"
+                | "subAgentOther"
+        )
 }
 
 pub(super) fn reviewable_root(thread: &Thread) -> bool {
@@ -91,7 +98,7 @@ pub(super) fn reviewable_root(thread: &Thread) -> bool {
         None | Some(serde_json::Value::Null) => true,
         Some(serde_json::Value::String(source)) => matches!(
             source.as_str(),
-            "user"
+            "" | "user"
                 | "page_comment"
                 | "agent_created_thread"
                 | "agent_forked_thread"

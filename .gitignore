@@ -691,3 +691,7 @@ internal/exec-plans/artifacts/release-v1.167.0/*
 
 # Dependency directories may be local symlinks in isolated verification copies.
 **/node_modules
+
+!internal/exec-plans/artifacts/release-v1.168.0/
+internal/exec-plans/artifacts/release-v1.168.0/*
+!internal/exec-plans/artifacts/release-v1.168.0/*.json

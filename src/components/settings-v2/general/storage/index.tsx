@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { SettingsSectionContext } from "../../sections";
 import { SettingsTabs } from "@/types/settings";
@@ -19,6 +19,8 @@ export function DeviceStorageSettings({
   const { t } = useTranslation("settings");
   const { state, failed, pending, refresh } = useStorageSettings();
   const [reviewing, setReviewing] = useState(false);
+  const reviewButton = useRef<HTMLButtonElement>(null);
+  const pageBody = useRef<HTMLDivElement>(null);
   const canReview =
     !failed &&
     !pending &&
@@ -26,7 +28,11 @@ export function DeviceStorageSettings({
       state?.completedCategories.some((entry) => entry === category),
     );
   return (
-    <SettingsPageBody data-testid="settings-storage-page">
+    <SettingsPageBody
+      ref={pageBody}
+      tabIndex={-1}
+      data-testid="settings-storage-page"
+    >
       <SettingsPageHeader title={t("settings.storage.title")} />
       <section className="min-w-0 space-y-4">
         <header>
@@ -51,6 +57,7 @@ export function DeviceStorageSettings({
               description={t("settings.storage.cleanupDescription")}
             >
               <SettingsAction
+                ref={reviewButton}
                 type="button"
                 disabled={!canReview}
                 onClick={() => setReviewing(true)}
@@ -99,6 +106,11 @@ export function DeviceStorageSettings({
         <ReviewChatsDialog
           onClose={() => setReviewing(false)}
           onDeleted={() => void refresh()}
+          onRestoreFocus={() => {
+            if (reviewButton.current && !reviewButton.current.disabled)
+              reviewButton.current.focus();
+            else pageBody.current?.focus();
+          }}
         />
       ) : null}
     </SettingsPageBody>

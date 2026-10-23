@@ -189,6 +189,18 @@ it("rejects late review responses after a filter change", async () => {
   expect(document.body.textContent).toContain("one");
 });
 
+it("restores keyboard focus after cancelling each dialog", async () => {
+  await mount();
+  await click("Review");
+  await click("Continue");
+  await click("Cancel", document.querySelector('[role="alertdialog"]')!);
+  await vi.waitFor(() =>
+    expect(document.activeElement).toBe(button("Continue")),
+  );
+  await click("Cancel", document.querySelector('[role="dialog"]')!);
+  await vi.waitFor(() => expect(document.activeElement).toBe(button("Review")));
+});
+
 it("shows the first 50 candidates and incrementally reveals the remainder", async () => {
   api.reviewStorage.mockResolvedValue({
     cutoffMs: 1000,

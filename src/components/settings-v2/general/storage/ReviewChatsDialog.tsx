@@ -14,9 +14,11 @@ import { formatStorageBytes } from "./formatStorageBytes";
 export function ReviewChatsDialog({
   onClose,
   onDeleted,
+  onRestoreFocus,
 }: {
   onClose: () => void;
   onDeleted: () => void;
+  onRestoreFocus: () => void;
 }) {
   const { t, i18n } = useTranslation("settings");
   const [days, setDays] = useState(90);
@@ -31,6 +33,8 @@ export function ReviewChatsDialog({
   const [pending, setPending] = useState(false);
   const [result, setResult] = useState<StorageDeleteResult | null>(null);
   const saving = useRef(false);
+  const continueButton = useRef<HTMLButtonElement>(null);
+  const closeButton = useRef<HTMLButtonElement>(null);
   useSettingsDraft({ dirty: false, saving: pending });
   useEffect(() => {
     let active = true;
@@ -91,6 +95,10 @@ export function ReviewChatsDialog({
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-[70] bg-black/30" />
         <Dialog.Content
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            onRestoreFocus();
+          }}
           className="fixed left-1/2 top-1/2 z-[70] flex max-h-[min(720px,calc(100dvh-48px))] w-[min(640px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 flex-col rounded-2xl border border-border bg-popover p-6 text-[13px] text-popover-foreground shadow-lg outline-none"
           onEscapeKeyDown={(event) => {
             if (saving.current) event.preventDefault();
@@ -241,7 +249,11 @@ export function ReviewChatsDialog({
             </span>
             <div className="flex gap-2">
               <Dialog.Close asChild>
-                <SettingsAction type="button" disabled={pending}>
+                <SettingsAction
+                  ref={closeButton}
+                  type="button"
+                  disabled={pending}
+                >
                   {t(
                     result
                       ? "settings.storage.done"
@@ -251,6 +263,7 @@ export function ReviewChatsDialog({
               </Dialog.Close>
               {!result ? (
                 <SettingsAction
+                  ref={continueButton}
                   type="button"
                   disabled={loading || failed || chosen.length === 0 || pending}
                   onClick={() => setConfirm(true)}
@@ -273,6 +286,10 @@ export function ReviewChatsDialog({
               <Dialog.Overlay className="fixed inset-0 z-[80] bg-black/30" />
               <Dialog.Content
                 role="alertdialog"
+                onCloseAutoFocus={(event) => {
+                  event.preventDefault();
+                  (continueButton.current ?? closeButton.current)?.focus();
+                }}
                 className="fixed left-1/2 top-1/2 z-[80] w-[min(440px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-border bg-popover p-6 text-popover-foreground shadow-lg outline-none"
                 onEscapeKeyDown={(event) => {
                   if (saving.current) event.preventDefault();

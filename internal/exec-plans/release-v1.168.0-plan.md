@@ -47,3 +47,12 @@
 - 本机 16 GiB 且有并行重型构建；Rust 曾等待外部锁，缓存重建与换页限制本地速度。不终止其他任务，不用历史二进制或 mock 冒充真实 Gate B。
 - 本地硬门禁通过后可先推 main，由同提交 GitHub Quality 补足完整 Rust/GUI/前端证据；通过后打 v1.168.0 标签，跟踪 Release 三平台桌面、CLI、npm 和 updater 发布终态。
 - 不覆盖已存在 tag，不以 commit/tag/push 成功代替公开产物发布；未完成或失败按实际状态记录。收尾核对远端 main、tag、Release 和 npm 身份。
+
+## 发布候选追加修复
+
+- 首次推送 ad5ae600d：本地 model-provider 298 pass/1 fail，capture 指出 current URL builder 将 Anthropic 兼容根 /anthropic 拼为 /anthropic/messages；MiniMax 官方明确 /anthropic/v1/messages。修复既有 endpoint builder 的 Anthropic 根路径，保留完整 version/custom endpoint；不降低 capture 断言。该大文件仅修改既有 URL 分支和对应回归，不继续扩展业务。
+- 远端 contracts 揭示两份发布审计 JSON 被 .gitignore 排除；增加与前版一致的精确发布证据目录例外，保留 docs 边界守卫。后续冻结验证显式使用候选 GIT_WORK_TREE / GIT_INDEX_FILE，让依赖 Git 索引的检查覆盖实际发布集。
+- 纳入并行完成的 Storage 修复：未知/畸形来源与 cloud descendants 不得进入本地清理，支持合法空 feature，并修复两层对话框的键盘焦点恢复；同步领域回归和真实 fixture 断言，不改外部任务文件。
+- 旧候选 GUI 构建仅由本任务正常停止，不计通过；新候选重新进行类型、前端、contracts，Rust 与 GUI 继续按实际终态记录。
+
+- 追加候选完整 typecheck exit0（684.46 秒）；Storage UI/API 回归、定向 lint、Markdown 30 项和测试分层 38/38 通过。首候选远端 GUI smoke、全前端 lint/typecheck 通过。完整 contracts 用显式候选 Git 索引重跑中；最终远端 Quality 通过前不创建标签。

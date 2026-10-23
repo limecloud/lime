@@ -221,4 +221,22 @@ describe("MarkdownRenderer code blocks", () => {
       container.querySelector('[data-testid="syntax-highlighter"]'),
     ).toBeNull();
   });
+  it("不应改写代码块里的紧凑竖线文本", () => {
+    const content = [
+      "```text",
+      "| 事件 | 要点 ||------|| 示例 | 保持原文 |",
+      "```",
+    ].join("\n");
+
+    const container = render(content);
+
+    expect(
+      container.querySelector('[data-testid="markdown-table-scroll"]'),
+    ).toBeNull();
+    expect(
+      container.querySelector('[data-testid="markdown-plain-code-block"]'),
+    ).not.toBeNull();
+    expect(container.textContent).toContain("||------||");
+  });
+
 });

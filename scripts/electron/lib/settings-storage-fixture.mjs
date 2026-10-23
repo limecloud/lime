@@ -259,6 +259,19 @@ try {
       })
     ).thread.id === ids["Storage root"],
   );
+  await page.waitForFunction(
+    () => document.activeElement?.textContent === "继续",
+  );
+  check("confirmationCancelRestoresFocus", true);
+  await page.keyboard.press("Escape");
+  await page.waitForFunction(
+    () =>
+      document.activeElement ===
+      document.querySelector("#storage-cleanup button"),
+  );
+  check("reviewEscapeRestoresFocus", true);
+  await page.getByRole("button", { name: "审阅", exact: true }).click();
+  await dialog.getByText("Storage root", { exact: true }).waitFor();
   await dialog.getByRole("button", { name: "继续", exact: true }).click();
   await call("thread/name/set", {
     threadId: ids["Storage changed"],
@@ -320,11 +333,30 @@ try {
   );
   await close();
   summary.trace = summarizeSettingsAppearanceTrace(traces);
+  check(
+    "realElectronAndPreload",
+    summary.launches.length === 2 &&
+      summary.launches.every(
+        (entry) => entry.electron && entry.hasInvokeBridge,
+      ),
+  );
   check("currentIpcObserved", summary.trace.appServerIpcHitCount > 0);
+  check(
+    "storageUiMethodsObserved",
+    [
+      "storage/read",
+      "storage/refresh",
+      "storage/review",
+      "storage/delete",
+    ].every((method) => summary.trace.methods.includes(method)),
+  );
   check(
     "noProductionMockOrLegacy",
     summary.trace.mockFallbackHitCount === 0 &&
-      summary.trace.legacyCommands.length === 0,
+      summary.trace.legacyCommands.length === 0 &&
+      traces
+        .flatMap(parseInvokeTraceRaw)
+        .every((entry) => !entry.command?.startsWith("agent_runtime_")),
   );
   check(
     "noInvokeErrors",

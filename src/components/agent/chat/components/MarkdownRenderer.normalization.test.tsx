@@ -447,24 +447,6 @@ describe("MarkdownRenderer normalization", () => {
     expect(container.textContent).not.toContain("内容3.");
   });
 
-  it("不应改写代码块里的紧凑竖线文本", () => {
-    const content = [
-      "```text",
-      "| 事件 | 要点 ||------|| 示例 | 保持原文 |",
-      "```",
-    ].join("\n");
-
-    const container = render(content);
-
-    expect(
-      container.querySelector('[data-testid="markdown-table-scroll"]'),
-    ).toBeNull();
-    expect(
-      container.querySelector('[data-testid="markdown-plain-code-block"]'),
-    ).not.toBeNull();
-    expect(container.textContent).toContain("||------||");
-  });
-
   it("长文报告块应渲染标题层级、引用卡与分隔线", () => {
     const content = [
       "# Hermes Engine 选型建议",

@@ -1825,7 +1825,9 @@ fn endpoint_urls(base_url: &str, endpoint: &str) -> Vec<String> {
                 .chars()
                 .all(|character| character.is_ascii_digit())
     });
-    let primary_path = if ends_with_version {
+    let primary_path = if endpoint == "messages" && path.ends_with("/anthropic") {
+        format!("{path}/v1/{endpoint}")
+    } else if ends_with_version {
         format!("{path}/{endpoint}")
     } else if path.trim_matches('/').is_empty() {
         format!("/v1/{endpoint}")
@@ -2061,6 +2063,19 @@ mod tests {
                 "chat/completions"
             ),
             vec!["https://gateway.example.com/compatible-mode/v2/chat/completions".to_string()]
+        );
+        for base in [
+            "https://api.minimax.io/anthropic",
+            "https://api.minimax.io/anthropic/v1",
+        ] {
+            assert_eq!(
+                endpoint_urls(base, "messages"),
+                vec!["https://api.minimax.io/anthropic/v1/messages".to_string()]
+            );
+        }
+        assert_eq!(
+            endpoint_urls("https://gateway.example.com/custom", "messages"),
+            vec!["https://gateway.example.com/custom/messages".to_string()]
         );
     }
 
