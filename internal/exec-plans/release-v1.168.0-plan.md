@@ -117,3 +117,12 @@
 - 39963848932 的 Rust Full 失败为 model_providers 的 typed capability 完整 JSON 断言未包含新增字段，同组2031项通过；不是栈溢出复发。生产转换已正确传递 supports_reasoning_summaries/support_verbosity，保留实现与完整对象断言。
 - 窄写集仅原 model_providers 测试与发布证据。既有用例参数化缺省、显式false、显式true三种输入，同时检查所有既有 taxonomy/reasoning effort 字段，缺省严格false。文件785行，不再追加无关逻辑。rustfmt已通过，独立target定向App Server model_providers库测试运行中；完整typecheck沿用无TS变化的r9通过结果。
 - 编辑测试时一次括号错误已在rustfmt阶段纠正，未进入候选；此前按旧源码启动的自有编译已明确终止并重新启动，不计验证通过。最终按退出码与实际测试结果记录。最新f27ff4054真实GUI smoke已通过，前端全量仍运行，Rust旧期望仍会由本修复取代。
+
+
+## r11 user shell 输出完成竞态修复
+
+- a6bb253d1 的远端39968794185：Frontend Full、真实GUI Smoke、Windows Shell Runtime、Integrity全部通过。Rust Full 的model capability fixture已通过，但 idle_shell_command_persists_a_standalone_turn_and_output 捕获事件只有turn.accepted/started、command.started/exited、turn.completed，缺command.output；同组2031通过。此前同一用例曾通过，不能以重跑消除竞态证据。
+- 根因：poll_shell_process先排空output、再读取raw process terminal snapshot，异步collector此时可能尚未入库尾部stdout。现有ExecutionProcessServer::wait_for_exit已提供final_snapshot保证，因此只在runtime/session_shell复用该唯一owner：先读status，terminal时await collector完成，再按sequence排空所有有界batch，观察空批次后才发布command/Turn终态。无计时补丁、无放宽断言、无新完成状态副本。
+- 窄写集为runtime/session_shell.rs及其独立tests.rs和发布证据，避让并行execution_process、permissions、protocol等热区。架构影响minor：既有UserShell -> ExecutionProcessServer -> tool-runtime监督链不变，仅纠正输出/终态顺序；责任root确认。模块约650行，不继续叠加其他业务。
+- 新回归启动真实/bin/sh，经stdin精确释放子进程；在raw child已退出但collector尚未finish时断言poll仍Pending，再把真实stdout按129条合法sequence送入原store，finish后验证所有command.output和最终snapshot一致，覆盖128项分页边界。原3项真实Shell生命周期/持久化断言保持不变。完整App Server库定向扩大运行中，格式和diff检查已通过；最新TS沿用此前完整typecheck和远端Frontend Full通过结果。
+- r10独立model_providers库16/16通过，默认RUST_MIN_STACK未设置。更新域名公开GET在本机连接超时，发布后需结合R2上传远端结果和可达环境补核验，不把上传成功冒充本机HTTP成功。

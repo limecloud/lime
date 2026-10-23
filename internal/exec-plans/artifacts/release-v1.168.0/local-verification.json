@@ -103,7 +103,7 @@
   },
   "live_provider_inference": false,
   "evidence_boundary": "r8 typecheck/contracts/version/lint/207 targeted frontend checks passed; Rust exact regressions and final remote matrix pending. No live paid inference.",
-  "updated_at": "2026-10-23T14:19:59.763258+00:00",
+  "updated_at": "2026-10-23T14:55:38.452315+00:00",
   "revision_2_checks": [
     {
       "name": "storage-r2-unit",
@@ -443,6 +443,29 @@
     },
     {
       "name": "model-providers-app-server-lib",
+      "status": "passed",
+      "rust_min_stack": "unset",
+      "exit_code": 0,
+      "tests_passed": 16
+    }
+  ],
+  "remote_revision_10": {
+    "commit": "a6bb253d178132a3a30a5e39ce87b6a21dea8abc",
+    "run": 39968794185,
+    "frontend": "passed",
+    "gui_smoke": "passed",
+    "windows": "passed",
+    "integrity": "passed",
+    "rust": "failed: stdout collection vs terminal snapshot race in user shell; 2031 app-server lib tests passed"
+  },
+  "revision_11_scope": "Current user shell waits for existing supervisor final snapshot and drains every bounded batch before terminal; controlled real-process regression.",
+  "revision_11_checks": [
+    {
+      "name": "rustfmt-and-diff",
+      "exit_code": 0
+    },
+    {
+      "name": "app-server-full-lib",
       "status": "running",
       "rust_min_stack": "unset"
     }

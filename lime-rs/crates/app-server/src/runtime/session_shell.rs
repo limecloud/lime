@@ -24,6 +24,9 @@ const OUTPUT_DRAIN_LIMIT: u16 = 128;
 const OUTPUT_DRAIN_MAX_BYTES: u64 = 1024 * 1024;
 const COMMAND_OUTPUT_PREVIEW_CHARS: usize = 1_200;
 
+#[cfg(test)]
+mod tests;
+
 #[derive(Debug)]
 struct ShellProcessOutcome {
     output: String,
@@ -427,6 +430,17 @@ impl RuntimeCore {
                 canceled = true;
                 let _ = server.terminate(process_id);
             }
+            let snapshot = server
+                .status(process_id)
+                .map_err(|error| error.to_string())?;
+            let snapshot = if snapshot.status.is_terminal() {
+                server
+                    .wait_for_exit(process_id)
+                    .await
+                    .map_err(|error| error.to_string())?
+            } else {
+                snapshot
+            };
             let output = server
                 .drain_output(LiveExecutionOutputQuery {
                     process_id: Some(process_id.to_string()),
@@ -435,6 +449,7 @@ impl RuntimeCore {
                     max_bytes: Some(OUTPUT_DRAIN_MAX_BYTES),
                 })
                 .map_err(|error| error.to_string())?;
+            let output_pending = !output.deltas.is_empty();
             after_sequence = output.next_sequence.or(after_sequence);
             for delta in output.deltas {
                 if delta.delta.is_empty() {
@@ -451,9 +466,6 @@ impl RuntimeCore {
                 )
                 .map_err(|error| error.to_string())?;
             }
-            let snapshot = server
-                .status(process_id)
-                .map_err(|error| error.to_string())?;
             if matches!(
                 snapshot.status,
                 ExecutionProcessStatus::Exited
@@ -461,6 +473,9 @@ impl RuntimeCore {
                     | ExecutionProcessStatus::Terminated
                     | ExecutionProcessStatus::Failed
             ) {
+                if output_pending {
+                    continue;
+                }
                 let terminal = if canceled
                     || matches!(
                         snapshot.status,
