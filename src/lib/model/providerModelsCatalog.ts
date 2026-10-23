@@ -1,4 +1,5 @@
 import { isAliasProvider } from "@/lib/constants/providerMappings";
+import { filterMiniMaxCatalogModels } from "./minimaxCatalogPolicy";
 import {
   inferInputModalities,
   inferModelAliasSource,
@@ -278,7 +279,11 @@ function buildLocalProviderModels(
   const registryFilteredModels = registryModels.filter(
     (model) => model.provider_id === selectedProvider.registryId,
   );
-  const sortedRegistryModels = sortModels(registryFilteredModels);
+  const sortedRegistryModels = filterMiniMaxCatalogModels(
+    selectedProvider.registryId ?? "",
+    sortModels(registryFilteredModels),
+    selectedProvider.models,
+  );
 
   for (const registryModel of sortedRegistryModels) {
     const existingIndex = findModelIndexById(registryModel.id);
@@ -328,9 +333,12 @@ export function buildProviderModelsFromRegistry(
     return localResult;
   }
 
-  const fallbackModels = sortModels(
-    registryModels.filter(
-      (model) => model.provider_id === selectedProvider.fallbackRegistryId,
+  const fallbackModels = filterMiniMaxCatalogModels(
+    selectedProvider.fallbackRegistryId,
+    sortModels(
+      registryModels.filter(
+        (model) => model.provider_id === selectedProvider.fallbackRegistryId,
+      ),
     ),
   );
 

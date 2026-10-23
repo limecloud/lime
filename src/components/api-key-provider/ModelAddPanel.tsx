@@ -72,6 +72,7 @@ import {
   type ProviderModelFetchStatusCopy,
 } from "./providerModelFetchHelpers";
 import { formatProviderConnectionError } from "./providerConnectionError";
+import { filterMiniMaxCatalogModels } from "@/lib/model/minimaxCatalogPolicy";
 
 export type ModelAddView = "catalog" | "configure";
 export type ModelCatalogCategory =
@@ -239,15 +240,15 @@ const FEATURED_TEMPLATES: ProviderTemplate[] = [
   },
   {
     id: "minimax-coding-plan",
-    name: "MiniMax Coding Plan（国内）",
-    description: "MiniMax 中国区 Anthropic 协议编码套餐，默认使用 MiniMax-M2.7",
+    name: "MiniMax M Plan (China)",
+    description:
+      "MiniMax China subscription, defaulting to MiniMax-M3.1-Flash.",
     category: "cn",
     type: "anthropic-compatible",
-    apiHost: "https://api.minimaxi.com/anthropic",
+    apiHost: "https://api.minimax.cn/anthropic",
     recommended: true,
-    apiKeyUrl:
-      "https://platform.minimaxi.com/user-center/basic-information/interface-key",
-    defaultModels: ["MiniMax-M2.7"],
+    apiKeyUrl: "https://platform.minimax.cn/console/plan",
+    defaultModels: ["MiniMax-M3.1-Flash"],
     iconProviderId: "minimax-cn",
     providerResourceId: "minimax-cn",
     region: "cn",
@@ -255,15 +256,15 @@ const FEATURED_TEMPLATES: ProviderTemplate[] = [
   },
   {
     id: "minimax-coding-plan-global",
-    name: "MiniMax Coding Plan（海外）",
-    description: "MiniMax 国际区 Anthropic 协议编码套餐，使用海外订阅入口",
+    name: "MiniMax M Plan (Global)",
+    description:
+      "MiniMax international subscription, defaulting to MiniMax-M3.1-Flash.",
     category: "overseas",
     type: "anthropic-compatible",
     apiHost: "https://api.minimax.io/anthropic",
     recommended: true,
-    apiKeyUrl:
-      "https://platform.minimax.io/user-center/basic-information/interface-key",
-    defaultModels: ["MiniMax-M2.7"],
+    apiKeyUrl: "https://platform.minimax.io/console/plan",
+    defaultModels: ["MiniMax-M3.1-Flash"],
     iconProviderId: "minimax",
     providerResourceId: "minimax",
     region: "global",
@@ -498,6 +499,8 @@ const RESOURCE_PROVIDER_API_HOSTS: Record<string, string> = {
 };
 
 const RESOURCE_PROVIDER_DEFAULT_MODELS: Record<string, string[]> = {
+  minimax: ["MiniMax-M3.1-Flash", "MiniMax-M3"],
+  "minimax-cn": ["MiniMax-M3.1-Flash", "MiniMax-M3"],
   agnes: ["agnes-image-2.1-flash"],
   sensenova: ["SenseChat-5"],
 };
@@ -1343,7 +1346,10 @@ export const ModelAddPanel: React.FC<ModelAddPanelProps> = ({
         await persistProviderForModelFetch(normalizedFormState);
       const result = await fetchProviderModelsAuto(providerId);
       const source = normalizeFetchProviderModelsSource(result);
-      const fetchedModelIds = extractApiModelIds(result.models ?? []);
+      const fetchedModelIds = filterMiniMaxCatalogModels(
+        template.providerResourceId ?? template.systemProviderId ?? "",
+        extractApiModelIds(result.models ?? []).map((id) => ({ id })),
+      ).map((model) => model.id);
 
       if (source !== "Api") {
         setApiModelIds([]);
@@ -1473,6 +1479,8 @@ export const ModelAddPanel: React.FC<ModelAddPanelProps> = ({
     normalizedModelSet,
     persistProviderForModelFetch,
     t,
+    template.providerResourceId,
+    template.systemProviderId,
     validationCopy,
   ]);
 

@@ -21,6 +21,7 @@ import {
   buildProviderModelsFromRegistry,
 } from "@/lib/model/providerModelsCatalog";
 import { getProviderModelAutoFetchCapability } from "@/lib/model/providerModelFetchSupport";
+import { filterMiniMaxCatalogModels } from "@/lib/model/minimaxCatalogPolicy";
 import type { ConfiguredProvider } from "./useConfiguredProviders";
 import type { EnhancedModelMetadata } from "@/lib/types/modelRegistry";
 
@@ -139,7 +140,11 @@ async function fetchProviderModelsFromApi(
       result.models &&
       result.models.length > 0
     ) {
-      return result.models;
+      return filterMiniMaxCatalogModels(
+        selectedProvider.registryId ?? "",
+        result.models,
+        selectedProvider.models,
+      );
     }
   } catch {
     // ignore and fall back below
