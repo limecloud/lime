@@ -403,6 +403,7 @@ export class ElectronBrowserTabHost {
     if (locale !== undefined) {
       this.#historyTool.setLocale(locale);
       this.#sitePermissions.setLocale(locale);
+      this.#permissions.setLocale(locale);
     }
     this.#embeddedHost.setSettings(settings);
     this.#annotationScreenshotMode = settings.annotation_screenshot;
@@ -1023,9 +1024,7 @@ export class ElectronBrowserTabHost {
   }
 
   turnEnded(threadId: string, turnId: string): void {
-    this.#permissions.revoke(
-      (scope) => scope.threadId === threadId && scope.turnId === turnId,
-    );
+    this.#permissions.turnEnded(threadId, turnId);
     this.#clearPendingPermissions(
       (permission) =>
         permission.threadId === threadId && permission.turnId === turnId,
@@ -1384,13 +1383,14 @@ export class ElectronBrowserTabHost {
     };
   }
 
-  #revokeBrowse(route: BrowserRoute): void {
+  #revokeBrowse(route: BrowserRoute, preserveThreadGrants = false): void {
     this.#permissions.revoke(
       (scope) =>
         scope.ownerWebContentsId === route.ownerWebContentsId &&
         scope.windowId === route.windowId &&
         scope.threadId === route.threadId &&
         scope.browserSessionId === route.browserSessionId,
+      preserveThreadGrants,
     );
   }
 
@@ -2126,7 +2126,7 @@ export class ElectronBrowserTabHost {
   #close(route: BrowserRoute, reason: string): void {
     this.#detachDebugger(route);
     const wasSelected = route.selected;
-    this.#removeRoute(route);
+    this.#removeRoute(route, reason === "turn-ended");
     void this.#embeddedHost.invoke(null, "embedded_browser_view_destroy", {
       viewId: route.viewId,
     });
@@ -2153,11 +2153,11 @@ export class ElectronBrowserTabHost {
     }
   }
 
-  #removeRoute(route: BrowserRoute): void {
+  #removeRoute(route: BrowserRoute, preserveThreadGrants = false): void {
     this.#sitePermissions.cancelView(route.viewId);
     this.#embeddedHost.revokePermissionGrants?.(route.viewId);
     this.#annotations.cancelView(route.viewId, "owner");
-    this.#revokeBrowse(route);
+    this.#revokeBrowse(route, preserveThreadGrants);
     this.#overlay.hide(route.viewId, "owner");
     this.#history.forget(route.viewId);
     this.#clearPendingApprovals((approval) => approval.tabId === route.tabId);

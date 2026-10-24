@@ -18,13 +18,13 @@ import { changeLimeLocale } from "@/i18n/createI18n";
 
 const {
   mockCreateTask,
-  mockImportMaterialFromUrl,
+  mockGetTask,
   mockListTasks,
   mockToastError,
   mockToastSuccess,
 } = vi.hoisted(() => ({
   mockCreateTask: vi.fn(),
-  mockImportMaterialFromUrl: vi.fn(),
+  mockGetTask: vi.fn(),
   mockListTasks: vi.fn(),
   mockToastError: vi.fn(),
   mockToastSuccess: vi.fn(),
@@ -37,18 +37,6 @@ vi.mock("sonner", () => ({
   },
 }));
 
-vi.mock("@/lib/api/materials", async () => {
-  const actual = await vi.importActual<typeof import("@/lib/api/materials")>(
-    "@/lib/api/materials",
-  );
-
-  return {
-    ...actual,
-    importMaterialFromUrl: (...args: unknown[]) =>
-      mockImportMaterialFromUrl(...args),
-  };
-});
-
 vi.mock("@/lib/api/videoGeneration", async () => {
   const actual = await vi.importActual<
     typeof import("@/lib/api/videoGeneration")
@@ -59,6 +47,7 @@ vi.mock("@/lib/api/videoGeneration", async () => {
     videoGenerationApi: {
       ...actual.videoGenerationApi,
       createTask: (...args: unknown[]) => mockCreateTask(...args),
+      getTask: (...args: unknown[]) => mockGetTask(...args),
       listTasks: (...args: unknown[]) => mockListTasks(...args),
     },
   };
@@ -99,12 +88,19 @@ function ControlledVideoWorkspace({
   );
 }
 
-function ControlledGenerateVideoWorkspace() {
+function ControlledGenerateVideoWorkspace({
+  startImage = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jN2QAAAAASUVORK5CYII=",
+  endImage = "https://example.com/end-frame.png",
+}: {
+  startImage?: string;
+  endImage?: string;
+}) {
   const [state, setState] = useState<VideoCanvasState>(() => ({
     ...createInitialVideoState("A cinematic ocean shot"),
     providerId: "doubao",
     model: "seedance-1-5-pro-251215",
-    startImage: "data:image/png;base64,start-frame",
+    startImage,
+    endImage,
   }));
 
   return (
@@ -162,6 +158,7 @@ describe("VideoWorkspace 任务聚焦", () => {
 
   afterEach(() => {
     cleanupMountedRoots(mountedRoots);
+    vi.restoreAllMocks();
   });
 
   it("应优先保持聊天区传入的 selectedTaskId，不被最新任务自动抢焦点", async () => {
@@ -254,21 +251,18 @@ describe("VideoWorkspace 任务聚焦", () => {
     expect(mounted.container.textContent).toContain("Model route");
     expect(mounted.container.textContent).toContain("Generation spec");
     expect(mounted.container.textContent).toContain("9:16 · 1080p · 12 sec");
-    expect(mounted.container.textContent).toContain("Result sync");
+    expect(mounted.container.textContent).toContain("Status");
     expect(mounted.container.textContent).toContain("Completed");
-    expect(mounted.container.textContent).toContain(
-      "Result generated, syncing to Project Knowledge",
-    );
+    expect(mounted.container.textContent).not.toContain("Project Knowledge");
     expect(mounted.container.textContent).toContain("Result generated");
     expect(oldPreviewButton?.textContent).toContain("Current preview");
     expect(latestPreviewButton?.textContent).toContain("Switch preview");
   });
 
-  it("英文界面生成入口与参考图处理反馈应使用 workspace namespace", async () => {
+  it("英文生成操作直接向媒体任务发送首尾帧引用", async () => {
     await changeLimeLocale("en-US");
     mockListTasks.mockResolvedValue([]);
-    mockImportMaterialFromUrl.mockResolvedValue({ id: "material-start" });
-    mockCreateTask.mockResolvedValue({
+    const createdTask = {
       id: "task-created",
       projectId: "project-video-1",
       providerId: "doubao",
@@ -279,6 +273,13 @@ describe("VideoWorkspace 任务聚焦", () => {
       requestPayload: "{}",
       createdAt: 3_000,
       updatedAt: 3_000,
+    };
+    mockCreateTask.mockResolvedValue(createdTask);
+    mockGetTask.mockResolvedValue({
+      ...createdTask,
+      status: "success",
+      resultUrl: "https://example.com/generated.mp4",
+      progress: 100,
     });
 
     const mounted = mountHarness(
@@ -294,21 +295,15 @@ describe("VideoWorkspace 任务聚焦", () => {
     );
     expect(generateButton).toBeInstanceOf(HTMLButtonElement);
 
+    const consoleError = vi.spyOn(console, "error");
     clickElement(generateButton ?? null);
     await flushEffects(12);
 
-    expect(mockImportMaterialFromUrl).toHaveBeenCalledWith(
-      expect.objectContaining({
-        description: "Video generation start-frame reference (auto uploaded)",
-        name: "Video start-frame reference",
-        projectId: "project-video-1",
-        tags: ["video-reference", "start"],
-        type: "image",
-      }),
-    );
     expect(mockCreateTask).toHaveBeenCalledWith(
       expect.objectContaining({
-        imageUrl: "material://material-start",
+        imageUrl:
+          "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jN2QAAAAASUVORK5CYII=",
+        endImageUrl: "https://example.com/end-frame.png",
         model: "seedance-1-5-pro-251215",
         projectId: "project-video-1",
         providerId: "doubao",
@@ -316,6 +311,30 @@ describe("VideoWorkspace 任务聚焦", () => {
     );
     expect(mockToastSuccess).toHaveBeenCalledWith(
       "Video task submitted; generating",
+    );
+    expect(mockGetTask).toHaveBeenCalledWith("task-created", {
+      projectRootPath: "/workspace",
+      refreshStatus: true,
+    });
+    expect(mounted.container.querySelector("video")?.getAttribute("src")).toBe(
+      "https://example.com/generated.mp4",
+    );
+    expect(mounted.container.textContent).not.toContain("Project Knowledge");
+    expect(consoleError).not.toHaveBeenCalled();
+  });
+  it("旧material引用不能作为视频参考图提交", async () => {
+    mockListTasks.mockResolvedValue([]);
+    const mounted = mountHarness(
+      ControlledGenerateVideoWorkspace,
+      { startImage: "material://retired-image" },
+      mountedRoots,
+    );
+    await flushEffects(8);
+    clickElement(findButtonByText(mounted.container, "生成视频"));
+    await flushEffects(8);
+    expect(mockCreateTask).not.toHaveBeenCalled();
+    expect(mockToastError).toHaveBeenCalledWith(
+      "参考图格式不支持，请重新上传图片",
     );
   });
 });

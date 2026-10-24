@@ -166,6 +166,8 @@ function lineage(call) {
       "webContentsId",
       "snapshotId",
       "pageRevision",
+      "accessApprovalLifetime",
+      "policyRevision",
     ].map((key) => [key, call[key] ?? null]),
   );
 }
@@ -179,6 +181,11 @@ export function joinBrowserBrowseEvidence(evidence, record) {
       initial?.state.controlOwner !== "agent" &&
       initial?.state.activeTurnId === null,
     noDebuggerBeforeBrowseApproval: initial?.debuggerState.attached === false,
+    threadLifetimeRequestedByHost: [initial?.pending, before].every(
+      (pending) =>
+        pending?.accessApprovalLifetime === "thread" &&
+        Number.isSafeInteger(pending.policyRevision),
+    ),
     sitePolicyChangeRevokedBrowseGrant:
       record.policyUpdated && before?.tool === "click",
     exactOriginShownInBothBrowsePrompts: [initial, record.actionBrowse].every(

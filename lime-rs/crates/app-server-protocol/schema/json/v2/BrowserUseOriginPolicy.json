@@ -1,0 +1,89 @@
+{
+  "$defs": {
+    "AllowDenyRequirement": {
+      "enum": [
+        "allow",
+        "deny"
+      ],
+      "type": "string"
+    },
+    "BrowserUseAccessApprovalLifetime": {
+      "enum": [
+        "thread",
+        "turn"
+      ],
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "access": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/AllowDenyRequirement"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "accessApprovalLifetime": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/BrowserUseAccessApprovalLifetime"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "autoReview": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/AllowDenyRequirement"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "downloads": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/AllowDenyRequirement"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "fullCdpAccess": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/AllowDenyRequirement"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "persistentApproval": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "uploads": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/AllowDenyRequirement"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "title": "BrowserUseOriginPolicy",
+  "type": "object"
+}

@@ -32,6 +32,8 @@ beforeEach(() => {
   version = 1;
   writes = 0;
   request.mockReset().mockImplementation(async (method, params) => {
+    if (method === "configRequirements/read")
+      return { result: { requirements: null } };
     if (method === "config/read")
       return {
         result: {

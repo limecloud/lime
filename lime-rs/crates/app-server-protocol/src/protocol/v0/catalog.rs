@@ -243,38 +243,6 @@ pub enum AppServerRequestMethod {
     MediaTaskArtifactList,
     #[serde(rename = "mediaTaskArtifact/cancel")]
     MediaTaskArtifactCancel,
-    #[serde(rename = "galleryMaterial/get")]
-    GalleryMaterialGet,
-    #[serde(rename = "galleryMaterialMetadata/create")]
-    GalleryMaterialMetadataCreate,
-    #[serde(rename = "galleryMaterialMetadata/get")]
-    GalleryMaterialMetadataGet,
-    #[serde(rename = "galleryMaterialMetadata/update")]
-    GalleryMaterialMetadataUpdate,
-    #[serde(rename = "galleryMaterialMetadata/delete")]
-    GalleryMaterialMetadataDelete,
-    #[serde(rename = "galleryMaterial/listByImageCategory")]
-    GalleryMaterialListByImageCategory,
-    #[serde(rename = "galleryMaterial/listByLayoutCategory")]
-    GalleryMaterialListByLayoutCategory,
-    #[serde(rename = "galleryMaterial/listByMood")]
-    GalleryMaterialListByMood,
-    #[serde(rename = "projectMaterial/list")]
-    ProjectMaterialList,
-    #[serde(rename = "projectMaterial/get")]
-    ProjectMaterialGet,
-    #[serde(rename = "projectMaterial/count")]
-    ProjectMaterialCount,
-    #[serde(rename = "projectMaterial/upload")]
-    ProjectMaterialUpload,
-    #[serde(rename = "projectMaterial/importFromUrl")]
-    ProjectMaterialImportFromUrl,
-    #[serde(rename = "projectMaterial/update")]
-    ProjectMaterialUpdate,
-    #[serde(rename = "projectMaterial/delete")]
-    ProjectMaterialDelete,
-    #[serde(rename = "projectMaterial/content")]
-    ProjectMaterialContent,
     #[serde(rename = "voiceAsrCredential/list")]
     VoiceAsrCredentialList,
     #[serde(rename = "voiceAsrCredential/create")]
@@ -603,26 +571,6 @@ impl AppServerRequestMethod {
             Self::MediaTaskArtifactGet => METHOD_MEDIA_TASK_ARTIFACT_GET,
             Self::MediaTaskArtifactList => METHOD_MEDIA_TASK_ARTIFACT_LIST,
             Self::MediaTaskArtifactCancel => METHOD_MEDIA_TASK_ARTIFACT_CANCEL,
-            Self::GalleryMaterialGet => METHOD_GALLERY_MATERIAL_GET,
-            Self::GalleryMaterialMetadataCreate => METHOD_GALLERY_MATERIAL_METADATA_CREATE,
-            Self::GalleryMaterialMetadataGet => METHOD_GALLERY_MATERIAL_METADATA_GET,
-            Self::GalleryMaterialMetadataUpdate => METHOD_GALLERY_MATERIAL_METADATA_UPDATE,
-            Self::GalleryMaterialMetadataDelete => METHOD_GALLERY_MATERIAL_METADATA_DELETE,
-            Self::GalleryMaterialListByImageCategory => {
-                METHOD_GALLERY_MATERIAL_LIST_BY_IMAGE_CATEGORY
-            }
-            Self::GalleryMaterialListByLayoutCategory => {
-                METHOD_GALLERY_MATERIAL_LIST_BY_LAYOUT_CATEGORY
-            }
-            Self::GalleryMaterialListByMood => METHOD_GALLERY_MATERIAL_LIST_BY_MOOD,
-            Self::ProjectMaterialList => METHOD_PROJECT_MATERIAL_LIST,
-            Self::ProjectMaterialGet => METHOD_PROJECT_MATERIAL_GET,
-            Self::ProjectMaterialCount => METHOD_PROJECT_MATERIAL_COUNT,
-            Self::ProjectMaterialUpload => METHOD_PROJECT_MATERIAL_UPLOAD,
-            Self::ProjectMaterialImportFromUrl => METHOD_PROJECT_MATERIAL_IMPORT_FROM_URL,
-            Self::ProjectMaterialUpdate => METHOD_PROJECT_MATERIAL_UPDATE,
-            Self::ProjectMaterialDelete => METHOD_PROJECT_MATERIAL_DELETE,
-            Self::ProjectMaterialContent => METHOD_PROJECT_MATERIAL_CONTENT,
             Self::VoiceAsrCredentialList => METHOD_VOICE_ASR_CREDENTIAL_LIST,
             Self::VoiceAsrCredentialCreate => METHOD_VOICE_ASR_CREDENTIAL_CREATE,
             Self::VoiceAsrCredentialUpdate => METHOD_VOICE_ASR_CREDENTIAL_UPDATE,
@@ -851,26 +799,6 @@ impl AppServerRequestMethod {
             METHOD_MEDIA_TASK_ARTIFACT_GET => Some(Self::MediaTaskArtifactGet),
             METHOD_MEDIA_TASK_ARTIFACT_LIST => Some(Self::MediaTaskArtifactList),
             METHOD_MEDIA_TASK_ARTIFACT_CANCEL => Some(Self::MediaTaskArtifactCancel),
-            METHOD_GALLERY_MATERIAL_GET => Some(Self::GalleryMaterialGet),
-            METHOD_GALLERY_MATERIAL_METADATA_CREATE => Some(Self::GalleryMaterialMetadataCreate),
-            METHOD_GALLERY_MATERIAL_METADATA_GET => Some(Self::GalleryMaterialMetadataGet),
-            METHOD_GALLERY_MATERIAL_METADATA_UPDATE => Some(Self::GalleryMaterialMetadataUpdate),
-            METHOD_GALLERY_MATERIAL_METADATA_DELETE => Some(Self::GalleryMaterialMetadataDelete),
-            METHOD_GALLERY_MATERIAL_LIST_BY_IMAGE_CATEGORY => {
-                Some(Self::GalleryMaterialListByImageCategory)
-            }
-            METHOD_GALLERY_MATERIAL_LIST_BY_LAYOUT_CATEGORY => {
-                Some(Self::GalleryMaterialListByLayoutCategory)
-            }
-            METHOD_GALLERY_MATERIAL_LIST_BY_MOOD => Some(Self::GalleryMaterialListByMood),
-            METHOD_PROJECT_MATERIAL_LIST => Some(Self::ProjectMaterialList),
-            METHOD_PROJECT_MATERIAL_GET => Some(Self::ProjectMaterialGet),
-            METHOD_PROJECT_MATERIAL_COUNT => Some(Self::ProjectMaterialCount),
-            METHOD_PROJECT_MATERIAL_UPLOAD => Some(Self::ProjectMaterialUpload),
-            METHOD_PROJECT_MATERIAL_IMPORT_FROM_URL => Some(Self::ProjectMaterialImportFromUrl),
-            METHOD_PROJECT_MATERIAL_UPDATE => Some(Self::ProjectMaterialUpdate),
-            METHOD_PROJECT_MATERIAL_DELETE => Some(Self::ProjectMaterialDelete),
-            METHOD_PROJECT_MATERIAL_CONTENT => Some(Self::ProjectMaterialContent),
             METHOD_VOICE_ASR_CREDENTIAL_LIST => Some(Self::VoiceAsrCredentialList),
             METHOD_VOICE_ASR_CREDENTIAL_CREATE => Some(Self::VoiceAsrCredentialCreate),
             METHOD_VOICE_ASR_CREDENTIAL_UPDATE => Some(Self::VoiceAsrCredentialUpdate),
@@ -1409,70 +1337,6 @@ pub const APP_SERVER_METHODS: &[AppServerMethodSpec] = &[
     },
     AppServerMethodSpec {
         method: METHOD_MEDIA_TASK_ARTIFACT_CANCEL,
-        kind: AppServerMethodKind::Request,
-    },
-    AppServerMethodSpec {
-        method: METHOD_GALLERY_MATERIAL_GET,
-        kind: AppServerMethodKind::Request,
-    },
-    AppServerMethodSpec {
-        method: METHOD_GALLERY_MATERIAL_METADATA_CREATE,
-        kind: AppServerMethodKind::Request,
-    },
-    AppServerMethodSpec {
-        method: METHOD_GALLERY_MATERIAL_METADATA_GET,
-        kind: AppServerMethodKind::Request,
-    },
-    AppServerMethodSpec {
-        method: METHOD_GALLERY_MATERIAL_METADATA_UPDATE,
-        kind: AppServerMethodKind::Request,
-    },
-    AppServerMethodSpec {
-        method: METHOD_GALLERY_MATERIAL_METADATA_DELETE,
-        kind: AppServerMethodKind::Request,
-    },
-    AppServerMethodSpec {
-        method: METHOD_GALLERY_MATERIAL_LIST_BY_IMAGE_CATEGORY,
-        kind: AppServerMethodKind::Request,
-    },
-    AppServerMethodSpec {
-        method: METHOD_GALLERY_MATERIAL_LIST_BY_LAYOUT_CATEGORY,
-        kind: AppServerMethodKind::Request,
-    },
-    AppServerMethodSpec {
-        method: METHOD_GALLERY_MATERIAL_LIST_BY_MOOD,
-        kind: AppServerMethodKind::Request,
-    },
-    AppServerMethodSpec {
-        method: METHOD_PROJECT_MATERIAL_LIST,
-        kind: AppServerMethodKind::Request,
-    },
-    AppServerMethodSpec {
-        method: METHOD_PROJECT_MATERIAL_GET,
-        kind: AppServerMethodKind::Request,
-    },
-    AppServerMethodSpec {
-        method: METHOD_PROJECT_MATERIAL_COUNT,
-        kind: AppServerMethodKind::Request,
-    },
-    AppServerMethodSpec {
-        method: METHOD_PROJECT_MATERIAL_UPLOAD,
-        kind: AppServerMethodKind::Request,
-    },
-    AppServerMethodSpec {
-        method: METHOD_PROJECT_MATERIAL_IMPORT_FROM_URL,
-        kind: AppServerMethodKind::Request,
-    },
-    AppServerMethodSpec {
-        method: METHOD_PROJECT_MATERIAL_UPDATE,
-        kind: AppServerMethodKind::Request,
-    },
-    AppServerMethodSpec {
-        method: METHOD_PROJECT_MATERIAL_DELETE,
-        kind: AppServerMethodKind::Request,
-    },
-    AppServerMethodSpec {
-        method: METHOD_PROJECT_MATERIAL_CONTENT,
         kind: AppServerMethodKind::Request,
     },
     AppServerMethodSpec {

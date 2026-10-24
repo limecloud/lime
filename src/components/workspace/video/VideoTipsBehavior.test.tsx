@@ -227,20 +227,11 @@ describe("视频工作台 tips 收口", () => {
         "Generation parameter guidance",
         "Choose the model first, then add reference images and output specs.",
       ],
-      [
-        "Opening frame guidance",
-        "Use it to lock the opening composition",
-      ],
-      [
-        "Ending frame guidance",
-        "Use it to constrain the final shot",
-      ],
+      ["Opening frame guidance", "Use it to lock the opening composition"],
+      ["Ending frame guidance", "Use it to constrain the final shot"],
       ["Duration guidance", "Start with 4 to 8 seconds"],
       ["Seed guidance", "Lock the seed only"],
-      [
-        "Generate audio guidance",
-        "Turn this on only when you need ambience",
-      ],
+      ["Generate audio guidance", "Turn this on only when you need ambience"],
       ["Fixed camera guidance", "Reduce camera movement"],
     ] as const;
 
@@ -370,8 +361,7 @@ describe("视频工作台 tips 收口", () => {
     expect(getBodyText()).toContain("Output spec");
     expect(getBodyText()).toContain("Reference images");
     expect(getBodyText()).toContain("Text-to-video only");
-    expect(getBodyText()).toContain("Task sync");
-    expect(getBodyText()).toContain("Select a project first");
+    expect(getBodyText()).not.toContain("Task sync");
 
     expectTipContentOnHover(
       "Video creation guidance",
@@ -381,9 +371,6 @@ describe("视频工作台 tips 收口", () => {
       "Current model guidance",
       "Select a video provider from the left panel first.",
     );
-    expectTipContentOnHover(
-      "Output spec guidance",
-      "Duration 5 sec",
-    );
+    expectTipContentOnHover("Output spec guidance", "Duration 5 sec");
   });
 });

@@ -1,9 +1,9 @@
 use super::*;
 use app_server_protocol::protocol::v2::{
-    ConfigRequirements, ConfigRequirementsReadParams, ConfigRequirementsReadResponse,
-    InAppBrowserRequirements,
-    BrowserUseRequirements, BrowserUseOriginPolicy, BrowserUseAccessApprovalLifetime,
-    BrowserUseExtensionRequirements, RequestHeader, AllowDenyRequirement,
+    AllowDenyRequirement, BrowserUseAccessApprovalLifetime, BrowserUseExtensionRequirements,
+    BrowserUseOriginPolicy, BrowserUseRequirements, ConfigRequirements,
+    ConfigRequirementsReadParams, ConfigRequirementsReadResponse, InAppBrowserRequirements,
+    RequestHeader,
 };
 
 impl RequestProcessor {
@@ -45,19 +45,34 @@ impl RequestProcessor {
                         .collect()
                 }),
                 allow_browser_and_computer_use: requirements.allow_browser_and_computer_use,
-                browser_use: requirements.browser_use.map(|browser| BrowserUseRequirements {
-                    extension: browser.extension.map(|extension| BrowserUseExtensionRequirements {
-                        request_headers: extension.request_headers.map(|headers| headers.into_iter()
-                            .map(|header| RequestHeader { name: header.name, value: header.value }).collect()),
+                browser_use: requirements
+                    .browser_use
+                    .map(|browser| BrowserUseRequirements {
+                        extension: browser.extension.map(|extension| {
+                            BrowserUseExtensionRequirements {
+                                request_headers: extension.request_headers.map(|headers| {
+                                    headers
+                                        .into_iter()
+                                        .map(|header| RequestHeader {
+                                            name: header.name,
+                                            value: header.value,
+                                        })
+                                        .collect()
+                                }),
+                            }
+                        }),
+                        allow_webmcp: browser.allow_webmcp,
+                        allow_history_access: browser.allow_history_access,
+                        disable_auto_review: browser.disable_auto_review,
+                        allow_global_persistent_approval: browser.allow_global_persistent_approval,
+                        default_origin_policy: browser.default_origin_policy.map(browser_origin),
+                        origins: browser.origins.map(|origins| {
+                            origins
+                                .into_iter()
+                                .map(|(pattern, policy)| (pattern, browser_origin(policy)))
+                                .collect()
+                        }),
                     }),
-                    allow_webmcp: browser.allow_webmcp,
-                    allow_history_access: browser.allow_history_access,
-                    disable_auto_review: browser.disable_auto_review,
-                    allow_global_persistent_approval: browser.allow_global_persistent_approval,
-                    default_origin_policy: browser.default_origin_policy.map(browser_origin),
-                    origins: browser.origins.map(|origins| origins.into_iter()
-                        .map(|(pattern, policy)| (pattern, browser_origin(policy))).collect()),
-                }),
                 in_app_browser: requirements.in_app_browser.map(|requirements| {
                     InAppBrowserRequirements {
                         allow_external_browser_settings_import: requirements
@@ -70,8 +85,13 @@ impl RequestProcessor {
 }
 
 fn browser_origin(policy: lime_core::config::BrowserUseOriginPolicyToml) -> BrowserUseOriginPolicy {
-    use lime_core::config::{AllowDenyRequirementToml as D, BrowserUseAccessApprovalLifetimeToml as L};
-    let decision = |value| match value { D::Allow => AllowDenyRequirement::Allow, D::Deny => AllowDenyRequirement::Deny };
+    use lime_core::config::{
+        AllowDenyRequirementToml as D, BrowserUseAccessApprovalLifetimeToml as L,
+    };
+    let decision = |value| match value {
+        D::Allow => AllowDenyRequirement::Allow,
+        D::Deny => AllowDenyRequirement::Deny,
+    };
     BrowserUseOriginPolicy {
         access: policy.access.map(decision),
         downloads: policy.downloads.map(decision),
@@ -80,7 +100,8 @@ fn browser_origin(policy: lime_core::config::BrowserUseOriginPolicyToml) -> Brow
         auto_review: policy.auto_review.map(decision),
         persistent_approval: policy.persistent_approval,
         access_approval_lifetime: policy.access_approval_lifetime.map(|value| match value {
-            L::Turn => BrowserUseAccessApprovalLifetime::Turn, L::Thread => BrowserUseAccessApprovalLifetime::Thread,
+            L::Turn => BrowserUseAccessApprovalLifetime::Turn,
+            L::Thread => BrowserUseAccessApprovalLifetime::Thread,
         }),
     }
 }

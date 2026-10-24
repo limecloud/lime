@@ -5,6 +5,7 @@ import type {
 } from "@limecloud/app-server-client";
 import {
   browserSettingsFromConfig,
+  effectiveBrowserSettings,
   type BrowserSettings,
 } from "../src/lib/api/browserSettingsTypes";
 import type {
@@ -46,7 +47,10 @@ export class BrowserAppServerBridge {
     const pending = (async () => {
       const [response, policy] = await Promise.all([
         this.request<ConfigReadResponse>("config/read", {}),
-        this.request<ConfigRequirementsReadResponse>("configRequirements/read", {}),
+        this.request<ConfigRequirementsReadResponse>(
+          "configRequirements/read",
+          {},
+        ),
       ]);
       assertBrowserRequirements(policy.requirements);
       if (revision !== this.#revision) {
@@ -63,7 +67,11 @@ export class BrowserAppServerBridge {
         this.host.setSettings(settings, config.language);
       else this.host.setSettings(settings);
       return settings;
-    })();
+    })().catch((error: unknown) => {
+      if (revision === this.#revision)
+        this.host.setSettings(effectiveBrowserSettings({ enabled: false }));
+      throw error;
+    });
     this.#pending = pending;
     try {
       return await pending;

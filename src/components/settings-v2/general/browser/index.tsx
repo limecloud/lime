@@ -117,15 +117,24 @@ function BrowserSettingsPage({
       | "fullCdpAccessEnabled",
     id: string,
   ) => (
-    <BrowserSettingsSwitch
-      id={id}
-      checked={preferences[key]}
-      disabled={disabled}
-      onChange={(value) => void browser.save(key, value)}
-    />
+    <span
+      title={
+        browser.isManaged(key)
+          ? t("settings.browser.sitePermissions.managed")
+          : undefined
+      }
+    >
+      <BrowserSettingsSwitch
+        id={id}
+        checked={preferences[key]}
+        disabled={disabled || browser.isManaged(key)}
+        onChange={(value) => void browser.save(key, value)}
+      />
+    </span>
   );
   const chooseDirectory = async () => {
-    if (directoryRequest.current) return;
+    if (directoryRequest.current || browser.isManaged("download_directory"))
+      return;
     const request = {};
     directoryRequest.current = request;
     setChoosingDirectory(true);
@@ -281,7 +290,7 @@ function BrowserSettingsPage({
           description={t("settings.browser.annotationScreenshotDescription")}
           targetId="browser-annotation-screenshot"
           value={preferences.annotation_screenshot}
-          disabled={disabled}
+          disabled={disabled || browser.isManaged("annotation_screenshot")}
           options={(["always", "necessary"] as const).map((value) => ({
             value,
             label: t(`settings.browser.screenshot.${value}`),
@@ -308,7 +317,7 @@ function BrowserSettingsPage({
               <button
                 type="button"
                 className={BROWSER_SETTINGS_BUTTON}
-                disabled={disabled}
+                disabled={disabled || browser.isManaged("download_directory")}
                 onClick={() => void browser.save("download_directory", null)}
               >
                 {t("settings.browser.reset")}
@@ -317,7 +326,7 @@ function BrowserSettingsPage({
             <button
               type="button"
               className={BROWSER_SETTINGS_BUTTON}
-              disabled={disabled}
+              disabled={disabled || browser.isManaged("download_directory")}
               onClick={() => void chooseDirectory()}
             >
               {t("settings.browser.change")}
@@ -355,7 +364,7 @@ function BrowserSettingsPage({
           description={t("settings.browser.historyAccessDescription")}
           targetId="browser-history-access"
           value={preferences.history_access}
-          disabled={disabled}
+          disabled={disabled || browser.isManaged("history_access")}
           options={(["alwaysAsk", "neverAsk", "disabled"] as const).map(
             (value) => ({
               value,

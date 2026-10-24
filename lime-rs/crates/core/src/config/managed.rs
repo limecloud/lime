@@ -89,10 +89,23 @@ pub(super) fn compose_requirements(
             macro_rules! inherit {
                 ($($field:ident),* $(,)?) => { $(if browser.$field.is_some() { current.$field = browser.$field; })* };
             }
-            inherit!(extension, allow_webmcp, allow_history_access, disable_auto_review,
-                allow_global_persistent_approval);
+            inherit!(
+                allow_webmcp,
+                allow_history_access,
+                disable_auto_review,
+                allow_global_persistent_approval
+            );
+            if let Some(extension) = browser.extension {
+                if extension.request_headers.is_some() {
+                    current.extension.get_or_insert_default().request_headers =
+                        extension.request_headers;
+                }
+            }
             if let Some(default) = browser.default_origin_policy {
-                merge_browser_origin(current.default_origin_policy.get_or_insert_default(), default);
+                merge_browser_origin(
+                    current.default_origin_policy.get_or_insert_default(),
+                    default,
+                );
             }
             if let Some(origins) = browser.origins {
                 let target = current.origins.get_or_insert_default();
@@ -119,8 +132,15 @@ fn merge_browser_origin(
     macro_rules! inherit {
         ($($field:ident),* $(,)?) => { $(if source.$field.is_some() { target.$field = source.$field; })* };
     }
-    inherit!(access, downloads, uploads, full_cdp_access, auto_review,
-        persistent_approval, access_approval_lifetime);
+    inherit!(
+        access,
+        downloads,
+        uploads,
+        full_cdp_access,
+        auto_review,
+        persistent_approval,
+        access_approval_lifetime
+    );
 }
 
 fn parse_config(encoded: &str) -> Result<ManagedConfig, ConfigError> {

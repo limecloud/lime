@@ -18,7 +18,6 @@ Electron Desktop Host 只承接桌面壳能力，例如窗口、IPC、系统浏�
 | Agent session / turn / read model / evidence     | `lime-rs/crates/app-server` runtime 与 `lime-rs/crates/agent` | `src/lib/api/agentRuntime/**`                                   |
 | Provider / model registry / API key              | App Server `modelProvider*` / `modelProviderKey*` methods     | `src/lib/api/modelRegistry.ts`、`src/lib/api/apiKeyProvider.ts` |
 | Scheduled Tasks / Agent Run history              | App Server `scheduledTask/*` + RuntimeCore + scheduler        | `src/lib/api/scheduledTasks.ts`                                 |
-| Gallery materials                                | current gallery material command family                       | `src/lib/api/galleryMaterials.ts`                               |
 | Document export                                  | Electron Desktop Host 本地文件壳能力                          | `src/lib/api/document-export.ts`                                |
 | Browser connector / remote runtime               | Desktop Host bridge + App Server current methods              | `src/lib/webview-api.ts`、`remote-runtime.md`                   |
 

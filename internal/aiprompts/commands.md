@@ -1069,3 +1069,16 @@ full_cdp_access 仅保留为上游 browser_use 准入字段，历史及矩阵名
 不再消费；旧窗口参数只进入主应用，不能启动第二资源面。图片预览使用现有 Artifact/Files
 入口，普通文件保存不触发额外 material import。保留标准文件、MCP resource、插件 resource
 与模型 media task 的现役协议；不增加兼容命令、mock fallback 或平行文件后端。
+
+
+Browser 独立管理员策略继续使用现有 `configRequirements/read`（无新 method、IPC 或 catalog 入口），
+新增 `allowBrowserAndComputerUse` 与 Codex 同名 `browserUse` 对象。来源仅为系统 requirements 和平台 forced
+requirements，RPC 参数及普通配置不能提供 authority。`config/read.browser_use` 是用户/受管配置层准入；
+它不能替代独立管理员约束。BrowserAppServerBridge 与设置 gateway 均消费此只读响应，Host 在配置读取
+失败时关闭 Agent 控制并撤销旧授权；权限 UI 不持久化 requirements，`browserPreferences` 剥离此投影。
+原生扩展头、网络代理/域名 requirements 与自动审核执行仍未接线，不能按字段存在宣称完成。
+
+Browser browse receipt 默认 thread；管理员 accessApprovalLifetime=turn 时按回合撤销。
+凭据只保存在现役 BrowserPermissions，按 owner/window/thread/browserSession/精确 origin 隔离，
+policy revision 变化立即失效。pending token 与 action approval 仍属于原 call/turn/tab/view/page，
+跨回合只复用已批准的浏览准入，后续回合必须重新 claim 原生控制；不增加 RPC/IPC 方法或 Renderer authority。

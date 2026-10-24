@@ -13,10 +13,6 @@ import { ArrowUpRight, Sparkles, Video } from "lucide-react";
 import { toast } from "sonner";
 import { VideoCanvasState } from "./types";
 import { PromptInput } from "./PromptInput";
-import {
-  importMaterialFromUrl,
-  type ImportMaterialFromUrlRequest,
-} from "@/lib/api/materials";
 import { WorkbenchInfoTip } from "@/components/media/WorkbenchInfoTip";
 import {
   videoGenerationApi,
@@ -683,39 +679,8 @@ const EmptyTasks = styled.div`
   color: hsl(var(--muted-foreground));
 `;
 
-interface WorkspaceTask extends VideoGenerationTask {
-  resourceMaterialId?: string;
-  resourceSavedAt?: number;
-  resourceSaveError?: string;
-}
-
-const VIDEO_TASK_TAG = "video-gen";
-const VIDEO_REFERENCE_TAG = "video-reference";
-
 function isDirectRemoteUrl(url: string): boolean {
   return url.startsWith("http://") || url.startsWith("https://");
-}
-
-function isMaterialReferenceUrl(url: string): boolean {
-  return url.startsWith("material://");
-}
-
-function buildVideoMaterialName(
-  task: WorkspaceTask,
-  fallbackPrompt: string,
-): string {
-  const promptHead = task.prompt.trim().slice(0, 24) || fallbackPrompt;
-  const date = new Date(task.createdAt);
-  const stamp = [
-    date.getFullYear(),
-    `${date.getMonth() + 1}`.padStart(2, "0"),
-    `${date.getDate()}`.padStart(2, "0"),
-    "-",
-    `${date.getHours()}`.padStart(2, "0"),
-    `${date.getMinutes()}`.padStart(2, "0"),
-    `${date.getSeconds()}`.padStart(2, "0"),
-  ].join("");
-  return `${promptHead}-${stamp}.mp4`;
 }
 
 function formatTaskTime(timestamp: number, locale?: string): string {
@@ -729,9 +694,9 @@ function formatTaskTime(timestamp: number, locale?: string): string {
 }
 
 function mergeTaskList(
-  previous: WorkspaceTask[],
-  updates: WorkspaceTask[],
-): WorkspaceTask[] {
+  previous: VideoGenerationTask[],
+  updates: VideoGenerationTask[],
+): VideoGenerationTask[] {
   const updateMap = new Map(updates.map((task) => [task.id, task]));
   const merged = previous.map((task) => {
     const updated = updateMap.get(task.id);
@@ -741,9 +706,6 @@ function mergeTaskList(
     return {
       ...task,
       ...updated,
-      resourceMaterialId: task.resourceMaterialId ?? updated.resourceMaterialId,
-      resourceSavedAt: task.resourceSavedAt ?? updated.resourceSavedAt,
-      resourceSaveError: updated.resourceSaveError ?? task.resourceSaveError,
     };
   });
 
@@ -758,9 +720,9 @@ function mergeTaskList(
 }
 
 function resolveFocusedTask(
-  taskList: WorkspaceTask[],
+  taskList: VideoGenerationTask[],
   selectedTaskId?: string,
-): WorkspaceTask | null {
+): VideoGenerationTask | null {
   const normalizedSelectedTaskId = selectedTaskId?.trim();
   if (normalizedSelectedTaskId) {
     const matchedTask = taskList.find(
@@ -829,7 +791,7 @@ function clampProgress(value?: number | null): number | null {
 }
 
 function parseTaskRequestPayload(
-  task: WorkspaceTask,
+  task: VideoGenerationTask,
 ): Record<string, unknown> | null {
   const normalizedPayload = task.requestPayload?.trim();
   if (!normalizedPayload) {
@@ -889,8 +851,8 @@ function readTaskPayloadPositiveNumber(
   return null;
 }
 
-function resolveTaskSyncCopy(
-  task: WorkspaceTask,
+function resolveTaskStatusCopy(
+  task: VideoGenerationTask,
   t: WorkspaceTranslate,
   locale?: string,
 ): {
@@ -900,47 +862,24 @@ function resolveTaskSyncCopy(
   const progress = clampProgress(task.progress);
 
   if (task.status === "success") {
-    if (task.resourceMaterialId) {
-      return {
-        label: t("workspace.video.workspace.taskSync.saved.label", {
-          defaultValue: "已同步到项目资料",
-        }),
-        hint: t("workspace.video.workspace.taskSync.saved.hint", {
-          defaultValue:
-            "当前结果已经沉淀到项目资料，可继续复用或组合后续命令。",
-        }),
-      };
-    }
-    if (task.resourceSaveError) {
-      return {
-        label: t("workspace.video.workspace.taskSync.saveFailed.label", {
-          defaultValue: "同步失败",
-        }),
-        hint:
-          task.resourceSaveError.trim() ||
-          t("workspace.video.workspace.taskSync.saveFailed.fallbackHint", {
-            defaultValue: "请稍后重试或检查项目资料权限。",
-          }),
-      };
-    }
     return {
-      label: t("workspace.video.workspace.taskSync.generated.label", {
+      label: t("workspace.video.workspace.taskStatus.generated.label", {
         defaultValue: "结果已生成",
       }),
-      hint: t("workspace.video.workspace.taskSync.generated.hint", {
-        defaultValue: "视频已经可预览，同步到项目资料会继续在后台自动完成。",
+      hint: t("workspace.video.workspace.taskStatus.generated.hint", {
+        defaultValue: "视频已经生成，可直接预览。",
       }),
     };
   }
 
   if (task.status === "error") {
     return {
-      label: t("workspace.video.workspace.taskSync.error.label", {
+      label: t("workspace.video.workspace.taskStatus.error.label", {
         defaultValue: "生成失败",
       }),
       hint:
         task.errorMessage?.trim() ||
-        t("workspace.video.workspace.taskSync.error.fallbackHint", {
+        t("workspace.video.workspace.taskStatus.error.fallbackHint", {
           defaultValue: "请检查提示词、模型配置或参考图。",
         }),
     };
@@ -948,10 +887,10 @@ function resolveTaskSyncCopy(
 
   if (task.status === "cancelled") {
     return {
-      label: t("workspace.video.workspace.taskSync.cancelled.label", {
+      label: t("workspace.video.workspace.taskStatus.cancelled.label", {
         defaultValue: "任务已取消",
       }),
-      hint: t("workspace.video.workspace.taskSync.cancelled.hint", {
+      hint: t("workspace.video.workspace.taskStatus.cancelled.hint", {
         defaultValue: "当前任务不会继续生成新的结果，可直接重新发起下一轮。",
       }),
     };
@@ -959,11 +898,11 @@ function resolveTaskSyncCopy(
 
   if (typeof progress === "number") {
     return {
-      label: t("workspace.video.workspace.taskSync.progress.label", {
+      label: t("workspace.video.workspace.taskStatus.progress.label", {
         defaultValue: "当前进度 {{value}}%",
         value: formatNumber(progress, { locale }),
       }),
-      hint: t("workspace.video.workspace.taskSync.progress.hint", {
+      hint: t("workspace.video.workspace.taskStatus.progress.hint", {
         defaultValue: "工作台会继续刷新状态，完成后自动切换为可预览结果。",
       }),
     };
@@ -971,72 +910,61 @@ function resolveTaskSyncCopy(
 
   if (task.status === "pending") {
     return {
-      label: t("workspace.video.workspace.taskSync.pending.label", {
+      label: t("workspace.video.workspace.taskStatus.pending.label", {
         defaultValue: "排队中",
       }),
-      hint: t("workspace.video.workspace.taskSync.pending.hint", {
+      hint: t("workspace.video.workspace.taskStatus.pending.hint", {
         defaultValue: "任务已提交到生成队列，等待服务端返回正式进度。",
       }),
     };
   }
 
   return {
-    label: t("workspace.video.workspace.taskSync.generating.label", {
+    label: t("workspace.video.workspace.taskStatus.generating.label", {
       defaultValue: "生成中",
     }),
-    hint: t("workspace.video.workspace.taskSync.generating.hint", {
+    hint: t("workspace.video.workspace.taskStatus.generating.hint", {
       defaultValue: "视频任务正在执行，当前会优先展示你选中的任务状态。",
     }),
   };
 }
 
-function resolveTaskSyncMessage(
-  task: WorkspaceTask,
+function resolveTaskStatusMessage(
+  task: VideoGenerationTask,
   t: WorkspaceTranslate,
   locale?: string,
 ): string {
   const progress = clampProgress(task.progress);
 
   if (task.status === "success") {
-    if (task.resourceMaterialId) {
-      return t("workspace.video.workspace.taskSync.saved.label", {
-        defaultValue: "已同步到项目资料",
-      });
-    }
-    if (task.resourceSaveError) {
-      return t("workspace.video.workspace.taskSync.saveFailed.message", {
-        defaultValue: "同步到项目资料失败：{{message}}",
-        message: task.resourceSaveError,
-      });
-    }
-    return t("workspace.video.workspace.taskSync.generated.syncingMessage", {
-      defaultValue: "结果已生成，正在同步到项目资料",
+    return t("workspace.video.workspace.taskStatus.generated.label", {
+      defaultValue: "结果已生成",
     });
   }
 
   if (task.status === "error") {
     return (
       task.errorMessage?.trim() ||
-      t("workspace.video.workspace.taskSync.error.fallbackMessage", {
+      t("workspace.video.workspace.taskStatus.error.fallbackMessage", {
         defaultValue: "任务执行失败",
       })
     );
   }
 
   if (task.status === "cancelled") {
-    return t("workspace.video.workspace.taskSync.cancelled.label", {
+    return t("workspace.video.workspace.taskStatus.cancelled.label", {
       defaultValue: "任务已取消",
     });
   }
 
   if (typeof progress === "number") {
-    return t("workspace.video.workspace.taskSync.progress.label", {
+    return t("workspace.video.workspace.taskStatus.progress.label", {
       defaultValue: "当前进度 {{value}}%",
       value: formatNumber(progress, { locale }),
     });
   }
 
-  return t("workspace.video.workspace.taskSync.waitingProgress", {
+  return t("workspace.video.workspace.taskStatus.waitingProgress", {
     defaultValue: "正在等待服务端返回进度",
   });
 }
@@ -1044,10 +972,8 @@ function resolveTaskSyncMessage(
 export const VideoWorkspace: React.FC<VideoWorkspaceProps> = memo(
   ({ state, projectRootPath, projectId, onStateChange }) => {
     const { t, i18n } = useTranslation("workspace");
-    const [tasks, setTasks] = useState<WorkspaceTask[]>([]);
+    const [tasks, setTasks] = useState<VideoGenerationTask[]>([]);
     const pollingGuard = useRef(false);
-    const savingTaskIdsRef = useRef<Set<string>>(new Set());
-    const materialRefCache = useRef<Map<string, string>>(new Map());
     const stateRef = useRef(state);
 
     useEffect(() => {
@@ -1062,12 +988,8 @@ export const VideoWorkspace: React.FC<VideoWorkspaceProps> = memo(
       [onStateChange],
     );
 
-    useEffect(() => {
-      materialRefCache.current.clear();
-    }, [projectId]);
-
     const syncPrimaryState = useCallback(
-      (taskList: WorkspaceTask[]) => {
+      (taskList: VideoGenerationTask[]) => {
         const currentState = stateRef.current;
         const focusedTask = resolveFocusedTask(
           taskList,
@@ -1149,68 +1071,9 @@ export const VideoWorkspace: React.FC<VideoWorkspaceProps> = memo(
       [pushState, t],
     );
 
-    const saveVideoToResource = useCallback(
-      async (task: WorkspaceTask): Promise<void> => {
-        if (!projectId || !task.resultUrl || task.resourceMaterialId) {
-          return;
-        }
-        if (savingTaskIdsRef.current.has(task.id)) {
-          return;
-        }
-
-        savingTaskIdsRef.current.add(task.id);
-        try {
-          const request: ImportMaterialFromUrlRequest = {
-            projectId,
-            name: buildVideoMaterialName(
-              task,
-              t("workspace.video.workspace.resource.videoNameFallback", {
-                defaultValue: "生成视频",
-              }),
-            ),
-            type: "video",
-            url: task.resultUrl,
-            tags: [VIDEO_TASK_TAG],
-            description: t(
-              "workspace.video.workspace.resource.videoDescription",
-              {
-                defaultValue:
-                  "视频生成自动入库（服务：{{provider}}，模型：{{model}}）",
-                model: task.model,
-                provider: task.providerId,
-              },
-            ),
-          };
-          const savedMaterial = await importMaterialFromUrl(request);
-
-          setTasks((previous) =>
-            previous.map((item) =>
-              item.id === task.id
-                ? {
-                    ...item,
-                    resourceMaterialId: savedMaterial.id,
-                    resourceSavedAt: Date.now(),
-                    resourceSaveError: undefined,
-                  }
-                : item,
-            ),
-          );
-        } catch (error) {
-          const errorMessage =
-            error instanceof Error ? error.message : String(error);
-          setTasks((previous) =>
-            previous.map((item) =>
-              item.id === task.id
-                ? { ...item, resourceSaveError: errorMessage }
-                : item,
-            ),
-          );
-        } finally {
-          savingTaskIdsRef.current.delete(task.id);
-        }
-      },
-      [projectId, t],
-    );
+    useEffect(() => {
+      syncPrimaryState(tasks);
+    }, [tasks, syncPrimaryState]);
 
     useEffect(() => {
       if (!projectRootPath?.trim()) {
@@ -1233,7 +1096,6 @@ export const VideoWorkspace: React.FC<VideoWorkspaceProps> = memo(
             list.map((task) => ({ ...task })),
           );
           setTasks(mapped);
-          syncPrimaryState(mapped);
         } catch (error) {
           console.error("[VideoWorkspace] 加载视频任务失败:", error);
         }
@@ -1243,7 +1105,7 @@ export const VideoWorkspace: React.FC<VideoWorkspaceProps> = memo(
       return () => {
         active = false;
       };
-    }, [projectId, projectRootPath, syncPrimaryState]);
+    }, [projectId, projectRootPath]);
 
     const runningTaskIds = useMemo(
       () =>
@@ -1281,23 +1143,13 @@ export const VideoWorkspace: React.FC<VideoWorkspaceProps> = memo(
           }
 
           const normalizedUpdates = updates.filter(
-            (task): task is WorkspaceTask => task !== null,
+            (task): task is VideoGenerationTask => task !== null,
           );
           if (normalizedUpdates.length === 0) {
             return;
           }
 
-          setTasks((previous) => {
-            const merged = mergeTaskList(previous, normalizedUpdates);
-            syncPrimaryState(merged);
-            return merged;
-          });
-
-          for (const task of normalizedUpdates) {
-            if (task.status === "success" && task.resultUrl) {
-              void saveVideoToResource(task);
-            }
-          }
+          setTasks((previous) => mergeTaskList(previous, normalizedUpdates));
         } catch (error) {
           if (active) {
             console.error("[VideoWorkspace] 刷新视频任务状态失败:", error);
@@ -1316,78 +1168,27 @@ export const VideoWorkspace: React.FC<VideoWorkspaceProps> = memo(
         active = false;
         window.clearInterval(timer);
       };
-    }, [
-      projectRootPath,
-      runningTaskIds,
-      saveVideoToResource,
-      syncPrimaryState,
-    ]);
+    }, [projectRootPath, runningTaskIds]);
 
     const ensureReferenceImageUrl = useCallback(
-      async (
-        imageUrl: string | undefined,
-        frameType: "start" | "end",
-      ): Promise<string | undefined> => {
+      (imageUrl: string | undefined): string | undefined => {
         const normalizedUrl = imageUrl?.trim();
         if (!normalizedUrl) {
           return undefined;
         }
         if (
           isDirectRemoteUrl(normalizedUrl) ||
-          isMaterialReferenceUrl(normalizedUrl)
+          normalizedUrl.startsWith("data:image/")
         ) {
           return normalizedUrl;
         }
-        if (!normalizedUrl.startsWith("data:")) {
-          throw new Error(
-            t("workspace.video.workspace.reference.unsupportedFormat", {
-              defaultValue: "参考图格式不支持，请重新上传图片",
-            }),
-          );
-        }
-
-        const cached = materialRefCache.current.get(normalizedUrl);
-        if (cached) {
-          return cached;
-        }
-
-        if (!projectId) {
-          throw new Error(
-            t("workspace.video.workspace.reference.projectRequired", {
-              defaultValue: "未选择项目，无法处理参考图",
-            }),
-          );
-        }
-
-        const request: ImportMaterialFromUrlRequest = {
-          projectId,
-          name:
-            frameType === "start"
-              ? t("workspace.video.workspace.reference.startName", {
-                  defaultValue: "视频首帧参考图",
-                })
-              : t("workspace.video.workspace.reference.endName", {
-                  defaultValue: "视频尾帧参考图",
-                }),
-          type: "image",
-          url: normalizedUrl,
-          tags: [VIDEO_REFERENCE_TAG, frameType],
-          description:
-            frameType === "start"
-              ? t("workspace.video.workspace.reference.startDescription", {
-                  defaultValue: "视频生成首帧参考图（自动上传）",
-                })
-              : t("workspace.video.workspace.reference.endDescription", {
-                  defaultValue: "视频生成尾帧参考图（自动上传）",
-                }),
-        };
-        const material = await importMaterialFromUrl(request);
-
-        const materialUrl = `material://${material.id}`;
-        materialRefCache.current.set(normalizedUrl, materialUrl);
-        return materialUrl;
+        throw new Error(
+          t("workspace.video.workspace.reference.unsupportedFormat", {
+            defaultValue: "参考图格式不支持，请重新上传图片",
+          }),
+        );
       },
-      [projectId, t],
+      [t],
     );
 
     const handleGenerate = useCallback(
@@ -1447,11 +1248,10 @@ export const VideoWorkspace: React.FC<VideoWorkspaceProps> = memo(
           errorMessage: undefined,
         });
         try {
-          const [resolvedStartImageUrl, resolvedEndImageUrl] =
-            await Promise.all([
-              ensureReferenceImageUrl(state.startImage, "start"),
-              ensureReferenceImageUrl(state.endImage, "end"),
-            ]);
+          const resolvedStartImageUrl = ensureReferenceImageUrl(
+            state.startImage,
+          );
+          const resolvedEndImageUrl = ensureReferenceImageUrl(state.endImage);
 
           const created = await videoGenerationApi.createTask({
             projectId,
@@ -1475,11 +1275,7 @@ export const VideoWorkspace: React.FC<VideoWorkspaceProps> = memo(
             selectedTaskId: created.id,
             errorMessage: undefined,
           });
-          setTasks((previous) => {
-            const merged = mergeTaskList(previous, [created]);
-            syncPrimaryState(merged);
-            return merged;
-          });
+          setTasks((previous) => mergeTaskList(previous, [created]));
           toast.success(
             t("workspace.video.workspace.generate.submitted", {
               defaultValue: "视频任务已提交，正在生成",
@@ -1502,13 +1298,12 @@ export const VideoWorkspace: React.FC<VideoWorkspaceProps> = memo(
         projectRootPath,
         pushState,
         state,
-        syncPrimaryState,
         t,
       ],
     );
 
     const handlePreviewTask = useCallback(
-      (task: WorkspaceTask) => {
+      (task: VideoGenerationTask) => {
         if (!task.resultUrl) {
           return;
         }
@@ -1609,35 +1404,9 @@ export const VideoWorkspace: React.FC<VideoWorkspaceProps> = memo(
             },
           ),
         },
-        {
-          label: t("workspace.video.workspace.summary.taskSync.label", {
-            defaultValue: "任务同步",
-          }),
-          value: projectId
-            ? t("workspace.video.workspace.summary.taskSync.auto", {
-                defaultValue: "结果自动同步",
-              })
-            : t("workspace.video.workspace.summary.taskSync.projectRequired", {
-                defaultValue: "需先选择项目",
-              }),
-          hint: projectId
-            ? t("workspace.video.workspace.summary.taskSync.autoHint", {
-                defaultValue: "成功后会沉淀到项目资料",
-              })
-            : t(
-                "workspace.video.workspace.summary.taskSync.projectRequiredHint",
-                {
-                  defaultValue: "当前无法提交视频任务",
-                },
-              ),
-          tipAria: t("workspace.video.workspace.summary.taskSync.tipAria", {
-            defaultValue: "任务同步说明",
-          }),
-        },
       ];
     }, [
       i18n.language,
-      projectId,
       referenceCount,
       state.aspectRatio,
       state.duration,
@@ -1762,7 +1531,7 @@ export const VideoWorkspace: React.FC<VideoWorkspaceProps> = memo(
       const durationLabel =
         readTaskPayloadPositiveNumber(payload, ["duration"]) || state.duration;
       const promptLabel = focusedTask.prompt?.trim() || state.prompt.trim();
-      const syncCopy = resolveTaskSyncCopy(focusedTask, t, i18n.language);
+      const statusCopy = resolveTaskStatusCopy(focusedTask, t, i18n.language);
       const isLatestFocused = latestTask?.id === focusedTask.id;
 
       return {
@@ -1789,8 +1558,8 @@ export const VideoWorkspace: React.FC<VideoWorkspaceProps> = memo(
         specHint: t("workspace.video.workspace.focusedTask.spec.hint", {
           defaultValue: "规格优先从任务请求恢复，缺失时回退到当前工作台状态。",
         }),
-        syncValue: syncCopy.label,
-        syncHint: syncCopy.hint,
+        statusValue: statusCopy.label,
+        statusHint: statusCopy.hint,
         timelineValue: t(
           "workspace.video.workspace.focusedTask.timeline.created",
           {
@@ -2142,20 +1911,20 @@ export const VideoWorkspace: React.FC<VideoWorkspaceProps> = memo(
                           </FocusedTaskMetaHint>
                         </FocusedTaskMetaCard>
 
-                        <FocusedTaskMetaCard data-testid="video-focused-task-sync">
+                        <FocusedTaskMetaCard data-testid="video-focused-task-status">
                           <FocusedTaskMetaLabel>
                             {t(
-                              "workspace.video.workspace.focusedTask.sync.label",
+                              "workspace.video.workspace.focusedTask.status.label",
                               {
-                                defaultValue: "结果同步",
+                                defaultValue: "状态",
                               },
                             )}
                           </FocusedTaskMetaLabel>
                           <FocusedTaskMetaValue>
-                            {focusedTaskSummary.syncValue}
+                            {focusedTaskSummary.statusValue}
                           </FocusedTaskMetaValue>
                           <FocusedTaskMetaHint>
-                            {focusedTaskSummary.syncHint}
+                            {focusedTaskSummary.statusHint}
                           </FocusedTaskMetaHint>
                         </FocusedTaskMetaCard>
 
@@ -2230,7 +1999,7 @@ export const VideoWorkspace: React.FC<VideoWorkspaceProps> = memo(
                       {tasks.map((task) => {
                         const progress = clampProgress(task.progress);
                         const tone = getStatusTone(task.status);
-                        const syncMessage = resolveTaskSyncMessage(
+                        const statusMessage = resolveTaskStatusMessage(
                           task,
                           t,
                           i18n.language,
@@ -2279,7 +2048,7 @@ export const VideoWorkspace: React.FC<VideoWorkspaceProps> = memo(
                                     : "default"
                               }
                             >
-                              {syncMessage}
+                              {statusMessage}
                             </TaskAssistText>
 
                             <TaskBottomRow>

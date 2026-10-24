@@ -6,7 +6,10 @@ import {
   updateBrowserSetting,
   type BrowserSettings,
 } from "@/lib/api/browserSettings";
-import type { BrowserPermissionContext } from "@/lib/api/browserUsePolicySitePermissions";
+import {
+  browserSettingReadonly,
+  type BrowserPermissionContext,
+} from "@/lib/api/browserUsePolicySitePermissions";
 
 export function useBrowserSettings() {
   const [configured, setConfigured] = useState<BrowserSettings | null>(null);
@@ -56,6 +59,7 @@ export function useBrowserSettings() {
     if (
       !alive.current ||
       !configured ||
+      browserSettingReadonly(configured, permissionContext, key) ||
       saving.current ||
       error === "reload" ||
       error === "load"
@@ -107,5 +111,16 @@ export function useBrowserSettings() {
       if (alive.current) setPending(false);
     }
   };
-  return { configured, permissionContext, error, pending, refresh, save };
+  const isManaged = (key: keyof BrowserSettings) =>
+    configured !== null &&
+    browserSettingReadonly(configured, permissionContext, key);
+  return {
+    configured,
+    permissionContext,
+    error,
+    pending,
+    refresh,
+    save,
+    isManaged,
+  };
 }

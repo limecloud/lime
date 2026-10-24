@@ -3,7 +3,6 @@
 //! 定义统一内容创作系统中的错误类型，包括：
 //! - ProjectError（项目错误）
 //! - PersonaError（人设错误）
-//! - MaterialError（素材错误）
 //! - MigrationError（迁移错误）
 //!
 //! ## 设计原则
@@ -99,59 +98,6 @@ impl From<PersonaError> for String {
 }
 
 impl serde::Serialize for PersonaError {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        serializer.serialize_str(&self.to_string())
-    }
-}
-
-// ============================================================================
-// 素材错误
-// ============================================================================
-
-/// 素材操作错误
-///
-/// 涵盖素材上传、存储、删除等操作中可能出现的所有错误情况。
-#[derive(Error, Debug)]
-pub enum MaterialError {
-    /// 素材不存在
-    #[error("素材不存在: {0}")]
-    NotFound(String),
-
-    /// 项目不存在
-    #[error("项目不存在: {0}")]
-    ProjectNotFound(String),
-
-    /// 不支持的文件类型
-    #[error("不支持的文件类型: {0}")]
-    UnsupportedFileType(String),
-
-    /// 文件过大
-    #[error("文件过大: {0} bytes (最大 {1} bytes)")]
-    FileTooLarge(u64, u64),
-
-    /// 文件读取失败
-    #[error("文件读取失败: {0}")]
-    FileReadError(String),
-
-    /// 数据库错误
-    #[error("数据库错误: {0}")]
-    DatabaseError(#[from] rusqlite::Error),
-
-    /// IO 错误
-    #[error("IO 错误: {0}")]
-    IoError(#[from] std::io::Error),
-}
-
-impl From<MaterialError> for String {
-    fn from(err: MaterialError) -> Self {
-        err.to_string()
-    }
-}
-
-impl serde::Serialize for MaterialError {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -275,27 +221,6 @@ mod tests {
     }
 
     #[test]
-    fn test_material_error_display() {
-        let err = MaterialError::NotFound("mat-1".to_string());
-        assert_eq!(err.to_string(), "素材不存在: mat-1");
-
-        let err = MaterialError::ProjectNotFound("project-1".to_string());
-        assert_eq!(err.to_string(), "项目不存在: project-1");
-
-        let err = MaterialError::UnsupportedFileType(".exe".to_string());
-        assert_eq!(err.to_string(), "不支持的文件类型: .exe");
-
-        let err = MaterialError::FileTooLarge(10_000_000, 5_000_000);
-        assert_eq!(
-            err.to_string(),
-            "文件过大: 10000000 bytes (最大 5000000 bytes)"
-        );
-
-        let err = MaterialError::FileReadError("权限不足".to_string());
-        assert_eq!(err.to_string(), "文件读取失败: 权限不足");
-    }
-
-    #[test]
     fn test_migration_error_display() {
         let err = MigrationError::MigrationFailed("表不存在".to_string());
         assert_eq!(err.to_string(), "迁移失败: 表不存在");
@@ -313,13 +238,6 @@ mod tests {
         let err = PersonaError::NotFound("test".to_string());
         let s: String = err.into();
         assert_eq!(s, "人设不存在: test");
-    }
-
-    #[test]
-    fn test_material_error_to_string() {
-        let err = MaterialError::NotFound("test".to_string());
-        let s: String = err.into();
-        assert_eq!(s, "素材不存在: test");
     }
 
     #[test]
@@ -341,13 +259,6 @@ mod tests {
         let err = PersonaError::NotFound("test".to_string());
         let json = serde_json::to_string(&err).unwrap();
         assert_eq!(json, "\"人设不存在: test\"");
-    }
-
-    #[test]
-    fn test_material_error_serialize() {
-        let err = MaterialError::FileTooLarge(100, 50);
-        let json = serde_json::to_string(&err).unwrap();
-        assert_eq!(json, "\"文件过大: 100 bytes (最大 50 bytes)\"");
     }
 
     #[test]

@@ -1,13 +1,17 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
-    "materialId": {
+    "name": {
+      "type": "string"
+    },
+    "value": {
       "type": "string"
     }
   },
   "required": [
-    "materialId"
+    "name",
+    "value"
   ],
-  "title": "GalleryMaterialLookupParams",
+  "title": "RequestHeader",
   "type": "object"
 }

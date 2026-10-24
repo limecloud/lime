@@ -1,5 +1,162 @@
 {
   "$defs": {
+    "AllowDenyRequirement": {
+      "enum": [
+        "allow",
+        "deny"
+      ],
+      "type": "string"
+    },
+    "BrowserUseAccessApprovalLifetime": {
+      "enum": [
+        "thread",
+        "turn"
+      ],
+      "type": "string"
+    },
+    "BrowserUseExtensionRequirements": {
+      "properties": {
+        "requestHeaders": {
+          "items": {
+            "$ref": "#/$defs/RequestHeader"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "BrowserUseOriginPolicy": {
+      "properties": {
+        "access": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AllowDenyRequirement"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "accessApprovalLifetime": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BrowserUseAccessApprovalLifetime"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "autoReview": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AllowDenyRequirement"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "downloads": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AllowDenyRequirement"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "fullCdpAccess": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AllowDenyRequirement"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "persistentApproval": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "uploads": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AllowDenyRequirement"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "BrowserUseRequirements": {
+      "properties": {
+        "allowGlobalPersistentApproval": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "allowHistoryAccess": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "allowWebmcp": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "defaultOriginPolicy": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BrowserUseOriginPolicy"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "disableAutoReview": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "extension": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BrowserUseExtensionRequirements"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "origins": {
+          "additionalProperties": {
+            "$ref": "#/$defs/BrowserUseOriginPolicy"
+          },
+          "type": [
+            "null",
+            "object"
+          ]
+        }
+      },
+      "type": "object"
+    },
     "InAppBrowserRequirements": {
       "properties": {
         "allowExternalBrowserSettingsImport": {
@@ -10,11 +167,32 @@
         }
       },
       "type": "object"
+    },
+    "RequestHeader": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "value"
+      ],
+      "type": "object"
     }
   },
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Read-only constraints from the administrator policy source.",
   "properties": {
+    "allowBrowserAndComputerUse": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
     "allowedApprovalPolicies": {
       "items": {
         "type": "string"
@@ -40,6 +218,16 @@
       "type": [
         "array",
         "null"
+      ]
+    },
+    "browserUse": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/BrowserUseRequirements"
+        },
+        {
+          "type": "null"
+        }
       ]
     },
     "inAppBrowser": {

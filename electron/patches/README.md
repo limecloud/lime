@@ -2,6 +2,17 @@
 
 状态：候选，未编译、未进入产品运行时。当前产品仍使用 stock Electron，原生范围清理、密码、Autofill、扩展和导入均不能据此标记完成。
 
+原生构建的只读预检入口：
+
+```bash
+node "scripts/electron/browser-engine-preflight.mjs" --target "darwin-arm64"
+node "scripts/electron/browser-engine-preflight.mjs" --target "win32-x64"
+```
+
+默认完整源码位置为原仓库内 `.lime/browser-engine/src/{electron,...}`；可用 `--checkout` 指定仓库内的其它位置，拒绝外部目录和符号链接逃逸。脚本不下载、不安装、不更改系统设置或源码；退出 2 表示构建条件未满足。输出包括实际工具探测、源码 revision、补丁完整性、保守的 200 GiB 新 checkout/构建空间预算及结构化 GN/Ninja 构建计划。空间预算是本工程预留值，不冒充上游 macOS/Windows 官方最低要求。
+
+macOS 必须有完整 Xcode；Windows 必须在具备 MSVC/SDK 的原生构建环境执行。源码/环境预检成功只允许继续编译，不证明任何浏览器服务完成。当前构建计划只覆盖现有清理补丁；密码、联系人 Autofill、Profile 导入与完整扩展仍需在同一 BrowserContext 接入组件并通过原生回归。Forge 在获得并验证实际自定义引擎分发包前继续使用 stock Electron，不能拿现有 Windows workflow 的 main 构建代替本地未提交候选。
+
 `clear-data-since.patch` 固定针对 Electron commit `22bbbc9f265d4b6f138f6dc7451891241037a780`（v42.3.3），对应 Chromium commit `e1d853ded38ac7d1c5a4c83f3e30dfbf76b10c34`。补丁只扩展原 Session/BrowsingDataRemover 调用链，不引入第二 Profile 或数据服务。
 
 新增原生方法：`session.clearDataSince(since, options)`。`since` 是非负、有限、整数的 Unix 毫秒；`options.dataTypes` 必须显式提供已知类型的非空数组。缺失、畸形、未知类型或无法精确表示的时间在任何删除启动前同步抛出 TypeError。现有 `clearData()` 保持全时段合同。原生独立方法使 stock runtime 显式缺失该能力，不能靠向旧 `clearData()` 传递会被忽略的参数检测支持。

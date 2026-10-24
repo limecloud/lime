@@ -1,0 +1,33 @@
+{
+  "$defs": {
+    "RequestHeader": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "value"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "requestHeaders": {
+      "items": {
+        "$ref": "#/$defs/RequestHeader"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    }
+  },
+  "title": "BrowserUseExtensionRequirements",
+  "type": "object"
+}

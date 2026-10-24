@@ -56,6 +56,10 @@ import {
   prepareBrowserBrowseApproval,
 } from "./browser-runtime-electron-gate-b-browse.mjs";
 import {
+  createBrowserReceiptResponses,
+  runBrowserReceiptTurns,
+} from "./browser-runtime-electron-gate-b-thread.mjs";
+import {
   bindGuiWorkspaceAndModelPreferences,
   ensureDefaultWorkspace,
   initializeAppServer,
@@ -445,6 +449,7 @@ async function createBrowserProviderFixture({
   historyAccessScenario = false,
   annotationScenario = false,
   approvalScenario = false,
+  browseApprovalScenario = false,
   connectionDiagnostics = false,
   userControlScenario = false,
   artifactScenario = false,
@@ -480,6 +485,7 @@ async function createBrowserProviderFixture({
       releaseUserNavigation?.();
       releaseFinalResponse?.();
       scenario.annotation?.releaseAll();
+      scenario.receiptTurns?.forEach((turn) => turn.release());
     },
   };
   const scriptedResponses = historyAccessScenario
@@ -501,6 +507,14 @@ async function createBrowserProviderFixture({
               userNavigationCompleted,
               finalResponseAllowed,
             );
+  if (browseApprovalScenario)
+    scriptedResponses.push(
+      ...createBrowserReceiptResponses(scenario, {
+        extractBrowserState,
+        extractBrowserObservation,
+        toolResultFromRequest,
+      }),
+    );
   const server = await startOpenAiCompatibleFixtureServer({
     model: MODEL_NAME,
     apiKey: PROVIDER_API_KEY,
@@ -1463,6 +1477,7 @@ export async function run(options) {
   const providerFixture = await createBrowserProviderFixture({
     historyAccessScenario: options.scenario === "history-access",
     annotationScenario,
+    browseApprovalScenario: options.scenario === "browse-approval",
     approvalScenario: ["approval", "browse-approval", "user-control"].includes(
       options.scenario,
     ),
@@ -1996,6 +2011,25 @@ export async function run(options) {
           approvalEvidence,
           browseApproval,
         );
+      if (browseApproval && approvalEvidence.failedAssertions.length === 0)
+        approvalEvidence = await runBrowserReceiptTurns({
+          app,
+          page,
+          options,
+          sessionOptions,
+          identity,
+          providerFixture,
+          requestLog,
+          evidence: approvalEvidence,
+          consoleErrors,
+          pageErrors,
+          readBrowserWorkspaceState,
+          readBrowserDebuggerState,
+          waitForBrowserWorkspaceState,
+          waitForScenarioValue,
+          waitForTerminalThread,
+          logStage,
+        });
       fs.writeFileSync(
         options.output,
         `${JSON.stringify(approvalEvidence, null, 2)}\n`,

@@ -6353,310 +6353,6 @@
               "$ref": "#/$defs/RequestId"
             },
             "method": {
-              "const": "galleryMaterial/get",
-              "type": "string"
-            },
-            "params": {
-              "default": null
-            }
-          },
-          "required": [
-            "id",
-            "method"
-          ],
-          "type": "object"
-        },
-        {
-          "properties": {
-            "id": {
-              "$ref": "#/$defs/RequestId"
-            },
-            "method": {
-              "const": "galleryMaterialMetadata/create",
-              "type": "string"
-            },
-            "params": {
-              "default": null
-            }
-          },
-          "required": [
-            "id",
-            "method"
-          ],
-          "type": "object"
-        },
-        {
-          "properties": {
-            "id": {
-              "$ref": "#/$defs/RequestId"
-            },
-            "method": {
-              "const": "galleryMaterialMetadata/get",
-              "type": "string"
-            },
-            "params": {
-              "default": null
-            }
-          },
-          "required": [
-            "id",
-            "method"
-          ],
-          "type": "object"
-        },
-        {
-          "properties": {
-            "id": {
-              "$ref": "#/$defs/RequestId"
-            },
-            "method": {
-              "const": "galleryMaterialMetadata/update",
-              "type": "string"
-            },
-            "params": {
-              "default": null
-            }
-          },
-          "required": [
-            "id",
-            "method"
-          ],
-          "type": "object"
-        },
-        {
-          "properties": {
-            "id": {
-              "$ref": "#/$defs/RequestId"
-            },
-            "method": {
-              "const": "galleryMaterialMetadata/delete",
-              "type": "string"
-            },
-            "params": {
-              "default": null
-            }
-          },
-          "required": [
-            "id",
-            "method"
-          ],
-          "type": "object"
-        },
-        {
-          "properties": {
-            "id": {
-              "$ref": "#/$defs/RequestId"
-            },
-            "method": {
-              "const": "galleryMaterial/listByImageCategory",
-              "type": "string"
-            },
-            "params": {
-              "default": null
-            }
-          },
-          "required": [
-            "id",
-            "method"
-          ],
-          "type": "object"
-        },
-        {
-          "properties": {
-            "id": {
-              "$ref": "#/$defs/RequestId"
-            },
-            "method": {
-              "const": "galleryMaterial/listByLayoutCategory",
-              "type": "string"
-            },
-            "params": {
-              "default": null
-            }
-          },
-          "required": [
-            "id",
-            "method"
-          ],
-          "type": "object"
-        },
-        {
-          "properties": {
-            "id": {
-              "$ref": "#/$defs/RequestId"
-            },
-            "method": {
-              "const": "galleryMaterial/listByMood",
-              "type": "string"
-            },
-            "params": {
-              "default": null
-            }
-          },
-          "required": [
-            "id",
-            "method"
-          ],
-          "type": "object"
-        },
-        {
-          "properties": {
-            "id": {
-              "$ref": "#/$defs/RequestId"
-            },
-            "method": {
-              "const": "projectMaterial/list",
-              "type": "string"
-            },
-            "params": {
-              "default": null
-            }
-          },
-          "required": [
-            "id",
-            "method"
-          ],
-          "type": "object"
-        },
-        {
-          "properties": {
-            "id": {
-              "$ref": "#/$defs/RequestId"
-            },
-            "method": {
-              "const": "projectMaterial/get",
-              "type": "string"
-            },
-            "params": {
-              "default": null
-            }
-          },
-          "required": [
-            "id",
-            "method"
-          ],
-          "type": "object"
-        },
-        {
-          "properties": {
-            "id": {
-              "$ref": "#/$defs/RequestId"
-            },
-            "method": {
-              "const": "projectMaterial/count",
-              "type": "string"
-            },
-            "params": {
-              "default": null
-            }
-          },
-          "required": [
-            "id",
-            "method"
-          ],
-          "type": "object"
-        },
-        {
-          "properties": {
-            "id": {
-              "$ref": "#/$defs/RequestId"
-            },
-            "method": {
-              "const": "projectMaterial/upload",
-              "type": "string"
-            },
-            "params": {
-              "default": null
-            }
-          },
-          "required": [
-            "id",
-            "method"
-          ],
-          "type": "object"
-        },
-        {
-          "properties": {
-            "id": {
-              "$ref": "#/$defs/RequestId"
-            },
-            "method": {
-              "const": "projectMaterial/importFromUrl",
-              "type": "string"
-            },
-            "params": {
-              "default": null
-            }
-          },
-          "required": [
-            "id",
-            "method"
-          ],
-          "type": "object"
-        },
-        {
-          "properties": {
-            "id": {
-              "$ref": "#/$defs/RequestId"
-            },
-            "method": {
-              "const": "projectMaterial/update",
-              "type": "string"
-            },
-            "params": {
-              "default": null
-            }
-          },
-          "required": [
-            "id",
-            "method"
-          ],
-          "type": "object"
-        },
-        {
-          "properties": {
-            "id": {
-              "$ref": "#/$defs/RequestId"
-            },
-            "method": {
-              "const": "projectMaterial/delete",
-              "type": "string"
-            },
-            "params": {
-              "default": null
-            }
-          },
-          "required": [
-            "id",
-            "method"
-          ],
-          "type": "object"
-        },
-        {
-          "properties": {
-            "id": {
-              "$ref": "#/$defs/RequestId"
-            },
-            "method": {
-              "const": "projectMaterial/content",
-              "type": "string"
-            },
-            "params": {
-              "default": null
-            }
-          },
-          "required": [
-            "id",
-            "method"
-          ],
-          "type": "object"
-        },
-        {
-          "properties": {
-            "id": {
-              "$ref": "#/$defs/RequestId"
-            },
-            "method": {
               "const": "voiceAsrCredential/list",
               "type": "string"
             },
@@ -8900,14 +8596,6 @@
         "dictationHistory/start",
         "discordChannel/probe",
         "feishuChannel/probe",
-        "galleryMaterial/get",
-        "galleryMaterial/listByImageCategory",
-        "galleryMaterial/listByLayoutCategory",
-        "galleryMaterial/listByMood",
-        "galleryMaterialMetadata/create",
-        "galleryMaterialMetadata/delete",
-        "galleryMaterialMetadata/get",
-        "galleryMaterialMetadata/update",
         "gatewayChannel/start",
         "gatewayChannel/status",
         "gatewayChannel/stop",
@@ -8994,14 +8682,6 @@
         "projectGit/worktree/create",
         "projectGit/worktree/delete",
         "projectGit/worktree/list",
-        "projectMaterial/content",
-        "projectMaterial/count",
-        "projectMaterial/delete",
-        "projectMaterial/get",
-        "projectMaterial/importFromUrl",
-        "projectMaterial/list",
-        "projectMaterial/update",
-        "projectMaterial/upload",
         "projectMemory/read",
         "scheduledTask/create",
         "scheduledTask/delete",
@@ -10718,6 +10398,15 @@
       "title": "AutomationTaskWeekday",
       "type": "string"
     },
+    "BrowserUseAccessApprovalLifetime": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "enum": [
+        "thread",
+        "turn"
+      ],
+      "title": "BrowserUseAccessApprovalLifetime",
+      "type": "string"
+    },
     "BrowserUseConfig": {
       "$defs": {
         "AllowDenyRequirement": {
@@ -10804,6 +10493,128 @@
       "title": "BrowserUseConfig",
       "type": "object"
     },
+    "BrowserUseExtensionRequirements": {
+      "$defs": {
+        "RequestHeader": {
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "value": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "value"
+          ],
+          "type": "object"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "requestHeaders": {
+          "items": {
+            "$ref": "#/$defs/RequestHeader"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "title": "BrowserUseExtensionRequirements",
+      "type": "object"
+    },
+    "BrowserUseOriginPolicy": {
+      "$defs": {
+        "AllowDenyRequirement": {
+          "enum": [
+            "allow",
+            "deny"
+          ],
+          "type": "string"
+        },
+        "BrowserUseAccessApprovalLifetime": {
+          "enum": [
+            "thread",
+            "turn"
+          ],
+          "type": "string"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "access": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AllowDenyRequirement"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "accessApprovalLifetime": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BrowserUseAccessApprovalLifetime"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "autoReview": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AllowDenyRequirement"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "downloads": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AllowDenyRequirement"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "fullCdpAccess": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AllowDenyRequirement"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "persistentApproval": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "uploads": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AllowDenyRequirement"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "title": "BrowserUseOriginPolicy",
+      "type": "object"
+    },
     "BrowserUseOriginPolicyConfig": {
       "$defs": {
         "AllowDenyRequirement": {
@@ -10858,6 +10669,182 @@
         }
       },
       "title": "BrowserUseOriginPolicyConfig",
+      "type": "object"
+    },
+    "BrowserUseRequirements": {
+      "$defs": {
+        "AllowDenyRequirement": {
+          "enum": [
+            "allow",
+            "deny"
+          ],
+          "type": "string"
+        },
+        "BrowserUseAccessApprovalLifetime": {
+          "enum": [
+            "thread",
+            "turn"
+          ],
+          "type": "string"
+        },
+        "BrowserUseExtensionRequirements": {
+          "properties": {
+            "requestHeaders": {
+              "items": {
+                "$ref": "#/$defs/RequestHeader"
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            }
+          },
+          "type": "object"
+        },
+        "BrowserUseOriginPolicy": {
+          "properties": {
+            "access": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/AllowDenyRequirement"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "accessApprovalLifetime": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/BrowserUseAccessApprovalLifetime"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "autoReview": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/AllowDenyRequirement"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "downloads": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/AllowDenyRequirement"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "fullCdpAccess": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/AllowDenyRequirement"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "persistentApproval": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "uploads": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/AllowDenyRequirement"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "type": "object"
+        },
+        "RequestHeader": {
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "value": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "value"
+          ],
+          "type": "object"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "allowGlobalPersistentApproval": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "allowHistoryAccess": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "allowWebmcp": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "defaultOriginPolicy": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BrowserUseOriginPolicy"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "disableAutoReview": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "extension": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BrowserUseExtensionRequirements"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "origins": {
+          "additionalProperties": {
+            "$ref": "#/$defs/BrowserUseOriginPolicy"
+          },
+          "type": [
+            "null",
+            "object"
+          ]
+        }
+      },
+      "title": "BrowserUseRequirements",
       "type": "object"
     },
     "BusinessObjectRef": {
@@ -20021,6 +20008,163 @@
     },
     "ConfigRequirements": {
       "$defs": {
+        "AllowDenyRequirement": {
+          "enum": [
+            "allow",
+            "deny"
+          ],
+          "type": "string"
+        },
+        "BrowserUseAccessApprovalLifetime": {
+          "enum": [
+            "thread",
+            "turn"
+          ],
+          "type": "string"
+        },
+        "BrowserUseExtensionRequirements": {
+          "properties": {
+            "requestHeaders": {
+              "items": {
+                "$ref": "#/$defs/RequestHeader"
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            }
+          },
+          "type": "object"
+        },
+        "BrowserUseOriginPolicy": {
+          "properties": {
+            "access": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/AllowDenyRequirement"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "accessApprovalLifetime": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/BrowserUseAccessApprovalLifetime"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "autoReview": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/AllowDenyRequirement"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "downloads": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/AllowDenyRequirement"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "fullCdpAccess": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/AllowDenyRequirement"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "persistentApproval": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "uploads": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/AllowDenyRequirement"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "type": "object"
+        },
+        "BrowserUseRequirements": {
+          "properties": {
+            "allowGlobalPersistentApproval": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "allowHistoryAccess": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "allowWebmcp": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "defaultOriginPolicy": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/BrowserUseOriginPolicy"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "disableAutoReview": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "extension": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/BrowserUseExtensionRequirements"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "origins": {
+              "additionalProperties": {
+                "$ref": "#/$defs/BrowserUseOriginPolicy"
+              },
+              "type": [
+                "null",
+                "object"
+              ]
+            }
+          },
+          "type": "object"
+        },
         "InAppBrowserRequirements": {
           "properties": {
             "allowExternalBrowserSettingsImport": {
@@ -20031,11 +20175,32 @@
             }
           },
           "type": "object"
+        },
+        "RequestHeader": {
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "value": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "value"
+          ],
+          "type": "object"
         }
       },
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "description": "Read-only constraints from the administrator policy source.",
       "properties": {
+        "allowBrowserAndComputerUse": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
         "allowedApprovalPolicies": {
           "items": {
             "type": "string"
@@ -20063,6 +20228,16 @@
             "null"
           ]
         },
+        "browserUse": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BrowserUseRequirements"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "inAppBrowser": {
           "anyOf": [
             {
@@ -20085,9 +20260,172 @@
     },
     "ConfigRequirementsReadResponse": {
       "$defs": {
+        "AllowDenyRequirement": {
+          "enum": [
+            "allow",
+            "deny"
+          ],
+          "type": "string"
+        },
+        "BrowserUseAccessApprovalLifetime": {
+          "enum": [
+            "thread",
+            "turn"
+          ],
+          "type": "string"
+        },
+        "BrowserUseExtensionRequirements": {
+          "properties": {
+            "requestHeaders": {
+              "items": {
+                "$ref": "#/$defs/RequestHeader"
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            }
+          },
+          "type": "object"
+        },
+        "BrowserUseOriginPolicy": {
+          "properties": {
+            "access": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/AllowDenyRequirement"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "accessApprovalLifetime": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/BrowserUseAccessApprovalLifetime"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "autoReview": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/AllowDenyRequirement"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "downloads": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/AllowDenyRequirement"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "fullCdpAccess": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/AllowDenyRequirement"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "persistentApproval": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "uploads": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/AllowDenyRequirement"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "type": "object"
+        },
+        "BrowserUseRequirements": {
+          "properties": {
+            "allowGlobalPersistentApproval": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "allowHistoryAccess": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "allowWebmcp": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "defaultOriginPolicy": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/BrowserUseOriginPolicy"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "disableAutoReview": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "extension": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/BrowserUseExtensionRequirements"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "origins": {
+              "additionalProperties": {
+                "$ref": "#/$defs/BrowserUseOriginPolicy"
+              },
+              "type": [
+                "null",
+                "object"
+              ]
+            }
+          },
+          "type": "object"
+        },
         "ConfigRequirements": {
           "description": "Read-only constraints from the administrator policy source.",
           "properties": {
+            "allowBrowserAndComputerUse": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
             "allowedApprovalPolicies": {
               "items": {
                 "type": "string"
@@ -20115,6 +20453,16 @@
                 "null"
               ]
             },
+            "browserUse": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/BrowserUseRequirements"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
             "inAppBrowser": {
               "anyOf": [
                 {
@@ -20137,6 +20485,21 @@
               ]
             }
           },
+          "type": "object"
+        },
+        "RequestHeader": {
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "value": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "value"
+          ],
           "type": "object"
         }
       },
@@ -24672,1065 +25035,6 @@
         "score"
       ],
       "title": "FuzzyFileSearchResult",
-      "type": "object"
-    },
-    "GalleryMaterial": {
-      "$defs": {
-        "GalleryMaterialMetadata": {
-          "properties": {
-            "colorSchemeJson": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "colors": {
-              "default": [],
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            },
-            "createdAt": {
-              "format": "int64",
-              "type": "integer"
-            },
-            "elementCount": {
-              "format": "int32",
-              "type": [
-                "integer",
-                "null"
-              ]
-            },
-            "fabricJson": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "height": {
-              "format": "int32",
-              "type": [
-                "integer",
-                "null"
-              ]
-            },
-            "iconCategory": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "iconStyle": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "imageCategory": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "layoutCategory": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "materialId": {
-              "type": "string"
-            },
-            "mood": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "preview": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "thumbnail": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "updatedAt": {
-              "format": "int64",
-              "type": "integer"
-            },
-            "width": {
-              "format": "int32",
-              "type": [
-                "integer",
-                "null"
-              ]
-            }
-          },
-          "required": [
-            "createdAt",
-            "materialId",
-            "updatedAt"
-          ],
-          "type": "object"
-        }
-      },
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "content": {
-          "type": [
-            "null",
-            "string"
-          ]
-        },
-        "createdAt": {
-          "format": "int64",
-          "type": "integer"
-        },
-        "description": {
-          "type": [
-            "null",
-            "string"
-          ]
-        },
-        "filePath": {
-          "type": [
-            "null",
-            "string"
-          ]
-        },
-        "fileSize": {
-          "format": "int64",
-          "type": [
-            "integer",
-            "null"
-          ]
-        },
-        "id": {
-          "type": "string"
-        },
-        "metadata": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/GalleryMaterialMetadata"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "mimeType": {
-          "type": [
-            "null",
-            "string"
-          ]
-        },
-        "name": {
-          "type": "string"
-        },
-        "projectId": {
-          "type": "string"
-        },
-        "tags": {
-          "default": [],
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "type": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "createdAt",
-        "id",
-        "name",
-        "projectId",
-        "type"
-      ],
-      "title": "GalleryMaterial",
-      "type": "object"
-    },
-    "GalleryMaterialDeleteResponse": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "title": "GalleryMaterialDeleteResponse",
-      "type": "object"
-    },
-    "GalleryMaterialFilterParams": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "category": {
-          "type": [
-            "null",
-            "string"
-          ]
-        },
-        "mood": {
-          "type": [
-            "null",
-            "string"
-          ]
-        },
-        "projectId": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "projectId"
-      ],
-      "title": "GalleryMaterialFilterParams",
-      "type": "object"
-    },
-    "GalleryMaterialListResponse": {
-      "$defs": {
-        "GalleryMaterial": {
-          "properties": {
-            "content": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "createdAt": {
-              "format": "int64",
-              "type": "integer"
-            },
-            "description": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "filePath": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "fileSize": {
-              "format": "int64",
-              "type": [
-                "integer",
-                "null"
-              ]
-            },
-            "id": {
-              "type": "string"
-            },
-            "metadata": {
-              "anyOf": [
-                {
-                  "$ref": "#/$defs/GalleryMaterialMetadata"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "mimeType": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "name": {
-              "type": "string"
-            },
-            "projectId": {
-              "type": "string"
-            },
-            "tags": {
-              "default": [],
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            },
-            "type": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "createdAt",
-            "id",
-            "name",
-            "projectId",
-            "type"
-          ],
-          "type": "object"
-        },
-        "GalleryMaterialMetadata": {
-          "properties": {
-            "colorSchemeJson": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "colors": {
-              "default": [],
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            },
-            "createdAt": {
-              "format": "int64",
-              "type": "integer"
-            },
-            "elementCount": {
-              "format": "int32",
-              "type": [
-                "integer",
-                "null"
-              ]
-            },
-            "fabricJson": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "height": {
-              "format": "int32",
-              "type": [
-                "integer",
-                "null"
-              ]
-            },
-            "iconCategory": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "iconStyle": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "imageCategory": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "layoutCategory": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "materialId": {
-              "type": "string"
-            },
-            "mood": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "preview": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "thumbnail": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "updatedAt": {
-              "format": "int64",
-              "type": "integer"
-            },
-            "width": {
-              "format": "int32",
-              "type": [
-                "integer",
-                "null"
-              ]
-            }
-          },
-          "required": [
-            "createdAt",
-            "materialId",
-            "updatedAt"
-          ],
-          "type": "object"
-        }
-      },
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "materials": {
-          "default": [],
-          "items": {
-            "$ref": "#/$defs/GalleryMaterial"
-          },
-          "type": "array"
-        }
-      },
-      "title": "GalleryMaterialListResponse",
-      "type": "object"
-    },
-    "GalleryMaterialLookupParams": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "materialId": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "materialId"
-      ],
-      "title": "GalleryMaterialLookupParams",
-      "type": "object"
-    },
-    "GalleryMaterialMetadata": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "colorSchemeJson": {
-          "type": [
-            "null",
-            "string"
-          ]
-        },
-        "colors": {
-          "default": [],
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "createdAt": {
-          "format": "int64",
-          "type": "integer"
-        },
-        "elementCount": {
-          "format": "int32",
-          "type": [
-            "integer",
-            "null"
-          ]
-        },
-        "fabricJson": {
-          "type": [
-            "null",
-            "string"
-          ]
-        },
-        "height": {
-          "format": "int32",
-          "type": [
-            "integer",
-            "null"
-          ]
-        },
-        "iconCategory": {
-          "type": [
-            "null",
-            "string"
-          ]
-        },
-        "iconStyle": {
-          "type": [
-            "null",
-            "string"
-          ]
-        },
-        "imageCategory": {
-          "type": [
-            "null",
-            "string"
-          ]
-        },
-        "layoutCategory": {
-          "type": [
-            "null",
-            "string"
-          ]
-        },
-        "materialId": {
-          "type": "string"
-        },
-        "mood": {
-          "type": [
-            "null",
-            "string"
-          ]
-        },
-        "preview": {
-          "type": [
-            "null",
-            "string"
-          ]
-        },
-        "thumbnail": {
-          "type": [
-            "null",
-            "string"
-          ]
-        },
-        "updatedAt": {
-          "format": "int64",
-          "type": "integer"
-        },
-        "width": {
-          "format": "int32",
-          "type": [
-            "integer",
-            "null"
-          ]
-        }
-      },
-      "required": [
-        "createdAt",
-        "materialId",
-        "updatedAt"
-      ],
-      "title": "GalleryMaterialMetadata",
-      "type": "object"
-    },
-    "GalleryMaterialMetadataCreateParams": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "colorSchemeJson": {
-          "type": [
-            "null",
-            "string"
-          ]
-        },
-        "colors": {
-          "items": {
-            "type": "string"
-          },
-          "type": [
-            "array",
-            "null"
-          ]
-        },
-        "elementCount": {
-          "format": "int32",
-          "type": [
-            "integer",
-            "null"
-          ]
-        },
-        "fabricJson": {
-          "type": [
-            "null",
-            "string"
-          ]
-        },
-        "height": {
-          "format": "int32",
-          "type": [
-            "integer",
-            "null"
-          ]
-        },
-        "iconCategory": {
-          "type": [
-            "null",
-            "string"
-          ]
-        },
-        "iconStyle": {
-          "type": [
-            "null",
-            "string"
-          ]
-        },
-        "imageCategory": {
-          "type": [
-            "null",
-            "string"
-          ]
-        },
-        "layoutCategory": {
-          "type": [
-            "null",
-            "string"
-          ]
-        },
-        "materialId": {
-          "type": "string"
-        },
-        "mood": {
-          "type": [
-            "null",
-            "string"
-          ]
-        },
-        "preview": {
-          "type": [
-            "null",
-            "string"
-          ]
-        },
-        "thumbnail": {
-          "type": [
-            "null",
-            "string"
-          ]
-        },
-        "width": {
-          "format": "int32",
-          "type": [
-            "integer",
-            "null"
-          ]
-        }
-      },
-      "required": [
-        "materialId"
-      ],
-      "title": "GalleryMaterialMetadataCreateParams",
-      "type": "object"
-    },
-    "GalleryMaterialMetadataResponse": {
-      "$defs": {
-        "GalleryMaterialMetadata": {
-          "properties": {
-            "colorSchemeJson": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "colors": {
-              "default": [],
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            },
-            "createdAt": {
-              "format": "int64",
-              "type": "integer"
-            },
-            "elementCount": {
-              "format": "int32",
-              "type": [
-                "integer",
-                "null"
-              ]
-            },
-            "fabricJson": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "height": {
-              "format": "int32",
-              "type": [
-                "integer",
-                "null"
-              ]
-            },
-            "iconCategory": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "iconStyle": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "imageCategory": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "layoutCategory": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "materialId": {
-              "type": "string"
-            },
-            "mood": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "preview": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "thumbnail": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "updatedAt": {
-              "format": "int64",
-              "type": "integer"
-            },
-            "width": {
-              "format": "int32",
-              "type": [
-                "integer",
-                "null"
-              ]
-            }
-          },
-          "required": [
-            "createdAt",
-            "materialId",
-            "updatedAt"
-          ],
-          "type": "object"
-        }
-      },
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "metadata": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/GalleryMaterialMetadata"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
-        }
-      },
-      "title": "GalleryMaterialMetadataResponse",
-      "type": "object"
-    },
-    "GalleryMaterialMetadataUpdateParams": {
-      "$defs": {
-        "GalleryMaterialMetadataCreateParams": {
-          "properties": {
-            "colorSchemeJson": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "colors": {
-              "items": {
-                "type": "string"
-              },
-              "type": [
-                "array",
-                "null"
-              ]
-            },
-            "elementCount": {
-              "format": "int32",
-              "type": [
-                "integer",
-                "null"
-              ]
-            },
-            "fabricJson": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "height": {
-              "format": "int32",
-              "type": [
-                "integer",
-                "null"
-              ]
-            },
-            "iconCategory": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "iconStyle": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "imageCategory": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "layoutCategory": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "materialId": {
-              "type": "string"
-            },
-            "mood": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "preview": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "thumbnail": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "width": {
-              "format": "int32",
-              "type": [
-                "integer",
-                "null"
-              ]
-            }
-          },
-          "required": [
-            "materialId"
-          ],
-          "type": "object"
-        }
-      },
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "materialId": {
-          "type": "string"
-        },
-        "metadata": {
-          "$ref": "#/$defs/GalleryMaterialMetadataCreateParams"
-        }
-      },
-      "required": [
-        "materialId",
-        "metadata"
-      ],
-      "title": "GalleryMaterialMetadataUpdateParams",
-      "type": "object"
-    },
-    "GalleryMaterialResponse": {
-      "$defs": {
-        "GalleryMaterial": {
-          "properties": {
-            "content": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "createdAt": {
-              "format": "int64",
-              "type": "integer"
-            },
-            "description": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "filePath": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "fileSize": {
-              "format": "int64",
-              "type": [
-                "integer",
-                "null"
-              ]
-            },
-            "id": {
-              "type": "string"
-            },
-            "metadata": {
-              "anyOf": [
-                {
-                  "$ref": "#/$defs/GalleryMaterialMetadata"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "mimeType": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "name": {
-              "type": "string"
-            },
-            "projectId": {
-              "type": "string"
-            },
-            "tags": {
-              "default": [],
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            },
-            "type": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "createdAt",
-            "id",
-            "name",
-            "projectId",
-            "type"
-          ],
-          "type": "object"
-        },
-        "GalleryMaterialMetadata": {
-          "properties": {
-            "colorSchemeJson": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "colors": {
-              "default": [],
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            },
-            "createdAt": {
-              "format": "int64",
-              "type": "integer"
-            },
-            "elementCount": {
-              "format": "int32",
-              "type": [
-                "integer",
-                "null"
-              ]
-            },
-            "fabricJson": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "height": {
-              "format": "int32",
-              "type": [
-                "integer",
-                "null"
-              ]
-            },
-            "iconCategory": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "iconStyle": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "imageCategory": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "layoutCategory": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "materialId": {
-              "type": "string"
-            },
-            "mood": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "preview": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "thumbnail": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "updatedAt": {
-              "format": "int64",
-              "type": "integer"
-            },
-            "width": {
-              "format": "int32",
-              "type": [
-                "integer",
-                "null"
-              ]
-            }
-          },
-          "required": [
-            "createdAt",
-            "materialId",
-            "updatedAt"
-          ],
-          "type": "object"
-        }
-      },
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "material": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/GalleryMaterial"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
-        }
-      },
-      "title": "GalleryMaterialResponse",
       "type": "object"
     },
     "GatewayChannelStartParams": {
@@ -52509,527 +51813,6 @@
       "title": "ProjectListResponse",
       "type": "object"
     },
-    "ProjectMaterial": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "content": {
-          "type": [
-            "null",
-            "string"
-          ]
-        },
-        "createdAt": {
-          "format": "int64",
-          "type": "integer"
-        },
-        "description": {
-          "type": [
-            "null",
-            "string"
-          ]
-        },
-        "filePath": {
-          "type": [
-            "null",
-            "string"
-          ]
-        },
-        "fileSize": {
-          "format": "int64",
-          "type": [
-            "integer",
-            "null"
-          ]
-        },
-        "id": {
-          "type": "string"
-        },
-        "mimeType": {
-          "type": [
-            "null",
-            "string"
-          ]
-        },
-        "name": {
-          "type": "string"
-        },
-        "projectId": {
-          "type": "string"
-        },
-        "tags": {
-          "default": [],
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "type": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "createdAt",
-        "id",
-        "name",
-        "projectId",
-        "type"
-      ],
-      "title": "ProjectMaterial",
-      "type": "object"
-    },
-    "ProjectMaterialContentResponse": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "content": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "content"
-      ],
-      "title": "ProjectMaterialContentResponse",
-      "type": "object"
-    },
-    "ProjectMaterialCountResponse": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "count": {
-          "format": "int64",
-          "type": "integer"
-        }
-      },
-      "required": [
-        "count"
-      ],
-      "title": "ProjectMaterialCountResponse",
-      "type": "object"
-    },
-    "ProjectMaterialDeleteResponse": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "title": "ProjectMaterialDeleteResponse",
-      "type": "object"
-    },
-    "ProjectMaterialFilter": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "searchQuery": {
-          "type": [
-            "null",
-            "string"
-          ]
-        },
-        "tags": {
-          "items": {
-            "type": "string"
-          },
-          "type": [
-            "array",
-            "null"
-          ]
-        },
-        "type": {
-          "type": [
-            "null",
-            "string"
-          ]
-        }
-      },
-      "title": "ProjectMaterialFilter",
-      "type": "object"
-    },
-    "ProjectMaterialImportFromUrlParams": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "description": {
-          "type": [
-            "null",
-            "string"
-          ]
-        },
-        "name": {
-          "type": "string"
-        },
-        "projectId": {
-          "type": "string"
-        },
-        "tags": {
-          "items": {
-            "type": "string"
-          },
-          "type": [
-            "array",
-            "null"
-          ]
-        },
-        "type": {
-          "type": "string"
-        },
-        "url": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "name",
-        "projectId",
-        "type",
-        "url"
-      ],
-      "title": "ProjectMaterialImportFromUrlParams",
-      "type": "object"
-    },
-    "ProjectMaterialListParams": {
-      "$defs": {
-        "ProjectMaterialFilter": {
-          "properties": {
-            "searchQuery": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "tags": {
-              "items": {
-                "type": "string"
-              },
-              "type": [
-                "array",
-                "null"
-              ]
-            },
-            "type": {
-              "type": [
-                "null",
-                "string"
-              ]
-            }
-          },
-          "type": "object"
-        }
-      },
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "filter": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/ProjectMaterialFilter"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "projectId": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "projectId"
-      ],
-      "title": "ProjectMaterialListParams",
-      "type": "object"
-    },
-    "ProjectMaterialListResponse": {
-      "$defs": {
-        "ProjectMaterial": {
-          "properties": {
-            "content": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "createdAt": {
-              "format": "int64",
-              "type": "integer"
-            },
-            "description": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "filePath": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "fileSize": {
-              "format": "int64",
-              "type": [
-                "integer",
-                "null"
-              ]
-            },
-            "id": {
-              "type": "string"
-            },
-            "mimeType": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "name": {
-              "type": "string"
-            },
-            "projectId": {
-              "type": "string"
-            },
-            "tags": {
-              "default": [],
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            },
-            "type": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "createdAt",
-            "id",
-            "name",
-            "projectId",
-            "type"
-          ],
-          "type": "object"
-        }
-      },
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "materials": {
-          "default": [],
-          "items": {
-            "$ref": "#/$defs/ProjectMaterial"
-          },
-          "type": "array"
-        }
-      },
-      "title": "ProjectMaterialListResponse",
-      "type": "object"
-    },
-    "ProjectMaterialLookupParams": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "id": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "id"
-      ],
-      "title": "ProjectMaterialLookupParams",
-      "type": "object"
-    },
-    "ProjectMaterialResponse": {
-      "$defs": {
-        "ProjectMaterial": {
-          "properties": {
-            "content": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "createdAt": {
-              "format": "int64",
-              "type": "integer"
-            },
-            "description": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "filePath": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "fileSize": {
-              "format": "int64",
-              "type": [
-                "integer",
-                "null"
-              ]
-            },
-            "id": {
-              "type": "string"
-            },
-            "mimeType": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "name": {
-              "type": "string"
-            },
-            "projectId": {
-              "type": "string"
-            },
-            "tags": {
-              "default": [],
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            },
-            "type": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "createdAt",
-            "id",
-            "name",
-            "projectId",
-            "type"
-          ],
-          "type": "object"
-        }
-      },
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "material": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/ProjectMaterial"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
-        }
-      },
-      "title": "ProjectMaterialResponse",
-      "type": "object"
-    },
-    "ProjectMaterialUpdate": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "description": {
-          "type": [
-            "null",
-            "string"
-          ]
-        },
-        "name": {
-          "type": [
-            "null",
-            "string"
-          ]
-        },
-        "tags": {
-          "items": {
-            "type": "string"
-          },
-          "type": [
-            "array",
-            "null"
-          ]
-        }
-      },
-      "title": "ProjectMaterialUpdate",
-      "type": "object"
-    },
-    "ProjectMaterialUpdateParams": {
-      "$defs": {
-        "ProjectMaterialUpdate": {
-          "properties": {
-            "description": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "name": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "tags": {
-              "items": {
-                "type": "string"
-              },
-              "type": [
-                "array",
-                "null"
-              ]
-            }
-          },
-          "type": "object"
-        }
-      },
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "id": {
-          "type": "string"
-        },
-        "update": {
-          "$ref": "#/$defs/ProjectMaterialUpdate"
-        }
-      },
-      "required": [
-        "id",
-        "update"
-      ],
-      "title": "ProjectMaterialUpdateParams",
-      "type": "object"
-    },
-    "ProjectMaterialUploadParams": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "content": {
-          "type": [
-            "null",
-            "string"
-          ]
-        },
-        "description": {
-          "type": [
-            "null",
-            "string"
-          ]
-        },
-        "filePath": {
-          "type": [
-            "null",
-            "string"
-          ]
-        },
-        "name": {
-          "type": "string"
-        },
-        "projectId": {
-          "type": "string"
-        },
-        "tags": {
-          "items": {
-            "type": "string"
-          },
-          "type": [
-            "array",
-            "null"
-          ]
-        },
-        "type": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "name",
-        "projectId",
-        "type"
-      ],
-      "title": "ProjectMaterialUploadParams",
-      "type": "object"
-    },
     "ProjectMemoryReadParams": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
@@ -54199,6 +52982,23 @@
         "turnId"
       ],
       "title": "ReasoningTextDeltaNotification",
+      "type": "object"
+    },
+    "RequestHeader": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "value"
+      ],
+      "title": "RequestHeader",
       "type": "object"
     },
     "RequestId": {
@@ -120354,14 +119154,6 @@
               "fs/watch",
               "fs/writeFile",
               "fuzzyFileSearch",
-              "galleryMaterial/get",
-              "galleryMaterial/listByImageCategory",
-              "galleryMaterial/listByLayoutCategory",
-              "galleryMaterial/listByMood",
-              "galleryMaterialMetadata/create",
-              "galleryMaterialMetadata/delete",
-              "galleryMaterialMetadata/get",
-              "galleryMaterialMetadata/update",
               "gatewayChannel/start",
               "gatewayChannel/status",
               "gatewayChannel/stop",
@@ -120490,14 +119282,6 @@
               "projectGit/worktree/create",
               "projectGit/worktree/delete",
               "projectGit/worktree/list",
-              "projectMaterial/content",
-              "projectMaterial/count",
-              "projectMaterial/delete",
-              "projectMaterial/get",
-              "projectMaterial/importFromUrl",
-              "projectMaterial/list",
-              "projectMaterial/update",
-              "projectMaterial/upload",
               "projectMemory/read",
               "promptHistory/append",
               "promptHistory/read",

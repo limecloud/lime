@@ -95,21 +95,6 @@ export const METHOD_FS_UNWATCH = "fs/unwatch";
 export const METHOD_FS_WATCH = "fs/watch";
 export const METHOD_FS_WRITE_FILE = "fs/writeFile";
 export const METHOD_FUZZY_FILE_SEARCH = "fuzzyFileSearch";
-export const METHOD_GALLERY_MATERIAL_GET = "galleryMaterial/get";
-export const METHOD_GALLERY_MATERIAL_LIST_BY_IMAGE_CATEGORY =
-  "galleryMaterial/listByImageCategory";
-export const METHOD_GALLERY_MATERIAL_LIST_BY_LAYOUT_CATEGORY =
-  "galleryMaterial/listByLayoutCategory";
-export const METHOD_GALLERY_MATERIAL_LIST_BY_MOOD =
-  "galleryMaterial/listByMood";
-export const METHOD_GALLERY_MATERIAL_METADATA_CREATE =
-  "galleryMaterialMetadata/create";
-export const METHOD_GALLERY_MATERIAL_METADATA_DELETE =
-  "galleryMaterialMetadata/delete";
-export const METHOD_GALLERY_MATERIAL_METADATA_GET =
-  "galleryMaterialMetadata/get";
-export const METHOD_GALLERY_MATERIAL_METADATA_UPDATE =
-  "galleryMaterialMetadata/update";
 export const METHOD_GATEWAY_CHANNEL_START = "gatewayChannel/start";
 export const METHOD_GATEWAY_CHANNEL_STATUS = "gatewayChannel/status";
 export const METHOD_GATEWAY_CHANNEL_STOP = "gatewayChannel/stop";
@@ -305,15 +290,6 @@ export const METHOD_PROJECT_GIT_STATUS = "projectGit/status";
 export const METHOD_PROJECT_GIT_WORKTREE_CREATE = "projectGit/worktree/create";
 export const METHOD_PROJECT_GIT_WORKTREE_DELETE = "projectGit/worktree/delete";
 export const METHOD_PROJECT_GIT_WORKTREE_LIST = "projectGit/worktree/list";
-export const METHOD_PROJECT_MATERIAL_CONTENT = "projectMaterial/content";
-export const METHOD_PROJECT_MATERIAL_COUNT = "projectMaterial/count";
-export const METHOD_PROJECT_MATERIAL_DELETE = "projectMaterial/delete";
-export const METHOD_PROJECT_MATERIAL_GET = "projectMaterial/get";
-export const METHOD_PROJECT_MATERIAL_IMPORT_FROM_URL =
-  "projectMaterial/importFromUrl";
-export const METHOD_PROJECT_MATERIAL_LIST = "projectMaterial/list";
-export const METHOD_PROJECT_MATERIAL_UPDATE = "projectMaterial/update";
-export const METHOD_PROJECT_MATERIAL_UPLOAD = "projectMaterial/upload";
 export const METHOD_PROJECT_MEMORY_READ = "projectMemory/read";
 export const METHOD_PROMPT_HISTORY_APPEND = "promptHistory/append";
 export const METHOD_PROMPT_HISTORY_READ = "promptHistory/read";
@@ -809,38 +785,6 @@ export const GENERATED_APP_SERVER_METHODS = [
   {
     kind: "request",
     method: "fuzzyFileSearch",
-  },
-  {
-    kind: "request",
-    method: "galleryMaterial/get",
-  },
-  {
-    kind: "request",
-    method: "galleryMaterial/listByImageCategory",
-  },
-  {
-    kind: "request",
-    method: "galleryMaterial/listByLayoutCategory",
-  },
-  {
-    kind: "request",
-    method: "galleryMaterial/listByMood",
-  },
-  {
-    kind: "request",
-    method: "galleryMaterialMetadata/create",
-  },
-  {
-    kind: "request",
-    method: "galleryMaterialMetadata/delete",
-  },
-  {
-    kind: "request",
-    method: "galleryMaterialMetadata/get",
-  },
-  {
-    kind: "request",
-    method: "galleryMaterialMetadata/update",
   },
   {
     kind: "request",
@@ -1485,38 +1429,6 @@ export const GENERATED_APP_SERVER_METHODS = [
   {
     kind: "request",
     method: "projectGit/worktree/list",
-  },
-  {
-    kind: "request",
-    method: "projectMaterial/content",
-  },
-  {
-    kind: "request",
-    method: "projectMaterial/count",
-  },
-  {
-    kind: "request",
-    method: "projectMaterial/delete",
-  },
-  {
-    kind: "request",
-    method: "projectMaterial/get",
-  },
-  {
-    kind: "request",
-    method: "projectMaterial/importFromUrl",
-  },
-  {
-    kind: "request",
-    method: "projectMaterial/list",
-  },
-  {
-    kind: "request",
-    method: "projectMaterial/update",
-  },
-  {
-    kind: "request",
-    method: "projectMaterial/upload",
   },
   {
     kind: "request",
@@ -3381,86 +3293,6 @@ export type AppServerClientRequest =
     }
   | {
       id: number | string;
-      method: "galleryMaterial/get";
-      params?: unknown;
-    }
-  | {
-      id: number | string;
-      method: "galleryMaterialMetadata/create";
-      params?: unknown;
-    }
-  | {
-      id: number | string;
-      method: "galleryMaterialMetadata/get";
-      params?: unknown;
-    }
-  | {
-      id: number | string;
-      method: "galleryMaterialMetadata/update";
-      params?: unknown;
-    }
-  | {
-      id: number | string;
-      method: "galleryMaterialMetadata/delete";
-      params?: unknown;
-    }
-  | {
-      id: number | string;
-      method: "galleryMaterial/listByImageCategory";
-      params?: unknown;
-    }
-  | {
-      id: number | string;
-      method: "galleryMaterial/listByLayoutCategory";
-      params?: unknown;
-    }
-  | {
-      id: number | string;
-      method: "galleryMaterial/listByMood";
-      params?: unknown;
-    }
-  | {
-      id: number | string;
-      method: "projectMaterial/list";
-      params?: unknown;
-    }
-  | {
-      id: number | string;
-      method: "projectMaterial/get";
-      params?: unknown;
-    }
-  | {
-      id: number | string;
-      method: "projectMaterial/count";
-      params?: unknown;
-    }
-  | {
-      id: number | string;
-      method: "projectMaterial/upload";
-      params?: unknown;
-    }
-  | {
-      id: number | string;
-      method: "projectMaterial/importFromUrl";
-      params?: unknown;
-    }
-  | {
-      id: number | string;
-      method: "projectMaterial/update";
-      params?: unknown;
-    }
-  | {
-      id: number | string;
-      method: "projectMaterial/delete";
-      params?: unknown;
-    }
-  | {
-      id: number | string;
-      method: "projectMaterial/content";
-      params?: unknown;
-    }
-  | {
-      id: number | string;
       method: "voiceAsrCredential/list";
       params?: unknown;
     }
@@ -4073,14 +3905,6 @@ export type AppServerRequestMethod =
   | "dictationHistory/start"
   | "discordChannel/probe"
   | "feishuChannel/probe"
-  | "galleryMaterial/get"
-  | "galleryMaterial/listByImageCategory"
-  | "galleryMaterial/listByLayoutCategory"
-  | "galleryMaterial/listByMood"
-  | "galleryMaterialMetadata/create"
-  | "galleryMaterialMetadata/delete"
-  | "galleryMaterialMetadata/get"
-  | "galleryMaterialMetadata/update"
   | "gatewayChannel/start"
   | "gatewayChannel/status"
   | "gatewayChannel/stop"
@@ -4167,14 +3991,6 @@ export type AppServerRequestMethod =
   | "projectGit/worktree/create"
   | "projectGit/worktree/delete"
   | "projectGit/worktree/list"
-  | "projectMaterial/content"
-  | "projectMaterial/count"
-  | "projectMaterial/delete"
-  | "projectMaterial/get"
-  | "projectMaterial/importFromUrl"
-  | "projectMaterial/list"
-  | "projectMaterial/update"
-  | "projectMaterial/upload"
   | "projectMemory/read"
   | "scheduledTask/create"
   | "scheduledTask/delete"
@@ -4472,10 +4288,26 @@ export type AutomationTaskWeekday =
   | "TU"
   | "WE";
 
+export type BrowserUseAccessApprovalLifetime = "thread" | "turn";
+
 export interface BrowserUseConfig {
   allow_history_access?: boolean | null;
   default_origin_policy?: BrowserUseOriginPolicyConfig | null;
   origins?: null | Record<string, BrowserUseOriginPolicyConfig>;
+}
+
+export interface BrowserUseExtensionRequirements {
+  requestHeaders?: RequestHeader[] | null;
+}
+
+export interface BrowserUseOriginPolicy {
+  access?: AllowDenyRequirement | null;
+  accessApprovalLifetime?: BrowserUseAccessApprovalLifetime | null;
+  autoReview?: AllowDenyRequirement | null;
+  downloads?: AllowDenyRequirement | null;
+  fullCdpAccess?: AllowDenyRequirement | null;
+  persistentApproval?: boolean | null;
+  uploads?: AllowDenyRequirement | null;
 }
 
 export interface BrowserUseOriginPolicyConfig {
@@ -4483,6 +4315,16 @@ export interface BrowserUseOriginPolicyConfig {
   downloads?: AllowDenyRequirement | null;
   full_cdp_access?: AllowDenyRequirement | null;
   uploads?: AllowDenyRequirement | null;
+}
+
+export interface BrowserUseRequirements {
+  allowGlobalPersistentApproval?: boolean | null;
+  allowHistoryAccess?: boolean | null;
+  allowWebmcp?: boolean | null;
+  defaultOriginPolicy?: BrowserUseOriginPolicy | null;
+  disableAutoReview?: boolean | null;
+  extension?: BrowserUseExtensionRequirements | null;
+  origins?: null | Record<string, BrowserUseOriginPolicy>;
 }
 
 export interface BusinessObjectRef {
@@ -5512,9 +5354,11 @@ export interface ConfigReadResponse {
 }
 
 export interface ConfigRequirements {
+  allowBrowserAndComputerUse?: boolean | null;
   allowedApprovalPolicies?: string[] | null;
   allowedSandboxModes?: string[] | null;
   allowedWebSearchModes?: string[] | null;
+  browserUse?: BrowserUseRequirements | null;
   inAppBrowser?: InAppBrowserRequirements | null;
 }
 
@@ -6161,86 +6005,6 @@ export interface FuzzyFileSearchResult {
   path: string;
   root: string;
   score: number;
-}
-
-export interface GalleryMaterial {
-  content?: null | string;
-  createdAt: number;
-  description?: null | string;
-  filePath?: null | string;
-  fileSize?: number | null;
-  id: string;
-  metadata?: GalleryMaterialMetadata | null;
-  mimeType?: null | string;
-  name: string;
-  projectId: string;
-  tags?: string[];
-  type: string;
-}
-
-export type GalleryMaterialDeleteResponse = Record<string, unknown>;
-
-export interface GalleryMaterialFilterParams {
-  category?: null | string;
-  mood?: null | string;
-  projectId: string;
-}
-
-export interface GalleryMaterialListResponse {
-  materials?: GalleryMaterial[];
-}
-
-export interface GalleryMaterialLookupParams {
-  materialId: string;
-}
-
-export interface GalleryMaterialMetadata {
-  colorSchemeJson?: null | string;
-  colors?: string[];
-  createdAt: number;
-  elementCount?: number | null;
-  fabricJson?: null | string;
-  height?: number | null;
-  iconCategory?: null | string;
-  iconStyle?: null | string;
-  imageCategory?: null | string;
-  layoutCategory?: null | string;
-  materialId: string;
-  mood?: null | string;
-  preview?: null | string;
-  thumbnail?: null | string;
-  updatedAt: number;
-  width?: number | null;
-}
-
-export interface GalleryMaterialMetadataCreateParams {
-  colorSchemeJson?: null | string;
-  colors?: string[] | null;
-  elementCount?: number | null;
-  fabricJson?: null | string;
-  height?: number | null;
-  iconCategory?: null | string;
-  iconStyle?: null | string;
-  imageCategory?: null | string;
-  layoutCategory?: null | string;
-  materialId: string;
-  mood?: null | string;
-  preview?: null | string;
-  thumbnail?: null | string;
-  width?: number | null;
-}
-
-export interface GalleryMaterialMetadataResponse {
-  metadata?: GalleryMaterialMetadata | null;
-}
-
-export interface GalleryMaterialMetadataUpdateParams {
-  materialId: string;
-  metadata: GalleryMaterialMetadataCreateParams;
-}
-
-export interface GalleryMaterialResponse {
-  material?: GalleryMaterial | null;
 }
 
 export interface GatewayChannelStartParams {
@@ -8754,83 +8518,6 @@ export interface ProjectListResponse {
   nextCursor?: null | string;
 }
 
-export interface ProjectMaterial {
-  content?: null | string;
-  createdAt: number;
-  description?: null | string;
-  filePath?: null | string;
-  fileSize?: number | null;
-  id: string;
-  mimeType?: null | string;
-  name: string;
-  projectId: string;
-  tags?: string[];
-  type: string;
-}
-
-export interface ProjectMaterialContentResponse {
-  content: string;
-}
-
-export interface ProjectMaterialCountResponse {
-  count: number;
-}
-
-export type ProjectMaterialDeleteResponse = Record<string, unknown>;
-
-export interface ProjectMaterialFilter {
-  searchQuery?: null | string;
-  tags?: string[] | null;
-  type?: null | string;
-}
-
-export interface ProjectMaterialImportFromUrlParams {
-  description?: null | string;
-  name: string;
-  projectId: string;
-  tags?: string[] | null;
-  type: string;
-  url: string;
-}
-
-export interface ProjectMaterialListParams {
-  filter?: ProjectMaterialFilter | null;
-  projectId: string;
-}
-
-export interface ProjectMaterialListResponse {
-  materials?: ProjectMaterial[];
-}
-
-export interface ProjectMaterialLookupParams {
-  id: string;
-}
-
-export interface ProjectMaterialResponse {
-  material?: ProjectMaterial | null;
-}
-
-export interface ProjectMaterialUpdate {
-  description?: null | string;
-  name?: null | string;
-  tags?: string[] | null;
-}
-
-export interface ProjectMaterialUpdateParams {
-  id: string;
-  update: ProjectMaterialUpdate;
-}
-
-export interface ProjectMaterialUploadParams {
-  content?: null | string;
-  description?: null | string;
-  filePath?: null | string;
-  name: string;
-  projectId: string;
-  tags?: string[] | null;
-  type: string;
-}
-
 export interface ProjectMemoryReadParams {
   projectId: string;
 }
@@ -8982,6 +8669,11 @@ export interface ReasoningTextDeltaNotification {
   itemId: string;
   threadId: string;
   turnId: string;
+}
+
+export interface RequestHeader {
+  name: string;
+  value: string;
 }
 
 export interface RequestPermissionProfile {

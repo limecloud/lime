@@ -17,8 +17,6 @@ import { SettingsTabs } from "@/types/settings";
 import type { SettingsPageParams } from "@/types/page";
 import { SettingsPage } from ".";
 import { resolveSettingsSection } from "../sections";
-import { searchSettings } from "../settingsSearch";
-import { useSettingsCategory } from "../hooks/useSettingsCategory";
 
 const api = vi.hoisted(() => ({
   request: vi.fn(),
@@ -49,10 +47,8 @@ vi.mock("./SettingsNavigation", async () => {
 });
 
 let navigation: ReturnType<typeof useAppNavigation>;
-let groups: ReturnType<typeof useSettingsCategory>;
 function Harness({ initialTab }: { initialTab: SettingsTabs }) {
   navigation = useAppNavigation();
-  groups = useSettingsCategory();
   const { handleNavigate } = navigation;
   useLayoutEffect(
     () => handleNavigate("settings", { tab: initialTab }),
@@ -143,8 +139,6 @@ const testId = (id: string) => {
 };
 const searchInput = () => testId("settings-sidebar-search") as HTMLInputElement;
 const prompt = () => container.querySelector("textarea")!;
-const count = () =>
-  container.querySelector<HTMLInputElement>('input[type="number"]')!;
 const dialog = () =>
   document.querySelector('[data-testid="settings-unsaved-changes-dialog"]');
 const params = () => navigation.requestedPageParams as SettingsPageParams;
@@ -312,7 +306,7 @@ it.each(
       tab: section,
       searchFocus: { targetId: id },
     });
-    const node = focused(id);
+    focused(id);
     expect(container.querySelector("textarea")).not.toBe(
       document.activeElement,
     );

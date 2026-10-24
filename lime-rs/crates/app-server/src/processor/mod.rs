@@ -18,7 +18,6 @@ pub(crate) mod environment_exec;
 mod experimental_feature;
 mod fs;
 mod fuzzy_file_search;
-mod gallery;
 mod gateway;
 mod hook;
 mod instructions;
@@ -372,7 +371,6 @@ impl RequestProcessor {
     // wechat handlers 已提取到 processor/wechat.rs
 
     // media handlers 已提取到 processor/media.rs
-    // gallery handlers 已提取到 processor/gallery.rs
 
     // log handlers 已提取到 processor/log.rs
 

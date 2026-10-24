@@ -308,38 +308,6 @@
     },
     {
       "kind": "request",
-      "method": "galleryMaterial/get"
-    },
-    {
-      "kind": "request",
-      "method": "galleryMaterial/listByImageCategory"
-    },
-    {
-      "kind": "request",
-      "method": "galleryMaterial/listByLayoutCategory"
-    },
-    {
-      "kind": "request",
-      "method": "galleryMaterial/listByMood"
-    },
-    {
-      "kind": "request",
-      "method": "galleryMaterialMetadata/create"
-    },
-    {
-      "kind": "request",
-      "method": "galleryMaterialMetadata/delete"
-    },
-    {
-      "kind": "request",
-      "method": "galleryMaterialMetadata/get"
-    },
-    {
-      "kind": "request",
-      "method": "galleryMaterialMetadata/update"
-    },
-    {
-      "kind": "request",
       "method": "gatewayChannel/start"
     },
     {
@@ -981,38 +949,6 @@
     {
       "kind": "request",
       "method": "projectGit/worktree/list"
-    },
-    {
-      "kind": "request",
-      "method": "projectMaterial/content"
-    },
-    {
-      "kind": "request",
-      "method": "projectMaterial/count"
-    },
-    {
-      "kind": "request",
-      "method": "projectMaterial/delete"
-    },
-    {
-      "kind": "request",
-      "method": "projectMaterial/get"
-    },
-    {
-      "kind": "request",
-      "method": "projectMaterial/importFromUrl"
-    },
-    {
-      "kind": "request",
-      "method": "projectMaterial/list"
-    },
-    {
-      "kind": "request",
-      "method": "projectMaterial/update"
-    },
-    {
-      "kind": "request",
-      "method": "projectMaterial/upload"
     },
     {
       "kind": "request",
@@ -1990,16 +1926,6 @@
       "EndpointInfo",
       "EndpointKind",
       "FramingKind",
-      "GalleryMaterial",
-      "GalleryMaterialDeleteResponse",
-      "GalleryMaterialFilterParams",
-      "GalleryMaterialListResponse",
-      "GalleryMaterialLookupParams",
-      "GalleryMaterialMetadata",
-      "GalleryMaterialMetadataCreateParams",
-      "GalleryMaterialMetadataResponse",
-      "GalleryMaterialMetadataUpdateParams",
-      "GalleryMaterialResponse",
       "GatewayChannelStartParams",
       "GatewayChannelStatusParams",
       "GatewayChannelStatusResponse",
@@ -2154,19 +2080,6 @@
       "ProjectGitWorktreeListParams",
       "ProjectGitWorktreeListResponse",
       "ProjectGitWorktreeThread",
-      "ProjectMaterial",
-      "ProjectMaterialContentResponse",
-      "ProjectMaterialCountResponse",
-      "ProjectMaterialDeleteResponse",
-      "ProjectMaterialFilter",
-      "ProjectMaterialImportFromUrlParams",
-      "ProjectMaterialListParams",
-      "ProjectMaterialListResponse",
-      "ProjectMaterialLookupParams",
-      "ProjectMaterialResponse",
-      "ProjectMaterialUpdate",
-      "ProjectMaterialUpdateParams",
-      "ProjectMaterialUploadParams",
       "ProjectMemoryReadParams",
       "ProjectMemoryReadResponse",
       "ProtocolKind",
@@ -2403,8 +2316,12 @@
       "ArtifactWriteSidecar",
       "AsyncUserInputQuestion",
       "AutoReviewDecisionSource",
+      "BrowserUseAccessApprovalLifetime",
       "BrowserUseConfig",
+      "BrowserUseExtensionRequirements",
+      "BrowserUseOriginPolicy",
       "BrowserUseOriginPolicyConfig",
+      "BrowserUseRequirements",
       "CancelInstallParams",
       "CancelInstallResponse",
       "ClientRequest",
@@ -2721,6 +2638,7 @@
       "ReasoningSummaryPartAddedNotification",
       "ReasoningSummaryTextDeltaNotification",
       "ReasoningTextDeltaNotification",
+      "RequestHeader",
       "RequestPermissionProfile",
       "ReviewDelivery",
       "ReviewStartParams",

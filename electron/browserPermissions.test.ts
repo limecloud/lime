@@ -76,7 +76,13 @@ describe("browser permission origin and policy owner", () => {
   });
 
   it("binds grants to every owner/session/turn field and exact protocol plus port", () => {
-    const permissions = new BrowserPermissions(new BrowserTabPolicy());
+    const policy = new BrowserTabPolicy();
+    policy.setSettings(
+      effectiveBrowserSettings({}, null, {
+        browserUse: { defaultOriginPolicy: { accessApprovalLifetime: "turn" } },
+      }),
+    );
+    const permissions = new BrowserPermissions(policy);
     const stage = permissions.require(
       call,
       anchor,

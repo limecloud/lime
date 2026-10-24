@@ -94,4 +94,3 @@ impl std::fmt::Debug for RequestHeaderToml {
             .finish()
     }
 }
-

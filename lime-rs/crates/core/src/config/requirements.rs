@@ -1,6 +1,9 @@
 //! 独立于用户、项目和会话配置的系统管理员约束。
 
-use super::{ApprovalPolicy, BrowserUseRequirementsToml, Config, ConfigError, InAppBrowserRequirementsToml, SandboxMode};
+use super::{
+    ApprovalPolicy, BrowserUseRequirementsToml, Config, ConfigError, InAppBrowserRequirementsToml,
+    SandboxMode,
+};
 use agent_protocol::WebSearchMode;
 use serde::Deserialize;
 use std::{io::Read, path::Path};
@@ -25,7 +28,10 @@ impl ConfigRequirements {
             && self.allowed_sandbox_modes.is_none()
             && self.allowed_web_search_modes.is_none()
             && self.allow_browser_and_computer_use.is_none()
-            && self.browser_use.as_ref().is_none_or(BrowserUseRequirementsToml::is_empty)
+            && self
+                .browser_use
+                .as_ref()
+                .is_none_or(BrowserUseRequirementsToml::is_empty)
             && self
                 .in_app_browser
                 .as_ref()
@@ -65,12 +71,19 @@ impl ConfigRequirements {
             ));
         }
         // 关闭网页搜索始终可用，与参考 requirements/read 的归一化合同一致。
-        if let Some(origins) = requirements.browser_use.as_ref().and_then(|browser| browser.origins.as_ref()) {
+        if let Some(origins) = requirements
+            .browser_use
+            .as_ref()
+            .and_then(|browser| browser.origins.as_ref())
+        {
             for pattern in origins.keys() {
                 #[derive(Deserialize)]
-                struct Origin(#[serde(deserialize_with = "super::browser::deserialize_site_pattern")] String);
-                let origin: Origin = serde_json::from_value(serde_json::Value::String(pattern.clone()))
-                    .map_err(|_| invalid("Invalid managed browser_use origin"))?;
+                struct Origin(
+                    #[serde(deserialize_with = "super::browser::deserialize_site_pattern")] String,
+                );
+                let origin: Origin =
+                    serde_json::from_value(serde_json::Value::String(pattern.clone()))
+                        .map_err(|_| invalid("Invalid managed browser_use origin"))?;
                 let _ = origin.0;
             }
         }
@@ -141,5 +154,7 @@ pub fn system_requirements_path() -> Result<std::path::PathBuf, ConfigError> {
     }
 }
 
+#[cfg(test)]
+mod browser_tests;
 #[cfg(test)]
 mod tests;

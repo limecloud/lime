@@ -26,14 +26,12 @@
 //! - `prompt_sync` - Prompt 同步
 //! - `skill_service` - 技能服务
 //! - `backup_service` - 备份服务
-//! - `material_service` - 素材服务
 //! - `persona_service` - 人设服务
 //! - `model_registry_service` - 模型注册服务
 //! - `prompt_service` - Prompt 服务
 //! - `mcp_service` - MCP 服务
 //! - `session_context_service` - 会话上下文服务
 //! - `ai_summary_service` - AI 摘要服务
-//! - `project_context_builder` - 项目上下文构建器
 //! - `api_key_provider_service` - API Key Provider 服务
 
 // 无外部依赖的服务
@@ -57,14 +55,12 @@ pub mod skill_service;
 
 // 依赖 database + models 的服务
 pub mod backup_service;
-pub mod material_service;
 pub mod mcp_service;
 pub mod model_registry_service;
 pub mod persona_service;
 pub mod prompt_service;
 // 依赖其他 services 的服务
 pub mod ai_summary_service;
-pub mod project_context_builder;
 pub mod session_context_service;
 
 // 依赖 providers 的服务

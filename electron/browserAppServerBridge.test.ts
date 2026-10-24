@@ -23,11 +23,15 @@ function setup() {
     setPopupIdentityHandler: vi.fn(),
   };
   const request = vi.fn();
+  const policyRequest = vi.fn().mockResolvedValue({ requirements: null });
   const bridge = new BrowserAppServerBridge(
     host as unknown as ElectronBrowserTabHost,
-    request,
+    (method, params) =>
+      method === "configRequirements/read"
+        ? policyRequest(params)
+        : request(method, params),
   );
-  return { bridge, host, request };
+  return { bridge, host, request, policyRequest };
 }
 const popup: BrowserPopupIdentityRequest = {
   browserSessionId: "browser-1",
@@ -52,6 +56,32 @@ const identity = {
 };
 
 describe("Browser App Server bridge", () => {
+  it("reads independent enterprise authority on every refresh and rejects an unavailable or malformed policy", async () => {
+    const { bridge, host, request, policyRequest } = setup();
+    request.mockResolvedValue({ config: {} });
+    policyRequest.mockResolvedValueOnce({
+      requirements: { browserUse: { allowHistoryAccess: false } },
+    });
+    expect((await bridge.refreshSettings()).history_access).toBe("disabled");
+    expect(policyRequest).toHaveBeenCalledExactlyOnceWith({});
+    host.setSettings.mockClear();
+    policyRequest.mockRejectedValueOnce(new Error("managed policy unreadable"));
+    await expect(bridge.refreshSettings()).rejects.toThrow(
+      "managed policy unreadable",
+    );
+    expect(host.setSettings).toHaveBeenLastCalledWith(
+      expect.objectContaining({ enabled: false }),
+    );
+    policyRequest.mockResolvedValueOnce({
+      requirements: { browserUse: { allowHistoryAccess: "false" } },
+    });
+    await expect(bridge.refreshSettings()).rejects.toThrow(
+      "Invalid managed browser requirements",
+    );
+    expect(host.setSettings).toHaveBeenLastCalledWith(
+      expect.objectContaining({ enabled: false }),
+    );
+  });
   it("projects the current configuration language to history approval presentation", async () => {
     const { bridge, host, request } = setup();
     request.mockResolvedValue({

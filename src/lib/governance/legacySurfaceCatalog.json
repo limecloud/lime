@@ -2680,8 +2680,8 @@
     },
     {
       "id": "gallery-material-legacy-frontend-module",
-      "classification": "dead-candidate",
-      "description": "已删除的旧海报素材前端网关、Hook 与类型入口",
+      "classification": "dead",
+      "description": "旧海报/图库专用平台已删除，不再迁移为替代产品入口。",
       "targets": [
         "src/lib/api/posterMaterials.ts",
         "src/hooks/usePosterMaterial.ts",
@@ -2691,8 +2691,8 @@
     },
     {
       "id": "gallery-material-legacy-rust-module",
-      "classification": "dead-candidate",
-      "description": "已删除的旧海报素材 Rust 命令与 DAO 模块",
+      "classification": "dead",
+      "description": "旧海报/图库专用平台已删除，不再迁移为替代产品入口。",
       "targets": [
         "lime-rs/src/commands/poster_material_cmd.rs",
         "lime-rs/crates/core/src/database/dao/poster_material_dao.rs"
@@ -3000,6 +3000,66 @@
         "src/components/agent/chat/AgentChatWorkspace.contextDetailBoundaryGuard.test.ts"
       ],
       "allowedPaths": []
+    },
+    {
+      "id": "retired-gallery-platform",
+      "classification": "dead",
+      "description": "无消费者图库UI、RPC与专用存储实现已删除；保留current媒体任务和工作区Files。",
+      "targets": [
+        "src/components/workspace/media/ImageGallery.tsx",
+        "src/components/workspace/media/ImageGallery.test.tsx",
+        "src/hooks/useGalleryMaterial.ts",
+        "src/lib/api/galleryMaterials.ts",
+        "src/lib/api/galleryMaterials.test.ts",
+        "src/lib/api/galleryMaterials.current-boundary.test.ts",
+        "src/types/gallery-material.ts",
+        "lime-rs/crates/core/src/database/dao/gallery_material_dao.rs",
+        "lime-rs/crates/app-server/src/local_data_source/gallery_materials.rs",
+        "lime-rs/crates/app-server/src/processor/gallery.rs",
+        "lime-rs/crates/app-server-protocol/src/protocol/v0/gallery.rs",
+        "lime-rs/crates/app-server-protocol/schema/json/v0/GalleryMaterial.json",
+        "lime-rs/crates/app-server-protocol/schema/json/v0/GalleryMaterialDeleteResponse.json",
+        "lime-rs/crates/app-server-protocol/schema/json/v0/GalleryMaterialFilterParams.json",
+        "lime-rs/crates/app-server-protocol/schema/json/v0/GalleryMaterialListResponse.json",
+        "lime-rs/crates/app-server-protocol/schema/json/v0/GalleryMaterialLookupParams.json",
+        "lime-rs/crates/app-server-protocol/schema/json/v0/GalleryMaterialMetadata.json",
+        "lime-rs/crates/app-server-protocol/schema/json/v0/GalleryMaterialMetadataCreateParams.json",
+        "lime-rs/crates/app-server-protocol/schema/json/v0/GalleryMaterialMetadataResponse.json",
+        "lime-rs/crates/app-server-protocol/schema/json/v0/GalleryMaterialMetadataUpdateParams.json",
+        "lime-rs/crates/app-server-protocol/schema/json/v0/GalleryMaterialResponse.json"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "retired-project-material-platform",
+      "classification": "dead",
+      "description": "项目素材catalog前端链已删除；视频参考图和生成结果由现役媒体任务承接。",
+      "targets": [
+        "src/hooks/useMaterials.ts",
+        "src/lib/api/materials.ts",
+        "src/lib/api/materials.test.ts",
+        "src/lib/api/materials.current-boundary.test.ts",
+        "src/types/material.ts",
+        "lime-rs/crates/services/src/project_context_builder.rs",
+        "lime-rs/crates/app-server/src/local_data_source/project_materials.rs",
+        "lime-rs/crates/app-server-protocol/src/protocol/v0/project_materials.rs",
+        "lime-rs/crates/services/src/material_service.rs",
+        "lime-rs/crates/app-server-protocol/schema/json/v0/ProjectMaterial.json",
+        "lime-rs/crates/app-server-protocol/schema/json/v0/ProjectMaterialFilter.json",
+        "lime-rs/crates/app-server-protocol/schema/json/v0/ProjectMaterialListParams.json",
+        "lime-rs/crates/app-server-protocol/schema/json/v0/ProjectMaterialLookupParams.json",
+        "lime-rs/crates/app-server-protocol/schema/json/v0/ProjectMaterialUploadParams.json",
+        "lime-rs/crates/app-server-protocol/schema/json/v0/ProjectMaterialImportFromUrlParams.json",
+        "lime-rs/crates/app-server-protocol/schema/json/v0/ProjectMaterialUpdate.json",
+        "lime-rs/crates/app-server-protocol/schema/json/v0/ProjectMaterialUpdateParams.json",
+        "lime-rs/crates/app-server-protocol/schema/json/v0/ProjectMaterialListResponse.json",
+        "lime-rs/crates/app-server-protocol/schema/json/v0/ProjectMaterialResponse.json",
+        "lime-rs/crates/app-server-protocol/schema/json/v0/ProjectMaterialCountResponse.json",
+        "lime-rs/crates/app-server-protocol/schema/json/v0/ProjectMaterialContentResponse.json",
+        "lime-rs/crates/app-server-protocol/schema/json/v0/ProjectMaterialDeleteResponse.json",
+        "lime-rs/crates/core/src/database/dao/material_dao.rs"
+      ],
+      "allowedPaths": []
     }
   ],
   "commands": [
@@ -3271,8 +3331,8 @@
     },
     {
       "id": "gallery-material-legacy-commands",
-      "classification": "dead-candidate",
-      "description": "已退出前端主链的旧海报素材命令边界",
+      "classification": "dead",
+      "description": "旧海报/图库专用平台已删除，不再迁移为替代产品入口。",
       "commands": [
         "create_poster_metadata",
         "get_poster_metadata",
@@ -5263,8 +5323,8 @@
     },
     {
       "id": "gallery-material-legacy-helper-usage",
-      "classification": "dead-candidate",
-      "description": "旧海报素材网关、Hook 与 helper 命名不允许回流，当前统一收敛到 galleryMaterials/useGalleryMaterial",
+      "classification": "dead",
+      "description": "旧海报/图库专用平台已删除，不再迁移为替代产品入口。",
       "allowedPaths": [],
       "patterns": [
         "from \"@/lib/api/posterMaterials\"",
@@ -5473,6 +5533,56 @@
         "hasContextWorkspace",
         "contextActivityLogs"
       ],
+      "allowedPaths": []
+    },
+    {
+      "id": "frontend-retired-gallery-platform",
+      "classification": "dead",
+      "description": "图库hook、网关和RPC不得回流。",
+      "patterns": [
+        "useGalleryMaterial",
+        "gallery-material",
+        "galleryMaterials",
+        "GalleryMaterial",
+        "GALLERY_MATERIAL",
+        "galleryMaterial/",
+        "galleryMaterialMetadata/",
+        "workspace.imageGallery."
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "frontend-retired-video-material-copy",
+      "classification": "dead",
+      "description": "视频输出只保留现役媒体任务与预览，不恢复自动复制入库或material引用状态。",
+      "patterns": [
+        "saveVideoToResource",
+        "resourceMaterialId",
+        "resourceSavedAt",
+        "resourceSaveError",
+        "materialRefCache",
+        "VIDEO_REFERENCE_TAG",
+        "workspace.video.workspace.taskSync."
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "frontend-retired-project-material-consumers",
+      "classification": "dead",
+      "description": "已删除素材hook、类型与网关不得回流。",
+      "patterns": [
+        "useMaterials",
+        "@/lib/api/materials",
+        "@/types/material",
+        "normalizeMaterial("
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "frontend-retired-project-material-contract",
+      "classification": "dead",
+      "description": "项目素材RPC已删除，不恢复typed client或专用请求入口。",
+      "patterns": ["ProjectMaterial", "PROJECT_MATERIAL", "projectMaterial/"],
       "allowedPaths": []
     }
   ],
@@ -6222,8 +6332,8 @@
     },
     {
       "id": "rust-gallery-material-legacy-symbols",
-      "classification": "dead-candidate",
-      "description": "旧海报素材 Rust 模块、类型与表名不允许回流；旧表名只允许保留在 schema 迁移中承接历史数据",
+      "classification": "dead",
+      "description": "旧海报/图库专用平台已删除，不再迁移为替代产品入口。",
       "patterns": [
         "PosterMaterialDao",
         "CreatePosterMetadataRequest",
@@ -6234,7 +6344,7 @@
         "poster_material_metadata",
         "idx_poster_material_metadata_"
       ],
-      "allowedPaths": ["lime-rs/crates/core/src/database/schema.rs"]
+      "allowedPaths": []
     },
     {
       "id": "rust-tool-hooks-service-module-leak",
@@ -7348,6 +7458,56 @@
         "crate::sceneapp::"
       ],
       "includePathPrefixes": ["lime-rs/src"],
+      "allowedPaths": []
+    },
+    {
+      "id": "rust-retired-gallery-platform",
+      "classification": "dead",
+      "description": "图库专用metadata、DAO、RPC与旧schema迁移不得回流。",
+      "patterns": [
+        "GalleryMaterial",
+        "gallery_material",
+        "GALLERY_MATERIAL",
+        "galleryMaterial/",
+        "galleryMaterialMetadata/"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "rust-retired-project-context-builder",
+      "classification": "dead",
+      "description": "零消费者项目人设/素材prompt builder已删除，不恢复第二套prompt authority。",
+      "patterns": ["ProjectContextBuilder", "project_context_builder"],
+      "allowedPaths": []
+    },
+    {
+      "id": "rust-retired-project-material-contract",
+      "classification": "dead",
+      "description": "项目素材RPC/服务已删除，媒体任务复用标准Files。",
+      "patterns": [
+        "ProjectMaterial",
+        "project_materials",
+        "PROJECT_MATERIAL",
+        "MaterialService",
+        "material_service"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "rust-retired-project-material-storage",
+      "classification": "dead",
+      "description": "素材专用DAO与共享文件中的旧素材模型已删除，不恢复catalog存储authority。",
+      "patterns": [
+        "MaterialDao",
+        "material_dao",
+        "pub struct Material {",
+        "pub enum MaterialType",
+        "pub struct UploadMaterialRequest",
+        "pub struct MaterialFilter",
+        "pub struct MaterialUpdate",
+        "pub struct ProjectContext {",
+        "MaterialError"
+      ],
       "allowedPaths": []
     }
   ],

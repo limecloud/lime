@@ -1,6 +1,6 @@
 # v1.169.0 发布执行计划
 
-状态：准备与验证中；负责人：root；日期：2026-10-24。
+状态：首候选CI失败已修复，全部增量准备追加main并执行同SHA远端门禁，目标标签尚未创建；负责人：root；日期：2026-10-24。
 
 ## 目标与候选
 
@@ -36,3 +36,18 @@
 - 暂存后其他任务继续修改浏览器受管权限相关文件；它们保留在原工作树，属于冻结之后的未验收增量，当前提交只消费已冻结index，避免把进行中的修改直接带入标签。未覆盖或回滚这些修改。
 - staged diff检查仅报告Electron原生候选patch的必需context空白及两份上游模块的EOF空行，保留原件；其余源文件无空白错误。原生patch未编译、未接入产品，不能算原生能力完成。
 - 本地GUI/current fixture仍受构建锁与本机负载影响；协议Rust单并发入口等待其他任务的Cargo锁，尚未通过。硬门禁完成后先推main，使用同提交Quality完成远端矩阵，再创建唯一v1.169.0标签；不以本地历史binary替代候选证据。
+
+## CI失败与继续授权
+
+- 首候选8c206ff12已推main；Quality 40085305035：Integrity与Contracts通过；Frontend Full失败于mediaTargets测试4个unused；GUI Smoke失败于BrowserUseRequirements等生成客户端缺失；Rust Full在app-server 2032通过后因旧non-strict权限预期失败。v1.169.0标签未创建，未启动正式Release。
+- 本地协议149项中146通过、3个schema导出测试失败，registry比类型清单多5项。正式GUI与Agent fixture均因构建期间并行源码变化而被输入摘要守卫拒绝，不算Gate B。
+- 用户暂停后要求“修复并继续”；沿用此前完整发布授权，不重复请求提交/标签/推送确认。当前goal继续完成本版发布。
+- 窄修复写集：mediaTargets.integration.test.tsx删除4个unused且保留focused断言；permission_profile.rs迁移旧测试到现行受限profile必须有sandbox backend合同；protocol/v2/schema_types.rs补齐5个已注册类型；本计划。并行浏览器受管配置与gallery退役增量先只读核对，不覆盖他人修改。
+- 后续候选必须同时覆盖Rust类型/registry、导出schema、生成客户端和实际构建后的客户端类型。完整typecheck及Electron typecheck均对最终候选重新验证，不再以构建产物中残留的新类型证明已提交源码一致。
+- 用户追加明确要求“全部修改的都要递交,追加到v1.169.0”；后继候选覆盖当前全部tracked/untracked修改（含浏览器受管配置、gallery退役、原生engine preflight及生成缓存），取代此前冻结后排除项。标签仍未创建，无需重打或改写远端引用。
+- 共享生成物由本轮统一收口：在原仓库以current Rust exporter重新导出schema，保留浏览器新增合同并同时移除gallery已退役合同，再走唯一TS生成器及client build；不手工拼接生成物，不在验证副本开发或事后回写。
+- mediaTargets定向ESLint exit0及完整52项交互回归exit0；两个Rust修复文件rustfmt check通过。完整lint运行约13分钟后仍无结果，本机进程持续处于换页U状态；只停止本轮full lint子进程PID15578以优先保留硬门禁typecheck和schema生成，未计作通过。完整lint后续由冻结提交的远端Frontend Full执行，不降低max-warnings或断言。
+- 追加后完整npm run typecheck exit0；protocol单元149/149通过。首轮Rust exporter exit0但期间新增projectMaterial退役修改，TS生成器严格拒绝8条manifest/constant漂移；未绕过检查。以最新源重新导出exit0（48.94秒），115个协议源码输入无漂移，bundle中GalleryMaterial/ProjectMaterial均已移除；最终TS生成1066类型、失败0、exit0。permission_profile定向入口仍在运行，未计通过。
+- 后继验证只消费完整暂存tree的只读快照，产品修改始终在原目录。本地生成后的包build/Electron类型/contracts对同一候选执行；远端最终同SHA Quality补完整lint、Rust、GUI和前端矩阵。
+- 暂存tree `bc25361dda4ff6693c8b3302ad7f45bce775623b` 的只读验证快照：app-server-client build、typecheck:electron、完整test:contracts均exit0；日志在`.lime/release-v11690/frozen-*.log`。快照之后新增的browser-runtime-electron-gate-b-thread.mjs及其调用接线按用户全部递交要求纳入，两个脚本node --check通过；没有在验证目录开发或回写产品代码。
+- 追加候选包含首轮CI三个失败修复、浏览器受管权限、图库与独立素材完整退役、同步schema/客户端、原生engine preflight及浏览器验收脚本。Rust权限测试本机仍等待编译，不以等待视为通过；最终提交由远端Quality补齐。

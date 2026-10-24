@@ -1,5 +1,13 @@
 import type { ConfigReadResponse } from "@limecloud/app-server-client";
-import type { BrowserSettings } from "./browserSettingsTypes";
+import {
+  effectiveBrowserSettings,
+  type BrowserSettings,
+} from "./browserSettingsTypes";
+import {
+  browserRequirementsAdmission,
+  browserSettingManaged,
+  managedBrowserApprovalForPattern,
+} from "./browserUseRequirements";
 import {
   BROWSER_PERMISSION_ACTIONS,
   ORIGIN_STATE_KEYS,
@@ -38,6 +46,26 @@ export function browserPermissionFieldManaged(
   return context !== null && isConfigFieldManaged(context.origins, field);
 }
 
+export function browserSettingReadonly(
+  settings: BrowserSettings,
+  context: BrowserPermissionContext | null,
+  key: keyof BrowserSettings,
+): boolean {
+  if (browserSettingManaged(settings.requirements, key)) return true;
+  if (key === "history_access")
+    return (
+      browserPermissionFieldManaged(
+        context,
+        "browser.iabHistoryApprovalMode",
+      ) ||
+      browserPermissionFieldManaged(context, "browser_use.allow_history_access")
+    );
+  return (
+    key !== "agent_permissions" &&
+    browserPermissionFieldManaged(context, `browser.${key}`)
+  );
+}
+
 export function browserPermissionRowManaged(
   settings: BrowserSettings,
   context: BrowserPermissionContext | null,
@@ -51,6 +79,98 @@ export function browserPermissionRowManaged(
 
 /** Read-only projection of saved choices and origin sets, not a permission authority. */
 export function browserSitePermissionCell(
+  settings: BrowserSettings,
+  context: BrowserPermissionContext | null,
+  action: BrowserPermissionAction,
+  pattern: string,
+): BrowserPermissionCell {
+  const user = browserUserSitePermissionCell(
+    settings,
+    context,
+    action,
+    pattern,
+  );
+  if (
+    browserSettingManaged(
+      settings.requirements,
+      action === "site_tools" ? "webMcpEnabled" : "agent_permissions",
+    )
+  )
+    return {
+      ...user,
+      effectiveValue: "deny",
+      managed: true,
+      disabledReason: "managed",
+      inheritedRestriction: "organization",
+    };
+  const requirements = browserRequirementsAdmission(settings.requirements);
+  if (!requirements) return user;
+  // Restriction-only projection. This does not modify saved user preferences or config origins.
+  const admission = browserUserSitePermissionCell(
+    effectiveBrowserSettings(
+      {
+        approvalMode: "neverAsk",
+        downloadApprovalMode: "neverAsk",
+        uploadApprovalMode: "neverAsk",
+        fullCdpAccessEnabled: true,
+        webMcpEnabled: true,
+      },
+      requirements,
+    ),
+    null,
+    action,
+    pattern,
+  );
+  if (admission.effectiveValue === "deny")
+    return {
+      ...user,
+      effectiveValue: "deny",
+      managed: true,
+      disabledReason: "managed",
+      inheritedRestriction: "organization",
+      blockingPattern: admission.blockingPattern,
+    };
+  if (admission.effectiveValue === "mixed" && user.effectiveValue !== "deny")
+    return {
+      ...user,
+      effectiveValue: "mixed",
+      inheritedRestriction: "organization",
+      blockingPattern: admission.blockingPattern,
+    };
+  const approval =
+    action in ORIGIN_APPROVAL_KEYS
+      ? managedBrowserApprovalForPattern(settings.requirements, pattern)
+      : null;
+  if (approval && user.effectiveValue !== "deny")
+    return {
+      ...user,
+      effectiveValue: approval === "mixed" ? "mixed" : "ask",
+      inheritedRestriction: "organization",
+    };
+  if (
+    action in ORIGIN_APPROVAL_KEYS &&
+    settings.requirements?.browserUse?.allowGlobalPersistentApproval ===
+      false &&
+    user.effectiveValue !== "deny"
+  ) {
+    const [allowed] = ORIGIN_STATE_KEYS[action];
+    const grants = pattern
+      ? settings[allowed].filter((rule) =>
+          browserSitePatternsOverlap(rule, pattern),
+        )
+      : [];
+    if (!grants.some((rule) => browserSitePatternCovers(rule, pattern)))
+      return {
+        ...user,
+        effectiveValue:
+          grants.length || user.effectiveValue === "mixed" ? "mixed" : "ask",
+        inheritedRestriction: "organization",
+      };
+  }
+  return user;
+}
+
+function browserUserSitePermissionCell(
   settings: BrowserSettings,
   context: BrowserPermissionContext | null,
   action: BrowserPermissionAction,

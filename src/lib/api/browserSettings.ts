@@ -22,7 +22,10 @@ export class BrowserSettingsConflictError extends Error {
 export async function getBrowserSettings(options?: {
   forceRefresh?: boolean;
 }): Promise<BrowserSettings> {
-  const [config, requirements] = await Promise.all([getConfig(options), getConfigRequirements()]);
+  const [config, requirements] = await Promise.all([
+    getConfig(options),
+    getConfigRequirements(),
+  ]);
   return browserSettingsFromConfig(config, requirements);
 }
 
@@ -30,7 +33,10 @@ export async function getBrowserSettingsSnapshot(): Promise<{
   settings: BrowserSettings;
   permissionContext: BrowserPermissionContext;
 }> {
-  const [snapshot, requirements] = await Promise.all([getConfigSnapshot(), getConfigRequirements()]);
+  const [snapshot, requirements] = await Promise.all([
+    getConfigSnapshot(),
+    getConfigRequirements(),
+  ]);
   const userConfig = snapshot.layer.config;
   if (
     !userConfig ||
@@ -62,6 +68,8 @@ export async function updateBrowserSetting<K extends keyof BrowserSettings>(
         throw new Error("Invalid history approval mode");
       return input;
     }
+    if (key === "requirements")
+      throw new Error("Browser requirements are read-only");
     if (key === "browser_use")
       throw new Error(
         "Edit browser_use through the browser permission settings",

@@ -20,6 +20,7 @@ Simplified Chinese release notes are the primary version.
 ### Improvements and Refactoring
 
 - Remove the standalone knowledge and resource management surfaces, retired statistics and developer settings, and the creative context injection chain; keep image outputs on the existing workspace preview path.
+- Remove unused gallery and standalone material surfaces, dedicated storage, and APIs while retaining current image and video tasks, workspace files, and previews.
 - Reuse current configuration, App Server, and tool owners for browser admission, requirements, and tool runtimes; synchronize protocols, generated clients, and five-language resources.
 
 ### Tests and Quality

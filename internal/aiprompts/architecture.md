@@ -5687,7 +5687,7 @@ access deny 连带禁止下载、上传和 CDP；allow 不自动免除用户审�
 模式集合比较区分完整覆盖与部分交集，不构造网址推断通配授权；部分交集显示“按网址判定”，
 不承诺范围中存在可访问网址。受管规则覆盖的拒绝、只读字段与关闭能力禁用单元格，
 用户行优先，受管行不能改名/删除；编辑仍经过原 CAS，Host 对实际 URL 的判定保持唯一执行 authority。
-未接入的 browser_use requirements、企业网络准入和 persistentApproval 不由 Renderer 伪造。
+独立 browser_use requirements 由系统/强制管理员源经 configRequirements/read 投影，BrowserAppServerBridge 与设置 gateway 同时读取；企业网络准入仍未接入，不由 Renderer 伪造。persistentApproval/lifetime 限制使没有 thread identity 的已保存授权退回 canonical turn receipt；跨 turn 的 thread 授权和持久审批 UI 尚未实现，不能将这个保守边界声称为完整复刻。
 本次 Architecture impact: major；Responsible developer confirmation: root, 2026-10-24；
 已核对目录、单一配置 owner、依赖方向、协议生成和验证门禁；不包含完整原生服务或平台验收。
 
@@ -6591,3 +6591,62 @@ flowchart LR
 此切片没有新增配置、协议、持久化或 compat 层。内容/material 平台及其现有视频消费者尚未整体退役，
 不能把本子链的删除写成全部产品清理完成。root 确认上述 owner、依赖方向与图；
 实际验证和剩余缺口见 `internal/exec-plans/settings-alignment-20261022.md`。
+
+
+## 图库平台退役（2026-10-24）
+
+无生产消费者的ImageGallery、图库hook/API、8条galleryMaterial* RPC及其
+processor/runtime/data source、专用DAO和metadata模型已删除。图库建表和poster迁移代码
+一并退出，不对现存用户数据库执行DROP。视频仍使用的project materials由现有owner持有，
+下一切片迁移后再删除；模型媒体任务、标准Files、主题、专家Skills和消息渠道继续保留。
+
+```mermaid
+flowchart LR
+  Media[模型图片与视频任务] --> Server[现役媒体 App Server RPC]
+  Server --> Task[同一 media task owner]
+  Task --> Files[标准 Artifact / Files 预览]
+  Video[现有视频参考输入] --> Materials[现有 project materials owner 待后续迁移]
+```
+
+root确认上述删除后的owner、依赖方向与架构图。无新增compat或替代图库实现；
+完整验证与共享生成物合并状态见settings-alignment-20261022第三十六阶段。
+
+
+### Browser 独立管理员策略（2026-10-24）
+
+```mermaid
+flowchart LR
+  System[系统 requirements.toml] --> Managed[core config managed]
+  Forced[macOS forced requirements] --> Managed
+  Managed --> Runtime[RuntimeCore read_config_requirements]
+  Runtime --> RPC[configRequirements/read]
+  RPC --> Bridge[BrowserAppServerBridge]
+  RPC --> Settings[设置 gateway / 只读权限投影]
+  Config[config/read 用户选择] --> Bridge
+  Config --> Settings
+  Bridge --> Policy[BrowserTabPolicy]
+  Policy --> Host[唯一 BrowserTabHost / BrowserHistoryTool]
+  Host --> Native[同一 EmbeddedBrowserHost / WebContentsView]
+```
+
+`core::config::requirements` 新增 Codex 同名 BrowserUseRequirementsToml 和 allow_browser_and_computer_use，
+各管理员层按已设置字段组合；空表不能抹去低层限制。v2 使用 camelCase，原生偏好和用户 browser_use 继续
+使用既有配置字段，不把管理员策略写回 User。Header Debug 保持上游脱敏。协议类型来源和摘要归档在
+`internal/exec-plans/artifacts/codex-in-app-browser-20261022/browser-enterprise-sources-20261024.json`。
+
+Host 每次工具执行读取 config 和独立 requirements；当前读取失败临时关闭 Host Agent 控制、撤销旧 token/grant，
+并使工具失败。旧读取失败不能覆盖较新的成功读取。实际 URL 继续复用同一 origin evaluator，管理员 allow 仅
+准入；拒绝仍高于用户保存授权。requirements 单独变化同样改变 policy revision，撤销 pending browse/action
+receipt，历史 IO 返回前再读取并检查 revision；管理员关闭控制释放现有 debugger，用户页保留。
+
+BrowserPermissions 是同一 Host 的短权限 owner：thread lifetime 的批准凭据按
+owner/window/thread/browserSession/origin 隔离，普通回合结束及临时 Agent 标签清理保留该凭据，
+pending token 仍精确绑定原 turn/tab/view/page revision。策略 revision 改变、人工接管、手动关闭、
+release、断线和 Host 销毁撤销凭据；回合结束仍释放 debugger/控制权。默认 lifetime 按参考策略为 thread，
+管理员 turn 限制优先。此原生内存状态不增加业务后端或持久化事实源；参考 native 内部缓存行为仍需运行证据。
+
+自动审核服务、完整 CDP/WebMCP 工具、企业网络代理/域名策略、扩展传输 requestHeaders 的执行
+仍未实现。本次复制协议与限制执行不代表原生密码/Autofill/导入/完整扩展可用。
+
+Architecture impact: major；Responsible developer confirmation: root, 2026-10-24；已核对目录归属、数据流、
+唯一 Host、独立管理员 authority、协议/配置边界和验证门禁。验收与剩余项归 browser-enterprise-policy-plan.md。

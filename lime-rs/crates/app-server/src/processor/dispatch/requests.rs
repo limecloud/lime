@@ -308,48 +308,6 @@ impl RequestProcessor {
             METHOD_MEDIA_TASK_ARTIFACT_CANCEL => {
                 self.handle_media_task_artifact_cancel_impl(params).boxed()
             }
-            METHOD_GALLERY_MATERIAL_GET => self.handle_gallery_material_get_impl(params).boxed(),
-            METHOD_GALLERY_MATERIAL_METADATA_CREATE => self
-                .handle_gallery_material_metadata_create_impl(params)
-                .boxed(),
-            METHOD_GALLERY_MATERIAL_METADATA_GET => self
-                .handle_gallery_material_metadata_get_impl(params)
-                .boxed(),
-            METHOD_GALLERY_MATERIAL_METADATA_UPDATE => self
-                .handle_gallery_material_metadata_update_impl(params)
-                .boxed(),
-            METHOD_GALLERY_MATERIAL_METADATA_DELETE => self
-                .handle_gallery_material_metadata_delete_impl(params)
-                .boxed(),
-            METHOD_GALLERY_MATERIAL_LIST_BY_IMAGE_CATEGORY => self
-                .handle_gallery_material_list_by_image_category_impl(params)
-                .boxed(),
-            METHOD_GALLERY_MATERIAL_LIST_BY_LAYOUT_CATEGORY => self
-                .handle_gallery_material_list_by_layout_category_impl(params)
-                .boxed(),
-            METHOD_GALLERY_MATERIAL_LIST_BY_MOOD => self
-                .handle_gallery_material_list_by_mood_impl(params)
-                .boxed(),
-            METHOD_PROJECT_MATERIAL_LIST => self.handle_project_material_list_impl(params).boxed(),
-            METHOD_PROJECT_MATERIAL_GET => self.handle_project_material_get_impl(params).boxed(),
-            METHOD_PROJECT_MATERIAL_COUNT => {
-                self.handle_project_material_count_impl(params).boxed()
-            }
-            METHOD_PROJECT_MATERIAL_UPLOAD => {
-                self.handle_project_material_upload_impl(params).boxed()
-            }
-            METHOD_PROJECT_MATERIAL_IMPORT_FROM_URL => self
-                .handle_project_material_import_from_url_impl(params)
-                .boxed(),
-            METHOD_PROJECT_MATERIAL_UPDATE => {
-                self.handle_project_material_update_impl(params).boxed()
-            }
-            METHOD_PROJECT_MATERIAL_DELETE => {
-                self.handle_project_material_delete_impl(params).boxed()
-            }
-            METHOD_PROJECT_MATERIAL_CONTENT => {
-                self.handle_project_material_content_impl(params).boxed()
-            }
             METHOD_VOICE_ASR_CREDENTIAL_LIST => {
                 self.handle_voice_asr_credential_list_impl().boxed()
             }

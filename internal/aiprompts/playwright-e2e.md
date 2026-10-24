@@ -711,14 +711,6 @@ Web Search 复用同一导航fixture，子场景为`scripts/electron/lib/setting
    - 对应内容仍落在同一个 `contentId`
 5. 如能查看运行记录或调试面板，继续确认自动化 `agent_turn` payload 含 `content_id` 与 `request_metadata.artifact`
 
-### 素材页验证
-
-1. 从社媒内容项目进入 `素材`
-2. 验证素材列表可加载
-3. 验证素材计数、列表项或空状态正常显示
-4. 如当前环境能查看调试面板、Electron IPC 或 App Server JSON-RPC 记录，优先确认素材页读取的是 `gallery_material_*` 命令，而不是旧 `poster_material_*` 命名
-5. 检查控制台无新增 error
-
 ## 每一步至少记录什么
 
 执行 Playwright MCP 续测时，至少记录以下事实：

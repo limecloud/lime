@@ -33,6 +33,36 @@ function collectSourceFiles(root: string): string[] {
 }
 
 describe("legacySurfaceCatalog", () => {
+  it("项目素材catalog不再作为视频或上下文前端入口", () => {
+    const monitor = legacySurfaceCatalogJson.imports.find(
+      (entry) => entry.id === "retired-project-material-platform",
+    );
+    expect(monitor?.classification).toBe("dead");
+    expect(monitor?.allowedPaths).toEqual([]);
+    expect(monitor?.targets.length).toBeGreaterThan(0);
+    for (const target of monitor?.targets ?? []) {
+      expect(existsSync(join(REPO_ROOT, target)), target).toBe(false);
+    }
+  });
+  it("图库整链已删除且不再登记替代主链", () => {
+    const monitor = legacySurfaceCatalogJson.imports.find(
+      (entry) => entry.id === "retired-gallery-platform",
+    );
+    expect(monitor?.classification).toBe("dead");
+    expect(monitor?.allowedPaths).toEqual([]);
+    expect(monitor?.targets.length).toBeGreaterThan(0);
+    for (const target of monitor?.targets ?? []) {
+      expect(existsSync(join(REPO_ROOT, target)), target).toBe(false);
+    }
+    for (const replacements of [
+      agentCommandCatalog.deprecatedCommandReplacements,
+      agentCommandCatalog.deprecatedHelperReplacements,
+    ]) {
+      expect(
+        Object.values(replacements).some((value) => /gallery/i.test(value)),
+      ).toBe(false);
+    }
+  });
   it("创作上下文实现和前端prompt authority不能恢复", () => {
     const monitor = legacySurfaceCatalogJson.imports.find(
       (entry) => entry.id === "retired-creation-context",
@@ -1365,30 +1395,6 @@ describe("legacySurfaceCatalog", () => {
     expect(monitor?.includePathPrefixes).toEqual([
       "src/lib/desktop-host/index.ts",
     ]);
-  });
-
-  it("应将旧海报素材命令与 helper 收敛到图库主链", () => {
-    expect(agentCommandCatalog.deprecatedCommandReplacements).toMatchObject({
-      create_poster_metadata: "galleryMaterialMetadata/create",
-      get_poster_metadata: "galleryMaterialMetadata/get",
-      get_poster_material: "galleryMaterial/get",
-      update_poster_metadata: "galleryMaterialMetadata/update",
-      delete_poster_metadata: "galleryMaterialMetadata/delete",
-      list_by_image_category: "galleryMaterial/listByImageCategory",
-      list_by_layout_category: "galleryMaterial/listByLayoutCategory",
-      list_by_mood: "galleryMaterial/listByMood",
-    });
-    expect(agentCommandCatalog.deprecatedHelperReplacements).toMatchObject({
-      getPosterMaterial: "getGalleryMaterial",
-      createPosterMetadata: "createGalleryMetadata",
-      updatePosterMetadata: "updateGalleryMetadata",
-      deletePosterMetadata: "deleteGalleryMetadata",
-      listPosterMaterialsByImageCategory: "listGalleryMaterialsByImageCategory",
-      listPosterMaterialsByLayoutCategory:
-        "listGalleryMaterialsByLayoutCategory",
-      listPosterMaterialsByMood: "listGalleryMaterialsByMood",
-      usePosterMaterial: "useGalleryMaterial",
-    });
   });
 
   it("应记录已删除的旧 SubAgent scheduler Rust 模块路径", () => {
@@ -4412,7 +4418,7 @@ describe("legacySurfaceCatalog", () => {
     );
 
     expect(frontendMonitor).toBeTruthy();
-    expect(frontendMonitor?.classification).toBe("dead-candidate");
+    expect(frontendMonitor?.classification).toBe("dead");
     expect(frontendMonitor?.patterns).toEqual(
       expect.arrayContaining([
         "getPosterMaterial(",
@@ -4422,9 +4428,7 @@ describe("legacySurfaceCatalog", () => {
     );
 
     expect(rustMonitor).toBeTruthy();
-    expect(rustMonitor?.allowedPaths).toEqual([
-      "lime-rs/crates/core/src/database/schema.rs",
-    ]);
+    expect(rustMonitor?.allowedPaths).toEqual([]);
     expect(rustMonitor?.patterns).toEqual(
       expect.arrayContaining([
         "PosterMaterialDao",

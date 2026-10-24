@@ -34,21 +34,30 @@ export function effectiveBrowserSettings(
   const policy = validateBrowserUse(browserUse);
   return {
     ...prefs,
-    requirements,
+    requirements: requirements === null ? null : structuredClone(requirements),
     browser_use: policy,
     history_access:
-      policy?.allow_history_access === false || requirements?.browserUse?.allowHistoryAccess === false
+      requirements?.allowBrowserAndComputerUse === false ||
+      policy?.allow_history_access === false ||
+      requirements?.browserUse?.allowHistoryAccess === false
         ? "disabled"
         : prefs.iabHistoryApprovalMode,
     agent_permissions: browserAgentPermissions(prefs, policy),
   };
 }
 
-export function browserSettingsFromConfig(config: {
-  browser?: Partial<BrowserPreferences>;
-  browser_use?: unknown;
-}, requirements: ConfigRequirements | null = null): BrowserSettings {
-  return effectiveBrowserSettings(config.browser, config.browser_use, requirements);
+export function browserSettingsFromConfig(
+  config: {
+    browser?: Partial<BrowserPreferences>;
+    browser_use?: unknown;
+  },
+  requirements: ConfigRequirements | null = null,
+): BrowserSettings {
+  return effectiveBrowserSettings(
+    config.browser,
+    config.browser_use,
+    requirements,
+  );
 }
 
 export function validateBrowserSettings(

@@ -13,51 +13,6 @@ const LEGACY_WORKSPACE_TYPE_MIGRATION_ALIASES: &[&str] = &[
     "novel",
 ];
 
-fn table_exists(conn: &Connection, table_name: &str) -> Result<bool, rusqlite::Error> {
-    let mut stmt = conn.prepare(
-        "SELECT 1
-         FROM sqlite_master
-         WHERE type = 'table' AND name = ?1
-         LIMIT 1",
-    )?;
-    let mut rows = stmt.query([table_name])?;
-    Ok(rows.next()?.is_some())
-}
-
-fn migrate_gallery_material_metadata_table(conn: &Connection) -> Result<(), rusqlite::Error> {
-    let legacy_exists = table_exists(conn, "poster_material_metadata")?;
-    let current_exists = table_exists(conn, "gallery_material_metadata")?;
-
-    if legacy_exists && !current_exists {
-        conn.execute(
-            "ALTER TABLE poster_material_metadata RENAME TO gallery_material_metadata",
-            [],
-        )?;
-    }
-
-    if table_exists(conn, "gallery_material_metadata")? {
-        conn.execute(
-            "DROP INDEX IF EXISTS idx_poster_material_metadata_material_id",
-            [],
-        )?;
-        conn.execute(
-            "DROP INDEX IF EXISTS idx_poster_material_metadata_image_category",
-            [],
-        )?;
-        conn.execute(
-            "DROP INDEX IF EXISTS idx_poster_material_metadata_icon_category",
-            [],
-        )?;
-        conn.execute(
-            "DROP INDEX IF EXISTS idx_poster_material_metadata_layout_category",
-            [],
-        )?;
-        conn.execute("DROP INDEX IF EXISTS idx_poster_material_metadata_mood", [])?;
-    }
-
-    Ok(())
-}
-
 fn drop_retired_agent_runtime_tables(conn: &Connection) -> Result<(), rusqlite::Error> {
     for index_name in [
         "idx_a2ui_forms_session",
@@ -898,39 +853,6 @@ pub fn create_tables(conn: &Connection) -> Result<(), rusqlite::Error> {
     )?;
 
     // ============================================================================
-    // 素材表 (Material)
-    // 存储项目级素材，包括文档、图片、文本、数据文件等
-    // _Requirements: 7.3_
-    // ============================================================================
-    conn.execute(
-        "CREATE TABLE IF NOT EXISTS materials (
-            id TEXT PRIMARY KEY,
-            project_id TEXT NOT NULL,
-            name TEXT NOT NULL,
-            material_type TEXT NOT NULL DEFAULT 'document',
-            file_path TEXT,
-            file_size INTEGER,
-            mime_type TEXT,
-            content TEXT,
-            tags_json TEXT NOT NULL DEFAULT '[]',
-            description TEXT,
-            created_at INTEGER NOT NULL,
-            FOREIGN KEY (project_id) REFERENCES workspaces(id) ON DELETE CASCADE
-        )",
-        [],
-    )?;
-
-    // 创建 materials 索引
-    conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_materials_project_id ON materials(project_id)",
-        [],
-    )?;
-    conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_materials_type ON materials(material_type)",
-        [],
-    )?;
-
-    // ============================================================================
     // 发布配置表 (PublishConfig)
     // 存储项目级发布配置，包括平台凭证和发布历史
     // _Requirements: 9.4_
@@ -987,57 +909,6 @@ pub fn create_tables(conn: &Connection) -> Result<(), rusqlite::Error> {
     )?;
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_outline_nodes_parent_id ON outline_nodes(parent_id)",
-        [],
-    )?;
-
-    // ============================================================================
-    // 图库素材元数据表 (GalleryMaterialMetadata)
-    // 存储图库素材的扩展信息，与 materials 表关联
-    // ============================================================================
-    migrate_gallery_material_metadata_table(conn)?;
-    conn.execute(
-        "CREATE TABLE IF NOT EXISTS gallery_material_metadata (
-            id TEXT PRIMARY KEY,
-            material_id TEXT NOT NULL UNIQUE,
-            image_category TEXT,
-            width INTEGER,
-            height INTEGER,
-            thumbnail TEXT,
-            colors_json TEXT NOT NULL DEFAULT '[]',
-            icon_style TEXT,
-            icon_category TEXT,
-            color_scheme_json TEXT,
-            mood TEXT,
-            layout_category TEXT,
-            element_count INTEGER,
-            preview TEXT,
-            fabric_json TEXT,
-            created_at INTEGER NOT NULL,
-            updated_at INTEGER NOT NULL,
-            FOREIGN KEY (material_id) REFERENCES materials(id) ON DELETE CASCADE
-        )",
-        [],
-    )?;
-
-    // 创建 gallery_material_metadata 索引
-    conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_gallery_material_metadata_material_id ON gallery_material_metadata(material_id)",
-        [],
-    )?;
-    conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_gallery_material_metadata_image_category ON gallery_material_metadata(image_category)",
-        [],
-    )?;
-    conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_gallery_material_metadata_icon_category ON gallery_material_metadata(icon_category)",
-        [],
-    )?;
-    conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_gallery_material_metadata_layout_category ON gallery_material_metadata(layout_category)",
-        [],
-    )?;
-    conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_gallery_material_metadata_mood ON gallery_material_metadata(mood)",
         [],
     )?;
 
@@ -1246,6 +1117,64 @@ fn migrate_add_proxy_url_column(conn: &Connection) -> Result<(), rusqlite::Error
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn should_not_create_retired_material_catalog_or_change_existing_rows() {
+        let fresh = Connection::open_in_memory().unwrap();
+        create_tables(&fresh).expect("初始化现役表");
+        let count: i64 = fresh.query_row(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name IN ('materials', 'gallery_material_metadata')",
+            [],
+            |row| row.get(0),
+        ).unwrap();
+        assert_eq!(count, 0, "新库不得恢复素材catalog");
+
+        let legacy = Connection::open_in_memory().unwrap();
+        legacy
+            .execute(
+                "CREATE TABLE materials (id TEXT PRIMARY KEY, payload TEXT)",
+                [],
+            )
+            .unwrap();
+        legacy
+            .execute("INSERT INTO materials VALUES ('legacy', 'retain')", [])
+            .unwrap();
+        create_tables(&legacy).expect("初始化不能修改存量素材表");
+        let retained: String = legacy
+            .query_row(
+                "SELECT payload FROM materials WHERE id = 'legacy'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(retained, "retain", "代码退役不得清理用户数据");
+    }
+
+    #[test]
+    fn should_not_create_or_migrate_retired_gallery_metadata() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute("CREATE TABLE poster_material_metadata (value TEXT)", [])
+            .unwrap();
+        conn.execute("INSERT INTO poster_material_metadata VALUES ('keep')", [])
+            .unwrap();
+
+        create_tables(&conn).expect("初始化现役表");
+
+        let gallery_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE name = 'gallery_material_metadata'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(gallery_count, 0, "不得恢复图库表或索引");
+        let retained: String = conn
+            .query_row("SELECT value FROM poster_material_metadata", [], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        assert_eq!(retained, "keep", "退役不修改现存用户表");
+    }
 
     #[test]
     fn should_upgrade_legacy_browser_profile_table_with_transport_columns() {

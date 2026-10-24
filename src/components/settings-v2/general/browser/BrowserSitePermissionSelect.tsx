@@ -32,8 +32,8 @@ export function BrowserSitePermissionSelect({
   const descriptionId = useId();
   const cell = browserSitePermissionCell(settings, context, action, pattern);
   const value = pattern
-    ? settings.agent_permissions.sites.find((site) => site.pattern === pattern)!
-        .permissions[action]
+    ? (settings.agent_permissions.sites.find((site) => site.pattern === pattern)
+        ?.permissions[action] ?? "default")
     : settings.agent_permissions.default[action];
   const modes = {
     browse: settings.approvalMode,

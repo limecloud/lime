@@ -1,6 +1,10 @@
 import { beforeEach, expect, it, vi } from "vitest";
 import { invalidateAppConfigCache } from "./appConfig";
 import { getBrowserSettingsSnapshot } from "./browserSettings";
+const requirements = vi.hoisted(() => vi.fn());
+vi.mock("./configRequirements", () => ({
+  getConfigRequirements: requirements,
+}));
 
 const { request } = vi.hoisted(() => ({ request: vi.fn() }));
 vi.mock("./appServer", () => ({
@@ -12,6 +16,7 @@ beforeEach(() => {
   invalidateAppConfigCache();
   window.localStorage.clear();
   request.mockReset();
+  requirements.mockReset().mockResolvedValue(null);
 });
 
 it("reads effective permissions, the actual user layer and managed origins from the same config response", async () => {

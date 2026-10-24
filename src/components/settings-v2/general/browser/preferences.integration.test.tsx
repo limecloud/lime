@@ -51,6 +51,8 @@ beforeEach(async () => {
   rejectRead = false;
   pickFiles.mockReset().mockResolvedValue([]);
   request.mockReset().mockImplementation(async (method, params) => {
+    if (method === "configRequirements/read")
+      return { result: { requirements: null } };
     if (method === "config/read") {
       if (rejectRead) throw new Error("fixture read rejected");
       return {

@@ -4074,47 +4074,46 @@ function collectRetiredGalleryMaterialFacadeSourceFailures() {
     {
       path: "src/lib/dev-bridge/commandPolicy.ts",
       message:
-        "Gallery material 旧 Tauri facade 已迁到 App Server galleryMaterial*，不能继续作为 DevBridge truth command",
+        "Gallery material 旧 Tauri facade 随图库产品整链删除，不能继续作为 DevBridge truth command",
     },
     {
       path: "src/lib/dev-bridge/mockPriorityCommands.ts",
       message:
-        "Gallery material 旧 Tauri facade 已迁到 App Server galleryMaterial*，不能继续作为 mock priority command",
+        "Gallery material 旧 Tauri facade 随图库产品整链删除，不能继续作为 mock priority command",
     },
     {
       path: "src/lib/governance/agentCommandCatalog.json",
       message:
-        "Gallery material 旧 Tauri facade 已迁到 App Server galleryMaterial*，不能继续作为 runtime gateway command",
+        "Gallery material 旧 Tauri facade 随图库产品整链删除，不能继续作为 runtime gateway command",
     },
     {
       path: "src/lib/api/galleryMaterials.ts",
-      message:
-        "galleryMaterials API 必须通过 App Server galleryMaterial*，不能回到旧 Tauri facade",
+      message: "图库API已删除，不能恢复旧 Tauri facade",
     },
     {
       path: "electron/ipcChannels.ts",
       message:
-        "Gallery material 旧 Tauri facade 不能回到 Electron Host 白名单；current 入口是 App Server galleryMaterial*",
+        "Gallery material 旧 Tauri facade 不能回到 Electron Host 白名单；不再提供替代入口",
     },
     {
       path: "electron/hostCommands.ts",
       message:
-        "Gallery material 旧 Tauri facade 不能回到 Electron Host diagnostic facade；current 入口是 App Server galleryMaterial*",
+        "Gallery material 旧 Tauri facade 不能回到 Electron Host diagnostic facade；不再提供替代入口",
     },
     {
       path: "lime-rs/src/app/runner.rs",
       message:
-        "Gallery material 旧 Tauri facade 不能回到 legacy Tauri generate_handler；current 入口是 App Server galleryMaterial*",
+        "Gallery material 旧 Tauri facade 不能回到 legacy Tauri generate_handler；不再提供替代入口",
     },
     {
       path: "lime-rs/src/dev_bridge/dispatcher.rs",
       message:
-        "Gallery material 旧 Tauri facade 不能回到 Rust DevBridge dispatcher；current 入口是 App Server galleryMaterial*",
+        "Gallery material 旧 Tauri facade 不能回到 Rust DevBridge dispatcher；不再提供替代入口",
     },
     {
       path: "lime-rs/src/dev_bridge/dispatcher/project_resources.rs",
       message:
-        "Gallery material 旧 Tauri facade 不能回到 Rust DevBridge project resource dispatcher；current 入口是 App Server galleryMaterial*",
+        "Gallery material 旧 Tauri facade 不能回到 Rust DevBridge project resource dispatcher；不再提供替代入口",
     },
   ];
 
@@ -4136,7 +4135,7 @@ function collectRetiredGalleryMaterialFacadeSourceFailures() {
       failures.push({
         file: retiredPath,
         message:
-          "Gallery material 旧 Tauri wrapper 已迁到 App Server current，不能恢复旧文件本体",
+          "Gallery material 旧 Tauri wrapper 已随图库产品删除，不能恢复旧文件本体",
         token: retiredPath,
       });
     }
@@ -4148,7 +4147,7 @@ function collectRetiredGalleryMaterialFacadeSourceFailures() {
     failures.push({
       file: commandsModPath,
       message:
-        "Gallery material 旧 Tauri wrapper 已迁到 App Server current，不能恢复 commands/mod.rs 模块声明",
+        "Gallery material 旧 Tauri wrapper 已随图库产品删除，不能恢复 commands/mod.rs 模块声明",
       token: "gallery_material_cmd",
     });
   }
@@ -4162,47 +4161,46 @@ function collectRetiredProjectMaterialFacadeSourceFailures() {
     {
       path: "src/lib/dev-bridge/commandPolicy.ts",
       message:
-        "Project material 旧 Tauri facade 已迁到 App Server projectMaterial/*，不能继续作为 DevBridge truth command",
+        "Project material 旧 Tauri facade 已随素材产品整链删除，不能继续作为 DevBridge truth command",
     },
     {
       path: "src/lib/dev-bridge/mockPriorityCommands.ts",
       message:
-        "Project material 旧 Tauri facade 已迁到 App Server projectMaterial/*，不能继续作为 mock priority command",
+        "Project material 旧 Tauri facade 已随素材产品整链删除，不能继续作为 mock priority command",
     },
     {
       path: "src/lib/governance/agentCommandCatalog.json",
       message:
-        "Project material 旧 Tauri facade 已迁到 App Server projectMaterial/*，不能继续作为 runtime gateway command",
+        "Project material 旧 Tauri facade 已随素材产品整链删除，不能继续作为 runtime gateway command",
     },
     {
       path: "src/lib/api/materials.ts",
-      message:
-        "materials API 必须通过 App Server projectMaterial/*，不能回到旧 Tauri facade",
+      message: "materials API 已删除，不能回到旧 Tauri facade",
     },
     {
       path: "electron/ipcChannels.ts",
       message:
-        "Project material 旧 Tauri facade 不能回到 Electron Host 白名单；current 入口是 App Server projectMaterial/*",
+        "Project material 旧 Tauri facade 不能回到 Electron Host 白名单；不再提供替代入口",
     },
     {
       path: "electron/hostCommands.ts",
       message:
-        "Project material 旧 Tauri facade 不能回到 Electron Host diagnostic facade；current 入口是 App Server projectMaterial/*",
+        "Project material 旧 Tauri facade 不能回到 Electron Host diagnostic facade；不再提供替代入口",
     },
     {
       path: "lime-rs/src/app/runner.rs",
       message:
-        "Project material 旧 Tauri facade 不能回到 legacy Tauri generate_handler；current 入口是 App Server projectMaterial/*",
+        "Project material 旧 Tauri facade 不能回到 legacy Tauri generate_handler；不再提供替代入口",
     },
     {
       path: "lime-rs/src/dev_bridge/dispatcher.rs",
       message:
-        "Project material 旧 Tauri facade 不能回到 Rust DevBridge dispatcher；current 入口是 App Server projectMaterial/*",
+        "Project material 旧 Tauri facade 不能回到 Rust DevBridge dispatcher；不再提供替代入口",
     },
     {
       path: "lime-rs/src/dev_bridge/dispatcher/project_resources.rs",
       message:
-        "Project material 旧 Tauri facade 不能回到 Rust DevBridge project resource dispatcher；current 入口是 App Server projectMaterial/*",
+        "Project material 旧 Tauri facade 不能回到 Rust DevBridge project resource dispatcher；不再提供替代入口",
     },
   ];
 
@@ -4224,7 +4222,7 @@ function collectRetiredProjectMaterialFacadeSourceFailures() {
       failures.push({
         file: retiredPath,
         message:
-          "Project material 旧 Tauri wrapper 已迁到 App Server current，不能恢复旧文件本体",
+          "Project material 旧 Tauri wrapper 已随素材产品整链删除，不能恢复旧文件本体",
         token: retiredPath,
       });
     }
@@ -4236,7 +4234,7 @@ function collectRetiredProjectMaterialFacadeSourceFailures() {
     failures.push({
       file: commandsModPath,
       message:
-        "Project material 旧 Tauri wrapper 已迁到 App Server current，不能恢复 commands/mod.rs 模块声明",
+        "Project material 旧 Tauri wrapper 已随素材产品整链删除，不能恢复 commands/mod.rs 模块声明",
       token: "material_cmd",
     });
   }
@@ -5716,7 +5714,7 @@ function main() {
   if (retiredGalleryMaterialFacadeLeaks.size > 0) {
     hasError = true;
     printCommandGroup(
-      "Gallery material 旧 facade 已迁到 App Server current，不能回到前端调用、Electron Host、DevBridge truth、mock priority、runtime catalog 或 deferred 白名单",
+      "Gallery material 旧 facade 已随图库产品删除，不能回到前端调用、Electron Host、DevBridge truth、mock priority、runtime catalog 或 deferred 白名单",
       retiredGalleryMaterialFacadeLeaks,
     );
   }
@@ -5847,7 +5845,7 @@ function main() {
   if (retiredGalleryMaterialFacadeSourceFailures.length > 0) {
     hasError = true;
     printGuardFailures(
-      "Gallery material 旧 facade 已迁到 App Server galleryMaterial/*，不能回到受限事实源",
+      "Gallery material 旧 facade 已随图库产品删除，不能回到受限事实源",
       retiredGalleryMaterialFacadeSourceFailures,
     );
   }
@@ -5855,7 +5853,7 @@ function main() {
   if (retiredProjectMaterialFacadeSourceFailures.length > 0) {
     hasError = true;
     printGuardFailures(
-      "Project material 旧 facade 已迁到 App Server projectMaterial/*，不能回到受限事实源",
+      "Project material 旧 facade 已随素材产品整链删除，不能回到受限事实源",
       retiredProjectMaterialFacadeSourceFailures,
     );
   }

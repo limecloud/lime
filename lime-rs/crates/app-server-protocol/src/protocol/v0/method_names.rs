@@ -105,24 +105,6 @@ pub const METHOD_MEDIA_TASK_ARTIFACT_AUDIO_COMPLETE: &str = "mediaTaskArtifact/a
 pub const METHOD_MEDIA_TASK_ARTIFACT_GET: &str = "mediaTaskArtifact/get";
 pub const METHOD_MEDIA_TASK_ARTIFACT_LIST: &str = "mediaTaskArtifact/list";
 pub const METHOD_MEDIA_TASK_ARTIFACT_CANCEL: &str = "mediaTaskArtifact/cancel";
-pub const METHOD_GALLERY_MATERIAL_GET: &str = "galleryMaterial/get";
-pub const METHOD_GALLERY_MATERIAL_METADATA_CREATE: &str = "galleryMaterialMetadata/create";
-pub const METHOD_GALLERY_MATERIAL_METADATA_GET: &str = "galleryMaterialMetadata/get";
-pub const METHOD_GALLERY_MATERIAL_METADATA_UPDATE: &str = "galleryMaterialMetadata/update";
-pub const METHOD_GALLERY_MATERIAL_METADATA_DELETE: &str = "galleryMaterialMetadata/delete";
-pub const METHOD_GALLERY_MATERIAL_LIST_BY_IMAGE_CATEGORY: &str =
-    "galleryMaterial/listByImageCategory";
-pub const METHOD_GALLERY_MATERIAL_LIST_BY_LAYOUT_CATEGORY: &str =
-    "galleryMaterial/listByLayoutCategory";
-pub const METHOD_GALLERY_MATERIAL_LIST_BY_MOOD: &str = "galleryMaterial/listByMood";
-pub const METHOD_PROJECT_MATERIAL_LIST: &str = "projectMaterial/list";
-pub const METHOD_PROJECT_MATERIAL_GET: &str = "projectMaterial/get";
-pub const METHOD_PROJECT_MATERIAL_COUNT: &str = "projectMaterial/count";
-pub const METHOD_PROJECT_MATERIAL_UPLOAD: &str = "projectMaterial/upload";
-pub const METHOD_PROJECT_MATERIAL_IMPORT_FROM_URL: &str = "projectMaterial/importFromUrl";
-pub const METHOD_PROJECT_MATERIAL_UPDATE: &str = "projectMaterial/update";
-pub const METHOD_PROJECT_MATERIAL_DELETE: &str = "projectMaterial/delete";
-pub const METHOD_PROJECT_MATERIAL_CONTENT: &str = "projectMaterial/content";
 pub const METHOD_VOICE_ASR_CREDENTIAL_LIST: &str = "voiceAsrCredential/list";
 pub const METHOD_VOICE_ASR_CREDENTIAL_CREATE: &str = "voiceAsrCredential/create";
 pub const METHOD_VOICE_ASR_CREDENTIAL_UPDATE: &str = "voiceAsrCredential/update";

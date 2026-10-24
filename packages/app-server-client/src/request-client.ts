@@ -492,54 +492,6 @@ export interface AppServerClient {
   cancelMediaTaskArtifact(
     params: protocol.MediaTaskArtifactLookupParams,
   ): protocol.JsonRpcRequest;
-  getGalleryMaterial(
-    params: protocol.GalleryMaterialLookupParams,
-  ): protocol.JsonRpcRequest;
-  createGalleryMaterialMetadata(
-    params: protocol.GalleryMaterialMetadataCreateParams,
-  ): protocol.JsonRpcRequest;
-  getGalleryMaterialMetadata(
-    params: protocol.GalleryMaterialLookupParams,
-  ): protocol.JsonRpcRequest;
-  updateGalleryMaterialMetadata(
-    params: protocol.GalleryMaterialMetadataUpdateParams,
-  ): protocol.JsonRpcRequest;
-  deleteGalleryMaterialMetadata(
-    params: protocol.GalleryMaterialLookupParams,
-  ): protocol.JsonRpcRequest;
-  listGalleryMaterialsByImageCategory(
-    params: protocol.GalleryMaterialFilterParams,
-  ): protocol.JsonRpcRequest;
-  listGalleryMaterialsByLayoutCategory(
-    params: protocol.GalleryMaterialFilterParams,
-  ): protocol.JsonRpcRequest;
-  listGalleryMaterialsByMood(
-    params: protocol.GalleryMaterialFilterParams,
-  ): protocol.JsonRpcRequest;
-  listProjectMaterials(
-    params: protocol.ProjectMaterialListParams,
-  ): protocol.JsonRpcRequest;
-  getProjectMaterial(
-    params: protocol.ProjectMaterialLookupParams,
-  ): protocol.JsonRpcRequest;
-  countProjectMaterials(
-    params: protocol.ProjectMaterialListParams,
-  ): protocol.JsonRpcRequest;
-  uploadProjectMaterial(
-    params: protocol.ProjectMaterialUploadParams,
-  ): protocol.JsonRpcRequest;
-  importProjectMaterialFromUrl(
-    params: protocol.ProjectMaterialImportFromUrlParams,
-  ): protocol.JsonRpcRequest;
-  updateProjectMaterial(
-    params: protocol.ProjectMaterialUpdateParams,
-  ): protocol.JsonRpcRequest;
-  deleteProjectMaterial(
-    params: protocol.ProjectMaterialLookupParams,
-  ): protocol.JsonRpcRequest;
-  readProjectMaterialContent(
-    params: protocol.ProjectMaterialLookupParams,
-  ): protocol.JsonRpcRequest;
   readInstructions(): protocol.JsonRpcRequest;
   writeInstructions(
     params: protocol.InstructionsWriteParams,

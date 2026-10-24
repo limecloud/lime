@@ -478,41 +478,6 @@ export type AppServerMediaTaskArtifactResponse =
   protocol.MediaTaskArtifactResponse;
 export type AppServerMediaTaskArtifactListResponse =
   protocol.MediaTaskArtifactListResponse;
-export type AppServerGalleryMaterialLookupParams =
-  protocol.GalleryMaterialLookupParams;
-export type AppServerGalleryMaterialMetadataCreateParams =
-  protocol.GalleryMaterialMetadataCreateParams;
-export type AppServerGalleryMaterialMetadataUpdateParams =
-  protocol.GalleryMaterialMetadataUpdateParams;
-export type AppServerGalleryMaterialFilterParams =
-  protocol.GalleryMaterialFilterParams;
-export type AppServerGalleryMaterialResponse = protocol.GalleryMaterialResponse;
-export type AppServerGalleryMaterialMetadataResponse =
-  protocol.GalleryMaterialMetadataResponse;
-export type AppServerGalleryMaterialListResponse =
-  protocol.GalleryMaterialListResponse;
-export type AppServerGalleryMaterialDeleteResponse =
-  protocol.GalleryMaterialDeleteResponse;
-export type AppServerProjectMaterial = protocol.ProjectMaterial;
-export type AppServerProjectMaterialListParams =
-  protocol.ProjectMaterialListParams;
-export type AppServerProjectMaterialLookupParams =
-  protocol.ProjectMaterialLookupParams;
-export type AppServerProjectMaterialUploadParams =
-  protocol.ProjectMaterialUploadParams;
-export type AppServerProjectMaterialImportFromUrlParams =
-  protocol.ProjectMaterialImportFromUrlParams;
-export type AppServerProjectMaterialUpdateParams =
-  protocol.ProjectMaterialUpdateParams;
-export type AppServerProjectMaterialListResponse =
-  protocol.ProjectMaterialListResponse;
-export type AppServerProjectMaterialResponse = protocol.ProjectMaterialResponse;
-export type AppServerProjectMaterialCountResponse =
-  protocol.ProjectMaterialCountResponse;
-export type AppServerProjectMaterialContentResponse =
-  protocol.ProjectMaterialContentResponse;
-export type AppServerProjectMaterialDeleteResponse =
-  protocol.ProjectMaterialDeleteResponse;
 export type AppServerVoiceAsrProviderType = protocol.VoiceAsrProviderType;
 export type AppServerVoiceAsrCredential = protocol.VoiceAsrCredential;
 export type AppServerVoiceAsrCredentialCreateParams =

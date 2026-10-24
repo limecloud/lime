@@ -44,7 +44,22 @@ export function BrowserAgentPermissions({
   const userPatterns = new Set(
     context?.userPermissions.sites.map((site) => site.pattern),
   );
-  const sites = [...value.sites].sort(
+  const requirementPatterns = new Set(
+    Object.keys(settings.requirements?.browserUse?.origins ?? {}).map(
+      (pattern) => normalizeBrowserSitePattern(pattern)!,
+    ),
+  );
+  const sites = [
+    ...value.sites,
+    ...[...requirementPatterns]
+      .filter(
+        (pattern) => !value.sites.some((site) => site.pattern === pattern),
+      )
+      .map((pattern) => ({
+        pattern,
+        permissions: { ...DEFAULT_BROWSER_SITE_PERMISSIONS },
+      })),
+  ].sort(
     (a, b) =>
       Number(userPatterns.has(b.pattern)) -
         Number(userPatterns.has(a.pattern)) ||
@@ -257,11 +272,12 @@ export function BrowserAgentPermissions({
                   index === 0 ? t("settings.browser.default") : site.pattern;
                 const managed =
                   index > 0 &&
-                  (browserPermissionRowManaged(
-                    settings,
-                    context,
-                    site.pattern,
-                  ) ||
+                  (requirementPatterns.has(site.pattern) ||
+                    browserPermissionRowManaged(
+                      settings,
+                      context,
+                      site.pattern,
+                    ) ||
                     (context !== null &&
                       !context.userPermissions.sites.some(
                         (entry) => entry.pattern === site.pattern,
@@ -286,7 +302,13 @@ export function BrowserAgentPermissions({
                           action={action}
                           pattern={site.pattern}
                           name={name}
-                          disabled={disabled}
+                          disabled={
+                            disabled ||
+                            (requirementPatterns.has(site.pattern) &&
+                              !value.sites.some(
+                                (entry) => entry.pattern === site.pattern,
+                              ))
+                          }
                           onChange={(permission) => {
                             const permissions = {
                               ...site.permissions,

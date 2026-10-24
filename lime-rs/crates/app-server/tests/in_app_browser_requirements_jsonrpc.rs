@@ -69,6 +69,8 @@ async fn import_requirement_preserves_unset_and_explicit_values_on_public_read()
                 "allowedApprovalPolicies":null,
                 "allowedSandboxModes":["read-only"],
                 "allowedWebSearchModes":null,
+                "allowBrowserAndComputerUse":null,
+                "browserUse":null,
                 "inAppBrowser":{"allowExternalBrowserSettingsImport":null}
             }}),
         ),
@@ -150,8 +152,94 @@ fn projected(value: Option<bool>) -> Value {
         "allowedApprovalPolicies":null,
         "allowedSandboxModes":null,
         "allowedWebSearchModes":null,
+        "allowBrowserAndComputerUse":null,
+        "browserUse":null,
         "inAppBrowser":{"allowExternalBrowserSettingsImport":value}
     }})
+}
+
+#[tokio::test]
+async fn browser_requirements_are_independent_live_camel_case_and_fail_closed() {
+    let fixture = Fixture::new();
+    std::fs::write(
+        &fixture.config,
+        "server:\n  api_key: test-only\nbrowser_use:\n  allow_history_access: true\n",
+    )
+    .unwrap();
+    let server = fixture.server().await;
+    assert_eq!(
+        call(&server, "configRequirements/read", json!({})).await["requirements"],
+        Value::Null
+    );
+    std::fs::write(
+        &fixture.policy,
+        r#"
+        allow_browser_and_computer_use = false
+        [browser_use]
+        allow_history_access = false
+        allow_webmcp = false
+        allow_global_persistent_approval = false
+        disable_auto_review = true
+        [browser_use.default_origin_policy]
+        access = 'deny'
+        persistent_approval = false
+        access_approval_lifetime = 'turn'
+        [browser_use.origins.'*.example.com']
+        access = 'allow'
+        full_cdp_access = 'deny'
+        access_approval_lifetime = 'thread'
+    "#,
+    )
+    .unwrap();
+    let result = call(&server, "configRequirements/read", json!({})).await;
+    let requirements = &result["requirements"];
+    assert_eq!(requirements["allowBrowserAndComputerUse"], false);
+    let browser = &requirements["browserUse"];
+    assert_eq!(browser["allowHistoryAccess"], false);
+    assert_eq!(browser["allowWebmcp"], false);
+    assert_eq!(browser["disableAutoReview"], true);
+    assert_eq!(browser["allowGlobalPersistentApproval"], false);
+    assert_eq!(browser["defaultOriginPolicy"]["persistentApproval"], false);
+    assert_eq!(
+        browser["defaultOriginPolicy"]["accessApprovalLifetime"],
+        "turn"
+    );
+    assert_eq!(browser["origins"]["*.example.com"]["fullCdpAccess"], "deny");
+    assert_eq!(
+        browser["origins"]["*.example.com"]["accessApprovalLifetime"],
+        "thread"
+    );
+    assert_eq!(
+        call(&server, "config/read", json!({})).await["config"]["browser_use"]
+            ["allow_history_access"],
+        true
+    );
+    let forged = raw(
+        &server,
+        "configRequirements/read",
+        json!({"browserUse":{"allowHistoryAccess":true}}),
+    )
+    .await;
+    assert_eq!(forged["error"]["code"], -32602);
+    std::fs::write(
+        &fixture.policy,
+        "[browser_use]\nallow_history_access = 'false'",
+    )
+    .unwrap();
+    assert!(raw(&server, "configRequirements/read", json!({}))
+        .await
+        .get("error")
+        .is_some());
+    std::fs::write(
+        &fixture.policy,
+        "[browser_use]\nallow_history_access = true",
+    )
+    .unwrap();
+    assert_eq!(
+        call(&server, "configRequirements/read", json!({})).await["requirements"]["browserUse"]
+            ["allowHistoryAccess"],
+        true
+    );
 }
 
 async fn call(server: &AppServer, method: &str, params: Value) -> Value {

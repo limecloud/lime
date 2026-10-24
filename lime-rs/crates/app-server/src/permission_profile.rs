@@ -638,7 +638,7 @@ mod tests {
     }
 
     #[test]
-    fn non_strict_policy_keeps_profiles_selectable_without_a_backend() {
+    fn restricted_profiles_require_a_backend_even_when_legacy_strict_is_false() {
         let mut config = Config::default();
         config.agent.workspace_sandbox.enabled = true;
         config.agent.workspace_sandbox.strict = false;
@@ -649,9 +649,17 @@ mod tests {
         )
         .expect("permission profile policy");
 
-        assert!(builtin_permission_profiles()
-            .into_iter()
-            .all(|profile| permission_profile_is_allowed(&policy, profile)));
+        for id in [READ_ONLY_PROFILE_ID, WORKSPACE_PROFILE_ID] {
+            assert!(resolve_allowed_permission_profile(&policy, id)
+                .expect_err("restricted profile must require a sandbox backend")
+                .contains("disallowed by the current sandbox policy"));
+        }
+        assert_eq!(
+            resolve_allowed_permission_profile(&policy, DANGER_FULL_ACCESS_PROFILE_ID)
+                .expect("unrestricted profile does not require a sandbox backend")
+                .id,
+            DANGER_FULL_ACCESS_PROFILE_ID
+        );
     }
 
     #[cfg(not(windows))]

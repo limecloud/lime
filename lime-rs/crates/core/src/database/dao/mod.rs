@@ -9,8 +9,6 @@ pub mod automation_job;
 pub mod browser_environment_preset;
 pub mod browser_profile;
 pub mod chat;
-pub mod gallery_material_dao;
-pub mod material_dao;
 pub mod mcp;
 pub mod orchestrator;
 pub mod persona_dao;

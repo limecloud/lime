@@ -1,6 +1,9 @@
 import type { BrowserPreferences } from "./browserPreferences";
 import type { ConfigRequirements } from "@limecloud/app-server-client";
-import { managedBrowserDecision, managedBrowserRequiresApproval } from "./browserUseRequirements";
+import {
+  managedBrowserDecision,
+  managedBrowserRequiresApproval,
+} from "./browserUseRequirements";
 import {
   browserSiteMatches,
   browserUseDecision,
@@ -66,7 +69,10 @@ export const ORIGIN_APPROVAL_KEYS = {
 } as const;
 
 export function browserPermissionForUrl(
-  settings: BrowserPreferences & { browser_use: BrowserUse | null; requirements?: ConfigRequirements | null },
+  settings: BrowserPreferences & {
+    browser_use: BrowserUse | null;
+    requirements?: ConfigRequirements | null;
+  },
   action: BrowserPermissionAction,
   url: string,
 ): BrowserPermission {
@@ -78,8 +84,19 @@ export function browserPermissionForUrl(
   }
   if (!settings.enabled || !["https:", "http:"].includes(target.protocol))
     return "deny";
-  if (managedBrowserDecision(settings.requirements, ORIGIN_POLICY_KEYS[action], target) === "deny") return "deny";
-  if (action === "site_tools" && settings.requirements?.browserUse?.allowWebmcp === false) return "deny";
+  if (
+    managedBrowserDecision(
+      settings.requirements,
+      ORIGIN_POLICY_KEYS[action],
+      target,
+    ) === "deny"
+  )
+    return "deny";
+  if (
+    action === "site_tools" &&
+    settings.requirements?.browserUse?.allowWebmcp === false
+  )
+    return "deny";
   if (action === "debug" && !settings.fullCdpAccessEnabled) return "deny";
   if (action === "site_tools" && !settings.webMcpEnabled) return "deny";
   if (
@@ -93,12 +110,20 @@ export function browserPermissionForUrl(
   const [allowed, denied] = ORIGIN_STATE_KEYS[action];
   if (settings[denied].some((pattern) => browserSiteMatches(pattern, target)))
     return "deny";
-  if (action in ORIGIN_APPROVAL_KEYS && managedBrowserRequiresApproval(settings.requirements, target)) return "ask";
+  if (
+    action in ORIGIN_APPROVAL_KEYS &&
+    managedBrowserRequiresApproval(settings.requirements, target)
+  )
+    return "ask";
   if (settings[allowed].some((pattern) => browserSiteMatches(pattern, target)))
     return "allow";
   if (action === "debug")
     return settings.fullCdpAccessEnabled ? "allow" : "deny";
   if (action === "site_tools") return settings.webMcpEnabled ? "allow" : "deny";
+  if (
+    settings.requirements?.browserUse?.allowGlobalPersistentApproval === false
+  )
+    return "ask";
   return settings[ORIGIN_APPROVAL_KEYS[action]] === "neverAsk"
     ? "allow"
     : "ask";
