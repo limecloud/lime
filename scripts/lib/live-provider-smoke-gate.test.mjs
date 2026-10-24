@@ -266,36 +266,6 @@ describe("live-provider-smoke-gate", () => {
     expect(content).toContain("allRequiredToolEventsForTurn).toBe(false)");
   });
 
-  it(
-    "知识库真实 Provider E2E 即使指定 provider/model 也必须显式授权",
-    () => {
-      const result = spawnSync(
-        "node",
-        [
-          "scripts/knowledge-provider-e2e.mjs",
-          "--provider",
-          "deepseek",
-          "--model",
-          "deepseek-v4-flash",
-        ],
-        {
-          cwd: process.cwd(),
-          encoding: "utf8",
-          timeout: CHILD_PROCESS_TIMEOUT_MS,
-          env: {
-            ...process.env,
-            [LIVE_PROVIDER_SMOKE_ENV]: "",
-            [REAL_API_TEST_ENV]: "",
-          },
-        },
-      );
-
-      expect(result.status).toBe(1);
-      expect(`${result.stdout}${result.stderr}`).toContain("默认禁止执行");
-    },
-    CHILD_PROCESS_TEST_TIMEOUT_MS,
-  );
-
   it("提交真实 AgentRuntime / Provider 的脚本必须默认接入 live gate", () => {
     const riskyCommandPattern =
       /"agent_runtime_submit_turn"|"test_api_key_provider_chat"|"modelProvider\/testChat"/;
@@ -312,22 +282,6 @@ describe("live-provider-smoke-gate", () => {
           content.includes("not_submitted") &&
           content.includes("默认未提交");
         return !hasLiveGate && !hasDefaultNoSubmitPath;
-      })
-      .map(({ relativePath }) => relativePath);
-
-    expect(violations).toEqual([]);
-  });
-
-  it("知识包 E2E 编译默认必须关闭 Builder Runtime 或显式要求 live 授权", () => {
-    const knowledgeCompilePattern =
-      /"knowledgePack\/compile"|"knowledge_compile_pack"/;
-    const violations = listSmokeScripts()
-      .filter(({ content }) => knowledgeCompilePattern.test(content))
-      .filter(({ content }) => {
-        const hasLiveGate = content.includes("assertLiveProviderSmokeAllowed(");
-        const explicitlyDisablesBuilderRuntime =
-          /builderRuntime:\s*\{\s*enabled:\s*false/s.test(content);
-        return !hasLiveGate && !explicitlyDisablesBuilderRuntime;
       })
       .map(({ relativePath }) => relativePath);
 

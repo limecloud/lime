@@ -18,6 +18,8 @@ export interface BrowserHistoryVisit {
   url: string;
   title?: string;
   visitedAt?: number;
+  /** Set only by the native Browser owner when a committed visit is Agent controlled. */
+  isActorVisit?: boolean;
 }
 
 export interface BrowserHistoryQuery {
@@ -80,7 +82,12 @@ export function normalizeBrowserHistoryTitle(value: unknown): string {
 export function assertBrowserHistoryTimestamp(
   value: unknown,
 ): asserts value is number {
-  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0)
+  if (
+    typeof value !== "number" ||
+    !Number.isSafeInteger(value) ||
+    value < 0 ||
+    value > 8_640_000_000_000_000
+  )
     throw new Error("Invalid browser history timestamp");
 }
 
@@ -122,16 +129,6 @@ export function parseBrowserHistoryClear(
     throw new Error("Unknown browser history clear field");
   if (source.since !== undefined) assertBrowserHistoryTimestamp(source.since);
   return source.since === undefined ? {} : { since: source.since as number };
-}
-
-export function parseBrowserHistoryIds(value: unknown): string[] {
-  if (
-    !Array.isArray(value) ||
-    value.length > BROWSER_HISTORY_MAX_ENTRIES ||
-    value.some((id) => typeof id !== "string" || !id || id.length > 128)
-  )
-    throw new Error("Invalid browser history ids");
-  return [...new Set(value as string[])];
 }
 
 export function assertBrowserHistoryPage(

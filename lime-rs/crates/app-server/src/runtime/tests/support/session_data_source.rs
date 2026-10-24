@@ -8,7 +8,6 @@ pub(in crate::runtime::tests) struct TestSessionDataSource {
     memory_store_read_sequence: Mutex<Vec<Result<MemoryStoreReadResponse, String>>>,
     memory_store_read_requests: Mutex<Vec<MemoryStoreReadParams>>,
     memory_backend: Option<crate::LocalMemoryBackend>,
-    knowledge_compile_requests: Mutex<Vec<lime_knowledge::KnowledgeCompilePackRequest>>,
     right_surface_pending: Mutex<Vec<WorkspaceRightSurfacePendingRequest>>,
     media_task_artifacts: Mutex<Vec<MediaTaskArtifactResponse>>,
     media_task_list_requests: Mutex<Vec<MediaTaskArtifactListParams>>,
@@ -25,7 +24,6 @@ impl TestSessionDataSource {
             memory_store_read_sequence: Mutex::new(Vec::new()),
             memory_store_read_requests: Mutex::new(Vec::new()),
             memory_backend: None,
-            knowledge_compile_requests: Mutex::new(Vec::new()),
             right_surface_pending: Mutex::new(Vec::new()),
             media_task_artifacts: Mutex::new(Vec::new()),
             media_task_list_requests: Mutex::new(Vec::new()),
@@ -105,15 +103,6 @@ impl TestSessionDataSource {
             .clone()
     }
 
-    pub(in crate::runtime::tests) fn knowledge_compile_requests(
-        &self,
-    ) -> Vec<lime_knowledge::KnowledgeCompilePackRequest> {
-        self.knowledge_compile_requests
-            .lock()
-            .expect("test knowledge compile requests mutex poisoned")
-            .clone()
-    }
-
     pub(in crate::runtime::tests) fn memory_store_read_requests(
         &self,
     ) -> Vec<MemoryStoreReadParams> {
@@ -135,31 +124,6 @@ impl TestSessionDataSource {
 
 #[async_trait]
 impl SessionAppDataSource for TestSessionDataSource {}
-
-#[async_trait]
-impl KnowledgeAppDataSource for TestSessionDataSource {
-    async fn compile_knowledge_pack(
-        &self,
-        request: lime_knowledge::KnowledgeCompilePackRequest,
-    ) -> Result<KnowledgeCompilePackResponse, RuntimeCoreError> {
-        self.knowledge_compile_requests
-            .lock()
-            .expect("test knowledge compile requests mutex poisoned")
-            .push(request.clone());
-        let response =
-            lime_knowledge::compile_knowledge_pack(request).map_err(RuntimeCoreError::Backend)?;
-        Ok(KnowledgeCompilePackResponse {
-            pack: serde_json::to_value(response.pack)
-                .map_err(|error| RuntimeCoreError::Backend(error.to_string()))?,
-            selected_source_count: response.selected_source_count,
-            compiled_view: serde_json::to_value(response.compiled_view)
-                .map_err(|error| RuntimeCoreError::Backend(error.to_string()))?,
-            run: serde_json::to_value(response.run)
-                .map_err(|error| RuntimeCoreError::Backend(error.to_string()))?,
-            warnings: response.warnings,
-        })
-    }
-}
 
 #[async_trait]
 impl WorkspaceAppDataSource for TestSessionDataSource {
@@ -292,7 +256,6 @@ impl MemoryAppDataSource for TestSessionDataSource {
     }
 }
 impl DiagnosticsAppDataSource for TestSessionDataSource {}
-impl UsageStatsAppDataSource for TestSessionDataSource {}
 #[async_trait]
 impl ModelProviderAppDataSource for TestSessionDataSource {
     fn model_catalog_reconciliation_enabled(&self) -> bool {

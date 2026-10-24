@@ -4,7 +4,6 @@ use crate::AutomationOverviewAppDataSource;
 use crate::ConnectAppDataSource;
 use crate::DiagnosticsAppDataSource;
 use crate::GatewayAppDataSource;
-use crate::KnowledgeAppDataSource;
 use crate::McpAppDataSource;
 use crate::MediaAppDataSource;
 use crate::MemoryAppDataSource;
@@ -13,7 +12,6 @@ use crate::PluginDataSource;
 use crate::RightSurfaceAppDataSource;
 use crate::SessionAppDataSource;
 use crate::SkillAppDataSource;
-use crate::UsageStatsAppDataSource;
 use crate::VoiceAppDataSource;
 use crate::WorkspaceAppDataSource;
 use crate::WorkspaceSkillBindingAppDataSource;
@@ -61,12 +59,10 @@ impl GatewayAppDataSource for TestMcpInventoryDataSource {}
 impl MediaAppDataSource for TestMcpInventoryDataSource {}
 impl VoiceAppDataSource for TestMcpInventoryDataSource {}
 impl PluginDataSource for TestMcpInventoryDataSource {}
-impl KnowledgeAppDataSource for TestMcpInventoryDataSource {}
 impl AutomationOverviewAppDataSource for TestMcpInventoryDataSource {}
 impl AutomationManagementAppDataSource for TestMcpInventoryDataSource {}
 impl MemoryAppDataSource for TestMcpInventoryDataSource {}
 impl DiagnosticsAppDataSource for TestMcpInventoryDataSource {}
-impl UsageStatsAppDataSource for TestMcpInventoryDataSource {}
 impl ModelProviderAppDataSource for TestMcpInventoryDataSource {}
 impl ConnectAppDataSource for TestMcpInventoryDataSource {}
 impl RightSurfaceAppDataSource for TestMcpInventoryDataSource {}

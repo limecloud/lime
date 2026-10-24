@@ -151,6 +151,7 @@ export default defineConfig(({ command, mode }) => {
       setupFiles: ["./scripts/setup-vitest-network-guard.ts"],
       exclude: [
         "**/.lime/**",
+        "**/internal/exec-plans/artifacts/**",
         "**/node_modules/**",
         "**/tmp/lime-pnpm-frozen-node_modules/**",
         "**/dist/**",

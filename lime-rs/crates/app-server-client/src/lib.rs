@@ -127,22 +127,6 @@ use app_server_protocol::JsonRpcMessage;
 use app_server_protocol::JsonRpcNotification;
 use app_server_protocol::JsonRpcRequest;
 use app_server_protocol::JsonRpcResponse;
-pub use app_server_protocol::KnowledgeCompilePackParams;
-pub use app_server_protocol::KnowledgeCompilePackResponse;
-pub use app_server_protocol::KnowledgeContextResolutionResponse;
-pub use app_server_protocol::KnowledgeImportSourceParams;
-pub use app_server_protocol::KnowledgeImportSourceResponse;
-pub use app_server_protocol::KnowledgeListPacksParams;
-pub use app_server_protocol::KnowledgeListPacksResponse;
-pub use app_server_protocol::KnowledgeReadPackParams;
-pub use app_server_protocol::KnowledgeReadPackResponse;
-pub use app_server_protocol::KnowledgeResolveContextParams;
-pub use app_server_protocol::KnowledgeSetDefaultPackParams;
-pub use app_server_protocol::KnowledgeSetDefaultPackResponse;
-pub use app_server_protocol::KnowledgeUpdatePackStatusParams;
-pub use app_server_protocol::KnowledgeUpdatePackStatusResponse;
-pub use app_server_protocol::KnowledgeValidateContextRunParams;
-pub use app_server_protocol::KnowledgeValidateContextRunResponse;
 pub use app_server_protocol::LogClearResponse;
 pub use app_server_protocol::LogEntry;
 pub use app_server_protocol::LogListResponse;
@@ -233,13 +217,6 @@ pub use app_server_protocol::ThreadReadParams;
 pub use app_server_protocol::ThreadReadResponse;
 pub use app_server_protocol::ThreadTurnsListParams;
 pub use app_server_protocol::ThreadTurnsListResponse;
-pub use app_server_protocol::UsageStatsDailyTrendsListResponse;
-pub use app_server_protocol::UsageStatsDailyUsage;
-pub use app_server_protocol::UsageStatsModelRankingListResponse;
-pub use app_server_protocol::UsageStatsModelUsage;
-pub use app_server_protocol::UsageStatsRangeParams;
-pub use app_server_protocol::UsageStatsReadResponse;
-pub use app_server_protocol::UsageStatsSummary;
 pub use app_server_protocol::WechatChannelAccountListResponse;
 pub use app_server_protocol::WechatConfiguredAccount;
 pub use app_server_protocol::WindowsStartupCheck;
@@ -303,14 +280,6 @@ pub use app_server_protocol::METHOD_GATEWAY_TUNNEL_STOP;
 pub use app_server_protocol::METHOD_GATEWAY_TUNNEL_SYNC_WEBHOOK_URL;
 pub use app_server_protocol::METHOD_INITIALIZE;
 pub use app_server_protocol::METHOD_INITIALIZED;
-pub use app_server_protocol::METHOD_KNOWLEDGE_CONTEXT_RESOLVE;
-pub use app_server_protocol::METHOD_KNOWLEDGE_CONTEXT_RUN_VALIDATE;
-pub use app_server_protocol::METHOD_KNOWLEDGE_PACK_COMPILE;
-pub use app_server_protocol::METHOD_KNOWLEDGE_PACK_DEFAULT_SET;
-pub use app_server_protocol::METHOD_KNOWLEDGE_PACK_LIST;
-pub use app_server_protocol::METHOD_KNOWLEDGE_PACK_READ;
-pub use app_server_protocol::METHOD_KNOWLEDGE_PACK_STATUS_UPDATE;
-pub use app_server_protocol::METHOD_KNOWLEDGE_SOURCE_IMPORT;
 pub use app_server_protocol::METHOD_LOG_CLEAR;
 pub use app_server_protocol::METHOD_LOG_DIAGNOSTIC_HISTORY_CLEAR;
 pub use app_server_protocol::METHOD_LOG_LIST;
@@ -374,9 +343,6 @@ pub use app_server_protocol::METHOD_THREAD_START;
 pub use app_server_protocol::METHOD_THREAD_TURNS_LIST;
 pub use app_server_protocol::METHOD_TURN_INTERRUPT;
 pub use app_server_protocol::METHOD_TURN_START;
-pub use app_server_protocol::METHOD_USAGE_STATS_DAILY_TRENDS_LIST;
-pub use app_server_protocol::METHOD_USAGE_STATS_MODEL_RANKING_LIST;
-pub use app_server_protocol::METHOD_USAGE_STATS_READ;
 pub use app_server_protocol::METHOD_WECHAT_CHANNEL_ACCOUNT_LIST;
 pub use app_server_protocol::METHOD_WORKFLOW_CANCEL;
 pub use app_server_protocol::METHOD_WORKFLOW_READ;
@@ -1065,62 +1031,6 @@ impl AppServerClient {
         self.typed_request(typed::list_workspace_skill_bindings(params))
     }
 
-    pub fn list_knowledge_packs(
-        &mut self,
-        params: KnowledgeListPacksParams,
-    ) -> Result<JsonRpcRequest, ClientError> {
-        self.typed_request(typed::list_knowledge_packs(params))
-    }
-
-    pub fn read_knowledge_pack(
-        &mut self,
-        params: KnowledgeReadPackParams,
-    ) -> Result<JsonRpcRequest, ClientError> {
-        self.typed_request(typed::read_knowledge_pack(params))
-    }
-
-    pub fn import_knowledge_source(
-        &mut self,
-        params: KnowledgeImportSourceParams,
-    ) -> Result<JsonRpcRequest, ClientError> {
-        self.typed_request(typed::import_knowledge_source(params))
-    }
-
-    pub fn compile_knowledge_pack(
-        &mut self,
-        params: KnowledgeCompilePackParams,
-    ) -> Result<JsonRpcRequest, ClientError> {
-        self.typed_request(typed::compile_knowledge_pack(params))
-    }
-
-    pub fn set_default_knowledge_pack(
-        &mut self,
-        params: KnowledgeSetDefaultPackParams,
-    ) -> Result<JsonRpcRequest, ClientError> {
-        self.typed_request(typed::set_default_knowledge_pack(params))
-    }
-
-    pub fn update_knowledge_pack_status(
-        &mut self,
-        params: KnowledgeUpdatePackStatusParams,
-    ) -> Result<JsonRpcRequest, ClientError> {
-        self.typed_request(typed::update_knowledge_pack_status(params))
-    }
-
-    pub fn resolve_knowledge_context(
-        &mut self,
-        params: KnowledgeResolveContextParams,
-    ) -> Result<JsonRpcRequest, ClientError> {
-        self.typed_request(typed::resolve_knowledge_context(params))
-    }
-
-    pub fn validate_knowledge_context_run(
-        &mut self,
-        params: KnowledgeValidateContextRunParams,
-    ) -> Result<JsonRpcRequest, ClientError> {
-        self.typed_request(typed::validate_knowledge_context_run(params))
-    }
-
     pub fn list_mcp_servers(&mut self) -> Result<JsonRpcRequest, ClientError> {
         self.typed_request(typed::list_mcp_servers())
     }
@@ -1331,27 +1241,6 @@ impl AppServerClient {
 
     pub fn clear_diagnostic_log_history(&mut self) -> Result<JsonRpcRequest, ClientError> {
         self.typed_request(typed::clear_diagnostic_log_history())
-    }
-
-    pub fn read_usage_stats(
-        &mut self,
-        params: UsageStatsRangeParams,
-    ) -> Result<JsonRpcRequest, ClientError> {
-        self.typed_request(typed::read_usage_stats(params))
-    }
-
-    pub fn list_usage_stats_model_ranking(
-        &mut self,
-        params: UsageStatsRangeParams,
-    ) -> Result<JsonRpcRequest, ClientError> {
-        self.typed_request(typed::list_usage_stats_model_ranking(params))
-    }
-
-    pub fn list_usage_stats_daily_trends(
-        &mut self,
-        params: UsageStatsRangeParams,
-    ) -> Result<JsonRpcRequest, ClientError> {
-        self.typed_request(typed::list_usage_stats_daily_trends(params))
     }
 
     pub fn list_models(&mut self, params: ModelListParams) -> Result<JsonRpcRequest, ClientError> {
@@ -1946,54 +1835,6 @@ pub mod typed {
         TypedRequest::new(METHOD_WORKSPACE_SKILL_BINDINGS_LIST, params)
     }
 
-    pub fn list_knowledge_packs(
-        params: KnowledgeListPacksParams,
-    ) -> TypedRequest<KnowledgeListPacksParams> {
-        TypedRequest::new(METHOD_KNOWLEDGE_PACK_LIST, params)
-    }
-
-    pub fn read_knowledge_pack(
-        params: KnowledgeReadPackParams,
-    ) -> TypedRequest<KnowledgeReadPackParams> {
-        TypedRequest::new(METHOD_KNOWLEDGE_PACK_READ, params)
-    }
-
-    pub fn import_knowledge_source(
-        params: KnowledgeImportSourceParams,
-    ) -> TypedRequest<KnowledgeImportSourceParams> {
-        TypedRequest::new(METHOD_KNOWLEDGE_SOURCE_IMPORT, params)
-    }
-
-    pub fn compile_knowledge_pack(
-        params: KnowledgeCompilePackParams,
-    ) -> TypedRequest<KnowledgeCompilePackParams> {
-        TypedRequest::new(METHOD_KNOWLEDGE_PACK_COMPILE, params)
-    }
-
-    pub fn set_default_knowledge_pack(
-        params: KnowledgeSetDefaultPackParams,
-    ) -> TypedRequest<KnowledgeSetDefaultPackParams> {
-        TypedRequest::new(METHOD_KNOWLEDGE_PACK_DEFAULT_SET, params)
-    }
-
-    pub fn update_knowledge_pack_status(
-        params: KnowledgeUpdatePackStatusParams,
-    ) -> TypedRequest<KnowledgeUpdatePackStatusParams> {
-        TypedRequest::new(METHOD_KNOWLEDGE_PACK_STATUS_UPDATE, params)
-    }
-
-    pub fn resolve_knowledge_context(
-        params: KnowledgeResolveContextParams,
-    ) -> TypedRequest<KnowledgeResolveContextParams> {
-        TypedRequest::new(METHOD_KNOWLEDGE_CONTEXT_RESOLVE, params)
-    }
-
-    pub fn validate_knowledge_context_run(
-        params: KnowledgeValidateContextRunParams,
-    ) -> TypedRequest<KnowledgeValidateContextRunParams> {
-        TypedRequest::new(METHOD_KNOWLEDGE_CONTEXT_RUN_VALIDATE, params)
-    }
-
     pub fn list_mcp_servers() -> TypedRequest<serde_json::Value> {
         TypedRequest::new(METHOD_MCP_SERVER_LIST, serde_json::json!({}))
     }
@@ -2187,22 +2028,6 @@ pub mod typed {
             METHOD_DIAGNOSTICS_WINDOWS_STARTUP_READ,
             serde_json::json!({}),
         )
-    }
-
-    pub fn read_usage_stats(params: UsageStatsRangeParams) -> TypedRequest<UsageStatsRangeParams> {
-        TypedRequest::new(METHOD_USAGE_STATS_READ, params)
-    }
-
-    pub fn list_usage_stats_model_ranking(
-        params: UsageStatsRangeParams,
-    ) -> TypedRequest<UsageStatsRangeParams> {
-        TypedRequest::new(METHOD_USAGE_STATS_MODEL_RANKING_LIST, params)
-    }
-
-    pub fn list_usage_stats_daily_trends(
-        params: UsageStatsRangeParams,
-    ) -> TypedRequest<UsageStatsRangeParams> {
-        TypedRequest::new(METHOD_USAGE_STATS_DAILY_TRENDS_LIST, params)
     }
 
     pub fn list_models(params: ModelListParams) -> TypedRequest<ModelListParams> {
@@ -3428,68 +3253,6 @@ mod tests {
     fn app_data_surface_helpers_use_current_methods() {
         let mut client = AppServerClient::new();
 
-        let knowledge = client
-            .list_knowledge_packs(KnowledgeListPacksParams {
-                working_dir: "/workspace/project".to_string(),
-                include_archived: true,
-            })
-            .expect("knowledge packs");
-        let knowledge_detail = client
-            .read_knowledge_pack(KnowledgeReadPackParams {
-                working_dir: "/workspace/project".to_string(),
-                name: "sample-product".to_string(),
-            })
-            .expect("knowledge pack detail");
-        let imported_knowledge_source = client
-            .import_knowledge_source(KnowledgeImportSourceParams {
-                working_dir: "/workspace/project".to_string(),
-                pack_name: "sample-product".to_string(),
-                description: None,
-                pack_type: None,
-                language: None,
-                source_file_name: None,
-                source_text: Some("示例产品事实".to_string()),
-            })
-            .expect("knowledge source import");
-        let compiled_knowledge_pack = client
-            .compile_knowledge_pack(KnowledgeCompilePackParams {
-                working_dir: "/workspace/project".to_string(),
-                name: "sample-product".to_string(),
-                builder_runtime: Some(json!({ "enabled": true })),
-            })
-            .expect("knowledge pack compile");
-        let default_knowledge_pack = client
-            .set_default_knowledge_pack(KnowledgeSetDefaultPackParams {
-                working_dir: "/workspace/project".to_string(),
-                name: "sample-product".to_string(),
-            })
-            .expect("knowledge pack default");
-        let updated_knowledge_pack_status = client
-            .update_knowledge_pack_status(KnowledgeUpdatePackStatusParams {
-                working_dir: "/workspace/project".to_string(),
-                name: "sample-product".to_string(),
-                status: "ready".to_string(),
-            })
-            .expect("knowledge pack status");
-        let knowledge_context = client
-            .resolve_knowledge_context(KnowledgeResolveContextParams {
-                working_dir: "/workspace/project".to_string(),
-                name: "sample-product".to_string(),
-                packs: Vec::new(),
-                task: Some("写产品介绍".to_string()),
-                max_chars: None,
-                activation: None,
-                write_run: true,
-                run_reason: None,
-            })
-            .expect("knowledge context");
-        let knowledge_context_validation = client
-            .validate_knowledge_context_run(KnowledgeValidateContextRunParams {
-                working_dir: "/workspace/project".to_string(),
-                name: "sample-product".to_string(),
-                run_path: "runs/context.json".to_string(),
-            })
-            .expect("knowledge context validation");
         let memory = client
             .read_project_memory(ProjectMemoryReadParams {
                 project_id: "workspace-main".to_string(),
@@ -3602,93 +3365,6 @@ mod tests {
             .clear_diagnostic_log_history()
             .expect("clear diagnostic history");
 
-        assert_eq!(knowledge.method, METHOD_KNOWLEDGE_PACK_LIST);
-        assert_eq!(
-            knowledge.params.expect("params"),
-            json!({
-                "workingDir": "/workspace/project",
-                "includeArchived": true,
-            })
-        );
-        assert_eq!(knowledge_detail.method, METHOD_KNOWLEDGE_PACK_READ);
-        assert_eq!(
-            knowledge_detail.params.expect("params"),
-            json!({
-                "workingDir": "/workspace/project",
-                "name": "sample-product",
-            })
-        );
-        assert_eq!(
-            imported_knowledge_source.method,
-            METHOD_KNOWLEDGE_SOURCE_IMPORT
-        );
-        assert_eq!(
-            imported_knowledge_source.params.expect("params"),
-            json!({
-                "workingDir": "/workspace/project",
-                "packName": "sample-product",
-                "sourceText": "示例产品事实",
-            })
-        );
-        assert_eq!(
-            compiled_knowledge_pack.method,
-            METHOD_KNOWLEDGE_PACK_COMPILE
-        );
-        assert_eq!(
-            compiled_knowledge_pack.params.expect("params"),
-            json!({
-                "workingDir": "/workspace/project",
-                "name": "sample-product",
-                "builderRuntime": {
-                    "enabled": true,
-                },
-            })
-        );
-        assert_eq!(
-            default_knowledge_pack.method,
-            METHOD_KNOWLEDGE_PACK_DEFAULT_SET
-        );
-        assert_eq!(
-            default_knowledge_pack.params.expect("params"),
-            json!({
-                "workingDir": "/workspace/project",
-                "name": "sample-product",
-            })
-        );
-        assert_eq!(
-            updated_knowledge_pack_status.method,
-            METHOD_KNOWLEDGE_PACK_STATUS_UPDATE
-        );
-        assert_eq!(
-            updated_knowledge_pack_status.params.expect("params"),
-            json!({
-                "workingDir": "/workspace/project",
-                "name": "sample-product",
-                "status": "ready",
-            })
-        );
-        assert_eq!(knowledge_context.method, METHOD_KNOWLEDGE_CONTEXT_RESOLVE);
-        assert_eq!(
-            knowledge_context.params.expect("params"),
-            json!({
-                "workingDir": "/workspace/project",
-                "name": "sample-product",
-                "task": "写产品介绍",
-                "writeRun": true,
-            })
-        );
-        assert_eq!(
-            knowledge_context_validation.method,
-            METHOD_KNOWLEDGE_CONTEXT_RUN_VALIDATE
-        );
-        assert_eq!(
-            knowledge_context_validation.params.expect("params"),
-            json!({
-                "workingDir": "/workspace/project",
-                "name": "sample-product",
-                "runPath": "runs/context.json",
-            })
-        );
         assert_eq!(memory.method, METHOD_PROJECT_MEMORY_READ);
         assert_eq!(
             memory.params.expect("params"),
@@ -4361,8 +4037,6 @@ mod tests {
         assert!(methods.contains(&METHOD_SKILL_PACKAGE_LOCAL_INSTALL));
         assert!(methods.contains(&METHOD_SKILL_PACKAGE_EXPORT));
         assert!(methods.contains(&METHOD_WORKSPACE_SKILL_BINDINGS_LIST));
-        assert!(methods.contains(&METHOD_KNOWLEDGE_PACK_LIST));
-        assert!(methods.contains(&METHOD_KNOWLEDGE_PACK_READ));
         assert!(methods.contains(&METHOD_PROJECT_MEMORY_READ));
         assert!(methods.contains(&METHOD_AGENT_SESSION_EVENT));
         assert!(is_app_server_request_method(METHOD_CAPABILITY_LIST));
@@ -4393,8 +4067,6 @@ mod tests {
             METHOD_WORKSPACE_RIGHT_SURFACE_PENDING_CHANGED
         ));
         assert!(is_app_server_request_method(METHOD_SKILLS_LIST));
-        assert!(is_app_server_request_method(METHOD_KNOWLEDGE_PACK_LIST));
-        assert!(is_app_server_request_method(METHOD_KNOWLEDGE_PACK_READ));
         assert!(is_app_server_request_method(METHOD_PROJECT_MEMORY_READ));
         assert!(is_app_server_request_method(METHOD_TURN_INTERRUPT));
         assert!(!is_app_server_request_method(METHOD_INITIALIZED));

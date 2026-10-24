@@ -14,7 +14,7 @@ import { ChatNavbar } from "../components/ChatNavbar";
 
 import { TaskCenterUtilityToolbar } from "../components/TaskCenterUtilityToolbar";
 import type { GeneralWorkbenchWorkflowStepInput } from "../components/generalWorkbenchWorkflowPanelViewModel";
-import type { SidebarActivityLog } from "../hooks/useThemeContextWorkspace";
+import type { SidebarActivityLog } from "../components/generalWorkbenchWorkflowData";
 import type { GeneralWorkbenchCreationTaskEvent } from "../components/generalWorkbenchWorkflowData";
 import type { GeneralWorkbenchTaskRailContextInput } from "../components/generalWorkbenchTaskRailViewModel";
 import type { ConfirmResponse } from "../types";
@@ -329,7 +329,6 @@ interface WorkspaceConversationSceneProps extends WorkspaceMainAreaProps {
   onBackToProjectManagement?: ComponentProps<
     typeof ChatNavbar
   >["onBackToProjectManagement"];
-  onBackToResources?: ComponentProps<typeof ChatNavbar>["onBackToResources"];
   onToggleCanvas?: ComponentProps<typeof ChatNavbar>["onToggleCanvas"];
   onBackHome?: ComponentProps<typeof ChatNavbar>["onBackHome"];
   showHarnessToggle: boolean;
@@ -399,7 +398,6 @@ export function WorkspaceConversationScene({
   navbarChrome,
   navbarContextVariant = "default",
   onBackToProjectManagement,
-  onBackToResources,
   isThemeWorkbench,
   layoutMode,
   onToggleCanvas,
@@ -539,7 +537,6 @@ export function WorkspaceConversationScene({
     chrome: navbarChrome,
     navbarContextVariant,
     onBackToProjectManagement,
-    onBackToResources,
     showCanvasToggle: !isThemeWorkbench,
     isCanvasOpen: layoutMode !== "chat",
     onToggleCanvas,

@@ -316,7 +316,14 @@ fn should_require_approval(
         && resolution.policy.sandbox_profile == ToolExecutionSandboxProfile::WorkspaceCommand
         && matches!(
             normalize_policy_label(approval_policy).as_deref(),
-            Some("on_request" | "on-request" | "unless_trusted" | "unless-trusted" | "granular")
+            Some(
+                "on_request"
+                    | "on-request"
+                    | "unless_trusted"
+                    | "unless-trusted"
+                    | "untrusted"
+                    | "granular"
+            )
         )
 }
 

@@ -88,7 +88,7 @@ function useLifecycle(props: Props) {
     articleEditorRightSurfaceAvailable: props.articleAvailable,
     bindRightSurfacePendingActions: noop,
     canvasWorkbenchRootPath: "/workspace/project",
-    clawTraceEnabled: false,
+
     expertInfoPanelCollapsed: expertCollapsed,
     expertInfoPanelVisible: !expertCollapsed,
     handleToggleCanvas: () =>

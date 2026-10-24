@@ -37,7 +37,7 @@ function surface(settings: boolean) {
       <AppShell>
         {settings ? (
           <SettingsSidebar
-            activeTab={SettingsTabs.Developer}
+            activeTab={SettingsTabs.General}
             onTabChange={vi.fn()}
           />
         ) : (

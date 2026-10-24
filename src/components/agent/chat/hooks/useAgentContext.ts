@@ -43,9 +43,11 @@ import { normalizeChatSessionModelPreference } from "../utils/sessionExecutionRu
 import { useAgentModelSettingsSync } from "./useAgentModelSettingsSync";
 import type { AgentRuntimeAdapter } from "./agentRuntimeAdapter";
 import { normalizeModelReasoningEffort } from "@/lib/model/modelReasoningPolicy";
+import { useNewThreadReasoningEffort } from "./useNewThreadReasoningEffort";
 
 interface UseAgentContextOptions {
   workspaceId: string;
+  workingDir?: string | null;
   sessionIdRef: MutableRefObject<string | null>;
   pendingSessionMetadataSyncCancelRef?: MutableRefObject<(() => void) | null>;
   topicsUpdaterRef: MutableRefObject<
@@ -100,6 +102,10 @@ export function useAgentContext(options: UseAgentContextOptions) {
   const [reasoningEffort, setReasoningEffortState] = useState<
     ModelReasoningEffortLevel | ""
   >("");
+  const defaultReasoningEffort = useNewThreadReasoningEffort(
+    options.workingDir,
+    !sessionIdRef.current,
+  );
   const [executionStrategy, setExecutionStrategyState] =
     useState<AgentExecutionStrategy>(() =>
       resolvePersistedExecutionStrategy(workspaceId),
@@ -323,7 +329,11 @@ export function useAgentContext(options: UseAgentContextOptions) {
       providerTypeRef.current = resolvedPreference.providerType;
       modelRef.current = resolvedPreference.model;
       const effectiveEffort =
-        normalizeModelReasoningEffort(preference.threadSettings?.effort) ?? "";
+        normalizeModelReasoningEffort(
+          preference.threadSettings
+            ? preference.threadSettings.effort
+            : preference.reasoningEffort,
+        ) ?? "";
       reasoningEffortRef.current = effectiveEffort;
       setProviderTypeState(resolvedPreference.providerType);
       setModelState(resolvedPreference.model);
@@ -734,7 +744,7 @@ export function useAgentContext(options: UseAgentContextOptions) {
     model,
     setModel,
     modelRef,
-    reasoningEffort,
+    reasoningEffort: reasoningEffort || defaultReasoningEffort,
     setReasoningEffort,
     reasoningEffortRef,
     executionStrategy: effectiveExecutionStrategy,

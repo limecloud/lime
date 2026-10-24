@@ -193,7 +193,6 @@ fn arb_config() -> impl Strategy<Value = Config> {
                 agent: crate::config::NativeAgentConfig::default(),
                 language: "zh-CN".to_string(),
                 experimental: crate::config::ExperimentalFeatures::default(),
-                tool_calling: crate::config::ToolCallingConfig::default(),
                 workspace_preferences: WorkspacePreferencesConfig::default(),
                 navigation: NavigationConfig::default(),
             },
@@ -435,7 +434,6 @@ fn arb_valid_config() -> impl Strategy<Value = Config> {
                 agent: crate::config::NativeAgentConfig::default(),
                 language: "zh-CN".to_string(),
                 experimental: crate::config::ExperimentalFeatures::default(),
-                tool_calling: crate::config::ToolCallingConfig::default(),
                 workspace_preferences: WorkspacePreferencesConfig::default(),
                 navigation: NavigationConfig::default(),
             },
@@ -491,7 +489,6 @@ fn arb_invalid_config() -> impl Strategy<Value = Config> {
                     agent: crate::config::NativeAgentConfig::default(),
                     language: "zh-CN".to_string(),
                     experimental: crate::config::ExperimentalFeatures::default(),
-                    tool_calling: crate::config::ToolCallingConfig::default(),
                     workspace_preferences: WorkspacePreferencesConfig::default(),
                     navigation: NavigationConfig::default(),
                 };

@@ -86,7 +86,7 @@ export function createVitestSmokeConfig(rootDir) {
       `  test: {\n` +
       `    globals: true,\n` +
       `    environment: "jsdom",\n` +
-      `    exclude: ["**/.lime/**", "**/node_modules/**", "**/dist/**", "**/lime-rs/target/**"],\n` +
+      `    exclude: ["**/.lime/**", "**/internal/exec-plans/artifacts/**", "**/node_modules/**", "**/dist/**", "**/lime-rs/target/**"],\n` +
       `  },\n` +
       `});\n`,
   );

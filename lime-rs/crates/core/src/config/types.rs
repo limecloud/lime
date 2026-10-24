@@ -396,18 +396,36 @@ pub struct Config {
     /// 新聊天的推理摘要；在创建 Thread 时冻结。
     #[serde(default)]
     pub model_reasoning_summary: super::ReasoningSummary,
+    /// 新聊天的默认推理档位；在创建 Thread 时冻结。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model_reasoning_effort: Option<super::ReasoningEffort>,
+    /// 新聊天的审批默认值；现有 Thread 保持自己的快照。
+    #[serde(default)]
+    pub approval_policy: super::ApprovalPolicy,
+    /// 新聊天的真实执行沙盒。
+    #[serde(default)]
+    pub sandbox_mode: super::SandboxMode,
+    /// 仅工作区写入沙盒使用的网络权限。
+    #[serde(default)]
+    pub sandbox_workspace_write: super::SandboxWorkspaceWrite,
     /// Codex-compatible default named permission profile.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub default_permissions: Option<String>,
     /// Codex-compatible named permission profiles loaded from YAML.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub permissions: BTreeMap<String, PermissionProfileConfig>,
+    /// 项目信任只从用户配置读取，项目文件不能自行授予信任。
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub projects: BTreeMap<String, super::layers::ProjectConfig>,
     /// TUI 客户端偏好；由 App Server `config/read` 暴露给终端 surface。
     #[serde(default, skip_serializing_if = "super::TuiConfig::is_default")]
     pub tui: super::TuiConfig,
     /// Desktop 链接偏好；由同一 App Server 用户配置层持久化。
     #[serde(default, skip_serializing_if = "super::DesktopConfig::is_default")]
     pub desktop: super::DesktopConfig,
+    /// 与Codex共用的标准布尔feature键。
+    #[serde(default, skip_serializing_if = "super::FeaturesToml::is_empty")]
+    pub features: super::FeaturesToml,
     /// Git 工作流偏好；GUI 与 Agent 使用同一用户配置。
     #[serde(default, skip_serializing_if = "super::GitConfig::is_default")]
     pub git: super::GitConfig,
@@ -417,6 +435,12 @@ pub struct Config {
     /// 内置浏览器偏好；用户浏览与 Agent 同页操作共享配置。
     #[serde(default, skip_serializing_if = "super::BrowserConfig::is_default")]
     pub browser: super::BrowserConfig,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "super::browser_use_validation::deserialize"
+    )]
+    pub browser_use: Option<super::BrowserUseConfigToml>,
     /// 路由辅助配置
     #[serde(default)]
     pub routing: RoutingConfig,
@@ -482,9 +506,6 @@ pub struct Config {
     pub experimental: ExperimentalFeatures,
     #[serde(default, skip_serializing_if = "super::ToolsConfig::is_default")]
     pub tools: super::ToolsConfig,
-    /// Tool Calling 2.0 配置
-    #[serde(default)]
-    pub tool_calling: ToolCallingConfig,
     /// 工作区偏好配置
     #[serde(default, rename = "workspace_preferences")]
     pub workspace_preferences: WorkspacePreferencesConfig,
@@ -499,7 +520,7 @@ pub struct Config {
     pub environment: EnvironmentConfig,
     /// 网络搜索偏好配置
     #[serde(default)]
-    pub web_search: WebSearchConfig,
+    pub web_search: Option<agent_protocol::WebSearchMode>,
     /// 记忆管理配置
     #[serde(default)]
     pub memory: MemoryConfig,
@@ -509,9 +530,6 @@ pub struct Config {
     /// 用户资料
     #[serde(default)]
     pub user_profile: UserProfile,
-    /// 开发者功能开关
-    #[serde(default)]
-    pub developer: DeveloperConfig,
     /// 速率限制配置
     #[serde(default)]
     pub rate_limit: RateLimitSettings,
@@ -1084,16 +1102,6 @@ impl Default for UpdateCheckConfig {
     }
 }
 
-/// WebMCP 预留配置
-///
-/// 当前仅作为实验开关预留，不参与实际执行链。
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
-pub struct WebMcpConfig {
-    /// 是否允许未来接入 WebMCP 实验能力
-    #[serde(default)]
-    pub enabled: bool,
-}
-
 /// 实验室功能配置
 ///
 /// 管理所有实验性功能的开关和配置
@@ -1102,49 +1110,12 @@ pub struct ExperimentalFeatures {
     /// 本地历史后台压缩，默认关闭。
     #[serde(default)]
     pub local_thread_store_compression: bool,
-    /// WebMCP 预留配置
-    #[serde(default)]
-    pub webmcp: WebMcpConfig,
     /// 自动更新检查配置
     #[serde(default)]
     pub update_check: UpdateCheckConfig,
     /// 语音输入功能配置
     #[serde(default)]
     pub voice_input: VoiceInputConfig,
-}
-
-/// Tool Calling 2.0 配置
-///
-/// 统一控制编程式工具调用、动态过滤与 input examples 透传行为。
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct ToolCallingConfig {
-    /// 是否启用 Tool Calling 2.0 能力
-    #[serde(default = "default_tool_calling_enabled")]
-    pub enabled: bool,
-    /// 是否启用动态过滤（优先过滤网页抓取噪音）
-    #[serde(default = "default_tool_calling_dynamic_filtering_enabled")]
-    pub dynamic_filtering: bool,
-    /// 是否启用原生 input_examples 透传
-    #[serde(default)]
-    pub native_input_examples: bool,
-}
-
-fn default_tool_calling_enabled() -> bool {
-    true
-}
-
-fn default_tool_calling_dynamic_filtering_enabled() -> bool {
-    true
-}
-
-impl Default for ToolCallingConfig {
-    fn default() -> Self {
-        Self {
-            enabled: default_tool_calling_enabled(),
-            dynamic_filtering: default_tool_calling_dynamic_filtering_enabled(),
-            native_input_examples: false,
-        }
-    }
 }
 
 // ============ 语音输入功能配置类型 ============
@@ -2184,13 +2155,20 @@ impl Default for Config {
             hide_agent_reasoning: false,
             model_verbosity: None,
             model_reasoning_summary: super::ReasoningSummary::default(),
+            model_reasoning_effort: None,
+            approval_policy: super::ApprovalPolicy::default(),
+            sandbox_mode: super::SandboxMode::default(),
+            sandbox_workspace_write: super::SandboxWorkspaceWrite::default(),
             default_permissions: None,
             permissions: BTreeMap::new(),
+            projects: BTreeMap::new(),
             tui: super::TuiConfig::default(),
             desktop: super::DesktopConfig::default(),
+            features: super::FeaturesToml::default(),
             git: super::GitConfig::default(),
             worktrees: super::WorktreeConfig::default(),
             browser: super::BrowserConfig::default(),
+            browser_use: None,
             routing: RoutingConfig::default(),
             retry: RetrySettings::default(),
             logging: LoggingConfig::default(),
@@ -2212,16 +2190,14 @@ impl Default for Config {
             orchestrator: OrchestratorConfig::default(),
             experimental: ExperimentalFeatures::default(),
             tools: super::ToolsConfig::default(),
-            tool_calling: ToolCallingConfig::default(),
             workspace_preferences: WorkspacePreferencesConfig::default(),
             navigation: NavigationConfig::default(),
             chat_appearance: ChatAppearanceConfig::default(),
             environment: EnvironmentConfig::default(),
-            web_search: WebSearchConfig::default(),
+            web_search: None,
             memory: MemoryConfig::default(),
             image_gen: ImageGenConfig::default(),
             user_profile: UserProfile::default(),
-            developer: DeveloperConfig::default(),
             rate_limit: RateLimitSettings::default(),
             crash_reporting: CrashReportingConfig::default(),
             conversation: ConversationSettings::default(),
@@ -2348,156 +2324,6 @@ impl EnvironmentConfig {
     }
 }
 
-/// 网络搜索引擎类型
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
-#[serde(rename_all = "snake_case")]
-pub enum SearchEngine {
-    /// Google 搜索（通用网页检索）
-    #[default]
-    Google,
-    /// 小红书搜索（中文生活方式内容）
-    Xiaohongshu,
-}
-
-/// 联网搜索提供商类型
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
-#[serde(rename_all = "snake_case")]
-pub enum WebSearchProvider {
-    /// Tavily Search API
-    Tavily,
-    /// Multi Search Engine v2.0.1
-    MultiSearchEngine,
-    /// DuckDuckGo Instant Answer API（无需 Key）
-    #[default]
-    DuckduckgoInstant,
-    /// Bing Search API
-    BingSearchApi,
-    /// Google Custom Search API
-    GoogleCustomSearch,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct MultiSearchEngineEntryConfig {
-    /// 引擎标识名
-    pub name: String,
-    /// 搜索 URL 模板，必须包含 {query}
-    pub url_template: String,
-    /// 是否启用该引擎
-    #[serde(default = "default_mse_engine_enabled")]
-    pub enabled: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct MultiSearchConfig {
-    /// 引擎优先级（按名称）
-    #[serde(default)]
-    pub priority: Vec<String>,
-    /// 自定义/覆盖引擎列表
-    #[serde(default = "default_multi_search_engines")]
-    pub engines: Vec<MultiSearchEngineEntryConfig>,
-    /// 每个引擎最大结果数
-    #[serde(default = "default_mse_max_results_per_engine")]
-    pub max_results_per_engine: usize,
-    /// 最终聚合最大结果数
-    #[serde(default = "default_mse_max_total_results")]
-    pub max_total_results: usize,
-    /// 每个引擎请求超时（毫秒）
-    #[serde(default = "default_mse_timeout_ms")]
-    pub timeout_ms: u64,
-}
-
-impl Default for MultiSearchConfig {
-    fn default() -> Self {
-        Self {
-            priority: vec![],
-            engines: default_multi_search_engines(),
-            max_results_per_engine: default_mse_max_results_per_engine(),
-            max_total_results: default_mse_max_total_results(),
-            timeout_ms: default_mse_timeout_ms(),
-        }
-    }
-}
-
-fn default_mse_engine_enabled() -> bool {
-    true
-}
-
-fn default_mse_max_results_per_engine() -> usize {
-    5
-}
-
-fn default_mse_max_total_results() -> usize {
-    20
-}
-
-fn default_mse_timeout_ms() -> u64 {
-    4000
-}
-
-fn default_multi_search_engines() -> Vec<MultiSearchEngineEntryConfig> {
-    vec![
-        ("google", "https://www.google.com/search?q={query}"),
-        ("bing", "https://www.bing.com/search?q={query}"),
-        ("duckduckgo", "https://duckduckgo.com/?q={query}"),
-        ("yahoo", "https://search.yahoo.com/search?p={query}"),
-        ("baidu", "https://www.baidu.com/s?wd={query}"),
-        ("yandex", "https://yandex.com/search/?text={query}"),
-        ("ecosia", "https://www.ecosia.org/search?q={query}"),
-        ("brave", "https://search.brave.com/search?q={query}"),
-        (
-            "startpage",
-            "https://www.startpage.com/do/search?query={query}",
-        ),
-        ("qwant", "https://www.qwant.com/?q={query}&t=web"),
-        ("sogou", "https://www.sogou.com/web?query={query}"),
-        ("so360", "https://www.so.com/s?q={query}"),
-        ("aol", "https://search.aol.com/aol/search?q={query}"),
-        ("ask", "https://www.ask.com/web?q={query}"),
-        (
-            "naver",
-            "https://search.naver.com/search.naver?query={query}",
-        ),
-        ("seznam", "https://search.seznam.cz/?q={query}"),
-        ("dogpile", "https://www.dogpile.com/serp?q={query}"),
-    ]
-    .into_iter()
-    .map(|(name, url_template)| MultiSearchEngineEntryConfig {
-        name: name.to_string(),
-        url_template: url_template.to_string(),
-        enabled: true,
-    })
-    .collect()
-}
-
-/// 网络搜索配置
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
-pub struct WebSearchConfig {
-    /// 默认搜索引擎偏好
-    #[serde(default)]
-    pub engine: SearchEngine,
-    /// 联网搜索提供商
-    #[serde(default)]
-    pub provider: WebSearchProvider,
-    /// 提供商回退优先级
-    #[serde(default)]
-    pub provider_priority: Vec<WebSearchProvider>,
-    /// Tavily Search API Key
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub tavily_api_key: Option<String>,
-    /// Bing Search API Key
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub bing_search_api_key: Option<String>,
-    /// Google Search API Key
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub google_search_api_key: Option<String>,
-    /// Google Search Engine ID (CSE CX)
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub google_search_engine_id: Option<String>,
-    /// Multi Search Engine 配置
-    #[serde(default)]
-    pub multi_search: MultiSearchConfig,
-}
-
 /// 聊天外观配置
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct ChatAppearanceConfig {
@@ -2519,14 +2345,6 @@ pub struct ChatAppearanceConfig {
     /// 推荐点击时自动附带当前选中文本上下文
     #[serde(default)]
     pub append_selected_text_to_recommendation: Option<bool>,
-}
-
-/// 开发者能力配置
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
-pub struct DeveloperConfig {
-    /// 是否允许在工作区启用处理工作台与信息收集
-    #[serde(default)]
-    pub workspace_harness_enabled: bool,
 }
 
 /// 记忆管理配置
@@ -3630,15 +3448,8 @@ memory:
     }
 
     #[test]
-    fn test_webmcp_config_default() {
-        let config = WebMcpConfig::default();
-        assert!(!config.enabled);
-    }
-
-    #[test]
     fn test_experimental_features_default() {
         let config = ExperimentalFeatures::default();
-        assert!(!config.webmcp.enabled);
         assert!(!config.local_thread_store_compression);
     }
 
@@ -3646,12 +3457,10 @@ memory:
     fn test_experimental_features_serialization() {
         let config = ExperimentalFeatures {
             local_thread_store_compression: true,
-            webmcp: WebMcpConfig { enabled: true },
             ..Default::default()
         };
 
         let yaml = serde_yaml::to_string(&config).unwrap();
-        assert!(yaml.contains("webmcp"));
         assert!(yaml.contains("local_thread_store_compression: true"));
         assert!(yaml.contains("enabled: true"));
         assert!(!yaml.contains("screenshot_chat"));
@@ -3661,50 +3470,14 @@ memory:
     }
 
     #[test]
-    fn test_tool_calling_config_default() {
-        let config = ToolCallingConfig::default();
-        assert!(config.enabled);
-        assert!(config.dynamic_filtering);
-        assert!(!config.native_input_examples);
-    }
-
-    #[test]
-    fn test_tool_calling_config_serialization() {
-        let config = ToolCallingConfig {
-            enabled: false,
-            dynamic_filtering: false,
-            native_input_examples: true,
-        };
-
-        let yaml = serde_yaml::to_string(&config).unwrap();
-        assert!(yaml.contains("enabled: false"));
-        assert!(yaml.contains("dynamic_filtering: false"));
-        assert!(yaml.contains("native_input_examples: true"));
-
-        let parsed: ToolCallingConfig = serde_yaml::from_str(&yaml).unwrap();
-        assert_eq!(parsed, config);
-    }
-
-    #[test]
-    fn test_developer_config_default() {
-        let config = DeveloperConfig::default();
-        assert!(!config.workspace_harness_enabled);
-    }
-
-    #[test]
     fn test_config_with_experimental() {
         let config = Config::default();
-        assert!(!config.experimental.webmcp.enabled);
         // 语音输入测试
         assert!(!config.experimental.voice_input.enabled);
         assert_eq!(
             config.experimental.voice_input.shortcut,
             "CommandOrControl+Shift+V"
         );
-        assert!(!config.developer.workspace_harness_enabled);
-        assert!(config.tool_calling.enabled);
-        assert!(config.tool_calling.dynamic_filtering);
-        assert!(!config.tool_calling.native_input_examples);
     }
 
     #[test]

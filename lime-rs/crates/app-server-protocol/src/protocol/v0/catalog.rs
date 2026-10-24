@@ -340,22 +340,6 @@ pub enum AppServerRequestMethod {
     SoulStylePackStatusSet,
     #[serde(rename = "soulStylePack/uninstall")]
     SoulStylePackUninstall,
-    #[serde(rename = "knowledgePack/list")]
-    KnowledgePackList,
-    #[serde(rename = "knowledgePack/read")]
-    KnowledgePackRead,
-    #[serde(rename = "knowledgePack/source/import")]
-    KnowledgeSourceImport,
-    #[serde(rename = "knowledgePack/compile")]
-    KnowledgePackCompile,
-    #[serde(rename = "knowledgePack/default/set")]
-    KnowledgePackDefaultSet,
-    #[serde(rename = "knowledgePack/status/update")]
-    KnowledgePackStatusUpdate,
-    #[serde(rename = "knowledgeContext/resolve")]
-    KnowledgeContextResolve,
-    #[serde(rename = "knowledgeContextRun/validate")]
-    KnowledgeContextRunValidate,
     #[serde(rename = "scheduledTask/list")]
     ScheduledTaskList,
     #[serde(rename = "scheduledTask/read")]
@@ -456,12 +440,6 @@ pub enum AppServerRequestMethod {
     DiagnosticsTraceRead,
     #[serde(rename = "diagnostics/trace/export")]
     DiagnosticsTraceExport,
-    #[serde(rename = "usageStats/read")]
-    UsageStatsRead,
-    #[serde(rename = "usageStats/modelRanking/list")]
-    UsageStatsModelRankingList,
-    #[serde(rename = "usageStats/dailyTrends/list")]
-    UsageStatsDailyTrendsList,
     #[serde(rename = "modelPreferences/list")]
     ModelPreferencesList,
     #[serde(rename = "modelSyncState/read")]
@@ -682,14 +660,6 @@ impl AppServerRequestMethod {
             Self::SoulStylePackList => METHOD_SOUL_STYLE_PACK_LIST,
             Self::SoulStylePackStatusSet => METHOD_SOUL_STYLE_PACK_STATUS_SET,
             Self::SoulStylePackUninstall => METHOD_SOUL_STYLE_PACK_UNINSTALL,
-            Self::KnowledgePackList => METHOD_KNOWLEDGE_PACK_LIST,
-            Self::KnowledgePackRead => METHOD_KNOWLEDGE_PACK_READ,
-            Self::KnowledgeSourceImport => METHOD_KNOWLEDGE_SOURCE_IMPORT,
-            Self::KnowledgePackCompile => METHOD_KNOWLEDGE_PACK_COMPILE,
-            Self::KnowledgePackDefaultSet => METHOD_KNOWLEDGE_PACK_DEFAULT_SET,
-            Self::KnowledgePackStatusUpdate => METHOD_KNOWLEDGE_PACK_STATUS_UPDATE,
-            Self::KnowledgeContextResolve => METHOD_KNOWLEDGE_CONTEXT_RESOLVE,
-            Self::KnowledgeContextRunValidate => METHOD_KNOWLEDGE_CONTEXT_RUN_VALIDATE,
             Self::ScheduledTaskList => METHOD_SCHEDULED_TASK_LIST,
             Self::ScheduledTaskRead => METHOD_SCHEDULED_TASK_READ,
             Self::ScheduledTaskCreate => METHOD_SCHEDULED_TASK_CREATE,
@@ -740,9 +710,6 @@ impl AppServerRequestMethod {
             Self::DiagnosticsTraceList => METHOD_DIAGNOSTICS_TRACE_LIST,
             Self::DiagnosticsTraceRead => METHOD_DIAGNOSTICS_TRACE_READ,
             Self::DiagnosticsTraceExport => METHOD_DIAGNOSTICS_TRACE_EXPORT,
-            Self::UsageStatsRead => METHOD_USAGE_STATS_READ,
-            Self::UsageStatsModelRankingList => METHOD_USAGE_STATS_MODEL_RANKING_LIST,
-            Self::UsageStatsDailyTrendsList => METHOD_USAGE_STATS_DAILY_TRENDS_LIST,
             Self::ModelPreferencesList => METHOD_MODEL_PREFERENCES_LIST,
             Self::ModelSyncStateRead => METHOD_MODEL_SYNC_STATE_READ,
             Self::ModelProviderList => METHOD_MODEL_PROVIDER_LIST,
@@ -945,14 +912,6 @@ impl AppServerRequestMethod {
             METHOD_SOUL_STYLE_PACK_LIST => Some(Self::SoulStylePackList),
             METHOD_SOUL_STYLE_PACK_STATUS_SET => Some(Self::SoulStylePackStatusSet),
             METHOD_SOUL_STYLE_PACK_UNINSTALL => Some(Self::SoulStylePackUninstall),
-            METHOD_KNOWLEDGE_PACK_LIST => Some(Self::KnowledgePackList),
-            METHOD_KNOWLEDGE_PACK_READ => Some(Self::KnowledgePackRead),
-            METHOD_KNOWLEDGE_SOURCE_IMPORT => Some(Self::KnowledgeSourceImport),
-            METHOD_KNOWLEDGE_PACK_COMPILE => Some(Self::KnowledgePackCompile),
-            METHOD_KNOWLEDGE_PACK_DEFAULT_SET => Some(Self::KnowledgePackDefaultSet),
-            METHOD_KNOWLEDGE_PACK_STATUS_UPDATE => Some(Self::KnowledgePackStatusUpdate),
-            METHOD_KNOWLEDGE_CONTEXT_RESOLVE => Some(Self::KnowledgeContextResolve),
-            METHOD_KNOWLEDGE_CONTEXT_RUN_VALIDATE => Some(Self::KnowledgeContextRunValidate),
             METHOD_SCHEDULED_TASK_LIST => Some(Self::ScheduledTaskList),
             METHOD_SCHEDULED_TASK_READ => Some(Self::ScheduledTaskRead),
             METHOD_SCHEDULED_TASK_CREATE => Some(Self::ScheduledTaskCreate),
@@ -1003,9 +962,6 @@ impl AppServerRequestMethod {
             METHOD_DIAGNOSTICS_TRACE_LIST => Some(Self::DiagnosticsTraceList),
             METHOD_DIAGNOSTICS_TRACE_READ => Some(Self::DiagnosticsTraceRead),
             METHOD_DIAGNOSTICS_TRACE_EXPORT => Some(Self::DiagnosticsTraceExport),
-            METHOD_USAGE_STATS_READ => Some(Self::UsageStatsRead),
-            METHOD_USAGE_STATS_MODEL_RANKING_LIST => Some(Self::UsageStatsModelRankingList),
-            METHOD_USAGE_STATS_DAILY_TRENDS_LIST => Some(Self::UsageStatsDailyTrendsList),
             METHOD_MODEL_PREFERENCES_LIST => Some(Self::ModelPreferencesList),
             METHOD_MODEL_SYNC_STATE_READ => Some(Self::ModelSyncStateRead),
             METHOD_MODEL_PROVIDER_LIST => Some(Self::ModelProviderList),
@@ -1652,38 +1608,6 @@ pub const APP_SERVER_METHODS: &[AppServerMethodSpec] = &[
         kind: AppServerMethodKind::Request,
     },
     AppServerMethodSpec {
-        method: METHOD_KNOWLEDGE_PACK_LIST,
-        kind: AppServerMethodKind::Request,
-    },
-    AppServerMethodSpec {
-        method: METHOD_KNOWLEDGE_PACK_READ,
-        kind: AppServerMethodKind::Request,
-    },
-    AppServerMethodSpec {
-        method: METHOD_KNOWLEDGE_SOURCE_IMPORT,
-        kind: AppServerMethodKind::Request,
-    },
-    AppServerMethodSpec {
-        method: METHOD_KNOWLEDGE_PACK_COMPILE,
-        kind: AppServerMethodKind::Request,
-    },
-    AppServerMethodSpec {
-        method: METHOD_KNOWLEDGE_PACK_DEFAULT_SET,
-        kind: AppServerMethodKind::Request,
-    },
-    AppServerMethodSpec {
-        method: METHOD_KNOWLEDGE_PACK_STATUS_UPDATE,
-        kind: AppServerMethodKind::Request,
-    },
-    AppServerMethodSpec {
-        method: METHOD_KNOWLEDGE_CONTEXT_RESOLVE,
-        kind: AppServerMethodKind::Request,
-    },
-    AppServerMethodSpec {
-        method: METHOD_KNOWLEDGE_CONTEXT_RUN_VALIDATE,
-        kind: AppServerMethodKind::Request,
-    },
-    AppServerMethodSpec {
         method: METHOD_SCHEDULED_TASK_LIST,
         kind: AppServerMethodKind::Request,
     },
@@ -1881,18 +1805,6 @@ pub const APP_SERVER_METHODS: &[AppServerMethodSpec] = &[
     },
     AppServerMethodSpec {
         method: METHOD_DIAGNOSTICS_TRACE_EXPORT,
-        kind: AppServerMethodKind::Request,
-    },
-    AppServerMethodSpec {
-        method: METHOD_USAGE_STATS_READ,
-        kind: AppServerMethodKind::Request,
-    },
-    AppServerMethodSpec {
-        method: METHOD_USAGE_STATS_MODEL_RANKING_LIST,
-        kind: AppServerMethodKind::Request,
-    },
-    AppServerMethodSpec {
-        method: METHOD_USAGE_STATS_DAILY_TRENDS_LIST,
         kind: AppServerMethodKind::Request,
     },
     AppServerMethodSpec {

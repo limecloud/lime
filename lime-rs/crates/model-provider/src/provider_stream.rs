@@ -466,8 +466,10 @@ impl RuntimeReplyProviderWireSupportIssue {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RuntimeReplyModelRequestPolicy {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub web_search_mode: Option<agent_protocol::WebSearchMode>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub truncation: Option<TruncationPolicy>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -490,6 +492,7 @@ impl RuntimeReplyModelRequestPolicy {
             || reasoning_output.is_some()
             || truncation.is_some())
         .then_some(Self {
+            web_search_mode: None,
             truncation,
             responses,
             tool_call,
@@ -558,6 +561,8 @@ impl RuntimeReplyModelRequestPolicy {
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RuntimeReplyProviderRequestWireShape {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub web_search_mode: Option<agent_protocol::WebSearchMode>,
     #[serde(default)]
     pub use_responses_lite: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -603,6 +608,7 @@ impl RuntimeReplyProviderRequestWireShape {
         };
 
         Self {
+            web_search_mode: policy.web_search_mode,
             use_responses_lite,
             instructions_location,
             tools_location,

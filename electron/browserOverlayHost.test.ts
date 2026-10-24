@@ -305,6 +305,18 @@ describe("trusted native browser menu lifecycle", () => {
     f.host.dispose();
   });
 
+  it("does not dismiss a replacement menu through an old permission receipt", async () => {
+    const f = fixture();
+    await f.show("site-permission-old");
+    const current = await f.show("more-new");
+    f.host.hideMenu("view-1", { menuId: "site-permission-old", generation: 1 });
+    f.host.hideMenu("view-1", { menuId: current.menuId, generation: 1 });
+    expect(native.views[1].webContents.close).not.toHaveBeenCalled();
+    f.host.hideMenu("view-1", current);
+    expect(native.views[1].webContents.close).toHaveBeenCalledOnce();
+    f.host.dispose();
+  });
+
   it("keeps overlays and teardown isolated to their owning window", async () => {
     const f = fixture();
     const other = fixture(2);

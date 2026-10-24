@@ -231,9 +231,6 @@ function classifyLanguageMarker(
     normalizedFileLower.includes("/home/homecoverassets") ||
     normalizedFileLower.includes("/hooks/useasteragentchat.test") ||
     normalizedFileLower.includes("/creation_tools") ||
-    normalizedFileLower.includes("/api/knowledge") ||
-    normalizedFileLower.includes("/knowledgemocks") ||
-    normalizedFileLower.includes("/knowledge/") ||
     normalizedFileLower.includes("/media/") ||
     normalizedFileLower.includes("/media_task_cmd") ||
     normalizedFileLower.includes("/artifact-document/") ||

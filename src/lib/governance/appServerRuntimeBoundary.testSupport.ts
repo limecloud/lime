@@ -112,7 +112,6 @@ export const PROCESSOR_SPLIT_MODULES = [
   "lime-rs/crates/app-server/src/processor/tests/mcp.rs",
   "lime-rs/crates/app-server/src/processor/tests/project_git.rs",
   "lime-rs/crates/app-server/src/processor/tests/right_surface.rs",
-  "lime-rs/crates/app-server/src/processor/tests/usage_stats.rs",
 ];
 export const AGENT_PROVIDER_CONFIGURATION_BOUNDARY =
   "lime-rs/crates/agent/src/provider_configuration.rs";

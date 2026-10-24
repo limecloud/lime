@@ -108,7 +108,8 @@ pub(super) fn responses_request(
     let response_tools = request
         .tools
         .iter()
-        .map(|tool| responses_tool(config, tool))
+        .filter(|tool| web_search::visible(tool, wire_shape.web_search_mode))
+        .map(|tool| responses_tool(config, tool, wire_shape.web_search_mode))
         .collect::<Result<Vec<_>, _>>()?;
     let mut input_prefix = Vec::new();
     if tools_in_input {
@@ -610,6 +611,7 @@ fn chat_tool(tool: &CanonicalToolDefinition) -> Result<Value, super::CurrentProv
 fn responses_tool(
     config: &RuntimeProviderConfig,
     tool: &CanonicalToolDefinition,
+    web_search_mode: Option<agent_protocol::WebSearchMode>,
 ) -> Result<Value, super::CurrentProviderError> {
     let CanonicalToolDefinition::Function {
         name,
@@ -645,10 +647,9 @@ fn responses_tool(
     };
     let capabilities = ProviderCapabilities::from_runtime_config(config);
     if capabilities.web_search && is_web_search_tool_name(name) {
-        return Ok(json!({
-            "type": "web_search",
-            "external_web_access": true,
-        }));
+        return Ok(web_search::hosted_definition(
+            web_search_mode.unwrap_or_default(),
+        ));
     }
     if capabilities.image_generation && is_image_generation_tool_name(name) {
         return Ok(json!({ "type": "image_generation" }));
@@ -866,3 +867,4 @@ fn custom_tool_result_text(result: &ToolResultValue, error: Option<&str>) -> Str
 
 #[cfg(test)]
 mod tests;
+mod web_search;

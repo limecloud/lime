@@ -22,7 +22,6 @@ mod gallery;
 mod gateway;
 mod hook;
 mod instructions;
-mod knowledge;
 mod log;
 mod mcp;
 mod media;
@@ -32,6 +31,7 @@ mod notifications;
 mod permission_profile;
 mod plugin;
 mod plugin_share;
+mod primary_runtime;
 mod process;
 mod project;
 mod project_git;
@@ -93,7 +93,6 @@ use mcp::McpEventStreamTask;
 pub(crate) use notifications::{ConnectionServerNotificationHook, ServerNotificationHook};
 // ProjectGit* 类型已移至 processor/project_git.rs
 use app_server_protocol::ServerNotification;
-use app_server_protocol::UsageStatsRangeParams;
 use app_server_transport::ConnectionId;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -188,6 +187,10 @@ impl RequestProcessor {
             ))
         });
         let execution_process_server = runtime.execution_process_server().unwrap_or_default();
+        if let Some(service) = runtime.primary_runtime_service() {
+            execution_process_server
+                .attach_primary_runtime(service, runtime.app_config_path().to_owned());
+        }
         Self {
             client_context: ClientContext::default(),
             connection_contexts: Arc::new(Mutex::new(HashMap::new())),
@@ -374,48 +377,6 @@ impl RequestProcessor {
     // log handlers 已提取到 processor/log.rs
 
     // diagnostics handlers 已提取到 processor/diagnostics.rs
-
-    async fn handle_usage_stats_read(
-        &self,
-        params: Option<serde_json::Value>,
-    ) -> Result<RpcDispatch, JsonRpcError> {
-        self.ensure_initialized()?;
-        let params: UsageStatsRangeParams = parse_params(params)?;
-        let response = self
-            .runtime
-            .read_usage_stats(params)
-            .await
-            .map_err(to_jsonrpc_error)?;
-        dispatch_result(response)
-    }
-
-    async fn handle_usage_stats_model_ranking_list(
-        &self,
-        params: Option<serde_json::Value>,
-    ) -> Result<RpcDispatch, JsonRpcError> {
-        self.ensure_initialized()?;
-        let params: UsageStatsRangeParams = parse_params(params)?;
-        let response = self
-            .runtime
-            .list_usage_stats_model_ranking(params)
-            .await
-            .map_err(to_jsonrpc_error)?;
-        dispatch_result(response)
-    }
-
-    async fn handle_usage_stats_daily_trends_list(
-        &self,
-        params: Option<serde_json::Value>,
-    ) -> Result<RpcDispatch, JsonRpcError> {
-        self.ensure_initialized()?;
-        let params: UsageStatsRangeParams = parse_params(params)?;
-        let response = self
-            .runtime
-            .list_usage_stats_daily_trends(params)
-            .await
-            .map_err(to_jsonrpc_error)?;
-        dispatch_result(response)
-    }
 
     // connect handlers 已提取到 processor/connect.rs
 

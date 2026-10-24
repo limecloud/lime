@@ -119,10 +119,6 @@ export class ElectronUpdateHost {
         return this.#session;
       case "get_update_check_settings":
         return this.#updateSettings();
-      case "set_update_check_settings":
-        return null;
-      case "get_update_notification_metrics":
-        return this.#updateMetrics();
       case "dismiss_update_notification":
       case "remind_update_later":
         return Math.floor(Date.now() / 1000) + 24 * 3600;
@@ -133,7 +129,6 @@ export class ElectronUpdateHost {
         await this.#windowController.close();
         return null;
       case "open_update_window":
-      case "test_update_window":
         await this.#windowController.open({
           ...this.#currentVersionInfo(),
           anchorRect: parseUpdateNotificationAnchorRect(args?.anchorRect),
@@ -579,20 +574,6 @@ export class ElectronUpdateHost {
       last_check_timestamp: 0,
       skipped_version: null,
       remind_later_until: null,
-    };
-  }
-
-  #updateMetrics() {
-    return {
-      shown_count: 0,
-      update_now_count: 0,
-      remind_later_count: 0,
-      skip_version_count: 0,
-      dismiss_count: 0,
-      update_now_rate: 0,
-      remind_later_rate: 0,
-      skip_version_rate: 0,
-      dismiss_rate: 0,
     };
   }
 }

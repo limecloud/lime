@@ -45,24 +45,9 @@ pub const CONTENT_POST_WITH_COVER_SKILL_DIRECTORY: &str = "content_post_with_cov
 pub const CONTENT_FACTORY_KNOWLEDGE_BUILDER_SKILL_DIRECTORY: &str = "knowledge-builder";
 pub const CONTENT_FACTORY_ARTICLE_WRITER_SKILL_DIRECTORY: &str = "article-writer";
 pub const CONTENT_FACTORY_CONTENT_REVIEWER_SKILL_DIRECTORY: &str = "content-reviewer";
-pub const KNOWLEDGE_BUILDER_SKILL_DIRECTORY: &str = "knowledge_builder";
 pub const PERSONAL_IP_KNOWLEDGE_BUILDER_SKILL_DIRECTORY: &str = "personal-ip-knowledge-builder";
-pub const BRAND_PERSONA_KNOWLEDGE_BUILDER_SKILL_DIRECTORY: &str = "brand-persona-knowledge-builder";
-pub const CONTENT_OPERATIONS_KNOWLEDGE_BUILDER_SKILL_DIRECTORY: &str =
-    "content-operations-knowledge-builder";
-pub const PRIVATE_DOMAIN_OPERATIONS_KNOWLEDGE_BUILDER_SKILL_DIRECTORY: &str =
-    "private-domain-operations-knowledge-builder";
-pub const LIVE_COMMERCE_OPERATIONS_KNOWLEDGE_BUILDER_SKILL_DIRECTORY: &str =
-    "live-commerce-operations-knowledge-builder";
-pub const CAMPAIGN_OPERATIONS_KNOWLEDGE_BUILDER_SKILL_DIRECTORY: &str =
-    "campaign-operations-knowledge-builder";
-pub const BRAND_PRODUCT_KNOWLEDGE_BUILDER_SKILL_DIRECTORY: &str = "brand-product-knowledge-builder";
-pub const ORGANIZATION_KNOWHOW_KNOWLEDGE_BUILDER_SKILL_DIRECTORY: &str =
-    "organization-knowhow-knowledge-builder";
-pub const GROWTH_STRATEGY_KNOWLEDGE_BUILDER_SKILL_DIRECTORY: &str =
-    "growth-strategy-knowledge-builder";
 
-pub const DEFAULT_LIME_SKILL_DIRECTORIES: [&str; 33] = [
+pub const DEFAULT_LIME_SKILL_DIRECTORIES: [&str; 24] = [
     VIDEO_GENERATE_SKILL_DIRECTORY,
     TRANSCRIPTION_GENERATE_SKILL_DIRECTORY,
     BROADCAST_GENERATE_SKILL_DIRECTORY,
@@ -86,16 +71,7 @@ pub const DEFAULT_LIME_SKILL_DIRECTORIES: [&str; 33] = [
     CONTENT_FACTORY_KNOWLEDGE_BUILDER_SKILL_DIRECTORY,
     CONTENT_FACTORY_ARTICLE_WRITER_SKILL_DIRECTORY,
     CONTENT_FACTORY_CONTENT_REVIEWER_SKILL_DIRECTORY,
-    KNOWLEDGE_BUILDER_SKILL_DIRECTORY,
     PERSONAL_IP_KNOWLEDGE_BUILDER_SKILL_DIRECTORY,
-    BRAND_PERSONA_KNOWLEDGE_BUILDER_SKILL_DIRECTORY,
-    CONTENT_OPERATIONS_KNOWLEDGE_BUILDER_SKILL_DIRECTORY,
-    PRIVATE_DOMAIN_OPERATIONS_KNOWLEDGE_BUILDER_SKILL_DIRECTORY,
-    LIVE_COMMERCE_OPERATIONS_KNOWLEDGE_BUILDER_SKILL_DIRECTORY,
-    CAMPAIGN_OPERATIONS_KNOWLEDGE_BUILDER_SKILL_DIRECTORY,
-    BRAND_PRODUCT_KNOWLEDGE_BUILDER_SKILL_DIRECTORY,
-    ORGANIZATION_KNOWHOW_KNOWLEDGE_BUILDER_SKILL_DIRECTORY,
-    GROWTH_STRATEGY_KNOWLEDGE_BUILDER_SKILL_DIRECTORY,
 ];
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -640,21 +616,8 @@ mod tests {
         assert!(is_default_lime_skill(
             CONTENT_POST_WITH_COVER_SKILL_DIRECTORY
         ));
-        assert!(is_default_lime_skill(KNOWLEDGE_BUILDER_SKILL_DIRECTORY));
         assert!(is_default_lime_skill(
             PERSONAL_IP_KNOWLEDGE_BUILDER_SKILL_DIRECTORY
-        ));
-        assert!(is_default_lime_skill(
-            BRAND_PERSONA_KNOWLEDGE_BUILDER_SKILL_DIRECTORY
-        ));
-        assert!(is_default_lime_skill(
-            BRAND_PRODUCT_KNOWLEDGE_BUILDER_SKILL_DIRECTORY
-        ));
-        assert!(is_default_lime_skill(
-            ORGANIZATION_KNOWHOW_KNOWLEDGE_BUILDER_SKILL_DIRECTORY
-        ));
-        assert!(is_default_lime_skill(
-            GROWTH_STRATEGY_KNOWLEDGE_BUILDER_SKILL_DIRECTORY
         ));
         assert!(!is_default_lime_skill("custom-skill"));
     }

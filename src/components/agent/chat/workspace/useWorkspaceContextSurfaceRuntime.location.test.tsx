@@ -25,15 +25,11 @@ it("发布同一可见会话的实际工作区变化，并在会话清空时保�
     sessionId: string | null;
   }) {
     useWorkspaceContextSurfaceRuntime({
-      activeTheme: "general",
       mappedTheme: "general",
       layoutMode: "chat",
-      generalHarnessEntryEnabled: false,
-      workspaceHarnessEnabled: false,
+
       isSending: false,
       messages: [],
-      model: "fixture",
-      providerType: "openai",
       pendingActions: [],
       todoItems: [],
       threadItems: [],

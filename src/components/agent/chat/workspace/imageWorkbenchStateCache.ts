@@ -173,7 +173,6 @@ function normalizeImageWorkbenchOutput(
     prompt: readString(record.prompt) || "图片结果",
     createdAt: readFiniteNumber(record.createdAt) ?? Date.now(),
     parentOutputId: readString(record.parentOutputId),
-    resourceSaved: record.resourceSaved === true,
     applyTarget: asRecord(record.applyTarget)
       ? (record.applyTarget as ImageWorkbenchOutput["applyTarget"])
       : null,
@@ -303,7 +302,6 @@ function buildOutputsFromPreview(params: {
     createdAt: params.createdAt + index,
     size: params.preview.size,
     parentOutputId: null,
-    resourceSaved: false,
     applyTarget: null,
   }));
 }

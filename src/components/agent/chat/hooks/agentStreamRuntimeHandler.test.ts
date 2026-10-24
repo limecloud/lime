@@ -77,7 +77,7 @@ describe("agentStreamRuntimeHandler storage", () => {
       resolvedWorkspaceId: "workspace-1",
       effectiveExecutionStrategy: "react" as const,
       surfaceThinkingDeltas: false,
-      content: "/brand-product-knowledge-builder 生成资料",
+      content: "/personal-ip-knowledge-builder 生成资料",
       runtime: {} as never,
       warnedKeysRef: { current: new Set<string>() },
       actionLoggedKeys: new Set<string>(),

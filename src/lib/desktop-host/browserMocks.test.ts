@@ -5,6 +5,7 @@ describe("browserMocks", () => {
   it("不再注册 Browser / CDP / Profile / Connector / Site Adapter 默认 mock", () => {
     const browserCommands = [
       "browser_tab_list",
+      "browser_tab_focus_page",
       "list_browser_environment_presets_cmd",
       "save_browser_environment_preset_cmd",
       "archive_browser_environment_preset_cmd",

@@ -31,8 +31,8 @@ describe("buildHomePendingPreviewMessages", () => {
         inputMentions: [
           {
             type: "skill",
-            name: "brand-product-knowledge-builder",
-            path: "/skills/brand-product-knowledge-builder/SKILL.md",
+            name: "personal-ip-knowledge-builder",
+            path: "/skills/personal-ip-knowledge-builder/SKILL.md",
           },
         ],
       },

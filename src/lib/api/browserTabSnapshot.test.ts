@@ -39,6 +39,42 @@ describe("Browser snapshot typed gateway", () => {
     supports.mockImplementation((command) => command !== "browser_tab_list");
     expect(isBrowserTabHostAvailable()).toBe(false);
   });
+  it.each([-1, NaN, 0.5, "1"])(
+    "rejects malformed navigation revision %s",
+    async (navigationRevision) => {
+      invoke.mockResolvedValue([
+        browserState({ navigationRevision: navigationRevision as never }),
+      ]);
+      await expect(listBrowserTabs(scope)).rejects.toThrow();
+    },
+  );
+  it.each([
+    { scale: NaN, bounds: { x: 0, y: 0, width: 1, height: 1 } },
+    { scale: -1, bounds: { x: 0, y: 0, width: 1, height: 1 } },
+    { scale: 0.5, bounds: { x: 0.5, y: 0, width: 1, height: 1 } },
+    { scale: 0.5, bounds: { x: 0, y: 0, width: -1, height: 1 } },
+    { scale: 0.5, bounds: null },
+  ])(
+    "rejects malformed native device projection %j",
+    async (deviceViewport) => {
+      invoke.mockResolvedValue([
+        browserState({ deviceViewport: deviceViewport as never }),
+      ]);
+      await expect(listBrowserTabs(scope)).rejects.toThrow();
+    },
+  );
+  it("preserves the actual native viewport, including a hidden zero-sized projection", async () => {
+    const tabs = [
+      browserState({
+        deviceViewport: {
+          scale: 0,
+          bounds: { x: 1, y: 2, width: 0, height: 0 },
+        },
+      }),
+    ];
+    invoke.mockResolvedValue(tabs);
+    expect(await listBrowserTabs(scope)).toBe(tabs);
+  });
   it("propagates host failure rather than substituting an empty list", async () => {
     invoke.mockRejectedValue(new Error("native missing"));
     await expect(listBrowserTabs(scope)).rejects.toThrow("native missing");

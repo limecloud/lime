@@ -19,10 +19,6 @@ type RenderGeneralWorkbenchSidebarNodeParams = {
 };
 
 interface UseWorkspaceGeneralWorkbenchSidebarHostRuntimeParams {
-  contextActivityLogs: Parameters<
-    typeof useWorkspaceGeneralWorkbenchSidebarRuntime
-  >[0]["contextActivityLogs"];
-  contextWorkspace: RenderWorkspaceGeneralWorkbenchSidebarRuntimeParams["contextWorkspace"];
   generalWorkbenchHarnessSummary: RenderWorkspaceGeneralWorkbenchSidebarRuntimeParams["generalWorkbenchHarnessSummary"];
   generalWorkbenchScaffoldRuntime: GeneralWorkbenchScaffoldRuntime;
   handleSendRef: MutableRefObject<WorkspaceHandleSend>;
@@ -36,7 +32,6 @@ interface UseWorkspaceGeneralWorkbenchSidebarHostRuntimeParams {
   onImportDocument: RenderWorkspaceGeneralWorkbenchSidebarRuntimeParams["onImportDocument"];
   onSetBranchStatus: RenderWorkspaceGeneralWorkbenchSidebarRuntimeParams["onSetBranchStatus"];
   onSwitchBranchVersion: RenderWorkspaceGeneralWorkbenchSidebarRuntimeParams["onSwitchBranchVersion"];
-  onViewContextDetail: RenderWorkspaceGeneralWorkbenchSidebarRuntimeParams["onViewContextDetail"];
   projectId?: RenderWorkspaceGeneralWorkbenchSidebarRuntimeParams["projectId"];
   sessionId?: string | null;
   sidebarVisible: boolean;
@@ -46,8 +41,6 @@ interface UseWorkspaceGeneralWorkbenchSidebarHostRuntimeParams {
 }
 
 export function useWorkspaceGeneralWorkbenchSidebarHostRuntime({
-  contextActivityLogs,
-  contextWorkspace,
   generalWorkbenchHarnessSummary,
   generalWorkbenchScaffoldRuntime,
   handleSendRef,
@@ -61,7 +54,6 @@ export function useWorkspaceGeneralWorkbenchSidebarHostRuntime({
   onImportDocument,
   onSetBranchStatus,
   onSwitchBranchVersion,
-  onViewContextDetail,
   projectId,
   sessionId,
   sidebarVisible,
@@ -75,7 +67,6 @@ export function useWorkspaceGeneralWorkbenchSidebarHostRuntime({
       messages,
       isSending,
       themeWorkbenchBackendRunState,
-      contextActivityLogs,
       historyPageSize,
     });
   const handleDeleteGeneralWorkbenchVersion = useCallback(() => undefined, []);
@@ -121,7 +112,6 @@ export function useWorkspaceGeneralWorkbenchSidebarHostRuntime({
       rightSurfaceChrome,
     }: RenderGeneralWorkbenchSidebarNodeParams): ReactNode =>
       renderWorkspaceGeneralWorkbenchSidebarRuntime({
-        contextWorkspace,
         generalWorkbenchHarnessSummary,
         generalWorkbenchScaffoldRuntime,
         generalWorkbenchSidebarRuntime,
@@ -141,10 +131,8 @@ export function useWorkspaceGeneralWorkbenchSidebarHostRuntime({
         onSwitchBranchVersion,
         onToggleHarnessPanel:
           rightSurfaceChrome.onToggleHarnessPanel ?? handleIgnoreHarnessToggle,
-        onViewContextDetail,
       }),
     [
-      contextWorkspace,
       generalWorkbenchHarnessSummary,
       generalWorkbenchScaffoldRuntime,
       generalWorkbenchSidebarRuntime,
@@ -159,7 +147,6 @@ export function useWorkspaceGeneralWorkbenchSidebarHostRuntime({
       onImportDocument,
       onSetBranchStatus,
       onSwitchBranchVersion,
-      onViewContextDetail,
       projectId,
       sessionId,
       sidebarVisible,

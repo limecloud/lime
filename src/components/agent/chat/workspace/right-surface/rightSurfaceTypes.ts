@@ -12,8 +12,7 @@ export type WorkspaceRightSurfaceKind =
   | "workspace-new-tab"
   | "shell"
   | "background-terminal"
-  | "harness"
-  | "trace";
+  | "harness";
 
 export type WorkspaceRightSurfaceSource = "user" | "route" | "runtime";
 
@@ -57,7 +56,6 @@ export function normalizeWorkspaceRightSurfaceKind(
     case "shell":
     case "background-terminal":
     case "harness":
-    case "trace":
       return normalized;
     default:
       return null;

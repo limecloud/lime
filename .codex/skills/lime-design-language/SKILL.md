@@ -1,6 +1,6 @@
 ---
 name: lime-design-language
-description: 对齐 Lime GUI 的布局、交互、组件结构与命名；以 Codex Desktop 安装包证据和公开源码分工校准，保留 Lime 主题、多模型与首页 Banner。适用于页面、工作台、侧边栏、Composer、面板与设置改动。
+description: 对齐 Lime GUI 的布局、交互、组件结构与命名；以 Codex Desktop 安装包证据和公开源码分工校准，保留 Lime 视觉主题与多模型。适用于页面、工作台、侧边栏、Composer、面板与设置改动。
 ---
 
 # Lime GUI 对齐
@@ -18,8 +18,8 @@ description: 对齐 Lime GUI 的布局、交互、组件结构与命名；以 Co
 
 - Desktop 的布局、交互、模块边界、导出名称和可观察数据流来自实际安装包。用户要求 REA 复刻时使用 `reverse-engineer-anything` 的 ASAR / JavaScript 流程，复用匹配版本与摘要的 Evidence。
 - 协议、Thread/Turn/Item、状态机、工具生命周期、审批、MCP、Skills、Multi-Agent 与恢复语义对齐 `/Users/coso/Documents/dev/rust/codex` 的 current owner。该公开仓库不包含 Desktop 前端源码，不能由 TUI 布局推断 GUI。
-- 保留差异只有 Lime **主题、多模型支持、首页 Banner**。其他可确认的 UI、行为、目录职责、函数、类型和类均纳入对齐；证据不足的项目记录为 unknown，不擅自增加保留项。
-- 主题样式通过现有 token / skin 实现；多模型通过现有 catalog / model-provider 实现；Banner 留在首页 presentation。这三项都不能产生第二套 runtime 或 read model。
+- 保留差异为 Lime **视觉主题、多模型支持**及用户明确保留的**专家广场、消息渠道**。其他可确认的 UI、行为、目录职责、函数、类型和类均纳入对齐；证据不足的项目记录为 unknown，不擅自增加保留项。
+- 主题样式通过现有 token / skin 实现；多模型通过现有 catalog / model-provider 实现。这两项都不能产生第二套 runtime 或 read model。
 
 ## 实施方式
 
@@ -40,4 +40,4 @@ GUI 只消费 canonical projection。显示状态可在 surface 内维护，业�
 - 面向开发工作流可以直接显示模型、Skills、MCP、权限、工具和 Git 等用户需要操作的产品概念；Runtime、Gateway、mock 等内部机制只在需要诊断时呈现。
 - 用户可见文案覆盖五语言；键盘、焦点、可访问名称和可见状态要有稳定回归。验证命令和 Gate 等级按质量事实源选择。
 
-汇报实际替换、保留的三项差异、current/compat/deprecated/dead 分类、已取得证据及未验证项。规则更新完成不等于 GUI 已对齐。
+汇报实际替换、保留差异及用户明确例外、current/compat/deprecated/dead 分类、已取得证据及未验证项。规则更新完成不等于 GUI 已对齐。

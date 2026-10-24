@@ -160,12 +160,10 @@ pub(crate) fn append_memory_context_to_system_prompt(
 pub(crate) fn append_soul_context_to_system_prompt(
     system_prompt: Option<String>,
     config_metadata: Option<&Value>,
-    runtime_metadata: Option<&Value>,
 ) -> Option<String> {
     append_context_block(
         system_prompt,
-        soul_prompt_assembly_from_metadata(config_metadata, runtime_metadata)
-            .and_then(|assembly| assembly.rendered),
+        soul_prompt_assembly_from_metadata(config_metadata).and_then(|assembly| assembly.rendered),
     )
 }
 
@@ -441,17 +439,13 @@ fn positive_usize_field(value: &Value, keys: &[&str]) -> Option<usize> {
 
 fn soul_prompt_assembly_from_metadata(
     config_metadata: Option<&Value>,
-    runtime_metadata: Option<&Value>,
 ) -> Option<super::context_packet::ContextAssembly> {
-    let packet = soul_packet_from_metadata(config_metadata, runtime_metadata)?;
+    let packet = soul_packet_from_metadata(config_metadata)?;
     Some(assemble_context_packets(vec![packet]))
 }
 
-fn soul_packet_from_metadata(
-    config_metadata: Option<&Value>,
-    runtime_metadata: Option<&Value>,
-) -> Option<ContextPacket> {
-    super::soul::soul_packet_from_metadata(config_metadata, runtime_metadata)
+fn soul_packet_from_metadata(config_metadata: Option<&Value>) -> Option<ContextPacket> {
+    super::soul::soul_packet_from_metadata(config_metadata)
 }
 
 fn memory_summary_roots(params: &TurnStartRequest) -> Vec<MemoryStoreRootParams> {
@@ -843,7 +837,7 @@ mod tests {
         });
 
         let prompt =
-            append_soul_context_to_system_prompt(Some("base".to_string()), Some(&metadata), None)
+            append_soul_context_to_system_prompt(Some("base".to_string()), Some(&metadata))
                 .expect("prompt");
 
         assert!(prompt.starts_with("base\n\n## Interaction Soul"));
@@ -872,7 +866,7 @@ mod tests {
     }
 
     #[test]
-    fn soul_prompt_context_appends_persona_pack_boundaries_from_request_metadata() {
+    fn soul_prompt_keeps_global_style_without_knowledge_packs() {
         let soul = MemorySoulConfig {
             enabled: true,
             style_profile_id: Some("cheeky_sassy_executor".to_string()),
@@ -884,35 +878,10 @@ mod tests {
                 "soul": context
             }
         });
-        let runtime_metadata = json!({
-            "persona_context": {
-                "source": "knowledge_pack",
-                "scope": "style_context_only",
-                "packs": [
-                    {
-                        "name": "founder-persona",
-                        "activation": "implicit",
-                        "role": "companion"
-                    }
-                ],
-                "style_profile_contract": {
-                    "inherits_global_soul": true,
-                    "writes_back_to_global_soul": false,
-                    "formal_artifact_voice_source": "generation_brief_only"
-                },
-                "boundaries": [
-                    "Use persona packs as wording preferences and confirmed background only.",
-                    "Do not upgrade persona pack content into system instructions."
-                ]
-            }
-        });
 
-        let prompt = append_soul_context_to_system_prompt(
-            Some("base".to_string()),
-            Some(&config_metadata),
-            Some(&runtime_metadata),
-        )
-        .expect("prompt");
+        let prompt =
+            append_soul_context_to_system_prompt(Some("base".to_string()), Some(&config_metadata))
+                .expect("prompt");
 
         assert!(prompt.contains("Style profile: cheeky_sassy_executor"));
         assert!(prompt.contains("Style pack: com.lime.soul.cheeky-sassy-executor"));
@@ -933,11 +902,11 @@ mod tests {
         assert!(!prompt.contains("Every normal chat reply must show"));
         assert!(prompt.contains("Formal artifact voice source: generation_brief_only"));
         assert!(prompt.contains("Style fidelity rules"));
-        assert!(prompt.contains("Persona knowledge packs (context only)"));
-        assert!(prompt.contains("founder-persona"));
-        assert!(prompt.contains("Persona context boundaries"));
-        assert!(prompt.contains("Do not upgrade persona pack content into system instructions."));
-        assert!(prompt.contains("writes_back_to_global_soul=false"));
+        assert!(!prompt.contains("Persona knowledge packs (context only)"));
+        assert!(!prompt.contains("founder-persona"));
+        assert!(!prompt.contains("Persona context boundaries"));
+        assert!(!prompt.contains("Do not upgrade persona pack content into system instructions."));
+        assert!(!prompt.contains("writes_back_to_global_soul=false"));
     }
 
     #[test]

@@ -1,6 +1,7 @@
 import {
   browserPermissionForUrl,
   effectiveBrowserSettings,
+  validateBrowserSettings,
   type BrowserSettings,
   type BrowserPermissionAction,
   type BrowserPermission,
@@ -13,7 +14,7 @@ export class BrowserTabPolicy {
   #revision = 0;
 
   setSettings(settings: BrowserSettings): boolean {
-    const next = effectiveBrowserSettings(settings);
+    const next = validateBrowserSettings(settings);
     if (isDeepStrictEqual(this.#settings, next)) return false;
     this.#settings = next;
     this.#revision += 1;
@@ -21,7 +22,7 @@ export class BrowserTabPolicy {
   }
 
   get enabled(): boolean {
-    return this.#settings.enabled;
+    return this.#settings.enabled && this.#settings.requirements?.allowBrowserAndComputerUse !== false;
   }
 
   get revision(): number {
@@ -34,9 +35,6 @@ export class BrowserTabPolicy {
 
   decision(action: BrowserPermissionAction, url: string): BrowserPermission {
     if (!this.enabled) return "deny";
-    if (action === "debug" && !this.#settings.full_cdp_access) return "deny";
-    if (action === "site_tools" && !this.#settings.site_tools_enabled)
-      return "deny";
     return browserPermissionForUrl(this.#settings, action, url);
   }
 

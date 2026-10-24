@@ -3,6 +3,7 @@ pub mod apply_patch;
 pub mod code_mode;
 pub mod command_semantics;
 pub mod current_time;
+pub mod primary_runtime;
 pub mod execution_approval;
 pub mod execution_decision;
 pub mod execution_orchestrator;

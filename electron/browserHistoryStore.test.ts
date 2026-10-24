@@ -104,7 +104,7 @@ describe("BrowserHistoryStore", () => {
     });
     expect(restored.revision).toBe(4);
     const bytes = await readFile(file(), "utf8");
-    expect(JSON.parse(bytes).schemaVersion).toBe(1);
+    expect(JSON.parse(bytes).schemaVersion).toBe(2);
     expect(await readdir(path.dirname(file()))).toEqual(["history.json"]);
   });
 
@@ -200,9 +200,13 @@ describe("BrowserHistoryStore", () => {
       removedVisits: 0,
       revision,
     });
-    expect(await store.remove([entry!.id, entry!.id, "missing"])).toMatchObject(
-      { removedEntries: 1, removedVisits: 1 },
-    );
+    expect(
+      await store.removeVisits([
+        { url: entry!.url, visitTime: 10 },
+        { url: entry!.url, visitTime: 10 },
+        { url: "https://missing.example/", visitTime: 10 },
+      ]),
+    ).toMatchObject({ removedEntries: 1, removedVisits: 1 });
     expect((await new BrowserHistoryStore(directory).list()).total).toBe(0);
   });
 
@@ -232,15 +236,16 @@ describe("BrowserHistoryStore", () => {
   it.each([
     "{broken",
     JSON.stringify({ schemaVersion: 99, revision: 1, entries: [] }),
+    JSON.stringify({ schemaVersion: 1, revision: 1, entries: [] }),
     JSON.stringify({
-      schemaVersion: 1,
+      schemaVersion: 2,
       revision: 0,
       entries: [
         {
           id: "x",
           url: "https://user:secret@example.com",
           title: "",
-          visits: [1],
+          visits: [{ visitedAt: 1, isActorVisit: false }],
         },
       ],
     }),

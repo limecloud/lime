@@ -37,7 +37,7 @@ impl RuntimeToolApprovalPolicy {
         {
             Some("never") => Self::Never,
             Some("on-request") => Self::OnRequest,
-            Some("unless-trusted") => Self::UnlessTrusted,
+            Some("unless-trusted" | "untrusted") => Self::UnlessTrusted,
             Some("granular") => Self::Granular,
             _ => Self::Unknown,
         }
@@ -163,6 +163,7 @@ pub struct RuntimeToolExecutionAttempt {
     approval_source: RuntimeToolApprovalSource,
     requested_sandbox_policy: RuntimeToolSandboxPolicy,
     effective_sandbox_policy: RuntimeToolSandboxPolicy,
+    sandbox_network_access: bool,
     granted_permissions: GrantedPermissionProfile,
     managed_network_host: Option<String>,
     cancel_token: Option<CancellationToken>,
@@ -208,6 +209,11 @@ impl RuntimeToolExecutionAttempt {
         &self.granted_permissions
     }
 
+    pub fn sandbox_network_access(&self) -> bool {
+        self.effective_sandbox_policy == RuntimeToolSandboxPolicy::WorkspaceWrite
+            && self.sandbox_network_access
+    }
+
     pub fn managed_network_host(&self) -> Option<&str> {
         self.managed_network_host.as_deref()
     }
@@ -232,6 +238,7 @@ pub struct RuntimeToolOrchestrationInput {
     pub initial_approval_reason: Option<String>,
     pub requested_sandbox_policy: RuntimeToolSandboxPolicy,
     pub effective_sandbox_policy: RuntimeToolSandboxPolicy,
+    pub sandbox_network_access: bool,
     pub granted_permissions: GrantedPermissionProfile,
     pub managed_network_host: Option<String>,
     pub strict_guardian: bool,
@@ -316,6 +323,7 @@ pub async fn orchestrate_runtime_tool_execution(
         approval_source: initial_approval_source,
         requested_sandbox_policy: input.requested_sandbox_policy,
         effective_sandbox_policy: input.effective_sandbox_policy,
+        sandbox_network_access: input.sandbox_network_access,
         granted_permissions: input.granted_permissions.clone(),
         managed_network_host: input.managed_network_host.clone(),
         cancel_token: input.cancel_token.clone(),
@@ -360,6 +368,7 @@ pub async fn orchestrate_runtime_tool_execution(
         approval_source: retry_approval_source,
         requested_sandbox_policy: input.requested_sandbox_policy,
         effective_sandbox_policy: retry.effective_sandbox_policy,
+        sandbox_network_access: input.sandbox_network_access,
         granted_permissions: retry.granted_permissions,
         managed_network_host: input.managed_network_host,
         cancel_token: input.cancel_token,
@@ -593,6 +602,7 @@ pub(crate) fn test_runtime_tool_execution_attempt(
         approval_source: RuntimeToolApprovalSource::Config,
         requested_sandbox_policy: sandbox_policy,
         effective_sandbox_policy: sandbox_policy,
+        sandbox_network_access: false,
         granted_permissions,
         managed_network_host: None,
         cancel_token: None,

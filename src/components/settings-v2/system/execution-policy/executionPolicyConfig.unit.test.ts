@@ -15,46 +15,12 @@ const initial = {
 describe("execution policy field ownership", () => {
   it("projects existing defaults without inventing model settings", () => {
     expect(readExecutionPolicyDraft()).toEqual({
-      enabled: false,
-      strict: false,
-      notify_on_fallback: true,
       updatePlanEnabled: false,
       bashWarningPolicy: "shell_command_risk",
       shellRules: [],
       networkRules: [],
     });
   });
-
-  it.each(["enabled", "strict", "notify_on_fallback"] as const)(
-    "merges only sandbox %s into later sandbox and agent fields",
-    (field) => {
-      const snapshot = readExecutionPolicyDraft(initial);
-      const current = {
-        ...initial,
-        language: "ja-JP",
-        agent: {
-          ...initial.agent,
-          default_model: "later",
-          workspace_sandbox: {
-            enabled: true,
-            strict: true,
-            notify_on_fallback: false,
-          },
-        },
-      };
-      const draft = { ...snapshot, [field]: !snapshot[field] };
-      expect(mergeExecutionPolicyDraft(current, draft, snapshot)).toEqual({
-        ...current,
-        agent: {
-          ...current.agent,
-          workspace_sandbox: {
-            ...current.agent.workspace_sandbox,
-            [field]: draft[field],
-          },
-        },
-      });
-    },
-  );
 
   it("canonicalizes edited bash on the latest overrides and preserves all other overrides", () => {
     const snapshot = readExecutionPolicyDraft(initial);

@@ -1,4 +1,7 @@
-import type { BrowserAnnotationSelection } from "./browserAnnotationTypes";
+import type {
+  BrowserAnnotationSelection,
+  BrowserAnnotationCaptureResult,
+} from "./browserAnnotationTypes";
 import type { BrowserAnnotationImage } from "./browserAnnotationImages";
 import type {
   BrowserDesignChange,
@@ -103,4 +106,6 @@ export interface BrowserAnnotationEditorEvent {
   attachedImages: readonly BrowserAnnotationImage[];
   revision: number;
   designChange?: BrowserDesignChange | null;
+  /** Host-only result for the exact first Design commit revision. */
+  capture?: BrowserAnnotationCaptureResult;
 }

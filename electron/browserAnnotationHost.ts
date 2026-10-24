@@ -3,7 +3,8 @@ import {
   type BrowserAnnotationAnchor,
 } from "./browserAnnotationAnchor";
 import { randomUUID } from "node:crypto";
-import { annotationScreenshot } from "./browserAnnotationScreenshot";
+import { captureAnnotation } from "./browserAnnotationCapture";
+import type { BrowserAnnotationEditorEvent } from "../src/lib/api/browserAnnotationEditorTypes";
 import { BrowserAnnotationPresentation } from "./browserAnnotationPresentation";
 import {
   BrowserAnnotationDesignHost,
@@ -43,7 +44,7 @@ export interface BrowserAnnotationTarget {
   window: BrowserWindow;
 }
 
-interface AnnotationEntry {
+export interface AnnotationEntry {
   session: BrowserAnnotationSession;
   target: BrowserAnnotationTarget;
   token: string;
@@ -195,7 +196,7 @@ export class BrowserAnnotationHost {
       if (entry.session.viewId === viewId) this.#cancel(entry, reason);
   }
 
-  previewDesign(event: BrowserAnnotationDesignEvent): void {
+  previewDesign(event: BrowserAnnotationDesignEvent) {
     const entry = this.#entries.get(event.annotationId);
     if (
       !entry?.retained ||
@@ -210,12 +211,42 @@ export class BrowserAnnotationHost {
     )
       return;
     try {
-      this.#design.receive(event, (change) =>
+      return this.#design.receive(event, (change) =>
         this.#send(entry, { type: "design-preview", change }),
       );
     } catch {
       /* A stale/invalid design cannot mutate the captured page. */
     }
+  }
+
+  async prepareEditorEvent(
+    event: BrowserAnnotationEditorEvent & BrowserAnnotationIdentity,
+  ): Promise<
+    (BrowserAnnotationEditorEvent & BrowserAnnotationIdentity) | null
+  > {
+    const ticket = this.previewDesign(event);
+    // The trusted editor must still flush body/images after its page is retired.
+    if (event.action === "close" || event.action === "change") return event;
+    const entry = this.#entries.get(event.annotationId);
+    if (
+      !entry ||
+      !this.#current(entry) ||
+      Object.entries({
+        ...this.#identity(entry.session),
+        pageRevision: entry.presentationRevision,
+      }).some(
+        ([key, value]) =>
+          event[key as keyof BrowserAnnotationIdentity] !== value,
+      )
+    )
+      return null;
+    if (!ticket?.capture || !ticket.change) return event;
+    const capture = await this.#capture(entry, {
+      change: ticket.change,
+      current: ticket.current,
+    });
+    ticket.complete(capture.screenshotStatus !== "stale");
+    return { ...event, capture };
   }
 
   refresh(viewId: string, annotationId: string): void {
@@ -275,6 +306,7 @@ export class BrowserAnnotationHost {
   }
 
   #pause(entry: AnnotationEntry): void {
+    entry.pending?.resolve({ status: "stale" });
     if (entry.paused && !entry.startup) return;
     this.#presentation.clearOriginal(entry.session.viewId);
     const nextToken = randomUUID();
@@ -598,6 +630,13 @@ export class BrowserAnnotationHost {
         return;
       }
       if (documentToken !== entry.documentToken) return;
+      if (
+        record.type === "ready" &&
+        record.requestId === entry.pending?.requestId
+      ) {
+        entry.pending?.resolve(record);
+        return;
+      }
       if (entry.retained) {
         if (record.type === "anchor") {
           entry.anchor = readAnnotationAnchor(record.anchor);
@@ -668,100 +707,32 @@ export class BrowserAnnotationHost {
           selection: structuredClone(entry.selection),
           ...(designSnapshot ? { designSnapshot } : {}),
         });
-      } else if (
-        record.type === "ready" &&
-        record.requestId === entry.pending?.requestId
-      ) {
-        entry.pending?.resolve(record);
       }
     } catch {
       /* Malformed or stale untrusted page messages have no authority. */
     }
   }
 
-  async #capture(
+  #capture(
     entry: AnnotationEntry,
+    design?: {
+      change: import("../src/lib/api/browserDesign").BrowserDesignChange;
+      current: () => boolean;
+    },
   ): Promise<BrowserAnnotationCaptureResult> {
-    if (entry.capturing)
-      throw new Error("Browser annotation capture is already pending");
-    const selection = structuredClone(entry.selection!);
-    const result: BrowserAnnotationCaptureResult = {
-      annotationId: entry.session.annotationId,
-      selection,
-      screenshot: null,
-      screenshotStatus: "failed",
-      failureReason: "capture-failed",
-    };
-    const requestId = randomUUID();
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    entry.capturing = true;
-    try {
-      if (!this.#current(entry)) {
-        result.screenshotStatus = "stale";
-        result.failureReason = "page-changed";
-        return result;
-      }
-      const ready = new Promise<Record<string, unknown>>((resolve) => {
-        entry.pending = { requestId, resolve };
-        timer = setTimeout(() => resolve({ status: "timeout" }), this.#timeout);
-      });
-      this.#send(entry, { type: "prepare", requestId });
-      const prepared = await ready;
-      if (timer) clearTimeout(timer);
-      if (!this.#current(entry) || prepared.status === "stale") {
-        result.screenshotStatus = "stale";
-        result.failureReason = "page-changed";
-        return result;
-      }
-      if (prepared.status === "timeout") {
-        result.screenshotStatus = "timeout";
-        result.failureReason = "page-ready-timeout";
-        return result;
-      }
-      if (
-        prepared.status !== "ready" ||
-        !isDeepStrictEqual(
-          readAnnotationSelection(
-            prepared.selection,
-            entry.session.kind,
-            entry.url,
-            entry.target.view.webContents.getTitle(),
-          ),
-          selection,
-        )
-      ) {
-        result.screenshotStatus = "stale";
-        result.failureReason = "selection-changed";
-        return result;
-      }
-      const image = await Promise.race([
-        entry.target.view.webContents.capturePage(),
-        new Promise<null>((resolve) => {
-          timer = setTimeout(() => resolve(null), this.#timeout * 5);
-        }),
-      ]);
-      if (!this.#current(entry)) {
-        result.screenshotStatus = "stale";
-        result.failureReason = "page-changed";
-        return result;
-      }
-      if (image === null) {
-        result.screenshotStatus = "timeout";
-        result.failureReason = "capture-timeout";
-        return result;
-      }
-      result.screenshot = annotationScreenshot(image, selection, this.#mode());
-      result.screenshotStatus = "captured";
-      result.failureReason = null;
-      return result;
-    } catch {
-      return result;
-    } finally {
-      if (timer) clearTimeout(timer);
-      entry.pending = null;
-      entry.capturing = false;
-      if (this.#current(entry) && result.screenshotStatus !== "stale") {
-        entry.retained = true;
+    const bounds = entry.target.view.getBounds();
+    return captureAnnotation({
+      entry,
+      current: () =>
+        this.#current(entry) &&
+        (!design ||
+          (design.current() &&
+            isDeepStrictEqual(bounds, entry.target.view.getBounds()))),
+      send: (payload) => this.#send(entry, payload),
+      timeout: this.#timeout,
+      mode: this.#mode,
+      design,
+      retain: (requestId) => {
         this.#send(entry, {
           type: "retain",
           requestId,
@@ -770,12 +741,14 @@ export class BrowserAnnotationHost {
           ),
           original: this.#presentation.original(entry.session.viewId),
         });
-      } else this.#send(entry, { type: "clear", requestId });
-      if (
-        this.#entries.get(entry.session.annotationId) === entry &&
-        !this.#current(entry)
-      )
-        this.cancelView(entry.session.viewId, "stale");
-    }
+      },
+      stale: () => {
+        if (
+          this.#entries.get(entry.session.annotationId) === entry &&
+          !this.#current(entry)
+        )
+          this.cancelView(entry.session.viewId, "stale");
+      },
+    });
   }
 }

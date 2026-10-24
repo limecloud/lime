@@ -24,10 +24,8 @@ export type Page =
   | "experts"
   | "skills"
   | "plugins"
-  | "knowledge"
   | "scheduled-tasks"
   | "channels"
-  | "resources"
   | "settings";
 
 export interface AgentPendingServiceSkillLaunchParams {
@@ -43,18 +41,6 @@ export type AgentInitialInputCapabilityParams = (
   | { skill: Skill; capabilityRoute?: never }
   | { capabilityRoute: InputCapabilitySendRoute; skill?: never }
 ) & { requestKey?: number };
-
-export interface AgentInitialKnowledgePackSelectionParams {
-  enabled: boolean;
-  packName: string;
-  workingDir: string;
-  label?: string;
-  status?: string;
-  companionPacks?: Array<{
-    name: string;
-    activation?: "explicit" | "implicit" | "resolver-driven";
-  }>;
-}
 
 /**
  * Agent 页面参数
@@ -88,8 +74,6 @@ export interface AgentPageParams {
   theme?: string;
   /** 是否锁定主题（锁定后不在首屏显示主题切换） */
   lockTheme?: boolean;
-  /** 从资源管理页进入（用于沉浸式展示） */
-  fromResources?: boolean;
   /** 首页沉浸模式：隐藏左侧应用导航与话题列表，仅保留主工作区 */
   immersiveHome?: boolean;
   /** 进入 Agent 后立即打开浏览器协助 */
@@ -102,8 +86,6 @@ export interface AgentPageParams {
   initialInputCapability?: AgentInitialInputCapabilityParams;
   /** 仅把输入能力放进首页输入框，不直接切进会话工作区 */
   preferHomeForInitialInputCapability?: boolean;
-  /** 从资料管理进入 Agent 时预启用的项目资料 */
-  initialKnowledgePackSelection?: AgentInitialKnowledgePackSelectionParams;
   /** 进入 Agent 后自动打开项目内某个文件 */
   initialProjectFileOpenTarget?: AgentProjectFileOpenTarget;
   /** 首页点击触发的新会话标记（时间戳） */
@@ -213,26 +195,11 @@ export interface PluginsPageParams {
   currentProjectId?: string;
 }
 
-export interface KnowledgePageParams {
-  workingDir?: string;
-  selectedPackName?: string;
-  initialView?: "overview" | "import" | "detail" | "states";
-}
-
 export interface ScheduledTasksPageParams {
   selectedTaskId?: string;
   projectId?: string;
   sessionId?: string;
   threadId?: string;
-}
-
-export interface ResourcesPageParams {
-  projectId?: string;
-  contentId?: string;
-  focusIntentId?: string;
-  focusResourceTitle?: string;
-  resourceFolderId?: string;
-  resourceCategory?: "all" | "document" | "image" | "audio" | "video";
 }
 
 export interface AgentSiteSkillLaunchParams {
@@ -260,9 +227,7 @@ export type PageParams =
   | AgentPageParams
   | ScheduledTasksPageParams
   | ExpertsPageParams
-  | ResourcesPageParams
   | SettingsPageParams
   | SkillsPageParams
   | PluginsPageParams
-  | KnowledgePageParams
   | Record<string, unknown>;

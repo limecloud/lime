@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "canceled": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "canceled"
+  ],
+  "title": "CancelInstallResponse",
+  "type": "object"
+}

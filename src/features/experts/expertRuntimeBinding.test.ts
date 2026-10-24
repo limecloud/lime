@@ -2,8 +2,34 @@ import { describe, expect, it } from "vitest";
 import { buildExpertCatalogProjection } from "./projectExpertCatalog";
 import { buildExpertRuntimeMetadata } from "./expertRuntimeBinding";
 import { getSeededExpertCatalog } from "./seededExpertCatalog";
+import { createSeededCloudServiceSkillCatalog } from "@/lib/base-setup/seededServiceSkillPackage";
 
 describe("buildExpertRuntimeMetadata", () => {
+  it("真实资料整理专家应绑定普通文档 Skill 且不依赖知识平台", () => {
+    const catalog = getSeededExpertCatalog();
+    const expert = buildExpertCatalogProjection(catalog).items.find(
+      (item) => item.id === "knowledge-organizer",
+    );
+    expect(expert).toBeDefined();
+    const metadata = buildExpertRuntimeMetadata(expert!);
+    expect(metadata.expert.skillRefs).toEqual([
+      "service-skill:personal-ip-knowledge-builder",
+    ]);
+    expect(metadata.harness.expert.skill_refs).toEqual(
+      metadata.expert.skillRefs,
+    );
+    const skill = createSeededCloudServiceSkillCatalog().items.find(
+      (item) => item.id === "personal-ip-knowledge-builder",
+    );
+    expect(skill?.skillBundle?.name).toBe("personal-ip-knowledge-builder");
+    expect(skill?.skillBundle?.metadata?.Lime_skill_bundle_path).toBe(
+      "lime-rs/resources/default-skills/personal-ip-knowledge-builder",
+    );
+    expect(JSON.stringify(skill)).not.toMatch(
+      /Lime_knowledge_builder|Lime_knowledge_pack_type|knowledgePack\//,
+    );
+  });
+
   it("应把专家 release 转为现有 Agent Runtime request metadata", () => {
     const catalog = getSeededExpertCatalog();
     const projection = buildExpertCatalogProjection(catalog);

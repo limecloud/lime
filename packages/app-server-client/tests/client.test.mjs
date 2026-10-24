@@ -166,14 +166,6 @@ const {
   METHOD_TELEGRAM_CHANNEL_PROBE,
   METHOD_INITIALIZED,
   METHOD_INITIALIZE,
-  METHOD_KNOWLEDGE_CONTEXT_RESOLVE,
-  METHOD_KNOWLEDGE_CONTEXT_RUN_VALIDATE,
-  METHOD_KNOWLEDGE_PACK_COMPILE,
-  METHOD_KNOWLEDGE_PACK_DEFAULT_SET,
-  METHOD_KNOWLEDGE_PACK_LIST,
-  METHOD_KNOWLEDGE_PACK_READ,
-  METHOD_KNOWLEDGE_PACK_STATUS_UPDATE,
-  METHOD_KNOWLEDGE_SOURCE_IMPORT,
   METHOD_COLLABORATION_MODE_LIST,
   METHOD_CONFIG_BATCH_WRITE,
   METHOD_CONFIG_READ,
@@ -289,9 +281,6 @@ const {
   METHOD_SKILL_REPOSITORY_LIST,
   METHOD_SKILL_REPOSITORY_SAVE,
   METHOD_SKILL_READ,
-  METHOD_USAGE_STATS_DAILY_TRENDS_LIST,
-  METHOD_USAGE_STATS_MODEL_RANKING_LIST,
-  METHOD_USAGE_STATS_READ,
   METHOD_VOICE_ASR_CREDENTIAL_CREATE,
   METHOD_VOICE_ASR_CREDENTIAL_DEFAULT_SET,
   METHOD_VOICE_ASR_CREDENTIAL_DELETE,
@@ -1451,44 +1440,6 @@ test("builds session file requests with current App Server methods", () => {
 test("builds app data surface requests with current methods", () => {
   const client = new AppServerClient();
 
-  const knowledge = client.listKnowledgePacks({
-    workingDir: "/workspace/project",
-    includeArchived: true,
-  });
-  const knowledgeDetail = client.readKnowledgePack({
-    workingDir: "/workspace/project",
-    name: "sample-product",
-  });
-  const importedKnowledgeSource = client.importKnowledgeSource({
-    workingDir: "/workspace/project",
-    packName: "sample-product",
-    sourceText: "示例产品事实",
-  });
-  const compiledKnowledgePack = client.compileKnowledgePack({
-    workingDir: "/workspace/project",
-    name: "sample-product",
-    builderRuntime: { enabled: true },
-  });
-  const defaultKnowledgePack = client.setDefaultKnowledgePack({
-    workingDir: "/workspace/project",
-    name: "sample-product",
-  });
-  const updatedKnowledgePackStatus = client.updateKnowledgePackStatus({
-    workingDir: "/workspace/project",
-    name: "sample-product",
-    status: "ready",
-  });
-  const knowledgeContext = client.resolveKnowledgeContext({
-    workingDir: "/workspace/project",
-    name: "sample-product",
-    task: "写产品介绍",
-    writeRun: true,
-  });
-  const knowledgeContextValidation = client.validateKnowledgeContextRun({
-    workingDir: "/workspace/project",
-    name: "sample-product",
-    runPath: "runs/context.json",
-  });
   const mcpServers = client.listMcpServers();
   const mcpServerStatus = client.listMcpServersWithStatus();
   const mcpServer = {
@@ -1789,58 +1740,6 @@ test("builds app data surface requests with current methods", () => {
     credential_id: "cred-1",
   });
 
-  assert.equal(knowledge.method, METHOD_KNOWLEDGE_PACK_LIST);
-  assert.deepEqual(knowledge.params, {
-    workingDir: "/workspace/project",
-    includeArchived: true,
-  });
-  assert.equal(knowledgeDetail.method, METHOD_KNOWLEDGE_PACK_READ);
-  assert.deepEqual(knowledgeDetail.params, {
-    workingDir: "/workspace/project",
-    name: "sample-product",
-  });
-  assert.equal(importedKnowledgeSource.method, METHOD_KNOWLEDGE_SOURCE_IMPORT);
-  assert.deepEqual(importedKnowledgeSource.params, {
-    workingDir: "/workspace/project",
-    packName: "sample-product",
-    sourceText: "示例产品事实",
-  });
-  assert.equal(compiledKnowledgePack.method, METHOD_KNOWLEDGE_PACK_COMPILE);
-  assert.deepEqual(compiledKnowledgePack.params, {
-    workingDir: "/workspace/project",
-    name: "sample-product",
-    builderRuntime: { enabled: true },
-  });
-  assert.equal(defaultKnowledgePack.method, METHOD_KNOWLEDGE_PACK_DEFAULT_SET);
-  assert.deepEqual(defaultKnowledgePack.params, {
-    workingDir: "/workspace/project",
-    name: "sample-product",
-  });
-  assert.equal(
-    updatedKnowledgePackStatus.method,
-    METHOD_KNOWLEDGE_PACK_STATUS_UPDATE,
-  );
-  assert.deepEqual(updatedKnowledgePackStatus.params, {
-    workingDir: "/workspace/project",
-    name: "sample-product",
-    status: "ready",
-  });
-  assert.equal(knowledgeContext.method, METHOD_KNOWLEDGE_CONTEXT_RESOLVE);
-  assert.deepEqual(knowledgeContext.params, {
-    workingDir: "/workspace/project",
-    name: "sample-product",
-    task: "写产品介绍",
-    writeRun: true,
-  });
-  assert.equal(
-    knowledgeContextValidation.method,
-    METHOD_KNOWLEDGE_CONTEXT_RUN_VALIDATE,
-  );
-  assert.deepEqual(knowledgeContextValidation.params, {
-    workingDir: "/workspace/project",
-    name: "sample-product",
-    runPath: "runs/context.json",
-  });
   assert.equal(mcpServers.method, METHOD_MCP_SERVER_LIST);
   assert.deepEqual(mcpServers.params, {});
   assert.equal(mcpServerStatus.method, METHOD_MCP_SERVER_STATUS_LIST);

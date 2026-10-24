@@ -95,8 +95,11 @@ where
                 false,
             )
         })?;
-    let model_request_policy =
-        runtime_reply_model_request_policy_from_turn_context(session_config.turn_context.as_ref());
+    let mut model_request_policy =
+        runtime_reply_model_request_policy_from_turn_context(session_config.turn_context.as_ref())
+            .unwrap_or_default();
+    model_request_policy.web_search_mode = Some(policy.web_search_mode);
+    let model_request_policy = Some(model_request_policy);
     let mid_turn_compaction_limit =
         crate::model_request_policy::model_request_policy_from_turn_context(
             session_config.turn_context.as_ref(),

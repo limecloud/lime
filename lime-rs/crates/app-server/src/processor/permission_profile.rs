@@ -7,6 +7,7 @@ use app_server_protocol::protocol::v2::{
     PermissionProfileListParams, PermissionProfileListResponse, PermissionProfileSummary,
 };
 use app_server_protocol::{error_codes, JsonRpcError};
+use lime_core::config::requirements::ConfigRequirements;
 
 impl RequestProcessor {
     pub(super) async fn handle_permission_profile_list_impl(
@@ -19,7 +20,11 @@ impl RequestProcessor {
             .runtime
             .current_permission_profile_policy(cwd.as_deref())
             .map_err(to_jsonrpc_error)?;
-        let data = permission_profile_catalog(&policy);
+        let requirements = self
+            .runtime
+            .read_config_requirements()
+            .map_err(to_jsonrpc_error)?;
+        let data = permission_profile_catalog(&policy, requirements.as_ref());
         let start = parse_cursor(cursor.as_deref(), data.len())?;
         let limit = limit.unwrap_or(data.len() as u32).max(1) as usize;
         let end = start.saturating_add(limit).min(data.len());
@@ -45,11 +50,21 @@ impl RequestProcessor {
     }
 }
 
-fn permission_profile_catalog(policy: &PermissionProfilePolicy) -> Vec<PermissionProfileSummary> {
+fn permission_profile_catalog(
+    policy: &PermissionProfilePolicy,
+    requirements: Option<&ConfigRequirements>,
+) -> Vec<PermissionProfileSummary> {
     resolved_permission_profile_catalog(policy)
         .into_iter()
         .map(|profile| {
-            let allowed = permission_profile_is_allowed(policy, profile.clone());
+            let allowed = permission_profile_is_allowed(policy, profile.clone())
+                && requirements.is_none_or(|requirements| {
+                    requirements.allowed_sandbox_modes.is_none()
+                        || serde_json::from_value(serde_json::Value::String(
+                            profile.sandbox_policy.clone(),
+                        ))
+                        .is_ok_and(|mode| requirements.check_sandbox(mode).is_ok())
+                });
             PermissionProfileSummary {
                 id: profile.id,
                 description: profile.description,
@@ -93,7 +108,7 @@ mod tests {
             tool_runtime::sandbox::SandboxBackendPlatform::Unsupported,
         )
         .expect("default permission policy");
-        let catalog = permission_profile_catalog(&policy);
+        let catalog = permission_profile_catalog(&policy, None);
         assert_eq!(
             catalog
                 .iter()
@@ -105,7 +120,22 @@ mod tests {
                 DANGER_FULL_ACCESS_PROFILE_ID
             ]
         );
-        assert!(catalog.iter().all(|profile| profile.allowed));
+        assert_eq!(
+            catalog
+                .iter()
+                .map(|profile| profile.allowed)
+                .collect::<Vec<_>>(),
+            vec![false, false, true]
+        );
+        let requirements =
+            ConfigRequirements::parse("allowed_sandbox_modes = ['read-only']").unwrap();
+        assert_eq!(
+            permission_profile_catalog(&policy, Some(&requirements))
+                .iter()
+                .map(|profile| profile.allowed)
+                .collect::<Vec<_>>(),
+            vec![false, false, false]
+        );
         assert_eq!(
             crate::permission_profile::resolve_permission_profile_for_request(
                 &policy,

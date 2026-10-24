@@ -80,12 +80,6 @@ export interface SubmissionPreviewSnapshot {
   createdAt: number;
 }
 
-export interface ContextWorkspaceSummary {
-  enabled: boolean;
-  activeContextPrompt: string;
-  prepareActiveContextPrompt: () => Promise<string>;
-}
-
 export interface GeneralWorkbenchEntryPromptState {
   kind: "initial_prompt" | "resume";
   signature: string;
@@ -112,16 +106,6 @@ export interface GeneralWorkbenchSendBoundaryState {
   shouldConsumePendingGeneralWorkbenchInitialPrompt: boolean;
   shouldDismissGeneralWorkbenchEntryPrompt: boolean;
 }
-
-type PreparedActiveContextPromptResult =
-  | {
-      ok: true;
-      value: string;
-    }
-  | {
-      ok: false;
-      error: unknown;
-    };
 
 function resolveGeneralWorkbenchGateLabel(
   gateKey?: GeneralWorkbenchRunTodoItem["gate_key"],
@@ -446,10 +430,8 @@ export function buildGeneralWorkbenchSendBoundaryState({
 
 interface BuildWorkspaceSendTextOptions {
   sourceText: string;
-  contextWorkspace: ContextWorkspaceSummary;
   mentionedCharacters: Character[];
   sendOptions?: HandleSendOptions;
-  preparedActiveContextPrompt?: Promise<PreparedActiveContextPromptResult> | null;
 }
 
 interface BuildWorkspaceRequestMetadataOptions {
@@ -472,26 +454,6 @@ interface BuildWorkspaceRequestMetadataOptions {
   workspaceSkillBindings?: AgentRuntimeWorkspaceSkillBinding[] | null;
   workspaceSkillRuntimeEnable?: WorkspaceSkillRuntimeEnableInput | null;
   agentResponseLanguage?: string | null;
-}
-
-function applyActiveContextPrompt(
-  text: string,
-  activeContextPrompt: string,
-): string {
-  if (!activeContextPrompt.trim()) {
-    return text;
-  }
-
-  const slashCommandMatch = text.match(/^\/([a-zA-Z0-9_-]+)(?:\s+([\s\S]*))?$/);
-  if (slashCommandMatch) {
-    const [, skillName, skillArgs] = slashCommandMatch;
-    const mergedArgs = [activeContextPrompt, skillArgs.trim()]
-      .filter((part) => part.length > 0)
-      .join("\n\n");
-    return `/${skillName} ${mergedArgs}`.trim();
-  }
-
-  return `${activeContextPrompt}\n\n${text}`;
 }
 
 function applyMentionedCharacterContext(
@@ -519,40 +481,10 @@ export async function buildWorkspaceSendText(
   options: BuildWorkspaceSendTextOptions,
 ): Promise<string> {
   if (options.sendOptions?.threadGoal) return options.sourceText;
-  const {
-    sourceText,
-    contextWorkspace,
-    mentionedCharacters,
-    preparedActiveContextPrompt: preparedActiveContextPromptPromise,
-  } = options;
-
-  let text = sourceText;
-  let activeContextPrompt = contextWorkspace.enabled
-    ? contextWorkspace.activeContextPrompt.trim()
-    : "";
-  if (!activeContextPrompt && contextWorkspace.enabled) {
-    if (preparedActiveContextPromptPromise) {
-      const result = await preparedActiveContextPromptPromise;
-      if (!result.ok) {
-        throw result.error;
-      }
-      activeContextPrompt = result.value.trim();
-    } else {
-      activeContextPrompt = (
-        await contextWorkspace.prepareActiveContextPrompt()
-      ).trim();
-    }
-  } else if (activeContextPrompt) {
-    // 发送路径优先使用现成上下文快照，后台继续补齐正文缓存以优化后续轮次。
-    void contextWorkspace.prepareActiveContextPrompt().catch(() => undefined);
-  }
-
-  if (activeContextPrompt) {
-    text = applyActiveContextPrompt(text, activeContextPrompt);
-  }
-
-  text = applyMentionedCharacterContext(text, mentionedCharacters);
-  return text;
+  return applyMentionedCharacterContext(
+    options.sourceText,
+    options.mentionedCharacters,
+  );
 }
 
 export function hasServiceSkillLaunchRequestMetadata(

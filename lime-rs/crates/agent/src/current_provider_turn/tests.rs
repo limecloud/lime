@@ -311,6 +311,7 @@ async fn ready_lifecycle_and_policy_events_keep_start_action_end_order() {
     let policy = RequestToolPolicy {
         search_mode: crate::request_tool_policy::RequestToolPolicyMode::Disabled,
         effective_web_search: false,
+        web_search_mode: agent_protocol::WebSearchMode::Disabled,
         required_tools: Vec::new(),
         allowed_tools: Vec::new(),
         disallowed_tools: Vec::new(),
@@ -343,6 +344,7 @@ fn request_policy_hides_disallowed_tools() {
     let policy = RequestToolPolicy {
         search_mode: crate::request_tool_policy::RequestToolPolicyMode::Disabled,
         effective_web_search: false,
+        web_search_mode: agent_protocol::WebSearchMode::Disabled,
         required_tools: Vec::new(),
         allowed_tools: Vec::new(),
         disallowed_tools: vec!["WebSearch".to_string()],

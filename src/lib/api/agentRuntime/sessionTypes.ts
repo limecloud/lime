@@ -314,6 +314,7 @@ export interface AgentRuntimeThreadDiagnostics {
 export interface AgentRuntimeThreadReadModel {
   thread_id: string;
   thread_settings?: ThreadSettings;
+  reasoning_effort?: string | null;
   can_accept_direct_input?: boolean | null;
   session_business_object_ref_metadata?: Record<string, unknown> | null;
   /**

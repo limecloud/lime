@@ -58,7 +58,6 @@ const KNOWN_RIGHT_SURFACE_KINDS = new Set<WorkspaceRightSurfaceKind>([
   "files",
   "shell",
   "harness",
-  "trace",
 ]);
 const KNOWN_RIGHT_SURFACE_ORIGINS = new Set<
   Extract<WorkspaceRightSurfaceCommandOrigin, "runtime" | "skill" | "mcpTool">

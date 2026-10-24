@@ -792,7 +792,6 @@ impl AgentDao {
              WHERE {archive_condition}
                AND instr(s.id, 'title-gen-') != 1
                AND instr(s.id, 'persona-gen-') != 1
-               AND instr(s.id, 'knowledge-builder-session-') != 1
                AND instr(s.id, '__lime_theme_context_search__-') != 1
                AND instr(s.id, 'persisted-usage-') != 1
                {cwd_filter_sql}
@@ -2050,7 +2049,7 @@ mod tests {
             "INSERT INTO agent_sessions (id, model, system_prompt, title, created_at, updated_at, archived_at)
              VALUES (?1, ?2, NULL, ?3, ?4, ?5, ?6)",
             params![
-                "knowledge-builder-session-ip-v1-0-newer",
+                "title-gen-ip-v1-0-newer",
                 "gpt-4.1",
                 "内部知识整理",
                 "2026-03-12T12:00:00+08:00",

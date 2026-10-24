@@ -14,6 +14,8 @@ pub struct AgentTurnContextConfigurationRequest {
     pub approval_policy: Option<String>,
     pub approvals_reviewer: Option<agent_protocol::ApprovalsReviewer>,
     pub sandbox_policy: Option<String>,
+    pub sandbox_network_access: Option<bool>,
+    pub web_search_mode: Option<agent_protocol::WebSearchMode>,
     pub collaboration_mode: Option<CollaborationMode>,
     pub user_visible_input_text: Option<String>,
     pub output_schema: Option<Value>,
@@ -30,6 +32,8 @@ pub fn build_agent_turn_context(
         approval_policy: request.approval_policy,
         approvals_reviewer: request.approvals_reviewer,
         sandbox_policy: request.sandbox_policy,
+        sandbox_network_access: request.sandbox_network_access,
+        web_search_mode: request.web_search_mode,
         collaboration_mode: request.collaboration_mode,
         user_visible_input_text: request.user_visible_input_text,
         metadata: request.metadata,
@@ -41,6 +45,8 @@ pub fn build_agent_turn_context(
     if context.approval_policy.is_none()
         && context.approvals_reviewer.is_none()
         && context.sandbox_policy.is_none()
+        && context.sandbox_network_access.is_none()
+        && context.web_search_mode.is_none()
         && context.user_visible_input_text.is_none()
         && context.output_schema.is_none()
         && context.collaboration_mode.is_none()

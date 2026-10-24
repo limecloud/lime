@@ -627,33 +627,4 @@ describe("HarnessStatusPanel outputs", () => {
       "https://example.com/report",
     );
   });
-
-  it("能力区中的上下文路径应支持直接系统打开", async () => {
-    const onOpenPath = vi.fn().mockResolvedValue(undefined);
-
-    renderPanel({
-      layout: "dialog",
-      environment: {
-        skillsCount: 2,
-        skillNames: ["read_file", "write_todos"],
-        memorySignals: ["风格"],
-        contextItemsCount: 2,
-        activeContextCount: 1,
-        contextItemNames: ["/tmp/workspace/context/brief.md"],
-        contextEnabled: true,
-      },
-      onOpenPath,
-    });
-
-    const pathLink = document.body.querySelector(
-      '[aria-label="系统打开路径：/tmp/workspace/context/brief.md"]',
-    ) as HTMLElement | null;
-
-    await act(async () => {
-      pathLink?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-      await Promise.resolve();
-    });
-
-    expect(onOpenPath).toHaveBeenCalledWith("/tmp/workspace/context/brief.md");
-  });
 });

@@ -11,6 +11,7 @@ agent-protocol.workspace = true
 
 # 序列化
 serde.workspace = true
+schemars = { version = "1.2.1", features = ["derive"] }
 serde_json.workspace = true
 serde_urlencoded.workspace = true
 
@@ -38,6 +39,7 @@ dirs.workspace = true
 url.workspace = true
 urlencoding.workspace = true
 bytes.workspace = true
+base64.workspace = true
 futures.workspace = true
 dashmap.workspace = true
 notify.workspace = true
@@ -56,6 +58,7 @@ regex.workspace = true
 
 # YAML 配置
 serde_yaml.workspace = true
+toml_edit.workspace = true
 
 # 数据库（errors 模块需要 rusqlite::Error）
 rusqlite.workspace = true
@@ -65,3 +68,9 @@ if-addrs.workspace = true
 
 [dev-dependencies]
 proptest.workspace = true
+
+[target.'cfg(target_os = "macos")'.dependencies]
+core-foundation = "0.10.1"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.52", features = ["Win32_Foundation", "Win32_UI_Shell", "Win32_System_Com"] }

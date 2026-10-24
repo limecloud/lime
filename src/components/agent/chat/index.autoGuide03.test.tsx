@@ -1,7 +1,6 @@
 import { act } from "react";
 import { describe, expect, it, vi } from "vitest";
 import {
-  createMockThemeContextWorkspaceState,
   flushEffects,
   getIndexTestMocks,
   observedWorkspaceIds,
@@ -20,18 +19,12 @@ const {
   mockMessageList,
   mockUpdateContent,
   mockUseAgentChatUnified,
-  mockUseThemeContextWorkspace,
   mockUseTopicBranchBoard,
 } = getIndexTestMocks();
 
 describe("AgentChatPage 自动引导", { timeout: 20_000 }, () => {
   it("工作区编排写入损坏的 markdown 产物时不应覆盖主稿正文", async () => {
     mockIsSpecializedWorkbenchTheme.mockReturnValue(true);
-    mockUseThemeContextWorkspace.mockReturnValue(
-      createMockThemeContextWorkspaceState({
-        enabled: true,
-      }),
-    );
     mockGetContent.mockResolvedValue({
       id: "content-theme-corrupted-markdown",
       body: "旧内容",
@@ -86,16 +79,10 @@ describe("AgentChatPage 自动引导", { timeout: 20_000 }, () => {
     });
 
     expect(bodyUpdateCalls).toHaveLength(0);
-
   });
 
   it("工作区编排在队列状态未就绪时写入主稿仍应创建可见版本", async () => {
     mockIsSpecializedWorkbenchTheme.mockReturnValue(true);
-    mockUseThemeContextWorkspace.mockReturnValue(
-      createMockThemeContextWorkspaceState({
-        enabled: true,
-      }),
-    );
     mockGetContent.mockResolvedValue({
       id: "content-theme-fallback-version",
       body: "旧内容",
@@ -161,11 +148,6 @@ describe("AgentChatPage 自动引导", { timeout: 20_000 }, () => {
 
   it("社媒主稿写入时应为任务文件与版本链附加 harness 语义", async () => {
     mockIsSpecializedWorkbenchTheme.mockReturnValue(true);
-    mockUseThemeContextWorkspace.mockReturnValue(
-      createMockThemeContextWorkspaceState({
-        enabled: true,
-      }),
-    );
     mockGetContent.mockResolvedValue({
       id: "content-theme-harness-metadata",
       body: "旧内容",
@@ -233,11 +215,6 @@ describe("AgentChatPage 自动引导", { timeout: 20_000 }, () => {
 
   it("工作区编排运行中应展示真实技能与工具步骤，而不是默认占位流程", async () => {
     mockIsSpecializedWorkbenchTheme.mockReturnValue(true);
-    mockUseThemeContextWorkspace.mockReturnValue(
-      createMockThemeContextWorkspaceState({
-        enabled: true,
-      }),
-    );
     mockUseAgentChatUnified.mockImplementation(
       ({ workspaceId }: { workspaceId: string }) => {
         observedWorkspaceIds.push(workspaceId);
@@ -333,11 +310,6 @@ describe("AgentChatPage 自动引导", { timeout: 20_000 }, () => {
 
   it("工作区编排运行中应优先使用后端 current_gate_key", async () => {
     mockIsSpecializedWorkbenchTheme.mockReturnValue(true);
-    mockUseThemeContextWorkspace.mockReturnValue(
-      createMockThemeContextWorkspaceState({
-        enabled: true,
-      }),
-    );
     mockExecutionRunGetGeneralWorkbenchState.mockResolvedValue({
       run_state: "auto_running",
       current_gate_key: "publish_confirm",
@@ -381,22 +353,6 @@ describe("AgentChatPage 自动引导", { timeout: 20_000 }, () => {
 
   it("工作区编排应基于 execution_id 将工具日志映射到真实 runId", async () => {
     mockIsSpecializedWorkbenchTheme.mockReturnValue(true);
-    mockUseThemeContextWorkspace.mockReturnValue(
-      createMockThemeContextWorkspaceState({
-        enabled: true,
-        activityLogs: [
-          {
-            id: "exec-map-1-social-write-exec-map-1-1a2b3c4d",
-            messageId: "exec-map-1",
-            name: "write_file",
-            status: "completed",
-            timeLabel: "10:30",
-            applyTarget: "主稿内容",
-            contextIds: ["material:1"],
-          },
-        ],
-      }),
-    );
     mockExecutionRunGetGeneralWorkbenchState.mockResolvedValue({
       run_state: "auto_running",
       current_gate_key: "write_mode",
@@ -436,12 +392,6 @@ describe("AgentChatPage 自动引导", { timeout: 20_000 }, () => {
 
   it("工作区编排日志应保留最近终态历史，而不是只显示最新一轮", async () => {
     mockIsSpecializedWorkbenchTheme.mockReturnValue(true);
-    mockUseThemeContextWorkspace.mockReturnValue(
-      createMockThemeContextWorkspaceState({
-        enabled: true,
-        activityLogs: [],
-      }),
-    );
     mockExecutionRunGetGeneralWorkbenchState.mockResolvedValue({
       run_state: "idle",
       current_gate_key: "idle",
@@ -501,5 +451,4 @@ describe("AgentChatPage 自动引导", { timeout: 20_000 }, () => {
     expect(activityRuns).toContain("run-latest");
     expect(activityRuns).toContain("run-previous");
   });
-
 });

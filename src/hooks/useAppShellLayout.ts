@@ -13,12 +13,10 @@ export function getAppShellLayoutState(params: {
   const currentAgentParams = params.pageParams as AgentPageParams;
   const shouldHideSidebarForAgent =
     params.currentPage === "agent" &&
-    (Boolean(currentAgentParams.fromResources) ||
-      Boolean(currentAgentParams.immersiveHome) ||
+    (Boolean(currentAgentParams.immersiveHome) ||
       (params.agentHasMessages && Boolean(currentAgentParams.lockTheme)));
 
-  const shouldShowAppSidebar =
-    params.currentPage !== "resources" && !shouldHideSidebarForAgent;
+  const shouldShowAppSidebar = !shouldHideSidebarForAgent;
 
   return {
     shouldHideSidebarForAgent,

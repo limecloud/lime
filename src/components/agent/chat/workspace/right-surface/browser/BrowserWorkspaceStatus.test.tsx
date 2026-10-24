@@ -29,6 +29,7 @@ const browserKeys = [
 const permission: BrowserTabPermissionRequestEvent = {
   browserSessionId: "browser-session-1",
   decision: "blocked",
+  isMainFrame: true,
   embeddingOrigin: "https://example.com",
   ownerWebContentsId: 41,
   permission: "geolocation",

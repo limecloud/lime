@@ -1,4 +1,4 @@
-import type { SidebarActivityLog } from "../hooks/useThemeContextWorkspace";
+import type { SidebarActivityLog } from "./generalWorkbenchWorkflowData";
 import {
   buildGeneralWorkbenchActivityLogGroups,
   buildGeneralWorkbenchCreationTaskGroups,

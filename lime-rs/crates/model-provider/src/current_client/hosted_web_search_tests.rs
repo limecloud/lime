@@ -44,7 +44,10 @@ fn lowered_tools(config: &RuntimeProviderConfig, tool_name: &str) -> serde_json:
     responses_request(
         config,
         &canonical,
-        &RuntimeReplyProviderRequestWireShape::default(),
+        &RuntimeReplyProviderRequestWireShape {
+            web_search_mode: Some(agent_protocol::WebSearchMode::Cached),
+            ..Default::default()
+        },
         &BTreeMap::new(),
     )
     .expect("Responses lowering")["tools"]
@@ -60,9 +63,65 @@ fn official_responses_route_lowers_web_search_as_hosted_tool() {
         ),
         json!([{
             "type": "web_search",
-            "external_web_access": true,
+            "external_web_access": false,
         }])
     );
+}
+
+#[test]
+fn hosted_search_access_modes_apply_to_both_responses_tool_locations() {
+    use agent_protocol::WebSearchMode;
+    for lite in [false, true] {
+        for (mode, expected) in [
+            (WebSearchMode::Disabled, json!([])),
+            (
+                WebSearchMode::Cached,
+                json!([{"type":"web_search","external_web_access":false}]),
+            ),
+            (
+                WebSearchMode::Indexed,
+                json!([{"type":"web_search","external_web_access":true,"indexed_web_access":true}]),
+            ),
+            (
+                WebSearchMode::Live,
+                json!([{"type":"web_search","external_web_access":true}]),
+            ),
+        ] {
+            let payload = responses_request(
+                &config("openai", Some("https://api.openai.com/v1")),
+                &request("WebSearch").into_canonical("gpt-5").unwrap(),
+                &RuntimeReplyProviderRequestWireShape {
+                    web_search_mode: Some(mode),
+                    use_responses_lite: lite,
+                    ..Default::default()
+                },
+                &BTreeMap::new(),
+            )
+            .unwrap();
+            if mode == WebSearchMode::Disabled && !lite {
+                assert!(payload.get("tools").is_none());
+                continue;
+            }
+            let tools = if lite {
+                &payload["input"][0]["tools"]
+            } else {
+                &payload["tools"]
+            };
+            assert_eq!(tools, &expected, "{mode:?}, lite={lite}");
+        }
+    }
+}
+
+#[test]
+fn hosted_web_search_is_absent_without_an_effective_access_mode() {
+    let payload = responses_request(
+        &config("openai", Some("https://api.openai.com/v1")),
+        &request("WebSearch").into_canonical("gpt-5").unwrap(),
+        &RuntimeReplyProviderRequestWireShape::default(),
+        &BTreeMap::new(),
+    )
+    .unwrap();
+    assert!(payload.get("tools").is_none());
 }
 
 #[test]

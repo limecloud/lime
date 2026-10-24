@@ -22,6 +22,50 @@
 - 两者都不存在时使用默认配置。
   - 首次启动会自动生成强随机 API Key 并写入配置。
 
+### 项目配置与新聊天默认值
+
+设置中的 Configuration 通过同一 App Server 配置链读取用户 YAML 与项目的
+`.lime/config.toml`。用户层在前；从最近 Git 根目录到当前工作目录的项目层依次覆盖，
+没有 Git 根时只读取当前目录。已有 `.lime` 目录即使没有配置文件也会形成空项目层；
+读取不会创建目录或文件，没有项目配置目录时默认选中用户层。
+
+项目必须在用户 YAML 的 `projects` 中显式信任，项目文件不能自行授予信任：
+
+```yaml
+projects:
+  "/absolute/path/to/project":
+    trust_level: trusted
+```
+
+Windows 使用实际规范化的绝对目录路径。当前目录的显式 `untrusted` 优先于 Git 根的信任。
+未信任项目层和符号链接配置路径会显示为不可写，并且不参与有效配置。
+用户配置可以保留原有符号链接行为；项目配置不允许借符号链接写到项目外。
+
+项目层当前支持新聊天默认键 `approval_policy`、`sandbox_mode`、
+`sandbox_workspace_write.network_access`、`web_search`、`model_verbosity`、
+`model_reasoning_summary`，以及现役 `default_permissions` / `permissions` 配置。
+它不覆盖全局主题、多模型连接、网络代理、Desktop 偏好或项目信任本身。
+Configuration 每行只写所选文件的目标键，保存时检查该文件的独立版本；
+项目 TOML 保留注释和无关字段，内联 `sandbox_workspace_write` 表需直接打开文件编辑。
+新建 Thread 按 cwd 解析并冻结默认值；已存在和恢复的 Thread 保留其 canonical 快照。
+管理员可在 Unix `/etc/lime/requirements.toml` 或 Windows 系统 ProgramData 下的 `Lime/requirements.toml` 限制可选值。该路径不受用户配置、环境变量或项目配置影响，例如：
+
+```toml
+allowed_approval_policies = ["on-request"]
+allowed_sandbox_modes = ["read-only", "workspace-write"]
+allowed_web_search_modes = ["cached"]
+```
+
+关闭网页搜索始终允许。配置页只显示管理员允许的选项，直接 API、权限配置切换和旧聊天的下一轮也会重新校验；越权请求明确失败。文件缺失表示不设限制；文件损坏、未知字段、空审批或沙盒列表会阻止操作，修复文件后重试。策略不会改写用户/项目文件中的原值；新聊天使用受限的有效默认值。
+macOS 管理员可通过配置描述文件为 `com.limecloud.lime` 强制下发字符串偏好：
+
+- `config_toml_base64`：base64 编码的 UTF-8 TOML，支持上述新聊天默认值（包括 `model_reasoning_effort`）、命名权限预设，以及 `desktop.enabled-reasoning-efforts`。
+- `requirements_toml_base64`：同样编码的三个 allowed lists，优先于系统文件和旧式强制配置回填。
+
+只接受读取前后均为系统 forced 的值；普通 `defaults write` 不会产生管理员来源。错误类型、非法 base64/TOML、超过 1 MiB 或未接入的 managed 键会明确阻止配置读取和相关操作。强制配置覆盖 User/可信 Project，但不改写原文件；配置页仅在真实层存在时显示 Admin，无文件可打开，受管理字段在所有可写作用域中锁定。`approval_policy` 与 `sandbox_mode` 同时回填执行约束；其他受管字段提供新聊天默认值，不追溯修改已有 Thread。
+
+Config 写入拒绝受管理字段及其父/子路径；其他设置照常保存。独立强制 requirements 可逐字段覆盖旧式单值限制，关闭网页搜索始终可用。当前没有 enterprise transport、Windows MDM 源或依赖安装修复服务。
+
 ### TUI 按键配置
 
 TUI 只从上述 Lime 用户配置读取 `tui.keymap`、`tui.right_click_paste`、`tui.status_line`、
@@ -138,6 +182,30 @@ model_reasoning_summary: detailed # auto、concise、detailed 或 none
 
 这些偏好受所选模型的明确能力声明约束：不支持的模型不会收到对应请求字段；摘要为
 `none` 时省略请求的摘要字段。它们影响模型请求，与下面的推理显示开关各自独立。
+
+新聊天的权限默认值保存在同一配置中：
+
+```yaml
+approval_policy: on-request # on-request、never 或 untrusted
+sandbox_mode: read-only # read-only、workspace-write 或 danger-full-access
+sandbox_workspace_write:
+  network_access: false
+```
+
+权限与回复默认值在 `thread/start` 时共用一次配置快照；之后修改全局配置不改变已有
+聊天或冷恢复的权限。显式 `permissions` 选择命名权限配置，显式 `sandbox` 或
+`config.sandbox_mode` 可替代全局默认权限配置；`permissions` 与 `sandbox` 不可同时
+指定。显式 `sandbox` 及回合沙盒覆盖会重置继承的网络放行，避免从旧策略意外扩大权限。
+`network_access` 只作用于 `workspace-write`，不替代独立的受管网络授权。
+受限策略必须使用可用的操作系统沙盒，否则明确拒绝执行；旧 `workspace_sandbox`
+开关不能关闭请求指定的隔离策略。配置读写继续经过公共配置 API 及版本校验。
+
+Desktop 的 `desktop.enabled-reasoning-efforts` 控制模型控件中可选的 `max`、`ultra`，
+仅对模型目录明确支持的强度生效；默认关闭 `max`、启用 `ultra`。基础强度和模型声明的
+`persistent`、自定义强度保持可用，不由该偏好伪造模型能力。关闭强度只筛选菜单选项，
+保留已有聊天的当前选择与 canonical 设置；用户切换模型时，已关闭的强度回落到目标模型
+仍可用的默认值。设置页逐行保存到同一
+App Server 用户配置层，空数组显式关闭两项可选强度，`null` 恢复界面默认值。
 
 原始推理显示使用同一用户配置中的顶层 `show_raw_agent_reasoning: true`，默认 false。
 GUI/TUI 均只在显式开启后将 canonical `content` 接在摘要之后；实时增量、运行中恢复、
@@ -304,3 +372,15 @@ chord prefix 都会被拒绝；只有 Vim modal contexts 允许可打印 prefix�
 
 - 管理 API 启用后会对失败认证进行短期限制，避免暴力尝试。
 - 建议仅在内网使用，并配合独立强密钥。
+
+### 网页搜索访问范围
+
+`web_search` 为 `disabled`、`cached`、`indexed` 或 `live`，在「设置 → 配置」逐行保存。未配置时，完整访问的新聊天默认 `live`，其他沙箱默认 `cached`。每个新 Thread 保存有效模式；修改全局设置不改变已打开 Thread。`config/read` 返回由同一权限 profile 解析器推导的有效模式，layers 中保留未配置状态及原始 revision；前端不自行解释权限 profile。回合请求只能收窄 Thread 的访问范围，`auto/required` 调用意图不能扩大权限。本地搜索只支持缓存结果或实时访问；缓存未命中、索引后端不可用均明确失败，不自动联网。官方 Responses 路由按模式发送 hosted web search 标志。
+
+旧 `web_search` 提供商表及其设置页已移除。`image_gen.image_search_pexels_api_key` 与 `image_search_pixabay_api_key` 仍归独立图像配置，通过配置页「打开配置文件」编辑；未迁入网页搜索访问模式，也未删除配置数据。
+
+### 新聊天的默认推理档位
+
+`model_reasoning_effort` 为新 Thread 的默认推理档位，支持 `none`、`minimal`、`low`、`medium`、`high`、`xhigh`、`max`、`ultra` 和 `persistent`；未设置或空值沿用模型行为，实际可用值仍由模型能力决定。可信项目配置及显式 `thread/start.config` 可覆盖 User 层，创建时写入 canonical Thread；后续全局变化不改写既有聊天或冷恢复的设置。
+
+「设置 → 配置 → 可用推理档位」关闭 `max` 或 `ultra` 时，若该值正是 User 层的新聊天默认，先使用现役 `model/list` 唯一默认模型声明的档位修正它，再保存菜单偏好。两个写入共享配置队列和 revision 检查；默认修正失败不隐藏该档位，偏好保存失败可重试。项目 scope 不改变这项 User 偏好的归属。

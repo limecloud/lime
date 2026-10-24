@@ -109,11 +109,10 @@ interface WorkspaceCanvasPreviewImageWorkbenchParams {
   selectedSize: ImageWorkbenchCanvasProps["selectedSize"];
   onSizeChange: ImageWorkbenchCanvasProps["onSizeChange"];
   generating: ImageWorkbenchCanvasProps["generating"];
-  savingToResource: ImageWorkbenchCanvasProps["savingToResource"];
   onStopGeneration: ImageWorkbenchCanvasProps["onStopGeneration"];
   onViewportChange: ImageWorkbenchCanvasProps["onViewportChange"];
   onSelectOutput: ImageWorkbenchCanvasProps["onSelectOutput"];
-  onSaveSelectedToLibrary: ImageWorkbenchCanvasProps["onSaveSelectedToLibrary"];
+  onOpenArtifact: ImageWorkbenchCanvasProps["onOpenArtifact"];
   applySelectedOutputLabel: ImageWorkbenchCanvasProps["applySelectedOutputLabel"];
   onApplySelectedOutput?: ImageWorkbenchCanvasProps["onApplySelectedOutput"];
   onRetryTask: ImageWorkbenchCanvasProps["onRetryTask"];
@@ -326,11 +325,10 @@ export function useWorkspaceCanvasPreviewRuntime({
       selectedSize: imageWorkbench.selectedSize,
       onSizeChange: imageWorkbench.onSizeChange,
       generating: imageWorkbench.generating,
-      savingToResource: imageWorkbench.savingToResource,
       onStopGeneration: imageWorkbench.onStopGeneration,
       onViewportChange: imageWorkbench.onViewportChange,
       onSelectOutput: imageWorkbench.onSelectOutput,
-      onSaveSelectedToLibrary: imageWorkbench.onSaveSelectedToLibrary,
+      onOpenArtifact: imageWorkbench.onOpenArtifact,
       applySelectedOutputLabel: imageWorkbench.applySelectedOutputLabel,
       onApplySelectedOutput: imageWorkbench.onApplySelectedOutput,
       onRetryTask: imageWorkbench.onRetryTask,
@@ -345,7 +343,7 @@ export function useWorkspaceCanvasPreviewRuntime({
       imageWorkbench.onModelChange,
       imageWorkbench.onProviderChange,
       imageWorkbench.onRetryTask,
-      imageWorkbench.onSaveSelectedToLibrary,
+      imageWorkbench.onOpenArtifact,
       imageWorkbench.onSeedFollowUpCommand,
       imageWorkbench.onSelectOutput,
       imageWorkbench.onSizeChange,
@@ -354,7 +352,6 @@ export function useWorkspaceCanvasPreviewRuntime({
       imageWorkbench.outputs,
       imageWorkbench.preferenceSummary,
       imageWorkbench.preferenceWarning,
-      imageWorkbench.savingToResource,
       imageWorkbench.sourceContentId,
       imageWorkbench.sourceProjectId,
       imageWorkbench.sourceThreadId,

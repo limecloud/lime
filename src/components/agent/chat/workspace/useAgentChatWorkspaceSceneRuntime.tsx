@@ -40,11 +40,10 @@ export function useAgentChatWorkspaceSceneRuntime({
 }: UseAgentChatWorkspaceSceneRuntimeParams) {
   // prettier-ignore
   const {
-    onNavigate: _onNavigate, contentId, agentEntry, fromResources, topBarChrome = "full", onBackToProjectManagement,
-    hideInlineStepProgress, initialSessionName, initialKnowledgePackSelection, newChatAt, onBackgroundSessionRuntimeChange, preferContentReviewInRightRail,
+    onNavigate: _onNavigate, contentId, agentEntry, topBarChrome = "full", onBackToProjectManagement,
+    hideInlineStepProgress, initialSessionName, newChatAt, onBackgroundSessionRuntimeChange, preferContentReviewInRightRail,
   } = props;
   const resolvedAgentEntry = agentEntry ?? "claw";
-  const resolvedFromResources = fromResources ?? false;
   const resolvedHideInlineStepProgress = hideInlineStepProgress ?? false;
   const resolvedPreferContentReviewInRightRail =
     preferContentReviewInRightRail ?? false;
@@ -56,7 +55,7 @@ export function useAgentChatWorkspaceSceneRuntime({
     handleAddPathReferences, handleRemovePathReference, handleClearPathReferences,  activeSessionIdRef, setChatToolPreferences,
     handleOpenSkillsManageFromExpertPanel, projectId, markNewChatRequestHandled, taskCenterWorkspaceId, normalizedInitialSessionId, shouldUseBrowserWorkspaceHomeChrome, shouldDeferWorkspaceAuxiliaryLoads, project,
     isInitialContentLoading, initialContentLoadError, canvasState, setCanvasState, initialCreationReplaySurface, runtimeWorkspaceId, generalCanvasState,
-    setGeneralCanvasState, taskFiles, selectedFileId, openedProjects, handleCloseOpenedProject, clawTraceEnabled, soulArtifactVoiceGenerationBrief, soulArtifactVoiceEnabledForTurn,
+    setGeneralCanvasState, taskFiles, selectedFileId, openedProjects, handleCloseOpenedProject, soulArtifactVoiceGenerationBrief, soulArtifactVoiceEnabledForTurn,
     setSoulArtifactVoiceEnabledForTurn, imageGenerationSelectionReady, imageGenerationSelectionWarning, imageWorkbenchGenerationRuntime, imageWorkbenchPreferenceSummary, imageWorkbenchPreferenceWarning,
     skills, serviceSkills, handleSkillSuggestionsNeeded, mappedTheme, syncStatus,
     isSpecializedThemeMode, workbenchRequests,
@@ -72,7 +71,7 @@ export function useAgentChatWorkspaceSceneRuntime({
     handlePluginSuggestionsNeeded, handleThreadExpertProfileSwitch, workspacePluginInputSuggestions, workspacePluginSuggestionsError, workspacePluginSuggestionsLoading, workspaceSkillBindings, topicById, effectiveChatToolPreferences, canonicalChildren,
     currentSessionTitle, handleStopSending, handleOpenSubagentSession, currentImageWorkbenchState, imageWorkbenchSessionKey, updateCurrentImageWorkbenchState, artifactDisplayState,
     artifactViewMode, currentCanvasArtifact, displayedCanvasArtifact, handleArtifactViewModeChange,
-    settledWorkbenchArtifacts, contextHarnessRuntime, effectiveThreadItems, harnessState, inputbarIsSending, rightSurfaceLocalState, contextWorkspace,
+    settledWorkbenchArtifacts, contextHarnessRuntime, effectiveThreadItems, harnessState, inputbarIsSending, rightSurfaceLocalState,
     isThemeWorkbench, setHarnessPanelVisible, harnessPendingCount, showHarnessToggle, harnessAttentionLevel, harnessToggleLabel, generalWorkbenchScaffoldRuntime, workspaceServiceSkillEntryActions,
     a2uiSubmissionNotice, effectivePendingA2UIForm, effectivePendingA2UISource, handleMessageA2UISubmit, handlePendingA2UISubmit, currentGate, themeWorkbenchRunState,
   } = setupRuntime;
@@ -103,7 +102,6 @@ export function useAgentChatWorkspaceSceneRuntime({
     threadGoalError,
     threadGoalLoading: isThreadGoalLoading,
     generalWorkbenchHarnessPanelBaseProps,
-    currentSessionTitle,
     handleStopSending,
     input,
     composerController,
@@ -141,7 +139,7 @@ export function useAgentChatWorkspaceSceneRuntime({
     skillsLoading: combinedSkillsLoading,
     onSkillSuggestionsNeeded: handleSkillSuggestionsNeeded,
     initialInputCapability: effectiveInitialInputCapability,
-    initialKnowledgePackSelection,
+
     pluginSuggestions: workspacePluginInputSuggestions,
     pluginSuggestionsError: workspacePluginSuggestionsError?.message ?? null,
     pluginSuggestionsLoading: workspacePluginSuggestionsLoading,
@@ -175,6 +173,7 @@ export function useAgentChatWorkspaceSceneRuntime({
   });
 
   const canvasScene = useWorkspaceCanvasSceneRuntime({
+    onOpenArtifact: handleWorkspaceArtifactClick,
     shouldBootstrapCanvasOnEntry,
     normalizedEntryTheme,
     mappedTheme,
@@ -353,7 +352,7 @@ export function useAgentChatWorkspaceSceneRuntime({
       },
       coordinator: {
         bindRightSurfacePendingActions,
-        clawTraceEnabled,
+
         expertInfoPanelCollapsed,
         handleToggleCanvas,
         harnessPendingCount,
@@ -565,13 +564,12 @@ export function useAgentChatWorkspaceSceneRuntime({
         onCloseProject: handleCloseOpenedProject,
         deferWorkspaceListLoad: shouldUseBrowserWorkspaceHomeChrome,
         projectRootPath: project?.rootPath || null,
-        contextWorkspaceEnabled: contextWorkspace.generalWorkbenchEnabled,
+        contextWorkspaceEnabled: isThemeWorkbench,
         activeTheme,
         contentId,
         suppressNavbarUtilityActions: suppressHomeNavbarUtilityActions,
         topBarChrome,
         onBackToProjectManagement,
-        fromResources: resolvedFromResources,
         handleBackHome,
         isRestoringSession: sceneIsRestoringSession,
         sessionId: sceneSessionId,
@@ -633,13 +631,17 @@ export function useAgentChatWorkspaceSceneRuntime({
         value={artifactCommentSubmission}
       >
         <BrowserAnnotationContext.Provider
-          value={sessionId && threadRead?.thread_id ? {
-            sessionId,
-            threadId: threadRead.thread_id,
-            send: inputbarScene.handleInputbarSend,
-            isSending,
-            workspaceId: runtimeWorkspaceId ?? projectId ?? null,
-          } : null}
+          value={
+            sessionId && threadRead?.thread_id
+              ? {
+                  sessionId,
+                  threadId: threadRead.thread_id,
+                  send: inputbarScene.handleInputbarSend,
+                  isSending,
+                  workspaceId: runtimeWorkspaceId ?? projectId ?? null,
+                }
+              : null
+          }
         >
           {workspaceSceneNode}
         </BrowserAnnotationContext.Provider>

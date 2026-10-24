@@ -1,7 +1,6 @@
 import * as Menu from "@radix-ui/react-dropdown-menu";
 import { useLayoutEffect, useRef, useState } from "react";
 import {
-  BarChart3,
   BookOpen,
   ChevronRight,
   CircleHelp,
@@ -87,13 +86,6 @@ export function ProfileDropdownItems({
           >
             <UserRound />
             {t("navigation.sidebar.account.profile")}
-          </Menu.Item>
-          <Menu.Item
-            className={itemClassName}
-            onSelect={() => onNavigate(SettingsTabs.Stats)}
-          >
-            <BarChart3 />
-            {t("navigation.sidebar.account.usage")}
           </Menu.Item>
         </>
       ) : null}

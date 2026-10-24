@@ -14,6 +14,10 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::MutexGuard;
 
+mod managed;
+mod projects;
+mod requirements;
+
 const CONFIG_ROOT_KEYS: &[&str] = &[
     "server",
     "providers",
@@ -22,11 +26,20 @@ const CONFIG_ROOT_KEYS: &[&str] = &[
     "hide_agent_reasoning",
     "model_verbosity",
     "model_reasoning_summary",
+    "model_reasoning_effort",
+    "approval_policy",
+    "sandbox_mode",
+    "sandbox_workspace_write",
+    "default_permissions",
+    "permissions",
+    "projects",
     "tui",
     "desktop",
+    "features",
     "git",
     "worktrees",
     "browser",
+    "browser_use",
     "routing",
     "retry",
     "logging",
@@ -46,7 +59,6 @@ const CONFIG_ROOT_KEYS: &[&str] = &[
     "marketplaces",
     "orchestrator",
     "experimental",
-    "tool_calling",
     "workspace_preferences",
     "navigation",
     "chat_appearance",
@@ -55,7 +67,6 @@ const CONFIG_ROOT_KEYS: &[&str] = &[
     "memory",
     "image_gen",
     "user_profile",
-    "developer",
     "rate_limit",
     "crash_reporting",
     "conversation",
@@ -77,32 +88,16 @@ impl RequestProcessor {
     ) -> Result<RpcDispatch, JsonRpcError> {
         self.ensure_initialized()?;
         let params: ConfigReadParams = parse_params(params)?;
-        if params.cwd.is_some() {
-            return Err(JsonRpcError::new(
-                error_codes::INVALID_PARAMS,
-                "Lime Desktop config/read does not support project config layers",
-            ));
-        }
-
         let _guard = config_lock()?;
         let snapshot = read_snapshot(self.runtime.app_config_path())?;
-        let metadata = snapshot.metadata();
-        let mut origins = BTreeMap::new();
-        collect_origins(&snapshot.config, "", &metadata, &mut origins);
-        let layers = params.include_layers.then(|| {
-            vec![ConfigLayer {
-                name: metadata.name.clone(),
-                version: snapshot.version.clone(),
-                config: snapshot.config.clone(),
-                disabled_reason: None,
-            }]
-        });
-
-        dispatch_result(ConfigReadResponse {
-            config: snapshot.config,
-            origins,
-            layers,
-        })
+        dispatch_result(projects::read_layers(
+            snapshot,
+            params,
+            self.runtime
+                .read_config_requirements()
+                .map_err(super::to_jsonrpc_error)?
+                .as_ref(),
+        )?)
     }
 
     pub(super) async fn handle_config_value_write_impl(
@@ -116,6 +111,10 @@ impl RequestProcessor {
             params.key_path == "worktrees" || params.key_path.starts_with("worktrees.");
         let response = write_edits(
             self.runtime.app_config_path(),
+            self.runtime
+                .read_config_requirements()
+                .map_err(super::to_jsonrpc_error)?
+                .as_ref(),
             params.file_path,
             params.expected_version,
             vec![ConfigEdit {
@@ -148,6 +147,10 @@ impl RequestProcessor {
             .any(|edit| edit.key_path == "worktrees" || edit.key_path.starts_with("worktrees."));
         let response = write_edits(
             self.runtime.app_config_path(),
+            self.runtime
+                .read_config_requirements()
+                .map_err(super::to_jsonrpc_error)?
+                .as_ref(),
             params.file_path,
             params.expected_version,
             params.edits,
@@ -171,6 +174,32 @@ impl RequestProcessor {
         self.publish_app_list_updated().await;
         self.dispatch_skill_catalog_mutation(response, true).await
     }
+}
+
+fn project_search_access(config: &Value) -> Result<Value, JsonRpcError> {
+    let typed: Config = serde_json::from_value(config.clone()).map_err(config_runtime_error)?;
+    let mode = if let Some(mode) = typed.web_search {
+        mode
+    } else {
+        let policy = crate::permission_profile::permission_profile_policy(
+            &typed,
+            None,
+            tool_runtime::sandbox::SandboxBackendPlatform::current(),
+        )
+        .map_err(config_runtime_error)?;
+        let profile =
+            crate::permission_profile::resolve_permission_profile_for_request(&policy, None)
+                .map_err(config_runtime_error)?;
+        agent_protocol::WebSearchMode::for_sandbox(Some(
+            profile
+                .as_ref()
+                .map(|profile| profile.sandbox_policy.as_str())
+                .unwrap_or(typed.sandbox_mode.as_str()),
+        ))
+    };
+    let mut projected = config.clone();
+    projected["web_search"] = serde_json::json!(mode);
+    Ok(projected)
 }
 
 struct ConfigSnapshot {
@@ -231,11 +260,17 @@ fn canonicalize_json(value: &Value) -> Value {
 
 fn write_edits(
     path: &Path,
+    requirements: Option<&lime_core::config::requirements::ConfigRequirements>,
     file_path: Option<String>,
     expected_version: Option<String>,
     edits: Vec<ConfigEdit>,
 ) -> Result<ConfigWriteResponse, JsonRpcError> {
     let _guard = config_lock()?;
+    managed::check_edits(&edits)?;
+    requirements::check_edits(requirements, &edits)?;
+    if let Some(file) = file_path.as_deref().filter(|file| Path::new(file) != path) {
+        return projects::write_project_edits(path, file, expected_version, edits);
+    }
     let mut snapshot = read_snapshot(path)?;
     validate_write_path(file_path.as_deref(), &snapshot.file_path)?;
     if expected_version
@@ -423,6 +458,11 @@ fn collect_origins(
             }
         }
         Value::Array(array) => {
+            if !path.is_empty() {
+                let prefix = format!("{path}.");
+                origins.retain(|key, _| !key.starts_with(&prefix));
+                origins.insert(path.to_string(), metadata.clone());
+            }
             for (index, child) in array.iter().enumerate() {
                 let child_path = format!("{path}.{index}");
                 collect_origins(child, &child_path, metadata, origins);
@@ -541,14 +581,13 @@ mod tests {
         let saved = write_edits(
             &path,
             None,
+            None,
             Some(initial.version.clone()),
             vec![edit(json!({
                 "show_full_url": true,
                 "ask_download_location": true,
-                "history_access": "disabled",
-                "agent_permissions": {"default": {"download": "deny"}, "sites": [{
-                    "pattern": "https://*.EXAMPLE.COM/", "permissions": {"browse": "allow"}
-                }]}
+                "iabHistoryApprovalMode": "disabled",
+                "allowedOrigins": ["https://*.EXAMPLE.COM/"]
             }))],
         )
         .expect("persist Browser preferences through current control plane");
@@ -560,25 +599,20 @@ mod tests {
             Some(&json!(true))
         );
         assert_eq!(
-            restored.config.pointer("/browser/history_access"),
+            restored.config.pointer("/browser/iabHistoryApprovalMode"),
             Some(&json!("disabled"))
         );
         assert_eq!(
             restored
                 .config
-                .pointer("/browser/agent_permissions/sites/0/pattern"),
+                .pointer("/browser/allowedOrigins/0"),
             Some(&json!("https://*.example.com"))
-        );
-        assert_eq!(
-            restored
-                .config
-                .pointer("/browser/agent_permissions/default/download"),
-            Some(&json!("deny"))
         );
         let persisted = std::fs::read(&path).expect("persisted YAML bytes");
 
         let conflict = write_edits(
             &path,
+            None,
             None,
             Some(initial.version),
             vec![edit(json!({"enabled": false}))],
@@ -587,8 +621,8 @@ mod tests {
         assert!(conflict.message.contains("modified since last read"));
         assert_eq!(std::fs::read(&path).unwrap(), persisted);
 
-        let invalid = write_edits(&path, None, Some(saved.version), vec![edit(json!({
-            "agent_permissions": {"sites": [{"pattern": "https://user:secret@example.com/private", "permissions": {"browse": "allow"}}]}
+        let invalid = write_edits(&path, None, None, Some(saved.version), vec![edit(json!({
+            "allowedOrigins": ["https://user:secret@example.com/private"]
         }))]).expect_err("invalid Browser permission pattern must not be persisted");
         assert!(invalid.message.contains("Invalid configuration"));
         assert_eq!(std::fs::read(&path).unwrap(), persisted);

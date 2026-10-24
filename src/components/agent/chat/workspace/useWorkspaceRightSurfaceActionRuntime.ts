@@ -57,7 +57,6 @@ interface UseWorkspaceRightSurfaceActionRuntimeParams {
   refreshRightSurfacePendingRequests: RefreshRightSurfacePendingRequests;
   rightSurfaceActiveSurface: WorkspaceRightSurfaceKind | null;
   rightSurfaceHarnessEnabled: boolean;
-  rightSurfaceTraceAvailable: boolean;
   sceneLayoutMode: LayoutMode;
   setActiveArticleWorkspace: Dispatch<
     SetStateAction<WorkspaceArticleWorkspace | null>
@@ -102,7 +101,6 @@ interface WorkspaceRightSurfaceActionRuntime {
   handleToggleRightSurfaceFiles: () => void;
   handleToggleRightSurfaceHarness: () => void;
   handleToggleRightSurfaceShell: () => void;
-  handleToggleRightSurfaceTrace: () => void;
 }
 
 export function useWorkspaceRightSurfaceActionRuntime({
@@ -131,7 +129,6 @@ export function useWorkspaceRightSurfaceActionRuntime({
   refreshRightSurfacePendingRequests,
   rightSurfaceActiveSurface,
   rightSurfaceHarnessEnabled,
-  rightSurfaceTraceAvailable,
   sceneLayoutMode,
   setActiveArticleWorkspace,
   setActiveBrowserRightSurfaceIntent,
@@ -356,34 +353,6 @@ export function useWorkspaceRightSurfaceActionRuntime({
     manualRightSurface,
     refreshRightSurfacePendingRequests,
     rightSurfaceHarnessEnabled,
-    setManualRightSurface,
-  ]);
-
-  const handleToggleRightSurfaceTrace = useCallback(() => {
-    if (!rightSurfaceTraceAvailable) {
-      return;
-    }
-    const shouldOpenTrace = manualRightSurface !== "trace";
-    closeCompetingRightSurfaces();
-    if (shouldOpenTrace) {
-      setManualRightSurface("trace");
-    } else {
-      closeRightSurface("trace");
-    }
-    if (shouldOpenTrace) {
-      void refreshRightSurfacePendingRequests();
-      void consumePendingRequestsForSurface("trace");
-    } else {
-      void dismissPendingRequestsForSurface("trace", "user_closed_surface");
-    }
-  }, [
-    closeRightSurface,
-    closeCompetingRightSurfaces,
-    consumePendingRequestsForSurface,
-    dismissPendingRequestsForSurface,
-    manualRightSurface,
-    refreshRightSurfacePendingRequests,
-    rightSurfaceTraceAvailable,
     setManualRightSurface,
   ]);
 
@@ -629,6 +598,5 @@ export function useWorkspaceRightSurfaceActionRuntime({
     handleToggleRightSurfaceFiles,
     handleToggleRightSurfaceHarness,
     handleToggleRightSurfaceShell,
-    handleToggleRightSurfaceTrace,
   };
 }

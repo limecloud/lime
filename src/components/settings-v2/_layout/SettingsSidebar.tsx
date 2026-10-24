@@ -98,16 +98,6 @@ const ItemLabel = styled.span`
   white-space: nowrap;
 `;
 
-const ExperimentalBadge = styled.span`
-  font-size: 10px;
-  padding: 2px 6px;
-  border: 1px solid var(--lime-warning-border, hsl(var(--destructive) / 0.16));
-  background: var(--lime-warning-soft, hsl(var(--destructive) / 0.1));
-  color: var(--lime-warning, hsl(var(--destructive)));
-  border-radius: 4px;
-  flex-shrink: 0;
-`;
-
 interface SettingsSidebarProps {
   activeTab: SettingsTabs;
   onTabChange: (tab: SettingsTabs) => void;
@@ -170,8 +160,8 @@ export function SettingsSidebar({
       <SettingsSearch {...searchProps} inputRef={searchInputRef} />
       {!searchQuery.trim()
         ? categoryGroups.map((group) => (
-            <GroupContainer key={group.key}>
-              <GroupHeader>{group.title}</GroupHeader>
+            <GroupContainer key={group.key ?? "ungrouped"}>
+              {group.title ? <GroupHeader>{group.title}</GroupHeader> : null}
               <GroupItems>
                 {group.items.map((item) => (
                   <NavItem
@@ -187,11 +177,6 @@ export function SettingsSidebar({
                   >
                     <item.icon />
                     <ItemLabel>{item.label}</ItemLabel>
-                    {item.experimental && (
-                      <ExperimentalBadge>
-                        {t("settings.layout.sidebar.experimentalBadge")}
-                      </ExperimentalBadge>
-                    )}
                   </NavItem>
                 ))}
               </GroupItems>

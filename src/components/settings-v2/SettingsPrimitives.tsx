@@ -1,4 +1,10 @@
-import { useId, type ComponentPropsWithoutRef, type ReactNode } from "react";
+import {
+  Fragment,
+  useId,
+  useState,
+  type ComponentPropsWithoutRef,
+  type ReactNode,
+} from "react";
 import * as SwitchPrimitive from "@radix-ui/react-switch";
 import * as Menu from "@radix-ui/react-dropdown-menu";
 import { Check, ChevronDown } from "lucide-react";
@@ -176,7 +182,7 @@ export function SettingsRow({
   );
 }
 
-export const SettingsAction = styled.button`
+export const SettingsAction = styled.button<{ $tone?: "danger" }>`
   display: inline-flex;
   min-height: 28px;
   align-items: center;
@@ -186,7 +192,10 @@ export const SettingsAction = styled.button`
   border-radius: 8px;
   padding: 4px 10px;
   background: var(--lime-surface-subtle, hsl(var(--muted)));
-  color: var(--lime-text-strong, hsl(var(--foreground)));
+  color: ${({ $tone }) =>
+    $tone === "danger"
+      ? "var(--lime-danger, hsl(var(--destructive)))"
+      : "var(--lime-text-strong, hsl(var(--foreground)))"};
   font-size: 13px;
   line-height: 20px;
   white-space: nowrap;
@@ -236,16 +245,26 @@ export function SettingsValueMenu<T extends string>({
   options,
   disabled,
   onChange,
+  align = "end",
 }: {
   targetId: string;
   described?: boolean;
   value: T;
-  options: readonly { value: T; label: string }[];
+  options: readonly {
+    value: T;
+    label: string;
+    description?: string;
+    tooltip?: string;
+    groupLabel?: string;
+    disabled?: boolean;
+  }[];
   disabled: boolean;
   onChange: (value: T) => void;
+  align?: "start" | "end";
 }) {
+  const [open, setOpen] = useState(false);
   return (
-    <Menu.Root>
+    <Menu.Root open={open} onOpenChange={setOpen}>
       <Menu.Trigger asChild>
         <SettingsAction
           type="button"
@@ -262,29 +281,62 @@ export function SettingsValueMenu<T extends string>({
       </Menu.Trigger>
       <Menu.Portal>
         <Menu.Content
-          align="end"
+          align={align}
           sideOffset={4}
           className="z-[70] min-w-44 rounded-xl border border-border bg-popover p-1 text-[13px] text-popover-foreground shadow-lg"
+          onKeyDown={(event) => {
+            // 焦点可能早于 Radix 注册最高层，已处理的 Escape 不重复关闭。
+            if (event.key === "Escape" && !event.defaultPrevented) {
+              event.preventDefault();
+              setOpen(false);
+            }
+          }}
         >
           <Menu.RadioGroup
             value={value}
             onValueChange={(next) => {
               const option = options.find((item) => item.value === next);
-              if (option && option.value !== value && !disabled)
+              if (
+                option &&
+                option.value !== value &&
+                !option.disabled &&
+                !disabled
+              )
                 onChange(option.value);
             }}
           >
-            {options.map((option) => (
-              <Menu.RadioItem
-                key={option.value}
-                value={option.value}
-                className="flex min-h-7 cursor-default items-center justify-between gap-4 rounded-lg px-2 py-1 outline-none focus:bg-accent"
-              >
-                {option.label}
-                <Menu.ItemIndicator>
-                  <Check className="size-3.5" aria-hidden="true" />
-                </Menu.ItemIndicator>
-              </Menu.RadioItem>
+            {options.map((option, index) => (
+              <Fragment key={option.value}>
+                {index > 0 &&
+                option.groupLabel !== options[index - 1]?.groupLabel ? (
+                  <Menu.Separator className="my-1 h-px bg-border" />
+                ) : null}
+                {option.groupLabel &&
+                option.groupLabel !== options[index - 1]?.groupLabel ? (
+                  <Menu.Label className="px-2 py-1 text-[12px] text-muted-foreground">
+                    {option.groupLabel}
+                  </Menu.Label>
+                ) : null}
+                <Menu.RadioItem
+                  key={option.value}
+                  value={option.value}
+                  title={option.tooltip}
+                  disabled={option.disabled}
+                  className="flex min-h-7 max-w-[min(400px,80vw)] cursor-default items-center justify-between gap-4 rounded-lg px-2 py-1 outline-none focus:bg-accent data-[disabled]:opacity-50"
+                >
+                  <span>
+                    {option.label}
+                    {option.description ? (
+                      <span className="mt-1 block text-[12px] leading-4 text-muted-foreground">
+                        {option.description}
+                      </span>
+                    ) : null}
+                  </span>
+                  <Menu.ItemIndicator>
+                    <Check className="size-3.5" aria-hidden="true" />
+                  </Menu.ItemIndicator>
+                </Menu.RadioItem>
+              </Fragment>
             ))}
           </Menu.RadioGroup>
         </Menu.Content>

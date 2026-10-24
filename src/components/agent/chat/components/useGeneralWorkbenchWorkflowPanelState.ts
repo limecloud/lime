@@ -1,8 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
-import type { SidebarActivityLog } from "../hooks/useThemeContextWorkspace";
-import {
-  type GeneralWorkbenchCreationTaskEvent,
-} from "./generalWorkbenchWorkflowData";
+import type { SidebarActivityLog } from "./generalWorkbenchWorkflowData";
+import { type GeneralWorkbenchCreationTaskEvent } from "./generalWorkbenchWorkflowData";
 import {
   buildGeneralWorkbenchWorkflowPanelViewModel,
   type GeneralWorkbenchWorkflowPanelViewModel,
@@ -16,8 +14,7 @@ interface UseGeneralWorkbenchWorkflowPanelStateParams {
   activeRunMetadata: string | null;
 }
 
-export interface GeneralWorkbenchWorkflowPanelState
-  extends GeneralWorkbenchWorkflowPanelViewModel {
+export interface GeneralWorkbenchWorkflowPanelState extends GeneralWorkbenchWorkflowPanelViewModel {
   showActivityLogs: boolean;
   showBranchRecords: boolean;
   showCreationTasks: boolean;

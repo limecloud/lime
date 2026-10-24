@@ -32,6 +32,8 @@ dirs.workspace = true
 document-preview.workspace = true
 encoding_rs = "0.8"
 futures.workspace = true
+flate2.workspace = true
+fs2.workspace = true
 glob.workspace = true
 hex.workspace = true
 jsonschema.workspace = true
@@ -47,6 +49,7 @@ serde.workspace = true
 serde_json.workspace = true
 shlex.workspace = true
 sha2.workspace = true
+tar.workspace = true
 tiktoken-rs.workspace = true
 tokio.workspace = true
 tokio-util = { workspace = true, features = ["rt"] }
@@ -58,6 +61,7 @@ tree-sitter-powershell.workspace = true
 url.workspace = true
 urlencoding.workspace = true
 uuid.workspace = true
+zip.workspace = true
 which = "8.0.0"
 
 [dev-dependencies]

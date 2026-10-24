@@ -9,8 +9,6 @@
   "common.splashScreen.subtitle": "一つのアイデアから、原稿・画像・動画・成果まで",
   "common.startupLoading.title": "{{brand}} を起動しています",
   "common.startupLoading.description": "インターフェース言語設定とワークスペース入口を準備しています。しばらくお待ちください。",
-  "common.app.resourceNavigation.unsupported.title": "このリソースにはまだ自動で戻れません",
-  "common.app.resourceNavigation.unsupported.description": "参照元情報は記録しましたが、メインウィンドウには対応する入口がまだありません。",
   "common.app.project.created": "プロジェクトを作成しました",
   "common.app.project.type.general": "会話",
   "common.app.project.type.fallback": "プロジェクト",

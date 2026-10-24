@@ -47,9 +47,11 @@ import { useBrowserAnnotations } from "./useBrowserAnnotations";
 import { BrowserAnnotationToolbar } from "./BrowserAnnotationToolbar";
 import { BrowserFindBar } from "./BrowserFindBar";
 import { useBrowserWorkspaceHydration } from "./useBrowserWorkspaceHydration";
+import { observeBrowserBounds } from "./observeBrowserBounds";
 import { matchesBrowserTabEvent } from "./browserTabEventIdentity";
 import { BrowserOptionsMenu } from "./BrowserOptionsMenu";
 import { BrowserDeviceToolbar } from "./BrowserDeviceToolbar";
+import { BrowserDeviceViewport } from "./BrowserDeviceViewport";
 
 interface BrowserWorkspaceProps {
   active?: boolean;
@@ -167,15 +169,18 @@ export const BrowserWorkspace = memo(function BrowserWorkspace({
   );
 
   const run = useCallback(
-    async (operation: () => Promise<BrowserTabState>) => {
-      if (!isCurrent()) return;
+    async (
+      operation: () => Promise<BrowserTabState>,
+      isValid?: () => boolean,
+    ) => {
+      if (!isCurrent() || isValid?.() === false) return;
       try {
         const state = await operation();
-        if (!isCurrent()) return;
+        if (!isCurrent() || isValid?.() === false) return;
         acceptState(state);
         setError((current) => (current?.source === "host" ? null : current));
       } catch (reason) {
-        if (isCurrent()) reportHostError(reason);
+        if (isCurrent() && isValid?.() !== false) reportHostError(reason);
       }
     },
     [acceptState, isCurrent, reportHostError],
@@ -388,12 +393,10 @@ export const BrowserWorkspace = memo(function BrowserWorkspace({
 
   useEffect(() => {
     const element = viewportRef.current;
-    if (!element || typeof ResizeObserver === "undefined") {
+    if (!element) {
       return;
     }
-    const observer = new ResizeObserver(() => void syncBounds());
-    observer.observe(element);
-    return () => observer.disconnect();
+    return observeBrowserBounds(element, () => void syncBounds());
   }, [syncBounds]);
 
   useEffect(() => {
@@ -483,10 +486,11 @@ export const BrowserWorkspace = memo(function BrowserWorkspace({
                     selected.device
                       ? null
                       : {
+                          presetId: "responsive",
                           width: 390,
                           height: 844,
                           deviceScaleFactor: 3,
-                          scale: 0.5,
+                          scale: 1,
                           mobile: true,
                         },
                   ),
@@ -501,6 +505,7 @@ export const BrowserWorkspace = memo(function BrowserWorkspace({
         <BrowserDeviceToolbar
           key={selected.tabId}
           selected={selected}
+          active={active}
           run={run}
         />
       ) : null}
@@ -526,11 +531,19 @@ export const BrowserWorkspace = memo(function BrowserWorkspace({
       ) : null}
 
       <div
-        className="relative min-h-0 flex-1 bg-white"
+        className="relative min-h-0 flex-1 overflow-hidden bg-[color:var(--lime-surface-muted)]"
         data-browser-viewport-state={selected ? "mounted" : "empty"}
         data-testid="browser-workspace-viewport"
         ref={viewportRef}
       >
+        {selected?.device ? (
+          <BrowserDeviceViewport
+            selected={selected}
+            active={active}
+            viewportRef={viewportRef}
+            run={run}
+          />
+        ) : null}
         {!hostAvailable ? (
           <BrowserWorkspaceHostUnavailable t={translate} />
         ) : !selected && !error ? (

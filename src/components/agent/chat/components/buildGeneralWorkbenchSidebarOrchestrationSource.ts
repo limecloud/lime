@@ -1,13 +1,11 @@
 import type {
-  GeneralWorkbenchSidebarContextContract,
   GeneralWorkbenchSidebarExecLogContract,
   GeneralWorkbenchSidebarWorkflowContract,
 } from "./generalWorkbenchSidebarContract";
 import type { GeneralWorkbenchSidebarOrchestrationSource } from "./generalWorkbenchSidebarOrchestrationContract";
 
 type GeneralWorkbenchSidebarOrchestrationSourceProps =
-  GeneralWorkbenchSidebarContextContract &
-    GeneralWorkbenchSidebarWorkflowContract &
+  GeneralWorkbenchSidebarWorkflowContract &
     GeneralWorkbenchSidebarExecLogContract;
 
 interface BuildGeneralWorkbenchSidebarOrchestrationSourceParams {
@@ -21,23 +19,6 @@ export function buildGeneralWorkbenchSidebarOrchestrationSource({
 }: BuildGeneralWorkbenchSidebarOrchestrationSourceParams): GeneralWorkbenchSidebarOrchestrationSource {
   return {
     isVersionMode,
-    context: {
-      contextBudget: props.contextBudget,
-      contextItems: props.contextItems,
-      contextSearchBlockedReason: props.contextSearchBlockedReason,
-      contextSearchError: props.contextSearchError,
-      contextSearchLoading: props.contextSearchLoading,
-      contextSearchMode: props.contextSearchMode,
-      contextSearchQuery: props.contextSearchQuery,
-      onAddFileContext: props.onAddFileContext,
-      onAddLinkContext: props.onAddLinkContext,
-      onAddTextContext: props.onAddTextContext,
-      onContextSearchModeChange: props.onContextSearchModeChange,
-      onContextSearchQueryChange: props.onContextSearchQueryChange,
-      onSubmitContextSearch: props.onSubmitContextSearch,
-      onToggleContextActive: props.onToggleContextActive,
-      onViewContextDetail: props.onViewContextDetail,
-    },
     workflow: {
       activeRunDetail: props.activeRunDetail,
       activeRunDetailLoading: props.activeRunDetailLoading,

@@ -1,0 +1,73 @@
+{
+  "$defs": {
+    "ConfigRequirements": {
+      "description": "Read-only constraints from the administrator policy source.",
+      "properties": {
+        "allowedApprovalPolicies": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "allowedSandboxModes": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "allowedWebSearchModes": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "inAppBrowser": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/InAppBrowserRequirements"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "InAppBrowserRequirements": {
+      "properties": {
+        "allowExternalBrowserSettingsImport": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "requirements": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ConfigRequirements"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "title": "ConfigRequirementsReadResponse",
+  "type": "object"
+}

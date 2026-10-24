@@ -54,6 +54,8 @@ struct QueuedRuntimeRequest {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     sandbox_policy: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    sandbox_network_access: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     workspace_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     working_dir: Option<String>,
@@ -63,6 +65,8 @@ struct QueuedRuntimeRequest {
     project_root: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     web_search: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    web_search_mode: Option<agent_protocol::WebSearchMode>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     search_mode: Option<RuntimeSearchMode>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -225,6 +229,7 @@ impl QueuedRuntimeRequest {
                 request.sandbox_policy.as_deref(),
                 "runtimeRequest.sandboxPolicy",
             )?,
+            sandbox_network_access: request.sandbox_network_access,
             workspace_id: bounded_string(
                 request.workspace_id.as_deref(),
                 "runtimeRequest.workspaceId",
@@ -242,6 +247,7 @@ impl QueuedRuntimeRequest {
                 "runtimeRequest.projectRoot",
             )?,
             web_search: request.web_search,
+            web_search_mode: request.web_search_mode,
             search_mode: request.search_mode,
             execution_strategy: bounded_string(
                 request.execution_strategy.as_deref(),
@@ -269,11 +275,13 @@ impl QueuedRuntimeRequest {
             approval_policy: self.approval_policy,
             approvals_reviewer: self.approvals_reviewer,
             sandbox_policy: self.sandbox_policy,
+            sandbox_network_access: self.sandbox_network_access,
             workspace_id: self.workspace_id,
             working_dir: self.working_dir,
             workspace_root: self.workspace_root,
             project_root: self.project_root,
             web_search: self.web_search,
+            web_search_mode: self.web_search_mode,
             search_mode: self.search_mode,
             execution_strategy: self.execution_strategy,
             auto_continue: self.auto_continue,
@@ -429,9 +437,11 @@ mod tests {
                 approval_policy: Some("on-request".to_string()),
                 approvals_reviewer: Some(agent_protocol::ApprovalsReviewer::AutoReview),
                 sandbox_policy: Some("workspace-write".to_string()),
+                sandbox_network_access: Some(true),
                 workspace_id: Some("workspace-1".to_string()),
                 working_dir: Some("/workspace/project".to_string()),
                 web_search: Some(true),
+                web_search_mode: Some(agent_protocol::WebSearchMode::Indexed),
                 execution_strategy: Some("current".to_string()),
                 auto_continue: Some(true),
                 system_prompt: Some("sensitive-system-prompt".to_string()),
@@ -488,6 +498,12 @@ mod tests {
         assert_eq!(request.model_preference.as_deref(), Some("model-1"));
         assert_eq!(request.reasoning_effort.as_deref(), Some("high"));
         assert_eq!(request.approval_policy.as_deref(), Some("on-request"));
+        assert_eq!(request.sandbox_policy.as_deref(), Some("workspace-write"));
+        assert_eq!(request.sandbox_network_access, Some(true));
+        assert_eq!(
+            request.web_search_mode,
+            Some(agent_protocol::WebSearchMode::Indexed)
+        );
         assert_eq!(
             request.approvals_reviewer,
             Some(agent_protocol::ApprovalsReviewer::AutoReview)

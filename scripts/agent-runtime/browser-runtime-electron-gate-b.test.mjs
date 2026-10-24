@@ -1,4 +1,8 @@
 import { describe, expect, it } from "vitest";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { prepareBrowserHistoryManagementSeed } from "./browser-runtime-electron-gate-b-history-management.mjs";
 
 import {
   buildAssertions,
@@ -17,6 +21,33 @@ import { buildUserControlAssertions } from "./browser-runtime-electron-gate-b-us
 import { buildWindowCloseAssertions } from "./browser-runtime-electron-gate-b-window-close.mjs";
 
 describe("Browser Electron Gate B", () => {
+  it("keeps history seeding confined to a fresh temporary profile and refuses replacement", async () => {
+    const directory = await fs.mkdtemp(
+      path.join(os.tmpdir(), "history-management-seed-"),
+    );
+    try {
+      const seed = await prepareBrowserHistoryManagementSeed(directory);
+      const before = await fs.readFile(seed.file, "utf8");
+      expect(JSON.parse(before)).toMatchObject({
+        schemaVersion: 2,
+        entries: [seed.a, seed.b, seed.c],
+      });
+      await expect(
+        prepareBrowserHistoryManagementSeed(directory),
+      ).rejects.toThrow();
+      expect(await fs.readFile(seed.file, "utf8")).toBe(before);
+      await expect(
+        prepareBrowserHistoryManagementSeed("relative-profile"),
+      ).rejects.toThrow("absolute");
+      const link = path.join(directory, "outside-profile");
+      await fs.symlink(process.cwd(), link);
+      await expect(prepareBrowserHistoryManagementSeed(link)).rejects.toThrow(
+        "isolated",
+      );
+    } finally {
+      await fs.rm(directory, { recursive: true, force: true });
+    }
+  });
   it("解析独立 fixture 参数并拒绝过短超时", () => {
     expect(
       parseArgs([
@@ -71,6 +102,27 @@ describe("Browser Electron Gate B", () => {
     expect(parseArgs(["--scenario", "history-access"]).output).toContain(
       "browser-runtime-electron-gate-b-history-access-summary.json",
     );
+    expect(parseArgs(["--scenario", "site-permissions"]).output).toContain(
+      "browser-runtime-electron-gate-b-site-permissions-summary.json",
+    );
+    expect(parseArgs(["--scenario", "device"]).output).toContain(
+      "browser-runtime-electron-gate-b-device-summary.json",
+    );
+    expect(parseArgs(["--scenario", "address-input"]).output).toContain(
+      "browser-runtime-electron-gate-b-address-input-summary.json",
+    );
+    expect(parseArgs(["--scenario", "new-tab-address"]).output).toContain(
+      "browser-runtime-electron-gate-b-new-tab-address-summary.json",
+    );
+    expect(parseArgs(["--scenario", "history-management"]).output).toContain(
+      "browser-runtime-electron-gate-b-history-management-summary.json",
+    );
+    expect(parseArgs(["--scenario", "settings-navigation"]).output).toContain(
+      "browser-runtime-electron-gate-b-settings-navigation-summary.json",
+    );
+    expect(parseArgs(["--scenario", "device-annotation"]).output).toContain(
+      "browser-runtime-electron-gate-b-device-annotation-summary.json",
+    );
     expect(parseArgs(["--scenario", "annotation"]).output).toContain(
       "browser-runtime-electron-gate-b-annotation-summary.json",
     );
@@ -84,7 +136,7 @@ describe("Browser Electron Gate B", () => {
       "browser-runtime-electron-gate-b-annotation-design-summary.json",
     );
     expect(() => parseArgs(["--scenario", "unknown"])).toThrow(
-      "--scenario 必须是 projection、history、history-access、download-history、annotation、annotation-text、annotation-form-text、annotation-frames、annotation-design、lifecycle、approval、browse-approval、user-control、cancel、window-close、disconnect、permission、download 或 artifact",
+      /--scenario 必须是 .*，收到: unknown/,
     );
   });
 

@@ -6,7 +6,6 @@ type AgentChatPageShellInput = Pick<
   AgentChatWorkspaceProps,
   | "agentEntry"
   | "initialInputCapability"
-  | "initialKnowledgePackSelection"
   | "initialPendingServiceSkillLaunch"
   | "initialProjectFileOpenTarget"
   | "initialSessionId"
@@ -42,7 +41,6 @@ export function resolveAgentChatPageShellViewModel(
     Boolean(props.initialUserImages?.length) ||
     hasText(props.initialSiteSkillLaunch?.adapterName) ||
     hasText(props.initialPendingServiceSkillLaunch?.skillId) ||
-    hasText(props.initialKnowledgePackSelection?.packName) ||
     (preferHomeForInitialInputCapability
       ? false
       : Boolean(props.initialInputCapability)) ||

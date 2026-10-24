@@ -59,11 +59,6 @@ describe("structured workspace acceptance", () => {
         activeTheme: "general",
         mappedTheme: "general",
         isThemeWorkbench: false,
-        contextWorkspace: {
-          enabled: false,
-          activeContextPrompt: "",
-          prepareActiveContextPrompt: async () => "",
-        },
         projectId: "project-1",
         projectRootPath: "/workspace",
         sessionId: "session-1",

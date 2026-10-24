@@ -14,7 +14,7 @@ export type { Topic } from "./agentChatShared";
 /** Hook 配置选项 */
 interface UseAgentChatUnifiedOptions {
   systemPrompt?: string;
-  clawTraceEnabled?: boolean;
+
   onWriteFile?: (
     content: string,
     fileName: string,
@@ -47,5 +47,4 @@ export function useAgentChatUnified(options: UseAgentChatUnifiedOptions) {
 
 // 旧 useAgentChat 已删除，避免新代码继续沿 compat 路径扩展。
 export { useAgentChat } from "./useAgentChat";
-export { useThemeContextWorkspace } from "./useThemeContextWorkspace";
 export { useTopicBranchBoard } from "./useTopicBranchBoard";

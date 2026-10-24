@@ -8,9 +8,6 @@ export type RuleKind = "shell" | "network";
 export type WarningPolicy = "none" | "shell_command_risk";
 
 export interface ExecutionPolicyDraft {
-  enabled: boolean;
-  strict: boolean;
-  notify_on_fallback: boolean;
   updatePlanEnabled: boolean;
   bashWarningPolicy: WarningPolicy;
   shellRules: ToolExecutionCommandRuleConfig[];
@@ -54,12 +51,8 @@ export function createNetworkRule(): ToolExecutionNetworkRuleConfig {
 export function readExecutionPolicyDraft(
   config?: Config,
 ): ExecutionPolicyDraft {
-  const sandbox = config?.agent?.workspace_sandbox;
   const policy = config?.agent?.tool_execution;
   return {
-    enabled: sandbox?.enabled ?? false,
-    strict: sandbox?.strict ?? false,
-    notify_on_fallback: sandbox?.notify_on_fallback ?? true,
     updatePlanEnabled: policy?.update_plan_enabled ?? false,
     bashWarningPolicy:
       policy?.tool_overrides?.bash?.warning_policy ??
@@ -86,22 +79,6 @@ export function mergeExecutionPolicyDraft(
   const changed = (field: ExecutionPolicyField) =>
     JSON.stringify(draft[field]) !== JSON.stringify(snapshot[field]);
   const agent = { ...current.agent };
-  if (
-    ["enabled", "strict", "notify_on_fallback"].some((field) =>
-      changed(field as ExecutionPolicyField),
-    )
-  ) {
-    const sandbox = {
-      enabled: false,
-      strict: false,
-      notify_on_fallback: true,
-      ...agent.workspace_sandbox,
-    };
-    for (const field of ["enabled", "strict", "notify_on_fallback"] as const) {
-      if (changed(field)) sandbox[field] = draft[field];
-    }
-    agent.workspace_sandbox = sandbox;
-  }
   if (
     [
       "updatePlanEnabled",

@@ -64,7 +64,6 @@ describe("HarnessStatusPanel", () => {
     expect(document.body.textContent).toContain("待审批");
     expect(document.body.textContent).toContain("文件活动");
     expect(document.body.textContent).toContain("计划状态");
-    expect(document.body.textContent).toContain("上下文");
     expect(document.body.textContent).not.toContain("展开详情");
     expect(document.body.textContent).not.toContain("收起详情");
     expect(panel?.className).toContain("lime-workbench-theme-scope");
@@ -347,10 +346,6 @@ describe("HarnessStatusPanel", () => {
         skillsCount: 0,
         skillNames: [],
         memorySignals: ["风格"],
-        contextItemsCount: 2,
-        activeContextCount: 1,
-        contextItemNames: ["需求.md"],
-        contextEnabled: true,
       },
     });
 

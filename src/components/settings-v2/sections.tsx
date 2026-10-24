@@ -4,7 +4,6 @@ import {
   Archive,
   HardDrive,
   User,
-  BarChart3,
   Palette,
   Globe,
   Keyboard,
@@ -13,12 +12,11 @@ import {
   Image,
   Plug,
   Puzzle,
-  Search,
   ShieldCheck,
   Variable,
-  Code,
   Info,
   GitBranch,
+  SlidersHorizontal,
   type LucideIcon,
 } from "lucide-react";
 import { SettingsGroupKey, SettingsTabs } from "@/types/settings";
@@ -38,22 +36,26 @@ export interface SettingsSectionContext {
   providerFocus?: ProviderSettingsFocusContext | null;
   executionPolicyFocus?: ExecutionPolicyFocusContext | null;
   searchPath?: string;
-  developerLabTab: "developer" | "experimental";
   browserPage?: SettingsPageParams["browserPage"];
 }
 
 export interface SettingsSection {
-  key: Exclude<SettingsTabs, SettingsTabs.Experimental>;
-  group: SettingsGroupKey;
+  key: SettingsTabs;
+  group: SettingsGroupKey | null;
   labelKey: string;
   icon: LucideIcon;
-  experimental?: boolean;
   loadingKey?: string;
   preload: () => Promise<unknown> | null;
   render: (context: SettingsSectionContext) => ReactNode;
 }
 
 const loadGeneral = () => import("./general/GeneralSettings");
+const loadConfiguration = () => import("./system/configuration");
+const ConfigurationPanel = lazy(() =>
+  loadConfiguration().then((module) => ({
+    default: module.ConfigurationPanel,
+  })),
+);
 const loadStorage = () => import("./general/storage");
 const DeviceStorageSettings = lazy(() =>
   loadStorage().then((module) => ({ default: module.DeviceStorageSettings })),
@@ -103,13 +105,6 @@ const ArchivedConversationsSettings = lazy(() =>
   })),
 );
 
-const loadDeveloperLab = () => import("./system/developer-lab");
-const DeveloperLabSettings = lazy(() =>
-  loadDeveloperLab().then((module) => ({
-    default: module.DeveloperLabSettings,
-  })),
-);
-
 const loadAbout = () => import("./system/about");
 const AboutSection = lazy(() =>
   loadAbout().then((module) => ({ default: module.AboutSection })),
@@ -125,11 +120,6 @@ const MediaServicesSettings = lazy(() =>
 const loadSkills = () => import("./agent/skills");
 const ExtensionsSettings = lazy(() =>
   loadSkills().then((module) => ({ default: module.ExtensionsSettings })),
-);
-
-const loadStats = () => import("./account/stats");
-const StatsSettings = lazy(() =>
-  loadStats().then((module) => ({ default: module.StatsSettings })),
 );
 
 const loadProfile = () => import("./account/profile");
@@ -164,11 +154,6 @@ const ExecutionPolicySettings = lazy(() =>
   loadExecutionPolicy().then((module) => ({
     default: module.ExecutionPolicySettings,
   })),
-);
-
-const loadWebSearch = () => import("./system/web-search");
-const WebSearchSettings = lazy(() =>
-  loadWebSearch().then((module) => ({ default: module.WebSearchSettings })),
 );
 
 // current 章节在此登记一次；导航、可用性、预取与渲染共享同一事实。
@@ -220,6 +205,14 @@ export const settingsSections: readonly SettingsSection[] = [
     ),
   },
   {
+    key: SettingsTabs.Configuration,
+    group: SettingsGroupKey.Personal,
+    labelKey: "settings.configuration.title",
+    icon: SlidersHorizontal,
+    preload: loadConfiguration,
+    render: () => <ConfigurationPanel />,
+  },
+  {
     key: SettingsTabs.Memory,
     group: SettingsGroupKey.Personal,
     labelKey: "settings.desktop.personalization",
@@ -261,40 +254,6 @@ export const settingsSections: readonly SettingsSection[] = [
     render: () => <MediaServicesSettings />,
   },
   {
-    key: SettingsTabs.Browser,
-    group: SettingsGroupKey.Integrations,
-    labelKey: "settings.tab.browser",
-    icon: Globe,
-    loadingKey: "settings.layout.loading.browser",
-    preload: loadBrowser,
-    render: (context) => <BrowserUseSettings page={context.browserPage} />,
-  },
-  {
-    key: SettingsTabs.Environment,
-    group: SettingsGroupKey.Coding,
-    labelKey: "settings.tab.environment",
-    icon: Variable,
-    loadingKey: "settings.layout.loading.environment",
-    preload: loadEnvironment,
-    render: () => <EnvironmentSettings />,
-  },
-  {
-    key: SettingsTabs.Git,
-    group: SettingsGroupKey.Coding,
-    labelKey: "settings.git.title",
-    icon: GitBranch,
-    preload: loadGit,
-    render: () => <GitSettings />,
-  },
-  {
-    key: SettingsTabs.Worktrees,
-    group: SettingsGroupKey.Coding,
-    labelKey: "settings.worktrees.title",
-    icon: GitBranch,
-    preload: loadWorktrees,
-    render: (context) => <WorktreesSettings onNavigate={context.onNavigate} />,
-  },
-  {
     key: SettingsTabs.Profile,
     group: SettingsGroupKey.Personal,
     labelKey: "settings.tab.profile",
@@ -308,15 +267,6 @@ export const settingsSections: readonly SettingsSection[] = [
       ) : (
         <ProfileSettings />
       ),
-  },
-  {
-    key: SettingsTabs.Stats,
-    group: SettingsGroupKey.Personal,
-    labelKey: "settings.tab.stats",
-    icon: BarChart3,
-    loadingKey: "settings.layout.loading.stats",
-    preload: loadStats,
-    render: () => <StatsSettings />,
   },
   {
     key: SettingsTabs.Skills,
@@ -337,13 +287,13 @@ export const settingsSections: readonly SettingsSection[] = [
     render: () => <McpPanel hideHeader />,
   },
   {
-    key: SettingsTabs.WebSearch,
-    group: SettingsGroupKey.Coding,
-    labelKey: "settings.tab.webSearch",
-    icon: Search,
-    loadingKey: "settings.layout.loading.webSearch",
-    preload: loadWebSearch,
-    render: (context) => <WebSearchSettings initialTab={context.searchPath} />,
+    key: SettingsTabs.Browser,
+    group: SettingsGroupKey.Integrations,
+    labelKey: "settings.tab.browser",
+    icon: Globe,
+    loadingKey: "settings.layout.loading.browser",
+    preload: loadBrowser,
+    render: (context) => <BrowserUseSettings page={context.browserPage} />,
   },
   {
     key: SettingsTabs.ExecutionPolicy,
@@ -357,32 +307,33 @@ export const settingsSections: readonly SettingsSection[] = [
     ),
   },
   {
-    key: SettingsTabs.Developer,
+    key: SettingsTabs.Git,
     group: SettingsGroupKey.Coding,
-    labelKey: "settings.tab.developerLab",
-    icon: Code,
-    experimental: true,
-    loadingKey: "settings.layout.loading.developerLab",
-    preload: () =>
-      Promise.all([
-        loadDeveloperLab(),
-        import("./system/developer/preload").then((module) =>
-          module.preloadDeveloperDefaultSections(),
-        ),
-      ]),
-    render: (context) => (
-      <DeveloperLabSettings
-        initialTab={
-          context.searchPath === "experimental"
-            ? "experimental"
-            : context.developerLabTab
-        }
-      />
-    ),
+    labelKey: "settings.git.title",
+    icon: GitBranch,
+    preload: loadGit,
+    render: () => <GitSettings />,
+  },
+  {
+    key: SettingsTabs.Environment,
+    group: SettingsGroupKey.Coding,
+    labelKey: "settings.tab.environment",
+    icon: Variable,
+    loadingKey: "settings.layout.loading.environment",
+    preload: loadEnvironment,
+    render: () => <EnvironmentSettings />,
+  },
+  {
+    key: SettingsTabs.Worktrees,
+    group: SettingsGroupKey.Coding,
+    labelKey: "settings.worktrees.title",
+    icon: GitBranch,
+    preload: loadWorktrees,
+    render: (context) => <WorktreesSettings onNavigate={context.onNavigate} />,
   },
   {
     key: SettingsTabs.About,
-    group: SettingsGroupKey.Personal,
+    group: null,
     labelKey: "settings.tab.about",
     icon: Info,
     loadingKey: "settings.layout.loading.about",
@@ -400,9 +351,5 @@ export function isSettingsSection(tab: SettingsTabs): boolean {
 }
 
 export function resolveSettingsSection(tab?: SettingsTabs): SettingsSection {
-  const canonicalTab =
-    tab === SettingsTabs.Experimental ? SettingsTabs.Developer : tab;
-  return (
-    (canonicalTab && sectionsByKey.get(canonicalTab)) || settingsSections[0]
-  );
+  return (tab && sectionsByKey.get(tab)) || settingsSections[0];
 }

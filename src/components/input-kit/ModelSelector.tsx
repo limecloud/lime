@@ -39,10 +39,6 @@ import {
   modelRegistryApi,
   type ModelProviderCapabilities,
 } from "@/lib/api/modelRegistry";
-import {
-  resolveModelReasoningEffortForModelSwitch,
-  type ModelReasoningEffortPreset,
-} from "@/lib/model/modelReasoningPolicy";
 import type {
   EnhancedModelMetadata,
   ModelReasoningEffortLevel,
@@ -53,6 +49,7 @@ import {
   useProviderSelection,
 } from "./useProviderSelection";
 import { ModelSelectorTrigger } from "./ModelSelectorTrigger";
+import { useModelReasoningEffort } from "./useModelReasoningEffort";
 
 const itemClassName =
   "flex w-full items-center justify-between rounded-xl border border-transparent px-2.5 py-2 text-left text-sm transition-colors";
@@ -131,31 +128,6 @@ function isProviderDeclaredModel(
       (declaredModelId) =>
         declaredModelId.trim().toLowerCase() === normalizedModelId,
     ),
-  );
-}
-
-function resolveReasoningEffortOptions(
-  model: EnhancedModelMetadata | null | undefined,
-): ModelReasoningEffortPreset[] {
-  const policy = model?.reasoning_policy;
-  if (!policy?.can_set_reasoning_effort) {
-    return [];
-  }
-
-  return policy.supported_reasoning_levels;
-}
-
-function resolveReasoningEffortForModelSwitch(
-  model: EnhancedModelMetadata | null | undefined,
-  currentReasoningEffort: ModelReasoningEffortLevel | "",
-): ModelReasoningEffortLevel | "" {
-  const policy = model?.reasoning_policy;
-  if (!policy?.can_set_reasoning_effort) {
-    return "";
-  }
-  return (
-    resolveModelReasoningEffortForModelSwitch(policy, currentReasoningEffort) ??
-    ""
   );
 }
 
@@ -521,56 +493,22 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
     selectedProvider,
     modelOptions,
   });
-  const selectedReasoningEffortOptions = useMemo(
-    () => resolveReasoningEffortOptions(selectedModelOption?.metadata),
-    [selectedModelOption?.metadata],
-  );
-  const selectedReasoningEffortOption =
-    selectedReasoningEffortOptions.find(
-      (option) => option.value === reasoningEffort,
-    ) ?? null;
+  const {
+    options: selectedReasoningEffortOptions,
+    resolve: resolveReasoningEffortForModelSwitch,
+    selectedOption: selectedReasoningEffortOption,
+    label: reasoningEffortLabel,
+  } = useModelReasoningEffort({
+    model: selectedModelOption?.metadata,
+    value: reasoningEffort,
+    onChange: setReasoningEffort,
+    enabled: shouldLoadModels && !pendingProviderSelection,
+  });
   const selectedReasoningEffort = selectedReasoningEffortOption?.value ?? "";
   const selectedReasoningEffortLabel = selectedReasoningEffortOption
-    ? selectedReasoningEffortOption.label ||
-      t(
-        `common.modelSelector.reasoning.level.${selectedReasoningEffortOption.value}`,
-        { defaultValue: selectedReasoningEffortOption.id },
-      )
+    ? reasoningEffortLabel(selectedReasoningEffortOption)
     : "";
 
-  useEffect(() => {
-    if (!setReasoningEffort) {
-      return;
-    }
-    if (pendingProviderSelection) {
-      return;
-    }
-    if (!shouldLoadModels) {
-      return;
-    }
-
-    if (!selectedModelOption || selectedReasoningEffortOptions.length === 0) {
-      if (reasoningEffort) {
-        setReasoningEffort("");
-      }
-      return;
-    }
-
-    const nextReasoningEffort = resolveReasoningEffortForModelSwitch(
-      selectedModelOption.metadata,
-      reasoningEffort,
-    );
-    if (nextReasoningEffort !== reasoningEffort) {
-      setReasoningEffort(nextReasoningEffort);
-    }
-  }, [
-    reasoningEffort,
-    pendingProviderSelection,
-    selectedModelOption,
-    selectedReasoningEffortOptions,
-    setReasoningEffort,
-    shouldLoadModels,
-  ]);
   useEffect(() => {
     if (hasInitialized.current) return;
     if (!shouldLoadProviders) return;
@@ -740,13 +678,15 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
           (allowAutoModel
             ? resolvedAutoModelLabel
             : t("common.modelSelector.placeholder"));
-  const selectedModelWithReasoningLabel =
+  const selectedReasoningLabel =
     selectedReasoningEffortLabel && !showPlaceholderSelection
-      ? `${selectedModelLabel} · ${t("common.modelSelector.reasoning.trigger", {
+      ? t("common.modelSelector.reasoning.trigger", {
           level: selectedReasoningEffortLabel,
-        })}`
-      : selectedModelLabel;
-  const compactModelLabel = selectedModelWithReasoningLabel;
+        })
+      : undefined;
+  const selectedModelWithReasoningLabel = selectedReasoningLabel
+    ? `${selectedModelLabel} · ${selectedReasoningLabel}`
+    : selectedModelLabel;
   const normalizedTheme = (activeTheme || "").toLowerCase();
   const activeThemeLabel =
     normalizedTheme === "general"
@@ -849,7 +789,8 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
             providerType={compactProviderType}
             providerLabel={compactProviderLabel}
             selectedProviderLabel={selectedProviderLabel}
-            modelLabel={compactModelLabel}
+            modelLabel={selectedModelLabel}
+            reasoningLabel={selectedReasoningLabel}
             placeholderLabel={
               showPlaceholderSelection ? resolvedPlaceholderLabel : undefined
             }
@@ -1103,16 +1044,12 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                   <div
                     className="grid gap-1"
                     style={{
-                      gridTemplateColumns: `repeat(${selectedReasoningEffortOptions.length}, minmax(0, 1fr))`,
+                      gridTemplateColumns:
+                        "repeat(auto-fit, minmax(min(100%, 5.5rem), 1fr))",
                     }}
                   >
                     {selectedReasoningEffortOptions.map((option) => {
-                      const label =
-                        option.label ||
-                        t(
-                          `common.modelSelector.reasoning.level.${option.value}`,
-                          { defaultValue: option.id },
-                        );
+                      const label = reasoningEffortLabel(option);
                       const selected =
                         selectedReasoningEffort === option.value ||
                         (!selectedReasoningEffort &&
@@ -1129,6 +1066,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                           aria-label={t("common.modelSelector.reasoning.aria", {
                             level: label,
                           })}
+                          title={label}
                           className={cn(
                             "inline-flex h-7 min-w-0 items-center justify-center gap-1 rounded-full px-2 text-xs font-medium transition-colors",
                             selected

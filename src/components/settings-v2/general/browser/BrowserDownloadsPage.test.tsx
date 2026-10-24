@@ -44,7 +44,7 @@ describe("BrowserDownloadsPage", () => {
       new Date(now).toISOString(),
     );
     expect(row("report").textContent).not.toContain(entry().url);
-    await click(button("Back to Browser settings"));
+    await click(button("Back"));
     expect(onBack).toHaveBeenCalledOnce();
   });
 

@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef } from "react";
 import {
   RefreshCw,
   Save,
-  ShieldCheck,
   SlidersHorizontal,
   TerminalSquare,
   Workflow,
@@ -53,7 +52,6 @@ export function ExecutionPolicySettings({
   } = useExecutionPolicyDraft();
   useSettingsDraft({ dirty, saving });
   const focusedNetworkRuleRef = useRef<HTMLDivElement | null>(null);
-  const workspaceSandbox = draft;
   const { updatePlanEnabled, bashWarningPolicy, shellRules, networkRules } =
     draft;
   const networkRuleFocus = useMemo(
@@ -61,8 +59,6 @@ export function ExecutionPolicySettings({
     [networkRules, focus],
   );
   const hasCustomPolicy =
-    draft.enabled ||
-    draft.strict ||
     updatePlanEnabled ||
     bashWarningPolicy !== "shell_command_risk" ||
     shellRules.length > 0 ||
@@ -171,57 +167,7 @@ export function ExecutionPolicySettings({
 
       <div className="flex flex-col gap-10">
         <div className="space-y-6">
-          <section
-            className="rounded-2xl border border-border bg-background p-5 "
-            data-settings-search-target="execution-policy-workspace"
-            tabIndex={-1}
-            aria-label={t("settings.executionPolicy.workspace.title")}
-          >
-            <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-              <ShieldCheck className="h-4 w-4 text-primary" />
-              {t("settings.executionPolicy.workspace.title")}
-              <WorkbenchInfoTip
-                ariaLabel={t("settings.executionPolicy.workspace.tipAria")}
-                content={t("settings.executionPolicy.workspace.description")}
-                tone="slate"
-              />
-            </div>
-            <div className="mt-5 space-y-3">
-              <ToggleRow
-                title={t("settings.executionPolicy.workspace.enabled.title")}
-                description={t(
-                  "settings.executionPolicy.workspace.enabled.description",
-                )}
-                ariaLabel={t("settings.executionPolicy.workspace.enabled.aria")}
-                checked={workspaceSandbox.enabled}
-                disabled={!ready}
-                onCheckedChange={(checked) => change("enabled", checked)}
-              />
-              <ToggleRow
-                title={t("settings.executionPolicy.workspace.strict.title")}
-                description={t(
-                  "settings.executionPolicy.workspace.strict.description",
-                )}
-                ariaLabel={t("settings.executionPolicy.workspace.strict.aria")}
-                checked={workspaceSandbox.strict}
-                disabled={!ready || !workspaceSandbox.enabled}
-                onCheckedChange={(checked) => change("strict", checked)}
-              />
-              <ToggleRow
-                title={t("settings.executionPolicy.workspace.notify.title")}
-                description={t(
-                  "settings.executionPolicy.workspace.notify.description",
-                )}
-                ariaLabel={t("settings.executionPolicy.workspace.notify.aria")}
-                checked={workspaceSandbox.notify_on_fallback}
-                disabled={!ready || !workspaceSandbox.enabled}
-                onCheckedChange={(checked) =>
-                  change("notify_on_fallback", checked)
-                }
-              />
-              <WindowsSandboxReadinessStatus />
-            </div>
-          </section>
+          <WindowsSandboxReadinessStatus />
 
           <section
             className="rounded-2xl border border-border bg-background p-5 "
@@ -356,30 +302,10 @@ export function ExecutionPolicySettings({
             <dl className="mt-4 space-y-3 text-sm">
               <div className="flex items-center justify-between gap-3">
                 <dt className="text-muted-foreground">
-                  {t("settings.executionPolicy.summary.workspaceSandbox")}
-                </dt>
-                <dd className="font-medium text-foreground">
-                  {workspaceSandbox.enabled
-                    ? t("settings.executionPolicy.summary.enabled")
-                    : t("settings.executionPolicy.summary.disabled")}
-                </dd>
-              </div>
-              <div className="flex items-center justify-between gap-3">
-                <dt className="text-muted-foreground">
                   {t("settings.executionPolicy.summary.plan")}
                 </dt>
                 <dd className="font-medium text-foreground">
                   {updatePlanEnabled
-                    ? t("settings.executionPolicy.summary.enabled")
-                    : t("settings.executionPolicy.summary.disabled")}
-                </dd>
-              </div>
-              <div className="flex items-center justify-between gap-3">
-                <dt className="text-muted-foreground">
-                  {t("settings.executionPolicy.summary.strict")}
-                </dt>
-                <dd className="font-medium text-foreground">
-                  {workspaceSandbox.strict
                     ? t("settings.executionPolicy.summary.enabled")
                     : t("settings.executionPolicy.summary.disabled")}
                 </dd>

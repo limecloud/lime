@@ -87,7 +87,6 @@ import {
   hasModelSkillLaunchRequestMetadata,
   hasServiceSkillLaunchRequestMetadata,
   serviceSkillLaunchRequiresProject,
-  type ContextWorkspaceSummary,
 } from "./workspaceSendHelpers";
 import type { Character } from "@/lib/api/projectMemory";
 import type { ThemeType } from "@/lib/workspace/workbenchContract";
@@ -231,7 +230,6 @@ interface UseWorkspaceSendActionsParams {
   serviceSkills: ServiceSkillHomeItem[];
   mappedTheme: ThemeType;
   isThemeWorkbench: boolean;
-  contextWorkspace: ContextWorkspaceSummary;
   projectId?: string | null;
   projectRootPath?: string | null;
   executionWorkspaceId?: string;
@@ -311,7 +309,6 @@ interface WorkspaceResolvedSendState {
 interface WorkspaceSendPlan extends WorkspaceResolvedSendState {
   text: string;
   images: MessageImage[];
-  hasContextWorkspace: boolean;
   sendExecutionStrategy?: CurrentExecutionStrategy;
   autoContinuePayload?: AutoContinueRequestPayload;
   sendOptions?: HandleSendOptions;
@@ -377,7 +374,6 @@ export function useWorkspaceSendActions({
   serviceSkills,
   mappedTheme,
   isThemeWorkbench,
-  contextWorkspace,
   projectId,
   projectRootPath,
   executionWorkspaceId,
@@ -590,33 +586,6 @@ export function useWorkspaceSendActions({
           ? "disabled"
           : sendOptions?.searchMode;
 
-      const {
-        activeContextPrompt,
-        enabled: contextWorkspaceEnabled,
-        prepareActiveContextPrompt,
-      } = contextWorkspace;
-      const shouldAttachContextWorkspace =
-        !sendOptions?.threadGoal &&
-        (Boolean(activeContextPrompt.trim()) ||
-          (contextWorkspaceEnabled && isThemeWorkbench));
-      const effectiveContextWorkspace = {
-        ...contextWorkspace,
-        enabled: shouldAttachContextWorkspace,
-      };
-      const preparedActiveContextPrompt =
-        effectiveContextWorkspace.enabled && !activeContextPrompt.trim()
-          ? prepareActiveContextPrompt().then(
-              (value) => ({
-                ok: true as const,
-                value,
-              }),
-              (error) => ({
-                ok: false as const,
-                error,
-              }),
-            )
-          : null;
-
       let commandSessionId: string | null | undefined;
       let commandSessionPromise: Promise<string | null> | null = null;
       let pendingCommandSessionBinding: PendingCommandSessionBinding | null =
@@ -668,10 +637,8 @@ export function useWorkspaceSendActions({
         try {
           text = await buildWorkspaceSendText({
             sourceText: dispatchText,
-            contextWorkspace: effectiveContextWorkspace,
             mentionedCharacters,
             sendOptions,
-            preparedActiveContextPrompt,
           });
         } catch (error) {
           clearSubmissionPreview();
@@ -705,7 +672,6 @@ export function useWorkspaceSendActions({
             dispatchText,
             text,
             images: effectiveImages,
-            hasContextWorkspace: shouldAttachContextWorkspace,
             sendBoundary,
             browserRequirementForSend,
             effectiveToolPreferences,
@@ -2696,10 +2662,8 @@ export function useWorkspaceSendActions({
         }
         text = await buildWorkspaceSendText({
           sourceText: dispatchText,
-          contextWorkspace: effectiveContextWorkspace,
           mentionedCharacters,
           sendOptions,
-          preparedActiveContextPrompt,
         });
         if (pendingCommandSessionBinding) {
           const resolvedSessionId =
@@ -2757,7 +2721,6 @@ export function useWorkspaceSendActions({
           dispatchText,
           text,
           images: effectiveImages,
-          hasContextWorkspace: shouldAttachContextWorkspace,
           sendBoundary,
           browserRequirementForSend,
           effectiveToolPreferences,
@@ -2776,10 +2739,8 @@ export function useWorkspaceSendActions({
     [
       chatToolPreferences,
       contentId,
-      contextWorkspace,
       ensureSessionForCommandMetadata,
       executionStrategy,
-      isThemeWorkbench,
       resolveImageWorkbenchCommandRequest,
       input,
       messagesCount,

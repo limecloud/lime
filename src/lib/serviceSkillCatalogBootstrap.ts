@@ -6,19 +6,6 @@ import {
 } from "@/lib/api/serviceSkills";
 import { extractBaseSetupPackageFromBootstrapPayload } from "@/lib/base-setup/bootstrap";
 
-const SERVICE_SKILL_CATALOG_BOOTSTRAP_EVENT =
-  "lime:service-skill-catalog-bootstrap";
-
-declare global {
-  interface Window {
-    __LIME_SERVICE_SKILL_CATALOG__?: unknown;
-  }
-}
-
-function hasWindow(): boolean {
-  return typeof window !== "undefined";
-}
-
 function extractServiceSkillCatalogPayloadFromRecord(
   record: Record<string, unknown>,
 ): unknown | null {
@@ -63,18 +50,6 @@ function extractServiceSkillCatalogPayloadFromBootstrapPayload(
   );
 }
 
-export function extractServiceSkillCatalogFromBootstrapPayload(
-  payload: unknown,
-): ServiceSkillCatalog | null {
-  const extracted =
-    extractServiceSkillCatalogPayloadFromBootstrapPayload(payload);
-  if (!extracted) {
-    return null;
-  }
-
-  return parseServiceSkillCatalog(extracted);
-}
-
 export function syncServiceSkillCatalogFromBootstrapPayload(
   payload: unknown,
 ): ServiceSkillCatalog | null {
@@ -88,53 +63,7 @@ export function syncServiceSkillCatalogFromBootstrapPayload(
 }
 
 export function applyInitialServiceSkillCatalogBootstrap(): ServiceSkillCatalog | null {
-  if (!hasWindow()) {
-    return null;
-  }
-
-  if (window.__LIME_SERVICE_SKILL_CATALOG__ !== undefined) {
-    const directCatalog = syncServiceSkillCatalogFromBootstrapPayload({
-      serviceSkillCatalog: window.__LIME_SERVICE_SKILL_CATALOG__,
-    });
-    if (directCatalog) {
-      return directCatalog;
-    }
-  }
-
   return syncServiceSkillCatalogFromBootstrapPayload(
     getOemCloudBootstrapSnapshot(),
   );
-}
-
-export function emitServiceSkillCatalogBootstrap(payload: unknown): void {
-  if (!hasWindow()) {
-    return;
-  }
-
-  window.dispatchEvent(
-    new CustomEvent(SERVICE_SKILL_CATALOG_BOOTSTRAP_EVENT, {
-      detail: payload,
-    }),
-  );
-}
-
-export function subscribeServiceSkillCatalogBootstrap(
-  listener?: (catalog: ServiceSkillCatalog | null) => void,
-): () => void {
-  if (!hasWindow()) {
-    return () => undefined;
-  }
-
-  const handler = (event: Event) => {
-    if (!(event instanceof CustomEvent)) {
-      return;
-    }
-
-    listener?.(syncServiceSkillCatalogFromBootstrapPayload(event.detail));
-  };
-
-  window.addEventListener(SERVICE_SKILL_CATALOG_BOOTSTRAP_EVENT, handler);
-  return () => {
-    window.removeEventListener(SERVICE_SKILL_CATALOG_BOOTSTRAP_EVENT, handler);
-  };
 }

@@ -504,7 +504,15 @@ pub(super) fn request_tool_policy_from_request(
 ) -> RequestToolPolicy {
     let web_search = host_request.and_then(host_web_search);
     let search_mode = host_request.and_then(host_request_search_mode);
-    let policy = resolve_request_tool_policy_with_mode(web_search, search_mode);
+    let mode = host_request
+        .and_then(|request| request.web_search_mode)
+        .unwrap_or_else(|| {
+            agent_protocol::WebSearchMode::for_sandbox(
+                host_request.and_then(|request| request.sandbox_policy.as_deref()),
+            )
+        });
+    let policy =
+        resolve_request_tool_policy_with_mode(web_search, search_mode).with_web_search_mode(mode);
     if host_request.is_some_and(host_requests_research_web_fetch) {
         request_tool_policy_with_additional_required_tools(policy, &["WebFetch"])
     } else {

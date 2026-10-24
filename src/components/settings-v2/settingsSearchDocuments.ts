@@ -168,36 +168,42 @@ export const settingsSearchDocuments: readonly SettingsSearchDocument[] = [
     labelKey: "settings.environment.overrides.title",
     termKeys: ["settings.environment.overrides.description"],
   },
-  ...(["workspace", "plan", "shell", "network"] as const).map((field) => ({
+  ...(
+    [
+      "approval_policy",
+      "sandbox_mode",
+      "web_search",
+      "model_verbosity",
+      "model_reasoning_summary",
+    ] as const
+  ).map((field) => ({
+    section: SettingsTabs.Configuration,
+    targetId: `configuration-${field}`,
+    labelKey: `settings.configuration.fields.${field}.label`,
+    termKeys: [
+      `settings.configuration.fields.${field}.description`,
+      ...(field === "sandbox_mode"
+        ? [
+            "settings.configuration.fields.network.label",
+            "settings.configuration.fields.network.description",
+          ]
+        : []),
+    ],
+  })),
+  {
+    section: SettingsTabs.Configuration,
+    targetId: "configuration-scope",
+    labelKey: "settings.configuration.modelFeatures.label",
+    termKeys: [
+      "settings.configuration.modelFeatures.title",
+      "settings.configuration.modelFeatures.description",
+    ],
+  },
+  ...(["plan", "shell", "network"] as const).map((field) => ({
     section: SettingsTabs.ExecutionPolicy,
     targetId: `execution-policy-${field}`,
     labelKey: `settings.executionPolicy.${field}.title`,
     termKeys: [`settings.executionPolicy.${field}.description`],
-  })),
-  ...(
-    [
-      ["search", "engine", "searchChain.engine", true],
-      ["search", "provider", "searchChain.provider", false],
-      ["search", "provider-priority", "searchChain.providerPriority", true],
-      ["providers", "tavily-key", "providers.tavily", true],
-      ["providers", "bing-key", "providers.bing", true],
-      ["providers", "google-key", "providers.googleApi", true],
-      ["providers", "google-engine-id", "providers.googleEngine", true],
-      ["mse", "mse-priority", "mse.priority", false],
-      ["mse", "mse-max-per-engine", "mse.maxPerEngine", false],
-      ["mse", "mse-max-total", "mse.maxTotal", false],
-      ["mse", "mse-timeout", "mse.timeout", false],
-      ["mse", "mse-custom-engine-name", "mse.customName", false],
-      ["mse", "mse-custom-engine-template", "mse.customTemplate", false],
-      ["images", "pexels-key", "images.pexels", true],
-      ["images", "pixabay-key", "images.pixabay", true],
-    ] as const
-  ).map(([path, field, message, hasHint]) => ({
-    section: SettingsTabs.WebSearch,
-    targetId: `web-search-${field}`,
-    path,
-    labelKey: `settings.webSearch.${message}.label`,
-    termKeys: hasHint ? [`settings.webSearch.${message}.hint`] : [],
   })),
   ...(["enabled", "tools", "delete", "instructions"] as const).map((field) => ({
     section: SettingsTabs.Memory,
@@ -218,20 +224,6 @@ export const settingsSearchDocuments: readonly SettingsSearchDocument[] = [
     labelKey: `settings.appearance.${message}.title`,
     termKeys: field === "theme" ? ["settings.desktop.mode"] : [],
   })),
-  {
-    section: SettingsTabs.Developer,
-    targetId: "experimental-crash-reporting",
-    path: "experimental",
-    labelKey: "settings.experimental.crashReporting.title",
-    termKeys: [
-      "settings.experimental.crashReporting.description",
-      "settings.experimental.crashReporting.dsn.label",
-      "settings.experimental.crashReporting.environment.label",
-      "settings.experimental.crashReporting.sampleRate.label",
-      "settings.experimental.crashReporting.sendPii.title",
-      "settings.experimental.crashReporting.sendPii.description",
-    ],
-  },
   ...(
     [
       ["responsive-chat", "responsiveChat"],

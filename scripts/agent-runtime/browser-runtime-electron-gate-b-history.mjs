@@ -5,6 +5,11 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { clickNativeMenuItem } from "./browser-runtime-gate-a.mjs";
 import {
+  readHistoryLayout,
+  sameHistoryLayout,
+  waitForHistoryAnimations,
+} from "./browser-runtime-history-layout.mjs";
+import {
   reopenBrowserHistoryEntry,
   reopenBrowserHistoryFromSettings,
   writeBrowserHistoryFailure,
@@ -138,7 +143,7 @@ async function historySnapshot(page, file, fixture) {
 
 function matchesDisk(snapshot) {
   return (
-    snapshot.disk.schemaVersion === 1 &&
+    snapshot.disk.schemaVersion === 2 &&
     snapshot.disk.revision === snapshot.revision &&
     snapshot.entries.length === snapshot.disk.fixtureEntries.length &&
     snapshot.entries.every((entry) =>
@@ -171,7 +176,7 @@ async function readHistoryTrace(page) {
     return {
       commands: trace
         .filter((entry) =>
-          /^browser_history_|^browser_tab_(?:show_menu|mount|list)$/u.test(
+          /^browser_history_|^browser_data_clear$|^browser_tab_(?:show_menu|mount|list)$/u.test(
             entry?.command || "",
           ),
         )
@@ -264,6 +269,16 @@ export async function runBrowserHistoryScenario({
     ),
   );
   const label = (key) => labels[`browserHistory.${key}`];
+  const dataLabels = JSON.parse(
+    await fs.readFile(
+      new URL(
+        `../../src/i18n/resources/${locale}/browserData.json`,
+        import.meta.url,
+      ),
+      "utf8",
+    ),
+  );
+  const dataLabel = (key) => dataLabels[`browserData.${key}`];
   const bridge = await page.evaluate(() => ({
     electron: window.__LIME_ELECTRON__ === true,
     invoke: typeof window.electronAPI?.invoke === "function",
@@ -290,6 +305,7 @@ export async function runBrowserHistoryScenario({
       directory,
       `${locale}-browser-history-${name}.png`,
     );
+    if (name !== "failure") await waitForHistoryAnimations(page);
     await page.screenshot({ path: screenshot, fullPage: false });
     screenshots.push(screenshot);
   };
@@ -344,7 +360,8 @@ export async function runBrowserHistoryScenario({
       name: label("search"),
       exact: true,
     });
-    const rows = () => history.getByRole("listitem").allTextContents();
+    const rows = () =>
+      history.getByTestId("browser-history-row").allTextContents();
     stage("search-title-and-url");
     await search.fill(fixture.pages[0].title);
     const titleSearch = await waitFor(
@@ -353,6 +370,7 @@ export async function runBrowserHistoryScenario({
       (rows) => rows.length === 1 && rows[0].includes(fixture.pages[0].title),
       "History title search did not filter to Alpha",
     );
+    const layout = { populated: await readHistoryLayout(page) };
     await capture("search");
     await search.fill(fixture.pages[1].url);
     const urlSearch = await waitFor(
@@ -361,6 +379,10 @@ export async function runBrowserHistoryScenario({
       (rows) => rows.length === 1 && rows[0].includes(fixture.pages[1].title),
       "History URL search did not filter to Beta",
     );
+    const urlSearchHref = await history
+      .getByTestId("browser-history-row")
+      .getByRole("link")
+      .getAttribute("href");
     await search.fill(fixture.pages[0].title);
     await waitFor(
       options,
@@ -439,9 +461,12 @@ export async function runBrowserHistoryScenario({
     stage("delete-one-history-entry-from-ui");
     await history
       .getByRole("button", {
-        name: label("remove").replace("{{title}}", fixture.pages[0].title),
+        name: label("actions").replace("{{title}}", fixture.pages[0].title),
         exact: true,
       })
+      .click();
+    await page
+      .getByRole("menuitem", { name: label("removePage"), exact: true })
       .click();
     const deleted = await waitFor(
       options,
@@ -467,16 +492,18 @@ export async function runBrowserHistoryScenario({
     const beforeCancelTrace = await readHistoryTrace(page);
     const openClear = async () => {
       await history
-        .getByRole("button", { name: label("clear"), exact: true })
+        .getByRole("button", { name: label("clearData"), exact: true })
         .click();
-      const dialog = history.getByRole("alertdialog", {
-        name: label("confirm"),
-        exact: true,
-      });
+      const dialog = page.getByTestId("browser-clear-browsing-data-dialog");
       await dialog.waitFor({ state: "visible" });
       await dialog
-        .getByRole("combobox", { name: label("period"), exact: true })
-        .selectOption("all");
+        .getByRole("button", { name: dataLabel("range.allTime"), exact: true })
+        .click();
+      for (const type of ["siteData", "cache", "downloads"]) {
+        const checkbox = dialog.locator(`#browser-clear-browsing-data-${type}`);
+        if ((await checkbox.getAttribute("aria-checked")) === "true")
+          await checkbox.click();
+      }
       return dialog;
     };
     stage("cancel-explicit-clear-confirmation");
@@ -484,7 +511,7 @@ export async function runBrowserHistoryScenario({
     await capture("confirmation");
     const beforeCancel = await historySnapshot(page, file, fixture);
     await dialog
-      .getByRole("button", { name: label("cancel"), exact: true })
+      .getByRole("button", { name: dataLabel("cancel"), exact: true })
       .click();
     await dialog.waitFor({ state: "hidden" });
     const cancelled = await historySnapshot(page, file, fixture);
@@ -492,7 +519,7 @@ export async function runBrowserHistoryScenario({
     stage("confirm-clear-and-verify-disk-revision");
     dialog = await openClear();
     await dialog
-      .getByRole("button", { name: label("clear"), exact: true })
+      .getByRole("button", { name: dataLabel("delete"), exact: true })
       .click();
     const cleared = await waitFor(
       options,
@@ -510,12 +537,13 @@ export async function runBrowserHistoryScenario({
       .getByRole("status")
       .filter({ hasText: label("empty") })
       .waitFor({ state: "visible" });
+    layout.cleared = await readHistoryLayout(page);
     await capture("cleared");
     const invoke = await waitFor(
       options,
       () => readHistoryTrace(page),
       (trace) =>
-        ["browser_history_remove", "browser_history_clear"].every((command) =>
+        ["browser_history_remove", "browser_data_clear"].every((command) =>
           trace.commands.some(
             (entry) =>
               entry.command === command &&
@@ -526,9 +554,8 @@ export async function runBrowserHistoryScenario({
       "History UI mutations did not produce successful native IPC traces",
     );
     const clearCount = (trace) =>
-      trace.commands.filter(
-        (entry) => entry.command === "browser_history_clear",
-      ).length;
+      trace.commands.filter((entry) => entry.command === "browser_data_clear")
+        .length;
     const nativeMountCount = (trace) =>
       trace.commands.filter(
         (entry) =>
@@ -560,7 +587,9 @@ export async function runBrowserHistoryScenario({
         titleSearch.length === 1 &&
         titleSearch[0].includes(fixture.pages[0].title),
       searchByUrl:
-        urlSearch.length === 1 && urlSearch[0].includes(fixture.pages[1].url),
+        urlSearch.length === 1 &&
+        urlSearch[0].includes(fixture.pages[1].title) &&
+        urlSearchHref === fixture.pages[1].url,
       historyEntryOpensNewCanonicalTab:
         reopened.workspace.tabId !== initial.tabId &&
         reopened.workspace.sessionId === initial.sessionId &&
@@ -628,9 +657,13 @@ export async function runBrowserHistoryScenario({
         cleared.total === 0 &&
         cleared.disk.totalEntries === 0 &&
         matchesDisk(cleared),
+      clearedHistoryPreservesPageHeaderAndSearchLayout: sameHistoryLayout(
+        layout.populated,
+        layout.cleared,
+      ),
       historyMutationsUseRealIpc: [
         "browser_history_remove",
-        "browser_history_clear",
+        "browser_data_clear",
       ].every((command) =>
         invoke.commands.some(
           (entry) =>
@@ -662,10 +695,12 @@ export async function runBrowserHistoryScenario({
       },
       fixture: { pages: fixture.pages, requests: fixture.requests },
       captures: {
+        layout,
         navigations,
         recorded,
         titleSearch,
         urlSearch,
+        urlSearchHref,
         reopened,
         reopenedHistory,
         beforeReopenTrace,

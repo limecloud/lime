@@ -33,7 +33,6 @@ import { resolveCurrentDesktopStorageRoots } from "./appDataPaths";
 import { showDesktopNotification } from "./desktopNotificationHost";
 import { FileShellHost } from "./fileShellHost";
 import { LayeredDesignProjectHost } from "./layeredDesignProjectHost";
-import { openResourceManagerWindow } from "./resourceManagerWindowHost";
 import { SystemUtilityHost } from "./systemUtilityHost";
 import { VoiceModelHost } from "./voiceModelHost";
 import type {
@@ -113,8 +112,6 @@ export class ElectronHostCommands {
         return await this.#systemUtilityHost.openExternalUrl(args);
       case "open_file_preview_window":
         return await this.#fileShellHost.openFilePreviewWindow(args);
-      case "open_resource_manager_window":
-        return openResourceManagerWindow(args);
       case "open_system_settings_url":
         return await this.#systemUtilityHost.openSystemSettingsUrl(args);
       case "macos_native_host_invoke":

@@ -1,38 +1,33 @@
 import { safeInvoke, safeListen } from "@/lib/dev-bridge";
+import { assertBrowserHistoryMutationResult } from "./browserHistoryTypes";
 import {
-  assertBrowserHistoryMutationResult,
-  assertBrowserHistoryPage,
-  parseBrowserHistoryClear,
-  parseBrowserHistoryIds,
-  parseBrowserHistoryQuery,
-  type BrowserHistoryClear,
-  type BrowserHistoryQuery,
-} from "./browserHistoryTypes";
+  assertBrowserHistoryVisitsPage,
+  parseBrowserHistoryVisitsQuery,
+  parseBrowserHistoryVisitTargets,
+  type BrowserHistoryVisitsQuery,
+  type BrowserHistoryVisitTarget,
+} from "./browserHistoryVisits";
 export type {
   BrowserHistoryEntry,
   BrowserHistoryPage,
 } from "./browserHistoryTypes";
 
-export async function listBrowserHistory(query: BrowserHistoryQuery = {}) {
-  const result = await safeInvoke<unknown>(
-    "browser_history_list",
-    parseBrowserHistoryQuery(query),
-  );
-  assertBrowserHistoryPage(result);
-  return result;
-}
-export async function removeBrowserHistory(ids: string[]) {
-  const result = await safeInvoke<unknown>("browser_history_remove", {
-    ids: parseBrowserHistoryIds(ids),
+export async function listBrowserHistoryVisits(
+  query: BrowserHistoryVisitsQuery = {},
+) {
+  const result = await safeInvoke<unknown>("browser_history_list", {
+    ...parseBrowserHistoryVisitsQuery(query),
+    view: "visits",
   });
-  assertBrowserHistoryMutationResult(result);
+  assertBrowserHistoryVisitsPage(result);
   return result;
 }
-export async function clearBrowserHistory(options: BrowserHistoryClear = {}) {
-  const result = await safeInvoke<unknown>(
-    "browser_history_clear",
-    { ...parseBrowserHistoryClear(options) },
-  );
+export async function removeBrowserHistoryVisits(
+  entries: BrowserHistoryVisitTarget[],
+) {
+  const result = await safeInvoke<unknown>("browser_history_remove", {
+    entries: parseBrowserHistoryVisitTargets(entries),
+  });
   assertBrowserHistoryMutationResult(result);
   return result;
 }

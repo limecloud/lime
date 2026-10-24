@@ -5,11 +5,8 @@ import type { GeneralWorkbenchSidebarTab } from "./GeneralWorkbenchSidebarShell"
 interface UseGeneralWorkbenchSidebarTelemetryParams {
   activeTab: GeneralWorkbenchSidebarTab;
   showActivityLogs: boolean;
-  contextSearchLoading: boolean;
   branchItemsCount: number;
   workflowStepsCount: number;
-  contextItemsCount: number;
-  activeContextCount: number;
   activityLogsCount: number;
   creationTaskEventsCount: number;
   hasActiveRunDetail: boolean;
@@ -18,11 +15,8 @@ interface UseGeneralWorkbenchSidebarTelemetryParams {
 export function useGeneralWorkbenchSidebarTelemetry({
   activeTab,
   showActivityLogs,
-  contextSearchLoading,
   branchItemsCount,
   workflowStepsCount,
-  contextItemsCount,
-  activeContextCount,
   activityLogsCount,
   creationTaskEventsCount,
   hasActiveRunDetail,
@@ -43,11 +37,8 @@ export function useGeneralWorkbenchSidebarTelemetry({
       {
         activeTab,
         showActivityLogs,
-        contextSearchLoading,
         branchItemsCount,
         workflowStepsCount,
-        contextItemsCount,
-        activeContextCount,
         activityLogsCount,
         creationTaskEventsCount,
         hasActiveRunDetail,

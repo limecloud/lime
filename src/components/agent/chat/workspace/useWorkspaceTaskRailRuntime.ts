@@ -6,7 +6,7 @@ import type {
   AgentTodoItem,
 } from "@/lib/api/agentRuntime/sessionTypes";
 import type { CanonicalChildThreadSummary } from "../projection/canonicalChildThreadSummary";
-import type { SidebarActivityLog } from "../hooks/useThemeContextWorkspace";
+import type { SidebarActivityLog } from "../components/generalWorkbenchWorkflowData";
 import type {
   ActionRequired,
   AgentThreadItem,

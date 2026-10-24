@@ -24,6 +24,8 @@ export class BrowserAnnotationDesignHost {
       revision: number;
       change: BrowserDesignChange | null;
       saved: BrowserDesignChange | null;
+      committed: boolean;
+      commitRevision: number | null;
     }
   >();
 
@@ -35,6 +37,8 @@ export class BrowserAnnotationDesignHost {
       revision: -1,
       change: null,
       saved: null,
+      committed: false,
+      commitRevision: null,
     });
     return structuredClone(snapshot);
   }
@@ -42,7 +46,7 @@ export class BrowserAnnotationDesignHost {
   receive(
     event: BrowserAnnotationDesignEvent,
     send: (change: BrowserDesignChange | null) => void,
-  ): void {
+  ) {
     const entry = this.#entries.get(event.annotationId);
     if (
       !entry ||
@@ -59,8 +63,26 @@ export class BrowserAnnotationDesignHost {
       return;
     entry.revision = event.revision;
     entry.change = change;
-    if (event.action === "save") entry.saved = change;
+    const commit = event.action === "save" || event.action === "send";
+    const capture = commit && !entry.committed && change !== null;
+    if (commit) {
+      entry.saved = change;
+      entry.committed = true;
+      entry.commitRevision = event.revision;
+    }
     send(event.action === "close" ? entry.saved : change);
+    return {
+      capture,
+      change,
+      current: () =>
+        this.#entries.get(event.annotationId) === entry &&
+        entry.revision === event.revision &&
+        sameBrowserDesignChange(entry.change, change),
+      complete: (valid: boolean) => {
+        if (!valid && capture && entry.commitRevision === event.revision)
+          entry.committed = false;
+      },
+    };
   }
 
   remove(id: string): void {

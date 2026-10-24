@@ -1,5 +1,4 @@
 import { extractArtifactProtocolPathsFromRecord } from "@/lib/artifact-protocol";
-import type { SidebarActivityLog } from "../hooks/useThemeContextWorkspace";
 import { findCuratedTaskTemplateById } from "../utils/curatedTaskTemplates";
 import type { CuratedTaskInputValues } from "../utils/curatedTaskTemplates";
 import {
@@ -494,4 +493,23 @@ export function buildGeneralWorkbenchCreationTaskGroups(
       const rightLatest = right.tasks[0]?.createdAt || 0;
       return rightLatest - leftLatest;
     });
+}
+
+export interface SidebarActivityLog {
+  id: string;
+  name: string;
+  status: "running" | "completed" | "failed";
+  timeLabel: string;
+  durationLabel?: string;
+  applyTarget?: string;
+  inputSummary?: string;
+  outputSummary?: string;
+  runId?: string;
+  executionId?: string;
+  sessionId?: string;
+  artifactPaths?: string[];
+  messageId?: string;
+  gateKey?: "idle" | "topic_select" | "write_mode" | "publish_confirm";
+  source?: string;
+  sourceRef?: string;
 }

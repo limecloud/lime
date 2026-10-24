@@ -4,61 +4,11 @@ import { emitImageWorkbenchTaskAction } from "@/lib/imageWorkbenchEvents";
 import { createInitialSessionImageWorkbenchState } from "./imageWorkbenchHelpers";
 import {
   type HookProps,
-  mockImportMaterialFromUrl,
   renderHook,
   toast,
 } from "./useWorkspaceImageWorkbenchActionRuntime.testFixtures";
 
 describe("useWorkspaceImageWorkbenchActionRuntime task actions", () => {
-  it("保存当前输出时应直接导入任务 URL 并更新工作台状态", async () => {
-    const currentImageWorkbenchState: HookProps["currentImageWorkbenchState"] =
-      {
-        ...createInitialSessionImageWorkbenchState(),
-        selectedOutputId: "task-image-1:output:1",
-        outputs: [
-          {
-            id: "task-image-1:output:1",
-            taskId: "task-image-1",
-            hookImageId: "task-image-1:hook:1",
-            refId: "img-task-image-1-1",
-            url: "https://example.com/image-1.png",
-            prompt: "青柠主图",
-            createdAt: new Date("2026-05-14T00:00:00.000Z").getTime(),
-            providerName: "GPT Images",
-            modelName: "gpt-image-2",
-            size: "1024x1024",
-            resourceSaved: false,
-            applyTarget: null,
-          },
-        ],
-      };
-    const updateCurrentImageWorkbenchState = vi.fn();
-    const { render, getValue } = renderHook({
-      currentImageWorkbenchState,
-      updateCurrentImageWorkbenchState,
-    });
-
-    await render();
-    await act(async () => {
-      await getValue().handleSaveSelectedImageWorkbenchOutput();
-    });
-
-    expect(mockImportMaterialFromUrl).toHaveBeenCalledWith(
-      expect.objectContaining({
-        projectId: "project-1",
-        type: "image",
-        url: "https://example.com/image-1.png",
-      }),
-    );
-    const updater = updateCurrentImageWorkbenchState.mock.calls[0]?.[0];
-    expect(updater?.(currentImageWorkbenchState).outputs[0]).toMatchObject({
-      id: "task-image-1:output:1",
-      resourceSaved: true,
-    });
-    expect(getValue().savingToResource).toBe(false);
-    expect(toast.success).toHaveBeenCalledWith("已保存到素材库");
-  });
-
   it("停止图片生成时应取消最近仍在运行的任务", async () => {
     const cancelImageTask = vi.fn().mockResolvedValue({
       task_id: "task-running-2",

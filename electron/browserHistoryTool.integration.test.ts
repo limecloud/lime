@@ -47,9 +47,11 @@ async function setup(
   const h = createHarness({
     history: { invoke, forget: vi.fn() } as unknown as BrowserHistoryHost,
   });
-  const settings = effectiveBrowserSettings({ history_access: access });
+  const settings = effectiveBrowserSettings(
+    { iabHistoryApprovalMode: access },
+    { default_origin_policy: { access: "deny" } },
+  );
   // History permission is independent of authorization to browse a website.
-  settings.agent_permissions.default.browse = "deny";
   h.host.setSettings(settings);
   const state = (await mount(h)) as { viewId: string };
   return { ...h, native: h.views.get(state.viewId)!, settings, invoke };
@@ -160,7 +162,10 @@ describe("Agent browser history access", () => {
     const h = await setup("alwaysAsk");
     const input = call();
     const pending = await h.host.executeTool(input);
-    h.host.setSettings({ ...h.settings, history_access: "disabled" });
+    h.host.setSettings({
+      ...h.settings,
+      browser_use: { ...h.settings.browser_use, allow_history_access: false },
+    });
     await expect(h.host.executeTool(approved(input, pending))).rejects.toThrow(
       /stale|disabled/,
     );
@@ -176,6 +181,9 @@ describe("Agent browser history access", () => {
     { limit: 201 },
     { limit: 1.5 },
     { remove: true },
+    { view: "visits" },
+    { source: "agent" },
+    { entries: [{ url: "https://example.com/", visitTime: 1 }] },
     { path: "/private/history" },
   ])(
     "rejects malformed or unbounded queries before the history owner: %j",
@@ -226,7 +234,13 @@ describe("Agent browser history access", () => {
           { type: "keyDown", key: "a" },
         );
       if (lifecycle === "settings")
-        h.host.setSettings({ ...h.settings, history_access: "disabled" });
+        h.host.setSettings({
+          ...h.settings,
+          browser_use: {
+            ...h.settings.browser_use,
+            allow_history_access: false,
+          },
+        });
       finish();
       await rejected;
     },
@@ -237,7 +251,7 @@ describe("Agent browser history access", () => {
     h.invoke.mockImplementationOnce(async () => {
       h.host.setSettingsProvider(async () => ({
         ...h.settings,
-        history_access: "disabled",
+        browser_use: { ...h.settings.browser_use, allow_history_access: false },
       }));
       return structuredClone(page);
     });

@@ -28,9 +28,6 @@ function renderHook(props?: Partial<HookProps>) {
     socialStageLogRef: { current: {} },
     setDocumentVersionStatusMap: vi.fn(),
     saveSessionFile: vi.fn(async () => undefined),
-    syncGeneralArtifactToResource: vi.fn(async () => ({
-      status: "inactive" as const,
-    })),
     upsertGeneralArtifact: vi.fn(),
     setSelectedArtifactId: vi.fn(),
     setArtifactViewMode: vi.fn(),
@@ -90,6 +87,50 @@ afterEach(() => {
 });
 
 describe("useWorkspaceWriteFileAction", () => {
+  it.each([false, true])(
+    "普通文件保存失败=%s 时仍保留当前产物投影",
+    async (failed) => {
+      const saveSessionFile = failed
+        ? vi.fn().mockRejectedValue(new Error("disk full"))
+        : vi.fn().mockResolvedValue(undefined);
+      const upsertGeneralArtifact = vi.fn();
+      const setSelectedArtifactId = vi.fn();
+      const error = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => undefined);
+      const { render, getValue } = renderHook({
+        saveSessionFile,
+        upsertGeneralArtifact,
+        setSelectedArtifactId,
+      });
+      await render();
+      await act(async () => {
+        getValue()("export const value = 1;", "result.ts", {
+          status: "complete",
+        });
+        await Promise.resolve();
+      });
+
+      expect(saveSessionFile).toHaveBeenCalledTimes(1);
+      expect(saveSessionFile).toHaveBeenCalledWith(
+        "result.ts",
+        "export const value = 1;",
+        expect.any(Object),
+      );
+      const artifact = upsertGeneralArtifact.mock.calls[0]?.[0];
+      expect(artifact).toMatchObject({
+        content: "export const value = 1;",
+        status: "complete",
+      });
+      expect(setSelectedArtifactId).toHaveBeenCalledWith(artifact.id);
+      if (failed)
+        expect(error).toHaveBeenCalledWith(
+          "[AgentChatPage] 持久化 artifact 失败:",
+          expect.objectContaining({ message: "disk full" }),
+        );
+      else expect(error).not.toHaveBeenCalled();
+    },
+  );
   it("pending A2UI 期间写入编程产物时不应自动拉起画布", async () => {
     const setArtifactViewMode = vi.fn();
     const setLayoutMode = vi.fn();

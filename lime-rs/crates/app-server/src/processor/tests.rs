@@ -19,5 +19,4 @@ mod right_surface;
 mod service_tier;
 mod settings_support;
 mod turn_steer;
-mod usage_stats;
 mod working_directory;

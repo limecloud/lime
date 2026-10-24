@@ -337,12 +337,13 @@ describe("ExecutionPolicySettings", () => {
     );
   });
 
-  it("保存时应写入 agent.workspace_sandbox 与 agent.tool_execution canonical bash 配置", async () => {
+  it("保存规则时保留沙盒配置且不暴露停用真实隔离的开关", async () => {
     const container = renderComponent();
     await waitForLoad();
 
-    await toggleSwitch(container, "启用工作区沙箱");
-    await toggleSwitch(container, "启用严格工作区沙箱");
+    expect(container.querySelector('button[aria-label="启用工作区沙箱"]')).toBeNull();
+    expect(container.querySelector('button[aria-label="启用严格工作区沙箱"]')).toBeNull();
+    expect(container.querySelector('button[aria-label="启用沙箱回退提醒"]')).toBeNull();
     await setSelectValue(
       findSelectByValue(container, "none"),
       "shell_command_risk",
@@ -354,8 +355,8 @@ describe("ExecutionPolicySettings", () => {
       expect.objectContaining({
         agent: expect.objectContaining({
           workspace_sandbox: {
-            enabled: true,
-            strict: true,
+            enabled: false,
+            strict: false,
             notify_on_fallback: true,
           },
           tool_execution: expect.objectContaining({

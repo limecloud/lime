@@ -71,8 +71,8 @@ function Harness() {
       <button
         onClick={() =>
           handleNavigate("settings", {
-            tab: SettingsTabs.WebSearch,
-            searchPath: "search-engine",
+            tab: SettingsTabs.Configuration,
+            searchTarget: "configuration-web_search",
           })
         }
       >

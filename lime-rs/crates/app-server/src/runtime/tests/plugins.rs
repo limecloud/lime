@@ -97,14 +97,11 @@ impl PluginDataSource for PluginLifecycleDataSource {
         Ok(PluginUninstallResponse {})
     }
 }
-
-impl KnowledgeAppDataSource for PluginLifecycleDataSource {}
 impl AutomationOverviewAppDataSource for PluginLifecycleDataSource {}
 impl McpAppDataSource for PluginLifecycleDataSource {}
 impl AutomationManagementAppDataSource for PluginLifecycleDataSource {}
 impl MemoryAppDataSource for PluginLifecycleDataSource {}
 impl DiagnosticsAppDataSource for PluginLifecycleDataSource {}
-impl UsageStatsAppDataSource for PluginLifecycleDataSource {}
 impl ModelProviderAppDataSource for PluginLifecycleDataSource {}
 impl ConnectAppDataSource for PluginLifecycleDataSource {}
 impl RightSurfaceAppDataSource for PluginLifecycleDataSource {}

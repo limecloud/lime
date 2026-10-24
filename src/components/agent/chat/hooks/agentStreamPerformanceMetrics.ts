@@ -3,11 +3,11 @@ import {
   type AgentUiPerformanceEntry,
 } from "@/lib/agentUiPerformanceMetrics";
 import {
-  createClawTraceId,
+  createTraceId,
   createW3cTraceContextCarrier,
   normalizeW3cTraceContextCarrier,
   type W3cTraceContextCarrier,
-} from "@/lib/trace/clawTrace";
+} from "@/lib/trace/traceContext";
 import {
   enqueueAgentUiProjectionEvents,
   recordConversationStreamDiagnostic,
@@ -181,10 +181,10 @@ export function ensureAgentUiPerformanceTraceMetadata(
     requestId:
       existingTrace?.requestId ??
       normalizeString(options.requestId) ??
-      createClawTraceId("claw_request"),
-    runId: existingTrace?.runId ?? createClawTraceId("claw_run"),
+      createTraceId("claw_request"),
+    runId: existingTrace?.runId ?? createTraceId("claw_run"),
     sessionId: existingTrace?.sessionId ?? normalizeString(options.sessionId),
-    traceId: existingTrace?.traceId ?? createClawTraceId("claw_trace"),
+    traceId: existingTrace?.traceId ?? createTraceId("claw_trace"),
     turnId: existingTrace?.turnId ?? null,
     workspaceId:
       existingTrace?.workspaceId ?? normalizeString(options.workspaceId),

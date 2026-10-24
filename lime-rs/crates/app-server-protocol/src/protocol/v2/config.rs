@@ -142,6 +142,34 @@ pub struct ConfigBatchWriteParams {
     pub reload_user_config: bool,
 }
 
+/// Read-only constraints from the administrator policy source.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ConfigRequirements {
+    pub allowed_approval_policies: Option<Vec<String>>,
+    pub allowed_sandbox_modes: Option<Vec<String>>,
+    pub allowed_web_search_modes: Option<Vec<String>>,
+    pub allow_browser_and_computer_use: Option<bool>,
+    pub browser_use: Option<super::BrowserUseRequirements>,
+    pub in_app_browser: Option<InAppBrowserRequirements>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct InAppBrowserRequirements {
+    pub allow_external_browser_settings_import: Option<bool>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ConfigRequirementsReadParams {}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ConfigRequirementsReadResponse {
+    pub requirements: Option<ConfigRequirements>,
+}
+
 /// Codex-compatible lifecycle stage for an experimental feature.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]

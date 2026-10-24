@@ -138,6 +138,10 @@ pub(super) async fn orchestrate_current_tool_execution(
         initial_approval_reason: Some(decision.reason.clone()),
         requested_sandbox_policy: requested_sandbox,
         effective_sandbox_policy: effective_sandbox,
+        sandbox_network_access: request
+            .turn_context
+            .and_then(|context| context.sandbox_network_access)
+            .unwrap_or(false),
         granted_permissions: permission_grant.permissions,
         managed_network_host,
         strict_guardian,

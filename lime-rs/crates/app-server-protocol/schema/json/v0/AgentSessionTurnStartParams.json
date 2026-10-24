@@ -276,6 +276,13 @@
             "string"
           ]
         },
+        "sandboxNetworkAccess": {
+          "description": "Ambient network access applies only to the workspace-write sandbox.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
         "sandboxPolicy": {
           "type": [
             "null",
@@ -315,6 +322,17 @@
             "boolean",
             "null"
           ]
+        },
+        "webSearchMode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WebSearchMode"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Access ceiling, independent of auto/required search intent."
         },
         "workingDir": {
           "type": [
@@ -385,6 +403,16 @@
         }
       },
       "type": "object"
+    },
+    "WebSearchMode": {
+      "description": "Search access is separate from whether a turn must call the search tool.",
+      "enum": [
+        "cached",
+        "disabled",
+        "indexed",
+        "live"
+      ],
+      "type": "string"
     }
   },
   "$schema": "https://json-schema.org/draft/2020-12/schema",

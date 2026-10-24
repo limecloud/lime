@@ -33,7 +33,6 @@
   "navigation.sidebar.home.label": "Lime 홈",
   "navigation.sidebar.items.scheduledTasks": "예약된 작업",
   "navigation.sidebar.items.channels": "메시지 채널",
-  "navigation.sidebar.items.knowledge": "프로젝트 자료",
   "navigation.sidebar.items.plugins": "플러그인",
   "navigation.sidebar.items.settings": "설정",
   "navigation.pluginWorkspace.tabsLabel": "플러그인 콘텐츠",
@@ -182,7 +181,6 @@
   "navigation.sidebar.landmark": "앱 탐색",
   "navigation.sidebar.account.openMenu": "프로필 메뉴 열기",
   "navigation.sidebar.account.profile": "프로필",
-  "navigation.sidebar.account.usage": "사용량",
   "navigation.sidebar.account.login.action": "로그인",
   "navigation.sidebar.account.logout": "로그아웃",
   "navigation.sidebar.account.logoutFailed": "로그아웃하지 못했습니다"

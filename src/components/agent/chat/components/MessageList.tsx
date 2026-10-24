@@ -140,7 +140,7 @@ const MessageListInner: React.FC<MessageListProps> = ({
       mergeRuntimeSyncThreadItems(threadItems, threadRead?.thread_items ?? []),
     [threadItems, threadRead?.thread_items],
   );
-  const scrollController = useMessageListScrollController();
+  const scrollController = useMessageListScrollController(sessionId);
   const visibleMessages = useMemo(
     () => filterVisibleConversationMessages(messages),
     [messages],

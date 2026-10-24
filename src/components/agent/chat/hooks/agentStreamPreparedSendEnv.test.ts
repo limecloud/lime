@@ -31,7 +31,7 @@ describe("createAgentStreamPreparedSendEnv", () => {
       getSyncedSessionModelPreference: () => null,
       getSyncedSessionExecutionStrategy: () => "react",
       listenerMapRef: { current: new Map() },
-      clawTraceEnabled: false,
+
       activeStreamRef: {
         current: null,
       } as MutableRefObject<ActiveStreamState | null>,

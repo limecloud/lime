@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from "vitest";
 import {
   collectPendingA2UIFormIds,
   createMockAgentChatUnifiedState,
-  createMockThemeContextWorkspaceState,
   flushEffects,
   getIndexTestMocks,
   installMockAgentChatUnifiedState,
@@ -16,18 +15,11 @@ import {
 const {
   mockMessageList,
   mockUseAgentChatUnified,
-  mockUseThemeContextWorkspace,
   mockWorkspacePendingA2UIPanel,
 } = getIndexTestMocks();
 
 describe("AgentChatPage 当前 A2UI 事实源", () => {
   it("历史问卷正文不应再提升为输入区 A2UI", async () => {
-    mockUseThemeContextWorkspace.mockReturnValue(
-      createMockThemeContextWorkspaceState({
-        enabled: true,
-      }),
-    );
-
     installMockAgentChatUnifiedState(
       createMockAgentChatUnifiedState({
         messages: [

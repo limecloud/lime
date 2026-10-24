@@ -292,6 +292,7 @@ fn lower_runtime_options_with_policy(
         }
     }
     if let Some(policy) = params.sandbox_policy.as_ref() {
+        request.sandbox_network_access = Some(false);
         if let Some(policy) = policy.as_str().map(str::trim).filter(|v| !v.is_empty()) {
             request.sandbox_policy = Some(policy.to_string());
         } else {
@@ -300,9 +301,11 @@ fn lower_runtime_options_with_policy(
     }
     let requested_profile = params.permissions.as_deref();
     let selected_profile = match permission_policy {
-        Some(policy) => resolve_permission_profile_for_request(policy, requested_profile)
-            .map_err(invalid_params)?,
-        None => requested_profile
+        Some(policy) if requested_profile.is_some() => {
+            resolve_permission_profile_for_request(policy, requested_profile)
+                .map_err(invalid_params)?
+        }
+        _ => requested_profile
             .map(|value| resolve_builtin_permission_profile(value).map_err(invalid_params))
             .transpose()?,
     };
@@ -313,6 +316,7 @@ fn lower_runtime_options_with_policy(
             ));
         }
         request.sandbox_policy = Some(profile.sandbox_policy.clone());
+        request.sandbox_network_access = Some(false);
         apply_resolved_permission_profile_to_metadata(&mut metadata, profile)
             .map_err(invalid_params)?;
     }

@@ -32,7 +32,6 @@ import {
   isGeneralWorkbenchPrimaryDocumentArtifact,
   resolveTaskFileType,
 } from "./generalWorkbenchHelpers";
-import type { GeneralArtifactSyncResult } from "./useWorkspaceGeneralResourceSync";
 import type { ApplyArtifactViewMode } from "./useWorkspaceArtifactViewModeControl";
 
 const shouldLogWorkspaceWriteInfo = import.meta.env.MODE !== "test";
@@ -136,10 +135,6 @@ interface UseWorkspaceWriteFileActionParams {
     content: string,
     metadata?: Record<string, unknown>,
   ) => Promise<unknown>;
-  syncGeneralArtifactToResource: (input: {
-    rawFilePath: string;
-    preferredName?: string;
-  }) => Promise<GeneralArtifactSyncResult>;
   upsertGeneralArtifact: (artifact: Artifact) => void;
   setSelectedArtifactId: (artifactId: string | null) => void;
   setArtifactViewMode: ApplyArtifactViewMode;
@@ -164,7 +159,6 @@ export function useWorkspaceWriteFileAction({
   socialStageLogRef,
   setDocumentVersionStatusMap,
   saveSessionFile,
-  syncGeneralArtifactToResource,
   upsertGeneralArtifact,
   setSelectedArtifactId,
   setArtifactViewMode,
@@ -245,28 +239,12 @@ export function useWorkspaceWriteFileAction({
           return;
         }
 
-        const syncResource = () => {
-          if (nextArtifact.status !== "complete") {
-            return;
-          }
-
-          void syncGeneralArtifactToResource({
-            rawFilePath: resolveArtifactProtocolFilePath(nextArtifact),
-            preferredName: nextArtifact.title,
-          });
-        };
-
         if (nextContent.length > 0) {
-          void saveSessionFile(fileName, nextContent, nextArtifact.meta)
-            .then(() => {
-              syncResource();
-            })
-            .catch((error) => {
+          void saveSessionFile(fileName, nextContent, nextArtifact.meta).catch(
+            (error) => {
               console.error("[AgentChatPage] 持久化 artifact 失败:", error);
-              syncResource();
-            });
-        } else {
-          syncResource();
+            },
+          );
         }
 
         upsertGeneralArtifact(nextArtifact);
@@ -598,7 +576,6 @@ export function useWorkspaceWriteFileAction({
       setTaskFiles,
       socialStageLogRef,
       suppressCanvasAutoOpen,
-      syncGeneralArtifactToResource,
       taskFilesRef,
       themeWorkbenchActiveQueueItem,
       upsertGeneralArtifact,

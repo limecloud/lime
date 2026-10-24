@@ -31,7 +31,7 @@ import type {
   Message,
 } from "../types";
 import type { GeneralWorkbenchTaskRailContextInput } from "./generalWorkbenchTaskRailViewModel";
-import type { SidebarActivityLog } from "../hooks/useThemeContextWorkspace";
+import type { SidebarActivityLog } from "./generalWorkbenchWorkflowData";
 import type { GeneralWorkbenchWorkflowStepInput } from "./generalWorkbenchWorkflowPanelViewModel";
 import type { GeneralWorkbenchCreationTaskEvent } from "./generalWorkbenchWorkflowData";
 import { TaskCenterEnvironmentPanel } from "./TaskCenterEnvironmentPanel";

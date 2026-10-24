@@ -209,7 +209,7 @@ export function ThreadWorkspaceHeader({
           )}
         </div>
         {actionDestination === "chat" ? (
-          <HeaderToolbar.Actions className="max-w-[min(44vw,520px)]">
+          <HeaderToolbar.Actions className="min-w-0 max-w-full shrink">
             <HeaderToolbarActionMount container={summaryActions.container} />
             <HeaderToolbarActionMount container={threadActions.container} />
           </HeaderToolbar.Actions>

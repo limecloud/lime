@@ -73,6 +73,10 @@ export function ThreadSidePanelNewTab({
             key={presentation.tab.tabId}
             sourceTabId={presentation.tab.tabId}
             active={presentation.active}
+            draft={presentation.tab.addressDraft ?? ""}
+            onDraftChange={(value) =>
+              browserNavigation.setAddressDraft(presentation.tab.tabId, value)
+            }
             onOpenAddress={browserNavigation.openAddress}
             translate={t}
           />

@@ -33,7 +33,6 @@
   "navigation.sidebar.home.label": "Lime 首页",
   "navigation.sidebar.items.scheduledTasks": "已安排任务",
   "navigation.sidebar.items.channels": "消息渠道",
-  "navigation.sidebar.items.knowledge": "项目资料",
   "navigation.sidebar.items.plugins": "插件",
   "navigation.sidebar.items.settings": "设置",
   "navigation.pluginWorkspace.tabsLabel": "插件内容",
@@ -182,7 +181,6 @@
   "navigation.sidebar.landmark": "应用导航",
   "navigation.sidebar.account.openMenu": "打开账号菜单",
   "navigation.sidebar.account.profile": "个人资料",
-  "navigation.sidebar.account.usage": "用量",
   "navigation.sidebar.account.login.action": "登录",
   "navigation.sidebar.account.logout": "退出登录",
   "navigation.sidebar.account.logoutFailed": "退出登录失败"

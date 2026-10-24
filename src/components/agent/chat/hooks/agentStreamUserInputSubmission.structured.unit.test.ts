@@ -42,7 +42,7 @@ describe("structured submission acceptance", () => {
         executionStrategy: "react",
         accessMode: "current",
         executionRuntime: null,
-        clawTraceEnabled: false,
+
         providerTypeRef: { current: "openai" },
         modelRef: { current: "fixture" },
         reasoningEffortRef: { current: "" },

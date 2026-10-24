@@ -1,3 +1,4 @@
+import { readAnnotationCapture } from "@/lib/api/browserAnnotationCapture";
 import { atom } from "jotai/vanilla";
 import {
   readBrowserDesignChange,
@@ -114,11 +115,24 @@ export class BrowserAnnotationDraftStore {
     revision: number,
     images?: readonly BrowserAnnotationImage[],
     design?: BrowserDesignChange | null,
+    capture?: BrowserAnnotationCaptureResult,
   ): boolean {
     const draft = this.get(id);
     let attachedImages;
     let designChange;
+    let nextCapture;
     try {
+      nextCapture =
+        capture === undefined
+          ? draft?.capture
+          : readAnnotationCapture(capture, id);
+      if (
+        capture &&
+        (!draft ||
+          JSON.stringify(capture.selection) !==
+            JSON.stringify(draft.event.selection))
+      )
+        return false;
       attachedImages = readBrowserAnnotationImages(
         images ?? draft?.attachedImages,
       );
@@ -142,12 +156,19 @@ export class BrowserAnnotationDraftStore {
           !sameBrowserDesignChange(designChange, draft.designChange)))
     )
       return false;
-    if (body === draft.body && revision === draft.revision) return true;
+    if (
+      body === draft.body &&
+      revision === draft.revision &&
+      capture === undefined
+    )
+      return true;
     this.#replace(id, {
       ...draft,
       body,
       attachedImages,
       designChange,
+      capture:
+        capture === undefined ? draft.capture : structuredClone(nextCapture!),
       revision,
       failure: false,
     });

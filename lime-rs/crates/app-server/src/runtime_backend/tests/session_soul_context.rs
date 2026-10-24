@@ -54,7 +54,7 @@ fn session_config_appends_soul_context_from_config_metadata() {
 }
 
 #[test]
-fn session_config_appends_persona_context_from_request_metadata_to_soul_prompt() {
+fn session_config_does_not_promote_retired_persona_packs_into_soul_prompt() {
     let mut request = request_for_test(
         "hello",
         None,
@@ -119,8 +119,8 @@ fn session_config_appends_persona_context_from_request_metadata_to_soul_prompt()
     assert!(prompt.contains("不要尝试读取 `memory.soul` 或 `SOUL.md`"));
     assert!(prompt.contains("Style profile: cheeky_sassy_executor"));
     assert!(prompt.contains("Style pack: com.lime.soul.cheeky-sassy-executor"));
-    assert!(prompt.contains("Persona knowledge packs (context only)"));
-    assert!(prompt.contains("founder-persona (activation: implicit, role: companion)"));
-    assert!(prompt.contains("Persona context boundaries"));
-    assert!(prompt.contains("writes_back_to_global_soul=false"));
+    assert!(!prompt.contains("Persona knowledge packs (context only)"));
+    assert!(!prompt.contains("founder-persona (activation: implicit, role: companion)"));
+    assert!(!prompt.contains("Persona context boundaries"));
+    assert!(!prompt.contains("writes_back_to_global_soul=false"));
 }

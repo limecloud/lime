@@ -2,7 +2,6 @@ import {
   useCallback,
   useEffect,
   useMemo,
-  useState,
   type Dispatch,
   type SetStateAction,
 } from "react";
@@ -17,7 +16,6 @@ import type {
 import { emitCanvasImageInsertRequest } from "@/lib/canvasImageInsertBus";
 import { onImageWorkbenchTaskAction } from "@/lib/imageWorkbenchEvents";
 import { buildImageTaskLookupRequest } from "./imageTaskLocator";
-import { importImageWorkbenchOutputToResource } from "./imageWorkbenchResourceManager";
 import {
   collapseWhitespace,
   resolveImageWorkbenchApplyDispatchLabel,
@@ -84,7 +82,6 @@ export function useWorkspaceImageWorkbenchActionRuntime({
   updateCurrentImageWorkbenchState,
 }: UseWorkspaceImageWorkbenchActionRuntimeParams) {
   const { t } = useTranslation("agent");
-  const [savingToResource, setSavingToResource] = useState(false);
 
   const handleImageWorkbenchViewportChange = useCallback(
     (viewport: SessionImageWorkbenchState["viewport"]) => {
@@ -426,57 +423,6 @@ export function useWorkspaceImageWorkbenchActionRuntime({
     projectId,
   ]);
 
-  const handleSaveSelectedImageWorkbenchOutput = useCallback(async () => {
-    const selectedOutput = currentImageWorkbenchState.outputs.find(
-      (item) => item.id === currentImageWorkbenchState.selectedOutputId,
-    );
-    if (!selectedOutput) {
-      toast.info(t("agentChat.imageWorkbenchAction.toast.output.selectImage"));
-      return;
-    }
-    if (!projectId) {
-      toast.error(
-        t("agentChat.imageWorkbenchAction.toast.resource.missingProject"),
-      );
-      return;
-    }
-    if (selectedOutput.resourceSaved) {
-      toast.info(t("agentChat.imageWorkbenchAction.toast.resource.duplicate"));
-      return;
-    }
-    if (savingToResource) {
-      return;
-    }
-
-    setSavingToResource(true);
-    try {
-      await importImageWorkbenchOutputToResource({
-        output: selectedOutput,
-        projectId,
-      });
-      updateCurrentImageWorkbenchState((current) => ({
-        ...current,
-        outputs: current.outputs.map((item) =>
-          item.id === selectedOutput.id
-            ? { ...item, resourceSaved: true }
-            : item,
-        ),
-      }));
-      toast.success(t("agentChat.imageWorkbenchAction.toast.resource.success"));
-    } catch {
-      toast.error(t("agentChat.imageWorkbenchAction.toast.resource.failed"));
-    } finally {
-      setSavingToResource(false);
-    }
-  }, [
-    currentImageWorkbenchState.outputs,
-    currentImageWorkbenchState.selectedOutputId,
-    projectId,
-    savingToResource,
-    t,
-    updateCurrentImageWorkbenchState,
-  ]);
-
   const handleApplySelectedImageWorkbenchOutput = useCallback(() => {
     const selectedOutput = currentImageWorkbenchState.outputs.find(
       (item) => item.id === currentImageWorkbenchState.selectedOutputId,
@@ -580,11 +526,9 @@ export function useWorkspaceImageWorkbenchActionRuntime({
     handleCancelImageWorkbenchTask,
     handleImageWorkbenchViewportChange,
     handleRetryImageWorkbenchTask,
-    handleSaveSelectedImageWorkbenchOutput,
     handleSeedImageWorkbenchFollowUp,
     handleSelectImageWorkbenchOutput,
     handleStopImageWorkbenchGeneration,
     imageWorkbenchPrimaryActionLabel,
-    savingToResource,
   };
 }

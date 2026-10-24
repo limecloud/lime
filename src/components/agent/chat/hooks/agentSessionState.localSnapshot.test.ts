@@ -337,12 +337,11 @@ describe("agentSessionState local snapshot hydrate", () => {
             content: "最终 Skill 回复",
             timestamp: now,
             runtimeTurnId: "skill-exec-local-skill-assistant",
-            thinkingContent:
-              "正在执行 Skill: brand-product-knowledge-builder...",
+            thinkingContent: "正在执行 Skill: personal-ip-knowledge-builder...",
             contentParts: [
               {
                 type: "thinking",
-                text: "正在执行 Skill: brand-product-knowledge-builder...",
+                text: "正在执行 Skill: personal-ip-knowledge-builder...",
               },
               {
                 type: "text",
@@ -363,12 +362,12 @@ describe("agentSessionState local snapshot hydrate", () => {
       "skill-exec-local-skill-assistant",
     );
     expect(result.snapshot.messages[1]?.thinkingContent).toBe(
-      "正在执行 Skill: brand-product-knowledge-builder...",
+      "正在执行 Skill: personal-ip-knowledge-builder...",
     );
     expect(result.snapshot.messages[1]?.contentParts).toEqual([
       {
         type: "thinking",
-        text: "正在执行 Skill: brand-product-knowledge-builder...",
+        text: "正在执行 Skill: personal-ip-knowledge-builder...",
       },
       {
         type: "text",
@@ -524,11 +523,11 @@ describe("agentSessionState local snapshot hydrate", () => {
           content: "最终 Skill 回复",
           timestamp: now,
           runtimeTurnId: "skill-exec-local-detached-skill-assistant",
-          thinkingContent: "正在执行 Skill: brand-product-knowledge-builder...",
+          thinkingContent: "正在执行 Skill: personal-ip-knowledge-builder...",
           contentParts: [
             {
               type: "thinking",
-              text: "正在执行 Skill: brand-product-knowledge-builder...",
+              text: "正在执行 Skill: personal-ip-knowledge-builder...",
             },
             {
               type: "text",
@@ -548,12 +547,12 @@ describe("agentSessionState local snapshot hydrate", () => {
       id: "local-detached-skill-assistant",
       content: "最终 Skill 回复",
       runtimeTurnId: "skill-exec-local-detached-skill-assistant",
-      thinkingContent: "正在执行 Skill: brand-product-knowledge-builder...",
+      thinkingContent: "正在执行 Skill: personal-ip-knowledge-builder...",
     });
     expect(result.snapshot.messages[1]?.contentParts).toEqual([
       {
         type: "thinking",
-        text: "正在执行 Skill: brand-product-knowledge-builder...",
+        text: "正在执行 Skill: personal-ip-knowledge-builder...",
       },
       {
         type: "text",

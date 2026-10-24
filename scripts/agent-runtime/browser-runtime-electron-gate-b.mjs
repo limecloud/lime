@@ -26,7 +26,17 @@ import { runBrowserPermissionScenario } from "./browser-runtime-electron-gate-b-
 import { runBrowserWindowCloseScenario } from "./browser-runtime-electron-gate-b-window-close.mjs";
 import { runBrowserProjectionGateA } from "./browser-runtime-gate-a.mjs";
 import { runBrowserHistoryScenario } from "./browser-runtime-electron-gate-b-history.mjs";
+import {
+  prepareBrowserHistoryManagementSeed,
+  runBrowserHistoryManagementScenario,
+} from "./browser-runtime-electron-gate-b-history-management.mjs";
 import { runBrowserDataScenario } from "./browser-runtime-electron-gate-b-data.mjs";
+import { runBrowserSitePermissionsScenario } from "./browser-runtime-electron-gate-b-site-permissions.mjs";
+import { runBrowserDeviceScenario } from "./browser-runtime-electron-gate-b-device.mjs";
+import { runBrowserAddressScenario } from "./browser-runtime-electron-gate-b-address.mjs";
+import { runBrowserNewTabAddressScenario } from "./browser-runtime-electron-gate-b-new-tab-address.mjs";
+import { runBrowserSettingsNavigationScenario } from "./browser-runtime-electron-gate-b-settings-navigation.mjs";
+import { runBrowserDeviceAnnotationScenario } from "./browser-runtime-electron-gate-b-device-annotation.mjs";
 import { runBrowserHistoryAccessScenario } from "./browser-runtime-electron-gate-b-history-access.mjs";
 import { createBrowserHistoryAccessResponses } from "./browser-history-access-provider.mjs";
 import { runBrowserDownloadHistoryScenario } from "./browser-runtime-electron-gate-b-download-history.mjs";
@@ -110,6 +120,13 @@ const SCENARIOS = new Set([
   "projection",
   "history",
   "browser-data",
+  "site-permissions",
+  "device",
+  "device-annotation",
+  "address-input",
+  "new-tab-address",
+  "settings-navigation",
+  "history-management",
   "history-access",
   "download-history",
   "annotation",
@@ -212,7 +229,7 @@ export function parseArgs(argv) {
   }
   if (!SCENARIOS.has(options.scenario)) {
     throw new Error(
-      `--scenario 必须是 projection、history、history-access、download-history、annotation、annotation-text、annotation-form-text、annotation-frames、annotation-design、lifecycle、approval、browse-approval、user-control、cancel、window-close、disconnect、permission、download 或 artifact，收到: ${options.scenario || "<empty>"}`,
+      `--scenario 必须是 projection、history、browser-data、site-permissions、device、device-annotation、address-input、new-tab-address、settings-navigation、history-management、history-access、download-history、annotation、annotation-text、annotation-form-text、annotation-frames、annotation-design、lifecycle、approval、browse-approval、user-control、cancel、window-close、disconnect、permission、download 或 artifact，收到: ${options.scenario || "<empty>"}`,
     );
   }
   if (!SUPPORTED_LOCALES.has(options.locale)) {
@@ -265,6 +282,45 @@ export function parseArgs(argv) {
     options.output = DEFAULT_OUTPUT.replace(
       "-summary",
       "-history-access-summary",
+    );
+  }
+  if (!outputExplicit && options.scenario === "site-permissions") {
+    options.output = DEFAULT_OUTPUT.replace(
+      "-summary",
+      "-site-permissions-summary",
+    );
+  }
+  if (!outputExplicit && options.scenario === "device") {
+    options.output = DEFAULT_OUTPUT.replace("-summary", "-device-summary");
+  }
+  if (!outputExplicit && options.scenario === "new-tab-address") {
+    options.output = DEFAULT_OUTPUT.replace(
+      "-summary",
+      "-new-tab-address-summary",
+    );
+  }
+  if (!outputExplicit && options.scenario === "settings-navigation") {
+    options.output = DEFAULT_OUTPUT.replace(
+      "-summary",
+      "-settings-navigation-summary",
+    );
+  }
+  if (!outputExplicit && options.scenario === "history-management") {
+    options.output = DEFAULT_OUTPUT.replace(
+      "-summary",
+      "-history-management-summary",
+    );
+  }
+  if (!outputExplicit && options.scenario === "address-input") {
+    options.output = DEFAULT_OUTPUT.replace(
+      "-summary",
+      "-address-input-summary",
+    );
+  }
+  if (!outputExplicit && options.scenario === "device-annotation") {
+    options.output = DEFAULT_OUTPUT.replace(
+      "-summary",
+      "-device-annotation-summary",
     );
   }
   if (!outputExplicit && options.scenario === "download-history") {
@@ -1375,13 +1431,16 @@ Browser Electron Gate B
 
 选项:
   --output <path>       证据 JSON 路径
-  --scenario <name>     projection（Gate A）、history、history-access（后台 Agent 历史权限）、download-history（真实 Electron 下载管理）、annotation、annotation-design（后台设计提交）、lifecycle（默认）、approval、browse-approval、user-control、cancel、window-close、disconnect、permission、download 或 artifact
+  --scenario <name>     projection（Gate A）、history、browser-data、site-permissions、device（真实设备工具栏）、device-annotation（原生设备批注坐标）、address-input（地址编辑焦点与输入）、new-tab-address（新标签地址草稿生命周期）、settings-navigation（设置管理页导航）、history-management（日期/来源/批量历史管理）、history-access（后台 Agent 历史权限）、download-history（真实 Electron 下载管理）、annotation、annotation-design（后台设计提交）、lifecycle（默认）、approval、browse-approval、user-control、cancel、window-close、disconnect、permission、download 或 artifact
   --locale <locale>     zh-CN、zh-TW、en-US、ja-JP 或 ko-KR
   --screenshot-dir <dir> 采集 renderer/browser/agent/takeover/released/destroyed 截图
   --app-url <url>       可选 renderer dev server
   --timeout-ms <ms>     总超时，默认 180000
   --interval-ms <ms>    轮询间隔，默认 500
   --keep-temp           保留临时 fixture 目录
+
+原生网页焦点验收需要前台窗口：
+  LIME_BROWSER_DESIGN_VISIBLE=1  显示 design host 场景的真实窗口；默认隐藏
 `);
 }
 
@@ -1435,12 +1494,28 @@ export async function run(options) {
     annotationFrames: options.scenario === "annotation-frames",
   });
   try {
+    const historyManagementSeed =
+      options.scenario === "history-management"
+        ? await prepareBrowserHistoryManagementSeed(
+            runtimeEnv.electronUserDataDir,
+          )
+        : null;
     logStage("launch-electron");
     app = await electron.launch({
       executablePath: electronPath,
       args: [
         "--use-mock-keychain",
-        ["annotation-design", "history-access"].includes(options.scenario)
+        [
+          "annotation-design",
+          "history-access",
+          "site-permissions",
+          "device",
+          "device-annotation",
+          "address-input",
+          "new-tab-address",
+          "settings-navigation",
+          "history-management",
+        ].includes(options.scenario)
           ? path.resolve("scripts/agent-runtime/browser-design-submit-host.mjs")
           : ".",
       ],
@@ -1454,7 +1529,17 @@ export async function run(options) {
         LIME_ELECTRON_BRAND_DEV_APP: "0",
         LIME_ELECTRON_CLEAR_RENDERER_CACHE: "1",
         LIME_ELECTRON_DEV_HTTP_BRIDGE: "0",
-        ...(["annotation-design", "history-access"].includes(options.scenario)
+        ...([
+          "annotation-design",
+          "history-access",
+          "site-permissions",
+          "device",
+          "device-annotation",
+          "address-input",
+          "new-tab-address",
+          "settings-navigation",
+          "history-management",
+        ].includes(options.scenario)
           ? { LIME_BROWSER_DESIGN_ROOT: process.cwd() }
           : {}),
         ...(options.appUrl ? { VITE_DEV_SERVER_URL: options.appUrl } : {}),
@@ -1656,18 +1741,39 @@ export async function run(options) {
     if (
       options.scenario === "history" ||
       options.scenario === "browser-data" ||
+      options.scenario === "site-permissions" ||
+      options.scenario === "device" ||
+      options.scenario === "device-annotation" ||
+      options.scenario === "address-input" ||
+      options.scenario === "new-tab-address" ||
+      options.scenario === "settings-navigation" ||
+      options.scenario === "history-management" ||
       options.scenario === "history-access" ||
       options.scenario === "download-history"
     ) {
       logStage(`run-browser-${options.scenario}`);
       const historyEvidence = await (
-        options.scenario === "browser-data"
-          ? runBrowserDataScenario
-          : options.scenario === "history-access"
-            ? runBrowserHistoryAccessScenario
-            : options.scenario === "history"
-              ? runBrowserHistoryScenario
-              : runBrowserDownloadHistoryScenario
+        options.scenario === "history-management"
+          ? runBrowserHistoryManagementScenario
+          : options.scenario === "settings-navigation"
+            ? runBrowserSettingsNavigationScenario
+            : options.scenario === "new-tab-address"
+              ? runBrowserNewTabAddressScenario
+              : options.scenario === "address-input"
+                ? runBrowserAddressScenario
+                : options.scenario === "device-annotation"
+                  ? runBrowserDeviceAnnotationScenario
+                  : options.scenario === "device"
+                    ? runBrowserDeviceScenario
+                    : options.scenario === "site-permissions"
+                      ? runBrowserSitePermissionsScenario
+                      : options.scenario === "browser-data"
+                        ? runBrowserDataScenario
+                        : options.scenario === "history-access"
+                          ? runBrowserHistoryAccessScenario
+                          : options.scenario === "history"
+                            ? runBrowserHistoryScenario
+                            : runBrowserDownloadHistoryScenario
       )({
         app,
         page,
@@ -1675,6 +1781,7 @@ export async function run(options) {
         identity,
         workspaceId: workspace.workspaceId,
         guiBeforeTurn,
+        historyManagementSeed,
         providerFixture,
         waitForTerminalThread,
         readBrowserWorkspaceState,
@@ -1690,7 +1797,7 @@ export async function run(options) {
         historyEvidence.failedAssertions.length === 0 &&
           consoleErrors.length === 0 &&
           pageErrors.length === 0,
-        `Browser history 断言失败: ${historyEvidence.failedAssertions.join(", ")}`,
+        `Browser ${options.scenario} 断言失败: ${historyEvidence.failedAssertions.join(", ")}`,
       );
       return historyEvidence;
     }

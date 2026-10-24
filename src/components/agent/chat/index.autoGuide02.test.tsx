@@ -3,18 +3,14 @@ import { describe, expect, it, vi } from "vitest";
 import {
   clickButton,
   createMockAgentChatUnifiedState,
-  createMockThemeContextWorkspaceState,
   flushEffects,
   getIndexTestMocks,
   getSendMessageCall,
   installMockAgentChatUnifiedState,
   type MockInputbarSendPayload,
   mountedRoots,
-  observedWorkspaceIds,
   renderPage,
   sharedSendMessageMock,
-  sharedSwitchTopicMock,
-  sharedTriggerAIGuideMock,
 } from "./index.testFixtures";
 
 const {
@@ -26,98 +22,12 @@ const {
   mockMessageList,
   mockToast,
   mockUpdateContent,
-  mockUseAgentChatUnified,
-  mockUseThemeContextWorkspace,
   mockUseTopicBranchBoard,
 } = getIndexTestMocks();
 
 describe("AgentChatPage 自动引导", { timeout: 20_000 }, () => {
-  it("工作区上下文兼容态启用时应优先进入 chat-canvas 布局，而不是回退到旧聊天预留页", async () => {
-    mockUseThemeContextWorkspace.mockReturnValue(
-      createMockThemeContextWorkspaceState({
-        enabled: true,
-      }),
-    );
-
-    const container = renderPage({
-      projectId: "project-social-canvas-first",
-      contentId: "content-social-canvas-first",
-      theme: "general",
-      lockTheme: true,
-    });
-    await flushEffects(10);
-
-    const layout = container.querySelector('[data-testid="layout-transition"]');
-    expect(layout?.getAttribute("data-mode")).toBe("chat-canvas");
-  });
-
-  it("工作区上下文兼容态打开已有文稿时首帧应直接进入 chat-canvas 布局，避免旧对话闪现", async () => {
-    mockUseThemeContextWorkspace.mockReturnValue(
-      createMockThemeContextWorkspaceState({
-        enabled: true,
-      }),
-    );
-    mockGetContent.mockResolvedValue({
-      id: "content-social-canvas-sync",
-      body: "# 已有主稿\n\n这里是正文。",
-      metadata: {},
-    });
-
-    mockUseAgentChatUnified.mockImplementation(
-      ({ workspaceId }: { workspaceId: string }) => {
-        observedWorkspaceIds.push(workspaceId);
-        return {
-          providerType: "openai",
-          setProviderType: vi.fn(),
-          model: "mock-model",
-          setModel: vi.fn(),
-          executionStrategy: "react",
-          setExecutionStrategy: vi.fn(),
-          messages: [{ id: "msg-restored", role: "user", content: "历史对话" }],
-          isSending: false,
-          sendMessage: sharedSendMessageMock,
-          stopSending: vi.fn(async () => undefined),
-          clearMessages: vi.fn(),
-          deleteMessage: vi.fn(),
-          editMessage: vi.fn(),
-          handlePermissionResponse: vi.fn(),
-          triggerAIGuide: sharedTriggerAIGuideMock,
-          topics: [
-            {
-              id: "topic-a",
-              title: "话题 A",
-              updatedAt: Date.now(),
-            },
-          ],
-          sessionId: "session-1",
-          switchTopic: sharedSwitchTopicMock,
-          deleteTopic: vi.fn(),
-          renameTopic: vi.fn(),
-        };
-      },
-    );
-
-    const container = renderPage({
-      projectId: "project-social-canvas-sync",
-      contentId: "content-social-canvas-sync",
-      theme: "general",
-      lockTheme: true,
-    });
-
-    const layout = container.querySelector('[data-testid="layout-transition"]');
-    expect(layout?.getAttribute("data-mode")).toBe("chat-canvas");
-    expect(container.textContent).not.toContain("历史对话");
-
-    await flushEffects(10);
-  });
-
   it("工作区编排启用时应仅保留专用侧栏，不再渲染右侧旧操作面板", async () => {
-    mockUseThemeContextWorkspace.mockReturnValue(
-      createMockThemeContextWorkspaceState({
-        enabled: true,
-      }),
-    );
-
+    mockIsSpecializedWorkbenchTheme.mockReturnValue(true);
     const container = renderPage({
       projectId: "project-social-layout",
       contentId: "content-social-layout",
@@ -139,11 +49,6 @@ describe("AgentChatPage 自动引导", { timeout: 20_000 }, () => {
 
   it("工作区编排在初始意图稍后注入时应改为预填并等待确认", async () => {
     mockIsSpecializedWorkbenchTheme.mockReturnValue(true);
-    mockUseThemeContextWorkspace.mockReturnValue(
-      createMockThemeContextWorkspaceState({
-        enabled: true,
-      }),
-    );
     const onInitialUserPromptConsumed = vi.fn();
 
     renderPage({
@@ -210,11 +115,6 @@ describe("AgentChatPage 自动引导", { timeout: 20_000 }, () => {
 
   it("工作区编排空文稿不应再自动注入旧版提问引导词", async () => {
     mockIsSpecializedWorkbenchTheme.mockReturnValue(true);
-    mockUseThemeContextWorkspace.mockReturnValue(
-      createMockThemeContextWorkspaceState({
-        enabled: true,
-      }),
-    );
 
     renderPage({
       projectId: "project-theme-no-legacy-guide",
@@ -276,11 +176,7 @@ describe("AgentChatPage 自动引导", { timeout: 20_000 }, () => {
   });
 
   it("工作区编排空闲时应把 success 终态版本标记为 merged", async () => {
-    mockUseThemeContextWorkspace.mockReturnValue(
-      createMockThemeContextWorkspaceState({
-        enabled: true,
-      }),
-    );
+    mockIsSpecializedWorkbenchTheme.mockReturnValue(true);
     mockGetContent.mockResolvedValue({
       id: "content-theme-success",
       body: "当前主稿",
@@ -332,11 +228,7 @@ describe("AgentChatPage 自动引导", { timeout: 20_000 }, () => {
   });
 
   it("工作区编排空闲时应把 error 终态版本标记为 candidate", async () => {
-    mockUseThemeContextWorkspace.mockReturnValue(
-      createMockThemeContextWorkspaceState({
-        enabled: true,
-      }),
-    );
+    mockIsSpecializedWorkbenchTheme.mockReturnValue(true);
     mockGetContent.mockResolvedValue({
       id: "content-theme-error",
       body: "当前主稿",
@@ -389,11 +281,6 @@ describe("AgentChatPage 自动引导", { timeout: 20_000 }, () => {
 
   it("工作区编排写入辅助产物时不应覆盖主稿正文", async () => {
     mockIsSpecializedWorkbenchTheme.mockReturnValue(true);
-    mockUseThemeContextWorkspace.mockReturnValue(
-      createMockThemeContextWorkspaceState({
-        enabled: true,
-      }),
-    );
     mockGetContent.mockResolvedValue({
       id: "content-theme-artifact-guard",
       body: "旧内容",
@@ -454,7 +341,5 @@ describe("AgentChatPage 自动引导", { timeout: 20_000 }, () => {
     expect(bodyUpdateCalls[0]?.[1]).toMatchObject({
       body: "# 主稿标题\n\n这是主稿正文。",
     });
-
   });
-
 });

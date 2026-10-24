@@ -1,14 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { subscribeAppConfigChanged } from "@/lib/api/appConfig";
 import {
-  getBrowserSettings,
+  getBrowserSettingsSnapshot,
   BrowserSettingsConflictError,
   updateBrowserSetting,
   type BrowserSettings,
 } from "@/lib/api/browserSettings";
+import type { BrowserPermissionContext } from "@/lib/api/browserUsePolicySitePermissions";
 
 export function useBrowserSettings() {
   const [configured, setConfigured] = useState<BrowserSettings | null>(null);
+  const [permissionContext, setPermissionContext] =
+    useState<BrowserPermissionContext | null>(null);
   const [error, setError] = useState<
     "load" | "save" | "conflict" | "reload" | null
   >(null);
@@ -20,9 +23,10 @@ export function useBrowserSettings() {
     if (saving.current) return;
     const current = ++revision.current;
     try {
-      const value = await getBrowserSettings();
+      const value = await getBrowserSettingsSnapshot();
       if (alive.current && revision.current === current) {
-        setConfigured(value);
+        setConfigured(value.settings);
+        setPermissionContext(value.permissionContext);
         setError(null);
       }
     } catch {
@@ -49,7 +53,13 @@ export function useBrowserSettings() {
     value: BrowserSettings[K],
     expectedValue?: BrowserSettings[K],
   ) => {
-    if (!configured || saving.current || error === "reload" || error === "load")
+    if (
+      !alive.current ||
+      !configured ||
+      saving.current ||
+      error === "reload" ||
+      error === "load"
+    )
       return false;
     const previous = configured;
     const current = ++revision.current;
@@ -58,18 +68,25 @@ export function useBrowserSettings() {
     setError(null);
     setConfigured({ ...previous, [key]: value });
     try {
-      const saved = await updateBrowserSetting(
+      await updateBrowserSetting(
         key,
         value,
         expectedValue === undefined ? previous[key] : expectedValue,
       );
-      if (alive.current && revision.current === current) setConfigured(saved);
+      const saved = await getBrowserSettingsSnapshot();
+      if (alive.current && revision.current === current) {
+        setConfigured(saved.settings);
+        setPermissionContext(saved.permissionContext);
+      }
       return true;
     } catch (failure) {
       let restored = previous;
       let reloaded = true;
       try {
-        restored = await getBrowserSettings({ forceRefresh: true });
+        const snapshot = await getBrowserSettingsSnapshot();
+        restored = snapshot.settings;
+        if (alive.current && revision.current === current)
+          setPermissionContext(snapshot.permissionContext);
       } catch {
         reloaded = false;
         // 保留最后已知配置，不把未知保存结果当作成功。
@@ -90,5 +107,5 @@ export function useBrowserSettings() {
       if (alive.current) setPending(false);
     }
   };
-  return { configured, error, pending, refresh, save };
+  return { configured, permissionContext, error, pending, refresh, save };
 }

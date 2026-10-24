@@ -11,6 +11,7 @@ interface ModelSelectorTriggerProps extends ComponentProps<typeof Button> {
   providerType: string;
   providerLabel: string;
   modelLabel: string;
+  reasoningLabel?: string;
   selectedProviderLabel: string;
   placeholderLabel?: string;
 }
@@ -25,6 +26,7 @@ export const ModelSelectorTrigger = forwardRef<
     providerType,
     providerLabel,
     modelLabel,
+    reasoningLabel,
     selectedProviderLabel,
     placeholderLabel,
     ...props
@@ -33,7 +35,14 @@ export const ModelSelectorTrigger = forwardRef<
 ) {
   const presentation = useContext(InlineControlLayoutContext);
   const hideLabel = compact && presentation === "compact";
-  const label = placeholderLabel ?? `${selectedProviderLabel} / ${modelLabel}`;
+  const label =
+    placeholderLabel ??
+    `${selectedProviderLabel} / ${modelLabel}${reasoningLabel ? ` · ${reasoningLabel}` : ""}`;
+  const reasoning = reasoningLabel ? (
+    <span data-testid="model-selector-effort" className="shrink-0 text-xs">
+      · {reasoningLabel}
+    </span>
+  ) : null;
   return (
     <Button
       {...props}
@@ -71,11 +80,14 @@ export const ModelSelectorTrigger = forwardRef<
           <span
             className={
               compact
-                ? "min-w-0 flex-1 truncate text-xs font-medium"
+                ? "min-w-0 flex-1 flex items-center gap-1 text-xs font-medium"
                 : "min-w-0 flex-1 font-medium text-left text-slate-700"
             }
           >
-            {compact ? modelLabel : placeholderLabel}
+            <span className="min-w-0 truncate">
+              {compact ? modelLabel : placeholderLabel}
+            </span>
+            {compact ? reasoning : null}
           </span>
         ) : (
           <span className="min-w-0 flex-1 flex items-center gap-1.5">
@@ -86,6 +98,7 @@ export const ModelSelectorTrigger = forwardRef<
             <span className="text-sm text-slate-500 truncate">
               {modelLabel}
             </span>
+            {reasoning}
           </span>
         )
       ) : null}

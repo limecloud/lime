@@ -15,20 +15,16 @@ import type { SettingsSearchResult } from "../settingsSearch";
 
 const {
   mockSettingsSidebar,
-  mockPreloadDeveloperDefaultSections,
   mockCloudProviderSettings,
   mockGeneralSettings,
-  mockDeveloperLabSettings,
   mockArchivedConversationsSettings,
   mockExecutionPolicySettings,
   mockProfileSettings,
   mockUserCenterSessionSettings,
 } = vi.hoisted(() => ({
   mockSettingsSidebar: vi.fn(),
-  mockPreloadDeveloperDefaultSections: vi.fn(),
   mockCloudProviderSettings: vi.fn(),
   mockGeneralSettings: vi.fn(),
-  mockDeveloperLabSettings: vi.fn(),
   mockArchivedConversationsSettings: vi.fn(),
   mockExecutionPolicySettings: vi.fn(),
   mockProfileSettings: vi.fn(),
@@ -62,15 +58,6 @@ vi.mock("../general/archived-conversations", () => ({
     return <div>archived-conversations</div>;
   },
 }));
-vi.mock("../system/developer-lab", () => ({
-  DeveloperLabSettings: (props: unknown) => {
-    mockDeveloperLabSettings(props);
-    return <div>developer-lab</div>;
-  },
-}));
-vi.mock("../system/developer/preload", () => ({
-  preloadDeveloperDefaultSections: mockPreloadDeveloperDefaultSections,
-}));
 vi.mock("../system/about", () => ({
   AboutSection: () => <div>about</div>,
 }));
@@ -79,9 +66,6 @@ vi.mock("../agent/skills", () => ({
 }));
 vi.mock("../agent/media-services", () => ({
   MediaServicesSettings: () => <div>media-services</div>,
-}));
-vi.mock("../account/stats", () => ({
-  StatsSettings: () => <div>stats</div>,
 }));
 vi.mock("../account/profile", () => ({
   ProfileSettings: () => {
@@ -112,9 +96,6 @@ vi.mock("../system/execution-policy", () => ({
     mockExecutionPolicySettings(props);
     return <div>execution-policy</div>;
   },
-}));
-vi.mock("../system/web-search", () => ({
-  WebSearchSettings: () => <div>web-search</div>,
 }));
 vi.mock("../general/GeneralSettings", () => ({
   GeneralSettings: (props: unknown) => {
@@ -211,10 +192,8 @@ afterEach(async () => {
   vi.clearAllMocks();
   vi.unstubAllGlobals();
   mockSettingsSidebar.mockReset();
-  mockPreloadDeveloperDefaultSections.mockReset();
   mockCloudProviderSettings.mockReset();
   mockGeneralSettings.mockReset();
-  mockDeveloperLabSettings.mockReset();
   mockArchivedConversationsSettings.mockReset();
   mockExecutionPolicySettings.mockReset();
 
@@ -319,7 +298,7 @@ describe("SettingsPage browser return owner", () => {
   });
 });
 
-describe("SettingsPage Experimental Tab", () => {
+describe("SettingsPage unknown section", () => {
   it("未知设置页应回退到常规设置", async () => {
     const container = renderComponent(
       "unknown-settings-section" as SettingsTabs,
@@ -330,28 +309,9 @@ describe("SettingsPage Experimental Tab", () => {
     expect(text).toContain("home");
     expect(text).not.toContain("unknown-settings-section");
   });
-
-  it("旧实验功能直达入口应切到开发者与实验功能合并页", async () => {
-    const container = renderComponent(SettingsTabs.Experimental);
-    await flushEffects();
-    const text = container.textContent ?? "";
-    const sidebarProps = mockSettingsSidebar.mock.calls.at(-1)?.[0] as
-      | {
-          activeTab?: SettingsTabs;
-        }
-      | undefined;
-
-    expect(text).toContain("developer-lab");
-    expect(text).not.toContain("experimental");
-    expect(sidebarProps?.activeTab).toBe(SettingsTabs.Developer);
-    expect(mockDeveloperLabSettings.mock.calls.at(-1)?.[0]).toMatchObject({
-      initialTab: "experimental",
-    });
-    expect(text).not.toContain("实验功能");
-  });
 });
 
-describe("SettingsPage Developer Tab", () => {
+describe("SettingsPage layout", () => {
   it("设置 contextual 导航允许返回进入设置前的页面", async () => {
     vi.stubGlobal("navigator", { platform: "MacIntel", userAgent: "Mac OS X" });
     const onNavigate = vi.fn();
@@ -391,18 +351,6 @@ describe("SettingsPage Developer Tab", () => {
     expect(onNavigate).not.toHaveBeenCalled();
   });
 
-  it("开发者页应展示开发者与实验功能合并页，不再复用壳层设置页标题", async () => {
-    const container = renderComponent(SettingsTabs.Developer);
-    await flushEffects();
-    const text = container.textContent ?? "";
-
-    expect(text).toContain("developer-lab");
-    expect(mockDeveloperLabSettings.mock.calls.at(-1)?.[0]).toMatchObject({
-      initialTab: "developer",
-    });
-    expect(text).not.toContain("开发者");
-  });
-
   it("设置内容使用独立窗口工具栏与主题作用域", async () => {
     const container = renderComponent(SettingsTabs.Providers);
     await flushEffects();
@@ -413,24 +361,6 @@ describe("SettingsPage Developer Tab", () => {
     expect(
       container.querySelector(".lime-settings-theme-scope"),
     ).not.toBeNull();
-  });
-
-  it("预取开发者页时应连同延迟区块一起预热", async () => {
-    renderComponent(SettingsTabs.General);
-    const sidebarProps = mockSettingsSidebar.mock.calls[0]?.[0] as
-      | {
-          onTabPrefetch?: (tab: SettingsTabs) => void;
-        }
-      | undefined;
-
-    expect(sidebarProps?.onTabPrefetch).toBeTypeOf("function");
-
-    await act(async () => {
-      sidebarProps?.onTabPrefetch?.(SettingsTabs.Developer);
-      await flushEffects();
-    });
-
-    expect(mockPreloadDeveloperDefaultSections).toHaveBeenCalledTimes(1);
   });
 
   it("常规设置应使用独立功能 owner", async () => {
@@ -536,20 +466,6 @@ describe("SettingsPage current sections", () => {
     expect(mockExecutionPolicySettings.mock.calls.at(-1)![0]).toEqual({
       focus: null,
     });
-    await select(SettingsTabs.Experimental);
-    expect(onNavigate).toHaveBeenLastCalledWith("settings", {
-      tab: SettingsTabs.Experimental,
-    });
-    expect(mockSettingsSidebar.mock.calls.at(-1)![0]).toMatchObject({
-      activeTab: SettingsTabs.Developer,
-    });
-    expect(mockDeveloperLabSettings.mock.calls.at(-1)![0]).toEqual({
-      initialTab: "experimental",
-    });
-    await select(SettingsTabs.Developer);
-    expect(mockDeveloperLabSettings.mock.calls.at(-1)![0]).toEqual({
-      initialTab: "developer",
-    });
   });
 
   it.each([
@@ -584,7 +500,6 @@ describe("SettingsPage current sections", () => {
   it.each([
     [SettingsTabs.General, "home"],
     [SettingsTabs.Profile, "USER_CENTER_SESSION"],
-    [SettingsTabs.Stats, "stats"],
     [SettingsTabs.Appearance, "appearance"],
     [SettingsTabs.Memory, "memory"],
     [SettingsTabs.ArchivedConversations, "archived-conversations"],
@@ -592,10 +507,8 @@ describe("SettingsPage current sections", () => {
     [SettingsTabs.Skills, "skills"],
     [SettingsTabs.MediaServices, "media-services"],
     [SettingsTabs.McpServer, "mcp"],
-    [SettingsTabs.WebSearch, "web-search"],
     [SettingsTabs.Environment, "environment"],
     [SettingsTabs.ExecutionPolicy, "execution-policy"],
-    [SettingsTabs.Developer, "developer-lab"],
     [SettingsTabs.About, "about"],
   ])("公开设置页应渲染 current %s 章节", async (tab, text) => {
     const container = renderComponent(tab);

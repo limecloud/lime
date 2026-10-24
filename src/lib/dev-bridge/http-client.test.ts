@@ -865,8 +865,8 @@ describe("http-client", () => {
         request: {
           lines: [
             JSON.stringify({
-              id: "knowledge",
-              method: "knowledgePack/list",
+              id: "models",
+              method: "model/list",
               params: {},
             }),
             JSON.stringify({
@@ -941,47 +941,6 @@ describe("http-client", () => {
       ok: false,
       error: expect.objectContaining({
         message: expect.stringContaining("timeout after 60000ms"),
-      }),
-    });
-  });
-
-  it("App Server Knowledge Pack 整理应保留 Builder Skill 长请求窗口", async () => {
-    const fetchMock = vi
-      .fn<typeof fetch>()
-      .mockResolvedValueOnce(electronHostHealthResponse())
-      .mockImplementationOnce(createAbortablePendingFetch());
-    vi.stubGlobal("fetch", fetchMock);
-
-    let settled = false;
-    const invokePromise = invokeViaHttp("app_server_handle_json_lines", {
-      request: {
-        lines: [
-          JSON.stringify({
-            id: "knowledge-compile",
-            method: "knowledgePack/compile",
-            params: {
-              workingDir: "/tmp/lime-knowledge-smoke",
-              name: "content-ops-acceptance",
-            },
-          }),
-        ],
-      },
-    }).then(
-      () => ({ ok: true as const }),
-      (error) => ({ ok: false as const, error }),
-    );
-    invokePromise.finally(() => {
-      settled = true;
-    });
-
-    await vi.advanceTimersByTimeAsync(60_000);
-    expect(settled).toBe(false);
-
-    await vi.advanceTimersByTimeAsync(120_000);
-    await expect(invokePromise).resolves.toMatchObject({
-      ok: false,
-      error: expect.objectContaining({
-        message: expect.stringContaining("timeout after 180000ms"),
       }),
     });
   });

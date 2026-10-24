@@ -1,10 +1,9 @@
 import { useTranslation } from "react-i18next";
 import { LoaderCircle, RotateCcw, Sparkles, X } from "lucide-react";
-import { openResourceManager } from "@/features/resource-manager";
+import { createPreviewArtifact } from "@/lib/artifact/previewArtifact";
 import { cn } from "@/lib/utils";
 import { RenderableTaskImage } from "./RenderableTaskImage";
 import type { ImageTaskViewerProps } from "./imageWorkbenchTypes";
-import { buildImageTaskResourceSourceContext } from "../workspace/imageWorkbenchResourceManager";
 import {
   buildFollowUpCommand,
   canRetryImageTask,
@@ -37,8 +36,7 @@ export function ImageTaskViewer({
   sourceProjectId,
   sourceContentId,
   sourceThreadId,
-  savingToResource,
-  onSaveSelectedToLibrary,
+  onOpenArtifact,
   applySelectedOutputLabel,
   onApplySelectedOutput,
   onRetryTask,
@@ -152,47 +150,25 @@ export function ImageTaskViewer({
       return;
     }
 
-    void openResourceManager({
-      sourceLabel: resolveModeEyebrow(selectedTask?.mode, t),
-      sourceContext: buildImageTaskResourceSourceContext({
-        taskId: selectedTask?.id ?? selectedOutput.taskId,
-        outputId: selectedOutput.id,
-        projectId: sourceProjectId,
-        contentId: sourceContentId,
-        threadId: sourceThreadId,
-        sourcePage: "image-task-viewer",
-      }),
-      initialIndex: selectedOutputIndex >= 0 ? selectedOutputIndex : 0,
-      items: selectedTaskOutputs.map((output, index) => {
-        const slotLabel = resolveSelectedStoryboardSlot({
-          task: selectedTask,
-          output,
-          outputIndex: index,
-          t,
-        })?.label;
-
-        return {
-          id: output.id,
-          kind: "image" as const,
-          src: output.url,
-          title: slotLabel || output.prompt || prompt,
-          description: output.slotPrompt || output.prompt || prompt,
-          metadata: {
-            prompt: output.slotPrompt || output.prompt || prompt,
-            slotLabel,
-            size: output.size,
-          },
-          sourceContext: buildImageTaskResourceSourceContext({
-            taskId: output.taskId || selectedTask?.id,
-            outputId: output.id,
-            projectId: sourceProjectId,
-            contentId: sourceContentId,
-            threadId: sourceThreadId,
-            sourcePage: "image-task-viewer",
-          }),
-        };
-      }),
-    });
+    onOpenArtifact(
+      createPreviewArtifact({
+        source: "task",
+        sourceRef: selectedOutput.id,
+        title: selectedStoryboardSlot?.label || selectedOutput.prompt || prompt,
+        previewUrl: selectedOutput.url,
+        isBinary: true,
+        mimeType: "image/png",
+        meta: {
+          taskId: selectedOutput.taskId,
+          outputId: selectedOutput.id,
+          prompt: selectedOutput.slotPrompt || selectedOutput.prompt || prompt,
+          slotLabel: selectedStoryboardSlot?.label,
+          projectId: sourceProjectId,
+          contentId: sourceContentId,
+          threadId: sourceThreadId,
+        },
+      }).artifact,
+    );
   };
 
   return (
@@ -432,7 +408,6 @@ export function ImageTaskViewer({
 
         {canRetryTask ||
         canContinueEdit ||
-        (selectedOutput && onSaveSelectedToLibrary) ||
         (selectedOutput && onApplySelectedOutput) ? (
           <div className="mt-4 flex flex-wrap items-center gap-2">
             {canRetryTask ? (
@@ -464,32 +439,6 @@ export function ImageTaskViewer({
                 className={IMAGE_TASK_PRIMARY_BUTTON_CLASSNAME}
               >
                 {resolveFollowUpLabel(selectedTask?.mode, t)}
-              </button>
-            ) : null}
-            {selectedOutput && onSaveSelectedToLibrary ? (
-              <button
-                type="button"
-                data-testid="image-task-viewer-action-save"
-                onClick={() => onSaveSelectedToLibrary()}
-                disabled={Boolean(
-                  selectedOutput?.resourceSaved || savingToResource,
-                )}
-                className={cn(
-                  "inline-flex items-center justify-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition",
-                  selectedOutput?.resourceSaved
-                    ? "cursor-default border-emerald-200 bg-emerald-50 text-emerald-700"
-                    : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:text-slate-900",
-                  savingToResource && !selectedOutput?.resourceSaved
-                    ? "cursor-wait"
-                    : null,
-                )}
-              >
-                {savingToResource && !selectedOutput?.resourceSaved ? (
-                  <LoaderCircle className="h-4 w-4 animate-spin" />
-                ) : null}
-                {selectedOutput?.resourceSaved
-                  ? t("agentChat.imageTaskViewer.action.savedToLibrary")
-                  : t("agentChat.imageTaskViewer.action.saveToLibrary")}
               </button>
             ) : null}
             {selectedOutput &&

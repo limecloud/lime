@@ -1,4 +1,22 @@
-use tokio::process::Command;
+use std::ffi::OsStr;
+use std::process::Command;
+use tokio::process::Command as TokioCommand;
+
+/// Construct a background command, suppressing console allocation on Windows.
+/// Convert with `tokio::process::Command::from` for asynchronous execution.
+/// Subsequent Windows `creation_flags` calls must retain `CREATE_NO_WINDOW`.
+pub fn background_command(program: impl AsRef<OsStr>) -> Command {
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+
+        let mut command = Command::new(program);
+        command.creation_flags(/*flags*/ 0x0800_0000); // CREATE_NO_WINDOW
+        command
+    }
+    #[cfg(not(windows))]
+    Command::new(program)
+}
 
 #[cfg(windows)]
 const CREATE_NO_WINDOW_FLAG: u32 = 0x08000000;
@@ -13,12 +31,12 @@ pub struct DecodedProcessOutput {
 }
 
 #[allow(unused_variables)]
-pub fn configure_command_no_window(command: &mut Command) {
+pub fn configure_command_no_window(command: &mut TokioCommand) {
     #[cfg(windows)]
     command.creation_flags(CREATE_NO_WINDOW_FLAG);
 }
 
-pub fn configure_command_for_gui(command: &mut Command) {
+pub fn configure_command_for_gui(command: &mut TokioCommand) {
     configure_command_no_window(command);
 }
 

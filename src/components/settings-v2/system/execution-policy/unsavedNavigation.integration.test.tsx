@@ -243,7 +243,7 @@ it("accepts submitted fields while retaining a different in-flight field", async
   await click(button("Save policy"));
   await click(
     container.querySelector(
-      'button[aria-label="Enable strict workspace sandbox"]',
+      'button[aria-label="Enable the update_plan planning tool"]',
     )!,
   );
   await act(async () => pending.resolve());
@@ -251,7 +251,7 @@ it("accepts submitted fields while retaining a different in-flight field", async
   expect(button("Save policy").disabled).toBe(false);
   await click(
     container.querySelector(
-      'button[aria-label="Enable strict workspace sandbox"]',
+      'button[aria-label="Enable the update_plan planning tool"]',
     )!,
   );
   expect(button("Save policy").disabled).toBe(true);

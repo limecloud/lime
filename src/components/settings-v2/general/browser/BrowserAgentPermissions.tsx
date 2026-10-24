@@ -3,18 +3,26 @@ import { ChevronLeft, ChevronRight, Pencil, Plus, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
   BROWSER_PERMISSION_ACTIONS,
+  DEFAULT_BROWSER_SITE_PERMISSIONS,
   normalizeBrowserSitePattern,
-  type BrowserPermission,
+  type BrowserPermissions,
   type BrowserSettings,
 } from "@/lib/api/browserSettings";
 import { BROWSER_SETTINGS_BUTTON } from "./BrowserSettingsFields";
+import { BrowserSitePermissionSelect } from "./BrowserSitePermissionSelect";
+import {
+  browserPermissionRowManaged,
+  type BrowserPermissionContext,
+} from "@/lib/api/browserUsePolicySitePermissions";
 
 export function BrowserAgentPermissions({
-  value,
+  settings,
+  context,
   disabled,
   onChange,
 }: {
-  value: BrowserSettings["agent_permissions"];
+  settings: BrowserSettings;
+  context: BrowserPermissionContext | null;
   disabled: boolean;
   onChange: (
     next: BrowserSettings["agent_permissions"],
@@ -22,6 +30,7 @@ export function BrowserAgentPermissions({
   ) => Promise<boolean>;
 }) {
   const { t } = useTranslation("settings");
+  const value = settings.agent_permissions;
   const [page, setPage] = useState(0);
   const [adding, setAdding] = useState(false);
   const [editingPattern, setEditingPattern] = useState<string | null>(null);
@@ -32,8 +41,22 @@ export function BrowserAgentPermissions({
     BrowserSettings["agent_permissions"] | null
   >(null);
   const actions = BROWSER_PERMISSION_ACTIONS.slice(page * 2, page * 2 + 2);
-  const options = ["ask", "allow", "deny"] as const;
+  const userPatterns = new Set(
+    context?.userPermissions.sites.map((site) => site.pattern),
+  );
+  const sites = [...value.sites].sort(
+    (a, b) =>
+      Number(userPatterns.has(b.pattern)) -
+        Number(userPatterns.has(a.pattern)) ||
+      a.pattern.localeCompare(b.pattern),
+  );
   const add = async () => {
+    if (
+      disabled ||
+      (editingPattern !== null &&
+        browserPermissionRowManaged(settings, context, editingPattern))
+    )
+      return;
     const expected = baseline ?? value;
     if (
       editingPattern !== null &&
@@ -58,7 +81,10 @@ export function BrowserAgentPermissions({
       editingPattern === null
         ? [
             ...expected.sites,
-            { pattern: normalized, permissions: { ...expected.default } },
+            {
+              pattern: normalized,
+              permissions: { ...DEFAULT_BROWSER_SITE_PERMISSIONS },
+            },
           ]
         : expected.sites.map((site) =>
             site.pattern === editingPattern
@@ -225,10 +251,21 @@ export function BrowserAgentPermissions({
             </tr>
           </thead>
           <tbody>
-            {[{ pattern: "", permissions: value.default }, ...value.sites].map(
+            {[{ pattern: "", permissions: value.default }, ...sites].map(
               (site, index) => {
                 const name =
                   index === 0 ? t("settings.browser.default") : site.pattern;
+                const managed =
+                  index > 0 &&
+                  (browserPermissionRowManaged(
+                    settings,
+                    context,
+                    site.pattern,
+                  ) ||
+                    (context !== null &&
+                      !context.userPermissions.sites.some(
+                        (entry) => entry.pattern === site.pattern,
+                      )));
                 return (
                   <tr
                     key={site.pattern}
@@ -243,38 +280,36 @@ export function BrowserAgentPermissions({
                     </th>
                     {actions.map((action) => (
                       <td key={action} className="px-2 py-3">
-                        <select
-                          value={site.permissions[action]}
+                        <BrowserSitePermissionSelect
+                          settings={settings}
+                          context={context}
+                          action={action}
+                          pattern={site.pattern}
+                          name={name}
                           disabled={disabled}
-                          aria-label={`${name} · ${t(`settings.browser.permissionAction.${action}`)}`}
-                          className="max-w-36 rounded-lg border border-border bg-background px-2 py-1.5 text-xs focus-visible:outline-ring disabled:opacity-50"
-                          onChange={(event) => {
+                          onChange={(permission) => {
                             const permissions = {
                               ...site.permissions,
-                              [action]: event.target.value as BrowserPermission,
+                              [action]: permission,
                             };
                             void onChange(
                               index === 0
-                                ? { ...value, default: permissions }
+                                ? {
+                                    ...value,
+                                    default: permissions as BrowserPermissions,
+                                  }
                                 : {
                                     ...value,
-                                    sites: value.sites.map(
-                                      (entry, siteIndex) =>
-                                        siteIndex === index - 1
-                                          ? { ...entry, permissions }
-                                          : entry,
+                                    sites: value.sites.map((entry) =>
+                                      entry.pattern === site.pattern
+                                        ? { ...entry, permissions }
+                                        : entry,
                                     ),
                                   },
                               value,
                             );
                           }}
-                        >
-                          {options.map((option) => (
-                            <option key={option} value={option}>
-                              {t(`settings.browser.permission.${option}`)}
-                            </option>
-                          ))}
-                        </select>
+                        />
                       </td>
                     ))}
                     <td className="px-2 py-3 text-right">
@@ -283,11 +318,17 @@ export function BrowserAgentPermissions({
                           <button
                             type="button"
                             className="rounded p-1.5 hover:bg-muted"
-                            disabled={disabled}
+                            disabled={disabled || managed}
+                            title={
+                              managed
+                                ? t("settings.browser.sitePermissions.managed")
+                                : undefined
+                            }
                             aria-label={t("settings.browser.editSite", {
                               site: name,
                             })}
                             onClick={() => {
+                              if (disabled || managed) return;
                               setEditingPattern(site.pattern);
                               setPattern(site.pattern);
                               setAdding(true);
@@ -301,21 +342,27 @@ export function BrowserAgentPermissions({
                           <button
                             type="button"
                             className="rounded p-1.5 hover:bg-muted"
-                            disabled={disabled}
+                            disabled={disabled || managed}
+                            title={
+                              managed
+                                ? t("settings.browser.sitePermissions.managed")
+                                : undefined
+                            }
                             aria-label={t("settings.browser.removeSite", {
                               site: name,
                             })}
-                            onClick={() =>
+                            onClick={() => {
+                              if (disabled || managed) return;
                               void onChange(
                                 {
                                   ...value,
                                   sites: value.sites.filter(
-                                    (_, siteIndex) => siteIndex !== index - 1,
+                                    (entry) => entry.pattern !== site.pattern,
                                   ),
                                 },
                                 value,
-                              )
-                            }
+                              );
+                            }}
                           >
                             <Trash2 className="size-3.5" />
                           </button>

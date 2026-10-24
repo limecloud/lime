@@ -1,4 +1,5 @@
 import { safeInvoke, safeListen } from "@/lib/dev-bridge";
+import { isBrowserDeviceViewport } from "../browserDeviceLayout";
 import {
   getElectronHostBridge,
   isElectronDevBridgeFallbackAvailable,
@@ -17,6 +18,7 @@ import type {
 import {
   assertBrowserPrintResult,
   assertBrowserScreenshot,
+  assertEmbeddedBrowserPermissionRequestEvent,
 } from "./embeddedBrowser";
 
 export type BrowserTabOrigin = "agent" | "user";
@@ -224,6 +226,7 @@ const BROWSER_TAB_REQUIRED_COMMANDS = [
   "browser_tab_go_back",
   "browser_tab_go_forward",
   "browser_tab_select",
+  "browser_tab_focus_page",
   "browser_tab_close",
   "browser_tab_print",
   "browser_tab_capture_screenshot",
@@ -327,6 +330,16 @@ export async function reloadBrowserTab(
   tabId: string,
 ): Promise<BrowserTabState> {
   return await invokeBrowserTab("browser_tab_reload", { tabId });
+}
+
+export async function focusBrowserTabPage(
+  target: Pick<BrowserTabState, "tabId" | "viewId" | "webContentsId">,
+): Promise<BrowserTabState> {
+  return await invokeBrowserTab("browser_tab_focus_page", {
+    tabId: target.tabId,
+    viewId: target.viewId,
+    webContentsId: target.webContentsId,
+  });
 }
 
 export async function stopBrowserTab(tabId: string): Promise<BrowserTabState> {
@@ -529,7 +542,9 @@ function assertBrowserTabState(
     typeof record.tabId !== "string" ||
     typeof record.threadId !== "string" ||
     typeof record.webContentsId !== "number" ||
-    typeof record.windowId !== "number"
+    typeof record.windowId !== "number" ||
+    (record.deviceViewport != null && !isBrowserDeviceViewport(record.deviceViewport)) ||
+    (record.navigationRevision !== undefined && (typeof record.navigationRevision !== "number" || !Number.isSafeInteger(record.navigationRevision) || record.navigationRevision < 0))
   ) {
     throw new Error("Browser tab 未返回有效状态。");
   }
@@ -608,15 +623,7 @@ function assertBrowserTabPermissionRequestEvent(
   value: unknown,
 ): asserts value is BrowserTabPermissionRequestEvent {
   assertBrowserTabEventIdentity(value);
-  const record = asRecord(value);
-  if (
-    !record ||
-    typeof record.requestId !== "string" ||
-    typeof record.permission !== "string" ||
-    typeof record.decision !== "string"
-  ) {
-    throw new Error("Browser tab 权限事件字段不完整。");
-  }
+  assertEmbeddedBrowserPermissionRequestEvent(value);
 }
 
 function assertBrowserTabEventIdentity(

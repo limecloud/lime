@@ -5469,7 +5469,7 @@ function main() {
   if (retiredUsageStatsElectronFacadeLeaks.size > 0) {
     hasError = true;
     printCommandGroup(
-      "已迁到 App Server usageStats/* 的旧 Usage Stats Electron façade 不能回到 Electron Host、DevBridge truth、mock priority 或 runtime surface",
+      "已整链删除的自定义统计不能恢复旧 Electron façade、DevBridge truth、mock priority 或 runtime surface",
       retiredUsageStatsElectronFacadeLeaks,
     );
   }

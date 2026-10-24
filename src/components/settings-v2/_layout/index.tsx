@@ -56,14 +56,16 @@ const Toolbar = styled.div`
 `;
 
 const ContentContainer = styled.main`
+  --settings-content-padding-top: 80px;
   flex: 1;
   min-width: 0;
   min-height: 0;
   overflow-y: auto;
   scrollbar-gutter: stable;
-  padding: 80px 32px 48px;
+  padding: var(--settings-content-padding-top) 32px 48px;
   @media (max-width: 900px) {
-    padding: 40px 24px;
+    --settings-content-padding-top: 40px;
+    padding: var(--settings-content-padding-top) 24px;
   }
 
   [data-settings-search-active="true"] {
@@ -142,8 +144,6 @@ function renderSettingsContent(
       tab === SettingsTabs.ExecutionPolicy
         ? params.executionPolicyFocus
         : undefined,
-    developerLabTab:
-      params.tab === SettingsTabs.Experimental ? "experimental" : "developer",
     browserPage: tab === SettingsTabs.Browser ? params.browserPage : undefined,
   });
   return section.loadingKey

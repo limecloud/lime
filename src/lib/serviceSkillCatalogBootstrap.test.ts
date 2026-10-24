@@ -2,7 +2,7 @@ import {
   clearOemCloudBootstrapSnapshot,
   setOemCloudBootstrapSnapshot,
 } from "./cloudAccount";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { readStoredBaseSetupPackageSnapshot } from "@/lib/base-setup/storage";
 import {
   getSeededServiceSkillCatalog,
@@ -12,9 +12,6 @@ import {
 } from "@/lib/api/serviceSkills";
 import {
   applyInitialServiceSkillCatalogBootstrap,
-  emitServiceSkillCatalogBootstrap,
-  extractServiceSkillCatalogFromBootstrapPayload,
-  subscribeServiceSkillCatalogBootstrap,
   syncServiceSkillCatalogFromBootstrapPayload,
 } from "./serviceSkillCatalogBootstrap";
 
@@ -136,21 +133,17 @@ describe("serviceSkillCatalogBootstrap", () => {
   beforeEach(() => {
     clearOemCloudBootstrapSnapshot();
     window.localStorage.clear();
-
-    delete window.__LIME_SERVICE_SKILL_CATALOG__;
   });
 
   afterEach(() => {
     window.localStorage.clear();
-
-    delete window.__LIME_SERVICE_SKILL_CATALOG__;
   });
 
   it("应支持从 bootstrap 包装层提取服务型技能目录", () => {
     const catalog = buildRemoteCatalog();
 
     expect(
-      extractServiceSkillCatalogFromBootstrapPayload({
+      syncServiceSkillCatalogFromBootstrapPayload({
         bootstrap: {
           serviceSkillCatalog: catalog,
         },
@@ -159,7 +152,7 @@ describe("serviceSkillCatalogBootstrap", () => {
   });
 
   it("应支持从 bootstrap 包装层提取 Base Setup Package", () => {
-    const catalog = extractServiceSkillCatalogFromBootstrapPayload({
+    const catalog = syncServiceSkillCatalogFromBootstrapPayload({
       bootstrap: {
         baseSetupPackage: buildBaseSetupPackage(),
       },
@@ -198,11 +191,8 @@ describe("serviceSkillCatalogBootstrap", () => {
     expect(storedCatalog.items[0]?.id).toBe("tenant-bootstrap-base-setup");
   });
 
-  it("启动时应在专用全局快照无效时回退读取 bootstrap payload", async () => {
+  it("启动时应读取 OEM bootstrap payload", async () => {
     const catalog = buildRemoteCatalog();
-    window.__LIME_SERVICE_SKILL_CATALOG__ = {
-      invalid: true,
-    };
     setOemCloudBootstrapSnapshot({
       serviceSkillCatalog: catalog,
     });
@@ -212,29 +202,6 @@ describe("serviceSkillCatalogBootstrap", () => {
 
     expect(synced?.tenantId).toBe("tenant-demo");
     expect(stored.items[0]?.id).toBe("tenant-bootstrap-skill");
-  });
-
-  it("收到 bootstrap 事件后应同步目录", async () => {
-    const catalog = buildRemoteCatalog();
-    const listener = vi.fn();
-    const unsubscribe = subscribeServiceSkillCatalogBootstrap(listener);
-
-    try {
-      emitServiceSkillCatalogBootstrap({
-        serviceSkillCatalog: catalog,
-      });
-
-      const stored = await getServiceSkillCatalog();
-      expect(stored.tenantId).toBe("tenant-demo");
-      expect(listener).toHaveBeenCalledTimes(1);
-      expect(listener).toHaveBeenCalledWith(
-        expect.objectContaining({
-          tenantId: "tenant-demo",
-        }),
-      );
-    } finally {
-      unsubscribe();
-    }
   });
 
   it("非法 payload 不应覆盖已有目录", async () => {

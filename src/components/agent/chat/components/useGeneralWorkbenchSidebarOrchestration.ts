@@ -1,11 +1,9 @@
 import type { GeneralWorkbenchSidebarTab } from "./GeneralWorkbenchSidebarShell";
 import type { GeneralWorkbenchSidebarContentProps } from "./generalWorkbenchSidebarContentContract";
 import type { GeneralWorkbenchSidebarOrchestrationInput } from "./generalWorkbenchSidebarOrchestrationContract";
-import { buildGeneralWorkbenchContextPanelProps } from "./buildGeneralWorkbenchContextPanelProps";
 import { buildGeneralWorkbenchExecLogProps } from "./buildGeneralWorkbenchExecLogProps";
 import { buildGeneralWorkbenchWorkflowPanelProps } from "./buildGeneralWorkbenchWorkflowPanelProps";
 import { useGeneralWorkbenchArtifactActions } from "./useGeneralWorkbenchArtifactActions";
-import { useGeneralWorkbenchContextPanelState } from "./useGeneralWorkbenchContextPanelState";
 import { useGeneralWorkbenchExecLogState } from "./useGeneralWorkbenchExecLogState";
 import { useGeneralWorkbenchSidebarTelemetry } from "./useGeneralWorkbenchSidebarTelemetry";
 import { useGeneralWorkbenchWorkflowPanelState } from "./useGeneralWorkbenchWorkflowPanelState";
@@ -18,9 +16,7 @@ interface UseGeneralWorkbenchSidebarOrchestrationParams {
 export interface GeneralWorkbenchSidebarOrchestration {
   workflowCount: number;
   isVersionMode: boolean;
-  activeContextCount: number;
   visibleExecLogCount: number;
-  contextPanelProps: GeneralWorkbenchSidebarContentProps["contextPanelProps"];
   workflowPanelProps: GeneralWorkbenchSidebarContentProps["workflowPanelProps"];
   execLogProps: GeneralWorkbenchSidebarContentProps["execLogProps"];
 }
@@ -29,7 +25,7 @@ export function useGeneralWorkbenchSidebarOrchestration({
   activeTab,
   input,
 }: UseGeneralWorkbenchSidebarOrchestrationParams): GeneralWorkbenchSidebarOrchestration {
-  const { isVersionMode, context, workflow, execLog } = input;
+  const { isVersionMode, workflow, execLog } = input;
   const branchCount = workflow.branchItems.length;
   const workflowCount = workflow.workflowSteps.filter(
     (step) => step.status !== "completed" && step.status !== "skipped",
@@ -48,24 +44,11 @@ export function useGeneralWorkbenchSidebarOrchestration({
     activeRunMetadata: workflow.activeRunDetail?.metadata ?? null,
   });
 
-  const contextPanelState = useGeneralWorkbenchContextPanelState({
-    contextItems: context.contextItems,
-    contextSearchQuery: context.contextSearchQuery,
-    contextSearchLoading: context.contextSearchLoading,
-    contextSearchBlockedReason: context.contextSearchBlockedReason,
-    onAddTextContext: context.onAddTextContext,
-    onAddLinkContext: context.onAddLinkContext,
-    onAddFileContext: context.onAddFileContext,
-  });
-
   useGeneralWorkbenchSidebarTelemetry({
     activeTab,
     showActivityLogs: workflowPanelState.showActivityLogs,
-    contextSearchLoading: context.contextSearchLoading,
     branchItemsCount: branchCount,
     workflowStepsCount: workflow.workflowSteps.length,
-    contextItemsCount: context.contextItems.length,
-    activeContextCount: contextPanelState.activeContextItems.length,
     activityLogsCount: workflow.activityLogs.length,
     creationTaskEventsCount: workflow.creationTaskEvents.length,
     hasActiveRunDetail: Boolean(workflow.activeRunDetail),
@@ -81,23 +64,7 @@ export function useGeneralWorkbenchSidebarOrchestration({
   return {
     workflowCount,
     isVersionMode,
-    activeContextCount: contextPanelState.activeContextItems.length,
     visibleExecLogCount: execLogState.visibleExecLogEntries.length,
-    contextPanelProps: buildGeneralWorkbenchContextPanelProps({
-      contextBudget: context.contextBudget,
-      contextItems: context.contextItems,
-      contextPanelState,
-      contextSearchBlockedReason: context.contextSearchBlockedReason,
-      contextSearchError: context.contextSearchError,
-      contextSearchLoading: context.contextSearchLoading,
-      contextSearchMode: context.contextSearchMode,
-      contextSearchQuery: context.contextSearchQuery,
-      onContextSearchModeChange: context.onContextSearchModeChange,
-      onContextSearchQueryChange: context.onContextSearchQueryChange,
-      onSubmitContextSearch: context.onSubmitContextSearch,
-      onToggleContextActive: context.onToggleContextActive,
-      onViewContextDetail: context.onViewContextDetail,
-    }),
     workflowPanelProps: buildGeneralWorkbenchWorkflowPanelProps({
       isVersionMode,
       branchItems: workflow.branchItems,

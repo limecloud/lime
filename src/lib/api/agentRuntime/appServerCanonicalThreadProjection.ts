@@ -249,6 +249,8 @@ export function readCanonicalThreadDetail(
     items,
     thread_read: {
       thread_id: threadId,
+      reasoning_effort:
+        metadataString(metadata, "reasoningEffort", "effort") ?? null,
       thread_items: items,
       thread_turns: turns,
       can_accept_direct_input: readOptionalBooleanField(

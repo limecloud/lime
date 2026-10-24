@@ -153,11 +153,9 @@ The input JSON should come from `window.__I18N_METRICS__` or
 `getI18nPatchMetricsReport()`. A `no-hit` report is only a retirement candidate
 signal; it does not replace current-path dependency audits.
 
-`npm run verify:gui-smoke` passes `--i18n-patch-metrics-output` to
-`smoke:knowledge-gui` by default, writes `.lime/i18n/patch-metrics.json`, and
-then writes `.lime/i18n/patch-metrics-report.json`, `.lime/governance/legacy-surface-report.json`,
-and runs `npm run i18n:patch-retirement-gate -- --check`. Use
-`--skip-i18n-patch-metrics` only when debugging unrelated GUI smoke failures.
+`npm run verify:gui-smoke` builds and runs the current Electron shell smoke.
+Patch metrics remain an explicit i18n evidence workflow; the retired knowledge
+GUI smoke is no longer an entry point.
 
 To combine Patch no-hit evidence with legacy surface dependency audit:
 

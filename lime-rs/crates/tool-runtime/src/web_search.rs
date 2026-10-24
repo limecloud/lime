@@ -52,6 +52,23 @@ impl RuntimeWebSearchExecutor {
                 request.tool_name
             )));
         }
+        let mode = request
+            .turn_context
+            .and_then(|context| context.web_search_mode)
+            .unwrap_or_default();
+        match mode {
+            agent_protocol::WebSearchMode::Disabled => {
+                return Err(runtime_web_search_error(
+                    "web search is disabled by the current access policy",
+                ))
+            }
+            agent_protocol::WebSearchMode::Indexed => {
+                return Err(runtime_web_search_error(
+                    "indexed web search is unavailable in the local search backend",
+                ))
+            }
+            _ => {}
+        }
         if request
             .context
             .cancel_token()
@@ -74,6 +91,9 @@ impl RuntimeWebSearchExecutor {
 
         if let Some(cached) = self.cache.get(&cache_key) {
             return runtime_result_from_cached_search(&query, cached, started_at);
+        }
+        if mode == agent_protocol::WebSearchMode::Cached {
+            return Err(runtime_web_search_error("no cached web search result is available; cached mode does not permit a network request"));
         }
 
         let execution = self
@@ -602,6 +622,9 @@ pub fn is_web_search_tool_name(tool_name: &str) -> bool {
 }
 
 include!("web_search/support.rs");
+
+#[cfg(test)]
+mod access_tests;
 
 #[cfg(test)]
 mod tests {

@@ -4,14 +4,12 @@ import type { ThemeType } from "@/lib/workspace/workbenchContract";
 import { useSessionFiles } from "../hooks/useSessionFiles";
 import type { TopicBranchStatus } from "../hooks/useTopicBranchBoard";
 import { shouldAutoInitWorkspaceSessionFiles } from "./agentChatWorkspaceHelpers";
-import { useWorkspaceGeneralResourceSync } from "./useWorkspaceGeneralResourceSync";
 import {
   useWorkspaceCanvasContentSyncRuntime,
   useWorkspaceDocumentVersionStatusSyncRuntime,
 } from "./useWorkspaceDocumentSyncRuntime";
 
 interface UseWorkspacePersistenceRuntimeParams {
-  activeTheme: string;
   canvasState: CanvasStateUnion | null;
   contentId?: string | null;
   creationMode?: string;
@@ -24,8 +22,6 @@ interface UseWorkspacePersistenceRuntimeParams {
     body: string;
   } | null>;
   mappedTheme: ThemeType;
-  projectId?: string | null;
-  projectRootPath?: string | null;
   queuedTurnCount: number;
   sessionId?: string | null;
   setDocumentVersionStatusMap: Dispatch<
@@ -39,7 +35,6 @@ interface UseWorkspacePersistenceRuntimeParams {
 }
 
 export function useWorkspacePersistenceRuntime({
-  activeTheme,
   canvasState,
   contentId,
   creationMode,
@@ -49,8 +44,6 @@ export function useWorkspacePersistenceRuntime({
   isThemeWorkbench,
   lastCanvasSyncRequestRef,
   mappedTheme,
-  projectId,
-  projectRootPath,
   queuedTurnCount,
   sessionId,
   setDocumentVersionStatusMap,
@@ -79,13 +72,6 @@ export function useWorkspacePersistenceRuntime({
     }),
   });
 
-  const generalResourceSyncRuntime = useWorkspaceGeneralResourceSync({
-    activeTheme,
-    projectId,
-    sessionId,
-    projectRootPath,
-  });
-
   useWorkspaceCanvasContentSyncRuntime({
     canvasState,
     contentId,
@@ -98,8 +84,6 @@ export function useWorkspacePersistenceRuntime({
     saveSessionFile: sessionFilesRuntime.saveFile,
     sessionFiles: sessionFilesRuntime.files,
     sessionMeta: sessionFilesRuntime.meta,
-    syncGeneralArtifactToResource:
-      generalResourceSyncRuntime.syncGeneralArtifactToResource,
   };
 }
 

@@ -66,10 +66,6 @@ export function useWorkspaceNavigationActions({
     [onNavigate],
   );
 
-  const handleBackToResources = useCallback(() => {
-    onNavigate?.("resources");
-  }, [onNavigate]);
-
   const handleProjectChange = useCallback(
     (newProjectId: string | null) => {
       const normalizedProjectId = newProjectId?.trim() || null;
@@ -155,20 +151,6 @@ export function useWorkspaceNavigationActions({
     [onNavigate],
   );
 
-  const handleOpenKnowledgeManagement = useCallback(
-    (workingDir?: string | null) => {
-      onNavigate?.(
-        "knowledge",
-        workingDir?.trim()
-          ? {
-              workingDir: workingDir.trim(),
-            }
-          : undefined,
-      );
-    },
-    [onNavigate],
-  );
-
   const handleOpenChannels = useCallback(() => {
     onNavigate?.("channels");
   }, [onNavigate]);
@@ -191,17 +173,17 @@ export function useWorkspaceNavigationActions({
   }, [dismissWorkspacePathError, setWorkspaceHealthError]);
 
   return {
-    handleBackToResources,
     handleCompactContext,
     handleDismissEntryBanner,
     handleDismissWorkspaceAlert,
     handleManageProviders,
     handleOpenChannels,
     handleOpenExecutionPolicySettings,
-    handleOpenKnowledgeManagement,
     handleOpenRuntimeMemoryWorkbench,
     handleOpenAppearanceSettings,
-    handleOpenPluginDirectory: onNavigate ? handleOpenPluginDirectory : undefined,
+    handleOpenPluginDirectory: onNavigate
+      ? handleOpenPluginDirectory
+      : undefined,
     handleProjectChange,
     handleWorkspaceAlertSelectDirectory,
   };

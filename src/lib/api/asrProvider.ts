@@ -239,7 +239,6 @@ function mergeVoiceInputConfig(
     ...appConfig,
     experimental: {
       ...appConfig.experimental,
-      webmcp: appConfig.experimental?.webmcp ?? { enabled: false },
       voice_input: {
         ...(currentVoiceInput ?? {}),
         ...cloneVoiceInputConfig(voiceInputConfig),

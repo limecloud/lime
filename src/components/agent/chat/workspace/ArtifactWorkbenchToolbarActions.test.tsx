@@ -16,10 +16,6 @@ function renderActions(
   const root = createRoot(container);
 
   const props: React.ComponentProps<typeof ArtifactWorkbenchToolbarActions> = {
-    showSaveToProject: true,
-    saveToProjectDisabled: false,
-    isSavingToProject: false,
-    onSaveToProject: vi.fn(),
     onExportJson: vi.fn(),
     onExportHtml: vi.fn(),
     onExportMarkdown: vi.fn(),
@@ -64,14 +60,14 @@ afterEach(() => {
 });
 
 describe("ArtifactWorkbenchToolbarActions", () => {
-  it("应渲染项目复用、导出与归档按钮", () => {
+  it("应渲染导出与归档按钮且不再提供项目复用", () => {
     const { container } = renderActions();
 
     expect(
       container.querySelector(
         '[data-testid="artifact-workbench-save-to-project"]',
       ),
-    ).not.toBeNull();
+    ).toBeNull();
     expect(
       container.querySelector('[data-testid="artifact-workbench-export-html"]'),
     ).not.toBeNull();
@@ -91,13 +87,11 @@ describe("ArtifactWorkbenchToolbarActions", () => {
   });
 
   it("点击按钮时应回调对应动作", async () => {
-    const onSaveToProject = vi.fn().mockResolvedValue(undefined);
     const onExportJson = vi.fn().mockResolvedValue(undefined);
     const onExportHtml = vi.fn().mockResolvedValue(undefined);
     const onExportMarkdown = vi.fn().mockResolvedValue(undefined);
     const onToggleArchive = vi.fn().mockResolvedValue(undefined);
     const { container } = renderActions({
-      onSaveToProject,
       onExportJson,
       onExportHtml,
       onExportMarkdown,
@@ -115,34 +109,27 @@ describe("ArtifactWorkbenchToolbarActions", () => {
       });
     };
 
-    await click("artifact-workbench-save-to-project");
     await click("artifact-workbench-export-html");
     await click("artifact-workbench-export-markdown");
     await click("artifact-workbench-export-json");
     await click("artifact-workbench-archive-toggle");
 
-    expect(onSaveToProject).toHaveBeenCalledTimes(1);
     expect(onExportHtml).toHaveBeenCalledTimes(1);
     expect(onExportMarkdown).toHaveBeenCalledTimes(1);
     expect(onExportJson).toHaveBeenCalledTimes(1);
     expect(onToggleArchive).toHaveBeenCalledTimes(1);
   });
 
-  it("保存中或处理中时应更新按钮文案", () => {
+  it("归档处理中时应更新按钮文案", () => {
     const { container } = renderActions({
-      isSavingToProject: true,
       isUpdatingArchive: true,
       archiveLabel: "取消归档",
     });
 
-    const saveButton = container.querySelector(
-      '[data-testid="artifact-workbench-save-to-project"]',
-    ) as HTMLButtonElement | null;
     const archiveButton = container.querySelector(
       '[data-testid="artifact-workbench-archive-toggle"]',
     ) as HTMLButtonElement | null;
 
-    expect(saveButton?.title).toBe("保存中");
     expect(archiveButton?.title).toBe("处理中");
   });
 });

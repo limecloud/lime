@@ -246,9 +246,6 @@ describe("mockPriorityCommands", () => {
     expect(
       shouldDisallowMockFallbackInBrowser("open_file_preview_window"),
     ).toBe(true);
-    expect(
-      shouldDisallowMockFallbackInBrowser("open_resource_manager_window"),
-    ).toBe(true);
     expect(shouldDisallowMockFallbackInBrowser("upload_material")).toBe(false);
     expect(
       shouldDisallowMockFallbackInBrowser(

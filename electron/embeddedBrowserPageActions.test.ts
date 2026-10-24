@@ -47,7 +47,12 @@ describe("native Browser page actions", () => {
     expect(
       browserCommandForInput(key(".", { meta: true, shift: true }), "darwin"),
     ).toBe("annotate");
-    expect(browserCommandForInput(key(">", { meta: true, shift: true, code: "Period" }), "darwin")).toBe("annotate");
+    expect(
+      browserCommandForInput(
+        key(">", { meta: true, shift: true, code: "Period" }),
+        "darwin",
+      ),
+    ).toBe("annotate");
     expect(browserCommandForInput(key("f"), "win32")).toBeNull();
     expect(
       browserCommandForInput(key("l", { control: true }), "darwin"),
@@ -92,6 +97,47 @@ describe("native Browser page actions", () => {
     expect(() => readBrowserDevice({ ...device, width: NaN })).toThrow("width");
     expect(() => readBrowserDevice({ ...device, scale: 0 })).toThrow("scale");
     expect(() => readBrowserDevice(undefined)).toThrow("object or null");
+    expect(
+      readBrowserDevice({ ...device, width: 240, height: 160 }),
+    ).toMatchObject({ width: 240, height: 160 });
+    expect(
+      readBrowserDevice({ ...device, width: 4096, height: 4096 }),
+    ).toMatchObject({ width: 4096, height: 4096 });
+    for (const patch of [
+      { width: 239 },
+      { height: 159 },
+      { width: 4097 },
+      { height: 4097 },
+    ])
+      expect(() => readBrowserDevice({ ...device, ...patch })).toThrow(
+        "supported range",
+      );
+  });
+
+  it("preserves native preset identity and rejects unknown presets before applying emulation", () => {
+    const device = {
+      width: 820,
+      height: 1180,
+      deviceScaleFactor: 2,
+      scale: 1,
+      mobile: true,
+    };
+    expect(
+      readBrowserDevice({ ...device, presetId: "ipad-air" }),
+    ).toMatchObject({ presetId: "ipad-air" });
+    expect(readBrowserDevice(device)).toMatchObject({ presetId: "responsive" });
+    for (const presetId of [
+      "tablet",
+      "phone",
+      "unknown",
+      "__proto__",
+      null,
+      1,
+    ]) {
+      expect(() => readBrowserDevice({ ...device, presetId })).toThrow(
+        "presetId",
+      );
+    }
   });
 
   it("opens a real print dialog contract and reports cancellation without claiming success", async () => {

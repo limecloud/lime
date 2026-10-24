@@ -16,7 +16,12 @@ import {
   browserIconButton,
   type RunBrowserOperation,
 } from "./BrowserNavigationBar";
-import { BROWSER_ZOOM_STEP, clampBrowserZoom } from "./browserWorkspaceModel";
+import {
+  BROWSER_ZOOM_STEP,
+  MIN_BROWSER_ZOOM,
+  MAX_BROWSER_ZOOM,
+  clampBrowserZoom,
+} from "./browserWorkspaceModel";
 import { useBrowserNativeMenu } from "./useBrowserNativeMenu";
 
 export function BrowserOptionsMenu({
@@ -108,7 +113,7 @@ export function BrowserOptionsMenu({
             id: "zoom-out",
             label: "−",
             ariaLabel: t("browserChrome.zoomOut"),
-            enabled: zoom > 0.5,
+            enabled: zoom > MIN_BROWSER_ZOOM,
           },
           {
             id: "zoom-reset",
@@ -119,7 +124,7 @@ export function BrowserOptionsMenu({
             id: "zoom-in",
             label: "+",
             ariaLabel: t("browserChrome.zoomIn"),
-            enabled: zoom < 3,
+            enabled: zoom < MAX_BROWSER_ZOOM,
           },
         ],
       },

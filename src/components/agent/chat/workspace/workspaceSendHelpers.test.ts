@@ -18,24 +18,17 @@ describe("workspaceSendHelpers", () => {
   });
 
   it("目标首轮保持同源物化正文，不加上下文或角色前缀", async () => {
-    const prepareActiveContextPrompt = vi.fn(async () => "工作区上下文");
     const text =
       "/goal Read the Codex goal objective file at /isolated/goal-objective.md before continuing.";
     expect(
       await buildWorkspaceSendText({
         sourceText: text,
-        contextWorkspace: {
-          enabled: true,
-          activeContextPrompt: "已有上下文",
-          prepareActiveContextPrompt,
-        },
         mentionedCharacters: [
           { name: "角色", description: "角色设定" },
         ] as never,
         sendOptions: { threadGoal: { objective: text.slice(6) } },
       }),
     ).toBe(text);
-    expect(prepareActiveContextPrompt).not.toHaveBeenCalled();
   });
 
   it("initialDispatchKey 应稳定编码首轮 prompt 与图片签名", () => {
@@ -645,11 +638,11 @@ describe("workspaceSendHelpers", () => {
 
     const snapshot = createSubmissionPreviewSnapshot({
       key: "submission-preview-1",
-      prompt: "/brand-product-knowledge-builder 继续处理当前任务",
+      prompt: "/personal-ip-knowledge-builder 继续处理当前任务",
       displayContent: "继续处理当前任务",
       inputCapabilityRoute: {
         kind: "builtin_command",
-        commandKey: "brand-product-knowledge-builder",
+        commandKey: "personal-ip-knowledge-builder",
         commandPrefix: "@inspect",
       },
       images: [],
@@ -657,7 +650,7 @@ describe("workspaceSendHelpers", () => {
 
     expect(snapshot).toMatchObject({
       key: "submission-preview-1",
-      prompt: "/brand-product-knowledge-builder 继续处理当前任务",
+      prompt: "/personal-ip-knowledge-builder 继续处理当前任务",
       displayContent: "继续处理当前任务",
       createdAt: 1_710_000_000_000,
     });
@@ -670,7 +663,7 @@ describe("workspaceSendHelpers", () => {
       content: "继续处理当前任务",
       inputCapabilityRoute: {
         kind: "builtin_command",
-        commandKey: "brand-product-knowledge-builder",
+        commandKey: "personal-ip-knowledge-builder",
         commandPrefix: "@inspect",
       },
     });

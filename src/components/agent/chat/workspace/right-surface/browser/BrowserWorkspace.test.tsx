@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   createIdentity: vi.fn(),
   downloadHandler: null as ((event: BrowserTabDownloadEvent) => void) | null,
   find: vi.fn(),
+  focus: vi.fn(),
   goBack: vi.fn(),
   goForward: vi.fn(),
   loadFailedHandler: null as
@@ -47,6 +48,7 @@ vi.mock("react-i18next", () => {
 vi.mock("@/lib/api/browserTab", () => ({
   closeBrowserTab: mocks.close,
   findInBrowserTab: mocks.find,
+  focusBrowserTabPage: mocks.focus,
   goBackBrowserTab: mocks.goBack,
   goForwardBrowserTab: mocks.goForward,
   isBrowserTabHostAvailable: () => true,
@@ -129,6 +131,11 @@ describe("BrowserWorkspace", () => {
     mocks.mount.mockReset();
     mocks.list.mockReset().mockResolvedValue([]);
     mocks.navigate.mockReset();
+    mocks.focus.mockImplementation(
+      async (target) =>
+        (await mocks.navigate.mock.results.at(-1)?.value) ??
+        browserState(target),
+    );
     mocks.openIdentity.mockReset();
     mocks.createIdentity.mockReset();
     mocks.setBounds.mockReset();
@@ -662,6 +669,7 @@ function permissionEvent(
   return {
     browserSessionId: "browser-session-1",
     decision: "blocked",
+    isMainFrame: true,
     embeddingOrigin: "https://example.com",
     ownerWebContentsId: 41,
     permission: "geolocation",

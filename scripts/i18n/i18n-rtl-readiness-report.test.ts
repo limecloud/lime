@@ -1,3 +1,4 @@
+import process from "node:process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -92,11 +93,11 @@ describe("i18n rtl readiness report", () => {
     );
     writeFile(
       root,
-      "src/features/knowledge/KnowledgePage.tsx",
+      "src/components/channels/ImConfigPage.tsx",
       [
-        "export const KnowledgePage = () => (",
+        "export const ImConfigPage = () => (",
         '  <div className="pl-3 border-r">',
-        "    <div>Knowledge</div>",
+        "    <div>Channels</div>",
         "  </div>",
         ");",
         "",
@@ -123,7 +124,7 @@ describe("i18n rtl readiness report", () => {
 
     expect(report.schemaVersion).toBe("lime.i18n.rtlReadinessReport.v1");
     expect(report.summary.directionAwareFoundationFileCount).toBe(1);
-    expect(report.summary.surfaceCount).toBe(5);
+    expect(report.summary.surfaceCount).toBe(4);
     expect(report.summary.totalMarkerCount).toBeGreaterThan(0);
     expect(report.summary.highRiskFileCount).toBeGreaterThan(0);
     expect(report.summary.missingRtlScreenshotEvidence).toBe(true);

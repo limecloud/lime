@@ -1,83 +1,57 @@
 /* global process */
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-
-const REPO_ROOT = process.cwd();
+import catalog from "./legacySurfaceCatalog.json";
 
 function readRepoFile(path: string): string {
-  return readFileSync(join(REPO_ROOT, path), "utf8");
+  return readFileSync(join(process.cwd(), path), "utf8");
 }
 
-describe("knowledge current boundary", () => {
-  it("Knowledge detail 前端网关必须走 App Server knowledgePack/read", () => {
-    const source = readRepoFile("src/lib/api/knowledge.ts");
-    const getKnowledgePackStart = source.indexOf("export async function getKnowledgePack(");
-    const importKnowledgeSourceStart = source.indexOf(
-      "export async function importKnowledgeSource(",
+describe("retired knowledge platform boundary", () => {
+  it("独立知识平台所有者和专用执行链必须保持删除", () => {
+    const boundary = catalog.imports.find(
+      (entry) => entry.id === "knowledge-page-legacy-component-split",
     );
-
-    expect(getKnowledgePackStart).toBeGreaterThanOrEqual(0);
-    expect(importKnowledgeSourceStart).toBeGreaterThan(getKnowledgePackStart);
-
-    const getKnowledgePackSource = source.slice(
-      getKnowledgePackStart,
-      importKnowledgeSourceStart,
-    );
-
-    expect(getKnowledgePackSource).toContain("METHOD_KNOWLEDGE_PACK_READ");
-    expect(getKnowledgePackSource).toContain("requestKnowledgeAppServer");
-    expect(getKnowledgePackSource).not.toContain("invokeKnowledgeCommand");
-    expect(getKnowledgePackSource).not.toContain("knowledge_get_pack");
-    expect(getKnowledgePackSource).not.toContain("safeInvoke");
-  });
-
-  it("Knowledge 前端网关必须全量走 App Server current method", () => {
-    const source = readRepoFile("src/lib/api/knowledge.ts");
-
-    for (const method of [
-      "METHOD_KNOWLEDGE_PACK_LIST",
-      "METHOD_KNOWLEDGE_PACK_READ",
-      "METHOD_KNOWLEDGE_SOURCE_IMPORT",
-      "METHOD_KNOWLEDGE_PACK_COMPILE",
-      "METHOD_KNOWLEDGE_PACK_DEFAULT_SET",
-      "METHOD_KNOWLEDGE_PACK_STATUS_UPDATE",
-      "METHOD_KNOWLEDGE_CONTEXT_RESOLVE",
-      "METHOD_KNOWLEDGE_CONTEXT_RUN_VALIDATE",
-    ]) {
-      expect(source).toContain(method);
+    expect(boundary?.classification).toBe("dead");
+    for (const path of boundary!.targets) {
+      expect(existsSync(join(process.cwd(), path)), path).toBe(false);
     }
-    for (const legacyCommand of [
-      "knowledge_list_packs",
-      "knowledge_get_pack",
-      "knowledge_import_source",
-      "knowledge_compile_pack",
-      "knowledge_set_default_pack",
-      "knowledge_update_pack_status",
-      "knowledge_resolve_context",
-      "knowledge_validate_context_run",
-    ]) {
-      expect(source).not.toContain(legacyCommand);
+  });
+
+  it("公开协议与客户端不得重新登记知识包方法", () => {
+    const files = [
+      "lime-rs/crates/app-server-protocol/src/protocol/v0/method_names.rs",
+      "lime-rs/crates/app-server-protocol/schema/json/app_server_protocol.schemas.json",
+      "packages/app-server-client/src/protocol.ts",
+      "packages/app-server-client/src/generated/protocol-types.ts",
+      "packages/app-server-client/src/request-client.ts",
+      "packages/app-server-client/src/connection-methods.ts",
+    ];
+    for (const path of files) {
+      expect(readRepoFile(path), path).not.toMatch(
+        /knowledgePack\/|knowledgeContext\/|knowledgeContextRun\/|Knowledge(?:ListPacks|CompilePack|ResolveContext)/,
+      );
     }
-    expect(source).not.toContain("safeInvoke");
-    expect(source).not.toContain("invokeKnowledgeCommand");
   });
 
-  it("Knowledge UI 只能通过 API 网关读取详情，不能直接 gate legacy command", () => {
-    const source = readRepoFile("src/features/knowledge/KnowledgePage.tsx");
-
-    expect(source).toContain("getKnowledgePack(");
-    expect(source).not.toContain('supportsCommand("knowledge_get_pack")');
-    expect(source).not.toContain("safeInvoke");
-    expect(source).not.toContain("knowledge_get_pack");
-  });
-
-  it("production command 边界守卫不应继续允许 Knowledge legacy gate", () => {
-    const source = readRepoFile(
-      "src/components/production-command-current-boundary.test.ts",
-    );
-
-    expect(source).not.toContain("src/features/knowledge/KnowledgePage.tsx");
-    expect(source).not.toContain('"knowledge_get_pack"');
+  it("导航与 Composer 不再透传旧页面或知识状态", () => {
+    for (const path of [
+      "src/types/page.ts",
+      "src/components/AppPageContent.tsx",
+      "src/lib/navigation/sidebarNav.ts",
+      "src/components/agent/chat/workspace/useWorkspaceInputbarSceneRuntime.tsx",
+    ]) {
+      expect(readRepoFile(path), path).not.toMatch(
+        /KnowledgePage|initialKnowledgePackSelection|useWorkspaceKnowledgeRuntime|onManageKnowledgePacks/,
+      );
+    }
+    const manifest = JSON.parse(readRepoFile("package.json"));
+    expect(
+      Object.keys(manifest.scripts).some(
+        (name) =>
+          name.startsWith("knowledge:") || name.startsWith("smoke:knowledge"),
+      ),
+    ).toBe(false);
   });
 });

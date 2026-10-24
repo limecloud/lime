@@ -185,8 +185,30 @@ async function main() {
     );
     const featurePayload = JSON.parse(features.stdout);
     assertArray(featurePayload.data, "features list data");
-    await runCli(["features", "enable", "webmcp", ...connection], tempDir);
-    await runCli(["features", "disable", "webmcp", ...connection], tempDir);
+    if (
+      !featurePayload.data.some(
+        (feature) => feature.name === "workspace_dependencies",
+      )
+    ) {
+      throw new Error(
+        `features list omitted workspace_dependencies: ${features.stdout}`,
+      );
+    }
+    await runCli(
+      ["features", "disable", "workspace_dependencies", ...connection],
+      tempDir,
+    );
+    await runCli(
+      ["features", "enable", "workspace_dependencies", ...connection],
+      tempDir,
+    );
+    const retiredFeature = await runCliResult(
+      ["features", "enable", "webmcp", ...connection],
+      tempDir,
+    );
+    if (retiredFeature.code === 0) {
+      throw new Error("retired webmcp feature must be rejected");
+    }
 
     const pluginRoot = path.join(tempDir, "plugin-source");
     await mkdir(path.join(pluginRoot, ".codex-plugin"), { recursive: true });

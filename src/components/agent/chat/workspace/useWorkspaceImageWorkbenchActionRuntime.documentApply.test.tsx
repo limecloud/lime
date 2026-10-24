@@ -81,7 +81,6 @@ describe("useWorkspaceImageWorkbenchActionRuntime document apply", () => {
             modelName: "fal-ai/nano-banana-pro",
             size: "1024x1024",
             parentOutputId: null,
-            resourceSaved: false,
             applyTarget: {
               kind: "canvas-insert" as const,
               canvasType: "document" as const,

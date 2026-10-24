@@ -145,6 +145,23 @@ impl RuntimeWebFetchExecutor {
                 request.tool_name
             )));
         }
+        let mode = request
+            .turn_context
+            .and_then(|context| context.web_search_mode)
+            .unwrap_or_default();
+        match mode {
+            agent_protocol::WebSearchMode::Disabled => {
+                return Err(runtime_web_fetch_error(
+                    "web search is disabled by the current access policy",
+                ))
+            }
+            agent_protocol::WebSearchMode::Indexed => {
+                return Err(runtime_web_fetch_error(
+                    "indexed web fetch is unavailable in the local backend",
+                ))
+            }
+            _ => {}
+        }
         ensure_not_cancelled(request)?;
 
         let started_at = Instant::now();
@@ -156,6 +173,11 @@ impl RuntimeWebFetchExecutor {
             return runtime_result_from_content(&url, cached, &input, started_at, true);
         }
 
+        if mode == agent_protocol::WebSearchMode::Cached {
+            return Err(runtime_web_fetch_error(
+                "no cached page is available; cached mode does not permit a network request",
+            ));
+        }
         match self.fetch_url(&url, request).await {
             Ok(WebFetchResponse::Content {
                 content,
@@ -371,6 +393,57 @@ include!("web_fetch/content.rs");
 
 #[cfg(test)]
 mod tests {
+    #[tokio::test]
+    async fn web_search_access_also_restricts_page_fetch_without_network_fallback() {
+        use agent_protocol::WebSearchMode;
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        listener.set_nonblocking(true).unwrap();
+        let executor = RuntimeWebFetchExecutor {
+            client: Client::builder()
+                .proxy(
+                    reqwest::Proxy::all(format!("http://{}", listener.local_addr().unwrap()))
+                        .unwrap(),
+                )
+                .timeout(Duration::from_millis(100))
+                .build()
+                .unwrap(),
+            cache: Arc::new(WebFetchCache::default()),
+        };
+        let context = RuntimeToolExecutionContext::new(RuntimeToolExecutionContextInput {
+            working_directory: ".".into(),
+            session_id: "fetch-access".into(),
+            cancel_token: None,
+            workspace_sandbox: None,
+        });
+        let params = json!({"url":"https://example.com/page","prompt":"read page"});
+        for mode in [
+            WebSearchMode::Disabled,
+            WebSearchMode::Cached,
+            WebSearchMode::Indexed,
+        ] {
+            let turn = crate::tool_executor::RuntimeToolTurnContext {
+                web_search_mode: Some(mode),
+                ..Default::default()
+            };
+            let result = executor
+                .execute_web_fetch(RuntimeToolExecutionRequest {
+                    tool_name: "WebFetch",
+                    params: &params,
+                    context: &context,
+                    turn_context: Some(&turn),
+                })
+                .await;
+            let error = result.unwrap_err();
+            assert!(error.message().contains(match mode {
+                WebSearchMode::Disabled => "disabled",
+                WebSearchMode::Cached => "does not permit",
+                _ => "unavailable",
+            }));
+            assert!(
+                matches!(listener.accept(),Err(error) if error.kind()==std::io::ErrorKind::WouldBlock)
+            );
+        }
+    }
     use super::*;
     use crate::tool_executor::{RuntimeToolExecutionContext, RuntimeToolExecutionContextInput};
     use serde_json::json;

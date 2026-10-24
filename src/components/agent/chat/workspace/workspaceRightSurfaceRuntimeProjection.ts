@@ -24,7 +24,6 @@ export interface BuildWorkspaceRightSurfaceRuntimeLaunchersParams {
   shellAvailable: boolean;
   backgroundTerminalAvailable?: boolean;
   showHarnessToggle: boolean;
-  traceAvailable?: boolean;
   suppressHomeNavbarUtilityActions: boolean;
   surfaceState: WorkspaceRightSurfaceState;
 }
@@ -80,7 +79,6 @@ export function buildWorkspaceRightSurfaceRuntimeAvailableSurfaces({
   articleWorkspaceAvailable = false,
   shellAvailable,
   showHarnessToggle,
-  traceAvailable = false,
   suppressHomeNavbarUtilityActions,
 }: Pick<
   BuildWorkspaceRightSurfaceRuntimeLaunchersParams,
@@ -91,7 +89,6 @@ export function buildWorkspaceRightSurfaceRuntimeAvailableSurfaces({
   | "shellAvailable"
   | "backgroundTerminalAvailable"
   | "showHarnessToggle"
-  | "traceAvailable"
   | "suppressHomeNavbarUtilityActions"
 >): ReadonlySet<WorkspaceRightSurfaceKind> {
   const surfaces: WorkspaceRightSurfaceKind[] = [
@@ -118,9 +115,6 @@ export function buildWorkspaceRightSurfaceRuntimeAvailableSurfaces({
   if (!suppressHomeNavbarUtilityActions && showHarnessToggle) {
     surfaces.push("harness");
   }
-  if (!suppressHomeNavbarUtilityActions && traceAvailable) {
-    surfaces.push("trace");
-  }
   return new Set(surfaces);
 }
 
@@ -133,7 +127,6 @@ export function buildWorkspaceRightSurfaceRuntimeLaunchers({
   pendingIntents,
   shellAvailable,
   showHarnessToggle,
-  traceAvailable,
   suppressHomeNavbarUtilityActions,
   surfaceState,
 }: BuildWorkspaceRightSurfaceRuntimeLaunchersParams): WorkspaceRightSurfaceLauncherProjection[] {
@@ -148,7 +141,6 @@ export function buildWorkspaceRightSurfaceRuntimeLaunchers({
       articleWorkspaceAvailable,
       shellAvailable,
       showHarnessToggle,
-      traceAvailable,
       suppressHomeNavbarUtilityActions,
     }),
   });

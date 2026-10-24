@@ -106,6 +106,8 @@ pub(in crate::runtime_backend) fn turn_context_from_request(
         approval_policy: host_request.and_then(host_approval_policy),
         approvals_reviewer: host_request.and_then(|request| request.approvals_reviewer),
         sandbox_policy: host_request.and_then(host_sandbox_policy),
+        sandbox_network_access: host_request.and_then(|request| request.sandbox_network_access),
+        web_search_mode: Some(request_tool_policy_from_request(host_request).web_search_mode),
         collaboration_mode: collaboration_mode_from_request(request, host_request),
         user_visible_input_text: (!request.input.agent_only)
             .then(|| request.input.concat_text())

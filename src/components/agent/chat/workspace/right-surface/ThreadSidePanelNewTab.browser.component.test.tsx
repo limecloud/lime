@@ -1,37 +1,65 @@
-import { act } from "react";
+import { act, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { changeLimeLocale } from "@/i18n/createI18n";
 import { ThreadSidePanelNewTab } from "./ThreadSidePanelNewTab";
 import { RightSurfaceTabContext } from "./rightSurfaceTabContext";
 import { WorkspaceBrowserNavigationContext } from "./browser/workspaceBrowserNavigationContext";
+import type { ThreadSidePanelTab } from "./threadSidePanelTabs";
 import { createBrowserComponentHarness } from "./browser/browserWorkspace.testFixtures";
 
 let harness: ReturnType<typeof createBrowserComponentHarness>;
 const openAddress = vi.fn();
 const onActionSelect = vi.fn();
-const render = (navigation = true, presentation = true) => {
+function NewTabOwner({
+  navigation,
+  presentation,
+}: {
+  navigation: boolean;
+  presentation: boolean;
+}) {
+  const [tab, setTab] = useState<ThreadSidePanelTab>({
+    tabId: "new-tab-source",
+    kind: "workspace-new-tab",
+  });
   const page = (
     <ThreadSidePanelNewTab actions={[]} onActionSelect={onActionSelect} />
   );
-  return harness.render(
+  return (
     <WorkspaceBrowserNavigationContext.Provider
-      value={navigation ? { openAddress } : null}
+      value={
+        navigation
+          ? {
+              openAddress,
+              setAddressDraft: (tabId, addressDraft) => {
+                setTab((current) =>
+                  current.tabId === tabId
+                    ? { ...current, addressDraft }
+                    : current,
+                );
+              },
+            }
+          : null
+      }
     >
       <RightSurfaceTabContext.Provider
         value={
           presentation
             ? {
                 active: true,
-                tab: { tabId: "new-tab-source", kind: "workspace-new-tab" },
+                tab,
               }
             : null
         }
       >
         {page}
       </RightSurfaceTabContext.Provider>
-    </WorkspaceBrowserNavigationContext.Provider>,
+    </WorkspaceBrowserNavigationContext.Provider>
   );
-};
+}
+const render = (navigation = true, presentation = true) =>
+  harness.render(
+    <NewTabOwner navigation={navigation} presentation={presentation} />,
+  );
 describe("New tab Browser navigation", () => {
   beforeEach(async () => {
     await changeLimeLocale("en-US");

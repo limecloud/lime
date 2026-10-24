@@ -46,7 +46,6 @@ function loadDefaultMocks(): Promise<Record<string, MockHandler>> {
     const [
       browser,
       fileSystem,
-      knowledge,
       layeredDesign,
       log,
       mediaTask,
@@ -62,7 +61,6 @@ function loadDefaultMocks(): Promise<Record<string, MockHandler>> {
     ] = await Promise.all([
       import("./browserMocks"),
       import("./fileSystemMocks"),
-      import("./knowledgeMocks"),
       import("./layeredDesignMocks"),
       import("./logMocks"),
       import("./mediaTaskMocks"),
@@ -78,13 +76,11 @@ function loadDefaultMocks(): Promise<Record<string, MockHandler>> {
     ]);
 
     loadedMockResetters = [
-      knowledge.clearKnowledgeMocks,
       skillForge.clearSkillForgeMocks,
       layeredDesign.clearLayeredDesignMocks,
     ];
 
     return {
-      ...knowledge.knowledgeMocks,
       ...skillForge.skillForgeMocks,
       ...browser.browserMocks,
 

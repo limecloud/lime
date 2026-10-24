@@ -1,3 +1,5 @@
+import { createPreviewArtifact } from "@/lib/artifact/previewArtifact";
+import { createInitialSessionImageWorkbenchState } from "./imageWorkbenchHelpers";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -51,7 +53,6 @@ function mount(overrides: Partial<UseWorkspaceArtifactOpenRuntimeParams> = {}) {
     setHarnessPanelVisible: vi.fn(),
     setLayoutMode: vi.fn(),
     setSelectedArtifactId: vi.fn(),
-    syncGeneralArtifactToResource: vi.fn(),
     taskFiles: [],
     updateCurrentImageWorkbenchState: vi.fn(),
     upsertGeneralArtifact: vi.fn(),
@@ -86,6 +87,48 @@ afterEach(() => {
 });
 
 describe("Workspace 文件重新打开", () => {
+  it("图片任务输出进入标准预览时退出任务面板且保留输出身份", async () => {
+    const params = mount();
+    const projection = createPreviewArtifact({
+      source: "task",
+      sourceRef: "task-1:output:2",
+      previewUrl: "https://example.com/output-2.png",
+      isBinary: true,
+      mimeType: "image/png",
+      meta: {
+        taskId: "task-1",
+        outputId: "task-1:output:2",
+        threadId: "thread-1",
+      },
+    });
+
+    await act(async () => {
+      runtime.handleWorkspaceArtifactClick(projection.artifact);
+      await Promise.resolve();
+    });
+
+    const update = vi.mocked(params.updateCurrentImageWorkbenchState).mock
+      .calls[0]?.[0];
+    const current = {
+      ...createInitialSessionImageWorkbenchState(),
+      active: true,
+    };
+    expect(update?.(current)).toEqual({ ...current, active: false });
+    expect(params.upsertGeneralArtifact).toHaveBeenCalledWith(
+      projection.artifact,
+    );
+    expect(params.setSelectedArtifactId).toHaveBeenCalledWith(
+      projection.artifact.id,
+    );
+    expect(params.setLayoutMode).toHaveBeenCalledWith("chat-canvas");
+    expect(
+      params.workbenchRequests.requestCanvasWorkbenchPreviewOpen,
+    ).toHaveBeenCalledWith({
+      filePath: null,
+      selectionKey: `artifact:${projection.artifact.id}`,
+    });
+    expect(readFilePreview).not.toHaveBeenCalled();
+  });
   it("已保存站点的项目文件直接进入当前 Files", async () => {
     const params = mount({ projectId: "project-1", onNavigate: vi.fn() });
     await act(async () => {

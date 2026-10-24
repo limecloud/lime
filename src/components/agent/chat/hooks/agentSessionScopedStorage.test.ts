@@ -148,12 +148,12 @@ describe("agentSessionScopedStorage", () => {
       role: "assistant",
       content: "最终 Skill 回复",
       runtimeTurnId: "skill-exec-message-skill-assistant",
-      thinkingContent: "正在执行 Skill: brand-product-knowledge-builder...",
+      thinkingContent: "正在执行 Skill: personal-ip-knowledge-builder...",
     });
     expect(restoredAssistant?.contentParts).toEqual([
       {
         type: "thinking",
-        text: "正在执行 Skill: brand-product-knowledge-builder...",
+        text: "正在执行 Skill: personal-ip-knowledge-builder...",
       },
       {
         type: "text",
@@ -253,12 +253,12 @@ describe("agentSessionScopedStorage", () => {
       id: "message-skill-assistant",
       content: "最终 Skill 回复",
       runtimeTurnId: "skill-exec-message-skill-assistant",
-      thinkingContent: "正在执行 Skill: brand-product-knowledge-builder...",
+      thinkingContent: "正在执行 Skill: personal-ip-knowledge-builder...",
     });
     expect(restoredAssistant?.contentParts).toEqual([
       {
         type: "thinking",
-        text: "正在执行 Skill: brand-product-knowledge-builder...",
+        text: "正在执行 Skill: personal-ip-knowledge-builder...",
       },
       {
         type: "text",

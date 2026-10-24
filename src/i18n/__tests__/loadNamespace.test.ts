@@ -635,30 +635,6 @@ describe("i18n namespace loader", () => {
         "generalWorkbench.workflow.reviewFeedback.followUpBanner",
       );
       expect(resources[locale].agent).toHaveProperty(
-        "generalWorkbench.context.search.title",
-      );
-      expect(resources[locale].agent).toHaveProperty(
-        "generalWorkbench.context.search.placeholder",
-      );
-      expect(resources[locale].agent).toHaveProperty(
-        "generalWorkbench.context.detail.query",
-      );
-      expect(resources[locale].agent).toHaveProperty(
-        "generalWorkbench.context.detail.notFound",
-      );
-      expect(resources[locale].agent).toHaveProperty(
-        "generalWorkbench.context.detail.sourceTokens",
-      );
-      expect(resources[locale].agent).toHaveProperty(
-        "generalWorkbench.context.list.summary",
-      );
-      expect(resources[locale].agent).toHaveProperty(
-        "generalWorkbench.context.modal.add.uploadAria",
-      );
-      expect(resources[locale].agent).toHaveProperty(
-        "generalWorkbench.context.modal.text.placeholder",
-      );
-      expect(resources[locale].agent).toHaveProperty(
         "skills.workspace.managedJob.created",
       );
       expect(resources[locale].agent).toHaveProperty(
@@ -861,21 +837,6 @@ describe("i18n namespace loader", () => {
         "workspace.pendingA2UI.status.progressStep",
       );
       expect(resources[locale].workspace).toHaveProperty(
-        "workspace.resourceManager.pdf.missingTitle",
-      );
-      expect(resources[locale].workspace).toHaveProperty(
-        "workspace.resourceManager.pdf.frameTitle",
-      );
-      expect(resources[locale].workspace).toHaveProperty(
-        "workspace.resourceManager.media.titleFallback",
-      );
-      expect(resources[locale].workspace).toHaveProperty(
-        "workspace.resourceManager.media.error.description",
-      );
-      expect(resources[locale].workspace).toHaveProperty(
-        "workspace.resourceManager.unsupported.title",
-      );
-      expect(resources[locale].workspace).toHaveProperty(
         "workspace.artifactRenderer.previewFallback.systemOpen.title",
       );
       expect(resources[locale].workspace).toHaveProperty(
@@ -892,12 +853,6 @@ describe("i18n namespace loader", () => {
       );
       expect(resources[locale].workspace).toHaveProperty(
         "workspace.artifactRenderer.previewSource.empty",
-      );
-      expect(resources[locale].workspace).toHaveProperty(
-        "workspace.resourceManager.unsupported.mimeType",
-      );
-      expect(resources[locale].settings).toHaveProperty(
-        "settings.layout.sidebar.experimentalBadge",
       );
       expect(resources[locale].settings).toHaveProperty(
         "settings.layout.action.back",
@@ -973,21 +928,6 @@ describe("i18n namespace loader", () => {
         "settings.group.coding",
       );
       expect(resources[locale].settings).toHaveProperty(
-        "settings.tab.developerLab",
-      );
-      expect(resources[locale].settings).toHaveProperty(
-        "settings.developerLab.title",
-      );
-      expect(resources[locale].settings).toHaveProperty(
-        "settings.developerLab.tabs.experimental",
-      );
-      expect(resources[locale].settings).toHaveProperty(
-        "settings.developer.title",
-      );
-      expect(resources[locale].settings).toHaveProperty(
-        "settings.developer.serviceSkill.title",
-      );
-      expect(resources[locale].settings).toHaveProperty(
         "settings.appearance.hero.title",
       );
       expect(resources[locale].settings).toHaveProperty(
@@ -998,18 +938,6 @@ describe("i18n namespace loader", () => {
       );
       expect(resources[locale].settings).toHaveProperty(
         "settings.appearance.colorScheme.options.lime-future.label",
-      );
-      expect(resources[locale].settings).toHaveProperty(
-        "settings.experimental.updateCheck.title",
-      );
-      expect(resources[locale].settings).toHaveProperty(
-        "settings.experimental.updateCheck.autoCheck.title",
-      );
-      expect(resources[locale].settings).toHaveProperty(
-        "settings.experimental.updateCheck.metrics.updateNow",
-      );
-      expect(resources[locale].settings).toHaveProperty(
-        "settings.experimental.updateCheck.remindLaterUntil",
       );
       for (const key of [
         "settings.desktop.title",
@@ -1046,132 +974,6 @@ describe("i18n namespace loader", () => {
         "settings.personalization.tools",
       );
       expect(resources[locale].settings).toHaveProperty(
-        "settings.webSearch.providers.googleEngine.label",
-      );
-      expect(resources[locale].settings).toHaveProperty(
-        "settings.webSearch.title",
-      );
-      expect(resources[locale].settings).toHaveProperty(
-        "settings.webSearch.description",
-      );
-      expect(resources[locale].settings).toHaveProperty(
-        "settings.webSearch.hero.tipAria",
-      );
-      expect(resources[locale].settings).toHaveProperty(
-        "settings.webSearch.summary.status",
-      );
-      expect(resources[locale].settings).toHaveProperty(
-        "settings.webSearch.tabs.searchChain",
-      );
-      expect(resources[locale].settings).toHaveProperty(
-        "settings.webSearch.action.save",
-      );
-      expect(resources[locale].settings).toHaveProperty(
-        "settings.webSearch.message.saved",
-      );
-      expect(resources[locale].settings).toHaveProperty(
-        "settings.webSearch.message.loadFailed",
-      );
-      expect(resources[locale].settings).toHaveProperty(
-        "settings.webSearch.secret.hide",
-      );
-      expect(resources[locale].settings).toHaveProperty(
-        "settings.webSearch.status.credential",
-      );
-      expect(resources[locale].settings).toHaveProperty(
-        "settings.webSearch.providerChain.auto",
-      );
-      expect(resources[locale].settings).toHaveProperty(
-        "settings.webSearch.searchChain.title",
-      );
-      expect(resources[locale].settings).toHaveProperty(
-        "settings.webSearch.providers.title",
-      );
-      expect(resources[locale].settings).toHaveProperty(
-        "settings.webSearch.providers.tavily.apply",
-      );
-      expect(resources[locale].settings).toHaveProperty(
-        "settings.webSearch.providers.bing.placeholder",
-      );
-      expect(resources[locale].settings).toHaveProperty(
-        "settings.webSearch.providers.googleApi.tipAria",
-      );
-      expect(resources[locale].settings).toHaveProperty(
-        "settings.webSearch.providers.googleEngine.create",
-      );
-      expect(resources[locale].settings).toHaveProperty(
-        "settings.webSearch.action.viewDocs",
-      );
-      expect(resources[locale].settings).toHaveProperty(
-        "settings.webSearch.mse.customTemplate.placeholder",
-      );
-      expect(resources[locale].settings).toHaveProperty(
-        "settings.webSearch.mse.customTemplateStatus",
-      );
-      expect(resources[locale].settings).toHaveProperty(
-        "settings.webSearch.mse.suggestion.title",
-      );
-      expect(resources[locale].settings).toHaveProperty(
-        "settings.webSearch.mse.templateStatus.ready",
-      );
-      expect(resources[locale].settings).toHaveProperty(
-        "settings.webSearch.mse.action.viewDesign",
-      );
-      expect(resources[locale].settings).toHaveProperty(
-        "settings.webSearch.images.title",
-      );
-      expect(resources[locale].settings).toHaveProperty(
-        "settings.webSearch.images.pexels.apply",
-      );
-      expect(resources[locale].settings).toHaveProperty(
-        "settings.webSearch.images.pexels.noteTip",
-      );
-      expect(resources[locale].settings).toHaveProperty(
-        "settings.webSearch.images.pixabay.apply",
-      );
-      expect(resources[locale].settings).toHaveProperty(
-        "settings.webSearch.images.pixabay.noteTip",
-      );
-      expect(resources[locale].settings).toHaveProperty(
-        "settings.webSearch.observability.title",
-      );
-      expect(resources[locale].settings).toHaveProperty(
-        "settings.webSearch.observability.mseCustomTemplateStatus",
-      );
-      expect(resources[locale].settings).toHaveProperty(
-        "settings.webSearch.observability.providerChain.title",
-      );
-      expect(resources[locale].settings).toHaveProperty(
-        "settings.webSearch.observability.imageKeys.ready",
-      );
-      expect(resources[locale].settings).toHaveProperty(
-        "settings.webSearch.searchChain.engine.label",
-      );
-      expect(resources[locale].settings).toHaveProperty(
-        "settings.webSearch.searchChain.provider.label",
-      );
-      expect(resources[locale].settings).toHaveProperty(
-        "settings.webSearch.searchChain.providerPriority.placeholder",
-      );
-      expect(resources[locale].settings).toHaveProperty(
-        "settings.webSearch.searchChain.fallbackPreview.tip",
-      );
-      expect(resources[locale].settings).toHaveProperty(
-        "settings.webSearch.searchChain.suggestion.title",
-      );
-      expect(resources[locale].settings).toHaveProperty(
-        "settings.webSearch.engine.xiaohongshu",
-      );
-      expect(resources[locale].settings).toHaveProperty(
-        "settings.stats.heatmap.rangeValue",
-      );
-      expect(resources[locale].settings).toHaveProperty(
-        "settings.stats.range.week.label",
-      );
-      expect(resources[locale].settings).toHaveProperty(
-        "settings.stats.segment.messages",
-      );
-      expect(resources[locale].settings).toHaveProperty(
         "settings.channels.logTail.title",
       );
       expect(resources[locale].settings).toHaveProperty(
@@ -1203,12 +1005,6 @@ describe("i18n namespace loader", () => {
       );
       expect(resources[locale].settings).toHaveProperty(
         "settings.system.clipboardPermission.message.openSettingsFailedWithMessage",
-      );
-      expect(resources[locale].settings).toHaveProperty(
-        "settings.system.workspaceRepair.title",
-      );
-      expect(resources[locale].settings).toHaveProperty(
-        "settings.system.workspaceRepair.message.copiedAll",
       );
       expect(resources[locale].settings).toHaveProperty(
         "settings.mediaServices.title",
@@ -1517,11 +1313,6 @@ describe("i18n namespace loader", () => {
     ).toBe("梦樱花境");
     expect(
       loadNamespaceResource("fr-FR", "settings")[
-        "settings.layout.sidebar.experimentalBadge"
-      ],
-    ).toBe("实验");
-    expect(
-      loadNamespaceResource("fr-FR", "settings")[
         "settings.about.version.label"
       ],
     ).toBe("版本 {{version}}（{{build}}）");
@@ -1530,14 +1321,6 @@ describe("i18n namespace loader", () => {
         "settings.about.update.errorDownload"
       ],
     ).toBe("暂时无法自动安装更新，请使用网页下载最新版。");
-    expect(
-      loadNamespaceResource("fr-FR", "settings")["settings.developer.title"],
-    ).toBe("开发者");
-    expect(
-      loadNamespaceResource("fr-FR", "settings")[
-        "settings.developer.serviceSkill.title"
-      ],
-    ).toBe("服务型技能目录联调");
     expect(
       loadNamespaceResource("fr-FR", "settings")[
         "settings.appearance.hero.title"
@@ -1548,29 +1331,6 @@ describe("i18n namespace loader", () => {
         "settings.appearance.colorScheme.options.lime-classic.label"
       ],
     ).toBe("森野秘境");
-    expect(
-      loadNamespaceResource("fr-FR", "settings")[
-        "settings.experimental.updateCheck.title"
-      ],
-    ).toBe("自动更新检查");
-    expect(
-      loadNamespaceResource("fr-FR", "settings")["settings.experimental.title"],
-    ).toBe("实验功能");
-    expect(
-      loadNamespaceResource("fr-FR", "settings")[
-        "settings.experimental.webMcp.title"
-      ],
-    ).toBe("WebMCP（预留）");
-    expect(
-      loadNamespaceResource("fr-FR", "settings")[
-        "settings.experimental.message.webMcpEnabled"
-      ],
-    ).toBe("WebMCP 预留入口已启用");
-    expect(
-      loadNamespaceResource("fr-FR", "settings")[
-        "settings.experimental.crashReporting.environment.label"
-      ],
-    ).toBe("环境");
     expect(
       loadNamespaceResource("fr-FR", "settings")[
         "settings.environment.hero.title"
@@ -1586,16 +1346,6 @@ describe("i18n namespace loader", () => {
         "settings.environment.preview.overriddenSources"
       ],
     ).toBe("已覆盖来源：{{sources}}");
-    expect(
-      loadNamespaceResource("fr-FR", "settings")[
-        "settings.stats.range.week.label"
-      ],
-    ).toBe("本周");
-    expect(
-      loadNamespaceResource("fr-FR", "settings")[
-        "settings.stats.segment.messages"
-      ],
-    ).toBe("{{count}} 条消息");
     expect(
       loadNamespaceResource("fr-FR", "settings")[
         "settings.agent.skills.advancedEntry.title"
@@ -1725,6 +1475,6 @@ describe("i18n namespace loader", () => {
       loadNamespaceResource("zh-CN", "navigation")[
         "navigation.sidebar.items.knowledge"
       ],
-    ).toBe("项目资料");
+    ).toBeUndefined();
   });
 });

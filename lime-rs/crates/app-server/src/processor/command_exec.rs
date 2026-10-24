@@ -22,6 +22,9 @@ impl RequestProcessor {
             })?;
         let mut params: CommandExecParams = parse_params(params)?;
         let granted_permissions = self.resolve_command_exec_permission_profile(&mut params)?;
+        self.runtime
+            .enforce_command_requirements(&mut params)
+            .map_err(super::to_jsonrpc_error)?;
         dispatch_result(
             self.command_exec
                 .exec(connection_id, params, granted_permissions)

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   focusBrowserAnnotationComposer,
   listenBrowserAnnotationInputState,
+  listenBrowserAnnotationEditor,
   setBrowserAnnotationMarkers,
   setBrowserAnnotationOriginal,
 } from "./browserAnnotation";
@@ -50,6 +51,62 @@ describe("Browser annotation input and focus gateway", () => {
     webContentsId: 3,
     pageRevision: 4,
   };
+  it("validates a first Design capture and its page revision before delivering the editor event", async () => {
+    const receive = vi.fn();
+    await listenBrowserAnnotationEditor(receive);
+    const listener = bridge.listen.mock.calls[0][1];
+    const payload = {
+      ...identity,
+      editorId: "editor",
+      draftId: "a",
+      annotationId: "a",
+      generation: 1,
+      revision: 1,
+      action: "save",
+      body: "",
+      attachedImages: [],
+      designChange: {
+        declarations: [],
+        text: { previousValue: "Old", value: "New" },
+      },
+      capture: {
+        annotationId: "a",
+        selection: {},
+        screenshot: {
+          dataUrl: "data:image/png;base64,bmV3",
+          width: 800,
+          height: 600,
+          kind: "viewport",
+          viewportSize: { width: 800, height: 600 },
+        },
+        screenshotStatus: "captured",
+        failureReason: null,
+      },
+    };
+    listener({ payload });
+    expect(receive).toHaveBeenCalledOnce();
+    for (const invalid of [
+      { ...payload, pageRevision: -1 },
+      { ...payload, action: "close" },
+      { ...payload, capture: { ...payload.capture, annotationId: "foreign" } },
+      {
+        ...payload,
+        capture: { ...payload.capture, screenshotStatus: "failed" },
+      },
+      {
+        ...payload,
+        capture: {
+          ...payload.capture,
+          screenshot: {
+            ...payload.capture.screenshot,
+            viewportSize: { width: 0, height: 1 },
+          },
+        },
+      },
+    ])
+      expect(() => listener({ payload: invalid })).toThrow();
+    expect(receive).toHaveBeenCalledOnce();
+  });
   it("validates original preview receipts and projects only exact identity fields", async () => {
     bridge.invoke.mockResolvedValue({
       ...identity,

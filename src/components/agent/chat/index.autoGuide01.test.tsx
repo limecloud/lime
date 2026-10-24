@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   clickButton,
-  createMockThemeContextWorkspaceState,
   flushEffects,
   getIndexTestMocks,
   getSendMessageCall,
@@ -20,7 +19,6 @@ const {
   mockIsSpecializedWorkbenchTheme,
   mockMessageList,
   mockUseAgentChatUnified,
-  mockUseThemeContextWorkspace,
 } = getIndexTestMocks();
 
 describe("AgentChatPage 自动引导", { timeout: 20_000 }, () => {
@@ -60,11 +58,6 @@ describe("AgentChatPage 自动引导", { timeout: 20_000 }, () => {
 
   it("存在 initialUserPrompt 时应先预填并等待确认", async () => {
     mockIsSpecializedWorkbenchTheme.mockReturnValue(true);
-    mockUseThemeContextWorkspace.mockReturnValue(
-      createMockThemeContextWorkspaceState({
-        enabled: true,
-      }),
-    );
     const onInitialUserPromptConsumed = vi.fn();
     const initialUserPrompt = "请先帮我写一篇社媒文案提纲。";
 
@@ -132,11 +125,6 @@ describe("AgentChatPage 自动引导", { timeout: 20_000 }, () => {
 
   it("初始创作意图点击重新开始后应清空输入并消费待执行意图", async () => {
     mockIsSpecializedWorkbenchTheme.mockReturnValue(true);
-    mockUseThemeContextWorkspace.mockReturnValue(
-      createMockThemeContextWorkspaceState({
-        enabled: true,
-      }),
-    );
     const onInitialUserPromptConsumed = vi.fn();
     const initialUserPrompt = "请先帮我写一篇社媒文案提纲。";
 
@@ -166,11 +154,6 @@ describe("AgentChatPage 自动引导", { timeout: 20_000 }, () => {
 
   it("存在 initialRequestMetadata 时应把结构化回放透传到首发 requestMetadata", async () => {
     mockIsSpecializedWorkbenchTheme.mockReturnValue(true);
-    mockUseThemeContextWorkspace.mockReturnValue(
-      createMockThemeContextWorkspaceState({
-        enabled: true,
-      }),
-    );
 
     const initialUserPrompt = "请继续扩写这条已验证结果";
     const initialRequestMetadata = {
@@ -226,11 +209,6 @@ describe("AgentChatPage 自动引导", { timeout: 20_000 }, () => {
 
   it("启用自动执行首条意图时应直接发送而不是等待确认", async () => {
     mockIsSpecializedWorkbenchTheme.mockReturnValue(true);
-    mockUseThemeContextWorkspace.mockReturnValue(
-      createMockThemeContextWorkspaceState({
-        enabled: true,
-      }),
-    );
 
     const initialUserPrompt = "请先帮我写一篇社媒文案提纲。";
     const onInitialUserPromptConsumed = vi.fn();
@@ -269,61 +247,8 @@ describe("AgentChatPage 自动引导", { timeout: 20_000 }, () => {
     expect(sharedTriggerAIGuideMock).not.toHaveBeenCalled();
   });
 
-  it("工作区上下文启用时应把生效上下文前置到发送内容", async () => {
-    mockUseThemeContextWorkspace.mockReturnValue(
-      createMockThemeContextWorkspaceState({
-        enabled: true,
-        activeContextPrompt: "[生效上下文]\n1. [素材] 品牌手册",
-      }),
-    );
-
-    const initialUserPrompt = "请写一条社媒文案";
-    renderPage({
-      projectId: "project-social-context",
-      contentId: "content-social-context",
-      theme: "general",
-      lockTheme: true,
-      initialUserPrompt,
-      onInitialUserPromptConsumed: vi.fn(),
-    });
-    await flushEffects(12);
-
-    expect(sharedSendMessageMock).not.toHaveBeenCalled();
-    const contextContainer = mountedRoots.at(-1)?.container as HTMLDivElement;
-    clickButton(contextContainer, "theme-workbench-entry-continue");
-    await flushEffects(12);
-
-    expect(sharedSendMessageMock).toHaveBeenCalledTimes(1);
-    const sendCall = getSendMessageCall();
-    expect(sendCall.content).toBe(
-      `[生效上下文]\n1. [素材] 品牌手册\n\n${initialUserPrompt}`,
-    );
-    expect(sendCall.images).toEqual([]);
-    expect(sendCall.webSearch).toBeUndefined();
-    expect(sendCall.thinking).toBeUndefined();
-    expect(sendCall.skipUserMessage).toBe(false);
-    expect(sendCall.executionStrategy).toBe("react");
-    expect(sendCall.modelOverride).toBeUndefined();
-    expect(sendCall.autoContinue).toBeUndefined();
-    expect(sendCall.options).toEqual(
-      expect.objectContaining({
-        requestMetadata: expect.objectContaining({
-          harness: expect.objectContaining({
-            theme: "general",
-            session_mode: "general_workbench",
-          }),
-        }),
-      }),
-    );
-  });
-
   it("存在 initialUserPrompt 时应使用当前选中模型发送", async () => {
     mockIsSpecializedWorkbenchTheme.mockReturnValue(true);
-    mockUseThemeContextWorkspace.mockReturnValue(
-      createMockThemeContextWorkspaceState({
-        enabled: true,
-      }),
-    );
     const selectedModel = "gemini-2.5-pro";
     const onInitialUserPromptConsumed = vi.fn();
     const initialUserPrompt = "请生成面向 CTO 的社媒提纲";
@@ -406,11 +331,6 @@ describe("AgentChatPage 自动引导", { timeout: 20_000 }, () => {
 
   it("检测到未完成工作流时应提示继续或重新开始", async () => {
     mockIsSpecializedWorkbenchTheme.mockReturnValue(true);
-    mockUseThemeContextWorkspace.mockReturnValue(
-      createMockThemeContextWorkspaceState({
-        enabled: true,
-      }),
-    );
     mockExecutionRunGetGeneralWorkbenchState.mockResolvedValue({
       run_state: "auto_running",
       current_gate_key: "write_mode",
@@ -536,5 +456,4 @@ describe("AgentChatPage 自动引导", { timeout: 20_000 }, () => {
       }),
     ]);
   });
-
 });

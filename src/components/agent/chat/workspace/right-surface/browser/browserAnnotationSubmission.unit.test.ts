@@ -449,3 +449,79 @@ describe("Browser drafts and canonical input acceptance", () => {
     expect(lowered.text).toContain("No screenshot is attached.");
   });
 });
+
+it.each(["captured", "timeout", "failed"] as const)(
+  "atomically replaces the initial screenshot with a %s first-commit result at the same revision",
+  async (screenshotStatus) => {
+    const store = new BrowserAnnotationDraftStore();
+    const draft = createDraft(store);
+    const capture = {
+      ...draft.capture,
+      screenshotStatus,
+      screenshot:
+        screenshotStatus === "captured"
+          ? {
+              ...draft.capture.screenshot!,
+              dataUrl: "data:image/png;base64,bmV3",
+            }
+          : null,
+      failureReason: screenshotStatus === "captured" ? null : "capture-failed",
+    };
+    expect(
+      store.update(
+        draft.id,
+        draft.body,
+        draft.revision,
+        [],
+        undefined,
+        capture,
+      ),
+    ).toBe(true);
+    expect(store.get(draft.id)!.capture).toEqual(capture);
+    const send = vi.fn(async (payload: InputbarSendPayload) => {
+      expect(payload.images?.map((image) => image.data) ?? []).toEqual(
+        screenshotStatus === "captured" ? ["bmV3"] : [],
+      );
+      return accepted;
+    });
+    await submitBrowserAnnotations({
+      store,
+      sessionId: "session-1",
+      threadId: "thread-1",
+      payload: { browserAnnotationIds: [draft.id] },
+      send,
+      isCurrent: () => true,
+    });
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(store.get(draft.id)).toBeUndefined();
+  },
+);
+
+it("refuses late or foreign capture results without replacing newer content or immutable selection", () => {
+  const store = new BrowserAnnotationDraftStore();
+  const draft = createDraft(store);
+  store.update(draft.id, "New revision", 2);
+  expect(
+    store.update(draft.id, draft.body, 1, [], undefined, draft.capture),
+  ).toBe(false);
+  for (const capture of [
+    { ...draft.capture, annotationId: "foreign" },
+    {
+      ...draft.capture,
+      selection: { ...draft.event.selection, targetText: "foreign" },
+    },
+    { ...draft.capture, screenshotStatus: "failed" as const },
+    {
+      ...draft.capture,
+      screenshot: {
+        ...draft.capture.screenshot!,
+        viewportSize: { width: 0, height: 1 },
+      },
+    },
+  ])
+    expect(
+      store.update(draft.id, "New revision", 2, [], undefined, capture),
+    ).toBe(false);
+  expect(store.get(draft.id)!.body).toBe("New revision");
+  expect(store.get(draft.id)!.capture).toBe(draft.capture);
+});

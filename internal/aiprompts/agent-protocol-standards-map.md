@@ -25,14 +25,15 @@ Codex 是 Lime Agent runtime 的唯一实现参考。本文列出的 Agent Evide
 
 | 标准 | 当前定位 | Lime 中的来源压力 | 公开链接 | Lime 对应文档 |
 | --- | --- | --- | --- | --- |
-| Agent Knowledge | Agent-readable knowledge packs；源材料、知识包、编译视图、引用与维护状态 | Knowledge v2、Builder Skill、document-first KnowledgePack、Resolver 主链 | [site](https://limecloud.github.io/agentknowledge/) / [llms-full](https://limecloud.github.io/agentknowledge/llms-full.txt) / [repo](https://github.com/limecloud/agentknowledge) | `../roadmap/knowledge/prd-v2.md`、`../roadmap/knowledge/prd-v2-diagrams.md` |
 | Agent UI | Agent interaction surfaces；composer、message parts、status、tool UI、task capsule、artifact workspace、timeline/evidence | Workspace projection、Agent chat、artifact workspace、human-in-the-loop、timeline evidence | [site](https://limecloud.github.io/agentui/) / [llms-full](https://limecloud.github.io/agentui/llms-full.txt) / [repo](https://github.com/limecloud/agentui) | `../roadmap/agentui/README.md`、`workspace.md`、`design-language.md` |
 | Agent Runtime | Agent execution runtime；events、control plane、tasks、tools、permissions、sandbox、remote channels、replay refs | Query loop、task lifecycle、tool execution、subagents、remote runtime、model routing、snapshots | [site](https://limecloud.github.io/agentruntime/) / [llms-full](https://limecloud.github.io/agentruntime/llms-full.txt) / [repo](https://github.com/limecloud/agentruntime) | `query-loop.md`、`task-agent-taxonomy.md`、`remote-runtime.md`、`state-history-telemetry.md` |
 | Agent Evidence | Evidence, provenance, verification, review, replay, redaction, telemetry correlation, export manifests | Harness evidence pack、requestTelemetry、review/replay/export、source grounding、artifact review | [site](https://limecloud.github.io/agentevidence/) / [llms-full](https://limecloud.github.io/agentevidence/llms-full.txt) / [repo](https://github.com/limecloud/agentevidence) | `harness-engine-governance.md`、`state-history-telemetry.md`、`persistence-map.md` |
 | Agent Policy | Policy decisions, approvals, permission grants, risk scopes, redaction, retention, waivers, policy traces | human approval、sandbox、retention、risk、waiver、permission bridge 横跨 runtime/evidence/UI | [site](https://limecloud.github.io/agentpolicy/) / [llms-full](https://limecloud.github.io/agentpolicy/llms-full.txt) / [repo](https://github.com/limecloud/agentpolicy) | `quality-workflow.md`、`remote-runtime.md`、`harness-engine-governance.md` |
 | Agent Artifact | Durable deliverables；artifact identity、parts、versions、diffs、render/export manifests、source links、handoff packages | FileArtifact、sidecar、version、checkpoint、snapshot refs、artifact workspace、evidence refs | [site](https://limecloud.github.io/agentartifact/) / [llms-full](https://limecloud.github.io/agentartifact/llms-full.txt) / [repo](https://github.com/limecloud/agentartifact) | `persistence-map.md`、`../roadmap/artifacts/roadmap.md`、`../roadmap/agentui/README.md` |
 | Agent Tool | Tool declarations；tool surfaces、input/output contracts、execution/permission profiles、invocation lifecycle、progress、result refs、errors | tools、MCP、site adapter、native skill、browser assist、capability matrix、permission profile、tool timeline | [site](https://limecloud.github.io/agenttool/) / [llms-full](https://limecloud.github.io/agenttool/llms-full.txt) / [repo](https://github.com/limecloud/agenttool) | `skill-standard.md`、`site-adapter-standard.md`、`mcp.md`、`command-runtime.md`、`../roadmap/warp/capability-matrix.md` |
-| Agent Context | Context surfaces；context items、source refs、selection/ranking、budget/window、assembly/injection、compaction/summary、missing context | Memory / Compaction、Prompt Foundation、Query Loop 输入快照、Knowledge selection、tool-visible context | [site](https://limecloud.github.io/agentcontext/) / [llms-full](https://limecloud.github.io/agentcontext/llms-full.txt) / [repo](https://github.com/limecloud/agentcontext) | `memory-compaction.md`、`prompt-foundation.md`、`query-loop.md`、`state-history-telemetry.md` |
+| Agent Context | Context surfaces；context items、source refs、selection/ranking、budget/window、assembly/injection、compaction/summary、missing context | Memory / Compaction、Prompt Foundation、Query Loop 输入快照、工作区文件选择、tool-visible context | [site](https://limecloud.github.io/agentcontext/) / [llms-full](https://limecloud.github.io/agentcontext/llms-full.txt) / [repo](https://github.com/limecloud/agentcontext) | `memory-compaction.md`、`prompt-foundation.md`、`query-loop.md`、`state-history-telemetry.md` |
+
+独立知识平台与专用协议已删除，不再作为 current 标准接入或 runtime owner。资料整理专家通过标准 Skills 使用工作区文件；历史研究记录不提供恢复入口。
 
 ## 友链与外部对齐
 
@@ -75,7 +76,7 @@ Codex 是 Lime Agent runtime 的唯一实现参考。本文列出的 Agent Evide
 
 | 候选标准 | 建议名称 | 为什么值得拆 | 当前 Lime 事实源 | 拆分状态 |
 | --- | --- | --- | --- | --- |
-| Evaluation / Benchmark | Agent Evaluation | acceptance scenarios、provider E2E、quality review、harness evals、rubric 与 evidence 可复用 | `../test/harness-evals.md`、`../roadmap/knowledge/completion-audit-20260508.md` | 候选，适合从 Evidence 扩展 |
+| Evaluation / Benchmark | Agent Evaluation | acceptance scenarios、provider E2E、quality review、harness evals、rubric 与 evidence 可复用 | `../test/harness-evals.md` | 候选，适合从 Evidence 扩展 |
 | Workflow / Scene | Agent Workflow | ServiceSkill scene、功能方案包、multi-step content workflow、browser-grounded scene 需要 portable workflow facts | `command-runtime.md`、`task-agent-taxonomy.md` | 中期候选 |
 | Model Routing / Economy | Agent Model Routing | provider registry、model profile、cost、quota、fallback、task profile 有通用标准价值 | `providers.md`、`credential-pool.md`、`../roadmap/task/model-routing.md` | 中期候选 |
 | Connector / Channel | Agent Channel | remote runtime、A2A peer、webhook、deep link、browser session、desktop bridge 都是跨系统通道 | `remote-runtime.md`、`../content/08.open-platform/4.connect.md` | 中期候选 |
@@ -106,7 +107,6 @@ Codex 是 Lime Agent runtime 的唯一实现参考。本文列出的 Agent Evide
 ## 一句话地图
 
 ```text
-Agent Knowledge -> 给 Agent 什么可信资料
 Agent Runtime   -> Agent 工作如何执行和恢复
 Agent UI        -> Agent 工作如何被看见和控制
 Agent Evidence  -> Agent 结果为什么可信、如何审计和回放

@@ -9,6 +9,24 @@ import { readCanonicalThreadEnvironmentSelections } from "./threadEnvironments";
 const CREATED_AT_SECONDS = 1_780_704_000;
 
 describe("appServerCanonicalThreadProjection", () => {
+  it.each(["high", "ultra", null])(
+    "projects persisted reasoning effort %s without guessing a model default",
+    (effort) => {
+      const detail = readCanonicalThreadDetail({
+        thread: {
+          id: "thread-effort",
+          sessionId: "session-effort",
+          status: { type: "idle" },
+          createdAt: CREATED_AT_SECONDS,
+          updatedAt: CREATED_AT_SECONDS + 1,
+          modelProvider: "provider",
+          extra: { modelName: "model", reasoningEffort: effort },
+          turns: [],
+        },
+      });
+      expect(detail?.thread_read?.reasoning_effort).toBe(effort);
+    },
+  );
   it("把 Thread metadata 的环境选择和 world-state status 投影到 canonical read model", () => {
     expect(
       readCanonicalThreadEnvironmentSelections({

@@ -18,7 +18,7 @@ const localize = (locale = "en-US") => {
     if (!group) {
       group = {
         key: section.group,
-        title: t(`settings.group.${section.group}`),
+        title: section.group ? t(`settings.group.${section.group}`) : "",
         items: [],
       };
       groups.push(group);
@@ -37,12 +37,7 @@ const search = (query: string, localProfile = true) => {
 };
 
 // 独立列出 current 可见字段，避免从被测索引生成自己的期望。
-const developerMediaTargets = [
-  [
-    SettingsTabs.Developer,
-    "experimental-crash-reporting",
-    "experimental.crashReporting.title",
-  ],
+const mediaTargets = [
   [
     SettingsTabs.MediaServices,
     "media-service-responsive-chat",
@@ -96,6 +91,46 @@ const developerMediaTargets = [
 ] as const;
 
 describe("current settings search projection", () => {
+  it.each(["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"])(
+    "%s finds Configuration defaults and routes conditional network search to its sandbox parent",
+    (locale) => {
+      const { t, groups } = localize(locale);
+      expect(
+        searchSettings(
+          t("settings.configuration.modelFeatures.label"),
+          groups,
+          t,
+          true,
+        ),
+      ).toContainEqual(
+        expect.objectContaining({
+          section: SettingsTabs.Configuration,
+          targetId: "configuration-scope",
+        }),
+      );
+      for (const field of [
+        "approval_policy",
+        "sandbox_mode",
+        "model_verbosity",
+        "model_reasoning_summary",
+        "network",
+      ]) {
+        expect(
+          searchSettings(
+            t(`settings.configuration.fields.${field}.label`),
+            groups,
+            t,
+            true,
+          ),
+        ).toContainEqual(
+          expect.objectContaining({
+            section: SettingsTabs.Configuration,
+            targetId: `configuration-${field === "network" ? "sandbox_mode" : field}`,
+          }),
+        );
+      }
+    },
+  );
   it.each(["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"])(
     "%s finds worktree preferences without indexing a private directory",
     (locale) => {
@@ -166,10 +201,10 @@ describe("current settings search projection", () => {
     },
   );
   it.each(["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"])(
-    "%s resolves the eleven independent Developer and Media expectations",
+    "%s resolves the ten independent Media expectations",
     (locale) => {
       const { t, groups } = localize(locale);
-      for (const [section, targetId, message] of developerMediaTargets) {
+      for (const [section, targetId, message] of mediaTargets) {
         expect(
           searchSettings(t(`settings.${message}`), groups, t, true),
         ).toContainEqual(expect.objectContaining({ section, targetId }));
@@ -184,57 +219,11 @@ describe("current settings search projection", () => {
           ),
         ).toContainEqual(expect.objectContaining({ section, targetId }));
         expect(getSettingsSearchDocument(section, targetId, true)?.path).toBe(
-          section === SettingsTabs.Developer ? "experimental" : undefined,
+          undefined,
         );
       }
-      for (const field of ["dsn", "environment", "sampleRate"])
-        expect(
-          searchSettings(
-            t(`settings.experimental.crashReporting.${field}.label`),
-            groups,
-            t,
-            true,
-          ),
-        ).toContainEqual(
-          expect.objectContaining({
-            section: SettingsTabs.Developer,
-            targetId: "experimental-crash-reporting",
-          }),
-        );
     },
   );
-  it("keeps Developer paths in the exact whitelist and excludes private configuration values", () => {
-    for (const targetId of [
-      "experimental",
-      "experimental-crash-reporting/experimental",
-      'experimental-crash-reporting"] input, *',
-      "media-service-topic",
-    ])
-      expect(
-        getSettingsSearchDocument(SettingsTabs.Developer, targetId, true),
-      ).toBeUndefined();
-    expect(
-      getSettingsSearchDocument(
-        SettingsTabs.Experimental,
-        "experimental-crash-reporting",
-        true,
-      ),
-    ).toBeUndefined();
-    for (const value of [
-      "fixture-secret-dsn-value",
-      "fixture-private-prompt",
-      "fixture-custom-model-name",
-      "https://secret.invalid/42",
-    ])
-      expect(search(value)).toEqual([]);
-    expect(
-      getSettingsSearchDocument(
-        SettingsTabs.Developer,
-        "experimental-crash-reporting",
-        true,
-      )?.termKeys,
-    ).not.toContain("settings.experimental.crashReporting.dsn.placeholder");
-  });
   it.each(["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"])(
     "%s resolves current static targets with existing messages",
     (locale) => {

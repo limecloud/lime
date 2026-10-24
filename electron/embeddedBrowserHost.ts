@@ -2,10 +2,10 @@ import process from "node:process";
 import { randomUUID } from "node:crypto";
 import {
   effectiveBrowserSettings,
+  validateBrowserSettings,
   type BrowserSettings,
 } from "../src/lib/api/browserSettingsTypes";
 import {
-  applyBrowserDevice,
   browserCommandForInput,
   captureBrowserPage,
   printBrowserPage,
@@ -14,6 +14,7 @@ import {
 } from "./embeddedBrowserPageActions";
 import {
   readState,
+  advanceNavigation,
   createEmptyFindState,
   readFindResult,
   readViewId,
@@ -21,7 +22,6 @@ import {
   readOptionalUrl,
   readBounds,
   readOptionalBounds,
-  applyBounds,
   attachEntryToWindow,
   detachEntryFromWindow,
   closeEntryView,
@@ -59,6 +59,8 @@ import type {
   WebContents as ElectronWebContents,
   WebPreferences,
 } from "electron";
+import type { BrowserDeviceBounds, BrowserDeviceViewport } from "../src/lib/browserDeviceLayout";
+import { layoutEmbeddedBrowser, setEmbeddedBrowserDevice } from "./embeddedBrowserDevice";
 
 type HostArgs = Record<string, unknown> | null | undefined;
 type HostEventEmitter = (event: string, payload?: unknown) => void;
@@ -104,6 +106,8 @@ export interface EmbeddedBrowserViewState {
   audioMuted: boolean;
   audible: boolean;
   device: EmbeddedBrowserDeviceState | null;
+  deviceViewport: BrowserDeviceViewport | null;
+  navigationRevision: number;
 }
 
 export type EmbeddedBrowserLoadFailureCategory =
@@ -142,12 +146,16 @@ export interface EmbeddedBrowserEntry {
   find: EmbeddedBrowserFindState;
   findRequestId: number | null;
   device: EmbeddedBrowserDeviceState | null;
+  deviceViewport: BrowserDeviceViewport | null;
+  navigationRevision: number;
+  containerBounds: BrowserDeviceBounds;
+  visible: boolean;
   openerViewId?: string;
 }
 
 type PendingPermission = {
   viewId: string;
-  callback: (allowed: boolean) => void;
+  callback: (allowed: boolean) => boolean;
 };
 
 export interface EmbeddedBrowserPopupRequest {
@@ -161,6 +169,7 @@ export interface EmbeddedBrowserNativeView {
   state: EmbeddedBrowserViewState;
   view: WebContentsView;
   window: BrowserWindow;
+  containerBounds: BrowserDeviceBounds;
 }
 
 const EMBEDDED_BROWSER_PARTITION = "persist:embedded-browser";
@@ -181,6 +190,7 @@ export class ElectronEmbeddedBrowserHost {
   #downloadObserver: EmbeddedBrowserDownloadController["onDownload"];
   #downloadHandling: ReturnType<typeof installEmbeddedBrowserDownloadHandling> | null = null;
   #pendingPermissions = new Map<string, PendingPermission>();
+  #permissionGrants: ReturnType<typeof installEmbeddedBrowserPermissionHandling> | null = null;
   #deferPermissions = false;
   #emit: HostEventEmitter;
   #sessionHandlersInstalled = false;
@@ -229,7 +239,7 @@ export class ElectronEmbeddedBrowserHost {
     ) {
       throw new Error("Browser download directory must be an absolute path");
     }
-    this.#settings = effectiveBrowserSettings(settings);
+    this.#settings = validateBrowserSettings(settings);
   }
 
   setPopupHandler(
@@ -309,8 +319,7 @@ export class ElectronEmbeddedBrowserHost {
       case "embedded_browser_view_set_device": {
         const entry = this.#requireEntry(window, args);
         const device = readBrowserDevice(args?.device);
-        applyBrowserDevice(entry.view.webContents, device);
-        entry.device = device;
+        setEmbeddedBrowserDevice(entry, device);
         return this.#emitState(entry);
       }
       default:
@@ -343,6 +352,7 @@ export class ElectronEmbeddedBrowserHost {
       state: readState(entry),
       view: entry.view,
       window: entry.window,
+      containerBounds: { ...entry.containerBounds },
     };
   }
 
@@ -371,6 +381,8 @@ export class ElectronEmbeddedBrowserHost {
     this.#downloadHandling?.prepareShutdown();
   }
 
+  revokePermissionGrants(viewId?: string): void { this.#permissionGrants?.revoke(viewId); }
+
   resolvePermission(
     requestId: string,
     allowed: boolean,
@@ -381,8 +393,8 @@ export class ElectronEmbeddedBrowserHost {
       return false;
     }
     this.#pendingPermissions.delete(requestId);
-    pending.callback(allowed);
-    return true;
+    const granted = pending.callback(allowed);
+    return !allowed || granted;
   }
 
   clearPendingPermission(requestId: string, expectedViewId?: string): boolean {
@@ -423,11 +435,7 @@ export class ElectronEmbeddedBrowserHost {
       entry.leaseIds.add(leaseId);
     }
 
-    if (bounds) {
-      applyBounds(entry.view, bounds, visible);
-    } else {
-      entry.view.setVisible(visible);
-    }
+    layoutEmbeddedBrowser(entry, bounds ?? entry.containerBounds, visible);
 
     if (url) {
       this.#startNavigation(entry, url);
@@ -440,7 +448,7 @@ export class ElectronEmbeddedBrowserHost {
     const entry = this.#ensureEntry(window, readViewId(args));
     const bounds = readBounds(args);
     const visible = readOptionalBoolean(args, "visible") ?? true;
-    applyBounds(entry.view, bounds, visible);
+    layoutEmbeddedBrowser(entry, bounds, visible);
     return this.#emitState(entry);
   }
 
@@ -503,7 +511,8 @@ export class ElectronEmbeddedBrowserHost {
     };
     entry.findRequestId = entry.view.webContents.findInPage(text, {
       forward: readOptionalBoolean(args, "forward") ?? true,
-      findNext: readOptionalBoolean(args, "findNext") ?? false,
+      // Electron's findNext means new_session; our command means next match.
+      findNext: !(readOptionalBoolean(args, "findNext") ?? false),
     });
     return this.#emitState(entry);
   }
@@ -652,6 +661,10 @@ export class ElectronEmbeddedBrowserHost {
       find: createEmptyFindState(),
       findRequestId: null,
       device: null,
+      deviceViewport: null,
+      navigationRevision: 0,
+      containerBounds: { x: 0, y: 0, width: 0, height: 0 },
+      visible: false,
     };
     view.webContents.setWindowOpenHandler(({ url, disposition }) => {
       const popupHandler = this.#popupHandler;
@@ -739,11 +752,14 @@ export class ElectronEmbeddedBrowserHost {
     view.webContents.on(
       "did-start-navigation",
       (_event, url, _isInPlace, isMainFrame) => {
-        if (isMainFrame)
+        if (isMainFrame) {
+          advanceNavigation(entry);
+          this.#emitState(entry);
           this.#emit("embedded-browser-view-navigation-started", {
             viewId,
             url,
           });
+        }
       },
     );
     view.webContents.on("did-navigate", (_event, url) => {
@@ -877,7 +893,7 @@ export class ElectronEmbeddedBrowserHost {
       onPendingPermission: (
         requestId: string,
         viewId: string,
-        callback: (allowed: boolean) => void,
+        callback: (allowed: boolean) => boolean,
       ) => {
         this.#pendingPermissions.set(requestId, {
           viewId,
@@ -890,7 +906,7 @@ export class ElectronEmbeddedBrowserHost {
       controller,
       this.#emit,
     );
-    installEmbeddedBrowserPermissionHandling(
+    this.#permissionGrants = installEmbeddedBrowserPermissionHandling(
       embeddedSession,
       controller,
       this.#emit,

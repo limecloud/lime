@@ -6,6 +6,9 @@ import {
 } from "./agentStreamAcceptance.testFixtures";
 import { sendAgentStreamMessage } from "./agentStreamSend";
 import type { TurnStartResponse } from "@limecloud/app-server-client";
+import type { Message } from "../types";
+import { stopActiveAgentStream } from "./agentStreamFlowControl";
+import { hasLocallyInterruptedAgentStreamBinding } from "./streamBindingRecords";
 const { logMock } = vi.hoisted(() => ({ logMock: vi.fn() }));
 vi.mock("@/lib/agentDebug", () => ({ logAgentDebug: logMock }));
 vi.mock("@/lib/api/modelRegistry", () => ({
@@ -21,6 +24,69 @@ const response: TurnStartResponse = {
   turn: { id: "turn-response", status: "inProgress" },
 };
 describe("request-scoped runtime acceptance", () => {
+  it("can stop an accepted turn before its first stream event arrives", async () => {
+    const env = createAcceptanceEnv();
+    let messages: Message[] = [];
+    let currentTurnId: string | null = null;
+    env.setMessages = (next) => {
+      messages = typeof next === "function" ? next(messages) : next;
+    };
+    env.setCurrentTurnId = (next) => {
+      currentTurnId = typeof next === "function" ? next(currentTurnId) : next;
+    };
+    env.setActiveStream = (next) => {
+      env.activeStreamRef.current = next;
+    };
+    const interruptTurn = vi.fn().mockResolvedValue(true);
+    Object.assign(env.runtime, {
+      interruptTurn,
+      getSessionReadModel: vi.fn().mockResolvedValue({ thread_items: [] }),
+    });
+    const accepted = vi.fn(() => {
+      expect(currentTurnId).toBe("turn-start");
+      expect(
+        messages.find((message) => message.role === "assistant")?.runtimeTurnId,
+      ).toBe("turn-start");
+    });
+    await sendAgentStreamMessage({
+      content: "Stop before the first event",
+      images: [],
+      options: { observer: { onRuntimeAccepted: accepted } },
+      env,
+    });
+    expect(accepted).toHaveBeenCalledTimes(1);
+    // The fixture never delivers turn_started or any other stream event.
+    expect(currentTurnId).toBe("turn-start");
+    await stopActiveAgentStream({
+      activeStream: env.activeStreamRef.current,
+      sessionIdRef: env.sessionIdRef,
+      threadId: "thread-1",
+      currentTurnId,
+      runtime: env.runtime,
+      removeStreamListener: () => true,
+      refreshSessionReadModel: env.refreshSessionReadModel,
+      setThreadItems: env.setThreadItems,
+      setThreadTurns: env.setThreadTurns,
+      setCurrentTurnId: env.setCurrentTurnId,
+      setMessages: env.setMessages,
+      getMessages: () => messages,
+      setActiveStream: env.setActiveStream,
+      notify: { info: vi.fn(), error: vi.fn() },
+    });
+    expect(interruptTurn).toHaveBeenCalledWith(
+      "thread-1",
+      "turn-start",
+      expect.any(String),
+    );
+    expect(
+      hasLocallyInterruptedAgentStreamBinding({
+        sessionId: "session-1",
+        turnId: "turn-start",
+      }),
+    ).toBe(true);
+    expect(env.activeStreamRef.current).toBeNull();
+  });
+
   it("captures actual request session/thread before a later global ref changes", async () => {
     const { options, submitOp } = createAcceptanceOptions(null);
     const accepted = vi.fn();

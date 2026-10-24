@@ -37,7 +37,6 @@ interface ChatNavbarProps {
   entryContextHint?: string;
   onToggleFullscreen: () => void;
   onBackToProjectManagement?: () => void;
-  onBackToResources?: () => void;
   onToggleSettings?: () => void;
   onBackHome?: () => void;
   showCanvasToggle?: boolean;
@@ -144,7 +143,6 @@ export const ChatNavbar: React.FC<ChatNavbarProps> = ({
   entryContextHint,
   onToggleFullscreen: _onToggleFullscreen,
   onBackToProjectManagement,
-  onBackToResources,
   onToggleSettings,
   onBackHome,
   showCanvasToggle = false,
@@ -218,9 +216,7 @@ export const ChatNavbar: React.FC<ChatNavbarProps> = ({
   const showNavigationTools =
     !effectiveCollapseChrome &&
     !isWorkspaceCompact &&
-    (Boolean(onBackHome) ||
-      Boolean(onBackToResources) ||
-      Boolean(onBackToProjectManagement));
+    (Boolean(onBackHome) || Boolean(onBackToProjectManagement));
   const showWorkspaceTools = !effectiveCollapseChrome && showCanvasToggle;
   const showProjectSelector = !isWorkspaceCompact && !isTaskCenterChrome;
   const showCompactSettingsButton =
@@ -464,24 +460,7 @@ export const ChatNavbar: React.FC<ChatNavbarProps> = ({
                 <Home size={18} />
               </Button>
             )}
-            {onBackHome && (onBackToResources || onBackToProjectManagement) ? (
-              <div className={dividerClassName} aria-hidden="true" />
-            ) : null}
-            {onBackToResources && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className={cn(
-                  embeddedButtonClassName,
-                  toolbarTextButtonClassName,
-                )}
-                onClick={onBackToResources}
-              >
-                <FolderOpen size={16} className="mr-0.5" />
-                {navText("agentChat.navbar.backResources", "返回资源")}
-              </Button>
-            )}
-            {onBackToResources && onBackToProjectManagement ? (
+            {onBackHome && onBackToProjectManagement ? (
               <div className={dividerClassName} aria-hidden="true" />
             ) : null}
             {onBackToProjectManagement && (
@@ -568,9 +547,6 @@ export const ChatNavbar: React.FC<ChatNavbarProps> = ({
             <ProjectSelector
               value={projectId}
               onChange={(nextProjectId) => onProjectChange?.(nextProjectId)}
-              onOpenProjectContents={
-                onBackToResources ? () => onBackToResources() : undefined
-              }
               workspaceType={workspaceType}
               placeholder={navText(
                 "agentChat.navbar.projectPlaceholder",

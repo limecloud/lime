@@ -1,30 +1,9 @@
-//! Tool Calling 2.0 运行时配置
-//!
-//! 通过内存态开关提供跨 crate 的统一读取入口，并保留环境变量兜底覆盖。
+//! 工具元数据、发现与输入示例。
 
-use crate::config::{Config, ToolCallingConfig};
-use crate::env_compat;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, Ordering};
-
-const ENV_TOOLCALL_V2_ENABLED: &[&str] =
-    &["LIME_TOOLCALL_V2_ENABLED", "PROXYCAST_TOOLCALL_V2_ENABLED"];
-const ENV_TOOLCALL_V2_DYNAMIC_FILTERING: &[&str] = &[
-    "LIME_TOOLCALL_V2_DYNAMIC_FILTERING",
-    "PROXYCAST_TOOLCALL_V2_DYNAMIC_FILTERING",
-];
-const ENV_TOOLCALL_V2_NATIVE_INPUT_EXAMPLES: &[&str] = &[
-    "LIME_TOOLCALL_V2_NATIVE_INPUT_EXAMPLES",
-    "PROXYCAST_TOOLCALL_V2_NATIVE_INPUT_EXAMPLES",
-];
-
-static TOOLCALL_RUNTIME_INITIALIZED: AtomicBool = AtomicBool::new(false);
-static TOOLCALL_V2_ENABLED: AtomicBool = AtomicBool::new(true);
-static TOOLCALL_DYNAMIC_FILTERING_ENABLED: AtomicBool = AtomicBool::new(true);
-static TOOLCALL_NATIVE_INPUT_EXAMPLES_ENABLED: AtomicBool = AtomicBool::new(false);
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct ToolSurfaceMetadata {
@@ -38,52 +17,6 @@ pub struct ToolSurfaceMetadata {
     pub tags: Option<Vec<String>>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub input_examples: Vec<Value>,
-}
-
-/// 将配置应用到进程内运行时开关。
-pub fn apply_tool_calling_runtime_config(config: &Config) {
-    apply_tool_calling_runtime_config_with_flags(&config.tool_calling);
-}
-
-/// 将 Tool Calling 配置应用到进程内运行时开关。
-pub fn apply_tool_calling_runtime_config_with_flags(flags: &ToolCallingConfig) {
-    TOOLCALL_V2_ENABLED.store(flags.enabled, Ordering::Release);
-    TOOLCALL_DYNAMIC_FILTERING_ENABLED.store(flags.dynamic_filtering, Ordering::Release);
-    TOOLCALL_NATIVE_INPUT_EXAMPLES_ENABLED.store(flags.native_input_examples, Ordering::Release);
-    TOOLCALL_RUNTIME_INITIALIZED.store(true, Ordering::Release);
-}
-
-/// Tool Calling 2.0 总开关。
-pub fn tool_calling_v2_enabled() -> bool {
-    if let Some(value) = env_compat::bool_var(ENV_TOOLCALL_V2_ENABLED) {
-        return value;
-    }
-    if TOOLCALL_RUNTIME_INITIALIZED.load(Ordering::Acquire) {
-        return TOOLCALL_V2_ENABLED.load(Ordering::Acquire);
-    }
-    true
-}
-
-/// Tool Calling 动态过滤开关。
-pub fn tool_calling_dynamic_filtering_enabled() -> bool {
-    if let Some(value) = env_compat::bool_var(ENV_TOOLCALL_V2_DYNAMIC_FILTERING) {
-        return value;
-    }
-    if TOOLCALL_RUNTIME_INITIALIZED.load(Ordering::Acquire) {
-        return TOOLCALL_DYNAMIC_FILTERING_ENABLED.load(Ordering::Acquire);
-    }
-    true
-}
-
-/// Tool Calling 原生 input examples 透传开关。
-pub fn tool_calling_native_input_examples_enabled() -> bool {
-    if let Some(value) = env_compat::bool_var(ENV_TOOLCALL_V2_NATIVE_INPUT_EXAMPLES) {
-        return value;
-    }
-    if TOOLCALL_RUNTIME_INITIALIZED.load(Ordering::Acquire) {
-        return TOOLCALL_NATIVE_INPUT_EXAMPLES_ENABLED.load(Ordering::Acquire);
-    }
-    false
 }
 
 fn metadata_extension(schema: &Value) -> &Value {
@@ -884,56 +817,6 @@ pub fn resolve_tool_input_examples(tool_name: &str, schema: &Value) -> Vec<Value
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::{Mutex, OnceLock};
-
-    fn env_lock() -> std::sync::MutexGuard<'static, ()> {
-        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-        LOCK.get_or_init(|| Mutex::new(())).lock().unwrap()
-    }
-
-    fn clear_tool_calling_envs() {
-        std::env::remove_var(ENV_TOOLCALL_V2_ENABLED[0]);
-        std::env::remove_var(ENV_TOOLCALL_V2_DYNAMIC_FILTERING[0]);
-        std::env::remove_var(ENV_TOOLCALL_V2_NATIVE_INPUT_EXAMPLES[0]);
-    }
-
-    #[test]
-    fn test_runtime_flags_apply_and_read() {
-        let _guard = env_lock();
-        clear_tool_calling_envs();
-        apply_tool_calling_runtime_config_with_flags(&ToolCallingConfig {
-            enabled: false,
-            dynamic_filtering: false,
-            native_input_examples: true,
-        });
-
-        assert!(!tool_calling_v2_enabled());
-        assert!(!tool_calling_dynamic_filtering_enabled());
-        assert!(tool_calling_native_input_examples_enabled());
-    }
-
-    #[test]
-    fn test_env_overrides_runtime_flags() {
-        let _guard = env_lock();
-        clear_tool_calling_envs();
-
-        apply_tool_calling_runtime_config_with_flags(&ToolCallingConfig {
-            enabled: false,
-            dynamic_filtering: false,
-            native_input_examples: false,
-        });
-
-        std::env::set_var(ENV_TOOLCALL_V2_ENABLED[0], "true");
-        std::env::set_var(ENV_TOOLCALL_V2_DYNAMIC_FILTERING[0], "1");
-        std::env::set_var(ENV_TOOLCALL_V2_NATIVE_INPUT_EXAMPLES[0], "on");
-
-        assert!(tool_calling_v2_enabled());
-        assert!(tool_calling_dynamic_filtering_enabled());
-        assert!(tool_calling_native_input_examples_enabled());
-
-        clear_tool_calling_envs();
-    }
-
     #[test]
     fn test_resolve_tool_input_examples_prefers_configured_examples() {
         let schema = serde_json::json!({

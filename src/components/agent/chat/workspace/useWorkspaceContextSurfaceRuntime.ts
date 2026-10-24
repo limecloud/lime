@@ -22,25 +22,20 @@ import { useWorkspaceRightSurfaceLocalStateRuntime } from "./useWorkspaceRightSu
 import { hasActiveThreadReadActivity } from "../projection/threadReadActivity";
 
 interface UseWorkspaceContextSurfaceRuntimeParams {
-  activeTheme: string;
-  generalHarnessEntryEnabled: boolean;
   isSending: boolean;
   layoutMode: LayoutMode;
   mappedTheme: ThemeType;
   messages: Message[];
-  model: string;
   onAgentStreamingChange?: (isStreaming: boolean) => void;
   onLocationChange?: (location: AgentLocation) => void;
   pendingActions: ActionRequired[];
   projectId?: string | null;
   projectMemory: ProjectMemory | null;
-  providerType: string;
   runtimeWorkspaceId?: string | null;
   sessionId?: string | null;
   threadItems: AgentThreadItem[];
   threadRead?: AgentRuntimeThreadReadModel | null;
   todoItems: AgentTodoItem[];
-  workspaceHarnessEnabled: boolean;
 }
 
 interface WorkspaceContextTimelineRuntime {
@@ -49,25 +44,20 @@ interface WorkspaceContextTimelineRuntime {
 }
 
 export function useWorkspaceContextSurfaceRuntime({
-  activeTheme,
-  generalHarnessEntryEnabled,
   isSending,
   layoutMode,
   mappedTheme,
   messages,
-  model,
   onAgentStreamingChange,
   onLocationChange,
   pendingActions,
   projectId,
   projectMemory,
-  providerType,
   runtimeWorkspaceId,
   sessionId,
   threadItems,
   threadRead,
   todoItems,
-  workspaceHarnessEnabled,
 }: UseWorkspaceContextSurfaceRuntimeParams) {
   const harnessShellState = useMemo(
     () => deriveHarnessSessionShellState(messages, pendingActions, todoItems),
@@ -88,13 +78,8 @@ export function useWorkspaceContextSurfaceRuntime({
   }, [onAgentStreamingChange]);
 
   const contextHarnessRuntime = useWorkspaceContextHarnessRuntime({
-    enabled: workspaceHarnessEnabled || generalHarnessEntryEnabled,
-    prefetchEnabled: false,
-    projectId: projectId ?? undefined,
-    activeTheme,
+    enabled: true,
     messages,
-    providerType,
-    model,
     mappedTheme,
     isSending,
     projectMemory,

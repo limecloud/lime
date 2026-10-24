@@ -13,6 +13,7 @@ interface Preview {
   change: BrowserDesignChange | null;
   visible: boolean;
   original: boolean;
+  captureRequest: string | null;
   attribute: string;
   style: CSSStyleSheet;
   css: string;
@@ -73,6 +74,7 @@ export class BrowserDesignPreview {
       change: null,
       visible: true,
       original: false,
+      captureRequest: null,
       root,
       attribute: `data-browser-design-${Array.from(crypto.getRandomValues(new Uint32Array(4)), (value) => value.toString(16).padStart(8, "0")).join("")}`,
       style: new view.CSSStyleSheet(),
@@ -111,6 +113,8 @@ export class BrowserDesignPreview {
       if (!scratch.getPropertyValue(declaration.property))
         throw new Error("Unsupported Browser design CSS value");
     }
+    if (JSON.stringify(entry.change) !== JSON.stringify(change))
+      entry.captureRequest = null;
     entry.change = change;
     entry.css = change?.declarations.length
       ? `[${entry.attribute}]{${scratch.cssText}}`
@@ -124,6 +128,7 @@ export class BrowserDesignPreview {
     const entry = this.#entries.get(id);
     if (!entry) return;
     entry.visible = visible;
+    if (!visible) entry.captureRequest = null;
     this.#reconcile();
   }
 
@@ -131,6 +136,41 @@ export class BrowserDesignPreview {
     const entry = this.#entries.get(id);
     if (!entry) return;
     entry.original = original;
+    this.#reconcile();
+  }
+
+  prepareCapture(id: string, requestId: string, value: unknown): boolean {
+    const entry = this.#entries.get(id);
+    if (
+      !entry ||
+      !entry.visible ||
+      !entry.current() ||
+      !entry.element.isConnected
+    )
+      return false;
+    const change = readBrowserDesignChange(value, entry.snapshot);
+    if (!change || JSON.stringify(change) !== JSON.stringify(entry.change))
+      return false;
+    entry.captureRequest = requestId;
+    this.#reconcile();
+    return true;
+  }
+
+  captureCurrent(id: string, requestId: string): boolean {
+    const entry = this.#entries.get(id);
+    return Boolean(
+      entry?.captureRequest === requestId &&
+      entry.visible &&
+      entry.current() &&
+      entry.element.isConnected &&
+      entry.element.getRootNode() === entry.root,
+    );
+  }
+
+  clearCapture(id: string, requestId: string): void {
+    const entry = this.#entries.get(id);
+    if (entry?.captureRequest !== requestId) return;
+    entry.captureRequest = null;
     this.#reconcile();
   }
 
@@ -159,7 +199,7 @@ export class BrowserDesignPreview {
       const { element, change } = entry;
       const active =
         entry.visible &&
-        !entry.original &&
+        (!entry.original || entry.captureRequest !== null) &&
         element.isConnected &&
         element.getRootNode() === entry.root &&
         entry.current();

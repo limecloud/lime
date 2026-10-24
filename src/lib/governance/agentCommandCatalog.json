@@ -5,6 +5,7 @@
   ],
   "capabilityDraftCommands": [],
   "browserTabHostCommands": [
+    "browser_tab_focus_page",
     "browser_tab_list",
     "browser_tab_mount",
     "browser_tab_set_bounds",
@@ -74,8 +75,7 @@
     "get_file_icon_data_url",
     "get_file_name",
     "reveal_in_finder",
-    "open_file_preview_window",
-    "open_resource_manager_window"
+    "open_file_preview_window"
   ],
   "deprecatedCommandReplacements": {
     "list_agent_sessions": "thread/list",

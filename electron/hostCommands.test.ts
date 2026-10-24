@@ -903,31 +903,11 @@ describe("ElectronHostCommands local file shell facade", () => {
       title: "Demo",
     });
 
-    const resourceManagerResult = await host.invoke(
-      "open_resource_manager_window",
-      {
+    await expect(
+      host.invoke("open_resource_manager_window", {
         sessionId: "resource-session-1",
-      },
-    );
-    expect(resourceManagerResult).toEqual(
-      expect.objectContaining({
-        opened: true,
-        reused: false,
       }),
-    );
-    expect(String((resourceManagerResult as { url: string }).url)).toContain(
-      "lime_window=resource-manager",
-    );
-    expect(String((resourceManagerResult as { url: string }).url)).toContain(
-      "session=resource-session-1",
-    );
-    expect(browserWindowCtorMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        title: "Lime 资源管理器",
-        width: 1240,
-        show: false,
-      }),
-    );
+    ).rejects.toThrow("Electron host command is not implemented");
 
     await expect(
       host.invoke("get_file_icon_data_url", { path: "/Applications/Lime.app" }),

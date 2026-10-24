@@ -1,8 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  mergeHydratedMessagesWithLocalState,
-} from "./agentChatHistory";
+import { mergeHydratedMessagesWithLocalState } from "./agentChatHistory";
 import { collectRetainedLocalTail } from "./agentChatHistoryLocalMergeTail";
 
 describe("agentChatHistory local tail preservation", () => {
@@ -198,7 +196,7 @@ describe("agentChatHistory local tail preservation", () => {
         id: "local-user-skill-output",
         role: "user" as const,
         content:
-          "/brand-product-knowledge-builder 请根据现有资料整理 Lime 产品知识库并保留边界说明",
+          "/personal-ip-knowledge-builder 请根据现有资料整理 Lime 产品知识库并保留边界说明",
         timestamp: new Date("2026-05-13T03:37:00.000Z"),
       },
       {

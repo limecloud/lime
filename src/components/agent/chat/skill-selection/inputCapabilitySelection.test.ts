@@ -7,10 +7,10 @@ import {
 
 function createSkill(overrides: Partial<Skill> = {}): Skill {
   return {
-    key: "local:brand-product-knowledge-builder",
+    key: "local:personal-ip-knowledge-builder",
     name: "产品知识库",
     description: "沉淀品牌与产品资料",
-    directory: "brand-product-knowledge-builder",
+    directory: "personal-ip-knowledge-builder",
     installed: true,
     sourceKind: "other",
     ...overrides,

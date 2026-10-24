@@ -11,11 +11,10 @@ export interface CategoryItem {
   key: SettingsTabs;
   label: string;
   icon: LucideIcon;
-  experimental?: boolean;
 }
 
 export interface CategoryGroup {
-  key: SettingsGroupKey;
+  key: SettingsGroupKey | null;
   title: string;
   items: CategoryItem[];
 }
@@ -23,13 +22,13 @@ export interface CategoryGroup {
 export function useSettingsCategory(): CategoryGroup[] {
   const { t } = useTranslation("settings");
   return useMemo(() => {
-    const groups = new Map<SettingsGroupKey, CategoryGroup>();
+    const groups = new Map<SettingsGroupKey | null, CategoryGroup>();
     for (const section of settingsSections) {
       let group = groups.get(section.group);
       if (!group) {
         group = {
           key: section.group,
-          title: t(`settings.group.${section.group}`),
+          title: section.group ? t(`settings.group.${section.group}`) : "",
           items: [],
         };
         groups.set(section.group, group);
@@ -38,7 +37,6 @@ export function useSettingsCategory(): CategoryGroup[] {
         key: section.key,
         label: t(section.labelKey),
         icon: section.icon,
-        ...(section.experimental ? { experimental: true } : {}),
       });
     }
     return [...groups.values()];

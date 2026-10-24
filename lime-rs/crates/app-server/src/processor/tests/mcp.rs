@@ -31,12 +31,10 @@ impl crate::GatewayAppDataSource for McpNotificationTestDataSource {}
 impl crate::MediaAppDataSource for McpNotificationTestDataSource {}
 impl crate::VoiceAppDataSource for McpNotificationTestDataSource {}
 impl crate::PluginDataSource for McpNotificationTestDataSource {}
-impl crate::KnowledgeAppDataSource for McpNotificationTestDataSource {}
 impl crate::AutomationOverviewAppDataSource for McpNotificationTestDataSource {}
 impl crate::AutomationManagementAppDataSource for McpNotificationTestDataSource {}
 impl crate::MemoryAppDataSource for McpNotificationTestDataSource {}
 impl crate::DiagnosticsAppDataSource for McpNotificationTestDataSource {}
-impl crate::UsageStatsAppDataSource for McpNotificationTestDataSource {}
 impl crate::ModelProviderAppDataSource for McpNotificationTestDataSource {}
 impl crate::ConnectAppDataSource for McpNotificationTestDataSource {}
 impl crate::RightSurfaceAppDataSource for McpNotificationTestDataSource {}

@@ -2,7 +2,6 @@ mod automation;
 mod connect;
 mod diagnostics;
 mod gateway;
-mod knowledge;
 mod mcp;
 mod media;
 mod memory;
@@ -11,7 +10,6 @@ mod plugins;
 mod right_surface;
 mod sessions;
 mod skills;
-mod usage_stats;
 mod voice;
 mod workspaces;
 
@@ -20,7 +18,6 @@ pub use automation::AutomationOverviewAppDataSource;
 pub use connect::ConnectAppDataSource;
 pub use diagnostics::DiagnosticsAppDataSource;
 pub use gateway::GatewayAppDataSource;
-pub use knowledge::KnowledgeAppDataSource;
 pub use mcp::McpAppDataSource;
 pub use media::MediaAppDataSource;
 pub use memory::MemoryAppDataSource;
@@ -30,7 +27,6 @@ pub use right_surface::RightSurfaceAppDataSource;
 pub use sessions::SessionAppDataSource;
 pub use skills::SkillAppDataSource;
 pub use skills::WorkspaceSkillBindingAppDataSource;
-pub use usage_stats::UsageStatsAppDataSource;
 pub use voice::VoiceAppDataSource;
 pub use workspaces::WorkspaceAppDataSource;
 
@@ -45,13 +41,11 @@ pub trait AppDataSource:
     + MediaAppDataSource
     + VoiceAppDataSource
     + PluginDataSource
-    + KnowledgeAppDataSource
     + AutomationOverviewAppDataSource
     + McpAppDataSource
     + AutomationManagementAppDataSource
     + MemoryAppDataSource
     + DiagnosticsAppDataSource
-    + UsageStatsAppDataSource
     + ModelProviderAppDataSource
     + ConnectAppDataSource
     + RightSurfaceAppDataSource
@@ -69,13 +63,11 @@ impl<T> AppDataSource for T where
         + MediaAppDataSource
         + VoiceAppDataSource
         + PluginDataSource
-        + KnowledgeAppDataSource
         + AutomationOverviewAppDataSource
         + McpAppDataSource
         + AutomationManagementAppDataSource
         + MemoryAppDataSource
         + DiagnosticsAppDataSource
-        + UsageStatsAppDataSource
         + ModelProviderAppDataSource
         + ConnectAppDataSource
         + RightSurfaceAppDataSource

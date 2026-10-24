@@ -96,8 +96,7 @@ export function createCompletedAssistantMessageWithStaleRunningTool(): Message {
   return {
     id: "message-news-assistant-complete",
     role: "assistant",
-    content:
-      "根据多源检索结果，以下是 2026年6月7日 的主要国际新闻整理。",
+    content: "根据多源检索结果，以下是 2026年6月7日 的主要国际新闻整理。",
     timestamp,
     isThinking: false,
     contentParts: [
@@ -110,7 +109,7 @@ export function createCompletedAssistantMessageWithStaleRunningTool(): Message {
         toolCall: {
           id: "tool-web-search-stale-running",
           name: "WebSearch",
-          arguments: "{\"query\":\"2026年6月7日 国际新闻\"}",
+          arguments: '{"query":"2026年6月7日 国际新闻"}',
           status: "running",
           startTime: timestamp,
         },
@@ -124,7 +123,7 @@ export function createCompletedAssistantMessageWithStaleRunningTool(): Message {
       {
         id: "tool-web-search-stale-running",
         name: "WebSearch",
-        arguments: "{\"query\":\"2026年6月7日 国际新闻\"}",
+        arguments: '{"query":"2026年6月7日 国际新闻"}',
         status: "running",
         startTime: timestamp,
       },
@@ -141,11 +140,11 @@ export function createStandaloneSkillAssistantMessage(): Message {
     content: "最终 Skill 回复",
     timestamp,
     runtimeTurnId: "skill-exec-message-skill-assistant",
-    thinkingContent: "正在执行 Skill: brand-product-knowledge-builder...",
+    thinkingContent: "正在执行 Skill: personal-ip-knowledge-builder...",
     contentParts: [
       {
         type: "thinking",
-        text: "正在执行 Skill: brand-product-knowledge-builder...",
+        text: "正在执行 Skill: personal-ip-knowledge-builder...",
       },
       {
         type: "text",

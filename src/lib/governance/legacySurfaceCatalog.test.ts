@@ -33,6 +33,37 @@ function collectSourceFiles(root: string): string[] {
 }
 
 describe("legacySurfaceCatalog", () => {
+  it("创作上下文实现和前端prompt authority不能恢复", () => {
+    const monitor = legacySurfaceCatalogJson.imports.find(
+      (entry) => entry.id === "retired-creation-context",
+    );
+    expect(monitor?.classification).toBe("dead");
+    expect(monitor?.allowedPaths).toEqual([]);
+    expect(monitor?.targets.length).toBeGreaterThan(0);
+    for (const target of monitor?.targets ?? []) {
+      expect(existsSync(join(REPO_ROOT, target)), target).toBe(false);
+    }
+  });
+  it("独立资源平台实现、窗口命令和消费者不能恢复", () => {
+    const monitor = legacySurfaceCatalogJson.imports.find(
+      (entry) => entry.id === "retired-resource-platform",
+    );
+    expect(monitor?.classification).toBe("dead");
+    expect(monitor?.allowedPaths).toEqual([]);
+    expect(monitor?.targets.length).toBeGreaterThan(0);
+    for (const target of monitor?.targets ?? []) {
+      expect(existsSync(join(REPO_ROOT, target)), target).toBe(false);
+    }
+    expect(
+      legacySurfaceCatalogJson.commands.find(
+        (entry) => entry.id === "retired-resource-window",
+      ),
+    ).toMatchObject({
+      classification: "dead",
+      commands: ["open_resource_manager_window"],
+      allowedPaths: [],
+    });
+  });
   it("应提供完整且无重复的治理扫描目录册", () => {
     const catalog = legacySurfaceCatalogJson;
     const groups = [
@@ -1205,20 +1236,22 @@ describe("legacySurfaceCatalog", () => {
     );
   });
 
-  it("应记录已删除的 KnowledgePage 旧拆分组件", () => {
+  it("应记录独立知识平台的完整退役边界", () => {
     const monitor = legacySurfaceCatalogJson.imports.find(
       (entry) => entry.id === "knowledge-page-legacy-component-split",
     );
 
     expect(monitor).toBeTruthy();
-    expect(monitor?.classification).toBe("dead-candidate");
+    expect(monitor?.classification).toBe("dead");
     expect(monitor?.allowedPaths).toEqual([]);
-    expect(monitor?.targets).toEqual([
-      "src/features/knowledge/components/FileEntryList.tsx",
-      "src/features/knowledge/components/KnowledgePackCard.tsx",
-      "src/features/knowledge/components/KnowledgeStatusRail.tsx",
-      "src/features/knowledge/components/KnowledgeTroubleshootingPanel.tsx",
-    ]);
+    expect(monitor?.targets).toEqual(
+      expect.arrayContaining([
+        "src/features/knowledge/components/FileEntryList.tsx",
+        "src/features/knowledge/components/KnowledgePackCard.tsx",
+        "src/features/knowledge/components/KnowledgeStatusRail.tsx",
+        "src/features/knowledge/components/KnowledgeTroubleshootingPanel.tsx",
+      ]),
+    );
   });
 
   it("应记录已删除的普通视觉 brief 确认旧 helper", () => {
@@ -2628,17 +2661,18 @@ describe("legacySurfaceCatalog", () => {
     }
   });
 
-  it("应禁止实验设置恢复旧 UpdateNotification compat 空导出", () => {
+  it("开发者实验室和自定义统计必须整链删除，不能恢复入口或专用实现", () => {
     const monitor = legacySurfaceCatalogJson.frontendText.find(
       (entry) => entry.id === "settings-update-notification-compat-export",
     );
-
-    expect(monitor).toBeTruthy();
-    expect(monitor?.classification).toBe("dead-candidate");
+    expect(monitor?.classification).toBe("dead");
     expect(monitor?.allowedPaths).toEqual([]);
-    expect(
-      (monitor?.patterns?.length ?? 0) + (monitor?.regexPatterns?.length ?? 0),
-    ).toBeGreaterThan(0);
+    const deleted = legacySurfaceCatalogJson.imports.find(
+      (entry) => entry.id === "settings-custom-features-deleted",
+    );
+    expect(deleted?.classification).toBe("dead");
+    for (const path of deleted?.targets ?? [])
+      expect(existsSync(join(REPO_ROOT, path)), path).toBe(false);
   });
 
   it("应禁止设置中心恢复旧共享 LanguageSelector 组件表面", () => {

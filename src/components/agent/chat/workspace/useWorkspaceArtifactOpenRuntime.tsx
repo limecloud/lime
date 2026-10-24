@@ -40,7 +40,6 @@ import {
 import { openCanvasForReason } from "./canvasOpenPolicy";
 import { MediaReferencePreviewPaginationActions } from "./mediaReferencePreviewToolbarActions";
 import { resolveMediaReferencePreviewPageRequest } from "./mediaReferencePreviewToolbarState";
-import type { GeneralArtifactSyncResult } from "./useWorkspaceGeneralResourceSync";
 import type { ApplyArtifactViewMode } from "./useWorkspaceArtifactViewModeControl";
 import {
   useWorkspaceArtifactDocumentSaveRuntime,
@@ -96,10 +95,6 @@ export interface UseWorkspaceArtifactOpenRuntimeParams {
   setHarnessPanelVisible: SetBoolean;
   setLayoutMode: Dispatch<SetStateAction<LayoutMode>>;
   setSelectedArtifactId: (artifactId: string | null) => void;
-  syncGeneralArtifactToResource: (input: {
-    rawFilePath: string;
-    preferredName?: string;
-  }) => Promise<GeneralArtifactSyncResult>;
   taskFiles: TaskFile[];
   updateCurrentImageWorkbenchState: WorkspaceImageWorkbenchSessionRuntimeState["updateCurrentImageWorkbenchState"];
   upsertGeneralArtifact: (artifact: Artifact) => void;
@@ -136,7 +131,6 @@ export function useWorkspaceArtifactOpenRuntime({
   setHarnessPanelVisible,
   setLayoutMode,
   setSelectedArtifactId,
-  syncGeneralArtifactToResource,
   taskFiles,
   updateCurrentImageWorkbenchState,
   upsertGeneralArtifact,
@@ -150,15 +144,23 @@ export function useWorkspaceArtifactOpenRuntime({
     requestCanvasWorkbenchPreviewOpen,
   } = workbenchRequests;
 
+  const handleRequestCanvasPreviewOpen = useCallback(
+    (request: Parameters<typeof requestCanvasWorkbenchPreviewOpen>[0]) => {
+      updateCurrentImageWorkbenchState((current) => ({
+        ...current,
+        active: false,
+      }));
+      requestCanvasWorkbenchPreviewOpen(request);
+    },
+    [requestCanvasWorkbenchPreviewOpen, updateCurrentImageWorkbenchState],
+  );
+
   const handleSaveArtifactDocument = useWorkspaceArtifactDocumentSaveRuntime({
     handleWriteFile,
   });
 
   const { renderToolbarActions: renderBaseArtifactWorkbenchToolbarActions } =
     useWorkspaceArtifactWorkbenchActions({
-      activeTheme,
-      projectId,
-      syncGeneralArtifactToResource,
       onSaveArtifactDocument: handleSaveArtifactDocument,
     });
 
@@ -183,7 +185,7 @@ export function useWorkspaceArtifactOpenRuntime({
     projectRootPath,
     openWorkspaceFile,
     readSessionFile,
-    onRequestCanvasPreviewOpen: requestCanvasWorkbenchPreviewOpen,
+    onRequestCanvasPreviewOpen: handleRequestCanvasPreviewOpen,
     upsertGeneralArtifact,
     setSelectedArtifactId,
     setArtifactViewMode,
@@ -248,7 +250,6 @@ export function useWorkspaceArtifactOpenRuntime({
         projectId: targetProjectId,
         contentId: targetContentId,
         lockTheme: true,
-        fromResources: true,
         ...(preferredTarget === "project_file" && relativePath
           ? {
               initialProjectFileOpenTarget: {

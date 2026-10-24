@@ -20,10 +20,57 @@ describe("sendAgentStreamMessage", () => {
   const createEnv = (overrides?: Record<string, unknown>) =>
     ({
       sessionIdRef: { current: "session-existing" },
+      reasoningEffortRef: { current: "" },
       ensureSession: vi.fn(async () => "session-existing"),
       waitForSessionProviderSelectionSync: vi.fn(async () => undefined),
       ...overrides,
     }) as never;
+
+  it.each([
+    { selected: "low", override: undefined, expected: "low" },
+    { selected: "", override: undefined, expected: undefined },
+    { selected: "low", override: "high", expected: "high" },
+  ])(
+    "首发创建回读默认档位后仍保留本次选择 $selected/$override",
+    async ({ selected, override, expected }) => {
+      const reasoningEffortRef = { current: selected };
+      const sessionIdRef = { current: null as string | null };
+      const env = createEnv({
+        sessionIdRef,
+        reasoningEffortRef,
+        ensureSession: vi.fn(async () => {
+          reasoningEffortRef.current = "ultra";
+          sessionIdRef.current = "session-created";
+          return "session-created";
+        }),
+      });
+      await sendAgentStreamMessage({
+        content: "首发档位",
+        images: [],
+        options: override ? { reasoningEffort: override } : undefined,
+        env,
+      });
+      expect(
+        vi.mocked(prepareAgentStreamUserInputSend).mock.calls[0][0].options
+          ?.reasoningEffort,
+      ).toBe(expected);
+    },
+  );
+
+  it("恢复指定会话时不携带无会话输入框的档位", async () => {
+    await sendAgentStreamMessage({
+      content: "恢复会话",
+      images: [],
+      options: { targetSessionId: "target-session" },
+      env: createEnv({
+        sessionIdRef: { current: null },
+        reasoningEffortRef: { current: "low" },
+      }),
+    });
+    expect(
+      vi.mocked(prepareAgentStreamUserInputSend).mock.calls[0][0].options,
+    ).toEqual({ targetSessionId: "target-session" });
+  });
 
   it("真实 ensureSession 返回后、模型同步和乐观准备前移交创建身份", async () => {
     const order: string[] = [];

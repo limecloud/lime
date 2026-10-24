@@ -176,7 +176,7 @@ export function createSettingsExecutionPolicyEvidence({
     priority: "P0",
     proofLevel: "Gate B-F",
     claimBoundary:
-      "Real Electron Execution Policy Settings lifecycle for persisted allow/deny policy inputs and Host save-error recovery. It verifies strict workspace restriction and Bash warning-bypass inputs, cold-restart readback, a real isolated config-path EISDIR save failure with safe GUI error and a separate same-boundary JSON-RPC IO probe, safe error copy with failed-draft retention and Save retry, restoration, and final cold-restart readback. It does not claim RuntimeCore execution of an allowed or denied tool; that requires Gate B-R. Evidence stores no config values, rules, prompts, paths, error text, or secrets.",
+      "Real Electron Execution Policy Settings lifecycle for persisted Plan and Bash warning inputs and Host save-error recovery. It verifies removal of retired sandbox switches, cold-restart readback, a real isolated config-path EISDIR save failure with safe GUI error and a separate same-boundary JSON-RPC IO probe, failed-draft retention and Save retry, restoration, and final cold-restart readback. It does not claim RuntimeCore execution of an allowed or denied tool or Configuration defaults controls. Evidence stores no config values, rules, prompts, paths, error text, or secrets.",
     candidateRunId: validateName(candidateRunId, "run-id"),
     testOnly: true,
     startedAt,
@@ -251,7 +251,8 @@ export function applyPassingSettingsExecutionPolicyEvidence(summary, facts) {
   summary.lifecycle = {
     isolatedUserData: facts.isolatedUserData === true,
     policyInputsChanged: facts.policyInputsChanged === true,
-    strictRestrictionInput: facts.strictRestrictionInput === true,
+    planInputChanged: facts.planInputChanged === true,
+    retiredSandboxControlsAbsent: facts.retiredSandboxControlsAbsent === true,
     warningBypassInput: facts.warningBypassInput === true,
     restartReadback: facts.restartReadback === true,
     expectedSaveFailureVisible: facts.expectedSaveFailureVisible === true,
@@ -291,7 +292,11 @@ export function applyPassingSettingsExecutionPolicyEvidence(summary, facts) {
     ["executionPolicyTabActive", facts.executionPolicyTabActive === true],
     ["policyControlsReady", facts.policyControlsReady === true],
     ["policyInputsChanged", summary.lifecycle.policyInputsChanged],
-    ["strictRestrictionInput", summary.lifecycle.strictRestrictionInput],
+    ["planInputChanged", summary.lifecycle.planInputChanged],
+    [
+      "retiredSandboxControlsAbsent",
+      summary.lifecycle.retiredSandboxControlsAbsent,
+    ],
     ["warningBypassInput", summary.lifecycle.warningBypassInput],
     ["restartReadback", summary.lifecycle.restartReadback],
     [

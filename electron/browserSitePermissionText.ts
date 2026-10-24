@@ -1,0 +1,174 @@
+const text = {
+  "zh-CN": {
+    title: "允许网站使用此权限？",
+    allow: "允许本次",
+    deny: "不允许",
+    site: "请求网站",
+    top: "当前页面",
+    scope: "仅对当前文档临时生效。",
+    names: [
+      "读取剪贴板",
+      "写入剪贴板",
+      "全屏",
+      "位置信息",
+      "空闲状态",
+      "麦克风",
+      "摄像头",
+      "受保护的媒体",
+      "MIDI 设备",
+      "MIDI 系统专用消息",
+      "通知",
+      "锁定指针",
+      "锁定键盘",
+      "音频输出设备",
+      "网站存储访问",
+      "窗口管理",
+    ],
+  },
+  "zh-TW": {
+    title: "允許網站使用此權限？",
+    allow: "允許本次",
+    deny: "不允許",
+    site: "要求網站",
+    top: "目前頁面",
+    scope: "僅對目前文件暫時生效。",
+    names: [
+      "讀取剪貼簿",
+      "寫入剪貼簿",
+      "全螢幕",
+      "位置資訊",
+      "閒置狀態",
+      "麥克風",
+      "攝影機",
+      "受保護的媒體",
+      "MIDI 裝置",
+      "MIDI 系統專用訊息",
+      "通知",
+      "鎖定指標",
+      "鎖定鍵盤",
+      "音訊輸出裝置",
+      "網站儲存空間存取",
+      "視窗管理",
+    ],
+  },
+  "en-US": {
+    title: "Allow this site permission?",
+    allow: "Allow this time",
+    deny: "Don't allow",
+    site: "Requesting site",
+    top: "Current page",
+    scope: "Temporarily allowed for this document only.",
+    names: [
+      "Read clipboard",
+      "Write clipboard",
+      "Full screen",
+      "Location",
+      "Idle detection",
+      "Microphone",
+      "Camera",
+      "Protected media",
+      "MIDI devices",
+      "MIDI system exclusive messages",
+      "Notifications",
+      "Pointer lock",
+      "Keyboard lock",
+      "Audio output devices",
+      "Site storage access",
+      "Window management",
+    ],
+  },
+  "ja-JP": {
+    title: "サイトの権限を許可しますか？",
+    allow: "今回のみ許可",
+    deny: "許可しない",
+    site: "要求元サイト",
+    top: "現在のページ",
+    scope: "現在のドキュメントでのみ一時的に有効です。",
+    names: [
+      "クリップボードの読み取り",
+      "クリップボードへの書き込み",
+      "全画面表示",
+      "位置情報",
+      "アイドル状態の検出",
+      "マイク",
+      "カメラ",
+      "保護されたメディア",
+      "MIDI デバイス",
+      "MIDI システムエクスクルーシブメッセージ",
+      "通知",
+      "ポインターロック",
+      "キーボードロック",
+      "音声出力デバイス",
+      "サイトストレージへのアクセス",
+      "ウィンドウ管理",
+    ],
+  },
+  "ko-KR": {
+    title: "사이트 권한을 허용할까요?",
+    allow: "이번만 허용",
+    deny: "허용 안 함",
+    site: "요청 사이트",
+    top: "현재 페이지",
+    scope: "현재 문서에서만 임시로 허용됩니다.",
+    names: [
+      "클립보드 읽기",
+      "클립보드 쓰기",
+      "전체 화면",
+      "위치",
+      "유휴 상태 감지",
+      "마이크",
+      "카메라",
+      "보호된 미디어",
+      "MIDI 기기",
+      "MIDI 시스템 전용 메시지",
+      "알림",
+      "포인터 잠금",
+      "키보드 잠금",
+      "오디오 출력 기기",
+      "사이트 저장소 접근",
+      "창 관리",
+    ],
+  },
+} as const;
+
+const names: Record<string, number> = {
+  "clipboard-read": 0,
+  "clipboard-sanitized-write": 1,
+  fullscreen: 2,
+  geolocation: 3,
+  "idle-detection": 4,
+  mediaKeySystem: 7,
+  midi: 8,
+  midiSysex: 9,
+  notifications: 10,
+  pointerLock: 11,
+  keyboardLock: 12,
+  "speaker-selection": 13,
+  "storage-access": 14,
+  "top-level-storage-access": 14,
+  "window-management": 15,
+};
+
+export function sitePermissionText(
+  locale: string,
+  permission: string,
+  mediaTypes?: string[],
+) {
+  const copy = Object.hasOwn(text, locale)
+    ? text[locale as keyof typeof text]
+    : text["en-US"];
+  const indexes =
+    permission === "media"
+      ? mediaTypes?.length &&
+        mediaTypes.every((type) => type === "audio" || type === "video")
+        ? [...new Set(mediaTypes)].map((type) => (type === "audio" ? 5 : 6))
+        : []
+      : Object.hasOwn(names, permission)
+        ? [names[permission]]
+        : [];
+  if (!indexes.length) return null;
+  return {
+    ...copy,
+    permission: indexes.map((index) => copy.names[index]).join(" / "),
+  };
+}

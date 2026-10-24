@@ -10,7 +10,7 @@ import {
   AppServerServerRequestDispatcher,
 } from "./appServerServerRequest";
 import { AppServerEventBus } from "./appServerEventBus";
-import { CLAW_TRACE_DEBUG_OVERRIDE_KEY } from "../developerFeatures";
+const AGENT_DEBUG_FLAG_KEY = "lime:agent-debug";
 
 function createHarness() {
   let subscription:
@@ -147,8 +147,8 @@ describe("AppServerServerRequestDispatcher", () => {
     );
   });
 
-  it("Claw debug 模式只记录脱敏 server-request 生命周期", async () => {
-    window.localStorage.setItem(CLAW_TRACE_DEBUG_OVERRIDE_KEY, "on");
+  it("传输诊断只记录脱敏 server-request 生命周期", async () => {
+    window.localStorage.setItem(AGENT_DEBUG_FLAG_KEY, "1");
     window.localStorage.removeItem(
       APP_SERVER_SERVER_REQUEST_LIFECYCLE_TRACE_KEY,
     );
@@ -222,7 +222,7 @@ describe("AppServerServerRequestDispatcher", () => {
       ]);
       expect(JSON.stringify(trace)).not.toContain("must-not-be-recorded");
     } finally {
-      window.localStorage.removeItem(CLAW_TRACE_DEBUG_OVERRIDE_KEY);
+      window.localStorage.removeItem(AGENT_DEBUG_FLAG_KEY);
       window.localStorage.removeItem(
         APP_SERVER_SERVER_REQUEST_LIFECYCLE_TRACE_KEY,
       );
@@ -330,7 +330,7 @@ describe("AppServerServerRequestDispatcher", () => {
   });
 
   it("重复 resolved 对同一 request key 保持幂等", () => {
-    window.localStorage.setItem(CLAW_TRACE_DEBUG_OVERRIDE_KEY, "on");
+    window.localStorage.setItem(AGENT_DEBUG_FLAG_KEY, "1");
     window.localStorage.removeItem(
       APP_SERVER_SERVER_REQUEST_LIFECYCLE_TRACE_KEY,
     );
@@ -353,7 +353,7 @@ describe("AppServerServerRequestDispatcher", () => {
         trace.filter((entry: { kind?: unknown }) => entry.kind === "resolved"),
       ).toHaveLength(1);
     } finally {
-      window.localStorage.removeItem(CLAW_TRACE_DEBUG_OVERRIDE_KEY);
+      window.localStorage.removeItem(AGENT_DEBUG_FLAG_KEY);
       window.localStorage.removeItem(
         APP_SERVER_SERVER_REQUEST_LIFECYCLE_TRACE_KEY,
       );

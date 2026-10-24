@@ -8,6 +8,9 @@ impl RequestProcessor {
     ) -> Result<Option<JsonRpcNotification>, JsonRpcError> {
         if params.service_tier.is_none()
             && params.summary.is_none()
+            && params.approval_policy.is_none()
+            && params.sandbox_policy.is_none()
+            && params.permissions.is_none()
             && params.approvals_reviewer.is_none()
             && params.cwd.is_none()
             && params.runtime_workspace_roots.is_none()
@@ -27,6 +30,9 @@ impl RequestProcessor {
                     collaboration_mode: params.collaboration_mode.clone(),
                     service_tier: params.service_tier.clone(),
                     summary: params.summary.clone().map(Value::String),
+                    approval_policy: params.approval_policy.clone(),
+                    sandbox_policy: params.sandbox_policy.clone(),
+                    permissions: params.permissions.clone(),
                     approvals_reviewer: params.approvals_reviewer,
                     ..ThreadSettingsUpdateParams::default()
                 },

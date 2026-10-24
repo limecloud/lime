@@ -68,6 +68,7 @@ pub mod memory;
 pub mod workspace;
 
 // 重新导出常用类型
+pub use config::AllowDenyRequirementToml;
 pub use event_emit::{DynEmitter, EventEmit, NoOpEmitter};
 pub use logger::{LogEntry, LogStore, LogStoreConfig, SharedLogStore};
 pub use models::provider_type::ProviderType;

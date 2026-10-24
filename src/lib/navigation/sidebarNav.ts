@@ -1,5 +1,4 @@
 import {
-  BookOpen,
   Boxes,
   CalendarClock,
   MessageCircleMore,
@@ -87,14 +86,6 @@ export const FOOTER_SIDEBAR_NAV_ITEMS: SidebarNavItemDefinition[] = [
       tab: SettingsTabs.General,
     },
     isActive: (currentPage) => currentPage === "settings",
-    configurable: false,
-  },
-  {
-    id: "knowledge",
-    label: "项目资料",
-    icon: BookOpen,
-    page: "knowledge",
-    isActive: (currentPage) => currentPage === "knowledge",
     configurable: false,
   },
   {

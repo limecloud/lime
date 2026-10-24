@@ -14,6 +14,13 @@ import {
   renderModelSelector,
 } from "./ModelSelector.testFixtures";
 
+vi.mock("@/lib/model/useReasoningEffortPreferences", () => ({
+  useReasoningEffortPreferences: () => ({
+    efforts: ["low", "medium", "high", "xhigh", "ultra", "persistent"],
+    ready: true,
+  }),
+}));
+
 const {
   mockUseConfiguredProviders,
   mockUseProviderModels,
@@ -922,7 +929,9 @@ describe("ModelSelector", () => {
           },
           reasoning_policy: buildModelReasoningPolicy({
             defaultReasoningLevel: "medium",
-            supportedReasoningLevels: ["low", "medium", "high"],
+            supportedReasoningLevels: ["low", "medium", "high"].map(
+              (value) => ({ id: value, value, label: value }),
+            ),
           }),
         }),
       ],
@@ -938,6 +947,10 @@ describe("ModelSelector", () => {
 
     expect(
       container.querySelector('[data-testid="model-selector"]')?.textContent,
+    ).toContain("思考 中");
+    expect(
+      container.querySelector('[data-testid="model-selector-effort"]')
+        ?.textContent,
     ).toContain("思考 中");
 
     clickModelSelectorTrigger(container);
@@ -958,7 +971,7 @@ describe("ModelSelector", () => {
     ).not.toBeNull();
   });
 
-  it("provider 未声明默认值时应按 Codex 模型切换语义选择中位档", () => {
+  it("初次加载未选择的推理档位时应保留 canonical 配置继承", () => {
     const setReasoningEffort = vi.fn();
     mockUseProviderModels.mockReturnValue({
       modelIds: ["provider-reasoning"],
@@ -981,7 +994,7 @@ describe("ModelSelector", () => {
       setReasoningEffort,
     });
 
-    expect(setReasoningEffort).toHaveBeenCalledWith("medium");
+    expect(setReasoningEffort).not.toHaveBeenCalled();
   });
 
   it("切换模型时应保留新模型支持的当前 reasoning effort", () => {

@@ -23,9 +23,7 @@ vi.mock("@/lib/utils/scheduleMinimumDelayIdleTask", () => ({
   },
 }));
 
-type HookProps = Parameters<
-  typeof useWorkspaceImageWorkbenchSessionRuntime
->[0];
+type HookProps = Parameters<typeof useWorkspaceImageWorkbenchSessionRuntime>[0];
 
 const mountedRoots: Array<{ container: HTMLDivElement; root: Root }> = [];
 
@@ -64,7 +62,6 @@ function createImageWorkbenchState(
         createdAt,
         size: "1024x1024",
         parentOutputId: null,
-        resourceSaved: false,
         applyTarget: null,
       },
     ],

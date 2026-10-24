@@ -94,10 +94,8 @@ const RTL_SURFACE_GROUPS = [
       "src/components/settings-v2/system/channels/ChannelLogTailPanel.tsx",
       "src/components/settings-v2/system/automation/index.tsx",
       "src/components/settings-v2/system/environment/index.tsx",
-      "src/components/settings-v2/system/developer/index.tsx",
       "src/components/settings-v2/system/web-search/index.tsx",
       "src/components/settings-v2/system/about/index.tsx",
-      "src/components/settings-v2/system/experimental/index.tsx",
     ],
   },
   {
@@ -123,10 +121,6 @@ const RTL_SURFACE_GROUPS = [
       "src/components/skills/SkillScaffoldDialog.tsx",
     ],
   },
-  {
-    name: "knowledge",
-    files: ["src/features/knowledge/KnowledgePage.tsx"],
-  },
 ] as const;
 
 const REQUIRED_RTL_SMOKE_SURFACES = [
@@ -151,7 +145,7 @@ const REQUIRED_RTL_SMOKE_SURFACES = [
 const LAYOUT_MARKERS: Array<{ kind: string; regex: RegExp }> = [
   {
     kind: "physical-spacing-class",
-    regex: /\b(?:m|p)(?:l|r)-[A-Za-z0-9[\/].-]+/g,
+    regex: /\b(?:m|p)(?:l|r)-[A-Za-z0-9[/].-]+/g,
   },
   { kind: "physical-text-align-class", regex: /\btext-(?:left|right)\b/g },
   { kind: "physical-justify-class", regex: /\bjustify-(?:start|end)\b/g },

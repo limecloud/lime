@@ -102,11 +102,6 @@ function renderHook(props?: Partial<HookProps>) {
   > | null = null;
 
   const defaultProps: HookProps = {
-    activeTheme: "general",
-    projectId: "project-1",
-    syncGeneralArtifactToResource: vi.fn().mockResolvedValue({
-      status: "uploaded",
-    }),
     onSaveArtifactDocument: vi.fn().mockResolvedValue(undefined),
   };
 
@@ -162,32 +157,6 @@ afterEach(() => {
 });
 
 describe("useWorkspaceArtifactWorkbenchActions", () => {
-  it("项目复用动作应复用现有资源同步主线", async () => {
-    const syncGeneralArtifactToResource = vi.fn().mockResolvedValue({
-      status: "uploaded",
-    });
-    const { render, getValue } = renderHook({
-      syncGeneralArtifactToResource,
-    });
-    await render();
-
-    const state = getValue().getToolbarActionState(
-      createArtifact(),
-      createDocument(),
-    );
-    expect(state).not.toBeNull();
-
-    await act(async () => {
-      await state?.onSaveToProject();
-    });
-
-    expect(syncGeneralArtifactToResource).toHaveBeenCalledWith({
-      rawFilePath: ".lime/artifacts/thread-1/board-review.artifact.json",
-      preferredName: "董事会季度复盘",
-    });
-    expect(toastSuccess).toHaveBeenCalledWith("已保存到项目资源");
-  });
-
   it("归档动作应回写同一份 ArtifactDocument 状态", async () => {
     const onSaveArtifactDocument = vi.fn().mockResolvedValue(undefined);
     const { render, getValue } = renderHook({

@@ -49,8 +49,8 @@ describe("rightSurfaceToolbarProjection", () => {
           createdAt: 120,
         }),
         createWorkspaceRightSurfaceOpenIntent({
-          id: "runtime:trace",
-          kind: "trace",
+          id: "runtime:browser",
+          kind: "browser",
           origin: "runtime",
           priority: "background",
           createdAt: 130,
@@ -65,7 +65,7 @@ describe("rightSurfaceToolbarProjection", () => {
       projections.find((projection) => projection.kind === "harness"),
     ).toMatchObject({ pendingCount: 1 });
     expect(
-      projections.find((projection) => projection.kind === "trace"),
+      projections.find((projection) => projection.kind === "browser"),
     ).toMatchObject({ pendingCount: 1 });
   });
 
@@ -83,7 +83,7 @@ describe("rightSurfaceToolbarProjection", () => {
       projections.find((projection) => projection.kind === "shell"),
     ).toMatchObject({ disabled: true });
     expect(
-      projections.find((projection) => projection.kind === "trace"),
+      projections.find((projection) => projection.kind === "browser"),
     ).toMatchObject({ disabled: true });
   });
 });

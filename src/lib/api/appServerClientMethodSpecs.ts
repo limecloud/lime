@@ -1035,19 +1035,4 @@ export const APP_SERVER_CLIENT_METHODS: readonly AppServerClientMethodSpec[] = [
     method: constants.APP_SERVER_METHOD_VOICE_TRANSCRIPTION_POLISH_TEXT,
     params: "required",
   },
-  {
-    name: "readUsageStats",
-    method: constants.APP_SERVER_METHOD_USAGE_STATS_READ,
-    params: "required",
-  },
-  {
-    name: "listUsageStatsModelRanking",
-    method: constants.APP_SERVER_METHOD_USAGE_STATS_MODEL_RANKING_LIST,
-    params: "required",
-  },
-  {
-    name: "listUsageStatsDailyTrends",
-    method: constants.APP_SERVER_METHOD_USAGE_STATS_DAILY_TRENDS_LIST,
-    params: "required",
-  },
 ];

@@ -10,10 +10,8 @@ import type {
   AgentPageParams,
   PluginsPageParams,
   ExpertsPageParams,
-  KnowledgePageParams,
   Page,
   PageParams,
-  ResourcesPageParams,
   ScheduledTasksPageParams,
   SettingsPageParams,
   SkillsPageParams,
@@ -32,17 +30,9 @@ const columnPageStyle = {
   flexDirection: "column",
 } as const;
 
-const loadResourcesPage = () =>
-  import("./resources").then((module) => ({
-    default: module.ResourcesPage,
-  }));
 const loadSkillsWorkspacePage = () =>
   import("./skills").then((module) => ({
     default: module.SkillsWorkspacePage,
-  }));
-const loadKnowledgePage = () =>
-  import("@/features/knowledge").then((module) => ({
-    default: module.KnowledgePage,
   }));
 const loadPluginsPage = () =>
   import("@/features/plugin/ui/PluginCatalogPage").then((module) => ({
@@ -58,9 +48,7 @@ const loadAgentChatPage = () =>
     default: module.AgentChatPage,
   }));
 
-const ResourcesPage = lazy(loadResourcesPage);
 const SkillsWorkspacePage = lazy(loadSkillsWorkspacePage);
-const KnowledgePage = lazy(loadKnowledgePage);
 const PluginsPage = lazy(loadPluginsPage);
 const ExpertPlazaPage = lazy(loadExpertPlazaPage);
 const AgentChatPage = lazy(loadAgentChatPage);
@@ -223,15 +211,11 @@ export function AppPageContent({
           preferHomeForInitialInputCapability={
             agentPageParams.preferHomeForInitialInputCapability
           }
-          initialKnowledgePackSelection={
-            agentPageParams.initialKnowledgePackSelection
-          }
           initialProjectFileOpenTarget={
             agentPageParams.initialProjectFileOpenTarget
           }
           theme={agentPageParams.theme}
           lockTheme={agentPageParams.lockTheme}
-          fromResources={agentPageParams.fromResources}
           agentEntry={agentPageParams.agentEntry}
           showChatPanel={
             agentPageParams.agentEntry !== "new-task" &&
@@ -245,17 +229,6 @@ export function AppPageContent({
           onLocationChange={handleAgentLocationChange}
           onAgentStreamingChange={onAgentStreamingChange}
           onBackgroundSessionRuntimeChange={onBackgroundSessionRuntimeChange}
-        />
-      </div>
-    );
-  }
-
-  if (activePage === "resources") {
-    return (
-      <div style={columnPageStyle}>
-        <ResourcesPage
-          onNavigate={onNavigate}
-          pageParams={activePageParams as ResourcesPageParams}
         />
       </div>
     );
@@ -300,17 +273,6 @@ export function AppPageContent({
           }
         />
       </PluginWorkspaceTabs>
-    );
-  }
-
-  if (activePage === "knowledge") {
-    return (
-      <div style={{ ...columnPageStyle, overflow: "hidden" }}>
-        <KnowledgePage
-          onNavigate={onNavigate}
-          pageParams={activePageParams as KnowledgePageParams}
-        />
-      </div>
     );
   }
 

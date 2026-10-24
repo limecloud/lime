@@ -32,7 +32,6 @@ type GeneralWorkbenchSidebarRuntime = Pick<
 >;
 
 export interface RenderWorkspaceGeneralWorkbenchSidebarRuntimeParams {
-  contextWorkspace: WorkspaceGeneralWorkbenchSidebarProps["contextWorkspace"];
   generalWorkbenchHarnessSummary: WorkspaceGeneralWorkbenchSidebarProps["generalWorkbenchHarnessSummary"];
   generalWorkbenchScaffoldRuntime: GeneralWorkbenchScaffoldRuntime;
   generalWorkbenchSidebarRuntime: GeneralWorkbenchSidebarRuntime;
@@ -51,11 +50,9 @@ export interface RenderWorkspaceGeneralWorkbenchSidebarRuntimeParams {
   onSetBranchStatus: GeneralWorkbenchSidebarWorkflowProps["onSetBranchStatus"];
   onSwitchBranchVersion: GeneralWorkbenchSidebarWorkflowProps["onSwitchBranchVersion"];
   onToggleHarnessPanel: WorkspaceGeneralWorkbenchSidebarProps["onToggleHarnessPanel"];
-  onViewContextDetail: WorkspaceGeneralWorkbenchSidebarProps["onViewContextDetail"];
 }
 
 export function renderWorkspaceGeneralWorkbenchSidebarRuntime({
-  contextWorkspace,
   generalWorkbenchHarnessSummary,
   generalWorkbenchScaffoldRuntime,
   generalWorkbenchSidebarRuntime,
@@ -74,7 +71,6 @@ export function renderWorkspaceGeneralWorkbenchSidebarRuntime({
   onSetBranchStatus,
   onSwitchBranchVersion,
   onToggleHarnessPanel,
-  onViewContextDetail,
 }: RenderWorkspaceGeneralWorkbenchSidebarRuntimeParams): ReactNode {
   return (
     <WorkspaceGeneralWorkbenchSidebar
@@ -117,8 +113,6 @@ export function renderWorkspaceGeneralWorkbenchSidebarRuntime({
         onTriggerWorkflowControl:
           generalWorkbenchSidebarRuntime.handleTriggerGeneralWorkbenchWorkflowControl,
       }}
-      contextWorkspace={contextWorkspace}
-      onViewContextDetail={onViewContextDetail}
       history={{
         hasMore: generalWorkbenchSidebarRuntime.generalWorkbenchHistoryHasMore,
         loading: generalWorkbenchSidebarRuntime.generalWorkbenchHistoryLoading,

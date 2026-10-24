@@ -8,6 +8,83 @@ use serde_json::{json, Value};
 use std::sync::Arc;
 use tempfile::TempDir;
 
+#[path = "config_jsonrpc/projects.rs"]
+mod projects;
+
+#[tokio::test]
+async fn reasoning_effort_preferences_use_public_config_and_survive_restart() {
+    let temp = TempDir::new().unwrap();
+    let path = temp.path().join("config.yaml");
+    std::fs::write(&path, "server:\n  api_key: test-only\n").unwrap();
+    let make_server = || {
+        AppServer::with_runtime(
+            RuntimeCore::with_backend(Arc::new(MockBackend)).with_app_config_path(path.clone()),
+        )
+    };
+    let server = make_server();
+    initialize(&server).await;
+    let saved = request(
+        &server,
+        2,
+        METHOD_CONFIG_VALUE_WRITE,
+        json!({
+            "keyPath": "desktop.enabled-reasoning-efforts",
+            "value": ["low", "medium", "high", "max"], "mergeStrategy": "upsert"
+        }),
+    )
+    .await;
+    assert_eq!(saved["result"]["status"], "ok");
+    let before = std::fs::read(&path).unwrap();
+    for value in [json!(["invalid"]), json!(true), json!([1])] {
+        let rejected = request_error(&server, 3, METHOD_CONFIG_BATCH_WRITE, json!({
+            "edits": [
+                {"keyPath":"language","value":"ja-JP","mergeStrategy":"replace"},
+                {"keyPath":"desktop.enabled-reasoning-efforts","value":value,"mergeStrategy":"replace"}
+            ]
+        })).await;
+        assert!(rejected.get("error").is_some(), "{rejected}");
+        assert_eq!(std::fs::read(&path).unwrap(), before);
+    }
+    drop(server);
+    let server = make_server();
+    initialize(&server).await;
+    let read = request(
+        &server,
+        4,
+        METHOD_CONFIG_READ,
+        json!({"includeLayers":true}),
+    )
+    .await;
+    assert_eq!(
+        read["result"]["config"]["desktop"]["enabled-reasoning-efforts"],
+        json!(["low", "medium", "high", "max"])
+    );
+    let saved = request(
+        &server,
+        5,
+        METHOD_CONFIG_VALUE_WRITE,
+        json!({
+            "keyPath": "desktop.enabled-reasoning-efforts", "value": [], "mergeStrategy": "replace",
+            "expectedVersion": read["result"]["layers"][0]["version"]
+        }),
+    )
+    .await;
+    assert_eq!(saved["result"]["status"], "ok");
+    let read = request(&server, 6, METHOD_CONFIG_READ, json!({})).await;
+    assert_eq!(
+        read["result"]["config"]["desktop"]["enabled-reasoning-efforts"],
+        json!([])
+    );
+    let reset = request(&server, 7, METHOD_CONFIG_VALUE_WRITE, json!({
+        "keyPath": "desktop.enabled-reasoning-efforts", "value": null, "mergeStrategy": "replace"
+    })).await;
+    assert_eq!(reset["result"]["status"], "ok");
+    let read = request(&server, 8, METHOD_CONFIG_READ, json!({})).await;
+    assert!(read["result"]["config"]["desktop"]
+        .get("enabled-reasoning-efforts")
+        .is_none());
+}
+
 #[tokio::test]
 async fn config_control_plane_uses_the_single_desktop_yaml_layer() {
     let temp = TempDir::new().expect("config temp");
@@ -302,14 +379,14 @@ async fn config_control_plane_uses_the_single_desktop_yaml_layer() {
         "configSchemaUnknownKey"
     );
 
-    let project_layer = request_error(
+    let project_layer = request(
         &server,
         8,
         METHOD_CONFIG_READ,
-        json!({"cwd": temp.path().to_string_lossy()}),
+        json!({"cwd": temp.path().to_string_lossy(), "includeLayers": true}),
     )
     .await;
-    assert_eq!(project_layer["error"]["code"], -32602);
+    assert_eq!(project_layer["result"]["layers"].as_array().unwrap().len(), 1);
 
     for (id, key_path, value) in [
         (9, "tui.keymap.editor.move_lft", json!("f10")),

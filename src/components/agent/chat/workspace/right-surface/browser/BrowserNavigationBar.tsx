@@ -10,6 +10,7 @@ import { ArrowLeft, ArrowRight, Globe2, Lock, RotateCw, X } from "lucide-react";
 import {
   goBackBrowserTab,
   goForwardBrowserTab,
+  focusBrowserTabPage,
   navigateBrowserTab,
   reloadBrowserTab,
   stopBrowserTab,
@@ -27,6 +28,7 @@ export type BrowserTranslate = (
 ) => string;
 export type RunBrowserOperation = (
   operation: () => Promise<BrowserTabState>,
+  isValid?: () => boolean,
 ) => Promise<void>;
 export const browserIconButton =
   "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[color:var(--lime-text-muted)] transition hover:bg-[color:var(--lime-chrome-tab-hover)] hover:text-[color:var(--lime-text-strong)] disabled:pointer-events-none disabled:opacity-35";
@@ -51,21 +53,52 @@ export function BrowserNavigationBar({
   const [focused, setFocused] = useState(false);
   const [address, setAddress] = useState(url);
   const composing = useRef(false);
+  const edited = useRef(false);
   const pendingTabs = useRef(new Set<string>());
   const addressRef = useRef<HTMLInputElement>(null);
+  const mounted = useRef(false);
+  const focusGeneration = useRef(0);
+  const identity = selected
+    ? JSON.stringify([
+        selected.browserSessionId,
+        selected.threadId,
+        selected.tabId,
+        selected.viewId,
+        selected.webContentsId,
+      ])
+    : null;
+  const previous = useRef({ identity, url });
+  const currentIdentity = useRef(identity);
+  currentIdentity.current = identity;
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+  useLayoutEffect(() => {
+    const changedOwner = previous.current.identity !== identity;
+    if (changedOwner) focusGeneration.current += 1;
+    if (!changedOwner && previous.current.url === url) return;
+    previous.current = { identity, url };
+    const cancelEditing = changedOwner || (focused && edited.current);
+    edited.current = false;
+    composing.current = false;
+    setAddress(url);
+    if (cancelEditing) {
+      setFocused(false);
+      addressRef.current?.blur();
+    }
+  }, [identity, url, focused]);
   useLayoutEffect(() => {
     if (focused) addressRef.current?.select();
-  }, [focused, selected?.tabId]);
+  }, [focused]);
   useEffect(() => {
     if (addressFocusRequest > 0) {
       addressRef.current?.focus();
       addressRef.current?.select();
     }
   }, [addressFocusRequest]);
-  useEffect(() => {
-    setAddress(url);
-    composing.current = false;
-  }, [selected?.tabId, url]);
   const submitAddress = (event: FormEvent) => {
     event.preventDefault();
     if (
@@ -81,10 +114,22 @@ export function BrowserNavigationBar({
     void run(async () => {
       const target = normalizeBrowserAddress(draft);
       if (!target) return tab;
+      addressRef.current?.blur();
       setAddress(target);
-      return target === normalizeBrowserAddress(tab.url)
+      const generation = focusGeneration.current;
+      const state = await (target === normalizeBrowserAddress(tab.url)
         ? reloadBrowserTab(tab.tabId)
-        : navigateBrowserTab(tab.tabId, target);
+        : navigateBrowserTab(tab.tabId, target));
+      const input = addressRef.current;
+      if (
+        mounted.current &&
+        currentIdentity.current === identity &&
+        focusGeneration.current === generation &&
+        input &&
+        input.ownerDocument.activeElement === input.ownerDocument.body
+      )
+        return focusBrowserTabPage(tab);
+      return state;
     }).finally(() => pendingTabs.current.delete(tab.tabId));
   };
   const iconButton = browserIconButton;
@@ -170,11 +215,18 @@ export function BrowserNavigationBar({
           className={`min-w-0 flex-1 bg-transparent text-xs text-[color:var(--lime-text-strong)] outline-none ${focused ? "text-left" : "text-center"}`}
           data-testid="browser-workspace-address"
           autoComplete="off"
+          dir="ltr"
+          disabled={!selected}
           onBlur={() => {
+            edited.current = false;
+            composing.current = false;
             setAddress(url);
             setFocused(false);
           }}
-          onChange={(event) => setAddress(event.target.value)}
+          onChange={(event) => {
+            edited.current = true;
+            setAddress(event.target.value);
+          }}
           onCompositionStart={() => {
             composing.current = true;
           }}
@@ -182,12 +234,19 @@ export function BrowserNavigationBar({
             composing.current = false;
           }}
           onFocus={(event) => {
+            focusGeneration.current += 1;
+            edited.current = false;
+            composing.current = false;
             setFocused(true);
             setAddress(url);
             event.currentTarget.select();
           }}
           onKeyDown={(event) => {
-            if (event.nativeEvent.isComposing || composing.current) {
+            if (
+              event.nativeEvent.isComposing ||
+              event.nativeEvent.keyCode === 229 ||
+              composing.current
+            ) {
               if (event.key === "Enter") event.preventDefault();
               return;
             }
@@ -196,6 +255,20 @@ export function BrowserNavigationBar({
               setAddress(url);
               event.currentTarget.blur();
             }
+          }}
+          onPaste={(event) => {
+            const text = event.clipboardData.getData("text");
+            if (!text) return;
+            event.preventDefault();
+            const input = event.currentTarget;
+            const start = input.selectionStart ?? input.value.length;
+            const end = input.selectionEnd ?? start;
+            const value = `${input.value.slice(0, start)}${text}${input.value.slice(end)}`;
+            input.value = value;
+            const caret = start + text.length;
+            input.setSelectionRange(caret, caret);
+            edited.current = true;
+            setAddress(value);
           }}
           spellCheck={false}
           placeholder={translate(

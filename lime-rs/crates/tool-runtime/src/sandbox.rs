@@ -4,6 +4,7 @@ use serde_json::Map as JsonMap;
 use serde_json::Value as JsonValue;
 
 mod command;
+mod enforcement;
 pub(crate) mod policy;
 
 pub use command::{prepare_sandbox_command, SandboxCommandError, SandboxCommandRequest};
@@ -103,6 +104,7 @@ pub enum SandboxBackendConfigSource {
     User,
     Runtime,
     Request,
+    SandboxPolicy,
 }
 
 impl SandboxBackendConfigSource {
@@ -114,6 +116,7 @@ impl SandboxBackendConfigSource {
             Self::User => "user",
             Self::Runtime => "runtime",
             Self::Request => "request",
+            Self::SandboxPolicy => "sandbox_policy",
         }
     }
 }
@@ -222,7 +225,12 @@ pub fn evaluate_sandbox(input: SandboxEvaluationInput<'_>) -> SandboxEvaluation 
 }
 
 pub fn plan_sandbox_backend(input: SandboxBackendPlanInput<'_>) -> SandboxBackendPlan {
-    let config = resolve_workspace_sandbox_runtime_config(input.request_metadata);
+    let mut config = resolve_workspace_sandbox_runtime_config(input.request_metadata);
+    enforcement::require_requested_sandbox(
+        &mut config,
+        input.sandbox_profile,
+        input.requested_policy,
+    );
     let required = sandbox_backend_required(input.sandbox_profile, input.requested_policy);
 
     if input.bypass_restrictions {

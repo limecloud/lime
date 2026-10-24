@@ -12,7 +12,7 @@ describe("seededServiceSkillPackage", () => {
 
     expect(pkg.id).toBe("lime-seeded-service-skills");
     expect(pkg.version).toBe(SEEDED_SERVICE_SKILL_CATALOG_VERSION);
-    expect(pkg.catalogProjections).toHaveLength(17);
+    expect(pkg.catalogProjections).toHaveLength(9);
     expect(pkg.catalogProjections).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -20,43 +20,8 @@ describe("seededServiceSkillPackage", () => {
           targetCatalog: "service_skill_catalog",
           bindingProfileRef: "native-skill-instant",
           skillBundleMetadata: expect.objectContaining({
-            Lime_knowledge_pack_type: "personal-profile",
-            Lime_agent_knowledge_runtime_mode: "persona",
             Lime_skill_bundle_path:
               "lime-rs/resources/default-skills/personal-ip-knowledge-builder",
-          }),
-        }),
-        expect.objectContaining({
-          id: "brand-persona-knowledge-builder",
-          targetCatalog: "service_skill_catalog",
-          bindingProfileRef: "native-skill-instant",
-          skillBundleMetadata: expect.objectContaining({
-            Lime_knowledge_pack_type: "brand-persona",
-            Lime_agent_knowledge_runtime_mode: "persona",
-            Lime_skill_bundle_path:
-              "lime-rs/resources/default-skills/brand-persona-knowledge-builder",
-          }),
-        }),
-        expect.objectContaining({
-          id: "content-operations-knowledge-builder",
-          targetCatalog: "service_skill_catalog",
-          bindingProfileRef: "native-skill-instant",
-          skillBundleMetadata: expect.objectContaining({
-            Lime_knowledge_pack_type: "content-operations",
-            Lime_agent_knowledge_runtime_mode: "data",
-            Lime_skill_bundle_path:
-              "lime-rs/resources/default-skills/content-operations-knowledge-builder",
-          }),
-        }),
-        expect.objectContaining({
-          id: "brand-product-knowledge-builder",
-          targetCatalog: "service_skill_catalog",
-          bindingProfileRef: "native-skill-instant",
-          skillBundleMetadata: expect.objectContaining({
-            Lime_knowledge_pack_type: "brand-product",
-            Lime_agent_knowledge_runtime_mode: "data",
-            Lime_skill_bundle_path:
-              "lime-rs/resources/default-skills/brand-product-knowledge-builder",
           }),
         }),
       ]),
@@ -84,7 +49,7 @@ describe("seededServiceSkillPackage", () => {
 
     expect(catalog.tenantId).toBe(SEEDED_SERVICE_SKILL_CATALOG_TENANT_ID);
     expect(catalog.version).toBe(SEEDED_SERVICE_SKILL_CATALOG_VERSION);
-    expect(catalog.items).toHaveLength(17);
+    expect(catalog.items).toHaveLength(9);
     expect(catalog.items).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -126,84 +91,10 @@ describe("seededServiceSkillPackage", () => {
               hasReferences: true,
               hasAssets: true,
             },
-            metadata: expect.objectContaining({
-              Lime_knowledge_builder: "true",
-              Lime_knowledge_pack_type: "personal-profile",
-              Lime_knowledge_template: "personal-ip",
-              Lime_knowledge_family: "persona",
-            }),
+            metadata: expect.objectContaining({}),
           }),
-        }),
-        expect.objectContaining({
-          id: "brand-persona-knowledge-builder",
-          source: "cloud_catalog",
-          defaultExecutorBinding: "native_skill",
-          skillBundle: expect.objectContaining({
-            name: "brand-persona-knowledge-builder",
-            resourceSummary: {
-              hasScripts: false,
-              hasReferences: true,
-              hasAssets: false,
-            },
-            metadata: expect.objectContaining({
-              Lime_knowledge_builder: "true",
-              Lime_knowledge_pack_type: "brand-persona",
-              Lime_knowledge_template: "brand-persona",
-              Lime_knowledge_family: "persona",
-            }),
-          }),
-        }),
-        expect.objectContaining({
-          id: "content-operations-knowledge-builder",
-          source: "cloud_catalog",
-          defaultExecutorBinding: "native_skill",
-          skillBundle: expect.objectContaining({
-            name: "content-operations-knowledge-builder",
-            resourceSummary: {
-              hasScripts: false,
-              hasReferences: true,
-              hasAssets: false,
-            },
-            metadata: expect.objectContaining({
-              Lime_knowledge_builder: "true",
-              Lime_knowledge_pack_type: "content-operations",
-              Lime_knowledge_family: "data",
-            }),
-          }),
-        }),
-        expect.objectContaining({
-          id: "private-domain-operations-knowledge-builder",
-          defaultExecutorBinding: "native_skill",
-        }),
-        expect.objectContaining({
-          id: "live-commerce-operations-knowledge-builder",
-          defaultExecutorBinding: "native_skill",
-        }),
-        expect.objectContaining({
-          id: "campaign-operations-knowledge-builder",
-          defaultExecutorBinding: "native_skill",
-        }),
-        expect.objectContaining({
-          id: "brand-product-knowledge-builder",
-          defaultExecutorBinding: "native_skill",
-          skillBundle: expect.objectContaining({
-            name: "brand-product-knowledge-builder",
-            metadata: expect.objectContaining({
-              Lime_knowledge_pack_type: "brand-product",
-              Lime_knowledge_family: "data",
-            }),
-          }),
-        }),
-        expect.objectContaining({
-          id: "organization-knowhow-knowledge-builder",
-          defaultExecutorBinding: "native_skill",
-        }),
-        expect.objectContaining({
-          id: "growth-strategy-knowledge-builder",
-          defaultExecutorBinding: "native_skill",
         }),
       ]),
     );
   });
-
 });

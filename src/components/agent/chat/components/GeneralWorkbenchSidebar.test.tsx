@@ -125,32 +125,6 @@ function renderSidebar(
       { id: "brief", title: "明确需求", status: "completed" },
       { id: "create", title: "创作内容", status: "active" },
     ],
-    contextSearchQuery: "品牌",
-    onContextSearchQueryChange: vi.fn(),
-    contextSearchMode: "web",
-    onContextSearchModeChange: vi.fn(),
-    contextSearchLoading: false,
-    contextSearchError: null,
-    onSubmitContextSearch: vi.fn(),
-    contextItems: [
-      {
-        id: "search:web:brand",
-        name: "品牌话题观察",
-        source: "search",
-        searchMode: "web",
-        query: "品牌 2026",
-        previewText: "品牌讨论聚焦产品定位、渠道节奏与转化质量。",
-        citations: [{ title: "官方博客", url: "https://example.com/blog" }],
-        active: true,
-      },
-    ],
-    onToggleContextActive: vi.fn(),
-    contextBudget: {
-      activeCount: 1,
-      activeCountLimit: 12,
-      estimatedTokens: 600,
-      tokenLimit: 32000,
-    },
     activityLogs: [
       {
         id: "log-1",
@@ -158,7 +132,6 @@ function renderSidebar(
         status: "completed",
         timeLabel: "10:30",
         applyTarget: "封面/插图",
-        contextIds: ["material:1"],
         gateKey: "write_mode",
         runId: "run-abcdef123456",
         source: "skill",
@@ -322,127 +295,6 @@ describe("GeneralWorkbenchSidebar", () => {
       });
     }
     expect(onRequestCollapse).toHaveBeenCalledTimes(1);
-  });
-
-  it("点击添加上下文应打开添加弹窗", () => {
-    const { container } = renderSidebar();
-
-    const addContextButton = Array.from(
-      container.querySelectorAll("button"),
-    ).find((button) => button.textContent?.includes("添加上下文"));
-    expect(addContextButton).toBeTruthy();
-    if (addContextButton) {
-      act(() => {
-        addContextButton.click();
-      });
-    }
-
-    expect(container.textContent).toContain("添加新上下文");
-    expect(container.textContent).toContain("上传文件");
-    expect(container.textContent).toContain("网站链接");
-    expect(container.textContent).toContain("输入文本");
-  });
-
-  it("输入文本上下文后确认应触发回调", async () => {
-    const onAddTextContext = vi.fn().mockResolvedValue(undefined);
-    const { container } = renderSidebar({ onAddTextContext });
-
-    const addContextButton = Array.from(
-      container.querySelectorAll("button"),
-    ).find((button) => button.textContent?.includes("添加上下文"));
-    expect(addContextButton).toBeTruthy();
-    if (addContextButton) {
-      act(() => {
-        addContextButton.click();
-      });
-    }
-
-    const textButton = container.querySelector(
-      'button[aria-label="输入文本上下文"]',
-    ) as HTMLButtonElement | null;
-    expect(textButton).toBeTruthy();
-    if (textButton) {
-      act(() => {
-        textButton.click();
-      });
-    }
-
-    const textarea = container.querySelector(
-      'textarea[placeholder="在此粘贴或输入文本..."]',
-    ) as HTMLTextAreaElement | null;
-    expect(textarea).toBeTruthy();
-    if (textarea) {
-      const setter = Object.getOwnPropertyDescriptor(
-        HTMLTextAreaElement.prototype,
-        "value",
-      )?.set;
-      act(() => {
-        setter?.call(textarea, "这是一段用于测试的上下文内容");
-        textarea.dispatchEvent(new Event("input", { bubbles: true }));
-      });
-    }
-
-    const confirmButton = container.querySelector(
-      'button[aria-label="确认添加文本上下文"]',
-    ) as HTMLButtonElement | null;
-    await act(async () => {
-      await Promise.resolve();
-    });
-    if (confirmButton) {
-      await act(async () => {
-        confirmButton.click();
-        await Promise.resolve();
-      });
-    }
-
-    expect(onAddTextContext).toHaveBeenCalledTimes(1);
-    expect(onAddTextContext).toHaveBeenCalledWith({
-      content: "这是一段用于测试的上下文内容",
-    });
-  });
-
-  it("应展示新的双 tab 与紧凑上下文列表结构", () => {
-    const { container } = renderSidebar();
-    const shell = container.querySelector(
-      '[data-testid="general-workbench-sidebar"]',
-    ) as HTMLElement | null;
-    const header = container.querySelector(
-      '[data-testid="general-workbench-sidebar-header"]',
-    ) as HTMLElement | null;
-    const tabs = container.querySelector(
-      '[data-testid="general-workbench-sidebar-tabs"]',
-    ) as HTMLElement | null;
-
-    expect(container.textContent).toContain("上下文管理");
-    expect(
-      container.querySelector('button[aria-label="打开上下文管理"]'),
-    ).toBeTruthy();
-    expect(
-      container.querySelector('button[aria-label="打开当前进展"]'),
-    ).toBeTruthy();
-    expect(
-      container.querySelector('button[aria-label="打开执行日志"]'),
-    ).toBeTruthy();
-    expect(container.textContent).toContain("搜索上下文");
-    expect(container.textContent).toContain("上下文列表");
-    expect(container.textContent).not.toContain("上下文概览");
-    expect(container.textContent).not.toContain("项目资料");
-    expect(shell?.className).toContain("bg-slate-50");
-    expect(shell?.className).not.toContain("linear-gradient");
-    expect(header?.className).toContain("bg-white");
-    expect(header?.className).not.toContain("backdrop-blur");
-    expect(tabs?.className).toContain("bg-slate-100");
-  });
-
-  it("应展示新的搜索上下文输入区", () => {
-    const { container } = renderSidebar();
-    expect(container.textContent).toContain("添加上下文");
-
-    const searchInput = container.querySelector(
-      'input[placeholder="搜索网络添加新上下文"]',
-    ) as HTMLInputElement | null;
-    expect(searchInput).toBeTruthy();
-    expect(searchInput?.value).toBe("品牌");
   });
 
   it("日志存在更多历史时应显示加载按钮并可触发", () => {
@@ -659,106 +511,6 @@ describe("GeneralWorkbenchSidebar", () => {
     expect(container.textContent).toContain("查看文件");
     expect(container.textContent).toContain("文件不存在");
     expect(container.textContent).not.toContain("执行技能 社媒主稿与封面");
-  });
-
-  it("应支持触发上下文搜索与切换来源", () => {
-    const onSubmitContextSearch = vi.fn();
-    const onContextSearchModeChange = vi.fn();
-    const { container } = renderSidebar({
-      onSubmitContextSearch,
-      onContextSearchModeChange,
-    });
-
-    const submitButton = container.querySelector(
-      'button[aria-label="提交上下文搜索"]',
-    ) as HTMLButtonElement | null;
-    expect(submitButton).toBeTruthy();
-    if (submitButton) {
-      act(() => {
-        submitButton.click();
-      });
-    }
-    expect(onSubmitContextSearch).toHaveBeenCalledTimes(1);
-
-    const triggerButton = container.querySelector(
-      'button[aria-label="选择上下文搜索来源"]',
-    ) as HTMLButtonElement | null;
-    expect(triggerButton).toBeTruthy();
-    if (triggerButton) {
-      act(() => {
-        triggerButton.click();
-      });
-    }
-
-    const socialMenuText = Array.from(container.querySelectorAll("span")).find(
-      (node) => node.textContent === "社交媒体",
-    );
-    const socialMenuItem = socialMenuText?.closest("div");
-    expect(socialMenuItem).toBeTruthy();
-    if (socialMenuItem) {
-      act(() => {
-        socialMenuItem.click();
-      });
-    }
-
-    expect(onContextSearchModeChange).toHaveBeenCalledWith("social");
-  });
-
-  it("应按标题列表展示搜索结果，并支持进入详情查看来源", () => {
-    const { container } = renderSidebar();
-
-    expect(container.textContent).toContain("上下文列表");
-    expect(container.textContent).toContain("品牌话题观察");
-    expect(container.textContent).not.toContain("检索词：品牌 2026");
-    expect(container.textContent).not.toContain("品牌讨论聚焦产品定位");
-    expect((container.textContent?.match(/品牌话题观察/g) || []).length).toBe(
-      1,
-    );
-
-    const openButton = container.querySelector(
-      'button[aria-label="查看搜索结果 品牌话题观察"]',
-    ) as HTMLButtonElement | null;
-    expect(openButton).toBeTruthy();
-    if (openButton) {
-      act(() => {
-        openButton.click();
-      });
-    }
-
-    expect(container.textContent).toContain("搜索结果详情");
-    expect(container.textContent).toContain("检索词：品牌 2026");
-    expect(container.textContent).toContain("品牌讨论聚焦产品定位");
-
-    const citationLink = container.querySelector(
-      'a[href="https://example.com/blog"]',
-    ) as HTMLAnchorElement | null;
-    expect(citationLink).toBeTruthy();
-
-    const backButton = Array.from(container.querySelectorAll("button")).find(
-      (button) => button.textContent?.includes("返回列表"),
-    );
-    expect(backButton).toBeTruthy();
-    if (backButton) {
-      act(() => {
-        backButton.click();
-      });
-    }
-
-    expect(container.textContent).toContain("搜索结果");
-    expect(container.textContent).not.toContain("检索词：品牌 2026");
-  });
-
-  it("搜索被阻塞时应展示原因并禁用提交", () => {
-    const { container } = renderSidebar({
-      contextSearchQuery: "品牌",
-      contextSearchBlockedReason: "请先选择可用模型后再搜索",
-    });
-
-    expect(container.textContent).toContain("请先选择可用模型后再搜索");
-    const submitButton = container.querySelector(
-      'button[aria-label="提交上下文搜索"]',
-    ) as HTMLButtonElement | null;
-    expect(submitButton?.disabled).toBe(true);
   });
 
   it("应支持分支状态操作", () => {
@@ -1210,7 +962,6 @@ describe("GeneralWorkbenchSidebar", () => {
           status: "completed",
           timeLabel: "11:20",
           applyTarget: "主稿内容",
-          contextIds: ["material:1"],
           sessionId: "session-group",
           artifactPaths: ["content-posts/group.md"],
           gateKey: "write_mode",

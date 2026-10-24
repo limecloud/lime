@@ -85,7 +85,7 @@ describe("agentStreamUserInputSendPreparation", () => {
         current: options?.sessionId ?? "session-1",
       } as MutableRefObject<string | null>,
       executionRuntime: options?.executionRuntime ?? null,
-      clawTraceEnabled: false,
+
       getWorkspaceIdForSubmit: () => "workspace-1",
       getSyncedSessionModelPreference: () => ({
         providerType: "openai",
@@ -371,7 +371,7 @@ describe("agentStreamUserInputSendPreparation", () => {
     expect(result.webSearch).toBeUndefined();
   });
 
-  it("开启 Claw Trace 时应在发送准备阶段补齐 trace metadata", () => {
+  it("发送准备阶段应补齐请求关联 metadata", () => {
     vi.spyOn(crypto, "randomUUID")
       .mockReturnValueOnce("00000000-0000-0000-0000-000000000201")
       .mockReturnValueOnce("00000000-0000-0000-0000-000000000202")
@@ -390,7 +390,6 @@ describe("agentStreamUserInputSendPreparation", () => {
       },
       env: {
         ...createEnv({ sessionId: "session-trace" }),
-        clawTraceEnabled: true,
       },
     });
 
@@ -413,7 +412,7 @@ describe("agentStreamUserInputSendPreparation", () => {
     });
   });
 
-  it("默认 Claw 发送应生成 summary trace metadata", () => {
+  it("默认发送应生成请求关联 metadata", () => {
     vi.spyOn(crypto, "randomUUID")
       .mockReturnValueOnce("00000000-0000-0000-0000-000000000301")
       .mockReturnValueOnce("00000000-0000-0000-0000-000000000302")
@@ -735,7 +734,7 @@ describe("agentStreamUserInputSendPreparation", () => {
             service_scene_launch: {
               kind: "local_service_skill",
               service_scene_run: {
-                skill_id: "brand-product-knowledge-builder",
+                skill_id: "personal-ip-knowledge-builder",
               },
             },
           },

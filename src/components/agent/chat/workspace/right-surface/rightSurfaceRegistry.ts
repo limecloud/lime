@@ -108,13 +108,6 @@ export const WORKSPACE_RIGHT_SURFACE_SPECS: readonly WorkspaceRightSurfaceSpec[]
       openSources: ["user", "runtime"],
       collapseTarget: "topToolbar",
     },
-    {
-      kind: "trace",
-      slot: "canvasPanel",
-      exclusiveGroup: "workspaceRightSurface",
-      openSources: ["user", "runtime"],
-      collapseTarget: "topToolbar",
-    },
   ];
 
 export function getWorkspaceRightSurfaceSpec(

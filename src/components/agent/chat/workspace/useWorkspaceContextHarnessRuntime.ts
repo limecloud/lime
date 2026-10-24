@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ProjectMemory } from "@/lib/api/projectMemory";
 import type { ThemeType } from "@/lib/workspace/workbenchContract";
 import type { Message } from "../types";
-import { useThemeContextWorkspace } from "../hooks";
+import { isSpecializedWorkbenchTheme } from "@/lib/workspace/workbenchContract";
 import { collectConversationSkillNames } from "../utils/harnessSkills";
 import {
   loadPersistedBoolean,
@@ -13,12 +13,7 @@ const HARNESS_PANEL_VISIBILITY_KEY = "lime.chat.harness-panel.visible.v1";
 
 interface UseWorkspaceContextHarnessRuntimeParams {
   enabled: boolean;
-  prefetchEnabled?: boolean;
-  projectId?: string;
-  activeTheme: string;
   messages: Message[];
-  providerType: string;
-  model: string;
   mappedTheme: ThemeType;
   isSending: boolean;
   projectMemory: ProjectMemory | null;
@@ -30,12 +25,7 @@ interface UseWorkspaceContextHarnessRuntimeParams {
 
 export function useWorkspaceContextHarnessRuntime({
   enabled,
-  prefetchEnabled = true,
-  projectId,
-  activeTheme,
   messages,
-  providerType,
-  model,
   mappedTheme,
   isSending,
   projectMemory,
@@ -55,18 +45,7 @@ export function useWorkspaceContextHarnessRuntime({
     savePersistedBoolean(HARNESS_PANEL_VISIBILITY_KEY, harnessPanelVisible);
   }, [harnessPanelVisible]);
 
-  const contextWorkspace = useThemeContextWorkspace({
-    enabled,
-    prefetchEnabled,
-    projectId,
-    activeTheme,
-    messages,
-    providerType,
-    model,
-  });
   const workbenchEnabled = enabled;
-  const generalWorkbenchContextEnabled =
-    contextWorkspace.generalWorkbenchEnabled;
   const harnessSkillNames = useMemo(
     () => (workbenchEnabled ? collectConversationSkillNames(messages) : []),
     [messages, workbenchEnabled],
@@ -76,8 +55,7 @@ export function useWorkspaceContextHarnessRuntime({
     : 0;
   const isGeneralWorkbenchEntry = mappedTheme === "general";
   const shouldAlwaysShowHarnessToggle =
-    workbenchEnabled &&
-    (isGeneralWorkbenchEntry || generalWorkbenchContextEnabled);
+    workbenchEnabled && isGeneralWorkbenchEntry;
   const hasHarnessActivity =
     workbenchEnabled &&
     (harnessPanelVisible ||
@@ -93,18 +71,6 @@ export function useWorkspaceContextHarnessRuntime({
         : "idle";
   const navbarHarnessPanelVisible = workbenchEnabled && harnessPanelVisible;
   const harnessToggleLabel = workbenchEnabled ? "Harness" : undefined;
-  const visibleContextItems = useMemo(() => {
-    if (!workbenchEnabled) {
-      return [];
-    }
-
-    const activeItems = contextWorkspace.sidebarContextItems.filter(
-      (item) => item.active,
-    );
-    return activeItems.length > 0
-      ? activeItems
-      : contextWorkspace.sidebarContextItems;
-  }, [contextWorkspace.sidebarContextItems, workbenchEnabled]);
   const harnessEnvironment = useMemo(
     () =>
       workbenchEnabled
@@ -116,33 +82,17 @@ export function useWorkspaceContextHarnessRuntime({
               projectMemory?.world_building ? "世界观" : null,
               projectMemory?.outline.length ? "大纲" : null,
             ].filter((item): item is string => item !== null),
-            contextItemsCount: contextWorkspace.sidebarContextItems.length,
-            activeContextCount: contextWorkspace.sidebarContextItems.filter(
-              (item) => item.active,
-            ).length,
-            contextItemNames: visibleContextItems
-              .map((item) => item.name)
-              .filter((name) => !!name.trim())
-              .slice(0, 4),
-            contextEnabled: generalWorkbenchContextEnabled,
           }
         : {
             skillsCount: 0,
             skillNames: [],
             memorySignals: [],
-            contextItemsCount: 0,
-            activeContextCount: 0,
-            contextItemNames: [],
-            contextEnabled: false,
           },
     [
-      generalWorkbenchContextEnabled,
-      contextWorkspace.sidebarContextItems,
       harnessSkillNames,
       projectMemory?.characters.length,
       projectMemory?.outline.length,
       projectMemory?.world_building,
-      visibleContextItems,
       workbenchEnabled,
     ],
   );
@@ -168,10 +118,8 @@ export function useWorkspaceContextHarnessRuntime({
   }, [isSending, messages, workbenchEnabled]);
 
   return {
-    contextWorkspace,
     workbenchEnabled,
-    generalWorkbenchContextEnabled,
-    isThemeWorkbench: generalWorkbenchContextEnabled,
+    isThemeWorkbench: isSpecializedWorkbenchTheme(mappedTheme),
     harnessPanelVisible,
     setHarnessPanelVisible,
     harnessPendingCount,

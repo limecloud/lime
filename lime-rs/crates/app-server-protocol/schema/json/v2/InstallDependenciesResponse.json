@@ -1,0 +1,63 @@
+{
+  "$defs": {
+    "PrimaryRuntimeInstallPhase": {
+      "enum": [
+        "canceled",
+        "configuring",
+        "downloading",
+        "error",
+        "extracting",
+        "ready",
+        "validating",
+        "verifying"
+      ],
+      "type": "string"
+    },
+    "PrimaryRuntimeInstallProgress": {
+      "properties": {
+        "downloadedBytes": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "error": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "phase": {
+          "$ref": "#/$defs/PrimaryRuntimeInstallPhase"
+        },
+        "totalBytes": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "downloadedBytes",
+        "id",
+        "phase"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "update": {
+      "$ref": "#/$defs/PrimaryRuntimeInstallProgress"
+    }
+  },
+  "required": [
+    "update"
+  ],
+  "title": "InstallDependenciesResponse",
+  "type": "object"
+}

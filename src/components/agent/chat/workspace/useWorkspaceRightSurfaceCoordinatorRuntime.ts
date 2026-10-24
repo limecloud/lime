@@ -37,7 +37,7 @@ interface UseWorkspaceRightSurfaceCoordinatorRuntimeParams {
     actions: WorkspaceRightSurfacePendingActions,
   ) => void;
   canvasWorkbenchRootPath: string | null;
-  clawTraceEnabled: boolean;
+
   expertInfoPanelCollapsed: boolean;
   expertInfoPanelVisible: boolean;
   handleToggleCanvas: () => void;
@@ -68,7 +68,7 @@ export function useWorkspaceRightSurfaceCoordinatorRuntime({
   articleEditorRightSurfaceAvailable,
   bindRightSurfacePendingActions,
   canvasWorkbenchRootPath,
-  clawTraceEnabled,
+
   expertInfoPanelCollapsed,
   expertInfoPanelVisible,
   handleToggleCanvas,
@@ -177,9 +177,6 @@ export function useWorkspaceRightSurfaceCoordinatorRuntime({
   });
   const rightSurfaceHarnessEnabled =
     !suppressHomeNavbarUtilityActions && showHarnessToggle;
-  const rightSurfaceTraceAvailable = !suppressHomeNavbarUtilityActions;
-  const rightSurfaceTraceEnabled =
-    rightSurfaceTraceAvailable && clawTraceEnabled;
   const { availableSurfaces, rightSurfaceLaunchers, rightSurfaceState } =
     useWorkspaceRightSurfaceProjectionRuntime({
       backgroundTerminalAvailable: Boolean(
@@ -209,7 +206,6 @@ export function useWorkspaceRightSurfaceCoordinatorRuntime({
       shellAvailable: shellRightSurfaceAvailable,
       showHarnessToggle,
       suppressHomeNavbarUtilityActions,
-      traceAvailable: rightSurfaceTraceAvailable,
     });
   const { pruneRightSurfaces, rememberRightSurface } = localState;
   useEffect(() => {
@@ -254,7 +250,6 @@ export function useWorkspaceRightSurfaceCoordinatorRuntime({
     refreshRightSurfacePendingRequests: pendingRuntime.refreshPendingRequests,
     rightSurfaceActiveSurface: rightSurfaceState.activeSurface,
     rightSurfaceHarnessEnabled,
-    rightSurfaceTraceAvailable,
     sceneLayoutMode,
     setActiveArticleWorkspace: localState.setActiveArticleWorkspace,
     setActiveBrowserRightSurfaceIntent:
@@ -295,6 +290,7 @@ export function useWorkspaceRightSurfaceCoordinatorRuntime({
       ]);
     },
     sidePanelTabs: localState.sidePanelTabs,
+    setNewTabAddressDraft: localState.setNewTabAddressDraft,
     handleOpenBrowserAddress: async (
       sourceTabId: string,
       url: string,
@@ -424,8 +420,6 @@ export function useWorkspaceRightSurfaceCoordinatorRuntime({
     rightSurfaceHarnessEnabled,
     rightSurfaceLaunchers,
     rightSurfaceState,
-    rightSurfaceTraceAvailable,
-    rightSurfaceTraceEnabled,
   };
 }
 

@@ -33,7 +33,6 @@
   "navigation.sidebar.home.label": "Lime 首頁",
   "navigation.sidebar.items.scheduledTasks": "已安排任務",
   "navigation.sidebar.items.channels": "訊息渠道",
-  "navigation.sidebar.items.knowledge": "專案資料",
   "navigation.sidebar.items.plugins": "插件",
   "navigation.sidebar.items.settings": "設定",
   "navigation.pluginWorkspace.tabsLabel": "插件內容",
@@ -182,7 +181,6 @@
   "navigation.sidebar.landmark": "應用程式導覽",
   "navigation.sidebar.account.openMenu": "開啟帳號選單",
   "navigation.sidebar.account.profile": "個人資料",
-  "navigation.sidebar.account.usage": "用量",
   "navigation.sidebar.account.login.action": "登入",
   "navigation.sidebar.account.logout": "登出",
   "navigation.sidebar.account.logoutFailed": "登出失敗"

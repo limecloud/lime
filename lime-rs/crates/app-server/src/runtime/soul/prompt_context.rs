@@ -64,10 +64,7 @@ pub(crate) fn memory_soul_prompt_context_from_config(
     Some(Value::Object(context))
 }
 
-pub(crate) fn soul_packet_from_metadata(
-    config_metadata: Option<&Value>,
-    runtime_metadata: Option<&Value>,
-) -> Option<ContextPacket> {
+pub(crate) fn soul_packet_from_metadata(config_metadata: Option<&Value>) -> Option<ContextPacket> {
     let config_metadata = config_metadata?;
     let value = config_metadata
         .pointer("/memory/soul")
@@ -122,7 +119,6 @@ pub(crate) fn soul_packet_from_metadata(
             .to_string(),
     );
     append_style_boundary_lines(style_boundary, &mut lines);
-    append_persona_context_lines(runtime_metadata, &mut lines);
     append_style_profile_lines(style_profile, &mut lines);
     if !tone.is_empty() {
         lines.push(format!("- Tone: {}", tone.join(", ")));
@@ -153,80 +149,6 @@ pub(crate) fn soul_packet_from_metadata(
         SOUL_PACKET_MAX_TOKENS,
         metadata,
     ))
-}
-
-fn append_persona_context_lines(runtime_metadata: Option<&Value>, lines: &mut Vec<String>) {
-    let Some(persona_context) = persona_context_value(runtime_metadata) else {
-        return;
-    };
-
-    let persona_packs = persona_pack_lines(persona_context);
-    if persona_packs.is_empty() {
-        return;
-    }
-
-    lines.push("- Persona knowledge packs (context only):".to_string());
-    lines.extend(persona_packs.into_iter().map(|item| format!("  - {item}")));
-    append_named_list(
-        lines,
-        "Persona context boundaries",
-        string_array(persona_context.get("boundaries")),
-    );
-
-    let contract = persona_context
-        .get("style_profile_contract")
-        .or_else(|| persona_context.get("styleProfileContract"));
-    if let Some(contract) = contract {
-        let inherits_global_soul = contract
-            .get("inherits_global_soul")
-            .or_else(|| contract.get("inheritsGlobalSoul"))
-            .and_then(Value::as_bool)
-            .unwrap_or(false);
-        let writes_back_to_global_soul = contract
-            .get("writes_back_to_global_soul")
-            .or_else(|| contract.get("writesBackToGlobalSoul"))
-            .and_then(Value::as_bool)
-            .unwrap_or(false);
-        let formal_artifact_voice_source = contract
-            .get("formal_artifact_voice_source")
-            .or_else(|| contract.get("formalArtifactVoiceSource"))
-            .and_then(Value::as_str)
-            .unwrap_or("generation_brief_only");
-        lines.push(format!(
-            "- Persona context contract: inherits_global_soul={inherits_global_soul}; writes_back_to_global_soul={writes_back_to_global_soul}; formal_artifact_voice_source={formal_artifact_voice_source}."
-        ));
-    }
-}
-
-fn persona_context_value(metadata: Option<&Value>) -> Option<&Value> {
-    let metadata = metadata?;
-    [
-        "/persona_context",
-        "/personaContext",
-        "/harness/persona_context",
-        "/harness/personaContext",
-        "/knowledge_pack/persona_context",
-        "/knowledgePack/personaContext",
-    ]
-    .into_iter()
-    .find_map(|pointer| metadata.pointer(pointer))
-}
-
-fn persona_pack_lines(persona_context: &Value) -> Vec<String> {
-    persona_context
-        .get("packs")
-        .and_then(Value::as_array)
-        .into_iter()
-        .flatten()
-        .filter_map(|pack| {
-            let name = non_empty_str(pack.get("name").and_then(Value::as_str))?;
-            let activation =
-                non_empty_str(pack.get("activation").and_then(Value::as_str)).unwrap_or("explicit");
-            let role =
-                non_empty_str(pack.get("role").and_then(Value::as_str)).unwrap_or("companion");
-            Some(format!("{name} (activation: {activation}, role: {role})"))
-        })
-        .collect()
 }
 
 fn append_style_boundary_lines(style_boundary: Option<&Value>, lines: &mut Vec<String>) {
@@ -403,7 +325,7 @@ mod tests {
                 "soul": context
             }
         });
-        let packet = soul_packet_from_metadata(Some(&metadata), None).expect("soul packet");
+        let packet = soul_packet_from_metadata(Some(&metadata)).expect("soul packet");
         let prompt = assemble_context_packets(vec![packet])
             .rendered
             .expect("rendered soul prompt");

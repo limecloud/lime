@@ -451,28 +451,6 @@ function assertI18nKeyTypes() {
     ns: "agent",
     title: "Next task",
   });
-  i18n.t("generalWorkbench.context.search.title", { ns: "agent" });
-  i18n.t("generalWorkbench.context.search.placeholder", { ns: "agent" });
-  i18n.t("generalWorkbench.context.detail.query", {
-    ns: "agent",
-    query: "brand 2026",
-  });
-  i18n.t("generalWorkbench.context.detail.notFound", { ns: "agent" });
-  i18n.t("generalWorkbench.context.detail.sourceTokens", {
-    ns: "agent",
-    source: "Web search",
-    tokens: 1200,
-  });
-  i18n.t("generalWorkbench.context.list.summary", {
-    ns: "agent",
-    active: 1,
-    limit: 12,
-    searchCount: 2,
-    estimatedTokens: 600,
-    tokenLimit: 32000,
-  });
-  i18n.t("generalWorkbench.context.modal.add.uploadAria", { ns: "agent" });
-  i18n.t("generalWorkbench.context.modal.text.placeholder", { ns: "agent" });
   i18n.t("skills.workspace.managedJob.created", {
     ns: "agent",
     name: "Daily Review",
@@ -666,17 +644,6 @@ function assertI18nKeyTypes() {
   i18n.t("workspace.pendingA2UI.status.progressStep", {
     ns: "workspace",
   });
-  i18n.t("workspace.resourceManager.pdf.missingTitle", { ns: "workspace" });
-  i18n.t("workspace.resourceManager.pdf.frameTitle", { ns: "workspace" });
-  i18n.t("workspace.resourceManager.media.titleFallback", {
-    ns: "workspace",
-  });
-  i18n.t("workspace.resourceManager.media.error.description", {
-    ns: "workspace",
-  });
-  i18n.t("workspace.resourceManager.unsupported.title", {
-    ns: "workspace",
-  });
   i18n.t("workspace.artifactRenderer.previewFallback.systemOpen.title", {
     ns: "workspace",
   });
@@ -695,11 +662,6 @@ function assertI18nKeyTypes() {
   i18n.t("workspace.artifactRenderer.previewSource.empty", {
     ns: "workspace",
   });
-  i18n.t("workspace.resourceManager.unsupported.mimeType", {
-    ns: "workspace",
-    mimeType: "application/octet-stream",
-  });
-  i18n.t("settings.layout.sidebar.experimentalBadge", { ns: "settings" });
   i18n.t("settings.layout.action.back", { ns: "settings" });
   i18n.t("settings.layout.loading.profile", { ns: "settings" });
   i18n.t("settings.profile.title", { ns: "settings" });
@@ -734,36 +696,11 @@ function assertI18nKeyTypes() {
   });
   i18n.t("settings.about.update.errorDownload", { ns: "settings" });
   i18n.t("settings.group.coding", { ns: "settings" });
-  i18n.t("settings.tab.developerLab", { ns: "settings" });
-  i18n.t("settings.developerLab.title", { ns: "settings" });
-  i18n.t("settings.developerLab.tabs.experimental", { ns: "settings" });
-  i18n.t("settings.developer.title", { ns: "settings" });
-  i18n.t("settings.developer.serviceSkill.title", { ns: "settings" });
   i18n.t("settings.appearance.hero.title", { ns: "settings" });
   i18n.t("settings.appearance.colorScheme.options.lime-classic.label", {
     ns: "settings",
   });
   i18n.t("settings.desktop.language", { ns: "settings" });
-  i18n.t("settings.experimental.updateCheck.title", { ns: "settings" });
-  i18n.t("settings.experimental.updateCheck.autoCheck.title", {
-    ns: "settings",
-  });
-  i18n.t("settings.experimental.updateCheck.metrics.updateNow", {
-    ns: "settings",
-    shown: "20",
-    updateNow: "3",
-    rate: "15",
-  });
-  i18n.t("settings.experimental.updateCheck.remindLaterUntil", {
-    ns: "settings",
-    time: "Oct 9, 2025, 4:53 PM",
-  });
-  i18n.t("settings.experimental.title", { ns: "settings" });
-  i18n.t("settings.experimental.webMcp.title", { ns: "settings" });
-  i18n.t("settings.experimental.message.webMcpEnabled", { ns: "settings" });
-  i18n.t("settings.experimental.crashReporting.environment.label", {
-    ns: "settings",
-  });
   i18n.t("settings.environment.hero.title", { ns: "settings" });
   i18n.t("settings.environment.preview.overriddenSources", {
     ns: "settings",
@@ -787,91 +724,6 @@ function assertI18nKeyTypes() {
   i18n.t("settings.personalization.tools", {
     ns: "settings",
   });
-  i18n.t("settings.webSearch.providers.googleEngine.label", {
-    ns: "settings",
-  });
-  i18n.t("settings.webSearch.title", { ns: "settings" });
-  i18n.t("settings.webSearch.description", { ns: "settings" });
-  i18n.t("settings.webSearch.hero.tipAria", { ns: "settings" });
-  i18n.t("settings.webSearch.summary.status", {
-    ns: "settings",
-    status: "saved",
-  });
-  i18n.t("settings.webSearch.tabs.searchChain", { ns: "settings" });
-  i18n.t("settings.webSearch.action.save", { ns: "settings" });
-  i18n.t("settings.webSearch.message.saved", { ns: "settings" });
-  i18n.t("settings.webSearch.message.loadFailed", {
-    ns: "settings",
-    message: "network",
-  });
-  i18n.t("settings.webSearch.secret.hide", { ns: "settings" });
-  i18n.t("settings.webSearch.status.credential", {
-    ns: "settings",
-    name: "Tavily",
-    status: "filled",
-  });
-  i18n.t("settings.webSearch.providerChain.auto", { ns: "settings" });
-  i18n.t("settings.webSearch.searchChain.title", { ns: "settings" });
-  i18n.t("settings.webSearch.providers.title", { ns: "settings" });
-  i18n.t("settings.webSearch.providers.tavily.apply", { ns: "settings" });
-  i18n.t("settings.webSearch.providers.bing.placeholder", { ns: "settings" });
-  i18n.t("settings.webSearch.providers.googleApi.tipAria", {
-    ns: "settings",
-  });
-  i18n.t("settings.webSearch.providers.googleEngine.create", {
-    ns: "settings",
-  });
-  i18n.t("settings.webSearch.action.viewDocs", { ns: "settings" });
-  i18n.t("settings.webSearch.mse.customTemplate.placeholder", {
-    ns: "settings",
-  });
-  i18n.t("settings.webSearch.mse.customTemplateStatus", {
-    ns: "settings",
-    status: "ready",
-  });
-  i18n.t("settings.webSearch.mse.suggestion.title", { ns: "settings" });
-  i18n.t("settings.webSearch.mse.templateStatus.ready", {
-    ns: "settings",
-    name: "hn",
-  });
-  i18n.t("settings.webSearch.mse.action.viewDesign", { ns: "settings" });
-  i18n.t("settings.webSearch.images.title", { ns: "settings" });
-  i18n.t("settings.webSearch.images.pexels.apply", { ns: "settings" });
-  i18n.t("settings.webSearch.images.pexels.noteTip", {
-    ns: "settings",
-    applyUrl: "https://www.pexels.com/api/new/",
-  });
-  i18n.t("settings.webSearch.images.pixabay.apply", { ns: "settings" });
-  i18n.t("settings.webSearch.images.pixabay.noteTip", {
-    ns: "settings",
-    applyUrl: "https://pixabay.com/accounts/register/",
-  });
-  i18n.t("settings.webSearch.observability.title", { ns: "settings" });
-  i18n.t("settings.webSearch.observability.mseCustomTemplateStatus", {
-    ns: "settings",
-    status: "ready",
-  });
-  i18n.t("settings.webSearch.observability.providerChain.title", {
-    ns: "settings",
-  });
-  i18n.t("settings.webSearch.observability.imageKeys.ready", {
-    ns: "settings",
-  });
-  i18n.t("settings.webSearch.searchChain.engine.label", { ns: "settings" });
-  i18n.t("settings.webSearch.searchChain.provider.label", { ns: "settings" });
-  i18n.t("settings.webSearch.searchChain.providerPriority.placeholder", {
-    ns: "settings",
-  });
-  i18n.t("settings.webSearch.searchChain.fallbackPreview.tip", {
-    ns: "settings",
-  });
-  i18n.t("settings.webSearch.searchChain.suggestion.title", {
-    ns: "settings",
-  });
-  i18n.t("settings.webSearch.engine.xiaohongshu", { ns: "settings" });
-  i18n.t("settings.stats.heatmap.rangeValue", { ns: "settings" });
-  i18n.t("settings.stats.range.week.label", { ns: "settings" });
-  i18n.t("settings.stats.segment.messages", { ns: "settings" });
   i18n.t("settings.channels.logTail.title", { ns: "settings" });
   i18n.t("settings.channels.logTail.error.invalidRegex", { ns: "settings" });
   i18n.t("settings.channels.workbench.title", { ns: "settings" });
@@ -910,10 +762,6 @@ function assertI18nKeyTypes() {
       ns: "settings",
     },
   );
-  i18n.t("settings.system.workspaceRepair.title", { ns: "settings" });
-  i18n.t("settings.system.workspaceRepair.message.copiedAll", {
-    ns: "settings",
-  });
   i18n.t("settings.mediaServices.title", { ns: "settings" });
   i18n.t("settings.mediaServices.sections.responsiveChat.title", {
     ns: "settings",

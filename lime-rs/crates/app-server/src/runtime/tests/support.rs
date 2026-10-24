@@ -1,6 +1,5 @@
 mod backends;
 mod capability_fixture;
-mod knowledge_executor;
 mod session_data_source;
 
 use crate::RuntimeEvent;
@@ -15,7 +14,6 @@ use tokio::time::timeout;
 
 pub(super) use backends::*;
 pub(super) use capability_fixture::*;
-pub(super) use knowledge_executor::*;
 pub(super) use session_data_source::*;
 
 pub(super) async fn wait_for_runtime_event(

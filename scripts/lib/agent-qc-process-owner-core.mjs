@@ -7,7 +7,6 @@ const GUI_OWNER_PATTERNS = [
   "smoke:site-adapters",
   "smoke:agent-service-skill-entry",
   "smoke:agent-runtime-tool-surface",
-  "smoke:knowledge-gui",
   "smoke:design-canvas",
   "claw-chat-ready-streaming",
   "workspace-ready-session-restore",

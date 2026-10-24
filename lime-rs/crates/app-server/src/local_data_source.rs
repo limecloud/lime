@@ -4,7 +4,6 @@ use crate::AutomationOverviewAppDataSource;
 use crate::ConnectAppDataSource;
 use crate::DiagnosticsAppDataSource;
 use crate::GatewayAppDataSource;
-use crate::KnowledgeAppDataSource;
 use crate::LocalMemoryBackend;
 use crate::McpAppDataSource;
 use crate::MediaAppDataSource;
@@ -17,7 +16,6 @@ use crate::RolloutSummaryWriteParams;
 use crate::RuntimeCoreError;
 use crate::SessionAppDataSource;
 use crate::SkillAppDataSource;
-use crate::UsageStatsAppDataSource;
 use crate::VoiceAppDataSource;
 use crate::WorkspaceAppDataSource;
 use crate::WorkspaceSkillBindingAppDataSource;
@@ -32,7 +30,6 @@ mod diagnostics;
 mod dictation_history;
 mod gallery_materials;
 mod impls;
-mod knowledge;
 mod mcp;
 mod media_tasks;
 mod model_projection;
@@ -42,7 +39,6 @@ mod project_materials;
 mod right_surface;
 mod session_files;
 mod skills;
-mod usage_stats;
 mod voice_asr_credentials;
 mod voice_instructions;
 mod voice_text_processing;
@@ -81,21 +77,6 @@ use app_server_protocol::GatewayTunnelProbeResponse;
 use app_server_protocol::GatewayTunnelStatusResponse;
 use app_server_protocol::GatewayTunnelSyncWebhookUrlParams;
 use app_server_protocol::GatewayTunnelSyncWebhookUrlResponse;
-use app_server_protocol::KnowledgeCompilePackResponse;
-use app_server_protocol::KnowledgeContextResolutionResponse;
-use app_server_protocol::KnowledgeImportSourceParams;
-use app_server_protocol::KnowledgeImportSourceResponse;
-use app_server_protocol::KnowledgeListPacksParams;
-use app_server_protocol::KnowledgeListPacksResponse;
-use app_server_protocol::KnowledgeReadPackParams;
-use app_server_protocol::KnowledgeReadPackResponse;
-use app_server_protocol::KnowledgeResolveContextParams;
-use app_server_protocol::KnowledgeSetDefaultPackParams;
-use app_server_protocol::KnowledgeSetDefaultPackResponse;
-use app_server_protocol::KnowledgeUpdatePackStatusParams;
-use app_server_protocol::KnowledgeUpdatePackStatusResponse;
-use app_server_protocol::KnowledgeValidateContextRunParams;
-use app_server_protocol::KnowledgeValidateContextRunResponse;
 use app_server_protocol::LogClearResponse;
 use app_server_protocol::LogListResponse;
 use app_server_protocol::LogPersistedTailParams;
@@ -253,10 +234,6 @@ use app_server_protocol::SkillRepositorySaveParams;
 use app_server_protocol::SkillScaffoldCreateParams;
 use app_server_protocol::SkillScaffoldCreateResponse;
 use app_server_protocol::SupportBundleExportResponse;
-use app_server_protocol::UsageStatsDailyTrendsListResponse;
-use app_server_protocol::UsageStatsModelRankingListResponse;
-use app_server_protocol::UsageStatsRangeParams;
-use app_server_protocol::UsageStatsReadResponse;
 use app_server_protocol::VoiceAsrCredentialCreateParams;
 use app_server_protocol::VoiceAsrCredentialIdParams;
 use app_server_protocol::VoiceAsrCredentialListResponse;
@@ -442,10 +419,6 @@ fn values_from_serializable_vec<T: serde::Serialize>(
         .into_iter()
         .map(|value| serde_json::to_value(value).map_err(data_error))
         .collect()
-}
-
-fn value_from_serializable<T: serde::Serialize>(value: T) -> Result<Value, RuntimeCoreError> {
-    serde_json::to_value(value).map_err(data_error)
 }
 
 fn data_error(error: impl std::fmt::Display) -> RuntimeCoreError {

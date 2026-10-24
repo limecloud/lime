@@ -65,7 +65,6 @@ describe("workspaceRightSurfaceRuntimeProjection", () => {
           articleWorkspaceAvailable: true,
           shellAvailable: true,
           showHarnessToggle: true,
-          traceAvailable: true,
           suppressHomeNavbarUtilityActions: false,
         }),
       ),
@@ -80,11 +79,10 @@ describe("workspaceRightSurfaceRuntimeProjection", () => {
       "changes",
       "shell",
       "harness",
-      "trace",
     ]);
   });
 
-  it("隐藏 navbar utility actions 时应同时移除 harness 与 trace surface", () => {
+  it("隐藏 navbar utility actions 时应同时移除 harness 与 shell surface", () => {
     expect(
       Array.from(
         buildWorkspaceRightSurfaceRuntimeAvailableSurfaces({
@@ -93,7 +91,6 @@ describe("workspaceRightSurfaceRuntimeProjection", () => {
           hasExpertInfoPanel: false,
           shellAvailable: true,
           showHarnessToggle: true,
-          traceAvailable: true,
           suppressHomeNavbarUtilityActions: true,
         }),
       ),
@@ -135,8 +132,8 @@ describe("workspaceRightSurfaceRuntimeProjection", () => {
       launchers.find((launcher) => launcher.kind === "browser"),
     ).toMatchObject({ disabled: false });
     expect(
-      launchers.find((launcher) => launcher.kind === "trace"),
-    ).toMatchObject({ disabled: true });
+      launchers.some((launcher) => String(launcher.kind) === "trace"),
+    ).toBe(false);
     expect(
       launchers.find((launcher) => launcher.kind === "files"),
     ).toMatchObject({ pendingCount: 1, disabled: true });

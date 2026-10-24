@@ -13,7 +13,7 @@ import {
   skillExecutionApi,
   type SkillDetailInfo,
 } from "@/lib/api/skill-execution";
-import type { SidebarActivityLog } from "../hooks/useThemeContextWorkspace";
+import type { SidebarActivityLog } from "../components/generalWorkbenchWorkflowData";
 import type { Message } from "../types";
 import { parseSkillSlashCommand } from "../hooks/skillCommand";
 import {
@@ -22,7 +22,6 @@ import {
   formatGeneralWorkbenchRunTimeLabel,
   inferGeneralWorkbenchGateFromQueueItem,
   mergeGeneralWorkbenchTerminalItems,
-  resolveExecutionIdCandidatesForActivityLog,
   resolveGeneralWorkbenchApplyTargetByGateKey,
   resolveGeneralWorkbenchRecentTerminals,
   resolveGeneralWorkbenchSkillSourceRef,
@@ -51,7 +50,6 @@ interface UseWorkspaceGeneralWorkbenchSidebarRuntimeParams {
   messages: Message[];
   isSending: boolean;
   themeWorkbenchBackendRunState: GeneralWorkbenchRunState | null;
-  contextActivityLogs: SidebarActivityLog[];
   historyPageSize: number;
 }
 
@@ -62,7 +60,6 @@ export function useWorkspaceGeneralWorkbenchSidebarRuntime({
   messages,
   isSending,
   themeWorkbenchBackendRunState,
-  contextActivityLogs,
   historyPageSize,
 }: UseWorkspaceGeneralWorkbenchSidebarRuntimeParams) {
   const [
@@ -331,35 +328,6 @@ export function useWorkspaceGeneralWorkbenchSidebarRuntime({
     [themeWorkbenchBackendRunState, generalWorkbenchHistoryTerminals],
   );
 
-  const generalWorkbenchExecutionRunMap = useMemo(() => {
-    const map = new Map<string, string>();
-    if (!isThemeWorkbench || !themeWorkbenchBackendRunState) {
-      return map;
-    }
-
-    const register = (executionId?: string | null, runId?: string | null) => {
-      const normalizedExecutionId = executionId?.trim();
-      const normalizedRunId = runId?.trim();
-      if (!normalizedExecutionId || !normalizedRunId) {
-        return;
-      }
-      map.set(normalizedExecutionId, normalizedRunId);
-    };
-
-    (themeWorkbenchBackendRunState.queue_items || []).forEach((item) => {
-      register(item.execution_id, item.run_id);
-    });
-    generalWorkbenchMergedTerminals.forEach((item) => {
-      register(item.execution_id, item.run_id);
-    });
-
-    return map;
-  }, [
-    isThemeWorkbench,
-    themeWorkbenchBackendRunState,
-    generalWorkbenchMergedTerminals,
-  ]);
-
   const generalWorkbenchBackendActivityLogs = useMemo<
     SidebarActivityLog[]
   >(() => {
@@ -445,47 +413,13 @@ export function useWorkspaceGeneralWorkbenchSidebarRuntime({
   ]);
 
   const generalWorkbenchActivityLogs = useMemo<SidebarActivityLog[]>(() => {
-    if (!isThemeWorkbench) {
-      return contextActivityLogs;
-    }
-
-    const enrichedContextLogs = contextActivityLogs.map((log) => {
-      const normalizedRunId = log.runId?.trim();
-      if (normalizedRunId) {
-        return {
-          ...log,
-          runId: normalizedRunId,
-        };
-      }
-
-      const candidateExecutionIds =
-        resolveExecutionIdCandidatesForActivityLog(log);
-      for (const executionId of candidateExecutionIds) {
-        const mappedRunId = generalWorkbenchExecutionRunMap.get(executionId);
-        if (!mappedRunId) {
-          continue;
-        }
-        return {
-          ...log,
-          executionId,
-          runId: mappedRunId,
-        };
-      }
-
-      return log;
-    });
-
     return [
       ...generalWorkbenchWorkflowActivityLogs,
       ...generalWorkbenchBackendActivityLogs,
-      ...enrichedContextLogs,
     ];
   }, [
-    contextActivityLogs,
-    isThemeWorkbench,
     generalWorkbenchWorkflowActivityLogs,
     generalWorkbenchBackendActivityLogs,
-    generalWorkbenchExecutionRunMap,
   ]);
 
   const handleViewGeneralWorkbenchRunDetail = useCallback((runId: string) => {

@@ -221,15 +221,11 @@ const I18N_RTL_SURFACE_FILES = new Set([
   "src/components/settings-v2/system/automation/index.tsx",
   "src/components/settings-v2/system/channels/ChannelLogTailPanel.tsx",
   "src/components/settings-v2/system/channels/ChannelsDebugWorkbench.tsx",
-  "src/components/settings-v2/system/developer/index.tsx",
   "src/components/settings-v2/system/environment/index.tsx",
-  "src/components/settings-v2/system/experimental/index.tsx",
-  "src/components/settings-v2/system/web-search/index.tsx",
   "src/components/skills/SkillScaffoldDialog.tsx",
   "src/components/workspace/canvas/shared/CanvasBreadcrumbHeader.tsx",
   "src/components/workspace/document/DocumentToolbar.tsx",
   "src/components/workspace/video/VideoSidebar.tsx",
-  "src/features/knowledge/KnowledgePage.tsx",
 ]);
 
 const I18N_HARDCODED_SCAN_PREFIXES = [
@@ -308,22 +304,6 @@ const GUI_SMOKE_PREFIXES = [
   "src/lib/workspace/",
   "src/pages/",
   "src/stores/",
-];
-
-const KNOWLEDGE_PRODUCT_E2E_FILES = new Set([
-  "scripts/knowledge-gui-smoke.mjs",
-  "scripts/knowledge-product-e2e.mjs",
-  "src/components/agent/chat/AgentChatWorkspace.tsx",
-]);
-
-const KNOWLEDGE_PRODUCT_E2E_PREFIXES = [
-  "src/features/knowledge/",
-  "src/components/agent/chat/workspace/knowledge/",
-];
-
-const KNOWLEDGE_PRODUCT_E2E_RECOMMENDED_COMMANDS = [
-  "npm run knowledge:product-e2e",
-  "npm run verify:gui-smoke -- --include-knowledge-product-e2e --reuse-running",
 ];
 
 function gitOutput({ cwd, gitCommand, args }) {
@@ -651,13 +631,6 @@ function isGuiSmokeChange(file) {
   );
 }
 
-function isKnowledgeProductE2eChange(file) {
-  return (
-    KNOWLEDGE_PRODUCT_E2E_FILES.has(file) ||
-    KNOWLEDGE_PRODUCT_E2E_PREFIXES.some((prefix) => file.startsWith(prefix))
-  );
-}
-
 function collectRecommendedCommands(changedFiles, { docsOnly = false } = {}) {
   if (docsOnly) {
     return [];
@@ -666,10 +639,6 @@ function collectRecommendedCommands(changedFiles, { docsOnly = false } = {}) {
   const commands = [];
   if (changedFiles.some(isI18nPatchRetirementChange)) {
     commands.push(...I18N_PATCH_RETIREMENT_RECOMMENDED_COMMANDS);
-  }
-
-  if (changedFiles.some(isKnowledgeProductE2eChange)) {
-    commands.push(...KNOWLEDGE_PRODUCT_E2E_RECOMMENDED_COMMANDS);
   }
 
   if (changedFiles.some(isI18nTranslationReviewPackChange)) {

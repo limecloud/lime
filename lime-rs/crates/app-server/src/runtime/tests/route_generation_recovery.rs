@@ -55,13 +55,11 @@ impl GatewayAppDataSource for CommittedRouteSignal {}
 impl MediaAppDataSource for CommittedRouteSignal {}
 impl VoiceAppDataSource for CommittedRouteSignal {}
 impl PluginDataSource for CommittedRouteSignal {}
-impl KnowledgeAppDataSource for CommittedRouteSignal {}
 impl AutomationOverviewAppDataSource for CommittedRouteSignal {}
 impl McpAppDataSource for CommittedRouteSignal {}
 impl AutomationManagementAppDataSource for CommittedRouteSignal {}
 impl MemoryAppDataSource for CommittedRouteSignal {}
 impl DiagnosticsAppDataSource for CommittedRouteSignal {}
-impl UsageStatsAppDataSource for CommittedRouteSignal {}
 impl ConnectAppDataSource for CommittedRouteSignal {}
 impl RightSurfaceAppDataSource for CommittedRouteSignal {}
 

@@ -48,6 +48,7 @@ export const METHOD_COMMAND_EXEC_WRITE = "command/exec/write";
 export const METHOD_CONFIG_BATCH_WRITE = "config/batchWrite";
 export const METHOD_CONFIG_READ = "config/read";
 export const METHOD_CONFIG_VALUE_WRITE = "config/value/write";
+export const METHOD_CONFIG_REQUIREMENTS_READ = "configRequirements/read";
 export const METHOD_CONFIG_WARNING = "configWarning";
 export const METHOD_CONNECT_CALLBACK_SEND = "connectCallback/send";
 export const METHOD_CONNECT_DEEP_LINK_RESOLVE = "connectDeepLink/resolve";
@@ -159,16 +160,6 @@ export const METHOD_REASONING_TEXT_DELTA = "item/reasoning/textDelta";
 export const METHOD_ITEM_STARTED = "item/started";
 export const METHOD_ITEM_TOOL_CALL = "item/tool/call";
 export const METHOD_ITEM_TOOL_REQUEST_USER_INPUT = "item/tool/requestUserInput";
-export const METHOD_KNOWLEDGE_CONTEXT_RESOLVE = "knowledgeContext/resolve";
-export const METHOD_KNOWLEDGE_CONTEXT_RUN_VALIDATE =
-  "knowledgeContextRun/validate";
-export const METHOD_KNOWLEDGE_PACK_COMPILE = "knowledgePack/compile";
-export const METHOD_KNOWLEDGE_PACK_DEFAULT_SET = "knowledgePack/default/set";
-export const METHOD_KNOWLEDGE_PACK_LIST = "knowledgePack/list";
-export const METHOD_KNOWLEDGE_PACK_READ = "knowledgePack/read";
-export const METHOD_KNOWLEDGE_SOURCE_IMPORT = "knowledgePack/source/import";
-export const METHOD_KNOWLEDGE_PACK_STATUS_UPDATE =
-  "knowledgePack/status/update";
 export const METHOD_LOG_CLEAR = "log/clear";
 export const METHOD_LOG_DIAGNOSTIC_HISTORY_CLEAR =
   "log/diagnosticHistory/clear";
@@ -284,6 +275,14 @@ export const METHOD_PLUGIN_SHARE_SAVE = "plugin/share/save";
 export const METHOD_PLUGIN_SHARE_UPDATE_TARGETS = "plugin/share/updateTargets";
 export const METHOD_PLUGIN_SKILL_READ = "plugin/skill/read";
 export const METHOD_PLUGIN_UNINSTALL = "plugin/uninstall";
+export const METHOD_PRIMARY_RUNTIME_CANCEL_INSTALL =
+  "primaryRuntime/cancelInstall";
+export const METHOD_PRIMARY_RUNTIME_DIAGNOSE_DEPENDENCIES =
+  "primaryRuntime/diagnoseDependencies";
+export const METHOD_PRIMARY_RUNTIME_RESET_DEPENDENCIES =
+  "primaryRuntime/resetDependencies";
+export const METHOD_PRIMARY_RUNTIME_RUN_UPDATE_NOW =
+  "primaryRuntime/runUpdateNow";
 export const METHOD_PROCESS_EXITED = "process/exited";
 export const METHOD_PROCESS_KILL = "process/kill";
 export const METHOD_PROCESS_OUTPUT_DELTA = "process/outputDelta";
@@ -450,11 +449,6 @@ export const METHOD_TURN_PLAN_UPDATED = "turn/plan/updated";
 export const METHOD_TURN_START = "turn/start";
 export const METHOD_TURN_STARTED = "turn/started";
 export const METHOD_TURN_STEER = "turn/steer";
-export const METHOD_USAGE_STATS_DAILY_TRENDS_LIST =
-  "usageStats/dailyTrends/list";
-export const METHOD_USAGE_STATS_MODEL_RANKING_LIST =
-  "usageStats/modelRanking/list";
-export const METHOD_USAGE_STATS_READ = "usageStats/read";
 export const METHOD_VOICE_ASR_CREDENTIAL_CREATE = "voiceAsrCredential/create";
 export const METHOD_VOICE_ASR_CREDENTIAL_DEFAULT_SET =
   "voiceAsrCredential/default/set";
@@ -655,6 +649,10 @@ export const GENERATED_APP_SERVER_METHODS = [
   {
     kind: "request",
     method: "config/value/write",
+  },
+  {
+    kind: "request",
+    method: "configRequirements/read",
   },
   {
     kind: "notification",
@@ -995,38 +993,6 @@ export const GENERATED_APP_SERVER_METHODS = [
   {
     kind: "serverRequest",
     method: "item/tool/requestUserInput",
-  },
-  {
-    kind: "request",
-    method: "knowledgeContext/resolve",
-  },
-  {
-    kind: "request",
-    method: "knowledgeContextRun/validate",
-  },
-  {
-    kind: "request",
-    method: "knowledgePack/compile",
-  },
-  {
-    kind: "request",
-    method: "knowledgePack/default/set",
-  },
-  {
-    kind: "request",
-    method: "knowledgePack/list",
-  },
-  {
-    kind: "request",
-    method: "knowledgePack/read",
-  },
-  {
-    kind: "request",
-    method: "knowledgePack/source/import",
-  },
-  {
-    kind: "request",
-    method: "knowledgePack/status/update",
   },
   {
     kind: "request",
@@ -1415,6 +1381,22 @@ export const GENERATED_APP_SERVER_METHODS = [
   {
     kind: "request",
     method: "plugin/uninstall",
+  },
+  {
+    kind: "request",
+    method: "primaryRuntime/cancelInstall",
+  },
+  {
+    kind: "request",
+    method: "primaryRuntime/diagnoseDependencies",
+  },
+  {
+    kind: "request",
+    method: "primaryRuntime/resetDependencies",
+  },
+  {
+    kind: "request",
+    method: "primaryRuntime/runUpdateNow",
   },
   {
     kind: "notification",
@@ -2031,18 +2013,6 @@ export const GENERATED_APP_SERVER_METHODS = [
   {
     kind: "request",
     method: "turn/steer",
-  },
-  {
-    kind: "request",
-    method: "usageStats/dailyTrends/list",
-  },
-  {
-    kind: "request",
-    method: "usageStats/modelRanking/list",
-  },
-  {
-    kind: "request",
-    method: "usageStats/read",
   },
   {
     kind: "request",
@@ -2881,6 +2851,8 @@ export type AgentTurnStatus =
   | "running"
   | "waitingAction";
 
+export type AllowDenyRequirement = "allow" | "deny";
+
 export interface AppBranding {
   category?: null | string;
   developer?: null | string;
@@ -2895,13 +2867,13 @@ export interface AppInfo {
   branding?: AppBranding | null;
   description?: null | string;
   distributionChannel?: null | string;
-  iconAssets?: null | Record<string, unknown>;
-  iconDarkAssets?: null | Record<string, unknown>;
+  iconAssets?: null | Record<string, string>;
+  iconDarkAssets?: null | Record<string, string>;
   id: string;
   installUrl?: null | string;
   isAccessible?: boolean;
   isEnabled?: boolean;
-  labels?: null | Record<string, unknown>;
+  labels?: null | Record<string, string>;
   logoUrl?: null | string;
   logoUrlDark?: null | string;
   name: string;
@@ -3649,46 +3621,6 @@ export type AppServerClientRequest =
     }
   | {
       id: number | string;
-      method: "knowledgePack/list";
-      params?: unknown;
-    }
-  | {
-      id: number | string;
-      method: "knowledgePack/read";
-      params?: unknown;
-    }
-  | {
-      id: number | string;
-      method: "knowledgePack/source/import";
-      params?: unknown;
-    }
-  | {
-      id: number | string;
-      method: "knowledgePack/compile";
-      params?: unknown;
-    }
-  | {
-      id: number | string;
-      method: "knowledgePack/default/set";
-      params?: unknown;
-    }
-  | {
-      id: number | string;
-      method: "knowledgePack/status/update";
-      params?: unknown;
-    }
-  | {
-      id: number | string;
-      method: "knowledgeContext/resolve";
-      params?: unknown;
-    }
-  | {
-      id: number | string;
-      method: "knowledgeContextRun/validate";
-      params?: unknown;
-    }
-  | {
-      id: number | string;
       method: "scheduledTask/list";
       params?: unknown;
     }
@@ -3939,21 +3871,6 @@ export type AppServerClientRequest =
     }
   | {
       id: number | string;
-      method: "usageStats/read";
-      params?: unknown;
-    }
-  | {
-      id: number | string;
-      method: "usageStats/modelRanking/list";
-      params?: unknown;
-    }
-  | {
-      id: number | string;
-      method: "usageStats/dailyTrends/list";
-      params?: unknown;
-    }
-  | {
-      id: number | string;
       method: "modelPreferences/list";
       params?: unknown;
     }
@@ -4179,14 +4096,6 @@ export type AppServerRequestMethod =
   | "initialize"
   | "instructions/read"
   | "instructions/write"
-  | "knowledgeContext/resolve"
-  | "knowledgeContextRun/validate"
-  | "knowledgePack/compile"
-  | "knowledgePack/default/set"
-  | "knowledgePack/list"
-  | "knowledgePack/read"
-  | "knowledgePack/source/import"
-  | "knowledgePack/status/update"
   | "log/clear"
   | "log/diagnosticHistory/clear"
   | "log/list"
@@ -4313,9 +4222,6 @@ export type AppServerRequestMethod =
   | "storage/refresh"
   | "storage/review"
   | "telegramChannel/probe"
-  | "usageStats/dailyTrends/list"
-  | "usageStats/modelRanking/list"
-  | "usageStats/read"
   | "voiceAsrCredential/create"
   | "voiceAsrCredential/default/set"
   | "voiceAsrCredential/delete"
@@ -4566,12 +4472,33 @@ export type AutomationTaskWeekday =
   | "TU"
   | "WE";
 
+export interface BrowserUseConfig {
+  allow_history_access?: boolean | null;
+  default_origin_policy?: BrowserUseOriginPolicyConfig | null;
+  origins?: null | Record<string, BrowserUseOriginPolicyConfig>;
+}
+
+export interface BrowserUseOriginPolicyConfig {
+  access?: AllowDenyRequirement | null;
+  downloads?: AllowDenyRequirement | null;
+  full_cdp_access?: AllowDenyRequirement | null;
+  uploads?: AllowDenyRequirement | null;
+}
+
 export interface BusinessObjectRef {
   id: string;
   kind: string;
   metadata?: unknown;
   title?: null | string;
   uri?: null | string;
+}
+
+export interface CancelInstallParams {
+  id: string;
+}
+
+export interface CancelInstallResponse {
+  canceled: boolean;
 }
 
 export interface CapabilityDescriptor {
@@ -4980,8 +4907,33 @@ export type ClientRequest =
     }
   | {
       id: number | string;
+      method: "primaryRuntime/diagnoseDependencies";
+      params: DiagnoseDependenciesParams;
+    }
+  | {
+      id: number | string;
+      method: "primaryRuntime/runUpdateNow";
+      params: RunUpdateNowParams;
+    }
+  | {
+      id: number | string;
+      method: "primaryRuntime/resetDependencies";
+      params: RunUpdateNowParams;
+    }
+  | {
+      id: number | string;
+      method: "primaryRuntime/cancelInstall";
+      params: CancelInstallParams;
+    }
+  | {
+      id: number | string;
       method: "config/read";
       params: ConfigReadParams;
+    }
+  | {
+      id: number | string;
+      method: "configRequirements/read";
+      params?: ConfigRequirementsReadParams;
     }
   | {
       id: number | string;
@@ -5389,7 +5341,7 @@ export interface CommandExecParams {
   cwd?: null | string;
   disableOutputCap?: boolean;
   disableTimeout?: boolean;
-  env?: null | Record<string, unknown>;
+  env?: null | Record<string, null | string>;
   outputBytesCap?: number | null;
   permissionProfile?: null | string;
   processId?: null | string;
@@ -5556,7 +5508,20 @@ export interface ConfigReadParams {
 export interface ConfigReadResponse {
   config: unknown;
   layers?: ConfigLayer[] | null;
-  origins: Record<string, unknown>;
+  origins: Record<string, ConfigLayerMetadata>;
+}
+
+export interface ConfigRequirements {
+  allowedApprovalPolicies?: string[] | null;
+  allowedSandboxModes?: string[] | null;
+  allowedWebSearchModes?: string[] | null;
+  inAppBrowser?: InAppBrowserRequirements | null;
+}
+
+export type ConfigRequirementsReadParams = Record<string, never>;
+
+export interface ConfigRequirementsReadResponse {
+  requirements?: ConfigRequirements | null;
 }
 
 export interface ConfigValueWriteParams {
@@ -5661,6 +5626,20 @@ export interface CurrentTimeReadParams {
 
 export interface CurrentTimeReadResponse {
   currentTimeAt: number;
+}
+
+export interface DiagnoseDependenciesParams {
+  probeExecutables?: boolean;
+}
+
+export interface DiagnoseDependenciesResponse {
+  bundleVersion?: null | string;
+  enabled: boolean;
+  expectedVersion: string;
+  installed: boolean;
+  problems: string[];
+  supported: boolean;
+  update?: PrimaryRuntimeInstallProgress | null;
 }
 
 export interface DiagnosticsCapabilityRoutingMetricsSnapshot {
@@ -5976,11 +5955,11 @@ export interface ExperimentalFeature {
 }
 
 export interface ExperimentalFeatureEnablementSetParams {
-  enablement: Record<string, unknown>;
+  enablement: Record<string, boolean>;
 }
 
 export interface ExperimentalFeatureEnablementSetResponse {
-  enablement: Record<string, unknown>;
+  enablement: Record<string, boolean>;
 }
 
 export interface ExperimentalFeatureListParams {
@@ -6587,6 +6566,10 @@ export interface ImageStoryboardSlotInput {
   slotId?: null | string;
 }
 
+export interface InAppBrowserRequirements {
+  allowExternalBrowserSettingsImport?: boolean | null;
+}
+
 export interface InitializeCapabilities {
   experimentalApi?: boolean;
   mcpServerOpenaiFormElicitation?: boolean;
@@ -6606,6 +6589,10 @@ export interface InitializeResponse {
 }
 
 export type InputModality = "image" | "text";
+
+export interface InstallDependenciesResponse {
+  update: PrimaryRuntimeInstallProgress;
+}
 
 export interface InstalledApp {
   callable: boolean;
@@ -6660,122 +6647,6 @@ export interface ItemStartedNotification {
   startedAtMs: number;
   threadId: string;
   turnId: string;
-}
-
-export interface KnowledgeCompilePackParams {
-  builderRuntime?: unknown;
-  name: string;
-  workingDir: string;
-}
-
-export interface KnowledgeCompilePackResponse {
-  compiledView: unknown;
-  pack: unknown;
-  run: unknown;
-  selectedSourceCount: number;
-  warnings?: string[];
-}
-
-export interface KnowledgeContextResolutionResponse {
-  fencedContext: string;
-  grounding?: null | string;
-  missing?: string[];
-  packName: string;
-  runId?: null | string;
-  runPath?: null | string;
-  selectedFiles?: string[];
-  selectedViews?: unknown[];
-  sourceAnchors?: string[];
-  status: string;
-  tokenEstimate: number;
-  warnings?: unknown[];
-}
-
-export interface KnowledgeImportSourceParams {
-  description?: null | string;
-  language?: null | string;
-  packName: string;
-  packType?: null | string;
-  sourceFileName?: null | string;
-  sourceText?: null | string;
-  workingDir: string;
-}
-
-export interface KnowledgeImportSourceResponse {
-  pack: unknown;
-  source: unknown;
-}
-
-export interface KnowledgeListPacksParams {
-  includeArchived?: boolean;
-  workingDir: string;
-}
-
-export interface KnowledgeListPacksResponse {
-  packs?: unknown[];
-  rootPath: string;
-  workingDir: string;
-}
-
-export interface KnowledgeReadPackParams {
-  name: string;
-  workingDir: string;
-}
-
-export interface KnowledgeReadPackResponse {
-  pack: unknown;
-}
-
-export interface KnowledgeResolveContextPackParams {
-  activation?: null | string;
-  name: string;
-}
-
-export interface KnowledgeResolveContextParams {
-  activation?: null | string;
-  maxChars?: number | null;
-  name: string;
-  packs?: KnowledgeResolveContextPackParams[];
-  runReason?: null | string;
-  task?: null | string;
-  workingDir: string;
-  writeRun?: boolean;
-}
-
-export interface KnowledgeSetDefaultPackParams {
-  name: string;
-  workingDir: string;
-}
-
-export interface KnowledgeSetDefaultPackResponse {
-  defaultMarkerPath: string;
-  defaultPackName: string;
-}
-
-export interface KnowledgeUpdatePackStatusParams {
-  name: string;
-  status: string;
-  workingDir: string;
-}
-
-export interface KnowledgeUpdatePackStatusResponse {
-  clearedDefault: boolean;
-  pack: unknown;
-  previousStatus: string;
-}
-
-export interface KnowledgeValidateContextRunParams {
-  name: string;
-  runPath: string;
-  workingDir: string;
-}
-
-export interface KnowledgeValidateContextRunResponse {
-  errors?: string[];
-  runId?: null | string;
-  status?: null | string;
-  valid: boolean;
-  warnings?: string[];
 }
 
 export interface ListMcpServerStatusParams {
@@ -7140,7 +7011,7 @@ export interface McpServerStatus {
   resources: McpResource[];
   runtimeStatus?: McpServerConnectionStatus | null;
   serverInfo?: McpServerInfo | null;
-  tools: Record<string, unknown>;
+  tools: Record<string, McpTool>;
 }
 
 export type McpServerStatusDetail = "full" | "toolsAndAuthOnly";
@@ -7702,6 +7573,7 @@ export type Method =
   | "config/batchWrite"
   | "config/read"
   | "config/value/write"
+  | "configRequirements/read"
   | "environment/add"
   | "environment/info"
   | "environment/status"
@@ -7745,6 +7617,10 @@ export type Method =
   | "plugin/share/updateTargets"
   | "plugin/skill/read"
   | "plugin/uninstall"
+  | "primaryRuntime/cancelInstall"
+  | "primaryRuntime/diagnoseDependencies"
+  | "primaryRuntime/resetDependencies"
+  | "primaryRuntime/runUpdateNow"
   | "process/kill"
   | "process/resizePty"
   | "process/spawn"
@@ -8632,6 +8508,24 @@ export interface PluginUninstallParams {
 
 export type PluginUninstallResponse = Record<string, unknown>;
 
+export type PrimaryRuntimeInstallPhase =
+  | "canceled"
+  | "configuring"
+  | "downloading"
+  | "error"
+  | "extracting"
+  | "ready"
+  | "validating"
+  | "verifying";
+
+export interface PrimaryRuntimeInstallProgress {
+  downloadedBytes: number;
+  error?: null | string;
+  id: string;
+  phase: PrimaryRuntimeInstallPhase;
+  totalBytes?: number | null;
+}
+
 export interface ProcessExitedNotification {
   exitCode: number;
   processHandle: string;
@@ -8666,7 +8560,7 @@ export type ProcessResizePtyResponse = Record<string, unknown>;
 export interface ProcessSpawnParams {
   command: string[];
   cwd: string;
-  env?: null | Record<string, unknown>;
+  env?: null | Record<string, null | string>;
   outputBytesCap?: number | null;
   processHandle: string;
   size?: ProcessTerminalSize | null;
@@ -8694,7 +8588,7 @@ export type ProcessWriteStdinResponse = Record<string, unknown>;
 export interface Project {
   createdAt: number;
   id: string;
-  metadata: Record<string, unknown>;
+  metadata: Record<string, string>;
   name: string;
   position: number;
   roots: ProjectRoot[];
@@ -8710,7 +8604,7 @@ export interface ProjectChangedNotification {
 
 export interface ProjectCreateParams {
   idempotencyKey: string;
-  metadata?: null | Record<string, unknown>;
+  metadata?: null | Record<string, string>;
   name: string;
   roots: ProjectRoot[];
 }
@@ -8840,7 +8734,7 @@ export interface ProjectGitWorktreeThread {
 
 export interface ProjectImportParams {
   idempotencyKey: string;
-  metadata?: null | Record<string, unknown>;
+  metadata?: null | Record<string, string>;
   name: string;
   roots: ProjectRoot[];
   threads?: string[] | null;
@@ -8965,7 +8859,7 @@ export interface ProjectRoot {
 }
 
 export interface ProjectUpdateParams {
-  metadata?: null | Record<string, unknown>;
+  metadata?: null | Record<string, string>;
   name?: null | string;
   projectId: string;
   roots?: ProjectRoot[] | null;
@@ -9180,6 +9074,8 @@ export interface RoutingDecision {
   settingsSource?: null | string;
 }
 
+export type RunUpdateNowParams = Record<string, never>;
+
 export interface RuntimeCapabilityEntry {
   detail?: null | string;
   id: string;
@@ -9234,12 +9130,14 @@ export interface RuntimeRequest {
   providerConfig?: RuntimeProviderConfig | null;
   providerPreference?: null | string;
   reasoningEffort?: null | string;
+  sandboxNetworkAccess?: boolean | null;
   sandboxPolicy?: null | string;
   searchMode?: RuntimeSearchMode | null;
   serviceTier?: null | string;
   systemPrompt?: null | string;
   thinkingEnabled?: boolean | null;
   webSearch?: boolean | null;
+  webSearchMode?: WebSearchMode | null;
   workingDir?: null | string;
   workspaceId?: null | string;
   workspaceRoot?: null | string;
@@ -10188,7 +10086,7 @@ export type SortDirection = "asc" | "desc";
 
 export interface SoulStylePackInstallParams {
   enableAfterInstall?: boolean;
-  localeSources?: Record<string, unknown>;
+  localeSources?: Record<string, string>;
   manifestSource: string;
 }
 
@@ -10211,7 +10109,7 @@ export type SoulStylePackInstallStatus =
 
 export interface SoulStylePackListEntry {
   integrityDigest?: null | string;
-  localeSources?: Record<string, unknown>;
+  localeSources?: Record<string, string>;
   manifestSource: string;
   packId: string;
   profileIds?: string[];
@@ -10639,7 +10537,7 @@ export type ThreadItem =
       type: "dynamicToolCall";
     }
   | {
-      agentsStates?: Record<string, unknown>;
+      agentsStates?: Record<string, CollabAgentState>;
       id: string;
       model?: null | string;
       prompt?: null | string;
@@ -11228,7 +11126,7 @@ export interface ToolRequestUserInputQuestion {
 }
 
 export interface ToolRequestUserInputResponse {
-  answers: Record<string, unknown>;
+  answers: Record<string, ToolRequestUserInputAnswer>;
 }
 
 export type TransportKind = "http" | "local_process" | "sidecar";
@@ -11297,7 +11195,7 @@ export interface TurnPlanUpdatedNotification {
 }
 
 export interface TurnStartParams {
-  additionalContext?: null | Record<string, unknown>;
+  additionalContext?: null | Record<string, AdditionalContextEntry>;
   approvalPolicy?: unknown;
   approvalsReviewer?: ApprovalsReviewer | null;
   clientUserMessageId?: null | string;
@@ -11311,7 +11209,7 @@ export interface TurnStartParams {
   outputSchema?: unknown;
   permissions?: null | string;
   personality?: unknown;
-  responsesapiClientMetadata?: null | Record<string, unknown>;
+  responsesapiClientMetadata?: null | Record<string, string>;
   runtimeWorkspaceRoots?: string[] | null;
   sandboxPolicy?: unknown;
   serviceTier?: null | string;
@@ -11331,11 +11229,11 @@ export interface TurnStartedNotification {
 export type TurnStatus = "completed" | "failed" | "inProgress" | "interrupted";
 
 export interface TurnSteerParams {
-  additionalContext?: null | Record<string, unknown>;
+  additionalContext?: null | Record<string, AdditionalContextEntry>;
   clientUserMessageId?: null | string;
   expectedTurnId: string;
   input: UserInput[];
-  responsesapiClientMetadata?: null | Record<string, unknown>;
+  responsesapiClientMetadata?: null | Record<string, string>;
   threadId: string;
 }
 
@@ -11347,48 +11245,6 @@ export interface TurnsPage {
   backwardsCursor?: null | string;
   data: Turn[];
   nextCursor?: null | string;
-}
-
-export interface UsageStatsDailyTrendsListResponse {
-  trends?: UsageStatsDailyUsage[];
-}
-
-export interface UsageStatsDailyUsage {
-  conversations: number;
-  date: string;
-  tokens: number;
-}
-
-export interface UsageStatsModelRankingListResponse {
-  ranking?: UsageStatsModelUsage[];
-}
-
-export interface UsageStatsModelUsage {
-  conversations: number;
-  model: string;
-  percentage: number;
-  tokens: number;
-}
-
-export interface UsageStatsRangeParams {
-  timeRange: string;
-}
-
-export interface UsageStatsReadResponse {
-  stats: UsageStatsSummary;
-}
-
-export interface UsageStatsSummary {
-  monthlyConversations: number;
-  monthlyMessages: number;
-  monthlyTokens: number;
-  todayConversations: number;
-  todayMessages: number;
-  todayTokens: number;
-  totalConversations: number;
-  totalMessages: number;
-  totalTimeMinutes: number;
-  totalTokens: number;
 }
 
 export type UserInput =
@@ -11998,6 +11854,8 @@ export interface CollaborationModeSettings {
 
 export type ModeKind = "default" | "plan";
 
+export type WebSearchMode = "cached" | "disabled" | "indexed" | "live";
+
 export interface ByteRange {
   end: number;
   start: number;
@@ -12171,7 +12029,7 @@ export interface StorageUsage {
   categories: StorageCategoryUsage[];
   dataRoot: string;
   scannedRoots: string[];
-  threadBytes: Record<string, unknown>;
+  threadBytes: Record<string, number>;
   totalBytes: number;
   worktreeRoot: string;
 }

@@ -1,51 +1,59 @@
 import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { changeLimeLocale, getLimeI18n } from "@/i18n/createI18n";
-import type { BrowserHistoryPage as HistoryPage } from "@/lib/api/browserHistory";
+import type {
+  BrowserHistoryVisitsPage,
+  BrowserHistoryVisitRow,
+} from "@/lib/api/browserHistoryVisits";
 import {
   createBrowserComponentHarness,
   deferred,
 } from "@/components/agent/chat/workspace/right-surface/browser/browserWorkspace.testFixtures";
 import { BrowserHistoryPage } from "./BrowserHistoryPage";
 import { BrowserHistoryNavigationContext } from "@/contexts/BrowserHistoryNavigationContext";
-
-const history = vi.hoisted(() => ({
+const api = vi.hoisted(() => ({
   list: vi.fn(),
   remove: vi.fn(),
-  clear: vi.fn(),
   listen: vi.fn(),
+  settings: vi.fn(),
+  summary: vi.fn(),
+  clear: vi.fn(),
 }));
 vi.mock("@/lib/api/browserHistory", () => ({
-  listBrowserHistory: history.list,
-  removeBrowserHistory: history.remove,
-  clearBrowserHistory: history.clear,
-  listenBrowserHistoryChanged: history.listen,
+  listBrowserHistoryVisits: api.list,
+  removeBrowserHistoryVisits: api.remove,
+  listenBrowserHistoryChanged: api.listen,
+}));
+vi.mock("@/lib/api/browserData", () => ({
+  getBrowsingDataSettings: api.settings,
+  getBrowsingDataSummary: api.summary,
+  clearBrowsingData: api.clear,
 }));
 let harness: ReturnType<typeof createBrowserComponentHarness>;
 let receive: (revision: number) => void;
 const unsubscribe = vi.fn();
 const onBack = vi.fn();
 const openAddress = vi.fn();
-function page(
+const at = (day: number, hour = 12) => new Date(2026, 9, day, hour).getTime();
+function row(
   title = "Example",
+  day = 24,
+  actor = false,
+): BrowserHistoryVisitRow {
+  return {
+    id: title.toLowerCase(),
+    title,
+    url: `https://${title.toLowerCase()}.example.com/path?q=history#section`,
+    visitTime: at(day),
+    isActorVisit: actor,
+  };
+}
+function page(
+  entries = [row()],
   revision = 1,
   nextCursor: string | null = null,
-): HistoryPage {
-  return {
-    entries: [
-      {
-        id: title.toLowerCase(),
-        title,
-        url: `https://${title.toLowerCase()}.example.com/`,
-        visitCount: 1,
-        firstVisitedAt: 1700000000000,
-        lastVisitedAt: 1700000000000,
-      },
-    ],
-    total: 1,
-    revision,
-    nextCursor,
-  };
+): BrowserHistoryVisitsPage {
+  return { entries, total: entries.length, revision, nextCursor };
 }
 const flush = (milliseconds = 0) =>
   act(async () => {
@@ -54,16 +62,25 @@ const flush = (milliseconds = 0) =>
 const root = () => harness.query("browser-history-page");
 const search = () =>
   root().querySelector<HTMLInputElement>("input[type=search]")!;
-function button(label: string, scope: HTMLElement = root()): HTMLButtonElement {
-  const found = [...scope.querySelectorAll<HTMLButtonElement>("button")].find(
-    (item) =>
-      item.textContent?.trim() === label ||
-      item.getAttribute("aria-label") === label,
+function find<T extends HTMLElement = HTMLButtonElement>(
+  label: string,
+  scope: HTMLElement | typeof document = document,
+  selector = "button",
+): T {
+  const value = [...scope.querySelectorAll<T>(selector)].find(
+    (node) =>
+      node.textContent?.trim() === label ||
+      node.getAttribute("aria-label") === label,
   );
-  if (!found) throw new Error(`Missing history button: ${label}`);
-  return found;
+  if (!value) throw new Error(`Missing ${selector}: ${label}`);
+  return value;
 }
-const click = (target: HTMLButtonElement) =>
+const button = (label: string) => find<HTMLButtonElement>(label);
+const link = (title: string) =>
+  find<HTMLAnchorElement>(`Open ${title}`, root(), "a");
+const checkbox = (title: string) =>
+  find<HTMLButtonElement>(`Select ${title}`, root(), "[role=checkbox]");
+const click = (target: HTMLElement) =>
   act(async () => {
     target.click();
   });
@@ -75,32 +92,60 @@ const render = (navigation = true) =>
       <BrowserHistoryPage onBack={onBack} />
     </BrowserHistoryNavigationContext.Provider>,
   );
-const clearDialog = () =>
-  root().querySelector<HTMLElement>("[role=alertdialog]")!;
-
-describe("BrowserHistoryPage", () => {
+async function menu(label: string) {
+  await act(async () => {
+    const trigger = button(label);
+    trigger.focus();
+    trigger.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+    );
+  });
+  await flush();
+}
+async function source(value: "All" | "Agent" | "Other") {
+  await menu(
+    ["Filter history", "Filter history: Agent", "Filter history: Other"].find(
+      (label) =>
+        [...root().querySelectorAll("button")].some(
+          (node) => node.getAttribute("aria-label") === label,
+        ),
+    )!,
+  );
+  await click(find(value, document, "[role=menuitemradio]"));
+  await flush();
+}
+describe("BrowserHistoryPage visit management", () => {
   beforeEach(async () => {
     await changeLimeLocale("en-US");
     vi.useFakeTimers();
-    vi.setSystemTime(1700100000000);
     vi.clearAllMocks();
-    openAddress.mockReset().mockResolvedValue(undefined);
     harness = createBrowserComponentHarness();
-    history.list.mockResolvedValue(page());
-    history.remove.mockResolvedValue({
-      removedEntries: 1,
-      removedVisits: 1,
-      revision: 2,
-    });
-    history.clear.mockResolvedValue({
-      removedEntries: 1,
-      removedVisits: 1,
-      revision: 2,
-    });
-    history.listen.mockImplementation(async (handler) => {
+    openAddress.mockReset().mockResolvedValue(undefined);
+    api.list.mockReset().mockResolvedValue(page());
+    api.remove
+      .mockReset()
+      .mockResolvedValue({ removedEntries: 1, removedVisits: 1, revision: 2 });
+    api.listen.mockImplementation(async (handler) => {
       receive = handler;
       return unsubscribe;
     });
+    api.settings.mockReset().mockResolvedValue({
+      dataRemovalPermitted: {
+        history: true,
+        siteData: true,
+        cache: true,
+        downloads: true,
+        formData: false,
+        siteSettings: true,
+      },
+    });
+    api.summary.mockReset().mockResolvedValue({
+      history: { firstSite: null, siteCount: 0 },
+      siteData: null,
+      cache: null,
+      downloads: null,
+    });
+    api.clear.mockReset();
   });
   afterEach(async () => {
     await harness.unmount();
@@ -109,302 +154,258 @@ describe("BrowserHistoryPage", () => {
     await changeLimeLocale("zh-CN");
   });
 
-  it("loads user history and focuses its search; back returns to Browser settings", async () => {
+  it("loads visit projection, focuses search and returns via the shared header", async () => {
     await render();
     await flush();
-    expect(history.list).toHaveBeenCalledExactlyOnceWith({
+    expect(api.list).toHaveBeenCalledExactlyOnceWith({
       query: "",
-      limit: 50,
+      source: "all",
+      limit: 100,
     });
-    expect(root().textContent).toContain("Example");
     expect(document.activeElement).toBe(search());
-    await click(button("Back to Browser settings"));
+    expect(root().textContent).toContain("All-time history");
+    await click(button("Back"));
     expect(onBack).toHaveBeenCalledTimes(1);
   });
-
-  it("opens the complete recorded URL through canonical workspace navigation without mutating history", async () => {
-    const result = page();
-    result.entries[0].url = "https://example.com/path?q=history#section";
-    history.list.mockResolvedValue(result);
+  it("groups dates, initially expands only the newest and keeps a user collapse after pagination", async () => {
+    api.list
+      .mockResolvedValueOnce(page([row("Newest"), row("Older", 23)], 1, "next"))
+      .mockResolvedValueOnce(page([row("Oldest", 22)], 1));
     await render();
     await flush();
-    const entry = button("Open Example");
-    entry.focus();
-    expect(document.activeElement).toBe(entry);
-    expect(entry.type).toBe("button");
-    await click(entry);
-    expect(openAddress).toHaveBeenCalledExactlyOnceWith(result.entries[0].url);
-    expect(history.remove).not.toHaveBeenCalled();
-    expect(history.clear).not.toHaveBeenCalled();
-    expect(onBack).not.toHaveBeenCalled();
-  });
-
-  it("disables opening and explains the unavailable workspace without a navigation context", async () => {
-    await render(false);
-    await flush();
-    const entry = button("Open Example");
-    expect(entry.disabled).toBe(true);
-    expect(root().textContent).toContain(
-      "Open a conversation workspace to revisit this page",
+    const groups = root().querySelectorAll(
+      '[data-testid="browser-history-date-group"]',
     );
-    await click(entry);
-    expect(openAddress).not.toHaveBeenCalled();
-    await click(button("Delete Example"));
-    expect(history.remove).toHaveBeenCalledExactlyOnceWith(["example"]);
+    expect(groups).toHaveLength(2);
+    expect(
+      groups[0].querySelector("button")?.getAttribute("aria-expanded"),
+    ).toBe("true");
+    expect(
+      groups[1].querySelector("button")?.getAttribute("aria-expanded"),
+    ).toBe("false");
+    await click(groups[0].querySelector("button")!);
+    await click(button("Load more"));
+    expect(
+      root().querySelectorAll('[data-testid="browser-history-date-group"]'),
+    ).toHaveLength(3);
+    expect(
+      root().querySelector("h3 button")?.getAttribute("aria-expanded"),
+    ).toBe("false");
   });
-
-  it("dispatches one pending open and keeps destructive actions unavailable until it finishes", async () => {
-    const pending = deferred<void>();
-    openAddress.mockReturnValue(pending.promise);
+  it("selects distinct visits and sends one deduplicated URL/day batch, blocking duplicate requests", async () => {
+    const other = row("Example", 24),
+      agent = { ...other, isActorVisit: true, visitTime: at(24, 13) };
+    const pending = deferred<unknown>();
+    api.list.mockResolvedValue(page([agent, other]));
+    api.remove.mockReturnValue(pending.promise);
     await render();
     await flush();
-    const entry = button("Open Example");
-    await click(entry);
-    await click(entry);
-    expect(openAddress).toHaveBeenCalledTimes(1);
-    expect(entry.disabled).toBe(true);
-    expect(entry.getAttribute("aria-busy")).toBe("true");
-    expect(button("Delete Example").disabled).toBe(true);
-    expect(button("Delete browsing history").disabled).toBe(true);
-    await act(async () => pending.resolve());
-    expect(entry.disabled).toBe(false);
-    expect(entry.getAttribute("aria-busy")).toBe("false");
-    expect(button("Delete Example").disabled).toBe(false);
-  });
-
-  it("does not allow an already expanded clear confirmation to mutate history while a page is opening", async () => {
-    const pending = deferred<void>();
-    openAddress.mockReturnValue(pending.promise);
-    await render();
-    await flush();
-    await click(button("Delete browsing history"));
-    const dialog = clearDialog();
-    const clear = button("Delete browsing history", dialog);
-    expect(clear.disabled).toBe(false);
+    const boxes = root().querySelectorAll<HTMLElement>('[role="checkbox"]');
+    await click(boxes[0]);
+    await click(boxes[1]);
+    const remove = button("Remove selected");
     await act(async () => {
-      button("Open Example").click();
-      clear.click();
+      remove.click();
+      remove.click();
     });
-    expect(clear.disabled).toBe(true);
-    expect(dialog.querySelector<HTMLSelectElement>("select")?.disabled).toBe(
-      true,
+    expect(api.remove).toHaveBeenCalledExactlyOnceWith([
+      { url: other.url, visitTime: other.visitTime },
+    ]);
+    expect(remove.disabled).toBe(true);
+    expect(search().disabled).toBe(true);
+    await act(async () =>
+      pending.resolve({ removedEntries: 1, removedVisits: 2, revision: 2 }),
     );
-    await click(clear);
-    expect(history.clear).not.toHaveBeenCalled();
-    expect(history.remove).not.toHaveBeenCalled();
-    await act(async () => pending.resolve());
-    expect(clear.disabled).toBe(false);
-    await click(clear);
-    expect(history.clear).toHaveBeenCalledExactlyOnceWith({});
+    await flush();
+    expect(root().textContent).not.toContain("Remove selected");
   });
-
-  it("keeps the record after a failed open and retries the same URL without clearing or refreshing it", async () => {
-    openAddress.mockRejectedValueOnce(new Error("workspace unavailable"));
+  it("retains selection on failed removal and retries the same scope", async () => {
+    api.remove.mockRejectedValueOnce(new Error("disk unavailable"));
     await render();
     await flush();
-    await click(button("Open Example"));
-    expect(root().querySelector("[role=alert]")?.textContent).toBe(
-      "Could not open this page in the workspace browser. Try again.",
-    );
-    expect(root().textContent).toContain("https://example.example.com/");
-    expect(history.list).toHaveBeenCalledTimes(1);
-    await click(button("Open Example"));
-    expect(openAddress).toHaveBeenCalledTimes(2);
-    expect(openAddress).toHaveBeenNthCalledWith(
-      2,
-      "https://example.example.com/",
-    );
-    expect(root().querySelector("[role=alert]")).toBeNull();
-    expect(history.remove).not.toHaveBeenCalled();
-    expect(history.clear).not.toHaveBeenCalled();
-  });
-
-  it("does not open the record when its separate delete control is activated", async () => {
-    await render();
-    await flush();
-    await click(button("Delete Example"));
-    expect(openAddress).not.toHaveBeenCalled();
-    expect(history.remove).toHaveBeenCalledExactlyOnceWith(["example"]);
-  });
-
-  it("ignores a late failed open after leaving the history page", async () => {
-    const pending = deferred<void>();
-    openAddress.mockReturnValue(pending.promise);
-    await render();
-    await flush();
-    await click(button("Open Example"));
-    await harness.render(<div>Different settings</div>);
-    await act(async () => pending.reject(new Error("late navigation failure")));
-    expect(document.body.textContent).toBe("Different settings");
-    expect(openAddress).toHaveBeenCalledTimes(1);
-    expect(history.list).toHaveBeenCalledTimes(1);
-  });
-
-  it("does not let a slower previous query replace the latest search results", async () => {
-    const previous = deferred<HistoryPage>();
-    const latest = deferred<HistoryPage>();
-    history.list.mockImplementation(({ query }) =>
-      query === "old"
-        ? previous.promise
-        : query === "new"
-          ? latest.promise
-          : Promise.resolve(page()),
-    );
-    await render();
-    await flush();
-    await harness.change(search(), "old");
-    await flush(150);
-    await harness.change(search(), "new");
-    await flush(150);
-    await act(async () => latest.resolve(page("Latest", 3)));
-    expect(root().textContent).toContain("Latest");
-    await act(async () => previous.resolve(page("Old", 2)));
-    expect(root().textContent).toContain("Latest");
-    expect(root().textContent).not.toContain("Old");
-  });
-
-  it("refreshes on a new committed revision and ignores an unchanged revision", async () => {
-    await render();
-    await flush();
-    await act(async () => receive(1));
-    await flush();
-    expect(history.list).toHaveBeenCalledTimes(1);
-    history.list.mockResolvedValue(page("Refreshed", 2));
-    await act(async () => receive(2));
-    await flush();
-    expect(history.list).toHaveBeenCalledTimes(2);
-    expect(root().textContent).toContain("Refreshed");
-  });
-
-  it("appends a matching next page and restarts at the first page after a stale cursor rejection", async () => {
-    history.list
-      .mockResolvedValueOnce(page("First", 1, "cursor-one"))
-      .mockResolvedValueOnce(page("Second", 1, "cursor-two"))
-      .mockRejectedValueOnce(new Error("Browser history cursor is stale"))
-      .mockResolvedValueOnce(page("Fresh", 2));
-    await render();
-    await flush();
-    await click(button("Load more"));
-    expect(history.list).toHaveBeenNthCalledWith(2, {
-      query: "",
-      cursor: "cursor-one",
-      limit: 50,
-    });
-    expect(root().textContent).toContain("First");
-    expect(root().textContent).toContain("Second");
-    await click(button("Load more"));
-    await flush();
-    expect(history.list).toHaveBeenLastCalledWith({ query: "", limit: 50 });
-    expect(root().textContent).toContain("Fresh");
-    expect(root().textContent).not.toContain("First");
-    expect(root().textContent).not.toContain("Second");
-  });
-
-  it("keeps history visible after a failed deletion and retries the same actual record", async () => {
-    history.remove.mockRejectedValueOnce(new Error("disk unavailable"));
-    await render();
-    await flush();
-    await click(button("Delete Example"));
-    expect(history.remove).toHaveBeenCalledExactlyOnceWith(["example"]);
-    expect(root().querySelector("[role=alert]")?.textContent).toContain(
+    await click(checkbox("Example"));
+    await click(button("Remove selected"));
+    expect(checkbox("Example").getAttribute("aria-checked")).toBe("true");
+    expect(root().querySelector('[role="alert"]')?.textContent).toContain(
       "Could not load or update",
     );
-    expect(root().textContent).toContain("Example");
-    history.list.mockResolvedValue({
-      entries: [],
-      nextCursor: null,
-      total: 0,
-      revision: 2,
+    await click(button("Remove selected"));
+    expect(api.remove).toHaveBeenCalledTimes(2);
+  });
+  it("resets selection and expanded groups when switching source, and requests native source filtering", async () => {
+    api.list.mockResolvedValue(page([row("Example"), row("Older", 23)]));
+    await render();
+    await flush();
+    await click(checkbox("Example"));
+    await click(root().querySelectorAll<HTMLElement>("h3 button")[1]);
+    await source("Agent");
+    expect(api.list).toHaveBeenLastCalledWith({
+      query: "",
+      source: "agent",
+      limit: 100,
     });
-    await click(button("Delete Example"));
-    await flush();
-    expect(history.remove).toHaveBeenCalledTimes(2);
-    expect(root().querySelector("[role=alert]")).toBeNull();
-    expect(root().textContent).toContain("No browsing history");
+    expect(root().textContent).not.toContain("Remove selected");
+    expect(
+      root().querySelectorAll("h3 button")[1]?.getAttribute("aria-expanded"),
+    ).toBe("false");
   });
-
-  it("requires a separate explicit confirmation and cancellation never clears history", async () => {
+  it("debounces query and ignores a late previous-scope response", async () => {
+    const old = deferred<BrowserHistoryVisitsPage>();
+    api.list
+      .mockReturnValueOnce(old.promise)
+      .mockResolvedValueOnce(page([row("Fresh")]));
     await render();
     await flush();
-    await click(button("Delete browsing history"));
-    expect(clearDialog()).not.toBeNull();
-    expect(history.clear).not.toHaveBeenCalled();
-    await click(button("Cancel", clearDialog()));
-    expect(root().querySelector("[role=alertdialog]")).toBeNull();
-    expect(history.clear).not.toHaveBeenCalled();
-  });
-
-  it.each([
-    ["hour", 3600000],
-    ["day", 86400000],
-    ["week", 604800000],
-    ["all", 0],
-  ] as const)(
-    "uses the exact %s time range and prevents duplicate pending clear requests",
-    async (period, duration) => {
-      const clearing = deferred<unknown>();
-      history.clear.mockReturnValue(clearing.promise);
-      await render();
-      await flush();
-      await click(button("Delete browsing history"));
-      const select = clearDialog().querySelector<HTMLSelectElement>("select")!;
-      await act(async () => {
-        select.value = period;
-        select.dispatchEvent(new Event("change", { bubbles: true }));
-      });
-      const confirm = button("Delete browsing history", clearDialog());
-      await click(confirm);
-      await click(confirm);
-      expect(history.clear).toHaveBeenCalledExactlyOnceWith(
-        period === "all" ? {} : { since: Date.now() - duration },
-      );
-      expect(confirm.disabled).toBe(true);
-      expect(button("Cancel", clearDialog()).disabled).toBe(true);
-      await act(async () =>
-        clearing.resolve({ removedEntries: 1, removedVisits: 1, revision: 2 }),
-      );
-      await flush();
-      expect(root().querySelector("[role=alertdialog]")).toBeNull();
-    },
-  );
-
-  it("cleans its subscription and ignores a late list response after leaving the page", async () => {
-    const pending = deferred<HistoryPage>();
-    history.list.mockReturnValue(pending.promise);
-    await render();
-    await flush();
-    await harness.render(<div>Different settings</div>);
-    expect(unsubscribe).toHaveBeenCalledTimes(1);
     await act(async () => {
-      pending.resolve(page("Late"));
-      receive(2);
+      const setter = Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value",
+      )!.set!;
+      setter.call(search(), "fresh");
+      search().dispatchEvent(new Event("input", { bubbles: true }));
     });
-    await flush();
-    expect(document.body.textContent).toBe("Different settings");
-    expect(history.list).toHaveBeenCalledTimes(1);
+    await flush(199);
+    expect(api.list).toHaveBeenCalledTimes(1);
+    await flush(1);
+    expect(root().textContent).toContain("Fresh");
+    await act(async () => old.resolve(page([row("Stale")])));
+    expect(root().textContent).not.toContain("Stale");
   });
-
-  it.each(["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"] as const)(
-    "renders the history and confirmation controls without unresolved keys in %s",
+  it("preserves loaded rows and selection after page failure and retries that cursor", async () => {
+    api.list
+      .mockResolvedValueOnce(page([row()], 1, "cursor"))
+      .mockRejectedValueOnce(new Error("offline"))
+      .mockResolvedValueOnce(page([row("Next")]));
+    await render();
+    await flush();
+    await click(checkbox("Example"));
+    await click(button("Load more"));
+    expect(link("Example")).toBeTruthy();
+    expect(checkbox("Example").getAttribute("aria-checked")).toBe("true");
+    expect(root().textContent).toContain(
+      "Unable to load more browsing history",
+    );
+    await click(button("Try again"));
+    expect(api.list).toHaveBeenLastCalledWith({
+      query: "",
+      source: "all",
+      cursor: "cursor",
+      limit: 100,
+    });
+    expect(link("Next")).toBeTruthy();
+  });
+  it("opens the full recorded URL exactly once and prevents mutations while pending", async () => {
+    const pending = deferred<void>();
+    openAddress.mockReturnValue(pending.promise);
+    await render();
+    await flush();
+    await click(checkbox("Example"));
+    await act(async () => {
+      link("Example").click();
+      link("Example").click();
+      button("Remove selected").click();
+    });
+    expect(openAddress).toHaveBeenCalledExactlyOnceWith(row().url);
+    expect(api.remove).not.toHaveBeenCalled();
+    expect(link("Example").getAttribute("aria-disabled")).toBe("true");
+    expect(button("Clear browsing data").disabled).toBe(true);
+    await act(async () => pending.resolve());
+    expect(link("Example").getAttribute("aria-disabled")).toBe("false");
+  });
+  it("shows a failed open and permits retry without changing or reloading history", async () => {
+    openAddress.mockRejectedValueOnce(new Error("navigation unavailable"));
+    await render();
+    await flush();
+    await click(link("Example"));
+    expect(root().querySelector('[role="alert"]')?.textContent).toContain(
+      "Could not open this page",
+    );
+    await click(link("Example"));
+    expect(openAddress).toHaveBeenCalledTimes(2);
+    expect(api.list).toHaveBeenCalledTimes(1);
+    expect(api.remove).not.toHaveBeenCalled();
+  });
+  it("exposes per-row open/remove menu actions with keyboard activation", async () => {
+    await render();
+    await flush();
+    await menu("Actions for Example");
+    await click(find("Remove from history", document, '[role="menuitem"]'));
+    expect(api.remove).toHaveBeenCalledExactlyOnceWith([
+      { url: row().url, visitTime: row().visitTime },
+    ]);
+  });
+  it("permits management without a conversation and honors native removal restrictions", async () => {
+    api.settings.mockResolvedValue({
+      dataRemovalPermitted: { history: false },
+    });
+    await render(false);
+    await flush();
+    expect(link("Example").getAttribute("aria-disabled")).toBe("true");
+    expect(checkbox("Example").disabled).toBe(true);
+    expect(root().textContent).toContain("Open a conversation workspace");
+    await click(link("Example"));
+    expect(openAddress).not.toHaveBeenCalled();
+  });
+  it("reuses the shared six-category/five-range clear dialog and restores its trigger on cancel", async () => {
+    await render();
+    await flush();
+    const trigger = button("Clear browsing data");
+    await click(trigger);
+    await flush();
+    const dialog = document.querySelector(
+      '[data-testid="browser-clear-browsing-data-dialog"]',
+    )!;
+    expect(dialog.querySelectorAll('[role="checkbox"]')).toHaveLength(6);
+    expect(dialog.querySelectorAll("[aria-pressed]")).toHaveLength(5);
+    await click(find("Cancel", dialog));
+    await flush();
+    expect(api.clear).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(trigger);
+  });
+  it("refreshes a changed native revision, prunes removed selections and ignores duplicate revision events", async () => {
+    await render();
+    await flush();
+    await click(checkbox("Example"));
+    api.list.mockResolvedValue(page([row("Updated")], 2));
+    await act(async () => receive(2));
+    await flush();
+    expect(root().textContent).toContain("Updated");
+    expect(root().textContent).not.toContain("Remove selected");
+    await act(async () => receive(2));
+    await flush();
+    expect(api.list).toHaveBeenCalledTimes(2);
+  });
+  it("unsubscribes even when the subscription arrives after unmount", async () => {
+    const subscription = deferred<() => void>();
+    api.listen.mockReturnValue(subscription.promise);
+    await render();
+    await harness.unmount();
+    await act(async () => subscription.resolve(unsubscribe));
+    expect(unsubscribe).toHaveBeenCalledTimes(1);
+  });
+  it.each(["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"])(
+    "renders real %s source/selection labels and date/time semantics",
     async (locale) => {
-      await changeLimeLocale(locale);
+      await changeLimeLocale(locale as "en-US");
+      api.list.mockResolvedValue(page([row("Example", 24, true)]));
       await render();
       await flush();
       const t = getLimeI18n().getFixedT(locale, "settings");
-      const openLabel = t("browserHistory.open", { title: "Example" });
-      expect(button(openLabel).disabled).toBe(false);
-      openAddress.mockRejectedValueOnce(new Error("fixture open failure"));
-      await click(button(openLabel));
-      expect(root().querySelector("[role=alert]")?.textContent).toBe(
-        t("browserHistory.openError"),
+      expect(root().querySelector("h1")?.textContent).toBe(
+        t("browserHistory.title"),
       );
-      await click(button(t("browserHistory.clear")));
-      expect(root().textContent).not.toContain("browserHistory.");
-      expect(search().placeholder).toBe(t("browserHistory.search"));
-      expect(clearDialog().getAttribute("aria-labelledby")).toBe(
-        "browser-history-confirm",
+      expect(root().textContent).toContain(t("browserHistory.allTime"));
+      expect(button(t("browserHistory.filter.all"))).toBeTruthy();
+      expect(
+        find(
+          t("browserHistory.select", { title: "Example" }),
+          root(),
+          '[role="checkbox"]',
+        ),
+      ).toBeTruthy();
+      expect(root().querySelector("time")?.getAttribute("datetime")).toBe(
+        new Date(at(24)).toISOString(),
       );
-      expect(clearDialog().querySelectorAll("option")).toHaveLength(4);
     },
   );
 });

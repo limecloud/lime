@@ -523,10 +523,46 @@ pub fn find_skill_by_name(skill_name: &str) -> Result<LoadedSkillDefinition, Str
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn bundled_personal_ip_skill_loads_as_standard_workspace_document_skill() {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../resources/default-skills/personal-ip-knowledge-builder/SKILL.md");
+        let skill = load_skill_from_file("personal-ip-knowledge-builder", &path)
+            .expect("load actual bundled expert skill");
+        assert_eq!(skill.skill_name, "personal-ip-knowledge-builder");
+        assert_eq!(skill.execution_mode, "prompt");
+        assert!(!skill.disable_model_invocation);
+        assert!(skill.workflow_steps.is_empty());
+        assert!(skill.standard_compliance.validation_errors.is_empty());
+        assert!(skill
+            .allowed_tools
+            .as_ref()
+            .is_none_or(|tools| tools.is_empty()));
+        assert!(skill.markdown_content.contains("普通 Markdown 文档"));
+        assert!(!skill.markdown_content.contains("knowledgePack/compile"));
+        assert!(!skill
+            .metadata
+            .keys()
+            .any(|key| key.starts_with("Lime_knowledge_")));
+        for resource in [
+            "references/personal-ip-template.md",
+            "references/interview-questions.md",
+            "references/quality-checklist.md",
+            "assets/personal-ip-knowledge-skeleton.md",
+            "scripts/docx_to_markdown.py",
+        ] {
+            assert!(
+                skill.local_directory_path.join(resource).is_file(),
+                "{resource}"
+            );
+        }
+    }
+
     use super::{
         find_skill_by_name, is_registered_skill, load_skill_from_file, load_skills_from_directory,
         parse_allowed_tools, register_project_skill_directory, register_skill_directory,
     };
+    use std::path::Path;
     use tempfile::TempDir;
 
     #[test]

@@ -18,7 +18,7 @@ function GeneralWorkbenchSidebarComponent({
   ...props
 }: GeneralWorkbenchSidebarProps) {
   const [activeTab, setActiveTab] =
-    useState<GeneralWorkbenchSidebarTab>("context");
+    useState<GeneralWorkbenchSidebarTab>("workflow");
   const isVersionMode = branchMode === "version";
   const orchestrationInput = createGeneralWorkbenchSidebarOrchestrationInput(
     buildGeneralWorkbenchSidebarOrchestrationSource({
@@ -28,9 +28,7 @@ function GeneralWorkbenchSidebarComponent({
   );
   const {
     workflowCount,
-    activeContextCount,
     visibleExecLogCount,
-    contextPanelProps,
     workflowPanelProps,
     execLogProps,
   } = useGeneralWorkbenchSidebarOrchestration({
@@ -42,7 +40,6 @@ function GeneralWorkbenchSidebarComponent({
     <GeneralWorkbenchSidebarShell
       activeTab={activeTab}
       isVersionMode={isVersionMode}
-      activeContextCount={activeContextCount}
       workflowCount={workflowCount}
       visibleExecLogCount={visibleExecLogCount}
       onTabChange={setActiveTab}
@@ -52,7 +49,6 @@ function GeneralWorkbenchSidebarComponent({
     >
       <GeneralWorkbenchSidebarPanels
         activeTab={activeTab}
-        contextPanelProps={contextPanelProps}
         workflowPanelProps={workflowPanelProps}
         execLogProps={execLogProps}
       />

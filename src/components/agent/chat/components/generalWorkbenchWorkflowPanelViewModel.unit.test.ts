@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { SidebarActivityLog } from "../hooks/useThemeContextWorkspace";
+import type { SidebarActivityLog } from "./generalWorkbenchWorkflowData";
 import type { ReviewFeedbackProjection } from "../utils/reviewFeedbackProjection";
 import {
   buildActivitySectionSummary,

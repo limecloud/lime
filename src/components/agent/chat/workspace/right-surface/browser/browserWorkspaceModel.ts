@@ -1,4 +1,9 @@
 import type { EmbeddedBrowserBounds } from "@/lib/api/embeddedBrowser";
+import {
+  clampBrowserPageZoom,
+  minBrowserZoom,
+  maxBrowserZoom,
+} from "@/lib/browserZoom";
 
 const DOMAIN_PATTERN =
   /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}(?::\d{1,5})?(?:[/?#].*)?$/i;
@@ -6,8 +11,8 @@ const LOCAL_PATTERN =
   /^(?:localhost|127(?:\.\d{1,3}){3}|\[::1\])(?::\d{1,5})?(?:[/?#].*)?$/i;
 
 export const DEFAULT_BROWSER_URL = "https://www.google.com/";
-export const MIN_BROWSER_ZOOM = 0.5;
-export const MAX_BROWSER_ZOOM = 3;
+export const MIN_BROWSER_ZOOM = minBrowserZoom;
+export const MAX_BROWSER_ZOOM = maxBrowserZoom;
 export const BROWSER_ZOOM_STEP = 0.1;
 
 export function normalizeBrowserAddress(value: string): string {
@@ -42,11 +47,7 @@ export function resolveBrowserAddressValue(url: string): string {
 }
 
 export function clampBrowserZoom(value: number): number {
-  return (
-    Math.round(
-      Math.min(MAX_BROWSER_ZOOM, Math.max(MIN_BROWSER_ZOOM, value)) * 100,
-    ) / 100
-  );
+  return clampBrowserPageZoom(value);
 }
 
 export function resolveElementBounds(

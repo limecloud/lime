@@ -109,37 +109,6 @@ export function HarnessContextCapabilitiesSections({
               )}
             </div>
 
-            <div className="space-y-1 text-xs text-muted-foreground">
-              <div>
-                {agentText(
-                  "agentChat.harness.generated.680f509d88",
-                  "上下文条目：",
-                )}
-                {environment.activeContextCount}/{environment.contextItemsCount}
-              </div>
-              {environment.contextItemNames.length > 0 ? (
-                <div className="space-y-1">
-                  <div>
-                    {agentText(
-                      "agentChat.harness.generated.10460a6f9c",
-                      "活跃上下文：",
-                    )}
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {environment.contextItemNames.map((item) => (
-                      <ActionableBadge
-                        key={item}
-                        variant="outline"
-                        value={item}
-                        onOpenUrl={handleOpenExternalLink}
-                        onOpenPath={handleOpenPathValue}
-                      />
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-            </div>
-
             <div className="flex flex-wrap gap-2">
               <Badge variant="outline">
                 {agentText("agentChat.harness.generated.6c09b4e917", "规划")}

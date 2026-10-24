@@ -314,6 +314,9 @@ importers:
       zustand:
         specifier: ^5.0.10
         version: 5.0.11(@types/react@18.3.27)(react@18.3.1)(use-sync-external-store@1.6.0(react@18.3.1))
+      fuse.js:
+        specifier: 7.1.0
+        version: 7.1.0
     devDependencies:
       '@babel/plugin-transform-react-jsx-source':
         specifier: ^7.27.1
@@ -7288,6 +7291,10 @@ packages:
 
   zwitch@2.0.4:
     resolution: {integrity: sha512-bXE4cR/kVZhKZX/RjPEflHaKVhUVl85noU3v6b8apfQEc1x4A+zBxjZ4lN8LqGd6WZ3dl98pY4o717VFmoPp+A==}
+
+  fuse.js@7.1.0:
+    resolution: {integrity: sha512-trLf4SzuuUxfusZADLINj+dE8clK1frKdmqiJNb1Es75fmI5oY6X2mxLVUciLLjxqw/xr72Dhy+lER6dGd02FQ==}
+    engines: {node: '>=10'}
 
 snapshots:
 
@@ -15193,3 +15200,5 @@ snapshots:
       use-sync-external-store: 1.6.0(react@18.3.1)
 
   zwitch@2.0.4: {}
+
+  fuse.js@7.1.0: {}

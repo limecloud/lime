@@ -1,3 +1,4 @@
+import { readAnnotationCapture } from "./browserAnnotationCapture";
 import { safeInvoke, safeListen } from "@/lib/dev-bridge";
 import { readBrowserAnnotationImages } from "./browserAnnotationImages";
 import {
@@ -18,10 +19,8 @@ import type {
   BrowserAnnotationEditorEvent,
   BrowserAnnotationEditorPresentation,
 } from "./browserAnnotationEditorTypes";
-import type { BrowserTabEventIdentity } from "./browserTab";
-
 export type BrowserAnnotationEditorNativeEvent = BrowserAnnotationEditorEvent &
-  BrowserTabEventIdentity & { viewId: string };
+  BrowserAnnotationIdentity;
 export interface BrowserAnnotationEditorReceipt {
   editorId: string;
   generation: number;
@@ -164,29 +163,7 @@ export async function captureBrowserAnnotation(
     "browser_tab_capture_annotation",
     { tabId, annotationId },
   );
-  if (
-    !result ||
-    result.annotationId !== annotationId ||
-    !result.selection ||
-    !["captured", "failed", "stale", "timeout"].includes(
-      result.screenshotStatus,
-    )
-  )
-    throw new Error("Invalid browser annotation capture result");
-  if ((result.screenshotStatus === "captured") !== Boolean(result.screenshot))
-    throw new Error("Invalid browser annotation screenshot status");
-  const shot = result.screenshot;
-  if (
-    shot &&
-    (!/^data:image\/png;base64,[A-Za-z0-9+/=]+$/u.test(shot.dataUrl) ||
-      !Number.isSafeInteger(shot.width) ||
-      shot.width < 1 ||
-      !Number.isSafeInteger(shot.height) ||
-      shot.height < 1 ||
-      !["viewport", "crop"].includes(shot.kind))
-  )
-    throw new Error("Invalid browser annotation screenshot");
-  return result;
+  return readAnnotationCapture(result, annotationId);
 }
 
 export function listenBrowserAnnotationSelection(
@@ -340,8 +317,19 @@ export function listenBrowserAnnotationEditor(
         !["change", "save", "send", "close"].includes(event.action)
       )
         throw new Error("Invalid browser annotation editor event");
+      assertPageIdentity(event);
+      if (
+        event.capture !== undefined &&
+        (!["save", "send"].includes(event.action) || !event.designChange)
+      )
+        throw new Error("Unexpected browser annotation editor capture");
       handler({
         ...event,
+        ...(event.capture === undefined
+          ? {}
+          : {
+              capture: readAnnotationCapture(event.capture, event.annotationId),
+            }),
         attachedImages: readBrowserAnnotationImages(event.attachedImages),
         ...(event.designChange === undefined
           ? {}

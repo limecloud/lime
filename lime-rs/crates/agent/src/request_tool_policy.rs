@@ -2,6 +2,8 @@
 
 mod current_reply_adapter;
 mod policy_config;
+#[cfg(test)]
+mod web_search_access_tests;
 mod web_search_execution_tracker;
 
 pub use self::current_reply_adapter::stream_reply_with_policy;

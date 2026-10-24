@@ -1,4 +1,8 @@
 import type { Session, WebContents } from "electron";
+import {
+  EmbeddedBrowserPermissionGrants,
+  permissionSource,
+} from "./embeddedBrowserPermissionGrants";
 
 type HostEventEmitter = (event: string, payload?: unknown) => void;
 
@@ -12,6 +16,8 @@ export interface EmbeddedBrowserPermissionRequestEvent {
   requestingUrl: string | null;
   embeddingOrigin: string | null;
   decision: EmbeddedBrowserPermissionDecision;
+  isMainFrame: boolean;
+  mediaTypes?: string[];
 }
 
 export interface EmbeddedBrowserPermissionEntry {
@@ -27,7 +33,7 @@ interface EmbeddedBrowserPermissionController {
   onPendingPermission?: (
     requestId: string,
     viewId: string,
-    callback: (allowed: boolean) => void,
+    callback: (allowed: boolean) => boolean,
   ) => void;
 }
 
@@ -35,7 +41,21 @@ export function installEmbeddedBrowserPermissionHandling(
   browserSession: Session,
   controller: EmbeddedBrowserPermissionController,
   emit: HostEventEmitter,
-): void {
+): EmbeddedBrowserPermissionGrants {
+  const grants = new EmbeddedBrowserPermissionGrants();
+  browserSession.setPermissionCheckHandler(
+    (webContents, permission, origin, details) => {
+      const entry =
+        webContents && controller.findEntryByWebContents(webContents);
+      const source =
+        entry && permissionSource(entry.webContents, details, origin);
+      return (
+        !!entry &&
+        !!source &&
+        grants.allows(entry.viewId, source, permission, details.mediaType)
+      );
+    },
+  );
   browserSession.setPermissionRequestHandler(
     (webContents, permission, callback, details) => {
       const entry = controller.findEntryByWebContents(webContents);
@@ -44,9 +64,28 @@ export function installEmbeddedBrowserPermissionHandling(
         return;
       }
       const requestId = createPermissionRequestId();
-      const deferred = controller.deferPermissionRequest === true;
+      const source = permissionSource(webContents, details);
+      const mediaTypes =
+        "mediaTypes" in details ? details.mediaTypes : undefined;
+      const deferred =
+        controller.deferPermissionRequest === true &&
+        !!controller.onPendingPermission &&
+        !!source;
       if (deferred) {
-        controller.onPendingPermission?.(requestId, entry.viewId, callback);
+        const grant = grants.capture(
+          entry.viewId,
+          source!,
+          permission,
+          mediaTypes,
+        );
+        let settled = false;
+        controller.onPendingPermission!(requestId, entry.viewId, (allowed) => {
+          if (settled) return false;
+          settled = true;
+          const granted = grant(allowed);
+          callback(granted);
+          return granted;
+        });
       } else {
         callback(false);
       }
@@ -57,10 +96,13 @@ export function installEmbeddedBrowserPermissionHandling(
         url: normalizeUrl(webContents.getURL()) ?? "",
         requestingUrl: normalizeUrl(details.requestingUrl),
         embeddingOrigin: normalizeUrl(readEmbeddingOrigin(details)),
+        isMainFrame: details.isMainFrame,
+        ...(mediaTypes ? { mediaTypes } : {}),
         decision: deferred ? "pending" : "blocked",
       } satisfies EmbeddedBrowserPermissionRequestEvent);
     },
   );
+  return grants;
 }
 
 function createPermissionRequestId(): string {

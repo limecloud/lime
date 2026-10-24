@@ -1,13 +1,10 @@
 import type { Input, WebContents } from "electron";
 import { clipboard } from "./electronRuntime";
+import type { BrowserDeviceState } from "../src/lib/browserDeviceLayout";
+import { browserDeviceLimits } from "../src/lib/browserDeviceLayout";
+import { isBrowserDevicePreset } from "../src/lib/browserDevicePresets";
 
-export interface EmbeddedBrowserDeviceState {
-  width: number;
-  height: number;
-  deviceScaleFactor: number;
-  scale: number;
-  mobile: boolean;
-}
+export type EmbeddedBrowserDeviceState = BrowserDeviceState;
 
 export type EmbeddedBrowserPageCommand =
   | "focus-address"
@@ -33,7 +30,8 @@ export function browserCommandForInput(
   const key = input.key.toLowerCase();
   const primary = platform === "darwin" ? input.meta : input.control;
   if (primary && !input.alt) {
-    if (input.shift && (key === "." || key === ">" || input.code === "Period")) return "annotate";
+    if (input.shift && (key === "." || key === ">" || input.code === "Period"))
+      return "annotate";
     if (key === "+" || key === "=") return "zoom-in";
     if (key === "-") return "zoom-out";
     if (!input.shift) {
@@ -78,9 +76,24 @@ export function readBrowserDevice(
   };
   if (typeof source.mobile !== "boolean")
     throw new Error("Browser device mobile must be a boolean");
+  if (source.presetId !== undefined && !isBrowserDevicePreset(source.presetId))
+    throw new Error("Browser device presetId is unknown");
   return {
-    width: Math.round(finite("width", 100, 10000)),
-    height: Math.round(finite("height", 100, 10000)),
+    presetId: source.presetId ?? "responsive",
+    width: Math.round(
+      finite(
+        "width",
+        browserDeviceLimits.width.min,
+        browserDeviceLimits.width.max,
+      ),
+    ),
+    height: Math.round(
+      finite(
+        "height",
+        browserDeviceLimits.height.min,
+        browserDeviceLimits.height.max,
+      ),
+    ),
     deviceScaleFactor: finite("deviceScaleFactor", 0, 8),
     scale: finite("scale", 0.1, 3),
     mobile: source.mobile,

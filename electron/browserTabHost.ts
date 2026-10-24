@@ -1,15 +1,37 @@
 import { BrowserOverlayHost } from "./browserOverlayHost";
 import { BrowserAnnotationHost } from "./browserAnnotationHost";
-import { BROWSER_ANNOTATION_COMMANDS, type BrowserAnnotationCommand } from "./browserAnnotationModel";
-import { BrowserHistoryHost, isBrowserHistoryCommand } from "./browserHistoryHost";
-import { BrowserDownloadsHost, isBrowserDownloadsCommand } from "./browserDownloadsHost";
+import {
+  BROWSER_ANNOTATION_COMMANDS,
+  type BrowserAnnotationCommand,
+} from "./browserAnnotationModel";
+import {
+  BrowserHistoryHost,
+  isBrowserHistoryCommand,
+} from "./browserHistoryHost";
+import {
+  BrowserDownloadsHost,
+  isBrowserDownloadsCommand,
+} from "./browserDownloadsHost";
 import { BrowserDataHost, isBrowserDataCommand } from "./browserDataHost";
-import { BROWSER_ANNOTATION_EDITOR_COMMANDS, invokeBrowserAnnotationEditor, type BrowserAnnotationEditorCommand } from "./browserTabAnnotationEditor";
+import {
+  BROWSER_ANNOTATION_EDITOR_COMMANDS,
+  invokeBrowserAnnotationEditor,
+  type BrowserAnnotationEditorCommand,
+} from "./browserTabAnnotationEditor";
 import { readBrowserMenuPresentation } from "./browserOverlayModel";
 import { BrowserTabPolicy } from "./browserTabPolicy";
-import { BrowserActionApprovals, type PendingBrowserApproval } from "./browserActionApprovals";
+import {
+  BrowserActionApprovals,
+  type PendingBrowserApproval,
+} from "./browserActionApprovals";
 import { BrowserHistoryTool } from "./browserHistoryTool";
-import { BrowserPermissions, type BrowserPermissionAnchor, type PendingBrowseApproval } from "./browserPermissions";
+import {
+  BrowserPermissions,
+  type BrowserPermissionAnchor,
+  type PendingBrowseApproval,
+} from "./browserPermissions";
+import { BrowserSitePermissionPrompt } from "./browserSitePermissionPrompt";
+import { createAnnotationEditorRelay } from "./browserAnnotationEditorRelay";
 import {
   adoptBrowserTabPopup,
   type BrowserPopupIdentityHandler,
@@ -52,6 +74,7 @@ import {
 import { randomUUID } from "node:crypto";
 import { readBrowserTabSnapshot } from "./browserTabSnapshot";
 import { selectBrowserRoutes } from "./browserTabSelection";
+import { focusBrowserTabPage } from "./browserTabFocus";
 import process from "node:process";
 import { statSync } from "node:fs";
 import type { BrowserWindow } from "./electronRuntime";
@@ -211,6 +234,7 @@ export class ElectronBrowserTabHost {
   readonly #policy = new BrowserTabPolicy();
   readonly #permissions = new BrowserPermissions(this.#policy);
   readonly #overlay: BrowserOverlayHost;
+  readonly #sitePermissions: BrowserSitePermissionPrompt;
   readonly #history: BrowserHistoryHost;
   readonly #historyTool: BrowserHistoryTool;
   readonly #downloads: BrowserDownloadsHost;
@@ -231,38 +255,139 @@ export class ElectronBrowserTabHost {
         const route = this.#routesByTabId.get(tabId);
         if (!route) return null;
         const native = this.#nativeRoute(route);
-        const { browserSessionId, threadId, viewId, ownerWebContentsId, windowId, pageRevision } = route;
-        return { ...native, selected: route.selected, annotationAllowed: route.controlOwner !== "agent" && route.controlOwner !== "human_takeover", identity: { browserSessionId, threadId, tabId, viewId, ownerWebContentsId, windowId, pageRevision, webContentsId: native.view.webContents.id } };
+        const {
+          browserSessionId,
+          threadId,
+          viewId,
+          ownerWebContentsId,
+          windowId,
+          pageRevision,
+        } = route;
+        return {
+          ...native,
+          selected: route.selected,
+          annotationAllowed:
+            route.controlOwner !== "agent" &&
+            route.controlOwner !== "human_takeover",
+          identity: {
+            browserSessionId,
+            threadId,
+            tabId,
+            viewId,
+            ownerWebContentsId,
+            windowId,
+            pageRevision,
+            webContentsId: native.view.webContents.id,
+          },
+        };
       },
       emit: this.#emit,
       screenshotMode: () => this.#annotationScreenshotMode,
       onActivate: (session) => {
-        const { annotationId, kind: _kind, scope: _scope, ...identity } = session;
+        const {
+          annotationId,
+          kind: _kind,
+          scope: _scope,
+          ...identity
+        } = session;
         this.#overlay.focusAnnotation(identity, annotationId);
       },
       onAnchor: (session, anchor, bounds) => {
-        const { annotationId, kind: _kind, scope: _scope, ...identity } = session;
-        this.#overlay.positionAnnotation(identity, annotationId, anchor, bounds);
+        const {
+          annotationId,
+          kind: _kind,
+          scope: _scope,
+          ...identity
+        } = session;
+        this.#overlay.positionAnnotation(
+          identity,
+          annotationId,
+          anchor,
+          bounds,
+        );
       },
     });
-    this.#history = options.history ?? new BrowserHistoryHost(revision => this.#emit("browser-history-changed", { revision }));
-    this.#historyTool = new BrowserHistoryTool({ history: this.#history, policy: this.#policy, refreshSettings: () => this.#refreshSettings(), anchor: call => this.#permissionAnchor(this.#permissionRoute(call), call.turnId) });
-    this.#downloads = new BrowserDownloadsHost((change) => this.#emit("browser-downloads-changed", change), { recover: (request) => this.#embeddedHost.resumeDownload(request) });
-    this.#data = new BrowserDataHost({ history: this.#history, downloads: this.#downloads, session: () => this.#embeddedHost.getBrowsingDataSession() });
-    this.#embeddedHost.setDownloadObserver?.((...args) => this.#downloads.observe(...args));
-    this.#overlay = new BrowserOverlayHost((event) => {
-      const tabId = this.#tabIdsByViewId.get(event.viewId);
-      const route = tabId ? this.#routesByTabId.get(tabId) : null;
-      if (!route) return;
-      this.#emitBrowserEmbeddedEvent(event.itemId ? "browser-tab-menu-action" : "browser-tab-overlay-closed", route, event as unknown as Record<string, unknown>, this.#embeddedHost.resolveNativeView(route.viewId)?.view.webContents.id ?? null);
-    }, { onAnnotationEvent: (event) => { this.#annotations.previewDesign(event); this.#emit("browser-tab-annotation-editor", event); }, onCommand: (viewId, command) => {
-      this.observeEmbeddedEvent("embedded-browser-view-command", { viewId, command });
-    } });
+    this.#history =
+      options.history ??
+      new BrowserHistoryHost((revision) =>
+        this.#emit("browser-history-changed", { revision }),
+      );
+    this.#historyTool = new BrowserHistoryTool({
+      history: this.#history,
+      policy: this.#policy,
+      refreshSettings: () => this.#refreshSettings(),
+      anchor: (call) =>
+        this.#permissionAnchor(this.#permissionRoute(call), call.turnId),
+    });
+    this.#downloads = new BrowserDownloadsHost(
+      (change) => this.#emit("browser-downloads-changed", change),
+      { recover: (request) => this.#embeddedHost.resumeDownload(request) },
+    );
+    this.#data = new BrowserDataHost({
+      history: this.#history,
+      downloads: this.#downloads,
+      session: () => this.#embeddedHost.getBrowsingDataSession(),
+    });
+    this.#embeddedHost.setDownloadObserver?.((...args) =>
+      this.#downloads.observe(...args),
+    );
+    this.#overlay = new BrowserOverlayHost(
+      (event) => {
+        if (this.#sitePermissions.handle(event)) return;
+        const tabId = this.#tabIdsByViewId.get(event.viewId);
+        const route = tabId ? this.#routesByTabId.get(tabId) : null;
+        if (!route) return;
+        this.#emitBrowserEmbeddedEvent(
+          event.itemId
+            ? "browser-tab-menu-action"
+            : "browser-tab-overlay-closed",
+          route,
+          event as unknown as Record<string, unknown>,
+          this.#embeddedHost.resolveNativeView(route.viewId)?.view.webContents
+            .id ?? null,
+        );
+      },
+      {
+        onAnnotationEvent: createAnnotationEditorRelay(
+          (event) => this.#annotations.prepareEditorEvent(event),
+          (event) => this.#emit("browser-tab-annotation-editor", event),
+        ),
+        onCommand: (viewId, command) => {
+          this.observeEmbeddedEvent("embedded-browser-view-command", {
+            viewId,
+            command,
+          });
+        },
+      },
+    );
+    this.#sitePermissions = new BrowserSitePermissionPrompt({
+      overlay: this.#overlay,
+      target: (viewId) => {
+        const route = this.#routeForNativePolicy(viewId);
+        const native = this.#embeddedHost.resolveNativeView(viewId);
+        return route && native && this.#policy.enabled
+          ? {
+              ...native,
+              selected: route.selected,
+              activeTurnId: route.activeTurnId,
+              controlOwner: route.controlOwner,
+              pageRevision: route.pageRevision,
+            }
+          : null;
+      },
+      resolve: (requestId, allowed, viewId) =>
+        this.#embeddedHost.resolvePermission(requestId, allowed, viewId),
+    });
     this.#embeddedHost.setAgentPermissionResolver((viewId, url, action) => {
       const route = this.#routeForNativePolicy(viewId);
       return (
-        route?.controlOwner !== "agent" || (action === "browse"
-          ? route.activeTurnId !== null && this.#permissions.allows(this.#permissionAnchor(route, route.activeTurnId), url)
+        route?.controlOwner !== "agent" ||
+        (action === "browse"
+          ? route.activeTurnId !== null &&
+            this.#permissions.allows(
+              this.#permissionAnchor(route, route.activeTurnId),
+              url,
+            )
           : this.#policy.allows(action, url))
       );
     });
@@ -275,12 +400,17 @@ export class ElectronBrowserTabHost {
   }
 
   setSettings(settings: BrowserSettings, locale?: string): void {
-    if (locale !== undefined) this.#historyTool.setLocale(locale);
+    if (locale !== undefined) {
+      this.#historyTool.setLocale(locale);
+      this.#sitePermissions.setLocale(locale);
+    }
     this.#embeddedHost.setSettings(settings);
     this.#annotationScreenshotMode = settings.annotation_screenshot;
     if (!this.#policy.setSettings(settings)) return;
+    this.#sitePermissions.cancelView();
+    this.#embeddedHost.revokePermissionGrants?.();
     this.#permissions.revoke();
-    if (!settings.enabled) {
+    if (!this.#policy.enabled) {
       for (const route of this.#routesByTabId.values())
         this.#takeUserControl(route);
     }
@@ -339,8 +469,8 @@ export class ElectronBrowserTabHost {
                   ? this.#routesByTabId.get(openerTabId)
                   : null;
                 const bounds = opener
-                  ? this.#nativeRoute(opener).view.getBounds()
-                  : native.view.getBounds();
+                  ? this.#nativeRoute(opener).containerBounds
+                  : native.containerBounds;
                 return this.#select(native.window, {
                   tabId: route.tabId,
                   bounds,
@@ -370,38 +500,76 @@ export class ElectronBrowserTabHost {
     if (!window || window.isDestroyed()) {
       throw new Error("Browser tab owner window is unavailable");
     }
-    if (isBrowserHistoryCommand(command)) return this.#history.invoke(command, args);
-    if (isBrowserDownloadsCommand(command)) return this.#downloads.invoke(command, args);
+    if (isBrowserHistoryCommand(command))
+      return this.#history.invoke(command, args);
+    if (isBrowserDownloadsCommand(command))
+      return this.#downloads.invoke(command, args);
     if (isBrowserDataCommand(command)) return this.#data.invoke(command, args);
-    if ((BROWSER_ANNOTATION_EDITOR_COMMANDS as readonly string[]).includes(command)) {
+    if (
+      (BROWSER_ANNOTATION_EDITOR_COMMANDS as readonly string[]).includes(
+        command,
+      )
+    ) {
       const route = this.#routeForRenderer(window, args);
-      if (command !== "browser_tab_close_annotation_editor" && !route.selected) {
+      if (
+        command !== "browser_tab_close_annotation_editor" &&
+        !route.selected
+      ) {
         throw new Error("Browser annotation editor requires the selected tab");
       }
-      if (command !== "browser_tab_close_annotation_editor" && (route.controlOwner === "agent" || route.controlOwner === "human_takeover")) throw new Error("Browser annotation editor requires user control");
+      if (
+        command !== "browser_tab_close_annotation_editor" &&
+        (route.controlOwner === "agent" ||
+          route.controlOwner === "human_takeover")
+      )
+        throw new Error("Browser annotation editor requires user control");
       const native = this.#nativeRoute(route);
-      const { browserSessionId, threadId, tabId, viewId, ownerWebContentsId, windowId, pageRevision } = route;
+      const {
+        browserSessionId,
+        threadId,
+        tabId,
+        viewId,
+        ownerWebContentsId,
+        windowId,
+        pageRevision,
+      } = route;
       const result = await invokeBrowserAnnotationEditor(
         this.#overlay,
         window,
         command as BrowserAnnotationEditorCommand,
         asRecord(args) ?? {},
         native.view,
-        { browserSessionId, threadId, tabId, viewId, ownerWebContentsId, windowId, pageRevision, webContentsId: native.view.webContents.id },
+        {
+          browserSessionId,
+          threadId,
+          tabId,
+          viewId,
+          ownerWebContentsId,
+          windowId,
+          pageRevision,
+          webContentsId: native.view.webContents.id,
+        },
       );
       if (command === "browser_tab_show_annotation_editor") {
         const presentation = asRecord(asRecord(args)?.presentation);
-        if (typeof presentation?.annotationId === "string") this.#annotations.refresh(viewId, presentation.annotationId);
+        if (typeof presentation?.annotationId === "string")
+          this.#annotations.refresh(viewId, presentation.annotationId);
       }
       return result;
     }
-    if (BROWSER_ANNOTATION_COMMANDS.includes(command as BrowserAnnotationCommand)) {
+    if (
+      BROWSER_ANNOTATION_COMMANDS.includes(command as BrowserAnnotationCommand)
+    ) {
       const route = this.#routeForRenderer(window, args);
       if (command === "browser_tab_begin_annotation") {
         this.#overlay.hideWindow(window.id, "hidden");
         this.#takeUserControl(route);
       }
-      return this.#annotations.invoke(window, command as BrowserAnnotationCommand, args);
+      return this.#annotations.invoke(
+        window,
+        command as BrowserAnnotationCommand,
+        args,
+      );
     }
     switch (command) {
       case "browser_tab_list":
@@ -415,11 +583,19 @@ export class ElectronBrowserTabHost {
         return await this.#mount(window, args);
       case "browser_tab_show_menu": {
         const route = this.#routeForRenderer(window, args);
-        if (!route.selected) throw new Error("Browser menu requires the selected tab");
+        if (!route.selected)
+          throw new Error("Browser menu requires the selected tab");
         const native = this.#nativeRoute(route);
         const { tabId: _tabId, ...presentation } = asRecord(args) ?? {};
-        const focus = native.view.webContents.isFocused() ? native.view.webContents : window.webContents;
-        return this.#overlay.show(window, route.viewId, readBrowserMenuPresentation(presentation), focus);
+        const focus = native.view.webContents.isFocused()
+          ? native.view.webContents
+          : window.webContents;
+        return this.#overlay.show(
+          window,
+          route.viewId,
+          readBrowserMenuPresentation(presentation),
+          focus,
+        );
       }
       case "browser_tab_hide_overlay": {
         const route = this.#routeForRenderer(window, args);
@@ -428,12 +604,21 @@ export class ElectronBrowserTabHost {
       }
       case "browser_tab_update_menu": {
         const route = this.#routeForRenderer(window, args);
-        if (!route.selected) throw new Error("Browser menu requires the selected tab");
+        if (!route.selected)
+          throw new Error("Browser menu requires the selected tab");
         const { tabId: _tabId, ...update } = asRecord(args) ?? {};
-        return this.#overlay.update(route.viewId, update as Parameters<BrowserOverlayHost["update"]>[1]);
+        return this.#overlay.update(
+          route.viewId,
+          update as Parameters<BrowserOverlayHost["update"]>[1],
+        );
       }
       case "browser_tab_select":
         return await this.#select(window, args);
+      case "browser_tab_focus_page": {
+        const route = this.#routeForRenderer(window, args);
+        focusBrowserTabPage(this.#nativeRoute(route), route.selected, args);
+        return this.#readState(route);
+      }
       default:
         if (isBrowserTabPageCommand(command)) {
           return await this.#invokeForRenderer(window, args, command);
@@ -443,13 +628,18 @@ export class ElectronBrowserTabHost {
   }
 
   async executeTool(call: BrowserToolCall): Promise<BrowserToolResult> {
-    if (call.tool === "releaseTab" && call.phase === "preflight" && call.approvalToken === undefined) {
+    if (
+      call.tool === "releaseTab" &&
+      call.phase === "preflight" &&
+      call.approvalToken === undefined
+    ) {
       const route = this.#resolveToolRoute(call);
       if (route.activeTurnId !== null && route.activeTurnId !== call.turnId)
         this.#assertAgentControl(route, call.turnId);
       this.#revokeBrowse(route);
       this.#invalidateSnapshot(route);
       this.#detachDebugger(route);
+      this.#embeddedHost.revokePermissionGrants?.(route.viewId);
       route.activeTurnId = null;
       route.controlOwner = "released";
       route.humanReason = null;
@@ -460,8 +650,15 @@ export class ElectronBrowserTabHost {
     if (call.phase === "approvedExecute") {
       if (this.#permissions.hasPending(call)) {
         const route = this.#permissionRoute(call);
-        this.#permissions.consume(call, this.#permissionAnchor(route, call.turnId));
-        return this.#executePreflight({ ...call, phase: "preflight", approvalToken: undefined });
+        this.#permissions.consume(
+          call,
+          this.#permissionAnchor(route, call.turnId),
+        );
+        return this.#executePreflight({
+          ...call,
+          phase: "preflight",
+          approvalToken: undefined,
+        });
       }
       return await this.#executeApprovedTool(call);
     }
@@ -474,7 +671,9 @@ export class ElectronBrowserTabHost {
   async #executePreflight(call: BrowserToolCall): Promise<BrowserToolResult> {
     if (call.tool === "history") {
       const route = this.#permissionRoute(call);
-      const result = await this.#historyTool.preflight(call, reason => this.#requireApproval(route, call, reason, "history_read"));
+      const result = await this.#historyTool.preflight(call, (reason) =>
+        this.#requireApproval(route, call, reason, "history_read"),
+      );
       return { ...result, state: this.#emitState(route) };
     }
     if (call.tool === "openTabs") {
@@ -495,11 +694,19 @@ export class ElectronBrowserTabHost {
     } else if (call.tool !== "newTab") {
       this.#assertAgentControl(route, call.turnId);
     }
-    const targets = call.tool === "newTab" ? [readHttpUrl(call.arguments.url)]
-      : call.tool === "goto" ? [url, readHttpUrl(call.arguments.url)] : [url];
+    const targets =
+      call.tool === "newTab"
+        ? [readHttpUrl(call.arguments.url)]
+        : call.tool === "goto"
+          ? [url, readHttpUrl(call.arguments.url)]
+          : [url];
     this.#policy.assertTool(call, url);
     for (const target of targets) {
-      const approval = this.#permissions.require(call, this.#permissionAnchor(route, call.turnId), target);
+      const approval = this.#permissions.require(
+        call,
+        this.#permissionAnchor(route, call.turnId),
+        target,
+      );
       if (approval) return { ...approval, state: this.#emitState(route) };
     }
     if (call.tool === "newTab") {
@@ -507,6 +714,8 @@ export class ElectronBrowserTabHost {
       return { status: "completed", state };
     }
     if (call.tool === "claimTab") {
+      this.#sitePermissions.cancelView(route.viewId);
+      this.#embeddedHost.revokePermissionGrants?.(route.viewId);
       this.#overlay.hide(route.viewId, "hidden");
       route.activeTurnId = call.turnId;
       route.controlOwner = "agent";
@@ -577,7 +786,11 @@ export class ElectronBrowserTabHost {
 
     const native = this.#nativeRoute(route);
     await this.#attachDebugger(route);
-    for (const target of targets) this.#permissions.assertAllowed(this.#permissionAnchor(route, call.turnId), target);
+    for (const target of targets)
+      this.#permissions.assertAllowed(
+        this.#permissionAnchor(route, call.turnId),
+        target,
+      );
     switch (call.tool) {
       case "goto": {
         this.#invalidateSnapshot(route);
@@ -603,7 +816,10 @@ export class ElectronBrowserTabHost {
           throw new Error("Browser page changed while it was being observed");
         }
         this.#assertAgentControl(route, call.turnId);
-        this.#permissions.assertAllowed(this.#permissionAnchor(route, call.turnId), this.#readState(route).url);
+        this.#permissions.assertAllowed(
+          this.#permissionAnchor(route, call.turnId),
+          this.#readState(route).url,
+        );
         route.latestSnapshotId = snapshotId;
         route.latestSnapshotNodeIds = new Set(
           observation.nodes
@@ -628,7 +844,10 @@ export class ElectronBrowserTabHost {
           ),
         );
         this.#assertAgentControl(route, call.turnId);
-        this.#permissions.assertAllowed(this.#permissionAnchor(route, call.turnId), this.#readState(route).url);
+        this.#permissions.assertAllowed(
+          this.#permissionAnchor(route, call.turnId),
+          this.#readState(route).url,
+        );
         const imageBase64 = readStringValue(response?.data);
         if (!imageBase64) {
           throw new Error("Browser screenshot did not return image data");
@@ -658,7 +877,10 @@ export class ElectronBrowserTabHost {
     threadId: string,
     turnId: string,
   ): PendingBrowserApproval | PendingBrowseApproval | null {
-    for (const approval of [...this.#actionApprovals.list(), ...this.#permissions.pending()]) {
+    for (const approval of [
+      ...this.#actionApprovals.list(),
+      ...this.#permissions.pending(),
+    ]) {
       if (approval.threadId === threadId && approval.turnId === turnId) {
         return structuredClone(approval);
       }
@@ -667,9 +889,10 @@ export class ElectronBrowserTabHost {
   }
 
   pendingApprovalsForE2e(): (PendingBrowserApproval | PendingBrowseApproval)[] {
-    return [...this.#actionApprovals.list(), ...this.#permissions.pending()].map((approval) =>
-      structuredClone(approval),
-    );
+    return [
+      ...this.#actionApprovals.list(),
+      ...this.#permissions.pending(),
+    ].map((approval) => structuredClone(approval));
   }
 
   observeEmbeddedEvent(event: string, payload: unknown): void {
@@ -678,18 +901,37 @@ export class ElectronBrowserTabHost {
     const tabId = viewId ? this.#tabIdsByViewId.get(viewId) : null;
     const route = tabId ? this.#routesByTabId.get(tabId) : null;
     if (viewId && record) {
-      if (event === "embedded-browser-view-destroyed") this.#history.forget(viewId);
+      if (event === "embedded-browser-view-destroyed")
+        this.#history.forget(viewId);
       if (event === "embedded-browser-view-navigation-started" && route) {
         this.#annotations.cancelView(route.viewId, "navigation");
         this.#overlay.hide(route.viewId, "navigation");
         return;
       }
-      if ((event === "embedded-browser-view-navigation-committed" || event === "embedded-browser-view-title-updated") && (route || this.#routeForNativePolicy(viewId))) {
+      if (
+        (event === "embedded-browser-view-navigation-committed" ||
+          event === "embedded-browser-view-title-updated") &&
+        (route || this.#routeForNativePolicy(viewId))
+      ) {
         const url = readString(record, "url");
         const title = readString(record, "title") ?? "";
-        if (url) void (event === "embedded-browser-view-navigation-committed"
-          ? this.#history.committed(viewId, { url, title })
-          : this.#history.titleUpdated(viewId, url, title)).catch(error => console.warn("[browser-tab-host] browser history persistence failed", error));
+        if (url)
+          void (
+            event === "embedded-browser-view-navigation-committed"
+              ? this.#history.committed(viewId, {
+                  url,
+                  title,
+                  isActorVisit:
+                    (route ?? this.#routeForNativePolicy(viewId))
+                      ?.controlOwner === "agent",
+                })
+              : this.#history.titleUpdated(viewId, url, title)
+          ).catch((error) =>
+            console.warn(
+              "[browser-tab-host] browser history persistence failed",
+              error,
+            ),
+          );
         return;
       }
     }
@@ -730,7 +972,11 @@ export class ElectronBrowserTabHost {
           readString(record, "decision") === "pending"
         ) {
           const turnId = route.activeTurnId;
-          if (turnId && webContentsId !== null) {
+          if (
+            route.controlOwner === "agent" &&
+            turnId &&
+            webContentsId !== null
+          ) {
             this.#pendingPermissions.set(requestId, {
               browserSessionId: route.browserSessionId,
               ownerWebContentsId: route.ownerWebContentsId,
@@ -744,12 +990,11 @@ export class ElectronBrowserTabHost {
               windowId: route.windowId,
             });
           } else {
-            // A deferred permission without an active turn has no valid grant owner.
-            this.#embeddedHost.resolvePermission(
-              requestId,
-              false,
+            const prompted = this.#sitePermissions.request(
               route.viewId,
+              record,
             );
+            if (prompted) return;
             nextRecord = { ...record, decision: "blocked" };
           }
         } else if (requestId) {
@@ -778,7 +1023,9 @@ export class ElectronBrowserTabHost {
   }
 
   turnEnded(threadId: string, turnId: string): void {
-    this.#permissions.revoke(scope => scope.threadId === threadId && scope.turnId === turnId);
+    this.#permissions.revoke(
+      (scope) => scope.threadId === threadId && scope.turnId === turnId,
+    );
     this.#clearPendingPermissions(
       (permission) =>
         permission.threadId === threadId && permission.turnId === turnId,
@@ -798,6 +1045,7 @@ export class ElectronBrowserTabHost {
           artifact.tabId === route.tabId,
       );
       this.#detachDebugger(route);
+      this.#embeddedHost.revokePermissionGrants?.(route.viewId);
       route.activeTurnId = null;
       route.controlOwner = "released";
       route.humanReason = null;
@@ -944,6 +1192,8 @@ export class ElectronBrowserTabHost {
   }
 
   connectionLost(reason = "app-server-disconnected"): void {
+    this.#sitePermissions.cancelView();
+    this.#embeddedHost.revokePermissionGrants?.();
     this.#permissions.revoke();
     this.#clearPendingPermissions(() => true);
     this.#embeddedHost.clearPendingPermissions?.();
@@ -970,9 +1220,13 @@ export class ElectronBrowserTabHost {
     }
   }
 
-  prepareShutdown(): Promise<void> { this.#embeddedHost.prepareDownloadShutdown(); return this.#downloads.prepareShutdown(); }
+  prepareShutdown(): Promise<void> {
+    this.#embeddedHost.prepareDownloadShutdown();
+    return this.#downloads.prepareShutdown();
+  }
 
   dispose(): void {
+    this.#sitePermissions.cancelView();
     this.#permissions.revoke();
     this.#annotations.dispose();
     this.#overlay.dispose();
@@ -1066,7 +1320,7 @@ export class ElectronBrowserTabHost {
       selected.tabId,
     )) {
       const native = this.#nativeRoute(route);
-      const bounds = readBounds(args) ?? native.view.getBounds();
+      const bounds = readBounds(args) ?? native.containerBounds;
       await this.#embeddedHost.invoke(
         native.window,
         "embedded_browser_view_set_bounds",
@@ -1113,19 +1367,37 @@ export class ElectronBrowserTabHost {
     return base;
   }
 
-  #permissionAnchor(route: BrowserRoute, turnId: string): BrowserPermissionAnchor {
-    return { ownerWebContentsId: route.ownerWebContentsId, windowId: route.windowId,
-      threadId: route.threadId, browserSessionId: route.browserSessionId, turnId,
-      tabId: route.tabId, viewId: route.viewId, pageRevision: route.pageRevision,
-      webContentsId: this.#nativeRoute(route).view.webContents.id };
+  #permissionAnchor(
+    route: BrowserRoute,
+    turnId: string,
+  ): BrowserPermissionAnchor {
+    return {
+      ownerWebContentsId: route.ownerWebContentsId,
+      windowId: route.windowId,
+      threadId: route.threadId,
+      browserSessionId: route.browserSessionId,
+      turnId,
+      tabId: route.tabId,
+      viewId: route.viewId,
+      pageRevision: route.pageRevision,
+      webContentsId: this.#nativeRoute(route).view.webContents.id,
+    };
   }
 
   #revokeBrowse(route: BrowserRoute): void {
-    this.#permissions.revoke(scope => scope.ownerWebContentsId === route.ownerWebContentsId &&
-      scope.windowId === route.windowId && scope.threadId === route.threadId && scope.browserSessionId === route.browserSessionId);
+    this.#permissions.revoke(
+      (scope) =>
+        scope.ownerWebContentsId === route.ownerWebContentsId &&
+        scope.windowId === route.windowId &&
+        scope.threadId === route.threadId &&
+        scope.browserSessionId === route.browserSessionId,
+    );
   }
 
-  async #newAgentTab(call: BrowserToolCall, base: BrowserRoute): Promise<BrowserTabState> {
+  async #newAgentTab(
+    call: BrowserToolCall,
+    base: BrowserRoute,
+  ): Promise<BrowserTabState> {
     const native = this.#nativeRoute(base);
     const tabId = call.callId;
     const route: BrowserRoute = {
@@ -1156,7 +1428,7 @@ export class ElectronBrowserTabHost {
         "embedded_browser_view_set_bounds",
         {
           viewId: item.viewId,
-          bounds: itemNative.view.getBounds(),
+          bounds: itemNative.containerBounds,
           visible: false,
         },
       );
@@ -1170,7 +1442,7 @@ export class ElectronBrowserTabHost {
       {
         viewId: route.viewId,
         url: readHttpUrl(call.arguments.url),
-        bounds: native.view.getBounds(),
+        bounds: native.containerBounds,
         visible: true,
       },
     );
@@ -1263,7 +1535,10 @@ export class ElectronBrowserTabHost {
   }
 
   #invalidateSnapshot(route: BrowserRoute): void {
-    this.#permissions.clearPending(approval => approval.tabId === route.tabId);
+    this.#sitePermissions.cancelView(route.viewId);
+    this.#permissions.clearPending(
+      (approval) => approval.tabId === route.tabId,
+    );
     this.#clearPendingApprovals((approval) => approval.tabId === route.tabId);
     this.#clearPendingPermissions(
       (permission) =>
@@ -1296,6 +1571,7 @@ export class ElectronBrowserTabHost {
 
   #releaseUserControl(route: BrowserRoute): void {
     this.#detachDebugger(route);
+    this.#embeddedHost.revokePermissionGrants?.(route.viewId);
     this.#invalidateSnapshot(route);
     route.activeTurnId = null;
     route.controlOwner = "user";
@@ -1304,7 +1580,7 @@ export class ElectronBrowserTabHost {
 
   #takeUserControl(route: BrowserRoute): void {
     this.#revokeBrowse(route);
-    this.#clearPendingApprovals(approval => approval.tabId === route.tabId);
+    this.#clearPendingApprovals((approval) => approval.tabId === route.tabId);
     if (
       this.#routesByTabId.get(route.tabId) !== route ||
       (route.controlOwner !== "agent" &&
@@ -1500,8 +1776,16 @@ export class ElectronBrowserTabHost {
     riskClass: string,
     targetDescription: string | null = null,
   ): BrowserToolResult {
-    if (this.#permissions.hasPending(call)) throw new Error("Browser action approval is already pending");
-    return this.#actionApprovals.request(call, this.#permissionAnchor(route, call.turnId), this.#emitState(route), reason, riskClass, targetDescription);
+    if (this.#permissions.hasPending(call))
+      throw new Error("Browser action approval is already pending");
+    return this.#actionApprovals.request(
+      call,
+      this.#permissionAnchor(route, call.turnId),
+      this.#emitState(route),
+      reason,
+      riskClass,
+      targetDescription,
+    );
   }
 
   async #executeApprovedTool(
@@ -1510,14 +1794,26 @@ export class ElectronBrowserTabHost {
     const pending = this.#actionApprovals.consume(call);
     const route = this.#resolveToolRoute(call);
     if (call.tool === "history") {
-      this.#actionApprovals.assertRoute(pending, this.#permissionAnchor(route, call.turnId));
-      return { ...await this.#historyTool.read(call), state: this.#emitState(route) };
+      this.#actionApprovals.assertRoute(
+        pending,
+        this.#permissionAnchor(route, call.turnId),
+      );
+      return {
+        ...(await this.#historyTool.read(call)),
+        state: this.#emitState(route),
+      };
     }
     this.#assertAgentControl(route, call.turnId);
     this.#policy.assertTool(call, this.#readState(route).url);
-    this.#permissions.assertAllowed(this.#permissionAnchor(route, call.turnId), this.#readState(route).url);
+    this.#permissions.assertAllowed(
+      this.#permissionAnchor(route, call.turnId),
+      this.#readState(route).url,
+    );
     const native = this.#nativeRoute(route);
-    this.#actionApprovals.assertRoute(pending, this.#permissionAnchor(route, call.turnId));
+    this.#actionApprovals.assertRoute(
+      pending,
+      this.#permissionAnchor(route, call.turnId),
+    );
     if (pending.snapshotId !== null) {
       this.#assertSnapshot(
         route,
@@ -1729,7 +2025,9 @@ export class ElectronBrowserTabHost {
     };
   }
 
-  #clearPendingApprovals(predicate: (approval: BrowserPermissionAnchor) => boolean): void {
+  #clearPendingApprovals(
+    predicate: (approval: BrowserPermissionAnchor) => boolean,
+  ): void {
     this.#actionApprovals.clear(predicate);
     this.#historyTool.cancel(predicate);
   }
@@ -1846,7 +2144,7 @@ export class ElectronBrowserTabHost {
           "embedded_browser_view_set_bounds",
           {
             viewId: fallback.viewId,
-            bounds: native.view.getBounds(),
+            bounds: native.containerBounds,
             visible: true,
           },
         );
@@ -1856,6 +2154,8 @@ export class ElectronBrowserTabHost {
   }
 
   #removeRoute(route: BrowserRoute): void {
+    this.#sitePermissions.cancelView(route.viewId);
+    this.#embeddedHost.revokePermissionGrants?.(route.viewId);
     this.#annotations.cancelView(route.viewId, "owner");
     this.#revokeBrowse(route);
     this.#overlay.hide(route.viewId, "owner");

@@ -46,53 +46,8 @@ describe("skillCatalog pure catalog projection", () => {
         defaultExecutorBinding: "native_skill",
         skillBundle: expect.objectContaining({
           metadata: expect.objectContaining({
-            Lime_knowledge_pack_type: "personal-profile",
-            Lime_knowledge_family: "persona",
-          }),
-        }),
-      }),
-    );
-    expect(
-      catalog.items.find(
-        (item) => item.id === "brand-persona-knowledge-builder",
-      ),
-    ).toEqual(
-      expect.objectContaining({
-        defaultExecutorBinding: "native_skill",
-        skillBundle: expect.objectContaining({
-          metadata: expect.objectContaining({
-            Lime_knowledge_pack_type: "brand-persona",
-            Lime_knowledge_family: "persona",
-          }),
-        }),
-      }),
-    );
-    expect(
-      catalog.items.find(
-        (item) => item.id === "content-operations-knowledge-builder",
-      ),
-    ).toEqual(
-      expect.objectContaining({
-        defaultExecutorBinding: "native_skill",
-        skillBundle: expect.objectContaining({
-          metadata: expect.objectContaining({
-            Lime_knowledge_pack_type: "content-operations",
-            Lime_knowledge_family: "data",
-          }),
-        }),
-      }),
-    );
-    expect(
-      catalog.items.find(
-        (item) => item.id === "brand-product-knowledge-builder",
-      ),
-    ).toEqual(
-      expect.objectContaining({
-        defaultExecutorBinding: "native_skill",
-        skillBundle: expect.objectContaining({
-          metadata: expect.objectContaining({
-            Lime_knowledge_pack_type: "brand-product",
-            Lime_knowledge_family: "data",
+            Lime_skill_bundle_path:
+              "lime-rs/resources/default-skills/personal-ip-knowledge-builder",
           }),
         }),
       }),
@@ -111,24 +66,6 @@ describe("skillCatalog pure catalog projection", () => {
           resourceSummary: expect.objectContaining({
             hasReferences: true,
             hasScripts: true,
-          }),
-        }),
-      }),
-    );
-    expect(
-      listSkillCatalogSkillEntries(catalog).find(
-        (entry) => entry.skillId === "brand-persona-knowledge-builder",
-      ),
-    ).toEqual(
-      expect.objectContaining({
-        kind: "skill",
-        execution: expect.objectContaining({
-          kind: "native_skill",
-        }),
-        skillBundle: expect.objectContaining({
-          resourceSummary: expect.objectContaining({
-            hasReferences: true,
-            hasScripts: false,
           }),
         }),
       }),

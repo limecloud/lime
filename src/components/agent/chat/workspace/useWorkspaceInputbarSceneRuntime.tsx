@@ -15,10 +15,7 @@ import {
 import type { ComposerController } from "@/components/input-kit/ComposerController";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import type {
-  AgentInitialInputCapabilityParams,
-  AgentInitialKnowledgePackSelectionParams,
-} from "@/types/page";
+import type { AgentInitialInputCapabilityParams } from "@/types/page";
 import { PendingRequestItemPanel } from "../components/PendingRequestItemPanel";
 import { StrictReviewStatus } from "../components/StrictReviewStatus";
 import {
@@ -46,7 +43,6 @@ import type { SendMessageFn } from "../hooks/agentChatShared";
 import { useAsyncUserInput } from "./useAsyncUserInput";
 import { QuestionSelectionContext } from "../components/asyncUserInput/QuestionSelectionContext";
 
-import { useWorkspaceKnowledgeRuntime } from "./knowledge/useWorkspaceKnowledgeRuntime";
 import { selectPendingInputbarApprovalAction } from "./inputbarApprovalAction";
 import {
   useWorkspaceInputbarScenePresentationRuntime,
@@ -72,7 +68,6 @@ interface UseWorkspaceInputbarSceneRuntimeParams {
   threadGoalError: InputbarParams["threadGoalError"];
   threadGoalLoading: InputbarParams["threadGoalLoading"];
   generalWorkbenchHarnessPanelBaseProps: WorkspaceGeneralWorkbenchHarnessPanelBaseProps;
-  currentSessionTitle: string | null | undefined;
   handleStopSending: InputbarParams["onStop"];
   input: InputbarParams["input"];
   composerController?: ComposerController;
@@ -107,13 +102,11 @@ interface UseWorkspaceInputbarSceneRuntimeParams {
     | "handleManageProviders"
     | "handleOpenExecutionPolicySettings"
     | "handleOpenRuntimeMemoryWorkbench"
-    | "handleOpenKnowledgeManagement"
   >;
   skills: InputbarParams["skills"];
   skillsLoading: InputbarParams["isSkillsLoading"];
   onSkillSuggestionsNeeded?: InputbarParams["onSkillSuggestionsNeeded"];
   initialInputCapability?: AgentInitialInputCapabilityParams;
-  initialKnowledgePackSelection?: AgentInitialKnowledgePackSelectionParams;
   pluginSuggestions?: InputbarParams["pluginSuggestions"];
   pluginSuggestionsError?: string | null;
   pluginSuggestionsLoading?: boolean;
@@ -154,7 +147,6 @@ export function useWorkspaceInputbarSceneRuntime({
   threadGoalError,
   threadGoalLoading,
   generalWorkbenchHarnessPanelBaseProps,
-  currentSessionTitle,
   handleStopSending,
   input,
   composerController,
@@ -189,7 +181,6 @@ export function useWorkspaceInputbarSceneRuntime({
   skillsLoading,
   onSkillSuggestionsNeeded,
   initialInputCapability,
-  initialKnowledgePackSelection,
   pluginSuggestions,
   pluginSuggestionsError,
   pluginSuggestionsLoading,
@@ -237,15 +228,6 @@ export function useWorkspaceInputbarSceneRuntime({
     threadId: pendingInteractionThreadId,
   });
   const directInputBlocked = canAcceptDirectInput === false;
-  const knowledgeRuntime = useWorkspaceKnowledgeRuntime({
-    projectRootPath,
-    currentSessionTitle,
-    input,
-    setInput,
-    handleSend,
-    onOpenKnowledgeManagement: navigationActions.handleOpenKnowledgeManagement,
-    initialKnowledgePackSelection,
-  });
   const resolvedChatToolPreferences =
     chatToolPreferences ?? DEFAULT_CHAT_TOOL_PREFERENCES;
   const asyncUserInput = useAsyncUserInput({
@@ -583,14 +565,5 @@ export function useWorkspaceInputbarSceneRuntime({
         )}
       </QuestionSelectionContext.Provider>
     ),
-    knowledgePackSelection: knowledgeRuntime.knowledgePackSelection,
-    knowledgePackOptions: knowledgeRuntime.knowledgePackOptions,
-    onToggleKnowledgePack: knowledgeRuntime.onToggleKnowledgePack,
-    onSelectKnowledgePack: knowledgeRuntime.onSelectKnowledgePack,
-    onToggleKnowledgeCompanionPack:
-      knowledgeRuntime.onToggleKnowledgeCompanionPack,
-    onKnowledgePacksNeeded: knowledgeRuntime.onKnowledgePacksNeeded,
-    onStartKnowledgeOrganize: knowledgeRuntime.onStartKnowledgeOrganize,
-    onManageKnowledgePacks: knowledgeRuntime.onManageKnowledgePacks,
   };
 }

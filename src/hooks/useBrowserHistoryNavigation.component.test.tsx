@@ -744,7 +744,7 @@ describe("browser menu settings navigation", () => {
       },
     },
     { agentLocation: null },
-    { page: "settings" as const },
+    { page: "settings" as const, pageParams: { tab: SettingsTabs.Browser } },
   ])(
     "drops a stale menu owner without inventing a thread or workspace: %j",
     async (overrides) => {

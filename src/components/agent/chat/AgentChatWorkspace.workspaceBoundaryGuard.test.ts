@@ -474,7 +474,6 @@ describe("AgentChatWorkspace retired message knowledge save boundary", () => {
     const surfaceSource = [
       "src/components/agent/chat/workspace/useAgentChatWorkspaceSceneRuntime.tsx",
       "src/components/agent/chat/workspace/useWorkspaceInputbarSceneRuntime.tsx",
-      "src/components/agent/chat/workspace/knowledge/useWorkspaceKnowledgeRuntime.ts",
       "src/components/agent/chat/components/MessageList.types.ts",
       "src/components/agent/chat/components/MessageActionButtons.tsx",
       "src/components/agent/chat/components/MessageArtifactCards.tsx",
@@ -487,17 +486,14 @@ describe("AgentChatWorkspace retired message knowledge save boundary", () => {
     expect(surfaceSource).not.toMatch(
       /onSaveMessageAsKnowledge|onSaveFileArtifactAsKnowledge|onImportTextAsKnowledge|canSaveMessageAsKnowledge|knowledgeArtifactSource/,
     );
-    const knowledgeSource = readFileSync(
-      join(process.cwd(), "src/features/knowledge/KnowledgePage.tsx"),
-      "utf8",
+    expect(existsSync(join(process.cwd(), "src/features/knowledge"))).toBe(
+      false,
     );
     const pageParams = readFileSync(
       join(process.cwd(), "src/types/page.ts"),
       "utf8",
     );
-    expect(knowledgeSource).not.toMatch(
-      /saveDraft|activeView\s*===\s*["']save["']/,
-    );
+
     expect(pageParams).not.toContain("saveDraft");
   });
 });

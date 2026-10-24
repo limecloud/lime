@@ -52,7 +52,7 @@
   - App Server 请求遵循生成 schema 与 current client sender：`method`、可选 `params` 和请求 `id`；版本字段可以省略，显式版本只能为 `jsonrpc: "2.0"`。当前 schema manifest 的 `sendsJsonRpcVersionField=false`，不能由标准 JSON-RPC 文本强制 fixture 添加字段。响应关联同一个 `id` 的 `result` 或 `error`；排障记录 method / id / result / error（标准 JSON-RPC 规范：https://www.jsonrpc.org/specification）。
 - Companion 桌宠链路已在 Lime 主仓下线并归类为 `dead`；Playwright 续测不再验证 `companion_*` API、`companion-pet-status` 状态事件、桌宠设置回跳或主窗口唤起链路
 - 如未来重新设计独立桌面伴随能力，必须先定义新的 current 协议与 GUI 入口，再补对应 Playwright 覆盖；不得复用旧 `companion_*` 命令或本地 `companion/pet` 协议作为续测依据
-- 共享网关控制页已下线，托盘也不再展示网关状态或地址；共享网关 `/v1/routes` 与 selector HTTP 路由也已下线，不再对“启动/停止网关、复制网关地址、路由/curl 示例、selector 路由、托盘运行态文案”做 GUI 续测；server 验证只关注标准 `/v1/messages` 与 `/v1/chat/completions` 主链，如需看运行时状态，走开发者页或实验页的诊断面板
+- 共享网关控制页已下线，托盘也不再展示网关状态或地址；共享网关 `/v1/routes` 与 selector HTTP 路由也已下线，不再对“启动/停止网关、复制网关地址、路由/curl 示例、selector 路由、托盘运行态文案”做 GUI 续测；server 验证只关注标准 `/v1/messages` 与 `/v1/chat/completions` 主链，运行时状态通过现役日志与支持包诊断核查
 - 旧设置页里的“安全与性能 / 容错配置”已经下线，不再对这些页签、表单或命令写入路径做 GUI 续测；如果还要验证提示路由，只围绕当前输入框 `get_hint_routes` 读取链与提示展示，不再寻找旧设置页入口
 - 初装引导里的旧插件选择 / 插件安装 / 配置切换链路已经下线，不再对 `config-switch` 推荐安装、Provider Switch 页面或相关命令做 GUI 续测；当前 onboarding 只围绕现役语音体验流程验证
 - 项目排版模板与品牌人设扩展旧链路已下线，不再对相关弹窗、模板列表、默认模板、人设扩展表单做 GUI 续测；项目与工作台回归只围绕当前 `Claw` / `workspace` / 现役 `persona` 主链
@@ -566,15 +566,6 @@ Web Search 复用同一导航fixture，子场景为`scripts/electron/lib/setting
 7. 如果当前 scene 绑定的是站点型 skill，例如 `/x文章转存 https://x.com/.../article/...`，确认 slash 菜单可见后仍能成功解析到底层 site skill，而不是因为首页未暴露 site skill 就在发送时失配
 8. 对 `markdown_bundle` 型站点场景，确认成功后项目目录里同时出现 `index.md`、`images/` 和 `meta.json`，且正文中的图片链接已经被改写为项目内相对路径，而不是继续指向远程图片 URL
 9. 同时确认聊天轻卡或 tool timeline 会明确展示项目目录、Markdown 相对路径和图片数量，避免用户只能看到“已保存”却不知道文件实际落点
-
-### 开发者页站点来源导入验证
-
-1. 进入 `设置 -> 开发者`
-2. 在 `站点脚本目录联调` 区块找到 `外部来源 YAML 导入`
-3. 粘贴一份仅包含 Lime 支持子集的 YAML 来源，点击 `导入到 Lime 标准`
-4. 验证摘要区来源切换为 `外部导入`，且适配器列表出现新导入名称
-5. 再点击 `清空站点目录缓存`，确认来源恢复为 `应用内置`，列表回退到 bundled 目录
-6. 导入与清理全过程都不应出现后台自动拉起浏览器、自动唤醒 Chrome 或常驻浏览器控制进程
 
 ### Browser Workspace 同页控制验证
 

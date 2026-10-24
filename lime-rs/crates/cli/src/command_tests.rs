@@ -672,7 +672,7 @@ mod features_tests {
     #[test]
     fn features_enable_and_disable_parse_feature_name() {
         for action in ["enable", "disable"] {
-            let cli = crate::MultitoolCli::try_parse_from(["lime", "features", action, "webmcp"])
+            let cli = crate::MultitoolCli::try_parse_from(["lime", "features", action, "workspace_dependencies"])
                 .expect("parse feature toggle");
             assert!(matches!(
                 cli.subcommand,

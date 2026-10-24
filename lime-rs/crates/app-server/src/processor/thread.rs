@@ -1,3 +1,4 @@
+mod defaults;
 mod dynamic_tools;
 mod guardian;
 mod inject_items;

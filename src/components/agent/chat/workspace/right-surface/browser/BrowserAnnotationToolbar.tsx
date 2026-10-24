@@ -6,6 +6,27 @@ import { browserIconButton } from "./BrowserNavigationBar";
 import { useBrowserAnnotationToolbar } from "./useBrowserAnnotationToolbar";
 import { BrowserAnnotationOriginalButton } from "./BrowserAnnotationOriginalButton";
 
+const labels = {
+  title: "browserAnnotation.title",
+  exit: "browserAnnotation.exit",
+  discardAll: "browserAnnotation.discardAll",
+  browsing: "browserAnnotation.browsing",
+  annotating: "browserAnnotation.annotating",
+  releaseSpace: "browserAnnotation.releaseSpace",
+  holdSpace: "browserAnnotation.holdSpace",
+  original: "browserAnnotation.original",
+  holdOriginal: "browserAnnotation.holdOriginal",
+  hideMarkers: "browserAnnotation.hideMarkers",
+  showMarkers: "browserAnnotation.showMarkers",
+  sending: "browserAnnotation.sending",
+  addToComposer: "browserAnnotation.addToComposer",
+  sendAll: "browserAnnotation.sendAll",
+  sendFailed: "browserAnnotation.sendFailed",
+  markersFailed: "browserAnnotation.markersFailed",
+  discardChanged: "browserAnnotation.discardChanged",
+  originalFailed: "browserAnnotation.originalFailed",
+} as const;
+
 function primaryPressed(event: { metaKey: boolean; ctrlKey: boolean }) {
   return /Mac|iPhone|iPad|iPod/.test(navigator.platform)
     ? event.metaKey
@@ -52,7 +73,7 @@ export function BrowserAnnotationToolbar({
   const adding = Boolean(
     onAddToComposer && (rendererModifier || addModifierPressed),
   );
-  const label = (key: string) => String(t(`browserAnnotation.${key}` as never));
+  const label = (key: keyof typeof labels) => String(t(labels[key] as never));
   const sendLabel = label(
     toolbar.operation === "send"
       ? "sending"

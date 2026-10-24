@@ -60,18 +60,6 @@ vi.mock(
 );
 vi.mock("sonner", () => ({ toast: toastMock }));
 
-vi.mock("./knowledge/useWorkspaceKnowledgeRuntime", () => ({
-  useWorkspaceKnowledgeRuntime: () => ({
-    knowledgePackSelection: null,
-    knowledgePackOptions: [],
-    onToggleKnowledgePack: vi.fn(),
-    onSelectKnowledgePack: vi.fn(),
-    onToggleKnowledgeCompanionPack: vi.fn(),
-    onStartKnowledgeOrganize: vi.fn(),
-    onManageKnowledgePacks: vi.fn(),
-  }),
-}));
-
 type HookProps = Parameters<typeof useWorkspaceInputbarSceneRuntime>[0];
 type HarnessPanelBaseProps = HookProps["generalWorkbenchHarnessPanelBaseProps"];
 type HookPropsOverrides = Partial<
@@ -92,10 +80,6 @@ function createDefaultHarnessPanelBaseProps(
       skillsCount: 0,
       skillNames: [],
       memorySignals: [],
-      contextItemsCount: 0,
-      activeContextCount: 0,
-      contextItemNames: [],
-      contextEnabled: false,
     },
     canonicalChildren: [],
     threadRead: null,
@@ -158,7 +142,6 @@ function createDefaultProps(overrides: HookPropsOverrides = {}): HookProps {
         ...(onRespondToAction ? { onRespondToAction } : {}),
       },
     ),
-    currentSessionTitle: "当前会话",
     handleStopSending: noop,
     input: "",
     setInput: noop,
@@ -185,7 +168,6 @@ function createDefaultProps(overrides: HookPropsOverrides = {}): HookProps {
       handleManageProviders: noop,
       handleOpenExecutionPolicySettings: noop,
       handleOpenRuntimeMemoryWorkbench: noop,
-      handleOpenKnowledgeManagement: noop,
     },
     characters: [],
     skills: [],
@@ -194,7 +176,6 @@ function createDefaultProps(overrides: HookPropsOverrides = {}): HookProps {
     skillsLoading: false,
     onSelectServiceSkill: noop,
     initialInputCapability: undefined,
-    initialKnowledgePackSelection: undefined,
     setChatToolPreferences: noop,
     handleNavigateToSkillSettings: noop,
     handleRefreshSkills: noop,

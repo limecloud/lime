@@ -16,12 +16,14 @@ pub mod session_context;
 pub mod thread;
 pub mod truncation;
 pub mod turn_context;
+pub mod web_search;
 pub mod world_state;
 
 pub use approval::ApprovalsReviewer;
 pub use collaboration_mode::{CollaborationMode, CollaborationModeSettings, ModeKind};
 pub use input::{AgentInput, AgentInputError, ByteRange, ImageDetail, TextElement};
 pub use multi_agent_mode::MultiAgentMode;
+pub use web_search::WebSearchMode;
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};

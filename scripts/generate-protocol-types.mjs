@@ -197,6 +197,9 @@ function objectTypeToTs(schema, indent = 0) {
     if (schema.additionalProperties === false) {
       return "Record<string, never>";
     }
+    if (typeof schema.additionalProperties === "object") {
+      return `Record<string, ${schemaToTs(schema.additionalProperties, indent)}>`;
+    }
     return "Record<string, unknown>";
   }
 

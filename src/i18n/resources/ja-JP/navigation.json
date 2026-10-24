@@ -33,7 +33,6 @@
   "navigation.sidebar.home.label": "Lime ホーム",
   "navigation.sidebar.items.scheduledTasks": "スケジュール済みタスク",
   "navigation.sidebar.items.channels": "メッセージチャネル",
-  "navigation.sidebar.items.knowledge": "プロジェクト資料",
   "navigation.sidebar.items.plugins": "プラグイン",
   "navigation.sidebar.items.settings": "設定",
   "navigation.pluginWorkspace.tabsLabel": "プラグインコンテンツ",
@@ -182,7 +181,6 @@
   "navigation.sidebar.landmark": "アプリナビゲーション",
   "navigation.sidebar.account.openMenu": "プロフィールメニューを開く",
   "navigation.sidebar.account.profile": "プロフィール",
-  "navigation.sidebar.account.usage": "使用状況",
   "navigation.sidebar.account.login.action": "ログイン",
   "navigation.sidebar.account.logout": "ログアウト",
   "navigation.sidebar.account.logoutFailed": "ログアウトに失敗しました"

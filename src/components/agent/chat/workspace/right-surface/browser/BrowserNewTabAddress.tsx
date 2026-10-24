@@ -6,15 +6,18 @@ import type { BrowserTranslate } from "./BrowserNavigationBar";
 export function BrowserNewTabAddress({
   sourceTabId,
   active,
+  draft,
+  onDraftChange,
   onOpenAddress,
   translate,
 }: {
   sourceTabId: string;
   active: boolean;
+  draft: string;
+  onDraftChange: (value: string) => void;
   onOpenAddress: (sourceTabId: string, url: string) => Promise<void>;
   translate: BrowserTranslate;
 }) {
-  const [draft, setDraft] = useState("");
   const [pending, setPending] = useState(false);
   const [failed, setFailed] = useState(false);
   const input = useRef<HTMLInputElement>(null);
@@ -104,7 +107,7 @@ export function BrowserNewTabAddress({
           inputMode="url"
           data-testid="browser-new-tab-address"
           onChange={(event) => {
-            setDraft(event.target.value);
+            onDraftChange(event.target.value);
             setFailed(false);
           }}
           onCompositionStart={() => {
@@ -128,6 +131,8 @@ export function BrowserNewTabAddress({
             ) {
               event.preventDefault();
               event.stopPropagation();
+              onDraftChange("");
+              setFailed(false);
               event.currentTarget.blur();
             }
           }}

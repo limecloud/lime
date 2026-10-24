@@ -29,7 +29,7 @@ function traceRaw(transport = "electron-ipc") {
             JSON.stringify({
               jsonrpc: "2.0",
               id: 2,
-              method: "config/batchWrite",
+              method: "config/value/write",
               params: {},
             }),
           ],
@@ -45,8 +45,8 @@ function passingFacts() {
     electronLaunchCount: 3,
     preloadLaunchCount: 3,
     isolatedUserData: true,
-    webSearchTabActive: true,
-    routeControlReady: true,
+    configurationTabActive: true,
+    modeControlReady: true,
     routeChanged: true,
     saveConfirmed: true,
     restartReadback: true,
@@ -96,7 +96,7 @@ describe("Settings Web Search Gate B evidence", () => {
   it("requires current config read/write and App Server IPC", () => {
     expect(summarizeSettingsWebSearchTrace(traceRaw())).toMatchObject({
       appServerIpcHitCount: 1,
-      methods: ["config/read", "config/batchWrite"],
+      methods: ["config/read", "config/value/write"],
       configIpcHitCount: 1,
       missingConfigMethods: [],
       legacyCommands: [],
@@ -131,7 +131,7 @@ describe("Settings Web Search Gate B evidence", () => {
         trace: summarizeSettingsWebSearchTrace(traceRaw("renderer-mock")),
       }),
     ).toThrow(
-        /appServerElectronIpc.*appServerCurrentMethod.*configElectronIpc.*configCurrentReadWrite.*restorationReadback.*mockFallbackZero/,
+      /appServerElectronIpc.*appServerCurrentMethod.*configElectronIpc.*configCurrentReadWrite.*restorationReadback.*mockFallbackZero/,
     );
   });
 });

@@ -200,6 +200,47 @@ describe("ExpertPlazaPage", () => {
     expect(params).not.toHaveProperty("entryBannerMessage");
   });
 
+  it("真实资料整理专家卡片应使用普通 Skill 启动当前项目新对话", async () => {
+    const { container, onNavigate } = renderPage(vi.fn(), "project-current");
+    await flushEffects();
+    const button = container.querySelector<HTMLButtonElement>(
+      '[data-testid="expert-start-knowledge-organizer"]',
+    );
+    expect(button).not.toBeNull();
+    act(() => button!.click());
+
+    expect(onNavigate).toHaveBeenCalledTimes(1);
+    const [page, params] = onNavigate.mock.calls[0];
+    expect(page).toBe("agent");
+    expect(params).toMatchObject({
+      agentEntry: "claw",
+      projectId: "project-current",
+      autoRunInitialPromptOnMount: true,
+      expertAgentLaunch: {
+        expertId: "knowledge-organizer",
+        launchMode: "new_thread",
+      },
+      initialRequestMetadata: {
+        expert: { skillRefs: ["service-skill:personal-ip-knowledge-builder"] },
+        harness: {
+          expert: {
+            skill_refs: ["service-skill:personal-ip-knowledge-builder"],
+          },
+        },
+      },
+    });
+    expect(params.initialAutoSendRequestMetadata).toEqual(
+      params.initialRequestMetadata,
+    );
+    expect(params.initialUserPrompt).toContain(
+      "service-skill:personal-ip-knowledge-builder",
+    );
+    expect(params).not.toHaveProperty("initialKnowledgePackSelection");
+    expect(JSON.stringify(params)).not.toMatch(
+      /knowledgePack\/|knowledgeContext\/|knowledgeContextRun\//,
+    );
+  });
+
   it("再次点击已有专家配置时也应新建当前项目 Thread", async () => {
     upsertExpertAgentInstance({
       tenantId: "local-seeded",

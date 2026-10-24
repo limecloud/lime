@@ -1,0 +1,423 @@
+--- a/shell/browser/api/electron_api_session.h
++++ b/shell/browser/api/electron_api_session.h
+@@ -30,6 +30,7 @@
+ 
+ namespace base {
+ class FilePath;
++class Time;
+ }
+ 
+ namespace gin {
+@@ -178,6 +179,7 @@
+   void SetCodeCachePath(gin::Arguments* args);
+   v8::Local<v8::Promise> ClearCodeCaches(const gin_helper::Dictionary& options);
+   v8::Local<v8::Value> ClearData(gin::Arguments* args);
++  v8::Local<v8::Value> ClearDataSince(gin::Arguments* args);
+ #if BUILDFLAG(ENABLE_BUILTIN_SPELLCHECKER)
+   base::Value GetSpellCheckerLanguages();
+   void SetSpellCheckerLanguages(gin_helper::ErrorThrower thrower,
+@@ -209,6 +211,9 @@
+ #endif
+ 
+  private:
++  v8::Local<v8::Value> ClearDataImpl(gin::Arguments* args,
++                                     const base::Time& delete_begin,
++                                     bool require_data_types);
+   void SetDisplayMediaRequestHandler(v8::Isolate* isolate,
+                                      v8::Local<v8::Value> val);
+ 
+--- a/shell/browser/api/electron_api_session.cc
++++ b/shell/browser/api/electron_api_session.cc
+@@ -5,6 +5,7 @@
+ #include "shell/browser/api/electron_api_session.h"
+ 
+ #include <algorithm>
++#include <cmath>
+ #include <memory>
+ #include <set>
+ #include <string>
+@@ -20,6 +21,7 @@
+ #include "base/memory/weak_ptr.h"
+ #include "base/scoped_observation.h"
+ #include "base/strings/string_util.h"
++#include "base/time/time.h"
+ #include "base/types/pass_key.h"
+ #include "base/uuid.h"
+ #include "chrome/browser/browser_process.h"
+@@ -208,6 +210,7 @@
+       BrowsingDataRemover* remover,
+       gin_helper::Promise<void> promise,
+       BrowsingDataRemover::DataType data_type_mask,
++      const base::Time& delete_begin,
+       std::vector<url::Origin> origins,
+       BrowsingDataFilterBuilder::Mode filter_mode,
+       BrowsingDataFilterBuilder::OriginMatchingMode origin_matching_mode) {
+@@ -238,7 +241,7 @@
+       }
+ 
+       StartOperation(task, remover, BrowsingDataRemover::DATA_TYPE_COOKIES,
+-                     std::move(cookies_filter_builder));
++                     delete_begin, std::move(cookies_filter_builder));
+     }
+ 
+     // If cookies aren't the only data type and weren't handled above, then we
+@@ -251,7 +254,8 @@
+         filter_builder->AddOrigin(origin);
+       }
+ 
+-      StartOperation(task, remover, data_type_mask, std::move(filter_builder));
++      StartOperation(task, remover, data_type_mask, delete_begin,
++                     std::move(filter_builder));
+     }
+ 
+     // This static method counts as an operation.
+@@ -271,8 +275,9 @@
+ 
+     void Start(BrowsingDataRemover* remover,
+                BrowsingDataRemover::DataType data_type_mask,
++               const base::Time& delete_begin,
+                std::unique_ptr<BrowsingDataFilterBuilder> filter_builder) {
+-      remover->RemoveWithFilterAndReply(base::Time::Min(), base::Time::Max(),
++      remover->RemoveWithFilterAndReply(delete_begin, base::Time::Max(),
+                                         data_type_mask, kClearOriginTypeAll,
+                                         std::move(filter_builder), this);
+     }
+@@ -296,13 +301,15 @@
+       ClearDataTask* task,
+       BrowsingDataRemover* remover,
+       BrowsingDataRemover::DataType data_type_mask,
++      const base::Time& delete_begin,
+       std::unique_ptr<BrowsingDataFilterBuilder> filter_builder) {
+     // Track this operation
+     task->operations_running_ += 1;
+ 
+     auto& operation = task->operations_.emplace_back(
+         std::make_unique<ClearDataOperation>(task, remover));
+-    operation->Start(remover, data_type_mask, std::move(filter_builder));
++    operation->Start(remover, data_type_mask, delete_begin,
++                     std::move(filter_builder));
+   }
+ 
+   void OnOperationFinished(
+@@ -1480,6 +1487,37 @@
+ }
+ 
+ v8::Local<v8::Value> Session::ClearData(gin::Arguments* const args) {
++  return ClearDataImpl(args, base::Time::Min(), false);
++}
++
++v8::Local<v8::Value> Session::ClearDataSince(gin::Arguments* const args) {
++  v8::Isolate* const isolate = JavascriptEnvironment::GetIsolate();
++  v8::Local<v8::Value> since_value;
++  if (!args->GetNext(&since_value) || !since_value->IsNumber()) {
++    args->ThrowTypeError(
++        "since must be a non-negative integer Unix millisecond timestamp");
++    return v8::Undefined(isolate);
++  }
++
++  const double since = since_value.As<v8::Number>()->Value();
++  if (!std::isfinite(since) || since < 0 || std::trunc(since) != since) {
++    args->ThrowTypeError(
++        "since must be a non-negative integer Unix millisecond timestamp");
++    return v8::Undefined(isolate);
++  }
++
++  const base::Time delete_begin =
++      base::Time::FromMillisecondsSinceUnixEpoch(since);
++  if (delete_begin.InMillisecondsFSinceUnixEpochIgnoringNull() != since) {
++    args->ThrowTypeError("since is outside the supported native time range");
++    return v8::Undefined(isolate);
++  }
++  return ClearDataImpl(args, delete_begin, true);
++}
++
++v8::Local<v8::Value> Session::ClearDataImpl(gin::Arguments* const args,
++                                            const base::Time& delete_begin,
++                                            bool require_data_types) {
+   v8::Isolate* const isolate = JavascriptEnvironment::GetIsolate();
+ 
+   BrowsingDataRemover::DataType data_type_mask = kClearDataTypeAll;
+@@ -1489,15 +1527,39 @@
+   BrowsingDataFilterBuilder::Mode filter_mode =
+       BrowsingDataFilterBuilder::Mode::kPreserve;
+ 
+-  if (gin_helper::Dictionary options; args->GetNext(&options)) {
+-    if (std::vector<std::string> data_types;
+-        options.Get("dataTypes", &data_types)) {
++  gin_helper::Dictionary options;
++  const bool has_options = args->GetNext(&options);
++  if (require_data_types && !has_options) {
++    args->ThrowTypeError("clearDataSince requires explicit dataTypes");
++    return v8::Undefined(isolate);
++  }
++  if (has_options) {
++    std::vector<std::string> data_types;
++    const bool has_data_types = options.Get("dataTypes", &data_types);
++    if (require_data_types) {
++      if (!has_data_types || data_types.empty()) {
++        args->ThrowTypeError("clearDataSince requires non-empty dataTypes");
++        return v8::Undefined(isolate);
++      }
++      for (const auto& type : data_types) {
++        if (!base::FindOrNull(kDataTypeLookup, type)) {
++          args->ThrowTypeError(absl::StrFormat("Unknown data type: '%s'", type));
++          return v8::Undefined(isolate);
++        }
++      }
++    }
++    if (has_data_types)
+       data_type_mask = GetDataTypeMask(data_types);
+-    }
+-
+-    if (bool avoid_closing_connections;
+-        options.Get("avoidClosingConnections", &avoid_closing_connections) &&
+-        avoid_closing_connections) {
++
++    bool avoid_closing_connections = false;
++    const bool has_avoid_closing_connections =
++        options.Get("avoidClosingConnections", &avoid_closing_connections);
++    if (require_data_types && options.Has("avoidClosingConnections") &&
++        !has_avoid_closing_connections) {
++      args->ThrowTypeError("avoidClosingConnections must be a boolean");
++      return v8::Undefined(isolate);
++    }
++    if (has_avoid_closing_connections && avoid_closing_connections) {
+       data_type_mask |=
+           BrowsingDataRemover::DATA_TYPE_AVOID_CLOSING_CONNECTIONS;
+     }
+@@ -1509,6 +1571,12 @@
+       bool has_exclude_origins_key =
+           options.Get("excludeOrigins", &exclude_origin_urls);
+ 
++      if (require_data_types &&
++          ((options.Has("origins") && !has_origins_key) ||
++           (options.Has("excludeOrigins") && !has_exclude_origins_key))) {
++        args->ThrowTypeError("origins and excludeOrigins must be URL arrays");
++        return v8::Undefined(isolate);
++      }
+       if (has_origins_key && has_exclude_origins_key) {
+         args->ThrowTypeError(
+             "Cannot provide both 'origins' and 'excludeOrigins'");
+@@ -1538,14 +1606,24 @@
+       }
+     }
+ 
+-    if (std::string origin_matching_mode_string;
+-        options.Get("originMatchingMode", &origin_matching_mode_string)) {
++    std::string origin_matching_mode_string;
++    const bool has_origin_matching_mode =
++        options.Get("originMatchingMode", &origin_matching_mode_string);
++    if (require_data_types && options.Has("originMatchingMode") &&
++        !has_origin_matching_mode) {
++      args->ThrowTypeError("originMatchingMode must be a supported string");
++      return v8::Undefined(isolate);
++    }
++    if (has_origin_matching_mode) {
+       if (origin_matching_mode_string == "third-parties-included") {
+         origin_matching_mode = BrowsingDataFilterBuilder::OriginMatchingMode::
+             kThirdPartiesIncluded;
+       } else if (origin_matching_mode_string == "origin-in-all-contexts") {
+         origin_matching_mode =
+             BrowsingDataFilterBuilder::OriginMatchingMode::kOriginInAllContexts;
++      } else if (require_data_types) {
++        args->ThrowTypeError("Unsupported originMatchingMode");
++        return v8::Undefined(isolate);
+       }
+     }
+   }
+@@ -1554,7 +1632,7 @@
+   v8::Local<v8::Promise> promise_handle = promise.GetHandle();
+ 
+   BrowsingDataRemover* remover = browser_context_->GetBrowsingDataRemover();
+-  ClearDataTask::Run(remover, std::move(promise), data_type_mask,
++  ClearDataTask::Run(remover, std::move(promise), data_type_mask, delete_begin,
+                      std::move(origins), filter_mode, origin_matching_mode);
+ 
+   return promise_handle;
+@@ -1846,6 +1924,7 @@
+       .SetMethod("setCodeCachePath", &Session::SetCodeCachePath)
+       .SetMethod("clearCodeCaches", &Session::ClearCodeCaches)
+       .SetMethod("clearData", &Session::ClearData)
++      .SetMethod("clearDataSince", &Session::ClearDataSince)
+       .SetProperty("cookies", &Session::Cookies)
+       .SetProperty("extensions", &Session::Extensions)
+       .SetProperty("netLog", &Session::NetLog)
+--- a/docs/api/session.md
++++ b/docs/api/session.md
+@@ -1680,6 +1680,41 @@
+ 
+ For more information, refer to Chromium's [`BrowsingDataRemover` interface][browsing-data-remover].
+ 
++#### `ses.clearDataSince(since, options)`
++
++* `since` Number - A non-negative, finite integer Unix timestamp in milliseconds.
++* `options` Object
++  * `dataTypes` String[] - A non-empty list of data types to clear. Unknown types throw a `TypeError`.
++    * `backgroundFetch` - Background Fetch
++    * `cache` - Cache, including CacheStorage and shader cache
++    * `cookies` - Cookies
++    * `downloads` - Chromium downloads
++    * `fileSystems` - File Systems
++    * `indexedDB` - IndexedDB
++    * `localStorage` - Local Storage
++    * `serviceWorkers` - Service Workers
++  * `origins` String[] (optional) - Clear data for only these origins. Cannot be used with `excludeOrigins`.
++  * `excludeOrigins` String[] (optional) - Clear data except for these origins. Cannot be used with `origins`.
++  * `avoidClosingConnections` boolean (optional) - Skip deleting cookies that would close current network connections. Defaults to `false`.
++  * `originMatchingMode` String (optional) - Origin matching behavior.
++    * `third-parties-included` (default) - Match first-party origins and third-party top-level sites.
++    * `origin-in-all-contexts` - Match origins in all contexts.
++
++Returns `Promise<void>` - Resolves when the Chromium removal operations finish.
++Failures expose the same `failedDataTypes` field as `clearData()`.
++
++Clears the selected data from `since` through the maximum native time. Invalid
++arguments throw before any removal starts. `clearData()` retains its existing
++all-time behavior. This method is available only in this patched runtime.
++
++This uses Chromium's native removal granularity. Cookies are selected by creation
++time. Local storage is removed for a whole storage key based on its last modified
++time, and quota-managed data for whole modified buckets. Selecting local storage
++also clears matching session storage without a time filter. Clearing cache also
++invalidates auxiliary caches such as CORS preflight, resource and back-forward
++caches that cannot filter by time. Origin filtering of cookies uses registrable
++domains, as documented for `clearData()`.
++
+ ### Instance Properties
+ 
+ The following properties are available on instances of `Session`:
+--- a/spec/api-session-spec.ts
++++ b/spec/api-session-spec.ts
+@@ -2232,6 +2232,132 @@
+     });
+   });
+ 
++  describe('ses.clearDataSince()', () => {
++    afterEach(closeAllWindows);
++
++    const freshSession = () => session.fromPartition(
++      `clear-data-since-${process.hrtime.bigint()}`, { cache: true });
++    const cookieURL = 'https://example.com/';
++    const setCookie = (ses: Session, name: string, url = cookieURL) =>
++      ses.cookies.set({ url, name, value: name });
++    const cookieNames = async (ses: Session, url = cookieURL) =>
++      (await ses.cookies.get({ url })).map(cookie => cookie.name).sort();
++    const boundaryAfterPreviousWrites = async () => {
++      const since = Date.now() + 1;
++      await waitUntil(() => Date.now() > since);
++      return since;
++    };
++
++    it('rejects invalid timestamps before deleting anything', async () => {
++      const ses = freshSession();
++      await setCookie(ses, 'kept');
++      for (const since of [undefined, null, false, '0', NaN, Infinity, -Infinity,
++        -1, 0.5, Number.MAX_VALUE]) {
++        expect(() => ses.clearDataSince(since as never, { dataTypes: ['cookies'] }))
++          .to.throw(TypeError);
++        expect(await cookieNames(ses)).to.deep.equal(['kept']);
++      }
++    });
++
++    it('rejects missing, malformed and unknown data types without partial deletion', async () => {
++      const ses = freshSession();
++      await setCookie(ses, 'kept');
++      for (const options of [undefined, null, {}, { dataTypes: [] },
++        { dataTypes: ['cookies', 'webSQL'] }, { dataTypes: ['cookies', 1] },
++        { dataTypes: ['cookies'], origins: 'https://example.com' },
++        { dataTypes: ['cookies'], excludeOrigins: 'https://example.com' },
++        { dataTypes: ['cookies'], origins: ['data:text/plain,opaque'] },
++        { dataTypes: ['cookies'], origins: [], excludeOrigins: [] },
++        { dataTypes: ['cookies'], avoidClosingConnections: 'true' },
++        { dataTypes: ['cookies'], originMatchingMode: 1 },
++        { dataTypes: ['cookies'], originMatchingMode: 'unsupported' }]) {
++        expect(() => ses.clearDataSince(0, options as never)).to.throw(TypeError);
++        expect(await cookieNames(ses)).to.deep.equal(['kept']);
++      }
++    });
++
++    it('preserves old cookies and removes cookies created after the boundary', async () => {
++      const ses = freshSession();
++      await setCookie(ses, 'old');
++      const since = await boundaryAfterPreviousWrites();
++      await setCookie(ses, 'recent');
++      await ses.clearDataSince(since, { dataTypes: ['cookies'] });
++      expect(await cookieNames(ses)).to.deep.equal(['old']);
++    });
++
++    for (const filter of ['origins', 'excludeOrigins'] as const) {
++      it(`combines time and registrable-domain filtering with ${filter}`, async () => {
++        const ses = freshSession();
++        await setCookie(ses, 'old');
++        const since = await boundaryAfterPreviousWrites();
++        await setCookie(ses, 'recent');
++        await setCookie(ses, 'unrelated', 'https://example.org/');
++        await ses.clearDataSince(since, {
++          dataTypes: ['cookies'],
++          [filter]: [filter === 'origins' ? 'https://sub.example.com' : 'https://example.org']
++        });
++        expect(await cookieNames(ses)).to.deep.equal(['old']);
++        expect(await cookieNames(ses, 'https://example.org/')).to.deep.equal(['unrelated']);
++      });
++    }
++
++    it('keeps another BrowserContext unchanged', async () => {
++      const ses = freshSession();
++      const other = freshSession();
++      await setCookie(ses, 'target');
++      await setCookie(other, 'other');
++      await ses.clearDataSince(0, { dataTypes: ['cookies'] });
++      expect(await cookieNames(ses)).to.deep.equal([]);
++      expect(await cookieNames(other)).to.deep.equal(['other']);
++    });
++
++    it('completes concurrent tasks while preserving data before both boundaries', async () => {
++      const ses = freshSession();
++      await setCookie(ses, 'old');
++      const since = await boundaryAfterPreviousWrites();
++      await setCookie(ses, 'recent');
++      await Promise.all([
++        ses.clearDataSince(since, { dataTypes: ['cookies'] }),
++        ses.clearDataSince(since, { dataTypes: ['cookies'] })
++      ]);
++      expect(await cookieNames(ses)).to.deep.equal(['old']);
++    });
++
++    it('applies the boundary to the non-cookie operation as well', async () => {
++      const ses = freshSession();
++      const w = new BrowserWindow({ show: false, webPreferences: { session: ses } });
++      await w.loadFile(path.join(fixtures, 'api', 'localstorage.html'));
++      expect(await w.webContents.executeJavaScript('localStorage.length')).to.be.greaterThan(0);
++      await ses.clearDataSince(Date.now() + 60_000, { dataTypes: ['localStorage'] });
++      expect(await w.webContents.executeJavaScript('localStorage.length')).to.be.greaterThan(0);
++      await ses.clearDataSince(0, { dataTypes: ['localStorage'] });
++      expect(await w.webContents.executeJavaScript('localStorage.length')).to.equal(0);
++    });
++
++    it('preserves old HTTP cache entries and refetches recent entries', async () => {
++      const ses = freshSession();
++      const hits = new Map<string, number>();
++      const server = http.createServer((req, res) => {
++        const key = req.url!;
++        const count = (hits.get(key) ?? 0) + 1;
++        hits.set(key, count);
++        res.writeHead(200, { 'Cache-Control': 'public, max-age=3600' });
++        res.end(`${key}:${count}`);
++      });
++      defer(() => server.close());
++      const { url } = await listen(server);
++      const read = async (key: string) => (await ses.fetch(new URL(key, url).href)).text();
++      expect(await read('/old')).to.equal('/old:1');
++      expect(await read('/old')).to.equal('/old:1');
++      const since = await boundaryAfterPreviousWrites();
++      expect(await read('/recent')).to.equal('/recent:1');
++      expect(await read('/recent')).to.equal('/recent:1');
++      await ses.clearDataSince(since, { dataTypes: ['cache'] });
++      expect(await read('/old')).to.equal('/old:1');
++      expect(await read('/recent')).to.equal('/recent:2');
++    });
++  });
++
+   describe('ses.clearData()', () => {
+     afterEach(closeAllWindows);
+ 

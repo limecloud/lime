@@ -131,10 +131,6 @@ export function renderPanel(
           skillsCount: 2,
           skillNames: ["read_file", "write_todos"],
           memorySignals: ["风格"],
-          contextItemsCount: 2,
-          activeContextCount: 1,
-          contextItemNames: ["需求.md"],
-          contextEnabled: true,
         }}
         {...overrides}
       />,

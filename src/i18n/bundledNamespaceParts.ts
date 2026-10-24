@@ -23,7 +23,13 @@ export const BUNDLED_NAMESPACE_RESOURCE_PARTS = {
     "browserAnnotation",
   ],
   workspace: ["workspace", "scheduledTasks"],
-  settings: ["settings", "browserHistory", "browserDownloads", "browserData"],
+  settings: [
+    "settings",
+    "browserHistory",
+    "browserDownloads",
+    "browserData",
+    "browserManagement",
+  ],
 } as const satisfies Partial<Record<LimeNamespace, readonly string[]>>;
 
 function hasResourceParts(

@@ -1295,6 +1295,7 @@ impl RuntimeCore {
                     params.runtime_options.take(),
                 ));
         }
+        self.enforce_turn_requirements(&mut params.runtime_options)?;
         if !input_kind.is_agent_only() {
             if let Some(output) = self
                 .steer_existing_actor_turn(&params, event_callback.as_deref_mut())

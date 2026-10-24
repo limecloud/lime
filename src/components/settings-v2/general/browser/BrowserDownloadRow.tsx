@@ -4,6 +4,15 @@ import type { BrowserDownloadEntry } from "@/lib/api/browserDownloads";
 import type { BrowserDownloadAction } from "@/lib/api/browserDownloadsTypes";
 import { isFinishedDownload } from "./browserDownloadsView";
 
+const actionLabels = {
+  pause: "browserDownloads.pause",
+  resume: "browserDownloads.resume",
+  cancel: "browserDownloads.cancel",
+  open: "browserDownloads.open",
+  reveal: "browserDownloads.reveal",
+  remove: "browserDownloads.remove",
+} as const satisfies Record<BrowserDownloadAction, string>;
+
 function formatBytes(bytes: number, locale: string): string {
   const units = [
     "byte",
@@ -55,8 +64,8 @@ export function BrowserDownloadRow({
       key={name}
       type="button"
       className="pointer-events-auto rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-40"
-      aria-label={t(`browserDownloads.${name}`, { filename: entry.filename })}
-      title={t(`browserDownloads.${name}`, { filename: entry.filename })}
+      aria-label={t(actionLabels[name], { filename: entry.filename })}
+      title={t(actionLabels[name], { filename: entry.filename })}
       disabled={disabled}
       onClick={() => onAction(name)}
     >

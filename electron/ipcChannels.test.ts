@@ -125,7 +125,7 @@ describe("electron/ipcChannels", () => {
     expect(isElectronHostCommand("open_external_url")).toBe(true);
     expect(isElectronHostCommand("is_default_browser")).toBe(true);
     expect(isElectronHostCommand("open_file_preview_window")).toBe(true);
-    expect(isElectronHostCommand("open_resource_manager_window")).toBe(true);
+    expect(isElectronHostCommand("open_resource_manager_window")).toBe(false);
     expect(isElectronHostCommand("show_desktop_notification")).toBe(true);
     expect(isElectronHostCommand("embedded_browser_view_mount")).toBe(true);
     expect(isElectronHostCommand("browser_tab_mount")).toBe(true);

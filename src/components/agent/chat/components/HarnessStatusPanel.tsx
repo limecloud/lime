@@ -284,7 +284,6 @@ export function HarnessStatusPanel({
     () =>
       buildHarnessSummaryCards({
         agentUiProjectionSummary,
-        environment,
         fileChangeReviewEntries,
         fileReviewCopy: {
           title: fileReviewTitle,
@@ -311,7 +310,6 @@ export function HarnessStatusPanel({
       }),
     [
       agentUiProjectionSummary,
-      environment,
       fileChangeReviewEntries,
       fileReviewEmptyHint,
       fileReviewSummaryValue,

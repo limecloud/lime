@@ -8,16 +8,13 @@ import {
   downloadUpdate,
   getUpdateInstallSession,
   getUpdateCheckSettings,
-  getUpdateNotificationMetrics,
   isUpdateInstallSessionActive,
   listenUpdateInstallSession,
   openUpdateWindow,
   recordUpdateNotificationAction,
   remindUpdateLater,
-  setUpdateCheckSettings,
   skipUpdateVersion,
   startUpdateInstallSession,
-  testUpdateWindow,
 } from "./appUpdate";
 
 vi.mock("@/lib/dev-bridge", () => ({
@@ -27,7 +24,7 @@ vi.mock("@/lib/dev-bridge", () => ({
 
 describe("appUpdate API", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
     vi.mocked(safeListen).mockResolvedValue(vi.fn());
   });
 
@@ -42,17 +39,6 @@ describe("appUpdate API", () => {
         last_check_timestamp: 0,
         skipped_version: null,
         remind_later_until: null,
-      })
-      .mockResolvedValueOnce({
-        shown_count: 1,
-        update_now_count: 1,
-        remind_later_count: 0,
-        skip_version_count: 0,
-        dismiss_count: 0,
-        update_now_rate: 100,
-        remind_later_rate: 0,
-        skip_version_rate: 0,
-        dismiss_rate: 0,
       });
 
     await expect(checkForUpdates()).resolves.toEqual(
@@ -63,9 +49,6 @@ describe("appUpdate API", () => {
     );
     await expect(getUpdateCheckSettings()).resolves.toEqual(
       expect.objectContaining({ enabled: true }),
-    );
-    await expect(getUpdateNotificationMetrics()).resolves.toEqual(
-      expect.objectContaining({ shown_count: 1 }),
     );
   });
 
@@ -105,14 +88,6 @@ describe("appUpdate API", () => {
 
     await expect(getUpdateCheckSettings()).rejects.toThrow(
       "get_update_check_settings did not return update check settings",
-    );
-  });
-
-  it("更新提醒指标收到非指标对象时应 fail closed", async () => {
-    vi.mocked(safeInvoke).mockResolvedValueOnce({ shown_count: 1 });
-
-    await expect(getUpdateNotificationMetrics()).rejects.toThrow(
-      "get_update_notification_metrics did not return update notification metrics",
     );
   });
 
@@ -182,17 +157,6 @@ describe("appUpdate API", () => {
     ).resolves.toBeUndefined();
     await expect(remindUpdateLater(24)).resolves.toBe(456);
     await expect(skipUpdateVersion("1.2.3")).resolves.toBeUndefined();
-    await expect(
-      setUpdateCheckSettings({
-        enabled: true,
-        check_interval_hours: 24,
-        show_notification: true,
-        last_check_timestamp: 0,
-        skipped_version: null,
-        remind_later_until: null,
-      }),
-    ).resolves.toBeUndefined();
-    await expect(testUpdateWindow()).resolves.toBeUndefined();
     expect(safeInvoke).toHaveBeenNthCalledWith(2, "open_update_window");
   });
 

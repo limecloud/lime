@@ -42,10 +42,10 @@ mod tests {
     use crate::WorkspaceSkillBindingAppDataSource;
     use crate::{AutomationManagementAppDataSource, PluginDataSource};
     use crate::{AutomationOverviewAppDataSource, ConnectAppDataSource, DiagnosticsAppDataSource};
-    use crate::{GatewayAppDataSource, KnowledgeAppDataSource, McpAppDataSource};
+    use crate::{GatewayAppDataSource, McpAppDataSource};
     use crate::{MediaAppDataSource, MemoryAppDataSource, ModelProviderAppDataSource};
     use crate::{RightSurfaceAppDataSource, SessionAppDataSource, SkillAppDataSource};
-    use crate::{UsageStatsAppDataSource, VoiceAppDataSource, WorkspaceAppDataSource};
+    use crate::{VoiceAppDataSource, WorkspaceAppDataSource};
     use app_server_protocol::{MediaTaskArtifactImageCreateParams, MediaTaskArtifactResponse};
     use async_trait::async_trait;
     use serde_json::{json, Value};
@@ -61,13 +61,11 @@ mod tests {
     impl GatewayAppDataSource for ImageToolTestDataSource {}
     impl VoiceAppDataSource for ImageToolTestDataSource {}
     impl PluginDataSource for ImageToolTestDataSource {}
-    impl KnowledgeAppDataSource for ImageToolTestDataSource {}
     impl AutomationOverviewAppDataSource for ImageToolTestDataSource {}
     impl McpAppDataSource for ImageToolTestDataSource {}
     impl AutomationManagementAppDataSource for ImageToolTestDataSource {}
     impl MemoryAppDataSource for ImageToolTestDataSource {}
     impl DiagnosticsAppDataSource for ImageToolTestDataSource {}
-    impl UsageStatsAppDataSource for ImageToolTestDataSource {}
     impl ModelProviderAppDataSource for ImageToolTestDataSource {}
     impl ConnectAppDataSource for ImageToolTestDataSource {}
     impl RightSurfaceAppDataSource for ImageToolTestDataSource {}

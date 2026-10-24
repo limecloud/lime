@@ -51,6 +51,7 @@ pub struct RequestToolPolicy {
     pub search_mode: RequestToolPolicyMode,
     /// 本次请求是否开启联网搜索策略
     pub effective_web_search: bool,
+    pub web_search_mode: agent_protocol::WebSearchMode,
     /// 必须至少成功一次的工具（默认 WebSearch）
     pub required_tools: Vec<String>,
     /// 允许的联网工具集合（默认 WebSearch/WebFetch）
@@ -60,6 +61,21 @@ pub struct RequestToolPolicy {
 }
 
 impl RequestToolPolicy {
+    pub fn with_web_search_mode(mut self, mode: agent_protocol::WebSearchMode) -> Self {
+        self.web_search_mode = if self.effective_web_search {
+            mode
+        } else {
+            agent_protocol::WebSearchMode::Disabled
+        };
+        if mode == agent_protocol::WebSearchMode::Disabled {
+            self.search_mode = RequestToolPolicyMode::Disabled;
+            self.effective_web_search = false;
+            self.required_tools.clear();
+            self.allowed_tools.clear();
+        }
+        self
+    }
+
     pub fn allows_web_search(&self) -> bool {
         self.search_mode.enables_web_search()
     }
@@ -162,6 +178,11 @@ pub fn resolve_request_tool_policy_with_mode(
     RequestToolPolicy {
         search_mode,
         effective_web_search,
+        web_search_mode: if effective_web_search {
+            agent_protocol::WebSearchMode::Cached
+        } else {
+            agent_protocol::WebSearchMode::Disabled
+        },
         required_tools,
         allowed_tools,
         disallowed_tools,

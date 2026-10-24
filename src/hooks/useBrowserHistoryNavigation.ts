@@ -89,6 +89,13 @@ export function useBrowserHistoryNavigation({
   const navigateFromBrowser = useCallback(
     (nextPage: Page, params?: PageParams) => {
       const settings = params as SettingsPageParams | undefined;
+      if (page === "settings" && nextPage === "settings") {
+        const next = { ...settings };
+        if (owner) next.browserReturnOwner = owner;
+        else delete next.browserReturnOwner;
+        navigate("settings", next);
+        return;
+      }
       if (nextPage !== "settings" || !settings?.browserReturnOwner) {
         navigate(nextPage, params);
         return;
@@ -110,7 +117,7 @@ export function useBrowserHistoryNavigation({
           : {}),
       });
     },
-    [agentLocation, navigate, page],
+    [agentLocation, navigate, owner, page],
   );
 
   const openHistoryUrl = useCallback(

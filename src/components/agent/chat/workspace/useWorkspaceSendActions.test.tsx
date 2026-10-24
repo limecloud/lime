@@ -360,11 +360,6 @@ function mountHook(initialProps?: Partial<HookProps>): HookHarness {
     activeTheme: "general",
     mappedTheme: "general",
     isThemeWorkbench: false,
-    contextWorkspace: {
-      enabled: false,
-      activeContextPrompt: "",
-      prepareActiveContextPrompt: async () => "",
-    },
     projectId: "project-1",
     projectRootPath: "/workspace",
     sessionId: "session-1",
@@ -799,15 +794,9 @@ describe("useWorkspaceSendActions", () => {
   });
 
   it("目标首轮跳过上下文准备、命令解析与预创建，并透传 ownership observer", async () => {
-    const prepareActiveContextPrompt = vi.fn(async () => "工作区上下文");
     const harness = mountHook({
       sessionId: null,
       isThemeWorkbench: true,
-      contextWorkspace: {
-        enabled: true,
-        activeContextPrompt: "",
-        prepareActiveContextPrompt,
-      },
     });
     const observer = { onSessionReady: vi.fn(), onRuntimeAccepted: vi.fn() };
     const text = "/goal @配图 访问 https://example.com 后持续生成封面";
@@ -822,7 +811,6 @@ describe("useWorkspaceSendActions", () => {
             }),
         ).toMatchObject({ kind: "runtime-accepted" });
       });
-      expect(prepareActiveContextPrompt).not.toHaveBeenCalled();
       expect(mockEnsureSessionForCommandMetadata).not.toHaveBeenCalled();
       expect(mockResolveImageWorkbenchCommandRequest).not.toHaveBeenCalled();
       expect(mockOpenRuntimeSceneGate).not.toHaveBeenCalled();
@@ -1573,114 +1561,6 @@ Extract it into the Agent Skills directory.`,
       });
 
       expect(harness.getValue().displayMessages).toEqual([]);
-    } finally {
-      harness.unmount();
-    }
-  });
-
-  it("普通 Claw 空上下文准备较慢时不应阻塞发送", async () => {
-    const deferredContext = createDeferred<string>();
-    const deferredSend = createDeferred<RuntimeSubmissionResult>();
-    const prepareActiveContextPrompt = vi.fn(
-      async () => deferredContext.promise,
-    );
-    mockSendMessage.mockImplementationOnce(async () => deferredSend.promise);
-    const harness = mountHook({
-      input: "帮我整理一下今天的重要新闻",
-      contextWorkspace: {
-        enabled: true,
-        activeContextPrompt: "",
-        prepareActiveContextPrompt,
-      },
-    });
-
-    let sendPromise: Promise<RuntimeSubmissionResult> | null = null;
-
-    try {
-      await act(async () => {
-        sendPromise = harness.getValue().handleSend();
-        await Promise.resolve();
-      });
-
-      expect(harness.getValue().displayMessages).toEqual([
-        expect.objectContaining({
-          role: "user",
-          content: "帮我整理一下今天的重要新闻",
-        }),
-        expect.objectContaining({
-          role: "assistant",
-          isThinking: true,
-          runtimeStatus: expect.objectContaining({
-            phase: "preparing",
-          }),
-        }),
-      ]);
-      expect(mockSendMessage).toHaveBeenCalledTimes(1);
-      expect(mockSendMessage.mock.calls[0]?.[0]).toBe(
-        "帮我整理一下今天的重要新闻",
-      );
-      expect(prepareActiveContextPrompt).not.toHaveBeenCalled();
-
-      await act(async () => {
-        deferredContext.resolve("[上下文]\n今天关注科技与国际新闻。");
-        await Promise.resolve();
-      });
-
-      await act(async () => {
-        deferredSend.resolve(acceptedSubmission());
-        await sendPromise;
-      });
-
-      expect(harness.getValue().displayMessages).toEqual([]);
-    } finally {
-      harness.unmount();
-    }
-  });
-
-  it("主题工作台首轮发送等待上下文时应并行预热会话", async () => {
-    const deferredContext = createDeferred<string>();
-    const deferredSession = createDeferred<string | null>();
-    const deferredSend = createDeferred<RuntimeSubmissionResult>();
-    mockEnsureSessionForCommandMetadata.mockImplementationOnce(
-      async () => deferredSession.promise,
-    );
-    mockSendMessage.mockImplementationOnce(async () => deferredSend.promise);
-    const harness = mountHook({
-      input: "帮我整理一下今天的重要新闻",
-      isThemeWorkbench: true,
-      contextWorkspace: {
-        enabled: true,
-        activeContextPrompt: "",
-        prepareActiveContextPrompt: async () => deferredContext.promise,
-      },
-    });
-
-    let sendPromise: Promise<RuntimeSubmissionResult> | null = null;
-
-    try {
-      await act(async () => {
-        sendPromise = harness.getValue().handleSend();
-        await Promise.resolve();
-      });
-
-      expect(mockEnsureSessionForCommandMetadata).toHaveBeenCalledTimes(1);
-      expect(mockSendMessage).not.toHaveBeenCalled();
-
-      await act(async () => {
-        deferredContext.resolve("[上下文]\n今天关注科技与国际新闻。");
-        await Promise.resolve();
-      });
-
-      expect(mockSendMessage).toHaveBeenCalledTimes(1);
-      expect(
-        mockEnsureSessionForCommandMetadata.mock.invocationCallOrder[0],
-      ).toBeLessThan(mockSendMessage.mock.invocationCallOrder[0] ?? Infinity);
-
-      await act(async () => {
-        deferredSession.resolve("session-prewarmed");
-        deferredSend.resolve(acceptedSubmission());
-        await sendPromise;
-      });
     } finally {
       harness.unmount();
     }
@@ -7655,38 +7535,6 @@ Extract it into the Agent Skills directory.`,
         unknown
       >;
       expect(sentHarness.browser_assist).toBeUndefined();
-    } finally {
-      harness.unmount();
-    }
-  });
-
-  it("已有活动上下文快照时不应等待正文加载后才发送", async () => {
-    const slowPrepareActiveContextPrompt = vi.fn().mockImplementation(
-      () =>
-        new Promise<string>((resolve) => {
-          setTimeout(() => resolve("[生效上下文]\n1. [素材] 品牌手册"), 50);
-        }),
-    );
-    const harness = mountHook({
-      contextWorkspace: {
-        enabled: true,
-        activeContextPrompt: "[生效上下文]\n1. [素材] 品牌手册",
-        prepareActiveContextPrompt: slowPrepareActiveContextPrompt,
-      },
-    });
-
-    try {
-      await act(async () => {
-        const started = await harness.getValue().handleSend();
-        expect(started).toMatchObject({ kind: "runtime-accepted" });
-      });
-
-      expect(mockSendMessage).toHaveBeenCalledTimes(1);
-      const args = mockSendMessage.mock.calls[0] as Parameters<
-        HookProps["sendMessage"]
-      >;
-      expect(args?.[0]).toContain("[生效上下文]\n1. [素材] 品牌手册");
-      expect(slowPrepareActiveContextPrompt).toHaveBeenCalledTimes(1);
     } finally {
       harness.unmount();
     }

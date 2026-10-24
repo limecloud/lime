@@ -568,21 +568,18 @@ App Server 是 Default/Plan preset 的唯一事实源；Plan 固定以 `reasonin
 唯一 Plan preset；catalog 缺失、重复或形状非法时 fail closed。不得在 Renderer 重建本地 preset、复制 Codex TUI picker、
 新增 Electron 业务命令，或让 collaboration catalog 承接模型 catalog/capability/readiness。
 
-## Experimental Feature 主链
+## Feature 配置主链
 
-Desktop 实验特性设置只允许走：
+`experimentalFeature/list` 与 `experimentalFeature/enablement/set` 保留为 App Server 公共协议，唯一目录项是 Codex 的
+`workspace_dependencies`（Stable，默认开启）。配置由 core `ConfigLayers` 解析；enablement 委托现役 config batch write，
+遵守同一来源、受管字段和持久化约束。未知键（包括已删除的 `webmcp`）返回 `INVALID_PARAMS`；空 map 为 no-op。
+`list` 的 cursor/limit 与已加载 Thread identity 校验保留，不建立第二份 feature store。
 
-`Settings Experimental -> src/lib/api/experimentalFeatures.ts -> AppServerClient.request(...) -> app_server_handle_json_lines -> App Server experimentalFeature/* -> lime_core config.yaml`
-
-current method 为 exact `experimentalFeature/list` 与 `experimentalFeature/enablement/set`。catalog 当前只公开真实
-Settings consumer 使用的 `webmcp`，默认关闭，stage 为 `underDevelopment`；enablement 只更新已知 key，未知 key
-忽略，空 map 为 no-op。`list` 支持 cursor/limit；携带 `threadId` 时必须命中已加载 Thread，但 Lime Desktop 没有
-Codex project-local feature config，enablement 仍由单一 `config.yaml` owner 计算并持久化。
-
-Electron 只转发 App Server JSONL，不再读写实验配置。旧 `get_experimental_config`、`save_experimental_config`、
-Renderer 直连 IPC、默认 mock handler 和 legacy Tauri facade 为 `dead / deleted / forbidden-to-restore`；不得新增 compat
-wrapper 或让 Initialize capability/model catalog 冒充实验特性目录。多模型、多模态 catalog/capability/readiness 继续归
-Grok-aligned `model-provider`，不进入 experimental feature owner。
+依赖管理的真实 GUI 消费者是 Configuration 中的 `primaryRuntime` gateway；多模型、多协议继续归 `model-provider`。
+开发者/实验室页面、ClawTrace 专属 UI/告警链、WebMCP 和工具调用调试开关，以及旧 experimental Electron 命令均为
+`dead / deleted / forbidden-to-restore`。通用请求关联与审批传输诊断继续由现役 trace context/agent debug owner 承接。
+自定义统计页的 `usageStats/read`、`usageStats/modelRanking/list`、`usageStats/dailyTrends/list` 及 client、service、DAO、
+建表代码已经删除；canonical Thread/Turn Token 用量不经过该统计链。
 
 ## Memory Reset 主链
 
@@ -722,6 +719,30 @@ formData/siteSettings 与原生范围绑定仍待完成，不把被忽略的 tim
 
 Browser 只有一个网页执行体：Right Surface 中用户可见的 Electron `WebContentsView`。用户操作与 Agent 动作分别从以下两条控制路径进入同一个 `BrowserTabHost` route：
 
+`browser_tab_focus_page` 为Desktop Host焦点命令，gateway仅发送tabId/viewId/webContentsId。BrowserTabHost按调用窗口验证route，再由独立focus委托拒绝过期native identity；未选中、隐藏、脱离当前窗口或焦点已到其他原生视图时不交接。它不导航、不触发select的批注副作用、不释放Agent控制、不调用window.show/focus，也不提供mock fallback。preload继续消费同一ELECTRON_HOST_COMMANDS allowlist，catalog/typed gateway/fixture同步；无需新增Rust业务method。
+
+设备模式复用 `browser_tab_set_device` / `browser_tab_set_bounds`，不增加 IPC/RPC 方法。
+`bounds` 始终指 Renderer 外层容器；`EmbeddedBrowserHost` 保存该容器，按共享设备几何限制同一
+WCV 的实际区域。`device.scale` 为用户倍率上限，`deviceViewport: { bounds, scale } | null`
+投影实际原生边界与自动适配倍率；有效倍率可以低于请求的10%下限，零空间返回零尺寸并隐藏。
+切标签、新标签、弹窗和关闭后恢复使用原容器，批注使用实际 WCV 边界。被动 resize 只走
+bounds，不触发用户接管；响应式外围手柄通过原 device gateway 串行发送最新尺寸，生命周期
+变化取消排队输入及迟到 receipt，不创建 Renderer 设备状态 authority。
+
+设备请求及原生投影中的 `presetId` 只接受共享13项目录。未提供时规范化为 `responsive`，
+提供未知值则在原生布局/模拟前拒绝；不按宽高反推身份。固定预设改变已确认的宽高，
+保留当前 DPR/mobile；选择 responsive 保留尺寸，手工宽高和拖动转为 responsive。旋转归整宽高，
+原尺寸匹配具名预设的任一方向时保留身份，否则归 responsive。宽240–4096、高160–4096由共享
+边界限制，非法请求在原生变更前拒绝。工具栏有效输入即时发送、失焦归整；连续输入串行合并，
+scope变化取消未发送动作。预设的device成功后沿原set-zoom方法重置原生page zoom=1，失败不重置。
+`browserZoom`共享原生25–500%边界；设备显示百分比=round(basePercent×viewportScale)，选择值
+反算原生base，不能改变device.scale冒充页面缩放。更多菜单同步消费边界，完整菜单步进仍待对齐。
+目录及工具栏语义来自固定安装包静态证据；完整视觉、动效、主题与键盘矩阵仍未验收。
+
+`navigationRevision` 是同一 native WCV 的非负整数状态投影，只在 main-frame
+`did-start-navigation`（含同文档导航）时递增。它用于取消拖拽；既有 `pageRevision`
+仍会因设备命令或其他快照失效递增，不能把自身设备命令的 receipt 当成导航。
+
 ```text
 Renderer Browser Workspace -> src/lib/api/browserTab.ts -> browser_tab_* Desktop Host command -> BrowserTabHost
 RuntimeCore / tool-runtime browser__* -> App Server item/tool/call -> AppServerDynamicToolHost -> BrowserTabHost
@@ -739,16 +760,36 @@ Electron start/resume 注入自己的不可变 catalog，断连同时撤销本�
 
 App Server 持有 Thread/Turn、动态工具生命周期、Browser read model 与 canonical identity；Electron 只持有 native view、window、`webContents.debugger`、下载和权限等宿主状态；Renderer 只消费 projection 并发送用户意图。Agent action 必须按 connection/thread/turn/session/tab/view/WebContents owner 精确路由，用户操作或 turn terminal 必须使旧控制权失效。
 
+网站权限 request/check 均属于同一原生 Session。无 Agent 回合的用户浏览使用
+`BrowserSitePermissionPrompt -> BrowserOverlayHost` 的私有可信确认，直接结算原 native callback；
+不新增 Renderer 授权命令、App Server 方法或 canonical Agent approval。确认绑定当前选中且可见/attached
+的用户标签与 native frame/document/requesting origin，关闭、导航、切标签和接管后拒绝旧请求。
+临时 grant 只服务该文档的原生 check，媒体种类分开，控制变更/回合终态撤销。Agent 请求继续原
+`grantPermission` 的 turn scope 与 canonical 决策。permission event 增加必需 isMainFrame 与可选
+mediaTypes（audio/video），原生事件和 browser-tab 事件共用 Renderer parser；旧缺 frame 的夹具已迁移。
+overlay 的精确 menuId/generation 清理是 Host 内部方法，不开放网页/Renderer bridge。
+用户请求由可信确认呈现，不向 Renderer 转发 Agent 的 pending banner，避免决定后残留“等待 Agent 审批”。
+
 `browser__history` 是原 frozen Browser namespace 的只读动态工具，不是新增 App Server 或 Desktop IPC
 方法。参数为可选 `query`（最多256字符，省略/空白查询最近记录）、原 `nextCursor`、`limit`（1–200，
 默认50）及审批 anchor 的可选 `tabId`；不接受路径、数据库或写入参数。复用原历史 parser 与
-`BrowserHistoryHost.invoke(browser_history_list)`。`history_access` 的 alwaysAsk/neverAsk/disabled
-分别表示每次查询审批、允许查询和禁用 Agent 查询；禁用不影响用户历史管理。历史工具不 claimTab、
+`BrowserHistoryHost.invoke(browser_history_list)`。根 `browser_use.allow_history_access=false` 拒绝查询；
+其余由 `browser.iabHistoryApprovalMode` 的 alwaysAsk/neverAsk/disabled 表示每次查询审批、允许查询和禁用 Agent 查询；禁用不影响用户历史管理。历史工具不 claimTab、
 不取得页面控制或 browse grant。alwaysAsk 经原 `item/tool/call` preflight/approvedExecute 和
 RuntimeCore canonical approval，只返回一次性 descriptor，不夹带历史内容；批准后只执行原 query。
 工具调用及原生 anchor identity 必须精确匹配，设置撤销、导航/销毁、接管、turn terminal 和断连
 使 token 与 in-flight 结果失效；IO 后再次回读配置、核验同一 policy revision/route，错误不转空成功。
 审批 anchor 当前要求同 thread 的可用 canonical tab；这属于原 descriptor 的 route 前置条件。
+
+用户历史管理复用既有 `browser_history_list`，显式 `{view:"visits",query,source,cursor,limit}`
+返回访问投影；source 仅允许 all/agent/other，cursor 绑定 query/source/view/revision。
+Agent 工具仍只接收原只读参数，不接受 view/source/entries 或删除参数。
+`browser_history_remove` 只接收 `{entries:[{url,visitTime}]}`，严格验证整批后按 URL/本地日期去重删除，
+同一天的来源一起移除、其他日期保留；旧 ids、混合字段、路径与非法时间在变更前拒绝。
+列表与删除共享原 `BrowserHistoryHost/Store` 的 schema2 访问日志，来源由原生 route 派生，标题更新不增加访问。
+`browser_history_clear` 继续作为 BrowserDataHost 的内部历史清理入口；设置页清理统一走
+`browser_data_clear` 和原六类/五时段对话框，旧历史页专用清理及无消费者的前端 wrapper 已移出。
+IPC 命令名、preload allowlist 和 catalog 归属不变，无新 App Server method 或 Renderer mock fallback。
 
 `browser_tab_list` 是既有 native tab owner 的只读 snapshot，不是新的 App Server 业务方法。
 Host 从实际 IPC sender 派生 window / ownerWebContents，并校验 browserSession / thread；身份不符必须
@@ -779,9 +820,16 @@ UI 回读权威值并保留模式草稿；回读失败时禁止继续修改，�
 受限 page preload 为已选元素读取有界 `designSnapshot`；Host 验证并绑定原 annotation/document/frame identity。
 可信 editor 的正文、图片、`designChange` 共用同一 revision，旧 revision 或伪造 previousValue 不得替换草稿。
 Editor Host 的事件由 BrowserTabHost 委托 Annotation Host，再以原 private token 发送到同一 PageAnnotation；
-CSS 使用局部临时 style，文本撤销恢复原节点。保存后保留预览，关闭未保存的临时预览恢复已保存组；
+CSS 使用原 Document/ShadowRoot 的局部构造样式表，文本撤销恢复原节点。保存后保留预览，关闭未保存的临时预览恢复已保存组；
 隐藏、Agent 接管、导航、取消和销毁沿原 annotation 生命周期撤销。模型输入只投影 old→new 和源代码修改指引，
 不把临时属性当作应写入项目的源码。站点 controls/virtual 与完整 provenance 仍按执行计划继续实现。
+
+首次 Design save/send 由原 Annotation owner 校验后，通过私有 `prepare-design-capture`、双 rAF ready、
+同一 WebContents 截图及 `clear-design-capture` 清理完成；这些消息仅限原 token/document/frame，
+不暴露网页 bridge。Editor 事件可携带同 revision 的 `capture`；gateway 共用严格截图校验，唯一 draft
+store 保留原 selection 并原子更新截图。超时/失败明确无图，stale 阻止旧 send；已有保存批注 edit
+保留原截图。事件 relay 保持 save/send → close 顺序，最终 close 仍可在页面退役后冲刷正文与附图。
+无新增 Desktop command 或 App Server method；现有提交和接受回执仍是唯一 canonical 消费入口。
 
 工具条按住原图使用 Desktop presentation 命令`browser_tab_set_annotation_original`，沿原共享IPC白名单/
 preload、BrowserTabHost命令委托和Annotation Host，不新增App Server业务方法、工具或通用网页bridge。
@@ -916,18 +964,25 @@ error、transport experimental gate、active-turn interrupt、cold resume、重�
 
 ## Config Control Plane 主链
 
-Desktop 配置只允许走单一全局用户层：
+Desktop 配置只允许走现役 core 配置 owner 的用户/项目层：
 
 `Settings/fixture -> AppServerClient.request(config/read|config/value/write|config/batchWrite) -> app_server_handle_json_lines -> App Server config processor -> lime_core config.yaml`
 
-`config/read` 只返回 Lime 用户配置层；`cwd`、project-local layer、MDM/requirements layer 和非当前绝对
-`filePath` 均 fail closed。写入必须携带当前版本，未知 key、版本冲突和无效 schema 均拒绝。Electron 只转发
-`app_server_handle_json_lines`，不得恢复 `get_config` / `save_config` 或新增第二套配置业务后端。
+`config/read` 无 cwd 时返回用户层；有 cwd 时从用户层与最近 Git 根到 cwd 的
+`.lime/config.toml` 项目层合成 effective config、origins 和独立 layers。项目文件只能影响
+已接入新 Thread 默认值的字段；信任仅来自用户 YAML `projects.<absolute-path>.trust_level`，
+未信任和符号链接项目层不参与合成且不可写。新 Thread 根据 cwd 冻结默认值，旧 Thread/恢复保持
+canonical 快照；全局桌面和模型偏好仍写用户层。
 
-Codex `configRequirements/read` 已纳入planned，由现役core config与App Server权限owner承接
-requirements/managed policy和真实admission消费者。目前这些层尚未实现，未知策略继续fail
-closed；`browser_requirement`仍只是Turn任务意图，不能冒充管理策略。`ElectronBrowserTabHost`
-现役逐次审批、站点权限与人工接管也不能代替持久策略。`config/mcpServer/reload`同为planned，
+`config/value/write` / `config/batchWrite` 的绝对 filePath 只允许当前用户文件或可解析的可信
+项目配置；项目 revision 使用原始 TOML 字节摘要，逐项编辑保护注释与无关字段，整个 batch
+校验成功后才落盘。项目的内联 sandbox 表无法安全编辑时明确报错。未知 key、版本冲突、
+无效 schema 和其他路径均拒绝。Electron 只转发 `app_server_handle_json_lines`，不得恢复
+`get_config` / `save_config` 或新增第二套配置业务后端。真实 macOS 强制配置以 MDM 层投影，受管父子路径写入在落盘前拒绝。
+
+`configRequirements/read` 由 core `config::managed` 组合、`config::requirements` 校验与 RuntimeCore 单一读取路径实现，独立于用户/项目/cwd：Unix 为 `/etc/lime/requirements.toml`，Windows 经系统 Known Folder API 定位 ProgramData/Lime/requirements.toml。仅 Host composition 可注入源路径；没有环境变量、配置字段或 RPC 路径覆盖。当前支持 `allowed_approval_policies`、`allowed_sandbox_modes`、`allowed_web_search_modes` 及 `[in_app_browser].allow_external_browser_settings_import`；系统文件和强制偏好均缺失或组合无有效约束时返回 null，损坏/空审批或沙盒列表明确拒绝，关闭搜索始终允许。浏览器字段使用上游 `InAppBrowserRequirementsToml` / `InAppBrowserRequirements`，wire 为 `inAppBrowser.allowExternalBrowserSettingsImport`；仅显式 false 禁止，省略/高层空表不替换低层显式值，任何层的非法类型均拒绝。网关保留缺省/null/boolean 并拒绝非法嵌套策略；普通用户配置和 RPC 参数不能提供管理员 authority。该读取接线不表示尚未实现的原生导入执行器已完成。用户/项目写入在落盘前检查；config/read/new Thread 默认值只收敛继承值，显式 Thread/设置/Turn 与 command/exec 的有效沙盒在执行前拒绝越权；旧 Thread 不因历史快照豁免。每次操作重新读取策略。macOS 强制配置的 MDM origin 已接入同一 ConfigLayers；requirements 按系统文件 → 强制配置中 approval/sandbox 的单值回填 → 独立强制 requirements 逐字段覆盖。域固定 com.limecloud.lime，键为 config_toml_base64 / requirements_toml_base64；读取前后均检查 forced，错误类型/base64/TOML/超限/未支持键明确拒绝。非 macOS 没有虚构 MDM 层；enterprise transport 和其他 requirements 字段尚未实现。`browser_requirement` 仍只是任务意图。
+
+`config/mcpServer/reload`同为planned，
 必须重读同一配置并协调现役MCP连接；既有`mcpServer/list|create|update|delete`和start/stop
 继续current，不增加第二配置库或用同类功能冒充exact reload合同。
 
@@ -952,7 +1007,7 @@ runtime `read-only`、`workspace-write`、`danger-full-access` 与内部 `grante
 `:danger-full-access` 保持显式逃生选项。Renderer 在提交 Turn 前用当前 Thread cwd 查询 catalog，不能只依赖启动时快照。
 
 Electron 不新增权限业务命令或本地 catalog；Renderer/TUI 不复制 Codex picker 或读取 project-local `.codex/config.toml`。
-Cloud managed config、MDM/managed requirements、cwd 对应的 project-local policy layer 与真实 Windows packaged enforcement
+系统 requirements 的三个 allowed lists 已由上文 core/RuntimeCore owner 约束全部执行入口。Cloud managed config、enterprise requirements、其他管理员字段及真实 Windows packaged enforcement
 仍属于 deferred/fail-closed；Cloud profile 只能由 authenticated remote transport 提供，不能在 CLI 伪造。多模型 catalog、
 model switch、provider capability/readiness、retry/circuit breaker 与多模态 sampling/media lowering 继续归
 Grok-aligned `model-provider`。
@@ -982,3 +1037,35 @@ common-dir、gitdir backlink 与本地文件状态；固定或活动聊天拒绝
 聊天状态和 checkout，再执行无 force 的 targeted `git worktree remove`。失败可能已经归档聊天，
 客户端必须保留失败状态并明确说明。此流程不是跨进程事务；不声称具有快照恢复或自动清理能力。
 Electron 仅转发既有 IPC，不增加 Git 业务命令或生产 mock fallback。
+
+
+## 独立知识平台退役
+
+`knowledgePack/list|read|source/import|compile|default/set|status/update`、
+`knowledgeContext/resolve` 与 `knowledgeContextRun/validate` 已从 public protocol、
+catalog、Rust/TypeScript client 和 App Server dispatch 删除，返回 MethodNotFound。
+知识页面、前端网关、专用 mock、crate 和编译执行器为 dead/deleted/forbidden-to-restore。
+资料整理专家继续通过标准 Skills、同一 Thread/Turn 与现役工具执行，输出普通工作区文档；
+不恢复隐藏知识会话或额外编译协议。多模型、主题、专家广场、消息渠道保持 current。
+
+
+浏览器配置沿现役 config/read、config/batchWrite 与 config/value/write，无新增 IPC/JSON-RPC。
+`browser_use` 为 Codex 同名公共准入配置；`browser` 仅保存 Desktop 原生询问偏好与 grants，
+矩阵编辑使用一次 CAS batch 原子写入两部分，过期冲突不重放授权。
+Renderer 与 Host 共用同一校验和 deny 优先投影：任意匹配拒绝优先、重复规范化别名不放宽、
+access deny 连带禁止下载/上传/CDP。旧持久化 agent_permissions/history_access/site_tools_enabled/full_cdp_access 已退出；
+full_cdp_access 仅保留为上游 browser_use 准入字段，历史及矩阵名称仅是 UI view model。
+设置页沿原 `config/read(includeLayers)` 同次消费 effective 配置、raw User 与 origins，
+只读投影区分保存值、生效值、跨规则限制及真实受管来源；该上下文不进入任何配置写入。
+完整覆盖的 deny 与部分交集分别显示阻断和“按网址判定”，不以虚构网址推断通配许可。
+只读单元格和覆盖的受管拒绝同时在控件与事件处理中禁用，规则编辑继续使用原队列/CAS；
+没有新增 IPC、App Server method 或管理员 authority，也不代表完整企业浏览器 requirements 已实现。
+
+
+## 独立资源窗口退役
+
+`open_resource_manager_window` 已从 Electron Host、IPC allowlist、Renderer gateway、
+命令目录册和 DevBridge 专用策略删除。独立 `/resource-manager` 路由和资源导航 intent
+不再消费；旧窗口参数只进入主应用，不能启动第二资源面。图片预览使用现有 Artifact/Files
+入口，普通文件保存不触发额外 material import。保留标准文件、MCP resource、插件 resource
+与模型 media task 的现役协议；不增加兼容命令、mock fallback 或平行文件后端。

@@ -321,40 +321,6 @@ describe("quality-task-planner", () => {
     expect(tasks.frontend).toBe(true);
   });
 
-  it("正式工作流搭配项目资料主路径改动时仍应推荐产品 E2E", () => {
-    const tasks = detectTasks([
-      ".github/workflows/release.yml",
-      "src/features/knowledge/KnowledgePage.tsx",
-    ]);
-
-    expect(tasks.workflow).toBe(true);
-    expect(tasks.recommendedCommands).toEqual([
-      "npm run knowledge:product-e2e",
-      "npm run verify:gui-smoke -- --include-knowledge-product-e2e --reuse-running",
-      "npm run i18n:rtl-readiness-report:json -- --output internal/roadmap/i18n/evidence/rtl-readiness-inventory.json",
-      "npm run i18n:rtl-smoke",
-      "npm run i18n:p4-readiness-report:json -- --output internal/roadmap/i18n/evidence/p4-readiness-report.json",
-      "npm run i18n:roadmap-readiness-report:json -- --output internal/roadmap/i18n/evidence/roadmap-readiness-report.json",
-    ]);
-  });
-
-  it("项目资料主路径改动应推荐产品 E2E 重验命令", () => {
-    const tasks = detectTasks([
-      "src/features/knowledge/KnowledgePage.tsx",
-      "scripts/knowledge-product-e2e.mjs",
-    ]);
-
-    expect(tasks.guiSmoke).toBe(true);
-    expect(tasks.recommendedCommands).toEqual([
-      "npm run knowledge:product-e2e",
-      "npm run verify:gui-smoke -- --include-knowledge-product-e2e --reuse-running",
-      "npm run i18n:rtl-readiness-report:json -- --output internal/roadmap/i18n/evidence/rtl-readiness-inventory.json",
-      "npm run i18n:rtl-smoke",
-      "npm run i18n:p4-readiness-report:json -- --output internal/roadmap/i18n/evidence/p4-readiness-report.json",
-      "npm run i18n:roadmap-readiness-report:json -- --output internal/roadmap/i18n/evidence/roadmap-readiness-report.json",
-    ]);
-  });
-
   it("文档-only 项目资料改动不应强推产品 E2E", () => {
     const tasks = detectTasks(["internal/roadmap/knowledge/prd-v3.md"]);
 

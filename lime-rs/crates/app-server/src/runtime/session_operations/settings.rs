@@ -98,6 +98,9 @@ pub(in crate::runtime) fn apply_thread_settings_patch(
         model_identity_changed && effort_update.is_none() && !collaboration_model_update;
     let reset_service_tier_for_model = model_identity_changed && params.service_tier.is_none();
     let clears_permission_profile = params.sandbox_policy.is_some();
+    if params.sandbox_policy.is_some() || params.permissions.is_some() {
+        metadata.insert("sandboxNetworkAccess".into(), Value::Bool(false));
+    }
     let permission_profile = params.permissions.clone();
     if let Some(cwd) = params.cwd {
         metadata.insert("workingDir".into(), Value::String(cwd));

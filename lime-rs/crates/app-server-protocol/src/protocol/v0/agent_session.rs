@@ -383,6 +383,9 @@ pub struct RuntimeRequest {
     pub approvals_reviewer: Option<agent_protocol::ApprovalsReviewer>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sandbox_policy: Option<String>,
+    /// Ambient network access applies only to the workspace-write sandbox.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sandbox_network_access: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub workspace_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -393,6 +396,9 @@ pub struct RuntimeRequest {
     pub project_root: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub web_search: Option<bool>,
+    /// Access ceiling, independent of auto/required search intent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub web_search_mode: Option<agent_protocol::WebSearchMode>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub search_mode: Option<RuntimeSearchMode>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

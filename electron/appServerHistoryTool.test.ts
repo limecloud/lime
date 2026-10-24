@@ -16,8 +16,10 @@ async function setup(
   const native = createHarness({
     history: { invoke, forget: vi.fn() } as unknown as BrowserHistoryHost,
   });
-  const settings = effectiveBrowserSettings({ history_access: access });
-  settings.agent_permissions.default.browse = "deny";
+  const settings = effectiveBrowserSettings(
+    { iabHistoryApprovalMode: access },
+    { default_origin_policy: { access: "deny" } },
+  );
   native.host.setSettings(settings);
   await mount(native);
   const host = new AppServerDynamicToolHost(undefined, native.browserHost);

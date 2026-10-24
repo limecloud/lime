@@ -409,36 +409,6 @@ pub fn create_tables(conn: &Connection) -> Result<(), rusqlite::Error> {
         [],
     )?;
 
-    // 模型使用统计表
-    // 记录每个模型的使用情况，用于智能选择
-    conn.execute(
-        "CREATE TABLE IF NOT EXISTS model_usage_stats (
-            model_id TEXT NOT NULL,
-            credential_id TEXT NOT NULL,
-            date TEXT NOT NULL,
-            request_count INTEGER DEFAULT 0,
-            success_count INTEGER DEFAULT 0,
-            error_count INTEGER DEFAULT 0,
-            total_tokens INTEGER DEFAULT 0,
-            total_latency_ms INTEGER DEFAULT 0,
-            avg_latency_ms REAL,
-            PRIMARY KEY (model_id, credential_id, date)
-        )",
-        [],
-    )?;
-
-    // 创建 model_usage_stats 索引
-    conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_model_usage_stats_date
-         ON model_usage_stats(date)",
-        [],
-    )?;
-    conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_model_usage_stats_model
-         ON model_usage_stats(model_id)",
-        [],
-    )?;
-
     // ============================================================================
     // Lime Connect 相关表
     // ============================================================================

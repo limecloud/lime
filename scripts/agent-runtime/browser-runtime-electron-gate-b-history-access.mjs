@@ -119,7 +119,11 @@ export async function runBrowserHistoryAccessScenario(ctx) {
     await waitFor(
       options,
       () => readConfigFromPage(page),
-      (value) => value.config.browser?.history_access === access,
+      (value) =>
+        (value.config.browser_use?.allow_history_access === false
+          ? "disabled"
+          : (value.config.browser?.iabHistoryApprovalMode ?? "alwaysAsk")) ===
+        access,
       "History preference did not commit",
     );
     if (denyBrowse) {
@@ -134,15 +138,18 @@ export async function runBrowserHistoryAccessScenario(ctx) {
         options,
         () => readConfigFromPage(page),
         (value) =>
-          value.config.browser?.agent_permissions?.default?.browse === "deny",
+          value.config.browser_use?.default_origin_policy?.access === "deny",
         "Browse deny did not commit",
       );
     }
     const config = await readConfigFromPage(page);
     check(
       `${access}-config-authority-${evidence.cases.length}`,
-      config.config.browser.history_access === access &&
-        config.config.browser.agent_permissions.default.browse === "deny",
+      (config.config.browser_use?.allow_history_access === false
+        ? "disabled"
+        : (config.config.browser?.iabHistoryApprovalMode ?? "alwaysAsk")) ===
+        access &&
+        config.config.browser_use?.default_origin_policy?.access === "deny",
     );
     await click(page.getByTestId("settings-back-button"));
     return waitFor(
@@ -271,16 +278,19 @@ export async function runBrowserHistoryAccessScenario(ctx) {
             expectedVersion: config.version,
             edits: [
               {
-                keyPath: "browser",
+                keyPath: "browser_use",
                 mergeStrategy: "replace",
-                value: { ...config.config.browser, history_access: "disabled" },
+                value: {
+                  ...config.config.browser_use,
+                  allow_history_access: false,
+                },
               },
             ],
           });
           check(
             "policy-revoked-authoritative-config",
-            (await readConfigFromPage(page)).config.browser.history_access ===
-              "disabled",
+            (await readConfigFromPage(page)).config.browser_use
+              ?.allow_history_access === false,
           );
           check(
             "policy-revoked-same-live-approval",

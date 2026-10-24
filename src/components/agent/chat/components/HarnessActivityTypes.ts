@@ -11,10 +11,6 @@ export interface HarnessEnvironmentSummary {
   skillsCount: number;
   skillNames: string[];
   memorySignals: string[];
-  contextItemsCount: number;
-  activeContextCount: number;
-  contextItemNames: string[];
-  contextEnabled: boolean;
 }
 
 export interface FileEventGroup {

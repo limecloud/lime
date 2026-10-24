@@ -1,4 +1,6 @@
 use super::*;
+#[path = "network_tests.rs"]
+mod network_tests;
 use crate::tool_executor::{
     RuntimeToolExecutionContext, RuntimeToolExecutionContextInput, RuntimeToolExecutionRequest,
 };
@@ -207,6 +209,7 @@ fn input() -> RuntimeToolOrchestrationInput {
         initial_approval_reason: None,
         requested_sandbox_policy: RuntimeToolSandboxPolicy::WorkspaceWrite,
         effective_sandbox_policy: RuntimeToolSandboxPolicy::WorkspaceWrite,
+        sandbox_network_access: false,
         granted_permissions: GrantedPermissionProfile::default(),
         managed_network_host: None,
         strict_guardian: false,

@@ -20,6 +20,10 @@ pub struct TurnContextOverride {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sandbox_policy: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub sandbox_network_access: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub web_search_mode: Option<crate::WebSearchMode>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub collaboration_mode: Option<CollaborationMode>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub user_visible_input_text: Option<String>,

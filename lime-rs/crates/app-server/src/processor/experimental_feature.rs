@@ -7,10 +7,9 @@ use app_server_protocol::protocol::v2::{
     ExperimentalFeatureListResponse, ExperimentalFeatureStage,
 };
 use app_server_protocol::{error_codes, JsonRpcError};
-use lime_core::config::load_config;
-use lime_core::config::save_config;
+use lime_core::config::layers::ConfigLayers;
 
-const WEBMCP_FEATURE: &str = "webmcp";
+const WORKSPACE_DEPENDENCIES_FEATURE: &str = "workspace_dependencies";
 
 fn config_error(error: impl std::fmt::Display) -> JsonRpcError {
     JsonRpcError::new(
@@ -30,19 +29,17 @@ impl RequestProcessor {
             self.resolve_loaded_v2_thread_session(thread_id)?;
         }
 
-        let enabled = load_config()
-            .map(|config| config.experimental.webmcp.enabled)
+        let enabled = ConfigLayers::load(self.runtime.app_config_path(), None)
+            .map(|layers| layers.effective.features.workspace_dependencies_enabled())
             .map_err(|error| config_error(error))?;
         let data = vec![ExperimentalFeature {
-            name: WEBMCP_FEATURE.to_string(),
-            stage: ExperimentalFeatureStage::UnderDevelopment,
-            display_name: Some("WebMCP".to_string()),
-            description: Some(
-                "Expose a controlled WebMCP surface to supported web apps.".to_string(),
-            ),
+            name: WORKSPACE_DEPENDENCIES_FEATURE.to_string(),
+            stage: ExperimentalFeatureStage::Stable,
+            display_name: Some("Workspace dependencies".to_string()),
+            description: Some("Install and expose bundled Node.js and Python tools.".to_string()),
             announcement: None,
             enabled,
-            default_enabled: false,
+            default_enabled: true,
         }];
         let start = parse_cursor(params.cursor.as_deref(), data.len())?;
         let limit = params.limit.unwrap_or(data.len() as u32).max(1) as usize;
@@ -58,18 +55,23 @@ impl RequestProcessor {
         params: Option<serde_json::Value>,
     ) -> Result<RpcDispatch, JsonRpcError> {
         self.ensure_initialized()?;
-        let ExperimentalFeatureEnablementSetParams { mut enablement } = parse_params(params)?;
-        enablement.retain(|name, _| name == WEBMCP_FEATURE);
-        if enablement.is_empty() {
-            return dispatch_result(ExperimentalFeatureEnablementSetResponse { enablement });
+        let ExperimentalFeatureEnablementSetParams { enablement } = parse_params(params)?;
+        if enablement
+            .keys()
+            .any(|name| name != WORKSPACE_DEPENDENCIES_FEATURE)
+        {
+            return Err(JsonRpcError::new(
+                error_codes::INVALID_PARAMS,
+                "unknown feature",
+            ));
         }
-
-        let _guard = super::config::config_lock()?;
-        let mut config = load_config().map_err(config_error)?;
-        if let Some(enabled) = enablement.get(WEBMCP_FEATURE).copied() {
-            config.experimental.webmcp.enabled = enabled;
+        if !enablement.is_empty() {
+            self.handle_config_batch_write_impl(Some(serde_json::json!({
+                "edits": enablement.iter().map(|(name, enabled)| serde_json::json!({
+                    "keyPath": format!("features.{name}"), "value": enabled, "mergeStrategy": "upsert"
+                })).collect::<Vec<_>>()
+            }))).await?;
         }
-        save_config(&config).map_err(config_error)?;
         dispatch_result(ExperimentalFeatureEnablementSetResponse { enablement })
     }
 }

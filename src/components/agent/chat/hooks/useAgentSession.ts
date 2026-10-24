@@ -1559,6 +1559,8 @@ export function useAgentSession(options: UseAgentSessionOptions) {
                 {
                   providerType: nextProviderType,
                   model: nextModel,
+                  threadId: freshThreadRead.thread_id,
+                  reasoningEffort: freshThreadRead.reasoning_effort,
                 },
                 { markSynced: true },
               );
@@ -2254,7 +2256,10 @@ export function useAgentSession(options: UseAgentSessionOptions) {
       if (postFinalizePersistenceApplyPlan.providerPreferenceToApply) {
         applySessionModelPreference(
           topicId,
-          postFinalizePersistenceApplyPlan.providerPreferenceToApply,
+          {
+            ...postFinalizePersistenceApplyPlan.providerPreferenceToApply,
+            reasoningEffort: detail.thread_read?.reasoning_effort,
+          },
           {
             markSynced:
               metadataSyncPlan.modelPreferenceSource === "execution_runtime",

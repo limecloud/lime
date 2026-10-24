@@ -89,11 +89,6 @@ function mount() {
       activeTheme: "general",
       mappedTheme: "general",
       isThemeWorkbench: false,
-      contextWorkspace: {
-        enabled: false,
-        activeContextPrompt: "",
-        prepareActiveContextPrompt: async () => "",
-      },
       projectId: workspaceId,
       projectRootPath: `/${workspaceId}`,
       executionWorkspaceId: workspaceId,

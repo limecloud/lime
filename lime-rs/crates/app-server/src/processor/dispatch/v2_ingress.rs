@@ -202,7 +202,14 @@ pub(super) fn into_parts(
         ClientRequest::EnvironmentStatus { id, params } => {
             parts(id, Method::EnvironmentStatus, params)
         }
+        ClientRequest::PrimaryRuntimeDiagnoseDependencies { id, params } => parts(id, Method::PrimaryRuntimeDiagnoseDependencies, params),
+        ClientRequest::PrimaryRuntimeRunUpdateNow { id, params } => parts(id, Method::PrimaryRuntimeRunUpdateNow, params),
+        ClientRequest::PrimaryRuntimeResetDependencies { id, params } => parts(id, Method::PrimaryRuntimeResetDependencies, params),
+        ClientRequest::PrimaryRuntimeCancelInstall { id, params } => parts(id, Method::PrimaryRuntimeCancelInstall, params),
         ClientRequest::ConfigRead { id, params } => parts(id, Method::ConfigRead, params),
+        ClientRequest::ConfigRequirementsRead { id, params } => {
+            parts(id, Method::ConfigRequirementsRead, params)
+        }
         ClientRequest::ConfigValueWrite { id, params } => {
             parts(id, Method::ConfigValueWrite, params)
         }

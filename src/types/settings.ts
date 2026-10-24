@@ -21,7 +21,6 @@ export enum SettingsTabs {
   Voice = "voice",
   // 账号
   Profile = "profile",
-  Stats = "stats",
 
   // 通用
   Appearance = "appearance",
@@ -30,6 +29,7 @@ export enum SettingsTabs {
   Memory = "memory",
   ArchivedConversations = "archived-conversations",
   Storage = "storage",
+  Configuration = "configuration",
 
   // 智能体
   Providers = "providers",
@@ -38,14 +38,11 @@ export enum SettingsTabs {
 
   // 系统
   McpServer = "mcp-server",
-  WebSearch = "web-search",
   Environment = "environment",
   Git = "git",
   Worktrees = "worktrees",
   ExecutionPolicy = "execution-policy",
 
-  Experimental = "experimental",
-  Developer = "developer",
   About = "about",
 }
 
@@ -64,5 +61,4 @@ export interface SettingsTabInfo {
   key: SettingsTabs;
   labelKey: string; // i18n key
   group: SettingsGroupKey;
-  experimental?: boolean;
 }

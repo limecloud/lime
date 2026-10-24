@@ -14,7 +14,7 @@ interface Mounted {
 
 const mounted: Mounted[] = [];
 
-function renderSidebar(activeTab: SettingsTabs = SettingsTabs.Developer) {
+function renderSidebar(activeTab: SettingsTabs = SettingsTabs.General) {
   const container = document.createElement("div");
   document.body.appendChild(container);
   const root = createRoot(container);
@@ -60,6 +60,18 @@ afterEach(async () => {
 });
 
 describe("SettingsSidebar", () => {
+  it("关于始终位于全部设置菜单的最后且不归入编程分组", () => {
+    const container = renderSidebar(SettingsTabs.About);
+    const items = container.querySelectorAll<HTMLButtonElement>(
+      '[data-testid^="settings-sidebar-tab-"]',
+    );
+    const about = items[items.length - 1];
+    expect(about.dataset.testid).toBe("settings-sidebar-tab-about");
+    expect(about.getAttribute("aria-current")).toBe("page");
+    expect(about.parentElement?.parentElement?.textContent).toBe("About");
+    expect(container.textContent).not.toContain("settings.group.null");
+  });
+
   it("搜索键位与可用列表同源，导航在途和卸载时一并撤销", () => {
     const container = renderSidebar();
     const input = container.querySelector<HTMLInputElement>(
@@ -85,7 +97,7 @@ describe("SettingsSidebar", () => {
     act(() =>
       root.render(
         <SettingsSidebar
-          activeTab={SettingsTabs.Developer}
+          activeTab={SettingsTabs.General}
           onTabChange={vi.fn()}
           navigationPending
         />,
@@ -107,9 +119,9 @@ describe("SettingsSidebar", () => {
     expect(getRegisteredCommands()).toEqual([]);
   });
 
-  it("应通过 settings namespace 渲染实验 badge 与搜索名称", () => {
+  it("应通过 settings namespace 渲染搜索名称并移除实验入口", () => {
     const container = renderSidebar();
-    expect(container.textContent).toContain("Labs");
+    expect(container.textContent).not.toContain("Labs");
     expect(
       container
         .querySelector('[data-testid="settings-sidebar-search"]')

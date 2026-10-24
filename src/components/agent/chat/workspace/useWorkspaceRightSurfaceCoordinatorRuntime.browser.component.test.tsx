@@ -69,7 +69,7 @@ describe("Browser 待办挂载确认", () => {
       articleEditorRightSurfaceAvailable: false,
       bindRightSurfacePendingActions: noop,
       canvasWorkbenchRootPath: "/workspace",
-      clawTraceEnabled: false,
+
       expertInfoPanelCollapsed: true,
       expertInfoPanelVisible: false,
       handleToggleCanvas: noop,

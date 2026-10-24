@@ -21,9 +21,6 @@ const agentChatLifecycle = vi.hoisted(() => ({ mounts: 0, unmounts: 0 }));
 const latestSkillsWorkspaceProps = vi.hoisted(() => ({
   value: null as Record<string, unknown> | null,
 }));
-const latestKnowledgePageProps = vi.hoisted(() => ({
-  value: null as Record<string, unknown> | null,
-}));
 const latestPluginsProps = vi.hoisted(() => ({
   value: null as Record<string, unknown> | null,
 }));
@@ -69,13 +66,6 @@ vi.mock("./skills", () => ({
   SkillsWorkspacePage: (props: Record<string, unknown>) => {
     latestSkillsWorkspaceProps.value = props;
     return <div data-testid="skills-workspace-page" />;
-  },
-}));
-
-vi.mock("@/features/knowledge", () => ({
-  KnowledgePage: (props: Record<string, unknown>) => {
-    latestKnowledgePageProps.value = props;
-    return <div data-testid="knowledge-page" />;
   },
 }));
 
@@ -196,7 +186,6 @@ describe("AppPageContent", () => {
     agentChatLifecycle.mounts = 0;
     agentChatLifecycle.unmounts = 0;
     latestSkillsWorkspaceProps.value = null;
-    latestKnowledgePageProps.value = null;
     latestExpertPlazaProps.value = null;
     latestSettingsPageProps.value = null;
     pluginsLifecycle.mounts = 0;
@@ -703,76 +692,6 @@ describe("AppPageContent", () => {
     });
   });
 
-  it("agent 页面切换 Knowledge 协同资料时应复用 AgentChatPage 实例", async () => {
-    const rendered = renderContentWithNavigationState({
-      currentPage: "agent",
-      pageParams: {
-        agentEntry: "claw",
-        projectId: "project-knowledge",
-        initialKnowledgePackSelection: {
-          enabled: true,
-          packName: "content-calendar",
-          workingDir: "/tmp/lime-project",
-          label: "内容运营资料",
-          status: "ready",
-          companionPacks: [
-            {
-              name: "founder-persona",
-              activation: "implicit",
-            },
-          ],
-        },
-      } satisfies AgentPageParams,
-    });
-    await flushEffects();
-
-    expect(agentChatLifecycle.mounts).toBe(1);
-    expect(agentChatLifecycle.unmounts).toBe(0);
-
-    rendered.rerender({
-      currentPage: "agent",
-      pageParams: {
-        agentEntry: "claw",
-        projectId: "project-knowledge",
-        initialKnowledgePackSelection: {
-          enabled: true,
-          packName: "content-calendar",
-          workingDir: "/tmp/lime-project",
-          label: "内容运营资料",
-          status: "ready",
-          companionPacks: [
-            {
-              name: "founder-persona",
-              activation: "implicit",
-            },
-            {
-              name: "campaign-plan",
-              activation: "explicit",
-            },
-          ],
-        },
-      } satisfies AgentPageParams,
-    });
-    await flushEffects();
-
-    expect(agentChatLifecycle.mounts).toBe(1);
-    expect(agentChatLifecycle.unmounts).toBe(0);
-    expect(latestAgentChatProps.value).toMatchObject({
-      initialKnowledgePackSelection: {
-        companionPacks: [
-          {
-            name: "founder-persona",
-            activation: "implicit",
-          },
-          {
-            name: "campaign-plan",
-            activation: "explicit",
-          },
-        ],
-      },
-    });
-  });
-
   it("agent 页面切换结果模板 initialInputCapability 时也应复用 AgentChatPage 实例", async () => {
     const rendered = renderContentWithNavigationState({
       currentPage: "agent",
@@ -1063,22 +982,6 @@ describe("AppPageContent", () => {
 
     expect(memoryPage).toBeNull();
     expect(container.textContent ?? "").not.toContain("灵感库");
-  });
-
-  it("knowledge 页面应把工作区参数透传给 KnowledgePage", async () => {
-    const { container } = renderContent("knowledge", {
-      workingDir: "/tmp/project-knowledge",
-      selectedPackName: "brand-product-demo",
-    });
-    await flushEffects();
-
-    expectTestId(container, "knowledge-page");
-    expect(latestKnowledgePageProps.value).toMatchObject({
-      pageParams: {
-        workingDir: "/tmp/project-knowledge",
-        selectedPackName: "brand-product-demo",
-      },
-    });
   });
 
   it("experts 页面应挂载专家广场并透传导航和当前项目作用域", async () => {

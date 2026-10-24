@@ -6,14 +6,22 @@
 #![allow(unused_imports)]
 
 mod browser;
+mod browser_computer_use_requirements;
+mod browser_use;
+mod browser_use_validation;
 mod desktop;
 mod export;
+mod features;
+pub use features::FeaturesToml;
 mod file_lock;
 mod git;
 mod hot_reload;
 mod import;
+mod in_app_browser_requirements;
+pub mod managed;
 mod output;
 mod path_utils;
+mod permissions;
 mod persistence;
 mod plugins;
 mod tool_execution;
@@ -24,10 +32,15 @@ mod worktrees;
 mod yaml;
 
 pub use browser::{
-    BrowserAgentPermissions, BrowserAnnotationScreenshot, BrowserConfig, BrowserHistoryAccess,
-    BrowserPermission, BrowserPermissions, BrowserSitePermissions,
+    BrowserAnnotationScreenshot, BrowserApprovalMode, BrowserConfig, BrowserHistoryAccess,
 };
-pub use desktop::{DesktopConfig, ExternalBrowserLinkShortcut, LinkOpenTarget};
+pub use browser_computer_use_requirements::{
+    AllowDenyRequirementToml, BrowserUseAccessApprovalLifetimeToml,
+    BrowserUseExtensionRequirementsToml, BrowserUseOriginPolicyToml, BrowserUseRequirementsToml,
+    RequestHeaderToml,
+};
+pub use browser_use::{BrowserUseConfigToml, BrowserUseOriginPolicyConfigToml};
+pub use desktop::{DesktopConfig, ExternalBrowserLinkShortcut, LinkOpenTarget, ReasoningEffort};
 pub use export::{ExportBundle, ExportOptions, ExportService, REDACTED_PLACEHOLDER};
 pub use file_lock::config_file_lock;
 pub use git::{GitConfig, PullRequestMergeMethod, ReviewDeliveryPreference};
@@ -36,8 +49,10 @@ pub use hot_reload::{
     ReloadResult,
 };
 pub use import::{ImportOptions, ImportService, ValidationResult};
+pub use in_app_browser_requirements::InAppBrowserRequirementsToml;
 pub use output::{ModelVerbosity, ReasoningSummary};
 pub use path_utils::{collapse_tilde, contains_tilde, expand_tilde};
+pub use permissions::{ApprovalPolicy, SandboxMode, SandboxWorkspaceWrite};
 pub use plugins::{
     MarketplaceConfig, MarketplaceSourceType, PluginConfig, PluginsConfig, PluginsDefaultConfig,
 };
@@ -70,19 +85,21 @@ pub use types::{
     MemoryEmbeddingConfig, MemoryEmbeddingProvider, MemoryProfileConfig, MemoryResolveConfig,
     MemorySoulArtifactVoiceConfig, MemorySoulArtifactVoiceSource, MemorySoulConfig,
     MemorySoulImportSource, MemorySoulStyleProfileId, MemorySourcesConfig, ModelInfo, ModelsConfig,
-    MultiSearchConfig, MultiSearchEngineEntryConfig, NativeAgentConfig, NavigationConfig,
-    OpenAIAsrConfig, OrchestratorConfig, OrchestratorFeatureConfig, PairingSettings,
-    PermissionFilesystemConfig, PermissionNetworkConfig, PermissionProfileConfig, ProviderConfig,
-    ProviderModelsConfig, ProvidersConfig, QuotaExceededConfig, RateLimitSettings,
-    RemoteManagementConfig, ResponseCacheSettings, RetrySettings, RolloutBudgetConfig,
-    RoutingConfig, SearchEngine, SenseVoiceLocalConfig, ServerConfig, ShellEnvironmentImportConfig,
-    SkillConfig, SkillsConfig, TaskSchedule, TelegramAccountConfig, TelegramBotConfig,
-    TelegramGroupConfig, TelegramTopicConfig, TlsConfig, ToolCallingConfig, UpdateCheckConfig,
-    UserProfile, VertexApiKeyEntry, VertexModelAlias, VoiceInputConfig, VoiceInstruction,
-    VoiceOutputConfig, VoiceOutputMode, VoiceProcessorConfig, WebSearchConfig, WebSearchProvider,
-    WechatAccountConfig, WechatBotConfig, WechatGroupConfig, WhisperLocalConfig, WhisperModelSize,
-    WindowsSandboxMode, WorkspacePreferencesConfig, WorkspaceSandboxConfig, XunfeiConfig,
-    DEFAULT_API_KEY,
+    NativeAgentConfig, NavigationConfig, OpenAIAsrConfig, OrchestratorConfig,
+    OrchestratorFeatureConfig, PairingSettings, PermissionFilesystemConfig,
+    PermissionNetworkConfig, PermissionProfileConfig, ProviderConfig, ProviderModelsConfig,
+    ProvidersConfig, QuotaExceededConfig, RateLimitSettings, RemoteManagementConfig,
+    ResponseCacheSettings, RetrySettings, RolloutBudgetConfig, RoutingConfig,
+    SenseVoiceLocalConfig, ServerConfig, ShellEnvironmentImportConfig, SkillConfig, SkillsConfig,
+    TaskSchedule, TelegramAccountConfig, TelegramBotConfig, TelegramGroupConfig,
+    TelegramTopicConfig, TlsConfig, UpdateCheckConfig, UserProfile, VertexApiKeyEntry,
+    VertexModelAlias, VoiceInputConfig, VoiceInstruction, VoiceOutputConfig, VoiceOutputMode,
+    VoiceProcessorConfig, WechatAccountConfig, WechatBotConfig, WechatGroupConfig,
+    WhisperLocalConfig, WhisperModelSize, WindowsSandboxMode, WorkspacePreferencesConfig,
+    WorkspaceSandboxConfig, XunfeiConfig, DEFAULT_API_KEY,
 };
 pub use worktrees::{UpstreamRefreshMode, WorktreeConfig};
 pub use yaml::{load_config, save_config, ConfigError, ConfigManager, YamlService};
+
+pub mod layers;
+pub mod requirements;

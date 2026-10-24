@@ -196,6 +196,7 @@ interface UseWorkspaceCanvasSceneRuntimeParams {
   imageGenerationSelectionReady: CanvasFactoryParams["imageGenerationSelectionReady"];
   imageGenerationSelectionWarning: CanvasFactoryParams["imageGenerationSelectionWarning"];
   sourceThreadId?: string | null;
+  onOpenArtifact: ImageWorkbenchParams["onOpenArtifact"];
   providerType: CanvasFactoryParams["autoContinueProviderType"];
   setProviderType: CanvasFactoryParams["onAutoContinueProviderTypeChange"];
   model: CanvasFactoryParams["autoContinueModel"];
@@ -249,6 +250,7 @@ export function useWorkspaceCanvasSceneRuntime({
   imageGenerationSelectionReady,
   imageGenerationSelectionWarning,
   sourceThreadId,
+  onOpenArtifact,
   providerType,
   setProviderType,
   model,
@@ -313,6 +315,7 @@ export function useWorkspaceCanvasSceneRuntime({
         sourceProjectId: projectId,
         sourceContentId: contentId,
         sourceThreadId,
+        onOpenArtifact,
         viewport: currentImageWorkbenchState.viewport,
         preferenceSummary: imageWorkbenchPreferenceSummary,
         preferenceWarning: imageWorkbenchPreferenceWarning,
@@ -324,7 +327,6 @@ export function useWorkspaceCanvasSceneRuntime({
         selectedSize: imageWorkbenchGenerationRuntime.selectedSize,
         onSizeChange: imageWorkbenchGenerationRuntime.setSelectedSize,
         generating: imageWorkbenchHasPendingTasks,
-        savingToResource: imageWorkbenchActionRuntime.savingToResource,
         onStopGeneration: imageWorkbenchHasPendingTasks
           ? imageWorkbenchActionRuntime.handleStopImageWorkbenchGeneration
           : undefined,
@@ -332,8 +334,6 @@ export function useWorkspaceCanvasSceneRuntime({
           imageWorkbenchActionRuntime.handleImageWorkbenchViewportChange,
         onSelectOutput:
           imageWorkbenchActionRuntime.handleSelectImageWorkbenchOutput,
-        onSaveSelectedToLibrary:
-          imageWorkbenchActionRuntime.handleSaveSelectedImageWorkbenchOutput,
         applySelectedOutputLabel:
           imageWorkbenchActionRuntime.imageWorkbenchPrimaryActionLabel,
         onApplySelectedOutput:

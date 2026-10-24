@@ -30,7 +30,6 @@ interface UseWorkspaceRightSurfaceProjectionRuntimeParams {
   shellAvailable: boolean;
   showHarnessToggle: boolean;
   suppressHomeNavbarUtilityActions: boolean;
-  traceAvailable: boolean;
 }
 
 interface UseWorkspaceRightSurfaceProjectionRuntimeResult {
@@ -56,7 +55,6 @@ export function useWorkspaceRightSurfaceProjectionRuntime({
   shellAvailable,
   showHarnessToggle,
   suppressHomeNavbarUtilityActions,
-  traceAvailable,
 }: UseWorkspaceRightSurfaceProjectionRuntimeParams): UseWorkspaceRightSurfaceProjectionRuntimeResult {
   const availableSurfaces = useMemo(
     () =>
@@ -69,7 +67,6 @@ export function useWorkspaceRightSurfaceProjectionRuntime({
         shellAvailable,
         showHarnessToggle,
         suppressHomeNavbarUtilityActions,
-        traceAvailable,
       }),
     [
       backgroundTerminalAvailable,
@@ -80,7 +77,6 @@ export function useWorkspaceRightSurfaceProjectionRuntime({
       shellAvailable,
       showHarnessToggle,
       suppressHomeNavbarUtilityActions,
-      traceAvailable,
     ],
   );
   const openSurfaces = useMemo(
@@ -142,7 +138,6 @@ export function useWorkspaceRightSurfaceProjectionRuntime({
         articleWorkspaceAvailable,
         shellAvailable,
         showHarnessToggle,
-        traceAvailable,
         suppressHomeNavbarUtilityActions,
       }),
     [
@@ -156,7 +151,6 @@ export function useWorkspaceRightSurfaceProjectionRuntime({
       shellAvailable,
       showHarnessToggle,
       suppressHomeNavbarUtilityActions,
-      traceAvailable,
     ],
   );
 

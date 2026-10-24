@@ -17,7 +17,6 @@ import type {
 } from "./right-surface/threadSidePanelTabs";
 import { ReviewThreadSidePanelTab } from "./ReviewThreadSidePanelTab";
 import { WorkspacePluginSurface } from "./WorkspacePluginSurface";
-import { WorkspaceTraceTab } from "./WorkspaceTraceTab";
 import {
   buildWorkspaceRightSurfaceDefinitions,
   RightSurfaceHost,
@@ -87,9 +86,6 @@ export interface RenderWorkspaceRightSurfaceHostRuntimeParams {
   rightSurfaceBrowserTitle: string | null;
   rightSurfaceHarnessEnabled: boolean;
   rightSurfaceState: WorkspaceRightSurfaceState;
-  rightSurfaceTraceAvailable: boolean;
-  rightSurfaceTraceEnabled: boolean;
-  runtimeWorkspaceId?: string | null;
   sceneSessionId?: string | null;
   sceneThreadId?: string | null;
   onArticleActionIntent: ArticleEditorRightSurfaceProps["onActionIntent"];
@@ -139,9 +135,6 @@ export function renderWorkspaceRightSurfaceHostRuntime({
   rightSurfaceBrowserTitle,
   rightSurfaceHarnessEnabled,
   rightSurfaceState,
-  rightSurfaceTraceAvailable,
-  rightSurfaceTraceEnabled,
-  runtimeWorkspaceId,
   sceneSessionId,
   sceneThreadId,
   onArticleActionIntent,
@@ -278,17 +271,6 @@ export function renderWorkspaceRightSurfaceHostRuntime({
               enabled={rightSurfaceHarnessEnabled}
               harnessState={harnessState}
               {...generalWorkbenchHarnessPanelBaseProps}
-            />
-          ),
-        }
-      : {}),
-    ...(rightSurfaceTraceAvailable
-      ? {
-          trace: () => (
-            <WorkspaceTraceTab
-              enabled={rightSurfaceTraceEnabled}
-              sessionId={sceneSessionId}
-              workspaceId={runtimeWorkspaceId}
             />
           ),
         }

@@ -1,0 +1,33 @@
+{
+  "status": "uncompiled-candidate",
+  "electronCommit": "22bbbc9f265d4b6f138f6dc7451891241037a780",
+  "chromiumCommit": "e1d853ded38ac7d1c5a4c83f3e30dfbf76b10c34",
+  "patchSha256": "8072ad27217769da4e70ea8e9acbf8e582533a8c74f0dfb3f3b9c3a1a7d48099",
+  "files": [
+    {
+      "path": "shell/browser/api/electron_api_session.h",
+      "baselineSha256": "c4a38c3ad0e7d7949045e683aebfeb9735abf16350cc9c623ee0a57d224b3986",
+      "candidateSha256": "d390c6e8827b91253ea19819671656699ffa294bbf8569fa4729a1ce4eaac88f"
+    },
+    {
+      "path": "shell/browser/api/electron_api_session.cc",
+      "baselineSha256": "f70e6520fd6e59c8d13883c037dca95cb19c24b79ccca8229bdc02de3cdb8ed6",
+      "candidateSha256": "bbc5dc02d888fac6721f027bf8c32de44b76973599317ddca340a2007528219a"
+    },
+    {
+      "path": "docs/api/session.md",
+      "baselineSha256": "b32d1bd5d6f2f3911d4da78d24bfd268ee6cfa3298fdb7eeabebba68fb89f57b",
+      "candidateSha256": "890004c267313e228d6894bdd946d69940f0c01b6e860fe7b7ff3c7118faaab4"
+    },
+    {
+      "path": "spec/api-session-spec.ts",
+      "baselineSha256": "6d9af7bc673e1c0e211ee71859c1b379ae559a34268c62844d2cdb9c2e7eb863",
+      "candidateSha256": "f5b4f7bb9fece9b792223e1b99322afbfbd7e141413eed2188adfac482e267f5"
+    }
+  ],
+  "schemaVersion": 1,
+  "patch": "clear-data-since.patch",
+  "compiled": false,
+  "nativeRegressionExecuted": false,
+  "productionIntegrated": false
+}

@@ -8,11 +8,14 @@ Lime GUI 的布局、交互、组件职责、目录结构及可确认的函数�
 
 用户指定保留的 Lime 特色只有：
 
-| 差异        | current 落点                                       | 边界                                                                 |
-| ----------- | -------------------------------------------------- | -------------------------------------------------------------------- |
-| 主题        | `src/lib/appearance/`、既有语义 token / skin       | 保留浅色、深色、跟随系统、皮肤及对应配色，不借主题保留旧导航或状态机 |
-| 多模型支持  | 既有模型选择、App Server catalog、`model-provider` | 保留 provider/model/capability 路由，不复制 runtime 或配置 authority |
-| 首页 Banner | 既有首页 presentation 与 `homeSkinPresentation`    | 保留 Banner 内容与背景，在共享首页结构内呈现，不扩散到会话或右侧面   |
+| 差异       | current 落点                                                 | 边界                                                                 |
+| ---------- | ------------------------------------------------------------ | -------------------------------------------------------------------- |
+| 主题       | `src/lib/appearance/`、既有语义 token / skin                 | 保留浅色、深色、跟随系统、皮肤及对应配色，不借主题保留旧导航或状态机 |
+| 多模型支持 | 既有模型选择、App Server catalog、`model-provider`           | 保留 provider/model/capability 路由，不复制 runtime 或配置 authority |
+| 专家广场   | `src/components/experts/`、既有专家目录与启动链              | 保留目录、详情、启动及 Thread profile/metadata，不建立第二 runtime   |
+| 消息渠道   | `src/components/channels/`、App Server gateway/channel owner | 保留渠道配置、登录、连接和收发链，沿同一 runtime 执行                |
+
+2026-10-24 用户收紧范围：保留多模型、视觉主题，以及用户明确保留的专家广场和消息渠道。Codex 没有的功能整链删除；创作场景主题不属于视觉主题，首页 Banner 不再享有独立例外。
 
 其他差异进入对齐清单。缺少证据、能力尚未落地或平台无法运行时，记录 unknown / gap / not-run；不自动增加保留项。用户后续明确修改范围时，先同步事实源与执行计划。
 
@@ -50,7 +53,6 @@ Desktop 与 CLI/TUI 共享协议、runtime、持久化和工具 owner。Renderer
 
 2026-10-18 用户最新截图指定 `rail-with-contextual-sidebar`。当前窗口骨架为持久窄图标导航＋可伸缩上下文列；折叠保留图标入口，新聊天/项目/最近会话在上下文列，设置在图标栏底部。插件/技能等使用同一 rail，切换 contextual 内容。不得回退到上一轮误选的 legacy 单侧栏或仅凭历史测试选择目标模式。可确认静态合同及限制见 [feature navigation 证据](../exec-plans/artifacts/codex-shell-layout-rea-20261018/sidebar/feature-navigation/report.md)。
 
-
 导航、会话页头、时间线、Composer、审批、队列、历史恢复、Files、Changes、右侧面和设置以可确认的 Desktop 结构与行为为基线。尺寸与密度随窗口适配，不强制套固定宽度、卡片墙、统计摘要或“3 到 7 步”导轨。
 
 当前工作对象、运行状态、主动作和阻塞恢复必须清楚。状态由同一 canonical identity 投影，不能让时间线、页头、Composer 与右侧面各自猜测业务完成态。
@@ -72,7 +74,7 @@ Lime 主题承接配色、表面、排版、圆角、阴影和首页背景。GUI
 
 - 主次层级靠布局、排版、留白与语义色建立，避免重复标题、多层套卡和竞争进度入口。
 - 正文和操作须在浅色、深色、跟随系统及受影响 skin 下清晰可读；强调、焦点、禁用、错误等状态语义保持一致。
-- Banner 可保留自己的视觉内容，但不得遮挡 Composer、破坏键盘焦点或引起窗口滚动跳动。
+- 首页装饰只作为视觉主题的一部分；不保留独立 Banner 产品能力、创作入口或推荐业务。
 - 透明、磨砂、渐变或阴影由现有主题及可确认的交互决定；不默认新增，也不以旧硬性禁令阻止目标复刻。
 
 ## 文案与可访问性

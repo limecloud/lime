@@ -38,19 +38,11 @@ import { useAppNavigation } from "./hooks/useAppNavigation";
 import { useAppShellLayout } from "./hooks/useAppShellLayout";
 import { useAppStartupEffects } from "./hooks/useAppStartupEffects";
 import { useGlobalTrayModelSync } from "./hooks/useGlobalTrayModelSync";
-import { useClawTraceRegressionAlertMonitor } from "./hooks/useClawTraceRegressionAlertMonitor";
 import { useOemLimeHubProviderSync } from "./hooks/useOemLimeHubProviderSync";
 import { useSkillPackageOpenRequests } from "./hooks/useSkillPackageOpenRequests";
-import { ComponentDebugProvider } from "./contexts/ComponentDebugContext";
 import { AppNavigationContext } from "./contexts/AppNavigationContext";
 import { BrowserHistoryNavigationContext } from "./contexts/BrowserHistoryNavigationContext";
 import { useBrowserHistoryNavigation } from "./hooks/useBrowserHistoryNavigation";
-import { ComponentDebugOverlay } from "./components/dev";
-import {
-  useResourceManagerNavigationIntents,
-  type ResourceManagerNavigationDestination,
-  type ResourceManagerNavigationIntent,
-} from "./features/resource-manager";
 import type { OpenDeepLinkPayload } from "./hooks/useDeepLink";
 import { buildClawAgentParams } from "./lib/workspace/navigation";
 import {
@@ -188,30 +180,6 @@ function AppContent() {
   useSkillCatalogBootstrap();
   useServiceSkillCatalogBootstrap();
   useOemLimeHubProviderSync();
-  useClawTraceRegressionAlertMonitor();
-  const handleResourceManagerNavigationHandled = useCallback(
-    ({
-      destination,
-    }: {
-      intent: ResourceManagerNavigationIntent;
-      destination: ResourceManagerNavigationDestination;
-    }) => {
-      toast.success(destination.noticeTitle, {
-        description: destination.noticeDescription,
-      });
-    },
-    [],
-  );
-  const handleResourceManagerNavigationUnsupported = useCallback(() => {
-    toast.info(t("common.app.resourceNavigation.unsupported.title"), {
-      description: t("common.app.resourceNavigation.unsupported.description"),
-    });
-  }, [t]);
-  useResourceManagerNavigationIntents({
-    onNavigate: handleNavigate,
-    onHandled: handleResourceManagerNavigationHandled,
-    onUnsupported: handleResourceManagerNavigationUnsupported,
-  });
   useGlobalTrayModelSync({
     currentPage,
     pageParams,
@@ -464,119 +432,114 @@ function AppContent() {
   startupTracker.mark("AppContent: rendering main app");
 
   return (
-    <ComponentDebugProvider>
-      <AppShell>
-        <MainContentLayout layout="default" fallback />
-        <AppContainer>
-          <AppShellHeader reserveWindowControls={reserveMacWindowControls} />
-          {hasDesktopHostRuntime ? (
-            <WindowDragLayer aria-hidden="true">
-              <WindowTopDragRegion
-                $reserveMacWindowControls={reserveMacWindowControls}
-                data-lime-window-drag-region
-                onMouseDown={handleWindowDragStart}
-              />
-              <WindowSideDragRegion
-                $side="left"
-                data-lime-window-drag-region
-                onMouseDown={handleWindowDragStart}
-              />
-              <WindowSideDragRegion
-                $side="right"
-                data-lime-window-drag-region
-                onMouseDown={handleWindowDragStart}
-              />
-            </WindowDragLayer>
-          ) : null}
-          {shouldShowAppSidebar && (
-            <AppSidebar
-              currentPage={currentPage}
-              currentPageParams={pageParams}
-              activeAgentSessionId={activeAgentSessionId}
-              activeAgentStreaming={activeAgentStreaming}
-              backgroundAgentSessionRuntime={backgroundAgentSessionRuntime}
-              requestedPage={requestedPage}
-              requestedPageParams={requestedPageParams}
-              onNavigate={handleNavigate}
-              onStartNewConversation={startNewConversation}
-              onStartWindowDrag={handleWindowDragStart}
+    <AppShell>
+      <MainContentLayout layout="default" fallback />
+      <AppContainer>
+        <AppShellHeader reserveWindowControls={reserveMacWindowControls} />
+        {hasDesktopHostRuntime ? (
+          <WindowDragLayer aria-hidden="true">
+            <WindowTopDragRegion
+              $reserveMacWindowControls={reserveMacWindowControls}
+              data-lime-window-drag-region
+              onMouseDown={handleWindowDragStart}
             />
-          )}
-          <AppShellContent
-            pageSurface={shouldShowAppSidebar}
-            data-lime-window-drag-region
-            onMouseDown={(event) => {
-              void startWindowDragFromMouseEvent(event, {
-                allowDescendantTargets: false,
-                source: "main_content",
-              });
+            <WindowSideDragRegion
+              $side="left"
+              data-lime-window-drag-region
+              onMouseDown={handleWindowDragStart}
+            />
+            <WindowSideDragRegion
+              $side="right"
+              data-lime-window-drag-region
+              onMouseDown={handleWindowDragStart}
+            />
+          </WindowDragLayer>
+        ) : null}
+        {shouldShowAppSidebar && (
+          <AppSidebar
+            currentPage={currentPage}
+            currentPageParams={pageParams}
+            activeAgentSessionId={activeAgentSessionId}
+            activeAgentStreaming={activeAgentStreaming}
+            backgroundAgentSessionRuntime={backgroundAgentSessionRuntime}
+            requestedPage={requestedPage}
+            requestedPageParams={requestedPageParams}
+            onNavigate={handleNavigate}
+            onStartNewConversation={startNewConversation}
+            onStartWindowDrag={handleWindowDragStart}
+          />
+        )}
+        <AppShellContent
+          pageSurface={shouldShowAppSidebar}
+          data-lime-window-drag-region
+          onMouseDown={(event) => {
+            void startWindowDragFromMouseEvent(event, {
+              allowDescendantTargets: false,
+              source: "main_content",
+            });
+          }}
+        >
+          <Suspense fallback={pageLoadingFallback}>
+            <AppNavigationContext.Provider value={navigateFromBrowser}>
+              <BrowserHistoryNavigationContext.Provider value={openHistoryUrl}>
+                <AppPageContent
+                  currentPage={currentPage}
+                  pageParams={pageParams}
+                  requestedPage={requestedPage}
+                  requestedPageParams={requestedPageParams}
+                  onNavigate={handleNavigate}
+                  onStartNewConversation={startNewConversation}
+                  onAgentHasMessagesChange={setAgentHasMessages}
+                  onAgentLocationChange={reportAgentLocation}
+                  onSettingsBack={returnFromSettings}
+                  navigationGuard={navigationGuard}
+                  onAgentStreamingChange={setActiveAgentStreaming}
+                  onBackgroundSessionRuntimeChange={
+                    handleBackgroundSessionRuntimeChange
+                  }
+                />
+              </BrowserHistoryNavigationContext.Provider>
+            </AppNavigationContext.Provider>
+          </Suspense>
+        </AppShellContent>
+        <Suspense fallback={null}>
+          <RecentImageInsertFloating onNavigate={handleNavigate} />
+        </Suspense>
+
+        <Suspense fallback={null}>
+          <ConnectConfirmDialog
+            open={isDialogOpen}
+            relay={relayInfo}
+            relayId={connectPayload?.relay ?? ""}
+            apiKey={connectPayload?.key ?? ""}
+            keyName={connectPayload?.name}
+            isVerified={isVerified}
+            isSaving={isSaving}
+            error={error}
+            onConfirm={handleConfirm}
+            onCancel={handleCancel}
+          />
+        </Suspense>
+
+        <Suspense fallback={null}>
+          <CreateProjectDialog
+            open={projectDialogOpen}
+            onOpenChange={(open) => {
+              setProjectDialogOpen(open);
+              if (!open) {
+                setPendingRecommendation(null);
+              }
             }}
-          >
-            <Suspense fallback={pageLoadingFallback}>
-              <AppNavigationContext.Provider value={navigateFromBrowser}>
-                <BrowserHistoryNavigationContext.Provider
-                  value={openHistoryUrl}
-                >
-                  <AppPageContent
-                    currentPage={currentPage}
-                    pageParams={pageParams}
-                    requestedPage={requestedPage}
-                    requestedPageParams={requestedPageParams}
-                    onNavigate={handleNavigate}
-                    onStartNewConversation={startNewConversation}
-                    onAgentHasMessagesChange={setAgentHasMessages}
-                    onAgentLocationChange={reportAgentLocation}
-                    onSettingsBack={returnFromSettings}
-                    navigationGuard={navigationGuard}
-                    onAgentStreamingChange={setActiveAgentStreaming}
-                    onBackgroundSessionRuntimeChange={
-                      handleBackgroundSessionRuntimeChange
-                    }
-                  />
-                </BrowserHistoryNavigationContext.Provider>
-              </AppNavigationContext.Provider>
-            </Suspense>
-          </AppShellContent>
-          <Suspense fallback={null}>
-            <RecentImageInsertFloating onNavigate={handleNavigate} />
-          </Suspense>
+            onSubmit={handleCreateProjectFromRecommendation}
+            defaultType={pendingRecommendation?.projectType}
+            defaultName={pendingRecommendation?.projectName}
+          />
+        </Suspense>
 
-          <Suspense fallback={null}>
-            <ConnectConfirmDialog
-              open={isDialogOpen}
-              relay={relayInfo}
-              relayId={connectPayload?.relay ?? ""}
-              apiKey={connectPayload?.key ?? ""}
-              keyName={connectPayload?.name}
-              isVerified={isVerified}
-              isSaving={isSaving}
-              error={error}
-              onConfirm={handleConfirm}
-              onCancel={handleCancel}
-            />
-          </Suspense>
-
-          <Suspense fallback={null}>
-            <CreateProjectDialog
-              open={projectDialogOpen}
-              onOpenChange={(open) => {
-                setProjectDialogOpen(open);
-                if (!open) {
-                  setPendingRecommendation(null);
-                }
-              }}
-              onSubmit={handleCreateProjectFromRecommendation}
-              defaultType={pendingRecommendation?.projectType}
-              defaultName={pendingRecommendation?.projectName}
-            />
-          </Suspense>
-
-          <ComponentDebugOverlay />
-          <AppServerConfigWarningToastBridge />
-          <ScheduledTaskNotificationBridge />
-        </AppContainer>
-      </AppShell>
-    </ComponentDebugProvider>
+        <AppServerConfigWarningToastBridge />
+        <ScheduledTaskNotificationBridge />
+      </AppContainer>
+    </AppShell>
   );
 }
 

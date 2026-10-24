@@ -1,4 +1,7 @@
 use super::*;
+#[cfg(target_os = "macos")]
+#[path = "network_tests.rs"]
+mod network_tests;
 use futures::{SinkExt, StreamExt};
 use serde_json::json;
 use serde_json::Value;
@@ -143,6 +146,7 @@ fn process_orchestration_input(
         initial_approval_reason: Some("approval required".to_string()),
         requested_sandbox_policy: sandbox_policy,
         effective_sandbox_policy: sandbox_policy,
+        sandbox_network_access: false,
         granted_permissions: Default::default(),
         managed_network_host,
         strict_guardian: false,
@@ -238,7 +242,7 @@ async fn orchestrated_sandbox_process_reuses_execution_process_control_owner() {
 }
 
 #[tokio::test]
-async fn managed_network_denial_precedes_sandbox_fallback_and_retries_with_network_grant() {
+async fn managed_network_denial_survives_ambient_network_and_retries_with_network_grant() {
     let approvals = RecordingProcessApprovals::default();
     let runner = ProcessAttemptRunner {
         server: ExecutionProcessServer::default(),
@@ -246,18 +250,16 @@ async fn managed_network_denial_precedes_sandbox_fallback_and_retries_with_netwo
         runtime_metadata: None,
     };
 
-    let result = orchestrate_runtime_tool_execution(
-        process_orchestration_input(
-            RuntimeToolInitialApproval::NotRequired,
-            RuntimeToolSandboxPolicy::WorkspaceWrite,
-            Some("example.com".to_string()),
-            true,
-        ),
-        &approvals,
-        &runner,
-    )
-    .await
-    .expect("managed network approval should retry the process");
+    let mut input = process_orchestration_input(
+        RuntimeToolInitialApproval::NotRequired,
+        RuntimeToolSandboxPolicy::WorkspaceWrite,
+        Some("example.com".to_string()),
+        true,
+    );
+    input.sandbox_network_access = true;
+    let result = orchestrate_runtime_tool_execution(input, &approvals, &runner)
+        .await
+        .expect("managed network approval should retry the process");
 
     assert_eq!(result.output, "orchestrated-process-2");
     assert_eq!(approvals.calls.load(Ordering::SeqCst), 1);
@@ -936,37 +938,6 @@ fn agent_shell_execution_checks_the_selected_shell() {
             "{argv:?} must be denied before process launch"
         );
     }
-}
-
-#[tokio::test]
-async fn execution_process_server_uses_current_unsandboxed_fallback_when_backend_is_disabled() {
-    let response = ExecutionProcessServer::default()
-        .start_thread_process(
-            "test-thread",
-            "test command",
-            LiveExecutionRequest {
-                process_id: "process-sandbox".to_string(),
-                tool_id: "tool-sandbox".to_string(),
-                tool_name: "exec_command".to_string(),
-                environment_id: "local".to_string(),
-                command: vec![
-                    "sh".to_string(),
-                    "-c".to_string(),
-                    "printf allowed".to_string(),
-                ],
-                working_directory: current_directory(),
-                tty: false,
-                approval_policy: Some("never".to_string()),
-                sandbox_policy: Some("workspace-write".to_string()),
-                runtime_metadata: None,
-                env: HashMap::new(),
-                attempt: None,
-            },
-        )
-        .await
-        .expect("disabled workspace sandbox backend should preserve configured fallback policy");
-
-    assert_eq!(response.tool_name, "exec_command");
 }
 
 #[cfg(target_os = "macos")]

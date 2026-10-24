@@ -1684,7 +1684,18 @@ outer JSON-RPC id 只负责 App Server 到客户端的响应关联，domain toke
 
 Composer 的唯一 Renderer 文档 owner 是 `input-kit::ComposerController`，持有 ProseMirror `EditorState` 与附件/路径/能力资源。`ComposerEditor` 只持有 `EditorView`，引用该 state 并把 Transaction 交回 Controller；`applyTransaction` 消费 appended transactions 后原子发布 revision/snapshot。严格 JSON schema 接收 doc/paragraph/code_block/text/hard_break/mention/paste/text_element 与 link mark；code_block 仅容纳无 mark 的 text，保留 language 与 autoDetectLanguage。link 保存 href/title/sourceAppId、literal source、flags 与有限数值 occurrence；普通链接仅接受 HTTP/HTTPS/mailto，能力提及协议由独立 owner 处理。文本、选择区、mention 与 pending paste 由同一文档派生，不建第二份 React/TipTap document store。主输入 DOM 为 `[data-testid="composer-editor"][role="textbox"]`，file/skill/plugin/paste/element 均为不可编辑 atom；普通表单 textarea 不受影响。提及检测与选择动作统一通过同一PM投影的atom-aware候选解析；不可编辑标签和跨atom的查询不能打开菜单或拦截历史方向键，可编辑正文中的新触发字符仍有效。
 
-Composer 路径附件只消费既有上下文资源与移除/发送动作；Home、Conversation 和 Landing 不再透传“设为项目资料”callback。匹配安装包 REA 的附件、消息动作槽与文件动作 consumer 合同支持删除路径附件及消息/Artifact 的额外知识保存入口。专用保存 runtime、navigation、文本/路径导入 helper、知识保存资格/回调投影和 KnowledgePage saveDraft 分支均已删除；普通文件打开/预览仍消费既有 canonical identity。独立 KnowledgePage 的目录/状态查询和已有资料选择保持 current，普通整理通过既有 Agent 导航与 metadata 入口承接，不再保留只服务 save 分支的直接文本导入函数。底层知识 API、runtime、read model 与协议 owner 不变；知识产品面整体去留仍待独立对标，不属于新增保留特色。参考与验证限制见 `composer-project-knowledge-removal-plan.md` 和 `message-artifact-knowledge-removal-plan.md`。
+Composer 路径附件只消费既有上下文资源与移除/发送动作；独立 KnowledgePack 页面、选择/导入/编译、专用 Skill executor、knowledge crate 与八条知识 RPC 已删除。普通文件打开/预览继续消费 canonical identity；专家广场的资料整理专家使用实际 bundled personal-ip Skill，交付工作区 Markdown，并沿现役工具权限执行。历史用户文档不删除。不存在知识平台兼容 owner、后台编译或第二套上下文状态；图片任务的通用 persona metadata 与全局 Soul owner 继续保留，专用 persona-pack 提示注入已删除。
+
+```mermaid
+flowchart LR
+  Expert[专家广场 / 资料整理专家] --> Skill[标准 Skills / bundled personal-ip]
+  Skill --> Thread[App Server / 同一 Thread 与 Turn]
+  Thread --> Runtime[RuntimeCore / Agent runtime]
+  Runtime --> Tools[现役工具权限与执行]
+  Tools --> Document[工作区 Markdown 文档]
+```
+
+2026-10-24 责任开发者 root 确认：上述删除收敛既有 runtime 与工具 owner，不新增后端。公开方法退役、真实资源加载及 Desktop 证据分别记录于设置对齐计划第三十三阶段，静态结构不代表真实桌面已验证。
 
 ```mermaid
 flowchart TD
@@ -2504,7 +2515,7 @@ Pending 必须在 canonical/projected/in-memory 的 Thread/session read/list、r
 | ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `config`、`infra`、`core`                        | 配置、平台无关基础设施和稳定公共模型；不接受默认塞入的新 runtime 逻辑。                                                                               |
 | `services`、`processor`                          | 有明确领域 owner 的服务与处理器；中心 facade 只做 dispatch。                                                                                          |
-| `knowledge`、`embedding`、`document-preview`     | 独立领域能力。                                                                                                                                        |
+| `embedding`、`document-preview`                  | 独立领域能力。                                                                                                                                        |
 | `gateway`、`websocket`、`server`、`server-utils` | 网络/服务边界。                                                                                                                                       |
 | `providers` / `lime-providers`                   | `dead / deleted / forbidden-to-restore`；provider 网络、wire lowering、stream、catalog 只归 `model-provider`。                                        |
 | `scheduler`、`automation_execution` 对应 owner   | 调度与自动化领域，不承接 turn loop。                                                                                                                  |
@@ -5098,28 +5109,28 @@ strictAutoReview denial
 Architecture impact: major；本节新增 denial circuit breaker 到 Desktop notice 的跨层数据流，并固定一次性告警、turn
 中断、fail-closed 和 Desktop/TUI 边界。Responsible developer confirmation: root, 2026-08-09。
 
-## 40. Experimental Feature Configuration Owner
+## 40. Feature Configuration Owner
 
-Lime Desktop 实验特性由 App Server catalog 与 `lime_core config.yaml` 共同构成唯一 current owner。Settings 不再通过
-Electron 业务命令直接读写配置；Electron 只保留通用 App Server JSONL 转发职责。
+Feature 目录和配置沿唯一 App Server 主链演进。开发者/实验室页面及其 WebMCP、ClawTrace 专属功能、工具调用调试
+开关已删除；公共 feature 协议只提供 Codex Stable 默认开启的 `workspace_dependencies`。
 
 ```text
-Settings Experimental
-  -> Renderer typed experimentalFeatures gateway
-  -> app_server_handle_json_lines
-  -> experimentalFeature/list | experimentalFeature/enablement/set
-  -> App Server feature catalog
-  -> lime_core config.yaml
+Configuration -> typed primaryRuntime gateway -> App Server JSON-RPC
+  -> RuntimeCore -> tool-runtime::primary_runtime
+  -> 用户数据目录内的依赖 bundle
+
+experimentalFeature/list | experimentalFeature/enablement/set
+  -> App Server feature catalog / existing config batch write
+  -> core ConfigLayers (User / Project / Admin)
 ```
 
-catalog 当前只包含真实 Desktop consumer `webmcp`。`threadId` 仅接受已加载 Thread identity；Lime 没有 Codex
-project-local feature config，因此 Thread 不建立第二份 enablement store。Settings 写入是 Desktop 持久化配置语义，
-未知 feature key 被忽略；多模型/多模态 catalog、provider capability/readiness、retry/circuit breaker 仍归 Grok-aligned
-`model-provider`，不由 experimental feature catalog 承接。
+未知 feature 返回参数错误，受管写入沿同一 config owner 拒绝；不保留进程全局环境变量或另一份配置事实源。
+自定义 Usage Stats 页面、三条 usageStats 公共协议、SDK、service、DAO 及建表实现一并删除；真实 Thread/Turn 的
+usage projection、多模型及 provider 能力不依赖该统计平台。通用 trace carrier、审批 ledger 与支持包诊断保留既有 owner。
+专家广场与消息渠道是用户明确保留的 current 产品能力，继续复用同一 App Server/runtime，不得随减负删除其业务链。
 
-旧 Electron `get_experimental_config` / `save_experimental_config`、Renderer IPC 直连、legacy Tauri facade 与生产 mock
-fallback 为 `dead / deleted / forbidden-to-restore`；无 `compat` 或 `deprecated`。Architecture impact: major；本节将实验
-配置业务 owner 从 Electron 收敛到 App Server current 主链。Responsible developer confirmation: root, 2026-08-10。
+分类：上述退休实现为 `dead / deleted / forbidden-to-restore`，没有新增 compat/deprecated 包装。
+Architecture impact: major；依赖管理领域 owner 与数据流由 root 于 2026-10-24 确认，最终验证尚在执行。
 
 ## 41. Desktop Permission Profile Owner
 
@@ -5158,7 +5169,7 @@ fail-closed、Desktop/TUI 分界和 settings mutation blocker。Responsible deve
 
 ## Config Control Plane
 
-Desktop 配置的唯一业务 owner 是 App Server config processor 与单一全局用户 `lime_core config.yaml`：
+Desktop 配置的唯一业务 owner 是 App Server config processor 与 core config；用户 YAML、可信项目和真实系统受管来源合成同一配置读模型：
 
 ```text
 Settings / fixture / internal provider selection
@@ -5168,11 +5179,24 @@ Settings / fixture / internal provider selection
   -> lime_core config.yaml
 ```
 
-`config/read` 当前只暴露用户层并返回版本；写入必须经过当前版本、已知key和当前绝对filePath
-校验。project-local、MDM、requirements层与`configRequirements/read`属于同一config owner的
-planned扩展，未实现策略仍fail closed。MCP外部配置reload同为planned，复用同一配置与连接
-owner。Electron不承接配置业务，不恢复get_config/save_config；不能以缺消费者将这些能力
-永久排除。当前Settings/Claw fixture只证明既有config合同，新增层必须补真实消费者证据。
+`config/read` 返回用户/可信项目/真实 macOS MDM 层、版本、origins 与有效配置；精确写入经过当前版本、已知 key、规范路径和 managed 父子路径只读校验。core `config::managed` 是强制偏好读取与来源组合 owner，`config::requirements` 是三个 allowed lists 与 `in_app_browser` 的唯一解析/校验 owner；后者直接使用上游同名 `InAppBrowserRequirementsToml`。RuntimeCore 每次读取同一来源组合，用于独立 `configRequirements/read`、继承默认值收敛、显式 Thread/Turn admission 与 standalone command sandbox 校验。浏览器管理要求投影为 `inAppBrowser.allowExternalBrowserSettingsImport`，显式 false 为禁止、缺省不覆盖低层显式值；无有效约束的组合返回 null。管理员源独立于用户/项目/会话，不进入可写配置；损坏策略 fail closed。强制 config 在 User/Project 之后覆盖；UI 仅对真实 managed 层显示 Admin，按 canonical origins 锁定字段且无文件源不提供打开按钮。缓存完整保留 layers 和唯一 raw User 层，混合受管字段的表仅提交变化子项，不把 effective 管理值写回 User。enterprise authenticated source、其他 requirements 字段与依赖修复仍为 planned。
+
+```text
+macOS forced preferences (com.limecloud.lime) -> core::config::managed
+  -> ConfigLayers (User -> trusted Project -> MDM) -> config/read layers/origins
+  -> Configuration Admin / readonly controls
+System requirements.toml + forced config backfill + forced requirements
+  -> core::config::managed -> core::config::requirements -> RuntimeCore
+  -> configRequirements/read -> typed client -> Configuration choices / inAppBrowser requirements
+  -> config/read / new Thread defaults
+  -> config writes / Thread settings / Turn admission / command sandbox
+```
+
+Electron 仍只转发现役 JSONL，CLI/TUI 共用同一 App Server；没有新增后端、IPC 或持久化库。MCP外部配置 reload 继续 planned。
+
+Managed settings 架构影响 major；责任开发者 root 于 2026-10-24 确认上图。CFPreferencesAppValueIsForced 在 CopyAppValue 前后必须均为真；普通用户 defaults、User/Project 字段与 env/RPC 不能提供 authority。当前仅管理已接入 Configuration 默认值的字段及 desktop.enabled-reasoning-efforts；未接线的策略键明确拒绝。测试组合函数不对产品 transport 暴露。
+
+Requirements 架构影响 major；责任开发者 root 于 2026-10-24 确认上图的系统策略单一 owner、公共查询与执行准入共用同一源。当前实现三个 allowed lists 及 `in_app_browser` 管理要求读取，不将其冒充 MDM/enterprise 配置层或依赖安装服务。本次浏览器字段扩展为 minor，沿用同一受管组合和公共读路径；原生外部浏览器导入执行器尚未实现，不能据此声明完整导入或执行器策略强制已完成。
 
 Architecture impact: major；本节完成 Electron config facade 到 App Server config control plane 的 owner 迁移，并同步
 Settings/Claw evidence。Responsible developer confirmation: root, 2026-08-10。
@@ -5484,6 +5508,12 @@ evidence owner，公开 ThreadItem/GUI card/第二套 RuntimeEvent 属于 `dead 
 
 ## 45. Browser Workspace 同 Tab Owner
 
+导航前的 New tab 地址草稿只归既有 `useWorkspaceRightSurfaceLocalStateRuntime` 的 `ThreadSidePanelTab.addressDraft`，输入为受控呈现，经原 navigation context 更新。更新复用 owner/version 检查，且仅接收仍存活的 workspace-new-tab；组件重建读取同一 tab 字段，关闭或原位替换即丢弃，首次 canonical owner 接管沿原 stateForOwner 迁移。Esc 清空草稿并退出编辑，IME 确认不取消。没有新增持久化或普通网页地址草稿缓存；提交继续走原 handleOpenBrowserAddress 到同一 BrowserTabHost/Session/WCV。架构影响 minor，root 于2026-10-24确认沿本节唯一 owner 与数据流。
+
+地址提交验证成功后先释放输入焦点，原导航/重载完成后通过 `browser_tab_focus_page` 向同一原生页面交接。Renderer以完整native identity、组件存活、focus generation及当前DOM焦点取消迟到请求；Host再次核验owner、view/WebContents identity、selected/attached/visible和当前owner WebContents焦点，只调用原生WebContents.focus，不激活OS窗口或变更Agent控制。该命令是Desktop Host呈现能力，不增加App Server/Rust协议或持久化状态。
+
+地址栏编辑值、选区、IME 与焦点属于 `BrowserNavigationBar` 的局部呈现。native 身份切换或已编辑期间 URL 改变时取消编辑并释放焦点；title/loading 投影不重置草稿。导航仍委托既有 BrowserTab gateway，实际 URL 由 Host 投影，不新增网页草稿持久化或第二份 tab 状态。
+
 Browser 的唯一产品目标是让用户和 Agent 操作同一个 Electron `WebContentsView`。Browser 不再以外部 Chrome/CDP
 target、Canvas 镜像或 `BrowserSessionRef` adapter 作为执行体。目标数据流为：
 
@@ -5535,7 +5565,20 @@ flowchart LR
   TABS[统一工作区标签 / Browser UI] --> GW[typed gateway / preload / IPC]
   GW --> HOST[BrowserTabHost]
   HOST --> PAGE[同一 WebContentsView]
+  HOST --> DEVICE[EmbeddedBrowserHost / 原容器与设备请求]
+  CATALOG[共享 browserDevicePresets / 13项目录] --> TABS
+  CATALOG --> DEVICE
+  DEVICE --> LAYOUT[共享 browserDeviceLayout / 自动适配几何]
+  LAYOUT --> PAGE
+  DEVICE --> VIEWPORT[deviceViewport / 实际 bounds 与 scale 投影]
+  VIEWPORT --> HANDLES[BrowserDeviceViewport / 原生区域外五个手柄]
+  HANDLES --> GW
   HOST --> OVERLAY[BrowserOverlayHost / 可信 sandbox preload]
+  PAGE --> SITE_REQUEST[Session permission request / check]
+  SITE_REQUEST --> HOST
+  HOST --> SITE_PROMPT[BrowserSitePermissionPrompt / 用户文档确认]
+  SITE_PROMPT --> OVERLAY
+  SITE_REQUEST --> SITE_GRANT[EmbeddedBrowserPermissionGrants / 临时原生文档 grant]
   HOST --> SELECTION[BrowserAnnotationHost / 主进程选区与截图]
   SELECTION --> PAGEPRELOAD[同一 WCV / 受限 main-frame preload]
   OVERLAY --> EDITOR[BrowserAnnotationEditorHost / 独立可信 Composer]
@@ -5566,15 +5609,92 @@ flowchart LR
   HOST -. 待实现的版本化绑定 .-> SERVICES[同一引擎 Profile 原生服务]
 ```
 
+设备视口保持同一 Browser owner：外层 `containerBounds` 与原生 WCV 实际 bounds 分离，
+`device.scale` 是用户倍率上限，实际 `deviceViewport.scale` 由 Host 自动计算。设备布局与请求
+校验之外没有新增 runtime/Session/权限/持久偏好；切标签等恢复读取原容器，批注继续读取实际
+WCV。Renderer 五个响应式手柄位于网页外围20px区域，冻结拖动倍率、RAF合并与串行最新输入，
+身份变化取消旧输入和迟到 receipt。原生main-frame导航投影独立navigationRevision，避免把自身
+device请求触发的pageRevision快照失效当作导航而取消拖动。责任开发者 root 确认本轮 minor 架构方向；本段和图只说明
+实现接线，完整设备/批注坐标、参考视觉、物理OS指针与双平台 packaged 仍按执行计划验收。
+
+设备目录唯一 owner 为 `src/lib/browserDevicePresets.ts`。Renderer 选择与 Host parser 使用同一
+封闭 id 集合；原生 `device.presetId` 随同一 WCV 状态往返，宽高不决定身份。未指定的自定义
+请求归 responsive，非法 id 在原生变更前拒绝。目录只确认宽高，不按机型臆造 DPR/mobile；
+原生服务/Agent 权限边界不变。root 确认该 minor 接线，完整工具栏 UI/UX 仍在执行计划验收。
+
+工具栏的字符串草稿归 `BrowserDeviceDimension`，待发送动作归 `useBrowserDeviceControls`，
+实际尺寸与页面 zoom 仍由原生 Host 投影。尺寸范围由共享 `browserDeviceLayout` 统一为
+宽240–4096、高160–4096；有效输入即时发送，失焦归整。队列合并连续尺寸且保留预设的
+page zoom reset 顺序，身份变化/隐藏/卸载取消未发送动作。`browserZoom` 统一原生25–500%
+边界及设备显示百分比换算，预设重置原生zoom=1，旋转保留zoom。无新增IPC/RPC、store或runtime。
+root 确认此 minor 接线；整体行高/旋转动效、参考像素及完整键盘/主题矩阵仍未验收。
+
 每个 canonical browserTabId 对应一个工作区顶部标签，Browser 内层标签条已替换。Renderer 仅投影原生
 状态与管理输入，可信菜单覆盖层由 Host 管理 generation/sender/token/焦点；普通 DOM z-index 不承接
 WCV 上方的交互。Cookie 使用应用级持久 Browser partition，会话/回合隔离依赖 route 授权。用户历史
 的唯一数据 owner 为 `BrowserHistoryStore`，设置 UI 经 typed gateway/IPC 委托，不建立 Renderer store；
 用户管理历史与 Agent 读取历史的授权是不同能力。
 
+历史存储 schema2 在同一文件、原子写入和串行队列中保存每次访问的时间与原生来源。
+`BrowserTabHost` 在 main-frame commit 时从实际 route 的 controlOwner 派生 isActorVisit，
+不接受网页伪造来源；标题更新不制造访问。Agent 继续消费 URL 汇总，用户管理消费
+URL/本地日期/来源的最新访问投影，底层原生 search 的参考去重算法仍 unknown。
+选择身份为 URL/time/source，删除 targets 按 URL/本地日期去重并移除当天所有来源，保留其他日期；
+整批校验在任何删除前完成，旧 ids payload 和 schema1 文件直接拒绝，无迁移或第二份 store。
+
+```text
+native commit + route controlOwner -> BrowserHistoryHost -> BrowserHistoryStore (schema2)
+Agent history -> existing read approval -> same Host/Store -> URL summary
+Settings history -> typed list(view=visits)/remove(entries) -> same Host/Store -> visit projection
+Settings clear data -> existing BrowserDataHost -> same history owner
+```
+
+`useBrowserHistory` 只管理查询、分页、选中与展开呈现；来源/搜索切换失效旧请求，分页失败保留已加载行，
+变更失败保留选择。清理继续复用原 BrowserData 对话框与原生限制。
+架构影响 minor，root 于2026-10-24确认本图沿唯一 Session/原生历史 owner，未增加 runtime、Profile 或业务后端。
+此确认不代表完整 S06、参考像素或双平台 packaged 验收。
+
+网站设备权限同样复用该 Session。无 activeTurn 且由用户控制（含已释放的用户标签）时，
+`BrowserSitePermissionPrompt` 使用可信 overlay 展示 native requesting origin、顶层 origin、权限及媒体种类；
+只在选中、可见、attached 的同一窗口/标签/文档接受决定。未知权限、来源不明或无法唯一定位的 frame
+直接拒绝。导航、子 frame 变化、切标签、接管、关闭或断连拒绝 pending；原 native callback 仅消费一次。
+`EmbeddedBrowserPermissionGrants` 同时服务 request/check，按 native frame/origin/permission 区分，
+媒体按 audio/video 分开；只在当前文档内存中保存，导航、控制变更或回合终态撤销，不写第二权限数据库。
+Agent 控制时仍只走原 `grantPermission` canonical 回合审批，不弹用户网站确认或复用用户 grant。
+public permission event 的 isMainFrame/mediaTypes 由原生 API 生成，两种 Renderer listener 复用同一校验器；
+网页仍无应用 IPC。该切片不替代 S14 的完整原生网站设置/持久规则及 OS 权限管理。
+
+浏览器准入沿 Codex 同名 `config/browser_use.rs` 与公共 `v2/browser_use_config.rs`，
+由根 `browser_use` 持有 allow_history_access/default_origin_policy/origins。
+Desktop 的询问偏好和站点 grants 使用 REA 确认的原字段（approvalMode、
+downloadApprovalMode、uploadApprovalMode、iabHistoryApprovalMode、fullCdpAccessEnabled、
+webMcpEnabled 与十个 allowed/denied origin arrays），保存在既有 `browser` 表。
+两者在同一 ConfigManager authority，以一次 config/batchWrite CAS 原子更新，不建立原生第二配置文件。
+`agent_permissions` 矩阵与 `history_access` 仅为 UI 投影，已退出持久化。
+
+```text
+BrowserUseSettings -> browserSettings gateway -> existing config/batchWrite (CAS)
+  -> ConfigManager { browser_use: admission, browser: native approval preferences }
+  -> config/read -> BrowserAppServerBridge -> BrowserTabPolicy -> same native Session/WCV
+```
+
+任意匹配的准入 deny 优先，规范化别名重复时不接纳宽松值；匹配字段缺省才继承默认。
+access deny 连带禁止下载、上传和 CDP；allow 不自动免除用户审批。更改策略通过原 policy revision
+撤销回合 grant 和 pending token。默认 fullCdp/webMcp 仅允许/拒绝；全局 neverAsk 下不能强制单站点 ask。
+新增网站保留稀疏继承，编辑仅写变化字段，删除同时清准入条目及原生 grants。
+设置矩阵通过既有 `getConfigSnapshot` 同次读取 effective 配置、raw User 层与 canonical origins；
+独立 `browserUsePolicySitePermissions` 只投影保存选择、生效值、继承说明和真实受管来源。
+模式集合比较区分完整覆盖与部分交集，不构造网址推断通配授权；部分交集显示“按网址判定”，
+不承诺范围中存在可访问网址。受管规则覆盖的拒绝、只读字段与关闭能力禁用单元格，
+用户行优先，受管行不能改名/删除；编辑仍经过原 CAS，Host 对实际 URL 的判定保持唯一执行 authority。
+未接入的 browser_use requirements、企业网络准入和 persistentApproval 不由 Renderer 伪造。
+本次 Architecture impact: major；Responsible developer confirmation: root, 2026-10-24；
+已核对目录、单一配置 owner、依赖方向、协议生成和验证门禁；不包含完整原生服务或平台验收。
+
 Agent 的 `browser__history` 复用既有 namespace、动态工具阶段和同一 `BrowserHistoryHost/Store`。
-`history_access=alwaysAsk` 对每次冻结查询请求 canonical 单次审批，`neverAsk` 跳过历史审批，
-`disabled` 在存储读取前拒绝；个人管理历史保持可用。历史读取不 claim 网页、不 attach debugger，
+根 `browser_use.allow_history_access=false` 在存储读取前拒绝；否则原生
+`iabHistoryApprovalMode=alwaysAsk` 对每次冻结查询请求 canonical 单次审批，`neverAsk` 跳过历史审批，
+`disabled` 同样拒绝；个人管理历史保持可用。历史读取不 claim 网页、不 attach debugger，
 也不受网站 browse grant 替代。现有审批 descriptor 要求 native route，当前使用同 thread 中可见
 canonical tab 作为审批 anchor；无此 anchor 时显式失败。设置、turn terminal、断连、用户接管和
 原生 route 变化撤销 pending 与异步读取；IO 后回读权威配置、核验 policy revision 与完整 route，
@@ -5706,7 +5826,8 @@ flowchart LR
   Annotation -->|原 selection 事件| Draft[原 BrowserAnnotationDraftStore]
   Draft --> Trusted[可信 Annotation Editor / ComposerController]
   Trusted -->|同 revision 正文 / 附图 / designChange| Editor[BrowserAnnotationEditorHost]
-  Editor --> Tab[BrowserTabHost 事件委托]
+  Editor --> Relay[原 editor/generation 事件保序]
+  Relay --> Tab[BrowserTabHost 事件委托]
   Original[工具条指针 / 键盘按住原图] --> Desktop[typed gateway / 原 Desktop IPC]
   Desktop --> Tab
   Tab --> Annotation
@@ -5714,6 +5835,9 @@ flowchart LR
   Presentation --> Annotation
   Annotation -->|原 frame / token / document| Preview[BrowserDesignPreview 临时 CSS / 文本]
   Preview --> Page
+  Annotation -->|首次 Design save/send；私有 prepare / 双 rAF ACK| Capture[同一 WCV capturePage]
+  Capture -->|原 selection + 同 revision 新截图 / 失败无图| Relay
+  Relay -->|原 typed editor event| Draft
   Draft --> Lower[原 lowerBrowserAnnotations]
   Lower --> Canonical[原 App Server Thread / Turn / Item 提交链]
 ```
@@ -5731,7 +5855,16 @@ CSS 字段复用参考 19 项基础与 6 项 flex 字段；纯文本仅对直接
 只含 designChange 的草稿可沿同一 Composer/工具条提交；接受精确 revision 后才消费，拒绝保留完整变更。
 canonical 用户消息继续委托既有 MarkdownRenderer；松散列表归一化保留英文属性名与选择器中的连字符，
 不为 Browser 新建专用消息投影或第二显示层。
-截图像素仍来自原 capture；设计保存后的重新采集、站点 controls/virtual、provenance 与完整原生/参考视觉矩阵继续未完成。
+首次创建 Design 批注的 save/send 在原 frame/token/document 上准备修改后预览，双 rAF 后由同一
+WebContents 采集；保留原 selection 上下文，截图 viewport 元数据使用本次实际几何。
+`BrowserAnnotationCapture` 共用初次选择与首次 Design 提交的截图、超时和清理逻辑；已有保存批注的
+edit 不重新截图。`BrowserDesignPreview` 的临时采集状态只覆盖 original 显示，不覆盖用户最新偏好，
+结束或暂停恢复最新偏好。导航、接管或新 revision 拒绝旧结果；失败不沿用旧图。
+`BrowserAnnotationEditorRelay` 即时处理预览失效，再按 editor/generation 顺序投递 save/send 和 close；
+同 revision 的截图结果经既有 typed 事件原子更新唯一草稿，随后复用原 Composer/runtime 提交。
+Architecture impact: major；Responsible developer confirmation: root, 2026-10-23；确认仍为唯一
+BrowserTabHost/Annotation/Draft owner，无新增 public command、Profile 或 App Server 业务后端。
+站点 controls/virtual、provenance 与完整原生/参考视觉矩阵继续未完成；验证范围见执行计划。
 临时展示状态集中在`BrowserAnnotationPresentation`：marker偏好和原图手势独立，原图仅按view持有
 当前精确page identity/gestureId与生命周期监听。工具条`BrowserAnnotationOriginalButton`经typed gateway与
 既有Desktop IPC委托Annotation Host，再经原token/document/frame临时撤销CSS/text；释放显示当前变更。
@@ -6414,3 +6547,47 @@ InvalidRequest（wire -32600），不预读猜测 changed；成功才投影 thre
 环境通知。重复 archive 的既有语义保持其独立 owner，不由此次修改推导。
 本片架构影响 minor，root 于 2026-10-21 确认 current owner/调用流和锁边界；
 无 compat/deprecated/迁移层。验证结果继续记录在 rollout 执行计划。
+
+## 独立资源平台退役（2026-10-24）
+
+独立资源页面、Resource Manager 窗口、临时 session/navigation intents 及其专用 Host 命令
+已删除；不再把普通工作区文件或图片输出自动复制到资源 catalog。图片多模型生成仍归现有
+media task owner，点击输出时用 `createPreviewArtifact(source: task, sourceRef: outputId)`
+投影并交给同一 `handleWorkspaceArtifactClick`；task/output/thread/project 身份随 meta 保留。
+预览复用 Artifact/Files 和现有右侧面，不增加全局 preview bus、runtime 或存储。
+普通文件保存继续由 session/files owner 负责，失败保持既有错误处理和当前投影。
+
+```mermaid
+flowchart LR
+  ImageTask[现役图片任务输出] --> Preview[createPreviewArtifact]
+  Preview --> Artifact[Workspace Artifact / Files 预览]
+  Write[普通文件写入] --> Files[现役 session/files]
+  Files --> Server[App Server JSON-RPC]
+  Server --> Runtime[RuntimeCore / canonical Thread Turn Item]
+```
+
+MCP/plugin/runtime resources、专家 Skill 资源与用户工作区文件继续由各自 current owner 持有，
+不能按 resource 字符串删除。material/catalog 的内容平台消费者尚在下一切片范围，
+此处不声明它们已全部退役。无新增 compat/deprecated，专用资源平台为 dead/deleted/forbidden-to-restore。
+root 确认上述 owner、依赖方向和架构图；实际验证与未完成事项见 settings-alignment-20261022。
+
+## 创作上下文子链退役（2026-10-24）
+
+删除独立主题上下文 hook、搜索/导入/详情 UI、选择缓存、专用搜索 API 与发送前正文拼接。
+Renderer 不再维护这套上下文 catalog 或 prompt authority；正文和 typed input 交给同一 App Server。
+标准 Skills、审批、工具状态、用户 Files 和 canonical Thread/Turn/Item 继续由既有 owner 持有。
+仍被执行日志消费的 `SidebarActivityLog` 类型迁入既有 `generalWorkbenchWorkflowData`，没有新增 owner。
+Harness 保留技能、审批和真实 runtime 状态，移除失去消费者的上下文计数与名称。
+
+```mermaid
+flowchart LR
+  Composer[用户正文与typed input] --> Server[App Server JSON-RPC]
+  Server --> Runtime[RuntimeCore]
+  Runtime --> Projection[canonical Thread / Turn / Item]
+  Projection --> GUI[消息 / 审批 / 工具 / Files]
+  Skills[标准 Skills] --> Runtime
+```
+
+此切片没有新增配置、协议、持久化或 compat 层。内容/material 平台及其现有视频消费者尚未整体退役，
+不能把本子链的删除写成全部产品清理完成。root 确认上述 owner、依赖方向与图；
+实际验证和剩余缺口见 `internal/exec-plans/settings-alignment-20261022.md`。

@@ -3,7 +3,7 @@ import path from "node:path";
 export const WEB_SEARCH_SCENARIO_ID = "web-search-route";
 export const WEB_SEARCH_REQUIRED_CONFIG_METHODS = [
   "config/read",
-  "config/batchWrite",
+  "config/value/write",
 ];
 
 const APP_SERVER_COMMAND = "app_server_handle_json_lines";
@@ -244,8 +244,8 @@ export function applyPassingSettingsWebSearchEvidence(summary, facts) {
     ["configElectronIpc", trace.configIpcHitCount > 0],
     ["configCurrentReadWrite", trace.missingConfigMethods.length === 0],
     ["isolatedUserData", summary.lifecycle.isolatedUserData],
-    ["webSearchTabActive", facts.webSearchTabActive === true],
-    ["routeControlReady", facts.routeControlReady === true],
+    ["configurationTabActive", facts.configurationTabActive === true],
+    ["modeControlReady", facts.modeControlReady === true],
     ["routeChanged", summary.lifecycle.routeChanged],
     ["saveConfirmed", summary.lifecycle.saveConfirmed],
     ["restartReadback", summary.lifecycle.restartReadback],

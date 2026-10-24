@@ -26,10 +26,8 @@ export type MockInputbarSendPayload = {
 };
 
 const {
-  mockUseDeveloperFeatureFlags,
   mockUseAgentChatUnified,
   mockUseArtifactAutoPreviewSync,
-  mockUseThemeContextWorkspace,
   mockUseTopicBranchBoard,
   mockUseSessionFiles,
   mockUseTrayModelShortcuts,
@@ -37,7 +35,6 @@ const {
   mockPersistedAtomInvoke,
   mockPersistedAtomListen,
   mockUseSessionRecentMetadataSyncRuntime,
-  mockUseWorkspaceKnowledgeRuntime,
   mockUseGlobalMediaGenerationDefaults,
   mockReadGlobalMediaGenerationDefaults,
   mockUseServiceModelsConfig,
@@ -84,10 +81,8 @@ const {
   mockBrowserExecuteAction,
   mockExecuteBrowserSessionAction,
 } = vi.hoisted(() => ({
-  mockUseDeveloperFeatureFlags: vi.fn(),
   mockUseAgentChatUnified: vi.fn(),
   mockUseArtifactAutoPreviewSync: vi.fn(),
-  mockUseThemeContextWorkspace: vi.fn(),
   mockUseTopicBranchBoard: vi.fn(),
   mockUseSessionFiles: vi.fn(),
   mockUseTrayModelShortcuts: vi.fn(),
@@ -95,7 +90,6 @@ const {
   mockPersistedAtomInvoke: vi.fn(),
   mockPersistedAtomListen: vi.fn(),
   mockUseSessionRecentMetadataSyncRuntime: vi.fn(),
-  mockUseWorkspaceKnowledgeRuntime: vi.fn(),
   mockUseGlobalMediaGenerationDefaults: vi.fn(),
   mockReadGlobalMediaGenerationDefaults: vi.fn(),
   mockUseServiceModelsConfig: vi.fn(),
@@ -257,16 +251,13 @@ const {
 
 export function getIndexTestMocks() {
   return {
-    mockUseDeveloperFeatureFlags,
     mockUseAgentChatUnified,
     mockUseArtifactAutoPreviewSync,
-    mockUseThemeContextWorkspace,
     mockUseTopicBranchBoard,
     mockUseSessionFiles,
     mockUseTrayModelShortcuts,
     mockSafeListen,
     mockUseSessionRecentMetadataSyncRuntime,
-    mockUseWorkspaceKnowledgeRuntime,
     mockUseGlobalMediaGenerationDefaults,
     mockReadGlobalMediaGenerationDefaults,
     mockUseServiceModelsConfig,
@@ -346,12 +337,7 @@ vi.mock("@/lib/api/workspaceRightSurface", async (importOriginal) => {
 vi.mock("./hooks", () => ({
   useAgentChatUnified: mockUseAgentChatUnified,
   useArtifactAutoPreviewSync: mockUseArtifactAutoPreviewSync,
-  useThemeContextWorkspace: mockUseThemeContextWorkspace,
   useTopicBranchBoard: mockUseTopicBranchBoard,
-}));
-
-vi.mock("@/hooks/useDeveloperFeatureFlags", () => ({
-  useDeveloperFeatureFlags: mockUseDeveloperFeatureFlags,
 }));
 
 vi.mock("./hooks/useSessionFiles", () => ({
@@ -364,10 +350,6 @@ vi.mock("./hooks/useTrayModelShortcuts", () => ({
 
 vi.mock("./workspace/useSessionRecentMetadataSyncRuntime", () => ({
   useSessionRecentMetadataSyncRuntime: mockUseSessionRecentMetadataSyncRuntime,
-}));
-
-vi.mock("./workspace/knowledge/useWorkspaceKnowledgeRuntime", () => ({
-  useWorkspaceKnowledgeRuntime: mockUseWorkspaceKnowledgeRuntime,
 }));
 
 vi.mock("@/hooks/useGlobalMediaGenerationDefaults", () => ({
@@ -962,47 +944,6 @@ export function renderPage(
   return mountPage(props).container;
 }
 
-export function createMockThemeContextWorkspaceState(
-  overrides: Partial<ReturnType<typeof mockUseThemeContextWorkspace>> = {},
-) {
-  const merged = {
-    generalWorkbenchEnabled: false,
-    enabled: false,
-    contextSearchQuery: "",
-    setContextSearchQuery: vi.fn(),
-    contextSearchMode: "web" as const,
-    setContextSearchMode: vi.fn(),
-    contextSearchLoading: false,
-    contextSearchError: null,
-    contextSearchBlockedReason: null,
-    submitContextSearch: vi.fn(),
-    sidebarContextItems: [],
-    toggleContextActive: vi.fn(),
-    contextBudget: {
-      activeCount: 0,
-      activeCountLimit: 12,
-      estimatedTokens: 0,
-      tokenLimit: 32000,
-    },
-    activityLogs: [],
-    activeContextPrompt: "",
-    prepareActiveContextPrompt: vi.fn().mockResolvedValue(""),
-    ...overrides,
-  };
-
-  if (!("generalWorkbenchEnabled" in overrides)) {
-    merged.generalWorkbenchEnabled = merged.enabled;
-  }
-
-  if (!("prepareActiveContextPrompt" in overrides)) {
-    merged.prepareActiveContextPrompt = vi
-      .fn()
-      .mockResolvedValue(merged.activeContextPrompt || "");
-  }
-
-  return merged;
-}
-
 export async function flushEffects(times = 20) {
   for (let i = 0; i < times; i += 1) {
     await act(async () => {
@@ -1430,13 +1371,6 @@ beforeEach(async () => {
       {props?.input || ""}
     </div>
   ));
-  mockUseThemeContextWorkspace.mockReturnValue(
-    createMockThemeContextWorkspaceState(),
-  );
-  mockUseDeveloperFeatureFlags.mockReturnValue({
-    clawTraceEnabled: false,
-    workspaceHarnessEnabled: true,
-  });
   mockSafeListen.mockResolvedValue(vi.fn());
   mockUseTrayModelShortcuts.mockReturnValue(undefined);
   const sessionRecentMetadataActiveSessionRef: { current: string | null } = {
@@ -1450,15 +1384,6 @@ beforeEach(async () => {
     },
     deferSessionRecentMetadataSyncForNavigation: vi.fn(),
     syncSessionRecentPreferences: vi.fn(async () => undefined),
-  });
-  mockUseWorkspaceKnowledgeRuntime.mockReturnValue({
-    knowledgePackSelection: null,
-    knowledgePackOptions: [],
-    onToggleKnowledgePack: vi.fn(),
-    onSelectKnowledgePack: vi.fn(),
-    onToggleKnowledgeCompanionPack: vi.fn(),
-    onStartKnowledgeOrganize: vi.fn(),
-    onManageKnowledgePacks: vi.fn(),
   });
   mockUseGlobalMediaGenerationDefaults.mockReturnValue({
     mediaDefaults: {},

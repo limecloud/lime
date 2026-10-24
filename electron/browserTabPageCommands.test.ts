@@ -78,35 +78,103 @@ describe("Browser native page command boundary", () => {
   });
 
   it.each([
-    { command: "browser_tab_navigate", nativeCommand: "embedded_browser_view_navigate", args: { url: "https://example.com/user-navigation" } },
-    { command: "browser_tab_set_zoom", nativeCommand: "embedded_browser_view_set_zoom", args: { zoomFactor: 1.25 } },
-    { command: "browser_tab_print", nativeCommand: "embedded_browser_view_print", args: {} },
-    { command: "browser_tab_reload", nativeCommand: "embedded_browser_view_reload", args: {} },
-    { command: "browser_tab_set_audio_muted", nativeCommand: "embedded_browser_view_set_audio_muted", args: { muted: true } },
-  ] as const)("$command releases the page while keeping the same turn available for reclaim", async ({ command, nativeCommand, args }) => {
-    const harness = createHarness();
-    const mounted = await mount(harness) as { viewId: string };
-    const native = harness.views.get(mounted.viewId)!;
-    const identity = { ownerWebContentsId: 41, threadId: "thread-1", turnId: "turn-1" };
-    await harness.host.executeTool({ ...identity, tool: "claimTab", callId: "claim", arguments: {
-      tabId: "tab-1", title: "Example", url: "https://example.com/", pageRevision: 0,
-    } });
-    await harness.host.executeTool({ ...identity, tool: "observe", callId: "observe", arguments: { tabId: "tab-1" } });
-    const interrupted: string[] = [];
-    harness.host.setTurnInterruptHandler(async (threadId, turnId) => { interrupted.push(`${threadId}/${turnId}`); });
-    const result = await harness.host.invoke(harness.window as never, command, { tabId: "tab-1", ...args });
-    expect(command === "browser_tab_print" ? result : { state: result }).toMatchObject({ state: {
-      activeTurnId: null, controlOwner: "user", pageRevision: 1,
-    } });
-    expect(native.webContents.debugger.detach).toHaveBeenCalledOnce();
-    expect(harness.embeddedHost.invoke).toHaveBeenLastCalledWith(harness.window, nativeCommand,
-      { tabId: "tab-1", viewId: mounted.viewId, ...args });
-    expect(interrupted).toEqual([]);
-    expect(await harness.host.executeTool({ ...identity, tool: "claimTab", callId: "reclaim", arguments: {
-      tabId: "tab-1", title: "Example", url: native.webContents.getURL(), pageRevision: 1,
-    } })).toMatchObject({ status: "completed", state: { activeTurnId: "turn-1", controlOwner: "agent" } });
-    expect(interrupted).toEqual([]);
-  });
+    {
+      command: "browser_tab_navigate",
+      nativeCommand: "embedded_browser_view_navigate",
+      args: { url: "https://example.com/user-navigation" },
+    },
+    {
+      command: "browser_tab_set_zoom",
+      nativeCommand: "embedded_browser_view_set_zoom",
+      args: { zoomFactor: 1.25 },
+    },
+    {
+      command: "browser_tab_print",
+      nativeCommand: "embedded_browser_view_print",
+      args: {},
+    },
+    {
+      command: "browser_tab_reload",
+      nativeCommand: "embedded_browser_view_reload",
+      args: {},
+    },
+    {
+      command: "browser_tab_set_audio_muted",
+      nativeCommand: "embedded_browser_view_set_audio_muted",
+      args: { muted: true },
+    },
+  ] as const)(
+    "$command releases the page while keeping the same turn available for reclaim",
+    async ({ command, nativeCommand, args }) => {
+      const harness = createHarness();
+      const mounted = (await mount(harness)) as { viewId: string };
+      const native = harness.views.get(mounted.viewId)!;
+      const identity = {
+        ownerWebContentsId: 41,
+        threadId: "thread-1",
+        turnId: "turn-1",
+      };
+      await harness.host.executeTool({
+        ...identity,
+        tool: "claimTab",
+        callId: "claim",
+        arguments: {
+          tabId: "tab-1",
+          title: "Example",
+          url: "https://example.com/",
+          pageRevision: 0,
+        },
+      });
+      await harness.host.executeTool({
+        ...identity,
+        tool: "observe",
+        callId: "observe",
+        arguments: { tabId: "tab-1" },
+      });
+      const interrupted: string[] = [];
+      harness.host.setTurnInterruptHandler(async (threadId, turnId) => {
+        interrupted.push(`${threadId}/${turnId}`);
+      });
+      const result = await harness.host.invoke(
+        harness.window as never,
+        command,
+        { tabId: "tab-1", ...args },
+      );
+      expect(
+        command === "browser_tab_print" ? result : { state: result },
+      ).toMatchObject({
+        state: {
+          activeTurnId: null,
+          controlOwner: "user",
+          pageRevision: 1,
+        },
+      });
+      expect(native.webContents.debugger.detach).toHaveBeenCalledOnce();
+      expect(harness.embeddedHost.invoke).toHaveBeenLastCalledWith(
+        harness.window,
+        nativeCommand,
+        { tabId: "tab-1", viewId: mounted.viewId, ...args },
+      );
+      expect(interrupted).toEqual([]);
+      expect(
+        await harness.host.executeTool({
+          ...identity,
+          tool: "claimTab",
+          callId: "reclaim",
+          arguments: {
+            tabId: "tab-1",
+            title: "Example",
+            url: native.webContents.getURL(),
+            pageRevision: 1,
+          },
+        }),
+      ).toMatchObject({
+        status: "completed",
+        state: { activeTurnId: "turn-1", controlOwner: "agent" },
+      });
+      expect(interrupted).toEqual([]);
+    },
+  );
 
   it("adds canonical identity to native page shortcut events and drops stale native views", async () => {
     const harness = createHarness();
@@ -150,14 +218,13 @@ describe("Browser native page command boundary", () => {
       tool: "claimTab",
       turnId: "turn-1",
     });
-    const settings = effectiveBrowserSettings();
-    settings.agent_permissions.default.download = "deny";
-    settings.agent_permissions.sites = [
+    const settings = effectiveBrowserSettings(
+      {},
       {
-        pattern: "blocked.example",
-        permissions: { ...settings.agent_permissions.default, browse: "deny" },
+        default_origin_policy: { downloads: "deny" },
+        origins: { "blocked.example": { access: "deny" } },
       },
-    ];
+    );
     harness.host.setSettings(settings);
     expect(harness.embeddedHost.setSettings).toHaveBeenCalledWith(settings);
     const check = harness.embeddedHost.setAgentPermissionResolver.mock

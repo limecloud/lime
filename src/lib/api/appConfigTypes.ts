@@ -1,14 +1,9 @@
 import type { ChannelsConfig, GatewayConfig } from "./channelsRuntimeTypes";
-import type {
-  ExperimentalFeatures,
-  ToolCallingConfig,
-} from "./experimentalFeatureTypes";
+import type { ExperimentalFeatures } from "./experimentalFeatureTypes";
 import type { MemoryConfig } from "./memoryConfigTypes";
-import type { BrowserSettings } from "./browserSettingsTypes";
+import type { BrowserPreferences, BrowserUse } from "./browserSettingsTypes";
 import type { GitPreferences } from "./gitPreferences";
 import type { WorktreePreferences } from "./worktreePreferences";
-
-export type { ToolCallingConfig } from "./experimentalFeatureTypes";
 
 export interface AmpModelMapping {
   from: string;
@@ -45,20 +40,6 @@ export interface QuotaExceededConfig {
   switch_project: boolean;
   switch_preview_model: boolean;
   cooldown_seconds: number;
-}
-
-export interface MultiSearchEngineEntryConfig {
-  name: string;
-  url_template: string;
-  enabled: boolean;
-}
-
-export interface MultiSearchConfig {
-  priority?: string[];
-  engines?: MultiSearchEngineEntryConfig[];
-  max_results_per_engine?: number;
-  max_total_results?: number;
-  timeout_ms?: number;
 }
 
 export interface MediaGenerationPreferenceConfig {
@@ -115,21 +96,6 @@ export interface ChatAppearanceConfig {
   showAvatar?: boolean;
   showTimestamp?: boolean;
   append_selected_text_to_recommendation?: boolean;
-}
-
-export type ClawTraceLevelConfig = "summary" | "debug";
-
-export interface ClawTraceConfig {
-  alert_enabled?: boolean;
-  alert_notification_enabled?: boolean;
-  enabled?: boolean;
-  level?: ClawTraceLevelConfig;
-  sample_rate?: number;
-}
-
-export interface DeveloperConfig {
-  workspace_harness_enabled?: boolean;
-  claw_trace?: ClawTraceConfig;
 }
 
 export type ToolExecutionWarningPolicyConfig = "none" | "shell_command_risk";
@@ -362,6 +328,9 @@ export type ExternalBrowserLinkShortcut =
   | "primary-shift";
 
 export interface DesktopConfig {
+  "enabled-reasoning-efforts"?:
+    | import("@/lib/model/modelReasoningPolicy").KnownModelReasoningEffort[]
+    | null;
   "keyboard-shortcuts"?: Record<string, string[]>;
   "open-link-in-target-preference"?: LinkOpenTarget | null;
   "open-local-url-in-target-preference"?: LinkOpenTarget | null;
@@ -369,6 +338,7 @@ export interface DesktopConfig {
 }
 
 export interface Config {
+  features?: Record<string, boolean>;
   tools?: {
     experimental_request_user_input?: { enabled?: boolean };
   };
@@ -377,6 +347,14 @@ export interface Config {
   hide_agent_reasoning?: boolean;
   model_verbosity?: "low" | "medium" | "high" | null;
   model_reasoning_summary?: "auto" | "concise" | "detailed" | "none";
+  model_reasoning_effort?:
+    | import("@/lib/model/modelReasoningPolicy").KnownModelReasoningEffort
+    | null;
+  approval_policy?: "on-request" | "never" | "untrusted";
+  sandbox_mode?: "read-only" | "workspace-write" | "danger-full-access";
+  sandbox_workspace_write?: { network_access: boolean };
+  default_permissions?: string | null;
+  projects?: Record<string, { trust_level?: "trusted" | "untrusted" }>;
   marketplaces?: Record<
     string,
     {
@@ -396,7 +374,8 @@ export interface Config {
   desktop?: DesktopConfig;
   git?: Partial<GitPreferences>;
   worktrees?: Partial<WorktreePreferences>;
-  browser?: Partial<BrowserSettings>;
+  browser?: Partial<BrowserPreferences>;
+  browser_use?: BrowserUse | null;
   server: {
     host: string;
     port: number;
@@ -416,36 +395,14 @@ export interface Config {
    */
   language: string;
   experimental?: ExperimentalFeatures;
-  tool_calling?: ToolCallingConfig;
   workspace_preferences?: WorkspacePreferencesConfig;
   navigation?: NavigationConfig;
   chat_appearance?: ChatAppearanceConfig;
   environment?: EnvironmentConfig;
-  web_search?: {
-    engine: "google" | "xiaohongshu";
-    provider?:
-      | "tavily"
-      | "multi_search_engine"
-      | "duckduckgo_instant"
-      | "bing_search_api"
-      | "google_custom_search";
-    provider_priority?: Array<
-      | "tavily"
-      | "multi_search_engine"
-      | "duckduckgo_instant"
-      | "bing_search_api"
-      | "google_custom_search"
-    >;
-    tavily_api_key?: string | null;
-    bing_search_api_key?: string | null;
-    google_search_api_key?: string | null;
-    google_search_engine_id?: string | null;
-    multi_search?: MultiSearchConfig;
-  };
+  web_search?: import("@limecloud/app-server-client").WebSearchMode | null;
   memory?: MemoryConfig;
   image_gen?: ImageGenConfig;
   user_profile?: UserProfile;
-  developer?: DeveloperConfig;
   agent?: NativeAgentConfig;
   orchestrator?: OrchestratorConfig;
   gateway?: GatewayConfig;

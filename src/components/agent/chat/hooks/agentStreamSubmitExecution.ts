@@ -38,6 +38,7 @@ import type { ActionRequired, Message, MessageImage } from "../types";
 import type { ChatToolPreferences } from "../utils/chatToolPreferences";
 import { runAgentStreamSubmitLifecycle } from "./agentStreamSubmitLifecycleController";
 import { buildAgentStreamSubmitOp } from "./agentStreamSubmitOpController";
+import { bindSubmissionMessagesToRuntimeTurn } from "./agentStreamRuntimeHandlerUtils";
 import { buildTurnInput } from "../utils/buildUserInputSubmitOp";
 import { resolveAgentStreamSubmitContext } from "./agentStreamSubmitContext";
 import { registerAgentStreamTurnEventBinding } from "./agentStreamTurnEventBinding";
@@ -492,7 +493,23 @@ export async function executeAgentStreamSubmit(
     effectiveModel,
     effectiveProviderType,
     eventName,
-    onRuntimeAccepted: observer?.onRuntimeAccepted,
+    onRuntimeAccepted: (accepted) => {
+      if (!requestState.requestFinished && options.isCurrent?.() !== false) {
+        requestState.currentTurnId = accepted.turnId;
+        runRuntimeAcceptanceEffect(accepted, "start_projection", () => {
+          setCurrentTurnId((previous) =>
+            previous === pendingTurnKey ? accepted.turnId : previous,
+          );
+          bindSubmissionMessagesToRuntimeTurn(
+            setMessages,
+            assistantMsgId,
+            pendingTurnKey,
+            accepted.turnId,
+          );
+        });
+      }
+      observer?.onRuntimeAccepted?.(accepted);
+    },
     onSubmitAccepted: () => {
       requestState.startTerminalRecoveryPoll?.();
     },

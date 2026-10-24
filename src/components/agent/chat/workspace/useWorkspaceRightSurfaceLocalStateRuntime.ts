@@ -221,6 +221,22 @@ export function useWorkspaceRightSurfaceLocalStateRuntime({
         });
       };
     return {
+      setNewTabAddressDraft: (tabId: string, value: string) =>
+        update((current) => {
+          const tab = current.sidePanelTabs.tabs.find(
+            (tab) => tab.tabId === tabId && tab.kind === "workspace-new-tab",
+          );
+          if (!tab || (tab.addressDraft ?? "") === value) return current;
+          return {
+            ...current,
+            sidePanelTabs: {
+              ...current.sidePanelTabs,
+              tabs: current.sidePanelTabs.tabs.map((item) =>
+                item === tab ? { ...tab, addressDraft: value } : item,
+              ),
+            },
+          };
+        }),
       getFileDraft: (tab: ThreadSidePanelTab): FileEditorDraft | null =>
         ownerRef.current.version === version &&
         stateRef.current.sidePanelTabs.tabs.includes(tab)

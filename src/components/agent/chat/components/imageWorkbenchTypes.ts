@@ -1,3 +1,4 @@
+import type { Artifact } from "@/lib/artifact/types";
 import type {
   ImageGenerationSoulMetadata,
   ImageCommandRunSnapshot,
@@ -62,7 +63,6 @@ export interface ImageWorkbenchOutputView {
   modelName?: string;
   size?: string;
   parentOutputId?: string | null;
-  resourceSaved?: boolean;
 }
 
 export interface ImageTaskViewerProps {
@@ -89,11 +89,10 @@ export interface ImageTaskViewerProps {
   selectedSize: string;
   onSizeChange: (size: string) => void;
   generating: boolean;
-  savingToResource: boolean;
   onStopGeneration?: () => void;
   onViewportChange: (viewport: ImageWorkbenchViewport) => void;
   onSelectOutput: (outputId: string) => void;
-  onSaveSelectedToLibrary?: () => void;
+  onOpenArtifact: (artifact: Artifact) => void;
   applySelectedOutputLabel?: string;
   onApplySelectedOutput?: () => void;
   onRetryTask?: (taskId: string) => void;

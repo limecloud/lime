@@ -6,6 +6,7 @@ import type {
   BrowserToolCall,
 } from "./browserTabHost";
 import type { EmbeddedBrowserViewState } from "./embeddedBrowserHost";
+import { isBrowserDeviceViewport } from "../src/lib/browserDeviceLayout";
 type HostArgs = Record<string, unknown> | null | undefined;
 const NAVIGATION_TIMEOUT_MS = 30_000;
 
@@ -137,7 +138,9 @@ export function assertEmbeddedState(
     !record ||
     typeof record.viewId !== "string" ||
     typeof record.url !== "string" ||
-    typeof record.title !== "string"
+    typeof record.title !== "string" ||
+    (record.deviceViewport != null && !isBrowserDeviceViewport(record.deviceViewport)) ||
+    (record.navigationRevision !== undefined && (typeof record.navigationRevision !== "number" || !Number.isSafeInteger(record.navigationRevision) || record.navigationRevision < 0))
   ) {
     throw new Error("Browser native host returned invalid state");
   }

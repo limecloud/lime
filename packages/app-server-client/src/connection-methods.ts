@@ -457,46 +457,6 @@ declare module "./connection.js" {
       params: protocol.PluginSearchParams,
       options?: AppServerRequestOptions,
     ): Promise<AppServerRequestResult<protocol.PluginSearchResponse>>;
-    listKnowledgePacks(
-      params: protocol.KnowledgeListPacksParams,
-      options?: AppServerRequestOptions,
-    ): Promise<AppServerRequestResult<protocol.KnowledgeListPacksResponse>>;
-    readKnowledgePack(
-      params: protocol.KnowledgeReadPackParams,
-      options?: AppServerRequestOptions,
-    ): Promise<AppServerRequestResult<protocol.KnowledgeReadPackResponse>>;
-    importKnowledgeSource(
-      params: protocol.KnowledgeImportSourceParams,
-      options?: AppServerRequestOptions,
-    ): Promise<AppServerRequestResult<protocol.KnowledgeImportSourceResponse>>;
-    compileKnowledgePack(
-      params: protocol.KnowledgeCompilePackParams,
-      options?: AppServerRequestOptions,
-    ): Promise<AppServerRequestResult<protocol.KnowledgeCompilePackResponse>>;
-    setDefaultKnowledgePack(
-      params: protocol.KnowledgeSetDefaultPackParams,
-      options?: AppServerRequestOptions,
-    ): Promise<
-      AppServerRequestResult<protocol.KnowledgeSetDefaultPackResponse>
-    >;
-    updateKnowledgePackStatus(
-      params: protocol.KnowledgeUpdatePackStatusParams,
-      options?: AppServerRequestOptions,
-    ): Promise<
-      AppServerRequestResult<protocol.KnowledgeUpdatePackStatusResponse>
-    >;
-    resolveKnowledgeContext(
-      params: protocol.KnowledgeResolveContextParams,
-      options?: AppServerRequestOptions,
-    ): Promise<
-      AppServerRequestResult<protocol.KnowledgeContextResolutionResponse>
-    >;
-    validateKnowledgeContextRun(
-      params: protocol.KnowledgeValidateContextRunParams,
-      options?: AppServerRequestOptions,
-    ): Promise<
-      AppServerRequestResult<protocol.KnowledgeValidateContextRunResponse>
-    >;
     listMcpServers(
       options?: AppServerRequestOptions,
     ): Promise<AppServerRequestResult<protocol.McpServerListResponse>>;
@@ -971,22 +931,7 @@ declare module "./connection.js" {
     ): Promise<
       AppServerRequestResult<protocol.VoiceTranscriptionPolishTextResponse>
     >;
-    readUsageStats(
-      params: protocol.UsageStatsRangeParams,
-      options?: AppServerRequestOptions,
-    ): Promise<AppServerRequestResult<protocol.UsageStatsReadResponse>>;
-    listUsageStatsModelRanking(
-      params: protocol.UsageStatsRangeParams,
-      options?: AppServerRequestOptions,
-    ): Promise<
-      AppServerRequestResult<protocol.UsageStatsModelRankingListResponse>
-    >;
-    listUsageStatsDailyTrends(
-      params: protocol.UsageStatsRangeParams,
-      options?: AppServerRequestOptions,
-    ): Promise<
-      AppServerRequestResult<protocol.UsageStatsDailyTrendsListResponse>
-    >;
+
     readArtifacts(
       params: protocol.ArtifactReadParams,
       options?: AppServerRequestOptions,
@@ -1133,10 +1078,30 @@ declare module "./connection.js" {
     ): Promise<
       AppServerRequestResult<protocol.AgentSessionToolInventoryReadResponse>
     >;
+    diagnoseDependencies(
+      params?: protocol.DiagnoseDependenciesParams,
+      options?: AppServerRequestOptions,
+    ): Promise<AppServerRequestResult<protocol.DiagnoseDependenciesResponse>>;
+    runUpdateNow(
+      params?: protocol.RunUpdateNowParams,
+      options?: AppServerRequestOptions,
+    ): Promise<AppServerRequestResult<protocol.InstallDependenciesResponse>>;
+    resetDependencies(
+      params?: protocol.RunUpdateNowParams,
+      options?: AppServerRequestOptions,
+    ): Promise<AppServerRequestResult<protocol.InstallDependenciesResponse>>;
+    cancelInstall(
+      params: protocol.CancelInstallParams,
+      options?: AppServerRequestOptions,
+    ): Promise<AppServerRequestResult<protocol.CancelInstallResponse>>;
     readConfig(
       params?: protocol.ConfigReadParams,
       options?: AppServerRequestOptions,
     ): Promise<AppServerRequestResult<protocol.ConfigReadResponse>>;
+    readConfigRequirements(
+      params?: protocol.ConfigRequirementsReadParams,
+      options?: AppServerRequestOptions,
+    ): Promise<AppServerRequestResult<protocol.ConfigRequirementsReadResponse>>;
     writeConfigValue(
       params: protocol.ConfigValueWriteParams,
       options?: AppServerRequestOptions,

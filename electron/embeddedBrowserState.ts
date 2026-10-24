@@ -1,3 +1,4 @@
+import { clampBrowserPageZoom as normalizeZoomFactor } from "../src/lib/browserZoom";
 import type {
   BrowserWindow,
   Rectangle,
@@ -33,7 +34,13 @@ export function readState(
       typeof webContents.isCurrentlyAudible === "function" &&
       webContents.isCurrentlyAudible(),
     device: entry.device,
+    deviceViewport: entry.deviceViewport,
+    navigationRevision: entry.navigationRevision,
   };
+}
+
+export function advanceNavigation(entry: EmbeddedBrowserEntry): void {
+  entry.navigationRevision += 1;
 }
 
 export function createEmptyFindState(): EmbeddedBrowserFindState {
@@ -72,9 +79,7 @@ export function normalizeLoadProgress(entry: EmbeddedBrowserEntry): number {
   return clampNumber(entry.loadProgress, 0.05, 0.95);
 }
 
-export function normalizeZoomFactor(value: number): number {
-  return Math.round(clampNumber(value, 0.5, 3) * 100) / 100;
-}
+export { normalizeZoomFactor };
 
 export function readViewId(args?: HostArgs): string {
   const value = readString(args, "viewId");
@@ -267,7 +272,9 @@ export function normalizeHttpUrl(value: string): string | null {
 }
 
 export function sanitizeDownloadFilename(value: string): string {
-  const normalized = Array.from(value.trim(), (character) => character.charCodeAt(0) < 32 ? "_" : character)
+  const normalized = Array.from(value.trim(), (character) =>
+    character.charCodeAt(0) < 32 ? "_" : character,
+  )
     .join("")
     .replace(/[\\/<>:"|?*]/g, "_")
     .replace(/[. ]+$/g, "");

@@ -4,13 +4,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { changeLimeLocale } from "@/i18n/createI18n";
 
-const { mockOpenResourceManager } = vi.hoisted(() => ({
-  mockOpenResourceManager: vi.fn(),
-}));
-
-vi.mock("@/features/resource-manager", () => ({
-  openResourceManager: mockOpenResourceManager,
-}));
+const onOpenArtifact = vi.fn();
 
 import { ImageTaskViewer } from "./ImageTaskViewer";
 
@@ -64,7 +58,7 @@ function createProps(
     selectedSize: "1024x1024",
     onSizeChange: vi.fn(),
     generating: false,
-    savingToResource: false,
+    onOpenArtifact,
     onViewportChange: vi.fn(),
     onSelectOutput: vi.fn(),
     onClose: vi.fn(),
@@ -131,7 +125,7 @@ describe("ImageTaskViewer", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it("点击大图应打开独立资源管理器并透传图片任务上下文", () => {
+  it("点击大图应交给标准 Artifact 预览并保留任务与会话身份", () => {
     const { container } = renderComponent({
       sourceProjectId: "project-1",
       sourceContentId: "content-1",
@@ -147,49 +141,22 @@ describe("ImageTaskViewer", () => {
       openButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
 
-    expect(mockOpenResourceManager).toHaveBeenCalledWith(
+    expect(onOpenArtifact).toHaveBeenCalledTimes(1);
+    expect(onOpenArtifact).toHaveBeenCalledWith(
       expect.objectContaining({
-        sourceLabel: "图片生成",
-        sourceContext: expect.objectContaining({
-          kind: "image_task",
-          projectId: "project-1",
-          contentId: "content-1",
+        title: "广州塔主视觉",
+        meta: expect.objectContaining({
+          source: "task",
+          sourceRef: "output-1",
+          contentKind: "image",
+          renderMode: "media",
+          previewUrl: "https://example.com/image-1.png",
           taskId: "task-1",
           outputId: "output-1",
+          projectId: "project-1",
+          contentId: "content-1",
           threadId: "thread-1",
-          sourcePage: "image-task-viewer",
         }),
-        initialIndex: 0,
-        items: [
-          expect.objectContaining({
-            id: "output-1",
-            kind: "image",
-            src: "https://example.com/image-1.png",
-            title: "广州塔主视觉",
-            sourceContext: expect.objectContaining({
-              kind: "image_task",
-              projectId: "project-1",
-              contentId: "content-1",
-              taskId: "task-1",
-              outputId: "output-1",
-              threadId: "thread-1",
-            }),
-          }),
-          expect.objectContaining({
-            id: "output-2",
-            kind: "image",
-            src: "https://example.com/image-2.png",
-            title: "广州塔夜景",
-            sourceContext: expect.objectContaining({
-              kind: "image_task",
-              projectId: "project-1",
-              contentId: "content-1",
-              taskId: "task-1",
-              outputId: "output-2",
-              threadId: "thread-1",
-            }),
-          }),
-        ],
       }),
     );
   });
@@ -231,7 +198,9 @@ describe("ImageTaskViewer", () => {
     });
 
     expect(
-      container.querySelector('[data-testid="image-task-viewer-runtime-contract"]'),
+      container.querySelector(
+        '[data-testid="image-task-viewer-runtime-contract"]',
+      ),
     ).toBeNull();
     expect(
       container.querySelector(
@@ -257,18 +226,19 @@ describe("ImageTaskViewer", () => {
       openButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
 
-    expect(mockOpenResourceManager).toHaveBeenCalledWith(
+    expect(onOpenArtifact).toHaveBeenCalledWith(
       expect.objectContaining({
-        items: [
-          expect.objectContaining({
-            id: "output-runtime-model-1",
-            metadata: expect.not.objectContaining({
-              providerName: expect.any(String),
-              modelName: expect.any(String),
-            }),
-          }),
-        ],
+        meta: expect.objectContaining({
+          sourceRef: "output-runtime-model-1",
+          previewUrl: "https://example.com/runtime-model.png",
+        }),
       }),
+    );
+    expect(onOpenArtifact.mock.calls[0]?.[0].meta).not.toHaveProperty(
+      "providerName",
+    );
+    expect(onOpenArtifact.mock.calls[0]?.[0].meta).not.toHaveProperty(
+      "modelName",
     );
   });
 
@@ -443,7 +413,7 @@ describe("ImageTaskViewer", () => {
     expect(onRetryTask).toHaveBeenCalledWith("task-failed-retry");
   });
 
-  it("3x3 分镜应把分镜元信息传给独立资源管理器", () => {
+  it("3x3 分镜应仅预览所选输出并保留分镜信息", () => {
     const onSelectOutput = vi.fn();
     const outputs = Array.from({ length: 3 }, (_, index) => ({
       id: `output-storyboard-preview-${index + 1}`,
@@ -491,28 +461,17 @@ describe("ImageTaskViewer", () => {
       openButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
 
-    expect(mockOpenResourceManager).toHaveBeenCalledWith(
+    expect(onOpenArtifact).toHaveBeenCalledWith(
       expect.objectContaining({
-        initialIndex: 0,
-        items: expect.arrayContaining([
-          expect.objectContaining({
-            id: "output-storyboard-preview-1",
-            title: "刘备亮相",
-            metadata: expect.objectContaining({
-              slotLabel: "刘备亮相",
-              prompt: "第 1 格完整提示词",
-            }),
-            sourceContext: expect.objectContaining({
-              kind: "image_task",
-              taskId: "task-storyboard-preview-1",
-              outputId: "output-storyboard-preview-1",
-            }),
-          }),
-          expect.objectContaining({
-            id: "output-storyboard-preview-2",
-            title: "曹操压迫感",
-          }),
-        ]),
+        title: "刘备亮相",
+        meta: expect.objectContaining({
+          sourceRef: "output-storyboard-preview-1",
+          previewUrl: "https://example.com/storyboard-preview-1.png",
+          taskId: "task-storyboard-preview-1",
+          outputId: "output-storyboard-preview-1",
+          prompt: "第 1 格完整提示词",
+          slotLabel: "刘备亮相",
+        }),
       }),
     );
     expect(onSelectOutput).not.toHaveBeenCalled();
@@ -604,11 +563,9 @@ describe("ImageTaskViewer", () => {
     );
   });
 
-  it("应渲染保存和应用动作，并透传回调", () => {
-    const onSaveSelectedToLibrary = vi.fn();
+  it("应保留应用动作且不再提供资源入库", () => {
     const onApplySelectedOutput = vi.fn();
     const { container } = renderComponent({
-      onSaveSelectedToLibrary,
       onApplySelectedOutput,
       applySelectedOutputLabel: "应用到文稿",
     });
@@ -620,15 +577,13 @@ describe("ImageTaskViewer", () => {
       '[data-testid="image-task-viewer-action-apply"]',
     );
 
-    expect(saveButton?.textContent).toContain("保存到素材库");
+    expect(saveButton).toBeNull();
     expect(applyButton?.textContent).toContain("应用到文稿");
 
     act(() => {
-      saveButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
       applyButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
 
-    expect(onSaveSelectedToLibrary).toHaveBeenCalledTimes(1);
     expect(onApplySelectedOutput).toHaveBeenCalledTimes(1);
   });
 });

@@ -111,11 +111,6 @@ i18n workflow、report、benchmark、检测脚本和测试已整体迁到 `scrip
 
 新增 i18n 脚本继续进入 `scripts/i18n/` 或复用现有 `i18n:*` npm scripts。
 
-### Knowledge 脚本
-
-Knowledge release scope 审计入口已迁到 `scripts/knowledge/`。对外继续使用 `package.json` 里的 `knowledge:*` npm scripts，不直接依赖根目录脚本路径。
-
-新增 Knowledge 脚本继续进入 `scripts/knowledge/` 或复用现有 `knowledge:*` npm scripts；共享实现仍放在 `scripts/lib/`。
 
 ### App Server 脚本
 
@@ -282,7 +277,6 @@ npm run smoke:mcp-startup-notification-electron-fixture
 npm run smoke:mcp-event-stream-electron-gate-b
 npm run smoke:mcp-resource-origin-electron-gate-b
 npm run smoke:settings-about-electron-fixture -- --run-id <run-id>
-npm run smoke:settings-stats-electron-fixture -- --run-id <run-id>
 npm run smoke:settings-environment-electron-fixture -- --run-id <run-id>
 npm run smoke:settings-media-services-electron-fixture -- --run-id <run-id>
 npm run smoke:settings-web-search-electron-fixture -- --run-id <run-id>
@@ -348,7 +342,7 @@ Profile子场景由`electron/lib/settings-profile-navigation-scenario.mjs`承接
 
 `npm run smoke:settings-about-electron-fixture -- --run-id <run-id>` 在同一真实 Electron 窗口验证 About 与返回首页两个独立 Settings 场景：About 要求构建时 `VITE_APP_VERSION`、Desktop Host `app.getVersion()` 和用户可见版本一致，同时观察 `check_for_updates`、`get_update_install_session` 与 current App Server IPC；返回首页要求点击 `app-sidebar-nav-new-chat` 后 `home-composer-page` 可见、Settings header 消失。证据分别写入 `settings-about-fixture-summary.json` 和 `settings-about-fixture-home-summary.json`，两者各自带独立 `settingsScenarioProof`，不得互相代替。
 
-`npm run smoke:settings-stats-electron-fixture -- --run-id <run-id>` 验证 Stats 页只走 `usageStats/read`、`usageStats/modelRanking/list`、`usageStats/dailyTrends/list` 三个 App Server current method；隔离数据为空时允许合法零值/空排行/空趋势，但不允许 loading、读取错误、旧 `get_usage_stats*` facade 或 mock fallback。`npm run smoke:settings-environment-electron-fixture -- --run-id <run-id>` 验证 Settings GUI 经真实 App Server `config/read` 与 Host `get_environment_preview` 读取 current config 和最终合并预览；其 JSON evidence 只记录 method/command 与断言，不记录环境变量名或值。
+`npm run smoke:settings-environment-electron-fixture -- --run-id <run-id>` 验证 Settings GUI 经真实 App Server `config/read` 与 Host `get_environment_preview` 读取 current config 和最终合并预览；其 JSON evidence 只记录 method/command 与断言，不记录环境变量名或值。
 
 `npm run smoke:settings-media-services-electron-fixture -- --run-id <run-id>` 验证服务模型页经真实 `config/read`、`model/list`、`modelPreferences/list`、`modelSyncState/read` 与 `voice_models_list_catalog` 进入终态，并同时展示服务模型、图片、视频和语音四个 current 配置区域。隔离环境允许 Provider 清单为空，但配置控件必须可用，且证据不得记录 Provider 配置、模型 ID、凭证或本机路径；该场景不声称真实 Provider 生成请求成功。
 
@@ -486,10 +480,6 @@ Agent Runtime smoke 与 Service Skill 入口 smoke 已迁到 `scripts/agent-runt
 `npm run smoke:expert-skills-live-runner` 是专家 Skills Runtime 的 live Provider 验收入口骨架：默认 fail-fast，必须显式传 `--allow-live-provider` 或设置 live Provider smoke 环境变量。它可用 `--live-summary <path>` 归一化已有 live evidence，也可在额外传 `--execute-live-runtime` 时通过 App Server current JSON-RPC 提交真实 Provider turn，并输出 `.lime/qc/expert-skills-live-runner-summary.json` 供 `smoke:expert-skills-live-gate -- --live-summary <path>` 审计。
 
 `npm run smoke:agent-session-history-electron-fixture` 是真实 Electron 历史恢复 fixture：通过 preload `app_server_handle_json_lines` 验证 App Server current `agentSession/start/read/update/list` 形状、最近对话可见和 hydrate detail 数组；它使用 `APP_SERVER_BACKEND_MODE=unavailable`，不触发 turn，也不调用模型后端。
-
-
-
-
 
 `npm run smoke:code-artifact-workbench-electron-fixture` 是真实 Electron 代码产物工作台 fixture：使用本地 external backend fixture 生成 `artifact.snapshot`、标准 coding facts 与 current `turn.completed`，再从 GUI 历史会话打开工作台，验证代码产物入口、变更 / 输出 / 日志面板和工作台可见性；传入 `--scenario gui-coding-input` 时会先通过真实 GUI 输入框发送 coding 请求，再验证同一套 Workbench 证据。它不调用正式模型，不走 App Server mock backend。
 

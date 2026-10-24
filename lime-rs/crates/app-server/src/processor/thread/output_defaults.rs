@@ -1,19 +1,13 @@
 use app_server_protocol::JsonRpcError;
-use lime_core::config::{ConfigManager, ModelVerbosity, ReasoningSummary};
+use lime_core::config::{Config, ModelVerbosity, ReasoningEffort, ReasoningSummary};
 use serde_json::{json, Map, Value};
-use std::{collections::HashMap, path::Path};
+use std::collections::HashMap;
 
 /// Resolve once at Thread creation; later turns consume the canonical snapshot.
 pub(super) fn read_output_defaults(
-    path: &Path,
+    config: &Config,
     overrides: Option<&HashMap<String, Value>>,
 ) -> Result<Map<String, Value>, JsonRpcError> {
-    let manager = ConfigManager::load(path).map_err(|error| {
-        super::to_jsonrpc_error(crate::RuntimeCoreError::Backend(format!(
-            "failed to load output defaults: {error}"
-        )))
-    })?;
-    let config = manager.config();
     let verbosity = overrides
         .and_then(|values| values.get("model_verbosity"))
         .map(|value| serde_json::from_value::<Option<ModelVerbosity>>(value.clone()))
@@ -29,8 +23,15 @@ pub(super) fn read_output_defaults(
         })?
         .map(Option::unwrap_or_default)
         .unwrap_or(config.model_reasoning_summary);
+    let effort = overrides
+        .and_then(|values| values.get("model_reasoning_effort"))
+        .map(|value| serde_json::from_value::<Option<ReasoningEffort>>(value.clone()))
+        .transpose()
+        .map_err(|error| super::invalid_params(format!("invalid model_reasoning_effort: {error}")))?
+        .unwrap_or(config.model_reasoning_effort);
     Ok(Map::from_iter([
         ("modelVerbosity".into(), json!(verbosity)),
         ("reasoningSummary".into(), json!(summary)),
+        ("reasoningEffort".into(), json!(effort)),
     ]))
 }

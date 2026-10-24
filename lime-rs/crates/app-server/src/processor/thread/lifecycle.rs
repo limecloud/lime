@@ -1,4 +1,5 @@
 use super::*;
+use std::path::Path;
 
 impl RequestProcessor {
     pub(in crate::processor) async fn handle_thread_start_v2(
@@ -8,9 +9,16 @@ impl RequestProcessor {
     ) -> Result<RpcDispatch, JsonRpcError> {
         self.ensure_initialized()?;
         let params: ThreadStartParams = parse_params(params)?;
-        let output_defaults = output_defaults::read_output_defaults(
+        let cwd = crate::RuntimeCore::resolve_working_directory(params.cwd.as_deref())
+            .map_err(to_jsonrpc_error)?;
+        let (thread_defaults, thread_config) = defaults::read_thread_defaults(
             self.runtime.app_config_path(),
+            Path::new(&cwd),
             params.config.as_ref(),
+            self.runtime
+                .read_config_requirements()
+                .map_err(to_jsonrpc_error)?
+                .as_ref(),
         )?;
         validate_dynamic_tools(params.dynamic_tools.as_deref())?;
         let host_connection = dynamic_tools::host_connection(
@@ -37,8 +45,6 @@ impl RequestProcessor {
         let model_provider = selection.model_provider;
         let service_tier = selection.service_tier;
         let approvals_reviewer = params.approvals_reviewer.unwrap_or_default();
-        let cwd = crate::RuntimeCore::resolve_working_directory(params.cwd.as_deref())
-            .map_err(to_jsonrpc_error)?;
         let workspace_roots =
             crate::RuntimeCore::resolve_workspace_roots(params.runtime_workspace_roots.as_deref())
                 .map_err(to_jsonrpc_error)?;
@@ -49,25 +55,36 @@ impl RequestProcessor {
         let environment_world_state = self
             .environment_world_state_snapshot(environments.as_deref())
             .await;
-        let permission_policy = self
-            .runtime
-            .current_permission_profile_policy(Some(&cwd))
-            .map_err(to_jsonrpc_error)?;
-        let active_permission_profile = resolve_permission_profile_for_request(
-            &permission_policy,
-            params.permissions.as_deref(),
+        let permission_policy = crate::permission_profile::permission_profile_policy(
+            &thread_config,
+            Some(&cwd),
+            tool_runtime::sandbox::SandboxBackendPlatform::current(),
         )
-        .map_err(invalid_params)?
-        .map(|profile| {
-            if params.sandbox.is_some() {
-                Err(invalid_params(
-                    "permissions cannot be combined with sandbox",
-                ))
-            } else {
-                Ok(profile)
-            }
-        })
-        .transpose()?;
+        .map_err(invalid_params)?;
+        let explicit_sandbox = params.sandbox.is_some()
+            || params
+                .config
+                .as_ref()
+                .is_some_and(|values| values.contains_key("sandbox_mode"));
+        let active_permission_profile = if explicit_sandbox && params.permissions.is_none() {
+            None
+        } else {
+            resolve_permission_profile_for_request(
+                &permission_policy,
+                params.permissions.as_deref(),
+            )
+            .map_err(invalid_params)?
+            .map(|profile| {
+                if params.sandbox.is_some() {
+                    Err(invalid_params(
+                        "permissions cannot be combined with sandbox",
+                    ))
+                } else {
+                    Ok(profile)
+                }
+            })
+            .transpose()?
+        };
         let source = "appServer";
         let thread_id = Uuid::now_v7().to_string();
         let session_id = thread_id.clone();
@@ -82,18 +99,13 @@ impl RequestProcessor {
             "projectId": params.project_id,
             "ephemeral": params.ephemeral.unwrap_or(false),
             "serviceTier": service_tier,
-            "approvalPolicy": params.approval_policy,
             "approvalsReviewer": approvals_reviewer,
-            "sandbox": params.sandbox,
             "permissions": active_permission_profile
                 .as_ref()
                 .map(|profile| profile.id.clone()),
             "activePermissionProfile": active_permission_profile
                 .as_ref()
                 .map(|profile| json!({ "id": profile.id })),
-            "sandboxPolicy": active_permission_profile
-                .as_ref()
-                .map(|profile| profile.sandbox_policy.clone()),
             "config": params.config,
             "baseInstructions": params.base_instructions,
             "developerInstructions": params.developer_instructions,
@@ -109,11 +121,19 @@ impl RequestProcessor {
         metadata
             .as_object_mut()
             .expect("thread/start metadata object")
-            .extend(output_defaults);
+            .extend(thread_defaults);
+        if let Some(approval) = params.approval_policy {
+            metadata["approvalPolicy"] = approval;
+        }
+        if let Some(sandbox) = params.sandbox {
+            metadata["sandboxPolicy"] = sandbox;
+            metadata["sandboxNetworkAccess"] = json!(false);
+        }
         if let Some(roots) = workspace_roots {
             metadata["runtimeWorkspaceRoots"] = json!(roots);
         }
         if let Some(profile) = active_permission_profile.clone() {
+            metadata["sandboxNetworkAccess"] = json!(false);
             apply_resolved_permission_profile_to_metadata(
                 metadata
                     .as_object_mut()
@@ -121,6 +141,13 @@ impl RequestProcessor {
                 profile,
             )
             .map_err(invalid_params)?;
+        }
+        if metadata.get("webSearchMode").is_none() {
+            metadata["webSearchMode"] = json!(agent_protocol::WebSearchMode::for_sandbox(
+                metadata
+                    .get("sandboxPolicy")
+                    .and_then(serde_json::Value::as_str),
+            ));
         }
         if !environment_world_state.is_empty() {
             metadata["environmentWorldState"] = serde_json::to_value(&environment_world_state)
@@ -199,7 +226,7 @@ impl RequestProcessor {
                 .get("activePermissionProfile")
                 .filter(|value| !value.is_null())
                 .cloned(),
-            reasoning_effort: None,
+            reasoning_effort: metadata_optional_string(&metadata, "reasoningEffort"),
             multi_agent_mode: agent_protocol::MultiAgentMode::default(),
         })
         .map(|dispatch| {

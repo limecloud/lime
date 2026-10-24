@@ -45,7 +45,6 @@ function createImageWorkbenchState(
         createdAt,
         size: "1024x1024",
         parentOutputId: null,
-        resourceSaved: false,
         applyTarget: null,
       },
     ],

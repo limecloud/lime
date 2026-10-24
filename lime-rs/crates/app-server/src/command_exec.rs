@@ -115,6 +115,9 @@ impl CommandExecServer {
                 }
             }
         }
+        self.process_server
+            .expose_primary_runtime(&mut env)
+            .map_err(|error| invalid_runtime(error.to_string()))?;
         let stream_stdin = params.tty || params.stream_stdin;
         let stream_output = params.tty || params.stream_stdout_stderr;
         let output_cap = if params.disable_output_cap {

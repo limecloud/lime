@@ -190,10 +190,6 @@ describe("commandPolicy", () => {
     expect(shouldDisallowMockFallbackCommand("open_file_preview_window")).toBe(
       true,
     );
-    expect(isBridgeTruthCommand("open_resource_manager_window")).toBe(false);
-    expect(
-      shouldDisallowMockFallbackCommand("open_resource_manager_window"),
-    ).toBe(true);
     expect(isBridgeTruthCommand("windows_native_host_invoke")).toBe(false);
     expect(
       shouldDisallowMockFallbackCommand("windows_native_host_invoke"),
@@ -686,8 +682,8 @@ describe("commandPolicy", () => {
         request: {
           lines: [
             JSON.stringify({
-              id: "knowledge",
-              method: "knowledgePack/compile",
+              id: "plugin-install",
+              method: "plugin/install",
               params: {},
             }),
             JSON.stringify({
@@ -698,7 +694,7 @@ describe("commandPolicy", () => {
           ],
         },
       }),
-    ).toBe("knowledge-compile");
+    ).toBe("app-server-long-running");
     for (const method of [
       "modelProvider/testConnection",
       "modelProvider/testChat",

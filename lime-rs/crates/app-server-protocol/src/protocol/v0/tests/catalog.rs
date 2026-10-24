@@ -22,6 +22,12 @@ fn app_server_method_catalog_keeps_all_method_kinds_together() {
             METHOD_PROJECT_GIT_BRANCH_CHECKOUT,
             METHOD_PROJECT_GIT_BRANCH_CREATE,
             METHOD_PROJECT_GIT_WORKTREE_CREATE,
+            METHOD_PROJECT_GIT_WORKTREE_LIST,
+            METHOD_STORAGE_READ,
+            METHOD_STORAGE_REFRESH,
+            METHOD_STORAGE_REVIEW,
+            METHOD_STORAGE_DELETE,
+            METHOD_PROJECT_GIT_WORKTREE_DELETE,
             METHOD_AGENT_SESSION_HANDOFF_BUNDLE_EXPORT,
             METHOD_AGENT_SESSION_REPLAY_CASE_EXPORT,
             METHOD_AGENT_SESSION_ANALYSIS_HANDOFF_EXPORT,
@@ -150,14 +156,6 @@ fn app_server_method_catalog_keeps_all_method_kinds_together() {
             METHOD_SOUL_STYLE_PACK_LIST,
             METHOD_SOUL_STYLE_PACK_STATUS_SET,
             METHOD_SOUL_STYLE_PACK_UNINSTALL,
-            METHOD_KNOWLEDGE_PACK_LIST,
-            METHOD_KNOWLEDGE_PACK_READ,
-            METHOD_KNOWLEDGE_SOURCE_IMPORT,
-            METHOD_KNOWLEDGE_PACK_COMPILE,
-            METHOD_KNOWLEDGE_PACK_DEFAULT_SET,
-            METHOD_KNOWLEDGE_PACK_STATUS_UPDATE,
-            METHOD_KNOWLEDGE_CONTEXT_RESOLVE,
-            METHOD_KNOWLEDGE_CONTEXT_RUN_VALIDATE,
             METHOD_SCHEDULED_TASK_LIST,
             METHOD_SCHEDULED_TASK_READ,
             METHOD_SCHEDULED_TASK_CREATE,
@@ -208,9 +206,6 @@ fn app_server_method_catalog_keeps_all_method_kinds_together() {
             METHOD_DIAGNOSTICS_TRACE_LIST,
             METHOD_DIAGNOSTICS_TRACE_READ,
             METHOD_DIAGNOSTICS_TRACE_EXPORT,
-            METHOD_USAGE_STATS_READ,
-            METHOD_USAGE_STATS_MODEL_RANKING_LIST,
-            METHOD_USAGE_STATS_DAILY_TRENDS_LIST,
             METHOD_MODEL_PREFERENCES_LIST,
             METHOD_MODEL_SYNC_STATE_READ,
             METHOD_MODEL_PROVIDER_LIST,
@@ -363,6 +358,24 @@ fn retired_model_provider_key_renderer_methods_are_rejected() {
     ] {
         assert!(!is_app_server_request_method(method), "{method}");
         assert!(AppServerRequestMethod::parse(method).is_none(), "{method}");
+    }
+}
+
+#[test]
+fn retired_custom_usage_statistics_methods_are_rejected() {
+    for method in [
+        "usageStats/read",
+        "usageStats/modelRanking/list",
+        "usageStats/dailyTrends/list",
+    ] {
+        assert!(!is_app_server_request_method(method), "{method}");
+        assert!(AppServerRequestMethod::parse(method).is_none(), "{method}");
+        let request =
+            serde_json::json!({"jsonrpc": "2.0", "id": 1, "method": method, "params": {}});
+        assert!(
+            serde_json::from_value::<AppServerClientRequest>(request).is_err(),
+            "{method}"
+        );
     }
 }
 

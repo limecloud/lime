@@ -8,7 +8,6 @@ mod event_mapper;
 mod execution_backend;
 mod image_command;
 mod image_tools;
-pub(crate) mod knowledge_builder_runtime;
 mod live_execution_process;
 mod mcp_bridges;
 mod mcp_resource_tools;

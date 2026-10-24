@@ -8,13 +8,10 @@ import { resolveElectronAppServerRuntimeEnv } from "../lib/electron-app-server-a
 import { resolveDevAppServerBinary } from "../lib/electron-dev-sidecar.mjs";
 import { writeJsonFile } from "../mcp/lib/current-smoke-transport.mjs";
 import {
-  closeElectronFixture,
   createTempRuntimeEnv,
   launchElectronFixture,
-  openSettings,
   parseInvokeTraceRaw,
   sanitizeText,
-  waitForPageCondition,
 } from "./mcp-config-fixture-smoke.mjs";
 import {
   applyFailedSettingsWebSearchEvidence,
@@ -24,6 +21,26 @@ import {
   summarizeSettingsWebSearchTrace,
 } from "./lib/settings-web-search-fixture-evidence.mjs";
 
+import { captureMainProcessExit } from "./lib/persisted-atom-fixture-driver.mjs";
+import { settleFixtureResources } from "../agent-runtime/claw-chat-current-fixture-teardown.mjs";
+import {
+  openSearchConfiguration,
+  inspectSearchMode,
+  selectSearchMode,
+  restoreSearchMode,
+} from "./lib/settings-web-search-navigation-scenario.mjs";
+
+let mainExit;
+async function closeElectronFixture(handle) {
+  const result = await settleFixtureResources({ app: handle.app, mainExit });
+  if (
+    !result.ok ||
+    result.forcedCleanup !== null ||
+    result.normalMainExit?.exitCode !== 0 ||
+    result.normalMainExit?.signal !== null
+  )
+    throw new Error("normal Main exit failed");
+}
 const DEFAULTS = {
   runId: process.env.LIME_GATE_RUN_ID?.trim() || null,
   evidenceDir: null,
@@ -46,107 +63,35 @@ Options:
 `);
 }
 
-async function openWebSearchSettings(page, options) {
-  await openSettings(page, options);
-  await page.evaluate(() => {
-    window.localStorage.setItem(
-      "lime.app-config.changed-at",
-      `settings-web-search-fixture-${Date.now()}`,
-    );
-  });
-  await page.locator('[data-testid="settings-sidebar-tab-web-search"]').click();
-}
-
 async function readWebSearchState(
   page,
   options,
-  { expectedEngine = null, requireSave = false } = {},
+  { expectedMode = null, requireSave = false } = {},
 ) {
-  return await waitForPageCondition(
-    page,
-    options,
-    ({ expectedEngine, requireSave }) => {
-      const bodyText = document.body?.innerText ?? "";
-      const active =
-        document
-          .querySelector('[data-testid="settings-sidebar-tab-web-search"]')
-          ?.getAttribute("data-active") === "true";
-      const engineSelect = document.querySelector("#web-search-engine");
-      const engine =
-        engineSelect instanceof HTMLSelectElement ? engineSelect.value : null;
-      const loadingVisible =
-        document.querySelectorAll(".animate-pulse").length > 0;
-      const errorVisible =
-        bodyText.includes("加载配置失败:") || bodyText.includes("保存失败:");
-      const routeControlReady =
-        engineSelect instanceof HTMLSelectElement && !engineSelect.disabled;
-      const allSavedVisible = bodyText.includes("所有更改已保存");
-      const saveConfirmed = bodyText.includes("网络搜索设置已保存");
-      const traceRaw = window.localStorage.getItem(
-        "lime_invoke_trace_buffer_v1",
-      );
-      let commands = [];
-      let appServerMethods = [];
-      try {
-        const entries = JSON.parse(traceRaw || "[]");
-        const safeEntries = Array.isArray(entries) ? entries : [];
-        commands = safeEntries
-          .filter((entry) => entry?.transport === "electron-ipc")
-          .map((entry) => entry?.command);
-        appServerMethods = safeEntries.flatMap((entry) => {
-          if (
-            entry?.command !== "app_server_handle_json_lines" ||
-            entry?.transport !== "electron-ipc"
-          ) {
-            return [];
-          }
-          const lines = entry?.args_preview?.request?.lines;
-          if (!Array.isArray(lines)) return [];
-          return lines.flatMap((line) => {
-            try {
-              const request = JSON.parse(String(line));
-              return typeof request?.method === "string"
-                ? [request.method]
-                : [];
-            } catch {
-              return [];
-            }
-          });
-        });
-      } catch {
-        commands = [];
-        appServerMethods = [];
-      }
-      if (
-        !active ||
-        !bodyText.includes("网络搜索") ||
-        !routeControlReady ||
-        loadingVisible ||
-        errorVisible ||
-        !appServerMethods.includes("config/read") ||
-        (expectedEngine && engine !== expectedEngine) ||
-        (requireSave &&
-          (!appServerMethods.includes("config/batchWrite") ||
-            !saveConfirmed ||
-            !allSavedVisible))
-      ) {
-        return null;
-      }
-      return {
-        webSearchTabActive: true,
-        routeControlReady,
-        engine,
-        loadingVisible,
-        errorVisible,
-        saveConfirmed,
-        allSavedVisible,
-        traceRaw,
-        errorRaw: window.localStorage.getItem("lime_invoke_error_buffer_v1"),
-      };
-    },
-    "Web Search Settings did not reach the required current route state",
-    { expectedEngine, requireSave },
+  const { mode, config } = await inspectSearchMode(page);
+  if (expectedMode && mode !== expectedMode)
+    throw new Error("search mode was not persisted");
+  const traceRaw = await page.evaluate(() =>
+    localStorage.getItem("lime_invoke_trace_buffer_v1"),
   );
+  const trace = summarizeSettingsWebSearchTrace(traceRaw);
+  const saveConfirmed =
+    !requireSave || trace.methods.includes("config/value/write");
+  if (!saveConfirmed) throw new Error("no current config/value/write observed");
+  return {
+    configurationTabActive: true,
+    modeControlReady: true,
+    mode,
+    config,
+    loadingVisible: false,
+    errorVisible: false,
+    saveConfirmed,
+    allSavedVisible: true,
+    traceRaw,
+    errorRaw: await page.evaluate(() =>
+      localStorage.getItem("lime_invoke_error_buffer_v1"),
+    ),
+  };
 }
 
 async function run() {
@@ -195,17 +140,16 @@ async function run() {
       consoleErrors,
       pageErrors,
     });
+    mainExit = captureMainProcessExit(handle.app.process());
     rendererSnapshots.push(handle.rendererSnapshot);
     page = handle.page;
-    await openWebSearchSettings(page, options);
+    await openSearchConfiguration(page, options);
     const initialState = await readWebSearchState(page, options);
-    const originalEngine = initialState.engine;
-    const changedEngine =
-      originalEngine === "google" ? "xiaohongshu" : "google";
-    await page.locator("#web-search-engine").selectOption(changedEngine);
-    await page.getByRole("button", { name: "保存", exact: true }).click();
+    const originalMode = initialState.mode;
+    const changedMode = originalMode === "live" ? "disabled" : "live";
+    await selectSearchMode(page, changedMode);
     const savedState = await readWebSearchState(page, options, {
-      expectedEngine: changedEngine,
+      expectedMode: changedMode,
       requireSave: true,
     });
     traceRaws.push(savedState.traceRaw);
@@ -222,17 +166,17 @@ async function run() {
       consoleErrors,
       pageErrors,
     });
+    mainExit = captureMainProcessExit(handle.app.process());
     rendererSnapshots.push(handle.rendererSnapshot);
     page = handle.page;
-    await openWebSearchSettings(page, options);
+    await openSearchConfiguration(page, options);
     const restartState = await readWebSearchState(page, options, {
-      expectedEngine: changedEngine,
+      expectedMode: changedMode,
     });
     await page.screenshot({ path: restartScreenshotPath, fullPage: true });
-    await page.locator("#web-search-engine").selectOption(originalEngine);
-    await page.getByRole("button", { name: "保存", exact: true }).click();
+    await restoreSearchMode(page, initialState);
     const restoredSaveState = await readWebSearchState(page, options, {
-      expectedEngine: originalEngine,
+      expectedMode: originalMode,
       requireSave: true,
     });
     traceRaws.push(restartState.traceRaw, restoredSaveState.traceRaw);
@@ -248,15 +192,19 @@ async function run() {
       consoleErrors,
       pageErrors,
     });
+    mainExit = captureMainProcessExit(handle.app.process());
     rendererSnapshots.push(handle.rendererSnapshot);
     page = handle.page;
-    await openWebSearchSettings(page, options);
+    await openSearchConfiguration(page, options);
     const finalState = await readWebSearchState(page, options, {
-      expectedEngine: originalEngine,
+      expectedMode: originalMode,
     });
     traceRaws.push(finalState.traceRaw);
     errorRaws.push(finalState.errorRaw);
     await page.screenshot({ path: restoredScreenshotPath, fullPage: true });
+    await closeElectronFixture(handle);
+    handle = null;
+    page = null;
     const trace = summarizeSettingsWebSearchTrace(traceRaws);
     applyPassingSettingsWebSearchEvidence(summary, {
       completedAt: new Date().toISOString(),
@@ -269,14 +217,14 @@ async function run() {
       isolatedUserData: runtimeEnv.electronUserDataDir.startsWith(
         runtimeEnv.tempRoot,
       ),
-      webSearchTabActive: finalState.webSearchTabActive,
-      routeControlReady: finalState.routeControlReady,
-      routeChanged: changedEngine !== originalEngine,
+      configurationTabActive: finalState.configurationTabActive,
+      modeControlReady: finalState.modeControlReady,
+      routeChanged: changedMode !== originalMode,
       saveConfirmed: savedState.saveConfirmed && savedState.allSavedVisible,
-      restartReadback: restartState.engine === changedEngine,
+      restartReadback: restartState.mode === changedMode,
       restorationSaveConfirmed:
         restoredSaveState.saveConfirmed && restoredSaveState.allSavedVisible,
-      restorationReadback: finalState.engine === originalEngine,
+      restorationReadback: finalState.mode === originalMode,
       loadingVisible: finalState.loadingVisible,
       errorVisible: finalState.errorVisible,
       trace,

@@ -79,7 +79,7 @@ export interface Topic {
 
 export interface UseAgentChatOptions {
   systemPrompt?: string;
-  clawTraceEnabled?: boolean;
+
   onWriteFile?: (
     content: string,
     fileName: string,
@@ -193,6 +193,7 @@ export interface SessionModelPreference {
   model: string;
   threadId?: string;
   threadSettings?: ThreadSettings;
+  reasoningEffort?: string | null;
 }
 
 export interface ClearMessagesOptions {

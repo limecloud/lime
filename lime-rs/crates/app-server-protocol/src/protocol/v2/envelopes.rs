@@ -1,3 +1,4 @@
+use super::{CancelInstallParams, CancelInstallResponse, DiagnoseDependenciesParams, DiagnoseDependenciesResponse, InstallDependenciesResponse, RunUpdateNowParams};
 use super::{
     AccountUpdatedNotification, CloudRequestParams, GetAccountParams, LoginAccountParams,
     METHOD_ACCOUNT_UPDATED,
@@ -11,8 +12,8 @@ use super::{
     CommandExecTerminateResponse, CommandExecWriteParams, CommandExecWriteResponse,
     CommandExecutionOutputDeltaNotification, CommandExecutionRequestApprovalParams,
     CommandExecutionTerminalInteractionNotification, ConfigBatchWriteParams, ConfigReadParams,
-    ConfigValueWriteParams, ConfigWarningNotification, CurrentTimeReadParams,
-    DynamicToolCallParams, EnvironmentAddParams, EnvironmentAddResponse,
+    ConfigRequirementsReadParams, ConfigValueWriteParams, ConfigWarningNotification,
+    CurrentTimeReadParams, DynamicToolCallParams, EnvironmentAddParams, EnvironmentAddResponse,
     EnvironmentConnectionNotification, EnvironmentInfoParams, EnvironmentInfoResponse,
     EnvironmentStatusParams, EnvironmentStatusResponse, ErrorNotification,
     ExperimentalFeatureEnablementSetParams, ExperimentalFeatureEnablementSetResponse,
@@ -472,10 +473,24 @@ pub enum ClientRequest {
         id: RequestId,
         params: EnvironmentStatusParams,
     },
+    #[serde(rename = "primaryRuntime/diagnoseDependencies")]
+    PrimaryRuntimeDiagnoseDependencies { id: RequestId, params: DiagnoseDependenciesParams },
+    #[serde(rename = "primaryRuntime/runUpdateNow")]
+    PrimaryRuntimeRunUpdateNow { id: RequestId, params: RunUpdateNowParams },
+    #[serde(rename = "primaryRuntime/resetDependencies")]
+    PrimaryRuntimeResetDependencies { id: RequestId, params: RunUpdateNowParams },
+    #[serde(rename = "primaryRuntime/cancelInstall")]
+    PrimaryRuntimeCancelInstall { id: RequestId, params: CancelInstallParams },
     #[serde(rename = "config/read")]
     ConfigRead {
         id: RequestId,
         params: ConfigReadParams,
+    },
+    #[serde(rename = "configRequirements/read")]
+    ConfigRequirementsRead {
+        id: RequestId,
+        #[serde(default)]
+        params: ConfigRequirementsReadParams,
     },
     #[serde(rename = "config/value/write")]
     ConfigValueWrite {
@@ -819,7 +834,12 @@ impl ClientRequest {
             | Self::EnvironmentAdd { id, .. }
             | Self::EnvironmentInfo { id, .. }
             | Self::EnvironmentStatus { id, .. }
+            | Self::PrimaryRuntimeDiagnoseDependencies { id, .. }
+            | Self::PrimaryRuntimeRunUpdateNow { id, .. }
+            | Self::PrimaryRuntimeResetDependencies { id, .. }
+            | Self::PrimaryRuntimeCancelInstall { id, .. }
             | Self::ConfigRead { id, .. }
+            | Self::ConfigRequirementsRead { id, .. }
             | Self::ConfigValueWrite { id, .. }
             | Self::ConfigBatchWrite { id, .. }
             | Self::CollaborationModeList { id, .. }
@@ -952,7 +972,12 @@ impl ClientRequest {
             Self::EnvironmentAdd { .. } => Method::EnvironmentAdd,
             Self::EnvironmentInfo { .. } => Method::EnvironmentInfo,
             Self::EnvironmentStatus { .. } => Method::EnvironmentStatus,
+            Self::PrimaryRuntimeDiagnoseDependencies { .. } => Method::PrimaryRuntimeDiagnoseDependencies,
+            Self::PrimaryRuntimeRunUpdateNow { .. } => Method::PrimaryRuntimeRunUpdateNow,
+            Self::PrimaryRuntimeResetDependencies { .. } => Method::PrimaryRuntimeResetDependencies,
+            Self::PrimaryRuntimeCancelInstall { .. } => Method::PrimaryRuntimeCancelInstall,
             Self::ConfigRead { .. } => Method::ConfigRead,
+            Self::ConfigRequirementsRead { .. } => Method::ConfigRequirementsRead,
             Self::ConfigValueWrite { .. } => Method::ConfigValueWrite,
             Self::ConfigBatchWrite { .. } => Method::ConfigBatchWrite,
             Self::CollaborationModeList { .. } => Method::CollaborationModeList,
@@ -1097,6 +1122,10 @@ pub enum ClientResponsePayload {
     EnvironmentStatus(EnvironmentStatusResponse),
     WindowsSandboxReadiness(WindowsSandboxReadinessResponse),
     WindowsSandboxSetupStart(WindowsSandboxSetupStartResponse),
+    PrimaryRuntimeDiagnoseDependencies(DiagnoseDependenciesResponse),
+    PrimaryRuntimeRunUpdateNow(InstallDependenciesResponse),
+    PrimaryRuntimeResetDependencies(InstallDependenciesResponse),
+    PrimaryRuntimeCancelInstall(CancelInstallResponse),
     ExperimentalFeatureList(ExperimentalFeatureListResponse),
     ExperimentalFeatureEnablementSet(ExperimentalFeatureEnablementSetResponse),
     AppRead(AppsReadResponse),
@@ -1202,6 +1231,10 @@ impl ClientResponsePayload {
             Self::EnvironmentStatus(_) => Method::EnvironmentStatus,
             Self::WindowsSandboxReadiness(_) => Method::WindowsSandboxReadiness,
             Self::WindowsSandboxSetupStart(_) => Method::WindowsSandboxSetupStart,
+            Self::PrimaryRuntimeDiagnoseDependencies(_) => Method::PrimaryRuntimeDiagnoseDependencies,
+            Self::PrimaryRuntimeRunUpdateNow(_) => Method::PrimaryRuntimeRunUpdateNow,
+            Self::PrimaryRuntimeResetDependencies(_) => Method::PrimaryRuntimeResetDependencies,
+            Self::PrimaryRuntimeCancelInstall(_) => Method::PrimaryRuntimeCancelInstall,
             Self::ExperimentalFeatureList(_) => Method::ExperimentalFeatureList,
             Self::ExperimentalFeatureEnablementSet(_) => Method::ExperimentalFeatureEnablementSet,
             Self::AppRead(_) => Method::AppRead,
@@ -1305,6 +1338,10 @@ impl ClientResponsePayload {
             Self::EnvironmentStatus(response) => serde_json::to_value(response)?,
             Self::WindowsSandboxReadiness(response) => serde_json::to_value(response)?,
             Self::WindowsSandboxSetupStart(response) => serde_json::to_value(response)?,
+            Self::PrimaryRuntimeDiagnoseDependencies(response) => serde_json::to_value(response)?,
+            Self::PrimaryRuntimeRunUpdateNow(response) => serde_json::to_value(response)?,
+            Self::PrimaryRuntimeResetDependencies(response) => serde_json::to_value(response)?,
+            Self::PrimaryRuntimeCancelInstall(response) => serde_json::to_value(response)?,
             Self::ExperimentalFeatureList(response) => serde_json::to_value(response)?,
             Self::ExperimentalFeatureEnablementSet(response) => serde_json::to_value(response)?,
             Self::AppRead(response) => serde_json::to_value(response)?,

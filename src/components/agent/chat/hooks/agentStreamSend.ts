@@ -40,6 +40,10 @@ export async function sendAgentStreamMessage(
   const currentSessionId = env.sessionIdRef.current?.trim() || "";
   const hasCurrentSession = Boolean(currentSessionId);
   const targetSessionId = sendOptions?.targetSessionId?.trim();
+  const newSessionEffort =
+    !hasCurrentSession && !targetSessionId
+      ? env.reasoningEffortRef.current.trim()
+      : "";
   const shouldBindTargetSession =
     Boolean(targetSessionId) && targetSessionId !== currentSessionId;
   let ensuredSessionId: string | null = null;
@@ -74,7 +78,10 @@ export async function sendAgentStreamMessage(
     modelOverride,
     autoContinue,
     systemPrompt,
-    options: sendOptions,
+    options:
+      newSessionEffort && !sendOptions?.reasoningEffort
+        ? { ...sendOptions, reasoningEffort: newSessionEffort }
+        : sendOptions,
     env,
   });
 

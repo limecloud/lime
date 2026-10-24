@@ -16,6 +16,7 @@ import { summarizeBrowserDesignSubmission } from "./browser-design-submit-eviden
 export async function runBrowserAnnotationDesignScenario(ctx) {
   const { app, page, options, identity, providerFixture } = ctx;
   const output = path.dirname(options.output);
+  const direct = process.env.LIME_BROWSER_DESIGN_COMMIT === "send";
   const key = `__browserDesign_${randomUUID().replaceAll("-", "")}`;
   const labels = JSON.parse(
     await fs.readFile(
@@ -29,6 +30,7 @@ export async function runBrowserAnnotationDesignScenario(ctx) {
   const label = (name) => labels[`browserAnnotation.${name}`];
   const evidence = {
     scenario: "annotation-design",
+    commitAction: direct ? "send" : "save",
     result: "fail",
     hiddenWindow: true,
     physicalInput: false,
@@ -222,48 +224,53 @@ export async function runBrowserAnnotationDesignScenario(ctx) {
     evidence.geometryExpanded = await geometry(editor);
     await shot(editor, "editor-design-expanded");
     await shot(native, "page-design-preview");
-    stage("save-design-only");
+    stage(direct ? "send-design-only" : "save-design-only");
     assert(
       evidence.geometryExpanded.dom.body === "",
       "Expected design-only draft",
     );
     await click(
-      editor.page.getByRole("button", { name: label("save"), exact: true }),
+      editor.page.getByRole("button", {
+        name: label(direct ? "send" : "save"),
+        exact: true,
+      }),
     );
     const accessory = page.getByTestId("browser-annotation-accessory");
-    await accessory
-      .getByRole("button", { name: label("designTitle"), exact: true })
-      .waitFor({ state: "visible" });
-    const original = page.getByRole("button", {
-      name: label("holdOriginal"),
-      exact: true,
-    });
-    await original.evaluate((node) =>
-      node.dispatchEvent(
-        new KeyboardEvent("keydown", { key: " ", bubbles: true }),
-      ),
-    );
-    evidence.original = await waitFor(
-      options,
-      preview,
-      (value) => value.text === baseline.text && value.size === baseline.size,
-      "Original hold did not restore baseline",
-    );
-    await original.evaluate((node) =>
-      node.dispatchEvent(
-        new KeyboardEvent("keyup", { key: " ", bubbles: true }),
-      ),
-    );
-    evidence.restored = await waitFor(
-      options,
-      preview,
-      (value) => value.text === revisedText && value.size === revisedSize,
-      "Original release did not restore design",
-    );
-    stage("send-from-composer");
-    await click(
-      accessory.getByRole("button", { name: label("sendAll"), exact: true }),
-    );
+    if (!direct) {
+      await accessory
+        .getByRole("button", { name: label("designTitle"), exact: true })
+        .waitFor({ state: "visible" });
+      const original = page.getByRole("button", {
+        name: label("holdOriginal"),
+        exact: true,
+      });
+      await original.evaluate((node) =>
+        node.dispatchEvent(
+          new KeyboardEvent("keydown", { key: " ", bubbles: true }),
+        ),
+      );
+      evidence.original = await waitFor(
+        options,
+        preview,
+        (value) => value.text === baseline.text && value.size === baseline.size,
+        "Original hold did not restore baseline",
+      );
+      await original.evaluate((node) =>
+        node.dispatchEvent(
+          new KeyboardEvent("keyup", { key: " ", bubbles: true }),
+        ),
+      );
+      evidence.restored = await waitFor(
+        options,
+        preview,
+        (value) => value.text === revisedText && value.size === revisedSize,
+        "Original release did not restore design",
+      );
+      stage("send-from-composer");
+      await click(
+        accessory.getByRole("button", { name: label("sendAll"), exact: true }),
+      );
+    }
     const read = await waitFor(
       options,
       () =>
@@ -362,9 +369,20 @@ export async function runBrowserAnnotationDesignScenario(ctx) {
       JSON.parse(localStorage.getItem("lime_invoke_trace_buffer_v1") || "[]"),
     );
     const commands = await readBrowserAnnotationCommands(app, key);
-    const capture = commands.findLast(
+    const initialCapture = commands.findLast(
       (command) => command.command === "browser_tab_capture_annotation",
     );
+    const editorEvents = await app.evaluate(
+      (_electron, key) => globalThis[key]?.records ?? [],
+      key,
+    );
+    const saved = editorEvents.findLast(
+      (event) =>
+        event.channel === "browser-annotation-editor-projection" &&
+        event.action === (direct ? "send" : "save"),
+    );
+    const capture = saved?.capture;
+    evidence.initialCapture = initialCapture;
     evidence.capture = capture;
     evidence.submission = summarizeBrowserDesignSubmission({
       trace: [...ctx.readInvokeTrace(), ...latestTrace],
@@ -391,6 +409,20 @@ export async function runBrowserAnnotationDesignScenario(ctx) {
     );
     evidence.assertions = {
       ...evidence.submission.checks,
+      firstDesignScreenshot:
+        capture?.screenshotStatus === "captured" &&
+        initialCapture?.screenshotStatus === "captured" &&
+        capture.screenshot?.sha256 !== initialCapture.screenshot?.sha256 &&
+        JSON.stringify(capture.selection) ===
+          JSON.stringify(initialCapture.selection),
+      commitBeforeClose:
+        editorEvents.findIndex((event) => event === saved) <
+        editorEvents.findIndex(
+          (event) =>
+            event.channel === "browser-annotation-editor-projection" &&
+            event.action === "close" &&
+            event.editorId === saved?.editorId,
+        ),
       editorActionsFit:
         evidence.geometryExpanded.dom.saveDisabled === false &&
         evidence.geometryExpanded.dom.card.bottom <=

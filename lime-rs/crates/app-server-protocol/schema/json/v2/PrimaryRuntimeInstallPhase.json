@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "enum": [
+    "canceled",
+    "configuring",
+    "downloading",
+    "error",
+    "extracting",
+    "ready",
+    "validating",
+    "verifying"
+  ],
+  "title": "PrimaryRuntimeInstallPhase",
+  "type": "string"
+}

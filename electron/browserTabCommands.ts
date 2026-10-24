@@ -64,6 +64,7 @@ export const BROWSER_TAB_COMMANDS = [
   "browser_tab_set_audio_muted",
   "browser_tab_set_device",
   "browser_tab_select",
+  "browser_tab_focus_page",
   "browser_tab_close",
   "browser_tab_show_menu",
   "browser_tab_update_menu",

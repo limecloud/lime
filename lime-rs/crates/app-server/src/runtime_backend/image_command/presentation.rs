@@ -180,7 +180,6 @@ pub(super) async fn generate_image_task_presentation(
     let system_prompt = append_soul_context_to_system_prompt(
         Some(presentation_system_prompt()),
         config_metadata.as_ref(),
-        runtime_metadata,
     )
     .unwrap_or_else(presentation_system_prompt);
     let presentation_language =

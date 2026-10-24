@@ -2,12 +2,11 @@ import { type ReactNode } from "react";
 import { ChevronLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export type GeneralWorkbenchSidebarTab = "context" | "workflow" | "log";
+export type GeneralWorkbenchSidebarTab = "workflow" | "log";
 
 interface GeneralWorkbenchSidebarShellProps {
   activeTab: GeneralWorkbenchSidebarTab;
   isVersionMode: boolean;
-  activeContextCount: number;
   workflowCount: number;
   visibleExecLogCount: number;
   onTabChange: (tab: GeneralWorkbenchSidebarTab) => void;
@@ -71,9 +70,6 @@ function resolveSidebarTitle(
   activeTab: GeneralWorkbenchSidebarTab,
   isVersionMode: boolean,
 ): string {
-  if (activeTab === "context") {
-    return "上下文管理";
-  }
   if (activeTab === "workflow") {
     return "当前进展";
   }
@@ -84,9 +80,6 @@ function resolveSidebarDescription(
   activeTab: GeneralWorkbenchSidebarTab,
   isVersionMode: boolean,
 ): string {
-  if (activeTab === "context") {
-    return "检索、筛选并启用当前创作真正会用到的上下文。";
-  }
   if (activeTab === "workflow") {
     return isVersionMode
       ? "聚焦当前结果、下一步与可继续的版本。"
@@ -98,7 +91,6 @@ function resolveSidebarDescription(
 export function GeneralWorkbenchSidebarShell({
   activeTab,
   isVersionMode,
-  activeContextCount,
   workflowCount,
   visibleExecLogCount,
   onTabChange,
@@ -137,20 +129,6 @@ export function GeneralWorkbenchSidebarShell({
           className={SIDEBAR_TABS_CLASSNAME}
           data-testid="general-workbench-sidebar-tabs"
         >
-          <button
-            type="button"
-            aria-label="打开上下文管理"
-            title="上下文管理"
-            className={getSidebarTabButtonClassName(activeTab === "context")}
-            onClick={() => onTabChange("context")}
-          >
-            <span className={SIDEBAR_TAB_LABEL_CLASSNAME}>上下文</span>
-            <span
-              className={getSidebarTabCountClassName(activeTab === "context")}
-            >
-              {activeContextCount}
-            </span>
-          </button>
           <button
             type="button"
             aria-label="打开当前进展"

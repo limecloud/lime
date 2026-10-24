@@ -123,12 +123,6 @@ vi.mock("../hooks/useStrictReviewStatus", () => ({
 vi.mock("./WorkspaceHarnessDialogs", () => ({
   GeneralWorkbenchDialogSection: () => null,
 }));
-vi.mock("./knowledge/useWorkspaceKnowledgeRuntime", () => ({
-  useWorkspaceKnowledgeRuntime: () => ({
-    knowledgePackSelection: null,
-    knowledgePackOptions: [],
-  }),
-}));
 
 const skill: Skill = {
   key: "user:capability-report",
@@ -299,11 +293,6 @@ async function setup(withEditor = false) {
       activeTheme: "general",
       mappedTheme: "general",
       isThemeWorkbench: false,
-      contextWorkspace: {
-        enabled: false,
-        activeContextPrompt: "",
-        prepareActiveContextPrompt: async () => "",
-      },
       projectId: "workspace-1",
       projectRootPath: "/workspace",
       sessionId: "session-1",

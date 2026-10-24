@@ -63,7 +63,6 @@ export function createBaseParams(overrides: Record<string, unknown> = {}) {
       handleOpenPluginDirectory: noop,
       handleOpenChannels: noop,
       handleOpenChromeRelay: noop,
-      handleBackToResources: noop,
       handleCompactContext: noop,
       handleOpenRuntimeMemoryWorkbench: noop,
     },
@@ -198,7 +197,6 @@ export function createBaseParams(overrides: Record<string, unknown> = {}) {
     showChatPanel: true,
     topBarChrome: "full",
     onBackToProjectManagement: undefined,
-    fromResources: false,
     handleBackHome: noop,
     rightSurfaceChrome: {
       open: Boolean(overrides.rightSurfaceOpen),

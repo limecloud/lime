@@ -4,7 +4,10 @@ import type {
   BrowserPopupIdentityRequest,
 } from "./browserTabHost";
 import { BrowserAppServerBridge } from "./browserAppServerBridge";
-import { DEFAULT_BROWSER_SETTINGS } from "../src/lib/api/browserSettingsTypes";
+import {
+  DEFAULT_BROWSER_SETTINGS,
+  browserPreferences,
+} from "../src/lib/api/browserSettingsTypes";
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -52,7 +55,10 @@ describe("Browser App Server bridge", () => {
   it("projects the current configuration language to history approval presentation", async () => {
     const { bridge, host, request } = setup();
     request.mockResolvedValue({
-      config: { browser: DEFAULT_BROWSER_SETTINGS, language: "ja-JP" },
+      config: {
+        browser: browserPreferences(DEFAULT_BROWSER_SETTINGS),
+        language: "ja-JP",
+      },
     });
     await bridge.refreshSettings();
     expect(host.setSettings).toHaveBeenCalledWith(
@@ -60,10 +66,39 @@ describe("Browser App Server bridge", () => {
       "ja-JP",
     );
   });
+  it("projects root browser_use independently of native approval preferences", async () => {
+    const { bridge, host, request } = setup();
+    request.mockResolvedValue({
+      config: {
+        browser: {
+          approvalMode: "neverAsk",
+          iabHistoryApprovalMode: "neverAsk",
+        },
+        browser_use: {
+          allow_history_access: false,
+          origins: { "*.example.com": { access: "deny" } },
+        },
+      },
+    });
+    const settings = await bridge.refreshSettings();
+    expect(settings.approvalMode).toBe("neverAsk");
+    expect(settings.iabHistoryApprovalMode).toBe("neverAsk");
+    expect(settings.history_access).toBe("disabled");
+    expect(settings.browser_use?.origins?.["*.example.com"]?.access).toBe(
+      "deny",
+    );
+    expect(host.setSettings).toHaveBeenCalledWith(settings);
+  });
+
   it("reads authoritative configuration and propagates failures to the execution provider", async () => {
     const { bridge, host, request } = setup();
     request.mockResolvedValueOnce({
-      config: { browser: { ...DEFAULT_BROWSER_SETTINGS, enabled: false } },
+      config: {
+        browser: {
+          ...browserPreferences(DEFAULT_BROWSER_SETTINGS),
+          enabled: false,
+        },
+      },
     });
     expect((await bridge.refreshSettings()).enabled).toBe(false);
     expect(host.setSettings).toHaveBeenCalledWith(
@@ -82,10 +117,17 @@ describe("Browser App Server bridge", () => {
     const reading = bridge.refreshSettings();
     const writing = bridge.observeResult("config/batchWrite", {}, {});
     fresh.resolve({
-      config: { browser: { ...DEFAULT_BROWSER_SETTINGS, enabled: false } },
+      config: {
+        browser: {
+          ...browserPreferences(DEFAULT_BROWSER_SETTINGS),
+          enabled: false,
+        },
+      },
     });
     await writing;
-    old.resolve({ config: { browser: DEFAULT_BROWSER_SETTINGS } });
+    old.resolve({
+      config: { browser: browserPreferences(DEFAULT_BROWSER_SETTINGS) },
+    });
     await expect(reading).rejects.toThrow("owner changed");
     expect(host.setSettings).toHaveBeenCalledTimes(1);
     expect(host.setSettings).toHaveBeenCalledWith(

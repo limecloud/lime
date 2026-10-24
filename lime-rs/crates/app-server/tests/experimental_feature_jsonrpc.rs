@@ -5,69 +5,74 @@ use app_server_protocol::protocol::v2::{
 use app_server_protocol::{METHOD_INITIALIZE, METHOD_INITIALIZED, PROTOCOL_VERSION};
 use lime_core::config::ConfigManager;
 use serde_json::{json, Value};
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::Arc;
 use tempfile::TempDir;
 
 #[tokio::test]
-async fn experimental_feature_catalog_and_enablement_use_current_config_owner() {
-    let _config_lock = config_env_lock()
-        .lock()
-        .unwrap_or_else(|error| error.into_inner());
-    let temp = TempDir::new().expect("experimental feature config temp");
+async fn feature_catalog_uses_canonical_config_and_rejects_retired_flags() {
+    let temp = TempDir::new().expect("feature config temp");
     let config_path = temp.path().join("config.yaml");
-    std::fs::write(
-        &config_path,
-        "experimental:\n  webmcp:\n    enabled: true\n",
-    )
-    .expect("write config");
-    let previous = std::env::var_os("LIME_CONFIG_PATH");
-    let _restore = scopeguard::guard(previous, |value| {
-        if let Some(value) = value {
-            std::env::set_var("LIME_CONFIG_PATH", value);
-        } else {
-            std::env::remove_var("LIME_CONFIG_PATH");
-        }
-    });
-    std::env::set_var("LIME_CONFIG_PATH", &config_path);
-
-    let server = AppServer::with_runtime(RuntimeCore::with_backend(Arc::new(MockBackend)));
+    let server = AppServer::with_runtime(
+        RuntimeCore::with_backend(Arc::new(MockBackend)).with_app_config_path(config_path.clone()),
+    );
+    let uninitialized =
+        request_error(&server, 0, METHOD_EXPERIMENTAL_FEATURE_LIST, json!({})).await;
+    assert!(uninitialized.get("error").is_some());
     initialize(&server).await;
 
     let listed = request(&server, 2, METHOD_EXPERIMENTAL_FEATURE_LIST, json!({})).await;
-    assert_eq!(listed["result"]["data"][0]["name"], "webmcp");
-    assert_eq!(listed["result"]["data"][0]["enabled"], true);
-    assert_eq!(listed["result"]["data"][0]["defaultEnabled"], false);
+    let feature = &listed["result"]["data"][0];
+    assert_eq!(feature["name"], "workspace_dependencies");
+    assert_eq!(feature["enabled"], true);
+    assert_eq!(feature["defaultEnabled"], true);
+    assert_eq!(feature["stage"], "stable");
 
+    for (id, name) in [(3, "webmcp"), (4, "unknown")] {
+        let rejected = request_error(
+            &server,
+            id,
+            METHOD_EXPERIMENTAL_FEATURE_ENABLEMENT_SET,
+            json!({"enablement": {name: false}}),
+        )
+        .await;
+        assert_eq!(rejected["error"]["code"], -32602);
+        assert!(
+            !config_path.exists(),
+            "rejected writes must not create a config"
+        );
+    }
     let updated = request(
         &server,
-        3,
+        5,
         METHOD_EXPERIMENTAL_FEATURE_ENABLEMENT_SET,
-        json!({"enablement": {"webmcp": false, "unknown": true}}),
+        json!({"enablement": {"workspace_dependencies": false}}),
     )
     .await;
-    assert_eq!(updated["result"]["enablement"], json!({"webmcp": false}));
-
+    assert_eq!(
+        updated["result"]["enablement"],
+        json!({"workspace_dependencies": false})
+    );
     let listed = request(
         &server,
-        4,
+        6,
         METHOD_EXPERIMENTAL_FEATURE_LIST,
         json!({"cursor": "0", "limit": 1}),
     )
     .await;
     assert_eq!(listed["result"]["data"][0]["enabled"], false);
     assert_eq!(listed["result"]["nextCursor"], Value::Null);
-    assert!(
-        !ConfigManager::load(&config_path)
-            .expect("load persisted config")
-            .config()
-            .experimental
-            .webmcp
-            .enabled
-    );
+    let persisted = ConfigManager::load(&config_path).expect("load persisted config");
+    assert!(!persisted.config().features.workspace_dependencies_enabled());
 
+    let cold = AppServer::with_runtime(
+        RuntimeCore::with_backend(Arc::new(MockBackend)).with_app_config_path(config_path),
+    );
+    initialize(&cold).await;
+    let listed = request(&cold, 7, METHOD_EXPERIMENTAL_FEATURE_LIST, json!({})).await;
+    assert_eq!(listed["result"]["data"][0]["enabled"], false);
     let unknown_thread = request_error(
         &server,
-        5,
+        8,
         METHOD_EXPERIMENTAL_FEATURE_LIST,
         json!({"threadId": "missing-thread"}),
     )
@@ -132,9 +137,4 @@ async fn request_error(server: &AppServer, id: u64, method: &str, params: Value)
         .map(|line| serde_json::from_str::<Value>(line).expect("decode response"))
         .find(|message| message.get("id") == Some(&json!(id)))
         .unwrap_or_else(|| panic!("{method} should return matching response: {lines:#?}"))
-}
-
-fn config_env_lock() -> &'static Mutex<()> {
-    static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-    LOCK.get_or_init(|| Mutex::new(()))
 }

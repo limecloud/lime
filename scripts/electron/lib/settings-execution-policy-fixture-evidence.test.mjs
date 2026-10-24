@@ -58,7 +58,8 @@ function passingFacts() {
     executionPolicyTabActive: true,
     policyControlsReady: true,
     policyInputsChanged: true,
-    strictRestrictionInput: true,
+    planInputChanged: true,
+    retiredSandboxControlsAbsent: true,
     warningBypassInput: true,
     restartReadback: true,
     expectedSaveFailureVisible: true,
@@ -80,6 +81,22 @@ function passingFacts() {
 }
 
 describe("Settings Execution Policy Gate B evidence", () => {
+  it.each(["planInputChanged", "retiredSandboxControlsAbsent"])(
+    "rejects missing current control evidence: %s",
+    (field) => {
+      const summary = createSettingsExecutionPolicyEvidence({
+        candidateRunId: RUN_ID,
+        startedAt: "2026-07-17T00:00:00.000Z",
+        prefix: "settings-execution-policy-fixture",
+      });
+      const facts = passingFacts();
+      facts[field] = false;
+      expect(() =>
+        applyPassingSettingsExecutionPolicyEvidence(summary, facts),
+      ).toThrow(field);
+      expect(summary.result).toBe("fail");
+    },
+  );
   it.each(["missing", "signalled", "forced"])(
     "rejects %s exit evidence despite successful form assertions",
     (kind) => {

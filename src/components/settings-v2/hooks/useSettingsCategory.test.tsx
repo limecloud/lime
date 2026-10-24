@@ -75,36 +75,6 @@ describe("useSettingsCategory", () => {
     expect(skillsItem?.label).not.toContain("settings.tab.skills");
   });
 
-  it("系统导航应只保留开发者与实验功能合并入口", () => {
-    let groups: CategoryGroup[] = [];
-
-    renderHookProbe((nextGroups) => {
-      groups = nextGroups;
-    });
-
-    const systemGroup = groups.find(
-      (group) => group.key === SettingsGroupKey.Coding,
-    );
-    const systemKeys = systemGroup?.items.map((item) => item.key) ?? [];
-    const developerItem = systemGroup?.items.find(
-      (item) => item.key === SettingsTabs.Developer,
-    );
-
-    expect(systemGroup?.title).toBe("Coding");
-    expect(systemKeys).toContain(SettingsTabs.Developer);
-    expect(systemKeys).toContain(SettingsTabs.ExecutionPolicy);
-    expect(systemKeys).not.toContain(SettingsTabs.Experimental);
-    expect(
-      systemGroup?.items.find(
-        (item) => item.key === SettingsTabs.ExecutionPolicy,
-      )?.label,
-    ).toBe("Execution Policy");
-    expect(developerItem?.label).toBe("Developer & Labs");
-    expect(developerItem?.label).not.toBe("开发者与实验功能");
-    expect(developerItem?.label).not.toContain("settings.tab.developerLab");
-    expect(developerItem?.experimental).toBe(true);
-  });
-
   it("通用导航应包含已归档对话入口", () => {
     let groups: CategoryGroup[] = [];
 
@@ -124,6 +94,12 @@ describe("useSettingsCategory", () => {
     const generalKeys = generalGroup?.items.map((item) => item.key) ?? [];
 
     expect(generalKeys).toContain(SettingsTabs.Appearance);
+    expect(generalKeys).toContain(SettingsTabs.Configuration);
+    expect(
+      generalGroup?.items.find(
+        (item) => item.key === SettingsTabs.Configuration,
+      )?.label,
+    ).toBe("Configuration");
     expect(generalKeys).toContain(SettingsTabs.Memory);
     expect(generalKeys).toContain(SettingsTabs.ArchivedConversations);
   });
@@ -139,7 +115,8 @@ describe("current settings navigation translations", () => {
         groups = nextGroups;
       });
       const items = groups.flatMap((group) => group.items);
-      expect(groups).toHaveLength(3);
+      expect(groups).toHaveLength(4);
+      expect(items.at(-1)?.key).toBe(SettingsTabs.About);
       expect(items).toHaveLength(settingsSections.length);
       expect(new Set(items.map((item) => item.key)).size).toBe(
         settingsSections.length,
@@ -158,7 +135,8 @@ describe("current settings navigation translations", () => {
             .filter((section) => section.group === group.key)
             .map((section) => section.key),
         );
-        expect(group.title.trim()).not.toBe("");
+        if (group.key) expect(group.title.trim()).not.toBe("");
+        else expect(group.title).toBe("");
         expect(group.title).not.toContain("settings.group.");
         for (const item of group.items) {
           expect(item.label.trim()).not.toBe("");

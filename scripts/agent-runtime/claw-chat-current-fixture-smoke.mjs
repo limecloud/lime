@@ -60,7 +60,7 @@ import { captureEvidenceScreenshot } from "./claw-chat-current-fixture-screensho
 import {
   collectAppServerTraceEvidence,
   collectAgentUiPerformanceTraceEvidence,
-  enableClawTraceDebugOverride,
+  enableRuntimeDiagnostics,
 } from "./claw-chat-current-fixture-agent-ui-trace.mjs";
 import {
   createTempRuntimeEnv,
@@ -930,7 +930,7 @@ async function run() {
     readModelManualEnableSkillsRuntime: null,
     readModelExpertSkillsRuntime: null,
     eventReadProbe: null,
-    clawTraceDebugOverride: null,
+    runtimeDiagnostics: null,
     agentUiPerformanceTrace: null,
     agentUiPerformanceTraceLatest: null,
     appServerTraceEvidence: null,
@@ -1132,9 +1132,9 @@ async function run() {
     );
     summary.rendererSnapshot = sanitizeJson(rendererSnapshot);
 
-    logStage("enable-claw-trace-debug-override");
-    summary.clawTraceDebugOverride = sanitizeJson(
-      await enableClawTraceDebugOverride(page, options),
+    logStage("enable-runtime-diagnostics");
+    summary.runtimeDiagnostics = sanitizeJson(
+      await enableRuntimeDiagnostics(page, options),
     );
     await clearInvokeBuffers(page);
     invokeTraceCollector = startInvokeTraceEvidenceCollector(page);

@@ -1,16 +1,12 @@
 import { safeInvoke, safeListen } from "@/lib/dev-bridge";
+import { isBrowserDeviceViewport, type BrowserDeviceViewport, type BrowserDeviceBounds, type BrowserDeviceState } from "../browserDeviceLayout";
 import {
   getElectronHostBridge,
   isElectronDevBridgeFallbackAvailable,
   isElectronHostCommandAvailable,
 } from "@/lib/electron-host";
 
-export interface EmbeddedBrowserBounds {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
+export type EmbeddedBrowserBounds = BrowserDeviceBounds;
 
 export interface EmbeddedBrowserViewState {
   viewId: string;
@@ -26,15 +22,11 @@ export interface EmbeddedBrowserViewState {
   audioMuted?: boolean;
   audible?: boolean;
   device?: EmbeddedBrowserDeviceState | null;
+  deviceViewport?: BrowserDeviceViewport | null;
+  navigationRevision?: number;
 }
 
-export interface EmbeddedBrowserDeviceState {
-  width: number;
-  height: number;
-  deviceScaleFactor: number;
-  scale: number;
-  mobile: boolean;
-}
+export type EmbeddedBrowserDeviceState = BrowserDeviceState;
 
 export interface BrowserScreenshot {
   dataUrl: string;
@@ -97,6 +89,8 @@ export interface EmbeddedBrowserPermissionRequestEvent {
   requestingUrl: string | null;
   embeddingOrigin: string | null;
   decision: EmbeddedBrowserPermissionDecision;
+  isMainFrame: boolean;
+  mediaTypes?: string[];
 }
 
 interface EmbeddedBrowserCommandParams extends Record<string, unknown> {
@@ -164,7 +158,9 @@ function assertEmbeddedBrowserViewState(
     typeof record.title !== "string" ||
     typeof record.canGoBack !== "boolean" ||
     typeof record.canGoForward !== "boolean" ||
-    typeof record.isLoading !== "boolean"
+    typeof record.isLoading !== "boolean" ||
+    (record.deviceViewport != null && !isBrowserDeviceViewport(record.deviceViewport)) ||
+    (record.navigationRevision !== undefined && (!Number.isSafeInteger(record.navigationRevision) || record.navigationRevision < 0))
   ) {
     throw new Error("embedded browser 状态字段不完整。");
   }
@@ -446,7 +442,7 @@ export function listenEmbeddedBrowserDownload(
   );
 }
 
-function assertEmbeddedBrowserPermissionRequestEvent(
+export function assertEmbeddedBrowserPermissionRequestEvent(
   value: unknown,
 ): asserts value is EmbeddedBrowserPermissionRequestEvent {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -465,7 +461,11 @@ function assertEmbeddedBrowserPermissionRequestEvent(
       typeof record.embeddingOrigin === "string" ||
       record.embeddingOrigin === null
     ) ||
-    !(record.decision === "blocked" || record.decision === "pending")
+    !(record.decision === "blocked" || record.decision === "pending") ||
+    typeof record.isMainFrame !== "boolean" ||
+    (record.mediaTypes !== undefined &&
+      (!Array.isArray(record.mediaTypes) ||
+        record.mediaTypes.some((type) => type !== "audio" && type !== "video")))
   ) {
     throw new Error("embedded browser 权限事件字段不完整。");
   }

@@ -16,7 +16,7 @@ import type { PendingA2UISource } from "../types";
 import type { LayoutMode } from "@/lib/workspace/workbenchContract";
 import type { TaskFile } from "../components/TaskFiles";
 import type { WorkspacePathMissingState } from "../hooks/agentChatShared";
-import type { SidebarActivityLog } from "../hooks/useThemeContextWorkspace";
+import type { SidebarActivityLog } from "../components/generalWorkbenchWorkflowData";
 import type { SyncStatus } from "../hooks/useContentSync";
 import type { ArtifactTimelineOpenTarget } from "../utils/artifactTimelineNavigation";
 import { buildStepProgressProps } from "./chatSurfaceProps";
@@ -39,16 +39,7 @@ import {
 
 type InputbarScene = Pick<
   ReturnType<typeof useWorkspaceInputbarSceneRuntime>,
-  | "inputbarNode"
-  | "generalWorkbenchDialog"
-  | "runtimeToolAvailability"
-  | "knowledgePackSelection"
-  | "knowledgePackOptions"
-  | "onToggleKnowledgePack"
-  | "onSelectKnowledgePack"
-  | "onToggleKnowledgeCompanionPack"
-  | "onStartKnowledgeOrganize"
-  | "onManageKnowledgePacks"
+  "inputbarNode" | "generalWorkbenchDialog" | "runtimeToolAvailability"
 >;
 type CanvasScene = Pick<
   ReturnType<typeof useWorkspaceCanvasSceneRuntime>,
@@ -109,7 +100,6 @@ type NavigationActions = Pick<
   | "handleProjectChange"
   | "handleOpenAppearanceSettings"
   | "handleOpenPluginDirectory"
-  | "handleBackToResources"
   | "handleCompactContext"
 >;
 interface ShellChromeRuntime {
@@ -240,7 +230,6 @@ interface UseWorkspaceConversationSceneRuntimeParams {
   suppressNavbarUtilityActions?: boolean;
   topBarChrome: ConversationScenePresentationParams["scene"]["navbarChrome"];
   onBackToProjectManagement?: ConversationScenePresentationParams["scene"]["onBackToProjectManagement"];
-  fromResources: boolean;
   handleBackHome: ConversationScenePresentationParams["scene"]["onBackHome"];
   rightSurfaceChrome: WorkspaceConversationRightSurfaceChromeRuntime;
   isRestoringSession: boolean;
@@ -300,7 +289,6 @@ export function useWorkspaceConversationSceneRuntime({
   suppressNavbarUtilityActions = false,
   topBarChrome,
   onBackToProjectManagement,
-  fromResources,
   handleBackHome,
   rightSurfaceChrome,
   onOpenBackgroundTerminal,
@@ -553,9 +541,6 @@ export function useWorkspaceConversationSceneRuntime({
       navbarChrome: topBarChrome,
       navbarContextVariant,
       onBackToProjectManagement,
-      onBackToResources: fromResources
-        ? navigationActions.handleBackToResources
-        : undefined,
       isThemeWorkbench,
       layoutMode,
       onToggleCanvas: handleToggleCanvas,

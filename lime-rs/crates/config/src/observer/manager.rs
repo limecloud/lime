@@ -107,7 +107,6 @@ impl GlobalConfigManager {
 
     /// 更新配置并通知观察者
     pub async fn update_config(&self, new_config: Config, source: ConfigChangeSource) {
-        lime_core::tool_calling::apply_tool_calling_runtime_config(&new_config);
         {
             let hot_reload = self.hot_reload.read();
             hot_reload.update_config(new_config.clone());

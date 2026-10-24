@@ -13,7 +13,7 @@ use app_server_protocol::protocol::v2::{
     ThreadMemoryMode, ThreadMemoryModeSetParams, ThreadMemoryModeSetResponse, ThreadSettings,
     ThreadSettingsUpdateParams,
 };
-use lime_core::config::ConfigManager;
+use lime_core::config::layers::ConfigLayers;
 use serde_json::{Map, Value};
 use std::path::Path;
 use std::sync::{Arc, Mutex};
@@ -49,12 +49,16 @@ impl RuntimeCore {
         &self,
         cwd: Option<&str>,
     ) -> Result<PermissionProfilePolicy, RuntimeCoreError> {
-        let manager = ConfigManager::load(&self.app_config_path).map_err(|error| {
+        let layers = ConfigLayers::load(
+            &self.app_config_path,
+            cwd.map(Path::new).filter(|path| path.is_dir()),
+        )
+        .map_err(|error| {
             RuntimeCoreError::Backend(format!(
                 "failed to load permission profile policy config: {error}"
             ))
         })?;
-        permission_profile_policy(manager.config(), cwd, SandboxBackendPlatform::current())
+        permission_profile_policy(&layers.effective, cwd, SandboxBackendPlatform::current())
             .map_err(RuntimeCoreError::InvalidRequest)
     }
 
@@ -64,13 +68,27 @@ impl RuntimeCore {
         cwd: Option<&str>,
     ) -> Result<ResolvedPermissionProfile, RuntimeCoreError> {
         let policy = self.current_permission_profile_policy(cwd)?;
-        resolve_allowed_permission_profile(&policy, id).map_err(RuntimeCoreError::InvalidRequest)
+        let profile = resolve_allowed_permission_profile(&policy, id)
+            .map_err(RuntimeCoreError::InvalidRequest)?;
+        self.validate_requirement_values(
+            None,
+            Some(&Value::String(profile.sandbox_policy.clone())),
+            None,
+        )?;
+        Ok(profile)
     }
 
     pub(crate) async fn preflight_thread_start(
         &self,
         params: &app_server_protocol::AgentSessionStartParams,
     ) -> Result<(), RuntimeCoreError> {
+        if let Some(metadata) = params
+            .business_object_ref
+            .as_ref()
+            .and_then(|reference| reference.metadata.as_ref())
+        {
+            self.validate_metadata_requirements(metadata)?;
+        }
         if !self.backend.requires_provider_selection() {
             return Ok(());
         }
@@ -178,6 +196,7 @@ impl RuntimeCore {
         workspace_roots: Option<Vec<String>>,
     ) -> Result<ThreadSettings, RuntimeCoreError> {
         validate_thread_settings(&params, workspace_roots.is_some())?;
+        self.validate_settings_requirements(&params)?;
         let workspace_roots = Self::resolve_workspace_roots(workspace_roots.as_deref())?;
         let permission_profile = params
             .permissions

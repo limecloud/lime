@@ -1,7 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Globe, ShieldAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useDesktopPreferences } from "@/hooks/useDesktopPreferences";
+import { useAppNavigationRequest } from "@/contexts/AppNavigationContext";
+import { SettingsTabs } from "@/types/settings";
 import { effectiveDesktopPreferences } from "@/lib/api/desktopPreferences";
 import {
   DEFAULT_BROWSER_SETTINGS,
@@ -23,19 +25,40 @@ import {
   BrowserSettingsSwitch,
 } from "./BrowserSettingsFields";
 
+type ManagementPage = "history" | "downloads";
+
 export function BrowserUseSettings({
   page,
 }: { page?: "history" | "downloads" } = {}) {
-  const [currentPage, setCurrentPage] = useState(page);
-  useEffect(() => setCurrentPage(page), [page]);
-  if (currentPage === "history")
-    return <BrowserHistoryPage onBack={() => setCurrentPage(undefined)} />;
-  if (currentPage === "downloads")
-    return <BrowserDownloadsPage onBack={() => setCurrentPage(undefined)} />;
+  const navigate = useAppNavigationRequest();
+  const returnPage = useRef<ManagementPage | null>(null);
+  const back = () => {
+    returnPage.current = page ?? null;
+    navigate?.("settings", { tab: SettingsTabs.Browser });
+  };
+  if (page === "history") return <BrowserHistoryPage onBack={back} />;
+  if (page === "downloads") return <BrowserDownloadsPage onBack={back} />;
   return (
     <BrowserSettingsPage
-      onHistory={() => setCurrentPage("history")}
-      onDownloads={() => setCurrentPage("downloads")}
+      onHistory={
+        navigate
+          ? () =>
+              navigate("settings", {
+                tab: SettingsTabs.Browser,
+                browserPage: "history",
+              })
+          : undefined
+      }
+      onDownloads={
+        navigate
+          ? () =>
+              navigate("settings", {
+                tab: SettingsTabs.Browser,
+                browserPage: "downloads",
+              })
+          : undefined
+      }
+      restoreFocus={returnPage.current}
     />
   );
 }
@@ -43,9 +66,11 @@ export function BrowserUseSettings({
 function BrowserSettingsPage({
   onHistory,
   onDownloads,
+  restoreFocus,
 }: {
-  onHistory: () => void;
-  onDownloads: () => void;
+  onHistory?: () => void;
+  onDownloads?: () => void;
+  restoreFocus: ManagementPage | null;
 }) {
   const { t } = useTranslation("settings");
   const desktop = useDesktopPreferences();
@@ -53,6 +78,22 @@ function BrowserSettingsPage({
   const browsingData = useBrowserClearBrowsingData();
   const [dialogError, setDialogError] = useState(false);
   const [choosingDirectory, setChoosingDirectory] = useState(false);
+  const settingsRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (restoreFocus)
+      settingsRef.current
+        ?.querySelector<HTMLButtonElement>(
+          `#browser-${restoreFocus === "history" ? "history" : "download-history"} button`,
+        )
+        ?.focus();
+  }, [restoreFocus]);
+  const directoryRequest = useRef<object | null>(null);
+  useEffect(
+    () => () => {
+      directoryRequest.current = null;
+    },
+    [],
+  );
   const effective = effectiveDesktopPreferences(
     desktop.configured ?? undefined,
   );
@@ -72,8 +113,8 @@ function BrowserSettingsPage({
       | "enabled"
       | "show_full_url"
       | "ask_download_location"
-      | "site_tools_enabled"
-      | "full_cdp_access",
+      | "webMcpEnabled"
+      | "fullCdpAccessEnabled",
     id: string,
   ) => (
     <BrowserSettingsSwitch
@@ -84,6 +125,9 @@ function BrowserSettingsPage({
     />
   );
   const chooseDirectory = async () => {
+    if (directoryRequest.current) return;
+    const request = {};
+    directoryRequest.current = request;
     setChoosingDirectory(true);
     setDialogError(false);
     try {
@@ -92,16 +136,21 @@ function BrowserSettingsPage({
         allowMultiple: false,
         title: t("settings.browser.chooseDownloadDirectory"),
       });
+      if (directoryRequest.current !== request) return;
       if (selected) await browser.save("download_directory", selected.fsPath);
     } catch {
-      setDialogError(true);
+      if (directoryRequest.current === request) setDialogError(true);
     } finally {
-      setChoosingDirectory(false);
+      if (directoryRequest.current === request) {
+        directoryRequest.current = null;
+        setChoosingDirectory(false);
+      }
     }
   };
   const error = browser.error ?? desktop.error;
   return (
     <div
+      ref={settingsRef}
       className="mx-auto max-w-[640px] space-y-8 pb-8"
       aria-busy={
         pending ||
@@ -221,6 +270,7 @@ function BrowserSettingsPage({
           <button
             type="button"
             className={BROWSER_SETTINGS_BUTTON}
+            disabled={!onHistory}
             onClick={onHistory}
           >
             {t("browserHistory.manage")}
@@ -289,6 +339,7 @@ function BrowserSettingsPage({
           <button
             type="button"
             className={BROWSER_SETTINGS_BUTTON}
+            disabled={!onDownloads}
             onClick={onDownloads}
           >
             {t("browserDownloads.manage")}
@@ -323,11 +374,12 @@ function BrowserSettingsPage({
           label={t("settings.browser.siteTools")}
           description={t("settings.browser.siteToolsDescription")}
         >
-          {toggle("site_tools_enabled", "browser-site-tools")}
+          {toggle("webMcpEnabled", "browser-site-tools")}
         </BrowserSettingsRow>
       </BrowserSettingsSection>
       <BrowserAgentPermissions
-        value={preferences.agent_permissions}
+        settings={preferences}
+        context={browser.permissionContext}
         disabled={disabled}
         onChange={(value, expected) =>
           browser.save("agent_permissions", value, expected)
@@ -347,7 +399,7 @@ function BrowserSettingsPage({
               className="size-4 text-destructive"
               aria-hidden="true"
             />
-            {toggle("full_cdp_access", "browser-full-cdp")}
+            {toggle("fullCdpAccessEnabled", "browser-full-cdp")}
           </div>
         </BrowserSettingsRow>
       </BrowserSettingsSection>

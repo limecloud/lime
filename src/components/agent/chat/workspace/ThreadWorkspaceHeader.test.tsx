@@ -7,6 +7,7 @@ import { vi } from "vitest";
 import { changeLimeLocale } from "@/i18n/createI18n";
 import { ThreadWorkspaceHeader } from "./ThreadWorkspaceHeader";
 import { LayoutTransition } from "@/components/workspace/layout/LayoutTransition";
+import { ThreadSidePanelLauncher } from "./right-surface/ThreadSidePanelLauncher";
 
 beforeEach(async () => {
   await changeLimeLocale("zh-CN");
@@ -23,6 +24,122 @@ afterEach(async () => {
 });
 
 describe("ThreadWorkspaceHeader", () => {
+  it.each([
+    ["zh-CN", "打开侧边面板", "关闭侧边面板"],
+    ["zh-TW", "開啟側邊面板", "關閉側邊面板"],
+    ["en-US", "Open side panel", "Close side panel"],
+    ["ja-JP", "サイドパネルを開く", "サイドパネルを閉じる"],
+    ["ko-KR", "측면 패널 열기", "측면 패널 닫기"],
+  ] as const)(
+    "%s 的窗口侧栏开关保持可访问名称和展开状态",
+    async (locale, openLabel, closeLabel) => {
+      await changeLimeLocale(locale);
+      const container = document.createElement("div");
+      document.body.appendChild(container);
+      const root = createRoot(container);
+      const onToggle = vi.fn();
+      const render = (open: boolean) =>
+        act(() =>
+          root.render(
+            <AppShell>
+              <AppShellHeader />
+              <ThreadSidePanelLauncher open={open} onToggle={onToggle} />
+            </AppShell>,
+          ),
+        );
+      try {
+        render(false);
+        const button = container.querySelector<HTMLButtonElement>("button")!;
+        expect(button.getAttribute("aria-label")).toBe(openLabel);
+        expect(button.getAttribute("aria-expanded")).toBe("false");
+        act(() => button.click());
+        expect(onToggle).toHaveBeenCalledOnce();
+        render(true);
+        expect(container.querySelector("button")).toBe(button);
+        expect(button.getAttribute("aria-label")).toBe(closeLabel);
+        expect(button.getAttribute("aria-expanded")).toBe("true");
+      } finally {
+        act(() => root.unmount());
+      }
+    },
+  );
+
+  it("侧栏开关独立留在窗口右槽，工具栏迁移保留按钮实例与回调", () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    const onToggle = vi.fn();
+    const render = (mode: "chat" | "chat-canvas", open = true) =>
+      act(() =>
+        root.render(
+          <AppShell>
+            <AppShellHeader />
+            <LayoutTransition
+              mode={mode}
+              mainTabLabel="thread"
+              mainToolbar={
+                <ThreadWorkspaceHeader
+                  sessionId="thread-1"
+                  title="thread"
+                  actions={
+                    <>
+                      <input aria-label="tool draft" defaultValue="draft" />
+                      <ThreadSidePanelLauncher
+                        open={open}
+                        onToggle={onToggle}
+                      />
+                    </>
+                  }
+                />
+              }
+              chatContent={<textarea aria-label="composer" />}
+              canvasContent={<div>browser</div>}
+            />
+          </AppShell>,
+        ),
+      );
+    const check = () => {
+      const button = container.querySelector<HTMLButtonElement>(
+        '[data-testid="thread-side-panel-toggle"]',
+      )!;
+      expect(
+        button.closest('[data-app-shell-header-slot="end"]'),
+      ).not.toBeNull();
+      expect(
+        button.closest('[data-header-action-id="thread-side-panel-close"]'),
+      ).not.toBeNull();
+      expect(
+        button.closest('[data-testid="thread-workspace-header-tools"]'),
+      ).toBeNull();
+      return button;
+    };
+    try {
+      render("chat");
+      const button = check();
+      expect(button.getAttribute("aria-expanded")).toBe("true");
+      render("chat-canvas");
+      expect(check()).toBe(button);
+      act(() => button.click());
+      expect(onToggle).toHaveBeenCalledOnce();
+      act(() =>
+        container
+          .querySelector('[data-testid="layout-content-tab"]')!
+          .dispatchEvent(new MouseEvent("dblclick", { bubbles: true })),
+      );
+      expect(check()).toBe(button);
+      render("chat", false);
+      expect(check()).toBe(button);
+      expect(button.getAttribute("aria-expanded")).toBe("false");
+      act(() => button.click());
+      expect(onToggle).toHaveBeenCalledTimes(2);
+    } finally {
+      act(() => root.unmount());
+    }
+    expect(
+      document.querySelector('[data-testid="thread-side-panel-toggle"]'),
+    ).toBeNull();
+  });
+
   it("动作在window/chat/tab-strip之间移动时保持同一实例，More始终留在窗口槽", () => {
     const container = document.createElement("div");
     document.body.appendChild(container);

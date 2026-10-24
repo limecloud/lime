@@ -52,7 +52,6 @@ mod image_media;
 mod input_media;
 mod instructions;
 mod inter_agent_input;
-mod knowledge;
 mod load_context;
 mod mcp;
 mod media_task_read_model;
@@ -66,6 +65,7 @@ mod output_media;
 mod output_refs;
 pub(crate) mod pending_action_descriptor;
 mod plugins;
+mod primary_runtime;
 mod project_git;
 mod projection_item_events;
 mod projection_payload_summary;
@@ -87,6 +87,7 @@ pub use execution_backend::ExecutionBackend;
 pub(crate) use prompt_history::PromptHistoryStore;
 #[doc(hidden)]
 pub use provider_history::ProviderTurnHistory;
+mod config_requirements;
 mod queued_turn_intent;
 mod read_model;
 mod read_model_turn_usage;
@@ -132,7 +133,6 @@ mod trace_store;
 mod turn_execution;
 mod turn_input_events;
 mod turn_start;
-mod usage_stats;
 mod value_fields;
 mod voice;
 pub(crate) mod workflow;
@@ -153,7 +153,6 @@ pub use app_data::AutomationOverviewAppDataSource;
 pub use app_data::ConnectAppDataSource;
 pub use app_data::DiagnosticsAppDataSource;
 pub use app_data::GatewayAppDataSource;
-pub use app_data::KnowledgeAppDataSource;
 pub use app_data::McpAppDataSource;
 pub use app_data::MediaAppDataSource;
 pub use app_data::MemoryAppDataSource;
@@ -163,7 +162,6 @@ pub use app_data::PluginTurnSnapshot;
 pub use app_data::RightSurfaceAppDataSource;
 pub use app_data::SessionAppDataSource;
 pub use app_data::SkillAppDataSource;
-pub use app_data::UsageStatsAppDataSource;
 pub use app_data::VoiceAppDataSource;
 pub use app_data::WorkspaceAppDataSource;
 pub use app_data::WorkspaceSkillBindingAppDataSource;
@@ -205,8 +203,6 @@ pub(super) use value_fields::event_request_id;
 
 use crate::CapabilityInventorySource;
 use crate::CapabilitySource;
-use crate::KnowledgeBuilderRuntimeExecutor;
-use crate::NativeKnowledgeBuilderRuntimeExecutor;
 use agent_protocol::AgentInput;
 use app_server_protocol::AgentEvent;
 use app_server_protocol::AgentSession;
@@ -333,11 +329,13 @@ pub struct RuntimeCore {
     backend: Arc<dyn ExecutionBackend>,
     capability_source: Arc<dyn CapabilitySource>,
     app_config_path: PathBuf,
+    requirements_path: Option<PathBuf>,
     worktree_operations: Arc<tokio::sync::Mutex<()>>,
     storage_roots: Option<StorageRoots>,
     storage_scan: Arc<Mutex<device_storage::StorageScan>>,
     instructions_path: Option<PathBuf>,
     account_manager: Option<Arc<crate::account::AccountManager>>,
+    primary_runtime_service: Option<Arc<tool_runtime::primary_runtime::PrimaryRuntimeService>>,
     pub(in crate::runtime) artifact_content_provider: Arc<dyn ArtifactContentProvider>,
     pub(in crate::runtime) file_checkpoint_snapshot_store: Arc<dyn FileCheckpointSnapshotStore>,
     pub(in crate::runtime) output_snapshot_store: Arc<dyn OutputSnapshotStore>,
@@ -348,7 +346,6 @@ pub struct RuntimeCore {
     pub(in crate::runtime) telemetry_store: Option<Arc<TelemetryStore>>,
     pub(in crate::runtime) prompt_history_store: Option<Arc<prompt_history::PromptHistoryStore>>,
     pub(in crate::runtime) event_hub: RuntimeEventHub,
-    knowledge_builder_runtime_executor: Arc<dyn KnowledgeBuilderRuntimeExecutor>,
     app_data_source: Arc<dyn AppDataSource>,
     pub(crate) execution_process_server: Option<ExecutionProcessServer>,
 }
@@ -454,11 +451,13 @@ impl RuntimeCore {
             backend,
             capability_source,
             app_config_path: lime_core::config::ConfigManager::default_config_path(),
+            requirements_path: None,
             worktree_operations: Arc::new(tokio::sync::Mutex::new(())),
             storage_roots: None,
             storage_scan: Arc::new(Mutex::new(device_storage::StorageScan::default())),
             instructions_path: None,
             account_manager: None,
+            primary_runtime_service: None,
             artifact_content_provider,
             file_checkpoint_snapshot_store: Arc::new(NoopFileCheckpointSnapshotStore),
             output_snapshot_store: Arc::new(NoopOutputSnapshotStore),
@@ -469,9 +468,6 @@ impl RuntimeCore {
             telemetry_store: None,
             prompt_history_store: None,
             event_hub: RuntimeEventHub::new(),
-            knowledge_builder_runtime_executor: Arc::new(
-                NativeKnowledgeBuilderRuntimeExecutor::new(),
-            ),
             app_data_source: Arc::new(NoopAppDataSource),
             execution_process_server: None,
         }
@@ -487,6 +483,12 @@ impl RuntimeCore {
 
     pub fn with_app_config_path(mut self, path: PathBuf) -> Self {
         self.app_config_path = path;
+        self
+    }
+
+    /// Host composition for an administrator policy source; never a user/RPC option.
+    pub fn with_requirements_path(mut self, path: PathBuf) -> Self {
+        self.requirements_path = Some(path);
         self
     }
 
@@ -595,14 +597,6 @@ impl RuntimeCore {
 
     pub(crate) fn prompt_history_store(&self) -> Option<Arc<prompt_history::PromptHistoryStore>> {
         self.prompt_history_store.clone()
-    }
-
-    pub fn with_knowledge_builder_runtime_executor(
-        mut self,
-        executor: Arc<dyn KnowledgeBuilderRuntimeExecutor>,
-    ) -> Self {
-        self.knowledge_builder_runtime_executor = executor;
-        self
     }
 
     pub fn event_appender(&self) -> RuntimeCoreEventAppender {

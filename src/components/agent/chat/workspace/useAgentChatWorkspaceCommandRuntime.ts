@@ -76,9 +76,9 @@ export function useAgentChatWorkspaceCommandRuntime({
     autoCollapsedTopicSidebarRef, effectiveChatToolPreferences, canonicalChildren, hasRuntimeSessions, subagentsRuntimeVisible, handleOpenSubagentSession, imageWorkbenchSessionRuntime, currentImageWorkbenchState,
     imageWorkbenchSessionKey, updateCurrentImageWorkbenchState, artifactCanvasRuntime, artifacts, applyAutoArtifactViewMode,
     currentCanvasArtifact, setSelectedArtifactId, upsertGeneralArtifact,
-    contextSurfaceRuntime, contextHarnessRuntime, effectiveThreadItems, harnessShellState, inputbarIsSending, openArticleWorkspaceRightSurface, contextWorkspace, isThemeWorkbench,
+    contextSurfaceRuntime, contextHarnessRuntime, effectiveThreadItems, harnessShellState, inputbarIsSending, openArticleWorkspaceRightSurface, isThemeWorkbench,
     setHarnessPanelVisible, generalWorkbenchScaffoldRuntime, shouldUseCompactGeneralWorkbench, shouldSkipGeneralWorkbenchAutoGuideWithoutPrompt, setTopicStatus, clearEntryPendingA2UI, hasPendingA2UIForm,
-    openRuntimeSceneGate, currentGate, documentEditorFocusedRef, themeWorkbenchActiveQueueItem, themeWorkbenchBackendRunState, themeWorkbenchRunState, handleViewContextDetail, harnessInventoryRuntime,
+    openRuntimeSceneGate, currentGate, documentEditorFocusedRef, themeWorkbenchActiveQueueItem, themeWorkbenchBackendRunState, themeWorkbenchRunState, harnessInventoryRuntime,
   } = setupRuntime;
   const commandWiring = useAgentChatWorkspaceCommandWiring({
     composerDraftTitle: untitledTaskLabel,
@@ -103,11 +103,6 @@ export function useAgentChatWorkspaceCommandRuntime({
       chatToolPreferences: effectiveChatToolPreferences,
       clearPendingEntryA2UI: clearEntryPendingA2UI,
       contentId,
-      contextWorkspace: {
-        enabled: contextWorkspace.generalWorkbenchEnabled,
-        activeContextPrompt: contextWorkspace.activeContextPrompt,
-        prepareActiveContextPrompt: contextWorkspace.prepareActiveContextPrompt,
-      },
       createImageGenerationTask: createImageGenerationTaskArtifact,
       currentGateKey: currentGate.key,
       currentImageWorkbenchState,
@@ -215,12 +210,8 @@ export function useAgentChatWorkspaceCommandRuntime({
     taskCenterDraftSendRequest,
     taskCenterHomeSurfaceActiveRef,
   } = commandWiring.taskCenterDraftState;
-  const {
-    readSessionFile,
-    saveSessionFile,
-    sessionFiles,
-    syncGeneralArtifactToResource,
-  } = commandWiring.persistence;
+  const { readSessionFile, saveSessionFile, sessionFiles } =
+    commandWiring.persistence;
   const {
     consumedInitialPromptRef,
     generalWorkbenchEntryCheckPending,
@@ -352,7 +343,6 @@ export function useAgentChatWorkspaceCommandRuntime({
         setTaskFiles,
         socialStageLogRef,
         suppressCanvasAutoOpen: hasPendingA2UIForm,
-        syncGeneralArtifactToResource,
         taskFiles,
         taskFilesRef,
         themeWorkbenchActiveQueueItem,
@@ -435,7 +425,7 @@ export function useAgentChatWorkspaceCommandRuntime({
   const shellChromeRuntime = useWorkspaceShellChromeRuntime({
     activeTheme,
     agentEntry: resolvedAgentEntry,
-    contextWorkspaceEnabled: contextWorkspace.generalWorkbenchEnabled,
+    contextWorkspaceEnabled: isThemeWorkbench,
     effectiveShowChatPanel,
     gateStatus: currentGate.status,
     generalWorkbenchPanelCollapseEnabled:
@@ -472,8 +462,6 @@ export function useAgentChatWorkspaceCommandRuntime({
     shellChromeRuntime.showGeneralWorkbenchLeftExpandButton;
   const generalWorkbenchSidebarHostRuntime =
     useWorkspaceGeneralWorkbenchSidebarHostRuntime({
-      contextActivityLogs: contextWorkspace.activityLogs,
-      contextWorkspace: contextHarnessRuntime.contextWorkspace,
       generalWorkbenchHarnessSummary:
         harnessInventoryRuntime.generalWorkbenchHarnessSummary,
       generalWorkbenchScaffoldRuntime,
@@ -488,7 +476,6 @@ export function useAgentChatWorkspaceCommandRuntime({
       onImportDocument: handleImportDocument,
       onSetBranchStatus: handleSetBranchStatus,
       onSwitchBranchVersion: handleSwitchBranchVersion,
-      onViewContextDetail: handleViewContextDetail,
       projectId,
       sessionId,
       sidebarVisible: showGeneralWorkbenchSidebar,

@@ -23,7 +23,6 @@ import { useWorkspaceChatToolPreferencesRuntime } from "./useWorkspaceChatToolPr
 import { useWorkspaceArtifactCanvasRuntime } from "./useWorkspaceArtifactCanvasRuntime";
 import { useWorkspaceExpertSkillPanelRuntime } from "./useWorkspaceExpertSkillPanelRuntime";
 import { useWorkspaceSubagentNavigationRuntime } from "./useWorkspaceSubagentNavigationRuntime";
-import { useWorkspaceContextDetailRuntime } from "./useWorkspaceContextDetailRuntime";
 import { useWorkspaceHarnessRequestMetadataRuntime } from "./useWorkspaceHarnessRequestMetadataRuntime";
 import { useWorkspacePendingInputRuntime } from "./useWorkspacePendingInputRuntime";
 import { NOOP_SET_CHAT_MESSAGES } from "./agentChatWorkspaceHelpers";
@@ -59,7 +58,6 @@ export function useAgentChatWorkspaceSetupRuntime({
   } = props;
 
   const {
-    t,
     normalizedEntryTheme,
     shouldAutoCollapseClassicClawSidebar,
     activeTheme,
@@ -105,8 +103,7 @@ export function useAgentChatWorkspaceSetupRuntime({
     initialPendingServiceSkillLaunchSignature,
     runtimeWorkspaceId,
     generalCanvasState,
-    clawTraceEnabled,
-    workspaceHarnessEnabled,
+
     agentResponseLanguage,
     soulInteractionCopy,
     ensureImageWorkbenchProvidersLoaded,
@@ -159,7 +156,7 @@ export function useAgentChatWorkspaceSetupRuntime({
     getSyncedSessionRecentPreferences,
     onOpenSubagents: handleOpenSubagents,
     onRestoreInterruptedInput: handleRestoreInterruptedInput,
-    clawTraceEnabled,
+
     soulCopy: soulInteractionCopy,
   });
   const {
@@ -414,25 +411,20 @@ export function useAgentChatWorkspaceSetupRuntime({
     upsertGeneralArtifact,
   } = artifactCanvasRuntime;
   const contextSurfaceRuntime = useWorkspaceContextSurfaceRuntime({
-    activeTheme,
-    generalHarnessEntryEnabled,
     isSending,
     layoutMode,
     mappedTheme,
     messages,
-    model,
     onAgentStreamingChange,
     onLocationChange,
     pendingActions,
     projectId,
     projectMemory,
-    providerType,
     runtimeWorkspaceId,
     sessionId,
     threadItems,
     threadRead,
     todoItems,
-    workspaceHarnessEnabled,
   });
   const {
     contextHarnessRuntime,
@@ -445,7 +437,6 @@ export function useAgentChatWorkspaceSetupRuntime({
   } = contextSurfaceRuntime;
   const { openArticleWorkspaceRightSurface } = rightSurfaceLocalState;
   const {
-    contextWorkspace,
     isThemeWorkbench,
     setHarnessPanelVisible,
     harnessPendingCount,
@@ -552,13 +543,8 @@ export function useAgentChatWorkspaceSetupRuntime({
     pendingActionRequest,
   });
 
-  const handleViewContextDetail = useWorkspaceContextDetailRuntime({
-    contextWorkspace,
-    t,
-  });
-
   const harnessRequestMetadata = useWorkspaceHarnessRequestMetadataRuntime({
-    enabled: workspaceHarnessEnabled && harnessRuntimeVisible,
+    enabled: harnessRuntimeVisible,
     agentResponseLanguage,
     contentId,
     currentGateKey: currentGate.key,
@@ -570,7 +556,7 @@ export function useAgentChatWorkspaceSetupRuntime({
     workspaceSkillRuntimeEnable: expertWorkspaceSkillRuntimeEnableInput,
   });
   const harnessInventoryRuntime = useWorkspaceHarnessInventoryRuntime({
-    enabled: workspaceHarnessEnabled,
+    enabled: true,
     chatMode,
     harnessPanelVisible: harnessRuntimeVisible,
     harnessRequestMetadata,
@@ -693,7 +679,6 @@ export function useAgentChatWorkspaceSetupRuntime({
     inputbarIsSending,
     rightSurfaceLocalState,
     openArticleWorkspaceRightSurface,
-    contextWorkspace,
     isThemeWorkbench,
     setHarnessPanelVisible,
     harnessPendingCount,
@@ -719,7 +704,6 @@ export function useAgentChatWorkspaceSetupRuntime({
     themeWorkbenchActiveQueueItem,
     themeWorkbenchBackendRunState,
     themeWorkbenchRunState,
-    handleViewContextDetail,
     harnessRequestMetadata,
     harnessInventoryRuntime,
   };

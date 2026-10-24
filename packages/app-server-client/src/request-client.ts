@@ -313,30 +313,6 @@ export interface AppServerClient {
   listWorkspaceRegisteredSkills(
     params: protocol.WorkspaceRegisteredSkillsListParams,
   ): protocol.JsonRpcRequest;
-  listKnowledgePacks(
-    params: protocol.KnowledgeListPacksParams,
-  ): protocol.JsonRpcRequest;
-  readKnowledgePack(
-    params: protocol.KnowledgeReadPackParams,
-  ): protocol.JsonRpcRequest;
-  importKnowledgeSource(
-    params: protocol.KnowledgeImportSourceParams,
-  ): protocol.JsonRpcRequest;
-  compileKnowledgePack(
-    params: protocol.KnowledgeCompilePackParams,
-  ): protocol.JsonRpcRequest;
-  setDefaultKnowledgePack(
-    params: protocol.KnowledgeSetDefaultPackParams,
-  ): protocol.JsonRpcRequest;
-  updateKnowledgePackStatus(
-    params: protocol.KnowledgeUpdatePackStatusParams,
-  ): protocol.JsonRpcRequest;
-  resolveKnowledgeContext(
-    params: protocol.KnowledgeResolveContextParams,
-  ): protocol.JsonRpcRequest;
-  validateKnowledgeContextRun(
-    params: protocol.KnowledgeValidateContextRunParams,
-  ): protocol.JsonRpcRequest;
   listMcpServers(): protocol.JsonRpcRequest;
   listMcpServersWithStatus(
     params?: protocol.ListMcpServerStatusParams,
@@ -622,15 +598,7 @@ export interface AppServerClient {
   polishVoiceText(
     params: protocol.VoiceTranscriptionPolishTextParams,
   ): protocol.JsonRpcRequest;
-  readUsageStats(
-    params: protocol.UsageStatsRangeParams,
-  ): protocol.JsonRpcRequest;
-  listUsageStatsModelRanking(
-    params: protocol.UsageStatsRangeParams,
-  ): protocol.JsonRpcRequest;
-  listUsageStatsDailyTrends(
-    params: protocol.UsageStatsRangeParams,
-  ): protocol.JsonRpcRequest;
+
   readArtifacts(params: protocol.ArtifactReadParams): protocol.JsonRpcRequest;
   writeArtifact(params: protocol.ArtifactWriteParams): protocol.JsonRpcRequest;
   searchFiles(params: protocol.FuzzyFileSearchParams): protocol.JsonRpcRequest;
@@ -701,7 +669,18 @@ export interface AppServerClient {
   readAgentSessionToolInventory(
     params?: protocol.AgentSessionToolInventoryReadParams,
   ): protocol.JsonRpcRequest;
+  diagnoseDependencies(
+    params?: protocol.DiagnoseDependenciesParams,
+  ): protocol.JsonRpcRequest;
+  runUpdateNow(params?: protocol.RunUpdateNowParams): protocol.JsonRpcRequest;
+  resetDependencies(
+    params?: protocol.RunUpdateNowParams,
+  ): protocol.JsonRpcRequest;
+  cancelInstall(params: protocol.CancelInstallParams): protocol.JsonRpcRequest;
   readConfig(params?: protocol.ConfigReadParams): protocol.JsonRpcRequest;
+  readConfigRequirements(
+    params?: protocol.ConfigRequirementsReadParams,
+  ): protocol.JsonRpcRequest;
   writeConfigValue(
     params: protocol.ConfigValueWriteParams,
   ): protocol.JsonRpcRequest;

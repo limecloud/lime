@@ -13,13 +13,13 @@ const observation = {
   command: "app_server_handle_json_lines",
   transport: "electron-ipc",
   status: "success",
-  method: "config/read",
+  method: "mcpServer/list",
   requestId: "isolated-request",
   responseId: "isolated-request",
   params: { private: "must-not-survive" },
 };
 const readback = {
-  method: "config/read",
+  method: "mcpServer/list",
   transport: "electron-ipc",
   currentPreload: true,
   matchingRequestResponse: true,
@@ -29,7 +29,7 @@ describe("settings draft native proof boundary", () => {
   it("retains only current response identity booleans", () => {
     const proof = observeSettingsDraftReadback(
       { ipcObservation: observation, result: { private: "must-not-survive" } },
-      "config/read",
+      "mcpServer/list",
     );
     expect(proof).toEqual(readback);
     expect(JSON.stringify(proof)).not.toContain("isolated-request");
@@ -49,16 +49,14 @@ describe("settings draft native proof boundary", () => {
     expect(() =>
       observeSettingsDraftReadback(
         { ipcObservation: { ...observation, ...patch } },
-        "config/read",
+        "mcpServer/list",
       ),
     ).toThrow(/current preload IPC/);
   });
 
   it("rejects absent facts and fewer than three verified readbacks", () => {
     expect(
-      settingsDraftNavigationChecks("experimental", {}).every(
-        ([, value]) => !value,
-      ),
+      settingsDraftNavigationChecks("mcp", {}).every(([, value]) => !value),
     ).toBe(true);
     expect(
       settingsDraftNavigationChecks("mcp", {
@@ -71,7 +69,7 @@ describe("settings draft native proof boundary", () => {
   });
 
   it("removes unknown credential-bearing keys from proof serialization", () => {
-    const proof = summarizeSettingsDraftProof("experimental", {
+    const proof = summarizeSettingsDraftProof("mcp", {
       secret: "must-not-survive",
       readbacks: [
         { ...readback, params: "must-not-survive", requestId: "private-id" },

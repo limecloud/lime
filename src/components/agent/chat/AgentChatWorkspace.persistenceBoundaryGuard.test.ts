@@ -4,7 +4,7 @@ import process from "node:process";
 import { describe, expect, it } from "vitest";
 
 describe("AgentChatWorkspace persistence runtime boundary", () => {
-  it("session files、resource sync 和 document sync 胶水必须由 persistence runtime 提供", () => {
+  it("session files 和 document sync 胶水由 persistence runtime 提供，不再同步资源副本", () => {
     const workspaceSource = [
       "src/components/agent/chat/useAgentChatWorkspaceRuntime.tsx",
       "src/components/agent/chat/workspace/useAgentChatWorkspaceEntryRuntime.ts",
@@ -33,10 +33,11 @@ describe("AgentChatWorkspace persistence runtime boundary", () => {
     expect(workspaceSource).not.toContain("useWorkspacePersistenceRuntime({");
     expect(commandWiringSource).toContain("useWorkspacePersistenceRuntime({");
     expect(ownerSource.split("\n").length).toBeLessThan(140);
+    expect(ownerSource).not.toContain("syncGeneralArtifactToResource");
+    expect(ownerSource).not.toContain("useWorkspaceGeneralResourceSync");
     for (const retiredWorkspacePersistenceGlue of [
       "useSessionFiles(",
       "shouldAutoInitWorkspaceSessionFiles(",
-      "useWorkspaceGeneralResourceSync(",
       "useWorkspaceCanvasContentSyncRuntime(",
       "useWorkspaceDocumentVersionStatusSyncRuntime(",
     ]) {

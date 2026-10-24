@@ -24,7 +24,7 @@ Renderer workspace UI
 1. 打开项目文件、导出内容或历史文件时，先将 source 映射为可读 preview projection，再交给统一 workbench 呈现。
 2. `ArtifactDocument` 用于正式可版本化交付物、结构化增量、diff 与导出；普通文件预览不自动升级为正式 artifact。
 3. 相对资源按源文件路径解析；对 UI 展示优先保留项目内相对路径，实际磁盘读写才解析绝对路径。
-4. 二进制、图片、文档、URL、知识库命中与任务结果统一通过 `contentKind`、`renderMode`、`capabilities` 选择 renderer 或降级方式。
+4. 二进制、图片、文档、URL 与任务结果统一通过 `contentKind`、`renderMode`、`capabilities` 选择 renderer 或降级方式。
 
 ## 验证
 

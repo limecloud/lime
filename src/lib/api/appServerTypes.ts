@@ -574,12 +574,6 @@ export type AppServerWorkspaceRightSurfacePendingChangedParams =
   protocol.WorkspaceRightSurfacePendingChangedParams;
 export type AppServerWorkspaceRightSurfacePendingChangedNotification =
   protocol.WorkspaceRightSurfacePendingChangedNotification;
-export type AppServerUsageStatsRangeParams = protocol.UsageStatsRangeParams;
-export type AppServerUsageStatsReadResponse = protocol.UsageStatsReadResponse;
-export type AppServerUsageStatsModelRankingListResponse =
-  protocol.UsageStatsModelRankingListResponse;
-export type AppServerUsageStatsDailyTrendsListResponse =
-  protocol.UsageStatsDailyTrendsListResponse;
 export type AppServerWindowsSandboxReadinessParams =
   protocol.WindowsSandboxReadinessParams;
 export type AppServerWindowsSandboxReadinessResponse =

@@ -64,7 +64,7 @@ export interface AgentStreamPreparedSendEnv {
     context?: import("../types").WriteArtifactContext,
   ) => void;
   executionRuntime?: AgentSessionExecutionRuntime | null;
-  clawTraceEnabled: boolean;
+
   soulCopy?: SoulInteractionCopy;
   setActiveStream: (nextActive: ActiveStreamState | null) => void;
   clearActiveStreamIfMatch: (eventName: string) => boolean;

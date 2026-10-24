@@ -81,7 +81,7 @@ fn experimental_feature_methods_keep_codex_wire_shapes() {
     let set_request = json!({
         "id": 8,
         "method": "experimentalFeature/enablement/set",
-        "params": {"enablement": {"webmcp": true}}
+        "params": {"enablement": {"workspace_dependencies": true}}
     });
     let decoded: ClientRequest =
         serde_json::from_value(set_request.clone()).expect("decode feature set request");
@@ -89,9 +89,9 @@ fn experimental_feature_methods_keep_codex_wire_shapes() {
     assert_eq!(
         serde_json::to_value(ExperimentalFeatureListResponse {
             data: vec![ExperimentalFeature {
-                name: "webmcp".to_string(),
+                name: "workspace_dependencies".to_string(),
                 stage: ExperimentalFeatureStage::UnderDevelopment,
-                display_name: Some("WebMCP".to_string()),
+                display_name: Some("Workspace dependencies".to_string()),
                 description: None,
                 announcement: None,
                 enabled: true,
@@ -102,9 +102,9 @@ fn experimental_feature_methods_keep_codex_wire_shapes() {
         .unwrap(),
         json!({
             "data": [{
-                "name": "webmcp",
+                "name": "workspace_dependencies",
                 "stage": "underDevelopment",
-                "displayName": "WebMCP",
+                "displayName": "Workspace dependencies",
                 "enabled": true,
                 "defaultEnabled": false
             }]
@@ -211,6 +211,26 @@ fn config_methods_keep_codex_wire_shapes() {
         serde_json::from_value(read.clone()).expect("decode config/read request");
     assert_eq!(serde_json::to_value(decoded).unwrap(), read);
     assert_eq!(Method::parse(METHOD_CONFIG_READ), Some(Method::ConfigRead));
+
+    let requirements = json!({
+        "id": 40,
+        "method": "configRequirements/read",
+        "params": {}
+    });
+    let decoded: ClientRequest =
+        serde_json::from_value(requirements.clone()).expect("decode configRequirements/read");
+    assert_eq!(decoded.method(), Method::ConfigRequirementsRead);
+    assert_eq!(serde_json::to_value(decoded).unwrap(), requirements);
+    assert_eq!(
+        Method::parse(METHOD_CONFIG_REQUIREMENTS_READ),
+        Some(Method::ConfigRequirementsRead)
+    );
+    assert!(
+        serde_json::from_value::<ConfigRequirementsReadParams>(json!({
+            "path": "/tmp/user-supplied-policy.toml"
+        }))
+        .is_err()
+    );
 
     let write = json!({
         "id": 42,
@@ -993,7 +1013,9 @@ fn model_list_keeps_codex_fields_with_multimodel_extensions() {
                         "streaming": true,
                         "jsonMode": false,
                         "functionCalling": false,
-                        "reasoning": true
+                        "reasoning": true,
+                        "supportVerbosity": false,
+                        "supportsReasoningSummaries": false
                     },
                     "source": "provider_explicit"
                 },

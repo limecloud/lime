@@ -503,8 +503,12 @@ describe("StreamingRenderer process groups", () => {
     const commandSteps = container.querySelectorAll(
       '[data-testid="inline-tool-process-step"]',
     );
-    expect(commandSteps[0]?.textContent).toContain("scrape command running output");
-    expect(commandSteps[1]?.textContent).toContain("normalize command completed output");
+    expect(commandSteps[0]?.textContent).toContain(
+      "scrape command running output",
+    );
+    expect(commandSteps[1]?.textContent).toContain(
+      "normalize command completed output",
+    );
   });
 
   it("尾部 Skill 仍在运行时应显示工具过程且隐藏协议 payload", () => {
@@ -521,7 +525,7 @@ describe("StreamingRenderer process groups", () => {
             id: "tool-running-skill-tail",
             name: "skill",
             arguments: JSON.stringify({
-              skill: "brand-product-knowledge-builder",
+              skill: "personal-ip-knowledge-builder",
               input: "整理产品知识库",
             }),
             status: "running",
@@ -532,7 +536,7 @@ describe("StreamingRenderer process groups", () => {
             },
             metadata: {
               tool_family: "skill",
-              skill_name: "brand-product-knowledge-builder",
+              skill_name: "personal-ip-knowledge-builder",
             },
             startTime: new Date("2026-06-02T09:00:00.000Z"),
           },
@@ -545,7 +549,7 @@ describe("StreamingRenderer process groups", () => {
       container.querySelector('[data-testid="streaming-process-group"]'),
     ).toBeNull();
     expect(container.textContent).toContain("先读取技能说明");
-    expect(container.textContent).toContain("brand-product-knowledge-builder");
+    expect(container.textContent).toContain("personal-ip-knowledge-builder");
     expect(container.textContent).toContain("正在运行 Skill");
     expect(container.textContent).not.toContain("partial skill protocol");
   });

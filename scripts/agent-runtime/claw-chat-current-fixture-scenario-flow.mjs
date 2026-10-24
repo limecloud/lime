@@ -70,6 +70,7 @@ import {
 } from "./claw-chat-current-fixture-gui-completion-waits.mjs";
 import { waitForGuiMcpStructuredContentCompleted } from "./claw-chat-current-fixture-gui-tool-waits.mjs";
 import { runImageCommandScenario } from "./claw-chat-current-fixture-image-command.mjs";
+import { verifyImageOutputPreview } from "./claw-chat-current-fixture-image-preview.mjs";
 import {
   MEDIA_REFERENCE_SCENARIO,
   runMediaReferenceScenario,
@@ -544,6 +545,11 @@ export async function executeScenarioFlow({
         summary,
       }),
     );
+    summary.imageOutputPreview = await verifyImageOutputPreview({
+      page,
+      options,
+      taskId: summary.imageCommandTaskArtifactTerminalPatch.taskId,
+    });
   } else if (options.scenario === MEDIA_REFERENCE_SCENARIO) {
     logStage("run-media-reference-scenario");
     Object.assign(

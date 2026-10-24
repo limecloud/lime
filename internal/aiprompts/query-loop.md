@@ -260,11 +260,11 @@
 这份历史档案与专用命令仍可保留各自职责，但不再承担 Query Loop 唯一事实源职责。
 `agent_generate_title` 属于专用一次性会话能力：允许显式拼自己的临时 `SessionConfig`，但不能参与 submit turn、runtime queue 或 evidence 真相定义。
 它允许为本地 auxiliary session 附带最小 `lime_runtime` metadata，用于记录 `task_profile / routing_decision / cost_state` 一类辅助任务分类事实；必要时也可以把该 auxiliary session 的 `execution_runtime` 诊断快照回传到命令结果，但这份快照只服务该一次性会话自己的诊断与可观测性，不进入 current Query Loop 的 thread / turn 真相。
-当前命令层允许保留的原始执行面只剩 `action_runtime` current 恢复链与 `agent_generate_title` 受控 compat 一次性命令。旧 `persona_cmd` wrapper 已删除；persona 生成语义若继续保留，应通过 runtime auxiliary service / App Server current 边界承接。旧 `agent_theme_context_search` 已下线，主题上下文搜索 current 事实源是 `src/lib/api/themeContextSearch.ts -> App Server agentSession/start + agentSession/turn/start + agentSession/read`。
+当前命令层允许保留的原始执行面只剩 `action_runtime` current 恢复链与 `agent_generate_title` 受控 compat 一次性命令。旧 `persona_cmd` wrapper 已删除；persona 生成语义若继续保留，应通过 runtime auxiliary service / App Server current 边界承接。旧 `agent_theme_context_search`、前端主题上下文搜索 API、独立上下文 catalog 与发送前正文拼接已删除。搜索和文件输入只沿标准工具、Skills 与 App Server canonical Thread/Turn/Item 主链演进。
 
 ### `dead`
 
-旧主题上下文搜索 Tauri 命令不得重新注册到 legacy desktop facade；如果后续继续增强主题上下文搜索，只能扩展 App Server current session turn 网关与 RuntimeCore/backend。
+旧主题上下文命令、专用搜索 API、选择状态与前端 prompt 拼接为 `dead / deleted / forbidden-to-restore`；不得通过 wrapper、disabled hook 或第二份上下文 catalog 恢复。
 
 ### `deprecated`
 

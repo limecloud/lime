@@ -72,7 +72,13 @@ pub const METHOD_MCP_SERVER_TOOL_CALL: &str = "mcpServer/tool/call";
 pub const METHOD_ENVIRONMENT_ADD: &str = "environment/add";
 pub const METHOD_ENVIRONMENT_INFO: &str = "environment/info";
 pub const METHOD_ENVIRONMENT_STATUS: &str = "environment/status";
+pub const METHOD_PRIMARY_RUNTIME_DIAGNOSE_DEPENDENCIES: &str = "primaryRuntime/diagnoseDependencies";
+pub const METHOD_PRIMARY_RUNTIME_RUN_UPDATE_NOW: &str = "primaryRuntime/runUpdateNow";
+pub const METHOD_PRIMARY_RUNTIME_RESET_DEPENDENCIES: &str = "primaryRuntime/resetDependencies";
+pub const METHOD_PRIMARY_RUNTIME_CANCEL_INSTALL: &str = "primaryRuntime/cancelInstall";
+
 pub const METHOD_CONFIG_READ: &str = "config/read";
+pub const METHOD_CONFIG_REQUIREMENTS_READ: &str = "configRequirements/read";
 pub const METHOD_CONFIG_VALUE_WRITE: &str = "config/value/write";
 pub const METHOD_CONFIG_BATCH_WRITE: &str = "config/batchWrite";
 pub const METHOD_COLLABORATION_MODE_LIST: &str = "collaborationMode/list";
@@ -329,8 +335,18 @@ pub enum Method {
     EnvironmentInfo,
     #[serde(rename = "environment/status")]
     EnvironmentStatus,
+    #[serde(rename = "primaryRuntime/diagnoseDependencies")]
+    PrimaryRuntimeDiagnoseDependencies,
+    #[serde(rename = "primaryRuntime/runUpdateNow")]
+    PrimaryRuntimeRunUpdateNow,
+    #[serde(rename = "primaryRuntime/resetDependencies")]
+    PrimaryRuntimeResetDependencies,
+    #[serde(rename = "primaryRuntime/cancelInstall")]
+    PrimaryRuntimeCancelInstall,
     #[serde(rename = "config/read")]
     ConfigRead,
+    #[serde(rename = "configRequirements/read")]
+    ConfigRequirementsRead,
     #[serde(rename = "config/value/write")]
     ConfigValueWrite,
     #[serde(rename = "config/batchWrite")]
@@ -520,7 +536,12 @@ impl Method {
             Self::EnvironmentAdd => METHOD_ENVIRONMENT_ADD,
             Self::EnvironmentInfo => METHOD_ENVIRONMENT_INFO,
             Self::EnvironmentStatus => METHOD_ENVIRONMENT_STATUS,
+            Self::PrimaryRuntimeDiagnoseDependencies => METHOD_PRIMARY_RUNTIME_DIAGNOSE_DEPENDENCIES,
+            Self::PrimaryRuntimeRunUpdateNow => METHOD_PRIMARY_RUNTIME_RUN_UPDATE_NOW,
+            Self::PrimaryRuntimeResetDependencies => METHOD_PRIMARY_RUNTIME_RESET_DEPENDENCIES,
+            Self::PrimaryRuntimeCancelInstall => METHOD_PRIMARY_RUNTIME_CANCEL_INSTALL,
             Self::ConfigRead => METHOD_CONFIG_READ,
+            Self::ConfigRequirementsRead => METHOD_CONFIG_REQUIREMENTS_READ,
             Self::ConfigValueWrite => METHOD_CONFIG_VALUE_WRITE,
             Self::ConfigBatchWrite => METHOD_CONFIG_BATCH_WRITE,
             Self::CollaborationModeList => METHOD_COLLABORATION_MODE_LIST,
@@ -653,7 +674,12 @@ impl Method {
             METHOD_ENVIRONMENT_ADD => Some(Self::EnvironmentAdd),
             METHOD_ENVIRONMENT_INFO => Some(Self::EnvironmentInfo),
             METHOD_ENVIRONMENT_STATUS => Some(Self::EnvironmentStatus),
+            METHOD_PRIMARY_RUNTIME_DIAGNOSE_DEPENDENCIES => Some(Self::PrimaryRuntimeDiagnoseDependencies),
+            METHOD_PRIMARY_RUNTIME_RUN_UPDATE_NOW => Some(Self::PrimaryRuntimeRunUpdateNow),
+            METHOD_PRIMARY_RUNTIME_RESET_DEPENDENCIES => Some(Self::PrimaryRuntimeResetDependencies),
+            METHOD_PRIMARY_RUNTIME_CANCEL_INSTALL => Some(Self::PrimaryRuntimeCancelInstall),
             METHOD_CONFIG_READ => Some(Self::ConfigRead),
+            METHOD_CONFIG_REQUIREMENTS_READ => Some(Self::ConfigRequirementsRead),
             METHOD_CONFIG_VALUE_WRITE => Some(Self::ConfigValueWrite),
             METHOD_CONFIG_BATCH_WRITE => Some(Self::ConfigBatchWrite),
             METHOD_COLLABORATION_MODE_LIST => Some(Self::CollaborationModeList),
@@ -784,7 +810,12 @@ pub const METHODS: &[&str] = &[
     METHOD_ENVIRONMENT_ADD,
     METHOD_ENVIRONMENT_INFO,
     METHOD_ENVIRONMENT_STATUS,
+    METHOD_PRIMARY_RUNTIME_DIAGNOSE_DEPENDENCIES,
+    METHOD_PRIMARY_RUNTIME_RUN_UPDATE_NOW,
+    METHOD_PRIMARY_RUNTIME_RESET_DEPENDENCIES,
+    METHOD_PRIMARY_RUNTIME_CANCEL_INSTALL,
     METHOD_CONFIG_READ,
+    METHOD_CONFIG_REQUIREMENTS_READ,
     METHOD_CONFIG_VALUE_WRITE,
     METHOD_CONFIG_BATCH_WRITE,
     METHOD_COLLABORATION_MODE_LIST,

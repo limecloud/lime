@@ -471,8 +471,6 @@ export async function stopActiveAgentStream(options: StopAgentStreamOptions) {
   if (activeStream) {
     removeStreamListener(activeStream.eventName);
   }
-  rememberLocallyInterruptedAgentStreamBinding(activeStream);
-
   const activeSessionId = activeStream?.sessionId || sessionIdRef.current;
   const assistantMessage =
     activeStream?.assistantMsgId && getMessages
@@ -498,6 +496,11 @@ export async function stopActiveAgentStream(options: StopAgentStreamOptions) {
     interruptTurnId,
     threadItems: currentThreadItems,
   });
+  rememberLocallyInterruptedAgentStreamBinding(
+    activeStream && interruptedRuntimeTurnId
+      ? { ...activeStream, turnId: interruptedRuntimeTurnId }
+      : activeStream,
+  );
   const interruptedVisibleMessage = resolveInterruptedVisibleMessage({
     activeMessage: assistantMessage,
     messages: getMessages?.() ?? [],

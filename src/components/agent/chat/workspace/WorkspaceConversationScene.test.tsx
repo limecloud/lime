@@ -269,7 +269,6 @@ function renderScene(props?: RenderSceneProps) {
       isRunning: false,
       navbarChrome: "default" as any,
       onBackToProjectManagement: undefined,
-      onBackToResources: undefined,
       layoutMode: "chat" as any,
       onToggleCanvas: vi.fn(),
       onBackHome: vi.fn(),

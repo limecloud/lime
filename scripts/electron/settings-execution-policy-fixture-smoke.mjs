@@ -36,16 +36,10 @@ const DEFAULTS = {
   keepTemp: false,
 };
 const SWITCH_LABELS = {
-  enabled: ["启用工作区沙箱", "啟用工作區沙箱", "Enable workspace sandbox"],
-  strict: [
-    "启用严格工作区沙箱",
-    "啟用嚴格工作區沙箱",
-    "Enable strict workspace sandbox",
-  ],
-  notify: [
-    "启用沙箱回退提醒",
-    "啟用沙箱回退提醒",
-    "Enable sandbox fallback notice",
+  plan: [
+    "启用 update_plan 计划工具",
+    "啟用 update_plan 計畫工具",
+    "Enable the update_plan planning tool",
   ],
 };
 const SAVE_LABELS = ["保存策略", "儲存策略", "Save policy"];
@@ -124,17 +118,9 @@ async function readPolicyState(
         (request) => request.method === "config/batchWrite",
       ).length;
       const state = {
-        enabled:
+        plan:
           document
-            .querySelector('[aria-label="启用工作区沙箱"]')
-            ?.getAttribute("aria-checked") === "true",
-        strict:
-          document
-            .querySelector('[aria-label="启用严格工作区沙箱"]')
-            ?.getAttribute("aria-checked") === "true",
-        notify:
-          document
-            .querySelector('[aria-label="启用沙箱回退提醒"]')
+            .querySelector('[aria-label="启用 update_plan 计划工具"]')
             ?.getAttribute("aria-checked") === "true",
         warningPolicy:
           Array.from(document.querySelectorAll("select")).find((select) =>
@@ -145,16 +131,15 @@ async function readPolicyState(
       };
       const bodyText = document.body?.innerText ?? "";
       const controlsReady = Boolean(
-        document.querySelector('[aria-label="启用工作区沙箱"]') &&
-        document.querySelector('[aria-label="启用严格工作区沙箱"]') &&
-        document.querySelector('[aria-label="启用沙箱回退提醒"]') &&
+        document.querySelector('[aria-label="启用 update_plan 计划工具"]') &&
         state.warningPolicy,
+      );
+      const retiredSandboxControlsAbsent = !document.querySelector(
+        '[data-settings-search-target="execution-policy-sandbox"], [aria-label="启用工作区沙箱"], [aria-label="启用严格工作区沙箱"], [aria-label="启用沙箱回退提醒"]',
       );
       const expectedMatches =
         !expected ||
-        (state.enabled === expected.enabled &&
-          state.strict === expected.strict &&
-          state.notify === expected.notify &&
+        (state.plan === expected.plan &&
           state.warningPolicy === expected.warningPolicy);
       const successVisible = bodyText.includes("执行策略已保存");
       const errorVisible = bodyText.includes("保存执行策略失败");
@@ -190,6 +175,7 @@ async function readPolicyState(
         ...state,
         executionPolicyTabActive,
         policyControlsReady: controlsReady,
+        retiredSandboxControlsAbsent,
         successVisible,
         errorVisible,
         unexpectedErrorVisible,
@@ -239,23 +225,9 @@ async function actionButton(page, labels) {
 }
 
 async function applyPolicyState(page, desired) {
-  const enabled = await switchLocator(page, SWITCH_LABELS.enabled);
-  const strict = await switchLocator(page, SWITCH_LABELS.strict);
-  const notify = await switchLocator(page, SWITCH_LABELS.notify);
-  const currentEnabled =
-    (await enabled.getAttribute("aria-checked")) === "true";
-  const currentStrict = (await strict.getAttribute("aria-checked")) === "true";
-  const currentNotify = (await notify.getAttribute("aria-checked")) === "true";
-
-  if (desired.enabled) {
-    if (!currentEnabled) await enabled.click();
-    if (currentStrict !== desired.strict) await strict.click();
-    if (currentNotify !== desired.notify) await notify.click();
-  } else {
-    if (currentNotify !== desired.notify) await notify.click();
-    if (currentEnabled && currentStrict) await strict.click();
-    if (currentEnabled) await enabled.click();
-  }
+  const plan = await switchLocator(page, SWITCH_LABELS.plan);
+  if (((await plan.getAttribute("aria-checked")) === "true") !== desired.plan)
+    await plan.click();
   await (await warningPolicySelect(page)).selectOption(desired.warningPolicy);
 }
 
@@ -375,9 +347,7 @@ async function run() {
     await openExecutionPolicySettings(page, options);
     const original = await readPolicyState(page, options);
     const changed = {
-      enabled: true,
-      strict: true,
-      notify: !original.notify,
+      plan: !original.plan,
       warningPolicy: "none",
     };
     await applyPolicyState(page, changed);
@@ -405,9 +375,9 @@ async function run() {
     const readResponse = await invokeAppServerFromPage(page, "config/read", {
       includeLayers: true,
     });
-    const failedAttempt = { ...changed, notify: !changed.notify };
+    const failedAttempt = { ...changed, plan: !changed.plan };
     const probeAgent = structuredClone(readResponse.result.config.agent);
-    probeAgent.workspace_sandbox.notify_on_fallback = failedAttempt.notify;
+    probeAgent.tool_execution.update_plan_enabled = failedAttempt.plan;
     collision = createConfigPathCollision(runtimeEnv);
     ioRpcProof = await page.evaluate(
       async ({ agent, version }) => {
@@ -525,35 +495,33 @@ async function run() {
       executionPolicyTabActive: finalState.executionPolicyTabActive,
       policyControlsReady: finalState.policyControlsReady,
       policyInputsChanged:
-        original.enabled !== changed.enabled ||
-        original.strict !== changed.strict ||
-        original.notify !== changed.notify ||
+        original.plan !== changed.plan ||
         original.warningPolicy !== changed.warningPolicy,
-      strictRestrictionInput:
-        changed.enabled === true && changed.strict === true,
+      planInputChanged: original.plan !== changed.plan,
+      retiredSandboxControlsAbsent: [
+        original,
+        changedState,
+        restartState,
+        errorState,
+        recoveredState,
+        restoredSaveState,
+        finalState,
+      ].every((state) => state.retiredSandboxControlsAbsent),
       warningBypassInput: changed.warningPolicy === "none",
       restartReadback:
-        restartState.enabled === changed.enabled &&
-        restartState.strict === changed.strict &&
-        restartState.notify === changed.notify &&
+        restartState.plan === changed.plan &&
         restartState.warningPolicy === changed.warningPolicy,
       expectedSaveFailureVisible:
         errorState.errorVisible === true && ioRpcProof.ioCauseVerified === true,
       expectedSaveFailureRecovered:
-        recoveredState.enabled === failedAttempt.enabled &&
-        recoveredState.strict === failedAttempt.strict &&
-        recoveredState.notify === failedAttempt.notify &&
+        recoveredState.plan === failedAttempt.plan &&
         recoveredState.warningPolicy === failedAttempt.warningPolicy &&
         recoveredState.errorVisible === false,
       restorationSaved:
-        restoredSaveState.enabled === original.enabled &&
-        restoredSaveState.strict === original.strict &&
-        restoredSaveState.notify === original.notify &&
+        restoredSaveState.plan === original.plan &&
         restoredSaveState.warningPolicy === original.warningPolicy,
       finalRestorationReadback:
-        finalState.enabled === original.enabled &&
-        finalState.strict === original.strict &&
-        finalState.notify === original.notify &&
+        finalState.plan === original.plan &&
         finalState.warningPolicy === original.warningPolicy,
       loadingVisible: finalState.loadingVisible,
       unexpectedErrorVisible: finalState.unexpectedErrorVisible,
@@ -568,7 +536,8 @@ async function run() {
       lifecycle: {
         isolatedUserData: true,
         policyInputsChanged: true,
-        strictRestrictionInput: true,
+        planInputChanged: true,
+        retiredSandboxControlsAbsent: true,
         warningBypassInput: true,
         restartReadback: true,
         expectedSaveFailureVisible: true,

@@ -1,4 +1,3 @@
-import { GeneralWorkbenchContextPanel } from "./GeneralWorkbenchContextPanel";
 import { GeneralWorkbenchExecLog } from "./GeneralWorkbenchExecLog";
 import { GeneralWorkbenchWorkflowPanel } from "./GeneralWorkbenchWorkflowPanel";
 import type { GeneralWorkbenchSidebarTab } from "./GeneralWorkbenchSidebarShell";
@@ -10,13 +9,9 @@ export interface GeneralWorkbenchSidebarPanelsProps extends GeneralWorkbenchSide
 
 export function GeneralWorkbenchSidebarPanels({
   activeTab,
-  contextPanelProps,
   workflowPanelProps,
   execLogProps,
 }: GeneralWorkbenchSidebarPanelsProps) {
-  if (activeTab === "context") {
-    return <GeneralWorkbenchContextPanel {...contextPanelProps} />;
-  }
   if (activeTab === "workflow") {
     return <GeneralWorkbenchWorkflowPanel {...workflowPanelProps} />;
   }

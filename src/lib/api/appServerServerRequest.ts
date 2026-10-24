@@ -8,7 +8,7 @@ import {
   getDefaultAppServerEventBus,
   type AppServerEventBus,
 } from "./appServerEventBus";
-import { resolveClawTraceEnabled } from "../developerFeatures";
+import { isAgentDebugEnabled } from "../agentDebug";
 import type {
   AppServerJsonRpcError,
   AppServerJsonRpcRequest,
@@ -321,15 +321,13 @@ function readTerminalServerRequestScope(notification: {
     return { method: "thread/closed", threadId, turnId: null };
   }
   const turnId = readString(params?.turnId);
-  return turnId
-    ? { method: "turn/completed", threadId, turnId }
-    : null;
+  return turnId ? { method: "turn/completed", threadId, turnId } : null;
 }
 
 function appendServerRequestLifecycleTrace(
   entry: Record<string, unknown>,
 ): void {
-  if (typeof window === "undefined" || !resolveClawTraceEnabled()) {
+  if (typeof window === "undefined" || !isAgentDebugEnabled()) {
     return;
   }
   try {

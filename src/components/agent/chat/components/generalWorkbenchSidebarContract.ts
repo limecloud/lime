@@ -7,18 +7,9 @@ import type {
   TopicBranchItem,
   TopicBranchStatus,
 } from "../hooks/useTopicBranchBoard";
-import type { SidebarActivityLog } from "../hooks/useThemeContextWorkspace";
+import type { SidebarActivityLog } from "./generalWorkbenchWorkflowData";
 import type { Message } from "../types";
-import type {
-  GeneralWorkbenchContextBudget,
-  GeneralWorkbenchContextItem,
-} from "./generalWorkbenchContextData";
 import type { GeneralWorkbenchCreationTaskEvent } from "./generalWorkbenchWorkflowData";
-import type {
-  GeneralWorkbenchAddFileContextAction,
-  GeneralWorkbenchAddLinkContextAction,
-  GeneralWorkbenchAddTextContextAction,
-} from "./useGeneralWorkbenchContextPanelState";
 import type { WorkspaceWorkflowControlItem } from "../workspace/workspaceWorkflowControls";
 
 export type BranchMode = "topic" | "version";
@@ -62,24 +53,6 @@ export interface GeneralWorkbenchSidebarWorkflowContract {
   ) => Promise<void> | void;
 }
 
-export interface GeneralWorkbenchSidebarContextContract {
-  contextSearchQuery: string;
-  onContextSearchQueryChange: (value: string) => void;
-  contextSearchMode: "web" | "social";
-  onContextSearchModeChange: (value: "web" | "social") => void;
-  contextSearchLoading: boolean;
-  contextSearchError?: string | null;
-  contextSearchBlockedReason?: string | null;
-  onSubmitContextSearch: () => Promise<void> | void;
-  onAddTextContext?: GeneralWorkbenchAddTextContextAction;
-  onAddLinkContext?: GeneralWorkbenchAddLinkContextAction;
-  onAddFileContext?: GeneralWorkbenchAddFileContextAction;
-  contextItems: GeneralWorkbenchContextItem[];
-  onToggleContextActive: (contextId: string) => void;
-  onViewContextDetail?: (contextId: string) => void;
-  contextBudget: GeneralWorkbenchContextBudget;
-}
-
 export interface GeneralWorkbenchSidebarExecLogContract {
   historyHasMore?: boolean;
   historyLoading?: boolean;
@@ -92,5 +65,4 @@ export interface GeneralWorkbenchSidebarProps
   extends
     GeneralWorkbenchSidebarShellContract,
     GeneralWorkbenchSidebarWorkflowContract,
-    GeneralWorkbenchSidebarContextContract,
     GeneralWorkbenchSidebarExecLogContract {}

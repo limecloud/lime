@@ -7,6 +7,8 @@ export interface ThreadSidePanelTab {
   contentInstance?: string;
   dndId?: string;
   title?: string;
+  // 仅 New tab 的未提交地址；与同一 tab 一起关闭或替换。
+  addressDraft?: string;
   browser?: {
     tabId: string;
     viewId: string;

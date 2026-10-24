@@ -38,6 +38,7 @@ type RightSurfaceHostRuntimeProjection = Pick<
   | "browserRightSurfaceIntent"
   | "handleBrowserLaunchApplied"
   | "handleOpenBrowserAddress"
+  | "setNewTabAddressDraft"
   | "openBrowserInBackground"
   | "filesRightSurfaceAvailable"
   | "filesRightSurfaceTarget"
@@ -63,8 +64,6 @@ type RightSurfaceHostRuntimeProjection = Pick<
   | "rightSurfaceBrowserTitle"
   | "rightSurfaceHarnessEnabled"
   | "rightSurfaceState"
-  | "rightSurfaceTraceAvailable"
-  | "rightSurfaceTraceEnabled"
 >;
 
 interface UseWorkspaceRightSurfaceHostRuntimeParams extends Omit<
@@ -96,8 +95,6 @@ interface UseWorkspaceRightSurfaceHostRuntimeParams extends Omit<
   | "rightSurfaceBrowserTitle"
   | "rightSurfaceHarnessEnabled"
   | "rightSurfaceState"
-  | "rightSurfaceTraceAvailable"
-  | "rightSurfaceTraceEnabled"
   | "onArticleActionIntent"
   | "onArticleSelectedObjectChange"
   | "onClosePluginSurface"
@@ -105,6 +102,7 @@ interface UseWorkspaceRightSurfaceHostRuntimeParams extends Omit<
   | "onRightSurfaceBrowserNavigate"
   | "onSelectPluginSurface"
 > {
+  runtimeWorkspaceId?: string | null;
   handleSendRef: MutableRefObject<WorkspaceHandleSend>;
   onOpenArticlePreviewArtifact: RenderWorkspaceRightSurfaceHostRuntimeParams["onOpenArticlePreviewArtifact"];
   restoreInput: (prompt: string) => void;
@@ -113,6 +111,7 @@ interface UseWorkspaceRightSurfaceHostRuntimeParams extends Omit<
 }
 
 export function useWorkspaceRightSurfaceHostRuntime({
+  runtimeWorkspaceId,
   handleSendRef,
   onOpenArticlePreviewArtifact,
   restoreInput,
@@ -139,7 +138,7 @@ export function useWorkspaceRightSurfaceHostRuntime({
   const openLink = useWorkspaceLinkOpening({
     sessionId: hostRuntimeParams.sceneSessionId,
     threadId: hostRuntimeParams.sceneThreadId,
-    workspaceId: hostRuntimeParams.runtimeWorkspaceId,
+    workspaceId: runtimeWorkspaceId,
     workspaceRoot: root,
     ensureOwner: hostRuntimeParams.ensureBrowserWorkspaceOwner,
     onOpenBackgroundBrowser: rightSurfaceRuntime.openBrowserInBackground,
@@ -292,8 +291,6 @@ export function useWorkspaceRightSurfaceHostRuntime({
     rightSurfaceBrowserTitle: rightSurfaceRuntime.rightSurfaceBrowserTitle,
     rightSurfaceHarnessEnabled: rightSurfaceRuntime.rightSurfaceHarnessEnabled,
     rightSurfaceState: rightSurfaceRuntime.rightSurfaceState,
-    rightSurfaceTraceAvailable: rightSurfaceRuntime.rightSurfaceTraceAvailable,
-    rightSurfaceTraceEnabled: rightSurfaceRuntime.rightSurfaceTraceEnabled,
     onArticleActionIntent: handleArticleWorkspaceActionIntent,
     onArticleSelectedObjectChange: undefined,
     onClosePluginSurface: rightSurfaceRuntime.handleClosePluginSurface,
@@ -316,6 +313,7 @@ export function useWorkspaceRightSurfaceHostRuntime({
         { className: "contents" },
         createElement(WorkspaceBrowserNavigationContext.Provider, {
           value: {
+            setAddressDraft: rightSurfaceRuntime.setNewTabAddressDraft,
             openAddress: (sourceTabId: string, url: string) =>
               rightSurfaceRuntime.handleOpenBrowserAddress(
                 sourceTabId,

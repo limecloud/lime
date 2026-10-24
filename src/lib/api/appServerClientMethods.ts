@@ -1002,21 +1002,6 @@ declare module "./appServerClient" {
     ): Promise<
       appServer.AppServerRequestResult<appServer.AppServerVoiceTranscriptionPolishTextResponse>
     >;
-    readUsageStats(
-      params: appServer.AppServerUsageStatsRangeParams,
-    ): Promise<
-      appServer.AppServerRequestResult<appServer.AppServerUsageStatsReadResponse>
-    >;
-    listUsageStatsModelRanking(
-      params: appServer.AppServerUsageStatsRangeParams,
-    ): Promise<
-      appServer.AppServerRequestResult<appServer.AppServerUsageStatsModelRankingListResponse>
-    >;
-    listUsageStatsDailyTrends(
-      params: appServer.AppServerUsageStatsRangeParams,
-    ): Promise<
-      appServer.AppServerRequestResult<appServer.AppServerUsageStatsDailyTrendsListResponse>
-    >;
   }
 }
 

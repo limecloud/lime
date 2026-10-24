@@ -6,7 +6,6 @@ import {
   ListChecks,
   Loader2,
   ShieldAlert,
-  Sparkles,
   SquareCheckBig,
   Workflow,
   Wrench,
@@ -138,7 +137,6 @@ export function buildHarnessPanelSectionNavItems({
 
 interface BuildHarnessSummaryCardsInput {
   agentUiProjectionSummary: AgentUiProjectionSummary;
-  environment: HarnessEnvironmentSummary;
   fileChangeReviewEntries: FileChangeReviewEntry[];
   fileReviewCopy: HarnessFileReviewSummaryCopy;
   hasAgentUiProjectionSection: boolean;
@@ -161,7 +159,6 @@ interface BuildHarnessSummaryCardsInput {
 
 export function buildHarnessSummaryCards({
   agentUiProjectionSummary,
-  environment,
   fileChangeReviewEntries,
   fileReviewCopy,
   hasAgentUiProjectionSection,
@@ -321,13 +318,6 @@ export function buildHarnessSummaryCards({
         harnessState.plan.summaryText ||
         "未检测到显式计划快照",
       icon: ListChecks,
-    },
-    {
-      sectionKey: "context",
-      title: "上下文",
-      value: `${environment.activeContextCount}/${environment.contextItemsCount}`,
-      hint: environment.contextEnabled ? "上下文工作台已启用" : "普通聊天模式",
-      icon: Sparkles,
     },
   );
 

@@ -19,7 +19,6 @@ mod direct_text_generation;
 pub mod durable_memory_fs;
 pub mod filesystem_event_protocol;
 mod guardian_review;
-mod knowledge_builder_skill;
 pub mod lime_session_repository;
 mod live_execution_process;
 mod mcp_bridge;
@@ -60,9 +59,6 @@ pub use durable_memory_fs::{
     durable_memory_permission_pattern, is_virtual_memory_path, resolve_durable_memory_root,
     resolve_virtual_memory_path, to_virtual_memory_path, virtual_memory_relative_path,
     DURABLE_MEMORY_VIRTUAL_ROOT, LEGACY_DURABLE_MEMORY_ROOT_ENV, LIME_DURABLE_MEMORY_ROOT_ENV,
-};
-pub use knowledge_builder_skill::{
-    run_knowledge_builder_skill, KnowledgeBuilderSkillRequest, KnowledgeBuilderSkillRunner,
 };
 pub use lime_mcp as mcp;
 pub use live_execution_process::LiveExecutionProcessGateway;

@@ -10,8 +10,6 @@ import { useWorkspaceWorkbenchRequests } from "../hooks/useWorkspaceWorkbenchReq
 
 import { useContentSync } from "../hooks/useContentSync";
 
-import { useDeveloperFeatureFlags } from "@/hooks/useDeveloperFeatureFlags";
-
 import { useServiceModelsConfig } from "@/hooks/useServiceModelsConfig";
 
 import { useSoulArtifactVoiceGenerationBrief } from "@/hooks/useSoulArtifactVoiceGenerationBrief";
@@ -319,10 +317,6 @@ export function useAgentChatWorkspaceEntryRuntime({
       setProject,
       setProjectMemory,
     });
-  const { clawTraceEnabled, workspaceHarnessEnabled } =
-    useDeveloperFeatureFlags({
-      enabled: !shouldDeferWorkspaceAuxiliaryLoads,
-    });
   const {
     serviceModels,
     agentResponseLanguage,
@@ -558,8 +552,7 @@ export function useAgentChatWorkspaceEntryRuntime({
     socialStageLogRef,
     openedProjects,
     handleCloseOpenedProject,
-    clawTraceEnabled,
-    workspaceHarnessEnabled,
+
     serviceModels,
     agentResponseLanguage,
     refreshServiceModelsConfig,

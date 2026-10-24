@@ -180,6 +180,18 @@
       ],
       "type": "object"
     },
+    "CancelInstallParams": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
     "CloudRequestMethod": {
       "enum": [
         "DELETE",
@@ -473,6 +485,10 @@
       },
       "type": "object"
     },
+    "ConfigRequirementsReadParams": {
+      "additionalProperties": false,
+      "type": "object"
+    },
     "ConfigValueWriteParams": {
       "properties": {
         "expectedVersion": {
@@ -500,6 +516,16 @@
         "mergeStrategy",
         "value"
       ],
+      "type": "object"
+    },
+    "DiagnoseDependenciesParams": {
+      "additionalProperties": false,
+      "properties": {
+        "probeExecutables": {
+          "default": false,
+          "type": "boolean"
+        }
+      },
       "type": "object"
     },
     "DynamicToolFunctionSpec": {
@@ -2043,6 +2069,10 @@
           "type": "object"
         }
       ]
+    },
+    "RunUpdateNowParams": {
+      "additionalProperties": false,
+      "type": "object"
     },
     "SandboxPolicy": {
       "description": "Complete execution policy; roots and temporary-directory exclusions must reach the OS runner.",
@@ -5356,6 +5386,86 @@
           "$ref": "#/$defs/RequestId"
         },
         "method": {
+          "const": "primaryRuntime/diagnoseDependencies",
+          "type": "string"
+        },
+        "params": {
+          "$ref": "#/$defs/DiagnoseDependenciesParams"
+        }
+      },
+      "required": [
+        "id",
+        "method",
+        "params"
+      ],
+      "type": "object"
+    },
+    {
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/RequestId"
+        },
+        "method": {
+          "const": "primaryRuntime/runUpdateNow",
+          "type": "string"
+        },
+        "params": {
+          "$ref": "#/$defs/RunUpdateNowParams"
+        }
+      },
+      "required": [
+        "id",
+        "method",
+        "params"
+      ],
+      "type": "object"
+    },
+    {
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/RequestId"
+        },
+        "method": {
+          "const": "primaryRuntime/resetDependencies",
+          "type": "string"
+        },
+        "params": {
+          "$ref": "#/$defs/RunUpdateNowParams"
+        }
+      },
+      "required": [
+        "id",
+        "method",
+        "params"
+      ],
+      "type": "object"
+    },
+    {
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/RequestId"
+        },
+        "method": {
+          "const": "primaryRuntime/cancelInstall",
+          "type": "string"
+        },
+        "params": {
+          "$ref": "#/$defs/CancelInstallParams"
+        }
+      },
+      "required": [
+        "id",
+        "method",
+        "params"
+      ],
+      "type": "object"
+    },
+    {
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/RequestId"
+        },
+        "method": {
           "const": "config/read",
           "type": "string"
         },
@@ -5367,6 +5477,26 @@
         "id",
         "method",
         "params"
+      ],
+      "type": "object"
+    },
+    {
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/RequestId"
+        },
+        "method": {
+          "const": "configRequirements/read",
+          "type": "string"
+        },
+        "params": {
+          "$ref": "#/$defs/ConfigRequirementsReadParams",
+          "default": {}
+        }
+      },
+      "required": [
+        "id",
+        "method"
       ],
       "type": "object"
     },

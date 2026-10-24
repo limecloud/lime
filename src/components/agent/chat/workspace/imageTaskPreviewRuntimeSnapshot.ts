@@ -650,7 +650,6 @@ export function buildParsedImageTaskSnapshot(params: {
     modelName: output.modelName,
     size: output.size,
     parentOutputId: targetOutputId ?? null,
-    resourceSaved: false,
     applyTarget,
   }));
   const resolvedNormalizedStatus = resolveOutputAwareNormalizedStatus(

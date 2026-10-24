@@ -4,7 +4,6 @@ import { acceptedSubmission } from "./hooks/agentSendResult.testFixtures";
 import {
   clickButton,
   createMockAgentChatUnifiedState,
-  createMockThemeContextWorkspaceState,
   createProject,
   flushEffects,
   getIndexTestMocks,
@@ -27,8 +26,6 @@ const {
   mockMessageList,
   mockRequestWorkspaceRightSurface,
   mockUseAgentChatUnified,
-  mockUseDeveloperFeatureFlags,
-  mockUseThemeContextWorkspace,
 } = getIndexTestMocks();
 
 describe("AgentChatPage 通用工作台", { timeout: 20_000 }, () => {
@@ -276,12 +273,6 @@ describe("AgentChatPage 通用工作台", { timeout: 20_000 }, () => {
     mockIsSpecializedWorkbenchTheme.mockImplementation(
       (theme?: string) => theme !== "general",
     );
-    mockUseThemeContextWorkspace.mockImplementation(
-      ({ activeTheme }: { activeTheme?: string }) =>
-        createMockThemeContextWorkspaceState({
-          enabled: activeTheme !== "general",
-        }),
-    );
     mockGetProject.mockResolvedValue({
       ...createProject("project-document-home"),
       workspaceType: "general",
@@ -477,10 +468,6 @@ describe("AgentChatPage 通用工作台", { timeout: 20_000 }, () => {
   );
 
   it("关闭调试信息时侧面板仍可用，工具新标签不读取旧库存", async () => {
-    mockUseDeveloperFeatureFlags.mockReturnValue({
-      clawTraceEnabled: false,
-      workspaceHarnessEnabled: false,
-    });
     const container = renderPage({
       theme: "general",
       lockTheme: true,

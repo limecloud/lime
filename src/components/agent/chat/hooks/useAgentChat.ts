@@ -65,7 +65,7 @@ function normalizeProviderSelection(value?: string | null): string {
 export function useAgentChat(options: UseAgentChatRuntimeOptions) {
   const {
     systemPrompt,
-    clawTraceEnabled = false,
+
     onWriteFile,
     workspaceId: surfaceWorkspaceId,
     workingDir: surfaceWorkingDir,
@@ -121,6 +121,7 @@ export function useAgentChat(options: UseAgentChatRuntimeOptions) {
 
   const context = useAgentContext({
     workspaceId,
+    workingDir,
     sessionIdRef,
     pendingSessionMetadataSyncCancelRef,
     topicsUpdaterRef,
@@ -451,7 +452,7 @@ export function useAgentChat(options: UseAgentChatRuntimeOptions) {
     refreshSessionReadModel: session.refreshSessionReadModel,
     onRestoreInterruptedInput,
     executionRuntime: session.executionRuntime,
-    clawTraceEnabled,
+
     allowRecoveredStreamBinding:
       Boolean(session.sessionId) &&
       (session.recoveredStreamBindingSessionId === session.sessionId ||

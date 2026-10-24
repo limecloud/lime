@@ -3,7 +3,6 @@ import { requestChatHostSavePath } from "../host/chatHostCapabilities";
 import { toast } from "sonner";
 import { saveExportedDocument } from "@/lib/api/document-export";
 import type { ArtifactDocumentV1 } from "@/lib/artifact-document";
-import { resolveArtifactProtocolFilePath } from "@/lib/artifact-protocol";
 import type { Artifact } from "@/lib/artifact/types";
 import {
   resolveArtifactWorkbenchHtmlFilename,
@@ -14,7 +13,6 @@ import {
   updateArtifactDocumentStatus,
 } from "./artifactWorkbenchActions";
 import { ArtifactWorkbenchToolbarActions } from "./ArtifactWorkbenchToolbarActions";
-import type { GeneralArtifactSyncResult } from "./useWorkspaceGeneralResourceSync";
 
 function ensureFileExtension(filePath: string, extension: string) {
   const normalizedExtension = extension.startsWith(".")
@@ -73,55 +71,7 @@ async function exportArtifactWorkbenchFile(params: {
   }
 }
 
-function resolveResourceSyncFeedback(result: GeneralArtifactSyncResult): {
-  kind: "success" | "error";
-  message: string;
-} {
-  switch (result.status) {
-    case "uploaded":
-      return {
-        kind: "success",
-        message: "已保存到项目资源",
-      };
-    case "duplicate":
-      return {
-        kind: "success",
-        message: "项目资源中已存在该交付物",
-      };
-    case "missing_project":
-      return {
-        kind: "error",
-        message: "请先选择项目后再保存到项目资源",
-      };
-    case "unsupported":
-      return {
-        kind: "error",
-        message: "当前交付物暂不支持保存到项目资源",
-      };
-    case "missing_file":
-      return {
-        kind: "error",
-        message: "当前交付物还没有可复用的落盘文件",
-      };
-    case "inactive":
-      return {
-        kind: "error",
-        message: "当前主题暂未接入项目资源复用",
-      };
-    case "error":
-    default:
-      return {
-        kind: "error",
-        message: result.errorMessage || "保存到项目资源失败",
-      };
-  }
-}
-
 export interface ArtifactWorkbenchToolbarActionState {
-  showSaveToProject: boolean;
-  saveToProjectDisabled: boolean;
-  isSavingToProject: boolean;
-  onSaveToProject: () => Promise<void>;
   onExportJson: () => Promise<void>;
   onExportHtml: () => Promise<void>;
   onExportMarkdown: () => Promise<void>;
@@ -132,12 +82,6 @@ export interface ArtifactWorkbenchToolbarActionState {
 }
 
 interface UseWorkspaceArtifactWorkbenchActionsParams {
-  activeTheme: string;
-  projectId?: string | null;
-  syncGeneralArtifactToResource: (input: {
-    rawFilePath: string;
-    preferredName?: string;
-  }) => Promise<GeneralArtifactSyncResult>;
   onSaveArtifactDocument?: (
     artifact: Artifact,
     document: ArtifactDocumentV1,
@@ -145,14 +89,8 @@ interface UseWorkspaceArtifactWorkbenchActionsParams {
 }
 
 export function useWorkspaceArtifactWorkbenchActions({
-  activeTheme,
-  projectId,
-  syncGeneralArtifactToResource,
   onSaveArtifactDocument,
 }: UseWorkspaceArtifactWorkbenchActionsParams) {
-  const [savingResourceArtifactId, setSavingResourceArtifactId] = useState<
-    string | null
-  >(null);
   const [updatingArchiveArtifactId, setUpdatingArchiveArtifactId] = useState<
     string | null
   >(null);
@@ -211,31 +149,6 @@ export function useWorkspaceArtifactWorkbenchActions({
     [],
   );
 
-  const handleSaveToProject = useCallback(
-    async (artifact: Artifact, document: ArtifactDocumentV1) => {
-      const rawFilePath = resolveArtifactProtocolFilePath(artifact);
-      setSavingResourceArtifactId(artifact.id);
-
-      try {
-        const result = await syncGeneralArtifactToResource({
-          rawFilePath,
-          preferredName: document.title || artifact.title,
-        });
-        const feedback = resolveResourceSyncFeedback(result);
-        if (feedback.kind === "success") {
-          toast.success(feedback.message);
-        } else {
-          toast.error(feedback.message);
-        }
-      } finally {
-        setSavingResourceArtifactId((current) =>
-          current === artifact.id ? null : current,
-        );
-      }
-    },
-    [syncGeneralArtifactToResource],
-  );
-
   const handleToggleArchive = useCallback(
     async (artifact: Artifact, document: ArtifactDocumentV1) => {
       if (!onSaveArtifactDocument) {
@@ -276,15 +189,7 @@ export function useWorkspaceArtifactWorkbenchActions({
         return null;
       }
 
-      const normalizedProjectId = projectId?.trim() || "";
       return {
-        showSaveToProject: activeTheme === "general",
-        saveToProjectDisabled:
-          activeTheme !== "general" ||
-          !normalizedProjectId ||
-          savingResourceArtifactId === artifact.id,
-        isSavingToProject: savingResourceArtifactId === artifact.id,
-        onSaveToProject: () => handleSaveToProject(artifact, document),
         onExportJson: () => handleExportJson(artifact, document),
         onExportHtml: () => handleExportHtml(artifact, document),
         onExportMarkdown: () => handleExportMarkdown(artifact, document),
@@ -295,15 +200,11 @@ export function useWorkspaceArtifactWorkbenchActions({
       };
     },
     [
-      activeTheme,
       handleExportHtml,
       handleExportJson,
       handleExportMarkdown,
-      handleSaveToProject,
       handleToggleArchive,
       onSaveArtifactDocument,
-      projectId,
-      savingResourceArtifactId,
       updatingArchiveArtifactId,
     ],
   );

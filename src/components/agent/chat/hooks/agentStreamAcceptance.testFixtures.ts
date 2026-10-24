@@ -95,7 +95,7 @@ export function createAcceptanceEnv(
     refreshSessionReadModel: options.refreshSessionReadModel,
     executionStrategy: "react",
     accessMode: "current",
-    clawTraceEnabled: false,
+
     providerTypeRef: { current: "openai" },
     modelRef: { current: "fixture" },
     reasoningEffortRef: { current: "" },

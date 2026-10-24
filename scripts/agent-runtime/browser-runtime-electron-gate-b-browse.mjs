@@ -6,23 +6,6 @@ import {
 import { updateConfigFromPage } from "./claw-chat-current-fixture-rpc.mjs";
 import { assert, sanitizeJson } from "./claw-chat-current-fixture-utils.mjs";
 
-const ASK_PERMISSIONS = {
-  browse: "ask",
-  download: "ask",
-  upload: "ask",
-  debug: "ask",
-  site_tools: "ask",
-};
-
-function browserPermissions(config) {
-  const permissions = config.browser?.agent_permissions;
-  return {
-    ...permissions,
-    default: { ...ASK_PERMISSIONS, ...permissions?.default },
-    sites: permissions?.sites ?? [],
-  };
-}
-
 /** Lifecycle fixtures opt into allow; the dedicated approval scenario keeps production ask. */
 export async function configureBrowserFixturePermissions(
   page,
@@ -36,16 +19,10 @@ export async function configureBrowserFixturePermissions(
       ...config,
       browser: {
         ...config.browser,
-        agent_permissions: {
-          ...browserPermissions(config),
-          default: {
-            ...browserPermissions(config).default,
-            browse: "allow",
-            ...(["download", "artifact"].includes(options.scenario)
-              ? { download: "allow" }
-              : {}),
-          },
-        },
+        approvalMode: "neverAsk",
+        ...(["download", "artifact"].includes(options.scenario)
+          ? { downloadApprovalMode: "neverAsk" }
+          : {}),
       },
     }),
     requestLog,
@@ -72,14 +49,18 @@ export function prepareBrowserBrowseApproval({
         ...config,
         browser: {
           ...config.browser,
-          agent_permissions: {
-            ...browserPermissions(config),
-            sites: [
-              {
-                pattern: origin,
-                permissions: { ...browserPermissions(config).default },
-              },
-            ],
+          approvalMode: "alwaysAsk",
+          allowedOrigins: [],
+          deniedOrigins: [],
+        },
+        browser_use: {
+          ...config.browser_use,
+          origins: {
+            ...config.browser_use?.origins,
+            [origin]: {
+              ...config.browser_use?.origins?.[origin],
+              access: "allow",
+            },
           },
         },
       }),

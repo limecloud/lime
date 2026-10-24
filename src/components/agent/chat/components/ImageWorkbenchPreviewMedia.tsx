@@ -5,8 +5,27 @@ import type {
   MessageImageWorkbenchPreview,
   MessageImageWorkbenchPreviewSelection,
 } from "../types";
-import { resolveImageWorkbenchPreviewImages } from "../workspace/imageWorkbenchResourceManager";
 import { RenderableTaskImage } from "./RenderableTaskImage";
+
+function resolveImageWorkbenchPreviewImages(
+  preview: MessageImageWorkbenchPreview,
+): string[] {
+  const urls: string[] = [];
+  (preview.previewImages || []).forEach((value) => {
+    const normalized = value.trim();
+    if (!normalized || urls.includes(normalized)) {
+      return;
+    }
+    urls.push(normalized);
+  });
+
+  const primaryUrl = preview.imageUrl?.trim();
+  if (primaryUrl && !urls.includes(primaryUrl)) {
+    urls.unshift(primaryUrl);
+  }
+
+  return urls.slice(0, 9);
+}
 
 type AgentTranslate = TFunction<"agent", undefined>;
 

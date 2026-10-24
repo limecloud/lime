@@ -20,6 +20,20 @@ pub enum ExternalBrowserLinkShortcut {
     PrimaryShift,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ReasoningEffort {
+    None,
+    Minimal,
+    Low,
+    Medium,
+    High,
+    Xhigh,
+    Max,
+    Ultra,
+    Persistent,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields, rename_all = "kebab-case")]
 pub struct DesktopConfig {
@@ -36,6 +50,9 @@ pub struct DesktopConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub open_local_url_in_target_preference: Option<LinkOpenTarget>,
     pub external_browser_link_shortcut: ExternalBrowserLinkShortcut,
+    /// 未设置时使用界面默认值；这里只控制模型控件，不修改模型能力。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enabled_reasoning_efforts: Option<Vec<ReasoningEffort>>,
 }
 
 fn deserialize_shortcuts<'de, D>(deserializer: D) -> Result<BTreeMap<String, Vec<String>>, D::Error>
@@ -206,6 +223,39 @@ mod tests {
                 serde_json::from_value::<DesktopConfig>(json!({"keyboard-shortcuts": value}))
                     .is_err()
             );
+        }
+    }
+
+    #[test]
+    fn reasoning_preferences_preserve_unconfigured_and_explicit_empty() {
+        for value in [
+            json!([]),
+            json!(["low", "medium", "high", "xhigh", "ultra", "persistent"]),
+            json!(["none", "minimal", "max"]),
+        ] {
+            let config: DesktopConfig = serde_json::from_value(json!({
+                "enabled-reasoning-efforts": value
+            }))
+            .unwrap();
+            let restored: DesktopConfig =
+                serde_yaml::from_str(&serde_yaml::to_string(&config).unwrap()).unwrap();
+            assert_eq!(config, restored);
+            assert_eq!(
+                serde_json::to_value(restored).unwrap()["enabled-reasoning-efforts"],
+                value
+            );
+        }
+        let default = DesktopConfig::default();
+        assert!(default.enabled_reasoning_efforts.is_none());
+        assert!(serde_json::to_value(default)
+            .unwrap()
+            .get("enabled-reasoning-efforts")
+            .is_none());
+        for invalid in [json!(true), json!("ultra"), json!(["unknown"]), json!([1])] {
+            assert!(serde_json::from_value::<DesktopConfig>(json!({
+                "enabled-reasoning-efforts": invalid
+            }))
+            .is_err());
         }
     }
 }

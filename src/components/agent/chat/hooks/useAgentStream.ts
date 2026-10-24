@@ -160,7 +160,7 @@ interface UseAgentStreamOptions {
   refreshSessionReadModel: (targetSessionId?: string) => Promise<boolean>;
   onRestoreInterruptedInput?: (request: InterruptedInputRestoreRequest) => void;
   executionRuntime: AgentSessionExecutionRuntime | null;
-  clawTraceEnabled?: boolean;
+
   allowRecoveredStreamBinding?: boolean;
   soulCopy?: SoulInteractionCopy;
 }
@@ -207,7 +207,7 @@ export function useAgentStream(options: UseAgentStreamOptions) {
     refreshSessionReadModel,
     onRestoreInterruptedInput,
     executionRuntime,
-    clawTraceEnabled = false,
+
     allowRecoveredStreamBinding = false,
     soulCopy,
   } = options;
@@ -287,7 +287,7 @@ export function useAgentStream(options: UseAgentStreamOptions) {
         warnedKeysRef,
         onWriteFile,
         executionRuntime,
-        clawTraceEnabled,
+
         soulCopy,
         setActiveStream,
         clearActiveStreamIfMatch,
@@ -311,7 +311,7 @@ export function useAgentStream(options: UseAgentStreamOptions) {
       executionStrategy,
       ensureSession,
       executionRuntime,
-      clawTraceEnabled,
+
       soulCopy,
       getWorkspaceIdForSubmit,
       waitForSessionProviderSelectionSync,

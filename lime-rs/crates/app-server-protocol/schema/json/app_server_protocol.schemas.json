@@ -3313,6 +3313,13 @@
                 "string"
               ]
             },
+            "sandboxNetworkAccess": {
+              "description": "Ambient network access applies only to the workspace-write sandbox.",
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
             "sandboxPolicy": {
               "type": [
                 "null",
@@ -3352,6 +3359,17 @@
                 "boolean",
                 "null"
               ]
+            },
+            "webSearchMode": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/WebSearchMode"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Access ceiling, independent of auto/required search intent."
             },
             "workingDir": {
               "type": [
@@ -3422,6 +3440,16 @@
             }
           },
           "type": "object"
+        },
+        "WebSearchMode": {
+          "description": "Search access is separate from whether a turn must call the search tool.",
+          "enum": [
+            "cached",
+            "disabled",
+            "indexed",
+            "live"
+          ],
+          "type": "string"
         }
       },
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -3749,6 +3777,15 @@
         "waitingAction"
       ],
       "title": "AgentTurnStatus",
+      "type": "string"
+    },
+    "AllowDenyRequirement": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "enum": [
+        "allow",
+        "deny"
+      ],
+      "title": "AllowDenyRequirement",
       "type": "string"
     },
     "AppBranding": {
@@ -7228,158 +7265,6 @@
               "$ref": "#/$defs/RequestId"
             },
             "method": {
-              "const": "knowledgePack/list",
-              "type": "string"
-            },
-            "params": {
-              "default": null
-            }
-          },
-          "required": [
-            "id",
-            "method"
-          ],
-          "type": "object"
-        },
-        {
-          "properties": {
-            "id": {
-              "$ref": "#/$defs/RequestId"
-            },
-            "method": {
-              "const": "knowledgePack/read",
-              "type": "string"
-            },
-            "params": {
-              "default": null
-            }
-          },
-          "required": [
-            "id",
-            "method"
-          ],
-          "type": "object"
-        },
-        {
-          "properties": {
-            "id": {
-              "$ref": "#/$defs/RequestId"
-            },
-            "method": {
-              "const": "knowledgePack/source/import",
-              "type": "string"
-            },
-            "params": {
-              "default": null
-            }
-          },
-          "required": [
-            "id",
-            "method"
-          ],
-          "type": "object"
-        },
-        {
-          "properties": {
-            "id": {
-              "$ref": "#/$defs/RequestId"
-            },
-            "method": {
-              "const": "knowledgePack/compile",
-              "type": "string"
-            },
-            "params": {
-              "default": null
-            }
-          },
-          "required": [
-            "id",
-            "method"
-          ],
-          "type": "object"
-        },
-        {
-          "properties": {
-            "id": {
-              "$ref": "#/$defs/RequestId"
-            },
-            "method": {
-              "const": "knowledgePack/default/set",
-              "type": "string"
-            },
-            "params": {
-              "default": null
-            }
-          },
-          "required": [
-            "id",
-            "method"
-          ],
-          "type": "object"
-        },
-        {
-          "properties": {
-            "id": {
-              "$ref": "#/$defs/RequestId"
-            },
-            "method": {
-              "const": "knowledgePack/status/update",
-              "type": "string"
-            },
-            "params": {
-              "default": null
-            }
-          },
-          "required": [
-            "id",
-            "method"
-          ],
-          "type": "object"
-        },
-        {
-          "properties": {
-            "id": {
-              "$ref": "#/$defs/RequestId"
-            },
-            "method": {
-              "const": "knowledgeContext/resolve",
-              "type": "string"
-            },
-            "params": {
-              "default": null
-            }
-          },
-          "required": [
-            "id",
-            "method"
-          ],
-          "type": "object"
-        },
-        {
-          "properties": {
-            "id": {
-              "$ref": "#/$defs/RequestId"
-            },
-            "method": {
-              "const": "knowledgeContextRun/validate",
-              "type": "string"
-            },
-            "params": {
-              "default": null
-            }
-          },
-          "required": [
-            "id",
-            "method"
-          ],
-          "type": "object"
-        },
-        {
-          "properties": {
-            "id": {
-              "$ref": "#/$defs/RequestId"
-            },
-            "method": {
               "const": "scheduledTask/list",
               "type": "string"
             },
@@ -8330,63 +8215,6 @@
               "$ref": "#/$defs/RequestId"
             },
             "method": {
-              "const": "usageStats/read",
-              "type": "string"
-            },
-            "params": {
-              "default": null
-            }
-          },
-          "required": [
-            "id",
-            "method"
-          ],
-          "type": "object"
-        },
-        {
-          "properties": {
-            "id": {
-              "$ref": "#/$defs/RequestId"
-            },
-            "method": {
-              "const": "usageStats/modelRanking/list",
-              "type": "string"
-            },
-            "params": {
-              "default": null
-            }
-          },
-          "required": [
-            "id",
-            "method"
-          ],
-          "type": "object"
-        },
-        {
-          "properties": {
-            "id": {
-              "$ref": "#/$defs/RequestId"
-            },
-            "method": {
-              "const": "usageStats/dailyTrends/list",
-              "type": "string"
-            },
-            "params": {
-              "default": null
-            }
-          },
-          "required": [
-            "id",
-            "method"
-          ],
-          "type": "object"
-        },
-        {
-          "properties": {
-            "id": {
-              "$ref": "#/$defs/RequestId"
-            },
-            "method": {
               "const": "modelPreferences/list",
               "type": "string"
             },
@@ -9095,14 +8923,6 @@
         "initialize",
         "instructions/read",
         "instructions/write",
-        "knowledgeContext/resolve",
-        "knowledgeContextRun/validate",
-        "knowledgePack/compile",
-        "knowledgePack/default/set",
-        "knowledgePack/list",
-        "knowledgePack/read",
-        "knowledgePack/source/import",
-        "knowledgePack/status/update",
         "log/clear",
         "log/diagnosticHistory/clear",
         "log/list",
@@ -9229,9 +9049,6 @@
         "storage/refresh",
         "storage/review",
         "telegramChannel/probe",
-        "usageStats/dailyTrends/list",
-        "usageStats/modelRanking/list",
-        "usageStats/read",
         "voiceAsrCredential/create",
         "voiceAsrCredential/default/set",
         "voiceAsrCredential/delete",
@@ -10901,6 +10718,148 @@
       "title": "AutomationTaskWeekday",
       "type": "string"
     },
+    "BrowserUseConfig": {
+      "$defs": {
+        "AllowDenyRequirement": {
+          "enum": [
+            "allow",
+            "deny"
+          ],
+          "type": "string"
+        },
+        "BrowserUseOriginPolicyConfig": {
+          "properties": {
+            "access": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/AllowDenyRequirement"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "downloads": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/AllowDenyRequirement"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "full_cdp_access": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/AllowDenyRequirement"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "uploads": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/AllowDenyRequirement"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "type": "object"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "allow_history_access": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "default_origin_policy": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BrowserUseOriginPolicyConfig"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "origins": {
+          "additionalProperties": {
+            "$ref": "#/$defs/BrowserUseOriginPolicyConfig"
+          },
+          "type": [
+            "null",
+            "object"
+          ]
+        }
+      },
+      "title": "BrowserUseConfig",
+      "type": "object"
+    },
+    "BrowserUseOriginPolicyConfig": {
+      "$defs": {
+        "AllowDenyRequirement": {
+          "enum": [
+            "allow",
+            "deny"
+          ],
+          "type": "string"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "access": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AllowDenyRequirement"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "downloads": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AllowDenyRequirement"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "full_cdp_access": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AllowDenyRequirement"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "uploads": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AllowDenyRequirement"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "title": "BrowserUseOriginPolicyConfig",
+      "type": "object"
+    },
     "BusinessObjectRef": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
@@ -10929,6 +10888,33 @@
         "kind"
       ],
       "title": "BusinessObjectRef",
+      "type": "object"
+    },
+    "CancelInstallParams": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "CancelInstallParams",
+      "type": "object"
+    },
+    "CancelInstallResponse": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "canceled": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "canceled"
+      ],
+      "title": "CancelInstallResponse",
       "type": "object"
     },
     "CapabilityDescriptor": {
@@ -11644,6 +11630,18 @@
           ],
           "type": "object"
         },
+        "CancelInstallParams": {
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "type": "object"
+        },
         "CloudRequestMethod": {
           "enum": [
             "DELETE",
@@ -11937,6 +11935,10 @@
           },
           "type": "object"
         },
+        "ConfigRequirementsReadParams": {
+          "additionalProperties": false,
+          "type": "object"
+        },
         "ConfigValueWriteParams": {
           "properties": {
             "expectedVersion": {
@@ -11964,6 +11966,16 @@
             "mergeStrategy",
             "value"
           ],
+          "type": "object"
+        },
+        "DiagnoseDependenciesParams": {
+          "additionalProperties": false,
+          "properties": {
+            "probeExecutables": {
+              "default": false,
+              "type": "boolean"
+            }
+          },
           "type": "object"
         },
         "DynamicToolFunctionSpec": {
@@ -13507,6 +13519,10 @@
               "type": "object"
             }
           ]
+        },
+        "RunUpdateNowParams": {
+          "additionalProperties": false,
+          "type": "object"
         },
         "SandboxPolicy": {
           "description": "Complete execution policy; roots and temporary-directory exclusions must reach the OS runner.",
@@ -16820,6 +16836,86 @@
               "$ref": "#/$defs/RequestId"
             },
             "method": {
+              "const": "primaryRuntime/diagnoseDependencies",
+              "type": "string"
+            },
+            "params": {
+              "$ref": "#/$defs/DiagnoseDependenciesParams"
+            }
+          },
+          "required": [
+            "id",
+            "method",
+            "params"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/RequestId"
+            },
+            "method": {
+              "const": "primaryRuntime/runUpdateNow",
+              "type": "string"
+            },
+            "params": {
+              "$ref": "#/$defs/RunUpdateNowParams"
+            }
+          },
+          "required": [
+            "id",
+            "method",
+            "params"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/RequestId"
+            },
+            "method": {
+              "const": "primaryRuntime/resetDependencies",
+              "type": "string"
+            },
+            "params": {
+              "$ref": "#/$defs/RunUpdateNowParams"
+            }
+          },
+          "required": [
+            "id",
+            "method",
+            "params"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/RequestId"
+            },
+            "method": {
+              "const": "primaryRuntime/cancelInstall",
+              "type": "string"
+            },
+            "params": {
+              "$ref": "#/$defs/CancelInstallParams"
+            }
+          },
+          "required": [
+            "id",
+            "method",
+            "params"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/RequestId"
+            },
+            "method": {
               "const": "config/read",
               "type": "string"
             },
@@ -16831,6 +16927,26 @@
             "id",
             "method",
             "params"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/RequestId"
+            },
+            "method": {
+              "const": "configRequirements/read",
+              "type": "string"
+            },
+            "params": {
+              "$ref": "#/$defs/ConfigRequirementsReadParams",
+              "default": {}
+            }
+          },
+          "required": [
+            "id",
+            "method"
           ],
           "type": "object"
         },
@@ -19903,6 +20019,143 @@
       "title": "ConfigReadResponse",
       "type": "object"
     },
+    "ConfigRequirements": {
+      "$defs": {
+        "InAppBrowserRequirements": {
+          "properties": {
+            "allowExternalBrowserSettingsImport": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
+          },
+          "type": "object"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "description": "Read-only constraints from the administrator policy source.",
+      "properties": {
+        "allowedApprovalPolicies": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "allowedSandboxModes": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "allowedWebSearchModes": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "inAppBrowser": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/InAppBrowserRequirements"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "title": "ConfigRequirements",
+      "type": "object"
+    },
+    "ConfigRequirementsReadParams": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "title": "ConfigRequirementsReadParams",
+      "type": "object"
+    },
+    "ConfigRequirementsReadResponse": {
+      "$defs": {
+        "ConfigRequirements": {
+          "description": "Read-only constraints from the administrator policy source.",
+          "properties": {
+            "allowedApprovalPolicies": {
+              "items": {
+                "type": "string"
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "allowedSandboxModes": {
+              "items": {
+                "type": "string"
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "allowedWebSearchModes": {
+              "items": {
+                "type": "string"
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "inAppBrowser": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/InAppBrowserRequirements"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "type": "object"
+        },
+        "InAppBrowserRequirements": {
+          "properties": {
+            "allowExternalBrowserSettingsImport": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
+          },
+          "type": "object"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "requirements": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ConfigRequirements"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "title": "ConfigRequirementsReadResponse",
+      "type": "object"
+    },
     "ConfigValueWriteParams": {
       "$defs": {
         "MergeStrategy": {
@@ -20641,6 +20894,116 @@
         "currentTimeAt"
       ],
       "title": "CurrentTimeReadResponse",
+      "type": "object"
+    },
+    "DiagnoseDependenciesParams": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "probeExecutables": {
+          "default": false,
+          "type": "boolean"
+        }
+      },
+      "title": "DiagnoseDependenciesParams",
+      "type": "object"
+    },
+    "DiagnoseDependenciesResponse": {
+      "$defs": {
+        "PrimaryRuntimeInstallPhase": {
+          "enum": [
+            "canceled",
+            "configuring",
+            "downloading",
+            "error",
+            "extracting",
+            "ready",
+            "validating",
+            "verifying"
+          ],
+          "type": "string"
+        },
+        "PrimaryRuntimeInstallProgress": {
+          "properties": {
+            "downloadedBytes": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "error": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "id": {
+              "type": "string"
+            },
+            "phase": {
+              "$ref": "#/$defs/PrimaryRuntimeInstallPhase"
+            },
+            "totalBytes": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "downloadedBytes",
+            "id",
+            "phase"
+          ],
+          "type": "object"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "bundleVersion": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "expectedVersion": {
+          "type": "string"
+        },
+        "installed": {
+          "type": "boolean"
+        },
+        "problems": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "supported": {
+          "type": "boolean"
+        },
+        "update": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PrimaryRuntimeInstallProgress"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "enabled",
+        "expectedVersion",
+        "installed",
+        "problems",
+        "supported"
+      ],
+      "title": "DiagnoseDependenciesResponse",
       "type": "object"
     },
     "DiagnosticsCapabilityRoutingMetricsSnapshot": {
@@ -27695,6 +28058,19 @@
       "title": "ImageStoryboardSlotInput",
       "type": "object"
     },
+    "InAppBrowserRequirements": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "allowExternalBrowserSettingsImport": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      },
+      "title": "InAppBrowserRequirements",
+      "type": "object"
+    },
     "InitializeCapabilities": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "description": "Client-declared capabilities negotiated during the v2 initialize\nhandshake. Notification opt-out is connection-scoped, never global.",
@@ -27884,6 +28260,69 @@
       ],
       "title": "InputModality",
       "type": "string"
+    },
+    "InstallDependenciesResponse": {
+      "$defs": {
+        "PrimaryRuntimeInstallPhase": {
+          "enum": [
+            "canceled",
+            "configuring",
+            "downloading",
+            "error",
+            "extracting",
+            "ready",
+            "validating",
+            "verifying"
+          ],
+          "type": "string"
+        },
+        "PrimaryRuntimeInstallProgress": {
+          "properties": {
+            "downloadedBytes": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "error": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "id": {
+              "type": "string"
+            },
+            "phase": {
+              "$ref": "#/$defs/PrimaryRuntimeInstallPhase"
+            },
+            "totalBytes": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "downloadedBytes",
+            "id",
+            "phase"
+          ],
+          "type": "object"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "update": {
+          "$ref": "#/$defs/PrimaryRuntimeInstallProgress"
+        }
+      },
+      "required": [
+        "update"
+      ],
+      "title": "InstallDependenciesResponse",
+      "type": "object"
     },
     "InstalledApp": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -31553,480 +31992,6 @@
         "result"
       ],
       "title": "JsonRpcResponse",
-      "type": "object"
-    },
-    "KnowledgeCompilePackParams": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "builderRuntime": true,
-        "name": {
-          "type": "string"
-        },
-        "workingDir": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "name",
-        "workingDir"
-      ],
-      "title": "KnowledgeCompilePackParams",
-      "type": "object"
-    },
-    "KnowledgeCompilePackResponse": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "compiledView": true,
-        "pack": true,
-        "run": true,
-        "selectedSourceCount": {
-          "format": "uint32",
-          "minimum": 0,
-          "type": "integer"
-        },
-        "warnings": {
-          "default": [],
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        }
-      },
-      "required": [
-        "compiledView",
-        "pack",
-        "run",
-        "selectedSourceCount"
-      ],
-      "title": "KnowledgeCompilePackResponse",
-      "type": "object"
-    },
-    "KnowledgeContextResolutionResponse": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "fencedContext": {
-          "type": "string"
-        },
-        "grounding": {
-          "type": [
-            "null",
-            "string"
-          ]
-        },
-        "missing": {
-          "default": [],
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "packName": {
-          "type": "string"
-        },
-        "runId": {
-          "type": [
-            "null",
-            "string"
-          ]
-        },
-        "runPath": {
-          "type": [
-            "null",
-            "string"
-          ]
-        },
-        "selectedFiles": {
-          "default": [],
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "selectedViews": {
-          "default": [],
-          "items": true,
-          "type": "array"
-        },
-        "sourceAnchors": {
-          "default": [],
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "status": {
-          "type": "string"
-        },
-        "tokenEstimate": {
-          "format": "uint32",
-          "minimum": 0,
-          "type": "integer"
-        },
-        "warnings": {
-          "default": [],
-          "items": true,
-          "type": "array"
-        }
-      },
-      "required": [
-        "fencedContext",
-        "packName",
-        "status",
-        "tokenEstimate"
-      ],
-      "title": "KnowledgeContextResolutionResponse",
-      "type": "object"
-    },
-    "KnowledgeImportSourceParams": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "description": {
-          "type": [
-            "null",
-            "string"
-          ]
-        },
-        "language": {
-          "type": [
-            "null",
-            "string"
-          ]
-        },
-        "packName": {
-          "type": "string"
-        },
-        "packType": {
-          "type": [
-            "null",
-            "string"
-          ]
-        },
-        "sourceFileName": {
-          "type": [
-            "null",
-            "string"
-          ]
-        },
-        "sourceText": {
-          "type": [
-            "null",
-            "string"
-          ]
-        },
-        "workingDir": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "packName",
-        "workingDir"
-      ],
-      "title": "KnowledgeImportSourceParams",
-      "type": "object"
-    },
-    "KnowledgeImportSourceResponse": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "pack": true,
-        "source": true
-      },
-      "required": [
-        "pack",
-        "source"
-      ],
-      "title": "KnowledgeImportSourceResponse",
-      "type": "object"
-    },
-    "KnowledgeListPacksParams": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "includeArchived": {
-          "default": false,
-          "type": "boolean"
-        },
-        "workingDir": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "workingDir"
-      ],
-      "title": "KnowledgeListPacksParams",
-      "type": "object"
-    },
-    "KnowledgeListPacksResponse": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "packs": {
-          "default": [],
-          "items": true,
-          "type": "array"
-        },
-        "rootPath": {
-          "type": "string"
-        },
-        "workingDir": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "rootPath",
-        "workingDir"
-      ],
-      "title": "KnowledgeListPacksResponse",
-      "type": "object"
-    },
-    "KnowledgeReadPackParams": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "name": {
-          "type": "string"
-        },
-        "workingDir": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "name",
-        "workingDir"
-      ],
-      "title": "KnowledgeReadPackParams",
-      "type": "object"
-    },
-    "KnowledgeReadPackResponse": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "pack": true
-      },
-      "required": [
-        "pack"
-      ],
-      "title": "KnowledgeReadPackResponse",
-      "type": "object"
-    },
-    "KnowledgeResolveContextPackParams": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "activation": {
-          "type": [
-            "null",
-            "string"
-          ]
-        },
-        "name": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "name"
-      ],
-      "title": "KnowledgeResolveContextPackParams",
-      "type": "object"
-    },
-    "KnowledgeResolveContextParams": {
-      "$defs": {
-        "KnowledgeResolveContextPackParams": {
-          "properties": {
-            "activation": {
-              "type": [
-                "null",
-                "string"
-              ]
-            },
-            "name": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "name"
-          ],
-          "type": "object"
-        }
-      },
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "activation": {
-          "type": [
-            "null",
-            "string"
-          ]
-        },
-        "maxChars": {
-          "format": "uint",
-          "minimum": 0,
-          "type": [
-            "integer",
-            "null"
-          ]
-        },
-        "name": {
-          "type": "string"
-        },
-        "packs": {
-          "items": {
-            "$ref": "#/$defs/KnowledgeResolveContextPackParams"
-          },
-          "type": "array"
-        },
-        "runReason": {
-          "type": [
-            "null",
-            "string"
-          ]
-        },
-        "task": {
-          "type": [
-            "null",
-            "string"
-          ]
-        },
-        "workingDir": {
-          "type": "string"
-        },
-        "writeRun": {
-          "default": false,
-          "type": "boolean"
-        }
-      },
-      "required": [
-        "name",
-        "workingDir"
-      ],
-      "title": "KnowledgeResolveContextParams",
-      "type": "object"
-    },
-    "KnowledgeSetDefaultPackParams": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "name": {
-          "type": "string"
-        },
-        "workingDir": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "name",
-        "workingDir"
-      ],
-      "title": "KnowledgeSetDefaultPackParams",
-      "type": "object"
-    },
-    "KnowledgeSetDefaultPackResponse": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "defaultMarkerPath": {
-          "type": "string"
-        },
-        "defaultPackName": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "defaultMarkerPath",
-        "defaultPackName"
-      ],
-      "title": "KnowledgeSetDefaultPackResponse",
-      "type": "object"
-    },
-    "KnowledgeUpdatePackStatusParams": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "name": {
-          "type": "string"
-        },
-        "status": {
-          "type": "string"
-        },
-        "workingDir": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "name",
-        "status",
-        "workingDir"
-      ],
-      "title": "KnowledgeUpdatePackStatusParams",
-      "type": "object"
-    },
-    "KnowledgeUpdatePackStatusResponse": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "clearedDefault": {
-          "type": "boolean"
-        },
-        "pack": true,
-        "previousStatus": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "clearedDefault",
-        "pack",
-        "previousStatus"
-      ],
-      "title": "KnowledgeUpdatePackStatusResponse",
-      "type": "object"
-    },
-    "KnowledgeValidateContextRunParams": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "name": {
-          "type": "string"
-        },
-        "runPath": {
-          "type": "string"
-        },
-        "workingDir": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "name",
-        "runPath",
-        "workingDir"
-      ],
-      "title": "KnowledgeValidateContextRunParams",
-      "type": "object"
-    },
-    "KnowledgeValidateContextRunResponse": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "errors": {
-          "default": [],
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "runId": {
-          "type": [
-            "null",
-            "string"
-          ]
-        },
-        "status": {
-          "type": [
-            "null",
-            "string"
-          ]
-        },
-        "valid": {
-          "type": "boolean"
-        },
-        "warnings": {
-          "default": [],
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        }
-      },
-      "required": [
-        "valid"
-      ],
-      "title": "KnowledgeValidateContextRunResponse",
       "type": "object"
     },
     "ListMcpServerStatusParams": {
@@ -37278,6 +37243,7 @@
         "config/batchWrite",
         "config/read",
         "config/value/write",
+        "configRequirements/read",
         "environment/add",
         "environment/info",
         "environment/status",
@@ -37321,6 +37287,10 @@
         "plugin/share/updateTargets",
         "plugin/skill/read",
         "plugin/uninstall",
+        "primaryRuntime/cancelInstall",
+        "primaryRuntime/diagnoseDependencies",
+        "primaryRuntime/resetDependencies",
+        "primaryRuntime/runUpdateNow",
         "process/kill",
         "process/resizePty",
         "process/spawn",
@@ -51110,6 +51080,73 @@
       "title": "PluginUninstallResponse",
       "type": "object"
     },
+    "PrimaryRuntimeInstallPhase": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "enum": [
+        "canceled",
+        "configuring",
+        "downloading",
+        "error",
+        "extracting",
+        "ready",
+        "validating",
+        "verifying"
+      ],
+      "title": "PrimaryRuntimeInstallPhase",
+      "type": "string"
+    },
+    "PrimaryRuntimeInstallProgress": {
+      "$defs": {
+        "PrimaryRuntimeInstallPhase": {
+          "enum": [
+            "canceled",
+            "configuring",
+            "downloading",
+            "error",
+            "extracting",
+            "ready",
+            "validating",
+            "verifying"
+          ],
+          "type": "string"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "downloadedBytes": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "error": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "phase": {
+          "$ref": "#/$defs/PrimaryRuntimeInstallPhase"
+        },
+        "totalBytes": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "downloadedBytes",
+        "id",
+        "phase"
+      ],
+      "title": "PrimaryRuntimeInstallProgress",
+      "type": "object"
+    },
     "ProcessExitedNotification": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
@@ -56945,6 +56982,12 @@
       "title": "RoutingDecision",
       "type": "object"
     },
+    "RunUpdateNowParams": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "title": "RunUpdateNowParams",
+      "type": "object"
+    },
     "RuntimeCapabilityEntry": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
@@ -57254,6 +57297,13 @@
                 "string"
               ]
             },
+            "sandboxNetworkAccess": {
+              "description": "Ambient network access applies only to the workspace-write sandbox.",
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
             "sandboxPolicy": {
               "type": [
                 "null",
@@ -57293,6 +57343,17 @@
                 "boolean",
                 "null"
               ]
+            },
+            "webSearchMode": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/WebSearchMode"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Access ceiling, independent of auto/required search intent."
             },
             "workingDir": {
               "type": [
@@ -57363,6 +57424,16 @@
             }
           },
           "type": "object"
+        },
+        "WebSearchMode": {
+          "description": "Search access is separate from whether a turn must call the search tool.",
+          "enum": [
+            "cached",
+            "disabled",
+            "indexed",
+            "live"
+          ],
+          "type": "string"
         }
       },
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -57615,6 +57686,16 @@
             "tool_shim"
           ],
           "type": "string"
+        },
+        "WebSearchMode": {
+          "description": "Search access is separate from whether a turn must call the search tool.",
+          "enum": [
+            "cached",
+            "disabled",
+            "indexed",
+            "live"
+          ],
+          "type": "string"
         }
       },
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -57693,6 +57774,13 @@
             "string"
           ]
         },
+        "sandboxNetworkAccess": {
+          "description": "Ambient network access applies only to the workspace-write sandbox.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
         "sandboxPolicy": {
           "type": [
             "null",
@@ -57732,6 +57820,17 @@
             "boolean",
             "null"
           ]
+        },
+        "webSearchMode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WebSearchMode"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Access ceiling, independent of auto/required search intent."
         },
         "workingDir": {
           "type": [
@@ -116202,308 +116301,6 @@
       "title": "TurnsPage",
       "type": "object"
     },
-    "UsageStatsDailyTrendsListResponse": {
-      "$defs": {
-        "UsageStatsDailyUsage": {
-          "properties": {
-            "conversations": {
-              "format": "uint32",
-              "minimum": 0,
-              "type": "integer"
-            },
-            "date": {
-              "type": "string"
-            },
-            "tokens": {
-              "format": "uint64",
-              "minimum": 0,
-              "type": "integer"
-            }
-          },
-          "required": [
-            "conversations",
-            "date",
-            "tokens"
-          ],
-          "type": "object"
-        }
-      },
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "trends": {
-          "default": [],
-          "items": {
-            "$ref": "#/$defs/UsageStatsDailyUsage"
-          },
-          "type": "array"
-        }
-      },
-      "title": "UsageStatsDailyTrendsListResponse",
-      "type": "object"
-    },
-    "UsageStatsDailyUsage": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "conversations": {
-          "format": "uint32",
-          "minimum": 0,
-          "type": "integer"
-        },
-        "date": {
-          "type": "string"
-        },
-        "tokens": {
-          "format": "uint64",
-          "minimum": 0,
-          "type": "integer"
-        }
-      },
-      "required": [
-        "conversations",
-        "date",
-        "tokens"
-      ],
-      "title": "UsageStatsDailyUsage",
-      "type": "object"
-    },
-    "UsageStatsModelRankingListResponse": {
-      "$defs": {
-        "UsageStatsModelUsage": {
-          "properties": {
-            "conversations": {
-              "format": "uint32",
-              "minimum": 0,
-              "type": "integer"
-            },
-            "model": {
-              "type": "string"
-            },
-            "percentage": {
-              "format": "float",
-              "type": "number"
-            },
-            "tokens": {
-              "format": "uint64",
-              "minimum": 0,
-              "type": "integer"
-            }
-          },
-          "required": [
-            "conversations",
-            "model",
-            "percentage",
-            "tokens"
-          ],
-          "type": "object"
-        }
-      },
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "ranking": {
-          "default": [],
-          "items": {
-            "$ref": "#/$defs/UsageStatsModelUsage"
-          },
-          "type": "array"
-        }
-      },
-      "title": "UsageStatsModelRankingListResponse",
-      "type": "object"
-    },
-    "UsageStatsModelUsage": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "conversations": {
-          "format": "uint32",
-          "minimum": 0,
-          "type": "integer"
-        },
-        "model": {
-          "type": "string"
-        },
-        "percentage": {
-          "format": "float",
-          "type": "number"
-        },
-        "tokens": {
-          "format": "uint64",
-          "minimum": 0,
-          "type": "integer"
-        }
-      },
-      "required": [
-        "conversations",
-        "model",
-        "percentage",
-        "tokens"
-      ],
-      "title": "UsageStatsModelUsage",
-      "type": "object"
-    },
-    "UsageStatsRangeParams": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "timeRange": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "timeRange"
-      ],
-      "title": "UsageStatsRangeParams",
-      "type": "object"
-    },
-    "UsageStatsReadResponse": {
-      "$defs": {
-        "UsageStatsSummary": {
-          "properties": {
-            "monthlyConversations": {
-              "format": "uint32",
-              "minimum": 0,
-              "type": "integer"
-            },
-            "monthlyMessages": {
-              "format": "uint32",
-              "minimum": 0,
-              "type": "integer"
-            },
-            "monthlyTokens": {
-              "format": "uint64",
-              "minimum": 0,
-              "type": "integer"
-            },
-            "todayConversations": {
-              "format": "uint32",
-              "minimum": 0,
-              "type": "integer"
-            },
-            "todayMessages": {
-              "format": "uint32",
-              "minimum": 0,
-              "type": "integer"
-            },
-            "todayTokens": {
-              "format": "uint64",
-              "minimum": 0,
-              "type": "integer"
-            },
-            "totalConversations": {
-              "format": "uint32",
-              "minimum": 0,
-              "type": "integer"
-            },
-            "totalMessages": {
-              "format": "uint32",
-              "minimum": 0,
-              "type": "integer"
-            },
-            "totalTimeMinutes": {
-              "format": "uint32",
-              "minimum": 0,
-              "type": "integer"
-            },
-            "totalTokens": {
-              "format": "uint64",
-              "minimum": 0,
-              "type": "integer"
-            }
-          },
-          "required": [
-            "monthlyConversations",
-            "monthlyMessages",
-            "monthlyTokens",
-            "todayConversations",
-            "todayMessages",
-            "todayTokens",
-            "totalConversations",
-            "totalMessages",
-            "totalTimeMinutes",
-            "totalTokens"
-          ],
-          "type": "object"
-        }
-      },
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "stats": {
-          "$ref": "#/$defs/UsageStatsSummary"
-        }
-      },
-      "required": [
-        "stats"
-      ],
-      "title": "UsageStatsReadResponse",
-      "type": "object"
-    },
-    "UsageStatsSummary": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "properties": {
-        "monthlyConversations": {
-          "format": "uint32",
-          "minimum": 0,
-          "type": "integer"
-        },
-        "monthlyMessages": {
-          "format": "uint32",
-          "minimum": 0,
-          "type": "integer"
-        },
-        "monthlyTokens": {
-          "format": "uint64",
-          "minimum": 0,
-          "type": "integer"
-        },
-        "todayConversations": {
-          "format": "uint32",
-          "minimum": 0,
-          "type": "integer"
-        },
-        "todayMessages": {
-          "format": "uint32",
-          "minimum": 0,
-          "type": "integer"
-        },
-        "todayTokens": {
-          "format": "uint64",
-          "minimum": 0,
-          "type": "integer"
-        },
-        "totalConversations": {
-          "format": "uint32",
-          "minimum": 0,
-          "type": "integer"
-        },
-        "totalMessages": {
-          "format": "uint32",
-          "minimum": 0,
-          "type": "integer"
-        },
-        "totalTimeMinutes": {
-          "format": "uint32",
-          "minimum": 0,
-          "type": "integer"
-        },
-        "totalTokens": {
-          "format": "uint64",
-          "minimum": 0,
-          "type": "integer"
-        }
-      },
-      "required": [
-        "monthlyConversations",
-        "monthlyMessages",
-        "monthlyTokens",
-        "todayConversations",
-        "todayMessages",
-        "todayTokens",
-        "totalConversations",
-        "totalMessages",
-        "totalTimeMinutes",
-        "totalTokens"
-      ],
-      "title": "UsageStatsSummary",
-      "type": "object"
-    },
     "UserInput": {
       "$defs": {
         "ByteRange": {
@@ -120521,6 +120318,7 @@
               "config/batchWrite",
               "config/read",
               "config/value/write",
+              "configRequirements/read",
               "connectCallback/send",
               "connectDeepLink/resolve",
               "connectOpenDeepLink/resolve",
@@ -120580,14 +120378,6 @@
               "initialize",
               "instructions/read",
               "instructions/write",
-              "knowledgeContext/resolve",
-              "knowledgeContextRun/validate",
-              "knowledgePack/compile",
-              "knowledgePack/default/set",
-              "knowledgePack/list",
-              "knowledgePack/read",
-              "knowledgePack/source/import",
-              "knowledgePack/status/update",
               "log/clear",
               "log/diagnosticHistory/clear",
               "log/list",
@@ -120677,6 +120467,10 @@
               "plugin/share/updateTargets",
               "plugin/skill/read",
               "plugin/uninstall",
+              "primaryRuntime/cancelInstall",
+              "primaryRuntime/diagnoseDependencies",
+              "primaryRuntime/resetDependencies",
+              "primaryRuntime/runUpdateNow",
               "process/kill",
               "process/resizePty",
               "process/spawn",
@@ -120803,9 +120597,6 @@
               "turn/interrupt",
               "turn/start",
               "turn/steer",
-              "usageStats/dailyTrends/list",
-              "usageStats/modelRanking/list",
-              "usageStats/read",
               "voiceAsrCredential/create",
               "voiceAsrCredential/default/set",
               "voiceAsrCredential/delete",

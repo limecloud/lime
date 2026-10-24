@@ -302,10 +302,9 @@ export function summarizeTraceEvidence({
   };
 }
 
-export async function enableClawTraceDebugOverride(page, options) {
+export async function enableRuntimeDiagnostics(page, options) {
   const installOverride = () => {
     try {
-      window.localStorage.setItem("lime:debug:claw-trace-enabled:v1", "1");
       window.localStorage.setItem("lime:agent-debug", "1");
       return true;
     } catch {

@@ -75,6 +75,67 @@ afterEach(() => {
 });
 
 describe("Right Surface 本地显示状态", () => {
+  it("New tab地址草稿由原tab owner保存且不串到其他tab", () => {
+    const view = mount();
+    act(() => view.get().openSidePanelTab("workspace-new-tab"));
+    const first = view.get().sidePanelTabs.tabs[0].tabId;
+    act(() =>
+      view.get().setNewTabAddressDraft(first, "  localhost:5173/草稿  "),
+    );
+    act(() => view.get().openSidePanelTab("workspace-new-tab"));
+    const second = view.get().sidePanelTabs.activeTabId!;
+    act(() => view.get().setNewTabAddressDraft(second, "second.example/path"));
+    act(() => view.get().selectSidePanelTab(first));
+    expect(
+      view.get().sidePanelTabs.tabs.map((tab) => tab.addressDraft),
+    ).toEqual(["  localhost:5173/草稿  ", "second.example/path"]);
+    expect(view.get().sidePanelTabs.activeTabId).toBe(first);
+    act(() => view.get().setNewTabAddressDraft(first, ""));
+    expect(view.get().sidePanelTabs.tabs[0].addressDraft).toBe("");
+    expect(view.get().sidePanelTabs.tabs[1].addressDraft).toBe(
+      "second.example/path",
+    );
+  });
+
+  it("旧草稿回调不创建已关闭或被替换的New tab，也不写入其他owner", () => {
+    const view = mount();
+    act(() => view.get().openSidePanelTab("workspace-new-tab"));
+    const tab = view.get().sidePanelTabs.tabs[0];
+    const stale = view.get().setNewTabAddressDraft;
+    act(() => view.get().closeSidePanelTab(tab.tabId));
+    act(() => stale(tab.tabId, "closed tab"));
+    expect(view.get().sidePanelTabs.tabs).toEqual([]);
+    act(() => view.get().openSidePanelTab("files"));
+    const file = view.get().sidePanelTabs.tabs[0];
+    act(() => view.get().setNewTabAddressDraft(file.tabId, "not a New tab"));
+    expect(view.get().sidePanelTabs.tabs[0]).toBe(file);
+    view.render({ ...owner, threadId: "other-thread" });
+    act(() => stale(tab.tabId, "foreign owner"));
+    expect(view.get().sidePanelTabs.tabs).toEqual([]);
+  });
+
+  it("首次canonical owner接管保留New tab草稿，原位导航替换后不再接受草稿", () => {
+    const view = mount({ ...owner, sessionId: null, threadId: null });
+    act(() => view.get().openSidePanelTab("workspace-new-tab"));
+    const tab = view.get().sidePanelTabs.tabs[0];
+    act(() => view.get().setNewTabAddressDraft(tab.tabId, "example.com/path"));
+    const source = view.get().captureBrowserAddressSource(tab.tabId);
+    view.render(owner);
+    expect(view.get().sidePanelTabs.tabs[0].addressDraft).toBe(
+      "example.com/path",
+    );
+    act(() =>
+      source.replace(
+        { runtimeSessionId: owner.sessionId!, threadId: owner.threadId! },
+        "native-tab",
+      ),
+    );
+    const native = view.get().sidePanelTabs.tabs[0];
+    act(() => view.get().setNewTabAddressDraft(tab.tabId, "late draft"));
+    expect(view.get().sidePanelTabs.tabs).toEqual([native]);
+    expect(native.addressDraft).toBeUndefined();
+  });
+
   it("设置往返卸载后从同一Host投影恢复原Browser，workspace暂缺不创建第二页签", async () => {
     const scope = {
       ...owner,

@@ -147,6 +147,10 @@
       "method": "config/value/write"
     },
     {
+      "kind": "request",
+      "method": "configRequirements/read"
+    },
+    {
       "kind": "notification",
       "method": "configWarning"
     },
@@ -485,38 +489,6 @@
     {
       "kind": "serverRequest",
       "method": "item/tool/requestUserInput"
-    },
-    {
-      "kind": "request",
-      "method": "knowledgeContext/resolve"
-    },
-    {
-      "kind": "request",
-      "method": "knowledgeContextRun/validate"
-    },
-    {
-      "kind": "request",
-      "method": "knowledgePack/compile"
-    },
-    {
-      "kind": "request",
-      "method": "knowledgePack/default/set"
-    },
-    {
-      "kind": "request",
-      "method": "knowledgePack/list"
-    },
-    {
-      "kind": "request",
-      "method": "knowledgePack/read"
-    },
-    {
-      "kind": "request",
-      "method": "knowledgePack/source/import"
-    },
-    {
-      "kind": "request",
-      "method": "knowledgePack/status/update"
     },
     {
       "kind": "request",
@@ -905,6 +877,22 @@
     {
       "kind": "request",
       "method": "plugin/uninstall"
+    },
+    {
+      "kind": "request",
+      "method": "primaryRuntime/cancelInstall"
+    },
+    {
+      "kind": "request",
+      "method": "primaryRuntime/diagnoseDependencies"
+    },
+    {
+      "kind": "request",
+      "method": "primaryRuntime/resetDependencies"
+    },
+    {
+      "kind": "request",
+      "method": "primaryRuntime/runUpdateNow"
     },
     {
       "kind": "notification",
@@ -1524,18 +1512,6 @@
     },
     {
       "kind": "request",
-      "method": "usageStats/dailyTrends/list"
-    },
-    {
-      "kind": "request",
-      "method": "usageStats/modelRanking/list"
-    },
-    {
-      "kind": "request",
-      "method": "usageStats/read"
-    },
-    {
-      "kind": "request",
       "method": "voiceAsrCredential/create"
     },
     {
@@ -2043,23 +2019,6 @@
       "InitializeResponse",
       "InstructionsReadResponse",
       "InstructionsWriteParams",
-      "KnowledgeCompilePackParams",
-      "KnowledgeCompilePackResponse",
-      "KnowledgeContextResolutionResponse",
-      "KnowledgeImportSourceParams",
-      "KnowledgeImportSourceResponse",
-      "KnowledgeListPacksParams",
-      "KnowledgeListPacksResponse",
-      "KnowledgeReadPackParams",
-      "KnowledgeReadPackResponse",
-      "KnowledgeResolveContextPackParams",
-      "KnowledgeResolveContextParams",
-      "KnowledgeSetDefaultPackParams",
-      "KnowledgeSetDefaultPackResponse",
-      "KnowledgeUpdatePackStatusParams",
-      "KnowledgeUpdatePackStatusResponse",
-      "KnowledgeValidateContextRunParams",
-      "KnowledgeValidateContextRunResponse",
       "LogArtifactEntry",
       "LogClearResponse",
       "LogEntry",
@@ -2333,13 +2292,6 @@
       "SupportBundleExportResponse",
       "SupportBundleTraceExportSelection",
       "TransportKind",
-      "UsageStatsDailyTrendsListResponse",
-      "UsageStatsDailyUsage",
-      "UsageStatsModelRankingListResponse",
-      "UsageStatsModelUsage",
-      "UsageStatsRangeParams",
-      "UsageStatsReadResponse",
-      "UsageStatsSummary",
       "VoiceAsrBaiduConfig",
       "VoiceAsrCredential",
       "VoiceAsrCredentialCreateParams",
@@ -2428,6 +2380,7 @@
       "AdditionalFileSystemPermissions",
       "AdditionalNetworkPermissions",
       "AgentMessageDeltaNotification",
+      "AllowDenyRequirement",
       "AppBranding",
       "AppInfo",
       "AppListUpdatedNotification",
@@ -2450,6 +2403,10 @@
       "ArtifactWriteSidecar",
       "AsyncUserInputQuestion",
       "AutoReviewDecisionSource",
+      "BrowserUseConfig",
+      "BrowserUseOriginPolicyConfig",
+      "CancelInstallParams",
+      "CancelInstallResponse",
       "ClientRequest",
       "ClientResponse",
       "CloudRequestMethod",
@@ -2490,6 +2447,9 @@
       "ConfigLayerSource",
       "ConfigReadParams",
       "ConfigReadResponse",
+      "ConfigRequirements",
+      "ConfigRequirementsReadParams",
+      "ConfigRequirementsReadResponse",
       "ConfigValueWriteParams",
       "ConfigWarningNotification",
       "ConfigWriteErrorCode",
@@ -2497,6 +2457,8 @@
       "ConnectorMetadata",
       "CurrentTimeReadParams",
       "CurrentTimeReadResponse",
+      "DiagnoseDependenciesParams",
+      "DiagnoseDependenciesResponse",
       "DynamicToolCallOutputContentItem",
       "DynamicToolCallParams",
       "DynamicToolCallResponse",
@@ -2575,8 +2537,10 @@
       "HooksListParams",
       "HooksListResponse",
       "ImageGenerationItem",
+      "InAppBrowserRequirements",
       "InitializeCapabilities",
       "InputModality",
+      "InstallDependenciesResponse",
       "InstalledApp",
       "ItemCompletedNotification",
       "ItemGuardianApprovalReviewCompletedNotification",
@@ -2715,6 +2679,8 @@
       "PluginSummary",
       "PluginUninstallParams",
       "PluginUninstallResponse",
+      "PrimaryRuntimeInstallPhase",
+      "PrimaryRuntimeInstallProgress",
       "ProcessExitedNotification",
       "ProcessKillParams",
       "ProcessKillResponse",
@@ -2761,6 +2727,7 @@
       "ReviewStartResponse",
       "ReviewTarget",
       "RolloutCompressResponse",
+      "RunUpdateNowParams",
       "SandboxPolicy",
       "ScheduledTaskChange",
       "ScheduledTaskChangedNotification",

@@ -15,7 +15,7 @@ function createEnv(): AgentStreamUserInputSendPreparationEnv {
     reasoningEffortRef: { current: "" },
     sessionIdRef: { current: "session-1" },
     executionRuntime: null,
-    clawTraceEnabled: false,
+
     getWorkspaceIdForSubmit: () => "workspace-1",
     getSyncedSessionModelPreference: () => null,
     setMessages: vi.fn(),

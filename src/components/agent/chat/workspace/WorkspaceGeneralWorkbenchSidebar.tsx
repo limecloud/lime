@@ -1,5 +1,4 @@
 import type { ComponentProps } from "react";
-import type { useThemeContextWorkspace } from "../hooks";
 import { GeneralWorkbenchHarnessCard } from "../components/GeneralWorkbenchHarnessCard";
 import { GeneralWorkbenchSidebar } from "../components/GeneralWorkbenchSidebar";
 import type {
@@ -83,8 +82,6 @@ interface WorkspaceGeneralWorkbenchSidebarProps {
     workflowControlPendingItemId: GeneralWorkbenchSidebarWorkflowProps["workflowControlPendingItemId"];
     onTriggerWorkflowControl: GeneralWorkbenchSidebarWorkflowProps["onTriggerWorkflowControl"];
   };
-  contextWorkspace: ReturnType<typeof useThemeContextWorkspace>;
-  onViewContextDetail?: GeneralWorkbenchSidebarProps["onViewContextDetail"];
   history?: {
     hasMore?: GeneralWorkbenchSidebarHistoryProps["hasMore"];
     loading?: GeneralWorkbenchSidebarHistoryProps["loading"];
@@ -103,8 +100,6 @@ export function WorkspaceGeneralWorkbenchSidebar({
   harnessPanelVisible,
   onToggleHarnessPanel,
   workflow,
-  contextWorkspace,
-  onViewContextDetail,
   history,
 }: WorkspaceGeneralWorkbenchSidebarProps) {
   const headerActionSlot =
@@ -149,21 +144,6 @@ export function WorkspaceGeneralWorkbenchSidebar({
       workflowControlItems={workflow.workflowControlItems}
       workflowControlPendingItemId={workflow.workflowControlPendingItemId}
       onTriggerWorkflowControl={workflow.onTriggerWorkflowControl}
-      contextSearchQuery={contextWorkspace.contextSearchQuery}
-      onContextSearchQueryChange={contextWorkspace.setContextSearchQuery}
-      contextSearchMode={contextWorkspace.contextSearchMode}
-      onContextSearchModeChange={contextWorkspace.setContextSearchMode}
-      contextSearchLoading={contextWorkspace.contextSearchLoading}
-      contextSearchError={contextWorkspace.contextSearchError}
-      contextSearchBlockedReason={contextWorkspace.contextSearchBlockedReason}
-      onSubmitContextSearch={contextWorkspace.submitContextSearch}
-      onAddTextContext={contextWorkspace.addTextContext}
-      onAddLinkContext={contextWorkspace.addLinkContext}
-      onAddFileContext={contextWorkspace.addFileContext}
-      contextItems={contextWorkspace.sidebarContextItems}
-      onToggleContextActive={contextWorkspace.toggleContextActive}
-      onViewContextDetail={onViewContextDetail}
-      contextBudget={contextWorkspace.contextBudget}
       onRequestCollapse={enablePanelCollapse ? onRequestCollapse : undefined}
       headerActionSlot={headerActionSlot}
       historyHasMore={history?.hasMore}

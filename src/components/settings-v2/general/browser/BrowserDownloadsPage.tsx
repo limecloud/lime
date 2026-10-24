@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { ArrowLeft, ChevronRight } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import {
@@ -10,6 +10,7 @@ import {
 import { BROWSER_SETTINGS_BUTTON } from "./BrowserSettingsFields";
 import { useBrowserDownloads } from "./useBrowserDownloads";
 import { BrowserDownloadRow } from "./BrowserDownloadRow";
+import { BrowserManagementHeader } from "./BrowserManagementHeader";
 
 function localDay(timestamp: number): string {
   const date = new Date(timestamp);
@@ -103,17 +104,10 @@ export function BrowserDownloadsPage({ onBack }: { onBack: () => void }) {
       className="mx-auto w-full max-w-[640px] space-y-5 pb-8"
       data-testid="browser-downloads-page"
     >
-      <button
-        type="button"
-        className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-        onClick={onBack}
-      >
-        <ArrowLeft aria-hidden="true" className="size-3.5" />
-        {t("browserDownloads.back")}
-      </button>
-      <header>
-        <h1 className="text-xl font-semibold">{t("browserDownloads.title")}</h1>
-      </header>
+      <BrowserManagementHeader
+        title={t("browserDownloads.title")}
+        onBack={onBack}
+      />
       <div className="sticky top-0 z-10 bg-background py-2">
         <input
           ref={search}

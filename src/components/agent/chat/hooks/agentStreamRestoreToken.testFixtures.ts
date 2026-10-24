@@ -45,7 +45,7 @@ export function createRestoreTokenFixture() {
     executionStrategy: "react",
     accessMode: "current",
     executionRuntime: null,
-    clawTraceEnabled: false,
+
     providerTypeRef: { current: "openai" },
     modelRef: { current: "fixture" },
     reasoningEffortRef: { current: "" },

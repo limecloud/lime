@@ -34,8 +34,8 @@ fn test_sandbox_backend_plan_reports_platform_backend_capability() {
     }
     assert!(plan.required);
     assert!(plan.config.enabled);
-    assert!(!plan.config.strict);
-    assert_eq!(plan.config.source.label(), "request");
+    assert!(plan.config.strict);
+    assert_eq!(plan.config.source.label(), "sandbox_policy");
 }
 
 #[test]
@@ -177,7 +177,7 @@ fn test_decide_tool_execution_adds_strict_workspace_sandbox_metadata() {
     );
     assert_eq!(
         decision.metadata.get("workspaceSandboxConfigSource"),
-        Some(&json!("runtime"))
+        Some(&json!("sandbox_policy"))
     );
     if decision.kind == ToolExecutionDecisionKind::SandboxBlocked {
         assert_eq!(
@@ -188,7 +188,7 @@ fn test_decide_tool_execution_adds_strict_workspace_sandbox_metadata() {
 }
 
 #[test]
-fn test_request_workspace_sandbox_can_disable_persisted_strict_fallback() {
+fn test_request_workspace_sandbox_cannot_disable_an_explicit_restricted_policy() {
     let metadata = json!({
         "config": {
             "agent": {
@@ -220,22 +220,34 @@ fn test_request_workspace_sandbox_can_disable_persisted_strict_fallback() {
         },
     });
 
-    assert_eq!(decision.kind, ToolExecutionDecisionKind::Allow);
+    let enforced = decision
+        .metadata
+        .get("sandboxBackendEnforced")
+        .and_then(serde_json::Value::as_bool)
+        == Some(true);
+    assert_eq!(
+        decision.kind,
+        if enforced {
+            ToolExecutionDecisionKind::Allow
+        } else {
+            ToolExecutionDecisionKind::SandboxBlocked
+        }
+    );
     assert_eq!(
         decision.metadata.get("workspaceSandboxEnabled"),
-        Some(&json!(false))
+        Some(&json!(true))
     );
     assert_eq!(
         decision.metadata.get("workspaceSandboxStrict"),
-        Some(&json!(false))
+        Some(&json!(true))
     );
     assert_eq!(
         decision.metadata.get("workspaceSandboxConfigSource"),
-        Some(&json!("request"))
+        Some(&json!("sandbox_policy"))
     );
     assert_eq!(
         decision.metadata.get("sandboxBackendStatus"),
-        Some(&json!("disabled"))
+        Some(&json!(if enforced { "ready" } else { "unavailable" }))
     );
 }
 

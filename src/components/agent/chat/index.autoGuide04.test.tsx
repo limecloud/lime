@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   clickButton,
-  createMockThemeContextWorkspaceState,
   flushEffects,
   getIndexTestMocks,
   renderPage,
@@ -12,18 +11,11 @@ const {
   mockExecutionRunListGeneralWorkbenchHistory,
   mockIsSpecializedWorkbenchTheme,
   mockSkillExecutionGetDetail,
-  mockUseThemeContextWorkspace,
 } = getIndexTestMocks();
 
 describe("AgentChatPage 自动引导", { timeout: 20_000 }, () => {
   it("工作区编排日志应支持继续加载更早的会话历史", async () => {
     mockIsSpecializedWorkbenchTheme.mockReturnValue(true);
-    mockUseThemeContextWorkspace.mockReturnValue(
-      createMockThemeContextWorkspaceState({
-        enabled: true,
-        activityLogs: [],
-      }),
-    );
     mockExecutionRunGetGeneralWorkbenchState.mockResolvedValue({
       run_state: "idle",
       current_gate_key: "idle",
@@ -128,11 +120,6 @@ describe("AgentChatPage 自动引导", { timeout: 20_000 }, () => {
 
   it("工作区编排不应把聊天命令 source_ref 当成 Skill 详情去加载", async () => {
     mockIsSpecializedWorkbenchTheme.mockReturnValue(true);
-    mockUseThemeContextWorkspace.mockReturnValue(
-      createMockThemeContextWorkspaceState({
-        enabled: true,
-      }),
-    );
     mockExecutionRunGetGeneralWorkbenchState.mockResolvedValue({
       run_state: "auto_running",
       current_gate_key: "write_mode",
@@ -159,18 +146,11 @@ describe("AgentChatPage 自动引导", { timeout: 20_000 }, () => {
     });
     await flushEffects(12);
 
-    expect(mockSkillExecutionGetDetail).not.toHaveBeenCalledWith(
-      "turn/start",
-    );
+    expect(mockSkillExecutionGetDetail).not.toHaveBeenCalledWith("turn/start");
   });
 
   it("社媒工作区编排空闲时也应常显 harness 图标入口", async () => {
     mockIsSpecializedWorkbenchTheme.mockReturnValue(true);
-    mockUseThemeContextWorkspace.mockReturnValue(
-      createMockThemeContextWorkspaceState({
-        enabled: true,
-      }),
-    );
 
     const container = renderPage({
       projectId: "project-social-harness-idle",
@@ -204,11 +184,6 @@ describe("AgentChatPage 自动引导", { timeout: 20_000 }, () => {
 
   it("社媒工作区编排应以弹窗展示 harness 运行详情", async () => {
     mockIsSpecializedWorkbenchTheme.mockReturnValue(true);
-    mockUseThemeContextWorkspace.mockReturnValue(
-      createMockThemeContextWorkspaceState({
-        enabled: true,
-      }),
-    );
     const startedAt = new Date(Date.now() - 10_000).toISOString();
     const updatedAt = new Date().toISOString();
     mockExecutionRunGetGeneralWorkbenchState.mockResolvedValue({

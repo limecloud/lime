@@ -297,6 +297,13 @@ export class BrowserOverlayHost {
       });
   }
 
+  hideMenu(viewId: string, identity: { menuId: string; generation?: number }): void {
+    const entry = [...this.#entries.values()].find(entry => entry.viewId === viewId);
+    if (entry?.presentation.menuId === identity.menuId &&
+      (identity.generation === undefined || entry.generation === identity.generation))
+      this.hideWindow(entry.window.id, "hidden");
+  }
+
   hide(viewId: string, reason: BrowserOverlayCloseReason = "hidden"): void {
     this.#editor.hide(viewId, reason);
     for (const [windowId, entry] of this.#entries)

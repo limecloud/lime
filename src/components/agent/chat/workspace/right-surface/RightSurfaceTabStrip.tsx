@@ -71,10 +71,6 @@ const RIGHT_SURFACE_TAB_LABELS: Record<
     key: "agentChat.rightSurface.tabs.harness",
     fallback: "运行",
   },
-  trace: {
-    key: "agentChat.rightSurface.tabs.trace",
-    fallback: "Trace",
-  },
 };
 
 export function RightSurfaceTabStrip({

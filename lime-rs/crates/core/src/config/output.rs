@@ -23,32 +23,69 @@ pub enum ReasoningSummary {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::Config;
+    use crate::config::{Config, ReasoningEffort};
     use serde_json::json;
 
     #[test]
     fn output_defaults_roundtrip_and_reject_invalid_values() {
         let config: Config = serde_json::from_value(json!({
-            "model_verbosity": "high", "model_reasoning_summary": "detailed"
+            "model_verbosity": "high", "model_reasoning_summary": "detailed",
+            "model_reasoning_effort": "ultra"
         }))
         .unwrap();
         assert_eq!(config.model_verbosity, Some(ModelVerbosity::High));
         assert_eq!(config.model_reasoning_summary, ReasoningSummary::Detailed);
+        assert_eq!(config.model_reasoning_effort, Some(ReasoningEffort::Ultra));
         let value = serde_json::to_value(config).unwrap();
         assert_eq!(value["model_verbosity"], "high");
         assert_eq!(value["model_reasoning_summary"], "detailed");
+        assert_eq!(value["model_reasoning_effort"], "ultra");
         let defaults: Config = serde_json::from_value(json!({})).unwrap();
         assert_eq!(defaults.model_verbosity, None);
         assert_eq!(defaults.model_reasoning_summary, ReasoningSummary::Auto);
+        assert_eq!(defaults.model_reasoning_effort, None);
         for invalid in [
             json!({"model_verbosity": "verbose"}),
             json!({"model_verbosity": 1}),
             json!({"model_reasoning_summary": "full"}),
             json!({"model_reasoning_summary": false}),
+            json!({"model_reasoning_effort": "extreme"}),
+            json!({"model_reasoning_effort": 1}),
         ] {
             assert!(serde_json::from_value::<Config>(invalid).is_err());
         }
-        let cleared: Config = serde_json::from_value(json!({"model_verbosity": null})).unwrap();
+        let cleared: Config = serde_json::from_value(json!({
+            "model_verbosity": null, "model_reasoning_effort": null
+        }))
+        .unwrap();
         assert_eq!(cleared.model_verbosity, None);
+        assert_eq!(cleared.model_reasoning_effort, None);
+    }
+
+    #[test]
+    fn trusted_project_effort_overrides_user_without_changing_the_user_layer() {
+        let temp = tempfile::tempdir().unwrap();
+        let folder = temp.path().join(".lime");
+        std::fs::create_dir(&folder).unwrap();
+        std::fs::write(
+            folder.join("config.toml"),
+            "model_reasoning_effort = \"high\"\n",
+        )
+        .unwrap();
+        let user: Config = serde_json::from_value(json!({
+            "model_reasoning_effort": "medium",
+            "projects": {temp.path().to_str().unwrap(): {"trust_level": "trusted"}}
+        }))
+        .unwrap();
+        let layers =
+            crate::config::layers::ConfigLayers::from_user(user, Some(temp.path())).unwrap();
+        assert_eq!(
+            layers.user.model_reasoning_effort,
+            Some(ReasoningEffort::Medium)
+        );
+        assert_eq!(
+            layers.effective.model_reasoning_effort,
+            Some(ReasoningEffort::High)
+        );
     }
 }

@@ -60,9 +60,6 @@ interface HookProps {
   themeWorkbenchBackendRunState: Parameters<
     typeof useWorkspaceGeneralWorkbenchSidebarRuntime
   >[0]["themeWorkbenchBackendRunState"];
-  contextActivityLogs: Parameters<
-    typeof useWorkspaceGeneralWorkbenchSidebarRuntime
-  >[0]["contextActivityLogs"];
   historyPageSize: number;
 }
 
@@ -87,7 +84,6 @@ function mountHook(initialProps?: Partial<HookProps>): HookHarness {
     messages: [],
     isSending: false,
     themeWorkbenchBackendRunState: null,
-    contextActivityLogs: [],
     historyPageSize: 20,
     ...initialProps,
   };

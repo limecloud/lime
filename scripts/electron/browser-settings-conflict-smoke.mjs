@@ -221,21 +221,28 @@ export async function runBrowserSettingsConflict({ locale, output }) {
     let page = await launch();
     const original = await readConfigFromPage(page);
     const browser = structuredClone(original.config.browser ?? {});
-    browser.agent_permissions ??= {
-      default: Object.fromEntries(
-        ["browse", "download", "upload", "debug", "site_tools"].map(
-          (action) => [action, "ask"],
-        ),
-      ),
-      sites: [],
-    };
-    browser.agent_permissions.sites = [];
-    browser.agent_permissions.default.browse = "ask";
+    browser.approvalMode = "alwaysAsk";
+    for (const key of [
+      "allowedOrigins",
+      "deniedOrigins",
+      "allowedDownloadOrigins",
+      "deniedDownloadOrigins",
+      "allowedUploadOrigins",
+      "deniedUploadOrigins",
+      "allowedFullCdpOrigins",
+      "deniedFullCdpOrigins",
+      "allowedWebMcpOrigins",
+      "deniedWebMcpOrigins",
+    ])
+      browser[key] = [];
     // Config owner 省略全默认 BrowserConfig；固定一项非默认值以观察完整持久对象。
     browser.show_full_url = true;
     await writeConfigEditsFromPage(page, {
       expectedVersion: original.version,
-      edits: [{ keyPath: "browser", value: browser, mergeStrategy: "replace" }],
+      edits: [
+        { keyPath: "browser", value: browser, mergeStrategy: "replace" },
+        { keyPath: "browser_use", value: {}, mergeStrategy: "replace" },
+      ],
     });
     await open(page);
     stage = "edit";
@@ -252,11 +259,18 @@ export async function runBrowserSettingsConflict({ locale, output }) {
       input.dispatchEvent(new Event("input", { bubbles: true }));
     });
     const before = await readConfigFromPage(page);
-    const changed = structuredClone(before.config.browser);
-    changed.agent_permissions.default.browse = "deny";
+    const changed = {
+      ...before.config.browser_use,
+      default_origin_policy: {
+        ...before.config.browser_use?.default_origin_policy,
+        access: "deny",
+      },
+    };
     await writeConfigEditsFromPage(page, {
       expectedVersion: before.version,
-      edits: [{ keyPath: "browser", value: changed, mergeStrategy: "replace" }],
+      edits: [
+        { keyPath: "browser_use", value: changed, mergeStrategy: "replace" },
+      ],
     });
     const submit = () =>
       page
@@ -283,11 +297,11 @@ export async function runBrowserSettingsConflict({ locale, output }) {
     const rejected = await readConfigFromPage(page);
     check(
       "no-rule-created-on-conflict",
-      rejected.config.browser.agent_permissions.sites.length === 0,
+      Object.keys(rejected.config.browser_use?.origins ?? {}).length === 0,
     );
     check(
       "remote-denial-retained",
-      rejected.config.browser.agent_permissions.default.browse === "deny",
+      rejected.config.browser_use?.default_origin_policy?.access === "deny",
     );
     await screenshot(
       page,
@@ -310,23 +324,25 @@ export async function runBrowserSettingsConflict({ locale, output }) {
         "config/read",
       ),
     );
-    const rule = saved.config.browser.agent_permissions.sites[0];
+    const rule = saved.config.browser_use?.origins?.["https://example.com"];
     check(
       "explicit-retry-inherits-current-denial",
-      rule?.pattern === "https://example.com" &&
-        rule.permissions.browse === "deny",
+      rule != null &&
+        saved.config.browser_use?.default_origin_policy?.access === "deny",
     );
     check(
       "unrelated-config-preserved",
       JSON.stringify(
         Object.fromEntries(
-          Object.entries(saved.config).filter(([key]) => key !== "browser"),
+          Object.entries(saved.config).filter(
+            ([key]) => key !== "browser" && key !== "browser_use",
+          ),
         ),
       ) ===
         JSON.stringify(
           Object.fromEntries(
             Object.entries(original.config).filter(
-              ([key]) => key !== "browser",
+              ([key]) => key !== "browser" && key !== "browser_use",
             ),
           ),
         ),
@@ -340,10 +356,36 @@ export async function runBrowserSettingsConflict({ locale, output }) {
           .startsWith(path.resolve(runtime.tempRoot) + path.sep),
       ),
     );
-    const disk = parse(await fs.readFile(saved.filePath, "utf8"));
+    stage = "site-override";
+    const siteSelector =
+      '[data-browser-permission-action="browse"][data-browser-permission-pattern="https://example.com"]';
+    const selectSite = async (page, value) => {
+      await page.locator(siteSelector).evaluate((select, value) => {
+        select.value = value;
+        select.dispatchEvent(new Event("change", { bubbles: true }));
+      }, value);
+      await page.waitForFunction(
+        ({ selector, value }) => {
+          const select = document.querySelector(selector);
+          return select?.value === value && !select.disabled;
+        },
+        { selector: siteSelector, value },
+      );
+      return readConfigFromPage(page);
+    };
+    const granted = await selectSite(page, "allow");
+    check(
+      "site-policy-and-native-grant-saved",
+      granted.config.browser_use?.origins?.["https://example.com"]?.access ===
+        "allow" &&
+        granted.config.browser?.allowedOrigins?.includes("https://example.com"),
+    );
+    const disk = parse(await fs.readFile(granted.filePath, "utf8"));
     check(
       "actual-file-persisted",
-      disk.browser.agent_permissions.sites[0]?.permissions.browse === "deny",
+      disk.browser_use?.origins?.["https://example.com"]?.access === "allow" &&
+        disk.browser?.allowedOrigins?.includes("https://example.com") &&
+        disk.browser_use?.default_origin_policy?.access === "deny",
     );
     const trace = await page.evaluate(() =>
       JSON.parse(localStorage.getItem("lime_invoke_trace_buffer_v1") || "[]"),
@@ -352,7 +394,10 @@ export async function runBrowserSettingsConflict({ locale, output }) {
     const gatewayWrites = requests.filter(
       (request) =>
         request.method === "config/batchWrite" &&
-        request.params.edits?.some((edit) => edit.keyPath === "browser") &&
+        request.params.edits?.some(
+          (edit) =>
+            edit.keyPath === "browser" || edit.keyPath === "browser_use",
+        ) &&
         !String(request.id).startsWith("mcp-config-fixture-"),
     );
     evidence.guiWrites = gatewayWrites.map((request) => ({
@@ -361,10 +406,17 @@ export async function runBrowserSettingsConflict({ locale, output }) {
     }));
     check(
       "gui-used-stale-then-current-cas",
-      gatewayWrites.length === 2 &&
+      gatewayWrites.length === 3 &&
         typeof gatewayWrites[0].params.expectedVersion === "string" &&
         gatewayWrites[0].params.expectedVersion !== rejected.version &&
-        gatewayWrites[1].params.expectedVersion === rejected.version,
+        gatewayWrites[1].params.expectedVersion === rejected.version &&
+        gatewayWrites[2].params.expectedVersion === saved.version,
+    );
+    check(
+      "site-policy-and-native-grant-in-one-cas",
+      ["browser", "browser_use"].every((key) =>
+        gatewayWrites[2].params.edits.some((edit) => edit.keyPath === key),
+      ),
     );
     evidence.ipc = {
       entries: trace.length,
@@ -410,9 +462,122 @@ export async function runBrowserSettingsConflict({ locale, output }) {
         .first()
         .inputValue()) === "deny",
     );
+    check(
+      "restart-site-grant-visible",
+      (await page.locator(siteSelector).inputValue()) === "allow",
+    );
+    const restarted = await readConfigFromPage(page);
+    check(
+      "restart-site-policy-and-native-grant-retained",
+      restarted.config.browser_use?.origins?.["https://example.com"]?.access ===
+        "allow" &&
+        restarted.config.browser?.allowedOrigins?.includes(
+          "https://example.com",
+        ),
+    );
     await screenshot(
       page,
       "restarted",
+      page.locator("#browser-agent-permissions"),
+    );
+    stage = "restore-default";
+    const inherited = await selectSite(page, "default");
+    check(
+      "default-clears-site-policy-and-native-grant",
+      inherited.config.browser_use?.origins?.["https://example.com"]?.access ==
+        null &&
+        !inherited.config.browser?.allowedOrigins?.includes(
+          "https://example.com",
+        ) &&
+        !inherited.config.browser?.deniedOrigins?.includes(
+          "https://example.com",
+        ) &&
+        inherited.config.browser_use?.default_origin_policy?.access === "deny",
+    );
+    await page.waitForFunction((selector) => {
+      const select = document.querySelector(selector);
+      return (
+        select?.value === "default" &&
+        select.dataset.browserPermissionEffective === "deny" &&
+        !select.disabled
+      );
+    }, siteSelector);
+    check(
+      "inherited-denial-has-accessible-description",
+      await page.locator(siteSelector).evaluate((node) => {
+        const description = document.getElementById(
+          node.getAttribute("aria-describedby"),
+        );
+        return (
+          Boolean(description?.textContent.trim()) &&
+          !description.textContent.includes("settings.")
+        );
+      }),
+    );
+    stage = "inherited-rule-restriction";
+    await writeConfigEditsFromPage(page, {
+      expectedVersion: inherited.version,
+      edits: [
+        {
+          keyPath: "browser_use",
+          mergeStrategy: "replace",
+          value: {
+            ...inherited.config.browser_use,
+            origins: {
+              ...inherited.config.browser_use?.origins,
+              "example.com": { access: "deny" },
+              "https://example.com": { access: "allow" },
+            },
+          },
+        },
+        {
+          keyPath: "browser",
+          mergeStrategy: "replace",
+          value: {
+            ...inherited.config.browser,
+            allowedOrigins: ["https://example.com"],
+          },
+        },
+      ],
+    });
+    await click(page.getByTestId("settings-back-button"));
+    await open(page);
+    await page.waitForFunction((selector) => {
+      const select = document.querySelector(selector);
+      return (
+        select?.value === "allow" &&
+        select.dataset.browserPermissionEffective === "deny" &&
+        !select.disabled
+      );
+    }, siteSelector);
+    check(
+      "saved-allow-remains-visible-under-covering-denial",
+      (await page.locator(siteSelector).inputValue()) === "allow",
+    );
+    check(
+      "covering-denial-shows-actual-blocking-pattern",
+      await page.locator(siteSelector).evaluate((node) => {
+        const description = document.getElementById(
+          node.getAttribute("aria-describedby"),
+        );
+        return (
+          description?.textContent.includes("example.com") &&
+          !description.textContent.includes("settings.")
+        );
+      }),
+    );
+    const blocked = await readConfigFromPage(page);
+    check(
+      "restriction-projection-does-not-rewrite-saved-grant",
+      blocked.config.browser_use?.origins?.["https://example.com"]?.access ===
+        "allow" &&
+        blocked.config.browser_use?.origins?.["example.com"]?.access ===
+          "deny" &&
+        blocked.config.browser?.allowedOrigins?.includes("https://example.com"),
+    );
+    await screenshot(
+      page,
+      "inherited-restriction",
       page.locator("#browser-agent-permissions"),
     );
     check(

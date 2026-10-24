@@ -1,198 +1,184 @@
-import { useEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { RotateCw, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import type { BrowserTabState } from "@/lib/api/browserTab";
+import { browserDevicePresets } from "@/lib/browserDevicePresets";
 import {
-  setBrowserTabDevice,
-  type BrowserTabState,
-} from "@/lib/api/browserTab";
-import type { EmbeddedBrowserDeviceState } from "@/lib/api/embeddedBrowser";
+  browserPageZoomFromRendered,
+  renderedBrowserZoom,
+} from "@/lib/browserZoom";
 import {
   browserIconButton,
   type RunBrowserOperation,
 } from "./BrowserNavigationBar";
+import { browserDevicePreset, rotateBrowserDevice } from "./browserDeviceModel";
+import { BrowserDeviceDimension } from "./BrowserDeviceDimension";
+import { useBrowserDeviceControls } from "./useBrowserDeviceControls";
 
 export function BrowserDeviceToolbar({
   selected,
+  active = true,
   run,
 }: {
   selected: BrowserTabState;
+  active?: boolean;
   run: RunBrowserOperation;
 }) {
   const { t } = useTranslation("agent");
   const device = selected.device!;
-  const [draft, setDraft] = useState(device);
-  const [invalid, setInvalid] = useState(false);
-  const [pending, setPending] = useState(false);
-  const pendingRef = useRef(false);
-  const { width, height, deviceScaleFactor, scale, mobile } = device;
-  useEffect(() => {
-    setDraft({ width, height, deviceScaleFactor, scale, mobile });
-    setInvalid(false);
-  }, [selected.tabId, width, height, deviceScaleFactor, scale, mobile]);
-  const apply = async (next: EmbeddedBrowserDeviceState | null) => {
-    if (pendingRef.current) return;
-    if (
-      next &&
-      (!Number.isInteger(next.width) ||
-        next.width < 100 ||
-        next.width > 10000 ||
-        !Number.isInteger(next.height) ||
-        next.height < 100 ||
-        next.height > 10000 ||
-        !Number.isFinite(next.deviceScaleFactor) ||
-        next.deviceScaleFactor < 0 ||
-        next.deviceScaleFactor > 8 ||
-        !Number.isFinite(next.scale) ||
-        next.scale < 0.1 ||
-        next.scale > 3)
-    ) {
-      setInvalid(true);
-      return;
-    }
-    setInvalid(false);
-    pendingRef.current = true;
-    setPending(true);
-    try {
-      await run(() => setBrowserTabDevice(selected.tabId, next));
-    } finally {
-      pendingRef.current = false;
-      setPending(false);
-    }
-  };
-  const input = (
-    key: "width" | "height" | "deviceScaleFactor" | "scale",
-    name: string,
-    min: number,
-    max: number,
-    step = 1,
-  ) => (
-    <input
-      aria-label={name}
-      title={name}
-      data-testid={`browser-device-${key}`}
-      type="number"
-      min={min}
-      max={max}
-      step={step}
-      className="h-6 w-14 rounded border border-border bg-background px-1 text-center text-xs"
-      value={Number.isNaN(draft[key]) ? "" : draft[key]}
-      disabled={pending}
-      onChange={(event) =>
-        setDraft((value) => ({ ...value, [key]: event.target.valueAsNumber }))
-      }
-    />
-  );
+  const { pending, changeDevice, changeZoom, identity } =
+    useBrowserDeviceControls(selected, active, run);
+  const [draftRevision, setDraftRevision] = useState(0);
+  const toolbarRef = useRef<HTMLFieldSetElement>(null);
+  const [toolbarWidth, setToolbarWidth] = useState(Infinity);
+  useLayoutEffect(() => {
+    const toolbar = toolbarRef.current;
+    if (!toolbar || typeof ResizeObserver === "undefined") return;
+    const measure = () =>
+      setToolbarWidth(toolbar.getBoundingClientRect().width);
+    const observer = new ResizeObserver(measure);
+    observer.observe(toolbar);
+    measure();
+    return () => observer.disconnect();
+  }, []);
+  const scale = selected.deviceViewport?.scale ?? device.scale;
+  const zoom = renderedBrowserZoom(selected.zoomFactor ?? 1, scale);
+  const zoomOptions = Array.from(
+    new Set([50, 75, 100, 125, 150, 200, zoom]),
+  ).sort((a, b) => a - b);
+  const clearDrafts = () => setDraftRevision((value) => value + 1);
+  const compact = toolbarWidth < 600;
   return (
-    <div
-      className="shrink-0 border-b border-border bg-[color:var(--lime-surface-muted)] px-2 py-1"
+    <fieldset
+      ref={toolbarRef}
+      disabled={!active}
+      className="flex min-h-9 min-w-0 shrink-0 items-center gap-1 border-b border-border bg-[color:var(--lime-surface-muted)] px-2 py-1"
       data-testid="browser-device-toolbar"
+      role="toolbar"
+      aria-label={t("browserChrome.device")}
+      aria-busy={pending}
     >
-      <form
-        className="flex flex-wrap items-center justify-center gap-1 text-xs"
-        aria-busy={pending}
-        onSubmit={(event) => {
-          event.preventDefault();
-          void apply(draft);
+      <label
+        htmlFor="browser-device-preset"
+        className={
+          toolbarWidth < 460
+            ? "sr-only"
+            : "min-w-0 max-w-28 shrink truncate text-sm font-medium"
+        }
+      >
+        {t("browserChrome.dimensions")}
+      </label>
+      <select
+        id="browser-device-preset"
+        aria-label={t("browserChrome.device")}
+        className={`h-7 min-w-[100px] truncate rounded-md border border-transparent bg-transparent px-1 text-sm font-medium text-muted-foreground outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring ${compact ? "w-[100px] max-w-[100px]" : "max-w-44"}`}
+        value={browserDevicePreset(device)}
+        onChange={(event) => {
+          const preset = browserDevicePresets.find(
+            (value) => value.id === event.currentTarget.value,
+          );
+          if (!preset) return;
+          clearDrafts();
+          changeDevice(
+            (current) =>
+              preset.id === "responsive"
+                ? { ...current, presetId: preset.id }
+                : {
+                    ...current,
+                    presetId: preset.id,
+                    width: preset.width,
+                    height: preset.height,
+                  },
+            true,
+          );
+          event.currentTarget.blur();
         }}
       >
-        <select
-          aria-label={t("browserChrome.device")}
-          className="h-6 rounded bg-background px-1"
-          disabled={pending}
-          value="responsive"
-          onChange={(event) => {
-            const preset = event.target.value;
-            if (preset === "phone")
-              void apply({
-                width: 390,
-                height: 844,
-                deviceScaleFactor: 3,
-                scale: 0.5,
-                mobile: true,
-              });
-            if (preset === "tablet")
-              void apply({
-                width: 820,
-                height: 1180,
-                deviceScaleFactor: 2,
-                scale: 0.5,
-                mobile: true,
-              });
-          }}
-        >
-          <option value="responsive">{t("browserChrome.responsive")}</option>
-          <option value="phone">{t("browserChrome.phone")}</option>
-          <option value="tablet">{t("browserChrome.tablet")}</option>
-        </select>
-        {input("width", t("browserChrome.width"), 100, 10000)}
-        <span aria-hidden>×</span>
-        {input("height", t("browserChrome.height"), 100, 10000)}
-        <span title={t("browserChrome.dpr")}>
-          {t("browserChrome.dprLabel")}
+        {browserDevicePresets.map((preset) => (
+          <option key={preset.id} value={preset.id}>
+            {t(preset.label)}
+          </option>
+        ))}
+      </select>
+      <div
+        className="flex shrink-0 items-center gap-1"
+        key={`${identity}:${active}:${draftRevision}`}
+      >
+        <BrowserDeviceDimension
+          dimension="width"
+          value={device.width}
+          label={t("browserChrome.width")}
+          onChange={(width) =>
+            changeDevice((current) => ({
+              ...current,
+              presetId: "responsive",
+              width,
+            }))
+          }
+        />
+        <span aria-hidden className="text-sm text-muted-foreground">
+          ×
         </span>
-        {input("deviceScaleFactor", t("browserChrome.dpr"), 0, 8, 0.1)}
+        <BrowserDeviceDimension
+          dimension="height"
+          value={device.height}
+          label={t("browserChrome.height")}
+          onChange={(height) =>
+            changeDevice((current) => ({
+              ...current,
+              presetId: "responsive",
+              height,
+            }))
+          }
+        />
+      </div>
+      <button
+        className={`${browserIconButton} size-7 shrink-0`}
+        type="button"
+        title={t("browserChrome.rotate")}
+        aria-label={t("browserChrome.rotate")}
+        onClick={(event) => {
+          clearDrafts();
+          changeDevice(rotateBrowserDevice);
+          event.currentTarget.blur();
+        }}
+      >
+        <RotateCw className="size-4" />
+      </button>
+      {!compact ? (
         <select
-          aria-label={t("browserChrome.scale")}
-          className="h-6 rounded bg-background px-1"
-          disabled={pending}
-          value={draft.scale}
+          aria-label={t("browserChrome.zoom")}
+          className="h-7 shrink-0 rounded-md border border-transparent bg-transparent px-1 text-sm font-medium text-muted-foreground outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
+          value={zoom}
           onChange={(event) => {
-            const scale = Number(event.target.value);
-            setDraft((value) => ({ ...value, scale }));
-            void apply({ ...draft, scale });
+            changeZoom(
+              browserPageZoomFromRendered(
+                Number(event.currentTarget.value),
+                scale,
+              ),
+            );
+            event.currentTarget.blur();
           }}
         >
-          {[
-            0.25,
-            0.5,
-            0.75,
-            1,
-            ...(![0.25, 0.5, 0.75, 1].includes(draft.scale)
-              ? [draft.scale]
-              : []),
-          ].map((value) => (
+          {zoomOptions.map((value) => (
             <option key={value} value={value}>
-              {Math.round(value * 100)}%
+              {value}%
             </option>
           ))}
         </select>
-        <button
-          className="h-6 rounded px-2 hover:bg-muted"
-          type="submit"
-          disabled={pending}
-        >
-          {t("browserChrome.apply")}
-        </button>
-        <button
-          className={browserIconButton}
-          type="button"
-          title={t("browserChrome.rotate")}
-          aria-label={t("browserChrome.rotate")}
-          disabled={pending}
-          onClick={() => {
-            const next = { ...draft, width: draft.height, height: draft.width };
-            setDraft(next);
-            void apply(next);
-          }}
-        >
-          <RotateCw className="size-3.5" />
-        </button>
-        <button
-          className={browserIconButton}
-          type="button"
-          title={t("browserChrome.closeDevice")}
-          aria-label={t("browserChrome.closeDevice")}
-          disabled={pending}
-          onClick={() => void apply(null)}
-        >
-          <X className="size-3.5" />
-        </button>
-      </form>
-      {invalid ? (
-        <p role="alert" className="mt-1 text-xs text-destructive">
-          {t("browserChrome.deviceError")}
-        </p>
       ) : null}
-    </div>
+      <button
+        className={`${browserIconButton} ms-auto size-7 shrink-0`}
+        type="button"
+        title={t("browserChrome.closeDevice")}
+        aria-label={t("browserChrome.closeDevice")}
+        onClick={(event) => {
+          changeDevice(() => null);
+          event.currentTarget.blur();
+        }}
+      >
+        <X className="size-4" />
+      </button>
+    </fieldset>
   );
 }

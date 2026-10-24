@@ -11,12 +11,18 @@ use std::sync::Arc;
 use tokio::sync::mpsc;
 use tokio::time::{timeout, Duration};
 
+#[path = "output_defaults_jsonrpc/permissions.rs"]
+mod permission_defaults;
 #[allow(dead_code)]
 #[path = "turn_reasoning_history_jsonrpc/provider.rs"]
 mod provider;
 #[path = "output_defaults_jsonrpc/provider.rs"]
 mod provider_output;
+#[path = "output_defaults_jsonrpc/reasoning.rs"]
+mod reasoning_defaults;
 mod support;
+#[path = "output_defaults_jsonrpc/web_search.rs"]
+mod web_search_defaults;
 
 struct Capture(mpsc::UnboundedSender<RuntimeRequest>);
 

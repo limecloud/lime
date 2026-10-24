@@ -2,20 +2,12 @@
 name: personal-ip-knowledge-builder
 description: 将访谈稿、聊天记录、简历、公开内容、业务资料、案例和既有 DOCX/Markdown 文档，提炼成可被 AI 长期调用的个人 IP 知识库。适用于用户要求“生成个人知识库”“整理成个人 IP 成品知识库”“为创始人/专家/讲师/主播/顾问建立AI知识库”“把资料变成个人IP底层提示词/写作风格库/故事素材库/话术库”的场景。
 license: Apache-2.0
-allowed-tools: list_directory, read_file
-compatibility: Agent Knowledge >=0.6.0
 metadata:
-  lime_version: 1.0.1
+  lime_version: 1.1.0
   lime_execution_mode: prompt
   lime_surface: workbench
   lime_category: knowledge
-  Lime_skill_bundle_version: "1.0.1"
-  Lime_knowledge_builder: "true"
-  Lime_knowledge_pack_type: "personal-profile"
-  Lime_knowledge_template: "personal-ip"
-  Lime_knowledge_family: "persona"
-  Lime_agent_knowledge_profile: "document-first"
-  Lime_agent_knowledge_runtime_mode: "persona"
+  Lime_skill_bundle_version: "1.1.0"
 ---
 
 # 个人 IP 知识库生成器
@@ -26,21 +18,11 @@ metadata:
 
 默认输出中文；除非用户明确要求其他语言。
 
-## 与 Agent Knowledge 的分工
+## 执行与交付
 
-本 Skill 只负责“怎么生产和维护知识”：
+本 Skill 由专家会话或用户选择技能后，在当前 Thread 中执行。读取用户提供的资料，按模板整理事实、来源、冲突和待确认信息，并交付普通 Markdown 文档。
 
-- 读取来源资料、模板、访谈问题和质量检查表。
-- 生成或更新个人 IP 成品文档。
-- 标记缺失事实、冲突事实和待用户确认的信息。
-- 返回整理记录、质量诊断和 provenance 建议。
-
-Agent Knowledge 负责“知识产物长什么样、如何安全进入上下文”：
-
-- `KNOWLEDGE.md` 保存 pack metadata、`profile: document-first`、`runtime.mode: persona`。
-- `documents/<pack-name>.md` 保存本 Skill 生成的主文档。
-- `runs/compile-*.json` 记录本次 Builder Skill 输入、输出、版本和诊断。
-- 运行时 Resolver 只消费 KnowledgePack，不在回答用户问题时执行本 Skill。
+来源路径由用户指定；文件相对路径以当前工作区为基准。默认在当前工作区保存个人 IP 文档，用户明确指定文件名或目录时使用该位置。修改已有文档前先读取内容，保留有效事实和来源；覆盖、删除或访问工作区外文件沿当前工具权限与审批执行。
 
 ## 工作流
 
@@ -53,43 +35,6 @@ Agent Knowledge 负责“知识产物长什么样、如何安全进入上下文�
 7. 生成完整 Markdown，结尾必须包含“智能体应用指南”。
 8. 用 `references/quality-checklist.md` 自检，必要时补一节“待补充信息清单”。
 
-## Lime Runtime Binding 契约
-
-当 Lime 通过 App Server `knowledgePack/compile` runtime binding 调用本 Skill 时，输入输出必须保持下面的最小契约。
-
-### 输入
-
-```text
-packName: <当前知识包名>
-packType: personal-profile
-profile: document-first
-runtime.mode: persona
-sources[]: sources/ 下的来源文件摘要和相对路径
-metadata.primaryDocument: documents/<packName>.md
-```
-
-### 输出
-
-```text
-primaryDocument:
-  path: documents/<packName>.md
-  content: <按 references/personal-ip-template.md 生成的完整 Markdown>
-status: draft | needs-review | ready | disputed
-missingFacts[]: <待补充信息>
-warnings[]: <质量或冲突提醒>
-provenance:
-  kind: agent-skill
-  name: personal-ip-knowledge-builder
-  version: 1.0.0
-```
-
-固定规则：
-
-1. 不输出独立于 KnowledgePack 的新目录结构；`documents/<packName>.md` 是主文档唯一写回目标。
-2. 不直接改写 `KNOWLEDGE.md`；由 Lime 写入 `metadata.producedBy`、`runtime.mode` 和状态。
-3. 不把模板复制进 Lime 代码；模板、访谈问题和质量检查表继续留在本 Skill 的 `references/`。
-4. 不在运行时回答阶段执行；仅在用户导入、重新整理或维护 pack 时调用。
-
 ## 输出规则
 
 - 不写成简历，也不写成宣传软文；要写成 AI 可调用的底层知识库。
@@ -99,29 +44,11 @@ provenance:
 - 每个章节都要有清晰标题，适合长期维护。
 - 结尾必须包含：使用说明、AI 写作风格指南、核心价值观关键词、可引用故事素材、禁忌与边界。
 
-## 推荐产物结构
+## 交付格式
 
-在 Agent Knowledge v0.6.0 / Lime 中，优先写回：
+默认交付一个 Markdown 文档，按模板组织章节，附来源引用、待补充事实和冲突说明。用户只要求在对话中查看时，直接返回 Markdown；需要保存时写到用户指定的工作区文件。
 
-```text
-<pack-name>/
-  KNOWLEDGE.md                 # 由 Lime 维护 metadata
-  documents/<pack-name>.md     # 本 Skill 生成的主文档
-  runs/compile-*.json          # 由 Lime 记录本次整理 provenance
-```
-
-如果用户在普通对话中只要求一份独立文档，也可以输出单一 Markdown 作为临时交付；进入 Lime KnowledgePack 时必须回到上述 `document-first` 结构。
-
-不再默认拆成：
-
-```text
-[person-id]-personal-ip/
-  knowledge.md
-  facts.md
-  voice.md
-  stories.md
-  boundaries.md
-```
+文档可在后续普通会话中作为文件上下文读取；本 Skill 不创建专用元数据目录、后台编译记录或额外上下文状态。
 
 ## 何时读取资源
 

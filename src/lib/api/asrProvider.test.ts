@@ -373,7 +373,6 @@ describe("asrProvider API", () => {
     const currentConfig = {
       default_provider: "openai",
       experimental: {
-        webmcp: { enabled: false },
         voice_input: {
           ...config,
           asr_credentials: [{ id: "cred-1" }],

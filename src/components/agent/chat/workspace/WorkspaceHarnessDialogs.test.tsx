@@ -81,10 +81,6 @@ function renderDialog(
           skillsCount: 0,
           skillNames: [],
           memorySignals: [],
-          contextItemsCount: 0,
-          activeContextCount: 0,
-          contextItemNames: [],
-          contextEnabled: true,
         }}
         diagnosticRuntimeContext={{
           sessionId: "session-code",
@@ -137,10 +133,6 @@ function renderSurface(
           skillsCount: 0,
           skillNames: [],
           memorySignals: [],
-          contextItemsCount: 0,
-          activeContextCount: 0,
-          contextItemNames: [],
-          contextEnabled: true,
         }}
         diagnosticRuntimeContext={{
           sessionId: "session-surface",

@@ -1,11 +1,25 @@
 import { app } from "./electronRuntime";
 import { resolveCurrentDesktopStorageRoots } from "./appDataPaths";
 import { BrowserHistoryStore } from "./browserHistoryStore";
-import { normalizeBrowserHistoryUrl, parseBrowserHistoryIds, type BrowserHistoryClear, type BrowserHistoryQuery } from "../src/lib/api/browserHistoryTypes";
+import {
+  normalizeBrowserHistoryUrl,
+  type BrowserHistoryClear,
+  type BrowserHistoryQuery,
+} from "../src/lib/api/browserHistoryTypes";
+import { parseBrowserHistoryVisitTargets } from "../src/lib/api/browserHistoryVisits";
 
-export type BrowserHistoryCommand = "browser_history_list" | "browser_history_remove" | "browser_history_clear";
-export const BROWSER_HISTORY_COMMANDS: readonly BrowserHistoryCommand[] = ["browser_history_list", "browser_history_remove", "browser_history_clear"];
-export function isBrowserHistoryCommand(value: string): value is BrowserHistoryCommand {
+export type BrowserHistoryCommand =
+  | "browser_history_list"
+  | "browser_history_remove"
+  | "browser_history_clear";
+export const BROWSER_HISTORY_COMMANDS: readonly BrowserHistoryCommand[] = [
+  "browser_history_list",
+  "browser_history_remove",
+  "browser_history_clear",
+];
+export function isBrowserHistoryCommand(
+  value: string,
+): value is BrowserHistoryCommand {
   return BROWSER_HISTORY_COMMANDS.includes(value as BrowserHistoryCommand);
 }
 
@@ -18,44 +32,94 @@ export class BrowserHistoryHost {
   #lastRevision = -1;
   readonly #committedUrls = new Map<string, string>();
 
-  constructor(changed: (revision: number) => void, options: { createStore?: () => BrowserHistoryStore } = {}) {
+  constructor(
+    changed: (revision: number) => void,
+    options: { createStore?: () => BrowserHistoryStore } = {},
+  ) {
     this.#changed = changed;
-    this.#createStore = options.createStore ?? (() => new BrowserHistoryStore(resolveCurrentDesktopStorageRoots(app.getPath("userData")).appDataRoot));
+    this.#createStore =
+      options.createStore ??
+      (() =>
+        new BrowserHistoryStore(
+          resolveCurrentDesktopStorageRoots(app.getPath("userData"))
+            .appDataRoot,
+        ));
   }
 
   invoke(command: BrowserHistoryCommand, args: unknown = {}): Promise<unknown> {
-    return this.#run(async store => {
-      if (command === "browser_history_list") return store.list((args ?? {}) as BrowserHistoryQuery);
+    return this.#run(async (store) => {
+      if (command === "browser_history_list") {
+        if (
+          args &&
+          typeof args === "object" &&
+          !Array.isArray(args) &&
+          "view" in args
+        ) {
+          const { view, ...query } = args;
+          if (view !== "visits")
+            throw new Error("Invalid browser history view");
+          return store.listVisits(query);
+        }
+        return store.list((args ?? {}) as BrowserHistoryQuery);
+      }
       let result;
       if (command === "browser_history_remove") {
-        if (!args || typeof args !== "object" || Array.isArray(args) || Object.keys(args).some(key => key !== "ids")) throw new Error("Invalid browser history remove request");
-        result = await store.remove(parseBrowserHistoryIds((args as { ids?: unknown }).ids));
+        if (
+          !args ||
+          typeof args !== "object" ||
+          Array.isArray(args) ||
+          Object.keys(args).length !== 1 ||
+          !("entries" in args)
+        )
+          throw new Error("Invalid browser history visit removal");
+        result = await store.removeVisits(
+          parseBrowserHistoryVisitTargets(args.entries),
+        );
       } else result = await store.clear((args ?? {}) as BrowserHistoryClear);
       this.#publish(result.revision);
       return result;
     });
   }
 
-  committed(viewId: string, input: { url: string; title?: string }): Promise<void> {
+  committed(
+    viewId: string,
+    input: { url: string; title?: string; isActorVisit?: boolean },
+  ): Promise<void> {
     const url = normalizeBrowserHistoryUrl(input.url);
-    if (!url) { this.#committedUrls.delete(viewId); return Promise.resolve(); }
+    if (!url) {
+      this.#committedUrls.delete(viewId);
+      return Promise.resolve();
+    }
     this.#committedUrls.set(viewId, url);
-    return this.#run(async store => {
-      if (await store.recordVisit({ url, title: input.title })) this.#publish(await store.getRevision());
+    return this.#run(async (store) => {
+      if (
+        await store.recordVisit({
+          url,
+          title: input.title,
+          isActorVisit: input.isActorVisit,
+        })
+      )
+        this.#publish(await store.getRevision());
     });
   }
 
   titleUpdated(viewId: string, url: string, title: string): Promise<void> {
-    if (this.#committedUrls.get(viewId) !== normalizeBrowserHistoryUrl(url)) return Promise.resolve();
-    return this.#run(async store => {
-      if (await store.updateTitle(url, title)) this.#publish(await store.getRevision());
+    if (this.#committedUrls.get(viewId) !== normalizeBrowserHistoryUrl(url))
+      return Promise.resolve();
+    return this.#run(async (store) => {
+      if (await store.updateTitle(url, title))
+        this.#publish(await store.getRevision());
     });
   }
 
-  forget(viewId: string): void { this.#committedUrls.delete(viewId); }
+  forget(viewId: string): void {
+    this.#committedUrls.delete(viewId);
+  }
 
-  summarizeData(since: number): Promise<{ firstSite: string | null; siteCount: number }> {
-    return this.#run(store => store.summarizeData(since));
+  summarizeData(
+    since: number,
+  ): Promise<{ firstSite: string | null; siteCount: number }> {
+    return this.#run((store) => store.summarizeData(since));
   }
 
   #publish(revision: number): void {
@@ -65,8 +129,13 @@ export class BrowserHistoryHost {
   }
 
   #run<T>(operation: (store: BrowserHistoryStore) => Promise<T>): Promise<T> {
-    const next = this.#tail.then(() => operation(this.#store ??= this.#createStore()));
-    this.#tail = next.then(() => undefined, () => undefined);
+    const next = this.#tail.then(() =>
+      operation((this.#store ??= this.#createStore())),
+    );
+    this.#tail = next.then(
+      () => undefined,
+      () => undefined,
+    );
     return next;
   }
 }

@@ -286,9 +286,21 @@ export function useBrowserAnnotations({
         event.revision,
         event.attachedImages,
         event.designChange,
+        event.capture,
       )
     )
       return;
+    if (event.capture?.screenshotStatus === "stale") {
+      if (event.action === "send")
+        void updateBrowserAnnotationEditor(
+          editor.tab.tabId,
+          editor.id,
+          editor.generation!,
+          false,
+          true,
+        ).catch(current.current.onError);
+      return;
+    }
     if (event.action === "change") return;
     if (event.action === "save" || event.action === "close") {
       if (!editor.pending) {

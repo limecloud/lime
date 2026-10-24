@@ -9,8 +9,6 @@
   "common.splashScreen.subtitle": "從一句想法，到成稿、成圖、成片、成事",
   "common.startupLoading.title": "正在啟動 {{brand}}",
   "common.startupLoading.description": "正在準備介面語言設定與工作台入口，請稍候。",
-  "common.app.resourceNavigation.unsupported.title": "目前資源暫時不能自動回跳",
-  "common.app.resourceNavigation.unsupported.description": "已記錄來源資訊，但主視窗還沒有對應的業務入口。",
   "common.app.project.created": "專案建立成功",
   "common.app.project.type.general": "對話",
   "common.app.project.type.fallback": "專案",

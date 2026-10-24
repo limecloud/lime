@@ -238,7 +238,6 @@ describe("ChatNavbar", () => {
     const container = renderChatNavbar({
       collapseChrome: true,
       onBackHome: vi.fn(),
-      onBackToResources: vi.fn(),
       onBackToProjectManagement: vi.fn(),
       onToggleSettings: vi.fn(),
       showCanvasToggle: true,
@@ -285,17 +284,13 @@ describe("ChatNavbar", () => {
     ).toContain("project-1");
     expect(mockProjectSelector).not.toHaveBeenCalled();
     expect(
-      document.body.querySelector(
-        '[data-testid="composer-utility-menu"]',
-      ),
+      document.body.querySelector('[data-testid="composer-utility-menu"]'),
     ).toBeNull();
     expect(
       container.querySelector('[data-testid="composer-utility-mode"]'),
     ).toBeNull();
     expect(
-      container.querySelector(
-        '[data-testid="composer-utility-branch"]',
-      ),
+      container.querySelector('[data-testid="composer-utility-branch"]'),
     ).toBeNull();
     const menuTrigger = container.querySelector(
       'button[aria-label="展开工作区菜单"]',
@@ -314,9 +309,7 @@ describe("ChatNavbar", () => {
 
     expect(onBackToProjectManagement).not.toHaveBeenCalled();
     expect(
-      document.body.querySelector(
-        '[data-testid="composer-utility-menu"]',
-      ),
+      document.body.querySelector('[data-testid="composer-utility-menu"]'),
     ).not.toBeNull();
     expect(
       document.body.querySelector(

@@ -1,5 +1,5 @@
 import React, { memo } from "react";
-import { Code, FileClock, FileCode2, Save, ScrollText } from "lucide-react";
+import { Code, FileClock, FileCode2, ScrollText } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface ActionButtonProps {
@@ -44,10 +44,6 @@ const ActionButton: React.FC<ActionButtonProps> = memo(
 ActionButton.displayName = "ActionButton";
 
 interface ArtifactWorkbenchToolbarActionsProps {
-  showSaveToProject: boolean;
-  saveToProjectDisabled: boolean;
-  isSavingToProject: boolean;
-  onSaveToProject: () => void;
   onExportJson: () => void;
   onExportHtml: () => void;
   onExportMarkdown: () => void;
@@ -60,10 +56,6 @@ interface ArtifactWorkbenchToolbarActionsProps {
 export const ArtifactWorkbenchToolbarActions: React.FC<ArtifactWorkbenchToolbarActionsProps> =
   memo(
     ({
-      showSaveToProject,
-      saveToProjectDisabled,
-      isSavingToProject,
-      onSaveToProject,
       onExportJson,
       onExportHtml,
       onExportMarkdown,
@@ -73,18 +65,6 @@ export const ArtifactWorkbenchToolbarActions: React.FC<ArtifactWorkbenchToolbarA
       onToggleArchive,
     }) => (
       <div className="flex items-center gap-2.5">
-        {showSaveToProject ? (
-          <ActionButton
-            testId="artifact-workbench-save-to-project"
-            icon={<Save className="h-3.5 w-3.5" />}
-            label={isSavingToProject ? "保存中" : "项目复用"}
-            onClick={() => {
-              void onSaveToProject();
-            }}
-            disabled={saveToProjectDisabled || isSavingToProject}
-            tone="accent"
-          />
-        ) : null}
         <ActionButton
           testId="artifact-workbench-export-html"
           icon={<FileCode2 className="h-3.5 w-3.5" />}

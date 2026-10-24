@@ -1,4 +1,4 @@
-import { act } from "react";
+import { act, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { BrowserNewTabAddress } from "./BrowserNewTabAddress";
 import {
@@ -24,14 +24,31 @@ const keyDown = (options: ConstructorParameters<typeof KeyboardEvent>[1]) => {
   });
   return harness.dispatch(address(), event).then(() => event);
 };
-const render = (active = true, sourceTabId = "new-tab-1") =>
-  harness.render(
+function AddressOwner({
+  active,
+  sourceTabId,
+  epoch,
+}: {
+  active: boolean;
+  sourceTabId: string;
+  epoch: number;
+}) {
+  const [draft, setDraft] = useState("");
+  return (
     <BrowserNewTabAddress
+      key={epoch}
       sourceTabId={sourceTabId}
       active={active}
+      draft={draft}
+      onDraftChange={setDraft}
       onOpenAddress={openAddress}
       translate={translate}
-    />,
+    />
+  );
+}
+const render = (active = true, sourceTabId = "new-tab-1", epoch = 0) =>
+  harness.render(
+    <AddressOwner active={active} sourceTabId={sourceTabId} epoch={epoch} />,
   );
 
 describe("BrowserNewTabAddress", () => {
@@ -114,13 +131,25 @@ describe("BrowserNewTabAddress", () => {
     expect(document.querySelector("[role=alert]")).toBeNull();
   });
 
-  it("leaves the draft intact when Escape exits address editing", async () => {
+  it("restores the source tab draft when only the address presentation is rebuilt", async () => {
+    await render();
+    const original = address();
+    await harness.change(original, "  localhost:5173/尚未提交  ");
+    await render(true, "new-tab-1", 1);
+    expect(address()).not.toBe(original);
+    expect(address().value).toBe("  localhost:5173/尚未提交  ");
+    expect(openAddress).not.toHaveBeenCalled();
+  });
+
+  it("clears the tab draft when Escape cancels address editing", async () => {
     await render();
     await harness.change(address(), "pending edit");
     const event = await keyDown({ key: "Escape" });
     expect(event.defaultPrevented).toBe(true);
     expect(document.activeElement).not.toBe(address());
-    expect(address().value).toBe("pending edit");
+    expect(address().value).toBe("");
+    await render(true, "new-tab-1", 1);
+    expect(address().value).toBe("");
     expect(openAddress).not.toHaveBeenCalled();
   });
 

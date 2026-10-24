@@ -28,27 +28,10 @@ const targets = [
     `execution-policy-${field}`,
     `settings.executionPolicy.${field}.title`,
   ]),
-  ...[
-    ["search", "engine", "searchChain.engine"],
-    ["search", "provider", "searchChain.provider"],
-    ["search", "provider-priority", "searchChain.providerPriority"],
-    ["providers", "tavily-key", "providers.tavily"],
-    ["providers", "bing-key", "providers.bing"],
-    ["providers", "google-key", "providers.googleApi"],
-    ["providers", "google-engine-id", "providers.googleEngine"],
-    ["mse", "mse-priority", "mse.priority"],
-    ["mse", "mse-max-per-engine", "mse.maxPerEngine"],
-    ["mse", "mse-max-total", "mse.maxTotal"],
-    ["mse", "mse-timeout", "mse.timeout"],
-    ["mse", "mse-custom-engine-name", "mse.customName"],
-    ["mse", "mse-custom-engine-template", "mse.customTemplate"],
-    ["images", "pexels-key", "images.pexels"],
-    ["images", "pixabay-key", "images.pixabay"],
-  ].map(([tab, field, message]) => [
-    `web-search-${field}`,
-    `settings.webSearch.${message}.label`,
-    tab,
-  ]),
+  [
+    "configuration-web_search",
+    "settings.configuration.fields.web_search.label",
+  ],
   ...["enabled", "tools", "delete", "instructions"].map((field) => [
     `memory-${field}`,
     `settings.personalization.${field}`,
@@ -140,22 +123,9 @@ export async function runSettingsSearchScenario({
     return locate(id);
   };
   const observations = [];
-  for (const [id, key, tab, queryKey] of targets) {
+  for (const [id, key] of targets) {
     stage(`settings-search-${id}`);
-    observations.push(await search(id, messages[queryKey || key]));
-    if (tab && id.startsWith("web-search-")) {
-      assert.equal(
-        await page
-          .getByTestId(`web-search-tab-${tab}`)
-          .getAttribute("aria-selected"),
-        "true",
-      );
-      if (id.endsWith("-key"))
-        assert.equal(
-          await page.locator(`#${id}`).getAttribute("type"),
-          "password",
-        );
-    }
+    observations.push(await search(id, messages[key]));
   }
   stage("settings-search-repeat-and-description");
   const description = messages["settings.environment.overrides.description"];
@@ -209,70 +179,18 @@ export async function runSettingsSearchScenario({
     "search/discard never writes configuration",
   );
 
-  stage("settings-search-hidden-web-search-tab-dirty");
+  stage("settings-search-web-search-mode");
   await search(
-    "web-search-tavily-key",
-    messages["settings.webSearch.providers.tavily.hint"],
-  );
-  const credential = page.locator("#web-search-tavily-key");
-  const originalCredential = await credential.inputValue();
-  await credential.fill("search fixture private unsaved credential");
-  const webParams = await page.evaluate(() =>
-    sessionStorage.getItem("lime.appNavigation.restore.v1"),
-  );
-  await desktop.fill(messages["settings.webSearch.mse.timeout.label"]);
-  await desktop.press("Enter");
-  await dialog.waitFor({ state: "visible" });
-  assert.equal(
-    await page.evaluate(() =>
-      sessionStorage.getItem("lime.appNavigation.restore.v1"),
-    ),
-    webParams,
-  );
-  assert.equal(
-    await page
-      .getByTestId("web-search-tab-providers")
-      .getAttribute("aria-selected"),
-    "true",
-  );
-  assert.equal(await page.locator("#web-search-mse-timeout").count(), 0);
-  await keep.click();
-  await dialog.waitFor({ state: "detached" });
-  assert.equal(
-    await credential.inputValue(),
-    "search fixture private unsaved credential",
-  );
-  await waitForPageCondition(
-    page,
-    options,
-    () =>
-      document.activeElement?.getAttribute("data-testid") ===
-      "settings-sidebar-search",
-    "hidden tab keep restores desktop search focus",
-  );
-  assert.equal(await credential.getAttribute("type"), "password");
-  await desktop.press("Enter");
-  await dialog.waitFor({ state: "visible" });
-  await discard.click();
-  await locate("web-search-mse-timeout");
-  await page.screenshot({
-    path: path.join(evidenceDir, "search-web-search-mse.png"),
-  });
-  await page.getByTestId("web-search-tab-images").click();
-  assert.equal(await page.locator("#web-search-mse-timeout").count(), 0);
-  await search(
-    "web-search-mse-timeout",
-    messages["settings.webSearch.mse.timeout.label"],
+    "configuration-web_search",
+    messages["settings.configuration.fields.web_search.description"],
   );
   await search(
-    "web-search-tavily-key",
-    messages["settings.webSearch.providers.tavily.label"],
+    "configuration-web_search",
+    messages["settings.configuration.fields.web_search.label"],
   );
-  assert.equal(await credential.inputValue(), originalCredential);
   assert.equal(
-    isDeepStrictEqual(await read(), initial),
-    true,
-    "hidden tab search/discard never persists credentials",
+    await page.getByTestId("settings-unsaved-changes-dialog").count(),
+    0,
   );
 
   stage("settings-search-instructions-draft");
@@ -355,10 +273,10 @@ export async function runSettingsSearchScenario({
     await desktop.press("Enter");
     const observation = await locate("profile-bio");
     await search(
-      "web-search-pexels-key",
-      messages["settings.webSearch.images.pexels.label"],
+      "configuration-web_search",
+      messages["settings.configuration.fields.web_search.label"],
     );
-    const webSearch = await locate("web-search-pexels-key");
+    const webSearch = await locate("configuration-web_search");
     await search(
       "memory-instructions",
       messages["settings.personalization.instructions"],
@@ -437,41 +355,10 @@ export async function runSettingsSearchScenario({
   });
   await page.keyboard.press(searchShortcut);
   await narrowSearch.waitFor({ state: "visible" });
-  await search(
-    "web-search-mse-timeout",
-    messages["settings.webSearch.mse.timeout.label"],
+  const narrowWebSearch = await search(
+    "configuration-web_search",
+    messages["settings.configuration.fields.web_search.label"],
     narrowSearch,
-  );
-  const timeout = page.locator("#web-search-mse-timeout");
-  await timeout.fill("27182");
-  await page.keyboard.press(searchShortcut);
-  await narrowSearch.fill(messages["settings.webSearch.images.pixabay.label"]);
-  await narrowSearch.press("Enter");
-  await dialog.waitFor({ state: "visible" });
-  await keep.click();
-  await dialog.waitFor({ state: "detached" });
-  assert.equal(await timeout.inputValue(), "27182");
-  await waitForPageCondition(
-    page,
-    options,
-    () =>
-      document.activeElement?.getAttribute("data-testid") ===
-      "settings-sidebar-search",
-    "hidden tab keep restores narrow search focus",
-  );
-  await narrowSearch.press("Enter");
-  await dialog.waitFor({ state: "visible" });
-  await discard.click();
-  const narrowWebSearch = await locate("web-search-pixabay-key");
-  assert.equal(
-    await page
-      .getByTestId("web-search-tab-images")
-      .getAttribute("aria-selected"),
-    "true",
-  );
-  assert.equal(
-    await page.locator("#web-search-pixabay-key").getAttribute("type"),
-    "password",
   );
   await page.screenshot({
     path: path.join(evidenceDir, "search-web-search-narrow.png"),
@@ -522,11 +409,9 @@ export async function runSettingsSearchScenario({
     targets: observations,
     descriptionAndRepeat: true,
     webSearch: {
-      targets: 15,
-      tabs: 4,
-      hiddenTabKeepAndDiscard: true,
-      repeatReopensTab: true,
-      maskedCredentials: true,
+      targets: 1,
+      canonicalConfigurationTarget: true,
+      repeatFocusesRow: true,
       noConfigWrite: true,
     },
     memoryAppearance: {
@@ -557,6 +442,6 @@ export async function runSettingsSearchScenario({
     themes,
     originalConfigRestored: true,
     limitations:
-      "36 content targets (9 initial + 15 Web Search + 7 Memory + 5 Appearance) and current section titles only; non-OEM fixture/external backend. Current skin, media-emulated system theme and emulated narrow viewport. No reference runtime, production RuntimeBackend/provider, live auth/search, Windows or packaged claim.",
+      "Current registered content targets and section titles only; non-OEM fixture/external backend. Current skin, media-emulated system theme and emulated narrow viewport. No reference runtime, production RuntimeBackend/provider, live auth/search, Windows or packaged claim.",
   };
 }

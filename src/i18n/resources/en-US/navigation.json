@@ -33,7 +33,6 @@
   "navigation.sidebar.home.label": "Lime Home",
   "navigation.sidebar.items.scheduledTasks": "Scheduled Tasks",
   "navigation.sidebar.items.channels": "Channels",
-  "navigation.sidebar.items.knowledge": "Project Knowledge",
   "navigation.sidebar.items.plugins": "Plugins",
   "navigation.sidebar.items.settings": "Settings",
   "navigation.pluginWorkspace.tabsLabel": "Plugin content",
@@ -182,7 +181,6 @@
   "navigation.sidebar.landmark": "App navigation",
   "navigation.sidebar.account.openMenu": "Open profile menu",
   "navigation.sidebar.account.profile": "Profile",
-  "navigation.sidebar.account.usage": "Usage",
   "navigation.sidebar.account.login.action": "Sign in",
   "navigation.sidebar.account.logout": "Log out",
   "navigation.sidebar.account.logoutFailed": "Failed to log out"

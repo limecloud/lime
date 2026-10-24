@@ -109,6 +109,21 @@ fn default_runtime_options_for_session(
         service_tier: setting(&["serviceTier", "service_tier"]),
         approval_policy: setting(&["approvalPolicy", "approval_policy"]),
         sandbox_policy: setting(&["sandboxPolicy", "sandbox_policy", "sandbox"]),
+        web_search_mode: Some(
+            match metadata.and_then(|metadata| metadata.get("webSearchMode")) {
+                Some(value) => serde_json::from_value(value.clone()).map_err(|error| {
+                    RuntimeCoreError::InvalidRequest(format!(
+                        "invalid persisted webSearchMode: {error}"
+                    ))
+                })?,
+                None => agent_protocol::WebSearchMode::for_sandbox(
+                    setting(&["sandboxPolicy", "sandbox_policy", "sandbox"]).as_deref(),
+                ),
+            },
+        ),
+        sandbox_network_access: metadata
+            .and_then(|metadata| metadata.get("sandboxNetworkAccess"))
+            .and_then(Value::as_bool),
         workspace_id: session.workspace_id.clone(),
         working_dir: working_dir.clone(),
         workspace_root: workspace_root.clone(),
@@ -195,12 +210,23 @@ fn merge_runtime_requests(
         thinking_enabled: request.thinking_enabled.or(defaults.thinking_enabled),
         approval_policy: request.approval_policy.or(defaults.approval_policy),
         approvals_reviewer: request.approvals_reviewer.or(defaults.approvals_reviewer),
+        sandbox_network_access: if request.sandbox_policy.is_some() {
+            Some(request.sandbox_network_access.unwrap_or(false))
+        } else {
+            request
+                .sandbox_network_access
+                .or(defaults.sandbox_network_access)
+        },
         sandbox_policy: request.sandbox_policy.or(defaults.sandbox_policy),
         workspace_id: request.workspace_id.or(defaults.workspace_id),
         working_dir: request.working_dir.or(defaults.working_dir),
         workspace_root: request.workspace_root.or(defaults.workspace_root),
         project_root: request.project_root.or(defaults.project_root),
         web_search: request.web_search.or(defaults.web_search),
+        web_search_mode: match (defaults.web_search_mode, request.web_search_mode) {
+            (Some(ceiling), Some(requested)) => Some(ceiling.restrict_to(requested)),
+            (ceiling, requested) => ceiling.or(requested),
+        },
         search_mode: request.search_mode.or(defaults.search_mode),
         execution_strategy: request.execution_strategy.or(defaults.execution_strategy),
         auto_continue: request.auto_continue.or(defaults.auto_continue),
@@ -288,6 +314,7 @@ fn compact_json(value: Value) -> Value {
 
 #[cfg(test)]
 mod tests {
+    include!("session_runtime_defaults/web_search_tests.rs");
     use super::*;
     use app_server_protocol::{AgentSessionStatus, BusinessObjectRef};
 

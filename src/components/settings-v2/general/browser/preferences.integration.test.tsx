@@ -7,6 +7,9 @@ import { AppServerRpcError } from "@/lib/api/appServerResponse";
 import { updateDesktopPreference } from "@/lib/api/desktopPreferences";
 import {
   effectiveBrowserSettings,
+  browserSettingsFromConfig,
+  browserPreferences,
+  applyBrowserAgentPermissions,
   updateBrowserSetting,
 } from "@/lib/api/browserSettings";
 import { SettingsTabs } from "@/types/settings";
@@ -53,7 +56,17 @@ beforeEach(async () => {
       return {
         result: {
           config: structuredClone(persisted),
-          layers: [{ version: `v${version}` }],
+          layers: [
+            {
+              name: {
+                type: "user",
+                file: "/fixture/config.yaml",
+                profile: null,
+              },
+              version: `v${version}`,
+              config: structuredClone(persisted),
+            },
+          ],
         },
       };
     }
@@ -192,6 +205,9 @@ it("keeps web/local defaults independent and persists only the selected preferen
 
 it("restores the authoritative value after a rejected save and allows a subsequent retry", async () => {
   await renderPage();
+  const readsBeforeSave = request.mock.calls.filter(
+    ([method]) => method === "config/read",
+  ).length;
   rejectWrite = true;
   await choose("browser-web-target", "Lime");
   expect(container.querySelector("[role=alert]")?.textContent).toContain(
@@ -203,7 +219,7 @@ it("restores the authoritative value after a rejected save and allows a subseque
   expect(persisted.desktop).toBeUndefined();
   expect(
     request.mock.calls.filter(([method]) => method === "config/read"),
-  ).toHaveLength(2);
+  ).toHaveLength(readsBeforeSave + 1);
   rejectWrite = false;
   await choose("browser-web-target", "Lime");
   expect(container.querySelector("[role=alert]")).toBeNull();
@@ -243,11 +259,12 @@ it("persists browser preferences independently of desktop link settings and rest
   );
   await choose("browser-history-access", "Do not allow access");
   expect(persisted.browser).toEqual({
-    ...effectiveBrowserSettings(),
+    ...browserPreferences(effectiveBrowserSettings()),
     show_full_url: true,
     ask_download_location: true,
-    history_access: "disabled",
+    iabHistoryApprovalMode: "alwaysAsk",
   });
+  expect(persisted.browser_use).toMatchObject({ allow_history_access: false });
   expect(persisted.desktop).toBeUndefined();
   expect(persisted.tui).toEqual({ animations: false });
   invalidateAppConfigCache();
@@ -346,11 +363,10 @@ it("edits all agent permission categories, normalizes a site exception, and reje
       .click(),
   );
   await setSelect("Default · Site tools", "deny");
-  expect(persisted.browser).toMatchObject({
-    agent_permissions: {
-      default: { browse: "deny", upload: "allow", site_tools: "deny" },
-    },
+  expect(persisted.browser_use).toMatchObject({
+    default_origin_policy: { access: "deny", uploads: "allow" },
   });
+  expect(persisted.browser).toMatchObject({ webMcpEnabled: false });
   const addSite = async () => {
     await act(async () =>
       section.querySelector<HTMLButtonElement>("button")!.click(),
@@ -372,10 +388,13 @@ it("edits all agent permission categories, normalizes a site exception, and reje
     );
   };
   await addSite();
-  expect(persisted.browser).toMatchObject({
+  expect(currentBrowser()).toMatchObject({
     agent_permissions: {
       sites: [
-        { pattern: "https://*.example.com", permissions: { browse: "deny" } },
+        {
+          pattern: "https://*.example.com",
+          permissions: { browse: "default" },
+        },
       ],
     },
   });
@@ -403,10 +422,13 @@ it("edits all agent permission categories, normalizes a site exception, and reje
       .querySelector("form")!
       .dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })),
   );
-  expect(persisted.browser).toMatchObject({
+  expect(currentBrowser()).toMatchObject({
     agent_permissions: {
       sites: [
-        { pattern: "http://localhost:3000", permissions: { browse: "deny" } },
+        {
+          pattern: "http://localhost:3000",
+          permissions: { browse: "default" },
+        },
       ],
     },
   });
@@ -417,7 +439,7 @@ it("edits all agent permission categories, normalizes a site exception, and reje
       )!
       .click(),
   );
-  expect(persisted.browser).toMatchObject({ agent_permissions: { sites: [] } });
+  expect(currentBrowser()).toMatchObject({ agent_permissions: { sites: [] } });
 });
 
 it("serializes Browser and Desktop saves through the same CAS config owner", async () => {
@@ -442,9 +464,18 @@ it("serializes Browser and Desktop saves through the same CAS config owner", asy
 });
 
 function currentBrowser() {
-  return effectiveBrowserSettings(
-    persisted.browser as Parameters<typeof effectiveBrowserSettings>[0],
+  return browserSettingsFromConfig(persisted);
+}
+
+function setRemotePermissions(settings: ReturnType<typeof currentBrowser>) {
+  const current = currentBrowser();
+  const next = applyBrowserAgentPermissions(
+    browserPreferences(current),
+    current.browser_use,
+    current.agent_permissions,
+    settings.agent_permissions,
   );
+  persisted = { ...persisted, ...next };
 }
 
 function writes() {
@@ -487,7 +518,7 @@ it("restores remote permissions after CAS rejection, preserves the draft and ret
   await setPattern("https://example.com");
   const remote = currentBrowser();
   remote.agent_permissions.default.browse = "deny";
-  persisted.browser = remote;
+  setRemotePermissions(remote);
   version += 1;
   await submitPattern();
   expect(container.querySelector("[role=alert]")?.textContent).toContain(
@@ -505,7 +536,7 @@ it("restores remote permissions after CAS rejection, preserves the draft and ret
   expect(writes()).toBe(1);
   await submitPattern();
   expect(currentBrowser().agent_permissions.sites).toMatchObject([
-    { pattern: "https://example.com", permissions: { browse: "deny" } },
+    { pattern: "https://example.com", permissions: { browse: "default" } },
   ]);
   expect(container.querySelector("#browser-site-pattern")).toBeNull();
   expect(container.querySelector("[role=alert]")).toBeNull();
@@ -538,8 +569,9 @@ it("keeps an editing baseline when another editor refreshes the matrix before su
   await submitPattern();
   expect(writes()).toBe(2);
   expect(currentBrowser().agent_permissions.sites[0].permissions.download).toBe(
-    "deny",
+    "default",
   );
+  expect(currentBrowser().agent_permissions.default.download).toBe("deny");
 });
 
 it("does not silently recreate or report saving a site rule removed during editing", async () => {
@@ -550,7 +582,7 @@ it("does not silently recreate or report saving a site rule removed during editi
       permissions: { ...initial.agent_permissions.default },
     },
   ];
-  persisted.browser = initial;
+  setRemotePermissions(initial);
   await renderPage();
   await act(async () =>
     container
@@ -680,7 +712,9 @@ it.each(["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"] as const)(
   async (locale) => {
     await changeLimeLocale(locale);
     await renderPage();
-    expect(container.textContent).not.toMatch(/(?:settings|browserDownloads)\./u);
+    expect(container.textContent).not.toMatch(
+      /(?:settings|browserDownloads)\./u,
+    );
     for (const target of ["browser-web-target", "browser-local-target"]) {
       expect(isSettingsSearchTarget(SettingsTabs.Browser, target, true)).toBe(
         true,
@@ -699,5 +733,53 @@ it.each(["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"] as const)(
     expect(
       container.querySelector("#keyboard-external-browser-link"),
     ).not.toBeNull();
+  },
+);
+
+it.each(["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"] as const)(
+  "explains unavailable site ask and excludes CDP/WebMCP ask in %s",
+  async (locale) => {
+    await changeLimeLocale(locale);
+    persisted.browser = { approvalMode: "neverAsk" };
+    persisted.browser_use = {
+      default_origin_policy: { access: "deny" },
+      origins: { "example.com": {} },
+    };
+    await renderPage();
+    const site = container.querySelector<HTMLSelectElement>(
+      'select[data-browser-permission-action="browse"][data-browser-permission-pattern="example.com"]',
+    )!;
+    const ask = site.querySelector<HTMLOptionElement>('option[value="ask"]')!;
+    expect(ask.disabled).toBe(true);
+    const inherited = site.querySelector<HTMLOptionElement>(
+      'option[value="default"]',
+    )!;
+    expect(inherited.textContent!.length).toBeGreaterThan(2);
+    expect(inherited.textContent).not.toContain("settings.");
+    expect(ask.title.length).toBeGreaterThan(15);
+    expect(ask.title).not.toContain("settings.");
+    const next = () =>
+      container
+        .querySelector<HTMLButtonElement>(
+          "#browser-agent-permissions thead button:last-child",
+        )!
+        .click();
+    await act(async () => next());
+    const cdp = container.querySelector<HTMLSelectElement>(
+      'select[data-browser-permission-action="debug"][data-browser-permission-pattern=""]',
+    )!;
+    expect([...cdp.options].map((option) => option.value)).toEqual([
+      "allow",
+      "deny",
+    ]);
+    await act(async () => next());
+    const web = container.querySelector<HTMLSelectElement>(
+      'select[data-browser-permission-action="site_tools"][data-browser-permission-pattern=""]',
+    )!;
+    expect([...web.options].map((option) => option.value)).toEqual([
+      "allow",
+      "deny",
+    ]);
+    expect(writes()).toBe(0);
   },
 );

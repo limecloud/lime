@@ -11,7 +11,6 @@ import {
   normalizeBrowserHistoryTitle,
   normalizeBrowserHistoryUrl,
   parseBrowserHistoryClear,
-  parseBrowserHistoryIds,
   parseBrowserHistoryQuery,
   type BrowserHistoryClear,
   type BrowserHistoryEntry,
@@ -24,15 +23,22 @@ import {
   persistedAtomFileIO,
   type PersistedAtomFileIO,
 } from "./persistedAtomFile";
+import {
+  pageHistoryEntries,
+  projectHistoryVisits,
+  type StoredHistoryEntry as StoredEntry,
+} from "./browserHistoryVisits";
+import {
+  browserHistoryDayKey,
+  parseBrowserHistoryVisitTargets,
+  parseBrowserHistoryVisitsQuery,
+  type BrowserHistoryVisitTarget,
+  type BrowserHistoryVisitsQuery,
+  type BrowserHistoryVisitsPage,
+} from "../src/lib/api/browserHistoryVisits";
 
-interface StoredEntry {
-  id: string;
-  url: string;
-  title: string;
-  visits: number[];
-}
 interface HistoryEnvelope {
-  schemaVersion: 1;
+  schemaVersion: 2;
   revision: number;
   entries: StoredEntry[];
 }
@@ -93,15 +99,21 @@ export class BrowserHistoryStore {
       const visitedAt =
         input.visitedAt === undefined ? this.#now() : input.visitedAt;
       assertBrowserHistoryTimestamp(visitedAt);
+      if (
+        input.isActorVisit !== undefined &&
+        typeof input.isActorVisit !== "boolean"
+      )
+        throw new Error("Invalid browser history visit source");
+      const visit = { visitedAt, isActorVisit: input.isActorVisit === true };
       const state = await this.#load();
       const entries = cloneEntries(state.entries);
       let entry = entries.find((item) => item.url === url);
       if (entry) {
-        entry.visits.push(visitedAt);
-        entry.visits.sort((left, right) => left - right);
+        entry.visits.push(visit);
+        entry.visits.sort((left, right) => left.visitedAt - right.visitedAt);
         if (title) entry.title = title;
       } else {
-        entry = { id: randomUUID(), url, title, visits: [visitedAt] };
+        entry = { id: randomUUID(), url, title, visits: [visit] };
         entries.push(entry);
       }
       const retained = this.#trim(entries);
@@ -133,73 +145,65 @@ export class BrowserHistoryStore {
     return this.#run(async () => {
       const { query, cursor, limit } = parseBrowserHistoryQuery(input);
       const state = await this.#load();
-      let offset = 0;
-      if (cursor !== null) {
-        let decoded: unknown;
-        try {
-          decoded = JSON.parse(cursor);
-        } catch {
-          throw new Error("Invalid browser history cursor");
-        }
-        const page = decoded as {
-          revision?: unknown;
-          query?: unknown;
-          offset?: unknown;
-        } | null;
-        if (
-          !page ||
-          typeof page !== "object" ||
-          Array.isArray(page) ||
-          Object.keys(page).some(
-            (key) => !["revision", "query", "offset"].includes(key),
-          ) ||
-          page.query !== query ||
-          typeof page.offset !== "number" ||
-          !Number.isSafeInteger(page.offset) ||
-          page.offset < 0 ||
-          page.offset > this.#maxEntries
-        )
-          throw new Error("Invalid browser history cursor");
-        if (page.revision !== state.revision)
-          throw new Error("Browser history cursor is stale");
-        offset = page.offset;
-      }
-      const terms = query.split(/\s+/u).filter(Boolean);
       const entries = state.entries
-        .filter((entry) => {
-          const haystack = `${entry.url}\n${entry.title}`
-            .normalize("NFKC")
-            .toLocaleLowerCase();
-          return terms.every((term) => haystack.includes(term));
-        })
-        .sort(compareEntries);
-      return {
-        entries: entries.slice(offset, offset + limit).map(publicEntry),
-        total: entries.length,
-        revision: state.revision,
-        nextCursor:
-          offset + limit < entries.length
-            ? JSON.stringify({
-                revision: state.revision,
-                query,
-                offset: offset + limit,
-              })
-            : null,
-      };
+        .filter((entry) => matchesHistoryQuery(entry, query))
+        .sort(compareEntries)
+        .map(publicEntry);
+      return pageHistoryEntries(
+        entries,
+        { query, cursor, limit },
+        state.revision,
+        "pages",
+      );
     });
   }
 
-  remove(ids: readonly string[]): Promise<BrowserHistoryMutationResult> {
+  listVisits(
+    input: BrowserHistoryVisitsQuery = {},
+  ): Promise<BrowserHistoryVisitsPage> {
     return this.#run(async () => {
-      const selected = new Set(parseBrowserHistoryIds(ids));
+      const { source, ...query } = parseBrowserHistoryVisitsQuery(input);
       const state = await this.#load();
-      const entries = state.entries.filter((entry) => !selected.has(entry.id));
-      const removedEntries = state.entries.length - entries.length;
-      const removedVisits = state.entries
-        .filter((entry) => selected.has(entry.id))
-        .reduce((sum, entry) => sum + entry.visits.length, 0);
-      if (removedEntries) await this.#save(entries);
-      return { removedEntries, removedVisits, revision: this.#state!.revision };
+      const rows = projectHistoryVisits(
+        state.entries.filter((entry) =>
+          matchesHistoryQuery(entry, query.query),
+        ),
+        source,
+      );
+      return pageHistoryEntries(rows, query, state.revision, "visits", source);
+    });
+  }
+
+  removeVisits(
+    input: BrowserHistoryVisitTarget[],
+  ): Promise<BrowserHistoryMutationResult> {
+    return this.#run(async () => {
+      const targets = parseBrowserHistoryVisitTargets(input);
+      const selected = new Set(
+        targets.map(
+          (entry) => `${entry.url}\0${browserHistoryDayKey(entry.visitTime)}`,
+        ),
+      );
+      const state = await this.#load();
+      let removedVisits = 0;
+      const entries = state.entries
+        .map((entry) => {
+          const visits = entry.visits.filter(
+            (visit) =>
+              !selected.has(
+                `${entry.url}\0${browserHistoryDayKey(visit.visitedAt)}`,
+              ),
+          );
+          removedVisits += entry.visits.length - visits.length;
+          return { ...entry, visits };
+        })
+        .filter((entry) => entry.visits.length);
+      if (removedVisits) await this.#save(entries);
+      return {
+        removedEntries: state.entries.length - entries.length,
+        removedVisits,
+        revision: this.#state!.revision,
+      };
     });
   }
 
@@ -212,7 +216,9 @@ export class BrowserHistoryStore {
       let removed = 0;
       const entries = state.entries
         .map((entry) => {
-          const visits = entry.visits.filter((visitedAt) => visitedAt < since);
+          const visits = entry.visits.filter(
+            (visit) => visit.visitedAt < since,
+          );
           removed += entry.visits.length - visits.length;
           return { ...entry, visits };
         })
@@ -233,7 +239,9 @@ export class BrowserHistoryStore {
     return this.#run(async () => {
       const sites = new Set<string>();
       const entries = (await this.#load()).entries
-        .filter((entry) => entry.visits.some((visit) => visit >= since))
+        .filter((entry) =>
+          entry.visits.some((visit) => visit.visitedAt >= since),
+        )
         .sort(compareEntries);
       for (const entry of entries) {
         const hostname = new URL(entry.url).hostname;
@@ -270,7 +278,7 @@ export class BrowserHistoryStore {
       );
     } catch (error) {
       if (errorCode(error) === "ENOENT")
-        return (this.#state = { schemaVersion: 1, revision: 0, entries: [] });
+        return (this.#state = { schemaVersion: 2, revision: 0, entries: [] });
       this.#loadError = new Error("Browser history file could not be read");
       throw this.#loadError;
     }
@@ -282,7 +290,7 @@ export class BrowserHistoryStore {
       ) as Partial<HistoryEnvelope>;
       if (
         !source ||
-        source.schemaVersion !== 1 ||
+        source.schemaVersion !== 2 ||
         typeof source.revision !== "number" ||
         !Number.isSafeInteger(source.revision) ||
         source.revision < 0 ||
@@ -319,8 +327,19 @@ export class BrowserHistoryStore {
         ids.add(entry.id);
         urls.add(entry.url);
         for (let index = 0; index < entry.visits.length; index += 1) {
-          assertBrowserHistoryTimestamp(entry.visits[index]);
-          if (index && entry.visits[index] < entry.visits[index - 1])
+          const visit = entry.visits[index];
+          if (
+            !visit ||
+            typeof visit !== "object" ||
+            Array.isArray(visit) ||
+            Object.keys(visit).some(
+              (key) => key !== "visitedAt" && key !== "isActorVisit",
+            ) ||
+            typeof visit.isActorVisit !== "boolean"
+          )
+            throw new Error("Invalid history visit");
+          assertBrowserHistoryTimestamp(visit.visitedAt);
+          if (index && visit.visitedAt < entry.visits[index - 1].visitedAt)
             throw new Error("Unordered history visits");
         }
         visits += entry.visits.length;
@@ -339,7 +358,7 @@ export class BrowserHistoryStore {
   #trim(entries: StoredEntry[]): StoredEntry[] {
     let retained = entries.sort(compareEntries).slice(0, this.#maxEntries);
     const visits = retained.flatMap((entry) =>
-      entry.visits.map((at) => ({ id: entry.id, at })),
+      entry.visits.map((visit) => ({ id: entry.id, at: visit.visitedAt })),
     );
     const excess = visits.length - this.#maxVisits;
     if (excess > 0) {
@@ -365,7 +384,7 @@ export class BrowserHistoryStore {
     if (current.revision >= Number.MAX_SAFE_INTEGER)
       throw new Error("Browser history revision capacity exceeded");
     const next: HistoryEnvelope = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       revision: current.revision + 1,
       entries,
     };
@@ -414,18 +433,31 @@ function publicEntry(entry: StoredEntry): BrowserHistoryEntry {
     url: entry.url,
     title: entry.title,
     visitCount: entry.visits.length,
-    firstVisitedAt: entry.visits[0],
-    lastVisitedAt: entry.visits[entry.visits.length - 1],
+    firstVisitedAt: entry.visits[0].visitedAt,
+    lastVisitedAt: entry.visits[entry.visits.length - 1].visitedAt,
   };
 }
 function cloneEntries(entries: StoredEntry[]): StoredEntry[] {
-  return entries.map((entry) => ({ ...entry, visits: [...entry.visits] }));
+  return entries.map((entry) => ({
+    ...entry,
+    visits: entry.visits.map((visit) => ({ ...visit })),
+  }));
 }
 function compareEntries(left: StoredEntry, right: StoredEntry): number {
   return (
-    right.visits[right.visits.length - 1] -
-      left.visits[left.visits.length - 1] || left.id.localeCompare(right.id)
+    right.visits[right.visits.length - 1].visitedAt -
+      left.visits[left.visits.length - 1].visitedAt ||
+    left.id.localeCompare(right.id)
   );
+}
+function matchesHistoryQuery(entry: StoredEntry, query: string): boolean {
+  const haystack = `${entry.url}\n${entry.title}`
+    .normalize("NFKC")
+    .toLocaleLowerCase();
+  return query
+    .split(/\s+/u)
+    .filter(Boolean)
+    .every((term) => haystack.includes(term));
 }
 function errorCode(error: unknown): string {
   return error &&

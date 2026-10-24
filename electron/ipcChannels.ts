@@ -58,6 +58,7 @@ export const ELECTRON_HOST_COMMANDS = [
   "browser_tab_go_back",
   "browser_tab_go_forward",
   "browser_tab_select",
+  "browser_tab_focus_page",
   "browser_tab_close",
   "embedded_browser_view_mount",
   "embedded_browser_view_set_bounds",
@@ -91,7 +92,6 @@ export const ELECTRON_HOST_COMMANDS = [
   "open_external_url",
   "is_default_browser",
   "open_file_preview_window",
-  "open_resource_manager_window",
   "open_system_settings_url",
   "macos_native_host_invoke",
   "windows_native_host_invoke",
@@ -128,14 +128,11 @@ export const ELECTRON_HOST_COMMANDS = [
   "download_update",
   "get_update_check_settings",
   "get_update_install_session",
-  "get_update_notification_metrics",
   "open_update_window",
   "record_update_notification_action",
   "remind_update_later",
-  "set_update_check_settings",
   "skip_update_version",
   "start_update_install_session",
-  "test_update_window",
 ] as const;
 
 export type ElectronHostCommand = (typeof ELECTRON_HOST_COMMANDS)[number];
@@ -172,14 +169,11 @@ export const ELECTRON_UPDATE_COMMANDS = [
   "download_update",
   "get_update_check_settings",
   "get_update_install_session",
-  "get_update_notification_metrics",
   "open_update_window",
   "record_update_notification_action",
   "remind_update_later",
-  "set_update_check_settings",
   "skip_update_version",
   "start_update_install_session",
-  "test_update_window",
 ] as const;
 
 export type ElectronUpdateCommand = (typeof ELECTRON_UPDATE_COMMANDS)[number];

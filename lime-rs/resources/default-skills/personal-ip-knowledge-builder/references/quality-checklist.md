@@ -37,9 +37,9 @@
 
 - Markdown 标题层级是否清晰？
 - 是否有目录感和章节感？
-- 是否能直接写回 Agent Knowledge `documents/<pack-name>.md`？
-- 是否适配 `profile: document-first` 与 `runtime.mode: persona`？
-- 是否能让 Lime 在 `metadata.producedBy` 与 `runs/compile-*.json.builder_skill` 中记录本 Skill provenance？
+- 是否已交付用户指定工作区中的普通 Markdown 文档？
+- 是否在文档中区分来源事实、推断、冲突和待补充信息？
+- 是否保留来源引用，便于后续会话核对和维护？
 - 如果资料不足，是否给出了“待补充信息清单”？
 
 ## Runtime 安全边界

@@ -1,0 +1,86 @@
+{
+  "$defs": {
+    "AllowDenyRequirement": {
+      "enum": [
+        "allow",
+        "deny"
+      ],
+      "type": "string"
+    },
+    "BrowserUseOriginPolicyConfig": {
+      "properties": {
+        "access": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AllowDenyRequirement"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "downloads": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AllowDenyRequirement"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "full_cdp_access": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AllowDenyRequirement"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "uploads": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AllowDenyRequirement"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "allow_history_access": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "default_origin_policy": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/BrowserUseOriginPolicyConfig"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "origins": {
+      "additionalProperties": {
+        "$ref": "#/$defs/BrowserUseOriginPolicyConfig"
+      },
+      "type": [
+        "null",
+        "object"
+      ]
+    }
+  },
+  "title": "BrowserUseConfig",
+  "type": "object"
+}

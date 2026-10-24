@@ -139,10 +139,6 @@ const P2_NAMESPACES = [
   "errors",
 ] as const;
 
-function normalizePath(filePath: string): string {
-  return filePath.split(path.sep).join("/");
-}
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
@@ -423,10 +419,6 @@ export function analyzeI18nRoadmapReadinessReport(
   const bundleSummary = readNestedRecord(evidence.bundleStrategy.report, [
     "summary",
   ]);
-  const languageBoundarySummary = readNestedRecord(
-    evidence.languageBoundary.report,
-    ["summary"],
-  );
   const contentBoundarySummary = readNestedRecord(
     evidence.contentTargetLanguageBoundary.report,
     ["summary"],
@@ -436,10 +428,6 @@ export function analyzeI18nRoadmapReadinessReport(
   const patchGatePatch = readNestedRecord(evidence.patchRetirementGate.report, [
     "patch",
   ]);
-  const patchGateLegacy = readNestedRecord(
-    evidence.patchRetirementGate.report,
-    ["legacy"],
-  );
   const supportedCoverageLocales = readTranslationCoverageLocales(
     evidence.translationCoverage.report,
   );
@@ -751,7 +739,7 @@ export function analyzeI18nRoadmapReadinessReport(
 
   const p2 = buildPhase(
     "P2",
-    "Agent / Artifact / Browser / Knowledge 主路径",
+    "Agent / Artifact / Browser 主路径",
     [
       buildCheck(
         "agent-namespace-migrated",
@@ -840,8 +828,8 @@ export function analyzeI18nRoadmapReadinessReport(
         },
       ),
       buildCheck(
-        "knowledge-browser-artifact-main-entries",
-        "Knowledge / Plugin / Browser / Artifact 主要入口迁移对应 namespace。",
+        "plugin-browser-artifact-main-entries",
+        "Plugin / Browser / Artifact 主要入口迁移对应 namespace。",
         EVIDENCE_PATHS.sourceLocaleExport,
         p2NamespacesReady &&
           sourceExportContains(

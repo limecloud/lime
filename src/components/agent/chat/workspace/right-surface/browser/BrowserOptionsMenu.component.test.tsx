@@ -59,6 +59,32 @@ afterEach(async () => {
 });
 
 describe("Browser options canonical return owner", () => {
+  it.each([
+    [0.25, false, true],
+    [0.3, true, true],
+    [4, true, true],
+    [5, true, false],
+  ])(
+    "enables zoom controls for the shared native range at %s",
+    async (zoomFactor, out, into) => {
+      await render(owner, browserState({ zoomFactor }));
+      await harness.dispatch(
+        harness.query("browser-workspace-options"),
+        new MouseEvent("click", { bubbles: true }),
+      );
+      const zoom = native.show.mock.calls
+        .at(-1)![1]
+        .find((item: { id?: string }) => item.id === "zoom");
+      expect(
+        zoom.controls.find((item: { id: string }) => item.id === "zoom-out")
+          .enabled,
+      ).toBe(out);
+      expect(
+        zoom.controls.find((item: { id: string }) => item.id === "zoom-in")
+          .enabled,
+      ).toBe(into);
+    },
+  );
   it.each(["history", "downloads", "settings"])(
     "captures the actual hydration owner for the %s settings route",
     async (item) => {

@@ -85,6 +85,7 @@ export function requireRuntimeAcceptanceReceipt(
 
 export type RuntimeAcceptancePostProcessingPhase =
   | "start_callback"
+  | "start_projection"
   | "start_notifications"
   | "observer"
   | "accepted_time"

@@ -9,8 +9,6 @@
   "common.splashScreen.subtitle": "한 줄의 아이디어에서 글, 이미지, 영상, 완성된 일까지",
   "common.startupLoading.title": "{{brand}} 시작 중",
   "common.startupLoading.description": "인터페이스 언어 설정과 워크스페이스 진입점을 준비하고 있습니다. 잠시만 기다려 주세요.",
-  "common.app.resourceNavigation.unsupported.title": "이 리소스로 아직 자동 복귀할 수 없습니다",
-  "common.app.resourceNavigation.unsupported.description": "출처 정보는 기록했지만, 메인 창에 대응하는 업무 진입점이 아직 없습니다.",
   "common.app.project.created": "프로젝트가 생성되었습니다",
   "common.app.project.type.general": "대화",
   "common.app.project.type.fallback": "프로젝트",

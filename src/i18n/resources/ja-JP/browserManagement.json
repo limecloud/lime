@@ -1,0 +1,7 @@
+{
+  "browserManagement.navigation": "ページ移動",
+  "browserManagement.back": "戻る",
+  "browserManagement.forward": "進む",
+  "browserManagement.breadcrumbs": "ブラウザー設定のパンくずリスト",
+  "browserManagement.settings": "設定"
+}

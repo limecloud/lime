@@ -35,7 +35,6 @@ export type AgentStreamUserInputSendPreparationEnv = Pick<
   | "reasoningEffortRef"
   | "sessionIdRef"
   | "executionRuntime"
-  | "clawTraceEnabled"
   | "soulCopy"
   | "getWorkspaceIdForSubmit"
   | "getSyncedSessionModelPreference"

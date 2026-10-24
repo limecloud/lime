@@ -17,7 +17,6 @@ export const SIDEBAR_NAV_LABEL_KEYS: Record<string, string> = {
   "scheduled-tasks": "navigation.sidebar.items.scheduledTasks",
   channels: "navigation.sidebar.items.channels",
   "new-chat": "navigation.sidebar.items.newChat",
-  knowledge: "navigation.sidebar.items.knowledge",
   plugins: "navigation.sidebar.items.plugins",
   settings: "navigation.sidebar.items.settings",
 };

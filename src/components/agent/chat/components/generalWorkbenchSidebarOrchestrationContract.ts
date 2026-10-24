@@ -1,25 +1,9 @@
 import type { SkillDetailInfo } from "@/lib/api/skill-execution";
-import type { SidebarActivityLog } from "../hooks/useThemeContextWorkspace";
+import type { SidebarActivityLog } from "./generalWorkbenchWorkflowData";
 import type { Message } from "../types";
-import type { BuildGeneralWorkbenchContextPanelPropsParams } from "./buildGeneralWorkbenchContextPanelProps";
 import type { BuildGeneralWorkbenchExecLogPropsParams } from "./buildGeneralWorkbenchExecLogProps";
 import type { BuildGeneralWorkbenchWorkflowPanelPropsParams } from "./buildGeneralWorkbenchWorkflowPanelProps";
 import type { GeneralWorkbenchCreationTaskEvent } from "./generalWorkbenchWorkflowData";
-import type {
-  GeneralWorkbenchAddFileContextAction,
-  GeneralWorkbenchAddLinkContextAction,
-  GeneralWorkbenchAddTextContextAction,
-} from "./useGeneralWorkbenchContextPanelState";
-
-export interface GeneralWorkbenchSidebarContextOrchestrationInput extends Omit<
-  BuildGeneralWorkbenchContextPanelPropsParams,
-  "contextPanelState"
-> {
-  onAddTextContext?: GeneralWorkbenchAddTextContextAction;
-  onAddLinkContext?: GeneralWorkbenchAddLinkContextAction;
-  onAddFileContext?: GeneralWorkbenchAddFileContextAction;
-}
-
 export interface GeneralWorkbenchSidebarWorkflowOrchestrationInput extends Omit<
   BuildGeneralWorkbenchWorkflowPanelPropsParams,
   | "creationTaskEventsCount"
@@ -42,13 +26,9 @@ export interface GeneralWorkbenchSidebarExecLogOrchestrationInput extends Omit<
 
 export interface GeneralWorkbenchSidebarOrchestrationInput {
   isVersionMode: boolean;
-  context: GeneralWorkbenchSidebarContextOrchestrationInput;
   workflow: GeneralWorkbenchSidebarWorkflowOrchestrationInput;
   execLog: GeneralWorkbenchSidebarExecLogOrchestrationInput;
 }
-
-export type GeneralWorkbenchSidebarContextOrchestrationSource =
-  GeneralWorkbenchSidebarContextOrchestrationInput;
 
 export interface GeneralWorkbenchSidebarWorkflowOrchestrationSource extends Omit<
   GeneralWorkbenchSidebarWorkflowOrchestrationInput,
@@ -67,7 +47,6 @@ export interface GeneralWorkbenchSidebarExecLogOrchestrationSource extends Omit<
 
 export interface GeneralWorkbenchSidebarOrchestrationSource {
   isVersionMode: boolean;
-  context: GeneralWorkbenchSidebarContextOrchestrationSource;
   workflow: GeneralWorkbenchSidebarWorkflowOrchestrationSource;
   execLog: GeneralWorkbenchSidebarExecLogOrchestrationSource;
 }
@@ -75,7 +54,7 @@ export interface GeneralWorkbenchSidebarOrchestrationSource {
 export function createGeneralWorkbenchSidebarOrchestrationInput(
   source: GeneralWorkbenchSidebarOrchestrationSource,
 ): GeneralWorkbenchSidebarOrchestrationInput {
-  const { isVersionMode, context, workflow, execLog } = source;
+  const { isVersionMode, workflow, execLog } = source;
   const { creationTaskEvents = [], activeRunDetailLoading = false } = workflow;
   const {
     historyHasMore = false,
@@ -86,7 +65,6 @@ export function createGeneralWorkbenchSidebarOrchestrationInput(
 
   return {
     isVersionMode,
-    context,
     workflow: {
       ...workflow,
       activeRunDetailLoading,

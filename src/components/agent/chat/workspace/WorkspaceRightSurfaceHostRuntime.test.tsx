@@ -70,7 +70,6 @@ vi.mock("./ReviewThreadSidePanelTab", () => ({
 vi.mock("./WorkspacePluginSurface", () => ({
   WorkspacePluginSurface: () => null,
 }));
-vi.mock("./WorkspaceTraceTab", () => ({ WorkspaceTraceTab: () => null }));
 vi.mock("./right-surface/browser/RightSurfaceBrowserPanel", () => ({
   RightSurfaceBrowserPanel: ({
     launchRequestId,
@@ -159,6 +158,7 @@ describe("Recents production Host routing", () => {
           outputs: [],
           getFileDraft: () => null,
           setFileDraft: vi.fn(),
+          setNewTabAddressDraft: vi.fn(),
           handleCloseSidePanelTab: vi.fn(),
         },
         handleSendRef: { current: vi.fn() },
@@ -343,6 +343,7 @@ describe("Recents production Host routing", () => {
           outputs,
           getFileDraft: () => null,
           setFileDraft: vi.fn(),
+          setNewTabAddressDraft: vi.fn(),
           handleCloseSidePanelTab: vi.fn(),
           openWorkspaceFile: vi.fn(),
           openBrowserInBackground: vi.fn(),

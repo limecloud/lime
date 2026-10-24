@@ -93,6 +93,13 @@ export function createHarness(options: { history?: BrowserHistoryHost } = {}) {
       if (command === "embedded_browser_view_navigate") {
         native.webContents.url = String(args?.url);
       }
+      if (
+        args?.bounds &&
+        (command === "embedded_browser_view_mount" ||
+          command === "embedded_browser_view_set_bounds")
+      ) {
+        native.containerBounds = { ...args.bounds };
+      }
       return state(native);
     }),
     resolveNativeView: vi.fn((viewId: string) => {
@@ -102,17 +109,24 @@ export function createHarness(options: { history?: BrowserHistoryHost } = {}) {
             state: state(native),
             view: native.view,
             window: native.window,
+            containerBounds: { ...native.containerBounds },
           }
         : null;
     }),
     resolveDownloadPath: vi.fn(() => process.execPath),
     resolvePermission: vi.fn(() => true),
     clearPendingPermission: vi.fn(),
+    revokePermissionGrants: vi.fn(),
   };
   const window = {
     id: 7,
     isDestroyed: () => false,
     webContents: { id: 41 },
+    contentView: {
+      get children() {
+        return [...views.values()].map((native) => native.view);
+      },
+    },
   };
   const browserHost = new ElectronBrowserTabHost(
     embeddedHost as never,
@@ -120,12 +134,8 @@ export function createHarness(options: { history?: BrowserHistoryHost } = {}) {
     options,
   );
   browserHost.setArtifactWriter(artifactWriter);
-  const defaults = effectiveBrowserSettings();
   // Existing lifecycle fixtures explicitly allow browsing; permission scenarios opt into ask.
-  let settings = effectiveBrowserSettings({ agent_permissions: {
-    ...defaults.agent_permissions,
-    default: { ...defaults.agent_permissions.default, browse: "allow" },
-  } });
+  let settings = effectiveBrowserSettings({ approvalMode: "neverAsk" });
   browserHost.setSettingsProvider(async () => settings);
   const host = {
     connectionLost: browserHost.connectionLost.bind(browserHost),
@@ -147,7 +157,15 @@ export function createHarness(options: { history?: BrowserHistoryHost } = {}) {
       browserHost.setPopupIdentityHandler.bind(browserHost),
     turnEnded: browserHost.turnEnded.bind(browserHost),
   };
-  return { artifactWriter, browserHost, embeddedHost, events, host, views, window };
+  return {
+    artifactWriter,
+    browserHost,
+    embeddedHost,
+    events,
+    host,
+    views,
+    window,
+  };
 }
 
 function createNativeView(
@@ -240,6 +258,18 @@ function createNativeView(
     ),
   };
   const webContents = {
+    isDestroyed: () => false,
+    mainFrame: {
+      get url() {
+        return webContents.url;
+      },
+      detached: false,
+      processId: 1,
+      routingId: webContentsId,
+      get framesInSubtree(): unknown[] {
+        return [this];
+      },
+    },
     debugger: debuggerApi,
     getTitle: () => "Example",
     getURL: () => webContents.url,
@@ -266,10 +296,17 @@ function createNativeView(
     url,
   };
   const view = {
+    getVisible: () => true,
     getBounds: () => ({ x: 0, y: 0, width: 800, height: 600 }),
     webContents,
   };
-  return { viewId, view, webContents, window };
+  return {
+    viewId,
+    view,
+    webContents,
+    window,
+    containerBounds: { x: 0, y: 0, width: 800, height: 600 },
+  };
 }
 
 function state(native: ReturnType<typeof createNativeView>) {

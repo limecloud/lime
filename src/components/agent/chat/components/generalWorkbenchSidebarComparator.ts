@@ -1,22 +1,9 @@
 import type {
-  GeneralWorkbenchSidebarContextContract,
   GeneralWorkbenchSidebarExecLogContract,
   GeneralWorkbenchSidebarProps,
   GeneralWorkbenchSidebarShellContract,
   GeneralWorkbenchSidebarWorkflowContract,
 } from "./generalWorkbenchSidebarContract";
-
-function areGeneralWorkbenchContextBudgetsEqual(
-  previous: GeneralWorkbenchSidebarProps["contextBudget"],
-  next: GeneralWorkbenchSidebarProps["contextBudget"],
-): boolean {
-  return (
-    previous.activeCount === next.activeCount &&
-    previous.activeCountLimit === next.activeCountLimit &&
-    previous.estimatedTokens === next.estimatedTokens &&
-    previous.tokenLimit === next.tokenLimit
-  );
-}
 
 function areGeneralWorkbenchSidebarShellPropsEqual(
   previous: GeneralWorkbenchSidebarShellContract,
@@ -27,32 +14,6 @@ function areGeneralWorkbenchSidebarShellPropsEqual(
     previous.onRequestCollapse === next.onRequestCollapse &&
     previous.headerActionSlot === next.headerActionSlot &&
     previous.topSlot === next.topSlot
-  );
-}
-
-function areGeneralWorkbenchSidebarContextPropsEqual(
-  previous: GeneralWorkbenchSidebarContextContract,
-  next: GeneralWorkbenchSidebarContextContract,
-): boolean {
-  return (
-    previous.contextSearchQuery === next.contextSearchQuery &&
-    previous.onContextSearchQueryChange === next.onContextSearchQueryChange &&
-    previous.contextSearchMode === next.contextSearchMode &&
-    previous.onContextSearchModeChange === next.onContextSearchModeChange &&
-    previous.contextSearchLoading === next.contextSearchLoading &&
-    previous.contextSearchError === next.contextSearchError &&
-    previous.contextSearchBlockedReason === next.contextSearchBlockedReason &&
-    previous.onSubmitContextSearch === next.onSubmitContextSearch &&
-    previous.onAddTextContext === next.onAddTextContext &&
-    previous.onAddLinkContext === next.onAddLinkContext &&
-    previous.onAddFileContext === next.onAddFileContext &&
-    previous.contextItems === next.contextItems &&
-    previous.onToggleContextActive === next.onToggleContextActive &&
-    previous.onViewContextDetail === next.onViewContextDetail &&
-    areGeneralWorkbenchContextBudgetsEqual(
-      previous.contextBudget,
-      next.contextBudget,
-    )
   );
 }
 
@@ -78,7 +39,8 @@ function areGeneralWorkbenchSidebarWorkflowPropsEqual(
     previous.activeRunDetail === next.activeRunDetail &&
     previous.activeRunDetailLoading === next.activeRunDetailLoading &&
     previous.workflowControlItems === next.workflowControlItems &&
-    previous.workflowControlPendingItemId === next.workflowControlPendingItemId &&
+    previous.workflowControlPendingItemId ===
+      next.workflowControlPendingItemId &&
     previous.onTriggerWorkflowControl === next.onTriggerWorkflowControl
   );
 }
@@ -102,7 +64,6 @@ export function areGeneralWorkbenchSidebarPropsEqual(
 ): boolean {
   return (
     areGeneralWorkbenchSidebarShellPropsEqual(previous, next) &&
-    areGeneralWorkbenchSidebarContextPropsEqual(previous, next) &&
     areGeneralWorkbenchSidebarWorkflowPropsEqual(previous, next) &&
     areGeneralWorkbenchSidebarExecLogPropsEqual(previous, next)
   );

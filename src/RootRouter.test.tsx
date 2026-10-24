@@ -22,10 +22,6 @@ vi.mock("./pages/update-notification", () => ({
   UpdateNotificationPage: () => <div data-testid="update-notification-page" />,
 }));
 
-vi.mock("./features/resource-manager", () => ({
-  ResourceManagerPage: () => <div data-testid="resource-manager-page" />,
-}));
-
 vi.mock("./components/ui/sonner", () => ({
   Toaster: () => <div data-testid="toaster" />,
 }));
@@ -97,15 +93,15 @@ describe("RootRouter", () => {
     ).not.toBeNull();
   });
 
-  it("独立资源管理器窗口从 index.html 入口启动时应映射到资源管理器页", async () => {
+  it("已退役的资源窗口参数只能打开主应用", async () => {
     const { container } = await renderRootRouter(
       "/index.html?lime_window=resource-manager&session=resource-session-1",
     );
 
     expect(
       container.querySelector('[data-testid="resource-manager-page"]'),
-    ).not.toBeNull();
-    expect(container.querySelector('[data-testid="main-app"]')).toBeNull();
+    ).toBeNull();
+    expect(container.querySelector('[data-testid="main-app"]')).not.toBeNull();
   });
 
   it("打包后的文件路径 index.html 入口也应映射到更新提醒页", async () => {

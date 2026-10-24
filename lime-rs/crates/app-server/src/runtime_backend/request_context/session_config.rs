@@ -67,7 +67,6 @@ pub(in crate::runtime_backend) fn session_config_from_request_with_plugins_and_o
         let system_prompt = append_soul_context_to_system_prompt(
             Some(request_system_prompt(request)),
             config_metadata.as_ref(),
-            runtime_metadata,
         );
         (
             append_model_owned_instructions(
@@ -98,11 +97,8 @@ pub(in crate::runtime_backend) fn session_config_from_request_with_plugins_and_o
         } else {
             append_memory_context_to_system_prompt(skills_context.system_prompt, runtime_metadata)
         };
-        let system_prompt = append_soul_context_to_system_prompt(
-            system_prompt,
-            config_metadata.as_ref(),
-            runtime_metadata,
-        );
+        let system_prompt =
+            append_soul_context_to_system_prompt(system_prompt, config_metadata.as_ref());
         (
             merge_system_prompt_with_request_tool_policy(
                 append_model_owned_instructions(

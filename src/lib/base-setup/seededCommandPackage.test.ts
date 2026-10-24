@@ -10,7 +10,7 @@ describe("seededCommandPackage", () => {
 
     expect(pkg.id).toBe("lime-seeded-command-catalog");
     expect(pkg.version).toBe(SEEDED_SERVICE_SKILL_CATALOG_VERSION);
-    expect(pkg.catalogProjections).toHaveLength(40);
+    expect(pkg.catalogProjections).toHaveLength(38);
     expect(pkg.bindingProfiles.map((profile) => profile.id)).toEqual(
       expect.arrayContaining(["agent-turn-instant", "native-skill-instant"]),
     );
@@ -25,7 +25,7 @@ describe("seededCommandPackage", () => {
       getSeededServiceSkillCatalog().items,
     );
 
-    expect(entries).toHaveLength(40);
+    expect(entries).toHaveLength(38);
     expect(
       entries.every(
         (entry) => entry.binding?.skillLocator?.source === "catalog",
@@ -364,28 +364,6 @@ describe("seededCommandPackage", () => {
           triggers: expect.arrayContaining([
             { mode: "mention", prefix: "@读文件" },
             { mode: "mention", prefix: "@Read File Content" },
-          ]),
-        }),
-        expect.objectContaining({
-          id: "command:knowledge_pack",
-          commandKey: "knowledge_pack",
-          renderContract: expect.objectContaining({
-            resultKind: "tool_timeline",
-            detailKind: "json",
-          }),
-          triggers: expect.arrayContaining([
-            { mode: "mention", prefix: "@资料" },
-          ]),
-        }),
-        expect.objectContaining({
-          id: "command:knowledge_settle",
-          commandKey: "knowledge_settle",
-          renderContract: expect.objectContaining({
-            resultKind: "tool_timeline",
-            detailKind: "json",
-          }),
-          triggers: expect.arrayContaining([
-            { mode: "mention", prefix: "@沉淀资料" },
           ]),
         }),
         expect.objectContaining({

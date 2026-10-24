@@ -1,5 +1,5 @@
 import type { AgentRun } from "@/lib/api/executionRun";
-import type { SidebarActivityLog } from "../hooks/useThemeContextWorkspace";
+import type { SidebarActivityLog } from "./generalWorkbenchWorkflowData";
 import type {
   buildGeneralWorkbenchActivityLogGroups,
   GeneralWorkbenchActivityLogGroup,

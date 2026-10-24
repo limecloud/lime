@@ -62,18 +62,6 @@ export interface UpdateCheckConfig {
   remind_later_until: number | null;
 }
 
-export interface UpdateNotificationMetrics {
-  shown_count: number;
-  update_now_count: number;
-  remind_later_count: number;
-  skip_version_count: number;
-  dismiss_count: number;
-  update_now_rate: number;
-  remind_later_rate: number;
-  skip_version_rate: number;
-  dismiss_rate: number;
-}
-
 export interface UpdateNotificationAnchorRect {
   x: number;
   y: number;
@@ -145,24 +133,6 @@ export async function getUpdateCheckSettings(): Promise<UpdateCheckConfig> {
     undefined,
     assertUpdateCheckConfig,
   );
-}
-
-export async function setUpdateCheckSettings(
-  settings: UpdateCheckConfig,
-): Promise<void> {
-  await invokeUpdateCommand("set_update_check_settings", { settings });
-}
-
-export async function getUpdateNotificationMetrics(): Promise<UpdateNotificationMetrics> {
-  return invokeUpdateCommand<UpdateNotificationMetrics>(
-    "get_update_notification_metrics",
-    undefined,
-    assertUpdateNotificationMetrics,
-  );
-}
-
-export async function testUpdateWindow(): Promise<void> {
-  await invokeUpdateCommand("test_update_window");
 }
 
 export async function openUpdateWindow(
@@ -292,26 +262,6 @@ function assertUpdateCheckConfig(
     typeof value.last_check_timestamp !== "number"
   ) {
     throw new Error(`${command} did not return update check settings`);
-  }
-}
-
-function assertUpdateNotificationMetrics(
-  command: string,
-  value: unknown,
-): asserts value is UpdateNotificationMetrics {
-  if (
-    !isRecord(value) ||
-    typeof value.shown_count !== "number" ||
-    typeof value.update_now_count !== "number" ||
-    typeof value.remind_later_count !== "number" ||
-    typeof value.skip_version_count !== "number" ||
-    typeof value.dismiss_count !== "number" ||
-    typeof value.update_now_rate !== "number" ||
-    typeof value.remind_later_rate !== "number" ||
-    typeof value.skip_version_rate !== "number" ||
-    typeof value.dismiss_rate !== "number"
-  ) {
-    throw new Error(`${command} did not return update notification metrics`);
   }
 }
 

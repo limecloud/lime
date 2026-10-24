@@ -2,6 +2,7 @@
 /* global process */
 import { ipcRenderer } from "electron";
 import { BrowserDesignPreview } from "./browserDesignPreview";
+import { prepareDesignCapture } from "./browserDesignCapturePage";
 import {
   BROWSER_ANNOTATION_PAGE_COMMAND,
   BROWSER_ANNOTATION_PAGE_EVENT,
@@ -613,7 +614,19 @@ export function installBrowserPageAnnotations(): () => void {
       message.pageRevision === saved.pageRevision &&
       message.documentToken === documentToken
     ) {
-      if (message.type === "cancel") {
+      if (
+        ["prepare-design-capture", "clear-design-capture"].includes(
+          String(message.type),
+        )
+      ) {
+        prepareDesignCapture(
+          saved,
+          message,
+          designs,
+          () => liveSelection(saved),
+          (payload) => send(saved, payload),
+        );
+      } else if (message.type === "cancel") {
         designs.remove(saved.annotationId);
         retained.delete(saved.annotationId);
         anchors.remove(saved.annotationId);

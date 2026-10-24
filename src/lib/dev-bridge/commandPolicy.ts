@@ -10,7 +10,6 @@ export type DevBridgeCommandTimeoutProfile =
   | "app-server-long-running"
   | "app-server-provider-network"
   | "app-server-read"
-  | "knowledge-compile"
   | "voice-model-download"
   | "layered-design-project"
   | "truth"
@@ -42,7 +41,6 @@ const electronHostNoMockFallbackCommands = new Set([
   "is_default_browser",
   "app_server_host_diagnostics",
   "open_file_preview_window",
-  "open_resource_manager_window",
   "open_system_settings_url",
   "macos_native_host_invoke",
   "windows_native_host_invoke",
@@ -89,7 +87,6 @@ const APP_SERVER_HANDLE_JSON_LINES_COMMAND = "app_server_handle_json_lines";
 const APP_SERVER_DRAIN_EVENTS_COMMAND = "app_server_drain_events";
 const APP_SERVER_THREAD_LIST_METHOD = "thread/list";
 const APP_SERVER_TURN_START_METHOD = "turn/start";
-const APP_SERVER_KNOWLEDGE_COMPILE_METHOD = "knowledgePack/compile";
 const APP_SERVER_LONG_RUNNING_METHODS = new Set([
   "scheduledTask/run/start",
   "plugin/install",
@@ -191,9 +188,6 @@ export function resolveDevBridgeCommandTimeoutProfile(
   if (isAppServerStartupTruthCommand(command, args)) {
     return "startup-truth";
   }
-  if (isAppServerKnowledgeCompileCommand(command, args)) {
-    return "knowledge-compile";
-  }
   if (isAppServerProviderNetworkCommand(command, args)) {
     return "app-server-provider-network";
   }
@@ -242,18 +236,6 @@ function isAppServerStartupTruthCommand(
   }
   return extractAppServerJsonLines(args).some((line) =>
     jsonRpcLineHasAnyMethod(line, APP_SERVER_STARTUP_TRUTH_METHODS),
-  );
-}
-
-function isAppServerKnowledgeCompileCommand(
-  command: string,
-  args: unknown,
-): boolean {
-  if (command !== APP_SERVER_HANDLE_JSON_LINES_COMMAND) {
-    return false;
-  }
-  return extractAppServerJsonLines(args).some((line) =>
-    jsonRpcLineHasMethod(line, APP_SERVER_KNOWLEDGE_COMPILE_METHOD),
   );
 }
 

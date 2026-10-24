@@ -20,22 +20,13 @@ const toastHoisted = vi.hoisted(() => ({
 const titleHoisted = vi.hoisted(() => ({
   mockGenerateAgentRuntimeTitle: vi.fn(),
 }));
-const materialHoisted = vi.hoisted(() => ({
-  mockImportMaterialFromUrl: vi.fn(),
-}));
 
 export const toast = toastHoisted.toast;
 export const mockGenerateAgentRuntimeTitle =
   titleHoisted.mockGenerateAgentRuntimeTitle;
-export const mockImportMaterialFromUrl =
-  materialHoisted.mockImportMaterialFromUrl;
 
 vi.mock("sonner", () => ({
   toast: toastHoisted.toast,
-}));
-
-vi.mock("@/lib/api/materials", () => ({
-  importMaterialFromUrl: materialHoisted.mockImportMaterialFromUrl,
 }));
 
 vi.mock("@/lib/api/agentRuntime/agentClient", async (importOriginal) => {
@@ -253,8 +244,6 @@ beforeEach(async () => {
     usedFallback: false,
     fallbackReason: null,
   });
-  mockImportMaterialFromUrl.mockReset();
-  mockImportMaterialFromUrl.mockResolvedValue({ id: "material-image-1" });
   toast.error.mockReset();
   toast.info.mockReset();
   toast.success.mockReset();

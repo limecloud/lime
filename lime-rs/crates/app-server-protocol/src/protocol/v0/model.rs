@@ -3,64 +3,6 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct UsageStatsRangeParams {
-    pub time_range: String,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct UsageStatsSummary {
-    pub total_conversations: u32,
-    pub total_messages: u32,
-    pub total_tokens: u64,
-    pub total_time_minutes: u32,
-    pub monthly_conversations: u32,
-    pub monthly_messages: u32,
-    pub monthly_tokens: u64,
-    pub today_conversations: u32,
-    pub today_messages: u32,
-    pub today_tokens: u64,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct UsageStatsReadResponse {
-    pub stats: UsageStatsSummary,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct UsageStatsModelUsage {
-    pub model: String,
-    pub conversations: u32,
-    pub tokens: u64,
-    pub percentage: f32,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct UsageStatsModelRankingListResponse {
-    #[serde(default)]
-    pub ranking: Vec<UsageStatsModelUsage>,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct UsageStatsDailyUsage {
-    pub date: String,
-    pub conversations: u32,
-    pub tokens: u64,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct UsageStatsDailyTrendsListResponse {
-    #[serde(default)]
-    pub trends: Vec<UsageStatsDailyUsage>,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
 pub struct ModelReasoningEffortOptionInfo {
     pub id: String,
     pub value: String,

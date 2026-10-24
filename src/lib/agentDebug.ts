@@ -32,7 +32,7 @@ function readAgentDebugFlag(): string | null {
   }
 }
 
-function isAgentDebugEnabled(): boolean {
+export function isAgentDebugEnabled(): boolean {
   const flag = readAgentDebugFlag();
   if (flag === "0") {
     return false;

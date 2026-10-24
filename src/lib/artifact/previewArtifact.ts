@@ -5,7 +5,6 @@ export type PreviewArtifactSource =
   | "file"
   | "artifact"
   | "task"
-  | "knowledge"
   | "url"
   | "session_file"
   | "app"

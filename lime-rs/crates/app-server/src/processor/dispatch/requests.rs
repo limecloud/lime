@@ -490,26 +490,6 @@ impl RequestProcessor {
             METHOD_SOUL_STYLE_PACK_UNINSTALL => {
                 self.handle_soul_style_pack_uninstall_impl(params).boxed()
             }
-            METHOD_KNOWLEDGE_PACK_LIST => self.handle_knowledge_pack_list_impl(params).boxed(),
-            METHOD_KNOWLEDGE_PACK_READ => self.handle_knowledge_pack_read_impl(params).boxed(),
-            METHOD_KNOWLEDGE_SOURCE_IMPORT => {
-                self.handle_knowledge_source_import_impl(params).boxed()
-            }
-            METHOD_KNOWLEDGE_PACK_COMPILE => {
-                self.handle_knowledge_pack_compile_impl(params).boxed()
-            }
-            METHOD_KNOWLEDGE_PACK_DEFAULT_SET => {
-                self.handle_knowledge_pack_default_set_impl(params).boxed()
-            }
-            METHOD_KNOWLEDGE_PACK_STATUS_UPDATE => self
-                .handle_knowledge_pack_status_update_impl(params)
-                .boxed(),
-            METHOD_KNOWLEDGE_CONTEXT_RESOLVE => {
-                self.handle_knowledge_context_resolve_impl(params).boxed()
-            }
-            METHOD_KNOWLEDGE_CONTEXT_RUN_VALIDATE => self
-                .handle_knowledge_context_run_validate_impl(params)
-                .boxed(),
             METHOD_SCHEDULED_TASK_LIST => self.handle_scheduled_task_list_impl(params).boxed(),
             METHOD_SCHEDULED_TASK_READ => self.handle_scheduled_task_read_impl(params).boxed(),
             METHOD_SCHEDULED_TASK_CREATE => self.handle_scheduled_task_create_impl(params).boxed(),
@@ -623,13 +603,6 @@ impl RequestProcessor {
             METHOD_DIAGNOSTICS_TRACE_EXPORT => {
                 self.handle_diagnostics_trace_export_impl(params).boxed()
             }
-            METHOD_USAGE_STATS_READ => self.handle_usage_stats_read(params).boxed(),
-            METHOD_USAGE_STATS_MODEL_RANKING_LIST => {
-                self.handle_usage_stats_model_ranking_list(params).boxed()
-            }
-            METHOD_USAGE_STATS_DAILY_TRENDS_LIST => {
-                self.handle_usage_stats_daily_trends_list(params).boxed()
-            }
             v2::METHOD_COLLABORATION_MODE_LIST => {
                 self.handle_collaboration_mode_list_impl(params).boxed()
             }
@@ -648,7 +621,20 @@ impl RequestProcessor {
             v2::METHOD_WINDOWS_SANDBOX_SETUP_START => self
                 .handle_windows_sandbox_setup_start_impl(params, connection_request_id.clone())
                 .boxed(),
+            v2::METHOD_PRIMARY_RUNTIME_DIAGNOSE_DEPENDENCIES => {
+                self.handle_diagnose_dependencies(params).boxed()
+            }
+            v2::METHOD_PRIMARY_RUNTIME_RUN_UPDATE_NOW => {
+                self.handle_run_update_now(params, false).boxed()
+            }
+            v2::METHOD_PRIMARY_RUNTIME_RESET_DEPENDENCIES => {
+                self.handle_run_update_now(params, true).boxed()
+            }
+            v2::METHOD_PRIMARY_RUNTIME_CANCEL_INSTALL => self.handle_cancel_install(params).boxed(),
             v2::METHOD_CONFIG_READ => self.handle_config_read_impl(params).boxed(),
+            v2::METHOD_CONFIG_REQUIREMENTS_READ => {
+                self.handle_config_requirements_read_impl(params).boxed()
+            }
             v2::METHOD_CONFIG_VALUE_WRITE => self.handle_config_value_write_impl(params).boxed(),
             v2::METHOD_CONFIG_BATCH_WRITE => self.handle_config_batch_write_impl(params).boxed(),
             METHOD_CONNECT_DEEP_LINK_RESOLVE => {

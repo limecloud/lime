@@ -252,20 +252,6 @@ describe("app-server runtime boundary", () => {
     ).toEqual([]);
   });
 
-  it("Knowledge Builder App Server adapter 不应直接持有 Agent 状态", () => {
-    const adapter = readFileSync(
-      join(
-        REPO_ROOT,
-        "lime-rs/crates/app-server/src/runtime_backend/knowledge_builder_runtime.rs",
-      ),
-      "utf8",
-    );
-
-    expect(adapter).toContain("KnowledgeBuilderSkillRunner");
-    expect(adapter).not.toContain("AgentState");
-    expect(adapter).not.toContain("run_knowledge_builder_skill");
-  });
-
   it("runtime_backend 主文件不应重新承接 action response 或事件 mapper 细节", () => {
     const runtimeBackend = readFileSync(
       join(REPO_ROOT, "lime-rs/crates/app-server/src/runtime_backend.rs"),

@@ -18,7 +18,6 @@ const EXPECTED_SURFACE_KINDS: WorkspaceRightSurfaceKind[] = [
   "shell",
   "background-terminal",
   "harness",
-  "trace",
 ];
 
 describe("rightSurfaceRegistry", () => {

@@ -10,7 +10,6 @@ import type { GeneralWorkbenchDocumentState } from "@/lib/api/project";
 import type { AgentToolCallState as ToolCallState } from "@/lib/api/agentProtocol";
 import type { SkillDetailInfo } from "@/lib/api/skill-execution";
 import { extractArtifactProtocolPathsFromValue } from "@/lib/artifact-protocol";
-import type { SidebarActivityLog } from "../hooks/useThemeContextWorkspace";
 import type { TopicBranchStatus } from "../hooks/useTopicBranchBoard";
 import { parseSkillSlashCommand } from "../hooks/skillCommand";
 import { CONTENT_POST_SKILL_KEY } from "../utils/contentPostSkill";
@@ -774,51 +773,6 @@ export function resolveGeneralWorkbenchApplyTargetByGateKey(
     return "版本主稿";
   }
   return "主稿内容";
-}
-
-function extractExecutionIdFromSocialToolId(toolCallId: string): string | null {
-  const normalized = toolCallId.trim();
-  if (!normalized.startsWith("social-write-")) {
-    return null;
-  }
-  const match = normalized.match(/^social-write-(.+)-[0-9a-f]{8}$/i);
-  const executionId = match?.[1]?.trim();
-  if (!executionId) {
-    return null;
-  }
-  return executionId;
-}
-
-export function resolveExecutionIdCandidatesForActivityLog(
-  log: SidebarActivityLog,
-): string[] {
-  const candidates: string[] = [];
-  const pushCandidate = (value?: string | null) => {
-    const normalized = value?.trim();
-    if (!normalized) {
-      return;
-    }
-    if (!candidates.includes(normalized)) {
-      candidates.push(normalized);
-    }
-  };
-
-  pushCandidate(log.executionId);
-  pushCandidate(log.messageId);
-
-  const normalizedLogId = log.id.trim();
-  if (normalizedLogId) {
-    let toolCallIdProbe = normalizedLogId;
-    if (log.messageId) {
-      const messagePrefix = `${log.messageId}-`;
-      if (normalizedLogId.startsWith(messagePrefix)) {
-        toolCallIdProbe = normalizedLogId.slice(messagePrefix.length);
-      }
-    }
-    pushCandidate(extractExecutionIdFromSocialToolId(toolCallIdProbe));
-  }
-
-  return candidates;
 }
 
 export function isGeneralWorkbenchPrimaryDocumentArtifact(

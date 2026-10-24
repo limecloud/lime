@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 
 const AUTO_SCROLL_BOTTOM_THRESHOLD_PX = 64;
 const USER_SCROLL_IDLE_MS = 500;
@@ -10,7 +10,7 @@ function isNearScrollBottom(container: HTMLDivElement): boolean {
   );
 }
 
-export function useMessageListScrollController() {
+export function useMessageListScrollController(sessionId?: string | null) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [isUserScrolling, setIsUserScrolling] = useState(false);
@@ -37,11 +37,15 @@ export function useMessageListScrollController() {
     }, USER_SCROLL_IDLE_MS);
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const container = containerRef.current;
     if (!container) {
       return;
     }
+    // 会话切换会替换带 key 的容器；监听和尾随状态必须属于当前容器。
+    programmaticTopRef.current = null;
+    setAutoScrollEnabled(true);
+    setIsUserScrolling(false);
 
     const handleScroll = () => {
       markUserScrolling();
@@ -105,7 +109,7 @@ export function useMessageListScrollController() {
         scrollTimeoutRef.current = null;
       }
     };
-  }, [markUserScrolling, setAutoScrollEnabled]);
+  }, [sessionId, markUserScrolling, setAutoScrollEnabled]);
 
   const scrollToTail = useCallback((behavior: "auto" | "smooth") => {
     const container = containerRef.current;

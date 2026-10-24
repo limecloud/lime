@@ -26,7 +26,7 @@ export async function reopenBrowserHistoryEntry({
   waitFor,
 }) {
   await history
-    .getByRole("button", {
+    .getByRole("link", {
       name: label("open").replace("{{title}}", target.title),
       exact: true,
     })
@@ -54,8 +54,8 @@ export async function reopenBrowserHistoryEntry({
           historyVisible: Boolean(history),
           error: history?.querySelector('[role="alert"]')?.textContent || null,
           openUnavailable: history
-            ? [...history.querySelectorAll("button[aria-busy]")].every(
-                (button) => button.disabled,
+            ? [...history.querySelectorAll("a[aria-busy]")].every(
+                (link) => link.getAttribute("aria-disabled") === "true",
               )
             : false,
         };
@@ -118,7 +118,7 @@ export async function reopenBrowserHistoryFromSettings({
         .fill(target.title);
       await waitFor(
         options,
-        () => history.getByRole("listitem").allTextContents(),
+        () => history.getByTestId("browser-history-row").allTextContents(),
         (rows) => rows.length === 1 && rows[0].includes(target.title),
         "Ordinary Settings history did not find the committed page",
       );

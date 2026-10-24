@@ -222,7 +222,6 @@ interface BuildWorkspaceNavbarPropsParams {
   onBackToProjectManagement?: ComponentProps<
     typeof ChatNavbar
   >["onBackToProjectManagement"];
-  onBackToResources?: ComponentProps<typeof ChatNavbar>["onBackToResources"];
   showCanvasToggle: boolean;
   isCanvasOpen: boolean;
   onToggleCanvas?: ComponentProps<typeof ChatNavbar>["onToggleCanvas"];
@@ -265,7 +264,6 @@ export function buildWorkspaceNavbarProps({
   navbarContextVariant = "default",
   collapseEntryContext = false,
   onBackToProjectManagement,
-  onBackToResources,
   showCanvasToggle,
   isCanvasOpen,
   onToggleCanvas,
@@ -303,7 +301,6 @@ export function buildWorkspaceNavbarProps({
         : "default",
     onToggleFullscreen: () => undefined,
     onBackToProjectManagement,
-    onBackToResources,
     showCanvasToggle,
     isCanvasOpen,
     onToggleCanvas,

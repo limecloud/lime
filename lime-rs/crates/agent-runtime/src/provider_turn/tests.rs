@@ -2726,6 +2726,7 @@ async fn turn_executes_same_response_tool_batch_in_parallel_when_policy_allows()
     ]));
     let probe = Arc::new(ParallelProbe::default());
     let policy = RuntimeReplyModelRequestPolicy {
+        web_search_mode: None,
         truncation: None,
         responses: None,
         tool_call: Some(

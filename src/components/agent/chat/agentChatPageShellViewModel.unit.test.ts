@@ -88,13 +88,7 @@ describe("agentChatPageShellViewModel", () => {
         skillId: "service-skill-1",
       },
     });
-    expectForced({
-      initialKnowledgePackSelection: {
-        enabled: true,
-        packName: "project-pack",
-        workingDir: "/workspace/project",
-      },
-    });
+
     expectForced({
       initialProjectFileOpenTarget: {
         relativePath: "exports/report.md",

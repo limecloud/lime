@@ -76,7 +76,6 @@ pub enum TurnPromptAugmentationStageKind {
     RuntimeEnvironment,
     ExplicitLocalPathFocus,
     Memory,
-    KnowledgePack,
     WebSearch,
     RequestToolPolicy,
     ResponseLanguage,
