@@ -701,10 +701,10 @@ function assertI18nKeyTypes() {
     ns: "settings",
   });
   i18n.t("settings.desktop.language", { ns: "settings" });
-  i18n.t("settings.environment.hero.title", { ns: "settings" });
-  i18n.t("settings.environment.preview.overriddenSources", {
+  i18n.t("settings.localEnvironments.title", { ns: "settings" });
+  i18n.t("settings.localEnvironments.showInherited", {
     ns: "settings",
-    sources: "Shell environment import",
+    count: 2,
   });
   i18n.t("settings.desktop.title", { ns: "settings" });
   i18n.t("settings.desktop.general", { ns: "settings" });

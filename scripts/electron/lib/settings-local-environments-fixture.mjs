@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { createHash } from "node:crypto";
 import {
   ensureElectronFixtureBuild,
   inspectElectronFixtureBuildFreshness,
@@ -23,6 +24,50 @@ import {
   openLocalEnvironmentEditor,
   runSettingsLocalEnvironmentsNavigationScenario,
 } from "./settings-local-environments-navigation-scenario.mjs";
+import { artifactFingerprints } from "./settings-navigation-fixture-identity.mjs";
+
+const sources = [
+  "scripts/electron/lib/settings-local-environments-fixture.mjs",
+  "scripts/electron/lib/settings-local-environments-navigation-scenario.mjs",
+  "scripts/lib/electron-fixture-build.mjs",
+  "src/components/settings-v2/sections.tsx",
+  "src/components/settings-v2/SettingsPrimitives.tsx",
+  "src/components/settings-v2/_layout/SettingsSidebar.tsx",
+  "src/components/settings-v2/hooks/useSettingsCategory.ts",
+  "src/lib/api/localEnvironments.ts",
+  "src/lib/localEnvironments.ts",
+  "electron/hostCommands.ts",
+  "electron/ipcChannels.ts",
+  "electron/systemUtilityHost.ts",
+  "packages/app-server-client/src/generated/protocol-types.ts",
+  "lime-rs/crates/app-server-protocol/src/protocol/v2/local_environments.rs",
+  "lime-rs/crates/app-server/src/processor/local_environments.rs",
+  "lime-rs/crates/app-server/src/runtime/local_environments.rs",
+  "lime-rs/crates/app-server/src/runtime/local_environments/paths.rs",
+  ...[
+    "LocalEnvironmentsSettings.tsx",
+    "LocalEnvironmentDetails.tsx",
+    "LocalEnvironmentEditor.tsx",
+    "LifecycleEditor.tsx",
+    "ActionsEditor.tsx",
+  ].map(
+    (file) => `src/components/settings-v2/coding/local-environments/${file}`,
+  ),
+  ...["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"].map(
+    (locale) => `src/i18n/resources/${locale}/settings.json`,
+  ),
+];
+const sourceFingerprints = () =>
+  Object.fromEntries(
+    sources.map((file) => [
+      file,
+      createHash("sha256").update(fs.readFileSync(file)).digest("hex"),
+    ]),
+  );
+const drift = (before, after) =>
+  [...new Set([...Object.keys(before), ...Object.keys(after)])].filter(
+    (file) => before[file] !== after[file],
+  );
 
 const options = parseSettingsAppearanceFixtureArgs(process.argv.slice(2), {
   defaults: {
@@ -58,6 +103,7 @@ const errors = [],
   pageErrors = [],
   traces = [];
 let runtime, handle, mainExit;
+const identity = { sourceBeforeBuild: sourceFingerprints() };
 function check(name, value) {
   summary.assertions[name] = Boolean(value);
   if (!value) throw Error(name);
@@ -123,6 +169,12 @@ try {
     rootDir: process.cwd(),
     logPrefix: "settings-local-environments",
   });
+  identity.sourceBefore = sourceFingerprints();
+  check(
+    "stableBuildSources",
+    drift(identity.sourceBeforeBuild, identity.sourceBefore).length === 0,
+  );
+  identity.artifactsBefore = artifactFingerprints();
   summary.freshnessBefore = inspectElectronFixtureBuildFreshness({
     rootDir: process.cwd(),
   });
@@ -166,6 +218,14 @@ try {
     options,
     summary.configuration.projectName,
   );
+  summary.sidebarOrder = await handle.page
+    .locator('[data-testid^="settings-sidebar-tab-"]')
+    .evaluateAll((buttons) => buttons.map((button) => button.dataset.testid));
+  check(
+    "aboutIsLast",
+    summary.sidebarOrder.at(-1) === "settings-sidebar-tab-about" &&
+      summary.sidebarOrder.at(-2) === "settings-sidebar-tab-worktrees",
+  );
   check(
     "coldUiRestore",
     (await handle.page
@@ -192,6 +252,15 @@ try {
   await handle.page.setViewportSize({ width: 900, height: 760 });
   await screenshot("local-environments-narrow");
   await close();
+  identity.sourceAfter = sourceFingerprints();
+  identity.artifactsAfter = artifactFingerprints();
+  summary.identity = {
+    sourceDrift: drift(identity.sourceBefore, identity.sourceAfter),
+    artifactDrift: drift(identity.artifactsBefore, identity.artifactsAfter),
+    receipt: "identity.json",
+  };
+  check("stableProductSources", summary.identity.sourceDrift.length === 0);
+  check("stableBuiltArtifacts", summary.identity.artifactDrift.length === 0);
   summary.trace = summarizeSettingsAppearanceTrace(traces);
   check(
     "currentMethods",
@@ -230,6 +299,10 @@ try {
   summary.consoleErrors = errors;
   summary.pageErrors = pageErrors;
   summary.completedAt = new Date().toISOString();
+  fs.writeFileSync(
+    path.join(options.evidenceDir, "identity.json"),
+    `${JSON.stringify(identity, null, 2)}\n`,
+  );
   if (runtime && !options.keepTemp)
     fs.rmSync(runtime.tempRoot, { recursive: true, force: true });
   fs.writeFileSync(

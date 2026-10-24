@@ -11,6 +11,7 @@ pub use worktrees::{
     create_worktree, list_worktrees, remove_worktree, validate_worktree_removal, worktree_contains,
     ManagedWorktree, WorktreeOptions,
 };
+pub use worktrees::{read_local_environment_config_path, save_local_environment_config_path};
 pub use worktrees::{restore_worktree, snapshot_worktree, WorktreeSnapshot};
 
 const GIT_COMMAND_TIMEOUT: Duration = Duration::from_secs(5);

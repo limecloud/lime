@@ -1333,19 +1333,19 @@ describe("i18n namespace loader", () => {
     ).toBe("森野秘境");
     expect(
       loadNamespaceResource("fr-FR", "settings")[
-        "settings.environment.hero.title"
+        "settings.localEnvironments.title"
       ],
-    ).toBe("环境变量");
+    ).toBe("环境");
     expect(
       loadNamespaceResource("fr-FR", "settings")[
-        "settings.environment.shellImport.imported.title"
+        "settings.localEnvironments.setup"
       ],
-    ).toBe("已导入项");
+    ).toBe("设置脚本");
     expect(
       loadNamespaceResource("fr-FR", "settings")[
-        "settings.environment.preview.overriddenSources"
+        "settings.localEnvironments.showInherited"
       ],
-    ).toBe("已覆盖来源：{{sources}}");
+    ).toBe("显示继承的环境（{{count}}）");
     expect(
       loadNamespaceResource("fr-FR", "settings")[
         "settings.agent.skills.advancedEntry.title"

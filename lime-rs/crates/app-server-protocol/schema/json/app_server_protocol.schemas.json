@@ -32262,6 +32262,65 @@
       "title": "LocalEnvironmentScript",
       "type": "object"
     },
+    "LocalEnvironmentScriptResult": {
+      "$defs": {
+        "LocalEnvironmentScriptStatus": {
+          "enum": [
+            "failed",
+            "succeeded"
+          ],
+          "type": "string"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "cwd": {
+          "type": "string"
+        },
+        "error": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "finishedAt": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "log": {
+          "type": "string"
+        },
+        "scriptPath": {
+          "type": "string"
+        },
+        "startedAt": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "status": {
+          "$ref": "#/$defs/LocalEnvironmentScriptStatus"
+        }
+      },
+      "required": [
+        "cwd",
+        "finishedAt",
+        "log",
+        "scriptPath",
+        "startedAt",
+        "status"
+      ],
+      "title": "LocalEnvironmentScriptResult",
+      "type": "object"
+    },
+    "LocalEnvironmentScriptStatus": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "enum": [
+        "failed",
+        "succeeded"
+      ],
+      "title": "LocalEnvironmentScriptStatus",
+      "type": "string"
+    },
     "LocalEnvironmentsListParams": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "additionalProperties": false,
@@ -52576,7 +52635,17 @@
     "ProjectGitWorktreeCreateParams": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
+        "allowSetupFailure": {
+          "default": false,
+          "type": "boolean"
+        },
         "baseBranch": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "localEnvironmentConfigPath": {
           "type": [
             "null",
             "string"
@@ -52600,6 +52669,52 @@
     },
     "ProjectGitWorktreeCreateResponse": {
       "$defs": {
+        "LocalEnvironmentScriptResult": {
+          "properties": {
+            "cwd": {
+              "type": "string"
+            },
+            "error": {
+              "type": [
+                "null",
+                "string"
+              ]
+            },
+            "finishedAt": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "log": {
+              "type": "string"
+            },
+            "scriptPath": {
+              "type": "string"
+            },
+            "startedAt": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "status": {
+              "$ref": "#/$defs/LocalEnvironmentScriptStatus"
+            }
+          },
+          "required": [
+            "cwd",
+            "finishedAt",
+            "log",
+            "scriptPath",
+            "startedAt",
+            "status"
+          ],
+          "type": "object"
+        },
+        "LocalEnvironmentScriptStatus": {
+          "enum": [
+            "failed",
+            "succeeded"
+          ],
+          "type": "string"
+        },
         "ProjectGitStatusResponse": {
           "properties": {
             "branches": {
@@ -52645,6 +52760,22 @@
       "properties": {
         "branch": {
           "type": "string"
+        },
+        "setupError": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "setupResult": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LocalEnvironmentScriptResult"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "status": {
           "$ref": "#/$defs/ProjectGitStatusResponse"

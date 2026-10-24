@@ -21,6 +21,7 @@ mod fuzzy_file_search;
 mod gateway;
 mod hook;
 mod instructions;
+mod local_environments;
 mod log;
 mod mcp;
 mod media;
@@ -31,7 +32,6 @@ mod permission_profile;
 mod plugin;
 mod plugin_share;
 mod primary_runtime;
-mod local_environments;
 mod process;
 mod project;
 mod project_git;
@@ -163,7 +163,7 @@ impl RequestProcessor {
     }
 
     pub(crate) fn new_with_thread_states_and_environment_storage(
-        runtime: RuntimeCore,
+        mut runtime: RuntimeCore,
         thread_states: ThreadStateManager,
         environment_storage_path: Option<std::path::PathBuf>,
     ) -> Self {
@@ -191,6 +191,9 @@ impl RequestProcessor {
             execution_process_server
                 .attach_primary_runtime(service, runtime.app_config_path().to_owned());
         }
+        let command_exec =
+            CommandExecServer::default().with_process_server(execution_process_server);
+        runtime.command_exec = command_exec.clone();
         Self {
             client_context: ClientContext::default(),
             connection_contexts: Arc::new(Mutex::new(HashMap::new())),
@@ -199,8 +202,7 @@ impl RequestProcessor {
             skills_watcher: None,
             plugin_skill_watch: Arc::new(tokio::sync::Mutex::new(None)),
             process: ProcessServer::default(),
-            command_exec: CommandExecServer::default()
-                .with_process_server(execution_process_server),
+            command_exec,
             fs: FsServer::default(),
             fuzzy_file_search: FuzzyFileSearchServer::default(),
             config_warning_provider: config_warning::default_config_warning_provider(),

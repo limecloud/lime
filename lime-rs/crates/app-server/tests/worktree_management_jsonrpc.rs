@@ -299,6 +299,8 @@ async fn archive_lifecycle_runs_before_a_later_git_failure_and_is_not_replayed_o
                     request(server, "thread/section/move", json!({"threadId": "archived-before-failure", "sectionId": PINNED_THREAD_SECTION_ID})).await;
                 }
             },
+            app_server_transport::ConnectionId(0),
+            || false,
         )
         .await;
     assert!(error.is_err());

@@ -61,13 +61,23 @@ impl RuntimeCore {
         &self,
         params: ProjectGitWorktreeDeleteParams,
         on_archived: F,
+        connection_id: app_server_transport::ConnectionId,
+        is_cancelled: impl Fn() -> bool + Send + Sync,
     ) -> Result<ProjectGitWorktreeDeleteResponse, RuntimeCoreError>
     where
         F: FnMut(String) -> Fut,
         Fut: Future<Output = ()>,
     {
-        self.delete_worktree(params, false, false, on_archived, |_| async { false })
-            .await
+        self.delete_worktree(
+            params,
+            false,
+            false,
+            on_archived,
+            |_| async { false },
+            connection_id,
+            is_cancelled,
+        )
+        .await
     }
 
     async fn delete_worktree<F, Fut, P, Protected>(
@@ -77,6 +87,8 @@ impl RuntimeCore {
         buffer: bool,
         mut on_archived: F,
         is_attached: P,
+        connection_id: app_server_transport::ConnectionId,
+        is_cancelled: impl Fn() -> bool + Send + Sync,
     ) -> Result<ProjectGitWorktreeDeleteResponse, RuntimeCoreError>
     where
         F: FnMut(String) -> Fut,
@@ -85,6 +97,9 @@ impl RuntimeCore {
         Protected: Future<Output = bool>,
     {
         let _guard = self.worktree_operations.lock().await;
+        if is_cancelled() {
+            return Err(RuntimeCoreError::RequestCanceled);
+        }
         let options = self.project_worktree_options()?;
         let target = Path::new(&params.root_path);
         // 快照前确认仍是当前托管目录下的真实 linked checkout。
@@ -106,6 +121,33 @@ impl RuntimeCore {
             }
             Err(error) => return Err(RuntimeCoreError::Backend(error)),
         };
+        // 清理脚本成功后才能归档聊天或删除工作树。
+        crate::runtime::local_environments::lifecycle::cleanup(
+            self,
+            target,
+            connection_id,
+            &is_cancelled,
+        )
+        .await?;
+        if is_cancelled() {
+            return Err(RuntimeCoreError::RequestCanceled);
+        }
+        let fresh = self.worktree_threads().await?;
+        let fresh = self.associated_worktree_threads(&fresh, target).await;
+        ensure_removable_threads(&fresh)?;
+        if fresh.iter().any(|thread| {
+            !associated
+                .iter()
+                .any(|previous| previous.thread_id == thread.thread_id)
+        }) {
+            return Err(RuntimeCoreError::InvalidRequest(
+                "工作树关联聊天已变化，请刷新后重试".into(),
+            ));
+        }
+        if automatic {
+            self.ensure_automatic_worktree_removal(target, buffer, &is_attached)
+                .await?;
+        }
         self.remember_worktree_snapshot(&associated, snapshot.as_ref())
             .await?;
         let mut archived_thread_ids = Vec::new();
@@ -138,6 +180,9 @@ impl RuntimeCore {
         if automatic {
             self.ensure_automatic_worktree_removal(target, buffer, &is_attached)
                 .await?;
+        }
+        if is_cancelled() {
+            return Err(RuntimeCoreError::RequestCanceled);
         }
         let removed = git::remove_worktree(&options.root, target)
             .await

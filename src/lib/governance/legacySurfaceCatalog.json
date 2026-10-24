@@ -1,6 +1,25 @@
 {
   "imports": [
     {
+      "id": "retired-environment-preview",
+      "classification": "dead",
+      "description": "进程变量设置、专用预览和无消费者平台聚合已由 Local Environments 替换；真实工具环境与 native host 保持现役。",
+      "targets": [
+        "src/components/settings-v2/system/environment/index.tsx",
+        "src/components/settings-v2/system/environment/EnvironmentFields.tsx",
+        "src/components/settings-v2/system/environment/EnvironmentPreviewPanel.tsx",
+        "src/components/settings-v2/system/environment/environmentConfig.ts",
+        "src/components/settings-v2/system/environment/environmentPresentation.ts",
+        "src/components/settings-v2/system/environment/useEnvironmentSettingsDraft.ts",
+        "scripts/electron/settings-environment-fixture-smoke.mjs",
+        "scripts/electron/lib/settings-environment-fixture-evidence.mjs",
+        "scripts/electron/lib/settings-environment-navigation-scenario.mjs",
+        "electron/platformCapabilities.ts",
+        "electron/desktopResourceReadiness.ts"
+      ],
+      "allowedPaths": []
+    },
+    {
       "id": "retired-canvas-file-modules",
       "classification": "dead",
       "description": "文件预览/模式/目录与resize已迁 current Files，旧Canvas owner和未消费display helper不得恢复；无兼容导出。",

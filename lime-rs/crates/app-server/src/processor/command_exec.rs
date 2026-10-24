@@ -1,5 +1,5 @@
 use super::{dispatch_result, parse_params, ConnectionRequestId, RequestProcessor, RpcDispatch};
-use crate::permission_profile::resolve_permission_profile_for_request;
+use crate::command_exec::resolve_permission_profile as resolve_command_exec_permission_profile_with_policy;
 use app_server_protocol::protocol::v2::CommandExecParams;
 use app_server_protocol::{error_codes, JsonRpcError};
 use serde_json::Value;
@@ -12,6 +12,7 @@ impl RequestProcessor {
     ) -> Result<RpcDispatch, JsonRpcError> {
         self.ensure_initialized()?;
         reject_client_granted_permissions(params.as_ref())?;
+        let request_id = request.as_ref().map(|request| request.request_id.clone());
         let connection_id = request
             .map(|request| request.connection_id)
             .ok_or_else(|| {
@@ -27,7 +28,11 @@ impl RequestProcessor {
             .map_err(super::to_jsonrpc_error)?;
         dispatch_result(
             self.command_exec
-                .exec(connection_id, params, granted_permissions)
+                .exec_cancellable(connection_id, params, granted_permissions, || {
+                    request_id
+                        .as_ref()
+                        .is_some_and(|id| self.is_request_canceled(id))
+                })
                 .await?,
         )
     }
@@ -100,33 +105,6 @@ impl RequestProcessor {
             .map_err(crate::processor::to_jsonrpc_error)?;
         resolve_command_exec_permission_profile_with_policy(&policy, params)
     }
-}
-
-fn resolve_command_exec_permission_profile_with_policy(
-    policy: &crate::permission_profile::PermissionProfilePolicy,
-    params: &mut CommandExecParams,
-) -> Result<Option<app_server_protocol::protocol::v2::GrantedPermissionProfile>, JsonRpcError> {
-    if params.permission_profile.is_none() && params.sandbox_policy.is_some() {
-        return Ok(None);
-    }
-    let requested = params.permission_profile.as_deref();
-    let profile = resolve_permission_profile_for_request(&policy, requested)
-        .map_err(|message| JsonRpcError::new(error_codes::INVALID_PARAMS, message))?;
-    let Some(profile) = profile else {
-        return Ok(None);
-    };
-    if params.sandbox_policy.is_some() {
-        return Err(JsonRpcError::new(
-            error_codes::INVALID_PARAMS,
-            "permissionProfile cannot be combined with sandboxPolicy",
-        ));
-    }
-    params.sandbox_policy = Some(
-        tool_runtime::sandbox::sandbox_policy_from_label(Some(&profile.sandbox_policy))
-            .map_err(|error| JsonRpcError::new(error_codes::INVALID_PARAMS, error.to_string()))?,
-    );
-    params.permission_profile = None;
-    Ok(profile.granted_permissions)
 }
 
 fn reject_client_granted_permissions(params: Option<&Value>) -> Result<(), JsonRpcError> {

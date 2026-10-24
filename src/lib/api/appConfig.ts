@@ -56,8 +56,6 @@ export interface AppConfigSnapshot {
 
 export type {
   Config,
-  DesktopCapabilities,
-  DesktopCapability,
   CrashReportingConfig,
   ChatAppearanceConfig,
   EnvironmentConfig,

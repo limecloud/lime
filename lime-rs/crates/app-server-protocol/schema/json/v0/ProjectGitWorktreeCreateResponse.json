@@ -1,5 +1,51 @@
 {
   "$defs": {
+    "LocalEnvironmentScriptResult": {
+      "properties": {
+        "cwd": {
+          "type": "string"
+        },
+        "error": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "finishedAt": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "log": {
+          "type": "string"
+        },
+        "scriptPath": {
+          "type": "string"
+        },
+        "startedAt": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "status": {
+          "$ref": "#/$defs/LocalEnvironmentScriptStatus"
+        }
+      },
+      "required": [
+        "cwd",
+        "finishedAt",
+        "log",
+        "scriptPath",
+        "startedAt",
+        "status"
+      ],
+      "type": "object"
+    },
+    "LocalEnvironmentScriptStatus": {
+      "enum": [
+        "failed",
+        "succeeded"
+      ],
+      "type": "string"
+    },
     "ProjectGitStatusResponse": {
       "properties": {
         "branches": {
@@ -45,6 +91,22 @@
   "properties": {
     "branch": {
       "type": "string"
+    },
+    "setupError": {
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    "setupResult": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/LocalEnvironmentScriptResult"
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
     "status": {
       "$ref": "#/$defs/ProjectGitStatusResponse"

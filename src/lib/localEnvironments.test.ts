@@ -6,6 +6,7 @@ import {
   defaultEnvironmentConfigPath,
   effectiveEnvironmentScript,
   partitionLocalEnvironments,
+  nextEnvironmentConfigPath,
   serializeLocalEnvironment,
   validateLocalEnvironmentDraft,
 } from "./localEnvironments";
@@ -119,5 +120,27 @@ describe("local environment editor", () => {
       projectEnvironments: [entries[0]],
       inheritedEnvironments: [entries[1]],
     });
+  });
+
+  it("creates the first available environment filename without replacing another file", () => {
+    const entry = (file: string) => ({
+      type: "error" as const,
+      configPath: `/repo/.codex/environments/${file}`,
+      cwdRelativeToGitRoot: ".",
+      error: { message: "invalid" },
+    });
+    expect(nextEnvironmentConfigPath([], "/repo")).toBe(
+      defaultEnvironmentConfigPath("/repo"),
+    );
+    expect(
+      nextEnvironmentConfigPath(
+        [
+          entry("environment.toml"),
+          entry("environment-2.toml"),
+          entry("environment-4.toml"),
+        ],
+        "/repo",
+      ),
+    ).toBe("/repo/.codex/environments/environment-3.toml");
   });
 });

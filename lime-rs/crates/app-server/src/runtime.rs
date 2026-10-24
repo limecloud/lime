@@ -138,6 +138,7 @@ mod value_fields;
 mod voice;
 pub(crate) mod workflow;
 mod workspaces;
+use crate::command_exec::CommandExecServer;
 use crate::execution_process::ExecutionProcessServer;
 pub use crate::file_checkpoint_snapshot::FileCheckpointSnapshotReadRequest;
 pub use crate::file_checkpoint_snapshot::FileCheckpointSnapshotRecord;
@@ -349,6 +350,7 @@ pub struct RuntimeCore {
     pub(in crate::runtime) event_hub: RuntimeEventHub,
     app_data_source: Arc<dyn AppDataSource>,
     pub(crate) execution_process_server: Option<ExecutionProcessServer>,
+    pub(crate) command_exec: CommandExecServer,
 }
 
 #[derive(Clone)]
@@ -471,6 +473,7 @@ impl RuntimeCore {
             event_hub: RuntimeEventHub::new(),
             app_data_source: Arc::new(NoopAppDataSource),
             execution_process_server: None,
+            command_exec: CommandExecServer::default(),
         }
     }
 

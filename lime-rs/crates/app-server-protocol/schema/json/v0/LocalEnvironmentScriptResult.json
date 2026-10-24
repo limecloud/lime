@@ -1,0 +1,50 @@
+{
+  "$defs": {
+    "LocalEnvironmentScriptStatus": {
+      "enum": [
+        "failed",
+        "succeeded"
+      ],
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "cwd": {
+      "type": "string"
+    },
+    "error": {
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    "finishedAt": {
+      "format": "int64",
+      "type": "integer"
+    },
+    "log": {
+      "type": "string"
+    },
+    "scriptPath": {
+      "type": "string"
+    },
+    "startedAt": {
+      "format": "int64",
+      "type": "integer"
+    },
+    "status": {
+      "$ref": "#/$defs/LocalEnvironmentScriptStatus"
+    }
+  },
+  "required": [
+    "cwd",
+    "finishedAt",
+    "log",
+    "scriptPath",
+    "startedAt",
+    "status"
+  ],
+  "title": "LocalEnvironmentScriptResult",
+  "type": "object"
+}

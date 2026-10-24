@@ -81,6 +81,8 @@ pub(super) fn v0_schemas() -> Vec<GeneratedJsonSchema> {
         typed_schema::<ProjectGitCommitListResponse>("ProjectGitCommitListResponse"),
         typed_schema::<ProjectGitCommit>("ProjectGitCommit"),
         typed_schema::<ProjectGitWorktreeCreateResponse>("ProjectGitWorktreeCreateResponse"),
+        typed_schema::<LocalEnvironmentScriptResult>("LocalEnvironmentScriptResult"),
+        typed_schema::<LocalEnvironmentScriptStatus>("LocalEnvironmentScriptStatus"),
         typed_schema::<ProjectGitWorktreeDeleteResponse>("ProjectGitWorktreeDeleteResponse"),
         typed_schema::<AgentSessionHandoffBundleExportParams>(
             "AgentSessionHandoffBundleExportParams",

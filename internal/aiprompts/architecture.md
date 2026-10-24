@@ -1294,7 +1294,6 @@ Architecture impact: major（Renderer owner/data flow 接线）；责任开发�
 | `electron/ipcChannels.ts`              | IPC channel 常量与协议白名单。                                                                         |
 | `electron/*Host.ts`                    | 一个桌面能力一个 owner，例如 App Server sidecar、文件/项目壳、窗口、通知、更新、浏览器、语音。         |
 | `electron/secureCredentialStore.ts`    | 使用 Electron `safeStorage` 保存受管 Cloud session credential；只向 IPC 投影存在性和 metadata。        |
-| `electron/desktopResourceReadiness.ts` | 运行时读取并校验 macOS/Windows desktop resource manifest 的身份与必需资源存在性；不替代发布 verifier。 |
 | `electron/appServerHost.ts`            | sidecar 生命周期与 `app_server_handle_json_lines` 的宿主边界。                                         |
 | `electron/forge/`、`forge.config.mjs`  | Forge 打包、maker、签名和 release 事实源。                                                             |
 
@@ -1348,10 +1347,10 @@ Architecture impact: major; Code Mode ownership split into protocol/runtime/host
 
 ### 4.1 跨平台 Desktop capability/readiness contract
 
-Desktop 平台能力由 `electron/platformCapabilities.ts` 作为唯一 Host owner 计算，并通过现有
-`get_environment_preview` current Host 命令的 `desktopCapabilities` 字段供设置页和诊断投影消费。
-该合同只描述平台、架构、包状态、Accessibility/Apple Events 授权、资源清单/sidecar/Code Mode/更新状态和已验证/未配置的原生资源；它不承接
-Thread/Turn/Item、provider、工具执行或沙箱策略。
+旧环境变量设置的 `get_environment_preview`、专用 DTO 和 `electron/platformCapabilities.ts`
+诊断聚合已删除；不再通过独立预览命令发布平台能力。现役权限查询和原生操作分别由
+macOS/Windows native host 与对应功能 owner 承接，实际资源由构建和打包 verifier 校验。
+这些 Host 能力不承接 Thread/Turn/Item、provider、工具执行或沙箱策略。
 
 macOS 的 Application Group、Input Monitoring、HID、Computer Use、PIP 等能力只有在 Lime 自己的
 签名 helper/extension、entitlement、资源 manifest 和 Gate B 证据同时存在时才能报告 `ready`。
@@ -1571,7 +1570,16 @@ flowchart LR
 
 Web Search 的 `system/web-search/useWebSearchDraft.ts` 独立拥有原始输入、已保存投影、字段版本、加载和保存锁；页面仅组装四个页签与同一 `useSettingsDraft` 接线。`webSearchConfig.ts` 从 current Config 投影可编辑字段，并在既有串行 updateConfig 中仅合并实际改动字段；保留其他配置、未编辑的搜索/图片字段、内建引擎覆盖与其余自定义引擎，不再持有或回写加载时整份 Config。保存响应更新 baseline，逐字段版本只接纳本次提交后未再编辑的值；失败/卸载不消费新输入，语言切换只翻译当前显示，不能重载草稿。非法自定义模板留稿，初始加载失败禁用编辑/保存，reload只重试未成功的加载。原内联生命周期、重复 current-field useMemo 和定时成功消息清除路径删除；秘密显示状态只归各输入组件并在重新挂载时回到掩码。现有上图可直接表达此 owner，无新增依赖方向/协议/业务authority；root于2026-10-16确认非重大架构，正式验收进度见current计划。命名为职责名，不声称恢复了参考端未知表单符号。
 
-Environment 的 `system/environment/useEnvironmentSettingsDraft.ts` 持有可编辑投影、保存基线、字段revision、同步保存锁和预览请求版本；页面只接线既有useSettingsDraft与展示组件。`environmentConfig.ts` 以开关、原始超时文本和变量列表三个字段比较提交前基线，只在串行updateConfig中合并实际编辑字段到最新配置；变量列表作为同一原子字段，未改的shell开关、超时及其他配置保持current值。响应逐字段接纳，失败/在途新编辑/卸载迟到不能清稿，旧预览不得覆盖新结果；语言切换只翻译文案。预览仍走既有getEnvironmentPreview Host命令，默认遮罩敏感值，不在证据/错误文案写入配置内容。原整份Config本地副本与重载保存生命周期删除；展示与纯函数分工，不增加runtime、协议或配置authority。root于2026-10-16确认非重大架构，仍由上图Existing settings page owners表达；原始Environment表单符号未知，验收见current计划。
+`coding/local-environments/LocalEnvironmentsSettings` 替换原 `system/environment` 进程变量设置。
+项目列表沿现役 workspace owner；项目环境和继承环境经唯一 App Server `local_environments`
+发现 `.codex/environments/*.toml`。详情只读展示 setup/cleanup 的默认与平台脚本及 actions；
+`LocalEnvironmentEditor` 拥有草稿、revision、保存锁和冲突状态，经同一 `useSettingsDraft`
+保护外部导航，内部返回/重载也确认丢弃。配置读写仅走 typed `localEnvironments/list|readConfig|saveConfig`，
+不通过 Electron 文件业务命令或 renderer 直接写盘。App Server 归一化路径、拒绝 symlink、限制文件大小、
+串行 CAS 与原子替换；旧环境预览 API/DTO/Host 实现一并删除。真实进程环境仍归现役工具执行 owner。
+setup/cleanup 的 worktree lifecycle 与页头 actions 执行在接线中，配置保存不代表这些能力已经生效。
+root 于 2026-10-24 确认该替换保持唯一 App Server/runtime/工具 owner，未增加平行业务后端；
+当前证据与未完成项见设置对齐执行计划。
 
 返回会话时，既有 `useWorkspaceTaskCenterNavigationRuntime.resolveInitialSessionSwitch` 使用 `waitForResolution` 等待本次挂载的 Composer owner 建立，再捕获导航 source 并解析工作区；不等待尚需会话水合才能获得的草稿 scope ready。原 generation/scope/navigation epoch 和过期请求守卫继续生效，避免 owner 初始化取消恢复后留在不可编辑的空壳。该接线复用既有 owner，不新增 authority。
 

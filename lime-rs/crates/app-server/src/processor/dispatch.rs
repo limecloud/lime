@@ -67,7 +67,14 @@ impl RequestProcessor {
             request.await
         } else if let Some(request) = self.dispatch_skill_request(method, &mut params) {
             request.await
-        } else if let Some(request) = self.dispatch_project_git_request(method, &mut params) {
+        } else if let Some(request) = self.dispatch_project_git_request(
+            method,
+            &mut params,
+            &id,
+            connection_request_id
+                .as_ref()
+                .map(|request| request.connection_id),
+        ) {
             request.await
         } else {
             match method {

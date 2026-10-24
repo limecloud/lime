@@ -10,7 +10,7 @@ import {
 import { open } from "@/lib/desktop-host/dialog";
 import { localEnvironments } from "@/lib/api/localEnvironments";
 import {
-  defaultEnvironmentConfigPath,
+  nextEnvironmentConfigPath,
   partitionLocalEnvironments,
 } from "@/lib/localEnvironments";
 import {
@@ -205,13 +205,14 @@ function ProjectEnvironments({
         onEdit={() => setEditing(selected)}
       />
     );
-  const defaultPath = defaultEnvironmentConfigPath(project.rootPath);
+  const nextPath = nextEnvironmentConfigPath(entries, project.rootPath);
   const { projectEnvironments, inheritedEnvironments } =
     partitionLocalEnvironments(entries, project.rootPath);
   const renderEnvironment = (entry: LocalEnvironmentResult) => (
     <button
       type="button"
       key={entry.configPath}
+      data-testid="local-environment-row"
       className={rowClass}
       onClick={() => setSelected(entry.configPath)}
     >
@@ -229,7 +230,7 @@ function ProjectEnvironments({
     </button>
   );
   return (
-    <SettingsPageBody aria-busy={loading}>
+    <SettingsPageBody data-testid="project-environments" aria-busy={loading}>
       <SettingsPageHeader
         title={project.name}
         actions={
@@ -239,13 +240,9 @@ function ProjectEnvironments({
             </SettingsAction>
             <SettingsAction
               disabled={loading || failed}
-              onClick={() => setEditing(defaultPath)}
+              onClick={() => setEditing(nextPath)}
             >
-              {t(
-                entries.some((entry) => entry.configPath === defaultPath)
-                  ? "settings.localEnvironments.edit"
-                  : "settings.localEnvironments.create",
-              )}
+              {t("settings.localEnvironments.create")}
             </SettingsAction>
           </div>
         }

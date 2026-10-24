@@ -187,6 +187,8 @@ impl RuntimeCore {
                     buffer,
                     |_| async {},
                     &is_attached,
+                    app_server_transport::ConnectionId(0),
+                    || false,
                 )
                 .await
             {

@@ -12,9 +12,11 @@ use app_server_transport::ConnectionId;
 use base64::engine::general_purpose::STANDARD;
 use base64::Engine;
 use futures::future::BoxFuture;
+use serde_json::json;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::Mutex;
 use tool_runtime::execution_process::{
     start_local_execution_process, ExecutionOutputDelta, ExecutionOutputKind,
@@ -69,12 +71,30 @@ impl CommandExecServer {
             .expect("command exec notification hook mutex poisoned") = Some(hook);
     }
 
+    #[cfg(test)]
     pub(crate) async fn exec(
         &self,
         connection_id: ConnectionId,
         params: CommandExecParams,
         granted_permissions: Option<GrantedPermissionProfile>,
     ) -> Result<CommandExecResponse, JsonRpcError> {
+        self.exec_cancellable(connection_id, params, granted_permissions, || false)
+            .await
+    }
+
+    pub(crate) async fn exec_cancellable(
+        &self,
+        connection_id: ConnectionId,
+        params: CommandExecParams,
+        granted_permissions: Option<GrantedPermissionProfile>,
+        is_cancelled: impl Fn() -> bool + Send + Sync,
+    ) -> Result<CommandExecResponse, JsonRpcError> {
+        if is_cancelled() {
+            return Err(JsonRpcError::new(
+                error_codes::REQUEST_CANCELLED,
+                "request canceled",
+            ));
+        }
         validate_exec(&params)?;
         let process_id = params
             .process_id
@@ -154,6 +174,12 @@ impl CommandExecServer {
             pty_size: params.size.map(|size| (size.rows, size.cols)),
             sandbox,
         };
+        if is_cancelled() {
+            return Err(JsonRpcError::new(
+                error_codes::REQUEST_CANCELLED,
+                "request canceled",
+            ));
+        }
         let mut handle = start_local_execution_process(request)
             .map_err(|error| invalid_runtime(format!("failed to spawn command/exec: {error}")))?;
         if let Some(size) = params.size {
@@ -187,6 +213,8 @@ impl CommandExecServer {
         let mut stderr = Capture::new(output_cap);
         let mut timeout_sleep = timeout.map(tokio::time::sleep).map(Box::pin);
         let mut timed_out = false;
+        let mut cancelled = false;
+        let mut cancel_check = tokio::time::interval(Duration::from_millis(25));
         let response = loop {
             tokio::select! {
                 event = handle.next_event() => {
@@ -238,9 +266,22 @@ impl CommandExecServer {
                     let _ = self.process_server.terminate(&owner_id);
                     timeout_sleep = None;
                 }
+                _ = cancel_check.tick(), if !cancelled => {
+                    if is_cancelled() {
+                        cancelled = true;
+                        let _ = self.process_server.terminate(&owner_id);
+                    }
+                }
             }
         };
         self.sessions.lock().await.remove(&key);
+        if cancelled || is_cancelled() {
+            return Err(JsonRpcError::with_data(
+                error_codes::REQUEST_CANCELLED,
+                "request canceled",
+                json!({"stdout":response.stdout,"stderr":response.stderr,"exitCode":response.exit_code}),
+            ).expect("command cancellation output is serializable"));
+        }
         Ok(response)
     }
 
@@ -506,3 +547,31 @@ fn invalid_runtime(message: impl Into<String>) -> JsonRpcError {
 
 #[cfg(test)]
 mod tests;
+
+pub(crate) fn resolve_permission_profile(
+    policy: &crate::permission_profile::PermissionProfilePolicy,
+    params: &mut CommandExecParams,
+) -> Result<Option<app_server_protocol::protocol::v2::GrantedPermissionProfile>, JsonRpcError> {
+    if params.permission_profile.is_none() && params.sandbox_policy.is_some() {
+        return Ok(None);
+    }
+    let requested = params.permission_profile.as_deref();
+    let profile =
+        crate::permission_profile::resolve_permission_profile_for_request(&policy, requested)
+            .map_err(|message| JsonRpcError::new(error_codes::INVALID_PARAMS, message))?;
+    let Some(profile) = profile else {
+        return Ok(None);
+    };
+    if params.sandbox_policy.is_some() {
+        return Err(JsonRpcError::new(
+            error_codes::INVALID_PARAMS,
+            "permissionProfile cannot be combined with sandboxPolicy",
+        ));
+    }
+    params.sandbox_policy = Some(
+        tool_runtime::sandbox::sandbox_policy_from_label(Some(&profile.sandbox_policy))
+            .map_err(|error| JsonRpcError::new(error_codes::INVALID_PARAMS, error.to_string()))?,
+    );
+    params.permission_profile = None;
+    Ok(profile.granted_permissions)
+}

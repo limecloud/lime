@@ -126,6 +126,31 @@ export function defaultEnvironmentConfigPath(workspaceRoot: string): string {
   return `${workspaceRoot.replace(/[\\/]+$/, "")}${separator}.codex${separator}environments${separator}environment.toml`;
 }
 
+function normalizeEnvironmentPath(path: string): string {
+  const normalized = path.replaceAll("\\", "/").replace(/\/+$/, "");
+  return /^(?:[a-z]:|\/\/)/i.test(normalized)
+    ? normalized.toLowerCase()
+    : normalized;
+}
+
+export function nextEnvironmentConfigPath(
+  entries: LocalEnvironmentResult[],
+  workspaceRoot: string,
+): string {
+  const defaultPath = defaultEnvironmentConfigPath(workspaceRoot);
+  const paths = new Set(
+    entries.map((entry) => normalizeEnvironmentPath(entry.configPath)),
+  );
+  if (!paths.has(normalizeEnvironmentPath(defaultPath))) return defaultPath;
+  for (let suffix = 2; ; suffix += 1) {
+    const path = defaultPath.replace(
+      /environment\.toml$/,
+      `environment-${suffix}.toml`,
+    );
+    if (!paths.has(normalizeEnvironmentPath(path))) return path;
+  }
+}
+
 export function environmentWorkspaceRoot(configPath: string): string {
   return configPath.replace(/[\\/]\.codex[\\/]environments[\\/][^\\/]+$/, "");
 }
@@ -134,17 +159,12 @@ export function partitionLocalEnvironments(
   entries: LocalEnvironmentResult[],
   workspaceRoot: string,
 ) {
-  const normalize = (path: string) => {
-    const normalized = path.replaceAll("\\", "/").replace(/\/+$/, "");
-    return /^(?:[a-z]:|\/\/)/i.test(normalized)
-      ? normalized.toLowerCase()
-      : normalized;
-  };
   const projectEnvironments: LocalEnvironmentResult[] = [];
   const inheritedEnvironments: LocalEnvironmentResult[] = [];
-  const root = normalize(workspaceRoot);
+  const root = normalizeEnvironmentPath(workspaceRoot);
   for (const entry of entries) {
-    (normalize(environmentWorkspaceRoot(entry.configPath)) === root
+    (normalizeEnvironmentPath(environmentWorkspaceRoot(entry.configPath)) ===
+    root
       ? projectEnvironments
       : inheritedEnvironments
     ).push(entry);

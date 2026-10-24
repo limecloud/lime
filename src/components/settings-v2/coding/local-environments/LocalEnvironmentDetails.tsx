@@ -46,6 +46,7 @@ function LifecycleSummary({
           <SettingsValueMenu
             targetId={id}
             value={platform}
+            disabled={false}
             options={["default" as const, ...environmentPlatforms].map(
               (value) => ({
                 value,

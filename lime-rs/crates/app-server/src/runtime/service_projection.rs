@@ -66,5 +66,7 @@ pub(super) fn project_git_worktree_from_service(
         worktree_path: worktree.worktree_path,
         branch: worktree.branch,
         status: project_git_status_from_service(worktree.status),
+        setup_result: None,
+        setup_error: None,
     }
 }

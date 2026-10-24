@@ -1957,6 +1957,8 @@
       "InitializeResponse",
       "InstructionsReadResponse",
       "InstructionsWriteParams",
+      "LocalEnvironmentScriptResult",
+      "LocalEnvironmentScriptStatus",
       "LogArtifactEntry",
       "LogClearResponse",
       "LogEntry",

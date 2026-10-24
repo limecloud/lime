@@ -1093,3 +1093,17 @@ Browser browse receipt 默认 thread；管理员 accessApprovalLifetime=turn 时
 凭据只保存在现役 BrowserPermissions，按 owner/window/thread/browserSession/精确 origin 隔离，
 policy revision 变化立即失效。pending token 与 action approval 仍属于原 call/turn/tab/view/page，
 跨回合只复用已批准的浏览准入，后续回合必须重新 claim 原生控制；不增加 RPC/IPC 方法或 Renderer authority。
+
+## Local Environments
+
+`localEnvironments/list|readConfig|saveConfig` 是依据 Desktop 安装包重建的 App Server 扩展，
+不是公开 Codex Rust 已提供的 wire 方法。Renderer 只经 typed gateway 和现役 IPC transport 消费；
+Electron 不拥有环境文件业务，远端 host 当前明确拒绝。
+
+配置限于 `.codex/environments/*.toml`，默认 `environment.toml`。`list` 返回当前项目与祖先目录的配置；
+`readConfig` 返回 raw、规范路径、存在性、解析结果及 `sha256:` revision；`saveConfig` 使用
+expectedRevision CAS，旧 revision 或外部删除返回 conflict，不能覆盖外部 bytes。无修改 raw 幂等，
+首次创建不覆盖现有文件，更新原子替换。setup/cleanup 支持 darwin/linux/win32 覆盖，actions 包含
+name/command/icon/platform。旧 `get_environment_preview` 为 retired guard-only，不保留替代 Host API。
+
+worktree setup/cleanup 和页头 action 的执行接线尚未完成；不把配置方法成功当成脚本执行或权限验证。

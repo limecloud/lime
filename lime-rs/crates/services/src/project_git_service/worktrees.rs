@@ -11,7 +11,11 @@ mod inventory;
 mod paths;
 pub use inventory::{list_worktrees, remove_worktree, validate_worktree_removal, ManagedWorktree};
 pub use paths::worktree_contains;
+mod local_environment;
 mod snapshots;
+pub use local_environment::{
+    read_local_environment_config_path, save_local_environment_config_path,
+};
 pub use snapshots::{restore_worktree, snapshot_worktree, WorktreeSnapshot};
 
 #[derive(Debug, Clone)]

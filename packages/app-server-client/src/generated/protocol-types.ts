@@ -6507,6 +6507,18 @@ export interface LocalEnvironmentScript {
   script: string;
 }
 
+export interface LocalEnvironmentScriptResult {
+  cwd: string;
+  error?: null | string;
+  finishedAt: number;
+  log: string;
+  scriptPath: string;
+  startedAt: number;
+  status: LocalEnvironmentScriptStatus;
+}
+
+export type LocalEnvironmentScriptStatus = "failed" | "succeeded";
+
 export interface LocalEnvironmentsListParams {
   hostId?: null | string;
   workspaceRoot: string;
@@ -8580,13 +8592,17 @@ export interface ProjectGitStatusResponse {
 }
 
 export interface ProjectGitWorktreeCreateParams {
+  allowSetupFailure?: boolean;
   baseBranch?: null | string;
+  localEnvironmentConfigPath?: null | string;
   name?: null | string;
   rootPath: string;
 }
 
 export interface ProjectGitWorktreeCreateResponse {
   branch: string;
+  setupError?: null | string;
+  setupResult?: LocalEnvironmentScriptResult | null;
   status: ProjectGitStatusResponse;
   worktreePath: string;
 }

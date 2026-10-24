@@ -60,6 +60,10 @@ pub struct ProjectGitWorktreeCreateParams {
     pub name: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub base_branch: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub local_environment_config_path: Option<String>,
+    #[serde(default)]
+    pub allow_setup_failure: bool,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -185,6 +189,30 @@ pub struct ProjectGitWorktreeCreateResponse {
     pub worktree_path: String,
     pub branch: String,
     pub status: ProjectGitStatusResponse,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub setup_result: Option<LocalEnvironmentScriptResult>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub setup_error: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalEnvironmentScriptResult {
+    pub script_path: String,
+    pub cwd: String,
+    pub status: LocalEnvironmentScriptStatus,
+    pub started_at: i64,
+    pub finished_at: i64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+    pub log: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub enum LocalEnvironmentScriptStatus {
+    Succeeded,
+    Failed,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

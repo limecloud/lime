@@ -49,6 +49,8 @@ pub const V0_SCHEMA_TYPE_NAMES: &[&str] = &[
     "ProjectGitCommitListResponse",
     "ProjectGitCommit",
     "ProjectGitWorktreeCreateResponse",
+    "LocalEnvironmentScriptResult",
+    "LocalEnvironmentScriptStatus",
     "ProjectGitWorktreeDeleteResponse",
     "AgentSessionHandoffBundleExportParams",
     "AgentSessionHandoffBundleExportResponse",

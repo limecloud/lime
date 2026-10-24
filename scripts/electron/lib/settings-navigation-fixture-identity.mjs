@@ -67,6 +67,7 @@ export const settingsSources = [
   ...[
     "LocalEnvironmentsSettings.tsx",
     "LocalEnvironmentEditor.tsx",
+    "LocalEnvironmentDetails.tsx",
     "LifecycleEditor.tsx",
     "ActionsEditor.tsx",
   ].map(

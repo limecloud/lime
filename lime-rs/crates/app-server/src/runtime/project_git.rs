@@ -77,12 +77,27 @@ impl RuntimeCore {
     pub async fn create_project_git_worktree(
         &self,
         params: ProjectGitWorktreeCreateParams,
+        connection_id: app_server_transport::ConnectionId,
+        is_cancelled: impl Fn() -> bool + Send + Sync,
     ) -> Result<ProjectGitWorktreeCreateResponse, RuntimeCoreError> {
         let root_path = params.root_path;
         let name = params.name;
         let base_branch = params.base_branch;
         let options = self.project_worktree_options()?;
         let _guard = self.worktree_operations.lock().await;
+        if is_cancelled() {
+            return Err(RuntimeCoreError::RequestCanceled);
+        }
+        let source_workspace = std::fs::canonicalize(&root_path)
+            .map_err(|error| RuntimeCoreError::Backend(error.to_string()))?;
+        let source_status = lime_services::project_git_service::read_status(&root_path)
+            .await
+            .map_err(RuntimeCoreError::Backend)?;
+        let source_git_root = source_status
+            .repository_root
+            .ok_or_else(|| RuntimeCoreError::InvalidRequest("Not a git repository".into()))?;
+        let source_git_root = std::fs::canonicalize(source_git_root)
+            .map_err(|error| RuntimeCoreError::Backend(error.to_string()))?;
         let worktree = lime_services::project_git_service::create_worktree(
             &root_path,
             name.as_deref(),
@@ -91,7 +106,20 @@ impl RuntimeCore {
         )
         .await
         .map_err(RuntimeCoreError::Backend)?;
-        Ok(project_git_worktree_from_service(worktree))
+        let mut response = project_git_worktree_from_service(worktree);
+        let (setup_result, setup_error) = super::local_environments::lifecycle::setup(
+            self,
+            &source_workspace,
+            &source_git_root,
+            std::path::Path::new(&response.worktree_path),
+            params.local_environment_config_path.as_deref(),
+            connection_id,
+            &is_cancelled,
+        )
+        .await;
+        response.setup_result = setup_result;
+        response.setup_error = setup_error;
+        Ok(response)
     }
 }
 

@@ -11,7 +11,16 @@ export async function openLocalEnvironmentEditor(page, options, projectName) {
     .getByRole("button")
     .filter({ has: page.getByText(projectName, { exact: true }) })
     .click();
-  await page.getByRole("button", { name: /^(创建环境|编辑环境)$/ }).click();
+  await page
+    .locator('[data-testid="project-environments"][aria-busy="false"]')
+    .waitFor();
+  const environment = page.getByTestId("local-environment-row").first();
+  if (await environment.count()) {
+    await environment.click();
+    await page.getByRole("button", { name: "编辑环境", exact: true }).click();
+  } else {
+    await page.getByRole("button", { name: "创建环境", exact: true }).click();
+  }
   const editor = page.getByTestId("local-environment-editor");
   await editor.getByLabel("名称", { exact: true }).waitFor();
   return editor;
@@ -96,6 +105,17 @@ export async function runSettingsLocalEnvironmentsNavigationScenario({
     .fill("printf 'action fixture'");
   await editor.getByRole("button", { name: "保存", exact: true }).click();
   await editor.waitFor({ state: "detached" });
+  const details = page.getByTestId("local-environment-details");
+  await details.waitFor({ state: "visible" });
+  assert.equal(
+    await details.locator("textarea, input").count(),
+    0,
+    "saved environment opens read-only details",
+  );
+  await details.getByText("printf 'setup fixture'", { exact: true }).waitFor();
+  await page.screenshot({
+    path: path.join(evidenceDir, "local-environments-details.png"),
+  });
   const saved = await call("localEnvironments/readConfig", { configPath });
   assert.equal(saved.environment.type, "success");
   assert.equal(
@@ -145,6 +165,7 @@ export async function runSettingsLocalEnvironmentsNavigationScenario({
   return {
     observations,
     saveAndReopen: true,
+    readOnlyDetails: true,
     conflictKeepsDraft: true,
     externalBytesPreserved: true,
     configPath,

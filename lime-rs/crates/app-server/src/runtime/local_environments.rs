@@ -1,5 +1,6 @@
 //! Desktop local-environment files remain owned by the shared App Server.
 
+pub(super) mod lifecycle;
 mod paths;
 #[cfg(test)]
 mod tests;

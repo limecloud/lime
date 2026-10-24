@@ -127,7 +127,7 @@ export async function runSettingsSearchScenario({
   await search("local-environments-projects", description);
   await search(
     "local-environments-projects",
-    messages["settings.localEnvironments.title"],
+    messages["settings.localEnvironments.projects"],
   );
   stage("settings-search-dirty-keep-and-discard");
   await search("profile-bio", messages["settings.profile.field.bio.label"]);

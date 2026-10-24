@@ -253,7 +253,8 @@ export async function runBrowserCdpScenario(ctx) {
         options,
         () => ctx.readBrowserWorkspaceState(page),
         (state) =>
-          state?.controlOwner === "user" && state.activeTurnId === null,
+          ["user", "released"].includes(state?.controlOwner) &&
+          state.activeTurnId === null,
         "Turn terminal did not release browser control",
       );
       check(
@@ -303,9 +304,21 @@ export async function runBrowserCdpScenario(ctx) {
       });
     }
     const traces = ctx.readInvokeTrace();
-    const calls = parseJsonRpcRequestsFromInvokeTrace(traces);
+    const calls = parseJsonRpcRequestsFromInvokeTrace(JSON.stringify(traces));
     evidence.invoke = {
       ...(await readInvokeDiagnostics(page)),
+      traceCount: traces.length,
+      mockFallbackHitCount: traces.filter(
+        (entry) =>
+          entry.mock === true ||
+          entry.mockFallback === true ||
+          [
+            entry.transport,
+            entry.source,
+            entry.fallback,
+            entry.fallbackMode,
+          ].some((value) => typeof value === "string" && /mock/iu.test(value)),
+      ).length,
       calls: calls.map(({ method, transport, status, id, params }) => ({
         method,
         transport,

@@ -18,6 +18,8 @@ impl RequestProcessor {
         &'a self,
         method: &str,
         params: &mut Option<Value>,
+        request_id: &'a app_server_protocol::RequestId,
+        connection_id: Option<app_server_transport::ConnectionId>,
     ) -> Option<BoxFuture<'a, Result<RpcDispatch, JsonRpcError>>> {
         let request = match method {
             METHOD_PROJECT_GIT_STATUS => self.handle_project_git_status_impl(params.take()).boxed(),
@@ -32,13 +34,13 @@ impl RequestProcessor {
                 .handle_project_git_branch_create_impl(params.take())
                 .boxed(),
             METHOD_PROJECT_GIT_WORKTREE_CREATE => self
-                .handle_project_git_worktree_create_impl(params.take())
+                .handle_project_git_worktree_create_impl(params.take(), request_id, connection_id)
                 .boxed(),
             METHOD_PROJECT_GIT_WORKTREE_LIST => self
                 .handle_project_git_worktree_list_impl(params.take())
                 .boxed(),
             METHOD_PROJECT_GIT_WORKTREE_DELETE => self
-                .handle_project_git_worktree_delete_impl(params.take())
+                .handle_project_git_worktree_delete_impl(params.take(), request_id, connection_id)
                 .boxed(),
             _ => return None,
         };
@@ -118,15 +120,33 @@ impl RequestProcessor {
     pub(super) async fn handle_project_git_worktree_create_impl(
         &self,
         params: Option<Value>,
+        request_id: &app_server_protocol::RequestId,
+        connection_id: Option<app_server_transport::ConnectionId>,
     ) -> Result<RpcDispatch, JsonRpcError> {
         self.ensure_initialized()?;
         let params: ProjectGitWorktreeCreateParams = parse_params(params)?;
+        let allow_setup_failure = params.allow_setup_failure;
         let response = self
             .runtime
-            .create_project_git_worktree(params)
+            .create_project_git_worktree(
+                params,
+                connection_id.unwrap_or(app_server_transport::ConnectionId(0)),
+                || self.is_request_canceled(request_id),
+            )
             .await
             .map_err(to_jsonrpc_error)?;
-        self.request_worktree_cleanup().await;
+        if self.is_request_canceled(request_id)
+            || (!allow_setup_failure && response.setup_error.is_some())
+        {
+            return Err(JsonRpcError::with_data(
+                if self.is_request_canceled(request_id) { app_server_protocol::error_codes::REQUEST_CANCELLED } else { app_server_protocol::error_codes::RUNTIME_ERROR },
+                response.setup_error.as_deref().unwrap_or("request canceled"),
+                serde_json::json!({"worktreePath":response.worktree_path,"setupResult":response.setup_result}),
+            ).expect("worktree recovery data is serializable"));
+        }
+        if response.setup_error.is_none() {
+            self.request_worktree_cleanup().await;
+        }
         dispatch_result(response)
     }
 
@@ -147,18 +167,33 @@ impl RequestProcessor {
     pub(super) async fn handle_project_git_worktree_delete_impl(
         &self,
         params: Option<Value>,
+        request_id: &app_server_protocol::RequestId,
+        connection_id: Option<app_server_transport::ConnectionId>,
     ) -> Result<RpcDispatch, JsonRpcError> {
         self.ensure_initialized()?;
         let params: ProjectGitWorktreeDeleteParams = parse_params(params)?;
         let result = self
             .runtime
-            .delete_project_git_worktree(params, |thread_id| async move {
-                let notification = self.finish_thread_archive(thread_id).await;
-                // 归档已经持久化；即使后续Git删除失败，客户端也必须收到真实状态。
-                self.publish_server_notification(notification).await;
-            })
+            .delete_project_git_worktree(
+                params,
+                |thread_id| async move {
+                    let notification = self.finish_thread_archive(thread_id).await;
+                    // 归档已经持久化；即使后续Git删除失败，客户端也必须收到真实状态。
+                    self.publish_server_notification(notification).await;
+                },
+                connection_id.unwrap_or(app_server_transport::ConnectionId(0)),
+                || self.is_request_canceled(request_id),
+            )
             .await;
-        self.request_worktree_cleanup().await;
+        if self.is_request_canceled(request_id) {
+            return Err(JsonRpcError::new(
+                app_server_protocol::error_codes::REQUEST_CANCELLED,
+                "request canceled",
+            ));
+        }
+        if result.is_ok() {
+            self.request_worktree_cleanup().await;
+        }
         dispatch_result(result.map_err(to_jsonrpc_error)?)
     }
 }

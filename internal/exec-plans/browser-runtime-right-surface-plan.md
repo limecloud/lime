@@ -10,6 +10,9 @@
 - Verification Contract：budget:normal/P1。GUI turn/start -> RuntimeCore/provider fixture -> item/tool/call -> AppServerDynamicToolHost -> BrowserTabHost -> 同一WebContents.debugger；fullCdpAccessEnabled和实际URL的独立受管/用户debug策略均须允许，原browse receipt不能替代单次CDP action批准。批准绑定原命令/参数/thread/turn/tab/view/WebContents/pageRevision；策略改变/人工接管/终态撤销。无新RPC/IPC/端口/Profile/store，失败无mock fallback。
 - 当前交付切片为同一页面的CDP命令执行与撤权，不能结算完整CDP：frame target/session/event流、参考Target模拟、WebMCP仍需后继实现。原生服务与平台缺口不以本切片替代。大文件退出条件：Host仅组装回调/委托，业务验证/超时/执行留在独立短模块；后继CDP目标生命周期进入该模块，不能继续向2196行Host堆叠业务。
 - 验证先覆盖默认关闭、用户/管理员拒绝、一次执行/参数篡改/陈旧批准、途中撤权/超时，再跑动态工具契约、类型/contracts、真实Electron与GUI smoke；默认本地门禁如受并行文件阻塞保留真实终态。架构变更复用既有单一authority，由root在实现后确认图与依赖方向。完整G01–G12保持未完成。
+- 本轮补充作用域门禁：当前仅登记主页面即时命令，未有owner的跨站cookie、持久debugger覆盖、未知命令、显式frame/context和直接文件路径在审批前拒绝；历史导航先读取native目的地再验策略。超时原生释放抛错也必须失败收口，迟到结果不再触发配置回读。此为执行切片，非完整CDP。
+- 定向8文件114/114、Electron类型、限定lint/格式和contracts均exit0。默认verify:local实际exit2：并行LocalEnvironmentDetails.tsx的EnvironmentSelect缺必需disabled，后继门禁未执行；current-fixture四组实际执行31+34+3+303=371项通过，后续Renderer编译因共享源码变化exit1，Electron子场景未启动。两次CDP场景也在freshness检查失败，均不计Gate B。
+- 为解除持续共享写入对取证的阻塞，在原仓库.lime/verification/browser-cdp-1792844954516保存11539个文件的冻结验证快照，复制前后原始内容零漂移，逐文件hash与原HEAD记录在verification-snapshot.json/frozen-source.json。仅用于构建与验证，所有产品修改均先落原目录，禁止在快照修产品或回写；后续证据明确绑定快照，不冒充当前不断变化的整树。原架构/命令文档已同步，root确认单一owner与数据流。
 
 ### 独立企业策略与审批生命周期（2026-10-24，当前）
 

@@ -342,11 +342,11 @@ Profile子场景由`electron/lib/settings-profile-navigation-scenario.mjs`承接
 
 `npm run smoke:settings-about-electron-fixture -- --run-id <run-id>` 在同一真实 Electron 窗口验证 About 与返回首页两个独立 Settings 场景：About 要求构建时 `VITE_APP_VERSION`、Desktop Host `app.getVersion()` 和用户可见版本一致，同时观察 `check_for_updates`、`get_update_install_session` 与 current App Server IPC；返回首页要求点击 `app-sidebar-nav-new-chat` 后 `home-composer-page` 可见、Settings header 消失。证据分别写入 `settings-about-fixture-summary.json` 和 `settings-about-fixture-home-summary.json`，两者各自带独立 `settingsScenarioProof`，不得互相代替。
 
-`npm run smoke:settings-local-environments-electron-fixture -- --run-id <run-id>` 验证 Settings GUI 经真实 App Server `config/read` 与 Host `get_environment_preview` 读取 current config 和最终合并预览；其 JSON evidence 只记录 method/command 与断言，不记录环境变量名或值。
+`npm run smoke:settings-local-environments-electron-fixture -- --run-id <run-id>` 验证环境设置经真实 Electron/preload/IPC 和 App Server `localEnvironments/list|readConfig|saveConfig` 发现、读取和保存 `.codex/environments/*.toml`；包含未保存保护、revision 冲突保稿、外部文件保护和冷启动读回。测试项目及脚本内容均为隔离夹具，不执行脚本或调用 live provider。
 
 `npm run smoke:settings-media-services-electron-fixture -- --run-id <run-id>` 验证服务模型页经真实 `config/read`、`model/list`、`modelPreferences/list`、`modelSyncState/read` 与 `voice_models_list_catalog` 进入终态，并同时展示服务模型、图片、视频和语音四个 current 配置区域。隔离环境允许 Provider 清单为空，但配置控件必须可用，且证据不得记录 Provider 配置、模型 ID、凭证或本机路径；该场景不声称真实 Provider 生成请求成功。
 
-Environment 子场景由 `electron/lib/settings-environment-navigation-scenario.mjs` 承接：章节、返回、Home、根导航四路保稿/放弃均不写配置；显式保存超时通过真实 `config/batchWrite`，public `config/read` 核对未改字段与重开读回，最后经 GUI 恢复原值。设置壳卸载 AppSidebar，当前没有新建按钮或其搜索快捷键；New 的 canonical 导航保护只由实际表单组件集成覆盖，不伪造原生入口。浅色、深色与跟随系统的两种媒体模拟投影单列，不能冒充真实 OS 主题事件或全皮肤覆盖。只输出比较布尔，不记录完整 Environment 或凭证。复用同一 launcher/collector/Thread/Turn/Item 与15秒正常Main退出合同，不新增 backend/mock owner；最终运行结果由 current 对齐计划记录，首屏读取 fixture 的证据不代表保存验收。
+环境子场景由 `electron/lib/settings-local-environments-navigation-scenario.mjs` 承接：章节和设置返回均覆盖继续编辑/放弃，未保存和放弃不创建文件；保存 setup/cleanup/actions 后从公共方法读回，再制造外部修改验证冲突保稿。设置壳卸载 AppSidebar，不伪造不存在的新建或根导航入口。复用现有 launcher、trace、正常 Main 退出合同；旧进程变量页面与预览 fixture 已删除。该夹具只证明配置管理，不能代替 worktree 生命周期、页头 action 执行、Windows 或完整设置验收。
 
 `npm run smoke:settings-web-search-electron-fixture -- --run-id <run-id>` 在隔离用户目录中经 Web Search GUI 切换搜索引擎路由并命中 App Server `config/read|config/batchWrite`，冷重启读回后恢复原值，再次冷重启确认恢复完成。结构化 JSON 只记录生命周期布尔与 current method/command，不记录搜索路由值、Provider 配置或任何搜索 Key；截图只包含页面正常可见的路由状态。
 
