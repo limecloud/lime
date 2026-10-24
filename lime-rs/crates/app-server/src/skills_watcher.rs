@@ -28,14 +28,9 @@ impl Drop for SkillsWatcher {
 }
 
 impl SkillsWatcher {
-    pub(crate) fn start_default(bridge: AppServerEventBridge) -> Option<Arc<Self>> {
-        Self::start(
-            bridge,
-            lime_skills::default_agent_skill_roots()
-                .into_iter()
-                .map(|root| root.path),
-            WATCHER_THROTTLE_INTERVAL,
-        )
+    pub(crate) fn new(bridge: AppServerEventBridge) -> Option<Arc<Self>> {
+        // Scope watches to runtime extras and loaded threads, as Codex does.
+        Self::start(bridge, [], WATCHER_THROTTLE_INTERVAL)
     }
 
     pub(crate) fn register_runtime_extra_roots(&self, roots: impl IntoIterator<Item = PathBuf>) {

@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { ExecutionScope } from "../hooks/executionScope";
 import { ComposerWorktreeSubmission } from "./composerWorktreeSubmission";
 import { runtimeReceipt } from "../hooks/agentSendResult.testFixtures";
+import { ProjectGitWorktreeSetupError } from "@/lib/api/projectGit";
 
 const request = {
   requestId: "r1",
@@ -17,6 +18,7 @@ const git = {
 };
 function setup() {
   const readGit = vi.fn(async () => git);
+  const readEnvironment = vi.fn(async (): Promise<string | null> => null);
   const createWorktree = vi.fn(async () => ({
     worktreePath: "/a-task",
     branch: "main",
@@ -25,6 +27,7 @@ function setup() {
   const ensureWorkspace = vi.fn(async () => ({ id: "b", rootPath: "/a-task" }));
   const owner = new ComposerWorktreeSubmission({
     readGit,
+    readEnvironment,
     createWorktree,
     ensureWorkspace,
   } as unknown as ConstructorParameters<typeof ComposerWorktreeSubmission>[0]);
@@ -35,7 +38,14 @@ function setup() {
         receipt: { ...runtimeReceipt("s1"), executionScope },
       }) as const,
   );
-  return { owner, readGit, createWorktree, ensureWorkspace, execute };
+  return {
+    owner,
+    readGit,
+    readEnvironment,
+    createWorktree,
+    ensureWorkspace,
+    execute,
+  };
 }
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -46,6 +56,43 @@ function deferred<T>() {
 }
 
 describe("submit-time Worktree resource identity", () => {
+  it("keeps the known failed worktree identity and never resubmits or recreates it implicitly", async () => {
+    const h = setup();
+    const error = new ProjectGitWorktreeSetupError("setup failed", "/a-failed");
+    h.createWorktree.mockRejectedValueOnce(error);
+    expect(await h.owner.submit(request, () => true, h.execute)).toEqual({
+      kind: "rejected",
+      error,
+    });
+    expect(await h.owner.submit(request, () => true, h.execute)).toEqual({
+      kind: "rejected",
+      error,
+    });
+    expect(h.createWorktree).toHaveBeenCalledOnce();
+    expect(h.execute).not.toHaveBeenCalled();
+    expect(error.message).toContain("/a-failed");
+  });
+  it("resolves the selected environment before creating and does not create after a late navigation", async () => {
+    const h = setup();
+    h.readEnvironment.mockResolvedValueOnce(
+      "/a/.codex/environments/environment.toml",
+    );
+    await h.owner.submit(request, () => true, h.execute);
+    expect(h.createWorktree).toHaveBeenCalledExactlyOnceWith("/a", {
+      baseBranch: "main",
+      localEnvironmentConfigPath: "/a/.codex/environments/environment.toml",
+    });
+    const other = setup(),
+      selection = deferred<string | null>();
+    let current = true;
+    other.readEnvironment.mockReturnValueOnce(selection.promise);
+    const result = other.owner.submit(request, () => current, other.execute);
+    await Promise.resolve();
+    current = false;
+    selection.resolve(null);
+    expect((await result).kind).toBe("rejected");
+    expect(other.createWorktree).not.toHaveBeenCalled();
+  });
   it("creates only on submit, keys dedupe by source and request, and sends canonical scope once", async () => {
     const h = setup();
     expect(h.createWorktree).not.toHaveBeenCalled();
@@ -53,11 +100,10 @@ describe("submit-time Worktree resource identity", () => {
     expect(h.owner.submit({ ...request }, () => true, h.execute)).toBe(pending);
     expect((await pending).kind).toBe("runtime-accepted");
     await h.owner.submit(request, () => true, h.execute);
-    expect(h.createWorktree).toHaveBeenCalledExactlyOnceWith(
-      "/a",
-      undefined,
-      "main",
-    );
+    expect(h.createWorktree).toHaveBeenCalledExactlyOnceWith("/a", {
+      baseBranch: "main",
+      localEnvironmentConfigPath: null,
+    });
     expect(h.ensureWorkspace).toHaveBeenCalledExactlyOnceWith({
       rootPath: "/a-task",
       name: "a-task",

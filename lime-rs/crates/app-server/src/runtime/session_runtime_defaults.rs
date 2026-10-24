@@ -22,10 +22,7 @@ impl RuntimeCore {
         Ok(lime_skills::agent_skill_roots_for_workspace(
             working_dir.map(std::path::Path::new),
             project_root.map(std::path::Path::new),
-        )
-        .into_iter()
-        .filter(|root| root.scope == lime_skills::AgentSkillScope::Project)
-        .collect())
+        ))
     }
 
     pub(in crate::runtime) fn session_runtime_defaults(

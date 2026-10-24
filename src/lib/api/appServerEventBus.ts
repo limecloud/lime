@@ -40,6 +40,11 @@ export interface AppServerEventBusSubscription {
   shouldDrain?: () => boolean;
 }
 
+interface PendingNotificationFlush {
+  resolve: () => void;
+  reject: (error: unknown) => void;
+}
+
 export class AppServerEventBus {
   readonly #appServerClient: AppServerEventDrainClient;
   readonly #completedRecentReplays = new Set<AppServerEventBusSubscription>();
@@ -48,6 +53,7 @@ export class AppServerEventBus {
   readonly #seenServerRequestIds = new Set<string>();
   readonly #subscriptions = new Map<number, AppServerEventBusSubscription>();
   readonly #settingsMirrors = new ThreadSettingsNotificationMirrors();
+  readonly #pendingFlushes = new Set<PendingNotificationFlush>();
   #connectionGeneration = 0;
   #draining = false;
   #nextSubscriptionId = 1;
@@ -83,7 +89,18 @@ export class AppServerEventBus {
     return () => {
       this.#subscriptions.delete(id);
       this.#completedRecentReplays.delete(subscription);
+      if (this.#subscriptions.size === 0) this.#finishFlushes();
     };
+  }
+
+  /** Deliver queued notifications before a completed streaming request disconnects. */
+  flushNotifications(): Promise<void> {
+    if (this.#activeSubscriptions().length === 0) return Promise.resolve();
+    const promise = new Promise<void>((resolve, reject) => {
+      this.#pendingFlushes.add({ resolve, reject });
+    });
+    this.#startDrainLoop();
+    return promise;
   }
 
   reset(): void {
@@ -94,6 +111,18 @@ export class AppServerEventBus {
     this.#resolvedServerRequestIds.clear();
     this.#seenServerRequestIds.clear();
     this.#settingsMirrors.reset();
+    this.#finishFlushes(new Error("App Server notification flush was reset"));
+  }
+
+  #finishFlushes(
+    error?: unknown,
+    flushes: Iterable<PendingNotificationFlush> = this.#pendingFlushes,
+  ): void {
+    for (const flush of flushes) {
+      if (!this.#pendingFlushes.delete(flush)) continue;
+      if (error === undefined) flush.resolve();
+      else flush.reject(error);
+    }
   }
 
   publishThreadSettingsNotifications(
@@ -131,6 +160,7 @@ export class AppServerEventBus {
       while (this.#subscriptions.size > 0) {
         const activeSubscriptions = this.#activeSubscriptions();
         if (activeSubscriptions.length === 0) {
+          this.#finishFlushes();
           await waitForAppServerEventDrainInterval(
             DEFAULT_APP_SERVER_EVENT_DRAIN_INTERVAL_MS,
           );
@@ -143,6 +173,8 @@ export class AppServerEventBus {
           this.#completedRecentReplays,
         );
         const connectionGeneration = this.#connectionGeneration;
+        // A flush cannot be acknowledged by a drain that started before it.
+        const pendingFlushes = [...this.#pendingFlushes];
         let hasDrainedMessages = false;
         try {
           const drainRequest =
@@ -189,6 +221,9 @@ export class AppServerEventBus {
           );
           this.#queueServerRequests(serverRequests);
           this.#flushPendingServerRequests(deliverySubscriptions);
+          if (drainedMessages.length < drainOptions.limit) {
+            this.#finishFlushes(undefined, pendingFlushes);
+          }
         } catch (error) {
           if (connectionGeneration !== this.#connectionGeneration) {
             continue;
@@ -205,9 +240,10 @@ export class AppServerEventBus {
           for (const subscription of activeSubscriptions) {
             subscription.onError?.(error);
           }
+          this.#finishFlushes(error, pendingFlushes);
         }
 
-        if (this.#subscriptions.size > 0) {
+        if (this.#subscriptions.size > 0 && this.#pendingFlushes.size === 0) {
           await waitForAppServerEventDrainInterval(
             this.#resolveNextDrainIntervalMs(hasDrainedMessages),
           );

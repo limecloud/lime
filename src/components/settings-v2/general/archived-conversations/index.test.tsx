@@ -180,7 +180,7 @@ describe("ArchivedConversationsSettings", () => {
     expect(mockListAgentRuntimeSessions).toHaveBeenCalledWith({
       archivedOnly: true,
     });
-    expect(container.querySelector("h1")?.textContent).toBe("Archived chats");
+    expect(container.querySelector("h1")?.textContent).toBe("已归档的聊天");
     expect(container.textContent).toContain("归档会话");
     expect(container.textContent).toContain("project-1");
     expect(container.textContent).not.toContain("普通会话");

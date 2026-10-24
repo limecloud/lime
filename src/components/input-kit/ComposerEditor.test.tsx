@@ -1,5 +1,7 @@
 import React, { act, createRef } from "react";
 import { createRoot, type Root } from "react-dom/client";
+import { TextSelection } from "@tiptap/pm/state";
+import { EditorView } from "@tiptap/pm/view";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ComposerController } from "./ComposerController";
 import {
@@ -338,6 +340,37 @@ describe("ComposerEditor", () => {
     expect(key(element, "ArrowDown").defaultPrevented).toBe(true);
     expect(controller.captureDraft()).toEqual(currentDraft);
     expect(element.querySelector("[data-composer-token]")).toBeNull();
+  });
+
+  it("提交禁用后拒绝 View 的迟到选区事务，保留接受回执的草稿版本", () => {
+    const setProps = vi.spyOn(EditorView.prototype, "setProps");
+    const controller = new ComposerController({ text: "submitted draft" });
+    controller.setSelection(2, 6);
+    const { root, editorRef } = mount({ controller });
+    const view = setProps.mock.contexts.find(
+      (item) => item.dom === editorRef.current?.getElement(),
+    );
+    if (!view) throw new Error("missing real EditorView");
+    const receipt = controller.submit("start");
+    const snapshot = controller.getSnapshot();
+    act(() =>
+      root.render(
+        <ComposerEditor
+          controller={controller}
+          editorRef={editorRef}
+          disabled
+        />,
+      ),
+    );
+    act(() =>
+      view.dispatch(
+        view.state.tr.setSelection(TextSelection.create(view.state.doc, 1)),
+      ),
+    );
+    expect(controller.getSnapshot()).toBe(snapshot);
+    expect(controller.captureDraft()).toEqual(receipt.draft);
+    act(() => controller.setText("explicit owner update"));
+    expect(view.state.doc.textContent).toBe("explicit owner update");
   });
 
   it("disabled 有明确 DOM 合同并拒绝 native paste，销毁解除文档订阅", () => {

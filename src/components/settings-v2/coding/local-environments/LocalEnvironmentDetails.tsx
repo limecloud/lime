@@ -132,7 +132,7 @@ export function LocalEnvironmentDetails({
               {t("settings.localEnvironments.back")}
             </SettingsAction>
             <SettingsAction
-              disabled={loading || error !== null}
+              disabled={loading || error === "load"}
               onClick={onEdit}
             >
               {t(

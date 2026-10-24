@@ -5,6 +5,9 @@ import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
+import { JSDOM } from "jsdom";
+import { readWorktreeSurfaceDom } from "./composer-worktree-scenario.mjs";
+import { openSessionFromSidebar } from "../../agent-runtime/claw-chat-current-fixture-session.mjs";
 import {
   assertWorktreeColdRead,
   assertWorktreeStaged,
@@ -15,10 +18,98 @@ import {
 import {
   createComposerWorktreeGit,
   readComposerWorktreeGit,
+  readComposerWorktreeEnvironment,
 } from "./composer-worktree-git.mjs";
 
 const sourceRoot = "/isolated/source";
 const targetRoot = "/isolated/source-worktree";
+
+test("cold sidebar navigation uses canonical session identity when the title is absent or changed", async () => {
+  const dom = new JSDOM(
+    `<button data-testid="app-sidebar-conversation-open" data-session-id="foreign" title="Old title">Old title</button><button data-testid="app-sidebar-conversation-open" data-session-id="accepted-session" title="Renamed conversation">Renamed conversation</button><main><div data-testid="message-list"></div><div data-testid="inputbar-core-container"><div data-testid="composer-editor" role="textbox" data-session-id="accepted-session" contenteditable="true"></div></div></main>`,
+    { runScripts: "outside-only" },
+  );
+  try {
+    const clicked = [];
+    for (const button of dom.window.document.querySelectorAll("button")) {
+      button.addEventListener("click", () =>
+        clicked.push(button.dataset.sessionId),
+      );
+    }
+    dom.window.HTMLElement.prototype.getBoundingClientRect = () => ({
+      x: 0,
+      y: 0,
+      width: 300,
+      height: 100,
+    });
+    dom.window.electronAPI = {
+      invoke: async (_command, { request }) => {
+        const message = JSON.parse(request.lines[0]);
+        assert.equal(message.method, "thread/read");
+        assert.equal(message.params.threadId, "accepted-thread");
+        return {
+          lines: [
+            JSON.stringify({
+              id: message.id,
+              result: {
+                thread: {
+                  id: "accepted-thread",
+                  sessionId: "accepted-session",
+                },
+              },
+            }),
+          ],
+        };
+      },
+    };
+    const page = {
+      evaluate: async (callback, argument) =>
+        dom.window.eval(`(${callback.toString()})`)(argument),
+    };
+    for (const title of [undefined, "Old title"]) {
+      await openSessionFromSidebar(
+        page,
+        { timeoutMs: 100, intervalMs: 1 },
+        undefined,
+        {
+          sessionId: "accepted-session",
+          threadId: "accepted-thread",
+          title,
+        },
+      );
+    }
+    assert.deepEqual(clicked, ["accepted-session", "accepted-session"]);
+  } finally {
+    dom.window.close();
+  }
+});
+
+test("reads the exact accepted workspace from the conversation toolbar without new-chat controls", () => {
+  const dom = new JSDOM(
+    `<div data-testid="task-center-utility-toolbar" data-workspace-id="accepted-workspace" data-workspace-root="/accepted"></div><div data-testid="composer-editor" role="textbox" data-session-id="accepted-session" contenteditable="true"></div><div data-message-role="user"></div>`,
+    { runScripts: "outside-only" },
+  );
+  try {
+    dom.window.HTMLElement.prototype.getClientRects = function () {
+      return this.style.display === "none" ? [] : [{}];
+    };
+    const read = dom.window.eval(`(${readWorktreeSurfaceDom.toString()})`);
+    const actual = read();
+    assert.equal(actual.sessionId, "accepted-session");
+    assert.equal(actual.workspaceId, "accepted-workspace");
+    assert.equal(actual.rootPath, "/accepted");
+    assert.equal(actual.userMessageCount, 1);
+    assert.equal(actual.disabled, false);
+    dom.window.document.body.insertAdjacentHTML(
+      "beforeend",
+      `<div data-testid="task-center-utility-toolbar" data-workspace-id="foreign" data-workspace-root="/foreign"></div>`,
+    );
+    assert.equal(read().workspaceId, null);
+    assert.equal(read().rootPath, null);
+  } finally {
+    dom.window.close();
+  }
+});
 const entry = (method, params = {}) => ({
   command: "app_server_handle_json_lines",
   transport: "electron-ipc",
@@ -80,7 +171,7 @@ function fixture() {
     id: "thread-target",
     sessionId: "session-target",
     cwd: targetRoot,
-    projectId: "workspace-target",
+    projectId: null,
     turns: [
       {
         id: "turn-target",
@@ -376,4 +467,31 @@ test("real Git fixture and inventory readback handle spaces and a genuine detach
   );
   assert.equal(checkout.head, before.head);
   assert.equal(checkout.trackedSha256, before.trackedSha256);
+  const configPath = path.join(canonicalTarget, "environment.toml");
+  const configRaw = 'version = 1\nname = "Worktree fixture"\n';
+  await fs.writeFile(configPath, configRaw);
+  await fs.writeFile(
+    path.join(canonicalTarget, "local-environment-setup.txt"),
+    "environment-fixture\n",
+  );
+  const configFile = execFileSync(
+    "git",
+    ["rev-parse", "--git-path", "config.worktree"],
+    { cwd: canonicalTarget, encoding: "utf8" },
+  ).trim();
+  execFileSync(
+    "git",
+    [
+      "config",
+      "--file",
+      configFile,
+      "codex.localEnvironmentConfigPath",
+      configPath,
+    ],
+    { cwd: canonicalTarget },
+  );
+  const environment = await readComposerWorktreeEnvironment(canonicalTarget);
+  assert.equal(environment.configPath, configPath);
+  assert.equal(environment.configRaw, configRaw);
+  assert.equal(environment.setupMarker, true);
 });

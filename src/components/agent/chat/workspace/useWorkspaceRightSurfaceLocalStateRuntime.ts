@@ -17,6 +17,7 @@ import {
 } from "./right-surface/threadSidePanelTabs";
 import { openWorkspaceFile } from "./right-surface/openWorkspaceFile";
 import { openBackgroundTerminal } from "./right-surface/openBackgroundTerminal";
+import type { TerminalAction } from "./localConversationActionHelpers";
 import { useFileTreePanel } from "./useFileTreePanel";
 import type { AgentThreadItem } from "../types";
 import type { ThreadSidePanelTab } from "./right-surface/threadSidePanelTabs";
@@ -363,6 +364,18 @@ export function useWorkspaceRightSurfaceLocalStateRuntime({
       ) => update((current) => openSurface(current, kind, replaceTabId)),
       openBrowserInBackground: () =>
         update((current) => openSurface(current, "browser", undefined, false)),
+      runAction: (action: TerminalAction) => {
+        const tabId = `environment-action-${crypto.randomUUID()}`;
+        update((current) => ({
+          ...current,
+          sidePanelTabs: openSidePanelTab(current.sidePanelTabs, {
+            tabId,
+            kind: "shell",
+            title: action.title,
+            terminalAction: action,
+          }),
+        }));
+      },
       openWorkspaceFile: (
         path: string,
         sourceTab?: ThreadSidePanelTab,

@@ -73,6 +73,16 @@ async fn durable_cwd_updates_replace_watch_roots_and_keep_the_runtime_project_ro
     let roots = watcher.state.roots.lock().unwrap().paths();
     assert!(roots.contains(&before.join(".agents/skills")));
     assert!(roots.contains(&project.join(".agents/skills")));
+    let user_roots = lime_skills::default_agent_skill_roots()
+        .into_iter()
+        .filter(|root| root.scope == lime_skills::AgentSkillScope::User)
+        .map(|root| root.path)
+        .collect::<Vec<_>>();
+    assert!(!user_roots.is_empty());
+    assert!(
+        user_roots.iter().all(|root| roots.contains(root)),
+        "a loaded thread must watch its effective user Skill catalog"
+    );
     request(
         &processor,
         "thread/settings/update",

@@ -102,21 +102,26 @@ export function useComposerWorktree({
           isCurrent,
           execute,
         );
-        if (
-          result.kind === "runtime-accepted" &&
-          latest.current.mounted &&
-          latest.current.surface === selection.surface &&
-          latest.current.epoch === selection.epoch &&
-          (isCurrent() ||
-            (getNavigationEpoch?.() === (navigationEpoch ?? 0) + 1 &&
-              isAcceptedTargetCurrent?.(
-                result.receipt.executionScope!,
-                result.receipt,
-              )))
-        ) {
-          onAccepted?.(result.receipt.executionScope!, result.receipt);
-          latest.current.epoch += 1;
-          setSelection(null);
+        if (result.kind === "runtime-accepted" && latest.current.mounted) {
+          const scope = result.receipt.executionScope!;
+          const sourceCurrent =
+            latest.current.surface === selection.surface &&
+            latest.current.epoch === selection.epoch;
+          const targetCurrent =
+            latest.current.surface ===
+              executionSurfaceKey(scope.workspaceId, scope.workingDir) &&
+            latest.current.epoch === selection.epoch + 1;
+          const acceptedNavigation =
+            getNavigationEpoch?.() === (navigationEpoch ?? 0) + 1 &&
+            isAcceptedTargetCurrent?.(scope, result.receipt);
+          if (
+            (sourceCurrent && isCurrent()) ||
+            ((sourceCurrent || targetCurrent) && acceptedNavigation)
+          ) {
+            onAccepted?.(scope, result.receipt);
+            latest.current.epoch += 1;
+            setSelection(null);
+          }
         }
         return result;
       },

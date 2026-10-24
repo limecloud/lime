@@ -1,4 +1,5 @@
 import { assert } from "./claw-chat-current-fixture-utils.mjs";
+import { createBrowserCdpTargetResponses } from "./browser-cdp-target-provider.mjs";
 
 export const CDP_CASES = [
   { name: "approved", enabled: true, decision: "allow_once", success: true },
@@ -30,7 +31,7 @@ function completedCommand(value, depth = 0) {
 export function createBrowserCdpResponses(scenario, helpers) {
   const { extractBrowserState, toolResultFromRequest } = helpers;
   scenario.cdp = { claimed: {}, results: {} };
-  return CDP_CASES.flatMap((entry) => [
+  const responses = CDP_CASES.flatMap((entry) => [
     {
       type: "tool_call",
       id: `cdp-${entry.name}-tabs`,
@@ -88,4 +89,5 @@ export function createBrowserCdpResponses(scenario, helpers) {
       return { type: "text", content: `BROWSER_CDP_DONE_${entry.name}` };
     },
   ]);
+  return [...responses, ...createBrowserCdpTargetResponses(scenario, helpers)];
 }

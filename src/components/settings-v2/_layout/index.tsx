@@ -145,6 +145,10 @@ function renderSettingsContent(
         ? params.executionPolicyFocus
         : undefined,
     browserPage: tab === SettingsTabs.Browser ? params.browserPage : undefined,
+    localEnvironmentFocus:
+      tab === SettingsTabs.LocalEnvironments
+        ? params.localEnvironmentFocus
+        : undefined,
   });
   return section.loadingKey
     ? withSettingsContentFallback(content, t(section.loadingKey))

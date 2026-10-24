@@ -49,6 +49,7 @@ import {
   type ParsedMcpToolName,
 } from "./toolNameFamily";
 import { resolveRequiredAgentChatCopy } from "./agentChatCopy";
+import { resolveToolDisplayName } from "./toolDisplayName";
 import type {
   ToolCallStatus,
   ToolDisplayConfig,
@@ -170,7 +171,9 @@ const toToolDisplayDescriptor = (
 export const getToolDisplayInfo = (
   toolName: string,
   status: ToolCallStatus,
+  metadata?: unknown,
 ): ToolDisplayDescriptor => {
+  toolName = resolveToolDisplayName(toolName, metadata);
   const name = normalizeToolNameKey(toolName);
   const exactMatch = EXACT_TOOL_CONFIGS.get(name);
   if (exactMatch) {
@@ -309,7 +312,7 @@ const buildContentWorkbenchGroupHeadline = (
   }
 
   const first = toolCalls[0]!;
-  const info = getToolDisplayInfo(first.name, first.status);
+  const info = getToolDisplayInfo(first.name, first.status, first.metadata);
   const mode = isDirectContentGenerationToolKey(first.name) ? "direct" : "task";
   const label =
     mode === "direct"
@@ -335,7 +338,7 @@ const buildContentWorkbenchGroupHeadline = (
 
 export const buildToolGroupHeadline = (toolCalls: ToolCallState[]): string => {
   const first = toolCalls[0]!;
-  const info = getToolDisplayInfo(first.name, first.status);
+  const info = getToolDisplayInfo(first.name, first.status, first.metadata);
   const failed = toolCalls.some((item) => item.status === "failed");
   const running = toolCalls.some((item) => item.status === "running");
   const statusKey = failed ? "failed" : running ? "running" : "completed";
@@ -458,12 +461,20 @@ export const buildToolGroupHeadline = (toolCalls: ToolCallState[]): string => {
 };
 
 export const buildGroupedChildLine = (toolCall: ToolCallState): string => {
-  const info = getToolDisplayInfo(toolCall.name, toolCall.status);
+  const info = getToolDisplayInfo(
+    toolCall.name,
+    toolCall.status,
+    toolCall.metadata,
+  );
   const args = parseToolCallArguments(toolCall.arguments);
   const filePath = resolveToolFilePath(args);
   const subject =
-    resolveToolPrimarySubject(toolCall.name, args, filePath) ||
-    humanizeToolName(toolCall.name);
+    resolveToolPrimarySubject(
+      toolCall.name,
+      args,
+      filePath,
+      toolCall.metadata,
+    ) || humanizeToolName(toolCall.name);
   const normalizedSubject = subject?.trim();
   if (!normalizedSubject) {
     return info.label;

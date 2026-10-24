@@ -142,6 +142,12 @@ export interface SettingsSearchFocusContext {
   requestKey?: number;
 }
 
+export interface LocalEnvironmentFocusContext {
+  workspaceRoot: string;
+  configPath?: string;
+  requestKey?: number;
+}
+
 /** 浏览器菜单进入设置时保留的 canonical 会话与工作区。 */
 export interface BrowserHistoryReturnOwner {
   runtimeSessionId: string;
@@ -155,6 +161,7 @@ export interface SettingsPageParams {
   providerFocus?: ProviderSettingsFocusContext;
   executionPolicyFocus?: ExecutionPolicyFocusContext;
   searchFocus?: SettingsSearchFocusContext;
+  localEnvironmentFocus?: LocalEnvironmentFocusContext;
   browserPage?: "history" | "downloads";
   browserReturnOwner?: BrowserHistoryReturnOwner;
 }

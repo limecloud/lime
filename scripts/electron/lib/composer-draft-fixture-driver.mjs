@@ -332,7 +332,8 @@ export async function runComposerDraftGuiFixture(options, scenario = null) {
     });
     recordStage("main-event-authority", eventGuard);
     runtimeEnv = modules.runtime.createTempRuntimeEnv();
-    modules.skills.ensureUserVisibleCapabilityReportSkill(runtimeEnv);
+    const { skillIdentity } =
+      modules.skills.ensureUserVisibleCapabilityReportSkill(runtimeEnv);
     const profile = runtimeEnv.electronUserDataDir;
     const roots = owners.resolveDesktopStorageRoots({
       platform: process.platform,
@@ -446,6 +447,7 @@ export async function runComposerDraftGuiFixture(options, scenario = null) {
           );
         },
         expected: (record) => ({
+          skillIdentity,
           marker: record.marker,
           prompt: modules.constants.INPUTBAR_RICH_RESTORE_PROMPT,
           pasteText: "历史粘贴验证😀\n".repeat(180),

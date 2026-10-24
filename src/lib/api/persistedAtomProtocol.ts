@@ -16,9 +16,14 @@ import type {
   PersistedDraftEntry,
 } from "./persistedAtomTypes";
 import {
+  LOCAL_ENV_SELECTIONS_ATOM_KEY,
   PERSISTED_BOOLEAN_ATOM_KEYS,
   isPersistedBooleanAtomKey,
 } from "./persistedAtomTypes";
+import {
+  parseLocalEnvironmentSelectionMutation,
+  parseLocalEnvironmentSelections,
+} from "./localEnvironmentSelectionProtocol";
 
 export interface PersistedAtomLimits {
   readonly maxDraftBytes: number;
@@ -125,6 +130,11 @@ export function parsePersistedAtomReadRequest(
   value: unknown,
 ): PersistedAtomReadRequest {
   const request = exact(value, ["key", "query"]);
+  if (request.key === LOCAL_ENV_SELECTIONS_ATOM_KEY) {
+    const query = exact(request.query, ["kind"]);
+    if (query.kind !== "selections") reject();
+    return { key: request.key, query: { kind: "selections" } };
+  }
   if (isPersistedBooleanAtomKey(request.key)) {
     const query = exact(request.query, ["kind"]);
     if (query.kind !== "value") reject();
@@ -250,6 +260,7 @@ function persistence(
 function metadata(value: Record<string, unknown>): PersistedAtomMetadata {
   const key = member(value.key, [
     "composer-drafts-v1",
+    LOCAL_ENV_SELECTIONS_ATOM_KEY,
     ...PERSISTED_BOOLEAN_ATOM_KEYS,
   ]);
   const storeRevision = integer(value.storeRevision);
@@ -415,14 +426,30 @@ export function parsePersistedAtomReadResult(
     "scope",
     "workspace-index",
     "value",
+    "selections",
   ]);
   if (expected && queryKind !== expected.kind) reject();
+  if (meta.key === LOCAL_ENV_SELECTIONS_ATOM_KEY) {
+    const data = exact(response.data, ["queryKind", "selections"]);
+    if (queryKind !== "selections") reject();
+    return {
+      ...meta,
+      outcome,
+      data: {
+        queryKind,
+        selections: parseLocalEnvironmentSelections(
+          data.selections,
+          PERSISTED_ATOM_LIMITS.maxBindings,
+        ),
+      },
+    };
+  }
   if (isPersistedBooleanAtomKey(meta.key)) {
     const data = exact(response.data, ["queryKind", "value"]);
     if (queryKind !== "value" || typeof data.value !== "boolean") reject();
     return { ...meta, outcome, data: { queryKind, value: data.value } };
   }
-  if (queryKind === "value") reject();
+  if (queryKind === "value" || queryKind === "selections") reject();
   if (queryKind === "workspace-index") {
     const data = exact(response.data, ["queryKind", "workspaceId", "items"]);
     const workspaceId =
@@ -467,6 +494,7 @@ export function parsePersistedAtomUpdateResult(
   if (
     context &&
     context.key !== "composer-drafts-v1" &&
+    context.key !== LOCAL_ENV_SELECTIONS_ATOM_KEY &&
     !isPersistedBooleanAtomKey(context.key)
   )
     reject();
@@ -474,7 +502,7 @@ export function parsePersistedAtomUpdateResult(
   const data = exact(
     value,
     ["key", "storeRevision", "persistence", "outcome", "changed", "entry"],
-    ["reason", "value"],
+    ["reason", "value", "selections"],
   );
   const meta = metadata(data),
     outcome = member(data.outcome, [
@@ -485,6 +513,49 @@ export function parsePersistedAtomUpdateResult(
     ]);
   const reason = optionalReason(data);
   if (context && meta.key !== context.key) reject();
+  if (meta.key === LOCAL_ENV_SELECTIONS_ATOM_KEY) {
+    if (
+      typeof data.changed !== "boolean" ||
+      data.entry !== null ||
+      Object.hasOwn(data, "value") ||
+      (outcome !== "applied" && data.changed) ||
+      ((outcome === "invalid" || outcome === "conflict") && !reason.reason) ||
+      (outcome === "applied" &&
+        (reason.reason ||
+          !Object.hasOwn(data, "selections") ||
+          meta.persistence.state === "loading" ||
+          meta.persistence.state === "unavailable"))
+    )
+      reject();
+    const selections = Object.hasOwn(data, "selections")
+      ? parseLocalEnvironmentSelections(
+          data.selections,
+          PERSISTED_ATOM_LIMITS.maxBindings,
+        )
+      : undefined;
+    if (requestedMutation) {
+      const mutation =
+        parseLocalEnvironmentSelectionMutation(requestedMutation);
+      if (
+        outcome === "applied" &&
+        (!selections ||
+          (mutation.op === "set"
+            ? !Object.hasOwn(selections, mutation.workspaceKey) ||
+              selections[mutation.workspaceKey] !== mutation.configPath
+            : Object.hasOwn(selections, mutation.workspaceKey)))
+      )
+        reject();
+    }
+    return {
+      ...meta,
+      outcome,
+      changed: data.changed,
+      ...reason,
+      entry: null,
+      ...(selections ? { selections } : {}),
+    };
+  }
+  if (Object.hasOwn(data, "selections")) reject();
   if (isPersistedBooleanAtomKey(meta.key)) {
     if (
       typeof data.changed !== "boolean" ||

@@ -1,5 +1,6 @@
 import {
   AppServerClient,
+  AppServerRpcError,
   APP_SERVER_METHOD_PROJECT_GIT_BRANCH_CHECKOUT,
   APP_SERVER_METHOD_PROJECT_GIT_BRANCH_CREATE,
   APP_SERVER_METHOD_PROJECT_GIT_COMMITS_LIST,
@@ -20,6 +21,16 @@ export type ProjectGitDiff = AppServerProjectGitDiffResponse;
 export type ProjectGitDiffBase = AppServerProjectGitDiffBase;
 export type ProjectGitCommitList = AppServerProjectGitCommitListResponse;
 export type ProjectGitWorktree = AppServerProjectGitWorktreeCreateResponse;
+
+export class ProjectGitWorktreeSetupError extends Error {
+  constructor(
+    message: string,
+    readonly worktreePath: string,
+  ) {
+    super(`${message}\n${worktreePath}`);
+    this.name = "ProjectGitWorktreeSetupError";
+  }
+}
 
 export type ProjectGitAppServerClient = Pick<
   AppServerClient,
@@ -47,6 +58,13 @@ function assertProjectGitStatus(
     !isRecord(value) ||
     typeof value.rootPath !== "string" ||
     typeof value.hasGitRepository !== "boolean" ||
+    !(
+      value.isWorktree === undefined || typeof value.isWorktree === "boolean"
+    ) ||
+    !(
+      value.localEnvironmentConfigPath == null ||
+      typeof value.localEnvironmentConfigPath === "string"
+    ) ||
     !Array.isArray(value.branches) ||
     !value.branches.every((branch) => typeof branch === "string") ||
     typeof value.uncommittedFileCount !== "number"
@@ -189,15 +207,30 @@ export async function createProjectGitBranch(
 
 export async function createProjectGitWorktree(
   rootPath: string,
-  name?: string,
-  baseBranch?: string,
+  options: {
+    name?: string;
+    baseBranch?: string;
+    localEnvironmentConfigPath: string | null;
+  },
   client: ProjectGitAppServerClient = createProjectGitAppServerClient(),
 ): Promise<ProjectGitWorktree> {
-  const response = await client.createProjectGitWorktree({
-    rootPath,
-    name,
-    baseBranch,
-  });
+  let response;
+  try {
+    response = await client.createProjectGitWorktree({ rootPath, ...options });
+  } catch (error) {
+    if (
+      error instanceof AppServerRpcError &&
+      error.code === -32000 &&
+      isRecord(error.data) &&
+      typeof error.data.worktreePath === "string" &&
+      /^(?:\/|[a-z]:[\\/]|\\\\)/i.test(error.data.worktreePath)
+    )
+      throw new ProjectGitWorktreeSetupError(
+        error.message,
+        error.data.worktreePath,
+      );
+    throw error;
+  }
   assertProjectGitWorktree(
     APP_SERVER_METHOD_PROJECT_GIT_WORKTREE_CREATE,
     response.result,

@@ -423,6 +423,7 @@ describe("persisted atom Main CAS and draft lifecycle", () => {
     });
     expect(events.map((event) => event.key)).toEqual([
       "composer-drafts-v1",
+      "local-env-selections-by-workspace",
       "app-shell-summary-panel-pinned",
       "app-shell-file-tree-open",
     ]);
@@ -430,6 +431,7 @@ describe("persisted atom Main CAS and draft lifecycle", () => {
       expect(event).not.toHaveProperty("entry");
       expect(event).not.toHaveProperty("draft");
       expect(event).not.toHaveProperty("value");
+      expect(event).not.toHaveProperty("selections");
     }
     expect(JSON.stringify(events)).not.toContain("rich 中文");
   });

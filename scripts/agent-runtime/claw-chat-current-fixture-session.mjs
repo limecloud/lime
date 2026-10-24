@@ -453,6 +453,7 @@ export async function openSessionFromSidebar(
   requestLog,
   { sessionId, threadId = options.threadId, title, allowPlanDecision = false },
 ) {
+  assert(sessionId, `会话 ${title} 缺少 canonical sessionId`);
   assert(threadId, `会话 ${title} 缺少 canonical threadId`);
   const startedAt = Date.now();
   let lastSnapshot = null;
@@ -461,37 +462,17 @@ export async function openSessionFromSidebar(
     if (!lastClick?.clicked) {
       lastClick = await evaluatePageSnapshot(
         page,
-        ({ title, sessionId }) => {
+        ({ sessionId }) => {
           const sidebarCandidates = Array.from(
             document.querySelectorAll(
               '[data-testid="app-sidebar-conversation-open"]',
             ),
+          ).filter(
+            (candidate) =>
+              candidate.getAttribute("data-session-id") === sessionId,
           );
-          const sidebarCandidateSet = new Set(sidebarCandidates);
-          const candidates = [
-            ...sidebarCandidates,
-            ...Array.from(document.querySelectorAll("button")).filter(
-              (button) => !sidebarCandidateSet.has(button),
-            ),
-          ];
-          const button = candidates.find((candidate) => {
-            const label = [
-              candidate.getAttribute("title") || "",
-              candidate.getAttribute("aria-label") || "",
-              candidate.textContent || "",
-            ].join("\n");
-            if (!label.includes(title)) {
-              return false;
-            }
-            const actionLabel = [
-              candidate.getAttribute("data-testid") || "",
-              candidate.getAttribute("aria-label") || "",
-              candidate.textContent || "",
-            ].join("\n");
-            return !/menu|more|action|archive|delete|favorite|rename|菜单|更多|操作|归档|删除|收藏|重命名/i.test(
-              actionLabel,
-            );
-          });
+          const button =
+            sidebarCandidates.length === 1 ? sidebarCandidates[0] : null;
           if (!button) {
             const moreButton = Array.from(
               document.querySelectorAll("button"),
@@ -510,7 +491,7 @@ export async function openSessionFromSidebar(
             testId: button.getAttribute("data-testid") || "",
           };
         },
-        { title, sessionId },
+        { sessionId },
       );
     }
 

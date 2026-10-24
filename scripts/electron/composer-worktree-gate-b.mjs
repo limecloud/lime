@@ -13,7 +13,7 @@ if (
   const options = parseComposerDraftFixtureArgs(process.argv.slice(2));
   if (options.help) {
     console.log(`Composer staged Worktree real Electron Gate B
---repo <fresh-candidate> --run-id <fresh-id> --evidence-dir <directory>
+--repo <original-repository> --run-id <fresh-id> --evidence-dir <directory>
 --verification-packet <current-persisted-atom-packet.json>
 Requires current renderer/Main/preload/App Server artifacts; never builds.
 Real temporary Git checkout, GUI Send, native IPC/current JSON-RPC and rich

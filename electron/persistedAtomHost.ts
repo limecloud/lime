@@ -5,7 +5,10 @@ import type {
   PersistedAtomUpdateEvent,
   PersistedAtomUpdateResult,
 } from "../src/lib/api/persistedAtomTypes";
-import { isPersistedBooleanAtomKey } from "../src/lib/api/persistedAtomTypes";
+import {
+  LOCAL_ENV_SELECTIONS_ATOM_KEY,
+  isPersistedBooleanAtomKey,
+} from "../src/lib/api/persistedAtomTypes";
 import { COMPOSER_ATOM_KEY, exactRecord } from "./persistedAtomRecords";
 import { PersistedAtomStore } from "./persistedAtomStore";
 
@@ -30,6 +33,8 @@ export class PersistedAtomHost {
   sendPersistedAtomState(args: unknown): PersistedAtomReadResult {
     try {
       const request = parsePersistedAtomReadRequest(args);
+      if (request.key === LOCAL_ENV_SELECTIONS_ATOM_KEY)
+        return this.#store.sendLocalEnvironmentSelections();
       if (isPersistedBooleanAtomKey(request.key))
         return this.#store.sendBooleanState(request.key);
       return this.#store.sendPersistedAtomState(request.query);
@@ -46,6 +51,8 @@ export class PersistedAtomHost {
   updatePersistedAtomState(args: unknown): PersistedAtomUpdateResult {
     try {
       const request = exactRecord(args, ["key", "mutation"]);
+      if (request.key === LOCAL_ENV_SELECTIONS_ATOM_KEY)
+        return this.#store.updateLocalEnvironmentSelection(request.mutation);
       if (isPersistedBooleanAtomKey(request.key))
         return this.#store.updateBooleanState(request.key, request.mutation);
       if (request.key !== COMPOSER_ATOM_KEY)

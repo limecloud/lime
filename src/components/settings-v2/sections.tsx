@@ -37,6 +37,7 @@ export interface SettingsSectionContext {
   executionPolicyFocus?: ExecutionPolicyFocusContext | null;
   searchPath?: string;
   browserPage?: SettingsPageParams["browserPage"];
+  localEnvironmentFocus?: SettingsPageParams["localEnvironmentFocus"];
 }
 
 export interface SettingsSection {
@@ -324,7 +325,9 @@ export const settingsSections: readonly SettingsSection[] = [
     icon: Variable,
     loadingKey: "settings.localEnvironments.loading",
     preload: loadLocalEnvironments,
-    render: () => <LocalEnvironmentsSettings />,
+    render: (context) => (
+      <LocalEnvironmentsSettings focus={context.localEnvironmentFocus} />
+    ),
   },
   {
     key: SettingsTabs.Worktrees,

@@ -1,6 +1,8 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { localEnvironments } from "@/lib/api/localEnvironments";
+import { selectLocalEnvironment } from "@/lib/api/localEnvironmentSelection";
 import {
   createLocalEnvironmentDraft,
   serializeLocalEnvironment,
@@ -20,11 +22,13 @@ import { LifecycleEditor, environmentInputClass } from "./LifecycleEditor";
 export function LocalEnvironmentEditor({
   configPath,
   defaultName,
+  workspaceRoot,
   onBack,
   onSaved,
 }: {
   configPath: string;
   defaultName: string;
+  workspaceRoot: string;
   onBack: () => void;
   onSaved: () => void;
 }) {
@@ -59,7 +63,6 @@ export function LocalEnvironmentEditor({
         if (!current) return;
         if (result.environment?.type === "error") {
           setError("invalid");
-          return;
         }
         const next = createLocalEnvironmentDraft(
           result.environment?.type === "success"
@@ -68,7 +71,11 @@ export function LocalEnvironmentEditor({
           defaultName,
         );
         setDraft(next);
-        setBaseline(result.exists ? JSON.stringify(next) : "");
+        setBaseline(
+          result.exists && result.environment?.type !== "error"
+            ? JSON.stringify(next)
+            : "",
+        );
         setCanonicalPath(result.configPath);
         setRevision(result.revision ?? null);
       })
@@ -110,6 +117,20 @@ export function LocalEnvironmentEditor({
       }
       setRevision(result.revision ?? null);
       setBaseline(JSON.stringify(draft));
+      if (revision === null) {
+        let selected = false;
+        try {
+          selected = await selectLocalEnvironment(
+            workspaceRoot,
+            result.configPath,
+          );
+        } catch {
+          /* The file is saved even if selecting it fails. */
+        }
+        if (!alive.current) return;
+        if (!selected)
+          toast.error(t("settings.localEnvironments.error.selection"));
+      }
       onSaved();
     } catch {
       if (alive.current) setError("save");

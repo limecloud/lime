@@ -24,6 +24,7 @@ import {
   type ComposerModeState,
 } from "../../../workspace/ComposerModeContext";
 import { useComposerUtilityActions } from "./useComposerUtilityActions";
+import { WorktreeEnvironmentDropdown } from "../../WorktreeEnvironmentDropdown";
 import type {
   ComposerProject,
   ComposerUtilityBarCopy,
@@ -655,6 +656,13 @@ function ComposerUtilityBarWorkspace({
                 </button>
               </PopoverContent>
             </Popover>
+          ) : null}
+          {composerMode === "worktree" && activeProjectRootPath ? (
+            <WorktreeEnvironmentDropdown
+              key={activeProjectRootPath}
+              workspaceRoot={activeProjectRootPath}
+              disabled={Boolean(mutation)}
+            />
           ) : null}
           {gitReadState === "loading" ? (
             <span

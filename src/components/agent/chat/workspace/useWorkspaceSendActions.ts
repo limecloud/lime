@@ -1,5 +1,7 @@
 import { parseSlashCommand } from "../commands";
 import { useComposerWorktree } from "./useComposerWorktree";
+import { worktreeSetupErrorOptions } from "./worktreeSetupRecovery";
+import { useAppNavigationRequest } from "@/contexts/AppNavigationContext";
 import type { ExecutionScope } from "../hooks/executionScope";
 import type { RuntimeAcceptanceReceipt } from "../hooks/agentSendResult";
 import {
@@ -232,7 +234,6 @@ interface UseWorkspaceSendActionsParams {
   isThemeWorkbench: boolean;
   projectId?: string | null;
   projectRootPath?: string | null;
-  executionWorkspaceId?: string;
   cancelExecutionScope?: () => void;
   getComposerDraftNavigationEpoch?: () => number;
   isAcceptedExecutionScopeCurrent?: (
@@ -376,7 +377,6 @@ export function useWorkspaceSendActions({
   isThemeWorkbench,
   projectId,
   projectRootPath,
-  executionWorkspaceId,
   cancelExecutionScope,
   getComposerDraftNavigationEpoch,
   isAcceptedExecutionScopeCurrent,
@@ -408,8 +408,9 @@ export function useWorkspaceSendActions({
   resolveImageWorkbenchCommandRequest,
 }: UseWorkspaceSendActionsParams) {
   const { t } = useTranslation("agent");
+  const navigate = useAppNavigationRequest();
   const composerWorktree = useComposerWorktree({
-    workspaceId: executionWorkspaceId ?? projectId,
+    workspaceId: projectId,
     workingDir: projectRootPath,
     cancelExecutionScope,
     getNavigationEpoch: getComposerDraftNavigationEpoch,
@@ -3112,6 +3113,14 @@ export function useWorkspaceSendActions({
                   "agentChat.inputbar.core.projectContext.worktreeCreateFailed",
                 ),
               ),
+              worktreeSetupErrorOptions(
+                result.error,
+                String(t("agentChat.navbar.appSwitcher.openWorktree")),
+                navigate
+                  ? (projectId) =>
+                      navigate("agent", { agentEntry: "claw", projectId })
+                  : undefined,
+              ),
             );
           return result;
         },
@@ -3123,6 +3132,7 @@ export function useWorkspaceSendActions({
     },
     [
       composerWorktree,
+      navigate,
       executeLocalConfirmationPlan,
       executeSendPlan,
       resolveSendExecutionPlan,

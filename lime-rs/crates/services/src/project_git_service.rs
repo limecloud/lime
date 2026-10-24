@@ -5,6 +5,8 @@ use std::time::Duration;
 
 mod process;
 use process::git_command_output_from;
+mod status;
+pub use status::read_status;
 
 mod worktrees;
 pub use worktrees::{
@@ -22,6 +24,8 @@ pub struct ProjectGitStatus {
     pub root_path: String,
     pub repository_root: Option<String>,
     pub has_git_repository: bool,
+    pub is_worktree: bool,
+    pub local_environment_config_path: Option<String>,
     pub current_branch: Option<String>,
     pub branches: Vec<String>,
     pub uncommitted_file_count: u32,
@@ -76,57 +80,6 @@ pub enum ProjectGitDiffBase {
     Commit,
     Branch,
     PreviousConversation,
-}
-
-pub async fn read_status(root_path: &str) -> Result<ProjectGitStatus, String> {
-    let root = required_root_path(root_path)?;
-    if !has_git_ancestor(&root) {
-        return Ok(non_repository_status(root_path));
-    }
-    let repository_root = match git_output(&root, &["rev-parse", "--show-toplevel"]).await {
-        Ok(output) => output,
-        Err(_) => return Ok(non_repository_status(root_path)),
-    };
-
-    let repository_root = repository_root.trim().to_string();
-    let repository_path = PathBuf::from(&repository_root);
-    let current_branch = read_current_branch(&root).await?;
-    let branches = read_branches(&repository_path).await?;
-    let uncommitted_file_count = read_uncommitted_file_count(&root).await?;
-
-    Ok(ProjectGitStatus {
-        root_path: root_path.to_string(),
-        repository_root: Some(repository_root),
-        has_git_repository: true,
-        current_branch,
-        branches,
-        uncommitted_file_count,
-    })
-}
-
-fn has_git_ancestor(root: &Path) -> bool {
-    let absolute_root = if root.is_absolute() {
-        root.to_path_buf()
-    } else {
-        match std::env::current_dir() {
-            Ok(current_dir) => current_dir.join(root),
-            Err(_) => return false,
-        }
-    };
-    absolute_root
-        .ancestors()
-        .any(|ancestor| ancestor.join(".git").exists())
-}
-
-fn non_repository_status(root_path: &str) -> ProjectGitStatus {
-    ProjectGitStatus {
-        root_path: root_path.to_string(),
-        repository_root: None,
-        has_git_repository: false,
-        current_branch: None,
-        branches: Vec::new(),
-        uncommitted_file_count: 0,
-    }
 }
 
 pub async fn read_diff(

@@ -9,6 +9,8 @@ import {
   updateProject,
 } from "@/lib/api/project";
 import { createProjectGitWorktree } from "@/lib/api/projectGit";
+import { readLocalEnvironmentSelection } from "@/lib/api/localEnvironmentSelection";
+import { worktreeSetupErrorOptions } from "@/components/agent/chat/workspace/worktreeSetupRecovery";
 import { revealPathInFinder } from "@/lib/api/fileSystem";
 import {
   clearPersistedProjectId,
@@ -145,7 +147,11 @@ export function useAppSidebarProjectActions({
       }
 
       try {
-        const worktree = await createProjectGitWorktree(rootPath);
+        const localEnvironmentConfigPath =
+          await readLocalEnvironmentSelection(rootPath);
+        const worktree = await createProjectGitWorktree(rootPath, {
+          localEnvironmentConfigPath,
+        });
         const nextProject = await ensureProjectWorkspace({
           name:
             resolveDirectoryName(worktree.worktreePath) ||
@@ -160,7 +166,15 @@ export function useAppSidebarProjectActions({
           projectId: nextProject.id,
         });
       } catch (error) {
-        toast.error(`${worktreeCreateFailedLabel}: ${extractErrorMessage(error)}`);
+        toast.error(
+          `${worktreeCreateFailedLabel}: ${extractErrorMessage(error)}`,
+          worktreeSetupErrorOptions(
+            error,
+            t("agent:agentChat.navbar.appSwitcher.openWorktree"),
+            (projectId) =>
+              onNavigate("agent", { agentEntry: "claw", projectId }),
+          ),
+        );
       }
     },
     [
@@ -168,6 +182,7 @@ export function useAppSidebarProjectActions({
       onNavigate,
       worktreeCreateFailedLabel,
       worktreeCreatedLabel,
+      t,
     ],
   );
 
@@ -202,7 +217,9 @@ export function useAppSidebarProjectActions({
         return;
       }
 
-      const confirmed = window.confirm(removeConfirmLabel(resolveProjectName(project)));
+      const confirmed = window.confirm(
+        removeConfirmLabel(resolveProjectName(project)),
+      );
       if (!confirmed) {
         return;
       }

@@ -63,12 +63,17 @@ function WebRetrievalProcessRow({
 }: WebRetrievalProcessRowProps) {
   const toolCall = entry.toolCall;
   const isRunning = toolCall.status === "running";
-  const display = getToolDisplayInfo(toolCall.name, toolCall.status);
+  const display = getToolDisplayInfo(
+    toolCall.name,
+    toolCall.status,
+    toolCall.metadata,
+  );
   const args = parseToolCallArguments(toolCall.arguments);
   const subject = resolveToolPrimarySubject(
     toolCall.name,
     args,
     resolveToolFilePath(args),
+    toolCall.metadata,
   );
   const narrative = resolveToolProcessNarrative(toolCall);
   const summary =

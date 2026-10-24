@@ -88,6 +88,8 @@ export const BROWSER_TOOL_MATCHERS: Array<{
   {
     match: (name) =>
       name.includes("type") ||
+      name === "browserfill" ||
+      name === "browserpress" ||
       name.includes("fillform") ||
       name.includes("presskey") ||
       name.includes("selectoption") ||
@@ -178,7 +180,8 @@ export const BROWSER_TOOL_MATCHERS: Array<{
       name.includes("resize") ||
       name.includes("install") ||
       name.includes("fileupload") ||
-      name.includes("close"),
+      name.includes("close") ||
+      name.startsWith("browser"),
     config: {
       family: "browser",
       label: "浏览器操作",

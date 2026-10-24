@@ -9,16 +9,26 @@ import {
   mockGetAgentRuntimeSession,
   mockSubmitAgentRuntimeTurn,
   mockSafeInvoke,
+  mockToast,
 } from "../hooks/useAgentChat.testUtils";
 import { useAgentChat } from "../hooks/useAgentChat";
 import { useWorkspaceSendActions } from "./useWorkspaceSendActions";
+import { ProjectGitWorktreeSetupError } from "@/lib/api/projectGit";
+import { AppNavigationContext } from "@/contexts/AppNavigationContext";
 
 const resources = vi.hoisted(() => ({
   git: vi.fn(),
   create: vi.fn(),
   ensure: vi.fn(),
+  environment: vi.fn(),
 }));
-vi.mock("@/lib/api/projectGit", () => ({
+vi.mock("@/lib/api/localEnvironmentSelection", () => ({
+  readLocalEnvironmentSelection: resources.environment,
+}));
+vi.mock("@/lib/api/projectGit", async () => ({
+  ...(await vi.importActual<typeof import("@/lib/api/projectGit")>(
+    "@/lib/api/projectGit",
+  )),
   readProjectGitStatus: resources.git,
   createProjectGitWorktree: resources.create,
 }));
@@ -45,6 +55,7 @@ vi.mock("@/lib/skills/skillInstallPrompt", async () => ({
 }));
 
 function mount() {
+  resources.environment.mockReset().mockResolvedValue(null);
   const git = {
     rootPath: "/a",
     currentBranch: "main",
@@ -73,6 +84,7 @@ function mount() {
   const controller = new ComposerController({ text: "A😀 rich input" });
   const setInput = vi.fn((text: string) => controller.setText(text));
   const onAccepted = vi.fn();
+  const navigate = vi.fn();
   let value!: ReturnType<typeof useWorkspaceSendActions>;
   let chat!: ReturnType<typeof useAgentChat>;
   let navigationEpoch = 0;
@@ -91,7 +103,6 @@ function mount() {
       isThemeWorkbench: false,
       projectId: workspaceId,
       projectRootPath: `/${workspaceId}`,
-      executionWorkspaceId: workspaceId,
       sessionId: chat.sessionId,
       executionStrategy: "react",
       accessMode: "current",
@@ -120,7 +131,13 @@ function mount() {
   document.body.append(host);
   const root = createRoot(host);
   const render = (workspaceId = "a") =>
-    act(() => root.render(<Surface workspaceId={workspaceId} />));
+    act(() =>
+      root.render(
+        <AppNavigationContext.Provider value={navigate}>
+          <Surface workspaceId={workspaceId} />
+        </AppNavigationContext.Provider>,
+      ),
+    );
   render();
   const stage = () => act(() => value.setComposerMode("worktree"));
   const submit = (
@@ -152,6 +169,7 @@ function mount() {
     controller,
     setInput,
     onAccepted,
+    navigate,
     render,
     stage,
     submit,
@@ -166,6 +184,40 @@ function mount() {
 }
 
 describe("staged Worktree through send plan, current session and stream", () => {
+  it("keeps the draft after setup failure, blocks duplicate creation and recovers the confirmed checkout only on request", async () => {
+    const h = mount();
+    try {
+      await flushEffects();
+      h.stage();
+      resources.create.mockRejectedValueOnce(
+        new ProjectGitWorktreeSetupError("setup failed", "/a-task"),
+      );
+      expect((await h.finish()).kind).toBe("rejected");
+      expect((await h.finish()).kind).toBe("rejected");
+      expect(resources.create).toHaveBeenCalledOnce();
+      expect(resources.ensure).not.toHaveBeenCalled();
+      expect(mockCreateAgentRuntimeSession).not.toHaveBeenCalled();
+      expect(mockSubmitAgentRuntimeTurn).not.toHaveBeenCalled();
+      expect(h.setInput).not.toHaveBeenCalled();
+      expect(h.controller.getDocument().text).toBe("A😀 rich input");
+      const action = mockToast.error.mock.calls.at(-1)![1]!.action;
+      expect(action.label).toBeTruthy();
+      await act(async () => action.onClick());
+      expect(resources.ensure).toHaveBeenCalledExactlyOnceWith({
+        rootPath: "/a-task",
+        name: "a-task",
+        workspaceType: "general",
+      });
+      expect(h.navigate).toHaveBeenCalledExactlyOnceWith("agent", {
+        agentEntry: "claw",
+        projectId: "b",
+      });
+      expect(mockSubmitAgentRuntimeTurn).not.toHaveBeenCalled();
+      expect(resources.create).toHaveBeenCalledOnce();
+    } finally {
+      h.unmount();
+    }
+  });
   it("stages without resource creation, then sends the complete rich submission in committed target scope", async () => {
     const h = mount();
     try {
@@ -187,11 +239,10 @@ describe("staged Worktree through send plan, current session and stream", () => 
           },
         },
       });
-      expect(resources.create).toHaveBeenCalledExactlyOnceWith(
-        "/a",
-        undefined,
-        "main",
-      );
+      expect(resources.create).toHaveBeenCalledExactlyOnceWith("/a", {
+        baseBranch: "main",
+        localEnvironmentConfigPath: null,
+      });
       expect(mockCreateAgentRuntimeSession).toHaveBeenCalledExactlyOnceWith(
         "b",
         undefined,
@@ -200,6 +251,7 @@ describe("staged Worktree through send plan, current session and stream", () => 
       );
       expect(mockSubmitAgentRuntimeTurn).toHaveBeenCalledOnce();
       expect(h.chat().sessionWorkingDir).toBe("/a-task");
+      expect(h.chat().executionScope?.workspaceId).toBe("b");
       expect(h.get().composerMode).toBe("local");
       expect(h.onAccepted).toHaveBeenCalledOnce();
       expect(h.setInput).not.toHaveBeenCalled();

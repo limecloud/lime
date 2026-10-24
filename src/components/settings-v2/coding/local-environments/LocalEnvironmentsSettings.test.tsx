@@ -10,6 +10,7 @@ import {
 import { open } from "@/lib/desktop-host/dialog";
 import { localEnvironments } from "@/lib/api/localEnvironments";
 import { LocalEnvironmentsSettings } from "./LocalEnvironmentsSettings";
+import type { LocalEnvironmentFocusContext } from "@/types/page";
 
 vi.mock("@/lib/api/project", () => ({
   listProjects: vi.fn(),
@@ -58,8 +59,10 @@ const button = (name: string) =>
 async function click(target: HTMLElement) {
   await act(async () => target.click());
 }
-async function mount() {
-  await act(async () => root.render(<LocalEnvironmentsSettings />));
+async function mount(focus?: LocalEnvironmentFocusContext) {
+  await act(async () =>
+    root.render(<LocalEnvironmentsSettings focus={focus} />),
+  );
 }
 
 beforeEach(async () => {
@@ -177,7 +180,7 @@ describe("LocalEnvironmentsSettings", () => {
     expect(container.textContent).not.toContain("Archived project");
   });
 
-  it("shows an invalid file as an error rather than an editable empty configuration", async () => {
+  it("shows invalid details and opens explicit repair without silently overwriting the file", async () => {
     vi.mocked(localEnvironments.readConfig).mockResolvedValue({
       configPath,
       exists: true,
@@ -196,7 +199,40 @@ describe("LocalEnvironmentsSettings", () => {
     expect(container.querySelector('[role="alert"]')?.textContent).toContain(
       "Invalid environment configuration.",
     );
-    expect(button("Edit environment").disabled).toBe(true);
+    expect(button("Edit environment").disabled).toBe(false);
     expect(container.querySelector("input, textarea")).toBeNull();
+    await click(button("Edit environment"));
+    expect(container.querySelector("input")).not.toBeNull();
+    expect(localEnvironments.saveConfig).not.toHaveBeenCalled();
+  });
+
+  it("opens the requested repair config and handles the same request only once", async () => {
+    const focus = {
+      workspaceRoot: project.rootPath,
+      configPath,
+      requestKey: 1,
+    };
+    await mount(focus);
+    expect(
+      container.querySelector('[data-testid="local-environment-editor"]'),
+    ).not.toBeNull();
+    expect(localEnvironments.readConfig).toHaveBeenCalledWith(configPath);
+    await click(button("Back"));
+    await mount({ ...focus });
+    expect(
+      container.querySelector('[data-testid="local-environment-editor"]'),
+    ).toBeNull();
+    expect(ensureProjectWorkspace).not.toHaveBeenCalled();
+  });
+
+  it("ensures a focused workspace absent from the project list before opening it", async () => {
+    vi.mocked(listProjects).mockResolvedValue([]);
+    vi.mocked(ensureProjectWorkspace).mockResolvedValue(project);
+    await mount({ workspaceRoot: project.rootPath, configPath });
+    expect(ensureProjectWorkspace).toHaveBeenCalledExactlyOnceWith({
+      rootPath: project.rootPath,
+      name: "project",
+    });
+    expect(localEnvironments.readConfig).toHaveBeenCalledWith(configPath);
   });
 });

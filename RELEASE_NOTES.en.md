@@ -8,6 +8,7 @@ Simplified Chinese release notes are the primary version.
 - Add grouped browser visits, search and bulk deletion, with settings for download directories, site permissions, and Agent browser admission.
 - Add user and project configuration layers, managed sources and requirements, and version-checked writes to editable configuration.
 - Add local environment file editing for project configuration, platform-specific setup/cleanup scripts and actions, preserving drafts on revision conflicts.
+- Persist local environment choices per workspace and apply them when creating worktrees from chat, the sidebar, and the task center, with recovery actions after script failures.
 - Add current-page CDP command execution governed by site permissions and per-action approval.
 - Add reasoning effort defaults and enabled effort choices for new chats, respecting model capabilities and configuration scope.
 - Add bulk cleanup of archived chats and diagnostic, installation, and cancellation interfaces for Node/Python tool runtimes.
@@ -18,6 +19,9 @@ Simplified Chinese release notes are the primary version.
 - Validate page, origin, tab, and control identity for native site permission requests; revoke pending grants on navigation or control changes.
 - Serialize configuration writes while preserving user and project version conflict checks to prevent stale views from overwriting newer settings.
 - Preserve process exit events and captured output during command cancellation, and keep worktrees recoverable when environment scripts are cancelled.
+- Keep the source workspace and directory paired during the first worktree send, then open the accepted target conversation.
+- Resume the same macOS notarization submission after status polling timeouts, avoiding repeated packaging and uploads while still requiring Apple acceptance and ticket validation.
+- Register Skills watches for loaded threads and extra roots to avoid scanning every default root during startup.
 - Restore translated fallback titles and MIME type labels in file previews across all five languages.
 - Unify disabled, cached, and live web search access policies and enforce network and sandbox constraints before tool execution.
 

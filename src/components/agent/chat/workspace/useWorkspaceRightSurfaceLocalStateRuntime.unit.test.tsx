@@ -31,6 +31,38 @@ const owner: WorkspaceRightSurfaceOwner = {
   sessionId: "session-a",
   threadId: "thread-a",
 };
+
+it("keeps independent action terminals within the current conversation owner", () => {
+  const view = mount();
+  const stale = view.get().runAction;
+  act(() =>
+    view.get().runAction({
+      title: "Test",
+      cwd: "/tree/packages/app",
+      command: "npm test",
+    }),
+  );
+  const first = view.get().sidePanelTabs.tabs[0];
+  expect(first.kind).toBe("shell");
+  expect(first.terminalAction).toEqual({
+    title: "Test",
+    cwd: "/tree/packages/app",
+    command: "npm test",
+  });
+  act(() =>
+    view.get().runAction({
+      title: "Test",
+      cwd: "/tree/packages/app",
+      command: "npm test",
+    }),
+  );
+  expect(view.get().sidePanelTabs.tabs).toHaveLength(2);
+  expect(view.get().sidePanelTabs.tabs[1].tabId).not.toBe(first.tabId);
+  view.render({ ...owner, sessionId: "session-b", threadId: "thread-b" });
+  act(() => stale({ title: "Late", cwd: "/tree", command: "echo wrong" }));
+  expect(view.get().sidePanelTabs.tabs).toHaveLength(0);
+  view.unmount();
+});
 const mounted: Array<{ root: Root; container: HTMLDivElement }> = [];
 
 function mount(initialOwner: WorkspaceRightSurfaceOwner = owner) {

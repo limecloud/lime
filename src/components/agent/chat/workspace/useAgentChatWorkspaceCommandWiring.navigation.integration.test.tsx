@@ -41,7 +41,7 @@ vi.mock("./useGeneralWorkbenchInitialDispatchRuntime", () => ({
 }));
 vi.mock("./useWorkspaceTaskCenterDraftStateRuntime", () => ({
   useWorkspaceTaskCenterDraftStateRuntime: () => ({
-    handleTopicSwitchCommitted: vi.fn(),
+    handleTopicSwitchCommitted: navigation.draftCommitted,
   }),
 }));
 vi.mock("./useWorkspaceSendSurfaceRuntime", () => ({
@@ -55,6 +55,7 @@ vi.mock("./useWorkspaceWorkbenchActionSurfaceRuntime", () => ({
 }));
 const navigation = vi.hoisted(() => ({
   capture: vi.fn(),
+  draftCommitted: vi.fn(),
   send: { capture: vi.fn() },
 }));
 vi.mock("./useWorkspaceTaskCenterNavigationRuntime", () => ({
@@ -197,8 +198,9 @@ describe("Command wiring keeps Composer scope in the visible workspace", () => {
     };
   }
 
-  it("commits accepted Worktree navigation with the target project and canonical session", async () => {
+  it("commits accepted Worktree navigation only after promoting the captured draft", async () => {
     const view = await mountSend(async () => accepted());
+    navigation.draftCommitted.mockClear();
     const sendActions = (
       navigation.send.capture.mock.lastCall![0] as Parameters<
         typeof useWorkspaceSendSurfaceRuntime
@@ -214,19 +216,75 @@ describe("Command wiring keeps Composer scope in the visible workspace", () => {
     const result = accepted();
     if (result.kind !== "runtime-accepted")
       throw new Error("missing fixture acceptance");
-    await act(async () => {
-      sendActions.onExecutionScopeAccepted?.(executionScope, {
-        ...result.receipt,
-        executionScope,
-      });
+    expect(sendActions.onExecutionScopeAccepted).toBeUndefined();
+    const capture = view
+      .current()
+      .composerDraft.composerDraftCoordinator!.captureSubmission("start");
+    const target = {
+      workspaceId: executionScope.workspaceId,
+      kind: "local",
+      id: result.receipt.sessionId,
+    };
+    view.deferTopicSwitch.mockImplementation(() => {
+      expect(view.current().composerDraft.getComposerDraftTarget()).toEqual(
+        target,
+      );
     });
+    await act(async () =>
+      view.current().composerDraft.handleComposerDraftAccepted(capture, {
+        ...result,
+        receipt: { ...result.receipt, executionScope },
+      }),
+    );
     expect(view.deferTopicSwitch).toHaveBeenCalledExactlyOnceWith(
       "s1",
       "target-workspace",
-      { allowDetachedSession: true, forceRefresh: true },
+      { allowDetachedSession: true },
     );
     expect(view.current().composerDraft.getComposerDraftTarget()).toEqual(
-      view.home,
+      target,
+    );
+    expect(navigation.draftCommitted).toHaveBeenCalledExactlyOnceWith("s1");
+  });
+
+  it("does not navigate a late Worktree acceptance over a newer draft", async () => {
+    const view = await mountSend(async () => accepted());
+    const capture = view
+      .current()
+      .composerDraft.composerDraftCoordinator!.captureSubmission("start");
+    const newer = {
+      workspaceId: "newer-workspace",
+      kind: "local" as const,
+      id: "newer-session",
+    };
+    await act(async () =>
+      view.current().composerDraft.commitComposerDraftScope(newer),
+    );
+    act(() => view.fixture.controller.setText("newer unsent edit"));
+    const result = accepted();
+    if (result.kind !== "runtime-accepted")
+      throw new Error("missing fixture acceptance");
+    await act(async () =>
+      view.current().composerDraft.handleComposerDraftAccepted(capture, {
+        ...result,
+        receipt: {
+          ...result.receipt,
+          executionScope: {
+            requestId: "late",
+            sourceWorkspaceId: view.home.workspaceId,
+            sourceWorkingDir: "/source",
+            workspaceId: "target-workspace",
+            workingDir: "/target",
+          },
+        },
+      }),
+    );
+    expect(view.deferTopicSwitch).not.toHaveBeenCalled();
+    expect(view.current().composerDraft.getComposerDraftTarget()).toEqual(
+      newer,
+    );
+    expect(view.fixture.controller.getDocument().text).toBe(
+      "newer unsent edit",
     );
   });
 

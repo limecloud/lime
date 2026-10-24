@@ -3,7 +3,9 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { changeLimeLocale } from "@/i18n/createI18n";
 import { localEnvironments } from "@/lib/api/localEnvironments";
+import { selectLocalEnvironment } from "@/lib/api/localEnvironmentSelection";
 import { LocalEnvironmentEditor } from "./LocalEnvironmentEditor";
+import { toast } from "sonner";
 
 vi.mock("@/lib/api/localEnvironments", () => ({
   localEnvironments: {
@@ -11,6 +13,10 @@ vi.mock("@/lib/api/localEnvironments", () => ({
     saveConfig: vi.fn(),
   },
 }));
+vi.mock("@/lib/api/localEnvironmentSelection", () => ({
+  selectLocalEnvironment: vi.fn(),
+}));
+vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
 const configPath = "/project/.codex/environments/environment.toml";
 const existing = {
   configPath,
@@ -43,6 +49,7 @@ async function mount() {
       <LocalEnvironmentEditor
         configPath={configPath}
         defaultName="Project"
+        workspaceRoot="/project"
         onBack={onBack}
         onSaved={onSaved}
       />,
@@ -75,6 +82,7 @@ beforeEach(async () => {
   vi.resetAllMocks();
   await changeLimeLocale("en-US");
   vi.mocked(localEnvironments.readConfig).mockResolvedValue(existing);
+  vi.mocked(selectLocalEnvironment).mockResolvedValue(true);
   vi.mocked(localEnvironments.saveConfig).mockResolvedValue({
     configPath,
     type: "success",
@@ -150,8 +158,36 @@ describe("LocalEnvironmentEditor", () => {
     expect(localEnvironments.saveConfig).toHaveBeenCalledWith(
       expect.objectContaining({ expectedRevision: null }),
     );
+    expect(selectLocalEnvironment).toHaveBeenCalledExactlyOnceWith(
+      "/project",
+      configPath,
+    );
   });
-  it("does not replace invalid configuration with an empty editor", async () => {
+  it.each(["rejected", "disk-error"])(
+    "keeps the saved file successful when selecting it returns %s",
+    async (failure) => {
+      vi.mocked(localEnvironments.readConfig).mockResolvedValue({
+        configPath,
+        exists: false,
+        revision: null,
+        raw: null,
+        environment: null,
+      });
+      if (failure === "rejected")
+        vi.mocked(selectLocalEnvironment).mockRejectedValue(Error("offline"));
+      else vi.mocked(selectLocalEnvironment).mockResolvedValue(false);
+      await mount();
+      await click(button("Save"));
+      expect(localEnvironments.saveConfig).toHaveBeenCalledOnce();
+      expect(onSaved).toHaveBeenCalledOnce();
+      expect(toast.error).toHaveBeenCalledWith(
+        "The environment file was saved, but could not be selected. Select it again from the environment menu.",
+      );
+      expect(button("Save").disabled).toBe(true);
+      expect(container.querySelector('[role="alert"]')).toBeNull();
+    },
+  );
+  it("repairs invalid configuration only after explicit save using its original revision", async () => {
     vi.mocked(localEnvironments.readConfig).mockResolvedValue({
       configPath,
       exists: true,
@@ -168,8 +204,13 @@ describe("LocalEnvironmentEditor", () => {
     expect(container.querySelector('[role="alert"]')?.textContent).toContain(
       "Invalid environment",
     );
-    expect(container.querySelector("input")).toBeNull();
-    expect(button("Save").disabled).toBe(true);
+    expect(nameInput().value).toBe("Project");
+    expect(localEnvironments.saveConfig).not.toHaveBeenCalled();
+    await click(button("Save"));
+    expect(localEnvironments.saveConfig).toHaveBeenCalledWith(
+      expect.objectContaining({ expectedRevision: "sha256:broken" }),
+    );
+    expect(selectLocalEnvironment).not.toHaveBeenCalled();
   });
   it("ignores a read completed after unmount", async () => {
     let complete!: (value: typeof existing) => void;

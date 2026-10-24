@@ -85,9 +85,9 @@ export function captureFirstSendResources(entry, expected) {
       binding.id === skill?.key &&
       binding.name === skill.name &&
       binding.path === skill.path &&
+      binding.label === `$${skill.name}` &&
       nonempty(skill.path) &&
-      doc.inputCapabilityRoute?.kind === "installed_skill" &&
-      doc.inputCapabilityRoute.skillKey === skill.name &&
+      doc.inputCapabilityRoute == null &&
       /^[a-f0-9]{64}$/.test(expected.skillFileSha256 ?? "") &&
       Object.values(doc.pendingPastes ?? {}).length === 1 &&
       Object.values(doc.pendingPastes)[0].text === expected.pasteText &&
@@ -100,7 +100,7 @@ export function captureFirstSendResources(entry, expected) {
       submission.text.includes(expected.marker) &&
       submission.text.includes(expected.pasteText) &&
       Array.isArray(submission.textElements) &&
-      submission.textElements.length === 2 &&
+      submission.textElements.length === 1 &&
       submission.marks?.codeBlocks?.length === 1 &&
       submission.marks?.links?.length === 1,
     "captured native image, file and installed Skill match independent fixture resources",

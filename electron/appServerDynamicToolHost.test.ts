@@ -83,6 +83,8 @@ describe("AppServerDynamicToolHost", () => {
           "claimTab",
           "observe",
           "executeCdpCommand",
+          "attachTarget",
+          "detachTarget",
         ]),
       );
       expect(JSON.stringify(prepared.params)).not.toContain("forged");

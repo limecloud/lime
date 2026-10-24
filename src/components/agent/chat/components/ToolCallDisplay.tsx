@@ -134,8 +134,13 @@ export const ToolCallDisplay: React.FC<ToolCallDisplayProps> = ({
   );
 
   const toolDisplay = useMemo(
-    () => getToolDisplayInfoFromInfo(toolCall.name, toolCall.status),
-    [toolCall.name, toolCall.status],
+    () =>
+      getToolDisplayInfoFromInfo(
+        toolCall.name,
+        toolCall.status,
+        toolCall.metadata,
+      ),
+    [toolCall.name, toolCall.status, toolCall.metadata],
   );
 
   // 获取文件路径
@@ -147,8 +152,13 @@ export const ToolCallDisplay: React.FC<ToolCallDisplayProps> = ({
   // 获取文件名
   const fileName = useMemo(
     () =>
-      resolveToolPrimarySubjectFromInfo(toolCall.name, parsedArgs, filePath),
-    [filePath, parsedArgs, toolCall.name],
+      resolveToolPrimarySubjectFromInfo(
+        toolCall.name,
+        parsedArgs,
+        filePath,
+        toolCall.metadata,
+      ),
+    [filePath, parsedArgs, toolCall.name, toolCall.metadata],
   );
 
   // 获取文件内容（用于点击打开右边栏）

@@ -117,7 +117,7 @@ impl AppServer {
         let skills_watcher = if cfg!(test) {
             None
         } else {
-            skills_watcher::SkillsWatcher::start_default(skills_watcher_bridge)
+            skills_watcher::SkillsWatcher::new(skills_watcher_bridge)
         };
         if let Some(watcher) = &skills_watcher {
             watcher.register_runtime_extra_roots(lime_skills::runtime_extra_skill_roots());

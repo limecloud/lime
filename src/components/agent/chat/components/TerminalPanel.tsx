@@ -19,11 +19,13 @@ type XTermFitAddon = import("@xterm/addon-fit").FitAddon;
 export interface TerminalState {
   errorText: string | null;
   ready: boolean;
+  exitCode: number | null;
 }
 
 interface TerminalPanelProps {
   active: boolean;
   cwd?: string | null;
+  command?: string;
   sessionId: string;
   onNewTerminalTab?: () => void;
   onStateChange: (state: Partial<TerminalState>) => void;
@@ -40,6 +42,7 @@ function extractErrorMessage(error: unknown): string {
 export function TerminalPanel({
   active,
   cwd,
+  command,
   sessionId,
   onNewTerminalTab,
   onStateChange,
@@ -128,6 +131,7 @@ export function TerminalPanel({
       patchState({
         errorText: null,
         ready: false,
+        exitCode: null,
       });
       if (!normalizedCwd) {
         patchState({
@@ -192,7 +196,7 @@ export function TerminalPanel({
         const processId = createProcessId();
         processIdForBoot = processId;
         processIdRef.current = processId;
-        const shell = resolveInteractiveShell();
+        const shell = resolveTerminalCommand(command);
         const decoder = new TextDecoder();
         unlisten = subscribeCommandExecOutput(processId, (delta) => {
           if (disposed || processIdRef.current !== processId) return;
@@ -240,6 +244,7 @@ export function TerminalPanel({
             );
             patchState({
               ready: false,
+              exitCode: result.exitCode,
             });
           })
           .catch((error) => {
@@ -297,7 +302,7 @@ export function TerminalPanel({
       if (terminalRef.current === terminal) terminalRef.current = null;
       if (fitAddonRef.current === fitAddon) fitAddonRef.current = null;
     };
-  }, [normalizedCwd, sessionId, patchState, writeShellData]);
+  }, [normalizedCwd, command, sessionId, patchState, writeShellData]);
 
   React.useEffect(() => {
     const updateTheme = () => {
@@ -375,9 +380,12 @@ function createProcessId(): string {
   return `shell-${crypto.randomUUID()}`;
 }
 
-function resolveInteractiveShell(): string[] {
-  if (/Windows/i.test(navigator.userAgent)) return ["cmd.exe", "/d"];
-  return ["/bin/sh", "-i"];
+function resolveTerminalCommand(command?: string): string[] {
+  if (/Windows/i.test(navigator.userAgent))
+    return command === undefined
+      ? ["cmd.exe", "/d"]
+      : ["cmd.exe", "/d", "/s", "/c", command];
+  return command === undefined ? ["/bin/sh", "-i"] : ["/bin/sh", "-c", command];
 }
 
 function encodeBase64(value: string): string {

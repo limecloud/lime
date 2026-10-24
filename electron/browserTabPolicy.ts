@@ -9,6 +9,7 @@ import {
 import type { BrowserToolCall } from "./browserTabHost";
 import { isDeepStrictEqual } from "node:util";
 import { managedBrowserAccessApprovalLifetime } from "../src/lib/api/browserUseRequirements";
+import { isBrowserCdpTool } from "./browserCdp";
 
 export class BrowserTabPolicy {
   #settings = effectiveBrowserSettings();
@@ -64,7 +65,7 @@ export class BrowserTabPolicy {
     if (this.decision("browse", target) === "deny")
       throw new Error("Browser Agent browsing is denied for this site");
     if (
-      call.tool === "executeCdpCommand" &&
+      isBrowserCdpTool(call.tool) &&
       this.decision("debug", target) === "deny"
     )
       throw new Error("Browser full CDP access is denied for this page");

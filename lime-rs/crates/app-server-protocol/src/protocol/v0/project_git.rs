@@ -134,6 +134,10 @@ pub struct ProjectGitStatusResponse {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub repository_root: Option<String>,
     pub has_git_repository: bool,
+    #[serde(default)]
+    pub is_worktree: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub local_environment_config_path: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub current_branch: Option<String>,
     #[serde(default)]

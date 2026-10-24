@@ -8,6 +8,7 @@ import {
 import type { LayoutMode } from "@/lib/workspace/workbenchContract";
 import type { AgentThreadItem, AgentThreadTurn } from "@/lib/api/agentProtocol";
 import { useThreadOutputs } from "./right-surface/useThreadOutputs";
+import type { TerminalAction } from "./localConversationActionHelpers";
 import type { ReviewThreadSidePanelTarget } from "./ReviewThreadSidePanelTab";
 import type { WorkspaceArticleWorkspace } from "./workspaceArticleWorkspaceModel";
 import { useWorkspaceRightSurfaceActionRuntime } from "./useWorkspaceRightSurfaceActionRuntime";
@@ -272,6 +273,12 @@ export function useWorkspaceRightSurfaceCoordinatorRuntime({
     ...derivedRuntime,
     ...actionRuntime,
     outputs,
+    handleRunAction: (action: TerminalAction) => {
+      if (!effectiveSessionId || !shellRightSurfaceAvailable) return;
+      setHarnessPanelVisible(false);
+      setExpertInfoPanelCollapsed(true);
+      localState.runAction(action);
+    },
     openBrowserInBackground: localState.openBrowserInBackground,
     handleBrowserLaunchApplied: (requestId: string) => {
       if (

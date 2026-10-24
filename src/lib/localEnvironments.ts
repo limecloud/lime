@@ -1,4 +1,5 @@
 import { stringify } from "smol-toml";
+import { normalizeLocalEnvironmentPath } from "./localEnvironmentSelection";
 import type {
   LocalEnvironment,
   LocalEnvironmentResult,
@@ -126,28 +127,22 @@ export function defaultEnvironmentConfigPath(workspaceRoot: string): string {
   return `${workspaceRoot.replace(/[\\/]+$/, "")}${separator}.codex${separator}environments${separator}environment.toml`;
 }
 
-function normalizeEnvironmentPath(path: string): string {
-  const normalized = path.replaceAll("\\", "/").replace(/\/+$/, "");
-  return /^(?:[a-z]:|\/\/)/i.test(normalized)
-    ? normalized.toLowerCase()
-    : normalized;
-}
-
 export function nextEnvironmentConfigPath(
   entries: LocalEnvironmentResult[],
   workspaceRoot: string,
 ): string {
   const defaultPath = defaultEnvironmentConfigPath(workspaceRoot);
   const paths = new Set(
-    entries.map((entry) => normalizeEnvironmentPath(entry.configPath)),
+    entries.map((entry) => normalizeLocalEnvironmentPath(entry.configPath)),
   );
-  if (!paths.has(normalizeEnvironmentPath(defaultPath))) return defaultPath;
+  if (!paths.has(normalizeLocalEnvironmentPath(defaultPath)))
+    return defaultPath;
   for (let suffix = 2; ; suffix += 1) {
     const path = defaultPath.replace(
       /environment\.toml$/,
       `environment-${suffix}.toml`,
     );
-    if (!paths.has(normalizeEnvironmentPath(path))) return path;
+    if (!paths.has(normalizeLocalEnvironmentPath(path))) return path;
   }
 }
 
@@ -161,10 +156,11 @@ export function partitionLocalEnvironments(
 ) {
   const projectEnvironments: LocalEnvironmentResult[] = [];
   const inheritedEnvironments: LocalEnvironmentResult[] = [];
-  const root = normalizeEnvironmentPath(workspaceRoot);
+  const root = normalizeLocalEnvironmentPath(workspaceRoot);
   for (const entry of entries) {
-    (normalizeEnvironmentPath(environmentWorkspaceRoot(entry.configPath)) ===
-    root
+    (normalizeLocalEnvironmentPath(
+      environmentWorkspaceRoot(entry.configPath),
+    ) === root
       ? projectEnvironments
       : inheritedEnvironments
     ).push(entry);

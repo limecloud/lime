@@ -115,15 +115,15 @@ export function assertRichDraft(entry, expected) {
     "durable image and complete path resource",
   );
   requireDraftProof(
-    document.inputCapabilityRoute?.kind === "installed_skill" &&
-      document.inputCapabilityRoute.skillKey === "capability-report" &&
-      String(document.inputCapabilityRoute.skillName)
-        .toLocaleLowerCase()
-        .replace(/[\s_-]+/g, "") === "capabilityreport" &&
-      document.mentionBindings?.some(
-        (binding) => binding.id === "user:capability-report",
-      ),
-    "installed capability route and mention binding",
+    document.inputCapabilityRoute == null &&
+      document.mentionBindings?.length === 1 &&
+      expected.skillIdentity?.key === "user:capability-report" &&
+      document.mentionBindings[0].id === expected.skillIdentity.key &&
+      document.mentionBindings[0].kind === "skill" &&
+      document.mentionBindings[0].name === expected.skillIdentity.name &&
+      document.mentionBindings[0].label === `$${expected.skillIdentity.name}` &&
+      document.mentionBindings[0].path === expected.skillIdentity.path,
+    "canonical installed Skill mention identity without a second capability route",
   );
   requireDraftProof(
     Number.isSafeInteger(document.selectionStart) &&

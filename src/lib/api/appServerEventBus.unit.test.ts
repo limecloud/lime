@@ -15,6 +15,86 @@ describe("AppServerEventBus", () => {
     vi.useRealTimers();
   });
 
+  it("流式请求完成后排空已入队输出，不让更早的在途 drain 提前确认", async () => {
+    vi.useFakeTimers();
+    const firstDrain = Promise.withResolvers<unknown[]>();
+    const delta = (text: string) => ({
+      method: "command/exec/outputDelta",
+      params: {
+        processId: "action-1",
+        stream: "stdout",
+        deltaBase64: btoa(text),
+        capReached: false,
+      },
+    });
+    const drainEvents = vi
+      .fn()
+      .mockReturnValueOnce(firstDrain.promise)
+      .mockResolvedValueOnce([delta("first"), delta("second")])
+      .mockResolvedValueOnce([delta("last")])
+      .mockResolvedValue([]);
+    const eventBus = new AppServerEventBus({ drainEvents });
+    const delivered: string[] = [];
+    const unsubscribe = eventBus.subscribe({
+      getDrainOptions: () => ({ limit: 2 }),
+      onNotifications: (notifications) => {
+        delivered.push(
+          ...notifications.map((notification) =>
+            atob((notification.params as { deltaBase64: string }).deltaBase64),
+          ),
+        );
+      },
+    });
+    let flushed = false;
+    const flush = eventBus.flushNotifications().then(() => {
+      flushed = true;
+      expect(delivered).toEqual(["first", "second", "last"]);
+    });
+    try {
+      expect(flushed).toBe(false);
+      firstDrain.resolve([]);
+      await flush;
+      expect(drainEvents).toHaveBeenCalledTimes(3);
+      expect(flushed).toBe(true);
+    } finally {
+      unsubscribe();
+      eventBus.reset();
+      await vi.runOnlyPendingTimersAsync();
+    }
+  });
+
+  it("排空失败或连接重置显式失败，不把缺失输出当成成功终态", async () => {
+    vi.useFakeTimers();
+    const firstDrain = Promise.withResolvers<unknown[]>();
+    const error = new Error("drain failed");
+    const drainEvents = vi
+      .fn()
+      .mockReturnValueOnce(firstDrain.promise)
+      .mockRejectedValueOnce(error)
+      .mockResolvedValue([]);
+    const eventBus = new AppServerEventBus({ drainEvents });
+    const onError = vi.fn();
+    const unsubscribe = eventBus.subscribe({
+      onNotifications: vi.fn(),
+      onError,
+    });
+    const failed = expect(eventBus.flushNotifications()).rejects.toThrow(error);
+    try {
+      firstDrain.resolve([]);
+      await failed;
+      expect(onError).toHaveBeenCalledExactlyOnceWith(error);
+      const reset = expect(eventBus.flushNotifications()).rejects.toThrow(
+        "notification flush was reset",
+      );
+      eventBus.reset();
+      await reset;
+    } finally {
+      unsubscribe();
+      eventBus.reset();
+      await vi.runOnlyPendingTimersAsync();
+    }
+  });
+
   it("drain 在途切换订阅时，应向当前订阅交付问题与终态，不能回投已卸载订阅", async () => {
     vi.useFakeTimers();
     const pendingDrain = Promise.withResolvers<unknown[]>();

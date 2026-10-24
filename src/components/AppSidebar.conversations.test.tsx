@@ -736,6 +736,7 @@ describe("AppSidebar conversations", () => {
 
       expect(mockCreateProjectGitWorktree).toHaveBeenCalledWith(
         "/repo/example",
+        { localEnvironmentConfigPath: null },
       );
       expect(mockEnsureProjectWorkspace).toHaveBeenCalledWith({
         name: "example-worktree",
@@ -1456,7 +1457,8 @@ describe("AppSidebar conversations", () => {
     expect(container.querySelector('button[title="会话 19"]')).not.toBeNull();
     expect(container.querySelector('button[title="会话 24"]')).toBeNull();
     expect(
-      container.querySelector('[data-testid="app-sidebar-recent-conversations"]')
+      container
+        .querySelector('[data-testid="app-sidebar-recent-conversations"]')
         ?.querySelectorAll('[data-testid="app-sidebar-conversation-open"]'),
     ).toHaveLength(21);
   });
@@ -1573,8 +1575,7 @@ describe("AppSidebar conversations", () => {
       sectionId: null,
       cwd: "/repo/project-1",
     });
-    const callsBeforeNavigation =
-      mockListRecentThreads.mock.calls.length;
+    const callsBeforeNavigation = mockListRecentThreads.mock.calls.length;
 
     mockScheduleMinimumDelayIdleTask.mockImplementation((task: () => void) => {
       scheduledTasks.push(task);
@@ -1601,9 +1602,7 @@ describe("AppSidebar conversations", () => {
     });
     await flushEffects(2);
 
-    expect(mockListRecentThreads).toHaveBeenCalledTimes(
-      callsBeforeNavigation,
-    );
+    expect(mockListRecentThreads).toHaveBeenCalledTimes(callsBeforeNavigation);
     expect(scheduledTasks).toHaveLength(1);
 
     await act(async () => {
@@ -1696,9 +1695,7 @@ describe("AppSidebar conversations", () => {
     expect(runtimeStatus?.getAttribute("data-status")).toBe("running");
     expect(runtimeStatus?.getAttribute("aria-label")).toBe("正在输出");
 
-    expect(mockListRecentThreads).toHaveBeenCalledTimes(
-      callsBeforeStreaming,
-    );
+    expect(mockListRecentThreads).toHaveBeenCalledTimes(callsBeforeStreaming);
     expect(scheduledTasks).toHaveLength(0);
 
     await act(async () => {

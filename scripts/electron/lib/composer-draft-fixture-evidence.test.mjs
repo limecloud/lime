@@ -70,6 +70,11 @@ const expected = {
   imageBase64: "aGVsbG8=",
   path: "/isolated/file.md",
   pathName: "file.md",
+  skillIdentity: {
+    key: "user:capability-report",
+    name: "capability-report",
+    path: "/isolated/skills/capability-report/SKILL.md",
+  },
 };
 
 function fixture() {
@@ -117,12 +122,15 @@ function fixture() {
     pathReferences: [
       { path: expected.path, name: expected.pathName, isDir: false },
     ],
-    mentionBindings: [{ id: "user:capability-report" }],
-    inputCapabilityRoute: {
-      kind: "installed_skill",
-      skillKey: "capability-report",
-      skillName: "Capability Report",
-    },
+    mentionBindings: [
+      {
+        id: expected.skillIdentity.key,
+        kind: "skill",
+        name: expected.skillIdentity.name,
+        label: `$${expected.skillIdentity.name}`,
+        path: expected.skillIdentity.path,
+      },
+    ],
   };
   return {
     outcome: "ready",
@@ -181,7 +189,7 @@ test("summarizes an exact restored plain draft without an optional capability ro
   const restored = assertRestoredDraft(result, scope, original);
   assert.equal(restored.capabilitySha256, sha256(null));
   assert.equal(restored.payloadSha256, sha256(original.draft));
-  assert.throws(() => assertRichDraft(original, expected), /fixture failed/);
+  assert.doesNotThrow(() => assertRichDraft(original, expected));
   result.data.view.entry.draft.document.inputCapabilityRoute = {
     kind: "installed_skill",
     skillKey: "other",
@@ -327,15 +335,18 @@ for (const [name, change] of [
     },
   ],
   [
-    "missing capability route",
+    "stale capability route",
     (draft) => {
-      delete draft.document.inputCapabilityRoute;
+      draft.document.inputCapabilityRoute = {
+        kind: "installed_skill",
+        skillKey: "capability-report",
+      };
     },
   ],
   [
-    "catalog key used as execution key",
+    "foreign Skill identity",
     (draft) => {
-      draft.document.inputCapabilityRoute.skillKey = "user:capability-report";
+      draft.document.mentionBindings[0].path = "/other/SKILL.md";
     },
   ],
   [

@@ -7,12 +7,16 @@ import {
   writeCommandExec,
 } from "./commandExec";
 
-const { subscribeAppServerNotifications } = vi.hoisted(() => ({
-  subscribeAppServerNotifications: vi.fn(),
-}));
+const { subscribeAppServerNotifications, flushNotifications } = vi.hoisted(
+  () => ({
+    subscribeAppServerNotifications: vi.fn(),
+    flushNotifications: vi.fn(async () => undefined),
+  }),
+);
 
 vi.mock("./appServerEventBus", () => ({
   subscribeAppServerNotifications,
+  getDefaultAppServerEventBus: () => ({ flushNotifications }),
 }));
 
 function createClient() {
@@ -76,6 +80,36 @@ describe("commandExec gateway", () => {
       );
     },
   );
+
+  it("流式命令在现役事件总线交付尾部输出后才返回真实退出码", async () => {
+    const client = createClient();
+    const pendingFlush = Promise.withResolvers<void>();
+    flushNotifications.mockReturnValueOnce(pendingFlush.promise);
+    client.execCommand.mockResolvedValueOnce({
+      result: { exitCode: 7, stdout: "", stderr: "" },
+    });
+    const complete = vi.fn();
+    const result = execCommand(
+      {
+        command: ["sh", "-c", "printf output; exit 7"],
+        streamStdoutStderr: true,
+      },
+      client,
+    ).then(complete);
+    await Promise.resolve();
+    expect(flushNotifications).toHaveBeenCalledOnce();
+    expect(complete).not.toHaveBeenCalled();
+    pendingFlush.resolve();
+    await result;
+    expect(complete).toHaveBeenCalledExactlyOnceWith({
+      exitCode: 7,
+      stdout: "",
+      stderr: "",
+    });
+    flushNotifications.mockClear();
+    await execCommand({ command: ["echo", "output"] }, client);
+    expect(flushNotifications).not.toHaveBeenCalled();
+  });
 
   it("要求 resize 使用正数 tty 尺寸并透传", async () => {
     const client = createClient();

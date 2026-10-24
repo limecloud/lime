@@ -36,6 +36,18 @@ const sources = [
   "src/components/settings-v2/hooks/useSettingsCategory.ts",
   "src/lib/api/localEnvironments.ts",
   "src/lib/localEnvironments.ts",
+  "src/lib/localEnvironmentSelection.ts",
+  "src/lib/api/localEnvironmentSelection.ts",
+  "src/lib/api/localEnvironmentSelectionProtocol.ts",
+  "src/lib/api/persistedAtoms.ts",
+  "src/lib/api/persistedAtomTypes.ts",
+  "src/lib/api/persistedAtomProtocol.ts",
+  "src/types/page.ts",
+  "src/components/settings-v2/_layout/index.tsx",
+  "electron/persistedAtomHost.ts",
+  "electron/persistedAtomStore.ts",
+  "electron/persistedAtomRecords.ts",
+  "electron/persistedAtomFile.ts",
   "electron/hostCommands.ts",
   "electron/ipcChannels.ts",
   "electron/systemUtilityHost.ts",
@@ -91,7 +103,7 @@ const summary = {
   scenario: "settings-local-environments",
   proofLevel: "Desktop Gate B controlled fixture",
   claimBoundary:
-    "Real Electron/preload/IPC/App Server local configuration discovery, draft protection, file persistence and revision conflicts, including cold restart. No scripts/actions executed, remote host, live provider, Windows or full-settings claim.",
+    "Real Electron/preload/IPC/App Server local configuration discovery, draft protection, file persistence, revision conflicts and GUI-triggered new-environment selection in the existing Host atom, including cold restart. No picker or worktree creation, scripts/actions, remote host, live provider, Windows or full-settings claim.",
   startedAt: new Date().toISOString(),
   result: "fail",
   assertions: {},
@@ -164,6 +176,25 @@ async function screenshot(name) {
     animations: "disabled",
   });
 }
+async function checkSavedSelection(name) {
+  const expected = {
+    workspaceKey: `local:${summary.configuration.workspaceRoot}`,
+    configPath: summary.configuration.configPath,
+  };
+  await handle.page.waitForFunction(async ({ workspaceKey, configPath }) => {
+    const state = await window.electronAPI.invoke("persisted_atom_read", {
+      key: "local-env-selections-by-workspace",
+      query: { kind: "selections" },
+    });
+    return (
+      state.outcome === "ready" &&
+      state.data.queryKind === "selections" &&
+      state.data.selections[workspaceKey] === configPath &&
+      state.persistence.state === "saved"
+    );
+  }, expected);
+  check(name, true);
+}
 try {
   await ensureElectronFixtureBuild({
     rootDir: process.cwd(),
@@ -211,8 +242,10 @@ try {
       summary.configuration.conflictKeepsDraft &&
       summary.configuration.externalBytesPreserved,
   );
+  await checkSavedSelection("newEnvironmentSelectedAndSaved");
   await close();
   await launch();
+  await checkSavedSelection("coldSelectionRestored");
   await openLocalEnvironmentEditor(
     handle.page,
     options,

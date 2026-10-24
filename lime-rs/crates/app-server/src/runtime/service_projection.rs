@@ -11,6 +11,8 @@ pub(super) fn project_git_status_from_service(
         root_path: status.root_path,
         repository_root: status.repository_root,
         has_git_repository: status.has_git_repository,
+        is_worktree: status.is_worktree,
+        local_environment_config_path: status.local_environment_config_path,
         current_branch: status.current_branch,
         branches: status.branches,
         uncommitted_file_count: status.uncommitted_file_count,

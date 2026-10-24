@@ -12,6 +12,18 @@ export interface JsonObject {
 
 export const SUMMARY_PANEL_PIN_ATOM_KEY = "app-shell-summary-panel-pinned";
 export const FILE_TREE_OPEN_ATOM_KEY = "app-shell-file-tree-open";
+export const LOCAL_ENV_SELECTIONS_ATOM_KEY =
+  "local-env-selections-by-workspace";
+export type LocalEnvironmentSelections = Readonly<
+  Record<string, string | null>
+>;
+export type LocalEnvironmentSelectionMutation =
+  | {
+      readonly op: "set";
+      readonly workspaceKey: string;
+      readonly configPath: string | null;
+    }
+  | { readonly op: "delete"; readonly workspaceKey: string };
 export const PERSISTED_BOOLEAN_DEFAULTS = {
   [SUMMARY_PANEL_PIN_ATOM_KEY]: true,
   [FILE_TREE_OPEN_ATOM_KEY]: false,
@@ -30,7 +42,10 @@ export function isPersistedBooleanAtomKey(
   );
 }
 
-export type PersistedAtomKey = "composer-drafts-v1" | PersistedBooleanAtomKey;
+export type PersistedAtomKey =
+  | "composer-drafts-v1"
+  | PersistedBooleanAtomKey
+  | typeof LOCAL_ENV_SELECTIONS_ATOM_KEY;
 
 export interface DraftScope {
   readonly workspaceId: string | null;
@@ -99,6 +114,10 @@ export type PersistedAtomReadRequest =
   | {
       readonly key: PersistedBooleanAtomKey;
       readonly query: { readonly kind: "value" };
+    }
+  | {
+      readonly key: typeof LOCAL_ENV_SELECTIONS_ATOM_KEY;
+      readonly query: { readonly kind: "selections" };
     };
 
 export type PersistedAtomUpdateRequest =
@@ -109,6 +128,10 @@ export type PersistedAtomUpdateRequest =
   | {
       readonly key: PersistedBooleanAtomKey;
       readonly mutation: { readonly op: "set"; readonly value: boolean };
+    }
+  | {
+      readonly key: typeof LOCAL_ENV_SELECTIONS_ATOM_KEY;
+      readonly mutation: LocalEnvironmentSelectionMutation;
     };
 
 export interface PersistedAtomDiagnostic {
@@ -154,6 +177,10 @@ export interface PersistedDraftIndexItem {
 
 export type PersistedAtomReadData =
   | { readonly queryKind: "value"; readonly value: boolean }
+  | {
+      readonly queryKind: "selections";
+      readonly selections: LocalEnvironmentSelections;
+    }
   | { readonly queryKind: "scope"; readonly view: PersistedDraftView }
   | {
       readonly queryKind: "workspace-index";
@@ -177,6 +204,7 @@ export interface PersistedAtomUpdateResult extends PersistedAtomMetadata {
   readonly reason?: PersistedAtomReason;
   readonly entry: PersistedDraftEntry | null;
   readonly value?: boolean;
+  readonly selections?: LocalEnvironmentSelections;
 }
 
 /** Notifications contain metadata only; drafts never enter diagnostics. */
@@ -191,6 +219,7 @@ export interface PersistedAtomEnvelope {
   readonly atoms: Partial<
     Readonly<Record<PersistedBooleanAtomKey, boolean>>
   > & {
+    readonly [LOCAL_ENV_SELECTIONS_ATOM_KEY]?: LocalEnvironmentSelections;
     readonly "composer-drafts-v1": {
       readonly bindings: Readonly<Record<string, string>>;
       readonly entries: Readonly<Record<string, PersistedDraftEntry>>;

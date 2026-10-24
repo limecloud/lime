@@ -1580,7 +1580,13 @@ Web Search 的 `system/web-search/useWebSearchDraft.ts` 独立拥有原始输入
 公开 worktree 请求显式携带 localEnvironmentConfigPath 时，RuntimeCore 已通过共享 CommandExecServer
 执行 setup/cleanup，复用当前 permission profile、requirements、进程与取消。设置失败返回已建目录的恢复身份；
 清理失败/取消在归档与删除前终止。工作树选择只写 Git 返回的 config.worktree 文件，不改源仓共享 config。
-workspace selection 的 GUI 传入、页头 actions 及 setup 环境差异继承仍未接线，配置保存不代表这些产品能力已经生效。
+workspace selection 已由唯一 Host persisted atom 持久化，并接入三个现役工作树创建入口。
+会话 Actions 通过 `useLocalConversationEnvironment` 读取现役配置：linked worktree 使用 Git status 返回的
+config.worktree selection，源 checkout 使用 Host preference，None 不跨 scope 回落。
+`projectGit/status` 的 `isWorktree/localEnvironmentConfigPath` 经 schema 生成同一 TS 合同。
+按平台筛选后的 action 由当前 Git root 加配置相对目录确定 cwd，再委托现役 right-surface
+coordinator/local-state 创建独立 `TerminalTab -> TerminalPanel`，继续走同一 `command/exec`。
+最近动作排序、会话菜单环境切换及 setup 环境差异继承仍未接线；配置保存不等于完整产品验收。
 
 ```mermaid
 flowchart LR
@@ -1591,10 +1597,14 @@ flowchart LR
   Runtime --> Files
   Runtime --> Exec[Shared CommandExecServer]
   Exec --> Tools[tool-runtime process and sandbox]
+  Actions[LocalConversationActions] --> Selection[Git status or Host selection]
+  Selection --> RPC
+  Actions --> Terminal[Existing right-surface TerminalTab / TerminalPanel]
+  Terminal --> RPC
 ```
 
-root 于 2026-10-24 确认目录、数据流、权限与取消依赖继续遵守唯一 App Server/runtime/工具 owner，
-未增加平行业务后端；领域和公开请求证据不代替 GUI 选择与完整产品验收，进度见设置对齐执行计划。
+root 于 2026-10-25 确认目录、数据流、权限与取消依赖继续遵守唯一 App Server/runtime/工具 owner，
+未增加平行业务后端；领域和公开请求证据不代替 GUI 选择、Actions真实执行与完整产品验收，进度见设置对齐执行计划。
 
 返回会话时，既有 `useWorkspaceTaskCenterNavigationRuntime.resolveInitialSessionSwitch` 使用 `waitForResolution` 等待本次挂载的 Composer owner 建立，再捕获导航 source 并解析工作区；不等待尚需会话水合才能获得的草稿 scope ready。原 generation/scope/navigation epoch 和过期请求守卫继续生效，避免 owner 初始化取消恢复后留在不可编辑的空壳。该接线复用既有 owner，不新增 authority。
 
@@ -4724,6 +4734,11 @@ session reconnect、明文 stdin 或 fallback output。终端仅在收到真实�
 必须关闭 stdin 并拒绝迟到输出/写入。Electron 仅承担既有 JSONL sidecar 转发职责。验收须检查匹配的 JSON-RPC
 result/error 和实际命令输出，IPC transport success 与相同 processId 不能单独证明进程存活。
 
+流式命令的 wire response 虽晚于输出，Renderer drain 仍可能未交付。gateway 在返回真实结果前等待同一
+`AppServerEventBus.flushNotifications()`，只确认屏障请求之后的 drain，满批次继续排空，错误/reset拒绝。
+这是现役 transport/fanout 的交付屏障，不增加终态事件、延时或第二总线；终端先展示输出再消费退出码。
+root，2026-10-25确认 owner、依赖方向与失败终态；快速命令回归和Desktop证据见设置对齐执行计划。
+
 REA确认的 `TerminalTab -> TerminalPanel` 是唯一交互终端展示链；同一外层标签owner按tabId组织多session，
 主题改变更新现有xterm而不重启进程，切标签或折叠只隐藏，关闭只终止所属进程。Workbench现有外层工具标签
 也直接消费同一TerminalTab，不再维护内层session tabs。旧TaskCenterShellPanel、ProjectShellSurface、
@@ -6683,12 +6698,39 @@ GUI turn/start -> RuntimeCore/provider -> item/tool/call
 
 短模块 `browserCdp.ts` 管理命令作用域、执行和超时，BrowserTabHost 仅组装已有原生与权限回调。
 `BrowserTabPolicy` 在 attach 前检查实际 URL 的 debug 权限；默认关闭，受管策略优先，
-原 browse 批准不能替代独立 full_cdp action 批准。当前命令集合只接主页面即时操作，尚无
-生命周期 owner 的持久 debugger 覆盖、跨站 cookie、显式 frame/context 和未知命令拒绝。
+原 browse 批准不能替代独立 full_cdp action 批准。尚无生命周期 owner 的持久 debugger 覆盖、
+跨站 cookie、裸 frame/context 和未知命令拒绝。
 导航目的再验 browse/debug 策略，返回前重新读取独立管理员配置并核对 revision/控制权；
 超时释放控制且丢弃迟到结果，原生释放异常也必须收口为失败。终态沿用原 debugger detach，
-无新端口、Session、存储、IPC/RPC 或 renderer 执行路径。完整 CDP 的子 target/session/event
-管理、Target 模拟和 WebMCP 仍未完成；本切片不替代这些能力及其平台验收。
+无新端口、Session、存储、IPC/RPC 或 renderer 执行路径。
+
+`browserCdpTargets.ts` 接入同名 `executeEmulatedTargetCommand` 和 `getDebuggerFrameTargetInfos`：
+逻辑页 target ID 使用参考的 `browser-use-iab-tab:${tabId}`，读取/关闭仅当前目标，列表只读
+同 owner/window/thread/browserSession 的原 route。原生全局发现结果另外与同 WebContents 的
+frame tree id/URL join 或以该树为根的 native parentFrameId 后代链，再验 browse/debug 策略；
+Page.getFrameTree 会省略独立进程子框架，不能把省略当成不存在。该 join 是 Lime 为共享 Session 的作用域适配，
+不冒称参考逐字实现。Target 关闭在最终权限回读后调用原 Host close，沿原 detach/route 删除/
+原生销毁/GUI 移除，结果不再读取已关闭 state。不建立目标缓存或 Session owner。
+
+`browserCdpSessions.ts` 管理同一 WebContents debugger 的临时 target/session 双向映射与 listener：
+
+```text
+canonical attachTarget / detachTarget / executeCdpCommand(target)
+  -> same BrowserTabHost route / action approval / origin policy
+  -> browserCdp / current native frame ancestry + policy recheck
+  -> browserCdpSessions / tab + debugger attachment generation
+  -> same WebContents.debugger / flattened native session
+  <- native Target.attachedToTarget / detachedFromTarget
+     -> update mapping + invalidate old snapshot/approval
+```
+
+模块沿 REA 已确认的 register/unregisterDebuggerListener、recordDebuggerTargetEvent、
+remember/forgetDebuggerTargetSession、sendDebuggerCommand 职责接线，不创建第二浏览器 Session。
+targetId/sessionId 同时提供必须指向同一连接；执行前再次验证当前原生祖先和 origin，不因曾 attach 放宽。
+setAutoAttach 仅允许 flatten=true、waitForDebuggerOnStart=false。初始化异常及时清理，旧 attach 代的迟到
+初始化/事件不能影响新代；撤权/人工接管/终态/关闭/断线/native detach/crash 清监听和映射。
+当前事件只服务内部 session 生命周期，完整外部 CDP 事件 transport、更多命令域和 WebMCP 仍未完成，
+本切片不替代这些能力及其平台验收。
 
 Architecture impact: minor；Responsible developer confirmation: root, 2026-10-24；已确认上图复用
 既有 canonical 审批与原生 owner，命令注册、输入/结果与拒绝边界一致，未增加平行业务后端。

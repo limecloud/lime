@@ -3,6 +3,7 @@ import { TerminalPanel, type TerminalState } from "./TerminalPanel";
 
 interface TerminalTabProps {
   cwd?: string | null;
+  command?: string;
   sessionId: string;
   active?: boolean;
   onNewTerminalTab?: () => void;
@@ -11,6 +12,7 @@ interface TerminalTabProps {
 /** 一个外层标签对应一个进程；隐藏保留，关闭卸载后终止。 */
 export function TerminalTab({
   cwd,
+  command,
   sessionId,
   active = true,
   onNewTerminalTab,
@@ -28,9 +30,11 @@ export function TerminalTab({
       data-testid="terminal-tab"
       data-session-id={sessionId}
       data-ready={state.ready ? "true" : "false"}
+      data-exit-code={state.exitCode ?? undefined}
     >
       <TerminalPanel
         cwd={cwd}
+        command={command}
         sessionId={sessionId}
         active={active}
         onNewTerminalTab={onNewTerminalTab}

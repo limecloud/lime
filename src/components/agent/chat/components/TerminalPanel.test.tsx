@@ -151,6 +151,48 @@ describe("TerminalTab / TerminalPanel current process lifecycle", () => {
     expect(container.querySelectorAll("button")).toHaveLength(0);
   });
 
+  it("runs a configured command in the same process owner and preserves its actual exit", async () => {
+    await act(async () =>
+      root.render(
+        <TerminalTab
+          cwd="/worktree/packages/app"
+          sessionId="action"
+          command="printf 'a b'; exit 7"
+        />,
+      ),
+    );
+    await vi.waitFor(() => expect(api.exec).toHaveBeenCalledOnce());
+    expect(api.exec).toHaveBeenCalledWith(
+      expect.objectContaining({
+        command: ["/bin/sh", "-c", "printf 'a b'; exit 7"],
+        cwd: "/worktree/packages/app",
+        tty: true,
+      }),
+    );
+    const { processId } = api.exec.mock.calls[0][0];
+    const process = processes.get(processId)!;
+    await act(async () => process.output({ deltaBase64: btoa("a b") }));
+    expect(terminals[0].write).toHaveBeenCalledWith("a b");
+    await act(async () =>
+      root.render(
+        <TerminalTab
+          cwd="/worktree/packages/app"
+          sessionId="action"
+          command="printf 'a b'; exit 7"
+          active={false}
+        />,
+      ),
+    );
+    expect(api.exec).toHaveBeenCalledOnce();
+    await act(async () => process.resolve({ exitCode: 7 }));
+    expect(
+      container
+        .querySelector('[data-testid="terminal-tab"]')
+        ?.getAttribute("data-exit-code"),
+    ).toBe("7");
+    expect(terminals[0].options.disableStdin).toBe(true);
+  });
+
   it("rejects input and late output after startup fails", async () => {
     const { terminal, process } = await mount();
     await act(async () => process.reject(new Error("spawn failed")));

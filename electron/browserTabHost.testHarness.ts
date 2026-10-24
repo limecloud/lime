@@ -181,16 +181,50 @@ function createNativeView(
     }
   };
   let debuggerAttached = false;
+  const debuggerListeners = new Map<
+    string,
+    Set<(...args: unknown[]) => void>
+  >();
+  const debuggerOn = (
+    event: string,
+    listener: (...args: unknown[]) => void,
+  ) => {
+    const handlers = debuggerListeners.get(event) ?? new Set();
+    handlers.add(listener);
+    debuggerListeners.set(event, handlers);
+  };
+  const debuggerEmit = (event: string, ...args: unknown[]) => {
+    for (const listener of [...(debuggerListeners.get(event) ?? [])])
+      listener(...args);
+  };
   const debuggerApi = {
+    on: debuggerOn,
+    once: (event: string, listener: (...args: unknown[]) => void) => {
+      const once = (...args: unknown[]) => {
+        debuggerListeners.get(event)?.delete(once);
+        listener(...args);
+      };
+      debuggerOn(event, once);
+    },
+    removeListener: (event: string, listener: (...args: unknown[]) => void) => {
+      debuggerListeners.get(event)?.delete(listener);
+    },
+    emit: debuggerEmit,
+    listenerCount: (event: string) => debuggerListeners.get(event)?.size ?? 0,
     attach: vi.fn(() => {
       debuggerAttached = true;
     }),
     detach: vi.fn(() => {
       debuggerAttached = false;
+      debuggerEmit("detach", {}, "target_closed");
     }),
     isAttached: vi.fn(() => debuggerAttached),
     sendCommand: vi.fn(
-      async (method: string, params?: Record<string, unknown>) => {
+      async (
+        method: string,
+        params?: Record<string, unknown>,
+        _sessionId?: string,
+      ): Promise<Record<string, unknown>> => {
         if (method === "Input.dispatchMouseEvent") {
           emit(
             "before-mouse-event",
@@ -279,6 +313,9 @@ function createNativeView(
     off: vi.fn((event: string, listener: (...args: unknown[]) => void) => {
       listeners.get(event)?.delete(listener);
     }),
+    removeListener: (event: string, listener: (...args: unknown[]) => void) => {
+      listeners.get(event)?.delete(listener);
+    },
     on: vi.fn((event: string, listener: (...args: unknown[]) => void) => {
       const eventListeners = listeners.get(event) ?? new Set();
       eventListeners.add(listener);

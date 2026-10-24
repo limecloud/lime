@@ -8586,6 +8586,8 @@ export interface ProjectGitStatusResponse {
   branches?: string[];
   currentBranch?: null | string;
   hasGitRepository: boolean;
+  isWorktree?: boolean;
+  localEnvironmentConfigPath?: null | string;
   repositoryRoot?: null | string;
   rootPath: string;
   uncommittedFileCount?: number;

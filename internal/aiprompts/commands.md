@@ -643,6 +643,11 @@ Codex exact 独立命令执行与 Desktop 交互终端只允许走 connection-sc
 与 Electron Host 都消费同一规则，不能用普通请求的 30 秒或固定 10 分钟提前切断交互 PTY；其它 method
 继续原有 deadline。进程超时、权限和终止 authority 仍在 App Server，没有客户端延长执行权限。
 
+流式 response 在 wire 上晚于全部 outputDelta，但 Renderer 的共享轮询交付仍可能在途。
+`commandExec` gateway 返回流式结果前等待唯一 `AppServerEventBus.flushNotifications()` 排空既有通知；
+屏障只由请求后的 drain 批次确认，跨满批次继续排空，错误和连接 reset 显式失败。
+终端因此先消费真实输出再断开 stdin 并显示实际退出码，不使用延时、第二 drain 或聚合输出回填。
+
 `command/exec.sandboxPolicy` 使用 Codex 的 tagged `SandboxPolicy`，不接受字符串或任意 JSON：
 `readOnly`、`workspaceWrite`、`dangerFullAccess`、`externalSandbox`。完整策略由 protocol 经
 CommandExecServer 传入 tool-runtime 的同一 OS runner，不能压缩成 label 后丢弃限制。
@@ -760,16 +765,27 @@ Electron start/resume 注入自己的不可变 catalog，断连同时撤销本�
 
 App Server 持有 Thread/Turn、动态工具生命周期、Browser read model 与 canonical identity；Electron 只持有 native view、window、`webContents.debugger`、下载和权限等宿主状态；Renderer 只消费 projection 并发送用户意图。Agent action 必须按 connection/thread/turn/session/tab/view/WebContents owner 精确路由，用户操作或 turn terminal 必须使旧控制权失效。
 
-`browser__executeCdpCommand` 复用 frozen Browser namespace 与原 `item/tool/call` 多阶段合同，不新增 IPC/RPC。
-输入为必填 `method`、可选对象 `commandParams`、`tabId` 和 `timeoutMs`（1–30000，默认10000）。
-当前只执行主页面 Runtime.evaluate、Page 导航/历史/重载/停止/几何/截图与三种 Input 命令；
+`browser__executeCdpCommand`、`browser__attachTarget`、`browser__detachTarget` 复用 frozen Browser namespace
+与原 `item/tool/call` 多阶段合同，不新增 IPC/RPC。execute 输入为必填 `method`、可选对象 `commandParams`、
+`target: {targetId?, sessionId?}`、`tabId` 和 `timeoutMs`（1–30000，默认10000）；attach/detach 要求 `targetId`。
+当前执行 Runtime.evaluate、Page 导航/历史/重载/停止/几何/截图、三种 Input 命令及
+Target.getTargetInfo/getTargets/closeTarget/setAutoAttach；
 精确集合由 `electron/browserCdp.ts` 单一管理，catalog 描述同步其边界。未知命令、持久 debugger
-覆盖、跨站 cookie、显式 frame/context、子 target 及直接文件上传在审批/attach 前拒绝。
+覆盖、跨站 cookie、裸 frame/context 和直接文件上传在审批/attach 前拒绝。
 全局开关和实际 URL 的独立 debug 策略都必须允许，browse receipt 不能替代一次性 `full_cdp`
 action 批准。批准 token 绑定原命令参数和完整 route/page revision；命令途中策略变化或人工
 接管禁止投影迟到结果，超时释放原生控制。返回原 native 数据与相同 tab identity；导航另验目的
-URL（仅 http/https）。回合终态复用原 detach/release。frame session、事件流、Target 模拟和
-WebMCP 尚未接入，不能据此声明完整 CDP。
+URL（仅 http/https）。回合终态复用原 detach/release。逻辑页目标 ID 为
+`browser-use-iab-tab:${tabId}`，getTargetInfo/closeTarget 仅接受当前目标；查询不强制 attach，
+关闭前重新读取权限，复用原 route close/detach/销毁/GUI 移除流程，关闭结果不携带已删除的 tab。
+getTargets 只列同 owner/window/thread/browserSession 页签。原生 frame 目标须按实际 frame tree
+的 id/URL join，或沿原生 parentFrameId 链证明是该树的独立进程后代，再通过同一 origin 策略；
+不能仅凭 URL 相同接纳目标，也不能透出全局 Target.getTargets 的其他页面/frame。
+frame attach 前及每次执行重新证明原生祖先关系和实际 origin 权限。target/session 双向映射只在该 tab
+当前 debugger attach 代内有效，两者同时提供必须一致；native attached/detached 事件维护映射并使旧批准失效。
+setAutoAttach 仅允许 flatten=true、waitForDebuggerOnStart=false，不暂停没有恢复 owner 的目标。
+初始化失败、撤权、人工接管、终态、关闭、断线与原生 crash/detach 清理监听和映射；迟到请求不能复活。
+完整外部事件 transport、更多 CDP 命令域与 WebMCP 尚未接入，不能据此声明完整 CDP。
 
 网站权限 request/check 均属于同一原生 Session。无 Agent 回合的用户浏览使用
 `BrowserSitePermissionPrompt -> BrowserOverlayHost` 的私有可信确认，直接结算原 native callback；
@@ -1112,5 +1128,14 @@ name/command/icon/platform。旧 `get_environment_preview` 为 retired guard-onl
 选择记录只写 Git 返回的 config.worktree 文件；delete 冷读取同一记录，cleanup失败/取消保留工作树和未归档聊天。
 执行复用同一 CommandExecServer、当前权限/requirements与现有cancelRequest，不新增Host执行器。
 
-workspace selection 的GUI传入、页头action和setup env diff继承尚未接线；未验证Windows，不把配置成功或
-后端显式参数测试当成完整环境设置交付。
+workspace selection 已经由现役 Host persisted atom 持久化，并由三个工作树创建入口传入同一请求。
+`projectGit/status` 返回 generated `isWorktree` 与 `localEnvironmentConfigPath`：linked worktree 只读 Git 返回的
+config.worktree；源 checkout 仍用上述 Host selection，显式 None 不跨 scope 回落。Renderer Git状态类型来自
+generated schema，不再手写遮蔽协议字段。
+
+会话页头 `LocalConversationActions` 按当前平台筛选配置 actions，cwd 由当前 Git root 与配置相对目录决定；
+`useLocalConversationEnvironment` 拒绝失败/迟到配置，不运行跨会话旧结果。运行交给已有 right-surface
+coordinator/local-state 创建独立 shell tab，再经 `TerminalTab -> TerminalPanel -> command/exec` 展示真实输出、
+退出码与关闭取消；隐藏不重启。配置入口 deep-link 回同一 Local Environments owner，不增加 executor。
+最近动作排序、会话菜单环境切换、setup env diff继承和原生Windows仍未完成；真实桌面验证逐次记录于
+`internal/exec-plans/settings-alignment-20261022.md`，不能把配置成功或后端显式参数测试当成完整环境设置交付。

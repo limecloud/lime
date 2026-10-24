@@ -106,9 +106,15 @@ describe("useSettingsCategory", () => {
 });
 
 describe("current settings navigation translations", () => {
-  it.each(["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"])(
+  it.each([
+    ["zh-CN", "已归档的聊天"],
+    ["zh-TW", "已封存的聊天"],
+    ["en-US", "Archived chats"],
+    ["ja-JP", "アーカイブ済みのチャット"],
+    ["ko-KR", "보관된 채팅"],
+  ])(
     "%s 下全部 current 章节应继续显示既有翻译",
-    async (locale) => {
+    async (locale, archivedLabel) => {
       await changeLimeLocale(locale);
       let groups: CategoryGroup[] = [];
       renderHookProbe((nextGroups) => {
@@ -117,6 +123,10 @@ describe("current settings navigation translations", () => {
       const items = groups.flatMap((group) => group.items);
       expect(groups).toHaveLength(4);
       expect(items.at(-1)?.key).toBe(SettingsTabs.About);
+      expect(
+        items.find((item) => item.key === SettingsTabs.ArchivedConversations)
+          ?.label,
+      ).toBe(archivedLabel);
       expect(items).toHaveLength(settingsSections.length);
       expect(new Set(items.map((item) => item.key)).size).toBe(
         settingsSections.length,

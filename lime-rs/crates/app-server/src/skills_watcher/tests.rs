@@ -7,6 +7,27 @@ mod lifecycle;
 mod scope;
 mod watch_ready;
 
+#[tokio::test]
+async fn watcher_starts_without_global_paths_and_registers_loaded_scope() {
+    let server = AppServer::new();
+    let watcher = SkillsWatcher::new(server.event_bridge()).expect("watcher");
+    assert!(watcher.state.roots.lock().unwrap().paths().is_empty());
+    assert!(watcher.state.watched.lock().unwrap().is_empty());
+
+    let temp = tempfile::tempdir().expect("tempdir");
+    let root = temp.path().join("skills");
+    fs::create_dir(&root).unwrap();
+    let registration = watcher.register_roots([root.clone()]);
+    let root = root.canonicalize().unwrap();
+    assert_eq!(
+        watcher.state.watched.lock().unwrap().get(&root),
+        Some(&RecursiveMode::Recursive)
+    );
+    drop(registration);
+    assert!(watcher.state.roots.lock().unwrap().paths().is_empty());
+    assert!(watcher.state.watched.lock().unwrap().is_empty());
+}
+
 #[test]
 fn only_catalog_mutations_trigger_invalidation() {
     assert!(is_catalog_change(&EventKind::Create(

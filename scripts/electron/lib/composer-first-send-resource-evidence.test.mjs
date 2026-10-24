@@ -68,7 +68,7 @@ function fixture() {
     id: skillIdentity.key,
     name: skillIdentity.name,
     path: skillIdentity.path,
-    label: "/" + skillIdentity.key,
+    label: "$" + skillIdentity.name,
     editable: "false",
   };
   const pasteToken = {
@@ -94,10 +94,6 @@ function fixture() {
           },
         ],
         mentionBindings: [{ ...skillToken, kind: "skill" }],
-        inputCapabilityRoute: {
-          kind: "installed_skill",
-          skillKey: skillIdentity.name,
-        },
         pendingPastes: [
           { text: pasteText, placeholder: literal.textElements[0].placeholder },
         ],
@@ -244,8 +240,11 @@ const sourceMutations = {
   "directory in place of file": (doc) => (doc.pathReferences[0].isDir = true),
   "missing Skill": (doc) => (doc.mentionBindings = []),
   "foreign Skill": (doc) => (doc.mentionBindings[0].path += ".other"),
-  "wrong Skill route": (doc) =>
-    (doc.inputCapabilityRoute.skillKey = "other-skill"),
+  "stale Skill route": (doc) =>
+    (doc.inputCapabilityRoute = {
+      kind: "installed_skill",
+      skillKey: "other-skill",
+    }),
   "missing hidden paste": (doc) => (doc.pendingPastes = []),
   "hidden paste drift": (doc) => (doc.pendingPastes[0].text += "drift"),
   "paste placeholder drift": (doc) =>

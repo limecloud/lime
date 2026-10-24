@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ChevronRight, Plus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { LocalEnvironmentResult } from "../../../../../packages/app-server-client/src/protocol";
@@ -9,6 +9,8 @@ import {
 } from "@/lib/api/project";
 import { open } from "@/lib/desktop-host/dialog";
 import { localEnvironments } from "@/lib/api/localEnvironments";
+import type { LocalEnvironmentFocusContext } from "@/types/page";
+import { areLocalEnvironmentPathsEqual } from "@/lib/localEnvironmentSelection";
 import {
   nextEnvironmentConfigPath,
   partitionLocalEnvironments,
@@ -26,7 +28,11 @@ import { LocalEnvironmentDetails } from "./LocalEnvironmentDetails";
 const rowClass =
   "flex w-full min-w-0 items-center justify-between gap-3 border-b border-border px-3 py-3 text-left text-[13px] last:border-b-0 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring";
 
-export function LocalEnvironmentsSettings() {
+export function LocalEnvironmentsSettings({
+  focus,
+}: {
+  focus?: LocalEnvironmentFocusContext;
+}) {
   const { t } = useTranslation("settings");
   const [projects, setProjects] = useState<Project[]>([]);
   const [project, setProject] = useState<Project | null>(null);
@@ -34,6 +40,8 @@ export function LocalEnvironmentsSettings() {
   const [failed, setFailed] = useState(false);
   const [adding, setAdding] = useState(false);
   const [refresh, setRefresh] = useState(0);
+  const handledFocus = useRef<string | null>(null);
+  const focusKey = JSON.stringify(focus ?? null);
   useEffect(() => {
     let current = true;
     setLoading(true);
@@ -52,6 +60,38 @@ export function LocalEnvironmentsSettings() {
       current = false;
     };
   }, [refresh]);
+  useEffect(() => {
+    if (!focus || loading || failed || handledFocus.current === focusKey)
+      return;
+    const target = projects.find((entry) =>
+      areLocalEnvironmentPathsEqual(entry.rootPath, focus.workspaceRoot),
+    );
+    if (target) {
+      handledFocus.current = focusKey;
+      setProject(target);
+      return;
+    }
+    let current = true;
+    void ensureProjectWorkspace({
+      rootPath: focus.workspaceRoot,
+      name:
+        focus.workspaceRoot
+          .replace(/[\\/]+$/, "")
+          .split(/[\\/]/)
+          .pop() || focus.workspaceRoot,
+    })
+      .then((added) => {
+        if (!current) return;
+        handledFocus.current = focusKey;
+        setProject(added);
+      })
+      .catch(() => {
+        if (current) setFailed(true);
+      });
+    return () => {
+      current = false;
+    };
+  }, [focus, focusKey, projects, loading, failed]);
   const addProject = async () => {
     if (adding) return;
     setAdding(true);
@@ -80,8 +120,14 @@ export function LocalEnvironmentsSettings() {
   if (project)
     return (
       <ProjectEnvironments
-        key={project.id}
+        key={`${project.id}:${focusKey}`}
         project={project}
+        initialConfigPath={
+          focus &&
+          areLocalEnvironmentPathsEqual(project.rootPath, focus.workspaceRoot)
+            ? focus.configPath
+            : undefined
+        }
         onBack={() => setProject(null)}
       />
     );
@@ -149,9 +195,11 @@ export function LocalEnvironmentsSettings() {
 
 function ProjectEnvironments({
   project,
+  initialConfigPath,
   onBack,
 }: {
   project: Project;
+  initialConfigPath?: string;
   onBack: () => void;
 }) {
   const { t } = useTranslation("settings");
@@ -159,7 +207,9 @@ function ProjectEnvironments({
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
   const [refresh, setRefresh] = useState(0);
-  const [editing, setEditing] = useState<string | null>(null);
+  const [editing, setEditing] = useState<string | null>(
+    initialConfigPath ?? null,
+  );
   const [selected, setSelected] = useState<string | null>(null);
   const [showInherited, setShowInherited] = useState(false);
   useEffect(() => {
@@ -192,6 +242,7 @@ function ProjectEnvironments({
         key={editing}
         configPath={editing}
         defaultName={project.name}
+        workspaceRoot={project.rootPath}
         onBack={() => setEditing(null)}
         onSaved={finishEditing}
       />

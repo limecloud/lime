@@ -1,6 +1,8 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { CDP_CASES } from "./browser-cdp-provider.mjs";
+import { CDP_TARGET_CASES } from "./browser-cdp-target-provider.mjs";
+import { runBrowserCdpTargetScenario } from "./browser-runtime-electron-gate-b-cdp-targets.mjs";
 import {
   appServerCallFromPage,
   readConfigFromPage,
@@ -26,7 +28,7 @@ export async function runBrowserCdpScenario(ctx) {
     schemaVersion: "lime.browser_cdp.v1",
     scenario: "cdp",
     status: "fail",
-    proofLevel: "Desktop Gate B / main-page CDP execution slice",
+    proofLevel: "Desktop Gate B / page, Target and frame-session CDP slice",
     physicalInput: false,
     liveProvider: false,
     bridgeReplacement: false,
@@ -303,6 +305,7 @@ export async function runBrowserCdpScenario(ctx) {
         guiTerminal: gui.completionScope,
       });
     }
+    await runBrowserCdpTargetScenario(ctx, evidence, check, snapshot);
     const traces = ctx.readInvokeTrace();
     const calls = parseJsonRpcRequestsFromInvokeTrace(JSON.stringify(traces));
     evidence.invoke = {
@@ -344,13 +347,14 @@ export async function runBrowserCdpScenario(ctx) {
         ),
       );
     check(
-      "five-canonical-gui-turns",
+      "all-canonical-gui-turns",
       calls.filter(
         (call) =>
           call.method === "turn/start" &&
           call.params.threadId === identity.threadId &&
           call.status === "success",
-      ).length === CDP_CASES.length,
+      ).length ===
+        CDP_CASES.length + CDP_TARGET_CASES.length,
     );
     check(
       "no-production-mock-fallback",
@@ -358,7 +362,8 @@ export async function runBrowserCdpScenario(ctx) {
     );
     check(
       "real-runtime-provider-requests",
-      providerFixture.requests.length >= CDP_CASES.length * 4,
+      providerFixture.requests.length >=
+        (CDP_CASES.length + CDP_TARGET_CASES.length) * 4,
     );
     evidence.host = await app.evaluate(
       () => globalThis.__browserDesignHostEvidence,
@@ -371,7 +376,7 @@ export async function runBrowserCdpScenario(ctx) {
     evidence.status = "pass";
     evidence.failedAssertions = [];
     evidence.claimBoundary =
-      "真实 runtime/provider 工具请求、五个 GUI 回合、单次批准/拒绝/关闭/同回合配置撤权/重新启用、原生 mutation 和终态 detach。隐藏窗口使用合成 DOM 输入；第二配置写者不是设置 GUI。不是完整 CDP、frame session/event、WebMCP、物理输入或双平台打包证据。";
+      "真实 runtime/provider 工具请求、九个 GUI 回合、单次批准/拒绝/关闭/同回合配置撤权/重新启用、原生 mutation 和终态 detach；Target 当前身份/会话内列表/实际跨站 frame/关闭及原生销毁；frame 的 attach/targetId与sessionId执行/detach/旧session拒绝、仅子框架mutation与终态listener清理。隐藏窗口使用合成 DOM 输入；第二配置写者不是设置 GUI。不是完整 CDP、外部事件transport、WebMCP、物理输入或双平台打包证据。";
     return evidence;
   } catch (error) {
     evidence.error = String(error);

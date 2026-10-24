@@ -25,7 +25,8 @@ import {
   type PendingBrowserApproval,
 } from "./browserActionApprovals";
 import { BrowserHistoryTool } from "./browserHistoryTool";
-import { executeCdpCommand } from "./browserCdp";
+import { executeCdpCommand, isBrowserCdpTool } from "./browserCdp";
+import { BrowserCdpSessions } from "./browserCdpSessions";
 import {
   BrowserPermissions,
   type BrowserPermissionAnchor,
@@ -224,6 +225,7 @@ export class ElectronBrowserTabHost {
   readonly #routesByTabId = new Map<string, BrowserRoute>();
   readonly #tabIdsByViewId = new Map<string, string>();
   readonly #actionApprovals = new BrowserActionApprovals();
+  readonly #cdpSessions = new BrowserCdpSessions();
   readonly #pendingPermissions = new Map<string, PendingBrowserPermission>();
   readonly #artifactsByRef = new Map<string, BrowserArtifactRecord>();
   readonly #userControlObserversByViewId = new Map<
@@ -412,6 +414,7 @@ export class ElectronBrowserTabHost {
     this.#sitePermissions.cancelView();
     this.#embeddedHost.revokePermissionGrants?.();
     this.#permissions.revoke();
+    for (const route of this.#routesByTabId.values()) this.#detachDebugger(route);
     if (!this.#policy.enabled) {
       for (const route of this.#routesByTabId.values())
         this.#takeUserControl(route);
@@ -724,7 +727,7 @@ export class ElectronBrowserTabHost {
       route.humanReason = null;
       return { status: "completed", state: this.#emitState(route) };
     }
-    if (call.tool === "executeCdpCommand")
+    if (isBrowserCdpTool(call.tool))
       return this.#executeCdpCommand(route, call, false);
     if (call.tool === "openArtifact" || call.tool === "revealArtifact") {
       return this.#requireApproval(
@@ -1617,15 +1620,17 @@ export class ElectronBrowserTabHost {
   }
 
   async #attachDebugger(route: BrowserRoute): Promise<void> {
-    const debuggerApi = this.#nativeRoute(route).view.webContents.debugger;
-    if (!debuggerApi.isAttached()) {
-      debuggerApi.attach("1.3");
-    }
-    await debuggerApi.sendCommand("Page.enable");
-    await debuggerApi.sendCommand("DOM.enable");
+    const contents = this.#nativeRoute(route).view.webContents;
+    await this.#cdpSessions.attachDebugger(
+      route.tabId,
+      contents,
+      () => this.#takeUserControl(route),
+      () => this.#invalidateSnapshot(route),
+    );
   }
 
   #detachDebugger(route: BrowserRoute): void {
+    this.#cdpSessions.unregisterDebuggerListener(route.tabId);
     const native = this.#embeddedHost.resolveNativeView(route.viewId);
     if (!native) {
       return;
@@ -1799,6 +1804,27 @@ export class ElectronBrowserTabHost {
     const contents = this.#nativeRoute(route).view.webContents;
     return executeCdpCommand(call, approved, {
       policy: this.#policy,
+      targets: {
+        current: () => ({
+          ...this.#readState(route),
+          attached: contents.debugger.isAttached(),
+        }),
+        pages: () =>
+          this.#routesForThread(route.threadId, route.ownerWebContentsId)
+            .filter(
+              (candidate) =>
+                candidate.windowId === route.windowId &&
+                candidate.browserSessionId === route.browserSessionId,
+            )
+            .map((candidate) => ({
+              ...this.#readState(candidate),
+              attached:
+                this.#nativeRoute(
+                  candidate,
+                ).view.webContents.debugger.isAttached(),
+            })),
+        close: () => this.#close(route, "cdp-target-close"),
+      },
       locale: this.#permissions.locale,
       url: () => this.#readState(route).url,
       assertCurrent: () => {
@@ -1811,8 +1837,15 @@ export class ElectronBrowserTabHost {
         );
       },
       attach: () => this.#attachDebugger(route),
-      sendDebuggerCommand: (method, params) =>
-        contents.debugger.sendCommand(method, params),
+      sendDebuggerCommand: (method, params, target) =>
+        this.#cdpSessions.sendDebuggerCommand(route.tabId, method, params, target),
+      resolveTarget: (target) =>
+        this.#cdpSessions.resolveTarget(route.tabId, target),
+      attachTarget: (targetId, assertActive) =>
+        this.#cdpSessions.attachDebuggerTarget(route.tabId, targetId, assertActive),
+      detachTarget: (targetId) =>
+        this.#cdpSessions.detachDebuggerTarget(route.tabId, targetId),
+      detach: () => this.#detachDebugger(route),
       runAgentInput: (action) => this.#runAgentInput(route, action),
       refreshSettings: () => this.#refreshSettings(),
       invalidateSnapshot: () => this.#invalidateSnapshot(route),
@@ -1881,6 +1914,8 @@ export class ElectronBrowserTabHost {
     }
     switch (call.tool) {
       case "executeCdpCommand":
+      case "attachTarget":
+      case "detachTarget":
         return this.#executeCdpCommand(route, call, true);
       case "click":
         return await this.#click(route, call, pending.targetDescription);
@@ -2191,6 +2226,7 @@ export class ElectronBrowserTabHost {
   }
 
   #removeRoute(route: BrowserRoute, preserveThreadGrants = false): void {
+    this.#cdpSessions.unregisterDebuggerListener(route.tabId);
     this.#sitePermissions.cancelView(route.viewId);
     this.#embeddedHost.revokePermissionGrants?.(route.viewId);
     this.#annotations.cancelView(route.viewId, "owner");

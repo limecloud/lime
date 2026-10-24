@@ -18,11 +18,13 @@ import {
 import { getRuntimeAppVersion } from "@/lib/appVersion";
 import { cn } from "@/lib/utils";
 import { PRODUCT_LINKS } from "@/lib/productLinks";
-
-const PRIMARY_ACTION_BUTTON_CLASS =
-  "inline-flex items-center gap-2 rounded-full border border-slate-900 bg-slate-950 px-4 py-2 text-sm font-medium text-white shadow-sm shadow-slate-950/10 transition hover:bg-slate-800 disabled:opacity-50";
-const SECONDARY_ACTION_BUTTON_CLASS =
-  "inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 disabled:opacity-50";
+import {
+  SettingsAction,
+  SettingsGroup,
+  SettingsPageBody,
+  SettingsPageHeader,
+  SettingsRow,
+} from "../../SettingsPrimitives";
 
 function normalizeAboutVersion(value?: string | null): string | null {
   const trimmed = value?.trim();
@@ -232,14 +234,12 @@ export function AboutSection() {
       return {
         label:
           installStatusLabel || t("settings.about.update.progress.checking"),
-        className: "border-sky-200 bg-sky-50 text-sky-700",
       };
     }
 
     if (installFailed) {
       return {
         label: t("settings.about.update.progress.failed"),
-        className: "border-rose-200 bg-rose-50 text-rose-700",
       };
     }
 
@@ -248,27 +248,23 @@ export function AboutSection() {
         label: t("settings.about.status.updateAvailable", {
           version: latestAvailableVersion ?? "",
         }),
-        className: "border-emerald-200 bg-emerald-50 text-emerald-700",
       };
     }
 
     if (versionInfo.error) {
       return {
         label: t("settings.about.update.errorCheck"),
-        className: "border-amber-200 bg-amber-50 text-amber-700",
       };
     }
 
     if (versionInfo.latest) {
       return {
         label: t("settings.about.status.latest"),
-        className: "border-slate-200 bg-slate-100 text-slate-600",
       };
     }
 
     return {
       label: t("settings.about.status.manualCheck"),
-      className: "border-sky-200 bg-sky-50 text-sky-700",
     };
   }, [
     installFailed,
@@ -282,62 +278,76 @@ export function AboutSection() {
   ]);
 
   return (
-    <div className="pb-8">
-      <section className="mx-auto max-w-[560px] rounded-[28px] border border-slate-200/80 bg-white px-6 py-9 text-center shadow-sm shadow-slate-950/5">
-        <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-[24px] border border-slate-200 bg-slate-50 shadow-sm shadow-slate-950/5">
+    <SettingsPageBody data-testid="settings-about-page">
+      <SettingsPageHeader title={t("settings.tab.about")} />
+      <section aria-labelledby="settings-about-brand" className="space-y-6">
+        <div className="flex min-w-0 items-center gap-4">
           <img
             src={LIME_BRAND_LOGO_SRC}
             alt={LIME_BRAND_NAME}
-            className="h-16 w-16 object-contain"
+            className="size-12 shrink-0 object-contain"
           />
+          <div className="min-w-0">
+            <h2
+              id="settings-about-brand"
+              className="text-[16px] font-medium leading-6"
+            >
+              {LIME_BRAND_NAME}
+            </h2>
+            <p
+              data-testid="settings-about-version"
+              className="text-[13px] leading-5"
+            >
+              {versionLabel}
+            </p>
+            <p className="mt-1 text-[12px] leading-4 text-muted-foreground">
+              {t("settings.about.copyright", { brand: LIME_BRAND_NAME })}
+            </p>
+          </div>
         </div>
-
-        <h2 className="mt-6 text-[28px] font-semibold tracking-tight text-slate-950">
-          {LIME_BRAND_NAME}
-        </h2>
-        <p className="mt-3 text-base text-slate-700">{versionLabel}</p>
-        <p className="mt-2 text-sm text-slate-500">
-          {t("settings.about.copyright", {
-            brand: LIME_BRAND_NAME,
-          })}
-        </p>
-
-        <div className="mt-5 flex justify-center">
-          <span
-            className={cn(
-              "rounded-full border px-3 py-1.5 text-xs font-medium",
-              updateStatus.className,
-            )}
+        <SettingsGroup>
+          <SettingsRow
+            label={
+              <span
+                role="status"
+                aria-live="polite"
+                className={cn(
+                  "break-words",
+                  (installFailed || versionInfo.error) &&
+                    "text-[color:var(--lime-danger,hsl(var(--destructive)))]",
+                )}
+              >
+                {updateStatus.label}
+              </span>
+            }
           >
-            {updateStatus.label}
-          </span>
-        </div>
-
-        <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-          <button
-            type="button"
-            onClick={() => void handleCheckUpdate()}
-            disabled={checking || installingUpdate}
-            className={SECONDARY_ACTION_BUTTON_CLASS}
-          >
-            <RefreshCw className={cn("h-4 w-4", checking && "animate-spin")} />
-            {t("settings.about.action.check")}
-          </button>
-
+            <SettingsAction
+              type="button"
+              onClick={() => void handleCheckUpdate()}
+              disabled={checking || installingUpdate}
+            >
+              <RefreshCw
+                aria-hidden="true"
+                className={cn("size-3.5", checking && "animate-spin")}
+              />
+              {t("settings.about.action.check")}
+            </SettingsAction>
+          </SettingsRow>
           {updateAvailable ? (
-            <>
-              <button
+            <div className="flex flex-wrap items-center gap-2 py-3">
+              <SettingsAction
                 type="button"
                 onClick={() => void handleDownloadUpdate()}
                 disabled={installingUpdate}
-                className={PRIMARY_ACTION_BUTTON_CLASS}
               >
                 <RefreshCw
-                  className={cn("h-4 w-4", installingUpdate && "animate-spin")}
+                  aria-hidden="true"
+                  className={cn("size-3.5", installingUpdate && "animate-spin")}
                 />
                 {installActionLabel}
-              </button>
-              <a
+              </SettingsAction>
+              <SettingsAction
+                as="a"
                 href={manualDownloadUrl}
                 rel={manualDownloadRel}
                 onAuxClick={(event) => {
@@ -346,88 +356,96 @@ export function AboutSection() {
                 onClick={(event) => {
                   interceptHttpExternalLinkClick(event, manualDownloadUrl);
                 }}
-                className={SECONDARY_ACTION_BUTTON_CLASS}
               >
-                <ExternalLink className="h-4 w-4" />
+                <ExternalLink aria-hidden="true" className="size-3.5" />
                 {t("settings.about.action.webDownload")}
-              </a>
-            </>
+              </SettingsAction>
+            </div>
           ) : null}
-        </div>
-
+        </SettingsGroup>
         {isWindows ? (
-          <p className="mx-auto mt-4 max-w-[420px] text-xs leading-5 text-slate-500">
+          <p className="text-[12px] leading-4 text-muted-foreground">
             {t("settings.about.windowsSetupNotice")}
           </p>
         ) : null}
-
         {hasInstallProgress || installFailed ? (
           <div
+            role={installFailed ? "alert" : "status"}
             className={cn(
-              "mt-5 rounded-[20px] border p-4 text-left text-sm shadow-sm shadow-slate-950/5",
+              "flex min-w-0 items-start gap-2 text-[13px] leading-5",
               installFailed
-                ? "border-rose-200 bg-rose-50 text-rose-700"
-                : installSession?.stage === "restarting" ||
-                    installSession?.stage === "completed" ||
-                    installSession?.stage === "up_to_date"
-                  ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                  : "border-sky-200 bg-sky-50 text-sky-700",
+                ? "text-[color:var(--lime-danger,hsl(var(--destructive)))]"
+                : "text-muted-foreground",
             )}
           >
-            <div className="flex items-start gap-2">
-              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
-              <div className="min-w-0 flex-1">
-                <p>
-                  {installFailed
-                    ? t("settings.about.update.errorDownload")
-                    : installStatusLabel ||
-                      t("settings.about.update.progress.checking")}
-                </p>
-                {!installFailed &&
-                (installSession?.stage === "downloading" ||
-                  installSession?.stage === "installing" ||
-                  installSession?.stage === "restarting") ? (
-                  <div className="mt-3 flex items-center gap-3">
-                    <div
-                      className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/70"
-                      role="progressbar"
-                      aria-valuemin={0}
-                      aria-valuemax={100}
-                      aria-valuenow={installProgressPercent}
-                    >
-                      <div
-                        className="h-full rounded-full bg-slate-950 transition-[width]"
-                        style={{ width: `${installProgressPercent}%` }}
-                      />
-                    </div>
-                    {installSession?.totalBytes ? (
-                      <span className="w-10 text-right text-xs tabular-nums">
-                        {installProgressPercent}%
-                      </span>
-                    ) : null}
-                  </div>
-                ) : null}
-                {installFailed ? (
-                  <a
-                    href={manualDownloadUrl}
-                    rel={manualDownloadRel}
-                    onAuxClick={(event) => {
-                      interceptHttpExternalLinkClick(event, manualDownloadUrl);
-                    }}
-                    onClick={(event) => {
-                      interceptHttpExternalLinkClick(event, manualDownloadUrl);
-                    }}
-                    className="mt-2 inline-flex items-center gap-1 underline hover:no-underline"
+            <CheckCircle2
+              aria-hidden="true"
+              className="mt-0.5 size-4 shrink-0"
+            />
+            <div className="min-w-0 flex-1">
+              <p>
+                {installFailed
+                  ? t("settings.about.update.errorDownload")
+                  : installStatusLabel ||
+                    t("settings.about.update.progress.checking")}
+              </p>
+              {!installFailed &&
+              (installSession?.stage === "downloading" ||
+                installSession?.stage === "installing" ||
+                installSession?.stage === "restarting") ? (
+                <div className="mt-2 flex items-center gap-3">
+                  <div
+                    className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted"
+                    role="progressbar"
+                    aria-label={installStatusLabel}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={
+                      installSession?.totalBytes
+                        ? installProgressPercent
+                        : undefined
+                    }
                   >
-                    <ExternalLink className="h-3 w-3" />
-                    {t("settings.about.action.openWebDownload")}
-                  </a>
-                ) : null}
-              </div>
+                    <div
+                      className={cn(
+                        "h-full rounded-full bg-primary transition-[width] motion-reduce:transition-none",
+                        !installSession?.totalBytes &&
+                          "motion-safe:animate-pulse",
+                      )}
+                      style={{
+                        width: installSession?.totalBytes
+                          ? `${installProgressPercent}%`
+                          : "100%",
+                      }}
+                    />
+                  </div>
+                  {installSession?.totalBytes ? (
+                    <span className="shrink-0 text-[12px] tabular-nums">
+                      {installProgressPercent}%
+                    </span>
+                  ) : null}
+                </div>
+              ) : null}
+              {installFailed ? (
+                <a
+                  href={manualDownloadUrl}
+                  rel={manualDownloadRel}
+                  onAuxClick={(event) => {
+                    interceptHttpExternalLinkClick(event, manualDownloadUrl);
+                  }}
+                  onClick={(event) => {
+                    interceptHttpExternalLinkClick(event, manualDownloadUrl);
+                  }}
+                  className="mt-2 inline-flex items-center gap-1 rounded-sm underline hover:no-underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+                >
+                  <ExternalLink aria-hidden="true" className="size-3" />
+                  {t("settings.about.action.openWebDownload")}
+                </a>
+              ) : null}
             </div>
           </div>
         ) : null}
       </section>
-    </div>
+    </SettingsPageBody>
   );
 }

@@ -1,6 +1,6 @@
 # v1.169.0 发布执行计划
 
-状态：首候选CI失败已修复，全部增量准备追加main并执行同SHA远端门禁，目标标签尚未创建；负责人：root；日期：2026-10-24。
+状态：原 v1.169.0 标签发布成功；本轮修复与全部增量已通过最终本地门禁，交付方式为追加 main，不改写已发布标签；负责人：root；更新日期：2026-10-25。
 
 ## 目标与候选
 
@@ -81,3 +81,44 @@
 - 最终增量完整contracts exit0、版本一致性1.169.0、四个Rust改动文件rustfmt check exit0；相对1bd0fd2c8fc3的TS/TSX/package/tsconfig差异为空，沿用该冻结输入的完整typecheck与Electron类型通过结果。eef36b826的GUI Smoke最终success。将全部十文件窄修复及文档记录追加递交，随后以最终SHA Quality和Release产物验收收口。
 - 十文件已提交cb7555162bcfeecf86f65fe5a9f06c5c5428c114并推main，Quality 40096112486启动；commit首试遇到其它Git进程的短暂index.lock，锁自行释放后正常提交，未删锁或终止他人进程。eef36b826的Windows失败已读取原始日志：windows_timeout_returns_canonical_exit_code得到-1而非124，对应本轮已修复的pending next_event取消安全问题；cb7555162由Windows矩阵复核，本地追加command_exec单元回归。
 - 后续仅新增Local Environments真实fixture失败截图采集，不改变产品或场景断言，node --check通过；按全部修改授权一并追加。生产TS输入仍与完整验证的冻结tree一致，保持最终提交远端门禁和发布产物验证。
+
+## 已推标签后的错误修复与全部递交
+
+- 用户此前改为“推送之前的就可以了”，已将远端 `v1.169.0` 固定于 `8e7f654f48049c703b514ca02a9f8aa4679f6148`。最新“有报错,修复并递交所有”授权修复并递交全部当前候选；尚未改写已推送标签。
+- Release `40098068034`：arm64 macOS、Windows 构建成功；x64 macOS 三次失败均为 Apple notary 提交后的状态查询 `NSURLErrorDomain Code=-1001` 超时。已启动原失败任务重试；draft Release 尚无 assets，不记为发布成功。
+- Quality `40096607479`：完整前端、GUI smoke 成功；Rust 38/39 的 standalone fork Gemini 用例在删除源临时目录时出现 DirectoryNotEmpty。前一产品 SHA `cb7555162` 的 Quality `40096112486` 全部成功，命令取消修复已获 Windows/Rust 证明。
+- 本轮窄写集：macos-notarization 实现/回归、thread_fork_jsonrpc/standalone.rs 的停机边界、本计划和发布说明。Browser CDP/session 与 workspace 环境选择及 watcher 启动修复的并行写集先只读验收，不覆盖已有实现。所有修改最终统一暂存，冻结后重跑完整 typecheck/Electron types/contracts，追加受影响单测、Rust standalone 与 GUI smoke；等待不计通过。
+- 修复原则：复用当前 transport 的真实 shutdown，保证复制前 flush、源目录彻底删除，保留“无源 DB/EventLog/sidecar/session”断言；Apple 超时恢复只允许继续同一 submission，保留 Accepted、staple 与 validate 门禁，不扩大失败容忍。
+- 首个冻结 tree `0ea5730ec4bf9283232f52e6c75d17ec0fcc81ac` 的 client build、完整 typecheck、Electron types、完整 contracts 全部 exit0。当前改动 22 个测试文件 269 项通过；standalone fork 公开集成 39/39 通过，源文件复制前走真实 transport shutdown 并保留完整删除断言。版本一致性与 Rust 格式通过。
+- 原目录 GUI smoke exit0，摘要 `.lime/qc/project-gates/standalone-shell-01-20261024144658-66256/shell-01-electron-smoke/summary.json`：真实启动/重载、preload/IPC、App Server、三尺寸与设置路由通过，mock 为零；不扩展为 provider/live/打包证明。
+- 追加修复侧栏新增测试缺失 MouseEvent 类型导入；后续 CDP 测试使用超出 ES2022 的 Promise.withResolvers 导致真实配置 fixture 在编译阶段失败，已改普通 Promise 的窄辅助函数，未更改目标 lib 或断言。新增/更新 CDP 两文件 62/62 通过；fixture 将重跑。后继 Browser frame/session 及失败清理补丁继续按“全部递交”纳入最终冻结与类型检查，不以首快照代替增量验收。
+- 第二冻结 tree `0d90af923939fb75536513e4c524af94b1193d41` 的 client build、完整 typecheck、Electron types、完整 contracts 均 exit0；当前改动22文件286项回归全部通过，范围ESLint/max-warnings0通过，watcher 13/13通过。后继新增仅docs与测试驱动，生产TS输入保持该冻结集合。
+- 本地环境真实 Electron config r2 exit0、21/21：GUI保存后Host选择、冷恢复、版本冲突保稿、正常Main退出、两尺寸布局与真实IPC通过，mock/console/page错误0；摘要 `.lime/qc/project-gates/standalone-settings-appearance-20261024T145133491Z-75123/settings-appearance-persistence/summary.json`。
+- 工作树Gate B逐层暴露旧驱动：installed_skill独立发送路由已退役，迁移为精确canonical name/path/label/mention，保留所有草稿/图片/隐藏paste/marks身份校验；三个证据回归81/81通过。演示文稿两个夹具同步同一Skill语义，正确Vitest入口14/14通过；初误用node --test的TS模块加载失败不计产品失败。并行owner已完成这组脚本迁移，本轮只读验收。
+- 工作树下一失败为驱动把 Thread.projectId 当作 Workspace ID；现役 projectId是project目录分组，thread/start以canonical cwd创建。窄修复复用workspace/byPath/read按线程cwd解析Workspace，仍校验公开创建顺序、真实Git、GUI Workspace/cwd、Thread/Turn/provider身份及冷恢复，且要求本夹具未主动分配项目目录（projectId=null）。不为旧夹具把Workspace ID写入另一领域。该驱动及其证据单测纳入本轮写集，真实Gate B待终态。
+- 第三冻结 tree `312cc727c72d8662d2f39ad33a8633e277297577` 的 client build、完整 typecheck、Electron types、contracts 全部 exit0；随后新增导航与并行工具展示改动，须对最终输入继续冻结复验。
+- 工作树 Gate B 揭示两处 current GUI 接线缺陷：暂存源混用 execution workspace 与源目录；接受回执后仅排队切换草稿，而草稿 promotion 推进 epoch 后队列失效，新聊天页状态未退出。分别改为可见源工作区/目录成对使用，以及复用现役 TaskCenter draft-state owner 提交接受终态；不放宽 receipt、workspace ABA 或取消校验。对应回归先红，修复后三文件28/28通过；目标surface恰好epoch+1的精确接受回归同组保留。
+- 原目录 GUI smoke 再次 exit0，24项通过，证据 `.lime/qc/project-gates/standalone-shell-01-20261024152934-57252/shell-01-electron-smoke/summary.json`。Agent current fixture 的 unknown Item恢复、首页首发与短问候通过；编码工作台全部业务断言通过，但同期构建产物变化触发 `artifactInputsStable=false`，聚合 exit1，不能计为完整通过，待构建稳定后续验。
+- 原标签 Release `40098068034` 的 macOS x64重试成功，三桌面构建、GitHub桌面产物发布与Cloudflare R2更新源均success；GitHub Release已公开且有9项assets，CLI四平台与root npm仍待终态。该发布仍固定旧SHA `8e7f654f4`，不包含本轮未提交增量。
+- tree `9311885719bd63264b3e4820e378512c8b977233` 冻结后的 client build、完整 typecheck、Electron types、完整 contracts 全部 exit0；新增导航/工具展示/关于页19文件209项回归通过，全暂存TS/脚本范围ESLint exit0。后续仅导航结算两个TS文件与夹具脚本/记录增量，另冻结复验。
+- 工作树r8继续证明：提前defer到目标工作区会在root Composer完成promotion前触发新Home绑定，导致后续接受处理因epoch变化失效。最终将实际工作区导航归到现役root `handleComposerDraftAccepted` 的promotion完成之后，检查同一capture generation、精确目标workspace/session与epoch+1；不再强制重新hydration已经接受的会话。对新草稿的迟到接受不切页、不覆盖输入，新增回归通过。此前仅清理Home状态的中间修复未关闭实测，不计成功证据。
+
+- 后继冻结 `c3f92af691be` 的完整 typecheck 发现 root 接受回执包含 queue/runtime 两类以及 nullable target；已在现役 wrapper 增加 runtime-accepted 与 target 存在的类型/语义收窄，未放宽导航身份检查。Worktree 三文件29/29通过，Renderer 构建通过；最终输入冻结 `e6b6649d7e2a786122ddb94ef822e61f1127cc7d` 再跑硬门禁。
+- Agent 聚合第二轮已通过首页、编码、图片、取消继续、审批、富草稿恢复、steer 与 Plan 场景，但 Skills 场景真实失败：空根按需 watcher 配合 session_skill_roots 的旧 Project-only 过滤遗漏用户目录。新增公开 thread/resume 监听范围回归先红，现改为注册已加载线程的完整有效根；保留懒启动，不恢复全局扫描，不另造 catalog 监听 owner。完整 watcher 与真实 Skills fixture 待终态。
+- 旧标签 Release `40098068034` 已全部 success，包括三桌面平台、GitHub九项assets、R2 updater、CLI四平台与root npm发布。发布仍指向 `8e7f654f4`；本轮修复只追加 main，不重写远端标签，不宣称已随旧tag发布。
+- 冻结 `e6b6649d7e2a` 的 client build、完整 typecheck、Electron types、contracts 均 exit0；新增浏览器展示6文件85/85回归、全候选范围ESLint通过；watcher完整13/13通过。最终GUI smoke exit0，目录 `.lime/qc/project-gates/standalone-shell-01-20261024155937-25685`。
+- 后继并行新增Git status工作树配置作用域与会话环境Actions/终端接线，按全部递交授权继续纳入。macOS真实构建检测到 `LocalConversationActions.tsx` 与 `localConversationActions.ts` 的大小写模块解析冲突；仅将纯工具函数改名 `localConversationActionHelpers.ts` 并同步五处消费者/测试，避免同基名不同扩展名的case冲突。终端与Actions三个文件38/38通过，后继协议生成与真实场景待收口。
+- 最终Skills真实Electron r3通过：skills/changed到GUI catalog自动刷新（用户交互0）、自然语言/显式Skill/面板启用三入口、同一canonical thread读回、正常Main退出均通过，mock/page/console错误为0。证据 `.lime/qc/gui-evidence/claw-chat-current-fixture/release-v11690-skills-watcher-repair-r3-summary.json`。Git status工作树作用域2/2、动作接线30/30、event-bus/command/CDP三文件41/41通过。
+- Worktree r11/r12仍失败，继续真实定位而未放宽断言：promotion发生version_conflict；r14只读诊断证明发送后EditorView的迟到事务仅修改selectionStart/End，却推进了已捕获版本。新增真实EditorView禁用后迟到选区回归先红（revision2变3），修复在ComposerEditor的dispatchTransaction入口拒绝disabled时的View事务；Controller显式更新仍允许，存储CAS与新编辑保护不变。编辑器、代码块、草稿、停止恢复、导航五文件86/86通过；临时诊断日志已全部移除，真实Gate B待重跑。
+- 冻结 `60798ce717ff` 的client build、完整typecheck、Electron types、完整contracts均exit0，五语言资源检查通过。后继新TS/SDK与编辑器修复将再次冻结验证；MCP structuredContent与media-reference真实场景通过，后继专家入口构建被同期输入变化守卫拒绝，将从未通过场景续验。
+- 后继冻结 `ea54ba8249097700374af222ab1bd925f4da2fc4`（r8）及最终产品输入冻结 `903a573dd82ae79d56d7735efb74d0168452eb67`（r9）的 client build、完整 typecheck、Electron types、完整 contracts 均 exit0；r9 日志为 `.lime/release-v11690/repair-frozen-r9-{client,typecheck,electron,contracts}.log`。125 个候选 TS/TSX/MJS 文件范围 ESLint/max-warnings0 通过，版本一致性为 1.169.0。
+- Agent 从失败点续验：专家广场 Skills、专家面板 Skills、typed-error 重试成功/失败、文章工作区五场景全部 exit0，加上前序 MCP structuredContent、media-reference 与已通过的首页/编码/图片/取消/审批/恢复/steer/Plan 场景，已列场景全部完成。记录 `.lime/release-v11690/repair-agent-remaining-scenarios-r2.log`；没有宣称单次聚合入口全绿，也不扩大为 live provider 或跨平台打包证明。
+- 工作树 r15 已证明 accepted session、唯一用户消息与输入恢复；旧驱动只从 Home 工具条读工作区，导致进入会话后的观测为空。现将会话工具条的真实 workspaceId/root props 暴露为 DOM 投影，场景要求唯一可见工具条并精确核对身份；工具条/场景组件 27/27 通过。r16 已通过同 capture accepted-target promotion 与 source 消费，后续发现 Git 驱动仍用 `git config --worktree` 读取未启用 shared extension 的配置；改成与 current Rust owner 相同的 `git rev-parse --git-path config.worktree` 加 `git config --file`，真实临时 detached worktree 回归 7/7 通过。完整工作树 Gate B 仍须新 run-id 重跑，不以中间阶段替代终态。
+- 最后 GUI 源码构建曾受到并行旧冻结树共用 Cargo target 的 metadata 影响，报 ProjectGitStatus 两字段缺失；原目录 current struct 与 projection 均已具备字段且 Git status 2/2 通过。只触碰 current services 源文件时间以重新编译，未更改内容、清理 target 或删除构建锁；最终 GUI 重验正在运行，等待不计通过。
+- 上述最终原目录 `npm run verify:gui-smoke` 重验 exit0、24/24：`.lime/qc/project-gates/standalone-shell-01-20261024164909-40534/shell-01-electron-smoke/summary.json`。真实 Electron 启动/重载、preload/IPC/current App Server、设置与三尺寸布局均通过，mock/console/page/IPC 错误为零；未冒称 live provider 或当前候选跨平台包已验。
+- 工作树 r17 的首发、一次 create/thread/start/turn/start（双击 Send）、真实 setup/config.worktree、完整富输入/媒体字节、source consume、新草稿编辑及第一次正常退出均通过；冷恢复被共享旧驱动阻断：`openSessionFromSidebar` 忽略已传入的 sessionId，仅按 title 文本寻找按钮，而首次发送没有 fixture 人造标题。改为唯一精确 `data-session-id` 的侧栏行，保留 canonical Thread/read 与可见同会话编辑器检查，删除标题/通用按钮启发式。JSDOM 回归先红后绿，覆盖缺标题、标题变化及同名外来会话；证据回归 8/8 与两文件范围 lint 通过。新 r18 正在完整复验，不将 r17 中间阶段计作最终 Gate B。
+- r9 冻结后第一轮核对的增量仅执行记录与测试驱动/证据测试；随后新增 AppSidebar 两份测试/fixture 的现役环境选择合同迁移，全部纳入后继冻结并再次验证。产品 owner 未在验证副本开发或回写。
+- 工作树 r18 完整 exit0，摘要 `.lime/release-v11690/worktree-gate-b/release-v11690-worktree-repair-20261025-r18/composer-worktree-first-send-gui.json`：真实 Electron/preload/IPC/current JSON-RPC、双击只建一份工作树与 canonical Thread/Turn、setup/config.worktree、完整富输入和媒体字节、接受导航/source consume、新编辑保存、真实 interrupted terminal、冷恢复不重建/不重发，以及两次正常 Main quit 全部通过。源/产物稳定性与精确身份检查保留；受控 provider 证据不冒称 live provider、OS 剪贴板/拖放或跨平台包验收。
+- 最终完整候选冻结 tree `4714f580050cbd1222202834055868282cef2fb7`（160 文件）完成 client build、完整 typecheck、Electron types、完整 contracts，全部 exit0，日志 `repair-frozen-r10-{client,typecheck,electron,contracts}.log`。侧栏环境选择合同增量 48/48 通过，新增三文件范围 ESLint/max-warnings0 通过，staged/unstaged diff 空白检查通过。此后仅更新本执行记录，未变更已验证产品或测试输入。
+- 全部候选按用户授权提交至 main，保留全部 tracked/untracked 产品、协议/schema/生成客户端、脚本、五语言、测试、架构与执行记录，无主动排除项。中英发布说明保留 1.169.0 单页，版本事实源未再次变化；原标签仍为 `8e7f654f48049c703b514ca02a9f8aa4679f6148`，本次修复不宣称已进入旧标签产物。当前分类为既有 owner 内修复/接线，测试驱动与证据为 test-only，本轮不新增 compat/deprecated 或恢复 dead 路径。
+- 本轮修复、对应本地验证与全部候选整理完成度 100%；新 SHA 的远端 Quality 与当前增量跨平台打包结果须按实际运行状态另报，不借旧标签发布成功替代。

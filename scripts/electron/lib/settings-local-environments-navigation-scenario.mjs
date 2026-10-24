@@ -170,6 +170,7 @@ export async function runSettingsLocalEnvironmentsNavigationScenario({
     externalBytesPreserved: true,
     configPath,
     projectName,
+    workspaceRoot,
     limitations:
       "Configuration management only. No lifecycle scripts or actions executed, no live provider, remote host, Windows or reference-runtime claim.",
   };

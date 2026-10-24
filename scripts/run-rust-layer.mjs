@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 
 import { spawnSync } from "node:child_process";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
@@ -57,6 +60,18 @@ export function resolveRustTestEnv(
     resolved.RUST_MIN_STACK = DEFAULT_DARWIN_RUST_MIN_STACK;
   }
   return resolved;
+}
+
+export function withRustTestConfig(env, run) {
+  if (env.LIME_CONFIG_PATH?.trim()) return run(env);
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "lime-rust-config-"));
+  try {
+    const configPath = path.join(directory, "config.yaml");
+    fs.writeFileSync(configPath, "{}\n", { flag: "wx", mode: 0o600 });
+    return run({ ...env, LIME_CONFIG_PATH: configPath });
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
 }
 
 function looksLikeGitRef(value) {
@@ -318,15 +333,17 @@ function runCargo(layer, cargoArgs, testArgs) {
     finalTestArgs,
   );
   const baseEnv = resolveRustTestEnv();
-  const result = spawnSync("cargo", args, {
-    encoding: failOnZeroExecutedTests ? "utf8" : undefined,
-    env: {
-      ...baseEnv,
-      ...resolveRustyV8CargoEnv({ env: baseEnv }),
-    },
-    maxBuffer: 50 * 1024 * 1024,
-    stdio: failOnZeroExecutedTests ? "pipe" : "inherit",
-  });
+  const result = withRustTestConfig(baseEnv, (testEnv) =>
+    spawnSync("cargo", args, {
+      encoding: failOnZeroExecutedTests ? "utf8" : undefined,
+      env: {
+        ...testEnv,
+        ...resolveRustyV8CargoEnv({ env: testEnv }),
+      },
+      maxBuffer: 50 * 1024 * 1024,
+      stdio: failOnZeroExecutedTests ? "pipe" : "inherit",
+    }),
+  );
 
   if (result.error) {
     throw result.error;
@@ -397,6 +414,9 @@ function main() {
   process.exitCode = runCargo(layer, scopedCargoArgs, testArgs);
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(process.argv[1]).href
+) {
   main();
 }

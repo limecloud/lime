@@ -1,4 +1,5 @@
 import type { WorkspaceRightSurfaceKind } from "./rightSurfaceTypes";
+import type { TerminalAction } from "../localConversationActionHelpers";
 
 export interface ThreadSidePanelTab {
   tabId: string;
@@ -24,6 +25,7 @@ export interface ThreadSidePanelTab {
     selected: boolean;
   };
   backgroundTerminal?: { threadId: string; turnId: string; itemId: string };
+  terminalAction?: TerminalAction;
 }
 
 export interface ThreadSidePanelTabs {

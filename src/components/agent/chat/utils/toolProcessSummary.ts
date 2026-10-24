@@ -42,6 +42,7 @@ import {
 } from "./toolDisplayInfo";
 import { isUnifiedWebSearchToolName } from "./searchResultPreview";
 import { resolveToolSoulMetadata } from "./toolSoulLifecycleMetadata";
+import { resolveToolDisplayName } from "./toolDisplayName";
 
 export type {
   ToolProcessNarrative,
@@ -86,6 +87,10 @@ function mergeMetadata(base: unknown, override: unknown): unknown {
 }
 
 function buildNarrative(input: ToolProcessInput): ToolProcessNarrative {
+  input = {
+    ...input,
+    toolName: resolveToolDisplayName(input.toolName, input.metadata),
+  };
   const metadataSummary = resolveToolProcessSummaryMetadata(
     input.metadata,
     input.status,

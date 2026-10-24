@@ -11,7 +11,10 @@ import {
   type AppServerCommandExecWriteParams,
   type AppServerCommandExecWriteResponse,
 } from "./appServer";
-import { subscribeAppServerNotifications } from "./appServerEventBus";
+import {
+  getDefaultAppServerEventBus,
+  subscribeAppServerNotifications,
+} from "./appServerEventBus";
 
 export type CommandExecClient = Pick<
   AppServerClient,
@@ -28,7 +31,11 @@ export async function execCommand(
   params: AppServerCommandExecParams,
   client: CommandExecClient = new AppServerClient(),
 ): Promise<AppServerCommandExecResponse> {
-  return (await client.execCommand(validateExecParams(params))).result;
+  const response = await client.execCommand(validateExecParams(params));
+  if (params.streamStdoutStderr) {
+    await getDefaultAppServerEventBus().flushNotifications();
+  }
+  return response.result;
 }
 
 export async function writeCommandExec(

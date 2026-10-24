@@ -4,6 +4,10 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { changeLimeLocale } from "@/i18n/createI18n";
 import { TaskCenterUtilityToolbar } from "./TaskCenterUtilityToolbar";
+import { ProjectGitWorktreeSetupError } from "@/lib/api/projectGit";
+import { ensureProjectWorkspace } from "@/lib/api/project";
+import { readLocalEnvironmentSelection } from "@/lib/api/localEnvironmentSelection";
+import { toast } from "sonner";
 
 const {
   mockRevealPathInFinder,
@@ -39,17 +43,26 @@ vi.mock("@/lib/api/externalUrl", () => ({
   openExternalUrlWithSystemBrowser: mockOpenExternalUrlWithSystemBrowser,
 }));
 
-vi.mock("@/lib/api/projectGit", () => ({
+vi.mock("@/lib/api/projectGit", async () => ({
+  ...(await vi.importActual<typeof import("@/lib/api/projectGit")>(
+    "@/lib/api/projectGit",
+  )),
   checkoutProjectGitBranch: mockCheckoutProjectGitBranch,
   createProjectGitBranch: mockCreateProjectGitBranch,
   createProjectGitWorktree: mockCreateProjectGitWorktree,
   readProjectGitDiff: mockReadProjectGitDiff,
   readProjectGitStatus: mockReadProjectGitStatus,
 }));
+vi.mock("@/lib/api/project", () => ({ ensureProjectWorkspace: vi.fn() }));
+vi.mock("@/lib/api/localEnvironmentSelection", () => ({
+  readLocalEnvironmentSelection: vi.fn(),
+}));
+vi.mock("../hooks/agentProjectStorage", () => ({ markProjectOpened: vi.fn() }));
 
 vi.mock("sonner", () => ({
   toast: {
     error: vi.fn(),
+    success: vi.fn(),
   },
 }));
 
@@ -159,6 +172,12 @@ interface MountedHarness {
 const mountedRoots: MountedHarness[] = [];
 
 beforeEach(async () => {
+  vi.mocked(readLocalEnvironmentSelection).mockResolvedValue(null);
+  vi.mocked(ensureProjectWorkspace).mockResolvedValue({
+    id: "checkout",
+    rootPath: "/checkout",
+  } as Awaited<ReturnType<typeof ensureProjectWorkspace>>);
+  mockCreateProjectGitWorktree.mockResolvedValue({ worktreePath: "/checkout" });
   vi.useRealTimers();
   await changeLimeLocale("zh-CN");
   (
@@ -253,6 +272,94 @@ function renderToolbar(
 }
 
 describe("TaskCenterUtilityToolbar", () => {
+  it("projects the visible conversation workspace independently of new-chat controls", () => {
+    const container = renderToolbar({
+      workspaceId: "target-workspace",
+      projectRootPath: "/tmp/target",
+    });
+    const toolbar = container.querySelector(
+      '[data-testid="task-center-utility-toolbar"]',
+    );
+    expect(toolbar?.getAttribute("data-workspace-id")).toBe("target-workspace");
+    expect(toolbar?.getAttribute("data-workspace-root")).toBe("/tmp/target");
+  });
+
+  it.each([null, "/tmp/project/.codex/environments/dev.toml"])(
+    "creates using the canonical environment selection %s",
+    async (configPath) => {
+      vi.mocked(readLocalEnvironmentSelection).mockResolvedValueOnce(
+        configPath,
+      );
+      const onProjectChange = vi.fn();
+      const container = renderToolbar({ onProjectChange });
+      await act(async () =>
+        container
+          .querySelector<HTMLButtonElement>(
+            '[data-testid="task-center-app-switcher-trigger"]',
+          )!
+          .click(),
+      );
+      await act(async () =>
+        document
+          .querySelector<HTMLButtonElement>(
+            '[data-testid="task-center-location-worktree"]',
+          )!
+          .click(),
+      );
+      expect(readLocalEnvironmentSelection).toHaveBeenCalledWith(
+        "/tmp/project",
+      );
+      expect(mockCreateProjectGitWorktree).toHaveBeenCalledWith(
+        "/tmp/project",
+        {
+          baseBranch: undefined,
+          localEnvironmentConfigPath: configPath,
+        },
+      );
+      expect(onProjectChange).toHaveBeenCalledWith("checkout");
+    },
+  );
+
+  it("offers the existing checkout after setup failure and opens it only on request", async () => {
+    mockCreateProjectGitWorktree.mockRejectedValueOnce(
+      new ProjectGitWorktreeSetupError("setup failed", "/checkout"),
+    );
+    const onProjectChange = vi.fn();
+    const container = renderToolbar({ onProjectChange });
+    await act(async () =>
+      container
+        .querySelector<HTMLButtonElement>(
+          '[data-testid="task-center-app-switcher-trigger"]',
+        )!
+        .click(),
+    );
+    await act(async () =>
+      document
+        .querySelector<HTMLButtonElement>(
+          '[data-testid="task-center-location-worktree"]',
+        )!
+        .click(),
+    );
+    expect(onProjectChange).not.toHaveBeenCalled();
+    expect(ensureProjectWorkspace).not.toHaveBeenCalled();
+    const options = vi.mocked(toast.error).mock.calls.at(-1)![1]!;
+    expect(options.description).toContain("/checkout");
+    const action = options.action;
+    expect(action).toMatchObject({
+      label: "agentChat.navbar.appSwitcher.openWorktree",
+    });
+    if (!action || !("onClick" in action))
+      throw Error("Missing recovery action");
+    await act(async () =>
+      action.onClick({} as React.MouseEvent<HTMLButtonElement>),
+    );
+    expect(ensureProjectWorkspace).toHaveBeenCalledWith(
+      expect.objectContaining({ rootPath: "/checkout" }),
+    );
+    expect(onProjectChange).toHaveBeenCalledExactlyOnceWith("checkout");
+    expect(mockCreateProjectGitWorktree).toHaveBeenCalledOnce();
+    expect(toast.success).not.toHaveBeenCalled();
+  });
   it("统一工具栏只承接一个侧边面板入口，保持紧凑单行", () => {
     const toggle = vi.fn();
     const container = renderToolbar({

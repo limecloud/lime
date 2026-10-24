@@ -1,5 +1,6 @@
 import type { AgentToolCallState as ToolCallState } from "@/lib/api/agentProtocol";
 import type { AgentThreadItem } from "../types";
+import { resolveToolDisplayName } from "./toolDisplayName";
 import {
   classifyMcpToolOperationKind,
   isBrowserToolName,
@@ -736,6 +737,10 @@ function buildBrowserDescriptor(
 function buildDescriptorFromEntries(
   entries: ToolLikeDescriptor[],
 ): ToolBatchSummaryDescriptor | null {
+  entries = entries.map((entry) => ({
+    ...entry,
+    toolName: resolveToolDisplayName(entry.toolName, entry.metadata),
+  }));
   if (entries.length < 1) {
     return null;
   }

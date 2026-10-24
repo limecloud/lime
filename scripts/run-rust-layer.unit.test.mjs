@@ -14,6 +14,7 @@ import {
   resolveRustTestEnv,
   resolveRustPathSelection,
   shouldFailOnZeroExecutedTests,
+  withRustTestConfig,
 } from "./run-rust-layer.mjs";
 
 function createFixtureRepo() {
@@ -69,6 +70,47 @@ version = "0.0.0"
 }
 
 describe("run-rust-layer unit helpers", () => {
+  it.each([false, true])("临时配置隔离用户状态并在异常=%s 后清理", (fail) => {
+    const env = { PATH: "/bin", LIME_CONFIG_PATH: " " };
+    let firstPath;
+    const run = () =>
+      withRustTestConfig(env, (isolated) => {
+        firstPath = isolated.LIME_CONFIG_PATH;
+        expect(fs.readFileSync(firstPath, "utf8")).toBe("{}\n");
+        withRustTestConfig(env, (second) => {
+          expect(second.LIME_CONFIG_PATH).not.toBe(firstPath);
+          fs.writeFileSync(second.LIME_CONFIG_PATH, "second fixture\n");
+          expect(fs.readFileSync(firstPath, "utf8")).toBe("{}\n");
+        });
+        if (fail) throw Error("cargo fixture failed");
+        return 101;
+      });
+    if (fail) expect(run).toThrow("cargo fixture failed");
+    else expect(run()).toBe(101);
+    expect(fs.existsSync(path.dirname(firstPath))).toBe(false);
+    expect(env.LIME_CONFIG_PATH).toBe(" ");
+  });
+
+  it("保留调用方显式指定的配置且不删除文件", () => {
+    const root = fs.mkdtempSync(
+      path.join(os.tmpdir(), "rust-explicit-config-"),
+    );
+    const configPath = path.join(root, "config.yaml");
+    fs.writeFileSync(configPath, "fixture sentinel\n");
+    try {
+      const env = { LIME_CONFIG_PATH: configPath };
+      expect(
+        withRustTestConfig(env, (actual) => {
+          expect(actual).toBe(env);
+          return 0;
+        }),
+      ).toBe(0);
+      expect(fs.readFileSync(configPath, "utf8")).toBe("fixture sentinel\n");
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it.each([0, 101])("管道完整保留大日志及最终状态 %s", (status) => {
     const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "rust-output-"));
     const stdout =
@@ -81,11 +123,16 @@ describe("run-rust-layer unit helpers", () => {
         loader,
         `
 import childProcess from "node:child_process";
+import fs from "node:fs";
 import { syncBuiltinESMExports } from "node:module";
 const original = childProcess.spawnSync;
-childProcess.spawnSync = (command, ...args) => command === "cargo"
-  ? { status: ${status}, stdout: ${JSON.stringify(stdout)}, stderr: ${JSON.stringify(stderr)} }
-  : original(command, ...args);
+childProcess.spawnSync = (command, ...args) => {
+  if (command !== "cargo") return original(command, ...args);
+  const configPath = args[1].env.LIME_CONFIG_PATH;
+  if (!configPath || fs.readFileSync(configPath, "utf8") !== "{}\\n")
+    throw Error("Cargo must receive the isolated configuration");
+  return { status: ${status}, stdout: ${JSON.stringify(stdout)}, stderr: ${JSON.stringify(stderr)} };
+};
 syncBuiltinESMExports();
 `,
       );
@@ -98,7 +145,11 @@ syncBuiltinESMExports();
           "unit",
           "runtime::",
         ],
-        { encoding: "utf8", maxBuffer: 2 * 1024 * 1024 },
+        {
+          encoding: "utf8",
+          maxBuffer: 2 * 1024 * 1024,
+          env: { ...process.env, LIME_CONFIG_PATH: "" },
+        },
       );
       expect(result.error).toBeUndefined();
       expect(result.status).toBe(status);

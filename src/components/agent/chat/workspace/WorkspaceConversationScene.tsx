@@ -503,6 +503,7 @@ export function WorkspaceConversationScene({
   const shouldRenderThreadHeader = Boolean(threadHeader && showChatLayout);
   const taskCenterUtilityToolbarNode = shouldUseTaskCenterUtilityToolbar ? (
     <TaskCenterUtilityToolbar
+      workspaceId={projectId}
       projectRootPath={projectRootPath}
       onProjectChange={onProjectChange}
       taskRail={taskRail}

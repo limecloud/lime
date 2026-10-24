@@ -123,6 +123,7 @@ export function ComposerEditor(props: ComposerEditorProps) {
       nodeViews,
       editable: () => !propsRef.current.disabled,
       dispatchTransaction: (transaction) => {
+        if (propsRef.current.disabled) return;
         controller.applyTransaction(transaction);
         if (view.state !== controller.getEditorState())
           view.updateState(controller.getEditorState());

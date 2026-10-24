@@ -139,12 +139,24 @@ const BROWSER_TOOL_DEFINITIONS = Object.freeze([
   }),
   tool(
     "executeCdpCommand",
-    "Execute an approved main-page CDP command: Runtime.evaluate; Page.navigate/navigateToHistoryEntry/getNavigationHistory/reload/stopLoading/getLayoutMetrics/captureScreenshot; Input.dispatchMouseEvent/dispatchKeyEvent/insertText. Requires full CDP access for this site. Other commands and explicit frame/context selection are unavailable.",
+    "Execute an approved CDP command: Runtime.evaluate; Page.navigate/navigateToHistoryEntry/getNavigationHistory/reload/stopLoading/getLayoutMetrics/captureScreenshot; Input.dispatchMouseEvent/dispatchKeyEvent/insertText; Target.getTargetInfo/getTargets/closeTarget/setAutoAttach. Use attachTarget for a discovered frame before selecting its targetId or sessionId. Target info and close address only the current logical page. Requires full CDP access for the page and frame origins. Other commands and bare frame/context overrides are unavailable.",
     {
       method: stringProperty(
         "CDP domain and command, such as Runtime.evaluate.",
       ),
       commandParams: { type: "object", additionalProperties: true },
+      target: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          targetId: stringProperty(
+            "Current logical page target or attached frame target returned by Target.getTargets.",
+          ),
+          sessionId: stringProperty(
+            "Debugger session returned by attachTarget; must belong to this tab and match targetId when both are given.",
+          ),
+        },
+      },
       timeoutMs: {
         ...integerProperty(
           "Command deadline in milliseconds; defaults to 10000.",
@@ -154,6 +166,17 @@ const BROWSER_TOOL_DEFINITIONS = Object.freeze([
       tabId: stringProperty("Claimed tab id; defaults to the selected tab."),
     },
     ["method"],
+  ),
+  ...["attachTarget", "detachTarget"].map((name) =>
+    tool(
+      name,
+      `${name === "attachTarget" ? "Attach to" : "Detach from"} a discovered frame target in the claimed tab after full CDP approval. Sessions expire when the turn, native control, debugger or policy is revoked.`,
+      {
+        tabId: stringProperty("Claimed tab id; defaults to the selected tab."),
+        targetId: stringProperty("Target id returned by Target.getTargets."),
+      },
+      ["targetId"],
+    ),
   ),
   tool(
     "click",

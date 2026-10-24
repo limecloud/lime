@@ -16,6 +16,7 @@ import type {
   TurnStartParams as GeneratedTurnStartParams,
   TurnStartResponse as GeneratedTurnStartResponse,
   UserInput,
+  ProjectGitStatusResponse as GeneratedProjectGitStatusResponse,
   WorkspaceRightSurfacePendingChangedParams as GeneratedWorkspaceRightSurfacePendingChangedParams,
 } from "./generated/protocol-types.js";
 export * from "./generated/protocol-types.js";
@@ -284,11 +285,7 @@ export type ProjectGitWorktreeCreateParams = {
   baseBranch?: string;
 };
 
-export type ProjectGitStatusResponse = {
-  rootPath: string;
-  repositoryRoot?: string;
-  hasGitRepository: boolean;
-  currentBranch?: string;
+export type ProjectGitStatusResponse = GeneratedProjectGitStatusResponse & {
   branches: string[];
   uncommittedFileCount: number;
 };

@@ -48,6 +48,18 @@ vi.mock("../../../hooks/agentProjectStorage", () => ({
 vi.mock("sonner", () => ({
   toast: { success: mocks.success, error: mocks.error },
 }));
+vi.mock("../../WorktreeEnvironmentDropdown", () => ({
+  WorktreeEnvironmentDropdown: ({
+    workspaceRoot,
+  }: {
+    workspaceRoot: string;
+  }) => (
+    <span
+      data-testid="worktree-environment-dropdown"
+      data-workspace-root={workspaceRoot}
+    />
+  ),
+}));
 vi.mock("@/components/ui/popover", async () => {
   const { createContext, useContext, cloneElement } = await import("react");
   const Context = createContext<{
@@ -227,6 +239,32 @@ afterEach(async () => {
 });
 
 describe("ComposerUtilityBar", () => {
+  it("仅工作树模式且有项目目录时挂载同一环境选择组件", async () => {
+    await render();
+    expect(
+      container.querySelector('[data-testid="worktree-environment-dropdown"]'),
+    ).toBeNull();
+    await render({ composerMode: "worktree" });
+    expect(
+      container.querySelector<HTMLElement>(
+        '[data-testid="worktree-environment-dropdown"]',
+      )?.dataset.workspaceRoot,
+    ).toBe("/workspace/a");
+    await render({ composerMode: "worktree", projectId: "b" });
+    expect(
+      container.querySelector<HTMLElement>(
+        '[data-testid="worktree-environment-dropdown"]',
+      )?.dataset.workspaceRoot,
+    ).toBe("/workspace/b");
+    await render({ composerMode: "worktree", showModeControls: false });
+    expect(
+      container.querySelector('[data-testid="worktree-environment-dropdown"]'),
+    ).toBeNull();
+    await render({ composerMode: "worktree", projectId: null });
+    expect(
+      container.querySelector('[data-testid="worktree-environment-dropdown"]'),
+    ).toBeNull();
+  });
   it("同一 owner 的 project-only 呈现只选择项目，不读取 Git 或显示运行控件", async () => {
     await render({ projectId: " a ", showModeControls: false });
     expect(bar().dataset.projectId).toBe("a");

@@ -1,6 +1,8 @@
 import { ensureProjectWorkspace } from "@/lib/api/project";
+import { readLocalEnvironmentSelection } from "@/lib/api/localEnvironmentSelection";
 import {
   createProjectGitWorktree,
+  ProjectGitWorktreeSetupError,
   readProjectGitStatus,
 } from "@/lib/api/projectGit";
 import {
@@ -18,6 +20,7 @@ export interface ComposerWorktreeRequest {
 }
 interface Dependencies {
   readGit: typeof readProjectGitStatus;
+  readEnvironment: typeof readLocalEnvironmentSelection;
   createWorktree: typeof createProjectGitWorktree;
   ensureWorkspace: typeof ensureProjectWorkspace;
 }
@@ -27,6 +30,7 @@ type Entry = {
   scope?: ExecutionScope;
   pending?: Promise<RuntimeSubmissionResult>;
   result?: RuntimeSubmissionResult;
+  setupError?: ProjectGitWorktreeSetupError;
 };
 
 /** Owns submit-time resource identity, never canonical session or turn state. */
@@ -35,6 +39,7 @@ export class ComposerWorktreeSubmission {
   constructor(
     private dependencies: Dependencies = {
       readGit: readProjectGitStatus,
+      readEnvironment: readLocalEnvironmentSelection,
       createWorktree: createProjectGitWorktree,
       ensureWorkspace: ensureProjectWorkspace,
     },
@@ -52,6 +57,8 @@ export class ComposerWorktreeSubmission {
     ]);
     let entry = this.entries.get(key);
     if (entry?.pending) return entry.pending;
+    if (entry?.setupError)
+      return Promise.resolve({ kind: "rejected", error: entry.setupError });
     if (entry?.result && entry.result.kind !== "rejected")
       return Promise.resolve(entry.result);
     if (!entry) {
@@ -76,11 +83,16 @@ export class ComposerWorktreeSubmission {
           requireCurrent();
           if (!git.hasGitRepository)
             throw new Error("Worktree requires a Git repository");
+          const localEnvironmentConfigPath =
+            await this.dependencies.readEnvironment(request.sourceWorkingDir);
+          requireCurrent();
           creating = true;
           const worktree = await this.dependencies.createWorktree(
             request.sourceWorkingDir,
-            undefined,
-            git.currentBranch ?? undefined,
+            {
+              baseBranch: git.currentBranch ?? undefined,
+              localEnvironmentConfigPath,
+            },
           );
           target.path = normalizeExecutionDirectory(worktree.worktreePath);
           creating = false;
@@ -117,6 +129,11 @@ export class ComposerWorktreeSubmission {
           return { kind: "unknown" } as const;
         return result;
       } catch (error) {
+        if (creating && error instanceof ProjectGitWorktreeSetupError) {
+          target.path = normalizeExecutionDirectory(error.worktreePath);
+          target.setupError = error;
+          return { kind: "rejected", error } as const;
+        }
         // The current Git producer may add a checkout before its response fails.
         // Without a confirmed identity, repeating creation or submission is unsafe.
         return creating || submitting

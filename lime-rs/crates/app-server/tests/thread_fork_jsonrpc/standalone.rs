@@ -48,6 +48,11 @@ async fn standalone_history(source_wire: Wire, wire: Wire) {
         json!([{"type":"text","text":"standalone source"}]),
     )
     .await;
+    // Direct requests bypass transport teardown. Stop the source session and
+    // flush its writers before taking a standalone copy or deleting its home.
+    app_server::run_json_lines(server, tokio::io::empty(), tokio::io::sink())
+        .await
+        .unwrap();
     let relative: String = Connection::open(&db)
         .unwrap()
         .query_row(
@@ -65,7 +70,6 @@ async fn standalone_history(source_wire: Wire, wire: Wire) {
         zstd::stream::encode_all(bytes.as_slice(), 3).unwrap(),
     )
     .unwrap();
-    drop(server);
     // Drop the entire source tree: no database, EventLog, sidecar or loaded session is reachable.
     source_home.close().unwrap();
 
@@ -103,7 +107,9 @@ async fn standalone_history(source_wire: Wire, wire: Wire) {
         let server = if ephemeral {
             (server, target)
         } else {
-            drop(server);
+            app_server::run_json_lines(server, tokio::io::empty(), tokio::io::sink())
+                .await
+                .unwrap();
             let server = AppServer::with_runtime(make_runtime());
             initialize(&server, 5).await;
             request(&server, 6, METHOD_THREAD_RESUME, json!({"threadId":target})).await;

@@ -14,9 +14,11 @@ import type {
   PersistedDraftIndexItem,
 } from "../src/lib/api/persistedAtomTypes";
 import {
+  LOCAL_ENV_SELECTIONS_ATOM_KEY,
   PERSISTED_BOOLEAN_ATOM_KEYS,
   type PersistedBooleanAtomKey,
 } from "../src/lib/api/persistedAtomTypes";
+import { parseLocalEnvironmentSelections } from "../src/lib/api/localEnvironmentSelectionProtocol";
 
 export const COMPOSER_ATOM_KEY = "composer-drafts-v1" as const;
 
@@ -335,7 +337,7 @@ export function parseEnvelope(
   const atoms = exactRecord(
     envelope.atoms,
     [COMPOSER_ATOM_KEY],
-    PERSISTED_BOOLEAN_ATOM_KEYS,
+    [...PERSISTED_BOOLEAN_ATOM_KEYS, LOCAL_ENV_SELECTIONS_ATOM_KEY],
   );
   const booleans: Partial<Record<PersistedBooleanAtomKey, boolean>> = {};
   for (const key of PERSISTED_BOOLEAN_ATOM_KEYS) {
@@ -402,6 +404,14 @@ export function parseEnvelope(
     atoms: {
       [COMPOSER_ATOM_KEY]: { entries, bindings },
       ...booleans,
+      ...(Object.hasOwn(atoms, LOCAL_ENV_SELECTIONS_ATOM_KEY)
+        ? {
+            [LOCAL_ENV_SELECTIONS_ATOM_KEY]: parseLocalEnvironmentSelections(
+              atoms[LOCAL_ENV_SELECTIONS_ATOM_KEY],
+              limits.maxBindings,
+            ),
+          }
+        : {}),
     },
   };
 }

@@ -107,7 +107,9 @@ function buildStreamingProcessSummary(
     const toolCalls = toolEntries.map((entry) => entry.toolCall);
     const families = new Set(
       toolCalls.map(
-        (toolCall) => getToolDisplayInfo(toolCall.name, toolCall.status).family,
+        (toolCall) =>
+          getToolDisplayInfo(toolCall.name, toolCall.status, toolCall.metadata)
+            .family,
       ),
     );
     if (families.size === 1) {

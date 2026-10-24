@@ -153,9 +153,14 @@ export function shouldRenderResultAsCodeBlock(params: {
 
   const normalizedName = normalizeToolNameKeyFromInfo(toolCall.name);
   if (
-    normalizedName.includes("bash") ||
-    normalizedName.includes("shell") ||
-    normalizedName.includes("exec")
+    getToolDisplayInfoFromInfo(
+      toolCall.name,
+      toolCall.status,
+      toolCall.metadata,
+    ).family !== "browser" &&
+    (normalizedName.includes("bash") ||
+      normalizedName.includes("shell") ||
+      normalizedName.includes("exec"))
   ) {
     return true;
   }
@@ -172,8 +177,11 @@ export function buildRenderedToolResultContent(params: {
 }): string {
   const { toolCall, filePath, resultPath, emptyOutputLabel } = params;
   const content =
-    getToolDisplayInfoFromInfo(toolCall.name, toolCall.status).family ===
-    "command"
+    getToolDisplayInfoFromInfo(
+      toolCall.name,
+      toolCall.status,
+      toolCall.metadata,
+    ).family === "command"
       ? stripTerminalControlSequences(params.content)
       : params.content;
   if (!content.trim() || content === emptyOutputLabel) {
@@ -258,7 +266,11 @@ export function resolveToolGroupKey(toolCall: ToolCallState): string {
     return "search";
   }
 
-  const info = getToolDisplayInfoFromInfo(toolCall.name, toolCall.status);
+  const info = getToolDisplayInfoFromInfo(
+    toolCall.name,
+    toolCall.status,
+    toolCall.metadata,
+  );
   return `${info.groupTitle}:${toolCall.status}`;
 }
 
@@ -272,8 +284,12 @@ export function buildToolGroupPreview(
       const args = parseToolCallArgumentsFromInfo(toolCall.arguments);
       const filePath = resolveToolFilePathFromInfo(args);
       return (
-        resolveToolPrimarySubjectFromInfo(toolCall.name, args, filePath) ||
-        toolCall.name
+        resolveToolPrimarySubjectFromInfo(
+          toolCall.name,
+          args,
+          filePath,
+          toolCall.metadata,
+        ) || toolCall.name
       );
     })
     .filter(Boolean);

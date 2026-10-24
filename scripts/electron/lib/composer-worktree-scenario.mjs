@@ -25,11 +25,13 @@ import {
   assertWorktreeSubmission,
   assertWorktreeTraceContinuity,
   readWorktreeWorkspace,
+  worktreeTraceRequests,
 } from "./composer-worktree-evidence.mjs";
 import { isObservedPreloadAppServerResponse } from "./mcp-config-fixture-evidence.mjs";
 import {
   createComposerWorktreeGit,
   readComposerWorktreeGit,
+  readComposerWorktreeEnvironment,
 } from "./composer-worktree-git.mjs";
 
 /** Serialized read-only DOM projection; no controller or store injection. */
@@ -50,6 +52,11 @@ export function readWorktreeSurfaceDom() {
       visible(node) &&
       node.querySelector('[data-testid="composer-utility-mode"]'),
   );
+  const toolbars = Array.from(
+    document.querySelectorAll('[data-testid="task-center-utility-toolbar"]'),
+  ).filter(visible);
+  const current =
+    bars.length === 1 ? bars[0] : toolbars.length === 1 ? toolbars[0] : null;
   return {
     electron: window.__LIME_ELECTRON__ === true,
     preload: typeof window.electronAPI?.invoke === "function",
@@ -58,9 +65,10 @@ export function readWorktreeSurfaceDom() {
     disabled:
       !editors[0] || editors[0].getAttribute("contenteditable") !== "true",
     workspaceId:
-      bars.length === 1 ? bars[0].getAttribute("data-project-id") : null,
-    rootPath:
-      bars.length === 1 ? bars[0].getAttribute("data-workspace-root") : null,
+      current?.getAttribute("data-workspace-id") ||
+      current?.getAttribute("data-project-id") ||
+      null,
+    rootPath: current?.getAttribute("data-workspace-root") || null,
     gitReady:
       bars.length === 1 && bars[0].getAttribute("data-git-status") === "ready",
     userMessageCount: Array.from(
@@ -183,10 +191,86 @@ async function backend(context) {
     .map((line) => JSON.parse(line));
 }
 
+async function readEnvironmentSelection(context) {
+  return (
+    await context.modules.atom.observePersistedAtomCommand(
+      context.page,
+      context.protocol,
+      "persisted_atom_read",
+      {
+        key: "local-env-selections-by-workspace",
+        query: { kind: "selections" },
+      },
+      { timeoutMs: context.options.timeoutMs },
+    )
+  ).result;
+}
+
+async function chooseEnvironment(
+  context,
+  workspace,
+  configPath,
+  screenshotPath,
+) {
+  const trigger = bar(context).getByTestId("worktree-environment-trigger");
+  const key = `local:${workspace.rootPath}`;
+  const saved = (expected) =>
+    wait(
+      context,
+      () => readEnvironmentSelection(context),
+      (value) =>
+        value.outcome === "ready" &&
+        value.persistence.state === "saved" &&
+        (expected === undefined
+          ? !Object.hasOwn(value.data.selections, key)
+          : value.data.selections[key] === expected),
+      "Host saves the GUI environment preference without confusing missing and null",
+    );
+  await saved(undefined);
+  await trigger.click();
+  const menu = context.page.getByTestId("worktree-environment-menu");
+  await menu.locator('[cmdk-item][data-value="no-environment"]').click();
+  await saved(null);
+  await trigger.click();
+  await menu.locator('[cmdk-item][data-value="reset-selection"]').click();
+  await saved(undefined);
+  await trigger.click();
+  await menu.getByRole("combobox").fill("GUI environment");
+  await menu
+    .locator("[data-config-path]")
+    .filter({ hasText: "GUI environment fixture" })
+    .click();
+  await saved(configPath);
+  await trigger.click();
+  const selected = menu.locator('[data-config-path][aria-current="true"]');
+  await selected.waitFor();
+  const metrics = await selected.evaluate((node) => ({
+    fontSize: getComputedStyle(node).fontSize,
+    menuWidth: node
+      .closest('[data-testid="worktree-environment-menu"]')
+      .getBoundingClientRect().width,
+  }));
+  requireDraftProof(
+    metrics.fontSize === "13px" && Math.abs(metrics.menuWidth - 256) <= 1,
+    "environment menu has 13px entries and 256px width",
+  );
+  await context.page.screenshot({
+    path: screenshotPath,
+    animations: "disabled",
+  });
+  await context.page.keyboard.press("Escape");
+  return {
+    explicitNoneSaved: true,
+    resetDeletesRecord: true,
+    chosenByGui: true,
+    metrics,
+  };
+}
+
 export const worktreeSubmissionScenario = {
   id: "worktree-first-send",
   scope:
-    "staged Worktree selection, real detached Git creation on first Send, canonical target identity, accepted rich draft promotion and normal cold restore",
+    "GUI environment selection, staged Worktree, real setup and detached Git creation on first Send, canonical target identity, accepted rich draft promotion and normal cold restore",
   generationCount: 2,
   sourcePaths: [
     "scripts/electron/composer-worktree-gate-b.mjs",
@@ -197,6 +281,25 @@ export const worktreeSubmissionScenario = {
     "scripts/electron/lib/composer-first-send-evidence.mjs",
     "scripts/agent-runtime/claw-chat-current-fixture-rich-input-evidence.mjs",
     "scripts/agent-runtime/claw-chat-current-fixture-skill-identity.mjs",
+    "src/components/agent/chat/components/WorktreeEnvironmentDropdown.tsx",
+    "src/components/agent/chat/components/Inputbar/components/ComposerUtilityBar.tsx",
+    "src/hooks/useLocalEnvironmentSelection.ts",
+    "src/lib/api/localEnvironmentSelection.ts",
+    "src/lib/localEnvironmentSelection.ts",
+    "src/lib/api/localEnvironmentSelectionProtocol.ts",
+    "src/lib/api/persistedAtoms.ts",
+    "src/lib/api/persistedAtomProtocol.ts",
+    "src/lib/api/persistedAtomTypes.ts",
+    "electron/persistedAtomHost.ts",
+    "electron/persistedAtomStore.ts",
+    "electron/persistedAtomRecords.ts",
+    "src/lib/api/projectGit.ts",
+    "src/components/agent/chat/workspace/composerWorktreeSubmission.ts",
+    "src/components/agent/chat/workspace/useWorkspaceSendActions.ts",
+    "src/components/agent/chat/workspace/worktreeSetupRecovery.ts",
+    "lime-rs/crates/app-server/src/runtime/local_environments/lifecycle.rs",
+    "lime-rs/crates/app-server/src/runtime/project_git.rs",
+    "lime-rs/crates/app-server/src/processor/project_git.rs",
   ],
   limitations: [
     "Controlled external provider only; real Git/filesystem/IPC/JSON-RPC/read model are never replaced.",
@@ -223,6 +326,23 @@ export const worktreeSubmissionScenario = {
     requireDraftProof(
       workspace?.id && workspace.rootPath === sourceGit.rootPath,
       "real source Workspace identity",
+    );
+    const configPath = path.join(
+      workspace.rootPath,
+      ".codex",
+      "environments",
+      "environment.toml",
+    );
+    const configRaw =
+      'version = 1\nname = "GUI environment fixture"\n[setup]\nscript = "echo environment-fixture>local-environment-setup.txt"\n';
+    const config = await rpc(context, "localEnvironments/saveConfig", {
+      configPath,
+      expectedRevision: null,
+      raw: configRaw,
+    });
+    requireDraftProof(
+      config.result.type === "success",
+      "current public owner creates the fixture environment",
     );
     await publicSource(context, workspace);
     const record = {
@@ -317,6 +437,17 @@ export const worktreeSubmissionScenario = {
         selected,
       }),
     );
+    fixture.setPhase("native-environment-none-reset-selection-and-menu");
+    const environmentSelection = await chooseEnvironment(
+      context,
+      workspace,
+      configPath,
+      path.join(
+        fixture.options.evidenceDir,
+        fixture.options.runId,
+        "worktree-environment-menu.png",
+      ),
+    );
     fixture.setPhase("two-real-send-clicks-and-canonical-target-acceptance");
     const send = context.modules.drafts
       .editor(context, record)
@@ -345,20 +476,27 @@ export const worktreeSubmissionScenario = {
       marker,
       expected.pasteText,
     ]);
-    const targetResponse = await rpc(context, "workspace/read", {
-      id: acceptedThread.projectId,
+    const targetResponse = await rpc(context, "workspace/byPath/read", {
+      rootPath: acceptedThread.cwd,
     });
     const target = readWorktreeWorkspace(targetResponse.result);
-    await wait(
-      context,
-      () => context.page.evaluate(readWorktreeSurfaceDom),
-      (value) =>
-        value.sessionId === receipt.sessionId &&
-        value.workspaceId === target?.id &&
-        value.rootPath === target?.rootPath &&
-        value.userMessageCount === 1,
-      "accepted current navigation commits target Composer and visible user message",
-    );
+    try {
+      await wait(
+        context,
+        () => context.page.evaluate(readWorktreeSurfaceDom),
+        (value) =>
+          value.sessionId === receipt.sessionId &&
+          value.workspaceId === target?.id &&
+          value.rootPath === target?.rootPath &&
+          value.userMessageCount === 1,
+        "accepted current navigation commits target Composer and visible user message",
+      );
+    } catch (error) {
+      throw new Error(
+        `${error.message}; expected=${JSON.stringify({ sessionId: receipt.sessionId, workspaceId: target?.id, rootPath: target?.rootPath, userMessageCount: 1 })}; actual=${JSON.stringify(await context.page.evaluate(readWorktreeSurfaceDom))}`,
+        { cause: error },
+      );
+    }
     await wait(
       context,
       () => context.modules.drafts.readScope(context, source.sourceScope),
@@ -391,6 +529,25 @@ export const worktreeSubmissionScenario = {
       uri: source.resources.image.canonicalUrl,
     });
     const trace = await context.captureTrace();
+    const creates = worktreeTraceRequests(trace).filter(
+      (request) => request.method === "projectGit/worktree/create",
+    );
+    requireDraftProof(
+      creates.length === 1 &&
+        creates[0].params.localEnvironmentConfigPath === configPath,
+      "GUI choice reaches the real worktree create request",
+    );
+    const environment = await readComposerWorktreeEnvironment(target.rootPath);
+    requireDraftProof(
+      environment.setupMarker && environment.configRaw === configRaw,
+      "actual setup runs in the target worktree and persists its selected config",
+    );
+    fixture.recordStage("gui-environment-selection-and-real-setup", {
+      ...environmentSelection,
+      setupMarker: environment.setupMarker,
+      setupMarkerSha256: environment.setupMarkerSha256,
+      configPath: environment.configPath,
+    });
     assertWorktreeTraceContinuity(stagedTrace, trace);
     const richInput = summarizeRichInputSubmission({
       traceRaw: JSON.stringify(trace.entries),
@@ -491,6 +648,20 @@ export const worktreeSubmissionScenario = {
     );
     await fixture.quit();
     context = await fixture.launch(2);
+    const coldSelection = await readEnvironmentSelection(context);
+    requireDraftProof(
+      coldSelection.data.selections[`local:${workspace.rootPath}`] ===
+        configPath,
+      "normal cold restart retains the source environment selection",
+    );
+    const coldEnvironment = await readComposerWorktreeEnvironment(
+      target.rootPath,
+    );
+    requireDraftProof(
+      coldEnvironment.setupMarkerSha256 === environment.setupMarkerSha256 &&
+        coldEnvironment.configRaw === configRaw,
+      "cold restore keeps the setup artifact and actual worktree environment",
+    );
     fixture.setPhase("normal-cold-restore-without-worktree-or-turn-replay");
     await context.modules.drafts.openRecord(context, local);
     const restored = await context.modules.drafts.waitSaved(context, local);

@@ -1,4 +1,5 @@
 import { normalizeLegacyToolSurfaceName } from "@/lib/api/agentTextNormalization";
+import { resolveToolDisplayName } from "./toolDisplayName";
 import type { AgentToolCallState as ToolCallState } from "@/lib/api/agentProtocol";
 import { extractArtifactProtocolPathsFromValue } from "@/lib/artifact-protocol";
 import {
@@ -260,7 +261,9 @@ export const resolveToolPrimarySubject = (
   toolName: string,
   args: Record<string, ToolCallArgumentValue>,
   filePath?: string | null,
+  metadata?: unknown,
 ): string | null => {
+  toolName = resolveToolDisplayName(toolName, metadata);
   const normalizedName = normalizeToolNameKey(toolName);
 
   if (filePath) return getFileName(filePath);

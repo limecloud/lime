@@ -11,8 +11,119 @@ const unavailable = () =>
   new Error(
     "Failed to staple your application with code: 68\nError Domain=NSURLErrorDomain Code=-1005\nCloudKit's response is inconsistent with expections: (null)",
   );
+const submissionId = "5250eab6-e2cf-48a6-854e-3dcc1019eb94";
+const pollingTimeout = () =>
+  new Error(
+    `Failed to notarize via notarytool. HTTPError(statusCode: nil, Error Domain=NSURLErrorDomain Code=-1001 "The request timed out." https://appstoreconnect.apple.com/notary/v2/submissions/${submissionId}?)`,
+  );
 
 describe("macOS notarization ticket delivery", () => {
+  it("resumes the timed-out Apple submission and staples only after acceptance", async () => {
+    const notarizeImpl = vi.fn().mockRejectedValue(pollingTimeout());
+    const runImpl = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("NSURLErrorDomain Code=-1001"))
+      .mockResolvedValueOnce({
+        stdout: JSON.stringify({ id: submissionId, status: "Accepted" }),
+      })
+      .mockResolvedValue({});
+    const sleep = vi.fn().mockResolvedValue();
+    await notarizeMacApp(appPath, credentials, {
+      notarizeImpl,
+      runImpl,
+      sleep,
+      log: vi.fn(),
+    });
+    expect(notarizeImpl).toHaveBeenCalledTimes(1);
+    expect(runImpl.mock.calls.slice(0, 2).map(([, args]) => args)).toEqual([
+      [
+        "notarytool",
+        "wait",
+        submissionId,
+        "--apple-id",
+        credentials.appleId,
+        "--password",
+        credentials.appleIdPassword,
+        "--team-id",
+        credentials.teamId,
+        "--output-format",
+        "json",
+        "--timeout",
+        "5m",
+      ],
+      [
+        "notarytool",
+        "wait",
+        submissionId,
+        "--apple-id",
+        credentials.appleId,
+        "--password",
+        credentials.appleIdPassword,
+        "--team-id",
+        credentials.teamId,
+        "--output-format",
+        "json",
+        "--timeout",
+        "5m",
+      ],
+    ]);
+    expect(sleep).toHaveBeenCalledWith(15_000);
+    expect(runImpl.mock.calls.slice(2).map(([, args]) => args)).toEqual([
+      ["stapler", "staple", "-v", appPath],
+      ["stapler", "validate", appPath],
+    ]);
+  });
+
+  it.each([
+    { id: submissionId, status: "Invalid" },
+    { id: submissionId, status: "In Progress" },
+    { id: "foreign-submission", status: "Accepted" },
+  ])("rejects an unaccepted or foreign submission: %j", async (response) => {
+    const runImpl = vi
+      .fn()
+      .mockResolvedValue({ stdout: JSON.stringify(response) });
+    await expect(
+      notarizeMacApp(appPath, credentials, {
+        notarizeImpl: vi.fn().mockRejectedValue(pollingTimeout()),
+        runImpl,
+      }),
+    ).rejects.toThrow("was not Accepted");
+    expect(runImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it("bounds status retries and redacts credentials from native errors", async () => {
+    const runImpl = vi
+      .fn()
+      .mockRejectedValue(
+        new Error(
+          `Command failed: xcrun --apple-id ${credentials.appleId} --password ${credentials.appleIdPassword} --team-id ${credentials.teamId}: NSURLErrorDomain Code=-1001`,
+        ),
+      );
+    const failure = await notarizeMacApp(appPath, credentials, {
+      notarizeImpl: vi.fn().mockRejectedValue(pollingTimeout()),
+      runImpl,
+      sleep: vi.fn().mockResolvedValue(),
+      log: vi.fn(),
+    }).catch((error) => error);
+    expect(failure).toBeInstanceOf(Error);
+    expect(failure.message).toContain("NSURLErrorDomain");
+    for (const secret of Object.values(credentials))
+      expect(failure.message).not.toContain(secret);
+    expect(runImpl).toHaveBeenCalledTimes(6);
+  });
+
+  it("fails without resubmitting when a timeout has no known Apple submission", async () => {
+    const notarizeImpl = vi
+      .fn()
+      .mockRejectedValue(new Error("NSURLErrorDomain Code=-1001"));
+    const runImpl = vi.fn();
+    await expect(
+      notarizeMacApp(appPath, credentials, { notarizeImpl, runImpl }),
+    ).rejects.toThrow("NSURLErrorDomain");
+    expect(notarizeImpl).toHaveBeenCalledTimes(1);
+    expect(runImpl).not.toHaveBeenCalled();
+  });
+
   it("retries the same accepted bundle and validates its ticket without resubmitting", async () => {
     const notarizeImpl = vi.fn().mockRejectedValue(unavailable());
     const runImpl = vi

@@ -16,6 +16,8 @@ import {
   type ProjectGitStatus,
 } from "@/lib/api/projectGit";
 import { ensureProjectWorkspace } from "@/lib/api/project";
+import { readLocalEnvironmentSelection } from "@/lib/api/localEnvironmentSelection";
+import { worktreeSetupErrorOptions } from "../workspace/worktreeSetupRecovery";
 import { cn } from "@/lib/utils";
 import { agentText } from "./harnessPanelText";
 import type { AgentSessionExecutionRuntime } from "@/lib/api/agentExecutionRuntime";
@@ -41,6 +43,7 @@ import { markProjectOpened } from "../hooks/agentProjectStorage";
 import { hydrateAgentPlanState } from "../utils/planState";
 
 interface TaskCenterUtilityToolbarProps {
+  workspaceId?: string | null;
   projectRootPath?: string | null;
   onProjectChange?: (projectId: string | null) => void;
   taskRail?: {
@@ -183,6 +186,7 @@ function useProjectGitStatus(rootPath?: string | null) {
 }
 
 export function TaskCenterUtilityToolbar({
+  workspaceId,
   projectRootPath,
   onProjectChange,
   taskRail,
@@ -246,10 +250,15 @@ export function TaskCenterUtilityToolbar({
       return;
     }
     try {
+      const localEnvironmentConfigPath = await readLocalEnvironmentSelection(
+        normalizedProjectRootPath,
+      );
       const worktree = await createProjectGitWorktree(
         normalizedProjectRootPath,
-        undefined,
-        status?.currentBranch ?? undefined,
+        {
+          baseBranch: status?.currentBranch ?? undefined,
+          localEnvironmentConfigPath,
+        },
       );
       const project = await ensureProjectWorkspace({
         name: resolveWorktreeName(worktree.worktreePath) || "Worktree",
@@ -271,9 +280,14 @@ export function TaskCenterUtilityToolbar({
           "创建工作树失败：{{message}}",
           { message: extractErrorMessage(createError) },
         ),
+        worktreeSetupErrorOptions(
+          createError,
+          t("agentChat.navbar.appSwitcher.openWorktree"),
+          onProjectChange,
+        ),
       );
     }
-  }, [normalizedProjectRootPath, onProjectChange, status?.currentBranch]);
+  }, [normalizedProjectRootPath, onProjectChange, status?.currentBranch, t]);
 
   const branchLabel =
     status?.currentBranch?.trim() ||
@@ -377,6 +391,8 @@ export function TaskCenterUtilityToolbar({
       )}
       data-testid="task-center-utility-toolbar"
       data-placement={placement}
+      data-workspace-id={workspaceId}
+      data-workspace-root={normalizedProjectRootPath}
     >
       <div
         className={toolGroupClassName}

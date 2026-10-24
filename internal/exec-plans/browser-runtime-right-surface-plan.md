@@ -1,6 +1,62 @@
 # Codex 会话内置浏览器复刻执行计划
 
-更新时间：2026-10-24
+更新时间：2026-10-25
+
+### G10 续行：父子 CDP 会话撤销（2026-10-25，子链验证通过；完整事件transport未完成）
+
+- 最小交付：沿原`BrowserCdpSessions`消费debugger message第四参数，父frame会话断开/重映射时清理全部后代，旧父会话的迟到attach不能恢复子控制权。完整外部native pipe transport仍未实施，此刀不新增客户端、轮询、广播、RPC/IPC或后端。
+- 原件依据复用`cdp-execution-20261024/reference/target-session-methods.json`及`cdp-events-20261024/reference-transport.json`，版本、成员SHA和REA Evidence相同；第四参数是原件可确认的session来源。父子撤销是Lime既有turn-owned权限约束所需适配，不冒充原件已观察行为或上游类型命名。公开Codex源码无Desktop此owner，复用先前限定搜索结论。
+- 窄写集：`electron/browserCdpSessions.ts`、新`electron/browserCdpSessionEvents.test.ts`、本计划与`cdp-session-events-20261025/`专属证据；沿用前轮已认领owner，仅扩展原生临时映射职责。BrowserTabHost、catalog、协议、Rust、五语设置、本地环境、发布只读，不夹写共享热区。
+- Verification Contract：root/P1/budget:normal。输入为同tab当前attach代的原生flattened Target事件，结果为同一resolveTarget/sendDebuggerCommand拒绝过期后代；无独立authority或持久化。先保存父detach/重映射/迟到事件红测，再验证多级树、兄弟隔离、source session来源、初始化与终态清理和既有Host回归。真实native session场景与GUI运行证据另验，受默认冻结Rust重建失败限制须明确报告，不能称完整transport或完整G10通过。
+- 架构影响minor：既有Host内临时DebuggerListener映射增加父子关系，数据流及跨层合同无变化；root于2026-10-25确认，不需要修改共享架构图或新owner。KISS/DRY/SOLID：在原映射owner统一撤销，Host保持委托，避免第二套会话树/状态机。
+- 窄写集扩展：新增test-only `scripts/agent-runtime/browser-cdp-session-events-native.mjs`，从原目录当前`BrowserCdpSessions`打包后在隔离Electron/Profile中加载真实三层跨站frame，验证原生第四参数、父detach、后代拒绝与兄弟继续执行。仅native owner integration，不冒充GUI/审批/RuntimeCore Gate B；完整主链继续复用既有CDP专项。首轮5项红测全部复现；补充回归首次因旧harness没有`debugger.listeners()`而1失败/110通过，已改用on注册观察，不修改产品或harness迎合测试。
+- 最终结果：当前owner实现父detach/重映射级联撤销、过期来源拒绝、兄弟隔离、重复attach保持和循环拒绝；统一清理全部后代后再触发原snapshot/approval失效。7文件111/111、Electron类型/限定lint/格式/scripts/docs检查通过。真实Electron42.3.3/Chromium148.0.7778.218在相同三层跨站fixture中，冻结修复前owner于5项后精确失败`descendant-session-revoked`；最终原目录owner12/12通过。原生只发父detach事件，证实缺陷并非测试假设，后代旧命令在进入native前被拒绝，兄弟可继续实际执行。
+- 当前字节复验：真实Electron/preload/IPC/App Server/RuntimeCore与同一canonical工具历史专项137/137、exit0、41次本地scripted provider请求；GUI运行段24/24、exit0、三个viewport，使用重新构建的Renderer/Host及显式复用的未改App Server二进制。默认`verify:gui-smoke`源码重建及`verify:local`先前共享Rust/worktree阻塞仍保留，不借运行段改判聚合通过；未改公共命令/schema或Rust，不重复无输入变化的contracts/current-fixture聚合。
+- 收口：`cdp-session-events-20261025/verification.json`、source-final/process-final与实际两张Renderer图审阅均落仓内证据；10660个冻结源与3个原目录输入零漂移，重建Host与复用侧车的SHA分别保存。原生owner12项、主链137项和GUI24项分层报告不混计；右侧WCV不包含在Renderer截图中，不将空白区域作为完整网页视觉证据。current为原映射owner，新增回归/probe与冻结为test-only；无新增compat/deprecated、dead恢复或产品删除。完整G01–G12仍0/12（完整验收组，非实现百分比）；持久事件transport、完整UI/UX/企业网络策略、原生引擎服务和双平台包仍待完成，不重复询问此前待答的工具链条件。
+- 依赖补齐续验：只读检查发现并行原目录的`runtime/service_projection.rs`已经补齐两项协议字段，旧冻结树缺失不等于当前源码仍有同一错误。未改该文件，只将其原目录现有字节作为明确只读依赖，另建`frozen-source-v2.json`与新验证快照，再跑默认源码构建；原v1/旧失败与复用二进制证据全部保留。新快照不用于开发或回写，新Rust二进制须另记SHA并复验主链后才可收口。
+- v2源码构建仍退出1/cargo101，原因是原冻结services的`ProjectGitStatus`也没有同批两个字段，已保留`gui-smoke-rebuilt.log`。先核对原目录完整依赖链，确认仅为既有project_git_service字段与read_status拆至status模块，再只读冻结同owner的root/status/status测试（连同投影共4份依赖），另建v3快照，不修改任何Rust源码；不能把依赖选择不足当成当前原目录编译缺陷，也不以本切片冒领并行worktree功能。
+- v3最终收口：完整`npm run verify:gui-smoke`退出0、24/24，run `standalone-shell-01-20261024165133-50941`；从源码重建Renderer/Host、App Server与code-mode侧车，没有APP_SERVER_BIN覆盖。新App Server SHA256=`3a5896cb1fa0943fed5d726201025a5965e86ca489a54c9c084b21940fe508ed`，随后显式使用该新资产再次通过CDP主链137/137、41次scripted provider请求、IPC错误/mock均零（`native-rebuilt-v3/summary.json`），不借此前旧二进制结算。10662冻结源、3份本轮输入、4份只读依赖及Cargo父配置核对均零漂移，source-final-v3/process-final-v3与两张实际原图审阅已记录。旧v1/v2构建失败、旧复用二进制结果仍保留；它们不再是本切片当前GUI构建阻塞。完整共享树`verify:local`此前44/148失败未重跑，不宣称全仓全绿；完整产品0/12及未完成项不变。
+
+### G10 续行：browser namespace 的工具展示与事件合同（2026-10-24 至 2026-10-25，子链通过；默认构建受阻）
+
+- 2026-10-25 续验：最终 native-v5 已退出0、137/137，冻结产品Renderer类型与14文件223/223回归通过。正式GUI smoke默认构建路径退出1：冻结Rust的`runtime/service_projection.rs`未包含并行协议新增的`is_worktree`、`local_environment_config_path`初始化，cargo退出101，尚未启动Electron；保留`cdp-events-20261024/gui-smoke.log`，不夹写Rust或更改冻结源。传APP_SERVER_BIN再跑完整命令仍被资产准备主动剥离变量并强制Rust构建，失败保留。已构建的Renderer/Host另以`node scripts/electron/smoke.mjs`及显式原侧车通过24/24、exit0；这是运行段证据，不将默认命令改判通过。最终10658冻结文件/14原目录输入零漂移，原native与smoke同一二进制SHA及进程终态写入source-final/process-final；分类current展示、test-only回归，无新增compat/deprecated或删除。完整G01–G12仍0/12（分母为完整验收组，非实现百分比）。
+
+- 主目标仍为完整会话浏览器 UI/UX、企业策略、原生服务及双平台打包，完整 G01–G12 保持未验收。本刀修复上轮真实 Electron 暴露的 `attachTarget` 原名和 `executeCdpCommand` 误归终端问题，不以此替代完整 UI/UX。
+- 窄写集：chat/utils 的 toolDisplayName、toolDisplayInfo、toolDisplaySubject、toolDisplayConfig/browser、toolProcessSummary；ToolCallDisplay、InlineToolProcessStep、ToolCallDisplayViewModel、StreamingProcessGroup、StreamingWebSearchProcessTimeline 仅接 metadata；独立回归、既有 CDP 场景的展示断言、本计划与专属证据。协议/canonical reader/Host 只读，通用设置、五语 agent/settings、本地环境、Rust 与发布避让。超大组件只增加参数委托，业务逻辑留在短纯 helper/原展示 owner。
+- Verification Contract：root，budget:normal/P1。原 turn/start → RuntimeCore dynamicToolCall → canonical item 的 namespace/canonical_type → 同一 toolCall 的流式/历史/分组展示。仅展示构造 scoped name，wire/tool_name、审批、执行和持久化保持原语义；其他 namespace 同名不得被吞并。失败保留原工具结果与诊断详情，不增加 mock fallback。App Server/IPC 无变化，因此不新增协议或重跑无输入变化的 Rust；当前 GUI 主路径需定向回归、类型/lint/格式、正式 GUI smoke 与真实 CDP 场景。
+- Happy Path/退出：browser 元数据下 attach/detach/CDP/read/fill/press 与明确 browser prefix 归浏览器；五语标签、动作、subject、分组、narrative 及流式/历史一致；其他 namespace 和无元数据维持既有展示，不改原 canonical 名称。Evidence Layers：deterministic=yes，GUI trace/runtime transcript=yes，release-artifact=no；证据分别保存，旧132/24通过不用于新 UI 字节。
+- 事件合同调查：参考原件 `sendCdpEvent`/`sendCdpDetach` 发 native pipe `onCDPEvent`/`onCDPDetach`，payload 为 `{source:{tabId,sessionId?,targetId?},method,params?}`，第四个 debugger message 参数承载 sessionId；add/emit listeners 与 dispose 成对。完整外部 transport 仍需可信持久客户端、同回合授权绑定、断线撤权及 native pipe 生命周期；当前 dynamic tool 请求/返回不能假装事件订阅，不新增轮询工具或向 Renderer 无授权广播。静态提取与 REA 记录于 cdp-events-20261024，不声明 transport 已实现。
+- 架构影响 none：唯一 presentation owner 消费现有 metadata，无新跨层 owner/协议/read model；root 2026-10-24 确认。KISS/DRY/SOLID：短纯函数集中 namespace 解释，各视图仅委托，复用既有五语文案。本轮无需 Supervisor/live provider；原生引擎和平台包仍受已登记构建条件限制，不重复询问待答信息。
+- 扩展窄写集：只读核对确认 toolBatchGrouping.ts 清洁后，补同一展示 helper 的批量摘要入口委托；830 行模块仅加 import/参数投影，不追加分类业务，后继拆分职责保持原 owner。本刀首轮真实场景因驱动未展开 canonical historical process 而空行超时；修正驱动操作现有回合预览与 details 控件，记录 expected/observed 身份，不能将失败追认为通过。
+
+- 当前结果：原目录展示 helper 与卡片/分组/流式/历史接线已完成，额外保留非 browser MCP execute 的既有代码详情启发式。累计去重14文件223项定向通过；初始Renderer/Node类型通过，最终主树Renderer被并行workspace wiring的executionScope/null类型错误阻断，最终冻结源类型另验。完整verify:local到44/148批被AppSidebar worktree mock缺ProjectGitWorktreeSetupError阻断，后继聚合未执行，不夹写。真实native-v4 exit0、137/137、9个GUI回合、41本地provider请求；完整DOM证实既有标题“已检查页面”的8步browser聚合，原“没有聚合”的推测已被否定。v1–v3驱动错误均保留；native-v5与正式GUI smoke须绑定最终MCP结果格式修正字节，不借用v4结算。
+
+### G10 续行：frame/session 与原生事件生命周期（2026-10-24，子链验证通过；完整 CDP 未完成）
+
+- 上轮为 progress：修复独立进程 iframe 归属并通过76项回归、真实八回合95项与GUI smoke24项。完整目标保持UI/UX、企业策略、原生服务及双平台打包，G01–G12仍未完整验收。
+- 公开Codex仓库本轮限定browser/CDP文件搜索仍无Desktop Host；复用同版本REA和成员hash，按已观察的 attachTarget/detachTarget、register/unregisterDebuggerListener、recordDebuggerTargetEvent、remember/forgetDebuggerTargetSession、sendDebuggerCommand 原名/职责接线，不把压缩变量或Lime适配类名冒称上游原名。
+- 窄写集：原目录新browserCdpSessions短模块、browserCdp/Targets及相关回归，原BrowserTabHost只增加字段/委托/生命周期清理，原动态工具registry增加参考同名attachTarget/detachTarget及target输入；harness与独立provider/native场景；本计划/architecture/commands与独立证据。Rust、配置、通用设置/五语settings、本地环境选择与发布只读。不新建Agent/分支/后端/IPC/调试端口/Profile。
+- Verification Contract：P1/normal，root。GUI turn → 原App Server dynamic tool → canonical单次action批准 → 同WebContents debugger。native事件映射仅属于该tab/当前attach代，sessionId与targetId须一致，frame目标每次执行重新证明当前原生祖先关系并检查实际origin策略。其他页/伪造session在任何frame执行前拒绝；attach与参数篡改、途中撤权/超时、detach事件、人工接管、turn终态/关闭/断线/崩溃清除映射与listener，迟到响应/事件不能复活。通用frame/context裸参数保持独立owner验收要求，不能绕过该target路径。
+- 先以Host integration保存红测，再测试native事件/跨tab隔离/撤权/迟到结果及旧CDP回归、types/contracts、真实Electron frame内mutation与双target选择、正式GUI smoke。事件在本刀用于native session生命周期；完整外部CDP事件transport及广泛命令域仍需独立接线，不以内部listener替代产品能力。Host与runner大文件仅加委托，退出条件为业务逻辑全部留在新短模块/独立fixture。
+- 架构影响minor：debugger session映射是原Host原生控制的临时状态，不是第二浏览器Session或授权authority；root在最终图与回归确认前不结算该切片。原生引擎构建条件未解除，不重复索要已待答基础设施信息，目标继续active。
+- 当前进展：初始化attach/Page.enable/DOM.enable失败的3项红测已证明原listener泄漏；现迁入短session owner及时清理，并以attach代保护旧初始化不能detach新代。新增native事件、pending批准重映射、跨tab隔离、原生祖先复验、超时迟到响应和non-pausing auto-attach回归；6文件101/101，加共享快照/权限/页面命令6文件95/95。首轮types因测试使用ES2024 Promise.withResolvers失败，检测到另一写者已改为ES2022 helper后停止写该测试并只读复验，最新types通过；contracts/lint/源码格式/scripts/docs/diff均通过。
+- 原目录所有产品实现完成后，冻结于仓内browser-cdp-sessions-1792853665139：已验证旧快照加17个原目录输入，排除其它并行改动。native-v1 exit0、132/132，9个canonical GUI回合、41次本地provider请求；实际跨站iframe按targetId mutation、按sessionId读取均为1，主框架始终0，detach后旧session失败且无新批准/side-effect，终态debugger/listener/pending均清理。mock/invoke/console/page/preload错误0；正式GUI smoke仍在构建，不提前结算。10655冻结文件与17个原输入零漂移，架构minor由root核对同一Host/route/approval/RuntimeCore owner。
+- 最终正式GUI smoke exit0、24/24，真实启动/重载/preload/IPC/App Server/设置/3种窗口尺寸通过，错误及mock/legacy命中0；native与smoke为顺序运行。新frame批准/完成两张Renderer截图已实际查看，BrowserWindow capture不合成child WCV，截图中的泛化tool标题/raw target结果也不计为完整Codex UI/UX；未更改只读消息列表。参考像素/主题/物理输入、更多CDP域与外部事件transport、WebMCP、原生服务/双平台packaged仍未验收。
+- current为既有Host内的短session owner和canonical browser工具接线，test-only为harness/provider/原生场景及证据；无新compat/deprecated/dead或产品删除。KISS/DRY/SOLID通过Host窄委托、共用原生初始化/清理、复用原审批与origin policy体现。全局默认门禁和current-fixture保留上刀实际失败（Node23 registerHooks及unknown-item App Server timeout），本刀不重复无输入变化的全量重跑、不以196项定向和两组真实证据替代整树/release。完整G01–G12仍0/12（完整验收0%，不是代码实现比例），goal active，下一刀接外部事件transport/剩余CDP合同和UI/原生服务。证据：[本刀README](artifacts/codex-in-app-browser-20261022/cdp-sessions-20261024/README.md)。
+
+### G10 续行：CDP Target 生命周期（2026-10-24，子链验证通过；完整 CDP 未完成）
+
+- 目标仍为完整 UI/UX、企业策略、原生服务及双平台打包。本刀接续已通过的主页面 CDP，复用同版本 REA `ev_ee3644f25fca281172c84ebaa3a3a517ff74fa37906bc5ff4d34f246ee8662f4` 中 `executeEmulatedTargetCommand`、`NG`、`PG` 的观察，不将压缩符号作为开发命名。
+- 窄写集：原目录 `browserCdp.ts`、新短模块 `browserCdpTargets.ts`、Host 的 target 上下文委托、动态工具描述、对应 deterministic/真实 Electron fixture，及本计划/architecture/commands/独立证据。Host 大文件仅组装原 route/关闭 owner，不增加目标 store、原生 Session、事件总线或第二执行器；Rust/config/protocol/并行发布只读。
+- Verification Contract：root，budget:normal/P1。同一 GUI turn → canonical action approval → 原 Host/debugger，目标 ID 对齐 `browser-use-iab-tab:${tabId}`；当前目标查询和关闭只接受该 ID，列表仅同 owner/window/thread/browserSession 的页签。原生 frame 目标必须与同一页面 frame tree 按 id/URL join，或由 native parentFrameId 链证明是该树的独立进程后代；未知或其他页面目标不投影。显式 session/context 选择仍不可用。关闭前重新读权限，终态沿原关闭流程，不对已删除 route 投影 state。
+- 验证：审批前拒绝跨目标、用户/管理员拒绝、token 篡改/重放、跨会话/窗口隔离、途中撤权、实际 frame 目标及关闭/原生销毁/后继拒绝；先定向回归，再 types/contracts、正式 GUI smoke 与对应真实 Electron。共享默认门禁/主链回归另记实际终态，不能用旧冻结证据覆盖新产品行为。
+- 架构影响 minor：复用唯一 Host/权限/route，新增模块只负责 Target 命令适配。完整 Target session/event、WebMCP、企业网络执行、原生服务与 macOS/Windows packaged 尚未完成；G01–G12 保持未验收。
+- 终态补记：Target 定向 5 文件 75/75、types/contracts/lint/scripts/docs 通过。首轮真实场景前五回合通过，新增夹具误读 `state.url` 导致 Target 用例未进入；已仅在原目录改为 canonical `state.address`。原目录后继两作业因共享构建输入变化，只终止自有进程树，exit143，不计通过。
+- 新冻结副本 `browser-cdp-targets-1792849064924` 的 10651 文件在恢复访问后复核零漂移，五个关键原目录产品/驱动也一致。前次冻结构建 exit1：Rollup 解析 `vscode-languageserver-textdocument` 失败，随后锁清理遭 EPERM，未进入八回合交互。恢复后依赖/link 实际存在，不改版本或绕过 Corepack 签名。确认旧 pid82828 已不存在后将遗留构建锁归档，正式续测实际结果见下述独立进程 iframe 失败与修复记录。
+- 共享门禁实际终态：`current-fixture-final.log` exit1，371 项定向通过后 unknown-item 出现启动 App Server IPC 30000ms timeout，后继 Coding Workbench/PTY 未执行；`verify-local-final.log` exit1，第48/149批因 Node23 缺 registerHooks 失败。现成 Node25复验为11通过/3项原5000ms超时，未放宽断言、改外部写集或宣称默认门禁全绿。
+- 恢复后的正式冻结构建已通过，`targets-frozen-resume-gate-b.log` exit1：原五回合和 Target info 成功，但 Target list 遗漏跨站 iframe，close 未执行。隔离 Electron42.3.3 原生探针证明 Page.getFrameTree 仅主框架，Target.getTargets 含 iframe 及指向主框架的 parentFrameId。原目录修复后按该原生祖先链扩展归属，禁止 URL-only、其他页签、无根循环与已知 id/URL 冲突；新回归先1失败/8通过，最终5文件76/76、types/lint通过。新冻结源为已验证旧快照加4个原目录文件，明确排除其它并行改动，用于下述 `targets-oopif-gate-b.log` 正式复验，不是整树 release。架构 minor 与唯一 owner 方向由 root 确认。
+- 最终 `targets-oopif-gate-b.log` exit0、95/95，8个canonical GUI回合、32次本地provider请求，真实IPC/config/RuntimeCore/tool/原生WebContents/GUI identity贯通，mock/invoke/console/page/preload错误0。当前目标不attach查询、实际跨站iframe列表、关闭原生销毁及GUI移除通过。正式 `targets-oopif-gui-smoke.log` 也exit0，覆盖启动/重载/设置及3窗口尺寸；不是live/物理输入/完整CDP/平台包。10651冻结源零漂移、12个产品/测试/驱动与原目录一致，相关进程0。
+- 收口分类：current为现有Host/权限/route及短Target适配；本地provider/native探针/fixture为test-only，无新compat/deprecated或第二后端。KISS/DRY/SOLID通过复用原关闭与策略owner、独立frame归属适配体现。contracts/docs及产品源码格式通过，三份长文档整文件格式检查在HEAD与当前均失败，保存基线，不进行无关重排。关闭审批/完成与撤权三图已查看，BrowserWindow PNG不合成child WCV，完整UI/UX不能据此结算。完整G01–G12仍0/12（完整验收0%，不是实现比例），原生构建入口问题未解除，goal active。下一刀为已取证的frame/session/事件生命周期及撤权，继续原目录实现。
 
 ### G10/S18 续行：CDP 执行接线（2026-10-24，实施中）
 

@@ -57,7 +57,7 @@ export function useAgentChatWorkspaceCommandRuntime({
     t, untitledTaskLabel, normalizedEntryTheme, defaultTopicSidebarVisible, shouldBootstrapCanvasOnEntry,
     shouldKeepNewTaskHomeSessionRestoreDisabled, localDisplayRuntime, activeTheme, layoutMode, runtimeInitialInputCapability, setCanvasWorkbenchLayoutMode, setEntryBannerVisible, setExpertInfoPanelCollapsed,
     setInput, setLayoutMode, showSidebar, activeSessionIdRef, deferSessionRecentMetadataSyncForNavigation, setChatToolPreferences, projectSelectionRuntime,
-    projectId, runtimeWorkspaceId, shouldDisableSessionRestore, applyProjectSelection, taskCenterWorkspaceId, normalizedInitialSessionId, sessionRestorePresentation, shouldPreserveBlankHomeSurface, shouldUseBrowserWorkspaceHomeChrome,
+    projectId, shouldDisableSessionRestore, applyProjectSelection, taskCenterWorkspaceId, normalizedInitialSessionId, sessionRestorePresentation, shouldPreserveBlankHomeSurface, shouldUseBrowserWorkspaceHomeChrome,
     shouldDeferWorkspaceAuxiliaryLoads, project, isInitialContentLoading, canvasState, setCanvasState, setDocumentVersionStatusMap, lastCanvasSyncRequestRef, initialAutoSendAllowsDetachedSession,
     initialCreationReplay, initialPendingServiceSkillLaunchSignature, validatedRuntimeProjectId, generalCanvasState, setGeneralCanvasState, taskFiles, setTaskFiles,
     selectedFileId, setSelectedFileId, taskFilesRef, socialStageLogRef, serviceModels, agentResponseLanguage, refreshServiceModelsConfig,
@@ -163,7 +163,6 @@ export function useAgentChatWorkspaceCommandRuntime({
       projectImageGenerationPreference: project?.settings?.imageGeneration,
       projectName: project?.name,
       projectRootPath: project?.rootPath || null,
-      executionWorkspaceId: runtimeWorkspaceId,
       queuedTurnCount,
       queuedTurnsLength: queuedTurnCount,
       resolveServiceModelsBeforeSend: shouldDeferWorkspaceAuxiliaryLoads

@@ -183,6 +183,46 @@ afterEach(async () => {
 });
 
 describe("AboutSection", () => {
+  it.each([
+    ["zh-CN", "关于"],
+    ["zh-TW", "關於"],
+    ["en-US", "About"],
+    ["ja-JP", "このアプリについて"],
+    ["ko-KR", "정보"],
+  ])("%s 使用设置页标题和真实版本", async (locale, title) => {
+    await changeLimeLocale(locale as Parameters<typeof changeLimeLocale>[0]);
+    const container = renderComponent();
+    await waitForLoad();
+    expect(container.querySelector("h1")?.textContent).toBe(title);
+    expect(container.querySelectorAll("h1")).toHaveLength(1);
+    expect(
+      container.querySelector('[data-testid="settings-about-version"]')
+        ?.textContent,
+    ).toContain("1.10.0");
+    expect(container.textContent).not.toContain("settings.about.");
+  });
+
+  it.each([
+    [null, 0.5, null],
+    [100, 1.2, "100"],
+    [100, -0.2, "0"],
+    [100, Number.NaN, "0"],
+  ])(
+    "下载进度 total=%s percent=%s 保持正确可访问状态",
+    async (totalBytes, percent, value) => {
+      mockGetUpdateInstallSession.mockResolvedValue(
+        createInstallSession({ totalBytes, percent }),
+      );
+      const container = renderComponent();
+      await waitForLoad();
+      const progress = container.querySelector('[role="progressbar"]');
+      expect(progress).not.toBeNull();
+      expect(progress?.getAttribute("aria-label")).toBeTruthy();
+      expect(progress?.getAttribute("aria-valuenow")).toBe(value);
+      expect(findButton(container, "Check for Updates").disabled).toBe(true);
+    },
+  );
+
   it("应只渲染必要的品牌、版本与更新信息", async () => {
     const container = renderComponent();
     await waitForLoad();

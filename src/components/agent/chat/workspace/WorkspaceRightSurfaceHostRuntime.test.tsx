@@ -1,4 +1,11 @@
 import { act } from "react";
+import {
+  AppShell,
+  AppShellHeader,
+  HeaderAction,
+} from "@/components/app-shell/AppShell";
+import { AppNavigationContext } from "@/contexts/AppNavigationContext";
+import { SettingsTabs } from "@/types/settings";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -25,6 +32,13 @@ const links = vi.hoisted(() => ({
   preferences: vi.fn(),
   external: vi.fn(async () => undefined),
   newTab: vi.fn(),
+}));
+const actionsProbe = vi.hoisted(() => ({ render: vi.fn() }));
+vi.mock("./LocalConversationActions", () => ({
+  LocalConversationActions: (props: unknown) => {
+    actionsProbe.render(props);
+    return <button data-testid="actions-probe" />;
+  },
 }));
 vi.mock("@/lib/api/desktopPreferences", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/api/desktopPreferences")>()),
@@ -122,6 +136,76 @@ afterEach(() => {
 });
 
 describe("Recents production Host routing", () => {
+  it("mounts conversation Actions beside the existing launcher and delegates to the same coordinator", async () => {
+    actionsProbe.render.mockClear();
+    const runAction = vi.fn();
+    const navigate = vi.fn();
+    const params = {
+      canvasWorkbenchRootPath: "/project",
+      sceneSessionId: "session",
+      sceneThreadId: "thread",
+      rightSurfaceRuntime: {
+        sidePanelTabs: { open: false, activeTabId: null, tabs: [] },
+        rightSurfaceState: {
+          activeSurface: null,
+          previousSurface: null,
+          openSurfaces: [],
+          source: "user",
+          layoutVariant: "docked",
+        },
+        rightSurfaceLaunchers: [{ kind: "shell", disabled: false }],
+        outputs: [],
+        getFileDraft: () => null,
+        setFileDraft: vi.fn(),
+        handleCloseSidePanelTab: vi.fn(),
+        handleRunAction: runAction,
+      },
+      handleSendRef: { current: vi.fn() },
+      restoreInput: vi.fn(),
+      setLayoutMode: vi.fn(),
+    } as unknown as Parameters<typeof useWorkspaceRightSurfaceHostRuntime>[0];
+    function Probe() {
+      const { launcher } = useWorkspaceRightSurfaceHostRuntime(params);
+      return <HeaderAction actionId="actions-test">{launcher}</HeaderAction>;
+    }
+    await act(async () =>
+      root.render(
+        <AppShell>
+          <AppShellHeader />
+          <AppNavigationContext.Provider value={navigate}>
+            <Probe />
+          </AppNavigationContext.Provider>
+        </AppShell>,
+      ),
+    );
+    expect(
+      container.querySelector('[data-testid="actions-probe"]'),
+    ).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="thread-side-panel-toggle"]'),
+    ).not.toBeNull();
+    expect(actionsProbe.render).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        workspaceRoot: "/project",
+        onRunAction: runAction,
+        loading: false,
+        onConfigureActions: expect.any(Function),
+      }),
+    );
+    act(() =>
+      actionsProbe.render.mock.lastCall?.[0].onConfigureActions(
+        "/project/.codex/environments/environment.toml",
+      ),
+    );
+    expect(navigate).toHaveBeenCalledExactlyOnceWith("settings", {
+      tab: SettingsTabs.LocalEnvironments,
+      localEnvironmentFocus: {
+        workspaceRoot: "/project",
+        configPath: "/project/.codex/environments/environment.toml",
+        requestKey: expect.any(Number),
+      },
+    });
+  });
   it.each([
     { historical: false, applied: false, expected: "browser-request" },
     { historical: true, applied: false, expected: "browser-request" },

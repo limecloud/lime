@@ -19,11 +19,27 @@ function context() {
   policy.setSettings(effectiveBrowserSettings({ fullCdpAccessEnabled: true }));
   return {
     policy,
+    targets: {
+      current: () => ({
+        tabId: "tab-1",
+        title: "Example",
+        url: "https://example.com/",
+        attached: false,
+      }),
+      pages: () => [],
+      close: vi.fn(),
+    },
     locale: "en-US",
     url: () => "https://example.com/",
     assertCurrent: vi.fn(),
     attach: vi.fn(async () => undefined),
     sendDebuggerCommand: vi.fn(async () => ({ result: { value: 42 } })),
+    resolveTarget: vi.fn(() => {
+      throw new Error("Browser CDP debugger session is not attached");
+    }),
+    attachTarget: vi.fn(async () => ({})),
+    detachTarget: vi.fn(async () => undefined),
+    detach: vi.fn(),
     runAgentInput: vi.fn(async (action: () => Promise<unknown>) => action()),
     refreshSettings: vi.fn(async () => undefined),
     invalidateSnapshot: vi.fn(),
@@ -37,6 +53,70 @@ function context() {
 }
 
 afterEach(() => vi.useRealTimers());
+
+it.each([
+  { autoAttach: true, flatten: true, waitForDebuggerOnStart: false },
+  { autoAttach: false, flatten: true, waitForDebuggerOnStart: false },
+])(
+  "allows flattened auto-attach without pausing targets: %j",
+  async (params) => {
+    const c = context();
+    const request = call({
+      method: "Target.setAutoAttach",
+      commandParams: params,
+    });
+    await executeCdpCommand(request, false, c);
+    expect(c.sendDebuggerCommand).not.toHaveBeenCalled();
+    await executeCdpCommand(request, true, c);
+    expect(c.sendDebuggerCommand).toHaveBeenCalledExactlyOnceWith(
+      "Target.setAutoAttach",
+      params,
+    );
+  },
+);
+
+it.each([
+  {},
+  { autoAttach: "true", flatten: true, waitForDebuggerOnStart: false },
+  { autoAttach: true, flatten: false, waitForDebuggerOnStart: false },
+  { autoAttach: true, flatten: true, waitForDebuggerOnStart: true },
+])(
+  "rejects auto-attach without a scoped non-pausing session contract: %j",
+  async (params) => {
+    const c = context();
+    await expect(
+      executeCdpCommand(
+        call({ method: "Target.setAutoAttach", commandParams: params }),
+        false,
+        c,
+      ),
+    ).rejects.toThrow(/auto-attach/iu);
+    expect(c.requestApproval).not.toHaveBeenCalled();
+    expect(c.attach).not.toHaveBeenCalled();
+  },
+);
+
+it("does not close a Target when the final requirements read revokes its authority", async () => {
+  const c = context();
+  c.refreshSettings.mockImplementation(async () => {
+    c.policy.setSettings(
+      effectiveBrowserSettings({ fullCdpAccessEnabled: false }),
+    );
+  });
+  await expect(
+    executeCdpCommand(
+      call({
+        method: "Target.closeTarget",
+        commandParams: { targetId: "browser-use-iab-tab:tab-1" },
+      }),
+      true,
+      c,
+    ),
+  ).rejects.toThrow("denied");
+  expect(c.targets.close).not.toHaveBeenCalled();
+  expect(c.attach).not.toHaveBeenCalled();
+  expect(c.sendDebuggerCommand).not.toHaveBeenCalled();
+});
 
 it.each([
   ["zh-CN", "当前网页"],

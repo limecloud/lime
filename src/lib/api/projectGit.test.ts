@@ -1,10 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  createProjectGitWorktree,
+  ProjectGitWorktreeSetupError,
   listProjectGitCommits,
   readProjectGitDiff,
   readProjectGitStatus,
   type ProjectGitAppServerClient,
 } from "./projectGit";
+import { AppServerRpcError } from "./appServer";
 
 function appServerResult<T>(result: T) {
   return {
@@ -29,6 +32,122 @@ describe("projectGit API", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
+
+  it("keeps checkout identity and Git-scoped environment selection in the current response", async () => {
+    const status = {
+      rootPath: "/tree/packages/app",
+      repositoryRoot: "/tree",
+      hasGitRepository: true,
+      isWorktree: true,
+      localEnvironmentConfigPath: "/tree/.codex/environments/environment.toml",
+      branches: [],
+      uncommittedFileCount: 0,
+    };
+    vi.mocked(client.readProjectGitStatus).mockResolvedValueOnce(
+      appServerResult(status),
+    );
+    await expect(
+      readProjectGitStatus(status.rootPath, client),
+    ).resolves.toEqual(status);
+  });
+
+  it.each([{ isWorktree: "true" }, { localEnvironmentConfigPath: 42 }])(
+    "rejects malformed worktree selection: %j",
+    async (invalid) => {
+      vi.mocked(client.readProjectGitStatus).mockResolvedValueOnce(
+        appServerResult({
+          rootPath: "/tree",
+          hasGitRepository: true,
+          branches: [],
+          uncommittedFileCount: 0,
+          ...invalid,
+        }) as never,
+      );
+      await expect(readProjectGitStatus("/tree", client)).rejects.toThrow(
+        "project Git status",
+      );
+    },
+  );
+
+  it.each([null, "/workspace/.codex/environments/dev.toml"])(
+    "passes the explicit environment choice %s to the current worktree method",
+    async (localEnvironmentConfigPath) => {
+      vi.mocked(client.createProjectGitWorktree).mockResolvedValueOnce(
+        appServerResult({
+          worktreePath: "/checkout",
+          branch: "task",
+          status: {
+            rootPath: "/checkout",
+            hasGitRepository: true,
+            branches: ["task"],
+            uncommittedFileCount: 0,
+          },
+        }),
+      );
+      await expect(
+        createProjectGitWorktree(
+          "/workspace",
+          { baseBranch: "main", localEnvironmentConfigPath },
+          client,
+        ),
+      ).resolves.toMatchObject({ worktreePath: "/checkout" });
+      expect(client.createProjectGitWorktree).toHaveBeenCalledExactlyOnceWith({
+        rootPath: "/workspace",
+        baseBranch: "main",
+        localEnvironmentConfigPath,
+      });
+    },
+  );
+
+  it("preserves a confirmed checkout when setup fails", async () => {
+    const error = new AppServerRpcError({
+      jsonrpc: "2.0",
+      id: 1,
+      error: {
+        code: -32000,
+        message: "setup exited 1",
+        data: { worktreePath: "/checkout" },
+      },
+    });
+    vi.mocked(client.createProjectGitWorktree).mockRejectedValueOnce(error);
+    const result = createProjectGitWorktree(
+      "/workspace",
+      { localEnvironmentConfigPath: null },
+      client,
+    );
+    await expect(result).rejects.toBeInstanceOf(ProjectGitWorktreeSetupError);
+    await expect(result).rejects.toMatchObject({
+      worktreePath: "/checkout",
+      message: "setup exited 1\n/checkout",
+    });
+  });
+
+  it.each([
+    [-32800, "/checkout"],
+    [-32000, "relative/checkout"],
+    [-32000, null],
+  ])(
+    "keeps unconfirmed/cancelled errors unchanged (%s, %s)",
+    async (code, worktreePath) => {
+      const error = new AppServerRpcError({
+        jsonrpc: "2.0",
+        id: 1,
+        error: {
+          code: code as number,
+          message: "failed",
+          data: { worktreePath },
+        },
+      });
+      vi.mocked(client.createProjectGitWorktree).mockRejectedValueOnce(error);
+      await expect(
+        createProjectGitWorktree(
+          "/workspace",
+          { localEnvironmentConfigPath: null },
+          client,
+        ),
+      ).rejects.toBe(error);
+    },
+  );
 
   it("应通过 App Server current 主链读取 Git 状态", async () => {
     vi.mocked(client.readProjectGitStatus).mockResolvedValueOnce(

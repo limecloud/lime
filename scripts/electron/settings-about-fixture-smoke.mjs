@@ -3,12 +3,21 @@
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
+import { createHash } from "node:crypto";
+import {
+  ensureElectronFixtureBuild,
+  inspectElectronFixtureBuildFreshness,
+} from "../lib/electron-fixture-build.mjs";
+import { artifactFingerprints } from "./lib/settings-navigation-fixture-identity.mjs";
+import { captureMainProcessExit } from "./lib/persisted-atom-fixture-driver.mjs";
+import { settleFixtureResources } from "../agent-runtime/claw-chat-current-fixture-teardown.mjs";
 
-import { resolveElectronAppServerRuntimeEnv } from "../lib/electron-app-server-assets.mjs";
-import { resolveDevAppServerBinary } from "../lib/electron-dev-sidecar.mjs";
+import {
+  electronAppServerBinaryDestination,
+  resolveElectronAppServerRuntimeEnv,
+} from "../lib/electron-app-server-assets.mjs";
 import { writeJsonFile } from "../mcp/lib/current-smoke-transport.mjs";
 import {
-  closeElectronFixture,
   createTempRuntimeEnv,
   launchElectronFixture,
   openSettings,
@@ -27,6 +36,103 @@ import {
   parseSettingsAboutFixtureArgs,
   summarizeSettingsAboutTrace,
 } from "./lib/settings-about-fixture-evidence.mjs";
+
+const sourceFiles = [
+  "src/components/settings-v2/system/about/index.tsx",
+  "src/components/settings-v2/SettingsPrimitives.tsx",
+  "src/components/settings-v2/sections.tsx",
+  "src/lib/api/appUpdate.ts",
+  "scripts/electron/settings-about-fixture-smoke.mjs",
+];
+const fingerprints = () =>
+  sourceFiles.map((file) => ({
+    path: file,
+    sha256: createHash("sha256").update(fs.readFileSync(file)).digest("hex"),
+  }));
+
+async function verifyAboutAppearance(page, options) {
+  const measurements = {};
+  for (const mode of ["light", "dark"]) {
+    await page.getByTestId("settings-sidebar-tab-appearance").click();
+    await page.locator(`[role="radio"]:has([data-mode="${mode}"])`).click();
+    await waitForPageCondition(
+      page,
+      options,
+      ({ mode }) =>
+        document.documentElement.classList.contains("dark") ===
+        (mode === "dark"),
+      "Appearance theme was not applied",
+      { mode },
+    );
+    await page.getByTestId("settings-sidebar-tab-about").click();
+    await page.getByTestId("settings-about-page").waitFor({ state: "visible" });
+    for (const width of [1440, 900]) {
+      await page.setViewportSize({ width, height: 900 });
+      const measurement = await page
+        .getByTestId("settings-about-page")
+        .evaluate((body) => {
+          const heading = body.querySelector("h1");
+          const version = body.querySelector(
+            '[data-testid="settings-about-version"]',
+          );
+          const button = body.querySelector("button");
+          const group =
+            body.querySelector(".settings-row-copy")?.parentElement
+              ?.parentElement;
+          const tabs = Array.from(
+            document.querySelectorAll('[data-testid^="settings-sidebar-tab-"]'),
+          );
+          const viewportWidth = document.documentElement.clientWidth;
+          return {
+            titleSize: getComputedStyle(heading).fontSize,
+            titleWeight: getComputedStyle(heading).fontWeight,
+            bodySize: getComputedStyle(body).fontSize,
+            versionSize: getComputedStyle(version).fontSize,
+            actionSize: getComputedStyle(button).fontSize,
+            groupBackground: getComputedStyle(group).backgroundColor,
+            textColor: getComputedStyle(heading).color,
+            aboutLast:
+              tabs.at(-1)?.getAttribute("data-testid") ===
+              "settings-sidebar-tab-about",
+            noHorizontalOverflow:
+              document.documentElement.scrollWidth <= viewportWidth &&
+              body.scrollWidth <= body.clientWidth + 1 &&
+              Array.from(body.querySelectorAll("button, a")).every(
+                (control) => {
+                  const rect = control.getBoundingClientRect();
+                  return rect.left >= 0 && rect.right <= viewportWidth + 1;
+                },
+              ),
+          };
+        });
+      measurements[`${mode}-${width}`] = measurement;
+      if (
+        measurement.titleSize !== "28px" ||
+        measurement.titleWeight !== "500" ||
+        measurement.bodySize !== "13px" ||
+        measurement.versionSize !== "13px" ||
+        measurement.actionSize !== "13px" ||
+        !measurement.aboutLast ||
+        !measurement.noHorizontalOverflow
+      )
+        throw new Error(`About appearance failed: ${mode}-${width}`);
+      await page.screenshot({
+        path: path.join(
+          options.evidenceDir,
+          `${options.prefix}-${mode}-${width}.png`,
+        ),
+        animations: "disabled",
+      });
+    }
+  }
+  if (
+    measurements["light-1440"].groupBackground ===
+      measurements["dark-1440"].groupBackground ||
+    measurements["light-1440"].textColor === measurements["dark-1440"].textColor
+  )
+    throw new Error("About page did not follow the selected theme");
+  return measurements;
+}
 
 const DEFAULTS = {
   runId: process.env.LIME_GATE_RUN_ID?.trim() || null,
@@ -186,11 +292,21 @@ async function run() {
   const packageVersion = JSON.parse(
     fs.readFileSync(path.join(process.cwd(), "package.json"), "utf8"),
   ).version;
+  const sourceBefore = fingerprints();
+  ensureElectronFixtureBuild({
+    rootDir: process.cwd(),
+    logPrefix: "settings-about-fixture",
+  });
+  const freshnessBefore = inspectElectronFixtureBuildFreshness({
+    rootDir: process.cwd(),
+  });
+  if (!freshnessBefore.ready) throw new Error("About fixture build is stale");
+  const artifactsBefore = artifactFingerprints();
+  if (JSON.stringify(sourceBefore) !== JSON.stringify(fingerprints()))
+    throw new Error("About sources changed during build");
   const runtimeEnv = createTempRuntimeEnv();
-  const appServerBinary = resolveDevAppServerBinary({
-    env: runtimeEnv.env,
-    repoRoot: process.cwd(),
-    forceBuild: false,
+  const appServerBinary = electronAppServerBinaryDestination({
+    outputRoot: path.resolve("dist-electron"),
   });
   const appServerEnv = resolveElectronAppServerRuntimeEnv({
     env: { ...runtimeEnv.env, APP_SERVER_BIN: appServerBinary },
@@ -203,6 +319,8 @@ async function run() {
     }),
     backendMode: "unavailable",
     packageVersion,
+    freshnessBefore,
+    sourceBefore,
   };
   const homeSummary = createSettingsHomeEvidence({
     candidateRunId: options.runId,
@@ -211,6 +329,7 @@ async function run() {
   });
 
   let handle = null;
+  let mainExit = null;
   let page = null;
   const consoleErrors = [];
   const pageErrors = [];
@@ -223,12 +342,33 @@ async function run() {
       consoleErrors,
       pageErrors,
     });
+    mainExit = captureMainProcessExit(handle.app.process());
     page = handle.page;
     await openSettings(page, options);
     await page.locator('[data-testid="settings-sidebar-tab-about"]').click();
     const aboutState = await readAboutState(page, options, packageVersion);
     const trace = summarizeSettingsAboutTrace(aboutState.traceRaw);
     await page.screenshot({ path: screenshotPath, fullPage: true });
+    summary.visualMeasurements = await verifyAboutAppearance(page, options);
+    summary.freshnessAfter = inspectElectronFixtureBuildFreshness({
+      rootDir: process.cwd(),
+    });
+    summary.sourceAfter = fingerprints();
+    summary.identity = {
+      sourceStable:
+        JSON.stringify(sourceBefore) === JSON.stringify(summary.sourceAfter),
+      artifactsStable:
+        JSON.stringify(artifactsBefore) ===
+        JSON.stringify(artifactFingerprints()),
+    };
+    if (
+      !summary.freshnessAfter.ready ||
+      !summary.identity.sourceStable ||
+      !summary.identity.artifactsStable
+    )
+      throw new Error(
+        "About sources or build artifacts changed during verification",
+      );
 
     applyPassingSettingsAboutEvidence(summary, {
       completedAt: new Date().toISOString(),
@@ -258,7 +398,7 @@ async function run() {
     };
     writeJsonFile(summaryPath, summary);
 
-    await page.locator('[data-testid="app-sidebar-nav-new-chat"]').click();
+    await page.getByTestId("app-sidebar-rail-home").click();
     const homeState = await readHomeState(page, options);
     const homeTrace = summarizeSettingsAboutTrace(homeState.traceRaw);
     await page.screenshot({ path: homeScreenshotPath, fullPage: true });
@@ -304,7 +444,22 @@ async function run() {
     throw error;
   } finally {
     if (handle) {
-      await closeElectronFixture(handle);
+      summary.teardown = await settleFixtureResources({
+        app: handle.app,
+        mainExit,
+      });
+      writeJsonFile(summaryPath, summary);
+      if (
+        !summary.teardown.ok ||
+        summary.teardown.forcedCleanup !== null ||
+        summary.teardown.normalMainExit?.exitCode !== 0 ||
+        summary.teardown.normalMainExit?.signal !== null
+      ) {
+        const error = new Error("About fixture did not exit normally");
+        applyFailedSettingsAboutEvidence(summary, error);
+        writeJsonFile(summaryPath, summary);
+        throw error;
+      }
     }
     if (!options.keepTemp) {
       fs.rmSync(runtimeEnv.tempRoot, { recursive: true, force: true });

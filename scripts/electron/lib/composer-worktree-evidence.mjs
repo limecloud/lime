@@ -173,7 +173,8 @@ export function assertWorktreeSubmission({
       nonempty(thread?.id) &&
       nonempty(thread.sessionId) &&
       thread.cwd === targetRoot &&
-      thread.projectId === targetWorkspace.id &&
+      // Project directory grouping is separate from the Workspace at this cwd.
+      thread.projectId === null &&
       thread.turns.length === 1 &&
       nonempty(turn?.id) &&
       startsAtBackend.length === 1 &&
@@ -260,7 +261,7 @@ export function assertWorktreeColdRead({
       thread.id === proof.threadId &&
       thread.sessionId === proof.sessionId &&
       thread.cwd === proof.targetRoot &&
-      thread.projectId === proof.workspaceId &&
+      thread.projectId === null &&
       thread.turns.length === 1 &&
       thread.turns[0].id === proof.turnId &&
       ["interrupted", "canceled", "cancelled"].includes(

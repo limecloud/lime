@@ -36,24 +36,14 @@ export async function writePresentationTableFormatFixture(filePath) {
     const worker = new Worker(
       String.raw`
         const { parentPort, workerData } = require("node:worker_threads");
-        const { registerHooks } = require("node:module");
+        const { tsImport } = require("tsx/esm/api");
         const { JSDOM } = require("jsdom");
-        registerHooks({ resolve(specifier, context, next) {
-          try {
-            const result = next(specifier, context);
-            return specifier.endsWith(".json") ? { ...result, importAttributes: { type: "json" } } : result;
-          }
-          catch (error) {
-            if (error.code !== "ERR_MODULE_NOT_FOUND" || !specifier.startsWith(".")) throw error;
-            return next(specifier + ".ts", context);
-          }
-        }});
         (async () => {
           const dom = new JSDOM("");
           try {
             globalThis.DOMParser = dom.window.DOMParser;
             globalThis.XMLSerializer = dom.window.XMLSerializer;
-            const { formatFixture } = await import(workerData);
+            const { formatFixture } = await tsImport(workerData, { parentURL: workerData, tsconfig: false });
             parentPort.postMessage(await formatFixture());
           } finally { dom.window.close(); }
         })().catch(error => { throw error; });

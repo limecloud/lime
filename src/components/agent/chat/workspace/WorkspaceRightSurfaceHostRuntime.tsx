@@ -284,7 +284,8 @@ export function renderWorkspaceRightSurfaceHostRuntime({
       ) : null,
     shell: ({ tab }) => (
       <TerminalTab
-        cwd={canvasWorkbenchRootPath}
+        cwd={tab.terminalAction?.cwd ?? canvasWorkbenchRootPath}
+        command={tab.terminalAction?.command}
         sessionId={tab.tabId}
         active={sidePanelTabs.open && activeTabId === tab.tabId}
         onNewTerminalTab={() => onSelectSidePanelAction("shell")}

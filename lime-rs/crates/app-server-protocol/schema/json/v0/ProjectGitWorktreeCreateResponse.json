@@ -64,6 +64,16 @@
         "hasGitRepository": {
           "type": "boolean"
         },
+        "isWorktree": {
+          "default": false,
+          "type": "boolean"
+        },
+        "localEnvironmentConfigPath": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
         "repositoryRoot": {
           "type": [
             "null",

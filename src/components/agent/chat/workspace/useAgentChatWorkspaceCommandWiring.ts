@@ -116,7 +116,9 @@ export function useAgentChatWorkspaceCommandWiring<
     route: scope.normalizedInitialSessionId,
     resolved: false,
   });
-  if (initialSessionHydration.current.route !== scope.normalizedInitialSessionId)
+  if (
+    initialSessionHydration.current.route !== scope.normalizedInitialSessionId
+  )
     initialSessionHydration.current = {
       route: scope.normalizedInitialSessionId,
       resolved: false,
@@ -215,7 +217,52 @@ export function useAgentChatWorkspaceCommandWiring<
   useWorkspaceCanvasMessageSyncRuntime(scope);
 
   const sendRuntimeMessage = scope.sendMessage;
-  const { getComposerDraftNavigationEpoch } = composerDraftRuntime;
+  const {
+    getComposerDraftNavigationEpoch,
+    getComposerDraftTarget,
+    composerDraftCoordinator,
+    handleComposerDraftAccepted: promoteAcceptedDraft,
+  } = composerDraftRuntime;
+  const { deferTopicSwitch } = scope;
+  const { handleTopicSwitchCommitted: commitAcceptedTopic } =
+    taskCenterDraftState;
+  const handleComposerDraftAccepted = useCallback<typeof promoteAcceptedDraft>(
+    async (capture, result) => {
+      const epoch = getComposerDraftNavigationEpoch();
+      await promoteAcceptedDraft(capture, result);
+      if (result.kind !== "runtime-accepted") return;
+      const executionScope = result.receipt.executionScope;
+      if (!executionScope || !capture.binding) return;
+      const target = getComposerDraftTarget();
+      const status = composerDraftCoordinator?.getSnapshot();
+      if (
+        getComposerDraftNavigationEpoch() !== epoch + 1 ||
+        status?.generation !== capture.binding.generation ||
+        !target ||
+        target.workspaceId !== executionScope.workspaceId ||
+        target.kind !== "local" ||
+        target.id !== result.receipt.sessionId
+      )
+        return;
+      deferTopicSwitch(result.receipt.sessionId, executionScope.workspaceId, {
+        allowDetachedSession: true,
+      });
+      commitAcceptedTopic(result.receipt.sessionId);
+      handleTopicSwitchCommitted(
+        result.receipt.sessionId,
+        executionScope.workspaceId,
+      );
+    },
+    [
+      promoteAcceptedDraft,
+      getComposerDraftTarget,
+      composerDraftCoordinator,
+      getComposerDraftNavigationEpoch,
+      deferTopicSwitch,
+      commitAcceptedTopic,
+      handleTopicSwitchCommitted,
+    ],
+  );
   const sendMessage = useCallback<typeof sendRuntimeMessage>(
     async (...args) => {
       const epoch = getComposerDraftNavigationEpoch();
@@ -252,16 +299,6 @@ export function useAgentChatWorkspaceCommandWiring<
           target.id === receipt.sessionId
         );
       },
-      onExecutionScopeAccepted: (executionScope, receipt) => {
-        scope.deferTopicSwitch(receipt.sessionId, executionScope.workspaceId, {
-          allowDetachedSession: true,
-          forceRefresh: true,
-        });
-        handleTopicSwitchCommitted(
-          receipt.sessionId,
-          executionScope.workspaceId,
-        );
-      },
       sendMessage,
       bootstrapDispatchPreview: initialDispatch.bootstrapDispatchPreview,
       finalizeAfterSendSuccess: initialDispatch.finalizeAfterSendSuccess,
@@ -289,6 +326,7 @@ export function useAgentChatWorkspaceCommandWiring<
   const compositionScope = {
     ...scope,
     ...composerDraftRuntime,
+    handleComposerDraftAccepted,
     ...taskCenterDraftState,
     ...persistence,
     ...initialDispatch,
@@ -301,7 +339,7 @@ export function useAgentChatWorkspaceCommandWiring<
 
   return {
     compositionScope,
-    composerDraft: composerDraftRuntime,
+    composerDraft: { ...composerDraftRuntime, handleComposerDraftAccepted },
     initialDispatch,
     persistence,
     reset,

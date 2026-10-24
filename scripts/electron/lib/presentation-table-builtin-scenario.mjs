@@ -40,24 +40,15 @@ export async function writePresentationTableBuiltinFixture(
     const worker = new Worker(
       String.raw`
       const { parentPort, workerData } = require("node:worker_threads");
-      const { registerHooks } = require("node:module");
+      const { tsImport } = require("tsx/esm/api");
       const { JSDOM } = require("jsdom");
       const JSZip = require("jszip");
-      registerHooks({ resolve(specifier, context, next) {
-        try {
-          const result = next(specifier, context);
-          return specifier.endsWith(".json") ? { ...result, importAttributes: { type: "json" } } : result;
-        } catch (error) {
-          if (error.code !== "ERR_MODULE_NOT_FOUND" || !specifier.startsWith(".")) throw error;
-          return next(specifier + ".ts", context);
-        }
-      }});
       (async () => {
         const dom = new JSDOM("");
         try {
           globalThis.DOMParser = dom.window.DOMParser;
           globalThis.XMLSerializer = dom.window.XMLSerializer;
-          const { builtinIntegrationBase, builtinIntegrationFixture } = await import(workerData.url);
+          const { builtinIntegrationBase, builtinIntegrationFixture } = await tsImport(workerData.url, { parentURL: workerData.url, tsconfig: false });
           const bytes = await builtinIntegrationFixture(await builtinIntegrationBase(), undefined, workerData.styleList);
           const zip = await JSZip.loadAsync(bytes);
           const part = "ppt/slides/slide1.xml";

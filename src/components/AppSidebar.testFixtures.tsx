@@ -48,6 +48,7 @@ const {
   mockDeleteProject,
   mockEnsureProjectWorkspace,
   mockCreateProjectGitWorktree,
+  mockReadLocalEnvironmentSelection,
   mockRevealPathInFinder,
   mockArchiveAgentRuntimeSession,
   mockUnarchiveAgentRuntimeSession,
@@ -89,6 +90,7 @@ const {
   mockDeleteProject: vi.fn(),
   mockEnsureProjectWorkspace: vi.fn(),
   mockCreateProjectGitWorktree: vi.fn(),
+  mockReadLocalEnvironmentSelection: vi.fn(),
   mockRevealPathInFinder: vi.fn(),
   mockArchiveAgentRuntimeSession: vi.fn(),
   mockUnarchiveAgentRuntimeSession: vi.fn(),
@@ -147,14 +149,16 @@ function normalizeRecentThreadPage(value: unknown) {
 const originalListRecentThreadsResolvedValue =
   mockListRecentThreads.mockResolvedValue.bind(mockListRecentThreads);
 mockListRecentThreads.mockResolvedValue = ((value: unknown) =>
-  originalListRecentThreadsResolvedValue(normalizeRecentThreadPage(value))) as
-  typeof mockListRecentThreads.mockResolvedValue;
+  originalListRecentThreadsResolvedValue(
+    normalizeRecentThreadPage(value),
+  )) as typeof mockListRecentThreads.mockResolvedValue;
 
 const originalListRecentThreadsResolvedValueOnce =
   mockListRecentThreads.mockResolvedValueOnce.bind(mockListRecentThreads);
 mockListRecentThreads.mockResolvedValueOnce = ((value: unknown) =>
-  originalListRecentThreadsResolvedValueOnce(normalizeRecentThreadPage(value))) as
-  typeof mockListRecentThreads.mockResolvedValueOnce;
+  originalListRecentThreadsResolvedValueOnce(
+    normalizeRecentThreadPage(value),
+  )) as typeof mockListRecentThreads.mockResolvedValueOnce;
 
 const originalListRecentThreadsImplementation =
   mockListRecentThreads.mockImplementation.bind(mockListRecentThreads);
@@ -265,8 +269,13 @@ vi.mock("@/lib/api/project", () => ({
     error instanceof Error ? error.message : String(error),
 }));
 
-vi.mock("@/lib/api/projectGit", () => ({
+vi.mock("@/lib/api/projectGit", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/api/projectGit")>()),
   createProjectGitWorktree: mockCreateProjectGitWorktree,
+}));
+
+vi.mock("@/lib/api/localEnvironmentSelection", () => ({
+  readLocalEnvironmentSelection: mockReadLocalEnvironmentSelection,
 }));
 
 vi.mock("@/lib/api/fileSystem", () => ({
@@ -559,6 +568,7 @@ export async function resetAppSidebarTest() {
     name: "project-worktree",
     rootPath: "/tmp/project-worktree",
   });
+  mockReadLocalEnvironmentSelection.mockResolvedValue(null);
   mockCreateProjectGitWorktree.mockResolvedValue({
     worktreePath: "/tmp/project-worktree",
     branch: "worktree",

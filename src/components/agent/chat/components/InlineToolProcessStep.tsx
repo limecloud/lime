@@ -116,8 +116,8 @@ export const InlineToolProcessStep: React.FC<InlineToolProcessStepProps> = ({
   );
   const argsRecord = useMemo(() => asRecord(parsedArgs), [parsedArgs]);
   const toolDisplay = useMemo(
-    () => getToolDisplayInfo(toolCall.name, toolCall.status),
-    [toolCall.name, toolCall.status],
+    () => getToolDisplayInfo(toolCall.name, toolCall.status, toolCall.metadata),
+    [toolCall.name, toolCall.status, toolCall.metadata],
   );
   const ToolIcon = toolDisplay.icon;
   const metadata = useMemo(() => {
@@ -164,8 +164,14 @@ export const InlineToolProcessStep: React.FC<InlineToolProcessStepProps> = ({
     return toolCall.result?.output ? String(toolCall.result.output) : "";
   }, [parsedArgs.content, parsedArgs.text, toolCall.result?.output]);
   const subject = useMemo(
-    () => resolveToolPrimarySubject(toolCall.name, parsedArgs, filePath),
-    [filePath, parsedArgs, toolCall.name],
+    () =>
+      resolveToolPrimarySubject(
+        toolCall.name,
+        parsedArgs,
+        filePath,
+        toolCall.metadata,
+      ),
+    [filePath, parsedArgs, toolCall.name, toolCall.metadata],
   );
   const rawResultText = useMemo(() => {
     const rawText = toolCall.result?.error || toolCall.result?.output || "";

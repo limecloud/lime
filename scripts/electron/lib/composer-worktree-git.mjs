@@ -95,3 +95,31 @@ export async function readComposerWorktreeGit(rootPath, workspaceId = null) {
       .digest("hex"),
   };
 }
+
+/** Read the actual worktree-scoped selection and setup artifact after GUI creation. */
+export async function readComposerWorktreeEnvironment(rootPath) {
+  const configFile = git(rootPath, [
+    "rev-parse",
+    "--git-path",
+    "config.worktree",
+  ]).trim();
+  const configPath = git(rootPath, [
+    "config",
+    "--file",
+    configFile,
+    "--get",
+    "codex.localEnvironmentConfigPath",
+  ]).trim();
+  const marker = await fs.readFile(
+    path.join(rootPath, "local-environment-setup.txt"),
+  );
+  return {
+    configPath,
+    configRaw: await fs.readFile(configPath, "utf8"),
+    setupMarker: marker
+      .toString("utf8")
+      .replaceAll("\0", "")
+      .includes("environment-fixture"),
+    setupMarkerSha256: createHash("sha256").update(marker).digest("hex"),
+  };
+}
