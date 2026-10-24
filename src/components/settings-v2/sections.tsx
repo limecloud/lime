@@ -144,9 +144,12 @@ const McpPanel = lazy(() =>
   loadMcp().then((module) => ({ default: module.McpPanel })),
 );
 
-const loadEnvironment = () => import("./system/environment");
-const EnvironmentSettings = lazy(() =>
-  loadEnvironment().then((module) => ({ default: module.EnvironmentSettings })),
+const loadLocalEnvironments = () =>
+  import("./coding/local-environments/LocalEnvironmentsSettings");
+const LocalEnvironmentsSettings = lazy(() =>
+  loadLocalEnvironments().then((module) => ({
+    default: module.LocalEnvironmentsSettings,
+  })),
 );
 
 const loadExecutionPolicy = () => import("./system/execution-policy");
@@ -315,13 +318,13 @@ export const settingsSections: readonly SettingsSection[] = [
     render: () => <GitSettings />,
   },
   {
-    key: SettingsTabs.Environment,
+    key: SettingsTabs.LocalEnvironments,
     group: SettingsGroupKey.Coding,
-    labelKey: "settings.tab.environment",
+    labelKey: "settings.localEnvironments.title",
     icon: Variable,
-    loadingKey: "settings.layout.loading.environment",
-    preload: loadEnvironment,
-    render: () => <EnvironmentSettings />,
+    loadingKey: "settings.localEnvironments.loading",
+    preload: loadLocalEnvironments,
+    render: () => <LocalEnvironmentsSettings />,
   },
   {
     key: SettingsTabs.Worktrees,

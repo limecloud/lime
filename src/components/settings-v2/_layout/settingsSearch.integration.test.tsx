@@ -33,12 +33,15 @@ vi.mock("../sections", async () => {
       render: () => <ProfileSettings />,
     },
     {
-      key: SettingsTabs.Environment,
+      key: SettingsTabs.LocalEnvironments,
       group: SettingsGroupKey.Coding,
-      labelKey: "settings.environment.title",
+      labelKey: "settings.localEnvironments.title",
       render: () => (
-        <div data-settings-search-target="environment-overrides" tabIndex={-1}>
-          Variable overrides
+        <div
+          data-settings-search-target="local-environments-projects"
+          tabIndex={-1}
+        >
+          Local environments
         </div>
       ),
     },
@@ -193,7 +196,7 @@ describe("settings search through the canonical navigation and real Profile draf
     });
     expect(name.value).toBe("Unsaved private name");
     expect(document.activeElement).toBe(input());
-    await search("overrides");
+    await search("setup");
     // Multiple requests while guarded replace the pending destination, never canonical state.
     await act(async () =>
       navigation.handleNavigate("settings", {
@@ -230,8 +233,8 @@ describe("settings search through the canonical navigation and real Profile draf
     const late = deferred<{ user_profile: { bio: string } }>();
     api.getConfig.mockReturnValue(late.promise);
     await search("bio");
-    await search("overrides");
-    const destination = target("environment-overrides");
+    await search("setup");
+    const destination = target("local-environments-projects");
     expect(document.activeElement).toBe(destination);
     await act(async () => late.resolve({ user_profile: { bio: "Abandoned" } }));
     expect(document.activeElement).toBe(destination);
@@ -269,7 +272,7 @@ it("does not allow unknown, cross-section or managed-profile target requests", a
   await act(async () => updateTarget(true));
   expect(container.querySelector("[data-settings-search-active]")).toBeNull();
   await act(async () =>
-    updateFocus({ targetId: "environment-overrides", requestKey: 3 }),
+    updateFocus({ targetId: "local-environments-projects", requestKey: 3 }),
   );
   expect(container.querySelector("[data-settings-search-active]")).toBeNull();
   await act(async () => root.render(<TargetHarness localProfile={false} />));

@@ -78,7 +78,7 @@ export function BrowserSitePermissionSelect({
   const showEffective = value !== "default" && value !== cell.effectiveValue;
   const described = Boolean(explanation || showEffective);
   return (
-    <div className="max-w-44 space-y-1">
+    <div className="max-w-56 space-y-1">
       <div className="flex items-center gap-1">
         {cell.disabledReason ? (
           <LockKeyhole
@@ -95,7 +95,7 @@ export function BrowserSitePermissionSelect({
           aria-label={`${name} · ${t(`settings.browser.permissionAction.${action}`)}`}
           aria-describedby={described ? descriptionId : undefined}
           title={explanation || undefined}
-          className={`min-w-0 max-w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs focus-visible:outline-ring disabled:opacity-50 ${cell.inherited ? "text-muted-foreground" : ""}`}
+          className={`min-w-max max-w-full rounded-lg border border-border bg-background py-1.5 pl-2 pr-7 text-xs focus-visible:outline-ring disabled:opacity-50 ${cell.inherited ? "text-muted-foreground" : ""}`}
           onChange={(event) => {
             const next = event.target.value as BrowserSitePermission;
             if (

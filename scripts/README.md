@@ -277,7 +277,7 @@ npm run smoke:mcp-startup-notification-electron-fixture
 npm run smoke:mcp-event-stream-electron-gate-b
 npm run smoke:mcp-resource-origin-electron-gate-b
 npm run smoke:settings-about-electron-fixture -- --run-id <run-id>
-npm run smoke:settings-environment-electron-fixture -- --run-id <run-id>
+npm run smoke:settings-local-environments-electron-fixture -- --run-id <run-id>
 npm run smoke:settings-media-services-electron-fixture -- --run-id <run-id>
 npm run smoke:settings-web-search-electron-fixture -- --run-id <run-id>
 npm run smoke:settings-profile-electron-fixture -- --run-id <run-id>
@@ -342,7 +342,7 @@ Profile子场景由`electron/lib/settings-profile-navigation-scenario.mjs`承接
 
 `npm run smoke:settings-about-electron-fixture -- --run-id <run-id>` 在同一真实 Electron 窗口验证 About 与返回首页两个独立 Settings 场景：About 要求构建时 `VITE_APP_VERSION`、Desktop Host `app.getVersion()` 和用户可见版本一致，同时观察 `check_for_updates`、`get_update_install_session` 与 current App Server IPC；返回首页要求点击 `app-sidebar-nav-new-chat` 后 `home-composer-page` 可见、Settings header 消失。证据分别写入 `settings-about-fixture-summary.json` 和 `settings-about-fixture-home-summary.json`，两者各自带独立 `settingsScenarioProof`，不得互相代替。
 
-`npm run smoke:settings-environment-electron-fixture -- --run-id <run-id>` 验证 Settings GUI 经真实 App Server `config/read` 与 Host `get_environment_preview` 读取 current config 和最终合并预览；其 JSON evidence 只记录 method/command 与断言，不记录环境变量名或值。
+`npm run smoke:settings-local-environments-electron-fixture -- --run-id <run-id>` 验证 Settings GUI 经真实 App Server `config/read` 与 Host `get_environment_preview` 读取 current config 和最终合并预览；其 JSON evidence 只记录 method/command 与断言，不记录环境变量名或值。
 
 `npm run smoke:settings-media-services-electron-fixture -- --run-id <run-id>` 验证服务模型页经真实 `config/read`、`model/list`、`modelPreferences/list`、`modelSyncState/read` 与 `voice_models_list_catalog` 进入终态，并同时展示服务模型、图片、视频和语音四个 current 配置区域。隔离环境允许 Provider 清单为空，但配置控件必须可用，且证据不得记录 Provider 配置、模型 ID、凭证或本机路径；该场景不声称真实 Provider 生成请求成功。
 

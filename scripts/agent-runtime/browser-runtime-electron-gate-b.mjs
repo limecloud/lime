@@ -39,6 +39,8 @@ import { runBrowserSettingsNavigationScenario } from "./browser-runtime-electron
 import { runBrowserDeviceAnnotationScenario } from "./browser-runtime-electron-gate-b-device-annotation.mjs";
 import { runBrowserHistoryAccessScenario } from "./browser-runtime-electron-gate-b-history-access.mjs";
 import { createBrowserHistoryAccessResponses } from "./browser-history-access-provider.mjs";
+import { createBrowserCdpResponses } from "./browser-cdp-provider.mjs";
+import { runBrowserCdpScenario } from "./browser-runtime-electron-gate-b-cdp.mjs";
 import { runBrowserDownloadHistoryScenario } from "./browser-runtime-electron-gate-b-download-history.mjs";
 import { setBrowserFixtureLocale } from "./browser-runtime-electron-gate-b-locale.mjs";
 import { runBrowserAnnotationScenario } from "./browser-runtime-electron-gate-b-annotation.mjs";
@@ -132,6 +134,7 @@ const SCENARIOS = new Set([
   "settings-navigation",
   "history-management",
   "history-access",
+  "cdp",
   "download-history",
   "annotation",
   "annotation-text",
@@ -233,7 +236,7 @@ export function parseArgs(argv) {
   }
   if (!SCENARIOS.has(options.scenario)) {
     throw new Error(
-      `--scenario 必须是 projection、history、browser-data、site-permissions、device、device-annotation、address-input、new-tab-address、settings-navigation、history-management、history-access、download-history、annotation、annotation-text、annotation-form-text、annotation-frames、annotation-design、lifecycle、approval、browse-approval、user-control、cancel、window-close、disconnect、permission、download 或 artifact，收到: ${options.scenario || "<empty>"}`,
+      `--scenario 必须是 projection、history、browser-data、site-permissions、device、device-annotation、address-input、new-tab-address、settings-navigation、history-management、history-access、cdp、download-history、annotation、annotation-text、annotation-form-text、annotation-frames、annotation-design、lifecycle、approval、browse-approval、user-control、cancel、window-close、disconnect、permission、download 或 artifact，收到: ${options.scenario || "<empty>"}`,
     );
   }
   if (!SUPPORTED_LOCALES.has(options.locale)) {
@@ -287,6 +290,9 @@ export function parseArgs(argv) {
       "-summary",
       "-history-access-summary",
     );
+  }
+  if (!outputExplicit && options.scenario === "cdp") {
+    options.output = DEFAULT_OUTPUT.replace("-summary", "-cdp-summary");
   }
   if (!outputExplicit && options.scenario === "site-permissions") {
     options.output = DEFAULT_OUTPUT.replace(
@@ -446,6 +452,7 @@ function toolResultFromRequest(body) {
 }
 
 async function createBrowserProviderFixture({
+  cdpScenario = false,
   historyAccessScenario = false,
   annotationScenario = false,
   approvalScenario = false,
@@ -488,25 +495,30 @@ async function createBrowserProviderFixture({
       scenario.receiptTurns?.forEach((turn) => turn.release());
     },
   };
-  const scriptedResponses = historyAccessScenario
-    ? createBrowserHistoryAccessResponses(scenario, toolResultFromRequest)
-    : annotationScenario
-      ? createBrowserAnnotationActiveResponses(scenario, {
-          extractBrowserState,
-          extractBrowserObservation,
-          toolResultFromRequest,
-        })
-      : approvalScenario
-        ? createBrowserApprovalResponses(scenario, {
-            userControl: userControlScenario,
+  const scriptedResponses = cdpScenario
+    ? createBrowserCdpResponses(scenario, {
+        extractBrowserState,
+        toolResultFromRequest,
+      })
+    : historyAccessScenario
+      ? createBrowserHistoryAccessResponses(scenario, toolResultFromRequest)
+      : annotationScenario
+        ? createBrowserAnnotationActiveResponses(scenario, {
+            extractBrowserState,
+            extractBrowserObservation,
+            toolResultFromRequest,
           })
-        : artifactScenario
-          ? createBrowserArtifactResponses(scenario)
-          : createBrowserLifecycleResponses(
-              scenario,
-              userNavigationCompleted,
-              finalResponseAllowed,
-            );
+        : approvalScenario
+          ? createBrowserApprovalResponses(scenario, {
+              userControl: userControlScenario,
+            })
+          : artifactScenario
+            ? createBrowserArtifactResponses(scenario)
+            : createBrowserLifecycleResponses(
+                scenario,
+                userNavigationCompleted,
+                finalResponseAllowed,
+              );
   if (browseApprovalScenario)
     scriptedResponses.push(
       ...createBrowserReceiptResponses(scenario, {
@@ -1445,7 +1457,7 @@ Browser Electron Gate B
 
 选项:
   --output <path>       证据 JSON 路径
-  --scenario <name>     projection（Gate A）、history、browser-data、site-permissions、device（真实设备工具栏）、device-annotation（原生设备批注坐标）、address-input（地址编辑焦点与输入）、new-tab-address（新标签地址草稿生命周期）、settings-navigation（设置管理页导航）、history-management（日期/来源/批量历史管理）、history-access（后台 Agent 历史权限）、download-history（真实 Electron 下载管理）、annotation、annotation-design（后台设计提交）、lifecycle（默认）、approval、browse-approval、user-control、cancel、window-close、disconnect、permission、download 或 artifact
+  --scenario <name>     projection（Gate A）、history、browser-data、site-permissions、device（真实设备工具栏）、device-annotation（原生设备批注坐标）、address-input（地址编辑焦点与输入）、new-tab-address（新标签地址草稿生命周期）、settings-navigation（设置管理页导航）、history-management（日期/来源/批量历史管理）、history-access（后台 Agent 历史权限）、cdp（当前页面 CDP 执行/撤权）、download-history（真实 Electron 下载管理）、annotation、annotation-design（后台设计提交）、lifecycle（默认）、approval、browse-approval、user-control、cancel、window-close、disconnect、permission、download 或 artifact
   --locale <locale>     zh-CN、zh-TW、en-US、ja-JP 或 ko-KR
   --screenshot-dir <dir> 采集 renderer/browser/agent/takeover/released/destroyed 截图
   --app-url <url>       可选 renderer dev server
@@ -1475,6 +1487,7 @@ export async function run(options) {
   const runtimeEnv = createTempRuntimeEnv();
   runtimeEnv.writeFixtureConfig({ language: options.locale });
   const providerFixture = await createBrowserProviderFixture({
+    cdpScenario: options.scenario === "cdp",
     historyAccessScenario: options.scenario === "history-access",
     annotationScenario,
     browseApprovalScenario: options.scenario === "browse-approval",
@@ -1523,6 +1536,7 @@ export async function run(options) {
         [
           "annotation-design",
           "history-access",
+          "cdp",
           "site-permissions",
           "device",
           "device-annotation",
@@ -1547,6 +1561,7 @@ export async function run(options) {
         ...([
           "annotation-design",
           "history-access",
+          "cdp",
           "site-permissions",
           "device",
           "device-annotation",
@@ -1764,6 +1779,7 @@ export async function run(options) {
       options.scenario === "settings-navigation" ||
       options.scenario === "history-management" ||
       options.scenario === "history-access" ||
+      options.scenario === "cdp" ||
       options.scenario === "download-history"
     ) {
       logStage(`run-browser-${options.scenario}`);
@@ -1786,9 +1802,11 @@ export async function run(options) {
                         ? runBrowserDataScenario
                         : options.scenario === "history-access"
                           ? runBrowserHistoryAccessScenario
-                          : options.scenario === "history"
-                            ? runBrowserHistoryScenario
-                            : runBrowserDownloadHistoryScenario
+                          : options.scenario === "cdp"
+                            ? runBrowserCdpScenario
+                            : options.scenario === "history"
+                              ? runBrowserHistoryScenario
+                              : runBrowserDownloadHistoryScenario
       )({
         app,
         page,
@@ -1800,6 +1818,7 @@ export async function run(options) {
         providerFixture,
         waitForTerminalThread,
         readBrowserWorkspaceState,
+        readBrowserDebuggerState,
         readInvokeTrace: () => invokeTraceCollector.snapshot(),
         requestLog,
       });

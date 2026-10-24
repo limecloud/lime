@@ -145,6 +145,11 @@ export const METHOD_REASONING_TEXT_DELTA = "item/reasoning/textDelta";
 export const METHOD_ITEM_STARTED = "item/started";
 export const METHOD_ITEM_TOOL_CALL = "item/tool/call";
 export const METHOD_ITEM_TOOL_REQUEST_USER_INPUT = "item/tool/requestUserInput";
+export const METHOD_LOCAL_ENVIRONMENTS_LIST = "localEnvironments/list";
+export const METHOD_LOCAL_ENVIRONMENTS_READ_CONFIG =
+  "localEnvironments/readConfig";
+export const METHOD_LOCAL_ENVIRONMENTS_SAVE_CONFIG =
+  "localEnvironments/saveConfig";
 export const METHOD_LOG_CLEAR = "log/clear";
 export const METHOD_LOG_DIAGNOSTIC_HISTORY_CLEAR =
   "log/diagnosticHistory/clear";
@@ -937,6 +942,18 @@ export const GENERATED_APP_SERVER_METHODS = [
   {
     kind: "serverRequest",
     method: "item/tool/requestUserInput",
+  },
+  {
+    kind: "request",
+    method: "localEnvironments/list",
+  },
+  {
+    kind: "request",
+    method: "localEnvironments/readConfig",
+  },
+  {
+    kind: "request",
+    method: "localEnvironments/saveConfig",
   },
   {
     kind: "request",
@@ -4734,6 +4751,21 @@ export type ClientRequest =
     }
   | {
       id: number | string;
+      method: "localEnvironments/list";
+      params: LocalEnvironmentsListParams;
+    }
+  | {
+      id: number | string;
+      method: "localEnvironments/readConfig";
+      params: LocalEnvironmentsReadConfigParams;
+    }
+  | {
+      id: number | string;
+      method: "localEnvironments/saveConfig";
+      params: LocalEnvironmentsSaveConfigParams;
+    }
+  | {
+      id: number | string;
       method: "environment/add";
       params: EnvironmentAddParams;
     }
@@ -6425,6 +6457,91 @@ export interface ListMcpServerStatusResponse {
   nextCursor?: null | string;
 }
 
+export interface LocalEnvironment {
+  actions?: LocalEnvironmentAction[] | null;
+  cleanup?: LocalEnvironmentLifecycle | null;
+  name: string;
+  setup: LocalEnvironmentLifecycle;
+  version: number;
+}
+
+export interface LocalEnvironmentAction {
+  command: string;
+  icon?: LocalEnvironmentActionIcon | null;
+  name: string;
+  platform?: LocalEnvironmentPlatform | null;
+}
+
+export type LocalEnvironmentActionIcon = "debug" | "run" | "test" | "tool";
+
+export interface LocalEnvironmentError {
+  message: string;
+}
+
+export interface LocalEnvironmentLifecycle {
+  darwin?: LocalEnvironmentScript | null;
+  linux?: LocalEnvironmentScript | null;
+  script: string;
+  win32?: LocalEnvironmentScript | null;
+}
+
+export type LocalEnvironmentPlatform = "darwin" | "linux" | "win32";
+
+export type LocalEnvironmentResult =
+  | {
+      configPath: string;
+      cwdRelativeToGitRoot: string;
+      environment: LocalEnvironment;
+      type: "success";
+    }
+  | {
+      configPath: string;
+      cwdRelativeToGitRoot: string;
+      error: LocalEnvironmentError;
+      type: "error";
+    };
+
+export type LocalEnvironmentSaveStatus = "conflict" | "success";
+
+export interface LocalEnvironmentScript {
+  script: string;
+}
+
+export interface LocalEnvironmentsListParams {
+  hostId?: null | string;
+  workspaceRoot: string;
+}
+
+export interface LocalEnvironmentsListResponse {
+  environments: LocalEnvironmentResult[];
+}
+
+export interface LocalEnvironmentsReadConfigParams {
+  configPath: string;
+  hostId?: null | string;
+}
+
+export interface LocalEnvironmentsReadConfigResponse {
+  configPath: string;
+  environment?: LocalEnvironmentResult | null;
+  exists: boolean;
+  raw?: null | string;
+  revision?: null | string;
+}
+
+export interface LocalEnvironmentsSaveConfigParams {
+  configPath: string;
+  expectedRevision?: null | string;
+  hostId?: null | string;
+  raw: string;
+}
+
+export interface LocalEnvironmentsSaveConfigResponse {
+  configPath: string;
+  revision?: null | string;
+  type: LocalEnvironmentSaveStatus;
+}
+
 export interface LogArtifactEntry {
   compressed: boolean;
   fileName: string;
@@ -7354,6 +7471,9 @@ export type Method =
   | "fs/writeFile"
   | "fuzzyFileSearch"
   | "hooks/list"
+  | "localEnvironments/list"
+  | "localEnvironments/readConfig"
+  | "localEnvironments/saveConfig"
   | "marketplace/add"
   | "marketplace/remove"
   | "marketplace/upgrade"

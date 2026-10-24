@@ -272,6 +272,8 @@
   "workspace.artifactRenderer.fallback.detail": "Type \"{{type}}\" does not have a renderer, so raw content is shown.",
   "workspace.artifactRenderer.sourceOnError.title": "Source view (render failed)",
   "workspace.artifactRenderer.sourceOnError.retry": "Retry",
+  "workspace.artifactRenderer.previewFallback.titleFallback": "Untitled resource",
+  "workspace.artifactRenderer.previewFallback.mimeType": "Type: {{mimeType}}",
   "workspace.artifactRenderer.previewFallback.systemOpen.title": "Open with a system app",
   "workspace.artifactRenderer.previewFallback.systemOpen.detail": "This file is on the unified preview path, but there is no safe embedded renderer yet. Use the top toolbar to open it with a system app or locate the file.",
   "workspace.artifactRenderer.previewFallback.unsupported.title": "Embedded preview is not supported",

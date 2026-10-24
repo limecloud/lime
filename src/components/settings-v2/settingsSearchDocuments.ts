@@ -156,17 +156,16 @@ export const settingsSearchDocuments: readonly SettingsSearchDocument[] = [
     termKeys: ["settings.profile.field.bio.placeholder"],
     localProfile: true,
   },
-  ...(["enable", "timeout"] as const).map((field) => ({
-    section: SettingsTabs.Environment,
-    targetId: `environment-shell-${field}`,
-    labelKey: `settings.environment.shellImport.${field}.label`,
-    termKeys: [`settings.environment.shellImport.${field}.tip`],
-  })),
   {
-    section: SettingsTabs.Environment,
-    targetId: "environment-overrides",
-    labelKey: "settings.environment.overrides.title",
-    termKeys: ["settings.environment.overrides.description"],
+    section: SettingsTabs.LocalEnvironments,
+    targetId: "local-environments-projects",
+    labelKey: "settings.localEnvironments.projects",
+    termKeys: [
+      "settings.localEnvironments.description",
+      "settings.localEnvironments.setup",
+      "settings.localEnvironments.cleanup",
+      "settings.localEnvironments.actions",
+    ],
   },
   ...(
     [

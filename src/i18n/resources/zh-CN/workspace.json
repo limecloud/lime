@@ -272,6 +272,8 @@
   "workspace.artifactRenderer.fallback.detail": "类型 \"{{type}}\" 没有对应的渲染器，显示原始内容。",
   "workspace.artifactRenderer.sourceOnError.title": "源码视图（渲染失败）",
   "workspace.artifactRenderer.sourceOnError.retry": "重试",
+  "workspace.artifactRenderer.previewFallback.titleFallback": "未命名资源",
+  "workspace.artifactRenderer.previewFallback.mimeType": "类型：{{mimeType}}",
   "workspace.artifactRenderer.previewFallback.systemOpen.title": "请用系统应用打开",
   "workspace.artifactRenderer.previewFallback.systemOpen.detail": "这个文件已进入统一预览链路，但当前没有安全的内嵌渲染器；请使用顶部工具栏的系统打开或定位文件。",
   "workspace.artifactRenderer.previewFallback.unsupported.title": "暂不支持内嵌预览",

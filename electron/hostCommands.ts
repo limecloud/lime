@@ -93,7 +93,6 @@ export class ElectronHostCommands {
     this.#secureCredentialStore = secureCredentialStore;
     this.#systemUtilityHost = new SystemUtilityHost({
       appDataRoot,
-      readConfig: () => this.#readConfig(),
       emit,
     });
     this.#fileShellHost = new FileShellHost({
@@ -180,8 +179,6 @@ export class ElectronHostCommands {
         return await this.#voiceModelHost.download(args);
       case "voice_models_delete":
         return await this.#voiceModelHost.delete(args);
-      case "get_environment_preview":
-        return await this.#systemUtilityHost.getEnvironmentPreview();
       case "get_browser_connector_settings_cmd":
         return this.#systemUtilityHost.getBrowserConnectorSettings();
       case "get_browser_connector_install_status_cmd":

@@ -1,0 +1,32 @@
+{
+  "$defs": {
+    "LocalEnvironmentSaveStatus": {
+      "enum": [
+        "conflict",
+        "success"
+      ],
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "configPath": {
+      "type": "string"
+    },
+    "revision": {
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    "type": {
+      "$ref": "#/$defs/LocalEnvironmentSaveStatus"
+    }
+  },
+  "required": [
+    "configPath",
+    "type"
+  ],
+  "title": "LocalEnvironmentsSaveConfigResponse",
+  "type": "object"
+}

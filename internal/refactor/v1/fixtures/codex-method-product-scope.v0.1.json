@@ -20,9 +20,9 @@
       "clientNotification": 1
     },
     "byStatus": {
-      "implemented": 174,
+      "implemented": 175,
       "product-scope-excluded": 15,
-      "planned": 56
+      "planned": 55
     }
   },
   "groups": [
@@ -538,23 +538,23 @@
       "methods": ["config/batchWrite", "config/read", "config/value/write"]
     },
     {
-      "id": "config-requirements-planned",
+      "id": "config-requirements-current",
       "direction": "clientRequest",
       "productArea": "config",
-      "status": "planned",
+      "status": "implemented",
       "priority": "P1",
       "owner": "core config + App Server permissions",
-      "counterpartRule": "none",
+      "counterpartRule": "same-name",
       "evidence": [
-        "lime-rs/crates/app-server/src/processor/config.rs",
+        "lime-rs/crates/app-server/src/processor/config/requirements.rs",
+        "lime-rs/crates/app-server/tests/in_app_browser_requirements_jsonrpc.rs",
         "electron/browserTabHost.ts",
-        "src/components/agent/chat/utils/browserTaskRequirement.ts",
+        "src/lib/api/configRequirements.ts",
+        "src/lib/api/configRequirements.inAppBrowser.contract.test.ts",
         "internal/aiprompts/commands.md",
-        "internal/aiprompts/architecture.md",
-        "internal/exec-plans/codex-method-scope-reassessment.md"
+        "internal/aiprompts/architecture.md"
       ],
-      "methods": ["configRequirements/read"],
-      "gap": "Project the authoritative requirements and managed policy layers through the current config owner and enforce the same requirements at admission. Existing browser approvals do not substitute for this contract."
+      "methods": ["configRequirements/read"]
     },
     {
       "id": "mcp-config-reload-planned",
@@ -603,8 +603,7 @@
         "lime-rs/crates/app-server/src/processor/experimental_feature.rs",
         "lime-rs/crates/app-server/tests/experimental_feature_jsonrpc.rs",
         "packages/app-server-client/src/request-client-methods.ts",
-        "src/lib/api/experimentalFeatures.ts",
-        "src/components/settings-v2/system/experimental/index.tsx"
+        "lime-rs/crates/core/src/config/features.rs"
       ],
       "methods": [
         "experimentalFeature/enablement/set",

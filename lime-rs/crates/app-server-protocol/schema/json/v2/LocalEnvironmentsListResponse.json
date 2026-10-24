@@ -1,0 +1,225 @@
+{
+  "$defs": {
+    "LocalEnvironment": {
+      "properties": {
+        "actions": {
+          "items": {
+            "$ref": "#/$defs/LocalEnvironmentAction"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "cleanup": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LocalEnvironmentLifecycle"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "setup": {
+          "$ref": "#/$defs/LocalEnvironmentLifecycle"
+        },
+        "version": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "name",
+        "setup",
+        "version"
+      ],
+      "type": "object"
+    },
+    "LocalEnvironmentAction": {
+      "properties": {
+        "command": {
+          "type": "string"
+        },
+        "icon": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LocalEnvironmentActionIcon"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "platform": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LocalEnvironmentPlatform"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "command",
+        "name"
+      ],
+      "type": "object"
+    },
+    "LocalEnvironmentActionIcon": {
+      "enum": [
+        "debug",
+        "run",
+        "test",
+        "tool"
+      ],
+      "type": "string"
+    },
+    "LocalEnvironmentError": {
+      "properties": {
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "message"
+      ],
+      "type": "object"
+    },
+    "LocalEnvironmentLifecycle": {
+      "properties": {
+        "darwin": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LocalEnvironmentScript"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "linux": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LocalEnvironmentScript"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "script": {
+          "type": "string"
+        },
+        "win32": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LocalEnvironmentScript"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "script"
+      ],
+      "type": "object"
+    },
+    "LocalEnvironmentPlatform": {
+      "enum": [
+        "darwin",
+        "linux",
+        "win32"
+      ],
+      "type": "string"
+    },
+    "LocalEnvironmentResult": {
+      "oneOf": [
+        {
+          "properties": {
+            "configPath": {
+              "type": "string"
+            },
+            "cwdRelativeToGitRoot": {
+              "type": "string"
+            },
+            "environment": {
+              "$ref": "#/$defs/LocalEnvironment"
+            },
+            "type": {
+              "const": "success",
+              "type": "string"
+            }
+          },
+          "required": [
+            "configPath",
+            "cwdRelativeToGitRoot",
+            "environment",
+            "type"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "configPath": {
+              "type": "string"
+            },
+            "cwdRelativeToGitRoot": {
+              "type": "string"
+            },
+            "error": {
+              "$ref": "#/$defs/LocalEnvironmentError"
+            },
+            "type": {
+              "const": "error",
+              "type": "string"
+            }
+          },
+          "required": [
+            "configPath",
+            "cwdRelativeToGitRoot",
+            "error",
+            "type"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "LocalEnvironmentScript": {
+      "properties": {
+        "script": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "script"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "environments": {
+      "items": {
+        "$ref": "#/$defs/LocalEnvironmentResult"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "environments"
+  ],
+  "title": "LocalEnvironmentsListResponse",
+  "type": "object"
+}

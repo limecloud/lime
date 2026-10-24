@@ -38,7 +38,7 @@ export enum SettingsTabs {
 
   // 系统
   McpServer = "mcp-server",
-  Environment = "environment",
+  LocalEnvironments = "local-environments",
   Git = "git",
   Worktrees = "worktrees",
   ExecutionPolicy = "execution-policy",

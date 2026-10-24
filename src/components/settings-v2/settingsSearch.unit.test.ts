@@ -244,9 +244,9 @@ describe("current settings search projection", () => {
   );
   it("matches descriptions and multiple words from the same target and panel", () => {
     const { t } = localize();
-    const description = t("settings.environment.overrides.description");
+    const description = t("settings.localEnvironments.description");
     expect(search(description)).toContainEqual(
-      expect.objectContaining({ targetId: "environment-overrides" }),
+      expect.objectContaining({ targetId: "local-environments-projects" }),
     );
     expect(search("profile bio")).toContainEqual(
       expect.objectContaining({ targetId: "profile-bio" }),
@@ -291,7 +291,7 @@ describe("current settings search projection", () => {
     ).toBe(true);
     for (const target of [
       "missing",
-      "environment-overrides",
+      "local-environments-projects",
       'profile-bio"] input, *',
     ]) {
       expect(isSettingsSearchTarget(SettingsTabs.Profile, target, true)).toBe(

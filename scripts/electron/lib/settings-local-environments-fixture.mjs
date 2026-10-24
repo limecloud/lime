@@ -1,0 +1,251 @@
+import fs from "node:fs";
+import path from "node:path";
+import {
+  ensureElectronFixtureBuild,
+  inspectElectronFixtureBuildFreshness,
+} from "../../lib/electron-fixture-build.mjs";
+import {
+  electronAppServerBinaryDestination,
+  resolveElectronAppServerRuntimeEnv,
+} from "../../lib/electron-app-server-assets.mjs";
+import {
+  launchElectronFixture,
+  createTempRuntimeEnv,
+  appServerCallFromPage,
+} from "../mcp-config-fixture-smoke.mjs";
+import { captureMainProcessExit } from "./persisted-atom-fixture-driver.mjs";
+import { settleFixtureResources } from "../../agent-runtime/claw-chat-current-fixture-teardown.mjs";
+import {
+  parseSettingsAppearanceFixtureArgs,
+  summarizeSettingsAppearanceTrace,
+} from "./settings-appearance-fixture-evidence.mjs";
+import {
+  openLocalEnvironmentEditor,
+  runSettingsLocalEnvironmentsNavigationScenario,
+} from "./settings-local-environments-navigation-scenario.mjs";
+
+const options = parseSettingsAppearanceFixtureArgs(process.argv.slice(2), {
+  defaults: {
+    runId: null,
+    evidenceDir: null,
+    prefix: "settings-local-environments",
+    timeoutMs: 120000,
+    intervalMs: 250,
+    keepTemp: false,
+  },
+});
+if (options.help) {
+  console.log(
+    "node scripts/electron/lib/settings-local-environments-fixture.mjs --run-id <id> --evidence-dir <path>",
+  );
+  process.exit(0);
+}
+fs.mkdirSync(options.evidenceDir, { recursive: true });
+const summary = {
+  schemaVersion: 1,
+  scenario: "settings-local-environments",
+  proofLevel: "Desktop Gate B controlled fixture",
+  claimBoundary:
+    "Real Electron/preload/IPC/App Server local configuration discovery, draft protection, file persistence and revision conflicts, including cold restart. No scripts/actions executed, remote host, live provider, Windows or full-settings claim.",
+  startedAt: new Date().toISOString(),
+  result: "fail",
+  assertions: {},
+  launches: [],
+  teardowns: [],
+  measurements: [],
+};
+const errors = [],
+  pageErrors = [],
+  traces = [];
+let runtime, handle, mainExit;
+function check(name, value) {
+  summary.assertions[name] = Boolean(value);
+  if (!value) throw Error(name);
+}
+async function launch() {
+  handle = await launchElectronFixture({
+    options,
+    runtimeEnv: runtime,
+    appServerEnv: runtime.appServerEnv,
+    consoleErrors: errors,
+    pageErrors,
+    backendMode: "unavailable",
+  });
+  mainExit = captureMainProcessExit(handle.app.process());
+  summary.launches.push(handle.rendererSnapshot);
+}
+async function close() {
+  traces.push(
+    await handle.page.evaluate(() =>
+      localStorage.getItem("lime_invoke_trace_buffer_v1"),
+    ),
+  );
+  const teardown = await settleFixtureResources({ app: handle.app, mainExit });
+  summary.teardowns.push(teardown);
+  handle = null;
+  check(
+    "normalMainExit",
+    teardown.ok &&
+      teardown.forcedCleanup === null &&
+      teardown.normalMainExit?.exitCode === 0 &&
+      teardown.normalMainExit?.signal === null,
+  );
+}
+async function screenshot(name) {
+  const page = handle.page;
+  const measurement = await page
+    .getByTestId("local-environment-editor")
+    .evaluate((editor) => {
+      const content = editor.closest("main");
+      return {
+        title: getComputedStyle(editor.querySelector("h1")).fontSize,
+        body: getComputedStyle(editor).fontSize,
+        documentOverflow: document.documentElement.scrollWidth > innerWidth + 1,
+        contentOverflow: content.scrollWidth > content.clientWidth + 1,
+      };
+    });
+  summary.measurements.push({ name, ...measurement });
+  check(
+    `typography-${name}`,
+    measurement.title === "28px" && measurement.body === "13px",
+  );
+  check(
+    `no-overflow-${name}`,
+    !measurement.documentOverflow && !measurement.contentOverflow,
+  );
+  await page.screenshot({
+    path: path.join(options.evidenceDir, `${name}.png`),
+    animations: "disabled",
+  });
+}
+try {
+  await ensureElectronFixtureBuild({
+    rootDir: process.cwd(),
+    logPrefix: "settings-local-environments",
+  });
+  summary.freshnessBefore = inspectElectronFixtureBuildFreshness({
+    rootDir: process.cwd(),
+  });
+  check("freshBuildBefore", summary.freshnessBefore.ready);
+  runtime = createTempRuntimeEnv();
+  runtime.appServerEnv = resolveElectronAppServerRuntimeEnv({
+    env: {
+      ...runtime.env,
+      APP_SERVER_BIN: electronAppServerBinaryDestination({
+        outputRoot: path.resolve("dist-electron"),
+      }),
+    },
+    repoRoot: process.cwd(),
+  });
+  await launch();
+  check(
+    "realElectronAndPreload",
+    handle.rendererSnapshot.electron && handle.rendererSnapshot.hasInvokeBridge,
+  );
+  summary.configuration = await runSettingsLocalEnvironmentsNavigationScenario({
+    page: handle.page,
+    options,
+    evidenceDir: options.evidenceDir,
+    stage: (stage) => console.log(`[local-environments] ${stage}`),
+    waitForSession: () =>
+      handle.page
+        .getByTestId("settings-navigation")
+        .waitFor({ state: "detached" }),
+    workspaceRoot: path.join(runtime.tempRoot, "local-environment-project"),
+  });
+  check(
+    "configurationFlow",
+    summary.configuration.saveAndReopen &&
+      summary.configuration.conflictKeepsDraft &&
+      summary.configuration.externalBytesPreserved,
+  );
+  await close();
+  await launch();
+  await openLocalEnvironmentEditor(
+    handle.page,
+    options,
+    summary.configuration.projectName,
+  );
+  check(
+    "coldUiRestore",
+    (await handle.page
+      .getByRole("textbox", { name: "设置脚本 · 默认", exact: true })
+      .inputValue()) === "printf 'setup fixture'",
+  );
+  const read = await appServerCallFromPage(
+    handle.page,
+    "localEnvironments/readConfig",
+    { configPath: summary.configuration.configPath },
+  );
+  check(
+    "coldCanonicalRestore",
+    read.result.environment.type === "success" &&
+      read.result.environment.environment.actions[0].name === "Test fixture",
+  );
+  check(
+    "directPublicIpc",
+    read.ipcObservation.transport === "electron-ipc" &&
+      read.ipcObservation.requestId === read.ipcObservation.responseId &&
+      !read.ipcObservation.fallback,
+  );
+  await screenshot("local-environments-desktop");
+  await handle.page.setViewportSize({ width: 900, height: 760 });
+  await screenshot("local-environments-narrow");
+  await close();
+  summary.trace = summarizeSettingsAppearanceTrace(traces);
+  check(
+    "currentMethods",
+    [
+      "localEnvironments/list",
+      "localEnvironments/readConfig",
+      "localEnvironments/saveConfig",
+    ].every((method) => summary.trace.methods.includes(method)),
+  );
+  check(
+    "noLegacyOrMock",
+    summary.trace.mockFallbackHitCount === 0 &&
+      summary.trace.legacyCommands.length === 0,
+  );
+  check(
+    "noConsoleOrPageErrors",
+    errors.length === 0 && pageErrors.length === 0,
+  );
+  summary.freshnessAfter = inspectElectronFixtureBuildFreshness({
+    rootDir: process.cwd(),
+  });
+  check("freshBuildAfter", summary.freshnessAfter.ready);
+  summary.result = "pass";
+} catch (error) {
+  summary.failure = String(error.stack || error);
+  process.exitCode = 1;
+} finally {
+  if (handle)
+    try {
+      await close();
+    } catch (error) {
+      summary.teardownFailure = String(error);
+      summary.result = "fail";
+      process.exitCode = 1;
+    }
+  summary.consoleErrors = errors;
+  summary.pageErrors = pageErrors;
+  summary.completedAt = new Date().toISOString();
+  if (runtime && !options.keepTemp)
+    fs.rmSync(runtime.tempRoot, { recursive: true, force: true });
+  fs.writeFileSync(
+    path.join(options.evidenceDir, "summary.json"),
+    `${JSON.stringify(summary, null, 2)}\n`,
+  );
+  console.log(
+    JSON.stringify(
+      {
+        result: summary.result,
+        assertions: summary.assertions,
+        failure: summary.failure,
+        evidenceDir: options.evidenceDir,
+      },
+      null,
+      2,
+    ),
+  );
+}

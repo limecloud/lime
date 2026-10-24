@@ -221,7 +221,7 @@ const I18N_RTL_SURFACE_FILES = new Set([
   "src/components/settings-v2/system/automation/index.tsx",
   "src/components/settings-v2/system/channels/ChannelLogTailPanel.tsx",
   "src/components/settings-v2/system/channels/ChannelsDebugWorkbench.tsx",
-  "src/components/settings-v2/system/environment/index.tsx",
+  "src/components/settings-v2/coding/local-environments/LocalEnvironmentsSettings.tsx",
   "src/components/skills/SkillScaffoldDialog.tsx",
   "src/components/workspace/canvas/shared/CanvasBreadcrumbHeader.tsx",
   "src/components/workspace/document/DocumentToolbar.tsx",

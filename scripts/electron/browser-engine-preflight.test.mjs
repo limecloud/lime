@@ -52,9 +52,12 @@ function fixture() {
 }
 
 it("refuses an engine checkout outside the original repository before probing commands", () => {
-  expect(() => inspectBrowserEngineBuild({ checkout: "../engine" })).toThrow(
-    "inside the original repository",
-  );
+  expect(() =>
+    inspectBrowserEngineBuild({
+      checkout: "../engine",
+      target: "darwin-arm64",
+    }),
+  ).toThrow("inside the original repository");
 });
 
 it("treats preflight readiness as distinct from implemented native services", () => {

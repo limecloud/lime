@@ -302,6 +302,7 @@ dependencies = [
  "tokio",
  "tokio-tungstenite",
  "tokio-util",
+ "toml_edit",
  "tool-runtime",
  "tracing",
  "tracing-opentelemetry",

@@ -84,7 +84,6 @@ export const ELECTRON_HOST_COMMANDS = [
   "get_chrome_bridge_status",
   "get_chrome_profile_sessions",
   "get_default_provider",
-  "get_environment_preview",
   "get_file_icon_data_url",
   "get_home_dir",
   "get_or_create_default_project",

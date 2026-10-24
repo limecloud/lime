@@ -233,24 +233,6 @@ export interface EnvironmentConfig {
   variables: EnvironmentVariableOverride[];
 }
 
-export interface EnvironmentPreviewEntry {
-  key: string;
-  value: string;
-  maskedValue: string;
-  source: string;
-  sourceLabel: string;
-  sensitive: boolean;
-  overriddenSources: string[];
-}
-
-export interface ShellImportPreview {
-  enabled: boolean;
-  status: string;
-  message: string;
-  importedCount: number;
-  durationMs?: number | null;
-}
-
 export interface DesktopCapability {
   status:
     | "ready"
@@ -302,12 +284,6 @@ export interface DesktopCapabilities {
     updates: DesktopCapability;
     sandbox: DesktopCapability;
   };
-}
-
-export interface EnvironmentPreview {
-  desktopCapabilities?: DesktopCapabilities;
-  shellImport: ShellImportPreview;
-  entries: EnvironmentPreviewEntry[];
 }
 
 /** Shared user-config preferences; validation remains in core TuiConfig. */

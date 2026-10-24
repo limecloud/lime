@@ -42,7 +42,6 @@ const {
   systemUtilityHostGetChromeBridgeEndpointInfoMock,
   systemUtilityHostGetChromeBridgeStatusMock,
   systemUtilityHostGetChromeProfileSessionsMock,
-  systemUtilityHostGetEnvironmentPreviewMock,
   systemUtilityHostInvokeMacOSNativeHostMock,
   systemUtilityHostInvokeWindowsNativeHostMock,
   systemUtilityHostOpenExternalUrlMock,
@@ -127,7 +126,6 @@ const {
     systemUtilityHostGetChromeBridgeEndpointInfoMock: vi.fn(),
     systemUtilityHostGetChromeBridgeStatusMock: vi.fn(),
     systemUtilityHostGetChromeProfileSessionsMock: vi.fn(),
-    systemUtilityHostGetEnvironmentPreviewMock: vi.fn(),
     systemUtilityHostInvokeMacOSNativeHostMock: vi.fn(),
     systemUtilityHostInvokeWindowsNativeHostMock: vi.fn(),
     systemUtilityHostOpenExternalUrlMock: vi.fn(),
@@ -205,7 +203,6 @@ vi.mock("./systemUtilityHost", () => ({
       systemUtilityHostGetChromeBridgeEndpointInfoMock,
     getChromeBridgeStatus: systemUtilityHostGetChromeBridgeStatusMock,
     getChromeProfileSessions: systemUtilityHostGetChromeProfileSessionsMock,
-    getEnvironmentPreview: systemUtilityHostGetEnvironmentPreviewMock,
     invokeMacOSNativeHost: systemUtilityHostInvokeMacOSNativeHostMock,
     invokeWindowsNativeHost: systemUtilityHostInvokeWindowsNativeHostMock,
     openExternalUrl: systemUtilityHostOpenExternalUrlMock,
@@ -958,7 +955,6 @@ describe("ElectronHostCommands app config persistence", () => {
 
     expect(SystemUtilityHost).toHaveBeenCalledWith({
       appDataRoot,
-      readConfig: expect.any(Function),
       emit: expect.any(Function),
     });
     expect(VoiceModelHost).toHaveBeenCalledWith(
@@ -967,7 +963,7 @@ describe("ElectronHostCommands app config persistence", () => {
     );
   });
 
-  it.each(["get_config", "save_config"])(
+  it.each(["get_config", "save_config", "get_environment_preview"])(
     "%s 已从 Electron Host 退场，配置只能走 App Server current API",
     async (command) => {
       const userDataDir = await createTempUserDataDir();
@@ -1159,9 +1155,6 @@ describe("ElectronHostCommands system utilities", () => {
   it("系统工具命令应只分发到 SystemUtilityHost", async () => {
     systemUtilityHostOpenExternalUrlMock.mockResolvedValueOnce({});
     systemUtilityHostOpenSystemSettingsUrlMock.mockResolvedValueOnce({});
-    systemUtilityHostGetEnvironmentPreviewMock.mockResolvedValueOnce({
-      entries: [],
-    });
     systemUtilityHostInvokeMacOSNativeHostMock.mockResolvedValueOnce({
       status: "ready",
     });
@@ -1200,9 +1193,6 @@ describe("ElectronHostCommands system utilities", () => {
       host.invoke("open_system_settings_url", settingsArgs),
     ).resolves.toEqual({});
 
-    await expect(host.invoke("get_environment_preview")).resolves.toEqual({
-      entries: [],
-    });
     const nativeArgs = {
       method: "accessibility.read",
       params: {},
@@ -1245,7 +1235,6 @@ describe("ElectronHostCommands system utilities", () => {
     expect(systemUtilityHostOpenSystemSettingsUrlMock).toHaveBeenCalledWith(
       settingsArgs,
     );
-    expect(systemUtilityHostGetEnvironmentPreviewMock).toHaveBeenCalledOnce();
     expect(systemUtilityHostInvokeMacOSNativeHostMock).toHaveBeenCalledWith(
       nativeArgs,
     );

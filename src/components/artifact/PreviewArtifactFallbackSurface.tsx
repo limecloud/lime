@@ -46,7 +46,7 @@ export const PreviewArtifactFallbackSurface = memo(
     const filename =
       readStringMeta(artifact.meta, "filename") ||
       artifact.title ||
-      t("workspace.resourceManager.unsupported.titleFallback");
+      t("workspace.artifactRenderer.previewFallback.titleFallback");
     const mimeType = readStringMeta(artifact.meta, "mimeType");
     const previewError =
       readStringMeta(artifact.meta, "previewError") || artifact.error?.trim();
@@ -119,7 +119,7 @@ export const PreviewArtifactFallbackSurface = memo(
             {filePath ? <div className="mt-1 truncate">{filePath}</div> : null}
             {mimeType ? (
               <div>
-                {t("workspace.resourceManager.unsupported.mimeType", {
+                {t("workspace.artifactRenderer.previewFallback.mimeType", {
                   mimeType,
                 })}
               </div>

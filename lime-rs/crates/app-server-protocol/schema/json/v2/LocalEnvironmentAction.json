@@ -1,0 +1,56 @@
+{
+  "$defs": {
+    "LocalEnvironmentActionIcon": {
+      "enum": [
+        "debug",
+        "run",
+        "test",
+        "tool"
+      ],
+      "type": "string"
+    },
+    "LocalEnvironmentPlatform": {
+      "enum": [
+        "darwin",
+        "linux",
+        "win32"
+      ],
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "command": {
+      "type": "string"
+    },
+    "icon": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/LocalEnvironmentActionIcon"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "name": {
+      "type": "string"
+    },
+    "platform": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/LocalEnvironmentPlatform"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "command",
+    "name"
+  ],
+  "title": "LocalEnvironmentAction",
+  "type": "object"
+}

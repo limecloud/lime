@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "configPath": {
+      "type": "string"
+    },
+    "expectedRevision": {
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    "hostId": {
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    "raw": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "configPath",
+    "raw"
+  ],
+  "title": "LocalEnvironmentsSaveConfigParams",
+  "type": "object"
+}

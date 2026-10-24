@@ -15,7 +15,6 @@ describe("sidebarNav", () => {
 
     expect(FOOTER_SIDEBAR_NAV_ITEMS.map((item) => item.label)).toEqual([
       "设置",
-      "项目资料",
       "消息渠道",
     ]);
     expect(FOOTER_SIDEBAR_NAV_ITEMS.map((item) => item.id)).not.toContain(

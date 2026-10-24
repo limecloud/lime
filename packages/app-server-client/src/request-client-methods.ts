@@ -18,6 +18,24 @@ export type AppServerRequestClientMethodSpec = {
 export const APP_SERVER_REQUEST_CLIENT_METHODS: readonly AppServerRequestClientMethodSpec[] =
   [
     {
+      name: "listLocalEnvironments",
+      method: protocol.METHOD_LOCAL_ENVIRONMENTS_LIST,
+      kind: "request",
+      params: "required",
+    },
+    {
+      name: "readLocalEnvironmentConfig",
+      method: protocol.METHOD_LOCAL_ENVIRONMENTS_READ_CONFIG,
+      kind: "request",
+      params: "required",
+    },
+    {
+      name: "saveLocalEnvironmentConfig",
+      method: protocol.METHOD_LOCAL_ENVIRONMENTS_SAVE_CONFIG,
+      kind: "request",
+      params: "required",
+    },
+    {
       name: "requestCloud",
       method: protocol.METHOD_CLOUD_REQUEST,
       kind: "request",

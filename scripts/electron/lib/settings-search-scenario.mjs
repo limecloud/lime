@@ -18,12 +18,7 @@ const targets = [
   ["general-language", "settings.desktop.language"],
   ["profile-displayName", "settings.profile.field.displayName.label"],
   ["profile-bio", "settings.profile.field.bio.label"],
-  ["environment-shell-enable", "settings.environment.shellImport.enable.label"],
-  [
-    "environment-shell-timeout",
-    "settings.environment.shellImport.timeout.label",
-  ],
-  ["environment-overrides", "settings.environment.overrides.title"],
+  ["local-environments-projects", "settings.localEnvironments.projects"],
   ...["workspace", "plan", "shell", "network"].map((field) => [
     `execution-policy-${field}`,
     `settings.executionPolicy.${field}.title`,
@@ -128,11 +123,11 @@ export async function runSettingsSearchScenario({
     observations.push(await search(id, messages[key]));
   }
   stage("settings-search-repeat-and-description");
-  const description = messages["settings.environment.overrides.description"];
-  await search("environment-overrides", description);
+  const description = messages["settings.localEnvironments.description"];
+  await search("local-environments-projects", description);
   await search(
-    "environment-overrides",
-    messages["settings.environment.overrides.title"],
+    "local-environments-projects",
+    messages["settings.localEnvironments.title"],
   );
   stage("settings-search-dirty-keep-and-discard");
   await search("profile-bio", messages["settings.profile.field.bio.label"]);
@@ -142,9 +137,7 @@ export async function runSettingsSearchScenario({
   const beforeRequest = await page.evaluate(() =>
     sessionStorage.getItem("lime.appNavigation.restore.v1"),
   );
-  await desktop.fill(
-    messages["settings.environment.shellImport.timeout.label"],
-  );
+  await desktop.fill(messages["settings.localEnvironments.title"]);
   await desktop.press("Enter");
   await dialog.waitFor({ state: "visible" });
   assert.equal(
@@ -329,7 +322,7 @@ export async function runSettingsSearchScenario({
   const bio = page.locator("#profile-field-bio");
   await bio.fill("narrow search unsaved draft");
   await page.keyboard.press(searchShortcut);
-  await narrowSearch.fill(messages["settings.environment.overrides.title"]);
+  await narrowSearch.fill(messages["settings.localEnvironments.title"]);
   await page.screenshot({
     path: path.join(evidenceDir, "search-narrow-results.png"),
   });
@@ -349,7 +342,7 @@ export async function runSettingsSearchScenario({
   await narrowSearch.press("Enter");
   await dialog.waitFor({ state: "visible" });
   await discard.click();
-  const narrow = await locate("environment-overrides");
+  const narrow = await locate("local-environments-projects");
   await page.screenshot({
     path: path.join(evidenceDir, "search-narrow-target.png"),
   });

@@ -6648,5 +6648,27 @@ release、断线和 Host 销毁撤销凭据；回合结束仍释放 debugger/控
 自动审核服务、完整 CDP/WebMCP 工具、企业网络代理/域名策略、扩展传输 requestHeaders 的执行
 仍未实现。本次复制协议与限制执行不代表原生密码/Autofill/导入/完整扩展可用。
 
+2026-10-24 CDP 主页面执行切片沿用同一 authority：
+
+```text
+GUI turn/start -> RuntimeCore/provider -> item/tool/call
+  -> AppServerDynamicToolHost / browser__executeCdpCommand
+  -> BrowserTabHost / existing route and one-use action approval
+  -> browserCdp.executeCdpCommand / command scope, policy, deadline
+  -> same WebContents.debugger -> canonical tool result / same Thread/Turn/Item
+```
+
+短模块 `browserCdp.ts` 管理命令作用域、执行和超时，BrowserTabHost 仅组装已有原生与权限回调。
+`BrowserTabPolicy` 在 attach 前检查实际 URL 的 debug 权限；默认关闭，受管策略优先，
+原 browse 批准不能替代独立 full_cdp action 批准。当前命令集合只接主页面即时操作，尚无
+生命周期 owner 的持久 debugger 覆盖、跨站 cookie、显式 frame/context 和未知命令拒绝。
+导航目的再验 browse/debug 策略，返回前重新读取独立管理员配置并核对 revision/控制权；
+超时释放控制且丢弃迟到结果，原生释放异常也必须收口为失败。终态沿用原 debugger detach，
+无新端口、Session、存储、IPC/RPC 或 renderer 执行路径。完整 CDP 的子 target/session/event
+管理、Target 模拟和 WebMCP 仍未完成；本切片不替代这些能力及其平台验收。
+
+Architecture impact: minor；Responsible developer confirmation: root, 2026-10-24；已确认上图复用
+既有 canonical 审批与原生 owner，命令注册、输入/结果与拒绝边界一致，未增加平行业务后端。
+
 Architecture impact: major；Responsible developer confirmation: root, 2026-10-24；已核对目录归属、数据流、
 唯一 Host、独立管理员 authority、协议/配置边界和验证门禁。验收与剩余项归 browser-enterprise-policy-plan.md。

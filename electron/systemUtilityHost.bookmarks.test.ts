@@ -64,7 +64,6 @@ function createHost(
 ): SystemUtilityHost {
   return new SystemUtilityHost({
     appDataRoot,
-    readConfig: async () => ({}),
     emit,
   });
 }

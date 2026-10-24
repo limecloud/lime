@@ -99,7 +99,7 @@ describe("electron/ipcChannels", () => {
     expect(isElectronHostCommand("voice_models_delete")).toBe(true);
     expect(isElectronHostCommand("voice_models_download")).toBe(true);
     expect(isElectronHostCommand("voice_models_get_install_state")).toBe(true);
-    expect(isElectronHostCommand("get_environment_preview")).toBe(true);
+    expect(isElectronHostCommand("get_environment_preview")).toBe(false);
     expect(isElectronHostCommand("unified_memory_stats")).toBe(false);
     expect(isElectronHostCommand("get_mcp_servers")).toBe(false);
     expect(isElectronHostCommand("mcp_list_servers_with_status")).toBe(false);

@@ -78,7 +78,12 @@ describe("AppServerDynamicToolHost", () => {
         },
       });
       expect(dynamicTools[1]?.tools.map(({ name }) => name)).toEqual(
-        expect.arrayContaining(["openTabs", "claimTab", "observe"]),
+        expect.arrayContaining([
+          "openTabs",
+          "claimTab",
+          "observe",
+          "executeCdpCommand",
+        ]),
       );
       expect(JSON.stringify(prepared.params)).not.toContain("forged");
     },

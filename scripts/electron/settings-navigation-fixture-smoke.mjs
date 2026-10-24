@@ -40,7 +40,7 @@ import { resolveElectronAppServerRuntimeEnv } from "../lib/electron-app-server-a
 import { inspectElectronFixtureBuildFreshness } from "../lib/electron-fixture-build.mjs";
 import { runSettingsUnsavedNavigationScenario } from "./lib/settings-unsaved-navigation-scenario.mjs";
 import { runSettingsNoteNavigationScenario } from "./lib/settings-note-navigation-scenario.mjs";
-import { runSettingsEnvironmentNavigationScenario } from "./lib/settings-environment-navigation-scenario.mjs";
+import { runSettingsLocalEnvironmentsNavigationScenario } from "./lib/settings-local-environments-navigation-scenario.mjs";
 import { runSettingsExecutionPolicyNavigationScenario } from "./lib/settings-execution-policy-navigation-scenario.mjs";
 import { runSettingsWebSearchNavigationScenario } from "./lib/settings-web-search-navigation-scenario.mjs";
 import { runSettingsProfileNavigationScenario } from "./lib/settings-profile-navigation-scenario.mjs";
@@ -450,15 +450,18 @@ export async function runSettingsNavigationFixture({ runId, evidenceDir }) {
       stage,
       waitForSession: () => surface(page, options, sessionId),
     });
-    summary.unsavedEnvironment = await runSettingsEnvironmentNavigationScenario(
-      {
+    summary.unsavedEnvironment =
+      await runSettingsLocalEnvironmentsNavigationScenario({
         page,
         options,
         evidenceDir,
         stage,
         waitForSession: () => surface(page, options, sessionId),
-      },
-    );
+        workspaceRoot: path.join(
+          runtimeEnv.tempRoot,
+          "local-environment-project",
+        ),
+      });
     summary.unsavedExecutionPolicy =
       await runSettingsExecutionPolicyNavigationScenario({
         page,

@@ -205,7 +205,7 @@ describe("Codex method product scope boundary", () => {
     ).toBe(false);
   });
 
-  it("配置requirements复用现役config owner并明确待实施", () => {
+  it("配置requirements复用现役config owner并提供浏览器准入契约", () => {
     const matrix = readJson<Matrix>(MATRIX_PATH);
     const manifest = readJson<Manifest>(MANIFEST_PATH);
     const entry = flatten(matrix).find(
@@ -213,15 +213,18 @@ describe("Codex method product scope boundary", () => {
         direction === "clientRequest" && method === "configRequirements/read",
     );
 
-    expect(entry?.status).toBe("planned");
+    expect(entry?.status).toBe("implemented");
     expect(entry?.owner).toContain("core config");
-    expect(entry?.gap).toContain("admission");
+    expect(entry?.counterpartRule).toBe("same-name");
+    expect(entry?.evidence).toContain(
+      "lime-rs/crates/app-server/tests/in_app_browser_requirements_jsonrpc.rs",
+    );
     expect(
       manifest.methods.some(
         ({ kind, method }) =>
           kind === "request" && method === "configRequirements/read",
       ),
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it("一发式搜索保持current，session能力进入同一owner的待实施清单", () => {

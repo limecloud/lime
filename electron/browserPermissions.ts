@@ -105,6 +105,10 @@ export class BrowserPermissions {
       : "en-US";
   }
 
+  get locale(): keyof typeof threadApprovalText {
+    return this.#locale;
+  }
+
   allows(scope: BrowserPermissionScope, url: string): boolean {
     let origin: string;
     try {

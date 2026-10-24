@@ -53,6 +53,7 @@ mod input_media;
 mod instructions;
 mod inter_agent_input;
 mod load_context;
+pub(crate) mod local_environments;
 mod mcp;
 mod media_task_read_model;
 mod media_tasks;

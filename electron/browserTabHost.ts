@@ -25,6 +25,7 @@ import {
   type PendingBrowserApproval,
 } from "./browserActionApprovals";
 import { BrowserHistoryTool } from "./browserHistoryTool";
+import { executeCdpCommand } from "./browserCdp";
 import {
   BrowserPermissions,
   type BrowserPermissionAnchor,
@@ -723,6 +724,8 @@ export class ElectronBrowserTabHost {
       route.humanReason = null;
       return { status: "completed", state: this.#emitState(route) };
     }
+    if (call.tool === "executeCdpCommand")
+      return this.#executeCdpCommand(route, call, false);
     if (call.tool === "openArtifact" || call.tool === "revealArtifact") {
       return this.#requireApproval(
         route,
@@ -1788,6 +1791,38 @@ export class ElectronBrowserTabHost {
     );
   }
 
+  #executeCdpCommand(
+    route: BrowserRoute,
+    call: BrowserToolCall,
+    approved: boolean,
+  ): Promise<BrowserToolResult> {
+    const contents = this.#nativeRoute(route).view.webContents;
+    return executeCdpCommand(call, approved, {
+      policy: this.#policy,
+      locale: this.#permissions.locale,
+      url: () => this.#readState(route).url,
+      assertCurrent: () => {
+        if (this.#resolveToolRoute(call) !== route || contents.isDestroyed())
+          throw new Error("Browser CDP native route is stale");
+        this.#assertAgentControl(route, call.turnId);
+        this.#permissions.assertAllowed(
+          this.#permissionAnchor(route, call.turnId),
+          this.#readState(route).url,
+        );
+      },
+      attach: () => this.#attachDebugger(route),
+      sendDebuggerCommand: (method, params) =>
+        contents.debugger.sendCommand(method, params),
+      runAgentInput: (action) => this.#runAgentInput(route, action),
+      refreshSettings: () => this.#refreshSettings(),
+      invalidateSnapshot: () => this.#invalidateSnapshot(route),
+      release: () => this.#takeUserControl(route),
+      state: () => this.#emitState(route),
+      requestApproval: (reason) =>
+        this.#requireApproval(route, call, reason, "full_cdp"),
+    });
+  }
+
   async #executeApprovedTool(
     call: BrowserToolCall,
   ): Promise<BrowserToolResult> {
@@ -1845,6 +1880,8 @@ export class ElectronBrowserTabHost {
       }
     }
     switch (call.tool) {
+      case "executeCdpCommand":
+        return this.#executeCdpCommand(route, call, true);
       case "click":
         return await this.#click(route, call, pending.targetDescription);
       case "fill":

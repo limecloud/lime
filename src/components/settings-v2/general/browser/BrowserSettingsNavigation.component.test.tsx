@@ -20,6 +20,7 @@ vi.mock("./useBrowserSettings", async () => {
       },
       pending: false,
       error: null,
+      isManaged: () => false,
     }),
   };
 });

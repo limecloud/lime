@@ -7,6 +7,8 @@ Simplified Chinese release notes are the primary version.
 - Add browser device presets, custom viewport dimensions and zoom controls; improve page search, new-tab address drafts, and page focus handoff.
 - Add grouped browser visits, search and bulk deletion, with settings for download directories, site permissions, and Agent browser admission.
 - Add user and project configuration layers, managed sources and requirements, and version-checked writes to editable configuration.
+- Add local environment file editing for project configuration, platform-specific setup/cleanup scripts and actions, preserving drafts on revision conflicts.
+- Add current-page CDP command execution governed by site permissions and per-action approval.
 - Add reasoning effort defaults and enabled effort choices for new chats, respecting model capabilities and configuration scope.
 - Add bulk cleanup of archived chats and diagnostic, installation, and cancellation interfaces for Node/Python tool runtimes.
 
@@ -15,6 +17,7 @@ Simplified Chinese release notes are the primary version.
 - Capture the modified page on the first save or send of a design annotation, preserving screenshot and draft identity and editor event ordering while rejecting stale results.
 - Validate page, origin, tab, and control identity for native site permission requests; revoke pending grants on navigation or control changes.
 - Serialize configuration writes while preserving user and project version conflict checks to prevent stale views from overwriting newer settings.
+- Restore translated fallback titles and MIME type labels in file previews across all five languages.
 - Unify disabled, cached, and live web search access policies and enforce network and sandbox constraints before tool execution.
 
 ### Improvements and Refactoring

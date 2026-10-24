@@ -109,7 +109,7 @@ describe("http-client", () => {
       .mockRejectedValueOnce(new TypeError("Failed to fetch"))
       .mockResolvedValueOnce(electronHostHealthResponse())
       .mockResolvedValueOnce(
-        new Response(JSON.stringify({ result: { ok: true } }), {
+        new Response(JSON.stringify({ result: "openai" }), {
           status: 200,
           headers: {
             "Content-Type": "application/json",
@@ -120,9 +120,7 @@ describe("http-client", () => {
 
     await expect(healthCheck()).resolves.toBe(false);
 
-    await expect(invokeViaHttp("get_environment_preview")).resolves.toEqual({
-      ok: true,
-    });
+    await expect(invokeViaHttp("get_default_provider")).resolves.toBe("openai");
 
     expect(fetchMock).toHaveBeenCalledTimes(4);
     expect(fetchMock.mock.calls[2]?.[0]).toBe("http://127.0.0.1:3030/health");

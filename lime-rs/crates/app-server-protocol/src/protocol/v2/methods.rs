@@ -69,6 +69,9 @@ pub const METHOD_MCP_SERVER_STATUS_LIST: &str = "mcpServerStatus/list";
 pub const METHOD_MCP_SERVER_EVENT_STREAM_START: &str = "mcpServer/event/stream/start";
 pub const METHOD_MCP_SERVER_EVENT_STREAM_STOP: &str = "mcpServer/event/stream/stop";
 pub const METHOD_MCP_SERVER_TOOL_CALL: &str = "mcpServer/tool/call";
+pub const METHOD_LOCAL_ENVIRONMENTS_LIST: &str = "localEnvironments/list";
+pub const METHOD_LOCAL_ENVIRONMENTS_READ_CONFIG: &str = "localEnvironments/readConfig";
+pub const METHOD_LOCAL_ENVIRONMENTS_SAVE_CONFIG: &str = "localEnvironments/saveConfig";
 pub const METHOD_ENVIRONMENT_ADD: &str = "environment/add";
 pub const METHOD_ENVIRONMENT_INFO: &str = "environment/info";
 pub const METHOD_ENVIRONMENT_STATUS: &str = "environment/status";
@@ -329,6 +332,12 @@ pub enum Method {
     McpServerEventStreamStop,
     #[serde(rename = "mcpServer/tool/call")]
     McpServerToolCall,
+    #[serde(rename = "localEnvironments/list")]
+    LocalEnvironmentsList,
+    #[serde(rename = "localEnvironments/readConfig")]
+    LocalEnvironmentsReadConfig,
+    #[serde(rename = "localEnvironments/saveConfig")]
+    LocalEnvironmentsSaveConfig,
     #[serde(rename = "environment/add")]
     EnvironmentAdd,
     #[serde(rename = "environment/info")]
@@ -533,6 +542,9 @@ impl Method {
             Self::McpServerEventStreamStart => METHOD_MCP_SERVER_EVENT_STREAM_START,
             Self::McpServerEventStreamStop => METHOD_MCP_SERVER_EVENT_STREAM_STOP,
             Self::McpServerToolCall => METHOD_MCP_SERVER_TOOL_CALL,
+            Self::LocalEnvironmentsList => METHOD_LOCAL_ENVIRONMENTS_LIST,
+            Self::LocalEnvironmentsReadConfig => METHOD_LOCAL_ENVIRONMENTS_READ_CONFIG,
+            Self::LocalEnvironmentsSaveConfig => METHOD_LOCAL_ENVIRONMENTS_SAVE_CONFIG,
             Self::EnvironmentAdd => METHOD_ENVIRONMENT_ADD,
             Self::EnvironmentInfo => METHOD_ENVIRONMENT_INFO,
             Self::EnvironmentStatus => METHOD_ENVIRONMENT_STATUS,
@@ -671,6 +683,9 @@ impl Method {
             METHOD_MCP_SERVER_EVENT_STREAM_START => Some(Self::McpServerEventStreamStart),
             METHOD_MCP_SERVER_EVENT_STREAM_STOP => Some(Self::McpServerEventStreamStop),
             METHOD_MCP_SERVER_TOOL_CALL => Some(Self::McpServerToolCall),
+            METHOD_LOCAL_ENVIRONMENTS_LIST => Some(Self::LocalEnvironmentsList),
+            METHOD_LOCAL_ENVIRONMENTS_READ_CONFIG => Some(Self::LocalEnvironmentsReadConfig),
+            METHOD_LOCAL_ENVIRONMENTS_SAVE_CONFIG => Some(Self::LocalEnvironmentsSaveConfig),
             METHOD_ENVIRONMENT_ADD => Some(Self::EnvironmentAdd),
             METHOD_ENVIRONMENT_INFO => Some(Self::EnvironmentInfo),
             METHOD_ENVIRONMENT_STATUS => Some(Self::EnvironmentStatus),
@@ -807,6 +822,9 @@ pub const METHODS: &[&str] = &[
     METHOD_MCP_SERVER_EVENT_STREAM_START,
     METHOD_MCP_SERVER_EVENT_STREAM_STOP,
     METHOD_MCP_SERVER_TOOL_CALL,
+    METHOD_LOCAL_ENVIRONMENTS_LIST,
+    METHOD_LOCAL_ENVIRONMENTS_READ_CONFIG,
+    METHOD_LOCAL_ENVIRONMENTS_SAVE_CONFIG,
     METHOD_ENVIRONMENT_ADD,
     METHOD_ENVIRONMENT_INFO,
     METHOD_ENVIRONMENT_STATUS,

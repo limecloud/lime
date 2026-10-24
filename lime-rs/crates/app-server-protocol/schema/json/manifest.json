@@ -460,6 +460,18 @@
     },
     {
       "kind": "request",
+      "method": "localEnvironments/list"
+    },
+    {
+      "kind": "request",
+      "method": "localEnvironments/readConfig"
+    },
+    {
+      "kind": "request",
+      "method": "localEnvironments/saveConfig"
+    },
+    {
+      "kind": "request",
       "method": "log/clear"
     },
     {
@@ -2465,6 +2477,21 @@
       "ItemStartedNotification",
       "ListMcpServerStatusParams",
       "ListMcpServerStatusResponse",
+      "LocalEnvironment",
+      "LocalEnvironmentAction",
+      "LocalEnvironmentActionIcon",
+      "LocalEnvironmentError",
+      "LocalEnvironmentLifecycle",
+      "LocalEnvironmentPlatform",
+      "LocalEnvironmentResult",
+      "LocalEnvironmentSaveStatus",
+      "LocalEnvironmentScript",
+      "LocalEnvironmentsListParams",
+      "LocalEnvironmentsListResponse",
+      "LocalEnvironmentsReadConfigParams",
+      "LocalEnvironmentsReadConfigResponse",
+      "LocalEnvironmentsSaveConfigParams",
+      "LocalEnvironmentsSaveConfigResponse",
       "LoginAccountParams",
       "LoginAccountResponse",
       "LogoutAccountResponse",

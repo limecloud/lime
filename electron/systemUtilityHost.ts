@@ -7,22 +7,18 @@ import {
   WindowsNativeHostClient,
   NativeHostError as WindowsNativeHostError,
 } from "./windowsNativeHost";
-import { readDesktopCapabilities } from "./platformCapabilities";
 
 type HostArgs = Record<string, unknown> | null | undefined;
-type ConfigReader = () => Promise<Record<string, unknown>>;
 type HostEventEmitter = (event: string, payload?: unknown) => void;
 
 type SystemUtilityHostOptions = {
   appDataRoot: string;
-  readConfig: ConfigReader;
   emit?: HostEventEmitter;
 };
 
 export class SystemUtilityHost {
   readonly #isDefaultBrowser = app.isDefaultProtocolClient("https");
   readonly #appDataRoot: string;
-  readonly #readConfig: ConfigReader;
   readonly #macOSNativeHost = new MacOSNativeHostClient();
   readonly #windowsNativeHost = new WindowsNativeHostClient();
   readonly #activeBookmarkTokens = new Map<string, string>();
@@ -30,7 +26,6 @@ export class SystemUtilityHost {
 
   constructor(options: SystemUtilityHostOptions) {
     this.#appDataRoot = options.appDataRoot;
-    this.#readConfig = options.readConfig;
     const unsubscribeMac = options.emit
       ? this.#macOSNativeHost.onEvent((event) =>
           options.emit?.(event.event, event.payload),
@@ -186,46 +181,6 @@ export class SystemUtilityHost {
     this.#unsubscribeNativeEvents();
     this.#macOSNativeHost.dispose();
     this.#windowsNativeHost.dispose();
-  }
-
-  async getEnvironmentPreview(): Promise<Record<string, unknown>> {
-    const config = await this.#readConfig();
-    const serverConfig = toRecord(config.server);
-    const apiKey = readString(serverConfig, "api_key") ?? "";
-    const apiBase =
-      `http://${readString(serverConfig, "host") ?? "127.0.0.1"}:` +
-      `${readNumber(serverConfig, "port") ?? 8787}`;
-    const entries = [
-      {
-        key: "LIME_API_BASE",
-        value: apiBase,
-        maskedValue: apiBase,
-        source: "config",
-        sourceLabel: "Electron Desktop Host",
-        sensitive: false,
-        overriddenSources: [],
-      },
-      {
-        key: "LIME_API_KEY",
-        value: apiKey,
-        maskedValue: apiKey ? "********" : "",
-        source: "config",
-        sourceLabel: "Electron Desktop Host",
-        sensitive: true,
-        overriddenSources: [],
-      },
-    ];
-    return {
-      desktopCapabilities: readDesktopCapabilities(),
-      shellImport: {
-        enabled: false,
-        status: "disabled",
-        message: "Electron current 暂未接入 shell 环境导入预览。",
-        importedCount: 0,
-        durationMs: null,
-      },
-      entries,
-    };
   }
 
   getBrowserConnectorSettings(): Record<string, unknown> {
@@ -509,12 +464,6 @@ function readString(value: unknown, key: string): string | null {
   }
   const trimmed = next.trim();
   return trimmed || null;
-}
-
-function readNumber(value: unknown, key: string): number | null {
-  const record = toRecord(value);
-  const next = record?.[key];
-  return typeof next === "number" && Number.isFinite(next) ? next : null;
 }
 
 function toRecord(value: unknown): Record<string, unknown> | null {

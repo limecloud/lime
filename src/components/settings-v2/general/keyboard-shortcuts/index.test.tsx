@@ -45,7 +45,13 @@ beforeEach(async () => {
       return {
         result: {
           config: structuredClone(persisted),
-          layers: [{ version: `v${version}` }],
+          layers: [
+            {
+              name: { type: "user", file: "/fixture/config.yaml" },
+              version: `v${version}`,
+              config: structuredClone(persisted),
+            },
+          ],
         },
       };
     if (method !== "config/batchWrite") throw Error(`Unexpected ${method}`);

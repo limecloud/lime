@@ -75,8 +75,11 @@ function Harness() {
       <button
         onClick={() =>
           handleNavigate("settings", {
-            tab: SettingsTabs.Environment,
-            searchFocus: { targetId: "environment-overrides", requestKey: 1 },
+            tab: SettingsTabs.LocalEnvironments,
+            searchFocus: {
+              targetId: "local-environments-projects",
+              requestKey: 1,
+            },
           })
         }
       >

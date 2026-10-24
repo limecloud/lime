@@ -506,6 +506,9 @@ impl RequestProcessor {
             v2::METHOD_MCP_SERVER_TOOL_CALL => {
                 self.handle_mcp_server_tool_call_impl(params).boxed()
             }
+            v2::METHOD_LOCAL_ENVIRONMENTS_LIST => self.handle_local_environments_list(params).boxed(),
+            v2::METHOD_LOCAL_ENVIRONMENTS_READ_CONFIG => self.handle_local_environments_read_config(params).boxed(),
+            v2::METHOD_LOCAL_ENVIRONMENTS_SAVE_CONFIG => self.handle_local_environments_save_config(params).boxed(),
             v2::METHOD_ENVIRONMENT_ADD => self.handle_environment_add_impl(params).boxed(),
             v2::METHOD_ENVIRONMENT_INFO => self.handle_environment_info_impl(params).boxed(),
             v2::METHOD_ENVIRONMENT_STATUS => self.handle_environment_status_impl(params).boxed(),

@@ -138,6 +138,24 @@ const BROWSER_TOOL_DEFINITIONS = Object.freeze([
     tabId: stringProperty("Claimed tab id; defaults to the selected tab."),
   }),
   tool(
+    "executeCdpCommand",
+    "Execute an approved main-page CDP command: Runtime.evaluate; Page.navigate/navigateToHistoryEntry/getNavigationHistory/reload/stopLoading/getLayoutMetrics/captureScreenshot; Input.dispatchMouseEvent/dispatchKeyEvent/insertText. Requires full CDP access for this site. Other commands and explicit frame/context selection are unavailable.",
+    {
+      method: stringProperty(
+        "CDP domain and command, such as Runtime.evaluate.",
+      ),
+      commandParams: { type: "object", additionalProperties: true },
+      timeoutMs: {
+        ...integerProperty(
+          "Command deadline in milliseconds; defaults to 10000.",
+        ),
+        maximum: 30000,
+      },
+      tabId: stringProperty("Claimed tab id; defaults to the selected tab."),
+    },
+    ["method"],
+  ),
+  tool(
     "click",
     "Click an actionable node from the latest observe result. Sensitive targets hand control to the user.",
     {

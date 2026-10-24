@@ -55,27 +55,6 @@ describe("session types current owner boundary", () => {
     }
   });
 
-  it("知识 Workspace 发送委托共享合同，不重复声明 session DTO", () => {
-    const source = readFileSync(
-      join(
-        cwd(),
-        "src/components/agent/chat/workspace/knowledge/useWorkspaceKnowledgeRuntime.ts",
-      ),
-      "utf8",
-    );
-
-    expect(source).toContain(
-      'import type { WorkspaceHandleSend } from "../useWorkspaceSendActions"',
-    );
-    expect(source).toContain(
-      "type WorkspaceKnowledgeHandleSend = WorkspaceHandleSend",
-    );
-    expect(source).not.toContain('"@/lib/api/agentRuntime"');
-    expect(source).not.toMatch(
-      /(?:interface|type)\s+Session(?:Info|Message)\b/,
-    );
-  });
-
   it("turn binding 从独立类型 owner 读取选项，不恢复重复 DTO 或聚合入口", () => {
     const source = readFileSync(
       join(

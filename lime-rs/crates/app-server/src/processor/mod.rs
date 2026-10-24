@@ -31,6 +31,7 @@ mod permission_profile;
 mod plugin;
 mod plugin_share;
 mod primary_runtime;
+mod local_environments;
 mod process;
 mod project;
 mod project_git;

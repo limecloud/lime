@@ -2,12 +2,23 @@
 
 更新时间：2026-10-24
 
+### G10/S18 续行：CDP 执行接线（2026-10-24，实施中）
+
+- 上轮为progress：完成布局修复的五语真实Electron证据和本地门禁失败定位；完整目标仍为UI/UX、企业策略、原生服务与双平台打包，本轮不缩减G01–G12。
+- Codex公开仓库未提供Desktop CDP host；核对当前26.1016.61520安装包同名executeCdpForBrowserUse/executeCdpCommand/sendDebuggerCommand及目标限制。AST提取原件/范围/hash与REA记录落在cdp-execution-20261024，ReferenceCdp仅取证容器，压缩局部符号不作为产品命名。
+- 窄写集：新electron/browserCdp.ts与定向回归；browserTabHost.ts仅增加既有权限/原生路由回调委托，browserTabPolicy.ts增加debug实际执行检查；appServerDynamicToolHost.ts注册同一browser namespace工具及其回归；独立真实Electron CDP场景及聚合入口的机械分发；architecture/commands和本计划。并行local-environments、其他UI、协议生成/锁文件/发布及上轮设置改动只读。
+- Verification Contract：budget:normal/P1。GUI turn/start -> RuntimeCore/provider fixture -> item/tool/call -> AppServerDynamicToolHost -> BrowserTabHost -> 同一WebContents.debugger；fullCdpAccessEnabled和实际URL的独立受管/用户debug策略均须允许，原browse receipt不能替代单次CDP action批准。批准绑定原命令/参数/thread/turn/tab/view/WebContents/pageRevision；策略改变/人工接管/终态撤销。无新RPC/IPC/端口/Profile/store，失败无mock fallback。
+- 当前交付切片为同一页面的CDP命令执行与撤权，不能结算完整CDP：frame target/session/event流、参考Target模拟、WebMCP仍需后继实现。原生服务与平台缺口不以本切片替代。大文件退出条件：Host仅组装回调/委托，业务验证/超时/执行留在独立短模块；后继CDP目标生命周期进入该模块，不能继续向2196行Host堆叠业务。
+- 验证先覆盖默认关闭、用户/管理员拒绝、一次执行/参数篡改/陈旧批准、途中撤权/超时，再跑动态工具契约、类型/contracts、真实Electron与GUI smoke；默认本地门禁如受并行文件阻塞保留真实终态。架构变更复用既有单一authority，由root在实现后确认图与依赖方向。完整G01–G12保持未完成。
+
 ### 独立企业策略与审批生命周期（2026-10-24，当前）
 
 - 当前执行归 [browser-enterprise-policy-plan.md](browser-enterprise-policy-plan.md)：Codex同名requirements类型/独立管理员authority已进入configRequirements/read、Host和设置投影；无新RPC/IPC、无用户伪造管理源。
 - thread receipt默认值按新版REA静态证据迁移，管理员turn限制优先；凭据绑定同一owner/window/thread/Session/origin，pending仍原turn。回合结束释放原生控制，策略/人工接管/断线/手动关闭撤权。Host仅接生命周期，短BrowserPermissions拥有状态。
-- 最终定向9文件137/137、preflight4/4、Electron类型已通过；正式GUI/真实设置/公共JSON-RPC在当前原目录续验。verify:local被写集外mediaTargets测试的4个unused拦住，最终contracts遇并行图库删除期间生成物漂移，均未覆盖他人改动或宣称整树通过。
-- 原生引擎仍未构建：当前约56GiB空间、缺完整Xcode与gclient/gn/ninja，没有Windows构建环境信息。已有只读预检和锁定源码/补丁不计为密码/Autofill/导入/完整扩展或双平台包。
+- 最终定向9文件137/137、preflight4/4、公共JSON-RPC8/8、contracts和Renderer/Node/Electron类型均通过。真实三回合审批Gate B 32/32：同一thread/session/tab/view/WebContents、3个独立成功turn/start IPC、thread receipt续用、每回合claim/attach、native mouse撤权/重新批准与终态release。turn reason五语/权限回归42/42，fixture15/15；不代表OS物理输入、跨连接或冷恢复。
+- 原目录正式GUI smoke已通过；修复后的五语设置配置/冲突/重启/继承及真实字体测量各31/31、20张原始截图已留存。本轮逐一审阅五语restarted原图：en-US文字153.13px、可用174px、箭头留白28px，继承文本无遮挡。复用既有配置队列/CAS与权限投影，未新增权限逻辑或协议。证据为enterprise-policy-20261024/settings-layout-final；该切片不代表完整UI/UX、主题矩阵或OS物理输入。
+- 默认本地门禁本轮实际退出2：完整性/i18n/lint已通过，类型检查在并行新增的src/lib/localEnvironments.ts缺失LocalEnvironment导出与隐式any处失败，后继门禁未执行；未覆盖其他任务或拿历史绿测替代当前整树结果。日志为enterprise-policy-20261024/verify-local-layout-final.log。
+- 原生引擎仍未构建：本轮只读预检可用约51.5GiB空间、缺完整Xcode与gclient/gn/ninja及完整Electron/Chromium源码，没有Windows构建环境信息。已异步请求可用构建空间、Xcode和Windows/MSVC入口；未获答复前继续保留原范围。锁定源码/候选补丁及macOS上的win32目标预检均不计为密码/Autofill/导入/完整扩展或双平台包。完整CDP/WebMCP、企业网络执行与参考视觉/物理交互仍有独立实现和验收缺口，环境就绪也不等于产品完成。
 - current为同一配置/Host/GUI owner；新增回归和REA归档为test-only，无新compat/deprecated。架构图与owner已由root确认；完整G01–G12仍0/12（完整验收0%，不是实现比例）。
 
 ### 网站权限继承投影（2026-10-24，继续实施）
@@ -960,7 +971,7 @@ N0 工具链补证（仅研究）：已核定 Clang `llvmorg-23-init-5669-g8a0be
 
 ## 完整产品 Verification Contract
 
-2026-10-24 接续：独立管理员 browser_use requirements 的实施/验证与原生构建预检记录于 [企业策略计划](./browser-enterprise-policy-plan.md)。已接线限制与尚未实现的自动审核、thread 授权、企业网络、完整 CDP/WebMCP/扩展传输头分开记账；原生/双平台包尚未取得产物，不增加下列 G01–G12 完成计数。
+2026-10-24 接续：独立管理员 browser_use requirements 的实施/验证与原生构建预检记录于 [企业策略计划](./browser-enterprise-policy-plan.md)。已接线限制和 thread/turn 凭据与尚未实现的自动审核、企业网络、完整 CDP/WebMCP/扩展传输头分开记账；原生/双平台包尚未取得产物，不增加下列 G01–G12 完成计数。
 
 - 风险：major / 跨 GUI、Electron、协议、权限与持久化。已有产品代码与切片验证，完整 G01-G12 尚未结算；每刀记录 affected owner/命令/失败终态。
 - 业务链：GUI → preload/IPC → BrowserTabHost；Agent → App Server JSON-RPC → RuntimeCore/tool-runtime → item/tool/call → 同一 Host；结果归 canonical projection/artifact。

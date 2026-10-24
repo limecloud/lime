@@ -57,3 +57,16 @@
 - 第二轮修复`e77264aa4ac99405e40047541562134b6b1b61db`已推main；完整typecheck再次exit0。Quality 40090103916已通过lint/typecheck/分层预算并进入全量前端，Rust与GUI运行中；上一轮69349ccad的GUI Smoke通过。
 - 等待期间新增项目persona/publish配置零消费者链删除（core DAO/model/error、services、schema与治理守卫），按用户全部递交要求继续纳入。只读核对删除模块无现役引用；治理228/228通过，协议生成无漂移；core schema定向测试及完整contracts运行中。发布说明中英同步说明新库停止建旧表、存量数据保留。
 - 上述退役候选完整contracts exit0；core database::schema 6/6通过，涵盖新库不建旧表与存量行保留。聊天/浏览器夹具两文件201/201通过，完整typecheck exit0。Quality 40090103916的全量前端首批在useAgentChat出现11条turn identity旧夹具失败；与待提交acceptedTurn/completedTurn及显式pending submission修复完全对应，未放宽生产身份校验。
+- 全部24文件提交`29962562d121d42e9bb57fd55d8c4e5c97724340`已推main；current-rules guard同步产品减负保留项并11/11通过。Quality 40090879485：Integrity、lint、typecheck、分层预算、GUI Smoke通过；Frontend Full在Linux因engine preflight路径拒绝测试使用不支持的默认target而失败，已改成显式有效target，4/4通过。
+- 69349ccad的Windows Shell Runtime全部通过；Rust Full在lime-agent 310通过后因旧断言“审批时不强制沙箱”失败。仅迁移agent execution测试到现行审批与沙箱同时保留的合同，33/33执行/网络/沙箱定向回归exit0、rustfmt check通过，生产安全策略未修改。
+- 本地全量前端复用已有前44批通过记录，复制独立续跑状态`.lime/release-v11690/vitest-smart-resume.json`，不覆盖其他进程状态。第45批设置Gate A清单漂移已由并行任务同步；第48批的registerHooks启动错误来自本机Node23.4，使用临时Node22.23.4后通过，不修改全局Node或测试断言。
+- 后续集中修复：语言加载测试迁移已退役taskSync键到现役generated状态；Codex方法矩阵把真实configRequirements/read分类为implemented、同步统计及当前证据，去掉已删除实验设置证据；侧栏预期移除已退役项目资料；删除读取知识库dead文件的旧边界用例，保留现役session DTO守卫。
+- 第78批发现真实预览文案回归：PreviewArtifactFallbackSurface仍消费已删除resourceManager键。迁到artifactRenderer.previewFallback current owner，五语迁移原翻译；新增可见DOM回归5/5通过，原3条ArtifactRenderer UI失败已在续跑中通过，定向lint exit0。初新增测试误用未安装testing-library，已改用仓库现役React createRoot挂载，不新增依赖。
+- 浏览器权限select文字与原生箭头重叠修复及字体测量由并行任务补齐，设置偏好/企业权限定向通过、完整typecheck exit0。新增local-environments完整功能正在由并行任务接线，用户全部修改授权覆盖该增量；本轮只读核对，不夹写该功能。待其schema/client/GUI接线完成后对最终候选补contracts/typecheck/版本检查及同SHA远端矩阵。
+- 当前本地续跑已通过第96批（总数随新增测试追加），未把未跑批次或旧SHA结果记为最终候选全绿；v1.169.0标签仍不存在，正式Release尚未启动。
+- 继续续跑已通过125批；126批两个旧夹具失败：快捷键config/read缺唯一user层来源，浏览器导航hook缺isManaged。仅补现役合同，16文件208项全部通过；原审批、键位保存、焦点与导航阻断断言保留。
+- 29962562d的Windows Shell Runtime最终success，Rust Full日志已核对仍为相同旧backend_enforced断言（310通过/1失败），对应本轮33/33修复。最新完整contracts、client build、Electron typecheck均exit0；local-environments/CDP五文件61项通过。
+- 当前完整typecheck发现LocalEnvironmentEditor.tsx两处可选revision写入string|null状态（73/111行），登记为并行owner接线阻塞，尚未计通过。直接cargo命令未带仓库V8 artifact resolver而下载默认上游404，改用现役test:rust:integration wrapper重试，不修改V8依赖或沙箱配置。
+- LocalEnvironmentEditor两处revision已由并行owner归一为null，完整typecheck重跑中。仓库integration wrapper的--tests会扩大编译全部集成目标，已只停止本轮cargo PID40792及其子进程，改为同一resolveRustyV8CargoEnv加精确--test入口；公共local-environments JSON-RPC 2/2通过，覆盖文件持久化、重启、冲突保稿、非法参数拒绝且配置读写不执行脚本。
+- 最新GUI smoke在Renderer编译成功后被输入摘要变化守卫拒绝（并行接线期间），不计Gate B；最终冻结SHA以远端GUI/发布打包Gate B验证。44个受影响产品/脚本TS文件ESLint exit0；额外SDK lint命中既有class/interface declaration merging规则，不改变既有客户端结构或禁用规则，正式lint范围保持package.json的src。
+- 本地独立续跑状态最终passed，152/152批全部通过（此前已通过批次按原状态保留，增量另有定向回归）；完整npm run typecheck第二轮exit0，分层预算38/38通过。CDP后续新增拒绝用例已由最后一批覆盖36+3项。继续纳入用户授权的全部131个tracked/untracked候选文件，最终同SHA远端Full矩阵仍是冻结发布依据。

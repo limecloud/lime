@@ -475,6 +475,31 @@ export async function runBrowserSettingsConflict({ locale, output }) {
           "https://example.com",
         ),
     );
+    const inheritedSelectLayout = await page
+      .locator(
+        '[data-browser-permission-action="download"][data-browser-permission-pattern="https://example.com"]',
+      )
+      .evaluate((select) => {
+        const style = getComputedStyle(select);
+        const canvas = document.createElement("canvas");
+        const context = canvas.getContext("2d");
+        if (!context) throw new Error("Select text measurement is unavailable");
+        context.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+        const textWidth = context.measureText(
+          select.selectedOptions[0].textContent,
+        ).width;
+        const paddingRight = parseFloat(style.paddingRight);
+        const available =
+          select.clientWidth - parseFloat(style.paddingLeft) - paddingRight;
+        return { textWidth, available, paddingRight };
+      });
+    check(
+      "inherited-value-text-clears-native-arrow",
+      inheritedSelectLayout.textWidth <=
+        inheritedSelectLayout.available + 0.5 &&
+        inheritedSelectLayout.paddingRight >= 24,
+    );
+    evidence.inheritedSelectLayout = inheritedSelectLayout;
     await screenshot(
       page,
       "restarted",

@@ -733,7 +733,7 @@ describe("i18n namespace loader", () => {
         "workspace.video.workspace.taskStatus.success",
       );
       expect(resources[locale].workspace).toHaveProperty(
-        "workspace.video.workspace.taskSync.saved.label",
+        "workspace.video.workspace.taskStatus.generated.label",
       );
       expect(resources[locale].workspace).toHaveProperty(
         "workspace.video.workspace.session.title",
@@ -1248,9 +1248,9 @@ describe("i18n namespace loader", () => {
     ).toBe("已完成");
     expect(
       loadNamespaceResource("fr-FR", "workspace")[
-        "workspace.video.workspace.taskSync.saved.label"
+        "workspace.video.workspace.taskStatus.generated.label"
       ],
-    ).toBe("已同步到项目资料");
+    ).toBe("结果已生成");
     expect(
       loadNamespaceResource("fr-FR", "workspace")[
         "workspace.video.workspace.session.title"

@@ -93,7 +93,7 @@ const RTL_SURFACE_GROUPS = [
       "src/components/settings-v2/system/channels/ChannelsDebugWorkbench.tsx",
       "src/components/settings-v2/system/channels/ChannelLogTailPanel.tsx",
       "src/components/settings-v2/system/automation/index.tsx",
-      "src/components/settings-v2/system/environment/index.tsx",
+      "src/components/settings-v2/coding/local-environments/LocalEnvironmentsSettings.tsx",
       "src/components/settings-v2/system/web-search/index.tsx",
       "src/components/settings-v2/system/about/index.tsx",
     ],

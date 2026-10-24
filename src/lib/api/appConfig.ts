@@ -18,7 +18,6 @@ import { enabledReasoningEfforts } from "@/lib/model/reasoningEffortPreferences"
 import {
   CURRENT_SIDEBAR_NAV_SCHEMA_VERSION,
   type Config,
-  type EnvironmentPreview,
 } from "./appConfigTypes";
 import { AppServerClient } from "./appServer";
 import { assertNotDiagnosticFacade } from "./diagnosticFacade";
@@ -62,8 +61,6 @@ export type {
   CrashReportingConfig,
   ChatAppearanceConfig,
   EnvironmentConfig,
-  EnvironmentPreview,
-  EnvironmentPreviewEntry,
   EnvironmentVariableOverride,
   ImageGenConfig,
   NavigationConfig,
@@ -76,7 +73,6 @@ export type {
   RolloutBudgetConfig,
   ServiceModelPreferenceConfig,
   ServiceModelsConfig,
-  ShellImportPreview,
   TlsConfig,
   ToolExecutionCommandRiskLevelConfig,
   ToolExecutionCommandRuleConfig,
@@ -609,18 +605,6 @@ async function writeConfigValueNow({
   }
   markAppConfigChanged();
   return await getConfigSnapshot(cwd ? { cwd } : undefined);
-}
-
-export async function getEnvironmentPreview(): Promise<EnvironmentPreview> {
-  const result = await safeInvoke<EnvironmentPreview>(
-    "get_environment_preview",
-  );
-  assertNotDiagnosticFacade(
-    "get_environment_preview",
-    result,
-    "真实环境预览 current 通道",
-  );
-  return result;
 }
 
 export async function getDefaultProvider(): Promise<string> {

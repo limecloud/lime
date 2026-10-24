@@ -8,7 +8,6 @@ import {
   getConfig,
   getDefaultProvider,
   invalidateAppConfigCache,
-  getEnvironmentPreview,
   saveConfig,
   updateConfig,
 } from "./appConfig";
@@ -160,31 +159,21 @@ describe("appConfig API", () => {
     );
   });
 
-  it("配置读取走 App Server，宿主环境能力保持 Electron owner", async () => {
+  it("配置读取走 App Server，默认 Provider 读取保持 Electron owner", async () => {
     appServerRequest.mockResolvedValueOnce(
       configReadResult({ default_provider: "claude" }),
     );
-    vi.mocked(safeInvoke)
-      .mockResolvedValueOnce({ entries: [] })
-      .mockResolvedValueOnce("claude");
+    vi.mocked(safeInvoke).mockResolvedValueOnce("claude");
 
     await expect(getConfig()).resolves.toEqual(
       expect.objectContaining({ default_provider: "claude" }),
-    );
-    await expect(getEnvironmentPreview()).resolves.toEqual(
-      expect.objectContaining({ entries: [] }),
     );
     await expect(getDefaultProvider()).resolves.toBe("claude");
 
     expect(appServerRequest).toHaveBeenCalledWith(METHOD_CONFIG_READ, {
       includeLayers: true,
     });
-    expect(vi.mocked(safeInvoke)).toHaveBeenNthCalledWith(
-      1,
-      "get_environment_preview",
-    );
-    expect(vi.mocked(safeInvoke)).toHaveBeenNthCalledWith(
-      2,
+    expect(vi.mocked(safeInvoke)).toHaveBeenCalledExactlyOnceWith(
       "get_default_provider",
     );
   });
@@ -201,45 +190,6 @@ describe("appConfig API", () => {
       }),
     );
     await expect(getConfig()).rejects.toThrow(`invalid ${key}`);
-  });
-
-  it("环境预览应接收 Electron Host current 返回的局部 Shell 导入状态", async () => {
-    vi.mocked(safeInvoke).mockResolvedValueOnce({
-      shellImport: {
-        enabled: false,
-        status: "disabled",
-        message: "Electron current 暂未接入 shell 环境导入预览。",
-        importedCount: 0,
-        durationMs: null,
-      },
-      entries: [],
-    });
-
-    await expect(getEnvironmentPreview()).resolves.toEqual({
-      shellImport: {
-        enabled: false,
-        status: "disabled",
-        message: "Electron current 暂未接入 shell 环境导入预览。",
-        importedCount: 0,
-        durationMs: null,
-      },
-      entries: [],
-    });
-  });
-
-  it("环境预览遇到 degraded diagnostic facade 时应 fail closed", async () => {
-    vi.mocked(safeInvoke).mockResolvedValueOnce({
-      entries: [],
-      diagnostic: {
-        source: "electron-host-diagnostic",
-        command: "get_environment_preview",
-        status: "degraded",
-      },
-    });
-
-    await expect(getEnvironmentPreview()).rejects.toThrow(
-      "get_environment_preview 尚未接入真实环境预览 current 通道，收到 electron-host-diagnostic 诊断返回。",
-    );
   });
 
   it("config/read 遇到无效配置或缺少单一用户层时应 fail closed", async () => {

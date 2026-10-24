@@ -64,6 +64,11 @@ export class BrowserTabPolicy {
     if (this.decision("browse", target) === "deny")
       throw new Error("Browser Agent browsing is denied for this site");
     if (
+      call.tool === "executeCdpCommand" &&
+      this.decision("debug", target) === "deny"
+    )
+      throw new Error("Browser full CDP access is denied for this page");
+    if (
       call.tool === "uploadArtifact" &&
       this.decision("upload", target) === "deny"
     )

@@ -197,6 +197,9 @@ pub(super) fn into_parts(
         ClientRequest::McpServerToolCall { id, params } => {
             parts(id, Method::McpServerToolCall, params)
         }
+        ClientRequest::LocalEnvironmentsList { id, params } => parts(id, Method::LocalEnvironmentsList, params),
+        ClientRequest::LocalEnvironmentsReadConfig { id, params } => parts(id, Method::LocalEnvironmentsReadConfig, params),
+        ClientRequest::LocalEnvironmentsSaveConfig { id, params } => parts(id, Method::LocalEnvironmentsSaveConfig, params),
         ClientRequest::EnvironmentAdd { id, params } => parts(id, Method::EnvironmentAdd, params),
         ClientRequest::EnvironmentInfo { id, params } => parts(id, Method::EnvironmentInfo, params),
         ClientRequest::EnvironmentStatus { id, params } => {

@@ -253,7 +253,6 @@
     "smoke:mcp-list-changed-electron-gate-b": "npm run build:renderer:electron && node scripts/electron/mcp-list-changed-gate-b.mjs",
     "smoke:mcp-resource-origin-electron-gate-b": "node scripts/electron/mcp-resource-origin-gate-b.mjs",
     "smoke:settings-about-electron-fixture": "node scripts/electron/settings-about-fixture-smoke.mjs",
-    "smoke:settings-environment-electron-fixture": "node scripts/electron/settings-environment-fixture-smoke.mjs",
     "smoke:settings-media-services-electron-fixture": "node scripts/electron/settings-media-services-fixture-smoke.mjs",
     "smoke:settings-web-search-electron-fixture": "node scripts/electron/settings-web-search-fixture-smoke.mjs",
     "smoke:settings-profile-electron-fixture": "node scripts/electron/settings-profile-fixture-smoke.mjs",
@@ -293,7 +292,8 @@
     "agent-qc:project-gate-candidate": "node scripts/agent-qc/project-gate-candidate.mjs",
     "agent-qc:project-gate-coverage": "node scripts/agent-qc/project-gate-coverage.mjs",
     "agent-qc:project-gate-settings-a": "node scripts/agent-qc/project-gate-settings-a.mjs",
-    "agent-qc:project-gate-settings-b": "node scripts/agent-qc/project-gate-settings-b.mjs"
+    "agent-qc:project-gate-settings-b": "node scripts/agent-qc/project-gate-settings-b.mjs",
+    "smoke:settings-local-environments-electron-fixture": "node scripts/electron/lib/settings-local-environments-fixture.mjs"
   },
   "dependencies": {
     "@aiden0z/pptx-renderer": "1.3.0",

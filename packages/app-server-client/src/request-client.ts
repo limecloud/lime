@@ -20,6 +20,15 @@ export class AppServerClient {
 }
 
 export interface AppServerClient {
+  listLocalEnvironments(
+    params: protocol.LocalEnvironmentsListParams,
+  ): protocol.JsonRpcRequest;
+  readLocalEnvironmentConfig(
+    params: protocol.LocalEnvironmentsReadConfigParams,
+  ): protocol.JsonRpcRequest;
+  saveLocalEnvironmentConfig(
+    params: protocol.LocalEnvironmentsSaveConfigParams,
+  ): protocol.JsonRpcRequest;
   readStorage(params: protocol.StorageReadParams): protocol.JsonRpcRequest;
   refreshStorage(params: protocol.StorageReadParams): protocol.JsonRpcRequest;
   reviewStorage(params: protocol.StorageReviewParams): protocol.JsonRpcRequest;

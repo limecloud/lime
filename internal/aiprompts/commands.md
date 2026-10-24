@@ -760,6 +760,17 @@ Electron start/resume 注入自己的不可变 catalog，断连同时撤销本�
 
 App Server 持有 Thread/Turn、动态工具生命周期、Browser read model 与 canonical identity；Electron 只持有 native view、window、`webContents.debugger`、下载和权限等宿主状态；Renderer 只消费 projection 并发送用户意图。Agent action 必须按 connection/thread/turn/session/tab/view/WebContents owner 精确路由，用户操作或 turn terminal 必须使旧控制权失效。
 
+`browser__executeCdpCommand` 复用 frozen Browser namespace 与原 `item/tool/call` 多阶段合同，不新增 IPC/RPC。
+输入为必填 `method`、可选对象 `commandParams`、`tabId` 和 `timeoutMs`（1–30000，默认10000）。
+当前只执行主页面 Runtime.evaluate、Page 导航/历史/重载/停止/几何/截图与三种 Input 命令；
+精确集合由 `electron/browserCdp.ts` 单一管理，catalog 描述同步其边界。未知命令、持久 debugger
+覆盖、跨站 cookie、显式 frame/context、子 target 及直接文件上传在审批/attach 前拒绝。
+全局开关和实际 URL 的独立 debug 策略都必须允许，browse receipt 不能替代一次性 `full_cdp`
+action 批准。批准 token 绑定原命令参数和完整 route/page revision；命令途中策略变化或人工
+接管禁止投影迟到结果，超时释放原生控制。返回原 native 数据与相同 tab identity；导航另验目的
+URL（仅 http/https）。回合终态复用原 detach/release。frame session、事件流、Target 模拟和
+WebMCP 尚未接入，不能据此声明完整 CDP。
+
 网站权限 request/check 均属于同一原生 Session。无 Agent 回合的用户浏览使用
 `BrowserSitePermissionPrompt -> BrowserOverlayHost` 的私有可信确认，直接结算原 native callback；
 不新增 Renderer 授权命令、App Server 方法或 canonical Agent approval。确认绑定当前选中且可见/attached

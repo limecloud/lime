@@ -64,6 +64,7 @@ tempfile.workspace = true
 tar.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
+toml_edit.workspace = true
 tokio-util.workspace = true
 tokio-tungstenite = { version = "0.24", features = ["native-tls"] }
 tool-runtime.workspace = true

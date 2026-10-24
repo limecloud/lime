@@ -1,7 +1,6 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import process from "node:process";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const { openExternalMock, isDefaultProtocolClientMock } = vi.hoisted(() => ({
@@ -34,13 +33,9 @@ async function createTempUserDataDir() {
   return dir;
 }
 
-function createHost(
-  appDataRoot: string,
-  config: Record<string, unknown> = {},
-): SystemUtilityHost {
+function createHost(appDataRoot: string): SystemUtilityHost {
   return new SystemUtilityHost({
     appDataRoot,
-    readConfig: async () => config,
   });
 }
 
@@ -116,67 +111,6 @@ describe("SystemUtilityHost", () => {
     expect(openExternalMock).toHaveBeenNthCalledWith(
       2,
       "ms-settings:clipboard",
-    );
-  });
-
-  it("getEnvironmentPreview 返回 current 环境预览且不暴露 diagnostic facade", async () => {
-    const host = createHost(await createTempUserDataDir(), {
-      server: {
-        host: "127.0.0.1",
-        port: 8910,
-        api_key: "secret-key",
-      },
-    });
-
-    const result = await host.getEnvironmentPreview();
-    const shellImport = result.shellImport as Record<string, unknown>;
-    const desktopCapabilities = result.desktopCapabilities as Record<
-      string,
-      unknown
-    >;
-
-    expect(result).not.toHaveProperty("diagnostic");
-    expect(desktopCapabilities).toEqual(
-      expect.objectContaining({
-        applicationId: "com.limecloud.lime",
-        packaged: true,
-        capabilities: expect.objectContaining({
-          accessibility: expect.objectContaining({
-            status:
-              process.platform === "darwin" ? "not_granted" : "unsupported",
-          }),
-          applicationGroups: expect.objectContaining({
-            status: "not_configured",
-            identifiers: [],
-          }),
-        }),
-      }),
-    );
-    expect(JSON.stringify(desktopCapabilities)).not.toContain("openai");
-    expect(shellImport).not.toHaveProperty("diagnostic");
-    expect(shellImport).toEqual(
-      expect.objectContaining({
-        enabled: false,
-        status: "disabled",
-        importedCount: 0,
-        durationMs: null,
-      }),
-    );
-    expect(result.entries).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          key: "LIME_API_BASE",
-          value: "http://127.0.0.1:8910",
-          maskedValue: "http://127.0.0.1:8910",
-          sensitive: false,
-        }),
-        expect.objectContaining({
-          key: "LIME_API_KEY",
-          value: "secret-key",
-          maskedValue: "********",
-          sensitive: true,
-        }),
-      ]),
     );
   });
 

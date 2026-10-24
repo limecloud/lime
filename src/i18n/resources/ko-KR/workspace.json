@@ -272,6 +272,8 @@
   "workspace.artifactRenderer.fallback.detail": "유형 \"{{type}}\"에 해당하는 렌더러가 없어 원본 내용을 표시합니다.",
   "workspace.artifactRenderer.sourceOnError.title": "소스 보기(렌더링 실패)",
   "workspace.artifactRenderer.sourceOnError.retry": "다시 시도",
+  "workspace.artifactRenderer.previewFallback.titleFallback": "제목 없는 리소스",
+  "workspace.artifactRenderer.previewFallback.mimeType": "유형: {{mimeType}}",
   "workspace.artifactRenderer.previewFallback.systemOpen.title": "시스템 앱으로 여세요",
   "workspace.artifactRenderer.previewFallback.systemOpen.detail": "이 파일은 통합 미리 보기 경로에 있지만 아직 안전한 내장 렌더러가 없습니다. 상단 도구막대에서 시스템 앱으로 열거나 파일 위치를 확인하세요.",
   "workspace.artifactRenderer.previewFallback.unsupported.title": "내장 미리 보기는 아직 지원되지 않습니다",

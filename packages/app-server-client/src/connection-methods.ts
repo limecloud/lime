@@ -22,6 +22,22 @@ type ConnectionMethodSpec = Pick<
 
 declare module "./connection.js" {
   interface AppServerConnection {
+    listLocalEnvironments(
+      params: protocol.LocalEnvironmentsListParams,
+      options?: AppServerRequestOptions,
+    ): Promise<AppServerRequestResult<protocol.LocalEnvironmentsListResponse>>;
+    readLocalEnvironmentConfig(
+      params: protocol.LocalEnvironmentsReadConfigParams,
+      options?: AppServerRequestOptions,
+    ): Promise<
+      AppServerRequestResult<protocol.LocalEnvironmentsReadConfigResponse>
+    >;
+    saveLocalEnvironmentConfig(
+      params: protocol.LocalEnvironmentsSaveConfigParams,
+      options?: AppServerRequestOptions,
+    ): Promise<
+      AppServerRequestResult<protocol.LocalEnvironmentsSaveConfigResponse>
+    >;
     startSession(
       params: protocol.ThreadStartParams,
       options?: AppServerRequestOptions,

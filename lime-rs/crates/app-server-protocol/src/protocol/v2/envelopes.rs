@@ -1,4 +1,5 @@
 use super::{CancelInstallParams, CancelInstallResponse, DiagnoseDependenciesParams, DiagnoseDependenciesResponse, InstallDependenciesResponse, RunUpdateNowParams};
+use super::{LocalEnvironmentsListParams, LocalEnvironmentsListResponse, LocalEnvironmentsReadConfigParams, LocalEnvironmentsReadConfigResponse, LocalEnvironmentsSaveConfigParams, LocalEnvironmentsSaveConfigResponse};
 use super::{
     AccountUpdatedNotification, CloudRequestParams, GetAccountParams, LoginAccountParams,
     METHOD_ACCOUNT_UPDATED,
@@ -458,6 +459,12 @@ pub enum ClientRequest {
         id: RequestId,
         params: McpServerToolCallParams,
     },
+    #[serde(rename = "localEnvironments/list")]
+    LocalEnvironmentsList { id: RequestId, params: LocalEnvironmentsListParams },
+    #[serde(rename = "localEnvironments/readConfig")]
+    LocalEnvironmentsReadConfig { id: RequestId, params: LocalEnvironmentsReadConfigParams },
+    #[serde(rename = "localEnvironments/saveConfig")]
+    LocalEnvironmentsSaveConfig { id: RequestId, params: LocalEnvironmentsSaveConfigParams },
     #[serde(rename = "environment/add")]
     EnvironmentAdd {
         id: RequestId,
@@ -831,6 +838,9 @@ impl ClientRequest {
             | Self::McpServerEventStreamStart { id, .. }
             | Self::McpServerEventStreamStop { id, .. }
             | Self::McpServerToolCall { id, .. }
+            | Self::LocalEnvironmentsList { id, .. }
+            | Self::LocalEnvironmentsReadConfig { id, .. }
+            | Self::LocalEnvironmentsSaveConfig { id, .. }
             | Self::EnvironmentAdd { id, .. }
             | Self::EnvironmentInfo { id, .. }
             | Self::EnvironmentStatus { id, .. }
@@ -969,6 +979,9 @@ impl ClientRequest {
             Self::McpServerEventStreamStart { .. } => Method::McpServerEventStreamStart,
             Self::McpServerEventStreamStop { .. } => Method::McpServerEventStreamStop,
             Self::McpServerToolCall { .. } => Method::McpServerToolCall,
+            Self::LocalEnvironmentsList { .. } => Method::LocalEnvironmentsList,
+            Self::LocalEnvironmentsReadConfig { .. } => Method::LocalEnvironmentsReadConfig,
+            Self::LocalEnvironmentsSaveConfig { .. } => Method::LocalEnvironmentsSaveConfig,
             Self::EnvironmentAdd { .. } => Method::EnvironmentAdd,
             Self::EnvironmentInfo { .. } => Method::EnvironmentInfo,
             Self::EnvironmentStatus { .. } => Method::EnvironmentStatus,
@@ -1117,6 +1130,9 @@ pub enum ClientResponsePayload {
     McpServerEventStreamStart(McpServerEventStreamStartResponse),
     McpServerEventStreamStop(McpServerEventStreamStopResponse),
     McpServerToolCall(McpServerToolCallResponse),
+    LocalEnvironmentsList(LocalEnvironmentsListResponse),
+    LocalEnvironmentsReadConfig(LocalEnvironmentsReadConfigResponse),
+    LocalEnvironmentsSaveConfig(LocalEnvironmentsSaveConfigResponse),
     EnvironmentAdd(EnvironmentAddResponse),
     EnvironmentInfo(EnvironmentInfoResponse),
     EnvironmentStatus(EnvironmentStatusResponse),
@@ -1226,6 +1242,9 @@ impl ClientResponsePayload {
             Self::McpServerEventStreamStart(_) => Method::McpServerEventStreamStart,
             Self::McpServerEventStreamStop(_) => Method::McpServerEventStreamStop,
             Self::McpServerToolCall(_) => Method::McpServerToolCall,
+            Self::LocalEnvironmentsList(_) => Method::LocalEnvironmentsList,
+            Self::LocalEnvironmentsReadConfig(_) => Method::LocalEnvironmentsReadConfig,
+            Self::LocalEnvironmentsSaveConfig(_) => Method::LocalEnvironmentsSaveConfig,
             Self::EnvironmentAdd(_) => Method::EnvironmentAdd,
             Self::EnvironmentInfo(_) => Method::EnvironmentInfo,
             Self::EnvironmentStatus(_) => Method::EnvironmentStatus,
@@ -1333,6 +1352,9 @@ impl ClientResponsePayload {
             Self::McpServerEventStreamStart(response) => serde_json::to_value(response)?,
             Self::McpServerEventStreamStop(response) => serde_json::to_value(response)?,
             Self::McpServerToolCall(response) => serde_json::to_value(response)?,
+            Self::LocalEnvironmentsList(response) => serde_json::to_value(response)?,
+            Self::LocalEnvironmentsReadConfig(response) => serde_json::to_value(response)?,
+            Self::LocalEnvironmentsSaveConfig(response) => serde_json::to_value(response)?,
             Self::EnvironmentAdd(response) => serde_json::to_value(response)?,
             Self::EnvironmentInfo(response) => serde_json::to_value(response)?,
             Self::EnvironmentStatus(response) => serde_json::to_value(response)?,

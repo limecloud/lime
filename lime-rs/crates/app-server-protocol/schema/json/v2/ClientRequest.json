@@ -922,6 +922,70 @@
       },
       "type": "object"
     },
+    "LocalEnvironmentsListParams": {
+      "additionalProperties": false,
+      "properties": {
+        "hostId": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "workspaceRoot": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "workspaceRoot"
+      ],
+      "type": "object"
+    },
+    "LocalEnvironmentsReadConfigParams": {
+      "additionalProperties": false,
+      "properties": {
+        "configPath": {
+          "type": "string"
+        },
+        "hostId": {
+          "type": [
+            "null",
+            "string"
+          ]
+        }
+      },
+      "required": [
+        "configPath"
+      ],
+      "type": "object"
+    },
+    "LocalEnvironmentsSaveConfigParams": {
+      "additionalProperties": false,
+      "properties": {
+        "configPath": {
+          "type": "string"
+        },
+        "expectedRevision": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "hostId": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "raw": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "configPath",
+        "raw"
+      ],
+      "type": "object"
+    },
     "LoginAccountParams": {
       "description": "External LimeCore sessions share the account boundary used by every surface.",
       "oneOf": [
@@ -5311,6 +5375,66 @@
         },
         "params": {
           "$ref": "#/$defs/McpServerToolCallParams"
+        }
+      },
+      "required": [
+        "id",
+        "method",
+        "params"
+      ],
+      "type": "object"
+    },
+    {
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/RequestId"
+        },
+        "method": {
+          "const": "localEnvironments/list",
+          "type": "string"
+        },
+        "params": {
+          "$ref": "#/$defs/LocalEnvironmentsListParams"
+        }
+      },
+      "required": [
+        "id",
+        "method",
+        "params"
+      ],
+      "type": "object"
+    },
+    {
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/RequestId"
+        },
+        "method": {
+          "const": "localEnvironments/readConfig",
+          "type": "string"
+        },
+        "params": {
+          "$ref": "#/$defs/LocalEnvironmentsReadConfigParams"
+        }
+      },
+      "required": [
+        "id",
+        "method",
+        "params"
+      ],
+      "type": "object"
+    },
+    {
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/RequestId"
+        },
+        "method": {
+          "const": "localEnvironments/saveConfig",
+          "type": "string"
+        },
+        "params": {
+          "$ref": "#/$defs/LocalEnvironmentsSaveConfigParams"
         }
       },
       "required": [

@@ -88,8 +88,8 @@ vi.mock("../agent/providers", () => ({
 vi.mock("@/components/mcp", () => ({
   McpPanel: () => <div>mcp</div>,
 }));
-vi.mock("../system/environment", () => ({
-  EnvironmentSettings: () => <div>environment</div>,
+vi.mock("../coding/local-environments/LocalEnvironmentsSettings", () => ({
+  LocalEnvironmentsSettings: () => <div>local-environments</div>,
 }));
 vi.mock("../system/execution-policy", () => ({
   ExecutionPolicySettings: (props: unknown) => {
@@ -507,7 +507,7 @@ describe("SettingsPage current sections", () => {
     [SettingsTabs.Skills, "skills"],
     [SettingsTabs.MediaServices, "media-services"],
     [SettingsTabs.McpServer, "mcp"],
-    [SettingsTabs.Environment, "environment"],
+    [SettingsTabs.LocalEnvironments, "local-environments"],
     [SettingsTabs.ExecutionPolicy, "execution-policy"],
     [SettingsTabs.About, "about"],
   ])("公开设置页应渲染 current %s 章节", async (tab, text) => {

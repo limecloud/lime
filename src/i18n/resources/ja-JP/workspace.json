@@ -272,6 +272,8 @@
   "workspace.artifactRenderer.fallback.detail": "タイプ「{{type}}」に対応するレンダラーがないため、元の内容を表示します。",
   "workspace.artifactRenderer.sourceOnError.title": "ソース表示（レンダリング失敗）",
   "workspace.artifactRenderer.sourceOnError.retry": "再試行",
+  "workspace.artifactRenderer.previewFallback.titleFallback": "無題のリソース",
+  "workspace.artifactRenderer.previewFallback.mimeType": "種類: {{mimeType}}",
   "workspace.artifactRenderer.previewFallback.systemOpen.title": "システムアプリで開いてください",
   "workspace.artifactRenderer.previewFallback.systemOpen.detail": "このファイルは統一プレビュー経路に入っていますが、安全な埋め込みレンダラーはまだありません。上部ツールバーからシステムアプリで開くか、ファイルの場所を確認してください。",
   "workspace.artifactRenderer.previewFallback.unsupported.title": "埋め込みプレビューにはまだ対応していません",
