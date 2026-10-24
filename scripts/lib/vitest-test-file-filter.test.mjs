@@ -55,6 +55,21 @@ describe("vitest-test-file-filter", () => {
     ).toBe(false);
   });
 
+  it("应排除执行计划冻结源码，保留现役源码测试", () => {
+    expect(
+      isVitestRunnableTestFile(
+        "internal/exec-plans/artifacts/browser/frozen-source/src/Foo.test.tsx",
+        'import { it } from "vitest";',
+      ),
+    ).toBe(false);
+    expect(
+      isVitestRunnableTestFile(
+        "src/Foo.test.tsx",
+        'import { it } from "vitest";',
+      ),
+    ).toBe(true);
+  });
+
   it("应保留同时支持 Vitest 的 package 测试文件", () => {
     expect(
       isVitestRunnableTestFile(

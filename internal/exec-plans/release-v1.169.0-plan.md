@@ -51,3 +51,6 @@
 - 后继验证只消费完整暂存tree的只读快照，产品修改始终在原目录。本地生成后的包build/Electron类型/contracts对同一候选执行；远端最终同SHA Quality补完整lint、Rust、GUI和前端矩阵。
 - 暂存tree `bc25361dda4ff6693c8b3302ad7f45bce775623b` 的只读验证快照：app-server-client build、typecheck:electron、完整test:contracts均exit0；日志在`.lime/release-v11690/frozen-*.log`。快照之后新增的browser-runtime-electron-gate-b-thread.mjs及其调用接线按用户全部递交要求纳入，两个脚本node --check通过；没有在验证目录开发或回写产品代码。
 - 追加候选包含首轮CI三个失败修复、浏览器受管权限、图库与独立素材完整退役、同步schema/客户端、原生engine preflight及浏览器验收脚本。Rust权限测试本机仍等待编译，不以等待视为通过；最终提交由远端Quality补齐。
+- 全部149文件追加为`69349ccad8d36465a1f62eeed4a13435ae0890be`并推main，提交后工作区干净。Quality 40089359988的Integrity、Bridge & Contracts、完整lint与typecheck通过；Frontend Full后续被分层预算39>38阻断，未进入全量Vitest。标签仍未创建。
+- 修复分层：ThreadSummaryPanel的纯投影与布局断言迁到threadSummary.unit.test.ts，组件保留实际DOM/动作/多语言回归；公共测试过滤器排除internal/exec-plans/artifacts冻结副本，并补现役文件保留回归。预算上限未修改，现为38/38；六文件57项通过，定向ESLint exit0。Browser engine preflight以Vitest正确入口4/4通过，最初误用node --test的启动错误不计作产品失败。
+- 本机Rust permission_profile定向最终exit0、14/14通过（编译34m28s）。其他任务追加的turn权限五语言文案、回合测试与Gate B identity修正一并纳入；对应浏览器权限测试包含在上述57项中。本轮继续以最终SHA远端矩阵收口。

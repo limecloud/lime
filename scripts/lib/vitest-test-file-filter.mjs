@@ -23,6 +23,9 @@ export function isVitestRunnableTestFile(filePath, source = undefined) {
   if (normalized.startsWith(".lime/") || normalized.includes("/.lime/")) {
     return false;
   }
+  if (normalized.startsWith("internal/exec-plans/artifacts/")) {
+    return false;
+  }
   if (TEST_FIXTURE_FILE_PATTERN.test(fileName)) {
     return false;
   }

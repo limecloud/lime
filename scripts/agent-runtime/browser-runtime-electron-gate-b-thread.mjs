@@ -151,6 +151,7 @@ export async function runBrowserReceiptTurns(context) {
         if (value !== "true")
           throw new Error("Native user key did not reach the page");
       }, nativeInput.webContentsId);
+      nativeInput.trustedPageEvent = true;
     }
     const before = await readBrowserWorkspaceState(page);
     const debuggerBefore = await readBrowserDebuggerState(
@@ -178,7 +179,10 @@ export async function runBrowserReceiptTurns(context) {
       assert(
         request.accessApprovalLifetime === "thread" &&
           request.threadId === identity.threadId &&
-          request.tool === "claimTab",
+          request.tool === "claimTab" &&
+          request.policyRevision ===
+            evidence.browse.afterPolicyChange.lineage.policyRevision &&
+          prompt.summary.includes(evidence.browse.origin),
         "Renewed browse approval changed its scope",
       );
       const debuggerPending = await readBrowserDebuggerState(
@@ -279,14 +283,12 @@ export async function runBrowserReceiptTurns(context) {
       turns[0]?.name === "retained" &&
       new Set(turnIds).size === 3 &&
       turnIds.every(Boolean),
-    sameThreadSessionTabAndNativeView: turns.every((turn) =>
-      [
-        "threadId",
-        "browserSessionId",
-        "tabId",
-        "viewId",
-        "webContentsId",
-      ].every((key) => turn.observed.state[key] === expected[key]),
+    sameThreadSessionTabAndNativeView: turns.every(
+      (turn) =>
+        turn.observed.state.browserSessionId === expected.sessionId &&
+        ["threadId", "tabId", "viewId", "webContentsId"].every(
+          (key) => turn.observed.state[key] === expected[key],
+        ),
     ),
     receiptNeverRetainsControlBetweenTurns: turns.every(
       (turn) =>
@@ -303,6 +305,7 @@ export async function runBrowserReceiptTurns(context) {
     ),
     nativeUserInputRevokesThreadReceipt:
       nativeInput?.webContentsId === expected.webContentsId &&
+      nativeInput?.trustedPageEvent === true &&
       renewedApproval?.turnId === turnIds[2] &&
       renewedApproval?.origin === evidence.browse.origin &&
       renewedApproval?.debuggerAttachedBeforeApproval === false,

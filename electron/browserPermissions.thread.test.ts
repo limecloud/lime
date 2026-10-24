@@ -139,6 +139,24 @@ it.each([
   ).toContain(text);
 });
 
+it.each([
+  ["zh-CN", "此回合"],
+  ["zh-TW", "此回合"],
+  ["en-US", "this turn"],
+  ["ja-JP", "このターン"],
+  ["ko-KR", "이 턴"],
+])("shows a managed turn scope in the %s approval reason", (locale, text) => {
+  const policy = new BrowserTabPolicy();
+  policy.setSettings(settings("turn"));
+  const p = new BrowserPermissions(policy);
+  p.setLocale(locale);
+  const stage = p.require(call(), anchor, "https://example.com:8443/path")!;
+  expect(stage.approval!.reason).toContain(text);
+  expect(stage.approval!.reason).toContain("https://example.com:8443");
+  expect(stage.approval!.reason).not.toContain("turn-1");
+  expect(p.pending()[0].accessApprovalLifetime).toBe("turn");
+});
+
 it("a retained native tab releases control at turn end while its thread receipt can authorize a fresh claim", async () => {
   const h = createHarness();
   h.host.setSettings(settings());

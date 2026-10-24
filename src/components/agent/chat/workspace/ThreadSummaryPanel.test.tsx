@@ -6,11 +6,6 @@ import type { AgentThreadItem } from "@/lib/api/agentProtocol";
 import { ThreadSummaryPanel } from "./ThreadSummaryPanel";
 import { cleanBackgroundTerminals } from "@/lib/api/backgroundTerminals";
 import type { AgentThreadTurn } from "../types";
-import { selectThreadSummary } from "./threadSummaryProjection";
-import {
-  getThreadSummaryContentShift,
-  getThreadSummaryDisplayMode,
-} from "./threadSummaryPanelLayout";
 
 vi.mock("@/lib/api/backgroundTerminals", () => ({
   cleanBackgroundTerminals: vi.fn(),
@@ -60,7 +55,7 @@ afterEach(async () => {
   await changeLimeLocale("en-US");
 });
 
-describe("Thread Summary canonical projection and actions", () => {
+describe("Thread Summary canonical items and actions", () => {
   it("opens canonical background output and stops all through the current thread API with retry", async () => {
     const open = vi.fn();
     const refresh = vi.fn();
@@ -215,9 +210,6 @@ describe("Thread Summary canonical projection and actions", () => {
     expect(container.querySelectorAll("[data-summary-section]")).toHaveLength(
       1,
     );
-    expect(
-      selectThreadSummary(items.filter((item) => item.type === "warning")),
-    ).toEqual({ plan: null, outputs: [], hasWebSearch: false });
   });
 
   it.each(["zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR"] as const)(
@@ -235,19 +227,4 @@ describe("Thread Summary canonical projection and actions", () => {
       ).toBeTruthy();
     },
   );
-
-  it("uses main-pane geometry for shipped overlay/shift/gutter thresholds", () => {
-    expect(
-      [1095, 1096, 1535, 1536].map((width) =>
-        getThreadSummaryDisplayMode(width),
-      ),
-    ).toEqual(["overlay", "shift", "shift", "gutter"]);
-    expect(getThreadSummaryDisplayMode(1135, 340)).toBe("overlay");
-    expect(getThreadSummaryDisplayMode(1136, 340)).toBe("shift");
-    expect(getThreadSummaryContentShift("shift", true)).toBe(-154);
-    expect(getThreadSummaryContentShift("shift", true, 340)).toBe(-174);
-    expect(getThreadSummaryContentShift("gutter", true)).toBe(0);
-    expect(getThreadSummaryContentShift("overlay", true)).toBe(0);
-    expect(getThreadSummaryContentShift("shift", false)).toBe(0);
-  });
 });

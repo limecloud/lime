@@ -47,6 +47,16 @@ const threadApprovalText = {
   "ko-KR": (origin: string) => `이 대화에서 Agent의 ${origin} 탐색 허용`,
 } as const;
 
+const turnApprovalText = {
+  "zh-CN": (origin: string) => `允许 Agent 在此回合中浏览 ${origin}`,
+  "zh-TW": (origin: string) => `允許 Agent 在此回合中瀏覽 ${origin}`,
+  "en-US": (origin: string) =>
+    `Allow Agent browsing of ${origin} for this turn`,
+  "ja-JP": (origin: string) =>
+    `このターンで Agent が ${origin} を閲覧することを許可`,
+  "ko-KR": (origin: string) => `이 턴에서 Agent의 ${origin} 탐색 허용`,
+} satisfies Record<keyof typeof threadApprovalText, (origin: string) => string>;
+
 export function browserPermissionOrigin(url: string): string {
   let target: URL;
   try {
@@ -148,7 +158,7 @@ export class BrowserPermissions {
         reason:
           lifetime === "thread"
             ? threadApprovalText[this.#locale](origin)
-            : `Allow Agent browsing of ${origin} for this turn (${call.turnId})`,
+            : turnApprovalText[this.#locale](origin),
         riskClass: "browse",
         snapshotId: approval.snapshotId,
         tabId: anchor.tabId,

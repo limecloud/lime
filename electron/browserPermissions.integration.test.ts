@@ -70,7 +70,8 @@ describe("turn-scoped browser browsing approvals", () => {
         webContentsId: h.native.webContents.id,
       },
     });
-    expect(result.approval?.reason).toContain("this turn (turn-1)");
+    expect(result.approval?.reason).toContain("this turn");
+    expect(result.approval?.reason).not.toContain("turn-1");
     expect(h.native.webContents.debugger.attach).not.toHaveBeenCalled();
     expect(h.native.webContents.debugger.sendCommand).not.toHaveBeenCalled();
     await expect(
