@@ -79,3 +79,5 @@
 - fceb379b1的Rust Full最终success；eef36b826已通过远端lint/typecheck/38预算并进入全量Vitest。新增common_config基线变量及Git工作树配置夹具已由owner修正；command/exec取消循环保留同一个pending next_event，避免轮询丢失退出事件。实际真实stdio/PTY命令2/2、环境脚本生命周期5/5全部exit0，涵盖平台setup、失败恢复、明确none、权限拒绝、setup/cleanup取消与重试；没有修改断言或放宽沙箱。
 - Browser CDP专项冻结产品实测Gate B 72/72通过（五个GUI turn、20个runtime/provider请求，mock/console/page error均0），主页面执行切片成立；不扩大为完整CDP/WebMCP、live provider或跨平台打包证据。最后候选仅收上述窄修复、Rust格式与实际证据记录，TS输入与已完整验证的1bd0fd2c8fc3保持一致。
 - 最终增量完整contracts exit0、版本一致性1.169.0、四个Rust改动文件rustfmt check exit0；相对1bd0fd2c8fc3的TS/TSX/package/tsconfig差异为空，沿用该冻结输入的完整typecheck与Electron类型通过结果。eef36b826的GUI Smoke最终success。将全部十文件窄修复及文档记录追加递交，随后以最终SHA Quality和Release产物验收收口。
+- 十文件已提交cb7555162bcfeecf86f65fe5a9f06c5c5428c114并推main，Quality 40096112486启动；commit首试遇到其它Git进程的短暂index.lock，锁自行释放后正常提交，未删锁或终止他人进程。eef36b826的Windows失败已读取原始日志：windows_timeout_returns_canonical_exit_code得到-1而非124，对应本轮已修复的pending next_event取消安全问题；cb7555162由Windows矩阵复核，本地追加command_exec单元回归。
+- 后续仅新增Local Environments真实fixture失败截图采集，不改变产品或场景断言，node --check通过；按全部修改授权一并追加。生产TS输入仍与完整验证的冻结tree一致，保持最终提交远端门禁和发布产物验证。

@@ -286,6 +286,18 @@ try {
   summary.result = "pass";
 } catch (error) {
   summary.failure = String(error.stack || error);
+  if (handle) {
+    try {
+      const filename = "failure.png";
+      await handle.page.screenshot({
+        path: path.join(options.evidenceDir, filename),
+        animations: "disabled",
+      });
+      summary.failureScreenshot = filename;
+    } catch (screenshotError) {
+      summary.failureScreenshotError = String(screenshotError);
+    }
+  }
   process.exitCode = 1;
 } finally {
   if (handle)
