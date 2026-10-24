@@ -19,8 +19,49 @@ import { buildDownloadAssertions } from "./browser-runtime-electron-gate-b-downl
 import { buildPermissionAssertions } from "./browser-runtime-electron-gate-b-permission.mjs";
 import { buildUserControlAssertions } from "./browser-runtime-electron-gate-b-user-control.mjs";
 import { buildWindowCloseAssertions } from "./browser-runtime-electron-gate-b-window-close.mjs";
+import { browserReceiptTurnStarts } from "./browser-runtime-electron-gate-b-thread.mjs";
 
 describe("Browser Electron Gate B", () => {
+  it("reads three retained turn requests through the existing JSON-RPC trace parser without retaining input", () => {
+    const trace = [1, 2, 3].flatMap((id) =>
+      ["pending", "success"].map((status) => ({
+        command: "app_server_handle_json_lines",
+        transport: "electron-ipc",
+        status,
+        args_preview: {
+          request: {
+            lines: [
+              JSON.stringify({
+                jsonrpc: "2.0",
+                id,
+                method: "turn/start",
+                params: {
+                  threadId: "thread-1",
+                  input: [{ type: "text", text: "private fixture input" }],
+                },
+              }),
+            ],
+          },
+        },
+      })),
+    );
+    const requests = browserReceiptTurnStarts(trace);
+    expect(
+      new Set(
+        requests
+          .filter((call) => call.status === "success")
+          .map((call) => call.requestId),
+      ),
+    ).toEqual(new Set([1, 2, 3]));
+    expect(
+      requests.every(
+        (call) =>
+          call.threadId === "thread-1" && call.transport === "electron-ipc",
+      ),
+    ).toBe(true);
+    expect(JSON.stringify(requests)).not.toContain("private fixture input");
+    expect(browserReceiptTurnStarts([])).toEqual([]);
+  });
   it("keeps history seeding confined to a fresh temporary profile and refuses replacement", async () => {
     const directory = await fs.mkdtemp(
       path.join(os.tmpdir(), "history-management-seed-"),

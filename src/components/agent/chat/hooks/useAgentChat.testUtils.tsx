@@ -521,7 +521,20 @@ export function seedSessionSnapshots(
   );
 }
 
-export function completedTurn(id = "turn-completed") {
+export function acceptedTurn(id = "turn-start") {
+  const result: TurnStartResponse = {
+    turn: { id, status: "inProgress" },
+  };
+  return {
+    id: 1,
+    result,
+    response: { id: 1, result },
+    notifications: [],
+    messages: [],
+  } satisfies AppServerRequestResult<TurnStartResponse>;
+}
+
+export function completedTurn(id = "turn-start") {
   return {
     id,
     thread_id: "thread-completed",
@@ -585,16 +598,7 @@ beforeEach(async () => {
         response: AppServerRequestResult<TurnStartResponse>,
       ) => void,
     ) => {
-      const result: TurnStartResponse = {
-        turn: { id: "turn-start", status: "inProgress" },
-      };
-      const response: AppServerRequestResult<TurnStartResponse> = {
-        id: 1,
-        result,
-        response: { id: 1, result },
-        notifications: [],
-        messages: [],
-      };
+      const response = acceptedTurn();
       onAccepted?.(response);
       return response;
     },

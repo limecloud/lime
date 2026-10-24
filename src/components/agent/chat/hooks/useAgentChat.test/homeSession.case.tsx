@@ -1,6 +1,7 @@
 import { act } from "react";
 import { describe, expect, it } from "vitest";
 import {
+  acceptedTurn,
   captureTurnStream,
   completedTurn,
   flushEffects,
@@ -984,6 +985,9 @@ describe("useAgentChat 首页新会话", () => {
   });
 
   it("话题列表暂时未返回当前执行会话时不应清空本地执行态", async () => {
+    mockSubmitAgentRuntimeTurn.mockResolvedValueOnce(
+      acceptedTurn("turn-live-missing"),
+    );
     const workspaceId = "ws-topic-missing-active-session";
     const stream = captureTurnStream();
     mockCreateAgentRuntimeSession.mockResolvedValue("session-live-missing");
@@ -1105,6 +1109,9 @@ describe("useAgentChat 首页新会话", () => {
   });
 
   it("当前执行会话确认不存在后应清空失效执行态并恢复到有效会话", async () => {
+    mockSubmitAgentRuntimeTurn.mockResolvedValueOnce(
+      acceptedTurn("turn-live-gone"),
+    );
     const workspaceId = "ws-topic-missing-not-found";
     const missingSessionId = "session-live-gone";
     const activeSessionId = "session-existing";

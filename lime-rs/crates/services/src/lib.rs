@@ -26,7 +26,6 @@
 //! - `prompt_sync` - Prompt 同步
 //! - `skill_service` - 技能服务
 //! - `backup_service` - 备份服务
-//! - `persona_service` - 人设服务
 //! - `model_registry_service` - 模型注册服务
 //! - `prompt_service` - Prompt 服务
 //! - `mcp_service` - MCP 服务
@@ -57,7 +56,6 @@ pub mod skill_service;
 pub mod backup_service;
 pub mod mcp_service;
 pub mod model_registry_service;
-pub mod persona_service;
 pub mod prompt_service;
 // 依赖其他 services 的服务
 pub mod ai_summary_service;

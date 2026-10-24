@@ -54,3 +54,6 @@
 - 全部149文件追加为`69349ccad8d36465a1f62eeed4a13435ae0890be`并推main，提交后工作区干净。Quality 40089359988的Integrity、Bridge & Contracts、完整lint与typecheck通过；Frontend Full后续被分层预算39>38阻断，未进入全量Vitest。标签仍未创建。
 - 修复分层：ThreadSummaryPanel的纯投影与布局断言迁到threadSummary.unit.test.ts，组件保留实际DOM/动作/多语言回归；公共测试过滤器排除internal/exec-plans/artifacts冻结副本，并补现役文件保留回归。预算上限未修改，现为38/38；六文件57项通过，定向ESLint exit0。Browser engine preflight以Vitest正确入口4/4通过，最初误用node --test的启动错误不计作产品失败。
 - 本机Rust permission_profile定向最终exit0、14/14通过（编译34m28s）。其他任务追加的turn权限五语言文案、回合测试与Gate B identity修正一并纳入；对应浏览器权限测试包含在上述57项中。本轮继续以最终SHA远端矩阵收口。
+- 第二轮修复`e77264aa4ac99405e40047541562134b6b1b61db`已推main；完整typecheck再次exit0。Quality 40090103916已通过lint/typecheck/分层预算并进入全量前端，Rust与GUI运行中；上一轮69349ccad的GUI Smoke通过。
+- 等待期间新增项目persona/publish配置零消费者链删除（core DAO/model/error、services、schema与治理守卫），按用户全部递交要求继续纳入。只读核对删除模块无现役引用；治理228/228通过，协议生成无漂移；core schema定向测试及完整contracts运行中。发布说明中英同步说明新库停止建旧表、存量数据保留。
+- 上述退役候选完整contracts exit0；core database::schema 6/6通过，涵盖新库不建旧表与存量行保留。聊天/浏览器夹具两文件201/201通过，完整typecheck exit0。Quality 40090103916的全量前端首批在useAgentChat出现11条turn identity旧夹具失败；与待提交acceptedTurn/completedTurn及显式pending submission修复完全对应，未放宽生产身份校验。

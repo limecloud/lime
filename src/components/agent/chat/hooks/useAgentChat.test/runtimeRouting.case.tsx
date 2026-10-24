@@ -1,6 +1,7 @@
 import { act } from "react";
 import { describe, expect, it } from "vitest";
 import {
+  acceptedTurn,
   captureTurnStream,
   completedTurn,
   createDeferred,
@@ -59,6 +60,9 @@ describe("useAgentChat runtime routing", () => {
   });
 
   it("runtime_status 与 reasoning_summary_delta 应在 turn_completed 前持续保留", async () => {
+    mockSubmitAgentRuntimeTurn.mockResolvedValueOnce(
+      acceptedTurn("turn-real-1"),
+    );
     const workspaceId = "ws-runtime-status-stream";
     seedSession(workspaceId, "session-runtime-status-stream");
     const harness = mountHook(workspaceId);
@@ -172,6 +176,9 @@ describe("useAgentChat runtime routing", () => {
   });
 
   it("并发详情请求晚返回时不应把已完成的连续 delta 截回首段", async () => {
+    mockSubmitAgentRuntimeTurn.mockResolvedValueOnce(
+      acceptedTurn("turn-runtime-detail-stale-prefix"),
+    );
     const workspaceId = "ws-runtime-detail-stale-prefix";
     const sessionId = "session-runtime-detail-stale-prefix";
     const turnId = "turn-runtime-detail-stale-prefix";
@@ -420,6 +427,9 @@ describe("useAgentChat runtime routing", () => {
   });
 
   it("turn_completed 后应主动刷新会话详情以恢复持久化执行轨迹", async () => {
+    mockSubmitAgentRuntimeTurn.mockResolvedValueOnce(
+      acceptedTurn("turn-real-1"),
+    );
     const workspaceId = "ws-final-done-refresh";
     const sessionId = "session-final-done-refresh";
     seedSession(workspaceId, sessionId);

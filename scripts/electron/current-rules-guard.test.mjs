@@ -227,7 +227,9 @@ describe("Electron current repository rules guard", () => {
     expect(quality).toContain("internal/aiprompts/governance.md");
 
     const design = readFile(".codex/skills/lime-design-language/SKILL.md");
-    expect(design).toContain("主题、多模型支持、首页 Banner");
+    expect(design).toContain("视觉主题、多模型支持");
+    expect(design).toContain("专家广场、消息渠道");
+    expect(design).not.toContain("主题、多模型支持、首页 Banner");
     expect(design).toContain("reverse-engineer-anything");
     expect(design).toContain("不能由 TUI 布局推断 GUI");
   });

@@ -3060,6 +3060,18 @@
         "lime-rs/crates/core/src/database/dao/material_dao.rs"
       ],
       "allowedPaths": []
+    },
+    {
+      "id": "retired-project-persona-publish",
+      "classification": "dead",
+      "description": "零消费者的项目写作人设与平台发布配置整链已删除；标准记忆、专家Skills不属于旧catalog。",
+      "targets": [
+        "lime-rs/crates/services/src/persona_service.rs",
+        "lime-rs/crates/core/src/database/dao/persona_dao.rs",
+        "lime-rs/crates/core/src/database/dao/publish_config_dao.rs",
+        "lime-rs/crates/core/src/models/project_model.rs"
+      ],
+      "allowedPaths": []
     }
   ],
   "commands": [
@@ -7507,6 +7519,29 @@
         "pub struct MaterialUpdate",
         "pub struct ProjectContext {",
         "MaterialError"
+      ],
+      "allowedPaths": []
+    },
+    {
+      "id": "rust-retired-project-persona-publish",
+      "classification": "dead",
+      "description": "不恢复已删除的写作人设catalog、平台发布凭证DAO与专用模型/错误。",
+      "patterns": [
+        "PersonaService",
+        "persona_service",
+        "PersonaDao",
+        "persona_dao",
+        "PublishConfigDao",
+        "publish_config_dao",
+        "models::project_model",
+        "pub mod project_model;",
+        "pub struct Persona {",
+        "pub struct PersonaTemplate",
+        "pub struct PersonaUpdate",
+        "pub struct CreatePersonaRequest",
+        "pub struct PublishConfig {",
+        "PersonaError",
+        "PublishConfigError"
       ],
       "allowedPaths": []
     }

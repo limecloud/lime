@@ -10,7 +10,6 @@ pub mod machine_id;
 pub mod mcp_model;
 pub mod model_registry;
 pub mod openai;
-pub mod project_model;
 pub mod prompt_model;
 pub mod provider_model;
 pub mod provider_type;
@@ -26,7 +25,6 @@ pub use injection_types::{InjectionMode, InjectionRule};
 pub use mcp_model::McpServer;
 #[allow(unused_imports)]
 pub use openai::*;
-pub use project_model::Persona;
 pub use prompt_model::Prompt;
 pub use provider_model::Provider;
 pub use provider_type::ProviderType;

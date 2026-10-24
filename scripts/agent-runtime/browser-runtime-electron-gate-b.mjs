@@ -2025,6 +2025,7 @@ export async function run(options) {
           pageErrors,
           readBrowserWorkspaceState,
           readBrowserDebuggerState,
+          readInvokeTrace: () => invokeTraceCollector.snapshot(),
           waitForBrowserWorkspaceState,
           waitForScenarioValue,
           waitForTerminalThread,

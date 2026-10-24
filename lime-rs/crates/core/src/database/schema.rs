@@ -820,66 +820,6 @@ pub fn create_tables(conn: &Connection) -> Result<(), rusqlite::Error> {
         [],
     )?;
 
-    // ============================================================================
-    // 人设表 (Persona)
-    // 存储项目级人设配置，用于 AI 内容生成时的风格控制
-    // _Requirements: 6.3_
-    // ============================================================================
-    conn.execute(
-        "CREATE TABLE IF NOT EXISTS personas (
-            id TEXT PRIMARY KEY,
-            project_id TEXT NOT NULL,
-            name TEXT NOT NULL,
-            description TEXT,
-            style TEXT NOT NULL DEFAULT '',
-            tone TEXT,
-            target_audience TEXT,
-            forbidden_words_json TEXT NOT NULL DEFAULT '[]',
-            preferred_words_json TEXT NOT NULL DEFAULT '[]',
-            examples TEXT,
-            platforms_json TEXT NOT NULL DEFAULT '[]',
-            is_default INTEGER DEFAULT 0,
-            created_at INTEGER NOT NULL,
-            updated_at INTEGER NOT NULL,
-            FOREIGN KEY (project_id) REFERENCES workspaces(id) ON DELETE CASCADE
-        )",
-        [],
-    )?;
-
-    // 创建 personas 索引
-    conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_personas_project_id ON personas(project_id)",
-        [],
-    )?;
-
-    // ============================================================================
-    // 发布配置表 (PublishConfig)
-    // 存储项目级发布配置，包括平台凭证和发布历史
-    // _Requirements: 9.4_
-    // ============================================================================
-    conn.execute(
-        "CREATE TABLE IF NOT EXISTS publish_configs (
-            id TEXT PRIMARY KEY,
-            project_id TEXT NOT NULL,
-            platform TEXT NOT NULL,
-            is_configured INTEGER DEFAULT 0,
-            credentials_encrypted TEXT,
-            last_published_at INTEGER,
-            publish_count INTEGER DEFAULT 0,
-            created_at INTEGER NOT NULL,
-            updated_at INTEGER NOT NULL,
-            FOREIGN KEY (project_id) REFERENCES workspaces(id) ON DELETE CASCADE,
-            UNIQUE(project_id, platform)
-        )",
-        [],
-    )?;
-
-    // 创建 publish_configs 索引
-    conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_publish_configs_project_id ON publish_configs(project_id)",
-        [],
-    )?;
-
     // 大纲节点表
     // 存储项目的大纲结构
     conn.execute(
@@ -1117,6 +1057,44 @@ fn migrate_add_proxy_url_column(conn: &Connection) -> Result<(), rusqlite::Error
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn should_not_create_retired_persona_or_publish_tables_or_change_existing_rows() {
+        let fresh = Connection::open_in_memory().unwrap();
+        create_tables(&fresh).expect("初始化现役表");
+        let retired_tables: i64 = fresh
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name IN ('personas', 'publish_configs')",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(retired_tables, 0, "新库不得恢复项目人设或平台发布配置");
+
+        let legacy = Connection::open_in_memory().unwrap();
+        legacy
+            .execute_batch(
+                "CREATE TABLE personas (id TEXT PRIMARY KEY, payload TEXT);
+                 INSERT INTO personas VALUES ('persona', 'retain-persona');
+                 CREATE TABLE publish_configs (id TEXT PRIMARY KEY, payload TEXT);
+                 INSERT INTO publish_configs VALUES ('publish', 'retain-publish');",
+            )
+            .unwrap();
+        create_tables(&legacy).expect("初始化不能修改存量人设或发布配置表");
+        for (query, expected) in [
+            (
+                "SELECT payload FROM personas WHERE id = 'persona'",
+                "retain-persona",
+            ),
+            (
+                "SELECT payload FROM publish_configs WHERE id = 'publish'",
+                "retain-publish",
+            ),
+        ] {
+            let retained: String = legacy.query_row(query, [], |row| row.get(0)).unwrap();
+            assert_eq!(retained, expected, "代码退役不得清理用户数据");
+        }
+    }
 
     #[test]
     fn should_not_create_retired_material_catalog_or_change_existing_rows() {

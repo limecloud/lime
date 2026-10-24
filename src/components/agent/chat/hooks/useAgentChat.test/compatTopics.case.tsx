@@ -1,6 +1,7 @@
 import { act } from "react";
 import { describe, expect, it } from "vitest";
 import {
+  acceptedTurn,
   captureTurnStream,
   completedTurn,
   createDeferred,
@@ -159,6 +160,9 @@ describe("useAgentChat 兼容接口 - topics", () => {
   });
 
   it("流式 turn_context / model_change 应更新 executionRuntime，并在结束后仅保留 last runtime", async () => {
+    mockSubmitAgentRuntimeTurn.mockResolvedValueOnce(
+      acceptedTurn("turn-runtime-1"),
+    );
     const stream = captureTurnStream();
     const harness = mountHook("ws-execution-runtime");
 
@@ -213,7 +217,7 @@ describe("useAgentChat 兼容接口 - topics", () => {
       await act(async () => {
         stream.emit({
           type: "turn_completed",
-          turn: completedTurn(),
+          turn: completedTurn("turn-runtime-1"),
         });
       });
 

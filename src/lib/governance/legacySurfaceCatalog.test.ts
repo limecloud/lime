@@ -33,6 +33,17 @@ function collectSourceFiles(root: string): string[] {
 }
 
 describe("legacySurfaceCatalog", () => {
+  it("项目写作人设与平台发布配置整链删除且不恢复兼容入口", () => {
+    const monitor = legacySurfaceCatalogJson.imports.find(
+      (entry) => entry.id === "retired-project-persona-publish",
+    );
+    expect(monitor?.classification).toBe("dead");
+    expect(monitor?.allowedPaths).toEqual([]);
+    expect(monitor?.targets.length).toBeGreaterThan(0);
+    for (const target of monitor?.targets ?? []) {
+      expect(existsSync(join(REPO_ROOT, target)), target).toBe(false);
+    }
+  });
   it("项目素材catalog不再作为视频或上下文前端入口", () => {
     const monitor = legacySurfaceCatalogJson.imports.find(
       (entry) => entry.id === "retired-project-material-platform",

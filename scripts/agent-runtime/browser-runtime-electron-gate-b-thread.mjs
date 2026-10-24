@@ -1,10 +1,17 @@
 import {
   clickApprovalDecision,
+  readMutationCount,
   waitForApprovalPrompt,
 } from "./browser-runtime-electron-gate-b-approval.mjs";
 import { readInvokeDiagnostics } from "./browser-runtime-electron-gate-b-cancel.mjs";
+import { parseJsonRpcRequestsFromInvokeTrace } from "../electron/lib/mcp-config-fixture-evidence.mjs";
+import { clickBrowserPageAsUser } from "./browser-runtime-electron-gate-b-user-control.mjs";
 import { sendPromptFromGui } from "./claw-chat-current-fixture-gui-actions.mjs";
-import { assert, sanitizeJson } from "./claw-chat-current-fixture-utils.mjs";
+import {
+  assert,
+  sanitizeJson,
+  sleep,
+} from "./claw-chat-current-fixture-utils.mjs";
 
 /** Follow-up turns use the real provider/runtime path, without direct tool calls. */
 export function createBrowserReceiptResponses(scenario, helpers) {
@@ -94,23 +101,34 @@ async function readPending(app) {
   });
 }
 
-async function sendNativeUserKey(app, webContentsId) {
-  return app.evaluate(async ({ webContents }, targetId) => {
-    const target = webContents.fromId(targetId);
-    if (!target || target.isDestroyed())
-      throw new Error("Receipt Browser WebContents is unavailable");
-    await target.executeJavaScript(`
-      document.documentElement.dataset.receiptUserKey = 'pending';
-      document.addEventListener('keydown', (event) => {
-        if (event.key === 'ArrowDown')
-          document.documentElement.dataset.receiptUserKey = String(event.isTrusted);
-      }, { once: true });
-    `);
-    target.focus();
-    target.sendInputEvent({ type: "keyDown", keyCode: "ArrowDown" });
-    target.sendInputEvent({ type: "keyUp", keyCode: "ArrowDown" });
-    return { webContentsId: target.id, type: "keyDown", keyCode: "ArrowDown" };
-  }, webContentsId);
+export function browserReceiptTurnStarts(trace) {
+  return parseJsonRpcRequestsFromInvokeTrace(JSON.stringify(trace))
+    .filter((call) => call.method === "turn/start")
+    .map((call) => ({
+      requestId: call.id,
+      method: call.method,
+      threadId: call.params.threadId,
+      transport: call.transport,
+      status: call.status,
+    }));
+}
+
+async function sendNativeUserClick(app, webContentsId, options) {
+  const beforeMutation = await readMutationCount(app, webContentsId);
+  const input = await clickBrowserPageAsUser(app, webContentsId);
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < options.timeoutMs) {
+    const afterMutation = await readMutationCount(app, webContentsId);
+    if (afterMutation === beforeMutation + 1)
+      return {
+        ...input,
+        source: "sendInputEvent",
+        beforeMutation,
+        afterMutation,
+      };
+    await sleep(options.intervalMs);
+  }
+  throw new Error("Native user click did not reach the same Browser page");
 }
 
 /** Reuse is valid across turns; native user input must revoke the same receipt. */
@@ -128,6 +146,7 @@ export async function runBrowserReceiptTurns(context) {
     pageErrors,
     readBrowserWorkspaceState,
     readBrowserDebuggerState,
+    readInvokeTrace,
     waitForBrowserWorkspaceState,
     waitForScenarioValue,
     waitForTerminalThread,
@@ -139,19 +158,11 @@ export async function runBrowserReceiptTurns(context) {
   for (const turn of providerFixture.scenario.receiptTurns) {
     logStage(`thread-receipt-${turn.name}`);
     if (turn.name === "revoked") {
-      nativeInput = await sendNativeUserKey(
+      nativeInput = await sendNativeUserClick(
         app,
         evidence.browser.released.webContentsId,
+        options,
       );
-      await app.evaluate(async ({ webContents }, targetId) => {
-        const target = webContents.fromId(targetId);
-        const value = await target.executeJavaScript(
-          "document.documentElement.dataset.receiptUserKey",
-        );
-        if (value !== "true")
-          throw new Error("Native user key did not reach the page");
-      }, nativeInput.webContentsId);
-      nativeInput.trustedPageEvent = true;
     }
     const before = await readBrowserWorkspaceState(page);
     const debuggerBefore = await readBrowserDebuggerState(
@@ -278,6 +289,7 @@ export async function runBrowserReceiptTurns(context) {
   ];
   const expected = evidence.browser.controlled;
   const invoke = await readInvokeDiagnostics(page);
+  const turnStarts = browserReceiptTurnStarts(readInvokeTrace());
   const checks = {
     threadReceiptReusedAcrossCanonicalTurns:
       turns[0]?.name === "retained" &&
@@ -305,19 +317,24 @@ export async function runBrowserReceiptTurns(context) {
     ),
     nativeUserInputRevokesThreadReceipt:
       nativeInput?.webContentsId === expected.webContentsId &&
-      nativeInput?.trustedPageEvent === true &&
+      nativeInput?.clicked === true &&
+      nativeInput?.afterMutation === nativeInput?.beforeMutation + 1 &&
       renewedApproval?.turnId === turnIds[2] &&
       renewedApproval?.origin === evidence.browse.origin &&
       renewedApproval?.debuggerAttachedBeforeApproval === false,
     followUpUsesRealIpcWithoutMock:
       invoke.mockFallbackHitCount === 0 &&
       invoke.invokeErrorCount === 0 &&
-      invoke.calls.filter(
-        (call) =>
-          call.method === "turn/start" &&
-          call.threadId === identity.threadId &&
-          call.transport === "electron-ipc",
-      ).length >= 3,
+      new Set(
+        turnStarts
+          .filter(
+            (call) =>
+              call.threadId === identity.threadId &&
+              call.transport === "electron-ipc" &&
+              call.status === "success",
+          )
+          .map((call) => call.requestId),
+      ).size === 3,
     noFollowUpConsoleOrPageErrors:
       consoleErrors.length === 0 && pageErrors.length === 0,
   };
@@ -329,7 +346,7 @@ export async function runBrowserReceiptTurns(context) {
     ...evidence,
     status: failedAssertions.length ? "fail" : "pass",
     claimBoundary: `${evidence.claimBoundary} 后继验证同一thread三回合、重新claim和原生sendInputEvent撤权；不是OS物理输入、跨连接或重启后凭据恢复证明。`,
-    threadReceipt: { turns, nativeInput, renewedApproval },
+    threadReceipt: { turns, nativeInput, renewedApproval, turnStarts },
     invoke,
     assertions,
     failedAssertions,

@@ -2,6 +2,7 @@ import { act } from "react";
 import { describe, expect, it, vi } from "vitest";
 import {
   captureContextCompactionStream,
+  acceptedTurn,
   captureTurnStream,
   completedTurn,
   createDeferred,
@@ -15,6 +16,9 @@ import {
 
 describe("useAgentChat thread timeline", () => {
   it("sendMessage 后在首个流事件前应先注入本地回合占位", async () => {
+    const submission = createDeferred<ReturnType<typeof acceptedTurn>>();
+    mockSubmitAgentRuntimeTurn.mockReturnValueOnce(submission.promise);
+    let send: Promise<unknown> | undefined;
     const workspaceId = "ws-thread-optimistic";
     seedSession(workspaceId, "session-thread-optimistic");
     const harness = mountHook(workspaceId);
@@ -24,7 +28,7 @@ describe("useAgentChat thread timeline", () => {
       await flushEffects();
 
       await act(async () => {
-        await harness
+        send = harness
           .getValue()
           .sendMessage("帮我先开始处理", [], false, false, false, "react");
       });
@@ -55,6 +59,11 @@ describe("useAgentChat thread timeline", () => {
             updated_at: "2026-03-13T11:00:00.000Z",
           },
         });
+      });
+
+      await act(async () => {
+        submission.resolve(acceptedTurn("turn-real-1"));
+        await send;
       });
 
       expect(harness.getValue().currentTurnId).toBe("turn-real-1");
