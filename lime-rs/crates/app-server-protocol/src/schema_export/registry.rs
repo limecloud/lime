@@ -652,9 +652,13 @@ pub(super) fn v2_schemas() -> Vec<GeneratedJsonSchema> {
         typed_schema::<v2::LocalEnvironmentsListParams>("LocalEnvironmentsListParams"),
         typed_schema::<v2::LocalEnvironmentsListResponse>("LocalEnvironmentsListResponse"),
         typed_schema::<v2::LocalEnvironmentsReadConfigParams>("LocalEnvironmentsReadConfigParams"),
-        typed_schema::<v2::LocalEnvironmentsReadConfigResponse>("LocalEnvironmentsReadConfigResponse"),
+        typed_schema::<v2::LocalEnvironmentsReadConfigResponse>(
+            "LocalEnvironmentsReadConfigResponse",
+        ),
         typed_schema::<v2::LocalEnvironmentsSaveConfigParams>("LocalEnvironmentsSaveConfigParams"),
-        typed_schema::<v2::LocalEnvironmentsSaveConfigResponse>("LocalEnvironmentsSaveConfigResponse"),
+        typed_schema::<v2::LocalEnvironmentsSaveConfigResponse>(
+            "LocalEnvironmentsSaveConfigResponse",
+        ),
         typed_schema::<v2::EnvironmentAddParams>("EnvironmentAddParams"),
         typed_schema::<v2::EnvironmentAddResponse>("EnvironmentAddResponse"),
         typed_schema::<v2::EnvironmentInfoParams>("EnvironmentInfoParams"),

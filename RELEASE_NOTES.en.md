@@ -17,6 +17,7 @@ Simplified Chinese release notes are the primary version.
 - Capture the modified page on the first save or send of a design annotation, preserving screenshot and draft identity and editor event ordering while rejecting stale results.
 - Validate page, origin, tab, and control identity for native site permission requests; revoke pending grants on navigation or control changes.
 - Serialize configuration writes while preserving user and project version conflict checks to prevent stale views from overwriting newer settings.
+- Preserve process exit events and captured output during command cancellation, and keep worktrees recoverable when environment scripts are cancelled.
 - Restore translated fallback titles and MIME type labels in file previews across all five languages.
 - Unify disabled, cached, and live web search access policies and enforce network and sandbox constraints before tool execution.
 

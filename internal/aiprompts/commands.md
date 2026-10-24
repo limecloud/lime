@@ -1106,4 +1106,11 @@ expectedRevision CAS，旧 revision 或外部删除返回 conflict，不能覆�
 首次创建不覆盖现有文件，更新原子替换。setup/cleanup 支持 darwin/linux/win32 覆盖，actions 包含
 name/command/icon/platform。旧 `get_environment_preview` 为 retired guard-only，不保留替代 Host API。
 
-worktree setup/cleanup 和页头 action 的执行接线尚未完成；不把配置方法成功当成脚本执行或权限验证。
+`projectGit/worktree/create` 增加可选 localEnvironmentConfigPath 和 allowSetupFailure（默认false）。
+未选择或显式 `__none__` 跳过脚本；已选择时执行 setup，返回 setupResult 或 setupError。
+默认设置失败和取消返回带 worktreePath/setupResult 的错误，保留已建目录供恢复，不自动重复创建。
+选择记录只写 Git 返回的 config.worktree 文件；delete 冷读取同一记录，cleanup失败/取消保留工作树和未归档聊天。
+执行复用同一 CommandExecServer、当前权限/requirements与现有cancelRequest，不新增Host执行器。
+
+workspace selection 的GUI传入、页头action和setup env diff继承尚未接线；未验证Windows，不把配置成功或
+后端显式参数测试当成完整环境设置交付。

@@ -10,17 +10,21 @@ pub async fn save_local_environment_config_path(
     config_path: Option<&str>,
 ) -> Result<(), String> {
     let config = worktree_config(worktree).await?;
-    output_to_string(git_command_output_from(
-        Path::new("git"), worktree,
-        &[
-            "config",
-            "--file",
-            &config,
-            CONFIG_KEY,
-            config_path.unwrap_or("__none__"),
-        ],
-        GIT_COMMAND_TIMEOUT,
-    ).await?)?;
+    output_to_string(
+        git_command_output_from(
+            Path::new("git"),
+            worktree,
+            &[
+                "config",
+                "--file",
+                &config,
+                CONFIG_KEY,
+                config_path.unwrap_or("__none__"),
+            ],
+            GIT_COMMAND_TIMEOUT,
+        )
+        .await?,
+    )?;
     Ok(())
 }
 
@@ -43,8 +47,14 @@ pub async fn read_local_environment_config_path(worktree: &Path) -> Result<Optio
 
 async fn worktree_config(worktree: &Path) -> Result<String, String> {
     // 显式使用Git返回的工作树配置文件，不启用会改变源仓语义的共享扩展。
-    output_to_string(git_command_output_from(
-        Path::new("git"), worktree,
-        &["rev-parse", "--git-path", "config.worktree"], GIT_COMMAND_TIMEOUT,
-    ).await?).map(|path| path.trim().to_owned())
+    output_to_string(
+        git_command_output_from(
+            Path::new("git"),
+            worktree,
+            &["rev-parse", "--git-path", "config.worktree"],
+            GIT_COMMAND_TIMEOUT,
+        )
+        .await?,
+    )
+    .map(|path| path.trim().to_owned())
 }

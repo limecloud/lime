@@ -1577,9 +1577,24 @@ Web Search 的 `system/web-search/useWebSearchDraft.ts` 独立拥有原始输入
 保护外部导航，内部返回/重载也确认丢弃。配置读写仅走 typed `localEnvironments/list|readConfig|saveConfig`，
 不通过 Electron 文件业务命令或 renderer 直接写盘。App Server 归一化路径、拒绝 symlink、限制文件大小、
 串行 CAS 与原子替换；旧环境预览 API/DTO/Host 实现一并删除。真实进程环境仍归现役工具执行 owner。
-setup/cleanup 的 worktree lifecycle 与页头 actions 执行在接线中，配置保存不代表这些能力已经生效。
-root 于 2026-10-24 确认该替换保持唯一 App Server/runtime/工具 owner，未增加平行业务后端；
-当前证据与未完成项见设置对齐执行计划。
+公开 worktree 请求显式携带 localEnvironmentConfigPath 时，RuntimeCore 已通过共享 CommandExecServer
+执行 setup/cleanup，复用当前 permission profile、requirements、进程与取消。设置失败返回已建目录的恢复身份；
+清理失败/取消在归档与删除前终止。工作树选择只写 Git 返回的 config.worktree 文件，不改源仓共享 config。
+workspace selection 的 GUI 传入、页头 actions 及 setup 环境差异继承仍未接线，配置保存不代表这些产品能力已经生效。
+
+```mermaid
+flowchart LR
+  Settings[Local Environments GUI] --> RPC[App Server JSON-RPC]
+  RPC --> Files[local_environments TOML owner]
+  WorktreeRequest[Worktree request with explicit environment] --> RPC
+  RPC --> Runtime[RuntimeCore project_git]
+  Runtime --> Files
+  Runtime --> Exec[Shared CommandExecServer]
+  Exec --> Tools[tool-runtime process and sandbox]
+```
+
+root 于 2026-10-24 确认目录、数据流、权限与取消依赖继续遵守唯一 App Server/runtime/工具 owner，
+未增加平行业务后端；领域和公开请求证据不代替 GUI 选择与完整产品验收，进度见设置对齐执行计划。
 
 返回会话时，既有 `useWorkspaceTaskCenterNavigationRuntime.resolveInitialSessionSwitch` 使用 `waitForResolution` 等待本次挂载的 Composer owner 建立，再捕获导航 source 并解析工作区；不等待尚需会话水合才能获得的草稿 scope ready。原 generation/scope/navigation epoch 和过期请求守卫继续生效，避免 owner 初始化取消恢复后留在不可编辑的空壳。该接线复用既有 owner，不新增 authority。
 

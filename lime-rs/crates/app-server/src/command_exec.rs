@@ -216,61 +216,75 @@ impl CommandExecServer {
         let mut cancelled = false;
         let mut cancel_check = tokio::time::interval(Duration::from_millis(25));
         let response = loop {
-            tokio::select! {
-                event = handle.next_event() => {
-                    let Some(event) = event else {
-                        break CommandExecResponse {
-                            exit_code: if timed_out {
-                                COMMAND_EXEC_TIMEOUT_EXIT_CODE
-                            } else {
-                                -1
-                            },
-                            stdout: stdout.text(),
-                            stderr: stderr.text(),
-                        };
+            // next_event owns the final receiver while pending; preserve it across cancellation checks.
+            let event = {
+                let mut next_event = Box::pin(handle.next_event());
+                loop {
+                    tokio::select! {
+                        event = &mut next_event => break event,
+                        _ = async { if let Some(sleep) = timeout_sleep.as_mut() { sleep.await } }, if timeout_sleep.is_some() => {
+                            timed_out = true;
+                            let _ = self.process_server.terminate(&owner_id);
+                            timeout_sleep = None;
+                        }
+                        _ = cancel_check.tick(), if !cancelled => {
+                            if is_cancelled() {
+                                cancelled = true;
+                                let _ = self.process_server.terminate(&owner_id);
+                            }
+                        }
+                    }
+                }
+            };
+            let Some(event) = event else {
+                break CommandExecResponse {
+                    exit_code: if timed_out {
+                        COMMAND_EXEC_TIMEOUT_EXIT_CODE
+                    } else {
+                        -1
+                    },
+                    stdout: stdout.text(),
+                    stderr: stderr.text(),
+                };
+            };
+            match event {
+                LocalExecutionProcessEvent::Output(delta) => {
+                    if let Err(error) = self.process_server.record_process_output(delta.clone()) {
+                        tracing::warn!(process_id = %process_id, %error,
+                            "failed to record command/exec output in shared process owner");
+                    }
+                    self.handle_delta(
+                        connection_id,
+                        &process_id,
+                        delta,
+                        stream_output,
+                        &mut stdout,
+                        &mut stderr,
+                    )
+                    .await;
+                }
+                LocalExecutionProcessEvent::Exited(snapshot) => {
+                    if let Err(error) = self.process_server.finish_process(snapshot.clone()) {
+                        tracing::warn!(process_id = %process_id, %error,
+                            "failed to finalize command/exec in shared process owner");
+                    }
+                    break CommandExecResponse {
+                        exit_code: if timed_out {
+                            COMMAND_EXEC_TIMEOUT_EXIT_CODE
+                        } else {
+                            snapshot.exit_code.unwrap_or(-1)
+                        },
+                        stdout: if stream_output {
+                            String::new()
+                        } else {
+                            stdout.text()
+                        },
+                        stderr: if stream_output {
+                            String::new()
+                        } else {
+                            stderr.text()
+                        },
                     };
-                    match event {
-                        LocalExecutionProcessEvent::Output(delta) => {
-                            if let Err(error) = self.process_server.record_process_output(delta.clone())
-                            {
-                                tracing::warn!(
-                                    process_id = %process_id,
-                                    %error,
-                                    "failed to record command/exec output in shared process owner"
-                                );
-                            }
-                            self.handle_delta(connection_id, &process_id, delta, stream_output, &mut stdout, &mut stderr).await;
-                        }
-                        LocalExecutionProcessEvent::Exited(snapshot) => {
-                            if let Err(error) = self.process_server.finish_process(snapshot.clone()) {
-                                tracing::warn!(
-                                    process_id = %process_id,
-                                    %error,
-                                    "failed to finalize command/exec in shared process owner"
-                                );
-                            }
-                            break CommandExecResponse {
-                                exit_code: if timed_out {
-                                    COMMAND_EXEC_TIMEOUT_EXIT_CODE
-                                } else {
-                                    snapshot.exit_code.unwrap_or(-1)
-                                },
-                                stdout: if stream_output { String::new() } else { stdout.text() },
-                                stderr: if stream_output { String::new() } else { stderr.text() },
-                            };
-                        }
-                    }
-                }
-                _ = async { if let Some(sleep) = timeout_sleep.as_mut() { sleep.await } }, if timeout_sleep.is_some() => {
-                    timed_out = true;
-                    let _ = self.process_server.terminate(&owner_id);
-                    timeout_sleep = None;
-                }
-                _ = cancel_check.tick(), if !cancelled => {
-                    if is_cancelled() {
-                        cancelled = true;
-                        let _ = self.process_server.terminate(&owner_id);
-                    }
                 }
             }
         };

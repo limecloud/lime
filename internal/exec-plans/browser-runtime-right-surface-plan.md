@@ -13,6 +13,7 @@
 - 本轮补充作用域门禁：当前仅登记主页面即时命令，未有owner的跨站cookie、持久debugger覆盖、未知命令、显式frame/context和直接文件路径在审批前拒绝；历史导航先读取native目的地再验策略。超时原生释放抛错也必须失败收口，迟到结果不再触发配置回读。此为执行切片，非完整CDP。
 - 定向8文件114/114、Electron类型、限定lint/格式和contracts均exit0。默认verify:local实际exit2：并行LocalEnvironmentDetails.tsx的EnvironmentSelect缺必需disabled，后继门禁未执行；current-fixture四组实际执行31+34+3+303=371项通过，后续Renderer编译因共享源码变化exit1，Electron子场景未启动。两次CDP场景也在freshness检查失败，均不计Gate B。
 - 为解除持续共享写入对取证的阻塞，在原仓库.lime/verification/browser-cdp-1792844954516保存11539个文件的冻结验证快照，复制前后原始内容零漂移，逐文件hash与原HEAD记录在verification-snapshot.json/frozen-source.json。仅用于构建与验证，所有产品修改均先落原目录，禁止在快照修产品或回写；后续证据明确绑定快照，不冒充当前不断变化的整树。原架构/命令文档已同步，root确认单一owner与数据流。
+- 冻结Renderer/Host/App Server实际构建通过，修复原目录fixture错误的released终态与trace JSON参数后，真实CDP Gate B 72/72通过：同一thread/session/tab/view/WebContents五个独立GUI回合，20个runtime/provider请求；mutation为1/1/1/1/2，批准/拒绝/关闭/同回合撤权/重新启用分别有canonical结果，终态detach及pending清除，mock0、console/page error0。冻结产品未修改，修复驱动从原目录运行，产品文件hash仍匹配；原审批/撤权/重新启用截图已审阅，BrowserWindow PNG不冒充child WCV完整视觉合成。完整CDP/WebMCP及G10仍未完成；正式GUI smoke和主链回归另记实际终态。
 
 ### 独立企业策略与审批生命周期（2026-10-24，当前）
 

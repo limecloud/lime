@@ -14,6 +14,7 @@ use thread_store::{CreateThreadParams, ReadThreadParams, ThreadStore};
 
 struct Fixture {
     temp: tempfile::TempDir,
+    source: PathBuf,
     workspace: PathBuf,
     environment: PathBuf,
     config: PathBuf,
@@ -58,6 +59,7 @@ impl Fixture {
         let server = server(&config, store.clone()).await;
         Self {
             temp,
+            source,
             workspace,
             environment,
             config,
@@ -152,6 +154,7 @@ fn quote(path: &Path) -> String {
 async fn selected_setup_uses_platform_and_subdirectory_cleanup_survives_restart_and_failure_preserves_chat(
 ) {
     let fixture = Fixture::new().await;
+    let common_config = std::fs::read(fixture.source.join(".git/config")).unwrap();
     let marker = std::fs::canonicalize(fixture.temp.path())
         .unwrap()
         .join("cleanup-done");
@@ -159,6 +162,11 @@ async fn selected_setup_uses_platform_and_subdirectory_cleanup_survives_restart_
     let raw = format!("name='API'\n[setup]\nscript='exit 41'\n[setup.darwin]\nscript='''{setup}'''\n[setup.linux]\nscript='''{setup}'''\n[cleanup]\nscript='exit 23'\n");
     fixture.save(&fixture.environment, &raw).await;
     let created = fixture.create("selected", json!({})).await;
+    assert_eq!(
+        std::fs::read(fixture.source.join(".git/config")).unwrap(),
+        common_config,
+        "Selecting an environment must not modify source repository configuration"
+    );
     assert!(created.get("error").is_none(), "{created}");
     let root = PathBuf::from(created["result"]["worktreePath"].as_str().unwrap());
     let workspace = root.join("packages/api");
@@ -179,7 +187,8 @@ async fn selected_setup_uses_platform_and_subdirectory_cleanup_survives_restart_
         &root,
         &[
             "config",
-            "--worktree",
+            "--file",
+            &git(&root, &["rev-parse", "--git-path", "config.worktree"]),
             "--get",
             "codex.localEnvironmentConfigPath",
         ],
@@ -274,7 +283,8 @@ async fn setup_failure_has_recovery_path_allow_failure_and_explicit_none_skips_s
             &root,
             &[
                 "config",
-                "--worktree",
+                "--file",
+                &git(&root, &["rev-parse", "--git-path", "config.worktree"]),
                 "--get",
                 "codex.localEnvironmentConfigPath"
             ]
@@ -363,7 +373,8 @@ async fn cancel_cleanup_keeps_checkout_and_releases_operation_for_retry() {
         &root,
         &[
             "config",
-            "--worktree",
+            "--file",
+            &git(&root, &["rev-parse", "--git-path", "config.worktree"]),
             "--get",
             "codex.localEnvironmentConfigPath",
         ],

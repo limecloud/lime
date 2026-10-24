@@ -75,3 +75,7 @@
 - fceb379b1远端GUI Smoke最终success；本地新增环境边界守卫1/1、详情/编辑/i18n28/28、定向lint通过。当前下一候选同步LocalEnvironmentScriptResult/Status与Worktree配置选择schema/client，以及request cancellation和生命周期接线；冻结后完整typecheck/contracts为提交硬门禁，执行行为继续由定向Rust与最终同SHAFull验证。
 - tree 5f49f164d556与后继1bd0fd2c8fc3均完成冻结后的完整typecheck、Electron types、client build及完整contracts，全部exit0，协议1083类型生成无漂移。后继候选补环境文件重名处理，4文件27项通过；配置/Worktree公共回归2+12项通过。新增命令取消响应的json宏缺导入编译错误已由owner修复，command_exec与环境脚本公开回归继续运行，不计等待为通过。
 - fceb379b1的Windows Shell Runtime最终success；Rust Full仍在运行。冻结后追加仅Rust配置保存修复、CDP fixture终态断言与发布记录，不涉及已验证TS输入；继续递交所有后续候选，不提前创建标签。
+- 后继52文件已提交eef36b82629580d5e1fafc6b819629e99eebc76f并推main，Quality 40095080616启动。提交后本地生命周期测试又有新增fixture修改，当前编译报common_config未定义（local_environment_lifecycle_jsonrpc.rs:166）；该断言属于提交后的未暂存增量，不能算eef36b826本身的编译结果。本轮继续避让该活跃文件，待fixture修正和同目标实际通过后收口全部后续改动。
+- fceb379b1的Rust Full最终success；eef36b826已通过远端lint/typecheck/38预算并进入全量Vitest。新增common_config基线变量及Git工作树配置夹具已由owner修正；command/exec取消循环保留同一个pending next_event，避免轮询丢失退出事件。实际真实stdio/PTY命令2/2、环境脚本生命周期5/5全部exit0，涵盖平台setup、失败恢复、明确none、权限拒绝、setup/cleanup取消与重试；没有修改断言或放宽沙箱。
+- Browser CDP专项冻结产品实测Gate B 72/72通过（五个GUI turn、20个runtime/provider请求，mock/console/page error均0），主页面执行切片成立；不扩大为完整CDP/WebMCP、live provider或跨平台打包证据。最后候选仅收上述窄修复、Rust格式与实际证据记录，TS输入与已完整验证的1bd0fd2c8fc3保持一致。
+- 最终增量完整contracts exit0、版本一致性1.169.0、四个Rust改动文件rustfmt check exit0；相对1bd0fd2c8fc3的TS/TSX/package/tsconfig差异为空，沿用该冻结输入的完整typecheck与Electron类型通过结果。eef36b826的GUI Smoke最终success。将全部十文件窄修复及文档记录追加递交，随后以最终SHA Quality和Release产物验收收口。
